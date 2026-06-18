@@ -151,21 +151,8 @@ $tapasMap = queryByLeague($pdo, "
 ");
 sortLeagueData($tapasMap);
 
-// ── 12. GMs com mais acessos ─────────────────────────────────────
-$loginsMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COALESCE(u.login_count,0) AS count
-    FROM teams t JOIN users u ON u.id=t.user_id
-    WHERE COALESCE(u.login_count,0) > 0 ORDER BY count DESC
-");
-sortLeagueData($loginsMap);
-
-// ── 13. GMs com mais FBA Points ──────────────────────────────────
-$fbaPtsMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COALESCE(u.fba_points,0) AS count
-    FROM teams t JOIN users u ON u.id=t.user_id
-    WHERE COALESCE(u.fba_points,0) > 0 ORDER BY count DESC
-");
-sortLeagueData($fbaPtsMap);
+$loginsMap  = [];
+$fbaPtsMap  = [];
 
 // ── 14. Mais jogadores draftados ─────────────────────────────────
 $draftedMap = queryByLeague($pdo, "
@@ -483,21 +470,6 @@ renderSection('tapas', '👋', 'rgba(252,0,37,.10)', 'Tapas Usados',
         'copy_hi' => 'Mais tapas usados',
     ]);
 
-renderSection('logins', '🔑', 'rgba(96,165,250,.10)', 'Acessos do GM',
-    'GMs com mais logins na plataforma',
-    $loginsMap, $leagues, [
-        'label_hi' => '🔑 Mais acessos', 'label_lo' => '💤 Menos acessos',
-        'color_hi' => 'blue', 'color_lo' => 'lo',
-        'copy_hi' => 'GMs mais ativos', 'copy_lo' => 'GMs menos ativos',
-    ]);
-
-renderSection('fbapts', '💰', 'rgba(251,191,36,.10)', 'FBA Points',
-    'GMs com mais FBA Points acumulados',
-    $fbaPtsMap, $leagues, [
-        'label_hi' => '💰 Mais FBA Points', 'label_lo' => '📉 Menos FBA Points',
-        'color_hi' => 'gold', 'color_lo' => 'lo',
-        'copy_hi' => 'Mais FBA Points', 'copy_lo' => 'Menos FBA Points',
-    ]);
 
 renderSection('draftados', '🎓', 'rgba(168,85,247,.10)', 'Jogadores Draftados',
     'Times que mais desenvolveram jogadores pelo draft',
