@@ -22,7 +22,7 @@ function queryByLeague(PDO $pdo, string $sql, array $params = []): array {
             $out[$lg][] = $r;
         }
         return $out;
-    } catch (Exception $e) { return []; }
+    } catch (Exception) { return []; }
 }
 
 function sortLeagueData(array &$map, string $key = 'count', bool $desc = true): void {
@@ -206,6 +206,23 @@ try {
         if (!$hasMusk) $arr[] = ['name' => 'St. Louis Musketeers', 'count' => 1];
     } unset($arr);
     sortLeagueData($top5PicksMap);
+} catch (Exception) {}
+
+// ── Times que nunca escolheram no top5 do draft ──────────────────
+$neverTop5Map = [];
+try {
+    $nt5Raw = $pdo->query("
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name
+        FROM teams t
+        WHERE t.id NOT IN (
+            SELECT DISTINCT do_.team_id
+            FROM draft_order do_
+            JOIN draft_sessions ds ON ds.id=do_.draft_session_id
+            WHERE do_.pick_position <= 5 AND do_.round = 1 AND do_.picked_player_id IS NOT NULL
+        )
+        ORDER BY t.league, t.city, t.name
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($nt5Raw as $r) $neverTop5Map[$r['league']][] = $r['name'];
 } catch (Exception) {}
 
 // ── Jogadores que mais foram a leilão (leilao_jogadores) ──────────
@@ -670,6 +687,30 @@ renderSection('top5picks', '⭐', 'rgba(96,165,250,.12)', 'Mais Escolhas no Top 
         'color_hi' => 'blue',
         'copy_hi' => 'Mais escolhas no top 5 do draft',
     ]);
+
+<?php if (!empty(array_filter($neverTop5Map))): ?>
+<div class="section-block" id="never-top5">
+  <div class="section-head">
+    <div class="section-icon" style="background:rgba(148,163,184,.10)">🚫</div>
+    <div><h2>Nunca Escolheram no Top 5</h2><div class="section-sub">Times sem nenhuma escolha nas 5 primeiras posições do draft</div></div>
+  </div>
+  <div class="leagues-grid">
+    <?php foreach ($leagues as $lg): $arr = $neverTop5Map[$lg] ?? []; ?>
+    <div class="league-card">
+      <div class="league-header">
+        <span class="league-badge badge-<?= $lg ?>"><?= $lg ?></span>
+        <span style="font-size:11px;color:var(--text-3);flex:1"><?= count($arr) ?> time(s)</span>
+      </div>
+      <?php if (empty($arr)): ?>
+        <div class="empty-state">Todos já escolheram no top 5</div>
+      <?php else: foreach ($arr as $nm): ?>
+        <div class="rank-row"><span class="rname"><?= htmlspecialchars($nm) ?></span></div>
+      <?php endforeach; endif; ?>
+    </div>
+    <?php endforeach; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 renderSection('leilao', '🔨', 'rgba(168,85,247,.12)', 'Jogadores mais Leiloados',
     'Jogadores que mais apareceram em processos de FA/leilão',
