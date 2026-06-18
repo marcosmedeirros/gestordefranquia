@@ -168,13 +168,12 @@ $rotMap = queryByLeague($pdo, "
 ");
 sortLeagueData($rotMap);
 
-// ── FA pickups (free_agent_offers aceitas = jogador pego) ────────
+// ── FA pickups (fa_requests com status=assigned = jogador pego) ──
 $faMap = queryByLeague($pdo, "
     SELECT far.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
-    FROM free_agent_offers fao
-    JOIN teams t ON t.id = fao.team_id
-    JOIN fa_requests far ON far.id = fao.free_agent_id
-    WHERE fao.status = 'accepted'
+    FROM fa_requests far
+    JOIN teams t ON t.id = far.winner_team_id
+    WHERE far.status = 'assigned' AND far.winner_team_id IS NOT NULL
     GROUP BY far.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($faMap);
