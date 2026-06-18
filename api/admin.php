@@ -828,7 +828,6 @@ if ($method === 'GET') {
                     $name = trim($body['name'] ?? '');
                     $players = $body['players'] ?? [];
                     if (!$name) { echo json_encode(['success' => false, 'error' => 'Nome obrigatório']); break; }
-                    if (empty($players)) { echo json_encode(['success' => false, 'error' => 'Lista de jogadores vazia']); break; }
                     $pdo->beginTransaction();
                     try {
                         $s = $pdo->prepare("INSERT INTO draft_class_templates (name, created_by) VALUES (?, ?)");

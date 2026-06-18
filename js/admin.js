@@ -6432,10 +6432,35 @@ function _draftClassOpenEditModal(templateId, name, players = []) {
       <div style="padding:16px 18px">
         <div class="mb-3 d-flex gap-2 align-items-center">
           <input type="text" id="_dcNameInput" class="form-control" value="${escapeHtml(name)}" placeholder="Nome da classe (ex: Draft 2040)" style="flex:1">
-          ${!templateId ? `<button class="btn-ghost" style="color:#a855f7;white-space:nowrap" onclick="_dcSaveNewClass()"><i class="bi bi-check-lg me-1"></i>Criar</button>` : `<button class="btn-ghost" style="color:#a855f7;white-space:nowrap" onclick="_dcRenameClass()"><i class="bi bi-check-lg me-1"></i>Renomear</button>`}
+          ${templateId
+            ? `<button class="btn-ghost" style="color:#a855f7;white-space:nowrap" onclick="_dcRenameClass()"><i class="bi bi-check-lg me-1"></i>Renomear</button>`
+            : `<button class="btn-ghost" style="color:#a855f7;white-space:nowrap" onclick="_dcSaveNewClass()"><i class="bi bi-check-lg me-1"></i>Criar vazia</button>`}
         </div>
 
-        ${templateId ? `
+        ${!templateId ? `
+        <div style="border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:10px">Ou crie com CSV</div>
+          <p style="font-size:12px;color:var(--text-3);margin-bottom:10px">CSV com colunas: <strong style="color:var(--text)">name, position, ovr, age</strong></p>
+          <div id="_dcNewClassDropzone"
+            style="border:2px dashed var(--border-md);border-radius:var(--radius-sm);padding:20px;text-align:center;cursor:pointer;transition:border-color .2s"
+            onclick="document.getElementById('_dcNewClassFile').click()"
+            ondragover="event.preventDefault();this.style.borderColor='#a855f7'"
+            ondragleave="this.style.borderColor=''"
+            ondrop="_dcNewClassFileDrop(event)">
+            <i class="bi bi-file-earmark-text" style="font-size:26px;color:var(--text-3)"></i>
+            <p style="font-size:13px;color:var(--text-2);margin-top:8px;margin-bottom:0">Arraste o CSV ou clique para selecionar</p>
+          </div>
+          <input type="file" id="_dcNewClassFile" accept=".csv,text/csv" style="display:none" onchange="_dcNewClassFileSelected(this)">
+          <div id="_dcNewClassPreview" style="display:none;margin-top:10px">
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:6px"><span id="_dcNewClassCount">0</span> jogadores detectados</div>
+            <div id="_dcNewClassTable" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm)"></div>
+            <div class="d-flex gap-2 justify-content-end mt-3">
+              <button class="btn-ghost" onclick="document.getElementById('_dcEditModal').remove()">Cancelar</button>
+              <button class="btn-ghost" style="color:#a855f7" onclick="_dcSaveNewClassWithCSV()"><i class="bi bi-check-lg me-1"></i>Criar com esses jogadores</button>
+            </div>
+          </div>
+        </div>
+        ` : `
         <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:10px">
             Jogadores (${players.length})
@@ -6456,15 +6481,44 @@ function _draftClassOpenEditModal(templateId, name, players = []) {
             </div>
           </div>
         </div>
-
         <div style="border-top:1px solid var(--border);padding-top:14px">
-          <div style="font-size:11px;color:var(--text-2);margin-bottom:8px">Ou substitua todos via CSV:</div>
+          <div style="font-size:11px;color:var(--text-2);margin-bottom:8px">Substituir todos via CSV:</div>
           <button class="btn-ghost" onclick="_draftClassReplaceCSVModal(${templateId})"><i class="bi bi-upload me-1"></i>Importar CSV (substituir tudo)</button>
-        </div>
-        ` : `<div style="color:var(--text-3);font-size:12px;padding:12px 0">Crie a classe primeiro, depois edite para adicionar jogadores.</div>`}
+        </div>`}
       </div>
     </div>`;
   document.body.appendChild(modal);
+}
+
+let _dcNewClassRows = [];
+
+function _dcNewClassFileDrop(e) { e.preventDefault(); document.getElementById('_dcNewClassDropzone').style.borderColor=''; const f=e.dataTransfer.files?.[0]; if(f)_dcNewClassParseFile(f); }
+function _dcNewClassFileSelected(inp) { const f=inp.files?.[0]; if(f)_dcNewClassParseFile(f); }
+function _dcNewClassParseFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const rows = _dcParseCSV(e.target.result);
+    if (!rows || !rows.length) { showAlert('danger','CSV inválido ou sem dados. Colunas: name, position, ovr, age'); return; }
+    _dcNewClassRows = rows;
+    document.getElementById('_dcNewClassCount').textContent = rows.length;
+    document.getElementById('_dcNewClassTable').innerHTML = _dcPreviewTable(rows);
+    document.getElementById('_dcNewClassPreview').style.display = 'block';
+    document.getElementById('_dcNewClassDropzone').style.display = 'none';
+  };
+  reader.readAsText(file,'UTF-8');
+}
+
+async function _dcSaveNewClassWithCSV() {
+  const name = document.getElementById('_dcNameInput')?.value.trim();
+  if (!name) { showAlert('warning','Digite o nome da classe'); return; }
+  if (!_dcNewClassRows.length) { showAlert('warning','Nenhum jogador no CSV'); return; }
+  try {
+    const res = await api('admin.php?action=draft_class_bank', { method:'POST', body: JSON.stringify({ sub:'save', name, players: _dcNewClassRows }) });
+    document.getElementById('_dcEditModal').remove();
+    showAlert('success', res.message || 'Classe criada!');
+    _dcNewClassRows = [];
+    showDraftClassBank();
+  } catch(e) { showAlert('danger', e.error||'Erro'); }
 }
 
 function _dcRenderPlayerList() {
