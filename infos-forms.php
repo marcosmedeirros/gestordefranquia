@@ -61,18 +61,21 @@ $pairsRaw = $pdo->query("
     GROUP BY tr.league, t1, t2
 ")->fetchAll(PDO::FETCH_ASSOC);
 
-// Resolve team names
-$teamNames = [];
-foreach ($pdo->query("SELECT id, CONCAT(city,' ',name) AS n FROM teams")->fetchAll(PDO::FETCH_ASSOC) as $r) {
-    $teamNames[$r['id']] = $r['n'];
+// Resolve team names (short = name only, long = city + name)
+$teamNamesShort = [];
+$teamNamesLong  = [];
+foreach ($pdo->query("SELECT id, name, CONCAT(city,' ',name) AS full FROM teams")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    $teamNamesShort[$r['id']] = $r['name'];
+    $teamNamesLong[$r['id']]  = $r['full'];
 }
 
 $pairsByLeague = [];
 foreach ($pairsRaw as $r) {
-    $name1 = $teamNames[$r['t1']] ?? "Time #{$r['t1']}";
-    $name2 = $teamNames[$r['t2']] ?? "Time #{$r['t2']}";
     $pairsByLeague[$r['league']][] = [
-        'label' => $name1 . ' × ' . $name2,
+        'a'     => $teamNamesShort[$r['t1']] ?? "Time #{$r['t1']}",
+        'b'     => $teamNamesShort[$r['t2']] ?? "Time #{$r['t2']}",
+        'a_long'=> $teamNamesLong[$r['t1']]  ?? "Time #{$r['t1']}",
+        'b_long'=> $teamNamesLong[$r['t2']]  ?? "Time #{$r['t2']}",
         'count' => (int)$r['c'],
     ];
 }
@@ -121,6 +124,12 @@ h1{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;margin-bottom:
 .rank-val.hi{color:var(--red)}
 .rank-val.lo{color:var(--text-3)}
 .divider{height:1px;background:var(--border-md);margin:4px 0}
+.pair-row{display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--border)}
+.pair-row:last-child{border-bottom:none}
+.pair-teams{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.pair-team{font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pair-sep{font-size:9px;color:var(--text-3);font-weight:700;letter-spacing:.5px;padding:0 2px}
+.pairs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:40px}
 </style>
 </head>
 <body>
@@ -180,15 +189,15 @@ h1{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;margin-bottom:
   <h1 style="margin-top:16px"><i class="bi bi-arrow-left-right" style="color:var(--red)"></i> Pares que mais trocaram</h1>
   <p class="subtitle">Top 5 duplas com mais e menos trades aceitas entre si por liga</p>
 
-  <div class="leagues-grid">
+  <div class="pairs-grid">
     <?php foreach ($leagues as $lg):
       $arr   = $pairsByLeague[$lg] ?? [];
       $top5p = array_slice($arr, 0, 5);
       $bot5p = array_reverse(array_slice(array_reverse($arr), 0, 5));
       $copyP  = "🤝 *Pares mais ativos — {$lg}*\n";
-      foreach ($top5p as $i => $p) $copyP .= ($i+1).". {$p['label']} — {$p['count']}\n";
+      foreach ($top5p as $i => $p) $copyP .= ($i+1).". {$p['a_long']} × {$p['b_long']} — {$p['count']}\n";
       $copyP .= "\n❄️ *Pares menos ativos — {$lg}*\n";
-      foreach ($bot5p as $i => $p) $copyP .= ($i+1).". {$p['label']} — {$p['count']}\n";
+      foreach ($bot5p as $i => $p) $copyP .= ($i+1).". {$p['a_long']} × {$p['b_long']} — {$p['count']}\n";
       $copyP = htmlspecialchars($copyP, ENT_QUOTES);
     ?>
     <div class="league-card">
@@ -201,18 +210,24 @@ h1{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;margin-bottom:
       </div>
       <div class="card-section-title">🤝 Mais parceiros</div>
       <?php foreach ($top5p as $i => $p): ?>
-      <div class="rank-row">
+      <div class="pair-row">
         <span class="rank-num <?= $i===0?'gold':'' ?>"><?= $i+1 ?></span>
-        <span class="rank-name" title="<?= htmlspecialchars($p['label']) ?>"><?= htmlspecialchars($p['label']) ?></span>
+        <div class="pair-teams">
+          <span class="pair-team" title="<?= htmlspecialchars($p['a_long']) ?>"><?= htmlspecialchars($p['a']) ?></span>
+          <span class="pair-sep">× <?= htmlspecialchars($p['b']) ?></span>
+        </div>
         <span class="rank-val hi"><?= $p['count'] ?></span>
       </div>
       <?php endforeach; ?>
       <div class="divider"></div>
       <div class="card-section-title">❄️ Menos parceiros</div>
       <?php foreach ($bot5p as $i => $p): ?>
-      <div class="rank-row">
+      <div class="pair-row">
         <span class="rank-num"><?= $i+1 ?></span>
-        <span class="rank-name" title="<?= htmlspecialchars($p['label']) ?>"><?= htmlspecialchars($p['label']) ?></span>
+        <div class="pair-teams">
+          <span class="pair-team" title="<?= htmlspecialchars($p['a_long']) ?>"><?= htmlspecialchars($p['a']) ?></span>
+          <span class="pair-sep">× <?= htmlspecialchars($p['b']) ?></span>
+        </div>
         <span class="rank-val lo"><?= $p['count'] ?></span>
       </div>
       <?php endforeach; ?>
