@@ -210,7 +210,7 @@ if ($method === 'GET') {
             break;
 
         case 'list_deadlines_admin':
-            if (($user['user_type'] ?? 'jogador') !== 'admin') {
+            if (!hasAdminAccess($pdo, $user['id'])) {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
                 exit;
@@ -226,7 +226,7 @@ if ($method === 'GET') {
             break;
 
         case 'view_all_directives_admin':
-            if (($user['user_type'] ?? 'jogador') !== 'admin') {
+            if (!hasAdminAccess($pdo, $user['id'])) {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
                 exit;
@@ -825,7 +825,7 @@ if ($method === 'POST') {
 
         case 'create_deadline':
             // ADMIN: Criar prazo
-            if (($user['user_type'] ?? 'jogador') !== 'admin') {
+            if (!hasAdminAccess($pdo, $user['id'])) {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
                 exit;
@@ -878,7 +878,7 @@ if ($method === 'POST') {
 
 // PATCH - Aceitar/desaceitar diretriz (admin)
 if ($method === 'PATCH') {
-    if (($user['user_type'] ?? 'jogador') !== 'admin') {
+    if (!hasAdminAccess($pdo, $user['id'])) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
         exit;
@@ -902,7 +902,7 @@ if ($method === 'PATCH') {
 
 // PUT - Atualizar prazo (admin)
 if ($method === 'PUT') {
-    if (($user['user_type'] ?? 'jogador') !== 'admin') {
+    if (!hasAdminAccess($pdo, $user['id'])) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
         exit;
@@ -985,7 +985,7 @@ if ($method === 'PUT') {
 
 // DELETE - Deletar prazo ou diretriz (admin)
 if ($method === 'DELETE') {
-    if (($user['user_type'] ?? 'jogador') !== 'admin') {
+    if (!hasAdminAccess($pdo, $user['id'])) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
         exit;
