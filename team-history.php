@@ -182,7 +182,7 @@ async function load(){
     statCard('Playoffs',     playoffs.appearances,  `${pct}% das temp.`),
     statCard('Títulos',      playoffs.titles,       playoffs.runner_ups>0?`${playoffs.runner_ups}× vice`:'', playoffs.titles>0?'hi-red':''),
     statCard('Trocas',       trades,                ''),
-    statCard('Picks R1',     picks.own_r1,          `${picks.own_r2} de R2`),
+    statCard('Picks trocadas', picks.traded,          ''),
   ].join('');
 
   // ── Fases ──

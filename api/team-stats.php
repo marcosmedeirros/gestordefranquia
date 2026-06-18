@@ -53,9 +53,9 @@ foreach ($standingsRaw as $r) {
     if ((int)$r['playoff_first_round'])       $playoffResults['first_round']++;
 }
 
-// ── 5. Picks ─────────────────────────────────────────────────────
-$stmtPicks = $pdo->prepare("SELECT SUM(round=1) AS picks_r1, SUM(round=2) AS picks_r2 FROM picks WHERE original_team_id = ? AND auto_generated = 1");
-$stmtPicks->execute([$teamId]);
+// ── 5. Picks trocadas ────────────────────────────────────────────
+$stmtPicks = $pdo->prepare("SELECT COUNT(*) AS traded FROM picks WHERE original_team_id != current_team_id AND (original_team_id = ? OR current_team_id = ?)");
+$stmtPicks->execute([$teamId, $teamId]);
 $picksOwned = $stmtPicks->fetch(PDO::FETCH_ASSOC);
 
 // ── 6. Trocas ────────────────────────────────────────────────────
@@ -177,8 +177,7 @@ echo json_encode([
         'top8' => $top8Regular,
     ],
     'picks'    => [
-        'own_r1' => (int)($picksOwned['picks_r1'] ?? 0),
-        'own_r2' => (int)($picksOwned['picks_r2'] ?? 0),
+        'traded' => (int)($picksOwned['traded'] ?? 0),
     ],
     'trades'   => $tradesCount,
     'players'  => [
