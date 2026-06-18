@@ -31,7 +31,7 @@ let appState = {
   teamDetails: null,
   currentFAleague: _leagues[0] || 'ELITE',
   adminLeagueFilter: null,
-  tradeFilters: { league: 'ALL', status: 'all', teamId: '' }
+  tradeFilters: { league: 'ALL', status: 'all', teamId: '', seasonYear: '' }
 };
 let adminFreeAgents = [];
 const freeAgencyTeamsCache = {};
@@ -1356,6 +1356,7 @@ async function showTrades() {
   const container = document.getElementById('mainContainer');
   const leagueFilter = (appState.tradeFilters.league || 'ALL').toUpperCase();
   const teamFilter = appState.tradeFilters.teamId || '';
+  const seasonYearFilter = appState.tradeFilters.seasonYear || '';
 
   const leagueOptions = [
     { value: 'ALL', label: 'Todas as ligas' },
@@ -1364,6 +1365,10 @@ async function showTrades() {
     { value: 'RISE', label: 'RISE' },
     { value: 'ROOKIE', label: 'ROOKIE' }
   ];
+
+  const _curYear = new Date().getFullYear();
+  const seasonYearOptions = [{ value: '', label: 'Todas as temp.' }];
+  for (let y = _curYear; y >= _curYear - 6; y--) seasonYearOptions.push({ value: String(y), label: String(y) });
 
   const _tradeBack = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
   container.innerHTML = `
@@ -1374,6 +1379,9 @@ async function showTrades() {
     <div class="d-flex gap-2 align-items-center flex-wrap">
       <select style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px" onchange="updateTradeFilter({ league: this.value })">
         ${leagueOptions.map(opt => `<option value="${opt.value}" ${opt.value === leagueFilter ? 'selected' : ''}>${opt.label}</option>`).join('')}
+      </select>
+      <select style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px" onchange="updateTradeFilter({ seasonYear: this.value })">
+        ${seasonYearOptions.map(opt => `<option value="${opt.value}" ${opt.value === seasonYearFilter ? 'selected' : ''}>${opt.label}</option>`).join('')}
       </select>
       <select style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:5px 10px;font-size:12px;min-width:160px" id="adminTradeTeamFilter" onchange="updateTradeFilter({ teamId: this.value })">
         <option value="">Todos os times</option>
@@ -1418,6 +1426,9 @@ async function showTrades() {
     }
     if (teamFilter) {
       url += `&team_id=${encodeURIComponent(teamFilter)}`;
+    }
+    if (seasonYearFilter) {
+      url += `&season_year=${encodeURIComponent(seasonYearFilter)}`;
     }
     const data = await api(url);
     const trades = data.trades || [];
@@ -2753,7 +2764,8 @@ async function showDirectives() {
       ? `diretrizes.php?action=list_deadlines_admin&league=${encodeURIComponent(_dirLeague)}`
       : 'diretrizes.php?action=list_deadlines_admin';
     const data = await api(apiUrl);
-    const deadlines = data.deadlines || [];
+    // Exibe apenas deadlines das ligas que este admin gerencia
+    const deadlines = (data.deadlines || []).filter(d => _leagues.includes(d.league));
 
     container.innerHTML = `
       <div class="mb-4">
