@@ -177,8 +177,12 @@ try {
         } unset($row);
         if (!$hasMusk) $arr[] = ['name' => 'St. Louis Musketeers', 'count' => 1];
     } unset($arr);
-    sortLeagueData($origTop5Map);
-} catch (Exception $e) {}
+    foreach ($origTop5Map as &$arr) {
+        usort($arr, fn($a,$b) => $b['count'] !== $a['count'] ? $b['count'] - $a['count']
+            : ((str_contains($a['name'],'Coyotes') && str_contains($a['name'],'Utah')) ? 1
+            : ((str_contains($b['name'],'Coyotes') && str_contains($b['name'],'Utah')) ? -1 : 0)));
+    } unset($arr);
+} catch (Exception) {}
 
 // ── Quem mais escolheu no top5 (draft_order, team_id, pos <= 5) ───
 $top5PicksMap = [];
@@ -202,7 +206,7 @@ try {
         if (!$hasMusk) $arr[] = ['name' => 'St. Louis Musketeers', 'count' => 1];
     } unset($arr);
     sortLeagueData($top5PicksMap);
-} catch (Exception $e) {}
+} catch (Exception) {}
 
 // ── Jogadores que mais foram a leilão (leilao_jogadores) ──────────
 $leilaoMap = [];
@@ -216,7 +220,7 @@ try {
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($lRaw as $r) $leilaoMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
     sortLeagueData($leilaoMap);
-} catch (Exception $e) {}
+} catch (Exception) {}
 
 // ── Mais vezes seed 1 (maior pts regular na temporada) ───────────
 $seed1Map = [];
@@ -233,7 +237,7 @@ try {
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($s1Raw as $r) $seed1Map[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
     sortLeagueData($seed1Map);
-} catch (Exception $e) {}
+} catch (Exception) {}
 
 // ── Mais playoff consecutivos (streak em PHP) ────────────────────
 $streakMap = [];
@@ -267,7 +271,7 @@ try {
         }
     }
     sortLeagueData($streakMap);
-} catch (Exception $e) {}
+} catch (Exception) {}
 
 // ── Jogadores que passaram por mais times ─────────────────────────
 $playerTeamsMap = [];
@@ -278,7 +282,7 @@ try {
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($ptRaw as $r) $playerTeamsMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
     sortLeagueData($playerTeamsMap);
-} catch (Exception $e) {}
+} catch (Exception) {}
 
 // ── Retenção: média de temporadas por jogador no mesmo time ───────
 $retencaoMap = [];
@@ -295,7 +299,7 @@ try {
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($retRaw as $r) $retencaoMap[$r['league']][] = ['name'=>$r['name'],'count'=>(float)$r['count']];
     sortLeagueData($retencaoMap);
-} catch (Exception $e) {}
+} catch (Exception) {}
 
 // ── Aproveitamento do draft (OVR médio dos jogadores draftados) ───
 $draftOvrMap = [];
@@ -308,7 +312,7 @@ try {
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($doRaw as $r) $draftOvrMap[$r['league']][] = ['name'=>$r['name'],'count'=>(float)$r['count']];
     sortLeagueData($draftOvrMap);
-} catch (Exception $e) {}
+} catch (Exception) {}
 
 // ── Jogadores mais requisitados na FA (mais ofertas por player) ───
 $faHotMap = [];
@@ -321,7 +325,7 @@ try {
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($fhRaw as $r) $faHotMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
     sortLeagueData($faHotMap);
-} catch (Exception $e) {}
+} catch (Exception) {}
 
 
 ?><!DOCTYPE html>
