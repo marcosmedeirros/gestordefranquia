@@ -145,6 +145,59 @@ foreach ($faPropostasMap as $lg => &$arr) {
 unset($arr, $row);
 sortLeagueData($faPropostasMap);
 
+// ── Trades rejeitadas (propostas que o outro time recusou) ────────
+$rejectedMap = queryByLeague($pdo, "
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tr.id) AS count
+    FROM teams t
+    LEFT JOIN trades tr ON tr.from_team_id=t.id
+        AND tr.status='rejected'
+        AND tr.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
+    GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+");
+sortLeagueData($rejectedMap);
+
+// ── Pick origem no top5 (original_team_id com pick_position <= 5) ─
+$origTop5Map = [];
+try {
+    $ot5Raw = $pdo->query("
+        SELECT ids.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+        FROM initdraft_order ido
+        JOIN initdraft_sessions ids ON ids.id=ido.initdraft_session_id
+        JOIN teams t ON t.id=ido.original_team_id
+        WHERE ido.pick_position <= 5 AND ido.round = 1 AND ido.picked_player_id IS NOT NULL
+        GROUP BY ids.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($ot5Raw as $r) $origTop5Map[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($origTop5Map);
+} catch (Exception $e) {}
+
+// ── Quem mais escolheu no top5 (team_id com pick_position <= 5) ───
+$top5PicksMap = [];
+try {
+    $tp5Raw = $pdo->query("
+        SELECT ids.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+        FROM initdraft_order ido
+        JOIN initdraft_sessions ids ON ids.id=ido.initdraft_session_id
+        JOIN teams t ON t.id=ido.team_id
+        WHERE ido.pick_position <= 5 AND ido.round = 1 AND ido.picked_player_id IS NOT NULL
+        GROUP BY ids.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($tp5Raw as $r) $top5PicksMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($top5PicksMap);
+} catch (Exception $e) {}
+
+// ── Jogadores que mais foram a leilão (fa_requests) ───────────────
+$leilaoMap = [];
+try {
+    $lRaw = $pdo->query("
+        SELECT league, player_name AS name, COUNT(*) AS count
+        FROM fa_requests
+        GROUP BY league, player_name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($lRaw as $r) $leilaoMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($leilaoMap);
+} catch (Exception $e) {}
+
 // ── Vitórias no playoff (soma de rounds vencidos por temporada) ───
 $playoffWinsMap = queryByLeague($pdo, "
     SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
@@ -692,6 +745,39 @@ renderSection('gm-age', '👴', 'rgba(148,163,184,.08)', 'GMs mais Antigos',
         'color_hi' => 'lo', 'color_lo' => 'blue',
         'copy_hi' => 'GMs mais antigos', 'copy_lo' => 'GMs mais novos',
         'suffix' => ' anos',
+    ]);
+
+renderSection('rejected', '❌', 'rgba(252,0,37,.10)', 'Trades Rejeitadas',
+    'Times com mais propostas recusadas pelo adversário',
+    $rejectedMap, $leagues, [
+        'label_hi' => '❌ Mais rejeitados', 'label_lo' => '✅ Menos rejeitados',
+        'color_hi' => 'hi', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais propostas rejeitadas', 'copy_lo' => 'Menos propostas rejeitadas',
+    ]);
+
+renderSection('orig-top5', '🎯', 'rgba(251,191,36,.12)', 'Pick Origem no Top 5',
+    'Times cuja pick original foi usada no top 5 do draft',
+    $origTop5Map, $leagues, [
+        'label_hi' => '🎯 Mais vezes', 'show_lo' => false,
+        'color_hi' => 'gold',
+        'copy_hi' => 'Pick origem no top 5 do draft',
+    ]);
+
+renderSection('top5picks', '⭐', 'rgba(96,165,250,.12)', 'Mais Escolhas no Top 5',
+    'Times que mais escolheram jogadores nas 5 primeiras posições',
+    $top5PicksMap, $leagues, [
+        'label_hi' => '⭐ Mais escolhas top 5', 'show_lo' => false,
+        'color_hi' => 'blue',
+        'copy_hi' => 'Mais escolhas no top 5 do draft',
+    ]);
+
+renderSection('leilao', '🔨', 'rgba(168,85,247,.12)', 'Jogadores mais Leiloados',
+    'Jogadores que mais apareceram em processos de FA/leilão',
+    $leilaoMap, $leagues, [
+        'label_hi' => '🔨 Mais disputados', 'show_lo' => false,
+        'color_hi' => 'purple',
+        'copy_hi' => 'Jogadores mais leiloados',
+        'suffix' => 'x',
     ]);
 
 renderSection('variacao', '📊', 'rgba(252,0,37,.08)', 'Maior Variação na Tabela',
