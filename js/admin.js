@@ -5769,10 +5769,11 @@ async function showAdminDraft(league) {
       ${orderPanel}
       ${playersPanel}`;
 
-    // Carrega banco de classes no select da pool
-    if (draftSid) {
+    // Carrega banco de classes no select da pool (só se há sessão de draft)
+    if (draft) {
+      const _sid = draft.id;
       api('admin.php?action=draft_class_bank&sub=list').then(d => {
-        const sel = document.getElementById(`draftClassBankSelect_${draftSid}`);
+        const sel = document.getElementById(`draftClassBankSelect_${_sid}`);
         if (!sel) return;
         const tpls = d.templates || [];
         sel.innerHTML = tpls.length
