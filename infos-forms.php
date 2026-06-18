@@ -12,15 +12,17 @@ $pdo = db();
 $leagues = ['ELITE','NEXT','RISE','ROOKIE'];
 
 function queryByLeague(PDO $pdo, string $sql, array $params = []): array {
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $out = [];
-    foreach ($rows as $r) {
-        $lg = $r['league'] ?? 'ALL';
-        $out[$lg][] = $r;
-    }
-    return $out;
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $out = [];
+        foreach ($rows as $r) {
+            $lg = $r['league'] ?? 'ALL';
+            $out[$lg][] = $r;
+        }
+        return $out;
+    } catch (Exception $e) { return []; }
 }
 
 function sortLeagueData(array &$map, string $key = 'count', bool $desc = true): void {
@@ -34,7 +36,7 @@ $tradesRaw = $pdo->query("
     SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
            COUNT(DISTINCT tr.id) AS count
     FROM teams t
-    LEFT JOIN trades tr ON tr.status='accepted' AND (tr.from_team_id=t.id OR tr.to_team_id=t.id) AND tr.league=t.league
+    LEFT JOIN trades tr ON tr.status='accepted' AND (tr.from_team_id=t.id OR tr.to_team_id=t.id) AND tr.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
     GROUP BY t.league, t.id, t.city, t.name
 ")->fetchAll(PDO::FETCH_ASSOC);
 $tradesByLeague = [];
@@ -71,7 +73,7 @@ sortLeagueData($pairsByLeague);
 $playoffMap = queryByLeague($pdo, "
     SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tsp.season_id) AS count
     FROM teams t
-    LEFT JOIN team_season_points tsp ON tsp.team_id=t.id AND tsp.points>=3 AND tsp.league=t.league
+    LEFT JOIN team_season_points tsp ON tsp.team_id=t.id AND tsp.points>=3 AND tsp.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
     GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($playoffMap);
@@ -108,7 +110,7 @@ sortLeagueData($draftedMap);
 $rotMap = queryByLeague($pdo, "
     SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT psl.player_id) AS count
     FROM teams t
-    LEFT JOIN player_season_log psl ON psl.team_id=t.id AND psl.league=t.league
+    LEFT JOIN player_season_log psl ON psl.team_id=t.id AND psl.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
     GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($rotMap);
@@ -127,7 +129,7 @@ sortLeagueData($faMap);
 $faPropostasMap = queryByLeague($pdo, "
     SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tr.id) AS count
     FROM teams t
-    LEFT JOIN trades tr ON tr.from_team_id=t.id AND tr.league=t.league
+    LEFT JOIN trades tr ON tr.from_team_id=t.id AND tr.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
     GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($faPropostasMap);
@@ -148,7 +150,7 @@ $playoffWinsMap = queryByLeague($pdo, "
     SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
            COALESCE(SUM(trp.playoff_second_round + trp.playoff_conference_finals + trp.playoff_runner_up + trp.playoff_champion), 0) AS count
     FROM teams t
-    LEFT JOIN team_ranking_points trp ON trp.team_id=t.id AND trp.league=t.league
+    LEFT JOIN team_ranking_points trp ON trp.team_id=t.id AND trp.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
     GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($playoffWinsMap);
