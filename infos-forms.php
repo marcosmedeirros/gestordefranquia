@@ -29,19 +29,15 @@ function sortLeagueData(array &$map, string $key = 'count', bool $desc = true): 
     }
 }
 
-// ── 1. Trades por time ───────────────────────────────────────────
+// ── 1. Trades por time (agrupa pela liga da trade, não do time atual) ──
 $tradesRaw = $pdo->query("
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
+    SELECT tr.league, CONCAT(t.city,' ',t.name) AS name,
            COUNT(DISTINCT tr.id) AS count
-    FROM teams t
-    LEFT JOIN trades tr ON tr.status='accepted' AND (tr.from_team_id=t.id OR tr.to_team_id=t.id)
-    GROUP BY t.id, t.league, t.city, t.name
+    FROM trades tr
+    JOIN teams t ON t.id = tr.from_team_id OR t.id = tr.to_team_id
+    WHERE tr.status='accepted'
+    GROUP BY tr.league, t.id, t.city, t.name
 ")->fetchAll(PDO::FETCH_ASSOC);
-$multiMap = [];
-try {
-    $mt = $pdo->query("SELECT mtt.team_id, COUNT(DISTINCT mt.id) AS c FROM multi_trades mt JOIN multi_trade_teams mtt ON mtt.trade_id=mt.id WHERE mt.status='accepted' GROUP BY mtt.team_id")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($mt as $r) $multiMap[$r['team_id']] = (int)$r['c'];
-} catch (Exception $e) {}
 $tradesByLeague = [];
 foreach ($tradesRaw as $r) {
     $tradesByLeague[$r['league']][] = ['name' => $r['name'], 'count' => (int)$r['count']];
@@ -72,44 +68,46 @@ foreach ($pairsRaw as $r) {
 }
 sortLeagueData($pairsByLeague);
 
-// ── 3. Mais títulos ──────────────────────────────────────────────
+// ── 3. Mais títulos (usa a liga da temporada, não a atual do time) ──
 $titlesMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+    SELECT sh.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
     FROM season_history sh JOIN teams t ON t.id=sh.champion_team_id
-    GROUP BY t.id, t.league, t.city, t.name ORDER BY count DESC
+    GROUP BY sh.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($titlesMap);
 
 // ── 4. Mais aparições no playoff ─────────────────────────────────
 $playoffMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+    SELECT tsp.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tsp.season_id) AS count
     FROM team_season_points tsp JOIN teams t ON t.id=tsp.team_id
     WHERE tsp.points >= 3
-    GROUP BY t.id, t.league, t.city, t.name ORDER BY count DESC
+    GROUP BY tsp.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($playoffMap);
 
-// ── 5. Mais vices ────────────────────────────────────────────────
+// ── 5. Mais vices (liga da temporada) ────────────────────────────
 $vicesMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+    SELECT sh.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
     FROM season_history sh JOIN teams t ON t.id=sh.runner_up_team_id
-    GROUP BY t.id, t.league, t.city, t.name ORDER BY count DESC
+    GROUP BY sh.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($vicesMap);
 
-// ── 6. Mais prêmios individuais ──────────────────────────────────
+// ── 6. Mais prêmios individuais (liga via season_history) ────────
 $awardsMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
-    FROM season_awards sa JOIN teams t ON t.id=sa.team_id
-    GROUP BY t.id, t.league, t.city, t.name ORDER BY count DESC
+    SELECT sh.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+    FROM season_awards sa
+    JOIN teams t ON t.id=sa.team_id
+    JOIN season_history sh ON sh.season_id=sa.season_id
+    GROUP BY sh.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($awardsMap);
 
 // ── 7. Mais pontos acumulados (regular) ──────────────────────────
 $ptsMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, SUM(tsp.points) AS count
+    SELECT tsp.league, CONCAT(t.city,' ',t.name) AS name, SUM(tsp.points) AS count
     FROM team_season_points tsp JOIN teams t ON t.id=tsp.team_id
-    GROUP BY t.id, t.league, t.city, t.name ORDER BY count DESC
+    GROUP BY tsp.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($ptsMap);
 
@@ -162,31 +160,34 @@ $draftedMap = queryByLeague($pdo, "
 ");
 sortLeagueData($draftedMap);
 
-// ── 15. Mais jogadores que passaram pelo clube ───────────────────
+// ── 15. Mais jogadores que passaram pelo clube (liga do log) ─────
 $rotMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT psl.player_id) AS count
-    FROM teams t JOIN player_season_log psl ON psl.team_id=t.id
-    GROUP BY t.id, t.league, t.city, t.name ORDER BY count DESC
+    SELECT psl.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT psl.player_id) AS count
+    FROM player_season_log psl JOIN teams t ON t.id=psl.team_id
+    GROUP BY psl.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($rotMap);
 
-// ── 16. Trades com picks incluídas ───────────────────────────────
+// ── 16. Trades com picks incluídas (liga da trade) ───────────────
 $pickTradesMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tr.id) AS count
-    FROM teams t
-    JOIN trades tr ON tr.status='accepted' AND (tr.from_team_id=t.id OR tr.to_team_id=t.id)
-    WHERE tr.picks_given IS NOT NULL AND tr.picks_given != '[]' AND tr.picks_given != ''
-       OR tr.picks_received IS NOT NULL AND tr.picks_received != '[]' AND tr.picks_received != ''
-    GROUP BY t.id, t.league, t.city, t.name ORDER BY count DESC
+    SELECT tr.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tr.id) AS count
+    FROM trades tr
+    JOIN teams t ON t.id = tr.from_team_id OR t.id = tr.to_team_id
+    WHERE tr.status='accepted'
+      AND (
+        (tr.picks_given IS NOT NULL AND tr.picks_given != '[]' AND tr.picks_given != '')
+        OR (tr.picks_received IS NOT NULL AND tr.picks_received != '[]' AND tr.picks_received != '')
+      )
+    GROUP BY tr.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($pickTradesMap);
 
 // ── 17. Maior OVR individual já registrado ───────────────────────
 $topOvrMap = queryByLeague($pdo, "
-    SELECT t.league, psl.player_name AS name, MAX(psl.ovr) AS count
-    FROM player_season_log psl JOIN teams t ON t.id=psl.team_id
+    SELECT psl.league, psl.player_name AS name, MAX(psl.ovr) AS count
+    FROM player_season_log psl
     WHERE psl.ovr > 0
-    GROUP BY t.league, psl.player_name ORDER BY count DESC
+    GROUP BY psl.league, psl.player_name ORDER BY count DESC
 ");
 sortLeagueData($topOvrMap);
 
