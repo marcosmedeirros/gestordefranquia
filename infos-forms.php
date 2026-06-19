@@ -310,7 +310,9 @@ try {
         FROM teams t
         LEFT JOIN (
             SELECT team_id, player_id, COUNT(*) AS seasons
-            FROM player_season_log GROUP BY team_id, player_id
+            FROM player_season_log
+            WHERE ovr >= 78
+            GROUP BY team_id, player_id
         ) sub ON sub.team_id=t.id
         GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
