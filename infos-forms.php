@@ -695,9 +695,13 @@ if (!empty(array_filter($neverTop5Map))) {
     echo '<div class="leagues-grid">';
     foreach ($leagues as $lg) {
         $arr = $neverTop5Map[$lg] ?? [];
+        $cp = "🚫 *Nunca escolheram no top 5 — {$lg}*\n";
+        foreach ($arr as $nm) $cp .= "• {$nm}\n";
+        $cpEsc = htmlspecialchars($cp, ENT_QUOTES);
         echo '<div class="league-card">';
         echo '<div class="league-header"><span class="league-badge badge-'.$lg.'">'.$lg.'</span>';
-        echo '<span style="font-size:11px;color:var(--text-3);flex:1">'.count($arr).' time(s)</span></div>';
+        echo '<span style="font-size:11px;color:var(--text-3);flex:1">'.count($arr).' time(s)</span>';
+        echo '<button class="copy-btn" data-text="'.$cpEsc.'"><i class="bi bi-clipboard"></i> Copiar</button></div>';
         if (empty($arr)) {
             echo '<div class="empty-state">Todos já escolheram no top 5</div>';
         } else {
