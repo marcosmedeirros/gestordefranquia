@@ -798,11 +798,10 @@ function getSerasaScore(int $avisos): array {
             font-size: 10px; font-weight: 700; padding: 2px 8px;
             border-radius: 999px; margin-top: 4px;
         }
-        .team-tag.contending    { background: rgba(16,185,129,.12); color: #10b981; border: 1px solid rgba(16,185,129,.3); }
-        .team-tag.buying        { background: rgba(59,130,246,.12); color: #3b82f6; border: 1px solid rgba(59,130,246,.3); }
-        .team-tag.selling       { background: rgba(249,115,22,.12); color: #f97316; border: 1px solid rgba(249,115,22,.3); }
-        .team-tag.rebuilding    { background: rgba(239,68,68,.12);  color: #ef4444; border: 1px solid rgba(239,68,68,.3); }
-        .team-tag.ladrãozinho   { background: rgba(168,85,247,.12); color: #a855f7; border: 1px solid rgba(168,85,247,.3); }
+        .team-tag.contending { background: rgba(16,185,129,.12); color: #10b981; border: 1px solid rgba(16,185,129,.3); }
+        .team-tag.buying     { background: rgba(59,130,246,.12); color: #3b82f6; border: 1px solid rgba(59,130,246,.3); }
+        .team-tag.selling    { background: rgba(249,115,22,.12); color: #f97316; border: 1px solid rgba(249,115,22,.3); }
+        .team-tag.rebuilding { background: rgba(239,68,68,.12);  color: #ef4444; border: 1px solid rgba(239,68,68,.3); }
 
         /* Stats row inside card */
         .team-stats {
@@ -1335,8 +1334,8 @@ function getSerasaScore(int $avisos): array {
                                 <i class="bi bi-<?= $rosterOk ? 'check-circle-fill' : 'clock' ?>"></i>
                             </div>
                             <?php
-                            $tagIcons  = ['contending'=>'trophy-fill','buying'=>'cart-plus-fill','selling'=>'box-arrow-right','rebuilding'=>'tools','ladrãozinho'=>'bag-dash-fill'];
-                            $tagLabels = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding','ladrãozinho'=>'Ladrãozinho 🔮'];
+                            $tagIcons  = ['contending'=>'trophy-fill','buying'=>'cart-plus-fill','selling'=>'box-arrow-right','rebuilding'=>'tools'];
+                            $tagLabels = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding'];
                             $rawTag = $t['team_tag'] ?? null;
                             if (!$rawTag) {
                                 $rawTag = computeAiTagPHP(
@@ -1346,8 +1345,6 @@ function getSerasaScore(int $avisos): array {
                                 );
                             }
                             $tag = strtolower($rawTag ?? '');
-                            // ladrãozinho é exclusivo do Wyverns — pegadinha 🔮
-                            if ($tag === 'ladrãozinho' && stripos($t['name'] ?? '', 'Wyvern') === false) $tag = '';
                             ?>
                             <?php if ($tag): ?>
                             <div class="team-tag <?= htmlspecialchars($tag) ?>">
@@ -1363,6 +1360,11 @@ function getSerasaScore(int $avisos): array {
                                 <i class="bi bi-shield-check" style="font-size:9px"></i>
                                 <?= $score['label'] ?><?= $avisos > 0 ? ' <span style="opacity:.65">(' . $avisos . ')</span>' : '' ?>
                             </div>
+                            <?php if (stripos($t['name'] ?? '', 'Wyvern') !== false): ?>
+                            <div class="serasa-badge" style="background:rgba(239,68,68,.12);color:#ef4444;border-color:rgba(239,68,68,.3)">
+                                ⚠️ Perigo de Golpe
+                            </div>
+                            <?php endif; ?>
                         </div>
                     </div>
 
@@ -1465,8 +1467,8 @@ function getSerasaScore(int $avisos): array {
                             <?php
                                 $listRua = $t['roster_updated_at'] ?? null;
                                 $listRosterOk = $listRua && (!$seasonCreatedAt || strtotime($listRua) >= strtotime($seasonCreatedAt));
-                                $listTagLabels = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding','ladrãozinho'=>'Ladrãozinho 🔮'];
-                                $listTagColors = ['contending'=>'#10b981','buying'=>'#3b82f6','selling'=>'#f97316','rebuilding'=>'#64748b','ladrãozinho'=>'#a855f7'];
+                                $listTagLabels = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding'];
+                                $listTagColors = ['contending'=>'#10b981','buying'=>'#3b82f6','selling'=>'#f97316','rebuilding'=>'#64748b'];
                                 $listRawTag = $t['team_tag'] ?? null;
                                 if (!$listRawTag) {
                                     $listRawTag = computeAiTagPHP(
@@ -1476,8 +1478,6 @@ function getSerasaScore(int $avisos): array {
                                     );
                                 }
                                 $listTag = strtolower($listRawTag ?? '');
-                                // ladrãozinho é exclusivo do Wyverns — pegadinha 🔮
-                                if ($listTag === 'ladrãozinho' && stripos($t['name'] ?? '', 'Wyvern') === false) $listTag = '';
                             ?>
                             <div style="display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap;">
                                 <span style="font-size:10px;color:<?= $listRosterOk ? '#22c55e' : '#f59e0b' ?>;line-height:1" title="<?= $listRosterOk ? 'Elenco atualizado' : 'Elenco não atualizado' ?>">
@@ -2062,8 +2062,8 @@ function getSerasaScore(int $avisos): array {
 
             if (titleEl) titleEl.innerHTML = `<i class="bi bi-info-circle-fill me-2" style="color:#60a5fa"></i>${team.city||''} ${team.name||''}`;
 
-            const tagColors = { contending:'#10b981', buying:'#3b82f6', selling:'#f97316', rebuilding:'#64748b', 'ladrãozinho':'#a855f7' };
-            const tagLabel  = { contending:'Contending', buying:'Buying', selling:'Selling', rebuilding:'Rebuilding', 'ladrãozinho':'Ladrãozinho 🔮' };
+            const tagColors = { contending:'#10b981', buying:'#3b82f6', selling:'#f97316', rebuilding:'#64748b' };
+            const tagLabel  = { contending:'Contending', buying:'Buying', selling:'Selling', rebuilding:'Rebuilding' };
             const allRosterPlayers = Object.values(roster).flat();
             const startersForTag = (roster['Titular'] || []);
             const _aiTagForModal = (() => {
@@ -2076,9 +2076,7 @@ function getSerasaScore(int $avisos): array {
                 if (avgAge >= 31 || avgOvr < 78) return 'rebuilding';
                 return 'selling';
             })();
-            let tagKey = ((team.team_tag || _aiTagForModal) || '').toLowerCase();
-            // ladrãozinho é exclusivo do Wyverns — pegadinha 🔮
-            if (tagKey === 'ladrãozinho' && !(team.name||'').toLowerCase().includes('wyvern')) tagKey = '';
+            const tagKey = ((team.team_tag || _aiTagForModal) || '').toLowerCase();
             const tagHtml = tagKey
                 ? `<span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;border:1px solid ${tagColors[tagKey]||'#888'};color:${tagColors[tagKey]||'#888'};background:${tagColors[tagKey]||'#888'}22;margin-top:5px;display:inline-block">${tagLabel[tagKey]||tagKey}</span>`
                 : '';
