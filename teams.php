@@ -1493,6 +1493,11 @@ function getSerasaScore(int $avisos): array {
                                 <span class="serasa-badge <?= $inlineScore['cls'] ?> list-serasa-mobile" style="font-size:9px;padding:1px 5px;margin-top:0">
                                     <i class="bi bi-shield-check" style="font-size:8px"></i><?= $inlineScore['label'] ?>
                                 </span>
+                                <?php if (stripos($t['name'] ?? '', 'Wyvern') !== false): ?>
+                                <span class="serasa-badge" style="font-size:9px;padding:1px 5px;margin-top:0;background:rgba(239,68,68,.12);color:#ef4444;border-color:rgba(239,68,68,.3)">
+                                    ⚠️ Perigo de Golpe
+                                </span>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
