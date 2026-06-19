@@ -305,12 +305,12 @@ if ($method === 'POST' && $action === 'admin_approve') {
         if ($actionType === 'tapa') {
             $pdo->prepare("UPDATE players SET tapa_count = tapa_count + 1 WHERE id = ?")
                 ->execute([$req['player_id']]);
-            // deduct from games DB
-            decrementGamesTapas($pdoGames, $gamesUserId);
         } else {
             $pdo->prepare("UPDATE players SET badge_name = ? WHERE id = ?")
                 ->execute([$badgeName, $req['player_id']]);
         }
+        // deduct 1 tapa from games DB for both tapa and badge
+        decrementGamesTapas($pdoGames, $gamesUserId);
 
         $pdo->prepare("UPDATE teams SET tapas_used = tapas_used + 1 WHERE id = ?")
             ->execute([$req['team_id']]);

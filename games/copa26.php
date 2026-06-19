@@ -473,11 +473,17 @@ try {
     }
 } catch(Exception $e){}
 
+$today  = date('Y-m-d');
+$tomorrow = date('Y-m-d', strtotime('+1 day'));
+
 // Jogos entre 00h–05h são exibidos no dia anterior (madrugada pertence à rodada da noite anterior)
+// Jogos do dia seguinte sem horário definido também são tratados como meia-noite (00:00)
 $matchesByDate=[];
 foreach ($allMatches as $m) {
     $displayDate = $m['match_date'];
-    $hour = (int)substr($m['match_time'] ?? '12:00', 0, 2);
+    // Se o horário for NULL e o jogo for amanhã ou depois, assume meia-noite (pertence à noite anterior)
+    $timeForHour = $m['match_time'] ?? ($m['match_date'] > $today ? '00:00' : '12:00');
+    $hour = (int)substr($timeForHour, 0, 2);
     if ($hour < 5) {
         $dt = new DateTime($m['match_date']);
         $dt->modify('-1 day');
@@ -498,7 +504,6 @@ if ($allMatches) {
 
 $seeded=!empty($groups);
 $nameInitial=mb_strtoupper(mb_substr($usuario['nome']??'U',0,1));
-$today=date('Y-m-d');
 
 // Jogos de hoje sem palpite preenchido e que ainda não começaram
 // Inclui jogos do dia seguinte que são na madrugada (display_date = hoje)
@@ -508,7 +513,7 @@ $pendingToday = array_values(array_filter(
     function($m) use ($nowTs, $allScores) {
         if ($m['score_home'] !== null) return false;
         if (isset($allScores[$m['id']])) return false;
-        $matchTs = strtotime($m['match_date'] . ' ' . ($m['match_time'] ?? '23:59'));
+        $matchTs = strtotime($m['match_date'] . ' ' . ($m['match_time'] ?? '00:00'));
         return $nowTs < $matchTs;
     }
 ));
