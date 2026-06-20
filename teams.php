@@ -1360,11 +1360,6 @@ function getSerasaScore(int $avisos): array {
                                 <i class="bi bi-shield-check" style="font-size:9px"></i>
                                 <?= $score['label'] ?><?= $avisos > 0 ? ' <span style="opacity:.65">(' . $avisos . ')</span>' : '' ?>
                             </div>
-                            <?php if (stripos($t['name'] ?? '', 'Wyvern') !== false): ?>
-                            <div class="serasa-badge" style="background:rgba(239,68,68,.12);color:#ef4444;border-color:rgba(239,68,68,.3)">
-                                ⚠️ Perigo de Golpe
-                            </div>
-                            <?php endif; ?>
                         </div>
                     </div>
 
@@ -1493,11 +1488,6 @@ function getSerasaScore(int $avisos): array {
                                 <span class="serasa-badge <?= $inlineScore['cls'] ?> list-serasa-mobile" style="font-size:9px;padding:1px 5px;margin-top:0">
                                     <i class="bi bi-shield-check" style="font-size:8px"></i><?= $inlineScore['label'] ?>
                                 </span>
-                                <?php if (stripos($t['name'] ?? '', 'Wyvern') !== false): ?>
-                                <span class="serasa-badge" style="font-size:9px;padding:1px 5px;margin-top:0;background:rgba(239,68,68,.12);color:#ef4444;border-color:rgba(239,68,68,.3)">
-                                    ⚠️ Perigo de Golpe
-                                </span>
-                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
