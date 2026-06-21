@@ -328,7 +328,7 @@ const loadMultiAssets = async (teamId, type) => {
       if (Number(pick.swap_locked || 0) === 1 && !pick.swap_type) return false;
       const year = Number(pick.season_year || 0);
       if (!Number.isFinite(year) || year <= 0) return false;
-      return (year >= currentSeasonYear && year <= currentSeasonYear + 1) || isCurrentDraftPick(pick);
+      return year >= currentSeasonYear || isCurrentDraftPick(pick);
     });
   }
   multiTradeState.assets[type][teamId] = list;
@@ -748,8 +748,7 @@ function setAvailablePicks(side, picks, { resetSelected = false } = {}) {
     if (Number(pick.swap_locked || 0) === 1 && !pick.swap_type) return false;
     const year = Number(pick.season_year || 0);
     if (!Number.isFinite(year) || year <= 0) return false;
-    // Ano atual ou próximo ano, ou pick do draft ativo
-    return (year >= currentSeasonYear && year <= currentSeasonYear + 1) || isCurrentDraftPick(pick);
+    return year >= currentSeasonYear || isCurrentDraftPick(pick);
   }).sort((a, b) => {
     const aCurrent = isCurrentDraftPick(a);
     const bCurrent = isCurrentDraftPick(b);
