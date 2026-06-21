@@ -713,6 +713,7 @@ try {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn-r secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn-r secondary" id="copyQuickTradeBtn" onclick="copyQuickTrade()"><i class="bi bi-clipboard"></i>Copiar</button>
           <?php if ($tradesEnabled == 0): ?>
             <button type="button" class="btn-r secondary" id="submitTradeBtn" disabled><i class="bi bi-lock-fill"></i>Enviar Proposta</button>
           <?php else: ?>
@@ -836,5 +837,52 @@ try {
     })();
   </script>
   <?php endif; ?>
+  <script>
+  function copyQuickTrade() {
+    const targetSelect = document.getElementById('targetTeam');
+    const targetName = targetSelect ? (targetSelect.options[targetSelect.selectedIndex]?.text || 'Time alvo') : 'Time alvo';
+    const myName = window.__TEAM_NAME__ || 'Seu time';
+    const lines = [];
+
+    const offerPlayers = (typeof playerState !== 'undefined') ? (playerState.offer.selected || []) : [];
+    const requestPlayers = (typeof playerState !== 'undefined') ? (playerState.request.selected || []) : [];
+    const offerPicks = (typeof pickState !== 'undefined') ? (pickState.offer.selected || []) : [];
+    const requestPicks = (typeof pickState !== 'undefined') ? (pickState.request.selected || []) : [];
+
+    lines.push(`${targetName.toUpperCase()} recebe:`);
+    offerPlayers.forEach(p => lines.push(`  • ${p.name} (${p.position || p.pos || ''}, OVR ${p.ovr}/${p.age}a)`));
+    offerPicks.forEach(p => {
+      const swap = p.swapRole ? ` [${p.swapRole}]` : '';
+      lines.push(`  • Pick ${p.season_year} R${p.round}${p.original_team_name ? ` (${p.original_team_name})` : ''}${swap}`);
+    });
+    lines.push('');
+    lines.push(`${myName.toUpperCase()} recebe:`);
+    requestPlayers.forEach(p => lines.push(`  • ${p.name} (${p.position || p.pos || ''}, OVR ${p.ovr}/${p.age}a)`));
+    requestPicks.forEach(p => {
+      const swap = p.swapRole ? ` [${p.swapRole}]` : '';
+      lines.push(`  • Pick ${p.season_year} R${p.round}${p.original_team_name ? ` (${p.original_team_name})` : ''}${swap}`);
+    });
+
+    const text = lines.join('\n').trim();
+    if (!text || (offerPlayers.length + offerPicks.length + requestPlayers.length + requestPicks.length) === 0) {
+      alert('Nenhum item na trade para copiar.'); return;
+    }
+
+    const btn = document.getElementById('copyQuickTradeBtn');
+    const restore = () => { if (btn) btn.innerHTML = '<i class="bi bi-clipboard"></i>Copiar'; };
+    navigator.clipboard.writeText(text).then(() => {
+      if (btn) btn.innerHTML = '<i class="bi bi-check2"></i>Copiado!';
+      setTimeout(restore, 2000);
+    }).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); if (btn) btn.innerHTML = '<i class="bi bi-check2"></i>Copiado!'; }
+      catch(e) { alert(text); }
+      document.body.removeChild(ta);
+      setTimeout(restore, 2000);
+    });
+  }
+  </script>
 </body>
 </html>
