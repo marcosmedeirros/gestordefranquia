@@ -165,21 +165,6 @@ try {
     foreach ($nt5Raw as $r) $neverTop5Map[$r['league']][] = $r['name'];
 } catch (Exception) {}
 
-// ── Jogadores que mais foram a leilão (leilao_jogadores) ──────────
-$leilaoMap = [];
-try {
-    $lRaw = $pdo->query("
-        SELECT lg.name AS league, p.name AS name, COUNT(lj.id) AS count,
-               pt.name AS team
-        FROM leilao_jogadores lj
-        JOIN players p ON p.id=lj.player_id
-        JOIN leagues lg ON lg.id=lj.league_id
-        LEFT JOIN teams pt ON pt.id = p.team_id
-        GROUP BY lg.name, p.id, p.name ORDER BY count DESC
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($lRaw as $r) $leilaoMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count'],'team'=>$r['team'] ?? ''];
-    sortLeagueData($leilaoMap);
-} catch (Exception) {}
 
 
 // ── Mais playoff consecutivos (streak em PHP) ────────────────────
@@ -299,29 +284,6 @@ try {
 
 
 
-// ── Jogadores leais (mais temporadas no mesmo time) ──────────────
-$leaisMap = [];
-try {
-    // Busca temporadas por jogador+time, depois PHP deduplica mantendo só o time com mais temporadas
-    $leRaw = $pdo->query("
-        SELECT psl.league, psl.player_name AS name,
-               COUNT(DISTINCT psl.season_id) AS count,
-               psl.team_id, t.name AS team
-        FROM player_season_log psl
-        LEFT JOIN teams t ON t.id = psl.team_id
-        GROUP BY psl.league, psl.player_name, psl.team_id
-        HAVING COUNT(DISTINCT psl.season_id) >= 2
-        ORDER BY count DESC
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    $seen = [];
-    foreach ($leRaw as $r) {
-        $key = $r['league'] . '|' . $r['name'];
-        if (isset($seen[$key])) continue; // já tem o melhor (sorted DESC)
-        $seen[$key] = true;
-        $leaisMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count'],'team'=>$r['team'] ?? ''];
-    }
-    sortLeagueData($leaisMap);
-} catch (Exception) {}
 
 
 
@@ -801,14 +763,6 @@ if (!empty(array_filter($neverTop5Map))) {
     echo '</div></div>';
 }
 
-renderSection('leilao', '🔨', 'rgba(168,85,247,.12)', 'Jogadores mais Leiloados',
-    'Jogadores que mais apareceram em processos de FA/leilão',
-    $leilaoMap, $leagues, [
-        'label_hi' => '🔨 Mais disputados', 'show_lo' => false,
-        'color_hi' => 'purple',
-        'copy_hi' => 'Jogadores mais leiloados',
-        'suffix' => 'x',
-    ], $myTeamShortName);
 
 
 renderSection('jejum', '😴', 'rgba(148,163,184,.10)', 'Maior Jejum de Playoffs',
@@ -823,14 +777,6 @@ renderSection('jejum', '😴', 'rgba(148,163,184,.10)', 'Maior Jejum de Playoffs
 
 
 
-renderSection('leais', '❤️', 'rgba(34,197,94,.08)', 'Jogadores Leais',
-    'Mais temporadas consecutivas no mesmo time (mín. 2 temporadas)',
-    $leaisMap, $leagues, [
-        'label_hi' => '❤️ Mais leais', 'show_lo' => false,
-        'color_hi' => 'green',
-        'copy_hi' => 'Jogadores mais leais',
-        'suffix' => ' temp',
-    ], $myTeamShortName);
 
 
 
