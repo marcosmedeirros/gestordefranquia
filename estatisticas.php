@@ -19,6 +19,7 @@ try {
     $stmtMy->execute([$user['id']]);
     $myTeam = $stmtMy->fetch(PDO::FETCH_ASSOC);
     $myTeamName = $myTeam ? ($myTeam['city'] . ' ' . $myTeam['name']) : '';
+    $myTeamShortName = $myTeam ? $myTeam['name'] : '';
 } catch (Exception) {}
 
 function queryByLeague(PDO $pdo, string $sql, array $params = []): array {
@@ -352,6 +353,76 @@ try {
     sortLeagueData($leaisMap);
 } catch (Exception) {}
 
+// ── Confrontos de playoff entre times ────────────────────────────
+$confrontosMap = [];
+try {
+    $cfRaw = $pdo->query("
+        SELECT pm.league,
+               LEAST(pm.team1_id, pm.team2_id) AS ta_id,
+               GREATEST(pm.team1_id, pm.team2_id) AS tb_id,
+               COUNT(*) AS count,
+               t1.name AS a, CONCAT(t1.city,' ',t1.name) AS a_long,
+               t2.name AS b, CONCAT(t2.city,' ',t2.name) AS b_long
+        FROM playoff_matches pm
+        JOIN teams t1 ON t1.id = LEAST(pm.team1_id, pm.team2_id)
+        JOIN teams t2 ON t2.id = GREATEST(pm.team1_id, pm.team2_id)
+        WHERE pm.team1_id IS NOT NULL AND pm.team2_id IS NOT NULL
+        GROUP BY pm.league, ta_id, tb_id
+        ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($cfRaw as $r) {
+        $confrontosMap[$r['league']][] = [
+            'a' => $r['a'], 'a_long' => $r['a_long'],
+            'b' => $r['b'], 'b_long' => $r['b_long'],
+            'count' => (int)$r['count'],
+            'name' => $r['a_long'] . ' × ' . $r['b_long'],
+        ];
+    }
+    sortLeagueData($confrontosMap);
+} catch (Exception) {}
+
+// ── Domínio de playoff (% vitória entre pares) ────────────────────
+$dominioMap = [];
+try {
+    $dmRaw = $pdo->query("
+        SELECT pm.league,
+               LEAST(pm.team1_id, pm.team2_id) AS ta_id,
+               GREATEST(pm.team1_id, pm.team2_id) AS tb_id,
+               SUM(pm.winner_id = LEAST(pm.team1_id, pm.team2_id)) AS ta_wins,
+               SUM(pm.winner_id = GREATEST(pm.team1_id, pm.team2_id)) AS tb_wins,
+               COUNT(*) AS total,
+               t1.name AS ta_name, CONCAT(t1.city,' ',t1.name) AS ta_long,
+               t2.name AS tb_name, CONCAT(t2.city,' ',t2.name) AS tb_long
+        FROM playoff_matches pm
+        JOIN teams t1 ON t1.id = LEAST(pm.team1_id, pm.team2_id)
+        JOIN teams t2 ON t2.id = GREATEST(pm.team1_id, pm.team2_id)
+        WHERE pm.team1_id IS NOT NULL AND pm.team2_id IS NOT NULL AND pm.winner_id IS NOT NULL
+        GROUP BY pm.league, ta_id, tb_id
+        HAVING COUNT(*) >= 2
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($dmRaw as $r) {
+        $taWins = (int)$r['ta_wins'];
+        $tbWins = (int)$r['tb_wins'];
+        $total  = (int)$r['total'];
+        if ($taWins >= $tbWins) {
+            $a = $r['ta_name']; $aL = $r['ta_long'];
+            $b = $r['tb_name']; $bL = $r['tb_long'];
+            $pct = (int)round(100 * $taWins / $total);
+        } else {
+            $a = $r['tb_name']; $aL = $r['tb_long'];
+            $b = $r['ta_name']; $bL = $r['ta_long'];
+            $pct = (int)round(100 * $tbWins / $total);
+        }
+        $dominioMap[$r['league']][] = [
+            'a' => $a, 'a_long' => $aL,
+            'b' => $b, 'b_long' => $bL,
+            'count' => $pct,
+            'name'  => $aL . ' vs ' . $bL,
+        ];
+    }
+    sortLeagueData($dominioMap);
+} catch (Exception) {}
+
 
 
 ?><!DOCTYPE html>
@@ -555,6 +626,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
     $suffix       = $opts['suffix']       ?? '';
     $show_lo      = $opts['show_lo']      ?? true;
     $pair_mode    = $opts['pair_mode']    ?? false;
+    $pair_sep     = $opts['pair_sep']     ?? '×';
 
     echo "<div class=\"section-block\" id=\"{$id}\">";
     echo "<div class=\"section-head\">";
@@ -615,7 +687,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
                     echo "<span class=\"rn ".($i===0?'gold':'')."\">" . ($i+1) . "</span>";
                     echo "<div class=\"pair-names\">";
                     echo "<span class=\"pair-a\" title=\"".htmlspecialchars($r['a_long'])."\">" . htmlspecialchars($r['a']) . "</span>";
-                    echo "<span class=\"pair-b\">× " . htmlspecialchars($r['b']) . "</span>";
+                    echo "<span class=\"pair-b\">{$pair_sep} " . htmlspecialchars($r['b']) . "</span>";
                     echo "</div>";
                     echo "<span class=\"rval {$color_hi}\">" . $r['count'] . $suffix . "</span>";
                     echo "</div>";
@@ -665,7 +737,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
                         echo "<span class=\"rn\">" . ($i+1) . "</span>";
                         echo "<div class=\"pair-names\">";
                         echo "<span class=\"pair-a\">" . htmlspecialchars($r['a']) . "</span>";
-                        echo "<span class=\"pair-b\">× " . htmlspecialchars($r['b']) . "</span>";
+                        echo "<span class=\"pair-b\">{$pair_sep} " . htmlspecialchars($r['b']) . "</span>";
                         echo "</div>";
                         echo "<span class=\"rval {$color_lo}\">" . $r['count'] . $suffix . "</span>";
                         echo "</div>";
@@ -774,7 +846,7 @@ renderSection('player-teams', '🌍', 'rgba(96,165,250,.10)', 'Jogadores mais It
         'color_hi' => 'blue',
         'copy_hi' => 'Jogadores mais itinerantes',
         'suffix' => ' times',
-    ], $myTeamName);
+    ], $myTeamShortName);
 
 renderSection('retencao', '🏠', 'rgba(34,197,94,.10)', 'Retenção de Elenco',
     'Média de temporadas que cada jogador fica no mesmo time',
@@ -800,7 +872,7 @@ renderSection('fa-hot', '🔥', 'rgba(252,0,37,.10)', 'Jogadores mais Disputados
         'color_hi' => 'hi',
         'copy_hi' => 'Jogadores mais disputados na FA',
         'suffix' => ' ofertas',
-    ], $myTeamName);
+    ], $myTeamShortName);
 
 
 renderSection('orig-top5', '🎯', 'rgba(251,191,36,.12)', 'Pick Origem no Top 5',
@@ -850,7 +922,7 @@ renderSection('leilao', '🔨', 'rgba(168,85,247,.12)', 'Jogadores mais Leiloado
         'color_hi' => 'purple',
         'copy_hi' => 'Jogadores mais leiloados',
         'suffix' => 'x',
-    ], $myTeamName);
+    ], $myTeamShortName);
 
 
 renderSection('jejum', '😴', 'rgba(148,163,184,.10)', 'Maior Jejum de Playoffs',
@@ -862,6 +934,27 @@ renderSection('jejum', '😴', 'rgba(148,163,184,.10)', 'Maior Jejum de Playoffs
         'suffix' => ' temp',
     ], $myTeamName);
 
+renderSection('confrontos', '⚔️', 'rgba(251,191,36,.10)', 'Confrontos no Playoff',
+    'Pares de times que mais se enfrentaram nos playoffs',
+    $confrontosMap, $leagues, [
+        'label_hi' => '⚔️ Mais enfrentamentos', 'show_lo' => false,
+        'color_hi' => 'gold',
+        'copy_hi' => 'Confrontos mais frequentes no playoff',
+        'suffix' => 'x',
+        'pair_mode' => true,
+    ]);
+
+renderSection('dominio', '👑', 'rgba(168,85,247,.10)', 'Domínio nos Playoffs',
+    'Time com maior % de vitória contra um rival específico (mín. 2 confrontos)',
+    $dominioMap, $leagues, [
+        'label_hi' => '👑 Maior domínio', 'show_lo' => false,
+        'color_hi' => 'purple',
+        'copy_hi' => 'Maior domínio nos playoffs',
+        'suffix' => '%',
+        'pair_mode' => true,
+        'pair_sep' => 'vs',
+    ]);
+
 
 
 renderSection('leais', '❤️', 'rgba(34,197,94,.08)', 'Jogadores Leais',
@@ -871,7 +964,7 @@ renderSection('leais', '❤️', 'rgba(34,197,94,.08)', 'Jogadores Leais',
         'color_hi' => 'green',
         'copy_hi' => 'Jogadores mais leais',
         'suffix' => ' temp',
-    ], $myTeamName);
+    ], $myTeamShortName);
 
 
 
