@@ -403,18 +403,6 @@ try {
     sortLeagueData($picksEnvMap);
 } catch (Exception) {}
 
-// ── Finais disputadas (champion + runner_up) ──────────────────────
-$finaisMap = [];
-try {
-    $fiRaw = $pdo->query("
-        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(pr.id) AS count
-        FROM teams t
-        LEFT JOIN playoff_results pr ON pr.team_id=t.id AND pr.position IN ('champion','runner_up')
-        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($fiRaw as $r) $finaisMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
-    sortLeagueData($finaisMap);
-} catch (Exception) {}
 
 // ── Jogadores leais (sempre no mesmo time) ───────────────────────
 $leaisMap = [];
@@ -438,14 +426,19 @@ $tradeDeseqMap  = [];
 try {
     $tiRows = $pdo->query("
         SELECT ti.trade_id, ti.player_id, ti.pick_id,
-               ti.player_name, ti.player_ovr, ti.player_age,
-               ti.from_team_id AS sender_id,
+               COALESCE(ti.player_name, p.name) AS player_name,
+               COALESCE(NULLIF(ti.player_ovr,0), p.ovr) AS player_ovr,
+               COALESCE(NULLIF(ti.player_age,0), p.age) AS player_age,
+               COALESCE(
+                   ti.from_team_id,
+                   CASE WHEN ti.from_team = 1 THEN tr.from_team_id ELSE tr.to_team_id END
+               ) AS sender_id,
                tr.from_team_id AS trade_from, tr.to_team_id AS trade_to,
                tr.league
         FROM trade_items ti
         JOIN trades tr ON tr.id=ti.trade_id AND tr.status='accepted'
-        WHERE ti.from_team_id IS NOT NULL
-          AND (ti.player_ovr > 0 OR ti.pick_id IS NOT NULL)
+        LEFT JOIN players p ON p.id=ti.player_id
+        WHERE (ti.player_id IS NOT NULL OR ti.pick_id IS NOT NULL)
     ")->fetchAll(PDO::FETCH_ASSOC);
 
     $pTrend = [];
@@ -567,14 +560,18 @@ try {
     // e compara com OVR atual
     $ovrdRaw = $pdo->query("
         SELECT ti.league,
-               ti.player_name AS name,
+               COALESCE(ti.player_name, p.name) AS name,
                ti.player_id,
-               ti.player_ovr AS ovr_trade,
+               COALESCE(NULLIF(ti.player_ovr,0),
+                   (SELECT psl.ovr FROM player_season_log psl
+                    WHERE psl.player_id=ti.player_id
+                    ORDER BY psl.season_number ASC LIMIT 1)
+               ) AS ovr_trade,
                p.ovr AS ovr_atual
         FROM trade_items ti
         JOIN trades tr ON tr.id=ti.trade_id AND tr.status='accepted'
         JOIN players p ON p.id=ti.player_id
-        WHERE ti.player_ovr > 0 AND p.ovr > 0 AND ti.player_id IS NOT NULL
+        WHERE ti.player_id IS NOT NULL AND p.ovr > 0
         ORDER BY ti.player_id, tr.created_at ASC
     ")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1144,13 +1141,6 @@ renderSection('picks-env', '🎰', 'rgba(96,165,250,.10)', 'Picks Enviadas em Tr
         'suffix' => ' picks',
     ], $myTeamName);
 
-renderSection('finais', '🏆', 'rgba(251,191,36,.12)', 'Finais Disputadas',
-    'Times que mais chegaram à final (campeão + vice)',
-    $finaisMap, $leagues, [
-        'label_hi' => '🏆 Mais finais', 'label_lo' => '📦 Menos finais',
-        'color_hi' => 'gold', 'color_lo' => 'lo',
-        'copy_hi' => 'Mais finais disputadas', 'copy_lo' => 'Menos finais disputadas',
-    ], $myTeamName);
 
 renderSection('leais', '❤️', 'rgba(34,197,94,.08)', 'Jogadores Leais',
     'Jogadores que nunca saíram do mesmo time (mín. 2 temporadas)',
