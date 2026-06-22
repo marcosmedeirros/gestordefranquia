@@ -11,12 +11,14 @@ $pdo = db();
 
 $leagues = ['ELITE','NEXT','RISE','ROOKIE'];
 
-// Time do usuário logado para destaque
+// Time e dados do usuário logado
 $myTeamName = '';
+$myTeam = null;
 try {
-    $stmtMy = $pdo->prepare("SELECT CONCAT(city,' ',name) AS full FROM teams WHERE user_id = ? LIMIT 1");
+    $stmtMy = $pdo->prepare("SELECT * FROM teams WHERE user_id = ? LIMIT 1");
     $stmtMy->execute([$user['id']]);
-    $myTeamName = $stmtMy->fetchColumn() ?: '';
+    $myTeam = $stmtMy->fetch(PDO::FETCH_ASSOC);
+    $myTeamName = $myTeam ? ($myTeam['city'] . ' ' . $myTeam['name']) : '';
 } catch (Exception) {}
 
 function queryByLeague(PDO $pdo, string $sql, array $params = []): array {
@@ -365,14 +367,57 @@ try {
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--red:#fc0025;--red-soft:rgba(252,0,37,.10);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--border:rgba(255,255,255,.07);--border-md:rgba(255,255,255,.12);--text:#f0f0f3;--text-2:#868690;--text-3:#48484f;--amber:#f59e0b;--green:#22c55e;--purple:#a855f7;--blue:#60a5fa;--radius:14px;--font:'Poppins',sans-serif}
+:root{--red:#fc0025;--red-soft:rgba(252,0,37,.10);--border-red:rgba(252,0,37,.25);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1e1e24;--border:rgba(255,255,255,.07);--border-md:rgba(255,255,255,.12);--text:#f0f0f3;--text-2:#868690;--text-3:#48484f;--amber:#f59e0b;--green:#22c55e;--purple:#a855f7;--blue:#60a5fa;--radius:14px;--radius-sm:10px;--font:'Poppins',sans-serif;--sidebar-w:260px;--t:.2s;--ease:cubic-bezier(.4,0,.2,1)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
-.topbar{position:sticky;top:0;z-index:300;height:54px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px}
-.topbar-logo{width:30px;height:30px;border-radius:8px;background:var(--red);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#fff;flex-shrink:0}
-.icon-btn{width:34px;height:34px;border-radius:10px;background:transparent;border:1px solid var(--border);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;text-decoration:none;transition:all .2s}
-.icon-btn:hover{background:var(--red-soft);border-color:var(--red);color:var(--red)}
-main{max-width:1200px;margin:0 auto;padding:28px 16px 80px}
+
+/* ── Sidebar ── */
+.sidebar{position:fixed;top:0;left:0;width:260px;height:100vh;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:300;transition:transform var(--t) var(--ease);overflow-y:auto;scrollbar-width:none}
+.sidebar::-webkit-scrollbar{display:none}
+.sb-brand{padding:22px 18px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
+.sb-logo{width:34px;height:34px;border-radius:9px;background:var(--red);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;flex-shrink:0}
+.sb-brand-text{font-weight:700;font-size:15px;line-height:1.1}
+.sb-brand-text span{display:block;font-size:11px;font-weight:400;color:var(--text-2)}
+.sb-team{margin:14px 14px 0;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.sb-team img{width:40px;height:40px;border-radius:9px;object-fit:cover;border:1px solid var(--border-md);flex-shrink:0}
+.sb-team-name{font-size:13px;font-weight:600;color:var(--text);line-height:1.2}
+.sb-team-league{font-size:11px;color:var(--red);font-weight:600}
+.sb-nav{flex:1;padding:12px 10px 8px}
+.sb-section{font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);padding:12px 10px 5px}
+.sb-nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius-sm);color:var(--text-2);font-size:13px;font-weight:500;text-decoration:none;margin-bottom:2px;transition:all var(--t) var(--ease)}
+.sb-nav a i{font-size:15px;width:18px;text-align:center;flex-shrink:0}
+.sb-nav a:hover{background:var(--panel-2);color:var(--text)}
+.sb-nav a.active{background:var(--red-soft);color:var(--red);font-weight:600}
+.sb-nav a.active i{color:var(--red)}
+.sb-footer{padding:12px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.sb-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--border-md);flex-shrink:0}
+.sb-username{font-size:12px;font-weight:500;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-logout{width:26px;height:26px;border-radius:7px;background:transparent;border:1px solid var(--border);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:all var(--t) var(--ease);text-decoration:none;flex-shrink:0}
+.sb-logout:hover{background:var(--red-soft);border-color:var(--red);color:var(--red)}
+
+/* ── Mobile topbar ── */
+.topbar{display:none;position:fixed;top:0;left:0;right:0;height:54px;background:var(--panel);border-bottom:1px solid var(--border);align-items:center;padding:0 16px;gap:12px;z-index:240}
+.topbar-title{font-weight:700;font-size:15px;flex:1}
+.topbar-title em{color:var(--red);font-style:normal}
+.menu-btn{width:34px;height:34px;border-radius:9px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:17px}
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);z-index:250}
+.sb-overlay.show{display:block}
+
+/* ── Main wrapper ── */
+.main{margin-left:var(--sidebar-w);min-height:100vh;width:calc(100% - var(--sidebar-w))}
+.main-inner{max-width:1200px;margin:0 auto;padding:28px 24px 80px}
+/* sobrescreve qualquer `main` global herdado */
+.main-inner section,.main-inner>*{}
+.page-title{font-family:'Oswald',sans-serif;font-size:24px;font-weight:700;margin-bottom:24px;display:flex;align-items:center;gap:10px}
+.page-title i{color:var(--red)}
+
+@media(max-width:992px){
+  :root{--sidebar-w:0px}
+  .sidebar{transform:translateX(-260px)}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0;width:100%;padding-top:54px}
+  .topbar{display:flex}
+}
 
 /* Section headers */
 .section-block{margin-bottom:40px}
@@ -424,20 +469,79 @@ main{max-width:1200px;margin:0 auto;padding:28px 16px 80px}
 .pair-row{display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border)}
 .pair-row:last-child{border-bottom:none}
 .pair-names{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.pair-a{font-size:11px;font-weight:600;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pair-b{font-size:11px;font-weight:600;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pair-a{font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pair-b{font-size:11px;font-weight:500;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .empty-state{padding:16px 14px;font-size:11px;color:var(--text-3);text-align:center}
 </style>
 </head>
 <body>
-<div class="topbar">
-  <div class="topbar-logo">FBA</div>
-  <span style="font-weight:800;font-size:14px;flex:1">Estatísticas</span>
-  <a href="admin.php" class="icon-btn"><i class="bi bi-arrow-left"></i></a>
-</div>
 
-<main>
+<aside class="sidebar" id="sidebar">
+  <div class="sb-brand">
+    <div class="sb-logo">FBA</div>
+    <div class="sb-brand-text">FBA Manager<span>Liga <?= htmlspecialchars($user['league'] ?? '') ?></span></div>
+  </div>
+  <?php if ($myTeam): ?>
+  <div class="sb-team">
+    <img src="<?= htmlspecialchars($myTeam['photo_url'] ?? '/img/default-team.png') ?>" alt="" onerror="this.src='/img/default-team.png'">
+    <div>
+      <div class="sb-team-name"><?= htmlspecialchars($myTeamName) ?></div>
+      <div class="sb-team-league"><?= htmlspecialchars($user['league'] ?? '') ?></div>
+    </div>
+  </div>
+  <?php endif; ?>
+  <nav class="sb-nav">
+    <div class="sb-section">Principal</div>
+    <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
+    <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
+    <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
+    <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
+    <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
+    <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
+    <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
+    <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
+    <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
+    <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
+    <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
+    <div class="sb-section">Liga</div>
+    <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
+    <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
+    <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
+    <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
+    <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
+    <a href="/estatisticas.php" class="active"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
+    <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
+    <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
+    <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
+    <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
+    <div class="sb-section">Admin</div>
+    <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
+    <?php endif; ?>
+    <div class="sb-section">Conta</div>
+    <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
+    <a href="/team-public-page.php"><i class="bi bi-globe2"></i> Página do Time</a>
+  </nav>
+  <div class="sb-footer">
+    <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>"
+         alt="<?= htmlspecialchars($user['name']) ?>"
+         class="sb-avatar"
+         onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name']) ?>&background=1c1c21&color=fc0025'">
+    <span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
+    <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
+  </div>
+</aside>
+
+<div class="sb-overlay" id="sbOverlay"></div>
+
+<header class="topbar">
+  <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
+  <div class="topbar-title">FBA <em>Estatísticas</em></div>
+</header>
+
+<div class="main">
+<div class="main-inner">
+<div class="page-title"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</div>
 <?php
 
 // ─────────────────────────────────────────────────────────────────
@@ -566,17 +670,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
                         echo "</div>";
                     }
                 }
-                // Show myTeam outside bot5
-                if ($myPos > 0 && !$myInBot5 && !$myInTop5 && !$pair_mode) {
-                    $myRow = $arr[$myPos - 1];
-                    echo "<div class=\"my-team-sep\"></div>";
-                    echo "<div class=\"my-team-label\">Seu time</div>";
-                    echo "<div class=\"rank-row my-team\">";
-                    echo "<span class=\"rn\">{$myPos}</span>";
-                    echo "<span class=\"rname\" title=\"".htmlspecialchars($myRow['name'])."\">" . htmlspecialchars($myRow['name']) . "</span>";
-                    echo "<span class=\"rval {$color_lo}\">" . $myRow['count'] . $suffix . "</span>";
-                    echo "</div>";
-                }
+                // Se o time está no bot5, já aparece destacado acima; não duplicar
             }
         }
 
@@ -777,9 +871,17 @@ renderSection('leilao', '🔨', 'rgba(168,85,247,.12)', 'Jogadores mais Leiloado
 
 
 ?>
-</main>
+</div><!-- .main-inner -->
+</div><!-- .main -->
 
 <script>
+// Sidebar toggle
+const sidebar = document.getElementById('sidebar');
+const menuBtn = document.getElementById('menuBtn');
+const overlay = document.getElementById('sbOverlay');
+if (menuBtn) menuBtn.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('show'); });
+if (overlay) overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); });
+
 document.querySelectorAll('.copy-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const text = btn.getAttribute('data-text');
