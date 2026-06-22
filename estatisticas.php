@@ -353,75 +353,6 @@ try {
     sortLeagueData($leaisMap);
 } catch (Exception) {}
 
-// ── Confrontos de playoff entre times ────────────────────────────
-$confrontosMap = [];
-try {
-    $cfRaw = $pdo->query("
-        SELECT pm.league,
-               LEAST(pm.team1_id, pm.team2_id) AS ta_id,
-               GREATEST(pm.team1_id, pm.team2_id) AS tb_id,
-               COUNT(*) AS count,
-               t1.name AS a, CONCAT(t1.city,' ',t1.name) AS a_long,
-               t2.name AS b, CONCAT(t2.city,' ',t2.name) AS b_long
-        FROM playoff_matches pm
-        JOIN teams t1 ON t1.id = LEAST(pm.team1_id, pm.team2_id)
-        JOIN teams t2 ON t2.id = GREATEST(pm.team1_id, pm.team2_id)
-        WHERE pm.team1_id IS NOT NULL AND pm.team2_id IS NOT NULL
-        GROUP BY pm.league, ta_id, tb_id
-        ORDER BY count DESC
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($cfRaw as $r) {
-        $confrontosMap[$r['league']][] = [
-            'a' => $r['a'], 'a_long' => $r['a_long'],
-            'b' => $r['b'], 'b_long' => $r['b_long'],
-            'count' => (int)$r['count'],
-            'name' => $r['a_long'] . ' × ' . $r['b_long'],
-        ];
-    }
-    sortLeagueData($confrontosMap);
-} catch (Exception) {}
-
-// ── Domínio de playoff (% vitória entre pares) ────────────────────
-$dominioMap = [];
-try {
-    $dmRaw = $pdo->query("
-        SELECT pm.league,
-               LEAST(pm.team1_id, pm.team2_id) AS ta_id,
-               GREATEST(pm.team1_id, pm.team2_id) AS tb_id,
-               SUM(pm.winner_id = LEAST(pm.team1_id, pm.team2_id)) AS ta_wins,
-               SUM(pm.winner_id = GREATEST(pm.team1_id, pm.team2_id)) AS tb_wins,
-               COUNT(*) AS total,
-               t1.name AS ta_name, CONCAT(t1.city,' ',t1.name) AS ta_long,
-               t2.name AS tb_name, CONCAT(t2.city,' ',t2.name) AS tb_long
-        FROM playoff_matches pm
-        JOIN teams t1 ON t1.id = LEAST(pm.team1_id, pm.team2_id)
-        JOIN teams t2 ON t2.id = GREATEST(pm.team1_id, pm.team2_id)
-        WHERE pm.team1_id IS NOT NULL AND pm.team2_id IS NOT NULL AND pm.winner_id IS NOT NULL
-        GROUP BY pm.league, ta_id, tb_id
-        HAVING COUNT(*) >= 2
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($dmRaw as $r) {
-        $taWins = (int)$r['ta_wins'];
-        $tbWins = (int)$r['tb_wins'];
-        $total  = (int)$r['total'];
-        if ($taWins >= $tbWins) {
-            $a = $r['ta_name']; $aL = $r['ta_long'];
-            $b = $r['tb_name']; $bL = $r['tb_long'];
-            $pct = (int)round(100 * $taWins / $total);
-        } else {
-            $a = $r['tb_name']; $aL = $r['tb_long'];
-            $b = $r['ta_name']; $bL = $r['ta_long'];
-            $pct = (int)round(100 * $tbWins / $total);
-        }
-        $dominioMap[$r['league']][] = [
-            'a' => $a, 'a_long' => $aL,
-            'b' => $b, 'b_long' => $bL,
-            'count' => $pct,
-            'name'  => $aL . ' vs ' . $bL,
-        ];
-    }
-    sortLeagueData($dominioMap);
-} catch (Exception) {}
 
 
 
@@ -934,26 +865,6 @@ renderSection('jejum', '😴', 'rgba(148,163,184,.10)', 'Maior Jejum de Playoffs
         'suffix' => ' temp',
     ], $myTeamName);
 
-renderSection('confrontos', '⚔️', 'rgba(251,191,36,.10)', 'Confrontos no Playoff',
-    'Pares de times que mais se enfrentaram nos playoffs',
-    $confrontosMap, $leagues, [
-        'label_hi' => '⚔️ Mais enfrentamentos', 'show_lo' => false,
-        'color_hi' => 'gold',
-        'copy_hi' => 'Confrontos mais frequentes no playoff',
-        'suffix' => 'x',
-        'pair_mode' => true,
-    ]);
-
-renderSection('dominio', '👑', 'rgba(168,85,247,.10)', 'Domínio nos Playoffs',
-    'Time com maior % de vitória contra um rival específico (mín. 2 confrontos)',
-    $dominioMap, $leagues, [
-        'label_hi' => '👑 Maior domínio', 'show_lo' => false,
-        'color_hi' => 'purple',
-        'copy_hi' => 'Maior domínio nos playoffs',
-        'suffix' => '%',
-        'pair_mode' => true,
-        'pair_sep' => 'vs',
-    ]);
 
 
 
