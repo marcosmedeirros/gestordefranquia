@@ -34,8 +34,9 @@ function updateTradeValueDisplay() {
 
   const total = myValue + targetValue;
   if (total === 0) {
-    verdictEl.innerHTML = '<i class="bi bi-hourglass-split"></i>AGUARDANDO';
+    verdictEl.innerHTML = '<i class="bi bi-hourglass-split"></i>';
     verdictEl.className = 'tv-verdict-badge tv-neutral';
+    verdictEl.title = 'Aguardando itens';
     return;
   }
 
@@ -43,14 +44,15 @@ function updateTradeValueDisplay() {
   const min = Math.min(myValue, targetValue);
   const diff = max > 0 ? (max - min) / max : 0;
 
-  let icon, label, cls;
-  if (diff <= 0.08)       { icon = 'check-circle-fill';        label = 'TROCA JUSTA';          cls = 'tv-valid';   }
-  else if (diff <= 0.18)  { icon = 'exclamation-triangle-fill';label = 'LEVEMENTE DESIGUAL';    cls = 'tv-warn';    }
-  else if (diff <= 0.32)  { icon = 'x-octagon-fill';           label = 'DESEQUILIBRADA';        cls = 'tv-invalid'; }
-  else                    { icon = 'emoji-dizzy-fill';          label = 'ISSO É UM ROUBO!';      cls = 'tv-robbery'; }
+  let icon, label, cls, title;
+  if (diff <= 0.08)       { icon = 'check-circle-fill';        label = 'JUSTA';     cls = 'tv-valid';   title = 'Troca Justa'; }
+  else if (diff <= 0.18)  { icon = 'exclamation-triangle-fill';label = 'DESIGUAL';  cls = 'tv-warn';    title = 'Levemente Desigual'; }
+  else if (diff <= 0.32)  { icon = 'x-octagon-fill';           label = 'DESEQ.';   cls = 'tv-invalid'; title = 'Desequilibrada'; }
+  else                    { icon = 'emoji-dizzy-fill';          label = 'ROUBO!';   cls = 'tv-robbery'; title = 'Isso é um Roubo!'; }
 
   verdictEl.innerHTML = `<i class="bi bi-${icon}"></i>${label}`;
   verdictEl.className = `tv-verdict-badge ${cls}`;
+  verdictEl.title = title;
 }
 
 const api = async (path, options = {}) => {

@@ -171,13 +171,15 @@ try {
 $leilaoMap = [];
 try {
     $lRaw = $pdo->query("
-        SELECT lg.name AS league, p.name AS name, COUNT(lj.id) AS count
+        SELECT lg.name AS league, p.name AS name, COUNT(lj.id) AS count,
+               pt.name AS team
         FROM leilao_jogadores lj
         JOIN players p ON p.id=lj.player_id
         JOIN leagues lg ON lg.id=lj.league_id
+        LEFT JOIN teams pt ON pt.id = p.team_id
         GROUP BY lg.name, p.id, p.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($lRaw as $r) $leilaoMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    foreach ($lRaw as $r) $leilaoMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count'],'team'=>$r['team'] ?? ''];
     sortLeagueData($leilaoMap);
 } catch (Exception) {}
 
@@ -236,10 +238,14 @@ try {
 $playerTeamsMap = [];
 try {
     $ptRaw = $pdo->query("
-        SELECT psl.league, psl.player_name AS name, COUNT(DISTINCT psl.team_id) AS count
-        FROM player_season_log psl GROUP BY psl.league, psl.player_name ORDER BY count DESC
+        SELECT psl.league, psl.player_name AS name, COUNT(DISTINCT psl.team_id) AS count,
+               pt.name AS team
+        FROM player_season_log psl
+        LEFT JOIN players p ON p.name = psl.player_name
+        LEFT JOIN teams pt ON pt.id = p.team_id
+        GROUP BY psl.league, psl.player_name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($ptRaw as $r) $playerTeamsMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    foreach ($ptRaw as $r) $playerTeamsMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count'],'team'=>$r['team'] ?? ''];
     sortLeagueData($playerTeamsMap);
 } catch (Exception) {}
 
@@ -279,12 +285,15 @@ try {
 $faHotMap = [];
 try {
     $fhRaw = $pdo->query("
-        SELECT far.league, far.player_name AS name, COUNT(DISTINCT faro.team_id) AS count
+        SELECT far.league, far.player_name AS name, COUNT(DISTINCT faro.team_id) AS count,
+               pt.name AS team
         FROM fa_requests far
         LEFT JOIN fa_request_offers faro ON faro.request_id=far.id
+        LEFT JOIN players p ON p.name = far.player_name
+        LEFT JOIN teams pt ON pt.id = p.team_id
         GROUP BY far.league, far.player_name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($fhRaw as $r) $faHotMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    foreach ($fhRaw as $r) $faHotMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count'],'team'=>$r['team'] ?? ''];
     sortLeagueData($faHotMap);
 } catch (Exception) {}
 
@@ -327,15 +336,19 @@ try {
 $leaisMap = [];
 try {
     $leRaw = $pdo->query("
-        SELECT psl.league, psl.player_name AS name,
-               COUNT(DISTINCT psl.season_id) AS count,
-               COUNT(DISTINCT psl.team_id) AS teams_count
-        FROM player_season_log psl
-        GROUP BY psl.league, psl.player_name
-        HAVING teams_count = 1 AND count >= 2
-        ORDER BY count DESC
+        SELECT sub.league, sub.name, sub.count, t.name AS team
+        FROM (
+            SELECT psl.league, psl.player_name AS name,
+                   COUNT(DISTINCT psl.season_id) AS count,
+                   MIN(psl.team_id) AS team_id
+            FROM player_season_log psl
+            GROUP BY psl.league, psl.player_name
+            HAVING COUNT(DISTINCT psl.team_id) = 1 AND COUNT(DISTINCT psl.season_id) >= 2
+        ) sub
+        LEFT JOIN teams t ON t.id = sub.team_id
+        ORDER BY sub.count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($leRaw as $r) $leaisMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    foreach ($leRaw as $r) $leaisMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count'],'team'=>$r['team'] ?? ''];
     sortLeagueData($leaisMap);
 } catch (Exception) {}
 
@@ -433,6 +446,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .rn{width:16px;font-family:'Oswald',sans-serif;font-size:12px;font-weight:700;color:var(--text-3);flex-shrink:0;text-align:right}
 .rn.gold{color:var(--amber)}
 .rname{flex:1;font-size:11px;font-weight:500;color:var(--text);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rteam{color:var(--text-2);font-weight:400}
 .rval{font-family:'Oswald',sans-serif;font-size:14px;font-weight:700;flex-shrink:0}
 .rval.hi{color:var(--red)}
 .rval.lo{color:var(--text-3)}
@@ -604,7 +618,11 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
                     $cls = $isMyTeam ? ' my-team' : '';
                     echo "<div class=\"rank-row{$cls}\">";
                     echo "<span class=\"rn ".($i===0?'gold':'')."\">" . ($i+1) . "</span>";
-                    echo "<span class=\"rname\" title=\"".htmlspecialchars($r['name'])."\">" . htmlspecialchars($r['name']) . "</span>";
+                    if (!empty($r['team'])) {
+                        echo "<span class=\"rname\" title=\"".htmlspecialchars($r['name'])."\">" . htmlspecialchars($r['name']) . " <span class=\"rteam\">- " . htmlspecialchars($r['team']) . "</span></span>";
+                    } else {
+                        echo "<span class=\"rname\" title=\"".htmlspecialchars($r['name'])."\">" . htmlspecialchars($r['name']) . "</span>";
+                    }
                     echo "<span class=\"rval {$color_hi}\">" . $r['count'] . $suffix . "</span>";
                     echo "</div>";
                 }
@@ -616,7 +634,11 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
                 echo "<div class=\"my-team-label\">Seu time</div>";
                 echo "<div class=\"rank-row my-team\">";
                 echo "<span class=\"rn\">{$myPos}</span>";
-                echo "<span class=\"rname\" title=\"".htmlspecialchars($myRow['name'])."\">" . htmlspecialchars($myRow['name']) . "</span>";
+                if (!empty($myRow['team'])) {
+                    echo "<span class=\"rname\" title=\"".htmlspecialchars($myRow['name'])."\">" . htmlspecialchars($myRow['name']) . " <span class=\"rteam\">- " . htmlspecialchars($myRow['team']) . "</span></span>";
+                } else {
+                    echo "<span class=\"rname\" title=\"".htmlspecialchars($myRow['name'])."\">" . htmlspecialchars($myRow['name']) . "</span>";
+                }
                 echo "<span class=\"rval {$color_hi}\">" . $myRow['count'] . $suffix . "</span>";
                 echo "</div>";
             }
@@ -646,7 +668,11 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
                         $pos = $bot5Positions[$i];
                         echo "<div class=\"rank-row{$cls}\">";
                         echo "<span class=\"rn\">{$pos}</span>";
-                        echo "<span class=\"rname\" title=\"".htmlspecialchars($r['name'])."\">" . htmlspecialchars($r['name']) . "</span>";
+                        if (!empty($r['team'])) {
+                            echo "<div class=\"rname-wrap\"><span class=\"rname\" title=\"".htmlspecialchars($r['name'])."\">" . htmlspecialchars($r['name']) . "</span><span class=\"rteam\">" . htmlspecialchars($r['team']) . "</span></div>";
+                        } else {
+                            echo "<span class=\"rname\" title=\"".htmlspecialchars($r['name'])."\">" . htmlspecialchars($r['name']) . "</span>";
+                        }
                         echo "<span class=\"rval {$color_lo}\">" . $r['count'] . $suffix . "</span>";
                         echo "</div>";
                     }

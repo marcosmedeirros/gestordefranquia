@@ -690,24 +690,7 @@ try {
                 </div>
               </div>
             </div>
-            <!-- Valor da Trade -->
-            <div class="row g-3 mb-3">
-              <div class="col-12">
-                <div style="background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-                  <div>
-                    <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-3);margin-bottom:8px">VALOR DA TRADE</div>
-                    <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">
-                      <div><span style="font-size:11px;color:var(--text-2)">Você oferece</span><br><span style="font-size:20px;font-weight:800;color:var(--text)" id="tvMyValue">—</span></div>
-                      <div style="font-size:18px;color:var(--text-3)">↔</div>
-                      <div><span style="font-size:11px;color:var(--text-2)">Time alvo</span><br><span style="font-size:20px;font-weight:800;color:var(--text)" id="tvTargetValue">—</span></div>
-                    </div>
-                  </div>
-                  <div id="tvVerdict" class="tv-verdict-badge tv-neutral"><i class="bi bi-hourglass-split"></i>AGUARDANDO</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Impacto no CAP -->
+            <!-- Impacto no CAP + Valor -->
             <div class="row g-3 mb-3" id="capImpactRow">
               <div class="col-md-6">
                 <div class="cap-card">
@@ -717,7 +700,10 @@ try {
                   </div>
                   <div style="font-size:12px;color:var(--text-2)">Atual: <span style="color:var(--text)" id="capMyCurrent">-</span></div>
                   <div style="font-size:12px;color:var(--text-2)">Após trade: <span style="color:var(--red);font-weight:600" id="capMyProjected">-</span></div>
-                  <div style="font-size:12px;color:var(--text-2);margin-top:4px">Jogadores: <span style="color:var(--text)" id="capMyPlayers">-</span> → <span style="color:var(--red);font-weight:600" id="capMyPlayersProjected">-</span></div>
+                  <div style="font-size:12px;color:var(--text-2);margin-top:4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
+                    <span>Jogadores: <span style="color:var(--text)" id="capMyPlayers">-</span> → <span style="color:var(--red);font-weight:600" id="capMyPlayersProjected">-</span></span>
+                    <span style="color:var(--text-3)">Valor: <span style="color:var(--text);font-weight:600" id="tvMyValue">—</span></span>
+                  </div>
                 </div>
               </div>
               <div class="col-md-6">
@@ -728,7 +714,10 @@ try {
                   </div>
                   <div style="font-size:12px;color:var(--text-2)">Atual: <span style="color:var(--text)" id="capTargetCurrent">-</span></div>
                   <div style="font-size:12px;color:var(--text-2)">Após trade: <span style="color:var(--red);font-weight:600" id="capTargetProjected">-</span></div>
-                  <div style="font-size:12px;color:var(--text-2);margin-top:4px">Jogadores: <span style="color:var(--text)" id="capTargetPlayers">-</span> → <span style="color:var(--red);font-weight:600" id="capTargetPlayersProjected">-</span></div>
+                  <div style="font-size:12px;color:var(--text-2);margin-top:4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
+                    <span>Jogadores: <span style="color:var(--text)" id="capTargetPlayers">-</span> → <span style="color:var(--red);font-weight:600" id="capTargetPlayersProjected">-</span></span>
+                    <span style="color:var(--text-3)">Valor: <span style="color:var(--text);font-weight:600" id="tvTargetValue">—</span> <span id="tvVerdict" class="tv-verdict-badge tv-neutral" style="font-size:9px;padding:3px 8px"><i class="bi bi-hourglass-split"></i></span></span>
+                  </div>
                 </div>
               </div>
             </div>
