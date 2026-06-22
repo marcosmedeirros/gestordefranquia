@@ -314,23 +314,27 @@ try {
 
 
 
-// ── Jogadores leais (sempre no mesmo time) ───────────────────────
+// ── Jogadores leais (mais temporadas no mesmo time) ──────────────
 $leaisMap = [];
 try {
+    // Busca temporadas por jogador+time, depois PHP deduplica mantendo só o time com mais temporadas
     $leRaw = $pdo->query("
-        SELECT sub.league, sub.name, sub.count, t.name AS team
-        FROM (
-            SELECT psl.league, psl.player_name AS name,
-                   COUNT(DISTINCT psl.season_id) AS count,
-                   MIN(psl.team_id) AS team_id
-            FROM player_season_log psl
-            GROUP BY psl.league, psl.player_name
-            HAVING COUNT(DISTINCT psl.team_id) = 1 AND COUNT(DISTINCT psl.season_id) >= 2
-        ) sub
-        LEFT JOIN teams t ON t.id = sub.team_id
-        ORDER BY sub.count DESC
+        SELECT psl.league, psl.player_name AS name,
+               COUNT(DISTINCT psl.season_id) AS count,
+               psl.team_id, t.name AS team
+        FROM player_season_log psl
+        LEFT JOIN teams t ON t.id = psl.team_id
+        GROUP BY psl.league, psl.player_name, psl.team_id
+        HAVING COUNT(DISTINCT psl.season_id) >= 2
+        ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($leRaw as $r) $leaisMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count'],'team'=>$r['team'] ?? ''];
+    $seen = [];
+    foreach ($leRaw as $r) {
+        $key = $r['league'] . '|' . $r['name'];
+        if (isset($seen[$key])) continue; // já tem o melhor (sorted DESC)
+        $seen[$key] = true;
+        $leaisMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count'],'team'=>$r['team'] ?? ''];
+    }
     sortLeagueData($leaisMap);
 } catch (Exception) {}
 
@@ -843,7 +847,7 @@ renderSection('jejum', '😴', 'rgba(148,163,184,.10)', 'Maior Jejum de Playoffs
 
 
 renderSection('leais', '❤️', 'rgba(34,197,94,.08)', 'Jogadores Leais',
-    'Jogadores que nunca saíram do mesmo time (mín. 2 temporadas)',
+    'Mais temporadas consecutivas no mesmo time (mín. 2 temporadas)',
     $leaisMap, $leagues, [
         'label_hi' => '❤️ Mais leais', 'show_lo' => false,
         'color_hi' => 'green',
