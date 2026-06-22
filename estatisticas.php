@@ -184,22 +184,6 @@ try {
     sortLeagueData($leilaoMap);
 } catch (Exception) {}
 
-// ── Mais vezes seed 1 (maior pts regular na temporada) ───────────
-$seed1Map = [];
-try {
-    $s1Raw = $pdo->query("
-        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
-        FROM team_ranking_points trp
-        JOIN teams t ON t.id=trp.team_id
-        WHERE trp.regular_season_points = (
-            SELECT MAX(trp2.regular_season_points) FROM team_ranking_points trp2
-            WHERE trp2.season_id=trp.season_id AND trp2.league=trp.league
-        )
-        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($s1Raw as $r) $seed1Map[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
-    sortLeagueData($seed1Map);
-} catch (Exception) {}
 
 // ── Mais playoff consecutivos (streak em PHP) ────────────────────
 $streakMap = [];
@@ -753,13 +737,6 @@ renderSection('fa', '🖊️', 'rgba(34,197,94,.10)', 'Free Agency',
 
 // ─── Novas seções ─────────────────────────────────────────────────
 
-renderSection('seed1', '1️⃣', 'rgba(251,191,36,.12)', 'Mais vezes Seed 1',
-    'Times que terminaram com mais pontos na regular em cada temporada',
-    $seed1Map, $leagues, [
-        'label_hi' => '🥇 Mais seed 1', 'show_lo' => false,
-        'color_hi' => 'gold',
-        'copy_hi' => 'Mais vezes seed 1',
-    ], $myTeamName);
 
 renderSection('streak', '🔥', 'rgba(251,191,36,.10)', 'Maior Sequência de Playoffs',
     'Máximo de temporadas consecutivas classificadas ao playoff',
