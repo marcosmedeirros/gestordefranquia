@@ -9,7 +9,7 @@ if (($user['user_type'] ?? '') !== 'admin' && !hasAdminAccess($pdo2, $user['id']
 }
 $pdo = db();
 
-$leagues = ['ELITE','NEXT','RISE','ROOKIE'];
+$leagues = ['ELITE','NEXT','RISE'];
 
 // Time e dados do usuário logado
 $myTeamName = '';
