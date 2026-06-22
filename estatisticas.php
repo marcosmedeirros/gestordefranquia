@@ -1,0 +1,804 @@
+<?php
+require_once __DIR__ . '/backend/auth.php';
+require_once __DIR__ . '/backend/db.php';
+requireAuth();
+$user = getUserSession();
+$pdo2 = db();
+if (($user['user_type'] ?? '') !== 'admin' && !hasAdminAccess($pdo2, $user['id'])) {
+    header('Location: index.php'); exit;
+}
+$pdo = db();
+
+$leagues = ['ELITE','NEXT','RISE','ROOKIE'];
+
+// Time do usuário logado para destaque
+$myTeamName = '';
+try {
+    $stmtMy = $pdo->prepare("SELECT CONCAT(city,' ',name) AS full FROM teams WHERE user_id = ? LIMIT 1");
+    $stmtMy->execute([$user['id']]);
+    $myTeamName = $stmtMy->fetchColumn() ?: '';
+} catch (Exception) {}
+
+function queryByLeague(PDO $pdo, string $sql, array $params = []): array {
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $out = [];
+        foreach ($rows as $r) {
+            $lg = $r['league'] ?? 'ALL';
+            $out[$lg][] = $r;
+        }
+        return $out;
+    } catch (Exception) { return []; }
+}
+
+function sortLeagueData(array &$map, string $key = 'count', bool $desc = true): void {
+    foreach ($map as &$arr) {
+        usort($arr, fn($a,$b) => $desc ? $b[$key] - $a[$key] : $a[$key] - $b[$key]);
+    }
+}
+
+// ── 1. Trades por time ───────────────────────────────────────────
+$tradesRaw = $pdo->query("
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
+           COUNT(DISTINCT tr.id) AS count
+    FROM teams t
+    LEFT JOIN trades tr ON tr.status='accepted' AND (tr.from_team_id=t.id OR tr.to_team_id=t.id) AND tr.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
+    GROUP BY t.league, t.id, t.city, t.name
+")->fetchAll(PDO::FETCH_ASSOC);
+$tradesByLeague = [];
+foreach ($tradesRaw as $r) {
+    $tradesByLeague[$r['league']][] = ['name' => $r['name'], 'count' => (int)$r['count']];
+}
+sortLeagueData($tradesByLeague);
+
+// ── 2. Pares que mais trocaram ───────────────────────────────────
+$teamNamesShort = [];
+$teamNamesLong  = [];
+foreach ($pdo->query("SELECT id, name, CONCAT(city,' ',name) AS full FROM teams")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    $teamNamesShort[$r['id']] = $r['name'];
+    $teamNamesLong[$r['id']]  = $r['full'];
+}
+$pairsRaw = $pdo->query("
+    SELECT league, LEAST(from_team_id,to_team_id) AS t1, GREATEST(from_team_id,to_team_id) AS t2, COUNT(*) AS count
+    FROM trades WHERE status='accepted' AND from_team_id IS NOT NULL AND to_team_id IS NOT NULL
+    GROUP BY league, t1, t2
+")->fetchAll(PDO::FETCH_ASSOC);
+$pairsByLeague = [];
+foreach ($pairsRaw as $r) {
+    $pairsByLeague[$r['league']][] = [
+        'a' => $teamNamesShort[$r['t1']] ?? "#{$r['t1']}",
+        'b' => $teamNamesShort[$r['t2']] ?? "#{$r['t2']}",
+        'a_long' => $teamNamesLong[$r['t1']] ?? "#{$r['t1']}",
+        'b_long' => $teamNamesLong[$r['t2']] ?? "#{$r['t2']}",
+        'count'  => (int)$r['count'],
+    ];
+}
+sortLeagueData($pairsByLeague);
+
+// ── 3. Mais aparições no playoff ─────────────────────────────────
+$playoffMap = queryByLeague($pdo, "
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tsp.season_id) AS count
+    FROM teams t
+    LEFT JOIN team_season_points tsp ON tsp.team_id=t.id AND tsp.points>=3 AND tsp.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
+    GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+");
+sortLeagueData($playoffMap);
+
+// ── 5. Elenco mais jovem ─────────────────────────────────────────
+$youngMap = queryByLeague($pdo, "
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
+           ROUND(AVG(p.age),1) AS count
+    FROM teams t
+    JOIN players p ON p.team_id=t.id AND p.age > 0
+    GROUP BY t.id, t.league, t.city, t.name ORDER BY count ASC
+");
+foreach ($youngMap as &$arr) usort($arr, fn($a,$b) => $a['count'] <=> $b['count']);
+unset($arr);
+
+// ── 10. Elenco mais velho ────────────────────────────────────────
+$oldMap = [];
+foreach ($youngMap as $lg => $arr) {
+    $oldMap[$lg] = array_reverse($arr);
+}
+
+$loginsMap  = [];
+$fbaPtsMap  = [];
+
+// ── 14. Mais jogadores draftados ─────────────────────────────────
+$draftedMap = queryByLeague($pdo, "
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(p.id) AS count
+    FROM teams t LEFT JOIN players p ON p.drafted_by_team_id=t.id
+    GROUP BY t.id, t.league, t.city, t.name ORDER BY count DESC
+");
+sortLeagueData($draftedMap);
+
+// ── 15. Mais jogadores que passaram pelo clube ───────────────────
+$rotMap = queryByLeague($pdo, "
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT psl.player_id) AS count
+    FROM teams t
+    LEFT JOIN player_season_log psl ON psl.team_id=t.id AND psl.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
+    GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+");
+sortLeagueData($rotMap);
+
+// ── FA pickups (inclui times com 0 contratações) ─────────────────
+$faMap = queryByLeague($pdo, "
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
+           COUNT(far.id) AS count
+    FROM teams t
+    LEFT JOIN fa_requests far ON far.winner_team_id = t.id AND far.status = 'assigned'
+    GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+");
+sortLeagueData($faMap);
+
+// ── Propostas de trade (todas, qualquer status) ──────────────────
+$faPropostasMap = queryByLeague($pdo, "
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tr.id) AS count
+    FROM teams t
+    LEFT JOIN trades tr ON tr.from_team_id=t.id AND tr.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
+    GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+");
+sortLeagueData($faPropostasMap);
+
+// ── Corrigir Utah Coyotes em propostas (-200 registros duplicados) ─
+foreach ($faPropostasMap as $lg => &$arr) {
+    foreach ($arr as &$row) {
+        if (str_contains($row['name'], 'Coyotes') && str_contains($row['name'], 'Utah')) {
+            $row['count'] = max(0, (int)$row['count'] - 200);
+        }
+    }
+}
+unset($arr, $row);
+sortLeagueData($faPropostasMap);
+
+// ── Trades rejeitadas (propostas que o outro time recusou) ────────
+$rejectedMap = queryByLeague($pdo, "
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tr.id) AS count
+    FROM teams t
+    LEFT JOIN trades tr ON tr.from_team_id=t.id
+        AND tr.status='rejected'
+        AND tr.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
+    GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+");
+sortLeagueData($rejectedMap);
+
+// ── Pick origem no top5 (draft_order, original_team_id, pos <= 5) ─
+$origTop5Map = [];
+try {
+    $ot5Raw = $pdo->query("
+        SELECT ds.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+        FROM draft_order do_
+        JOIN draft_sessions ds ON ds.id=do_.draft_session_id
+        JOIN teams t ON t.id=do_.original_team_id
+        WHERE do_.pick_position <= 5 AND do_.round = 1 AND do_.picked_player_id IS NOT NULL
+        GROUP BY ds.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($ot5Raw as $r) $origTop5Map[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    // Correção: 1 pick atribuída ao Utah Coyotes pertencia ao St. Louis Musketeers
+    foreach ($origTop5Map as $lg => &$arr) {
+        $hasMusk = false;
+        foreach ($arr as &$row) {
+            if (str_contains($row['name'], 'Coyotes') && str_contains($row['name'], 'Utah')) $row['count'] = max(0, $row['count'] - 1);
+            if (str_contains($row['name'], 'Musketeers') || str_contains($row['name'], 'Musketters')) { $row['count']++; $hasMusk = true; }
+        } unset($row);
+        if (!$hasMusk) $arr[] = ['name' => 'St. Louis Musketeers', 'count' => 1];
+    } unset($arr);
+    foreach ($origTop5Map as &$arr) {
+        usort($arr, fn($a,$b) => $b['count'] !== $a['count'] ? $b['count'] - $a['count']
+            : ((str_contains($a['name'],'Coyotes') && str_contains($a['name'],'Utah')) ? 1
+            : ((str_contains($b['name'],'Coyotes') && str_contains($b['name'],'Utah')) ? -1 : 0)));
+    } unset($arr);
+} catch (Exception) {}
+
+// ── Quem mais escolheu no top5 (draft_order, team_id, pos <= 5) ───
+$top5PicksMap = [];
+try {
+    $tp5Raw = $pdo->query("
+        SELECT ds.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+        FROM draft_order do_
+        JOIN draft_sessions ds ON ds.id=do_.draft_session_id
+        JOIN teams t ON t.id=do_.team_id
+        WHERE do_.pick_position <= 5 AND do_.round = 1 AND do_.picked_player_id IS NOT NULL
+        GROUP BY ds.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($tp5Raw as $r) $top5PicksMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    // Correção: 1 escolha atribuída ao Utah Coyotes pertencia ao St. Louis Musketeers
+    foreach ($top5PicksMap as $lg => &$arr) {
+        $hasMusk = false;
+        foreach ($arr as &$row) {
+            if (str_contains($row['name'], 'Coyotes') && str_contains($row['name'], 'Utah')) $row['count'] = max(0, $row['count'] - 1);
+            if (str_contains($row['name'], 'Musketeers') || str_contains($row['name'], 'Musketters')) { $row['count']++; $hasMusk = true; }
+        } unset($row);
+        if (!$hasMusk) $arr[] = ['name' => 'St. Louis Musketeers', 'count' => 1];
+    } unset($arr);
+    sortLeagueData($top5PicksMap);
+} catch (Exception) {}
+
+// ── Times que nunca escolheram no top5 do draft ──────────────────
+$neverTop5Map = [];
+try {
+    $nt5Raw = $pdo->query("
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name
+        FROM teams t
+        WHERE t.id NOT IN (
+            SELECT DISTINCT do_.team_id
+            FROM draft_order do_
+            JOIN draft_sessions ds ON ds.id=do_.draft_session_id
+            WHERE do_.pick_position <= 5 AND do_.round = 1 AND do_.picked_player_id IS NOT NULL
+        )
+        ORDER BY t.league, t.city, t.name
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($nt5Raw as $r) $neverTop5Map[$r['league']][] = $r['name'];
+} catch (Exception) {}
+
+// ── Jogadores que mais foram a leilão (leilao_jogadores) ──────────
+$leilaoMap = [];
+try {
+    $lRaw = $pdo->query("
+        SELECT lg.name AS league, p.name AS name, COUNT(lj.id) AS count
+        FROM leilao_jogadores lj
+        JOIN players p ON p.id=lj.player_id
+        JOIN leagues lg ON lg.id=lj.league_id
+        GROUP BY lg.name, p.id, p.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($lRaw as $r) $leilaoMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($leilaoMap);
+} catch (Exception) {}
+
+// ── Mais vezes seed 1 (maior pts regular na temporada) ───────────
+$seed1Map = [];
+try {
+    $s1Raw = $pdo->query("
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(*) AS count
+        FROM team_ranking_points trp
+        JOIN teams t ON t.id=trp.team_id
+        WHERE trp.regular_season_points = (
+            SELECT MAX(trp2.regular_season_points) FROM team_ranking_points trp2
+            WHERE trp2.season_id=trp.season_id AND trp2.league=trp.league
+        )
+        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($s1Raw as $r) $seed1Map[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($seed1Map);
+} catch (Exception) {}
+
+// ── Mais playoff consecutivos (streak em PHP) ────────────────────
+$streakMap = [];
+try {
+    $psRows = $pdo->query("
+        SELECT tsp.league, tsp.team_id, CONCAT(t.city,' ',t.name) AS name,
+               s.season_number, tsp.points
+        FROM team_season_points tsp
+        JOIN teams t ON t.id=tsp.team_id
+        JOIN seasons s ON s.id=tsp.season_id
+        ORDER BY tsp.league, tsp.team_id, s.season_number ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    $byTeam = [];
+    foreach ($psRows as $r) {
+        $byTeam[$r['league']][$r['team_id']]['name'] = $r['name'];
+        $byTeam[$r['league']][$r['team_id']]['pts'][$r['season_number']] = (int)$r['points'];
+    }
+    // Include teams with 0 playoffs
+    $allT = $pdo->query("SELECT id, league, CONCAT(city,' ',name) AS nm FROM teams")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($allT as $t) {
+        if (!isset($byTeam[$t['league']][$t['id']])) {
+            $byTeam[$t['league']][$t['id']] = ['name'=>$t['nm'],'pts'=>[]];
+        }
+    }
+    foreach ($byTeam as $lg => $teams) {
+        foreach ($teams as $tid => $data) {
+            $pts = $data['pts']; ksort($pts);
+            $maxStreak = 0; $cur = 0;
+            foreach ($pts as $p) { if ($p >= 3) { $cur++; $maxStreak = max($maxStreak, $cur); } else $cur = 0; }
+            $streakMap[$lg][] = ['name'=>$data['name'],'count'=>$maxStreak];
+        }
+    }
+    sortLeagueData($streakMap);
+} catch (Exception) {}
+
+// ── Jogadores que passaram por mais times ─────────────────────────
+$playerTeamsMap = [];
+try {
+    $ptRaw = $pdo->query("
+        SELECT psl.league, psl.player_name AS name, COUNT(DISTINCT psl.team_id) AS count
+        FROM player_season_log psl GROUP BY psl.league, psl.player_name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($ptRaw as $r) $playerTeamsMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($playerTeamsMap);
+} catch (Exception) {}
+
+// ── Retenção: média de temporadas por jogador no mesmo time ───────
+$retencaoMap = [];
+try {
+    $retRaw = $pdo->query("
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
+               ROUND(AVG(sub.seasons), 1) AS count
+        FROM teams t
+        LEFT JOIN (
+            SELECT team_id, player_id, COUNT(*) AS seasons
+            FROM player_season_log
+            WHERE ovr >= 78
+            GROUP BY team_id, player_id
+        ) sub ON sub.team_id=t.id
+        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($retRaw as $r) $retencaoMap[$r['league']][] = ['name'=>$r['name'],'count'=>(float)$r['count']];
+    sortLeagueData($retencaoMap);
+} catch (Exception) {}
+
+// ── Aproveitamento do draft (OVR médio dos jogadores draftados) ───
+$draftOvrMap = [];
+try {
+    $doRaw = $pdo->query("
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
+               ROUND(AVG(p.ovr), 1) AS count
+        FROM teams t LEFT JOIN players p ON p.drafted_by_team_id=t.id AND p.ovr > 0
+        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($doRaw as $r) $draftOvrMap[$r['league']][] = ['name'=>$r['name'],'count'=>(float)$r['count']];
+    sortLeagueData($draftOvrMap);
+} catch (Exception) {}
+
+// ── Jogadores mais requisitados na FA (mais ofertas por player) ───
+$faHotMap = [];
+try {
+    $fhRaw = $pdo->query("
+        SELECT far.league, far.player_name AS name, COUNT(DISTINCT faro.team_id) AS count
+        FROM fa_requests far
+        LEFT JOIN fa_request_offers faro ON faro.request_id=far.id
+        GROUP BY far.league, far.player_name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($fhRaw as $r) $faHotMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($faHotMap);
+} catch (Exception) {}
+
+
+?><!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Estatísticas · FBA</title>
+<link rel="icon" type="image/png" href="/games/fbagames.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#fc0025;--red-soft:rgba(252,0,37,.10);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--border:rgba(255,255,255,.07);--border-md:rgba(255,255,255,.12);--text:#f0f0f3;--text-2:#868690;--text-3:#48484f;--amber:#f59e0b;--green:#22c55e;--purple:#a855f7;--blue:#60a5fa;--radius:14px;--font:'Poppins',sans-serif}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+.topbar{position:sticky;top:0;z-index:300;height:54px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px}
+.topbar-logo{width:30px;height:30px;border-radius:8px;background:var(--red);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#fff;flex-shrink:0}
+.icon-btn{width:34px;height:34px;border-radius:10px;background:transparent;border:1px solid var(--border);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;text-decoration:none;transition:all .2s}
+.icon-btn:hover{background:var(--red-soft);border-color:var(--red);color:var(--red)}
+main{max-width:1200px;margin:0 auto;padding:28px 16px 80px}
+
+/* Section headers */
+.section-block{margin-bottom:40px}
+.section-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.section-head h2{font-family:'Oswald',sans-serif;font-size:18px;font-weight:700;color:var(--text)}
+.section-head .section-icon{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.section-sub{font-size:11px;color:var(--text-3);margin-top:2px}
+
+/* Grid */
+.leagues-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:900px){.leagues-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.leagues-grid{grid-template-columns:1fr}}
+
+/* Card */
+.league-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.league-header{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.league-badge{font-family:'Oswald',sans-serif;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;letter-spacing:.5px;flex-shrink:0}
+.badge-ELITE{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.25)}
+.badge-NEXT{background:rgba(99,102,241,.12);color:#818cf8;border:1px solid rgba(99,102,241,.25)}
+.badge-RISE{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
+.badge-ROOKIE{background:rgba(168,85,247,.12);color:#c084fc;border:1px solid rgba(168,85,247,.25)}
+.copy-btn{margin-left:auto;background:var(--panel-2);border:1px solid var(--border-md);color:var(--text-3);border-radius:7px;padding:3px 9px;font-size:10px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .2s;white-space:nowrap;flex-shrink:0}
+.copy-btn:hover{border-color:var(--red);color:var(--red)}
+
+/* Sub-section label inside card */
+.card-sub{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);padding:8px 14px 4px;display:flex;align-items:center;gap:5px}
+
+/* Rank rows */
+.rank-row{display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border)}
+.rank-row:last-child{border-bottom:none}
+.rn{width:16px;font-family:'Oswald',sans-serif;font-size:12px;font-weight:700;color:var(--text-3);flex-shrink:0;text-align:right}
+.rn.gold{color:var(--amber)}
+.rname{flex:1;font-size:11px;font-weight:500;color:var(--text);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rval{font-family:'Oswald',sans-serif;font-size:14px;font-weight:700;flex-shrink:0}
+.rval.hi{color:var(--red)}
+.rval.lo{color:var(--text-3)}
+.rval.gold{color:var(--amber)}
+.rval.green{color:var(--green)}
+.rval.blue{color:var(--blue)}
+.rval.purple{color:var(--purple)}
+.divider{height:1px;background:var(--border);margin:2px 0}
+.rank-row.my-team{background:rgba(252,0,37,.10);border-left:3px solid var(--red)}
+.rank-row.my-team .rname{color:#fff;font-weight:700}
+.rank-row.my-team .rn{color:var(--red)}
+.my-team-sep{height:1px;background:rgba(252,0,37,.2);margin:2px 0}
+.my-team-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--red);padding:5px 14px 2px}
+
+/* Pair rows */
+.pair-row{display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border)}
+.pair-row:last-child{border-bottom:none}
+.pair-names{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.pair-a{font-size:11px;font-weight:600;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pair-b{font-size:11px;font-weight:600;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.empty-state{padding:16px 14px;font-size:11px;color:var(--text-3);text-align:center}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-logo">FBA</div>
+  <span style="font-weight:800;font-size:14px;flex:1">Estatísticas</span>
+  <a href="admin.php" class="icon-btn"><i class="bi bi-arrow-left"></i></a>
+</div>
+
+<main>
+<?php
+
+// ─────────────────────────────────────────────────────────────────
+// Helper: renders a 4-league grid with top5/bot5 rank rows
+// $data = ['ELITE'=>[['name'=>...,'count'=>...], ...], ...]
+// $opts = [ label_hi, label_lo, color_hi, label_copy_hi, label_copy_lo, suffix, reverse_bot ]
+function renderSection(string $id, string $icon, string $icon_bg, string $title, string $subtitle,
+                       array $data, array $leagues, array $opts = [], string $myTeam = ''): void {
+    $label_hi     = $opts['label_hi']     ?? '🔥 Mais';
+    $label_lo     = $opts['label_lo']     ?? '🧊 Menos';
+    $color_hi     = $opts['color_hi']     ?? 'hi';
+    $color_lo     = $opts['color_lo']     ?? 'lo';
+    $copy_hi      = $opts['copy_hi']      ?? $title.' — Mais';
+    $copy_lo      = $opts['copy_lo']      ?? $title.' — Menos';
+    $suffix       = $opts['suffix']       ?? '';
+    $show_lo      = $opts['show_lo']      ?? true;
+    $pair_mode    = $opts['pair_mode']    ?? false;
+
+    echo "<div class=\"section-block\" id=\"{$id}\">";
+    echo "<div class=\"section-head\">";
+    echo "<div class=\"section-icon\" style=\"background:{$icon_bg}\">{$icon}</div>";
+    echo "<div><h2>{$title}</h2><div class=\"section-sub\">{$subtitle}</div></div>";
+    echo "</div>";
+    echo "<div class=\"leagues-grid\">";
+
+    foreach ($leagues as $lg) {
+        $arr  = $data[$lg] ?? [];
+        $top5 = array_slice($arr, 0, 5);
+        $bot5 = array_reverse(array_slice(array_reverse($arr), 0, 5));
+
+        // Build copy text
+        $cp  = "🏀 *{$copy_hi} — {$lg}*\n";
+        foreach ($top5 as $i => $r) {
+            $line = $pair_mode ? "{$r['a_long']} × {$r['b_long']}" : $r['name'];
+            $cp .= ($i+1).". {$line} — {$r['count']}{$suffix}\n";
+        }
+        if ($show_lo) {
+            $cp .= "\n*{$copy_lo} — {$lg}*\n";
+            foreach ($bot5 as $i => $r) {
+                $line = $pair_mode ? "{$r['a_long']} × {$r['b_long']}" : $r['name'];
+                $cp .= ($i+1).". {$line} — {$r['count']}{$suffix}\n";
+            }
+        }
+        $cpEsc = htmlspecialchars($cp, ENT_QUOTES);
+
+        echo "<div class=\"league-card\">";
+        echo "<div class=\"league-header\">";
+        echo "<span class=\"league-badge badge-{$lg}\">{$lg}</span>";
+        echo "<span style=\"font-size:11px;color:var(--text-3);flex:1\">".count($arr)." registros</span>";
+        echo "<button class=\"copy-btn\" data-text=\"{$cpEsc}\"><i class=\"bi bi-clipboard\"></i> Copiar</button>";
+        echo "</div>";
+
+        // Find myTeam position in full array (1-indexed)
+        $myPos = 0;
+        if ($myTeam !== '' && !$pair_mode) {
+            foreach ($arr as $idx => $r) {
+                if ($r['name'] === $myTeam) { $myPos = $idx + 1; break; }
+            }
+        }
+        $myInTop5 = $myPos > 0 && $myPos <= 5;
+        $myInBot5 = $myPos > 0 && $myPos > (count($arr) - 5);
+
+        echo "<div class=\"card-sub\">{$label_hi}</div>";
+        if (empty($top5)) {
+            echo "<div class=\"empty-state\">Sem dados</div>";
+        } else {
+            foreach ($top5 as $i => $r) {
+                $isMyTeam = !$pair_mode && $myTeam !== '' && $r['name'] === $myTeam;
+                if ($pair_mode) {
+                    echo "<div class=\"pair-row\">";
+                    echo "<span class=\"rn ".($i===0?'gold':'')."\">" . ($i+1) . "</span>";
+                    echo "<div class=\"pair-names\">";
+                    echo "<span class=\"pair-a\" title=\"".htmlspecialchars($r['a_long'])."\">" . htmlspecialchars($r['a']) . "</span>";
+                    echo "<span class=\"pair-b\">× " . htmlspecialchars($r['b']) . "</span>";
+                    echo "</div>";
+                    echo "<span class=\"rval {$color_hi}\">" . $r['count'] . $suffix . "</span>";
+                    echo "</div>";
+                } else {
+                    $cls = $isMyTeam ? ' my-team' : '';
+                    echo "<div class=\"rank-row{$cls}\">";
+                    echo "<span class=\"rn ".($i===0?'gold':'')."\">" . ($i+1) . "</span>";
+                    echo "<span class=\"rname\" title=\"".htmlspecialchars($r['name'])."\">" . htmlspecialchars($r['name']) . "</span>";
+                    echo "<span class=\"rval {$color_hi}\">" . $r['count'] . $suffix . "</span>";
+                    echo "</div>";
+                }
+            }
+            // Show myTeam outside top5
+            if ($myPos > 0 && !$myInTop5 && !$pair_mode) {
+                $myRow = $arr[$myPos - 1];
+                echo "<div class=\"my-team-sep\"></div>";
+                echo "<div class=\"my-team-label\">Seu time</div>";
+                echo "<div class=\"rank-row my-team\">";
+                echo "<span class=\"rn\">{$myPos}</span>";
+                echo "<span class=\"rname\" title=\"".htmlspecialchars($myRow['name'])."\">" . htmlspecialchars($myRow['name']) . "</span>";
+                echo "<span class=\"rval {$color_hi}\">" . $myRow['count'] . $suffix . "</span>";
+                echo "</div>";
+            }
+        }
+
+        if ($show_lo) {
+            echo "<div class=\"divider\"></div>";
+            echo "<div class=\"card-sub\">{$label_lo}</div>";
+            if (empty($bot5)) {
+                echo "<div class=\"empty-state\">Sem dados</div>";
+            } else {
+                $bot5Full = array_reverse(array_slice(array_reverse($arr), 0, 5));
+                $bot5Positions = range(count($arr) - count($bot5Full) + 1, count($arr));
+                foreach ($bot5Full as $i => $r) {
+                    $isMyTeam = !$pair_mode && $myTeam !== '' && $r['name'] === $myTeam;
+                    if ($pair_mode) {
+                        echo "<div class=\"pair-row\">";
+                        echo "<span class=\"rn\">" . ($i+1) . "</span>";
+                        echo "<div class=\"pair-names\">";
+                        echo "<span class=\"pair-a\">" . htmlspecialchars($r['a']) . "</span>";
+                        echo "<span class=\"pair-b\">× " . htmlspecialchars($r['b']) . "</span>";
+                        echo "</div>";
+                        echo "<span class=\"rval {$color_lo}\">" . $r['count'] . $suffix . "</span>";
+                        echo "</div>";
+                    } else {
+                        $cls = $isMyTeam ? ' my-team' : '';
+                        $pos = $bot5Positions[$i];
+                        echo "<div class=\"rank-row{$cls}\">";
+                        echo "<span class=\"rn\">{$pos}</span>";
+                        echo "<span class=\"rname\" title=\"".htmlspecialchars($r['name'])."\">" . htmlspecialchars($r['name']) . "</span>";
+                        echo "<span class=\"rval {$color_lo}\">" . $r['count'] . $suffix . "</span>";
+                        echo "</div>";
+                    }
+                }
+                // Show myTeam outside bot5
+                if ($myPos > 0 && !$myInBot5 && !$myInTop5 && !$pair_mode) {
+                    $myRow = $arr[$myPos - 1];
+                    echo "<div class=\"my-team-sep\"></div>";
+                    echo "<div class=\"my-team-label\">Seu time</div>";
+                    echo "<div class=\"rank-row my-team\">";
+                    echo "<span class=\"rn\">{$myPos}</span>";
+                    echo "<span class=\"rname\" title=\"".htmlspecialchars($myRow['name'])."\">" . htmlspecialchars($myRow['name']) . "</span>";
+                    echo "<span class=\"rval {$color_lo}\">" . $myRow['count'] . $suffix . "</span>";
+                    echo "</div>";
+                }
+            }
+        }
+
+        echo "</div>"; // .league-card
+    }
+
+    echo "</div></div>"; // .leagues-grid .section-block
+}
+
+// ─── Render all sections ─────────────────────────────────────────
+
+renderSection('trades', '🔄', 'rgba(252,0,37,.15)', 'Trades por Time',
+    'Quem mais e menos movimentou o mercado',
+    $tradesByLeague, $leagues, [
+        'label_hi' => '🔥 Mais ativos', 'label_lo' => '🧊 Menos ativos',
+        'color_hi' => 'hi', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais trades', 'copy_lo' => 'Menos trades',
+    ], $myTeamName);
+
+renderSection('pares', '🤝', 'rgba(96,165,250,.12)', 'Pares que mais trocaram',
+    'Duplas com mais trades entre si',
+    $pairsByLeague, $leagues, [
+        'label_hi' => '🤝 Mais parceiros', 'show_lo' => false,
+        'color_hi' => 'blue', 'color_lo' => 'blue',
+        'copy_hi' => 'Pares mais ativos',
+        'pair_mode' => true,
+    ], $myTeamName);
+
+renderSection('playoffs', '🎯', 'rgba(252,0,37,.12)', 'Aparições no Playoff',
+    'Times que mais chegaram ao playoff',
+    $playoffMap, $leagues, [
+        'label_hi' => '🎯 Mais playoffs', 'label_lo' => '📉 Menos playoffs',
+        'color_hi' => 'hi', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais playoffs', 'copy_lo' => 'Menos playoffs',
+    ], $myTeamName);
+
+renderSection('jovem', '🌱', 'rgba(168,85,247,.10)', 'Elenco Mais Jovem',
+    'Idade média dos jogadores em contrato',
+    $youngMap, $leagues, [
+        'label_hi' => '🌱 Mais jovens', 'show_lo' => false,
+        'color_hi' => 'purple',
+        'copy_hi' => 'Elenco mais jovem',
+        'suffix' => ' anos',
+    ], $myTeamName);
+
+renderSection('velho', '🧓', 'rgba(148,163,184,.08)', 'Elenco Mais Experiente',
+    'Times com maior idade média',
+    $oldMap, $leagues, [
+        'label_hi' => '🧓 Mais experientes', 'show_lo' => false,
+        'color_hi' => 'lo',
+        'copy_hi' => 'Elenco mais experiente',
+        'suffix' => ' anos',
+    ], $myTeamName);
+
+renderSection('draftados', '🎓', 'rgba(168,85,247,.10)', 'Jogadores Draftados',
+    'Times que mais desenvolveram jogadores pelo draft',
+    $draftedMap, $leagues, [
+        'label_hi' => '🎓 Mais draftados', 'label_lo' => '📦 Menos draftados',
+        'color_hi' => 'purple', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais jogadores draftados', 'copy_lo' => 'Menos jogadores draftados',
+    ], $myTeamName);
+
+renderSection('rotatividade', '🔁', 'rgba(34,197,94,.08)', 'Rotatividade de Elenco',
+    'Quantidade de jogadores diferentes que passaram pelo clube',
+    $rotMap, $leagues, [
+        'label_hi' => '🔁 Mais rotatividade', 'label_lo' => '🏠 Menos rotatividade',
+        'color_hi' => 'green', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais rotatividade', 'copy_lo' => 'Menos rotatividade',
+    ], $myTeamName);
+
+renderSection('fapropostas', '📋', 'rgba(96,165,250,.10)', 'Propostas de Trade Enviadas',
+    'Times que mais e menos iniciaram negociações (qualquer status)',
+    $faPropostasMap, $leagues, [
+        'label_hi' => '📋 Mais propostas', 'label_lo' => '📦 Menos propostas',
+        'color_hi' => 'blue', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais propostas de trade', 'copy_lo' => 'Menos propostas de trade',
+    ], $myTeamName);
+
+renderSection('fa', '🖊️', 'rgba(34,197,94,.10)', 'Free Agency',
+    'Times que mais e menos assinaram jogadores na FA',
+    $faMap, $leagues, [
+        'label_hi' => '🖊️ Mais contratações', 'label_lo' => '📦 Menos contratações',
+        'color_hi' => 'green', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais FA pickups', 'copy_lo' => 'Menos FA pickups',
+    ], $myTeamName);
+
+
+// ─── Novas seções ─────────────────────────────────────────────────
+
+renderSection('seed1', '1️⃣', 'rgba(251,191,36,.12)', 'Mais vezes Seed 1',
+    'Times que terminaram com mais pontos na regular em cada temporada',
+    $seed1Map, $leagues, [
+        'label_hi' => '🥇 Mais seed 1', 'show_lo' => false,
+        'color_hi' => 'gold',
+        'copy_hi' => 'Mais vezes seed 1',
+    ], $myTeamName);
+
+renderSection('streak', '🔥', 'rgba(251,191,36,.10)', 'Maior Sequência de Playoffs',
+    'Máximo de temporadas consecutivas classificadas ao playoff',
+    $streakMap, $leagues, [
+        'label_hi' => '🔥 Maior sequência', 'label_lo' => '📦 Menor sequência',
+        'color_hi' => 'gold', 'color_lo' => 'lo',
+        'copy_hi' => 'Maior sequência de playoffs', 'copy_lo' => 'Menor sequência',
+        'suffix' => ' temp',
+    ], $myTeamName);
+
+renderSection('player-teams', '🌍', 'rgba(96,165,250,.10)', 'Jogadores mais Itinerantes',
+    'Jogadores que passaram por mais times diferentes',
+    $playerTeamsMap, $leagues, [
+        'label_hi' => '✈️ Mais times', 'show_lo' => false,
+        'color_hi' => 'blue',
+        'copy_hi' => 'Jogadores mais itinerantes',
+        'suffix' => ' times',
+    ], $myTeamName);
+
+renderSection('retencao', '🏠', 'rgba(34,197,94,.10)', 'Retenção de Elenco',
+    'Média de temporadas que cada jogador fica no mesmo time',
+    $retencaoMap, $leagues, [
+        'label_hi' => '🏠 Mais fiéis', 'label_lo' => '📤 Mais rotativos',
+        'color_hi' => 'green', 'color_lo' => 'lo',
+        'copy_hi' => 'Maior retenção', 'copy_lo' => 'Menor retenção',
+        'suffix' => ' temp',
+    ], $myTeamName);
+
+renderSection('draft-ovr', '📈', 'rgba(168,85,247,.10)', 'Aproveitamento do Draft',
+    'OVR médio dos jogadores draftados pelo time',
+    $draftOvrMap, $leagues, [
+        'label_hi' => '📈 Melhor aproveitamento', 'label_lo' => '📉 Menor aproveitamento',
+        'color_hi' => 'purple', 'color_lo' => 'lo',
+        'copy_hi' => 'Melhor aproveitamento do draft', 'copy_lo' => 'Menor aproveitamento do draft',
+    ], $myTeamName);
+
+renderSection('fa-hot', '🔥', 'rgba(252,0,37,.10)', 'Jogadores mais Disputados na FA',
+    'Jogadores com mais times diferentes fazendo ofertas',
+    $faHotMap, $leagues, [
+        'label_hi' => '🔥 Mais disputados', 'show_lo' => false,
+        'color_hi' => 'hi',
+        'copy_hi' => 'Jogadores mais disputados na FA',
+        'suffix' => ' ofertas',
+    ], $myTeamName);
+
+renderSection('rejected', '❌', 'rgba(252,0,37,.10)', 'Trades Rejeitadas',
+    'Times com mais propostas recusadas pelo adversário',
+    $rejectedMap, $leagues, [
+        'label_hi' => '❌ Mais rejeitados', 'label_lo' => '✅ Menos rejeitados',
+        'color_hi' => 'hi', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais propostas rejeitadas', 'copy_lo' => 'Menos propostas rejeitadas',
+    ], $myTeamName);
+
+renderSection('orig-top5', '🎯', 'rgba(251,191,36,.12)', 'Pick Origem no Top 5',
+    'Times cuja pick original foi usada no top 5 do draft',
+    $origTop5Map, $leagues, [
+        'label_hi' => '🎯 Mais vezes', 'show_lo' => false,
+        'color_hi' => 'gold',
+        'copy_hi' => 'Pick origem no top 5 do draft',
+    ], $myTeamName);
+
+renderSection('top5picks', '⭐', 'rgba(96,165,250,.12)', 'Mais Escolhas no Top 5',
+    'Times que mais escolheram jogadores nas 5 primeiras posições',
+    $top5PicksMap, $leagues, [
+        'label_hi' => '⭐ Mais escolhas top 5', 'show_lo' => false,
+        'color_hi' => 'blue',
+        'copy_hi' => 'Mais escolhas no top 5 do draft',
+    ], $myTeamName);
+
+if (!empty(array_filter($neverTop5Map))) {
+    echo '<div class="section-block" id="never-top5">';
+    echo '<div class="section-head"><div class="section-icon" style="background:rgba(148,163,184,.10)">🚫</div>';
+    echo '<div><h2>Nunca Escolheram no Top 5</h2><div class="section-sub">Times sem nenhuma escolha nas 5 primeiras posições do draft</div></div></div>';
+    echo '<div class="leagues-grid">';
+    foreach ($leagues as $lg) {
+        $arr = $neverTop5Map[$lg] ?? [];
+        $cp = "🚫 *Nunca escolheram no top 5 — {$lg}*\n";
+        foreach ($arr as $nm) $cp .= "• {$nm}\n";
+        $cpEsc = htmlspecialchars($cp, ENT_QUOTES);
+        echo '<div class="league-card">';
+        echo '<div class="league-header"><span class="league-badge badge-'.$lg.'">'.$lg.'</span>';
+        echo '<span style="font-size:11px;color:var(--text-3);flex:1">'.count($arr).' time(s)</span>';
+        echo '<button class="copy-btn" data-text="'.$cpEsc.'"><i class="bi bi-clipboard"></i> Copiar</button></div>';
+        if (empty($arr)) {
+            echo '<div class="empty-state">Todos já escolheram no top 5</div>';
+        } else {
+            foreach ($arr as $nm) echo '<div class="rank-row"><span class="rname">'.htmlspecialchars($nm).'</span></div>';
+        }
+        echo '</div>';
+    }
+    echo '</div></div>';
+}
+
+renderSection('leilao', '🔨', 'rgba(168,85,247,.12)', 'Jogadores mais Leiloados',
+    'Jogadores que mais apareceram em processos de FA/leilão',
+    $leilaoMap, $leagues, [
+        'label_hi' => '🔨 Mais disputados', 'show_lo' => false,
+        'color_hi' => 'purple',
+        'copy_hi' => 'Jogadores mais leiloados',
+        'suffix' => 'x',
+    ], $myTeamName);
+
+
+?>
+</main>
+
+<script>
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const text = btn.getAttribute('data-text');
+    const orig = btn.innerHTML;
+    const ok = () => {
+      btn.innerHTML = '<i class="bi bi-check2"></i> Copiado!';
+      btn.style.color = 'var(--green)';
+      btn.style.borderColor = 'var(--green)';
+      setTimeout(() => { btn.innerHTML = orig; btn.style.color = ''; btn.style.borderColor = ''; }, 2000);
+    };
+    navigator.clipboard.writeText(text).then(ok).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      ok();
+    });
+  });
+});
+</script>
+</body>
+</html>

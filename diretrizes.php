@@ -376,6 +376,7 @@ $isEliteOrNext = in_array(($team['league'] ?? ''), ['ELITE', 'NEXT'], true);
             <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
             <a href="/diretrizes.php" class="active"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
             <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
+            <a href="/estatisticas.php"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
             <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
             <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
             <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
