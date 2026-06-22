@@ -356,6 +356,247 @@ try {
     sortLeagueData($faHotMap);
 } catch (Exception) {}
 
+// ── Maior jejum (sequência de temporadas sem playoff) ────────────
+$jejumMap = [];
+try {
+    $jejRows = $pdo->query("
+        SELECT tsp.league, tsp.team_id, CONCAT(t.city,' ',t.name) AS name,
+               s.season_number, tsp.points
+        FROM team_season_points tsp
+        JOIN teams t ON t.id=tsp.team_id
+        JOIN seasons s ON s.id=tsp.season_id
+        ORDER BY tsp.league, tsp.team_id, s.season_number ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    $byTeamJ = [];
+    foreach ($jejRows as $r) {
+        $byTeamJ[$r['league']][$r['team_id']]['name'] = $r['name'];
+        $byTeamJ[$r['league']][$r['team_id']]['pts'][$r['season_number']] = (int)$r['points'];
+    }
+    $allTJ = $pdo->query("SELECT id, league, CONCAT(city,' ',name) AS nm FROM teams")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($allTJ as $t) {
+        if (!isset($byTeamJ[$t['league']][$t['id']])) {
+            $byTeamJ[$t['league']][$t['id']] = ['name'=>$t['nm'],'pts'=>[]];
+        }
+    }
+    foreach ($byTeamJ as $lg => $teams) {
+        foreach ($teams as $tid => $data) {
+            $pts = $data['pts']; ksort($pts);
+            $maxJejum = 0; $cur = 0;
+            foreach ($pts as $p) { if ($p < 3) { $cur++; $maxJejum = max($maxJejum, $cur); } else $cur = 0; }
+            $jejumMap[$lg][] = ['name'=>$data['name'],'count'=>$maxJejum];
+        }
+    }
+    sortLeagueData($jejumMap);
+} catch (Exception) {}
+
+// ── Picks enviadas em trades (apostador) ─────────────────────────
+$picksEnvMap = [];
+try {
+    $peRaw = $pdo->query("
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(ti.id) AS count
+        FROM teams t
+        LEFT JOIN trade_items ti ON ti.from_team_id=t.id AND ti.pick_id IS NOT NULL
+        LEFT JOIN trades tr ON tr.id=ti.trade_id AND tr.status='accepted'
+        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($peRaw as $r) $picksEnvMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($picksEnvMap);
+} catch (Exception) {}
+
+// ── Finais disputadas (champion + runner_up) ──────────────────────
+$finaisMap = [];
+try {
+    $fiRaw = $pdo->query("
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(pr.id) AS count
+        FROM teams t
+        LEFT JOIN playoff_results pr ON pr.team_id=t.id AND pr.position IN ('champion','runner_up')
+        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($fiRaw as $r) $finaisMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($finaisMap);
+} catch (Exception) {}
+
+// ── Jogadores leais (sempre no mesmo time) ───────────────────────
+$leaisMap = [];
+try {
+    $leRaw = $pdo->query("
+        SELECT psl.league, psl.player_name AS name,
+               COUNT(DISTINCT psl.season_id) AS count,
+               COUNT(DISTINCT psl.team_id) AS teams_count
+        FROM player_season_log psl
+        GROUP BY psl.league, psl.player_name
+        HAVING teams_count = 1 AND count >= 2
+        ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($leRaw as $r) $leaisMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($leaisMap);
+} catch (Exception) {}
+
+// ── Métrica de valor (saldo por time + trades desequilibradas) ────
+$tradeValueMap  = [];
+$tradeDeseqMap  = [];
+try {
+    $tiRows = $pdo->query("
+        SELECT ti.trade_id, ti.player_id, ti.pick_id,
+               ti.player_name, ti.player_ovr, ti.player_age,
+               ti.from_team_id AS sender_id,
+               tr.from_team_id AS trade_from, tr.to_team_id AS trade_to,
+               tr.league
+        FROM trade_items ti
+        JOIN trades tr ON tr.id=ti.trade_id AND tr.status='accepted'
+        WHERE ti.from_team_id IS NOT NULL
+          AND (ti.player_ovr > 0 OR ti.pick_id IS NOT NULL)
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $pTrend = [];
+    foreach ($pdo->query("SELECT player_id, ovr FROM player_season_log ORDER BY player_id, season_number DESC")->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $pid = (int)$row['player_id'];
+        if (!isset($pTrend[$pid])) $pTrend[$pid] = [];
+        if (count($pTrend[$pid]) < 2) $pTrend[$pid][] = (int)$row['ovr'];
+    }
+
+    $tsPts = [];
+    foreach ($pdo->query("SELECT team_id, season_number, points FROM team_season_points ORDER BY team_id, season_number")->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $tsPts[(int)$row['team_id']][(int)$row['season_number']] = (int)$row['points'];
+    }
+
+    $picksInfo = [];
+    foreach ($pdo->query("SELECT id, round, original_team_id FROM picks")->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $picksInfo[(int)$row['id']] = ['round' => $row['round'], 'orig' => (int)$row['original_team_id']];
+    }
+
+    $tNames = [];
+    foreach ($pdo->query("SELECT id, league, CONCAT(city,' ',name) AS nm, name AS short FROM teams")->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $tNames[(int)$t['id']] = ['name' => $t['nm'], 'short' => $t['short'], 'league' => $t['league']];
+    }
+
+    $tvBalance  = []; // saldo por time
+    $tvPerTrade = []; // valor por trade_id: [lg][trade_id][team_id] => val
+
+    foreach ($tiRows as $item) {
+        $senderId   = (int)$item['sender_id'];
+        $receiverId = ($senderId === (int)$item['trade_from']) ? (int)$item['trade_to'] : (int)$item['trade_from'];
+        $lg         = $item['league'];
+        $tid_trade  = (int)$item['trade_id'];
+        $val        = 0.0;
+
+        if ($item['player_id'] && $item['player_ovr'] > 0) {
+            $ovr = (int)$item['player_ovr'];
+            $age = (int)$item['player_age'];
+            $val = (float)$ovr;
+            if      ($age <= 22) $val += 8;
+            elseif  ($age <= 25) $val += 4;
+            elseif  ($age <= 28) $val += 0;
+            elseif  ($age <= 31) $val -= ($age - 28) * 4;
+            else                 $val -= 12 + ($age - 31) * 6;
+            $pid = (int)$item['player_id'];
+            if (isset($pTrend[$pid]) && count($pTrend[$pid]) === 2) {
+                $diff = $pTrend[$pid][0] - $pTrend[$pid][1];
+                if ($diff >= 2) $val += 5;
+                elseif ($diff <= -2) $val -= 5;
+            }
+        } elseif ($item['pick_id'] && isset($picksInfo[(int)$item['pick_id']])) {
+            $pi  = $picksInfo[(int)$item['pick_id']];
+            $val = ($pi['round'] === '1') ? 45.0 : 20.0;
+            $orig = $pi['orig'];
+            if (isset($tsPts[$orig]) && !empty($tsPts[$orig])) {
+                $pts = end($tsPts[$orig]);
+                $val += max(-10.0, min(20.0, (6 - $pts) * 2));
+            }
+            $val = max(5.0, $val);
+        } else {
+            continue;
+        }
+
+        // Saldo acumulado por time
+        foreach ([$senderId => -$val, $receiverId => $val] as $tid => $delta) {
+            if (!$tid) continue;
+            if (!isset($tvBalance[$lg][$tid]))
+                $tvBalance[$lg][$tid] = ['name' => $tNames[$tid]['name'] ?? "#{$tid}", 'val' => 0.0];
+            $tvBalance[$lg][$tid]['val'] += $delta;
+        }
+
+        // Valor por trade individual
+        if (!isset($tvPerTrade[$lg][$tid_trade])) {
+            $tvPerTrade[$lg][$tid_trade] = [
+                'from' => (int)$item['trade_from'],
+                'to'   => (int)$item['trade_to'],
+                'vals' => [(int)$item['trade_from'] => 0.0, (int)$item['trade_to'] => 0.0],
+            ];
+        }
+        $tvPerTrade[$lg][$tid_trade]['vals'][$receiverId] = ($tvPerTrade[$lg][$tid_trade]['vals'][$receiverId] ?? 0.0) + $val;
+    }
+
+    // Saldo por time
+    foreach ($tvBalance as $lg => $teams) {
+        foreach ($teams as $data)
+            $tradeValueMap[$lg][] = ['name' => $data['name'], 'count' => (int)round($data['val'])];
+        usort($tradeValueMap[$lg], fn($a,$b) => $b['count'] <=> $a['count']);
+    }
+
+    // Trades mais desequilibradas
+    foreach ($tvPerTrade as $lg => $trades) {
+        foreach ($trades as $tradeRow) {
+            $fromId = $tradeRow['from'];
+            $toId   = $tradeRow['to'];
+            $vFrom  = $tradeRow['vals'][$fromId] ?? 0.0; // valor que FROM recebeu
+            $vTo    = $tradeRow['vals'][$toId]   ?? 0.0; // valor que TO recebeu
+            $diff   = abs($vFrom - $vTo);
+            if ($diff < 5) continue; // ignorar trades quase equilibradas
+            $winnerId = $vFrom >= $vTo ? $fromId : $toId;
+            $loserId  = $vFrom >= $vTo ? $toId   : $fromId;
+            $wName    = $tNames[$winnerId]['short'] ?? "#{$winnerId}";
+            $wLong    = $tNames[$winnerId]['name']  ?? "#{$winnerId}";
+            $lName    = $tNames[$loserId]['short']  ?? "#{$loserId}";
+            $lLong    = $tNames[$loserId]['name']   ?? "#{$loserId}";
+            $tradeDeseqMap[$lg][] = [
+                'a' => $wName, 'a_long' => $wLong,
+                'b' => $lName, 'b_long' => $lLong,
+                'count' => (int)round($diff),
+            ];
+        }
+        usort($tradeDeseqMap[$lg], fn($a,$b) => $b['count'] <=> $a['count']);
+    }
+} catch (Exception) {}
+
+// ── Valorização e desvalorização de jogadores pós-trade ──────────
+$valorizadoMap   = [];
+$desvalorizadoMap = [];
+try {
+    // Pega o snapshot OVR mais antigo de cada jogador trocado (primeira trade)
+    // e compara com OVR atual
+    $ovrdRaw = $pdo->query("
+        SELECT ti.league,
+               ti.player_name AS name,
+               ti.player_id,
+               ti.player_ovr AS ovr_trade,
+               p.ovr AS ovr_atual
+        FROM trade_items ti
+        JOIN trades tr ON tr.id=ti.trade_id AND tr.status='accepted'
+        JOIN players p ON p.id=ti.player_id
+        WHERE ti.player_ovr > 0 AND p.ovr > 0 AND ti.player_id IS NOT NULL
+        ORDER BY ti.player_id, tr.created_at ASC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    // Pega apenas a primeira trade de cada jogador (primeira aparição = ponto de referência)
+    $firstTrade = [];
+    foreach ($ovrdRaw as $r) {
+        $pid = (int)$r['player_id'];
+        if (!isset($firstTrade[$pid])) $firstTrade[$pid] = $r;
+    }
+
+    foreach ($firstTrade as $r) {
+        $diff = (int)$r['ovr_atual'] - (int)$r['ovr_trade'];
+        if ($diff > 0) {
+            $valorizadoMap[$r['league']][]   = ['name' => $r['name'], 'count' => $diff];
+        } elseif ($diff < 0) {
+            $desvalorizadoMap[$r['league']][] = ['name' => $r['name'], 'count' => abs($diff)];
+        }
+    }
+    sortLeagueData($valorizadoMap);
+    sortLeagueData($desvalorizadoMap);
+} catch (Exception) {}
+
 
 ?><!DOCTYPE html>
 <html lang="pt-BR">
@@ -406,8 +647,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 /* ── Main wrapper ── */
 .main{margin-left:var(--sidebar-w);min-height:100vh;width:calc(100% - var(--sidebar-w))}
 .main-inner{max-width:1200px;margin:0 auto;padding:28px 24px 80px}
-/* sobrescreve qualquer `main` global herdado */
-.main-inner section,.main-inner>*{}
 .page-title{font-family:'Oswald',sans-serif;font-size:24px;font-weight:700;margin-bottom:24px;display:flex;align-items:center;gap:10px}
 .page-title i{color:var(--red)}
 
@@ -427,9 +666,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .section-sub{font-size:11px;color:var(--text-3);margin-top:2px}
 
 /* Grid */
-.leagues-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-@media(max-width:900px){.leagues-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:520px){.leagues-grid{grid-template-columns:1fr}}
+.leagues-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:760px){.leagues-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.leagues-grid{grid-template-columns:1fr}}
 
 /* Card */
 .league-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
@@ -602,7 +841,6 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
             }
         }
         $myInTop5 = $myPos > 0 && $myPos <= 5;
-        $myInBot5 = $myPos > 0 && $myPos > (count($arr) - 5);
 
         echo "<div class=\"card-sub\">{$label_hi}</div>";
         if (empty($top5)) {
@@ -867,6 +1105,78 @@ renderSection('leilao', '🔨', 'rgba(168,85,247,.12)', 'Jogadores mais Leiloado
         'color_hi' => 'purple',
         'copy_hi' => 'Jogadores mais leiloados',
         'suffix' => 'x',
+    ], $myTeamName);
+
+renderSection('trade-deseq', '🎭', 'rgba(252,0,37,.10)', 'Trades Mais Desequilibradas',
+    'Negociações onde um time saiu muito melhor (winner × loser)',
+    $tradeDeseqMap, $leagues, [
+        'label_hi' => '🎭 Mais desequilibradas', 'show_lo' => false,
+        'color_hi' => 'hi',
+        'copy_hi'  => 'Trades mais desequilibradas',
+        'pair_mode' => true,
+        'suffix'   => ' pts',
+    ], $myTeamName);
+
+renderSection('trade-valor', '⚖️', 'rgba(96,165,250,.12)', 'Saldo de Valor em Trades',
+    'Quem ganhou e quem perdeu valor nas negociações (OVR + idade + força da pick)',
+    $tradeValueMap, $leagues, [
+        'label_hi' => '📈 Melhor saldo', 'label_lo' => '📉 Pior saldo',
+        'color_hi' => 'green', 'color_lo' => 'hi',
+        'copy_hi' => 'Melhor saldo de valor em trades', 'copy_lo' => 'Pior saldo',
+        'suffix' => ' pts',
+    ], $myTeamName);
+
+renderSection('jejum', '😴', 'rgba(148,163,184,.10)', 'Maior Jejum de Playoffs',
+    'Maior sequência de temporadas consecutivas sem chegar ao playoff',
+    $jejumMap, $leagues, [
+        'label_hi' => '😴 Maior jejum', 'label_lo' => '✅ Menor jejum',
+        'color_hi' => 'lo', 'color_lo' => 'green',
+        'copy_hi' => 'Maior jejum de playoffs', 'copy_lo' => 'Menor jejum',
+        'suffix' => ' temp',
+    ], $myTeamName);
+
+renderSection('picks-env', '🎰', 'rgba(96,165,250,.10)', 'Picks Enviadas em Trades',
+    'Times que mais apostaram picks em negociações',
+    $picksEnvMap, $leagues, [
+        'label_hi' => '🎰 Mais apostadores', 'label_lo' => '🏦 Mais conservadores',
+        'color_hi' => 'blue', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais picks enviadas', 'copy_lo' => 'Menos picks enviadas',
+        'suffix' => ' picks',
+    ], $myTeamName);
+
+renderSection('finais', '🏆', 'rgba(251,191,36,.12)', 'Finais Disputadas',
+    'Times que mais chegaram à final (campeão + vice)',
+    $finaisMap, $leagues, [
+        'label_hi' => '🏆 Mais finais', 'label_lo' => '📦 Menos finais',
+        'color_hi' => 'gold', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais finais disputadas', 'copy_lo' => 'Menos finais disputadas',
+    ], $myTeamName);
+
+renderSection('leais', '❤️', 'rgba(34,197,94,.08)', 'Jogadores Leais',
+    'Jogadores que nunca saíram do mesmo time (mín. 2 temporadas)',
+    $leaisMap, $leagues, [
+        'label_hi' => '❤️ Mais leais', 'show_lo' => false,
+        'color_hi' => 'green',
+        'copy_hi' => 'Jogadores mais leais',
+        'suffix' => ' temp',
+    ], $myTeamName);
+
+renderSection('valorizado', '📈', 'rgba(34,197,94,.10)', 'Jogadores Mais Valorizados Pós-Trade',
+    'Jogadores que mais cresceram de OVR desde que foram trocados pela primeira vez',
+    $valorizadoMap, $leagues, [
+        'label_hi' => '📈 Mais valorizados', 'show_lo' => false,
+        'color_hi' => 'green',
+        'copy_hi'  => 'Jogadores mais valorizados após trade',
+        'suffix'   => ' OVR',
+    ], $myTeamName);
+
+renderSection('desvalorizado', '📉', 'rgba(252,0,37,.08)', 'Jogadores Mais Desvalorizados Pós-Trade',
+    'Jogadores que mais perderam OVR desde que foram trocados pela primeira vez',
+    $desvalorizadoMap, $leagues, [
+        'label_hi' => '📉 Maior queda', 'show_lo' => false,
+        'color_hi' => 'hi',
+        'copy_hi'  => 'Jogadores mais desvalorizados após trade',
+        'suffix'   => ' OVR',
     ], $myTeamName);
 
 
