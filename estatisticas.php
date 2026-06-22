@@ -750,6 +750,7 @@ foreach ($leagues as $lg) {
             echo '<div class="race-bar-wrap"><div class="race-bar" style="width:'.$pct.'%;background:var(--red)"></div></div>';
             echo '</div>';
         }
+    } // end else
     echo '</div>';
 }
 echo '</div></div>';
