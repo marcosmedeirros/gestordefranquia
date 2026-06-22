@@ -263,21 +263,6 @@ try {
     sortLeagueData($draftOvrMap);
 } catch (Exception) {}
 
-// ── Jogadores mais requisitados na FA (mais ofertas por player) ───
-$faHotMap = [];
-try {
-    $fhRaw = $pdo->query("
-        SELECT far.league, far.player_name AS name, COUNT(DISTINCT faro.team_id) AS count,
-               pt.name AS team
-        FROM fa_requests far
-        LEFT JOIN fa_request_offers faro ON faro.request_id=far.id
-        LEFT JOIN players p ON p.name = far.player_name
-        LEFT JOIN teams pt ON pt.id = p.team_id
-        GROUP BY far.league, far.player_name ORDER BY count DESC
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($fhRaw as $r) $faHotMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count'],'team'=>$r['team'] ?? ''];
-    sortLeagueData($faHotMap);
-} catch (Exception) {}
 
 // ── Maior jejum (sequência de temporadas sem playoff) ────────────
 $jejumMap = [];
@@ -406,7 +391,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .section-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
 .section-head h2{font-family:'Oswald',sans-serif;font-size:18px;font-weight:700;color:var(--text)}
 .section-head .section-icon{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
-.section-sub{font-size:11px;color:var(--text-3);margin-top:2px}
+.section-sub{font-size:11px;color:var(--text);margin-top:2px}
 
 /* Grid */
 .leagues-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
@@ -774,14 +759,6 @@ renderSection('draft-ovr', '📈', 'rgba(168,85,247,.10)', 'Aproveitamento do Dr
         'copy_hi' => 'Melhor aproveitamento do draft', 'copy_lo' => 'Menor aproveitamento do draft',
     ], $myTeamName);
 
-renderSection('fa-hot', '🔥', 'rgba(252,0,37,.10)', 'Jogadores mais Disputados na FA',
-    'Jogadores com mais times diferentes fazendo ofertas',
-    $faHotMap, $leagues, [
-        'label_hi' => '🔥 Mais disputados', 'show_lo' => false,
-        'color_hi' => 'hi',
-        'copy_hi' => 'Jogadores mais disputados na FA',
-        'suffix' => ' ofertas',
-    ], $myTeamShortName);
 
 
 renderSection('orig-top5', '🎯', 'rgba(251,191,36,.12)', 'Pick Origem no Top 5',
