@@ -207,6 +207,22 @@ body{overflow-x:hidden}
 .btn-add-team{display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:1px dashed var(--border-md);border-radius:10px;color:var(--text-3);cursor:pointer;padding:16px 12px;font-family:var(--font);font-size:11px;font-weight:600;transition:all .15s;width:60px}
 .btn-add-team:hover{border-color:var(--green);color:var(--green)}
 
+/* Value bar */
+.value-bar{display:flex;gap:0;background:var(--border);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-top:12px}
+.value-panel{background:var(--panel-2);padding:12px 16px;flex:1;min-width:110px}
+.value-label{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.value-num{font-size:22px;font-weight:800;color:var(--text);line-height:1}
+.value-sub{font-size:10px;color:var(--text-2);margin-top:2px}
+.verdict-panel{background:var(--panel-2);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 18px;gap:5px;border-left:1px solid var(--border);min-width:200px}
+.verdict-badge{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.verdict-badge.valid{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--green)}
+.verdict-badge.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--amber)}
+.verdict-badge.invalid{background:rgba(252,0,37,.12);border:1px solid rgba(252,0,37,.3);color:var(--red)}
+.verdict-badge.robbery{background:rgba(252,0,37,.20);border:2px solid rgba(252,0,37,.55);color:var(--red);animation:pulse-red 1.2s ease-in-out infinite}
+.verdict-badge.neutral{background:var(--panel-3);border:1px solid var(--border);color:var(--text-3)}
+.verdict-hint{font-size:10px;color:var(--text-3);text-align:center}
+@keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(252,0,37,.4)}50%{box-shadow:0 0 0 6px rgba(252,0,37,0)}}
+
 /* CAP bar */
 .cap-bar{display:flex;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-top:12px;overflow-x:auto}
 .cap-panel{background:var(--panel-2);padding:12px 14px;min-width:180px;flex:1}
@@ -458,6 +474,15 @@ body{overflow-x:hidden}
 
     <!-- Panels -->
     <div class="sim-panels-wrap" id="panelsWrap"></div>
+
+    <!-- Value bar -->
+    <div class="value-bar" id="valueBar" style="display:none">
+      <div id="valuePanels" style="display:flex;flex:1;gap:1px;background:var(--border)"></div>
+      <div class="verdict-panel" id="verdictPanel">
+        <div class="verdict-badge neutral"><i class="bi bi-hourglass-split"></i>AGUARDANDO</div>
+        <div class="verdict-hint">valor da trade</div>
+      </div>
+    </div>
 
     <!-- CAP impact -->
     <div class="cap-bar" id="capBar" style="display:none"></div>
@@ -948,8 +973,9 @@ function recalc() {
     capBar.appendChild(panel);
   });
 
-  if (!hasItems) { updateValidity('neutral','AGUARDANDO'); return; }
+  if (!hasItems) { updateValidity('neutral','AGUARDANDO'); updateValueBar(); return; }
   updateValidity(anyInvalid ? 'warn' : 'valid', anyInvalid ? 'CAP ALTERADO' : 'OK');
+  updateValueBar();
 
   if (IS_PROPOSE) {
     const btn = document.getElementById('submitBtn');
@@ -1131,6 +1157,85 @@ function setSimSwapRole(toKey, itemId, role) {
     renderPanel(pair.toKey);
     if (window._allTeams) populateTeamSelect(pair.toKey, window._allTeams);
     if (teams[pair.toKey]) { const s = document.getElementById(`sel_${pair.toKey}`); if (s) s.value = teams[pair.toKey].id; }
+  }
+}
+
+// ── Trade Value Metric ────────────────────────────────────────────────────────
+function calcItemValue(item) {
+  const ovr = +(item.ovr || 0);
+  const age = +(item.age || 25);
+  if (ovr > 0) {
+    let val = ovr;
+    if (age <= 22)       val += 18;
+    else if (age <= 25)  val += 12;
+    else if (age <= 28)  val += 6;
+    else if (age <= 31)  val += 0;
+    else if (age <= 33)  val -= 8;
+    else                 val -= 16;
+    return Math.max(1, val);
+  }
+  return (+(item.round || 2) === 1) ? 60 : 30;
+}
+
+function calcTeamOffersValue(fromKey) {
+  let total = 0;
+  activeSlots.forEach(toKey => {
+    if (toKey === fromKey) return;
+    (receives[toKey] || []).filter(i => i.fromKey === fromKey).forEach(item => { total += calcItemValue(item); });
+  });
+  return total;
+}
+
+function tradeVerdict(values) {
+  const nonZero = values.filter(v => v > 0);
+  if (nonZero.length < 2) return { label: 'AGUARDANDO', cls: 'neutral', icon: 'hourglass-split', hint: 'adicione itens para avaliar' };
+  const max = Math.max(...values), min = Math.min(...values);
+  if (max === 0) return { label: 'AGUARDANDO', cls: 'neutral', icon: 'hourglass-split', hint: 'adicione itens' };
+  const diff = (max - min) / max;
+  if (diff <= 0.08) return { label: 'TROCA JUSTA', cls: 'valid', icon: 'check-circle-fill', hint: 'valores equivalentes' };
+  if (diff <= 0.18) return { label: 'LEVEMENTE DESIGUAL', cls: 'warn', icon: 'exclamation-triangle-fill', hint: 'pequena diferença' };
+  if (diff <= 0.32) return { label: 'DESEQUILIBRADA', cls: 'invalid', icon: 'x-octagon-fill', hint: 'diferença significativa' };
+  return { label: 'ISSO É UM ROUBO!', cls: 'robbery', icon: 'emoji-dizzy-fill', hint: 'grande desequilíbrio' };
+}
+
+function updateValueBar() {
+  const hasAnyItems = activeSlots.some(k => (receives[k] || []).length > 0);
+  const vb = document.getElementById('valueBar');
+  if (!vb) return;
+
+  const loadedSlots = activeSlots.filter(k => teams[k]);
+  if (!hasAnyItems || loadedSlots.length < 2) {
+    vb.style.display = 'none';
+    return;
+  }
+  vb.style.display = '';
+
+  const vp = document.getElementById('valuePanels');
+  vp.innerHTML = '';
+  const values = [];
+
+  loadedSlots.forEach(key => {
+    const t = teams[key];
+    const val = calcTeamOffersValue(key);
+    values.push(val);
+    const panel = document.createElement('div');
+    panel.className = 'value-panel';
+    const items = activeSlots.reduce((s, tk) => { if (tk !== key) s += (receives[tk] || []).filter(i => i.fromKey === key).length; return s; }, 0);
+    panel.innerHTML = `
+      <div class="value-label">${escH(t.name)}</div>
+      <div class="value-num">${val}</div>
+      <div class="value-sub">${items} item${items !== 1 ? 's' : ''} enviado${items !== 1 ? 's' : ''}</div>
+    `;
+    vp.appendChild(panel);
+  });
+
+  const v = tradeVerdict(values);
+  const vPanel = document.getElementById('verdictPanel');
+  if (vPanel) {
+    vPanel.innerHTML = `
+      <div class="verdict-badge ${v.cls}"><i class="bi bi-${v.icon}"></i>${v.label}</div>
+      <div class="verdict-hint">${v.hint}</div>
+    `;
   }
 }
 

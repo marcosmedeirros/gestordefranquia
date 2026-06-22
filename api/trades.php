@@ -501,6 +501,22 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
     }
 }
 
+// Calcula o valor de um item de trade baseado em OVR+idade (jogador) ou rodada (pick)
+function calcTradeItemValue(?int $ovr, ?int $age, ?int $round = null): int {
+    if ($ovr !== null && $ovr > 0) {
+        $val = $ovr;
+        $age = $age ?? 25;
+        if ($age <= 22)      $val += 18;
+        elseif ($age <= 25)  $val += 12;
+        elseif ($age <= 28)  $val += 6;
+        elseif ($age <= 31)  $val += 0;
+        elseif ($age <= 33)  $val -= 8;
+        else                 $val -= 16;
+        return max(1, $val);
+    }
+    return ($round === 1) ? 60 : 30;
+}
+
 // Snapshot dos jogadores nos itens da trade, para manter histórico mesmo se o jogador for dispensado
 function ensureTradeItemSnapshotColumns(PDO $pdo): void {
     if (!tableExists($pdo, 'trade_items')) return;
@@ -576,6 +592,18 @@ function ensurePickSwapColumns(PDO $pdo): void {
 
 ensureTradeItemPickSwapColumns($pdo);
 ensurePickSwapColumns($pdo);
+
+function ensureTradeItemValueColumns(PDO $pdo): void {
+    foreach (['trade_items', 'multi_trade_items'] as $tbl) {
+        if (!tableExists($pdo, $tbl)) continue;
+        try {
+            if (!columnExists($pdo, $tbl, 'item_value')) {
+                $pdo->exec("ALTER TABLE {$tbl} ADD COLUMN item_value INT NULL AFTER player_ovr");
+            }
+        } catch (Exception $e) {}
+    }
+}
+ensureTradeItemValueColumns($pdo);
 
 function ensureTradeReactionsTable(PDO $pdo): void
 {
@@ -1793,8 +1821,13 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
         }
 
         $hasPickProtectionCol = columnExists($pdo, 'multi_trade_items', 'pick_protection');
+        $hasMultiItemValueCol = columnExists($pdo, 'multi_trade_items', 'item_value');
         $ovrCol = playerOvrColumn($pdo);
-        $stmtItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id, pick_protection, player_name, player_position, player_age, player_ovr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        if ($hasMultiItemValueCol) {
+            $stmtItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id, pick_protection, player_name, player_position, player_age, player_ovr, item_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        } else {
+            $stmtItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id, pick_protection, player_name, player_position, player_age, player_ovr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        }
 
         foreach ($validatedItems as $item) {
             $fromTeam = (int)$item['from_team_id'];
@@ -1839,18 +1872,24 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
                 $playerAge = $p['age'] ?? null;
                 $playerOvr = $p['ovr'] ?? null;
             }
-            $stmtItem->execute([
-                $tradeId,
-                $fromTeam,
-                $toTeam,
-                $playerId,
-                $pickId,
-                $hasPickProtectionCol ? null : null,
-                $playerName,
-                $playerPosition,
-                $playerAge,
-                $playerOvr
-            ]);
+            $multiItemValue = null;
+            if ($hasMultiItemValueCol) {
+                if ($playerId) {
+                    $multiItemValue = calcTradeItemValue(
+                        $playerOvr !== null ? (int)$playerOvr : null,
+                        $playerAge !== null ? (int)$playerAge : null
+                    );
+                } elseif ($pickId) {
+                    try {
+                        $svr = $pdo->prepare('SELECT round FROM picks WHERE id = ?');
+                        $svr->execute([$pickId]);
+                        $multiItemValue = calcTradeItemValue(null, null, (int)($svr->fetchColumn() ?: 2));
+                    } catch (Exception $e) { $multiItemValue = null; }
+                }
+            }
+            $execParams = [$tradeId, $fromTeam, $toTeam, $playerId, $pickId, $hasPickProtectionCol ? null : null, $playerName, $playerPosition, $playerAge, $playerOvr];
+            if ($hasMultiItemValueCol) $execParams[] = $multiItemValue;
+            $stmtItem->execute($execParams);
         }
 
         $pdo->commit();
@@ -2094,6 +2133,11 @@ if ($method === 'POST') {
             $placeholders[] = '?';
             $placeholders[] = '?';
         }
+        $hasItemValueCol = columnExists($pdo, 'trade_items', 'item_value');
+        if ($hasItemValueCol) {
+            $columns[] = 'item_value';
+            $placeholders[] = '?';
+        }
 
         $sqlItem = 'INSERT INTO trade_items (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
         $stmtItem = $pdo->prepare($sqlItem);
@@ -2101,6 +2145,7 @@ if ($method === 'POST') {
         foreach ($offerPlayers as $playerId) {
             $playerId = (int)$playerId;
             $params = [$tradeId, $playerId, null, true];
+            $p = [];
             if ($hasSnapshot) {
                 $stmtP = $pdo->prepare("SELECT id, name, position, {$ovrCol} AS ovr, age FROM players WHERE id = ?");
                 $stmtP->execute([$playerId]);
@@ -2116,6 +2161,12 @@ if ($method === 'POST') {
             if ($hasPickSwapCols) {
                 $params[] = null;
                 $params[] = null;
+            }
+            if ($hasItemValueCol) {
+                if (empty($p) || !isset($p['ovr'])) {
+                    try { $sv = $pdo->prepare("SELECT {$ovrCol} AS ovr, age FROM players WHERE id = ?"); $sv->execute([$playerId]); $p = $sv->fetch(PDO::FETCH_ASSOC) ?: []; } catch (Exception $e) {}
+                }
+                $params[] = calcTradeItemValue(isset($p['ovr']) ? (int)$p['ovr'] : null, isset($p['age']) ? (int)$p['age'] : null);
             }
             $stmtItem->execute($params);
         }
@@ -2140,6 +2191,9 @@ if ($method === 'POST') {
                 $params[] = $swapInfo['role'] ?? null;
                 $params[] = $swapInfo['pair_id'] ?? null;
             }
+            if ($hasItemValueCol) {
+                try { $svr = $pdo->prepare('SELECT round FROM picks WHERE id = ?'); $svr->execute([$pickId]); $params[] = calcTradeItemValue(null, null, (int)($svr->fetchColumn() ?: 2)); } catch (Exception $e) { $params[] = null; }
+            }
             $stmtItem->execute($params);
         }
         
@@ -2147,6 +2201,7 @@ if ($method === 'POST') {
         foreach ($requestPlayers as $playerId) {
             $playerId = (int)$playerId;
             $params = [$tradeId, $playerId, null, false];
+            $p = [];
             if ($hasSnapshot) {
                 $stmtP = $pdo->prepare("SELECT id, name, position, {$ovrCol} AS ovr, age FROM players WHERE id = ?");
                 $stmtP->execute([$playerId]);
@@ -2162,6 +2217,12 @@ if ($method === 'POST') {
             if ($hasPickSwapCols) {
                 $params[] = null;
                 $params[] = null;
+            }
+            if ($hasItemValueCol) {
+                if (empty($p) || !isset($p['ovr'])) {
+                    try { $sv = $pdo->prepare("SELECT {$ovrCol} AS ovr, age FROM players WHERE id = ?"); $sv->execute([$playerId]); $p = $sv->fetch(PDO::FETCH_ASSOC) ?: []; } catch (Exception $e) {}
+                }
+                $params[] = calcTradeItemValue(isset($p['ovr']) ? (int)$p['ovr'] : null, isset($p['age']) ? (int)$p['age'] : null);
             }
             $stmtItem->execute($params);
         }
@@ -2185,6 +2246,9 @@ if ($method === 'POST') {
                 $swapInfo = $swapMap[$pickId] ?? null;
                 $params[] = $swapInfo['role'] ?? null;
                 $params[] = $swapInfo['pair_id'] ?? null;
+            }
+            if ($hasItemValueCol) {
+                try { $svr = $pdo->prepare('SELECT round FROM picks WHERE id = ?'); $svr->execute([$pickId]); $params[] = calcTradeItemValue(null, null, (int)($svr->fetchColumn() ?: 2)); } catch (Exception $e) { $params[] = null; }
             }
             $stmtItem->execute($params);
         }

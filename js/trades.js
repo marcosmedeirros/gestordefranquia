@@ -1,3 +1,58 @@
+// ── Trade Value Metric ────────────────────────────────────────────────────────
+function calcItemValue(item) {
+  const ovr = +(item.ovr || 0);
+  const age = +(item.age || 25);
+  if (ovr > 0) {
+    let val = ovr;
+    if (age <= 22)       val += 18;
+    else if (age <= 25)  val += 12;
+    else if (age <= 28)  val += 6;
+    else if (age <= 31)  val += 0;
+    else if (age <= 33)  val -= 8;
+    else                 val -= 16;
+    return Math.max(1, val);
+  }
+  return (+(item.round || 2) === 1) ? 60 : 30;
+}
+
+function updateTradeValueDisplay() {
+  const offerPlayers  = playerState.offer.selected || [];
+  const requestPlayers = playerState.request.selected || [];
+  const offerPicks    = pickState.offer.selected || [];
+  const requestPicks  = pickState.request.selected || [];
+
+  const myValue     = [...offerPlayers,  ...offerPicks ].reduce((s, i) => s + calcItemValue(i), 0);
+  const targetValue = [...requestPlayers,...requestPicks].reduce((s, i) => s + calcItemValue(i), 0);
+
+  const myEl     = document.getElementById('tvMyValue');
+  const targetEl = document.getElementById('tvTargetValue');
+  const verdictEl = document.getElementById('tvVerdict');
+
+  if (myEl)     myEl.textContent     = myValue     || '—';
+  if (targetEl) targetEl.textContent = targetValue || '—';
+  if (!verdictEl) return;
+
+  const total = myValue + targetValue;
+  if (total === 0) {
+    verdictEl.innerHTML = '<i class="bi bi-hourglass-split"></i>AGUARDANDO';
+    verdictEl.className = 'tv-verdict-badge tv-neutral';
+    return;
+  }
+
+  const max = Math.max(myValue, targetValue);
+  const min = Math.min(myValue, targetValue);
+  const diff = max > 0 ? (max - min) / max : 0;
+
+  let icon, label, cls;
+  if (diff <= 0.08)       { icon = 'check-circle-fill';        label = 'TROCA JUSTA';          cls = 'tv-valid';   }
+  else if (diff <= 0.18)  { icon = 'exclamation-triangle-fill';label = 'LEVEMENTE DESIGUAL';    cls = 'tv-warn';    }
+  else if (diff <= 0.32)  { icon = 'x-octagon-fill';           label = 'DESEQUILIBRADA';        cls = 'tv-invalid'; }
+  else                    { icon = 'emoji-dizzy-fill';          label = 'ISSO É UM ROUBO!';      cls = 'tv-robbery'; }
+
+  verdictEl.innerHTML = `<i class="bi bi-${icon}"></i>${label}`;
+  verdictEl.className = `tv-verdict-badge ${cls}`;
+}
+
 const api = async (path, options = {}) => {
   const res = await fetch(`/api/${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -192,6 +247,7 @@ function updateCapImpact() {
   const capTargetPlayersProjectedEl = document.getElementById('capTargetPlayersProjected');
   if (capTargetPlayersEl) capTargetPlayersEl.textContent = targetTeamPlayers.length || '-';
   if (capTargetPlayersProjectedEl) capTargetPlayersProjectedEl.textContent = targetPlayersProjected !== null ? targetPlayersProjected : '-';
+  updateTradeValueDisplay();
 }
 
 const getTeamLabel = (team) => team ? `${team.city} ${team.name}` : 'Time';

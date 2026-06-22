@@ -359,6 +359,15 @@ try {
       font-weight: 600; font-size: 12px; color: var(--text);
     }
 
+    /* Trade value verdict badges */
+    .tv-verdict-badge{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+    .tv-neutral{background:var(--panel-3);border:1px solid var(--border);color:var(--text-3)}
+    .tv-valid{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#22c55e}
+    .tv-warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--amber)}
+    .tv-invalid{background:rgba(252,0,37,.12);border:1px solid rgba(252,0,37,.3);color:var(--red)}
+    .tv-robbery{background:rgba(252,0,37,.20);border:2px solid rgba(252,0,37,.55);color:var(--red);animation:tv-pulse 1.2s ease-in-out infinite}
+    @keyframes tv-pulse{0%,100%{box-shadow:0 0 0 0 rgba(252,0,37,.4)}50%{box-shadow:0 0 0 6px rgba(252,0,37,0)}}
+
     /* CAP impact card */
     .cap-card {
       background: var(--panel-2); border: 1px solid var(--border);
@@ -681,6 +690,23 @@ try {
                 </div>
               </div>
             </div>
+            <!-- Valor da Trade -->
+            <div class="row g-3 mb-3">
+              <div class="col-12">
+                <div style="background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+                  <div>
+                    <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-3);margin-bottom:8px">VALOR DA TRADE</div>
+                    <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">
+                      <div><span style="font-size:11px;color:var(--text-2)">Você oferece</span><br><span style="font-size:20px;font-weight:800;color:var(--text)" id="tvMyValue">—</span></div>
+                      <div style="font-size:18px;color:var(--text-3)">↔</div>
+                      <div><span style="font-size:11px;color:var(--text-2)">Time alvo</span><br><span style="font-size:20px;font-weight:800;color:var(--text)" id="tvTargetValue">—</span></div>
+                    </div>
+                  </div>
+                  <div id="tvVerdict" class="tv-verdict-badge tv-neutral"><i class="bi bi-hourglass-split"></i>AGUARDANDO</div>
+                </div>
+              </div>
+            </div>
+
             <!-- Impacto no CAP -->
             <div class="row g-3 mb-3" id="capImpactRow">
               <div class="col-md-6">
