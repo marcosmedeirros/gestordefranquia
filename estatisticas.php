@@ -4,9 +4,6 @@ require_once __DIR__ . '/backend/db.php';
 requireAuth();
 $user = getUserSession();
 $pdo2 = db();
-if (($user['user_type'] ?? '') !== 'admin' && !hasAdminAccess($pdo2, $user['id'])) {
-    header('Location: index.php'); exit;
-}
 $pdo = db();
 
 $leagues = ['ELITE','NEXT','RISE'];
