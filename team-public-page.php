@@ -262,7 +262,7 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
         .page-hero{padding:32px 32px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;}
         .page-eyebrow{font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--red);margin-bottom:4px;}
         .page-title{font-size:26px;font-weight:800;line-height:1.1;}
-        .page-sub{font-size:13px;color:var(--text-2);margin-top:3px;}
+        .page-sub{font-size:13px;color: var(--text);margin-top:3px;}
         .content{padding:24px 32px 40px;flex:1;}
 
         /* Cards */

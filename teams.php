@@ -557,7 +557,7 @@ function getSerasaScore(int $avisos): array {
 
         .page-sub {
             font-size: 13px;
-            color: var(--text-2);
+            color: var(--text);
             margin-top: 4px;
         }
 

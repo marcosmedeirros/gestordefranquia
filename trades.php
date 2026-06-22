@@ -234,7 +234,7 @@ try {
       display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 14px;
     }
     .page-hero-title { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.2; }
-    .page-hero-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+    .page-hero-sub { font-size: 13px; color: var(--text); margin-top: 4px; }
     .page-hero-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
     .content { padding: 24px 28px 40px; }

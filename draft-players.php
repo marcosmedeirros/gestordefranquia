@@ -153,7 +153,7 @@ function getOvrColor($ovr) {
         .page-head { margin-bottom: 22px; }
         .page-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--red); margin-bottom: 5px; }
         .page-title { font-size: 1.5rem; font-weight: 800; margin-bottom: 4px; }
-        .page-sub { font-size: 13px; color: var(--text-2); }
+        .page-sub { font-size: 13px; color: var(--text); }
 
         /* ── Panel card ──────────────────────────────── */
         .panel-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }

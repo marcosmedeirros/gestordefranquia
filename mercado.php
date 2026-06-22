@@ -113,7 +113,7 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
         .page-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 22px; flex-wrap: wrap; }
         .page-eyebrow { font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; }
         .page-title { font-size: 32px; font-family: var(--font); margin-bottom: 6px; }
-        .page-sub { color: var(--text-2); font-size: 14px; }
+        .page-sub { color: var(--text); font-size: 14px; }
 
         .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; }
         .panel + .panel { margin-top: 16px; }

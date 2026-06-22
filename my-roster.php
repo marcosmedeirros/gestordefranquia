@@ -236,7 +236,7 @@ if ($teamId) {
         .page-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 22px; flex-wrap: wrap; }
         .page-eyebrow { font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; }
         .page-title   { font-size: 32px; font-family: var(--font); margin-bottom: 6px; }
-        .page-sub     { color: var(--text-2); font-size: 14px; }
+        .page-sub     { color: var(--text); font-size: 14px; }
 
         /* ── Stats strip ───────────────────────────────── */
         .stats-strip { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; margin-bottom: 26px; }

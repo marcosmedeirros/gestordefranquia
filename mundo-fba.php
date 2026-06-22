@@ -944,7 +944,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .page-eyebrow { font-size:11px; font-weight:600; letter-spacing:1.4px; text-transform:uppercase; color:var(--red); margin-bottom:4px; }
         .page-title { font-size:22px; font-weight:800; display:flex; align-items:center; gap:10px; }
         .page-title i { color:var(--red); }
-        .page-sub { font-size:13px; color:var(--text-2); margin-top:4px; }
+        .page-sub { font-size:13px; color: var(--text); margin-top:4px; }
         .content { padding:24px 32px 56px; flex:1; }
 
         /* ── League tabs ────────────────────────────────────── */

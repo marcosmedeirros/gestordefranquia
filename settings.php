@@ -117,7 +117,7 @@ $team = $stmtTeam->fetch() ?: null;
         .hero-left {}
         .page-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
         .page-title { font-size: 26px; font-weight: 800; line-height: 1.1; }
-        .page-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+        .page-sub { font-size: 13px; color: var(--text); margin-top: 4px; }
 
         /* user hero card */
         .hero-user {
