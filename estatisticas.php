@@ -591,10 +591,15 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
         echo "</div>";
 
         // Find myTeam position in full array (1-indexed)
+        $isPlayerSection = !$pair_mode && !empty($arr) && isset($arr[0]['team']);
         $myPos = 0;
         if ($myTeam !== '' && !$pair_mode) {
             foreach ($arr as $idx => $r) {
-                if ($r['name'] === $myTeam) { $myPos = $idx + 1; break; }
+                if ($isPlayerSection) {
+                    if (!empty($r['team']) && $r['team'] === $myTeam) { $myPos = $idx + 1; break; }
+                } else {
+                    if ($r['name'] === $myTeam) { $myPos = $idx + 1; break; }
+                }
             }
         }
         $myInTop5 = $myPos > 0 && $myPos <= 5;
@@ -604,7 +609,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
             echo "<div class=\"empty-state\">Sem dados</div>";
         } else {
             foreach ($top5 as $i => $r) {
-                $isMyTeam = !$pair_mode && $myTeam !== '' && $r['name'] === $myTeam;
+                $isMyTeam = !$pair_mode && $myTeam !== '' && ($isPlayerSection ? (!empty($r['team']) && $r['team'] === $myTeam) : $r['name'] === $myTeam);
                 if ($pair_mode) {
                     echo "<div class=\"pair-row\">";
                     echo "<span class=\"rn ".($i===0?'gold':'')."\">" . ($i+1) . "</span>";
@@ -631,7 +636,8 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
             if ($myPos > 0 && !$myInTop5 && !$pair_mode) {
                 $myRow = $arr[$myPos - 1];
                 echo "<div class=\"my-team-sep\"></div>";
-                echo "<div class=\"my-team-label\">Seu time</div>";
+                $myLabel = $isPlayerSection ? "Seu time — " . htmlspecialchars($myTeam) : "Seu time";
+                echo "<div class=\"my-team-label\">{$myLabel}</div>";
                 echo "<div class=\"rank-row my-team\">";
                 echo "<span class=\"rn\">{$myPos}</span>";
                 if (!empty($myRow['team'])) {
@@ -653,7 +659,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
                 $bot5Full = array_reverse(array_slice(array_reverse($arr), 0, 5));
                 $bot5Positions = range(count($arr) - count($bot5Full) + 1, count($arr));
                 foreach ($bot5Full as $i => $r) {
-                    $isMyTeam = !$pair_mode && $myTeam !== '' && $r['name'] === $myTeam;
+                    $isMyTeam = !$pair_mode && $myTeam !== '' && ($isPlayerSection ? (!empty($r['team']) && $r['team'] === $myTeam) : $r['name'] === $myTeam);
                     if ($pair_mode) {
                         echo "<div class=\"pair-row\">";
                         echo "<span class=\"rn\">" . ($i+1) . "</span>";
