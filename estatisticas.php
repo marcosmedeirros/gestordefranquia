@@ -55,7 +55,8 @@ try {
     foreach ($pbRows as $r) {
         $k = $r['league'].'|'.$r['team_id'];
         if (!isset($gmData[$k])) continue;
-        $pts = match($r['status']) { 'champion'=>20,'runner_up'=>10,'conference_finalist'=>6,'semifinalist'=>3,'first_round'=>1,default=>0 };
+        $statusPts = ['champion'=>20,'runner_up'=>10,'conference_finalist'=>6,'semifinalist'=>3,'first_round'=>1];
+        $pts = $statusPts[$r['status']] ?? 0;
         $gmData[$k]['playoff_score'] += $pts;
         if ($r['status']==='champion')            $gmData[$k]['titles']++;
         if ($r['status']==='runner_up')           $gmData[$k]['vice']++;
