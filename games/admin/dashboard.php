@@ -506,7 +506,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <a href="dashboard.php"             class="sb-link active"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
     <a href="controle-financas.php"     class="sb-link"><i class="bi bi-cash-coin"></i>Controle Finanças</a>
     <a href="controle-tapas.php"        class="sb-link"><i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas</a>
-    <a href="controle-pontuacao.php"    class="sb-link"><i class="bi bi-coin"></i>Controle Pontuação</a>
+    <a href="controle-usuarios.php"     class="sb-link"><i class="bi bi-people-fill"></i>Controle de Usuários</a>
     <a href="dadosjogadores.php"        class="sb-link"><i class="bi bi-person-lines-fill"></i>Dados dos Jogadores</a>
   </nav>
   <div class="sb-footer">
