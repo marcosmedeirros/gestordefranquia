@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 session_start();
 require '../core/conexao.php';
 /** @var PDO $pdo */
@@ -16,7 +16,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
     $acao = $_POST['acao'] ?? '';
 
     try {
-        // Adicionar valor a um usuário
         if ($acao === 'adicionar') {
             $uid   = (int)$_POST['user_id'];
             $tipo  = $_POST['tipo'] === 'fba' ? 'fba_points' : 'pontos';
@@ -31,14 +30,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
             exit;
         }
 
-        // Editar diretamente o saldo de um usuário
         if ($acao === 'editar') {
-            $uid     = (int)$_POST['user_id'];
-            $pontos  = (int)$_POST['pontos'];
-            $fba     = (int)$_POST['fba_points'];
+            $uid    = (int)$_POST['user_id'];
+            $pontos = (int)$_POST['pontos'];
+            $fba    = (int)$_POST['fba_points'];
             if ($uid <= 0) throw new Exception("Usuário inválido.");
             $pdo->prepare("UPDATE usuarios SET pontos = :p, fba_points = :f WHERE id = :id")
                 ->execute([':p' => $pontos, ':f' => $fba, ':id' => $uid]);
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
+        if ($acao === 'toggle_admin') {
+            $uid = (int)$_POST['user_id'];
+            $val = (int)$_POST['valor'];
+            if ($uid <= 0) throw new Exception("Usuário inválido.");
+            if ($uid === (int)$_SESSION['user_id']) throw new Exception("Você não pode remover seu próprio acesso admin.");
+            $pdo->prepare("UPDATE usuarios SET is_admin = :v WHERE id = :id")
+                ->execute([':v' => ($val ? 1 : 0), ':id' => $uid]);
             echo json_encode(['ok' => true]);
             exit;
         }
@@ -52,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
 
 // ── Carrega usuários ───────────────────────────────────────────────────────────
 $usuarios = $pdo->query(
-    "SELECT id, nome, email, pontos, fba_points FROM usuarios ORDER BY nome ASC"
+    "SELECT id, nome, email, pontos, fba_points, is_admin FROM usuarios ORDER BY nome ASC"
 )->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
@@ -61,7 +70,7 @@ $usuarios = $pdo->query(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#fc0025">
-  <title>Controle de Pontuação - FBA Admin</title>
+  <title>Controle de Usuários - FBA Admin</title>
 	<link rel="icon" type="image/png" href="/games/fbagames.png">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -93,7 +102,7 @@ $usuarios = $pdo->query(
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
 
-    /* ── Sidebar (igual games.php) ── */
+    /* ── Sidebar ── */
     .page-layout { display: flex; min-height: 100vh; }
     .sidebar { width: 240px; flex-shrink: 0; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 200; overflow-y: auto; }
     .page-content { flex: 1; margin-left: 240px; min-width: 0; }
@@ -137,7 +146,7 @@ $usuarios = $pdo->query(
     }
 
     /* ── Content ── */
-    .page-content-inner { padding: 28px 28px 60px; max-width: 960px; }
+    .page-content-inner { padding: 28px 28px 60px; max-width: 980px; }
     @media (max-width: 768px) { .page-content-inner { padding: 16px 16px 48px; } }
     .page-header { margin-bottom: 28px; }
     .page-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
@@ -164,8 +173,8 @@ $usuarios = $pdo->query(
     .adder-input  { width: 120px; }
     .tipo-toggle { display: flex; gap: 0; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border-md); }
     .tipo-btn { padding: 9px 16px; font-size: 12px; font-weight: 700; cursor: pointer; border: none; background: var(--panel-2); color: var(--text-2); transition: all var(--t) var(--ease); }
-    .tipo-btn.active.fba  { background: rgba(245,158,11,.15); color: var(--amber); }
-    .tipo-btn.active.moeda { background: rgba(34,197,94,.12); color: var(--green); }
+    .tipo-btn.active.fba   { background: rgba(245,158,11,.15); color: var(--amber); }
+    .tipo-btn.active.moeda { background: rgba(34,197,94,.12);  color: var(--green); }
     .btn-add {
       display: flex; align-items: center; gap: 7px;
       background: var(--red); color: #fff; border: none; border-radius: var(--radius-sm);
@@ -177,7 +186,7 @@ $usuarios = $pdo->query(
     .adder-feedback.ok  { color: var(--green); }
     .adder-feedback.err { color: #f87171; }
 
-    /* ── Tabela de usuários ── */
+    /* ── Tabela ── */
     .section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-3); margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
     .section-label i { color: var(--red); font-size: 12px; }
     .search-bar { position: relative; margin-bottom: 14px; }
@@ -197,11 +206,12 @@ $usuarios = $pdo->query(
       padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border);
     }
     .users-table thead th.right { text-align: right; }
+    .users-table thead th.center { text-align: center; }
     .users-table tbody tr { border-bottom: 1px solid var(--border); transition: background var(--t) var(--ease); }
     .users-table tbody tr:last-child { border-bottom: none; }
     .users-table tbody tr:hover { background: var(--panel-2); }
     .users-table td { padding: 10px 14px; font-size: 13px; vertical-align: middle; }
-    .user-name { font-weight: 700; color: var(--text); }
+    .user-name  { font-weight: 700; color: var(--text); }
     .user-email { font-size: 11px; color: var(--text-3); margin-top: 1px; }
     .saldo-input {
       background: var(--panel-3); border: 1px solid var(--border);
@@ -222,6 +232,26 @@ $usuarios = $pdo->query(
     .btn-save-row:hover { background: var(--red); color: #fff; }
     .saved-flash { font-size: 11px; font-weight: 700; color: var(--green); margin-left: 6px; opacity: 0; transition: opacity .3s; }
     .saved-flash.show { opacity: 1; }
+
+    /* ── Toggle Admin ── */
+    .admin-toggle-wrap { display: flex; align-items: center; justify-content: center; gap: 7px; }
+    .admin-toggle { position: relative; display: inline-block; width: 38px; height: 22px; flex-shrink: 0; }
+    .admin-toggle input { opacity: 0; width: 0; height: 0; }
+    .admin-slider {
+      position: absolute; inset: 0; border-radius: 22px;
+      background: var(--panel-3); border: 1px solid var(--border-md);
+      cursor: pointer; transition: background var(--t) var(--ease), border-color var(--t) var(--ease);
+    }
+    .admin-slider::before {
+      content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%;
+      background: var(--text-3); left: 2px; top: 2px;
+      transition: transform var(--t) var(--ease), background var(--t) var(--ease);
+    }
+    .admin-toggle input:checked + .admin-slider { background: rgba(252,0,37,.2); border-color: var(--border-red); }
+    .admin-toggle input:checked + .admin-slider::before { transform: translateX(16px); background: var(--red); }
+    .admin-toggle input:disabled + .admin-slider { opacity: .4; cursor: not-allowed; }
+    .admin-badge { font-size: 10px; font-weight: 700; color: var(--red); letter-spacing: .4px; display: none; }
+    .admin-toggle input:checked ~ .admin-badge { display: inline; }
 
     @media (max-width: 768px) {
       .adder-row { flex-direction: column; }
@@ -274,7 +304,7 @@ $usuarios = $pdo->query(
     <a href="dashboard.php"             class="sb-link"><i class="bi bi-receipt-cutoff"></i>Controle Apostas</a>
     <a href="controle-financas.php"     class="sb-link"><i class="bi bi-cash-coin"></i>Controle Finanças</a>
     <a href="controle-tapas.php"        class="sb-link"><i class="bi bi-hand-index-thumb-fill"></i>Controle de Tapas</a>
-    <a href="controle-usuarios.php"     class="sb-link"><i class="bi bi-people-fill"></i>Controle de Usuários</a>
+    <a href="controle-usuarios.php"     class="sb-link active"><i class="bi bi-people-fill"></i>Controle de Usuários</a>
     <a href="dadosjogadores.php"        class="sb-link"><i class="bi bi-person-lines-fill"></i>Dados dos Jogadores</a>
   </nav>
   <div class="sb-footer">
@@ -295,10 +325,10 @@ $usuarios = $pdo->query(
 <div class="page-content-inner">
   <div class="page-header">
     <div class="page-eyebrow">Admin</div>
-    <h1 class="page-title"><i class="bi bi-coin"></i> Controle de Pontuação</h1>
+    <h1 class="page-title"><i class="bi bi-people-fill"></i> Controle de Usuários</h1>
   </div>
 
-  <!-- ── Adicionador ── -->
+  <!-- ── Adicionador de saldo ── -->
   <div class="adder-card">
     <div class="adder-title"><i class="bi bi-plus-circle-fill"></i> Adicionar / Remover Saldo</div>
     <div class="adder-row">
@@ -338,7 +368,7 @@ $usuarios = $pdo->query(
   </div>
 
   <!-- ── Lista de usuários ── -->
-  <div class="section-label"><i class="bi bi-people-fill"></i> Saldo por Usuário — <?= count($usuarios) ?> usuários</div>
+  <div class="section-label"><i class="bi bi-people-fill"></i> Usuários — <?= count($usuarios) ?> cadastrados</div>
 
   <div class="search-bar">
     <i class="bi bi-search"></i>
@@ -350,13 +380,16 @@ $usuarios = $pdo->query(
       <thead>
         <tr>
           <th>Usuário</th>
-          <th class="right" style="width:120px">🪙 Moedas</th>
-          <th class="right" style="width:120px">⭐ FBA Points</th>
+          <th class="right"  style="width:120px">🪙 Moedas</th>
+          <th class="right"  style="width:120px">⭐ FBA Points</th>
+          <th class="center" style="width:90px">Admin</th>
           <th style="width:100px"></th>
         </tr>
       </thead>
       <tbody>
-        <?php foreach ($usuarios as $u): ?>
+        <?php foreach ($usuarios as $u):
+          $isSelf = ($u['id'] == $_SESSION['user_id']);
+        ?>
         <tr data-uid="<?= $u['id'] ?>" data-name="<?= strtolower(htmlspecialchars($u['nome'])) ?>" data-email="<?= strtolower(htmlspecialchars($u['email'])) ?>">
           <td>
             <div class="user-name"><?= htmlspecialchars($u['nome']) ?></div>
@@ -368,6 +401,18 @@ $usuarios = $pdo->query(
           <td style="text-align:right">
             <input type="number" class="saldo-input fba" data-field="fba_points" value="<?= (int)$u['fba_points'] ?>" onchange="markDirty(this)" oninput="markDirty(this)">
           </td>
+          <td style="text-align:center">
+            <div class="admin-toggle-wrap">
+              <label class="admin-toggle">
+                <input type="checkbox" <?= $u['is_admin'] ? 'checked' : '' ?> <?= $isSelf ? 'disabled' : '' ?>
+                  onchange="toggleAdmin(this, <?= (int)$u['id'] ?>)">
+                <span class="admin-slider"></span>
+              </label>
+              <?php if ($isSelf): ?>
+                <span style="font-size:10px;color:var(--text-3)">você</span>
+              <?php endif; ?>
+            </div>
+          </td>
           <td style="text-align:right">
             <button class="btn-save-row" onclick="salvarRow(this)">Salvar</button>
             <span class="saved-flash">✓ Salvo</span>
@@ -376,7 +421,8 @@ $usuarios = $pdo->query(
         <?php endforeach; ?>
       </tbody>
     </table>
-  </div><!-- /page-content-inner -->
+  </div>
+</div><!-- /page-content-inner -->
 </div><!-- /page-content -->
 </div><!-- /page-layout -->
 
@@ -403,9 +449,8 @@ function setTipo(t) {
 async function adicionarSaldo() {
   const uid   = document.getElementById('addUser').value;
   const valor = parseInt(document.getElementById('addValor').value, 10);
-  const fb    = document.getElementById('adderFeedback');
 
-  if (!uid)        { showFeedback('Selecione um usuário.', false); return; }
+  if (!uid)              { showFeedback('Selecione um usuário.', false); return; }
   if (!valor || isNaN(valor)) { showFeedback('Informe um valor válido.', false); return; }
 
   const fd = new FormData();
@@ -415,11 +460,10 @@ async function adicionarSaldo() {
   fd.append('tipo', tipoAtual);
   fd.append('valor', valor);
 
-  const res = await fetch('controle-pontuacao.php', { method: 'POST', body: fd });
+  const res  = await fetch('controle-usuarios.php', { method: 'POST', body: fd });
   const data = await res.json();
 
   if (data.ok) {
-    // Atualiza os inputs da linha do usuário na tabela
     const row = document.querySelector(`tr[data-uid="${uid}"]`);
     if (row) {
       row.querySelector('[data-field="pontos"]').value     = data.saldo.pontos;
@@ -437,15 +481,14 @@ async function adicionarSaldo() {
 function showFeedback(msg, ok) {
   const el = document.getElementById('adderFeedback');
   el.textContent = msg;
-  el.className = 'adder-feedback ' + (ok ? 'ok' : 'err');
+  el.className   = 'adder-feedback ' + (ok ? 'ok' : 'err');
   el.style.display = 'block';
   clearTimeout(el._t);
   el._t = setTimeout(() => el.style.display = 'none', 4000);
 }
 
 function markDirty(input) {
-  const row = input.closest('tr');
-  row.querySelector('.btn-save-row').classList.add('visible');
+  input.closest('tr').querySelector('.btn-save-row').classList.add('visible');
 }
 
 async function salvarRow(btn) {
@@ -463,7 +506,7 @@ async function salvarRow(btn) {
   fd.append('fba_points', fba);
 
   btn.textContent = '…';
-  const res  = await fetch('controle-pontuacao.php', { method: 'POST', body: fd });
+  const res  = await fetch('controle-usuarios.php', { method: 'POST', body: fd });
   const data = await res.json();
 
   if (data.ok) {
@@ -478,6 +521,26 @@ async function salvarRow(btn) {
   }
 }
 
+async function toggleAdmin(checkbox, uid) {
+  const val = checkbox.checked ? 1 : 0;
+  checkbox.disabled = true;
+
+  const fd = new FormData();
+  fd.append('ajax', '1');
+  fd.append('acao', 'toggle_admin');
+  fd.append('user_id', uid);
+  fd.append('valor', val);
+
+  const res  = await fetch('controle-usuarios.php', { method: 'POST', body: fd });
+  const data = await res.json();
+
+  if (!data.ok) {
+    checkbox.checked = !checkbox.checked; // reverte
+    alert(data.erro || 'Erro ao alterar permissão.');
+  }
+  checkbox.disabled = false;
+}
+
 function filtrarTabela() {
   const q = document.getElementById('searchInput').value.toLowerCase();
   document.querySelectorAll('#usersTable tbody tr').forEach(tr => {
@@ -486,7 +549,6 @@ function filtrarTabela() {
   });
 }
 
-// Enter no adder
 document.getElementById('addValor').addEventListener('keydown', e => {
   if (e.key === 'Enter') adicionarSaldo();
 });
