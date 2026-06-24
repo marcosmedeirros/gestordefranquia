@@ -1091,10 +1091,10 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             display:inline-block; padding:2px 8px; border-radius:6px;
             font-size:12px; font-weight:700;
         }
-        .ovr-s { background:rgba(245,158,11,.12); color:#f59e0b; }
-        .ovr-a { background:rgba(252,0,37,.10);  color:#fc6680; }
-        .ovr-b { background:rgba(167,139,250,.12); color:#a78bfa; }
-        .ovr-c { background:var(--panel-2); color:var(--text-2); }
+        .ovr-s { background:rgba(74,222,128,.14);  color:#4ade80; }
+        .ovr-a { background:rgba(22,163,74,.22);   color:#16a34a; }
+        .ovr-b { background:rgba(234,179,8,.15);   color:#eab308; }
+        .ovr-c { background:rgba(239,68,68,.12);   color:#ef4444; }
         .empty-row td { color:var(--text-3); font-style:italic; font-size:12px; }
 
         /* ── Hall da Fama ───────────────────────────────────── */
@@ -1581,7 +1581,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     $rankClass = $rankNum === 1 ? 'gold' : ($rankNum === 2 ? 'silver' : ($rankNum === 3 ? 'bronze' : ''));
                     $rowId = 'team-' . $league . '-' . $t['id'];
                 ?>
-                <div class="team-row" id="<?= $rowId ?>">
+                <div class="team-row<?= $rank === 0 ? ' open' : '' ?>" id="<?= $rowId ?>">
                     <div class="team-head" onclick="toggleTeam('<?= $rowId ?>')">
                         <div class="team-rank <?= $rankClass ?>"><?= $rankNum ?></div>
                         <img class="team-logo"
@@ -1635,7 +1635,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                                     $p = $t['starters'][$pos] ?? null;
                                     if ($p):
                                         $ovr = (int)$p['ovr'];
-                                        $ovrClass = $ovr >= 90 ? 'ovr-s' : ($ovr >= 85 ? 'ovr-a' : ($ovr >= 80 ? 'ovr-b' : 'ovr-c'));
+                                        $ovrClass = $ovr >= 90 ? 'ovr-s' : ($ovr >= 86 ? 'ovr-a' : ($ovr >= 80 ? 'ovr-b' : 'ovr-c'));
                                 ?>
                                 <tr>
                                     <td><span class="pos-badge"><?= $pos ?></span></td>
@@ -2062,6 +2062,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                                         <?php for ($pos = 0; $pos < $tc; $pos++):
                                             $p    = $mprobs[$pos] ?? 0;
                                             $peak = ($pos === $peakCol) ? ' peak' : '';
+                                            $cls  = 'vlo';
                                             // Cor por zona da coluna
                                             if ($pos <= $promoLimit) {
                                                 // Verde: intensidade baseada no valor
