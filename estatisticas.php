@@ -55,7 +55,8 @@ try {
     foreach ($pbRows as $r) {
         $k = $r['league'].'|'.$r['team_id'];
         if (!isset($gmData[$k])) continue;
-        $statusPts = ['champion'=>20,'runner_up'=>10,'conference_finalist'=>6,'semifinalist'=>3,'first_round'=>1];
+        // Títulos valem muito mais — campeão = 50, vice = 20
+        $statusPts = ['champion'=>50,'runner_up'=>20,'conference_finalist'=>8,'semifinalist'=>4,'first_round'=>1];
         $pts = $statusPts[$r['status']] ?? 0;
         $gmData[$k]['playoff_score'] += $pts;
         if ($r['status']==='champion')            $gmData[$k]['titles']++;
@@ -82,13 +83,17 @@ try {
         $faMap = []; foreach($faRows as $r) $faMap[$r['winner_team_id']]=(int)$r['c'];
         foreach($gmData as $k=>&$d) $d['fa']=$faMap[$d['team_id']]??0; unset($d);
     } catch(Exception) {}
-    // Score composto
+    // Score composto — títulos dominam, bônus secundários são complementares
     foreach($gmData as &$d) {
-        $rosterBonus = max(0, ($d['roster_ovr'] - 75) * 2);
-        $draftBonus  = max(0, ($d['draft_ovr']  - 75) * 1);
-        $tradeBonus  = min($d['trades'], 40) * 0.25;
-        $faBonus     = min($d['fa'],     30) * 0.15;
-        $d['total']  = round($d['playoff_score'] + $rosterBonus + $draftBonus + $tradeBonus + $faBonus, 1);
+        // Bônus de dinastia: cada título adicional vale +15 pts (2º, 3º...)
+        $dynastyBonus = max(0, ($d['titles'] - 1)) * 15;
+        // Bônus de elenco e draft (capped para não superar 1 título)
+        $rosterBonus  = min(20, max(0, ($d['roster_ovr'] - 75) * 1.0));
+        $draftBonus   = min(10, max(0, ($d['draft_ovr']  - 75) * 0.5));
+        // Atividade de mercado (complementar, com teto baixo)
+        $tradeBonus   = min(8, $d['trades'] * 0.08);
+        $faBonus      = min(5, $d['fa']     * 0.08);
+        $d['total']   = round($d['playoff_score'] + $dynastyBonus + $rosterBonus + $draftBonus + $tradeBonus + $faBonus, 1);
     } unset($d);
     // Agrupar por liga
     foreach($gmData as $d) $gmRaceMap[$d['league']][] = $d;
