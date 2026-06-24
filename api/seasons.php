@@ -196,9 +196,8 @@ function getPickWindowYears(int $startYear, int $seasonNumber, int $maxSeasons, 
     $windowEnd = $windowStart + $horizon - 1;
 
     if ($maxSeasons > 0) {
-        // O último ano do sprint não pode ter pick, então vai até um ano antes do fim
         $endYear = $startYear + $maxSeasons - 1;
-        $lastPickYear = $endYear - 1;
+        $lastPickYear = $endYear;
 
         if ($windowStart > $lastPickYear) {
             return [];
