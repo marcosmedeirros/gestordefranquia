@@ -844,30 +844,23 @@ function isTeamPickTradeBanned(PDO $pdo, int $teamId): bool
 function isPickLastYearOfSprint(PDO $pdo, int $pickId): bool
 {
     try {
-        // Passo 1: obter season_year e liga da pick
+        // Obtém season_year e liga via original_team_id (não muda com trocas)
         $stmtPick = $pdo->prepare(
-            "SELECT p.season_year, t.league FROM picks p JOIN teams t ON t.id = p.team_id WHERE p.id = ? LIMIT 1"
+            "SELECT p.season_year, t.league FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id = ? LIMIT 1"
         );
         $stmtPick->execute([$pickId]);
         $pick = $stmtPick->fetch(PDO::FETCH_ASSOC);
         if (!$pick) return false;
 
-        // Passo 2: obter start_year e max_seasons para a liga correta
-        $stmtSprint = $pdo->prepare("
-            SELECT sp.start_year, lsc.max_seasons
-            FROM seasons s
-            JOIN sprints sp ON sp.id = s.sprint_id
-            JOIN league_sprint_config lsc ON lsc.league = s.league
-            WHERE s.league = ? AND s.status != 'completed'
-            ORDER BY s.id DESC
-            LIMIT 1
-        ");
-        $stmtSprint->execute([$pick['league']]);
-        $sprint = $stmtSprint->fetch(PDO::FETCH_ASSOC);
-        if (!$sprint || !$sprint['start_year'] || !$sprint['max_seasons']) return false;
+        // Último ano do sprint = maior season_year entre todas as picks da liga
+        $stmtMax = $pdo->prepare(
+            "SELECT MAX(p.season_year) FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE t.league = ?"
+        );
+        $stmtMax->execute([$pick['league']]);
+        $maxYear = (int)($stmtMax->fetchColumn() ?: 0);
+        if ($maxYear <= 0) return false;
 
-        $lastYear = (int)$sprint['start_year'] + (int)$sprint['max_seasons'] - 1;
-        return (int)$pick['season_year'] >= $lastYear;
+        return (int)$pick['season_year'] >= $maxYear;
     } catch (Exception $e) {
         return false;
     }
