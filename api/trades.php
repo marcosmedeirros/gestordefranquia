@@ -844,23 +844,30 @@ function isTeamPickTradeBanned(PDO $pdo, int $teamId): bool
 function isPickLastYearOfSprint(PDO $pdo, int $pickId): bool
 {
     try {
-        $stmt = $pdo->prepare("
-            SELECT p.season_year, t.league, sp.start_year, lsc.max_seasons
-            FROM picks p
-            JOIN teams t ON t.id = p.team_id
-            LEFT JOIN (
-                SELECT league, sprint_id FROM seasons WHERE status != 'completed' ORDER BY id DESC LIMIT 1
-            ) s ON s.league = t.league
-            LEFT JOIN sprints sp ON sp.id = s.sprint_id
-            LEFT JOIN league_sprint_config lsc ON lsc.league = t.league
-            WHERE p.id = ?
+        // Passo 1: obter season_year e liga da pick
+        $stmtPick = $pdo->prepare(
+            "SELECT p.season_year, t.league FROM picks p JOIN teams t ON t.id = p.team_id WHERE p.id = ? LIMIT 1"
+        );
+        $stmtPick->execute([$pickId]);
+        $pick = $stmtPick->fetch(PDO::FETCH_ASSOC);
+        if (!$pick) return false;
+
+        // Passo 2: obter start_year e max_seasons para a liga correta
+        $stmtSprint = $pdo->prepare("
+            SELECT sp.start_year, lsc.max_seasons
+            FROM seasons s
+            JOIN sprints sp ON sp.id = s.sprint_id
+            JOIN league_sprint_config lsc ON lsc.league = s.league
+            WHERE s.league = ? AND s.status != 'completed'
+            ORDER BY s.id DESC
             LIMIT 1
         ");
-        $stmt->execute([$pickId]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$row || !$row['start_year'] || !$row['max_seasons']) return false;
-        $lastYear = (int)$row['start_year'] + (int)$row['max_seasons'] - 1;
-        return (int)$row['season_year'] >= $lastYear;
+        $stmtSprint->execute([$pick['league']]);
+        $sprint = $stmtSprint->fetch(PDO::FETCH_ASSOC);
+        if (!$sprint || !$sprint['start_year'] || !$sprint['max_seasons']) return false;
+
+        $lastYear = (int)$sprint['start_year'] + (int)$sprint['max_seasons'] - 1;
+        return (int)$pick['season_year'] >= $lastYear;
     } catch (Exception $e) {
         return false;
     }

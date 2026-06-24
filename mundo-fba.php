@@ -1563,6 +1563,236 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             </div>
             <?php endif; ?>
 
+            <?php /* ── Times ── */ ?>
+            <div class="sec-hd" style="color:<?= $col ?>;margin-top:24px">
+                <i class="bi bi-list-ol" style="color:<?= $col ?>"></i>
+                Times
+            </div>
+
+            <?php if (empty($d['teams'])): ?>
+            <div class="empty-state">
+                <i class="bi bi-people"></i>
+                <p>Nenhum time cadastrado nesta liga.</p>
+            </div>
+            <?php else: ?>
+            <div class="teams-list">
+                <?php foreach ($d['teams'] as $rank => $t):
+                    $rankNum = $rank + 1;
+                    $rankClass = $rankNum === 1 ? 'gold' : ($rankNum === 2 ? 'silver' : ($rankNum === 3 ? 'bronze' : ''));
+                    $rowId = 'team-' . $league . '-' . $t['id'];
+                ?>
+                <div class="team-row" id="<?= $rowId ?>">
+                    <div class="team-head" onclick="toggleTeam('<?= $rowId ?>')">
+                        <div class="team-rank <?= $rankClass ?>"><?= $rankNum ?></div>
+                        <img class="team-logo"
+                             src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>"
+                             alt="<?= htmlspecialchars($t['name']) ?>"
+                             onerror="this.src='/img/default-team.png'">
+                        <div class="team-info">
+                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                                <div class="team-name"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
+                                <?php
+                                $tagColors  = ['contending'=>'#10b981','buying'=>'#3b82f6','selling'=>'#f97316','rebuilding'=>'#64748b'];
+                                $tagLabels  = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding'];
+                                $rawMfTag   = $t['team_tag'] ?? null;
+                                if (!$rawMfTag) $rawMfTag = computeAiTagPHP(
+                                    isset($t['starters_avg_ovr']) ? (float)$t['starters_avg_ovr'] : null,
+                                    isset($t['starters_max_ovr']) ? (float)$t['starters_max_ovr'] : null,
+                                    isset($t['avg_age'])          ? (float)$t['avg_age']          : null
+                                );
+                                $mfTag = strtolower($rawMfTag ?? '');
+                                if ($mfTag && isset($tagColors[$mfTag])):
+                                    $tc = $tagColors[$mfTag];
+                                ?>
+                                <span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid <?= $tc ?>;color:<?= $tc ?>;background:<?= $tc ?>22;white-space:nowrap"><?= $tagLabels[$mfTag] ?></span>
+                                <?php endif; ?>
+                            </div>
+                            <div class="team-gm"><i class="bi bi-person-fill" style="font-size:10px;margin-right:3px"></i><?= htmlspecialchars($t['owner_name']) ?></div>
+                        </div>
+                        <div class="team-cap">
+                            <div class="cap-val"><?= $t['cap_top8'] ?></div>
+                            <div class="cap-lbl">CAP</div>
+                        </div>
+                        <?php if (!empty($t['public_enabled']) && !empty($t['public_slug'])): ?>
+                        <a href="/times/<?= htmlspecialchars($t['public_slug']) ?>" target="_blank" rel="noopener" title="Ver página pública" onclick="event.stopPropagation()" style="color:var(--text-2);font-size:15px;padding:0 6px;display:flex;align-items:center">
+                            <i class="bi bi-globe2"></i>
+                        </a>
+                        <?php endif; ?>
+                        <div class="team-toggle"><i class="bi bi-chevron-down"></i></div>
+                    </div>
+                    <div class="starters-wrap">
+                        <table class="starters-table">
+                            <thead>
+                                <tr>
+                                    <th>POS</th>
+                                    <th>Jogador</th>
+                                    <th>OVR</th>
+                                    <th>Idade</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach (['PG','SG','SF','PF','C'] as $pos):
+                                    $p = $t['starters'][$pos] ?? null;
+                                    if ($p):
+                                        $ovr = (int)$p['ovr'];
+                                        $ovrClass = $ovr >= 90 ? 'ovr-s' : ($ovr >= 85 ? 'ovr-a' : ($ovr >= 80 ? 'ovr-b' : 'ovr-c'));
+                                ?>
+                                <tr>
+                                    <td><span class="pos-badge"><?= $pos ?></span></td>
+                                    <td style="font-weight:600;color:var(--text)"><?= htmlspecialchars($p['name']) ?></td>
+                                    <td><span class="ovr-badge <?= $ovrClass ?>"><?= $ovr ?></span></td>
+                                    <td style="color:var(--text-2)"><?= htmlspecialchars($p['age'] ?? '—') ?></td>
+                                </tr>
+                                <?php else: ?>
+                                <tr class="empty-row">
+                                    <td><span class="pos-badge"><?= $pos ?></span></td>
+                                    <td colspan="3" style="color:var(--text-3);font-style:italic">Vaga em aberto</td>
+                                </tr>
+                                <?php endif; endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+
+            <?php /* ── Power Ranking ── */ ?>
+            <div class="sec-hd" style="color:<?= $col ?>;margin-top:28px">
+                <i class="bi bi-activity" style="color:<?= $col ?>"></i>
+                POWER RANKING
+            </div>
+            <?php if (empty($d['powerRanking'])): ?>
+            <div class="empty-state">
+                <i class="bi bi-bar-chart"></i>
+                <p>Sem dados suficientes para gerar o power ranking.</p>
+            </div>
+            <?php else: ?>
+            <div class="power-wrap">
+                <div class="power-grid">
+                    <?php foreach ($d['powerRanking'] as $idx => $pr):
+                        $rankNum = $idx + 1;
+                        $rankClass = $rankNum === 1 ? 'gold' : ($rankNum === 2 ? 'silver' : ($rankNum === 3 ? 'bronze' : ''));
+                    ?>
+                    <div class="power-card">
+                        <div class="power-rank <?= $rankClass ?>">#<?= $rankNum ?></div>
+                        <div class="power-head">
+                            <img class="power-logo"
+                                 src="<?= htmlspecialchars(getTeamPhoto($pr['team_photo'] ?? null)) ?>"
+                                 alt="" onerror="this.src='/img/default-team.png'">
+                            <div>
+                                <div class="power-name"><?= htmlspecialchars($pr['team_name']) ?></div>
+                                <div class="power-owner"><?= htmlspecialchars($pr['owner_name'] ?? '') ?></div>
+                            </div>
+                        </div>
+                        <div class="power-score">
+                            <?= htmlspecialchars((string)$pr['score']) ?>
+                            <span>Score</span>
+                        </div>
+                        <div class="power-badges">
+                            <?php if (!empty($pr['is_champion'])): ?>
+                                <span class="power-badge champ">Campeao</span>
+                            <?php elseif (!empty($pr['is_runner_up'])): ?>
+                                <span class="power-badge runner">Vice</span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="power-metrics">
+                            <div class="power-metric">
+                                <div class="val"><?= htmlspecialchars((string)$pr['avg_ovr']) ?></div>
+                                <div class="lbl">OVR Medio</div>
+                            </div>
+                            <div class="power-metric">
+                                <div class="val"><?= htmlspecialchars((string)$pr['max_ovr']) ?></div>
+                                <div class="lbl">Max OVR</div>
+                            </div>
+                            <div class="power-metric">
+                                <div class="val"><?= htmlspecialchars((string)$pr['avg_age']) ?></div>
+                                <div class="lbl">Idade</div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <?php /* ── Hall da Fama ── */ ?>
+            <?php if (!empty($d['hof'])): ?>
+            <div class="sec-hd" style="color:<?= $col ?>;margin-top:28px">
+                <i class="bi bi-stars" style="color:<?= $col ?>"></i>
+                HALL DA FAMA
+            </div>
+            <div class="hof-list">
+                <?php foreach ($d['hof'] as $h): ?>
+                <div class="hof-card">
+                    <img class="hof-logo"
+                         src="<?= htmlspecialchars(getTeamPhoto($h['team_photo'] ?? null)) ?>"
+                         alt="" onerror="this.src='/img/default-team.png'">
+                    <div class="hof-info">
+                        <div class="hof-team"><?= htmlspecialchars(trim($h['display_team'] ?? '—')) ?></div>
+                        <div class="hof-gm"><?= htmlspecialchars($h['display_gm'] ?? '—') ?></div>
+                    </div>
+                    <div class="hof-titles">
+                        <div class="hof-num"><?= (int)$h['titles'] ?></div>
+                        <div class="hof-lbl"><?= (int)$h['titles'] === 1 ? 'título' : 'títulos' ?></div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+
+            <?php /* ── Ranking da liga ── */ ?>
+            <?php if (!empty($d['ranking'])): ?>
+            <div class="sec-hd" style="color:<?= $col ?>;margin-top:28px">
+                <i class="bi bi-bar-chart-fill" style="color:<?= $col ?>"></i>
+                RANKING DA LIGA
+            </div>
+            <div class="ranking-wrap">
+                <table class="ranking-table">
+                    <thead>
+                        <tr>
+                            <th style="width:36px">#</th>
+                            <th>Time</th>
+                            <th class="right">Títulos</th>
+                            <th class="right">Pontos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($d['ranking'] as $ri => $rk):
+                            $rPos = $ri + 1;
+                            $rCls = $rPos === 1 ? 'gold' : ($rPos === 2 ? 'silver' : ($rPos === 3 ? 'bronze' : ''));
+                            $pts  = (int)$rk['total_points'];
+                            $tit  = (int)$rk['total_titles'];
+                        ?>
+                        <tr>
+                            <td class="rk-pos <?= $rCls ?>"><?= $rPos ?></td>
+                            <td>
+                                <div class="rk-team">
+                                    <img class="rk-logo"
+                                         src="<?= htmlspecialchars(getTeamPhoto($rk['team_photo'] ?? null)) ?>"
+                                         alt="" onerror="this.src='/img/default-team.png'">
+                                    <div>
+                                        <div class="rk-name"><?= htmlspecialchars($rk['team_name']) ?></div>
+                                        <div class="rk-gm"><?= htmlspecialchars($rk['owner_name'] ?? '') ?></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="right">
+                                <?php if ($tit > 0): ?>
+                                <span class="rk-titles">🏆 <?= $tit ?></span>
+                                <?php else: ?>
+                                <span style="color:var(--text-3)">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="right rk-pts"><?= $pts ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
+
+
             <?php /* ── SuperComputador FBA ── */ ?>
             <?php $an = $d['analysis'] ?? []; if (!empty($an['has_data'])): ?>
             <div class="sec-hd" style="color:#818cf8;margin-top:24px">
@@ -1866,235 +2096,6 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 <?php endif; ?>
 
             </div><!-- /sc-wrap -->
-            <?php endif; ?>
-
-            <?php /* ── Times ── */ ?>
-            <div class="sec-hd" style="color:<?= $col ?>;margin-top:24px">
-                <i class="bi bi-list-ol" style="color:<?= $col ?>"></i>
-                Times
-            </div>
-
-            <?php if (empty($d['teams'])): ?>
-            <div class="empty-state">
-                <i class="bi bi-people"></i>
-                <p>Nenhum time cadastrado nesta liga.</p>
-            </div>
-            <?php else: ?>
-            <div class="teams-list">
-                <?php foreach ($d['teams'] as $rank => $t):
-                    $rankNum = $rank + 1;
-                    $rankClass = $rankNum === 1 ? 'gold' : ($rankNum === 2 ? 'silver' : ($rankNum === 3 ? 'bronze' : ''));
-                    $rowId = 'team-' . $league . '-' . $t['id'];
-                ?>
-                <div class="team-row" id="<?= $rowId ?>">
-                    <div class="team-head" onclick="toggleTeam('<?= $rowId ?>')">
-                        <div class="team-rank <?= $rankClass ?>"><?= $rankNum ?></div>
-                        <img class="team-logo"
-                             src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>"
-                             alt="<?= htmlspecialchars($t['name']) ?>"
-                             onerror="this.src='/img/default-team.png'">
-                        <div class="team-info">
-                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                                <div class="team-name"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
-                                <?php
-                                $tagColors  = ['contending'=>'#10b981','buying'=>'#3b82f6','selling'=>'#f97316','rebuilding'=>'#64748b'];
-                                $tagLabels  = ['contending'=>'Contending','buying'=>'Buying','selling'=>'Selling','rebuilding'=>'Rebuilding'];
-                                $rawMfTag   = $t['team_tag'] ?? null;
-                                if (!$rawMfTag) $rawMfTag = computeAiTagPHP(
-                                    isset($t['starters_avg_ovr']) ? (float)$t['starters_avg_ovr'] : null,
-                                    isset($t['starters_max_ovr']) ? (float)$t['starters_max_ovr'] : null,
-                                    isset($t['avg_age'])          ? (float)$t['avg_age']          : null
-                                );
-                                $mfTag = strtolower($rawMfTag ?? '');
-                                if ($mfTag && isset($tagColors[$mfTag])):
-                                    $tc = $tagColors[$mfTag];
-                                ?>
-                                <span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid <?= $tc ?>;color:<?= $tc ?>;background:<?= $tc ?>22;white-space:nowrap"><?= $tagLabels[$mfTag] ?></span>
-                                <?php endif; ?>
-                            </div>
-                            <div class="team-gm"><i class="bi bi-person-fill" style="font-size:10px;margin-right:3px"></i><?= htmlspecialchars($t['owner_name']) ?></div>
-                        </div>
-                        <div class="team-cap">
-                            <div class="cap-val"><?= $t['cap_top8'] ?></div>
-                            <div class="cap-lbl">CAP</div>
-                        </div>
-                        <?php if (!empty($t['public_enabled']) && !empty($t['public_slug'])): ?>
-                        <a href="/times/<?= htmlspecialchars($t['public_slug']) ?>" target="_blank" rel="noopener" title="Ver página pública" onclick="event.stopPropagation()" style="color:var(--text-2);font-size:15px;padding:0 6px;display:flex;align-items:center">
-                            <i class="bi bi-globe2"></i>
-                        </a>
-                        <?php endif; ?>
-                        <div class="team-toggle"><i class="bi bi-chevron-down"></i></div>
-                    </div>
-                    <div class="starters-wrap">
-                        <table class="starters-table">
-                            <thead>
-                                <tr>
-                                    <th>POS</th>
-                                    <th>Jogador</th>
-                                    <th>OVR</th>
-                                    <th>Idade</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach (['PG','SG','SF','PF','C'] as $pos):
-                                    $p = $t['starters'][$pos] ?? null;
-                                    if ($p):
-                                        $ovr = (int)$p['ovr'];
-                                        $ovrClass = $ovr >= 90 ? 'ovr-s' : ($ovr >= 85 ? 'ovr-a' : ($ovr >= 80 ? 'ovr-b' : 'ovr-c'));
-                                ?>
-                                <tr>
-                                    <td><span class="pos-badge"><?= $pos ?></span></td>
-                                    <td style="font-weight:600;color:var(--text)"><?= htmlspecialchars($p['name']) ?></td>
-                                    <td><span class="ovr-badge <?= $ovrClass ?>"><?= $ovr ?></span></td>
-                                    <td style="color:var(--text-2)"><?= htmlspecialchars($p['age'] ?? '—') ?></td>
-                                </tr>
-                                <?php else: ?>
-                                <tr class="empty-row">
-                                    <td><span class="pos-badge"><?= $pos ?></span></td>
-                                    <td colspan="3" style="color:var(--text-3);font-style:italic">Vaga em aberto</td>
-                                </tr>
-                                <?php endif; endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-            <?php endif; ?>
-
-            <?php /* ── Power Ranking ── */ ?>
-            <div class="sec-hd" style="color:<?= $col ?>;margin-top:28px">
-                <i class="bi bi-activity" style="color:<?= $col ?>"></i>
-                POWER RANKING
-            </div>
-            <?php if (empty($d['powerRanking'])): ?>
-            <div class="empty-state">
-                <i class="bi bi-bar-chart"></i>
-                <p>Sem dados suficientes para gerar o power ranking.</p>
-            </div>
-            <?php else: ?>
-            <div class="power-wrap">
-                <div class="power-grid">
-                    <?php foreach ($d['powerRanking'] as $idx => $pr):
-                        $rankNum = $idx + 1;
-                        $rankClass = $rankNum === 1 ? 'gold' : ($rankNum === 2 ? 'silver' : ($rankNum === 3 ? 'bronze' : ''));
-                    ?>
-                    <div class="power-card">
-                        <div class="power-rank <?= $rankClass ?>">#<?= $rankNum ?></div>
-                        <div class="power-head">
-                            <img class="power-logo"
-                                 src="<?= htmlspecialchars(getTeamPhoto($pr['team_photo'] ?? null)) ?>"
-                                 alt="" onerror="this.src='/img/default-team.png'">
-                            <div>
-                                <div class="power-name"><?= htmlspecialchars($pr['team_name']) ?></div>
-                                <div class="power-owner"><?= htmlspecialchars($pr['owner_name'] ?? '') ?></div>
-                            </div>
-                        </div>
-                        <div class="power-score">
-                            <?= htmlspecialchars((string)$pr['score']) ?>
-                            <span>Score</span>
-                        </div>
-                        <div class="power-badges">
-                            <?php if (!empty($pr['is_champion'])): ?>
-                                <span class="power-badge champ">Campeao</span>
-                            <?php elseif (!empty($pr['is_runner_up'])): ?>
-                                <span class="power-badge runner">Vice</span>
-                            <?php endif; ?>
-                        </div>
-                        <div class="power-metrics">
-                            <div class="power-metric">
-                                <div class="val"><?= htmlspecialchars((string)$pr['avg_ovr']) ?></div>
-                                <div class="lbl">OVR Medio</div>
-                            </div>
-                            <div class="power-metric">
-                                <div class="val"><?= htmlspecialchars((string)$pr['max_ovr']) ?></div>
-                                <div class="lbl">Max OVR</div>
-                            </div>
-                            <div class="power-metric">
-                                <div class="val"><?= htmlspecialchars((string)$pr['avg_age']) ?></div>
-                                <div class="lbl">Idade</div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            <?php endif; ?>
-
-            <?php /* ── Hall da Fama ── */ ?>
-            <?php if (!empty($d['hof'])): ?>
-            <div class="sec-hd" style="color:<?= $col ?>;margin-top:28px">
-                <i class="bi bi-stars" style="color:<?= $col ?>"></i>
-                HALL DA FAMA
-            </div>
-            <div class="hof-list">
-                <?php foreach ($d['hof'] as $h): ?>
-                <div class="hof-card">
-                    <img class="hof-logo"
-                         src="<?= htmlspecialchars(getTeamPhoto($h['team_photo'] ?? null)) ?>"
-                         alt="" onerror="this.src='/img/default-team.png'">
-                    <div class="hof-info">
-                        <div class="hof-team"><?= htmlspecialchars(trim($h['display_team'] ?? '—')) ?></div>
-                        <div class="hof-gm"><?= htmlspecialchars($h['display_gm'] ?? '—') ?></div>
-                    </div>
-                    <div class="hof-titles">
-                        <div class="hof-num"><?= (int)$h['titles'] ?></div>
-                        <div class="hof-lbl"><?= (int)$h['titles'] === 1 ? 'título' : 'títulos' ?></div>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-            <?php endif; ?>
-
-            <?php /* ── Ranking da liga ── */ ?>
-            <?php if (!empty($d['ranking'])): ?>
-            <div class="sec-hd" style="color:<?= $col ?>;margin-top:28px">
-                <i class="bi bi-bar-chart-fill" style="color:<?= $col ?>"></i>
-                RANKING DA LIGA
-            </div>
-            <div class="ranking-wrap">
-                <table class="ranking-table">
-                    <thead>
-                        <tr>
-                            <th style="width:36px">#</th>
-                            <th>Time</th>
-                            <th class="right">Títulos</th>
-                            <th class="right">Pontos</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($d['ranking'] as $ri => $rk):
-                            $rPos = $ri + 1;
-                            $rCls = $rPos === 1 ? 'gold' : ($rPos === 2 ? 'silver' : ($rPos === 3 ? 'bronze' : ''));
-                            $pts  = (int)$rk['total_points'];
-                            $tit  = (int)$rk['total_titles'];
-                        ?>
-                        <tr>
-                            <td class="rk-pos <?= $rCls ?>"><?= $rPos ?></td>
-                            <td>
-                                <div class="rk-team">
-                                    <img class="rk-logo"
-                                         src="<?= htmlspecialchars(getTeamPhoto($rk['team_photo'] ?? null)) ?>"
-                                         alt="" onerror="this.src='/img/default-team.png'">
-                                    <div>
-                                        <div class="rk-name"><?= htmlspecialchars($rk['team_name']) ?></div>
-                                        <div class="rk-gm"><?= htmlspecialchars($rk['owner_name'] ?? '') ?></div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="right">
-                                <?php if ($tit > 0): ?>
-                                <span class="rk-titles">🏆 <?= $tit ?></span>
-                                <?php else: ?>
-                                <span style="color:var(--text-3)">—</span>
-                                <?php endif; ?>
-                            </td>
-                            <td class="right rk-pts"><?= $pts ?></td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
             <?php endif; ?>
 
         </div><!-- /league-pane -->
