@@ -841,6 +841,31 @@ function isTeamPickTradeBanned(PDO $pdo, int $teamId): bool
     return $currentCycle > 0 && $currentCycle <= $banUntil;
 }
 
+function isPickLastYearOfSprint(PDO $pdo, int $pickId): bool
+{
+    try {
+        $stmt = $pdo->prepare("
+            SELECT p.season_year, t.league, sp.start_year, lsc.max_seasons
+            FROM picks p
+            JOIN teams t ON t.id = p.team_id
+            LEFT JOIN (
+                SELECT league, sprint_id FROM seasons WHERE status != 'completed' ORDER BY id DESC LIMIT 1
+            ) s ON s.league = t.league
+            LEFT JOIN sprints sp ON sp.id = s.sprint_id
+            LEFT JOIN league_sprint_config lsc ON lsc.league = t.league
+            WHERE p.id = ?
+            LIMIT 1
+        ");
+        $stmt->execute([$pickId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row || !$row['start_year'] || !$row['max_seasons']) return false;
+        $lastYear = (int)$row['start_year'] + (int)$row['max_seasons'] - 1;
+        return (int)$row['season_year'] >= $lastYear;
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
 ensureTradeCycleColumn($pdo);
 ensureTeamTradeCounterColumns($pdo);
 ensureTeamPunishmentColumns($pdo);
@@ -1857,6 +1882,9 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
                 if (!empty($pickRow['swap_locked']) && empty($pickRow['swap_type'])) {
                     throw new Exception('Uma das picks está travada para swap e não pode ser negociada.');
                 }
+                if (isPickLastYearOfSprint($pdo, $pickId)) {
+                    throw new Exception('A pick do último ano do sprint não pode ser negociada.');
+                }
             }
 
             $playerName = null;
@@ -2054,6 +2082,11 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Uma das picks oferecidas está travada para swap e não pode ser negociada']);
                 exit;
             }
+            if (isPickLastYearOfSprint($pdo, $pickId)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'A pick do último ano do sprint não pode ser negociada.']);
+                exit;
+            }
         }
     }
 
@@ -2075,6 +2108,11 @@ if ($method === 'POST') {
             if (!empty($pickRow['swap_locked']) && empty($pickRow['swap_type'])) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Uma das picks solicitadas está travada para swap e não pode ser negociada']);
+                exit;
+            }
+            if (isPickLastYearOfSprint($pdo, $pickId)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'A pick do último ano do sprint não pode ser negociada.']);
                 exit;
             }
         }
