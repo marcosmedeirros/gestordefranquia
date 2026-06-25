@@ -310,6 +310,19 @@ try {
 } catch (Exception) {}
 
 
+// ── Times que mais tomaram punições ──────────────────────────────
+$punicoesMap = [];
+try {
+    $punRaw = $pdo->query("
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(tp.id) AS count
+        FROM teams t
+        LEFT JOIN team_punishments tp ON tp.team_id = t.id AND tp.reverted_at IS NULL
+        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($punRaw as $r) $punicoesMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($punicoesMap);
+} catch (Exception) {}
+
 // ── Maior jejum (sequência de temporadas sem playoff) ────────────
 $jejumMap = [];
 try {
@@ -851,6 +864,14 @@ renderSection('draft-ovr', '📈', 'rgba(168,85,247,.10)', 'Aproveitamento do Dr
     ], $myTeamName);
 
 
+
+renderSection('punicoes', '⚠️', 'rgba(252,0,37,.12)', 'Punições Recebidas',
+    'Times que mais receberam punições ativas na liga',
+    $punicoesMap, $leagues, [
+        'label_hi' => '⚠️ Mais punições', 'label_lo' => '✅ Menos punições',
+        'color_hi' => 'hi', 'color_lo' => 'green',
+        'copy_hi' => 'Mais punições', 'copy_lo' => 'Menos punições',
+    ], $myTeamName);
 
 renderSection('orig-top5', '🎯', 'rgba(251,191,36,.12)', 'Pick Origem no Top 5',
     'Times cuja pick original foi usada no top 5 do draft',

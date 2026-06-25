@@ -1092,8 +1092,8 @@ function normalizeSwapPairs(PDO $pdo, array $offerPicks, array $requestPicks, ar
         $offerPick = fetchPickSwapInfo($pdo, $offerPickId);
         $requestPick = fetchPickSwapInfo($pdo, $requestPickId);
 
-        if ((int)$offerPick['season_year'] === (int)$requestPick['season_year']) {
-            throw new Exception('Swap inválido: picks do mesmo ano não podem ser swap.');
+        if ((int)$offerPick['season_year'] !== (int)$requestPick['season_year']) {
+            throw new Exception('Swap inválido: picks de swap precisam ser do mesmo ano.');
         }
         if ((string)$offerPick['round'] !== (string)$requestPick['round']) {
             throw new Exception('Swap inválido: picks precisam ser da mesma rodada.');
