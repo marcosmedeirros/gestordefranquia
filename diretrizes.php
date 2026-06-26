@@ -468,7 +468,7 @@ $isEliteOrNext = in_array(($team['league'] ?? ''), ['ELITE', 'NEXT'], true);
                     <div class="banner-sub" style="line-height:1.8">
                         Titulares: mín. <strong>25 min</strong> &nbsp;·&nbsp;
                         Reservas: mín. <strong>5 min</strong> &nbsp;·&nbsp;
-                        Se sem 3 jogadores 85+, top-5 OVRs precisam de <strong>25+ min</strong> &nbsp;·&nbsp;
+                        Top-5 OVRs do elenco: <strong>25+ min obrigatório</strong> (em caso de empate no 5º, ao menos 1 dos empatados deve ter 25+) &nbsp;·&nbsp;
                         Total exato: <strong>240 min</strong> &nbsp;·&nbsp;
                         Máximo: <strong>40 min</strong> (regular) / <strong>45 min</strong> (playoffs)
                     </div>
@@ -710,7 +710,7 @@ $isEliteOrNext = in_array(($team['league'] ?? ''), ['ELITE', 'NEXT'], true);
                         <div class="info-note" style="margin-bottom:16px">
                             <i class="bi bi-info-circle me-1"></i>
                             <strong>Atenção:</strong> Titulares precisam de mín. <strong>25min</strong>. Reservas mín. <strong>5min</strong>.
-                            Se não tiver 3 jogadores 85+, os <strong>5 maiores OVRs devem ter 25+ min</strong>.
+                            Os <strong>5 maiores OVRs do elenco devem ter 25+ min</strong> (em empate no 5º, ao menos 1 dos empatados).
                         </div>
                         <p style="font-size:12px;color:var(--text-2);margin-bottom:16px">Minutos por jogo para cada jogador (mín. 5; máx. 40 na regular / 45 nos playoffs)</p>
                         <div id="player-minutes-container" class="row g-3">

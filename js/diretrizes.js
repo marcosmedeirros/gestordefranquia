@@ -576,15 +576,11 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
   // Ordenar por OVR decrescente
   playersWithOvr.sort((a, b) => b.ovr - a.ovr);
   
-  // Contar jogadores 85+
-  const count85Plus = playersWithOvr.filter(p => p.ovr >= 85).length;
-  
-  // Identificar top 5 OVRs se não tiver 3 jogadores 85+
-  const top5Ids = [];
-  if (count85Plus < 3) {
-    const top5 = playersWithOvr.slice(0, 5);
-    top5Ids.push(...top5.map(p => p.id));
-  }
+  // Top 5 OVRs sempre obrigatório — identificar limite e empate no 5º
+  const top5 = playersWithOvr.slice(0, 5);
+  const top5Ids = top5.map(p => p.id);
+  // OVR do 5º jogador (pode haver empate)
+  const boundaryOvr = top5.length >= 5 ? top5[4].ovr : -1;
   
   // Validar minutagem
   const minutesInputs = document.querySelectorAll('.player-minutes-input');
@@ -614,9 +610,10 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
       validationErrors.push(`⚠️ ${playerName} é RESERVA e deve jogar no mínimo 5 minutos (atual: ${minutes}min)`);
     }
     
-    // Regra 3: Se não tem 3 jogadores 85+, top 5 OVRs precisam de 25+ minutos
-    if (isTop5 && minutes < 25) {
-      validationWarnings.push(`⚠️ ${playerName} está entre os 5 MAIORES OVRs (${player.ovr}) e deveria jogar no mínimo 25 minutos (atual: ${minutes}min). Seu time não tem 3 jogadores 85+.`);
+    // Regra 3: Top 5 OVRs sempre precisam de 25+ minutos
+    // Jogadores acima do OVR do 5º: cada um deve ter 25min
+    if (isTop5 && !isStarter && player.ovr > boundaryOvr && minutes < 25) {
+      validationErrors.push(`⚠️ ${playerName} está entre os 5 maiores OVRs (${player.ovr}) e deve jogar no mínimo 25 minutos (atual: ${minutes}min).`);
     }
     
     // Regra 4: Máximo de minutos
@@ -628,6 +625,21 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     totalMinutes += minutes;
   });
   
+  // Regra 3b: Empate no 5º OVR — ao menos 1 dos empatados (reserva) deve ter 25+ min
+  if (boundaryOvr >= 0) {
+    const tiedBenchInTop5 = top5.filter(p => p.ovr === boundaryOvr && !starters.includes(p.id));
+    if (tiedBenchInTop5.length > 0) {
+      const anyMet = tiedBenchInTop5.some(p => {
+        const inp = document.querySelector(`.player-minutes-input[data-player-id="${p.id}"]`);
+        return inp && parseInt(inp.value) >= 25;
+      });
+      if (!anyMet) {
+        const names = tiedBenchInTop5.map(p => p.name).join(' / ');
+        validationErrors.push(`⚠️ Um dos jogadores empatados no 5º maior OVR (${boundaryOvr}) deve jogar no mínimo 25 minutos: ${names}`);
+      }
+    }
+  }
+
   // Regra 5: Rotação manual deve ter exatamente 240 minutos
   if (rotationStyle === 'manual' && totalMinutes !== 240) {
     validationErrors.push(`⚠️ Rotação MANUAL: A soma dos minutos deve ser exatamente 240. Atual: ${totalMinutes} minutos.`);
