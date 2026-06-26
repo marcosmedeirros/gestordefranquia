@@ -610,9 +610,8 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
       validationErrors.push(`⚠️ ${playerName} é RESERVA e deve jogar no mínimo 5 minutos (atual: ${minutes}min)`);
     }
     
-    // Regra 3: Top 5 OVRs sempre precisam de 25+ minutos
-    // Jogadores acima do OVR do 5º: cada um deve ter 25min
-    if (isTop5 && !isStarter && player.ovr > boundaryOvr && minutes < 25) {
+    // Regra 3: Top 5 OVRs precisam de 25+ minutos (apenas na temporada regular)
+    if (deadlinePhase !== 'playoffs' && isTop5 && !isStarter && player.ovr > boundaryOvr && minutes < 25) {
       validationErrors.push(`⚠️ ${playerName} está entre os 5 maiores OVRs (${player.ovr}) e deve jogar no mínimo 25 minutos (atual: ${minutes}min).`);
     }
     
@@ -625,8 +624,8 @@ document.getElementById('form-diretrizes')?.addEventListener('submit', async (e)
     totalMinutes += minutes;
   });
   
-  // Regra 3b: Empate no 5º OVR — ao menos 1 dos empatados (reserva) deve ter 25+ min
-  if (boundaryOvr >= 0) {
+  // Regra 3b: Empate no 5º OVR — ao menos 1 dos empatados (reserva) deve ter 25+ min (apenas regular)
+  if (deadlinePhase !== 'playoffs' && boundaryOvr >= 0) {
     const tiedBenchInTop5 = top5.filter(p => p.ovr === boundaryOvr && !starters.includes(p.id));
     if (tiedBenchInTop5.length > 0) {
       const anyMet = tiedBenchInTop5.some(p => {
