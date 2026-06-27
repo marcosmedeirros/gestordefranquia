@@ -1104,6 +1104,44 @@ if ($method === 'POST') {
             }
             break;
 
+        case 'revert_pick':
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+            $pickId = (int)($data['pick_id'] ?? 0);
+            if (!$pickId) {
+                echo json_encode(['success' => false, 'error' => 'pick_id obrigatório']);
+                exit;
+            }
+            try {
+                // Busca a pick e o jogador draftado
+                $stmtPick = $pdo->prepare('SELECT do_.*, dp.name AS pool_name, dp.position AS pool_pos FROM draft_order do_ JOIN draft_pool dp ON dp.id = do_.picked_player_id WHERE do_.id = ? AND do_.picked_player_id IS NOT NULL LIMIT 1');
+                $stmtPick->execute([$pickId]);
+                $pick = $stmtPick->fetch(PDO::FETCH_ASSOC);
+                if (!$pick) {
+                    echo json_encode(['success' => false, 'error' => 'Pick não encontrada ou ainda não foi realizada']);
+                    exit;
+                }
+                $pdo->beginTransaction();
+                // Remove o jogador do elenco (apenas se foi inserido por este draft)
+                $pdo->prepare('DELETE FROM players WHERE team_id = ? AND drafted_by_team_id = ? AND name = ? LIMIT 1')
+                    ->execute([(int)$pick['team_id'], (int)$pick['team_id'], $pick['pool_name']]);
+                // Devolve ao pool
+                $pdo->prepare('UPDATE draft_pool SET draft_status = "available", drafted_by_team_id = NULL, draft_order = NULL WHERE id = ?')
+                    ->execute([(int)$pick['picked_player_id']]);
+                // Limpa a pick
+                $pdo->prepare('UPDATE draft_order SET picked_player_id = NULL, picked_at = NULL WHERE id = ?')
+                    ->execute([$pickId]);
+                $pdo->commit();
+                echo json_encode(['success' => true, 'message' => "{$pick['pool_name']} devolvido ao pool."]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                echo json_encode(['success' => false, 'error' => 'Erro: ' . $e->getMessage()]);
+            }
+            break;
+
         case 'set_current_pick':
             if (!$isAdmin) {
                 http_response_code(403);

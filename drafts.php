@@ -1295,7 +1295,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     const isCompleted = pick.picked_player_id !== null;
     const isMyPick    = parseInt(pick.team_id) === userTeamId;
     const canTradePick = session.status === 'in_progress' && !isCompleted && (isAdmin || isMyPick);
-    const canAdminPick = isAdmin && session.status === 'in_progress' && !isCompleted;
+    const canAdminPick   = isAdmin && session.status === 'in_progress' && !isCompleted;
+    const canAdminRevert = isAdmin && session.status === 'in_progress' && isCompleted;
 
     let cls = 'pick-card';
     if (isCurrent)   cls += ' current';
@@ -1308,7 +1309,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <span class="pick-badge ${isCompleted ? 'done' : isCurrent ? 'active' : 'pending'}">#${pick.pick_position}</span>
           <div style="display:flex;gap:3px">
             ${canTradePick ? `<button class="pick-trade-btn" title="Trocar pick" onclick="openTradePickModal(${pick.id}, ${pick.round}, ${pick.pick_position}, ${pick.team_id}, '${(pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'")}')"><i class="bi bi-arrow-left-right"></i></button>` : ''}
-            ${canAdminPick ? `<button class="pick-trade-btn" title="Escolher jogador (Admin)" style="border-color:rgba(245,158,11,.4);color:var(--amber)" onclick="openAdminPickForSlot(${pick.id}, ${pick.round}, ${pick.pick_position}, '${(pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'")}')"><i class="bi bi-person-plus-fill"></i></button>` : ''}
+            ${canAdminPick   ? `<button class="pick-trade-btn" title="Escolher jogador (Admin)" style="border-color:rgba(245,158,11,.4);color:var(--amber)" onclick="openAdminPickForSlot(${pick.id}, ${pick.round}, ${pick.pick_position}, '${(pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'")}')"><i class="bi bi-person-plus-fill"></i></button>` : ''}
+            ${canAdminRevert ? `<button class="pick-trade-btn" title="Reverter pick (Admin)" style="border-color:rgba(239,68,68,.35);color:#ef4444" onclick="revertPick(${pick.id}, '${pick.player_name ? pick.player_name.replace(/'/g, "\\'") : ''}')"><i class="bi bi-arrow-counterclockwise"></i></button>` : ''}
           </div>
         </div>
         <div class="pick-team">${pick.team_city} ${pick.team_name}</div>
@@ -1543,6 +1545,18 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'finalize_draft', draft_session_id: currentDraftSession.id }) });
       alert(result.message || 'Draft finalizado!');
       loadDraft();
+    } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
+  }
+
+  async function revertPick(pickId, playerName) {
+    if (!currentDraftSession) return;
+    if (!confirm(`Reverter a escolha de ${playerName}? O jogador voltará ao pool e a pick ficará disponível novamente.`)) return;
+    try {
+      const result = await api('draft.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'revert_pick', pick_id: pickId })
+      });
+      await loadDraft();
     } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
   }
 
