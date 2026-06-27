@@ -1295,7 +1295,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     const isCompleted = pick.picked_player_id !== null;
     const isMyPick    = parseInt(pick.team_id) === userTeamId;
     const canTradePick = session.status === 'in_progress' && !isCompleted && (isAdmin || isMyPick);
-    const canSetCurrent = isAdmin && session.status === 'in_progress' && !isCompleted && !isCurrent;
+    const canAdminPick = isAdmin && session.status === 'in_progress' && !isCompleted;
 
     let cls = 'pick-card';
     if (isCurrent)   cls += ' current';
@@ -1308,7 +1308,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <span class="pick-badge ${isCompleted ? 'done' : isCurrent ? 'active' : 'pending'}">#${pick.pick_position}</span>
           <div style="display:flex;gap:3px">
             ${canTradePick ? `<button class="pick-trade-btn" title="Trocar pick" onclick="openTradePickModal(${pick.id}, ${pick.round}, ${pick.pick_position}, ${pick.team_id}, '${(pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'")}')"><i class="bi bi-arrow-left-right"></i></button>` : ''}
-            ${canSetCurrent ? `<button class="pick-trade-btn" title="Definir como pick atual" style="border-color:rgba(245,158,11,.4);color:var(--amber)" onclick="setCurrentPick(${pick.round}, ${pick.pick_position})"><i class="bi bi-cursor-fill"></i></button>` : ''}
+            ${canAdminPick ? `<button class="pick-trade-btn" title="Escolher jogador (Admin)" style="border-color:rgba(245,158,11,.4);color:var(--amber)" onclick="openAdminPickForSlot(${pick.id}, ${pick.round}, ${pick.pick_position}, '${(pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'")}')"><i class="bi bi-person-plus-fill"></i></button>` : ''}
           </div>
         </div>
         <div class="pick-team">${pick.team_city} ${pick.team_name}</div>
@@ -1546,23 +1546,48 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
   }
 
-  async function setCurrentPick(round, pickPosition) {
+  let adminPickTargetId = null;
+  let adminPickTargetRound = null;
+
+  async function openAdminPickForSlot(pickId, round, pickPosition, teamName) {
     if (!currentDraftSession) return;
-    if (!confirm(`Definir Rodada ${round} · Pick #${pickPosition} como a pick atual do draft?`)) return;
+    adminPickTargetId = pickId;
+    adminPickTargetRound = round;
+    allowPickSelections = true;
+    document.getElementById('pickModalTitle').textContent = `Admin · Pick #${pickPosition} — ${teamName}`;
+    new bootstrap.Modal(document.getElementById('pickModal')).show();
+
+    const container = document.getElementById('availablePlayers');
+    container.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div>';
     try {
-      const result = await api('draft.php', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'set_current_pick', draft_session_id: currentDraftSession.id, round, pick_position: pickPosition })
-      });
-      await loadDraft();
-    } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
+      const data = await api(`draft.php?action=available_players&season_id=${currentDraftSession.season_id}`);
+      availablePlayersList = data.players || [];
+      renderAvailablePlayers(availablePlayersList, true);
+      const searchInput = document.getElementById('playerSearch');
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.oninput = e => {
+          const q = e.target.value.toLowerCase();
+          renderAvailablePlayers(availablePlayersList.filter(p => p.name.toLowerCase().includes(q) || p.position.toLowerCase().includes(q)), true);
+        };
+      }
+    } catch (e) {
+      container.innerHTML = `<div class="state-empty" style="grid-column:1/-1;color:#ef4444"><i class="bi bi-exclamation-circle"></i><p>Erro: ${e.error || 'Desconhecido'}</p></div>`;
+    }
   }
 
   async function makePick(playerId, playerName) {
     if (!confirm(`Confirma a escolha de ${playerName}?`)) return;
+    const payload = { action: 'make_pick', draft_session_id: currentDraftSession.id, player_id: playerId };
+    if (adminPickTargetId !== null) {
+      payload.pick_id = adminPickTargetId;
+      payload.round   = adminPickTargetRound;
+    }
     try {
-      const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'make_pick', draft_session_id: currentDraftSession.id, player_id: playerId }) });
+      const result = await api('draft.php', { method: 'POST', body: JSON.stringify(payload) });
       alert(result.message || 'Pick realizada!');
+      adminPickTargetId = null;
+      adminPickTargetRound = null;
       bootstrap.Modal.getInstance(document.getElementById('pickModal')).hide();
       loadDraft();
     } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
@@ -2009,6 +2034,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       body.innerHTML = `<div style="padding:16px;color:#fca5a5">Erro: ${e.error || 'Desconhecido'}</div>`;
     }
   }
+
+  document.getElementById('pickModal').addEventListener('hidden.bs.modal', () => {
+    adminPickTargetId = null;
+    adminPickTargetRound = null;
+  });
 
   loadDraft();
 </script>
