@@ -1295,6 +1295,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     const isCompleted = pick.picked_player_id !== null;
     const isMyPick    = parseInt(pick.team_id) === userTeamId;
     const canTradePick = session.status === 'in_progress' && !isCompleted && (isAdmin || isMyPick);
+    const canSetCurrent = isAdmin && session.status === 'in_progress' && !isCompleted && !isCurrent;
 
     let cls = 'pick-card';
     if (isCurrent)   cls += ' current';
@@ -1305,7 +1306,10 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       <div class="${cls}">
         <div class="pick-num">
           <span class="pick-badge ${isCompleted ? 'done' : isCurrent ? 'active' : 'pending'}">#${pick.pick_position}</span>
-          ${canTradePick ? `<button class="pick-trade-btn" title="Trocar pick" onclick="openTradePickModal(${pick.id}, ${pick.round}, ${pick.pick_position}, ${pick.team_id}, '${(pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'")}')"><i class="bi bi-arrow-left-right"></i></button>` : ''}
+          <div style="display:flex;gap:3px">
+            ${canTradePick ? `<button class="pick-trade-btn" title="Trocar pick" onclick="openTradePickModal(${pick.id}, ${pick.round}, ${pick.pick_position}, ${pick.team_id}, '${(pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'")}')"><i class="bi bi-arrow-left-right"></i></button>` : ''}
+            ${canSetCurrent ? `<button class="pick-trade-btn" title="Definir como pick atual" style="border-color:rgba(245,158,11,.4);color:var(--amber)" onclick="setCurrentPick(${pick.round}, ${pick.pick_position})"><i class="bi bi-cursor-fill"></i></button>` : ''}
+          </div>
         </div>
         <div class="pick-team">${pick.team_city} ${pick.team_name}</div>
         ${pick.traded_from_team_id ? `<div class="pick-via"><i class="bi bi-arrow-right"></i> via ${pick.traded_from_city || ''} ${pick.traded_from_name || ''}</div>` : ''}
@@ -1539,6 +1543,18 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'finalize_draft', draft_session_id: currentDraftSession.id }) });
       alert(result.message || 'Draft finalizado!');
       loadDraft();
+    } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
+  }
+
+  async function setCurrentPick(round, pickPosition) {
+    if (!currentDraftSession) return;
+    if (!confirm(`Definir Rodada ${round} · Pick #${pickPosition} como a pick atual do draft?`)) return;
+    try {
+      const result = await api('draft.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'set_current_pick', draft_session_id: currentDraftSession.id, round, pick_position: pickPosition })
+      });
+      await loadDraft();
     } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
   }
 

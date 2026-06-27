@@ -1104,6 +1104,32 @@ if ($method === 'POST') {
             }
             break;
 
+        case 'set_current_pick':
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+            $draftSessionId = (int)($data['draft_session_id'] ?? 0);
+            $round          = (int)($data['round'] ?? 1);
+            $pickPosition   = (int)($data['pick_position'] ?? 1);
+            if (!$draftSessionId || !$round || !$pickPosition) {
+                echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
+                exit;
+            }
+            try {
+                $stmt = $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ? WHERE id = ? AND status = "in_progress"');
+                $stmt->execute([$round, $pickPosition, $draftSessionId]);
+                if ($stmt->rowCount() === 0) {
+                    echo json_encode(['success' => false, 'error' => 'Draft não encontrado ou não está em andamento']);
+                } else {
+                    echo json_encode(['success' => true, 'message' => "Pick atual definida: Rodada {$round} · #{$pickPosition}"]);
+                }
+            } catch (Exception $e) {
+                echo json_encode(['success' => false, 'error' => 'Erro: ' . $e->getMessage()]);
+            }
+            break;
+
         default:
             echo json_encode(['success' => false, 'error' => 'Ação inválida']);
     }
