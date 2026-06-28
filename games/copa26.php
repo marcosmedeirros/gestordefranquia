@@ -413,9 +413,36 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         echo json_encode(['ok'=>true]); exit;
     }
     if ($act==='save_bracket') {
-        $pdo->prepare("INSERT INTO copa26_predictions (user_id,bracket_json) VALUES (?,?) ON DUPLICATE KEY UPDATE bracket_json=VALUES(bracket_json)")
-            ->execute([$user_id, json_encode($body['bracket']??[])]);
+        $bracketData = $body['bracket'] ?? [];
+        $champion = null;
+        if (!empty($bracketData['final_0']) && is_array($bracketData['final_0'])) {
+            $champion = $bracketData['final_0']['name'] ?? null;
+        }
+        $pdo->prepare("INSERT INTO copa26_predictions (user_id,bracket_json,champion) VALUES (?,?,?)
+            ON DUPLICATE KEY UPDATE bracket_json=VALUES(bracket_json),champion=VALUES(champion)")
+            ->execute([$user_id, json_encode($bracketData), $champion]);
         echo json_encode(['ok'=>true]); exit;
+    }
+    if ($act==='save_official_groups'&&$isAdmin) {
+        $pdo->prepare("INSERT INTO copa26_official (id,groups_json,thirds_json) VALUES (1,?,?)
+            ON DUPLICATE KEY UPDATE groups_json=VALUES(groups_json),thirds_json=VALUES(thirds_json),updated_by=?")
+            ->execute([json_encode($body['groups']??[]),json_encode($body['thirds']??[]),$user_id]);
+        $off=$pdo->query("SELECT * FROM copa26_official WHERE id=1")->fetch(PDO::FETCH_ASSOC);
+        if ($off) calcAllPoints($pdo,$off);
+        echo json_encode(['ok'=>true,'msg'=>'Grupos oficiais salvos e pontos calculados!']); exit;
+    }
+    if ($act==='save_official_bracket'&&$isAdmin) {
+        $bracketData = $body['bracket'] ?? [];
+        $champion = null;
+        if (!empty($bracketData['final_0']) && is_array($bracketData['final_0'])) {
+            $champion = $bracketData['final_0']['name'] ?? null;
+        }
+        $pdo->prepare("INSERT INTO copa26_official (id,bracket_json,champion) VALUES (1,?,?)
+            ON DUPLICATE KEY UPDATE bracket_json=VALUES(bracket_json),champion=VALUES(champion),updated_by=?")
+            ->execute([json_encode($bracketData),$champion,$user_id]);
+        $off=$pdo->query("SELECT * FROM copa26_official WHERE id=1")->fetch(PDO::FETCH_ASSOC);
+        if ($off) calcAllPoints($pdo,$off);
+        echo json_encode(['ok'=>true,'msg'=>'Bracket oficial salvo e pontos recalculados!']); exit;
     }
     if ($act==='submit_bracket') {
         $pdo->prepare("UPDATE copa26_predictions SET bracket_submitted_at=NOW() WHERE user_id=? AND bracket_submitted_at IS NULL")->execute([$user_id]);
@@ -1132,17 +1159,11 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
 
 <!-- ── BRACKET ────────────────────────────────────────────────────────────── -->
 <div class="copa-pane" id="pane-bracket">
-  <?php if ($bracketSubmitted): ?>
-  <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:8px;margin-bottom:14px;font-size:13px;color:var(--green)">
-    <i class="bi bi-check-circle-fill"></i> Palpite do bracket enviado!
-  </div>
-  <?php else: ?>
-  <p class="section-info"><i class="bi bi-info-circle"></i> Clique no time para avançá-lo. Gerado dos seus palpites de grupo.</p>
-  <?php endif; ?>
+  <p class="section-info"><i class="bi bi-info-circle"></i> Clique no time para avançá-lo na chave. Monte seu palpite do mata-mata!</p>
   <div class="bracket-wrap"><div class="bracket" id="bracketEl"></div></div>
-  <?php if (!$bracketSubmitted): ?>
+  <?php if ($bracketOpen): ?>
   <div class="submit-bar" style="border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.06);margin-top:14px">
-    <div class="submit-bar-info"><strong style="color:var(--gold)">Envie seu Bracket!</strong> Após enviar não será possível editar.</div>
+    <div class="submit-bar-info"><strong style="color:var(--gold)">Envie seu Bracket!</strong> Salve o rascunho para não perder seu progresso.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-r secondary" onclick="saveBracketDraft()"><i class="bi bi-floppy"></i>Salvar rascunho</button>
       <button class="btn-r gold lg" onclick="submitBracket()"><i class="bi bi-send-fill"></i>ENVIAR</button>
@@ -1393,14 +1414,20 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
     </div>
     <?php endforeach; ?>
     </div>
+    <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn-r primary" onclick="saveAdmGroups()"><i class="bi bi-check-circle-fill"></i>Salvar Grupos Oficiais &amp; Calcular Pontos</button>
+    </div>
   </div>
 
 
   <!-- Bracket oficial -->
-  <div class="admin-section" style="display:none">
+  <div class="admin-section">
     <div class="admin-section-title"><i class="bi bi-trophy-fill" style="color:var(--gold)"></i>Bracket Oficial (Mata-Mata)</div>
-    <p class="section-info">Clique no time que avançou em cada confronto.</p>
+    <p class="section-info">Clique no time que avançou em cada confronto para registrar o resultado oficial e recalcular pontos.</p>
     <div class="bracket-wrap"><div class="bracket" id="admBracketEl"></div></div>
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-r primary" onclick="saveAdmBracket()"><i class="bi bi-trophy-fill"></i>Salvar Bracket Oficial</button>
+    </div>
   </div>
 
 
@@ -1809,7 +1836,7 @@ function setWinnerGeneric(round,matchIdx,team,stateRef,matchupsRef){
     if(nr){const ni=Math.floor(matchIdx/2),ns=matchIdx%2;if(!matchupsRef[nr][ni])matchupsRef[nr][ni]=[null,null];matchupsRef[nr][ni][ns]=team;}
 }
 
-let BRACKET_EDITABLE = BRACKET_OPEN && !BRACKET_SUBMITTED;
+let BRACKET_EDITABLE = BRACKET_OPEN;
 function setWinner(r,i,team){setWinnerGeneric(r,i,team,bracketState,bracketMatchups);renderBracketGeneric('bracketEl',bracketMatchups,bracketState,BRACKET_EDITABLE,setWinner);}
 function admSetWinner(r,i,team){setWinnerGeneric(r,i,team,admBracketState,admBracketMatchups);renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,admSetWinner);}
 
@@ -2066,9 +2093,23 @@ async function toggleBracketOpen(){
     // show/hide bracket tab
     document.querySelectorAll('[data-tab="bracket"]').forEach(t=>t.style.display=_bracketOpen?'':'none');
     // atualiza editabilidade e re-renderiza bracket se já construído
-    BRACKET_EDITABLE = _bracketOpen && !BRACKET_SUBMITTED;
+    BRACKET_EDITABLE = _bracketOpen;
     if(bracketMatchups.r32&&bracketMatchups.r32.length) renderBracketGeneric('bracketEl',bracketMatchups,bracketState,BRACKET_EDITABLE,setWinner);
     showToast(_bracketOpen?'Bracket aberto para palpites!':'Bracket fechado.');
+}
+async function saveAdmGroups(){
+    const groups={};GROUP_KEYS.forEach(l=>groups[l]=admGroupOrder[l]);
+    const r=await post({action:'save_official_groups',groups,thirds:admSelectedThirds});
+    showToast(r.ok?r.msg||'Grupos salvos e pontos calculados!':'Erro.',!r.ok);
+}
+async function saveAdmBracket(){
+    const champion=admBracketState['final_0']?.name||'';
+    const finalists=admBracketMatchups.final?.[0]||[null,null];
+    const winnerId=admBracketState['final_0']?.id;
+    const otherF=finalists.find(t=>t&&t.id!==winnerId);
+    const vice=otherF?.name||'';
+    const r=await post({action:'save_official_bracket',bracket:admBracketState,champion,vice});
+    showToast(r.ok?r.msg||'Bracket oficial salvo!':'Erro.',!r.ok);
 }
 async function resetBrackets(){
     if(!confirm('Resetar o bracket de TODOS os usuários? Os palpites da fase de grupos são mantidos.'))return;
