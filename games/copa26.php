@@ -1162,13 +1162,17 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
   <p class="section-info"><i class="bi bi-info-circle"></i> Clique no time para avançá-lo na chave. Monte seu palpite do mata-mata!</p>
   <div class="bracket-wrap"><div class="bracket" id="bracketEl"></div></div>
   <div id="bracketFinalAction"></div>
-  <?php if ($bracketOpen): ?>
+  <?php if ($bracketOpen && !$bracketSubmitted): ?>
   <div class="submit-bar" style="border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.06);margin-top:14px">
     <div class="submit-bar-info"><strong style="color:var(--gold)">Envie seu Bracket!</strong> Salve o rascunho para não perder seu progresso.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn-r secondary" onclick="saveBracketDraft()"><i class="bi bi-floppy"></i>Salvar rascunho</button>
       <button class="btn-r gold lg" onclick="submitBracket()"><i class="bi bi-send-fill"></i>ENVIAR</button>
     </div>
+  </div>
+  <?php elseif ($bracketSubmitted): ?>
+  <div style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:var(--radius-sm);padding:12px 16px;font-size:13px;color:#4ade80;margin-top:14px;text-align:center">
+    <i class="bi bi-check-circle-fill"></i> Bracket enviado! Acompanhe seu desempenho na aba <strong>Ranking</strong>.
   </div>
   <?php endif; ?>
 
@@ -1347,7 +1351,7 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
   <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
     <table class="ranking-table" id="rankingTable">
       <thead><tr>
-        <th style="width:40px">#</th><th>Jogador</th><th>Campeão apostado</th><th style="text-align:right">Pontos</th>
+        <th style="width:40px">#</th><th>Jogador</th><th style="text-align:right">Pontos</th>
       </tr></thead>
       <tbody>
       <?php foreach ($ranking as $i=>$r):
@@ -1356,7 +1360,6 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
       <tr <?=$isMe?'class="me"':''?>>
         <td><?=$pos===1?'🥇':($pos===2?'🥈':($pos===3?'🥉':$pos))?></td>
         <td><span class="ranking-name"><?=htmlspecialchars($r['nome'])?><?=$isMe?' <span style="color:var(--red);font-size:10px">(você)</span>':''?></span></td>
-        <td style="font-size:11px;color:var(--text-3)"><?=htmlspecialchars($r['champion']??'—')?></td>
         <td style="text-align:right"><span class="ranking-pts <?=(int)$r['points']===0?'zero':''?>"><?=(int)$r['points']?></span></td>
       </tr>
       <?php endforeach; ?>
@@ -1573,7 +1576,8 @@ admGroupOrder[<?=json_encode($letter)?>]=<?=json_encode(array_map('intval',$ids)
 
 let selectedThirds=<?=json_encode(array_map('intval',$predThirds??[]))?>;
 let admSelectedThirds=<?=json_encode(array_map('intval',$offThirds??[]))?>;
-const bracketState={};
+const bracketState=<?=json_encode($bracketSubmitted&&$predBracket?$predBracket:(object)[])?>;
+const BRACKET_SUBMITTED=<?=$bracketSubmitted?'true':'false'?>;
 const admBracketState=<?=json_encode($offBracket?:(object)[])?>;
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -1842,7 +1846,7 @@ function setWinnerGeneric(round,matchIdx,team,stateRef,matchupsRef){
     if(nr){const ni=Math.floor(matchIdx/2),ns=matchIdx%2;if(!matchupsRef[nr][ni])matchupsRef[nr][ni]=[null,null];matchupsRef[nr][ni][ns]=team;}
 }
 
-let BRACKET_EDITABLE = BRACKET_OPEN;
+let BRACKET_EDITABLE = BRACKET_OPEN && !BRACKET_SUBMITTED;
 function updateFinalAction(){
     const champion=bracketState['final_0'];
     const el=document.getElementById('bracketFinalAction');
@@ -2157,7 +2161,7 @@ async function toggleBracketOpen(){
     // show/hide bracket tab
     document.querySelectorAll('[data-tab="bracket"]').forEach(t=>t.style.display=_bracketOpen?'':'none');
     // atualiza editabilidade e re-renderiza bracket se já construído
-    BRACKET_EDITABLE = _bracketOpen;
+    BRACKET_EDITABLE = _bracketOpen && !BRACKET_SUBMITTED;
     if(bracketMatchups.r32&&bracketMatchups.r32.length) renderBracketGeneric('bracketEl',bracketMatchups,bracketState,BRACKET_EDITABLE,setWinner);
     showToast(_bracketOpen?'Bracket aberto para palpites!':'Bracket fechado.');
 }
