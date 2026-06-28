@@ -1840,7 +1840,43 @@ let BRACKET_EDITABLE = BRACKET_OPEN;
 function setWinner(r,i,team){setWinnerGeneric(r,i,team,bracketState,bracketMatchups);renderBracketGeneric('bracketEl',bracketMatchups,bracketState,BRACKET_EDITABLE,setWinner);}
 function admSetWinner(r,i,team){setWinnerGeneric(r,i,team,admBracketState,admBracketMatchups);renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,admSetWinner);}
 
-function buildBracket(){buildBracketGeneric(bracketMatchups,groupOrder,bracketState);renderBracketGeneric('bracketEl',bracketMatchups,bracketState,BRACKET_EDITABLE,setWinner);}
+// Times fixos oficiais da Copa do Mundo 2026 para o bracket
+function buildR32Fixed(){
+    const T=(id,name,flag)=>({id,name,flag});
+    // Ordem: pares adjacentes alimentam o mesmo jogo de R16
+    // [0,1]→R16[0]=J89, [2,3]→R16[1]=J90, [4,5]→R16[2]=J93, [6,7]→R16[3]=J94
+    // [8,9]→R16[4]=J91,[10,11]→R16[5]=J92,[12,13]→R16[6]=J95,[14,15]→R16[7]=J96
+    return [
+        [T( 1,'Alemanha',   'de'), T( 2,'Paraguai',    'py')], // J74
+        [T( 3,'França',     'fr'), T( 4,'Suécia',      'se')], // J77
+        [T( 5,'Áf. do Sul', 'za'), T( 6,'Canadá',      'ca')], // J73
+        [T( 7,'Holanda',    'nl'), T( 8,'Marrocos',    'ma')], // J75
+        [T( 9,'Portugal',   'pt'), T(10,'Croácia',     'hr')], // J83
+        [T(11,'Espanha',    'es'), T(12,'Áustria',     'at')], // J84
+        [T(13,'EUA',        'us'), T(14,'Bósnia',      'ba')], // J81
+        [T(15,'Bélgica',    'be'), T(16,'Senegal',     'sn')], // J82
+        [T(17,'Brasil',     'br'), T(18,'Japão',       'jp')], // J76
+        [T(19,'C. Marfim',  'ci'), T(20,'Noruega',     'no')], // J78
+        [T(21,'México',     'mx'), T(22,'Equador',     'ec')], // J79
+        [T(23,'Inglaterra', 'gb-eng'), T(24,'RD Congo','cd')], // J80
+        [T(25,'Argentina',  'ar'), T(26,'Cabo Verde',  'cv')], // J86
+        [T(27,'Austrália',  'au'), T(28,'Egito',       'eg')], // J88
+        [T(29,'Suíça',      'ch'), T(30,'Argélia',     'dz')], // J85
+        [T(31,'Colômbia',   'co'), T(32,'Gana',        'gh')], // J87
+    ];
+}
+function buildBracket(){
+    bracketMatchups.r32=buildR32Fixed();
+    ['r16','qf','sf','final'].forEach(r=>{const sz={r16:8,qf:4,sf:2,final:1}[r];bracketMatchups[r]=Array.from({length:sz},()=>[null,null]);});
+    Object.keys(bracketState).forEach(key=>{
+        const m=key.match(/^([a-z0-9]+)_(\d+)$/);if(!m)return;
+        const [,round,idxStr]=m,idx=+idxStr,team=bracketState[key];
+        if(!team||!bracketMatchups[round])return;
+        const nr=ROUND_ORDER[ROUND_ORDER.indexOf(round)+1];
+        if(nr&&bracketMatchups[nr]){const ni=Math.floor(idx/2),ns=idx%2;if(!bracketMatchups[nr][ni])bracketMatchups[nr][ni]=[null,null];bracketMatchups[nr][ni][ns]=team;}
+    });
+    renderBracketGeneric('bracketEl',bracketMatchups,bracketState,BRACKET_EDITABLE,setWinner);
+}
 function buildAdmBracket(){buildBracketGeneric(admBracketMatchups,admGroupOrder,admBracketState);renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,admSetWinner);}
 
 // ── Save / Submit ─────────────────────────────────────────────────────────────
