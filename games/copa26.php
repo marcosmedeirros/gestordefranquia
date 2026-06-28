@@ -1540,7 +1540,7 @@ admGroupOrder[<?=json_encode($letter)?>]=<?=json_encode(array_map('intval',$ids)
 
 let selectedThirds=<?=json_encode(array_map('intval',$predThirds??[]))?>;
 let admSelectedThirds=<?=json_encode(array_map('intval',$offThirds??[]))?>;
-const bracketState=<?=json_encode($predBracket?:(object)[])?>;
+const bracketState={};
 const admBracketState=<?=json_encode($offBracket?:(object)[])?>;
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
