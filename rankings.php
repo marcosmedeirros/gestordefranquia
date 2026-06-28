@@ -31,6 +31,39 @@ if (!empty($team['league'])) {
     } catch (Exception $e) { $currentSeason = null; }
 }
 $seasonDisplayYear = (string)$currentSeasonYear;
+
+// Copa 2026 bolão ranking
+$ptNames = [
+    'GER'=>'Alemanha','PAR'=>'Paraguai','FRA'=>'França','SWE'=>'Suécia',
+    'RSA'=>'África do Sul','CAN'=>'Canadá','NED'=>'Holanda','MAR'=>'Marrocos',
+    'POR'=>'Portugal','CRO'=>'Croácia','ESP'=>'Espanha','AUT'=>'Áustria',
+    'USA'=>'EUA','BIH'=>'Bósnia','BEL'=>'Bélgica','SEN'=>'Senegal',
+    'BRA'=>'Brasil','JPN'=>'Japão','CIV'=>'Costa do Marfim','NOR'=>'Noruega',
+    'MEX'=>'México','ECU'=>'Equador','ENG'=>'Inglaterra','COD'=>'RD Congo',
+    'ARG'=>'Argentina','CPV'=>'Cabo Verde','AUS'=>'Austrália','EGY'=>'Egito',
+    'SUI'=>'Suíça','ALG'=>'Argélia','COL'=>'Colômbia','GHA'=>'Gana',
+];
+$copaRanking = [];
+try {
+    $officialRow = $pdo->query('SELECT picks FROM copa2026_predictions WHERE user_id = 0 LIMIT 1')->fetch();
+    $officialPicks = $officialRow ? (json_decode($officialRow['picks'], true) ?: []) : [];
+    $copaStmt = $pdo->query('SELECT cp.user_id, cp.picks, u.name AS uname, CONCAT(t.city," ",t.name) AS team_name, t.league, t.photo_url
+        FROM copa2026_predictions cp
+        JOIN users u ON u.id = cp.user_id
+        LEFT JOIN teams t ON t.user_id = cp.user_id
+        WHERE cp.user_id > 0
+        ORDER BY cp.updated_at DESC');
+    foreach ($copaStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $up = json_decode($r['picks'], true) ?: [];
+        $champion = $up['J104'] ?? null;
+        $pts = 0;
+        foreach ($up as $gid => $pick) {
+            if (isset($officialPicks[$gid]) && $officialPicks[$gid] === $pick) $pts += 2;
+        }
+        $copaRanking[] = ['uname'=>$r['uname'],'team'=>$r['team_name'],'league'=>$r['league'],'champion'=>$champion,'pts'=>$pts,'photo'=>$r['photo_url']];
+    }
+    usort($copaRanking, fn($a,$b)=>$b['pts']-$a['pts']);
+} catch (Exception $e) {}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -418,15 +451,73 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         <div class="content">
             <!-- Filtros Minimalistas -->
             <div class="filter-nav" id="rankingFilters">
-                <button type="button" class="filter-btn active" data-league="ELITE" onclick="loadRanking('ELITE')">ELITE</button>
-                <button type="button" class="filter-btn" data-league="NEXT" onclick="loadRanking('NEXT')">NEXT</button>
-                <button type="button" class="filter-btn" data-league="RISE" onclick="loadRanking('RISE')">RISE</button>
-                <button type="button" class="filter-btn" data-league="ROOKIE" onclick="loadRanking('ROOKIE')">ROOKIE</button>
+                <button type="button" class="filter-btn active" data-league="ELITE" onclick="switchTab('league','ELITE')">ELITE</button>
+                <button type="button" class="filter-btn" data-league="NEXT" onclick="switchTab('league','NEXT')">NEXT</button>
+                <button type="button" class="filter-btn" data-league="RISE" onclick="switchTab('league','RISE')">RISE</button>
+                <button type="button" class="filter-btn" data-league="ROOKIE" onclick="switchTab('league','ROOKIE')">ROOKIE</button>
+                <button type="button" class="filter-btn" data-league="COPA" onclick="switchTab('copa')" style="border-color:rgba(245,158,11,.35);color:var(--amber)">⚽ Copa 2026</button>
             </div>
 
             <!-- Tabela Container -->
             <div id="rankingContainer">
                 <div class="spinner"></div>
+            </div>
+
+            <!-- Copa 2026 Container -->
+            <div id="copaContainer" style="display:none">
+              <?php if (empty($copaRanking)): ?>
+                <div style="text-align:center;padding:40px 20px;color:var(--text-3);font-size:13px">
+                  Nenhum palpite enviado ainda. <a href="/copa2026.php" style="color:var(--red)">Faça o seu!</a>
+                </div>
+              <?php else: ?>
+                <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:24px">
+                  <div style="padding:14px 18px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+                    <span style="font-size:18px">⚽</span>
+                    <div>
+                      <div style="font-weight:700;font-size:14px">Bolão Copa do Mundo 2026</div>
+                      <div style="font-size:11px;color:var(--text-3)">2 pontos por acerto · <?= count($copaRanking) ?> participantes</div>
+                    </div>
+                    <a href="/copa2026.php" style="margin-left:auto;font-size:11px;color:var(--red);font-weight:600;text-decoration:none">Meu Palpite →</a>
+                  </div>
+                  <div style="overflow-x:auto">
+                    <table style="width:100%;border-collapse:collapse">
+                      <thead>
+                        <tr style="background:var(--panel-2)">
+                          <th style="padding:10px 18px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border);width:40px">#</th>
+                          <th style="padding:10px 18px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border)">Participante</th>
+                          <th style="padding:10px 18px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border)">Campeão Apostado</th>
+                          <th style="padding:10px 18px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border);text-align:right">Pts</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <?php foreach ($copaRanking as $i => $row): ?>
+                        <tr style="border-bottom:1px solid var(--border);transition:background .2s">
+                          <td style="padding:12px 18px;font-size:13px;font-weight:700;color:<?= $i===0?'var(--amber)':($i===1?'#94a3b8':($i===2?'#b45309':'var(--text-3)')) ?>">
+                            <?= $i===0?'🥇':($i===1?'🥈':($i===2?'🥉':($i+1))) ?>
+                          </td>
+                          <td style="padding:12px 18px">
+                            <div style="font-size:13px;font-weight:600;color:var(--text)"><?= htmlspecialchars($row['uname']) ?></div>
+                            <div style="font-size:11px;color:var(--text-3)"><?= htmlspecialchars($row['team'] ?? '') ?> <span style="color:var(--text-3);font-size:10px"><?= htmlspecialchars($row['league'] ?? '') ?></span></div>
+                          </td>
+                          <td style="padding:12px 18px">
+                            <?php if ($row['champion']): ?>
+                              <span style="font-size:13px;font-weight:700;color:var(--amber)">
+                                <?= htmlspecialchars($ptNames[$row['champion']] ?? $row['champion']) ?>
+                              </span>
+                            <?php else: ?>
+                              <span style="font-size:12px;color:var(--text-3);font-style:italic">Não preenchido</span>
+                            <?php endif; ?>
+                          </td>
+                          <td style="padding:12px 18px;text-align:right;font-size:15px;font-weight:800;color:<?= $row['pts']>0?'var(--red)':'var(--text-3)' ?>">
+                            <?= $row['pts'] ?>
+                          </td>
+                        </tr>
+                        <?php endforeach; ?>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
         </div>
     </main>
@@ -538,21 +629,33 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     const currentSeasonId   = <?= $currentSeasonId   ? (int)$currentSeasonId   : 'null' ?>;
     const currentSeasonYear = <?= (int)$currentSeasonYear ?>;
 
-    function updateActiveButton() {
+    function updateActiveButton(activeLeague) {
         document.querySelectorAll('.filter-btn').forEach(btn => {
-            if (btn.dataset.league === currentLeague) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
+            btn.classList.toggle('active', btn.dataset.league === activeLeague);
         });
+    }
+
+    function switchTab(type, league) {
+        const rankC = document.getElementById('rankingContainer');
+        const copaC = document.getElementById('copaContainer');
+        if (type === 'copa') {
+            rankC.style.display = 'none';
+            copaC.style.display = 'block';
+            updateActiveButton('COPA');
+        } else {
+            rankC.style.display = '';
+            copaC.style.display = 'none';
+            loadRanking(league);
+        }
     }
 
     async function loadRanking(league = userLeague) {
         currentLeague = league.toUpperCase();
-        updateActiveButton();
+        updateActiveButton(currentLeague);
 
         const container = document.getElementById('rankingContainer');
+        container.style.display = '';
+        document.getElementById('copaContainer').style.display = 'none';
         container.innerHTML = '<div class="spinner"></div>';
 
         try {
