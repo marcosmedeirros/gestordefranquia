@@ -1161,6 +1161,7 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
 <div class="copa-pane" id="pane-bracket">
   <p class="section-info"><i class="bi bi-info-circle"></i> Clique no time para avançá-lo na chave. Monte seu palpite do mata-mata!</p>
   <div class="bracket-wrap"><div class="bracket" id="bracketEl"></div></div>
+  <div id="bracketFinalAction"></div>
   <?php if ($bracketOpen): ?>
   <div class="submit-bar" style="border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.06);margin-top:14px">
     <div class="submit-bar-info"><strong style="color:var(--gold)">Envie seu Bracket!</strong> Salve o rascunho para não perder seu progresso.</div>
@@ -1385,8 +1386,12 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
 
 
   <!-- Resultados oficiais dos grupos -->
-  <div class="admin-section">
-    <div class="admin-section-title"><i class="bi bi-check-circle-fill" style="color:var(--green)"></i>Resultados Oficiais dos Grupos</div>
+  <details class="admin-section" style="padding:0">
+  <summary style="cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:8px">
+    <div class="admin-section-title" style="margin:0;padding:0;border:none"><i class="bi bi-check-circle-fill" style="color:var(--green)"></i>Resultados Oficiais dos Grupos</div>
+    <i class="bi bi-chevron-down" style="margin-left:auto;font-size:12px;color:var(--text-3)"></i>
+  </summary>
+  <div style="padding:0 18px 18px">
     <p class="section-info">Ordene como os times realmente terminaram em cada grupo. Marque ✓ no 3º para indicar que avança.</p>
     <div style="font-size:12px;color:var(--text-2);margin-bottom:10px">Terceiros marcados: <strong id="admThirdsCount"><?=count($offThirds??[])?></strong>/8</div>
     <div class="groups-grid" id="admGroupsGrid">
@@ -1418,6 +1423,7 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
       <button class="btn-r primary" onclick="saveAdmGroups()"><i class="bi bi-check-circle-fill"></i>Salvar Grupos Oficiais &amp; Calcular Pontos</button>
     </div>
   </div>
+  </details>
 
 
   <!-- Bracket oficial -->
@@ -1837,7 +1843,28 @@ function setWinnerGeneric(round,matchIdx,team,stateRef,matchupsRef){
 }
 
 let BRACKET_EDITABLE = BRACKET_OPEN;
-function setWinner(r,i,team){setWinnerGeneric(r,i,team,bracketState,bracketMatchups);renderBracketGeneric('bracketEl',bracketMatchups,bracketState,BRACKET_EDITABLE,setWinner);}
+function updateFinalAction(){
+    const champion=bracketState['final_0'];
+    const el=document.getElementById('bracketFinalAction');
+    if(el){
+        if(champion){
+            el.innerHTML=`<div style="text-align:center;padding:20px 0 8px">
+                <div style="font-size:13px;color:var(--text-3);margin-bottom:10px">
+                    <i class="bi bi-trophy-fill" style="color:var(--gold)"></i>
+                    Campeão apostado: <strong style="color:var(--gold)">${champion.name}</strong>
+                </div>
+                <button class="btn-r gold lg" onclick="saveBracketDraft().then(()=>submitBracket())">
+                    <i class="bi bi-send-fill"></i> ENVIAR PALPITE
+                </button>
+            </div>`;
+        } else {
+            el.innerHTML='';
+        }
+    }
+    const meChamp=document.querySelector('#rankingTable tr.me td:nth-child(3)');
+    if(meChamp&&champion) meChamp.textContent=champion.name;
+}
+function setWinner(r,i,team){setWinnerGeneric(r,i,team,bracketState,bracketMatchups);renderBracketGeneric('bracketEl',bracketMatchups,bracketState,BRACKET_EDITABLE,setWinner);updateFinalAction();}
 function admSetWinner(r,i,team){setWinnerGeneric(r,i,team,admBracketState,admBracketMatchups);renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,admSetWinner);}
 
 // Times fixos oficiais da Copa do Mundo 2026 para o bracket
@@ -1876,6 +1903,7 @@ function buildBracket(){
         if(nr&&bracketMatchups[nr]){const ni=Math.floor(idx/2),ns=idx%2;if(!bracketMatchups[nr][ni])bracketMatchups[nr][ni]=[null,null];bracketMatchups[nr][ni][ns]=team;}
     });
     renderBracketGeneric('bracketEl',bracketMatchups,bracketState,BRACKET_EDITABLE,setWinner);
+    updateFinalAction();
 }
 function buildAdmBracket(){buildBracketGeneric(admBracketMatchups,admGroupOrder,admBracketState);renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,admSetWinner);}
 
