@@ -191,21 +191,17 @@ function calcAllPoints(PDO $pdo, array $off): void {
         foreach ($ot as $gid) {
             if (in_array($gid, $ut)) $pts++;
         }
+        // Bracket: 2pts por avanço correto (comparação por nome)
         $ub = json_decode($p['bracket_json'] ?? '{}', true) ?: [];
-        foreach ($ob as $key=>$ot2) {
-            if (!$ot2||!is_array($ot2)) continue;
-            $ut2=$ub[$key]??null;
-            if ($ut2&&is_array($ut2)&&($ut2['id']??null)==($ot2['id']??null)) $pts++;
+        foreach ($ob as $key => $offTeam) {
+            if (!$offTeam || !is_array($offTeam)) continue;
+            $userTeam = $ub[$key] ?? null;
+            if ($userTeam && is_array($userTeam) && trim($userTeam['name']??'') !== '' && ($userTeam['name']??null) === ($offTeam['name']??null)) $pts += 2;
         }
-        // prizes 3pts each
+        // Campeão do bracket: 5pts bônus
         $cmp = fn($a,$b)=>trim(mb_strtolower($a??''))===trim(mb_strtolower($b??''))&&trim($a??'')!=='';
-        if ($cmp($off['champion'],    $p['champion']))    $pts+=5;
-        if ($cmp($off['vice'],        $p['vice']))        $pts+=3;
-        if ($cmp($off['top_scorer'],  $p['top_scorer']))  $pts+=3;
-        if ($cmp($off['best_player'], $p['best_player'])) $pts+=3;
-        if ($cmp($off['revelation'],  $p['revelation']))  $pts+=3;
-        if (trim($off['neymar_goals']??'')!==''&&trim($p['neymar_goals']??'')==trim($off['neymar_goals'])) $pts+=3;
-        $upd->execute([$pts,$p['user_id']]);
+        if ($cmp($off['champion'], $p['champion'])) $pts += 5;
+        $upd->execute([$pts, $p['user_id']]);
     }
 }
 
@@ -1316,30 +1312,15 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
             <td style="padding:8px;text-align:center;color:var(--blue);font-weight:700">1</td>
             <td style="padding:8px;color:var(--text-2)">1pt se o time avançou para as oitavas de final.</td>
           </tr>
-          <tr style="border-bottom:1px solid var(--border);display:none">
+          <tr style="border-bottom:1px solid var(--border)">
             <td style="padding:8px;color:var(--text);font-weight:600">Bracket (mata-mata)</td>
-            <td style="padding:8px;text-align:center;color:var(--blue);font-weight:700">1</td>
-            <td style="padding:8px;color:var(--text-2)">Por time correto avançando em cada confronto — 16 avos, oitavas, quartas, semis e final.</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:8px;color:var(--text);font-weight:600">Campeão</td>
-            <td style="padding:8px;text-align:center;color:var(--gold);font-weight:700">5</td>
-            <td style="padding:8px;color:var(--text-2)">5pts se acertar o país campeão.</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:8px;color:var(--text);font-weight:600">Vice-Campeão</td>
-            <td style="padding:8px;text-align:center;color:var(--gold);font-weight:700">3</td>
-            <td style="padding:8px;color:var(--text-2)">3pts se acertar o país vice-campeão.</td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--border)">
-            <td style="padding:8px;color:var(--text);font-weight:600">Artilheiro / Melhor jogador / Revelação</td>
-            <td style="padding:8px;text-align:center;color:var(--gold);font-weight:700">3</td>
-            <td style="padding:8px;color:var(--text-2)">3pts cada prêmio acertado (texto exato, sem distinção de maiúsculas).</td>
+            <td style="padding:8px;text-align:center;color:var(--blue);font-weight:700">2</td>
+            <td style="padding:8px;color:var(--text-2)">2pts por time correto avançando em cada confronto (16 avos, oitavas, quartas e semis).</td>
           </tr>
           <tr>
-            <td style="padding:8px;color:var(--text);font-weight:600">Gols do Neymar</td>
-            <td style="padding:8px;text-align:center;color:var(--gold);font-weight:700">3</td>
-            <td style="padding:8px;color:var(--text-2)">3pts se acertar o número exato de gols.</td>
+            <td style="padding:8px;color:var(--text);font-weight:600">Campeão do Bracket</td>
+            <td style="padding:8px;text-align:center;color:var(--gold);font-weight:700">5</td>
+            <td style="padding:8px;color:var(--text-2)">5pts de bônus se acertar o campeão da Copa (vencedor da Final no seu bracket).</td>
           </tr>
         </tbody>
       </table>
