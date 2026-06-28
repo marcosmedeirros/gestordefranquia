@@ -23,6 +23,8 @@ try {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 } catch (Exception $e) {}
 
+$isAdmin = hasAdminAccess($pdo, (int)$user['id']);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
     $body = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -39,8 +41,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$isAdmin = hasAdminAccess($pdo, (int)$user['id']);
-
 // Official picks (for admin to enter/edit actual Copa results)
 $officialPicks = '{}';
 try {
@@ -48,6 +48,46 @@ try {
     $s->execute([]);
     $row = $s->fetch();
     if ($row && $row['picks']) $officialPicks = $row['picks'];
+} catch (Exception $e) {}
+
+// Copa ranking: all users' picks vs official results (2 pts per correct pick)
+$ptNamesPHP = [
+    'GER'=>'Alemanha','PAR'=>'Paraguai','FRA'=>'França','SWE'=>'Suécia',
+    'RSA'=>'África do Sul','CAN'=>'Canadá','NED'=>'Holanda','MAR'=>'Marrocos',
+    'POR'=>'Portugal','CRO'=>'Croácia','ESP'=>'Espanha','AUT'=>'Áustria',
+    'USA'=>'EUA','BIH'=>'Bósnia','BEL'=>'Bélgica','SEN'=>'Senegal',
+    'BRA'=>'Brasil','JPN'=>'Japão','CIV'=>'C. do Marfim','NOR'=>'Noruega',
+    'MEX'=>'México','ECU'=>'Equador','ENG'=>'Inglaterra','COD'=>'RD Congo',
+    'ARG'=>'Argentina','CPV'=>'Cabo Verde','AUS'=>'Austrália','EGY'=>'Egito',
+    'SUI'=>'Suíça','ALG'=>'Argélia','COL'=>'Colômbia','GHA'=>'Gana',
+];
+$officialArr = json_decode($officialPicks, true) ?: [];
+$copaRanking = [];
+try {
+    $rankRows = $pdo->query("
+        SELECT cp.user_id, cp.picks, u.name as uname,
+               t.name as tname, t.city as tcity, t.league as league
+        FROM copa2026_predictions cp
+        JOIN users u ON u.id = cp.user_id
+        LEFT JOIN teams t ON t.user_id = cp.user_id
+        WHERE cp.user_id > 0
+        ORDER BY u.name ASC
+    ")->fetchAll();
+    foreach ($rankRows as $rankRow) {
+        $userPicks = json_decode($rankRow['picks'], true) ?: [];
+        $pts = 0;
+        foreach ($officialArr as $game => $winner) {
+            if (isset($userPicks[$game]) && $userPicks[$game] === $winner) $pts += 2;
+        }
+        $copaRanking[] = [
+            'uname'    => $rankRow['uname'],
+            'team'     => trim(($rankRow['tcity'] ?? '') . ' ' . ($rankRow['tname'] ?? '')),
+            'league'   => $rankRow['league'] ?? '',
+            'champion' => $userPicks['J104'] ?? null,
+            'pts'      => $pts,
+        ];
+    }
+    usort($copaRanking, fn($a,$b) => $b['pts'] <=> $a['pts']);
 } catch (Exception $e) {}
 ?>
 <!DOCTYPE html>
@@ -145,6 +185,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .save-msg{font-size:12px;color:var(--text-2)}
 .save-msg.ok{color:var(--green)}
 .save-msg.err{color:var(--red)}
+.tab-nav{display:flex;gap:8px;margin-bottom:20px}
+.tab-btn{padding:8px 20px;border-radius:99px;background:var(--panel);border:1px solid var(--border);color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;transition:all var(--t) var(--ease);font-family:var(--font)}
+.tab-btn:hover{border-color:var(--border-md);color:var(--text)}
+.tab-btn.active{background:var(--red);border-color:var(--red);color:#fff}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+.rank-table{width:100%;border-collapse:collapse}
+.rank-table th{padding:11px 16px;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border);background:var(--panel-2)}
+.rank-table td{padding:12px 16px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle}
+.rank-table tr:last-child td{border-bottom:none}
+.rank-table tbody tr:hover{background:var(--panel-2)}
 @media(max-width:992px){
   :root{--sidebar-w:0px}
   .sidebar{transform:translateX(-260px)}
@@ -231,6 +282,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
   <div class="content">
 
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('bracket',this)"><i class="bi bi-diagram-3"></i> Meu Palpite</button>
+      <button class="tab-btn" onclick="switchTab('ranking',this)"><i class="bi bi-bar-chart-fill"></i> Ranking</button>
+    </div>
+
+    <div id="tabBracket" class="tab-panel active">
     <div class="progress-wrap">
       <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar" style="width:0%"></div></div>
       <span class="progress-text" id="progressText">0 / 31 palpites</span>
@@ -279,6 +336,66 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       </button>
       <span class="save-msg" id="saveMsg"></span>
     </div>
+    </div><!-- #tabBracket -->
+
+    <div id="tabRanking" class="tab-panel">
+      <?php if (empty($copaRanking)): ?>
+        <div style="text-align:center;padding:60px 20px;color:var(--text-3)">
+          <i class="bi bi-inbox" style="font-size:32px;display:block;margin-bottom:12px"></i>
+          Nenhum palpite enviado ainda. Seja o primeiro!
+        </div>
+      <?php else: ?>
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px">
+          <div style="padding:14px 18px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+            <span style="font-size:20px">⚽</span>
+            <div>
+              <div style="font-weight:700;font-size:14px">Bolão Copa do Mundo 2026</div>
+              <div style="font-size:11px;color:var(--text-3)"><?= empty($officialArr) ? 'Resultados oficiais ainda não cadastrados' : count($officialArr).' acertos possíveis' ?> · <?= count($copaRanking) ?> participantes</div>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="rank-table">
+              <thead>
+                <tr>
+                  <th style="width:44px">#</th>
+                  <th>Participante</th>
+                  <th>Campeão Apostado</th>
+                  <th style="text-align:right">Pontos</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($copaRanking as $i => $r): ?>
+                <tr>
+                  <td style="font-weight:800;color:<?= $i===0?'var(--amber)':($i===1?'#94a3b8':($i===2?'#b45309':'var(--text-3)')) ?>">
+                    <?= $i===0?'🥇':($i===1?'🥈':($i===2?'🥉':($i+1))) ?>
+                  </td>
+                  <td>
+                    <div style="font-weight:600"><?= htmlspecialchars($r['uname']) ?></div>
+                    <?php if ($r['team']): ?>
+                    <div style="font-size:11px;color:var(--text-3)"><?= htmlspecialchars($r['team']) ?><?= $r['league'] ? ' · '.$r['league'] : '' ?></div>
+                    <?php endif; ?>
+                  </td>
+                  <td>
+                    <?php if ($r['champion']): ?>
+                      <span style="font-weight:700;color:var(--amber)"><?= htmlspecialchars($ptNamesPHP[$r['champion']] ?? $r['champion']) ?></span>
+                      <?php if ($officialArr && isset($officialArr['J104']) && $officialArr['J104'] === $r['champion']): ?>
+                        <span style="font-size:10px;color:var(--green);margin-left:4px">✓</span>
+                      <?php endif; ?>
+                    <?php else: ?>
+                      <span style="font-size:12px;color:var(--text-3);font-style:italic">Não preenchido</span>
+                    <?php endif; ?>
+                  </td>
+                  <td style="text-align:right;font-size:16px;font-weight:800;color:<?= $r['pts']>0?'var(--red)':'var(--text-3)' ?>">
+                    <?= $r['pts'] ?>
+                  </td>
+                </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <?php endif; ?>
+    </div><!-- #tabRanking -->
 
   </div>
 </main>
@@ -689,6 +806,16 @@ async function savePicks(official) {
     if (btn) btn.disabled = false;
     setTimeout(() => { msg.textContent=''; msg.className='save-msg'; }, 4000);
   }
+}
+
+// ═══════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+  btn.classList.add('active');
 }
 
 // ═══════════════════════════════════════════════
