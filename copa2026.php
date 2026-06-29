@@ -41,6 +41,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// User's own saved picks (to restore bracket on reload)
+$myPicks = '{}';
+try {
+    $s = $pdo->prepare('SELECT picks FROM copa2026_predictions WHERE user_id = ?');
+    $s->execute([(int)$user['id']]);
+    $row = $s->fetch();
+    if ($row && $row['picks']) $myPicks = $row['picks'];
+} catch (Exception $e) {}
+
 // Official picks (for admin to enter/edit actual Copa results)
 $officialPicks = '{}';
 try {
@@ -541,7 +550,12 @@ function gameTop(colKey, idx) {
 // ═══════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════
-let picks = {};
+let picks = <?= $myPicks ?>;
+// Descartar picks com códigos inválidos (palpites de fase de grupos ou versão antiga)
+(function(){
+    const valid = new Set(Object.keys(PT));
+    Object.keys(picks).forEach(k => { if (picks[k] && !valid.has(picks[k])) delete picks[k]; });
+})();
 const TOTAL = 31;
 
 function getTeams(gid) {
