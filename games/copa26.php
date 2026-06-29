@@ -405,7 +405,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         echo json_encode(['ok'=>true,'open'=>$val]); exit;
     }
     if ($act==='reset_brackets'&&$isAdmin) {
-        $pdo->exec("UPDATE copa26_predictions SET bracket_json=NULL, bracket_submitted_at=NULL");
+        $pdo->exec("UPDATE copa26_predictions SET bracket_json=NULL, champion=NULL, bracket_submitted_at=NULL");
         echo json_encode(['ok'=>true]); exit;
     }
     if ($act==='save_bracket') {
@@ -1415,8 +1415,9 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
     <div class="admin-section-title"><i class="bi bi-trophy-fill" style="color:var(--gold)"></i>Bracket Oficial (Mata-Mata)</div>
     <p class="section-info">Clique no time que avançou em cada confronto para registrar o resultado oficial e recalcular pontos.</p>
     <div class="bracket-wrap"><div class="bracket" id="admBracketEl"></div></div>
-    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <button class="btn-r primary" onclick="saveAdmBracket()"><i class="bi bi-trophy-fill"></i>Salvar Bracket Oficial</button>
+      <button class="btn-r" style="background:rgba(252,0,37,.12);border-color:rgba(252,0,37,.3);color:var(--red)" onclick="resetBrackets()"><i class="bi bi-trash3"></i>Resetar Brackets de Todos</button>
     </div>
   </div>
 
@@ -1558,6 +1559,8 @@ admGroupOrder[<?=json_encode($letter)?>]=<?=json_encode(array_map('intval',$ids)
 let selectedThirds=<?=json_encode(array_map('intval',$predThirds??[]))?>;
 let admSelectedThirds=<?=json_encode(array_map('intval',$offThirds??[]))?>;
 const bracketState=<?=json_encode($bracketSubmitted&&$predBracket?$predBracket:(object)[])?>;
+// Descartar state antigo: novos times fixos têm IDs 1-32; IDs maiores são do bracket dinâmico antigo
+(function(){const hasOld=Object.values(bracketState).some(t=>t&&typeof t==='object'&&(t.id>32||t.id<1));if(hasOld)Object.keys(bracketState).forEach(k=>delete bracketState[k]);})();
 const admBracketState=<?=json_encode($offBracket?:(object)[])?>;
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
