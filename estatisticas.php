@@ -367,6 +367,7 @@ try {
         FROM trades tr
         JOIN teams t1 ON t1.id = tr.from_team_id
         JOIN teams t2 ON t2.id = tr.to_team_id
+        WHERE tr.status = 'accepted'
         GROUP BY t1.league, t1.id, t2.id
         ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
