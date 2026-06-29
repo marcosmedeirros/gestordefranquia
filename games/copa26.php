@@ -1443,6 +1443,11 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
     <!-- CSV upload -->
     <div style="margin-bottom:18px">
       <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">Importar via CSV</div>
+      <div style="margin-bottom:6px">
+        <button class="btn-r secondary sm" onclick="downloadCSVTemplate()" type="button">
+          <i class="bi bi-download"></i> Baixar modelo CSV
+        </button>
+      </div>
       <div class="csv-drop" id="csvDrop" onclick="document.getElementById('csvFile').click()">
         <div class="csv-drop-icon">📂</div>
         <div class="csv-drop-text">Clique ou arraste um arquivo CSV</div>
@@ -2022,6 +2027,32 @@ async function importCSV(){
     else showToast('Erro.',true);
 }
 function cancelCSV(){document.getElementById('csvPreview').style.display='none';csvRows=[];document.getElementById('csvFile').value='';}
+function downloadCSVTemplate(){
+    const rows=[
+        'data,horario,casa,visitante',
+        '2026-06-28,16:00,África do Sul,Canadá',
+        '2026-06-29,14:00,Brasil,Japão',
+        '2026-06-29,17:30,Alemanha,Paraguai',
+        '2026-06-29,22:00,Holanda,Marrocos',
+        '2026-06-30,14:00,Noruega,Costa do Marfim',
+        '2026-06-30,18:00,França,Suécia',
+        '2026-06-30,22:00,México,Equador',
+        '2026-07-01,13:00,Inglaterra,RD Congo',
+        '2026-07-01,17:00,Bélgica,Senegal',
+        '2026-07-01,21:00,Estados Unidos,Bósnia',
+        '2026-07-02,16:00,Espanha,Áustria',
+        '2026-07-02,20:00,Portugal,Croácia',
+        '2026-07-03,00:00,Suíça,Argélia',
+        '2026-07-03,15:00,Austrália,Egito',
+        '2026-07-03,19:00,Argentina,Cabo Verde',
+        '2026-07-03,22:30,Colômbia,Gana',
+    ];
+    const blob=new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='copa26_jogos_16avos.csv';
+    a.click();
+}
 
 // drag-over on csv-drop
 (function(){
