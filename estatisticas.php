@@ -356,7 +356,82 @@ try {
     sortLeagueData($jejumMap);
 } catch (Exception) {}
 
+// ── Pares de times que mais fizeram trade entre si ───────────────
+$pairsMap = [];
+try {
+    $prRaw = $pdo->query("
+        SELECT t1.league,
+               CONCAT(t1.city,' ',t1.name) AS a_long, t1.name AS a,
+               CONCAT(t2.city,' ',t2.name) AS b_long, t2.name AS b,
+               COUNT(*) AS count
+        FROM trades tr
+        JOIN teams t1 ON t1.id = LEAST(tr.offer_team_id, tr.request_team_id)
+        JOIN teams t2 ON t2.id = GREATEST(tr.offer_team_id, tr.request_team_id)
+        WHERE tr.status = 'accepted' AND t1.id <> t2.id
+        GROUP BY t1.league, t1.id, t2.id ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($prRaw as $r) $pairsMap[$r['league']][] = ['a'=>$r['a'],'b'=>$r['b'],'a_long'=>$r['a_long'],'b_long'=>$r['b_long'],'count'=>(int)$r['count'],'name'=>$r['a_long'].' × '.$r['b_long']];
+    sortLeagueData($pairsMap);
+} catch (Exception) {}
 
+// ── Times com mais parceiros distintos de trade ───────────────────
+$parceirosMap = [];
+try {
+    $pcRaw = $pdo->query("
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
+               COUNT(DISTINCT CASE WHEN tr.offer_team_id=t.id THEN tr.request_team_id ELSE tr.offer_team_id END) AS count
+        FROM teams t
+        LEFT JOIN trades tr ON (tr.offer_team_id=t.id OR tr.request_team_id=t.id) AND tr.status='accepted'
+        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($pcRaw as $r) $parceirosMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($parceirosMap);
+} catch (Exception) {}
+
+// ── Maior número de ofertas de trade enviadas ────────────────────
+$ofertasMap = [];
+try {
+    $ofRaw = $pdo->query("
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(tr.id) AS count
+        FROM teams t
+        LEFT JOIN trades tr ON tr.offer_team_id = t.id
+        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($ofRaw as $r) $ofertasMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    foreach ($ofertasMap as $lg => &$arr) {
+        foreach ($arr as &$row) {
+            if (str_contains($row['name'],'Coyotes') && str_contains($row['name'],'Utah'))
+                $row['count'] = max(0, $row['count'] - 180);
+        } unset($row);
+        usort($arr, fn($a,$b) => $b['count'] <=> $a['count']);
+    } unset($arr);
+} catch (Exception) {}
+
+// ── Trades aceitas ─────────────────────────────────────────────────
+$tradesAceitasMap = [];
+try {
+    $taRaw = $pdo->query("
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(tr.id) AS count
+        FROM teams t
+        LEFT JOIN trades tr ON (tr.offer_team_id=t.id OR tr.request_team_id=t.id) AND tr.status='accepted'
+        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($taRaw as $r) $tradesAceitasMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($tradesAceitasMap);
+} catch (Exception) {}
+
+// ── Trades recusadas ───────────────────────────────────────────────
+$tradesRecusadasMap = [];
+try {
+    $trRaw = $pdo->query("
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(tr.id) AS count
+        FROM teams t
+        LEFT JOIN trades tr ON (tr.offer_team_id=t.id OR tr.request_team_id=t.id) AND tr.status='rejected'
+        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($trRaw as $r) $tradesRecusadasMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    sortLeagueData($tradesRecusadasMap);
+} catch (Exception) {}
 
 
 
@@ -922,6 +997,48 @@ renderSection('jejum', '😴', 'rgba(148,163,184,.10)', 'Maior Jejum de Playoffs
         'color_hi' => 'lo', 'color_lo' => 'green',
         'copy_hi' => 'Maior jejum de playoffs', 'copy_lo' => 'Menor jejum',
         'suffix' => ' temp',
+    ], $myTeamName);
+
+renderSection('trade-pairs', '🔄', 'rgba(96,165,250,.12)', 'Duplas que Mais Trocaram',
+    'Pares de times com maior número de trades aceitas entre si',
+    $pairsMap, $leagues, [
+        'label_hi' => '🔄 Maiores parceiros', 'label_lo' => '🥶 Menos trocas',
+        'color_hi' => 'blue', 'color_lo' => 'lo',
+        'copy_hi' => 'Duplas que mais trocaram', 'copy_lo' => 'Duplas que menos trocaram',
+        'pair_mode' => true, 'pair_sep' => '×',
+    ], $myTeamName);
+
+renderSection('parceiros', '🌐', 'rgba(168,85,247,.10)', 'Diversidade de Parceiros de Trade',
+    'Times que negociaram com mais (ou menos) franquias diferentes',
+    $parceirosMap, $leagues, [
+        'label_hi' => '🌐 Mais parceiros', 'label_lo' => '🏝️ Menos interativos',
+        'color_hi' => 'purple', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais parceiros de trade', 'copy_lo' => 'Menos interativos',
+        'suffix' => ' times',
+    ], $myTeamName);
+
+renderSection('ofertas', '📤', 'rgba(251,191,36,.10)', 'Mais Ofertas de Trade Enviadas',
+    'Times que mais propuseram trades (correção aplicada ao Utah Coyotes)',
+    $ofertasMap, $leagues, [
+        'label_hi' => '📤 Mais ofertas', 'label_lo' => '🤐 Menos ofertas',
+        'color_hi' => 'gold', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais ofertas de trade', 'copy_lo' => 'Menos ofertas de trade',
+    ], $myTeamName);
+
+renderSection('trades-aceitas', '🤝', 'rgba(34,197,94,.10)', 'Trades Aceitas',
+    'Times envolvidos no maior número de trades concluídas',
+    $tradesAceitasMap, $leagues, [
+        'label_hi' => '🤝 Mais trades aceitas', 'label_lo' => '🧊 Menos trades aceitas',
+        'color_hi' => 'green', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais trades aceitas', 'copy_lo' => 'Menos trades aceitas',
+    ], $myTeamName);
+
+renderSection('trades-recusadas', '❌', 'rgba(252,0,37,.10)', 'Trades Recusadas',
+    'Times envolvidos no maior número de trades rejeitadas',
+    $tradesRecusadasMap, $leagues, [
+        'label_hi' => '❌ Mais recusadas', 'label_lo' => '✅ Menos recusadas',
+        'color_hi' => 'hi', 'color_lo' => 'green',
+        'copy_hi' => 'Mais trades recusadas', 'copy_lo' => 'Menos trades recusadas',
     ], $myTeamName);
 
 
