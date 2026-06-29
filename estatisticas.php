@@ -73,7 +73,7 @@ try {
     foreach ($drRows as $r) { $k=$r['league'].'|'.$r['id']; if(isset($gmData[$k])) $gmData[$k]['draft_ovr']=(float)$r['v']; }
     // Passo 4: trades aceitas
     try {
-        $trRows = $pdo->query("SELECT team_id, COUNT(*) AS c FROM (SELECT offer_team_id AS team_id FROM trades WHERE status='accepted' UNION ALL SELECT request_team_id FROM trades WHERE status='accepted') x GROUP BY team_id")->fetchAll(PDO::FETCH_ASSOC);
+        $trRows = $pdo->query("SELECT team_id, COUNT(*) AS c FROM (SELECT from_team_id AS team_id FROM trades WHERE status='accepted' UNION ALL SELECT to_team_id FROM trades WHERE status='accepted') x GROUP BY team_id")->fetchAll(PDO::FETCH_ASSOC);
         $trMap = []; foreach($trRows as $r) $trMap[$r['team_id']]=(int)$r['c'];
         foreach($gmData as $k=>&$d) $d['trades']=$trMap[$d['team_id']]??0; unset($d);
     } catch(Exception) {}
@@ -365,9 +365,9 @@ try {
                CONCAT(t2.city,' ',t2.name) AS b_long, t2.name AS b,
                COUNT(*) AS count
         FROM trades tr
-        JOIN teams t1 ON t1.id = LEAST(tr.offer_team_id, tr.request_team_id)
-        JOIN teams t2 ON t2.id = GREATEST(tr.offer_team_id, tr.request_team_id)
-        WHERE tr.status = 'accepted' AND t1.id <> t2.id
+        JOIN teams t1 ON t1.id = LEAST(tr.from_team_id, tr.to_team_id)
+        JOIN teams t2 ON t2.id = GREATEST(tr.from_team_id, tr.to_team_id)
+        WHERE tr.status = 'accepted' AND tr.from_team_id <> tr.to_team_id
         GROUP BY t1.league, t1.id, t2.id ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($prRaw as $r) $pairsMap[$r['league']][] = ['a'=>$r['a'],'b'=>$r['b'],'a_long'=>$r['a_long'],'b_long'=>$r['b_long'],'count'=>(int)$r['count'],'name'=>$r['a_long'].' × '.$r['b_long']];
@@ -379,9 +379,9 @@ $parceirosMap = [];
 try {
     $pcRaw = $pdo->query("
         SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
-               COUNT(DISTINCT CASE WHEN tr.offer_team_id=t.id THEN tr.request_team_id ELSE tr.offer_team_id END) AS count
+               COUNT(DISTINCT CASE WHEN tr.from_team_id=t.id THEN tr.to_team_id ELSE tr.from_team_id END) AS count
         FROM teams t
-        LEFT JOIN trades tr ON (tr.offer_team_id=t.id OR tr.request_team_id=t.id) AND tr.status='accepted'
+        LEFT JOIN trades tr ON (tr.from_team_id=t.id OR tr.to_team_id=t.id) AND tr.status='accepted'
         GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($pcRaw as $r) $parceirosMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
@@ -394,7 +394,7 @@ try {
     $ofRaw = $pdo->query("
         SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(tr.id) AS count
         FROM teams t
-        LEFT JOIN trades tr ON tr.offer_team_id = t.id
+        LEFT JOIN trades tr ON tr.from_team_id = t.id
         GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($ofRaw as $r) $ofertasMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
@@ -413,7 +413,7 @@ try {
     $taRaw = $pdo->query("
         SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(tr.id) AS count
         FROM teams t
-        LEFT JOIN trades tr ON (tr.offer_team_id=t.id OR tr.request_team_id=t.id) AND tr.status='accepted'
+        LEFT JOIN trades tr ON (tr.from_team_id=t.id OR tr.to_team_id=t.id) AND tr.status='accepted'
         GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($taRaw as $r) $tradesAceitasMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
@@ -426,7 +426,7 @@ try {
     $trRaw = $pdo->query("
         SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(tr.id) AS count
         FROM teams t
-        LEFT JOIN trades tr ON (tr.offer_team_id=t.id OR tr.request_team_id=t.id) AND tr.status='rejected'
+        LEFT JOIN trades tr ON (tr.from_team_id=t.id OR tr.to_team_id=t.id) AND tr.status='rejected'
         GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($trRaw as $r) $tradesRecusadasMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
