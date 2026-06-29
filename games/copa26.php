@@ -1566,7 +1566,7 @@ admGroupOrder[<?=json_encode($letter)?>]=<?=json_encode(array_map('intval',$ids)
 
 let selectedThirds=<?=json_encode(array_map('intval',$predThirds??[]))?>;
 let admSelectedThirds=<?=json_encode(array_map('intval',$offThirds??[]))?>;
-const bracketState=<?=json_encode($bracketSubmitted&&$predBracket?$predBracket:(object)[])?>;
+const bracketState=<?=json_encode($predBracket?:(object)[])?>;
 // Descartar state antigo: novos times fixos têm IDs 1-32; IDs maiores são do bracket dinâmico antigo
 (function(){const hasOld=Object.values(bracketState).some(t=>t&&typeof t==='object'&&(t.id>32||t.id<1));if(hasOld)Object.keys(bracketState).forEach(k=>delete bracketState[k]);})();
 const admBracketState=<?=json_encode($offBracket?:(object)[])?>;

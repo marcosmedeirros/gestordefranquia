@@ -13,28 +13,57 @@ if ($existing > 0) {
     die("Já existem {$existing} jogos r16 cadastrados. Nada foi inserido.");
 }
 
-$jogos = [
-    ['2026-06-28', '16:00',  5,  6],  // J73: África do Sul × Canadá
-    ['2026-06-29', '14:00', 17, 18],  // J76: Brasil × Japão
-    ['2026-06-29', '17:30',  1,  2],  // J74: Alemanha × Paraguai
-    ['2026-06-29', '22:00',  7,  8],  // J75: Holanda × Marrocos
-    ['2026-06-30', '14:00', 20, 19],  // J78: Noruega × C. do Marfim
-    ['2026-06-30', '18:00',  3,  4],  // J77: França × Suécia
-    ['2026-06-30', '22:00', 21, 22],  // J79: México × Equador
-    ['2026-07-01', '13:00', 23, 24],  // J80: Inglaterra × RD Congo
-    ['2026-07-01', '17:00', 15, 16],  // J82: Bélgica × Senegal
-    ['2026-07-01', '21:00', 13, 14],  // J81: EUA × Bósnia
-    ['2026-07-02', '16:00', 11, 12],  // J84: Espanha × Áustria
-    ['2026-07-02', '20:00',  9, 10],  // J83: Portugal × Croácia
-    ['2026-07-03', '00:00', 29, 30],  // J85: Suíça × Argélia
-    ['2026-07-03', '15:00', 27, 28],  // J88: Austrália × Egito
-    ['2026-07-03', '19:00', 25, 26],  // J86: Argentina × Cabo Verde
-    ['2026-07-03', '22:30', 31, 32],  // J87: Colômbia × Gana
-];
+// Monta mapa de nome → id a partir do copa26_teams (opcional, para o JOIN funcionar)
+$teamMap = [];
+try {
+    foreach ($pdo->query("SELECT id, name FROM copa26_teams")->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $teamMap[mb_strtolower(trim($t['name']))] = (int)$t['id'];
+    }
+} catch (Exception $e) {}
 
-$st = $pdo->prepare("INSERT INTO copa26_matches (match_date, match_time, home_team_id, away_team_id, phase) VALUES (?,?,?,?,'r16')");
-foreach ($jogos as $j) {
-    $st->execute($j);
+function tid(string $name, array &$map): ?int {
+    return $map[mb_strtolower(trim($name))] ?? null;
 }
 
-echo "✅ " . count($jogos) . " jogos da fase de 16avos cadastrados com sucesso!";
+$jogos = [
+    // data          hora    home                 away
+    ['2026-06-28', '16:00', 'África do Sul',     'Canadá'],
+    ['2026-06-29', '14:00', 'Brasil',            'Japão'],
+    ['2026-06-29', '17:30', 'Alemanha',          'Paraguai'],
+    ['2026-06-29', '22:00', 'Holanda',           'Marrocos'],
+    ['2026-06-30', '14:00', 'Noruega',           'Costa do Marfim'],
+    ['2026-06-30', '18:00', 'França',            'Suécia'],
+    ['2026-06-30', '22:00', 'México',            'Equador'],
+    ['2026-07-01', '13:00', 'Inglaterra',        'RD Congo'],
+    ['2026-07-01', '17:00', 'Bélgica',           'Senegal'],
+    ['2026-07-01', '21:00', 'Estados Unidos',    'Bósnia'],
+    ['2026-07-02', '16:00', 'Espanha',           'Áustria'],
+    ['2026-07-02', '20:00', 'Portugal',          'Croácia'],
+    ['2026-07-03', '00:00', 'Suíça',             'Argélia'],
+    ['2026-07-03', '15:00', 'Austrália',         'Egito'],
+    ['2026-07-03', '19:00', 'Argentina',         'Cabo Verde'],
+    ['2026-07-03', '22:30', 'Colômbia',          'Gana'],
+];
+
+$st = $pdo->prepare("INSERT INTO copa26_matches
+    (match_date, match_time, home_team_id, away_team_id, home_name, away_name, phase)
+    VALUES (?, ?, ?, ?, ?, ?, 'r16')");
+
+$ok = 0;
+$erros = [];
+foreach ($jogos as [$date, $time, $home, $away]) {
+    try {
+        $st->execute([$date, $time, tid($home, $teamMap), tid($away, $teamMap), $home, $away]);
+        $ok++;
+    } catch (Exception $e) {
+        $erros[] = "$home × $away: " . $e->getMessage();
+    }
+}
+
+echo "<pre>";
+echo "✅ $ok jogos inseridos.\n";
+if ($erros) {
+    echo "❌ Erros:\n";
+    foreach ($erros as $e) echo "  - $e\n";
+}
+echo "</pre>";
