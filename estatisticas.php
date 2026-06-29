@@ -401,7 +401,7 @@ try {
     foreach ($ofertasMap as $lg => &$arr) {
         foreach ($arr as &$row) {
             if (str_contains($row['name'],'Coyotes') && str_contains($row['name'],'Utah'))
-                $row['count'] = max(0, $row['count'] - 180);
+                $row['count'] = max(0, $row['count'] - 220);
         } unset($row);
         usort($arr, fn($a,$b) => $b['count'] <=> $a['count']);
     } unset($arr);
