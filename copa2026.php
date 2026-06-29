@@ -550,11 +550,14 @@ function gameTop(colKey, idx) {
 // ═══════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════
-let picks = <?= $myPicks ?>;
-// Descartar picks com códigos inválidos (palpites de fase de grupos ou versão antiga)
-(function(){
-    const valid = new Set(Object.keys(PT));
-    Object.keys(picks).forEach(k => { if (picks[k] && !valid.has(picks[k])) delete picks[k]; });
+let picks = (function(){
+    try {
+        const p = <?= json_encode(json_decode($myPicks, true) ?: new stdClass()) ?>;
+        if (!p || typeof p !== 'object' || Array.isArray(p)) return {};
+        const valid = new Set(Object.keys(PT));
+        Object.keys(p).forEach(k => { if (p[k] && !valid.has(p[k])) delete p[k]; });
+        return p;
+    } catch(e) { return {}; }
 })();
 const TOTAL = 31;
 
@@ -608,7 +611,7 @@ function slotHtml(gid, code, winner) {
   const name = PT[code] || code;
   let cls = '';
   if (winner) cls = (winner === code) ? ' winner' : ' loser';
-  return `<div class="mc-slot${cls}" onclick="pick('${gid}','${code}')"><span class="mc-flag">${flag}</span><span class="mc-name">${name}</span></div>`;
+  return `<div class="mc-slot${cls}" data-gid="${gid}" data-code="${code}"><span class="mc-flag">${flag}</span><span class="mc-name">${name}</span></div>`;
 }
 
 function matchCardHtml(gid, topPx, widthPx) {
@@ -845,6 +848,13 @@ if (overlay) overlay.addEventListener('click', ()=>{ sidebar.classList.remove('o
 // INIT
 // ═══════════════════════════════════════════════
 render();
+
+// Event delegation: um único listener que persiste entre re-renders
+document.getElementById('bracketWrap').addEventListener('click', function(e) {
+  const slot = e.target.closest('[data-gid][data-code]');
+  if (!slot || slot.classList.contains('tbd')) return;
+  pick(slot.dataset.gid, slot.dataset.code);
+});
 </script>
 <script src="/js/pwa.js"></script>
 </body>
