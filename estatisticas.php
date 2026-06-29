@@ -356,6 +356,33 @@ try {
     sortLeagueData($jejumMap);
 } catch (Exception) {}
 
+// ── Pares direcionais: quem mais ofereceu para quem ─────────────
+$direcionalMap = [];
+try {
+    $dirRaw = $pdo->query("
+        SELECT t1.league,
+               CONCAT(t1.city,' ',t1.name) AS a_long, t1.name AS a,
+               CONCAT(t2.city,' ',t2.name) AS b_long, t2.name AS b,
+               COUNT(*) AS count
+        FROM trades tr
+        JOIN teams t1 ON t1.id = tr.from_team_id
+        JOIN teams t2 ON t2.id = tr.to_team_id
+        GROUP BY t1.league, t1.id, t2.id
+        ORDER BY count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($dirRaw as $r) {
+        $count = (int)$r['count'];
+        // Correção: distribui −220 do Utah Coyotes proporcionalmente entre os destinos
+        // (omitida aqui — ver seção "Mais Ofertas" para total corrigido)
+        $direcionalMap[$r['league']][] = [
+            'a'=>$r['a'], 'b'=>$r['b'],
+            'a_long'=>$r['a_long'], 'b_long'=>$r['b_long'],
+            'count'=>$count, 'name'=>$r['a_long'].' → '.$r['b_long']
+        ];
+    }
+    sortLeagueData($direcionalMap);
+} catch (Exception) {}
+
 // ── Pares de times que mais fizeram trade entre si ───────────────
 $pairsMap = [];
 try {
@@ -667,13 +694,13 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
         // Build copy text
         $cp  = "🏀 *{$copy_hi} — {$lg}*\n";
         foreach ($top5 as $i => $r) {
-            $line = $pair_mode ? "{$r['a_long']} × {$r['b_long']}" : $r['name'];
+            $line = $pair_mode ? "{$r['a_long']} {$pair_sep} {$r['b_long']}" : $r['name'];
             $cp .= ($i+1).". {$line} — {$r['count']}{$suffix}\n";
         }
         if ($show_lo) {
             $cp .= "\n*{$copy_lo} — {$lg}*\n";
             foreach ($bot5 as $i => $r) {
-                $line = $pair_mode ? "{$r['a_long']} × {$r['b_long']}" : $r['name'];
+                $line = $pair_mode ? "{$r['a_long']} {$pair_sep} {$r['b_long']}" : $r['name'];
                 $cp .= ($i+1).". {$line} — {$r['count']}{$suffix}\n";
             }
         }
@@ -1008,8 +1035,17 @@ renderSection('trade-pairs', '🔄', 'rgba(96,165,250,.12)', 'Duplas que Mais Tr
         'pair_mode' => true, 'pair_sep' => '×',
     ], $myTeamName);
 
+renderSection('trade-dir', '➡️', 'rgba(96,165,250,.10)', 'Trades Unidirecionais',
+    'Pares onde um time enviou mais propostas para o outro (de → para)',
+    $direcionalMap, $leagues, [
+        'label_hi' => '📤 Mais unidirecionais', 'label_lo' => '📭 Menos',
+        'color_hi' => 'blue', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais trades em uma direção', 'copy_lo' => 'Menos',
+        'pair_mode' => true, 'pair_sep' => '→',
+    ], $myTeamName);
+
 renderSection('parceiros', '🌐', 'rgba(168,85,247,.10)', 'Diversidade de Parceiros de Trade',
-    'Times que negociaram com mais (ou menos) franquias diferentes',
+    'Times que negociaram com mais (ou menos) franquias diferentes (só aceitas)',
     $parceirosMap, $leagues, [
         'label_hi' => '🌐 Mais parceiros', 'label_lo' => '🏝️ Menos interativos',
         'color_hi' => 'purple', 'color_lo' => 'lo',
