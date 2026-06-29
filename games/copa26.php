@@ -441,8 +441,16 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         echo json_encode(['ok'=>true,'msg'=>'Bracket oficial salvo e pontos recalculados!']); exit;
     }
     if ($act==='submit_bracket') {
-        $pdo->prepare("UPDATE copa26_predictions SET bracket_submitted_at=NOW() WHERE user_id=? AND bracket_submitted_at IS NULL")->execute([$user_id]);
-        echo json_encode(['ok'=>true]); exit;
+        $cur=$pdo->prepare("SELECT bracket_submitted_at FROM copa26_predictions WHERE user_id=?");
+        $cur->execute([$user_id]);
+        $row=$cur->fetch(PDO::FETCH_ASSOC);
+        if($row&&empty($row['bracket_submitted_at'])){
+            $pdo->prepare("UPDATE copa26_predictions SET bracket_submitted_at=NOW() WHERE user_id=?")->execute([$user_id]);
+            echo json_encode(['ok'=>true]); exit;
+        }
+        // Se já estava enviado mas o DB foi resetado entretanto, ok também
+        if(!$row){ echo json_encode(['ok'=>false,'msg'=>'Sem palpite salvo']); exit; }
+        echo json_encode(['ok'=>false,'already_submitted'=>true]); exit;
     }
     echo json_encode(['ok'=>false]); exit;
 }
@@ -1914,7 +1922,9 @@ async function submitBracket(){
     if(!confirm('Enviar palpite do bracket? Não será possível editar depois.'))return;
     await post({action:'save_bracket',bracket:bracketState});
     const r=await post({action:'submit_bracket'});
-    if(r.ok)location.reload();else showToast('Erro.',true);
+    if(r.ok){location.reload();}
+    else if(r.already_reset){showToast('Bracket foi resetado. Recarregando...');setTimeout(()=>location.reload(),1200);}
+    else showToast('Erro.',true);
 }
 async function submitPrediction(){
     if(!confirm('Tem certeza? Após enviar não é possível editar.'))return;
@@ -2165,7 +2175,8 @@ async function saveAdmBracket(){
 async function resetBrackets(){
     if(!confirm('Resetar o bracket de TODOS os usuários? Os palpites da fase de grupos são mantidos.'))return;
     const r=await post({action:'reset_brackets'});
-    showToast(r.ok?'Brackets resetados!':'Erro.',!r.ok);
+    if(r.ok){showToast('Brackets resetados! Recarregando...');setTimeout(()=>location.reload(),1200);}
+    else showToast('Erro.',true);
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
