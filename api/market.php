@@ -27,6 +27,9 @@ try {
     switch ($action) {
 
         case 'feed_posts':
+            $league = $user['league'] ?? null;
+            if (!$league) { echo json_encode(['posts' => []]); exit; }
+
             $limit  = min(100, (int)($_GET['limit'] ?? 50));
             $offset = max(0,   (int)($_GET['offset'] ?? 0));
 
@@ -39,10 +42,11 @@ try {
                 FROM mercado_feed mp
                 JOIN users  u ON mp.user_id = u.id
                 LEFT JOIN teams t ON mp.team_id = t.id
+                WHERE mp.league = ?
                 ORDER BY mp.created_at DESC
                 LIMIT ? OFFSET ?
             ');
-            $stmt->execute([$limit, $offset]);
+            $stmt->execute([$league, $limit, $offset]);
             $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
             echo json_encode(['posts' => $posts]);
             break;

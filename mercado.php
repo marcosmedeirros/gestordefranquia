@@ -39,16 +39,18 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
 // Carrega feed server-side para garantir que sempre apareça ao recarregar
 $feedPosts = [];
 try {
-    $sf = $pdo->query('
+    $sf = $pdo->prepare('
         SELECT mp.id, mp.content, mp.created_at,
                u.name AS user_name, u.photo_url AS user_photo, u.id AS user_id,
                t.city AS team_city, t.name AS team_name, t.photo_url AS team_photo
         FROM mercado_feed mp
         JOIN users u ON mp.user_id = u.id
         LEFT JOIN teams t ON mp.team_id = t.id
+        WHERE mp.league = ?
         ORDER BY mp.created_at DESC
         LIMIT 100
     ');
+    $sf->execute([$user['league']]);
     $feedPosts = $sf->fetchAll(PDO::FETCH_ASSOC) ?: [];
 } catch (Exception $e) {}
 ?>
