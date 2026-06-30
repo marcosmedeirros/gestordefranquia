@@ -456,16 +456,17 @@ try {
         FROM (
             SELECT
                 ds.league,
-                CONCAT(t.name, ' → ', COALESCE(dp.name, '?'), ' (R', do.round, 'P', do.pick_position, ')') AS name,
+                CONCAT(t.name, ' → ', dp.name, ' (R', do.round, ' P', do.pick_position, ')') AS name,
                 TIMESTAMPDIFF(MINUTE,
-                    LAG(do.picked_at) OVER (PARTITION BY do.draft_session_id ORDER BY do.picked_at),
+                    LAG(do.picked_at) OVER (PARTITION BY do.draft_session_id ORDER BY do.round ASC, do.pick_position ASC),
                     do.picked_at
                 ) AS gap_minutes
             FROM draft_order do
-            JOIN draft_sessions ds ON ds.id = do.draft_session_id
+            JOIN draft_sessions ds ON ds.id = do.draft_session_id AND ds.status = 'completed'
             JOIN teams t ON t.id = do.team_id
-            LEFT JOIN draft_pool dp ON dp.id = do.picked_player_id
+            JOIN draft_pool dp ON dp.id = do.picked_player_id
             WHERE do.picked_at IS NOT NULL
+              AND do.picked_player_id IS NOT NULL
         ) sub
         WHERE sub.gap_minutes > 0
         ORDER BY sub.gap_minutes DESC
