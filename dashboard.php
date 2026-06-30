@@ -232,7 +232,14 @@ try {
 
 $latestRumor = null;
 try {
-    $s = $pdo->prepare('SELECT r.content, r.created_at, t.city, t.name, t.photo_url, u.name as gm_name FROM rumors r INNER JOIN teams t ON r.team_id = t.id INNER JOIN users u ON r.user_id = u.id WHERE r.league = ? ORDER BY r.created_at DESC LIMIT 1');
+    $s = $pdo->prepare('
+        SELECT mp.content, mp.created_at, t.city, t.name, t.photo_url, u.name as gm_name
+        FROM mercado_feed mp
+        JOIN users u ON u.id = mp.user_id
+        LEFT JOIN teams t ON t.id = mp.team_id
+        WHERE mp.league = ?
+        ORDER BY mp.created_at DESC LIMIT 1
+    ');
     $s->execute([$team['league']]); $latestRumor = $s->fetch(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 
@@ -1185,7 +1192,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                 <div class="bc" style="animation-delay:.42s">
                     <div class="bc-head">
                         <div class="bc-title"><i class="bi bi-chat-left-text"></i> Último Rumor</div>
-                        <a href="/trades.php" class="bc-link">Ver rumores <i class="bi bi-arrow-right"></i></a>
+                        <a href="/mercado.php" class="bc-link">Ver feed <i class="bi bi-arrow-right"></i></a>
                     </div>
                     <div class="bc-body">
                         <?php if ($latestRumor): ?>
