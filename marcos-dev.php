@@ -17,24 +17,24 @@ function pickLabel(PDO $pdo, int $pickId): string {
         $r = $s->fetch(PDO::FETCH_ASSOC);
         if (!$r) return "Pick #$pickId";
         return $r['season_year'] . ' R' . $r['round'] . ' (' . $r['city'] . ' ' . $r['name'] . ')';
-    } catch (Exception $e) { return "Pick #$pickId"; }
+    } catch (Exception) { return "Pick #$pickId"; }
 }
 
 // ── Helper: label de player ───────────────────────────────────────────────────
 function playerLabel(PDO $pdo, int $playerId): string {
     try {
         $ovrCol = 'ovr';
-        try { if ($pdo->query("SHOW COLUMNS FROM players LIKE 'overall'")->fetch()) $ovrCol = 'overall'; } catch(Exception $e) {}
+        try { if ($pdo->query("SHOW COLUMNS FROM players LIKE 'overall'")->fetch()) $ovrCol = 'overall'; } catch(Exception) {}
         $s = $pdo->prepare("SELECT name, position, $ovrCol AS ovr FROM players WHERE id = ?");
         $s->execute([$playerId]);
         $r = $s->fetch(PDO::FETCH_ASSOC);
         if (!$r) return "Player #$playerId";
         return $r['name'] . ' (' . $r['position'] . ', OVR ' . $r['ovr'] . ')';
-    } catch (Exception $e) { return "Player #$playerId"; }
+    } catch (Exception) { return "Player #$playerId"; }
 }
 
 // ── Helper: itens de uma trade regular ────────────────────────────────────────
-function regularItems(PDO $pdo, int $tradeId, int $fromTeamId, int $toTeamId): array {
+function regularItems(PDO $pdo, int $tradeId): array {
     $s = $pdo->prepare('SELECT * FROM trade_items WHERE trade_id = ?');
     $s->execute([$tradeId]);
     $rows = $s->fetchAll(PDO::FETCH_ASSOC);
@@ -127,6 +127,58 @@ try {
 } catch (Exception $e) {}
 
 $total = count($regularTrades) + count($multiTrades);
+
+// ── Trades aceitas NEXT ───────────────────────────────────────────────────────
+$acceptedRegular = [];
+try {
+    $s = $pdo->prepare("
+        SELECT t.*,
+               tf.city AS from_city, tf.name AS from_name,
+               tt.city AS to_city,   tt.name AS to_name
+        FROM trades t
+        JOIN teams tf ON tf.id = t.from_team_id
+        JOIN teams tt ON tt.id = t.to_team_id
+        WHERE t.league = 'NEXT' AND t.status = 'accepted'
+        ORDER BY t.updated_at DESC
+        LIMIT 50
+    ");
+    $s->execute();
+    $acceptedRegular = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Exception $e) {}
+
+$acceptedMulti = [];
+try {
+    $s = $pdo->prepare("
+        SELECT mt.*
+        FROM multi_trades mt
+        WHERE mt.league = 'NEXT' AND mt.status = 'accepted'
+        ORDER BY mt.updated_at DESC
+        LIMIT 50
+    ");
+    $s->execute();
+    $rows = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($rows as $mt) {
+        $tid = (int)$mt['id'];
+        $st = $pdo->prepare('
+            SELECT t.id, t.city, t.name, mtt.accepted_at
+            FROM multi_trade_teams mtt
+            JOIN teams t ON t.id = mtt.team_id
+            WHERE mtt.trade_id = ?
+            ORDER BY mtt.id ASC
+        ');
+        $st->execute([$tid]);
+        $mt['teams'] = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $mt['items'] = multiItems($pdo, $tid);
+        $acceptedMulti[] = $mt;
+    }
+} catch (Exception $e) {}
+
+// Mescla e ordena por data desc
+$allAccepted = array_merge(
+    array_map(fn($t) => $t + ['_type' => 'regular'], $acceptedRegular),
+    array_map(fn($t) => $t + ['_type' => 'multi'],   $acceptedMulti)
+);
+usort($allAccepted, fn($a, $b) => strtotime($b['updated_at'] ?? $b['created_at']) <=> strtotime($a['updated_at'] ?? $a['created_at']));
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -187,7 +239,7 @@ section+section{margin-top:32px}
 <section>
 <div class="section-title">Trades 2 times (<?= count($regularTrades) ?>)</div>
 <?php foreach ($regularTrades as $t):
-    $items = regularItems($pdo, (int)$t['id'], (int)$t['from_team_id'], (int)$t['to_team_id']);
+    $items = regularItems($pdo, (int)$t['id']);
 ?>
 <div class="card">
     <div class="card-header">
@@ -297,6 +349,102 @@ section+section{margin-top:32px}
     <div style="margin-top:10px;font-size:12px;color:#fbbf24">
         ⏳ Falta aceitar: <?= implode(', ', array_map(fn($t) => htmlspecialchars($t['city'] . ' ' . $t['name']), $pending)) ?>
     </div>
+    <?php endif; ?>
+</div>
+<?php endforeach; ?>
+</section>
+<?php endif; ?>
+
+
+<?php if ($allAccepted): ?>
+<section style="margin-top:40px">
+<div class="section-title" style="color:#4ade80;border-color:#1a3a2a">
+    Trades Aceitas — NEXT (<?= count($allAccepted) ?>)
+</div>
+<?php foreach ($allAccepted as $tr):
+    $isMulti = $tr['_type'] === 'multi';
+?>
+<div class="card" style="opacity:.85">
+    <div class="card-header">
+        <div>
+            <?php if ($isMulti): ?>
+            <span class="badge badge-multi">⬡ Multi-trade</span>
+            <?php endif; ?>
+            <span class="badge" style="background:rgba(34,197,94,.10);color:#4ade80;margin-left:<?= $isMulti ? 6 : 0 ?>px">✓ Aceita</span>
+            <span class="time" style="margin-left:8px"><?= timeAgo($tr['updated_at'] ?? $tr['created_at']) ?> · ID #<?= (int)$tr['id'] ?></span>
+        </div>
+    </div>
+
+    <?php if (!$isMulti): ?>
+    <div class="teams-row">
+        <span class="team"><?= htmlspecialchars($tr['from_city'] . ' ' . $tr['from_name']) ?></span>
+        <span class="arrow">⇄</span>
+        <span class="team"><?= htmlspecialchars($tr['to_city'] . ' ' . $tr['to_name']) ?></span>
+    </div>
+    <?php
+        $items = regularItems($pdo, (int)$tr['id']);
+    ?>
+    <div class="items-block" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
+        <?php if ($items['from']): ?>
+        <div style="flex:1;min-width:160px">
+            <div class="items-label">Enviado por <?= htmlspecialchars($tr['from_city'] . ' ' . $tr['from_name']) ?></div>
+            <div class="items-list">
+                <?php foreach ($items['from'] as $it): ?>
+                <div class="item"><?= htmlspecialchars($it) ?></div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+        <?php if ($items['to']): ?>
+        <div style="flex:1;min-width:160px">
+            <div class="items-label">Enviado por <?= htmlspecialchars($tr['to_city'] . ' ' . $tr['to_name']) ?></div>
+            <div class="items-list">
+                <?php foreach ($items['to'] as $it): ?>
+                <div class="item"><?= htmlspecialchars($it) ?></div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+
+    <?php else: /* multi-trade */ ?>
+    <?php
+        $teamMap = [];
+        foreach ($tr['teams'] as $tm) $teamMap[(int)$tm['id']] = $tm['city'] . ' ' . $tm['name'];
+    ?>
+    <div class="accept-grid">
+        <?php foreach ($tr['teams'] as $tm): ?>
+        <div class="accept-chip accepted">
+            <div class="dot dot-ok"></div>
+            <?= htmlspecialchars($tm['city'] . ' ' . $tm['name']) ?> ✓
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php if ($tr['items']): ?>
+    <div class="multi-items-section">
+        <div class="items-label" style="margin-bottom:8px">Movimentações</div>
+        <?php foreach ($tr['items'] as $key => $labels):
+            [$fromId, $toId] = explode('→', $key);
+            $fromName = $teamMap[(int)$fromId] ?? "Time #$fromId";
+            $toName   = $teamMap[(int)$toId]   ?? "Time #$toId";
+        ?>
+        <div class="multi-move">
+            <div style="min-width:0;flex:1">
+                <div class="tag" style="margin-bottom:4px"><?= htmlspecialchars($fromName) ?> → <?= htmlspecialchars($toName) ?></div>
+                <div class="items-list">
+                    <?php foreach ($labels as $lbl): ?>
+                    <div class="item"><?= htmlspecialchars($lbl) ?></div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+    <?php endif; ?>
+
+    <?php if (!empty($tr['notes'])): ?>
+    <div class="notes"><?= htmlspecialchars($tr['notes']) ?></div>
     <?php endif; ?>
 </div>
 <?php endforeach; ?>

@@ -344,6 +344,97 @@ function sendTradePush(PDO $pdo, int $tradeId, string $event): void
     }
 }
 
+// Notificação para user_id=1: trade NEXT com jogador 83+ aceita
+function sendNextHighOvrPush(PDO $pdo, int $tradeId, bool $isMulti): void
+{
+    $pushFile = dirname(__DIR__) . '/backend/push.php';
+    if (!file_exists($pushFile)) return;
+
+    $ovrCol = columnExists($pdo, 'players', 'ovr') ? 'ovr' : 'overall';
+    $lines  = [];
+
+    if (!$isMulti) {
+        // Trade regular: checa league e itens
+        $stmtLeague = $pdo->prepare("SELECT t.league FROM trades t WHERE t.id = ?");
+        $stmtLeague->execute([$tradeId]);
+        $league = $stmtLeague->fetchColumn();
+        if (strtoupper((string)$league) !== 'NEXT') return;
+
+        $stmtTrade = $pdo->prepare("
+            SELECT tf.city AS fc, tf.name AS fn, tt.city AS tc, tt.name AS tn
+            FROM trades t
+            JOIN teams tf ON tf.id = t.from_team_id
+            JOIN teams tt ON tt.id = t.to_team_id
+            WHERE t.id = ?
+        ");
+        $stmtTrade->execute([$tradeId]);
+        $tr = $stmtTrade->fetch(PDO::FETCH_ASSOC);
+        if (!$tr) return;
+
+        $stmtItems = $pdo->prepare("
+            SELECT COALESCE(p.name, ti.player_name) AS pname,
+                   COALESCE(p.position, ti.player_position) AS pos,
+                   COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr,
+                   ti.from_team
+            FROM trade_items ti
+            LEFT JOIN players p ON p.id = ti.player_id
+            WHERE ti.trade_id = ? AND ti.player_id IS NOT NULL AND COALESCE(p.{$ovrCol}, ti.player_ovr) >= 83
+        ");
+        $stmtItems->execute([$tradeId]);
+        $players = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+        if (!$players) return;
+
+        $from = trim($tr['fc'] . ' ' . $tr['fn']);
+        $to   = trim($tr['tc'] . ' ' . $tr['tn']);
+        foreach ($players as $p) {
+            $sender = (int)$p['from_team'] === 1 ? $from : $to;
+            $recv   = (int)$p['from_team'] === 1 ? $to   : $from;
+            $lines[] = $p['pname'] . ' (' . $p['pos'] . ' OVR ' . $p['ovr'] . '): ' . $sender . ' → ' . $recv;
+        }
+    } else {
+        // Multi-trade
+        $stmtLeague = $pdo->prepare("SELECT league FROM multi_trades WHERE id = ?");
+        $stmtLeague->execute([$tradeId]);
+        $league = $stmtLeague->fetchColumn();
+        if (strtoupper((string)$league) !== 'NEXT') return;
+
+        $stmtItems = $pdo->prepare("
+            SELECT COALESCE(p.name, mti.player_name) AS pname,
+                   COALESCE(p.position, mti.player_position) AS pos,
+                   COALESCE(p.{$ovrCol}, mti.player_ovr) AS ovr,
+                   tf.city AS fc, tf.name AS fn,
+                   tt.city AS tc, tt.name AS tn
+            FROM multi_trade_items mti
+            LEFT JOIN players p ON p.id = mti.player_id
+            JOIN teams tf ON tf.id = mti.from_team_id
+            JOIN teams tt ON tt.id = mti.to_team_id
+            WHERE mti.trade_id = ? AND COALESCE(p.{$ovrCol}, mti.player_ovr) >= 83
+        ");
+        $stmtItems->execute([$tradeId]);
+        $players = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+        if (!$players) return;
+
+        foreach ($players as $p) {
+            $from = trim($p['fc'] . ' ' . $p['fn']);
+            $to   = trim($p['tc'] . ' ' . $p['tn']);
+            $lines[] = $p['pname'] . ' (' . $p['pos'] . ' OVR ' . $p['ovr'] . '): ' . $from . ' → ' . $to;
+        }
+    }
+
+    if (!$lines) return;
+
+    require_once $pushFile;
+    try {
+        sendPushToUser($pdo, 1, [
+            'title' => '🔔 Trade NEXT — Jogador 83+',
+            'body'  => implode(' | ', $lines),
+            'url'   => '/marcos-dev.php',
+        ]);
+    } catch (Exception $e) {
+        error_log('[next-highOvr-push] trade_id=' . $tradeId . ' ' . $e->getMessage());
+    }
+}
+
 function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created'): void
 {
     $webhookUrl = 'https://fbabrasil.com.br/nova-trade';
@@ -2547,6 +2638,7 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                 } catch (Exception $e) {
                     error_log('[multi-trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
                 }
+                try { sendNextHighOvrPush($pdo, (int)$tradeId, true); } catch (Exception $e) {}
                 echo json_encode(['success' => true, 'status' => 'accepted']);
                 exit;
             }
@@ -2830,6 +2922,9 @@ if ($method === 'PUT') {
             error_log('[trade-webhook] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
         }
         sendTradePush($pdo, (int)$tradeId, $action === 'accepted' ? 'trade_accepted' : ($action === 'rejected' ? 'trade_rejected' : 'trade_cancelled'));
+        if ($action === 'accepted') {
+            try { sendNextHighOvrPush($pdo, (int)$tradeId, false); } catch (Exception $e) {}
+        }
         echo json_encode(['success' => true]);
     } catch (PDOException $e) {
         $pdo->rollBack();
