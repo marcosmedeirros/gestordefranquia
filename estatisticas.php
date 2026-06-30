@@ -448,25 +448,29 @@ try {
     sortLeagueData($tradesAceitasMap);
 } catch (Exception) {}
 
-// ── Picks negociadas com mais antecedência ──────────────────────────
-$picksAntecipacaoMap = [];
+// ── Maior intervalo entre picks no draft ────────────────────────────
+$draftGapMap = [];
 try {
-    $paRaw = $pdo->query("
-        SELECT
-            orig.league,
-            CONCAT('R', p.round, ' ', p.season_year, ' · ', orig.name) AS name,
-            p.season_year - YEAR(MIN(tr.created_at)) AS count,
-            COUNT(DISTINCT ti.trade_id) AS trades_count
-        FROM picks p
-        JOIN teams orig ON orig.id = p.original_team_id
-        JOIN trade_items ti ON ti.pick_id = p.id
-        JOIN trades tr ON tr.id = ti.trade_id AND tr.status = 'accepted'
-        WHERE p.team_id <> p.original_team_id
-        GROUP BY orig.league, p.id, p.season_year, p.round, orig.name
-        HAVING count >= 1
-        ORDER BY count DESC, trades_count DESC
+    $dgRaw = $pdo->query("
+        SELECT sub.league, sub.name, ROUND(sub.gap_minutes / 60.0, 1) AS count
+        FROM (
+            SELECT
+                ds.league,
+                CONCAT(t.name, ' → ', COALESCE(dp.name, '?'), ' (R', do.round, 'P', do.pick_position, ')') AS name,
+                TIMESTAMPDIFF(MINUTE,
+                    LAG(do.picked_at) OVER (PARTITION BY do.draft_session_id ORDER BY do.picked_at),
+                    do.picked_at
+                ) AS gap_minutes
+            FROM draft_order do
+            JOIN draft_sessions ds ON ds.id = do.draft_session_id
+            JOIN teams t ON t.id = do.team_id
+            LEFT JOIN draft_pool dp ON dp.id = do.picked_player_id
+            WHERE do.picked_at IS NOT NULL
+        ) sub
+        WHERE sub.gap_minutes > 0
+        ORDER BY sub.gap_minutes DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($paRaw as $r) $picksAntecipacaoMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    foreach ($dgRaw as $r) $draftGapMap[$r['league']][] = ['name'=>$r['name'],'count'=>(float)$r['count']];
 } catch (Exception) {}
 
 // ── Trades recusadas ───────────────────────────────────────────────
@@ -1091,13 +1095,13 @@ renderSection('trades-aceitas', '🤝', 'rgba(34,197,94,.10)', 'Trades Aceitas',
         'copy_hi' => 'Mais trades aceitas', 'copy_lo' => 'Menos trades aceitas',
     ], $myTeamName);
 
-renderSection('picks-antecipacao', '⏳', 'rgba(251,191,36,.10)', 'Picks Negociadas com Mais Antecedência',
-    'Escolhas do draft que foram trocadas com maior número de anos de antecedência',
-    $picksAntecipacaoMap, $leagues, [
-        'label_hi' => '⏳ Mais antecipação', 'show_lo' => false,
+renderSection('draft-gap', '⏱️', 'rgba(251,191,36,.10)', 'Maior Demora Entre Picks no Draft',
+    'Quanto tempo o time demorou para escolher após a pick anterior (em horas)',
+    $draftGapMap, $leagues, [
+        'label_hi' => '⏱️ Maior espera', 'show_lo' => false,
         'color_hi' => 'gold',
-        'copy_hi' => 'Picks negociadas com mais antecedência',
-        'suffix' => ' ano(s)',
+        'copy_hi' => 'Maior demora entre picks no draft',
+        'suffix' => ' h',
     ], '');
 
 renderSection('trades-recusadas', '❌', 'rgba(252,0,37,.10)', 'Trades Recusadas',
