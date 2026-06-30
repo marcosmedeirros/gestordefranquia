@@ -128,6 +128,62 @@ try {
 
 $total = count($regularTrades) + count($multiTrades);
 
+// ── Diagnóstico: time Alchimists ──────────────────────────────────────────────
+$diagTeam = null;
+$diagUser = null;
+$diagLeagueSettings = null;
+$diagTrades = [];
+$diagWarnings = [];
+try {
+    $s = $pdo->query("SELECT t.*, u.id AS u_id, u.name AS u_name, u.email AS u_email
+                       FROM teams t
+                       LEFT JOIN users u ON u.id = t.user_id
+                       WHERE t.name LIKE '%lchimist%' OR t.city LIKE '%lchimist%'
+                       LIMIT 5");
+    $diagTeams = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    foreach ($diagTeams as $dt) {
+        $tid = (int)$dt['id'];
+
+        // Sem user associado?
+        if (!$dt['user_id']) $diagWarnings[$tid][] = '❌ Sem user_id — time não está vinculado a nenhum usuário';
+
+        // Usuário tem mais de um time na mesma liga?
+        if ($dt['user_id']) {
+            $sx = $pdo->prepare('SELECT COUNT(*) FROM teams WHERE user_id = ?');
+            $sx->execute([$dt['user_id']]);
+            $cnt = (int)$sx->fetchColumn();
+            if ($cnt > 1) $diagWarnings[$tid][] = "⚠️ Usuário tem {$cnt} times — LIMIT 1 pode pegar o errado";
+        }
+
+        // Trades habilitadas na liga?
+        $sl = $pdo->prepare('SELECT max_trades, trades_enabled FROM league_settings WHERE league = ?');
+        $sl->execute([$dt['league']]);
+        $ls = $sl->fetch(PDO::FETCH_ASSOC);
+        if ($ls && !(int)($ls['trades_enabled'] ?? 1)) $diagWarnings[$tid][] = '❌ Trades desativadas na liga ' . $dt['league'];
+
+        // Ban de trades?
+        $sb = $pdo->prepare('SELECT ban_trades_until_cycle, trades_used, current_cycle FROM teams WHERE id = ?');
+        $sb->execute([$tid]);
+        $tb = $sb->fetch(PDO::FETCH_ASSOC);
+        if ($tb && (int)($tb['ban_trades_until_cycle'] ?? 0) > 0) {
+            $banUntil = (int)$tb['ban_trades_until_cycle'];
+            $cur = (int)($tb['current_cycle'] ?? 0);
+            if ($cur <= $banUntil) $diagWarnings[$tid][] = "❌ Trades banidas até ciclo {$banUntil} (ciclo atual: {$cur})";
+        }
+
+        // Limite atingido?
+        $maxT = (int)($ls['max_trades'] ?? 10);
+        $used = (int)($tb['trades_used'] ?? 0);
+        if ($used >= $maxT) $diagWarnings[$tid][] = "❌ Limite de trades atingido: {$used}/{$maxT}";
+
+        if (empty($diagWarnings[$tid])) $diagWarnings[$tid][] = '✅ Nenhum problema encontrado';
+
+        $diagTeams[$tid] = $dt + ['ls' => $ls, 'tb' => $tb];
+    }
+    $diagTeams = array_combine(array_column($diagTeams, 'id'), $diagTeams);
+} catch (Exception $e) { $diagTeams = []; }
+
 // ── Trades aceitas NEXT ───────────────────────────────────────────────────────
 $acceptedRegular = [];
 try {
@@ -230,6 +286,48 @@ section+section{margin-top:32px}
 
 <h1>Trades Pendentes — NEXT</h1>
 <p class="sub"><?= $total ?> trade<?= $total !== 1 ? 's' : '' ?> aguardando · atualizado <?= date('H:i:s') ?></p>
+
+<!-- ── Diagnóstico Alchimists ── -->
+<?php if ($diagTeams): foreach ($diagTeams as $dt): $tid = (int)$dt['id']; $warnings = $diagWarnings[$tid] ?? []; ?>
+<div class="card" style="margin-bottom:20px;border-color:#333">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#888;margin-bottom:10px">🔍 Diagnóstico — <?= htmlspecialchars($dt['city'] . ' ' . $dt['name']) ?></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:12px;font-size:12px">
+        <div style="background:#111;padding:8px;border-radius:6px">
+            <div style="color:#666;margin-bottom:2px">Time ID</div>
+            <div style="color:#ccc">#<?= $tid ?></div>
+        </div>
+        <div style="background:#111;padding:8px;border-radius:6px">
+            <div style="color:#666;margin-bottom:2px">Liga</div>
+            <div style="color:#ccc"><?= htmlspecialchars($dt['league'] ?? '—') ?></div>
+        </div>
+        <div style="background:#111;padding:8px;border-radius:6px">
+            <div style="color:#666;margin-bottom:2px">Usuário vinculado</div>
+            <div style="color:#ccc"><?= $dt['u_id'] ? '#' . $dt['u_id'] . ' ' . htmlspecialchars($dt['u_name'] ?? '') : '<span style="color:#f87171">Nenhum</span>' ?></div>
+        </div>
+        <div style="background:#111;padding:8px;border-radius:6px">
+            <div style="color:#666;margin-bottom:2px">Email</div>
+            <div style="color:#ccc"><?= htmlspecialchars($dt['u_email'] ?? '—') ?></div>
+        </div>
+        <div style="background:#111;padding:8px;border-radius:6px">
+            <div style="color:#666;margin-bottom:2px">Trades usadas / máx</div>
+            <div style="color:#ccc"><?= (int)($dt['tb']['trades_used'] ?? 0) ?> / <?= (int)(($dt['ls']['max_trades'] ?? 10)) ?></div>
+        </div>
+        <div style="background:#111;padding:8px;border-radius:6px">
+            <div style="color:#666;margin-bottom:2px">Trades habilitadas</div>
+            <div style="color:#ccc"><?= (int)($dt['ls']['trades_enabled'] ?? 1) ? '✅ Sim' : '❌ Não' ?></div>
+        </div>
+        <div style="background:#111;padding:8px;border-radius:6px">
+            <div style="color:#666;margin-bottom:2px">Ban até ciclo</div>
+            <div style="color:#ccc"><?= (int)($dt['tb']['ban_trades_until_cycle'] ?? 0) ?: '—' ?> (atual: <?= (int)($dt['tb']['current_cycle'] ?? 0) ?>)</div>
+        </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px">
+        <?php foreach ($warnings as $w): ?>
+        <div style="font-size:12px;padding:5px 8px;background:#111;border-radius:5px"><?= htmlspecialchars($w) ?></div>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endforeach; endif; ?>
 
 <?php if ($total === 0): ?>
 <div class="empty">Nenhuma trade pendente na NEXT no momento.</div>

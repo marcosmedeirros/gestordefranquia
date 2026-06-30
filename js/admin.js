@@ -80,6 +80,9 @@ async function showGestao(league) {
       <a href="/thepathetic-edit.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
         <i class="bi bi-newspaper" style="color:#fc0025"></i> The Pathetic
       </a>
+      ${window.IS_GLOBAL_ADMIN ? `<button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="showForceTradeModal('${_gestaoLeague}')">
+        <i class="bi bi-lightning-fill" style="color:#fc0025"></i> Force Trade
+      </button>` : ''}
     </div>
     <div id="gestaoTableContainer">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
@@ -6816,5 +6819,270 @@ async function _dcReplaceConfirm() {
     }
     showAlert('success',`${_dcImportRows.length} jogadores importados!`);
   } catch(e) { showAlert('danger', e.error||'Erro'); }
+}
+
+// ── Force Trade (admin) ───────────────────────────────────────────────────────
+const _ftState = { teams: [], assets: { players: {}, picks: {} }, itemCount: 0 };
+
+async function _ftLoadAssets(teamId, type) {
+  if (_ftState.assets[type][teamId]) return _ftState.assets[type][teamId];
+  try {
+    const endpoint = type === 'players' ? `players.php?team_id=${teamId}` : `picks.php?team_id=${teamId}`;
+    const d = await api(endpoint);
+    const list = type === 'players' ? (d.players || []) : (d.picks || []);
+    _ftState.assets[type][teamId] = list;
+    return list;
+  } catch (e) { return []; }
+}
+
+function _ftTeamName(teamId) {
+  const t = _ftState.teams.find(x => x.id == teamId);
+  if (!t) return '#' + teamId;
+  return (t.city ? t.city + ' ' : '') + t.name;
+}
+
+function _ftRebuildFromSelects() {
+  document.querySelectorAll('#ftItemsContainer .ft-item-row').forEach(row => {
+    const sel = row.querySelector('.ft-from-select');
+    if (sel) _ftUpdateItemType(row.dataset.rowId);
+  });
+}
+
+function _ftGetCheckedTeams() {
+  return Array.from(document.querySelectorAll('#ftTeamsGrid input[type=checkbox]:checked'))
+    .map(el => parseInt(el.value)).filter(Number.isFinite);
+}
+
+async function _ftUpdateItemType(rowId) {
+  const row = document.querySelector(`[data-row-id="${rowId}"]`);
+  if (!row) return;
+  const fromSel  = row.querySelector('.ft-from-select');
+  const typeSel  = row.querySelector('.ft-type-select');
+  const itemSel  = row.querySelector('.ft-item-select');
+  if (!fromSel || !typeSel || !itemSel) return;
+
+  const fromId = parseInt(fromSel.value);
+  const type   = typeSel.value;
+  if (!fromId) { itemSel.innerHTML = '<option value="">— escolha origem primeiro —</option>'; return; }
+
+  itemSel.innerHTML = '<option value="">Carregando...</option>';
+  itemSel.disabled = true;
+
+  const list = await _ftLoadAssets(fromId, type);
+  itemSel.disabled = false;
+
+  if (type === 'players') {
+    itemSel.innerHTML = `<option value="">— Jogador —</option>` +
+      list.map(p => `<option value="${p.id}">${escapeHtml(p.name)} (${p.position||''} OVR ${p.ovr||p.overall||'?'})</option>`).join('');
+  } else {
+    itemSel.innerHTML = `<option value="">— Pick —</option>` +
+      list.map(p => {
+        const orig = p.original_team_name || '';
+        return `<option value="${p.id}">${p.season_year} R${p.round}${orig ? ' – ' + escapeHtml(orig) : ''}</option>`;
+      }).join('');
+  }
+}
+
+function _ftAddItem() {
+  const checkedIds = _ftGetCheckedTeams();
+  if (checkedIds.length < 2) {
+    alert('Selecione pelo menos 2 times antes de adicionar itens.'); return;
+  }
+  const container = document.getElementById('ftItemsContainer');
+  const rowId = `ftItem_${_ftState.itemCount++}`;
+  const teamOptions = checkedIds.map(id => `<option value="${id}">${escapeHtml(_ftTeamName(id))}</option>`).join('');
+
+  const div = document.createElement('div');
+  div.className = 'ft-item-row d-flex align-items-center gap-2 mb-2 flex-wrap';
+  div.dataset.rowId = rowId;
+  div.innerHTML = `
+    <select class="form-select form-select-sm ft-from-select" style="max-width:160px"
+      onchange="_ftUpdateItemType('${rowId}')">
+      <option value="">De (time)</option>${teamOptions}
+    </select>
+    <select class="form-select form-select-sm ft-type-select" style="max-width:100px"
+      onchange="_ftUpdateItemType('${rowId}')">
+      <option value="players">Jogador</option>
+      <option value="picks">Pick</option>
+    </select>
+    <select class="form-select form-select-sm ft-item-select" style="flex:1;min-width:180px">
+      <option value="">— escolha origem primeiro —</option>
+    </select>
+    <select class="form-select form-select-sm ft-to-select" style="max-width:160px">
+      <option value="">Para (time)</option>${teamOptions}
+    </select>
+    <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('.ft-item-row').remove()"
+      style="padding:4px 8px;flex-shrink:0"><i class="bi bi-trash"></i></button>`;
+  container.appendChild(div);
+}
+
+async function showForceTradeModal(initialLeague) {
+  // cleanup state
+  _ftState.teams = [];
+  _ftState.assets.players = {};
+  _ftState.assets.picks = {};
+  _ftState.itemCount = 0;
+
+  const modalId = 'forceTradeModal';
+  document.getElementById(modalId)?.remove();
+
+  const allLeagues = window.ADMIN_LEAGUES && window.ADMIN_LEAGUES.length ? window.ADMIN_LEAGUES : ['ELITE','NEXT','RISE','ROOKIE'];
+  const leagueOpts = allLeagues.map(l => `<option value="${l}" ${l===initialLeague?'selected':''}>${l}</option>`).join('');
+
+  const html = `
+  <div class="modal fade" id="${modalId}" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi bi-lightning-fill me-2" style="color:var(--red)"></i>
+            Force Trade <small class="text-muted" style="font-size:12px;font-weight:400">(sem aceite — executa imediatamente)</small>
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-warning" style="font-size:13px">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            Esta trade será executada <strong>imediatamente</strong>. Jogadores e picks serão transferidos sem pedido de aceite.
+          </div>
+
+          <div class="mb-3 d-flex align-items-center gap-3">
+            <label class="form-label mb-0" style="white-space:nowrap">Liga</label>
+            <select class="form-select" id="ftLeagueSelect" style="max-width:160px" onchange="ftLoadTeams()">
+              ${leagueOpts}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <label class="form-label mb-0">Times participantes</label>
+              <span id="ftTeamsStatus" class="text-muted" style="font-size:12px"></span>
+            </div>
+            <div id="ftTeamsGrid" class="d-flex flex-wrap gap-2">
+              <div class="text-muted" style="font-size:13px">Carregando...</div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <label class="form-label mb-0">Itens da troca</label>
+              <button type="button" class="btn btn-sm btn-outline-orange" onclick="_ftAddItem()">
+                <i class="bi bi-plus-lg"></i> Adicionar item
+              </button>
+            </div>
+            <div id="ftItemsContainer"></div>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label">Observações (opcional)</label>
+            <textarea class="form-control" id="ftNotes" rows="2" placeholder="Motivo da force trade..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" id="ftSubmitBtn" onclick="ftSubmit()">
+            <i class="bi bi-lightning-fill me-1"></i> Executar Force Trade
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  document.body.insertAdjacentHTML('beforeend', html);
+  const modal = new bootstrap.Modal(document.getElementById(modalId));
+  modal.show();
+  document.getElementById(modalId).addEventListener('hidden.bs.modal', function() { this.remove(); });
+
+  await ftLoadTeams();
+}
+
+async function ftLoadTeams() {
+  const league = document.getElementById('ftLeagueSelect')?.value;
+  if (!league) return;
+
+  _ftState.assets.players = {};
+  _ftState.assets.picks = {};
+
+  const grid = document.getElementById('ftTeamsGrid');
+  const status = document.getElementById('ftTeamsStatus');
+  if (grid) grid.innerHTML = '<div class="text-muted" style="font-size:13px">Carregando times...</div>';
+
+  try {
+    const d = await api(`admin.php?action=teams&league=${league}`);
+    _ftState.teams = d.teams || [];
+
+    if (!_ftState.teams.length) {
+      grid.innerHTML = '<div class="text-muted" style="font-size:13px">Nenhum time nesta liga.</div>';
+      return;
+    }
+
+    grid.innerHTML = _ftState.teams.map(t => {
+      const name = (t.city ? t.city + ' ' : '') + t.name;
+      return `<label style="display:flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:13px">
+        <input type="checkbox" value="${t.id}" onchange="ftOnTeamChange()" style="width:14px;height:14px">
+        ${escapeHtml(name)}
+      </label>`;
+    }).join('');
+
+    if (status) status.textContent = `${_ftState.teams.length} times na liga`;
+
+    // Clear items when league changes
+    const container = document.getElementById('ftItemsContainer');
+    if (container) container.innerHTML = '';
+  } catch (e) {
+    if (grid) grid.innerHTML = `<div class="alert alert-danger" style="font-size:13px">Erro: ${escapeHtml(e.error || 'desconhecido')}</div>`;
+  }
+}
+
+function ftOnTeamChange() {
+  // Clear items when team selection changes, as selects are stale
+  const container = document.getElementById('ftItemsContainer');
+  if (container) container.innerHTML = '';
+  _ftState.assets.players = {};
+  _ftState.assets.picks = {};
+}
+
+async function ftSubmit() {
+  const league = document.getElementById('ftLeagueSelect')?.value;
+  const checkedTeams = _ftGetCheckedTeams();
+  const notes = document.getElementById('ftNotes')?.value?.trim() || '';
+
+  if (!league) { alert('Selecione uma liga.'); return; }
+  if (checkedTeams.length < 2) { alert('Selecione pelo menos 2 times.'); return; }
+
+  const rows = document.querySelectorAll('#ftItemsContainer .ft-item-row');
+  if (!rows.length) { alert('Adicione pelo menos um item na troca.'); return; }
+
+  const items = [];
+  for (const row of rows) {
+    const fromId  = parseInt(row.querySelector('.ft-from-select')?.value || '0');
+    const type    = row.querySelector('.ft-type-select')?.value;
+    const itemId  = parseInt(row.querySelector('.ft-item-select')?.value || '0');
+    const toId    = parseInt(row.querySelector('.ft-to-select')?.value || '0');
+
+    if (!fromId || !itemId || !toId) { alert('Preencha todos os campos de cada item.'); return; }
+    if (fromId === toId) { alert('Origem e destino de um item não podem ser o mesmo time.'); return; }
+
+    const entry = { from_team_id: fromId, to_team_id: toId };
+    if (type === 'players') entry.player_id = itemId;
+    else entry.pick_id = itemId;
+    items.push(entry);
+  }
+
+  const btn = document.getElementById('ftSubmitBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Executando...'; }
+
+  try {
+    const result = await api('trades.php?action=force_trade', {
+      method: 'POST',
+      body: JSON.stringify({ league, teams: checkedTeams, items, notes })
+    });
+
+    bootstrap.Modal.getInstance(document.getElementById('forceTradeModal'))?.hide();
+    showAlert('success', `Force Trade #${result.trade_id} executada com sucesso!`);
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao executar force trade');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-lightning-fill me-1"></i> Executar Force Trade'; }
+  }
 }
 

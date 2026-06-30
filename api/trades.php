@@ -1454,6 +1454,120 @@ $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 $teamId = $team['id'] ?? null;
 
+// POST - Force Trade (admin only, executa imediatamente sem aceite)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'force_trade') {
+    if (!hasAdminAccess($pdo, (int)$user['id'])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Sem permissão']);
+        exit;
+    }
+
+    $data   = json_decode(file_get_contents('php://input'), true) ?? [];
+    $league = strtoupper(trim($data['league'] ?? ''));
+    $teams  = array_values(array_unique(array_map('intval', $data['teams'] ?? [])));
+    $items  = $data['items'] ?? [];
+    $notes  = trim($data['notes'] ?? '');
+
+    if (!$league || count($teams) < 2) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Liga e pelo menos 2 times são obrigatórios.']);
+        exit;
+    }
+    if (!is_array($items) || count($items) === 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Adicione pelo menos um item na troca.']);
+        exit;
+    }
+
+    $validatedItems = [];
+    foreach ($items as $item) {
+        $fromId   = (int)($item['from_team_id'] ?? 0);
+        $toId     = (int)($item['to_team_id']   ?? 0);
+        $playerId = !empty($item['player_id']) ? (int)$item['player_id'] : null;
+        $pickId   = !empty($item['pick_id'])   ? (int)$item['pick_id']   : null;
+        if (!$fromId || !$toId || (!$playerId && !$pickId) || $fromId === $toId) continue;
+        $validatedItems[] = compact('fromId', 'toId', 'playerId', 'pickId');
+    }
+
+    if (empty($validatedItems)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Nenhum item válido.']);
+        exit;
+    }
+
+    try {
+        $pdo->beginTransaction();
+
+        $creatorId = $teams[0];
+        $pdo->prepare('INSERT INTO multi_trades (league, created_by_team_id, notes, status) VALUES (?, ?, ?, ?)')
+            ->execute([$league, $creatorId, $notes, 'pending']);
+        $forceTradeId = (int)$pdo->lastInsertId();
+
+        $stmtFT = $pdo->prepare('INSERT INTO multi_trade_teams (trade_id, team_id, accepted_at) VALUES (?, ?, NOW())');
+        foreach ($teams as $tid) {
+            $stmtFT->execute([$forceTradeId, $tid]);
+        }
+
+        $ovrCol       = playerOvrColumn($pdo);
+        $hasSnap      = columnExists($pdo, 'multi_trade_items', 'player_name');
+        $hasItemValue = columnExists($pdo, 'multi_trade_items', 'item_value');
+
+        if ($hasSnap && $hasItemValue) {
+            $stmtFTItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id, pick_protection, player_name, player_position, player_age, player_ovr, item_value) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, NULL)');
+        } elseif ($hasSnap) {
+            $stmtFTItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id, pick_protection, player_name, player_position, player_age, player_ovr) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)');
+        } else {
+            $stmtFTItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id) VALUES (?, ?, ?, ?, ?)');
+        }
+
+        $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ?, was_traded = 1 WHERE id = ?');
+        $stmtTransferPick   = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ?');
+        $stmtTransferDraft  = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ?');
+
+        foreach ($validatedItems as $vi) {
+            $pName = null; $pPos = null; $pAge = null; $pOvr = null;
+            if ($vi['playerId'] && $hasSnap) {
+                $stmtPSnap = $pdo->prepare("SELECT name, position, age, {$ovrCol} AS ovr FROM players WHERE id = ?");
+                $stmtPSnap->execute([$vi['playerId']]);
+                $prow = $stmtPSnap->fetch(PDO::FETCH_ASSOC);
+                if ($prow) { $pName = $prow['name']; $pPos = $prow['position']; $pAge = $prow['age']; $pOvr = $prow['ovr']; }
+            }
+
+            if ($hasSnap) {
+                $stmtFTItem->execute([$forceTradeId, $vi['fromId'], $vi['toId'], $vi['playerId'], $vi['pickId'], $pName, $pPos, $pAge, $pOvr]);
+            } else {
+                $stmtFTItem->execute([$forceTradeId, $vi['fromId'], $vi['toId'], $vi['playerId'], $vi['pickId']]);
+            }
+
+            if ($vi['playerId']) {
+                $stmtTransferPlayer->execute([$vi['toId'], $vi['playerId']]);
+            }
+            if ($vi['pickId']) {
+                $nid = normalizePickId($pdo, $vi['pickId']);
+                if (isPickCurrentDraft($pdo, $nid, $league)) {
+                    $stmtTransferDraft->execute([$vi['toId'], $nid]);
+                } else {
+                    $stmtTransferPick->execute([$vi['toId'], $vi['fromId'], $nid]);
+                }
+                syncDraftOrderPickOwner($pdo, $nid, $vi['fromId'], $vi['toId'], $league);
+            }
+        }
+
+        $pdo->prepare('UPDATE multi_trades SET status = ? WHERE id = ?')->execute(['accepted', $forceTradeId]);
+        $pdo->commit();
+
+        try { sendMultiTradeWebhook($pdo, $forceTradeId, 'trade_accepted'); } catch (Exception $e) {}
+        try { sendNextHighOvrPush($pdo, $forceTradeId, true); } catch (Exception $e) {}
+
+        echo json_encode(['success' => true, 'trade_id' => $forceTradeId]);
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
 if (!$teamId) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Usuário sem time']);
