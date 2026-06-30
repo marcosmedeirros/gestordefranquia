@@ -74,6 +74,19 @@ try {
             $ins->execute([$league, (int)$user['id'], $teamId, $content]);
             $postId = (int)$pdo->lastInsertId();
 
+            // FIFO: mantém máximo 3 posts por usuário, apaga o(s) mais antigo(s)
+            $stmtOld = $pdo->prepare('
+                SELECT id FROM mercado_feed WHERE user_id = ? ORDER BY created_at ASC
+            ');
+            $stmtOld->execute([(int)$user['id']]);
+            $allIds = $stmtOld->fetchAll(PDO::FETCH_COLUMN);
+            if (count($allIds) > 3) {
+                $toDelete = array_slice($allIds, 0, count($allIds) - 3);
+                $placeholders = implode(',', array_fill(0, count($toDelete), '?'));
+                $pdo->prepare("DELETE FROM mercado_feed WHERE id IN ($placeholders)")
+                    ->execute($toDelete);
+            }
+
             $stmtGet = $pdo->prepare('
                 SELECT mp.id, mp.content, mp.created_at,
                        u.name  AS user_name,  u.photo_url  AS user_photo,

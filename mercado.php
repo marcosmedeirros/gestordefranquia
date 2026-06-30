@@ -35,6 +35,22 @@ $stmtTeams->execute([$user['league']]);
 $leagueTeams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 $is_admin = hasAdminAccess($pdo, (int)$user['id']);
+
+// Carrega feed server-side para garantir que sempre apareça ao recarregar
+$feedPosts = [];
+try {
+    $sf = $pdo->query('
+        SELECT mp.id, mp.content, mp.created_at,
+               u.name AS user_name, u.photo_url AS user_photo, u.id AS user_id,
+               t.city AS team_city, t.name AS team_name, t.photo_url AS team_photo
+        FROM mercado_feed mp
+        JOIN users u ON mp.user_id = u.id
+        LEFT JOIN teams t ON mp.team_id = t.id
+        ORDER BY mp.created_at DESC
+        LIMIT 100
+    ');
+    $feedPosts = $sf->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Exception $e) {}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -334,7 +350,7 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
         <div class="panel">
             <div class="panel-header" style="margin-bottom:16px">
                 <span class="panel-title"><i class="bi bi-chat-text-fill me-2" style="color:var(--red)"></i>Rumores</span>
-                <span id="feed-count" style="font-size:12px;color:var(--text-2)"></span>
+                <span id="feed-count" style="font-size:12px;color:var(--text-2)"><?= count($feedPosts) ? count($feedPosts) . ' mensagens' : '' ?></span>
             </div>
 
             <!-- Post composer -->
@@ -349,12 +365,38 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
                 </div>
             </div>
 
-            <!-- Posts list -->
-            <div id="feed-loading" style="text-align:center;padding:32px">
-                <div class="spinner-border" role="status" style="width:1.5rem;height:1.5rem;color:var(--red)"></div>
+            <!-- Posts list - renderizado server-side para persistir em qualquer navegação -->
+            <div id="feed-loading" style="display:none"></div>
+            <div id="feed-list">
+            <?php foreach ($feedPosts as $fp):
+                $fpTeam    = trim(($fp['team_city'] ?? '') . ' ' . ($fp['team_name'] ?? ''));
+                $fpPhoto   = !empty($fp['user_photo']) ? $fp['user_photo'] : null;
+                $fpInitial = strtoupper(mb_substr($fp['user_name'] ?? 'U', 0, 1));
+                $fpCanDel  = $is_admin || (int)$fp['user_id'] === (int)$user['id'];
+            ?>
+            <div class="feed-post" id="fpost-<?= (int)$fp['id'] ?>" style="display:flex;gap:10px;padding:14px 0;border-bottom:1px solid var(--border)">
+                <div style="flex-shrink:0">
+                    <?php if ($fpPhoto): ?>
+                    <img src="<?= htmlspecialchars($fpPhoto) ?>" alt="" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:1px solid var(--border-md)">
+                    <?php else: ?>
+                    <div style="width:38px;height:38px;border-radius:50%;background:var(--panel-3);border:1px solid var(--border-md);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:var(--red)"><?= $fpInitial ?></div>
+                    <?php endif; ?>
+                </div>
+                <div style="flex:1;min-width:0">
+                    <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+                        <span style="font-weight:600;font-size:13px;color:var(--text)"><?= htmlspecialchars($fp['user_name'] ?? 'Usuário') ?></span>
+                        <?php if ($fpTeam): ?><span style="font-size:11px;color:var(--red);font-weight:600"><?= htmlspecialchars($fpTeam) ?></span><?php endif; ?>
+                        <span class="feed-date" data-ts="<?= htmlspecialchars($fp['created_at']) ?>" style="font-size:11px;color:var(--text-3)"><?= htmlspecialchars($fp['created_at']) ?></span>
+                    </div>
+                    <div style="font-size:14px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word"><?= htmlspecialchars($fp['content']) ?></div>
+                </div>
+                <?php if ($fpCanDel): ?>
+                <button onclick="deleteFeedPost(<?= (int)$fp['id'] ?>)" title="Apagar" style="flex-shrink:0;background:none;border:none;cursor:pointer;color:var(--text-3);font-size:14px;padding:4px 6px;border-radius:6px;transition:color .15s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-3)'"><i class="bi bi-trash"></i></button>
+                <?php endif; ?>
             </div>
-            <div id="feed-list"></div>
-            <div id="feed-empty" style="display:none;text-align:center;padding:32px;color:var(--text-2);font-size:13px">
+            <?php endforeach; ?>
+            </div>
+            <div id="feed-empty" style="display:<?= count($feedPosts) ? 'none' : '' ?>;text-align:center;padding:32px;color:var(--text-2);font-size:13px">
                 <i class="bi bi-chat-dots" style="font-size:28px;display:block;margin-bottom:8px;opacity:.4"></i>
                 Nenhuma mensagem ainda. Seja o primeiro a postar!
             </div>
@@ -555,8 +597,13 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
             document.getElementById('tab-jogadores').style.display = tab === 'jogadores' ? '' : 'none';
             document.getElementById('tab-feed').style.display      = tab === 'feed'      ? '' : 'none';
 
-            if (tab === 'feed') { loadFeed(); }
+            // tab click apenas mostra/esconde — posts já estão no DOM (renderizados pelo PHP)
         });
+    });
+
+    // Formata as datas dos posts renderizados pelo PHP
+    document.querySelectorAll('.feed-date[data-ts]').forEach(el => {
+        el.textContent = formatDate(el.dataset.ts);
     });
 
     /* ── Feed ──────────────────────────── */
@@ -584,13 +631,8 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
             if (!res.ok || data.error) throw new Error(data.error || 'Erro');
             composer.value = '';
             charCount.textContent = '0 / 500';
-            if (data.post) prependFeedPost(data.post);
-            document.getElementById('feed-empty').style.display = 'none';
-            const countEl = document.getElementById('feed-count');
-            if (countEl) {
-                const cur = parseInt(countEl.textContent) || 0;
-                countEl.textContent = `${cur + 1} mensagens`;
-            }
+            // Recarrega lista do servidor para refletir FIFO e estado real do banco
+            await loadFeed();
         } catch (e) { alert(e.message || 'Erro ao publicar'); }
         finally { btn.disabled = false; btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Publicar'; }
     });
