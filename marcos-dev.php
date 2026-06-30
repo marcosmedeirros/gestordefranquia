@@ -139,8 +139,8 @@ try {
         JOIN teams tf ON tf.id = t.from_team_id
         JOIN teams tt ON tt.id = t.to_team_id
         WHERE t.league = 'NEXT' AND t.status = 'accepted'
+          AND t.updated_at >= NOW() - INTERVAL 3 DAY
         ORDER BY t.updated_at DESC
-        LIMIT 50
     ");
     $s->execute();
     $acceptedRegular = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -152,8 +152,8 @@ try {
         SELECT mt.*
         FROM multi_trades mt
         WHERE mt.league = 'NEXT' AND mt.status = 'accepted'
+          AND mt.updated_at >= NOW() - INTERVAL 3 DAY
         ORDER BY mt.updated_at DESC
-        LIMIT 50
     ");
     $s->execute();
     $rows = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
