@@ -448,6 +448,27 @@ try {
     sortLeagueData($tradesAceitasMap);
 } catch (Exception) {}
 
+// ── Picks negociadas com mais antecedência ──────────────────────────
+$picksAntecipacaoMap = [];
+try {
+    $paRaw = $pdo->query("
+        SELECT
+            orig.league,
+            CONCAT('R', p.round, ' ', p.season_year, ' · ', orig.name) AS name,
+            p.season_year - YEAR(MIN(tr.created_at)) AS count,
+            COUNT(DISTINCT ti.trade_id) AS trades_count
+        FROM picks p
+        JOIN teams orig ON orig.id = p.original_team_id
+        JOIN trade_items ti ON ti.pick_id = p.id
+        JOIN trades tr ON tr.id = ti.trade_id AND tr.status = 'accepted'
+        WHERE p.team_id <> p.original_team_id
+        GROUP BY orig.league, p.id, p.season_year, p.round, orig.name
+        HAVING count >= 1
+        ORDER BY count DESC, trades_count DESC
+    ")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($paRaw as $r) $picksAntecipacaoMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+} catch (Exception) {}
+
 // ── Trades recusadas ───────────────────────────────────────────────
 $tradesRecusadasMap = [];
 try {
@@ -1069,6 +1090,15 @@ renderSection('trades-aceitas', '🤝', 'rgba(34,197,94,.10)', 'Trades Aceitas',
         'color_hi' => 'green', 'color_lo' => 'lo',
         'copy_hi' => 'Mais trades aceitas', 'copy_lo' => 'Menos trades aceitas',
     ], $myTeamName);
+
+renderSection('picks-antecipacao', '⏳', 'rgba(251,191,36,.10)', 'Picks Negociadas com Mais Antecedência',
+    'Escolhas do draft que foram trocadas com maior número de anos de antecedência',
+    $picksAntecipacaoMap, $leagues, [
+        'label_hi' => '⏳ Mais antecipação', 'show_lo' => false,
+        'color_hi' => 'gold',
+        'copy_hi' => 'Picks negociadas com mais antecedência',
+        'suffix' => ' ano(s)',
+    ], '');
 
 renderSection('trades-recusadas', '❌', 'rgba(252,0,37,.10)', 'Trades Recusadas',
     'Times envolvidos no maior número de trades rejeitadas',
