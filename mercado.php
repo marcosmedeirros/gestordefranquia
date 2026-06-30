@@ -273,7 +273,7 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
             </li>
             <li>
                 <button class="mkt-tab" data-tab="feed" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--text-2);font-weight:500;font-size:13px;padding:10px 18px;cursor:pointer;font-family:var(--font)">
-                    <i class="bi bi-chat-text-fill me-1"></i>Feed
+                    <i class="bi bi-chat-text-fill me-1"></i>Rumor
                 </button>
             </li>
         </ul>
@@ -333,7 +333,7 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
         <div id="tab-feed" style="display:none">
         <div class="panel">
             <div class="panel-header" style="margin-bottom:16px">
-                <span class="panel-title"><i class="bi bi-chat-text-fill me-2" style="color:var(--red)"></i>Feed da Liga</span>
+                <span class="panel-title"><i class="bi bi-chat-text-fill me-2" style="color:var(--red)"></i>Rumores</span>
                 <span id="feed-count" style="font-size:12px;color:var(--text-2)"></span>
             </div>
 

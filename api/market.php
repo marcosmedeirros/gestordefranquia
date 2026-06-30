@@ -27,9 +27,6 @@ try {
     switch ($action) {
 
         case 'feed_posts':
-            $league = $user['league'] ?? null;
-            if (!$league) { echo json_encode(['posts' => []]); exit; }
-
             $limit  = min(100, (int)($_GET['limit'] ?? 50));
             $offset = max(0,   (int)($_GET['offset'] ?? 0));
 
@@ -42,11 +39,10 @@ try {
                 FROM mercado_feed mp
                 JOIN users  u ON mp.user_id = u.id
                 LEFT JOIN teams t ON mp.team_id = t.id
-                WHERE mp.league = ?
                 ORDER BY mp.created_at DESC
                 LIMIT ? OFFSET ?
             ');
-            $stmt->execute([$league, $limit, $offset]);
+            $stmt->execute([$limit, $offset]);
             $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
             echo json_encode(['posts' => $posts]);
             break;
@@ -77,6 +73,14 @@ try {
             $ins = $pdo->prepare('INSERT INTO mercado_feed (league, user_id, team_id, content) VALUES (?, ?, ?, ?)');
             $ins->execute([$league, (int)$user['id'], $teamId, $content]);
             $postId = (int)$pdo->lastInsertId();
+
+            // Mantém no máximo 3 posts por usuário — exclui o mais antigo se necessário
+            $countStmt = $pdo->prepare('SELECT COUNT(*) FROM mercado_feed WHERE user_id = ?');
+            $countStmt->execute([(int)$user['id']]);
+            if ((int)$countStmt->fetchColumn() > 3) {
+                $pdo->prepare('DELETE FROM mercado_feed WHERE user_id = ? ORDER BY created_at ASC LIMIT 1')
+                    ->execute([(int)$user['id']]);
+            }
 
             $stmtGet = $pdo->prepare('
                 SELECT mp.id, mp.content, mp.created_at,
