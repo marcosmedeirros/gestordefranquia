@@ -74,14 +74,6 @@ try {
             $ins->execute([$league, (int)$user['id'], $teamId, $content]);
             $postId = (int)$pdo->lastInsertId();
 
-            // Mantém no máximo 3 posts por usuário — exclui o mais antigo se necessário
-            $countStmt = $pdo->prepare('SELECT COUNT(*) FROM mercado_feed WHERE user_id = ?');
-            $countStmt->execute([(int)$user['id']]);
-            if ((int)$countStmt->fetchColumn() > 3) {
-                $pdo->prepare('DELETE FROM mercado_feed WHERE user_id = ? ORDER BY created_at ASC LIMIT 1')
-                    ->execute([(int)$user['id']]);
-            }
-
             $stmtGet = $pdo->prepare('
                 SELECT mp.id, mp.content, mp.created_at,
                        u.name  AS user_name,  u.photo_url  AS user_photo,

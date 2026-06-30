@@ -540,8 +540,6 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
     /* ── Tabs ──────────────────────────── */
     const MY_USER_ID = <?= (int)$user['id'] ?>;
     const IS_ADMIN   = <?= $is_admin ? 'true' : 'false' ?>;
-    let feedLoaded = true; // pré-carregado no init
-
     document.querySelectorAll('.mkt-tab').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.mkt-tab').forEach(b => {
@@ -557,7 +555,7 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
             document.getElementById('tab-jogadores').style.display = tab === 'jogadores' ? '' : 'none';
             document.getElementById('tab-feed').style.display      = tab === 'feed'      ? '' : 'none';
 
-            if (tab === 'feed' && !feedLoaded) { feedLoaded = true; loadFeed(); }
+            if (tab === 'feed') { loadFeed(); }
         });
     });
 
@@ -688,7 +686,6 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
     };
 
     load();
-    loadFeed();
 
     /* ── Player details modal ──────────── */
     const detailsModalEl = document.getElementById('playerDetailsModal');
