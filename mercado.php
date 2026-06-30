@@ -540,7 +540,7 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
     /* ── Tabs ──────────────────────────── */
     const MY_USER_ID = <?= (int)$user['id'] ?>;
     const IS_ADMIN   = <?= $is_admin ? 'true' : 'false' ?>;
-    let feedLoaded = false;
+    let feedLoaded = true; // pré-carregado no init
 
     document.querySelectorAll('.mkt-tab').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -688,6 +688,7 @@ $is_admin = hasAdminAccess($pdo, (int)$user['id']);
     };
 
     load();
+    loadFeed();
 
     /* ── Player details modal ──────────── */
     const detailsModalEl = document.getElementById('playerDetailsModal');
