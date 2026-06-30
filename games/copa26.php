@@ -1905,7 +1905,18 @@ function buildBracket(){
     renderBracketGeneric('bracketEl',bracketMatchups,bracketState,BRACKET_EDITABLE,setWinner);
     updateFinalAction();
 }
-function buildAdmBracket(){buildBracketGeneric(admBracketMatchups,admGroupOrder,admBracketState);renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,admSetWinner);}
+function buildAdmBracket(){
+    admBracketMatchups.r32=buildR32Fixed();
+    ['r16','qf','sf','final'].forEach(r=>{const sz={r16:8,qf:4,sf:2,final:1}[r];admBracketMatchups[r]=Array.from({length:sz},()=>[null,null]);});
+    Object.keys(admBracketState).forEach(key=>{
+        const m=key.match(/^([a-z0-9]+)_(\d+)$/);if(!m)return;
+        const [,round,idxStr]=m,idx=+idxStr,team=admBracketState[key];
+        if(!team||!admBracketMatchups[round])return;
+        const nr=ROUND_ORDER[ROUND_ORDER.indexOf(round)+1];
+        if(nr&&admBracketMatchups[nr]){const ni=Math.floor(idx/2),ns=idx%2;if(!admBracketMatchups[nr][ni])admBracketMatchups[nr][ni]=[null,null];admBracketMatchups[nr][ni][ns]=team;}
+    });
+    renderBracketGeneric('admBracketEl',admBracketMatchups,admBracketState,true,admSetWinner);
+}
 
 // ── Save / Submit ─────────────────────────────────────────────────────────────
 function buildPayload(action){
