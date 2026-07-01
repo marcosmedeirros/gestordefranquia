@@ -245,10 +245,11 @@ async function __devResolve__() {
   btn.innerHTML = '⏳ Resolvendo...';
   toast.style.display = 'none';
   try {
-    const r = await fetch('/games/api/admin_resolve.php', {
+    const r = await fetch('/api/admin_resolve.php', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({game: '$gameJs'})
+      body: JSON.stringify({game: '$gameJs'}),
+      credentials: 'include'
     });
     const d = await r.json();
     toast.style.display = 'block';
