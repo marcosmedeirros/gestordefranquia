@@ -1554,6 +1554,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'force_
         }
 
         $pdo->prepare('UPDATE multi_trades SET status = ? WHERE id = ?')->execute(['accepted', $forceTradeId]);
+
+        foreach ($teams as $tid) {
+            syncTeamTradeCounter($pdo, (int)$tid);
+        }
+        $stmtFTInc = $pdo->prepare('UPDATE teams SET trades_used = trades_used + 1 WHERE id = ?');
+        foreach ($teams as $tid) {
+            $stmtFTInc->execute([(int)$tid]);
+        }
+
         $pdo->commit();
 
         try { sendMultiTradeWebhook($pdo, $forceTradeId, 'trade_accepted'); } catch (Exception $e) {}

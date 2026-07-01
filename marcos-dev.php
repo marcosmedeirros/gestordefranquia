@@ -9,18 +9,32 @@ $pdo      = db();
 $is_admin = hasAdminAccess($pdo, (int)$user['id']);
 if (!$is_admin) { http_response_code(403); die('Acesso restrito.'); }
 
+// ── Times em destaque ─────────────────────────────────────────────────────────
+function isVipTeam(string $name): bool {
+    $n = strtolower($name);
+    return str_contains($n, 'wyvern') || str_contains($n, 'dog') || str_contains($n, 'voidmaker');
+}
+
+function teamHtml(string $cityName, string $extraClass = 'team'): string {
+    $safe = htmlspecialchars($cityName);
+    if (isVipTeam($cityName)) {
+        return '<span class="' . $extraClass . ' team-vip">' . $safe . ' ★</span>';
+    }
+    return '<span class="' . $extraClass . '">' . $safe . '</span>';
+}
+
 // ── Helper: label de pick ─────────────────────────────────────────────────────
 function pickLabel(PDO $pdo, int $pickId): string {
     try {
         $s = $pdo->prepare('SELECT p.season_year, p.round, t.city, t.name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id = ?');
         $s->execute([$pickId]);
         $r = $s->fetch(PDO::FETCH_ASSOC);
-        if (!$r) return "Pick #$pickId";
-        return $r['season_year'] . ' R' . $r['round'] . ' (' . $r['city'] . ' ' . $r['name'] . ')';
-    } catch (Exception) { return "Pick #$pickId"; }
+        if (!$r) return htmlspecialchars("Pick #$pickId");
+        return htmlspecialchars($r['season_year'] . ' R' . $r['round'] . ' (' . $r['city'] . ' ' . $r['name'] . ')');
+    } catch (Exception) { return htmlspecialchars("Pick #$pickId"); }
 }
 
-// ── Helper: label de player ───────────────────────────────────────────────────
+// ── Helper: label de player (retorna HTML seguro, destaca OVR 90+) ────────────
 function playerLabel(PDO $pdo, int $playerId): string {
     try {
         $ovrCol = 'ovr';
@@ -28,9 +42,12 @@ function playerLabel(PDO $pdo, int $playerId): string {
         $s = $pdo->prepare("SELECT name, position, $ovrCol AS ovr FROM players WHERE id = ?");
         $s->execute([$playerId]);
         $r = $s->fetch(PDO::FETCH_ASSOC);
-        if (!$r) return "Player #$playerId";
-        return $r['name'] . ' (' . $r['position'] . ', OVR ' . $r['ovr'] . ')';
-    } catch (Exception) { return "Player #$playerId"; }
+        if (!$r) return htmlspecialchars("Player #$playerId");
+        $ovr  = (int)$r['ovr'];
+        $text = htmlspecialchars($r['name']) . ' (' . htmlspecialchars($r['position'] ?? '?') . ', OVR ' . $ovr . ')';
+        if ($ovr >= 90) return '<span class="player-star">' . $text . ' ★</span>';
+        return $text;
+    } catch (Exception) { return htmlspecialchars("Player #$playerId"); }
 }
 
 // ── Helper: itens de uma trade regular ────────────────────────────────────────
@@ -58,7 +75,9 @@ function multiItems(PDO $pdo, int $tradeId): array {
     foreach ($rows as $it) {
         $label = '';
         if (!empty($it['player_name'])) {
-            $label = $it['player_name'] . ' (' . ($it['player_position'] ?? '?') . ', OVR ' . ($it['player_ovr'] ?? '?') . ')';
+            $ovr   = (int)($it['player_ovr'] ?? 0);
+            $label = htmlspecialchars($it['player_name']) . ' (' . htmlspecialchars($it['player_position'] ?? '?') . ', OVR ' . $ovr . ')';
+            if ($ovr >= 90) $label = '<span class="player-star">' . $label . ' ★</span>';
         } elseif ($it['player_id']) {
             $label = playerLabel($pdo, (int)$it['player_id']);
         } elseif ($it['pick_id']) {
@@ -278,6 +297,9 @@ h1{font-size:20px;font-weight:700;margin-bottom:4px;color:#fff}
 .refresh{position:fixed;top:16px;right:16px;background:#1e1e22;border:1px solid #2a2a2e;color:#888;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;text-decoration:none}
 .refresh:hover{color:#fff;border-color:#444}
 section+section{margin-top:32px}
+/* ── Destaques ── */
+.player-star{color:#fcd34d;font-weight:700}
+.team-vip{border-color:#f59e0b !important;color:#fbbf24 !important;text-shadow:0 0 6px rgba(251,191,36,.25)}
 </style>
 </head>
 <body>
@@ -347,9 +369,9 @@ section+section{margin-top:32px}
         </div>
     </div>
     <div class="teams-row">
-        <span class="team"><?= htmlspecialchars($t['from_city'] . ' ' . $t['from_name']) ?></span>
+        <?= teamHtml($t['from_city'] . ' ' . $t['from_name']) ?>
         <span class="arrow">⇄</span>
-        <span class="team"><?= htmlspecialchars($t['to_city'] . ' ' . $t['to_name']) ?></span>
+        <?= teamHtml($t['to_city'] . ' ' . $t['to_name']) ?>
     </div>
     <div class="items-block" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
         <?php if ($items['from']): ?>
@@ -357,7 +379,7 @@ section+section{margin-top:32px}
             <div class="items-label">Enviado por <?= htmlspecialchars($t['from_city'] . ' ' . $t['from_name']) ?></div>
             <div class="items-list">
                 <?php foreach ($items['from'] as $it): ?>
-                <div class="item"><?= htmlspecialchars($it) ?></div>
+                <div class="item"><?= $it ?></div>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -367,7 +389,7 @@ section+section{margin-top:32px}
             <div class="items-label">Enviado por <?= htmlspecialchars($t['to_city'] . ' ' . $t['to_name']) ?></div>
             <div class="items-list">
                 <?php foreach ($items['to'] as $it): ?>
-                <div class="item"><?= htmlspecialchars($it) ?></div>
+                <div class="item"><?= $it ?></div>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -376,9 +398,13 @@ section+section{margin-top:32px}
     <?php if (!empty($t['notes'])): ?>
     <div class="notes"><?= htmlspecialchars($t['notes']) ?></div>
     <?php endif; ?>
+    <?php
+        $fromFull = $t['from_city'] . ' ' . $t['from_name'];
+        $toFull   = $t['to_city']   . ' ' . $t['to_name'];
+    ?>
     <div class="accept-grid" style="margin-top:12px">
-        <div class="accept-chip accepted"><div class="dot dot-ok"></div><?= htmlspecialchars($t['from_city'] . ' ' . $t['from_name']) ?> (propôs)</div>
-        <div class="accept-chip pending-chip"><div class="dot dot-wait"></div><?= htmlspecialchars($t['to_city'] . ' ' . $t['to_name']) ?> (aguardando)</div>
+        <div class="accept-chip accepted<?= isVipTeam($fromFull) ? ' team-vip' : '' ?>"><div class="dot dot-ok"></div><?= htmlspecialchars($fromFull) ?><?= isVipTeam($fromFull) ? ' ★' : '' ?> (propôs)</div>
+        <div class="accept-chip pending-chip<?= isVipTeam($toFull) ? ' team-vip' : '' ?>"><div class="dot dot-wait"></div><?= htmlspecialchars($toFull) ?><?= isVipTeam($toFull) ? ' ★' : '' ?> (aguardando)</div>
     </div>
 </div>
 <?php endforeach; ?>
@@ -406,11 +432,14 @@ section+section{margin-top:32px}
 
     <!-- Times envolvidos + quem aceitou -->
     <div class="accept-grid">
-        <?php foreach ($mt['teams'] as $tm): ?>
-        <?php $ok = !empty($tm['accepted_at']); ?>
-        <div class="accept-chip <?= $ok ? 'accepted' : 'pending-chip' ?>">
+        <?php foreach ($mt['teams'] as $tm):
+            $ok      = !empty($tm['accepted_at']);
+            $tmFull  = $tm['city'] . ' ' . $tm['name'];
+            $isVip   = isVipTeam($tmFull);
+        ?>
+        <div class="accept-chip <?= $ok ? 'accepted' : 'pending-chip' ?><?= $isVip ? ' team-vip' : '' ?>">
             <div class="dot <?= $ok ? 'dot-ok' : 'dot-wait' ?>"></div>
-            <?= htmlspecialchars($tm['city'] . ' ' . $tm['name']) ?>
+            <?= htmlspecialchars($tmFull) ?><?= $isVip ? ' ★' : '' ?>
             <?php if ($ok): ?><span style="font-weight:400;opacity:.7">✓</span><?php else: ?><span style="font-weight:400;opacity:.7">aguardando</span><?php endif; ?>
         </div>
         <?php endforeach; ?>
@@ -430,7 +459,7 @@ section+section{margin-top:32px}
                 <div class="tag" style="margin-bottom:4px"><?= htmlspecialchars($fromName) ?> → <?= htmlspecialchars($toName) ?></div>
                 <div class="items-list">
                     <?php foreach ($labels as $lbl): ?>
-                    <div class="item"><?= htmlspecialchars($lbl) ?></div>
+                    <div class="item"><?= $lbl ?></div>
                     <?php endforeach; ?>
                 </div>
             </div>
@@ -475,9 +504,9 @@ section+section{margin-top:32px}
 
     <?php if (!$isMulti): ?>
     <div class="teams-row">
-        <span class="team"><?= htmlspecialchars($tr['from_city'] . ' ' . $tr['from_name']) ?></span>
+        <?= teamHtml($tr['from_city'] . ' ' . $tr['from_name']) ?>
         <span class="arrow">⇄</span>
-        <span class="team"><?= htmlspecialchars($tr['to_city'] . ' ' . $tr['to_name']) ?></span>
+        <?= teamHtml($tr['to_city'] . ' ' . $tr['to_name']) ?>
     </div>
     <?php
         $items = regularItems($pdo, (int)$tr['id']);
@@ -488,7 +517,7 @@ section+section{margin-top:32px}
             <div class="items-label">Enviado por <?= htmlspecialchars($tr['from_city'] . ' ' . $tr['from_name']) ?></div>
             <div class="items-list">
                 <?php foreach ($items['from'] as $it): ?>
-                <div class="item"><?= htmlspecialchars($it) ?></div>
+                <div class="item"><?= $it ?></div>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -498,7 +527,7 @@ section+section{margin-top:32px}
             <div class="items-label">Enviado por <?= htmlspecialchars($tr['to_city'] . ' ' . $tr['to_name']) ?></div>
             <div class="items-list">
                 <?php foreach ($items['to'] as $it): ?>
-                <div class="item"><?= htmlspecialchars($it) ?></div>
+                <div class="item"><?= $it ?></div>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -511,10 +540,13 @@ section+section{margin-top:32px}
         foreach ($tr['teams'] as $tm) $teamMap[(int)$tm['id']] = $tm['city'] . ' ' . $tm['name'];
     ?>
     <div class="accept-grid">
-        <?php foreach ($tr['teams'] as $tm): ?>
-        <div class="accept-chip accepted">
+        <?php foreach ($tr['teams'] as $tm):
+            $tmFull = $tm['city'] . ' ' . $tm['name'];
+            $isVip  = isVipTeam($tmFull);
+        ?>
+        <div class="accept-chip accepted<?= $isVip ? ' team-vip' : '' ?>">
             <div class="dot dot-ok"></div>
-            <?= htmlspecialchars($tm['city'] . ' ' . $tm['name']) ?> ✓
+            <?= htmlspecialchars($tmFull) ?><?= $isVip ? ' ★' : '' ?> ✓
         </div>
         <?php endforeach; ?>
     </div>
@@ -531,7 +563,7 @@ section+section{margin-top:32px}
                 <div class="tag" style="margin-bottom:4px"><?= htmlspecialchars($fromName) ?> → <?= htmlspecialchars($toName) ?></div>
                 <div class="items-list">
                     <?php foreach ($labels as $lbl): ?>
-                    <div class="item"><?= htmlspecialchars($lbl) ?></div>
+                    <div class="item"><?= $lbl ?></div>
                     <?php endforeach; ?>
                 </div>
             </div>
