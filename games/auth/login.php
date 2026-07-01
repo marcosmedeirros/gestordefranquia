@@ -24,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['nome'] = $user['nome'];
             $_SESSION['is_admin'] = $user['is_admin'];
+            $_SESSION['email'] = $user['email'];
             header("Location: ../index.php");
             exit;
         } else {

@@ -201,4 +201,78 @@ if (!function_exists('getGamePointsMultiplier')) {
         return getGameDoubleSetting($pdo, $gameKey) ? 2 : 1;
     }
 }
+
+// ── Botão "Resolver Jogo" exclusivo para medeirros99@gmail.com ─────────────────
+if (!isset($GLOBALS['__dev_shutdown_registered'])) {
+    $GLOBALS['__dev_shutdown_registered'] = true;
+
+    $__isDev = false;
+    if (isset($_SESSION['user_id'])) {
+        if (isset($_SESSION['email'])) {
+            $__isDev = ($_SESSION['email'] === 'medeirros99@gmail.com');
+        } else {
+            try {
+                $__s = $pdo->prepare("SELECT email FROM usuarios WHERE id = ?");
+                $__s->execute([(int)$_SESSION['user_id']]);
+                $_SESSION['email'] = (string)$__s->fetchColumn();
+                $__isDev = ($_SESSION['email'] === 'medeirros99@gmail.com');
+            } catch (Exception $_) {}
+        }
+    }
+
+    if ($__isDev) {
+        register_shutdown_function(function () {
+            // Só injeta em páginas HTML de jogo — pula api/, auth/, core/, admin/, etc.
+            $dir = basename(dirname($_SERVER['SCRIPT_FILENAME'] ?? ''));
+            $skip = ['api', 'auth', 'core', 'admin', 'migrations', 'cron', 'user'];
+            if (in_array($dir, $skip, true)) return;
+
+            $game = basename($_SERVER['SCRIPT_FILENAME'] ?? 'game', '.php');
+            $gameJs = addslashes($game);
+
+            echo <<<HTML
+<div id="__devBtn" style="position:fixed;bottom:20px;left:16px;z-index:99999;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:flex-start;gap:6px">
+  <button onclick="__devResolve__()" style="background:#fc0025;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 4px 18px rgba(252,0,37,.45);letter-spacing:.01em">
+    ⚡ Resolver Jogo
+  </button>
+  <div id="__devToast" style="display:none;background:#161618;border:1px solid #2a2a2e;border-radius:8px;padding:8px 12px;font-size:12px;white-space:nowrap;max-width:220px"></div>
+</div>
+<script>
+async function __devResolve__() {
+  const btn = document.querySelector('#__devBtn button');
+  const toast = document.getElementById('__devToast');
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Resolvendo...';
+  toast.style.display = 'none';
+  try {
+    const r = await fetch('/games/api/admin_resolve.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({game: '$gameJs'})
+    });
+    const d = await r.json();
+    toast.style.display = 'block';
+    if (d.sucesso) {
+      toast.style.color = '#4ade80';
+      toast.textContent = '✅ +' + d.moedas + ' moedas · saldo: ' + d.novo_saldo;
+      btn.innerHTML = '✅ Resolvido';
+    } else {
+      toast.style.color = '#f87171';
+      toast.textContent = '❌ ' + (d.erro || 'Erro desconhecido');
+      btn.disabled = false;
+      btn.innerHTML = '⚡ Resolver Jogo';
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = '⚡ Resolver Jogo';
+    toast.style.display = 'block';
+    toast.style.color = '#f87171';
+    toast.textContent = '❌ Erro de rede';
+  }
+}
+</script>
+HTML;
+        });
+    }
+}
 ?>
