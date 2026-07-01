@@ -674,10 +674,17 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 const rows = s.teams.map((t, ti) => {
                     const rankCls = ti === 0 ? 'g' : ti === 1 ? 's' : ti === 2 ? 'b' : '';
                     const barW    = Math.round((t.points / maxPts) * 100);
+                    const hasBkd  = (t.points_regular || 0) + (t.points_playoffs || 0) + (t.points_prizes || 0) > 0;
+                    const bkd     = hasBkd ? `<div style="display:flex;gap:3px;flex-shrink:0;align-items:center">
+                        <span title="Regular" style="font-size:9px;background:rgba(99,102,241,.15);color:#818cf8;border-radius:4px;padding:2px 5px;font-weight:700">R${t.points_regular||0}</span>
+                        <span title="Playoffs" style="font-size:9px;background:rgba(252,0,37,.12);color:#fc0025;border-radius:4px;padding:2px 5px;font-weight:700">PO${t.points_playoffs||0}</span>
+                        <span title="Prêmios" style="font-size:9px;background:rgba(245,158,11,.12);color:#f59e0b;border-radius:4px;padding:2px 5px;font-weight:700">Pr${t.points_prizes||0}</span>
+                    </div>` : '';
                     return `
                     <div class="pts-row">
                         <div class="pts-rank ${rankCls}">${ti + 1}</div>
                         <div class="pts-team">${t.team_name}</div>
+                        ${bkd}
                         <div class="pts-bar-wrap"><div class="pts-bar" style="width:${barW}%"></div></div>
                         <div class="pts-val">${t.points}</div>
                     </div>`;
@@ -738,13 +745,17 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 const sprintLabel = s.sprint_number ? `Sprint ${s.sprint_number}` : '';
                 const tempLabel   = s.season_number ? `Temp ${s.season_number}` : '';
                 const yearLabel   = s.year ? ` · ${s.year}` : '';
-                const title = [sprintLabel, tempLabel].filter(Boolean).join(' · ') + yearLabel || 'Temporada';
+                const title   = [sprintLabel, tempLabel].filter(Boolean).join(' · ') + yearLabel || 'Temporada';
+                const hasBkd2 = (s.points_regular || 0) + (s.points_playoffs || 0) + (s.points_prizes || 0) > 0;
                 html += `
-                <div class="pts-row">
+                <div class="pts-row" style="flex-wrap:wrap;gap:6px">
                     <div class="pts-team" style="flex:1">${title}</div>
-                    <div class="pts-val" style="color:var(--red);font-weight:800">
-                        ${s.points} pts
-                    </div>
+                    ${hasBkd2 ? `<div style="display:flex;gap:3px;flex-shrink:0;align-items:center">
+                        <span title="Regular" style="font-size:9px;background:rgba(99,102,241,.15);color:#818cf8;border-radius:4px;padding:2px 5px;font-weight:700">R${s.points_regular||0}</span>
+                        <span title="Playoffs" style="font-size:9px;background:rgba(252,0,37,.12);color:#fc0025;border-radius:4px;padding:2px 5px;font-weight:700">PO${s.points_playoffs||0}</span>
+                        <span title="Prêmios" style="font-size:9px;background:rgba(245,158,11,.12);color:#f59e0b;border-radius:4px;padding:2px 5px;font-weight:700">Pr${s.points_prizes||0}</span>
+                    </div>` : ''}
+                    <div class="pts-val" style="color:var(--red);font-weight:800">${s.points} pts</div>
                 </div>`;
             });
             teamLogBody.innerHTML = html;

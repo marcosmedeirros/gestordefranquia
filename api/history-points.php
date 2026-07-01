@@ -183,6 +183,21 @@ function ensureSeasonPointsLogTable(PDO $pdo): void {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
+function ensureSeasonPointsBreakdownColumns(PDO $pdo): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    foreach (['points_regular', 'points_playoffs', 'points_prizes'] as $col) {
+        try {
+            $stmt = $pdo->prepare("SHOW COLUMNS FROM team_season_points LIKE ?");
+            $stmt->execute([$col]);
+            if (!$stmt->fetch()) {
+                $pdo->exec("ALTER TABLE team_season_points ADD COLUMN {$col} INT NOT NULL DEFAULT 0");
+            }
+        } catch (PDOException $e) {}
+    }
+}
+
 try {
     // Verificar tabelas para ações que precisam delas
     $tableActions = ['get_history', 'save_history', 'delete_history', 'get_ranking', 'save_season_points', 'get_season_points', 'get_teams_for_points', 'edit_season_points', 'delete_season_points'];
@@ -533,6 +548,7 @@ try {
             $seasonNumber = $season['season_number'] ?? 1;
 
             ensureSeasonPointsLogTable($pdo);
+            ensureSeasonPointsBreakdownColumns($pdo);
 
             $pdo->beginTransaction();
 
@@ -562,13 +578,19 @@ try {
                     $teamName = $team ? $team['team_name'] : 'Time Desconhecido';
                     
                     // Inserir ou atualizar pontos
+                    $ptsRegular  = (int)($tp['points_regular']  ?? 0);
+                    $ptsPlayoffs = (int)($tp['points_playoffs'] ?? 0);
+                    $ptsPrizes   = (int)($tp['points_prizes']   ?? 0);
                     $stmt = $pdo->prepare("
-                        INSERT INTO team_season_points 
-                            (team_id, team_name, league, season_id, sprint_number, season_number, points)
-                        VALUES 
-                            (?, ?, ?, ?, ?, ?, ?)
-                        ON DUPLICATE KEY UPDATE 
+                        INSERT INTO team_season_points
+                            (team_id, team_name, league, season_id, sprint_number, season_number, points, points_regular, points_playoffs, points_prizes)
+                        VALUES
+                            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE
                             points = VALUES(points),
+                            points_regular = VALUES(points_regular),
+                            points_playoffs = VALUES(points_playoffs),
+                            points_prizes = VALUES(points_prizes),
                             team_name = VALUES(team_name),
                             updated_at = NOW()
                     ");
@@ -579,7 +601,10 @@ try {
                         $seasonId,
                         $sprintNumber,
                         $seasonNumber,
-                        $points
+                        $points,
+                        $ptsRegular,
+                        $ptsPlayoffs,
+                        $ptsPrizes
                     ]);
 
                     $delta = $points - $prevPoints;
@@ -656,6 +681,7 @@ try {
             $league = $_REQUEST['league'] ?? null;
             if (!$league) throw new Exception('Liga é obrigatória');
 
+            ensureSeasonPointsBreakdownColumns($pdo);
             $stmt = $pdo->prepare("
                 SELECT
                     tsp.season_id,
@@ -665,6 +691,9 @@ try {
                     tsp.team_id,
                     COALESCE(NULLIF(CONCAT(t.city, ' ', t.name), ' '), tsp.team_name) AS team_name,
                     tsp.points,
+                    COALESCE(tsp.points_regular,  0) AS points_regular,
+                    COALESCE(tsp.points_playoffs, 0) AS points_playoffs,
+                    COALESCE(tsp.points_prizes,   0) AS points_prizes,
                     s.year
                 FROM team_season_points tsp
                 LEFT JOIN teams t ON tsp.team_id = t.id
@@ -688,8 +717,11 @@ try {
                     ];
                 }
                 $seasons[$key]['teams'][] = [
-                    'team_name' => $row['team_name'],
-                    'points'    => (int)$row['points'],
+                    'team_name'       => $row['team_name'],
+                    'points'          => (int)$row['points'],
+                    'points_regular'  => (int)$row['points_regular'],
+                    'points_playoffs' => (int)$row['points_playoffs'],
+                    'points_prizes'   => (int)$row['points_prizes'],
                 ];
             }
 
@@ -728,10 +760,14 @@ try {
                 $isReg = isset($registeredIds[$sid]) || isset($registeredIds[(string)$sid]);
                 $teams = [];
                 if ($isReg) {
+                    ensureSeasonPointsBreakdownColumns($pdo);
                     $stmtPts = $pdo->prepare("
                         SELECT tsp.team_id,
                                COALESCE(NULLIF(CONCAT(t.city,' ',t.name),' '), tsp.team_name) AS team_name,
-                               tsp.points
+                               tsp.points,
+                               COALESCE(tsp.points_regular,  0) AS points_regular,
+                               COALESCE(tsp.points_playoffs, 0) AS points_playoffs,
+                               COALESCE(tsp.points_prizes,   0) AS points_prizes
                         FROM team_season_points tsp
                         LEFT JOIN teams t ON tsp.team_id = t.id
                         WHERE tsp.season_id = ? AND tsp.league = ?
@@ -774,11 +810,17 @@ try {
             $stmtAS->execute([$teamLeague]);
             $allSeasonsForTeam = $stmtAS->fetchAll(PDO::FETCH_ASSOC);
 
-            $stmtTP = $pdo->prepare("SELECT season_id, points FROM team_season_points WHERE team_id = ? AND league = ?");
+            ensureSeasonPointsBreakdownColumns($pdo);
+            $stmtTP = $pdo->prepare("SELECT season_id, points, COALESCE(points_regular,0) AS points_regular, COALESCE(points_playoffs,0) AS points_playoffs, COALESCE(points_prizes,0) AS points_prizes FROM team_season_points WHERE team_id = ? AND league = ?");
             $stmtTP->execute([$teamId, $teamLeague]);
             $pointsMap = [];
             foreach ($stmtTP->fetchAll(PDO::FETCH_ASSOC) as $r) {
-                $pointsMap[(int)$r['season_id']] = (int)$r['points'];
+                $pointsMap[(int)$r['season_id']] = [
+                    'points'          => (int)$r['points'],
+                    'points_regular'  => (int)$r['points_regular'],
+                    'points_playoffs' => (int)$r['points_playoffs'],
+                    'points_prizes'   => (int)$r['points_prizes'],
+                ];
             }
 
             $log = [];
@@ -789,7 +831,10 @@ try {
                     'season_number' => (int)($row['season_number'] ?? 0),
                     'sprint_number' => (int)($row['sprint_number'] ?? 0),
                     'year'          => $row['year'] ?? $row['start_year'] ?? null,
-                    'points'        => $pointsMap[$sid] ?? 0,
+                    'points'          => $pointsMap[$sid]['points'] ?? 0,
+                    'points_regular'  => $pointsMap[$sid]['points_regular'] ?? 0,
+                    'points_playoffs' => $pointsMap[$sid]['points_playoffs'] ?? 0,
+                    'points_prizes'   => $pointsMap[$sid]['points_prizes'] ?? 0,
                 ];
             }
             echo json_encode(['success' => true, 'seasons' => $log]);
@@ -820,14 +865,15 @@ try {
             $sprintNumber = (int)($season['sprint_number'] ?? 1);
             $seasonNumber = (int)($season['season_number'] ?? 1);
 
+            ensureSeasonPointsBreakdownColumns($pdo);
             $pdo->beginTransaction();
             try {
                 $stmtPrev   = $pdo->prepare("SELECT points FROM team_season_points WHERE team_id = ? AND season_id = ? LIMIT 1");
                 $stmtName   = $pdo->prepare("SELECT CONCAT(city, ' ', name) AS team_name FROM teams WHERE id = ?");
                 $stmtUpsert = $pdo->prepare("
-                    INSERT INTO team_season_points (team_id, team_name, league, season_id, sprint_number, season_number, points)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE points = VALUES(points), team_name = VALUES(team_name), updated_at = NOW()
+                    INSERT INTO team_season_points (team_id, team_name, league, season_id, sprint_number, season_number, points, points_regular, points_playoffs, points_prizes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE points = VALUES(points), points_regular = VALUES(points_regular), points_playoffs = VALUES(points_playoffs), points_prizes = VALUES(points_prizes), team_name = VALUES(team_name), updated_at = NOW()
                 ");
                 $hasRankCol = teamColumnExists($pdo, 'ranking_points');
                 $stmtDelta  = $hasRankCol
@@ -847,7 +893,10 @@ try {
                     $nameRow  = $stmtName->fetch(PDO::FETCH_ASSOC);
                     $teamName = $nameRow['team_name'] ?? 'Time Desconhecido';
 
-                    $stmtUpsert->execute([$teamId, $teamName, $league, $seasonId, $sprintNumber, $seasonNumber, $newPoints]);
+                    $ptsRegular  = (int)($tp['points_regular']  ?? 0);
+                    $ptsPlayoffs = (int)($tp['points_playoffs'] ?? 0);
+                    $ptsPrizes   = (int)($tp['points_prizes']   ?? 0);
+                    $stmtUpsert->execute([$teamId, $teamName, $league, $seasonId, $sprintNumber, $seasonNumber, $newPoints, $ptsRegular, $ptsPlayoffs, $ptsPrizes]);
 
                     $delta = $newPoints - $prevPoints;
                     if ($delta !== 0 && $stmtDelta) {

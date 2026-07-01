@@ -452,6 +452,9 @@ function _showReviewPanel(seasonId, league, payload) {
                 <td style="padding:10px 12px;text-align:center;color:var(--text-2)">${premLabel || '0'}</td>
                 <td style="padding:10px 12px;text-align:center">
                     <input type="number" class="review-pts-input" data-team-id="${id}"
+                           data-pts-regular="${p.seed}"
+                           data-pts-playoffs="${p.playoff}"
+                           data-pts-prizes="${p.awards + p.cup}"
                            value="${p.total}" min="0" style="${inpStyle}">
                 </td>
             </tr>`;
@@ -523,8 +526,11 @@ async function _saveReviewedPoints(seasonId, league) {
         // 2. Salvar pontuação revisada por time
         const team_points = Array.from(inputs)
             .map(inp => ({
-                team_id: parseInt(inp.dataset.teamId, 10),
-                points: parseInt(inp.value, 10) || 0
+                team_id:         parseInt(inp.dataset.teamId,    10),
+                points:          parseInt(inp.value,             10) || 0,
+                points_regular:  parseInt(inp.dataset.ptsRegular,  10) || 0,
+                points_playoffs: parseInt(inp.dataset.ptsPlayoffs, 10) || 0,
+                points_prizes:   parseInt(inp.dataset.ptsPrizes,   10) || 0,
             }))
             .filter(r => r.team_id);
 
