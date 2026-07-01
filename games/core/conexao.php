@@ -202,20 +202,20 @@ if (!function_exists('getGamePointsMultiplier')) {
     }
 }
 
-// ── Botão "Resolver Jogo" exclusivo para medeirros99@gmail.com ─────────────────
+// ── Botão "Resolver Jogo" exclusivo para medeirros15@gmail.com ─────────────────
 if (!isset($GLOBALS['__dev_shutdown_registered'])) {
     $GLOBALS['__dev_shutdown_registered'] = true;
 
     $__isDev = false;
     if (isset($_SESSION['user_id'])) {
         if (isset($_SESSION['email'])) {
-            $__isDev = ($_SESSION['email'] === 'medeirros99@gmail.com');
+            $__isDev = ($_SESSION['email'] === 'medeirros15@gmail.com');
         } else {
             try {
                 $__s = $pdo->prepare("SELECT email FROM usuarios WHERE id = ?");
                 $__s->execute([(int)$_SESSION['user_id']]);
                 $_SESSION['email'] = (string)$__s->fetchColumn();
-                $__isDev = ($_SESSION['email'] === 'medeirros99@gmail.com');
+                $__isDev = ($_SESSION['email'] === 'medeirros15@gmail.com');
             } catch (Exception $_) {}
         }
     }

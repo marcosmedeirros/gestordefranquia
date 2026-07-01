@@ -4,9 +4,9 @@ require '../core/conexao.php';
 
 header('Content-Type: application/json');
 
-// Acesso exclusivo para medeirros99@gmail.com
+// Acesso exclusivo para medeirros15@gmail.com
 $email = $_SESSION['email'] ?? '';
-if ($email !== 'medeirros99@gmail.com') {
+if ($email !== 'medeirros15@gmail.com') {
     http_response_code(403);
     echo json_encode(['sucesso' => false, 'erro' => 'Sem permissão']);
     exit;

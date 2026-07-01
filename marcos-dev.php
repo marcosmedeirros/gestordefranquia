@@ -5,7 +5,7 @@ require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 
 $user = getUserSession();
-if (($user['email'] ?? '') !== 'medeirros99@gmail.com') {
+if (($user['email'] ?? '') !== 'medeirros15@gmail.com') {
     http_response_code(403);
     die('Acesso restrito.');
 }
