@@ -4,10 +4,12 @@ require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 
-$user     = getUserSession();
-$pdo      = db();
-$is_admin = hasAdminAccess($pdo, (int)$user['id']);
-if (!$is_admin) { http_response_code(403); die('Acesso restrito.'); }
+$user = getUserSession();
+if (($user['email'] ?? '') !== 'medeirros99@gmail.com') {
+    http_response_code(403);
+    die('Acesso restrito.');
+}
+$pdo = db();
 
 // ── Times em destaque ─────────────────────────────────────────────────────────
 function isVipTeam(string $name): bool {
