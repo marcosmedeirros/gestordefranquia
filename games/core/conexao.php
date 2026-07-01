@@ -222,10 +222,9 @@ if (!isset($GLOBALS['__dev_shutdown_registered'])) {
 
     if ($__isDev) {
         register_shutdown_function(function () {
-            // Só injeta em páginas HTML de jogo — pula api/, auth/, core/, admin/, etc.
-            $dir = basename(dirname($_SERVER['SCRIPT_FILENAME'] ?? ''));
-            $skip = ['api', 'auth', 'core', 'admin', 'migrations', 'cron', 'user'];
-            if (in_array($dir, $skip, true)) return;
+            // Só injeta em arquivos dentro de games/games/
+            $script = str_replace('\\', '/', $_SERVER['SCRIPT_FILENAME'] ?? '');
+            if (!str_contains($script, '/games/games/')) return;
 
             $game = basename($_SERVER['SCRIPT_FILENAME'] ?? 'game', '.php');
             $gameJs = addslashes($game);
