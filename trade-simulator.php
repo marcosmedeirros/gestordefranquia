@@ -594,6 +594,10 @@ function populateTeamSelect(key, teamsList) {
   const sel = document.getElementById(`sel_${key}`);
   if (!sel) return;
   const cur = sel.value;
+  // IDs já usados em outros slots
+  const usedIds = new Set(
+    activeSlots.filter(k => k !== key && teams[k]).map(k => teams[k].id)
+  );
   sel.innerHTML = '<option value="">Selecionar time...</option>';
   const sorted = [...teamsList].sort((a, b) => {
     const na = `${a.city ?? ''} ${a.name ?? ''}`.trim().toLowerCase();
@@ -601,6 +605,7 @@ function populateTeamSelect(key, teamsList) {
     return na.localeCompare(nb, 'pt-BR');
   });
   sorted.forEach(t => {
+    if (usedIds.has(+t.id)) return;
     const opt = document.createElement('option');
     opt.value = t.id;
     opt.textContent = `${t.city ?? ''} ${t.name ?? ''}`.trim();
@@ -634,6 +639,13 @@ async function loadTeam(key, teamId) {
   };
   receives[key] = [];
   renderPanel(key);
+  // Atualiza todos os seletores para excluir times já escolhidos
+  if (window._allTeams) {
+    activeSlots.forEach(k => {
+      populateTeamSelect(k, window._allTeams);
+      if (teams[k]) { const s = document.getElementById(`sel_${k}`); if (s) s.value = teams[k].id; }
+    });
+  }
   recalc();
 }
 
@@ -802,8 +814,11 @@ function renderPickerList() {
   );
 
   if (pickerType === 'player') {
-    document.getElementById('pickerList').innerHTML = src.players.length
-      ? src.players.map(p => `
+    const tradedOut = teams[pickerFromSlot].tradedOut;
+    // Mostra só jogadores disponíveis (não enviados a outro time)
+    const available = src.players.filter(p => !tradedOut.has(p.id) || alreadyIn.has(p.id));
+    document.getElementById('pickerList').innerHTML = available.length
+      ? available.map(p => `
           <div class="picker-row${alreadyIn.has(p.id) ? ' selected' : ''}" data-id="${p.id}" onclick="togglePick(this)">
             <div class="picker-ovr">${p.ovr}</div>
             <div>
@@ -812,10 +827,18 @@ function renderPickerList() {
             </div>
             <i class="bi bi-check2-circle picker-check"></i>
           </div>`).join('')
-      : '<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">Sem jogadores</div>';
+      : '<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">Sem jogadores disponíveis</div>';
   } else {
     const currentYear = new Date().getFullYear();
-    const visiblePicks = src.picks.filter(p => (Number(p.season_year) || 0) >= currentYear);
+    // Picks já usados em qualquer slot vindo deste time
+    const usedPickIds = new Set();
+    activeSlots.forEach(k => {
+      (receives[k] || []).filter(i => i.type === 'pick' && i.fromKey === pickerFromSlot).forEach(i => usedPickIds.add(i.id));
+    });
+    const visiblePicks = src.picks.filter(p =>
+      (Number(p.season_year) || 0) >= currentYear &&
+      (!usedPickIds.has(p.id) || alreadyIn.has(p.id))
+    );
     document.getElementById('pickerList').innerHTML = visiblePicks.length
       ? visiblePicks.map(p => {
           const label = pickLabel(p);
@@ -830,7 +853,7 @@ function renderPickerList() {
             <i class="bi bi-check2-circle picker-check"></i>
           </div>`;
         }).join('')
-      : '<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">Sem picks</div>';
+      : '<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">Sem picks disponíveis</div>';
   }
 }
 
@@ -870,10 +893,12 @@ function confirmPicker() {
     }
   });
 
-  renderPanel(pickerToSlot);
-  if (window._allTeams) populateTeamSelect(pickerToSlot, window._allTeams);
-  const t = teams[pickerToSlot];
-  if (t) { const sel = document.getElementById(`sel_${pickerToSlot}`); if (sel) sel.value = t.id; }
+  // Re-renderiza todos os painéis: atualiza swap selects e disponibilidade
+  activeSlots.forEach(k => {
+    renderPanel(k);
+    if (window._allTeams) populateTeamSelect(k, window._allTeams);
+    if (teams[k]) { const sel = document.getElementById(`sel_${k}`); if (sel) sel.value = teams[k].id; }
+  });
 
   recalc();
   bootstrap.Modal.getInstance(document.getElementById('pickerModal')).hide();
@@ -882,10 +907,11 @@ function confirmPicker() {
 function removeItem(toKey, id, type, fromKey) {
   receives[toKey] = receives[toKey].filter(i => !(i.id === id && i.type === type && i.fromKey === fromKey));
   if (type === 'player' && teams[fromKey]) teams[fromKey].tradedOut.delete(id);
-  renderPanel(toKey);
-  if (window._allTeams) populateTeamSelect(toKey, window._allTeams);
-  const t = teams[toKey];
-  if (t) { const sel = document.getElementById(`sel_${toKey}`); if (sel) sel.value = t.id; }
+  activeSlots.forEach(k => {
+    renderPanel(k);
+    if (window._allTeams) populateTeamSelect(k, window._allTeams);
+    if (teams[k]) { const sel = document.getElementById(`sel_${k}`); if (sel) sel.value = teams[k].id; }
+  });
   recalc();
 }
 
