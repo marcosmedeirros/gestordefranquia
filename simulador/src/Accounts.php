@@ -2,9 +2,12 @@
 require_once __DIR__ . '/Database.php';
 
 /**
- * Contas de usuário + saves (multi-save). Cada usuário pode ter até 2 saves;
- * cada save é um banco SQLite isolado em storage/saves/save_{id}.sqlite.
- * As contas e o registro de saves ficam num SQLite próprio (storage/accounts.sqlite).
+ * Contas de usuário + saves (multi-save). Cada usuário pode ter até 2 saves.
+ *
+ * Arquitetura de dados:
+ *  - Contas (users, saves): MySQL em produção, SQLite em dev sem MySQL
+ *  - Dados do jogo por save: SQLite isolado em storage/saves/save_{id}.sqlite
+ *    (acesso via Database::useSavePath() — separado da conexão de contas)
  */
 class Accounts
 {
@@ -15,45 +18,98 @@ class Accounts
     public static function savesDir(): string { return dirname(__DIR__) . '/storage/saves'; }
     public static function savePath(int $saveId): string { return self::savesDir() . '/save_' . $saveId . '.sqlite'; }
 
-    /** Conexão (e schema) do banco de contas. */
+    /** Conexão (e schema) do banco de contas. MySQL em produção, SQLite em dev. */
     public static function conn(): PDO
     {
         if (self::$acc === null) {
-            $path = dirname(__DIR__) . '/storage/accounts.sqlite';
-            $dir = dirname($path);
-            if (!is_dir($dir)) mkdir($dir, 0777, true);
-            self::$acc = new PDO('sqlite:' . $path);
-            self::$acc->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            self::$acc->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-            self::$acc->exec("CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                email TEXT,
-                pass_hash TEXT NOT NULL,
-                created_at TEXT
-            )");
-            self::$acc->exec("CREATE TABLE IF NOT EXISTS saves (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                slot INTEGER NOT NULL,
-                name TEXT,
-                gm_name TEXT,
-                team_abbr TEXT,
-                era TEXT DEFAULT 'modern',
-                era_name TEXT,
-                coach_style TEXT DEFAULT 'equilibrado',
-                difficulty TEXT DEFAULT 'normal',
-                potential_type TEXT DEFAULT 'real',
-                created_at TEXT,
-                updated_at TEXT
-            )");
-            // migração: adiciona colunas em bancos antigos
-            $cols = array_column(self::$acc->query("PRAGMA table_info(saves)")->fetchAll(), 'name');
-            if (!in_array('era', $cols))            self::$acc->exec("ALTER TABLE saves ADD COLUMN era TEXT DEFAULT 'modern'");
-            if (!in_array('era_name', $cols))       self::$acc->exec("ALTER TABLE saves ADD COLUMN era_name TEXT");
-            if (!in_array('coach_style', $cols))    self::$acc->exec("ALTER TABLE saves ADD COLUMN coach_style TEXT DEFAULT 'equilibrado'");
-            if (!in_array('difficulty', $cols))     self::$acc->exec("ALTER TABLE saves ADD COLUMN difficulty TEXT DEFAULT 'normal'");
-            if (!in_array('potential_type', $cols)) self::$acc->exec("ALTER TABLE saves ADD COLUMN potential_type TEXT DEFAULT 'real'");
+            $cfg = Database::config();
+            if (($cfg['driver'] ?? 'sqlite') === 'mysql') {
+                $m   = $cfg['mysql'];
+                $dsn = "mysql:host={$m['host']};port={$m['port']};dbname={$m['database']};charset={$m['charset']}";
+                self::$acc = new PDO($dsn, $m['user'], $m['pass']);
+                self::$acc->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                self::$acc->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+                self::$acc->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
+
+                self::$acc->exec("CREATE TABLE IF NOT EXISTS users (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    username VARCHAR(100) UNIQUE NOT NULL,
+                    email VARCHAR(255),
+                    pass_hash VARCHAR(255) NOT NULL,
+                    created_at VARCHAR(50)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+                self::$acc->exec("CREATE TABLE IF NOT EXISTS saves (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    slot INT NOT NULL,
+                    name VARCHAR(255),
+                    gm_name VARCHAR(255),
+                    team_abbr VARCHAR(20),
+                    era VARCHAR(50) DEFAULT 'modern',
+                    era_name VARCHAR(255),
+                    coach_style VARCHAR(50) DEFAULT 'equilibrado',
+                    difficulty VARCHAR(50) DEFAULT 'normal',
+                    potential_type VARCHAR(50) DEFAULT 'real',
+                    created_at VARCHAR(50),
+                    updated_at VARCHAR(50)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+                // Migrações MySQL: adiciona colunas que faltam em tabelas antigas
+                $newCols = ['era' => "VARCHAR(50) DEFAULT 'modern'", 'era_name' => 'VARCHAR(255)',
+                            'coach_style' => "VARCHAR(50) DEFAULT 'equilibrado'",
+                            'difficulty' => "VARCHAR(50) DEFAULT 'normal'",
+                            'potential_type' => "VARCHAR(50) DEFAULT 'real'"];
+                foreach ($newCols as $col => $def) {
+                    try {
+                        $chk = self::$acc->prepare(
+                            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'saves' AND COLUMN_NAME = ?"
+                        );
+                        $chk->execute([$col]);
+                        if ((int) $chk->fetchColumn() === 0) {
+                            self::$acc->exec("ALTER TABLE saves ADD COLUMN $col $def");
+                        }
+                    } catch (Throwable $e) { /* silencioso */ }
+                }
+            } else {
+                // SQLite — desenvolvimento local
+                $path = dirname(__DIR__) . '/storage/accounts.sqlite';
+                $dir  = dirname($path);
+                if (!is_dir($dir)) mkdir($dir, 0777, true);
+                self::$acc = new PDO('sqlite:' . $path);
+                self::$acc->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                self::$acc->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+                self::$acc->exec("CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT UNIQUE NOT NULL,
+                    email TEXT,
+                    pass_hash TEXT NOT NULL,
+                    created_at TEXT
+                )");
+                self::$acc->exec("CREATE TABLE IF NOT EXISTS saves (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    slot INTEGER NOT NULL,
+                    name TEXT,
+                    gm_name TEXT,
+                    team_abbr TEXT,
+                    era TEXT DEFAULT 'modern',
+                    era_name TEXT,
+                    coach_style TEXT DEFAULT 'equilibrado',
+                    difficulty TEXT DEFAULT 'normal',
+                    potential_type TEXT DEFAULT 'real',
+                    created_at TEXT,
+                    updated_at TEXT
+                )");
+                // migração: adiciona colunas em bancos antigos
+                $cols = array_column(self::$acc->query("PRAGMA table_info(saves)")->fetchAll(), 'name');
+                if (!in_array('era', $cols))            self::$acc->exec("ALTER TABLE saves ADD COLUMN era TEXT DEFAULT 'modern'");
+                if (!in_array('era_name', $cols))       self::$acc->exec("ALTER TABLE saves ADD COLUMN era_name TEXT");
+                if (!in_array('coach_style', $cols))    self::$acc->exec("ALTER TABLE saves ADD COLUMN coach_style TEXT DEFAULT 'equilibrado'");
+                if (!in_array('difficulty', $cols))     self::$acc->exec("ALTER TABLE saves ADD COLUMN difficulty TEXT DEFAULT 'normal'");
+                if (!in_array('potential_type', $cols)) self::$acc->exec("ALTER TABLE saves ADD COLUMN potential_type TEXT DEFAULT 'real'");
+            }
         }
         return self::$acc;
     }

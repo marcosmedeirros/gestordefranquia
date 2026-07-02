@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
-error_reporting(E_ALL);
-ini_set('display_errors', '1');
+error_reporting(0);
+ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 
 require_once dirname(__DIR__) . '/src/Accounts.php';
@@ -84,23 +84,34 @@ if ($action) {
             $label = League::dateLabel(League::currentDay());
             $r = League::advanceDay();
             if (!empty($r['gm_game_pending'])) { header('Location: ' . url('game', ['id' => $r['game_id'], 'live' => 1])); exit; }
-            header('Location: ' . url('recap', ['since' => $watermark, 'label' => $label, 'back' => $_GET['back'] ?? url('home')]));
+            // Auto-save a cada 5 dias de jogo
+            $autoSaved = (League::currentDay() % 5 === 0);
+            if ($autoSaved) Accounts::touch((int) Accounts::activeSaveId());
+            $recapParams = ['since' => $watermark, 'label' => $label, 'back' => $_GET['back'] ?? url('home')];
+            if ($autoSaved) $recapParams['autosaved'] = '1';
+            header('Location: ' . url('recap', $recapParams));
             exit;
         case 'sim-season':
             League::simulateToEnd();
-            header('Location: ' . url('standings'));
+            Accounts::touch((int) Accounts::activeSaveId());
+            header('Location: ' . url('standings', ['autosaved' => '1']));
             exit;
         case 'preseason-advance':
             $watermark = League::inboxWatermark();
             $label = 'Dia ' . League::preseasonDay() . '/' . League::PRESEASON_DAYS . ' da pré-temporada';
             League::advancePreseasonDay();
-            header('Location: ' . url('recap', ['since' => $watermark, 'label' => $label, 'back' => url('preseason')]));
+            $autoSaved = (League::preseasonDay() % 5 === 0);
+            if ($autoSaved) Accounts::touch((int) Accounts::activeSaveId());
+            $recapParams = ['since' => $watermark, 'label' => $label, 'back' => url('preseason')];
+            if ($autoSaved) $recapParams['autosaved'] = '1';
+            header('Location: ' . url('recap', $recapParams));
             exit;
         case 'preseason-finish':
             // pula direto para a temporada (encerra a janela) — resumo mostra tudo que rolou
             $watermark = League::inboxWatermark();
             while (League::phase() === 'preseason') { League::advancePreseasonDay(); }
-            header('Location: ' . url('recap', ['since' => $watermark, 'label' => 'Fim da pré-temporada', 'back' => url('home')]));
+            Accounts::touch((int) Accounts::activeSaveId());
+            header('Location: ' . url('recap', ['since' => $watermark, 'label' => 'Fim da pré-temporada', 'back' => url('home'), 'autosaved' => '1']));
             exit;
         case 'inbox-read':
             League::inboxMarkRead();
@@ -114,7 +125,7 @@ if ($action) {
             $watermark = League::inboxWatermark();
             League::nextSeason();
             Accounts::touch((int) Accounts::activeSaveId());
-            header('Location: ' . url('recap', ['since' => $watermark, 'label' => 'Entressafra', 'back' => url('home')]));
+            header('Location: ' . url('recap', ['since' => $watermark, 'label' => 'Entressafra', 'back' => url('home'), 'autosaved' => '1']));
             exit;
         case 'start-draft':
             require_once dirname(__DIR__) . '/src/Offseason.php';

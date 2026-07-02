@@ -2435,3 +2435,28 @@ h1.page-title {
 @media (max-width:640px) {
   .dashboard.dash-2 { grid-template-columns: 1fr !important; }
 }
+
+/* ─ Grid explícito de 4 colunas (protege contra mudanças futuras na
+   regra genérica .dashboard) — usado na home: Líderes/Power Rankings/
+   Leste/Oeste numa única fileira ─ */
+.dashboard.dash-4 {
+  grid-template-columns: repeat(4, 1fr) !important;
+}
+@media (max-width:1100px) {
+  .dashboard.dash-4 { grid-template-columns: 1fr 1fr !important; }
+}
+@media (max-width:640px) {
+  .dashboard.dash-4 { grid-template-columns: 1fr !important; }
+}
+
+/* ─ Toast de auto-save ─ */
+.autosave-toast {
+  position:fixed;bottom:22px;right:22px;z-index:9999;
+  background:#22c55e;color:#fff;
+  padding:10px 18px;border-radius:8px;
+  font-size:13px;font-weight:700;letter-spacing:.3px;
+  box-shadow:0 4px 16px rgba(0,0,0,.4);
+  animation:toast-in .25s ease;
+  transition:opacity .4s ease;
+}
+@keyframes toast-in{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}

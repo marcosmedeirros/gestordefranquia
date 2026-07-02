@@ -314,7 +314,15 @@ function render_header(string $title = 'FBA'): void
   <div class="app-body">
     <div class="container">
 <?php
+  // Toast de auto-save (desaparece em 3s)
+  if (!empty($_GET['autosaved'])):
+?>
+<div class="autosave-toast" id="asToast">💾 Salvo automaticamente</div>
+<script>setTimeout(function(){var t=document.getElementById('asToast');if(t){t.style.opacity='0';setTimeout(function(){t.remove()},400);}},2800);</script>
+<?php
+  endif;
 }
+
 
 function render_footer(): void
 {

@@ -269,7 +269,7 @@ class Database
 
         foreach (['box_scores','season_stats','playoff_series','transactions','draft_prospects','draft_picks',
                   'awards','champions','player_seasons','headlines','season_history','decisions',
-                  'games','players','teams','meta'] as $tbl) {
+                  'games','players','teams','meta','coaches','inbox'] as $tbl) {
             $db->exec("DROP TABLE IF EXISTS $tbl");
         }
 

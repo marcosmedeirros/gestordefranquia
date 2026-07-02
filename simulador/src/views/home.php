@@ -444,7 +444,7 @@ if ($awardRace): ?>
   </section>
 </div>
 
-<div class="dashboard">
+<div class="dashboard dash-4">
   <section class="card">
     <div class="card-head"><h2>🔥 Líderes de pontos</h2><a class="link-more" href="<?= url('leaders') ?>">Todos →</a></div>
     <table class="mini-table">
@@ -468,9 +468,6 @@ if ($awardRace): ?>
       <?php endforeach; ?>
     </table>
   </section>
-</div>
-
-<div class="dashboard dash-2">
   <section class="card">
     <div class="card-head"><h2>Conferência Leste</h2></div>
     <?php include __DIR__ . '/_standings_table.php'; renderStandings(array_slice($east, 0, 8), true); ?>

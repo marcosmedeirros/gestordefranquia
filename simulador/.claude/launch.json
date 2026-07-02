@@ -6,6 +6,12 @@
       "runtimeExecutable": "C:\\xampp\\php\\php.exe",
       "runtimeArgs": ["-S", "localhost:8000", "-t", "C:\\Users\\marco\\OneDrive\\Documentos\\fbagame\\public"],
       "port": 8000
+    },
+    {
+      "name": "simulador-csstest",
+      "runtimeExecutable": "C:\\xampp\\php\\php.exe",
+      "runtimeArgs": ["-S", "localhost:8010", "-t", "C:\\Users\\marco\\IdeaProjects\\gestordefranquia\\simulador"],
+      "port": 8010
     }
   ]
 }
