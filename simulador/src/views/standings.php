@@ -7,7 +7,7 @@ $west = League::standings('W');
 ?>
 <h1 class="page-title">Classificação</h1>
 <p class="legend"><span class="key po"></span> Vaga direta nos playoffs (1–8) &nbsp; <span class="key pi"></span> Play-in (9–10)</p>
-<div class="dashboard">
+<div class="dashboard dash-2">
   <section class="card">
     <div class="card-head"><h2>Conferência Leste</h2></div>
     <?php renderStandings($east); ?>

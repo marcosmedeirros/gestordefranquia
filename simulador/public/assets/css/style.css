@@ -2427,3 +2427,11 @@ h1.page-title {
 .recap-count.muted { color:#666;font-weight:600; }
 .recap-cta { margin-top:14px; }
 .recap-actions { text-align:center;margin-top:16px; }
+
+/* ─ Grid sempre 2 colunas para tabelas de classificação (nunca 4-col) ─ */
+.dashboard.dash-2 {
+  grid-template-columns: 1fr 1fr !important;
+}
+@media (max-width:640px) {
+  .dashboard.dash-2 { grid-template-columns: 1fr !important; }
+}
