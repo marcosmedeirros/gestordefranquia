@@ -1,7 +1,8 @@
 <?php
 declare(strict_types=1);
-error_reporting(0);
-ini_set('display_errors', '0');
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
+ini_set('log_errors', '1');
 
 require_once dirname(__DIR__) . '/src/Accounts.php';
 require_once dirname(__DIR__) . '/src/helpers.php';
@@ -34,19 +35,23 @@ if (!Accounts::userId()) {
 
 // ============ AÇÕES DE SAVE ============
 if ($action === 'create-save') {
-    $r = Accounts::createSave(
-        Accounts::userId(),
-        (int) ($_POST['slot'] ?? 0),
-        $_POST['name'] ?? '',
-        $_POST['gm_name'] ?? '',
-        $_POST['team'] ?? '',
-        $_POST['era'] ?? 'modern',
-        $_POST['coach_style'] ?? 'equilibrado',
-        $_POST['difficulty'] ?? 'normal',
-        $_POST['potential_type'] ?? 'real'
-    );
-    if (isset($r['error'])) { header('Location: ' . url('saves', ['err' => $r['error']])); exit; }
-    header('Location: ' . url('home', ['newsave' => 1])); exit;
+    try {
+        $r = Accounts::createSave(
+            Accounts::userId(),
+            (int) ($_POST['slot'] ?? 0),
+            $_POST['name'] ?? '',
+            $_POST['gm_name'] ?? '',
+            $_POST['team'] ?? '',
+            $_POST['era'] ?? 'modern',
+            $_POST['coach_style'] ?? 'equilibrado',
+            $_POST['difficulty'] ?? 'normal',
+            $_POST['potential_type'] ?? 'real'
+        );
+        if (isset($r['error'])) { header('Location: ' . url('saves', ['err' => $r['error']])); exit; }
+        header('Location: ' . url('home', ['newsave' => 1])); exit;
+    } catch (Throwable $e) {
+        header('Location: ' . url('saves', ['err' => 'Erro ao criar save: ' . $e->getMessage()])); exit;
+    }
 }
 if ($action === 'load-save') {
     $r = Accounts::activate((int) ($_GET['save'] ?? 0));
