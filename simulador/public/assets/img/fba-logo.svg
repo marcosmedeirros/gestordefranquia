@@ -1,0 +1,28 @@
+<svg viewBox="0 0 200 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="FBA">
+  <!-- Badge inclinada: faixa vermelha à esquerda, corpo preto -->
+  <polygon points="58,6 178,6 150,182 30,182" fill="#0b0b0d"/>
+  <polygon points="58,6 90,6 64,182 30,182" fill="#E4002B"/>
+
+  <!-- Silhueta do arremessador (branca) -->
+  <g fill="#ffffff">
+    <!-- bola -->
+    <circle cx="140" cy="34" r="11"/>
+    <!-- cabeça -->
+    <circle cx="112" cy="46" r="12"/>
+    <!-- braço de arremesso (ombro -> bola) -->
+    <path d="M104 58 Q120 50 132 34 L144 42 Q128 60 112 70 Z"/>
+    <!-- braço de apoio -->
+    <path d="M100 62 Q92 72 96 86 L88 88 Q82 70 92 58 Z"/>
+    <!-- tronco -->
+    <path d="M100 60 L120 62 Q122 92 114 116 L96 114 Q92 86 100 60 Z"/>
+    <!-- perna esquerda (recuada) -->
+    <path d="M98 112 L112 114 Q108 140 96 164 L86 160 Q96 138 98 112 Z"/>
+    <!-- perna direita (impulso) -->
+    <path d="M112 114 L122 112 Q132 138 134 166 L124 168 Q118 142 110 122 Z"/>
+  </g>
+
+  <!-- Aba inferior com a marca FBA -->
+  <polygon points="34,196 150,196 142,244 26,244" fill="#0b0b0d"/>
+  <text x="88" y="232" font-family="Arial Black, Arial, sans-serif" font-size="42"
+        font-weight="900" font-style="italic" fill="#ffffff" text-anchor="middle">FBA</text>
+</svg>

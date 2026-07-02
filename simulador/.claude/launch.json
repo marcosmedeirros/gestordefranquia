@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "fbagame",
+      "runtimeExecutable": "C:\\xampp\\php\\php.exe",
+      "runtimeArgs": ["-S", "localhost:8000", "-t", "C:\\Users\\marco\\OneDrive\\Documentos\\fbagame\\public"],
+      "port": 8000
+    }
+  ]
+}

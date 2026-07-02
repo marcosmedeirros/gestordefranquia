@@ -1,0 +1,10 @@
+Options -Indexes
+
+RewriteEngine On
+RewriteBase /simulador/
+
+# Requisições que já chegam diretamente em public/ não precisam de rewrite
+RewriteRule ^public/ - [L]
+
+# Tudo o mais é roteado para public/
+RewriteRule ^(.*)$ public/$1 [QSA,L]
