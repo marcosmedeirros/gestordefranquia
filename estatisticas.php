@@ -10,6 +10,8 @@ $leagues = ['ELITE','NEXT','RISE'];
 
 // Time e dados do usuário logado
 $myTeamName = '';
+$myTeamShortName = '';
+$myTeamLeague = $user['league'] ?? '';
 $myTeam = null;
 try {
     $stmtMy = $pdo->prepare("SELECT * FROM teams WHERE user_id = ? LIMIT 1");
@@ -17,6 +19,7 @@ try {
     $myTeam = $stmtMy->fetch(PDO::FETCH_ASSOC);
     $myTeamName = $myTeam ? ($myTeam['city'] . ' ' . $myTeam['name']) : '';
     $myTeamShortName = $myTeam ? $myTeam['name'] : '';
+    $myTeamLeague = $myTeam['league'] ?? $myTeamLeague;
 } catch (Exception) {}
 
 function queryByLeague(PDO $pdo, string $sql, array $params = []): array {
@@ -544,7 +547,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .page-title i{color:var(--red)}
 
 /* League tabs */
-.league-tabs{position:sticky;top:0;z-index:90;display:flex;gap:8px;flex-wrap:wrap;background:var(--bg);padding:12px 0 16px;margin-bottom:8px;border-bottom:1px solid var(--border)}
+.league-tabs{position:sticky;top:0;z-index:90;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;background:var(--bg);padding:12px 0 16px;margin-bottom:8px;border-bottom:1px solid var(--border)}
 .league-tab{font-family:'Oswald',sans-serif;font-size:12px;font-weight:700;letter-spacing:.5px;padding:8px 18px;border-radius:999px;border:1px solid var(--border-md);background:var(--panel-2);color:var(--text-2);cursor:pointer;transition:all var(--t) var(--ease)}
 .league-tab:hover{color:var(--text);border-color:var(--text-2)}
 .league-tab.active{background:var(--red);border-color:var(--red);color:#fff}
@@ -698,9 +701,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 <div class="main">
 <div class="main-inner">
 <div class="page-title"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</div>
-<div class="league-tabs" id="leagueTabs">
-  <?php foreach ($leagues as $i => $lg): ?>
-  <button class="league-tab<?= $i === 0 ? ' active' : '' ?>" data-league="<?= htmlspecialchars($lg) ?>"><?= htmlspecialchars($lg) ?></button>
+<div class="league-tabs" id="leagueTabs" data-default-league="<?= htmlspecialchars($myTeamLeague ?: $leagues[0]) ?>">
+  <?php foreach ($leagues as $lg): ?>
+  <button class="league-tab<?= $lg === $myTeamLeague ? ' active' : '' ?>" data-league="<?= htmlspecialchars($lg) ?>"><?= htmlspecialchars($lg) ?></button>
   <?php endforeach; ?>
 </div>
 <?php
@@ -729,7 +732,10 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
     echo "</div>";
     echo "<div class=\"leagues-grid\">";
 
+    global $myTeamLeague;
     foreach ($leagues as $lg) {
+        // Só destaca "seu time" na liga em que o time realmente joga (evita colisão de nomes entre ligas)
+        $myTeamActive = ($lg === $myTeamLeague) ? $myTeam : '';
         $arr  = $data[$lg] ?? [];
         $top5 = array_slice($arr, 0, 5);
         $bot5 = array_reverse(array_slice(array_reverse($arr), 0, 5));
@@ -759,12 +765,12 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
         // Find myTeam position in full array (1-indexed)
         $isPlayerSection = !$pair_mode && !empty($arr) && isset($arr[0]['team']);
         $myPos = 0;
-        if ($myTeam !== '' && !$pair_mode) {
+        if ($myTeamActive !== '' && !$pair_mode) {
             foreach ($arr as $idx => $r) {
                 if ($isPlayerSection) {
-                    if (!empty($r['team']) && $r['team'] === $myTeam) { $myPos = $idx + 1; break; }
+                    if (!empty($r['team']) && $r['team'] === $myTeamActive) { $myPos = $idx + 1; break; }
                 } else {
-                    if ($r['name'] === $myTeam) { $myPos = $idx + 1; break; }
+                    if ($r['name'] === $myTeamActive) { $myPos = $idx + 1; break; }
                 }
             }
         }
@@ -775,7 +781,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
             echo "<div class=\"empty-state\">Sem dados</div>";
         } else {
             foreach ($top5 as $i => $r) {
-                $isMyTeam = !$pair_mode && $myTeam !== '' && ($isPlayerSection ? (!empty($r['team']) && $r['team'] === $myTeam) : $r['name'] === $myTeam);
+                $isMyTeam = !$pair_mode && $myTeamActive !== '' && ($isPlayerSection ? (!empty($r['team']) && $r['team'] === $myTeamActive) : $r['name'] === $myTeamActive);
                 if ($pair_mode) {
                     echo "<div class=\"pair-row\">";
                     echo "<span class=\"rn ".($i===0?'gold':'')."\">" . ($i+1) . "</span>";
@@ -802,7 +808,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
             if ($myPos > 0 && !$myInTop5 && !$pair_mode) {
                 $myRow = $arr[$myPos - 1];
                 echo "<div class=\"my-team-sep\"></div>";
-                $myLabel = $isPlayerSection ? "Seu time — " . htmlspecialchars($myTeam) : "Seu time";
+                $myLabel = $isPlayerSection ? "Seu time — " . htmlspecialchars($myTeamActive) : "Seu time";
                 echo "<div class=\"my-team-label\">{$myLabel}</div>";
                 echo "<div class=\"rank-row my-team\">";
                 echo "<span class=\"rn\">{$myPos}</span>";
@@ -825,7 +831,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
                 $bot5Full = array_reverse(array_slice(array_reverse($arr), 0, 5));
                 $bot5Positions = range(count($arr) - count($bot5Full) + 1, count($arr));
                 foreach ($bot5Full as $i => $r) {
-                    $isMyTeam = !$pair_mode && $myTeam !== '' && ($isPlayerSection ? (!empty($r['team']) && $r['team'] === $myTeam) : $r['name'] === $myTeam);
+                    $isMyTeam = !$pair_mode && $myTeamActive !== '' && ($isPlayerSection ? (!empty($r['team']) && $r['team'] === $myTeamActive) : $r['name'] === $myTeamActive);
                     if ($pair_mode) {
                         echo "<div class=\"pair-row\">";
                         echo "<span class=\"rn\">" . ($i+1) . "</span>";
@@ -870,6 +876,7 @@ echo '<div><h2>Corrida ao Topo — Melhor GM</h2><div class="section-sub">Score 
 echo '</div>';
 echo '<div class="leagues-grid">';
 foreach ($leagues as $lg) {
+    $myTeamNameActive = ($lg === $myTeamLeague) ? $myTeamName : '';
     $allGMs = $gmRaceMap[$lg] ?? [];
     $top5   = array_slice($allGMs, 0, 5);
     $maxScore = !empty($top5) ? max(1, (float)$top5[0]['total']) : 1;
@@ -882,7 +889,7 @@ foreach ($leagues as $lg) {
         $colors = ['var(--amber)','#94a3b8','#78716c','var(--text-3)','var(--text-3)'];
         $medals = ['🥇','🥈','🥉','4.','5.'];
         foreach ($top5 as $i => $d) {
-            $isMe     = ($d['name'] === $myTeamName);
+            $isMe     = ($d['name'] === $myTeamNameActive);
             $pct      = round(100 * $d['total'] / $maxScore);
             $barColor = $isMe ? 'var(--red)' : $colors[$i];
             echo '<div class="race-entry'.($isMe?' my-race-entry':'').'">';
@@ -898,7 +905,7 @@ foreach ($leagues as $lg) {
         }
         // Meu time fora do top5
         $myPos = 0;
-        foreach ($allGMs as $idx => $d) { if ($d['name']===$myTeamName) { $myPos=$idx+1; break; } }
+        foreach ($allGMs as $idx => $d) { if ($d['name']===$myTeamNameActive) { $myPos=$idx+1; break; } }
         if ($myPos > 5) {
             $myD = $allGMs[$myPos-1];
             $pct = round(100 * $myD['total'] / $maxScore);
@@ -1164,7 +1171,8 @@ if (overlay) overlay.addEventListener('click', () => { sidebar.classList.remove(
     activate(tab.dataset.league);
     try { localStorage.setItem('statsLeagueFilter', tab.dataset.league); } catch (e) {}
   }));
-  let initial = tabs.length ? tabs[0].dataset.league : null;
+  const tabsEl = document.getElementById('leagueTabs');
+  let initial = (tabsEl && tabsEl.dataset.defaultLeague) || (tabs.length ? tabs[0].dataset.league : null);
   try {
     const saved = localStorage.getItem('statsLeagueFilter');
     if (saved && document.querySelector('.league-tab[data-league="' + saved + '"]')) initial = saved;
