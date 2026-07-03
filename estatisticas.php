@@ -1191,6 +1191,53 @@ renderSection('rise-eterno-vice', '🥈', 'rgba(148,163,184,.10)', 'Eterno Vice 
         'only_league' => 'RISE',
     ], $myTeamName);
 
+renderSection('rise-finais-margem', '🎖️', 'rgba(251,191,36,.10)', 'Margem nas Finais — Histórico',
+    'Diferença de vitórias na NBA Finals: maiores atropelos x finais mais equilibradas',
+    ['RISE' => $riseHistory['finais_margem']], ['RISE'], [
+        'label_hi' => '🎖️ Maior atropelo', 'label_lo' => '⚖️ Mais equilibrada',
+        'color_hi' => 'gold', 'color_lo' => 'lo', 'suffix' => ' de saldo',
+        'copy_hi' => 'Finais mais dominantes', 'copy_lo' => 'Finais mais equilibradas',
+        'pair_mode' => true, 'pair_sep' => 'x', 'show_lo' => true,
+        'only_league' => 'RISE',
+    ], $myTeamName);
+
+renderSection('rise-seed-medio', '🌡️', 'rgba(96,165,250,.10)', 'Seed Médio Histórico',
+    'Seed médio no round 1 (quanto menor, mais favorito o time costuma ser)',
+    ['RISE' => $riseHistory['seed_medio']], ['RISE'], [
+        'label_hi' => '🥇 Favoritos históricos (seed baixo)', 'label_lo' => '🎲 Zebras históricas (seed alto)',
+        'color_hi' => 'blue', 'color_lo' => 'lo',
+        'copy_hi' => 'Favoritos históricos — seed médio mais baixo', 'copy_lo' => 'Zebras históricas — seed médio mais alto',
+        'show_lo' => true,
+        'only_league' => 'RISE',
+    ], $myTeamName);
+
+renderSection('rise-sweeps-dados', '🧹', 'rgba(34,197,94,.10)', 'Sweeps Aplicados (4-0)',
+    'Séries vencidas sem perder um jogo sequer',
+    ['RISE' => $riseHistory['sweeps_dados']], ['RISE'], [
+        'label_hi' => '🧹 Mais sweeps dados', 'show_lo' => false,
+        'color_hi' => 'green', 'suffix' => 'x',
+        'copy_hi' => 'Mais sweeps aplicados — histórico RISE',
+        'only_league' => 'RISE',
+    ], $myTeamName);
+
+renderSection('rise-sweeps-sofridos', '🧹', 'rgba(252,0,37,.10)', 'Sweeps Sofridos (0-4)',
+    'Séries perdidas sem vencer um jogo sequer',
+    ['RISE' => $riseHistory['sweeps_sofridos']], ['RISE'], [
+        'label_hi' => '🧹 Mais sweeps sofridos', 'show_lo' => false,
+        'color_hi' => 'hi', 'suffix' => 'x',
+        'copy_hi' => 'Mais sweeps sofridos — histórico RISE',
+        'only_league' => 'RISE',
+    ], $myTeamName);
+
+renderSection('rise-jogo7', '🎬', 'rgba(251,191,36,.10)', 'Guerreiros do Jogo 7',
+    'Times envolvidos em mais séries decididas no jogo decisivo (4-3)',
+    ['RISE' => $riseHistory['jogo7']], ['RISE'], [
+        'label_hi' => '🎬 Mais jogos 7', 'show_lo' => false,
+        'color_hi' => 'gold', 'suffix' => 'x',
+        'copy_hi' => 'Mais séries decididas no jogo 7 — histórico RISE',
+        'only_league' => 'RISE',
+    ], $myTeamName);
+
 renderSection('trades-recusadas', '❌', 'rgba(252,0,37,.10)', 'Trades Recusadas',
     'Times envolvidos no maior número de trades rejeitadas',
     $tradesRecusadasMap, $leagues, [
