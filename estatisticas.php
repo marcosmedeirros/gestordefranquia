@@ -570,7 +570,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .stats-flow{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;align-items:start;margin-top:8px}
 /* Agrupa por altura de card: só top5 primeiro, top5+bot5 depois — evita linhas com alturas misturadas */
 .section-block[data-size="short"]{order:1}
-.section-block[data-size="tall"]{order:2}
+.stats-flow-break{order:2;grid-column:1/-1;height:0;margin:0;padding:0}
+.section-block[data-size="tall"]{order:3}
 
 /* Section headers */
 .section-block{margin-bottom:0}
@@ -875,6 +876,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
 
 // ─── Render all sections ─────────────────────────────────────────
 echo '<div class="stats-flow" id="statsFlow">';
+echo '<div class="stats-flow-break"></div>';
 
 // ── Corrida ao Topo — Melhor GM ──────────────────────────────────
 echo '<div class="section-block" id="mvp-race" data-size="short">';
