@@ -1,12 +1,14 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/rise_history.php';
 requireAuth();
 $user = getUserSession();
 $pdo2 = db();
 $pdo = db();
 
 $leagues = ['ELITE','NEXT','RISE'];
+$riseHistory = loadRiseHistoryStats();
 
 // Time e dados do usuário logado
 $myTeamName = '';
@@ -1131,6 +1133,63 @@ renderSection('draft-gap', '⏱️', 'rgba(251,191,36,.10)', 'Maior Demora Entre
         'suffix' => ' h',
         'only_league' => 'RISE',
     ], '');
+
+// ─── Histórico RISE (11 temporadas, extraído de vídeos de simulação) ─
+renderSection('rise-titulos', '🏆', 'rgba(251,191,36,.12)', 'Ranking de Títulos — Histórico RISE',
+    '11 temporadas de histórico: quem mais foi campeão',
+    ['RISE' => $riseHistory['titulos']], ['RISE'], [
+        'label_hi' => '🏆 Mais títulos', 'show_lo' => false,
+        'color_hi' => 'gold',
+        'copy_hi' => 'Mais títulos — histórico RISE',
+        'only_league' => 'RISE',
+    ], $myTeamName);
+
+renderSection('rise-dinastia', '🔥', 'rgba(252,0,37,.12)', 'Maior Dinastia — Títulos Seguidos',
+    'Maior sequência de títulos consecutivos na história da RISE',
+    ['RISE' => $riseHistory['dinastia']], ['RISE'], [
+        'label_hi' => '🔥 Maior sequência', 'show_lo' => false,
+        'color_hi' => 'hi', 'suffix' => 'x seguido(s)',
+        'copy_hi' => 'Maior dinastia — títulos seguidos',
+        'only_league' => 'RISE',
+    ], $myTeamName);
+
+renderSection('rise-rivalidades', '⚔️', 'rgba(96,165,250,.12)', 'Maiores Rivalidades — Histórico',
+    'Confrontos com mais jogos disputados entre si (qualquer round)',
+    ['RISE' => $riseHistory['rivalidades']], ['RISE'], [
+        'label_hi' => '⚔️ Mais confrontos', 'show_lo' => false,
+        'color_hi' => 'blue', 'suffix' => ' jogos',
+        'copy_hi' => 'Maiores rivalidades — histórico RISE',
+        'pair_mode' => true, 'pair_sep' => '×',
+        'only_league' => 'RISE',
+    ], $myTeamName);
+
+renderSection('rise-dominio', '💀', 'rgba(252,0,37,.10)', 'Domínio Total — Rivalidade Mais Desequilibrada',
+    'Maior saldo de vitórias em confrontos diretos (mínimo 3 jogos)',
+    ['RISE' => $riseHistory['dominio']], ['RISE'], [
+        'label_hi' => '💀 Maior domínio', 'show_lo' => false,
+        'color_hi' => 'hi', 'suffix' => ' de saldo',
+        'copy_hi' => 'Domínio total — histórico RISE',
+        'pair_mode' => true, 'pair_sep' => 'sobre',
+        'only_league' => 'RISE',
+    ], $myTeamName);
+
+renderSection('rise-aparicoes', '📊', 'rgba(168,85,247,.10)', 'Mais Aparições em Playoff — Histórico',
+    'Quantas vezes cada time chegou ao playoff nas 11 temporadas',
+    ['RISE' => $riseHistory['aparicoes']], ['RISE'], [
+        'label_hi' => '📊 Mais aparições', 'show_lo' => false,
+        'color_hi' => 'purple', 'suffix' => 'x',
+        'copy_hi' => 'Mais aparições em playoff — histórico RISE',
+        'only_league' => 'RISE',
+    ], $myTeamName);
+
+renderSection('rise-eterno-vice', '🥈', 'rgba(148,163,184,.10)', 'Eterno Vice — Sem Título',
+    'Times com mais vice-campeonatos sem nunca vencer o título',
+    ['RISE' => $riseHistory['eterno_vice']], ['RISE'], [
+        'label_hi' => '🥈 Mais vices sem título', 'show_lo' => false,
+        'color_hi' => 'lo', 'suffix' => 'x',
+        'copy_hi' => 'Eterno vice — histórico RISE',
+        'only_league' => 'RISE',
+    ], $myTeamName);
 
 renderSection('trades-recusadas', '❌', 'rgba(252,0,37,.10)', 'Trades Recusadas',
     'Times envolvidos no maior número de trades rejeitadas',
