@@ -724,8 +724,10 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
     $show_lo      = $opts['show_lo']      ?? true;
     $pair_mode    = $opts['pair_mode']    ?? false;
     $pair_sep     = $opts['pair_sep']     ?? '×';
+    $only_league  = $opts['only_league']  ?? '';
 
-    echo "<div class=\"section-block\" id=\"{$id}\">";
+    $onlyAttr = $only_league !== '' ? " data-only-league=\"{$only_league}\"" : '';
+    echo "<div class=\"section-block\" id=\"{$id}\"{$onlyAttr}>";
     echo "<div class=\"section-head\">";
     echo "<div class=\"section-icon\" style=\"background:{$icon_bg}\">{$icon}</div>";
     echo "<div><h2>{$title}</h2><div class=\"section-sub\">{$subtitle}</div></div>";
@@ -1122,11 +1124,12 @@ renderSection('trades-aceitas', '🤝', 'rgba(34,197,94,.10)', 'Trades Aceitas',
 
 renderSection('draft-gap', '⏱️', 'rgba(251,191,36,.10)', 'Maior Demora Entre Picks no Draft',
     'Quanto tempo o time demorou para escolher após a pick anterior (em horas)',
-    $draftGapMap, $leagues, [
+    $draftGapMap, ['RISE'], [
         'label_hi' => '⏱️ Maior espera', 'show_lo' => false,
         'color_hi' => 'gold',
         'copy_hi' => 'Maior demora entre picks no draft',
         'suffix' => ' h',
+        'only_league' => 'RISE',
     ], '');
 
 renderSection('trades-recusadas', '❌', 'rgba(252,0,37,.10)', 'Trades Recusadas',
@@ -1161,6 +1164,9 @@ if (overlay) overlay.addEventListener('click', () => { sidebar.classList.remove(
   function applyFilter(lg) {
     document.querySelectorAll('.league-card').forEach(card => {
       card.style.display = (card.dataset.league === lg) ? '' : 'none';
+    });
+    document.querySelectorAll('[data-only-league]').forEach(sec => {
+      sec.style.display = (sec.dataset.onlyLeague === lg) ? '' : 'none';
     });
   }
   function activate(lg) {
