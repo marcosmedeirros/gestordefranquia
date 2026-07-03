@@ -44,67 +44,6 @@ function sortLeagueData(array &$map, string $key = 'count', bool $desc = true): 
     }
 }
 
-// ── Corrida ao Topo — score composto de GM ───────────────────────
-$gmRaceMap = [];
-try {
-    // Passo 1: conquistas no playoff
-    $gmData = [];
-    $allTeams = $pdo->query("SELECT t.id, t.league, CONCAT(t.city,' ',t.name) AS name, COALESCE(u.name, CONCAT(t.city,' ',t.name)) AS gm_name FROM teams t LEFT JOIN users u ON u.id = t.user_id")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($allTeams as $t) {
-        $k = $t['league'].'|'.$t['id'];
-        $gmData[$k] = ['league'=>$t['league'],'team_id'=>(int)$t['id'],'name'=>$t['name'],'gm_name'=>$t['gm_name'],
-            'titles'=>0,'vice'=>0,'conf_finals'=>0,'semis'=>0,'playoffs'=>0,
-            'playoff_score'=>0,'roster_ovr'=>0,'draft_ovr'=>0,'trades'=>0,'fa'=>0,'total'=>0];
-    }
-    $pbRows = $pdo->query("SELECT team_id, league, status FROM playoff_brackets")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($pbRows as $r) {
-        $k = $r['league'].'|'.$r['team_id'];
-        if (!isset($gmData[$k])) continue;
-        // Títulos valem muito mais — campeão = 50, vice = 20
-        $statusPts = ['champion'=>50,'runner_up'=>20,'conference_finalist'=>8,'semifinalist'=>4,'first_round'=>1];
-        $pts = $statusPts[$r['status']] ?? 0;
-        $gmData[$k]['playoff_score'] += $pts;
-        if ($r['status']==='champion')            $gmData[$k]['titles']++;
-        if ($r['status']==='runner_up')           $gmData[$k]['vice']++;
-        if ($r['status']==='conference_finalist') $gmData[$k]['conf_finals']++;
-        if ($r['status']==='semifinalist')        $gmData[$k]['semis']++;
-        if ($pts > 0)                             $gmData[$k]['playoffs']++;
-    }
-    // Passo 2: OVR médio do elenco atual
-    $ovrRows = $pdo->query("SELECT t.id, t.league, ROUND(AVG(p.ovr),1) AS v FROM teams t JOIN players p ON p.team_id=t.id AND p.ovr>0 GROUP BY t.id,t.league")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($ovrRows as $r) { $k=$r['league'].'|'.$r['id']; if(isset($gmData[$k])) $gmData[$k]['roster_ovr']=(float)$r['v']; }
-    // Passo 3: OVR médio dos draftados
-    $drRows = $pdo->query("SELECT t.id, t.league, ROUND(AVG(p.ovr),1) AS v FROM players p JOIN teams t ON t.id=p.drafted_by_team_id WHERE p.ovr>0 GROUP BY t.id,t.league")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($drRows as $r) { $k=$r['league'].'|'.$r['id']; if(isset($gmData[$k])) $gmData[$k]['draft_ovr']=(float)$r['v']; }
-    // Passo 4: trades aceitas
-    try {
-        $trRows = $pdo->query("SELECT team_id, COUNT(*) AS c FROM (SELECT from_team_id AS team_id FROM trades WHERE status='accepted' UNION ALL SELECT to_team_id FROM trades WHERE status='accepted') x GROUP BY team_id")->fetchAll(PDO::FETCH_ASSOC);
-        $trMap = []; foreach($trRows as $r) $trMap[$r['team_id']]=(int)$r['c'];
-        foreach($gmData as $k=>&$d) $d['trades']=$trMap[$d['team_id']]??0; unset($d);
-    } catch(Exception) {}
-    // Passo 5: FA signings
-    try {
-        $faRows = $pdo->query("SELECT winner_team_id, COUNT(*) AS c FROM fa_requests WHERE status='assigned' GROUP BY winner_team_id")->fetchAll(PDO::FETCH_ASSOC);
-        $faMap = []; foreach($faRows as $r) $faMap[$r['winner_team_id']]=(int)$r['c'];
-        foreach($gmData as $k=>&$d) $d['fa']=$faMap[$d['team_id']]??0; unset($d);
-    } catch(Exception) {}
-    // Score composto — títulos dominam, bônus secundários são complementares
-    foreach($gmData as &$d) {
-        // Bônus de dinastia: cada título adicional vale +15 pts (2º, 3º...)
-        $dynastyBonus = max(0, ($d['titles'] - 1)) * 15;
-        // Bônus de elenco e draft (capped para não superar 1 título)
-        $rosterBonus  = min(20, max(0, ($d['roster_ovr'] - 75) * 1.0));
-        $draftBonus   = min(10, max(0, ($d['draft_ovr']  - 75) * 0.5));
-        // Atividade de mercado (complementar, com teto baixo)
-        $tradeBonus   = min(8, $d['trades'] * 0.08);
-        $faBonus      = min(5, $d['fa']     * 0.08);
-        $d['total']   = round($d['playoff_score'] + $dynastyBonus + $rosterBonus + $draftBonus + $tradeBonus + $faBonus, 1);
-    } unset($d);
-    // Agrupar por liga
-    foreach($gmData as $d) $gmRaceMap[$d['league']][] = $d;
-    foreach($gmRaceMap as &$arr) usort($arr, fn($a,$b)=>$b['total']<=>$a['total']); unset($arr);
-} catch(Exception) {}
-
 // ── 3. Mais aparições no playoff ─────────────────────────────────
 $playoffMap = queryByLeague($pdo, "
     SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tsp.season_id) AS count
@@ -453,32 +392,6 @@ try {
     sortLeagueData($tradesAceitasMap);
 } catch (Exception) {}
 
-// ── Maior intervalo entre picks no draft ────────────────────────────
-$draftGapMap = [];
-try {
-    $dgRaw = $pdo->query("
-        SELECT sub.league, sub.name, ROUND(sub.gap_minutes / 60.0, 1) AS count
-        FROM (
-            SELECT
-                ds.league,
-                CONCAT(t.name, ' → ', dp.name, ' (R', do.round, ' P', do.pick_position, ')') AS name,
-                TIMESTAMPDIFF(MINUTE,
-                    LAG(do.picked_at) OVER (PARTITION BY do.draft_session_id ORDER BY do.round ASC, do.pick_position ASC),
-                    do.picked_at
-                ) AS gap_minutes
-            FROM draft_order do
-            JOIN draft_sessions ds ON ds.id = do.draft_session_id AND ds.status = 'completed'
-            JOIN teams t ON t.id = do.team_id
-            JOIN draft_pool dp ON dp.id = do.picked_player_id
-            WHERE do.picked_at IS NOT NULL
-              AND do.picked_player_id IS NOT NULL
-        ) sub
-        WHERE sub.gap_minutes > 0
-        ORDER BY sub.gap_minutes DESC
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($dgRaw as $r) $draftGapMap[$r['league']][] = ['name'=>$r['name'],'count'=>(float)$r['count']];
-} catch (Exception) {}
-
 // ── Trades recusadas ───────────────────────────────────────────────
 $tradesRecusadasMap = [];
 try {
@@ -626,18 +539,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .pair-b{font-size:11px;font-weight:500;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .empty-state{padding:16px 14px;font-size:11px;color:var(--text-3);text-align:center}
-
-/* MVP Race */
-.race-bar-wrap{background:var(--panel-3);border-radius:999px;height:6px;overflow:hidden;margin-top:4px}
-.race-bar{height:100%;border-radius:999px;transition:width .6s cubic-bezier(.4,0,.2,1)}
-.race-entry{padding:10px 14px;border-bottom:1px solid var(--border)}
-.race-entry:last-child{border-bottom:none}
-.race-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
-.race-name{font-size:11px;font-weight:500;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.race-name.leader{font-weight:700;color:var(--amber)}
-.race-name.me{color:var(--red);font-weight:700}
-.race-pts{font-family:'Oswald',sans-serif;font-size:14px;font-weight:700;flex-shrink:0;margin-left:8px}
-.my-race-entry{background:rgba(252,0,37,.06);border-left:3px solid var(--red)}
 </style>
 </head>
 <body>
@@ -878,64 +779,6 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
 echo '<div class="stats-flow" id="statsFlow">';
 echo '<div class="stats-flow-break"></div>';
 
-// ── Corrida ao Topo — Melhor GM ──────────────────────────────────
-echo '<div class="section-block" id="mvp-race" data-size="short">';
-echo '<div class="section-head">';
-echo '<div class="section-icon" style="background:rgba(252,0,37,.15)">🏆</div>';
-echo '<div><h2>Corrida ao Topo — Melhor GM</h2><div class="section-sub">Score composto: títulos, playoffs, qualidade de elenco, draft e movimentações</div></div>';
-echo '</div>';
-echo '<div class="leagues-grid">';
-foreach ($leagues as $lg) {
-    $myTeamNameActive = ($lg === $myTeamLeague) ? $myTeamName : '';
-    $allGMs = $gmRaceMap[$lg] ?? [];
-    $top5   = array_slice($allGMs, 0, 5);
-    $maxScore = !empty($top5) ? max(1, (float)$top5[0]['total']) : 1;
-    echo '<div class="league-card" data-league="'.htmlspecialchars($lg).'">';
-    echo '<div class="league-header"><span class="league-badge badge-'.$lg.'">'.$lg.'</span>';
-    echo '<span style="font-size:11px;color:var(--text-3);flex:1">'.count($allGMs).' franquias</span></div>';
-    if (empty($top5) || $maxScore <= 0) {
-        echo '<div class="empty-state">Sem dados suficientes</div>';
-    } else {
-        $colors = ['var(--amber)','#94a3b8','#78716c','var(--text-3)','var(--text-3)'];
-        $medals = ['🥇','🥈','🥉','4.','5.'];
-        foreach ($top5 as $i => $d) {
-            $isMe     = ($d['name'] === $myTeamNameActive);
-            $pct      = round(100 * $d['total'] / $maxScore);
-            $barColor = $isMe ? 'var(--red)' : $colors[$i];
-            echo '<div class="race-entry'.($isMe?' my-race-entry':'').'">';
-            echo '<div class="race-row">';
-            echo '<div style="flex:1;min-width:0">';
-            echo '<div style="font-size:13px;font-weight:700;color:'.$barColor.';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' . $medals[$i] . ' ' . htmlspecialchars($d['gm_name']) . '</div>';
-            echo '<div style="font-size:10px;color:var(--text-3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' . htmlspecialchars($d['name']) . '</div>';
-            echo '</div>';
-            echo '<span class="race-pts" style="color:'.$barColor.'">' . $d['total'] . ' pts</span>';
-            echo '</div>';
-            echo '<div class="race-bar-wrap"><div class="race-bar" style="width:'.$pct.'%;background:'.$barColor.'"></div></div>';
-            echo '</div>';
-        }
-        // Meu time fora do top5
-        $myPos = 0;
-        foreach ($allGMs as $idx => $d) { if ($d['name']===$myTeamNameActive) { $myPos=$idx+1; break; } }
-        if ($myPos > 5) {
-            $myD = $allGMs[$myPos-1];
-            $pct = round(100 * $myD['total'] / $maxScore);
-            echo '<div class="my-team-sep"></div>';
-            echo '<div class="my-team-label">Você — '.$myPos.'º lugar</div>';
-            echo '<div class="race-entry my-race-entry">';
-            echo '<div class="race-row">';
-            echo '<div style="flex:1;min-width:0">';
-            echo '<div style="font-size:13px;font-weight:700;color:var(--red);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'.htmlspecialchars($myD['gm_name']).'</div>';
-            echo '<div style="font-size:10px;color:var(--text-3);margin-top:1px">'.htmlspecialchars($myD['name']).'</div>';
-            echo '</div>';
-            echo '<span class="race-pts" style="color:var(--red)">'.$myD['total'].' pts</span></div>';
-            echo '<div class="race-bar-wrap"><div class="race-bar" style="width:'.$pct.'%;background:var(--red)"></div></div>';
-            echo '</div>';
-        }
-    } // end else
-    echo '</div>';
-}
-echo '</div></div>';
-
 renderSection('playoffs', '🎯', 'rgba(252,0,37,.12)', 'Aparições no Playoff',
     'Times que mais chegaram ao playoff',
     $playoffMap, $leagues, [
@@ -1129,16 +972,6 @@ renderSection('trades-aceitas', '🤝', 'rgba(34,197,94,.10)', 'Trades Aceitas',
         'color_hi' => 'green', 'color_lo' => 'lo',
         'copy_hi' => 'Mais trades aceitas', 'copy_lo' => 'Menos trades aceitas',
     ], $myTeamName);
-
-renderSection('draft-gap', '⏱️', 'rgba(251,191,36,.10)', 'Maior Demora Entre Picks no Draft',
-    'Quanto tempo o time demorou para escolher após a pick anterior (em horas)',
-    $draftGapMap, ['RISE'], [
-        'label_hi' => '⏱️ Maior espera', 'show_lo' => false,
-        'color_hi' => 'gold',
-        'copy_hi' => 'Maior demora entre picks no draft',
-        'suffix' => ' h',
-        'only_league' => 'RISE',
-    ], '');
 
 // ─── Histórico RISE (11 temporadas, extraído de vídeos de simulação) ─
 renderSection('rise-titulos', '🏆', 'rgba(251,191,36,.12)', 'Ranking de Títulos — Histórico RISE',
