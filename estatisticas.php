@@ -1167,16 +1167,9 @@ if (overlay) overlay.addEventListener('click', () => { sidebar.classList.remove(
     tabs.forEach(t => t.classList.toggle('active', t.dataset.league === lg));
     applyFilter(lg);
   }
-  tabs.forEach(tab => tab.addEventListener('click', () => {
-    activate(tab.dataset.league);
-    try { localStorage.setItem('statsLeagueFilter', tab.dataset.league); } catch (e) {}
-  }));
+  tabs.forEach(tab => tab.addEventListener('click', () => activate(tab.dataset.league)));
   const tabsEl = document.getElementById('leagueTabs');
-  let initial = (tabsEl && tabsEl.dataset.defaultLeague) || (tabs.length ? tabs[0].dataset.league : null);
-  try {
-    const saved = localStorage.getItem('statsLeagueFilter');
-    if (saved && document.querySelector('.league-tab[data-league="' + saved + '"]')) initial = saved;
-  } catch (e) {}
+  const initial = (tabsEl && tabsEl.dataset.defaultLeague) || (tabs.length ? tabs[0].dataset.league : null);
   if (initial) activate(initial);
 })();
 
