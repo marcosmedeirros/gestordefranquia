@@ -540,8 +540,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 /* ── Main wrapper ── */
 .main{margin-left:var(--sidebar-w);min-height:100vh;width:calc(100% - var(--sidebar-w))}
 .main-inner{max-width:1200px;margin:0 auto;padding:28px 24px 80px}
-.page-title{font-family:'Oswald',sans-serif;font-size:24px;font-weight:700;margin-bottom:24px;display:flex;align-items:center;gap:10px}
+.page-title{font-family:'Oswald',sans-serif;font-size:24px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:10px}
 .page-title i{color:var(--red)}
+
+/* League tabs */
+.league-tabs{position:sticky;top:0;z-index:90;display:flex;gap:8px;flex-wrap:wrap;background:var(--bg);padding:12px 0 16px;margin-bottom:8px;border-bottom:1px solid var(--border)}
+.league-tab{font-family:'Oswald',sans-serif;font-size:12px;font-weight:700;letter-spacing:.5px;padding:8px 18px;border-radius:999px;border:1px solid var(--border-md);background:var(--panel-2);color:var(--text-2);cursor:pointer;transition:all var(--t) var(--ease)}
+.league-tab:hover{color:var(--text);border-color:var(--text-2)}
+.league-tab.active{background:var(--red);border-color:var(--red);color:#fff}
+.league-tab.active[data-league="ELITE"]{background:#fbbf24;border-color:#fbbf24;color:#1a1305}
+.league-tab.active[data-league="NEXT"]{background:#818cf8;border-color:#818cf8;color:#0c0d1f}
+.league-tab.active[data-league="RISE"]{background:#4ade80;border-color:#4ade80;color:#062812}
+@media(max-width:992px){.league-tabs{top:54px}}
 
 @media(max-width:992px){
   :root{--sidebar-w:0px}
@@ -551,17 +561,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   .topbar{display:flex}
 }
 
+/* Sections flow — cards from different stats sit side by side */
+.stats-flow{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;align-items:start;margin-top:8px}
+
 /* Section headers */
-.section-block{margin-bottom:40px}
+.section-block{margin-bottom:0}
 .section-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
 .section-head h2{font-family:'Oswald',sans-serif;font-size:18px;font-weight:700;color:var(--text)}
 .section-head .section-icon{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
 .section-sub{font-size:11px;color:var(--text);margin-top:2px}
 
-/* Grid */
-.leagues-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-@media(max-width:760px){.leagues-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:480px){.leagues-grid{grid-template-columns:1fr}}
+/* Grid — sempre 1 card por vez (filtrado por liga) */
+.leagues-grid{display:block}
 
 /* Card */
 .league-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
@@ -687,6 +698,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 <div class="main">
 <div class="main-inner">
 <div class="page-title"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</div>
+<div class="league-tabs" id="leagueTabs">
+  <?php foreach ($leagues as $i => $lg): ?>
+  <button class="league-tab<?= $i === 0 ? ' active' : '' ?>" data-league="<?= htmlspecialchars($lg) ?>"><?= htmlspecialchars($lg) ?></button>
+  <?php endforeach; ?>
+</div>
 <?php
 
 // ─────────────────────────────────────────────────────────────────
@@ -733,7 +749,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
         }
         $cpEsc = htmlspecialchars($cp, ENT_QUOTES);
 
-        echo "<div class=\"league-card\">";
+        echo "<div class=\"league-card\" data-league=\"{$lg}\">";
         echo "<div class=\"league-header\">";
         echo "<span class=\"league-badge badge-{$lg}\">{$lg}</span>";
         echo "<span style=\"font-size:11px;color:var(--text-3);flex:1\">".count($arr)." registros</span>";
@@ -844,6 +860,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
 }
 
 // ─── Render all sections ─────────────────────────────────────────
+echo '<div class="stats-flow" id="statsFlow">';
 
 // ── Corrida ao Topo — Melhor GM ──────────────────────────────────
 echo '<div class="section-block" id="mvp-race">';
@@ -856,7 +873,7 @@ foreach ($leagues as $lg) {
     $allGMs = $gmRaceMap[$lg] ?? [];
     $top5   = array_slice($allGMs, 0, 5);
     $maxScore = !empty($top5) ? max(1, (float)$top5[0]['total']) : 1;
-    echo '<div class="league-card">';
+    echo '<div class="league-card" data-league="'.htmlspecialchars($lg).'">';
     echo '<div class="league-header"><span class="league-badge badge-'.$lg.'">'.$lg.'</span>';
     echo '<span style="font-size:11px;color:var(--text-3);flex:1">'.count($allGMs).' franquias</span></div>';
     if (empty($top5) || $maxScore <= 0) {
@@ -1028,7 +1045,7 @@ if (!empty(array_filter($neverTop5Map))) {
         $cp = "🚫 *Nunca escolheram no top 5 — {$lg}*\n";
         foreach ($arr as $nm) $cp .= "• {$nm}\n";
         $cpEsc = htmlspecialchars($cp, ENT_QUOTES);
-        echo '<div class="league-card">';
+        echo '<div class="league-card" data-league="'.htmlspecialchars($lg).'">';
         echo '<div class="league-header"><span class="league-badge badge-'.$lg.'">'.$lg.'</span>';
         echo '<span style="font-size:11px;color:var(--text-3);flex:1">'.count($arr).' time(s)</span>';
         echo '<button class="copy-btn" data-text="'.$cpEsc.'"><i class="bi bi-clipboard"></i> Copiar</button></div>';
@@ -1113,7 +1130,7 @@ renderSection('trades-recusadas', '❌', 'rgba(252,0,37,.10)', 'Trades Recusadas
         'copy_hi' => 'Mais trades recusadas', 'copy_lo' => 'Menos trades recusadas',
     ], $myTeamName);
 
-
+echo '</div>'; // .stats-flow
 
 
 
@@ -1130,6 +1147,30 @@ const menuBtn = document.getElementById('menuBtn');
 const overlay = document.getElementById('sbOverlay');
 if (menuBtn) menuBtn.addEventListener('click', () => { sidebar.classList.toggle('open'); overlay.classList.toggle('show'); });
 if (overlay) overlay.addEventListener('click', () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); });
+
+// League tabs filter
+(function() {
+  const tabs = document.querySelectorAll('.league-tab');
+  function applyFilter(lg) {
+    document.querySelectorAll('.league-card').forEach(card => {
+      card.style.display = (card.dataset.league === lg) ? '' : 'none';
+    });
+  }
+  function activate(lg) {
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.league === lg));
+    applyFilter(lg);
+  }
+  tabs.forEach(tab => tab.addEventListener('click', () => {
+    activate(tab.dataset.league);
+    try { localStorage.setItem('statsLeagueFilter', tab.dataset.league); } catch (e) {}
+  }));
+  let initial = tabs.length ? tabs[0].dataset.league : null;
+  try {
+    const saved = localStorage.getItem('statsLeagueFilter');
+    if (saved && document.querySelector('.league-tab[data-league="' + saved + '"]')) initial = saved;
+  } catch (e) {}
+  if (initial) activate(initial);
+})();
 
 document.querySelectorAll('.copy-btn').forEach(btn => {
   btn.addEventListener('click', () => {
