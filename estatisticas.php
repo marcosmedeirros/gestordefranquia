@@ -568,6 +568,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
 /* Sections flow — cards from different stats sit side by side */
 .stats-flow{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;align-items:start;margin-top:8px}
+/* Agrupa por altura de card: só top5 primeiro, top5+bot5 depois — evita linhas com alturas misturadas */
+.section-block[data-size="short"]{order:1}
+.section-block[data-size="tall"]{order:2}
 
 /* Section headers */
 .section-block{margin-bottom:0}
@@ -729,7 +732,8 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
     $only_league  = $opts['only_league']  ?? '';
 
     $onlyAttr = $only_league !== '' ? " data-only-league=\"{$only_league}\"" : '';
-    echo "<div class=\"section-block\" id=\"{$id}\"{$onlyAttr}>";
+    $sizeGroup = $show_lo ? 'tall' : 'short';
+    echo "<div class=\"section-block\" id=\"{$id}\" data-size=\"{$sizeGroup}\"{$onlyAttr}>";
     echo "<div class=\"section-head\">";
     echo "<div class=\"section-icon\" style=\"background:{$icon_bg}\">{$icon}</div>";
     echo "<div><h2>{$title}</h2><div class=\"section-sub\">{$subtitle}</div></div>";
@@ -873,7 +877,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
 echo '<div class="stats-flow" id="statsFlow">';
 
 // ── Corrida ao Topo — Melhor GM ──────────────────────────────────
-echo '<div class="section-block" id="mvp-race">';
+echo '<div class="section-block" id="mvp-race" data-size="short">';
 echo '<div class="section-head">';
 echo '<div class="section-icon" style="background:rgba(252,0,37,.15)">🏆</div>';
 echo '<div><h2>Corrida ao Topo — Melhor GM</h2><div class="section-sub">Score composto: títulos, playoffs, qualidade de elenco, draft e movimentações</div></div>';
@@ -1047,7 +1051,7 @@ renderSection('top5picks', '⭐', 'rgba(96,165,250,.12)', 'Mais Escolhas no Top 
     ], $myTeamName);
 
 if (!empty(array_filter($neverTop5Map))) {
-    echo '<div class="section-block" id="never-top5">';
+    echo '<div class="section-block" id="never-top5" data-size="short">';
     echo '<div class="section-head"><div class="section-icon" style="background:rgba(148,163,184,.10)">🚫</div>';
     echo '<div><h2>Nunca Escolheram no Top 5</h2><div class="section-sub">Times sem nenhuma escolha nas 5 primeiras posições do draft</div></div></div>';
     echo '<div class="leagues-grid">';
