@@ -329,7 +329,7 @@ $adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add
                  'update_draft_player', 'delete_draft_player', 'clear_draft_pool', 'assign_draft_pick',
                  'set_standings', 'set_playoff_results', 'set_awards', 'reset_teams', 'reset_sprint',
                  'adjust_picks', 'run_picks', 'register_pontuacao', 'advance_season', 'resync_season_points',
-                 'audit_points_integrity'];
+                 'audit_points_integrity', 'recalculate_points_check'];
 
 if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'admin') {
     http_response_code(403);
@@ -1729,13 +1729,135 @@ try {
             $stmtSeasonDrift->execute([$league]);
             $seasonDrift = $stmtSeasonDrift->fetchAll(PDO::FETCH_ASSOC);
 
+            // Cobertura por categoria: quais temporadas tem cada categoria (seed/playoff/premios) zerada
+            // em team_ranking_points, para confirmar que a divergencia vem de uma categoria nunca preenchida.
+            $stmtCoverage = $pdo->prepare("
+                SELECT trp.season_id, s.season_number, COALESCE(sp.sprint_number,1) AS sprint_number, s.year,
+                       SUM(COALESCE(trp.regular_season_points,0)) AS regular_total,
+                       SUM(COALESCE(trp.playoff_points,0)) AS playoff_total,
+                       SUM(COALESCE(trp.awards_points,0)) AS awards_total
+                FROM team_ranking_points trp
+                LEFT JOIN seasons s ON s.id = trp.season_id
+                LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                WHERE trp.league = ?
+                GROUP BY trp.season_id, s.season_number, sp.sprint_number, s.year
+                ORDER BY trp.season_id
+            ");
+            $stmtCoverage->execute([$league]);
+            $seasonCoverage = $stmtCoverage->fetchAll(PDO::FETCH_ASSOC);
+
             echo json_encode([
                 'success' => true,
                 'league' => $league,
                 'duplicate_rows' => $duplicates,
                 'ranking_mismatches' => $rankingMismatches,
                 'season_drift' => $seasonDrift,
+                'season_coverage' => $seasonCoverage,
             ]);
+            break;
+
+        // ========== RECALCULO OFICIAL (SOMENTE LEITURA) ==========
+        // Recalcula os pontos do zero a partir das tabelas de origem (season_standings,
+        // playoff_results, season_awards, season_history) usando a formula oficial das
+        // diretrizes, e compara com o total ja salvo em team_season_points. Nao altera nada.
+        case 'recalculate_points_check':
+            $league = $_REQUEST['league'] ?? null;
+            if (!$league) throw new Exception('league é obrigatória');
+
+            $stmtSeasons = $pdo->prepare("
+                SELECT s.id AS season_id, s.season_number, COALESCE(sp.sprint_number,1) AS sprint_number, s.year
+                FROM seasons s
+                LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                WHERE s.league = ?
+                ORDER BY s.id
+            ");
+            $stmtSeasons->execute([$league]);
+            $seasonsList = $stmtSeasons->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtStored = $pdo->prepare("SELECT team_id, points FROM team_season_points WHERE season_id = ? AND league = ?");
+            $stmtStanding = $pdo->prepare("SELECT team_id, position FROM season_standings WHERE season_id = ?");
+            $stmtPlayoff = $pdo->prepare("SELECT team_id, position FROM playoff_results WHERE season_id = ?");
+            $stmtAwards = $pdo->prepare("SELECT team_id, COUNT(*) AS c FROM season_awards WHERE season_id = ? GROUP BY team_id");
+            $stmtCup = $pdo->prepare("SELECT nba_cup_team_id FROM season_history WHERE season_id = ?");
+            $stmtTeamName = $pdo->prepare("SELECT CONCAT(city,' ',name) AS nm FROM teams WHERE id = ?");
+
+            $seedPts = function (int $pos): int {
+                if ($pos === 1) return 4;
+                if ($pos >= 2 && $pos <= 4) return 3;
+                if ($pos >= 5 && $pos <= 8) return 2;
+                return 0;
+            };
+            $playoffPts = ['champion' => 11, 'runner_up' => 8, 'conference_final' => 6, 'second_round' => 3, 'first_round' => 1];
+
+            $results = [];
+            $teamNameCache = [];
+            foreach ($seasonsList as $season) {
+                $seasonId = (int)$season['season_id'];
+
+                $stmtStored->execute([$seasonId, $league]);
+                $stored = [];
+                foreach ($stmtStored->fetchAll(PDO::FETCH_ASSOC) as $r) $stored[(int)$r['team_id']] = (int)$r['points'];
+                if (empty($stored)) continue; // temporada nao registrada, nada a comparar
+
+                $stmtStanding->execute([$seasonId]);
+                $standingRows = $stmtStanding->fetchAll(PDO::FETCH_ASSOC);
+
+                $stmtPlayoff->execute([$seasonId]);
+                $playoffRows = $stmtPlayoff->fetchAll(PDO::FETCH_ASSOC);
+
+                $stmtAwards->execute([$seasonId]);
+                $awardsRows = $stmtAwards->fetchAll(PDO::FETCH_ASSOC);
+
+                // Temporada legada sem nenhum dado bruto (playoff/standings/premios) -- nao ha o que comparar,
+                // pular para nao gerar falsos positivos de divergencia.
+                if (empty($standingRows) && empty($playoffRows) && empty($awardsRows)) continue;
+
+                $stmtCup->execute([$seasonId]);
+                $cupTeamId = $stmtCup->fetchColumn();
+
+                $recomputed = [];
+                foreach ($standingRows as $r) {
+                    $tid = (int)$r['team_id'];
+                    $recomputed[$tid] = ($recomputed[$tid] ?? 0) + $seedPts((int)$r['position']);
+                }
+                foreach ($playoffRows as $r) {
+                    $tid = (int)$r['team_id'];
+                    $recomputed[$tid] = ($recomputed[$tid] ?? 0) + ($playoffPts[$r['position']] ?? 0);
+                }
+                foreach ($awardsRows as $r) {
+                    $tid = (int)$r['team_id'];
+                    $recomputed[$tid] = ($recomputed[$tid] ?? 0) + (int)$r['c'];
+                }
+                if ($league === 'ELITE' && $cupTeamId) {
+                    $tid = (int)$cupTeamId;
+                    $recomputed[$tid] = ($recomputed[$tid] ?? 0) + 2;
+                }
+
+                $allTeamIds = array_unique(array_merge(array_keys($stored), array_keys($recomputed)));
+                foreach ($allTeamIds as $tid) {
+                    $storedPts = $stored[$tid] ?? 0;
+                    $recomputedPts = $recomputed[$tid] ?? 0;
+                    if ($storedPts === $recomputedPts) continue;
+                    if (!isset($teamNameCache[$tid])) {
+                        $stmtTeamName->execute([$tid]);
+                        $teamNameCache[$tid] = $stmtTeamName->fetchColumn() ?: "Time #$tid";
+                    }
+                    $results[] = [
+                        'season_id' => $seasonId,
+                        'sprint_number' => (int)$season['sprint_number'],
+                        'season_number' => (int)$season['season_number'],
+                        'year' => $season['year'],
+                        'team_id' => $tid,
+                        'team_name' => $teamNameCache[$tid],
+                        'stored_points' => $storedPts,
+                        'recomputed_points' => $recomputedPts,
+                        'diff' => $storedPts - $recomputedPts,
+                        'has_standing_data' => !empty($standingRows),
+                    ];
+                }
+            }
+
+            echo json_encode(['success' => true, 'league' => $league, 'divergences' => $results]);
             break;
 
         // ========== AVANÇAR TEMPORADA (MARCAR COMO COMPLETA) ==========
