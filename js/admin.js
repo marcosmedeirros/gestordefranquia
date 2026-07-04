@@ -5524,10 +5524,13 @@ function _startAdminDraftTimer(deadlineTs, elId) {
   _adminDraftTimerInterval = setInterval(update, 1000);
 }
 
+let _adminDraftRefreshInterval = null;
+
 async function showAdminDraft(league) {
   league = league || appState.currentLeague;
   appState.view = 'draft';
   updateBreadcrumb();
+  if (_adminDraftRefreshInterval) { clearInterval(_adminDraftRefreshInterval); _adminDraftRefreshInterval = null; }
 
   const container = document.getElementById('mainContainer');
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border" style="color:var(--red)"></div></div>';
@@ -5787,6 +5790,19 @@ async function showAdminDraft(league) {
 
     if (draftStatus === 'in_progress' && draft?.pick_deadline_ts) {
       _startAdminDraftTimer(Number(draft.pick_deadline_ts), 'admin-draft-detail-timer');
+    }
+
+    // Atualiza automaticamente enquanto o draft estiver em andamento, para o admin
+    // ver na hora quando um time faz uma pick (evita tentar dar pick numa vaga já escolhida).
+    if (draftStatus === 'in_progress') {
+      _adminDraftRefreshInterval = setInterval(() => {
+        if (appState.view !== 'draft') {
+          clearInterval(_adminDraftRefreshInterval);
+          _adminDraftRefreshInterval = null;
+          return;
+        }
+        showAdminDraft(league);
+      }, 10000);
     }
 
   } catch(e) {
