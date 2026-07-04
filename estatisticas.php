@@ -405,19 +405,6 @@ try {
     sortLeagueData($tradesRecusadasMap);
 } catch (Exception) {}
 
-// ── Trades revertidas (desfeitas por admin) ─────────────────────────
-$tradesRevertidasMap = [];
-try {
-    $trvRaw = $pdo->query("
-        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(tr.id) AS count
-        FROM teams t
-        LEFT JOIN trades tr ON (tr.from_team_id=t.id OR tr.to_team_id=t.id) AND tr.status='cancelled' AND tr.notes LIKE '%revertida%'
-        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($trvRaw as $r) $tradesRevertidasMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
-    sortLeagueData($tradesRevertidasMap);
-} catch (Exception) {}
-
 
 
 ?><!DOCTYPE html>
@@ -1124,14 +1111,6 @@ renderSection('trades-recusadas', '❌', 'rgba(252,0,37,.10)', 'Trades Recusadas
         'label_hi' => '❌ Mais recusadas', 'label_lo' => '✅ Menos recusadas',
         'color_hi' => 'hi', 'color_lo' => 'green',
         'copy_hi' => 'Mais trades recusadas', 'copy_lo' => 'Menos trades recusadas',
-    ], $myTeamName);
-
-renderSection('trades-revertidas', '↩️', 'rgba(148,163,184,.10)', 'Trades Revertidas',
-    'Times envolvidos em trades desfeitas por um admin',
-    $tradesRevertidasMap, $leagues, [
-        'label_hi' => '↩️ Mais revertidas', 'show_lo' => false,
-        'color_hi' => 'lo',
-        'copy_hi' => 'Mais trades revertidas',
     ], $myTeamName);
 
 echo '</div>'; // .stats-flow
