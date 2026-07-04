@@ -328,7 +328,8 @@ ensureLeagueSprintDefaults($pdo);
 $adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add_draft_player',
                  'update_draft_player', 'delete_draft_player', 'clear_draft_pool', 'assign_draft_pick',
                  'set_standings', 'set_playoff_results', 'set_awards', 'reset_teams', 'reset_sprint',
-                 'adjust_picks', 'run_picks', 'register_pontuacao', 'advance_season', 'resync_season_points'];
+                 'adjust_picks', 'run_picks', 'register_pontuacao', 'advance_season', 'resync_season_points',
+                 'audit_points_integrity'];
 
 if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'admin') {
     http_response_code(403);
@@ -1663,6 +1664,76 @@ try {
 
             syncTeamSeasonPoints($pdo, $seasonId, $seasonData3['league'], (int)$seasonData3['sprint_number'], (int)$seasonData3['season_number']);
             echo json_encode(['success' => true, 'message' => 'Pontuação re-sincronizada']);
+            break;
+
+        // ========== AUDITORIA — SOMENTE LEITURA, NÃO ALTERA NADA ==========
+        // 1) Times/temporadas com linhas duplicadas em team_ranking_points (causa de soma inflada)
+        // 2) Times cujo total acumulado (teams.ranking_points) nao bate com a soma de team_season_points
+        case 'audit_points_integrity':
+            $league = $_REQUEST['league'] ?? null;
+            if (!$league) throw new Exception('league é obrigatória');
+
+            $stmtDup = $pdo->prepare("
+                SELECT trp.season_id, s.season_number, COALESCE(sp.sprint_number,1) AS sprint_number, s.year,
+                       trp.team_id, CONCAT(t.city,' ',t.name) AS team_name,
+                       COUNT(*) AS row_count,
+                       SUM(COALESCE(trp.regular_season_points,0)) AS reg_sum,
+                       SUM(COALESCE(trp.playoff_points,0)) AS po_sum,
+                       SUM(COALESCE(trp.awards_points,0)) AS pr_sum
+                FROM team_ranking_points trp
+                LEFT JOIN teams t ON t.id = trp.team_id
+                LEFT JOIN seasons s ON s.id = trp.season_id
+                LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                WHERE trp.league = ?
+                GROUP BY trp.season_id, trp.team_id, s.season_number, sp.sprint_number, s.year, t.city, t.name
+                HAVING row_count > 1
+                ORDER BY trp.season_id, row_count DESC
+            ");
+            $stmtDup->execute([$league]);
+            $duplicates = $stmtDup->fetchAll(PDO::FETCH_ASSOC);
+
+            $rankingMismatches = [];
+            if (columnExists($pdo, 'teams', 'ranking_points')) {
+                $stmtMis = $pdo->prepare("
+                    SELECT t.id AS team_id, CONCAT(t.city,' ',t.name) AS team_name,
+                           COALESCE(t.ranking_points,0) AS current_total,
+                           COALESCE(SUM(tsp.points),0) AS sum_season_points
+                    FROM teams t
+                    LEFT JOIN team_season_points tsp ON tsp.team_id = t.id
+                    WHERE t.league = ?
+                    GROUP BY t.id, t.city, t.name, t.ranking_points
+                    HAVING COALESCE(t.ranking_points,0) <> COALESCE(SUM(tsp.points),0)
+                    ORDER BY ABS(COALESCE(t.ranking_points,0) - COALESCE(SUM(tsp.points),0)) DESC
+                ");
+                $stmtMis->execute([$league]);
+                $rankingMismatches = $stmtMis->fetchAll(PDO::FETCH_ASSOC);
+            }
+
+            // Temporadas registradas cujo team_season_points.points diverge do que team_ranking_points somaria hoje
+            $stmtSeasonDrift = $pdo->prepare("
+                SELECT tsp.season_id, tsp.team_id, CONCAT(t.city,' ',t.name) AS team_name,
+                       tsp.points AS stored_points,
+                       COALESCE((
+                           SELECT SUM(COALESCE(trp.regular_season_points,0)+COALESCE(trp.playoff_points,0)+COALESCE(trp.awards_points,0))
+                           FROM team_ranking_points trp
+                           WHERE trp.season_id = tsp.season_id AND trp.team_id = tsp.team_id
+                       ), 0) AS recomputed_points
+                FROM team_season_points tsp
+                LEFT JOIN teams t ON t.id = tsp.team_id
+                WHERE tsp.league = ?
+                HAVING stored_points <> recomputed_points
+                ORDER BY tsp.season_id
+            ");
+            $stmtSeasonDrift->execute([$league]);
+            $seasonDrift = $stmtSeasonDrift->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode([
+                'success' => true,
+                'league' => $league,
+                'duplicate_rows' => $duplicates,
+                'ranking_mismatches' => $rankingMismatches,
+                'season_drift' => $seasonDrift,
+            ]);
             break;
 
         // ========== AVANÇAR TEMPORADA (MARCAR COMO COMPLETA) ==========
