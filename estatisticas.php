@@ -537,6 +537,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .pair-names{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .pair-a{font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pair-b{font-size:11px;font-weight:500;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pair-row.my-team{background:rgba(252,0,37,.10);border-left:3px solid var(--red)}
+.pair-row.my-team .pair-a{color:#fff;font-weight:700}
+.pair-row.my-team .rn{color:var(--red)}
 
 .empty-state{padding:16px 14px;font-size:11px;color:var(--text-3);text-align:center}
 </style>
@@ -675,9 +678,11 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
         // Find myTeam position in full array (1-indexed)
         $isPlayerSection = !$pair_mode && !empty($arr) && isset($arr[0]['team']);
         $myPos = 0;
-        if ($myTeamActive !== '' && !$pair_mode) {
+        if ($myTeamActive !== '') {
             foreach ($arr as $idx => $r) {
-                if ($isPlayerSection) {
+                if ($pair_mode) {
+                    if (($r['a_long'] ?? null) === $myTeamActive || ($r['b_long'] ?? null) === $myTeamActive) { $myPos = $idx + 1; break; }
+                } elseif ($isPlayerSection) {
                     if (!empty($r['team']) && $r['team'] === $myTeamActive) { $myPos = $idx + 1; break; }
                 } else {
                     if ($r['name'] === $myTeamActive) { $myPos = $idx + 1; break; }
@@ -691,9 +696,11 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
             echo "<div class=\"empty-state\">Sem dados</div>";
         } else {
             foreach ($top5 as $i => $r) {
-                $isMyTeam = !$pair_mode && $myTeamActive !== '' && ($isPlayerSection ? (!empty($r['team']) && $r['team'] === $myTeamActive) : $r['name'] === $myTeamActive);
+                $isMyTeam = $myTeamActive !== '' && ($pair_mode
+                    ? (($r['a_long'] ?? null) === $myTeamActive || ($r['b_long'] ?? null) === $myTeamActive)
+                    : ($isPlayerSection ? (!empty($r['team']) && $r['team'] === $myTeamActive) : $r['name'] === $myTeamActive));
                 if ($pair_mode) {
-                    echo "<div class=\"pair-row\">";
+                    echo "<div class=\"pair-row".($isMyTeam ? ' my-team' : '')."\">";
                     echo "<span class=\"rn ".($i===0?'gold':'')."\">" . ($i+1) . "</span>";
                     echo "<div class=\"pair-names\">";
                     echo "<span class=\"pair-a\" title=\"".htmlspecialchars($r['a_long'])."\">" . htmlspecialchars($r['a']) . "</span>";
@@ -715,20 +722,38 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
                 }
             }
             // Show myTeam outside top5
-            if ($myPos > 0 && !$myInTop5 && !$pair_mode) {
+            if ($myPos > 0 && !$myInTop5) {
                 $myRow = $arr[$myPos - 1];
                 echo "<div class=\"my-team-sep\"></div>";
-                $myLabel = $isPlayerSection ? "Seu time — " . htmlspecialchars($myTeamActive) : "Seu time";
-                echo "<div class=\"my-team-label\">{$myLabel}</div>";
-                echo "<div class=\"rank-row my-team\">";
-                echo "<span class=\"rn\">{$myPos}</span>";
-                if (!empty($myRow['team'])) {
-                    echo "<span class=\"rname\" title=\"".htmlspecialchars($myRow['name'])."\">" . htmlspecialchars($myRow['name']) . " <span class=\"rteam\">- " . htmlspecialchars($myRow['team']) . "</span></span>";
+                if ($pair_mode) {
+                    echo "<div class=\"my-team-label\">Seu time</div>";
+                    $aLong = $myRow['a_long']; $bLong = $myRow['b_long'];
+                    $aShort = $myRow['a']; $bShort = $myRow['b'];
+                    if ($aLong !== $myTeamActive) {
+                        [$aLong, $bLong] = [$bLong, $aLong];
+                        [$aShort, $bShort] = [$bShort, $aShort];
+                    }
+                    echo "<div class=\"pair-row my-team\">";
+                    echo "<span class=\"rn\">{$myPos}</span>";
+                    echo "<div class=\"pair-names\">";
+                    echo "<span class=\"pair-a\" title=\"".htmlspecialchars($aLong)."\">" . htmlspecialchars($aShort) . "</span>";
+                    echo "<span class=\"pair-b\">{$pair_sep} " . htmlspecialchars($bShort) . "</span>";
+                    echo "</div>";
+                    echo "<span class=\"rval {$color_hi}\">" . $myRow['count'] . $suffix . "</span>";
+                    echo "</div>";
                 } else {
-                    echo "<span class=\"rname\" title=\"".htmlspecialchars($myRow['name'])."\">" . htmlspecialchars($myRow['name']) . "</span>";
+                    $myLabel = $isPlayerSection ? "Seu time — " . htmlspecialchars($myTeamActive) : "Seu time";
+                    echo "<div class=\"my-team-label\">{$myLabel}</div>";
+                    echo "<div class=\"rank-row my-team\">";
+                    echo "<span class=\"rn\">{$myPos}</span>";
+                    if (!empty($myRow['team'])) {
+                        echo "<span class=\"rname\" title=\"".htmlspecialchars($myRow['name'])."\">" . htmlspecialchars($myRow['name']) . " <span class=\"rteam\">- " . htmlspecialchars($myRow['team']) . "</span></span>";
+                    } else {
+                        echo "<span class=\"rname\" title=\"".htmlspecialchars($myRow['name'])."\">" . htmlspecialchars($myRow['name']) . "</span>";
+                    }
+                    echo "<span class=\"rval {$color_hi}\">" . $myRow['count'] . $suffix . "</span>";
+                    echo "</div>";
                 }
-                echo "<span class=\"rval {$color_hi}\">" . $myRow['count'] . $suffix . "</span>";
-                echo "</div>";
             }
         }
 
@@ -741,9 +766,11 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
                 $bot5Full = array_reverse(array_slice(array_reverse($arr), 0, 5));
                 $bot5Positions = range(count($arr) - count($bot5Full) + 1, count($arr));
                 foreach ($bot5Full as $i => $r) {
-                    $isMyTeam = !$pair_mode && $myTeamActive !== '' && ($isPlayerSection ? (!empty($r['team']) && $r['team'] === $myTeamActive) : $r['name'] === $myTeamActive);
+                    $isMyTeam = $myTeamActive !== '' && ($pair_mode
+                        ? (($r['a_long'] ?? null) === $myTeamActive || ($r['b_long'] ?? null) === $myTeamActive)
+                        : ($isPlayerSection ? (!empty($r['team']) && $r['team'] === $myTeamActive) : $r['name'] === $myTeamActive));
                     if ($pair_mode) {
-                        echo "<div class=\"pair-row\">";
+                        echo "<div class=\"pair-row".($isMyTeam ? ' my-team' : '')."\">";
                         echo "<span class=\"rn\">" . ($i+1) . "</span>";
                         echo "<div class=\"pair-names\">";
                         echo "<span class=\"pair-a\">" . htmlspecialchars($r['a']) . "</span>";
@@ -912,7 +939,10 @@ if (!empty(array_filter($neverTop5Map))) {
         if (empty($arr)) {
             echo '<div class="empty-state">Todos já escolheram no top 5</div>';
         } else {
-            foreach ($arr as $nm) echo '<div class="rank-row"><span class="rname">'.htmlspecialchars($nm).'</span></div>';
+            foreach ($arr as $nm) {
+                $isMe = ($lg === $myTeamLeague) && ($nm === $myTeamName);
+                echo '<div class="rank-row'.($isMe ? ' my-team' : '').'"><span class="rname">'.htmlspecialchars($nm).'</span></div>';
+            }
         }
         echo '</div>';
     }
