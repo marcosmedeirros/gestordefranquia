@@ -1709,19 +1709,21 @@ try {
                 $rankingMismatches = $stmtMis->fetchAll(PDO::FETCH_ASSOC);
             }
 
-            // Temporadas registradas cujo team_season_points.points diverge do que team_ranking_points somaria hoje
+            // Temporadas registradas cujo team_season_points.points diverge do que team_ranking_points somaria hoje.
+            // So considera temporadas que REALMENTE tem linhas em team_ranking_points (registradas pelo wizard novo);
+            // temporadas antigas registradas pelo sistema legado (sem linhas em team_ranking_points) sao ignoradas
+            // aqui, pois recomputed_points=0 nesse caso nao indica bug, so um caminho de registro diferente.
             $stmtSeasonDrift = $pdo->prepare("
                 SELECT tsp.season_id, tsp.team_id, CONCAT(t.city,' ',t.name) AS team_name,
                        tsp.points AS stored_points,
-                       COALESCE((
-                           SELECT SUM(COALESCE(trp.regular_season_points,0)+COALESCE(trp.playoff_points,0)+COALESCE(trp.awards_points,0))
-                           FROM team_ranking_points trp
-                           WHERE trp.season_id = tsp.season_id AND trp.team_id = tsp.team_id
-                       ), 0) AS recomputed_points
+                       SUM(COALESCE(trp.regular_season_points,0)+COALESCE(trp.playoff_points,0)+COALESCE(trp.awards_points,0)) AS recomputed_points,
+                       COUNT(trp.id) AS trp_row_count
                 FROM team_season_points tsp
                 LEFT JOIN teams t ON t.id = tsp.team_id
+                INNER JOIN team_ranking_points trp ON trp.season_id = tsp.season_id AND trp.team_id = tsp.team_id
                 WHERE tsp.league = ?
-                HAVING stored_points <> recomputed_points
+                GROUP BY tsp.season_id, tsp.team_id, t.city, t.name, tsp.points
+                HAVING tsp.points <> SUM(COALESCE(trp.regular_season_points,0)+COALESCE(trp.playoff_points,0)+COALESCE(trp.awards_points,0))
                 ORDER BY tsp.season_id
             ");
             $stmtSeasonDrift->execute([$league]);
