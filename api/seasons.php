@@ -329,7 +329,7 @@ $adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add
                  'update_draft_player', 'delete_draft_player', 'clear_draft_pool', 'assign_draft_pick',
                  'set_standings', 'set_playoff_results', 'set_awards', 'reset_teams', 'reset_sprint',
                  'adjust_picks', 'run_picks', 'register_pontuacao', 'advance_season', 'resync_season_points',
-                 'audit_points_integrity', 'recalculate_points_check'];
+                 'audit_points_integrity', 'recalculate_points_check', 'debug_team_season_raw'];
 
 if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'admin') {
     http_response_code(403);
@@ -1858,6 +1858,42 @@ try {
             }
 
             echo json_encode(['success' => true, 'league' => $league, 'divergences' => $results]);
+            break;
+
+        // ========== DEBUG — DADOS BRUTOS DE UM TIME/TEMPORADA (SOMENTE LEITURA) ==========
+        case 'debug_team_season_raw':
+            $seasonId = (int)($_REQUEST['season_id'] ?? 0);
+            $teamId = (int)($_REQUEST['team_id'] ?? 0);
+            if (!$seasonId || !$teamId) throw new Exception('season_id e team_id são obrigatórios');
+
+            $stmtA = $pdo->prepare('SELECT * FROM season_standings WHERE season_id = ? AND team_id = ?');
+            $stmtA->execute([$seasonId, $teamId]);
+            $standing = $stmtA->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtB = $pdo->prepare('SELECT * FROM playoff_results WHERE season_id = ? AND team_id = ?');
+            $stmtB->execute([$seasonId, $teamId]);
+            $playoff = $stmtB->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtC = $pdo->prepare('SELECT * FROM season_awards WHERE season_id = ? AND team_id = ?');
+            $stmtC->execute([$seasonId, $teamId]);
+            $awards = $stmtC->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtD = $pdo->prepare('SELECT * FROM team_ranking_points WHERE season_id = ? AND team_id = ?');
+            $stmtD->execute([$seasonId, $teamId]);
+            $rankingPoints = $stmtD->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmtE = $pdo->prepare('SELECT * FROM team_season_points WHERE season_id = ? AND team_id = ?');
+            $stmtE->execute([$seasonId, $teamId]);
+            $seasonPoints = $stmtE->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode([
+                'success' => true,
+                'season_standings' => $standing,
+                'playoff_results' => $playoff,
+                'season_awards' => $awards,
+                'team_ranking_points' => $rankingPoints,
+                'team_season_points' => $seasonPoints,
+            ]);
             break;
 
         // ========== AVANÇAR TEMPORADA (MARCAR COMO COMPLETA) ==========
