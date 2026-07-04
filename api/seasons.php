@@ -328,7 +328,7 @@ ensureLeagueSprintDefaults($pdo);
 $adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add_draft_player',
                  'update_draft_player', 'delete_draft_player', 'clear_draft_pool', 'assign_draft_pick',
                  'set_standings', 'set_playoff_results', 'set_awards', 'reset_teams', 'reset_sprint',
-                 'adjust_picks', 'run_picks', 'register_pontuacao', 'advance_season'];
+                 'adjust_picks', 'run_picks', 'register_pontuacao', 'advance_season', 'resync_season_points'];
 
 if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'admin') {
     http_response_code(403);
@@ -351,6 +351,9 @@ function syncTeamSeasonPoints(PDO $pdo, int $seasonId, string $league, int $spri
     $stmt = $pdo->prepare("
         SELECT trp.team_id,
                CONCAT(t.city, ' ', t.name) AS team_name,
+               SUM(COALESCE(trp.regular_season_points, 0)) AS regular_points,
+               SUM(COALESCE(trp.playoff_points,         0)) AS playoff_points_sum,
+               SUM(COALESCE(trp.awards_points,          0)) AS awards_points_sum,
                SUM(
                    COALESCE(trp.regular_season_points, 0) +
                    COALESCE(trp.playoff_points,         0) +
@@ -367,21 +370,34 @@ function syncTeamSeasonPoints(PDO $pdo, int $seasonId, string $league, int $spri
 
     if (empty($rows)) return;
 
+    // Garante que as colunas de detalhamento existem em team_season_points (mesmo padrao do history-points.php)
+    foreach (['points_regular', 'points_playoffs', 'points_prizes'] as $col) {
+        if (!columnExists($pdo, 'team_season_points', $col)) {
+            $pdo->exec("ALTER TABLE team_season_points ADD COLUMN {$col} INT NOT NULL DEFAULT 0");
+        }
+    }
+
     $stmtUpsert = $pdo->prepare("
         INSERT INTO team_season_points
-            (team_id, team_name, league, season_id, sprint_number, season_number, points)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (team_id, team_name, league, season_id, sprint_number, season_number, points, points_regular, points_playoffs, points_prizes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
-            points      = VALUES(points),
-            team_name   = VALUES(team_name),
-            updated_at  = NOW()
+            points           = VALUES(points),
+            points_regular   = VALUES(points_regular),
+            points_playoffs  = VALUES(points_playoffs),
+            points_prizes    = VALUES(points_prizes),
+            team_name        = VALUES(team_name),
+            updated_at       = NOW()
     ");
     $newPoints = [];
     foreach ($rows as $row) {
         $tid = (int)$row['team_id'];
         $pts = (int)$row['total_points'];
         $newPoints[$tid] = $pts;
-        $stmtUpsert->execute([$tid, $row['team_name'] ?? 'Time Desconhecido', $league, $seasonId, $sprintNumber, $seasonNumber, $pts]);
+        $stmtUpsert->execute([
+            $tid, $row['team_name'] ?? 'Time Desconhecido', $league, $seasonId, $sprintNumber, $seasonNumber,
+            $pts, (int)$row['regular_points'], (int)$row['playoff_points_sum'], (int)$row['awards_points_sum'],
+        ]);
     }
 
     // Incrementa teams.ranking_points pelo delta (novo - antigo desta temporada).
@@ -1628,6 +1644,25 @@ try {
             snapshotPlayersForSeason($pdo, $seasonId, $league2);
             syncTeamSeasonPoints($pdo, $seasonId, $league2, $sprintNumber2, $seasonNumber2);
             echo json_encode(['success' => true, 'message' => 'Pontuação registrada!']);
+            break;
+
+        // ========== RE-SINCRONIZAR PONTOS JA REGISTRADOS (BACKFILL) ==========
+        // Reaproveita os dados ja corretos em team_ranking_points para preencher/corrigir
+        // o detalhamento (points_regular/points_playoffs/points_prizes) em team_season_points,
+        // sem precisar re-registrar campeao/vice/premiacoes.
+        case 'resync_season_points':
+            if ($method !== 'POST') throw new Exception('Método inválido');
+            $input = json_decode(file_get_contents('php://input'), true);
+            $seasonId = isset($input['season_id']) ? (int)$input['season_id'] : 0;
+            if (!$seasonId) throw new Exception('season_id é obrigatório');
+
+            $stmtSeason3 = $pdo->prepare("SELECT s.league, s.season_number, COALESCE(sp.sprint_number, 1) AS sprint_number FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.id = ?");
+            $stmtSeason3->execute([$seasonId]);
+            $seasonData3 = $stmtSeason3->fetch(PDO::FETCH_ASSOC);
+            if (!$seasonData3) throw new Exception('Temporada não encontrada');
+
+            syncTeamSeasonPoints($pdo, $seasonId, $seasonData3['league'], (int)$seasonData3['sprint_number'], (int)$seasonData3['season_number']);
+            echo json_encode(['success' => true, 'message' => 'Pontuação re-sincronizada']);
             break;
 
         // ========== AVANÇAR TEMPORADA (MARCAR COMO COMPLETA) ==========
