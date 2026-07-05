@@ -96,6 +96,7 @@ try {
 } catch (Exception $e) {}
 
 $isEliteOrNext = in_array(($team['league'] ?? ''), ['ELITE', 'NEXT'], true);
+$isElite = ($team['league'] ?? '') === 'ELITE';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -468,7 +469,9 @@ $isEliteOrNext = in_array(($team['league'] ?? ''), ['ELITE', 'NEXT'], true);
                     <div class="banner-sub" style="line-height:1.8">
                         Titulares: mín. <strong>25 min</strong> &nbsp;·&nbsp;
                         Reservas: mín. <strong>5 min</strong> &nbsp;·&nbsp;
+                        <?php if (!$isElite): ?>
                         Top-5 OVRs <em style="font-style:normal;color:var(--text-3)">(só na regular)</em>: <strong>25+ min obrigatório</strong> (empate no 5º: ao menos 1 deve ter 25+) &nbsp;·&nbsp;
+                        <?php endif; ?>
                         Total exato: <strong>240 min</strong> &nbsp;·&nbsp;
                         Máximo: <strong>40 min</strong> (regular) / <strong>45 min</strong> (playoffs)
                     </div>
@@ -710,7 +713,9 @@ $isEliteOrNext = in_array(($team['league'] ?? ''), ['ELITE', 'NEXT'], true);
                         <div class="info-note" style="margin-bottom:16px">
                             <i class="bi bi-info-circle me-1"></i>
                             <strong>Atenção:</strong> Titulares precisam de mín. <strong>25min</strong>. Reservas mín. <strong>5min</strong>.
+                            <?php if (!$isElite): ?>
                             Na temporada regular: os <strong>5 maiores OVRs devem ter 25+ min</strong> (em empate no 5º, ao menos 1 dos empatados). Nos playoffs essa regra não se aplica.
+                            <?php endif; ?>
                         </div>
                         <p style="font-size:12px;color:var(--text-2);margin-bottom:16px">Minutos por jogo para cada jogador (mín. 5; máx. 40 na regular / 45 nos playoffs)</p>
                         <div id="player-minutes-container" class="row g-3">
@@ -794,6 +799,7 @@ $isEliteOrNext = in_array(($team['league'] ?? ''), ['ELITE', 'NEXT'], true);
     window.__DEADLINE_PHASE__ = <?= json_encode($deadline['phase'] ?? null) ?>;
     window.__DEADLINE_ISO__   = <?= json_encode($deadlineIso) ?>;
     window.__DIRECTIVE_MODE__ = <?= json_encode($directiveMode) ?>;
+    window.__TEAM_LEAGUE__    = <?= json_encode($team['league'] ?? '') ?>;
 
     // Sidebar toggle
     (function () {
