@@ -146,7 +146,7 @@ body{overflow-x:hidden}
 .topbar-title{font-size:14px;font-weight:600;color:var(--text)}
 
 /* Main */
-.main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh}
+.main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh;min-width:0}
 .page-hero{padding:28px 28px 0;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px}
 .page-hero-title{font-size:22px;font-weight:700;color:var(--text);line-height:1.2}
 .content{padding:20px 28px 60px}
