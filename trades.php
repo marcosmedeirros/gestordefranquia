@@ -702,7 +702,7 @@ try {
                   <div style="font-size:12px;color:var(--text-2)">Após trade: <span style="color:var(--red);font-weight:600" id="capMyProjected">-</span></div>
                   <div style="font-size:12px;color:var(--text-2);margin-top:4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
                     <span>Jogadores: <span style="color:var(--text)" id="capMyPlayers">-</span> → <span style="color:var(--red);font-weight:600" id="capMyPlayersProjected">-</span></span>
-                    <span style="color:var(--text-3)">Valor: <span style="color:var(--text);font-weight:600" id="tvMyValue">—</span></span>
+                    <span style="color:var(--text-3);display:none">Valor: <span style="color:var(--text);font-weight:600" id="tvMyValue">—</span></span>
                   </div>
                 </div>
               </div>
@@ -716,7 +716,7 @@ try {
                   <div style="font-size:12px;color:var(--text-2)">Após trade: <span style="color:var(--red);font-weight:600" id="capTargetProjected">-</span></div>
                   <div style="font-size:12px;color:var(--text-2);margin-top:4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
                     <span>Jogadores: <span style="color:var(--text)" id="capTargetPlayers">-</span> → <span style="color:var(--red);font-weight:600" id="capTargetPlayersProjected">-</span></span>
-                    <span style="color:var(--text-3)">Valor: <span style="color:var(--text);font-weight:600" id="tvTargetValue">—</span> <span id="tvVerdict" class="tv-verdict-badge tv-neutral" style="font-size:9px;padding:3px 8px"><i class="bi bi-hourglass-split"></i></span></span>
+                    <span style="color:var(--text-3);display:none">Valor: <span style="color:var(--text);font-weight:600" id="tvTargetValue">—</span> <span id="tvVerdict" class="tv-verdict-badge tv-neutral" style="font-size:9px;padding:3px 8px"><i class="bi bi-hourglass-split"></i></span></span>
                   </div>
                 </div>
               </div>

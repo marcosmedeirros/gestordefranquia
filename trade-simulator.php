@@ -744,13 +744,11 @@ function itemHtml(item, toKey) {
     </div>`;
   } else {
     const pair = findSwapPair(toKey, item);
-    const swapSel = pair
-      ? `<select class="sim-swap-select" onchange="setSimSwapRole('${toKey}',${item.id},this.value)" title="Swap">
+    const swapSel = `<select class="sim-swap-select" onchange="setSimSwapRole('${toKey}',${item.id},this.value)" title="${pair ? 'Swap' : 'Swap (adicione uma pick da mesma rodada, ano diferente, do outro lado para parear)'}">
            <option value="" ${!item.swapRole ? 'selected' : ''}>—</option>
            <option value="SB" ${item.swapRole === 'SB' ? 'selected' : ''}>SB</option>
            <option value="SW" ${item.swapRole === 'SW' ? 'selected' : ''}>SW</option>
-         </select>`
-      : '';
+         </select>`;
     return `<div class="sim-item">
       <div class="sim-item-pick-icon"><i class="bi bi-calendar-event"></i></div>
       <div class="sim-item-info">
@@ -1226,43 +1224,27 @@ function tradeVerdict(values) {
 
 function updateValueBar() {
   const hasAnyItems = activeSlots.some(k => (receives[k] || []).length > 0);
+  // Calculo do valor/veredito da trade mantido internamente (window.__lastTradeValue),
+  // mas a barra visual fica sempre oculta a pedido — nao exibir mais para os usuarios.
   const vb = document.getElementById('valueBar');
-  if (!vb) return;
+  if (vb) vb.style.display = 'none';
 
   const loadedSlots = activeSlots.filter(k => teams[k]);
   if (!hasAnyItems || loadedSlots.length < 2) {
-    vb.style.display = 'none';
+    window.__lastTradeValue = null;
     return;
   }
-  vb.style.display = '';
 
-  const vp = document.getElementById('valuePanels');
-  vp.innerHTML = '';
   const values = [];
-
+  const perTeam = {};
   loadedSlots.forEach(key => {
-    const t = teams[key];
     const val = calcTeamOffersValue(key);
     values.push(val);
-    const panel = document.createElement('div');
-    panel.className = 'value-panel';
-    const items = activeSlots.reduce((s, tk) => { if (tk !== key) s += (receives[tk] || []).filter(i => i.fromKey === key).length; return s; }, 0);
-    panel.innerHTML = `
-      <div class="value-label">${escH(t.name)}</div>
-      <div class="value-num">${val}</div>
-      <div class="value-sub">${items} item${items !== 1 ? 's' : ''} enviado${items !== 1 ? 's' : ''}</div>
-    `;
-    vp.appendChild(panel);
+    perTeam[key] = val;
   });
 
   const v = tradeVerdict(values);
-  const vPanel = document.getElementById('verdictPanel');
-  if (vPanel) {
-    vPanel.innerHTML = `
-      <div class="verdict-badge ${v.cls}"><i class="bi bi-${v.icon}"></i>${v.label}</div>
-      <div class="verdict-hint">${v.hint}</div>
-    `;
-  }
+  window.__lastTradeValue = { perTeam, verdict: v };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
