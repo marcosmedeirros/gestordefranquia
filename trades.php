@@ -352,6 +352,10 @@ try {
       background: var(--panel-2); border: 1px solid var(--border);
       border-radius: 30px; padding: 5px 12px;
     }
+    .team-chip.accepted {
+      border-color: var(--green); background: rgba(34,197,94,.08);
+    }
+    .team-chip .team-chip-check { color: var(--green); font-size: 12px; }
     .team-chip-badge {
       width: 28px; height: 28px; border-radius: 50%;
       background: var(--panel-3); border: 1px solid var(--border-md);

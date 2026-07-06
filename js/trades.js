@@ -1666,7 +1666,9 @@ function createMultiTradeCard(trade, type) {
     : `<div style="color:var(--text-3);font-size:13px">Nenhum item</div>`;
 
   const teamsList = (trade.teams || []).map((team) => {
-    return `<span class="team-chip"><span class="team-chip-badge">${team.city?.[0] || 'T'}</span>${getTeamLabel(team)}</span>`;
+    const acceptedCls = team.accepted ? ' accepted' : '';
+    const check = team.accepted ? ' <i class="bi bi-check-circle-fill team-chip-check" title="Já aceitou"></i>' : '';
+    return `<span class="team-chip${acceptedCls}"><span class="team-chip-badge">${team.city?.[0] || 'T'}</span>${getTeamLabel(team)}${check}</span>`;
   }).join('');
 
   card.innerHTML = `

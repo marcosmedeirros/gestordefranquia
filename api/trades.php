@@ -1786,9 +1786,12 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'multi_trades') {
         $stmtMy = $pdo->prepare('SELECT accepted_at FROM multi_trade_teams WHERE trade_id = ? AND team_id = ?');
         $stmtMy->execute([$tradeId, $teamId]);
         $trade['my_accepted'] = (bool)$stmtMy->fetchColumn();
-        $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name FROM multi_trade_teams mtt JOIN teams t ON t.id = mtt.team_id WHERE mtt.trade_id = ?');
+        $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name, (mtt.accepted_at IS NOT NULL) AS accepted FROM multi_trade_teams mtt JOIN teams t ON t.id = mtt.team_id WHERE mtt.trade_id = ?');
         $stmtTeams->execute([$tradeId]);
-        $trade['teams'] = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
+        $trade['teams'] = array_map(function($row) {
+            $row['accepted'] = (bool)$row['accepted'];
+            return $row;
+        }, $stmtTeams->fetchAll(PDO::FETCH_ASSOC));
 
         $stmtItems = $pdo->prepare('SELECT * FROM multi_trade_items WHERE trade_id = ?');
         $stmtItems->execute([$tradeId]);
