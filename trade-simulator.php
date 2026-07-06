@@ -85,7 +85,7 @@ if ($myTeam) {
 $isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
 $pageTitle = $propose ? 'Nova Trade' : 'Simulador de Trade';
-$pageSub   = $propose ? 'Monte a troca com até 5 times e envie a proposta.' : 'Simule trocas sem enviar nada.';
+$pageSub   = $propose ? 'Monte a troca com até 7 times e envie a proposta.' : 'Simule trocas sem enviar nada.';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -555,9 +555,9 @@ const IS_PROPOSE = <?= $propose ? 'true' : 'false' ?>;
 const CAP_MIN    = <?= $capMin ?>;
 const CAP_MAX    = <?= $capMax ?>;
 const MY_TEAM_ID = <?= $myTeamId ?>;
-const MAX_TEAMS  = 5;
+const MAX_TEAMS  = 7;
 
-const SLOT_KEYS = ['A','B','C','D','E'];
+const SLOT_KEYS = ['A','B','C','D','E','F','G'];
 
 // State
 const teams   = {}; // key → { id, name, photo_url, players, picks, cap, tradedOut }
