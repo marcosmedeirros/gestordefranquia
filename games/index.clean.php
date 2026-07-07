@@ -170,33 +170,6 @@ try {
 }
 
 try {
-    try {
-        $stmt = $pdo->prepare("SELECT e.id, e.nome, e.data_limite, e.league, e.vencedor_opcao_id FROM eventos e WHERE e.status = 'encerrada' ORDER BY e.data_limite DESC LIMIT 15");
-        $stmt->execute();
-        $eventos_encerrados = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (PDOException $e) {
-        $stmt = $pdo->prepare("SELECT e.id, e.nome, e.data_limite, e.vencedor_opcao_id FROM eventos e WHERE e.status = 'encerrada' ORDER BY e.data_limite DESC LIMIT 15");
-        $stmt->execute();
-        $eventos_encerrados = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        foreach ($eventos_encerrados as &$evento) { $evento['league'] = 'GERAL'; }
-        unset($evento);
-    }
-    foreach ($eventos_encerrados as &$evento) {
-        $stmtOpcoes = $pdo->prepare("SELECT o.id, o.descricao, COUNT(p.id) as palpites_count FROM opcoes o LEFT JOIN palpites p ON p.opcao_id = o.id WHERE o.evento_id = :eid GROUP BY o.id, o.descricao ORDER BY o.id ASC");
-        $stmtOpcoes->execute([':eid' => $evento['id']]);
-        $evento['opcoes'] = $stmtOpcoes->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $evento['total_palpites'] = array_sum(array_column($evento['opcoes'], 'palpites_count'));
-        foreach ($evento['opcoes'] as &$op) {
-            $op['pct'] = $evento['total_palpites'] > 0 ? round(($op['palpites_count'] / $evento['total_palpites']) * 100) : 0;
-        }
-        unset($op);
-    }
-    unset($evento);
-} catch (PDOException $e) {
-    $eventos_encerrados = [];
-}
-
-try {
     $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM palpites p JOIN eventos e ON (SELECT evento_id FROM opcoes WHERE id = p.opcao_id) = e.id WHERE p.id_usuario = :uid AND e.status = 'aberta'");
     $stmt->execute([':uid' => $user_id]);
     $minhas_apostas_abertas = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
@@ -499,31 +472,6 @@ try {
       .bet-opts-2 { flex-direction: row; }
       .bet-opts-2 .bet-opt { flex: 1; }
     }
-
-    /* ── Bet cards (encerradas, compacto) ── */
-    .bet-card.closed { opacity: .8; }
-    .bet-card.closed:hover { opacity: 1; }
-    .bet-winner-pill {
-      display: flex; align-items: center; gap: 4px;
-      background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.25);
-      border-radius: 999px; padding: 2px 8px; max-width: 130px;
-      font-size: 10px; font-weight: 700; color: var(--amber);
-    }
-    .bet-winner-pill span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .bet-opts-mini { display: flex; flex-direction: column; gap: 5px; }
-    .bet-opt-mini {
-      display: flex; align-items: center; gap: 8px;
-      padding: 6px 10px; border-radius: 6px;
-      background: var(--panel); border: 1px solid var(--border);
-    }
-    .bet-opt-mini.won { border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.06); }
-    .bet-opt-mini .mini-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 600; color: var(--text); }
-    .bet-opt-mini .mini-bar-wrap { width: 56px; height: 4px; background: rgba(255,255,255,.05); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
-    .bet-opt-mini .mini-bar { height: 100%; border-radius: 2px; background: rgba(255,255,255,.15); }
-    .bet-opt-mini.won .mini-bar { background: linear-gradient(90deg,#f59e0b,#fbbf24); }
-    .bet-opt-mini .mini-pct { font-size: 10px; font-weight: 800; color: var(--text-3); width: 30px; text-align: right; flex-shrink: 0; }
-    .bet-opt-mini.won .mini-pct { color: var(--amber); }
-    .bet-opt-mini .mini-count { font-size: 9px; color: var(--text-3); width: 56px; text-align: right; flex-shrink: 0; }
 
     /* ── Loja cards ── */
     .loja-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
@@ -957,58 +905,6 @@ try {
         <i class="bi bi-inbox"></i>
         <p>Nenhuma aposta disponível no momento</p>
       </div>
-    <?php endif; ?>
-
-    <?php if (!empty($eventos_encerrados)): ?>
-    <!-- Apostas encerradas -->
-    <div class="section-label" style="margin-top:18px"><i class="bi bi-flag-fill"></i>Apostas Encerradas</div>
-    <?php foreach ($eventos_encerrados as $evento):
-      $evento_id    = (int)$evento['id'];
-      $total_palps  = (int)($evento['total_palpites'] ?? 0);
-      $vencedorNome = '';
-      foreach ($evento['opcoes'] as $op) {
-          if (!empty($evento['vencedor_opcao_id']) && (int)$op['id'] === (int)$evento['vencedor_opcao_id']) { $vencedorNome = $op['descricao']; break; }
-      }
-    ?>
-      <div class="bet-card closed">
-        <button class="bet-toggle" type="button"
-                data-bs-toggle="collapse" data-bs-target="#bec-<?= $evento_id ?>"
-                aria-expanded="false">
-          <div class="bet-title-wrap">
-            <div class="bet-title"><?= htmlspecialchars($evento['nome']) ?></div>
-            <div class="bet-meta">
-              <span><i class="bi bi-clock-fill"></i><?= date('d/m \à\s H:i', strtotime($evento['data_limite'])) ?></span>
-              <span><i class="bi bi-people-fill"></i><?= $total_palps ?> palpite<?= $total_palps !== 1 ? 's' : '' ?></span>
-            </div>
-          </div>
-          <div class="bet-right">
-            <?php if ($vencedorNome !== ''): ?>
-              <div class="bet-winner-pill" title="Opção vencedora"><i class="bi bi-trophy-fill"></i><span><?= htmlspecialchars(mb_strimwidth($vencedorNome, 0, 16, '…')) ?></span></div>
-            <?php endif; ?>
-            <i class="bi bi-chevron-down bet-chevron"></i>
-          </div>
-        </button>
-        <div class="collapse" id="bec-<?= $evento_id ?>">
-          <div class="bet-body">
-            <div class="bet-opts-mini">
-              <?php foreach ($evento['opcoes'] as $opcao):
-                $isWinner = !empty($evento['vencedor_opcao_id']) && (int)$evento['vencedor_opcao_id'] === (int)$opcao['id'];
-                $pct = (int)($opcao['pct'] ?? 0);
-                $cnt = (int)($opcao['palpites_count'] ?? 0);
-              ?>
-              <div class="bet-opt-mini<?= $isWinner ? ' won' : '' ?>">
-                <?php if ($isWinner): ?><i class="bi bi-trophy-fill" style="color:var(--amber);font-size:10px;flex-shrink:0"></i><?php endif; ?>
-                <span class="mini-name"><?= htmlspecialchars($opcao['descricao']) ?></span>
-                <div class="mini-bar-wrap"><div class="mini-bar" style="width:<?= $pct ?>%"></div></div>
-                <span class="mini-pct"><?= $total_palps > 0 ? $pct.'%' : '—' ?></span>
-                <span class="mini-count"><?= $cnt ?> palpite<?= $cnt !== 1 ? 's' : '' ?></span>
-              </div>
-              <?php endforeach; ?>
-            </div>
-          </div>
-        </div>
-      </div>
-    <?php endforeach; ?>
     <?php endif; ?>
 
     <!-- Loja -->
