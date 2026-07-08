@@ -4015,7 +4015,6 @@ async function showCoins(league) {
       <div class="panel-sub">Free Agency coins dos times da liga</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn-ghost" onclick="openBulkCoinsModal()"><i class="bi bi-people-fill me-1"></i>Distribuir para Liga</button>
       <button class="btn-orange" onclick="saveAllCoins()"><i class="bi bi-save2 me-1"></i>Salvar</button>
     </div>
   </div>
@@ -4064,35 +4063,7 @@ async function showCoins(league) {
     </div>
   </div>
 </div>
-
-<div class="modal fade" id="bulkCoinsModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-people-fill me-2" style="color:#f59e0b"></i>Distribuir Moedas</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div class="pun-card mb-3" style="border-left:3px solid #f59e0b;font-size:13px">
-          <i class="bi bi-info-circle me-2" style="color:#f59e0b"></i>Adicionará moedas para <strong>todos os times</strong> da liga <strong>${league}</strong>.
-        </div>
-        <input type="hidden" id="bulkCoinsLeague" value="${league}">
-        <div class="mb-3">
-          <label class="pun-field-label">Quantidade por Time</label>
-          <input type="number" class="form-control" id="bulkCoinsAmount" min="1" value="100">
-        </div>
-        <div class="mb-3">
-          <label class="pun-field-label">Motivo</label>
-          <input type="text" class="form-control" id="bulkCoinsReason" placeholder="Ex: Início de temporada">
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn-orange" onclick="submitBulkCoins()">Distribuir</button>
-      </div>
-    </div>
-  </div>
-</div>`;
+`;
 
   loadCoinsTeams();
 }
@@ -4188,12 +4159,6 @@ function openCoinsModal(teamId, teamName, currentBalance) {
   new bootstrap.Modal(document.getElementById('addCoinsModal')).show();
 }
 
-function openBulkCoinsModal() {
-  document.getElementById('bulkCoinsAmount').value = 100;
-  document.getElementById('bulkCoinsReason').value = '';
-  new bootstrap.Modal(document.getElementById('bulkCoinsModal')).show();
-}
-
 async function submitCoins() {
   const teamId = document.getElementById('coinsTeamId').value;
   const operation = document.getElementById('coinsOperation').value;
@@ -4214,35 +4179,6 @@ async function submitCoins() {
     bootstrap.Modal.getInstance(document.getElementById('addCoinsModal'))?.hide();
     alert(result.message);
     loadCoinsTeams();
-  } catch (e) {
-    alert('Erro: ' + (e.error || 'Desconhecido'));
-  }
-}
-
-async function submitBulkCoins() {
-  const league = document.getElementById('bulkCoinsLeague').value;
-  const amount = parseInt(document.getElementById('bulkCoinsAmount').value);
-  const reason = document.getElementById('bulkCoinsReason').value.trim() || 'Distribuição de moedas';
-  
-  if (!amount || amount <= 0) {
-    alert('Preencha uma quantidade válida.');
-    return;
-  }
-  
-  if (!confirm(`Tem certeza que deseja adicionar ${amount} moedas para TODOS os times da liga ${league}?`)) {
-    return;
-  }
-  
-  try {
-    const result = await api('admin.php?action=coins_bulk', {
-      method: 'POST',
-      body: JSON.stringify({ league, amount, reason })
-    });
-    
-    bootstrap.Modal.getInstance(document.getElementById('bulkCoinsModal'))?.hide();
-    alert(result.message);
-    coinsLeague = league;
-    showCoins(league);
   } catch (e) {
     alert('Erro: ' + (e.error || 'Desconhecido'));
   }
