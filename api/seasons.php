@@ -493,6 +493,27 @@ function snapshotPlayersForSeason(PDO $pdo, int $seasonId, string $league): void
 
 try {
     switch ($action) {
+        // ========== ASSINATURA DE ESTADO (para auto-refresh de telas ao vivo) ==========
+        // Combina o timestamp mais recente de mudança de temporada (seasons) com o
+        // timestamp de mudança da janela de trocas (league_settings.trades_enabled).
+        // Front-end faz polling e recarrega a tela quando a assinatura muda.
+        case 'state_signature':
+            $leagues = ['ELITE', 'NEXT', 'RISE'];
+            $signatures = [];
+            $stmtSeason = $pdo->prepare("SELECT GREATEST(COALESCE(MAX(created_at),0), COALESCE(MAX(updated_at),0)) AS ts FROM seasons WHERE league = ?");
+            $stmtSettings = $pdo->prepare("SELECT trades_enabled, updated_at FROM league_settings WHERE league = ?");
+            foreach ($leagues as $lg) {
+                $stmtSeason->execute([$lg]);
+                $seasonTs = $stmtSeason->fetchColumn() ?: '';
+                $stmtSettings->execute([$lg]);
+                $settingsRow = $stmtSettings->fetch();
+                $tradesEnabled = $settingsRow['trades_enabled'] ?? 1;
+                $settingsTs = $settingsRow['updated_at'] ?? '';
+                $signatures[$lg] = md5($seasonTs . '|' . $tradesEnabled . '|' . $settingsTs);
+            }
+            echo json_encode(['success' => true, 'signatures' => $signatures]);
+            break;
+
         // ========== DEFINIR CLASSIFICAÇÃO (STANDINGS) E PONTOS DA TEMPORADA REGULAR ==========
         case 'set_standings':
             if ($method !== 'POST') throw new Exception('Método inválido');

@@ -1819,6 +1819,44 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         if (row) row.classList.toggle('open');
     }
 
+    // Auto-refresh: se alguém avançar a temporada ou abrir/fechar a janela de trocas
+    // (em admin.php ou trades.php) enquanto essa tela está aberta, recarrega sozinha.
+    (function () {
+        const ACTIVE_LEAGUE_KEY = 'mundoFbaActiveLeague';
+        const POLL_MS = 20000;
+        let baseline = null;
+
+        const savedLeague = sessionStorage.getItem(ACTIVE_LEAGUE_KEY);
+        if (savedLeague) switchTab(savedLeague);
+
+        async function fetchSignatures() {
+            try {
+                const res = await fetch('api/seasons.php?action=state_signature', { credentials: 'same-origin' });
+                const data = await res.json();
+                return data?.signatures || null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function poll() {
+            const sigs = await fetchSignatures();
+            if (sigs) {
+                if (baseline === null) {
+                    baseline = sigs;
+                } else if (Object.keys(sigs).some(lg => sigs[lg] !== baseline[lg])) {
+                    const active = document.querySelector('.league-tab.active')?.dataset.league;
+                    if (active) sessionStorage.setItem(ACTIVE_LEAGUE_KEY, active);
+                    location.reload();
+                    return;
+                }
+            }
+            setTimeout(poll, POLL_MS);
+        }
+
+        poll();
+    })();
+
     // Copiar listas do SuperComputador (campeão/subir/cair) para colar no WhatsApp
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('.sc-copy-btn');
