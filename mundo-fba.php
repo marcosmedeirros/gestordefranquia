@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
@@ -218,25 +218,6 @@ function buildLeagueAnalysis(
     }
     if (count($finalists) < 2) $finalists = array_slice($proj, 0, 2);
 
-    // Promoção (NEXT/RISE)
-    $promoProj = null;
-    if ($league !== 'ELITE') {
-        $promoProj = [];
-        foreach ($proj as $i => $t) {
-            $x = ($n > 1) ? $i / ($n - 1) : 0;
-            $promoProj[] = array_merge($t, ['promo_prob' => round((1 / (1 + exp(5 * ($x - 0.28)))) * 100, 1)]);
-        }
-        $promoProj = array_slice($promoProj, 0, 6);
-    }
-
-    // Rebaixamento
-    $releProj = [];
-    foreach (array_reverse($proj) as $i => $t) {
-        $x = ($n > 1) ? $i / ($n - 1) : 0;
-        $releProj[] = array_merge($t, ['rele_prob' => round((1 / (1 + exp(5 * ($x - 0.28)))) * 100, 1)]);
-    }
-    $releProj = array_slice($releProj, 0, 6);
-
     // Projeção por temporada restante — análise completa: tag, idade, picks, OVR, variância
     $seasonProjs = [];
     if ($seasonsLeft && $seasonsLeft > 0) {
@@ -323,6 +304,31 @@ function buildLeagueAnalysis(
             'avg_exp' => $oi !== false ? ($avgExpPts[$oi] ?? 0) : 0,
         ];
     }
+
+    // ── Chances de subir/cair — direto da simulação Monte Carlo do sprint ──────
+    // (já considera temporadas restantes, evolução de OVR/idade, tag, picks e variância)
+    $promoZoneSize = 4;
+    $releZoneSize  = 4;
+    $releStartIdx  = max($n - $releZoneSize, $promoZoneSize);
+
+    $promoProj = null;
+    if ($league !== 'ELITE') {
+        $promoProj = [];
+        foreach ($matrixRaw as $row) {
+            $p = round(array_sum(array_slice($row['probs'], 0, $promoZoneSize)), 1);
+            $promoProj[] = array_merge($row['team'], ['promo_prob' => min($p, 100.0)]);
+        }
+        usort($promoProj, fn($a, $b) => $b['promo_prob'] <=> $a['promo_prob']);
+        $promoProj = array_slice($promoProj, 0, 10);
+    }
+
+    $releProj = [];
+    foreach ($matrixRaw as $row) {
+        $p = round(array_sum(array_slice($row['probs'], $releStartIdx)), 1);
+        $releProj[] = array_merge($row['team'], ['rele_prob' => min($p, 100.0)]);
+    }
+    usort($releProj, fn($a, $b) => $b['rele_prob'] <=> $a['rele_prob']);
+    $releProj = array_slice($releProj, 0, 10);
 
     // Greedy assignment: para cada posição do sprint, aloca o time com maior prob
     $assigned = []; $matrix = [];
@@ -1899,31 +1905,34 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                 <!-- Grid: Promoção + Rebaixamento -->
                 <div class="sc-grid-2col">
 
-                    <!-- Zona de Promoção (NEXT/RISE apenas) -->
+                    <!-- Top 10 Chances de Subir (NEXT/RISE apenas) -->
                     <?php if (!empty($an['promo_proj'])):
                         $gC = ['#16a34a','#22c55e','#4ade80','#86efac','#bbf7d0','var(--text-3)'];
                     ?>
                     <div class="sc-block">
-                        <div class="sc-block-title"><i class="bi bi-arrow-up-circle-fill" style="color:#22c55e"></i> <span style="color:#22c55e">Zona de Promoção — Top 4</span></div>
+                        <div class="sc-block-title"><i class="bi bi-arrow-up-circle-fill" style="color:#22c55e"></i> <span style="color:#22c55e">Top 10 — Chances de Subir</span></div>
                         <?php foreach ($an['promo_proj'] as $gi => $t):
                             $p = $t['promo_prob'];
                             $gc = $p >= 5 ? ($gC[min($gi,5)]) : 'var(--text-3)';
                         ?>
                         <div class="sc-zone-row">
                             <img class="sc-tlogo" src="<?= htmlspecialchars(getTeamPhoto($t['team_photo'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
-                            <div class="sc-tinfo"><div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div></div>
+                            <div class="sc-tinfo">
+                                <div class="sc-tname"><?= htmlspecialchars($t['team_name']) ?></div>
+                                <div class="sc-tmeta">OVR <?= $t['avg_ovr'] ?> · <?= $t['picks_count'] ?> picks · <?= $t['ranking_pts'] ?>pts</div>
+                            </div>
                             <span class="sc-zone-pct" style="color:<?= $gc ?>"><?= $p ?>%</span>
                         </div>
                         <?php endforeach; ?>
                     </div>
                     <?php endif; ?>
 
-                    <!-- Zona de Rebaixamento -->
+                    <!-- Top 10 Chances de Cair -->
                     <?php if (!empty($an['rele_proj'])):
                         $rC = ['#dc2626','#ef4444','#f87171','#fca5a5','#fecaca','var(--text-3)'];
                     ?>
                     <div class="sc-block">
-                        <div class="sc-block-title"><i class="bi bi-arrow-down-circle-fill" style="color:#ef4444"></i> <span style="color:#ef4444">Rebaixamento — Bottom 4</span></div>
+                        <div class="sc-block-title"><i class="bi bi-arrow-down-circle-fill" style="color:#ef4444"></i> <span style="color:#ef4444">Top 10 — Chances de Cair</span></div>
                         <?php foreach ($an['rele_proj'] as $ri => $t):
                             $p = $t['rele_prob'];
                             $rc = $p >= 5 ? ($rC[min($ri,5)]) : 'var(--text-3)';
