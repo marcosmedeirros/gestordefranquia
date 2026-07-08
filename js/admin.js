@@ -4099,7 +4099,7 @@ ${teams.map(t => {
   </div>
   <div style="display:flex;align-items:center;gap:6px">
     <i class="bi bi-coin" style="color:#f59e0b;font-size:14px"></i>
-    <input type="number" min="0" value="${coins}" data-original="${coins}"
+    <input type="number" min="0" value="${coins}" data-original="${coins}" autocomplete="off"
            id="coins-input-${t.id}"
            style="width:90px;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text);font-size:13px;font-family:var(--font)">
     <button class="btn-ghost" style="padding:5px 9px" title="Histórico" onclick="showCoinsHistory(${t.id}, '${escapeHtml(t.city + ' ' + t.name)}')"><i class="bi bi-clock-history"></i></button>
@@ -4121,30 +4121,43 @@ async function saveAllCoins() {
     const originalBalance = parseInt(el.dataset.original || 0);
     if (!isNaN(newBalance) && newBalance >= 0 && newBalance !== originalBalance) {
       const teamId = el.id.replace('coins-input-', '');
-      changes.push({ el, teamId, newBalance, delta: newBalance - originalBalance });
+      const teamName = el.closest('.pun-card')?.querySelector('span')?.textContent || `Time ${teamId}`;
+      changes.push({ el, teamId, teamName, newBalance, delta: newBalance - originalBalance });
     }
   });
   if (changes.length === 0) { showAlert('info', 'Nenhuma alteração.'); return; }
-  try {
-    await Promise.all(changes.map(c =>
-      api('admin.php?action=coins', {
-        method: 'POST',
-        body: JSON.stringify({
-          team_id: c.teamId,
-          operation: c.delta > 0 ? 'add' : 'remove',
-          amount: Math.abs(c.delta),
-          reason: 'Ajuste administrativo'
-        })
+
+  const results = await Promise.allSettled(changes.map(c =>
+    api('admin.php?action=coins', {
+      method: 'POST',
+      body: JSON.stringify({
+        team_id: c.teamId,
+        operation: c.delta > 0 ? 'add' : 'remove',
+        amount: Math.abs(c.delta),
+        reason: 'Ajuste administrativo'
       })
-    ));
-    changes.forEach(c => { c.el.dataset.original = String(c.newBalance); });
-    let total = 0;
-    inputs.forEach(el => { total += parseInt(el.value || 0); });
-    const totalEl = container.querySelector('[data-coins-total]');
-    if (totalEl) totalEl.textContent = total.toLocaleString();
-    showAlert('success', `${changes.length} time(s) atualizados!`);
-  } catch (e) {
-    alert('Erro: ' + (e.error || 'Desconhecido'));
+    })
+  ));
+
+  const failed = [];
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled') {
+      changes[i].el.dataset.original = String(changes[i].newBalance);
+    } else {
+      failed.push(`${changes[i].teamName}: ${r.reason?.error || 'erro desconhecido'}`);
+    }
+  });
+
+  let total = 0;
+  inputs.forEach(el => { total += parseInt(el.dataset.original || el.value || 0); });
+  const totalEl = container.querySelector('[data-coins-total]');
+  if (totalEl) totalEl.textContent = total.toLocaleString();
+
+  const okCount = changes.length - failed.length;
+  if (failed.length === 0) {
+    showAlert('success', `${okCount} time(s) atualizados!`);
+  } else {
+    alert(`${okCount} time(s) atualizados. Falha em ${failed.length}:\n\n${failed.join('\n')}`);
   }
 }
 
