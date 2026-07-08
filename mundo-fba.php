@@ -98,7 +98,9 @@ function simulateSprintMatrix(array $teams, int $seasonsLeft, string $league, in
         $cumPts = $startPts; // acumula a partir dos pontos já garantidos no sprint
 
         for ($s = 1; $s <= $seasonsLeft; $s++) {
-            // Ajusta força de cada time para a season s (OVR growth + tag + picks + variância)
+            // Ajusta força de cada time para a season s. A projeção de qualidade (crescimento/
+            // queda de OVR por idade) é o fator PRINCIPAL; tag, picks, franquia e variância
+            // são apenas ajustes secundários, com peso bem menor.
             $adjS = [];
             foreach ($teams as $i => $t) {
                 $age    = (float)($t['avg_age']    ?? 26);
@@ -106,24 +108,25 @@ function simulateSprintMatrix(array $teams, int $seasonsLeft, string $league, in
                 $picks  = (int)  ($t['picks_count'] ?? 0);
                 $maxOvr = (float)($t['max_ovr']    ?? 80);
 
-                $ovrG  = $age < 22 ? 3.5 : ($age < 25 ? 2.5 : ($age < 28 ? 1.5 : ($age < 31 ? 0.5 : -0.8)));
-                $ovrF  = $ovrG * $s * 0.7;
-                $ageF  = ($age > 30 ? -($age - 30) * 1.5 * $s : ($age < 25 ? (25 - $age) * 0.9 * $s : 0)) + $ovrF;
+                // Projeção de qualidade (FATOR PRINCIPAL)
+                $ovrGrowth = $age < 22 ? 3.5 : ($age < 25 ? 2.5 : ($age < 28 ? 1.5 : ($age < 31 ? 0.5 : -0.8)));
+                $qualityF  = $ovrGrowth * $s * 1.8;
 
-                if ($tag === 'Contending')     $tagF = -3.0 * $s;
-                elseif ($tag === 'Buying')     $tagF = -1.2 * $s;
-                elseif ($tag === 'Selling')    $tagF =  1.8 * $s;
-                elseif ($tag === 'Rebuilding') $tagF =  3.5 * $s;
+                // Fatores secundários
+                if ($tag === 'Contending')     $tagF = -1.5 * $s;
+                elseif ($tag === 'Buying')     $tagF = -0.6 * $s;
+                elseif ($tag === 'Selling')    $tagF =  0.9 * $s;
+                elseif ($tag === 'Rebuilding') $tagF =  1.8 * $s;
                 else                           $tagF = 0;
 
-                $picksF = min($picks * 0.6, 9) * (1 + $s * 0.2);
-                $franqF = $maxOvr >= 92 ? -0.5 * $s : ($maxOvr <= 78 ? 0.4 * $s : 0);
+                $picksF = min($picks * 0.3, 4.5) * (1 + $s * 0.1);
+                $franqF = $maxOvr >= 92 ? -0.3 * $s : ($maxOvr <= 78 ? 0.2 * $s : 0);
 
                 $u1 = max(1e-9, mt_rand(1, 1000000) / 1000000.0);
                 $u2 = max(1e-9, mt_rand(1, 1000000) / 1000000.0);
-                $var = sqrt(-2 * log($u1)) * cos(2 * M_PI * $u2) * $s * 2.5;
+                $var = sqrt(-2 * log($u1)) * cos(2 * M_PI * $u2) * $s * 1.5;
 
-                $adjS[$i] = max(0.01, $baseStr[$i] + $ageF + $tagF + $picksF + $franqF + $var);
+                $adjS[$i] = max(0.01, $baseStr[$i] + $qualityF + $tagF + $picksF + $franqF + $var);
             }
 
             // Simula a season: performance exponencial
@@ -192,15 +195,25 @@ function buildLeagueAnalysis(
     $maxPts   = max(array_values($rankPtsMap) ?: [1]) ?: 1;
     $maxPicks = max(array_values($picksPerTeam) ?: [1]) ?: 1;
 
-    // Score composto: power 55% + pontos 30% + picks 15%
+    // Peso dinâmico: no início do sprint a qualidade/durabilidade do elenco (score) pesa mais,
+    // mas conforme as temporadas se esgotam os pontos já conquistados passam a valer mais —
+    // no fim do sprint o que importa é o que o time já garantiu, não o potencial do elenco.
+    $timeFrac = ($totalSeasons !== null && $totalSeasons > 0 && $seasonsLeft !== null)
+        ? max(0.0, min(1.0, $seasonsLeft / $totalSeasons))
+        : 1.0;
+    $wScore = 0.20 + 0.35 * $timeFrac; // 0.55 no início do sprint → 0.20 no fim
+    $wPts   = 0.75 - 0.45 * $timeFrac; // 0.30 no início → 0.75 no fim
+    $wPicks = 0.05 + 0.10 * $timeFrac; // 0.15 no início → 0.05 no fim
+
+    // Score composto: qualidade/durabilidade + pontos já conquistados + picks de 1ª rodada
     $teams = [];
     foreach ($powerRanking as $pr) {
         $tid   = (int)($pr['team_id'] ?? 0);
         $pts   = $rankPtsMap[$pr['team_name']] ?? 0;
         $picks = $picksPerTeam[$tid] ?? 0;
-        $composite = ($pr['score'] / $maxPow) * 0.55
-                   + ($pts / $maxPts)          * 0.30
-                   + ($picks / $maxPicks)       * 0.15;
+        $composite = ($pr['score'] / $maxPow) * $wScore
+                   + ($pts / $maxPts)          * $wPts
+                   + ($picks / $maxPicks)       * $wPicks;
         $teams[] = array_merge($pr, [
             'ranking_pts' => $pts,
             'picks_count' => $picks,
@@ -711,11 +724,11 @@ foreach ($leagueOrder as $league) {
     foreach ($powerRanking as &$pr) $pr['conference'] = $confMap[$pr['team_id']] ?? '';
     unset($pr);
 
-    // Picks futuros por time
+    // Picks futuros por time — apenas 1ª rodada conta (2ª rodada tem valor marginal)
     $picksPerTeam = [];
     try {
         $pickYear = $seasonYear ?? (int)date('Y');
-        $sp2 = $pdo->prepare("SELECT p.team_id, COUNT(*) AS cnt FROM picks p JOIN teams t ON p.team_id = t.id WHERE t.league = ? AND CAST(p.season_year AS UNSIGNED) >= ? GROUP BY p.team_id");
+        $sp2 = $pdo->prepare("SELECT p.team_id, COUNT(*) AS cnt FROM picks p JOIN teams t ON p.team_id = t.id WHERE t.league = ? AND CAST(p.season_year AS UNSIGNED) >= ? AND p.round = '1' GROUP BY p.team_id");
         $sp2->execute([$league, $pickYear]);
         foreach ($sp2->fetchAll(PDO::FETCH_ASSOC) as $r) $picksPerTeam[(int)$r['team_id']] = (int)$r['cnt'];
     } catch (Exception $e) {}
