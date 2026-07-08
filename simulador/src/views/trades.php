@@ -29,17 +29,22 @@ $counterGive = !empty($_GET['cgive']) ? array_filter(array_map('intval', explode
 <!-- Topbar da página -->
 <div class="card-head page" style="margin-bottom:18px">
   <h1 class="page-title">⇄ Central de Trocas</h1>
-  <form method="get" style="display:flex;align-items:center;gap:10px">
-    <input type="hidden" name="p" value="trades">
-    <label style="font-size:13px;color:var(--muted);font-weight:700">Negociar com</label>
-    <select name="ai" onchange="this.form.submit()" class="season-select">
-      <?php foreach ($others as $o): ?>
-        <option value="<?= $o['id'] ?>" <?= $o['id']==$aiId?'selected':'' ?>>
-          <?= e($o['city'].' '.$o['name']) ?> · Folha <?= money(League::teamPayroll((int)$o['id'])) ?>
-        </option>
-      <?php endforeach; ?>
-    </select>
-  </form>
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <form method="get" style="display:flex;align-items:center;gap:10px">
+      <input type="hidden" name="p" value="trades">
+      <label style="font-size:13px;color:var(--muted);font-weight:700">Negociar com</label>
+      <select name="ai" onchange="this.form.submit()" class="season-select">
+        <?php foreach ($others as $o): ?>
+          <option value="<?= $o['id'] ?>" <?= $o['id']==$aiId?'selected':'' ?>>
+            <?= e($o['city'].' '.$o['name']) ?> · Folha <?= money(League::teamPayroll((int)$o['id'])) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+    </form>
+    <!-- Botão "Propor troca" também no topo (envia o #tradeForm mesmo estando fora dele,
+         via atributo form= do HTML5) — fica sempre visível sem precisar rolar até o fim. -->
+    <button class="btn btn-primary" type="submit" form="tradeForm">⇄ Propor troca</button>
+  </div>
 </div>
 
 <?php if ($msg): ?>
@@ -214,12 +219,13 @@ $counterGive = !empty($_GET['cgive']) ? array_filter(array_map('intval', explode
   // Toggle visual dos cards
   document.querySelectorAll('.trade-player-card').forEach(card => {
     const cb = card.querySelector('input[type=checkbox]');
+    // O <label> já ativa o checkbox nativamente ao clicar em qualquer parte dele
+    // (inclusive filhos, mesmo com o input display:none). Só precisamos escutar
+    // o 'change' do próprio checkbox — um listener extra de click no card
+    // duplicava o toggle (ligava e desligava no mesmo clique), impedindo a seleção.
     cb.addEventListener('change', () => {
       card.classList.toggle('selected', cb.checked);
       updateSummary();
-    });
-    card.addEventListener('click', e => {
-      if (e.target !== cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); }
     });
   });
 

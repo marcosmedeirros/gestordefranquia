@@ -32,7 +32,7 @@ $err = $_GET['err'] ?? null;
   <div class="auth-right">
     <div class="auth-form-box">
       <h1>Bem-vindo de volta</h1>
-      <p class="muted">Entre para continuar sua dinastia.</p>
+      <p class="muted">Entre com a sua conta do fbabrasil.com.br pra continuar sua dinastia.</p>
 
       <?php if ($err): ?>
         <div class="auth-err" style="margin-bottom:18px"><?= e($err) ?></div>
@@ -40,8 +40,8 @@ $err = $_GET['err'] ?? null;
 
       <form method="post" action="<?= url('home', ['action' => 'login']) ?>">
         <div class="auth-field">
-          <label>Usuário</label>
-          <input type="text" name="username" autofocus required maxlength="20" autocomplete="username">
+          <label>E-mail</label>
+          <input type="email" name="username" autofocus required maxlength="255" autocomplete="username">
         </div>
         <div class="auth-field">
           <label>Senha</label>
@@ -51,7 +51,8 @@ $err = $_GET['err'] ?? null;
       </form>
 
       <div class="auth-separator">ou</div>
-      <p class="auth-links">Não tem conta? <a href="<?= url('register') ?>">Criar conta grátis →</a></p>
+      <p class="auth-links">Ainda não tem conta no fbabrasil.com.br? <a href="https://fbabrasil.com.br">Crie a sua lá →</a></p>
+      <p class="auth-links muted" style="font-size:12px">Sem conta no site principal? <a href="<?= url('register') ?>">Criar conta só do simulador</a></p>
     </div>
   </div>
 

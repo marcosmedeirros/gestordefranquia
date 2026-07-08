@@ -14,6 +14,8 @@ class Accounts
     public const MAX_SAVES = 2;
 
     private static ?PDO $acc = null;
+    private static ?PDO $main = null;
+    private static bool $mainTried = false;
 
     public static function savesDir(): string { return dirname(__DIR__) . '/storage/saves'; }
     public static function savePath(int $saveId): string { return self::savesDir() . '/save_' . $saveId . '.sqlite'; }
@@ -36,8 +38,19 @@ class Accounts
                     username VARCHAR(100) UNIQUE NOT NULL,
                     email VARCHAR(255),
                     pass_hash VARCHAR(255) NOT NULL,
+                    main_user_id INT NULL,
                     created_at VARCHAR(50)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+                try {
+                    $chkCol = self::$acc->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'main_user_id'"
+                    );
+                    $chkCol->execute();
+                    if ((int) $chkCol->fetchColumn() === 0) {
+                        self::$acc->exec("ALTER TABLE users ADD COLUMN main_user_id INT NULL");
+                    }
+                } catch (Throwable $e) { /* silencioso */ }
 
                 self::$acc->exec("CREATE TABLE IF NOT EXISTS saves (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -85,6 +98,7 @@ class Accounts
                     username TEXT UNIQUE NOT NULL,
                     email TEXT,
                     pass_hash TEXT NOT NULL,
+                    main_user_id INTEGER,
                     created_at TEXT
                 )");
                 self::$acc->exec("CREATE TABLE IF NOT EXISTS saves (
@@ -109,9 +123,93 @@ class Accounts
                 if (!in_array('coach_style', $cols))    self::$acc->exec("ALTER TABLE saves ADD COLUMN coach_style TEXT DEFAULT 'equilibrado'");
                 if (!in_array('difficulty', $cols))     self::$acc->exec("ALTER TABLE saves ADD COLUMN difficulty TEXT DEFAULT 'normal'");
                 if (!in_array('potential_type', $cols)) self::$acc->exec("ALTER TABLE saves ADD COLUMN potential_type TEXT DEFAULT 'real'");
+
+                $userCols = array_column(self::$acc->query("PRAGMA table_info(users)")->fetchAll(), 'name');
+                if (!in_array('main_user_id', $userCols)) self::$acc->exec("ALTER TABLE users ADD COLUMN main_user_id INTEGER");
             }
         }
         return self::$acc;
+    }
+
+    /**
+     * Conexão somente-leitura ao banco do site principal (fbabrasil.com.br),
+     * usada para permitir login no /simulador com a conta de lá. Retorna null
+     * se 'main_mysql' não estiver configurado (recurso desativado) ou se a
+     * conexão falhar — nesses casos o login cai de volta para a conta local.
+     */
+    private static function mainConn(): ?PDO
+    {
+        if (self::$mainTried) return self::$main;
+        self::$mainTried = true;
+
+        $cfg = Database::config();
+        $m = $cfg['main_mysql'] ?? null;
+        if (($cfg['driver'] ?? 'sqlite') !== 'mysql' || !is_array($m) || empty($m['database'])) {
+            return null;
+        }
+        try {
+            $dsn = "mysql:host={$m['host']};port={$m['port']};dbname={$m['database']};charset={$m['charset']}";
+            self::$main = new PDO($dsn, $m['user'], $m['pass']);
+            self::$main->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            self::$main->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            self::$main = null;
+        }
+        return self::$main;
+    }
+
+    /**
+     * Busca (ou cria) a conta local do /simulador vinculada a um usuário do
+     * site principal (fbabrasil.com.br). Vínculo é feito por main_user_id
+     * (estável mesmo se o e-mail mudar lá); casa por e-mail só na primeira
+     * vez, pra não duplicar conta de quem já logou antes desse campo existir.
+     * Necessário porque saves.user_id referencia a tabela users local, não a
+     * do site principal — as tabelas do simulador continuam isoladas, só o
+     * vínculo de identidade é compartilhado.
+     */
+    private static function linkedLocalUser(array $mainUser): array
+    {
+        $db = self::conn();
+        $mainId = (int) $mainUser['id'];
+        $email = trim($mainUser['email']);
+
+        $st = $db->prepare("SELECT * FROM users WHERE main_user_id=?");
+        $st->execute([$mainId]);
+        $u = $st->fetch();
+        if ($u) return $u;
+
+        // Conta local pré-existente (criada antes do vínculo por id) com o mesmo e-mail: adota o vínculo.
+        $st = $db->prepare("SELECT * FROM users WHERE email=? AND main_user_id IS NULL");
+        $st->execute([$email]);
+        $u = $st->fetch();
+        if ($u) {
+            $db->prepare("UPDATE users SET main_user_id=? WHERE id=?")->execute([$mainId, (int) $u['id']]);
+            $u['main_user_id'] = $mainId;
+            return $u;
+        }
+
+        // Gera um username local único a partir do nome/e-mail do site principal.
+        $base = preg_replace('/[^A-Za-z0-9_]/', '', explode('@', $email)[0]) ?: 'gm';
+        $base = substr($base, 0, 16) ?: 'gm';
+        $username = $base;
+        $suffix = 1;
+        while (true) {
+            $chk = $db->prepare("SELECT 1 FROM users WHERE username=?");
+            $chk->execute([$username]);
+            if (!$chk->fetch()) break;
+            $username = substr($base, 0, 16 - strlen((string) $suffix)) . $suffix;
+            $suffix++;
+        }
+
+        // Sem senha local utilizável (login sempre passa pela conta principal);
+        // guarda um hash aleatório só para satisfazer a coluna NOT NULL.
+        $randomHash = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
+        $db->prepare("INSERT INTO users(username,email,pass_hash,main_user_id,created_at) VALUES(?,?,?,?,?)")
+           ->execute([$username, $email, $randomHash, $mainId, date('c')]);
+        $id = (int) $db->lastInsertId();
+        $st = $db->prepare("SELECT * FROM users WHERE id=?");
+        $st->execute([$id]);
+        return $st->fetch();
     }
 
     // ---------- Sessão / autenticação ----------
@@ -157,16 +255,39 @@ class Accounts
         return ['ok' => true, 'id' => $id];
     }
 
-    public static function login(string $username, string $pass): array
+    /**
+     * Login primário: conta do site principal (fbabrasil.com.br), por e-mail.
+     * Se validado lá, garante uma conta local vinculada (main_user_id) — as
+     * tabelas/saves do simulador continuam só no banco do simulador.
+     * Fallback (main_mysql indisponível, ex.: dev local): conta local por
+     * e-mail e, por compatibilidade com contas antigas, também por username.
+     */
+    public static function login(string $emailOrUsername, string $pass): array
     {
-        $st = self::conn()->prepare("SELECT * FROM users WHERE username=?");
-        $st->execute([trim($username)]);
-        $u = $st->fetch();
-        if (!$u || !password_verify($pass, $u['pass_hash'])) {
-            return ['error' => 'Usuário ou senha inválidos.'];
+        $identifier = strtolower(trim($emailOrUsername));
+
+        $main = self::mainConn();
+        if ($main) {
+            $stm = $main->prepare("SELECT id, name, email, password_hash FROM users WHERE email=? LIMIT 1");
+            $stm->execute([$identifier]);
+            $mu = $stm->fetch();
+            if ($mu && password_verify($pass, $mu['password_hash'])) {
+                $local = self::linkedLocalUser($mu);
+                $_SESSION['user_id'] = (int) $local['id'];
+                return ['ok' => true, 'id' => (int) $local['id']];
+            }
         }
-        $_SESSION['user_id'] = (int) $u['id'];
-        return ['ok' => true, 'id' => (int) $u['id']];
+
+        // Fallback local: por e-mail, e por username (contas antigas/dev sem main_mysql).
+        $st = self::conn()->prepare("SELECT * FROM users WHERE email=? OR username=?");
+        $st->execute([$identifier, trim($emailOrUsername)]);
+        $u = $st->fetch();
+        if ($u && password_verify($pass, $u['pass_hash'])) {
+            $_SESSION['user_id'] = (int) $u['id'];
+            return ['ok' => true, 'id' => (int) $u['id']];
+        }
+
+        return ['error' => 'E-mail ou senha inválidos.'];
     }
 
     public static function logout(): void
