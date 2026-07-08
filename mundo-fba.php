@@ -69,6 +69,16 @@ function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?strin
     return 'Selling';
 }
 
+// Monta o texto de uma lista (campeão/subir/cair) pronto para colar no WhatsApp
+function waTopListText(string $emoji, string $title, array $rows, string $pctKey, string $leagueLabel): string {
+    if (empty($rows)) return '';
+    $lines = [$emoji . ' ' . $title . ' — ' . $leagueLabel];
+    foreach ($rows as $i => $r) {
+        $lines[] = ($i + 1) . '. ' . $r['team_name'] . ' — ' . $r[$pctKey] . '%';
+    }
+    return implode("\n", $lines);
+}
+
 // Simula TODAS as temporadas restantes do sprint, acumula pontos e retorna:
 // - matrix: probabilidade de cada time terminar em cada posição no RANKING FINAL do sprint
 // - avg_expected_pts: média de pontos TOTAIS (atuais + restantes) ao final do sprint
@@ -1125,6 +1135,9 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .sc-block { background:rgba(0,0,0,.18); border:1px solid rgba(99,102,241,.13); border-radius:var(--radius-sm); padding:14px; }
         :root[data-theme="light"] .sc-block { background:rgba(99,102,241,.04); }
         .sc-block-title { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#818cf8; margin-bottom:12px; display:flex; align-items:center; gap:5px; }
+        .sc-copy-btn { margin-left:auto; width:22px; height:22px; border-radius:6px; border:1px solid rgba(99,102,241,.25); background:rgba(99,102,241,.08); color:#818cf8; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; flex-shrink:0; transition:all .15s; }
+        .sc-copy-btn:hover { background:rgba(99,102,241,.18); }
+        .sc-copy-btn.copied { color:#22c55e; border-color:rgba(34,197,94,.35); background:rgba(34,197,94,.12); }
         .sc-row { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
         .sc-row:last-child { margin-bottom:0; }
         .sc-num { width:18px; font-size:11px; font-weight:800; color:#818cf8; flex-shrink:0; text-align:center; }
@@ -1619,7 +1632,11 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
 
 
             <?php /* ── SuperComputador FBA ── */ ?>
-            <?php $an = $d['analysis'] ?? []; if (!empty($an['has_data'])): ?>
+            <?php $an = $d['analysis'] ?? []; if (!empty($an['has_data'])):
+                $waChamp = waTopListText('🏆', 'PROJEÇÃO CAMPEÃO', $an['champ_proj'] ?? [], 'prob', $meta['label']);
+                $waPromo = !empty($an['promo_proj']) ? waTopListText('🟢', 'TOP 10 — CHANCES DE SUBIR', $an['promo_proj'], 'promo_prob', $meta['label']) : '';
+                $waRele  = waTopListText('🔴', 'TOP 10 — CHANCES DE CAIR', $an['rele_proj'] ?? [], 'rele_prob', $meta['label']);
+            ?>
             <div class="sec-hd" style="color:#818cf8;margin-top:24px">
                 <i class="bi bi-cpu-fill" style="color:#818cf8"></i>
                 SUPERCOMPUTADOR FBA · Análise Preditiva
@@ -1663,7 +1680,9 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     <?php if (!empty($an['champ_proj'])):
                         $maxProb = $an['champ_proj'][0]['prob'] ?: 1; ?>
                     <div class="sc-block">
-                        <div class="sc-block-title"><i class="bi bi-trophy-fill"></i> Projeção Campeão</div>
+                        <div class="sc-block-title"><i class="bi bi-trophy-fill"></i> Projeção Campeão
+                            <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($waChamp) ?>" title="Copiar para WhatsApp"><i class="bi bi-clipboard"></i></button>
+                        </div>
                         <?php foreach ($an['champ_proj'] as $i => $cp):
                             $barW = round($cp['prob'] / $maxProb * 100);
                             $tagColors = ['Contending'=>'#10b981','Buying'=>'#3b82f6','Selling'=>'#f97316','Rebuilding'=>'#64748b'];
@@ -1697,7 +1716,9 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                         $gC = ['#16a34a','#22c55e','#4ade80','#86efac','#bbf7d0','var(--text-3)'];
                     ?>
                     <div class="sc-block">
-                        <div class="sc-block-title"><i class="bi bi-arrow-up-circle-fill" style="color:#22c55e"></i> <span style="color:#22c55e">Top 10 — Chances de Subir</span></div>
+                        <div class="sc-block-title"><i class="bi bi-arrow-up-circle-fill" style="color:#22c55e"></i> <span style="color:#22c55e">Top 10 — Chances de Subir</span>
+                            <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($waPromo) ?>" title="Copiar para WhatsApp"><i class="bi bi-clipboard"></i></button>
+                        </div>
                         <?php foreach ($an['promo_proj'] as $gi => $t):
                             $p = $t['promo_prob'];
                             $gc = $p >= 5 ? ($gC[min($gi,5)]) : 'var(--text-3)';
@@ -1719,7 +1740,9 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                         $rC = ['#dc2626','#ef4444','#f87171','#fca5a5','#fecaca','var(--text-3)'];
                     ?>
                     <div class="sc-block">
-                        <div class="sc-block-title"><i class="bi bi-arrow-down-circle-fill" style="color:#ef4444"></i> <span style="color:#ef4444">Top 10 — Chances de Cair</span></div>
+                        <div class="sc-block-title"><i class="bi bi-arrow-down-circle-fill" style="color:#ef4444"></i> <span style="color:#ef4444">Top 10 — Chances de Cair</span>
+                            <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($waRele) ?>" title="Copiar para WhatsApp"><i class="bi bi-clipboard"></i></button>
+                        </div>
                         <?php foreach ($an['rele_proj'] as $ri => $t):
                             $p = $t['rele_prob'];
                             $rc = $p >= 5 ? ($rC[min($ri,5)]) : 'var(--text-3)';
@@ -1795,6 +1818,23 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         const row = document.getElementById(rowId);
         if (row) row.classList.toggle('open');
     }
+
+    // Copiar listas do SuperComputador (campeão/subir/cair) para colar no WhatsApp
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.sc-copy-btn');
+        if (!btn) return;
+        const text = btn.getAttribute('data-copy');
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => {
+            const icon = btn.querySelector('i');
+            const prevClass = icon.className;
+            icon.className = 'bi bi-check-lg';
+            btn.classList.add('copied');
+            setTimeout(() => { icon.className = prevClass; btn.classList.remove('copied'); }, 1500);
+        }).catch(() => {
+            alert('Não foi possível copiar automaticamente. Copie manualmente:\n\n' + text);
+        });
+    });
 </script>
 </body>
 </html>
