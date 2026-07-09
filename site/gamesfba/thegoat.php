@@ -1426,10 +1426,12 @@ function renderEvent(){
     `<button class="btn ${i===0?'gold':'secondary'}" data-action="eventchoice" data-idx="${i}" style="margin-bottom:10px;">${o.label}</button>`
   ).join('');
   return `<div class="screen">
-    <div class="eyebrow">Bastidores da carreira</div>
-    <h2 style="font-size:26px;margin:8px 0 12px 0;">${ev.title}</h2>
-    <p class="sub">${ev.text}</p>
-    <div style="margin-top:18px;">${optionsHtml}</div>
+    <div class="card">
+      <div class="eyebrow">Bastidores da carreira</div>
+      <h2 style="font-size:26px;margin:8px 0 12px 0;">${ev.title}</h2>
+      <p class="sub" style="margin-bottom:0;">${ev.text}</p>
+    </div>
+    <div>${optionsHtml}</div>
   </div>`;
 }
 function renderContract(){
