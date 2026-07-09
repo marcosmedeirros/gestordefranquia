@@ -337,7 +337,7 @@ if ($action === 'import_awards') {
     if (ob_get_level()) ob_end_clean();
 
     $startTime  = microtime(true);
-    $timeBudget = 95; // segundos - corta antes do set_time_limit matar o script sem emitir NEXT/DONE
+    $timeBudget = 18; // segundos - Hostinger mata o processo bem antes do set_time_limit (~30s), entao cortamos cedo
 
     $offset    = max(0, (int)($_GET['offset'] ?? 0));
     $chunkSize = 50;
@@ -412,8 +412,8 @@ if ($action === 'import_awards') {
             $ch = curl_init("https://stats.nba.com/stats/playerawards?PlayerID={$pid}");
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 10,
-                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_TIMEOUT        => 6,
+                CURLOPT_CONNECTTIMEOUT => 3,
                 CURLOPT_ENCODING       => '',
                 CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
                 CURLOPT_SSL_VERIFYPEER => false,
@@ -812,7 +812,7 @@ if ($action === 'import_stats') {
     if (ob_get_level()) ob_end_clean();
 
     $startTime  = microtime(true);
-    $timeBudget = 95; // segundos - corta antes do set_time_limit matar o script sem emitir NEXT/DONE
+    $timeBudget = 18; // segundos - Hostinger mata o processo bem antes do set_time_limit (~30s), entao cortamos cedo
 
     $offset    = max(0, (int)($_GET['offset'] ?? 0));
     $chunkSize = 50;
@@ -864,8 +864,8 @@ if ($action === 'import_stats') {
             $ch = curl_init("https://stats.nba.com/stats/playercareerstats?PlayerID={$pid}&PerMode=PerGame");
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 10,
-                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_TIMEOUT        => 6,
+                CURLOPT_CONNECTTIMEOUT => 3,
                 CURLOPT_ENCODING       => '',
                 CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
                 CURLOPT_SSL_VERIFYPEER => false,
