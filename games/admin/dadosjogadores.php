@@ -1155,8 +1155,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <div class="search-bar">
       <input class="inp" id="fq" placeholder="Buscar por nome..." oninput="debSearch()">
       <select class="inp" style="flex:0 0 110px" id="fAtivo" onchange="loadPlayers(1)">
-        <option value="">Todos</option>
-        <option value="1" selected>Ativos</option>
+        <option value="" selected>Todos</option>
+        <option value="1">Ativos</option>
         <option value="0">Inativos</option>
       </select>
       <input class="inp" style="flex:0 0 90px" id="fPais" placeholder="País" oninput="debSearch()">
