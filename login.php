@@ -290,48 +290,26 @@
 						<div class="text-center auth-links">
 							<a href="#" data-bs-toggle="modal" data-bs-target="#forgotPasswordModal"><i class="bi bi-key me-1"></i>Esqueci a senha</a>
 							<p class="mb-0 mt-2">Nao tem conta?
-								<a href="#" onclick="showRegisterForm(); return false;">Criar agora</a>
+								<a href="#" onclick="showRegisterForm(); return false;">Solicitar participacao</a>
 							</p>
 						</div>
 					</div>
 
 					<div id="register-form-container" style="display: none;">
 						<div id="register-message"></div>
+						<p class="text-secondary" style="font-size:13px">Deixe seu nome e telefone que a gente entra em contato pelo WhatsApp com o link de cadastro.</p>
 						<form id="form-register">
 							<div class="mb-3">
 								<label class="form-label">Nome completo</label>
 								<input name="name" class="form-control" placeholder="Seu nome completo" required>
 							</div>
 							<div class="mb-3">
-								<label class="form-label">E-mail</label>
-								<input name="email" type="email" class="form-control" placeholder="seu@email.com" required>
-							</div>
-							<div class="mb-3">
 								<label class="form-label">Telefone (WhatsApp)</label>
 								<input name="phone" type="tel" class="form-control" placeholder="Ex.: 55999999999" required maxlength="13">
 								<small class="text-secondary">Digite apenas numeros (DDD + telefone).</small>
 							</div>
-							<div class="mb-3">
-								<label class="form-label">Senha</label>
-								<div class="input-group">
-									<input id="registerPassword" name="password" type="password" class="form-control" placeholder="Minimo 6 caracteres" required minlength="6">
-									<button class="btn btn-ghost" type="button" id="toggleRegisterPassword" aria-label="Mostrar ou ocultar senha">
-										<i class="bi bi-eye"></i>
-									</button>
-								</div>
-							</div>
-							<div class="mb-3">
-								<label class="form-label">Liga</label>
-								<select name="league" class="form-select" required>
-									<option value="">Selecione sua liga</option>
-									<option value="ROOKIE">ROOKIE - Liga Rookie</option>
-									<option value="RISE">RISE - Liga Rise</option>
-									<option value="NEXT">NEXT - Liga Next</option>
-									<option value="ELITE">ELITE - Liga Elite</option>
-								</select>
-							</div>
 							<button type="submit" class="btn btn-auth w-100 mb-3">
-								<i class="bi bi-person-plus me-2"></i>Criar conta
+								<i class="bi bi-send me-2"></i>Solicitar participacao
 							</button>
 						</form>
 						<div class="text-center auth-links">
@@ -376,7 +354,7 @@
 		function showRegisterForm() {
 			document.getElementById('login-form-container').style.display = 'none';
 			document.getElementById('register-form-container').style.display = 'block';
-			document.getElementById('auth-head-login').innerHTML = '<h2><i class="bi bi-person-plus me-2 text-danger"></i>Criar conta</h2><span class="chip">Cadastro</span>';
+			document.getElementById('auth-head-login').innerHTML = '<h2><i class="bi bi-send me-2 text-danger"></i>Participar</h2><span class="chip">Solicitacao</span>';
 		}
 
 		function showLoginForm() {

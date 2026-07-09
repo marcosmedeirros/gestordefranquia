@@ -80,10 +80,24 @@ async function showGestao(league) {
       <a href="/thepathetic-edit.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
         <i class="bi bi-newspaper" style="color:#fc0025"></i> The Pathetic
       </a>
-      ${window.IS_GLOBAL_ADMIN ? `<button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="showForceTradeModal('${_gestaoLeague}')">
-        <i class="bi bi-lightning-fill" style="color:#fc0025"></i> Force Trade
-      </button>` : ''}
+      <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;position:relative" onclick="showWaitlistModal()">
+        <i class="bi bi-person-lines-fill" style="color:#22c55e"></i> Interessados
+        <span class="action-tile-badge" id="waitlist-badge" style="display:none;position:static">0</span>
+      </button>
     </div>
+    ${window.IS_GLOBAL_ADMIN ? `
+    <div class="panel mb-3" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px">
+        <i class="bi bi-lightning-fill" style="color:#fc0025;font-size:18px"></i>
+        <div>
+          <div style="font-weight:700;font-size:14px">Force Trade — ${_gestaoLeague}</div>
+          <div style="font-size:12px;color:var(--text-2)">Executa uma troca imediata só entre times da liga ${_gestaoLeague}, sem pedido de aceite.</div>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-orange" onclick="showForceTradeModal('${_gestaoLeague}')">
+        <i class="bi bi-lightning-fill me-1"></i> Iniciar Force Trade
+      </button>
+    </div>` : ''}
     <div id="gestaoTableContainer">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
     </div>`;
@@ -96,6 +110,11 @@ async function showGestao(league) {
     document.getElementById('gestaoTableContainer').innerHTML =
       `<div class="alert alert-danger">Erro ao carregar usuários: ${escapeHtml(e.error || 'Desconhecido')}</div>`;
   }
+
+  try {
+    const wl = await api('waitlist.php');
+    updateWaitlistBadge((wl.requests || []).filter(r => r.status === 'pending').length);
+  } catch (e) {}
 }
 
 function renderGestaoTable(users) {
@@ -495,6 +514,125 @@ async function deleteOuvidoriaMessage(messageId) {
   }
 }
 
+function ensureWaitlistModal() {
+  if (document.getElementById('waitlistModal')) return;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'waitlistModal';
+  modal.tabIndex = -1;
+  modal.innerHTML = `
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content bg-dark border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-person-lines-fill me-2" style="color:#22c55e"></i>Interessados</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-light-gray" style="font-size:12px">Quem pediu pra participar pelo login. Copie o link de cadastro e mande pelo WhatsApp — a pessoa entra direto na Liga ROOKIE.</p>
+          <div id="waitlistModalList"><div class="text-center py-3"><div class="spinner-border text-orange"></div></div></div>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-outline-light" onclick="loadWaitlistRequests()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function showWaitlistModal() {
+  ensureWaitlistModal();
+  loadWaitlistRequests();
+  const modalEl = document.getElementById('waitlistModal');
+  if (modalEl) {
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+  }
+}
+
+const WAITLIST_STATUS_LABEL = { pending: 'Aguardando', link_sent: 'Link enviado', registered: 'Cadastrado' };
+const WAITLIST_STATUS_COLOR = { pending: '#f59e0b', link_sent: '#3b82f6', registered: '#22c55e' };
+
+async function loadWaitlistRequests() {
+  const list = document.getElementById('waitlistModalList');
+  if (list) list.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-orange"></div></div>';
+
+  try {
+    const data = await api('waitlist.php');
+    const requests = data.requests || [];
+    updateWaitlistBadge(requests.filter(r => r.status === 'pending').length);
+
+    if (!list) return;
+    if (!requests.length) {
+      list.innerHTML = '<div class="alert alert-info">Nenhum pedido de participação ainda.</div>';
+      return;
+    }
+
+    list.innerHTML = requests.map(r => {
+      const link = `${window.location.origin}/register.php?token=${r.token}`;
+      const statusLabel = WAITLIST_STATUS_LABEL[r.status] || r.status;
+      const statusColor = WAITLIST_STATUS_COLOR[r.status] || '#8d8d98';
+      const waLink = `https://wa.me/${r.phone}`;
+      return `
+        <div class="card mb-2" style="padding:12px 14px">
+          <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+            <div>
+              <div style="font-weight:600">${escapeHtml(r.name)}</div>
+              <a href="${waLink}" target="_blank" rel="noopener" style="font-size:12px;color:var(--text-2)"><i class="bi bi-whatsapp me-1" style="color:#22c55e"></i>${escapeHtml(r.phone)}</a>
+              <div style="font-size:11px;color:var(--text-3)">${new Date(r.created_at).toLocaleDateString('pt-BR')}</div>
+            </div>
+            <span class="badge" style="background:${statusColor}22;color:${statusColor};border:1px solid ${statusColor}44">${statusLabel}</span>
+          </div>
+          ${r.status !== 'registered' ? `
+          <div class="d-flex gap-2 mt-2 flex-wrap">
+            <button class="btn btn-sm btn-outline-orange" onclick="waitlistCopyLink('${link}', ${r.id})">
+              <i class="bi bi-clipboard me-1"></i>Copiar link de cadastro
+            </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="waitlistDismiss(${r.id})">
+              <i class="bi bi-x-lg me-1"></i>Dispensar
+            </button>
+          </div>` : ''}
+        </div>`;
+    }).join('');
+  } catch (e) {
+    if (list) list.innerHTML = `<div class="alert alert-danger">Erro ao carregar: ${escapeHtml(e.error || 'desconhecido')}</div>`;
+  }
+}
+
+async function waitlistCopyLink(link, id) {
+  try {
+    await navigator.clipboard.writeText(link);
+    showAlert('success', 'Link copiado! Agora é só mandar pro interessado.');
+  } catch (e) {
+    prompt('Copie o link abaixo:', link);
+  }
+  try {
+    await api('waitlist.php', { method: 'PUT', body: JSON.stringify({ id, action: 'mark_sent' }) });
+    loadWaitlistRequests();
+  } catch (e) {}
+}
+
+async function waitlistDismiss(id) {
+  if (!confirm('Dispensar este pedido de participação?')) return;
+  try {
+    await api('waitlist.php', { method: 'PUT', body: JSON.stringify({ id, action: 'dismiss' }) });
+    loadWaitlistRequests();
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao dispensar pedido.');
+  }
+}
+
+function updateWaitlistBadge(count) {
+  const badge = document.getElementById('waitlist-badge');
+  if (!badge) return;
+  if (count > 0) { badge.textContent = count; badge.style.display = 'inline-flex'; }
+  else { badge.style.display = 'none'; }
+}
+
 function ensureCopyRosterModal() {
   if (document.getElementById('copyRosterModal')) return;
   const modal = document.createElement('div');
@@ -676,7 +814,6 @@ async function showLeague(league) {
       </div>`).join('');
 
     const actions = [
-      { icon: 'bi-person-check-fill', label: 'Aprovar<br>Usuários',  fn: 'showUserApprovals()',    color: '#fc0025', bg: 'rgba(252,0,37,.12)',   badgeId: 'action-badge-approvals' },
       { icon: 'bi-arrow-left-right',  label: 'Trades',               fn: 'showTrades()',            color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
       { icon: 'bi-people-fill',       label: 'Free Agency',          fn: 'showFAAdmin()',           color: '#22c55e', bg: 'rgba(34,197,94,.12)'  },
       { icon: 'bi-hammer',            label: 'Leilões',              fn: 'showFreeAgency()',        color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
@@ -6954,9 +7091,6 @@ async function showForceTradeModal(initialLeague) {
   const modalId = 'forceTradeModal';
   document.getElementById(modalId)?.remove();
 
-  const allLeagues = window.ADMIN_LEAGUES && window.ADMIN_LEAGUES.length ? window.ADMIN_LEAGUES : ['ELITE','NEXT','RISE','ROOKIE'];
-  const leagueOpts = allLeagues.map(l => `<option value="${l}" ${l===initialLeague?'selected':''}>${l}</option>`).join('');
-
   const html = `
   <div class="modal fade" id="${modalId}" tabindex="-1">
     <div class="modal-dialog modal-xl">
@@ -6964,22 +7098,16 @@ async function showForceTradeModal(initialLeague) {
         <div class="modal-header">
           <h5 class="modal-title">
             <i class="bi bi-lightning-fill me-2" style="color:var(--red)"></i>
-            Force Trade <small class="text-muted" style="font-size:12px;font-weight:400">(sem aceite — executa imediatamente)</small>
+            Force Trade — ${initialLeague} <small class="text-muted" style="font-size:12px;font-weight:400">(sem aceite — executa imediatamente)</small>
           </h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <div class="alert alert-warning" style="font-size:13px">
             <i class="bi bi-exclamation-triangle-fill me-1"></i>
-            Esta trade será executada <strong>imediatamente</strong>. Jogadores e picks serão transferidos sem pedido de aceite.
+            Esta trade será executada <strong>imediatamente</strong>, apenas entre times da liga <strong>${initialLeague}</strong>. Jogadores e picks serão transferidos sem pedido de aceite.
           </div>
-
-          <div class="mb-3 d-flex align-items-center gap-3">
-            <label class="form-label mb-0" style="white-space:nowrap">Liga</label>
-            <select class="form-select" id="ftLeagueSelect" style="max-width:160px" onchange="ftLoadTeams()">
-              ${leagueOpts}
-            </select>
-          </div>
+          <input type="hidden" id="ftLeagueSelect" value="${initialLeague}">
 
           <div class="mb-3">
             <div class="d-flex align-items-center justify-content-between mb-2">

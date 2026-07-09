@@ -510,6 +510,19 @@ function runMigrations() {
                 active TINYINT(1) NOT NULL DEFAULT 1,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'create_waitlist_requests' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS waitlist_requests (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(120) NOT NULL,
+                phone VARCHAR(30) NOT NULL,
+                token VARCHAR(64) NOT NULL UNIQUE,
+                status ENUM('pending','link_sent','registered','dismissed') NOT NULL DEFAULT 'pending',
+                link_sent_at DATETIME NULL,
+                registered_user_id INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_waitlist_status (status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
         ]
     ];
 

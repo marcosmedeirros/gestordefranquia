@@ -39,32 +39,25 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
     }
 });
 
-// Register form
+// Solicitação de participação (lista de espera — sem cadastro aberto)
 document.getElementById('form-register').addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     const data = {
         name: formData.get('name'),
-        email: formData.get('email'),
-        password: formData.get('password'),
-        phone: (formData.get('phone') || '').replace(/\D/g, ''),
-        league: formData.get('league'),
-        user_type: 'jogador'
+        phone: (formData.get('phone') || '').replace(/\D/g, '')
     };
 
     try {
-        const result = await api('register.php', {
+        const result = await api('waitlist.php', {
             method: 'POST',
             body: JSON.stringify(data)
         });
-        
-        showMessage('register-message', 'Cadastro realizado! Redirecionando para configuração...', 'success');
-        // Redireciona para onboarding
-        setTimeout(() => {
-            window.location.href = '/onboarding.php';
-        }, 1500);
+
+        showMessage('register-message', result.message || 'Pedido enviado! Em breve entraremos em contato pelo WhatsApp.', 'success');
+        e.target.reset();
     } catch (err) {
-        showMessage('register-message', err.error || 'Erro ao cadastrar', 'danger');
+        showMessage('register-message', err.error || 'Erro ao enviar pedido', 'danger');
     }
 });
 
