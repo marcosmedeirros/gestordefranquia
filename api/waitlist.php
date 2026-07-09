@@ -29,7 +29,7 @@ try {
         $stmt = $pdo->prepare('INSERT INTO waitlist_requests (name, phone, token) VALUES (?, ?, ?)');
         $stmt->execute([$name, $phone, $token]);
 
-        jsonResponse(201, ['message' => 'Pedido enviado! Em breve entraremos em contato pelo WhatsApp.']);
+        jsonResponse(201, ['message' => 'Obrigado pelo contato! Você está na lista de espera.']);
     }
 
     // A partir daqui, apenas admin

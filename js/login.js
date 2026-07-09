@@ -54,7 +54,7 @@ document.getElementById('form-register').addEventListener('submit', async (e) =>
             body: JSON.stringify(data)
         });
 
-        showMessage('register-message', result.message || 'Pedido enviado! Em breve entraremos em contato pelo WhatsApp.', 'success');
+        showMessage('register-message', result.message || 'Obrigado pelo contato! Você está na lista de espera.', 'success');
         e.target.reset();
     } catch (err) {
         showMessage('register-message', err.error || 'Erro ao enviar pedido', 'danger');

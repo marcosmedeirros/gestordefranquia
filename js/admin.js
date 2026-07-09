@@ -85,19 +85,6 @@ async function showGestao(league) {
         <span class="action-tile-badge" id="waitlist-badge" style="display:none;position:static">0</span>
       </button>
     </div>
-    ${window.IS_GLOBAL_ADMIN ? `
-    <div class="panel mb-3" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-      <div style="display:flex;align-items:center;gap:10px">
-        <i class="bi bi-lightning-fill" style="color:#fc0025;font-size:18px"></i>
-        <div>
-          <div style="font-weight:700;font-size:14px">Force Trade — ${_gestaoLeague}</div>
-          <div style="font-size:12px;color:var(--text-2)">Executa uma troca imediata só entre times da liga ${_gestaoLeague}, sem pedido de aceite.</div>
-        </div>
-      </div>
-      <button class="btn btn-sm btn-orange" onclick="showForceTradeModal('${_gestaoLeague}')">
-        <i class="bi bi-lightning-fill me-1"></i> Iniciar Force Trade
-      </button>
-    </div>` : ''}
     <div id="gestaoTableContainer">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
     </div>`;
@@ -827,6 +814,9 @@ async function showLeague(league) {
       { icon: 'bi-trophy-fill',             label: 'Draft',                     fn: 'showAdminDraft()',          color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
       { icon: 'bi-archive-fill',            label: 'Banco de<br>Classes',        fn: 'showDraftClassBank()',      color: '#a855f7', bg: 'rgba(168,85,247,.08)'  },
       { icon: 'bi-coin',                    label: 'Moedas',                    fn: 'showCoins()',               color: '#f59e0b', bg: 'rgba(245,158,11,.12)'  },
+      ...(window.IS_GLOBAL_ADMIN ? [
+        { icon: 'bi-lightning-fill',        label: 'Force<br>Trade',            fn: `showForceTradeModal('${league}')`, color: '#fc0025', bg: 'rgba(252,0,37,.12)'   },
+      ] : []),
     ];
 
     const actionTiles = actions.map(a => `
