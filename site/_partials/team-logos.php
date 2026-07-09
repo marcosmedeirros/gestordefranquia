@@ -41,6 +41,10 @@ return array (
   'Utah Coyotes' => '/img/teams/next/utah-coyotes.png',
   'Cincinatti Rivergems' => '/img/teams/rise/cincinatti-rivergems.jpg',
   'Indiana Mindflayers' => '/img/teams/rise/indiana-mindflayers.png',
+  // Times que mudaram de identidade (nome ainda antigo no banco, logo já é a nova)
+  'Brooklyn Breakbeats' => '/img/teams/rise/detroit-hellhounds.png',
+  'Baltimore Black Raven' => '/img/teams/rise/portland-prost.jpg',
+  'Seattle Sea Pirates' => '/img/teams/rise/seattle-admirals.jpg',
   'Alameda Rangers' => '/img/teams/rise/alameda-rangers.jpg',
   'Albuquerque Blue Diamonds' => '/img/teams/rise/albuquerque-blue-diamonds.jpg',
   'Anaheim Nu-Metalheads' => '/img/teams/rise/anaheim-nu-metalheads.png',
