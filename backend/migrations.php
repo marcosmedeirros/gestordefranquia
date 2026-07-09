@@ -503,6 +503,13 @@ function runMigrations() {
                 INDEX idx_r2offer_session_status (draft_session_id, status),
                 INDEX idx_r2offer_player (player_id, status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'create_site_games' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS site_games (
+                slug VARCHAR(80) NOT NULL PRIMARY KEY,
+                active TINYINT(1) NOT NULL DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
         ]
     ];
 

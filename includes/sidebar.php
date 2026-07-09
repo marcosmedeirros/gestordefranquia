@@ -124,6 +124,12 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             </a>
         </li>
         <li>
+            <a href="/siteadmin.php" class="<?= $currentPage === 'siteadmin.php' ? 'active' : '' ?>">
+                <i class="bi bi-globe2"></i>
+                Site Admin
+            </a>
+        </li>
+        <li>
             <a href="/punicoes.php" class="<?= $currentPage === 'punicoes.php' ? 'active' : '' ?>">
                 <i class="bi bi-exclamation-triangle-fill"></i>
                 Punições
