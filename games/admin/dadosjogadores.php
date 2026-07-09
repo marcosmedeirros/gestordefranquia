@@ -316,6 +316,13 @@ if ($action === 'sync_status') {
         $inativados = 0;
     }
 
+    // Rede de seguranca: registros legados sem nba_person_id (ex.: importados via awards-static.json)
+    // nunca sao alcancados pela checagem acima e ficam presos no ativo=1 default. Quem nao jogou na
+    // decada 20s certamente nao esta ativo hoje.
+    $stmtLegacyInactive = $pdo->prepare("UPDATE hoopgrid_players SET ativo=0, time_atual=NULL WHERE ativo=1 AND eras NOT LIKE '%\"20s\"%'");
+    $stmtLegacyInactive->execute();
+    $inativados += $stmtLegacyInactive->rowCount();
+
     echo json_encode(['ok'=>true,'season'=>$season,'encontrados'=>count($activeMap),'ativados'=>$ativados,'inativados'=>$inativados]);
     exit;
 }
