@@ -333,8 +333,11 @@ if ($action === 'import_awards') {
     header('X-Accel-Buffering: no');
     header('Cache-Control: no-cache');
     @ini_set('zlib.output_compression', 0);
-    set_time_limit(90);
+    set_time_limit(120);
     if (ob_get_level()) ob_end_clean();
+
+    $startTime  = microtime(true);
+    $timeBudget = 95; // segundos - corta antes do set_time_limit matar o script sem emitir NEXT/DONE
 
     $offset    = max(0, (int)($_GET['offset'] ?? 0));
     $chunkSize = 50;
@@ -346,8 +349,7 @@ if ($action === 'import_awards') {
 
     if ($offset >= $total) { echo "DONE:{$total}\n"; flush(); exit; }
 
-    $chunk      = array_slice($allPids, $offset, $chunkSize);
-    $nextOffset = $offset + count($chunk);
+    $chunk = array_slice($allPids, $offset, $chunkSize);
 
     // Carregar premios atuais do bloco
     $ph = implode(',', array_fill(0, count($chunk), '?'));
@@ -410,8 +412,8 @@ if ($action === 'import_awards') {
             $ch = curl_init("https://stats.nba.com/stats/playerawards?PlayerID={$pid}");
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 25,
-                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_TIMEOUT        => 10,
+                CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_ENCODING       => '',
                 CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
                 CURLOPT_SSL_VERIFYPEER => false,
@@ -468,10 +470,19 @@ if ($action === 'import_awards') {
         }
 
         curl_multi_close($mh);
+        $processedPids = $batchNum * $parallel;
         echo "Lote {$batchNum}/" . count($batches) . " | HTTP: [" . implode(',', $statusCodes) . "] | atualizados: {$updated}\n";
         flush();
+
+        if ((microtime(true) - $startTime) > $timeBudget) {
+            echo "-- tempo limite do lote atingido, retomando no proximo offset --\n";
+            flush();
+            break;
+        }
         usleep(400000);
     }
+
+    $nextOffset = $offset + min(count($chunk), $processedPids ?? count($chunk));
 
     if ($nextOffset >= $total) {
         echo "DONE:{$total}:{$updated}\n";
@@ -797,8 +808,11 @@ if ($action === 'import_stats') {
     header('X-Accel-Buffering: no');
     header('Cache-Control: no-cache');
     @ini_set('zlib.output_compression', 0);
-    set_time_limit(90);
+    set_time_limit(120);
     if (ob_get_level()) ob_end_clean();
+
+    $startTime  = microtime(true);
+    $timeBudget = 95; // segundos - corta antes do set_time_limit matar o script sem emitir NEXT/DONE
 
     $offset    = max(0, (int)($_GET['offset'] ?? 0));
     $chunkSize = 50;
@@ -814,8 +828,7 @@ if ($action === 'import_stats') {
 
     if ($offset >= $total) { echo "DONE:{$total}\n"; flush(); exit; }
 
-    $chunk      = array_slice($allPids, $offset, $chunkSize);
-    $nextOffset = $offset + count($chunk);
+    $chunk = array_slice($allPids, $offset, $chunkSize);
 
     $stmtU     = $pdo->prepare("UPDATE hoopgrid_players SET stats=?, pts_medio=?, reb_medio=?, ast_medio=? WHERE nba_person_id=?");
     $stmtUTeam = $pdo->prepare("UPDATE hoopgrid_players SET stats=?, pts_medio=?, reb_medio=?, ast_medio=?, time_atual=? WHERE nba_person_id=?");
@@ -851,8 +864,8 @@ if ($action === 'import_stats') {
             $ch = curl_init("https://stats.nba.com/stats/playercareerstats?PlayerID={$pid}&PerMode=PerGame");
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 25,
-                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_TIMEOUT        => 10,
+                CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_ENCODING       => '',
                 CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
                 CURLOPT_SSL_VERIFYPEER => false,
@@ -919,10 +932,19 @@ if ($action === 'import_stats') {
         }
 
         curl_multi_close($mh);
+        $processedPids = $batchNum * $parallel;
         echo "Lote {$batchNum}/" . count($batches) . " | HTTP: [" . implode(',', $statusCodes) . "] | atualizados: {$updated} | erros: {$errors}\n";
         flush();
+
+        if ((microtime(true) - $startTime) > $timeBudget) {
+            echo "-- tempo limite do lote atingido, retomando no proximo offset --\n";
+            flush();
+            break;
+        }
         usleep(400000);
     }
+
+    $nextOffset = $offset + min(count($chunk), $processedPids ?? count($chunk));
 
     if ($nextOffset >= $total) {
         echo "DONE:{$total}:{$updated}\n";
@@ -1140,12 +1162,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           <th class="mob-hide sortable" onclick="setSort('pts_medio')">PPG<span class="sort-ic" data-col="pts_medio"></span></th>
           <th class="mob-hide sortable" onclick="setSort('reb_medio')">RPG<span class="sort-ic" data-col="reb_medio"></span></th>
           <th class="mob-hide sortable" onclick="setSort('ast_medio')">APG<span class="sort-ic" data-col="ast_medio"></span></th>
-          <th class="mob-hide">Outros</th>
           <th>Status</th>
           <th style="text-align:right">Ações</th>
         </tr>
       </thead>
-      <tbody id="tbody"><tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text-3)">Carregando...</td></tr></tbody>
+      <tbody id="tbody"><tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-3)">Carregando...</td></tr></tbody>
     </table>
     </div>
 
@@ -1267,7 +1288,7 @@ async function loadPlayers(page = 1) {
 function renderTable(d) {
   const tb = qs('tbody');
   if (!d.players?.length) {
-    tb.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:30px;color:#555">Nenhum jogador encontrado.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:30px;color:#555">Nenhum jogador encontrado.</td></tr>';
     qs('pageInfo').textContent = '';
     qs('pagination').innerHTML = '';
     return;
@@ -1287,15 +1308,6 @@ function renderTable(d) {
       ? `<span class="tag" style="background:rgba(245,158,11,.15);color:#fbbf24">🏆 ${p.titulos}</span>`
       : '<span style="color:#555">—</span>';
     const fmtNum = (v) => (v === null || v === undefined || v === '') ? '<span style="color:#555">—</span>' : `<span style="color:#c084fc;font-weight:600">${parseFloat(v).toFixed(1)}</span>`;
-    let outrosHtml = '<span style="color:#555">—</span>';
-    if (p.stats) {
-      try {
-        const s = JSON.parse(p.stats);
-        outrosHtml = `<span style="font-size:11px;color:var(--text-2);white-space:nowrap">`
-          + `${s.stl}rb · ${s.blk}tp`
-          + `<span style="color:#555"> (${s.gp}J)</span></span>`;
-      } catch(e) {}
-    }
     return `<tr>
       <td><strong>${esc(p.nome)}</strong></td>
       <td class="mob-hide">${timeAtual}</td>
@@ -1307,7 +1319,6 @@ function renderTable(d) {
       <td class="mob-hide">${fmtNum(p.pts_medio)}</td>
       <td class="mob-hide">${fmtNum(p.reb_medio)}</td>
       <td class="mob-hide">${fmtNum(p.ast_medio)}</td>
-      <td class="mob-hide">${outrosHtml}</td>
       <td>${ativo}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn-ic" onclick="openModal(${JSON.stringify(p).replace(/"/g,'&quot;')})" title="Editar"><i class="bi bi-pencil"></i></button>
