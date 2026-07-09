@@ -27,6 +27,11 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS hoopgrid_players (
     UNIQUE KEY uk_nome (nome)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN stats TEXT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN time_atual VARCHAR(5) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN titulos INT NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN pts_medio DECIMAL(4,1) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN reb_medio DECIMAL(4,1) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN ast_medio DECIMAL(4,1) NULL"); } catch (Exception $e) {}
 
 // ── Mapeamento abreviaturas NBA ──────────────────────────────────────────────
 $TEAM_MAP = [
@@ -141,6 +146,11 @@ if ($action === 'list') {
     $fEra   = trim($_GET['era'] ?? '');
     $fTime  = trim($_GET['time'] ?? '');
 
+    $orderCols = ['nome'=>'nome','pts_medio'=>'pts_medio','reb_medio'=>'reb_medio','ast_medio'=>'ast_medio','titulos'=>'titulos'];
+    $orderBy   = $orderCols[$_GET['orderby'] ?? 'nome'] ?? 'nome';
+    $orderDir  = (strtoupper($_GET['orderdir'] ?? 'ASC') === 'DESC') ? 'DESC' : 'ASC';
+    $orderSql  = ($orderBy === 'nome') ? "nome {$orderDir}" : "{$orderBy} IS NULL, {$orderBy} {$orderDir}";
+
     $where = ['1=1'];
     $params = [];
     if ($q !== '')      { $where[] = 'nome LIKE ?';       $params[] = "%{$q}%"; }
@@ -158,7 +168,7 @@ if ($action === 'list') {
     $total = (int)$stmtC->fetchColumn();
 
     // Busca página
-    $stmtL = $pdo->prepare("SELECT id,nome,times,pais,premios,eras,nba_person_id,ativo FROM hoopgrid_players WHERE $whereStr ORDER BY nome ASC LIMIT $limit OFFSET $off");
+    $stmtL = $pdo->prepare("SELECT id,nome,times,pais,premios,eras,nba_person_id,ativo,time_atual,titulos,pts_medio,reb_medio,ast_medio,stats FROM hoopgrid_players WHERE $whereStr ORDER BY $orderSql LIMIT $limit OFFSET $off");
     $stmtL->execute($params);
     $players = $stmtL->fetchAll(PDO::FETCH_ASSOC);
 
@@ -178,14 +188,16 @@ if ($action === 'save_player' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $eras   = json_encode(array_values(array_filter(array_map('trim', (array)($body['eras'] ?? [])))));
     $pid    = !empty($body['nba_person_id']) ? (int)$body['nba_person_id'] : null;
     $ativo  = isset($body['ativo']) ? (int)(bool)$body['ativo'] : 1;
+    $timeAtual = strtoupper(trim($body['time_atual'] ?? '')) ?: null;
+    $titulos   = (int)($body['titulos'] ?? 0);
     if (!$nome) { echo json_encode(['ok'=>false,'error'=>'Nome obrigatório']); exit; }
     try {
         if ($id > 0) {
-            $pdo->prepare("UPDATE hoopgrid_players SET nome=?,times=?,pais=?,premios=?,eras=?,nba_person_id=?,ativo=? WHERE id=?")
-                ->execute([$nome,$times,$pais,$premios,$eras,$pid,$ativo,$id]);
+            $pdo->prepare("UPDATE hoopgrid_players SET nome=?,times=?,pais=?,premios=?,eras=?,nba_person_id=?,ativo=?,time_atual=?,titulos=? WHERE id=?")
+                ->execute([$nome,$times,$pais,$premios,$eras,$pid,$ativo,$timeAtual,$titulos,$id]);
         } else {
-            $pdo->prepare("INSERT INTO hoopgrid_players (nome,times,pais,premios,eras,nba_person_id,ativo) VALUES (?,?,?,?,?,?,?)")
-                ->execute([$nome,$times,$pais,$premios,$eras,$pid,$ativo]);
+            $pdo->prepare("INSERT INTO hoopgrid_players (nome,times,pais,premios,eras,nba_person_id,ativo,time_atual,titulos) VALUES (?,?,?,?,?,?,?,?,?)")
+                ->execute([$nome,$times,$pais,$premios,$eras,$pid,$ativo,$timeAtual,$titulos]);
             $id = (int)$pdo->lastInsertId();
         }
         echo json_encode(['ok'=>true,'id'=>$id]);
@@ -215,6 +227,96 @@ if ($action === 'toggle_active' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$id) { echo json_encode(['ok'=>false,'error'=>'ID inválido']); exit; }
     $pdo->prepare("UPDATE hoopgrid_players SET ativo=? WHERE id=?")->execute([$ativo,$id]);
     echo json_encode(['ok'=>true]);
+    exit;
+}
+
+// ── SINCRONIZAR STATUS ATIVO + TIME ATUAL (1 chamada, temporada corrente) ────
+if ($action === 'sync_status') {
+    header('Content-Type: application/json');
+    set_time_limit(60);
+
+    // Detecta a temporada corrente (NBA vai de out. a jun.: mes<7 => temporada comecou no ano anterior)
+    $y = (int)date('Y');
+    $m = (int)date('n');
+    $seasonStartYear = ($m < 8) ? $y - 1 : $y;
+    $season = sprintf('%d-%02d', $seasonStartYear, ($seasonStartYear + 1) % 100);
+
+    $url = "https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=1&LeagueID=00&Season={$season}";
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_CONNECTTIMEOUT => 15,
+        CURLOPT_ENCODING       => '',
+        CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS      => 5,
+        CURLOPT_HTTPHEADER     => [
+            'Accept: application/json, text/plain, */*',
+            'Accept-Encoding: gzip, deflate, br',
+            'Accept-Language: en-US,en;q=0.9',
+            'Cache-Control: no-cache',
+            'Connection: keep-alive',
+            'DNT: 1',
+            'Host: stats.nba.com',
+            'Origin: https://www.nba.com',
+            'Pragma: no-cache',
+            'Referer: https://www.nba.com/',
+            'Sec-Fetch-Dest: empty',
+            'Sec-Fetch-Mode: cors',
+            'Sec-Fetch-Site: same-site',
+            'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'x-nba-stats-origin: stats',
+            'x-nba-stats-token: true',
+        ],
+    ]);
+    $raw  = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+    if ($err || $code !== 200) { echo json_encode(['ok'=>false,'error'=>"HTTP {$code}: {$err}"]); exit; }
+
+    $data = json_decode($raw, true);
+    $hdrs = $data['resultSets'][0]['headers'] ?? [];
+    $rows = $data['resultSets'][0]['rowSet']   ?? [];
+    if (!$rows) { echo json_encode(['ok'=>false,'error'=>'Nenhum dado retornado (temporada ainda sem elenco?)']); exit; }
+
+    $ix    = array_flip($hdrs);
+    $iPid  = $ix['PERSON_ID']           ?? null;
+    $iTeam = $ix['TEAM_ABBREVIATION']   ?? null;
+    if ($iPid === null) { echo json_encode(['ok'=>false,'error'=>'Campo PERSON_ID não encontrado']); exit; }
+
+    $activeMap = []; // pid => team
+    foreach ($rows as $row) {
+        $pid  = (int)($row[$iPid] ?? 0);
+        if (!$pid) continue;
+        $team = $iTeam !== null ? strtoupper(trim($row[$iTeam] ?? '')) : '';
+        $team = $TEAM_MAP[$team] ?? $team;
+        $activeMap[$pid] = $team ?: null;
+    }
+
+    // Marca como ativo + time atual quem está na lista da temporada corrente
+    $stmtActive = $pdo->prepare("UPDATE hoopgrid_players SET ativo=1, time_atual=? WHERE nba_person_id=?");
+    $ativados = 0;
+    foreach ($activeMap as $pid => $team) {
+        $stmtActive->execute([$team, $pid]);
+        $ativados += $stmtActive->rowCount() > 0 ? 1 : 0;
+    }
+
+    // Marca como inativo (e limpa time_atual) quem tem nba_person_id mas nao apareceu na lista
+    $pids = array_keys($activeMap);
+    if ($pids) {
+        $ph = implode(',', array_fill(0, count($pids), '?'));
+        $stmtInactive = $pdo->prepare("UPDATE hoopgrid_players SET ativo=0, time_atual=NULL WHERE nba_person_id IS NOT NULL AND nba_person_id NOT IN ({$ph})");
+        $stmtInactive->execute($pids);
+        $inativados = $stmtInactive->rowCount();
+    } else {
+        $inativados = 0;
+    }
+
+    echo json_encode(['ok'=>true,'season'=>$season,'encontrados'=>count($activeMap),'ativados'=>$ativados,'inativados'=>$inativados]);
     exit;
 }
 
@@ -248,7 +350,7 @@ if ($action === 'import_awards') {
     foreach ($stmtE->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $existingMap[(int)$r['nba_person_id']] = json_decode($r['premios'] ?: '[]', true) ?: [];
     }
-    $stmtU = $pdo->prepare("UPDATE hoopgrid_players SET premios=? WHERE nba_person_id=?");
+    $stmtU = $pdo->prepare("UPDATE hoopgrid_players SET premios=?, titulos=? WHERE nba_person_id=?");
 
     $mapAward = function(string $desc, $allnbaNum): ?string {
         $d = strtolower(trim($desc));
@@ -341,16 +443,19 @@ if ($action === 'import_awards') {
 
             $current = $existingMap[$pid] ?? [];
             $changed = false;
+            $titulos = 0;
             foreach ($rrows as $row) {
-                $award = $mapAward($row[$iDesc] ?? '', $iAllNba !== null ? ($row[$iAllNba] ?? null) : null);
+                $desc = $row[$iDesc] ?? '';
+                if (stripos($desc, 'champion') !== false) $titulos++;
+                $award = $mapAward($desc, $iAllNba !== null ? ($row[$iAllNba] ?? null) : null);
                 if ($award && !in_array($award, $current, true)) {
                     $current[] = $award;
                     $changed   = true;
                 }
             }
-            if ($changed) {
+            if ($changed || $titulos > 0) {
                 sort($current);
-                $stmtU->execute([json_encode(array_values($current)), $pid]);
+                $stmtU->execute([json_encode(array_values($current)), $titulos, $pid]);
                 $updated++;
             }
         }
@@ -692,8 +797,12 @@ if ($action === 'import_stats') {
     $chunkSize = 50;
     $parallel  = 5;
 
-    $allPids = $pdo->query("SELECT nba_person_id FROM hoopgrid_players WHERE nba_person_id IS NOT NULL AND ativo=1 ORDER BY id")
-                   ->fetchAll(PDO::FETCH_COLUMN);
+    // Busca de todos os jogadores com nba_person_id (ativos e aposentados recebem medias de carreira)
+    $ativoRows = $pdo->query("SELECT nba_person_id, ativo, time_atual FROM hoopgrid_players WHERE nba_person_id IS NOT NULL ORDER BY id")
+                     ->fetchAll(PDO::FETCH_ASSOC);
+    $allPids  = array_map(fn($r) => (int)$r['nba_person_id'], $ativoRows);
+    $ativoMap = [];
+    foreach ($ativoRows as $r) { $ativoMap[(int)$r['nba_person_id']] = ['ativo'=>(int)$r['ativo'], 'time_atual'=>$r['time_atual']]; }
     $total = count($allPids);
 
     if ($offset >= $total) { echo "DONE:{$total}\n"; flush(); exit; }
@@ -701,7 +810,8 @@ if ($action === 'import_stats') {
     $chunk      = array_slice($allPids, $offset, $chunkSize);
     $nextOffset = $offset + count($chunk);
 
-    $stmtU = $pdo->prepare("UPDATE hoopgrid_players SET stats=? WHERE nba_person_id=?");
+    $stmtU     = $pdo->prepare("UPDATE hoopgrid_players SET stats=?, pts_medio=?, reb_medio=?, ast_medio=? WHERE nba_person_id=?");
+    $stmtUTeam = $pdo->prepare("UPDATE hoopgrid_players SET stats=?, pts_medio=?, reb_medio=?, ast_medio=?, time_atual=? WHERE nba_person_id=?");
 
     $hdrs_curl = [
         'Accept: application/json, text/plain, */*',
@@ -763,9 +873,10 @@ if ($action === 'import_stats') {
             if ($code !== 200 || !$raw) { $errors++; continue; }
 
             $data = json_decode($raw, true);
-            $career = null;
+            $career = null; $seasons = null;
             foreach ($data['resultSets'] ?? [] as $rs) {
-                if ($rs['name'] === 'CareerTotalsRegularSeason') { $career = $rs; break; }
+                if ($rs['name'] === 'CareerTotalsRegularSeason') $career = $rs;
+                if ($rs['name'] === 'SeasonTotalsRegularSeason')  $seasons = $rs;
             }
             if (!$career || empty($career['rowSet'])) { $errors++; continue; }
 
@@ -781,7 +892,22 @@ if ($action === 'import_stats') {
                 'gp'  => (int)($row[$ix['GP']] ?? 0),
             ];
 
-            $stmtU->execute([json_encode($stats), $pid]);
+            // Fallback: se o jogador esta marcado ativo mas ainda sem time_atual (ex.: sync_status nao rodou),
+            // usa o time da ultima temporada disputada.
+            $info = $ativoMap[$pid] ?? null;
+            if ($info && $info['ativo'] == 1 && empty($info['time_atual']) && $seasons && !empty($seasons['rowSet'])) {
+                $ixS      = array_flip($seasons['headers']);
+                $lastRow  = end($seasons['rowSet']);
+                $lastTeam = strtoupper(trim($lastRow[$ixS['TEAM_ABBREVIATION']] ?? ''));
+                $lastTeam = $TEAM_MAP[$lastTeam] ?? $lastTeam;
+                if ($lastTeam) {
+                    $stmtUTeam->execute([json_encode($stats), $stats['pts'], $stats['reb'], $stats['ast'], $lastTeam, $pid]);
+                    $updated++;
+                    continue;
+                }
+            }
+
+            $stmtU->execute([json_encode($stats), $stats['pts'], $stats['reb'], $stats['ast'], $pid]);
             $updated++;
         }
 
@@ -849,6 +975,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .inp:focus{outline:none;border-color:rgba(249,115,22,.5)}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl th{padding:8px 10px;color:var(--text-2);font-weight:600;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.tbl th.sortable{cursor:pointer;user-select:none}
+.tbl th.sortable:hover{color:#fb923c}
+.sort-ic::after{content:'';margin-left:3px}
+.sort-ic.asc::after{content:'▲'}
+.sort-ic.desc::after{content:'▼'}
 .tbl td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
 .tbl tr:hover td{background:rgba(255,255,255,.02)}
 .tag{display:inline-block;background:rgba(249,115,22,.15);color:#fb923c;border-radius:4px;padding:1px 6px;font-size:11px;margin:1px}
@@ -947,6 +1078,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <button class="btn btn-sm fw-bold" id="btnImportWikidata" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818cf8"><i class="bi bi-globe me-1"></i>Prêmios via Wikidata</button>
         <button class="btn btn-sm fw-bold" id="btnImportStatic" style="background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:#fbbf24"><i class="bi bi-file-earmark-code me-1"></i>Prêmios Estáticos (JSON)</button>
         <button class="btn btn-sm fw-bold" id="btnImportStats" style="background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.4);color:#c084fc"><i class="bi bi-bar-chart-line me-1"></i>Stats de Carreira</button>
+        <button class="btn btn-sm fw-bold" id="btnSyncStatus" style="background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.4);color:#4ade80"><i class="bi bi-arrow-repeat me-1"></i>Sincronizar Status/Time Atual</button>
       </div>
       <div id="log">Aguardando...</div>
     </div>
@@ -991,17 +1123,22 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <table class="tbl">
       <thead>
         <tr>
-          <th>Nome</th>
+          <th class="sortable" onclick="setSort('nome')">Nome<span class="sort-ic" data-col="nome"></span></th>
+          <th class="mob-hide">Time Atual</th>
           <th>Times</th>
           <th>País</th>
           <th>Prêmios</th>
+          <th class="mob-hide sortable" onclick="setSort('titulos')">Títulos<span class="sort-ic" data-col="titulos"></span></th>
           <th>Eras</th>
-          <th class="mob-hide">Stats</th>
+          <th class="mob-hide sortable" onclick="setSort('pts_medio')">PPG<span class="sort-ic" data-col="pts_medio"></span></th>
+          <th class="mob-hide sortable" onclick="setSort('reb_medio')">RPG<span class="sort-ic" data-col="reb_medio"></span></th>
+          <th class="mob-hide sortable" onclick="setSort('ast_medio')">APG<span class="sort-ic" data-col="ast_medio"></span></th>
+          <th class="mob-hide">Outros</th>
           <th>Status</th>
           <th style="text-align:right">Ações</th>
         </tr>
       </thead>
-      <tbody id="tbody"><tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-3)">Carregando...</td></tr></tbody>
+      <tbody id="tbody"><tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text-3)">Carregando...</td></tr></tbody>
     </table>
     </div>
 
@@ -1060,6 +1197,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       </div>
     </div>
 
+    <div class="form-row">
+      <div>
+        <label class="f-label">Time Atual (se ativo)</label>
+        <input class="inp" id="eTimeAtual" placeholder="LAL" maxlength="5" style="text-transform:uppercase">
+      </div>
+      <div>
+        <label class="f-label">Títulos (anéis)</label>
+        <input class="inp" id="eTitulos" type="number" min="0" placeholder="0">
+      </div>
+    </div>
+
     <div style="display:flex;gap:10px;margin-top:16px">
       <button class="btn btn-warning fw-bold flex-fill" onclick="savePlayer()"><i class="bi bi-save me-1"></i>Salvar</button>
       <button class="btn btn-outline-secondary" onclick="closeModal()">Cancelar</button>
@@ -1075,10 +1223,21 @@ const ALL_PREMIOS = ['MVP','DPOY','MIP','6THMAN','ROY','CHAMP','ALLSTAR','ALLNBA
 
 let _debTimer = null;
 let _currentPage = 1;
+let _orderBy  = 'nome';
+let _orderDir = 'asc';
 
 function debSearch() { clearTimeout(_debTimer); _debTimer = setTimeout(() => loadPlayers(1), 350); }
 
 function qs(id) { return document.getElementById(id); }
+
+function setSort(col) {
+  if (_orderBy === col) { _orderDir = (_orderDir === 'asc') ? 'desc' : 'asc'; }
+  else { _orderBy = col; _orderDir = (col === 'nome') ? 'asc' : 'desc'; }
+  document.querySelectorAll('.sort-ic').forEach(s => s.classList.remove('asc','desc'));
+  const ic = document.querySelector(`.sort-ic[data-col="${col}"]`);
+  if (ic) ic.classList.add(_orderDir);
+  loadPlayers(1);
+}
 
 async function loadPlayers(page = 1) {
   _currentPage = page;
@@ -1090,6 +1249,8 @@ async function loadPlayers(page = 1) {
     era:   qs('fEra').value,
     time:  qs('fTime').value,
     premio:qs('fPremio').value,
+    orderby:  _orderBy,
+    orderdir: _orderDir,
   });
   const r = await fetch('?' + params);
   const d = await r.json();
@@ -1099,7 +1260,7 @@ async function loadPlayers(page = 1) {
 function renderTable(d) {
   const tb = qs('tbody');
   if (!d.players?.length) {
-    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#555">Nenhum jogador encontrado.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:30px;color:#555">Nenhum jogador encontrado.</td></tr>';
     qs('pageInfo').textContent = '';
     qs('pagination').innerHTML = '';
     return;
@@ -1112,22 +1273,34 @@ function renderTable(d) {
     const ativo   = p.ativo == 1
       ? '<span class="tag green">ativo</span>'
       : '<span class="tag red">inativo</span>';
-    let statsHtml = '<span style="color:#555">—</span>';
+    const timeAtual = p.time_atual
+      ? `<span class="tag blue">${esc(p.time_atual)}</span>`
+      : '<span style="color:#555">—</span>';
+    const titulos = (p.titulos > 0)
+      ? `<span class="tag" style="background:rgba(245,158,11,.15);color:#fbbf24">🏆 ${p.titulos}</span>`
+      : '<span style="color:#555">—</span>';
+    const fmtNum = (v) => (v === null || v === undefined || v === '') ? '<span style="color:#555">—</span>' : `<span style="color:#c084fc;font-weight:600">${parseFloat(v).toFixed(1)}</span>`;
+    let outrosHtml = '<span style="color:#555">—</span>';
     if (p.stats) {
       try {
         const s = JSON.parse(p.stats);
-        statsHtml = `<span style="font-size:11px;color:#c084fc;white-space:nowrap">`
-          + `${s.pts}pts · ${s.reb}reb · ${s.ast}ast`
-          + `<span style="color:#555"> (${s.gp}G)</span></span>`;
+        outrosHtml = `<span style="font-size:11px;color:var(--text-2);white-space:nowrap">`
+          + `${s.stl}rb · ${s.blk}tp`
+          + `<span style="color:#555"> (${s.gp}J)</span></span>`;
       } catch(e) {}
     }
     return `<tr>
       <td><strong>${esc(p.nome)}</strong></td>
+      <td class="mob-hide">${timeAtual}</td>
       <td>${times || '<span style="color:#555">—</span>'}</td>
       <td><span class="tag gray">${esc(p.pais)}</span></td>
       <td>${premios || '<span style="color:#555">—</span>'}</td>
+      <td class="mob-hide">${titulos}</td>
       <td>${eras || '<span style="color:#555">—</span>'}</td>
-      <td class="mob-hide">${statsHtml}</td>
+      <td class="mob-hide">${fmtNum(p.pts_medio)}</td>
+      <td class="mob-hide">${fmtNum(p.reb_medio)}</td>
+      <td class="mob-hide">${fmtNum(p.ast_medio)}</td>
+      <td class="mob-hide">${outrosHtml}</td>
       <td>${ativo}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn-ic" onclick="openModal(${JSON.stringify(p).replace(/"/g,'&quot;')})" title="Editar"><i class="bi bi-pencil"></i></button>
@@ -1191,6 +1364,8 @@ function openModal(player) {
   qs('ePais').value  = p.pais || 'USA';
   qs('ePid').value   = p.nba_person_id || '';
   qs('eAtivo').value = p.ativo != null ? p.ativo : 1;
+  qs('eTimeAtual').value = p.time_atual || '';
+  qs('eTitulos').value   = p.titulos || 0;
   qs('modalErr').textContent = '';
 
   _selTimes   = JSON.parse(p.times   || '[]');
@@ -1218,6 +1393,8 @@ async function savePlayer() {
     premios:       _selPremios,
     nba_person_id: qs('ePid').value ? parseInt(qs('ePid').value) : null,
     ativo:         parseInt(qs('eAtivo').value),
+    time_atual:    qs('eTimeAtual').value.trim().toUpperCase() || null,
+    titulos:       parseInt(qs('eTitulos').value) || 0,
   };
   if (!body.nome) { qs('modalErr').textContent = 'Nome é obrigatório.'; return; }
   const r = await fetch('?action=save_player', { method:'POST', body: JSON.stringify(body) });
@@ -1476,8 +1653,29 @@ async function importStatsChunk(offset) {
 qs('btnImportStats').addEventListener('click', () => {
   const log = qs('log');
   qs('btnImportStats').disabled = true;
-  log.textContent = 'Importando médias de carreira (PTS, REB, AST, STL, BLK).\nProcessa 50 jogadores por bloco com 5 req. paralelas.\n\n';
+  log.textContent = 'Importando médias de carreira (PTS, REB, AST, STL, BLK) — todos os jogadores, ativos e aposentados.\nProcessa 50 jogadores por bloco com 5 req. paralelas.\n\n';
   importStatsChunk(0);
+});
+
+// ── SINCRONIZAR STATUS ATIVO + TIME ATUAL ────────────────────────────────────
+qs('btnSyncStatus').addEventListener('click', async () => {
+  const log = qs('log');
+  const btn = qs('btnSyncStatus');
+  btn.disabled = true;
+  log.textContent = 'Consultando elenco da temporada atual na NBA Stats API...\n';
+  try {
+    const r = await fetch('?action=sync_status');
+    const d = await r.json();
+    if (d.ok) {
+      log.textContent += `✅ Temporada ${d.season}\nJogadores ativos encontrados: ${d.encontrados}\nAtivados/atualizados: ${d.ativados}\nMarcados como inativos: ${d.inativados}\n`;
+      loadPlayers(_currentPage);
+    } else {
+      log.textContent += `❌ Erro: ${d.error}\n`;
+    }
+  } catch(e) {
+    log.textContent += `❌ Falha: ${e.message}\n`;
+  }
+  btn.disabled = false;
 });
 
 // Carregar ao abrir
