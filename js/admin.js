@@ -64,13 +64,13 @@ async function showGestao(league) {
             onclick="showGestao('${lg}')">${lg}</button>`).join('');
 
   container.innerHTML = `
-    <div class="mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <div class="d-flex gap-2 flex-wrap">${leagueTabs}</div>
-      <button class="btn btn-sm btn-outline-orange" onclick="showGestao('${_gestaoLeague}')">
+    <div class="mb-3 d-flex align-items-center justify-content-center flex-wrap gap-2" style="position:relative">
+      <div class="d-flex gap-2 flex-wrap justify-content-center">${leagueTabs}</div>
+      <button class="btn btn-sm btn-outline-orange" onclick="showGestao('${_gestaoLeague}')" style="position:absolute; right:0">
         <i class="bi bi-arrow-repeat"></i>
       </button>
     </div>
-    <div class="d-flex gap-2 mb-3 flex-wrap">
+    <div class="d-flex gap-2 mb-3 flex-wrap justify-content-center">
       <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="showOuvidoriaModal()">
         <i class="bi bi-chat-left-dots-fill" style="color:#8b5cf6"></i> Ouvidoria
       </button>
@@ -84,6 +84,9 @@ async function showGestao(league) {
         <i class="bi bi-person-lines-fill" style="color:#22c55e"></i> Interessados
         <span class="action-tile-badge" id="waitlist-badge" style="display:none;position:static">0</span>
       </button>
+      ${window.IS_GLOBAL_ADMIN ? `<a href="/siteadmin.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
+        <i class="bi bi-globe2" style="color:#3b82f6"></i> Site Admin
+      </a>` : ''}
     </div>
     <div id="gestaoTableContainer">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>

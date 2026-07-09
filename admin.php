@@ -836,11 +836,6 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
                 </ol>
             </nav>
         </div>
-        <?php if ($isGlobalAdmin): ?>
-        <a href="/siteadmin.php" class="btn-outline-orange" style="text-decoration:none; display:inline-flex; align-items:center; gap:7px;">
-            <i class="bi bi-globe2"></i> Site Admin
-        </a>
-        <?php endif; ?>
     </div>
 
     <!-- Conteúdo dinâmico renderizado por admin.js -->
