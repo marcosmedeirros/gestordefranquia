@@ -1889,7 +1889,7 @@ async function showConfig() {
         <div style="font-size:10px;color:var(--text-3);font-weight:500;margin-top:1px">CAP Range</div>
       </div>
     </div>
-    <button class="btn-orange" onclick="saveLeagueSettings()" style="align-self:flex-start">
+    <button class="btn-orange" onclick="saveLeagueSettings(this)" style="align-self:flex-start">
       <i class="bi bi-save2 me-1"></i>Salvar
     </button>
   </div>
@@ -1979,7 +1979,7 @@ async function showConfig() {
   } catch (e) {}
 }
 
-async function saveLeagueSettings() {
+async function saveLeagueSettings(btn) {
   const inputs = document.querySelectorAll('#configContainer input[data-league], #configContainer textarea[data-league]');
   const groups = {};
   inputs.forEach(inp => {
@@ -1988,8 +1988,8 @@ async function saveLeagueSettings() {
     const value = (inp.dataset.field === 'edital' || inp.dataset.field === 'n8n_webhook_url') ? inp.value : parseInt(inp.value);
     groups[lg][inp.dataset.field] = value;
   });
-  
-  const btn = document.getElementById('saveConfigBtn');
+
+  if (!btn) return;
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Salvando...';
   
