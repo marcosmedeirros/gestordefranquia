@@ -156,6 +156,7 @@ if ($action === 'list') {
     $fPremio= trim($_GET['premio'] ?? '');
     $fEra   = trim($_GET['era'] ?? '');
     $fTime  = trim($_GET['time'] ?? '');
+    $fMedias= $_GET['medias'] ?? '';
 
     $orderCols = ['nome'=>'nome','pts_medio'=>'pts_medio','reb_medio'=>'reb_medio','ast_medio'=>'ast_medio','titulos'=>'titulos'];
     $orderBy   = $orderCols[$_GET['orderby'] ?? 'nome'] ?? 'nome';
@@ -165,11 +166,15 @@ if ($action === 'list') {
     $where = ['1=1'];
     $params = [];
     if ($q !== '')      { $where[] = 'nome LIKE ?';       $params[] = "%{$q}%"; }
-    if ($fAtivo !== '') { $where[] = 'ativo = ?';         $params[] = (int)$fAtivo; }
+    if ($fAtivo === 'sem_id') { $where[] = 'nba_person_id IS NULL'; }
+    elseif ($fAtivo !== '')   { $where[] = 'ativo = ?';   $params[] = (int)$fAtivo; }
     if ($fPais !== '')  { $where[] = 'pais = ?';          $params[] = strtoupper($fPais); }
-    if ($fPremio !== '') { $where[] = 'premios LIKE ?';   $params[] = '%"' . $fPremio . '"%'; }
+    if ($fPremio === '__NONE__') { $where[] = "(premios = '[]' OR premios IS NULL)"; }
+    elseif ($fPremio !== '')     { $where[] = 'premios LIKE ?'; $params[] = '%"' . $fPremio . '"%'; }
     if ($fEra !== '')   { $where[] = 'eras LIKE ?';       $params[] = '%"' . $fEra . '"%'; }
     if ($fTime !== '')  { $where[] = 'times LIKE ?';      $params[] = '%"' . $fTime . '"%'; }
+    if ($fMedias === 'sem') { $where[] = 'pts_medio IS NULL'; }
+    elseif ($fMedias === 'com') { $where[] = 'pts_medio IS NOT NULL'; }
 
     $whereStr = implode(' AND ', $where);
 
@@ -1158,6 +1163,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <option value="" selected>Todos</option>
         <option value="1">Ativos</option>
         <option value="0">Inativos</option>
+        <option value="sem_id">Sem ID NBA</option>
       </select>
       <input class="inp" style="flex:0 0 90px" id="fPais" placeholder="País" oninput="debSearch()">
       <select class="inp" style="flex:0 0 100px" id="fEra" onchange="loadPlayers(1)">
@@ -1173,9 +1179,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       </select>
       <select class="inp" style="flex:0 0 120px" id="fPremio" onchange="loadPlayers(1)">
         <option value="">Prêmio</option>
+        <option value="__NONE__">Sem prêmio</option>
         <?php foreach(['MVP','DPOY','MIP','6THMAN','ROY','CHAMP','ALLSTAR','ALLNBA1','ALLNBA2','ALLNBA3','HOF'] as $p): ?>
         <option><?= $p ?></option>
         <?php endforeach; ?>
+      </select>
+      <select class="inp" style="flex:0 0 130px" id="fMedias" onchange="loadPlayers(1)">
+        <option value="">Médias (PPG/RPG/APG)</option>
+        <option value="sem">Sem médias</option>
+        <option value="com">Com médias</option>
       </select>
     </div>
 
@@ -1309,6 +1321,7 @@ async function loadPlayers(page = 1) {
     era:   qs('fEra').value,
     time:  qs('fTime').value,
     premio:qs('fPremio').value,
+    medias:qs('fMedias').value,
     orderby:  _orderBy,
     orderdir: _orderDir,
   });
