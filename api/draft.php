@@ -335,6 +335,45 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'players' => $players]);
             break;
 
+        // Ofertas da 2ª rodada: admin vê todas (pra resolver disputas), time vê só as próprias
+        case 'round2_offers':
+            $draftSessionId = $_GET['draft_session_id'] ?? null;
+            if (!$draftSessionId) {
+                echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']);
+                exit;
+            }
+            $sql = "SELECT o.*, t.city AS team_city, t.name AS team_name,
+                           dp.name AS player_name, dp.position AS player_position, dp.ovr AS player_ovr
+                    FROM draft_round2_offers o
+                    INNER JOIN teams t ON o.team_id = t.id
+                    INNER JOIN draft_pool dp ON o.player_id = dp.id
+                    WHERE o.draft_session_id = ?";
+            $params = [(int)$draftSessionId];
+            if (!$isAdmin) {
+                if (!$team) {
+                    echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+                    exit;
+                }
+                $sql .= " AND o.team_id = ?";
+                $params[] = (int)$team['id'];
+            }
+            $sql .= " ORDER BY o.player_id ASC, o.claimed_pick ASC, o.created_at ASC";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            echo json_encode(['success' => true, 'offers' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+            break;
+
+        // Picks de 2ª rodada que o app registra pro time do usuário (referência, não obrigatório)
+        case 'team_round2_picks':
+            if (!$team) {
+                echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+                exit;
+            }
+            $stmt = $pdo->prepare("SELECT id, season_year FROM picks WHERE team_id = ? AND round = '2' ORDER BY season_year ASC");
+            $stmt->execute([(int)$team['id']]);
+            echo json_encode(['success' => true, 'picks' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+            break;
+
         default:
             echo json_encode(['success' => false, 'error' => 'Ação inválida']);
     }
@@ -962,6 +1001,173 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Erro ao fazer pick: ' . $e->getMessage()]);
             }
             break;
+
+        // 2ª rodada: time envia oferta por um jogador informando a pick que possui (segundo o 2K, não valida contra a tabela picks)
+        case 'submit_round2_offer':
+            if (!$team) {
+                echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+                exit;
+            }
+            $draftSessionId = $data['draft_session_id'] ?? null;
+            $playerId = $data['player_id'] ?? null;
+            $claimedPick = isset($data['claimed_pick']) ? (int)$data['claimed_pick'] : 0;
+            if (!$draftSessionId || !$playerId || $claimedPick < 1) {
+                echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
+                exit;
+            }
+
+            $stmtSession = $pdo->prepare('SELECT id FROM draft_sessions WHERE id = ? AND status = "in_progress"');
+            $stmtSession->execute([(int)$draftSessionId]);
+            if (!$stmtSession->fetch()) {
+                echo json_encode(['success' => false, 'error' => 'Draft não está em andamento']);
+                exit;
+            }
+
+            $stmtPlayer = $pdo->prepare('SELECT id FROM draft_pool WHERE id = ? AND draft_status = "available"');
+            $stmtPlayer->execute([(int)$playerId]);
+            if (!$stmtPlayer->fetch()) {
+                echo json_encode(['success' => false, 'error' => 'Jogador não disponível']);
+                exit;
+            }
+
+            $stmtDup = $pdo->prepare("SELECT id FROM draft_round2_offers WHERE draft_session_id = ? AND team_id = ? AND player_id = ? AND status = 'pending'");
+            $stmtDup->execute([(int)$draftSessionId, (int)$team['id'], (int)$playerId]);
+            if ($stmtDup->fetch()) {
+                echo json_encode(['success' => false, 'error' => 'Você já enviou uma oferta para esse jogador']);
+                exit;
+            }
+
+            $pdo->prepare('INSERT INTO draft_round2_offers (draft_session_id, team_id, player_id, claimed_pick) VALUES (?, ?, ?, ?)')
+                ->execute([(int)$draftSessionId, (int)$team['id'], (int)$playerId, $claimedPick]);
+
+            echo json_encode(['success' => true, 'message' => 'Oferta enviada! Aguarde a confirmação do admin.']);
+            break;
+
+        // 2ª rodada: time cancela uma oferta própria ainda pendente
+        case 'cancel_round2_offer':
+            if (!$team) {
+                echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+                exit;
+            }
+            $offerId = $data['offer_id'] ?? null;
+            if (!$offerId) {
+                echo json_encode(['success' => false, 'error' => 'offer_id obrigatório']);
+                exit;
+            }
+            $pdo->prepare("DELETE FROM draft_round2_offers WHERE id = ? AND team_id = ? AND status = 'pending'")
+                ->execute([(int)$offerId, (int)$team['id']]);
+            echo json_encode(['success' => true, 'message' => 'Oferta cancelada']);
+            break;
+
+        // ADMIN: confirma a oferta vencedora (melhor pick) de um jogador da 2ª rodada.
+        // Marca as demais ofertas pendentes pro mesmo jogador como perdidas.
+        case 'resolve_round2_offer':
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+            $offerId = $data['offer_id'] ?? null;
+            if (!$offerId) {
+                echo json_encode(['success' => false, 'error' => 'offer_id obrigatório']);
+                exit;
+            }
+
+            $stmtOffer = $pdo->prepare("SELECT * FROM draft_round2_offers WHERE id = ? AND status = 'pending'");
+            $stmtOffer->execute([(int)$offerId]);
+            $offer = $stmtOffer->fetch();
+            if (!$offer) {
+                echo json_encode(['success' => false, 'error' => 'Oferta não encontrada ou já resolvida']);
+                exit;
+            }
+
+            $draftSessionId = (int)$offer['draft_session_id'];
+            $targetTeamId = (int)$offer['team_id'];
+            $playerId = (int)$offer['player_id'];
+
+            $stmtSession = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ? AND status = "in_progress"');
+            $stmtSession->execute([$draftSessionId]);
+            $session = $stmtSession->fetch();
+            if (!$session) {
+                echo json_encode(['success' => false, 'error' => 'Draft não está em andamento']);
+                exit;
+            }
+
+            $stmtPlayer = $pdo->prepare('SELECT * FROM draft_pool WHERE id = ? AND draft_status = "available"');
+            $stmtPlayer->execute([$playerId]);
+            $player = $stmtPlayer->fetch();
+            if (!$player) {
+                echo json_encode(['success' => false, 'error' => 'Jogador não está mais disponível']);
+                exit;
+            }
+
+            $stmtSeasonNum = $pdo->prepare('SELECT season_number FROM seasons WHERE id = ?');
+            $stmtSeasonNum->execute([$session['season_id']]);
+            $draftSeasonNumber = (int)($stmtSeasonNum->fetchColumn() ?: 1);
+
+            try {
+                $duplicateRoster = false;
+                $pdo->beginTransaction();
+
+                // Preenche uma pick pendente de rodada 2 do time no draft_order, se existir.
+                // Se o time já preencheu todas as que tinha (ex.: ganhou mais ofertas do que
+                // picks formais registradas), cria uma pick extra só pra manter o histórico coerente.
+                $stmtOrderRow = $pdo->prepare('SELECT id FROM draft_order WHERE draft_session_id = ? AND round = 2 AND team_id = ? AND picked_player_id IS NULL ORDER BY pick_position ASC LIMIT 1');
+                $stmtOrderRow->execute([$draftSessionId, $targetTeamId]);
+                $orderRowId = $stmtOrderRow->fetchColumn();
+
+                if (!$orderRowId) {
+                    $stmtMaxPos = $pdo->prepare('SELECT COALESCE(MAX(pick_position), 0) FROM draft_order WHERE draft_session_id = ? AND round = 2');
+                    $stmtMaxPos->execute([$draftSessionId]);
+                    $newPos = (int)$stmtMaxPos->fetchColumn() + 1;
+                    $pdo->prepare('INSERT INTO draft_order (draft_session_id, team_id, original_team_id, pick_position, round) VALUES (?, ?, ?, ?, 2)')
+                        ->execute([$draftSessionId, $targetTeamId, $targetTeamId, $newPos]);
+                    $orderRowId = (int)$pdo->lastInsertId();
+                }
+
+                $pdo->prepare('UPDATE draft_order SET picked_player_id = ?, picked_at = NOW() WHERE id = ?')
+                    ->execute([$playerId, (int)$orderRowId]);
+
+                $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
+                    ->execute([$targetTeamId, (int)$offer['claimed_pick'], $playerId]);
+
+                $playerName = trim((string)($player['name'] ?? ''));
+                $stmtExisting = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
+                $stmtExisting->execute([$targetTeamId, $playerName]);
+                $existingPlayerId = $stmtExisting->fetchColumn();
+
+                if ($existingPlayerId) {
+                    $duplicateRoster = true;
+                } else {
+                    try {
+                        $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, drafted_season_number, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
+                            ->execute([$targetTeamId, $targetTeamId, $draftSeasonNumber, $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                    } catch (Exception $e) {
+                        if (str_contains($e->getMessage(), 'unique_player_per_team')) {
+                            $duplicateRoster = true;
+                        } else {
+                            throw $e;
+                        }
+                    }
+                }
+
+                $pdo->prepare("UPDATE draft_round2_offers SET status = 'won', resolved_at = NOW() WHERE id = ?")
+                    ->execute([(int)$offerId]);
+                $pdo->prepare("UPDATE draft_round2_offers SET status = 'lost', resolved_at = NOW() WHERE player_id = ? AND status = 'pending' AND id != ?")
+                    ->execute([$playerId, (int)$offerId]);
+
+                $pdo->commit();
+
+                $message = $duplicateRoster
+                    ? 'Pick confirmada! Jogador já existia no elenco e não foi duplicado.'
+                    : 'Pick confirmada!';
+                echo json_encode(['success' => true, 'message' => $message, 'player' => $player]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                echo json_encode(['success' => false, 'error' => 'Erro ao confirmar pick: ' . $e->getMessage()]);
+            }
+            break;
+
 // ADMIN: Preencher pick de draft passado/completado
         case 'fill_past_pick':
             if (!$isAdmin) {

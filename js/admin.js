@@ -5525,6 +5525,14 @@ async function showAdminDraft(league) {
       } catch(e) {}
     }
 
+    let round2Offers = [];
+    if (draft && draft.status === 'in_progress' && Number(draft.current_round) === 2) {
+      try {
+        const rd = await api(`draft.php?action=round2_offers&draft_session_id=${draft.id}`);
+        round2Offers = rd.offers || [];
+      } catch(e) {}
+    }
+
     const order = orderData?.order || [];
     const draftStatus = draft?.status || null;
     const currentRound = draft?.current_round || 1;
@@ -5718,8 +5726,52 @@ async function showAdminDraft(league) {
       }
     }
 
+    // Ofertas da 2ª rodada (times ofertam, a melhor pick pro jogador ganha, admin confirma)
+    let round2OffersPanel = '';
+    if (round2Offers.length > 0) {
+      const byPlayer = new Map();
+      round2Offers.forEach(o => {
+        if (!byPlayer.has(o.player_id)) byPlayer.set(o.player_id, []);
+        byPlayer.get(o.player_id).push(o);
+      });
+      const groups = [...byPlayer.values()].map(list => {
+        const pending = list.filter(o => o.status === 'pending').sort((a, b) => Number(a.claimed_pick) - Number(b.claimed_pick));
+        const resolved = list.filter(o => o.status !== 'pending');
+        if (!pending.length && !resolved.length) return '';
+        const first = list[0];
+        const rows = [...pending, ...resolved].map((o, i) => {
+          const isBest = o.status === 'pending' && i === 0;
+          const statusMap = { pending: ['#f59e0b', 'Pendente'], won: ['#22c55e', 'Ganhou'], lost: ['#ef4444', 'Perdeu'] };
+          const [sColor, sLabel] = statusMap[o.status] || ['#94a3b8', o.status];
+          return `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:6px;margin-bottom:4px;${isBest ? 'background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.3)' : 'background:var(--panel-2)'}">
+              <div style="font-size:13px;color:var(--text)">${escapeHtml(o.team_city)} ${escapeHtml(o.team_name)} <span style="color:var(--text-3);font-size:11px">· pick ${escapeHtml(String(o.claimed_pick))}</span></div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span class="pun-badge" style="background:${sColor}20;color:${sColor};border-color:${sColor}40">${sLabel}</span>
+                ${isBest ? `<button class="btn-ghost" style="padding:3px 9px;font-size:11px;color:#22c55e" onclick="_adminResolveRound2Offer(${o.id}, '${league}')"><i class="bi bi-check2-circle me-1"></i>OK</button>` : ''}
+              </div>
+            </div>`;
+        }).join('');
+        return `
+          <div style="margin-bottom:12px">
+            <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">${escapeHtml(first.player_name)} <span style="font-size:11px;font-weight:400;color:var(--text-3)">${escapeHtml(first.player_position || '')} · OVR ${first.player_ovr || '-'}</span></div>
+            ${rows}
+          </div>`;
+      }).join('');
+
+      round2OffersPanel = `
+        <div class="panel mb-3">
+          <div class="panel-header">
+            <div class="panel-title"><i class="bi bi-inboxes-fill" style="color:#a855f7"></i> Ofertas — 2ª Rodada</div>
+            <span style="font-size:11px;color:var(--text-3)">${round2Offers.filter(o => o.status === 'pending').length} pendente(s)</span>
+          </div>
+          <div style="padding:12px 16px">${groups || '<p style="color:var(--text-3);font-size:13px;text-align:center;padding:12px">Sem ofertas pendentes.</p>'}</div>
+        </div>`;
+    }
+
     container.innerHTML = `
       <div class="mb-4">${back}</div>
+      ${round2OffersPanel}
       ${sessionPanel}
       ${orderPanel}
       ${playersPanel}`;
@@ -5850,6 +5902,17 @@ async function _adminDraftStart(draftSessionId, league) {
     showAdminDraft(league);
   } catch(e) {
     showAlert('danger', e.error || 'Erro ao iniciar draft');
+  }
+}
+
+async function _adminResolveRound2Offer(offerId, league) {
+  if (!confirm('Confirmar essa pick? O jogador vai pro elenco do time e as outras ofertas pendentes pra ele serão marcadas como perdidas.')) return;
+  try {
+    const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'resolve_round2_offer', offer_id: offerId }) });
+    showAlert('success', result.message || 'Pick confirmada!');
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao confirmar pick');
   }
 }
 

@@ -1090,6 +1090,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     }
 
     const isMyTurn = currentPickInfo && parseInt(currentPickInfo.team_id) === userTeamId && session.current_round == 1;
+    const showRound2Team = session.status === 'in_progress' && session.current_round == 2 && userTeamId;
     const showRound2Admin = isAdmin && session.status === 'in_progress' && session.current_round == 2;
     const round2History = round2Raw
       .filter(p => p.picked_player_id)
@@ -1215,10 +1216,39 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       <div class="panel-body">
     `;
 
+    if (showRound2Team) {
+      html += `
+        <div class="r2-panel" style="margin-bottom:14px">
+          <div class="r2-panel-title"><i class="bi bi-send-check"></i> Ofertar jogador — 2ª Rodada</div>
+          <p style="font-size:12px;color:var(--text-2);margin-bottom:10px">
+            A 2ª rodada é rápida: escolha o jogador que já pegou no 2K, informe qual pick você tem
+            (ex: 37) e envie. Quem tiver a melhor pick pro jogador leva — o admin confirma.
+          </p>
+          <div id="round2TeamPicksHint" style="font-size:11px;color:var(--text-3);margin-bottom:10px"></div>
+          <div style="display:grid;grid-template-columns:1fr 110px auto;gap:10px;align-items:end">
+            <div>
+              <label class="field-label">Jogador</label>
+              <select class="field-input" id="round2OfferPlayerSelect">
+                <option value="">Selecione o jogador…</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Sua pick</label>
+              <input type="number" min="1" class="field-input" id="round2OfferPickInput" placeholder="Ex: 37">
+            </div>
+            <div>
+              <button class="btn-red" style="padding:9px 14px" onclick="submitRound2Offer()"><i class="bi bi-send"></i> Enviar</button>
+            </div>
+          </div>
+          <div id="round2MyOffers" style="margin-top:14px"></div>
+        </div>
+      `;
+    }
+
     if (showRound2Admin) {
       html += `
         <div class="r2-panel">
-          <div class="r2-panel-title"><i class="bi bi-person-check"></i> Registrar pick da 2ª Rodada (Admin)</div>
+          <div class="r2-panel-title"><i class="bi bi-person-check"></i> Registrar pick manualmente (Admin)</div>
           <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">
             <div>
               <label class="field-label">Time</label>
@@ -1282,6 +1312,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       finalizeContainer.style.display = (session.status === 'in_progress') ? 'block' : 'none';
     }
 
+    if (showRound2Team) {
+      initRound2TeamPanel();
+    }
     if (showRound2Admin) {
       initRound2AdminPanel(round2Raw);
     }
@@ -1433,6 +1466,89 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         <div class="player-chip-age">${p.age} anos</div>
       </div>
     `).join('');
+  }
+
+  const round2StatusBadge = { pending: '<span class="pun-badge" style="background:rgba(245,158,11,.12);color:#f59e0b;border-color:rgba(245,158,11,.3)">Pendente</span>',
+                               won:     '<span class="pun-badge" style="background:rgba(34,197,94,.12);color:#22c55e;border-color:rgba(34,197,94,.3)">Ganhou</span>',
+                               lost:    '<span class="pun-badge" style="background:rgba(239,68,68,.12);color:#ef4444;border-color:rgba(239,68,68,.3)">Perdeu</span>' };
+
+  async function initRound2TeamPanel() {
+    if (!currentDraftSession) return;
+    const playerSelect = document.getElementById('round2OfferPlayerSelect');
+    const hintEl = document.getElementById('round2TeamPicksHint');
+    if (!playerSelect) return;
+
+    try {
+      const data = await api(`draft.php?action=available_players&season_id=${currentDraftSession.season_id}`);
+      const players = data.players || [];
+      playerSelect.innerHTML = '<option value="">Selecione o jogador…</option>' +
+        players.map(p => `<option value="${p.id}">${p.name} (${p.position}) - OVR ${p.ovr}</option>`).join('');
+    } catch (e) {
+      playerSelect.innerHTML = '<option value="">Erro ao carregar jogadores</option>';
+    }
+
+    if (hintEl) {
+      try {
+        const picksData = await api('draft.php?action=team_round2_picks');
+        const picks = picksData.picks || [];
+        hintEl.textContent = picks.length
+          ? `Picks de 2ª rodada que o app registra pro seu time: ${picks.map(p => p.season_year).join(', ')} (referência — o que valeu no 2K é o que você digitar acima)`
+          : 'O app não tem nenhuma pick de 2ª rodada registrada pro seu time — digite a que valeu no 2K.';
+      } catch (e) { hintEl.textContent = ''; }
+    }
+
+    await refreshRound2MyOffers();
+  }
+
+  async function refreshRound2MyOffers() {
+    if (!currentDraftSession) return;
+    const box = document.getElementById('round2MyOffers');
+    if (!box) return;
+    try {
+      const data = await api(`draft.php?action=round2_offers&draft_session_id=${currentDraftSession.id}`);
+      const offers = data.offers || [];
+      if (!offers.length) { box.innerHTML = ''; return; }
+      box.innerHTML = `
+        <div style="font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Suas ofertas</div>
+        ${offers.map(o => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 8px;border-radius:6px;background:var(--panel-2);margin-bottom:5px">
+            <div style="font-size:13px;color:var(--text)">${o.player_name} <span style="color:var(--text-3);font-size:11px">· pick ${o.claimed_pick}</span></div>
+            <div style="display:flex;align-items:center;gap:8px">
+              ${round2StatusBadge[o.status] || ''}
+              ${o.status === 'pending' ? `<button class="btn-ghost" style="padding:2px 7px;font-size:11px;color:#ef4444" onclick="cancelRound2Offer(${o.id})"><i class="bi bi-x"></i></button>` : ''}
+            </div>
+          </div>
+        `).join('')}
+      `;
+    } catch (e) {}
+  }
+
+  async function submitRound2Offer() {
+    if (!currentDraftSession) return;
+    const playerSelect = document.getElementById('round2OfferPlayerSelect');
+    const pickInput = document.getElementById('round2OfferPickInput');
+    if (!playerSelect || !pickInput) return;
+    const playerId = playerSelect.value;
+    const claimedPick = pickInput.value;
+    if (!playerId) { alert('Selecione o jogador.'); return; }
+    if (!claimedPick || parseInt(claimedPick, 10) < 1) { alert('Informe a pick que você tem.'); return; }
+    try {
+      const result = await api('draft.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'submit_round2_offer', draft_session_id: currentDraftSession.id, player_id: parseInt(playerId, 10), claimed_pick: parseInt(claimedPick, 10) })
+      });
+      pickInput.value = '';
+      playerSelect.value = '';
+      await refreshRound2MyOffers();
+    } catch (e) { alert('Erro: ' + (e.error || e.message || 'Desconhecido')); }
+  }
+
+  async function cancelRound2Offer(offerId) {
+    if (!confirm('Cancelar essa oferta?')) return;
+    try {
+      await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'cancel_round2_offer', offer_id: offerId }) });
+      await refreshRound2MyOffers();
+    } catch (e) { alert('Erro: ' + (e.error || e.message || 'Desconhecido')); }
   }
 
   async function initRound2AdminPanel(round2PicksRaw) {

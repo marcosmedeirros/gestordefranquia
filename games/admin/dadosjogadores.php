@@ -43,11 +43,20 @@ $TEAM_MAP = [
     'SAC'=>'SAC','SAS'=>'SAS','TOR'=>'TOR','UTA'=>'UTA','WAS'=>'WAS',
     'NJN'=>'BKN','SEA'=>'OKC','NOH'=>'NOP','NOK'=>'NOP','VAN'=>'MEM',
     'SDC'=>'LAC','KCK'=>'SAC',
+    // Franquias historicas (pre-1980) mapeadas para a franquia atual equivalente
+    'MNL'=>'LAL','MNP'=>'LAL','ROC'=>'SAC','CIN'=>'SAC','FTW'=>'DET',
+    'TRI'=>'ATL','MLH'=>'ATL','STL'=>'ATL','SYR'=>'PHI','PHW'=>'GSW',
+    'SFW'=>'GSW','BAL'=>'WAS','CHZ'=>'WAS','CAP'=>'WAS','BUF'=>'LAC',
+    'CHP'=>'ATL','DNN'=>'DEN','INJ'=>'IND','CHS'=>'CHI','WAT'=>'ATL',
+    'SHE'=>'ATL','AND'=>'IND','PRO'=>'ATL',
 ];
 
 function calcEras(int $from, int $to): array {
     $eras = [];
-    $decades = ['80s'=>[1980,1989],'90s'=>[1990,1999],'00s'=>[2000,2009],'10s'=>[2010,2019],'20s'=>[2020,2030]];
+    $decades = [
+        '40s'=>[1946,1949],'50s'=>[1950,1959],'60s'=>[1960,1969],'70s'=>[1970,1979],
+        '80s'=>[1980,1989],'90s'=>[1990,1999],'00s'=>[2000,2009],'10s'=>[2010,2019],'20s'=>[2020,2030],
+    ];
     foreach ($decades as $key => [$s, $e]) {
         if ($from <= $e && $to >= $s) $eras[] = $key;
     }
@@ -60,7 +69,9 @@ $action = $_GET['action'] ?? 'status';
 if ($action === 'import') {
     header('Content-Type: application/json');
     set_time_limit(300);
-    $season = '2024-25';
+    $yImp = (int)date('Y'); $mImp = (int)date('n');
+    $seasonStartYearImp = ($mImp < 8) ? $yImp - 1 : $yImp;
+    $season = sprintf('%d-%02d', $seasonStartYearImp, ($seasonStartYearImp + 1) % 100);
     $url = "https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=0&LeagueID=00&Season={$season}";
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -119,7 +130,7 @@ if ($action === 'import') {
         if (!$nome) { $skipped++; continue; }
         $from = (int)($row[$iFrom] ?? 0);
         $to   = (int)($row[$iTo]   ?? date('Y'));
-        if ($from < 1979) { $skipped++; continue; }
+        if ($from < 1946) { $skipped++; continue; }
         $eras = calcEras($from, $to);
         if (empty($eras)) { $skipped++; continue; }
         $teamRaw = strtoupper(trim($row[$iTeam] ?? ''));
@@ -499,14 +510,20 @@ if ($action === 'import_teams') {
     header('X-Accel-Buffering: no');
     header('Cache-Control: no-cache');
     @ini_set('zlib.output_compression', 0);
-    set_time_limit(600);
+    set_time_limit(120);
     if (ob_get_level()) ob_end_clean();
 
-    $fromY = max(1979, (int)($_GET['from'] ?? 1979));
-    $toY   = min(2024, (int)($_GET['to']   ?? 2024));
+    $startTime  = microtime(true);
+    $timeBudget = 18; // segundos - Hostinger mata o processo bem antes do set_time_limit, entao cortamos cedo
+
+    $y = (int)date('Y'); $m = (int)date('n');
+    $currentSeasonYear = ($m < 8) ? $y - 1 : $y;
+
+    $fromY = max(1946, (int)($_GET['from'] ?? 1946));
+    $toY   = min($currentSeasonYear, (int)($_GET['to'] ?? $currentSeasonYear));
     $seasons = [];
-    for ($y = $fromY; $y <= $toY; $y++) {
-        $seasons[] = sprintf('%d-%02d', $y, ($y + 1) % 100);
+    for ($sy = $fromY; $sy <= $toY; $sy++) {
+        $seasons[] = sprintf('%d-%02d', $sy, ($sy + 1) % 100);
     }
 
     $playerTeams = [];
@@ -547,8 +564,8 @@ if ($action === 'import_teams') {
         $ch = curl_init("https://stats.nba.com/stats/leaguedashplayerstats?{$qs}");
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 45,
-            CURLOPT_CONNECTTIMEOUT => 20,
+            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_ENCODING       => '',
             CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
             CURLOPT_SSL_VERIFYPEER => false,
@@ -587,10 +604,11 @@ if ($action === 'import_teams') {
             echo "OK [{$done}/{$total}] {$season}: {$count} ocorrencias, " . count($rows) . " linhas\n";
         }
         flush();
-        usleep(400000);
 
-        // Salvar no banco a cada 5 temporadas para evitar timeout do servidor
-        if (($done % 5 === 0 || $done === $total) && !empty($playerTeams)) {
+        $tempoEsgotado = (microtime(true) - $startTime) > $timeBudget;
+
+        // Salvar no banco a cada 5 temporadas (ou ao cortar por tempo) para evitar perda de progresso
+        if (($done % 5 === 0 || $done === $total || $tempoEsgotado) && !empty($playerTeams)) {
             $pids2 = array_keys($playerTeams);
             $ph2   = implode(',', array_fill(0, count($pids2), '?'));
             $sE = $pdo->prepare("SELECT nba_person_id, times FROM hoopgrid_players WHERE nba_person_id IN ({$ph2})");
@@ -612,9 +630,22 @@ if ($action === 'import_teams') {
             flush();
             $playerTeams = [];
         }
+
+        if ($tempoEsgotado) {
+            echo "-- tempo limite atingido, retomando na proxima temporada --\n";
+            flush();
+            break;
+        }
+
+        usleep(400000);
     }
 
-    echo "Concluido! {$totalUpdated} jogadores atualizados com todos os times.\n";
+    if ($done >= $total) {
+        echo "DONE:{$toY}:{$totalUpdated}\n";
+    } else {
+        $nextFromY = $fromY + $done;
+        echo "NEXT:{$nextFromY}:{$toY}:{$totalUpdated}\n";
+    }
     flush();
     exit;
 }
@@ -788,7 +819,7 @@ if ($action === 'import_json' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$nome) { $skipped++; continue; }
         $from = (int)($row['FROM_YEAR'] ?? 0);
         $to   = (int)($row['TO_YEAR']   ?? date('Y'));
-        if ($from < 1979) { $skipped++; continue; }
+        if ($from < 1946) { $skipped++; continue; }
         $eras = calcEras($from, $to);
         if (empty($eras)) { $skipped++; continue; }
         $teamRaw = strtoupper(trim($row['TEAM_ABBREVIATION'] ?? ''));
@@ -1098,10 +1129,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <i class="bi bi-chevron-down" id="importChevron" style="transition:.2s;color:var(--text-2)"></i>
     </div>
     <div id="importBody" style="display:none;margin-top:16px">
-      <p style="font-size:12px;color:var(--text-2);margin-bottom:12px">Busca todos os jogadores desde 1980. Existentes não são sobrescritos (prêmios/país preservados).</p>
+      <p style="font-size:12px;color:var(--text-2);margin-bottom:12px">Busca todos os jogadores desde a fundação da NBA (1946). Existentes não são sobrescritos (prêmios/país preservados).</p>
       <div class="d-flex gap-2 mb-3 flex-wrap">
         <button class="btn btn-sm btn-danger fw-bold" id="btnImport"><i class="bi bi-cloud-download me-1"></i>Importar Jogadores (API)</button>
-        <button class="btn btn-sm fw-bold" id="btnImportTeams" style="background:rgba(59,130,246,.2);border:1px solid rgba(59,130,246,.4);color:#60a5fa"><i class="bi bi-building me-1"></i>Completar Times (46 temp.)</button>
+        <button class="btn btn-sm fw-bold" id="btnImportTeams" style="background:rgba(59,130,246,.2);border:1px solid rgba(59,130,246,.4);color:#60a5fa"><i class="bi bi-building me-1"></i>Completar Times (desde 1946)</button>
         <button class="btn btn-sm fw-bold" id="btnImportAwards" style="background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:#4ade80"><i class="bi bi-award me-1"></i>Prêmios via NBA API</button>
         <button class="btn btn-sm fw-bold" id="btnImportAll" style="background:rgba(252,0,37,.15);border:1px solid rgba(252,0,37,.4);color:#fc0025;font-weight:800"><i class="bi bi-stars me-1"></i>Importar Tudo (Estático + Wikidata)</button>
         <button class="btn btn-sm fw-bold" id="btnImportWikidata" style="background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.4);color:#818cf8"><i class="bi bi-globe me-1"></i>Prêmios via Wikidata</button>
@@ -1131,6 +1162,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <input class="inp" style="flex:0 0 90px" id="fPais" placeholder="País" oninput="debSearch()">
       <select class="inp" style="flex:0 0 100px" id="fEra" onchange="loadPlayers(1)">
         <option value="">Era</option>
+        <option>40s</option><option>50s</option><option>60s</option><option>70s</option>
         <option>80s</option><option>90s</option><option>00s</option><option>10s</option><option>20s</option>
       </select>
       <select class="inp" style="flex:0 0 110px" id="fTime" onchange="loadPlayers(1)">
@@ -1246,7 +1278,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
 <script>
 const NBA_TEAMS = ['ATL','BOS','BKN','CHA','CHI','CLE','DAL','DEN','DET','GSW','HOU','IND','LAC','LAL','MEM','MIA','MIL','MIN','NOP','NYK','OKC','ORL','PHI','PHX','POR','SAC','SAS','TOR','UTA','WAS'];
-const ALL_ERAS  = ['80s','90s','00s','10s','20s'];
+const ALL_ERAS  = ['40s','50s','60s','70s','80s','90s','00s','10s','20s'];
 const ALL_PREMIOS = ['MVP','DPOY','MIP','6THMAN','ROY','CHAMP','ALLSTAR','ALLNBA1','ALLNBA2','ALLNBA3','HOF'];
 
 let _debTimer = null;
@@ -1462,36 +1494,51 @@ qs('btnImport').addEventListener('click', async () => {
 });
 
 // ── IMPORT TIMES (streaming) ─────────────────────────────────────────────────
-qs('btnImportTeams').addEventListener('click', async () => {
+async function importTeamsChunk(fromY) {
+  const log = qs('log');
+  try {
+    const r = await fetch(`?action=import_teams&from=${fromY}`);
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const txt = dec.decode(value);
+      buf += txt;
+      log.textContent += txt;
+      log.scrollTop = log.scrollHeight;
+    }
+    const mNext = buf.match(/NEXT:(\d+):(\d+)/);
+    const mDone = buf.match(/DONE:(\d+)/);
+    if (mNext) {
+      log.textContent += `--- retomando na temporada ${mNext[1]} ---\n`;
+      log.scrollTop = log.scrollHeight;
+      setTimeout(() => importTeamsChunk(parseInt(mNext[1])), 200);
+    } else if (mDone) {
+      log.textContent += `\n✅ Times completos! Temporadas até ${mDone[1]} processadas.\n`;
+      log.scrollTop = log.scrollHeight;
+      ['btnImportTeams','btnImport'].forEach(id => { const e = qs(id); if(e) e.disabled = false; });
+      loadPlayers(1);
+    } else {
+      log.textContent += '\n⚠️ Resposta inesperada. Verifique o servidor.\n';
+      ['btnImportTeams','btnImport'].forEach(id => { const e = qs(id); if(e) e.disabled = false; });
+    }
+  } catch(e) {
+    log.textContent += `\n❌ Falha: ${e.message} — tentando novamente...\n`;
+    log.scrollTop = log.scrollHeight;
+    setTimeout(() => importTeamsChunk(fromY), 3000);
+  }
+}
+
+qs('btnImportTeams').addEventListener('click', () => {
   const log = qs('log');
   const btn = qs('btnImportTeams');
   const btn2 = qs('btnImport');
   btn.disabled = true;
   btn2.disabled = true;
-  log.textContent = 'Iniciando busca de times por temporada (pode demorar ~3 min)...\n';
-
-  try {
-    const r = await fetch('?action=import_teams');
-    if (!r.body) {
-      log.textContent += '❌ Streaming não suportado neste servidor.\n';
-      btn.disabled = false; btn2.disabled = false;
-      return;
-    }
-    const reader = r.body.getReader();
-    const dec = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = dec.decode(value);
-      log.textContent += chunk;
-      log.scrollTop = log.scrollHeight;
-    }
-    loadPlayers(1);
-  } catch(e) {
-    log.textContent += `\n❌ Falha: ${e.message}`;
-  }
-  btn.disabled = false;
-  btn2.disabled = false;
+  log.textContent = 'Iniciando busca de times por temporada, desde 1946 (pode demorar bastante)...\n';
+  importTeamsChunk(1946);
 });
 
 // ── IMPORT PRÊMIOS (chunked, auto-chain) ─────────────────────────────────────

@@ -486,6 +486,23 @@ function runMigrations() {
                 FOREIGN KEY (pick_id) REFERENCES picks(id) ON DELETE CASCADE,
                 INDEX idx_trade_items_trade (trade_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+        ],
+        'create_draft_round2_offers' => [
+            'sql' => "CREATE TABLE IF NOT EXISTS draft_round2_offers (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                draft_session_id INT NOT NULL,
+                team_id INT NOT NULL,
+                player_id INT NOT NULL,
+                claimed_pick INT NOT NULL,
+                status ENUM('pending','won','lost') DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                resolved_at TIMESTAMP NULL,
+                FOREIGN KEY (draft_session_id) REFERENCES draft_sessions(id) ON DELETE CASCADE,
+                FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+                FOREIGN KEY (player_id) REFERENCES draft_pool(id) ON DELETE CASCADE,
+                INDEX idx_r2offer_session_status (draft_session_id, status),
+                INDEX idx_r2offer_player (player_id, status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
         ]
     ];
 
