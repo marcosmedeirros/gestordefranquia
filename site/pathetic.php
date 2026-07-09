@@ -110,6 +110,12 @@ a { color: var(--red); text-decoration: none; }
   flex-wrap: wrap; gap: 12px;
 }
 @media (max-width: 600px) { .wrap { padding-inline: 16px; } }
+
+/* O conteudo vindo do banco (site_pages) traz seu proprio header sticky
+   (header.site), feito pra ficar sozinho no topo. Aqui ele entra abaixo
+   do menu padrao (.fbanav-wrap, 68px), entao empurra o sticky pra nao
+   ficar escondido atras do menu ao rolar a pagina. */
+.tp-content header.site { top: 68px; z-index: 40; }
 </style>
 </head>
 <body>
