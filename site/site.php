@@ -52,7 +52,39 @@ try {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>FBA · A Liga de NBA 2K do Brasil</title>
+<title>FBA · Fantasy Basquete Brasil - Liga de NBA 2K</title>
+<meta name="description" content="A FBA é a maior liga de fantasy basquete e NBA 2K Pro-Am do Brasil. Monte seu time, dispute o draft, feche trocas e seja o GM. Entre na lista de espera e jogue basquete de verdade." />
+<meta name="keywords" content="fantasy basquete, FBA, NBA fantasy, liga de basquete, NBA 2K, fantasy NBA Brasil, liga de NBA 2K, Pro-Am" />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://fbabrasil.com.br/" />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="FBA - Fantasy Basquete Brasil" />
+<meta property="og:title" content="FBA · Fantasy Basquete Brasil - Liga de NBA 2K" />
+<meta property="og:description" content="A maior liga de fantasy basquete e NBA 2K Pro-Am do Brasil. Monte seu time, dispute o draft, feche trocas e seja o GM." />
+<meta property="og:url" content="https://fbabrasil.com.br/" />
+<meta property="og:image" content="https://fbabrasil.com.br/img/fba-logo-default-cropped.png" />
+<meta property="og:locale" content="pt_BR" />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="FBA · Fantasy Basquete Brasil - Liga de NBA 2K" />
+<meta name="twitter:description" content="A maior liga de fantasy basquete e NBA 2K Pro-Am do Brasil. Monte seu time, dispute o draft, feche trocas e seja o GM." />
+<meta name="twitter:image" content="https://fbabrasil.com.br/img/fba-logo-default-cropped.png" />
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SportsOrganization",
+  "name": "FBA - Fantasy Basquete Brasil",
+  "alternateName": "FBA",
+  "url": "https://fbabrasil.com.br/",
+  "logo": "https://fbabrasil.com.br/img/fba-logo-default-cropped.png",
+  "description": "A maior liga de fantasy basquete e NBA 2K Pro-Am do Brasil, com sistema de acesso e descenso entre divisões.",
+  "sport": "Basketball",
+  "areaServed": "BR"
+}
+</script>
+
 <link rel="icon" type="image/png" href="/img/fba-logo-default-cropped.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -938,7 +970,6 @@ const LEAGUE_STATUS = [
   { id: "ELITE", abbr: "ELT", name: "Elite", color: "#E63946" },
   { id: "NEXT", abbr: "NXT", name: "Next", color: "#2EA85B" },
   { id: "RISE", abbr: "RSE", name: "Rise", color: "#2A6FDB" },
-  { id: "ROOKIE", abbr: "RKE", name: "Rookie", color: "#E8862E" },
 ];
 
 const STEPS = [

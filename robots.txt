@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /$
+Allow: /site/site.php
+Allow: /site/gamesfba.php
+Allow: /site/pathetic.php
+Allow: /img/
+Disallow: /
+
+Sitemap: https://fbabrasil.com.br/sitemap.xml
