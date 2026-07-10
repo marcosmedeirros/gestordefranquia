@@ -1,5 +1,4 @@
 <?php
-session_start();
 header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/backend/auth.php';
@@ -1572,7 +1571,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'force_
     } catch (Exception $e) {
         $pdo->rollBack();
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
     }
     exit;
 }
@@ -1786,12 +1785,9 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'multi_trades') {
         $stmtMy = $pdo->prepare('SELECT accepted_at FROM multi_trade_teams WHERE trade_id = ? AND team_id = ?');
         $stmtMy->execute([$tradeId, $teamId]);
         $trade['my_accepted'] = (bool)$stmtMy->fetchColumn();
-        $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name, (mtt.accepted_at IS NOT NULL) AS accepted FROM multi_trade_teams mtt JOIN teams t ON t.id = mtt.team_id WHERE mtt.trade_id = ?');
+        $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name FROM multi_trade_teams mtt JOIN teams t ON t.id = mtt.team_id WHERE mtt.trade_id = ?');
         $stmtTeams->execute([$tradeId]);
-        $trade['teams'] = array_map(function($row) {
-            $row['accepted'] = (bool)$row['accepted'];
-            return $row;
-        }, $stmtTeams->fetchAll(PDO::FETCH_ASSOC));
+        $trade['teams'] = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
 
         $stmtItems = $pdo->prepare('SELECT * FROM multi_trade_items WHERE trade_id = ?');
         $stmtItems->execute([$tradeId]);
@@ -2148,7 +2144,7 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
     } catch (Exception $e) {
         $pdo->rollBack();
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao criar troca múltipla: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro ao criar troca múltipla']);
     }
     exit;
 }
@@ -2266,7 +2262,7 @@ if ($method === 'POST') {
         $swapMap = normalizeSwapPairs($pdo, $offerPicks, $requestPicks, $swapPairs);
     } catch (Exception $e) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
         exit;
     }
 
@@ -2526,7 +2522,7 @@ if ($method === 'POST') {
     } catch (Exception $e) {
         $pdo->rollBack();
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao criar trade: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro ao criar trade']);
     }
     exit;
 }
@@ -2614,7 +2610,7 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'edit_multi_trade') {
     } catch (Exception $e) {
         $pdo->rollBack();
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
     }
     exit;
 }
@@ -2785,11 +2781,11 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
     } catch (PDOException $e) {
         $pdo->rollBack();
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => $e->getMessage() ?: 'Erro ao processar troca múltipla']);
+        echo json_encode(['success' => false, 'error' => 'Erro ao processar troca múltipla']);
     } catch (Exception $e) {
         $pdo->rollBack();
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => $e->getMessage() ?: 'Erro ao processar troca múltipla']);
+        echo json_encode(['success' => false, 'error' => 'Erro ao processar troca múltipla']);
     }
     exit;
 }
@@ -3060,13 +3056,13 @@ if ($method === 'PUT') {
             echo json_encode(['success' => false, 'error' => 'Uma das picks já foi negociada e não pode ser transferida novamente. Atualize a proposta.']);
         } else {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage() ?: 'Erro ao processar trade']);
+            echo json_encode(['success' => false, 'error' => 'Erro ao processar trade']);
         }
     } catch (Exception $e) {
         $pdo->rollBack();
         http_response_code(500);
         error_log('[trade_accept] ' . $e->getMessage());
-        echo json_encode(['success' => false, 'error' => $e->getMessage() ?: 'Erro ao processar trade']);
+        echo json_encode(['success' => false, 'error' => 'Erro ao processar trade']);
     }
     exit;
 }

@@ -15,8 +15,6 @@ function calcItemValue(item) {
   return (+(item.round || 2) === 1) ? 60 : 30;
 }
 
-// Calcula o valor/veredito da trade internamente (window.__lastTradeValue).
-// Exibicao visual desativada a pedido -- nao atualiza mais a UI (tvMyValue/tvTargetValue/tvVerdict).
 function updateTradeValueDisplay() {
   const offerPlayers  = playerState.offer.selected || [];
   const requestPlayers = playerState.request.selected || [];
@@ -26,19 +24,35 @@ function updateTradeValueDisplay() {
   const myValue     = [...offerPlayers,  ...offerPicks ].reduce((s, i) => s + calcItemValue(i), 0);
   const targetValue = [...requestPlayers,...requestPicks].reduce((s, i) => s + calcItemValue(i), 0);
 
+  const myEl     = document.getElementById('tvMyValue');
+  const targetEl = document.getElementById('tvTargetValue');
+  const verdictEl = document.getElementById('tvVerdict');
+
+  if (myEl)     myEl.textContent     = myValue     || '—';
+  if (targetEl) targetEl.textContent = targetValue || '—';
+  if (!verdictEl) return;
+
   const total = myValue + targetValue;
-  let verdict = { cls: 'tv-neutral', label: '', title: 'Aguardando itens' };
-  if (total > 0) {
-    const max = Math.max(myValue, targetValue);
-    const min = Math.min(myValue, targetValue);
-    const diff = max > 0 ? (max - min) / max : 0;
-    if (diff <= 0.08)       verdict = { cls: 'tv-valid',   label: 'JUSTA',    title: 'Troca Justa' };
-    else if (diff <= 0.18)  verdict = { cls: 'tv-warn',    label: 'DESIGUAL', title: 'Levemente Desigual' };
-    else if (diff <= 0.32)  verdict = { cls: 'tv-invalid', label: 'DESEQ.',   title: 'Desequilibrada' };
-    else                    verdict = { cls: 'tv-robbery', label: 'ROUBO!',  title: 'Isso é um Roubo!' };
+  if (total === 0) {
+    verdictEl.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    verdictEl.className = 'tv-verdict-badge tv-neutral';
+    verdictEl.title = 'Aguardando itens';
+    return;
   }
 
-  window.__lastTradeValue = { myValue, targetValue, verdict };
+  const max = Math.max(myValue, targetValue);
+  const min = Math.min(myValue, targetValue);
+  const diff = max > 0 ? (max - min) / max : 0;
+
+  let icon, label, cls, title;
+  if (diff <= 0.08)       { icon = 'check-circle-fill';        label = 'JUSTA';     cls = 'tv-valid';   title = 'Troca Justa'; }
+  else if (diff <= 0.18)  { icon = 'exclamation-triangle-fill';label = 'DESIGUAL';  cls = 'tv-warn';    title = 'Levemente Desigual'; }
+  else if (diff <= 0.32)  { icon = 'x-octagon-fill';           label = 'DESEQ.';   cls = 'tv-invalid'; title = 'Desequilibrada'; }
+  else                    { icon = 'emoji-dizzy-fill';          label = 'ROUBO!';   cls = 'tv-robbery'; title = 'Isso é um Roubo!'; }
+
+  verdictEl.innerHTML = `<i class="bi bi-${icon}"></i>${label}`;
+  verdictEl.className = `tv-verdict-badge ${cls}`;
+  verdictEl.title = title;
 }
 
 const api = async (path, options = {}) => {
@@ -1666,9 +1680,7 @@ function createMultiTradeCard(trade, type) {
     : `<div style="color:var(--text-3);font-size:13px">Nenhum item</div>`;
 
   const teamsList = (trade.teams || []).map((team) => {
-    const acceptedCls = team.accepted ? ' accepted' : '';
-    const check = team.accepted ? ' <i class="bi bi-check-circle-fill team-chip-check" title="Já aceitou"></i>' : '';
-    return `<span class="team-chip${acceptedCls}"><span class="team-chip-badge">${team.city?.[0] || 'T'}</span>${getTeamLabel(team)}${check}</span>`;
+    return `<span class="team-chip"><span class="team-chip-badge">${team.city?.[0] || 'T'}</span>${getTeamLabel(team)}</span>`;
   }).join('');
 
   card.innerHTML = `
