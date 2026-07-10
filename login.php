@@ -377,6 +377,10 @@
 			};
 			bindToggle('toggleLoginPassword', 'loginPassword');
 			bindToggle('toggleRegisterPassword', 'registerPassword');
+
+			if (new URLSearchParams(window.location.search).get('join') === '1') {
+				showRegisterForm();
+			}
 		});
 	</script>
 </body>

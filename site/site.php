@@ -24,6 +24,26 @@ try {
     $stmt = $pdo->query("SELECT team_name, league, gm_name, titles FROM hall_of_fame WHERE is_active = 1 AND team_name IS NOT NULL ORDER BY titles DESC LIMIT 8");
     $hallOfFame = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
+
+// Números reais do site — nada fabricado. Times/temporada por liga, total de
+// times e usuários aprovados. Alimenta os cards de estatística da página.
+$leagueStats = ['ELITE' => ['teams' => 0, 'season' => null], 'NEXT' => ['teams' => 0, 'season' => null], 'RISE' => ['teams' => 0, 'season' => null], 'ROOKIE' => ['teams' => 0, 'season' => null]];
+try {
+    $stmt = $pdo->query("SELECT league, COUNT(*) c FROM teams GROUP BY league");
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        if (isset($leagueStats[$r['league']])) $leagueStats[$r['league']]['teams'] = (int)$r['c'];
+    }
+    $stmt = $pdo->query("SELECT league, MAX(season_number) sn FROM seasons GROUP BY league");
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        if (isset($leagueStats[$r['league']])) $leagueStats[$r['league']]['season'] = (int)$r['sn'];
+    }
+} catch (Exception $e) {}
+$totalTeams = array_sum(array_column($leagueStats, 'teams'));
+
+$totalActivePlayers = 0;
+try {
+    $totalActivePlayers = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE approved = 1")->fetchColumn();
+} catch (Exception $e) {}
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -34,7 +54,8 @@ try {
 <link rel="icon" type="image/png" href="/img/fba-logo-default-cropped.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Anton&family=Oswald:wght@500;700&family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
 /* ============ FBA — Design tokens ============ */
 :root {
@@ -53,12 +74,18 @@ try {
   --blue: #2A6FDB;
   --orange: #E8862E;
 
-  --max: 1440px;
+  --max: 1320px;
   --pad: clamp(20px, 4vw, 64px);
 
-  --font-display: "Bebas Neue", "Anton", "Oswald", Impact, sans-serif;
-  --font-body: "Inter", -apple-system, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: "Montserrat", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Montserrat", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Montserrat", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-nav: "Inter", -apple-system, "Helvetica Neue", Arial, sans-serif;
+
+  --radius-lg: 26px;
+  --radius-md: 18px;
+  --radius-sm: 12px;
+  --shadow-soft: 0 16px 40px -12px rgba(0,0,0,.5);
 }
 
 * { box-sizing: border-box; }
@@ -80,21 +107,21 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 /* ============ Type ============ */
 .display {
   font-family: var(--font-display);
-  font-weight: 400;
-  letter-spacing: -0.01em;
-  line-height: 0.88;
-  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.04;
 }
-.mono { font-family: var(--font-mono); letter-spacing: 0.02em; }
+.mono { font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.08em; }
 .eyebrow {
   font-family: var(--font-mono);
+  font-weight: 700;
   font-size: 12px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-mute);
 }
 
-/* ============ Nav ============ */
+/* ============ Nav (mantido igual ao original — nao mexer) ============ */
 .nav {
   position: fixed; inset: 0 0 auto 0;
   z-index: 50;
@@ -102,6 +129,7 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
   -webkit-backdrop-filter: blur(14px);
   background: rgba(10,10,10,0.72);
   border-bottom: 1px solid var(--line);
+  font-family: var(--font-nav);
 }
 .nav-inner {
   display: flex; align-items: center; justify-content: space-between;
@@ -142,8 +170,8 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 /* ============ Hero ============ */
 .hero {
   position: relative;
-  padding-top: 140px;
-  padding-bottom: 80px;
+  padding-top: 108px;
+  padding-bottom: 56px;
   overflow: hidden;
   background:
     radial-gradient(ellipse 80% 50% at 80% 0%, rgba(230,57,70,0.12), transparent 60%),
@@ -159,7 +187,7 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 @media (max-width: 980px) { .hero-grid { grid-template-columns: 1fr; } }
 
 .hero-title {
-  font-size: clamp(72px, 13vw, 200px);
+  font-size: clamp(38px, 6vw, 80px);
   margin: 0;
 }
 .hero-title .red { color: var(--red); }
@@ -169,14 +197,16 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 }
 .hero-tag {
   display: inline-flex; align-items: center; gap: 10px;
-  padding: 6px 12px;
+  padding: 7px 14px;
+  border-radius: 100px;
   border: 1px solid var(--red);
   color: var(--red);
   font-family: var(--font-mono);
+  font-weight: 600;
   font-size: 11px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  margin-bottom: 28px;
+  margin-bottom: 22px;
 }
 .hero-tag::before {
   content: "";
@@ -201,19 +231,20 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
   margin-top: 36px;
 }
 .btn {
-  display: inline-flex; align-items: center; gap: 12px;
-  padding: 18px 28px;
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 15px 26px;
+  border-radius: 100px;
   font-family: var(--font-display);
-  font-size: 18px;
-  letter-spacing: 0.05em;
-  transition: transform .2s, background .2s, color .2s;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.005em;
+  transition: transform .2s, background .2s, color .2s, border-color .2s;
 }
 .btn-primary {
   background: var(--red);
   color: white;
-  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
 }
-.btn-primary:hover { background: var(--red-deep); }
+.btn-primary:hover { background: var(--red-deep); transform: translateY(-2px); }
 .btn-ghost {
   border: 1px solid var(--line-2);
   color: var(--ink);
@@ -225,14 +256,17 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 /* Hero side panel — live ticker */
 .hero-side {
   border: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
-  padding: 28px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+  padding: 26px;
   position: relative;
+  overflow: hidden;
 }
 .hero-side::before {
   content: "";
-  position: absolute; top: -1px; left: -1px;
+  position: absolute; top: 0; left: 0;
   width: 40px; height: 4px; background: var(--red);
+  border-radius: 0 0 4px 0;
 }
 .live-row { display: flex; justify-content: space-between; align-items: center; }
 .live-dot {
@@ -244,32 +278,24 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
   content: ""; width: 8px; height: 8px; background: var(--red); border-radius: 50%;
   animation: pulse 1.2s infinite;
 }
-.ticker { margin-top: 20px; }
-.ticker-match {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  padding: 16px 0;
+.league-status-list { margin-top: 18px; }
+.league-status-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
   border-top: 1px solid var(--line);
 }
-.ticker-match:last-of-type { border-bottom: 1px solid var(--line); }
-.ticker-team { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.ticker-team.right { justify-content: flex-end; }
-.ticker-team .badge {
-  width: 28px; height: 28px;
+.league-status-row:last-of-type { border-bottom: 1px solid var(--line); }
+.league-status-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.league-status-name .badge {
+  width: 40px; height: 26px;
+  border-radius: 8px;
   background: var(--bg-3); border: 1px solid var(--line);
   display: grid; place-items: center;
-  font-family: var(--font-display); font-size: 13px; color: var(--ink-mute);
+  font-family: var(--font-display); font-weight: 700; font-size: 10px;
 }
-.ticker-team .name { font-weight: 600; font-size: 14px; }
-.ticker-score {
-  font-family: var(--font-display);
-  font-size: 28px;
-  padding: 0 18px;
-  color: var(--ink);
-  letter-spacing: 0.04em;
-}
-.ticker-score .sep { color: var(--ink-dim); margin: 0 4px; }
+.league-status-name .name { font-weight: 700; font-size: 14px; }
+.league-status-info { font-size: 12.5px; color: var(--ink-mute); white-space: nowrap; }
 .ticker-meta {
   display: flex; justify-content: space-between;
   font-family: var(--font-mono); font-size: 10px;
@@ -279,10 +305,10 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 
 /* Hero marquee */
 .marquee {
-  margin-top: 64px;
+  margin-top: 44px;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
-  padding: 18px 0;
+  padding: 14px 0;
   overflow: hidden;
   white-space: nowrap;
   mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
@@ -293,8 +319,9 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 }
 .marquee-item {
   font-family: var(--font-display);
-  font-size: 26px;
-  letter-spacing: 0.05em;
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.01em;
   color: var(--ink-mute);
   display: inline-flex; align-items: center; gap: 56px;
 }
@@ -305,21 +332,21 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 }
 
 /* ============ Section header ============ */
-.section { padding: 120px 0; position: relative; }
+.section { padding: 60px 0; position: relative; }
 .section-head {
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 24px;
   align-items: end;
-  margin-bottom: 56px;
+  margin-bottom: 36px;
 }
 .section-head h2 {
   font-family: var(--font-display);
-  font-size: clamp(52px, 8vw, 120px);
-  line-height: 0.9;
+  font-weight: 800;
+  font-size: clamp(28px, 4vw, 46px);
+  line-height: 1.08;
   margin: 0;
-  letter-spacing: -0.01em;
-  text-transform: uppercase;
+  letter-spacing: -0.02em;
 }
 .section-num {
   font-family: var(--font-mono);
@@ -352,10 +379,10 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 .about-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 80px;
+  gap: 48px;
   align-items: start;
 }
-@media (max-width: 900px) { .about-grid { grid-template-columns: 1fr; gap: 40px; } }
+@media (max-width: 900px) { .about-grid { grid-template-columns: 1fr; gap: 32px; } }
 .about-copy {
   font-size: 22px;
   line-height: 1.45;
@@ -368,19 +395,23 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 .stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  background: var(--line);
-  border: 1px solid var(--line);
+  gap: 14px;
 }
 .stat {
   background: var(--bg);
-  padding: 32px 24px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 28px 24px;
   position: relative;
+  transition: border-color .25s;
 }
+.stat:hover { border-color: var(--line-2); }
 .stat-num {
   font-family: var(--font-display);
-  font-size: 76px;
-  line-height: 0.9;
+  font-weight: 800;
+  font-size: 52px;
+  line-height: 1;
+  letter-spacing: -0.02em;
   color: var(--ink);
 }
 .stat-num sup { color: var(--red); font-size: 0.5em; vertical-align: top; margin-left: 4px; }
@@ -401,117 +432,116 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 }
 .div-list {
   display: grid;
-  gap: 1px;
-  background: var(--line);
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
 }
+@media (max-width: 820px) { .div-list { grid-template-columns: 1fr; } }
+
 .div-row {
   background: var(--bg);
-  display: grid;
-  grid-template-columns: 80px 1fr 1.4fr 1fr auto;
-  align-items: center;
-  gap: 40px;
-  padding: 36px var(--pad);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px;
   cursor: pointer;
   position: relative;
-  transition: background .35s, padding .35s;
+  overflow: hidden;
+  transition: border-color .3s, transform .3s, box-shadow .3s;
 }
+.div-row:hover { border-color: var(--div-color, var(--line-2)); transform: translateY(-4px); box-shadow: var(--shadow-soft); }
 .div-row::before {
   content: "";
-  position: absolute; inset: 0;
-  background: linear-gradient(90deg, var(--div-color, var(--red)) 0%, transparent 50%);
+  position: absolute; top: -60%; right: -20%;
+  width: 60%; aspect-ratio: 1;
+  background: radial-gradient(circle, var(--div-color, var(--red)) 0%, transparent 70%);
   opacity: 0;
   pointer-events: none;
   transition: opacity .35s;
 }
 .div-row > * { position: relative; }
-.div-row:hover { background: var(--bg-3); }
-.div-row:hover::before { opacity: 0.12; }
-.div-row.coming { opacity: 0.55; cursor: default; }
-.div-row.coming:hover { background: var(--bg); }
-
+.div-row:hover::before { opacity: 0.16; }
+.div-top { display: flex; align-items: center; gap: 16px; }
 .div-num {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-weight: 700;
+  font-size: 12px;
   color: var(--ink-dim);
   letter-spacing: 0.1em;
 }
 .div-logo {
-  width: 96px; height: 96px;
+  width: 60px; height: 60px;
   display: grid; place-items: center;
   background: var(--bg-3);
   border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
 }
-.div-logo img { max-width: 70%; max-height: 70%; }
+.div-logo img { max-width: 65%; max-height: 65%; }
 .div-info { min-width: 0; }
 .div-name {
   font-family: var(--font-display);
-  font-size: clamp(48px, 6vw, 88px);
-  line-height: 0.88;
-  display: flex; align-items: baseline; gap: 16px;
+  font-weight: 800;
+  font-size: 24px;
+  line-height: 1.1;
+  display: flex; align-items: baseline; gap: 8px;
   color: var(--div-color);
 }
 .div-name .fba {
-  -webkit-text-stroke: 1.5px var(--ink);
+  -webkit-text-stroke: 1px var(--ink);
   color: transparent;
-  font-size: 0.42em;
+  font-size: 0.5em;
   letter-spacing: 0.04em;
 }
 .div-tag {
   font-family: var(--font-mono);
+  font-weight: 600;
   font-size: 11px;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-mute);
-  margin-top: 10px;
+  margin-top: 4px;
 }
 .div-desc {
-  font-size: 15px;
+  font-size: 14.5px;
   color: var(--ink-mute);
-  line-height: 1.55;
+  line-height: 1.6;
   text-wrap: pretty;
-  max-width: 42ch;
+  flex: 1;
 }
 .div-stats {
-  display: flex; gap: 28px;
-  font-family: var(--font-mono); font-size: 11px;
-  letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim);
+  display: flex; gap: 24px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim);
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
 }
 .div-stats b {
   display: block;
   font-family: var(--font-display);
-  font-size: 32px;
+  font-size: 22px;
   color: var(--ink);
-  font-weight: 400;
-  letter-spacing: 0.02em;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   line-height: 1;
   margin-bottom: 6px;
 }
 .div-action {
   display: inline-flex; align-items: center; gap: 10px;
-  padding: 14px 22px;
+  padding: 12px 20px;
+  border-radius: 100px;
   background: var(--div-color);
   color: white;
   font-family: var(--font-display);
-  font-size: 15px;
-  letter-spacing: 0.06em;
-  transition: gap .2s;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.005em;
+  transition: gap .2s, transform .2s;
   white-space: nowrap;
+  align-self: flex-start;
 }
 .div-action:hover { gap: 16px; }
-.div-action.disabled {
-  background: var(--bg-3);
-  color: var(--ink-dim);
-  border: 1px solid var(--line);
-  pointer-events: none;
-}
-
-@media (max-width: 1100px) {
-  .div-row { grid-template-columns: 1fr; gap: 18px; padding: 28px var(--pad); }
-  .div-num { display: none; }
-  .div-name { font-size: 56px; }
-}
 
 /* ============ How it works ============ */
 .how {
@@ -521,31 +551,35 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 .how-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 1px;
-  background: var(--line);
-  border: 1px solid var(--line);
+  gap: 14px;
 }
 @media (max-width: 900px) { .how-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 560px) { .how-grid { grid-template-columns: 1fr; } }
 .how-step {
   background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 16px;
   padding: 32px 28px 36px;
   min-height: 280px;
   display: flex; flex-direction: column;
   position: relative;
+  overflow: hidden;
+  transition: border-color .3s;
 }
+.how-step:hover { border-color: var(--line-2); }
 .how-step .num {
   font-family: var(--font-display);
-  font-size: 76px;
+  font-weight: 800;
+  font-size: 44px;
   color: var(--red);
-  line-height: 0.85;
+  line-height: 1;
 }
 .how-step .title {
   font-family: var(--font-display);
-  font-size: 28px;
-  margin: 20px 0 12px;
-  letter-spacing: 0.01em;
-  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 20px;
+  margin: 16px 0 10px;
+  letter-spacing: -0.01em;
 }
 .how-step .body { color: var(--ink-mute); font-size: 15px; line-height: 1.55; }
 .how-step::after {
@@ -556,78 +590,21 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 }
 .how-step:hover::after { width: 100%; }
 
-/* ============ Champions ============ */
-.champs {
-  background: var(--bg-2);
-  border-top: 1px solid var(--line);
-}
-.champ-grid {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr;
-  gap: 1px;
-  background: var(--line);
-  border: 1px solid var(--line);
-}
-@media (max-width: 900px) { .champ-grid { grid-template-columns: 1fr; } }
-.champ-card {
-  background: var(--bg);
-  padding: 28px;
-  position: relative;
-  overflow: hidden;
-}
-.champ-card.lead { grid-row: span 2; padding: 32px; min-height: 480px; display: flex; flex-direction: column; justify-content: space-between; }
-@media (max-width: 900px) { .champ-card.lead { grid-row: auto; min-height: 360px; } }
-.champ-img {
-  background:
-    repeating-linear-gradient(45deg, rgba(255,255,255,0.04) 0 2px, transparent 2px 14px),
-    var(--bg-3);
-  border: 1px solid var(--line);
-  aspect-ratio: 16/10;
-  display: grid; place-items: center;
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em;
-  color: var(--ink-dim); text-transform: uppercase; text-align: center;
-  margin-bottom: 24px;
-}
-.champ-card.lead .champ-img { aspect-ratio: 16/9; margin-bottom: 0; }
-.champ-card.lead .champ-content { padding-top: 24px; }
-.champ-meta {
-  display: flex; gap: 14px;
-  font-family: var(--font-mono); font-size: 10px;
-  letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-dim);
-  margin-bottom: 14px;
-}
-.champ-meta .pill {
-  padding: 2px 8px;
-  background: var(--red);
-  color: white;
-  letter-spacing: 0.15em;
-}
-.champ-title {
-  font-family: var(--font-display);
-  font-size: 32px;
-  line-height: 1;
-  letter-spacing: 0.01em;
-  text-transform: uppercase;
-}
-.champ-card.lead .champ-title { font-size: 48px; }
-.champ-team {
-  margin-top: 12px;
-  color: var(--ink-mute);
-  font-size: 14px;
-}
-
 /* ============ CTA banner ============ */
 .cta-banner {
   background: var(--red);
   color: white;
-  padding: 80px 0;
+  padding: 56px 0;
   position: relative;
   overflow: hidden;
+  border-radius: var(--radius-lg);
+  margin: 0 var(--pad);
+  width: auto;
 }
 .cta-banner::before {
   content: "FBA · FBA · FBA · FBA · FBA · FBA · FBA · FBA · FBA · FBA";
   position: absolute; inset: 0;
-  font-family: var(--font-display); font-size: 280px;
+  font-family: var(--font-display); font-weight: 800; font-size: 200px;
   line-height: 1; color: rgba(255,255,255,0.06);
   white-space: nowrap; overflow: hidden;
   pointer-events: none;
@@ -643,11 +620,11 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 @media (max-width: 800px) { .cta-inner { grid-template-columns: 1fr; } }
 .cta-inner h2 {
   font-family: var(--font-display);
-  font-size: clamp(48px, 7vw, 96px);
+  font-weight: 800;
+  font-size: clamp(28px, 4.5vw, 48px);
   margin: 0;
-  line-height: 0.92;
-  letter-spacing: -0.005em;
-  text-transform: uppercase;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 .cta-inner .btn-primary {
   background: black;
@@ -710,13 +687,13 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 .foot {
   background: black;
   border-top: 1px solid var(--line);
-  padding: 80px 0 40px;
+  padding: 56px 0 32px;
 }
 .foot-grid {
   display: grid;
   grid-template-columns: 1.4fr 1fr 1fr 1fr;
-  gap: 40px;
-  margin-bottom: 60px;
+  gap: 32px;
+  margin-bottom: 40px;
 }
 @media (max-width: 800px) { .foot-grid { grid-template-columns: 1fr 1fr; } }
 .foot-brand img { height: 56px; width: auto; margin-bottom: 20px; }
@@ -752,11 +729,13 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 .teams-tabs { display: flex; gap: 8px; margin-bottom: 32px; flex-wrap: wrap; }
 .teams-tab {
   padding: 9px 18px;
+  border-radius: 100px;
   border: 1px solid var(--line-2);
   color: var(--ink-mute);
   font-family: var(--font-mono);
+  font-weight: 700;
   font-size: 12px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   transition: all .2s;
 }
@@ -765,16 +744,18 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 .teams-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 1px;
-  background: var(--line);
-  border: 1px solid var(--line);
+  gap: 12px;
 }
 .team-card {
   background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
   padding: 20px 14px;
   display: flex; flex-direction: column; align-items: center; gap: 10px;
   text-align: center;
+  transition: border-color .2s, transform .2s;
 }
+.team-card:hover { border-color: var(--line-2); transform: translateY(-2px); }
 .team-card img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line-2); background: var(--bg-3); }
 .team-card-name { font-size: 12px; font-weight: 600; color: var(--ink); line-height: 1.3; }
 .team-card-conf { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
@@ -784,12 +765,18 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 .hof-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 1px;
-  background: var(--line);
-  border: 1px solid var(--line);
+  gap: 14px;
 }
-.hof-card { background: var(--bg); padding: 24px; display: flex; align-items: center; gap: 16px; }
-.hof-rank { font-family: var(--font-display); font-size: 40px; color: var(--red); line-height: 1; flex-shrink: 0; width: 48px; }
+.hof-card {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 24px;
+  display: flex; align-items: center; gap: 16px;
+  transition: border-color .2s;
+}
+.hof-card:hover { border-color: var(--line-2); }
+.hof-rank { font-family: var(--font-display); font-weight: 800; font-size: 30px; color: var(--red); line-height: 1; flex-shrink: 0; width: 48px; }
 .hof-info { min-width: 0; }
 .hof-name { font-size: 15px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hof-meta { font-size: 12px; color: var(--ink-mute); margin-top: 3px; }
@@ -800,14 +787,12 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 .system-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1px;
-  background: var(--line);
-  border: 1px solid var(--line);
-  margin-bottom: 1px;
+  gap: 14px;
 }
-.system-card { background: var(--bg-2); padding: 28px; }
+.system-card { background: var(--bg-2); border: 1px solid var(--line); border-radius: 16px; padding: 28px; transition: border-color .2s; }
+.system-card:hover { border-color: var(--line-2); }
 .system-card i { font-size: 26px; color: var(--red); margin-bottom: 14px; display: block; }
-.system-card h3 { font-family: var(--font-display); text-transform: uppercase; font-size: 22px; margin-bottom: 10px; letter-spacing: 0.01em; }
+.system-card h3 { font-family: var(--font-display); font-weight: 700; font-size: 19px; margin-bottom: 10px; letter-spacing: -0.01em; }
 .system-card p { color: var(--ink-mute); font-size: 14px; line-height: 1.6; }
 .system-card p + p { margin-top: 10px; }
 .system-card b { color: var(--ink); }
@@ -826,7 +811,10 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 <script>
 window.__SITE_DATA__ = {
   teamsByLeague: <?= json_encode($teamsByLeague, JSON_UNESCAPED_UNICODE) ?>,
-  hallOfFame: <?= json_encode($hallOfFame, JSON_UNESCAPED_UNICODE) ?>
+  hallOfFame: <?= json_encode($hallOfFame, JSON_UNESCAPED_UNICODE) ?>,
+  leagueStats: <?= json_encode($leagueStats, JSON_UNESCAPED_UNICODE) ?>,
+  totalTeams: <?= json_encode($totalTeams) ?>,
+  totalActivePlayers: <?= json_encode($totalActivePlayers) ?>
 };
 </script>
 <script type="text/babel">
@@ -876,21 +864,22 @@ const DIVISIONS = [
     name: "Rookie",
     color: "#E8862E",
     logo: "/img/logo-rookie.png",
-    tag: "Liga de estreantes · Em breve",
+    tag: "Liga de estreantes · Primeira temporada em breve",
     desc: "Liga voltada para jogadores iniciantes no competitivo de 2K. Mentoria de jogadores das divisões superiores e ambiente acolhedor para novatos.",
     stats: [
-      { v: "—", l: "Times" },
+      { v: "3", l: "Times" },
       { v: "Em breve", l: "Estreia" },
-      { v: "Grátis", l: "Inscrição" },
+      { v: "Fila", l: "de espera" },
     ],
-    coming: true,
+    waitlist: true,
   },
 ];
 
-const TICKER = [
-  { home: "RIO", homeName: "Rio Kings", hs: 78, away: "SPC", awayName: "SP Captains", as: 82, q: "FINAL", div: "Elite" },
-  { home: "BHZ", homeName: "BH Zenith", hs: 64, away: "CWB", awayName: "Curitiba Wolves", as: 64, q: "Q4 · 02:14", div: "Elite" },
-  { home: "REC", homeName: "Recife Reef", hs: 21, away: "BSB", awayName: "Brasília Bolts", as: 19, q: "Q1 · 04:08", div: "Next" },
+const LEAGUE_STATUS = [
+  { id: "ELITE", abbr: "ELT", name: "Elite", color: "#E63946" },
+  { id: "NEXT", abbr: "NXT", name: "Next", color: "#2EA85B" },
+  { id: "RISE", abbr: "RSE", name: "Rise", color: "#2A6FDB" },
+  { id: "ROOKIE", abbr: "RKE", name: "Rookie", color: "#E8862E" },
 ];
 
 const STEPS = [
@@ -898,14 +887,6 @@ const STEPS = [
   { n: "02", t: "Escolha a divisão", b: "Inscreva-se na divisão correspondente ao seu nível. A FBA avalia o histórico competitivo para validar a categoria." },
   { n: "03", t: "Temporada regular", b: "Disputa de rodadas semanais transmitidas no Twitch e YouTube oficial. Calendário fechado de jogos por divisão." },
   { n: "04", t: "Playoffs & Título", b: "Os 8 melhores de cada divisão avançam aos playoffs. Mata-mata em série melhor de 5 até a grande final." },
-];
-
-const CHAMPIONS = [
-  { season: "S5", div: "Elite", title: "Rio Kings", team: "Campeão da temporada 2025 · MVP: D. Almeida", lead: true },
-  { season: "S5", div: "Next", title: "BH Zenith", team: "Acesso direto à Elite S6" },
-  { season: "S5", div: "Rise", title: "Salvador Surge", team: "Acesso à Next S6" },
-  { season: "S4", div: "Elite", title: "SP Captains", team: "Bicampeões consecutivos" },
-  { season: "S4", div: "Next", title: "Curitiba Wolves", team: "Acesso à Elite S5" },
 ];
 
 /* ============ Components ============ */
@@ -923,7 +904,7 @@ function Nav() {
           <a href="#how">Como funciona</a>
           <a href="/site/gamesfba.php">Games</a>
           <a href="/site/pathetic.php">The Pathetic</a>
-          <a href="#champions">Campeões</a>
+          <a href="#hall-da-fama">Campeões</a>
         </div>
         <a href="/login.php" className="nav-cta">Jogar</a>
       </div>
@@ -937,19 +918,18 @@ function Hero() {
       <div className="wrap">
         <div className="hero-grid">
           <div>
-            <span className="hero-tag">Temporada 6 · Inscrições abertas</span>
+            <span className="hero-tag">Lista de espera aberta</span>
             <h1 className="display hero-title">
-              Jogue<br />
-              <span className="red">Basquete</span><br />
-              <span className="stroke">de Verdade.</span>
+              Jogue <span className="red">basquete</span><br />
+              de verdade.
             </h1>
             <p className="hero-sub">
               A maior liga competitiva de NBA 2K do Brasil. Quatro divisões,
               um caminho — da Rookie à Elite, prove o seu valor na quadra.
             </p>
             <div className="hero-ctas">
-              <a href="#inscricao" className="btn btn-primary">
-                Inscrever Time <span className="arrow">→</span>
+              <a href="/login.php?join=1" className="btn btn-primary">
+                Entrar na lista de espera <span className="arrow">→</span>
               </a>
               <a href="#how" className="btn btn-ghost">
                 Como funciona <span className="arrow">↓</span>
@@ -959,30 +939,27 @@ function Hero() {
 
           <aside className="hero-side">
             <div className="live-row">
-              <span className="live-dot">Ao vivo · Hoje</span>
-              <span className="mono" style={{ fontSize: 11, color: "var(--ink-dim)", letterSpacing: "0.18em" }}>RD 14</span>
+              <span className="live-dot">Liga em andamento</span>
             </div>
-            <div className="ticker">
-              {TICKER.map((m, i) => (
-                <div className="ticker-match" key={i}>
-                  <div className="ticker-team">
-                    <span className="badge">{m.home}</span>
-                    <span className="name">{m.homeName}</span>
+            <div className="league-status-list">
+              {LEAGUE_STATUS.map((lg) => {
+                const s = window.__SITE_DATA__?.leagueStats?.[lg.id];
+                return (
+                  <div className="league-status-row" key={lg.id}>
+                    <div className="league-status-name">
+                      <span className="badge" style={{ color: lg.color, borderColor: lg.color }}>{lg.abbr}</span>
+                      <span className="name">{lg.name}</span>
+                    </div>
+                    <div className="league-status-info">
+                      {s?.season ? `${s.season}ª temporada` : "Em breve"} · {s?.teams ?? 0} times
+                    </div>
                   </div>
-                  <div className="ticker-score">
-                    {m.hs}<span className="sep">·</span>{m.as}
-                  </div>
-                  <div className="ticker-team right">
-                    <span className="name">{m.awayName}</span>
-                    <span className="badge">{m.away}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="ticker-meta">
-              <span>{TICKER[1].q}</span>
-              <span>{TICKER[1].div}</span>
-              <span>Twitch.tv/fbaoficial</span>
+              <span>{window.__SITE_DATA__?.totalTeams ?? 0} times</span>
+              <span>{window.__SITE_DATA__?.totalActivePlayers ?? 0} jogadores</span>
             </div>
           </aside>
         </div>
@@ -991,7 +968,7 @@ function Hero() {
           <div className="marquee-track">
             {[...Array(2)].map((_, k) => (
               <span className="marquee-item" key={k}>
-                Elite <span className="dot">●</span> Next <span className="dot">●</span> Rise <span className="dot">●</span> Rookie em breve <span className="dot">●</span> Pro-Am <span className="dot">●</span> NBA 2K <span className="dot">●</span> Brasil <span className="dot">●</span> Temporada 6 <span className="dot">●</span>&nbsp;
+                Elite <span className="dot">●</span> Next <span className="dot">●</span> Rise <span className="dot">●</span> Rookie: lista de espera <span className="dot">●</span> Pro-Am <span className="dot">●</span> NBA 2K <span className="dot">●</span> Brasil <span className="dot">●</span>&nbsp;
               </span>
             ))}
           </div>
@@ -1002,6 +979,11 @@ function Hero() {
 }
 
 function About() {
+  const d = window.__SITE_DATA__ || {};
+  const totalTeams = d.totalTeams ?? 0;
+  const totalPlayers = d.totalActivePlayers ?? 0;
+  const eliteSeason = d.leagueStats?.ELITE?.season;
+
   return (
     <section className="section about" id="about">
       <div className="wrap">
@@ -1016,12 +998,11 @@ function About() {
             <p>
               A FBA é a <span className="accent">primeira liga 100% brasileira</span> de
               NBA 2K Pro-Am com sistema de acesso e descenso entre divisões.
-              Fundada em 2021, hoje reúne mais de 600 jogadores em todo o país.
+              Fundada em 2021, hoje reúne {totalPlayers} jogadores em {totalTeams} times ativos em todo o país.
             </p>
             <p>
-              Cada temporada dura 4 meses e termina com playoffs eliminatórios.
-              Toda a competição é transmitida ao vivo nos nossos canais oficiais,
-              com narração profissional e estatísticas em tempo real.
+              Cada temporada tem playoffs eliminatórios, com toda a competição
+              acompanhada de perto pela comunidade — do draft até a grande final.
             </p>
             <p>
               Mais do que uma liga: uma comunidade. Aqui você joga, aprende, sobe
@@ -1031,22 +1012,20 @@ function About() {
 
           <div className="stats-grid">
             <div className="stat">
-              <span className="stat-trend">+38% YoY</span>
-              <div className="stat-num">624</div>
+              <div className="stat-num">{totalPlayers}</div>
               <div className="stat-label">Jogadores ativos</div>
             </div>
             <div className="stat">
-              <div className="stat-num">48</div>
-              <div className="stat-label">Times credenciados</div>
+              <div className="stat-num">32</div>
+              <div className="stat-label">Times na Elite</div>
             </div>
             <div className="stat">
-              <div className="stat-num">5<sup>x</sup></div>
-              <div className="stat-label">Temporadas disputadas</div>
+              <div className="stat-num">{eliteSeason ? eliteSeason + "ª" : "—"}</div>
+              <div className="stat-label">Temporada da Elite</div>
             </div>
             <div className="stat">
-              <span className="stat-trend">2026</span>
-              <div className="stat-num">25K</div>
-              <div className="stat-label">Premiação total · R$</div>
+              <div className="stat-num">{totalTeams}</div>
+              <div className="stat-label">Times em todas as ligas</div>
             </div>
           </div>
         </div>
@@ -1061,48 +1040,48 @@ function Divisions() {
       <div className="wrap">
         <div className="section-head">
           <span className="section-num">02 / Divisões</span>
-          <h2>Quatro<br />Divisões.</h2>
+          <h2>Quatro Divisões.</h2>
           <a className="section-link" href="#teams">Os times →</a>
         </div>
-      </div>
-      <div className="div-list">
-        {DIVISIONS.map((d, i) => (
-          <div
-            key={d.id}
-            className={"div-row" + (d.coming ? " coming" : "")}
-            id={d.id}
-            style={{ "--div-color": d.color }}
-          >
-            <span className="div-num">0{i + 1}</span>
-            <div className="div-logo">
-              <img src={d.logo} alt={d.name} />
-            </div>
-            <div className="div-info">
-              <div className="div-name">
-                <span className="fba">FBA</span>
-                <span>{d.name}</span>
+        <div className="div-list">
+          {DIVISIONS.map((d, i) => (
+            <div
+              key={d.id}
+              className="div-row"
+              id={d.id}
+              style={{ "--div-color": d.color }}
+            >
+              <div className="div-top">
+                <div className="div-logo">
+                  <img src={d.logo} alt={d.name} />
+                </div>
+                <div className="div-info">
+                  <div className="div-name">
+                    <span className="fba">FBA</span>
+                    <span>{d.name}</span>
+                  </div>
+                  <div className="div-tag">{d.tag}</div>
+                </div>
+                <span className="div-num" style={{ marginLeft: "auto" }}>0{i + 1}</span>
               </div>
-              <div className="div-tag">{d.tag}</div>
-            </div>
-            <div className="div-desc">
-              <p>{d.desc}</p>
-              <div className="div-stats" style={{ marginTop: 14 }}>
+              <div className="div-desc">{d.desc}</div>
+              <div className="div-stats">
                 {d.stats.map((s, j) => (
                   <div key={j}><b>{s.v}</b>{s.l}</div>
                 ))}
               </div>
+              {d.waitlist ? (
+                <a href="/login.php?join=1" className="div-action">
+                  Entrar na lista de espera <span>→</span>
+                </a>
+              ) : (
+                <a href="#teams" className="div-action">
+                  Ver elenco <span>→</span>
+                </a>
+              )}
             </div>
-            {d.coming ? (
-              <a href="#" className="div-action disabled" aria-disabled="true">
-                Em breve <span>◷</span>
-              </a>
-            ) : (
-              <a href="/login.php" className="div-action">
-                Inscrever <span>→</span>
-              </a>
-            )}
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -1134,34 +1113,36 @@ function MoreContent() {
       <div className="wrap">
         <div className="section-head">
           <span className="section-num">06 / Conteúdo</span>
-          <h2>Games<br />& The Pathetic.</h2>
+          <h2>Games &amp; The Pathetic.</h2>
           <a className="section-link" href="#hall-da-fama">Hall da Fama →</a>
         </div>
-      </div>
-      <div className="div-list">
-        {ITEMS.map((d, i) => (
-          <div
-            key={d.id}
-            className="div-row"
-            style={{ "--div-color": d.color }}
-          >
-            <span className="div-num">0{i + 1}</span>
-            <div className="div-logo">
-              <span className="mono" style={{ fontSize: 11, color: "var(--ink-dim)" }}>Logo</span>
-            </div>
-            <div className="div-info">
-              <div className="div-name">
-                <span className="fba">FBA</span>
-                <span>{d.name}</span>
+        <div className="div-list">
+          {ITEMS.map((d, i) => (
+            <div
+              key={d.id}
+              className="div-row"
+              style={{ "--div-color": d.color }}
+            >
+              <div className="div-top">
+                <div className="div-logo">
+                  <i className={"bi " + (d.id === "games" ? "bi-controller" : "bi-newspaper")} style={{ fontSize: 22, color: d.color }}></i>
+                </div>
+                <div className="div-info">
+                  <div className="div-name">
+                    <span className="fba">FBA</span>
+                    <span>{d.name}</span>
+                  </div>
+                  <div className="div-tag">{d.tag}</div>
+                </div>
+                <span className="div-num" style={{ marginLeft: "auto" }}>0{i + 1}</span>
               </div>
-              <div className="div-tag">{d.tag}</div>
+              <div className="div-desc">{d.desc}</div>
+              <a href={d.href} className="div-action">
+                {d.cta} <span>→</span>
+              </a>
             </div>
-            <div className="div-desc">{d.desc}</div>
-            <a href={d.href} className="div-action">
-              {d.cta} <span>→</span>
-            </a>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -1173,7 +1154,7 @@ function HowItWorks() {
       <div className="wrap">
         <div className="section-head">
           <span className="section-num">04 / Formato</span>
-          <h2>Como<br />Funciona.</h2>
+          <h2>Como Funciona.</h2>
           <a className="section-link" href="#sistema">Sistema →</a>
         </div>
         <div className="how-grid">
@@ -1271,7 +1252,7 @@ function SystemFBA() {
       <div className="wrap">
         <div className="section-head">
           <span className="section-num">05 / Sistema</span>
-          <h2>Como<br />Jogamos.</h2>
+          <h2>Como Jogamos.</h2>
           <a className="section-link" href="#conteudo">Conteúdo →</a>
         </div>
         <div className="system-grid">
@@ -1296,8 +1277,8 @@ function HallOfFame() {
       <div className="wrap">
         <div className="section-head">
           <span className="section-num">07 / Lendas</span>
-          <h2>Hall da<br />Fama.</h2>
-          <a className="section-link" href="#champions">Campeões →</a>
+          <h2>Hall da Fama.</h2>
+          <a className="section-link" href="#inscricao">Inscreva-se →</a>
         </div>
         <div className="hof-grid">
           {items.map((h, i) => (
@@ -1316,48 +1297,17 @@ function HallOfFame() {
   );
 }
 
-function Champions() {
-  return (
-    <section className="section champs" id="champions">
-      <div className="wrap">
-        <div className="section-head">
-          <span className="section-num">08 / Histórico</span>
-          <h2>Campeões.</h2>
-          <a className="section-link" href="#top">Voltar ao topo →</a>
-        </div>
-        <div className="champ-grid">
-          {CHAMPIONS.map((c, i) => (
-            <article key={i} className={"champ-card" + (c.lead ? " lead" : "")}>
-              <div className="champ-img">
-                [ Foto do time campeão ]<br />{c.title} · {c.season}
-              </div>
-              <div className="champ-content">
-                <div className="champ-meta">
-                  <span className="pill">{c.season}</span>
-                  <span>{c.div}</span>
-                </div>
-                <div className="champ-title">{c.title}</div>
-                <div className="champ-team">{c.team}</div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function CtaBanner() {
   return (
     <section className="cta-banner" id="inscricao">
       <div className="wrap cta-inner">
         <h2>
-          A próxima<br />
-          temporada começa<br />
-          em 6 semanas.
+          Bora entrar<br />
+          na próxima<br />
+          temporada?
         </h2>
-        <a href="#" className="btn btn-primary">
-          Inscrever meu time <span className="arrow">→</span>
+        <a href="/login.php?join=1" className="btn btn-primary">
+          Entrar na lista de espera <span className="arrow">→</span>
         </a>
       </div>
     </section>
@@ -1377,10 +1327,10 @@ function Footer() {
             <h4>Liga</h4>
             <ul>
               <li><a href="#about">Sobre a FBA</a></li>
-              <li><a href="#games">Games</a></li>
-              <li><a href="#pathetic">The Pathetic</a></li>
+              <li><a href="/site/gamesfba.php">Games</a></li>
+              <li><a href="/site/pathetic.php">The Pathetic</a></li>
               <li><a href="#how">Regulamento</a></li>
-              <li><a href="#champions">Hall of fame</a></li>
+              <li><a href="#hall-da-fama">Hall of fame</a></li>
             </ul>
           </div>
           <div className="foot-col">
@@ -1389,7 +1339,6 @@ function Footer() {
               <li><a href="#inscricao">Inscrever time</a></li>
               <li><a href="#">Free agency</a></li>
               <li><a href="#">Calendário</a></li>
-              <li><a href="#">Premiação</a></li>
             </ul>
           </div>
           <div className="foot-col">
@@ -1424,7 +1373,6 @@ function App() {
       <SystemFBA />
       <MoreContent />
       <HallOfFame />
-      <Champions />
       <CtaBanner />
       <Footer />
     </>
