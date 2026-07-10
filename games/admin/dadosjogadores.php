@@ -853,10 +853,13 @@ if ($action === 'import_stats') {
     $offset    = max(0, (int)($_GET['offset'] ?? 0));
     $chunkSize = 50;
     $parallel  = 5;
+    $forca     = !empty($_GET['force']); // force=1 reprocessa todos, mesmo quem ja tem medias
 
-    // Busca de todos os jogadores com nba_person_id (ativos e aposentados recebem medias de carreira)
-    $ativoRows = $pdo->query("SELECT nba_person_id, ativo, time_atual FROM hoopgrid_players WHERE nba_person_id IS NOT NULL ORDER BY id")
-                     ->fetchAll(PDO::FETCH_ASSOC);
+    // Busca jogadores com nba_person_id que ainda nao tem medias (ou todos, se force=1)
+    $sqlPendentes = $forca
+        ? "SELECT nba_person_id, ativo, time_atual FROM hoopgrid_players WHERE nba_person_id IS NOT NULL ORDER BY id"
+        : "SELECT nba_person_id, ativo, time_atual FROM hoopgrid_players WHERE nba_person_id IS NOT NULL AND pts_medio IS NULL ORDER BY id";
+    $ativoRows = $pdo->query($sqlPendentes)->fetchAll(PDO::FETCH_ASSOC);
     $allPids  = array_map(fn($r) => (int)$r['nba_person_id'], $ativoRows);
     $ativoMap = [];
     foreach ($ativoRows as $r) { $ativoMap[(int)$r['nba_person_id']] = ['ativo'=>(int)$r['ativo'], 'time_atual'=>$r['time_atual']]; }
