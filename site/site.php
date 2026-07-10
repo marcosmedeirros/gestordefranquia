@@ -430,6 +430,14 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
   background: var(--bg-2);
   border-top: 1px solid var(--line);
 }
+.divisions-intro {
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--ink-mute);
+  max-width: 760px;
+  margin: -12px 0 32px;
+}
+.divisions-intro b { color: var(--ink); }
 .div-list {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -874,7 +882,7 @@ const DIVISIONS = [
     color: "#E63946",
     logo: "/img/logo-elite.png",
     tag: "Liga principal · Top tier",
-    desc: "A divisão de elite da FBA. Os melhores times do Brasil disputam o título nacional em uma temporada regular seguida de playoffs eliminatórios.",
+    desc: "A divisão de elite da FBA. Os melhores times do Brasil disputam o título nacional em uma temporada regular seguida de playoffs eliminatórios. O campeão leva premiação em dinheiro e muito mais.",
     stats: [
       { v: "32", l: "Times" },
       { v: "20", l: "Temporadas" },
@@ -978,8 +986,8 @@ function Hero({ onOpenWaitlist }) {
               <button type="button" onClick={onOpenWaitlist} className="btn btn-primary" style={{ border: "none" }}>
                 Entrar na lista de espera <span className="arrow">→</span>
               </button>
-              <a href="#how" className="btn btn-ghost">
-                Como funciona <span className="arrow">↓</span>
+              <a href="https://www.youtube.com/@fba2kleaguebrasil" target="_blank" rel="noopener noreferrer" className="btn btn-ghost">
+                <i className="bi bi-youtube"></i> YouTube da FBA
               </a>
             </div>
           </div>
@@ -1090,6 +1098,10 @@ function Divisions({ onOpenWaitlist }) {
           <h2>Quatro Divisões.</h2>
           <a className="section-link" href="#teams">Os times →</a>
         </div>
+        <p className="divisions-intro">
+          Sistema de acesso e descenso: a cada temporada, <b>4 times sobem</b> e <b>4 times descem</b> entre
+          as divisões. Na Elite, o campeão fatura <b>premiação em dinheiro</b> e muito mais.
+        </p>
         <div className="div-list">
           {DIVISIONS.map((d, i) => (
             <div
@@ -1394,7 +1406,7 @@ function Footer() {
               <li><a href="#">Discord</a></li>
               <li><a href="#">Instagram</a></li>
               <li><a href="#">Twitch</a></li>
-              <li><a href="#">YouTube</a></li>
+              <li><a href="https://www.youtube.com/@fba2kleaguebrasil" target="_blank" rel="noopener noreferrer">YouTube</a></li>
             </ul>
           </div>
         </div>
