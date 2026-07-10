@@ -420,15 +420,19 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     <a href="games/index.php?game=grade"       class="game-card" style="border-color:rgba(245,158,11,.2)"><span class="game-icon">🏀</span><div class="game-title">Grade NBA</div><div class="game-sub">Diário · 3×3</div></a>
     */ ?>
     <a href="games/index.php?game=boxnba"      class="game-card" style="border-color:rgba(59,130,246,.2)"><span class="game-icon">🎯</span><div class="game-title">Box NBA</div><div class="game-sub">Diário · Quem é?</div></a>
+    <?php /* OCULTO PROVISORIAMENTE
 <a href="games/index.php?game=conexoes"    class="game-card" style="border-color:rgba(167,139,250,.2)"><span class="game-icon">🔗</span><div class="game-title">Conexões</div><div class="game-sub">Diário · 4 grupos</div></a>
     <a href="games/quemsoueu_futebol.php"   class="game-card" style="border-color:rgba(34,197,94,.2)"><span class="game-icon">⚽</span><div class="game-title">Quem Sou Eu?</div><div class="game-sub">Diário · Futebol</div></a>
+    */ ?>
     <a href="games/quemsoueu_basquete.php" class="game-card" style="border-color:rgba(245,158,11,.2)"><span class="game-icon">🏀</span><div class="game-title">Quem Sou Eu?</div><div class="game-sub">Diário · Basquete</div></a>
     <a href="games/index.php?game=bomba"       class="game-card" style="border-color:rgba(239,68,68,.2)"><span class="game-icon">💣</span><div class="game-title">Bomba</div><div class="game-sub">Diário · Diamantes</div></a>
   </div>
 
   <div class="section-label" style="margin-top:28px"><i class="bi bi-joystick"></i>Minigames</div>
   <div class="games-grid">
+    <?php /* OCULTO PROVISORIAMENTE
     <a href="games/penalti.php"               class="game-card" style="border-color:rgba(34,197,94,.2)"><span class="game-icon">⚽</span><div class="game-title">Pênalti</div><div class="game-sub">Copa do Mundo</div></a>
+    */ ?>
     <a href="games/index.php?game=flappy"      class="game-card"><span class="game-icon">🐦</span><div class="game-title">Flappy Bird</div><div class="game-sub">Desvie dos canos</div></a>
     <a href="games/index.php?game=pinguim"     class="game-card"><span class="game-icon">🐧</span><div class="game-title">Pinguim Run</div><div class="game-sub">Corra e ganhe</div></a>
     <a href="games/roleta.php"                 class="game-card"><span class="game-icon">🎡</span><div class="game-title">Roleta</div><div class="game-sub">Cassino Europeu</div></a>
