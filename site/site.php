@@ -797,6 +797,54 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 .system-card p + p { margin-top: 10px; }
 .system-card b { color: var(--ink); }
 
+/* ============ Waitlist modal ============ */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-card {
+  width: 100%; max-width: 420px;
+  background: linear-gradient(180deg, var(--bg-3), var(--bg-2));
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  padding: 26px;
+  box-shadow: var(--shadow-soft);
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.modal-close {
+  width: 30px; height: 30px; border-radius: 100px;
+  border: 1px solid var(--line-2); color: var(--ink-mute);
+  display: grid; place-items: center; font-size: 13px;
+  transition: all .2s;
+}
+.modal-close:hover { color: var(--ink); border-color: var(--ink); }
+.modal-title {
+  font-family: var(--font-display); font-weight: 800; font-size: 24px;
+  letter-spacing: -0.02em; margin: 4px 0 6px;
+}
+.modal-sub { color: var(--ink-mute); font-size: 13.5px; line-height: 1.5; margin-bottom: 18px; }
+.modal-error {
+  background: rgba(230,57,70,.12); border: 1px solid rgba(230,57,70,.3);
+  color: #ff8a93; font-size: 13px; padding: 10px 14px; border-radius: 10px;
+  margin-bottom: 14px;
+}
+.modal-label {
+  display: block; font-family: var(--font-mono); font-weight: 700; font-size: 10.5px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-mute);
+  margin: 14px 0 6px;
+}
+.modal-input {
+  width: 100%; background: var(--bg); border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm); padding: 12px 14px;
+  color: var(--ink); font-family: var(--font-body); font-size: 15px;
+}
+.modal-input:focus { outline: none; border-color: var(--red); }
+.modal-success { text-align: center; padding: 10px 0 4px; }
+.modal-success p { color: var(--ink-mute); font-size: 15px; line-height: 1.6; margin-bottom: 18px; }
+
 /* ============ Focus ============ */
 :focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }
 </style>
@@ -912,7 +960,7 @@ function Nav() {
   );
 }
 
-function Hero() {
+function Hero({ onOpenWaitlist }) {
   return (
     <header className="hero" id="top">
       <div className="wrap">
@@ -928,9 +976,9 @@ function Hero() {
               um caminho — da Rookie à Elite, prove o seu valor na quadra.
             </p>
             <div className="hero-ctas">
-              <a href="/login.php?join=1" className="btn btn-primary">
+              <button type="button" onClick={onOpenWaitlist} className="btn btn-primary" style={{ border: "none" }}>
                 Entrar na lista de espera <span className="arrow">→</span>
-              </a>
+              </button>
               <a href="#how" className="btn btn-ghost">
                 Como funciona <span className="arrow">↓</span>
               </a>
@@ -1034,7 +1082,7 @@ function About() {
   );
 }
 
-function Divisions() {
+function Divisions({ onOpenWaitlist }) {
   return (
     <section className="section divisions" id="divisions">
       <div className="wrap">
@@ -1071,9 +1119,9 @@ function Divisions() {
                 ))}
               </div>
               {d.waitlist ? (
-                <a href="/login.php?join=1" className="div-action">
+                <button type="button" onClick={onOpenWaitlist} className="div-action" style={{ border: "none" }}>
                   Entrar na lista de espera <span>→</span>
-                </a>
+                </button>
               ) : (
                 <a href="#teams" className="div-action">
                   Ver elenco <span>→</span>
@@ -1297,7 +1345,7 @@ function HallOfFame() {
   );
 }
 
-function CtaBanner() {
+function CtaBanner({ onOpenWaitlist }) {
   return (
     <section className="cta-banner" id="inscricao">
       <div className="wrap cta-inner">
@@ -1306,9 +1354,9 @@ function CtaBanner() {
           na próxima<br />
           temporada?
         </h2>
-        <a href="/login.php?join=1" className="btn btn-primary">
+        <button type="button" onClick={onOpenWaitlist} className="btn btn-primary" style={{ border: "none" }}>
           Entrar na lista de espera <span className="arrow">→</span>
-        </a>
+        </button>
       </div>
     </section>
   );
@@ -1360,21 +1408,96 @@ function Footer() {
   );
 }
 
+function WaitlistModal({ open, onClose }) {
+  const [name, setName] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [status, setStatus] = React.useState("idle"); // idle | sending | done | error
+  const [message, setMessage] = React.useState("");
+
+  React.useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+
+  if (!open) return null;
+
+  const handleClose = () => {
+    onClose();
+    setTimeout(() => { setStatus("idle"); setMessage(""); setName(""); setPhone(""); }, 250);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setStatus("sending");
+    try {
+      const res = await fetch("/api/waitlist.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, phone: phone.replace(/\D/g, "") }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw body;
+      setStatus("done");
+      setMessage(body.message || "Obrigado pelo contato! Você está na lista de espera.");
+    } catch (err) {
+      setStatus("error");
+      setMessage(err.error || "Erro ao enviar pedido. Tenta de novo.");
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={handleClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <span className="eyebrow">Lista de espera · Rookie</span>
+          <button type="button" className="modal-close" onClick={handleClose} aria-label="Fechar">✕</button>
+        </div>
+        <h3 className="modal-title">Entrar na lista de espera</h3>
+        {status === "done" ? (
+          <div className="modal-success">
+            <p>{message}</p>
+            <button type="button" className="btn btn-primary" onClick={handleClose}>Fechar</button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <p className="modal-sub">Deixe seu nome e telefone que a gente entra em contato pelo WhatsApp com o link de cadastro.</p>
+            {status === "error" && <div className="modal-error">{message}</div>}
+            <label className="modal-label">Nome completo</label>
+            <input className="modal-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome completo" required />
+            <label className="modal-label">Telefone (WhatsApp)</label>
+            <input className="modal-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Ex.: 55999999999" type="tel" maxLength={13} required />
+            <button type="submit" className="btn btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: 14 }} disabled={status === "sending"}>
+              {status === "sending" ? "Enviando..." : "Solicitar participação"}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ============ App ============ */
 function App() {
+  const [waitlistOpen, setWaitlistOpen] = React.useState(false);
+  const openWaitlist = () => setWaitlistOpen(true);
   return (
     <>
       <Nav />
-      <Hero />
+      <Hero onOpenWaitlist={openWaitlist} />
       <About />
-      <Divisions />
+      <Divisions onOpenWaitlist={openWaitlist} />
       <TeamsByDivision />
       <HowItWorks />
       <SystemFBA />
       <MoreContent />
       <HallOfFame />
-      <CtaBanner />
+      <CtaBanner onOpenWaitlist={openWaitlist} />
       <Footer />
+      <WaitlistModal open={waitlistOpen} onClose={() => setWaitlistOpen(false)} />
     </>
   );
 }
