@@ -40,14 +40,13 @@
 </style>
 <nav class="fbanav-wrap">
   <div class="fbanav-inner">
-    <a href="/site/site.php" class="fbanav-logo"><img src="/img/fba-logo.png" alt="FBA" /></a>
+    <a href="/site/site.php" class="fbanav-logo"><img src="/img/fba-logo-web.png" alt="FBA" /></a>
     <div class="fbanav-links">
       <a href="/site/site.php#about">FBA</a>
       <a href="/site/site.php#divisions">Divisões</a>
       <a href="/site/site.php#how">Como funciona</a>
       <a href="/site/gamesfba.php">Games</a>
       <a href="/site/pathetic.php">The Pathetic</a>
-      <a href="/site/site.php#champions">Campeões</a>
     </div>
     <a href="/login.php" class="fbanav-cta">Jogar</a>
   </div>

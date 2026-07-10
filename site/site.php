@@ -944,7 +944,7 @@ function Nav() {
     <nav className="nav">
       <div className="wrap nav-inner">
         <a href="#top" className="nav-logo">
-          <img src="/img/fba-logo.png" alt="FBA" />
+          <img src="/img/fba-logo-web.png" alt="FBA" />
         </a>
         <div className="nav-links">
           <a href="#about">FBA</a>
@@ -952,7 +952,6 @@ function Nav() {
           <a href="#how">Como funciona</a>
           <a href="/site/gamesfba.php">Games</a>
           <a href="/site/pathetic.php">The Pathetic</a>
-          <a href="#hall-da-fama">Campeões</a>
         </div>
         <a href="/login.php" className="nav-cta">Jogar</a>
       </div>
@@ -1368,7 +1367,7 @@ function Footer() {
       <div className="wrap">
         <div className="foot-grid">
           <div className="foot-brand">
-            <img src="/img/fba-logo.png" alt="FBA" />
+            <img src="/img/fba-logo-web.png" alt="FBA" />
             <p>A maior liga competitiva de NBA 2K do Brasil. Fundada em 2021.</p>
           </div>
           <div className="foot-col">

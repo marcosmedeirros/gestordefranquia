@@ -74,16 +74,11 @@
 		.brand-logo-wrap {
 			max-width: 360px;
 			width: 100%;
-			aspect-ratio: 2.1 / 1;
-			overflow: hidden;
 		}
 		.brand-logo {
-			position: static;
 			width: 100%;
-			height: 100%;
-			object-fit: cover;
-			transform: scale(1.42);
-			transform-origin: center;
+			height: auto;
+			object-fit: contain;
 			display: block;
 		}
 		.brand-kicker {
@@ -238,11 +233,11 @@
 		<section class="brand-side">
 			<div class="brand-wrap">
 				<div class="brand-logo-wrap">
-					<img src="/img/fba-logo.png?v=3"
+					<img src="/img/fba-logo-web.png?v=1"
 					     alt="FBA 2K League Brasil"
 					     class="brand-logo"
-					     width="6480"
-					     height="3240"
+					     width="900"
+					     height="435"
 					     decoding="async"
 					     loading="eager"
 					     onerror="this.onerror=null;this.src='/img/logo-fba-preta.jpg?v=3';">
