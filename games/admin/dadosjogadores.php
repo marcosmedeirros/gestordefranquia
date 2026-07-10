@@ -33,6 +33,15 @@ try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN pts_medio DECIMAL(4,1)
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN reb_medio DECIMAL(4,1) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN ast_medio DECIMAL(4,1) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN premios_checado TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN posicao VARCHAR(10) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN altura VARCHAR(10) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN peso INT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN nascimento DATE NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN draft_ano INT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN draft_rodada INT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN draft_pick INT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN numero_camisa VARCHAR(5) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN bio_checado TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
 // ── Mapeamento abreviaturas NBA ──────────────────────────────────────────────
 $TEAM_MAP = [
@@ -185,7 +194,7 @@ if ($action === 'list') {
     $total = (int)$stmtC->fetchColumn();
 
     // Busca página
-    $stmtL = $pdo->prepare("SELECT id,nome,times,pais,premios,eras,nba_person_id,ativo,time_atual,titulos,pts_medio,reb_medio,ast_medio,stats FROM hoopgrid_players WHERE $whereStr ORDER BY $orderSql LIMIT $limit OFFSET $off");
+    $stmtL = $pdo->prepare("SELECT id,nome,times,pais,premios,eras,nba_person_id,ativo,time_atual,titulos,pts_medio,reb_medio,ast_medio,stats,posicao,altura,peso,nascimento,draft_ano,draft_rodada,draft_pick,numero_camisa FROM hoopgrid_players WHERE $whereStr ORDER BY $orderSql LIMIT $limit OFFSET $off");
     $stmtL->execute($params);
     $players = $stmtL->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1092,6 +1101,148 @@ if ($action === 'import_stats') {
     exit;
 }
 
+// ── IMPORTAR BIO (posicao, altura, peso, nascimento, draft, numero) ──────────
+if ($action === 'import_bio') {
+    header('Content-Type: text/plain; charset=utf-8');
+    header('X-Accel-Buffering: no');
+    header('Cache-Control: no-cache');
+    @ini_set('zlib.output_compression', 0);
+    set_time_limit(120);
+    if (ob_get_level()) ob_end_clean();
+
+    $startTime  = microtime(true);
+    $timeBudget = 18;
+
+    $offset    = max(0, (int)($_GET['offset'] ?? 0));
+    $chunkSize = 50;
+    $parallel  = 5;
+    $forca     = !empty($_GET['force']);
+
+    // Ativos primeiro, depois aposentados (ordem de prioridade pedida)
+    $sqlPendentesBio = $forca
+        ? "SELECT nba_person_id FROM hoopgrid_players WHERE nba_person_id IS NOT NULL ORDER BY ativo DESC, id ASC"
+        : "SELECT nba_person_id FROM hoopgrid_players WHERE nba_person_id IS NOT NULL AND bio_checado=0 ORDER BY ativo DESC, id ASC";
+    $allPids = $pdo->query($sqlPendentesBio)->fetchAll(PDO::FETCH_COLUMN);
+    $total = count($allPids);
+
+    if ($offset >= $total) { echo "DONE:{$total}\n"; flush(); exit; }
+
+    $chunk = array_slice($allPids, $offset, $chunkSize);
+
+    $stmtU = $pdo->prepare("UPDATE hoopgrid_players SET posicao=?, altura=?, peso=?, nascimento=?, draft_ano=?, draft_rodada=?, draft_pick=?, numero_camisa=?, bio_checado=1 WHERE nba_person_id=?");
+
+    $hdrs_curl = [
+        'Accept: application/json, text/plain, */*',
+        'Accept-Language: en-US,en;q=0.9',
+        'Cache-Control: no-cache',
+        'Connection: keep-alive',
+        'DNT: 1',
+        'Host: stats.nba.com',
+        'Origin: https://www.nba.com',
+        'Pragma: no-cache',
+        'Referer: https://www.nba.com/',
+        'Sec-Fetch-Dest: empty',
+        'Sec-Fetch-Mode: cors',
+        'Sec-Fetch-Site: same-site',
+        'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'x-nba-stats-origin: stats',
+        'x-nba-stats-token: true',
+    ];
+
+    $updated = 0; $errors = 0; $batchNum = 0;
+    $batches = array_chunk($chunk, $parallel);
+
+    foreach ($batches as $batch) {
+        $batchNum++;
+        $mh = curl_multi_init();
+        $handles = [];
+
+        foreach ($batch as $pid) {
+            $pid = (int)$pid;
+            $ch = curl_init("https://stats.nba.com/stats/commonplayerinfo?PlayerID={$pid}");
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 6,
+                CURLOPT_CONNECTTIMEOUT => 3,
+                CURLOPT_ENCODING       => '',
+                CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_HTTPHEADER     => $hdrs_curl,
+            ]);
+            curl_multi_add_handle($mh, $ch);
+            $handles[$pid] = $ch;
+        }
+
+        $running = null;
+        do {
+            curl_multi_exec($mh, $running);
+            if ($running > 0) curl_multi_select($mh, 1.0);
+        } while ($running > 0);
+
+        $statusCodes = [];
+        foreach ($handles as $pid => $ch) {
+            $raw  = curl_multi_getcontent($ch);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $statusCodes[] = $code;
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+
+            if ($code !== 200 || !$raw) { $errors++; continue; }
+
+            $data = json_decode($raw, true);
+            $info = null;
+            foreach ($data['resultSets'] ?? [] as $rs) {
+                if ($rs['name'] === 'CommonPlayerInfo') { $info = $rs; break; }
+            }
+            if (!$info || empty($info['rowSet'])) { $errors++; continue; }
+
+            $ix  = array_flip($info['headers']);
+            $row = $info['rowSet'][0];
+
+            $posicao   = trim($row[$ix['POSITION']] ?? '') ?: null;
+            $altura    = trim($row[$ix['HEIGHT']] ?? '') ?: null;
+            $pesoRaw   = trim($row[$ix['WEIGHT']] ?? '');
+            $peso      = ($pesoRaw !== '') ? (int)$pesoRaw : null;
+            $nascRaw   = $row[$ix['BIRTHDATE']] ?? null;
+            $nascimento= null;
+            if ($nascRaw) {
+                $ts = strtotime(substr($nascRaw, 0, 10));
+                if ($ts) $nascimento = date('Y-m-d', $ts);
+            }
+            $draftAno    = !empty($row[$ix['DRAFT_YEAR']])   && $row[$ix['DRAFT_YEAR']]   !== 'Undrafted' ? (int)$row[$ix['DRAFT_YEAR']]   : null;
+            $draftRodada = !empty($row[$ix['DRAFT_ROUND']])  && $row[$ix['DRAFT_ROUND']]  !== 'Undrafted' ? (int)$row[$ix['DRAFT_ROUND']]  : null;
+            $draftPick   = !empty($row[$ix['DRAFT_NUMBER']]) && $row[$ix['DRAFT_NUMBER']] !== 'Undrafted' ? (int)$row[$ix['DRAFT_NUMBER']] : null;
+            $numero      = trim($row[$ix['JERSEY']] ?? '') ?: null;
+
+            $stmtU->execute([$posicao, $altura, $peso, $nascimento, $draftAno, $draftRodada, $draftPick, $numero, $pid]);
+            $updated++;
+        }
+
+        curl_multi_close($mh);
+        $processedPids = $batchNum * $parallel;
+        echo "Lote {$batchNum}/" . count($batches) . " | HTTP: [" . implode(',', $statusCodes) . "] | atualizados: {$updated} | erros: {$errors}\n";
+        flush();
+
+        if ((microtime(true) - $startTime) > $timeBudget) {
+            echo "-- tempo limite do lote atingido, retomando no proximo offset --\n";
+            flush();
+            break;
+        }
+        usleep(400000);
+    }
+
+    $nextOffset = $offset + min(count($chunk), $processedPids ?? count($chunk));
+
+    if ($nextOffset >= $total) {
+        echo "DONE:{$total}:{$updated}\n";
+    } else {
+        echo "NEXT:{$nextOffset}:{$total}:{$updated}\n";
+    }
+    flush();
+    exit;
+}
+
 // ── UI ────────────────────────────────────────────────────────────────────────
 $totalPlayers = (int)$pdo->query("SELECT COUNT(*) FROM hoopgrid_players WHERE ativo=1")->fetchColumn();
 $totalAll     = (int)$pdo->query("SELECT COUNT(*) FROM hoopgrid_players")->fetchColumn();
@@ -1246,6 +1397,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <button class="btn btn-sm fw-bold" id="btnImportStats" style="background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.4);color:#c084fc"><i class="bi bi-bar-chart-line me-1"></i>Stats de Carreira</button>
         <button class="btn btn-sm fw-bold" id="btnSyncStatus" style="background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.4);color:#4ade80"><i class="bi bi-arrow-repeat me-1"></i>Sincronizar Status/Time Atual</button>
         <button class="btn btn-sm fw-bold" id="btnDraft2026" style="background:rgba(236,72,153,.15);border:1px solid rgba(236,72,153,.4);color:#f472b6"><i class="bi bi-trophy me-1"></i>Aplicar Draft 2026 + Trocas</button>
+        <button class="btn btn-sm fw-bold" id="btnImportBio" style="background:rgba(20,184,166,.15);border:1px solid rgba(20,184,166,.4);color:#2dd4bf"><i class="bi bi-person-badge me-1"></i>Bio (posição/altura/draft)</button>
+        <button class="btn btn-sm fw-bold" id="btnImportBio" style="background:rgba(20,184,166,.15);border:1px solid rgba(20,184,166,.4);color:#2dd4bf"><i class="bi bi-person-badge me-1"></i>Bio (posição/altura/draft)</button>
       </div>
       <div id="log">Aguardando...</div>
     </div>
@@ -1835,6 +1988,52 @@ qs('btnImportStats').addEventListener('click', () => {
   qs('btnImportStats').disabled = true;
   log.textContent = 'Importando médias de carreira (PTS, REB, AST, STL, BLK) — todos os jogadores, ativos e aposentados.\nProcessa 50 jogadores por bloco com 5 req. paralelas.\n\n';
   importStatsChunk(0);
+});
+
+// ── IMPORTAR BIO (chunked, auto-chain, ativos primeiro) ──────────────────────
+async function importBioChunk(offset) {
+  const log = qs('log');
+  try {
+    const r = await fetch(`?action=import_bio&offset=${offset}`);
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const txt = dec.decode(value);
+      buf += txt;
+      log.textContent += txt;
+      log.scrollTop = log.scrollHeight;
+    }
+    const mNext = buf.match(/NEXT:(\d+):(\d+)/);
+    const mDone = buf.match(/DONE:(\d+)/);
+    if (mNext) {
+      const pct = Math.round((parseInt(mNext[1]) / parseInt(mNext[2])) * 100);
+      log.textContent += `--- ${pct}% (${mNext[1]}/${mNext[2]}) ---\n`;
+      log.scrollTop = log.scrollHeight;
+      setTimeout(() => importBioChunk(parseInt(mNext[1])), 200);
+    } else if (mDone) {
+      log.textContent += `\n✅ Bio importada! ${mDone[1]} jogadores verificados.\n`;
+      log.scrollTop = log.scrollHeight;
+      qs('btnImportBio').disabled = false;
+      loadPlayers(1);
+    } else {
+      log.textContent += '\n⚠️ Resposta inesperada.\n';
+      qs('btnImportBio').disabled = false;
+    }
+  } catch(e) {
+    log.textContent += `\n❌ Falha: ${e.message} — tentando novamente...\n`;
+    log.scrollTop = log.scrollHeight;
+    setTimeout(() => importBioChunk(offset), 3000);
+  }
+}
+
+qs('btnImportBio').addEventListener('click', () => {
+  const log = qs('log');
+  qs('btnImportBio').disabled = true;
+  log.textContent = 'Importando bio (posição, altura, peso, nascimento, draft, número) — ativos primeiro, depois aposentados.\nProcessa 50 jogadores por bloco com 5 req. paralelas.\n\n';
+  importBioChunk(0);
 });
 
 // ── SINCRONIZAR STATUS ATIVO + TIME ATUAL ────────────────────────────────────
