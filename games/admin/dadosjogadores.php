@@ -247,6 +247,95 @@ if ($action === 'toggle_active' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// ── APLICAR DRAFT 2026 + TROCAS DE JUNHO/JULHO (dados manuais, sem API) ──────
+if ($action === 'apply_draft_2026') {
+    header('Content-Type: application/json');
+
+    // Times finais de cada escolha do Draft 2026, ja considerando as trocas
+    // feitas na noite do draft (ex.: pick 21 comecou com o DET mas terminou com o MEM).
+    $draftPicks = [
+        1=>['WAS','AJ Dybantsa'], 2=>['UTA','Darryn Peterson'], 3=>['MEM','Cameron Boozer'],
+        4=>['CHI','Caleb Wilson'], 5=>['LAC','Keaton Wagler'], 6=>['BKN','Mikel Brown Jr.'],
+        7=>['SAC','Darius Acuff Jr.'], 8=>['ATL','Kingston Flemings'], 9=>['DAL','Morez Johnson Jr.'],
+        10=>['MIL','Brayden Burries'], 11=>['GSW','Yaxel Lendeborg'], 12=>['OKC','Aday Mara'],
+        13=>['MIA','Nate Ament'], 14=>['CHA','Hannes Steinbach'], 15=>['CHI','Dailyn Swain'],
+        16=>['OKC','Bennett Stirtz'], 17=>['DET','Ebuka Okorie'], 18=>['CHA','Christian Anderson Jr.'],
+        19=>['TOR','Allen Graves'], 20=>['SAS','Jayden Quaintance'], 21=>['MEM','Karim López'],
+        22=>['PHI','Labaron Philon Jr.'], 23=>['ATL','Zuby Ejiofor'], 24=>['LAL','Cameron Carr'],
+        25=>['DAL','Sergio de Larrea'], 26=>['SAS','Tarris Reed Jr.'], 27=>['BOS','Chris Cenac Jr.'],
+        28=>['MIN','Joshua Jefferson'], 29=>['SAC','Alex Karaban'], 30=>['PHX','Koa Peat'],
+        31=>['HOU','Bruce Thornton'], 32=>['MEM','Richie Saunders'], 33=>['BKN','Isaiah Evans'],
+        34=>['CLE','Meleek Thomas'], 35=>['DEN','Trevon Brazile'], 36=>['LAC','Baba Miller'],
+        37=>['MIA','Ryan Conwell'], 38=>['IND','Braden Smith'], 39=>['NYK','Jack Kayil'],
+        40=>['BOS','Dillon Mitchell'], 41=>['OKC','Otega Oweh'], 42=>['SAS',"Ja'Kobi Gillespie"],
+        43=>['BKN','Tyler Bilodeau'], 44=>['SAS','Maliq Brown'], 45=>['SAC','Emanuel Sharp'],
+        46=>['WAS','Felix Okpara'], 47=>['NYK','Tyler Nickel'], 48=>['DAL','Tobi Lawal'],
+        49=>['DEN','Bryce Hopkins'], 50=>['TOR','Jaden Bradley'], 51=>['ORL','Izaiyah Nelson'],
+        52=>['ATL','Henri Veesaar'], 53=>['DET','Ugonna Onyenso'], 54=>['GSW','Lajae Jones'],
+        55=>['LAC','Nick Martinelli'], 56=>['DAL','Vsevolod Ishchenko'], 57=>['LAC','Narcisse Ngoy'],
+        58=>['NOP','Jaron Pierre Jr.'], 59=>['MIN','Trey Kaufman-Renn'], 60=>['MIL','Malique Lewis'],
+    ];
+
+    // Trocas de jogadores ja estabelecidos (22 jun a 7 jul) - nome => novo time atual
+    $trocas = [
+        'Aaron Wiggins'=>'ATL', 'Giannis Antetokounmpo'=>'MIA', 'Bobby Portis'=>'MIA',
+        'Tyler Herro'=>'MIL', "Kel'el Ware"=>'MIL', 'Jaime Jaquez Jr.'=>'MIL', 'Kasparas Jakučionis'=>'MIL',
+        'Julius Randle'=>'BKN', 'Nic Claxton'=>'CHI', 'Mo Gueye'=>'MIN',
+        'LaMelo Ball'=>'MIN', 'Josh Green'=>'MIN', 'Naz Reid'=>'CHA',
+        'Isaiah Joe'=>'DET', 'Grayson Allen'=>'CHA', 'Royce O\'Neale'=>'CHA', 'Miles Bridges'=>'PHX',
+        'Jerami Grant'=>'MEM', 'Kris Murray'=>'MEM', 'Ja Morant'=>'POR',
+        'Devin Carter'=>'ATL', 'Brandon Ingram'=>'LAC', 'Gradey Dick'=>'LAC', 'Kawhi Leonard'=>'TOR',
+        'AJ Johnson'=>'MEM', 'Santi Aldama'=>'DAL',
+        'Paul George'=>'BOS', 'Jaylen Brown'=>'PHI',
+        'Walker Kessler'=>'LAL', 'Jaden Hardy'=>'LAL', 'Deandre Ayton'=>'WAS',
+        'Dorian Finney-Smith'=>'CHA',
+        'Taurean Prince'=>'DET', 'Gary Harris'=>'DET', 'Caris LeVert'=>'MIL',
+        'Isaiah Stewart'=>'MEM',
+    ];
+
+    $stmtFind    = $pdo->prepare("SELECT id, times FROM hoopgrid_players WHERE nome = ? LIMIT 1");
+    $stmtUpdate  = $pdo->prepare("UPDATE hoopgrid_players SET time_atual=?, times=?, ativo=1 WHERE id=?");
+    $stmtInsert  = $pdo->prepare("INSERT INTO hoopgrid_players (nome,times,pais,premios,eras,ativo,time_atual,titulos) VALUES (?,?,?,?,?,1,?,0)
+        ON DUPLICATE KEY UPDATE times=VALUES(times), time_atual=VALUES(time_atual), ativo=1, eras=IF(eras='[]' OR eras IS NULL, VALUES(eras), eras)");
+
+    $rookiesInseridos = 0; $rookiesAtualizados = 0;
+    foreach ($draftPicks as $pick => [$time, $nome]) {
+        $stmtFind->execute([$nome]);
+        $existing = $stmtFind->fetch(PDO::FETCH_ASSOC);
+        if ($existing) {
+            $times = json_decode($existing['times'] ?: '[]', true) ?: [];
+            if (!in_array($time, $times, true)) $times[] = $time;
+            sort($times);
+            $stmtUpdate->execute([$time, json_encode($times), $existing['id']]);
+            $rookiesAtualizados++;
+        } else {
+            $stmtInsert->execute([$nome, json_encode([$time]), 'USA', '[]', json_encode(['20s']), $time]);
+            $rookiesInseridos++;
+        }
+    }
+
+    $trocasAplicadas = 0; $trocasNaoEncontradas = [];
+    foreach ($trocas as $nome => $novoTime) {
+        $stmtFind->execute([$nome]);
+        $existing = $stmtFind->fetch(PDO::FETCH_ASSOC);
+        if (!$existing) { $trocasNaoEncontradas[] = $nome; continue; }
+        $times = json_decode($existing['times'] ?: '[]', true) ?: [];
+        if (!in_array($novoTime, $times, true)) $times[] = $novoTime;
+        sort($times);
+        $stmtUpdate->execute([$novoTime, json_encode($times), $existing['id']]);
+        $trocasAplicadas++;
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'rookies_inseridos' => $rookiesInseridos,
+        'rookies_atualizados' => $rookiesAtualizados,
+        'trocas_aplicadas' => $trocasAplicadas,
+        'trocas_nao_encontradas' => $trocasNaoEncontradas,
+    ]);
+    exit;
+}
+
 // ── SINCRONIZAR STATUS ATIVO + TIME ATUAL (1 chamada, temporada corrente) ────
 if ($action === 'sync_status') {
     header('Content-Type: application/json');
@@ -1156,6 +1245,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <button class="btn btn-sm fw-bold" id="btnImportStatic" style="background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:#fbbf24"><i class="bi bi-file-earmark-code me-1"></i>Prêmios Estáticos (JSON)</button>
         <button class="btn btn-sm fw-bold" id="btnImportStats" style="background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.4);color:#c084fc"><i class="bi bi-bar-chart-line me-1"></i>Stats de Carreira</button>
         <button class="btn btn-sm fw-bold" id="btnSyncStatus" style="background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.4);color:#4ade80"><i class="bi bi-arrow-repeat me-1"></i>Sincronizar Status/Time Atual</button>
+        <button class="btn btn-sm fw-bold" id="btnDraft2026" style="background:rgba(236,72,153,.15);border:1px solid rgba(236,72,153,.4);color:#f472b6"><i class="bi bi-trophy me-1"></i>Aplicar Draft 2026 + Trocas</button>
       </div>
       <div id="log">Aguardando...</div>
     </div>
@@ -1759,6 +1849,30 @@ qs('btnSyncStatus').addEventListener('click', async () => {
     if (d.ok) {
       log.textContent += `✅ Temporada ${d.season}\nJogadores ativos encontrados: ${d.encontrados}\nAtivados/atualizados: ${d.ativados}\nMarcados como inativos: ${d.inativados}\n`;
       loadPlayers(_currentPage);
+    } else {
+      log.textContent += `❌ Erro: ${d.error}\n`;
+    }
+  } catch(e) {
+    log.textContent += `❌ Falha: ${e.message}\n`;
+  }
+  btn.disabled = false;
+});
+
+// ── DRAFT 2026 + TROCAS (dados manuais) ──────────────────────────────────────
+qs('btnDraft2026').addEventListener('click', async () => {
+  const log = qs('log');
+  const btn = qs('btnDraft2026');
+  btn.disabled = true;
+  log.textContent = 'Aplicando Draft 2026 (60 escolhas) e trocas de jun/jul...\n';
+  try {
+    const r = await fetch('?action=apply_draft_2026');
+    const d = await r.json();
+    if (d.ok) {
+      log.textContent += `✅ Concluído!\nRookies inseridos: ${d.rookies_inseridos}\nRookies atualizados: ${d.rookies_atualizados}\nTrocas aplicadas: ${d.trocas_aplicadas}\n`;
+      if (d.trocas_nao_encontradas.length) {
+        log.textContent += `⚠️ Não encontrados no banco (${d.trocas_nao_encontradas.length}): ${d.trocas_nao_encontradas.join(', ')}\n`;
+      }
+      loadPlayers(1);
     } else {
       log.textContent += `❌ Erro: ${d.error}\n`;
     }
