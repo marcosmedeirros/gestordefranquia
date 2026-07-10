@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 session_start();
 require_once 'backend/auth.php';
 require_once 'backend/db.php';

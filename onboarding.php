@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
