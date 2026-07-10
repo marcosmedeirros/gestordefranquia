@@ -29,18 +29,7 @@ $flash = null; $flashType = 'success';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    if ($action === 'save_pathetic') {
-        $content = (string)($_POST['content'] ?? '');
-        try {
-            $pdo->prepare("INSERT INTO site_pages (page_key, content) VALUES ('thepathetic', ?)
-                           ON DUPLICATE KEY UPDATE content = ?, updated_at = CURRENT_TIMESTAMP")
-                ->execute([$content, $content]);
-            $flash = 'Conteúdo do The Pathetic salvo com sucesso.';
-        } catch (PDOException $e) {
-            $flash = 'Erro ao salvar: ' . $e->getMessage();
-            $flashType = 'danger';
-        }
-    } elseif ($action === 'save_games') {
+    if ($action === 'save_games') {
         $activeSlugs = $_POST['active_games'] ?? [];
         try {
             foreach (glob(__DIR__ . '/site/gamesfba/*.php') as $file) {
@@ -57,15 +46,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
-
-// Conteúdo atual do Pathetic
-$currentContent = '';
-try {
-    $stmt = $pdo->prepare("SELECT content FROM site_pages WHERE page_key = 'thepathetic' LIMIT 1");
-    $stmt->execute();
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    $currentContent = $row ? (string)($row['content'] ?? '') : '';
-} catch (Exception $e) {}
 
 // Jogos disponíveis + status ativo/inativo
 $gameStatus = [];
@@ -238,6 +218,7 @@ try {
             <a href="/site/site.php" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Ver site</a>
             <a href="/site/gamesfba.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> Ver Games</a>
             <a href="/site/pathetic.php" target="_blank" rel="noopener"><i class="bi bi-newspaper"></i> Ver The Pathetic</a>
+            <a href="/thepathetic-edit.php"><i class="bi bi-pencil-square"></i> Editar The Pathetic</a>
         </nav>
         <button class="sb-theme-toggle" type="button" id="themeToggle">
             <i class="bi bi-moon"></i><span>Modo escuro</span>
@@ -262,7 +243,7 @@ try {
             <div>
                 <div class="page-eyebrow">Admin · Site FBA</div>
                 <h1 class="page-title">Site Admin</h1>
-                <p class="page-sub">Controle os jogos ativos e o conteúdo do The Pathetic no site público.</p>
+                <p class="page-sub">Controle os jogos ativos no site público.</p>
             </div>
         </div>
 
@@ -307,27 +288,24 @@ try {
                 </div>
             </form>
 
-            <form method="post">
-                <input type="hidden" name="action" value="save_pathetic">
-                <div class="bc">
-                    <div class="bc-head">
-                        <div class="bc-title"><i class="bi bi-newspaper"></i> The Pathetic — Conteúdo</div>
-                        <a class="btn-outline" href="/site/pathetic.php" target="_blank" rel="noopener">
-                            <i class="bi bi-box-arrow-up-right"></i> Ver página
-                        </a>
-                    </div>
-                    <div class="bc-body">
-                        <p style="font-size:11px;color:var(--text-3);margin-bottom:10px">
-                            Mesmo conteúdo usado em /site/pathetic.php e /thepathetic.php — cole o HTML das matérias aqui.
-                        </p>
-                        <textarea name="content" class="html-area"
-                                  placeholder="Cole seu HTML aqui ou escreva o que quiser..."><?= htmlspecialchars($currentContent) ?></textarea>
-                        <div class="d-flex justify-content-end mt-3">
-                            <button type="submit" class="btn-save">Salvar conteúdo</button>
-                        </div>
-                    </div>
+            <div class="bc">
+                <div class="bc-head">
+                    <div class="bc-title"><i class="bi bi-newspaper"></i> The Pathetic — Conteúdo</div>
+                    <a class="btn-outline" href="/site/pathetic.php" target="_blank" rel="noopener">
+                        <i class="bi bi-box-arrow-up-right"></i> Ver página
+                    </a>
                 </div>
-            </form>
+                <div class="bc-body">
+                    <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">
+                        A edição do conteúdo foi centralizada num só lugar. Use o editor abaixo — ele atualiza
+                        automaticamente tanto /thepathetic.php quanto /site/pathetic.php, já que os dois leem
+                        do mesmo conteúdo.
+                    </p>
+                    <a class="btn-outline" href="/thepathetic-edit.php">
+                        <i class="bi bi-pencil-square"></i> Editar The Pathetic
+                    </a>
+                </div>
+            </div>
         </div>
     </main>
 </div>
