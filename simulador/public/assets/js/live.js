@@ -96,60 +96,80 @@
     if (!await start()) return;
     busy = true;
     nextBtn.disabled = true; autoBtn.disabled = true;
-    if (empty) { empty.remove(); empty = null; }
 
-    const body = new URLSearchParams();
-    body.set('off', offSel.value);
-    body.set('def', defSel.value);
-    body.set('double_team', doubleSel.value);
-    if (timeoutChk.checked) body.set('timeout', '1');
-
-    let data;
+    // Garante que os botões nunca fiquem travados: qualquer erro (rede, parsing,
+    // ou uma exceção inesperada ao renderizar eventos) sempre libera busy/botões
+    // em vez de deixá-los desabilitados para sempre sem explicação ao usuário.
     try {
-      const res = await fetch((window.API_URL || 'api.php') + '?live=step', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
-      data = await res.json();
-    } catch (e) { alert('Erro ao simular.'); busy = false; nextBtn.disabled = false; autoBtn.disabled = false; return; }
-    if (data.error) { alert(data.error); busy = false; nextBtn.disabled = false; autoBtn.disabled = false; return; }
+      if (empty) { empty.remove(); empty = null; }
 
-    timeoutChk.checked = false;
-    if (typeof data.timeouts === 'object') toLbl.textContent = data.timeouts[data.gm_side];
+      const body = new URLSearchParams();
+      body.set('off', offSel.value);
+      body.set('def', defSel.value);
+      body.set('double_team', doubleSel.value);
+      if (timeoutChk.checked) body.set('timeout', '1');
 
-    let lastQ = '';
-    for (const ev of data.events) {
-      const speed = parseInt(speedSel.value, 10);
-      if (ev.q !== lastQ) { sep(qHuman(ev.q)); sbQuarter.textContent = qHuman(ev.q); lastQ = ev.q; }
-      addItem(ev);
-      sbClock.textContent = ev.clock;
-      if (ev.home_pts !== undefined) { sbHome.textContent = ev.home_pts; bump(sbHome); }
-      if (ev.away_pts !== undefined) { sbAway.textContent = ev.away_pts; bump(sbAway); }
-      if (!fast && speed > 0) await delay(Math.max(15, speed / 6));
+      let data;
+      try {
+        const res = await fetch((window.API_URL || 'api.php') + '?live=step', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+        data = await res.json();
+      } catch (e) { alert('Erro ao simular.'); return; }
+      if (data.error) { alert(data.error); return; }
+
+      timeoutChk.checked = false;
+      if (typeof data.timeouts === 'object') toLbl.textContent = data.timeouts[data.gm_side];
+
+      let lastQ = '';
+      for (const ev of data.events) {
+        const speed = parseInt(speedSel.value, 10);
+        if (ev.q !== lastQ) { sep(qHuman(ev.q)); sbQuarter.textContent = qHuman(ev.q); lastQ = ev.q; }
+        addItem(ev);
+        sbClock.textContent = ev.clock;
+        if (ev.home_pts !== undefined) { sbHome.textContent = ev.home_pts; bump(sbHome); }
+        if (ev.away_pts !== undefined) { sbAway.textContent = ev.away_pts; bump(sbAway); }
+        if (!fast && speed > 0) await delay(Math.max(15, speed / 6));
+      }
+      sbHome.textContent = data.score.home; sbAway.textContent = data.score.away;
+
+      const diff = Math.abs(data.score.home - data.score.away);
+      if (!data.done && data.period >= 4 && diff <= 6) {
+        hint.textContent = '🔥 CLUTCH TIME! Jogo apertado — ajuste a tática e decida o jogo.';
+        hint.classList.add('clutch');
+      }
+
+      if (data.done) {
+        finished = true;
+        sbClock.textContent = 'FINAL'; sbQuarter.textContent = 'Encerrado';
+        nextBtn.style.display = 'none'; autoBtn.style.display = 'none';
+        const det = document.querySelector('.live-tactics'); if (det) det.style.display = 'none';
+        hint.textContent = '✅ Jogo encerrado e registrado.';
+        hint.classList.remove('clutch');
+        renderBox(data.box);
+        const bar = document.getElementById('continueBar'); if (bar) bar.style.display = '';
+      }
+    } catch (e) {
+      console.error('Erro ao processar o quarto simulado:', e);
+      alert('Ocorreu um erro inesperado ao simular. Tente novamente.');
+    } finally {
+      busy = false;
+      if (!finished) { nextBtn.disabled = false; autoBtn.disabled = false; }
     }
-    sbHome.textContent = data.score.home; sbAway.textContent = data.score.away;
-
-    const diff = Math.abs(data.score.home - data.score.away);
-    if (!data.done && data.period >= 4 && diff <= 6) {
-      hint.textContent = '🔥 CLUTCH TIME! Jogo apertado — ajuste a tática e decida o jogo.';
-      hint.classList.add('clutch');
-    }
-
-    if (data.done) {
-      finished = true;
-      sbClock.textContent = 'FINAL'; sbQuarter.textContent = 'Encerrado';
-      nextBtn.style.display = 'none'; autoBtn.style.display = 'none';
-      const det = document.querySelector('.live-tactics'); if (det) det.style.display = 'none';
-      hint.textContent = '✅ Jogo encerrado e registrado.';
-      hint.classList.remove('clutch');
-      renderBox(data.box);
-      const bar = document.getElementById('continueBar'); if (bar) bar.style.display = '';
-    } else {
-      nextBtn.disabled = false; autoBtn.disabled = false;
-    }
-    busy = false;
   }
 
   async function auto() {
     autoBtn.disabled = true; nextBtn.disabled = true;
-    while (!finished) { await step(true); }
+    // Trava de segurança: um jogo regular + várias prorrogações nunca passa de
+    // ~12 chamadas. Sem esse limite, qualquer estado inesperado em que "done"
+    // nunca vire true faria isso rodar pra sempre e travar a aba.
+    let guard = 0;
+    while (!finished && guard < 20) {
+      await step(true);
+      guard++;
+    }
+    if (!finished) {
+      alert('Não foi possível concluir a simulação automática do jogo. Tente simular quarto a quarto.');
+      nextBtn.disabled = false; autoBtn.disabled = false;
+    }
   }
 
   function renderBox(box) {

@@ -94,31 +94,39 @@
     window.AWAY_ID = data.game.away_id;
     startBtn.textContent = '● AO VIVO';
 
-    let lastQ = '';
-    let curHome = 0, curAway = 0;
-    for (const ev of data.pbp) {
-      const speed = parseInt(speedSel.value, 10);
-      if (ev.q !== lastQ) { quarterSep(ev.q); sbQuarter.textContent = qHuman(ev.q); lastQ = ev.q; }
+    // O restante da narração é só renderização de dados que já vieram prontos
+    // da API; qualquer exceção aqui não pode deixar o botão travado em
+    // "Carregando..." pra sempre sem explicação.
+    try {
+      let lastQ = '';
+      let curHome = 0, curAway = 0;
+      for (const ev of data.pbp) {
+        const speed = parseInt(speedSel.value, 10);
+        if (ev.q !== lastQ) { quarterSep(ev.q); sbQuarter.textContent = qHuman(ev.q); lastQ = ev.q; }
 
-      const abbr = ev.team === data.game.home_id ? data.game.home_abbr : data.game.away_abbr;
-      addItem(ev, abbr);
-      sbClock.textContent = ev.clock;
+        const abbr = ev.team === data.game.home_id ? data.game.home_abbr : data.game.away_abbr;
+        addItem(ev, abbr);
+        sbClock.textContent = ev.clock;
 
-      if (ev.home_pts !== curHome) { curHome = ev.home_pts; sbHome.textContent = curHome; bump(sbHome); }
-      if (ev.away_pts !== curAway) { curAway = ev.away_pts; sbAway.textContent = curAway; bump(sbAway); }
+        if (ev.home_pts !== curHome) { curHome = ev.home_pts; sbHome.textContent = curHome; bump(sbHome); }
+        if (ev.away_pts !== curAway) { curAway = ev.away_pts; sbAway.textContent = curAway; bump(sbAway); }
 
-      if (speed > 0) await delay(speed);
+        if (speed > 0) await delay(speed);
+      }
+
+      sbClock.textContent = 'FINAL' + (data.game.ot ? '/PR' + (data.game.ot > 1 ? data.game.ot : '') : '');
+      sbQuarter.textContent = 'Encerrado';
+      sbHome.textContent = data.game.home_pts;
+      sbAway.textContent = data.game.away_pts;
+      renderBox(data);
+    } catch (e) {
+      console.error('Erro ao narrar o simcast:', e);
+      feed.innerHTML += '<p class="muted">Erro ao exibir o restante do jogo.</p>';
+    } finally {
+      startBtn.textContent = '↻ Reassistir Simcast';
+      startBtn.disabled = false;
+      running = false;
     }
-
-    sbClock.textContent = 'FINAL' + (data.game.ot ? '/PR' + (data.game.ot > 1 ? data.game.ot : '') : '');
-    sbQuarter.textContent = 'Encerrado';
-    sbHome.textContent = data.game.home_pts;
-    sbAway.textContent = data.game.away_pts;
-    startBtn.textContent = '↻ Reassistir Simcast';
-    startBtn.disabled = false;
-    running = false;
-
-    renderBox(data);
   }
 
   function renderBox(data) {
