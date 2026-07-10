@@ -1,6 +1,8 @@
 <?php
+require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
 $pdo = db();
+$isLoggedIn = (bool) getUserSession();
 
 // Times por divisão, priorizando o logo mapeado em _partials/team-logos.php,
 // com fallback pra foto cadastrada no app e por último o logo padrão.
@@ -865,6 +867,7 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
 <script>
+window.__IS_LOGGED_IN__ = <?= $isLoggedIn ? 'true' : 'false' ?>;
 window.__SITE_DATA__ = {
   teamsByLeague: <?= json_encode($teamsByLeague, JSON_UNESCAPED_UNICODE) ?>,
   hallOfFame: <?= json_encode($hallOfFame, JSON_UNESCAPED_UNICODE) ?>,
@@ -961,7 +964,7 @@ function Nav() {
           <a href="/site/gamesfba.php">Games</a>
           <a href="/site/pathetic.php">The Pathetic</a>
         </div>
-        <a href="/login.php" className="nav-cta">Jogar</a>
+        <a href={window.__IS_LOGGED_IN__ ? "/dashboard.php" : "/login.php"} className="nav-cta">Jogar</a>
       </div>
     </nav>
   );
