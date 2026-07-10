@@ -1,5 +1,4 @@
 <?php
-session_start();
 header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/backend/auth.php';
@@ -2170,5 +2169,5 @@ try {
         $pdo->rollBack();
     }
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
 }

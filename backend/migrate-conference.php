@@ -1,5 +1,12 @@
 <?php
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/auth.php';
+
+$__migrateUser = getUserSession();
+if (!$__migrateUser || $__migrateUser['user_type'] !== 'admin') {
+    http_response_code(403);
+    exit('Acesso negado.');
+}
 
 $pdo = db();
 
@@ -19,6 +26,7 @@ try {
     }
     echo "Migração concluída.";
 } catch (Throwable $e) {
+    error_log('Erro na migração conference: ' . $e->getMessage());
     http_response_code(500);
-    echo "Erro na migração: " . $e->getMessage();
+    echo "Erro na migração.";
 }

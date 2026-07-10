@@ -1,5 +1,4 @@
 <?php
-session_start();
 header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/backend/auth.php';
@@ -130,7 +129,7 @@ function handleFreeAgentCreation(PDO $pdo, array $validLeagues, array $data): vo
         echo json_encode(['success' => true, 'message' => 'Free agent criado com sucesso!']);
     } catch (Exception $e) {
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao criar free agent: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro ao criar free agent']);
     }
 }
 
@@ -205,7 +204,7 @@ function handleFreeAgentAssignment(PDO $pdo, array $data): void
     } catch (Exception $e) {
         $pdo->rollBack();
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao atribuir jogador: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro ao atribuir jogador']);
     }
 }
 
@@ -841,7 +840,7 @@ if ($method === 'GET') {
                         echo json_encode(['success' => true, 'template_id' => $tplId, 'message' => 'Classe salva com sucesso!']);
                     } catch (Exception $e) {
                         $pdo->rollBack();
-                        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                        echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
                     }
                     break;
                 }
@@ -906,7 +905,7 @@ if ($method === 'GET') {
                         echo json_encode(['success' => true, 'inserted' => count($players)]);
                     } catch (Exception $e) {
                         $pdo->rollBack();
-                        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                        echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
                     }
                     break;
                 }
@@ -1498,7 +1497,7 @@ if ($method === 'PUT') {
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => 'Erro ao atualizar jogador: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro ao atualizar jogador']);
             }
             break;
 
@@ -1675,7 +1674,7 @@ if ($method === 'PUT') {
             } catch (Exception $e) {
                 $pdo->rollBack();
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             }
             break;
 
@@ -1787,7 +1786,7 @@ if ($method === 'PUT') {
             } catch (Exception $e) {
                 if ($pdo->inTransaction()) $pdo->rollBack();
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             }
             break;
 
@@ -1877,7 +1876,7 @@ if ($method === 'POST') {
                     foreach ($players as $p) { $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age']]); }
                     $pdo->commit();
                     echo json_encode(['success' => true, 'template_id' => $tplId, 'message' => 'Classe salva com sucesso!']);
-                } catch (Exception $e) { $pdo->rollBack(); echo json_encode(['success' => false, 'error' => $e->getMessage()]); }
+                } catch (Exception $e) { $pdo->rollBack(); echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']); }
             } elseif ($subAction === 'rename') {
                 $tplId = (int)($body['template_id'] ?? 0); $tplName = trim($body['name'] ?? '');
                 if (!$tplId || !$tplName) { echo json_encode(['success' => false, 'error' => 'Dados inválidos']); break; }
@@ -1909,7 +1908,7 @@ if ($method === 'POST') {
                     foreach ($players as $p) { $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age']]); }
                     $pdo->commit();
                     echo json_encode(['success' => true, 'inserted' => count($players)]);
-                } catch (Exception $e) { $pdo->rollBack(); echo json_encode(['success' => false, 'error' => $e->getMessage()]); }
+                } catch (Exception $e) { $pdo->rollBack(); echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']); }
             } elseif ($subAction === 'delete') {
                 $tplId = (int)($body['template_id'] ?? 0);
                 if (!$tplId) { echo json_encode(['success' => false, 'error' => 'template_id obrigatório']); break; }
@@ -2007,7 +2006,7 @@ if ($method === 'POST') {
                 }
             } catch (Exception $e) {
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => 'Erro ao validar jogador: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro ao validar jogador']);
                 exit;
             }
 
@@ -2040,7 +2039,7 @@ if ($method === 'POST') {
                 $stmt->execute($values);
             } catch (Exception $e) {
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => 'Erro ao adicionar jogador: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro ao adicionar jogador']);
                 exit;
             }
             
@@ -2182,7 +2181,7 @@ if ($method === 'POST') {
             } catch (Exception $e) {
                 $pdo->rollBack();
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => 'Erro ao atualizar moedas: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro ao atualizar moedas']);
             }
             break;
 
@@ -2267,7 +2266,7 @@ if ($method === 'POST') {
                 ]);
             } catch (Exception $e) {
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => 'Erro ao atualizar tapas: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro ao atualizar tapas']);
             }
             break;
 
@@ -2337,7 +2336,7 @@ if ($method === 'POST') {
             } catch (Exception $e) {
                 $pdo->rollBack();
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => 'Erro ao distribuir moedas: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro ao distribuir moedas']);
             }
             break;
 

@@ -60,7 +60,7 @@ if ($method === 'GET') {
 
         echo json_encode(['success' => true, 'rumors' => $rumors, 'admin_comments' => $adminComments]);
     } catch (Exception $e) {
-        jsonErr($e->getMessage());
+        jsonErr('Erro interno do servidor.');
     }
     exit;
 }
@@ -142,7 +142,7 @@ if ($method === 'POST') {
                 jsonErr('Ação inválida');
         }
     } catch (Exception $e) {
-        jsonErr($e->getMessage());
+        jsonErr('Erro interno do servidor.');
     }
     exit;
 }

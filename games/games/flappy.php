@@ -44,20 +44,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     header('Content-Type: application/json');
 
     $run_active = isset($_SESSION['flappy_run_active']) && $_SESSION['flappy_run_active'] === true;
-    $run_start  = isset($_SESSION['flappy_run_start']) ? (int)$_SESSION['flappy_run_start'] : 0;
+    $run_start  = isset($_SESSION['flappy_run_start']) ? (float)$_SESSION['flappy_run_start'] : 0;
     $last_score = isset($_SESSION['flappy_last_score']) ? (int)$_SESSION['flappy_last_score'] : 0;
 
     $validate_run_score = function($score) use ($run_active, $run_start, $last_score) {
         if (!$run_active || $run_start <= 0) throw new Exception('Sessão de jogo inválida.');
-        $elapsed = max(0, time() - $run_start);
-        $max_score = (int)($elapsed * 5) + 5;
+        $elapsed = max(0, microtime(true) - $run_start);
+        $max_score = (int)($elapsed * 5) + 1;
         if ($score < $last_score) throw new Exception('Score inválido.');
         if ($score > $max_score) throw new Exception('Score acima do permitido pela física do jogo.');
     };
 
     if ($_POST['acao'] == 'iniciar_run') {
+        $last_run_start = isset($_SESSION['flappy_run_start']) ? (float)$_SESSION['flappy_run_start'] : 0;
+        if ($last_run_start > 0 && (microtime(true) - $last_run_start) < 1.5) {
+            echo json_encode(['erro' => 'Aguarde um instante antes de iniciar outra partida.']);
+            exit;
+        }
         $_SESSION['flappy_run_active']  = true;
-        $_SESSION['flappy_run_start']   = time();
+        $_SESSION['flappy_run_start']   = microtime(true);
         $_SESSION['flappy_last_score']  = 0;
         $_SESSION['flappy_revive_used'] = false;
         $_SESSION['flappy_score_saved'] = false;

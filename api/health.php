@@ -4,6 +4,14 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 header('Content-Type: application/json');
 
+require_once __DIR__ . '/../backend/auth.php';
+$__healthUser = getUserSession();
+if (!$__healthUser || $__healthUser['user_type'] !== 'admin') {
+    http_response_code(403);
+    echo json_encode(['error' => 'Acesso negado.']);
+    exit;
+}
+
 $status = [
     'success' => false,
     'checks' => [],

@@ -4,7 +4,6 @@
  * Gerencia brackets, partidas e pontuação
  */
 
-session_start();
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
 
@@ -230,7 +229,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => true, 'message' => 'Bracket criado com sucesso!']);
             } catch (Exception $e) {
                 $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             }
             break;
             
@@ -314,7 +313,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => true, 'message' => 'Resultado registrado!']);
             } catch (Exception $e) {
                 $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             }
             break;
             
@@ -406,7 +405,7 @@ if ($method === 'POST') {
 
                 echo json_encode(['success' => true, 'message' => 'Prêmios salvos!']);
             } catch (Exception $e) {
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             }
             break;
             
@@ -786,7 +785,7 @@ if ($method === 'POST') {
                     $pdo->prepare("DELETE FROM playoff_finalize_lock WHERE season_id = ? AND league = ?")
                         ->execute([$seasonId, $league]);
                 } catch (Exception $ex) {}
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             }
             break;
 

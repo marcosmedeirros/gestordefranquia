@@ -4,7 +4,6 @@
  * Sistema de trocas via leilao
  */
 
-session_start();
 require_once __DIR__ . '/../backend/config.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
@@ -310,7 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode(['success' => true] + $created);
             } catch (Throwable $e) {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             }
             break;
         case 'cancelar':
@@ -752,7 +751,7 @@ function cadastrarLeilao($pdo, $body, $user_id) {
         try {
             $tempPlayer = criarJogadorParaLeilao($pdo, $new_player, $user_id, $league_id);
         } catch (Throwable $e) {
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             return;
         }
     }
@@ -1031,7 +1030,7 @@ function enviarProposta($pdo, $body, $team_id, $league_id) {
         echo json_encode(['success' => true, 'proposta_id' => $proposta_id]);
     } catch (Exception $e) {
         $pdo->rollBack();
-        echo json_encode(['success' => false, 'error' => 'Erro ao salvar proposta: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro ao salvar proposta']);
     }
 }
 
@@ -1152,7 +1151,7 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
         echo json_encode(['success' => true, 'message' => 'Troca realizada com sucesso']);
     } catch (Exception $e) {
         $pdo->rollBack();
-        echo json_encode(['success' => false, 'error' => 'Erro ao processar troca: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro ao processar troca']);
     }
 }
 
@@ -1247,7 +1246,7 @@ function reverterLeilao($pdo, $body) {
         echo json_encode(['success' => true, 'message' => 'Leilão revertido com sucesso']);
     } catch (Exception $e) {
         $pdo->rollBack();
-        echo json_encode(['success' => false, 'error' => 'Erro ao reverter: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro ao reverter']);
     }
 }
 

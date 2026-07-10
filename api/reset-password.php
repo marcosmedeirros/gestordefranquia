@@ -59,8 +59,8 @@ try {
 
 } catch (PDOException $e) {
     error_log('Erro SQL no reset-password.php: ' . $e->getMessage());
-    jsonResponse(500, ['error' => 'Erro ao processar solicitação.', 'details' => $e->getMessage()]);
+    jsonResponse(500, ['error' => 'Erro ao processar solicitação.']);
 } catch (Exception $e) {
     error_log('Erro no reset-password.php: ' . $e->getMessage());
-    jsonResponse(500, ['error' => 'Erro interno do servidor.', 'details' => $e->getMessage()]);
+    jsonResponse(500, ['error' => 'Erro interno do servidor.']);
 }

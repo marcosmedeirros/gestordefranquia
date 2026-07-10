@@ -76,7 +76,7 @@ if ($method === 'POST') {
                 'created' => true
             ]);
         } catch (Throwable $e) {
-            jsonResponse(500, ['error' => 'Erro ao criar draft.', 'details' => $e->getMessage()]);
+            jsonResponse(500, ['error' => 'Erro ao criar draft.']);
         }
     }
     
@@ -122,7 +122,7 @@ if ($method === 'POST') {
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
-        jsonResponse(500, ['error' => 'Erro ao criar draft.', 'details' => $e->getMessage()]);
+        jsonResponse(500, ['error' => 'Erro ao criar draft.']);
     }
 
     jsonResponse(201, ['message' => 'Draft criado.', 'draft_id' => $draftId]);

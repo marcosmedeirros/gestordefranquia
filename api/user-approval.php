@@ -3,7 +3,6 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
-session_start();
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/auth.php';
@@ -79,8 +78,8 @@ try {
 
 } catch (PDOException $e) {
     error_log('Erro SQL no user-approval.php: ' . $e->getMessage());
-    jsonResponse(500, ['error' => 'Erro no banco de dados', 'details' => $e->getMessage()]);
+    jsonResponse(500, ['error' => 'Erro no banco de dados']);
 } catch (Exception $e) {
     error_log('Erro no user-approval.php: ' . $e->getMessage());
-    jsonResponse(500, ['error' => 'Erro interno do servidor', 'details' => $e->getMessage()]);
+    jsonResponse(500, ['error' => 'Erro interno do servidor']);
 }

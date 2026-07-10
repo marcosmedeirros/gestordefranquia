@@ -69,9 +69,3 @@ AddDefaultCharset UTF-8
     Order Allow,Deny
     Deny from all
 </FilesMatch>
-
-# Permitir acesso específico ao migrate.php temporariamente
-<Files "migrate.php">
-    Order Allow,Deny
-    Allow from all
-</Files>

@@ -1,5 +1,4 @@
 <?php
-session_start();
 
 require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
@@ -130,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'upload_edital') {
         echo json_encode(['success' => true, 'file_name' => $fileName]);
     } catch (Exception $e) {
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
     }
     exit;
 }
@@ -169,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'delete_edital') {
         exit;
     } catch (Exception $e) {
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao deletar edital: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro ao deletar edital']);
         exit;
     }
 }

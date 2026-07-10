@@ -697,6 +697,76 @@ function getUserPhoto(?string $photoUrl, string $default = '/img/default-avatar.
     return $photoUrl;
 }
 
+function ensureLoginAttemptsTable(PDO $pdo): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS login_attempts (
+            identifier VARCHAR(191) NOT NULL PRIMARY KEY,
+            attempts INT NOT NULL DEFAULT 0,
+            last_attempt_at DATETIME NOT NULL,
+            locked_until DATETIME NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Exception $e) {
+        error_log('[ensureLoginAttemptsTable] ' . $e->getMessage());
+    }
+    $checked = true;
+}
+
+function loginRateLimitIdentifier(string $email): string
+{
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    return $ip . '|' . strtolower(trim($email));
+}
+
+// Bloqueia a tentativa de login se o identificador (IP + e-mail) estourou o limite.
+function checkLoginRateLimit(PDO $pdo, string $email): void
+{
+    ensureLoginAttemptsTable($pdo);
+    $identifier = loginRateLimitIdentifier($email);
+    $stmt = $pdo->prepare('SELECT locked_until FROM login_attempts WHERE identifier = ?');
+    $stmt->execute([$identifier]);
+    $lockedUntil = $stmt->fetchColumn();
+
+    if ($lockedUntil && strtotime($lockedUntil) > time()) {
+        jsonResponse(429, ['error' => 'Muitas tentativas de login. Tente novamente em alguns minutos.']);
+    }
+}
+
+function recordLoginFailure(PDO $pdo, string $email): void
+{
+    ensureLoginAttemptsTable($pdo);
+    $identifier = loginRateLimitIdentifier($email);
+    $maxAttempts = 5;
+    $windowSeconds = 15 * 60;
+    $lockSeconds = 15 * 60;
+
+    $stmt = $pdo->prepare('SELECT attempts, last_attempt_at FROM login_attempts WHERE identifier = ?');
+    $stmt->execute([$identifier]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    $attempts = 1;
+    if ($row && strtotime($row['last_attempt_at']) > time() - $windowSeconds) {
+        $attempts = (int)$row['attempts'] + 1;
+    }
+
+    $lockedUntil = $attempts >= $maxAttempts ? date('Y-m-d H:i:s', time() + $lockSeconds) : null;
+
+    $pdo->prepare('INSERT INTO login_attempts (identifier, attempts, last_attempt_at, locked_until)
+        VALUES (?, ?, NOW(), ?)
+        ON DUPLICATE KEY UPDATE attempts = VALUES(attempts), last_attempt_at = VALUES(last_attempt_at), locked_until = VALUES(locked_until)')
+        ->execute([$identifier, $attempts, $lockedUntil]);
+}
+
+function recordLoginSuccess(PDO $pdo, string $email): void
+{
+    ensureLoginAttemptsTable($pdo);
+    $pdo->prepare('DELETE FROM login_attempts WHERE identifier = ?')->execute([loginRateLimitIdentifier($email)]);
+}
+
 function normalizeBrazilianPhone(?string $input): ?string
 {
     if ($input === null) {

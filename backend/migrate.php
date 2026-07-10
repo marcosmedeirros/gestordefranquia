@@ -6,8 +6,16 @@
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/auth.php';
 
 header('Content-Type: application/json; charset=UTF-8');
+
+$__migrateUser = getUserSession();
+if (!$__migrateUser || $__migrateUser['user_type'] !== 'admin') {
+    http_response_code(403);
+    echo json_encode(['error' => 'Acesso negado.']);
+    exit;
+}
 
 try {
     $pdo = db();
@@ -140,8 +148,9 @@ try {
     ]);
     
 } catch (Exception $e) {
+    error_log('Erro na migração: ' . $e->getMessage());
     jsonResponse(500, [
         'success' => false,
-        'error' => 'Erro na migração: ' . $e->getMessage()
+        'error' => 'Erro na migração.'
     ]);
 }

@@ -473,7 +473,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => true, 'message' => 'Time adicionado']);
             } catch (Exception $e) {
                 $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => 'Erro: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro']);
             }
             break;
 
@@ -547,7 +547,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => true, 'message' => 'Sessão excluída']);
             } catch (Exception $e) {
                 $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => 'Erro: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro']);
             }
             break;
 
@@ -599,7 +599,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => true, 'message' => 'Ordem definida com sucesso']);
             } catch (Exception $e) {
                 $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => 'Erro ao definir ordem: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro ao definir ordem']);
             }
             break;
 
@@ -687,7 +687,7 @@ if ($method === 'POST') {
                 }
             } catch (Exception $e) {
                 $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => 'Erro ao trocar pick: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro ao trocar pick']);
             }
             break;
 
@@ -998,7 +998,7 @@ if ($method === 'POST') {
                 }
             } catch (Exception $e) {
                 $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => 'Erro ao fazer pick: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro ao fazer pick']);
             }
             break;
 
@@ -1164,7 +1164,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => true, 'message' => $message, 'player' => $player]);
             } catch (Exception $e) {
                 $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => 'Erro ao confirmar pick: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro ao confirmar pick']);
             }
             break;
 
@@ -1279,7 +1279,7 @@ if ($method === 'POST') {
                 }
             } catch (Exception $e) {
                 $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             }
             break;
 
@@ -1306,7 +1306,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => true, 'message' => 'Draft resetado']);
             } catch (Exception $e) {
                 $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => 'Erro ao resetar: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro ao resetar']);
             }
             break;
 
@@ -1344,7 +1344,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => true, 'message' => "{$pick['pool_name']} devolvido ao pool."]);
             } catch (Exception $e) {
                 $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => 'Erro: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro']);
             }
             break;
 
@@ -1370,7 +1370,7 @@ if ($method === 'POST') {
                     echo json_encode(['success' => true, 'message' => "Pick atual definida: Rodada {$round} · #{$pickPosition}"]);
                 }
             } catch (Exception $e) {
-                echo json_encode(['success' => false, 'error' => 'Erro: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro']);
             }
             break;
 

@@ -6,6 +6,13 @@
 
 require_once __DIR__ . '/backend/config.php';
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/auth.php';
+
+$__migrateUser = getUserSession();
+if (!$__migrateUser || $__migrateUser['user_type'] !== 'admin') {
+    http_response_code(403);
+    exit('Acesso negado.');
+}
 
 $pdo = db();
 

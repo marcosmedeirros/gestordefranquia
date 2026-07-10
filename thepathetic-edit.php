@@ -5,6 +5,10 @@ require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 
 $user = getUserSession();
+if (($user['user_type'] ?? 'jogador') !== 'admin') {
+    header('Location: /dashboard.php');
+    exit;
+}
 $pdo  = db();
 
 try {

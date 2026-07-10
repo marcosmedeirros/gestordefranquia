@@ -119,7 +119,7 @@ switch ($action) {
             echo json_encode(['success' => true]);
         } catch (Exception $e) {
             $pdo->rollBack();
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
         }
         break;
 
@@ -262,7 +262,7 @@ switch ($action) {
             echo json_encode(['success' => true, 'autopicked' => true, 'player_name' => $playerToPick['name']]);
         } catch (Exception $e) {
             $pdo->rollBack();
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
         }
         break;
 

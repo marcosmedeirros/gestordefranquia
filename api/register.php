@@ -67,17 +67,16 @@ try {
     jsonResponse(201, ['message' => 'Cadastro concluído!', 'user_id' => $newUserId]);
 } catch (PDOException $e) {
     error_log('Erro SQL no register.php: ' . $e->getMessage());
-    
+
     // Se o erro é sobre coluna 'league' não existir, retorna mensagem específica
     if (strpos($e->getMessage(), "Unknown column 'league'") !== false) {
         jsonResponse(500, [
             'error' => 'Schema do banco desatualizado. Execute a migração: https://fbabrasil.com.br/backend/migrate.php',
-            'technical' => $e->getMessage()
         ]);
     }
-    
-    jsonResponse(500, ['error' => 'Erro ao registrar usuário.', 'details' => $e->getMessage()]);
+
+    jsonResponse(500, ['error' => 'Erro ao registrar usuário.']);
 } catch (Exception $e) {
     error_log('Erro no register.php: ' . $e->getMessage());
-    jsonResponse(500, ['error' => 'Erro interno do servidor.', 'details' => $e->getMessage()]);
+    jsonResponse(500, ['error' => 'Erro interno do servidor.']);
 }

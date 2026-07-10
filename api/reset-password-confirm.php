@@ -50,8 +50,8 @@ try {
 
 } catch (PDOException $e) {
     error_log('Erro SQL no reset-password-confirm.php: ' . $e->getMessage());
-    jsonResponse(500, ['error' => 'Erro ao redefinir senha.', 'details' => $e->getMessage()]);
+    jsonResponse(500, ['error' => 'Erro ao redefinir senha.']);
 } catch (Exception $e) {
     error_log('Erro no reset-password-confirm.php: ' . $e->getMessage());
-    jsonResponse(500, ['error' => 'Erro interno do servidor.', 'details' => $e->getMessage()]);
+    jsonResponse(500, ['error' => 'Erro interno do servidor.']);
 }

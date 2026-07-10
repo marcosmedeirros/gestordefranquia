@@ -40,7 +40,7 @@ if ($method === 'POST') {
             $stmt->execute([$messageId]);
             echo json_encode(['success' => true]);
         } catch (Exception $e) {
-            jsonErr('Erro ao apagar mensagem: ' . $e->getMessage(), 500);
+            jsonErr('Erro ao apagar mensagem.', 500);
         }
         exit;
     }
@@ -67,7 +67,7 @@ if ($method === 'POST') {
         $stmt->execute([$subject, $message]);
         echo json_encode(['success' => true]);
     } catch (Exception $e) {
-        jsonErr('Erro ao salvar mensagem: ' . $e->getMessage(), 500);
+        jsonErr('Erro ao salvar mensagem.', 500);
     }
     exit;
 }
@@ -117,7 +117,7 @@ if ($method === 'GET') {
 
         echo json_encode(['success' => true, 'messages' => $rows, 'total' => $total]);
     } catch (Exception $e) {
-        jsonErr('Erro ao carregar mensagens: ' . $e->getMessage(), 500);
+        jsonErr('Erro ao carregar mensagens.', 500);
     }
     exit;
 }

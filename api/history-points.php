@@ -699,7 +699,7 @@ try {
                 LEFT JOIN teams t ON tsp.team_id = t.id
                 LEFT JOIN seasons s ON tsp.season_id = s.id
                 WHERE tsp.league = ?
-                ORDER BY tsp.season_id DESC, tsp.points DESC
+                ORDER BY tsp.sprint_number DESC, tsp.season_number DESC, tsp.points DESC
             ");
             $stmt->execute([$league]);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);

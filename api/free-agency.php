@@ -3,7 +3,6 @@
  * API Free Agency - Propostas com moedas
  */
 
-session_start();
 require_once __DIR__ . '/../backend/config.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
@@ -550,7 +549,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$league, $enabled]);
                 jsonSuccess(['league' => $league, 'enabled' => $enabled === 1]);
             } catch (Exception $e) {
-                jsonError('Falha ao atualizar status da FA: ' . $e->getMessage(), 500);
+                jsonError('Falha ao atualizar status da FA.', 500);
             }
             break;
         case 'approve_offer':
@@ -1179,7 +1178,7 @@ function adminFaRevert(PDO $pdo, array $body, int $adminId): void
         jsonSuccess(['message' => 'Reversão realizada. Jogador removido do time e moedas devolvidas.']);
     } catch (Exception $e) {
         $pdo->rollBack();
-        jsonError('Erro ao reverter: ' . $e->getMessage(), 500);
+        jsonError('Erro ao reverter.', 500);
     }
 }
 
@@ -1221,7 +1220,7 @@ function adminFaChangeTeam(PDO $pdo, array $body, int $adminId): void
         jsonSuccess(['message' => 'Jogador transferido para o novo time com sucesso.']);
     } catch (Exception $e) {
         $pdo->rollBack();
-        jsonError('Erro ao mudar time: ' . $e->getMessage(), 500);
+        jsonError('Erro ao mudar time.', 500);
     }
 }
 
@@ -1397,7 +1396,7 @@ function assignNewFaRequest(PDO $pdo, array $body, int $adminId): void
         ]);
     } catch (Exception $e) {
         $pdo->rollBack();
-        jsonError('Erro ao aprovar solicitacao: ' . $e->getMessage(), 500);
+        jsonError('Erro ao aprovar solicitacao.', 500);
     }
 }
 
@@ -1418,7 +1417,7 @@ function rejectNewFaRequest(PDO $pdo, array $body): void
         jsonSuccess();
     } catch (Exception $e) {
         $pdo->rollBack();
-        jsonError('Erro ao recusar solicitacao: ' . $e->getMessage(), 500);
+        jsonError('Erro ao recusar solicitacao.', 500);
     }
 }
 
@@ -1511,7 +1510,7 @@ function cancelNewFaOffer(PDO $pdo, array $body, ?int $teamId): void
         jsonSuccess();
     } catch (Exception $e) {
         $pdo->rollBack();
-        jsonError('Erro ao excluir proposta: ' . $e->getMessage(), 500);
+        jsonError('Erro ao excluir proposta.', 500);
     }
 }
 
@@ -1827,7 +1826,7 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
         ]);
     } catch (Exception $e) {
         $pdo->rollBack();
-        jsonError('Erro ao aprovar proposta: ' . $e->getMessage(), 500);
+        jsonError('Erro ao aprovar proposta.', 500);
     }
 }
 
@@ -1873,6 +1872,6 @@ function closeWithoutWinner(PDO $pdo, array $body): void
         jsonSuccess();
     } catch (Exception $e) {
         $pdo->rollBack();
-        jsonError('Erro ao encerrar sem vencedor: ' . $e->getMessage(), 500);
+        jsonError('Erro ao encerrar sem vencedor.', 500);
     }
 }

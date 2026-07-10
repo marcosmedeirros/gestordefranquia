@@ -1,0 +1,4 @@
+# Scripts de migração legados: uso único via CLI pelo desenvolvedor.
+# Nunca devem ser acessíveis pela web (alteram schema do banco sem autenticação).
+Order Allow,Deny
+Deny from all

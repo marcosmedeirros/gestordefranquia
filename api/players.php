@@ -1,5 +1,4 @@
 <?php
-session_start();
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../backend/db.php';
@@ -298,7 +297,7 @@ if ($method === 'GET') {
         exit;
     } catch (Exception $e) {
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao buscar jogadores', 'details' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro ao buscar jogadores']);
         exit;
     }
 }
@@ -785,7 +784,7 @@ if ($method === 'DELETE') {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            jsonResponse(500, ['error' => 'Erro ao aposentar jogador: ' . $e->getMessage()]);
+            jsonResponse(500, ['error' => 'Erro ao aposentar jogador']);
         }
     }
 
@@ -844,7 +843,7 @@ if ($method === 'DELETE') {
         $pdo->commit();
     } catch (Exception $e) {
         $pdo->rollBack();
-        jsonResponse(500, ['error' => 'Erro ao dispensar jogador: ' . $e->getMessage()]);
+        jsonResponse(500, ['error' => 'Erro ao dispensar jogador']);
     }
 
     $newCap = topEightCap($pdo, (int)$row['team_id']);

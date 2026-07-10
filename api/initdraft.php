@@ -570,7 +570,7 @@ if ($method === 'GET') {
         }
     } catch (Exception $e) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
     }
     exit;
 }
@@ -1091,7 +1091,7 @@ if ($method === 'POST') {
         }
     } catch (Exception $e) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
     }
     exit;
 }

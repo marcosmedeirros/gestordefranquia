@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
 
@@ -12,6 +13,10 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    $user = getUserSession();
+    if (!$user || $user['user_type'] !== 'admin') {
+        jsonResponse(403, ['error' => 'Acesso negado. Apenas administradores.']);
+    }
     $body = readJsonBody();
     $name = trim($body['name'] ?? '');
     $importance = (int) ($body['importance'] ?? 0);

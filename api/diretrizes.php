@@ -2,7 +2,6 @@
 // Define timezone padrão para todo o sistema: São Paulo/Brasília
 date_default_timezone_set('America/Sao_Paulo');
 
-session_start();
 header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/backend/auth.php';
@@ -792,7 +791,7 @@ if ($method === 'POST') {
             } catch (Exception $e) {
                 $pdo->rollBack();
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => 'Erro ao enviar diretriz: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro ao enviar diretriz']);
             }
             break;
 
@@ -819,7 +818,7 @@ if ($method === 'POST') {
             } catch (Exception $e) {
                 $pdo->rollBack();
                 http_response_code(500);
-                echo json_encode(['success' => false, 'error' => 'Erro ao salvar diretriz do time: ' . $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro ao salvar diretriz do time']);
             }
             break;
 
@@ -844,7 +843,7 @@ if ($method === 'POST') {
                 $deadlineDateTime = buildDeadlineDateTime($deadlineDate, $deadlineTime);
             } catch (Exception $e) {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
                 exit;
             }
             $stmt = $pdo->prepare('INSERT INTO directive_deadlines (league, deadline_date, description, phase) VALUES (?, ?, ?, ?)');
@@ -922,7 +921,7 @@ if ($method === 'PUT') {
             $deadlineDateTime = buildDeadlineDateTime($data['deadline_date'] ?? null, $data['deadline_time'] ?? null);
         } catch (Exception $e) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             exit;
         }
         $updates[] = 'deadline_date = ?';
