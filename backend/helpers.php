@@ -767,6 +767,65 @@ function recordLoginSuccess(PDO $pdo, string $email): void
     $pdo->prepare('DELETE FROM login_attempts WHERE identifier = ?')->execute([loginRateLimitIdentifier($email)]);
 }
 
+// Garante no máximo 1 registro ativo por time+liga no Hall da Fama, pra não
+// misturar títulos de divisões diferentes no mesmo contador.
+function ensureHallOfFameLeagueUnique(PDO $pdo): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+    try {
+        $idx = $pdo->query("SHOW INDEX FROM hall_of_fame WHERE Key_name = 'uk_hof_team_league'")->fetch();
+        if (!$idx) {
+            $pdo->exec("ALTER TABLE hall_of_fame ADD UNIQUE KEY uk_hof_team_league (team_id, league)");
+        }
+    } catch (Exception $e) {
+        error_log('[ensureHallOfFameLeagueUnique] ' . $e->getMessage());
+    }
+    $checked = true;
+}
+
+// Soma 1 título ao time na liga informada — cria o registro (com 1 título) se
+// ainda não existir um pra esse time nessa liga especificamente.
+function hallOfFameAddTitle(PDO $pdo, int $teamId, string $league): void
+{
+    ensureHallOfFameLeagueUnique($pdo);
+
+    $stmtExisting = $pdo->prepare('SELECT id FROM hall_of_fame WHERE team_id = ? AND league = ? AND is_active = 1 LIMIT 1');
+    $stmtExisting->execute([$teamId, $league]);
+    $existingId = $stmtExisting->fetchColumn();
+
+    if ($existingId) {
+        $pdo->prepare('UPDATE hall_of_fame SET titles = titles + 1 WHERE id = ?')->execute([(int)$existingId]);
+        return;
+    }
+
+    $stmtTeam = $pdo->prepare('SELECT t.city, t.name, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.id = ?');
+    $stmtTeam->execute([$teamId]);
+    $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
+    $teamName = trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''));
+    $gmName = $team['owner_name'] ?? '';
+
+    $pdo->prepare('INSERT INTO hall_of_fame (is_active, league, team_id, team_name, gm_name, titles) VALUES (1, ?, ?, ?, ?, 1)')
+        ->execute([$league, $teamId, $teamName ?: null, $gmName ?: null]);
+}
+
+// Remove 1 título do time na liga informada — usado quando o campeão de uma
+// temporada já registrada é corrigido, pra não deixar o título "fantasma".
+function hallOfFameRemoveTitle(PDO $pdo, int $teamId, string $league): void
+{
+    $stmtExisting = $pdo->prepare('SELECT id, titles FROM hall_of_fame WHERE team_id = ? AND league = ? AND is_active = 1 LIMIT 1');
+    $stmtExisting->execute([$teamId, $league]);
+    $row = $stmtExisting->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return;
+    }
+
+    $newTitles = max(0, (int)$row['titles'] - 1);
+    $pdo->prepare('UPDATE hall_of_fame SET titles = ? WHERE id = ?')->execute([$newTitles, (int)$row['id']]);
+}
+
 function normalizeBrazilianPhone(?string $input): ?string
 {
     if ($input === null) {

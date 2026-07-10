@@ -1272,6 +1272,12 @@ if ($method === 'PUT') {
                 $params[] = $gmName;
             }
 
+            $validLeaguesHof = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+            if (isset($data['league']) && in_array($data['league'], $validLeaguesHof, true)) {
+                $fields[] = 'league = ?';
+                $params[] = $data['league'];
+            }
+
             if (empty($fields)) {
                 echo json_encode(['success' => true]);
                 exit;
@@ -1960,15 +1966,29 @@ if ($method === 'POST') {
                 }
             }
 
-            $stmt = $pdo->prepare('INSERT INTO hall_of_fame (is_active, league, team_id, team_name, gm_name, titles) VALUES (?, ?, ?, ?, ?, ?)');
-            $stmt->execute([
-                $isActive ? 1 : 0,
-                $league ?: null,
-                $isActive ? $teamId : null,
-                $teamName ?: null,
-                $gmName ?: null,
-                $titles
-            ]);
+            // Se já existe um registro ativo pra esse time nessa liga, soma os títulos
+            // em vez de criar outra linha (evita duplicar/misturar o mesmo time+liga).
+            $existingHofId = null;
+            if ($isActive) {
+                $stmtHofExisting = $pdo->prepare('SELECT id FROM hall_of_fame WHERE team_id = ? AND league = ? AND is_active = 1 LIMIT 1');
+                $stmtHofExisting->execute([$teamId, $league]);
+                $existingHofId = $stmtHofExisting->fetchColumn() ?: null;
+            }
+
+            if ($existingHofId) {
+                $pdo->prepare('UPDATE hall_of_fame SET titles = titles + ?, team_name = ?, gm_name = ? WHERE id = ?')
+                    ->execute([$titles, $teamName ?: null, $gmName ?: null, (int)$existingHofId]);
+            } else {
+                $stmt = $pdo->prepare('INSERT INTO hall_of_fame (is_active, league, team_id, team_name, gm_name, titles) VALUES (?, ?, ?, ?, ?, ?)');
+                $stmt->execute([
+                    $isActive ? 1 : 0,
+                    $league ?: null,
+                    $isActive ? $teamId : null,
+                    $teamName ?: null,
+                    $gmName ?: null,
+                    $titles
+                ]);
+            }
 
             echo json_encode(['success' => true]);
             break;

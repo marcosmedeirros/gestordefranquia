@@ -1916,6 +1916,11 @@ async function loadHallOfFameList() {
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          ${isActive ? `
+          <select data-hof-league="${item.id}"
+            style="background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:5px 6px;color:var(--text);font-size:12px;font-weight:600;outline:none">
+            ${['ELITE', 'NEXT', 'RISE', 'ROOKIE'].map(lg => `<option value="${lg}" ${item.league === lg ? 'selected' : ''}>${lg}</option>`).join('')}
+          </select>` : ''}
           <input type="number" min="0" value="${item.titles || 0}" data-hof-title="${item.id}"
             style="width:64px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:5px 8px;color:var(--amber);font-size:13px;font-weight:700;text-align:center;outline:none">
           <button class="btn-ghost" style="padding:5px 8px;color:#22c55e" onclick="saveHallOfFameTitles(${item.id})" title="Salvar">
@@ -1934,13 +1939,17 @@ async function loadHallOfFameList() {
 
 async function saveHallOfFameTitles(id) {
   const input = document.querySelector(`[data-hof-title="${id}"]`);
+  const leagueSelect = document.querySelector(`[data-hof-league="${id}"]`);
   if (!input) return;
   const titles = parseInt(input.value || '0', 10);
+  const payload = { id, titles: Number.isNaN(titles) ? 0 : titles };
+  if (leagueSelect) payload.league = leagueSelect.value;
   try {
     await api('admin.php?action=hall_of_fame', {
       method: 'PUT',
-      body: JSON.stringify({ id, titles: Number.isNaN(titles) ? 0 : titles })
+      body: JSON.stringify(payload)
     });
+    loadHallOfFameList();
   } catch (e) {
     alert(e.error || 'Erro ao salvar');
   }
