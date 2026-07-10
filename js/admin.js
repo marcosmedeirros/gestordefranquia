@@ -544,8 +544,8 @@ function showWaitlistModal() {
   }
 }
 
-const WAITLIST_STATUS_LABEL = { pending: 'Aguardando', link_sent: 'Link enviado', registered: 'Cadastrado' };
-const WAITLIST_STATUS_COLOR = { pending: '#f59e0b', link_sent: '#3b82f6', registered: '#22c55e' };
+const WAITLIST_STATUS_LABEL = { pending: 'Aguardando', link_sent: 'Link enviado', accepted: 'Aceito', registered: 'Cadastrado' };
+const WAITLIST_STATUS_COLOR = { pending: '#f59e0b', link_sent: '#3b82f6', accepted: '#22c55e', registered: '#22c55e' };
 
 async function loadWaitlistRequests() {
   const list = document.getElementById('waitlistModalList');
@@ -562,7 +562,9 @@ async function loadWaitlistRequests() {
       return;
     }
 
-    list.innerHTML = requests.map(r => {
+    const sorted = [...requests].sort((a, b) => (a.status === 'accepted') - (b.status === 'accepted'));
+
+    list.innerHTML = sorted.map(r => {
       const link = `${window.location.origin}/register.php?token=${r.token}`;
       const statusLabel = WAITLIST_STATUS_LABEL[r.status] || r.status;
       const statusColor = WAITLIST_STATUS_COLOR[r.status] || '#8d8d98';
@@ -577,10 +579,13 @@ async function loadWaitlistRequests() {
             </div>
             <span class="badge" style="background:${statusColor}22;color:${statusColor};border:1px solid ${statusColor}44">${statusLabel}</span>
           </div>
-          ${r.status !== 'registered' ? `
+          ${r.status !== 'registered' && r.status !== 'accepted' ? `
           <div class="d-flex gap-2 mt-2 flex-wrap">
             <button class="btn btn-sm btn-outline-orange" onclick="waitlistCopyLink('${link}', ${r.id})">
               <i class="bi bi-clipboard me-1"></i>Copiar link de cadastro
+            </button>
+            <button class="btn btn-sm btn-outline-success" onclick="waitlistAccept(${r.id})">
+              <i class="bi bi-check-lg me-1"></i>Aceitar
             </button>
             <button class="btn btn-sm btn-outline-danger" onclick="waitlistDismiss(${r.id})">
               <i class="bi bi-x-lg me-1"></i>Dispensar
@@ -604,6 +609,15 @@ async function waitlistCopyLink(link, id) {
     await api('waitlist.php', { method: 'PUT', body: JSON.stringify({ id, action: 'mark_sent' }) });
     loadWaitlistRequests();
   } catch (e) {}
+}
+
+async function waitlistAccept(id) {
+  try {
+    await api('waitlist.php', { method: 'PUT', body: JSON.stringify({ id, action: 'accept' }) });
+    loadWaitlistRequests();
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao aceitar pedido.');
+  }
 }
 
 async function waitlistDismiss(id) {

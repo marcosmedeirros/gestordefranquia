@@ -1114,6 +1114,15 @@ function runMigrations() {
     }
 
     try {
+        $waitlistStatusColumn = $pdo->query("SHOW COLUMNS FROM waitlist_requests LIKE 'status'")->fetch(PDO::FETCH_ASSOC);
+        if ($waitlistStatusColumn && stripos($waitlistStatusColumn['Type'], "'accepted'") === false) {
+            $pdo->exec("ALTER TABLE waitlist_requests MODIFY COLUMN status ENUM('pending','link_sent','accepted','registered','dismissed') NOT NULL DEFAULT 'pending'");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_waitlist_status_accepted: " . $e->getMessage();
+    }
+
+    try {
         $hasDirectiveDeadlines = $pdo->query("SHOW TABLES LIKE 'directive_deadlines'")->fetch();
         if ($hasDirectiveDeadlines) {
             $deadlineColumn = $pdo->query("SHOW COLUMNS FROM directive_deadlines LIKE 'deadline_date'")->fetch(PDO::FETCH_ASSOC);
@@ -1162,8 +1171,9 @@ function runMigrations() {
     ];
 }
 
-// Executar se chamado diretamente
-if (php_sapi_name() === 'cli' || (isset($_GET['run_migrations']) && $_GET['run_migrations'] === 'true')) {
+// Executar se chamado diretamente via CLI (nunca via web, para não expor
+// schema/migrações a visitantes anônimos nem permitir re-execução sob demanda).
+if (php_sapi_name() === 'cli') {
     $result = runMigrations();
     echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     exit;

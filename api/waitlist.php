@@ -3,7 +3,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
-session_start();
+require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
 
@@ -57,7 +57,7 @@ try {
         $id = (int)($body['id'] ?? 0);
         $action = $body['action'] ?? '';
 
-        if (!$id || !in_array($action, ['mark_sent', 'dismiss'], true)) {
+        if (!$id || !in_array($action, ['mark_sent', 'accept', 'dismiss'], true)) {
             jsonResponse(422, ['error' => 'Parâmetros inválidos']);
         }
 
@@ -65,6 +65,10 @@ try {
             $stmt = $pdo->prepare("UPDATE waitlist_requests SET status = 'link_sent', link_sent_at = NOW() WHERE id = ? AND status != 'registered'");
             $stmt->execute([$id]);
             jsonResponse(200, ['message' => 'Marcado como enviado.']);
+        } elseif ($action === 'accept') {
+            $stmt = $pdo->prepare("UPDATE waitlist_requests SET status = 'accepted' WHERE id = ? AND status != 'registered'");
+            $stmt->execute([$id]);
+            jsonResponse(200, ['message' => 'Pedido aceito.']);
         } else {
             $stmt = $pdo->prepare("UPDATE waitlist_requests SET status = 'dismissed' WHERE id = ? AND status != 'registered'");
             $stmt->execute([$id]);
@@ -76,8 +80,8 @@ try {
 
 } catch (PDOException $e) {
     error_log('Erro SQL no waitlist.php: ' . $e->getMessage());
-    jsonResponse(500, ['error' => 'Erro no banco de dados', 'details' => $e->getMessage()]);
+    jsonResponse(500, ['error' => 'Erro no banco de dados']);
 } catch (Exception $e) {
     error_log('Erro no waitlist.php: ' . $e->getMessage());
-    jsonResponse(500, ['error' => 'Erro interno do servidor', 'details' => $e->getMessage()]);
+    jsonResponse(500, ['error' => 'Erro interno do servidor']);
 }
