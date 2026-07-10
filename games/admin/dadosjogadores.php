@@ -33,6 +33,8 @@ try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN pts_medio DECIMAL(4,1)
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN reb_medio DECIMAL(4,1) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN ast_medio DECIMAL(4,1) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN premios_checado TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players MODIFY COLUMN pais VARCHAR(30) NOT NULL DEFAULT 'USA'"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN draft_time VARCHAR(5) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN posicao VARCHAR(10) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN altura VARCHAR(10) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN peso INT NULL"); } catch (Exception $e) {}
@@ -194,7 +196,7 @@ if ($action === 'list') {
     $total = (int)$stmtC->fetchColumn();
 
     // Busca página
-    $stmtL = $pdo->prepare("SELECT id,nome,times,pais,premios,eras,nba_person_id,ativo,time_atual,titulos,pts_medio,reb_medio,ast_medio,stats,posicao,altura,peso,nascimento,draft_ano,draft_rodada,draft_pick,numero_camisa FROM hoopgrid_players WHERE $whereStr ORDER BY $orderSql LIMIT $limit OFFSET $off");
+    $stmtL = $pdo->prepare("SELECT id,nome,times,pais,premios,eras,nba_person_id,ativo,time_atual,titulos,pts_medio,reb_medio,ast_medio,stats,posicao,altura,peso,nascimento,draft_ano,draft_rodada,draft_pick,draft_time,numero_camisa FROM hoopgrid_players WHERE $whereStr ORDER BY $orderSql LIMIT $limit OFFSET $off");
     $stmtL->execute($params);
     $players = $stmtL->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1129,7 +1131,7 @@ if ($action === 'import_bio') {
 
     $chunk = array_slice($allPids, $offset, $chunkSize);
 
-    $stmtU = $pdo->prepare("UPDATE hoopgrid_players SET posicao=?, altura=?, peso=?, nascimento=?, draft_ano=?, draft_rodada=?, draft_pick=?, numero_camisa=?, bio_checado=1 WHERE nba_person_id=?");
+    $stmtU = $pdo->prepare("UPDATE hoopgrid_players SET posicao=?, altura=?, peso=?, nascimento=?, draft_ano=?, draft_rodada=?, draft_pick=?, numero_camisa=?, pais=COALESCE(?, pais), bio_checado=1 WHERE nba_person_id=?");
 
     $hdrs_curl = [
         'Accept: application/json, text/plain, */*',
@@ -1214,8 +1216,9 @@ if ($action === 'import_bio') {
             $draftRodada = !empty($row[$ix['DRAFT_ROUND']])  && $row[$ix['DRAFT_ROUND']]  !== 'Undrafted' ? (int)$row[$ix['DRAFT_ROUND']]  : null;
             $draftPick   = !empty($row[$ix['DRAFT_NUMBER']]) && $row[$ix['DRAFT_NUMBER']] !== 'Undrafted' ? (int)$row[$ix['DRAFT_NUMBER']] : null;
             $numero      = trim($row[$ix['JERSEY']] ?? '') ?: null;
+            $pais        = trim($row[$ix['COUNTRY']] ?? '') ?: null;
 
-            $stmtU->execute([$posicao, $altura, $peso, $nascimento, $draftAno, $draftRodada, $draftPick, $numero, $pid]);
+            $stmtU->execute([$posicao, $altura, $peso, $nascimento, $draftAno, $draftRodada, $draftPick, $numero, $pais, $pid]);
             $updated++;
         }
 
@@ -1240,6 +1243,72 @@ if ($action === 'import_bio') {
         echo "NEXT:{$nextOffset}:{$total}:{$updated}\n";
     }
     flush();
+    exit;
+}
+
+// ── IMPORTAR TIME QUE DRAFTOU (1 chamada, historico completo) ────────────────
+if ($action === 'import_draft_teams') {
+    header('Content-Type: application/json');
+    set_time_limit(90);
+
+    $ch = curl_init("https://stats.nba.com/stats/drafthistory?LeagueID=00");
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 45,
+        CURLOPT_CONNECTTIMEOUT => 15,
+        CURLOPT_ENCODING       => '',
+        CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS      => 5,
+        CURLOPT_HTTPHEADER     => [
+            'Accept: application/json, text/plain, */*',
+            'Accept-Encoding: gzip, deflate, br',
+            'Accept-Language: en-US,en;q=0.9',
+            'Cache-Control: no-cache',
+            'Connection: keep-alive',
+            'DNT: 1',
+            'Host: stats.nba.com',
+            'Origin: https://www.nba.com',
+            'Pragma: no-cache',
+            'Referer: https://www.nba.com/',
+            'Sec-Fetch-Dest: empty',
+            'Sec-Fetch-Mode: cors',
+            'Sec-Fetch-Site: same-site',
+            'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'x-nba-stats-origin: stats',
+            'x-nba-stats-token: true',
+        ],
+    ]);
+    $raw  = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+    if ($err || $code !== 200) { echo json_encode(['ok'=>false,'error'=>"HTTP {$code}: {$err}"]); exit; }
+
+    $data = json_decode($raw, true);
+    $hdrs = $data['resultSets'][0]['headers'] ?? [];
+    $rows = $data['resultSets'][0]['rowSet']   ?? [];
+    if (!$rows) { echo json_encode(['ok'=>false,'error'=>'Nenhum dado retornado']); exit; }
+
+    $ix     = array_flip($hdrs);
+    $iPid   = $ix['PERSON_ID']          ?? null;
+    $iTeam  = $ix['TEAM_ABBREVIATION']  ?? null;
+    if ($iPid === null || $iTeam === null) { echo json_encode(['ok'=>false,'error'=>'Campos nao encontrados']); exit; }
+
+    $stmtU = $pdo->prepare("UPDATE hoopgrid_players SET draft_time=? WHERE nba_person_id=?");
+    $updated = 0;
+    foreach ($rows as $row) {
+        $pid  = (int)($row[$iPid] ?? 0);
+        $team = strtoupper(trim($row[$iTeam] ?? ''));
+        if (!$pid || !$team) continue;
+        $team = $TEAM_MAP[$team] ?? $team;
+        $stmtU->execute([$team, $pid]);
+        if ($stmtU->rowCount() > 0) $updated++;
+    }
+
+    echo json_encode(['ok'=>true,'total_picks'=>count($rows),'atualizados'=>$updated]);
     exit;
 }
 
@@ -1398,7 +1467,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <button class="btn btn-sm fw-bold" id="btnSyncStatus" style="background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.4);color:#4ade80"><i class="bi bi-arrow-repeat me-1"></i>Sincronizar Status/Time Atual</button>
         <button class="btn btn-sm fw-bold" id="btnDraft2026" style="background:rgba(236,72,153,.15);border:1px solid rgba(236,72,153,.4);color:#f472b6"><i class="bi bi-trophy me-1"></i>Aplicar Draft 2026 + Trocas</button>
         <button class="btn btn-sm fw-bold" id="btnImportBio" style="background:rgba(20,184,166,.15);border:1px solid rgba(20,184,166,.4);color:#2dd4bf"><i class="bi bi-person-badge me-1"></i>Bio (posição/altura/draft)</button>
-        <button class="btn btn-sm fw-bold" id="btnImportBio" style="background:rgba(20,184,166,.15);border:1px solid rgba(20,184,166,.4);color:#2dd4bf"><i class="bi bi-person-badge me-1"></i>Bio (posição/altura/draft)</button>
+        <button class="btn btn-sm fw-bold" id="btnDraftTeams" style="background:rgba(234,88,12,.15);border:1px solid rgba(234,88,12,.4);color:#fb923c"><i class="bi bi-flag me-1"></i>Time que Draftou</button>
       </div>
       <div id="log">Aguardando...</div>
     </div>
@@ -2034,6 +2103,27 @@ qs('btnImportBio').addEventListener('click', () => {
   qs('btnImportBio').disabled = true;
   log.textContent = 'Importando bio (posição, altura, peso, nascimento, draft, número) — ativos primeiro, depois aposentados.\nProcessa 50 jogadores por bloco com 5 req. paralelas.\n\n';
   importBioChunk(0);
+});
+
+// ── TIME QUE DRAFTOU ──────────────────────────────────────────────────────────
+qs('btnDraftTeams').addEventListener('click', async () => {
+  const log = qs('log');
+  const btn = qs('btnDraftTeams');
+  btn.disabled = true;
+  log.textContent = 'Buscando historico completo de drafts da NBA...\n';
+  try {
+    const r = await fetch('?action=import_draft_teams');
+    const d = await r.json();
+    if (d.ok) {
+      log.textContent += `✅ Concluído!\nPicks no histórico: ${d.total_picks}\nJogadores atualizados: ${d.atualizados}\n`;
+      loadPlayers(1);
+    } else {
+      log.textContent += `❌ Erro: ${d.error}\n`;
+    }
+  } catch(e) {
+    log.textContent += `❌ Falha: ${e.message}\n`;
+  }
+  btn.disabled = false;
 });
 
 // ── SINCRONIZAR STATUS ATIVO + TIME ATUAL ────────────────────────────────────
