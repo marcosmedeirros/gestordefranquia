@@ -547,6 +547,45 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           <input type="hidden" name="acao"      id="acaoInput"    value="criar_evento">
           <input type="hidden" name="id_evento" id="idEventoInput">
 
+          <label class="f-label">Pergunta pronta (atalho, opcional)</label>
+          <select class="f-select" id="presetSelect" onchange="aplicarPreset(this)" style="width:100%;margin-bottom:14px">
+            <option value="">— Escolher pergunta pronta ou digitar a sua abaixo —</option>
+            <optgroup label="Prêmios individuais">
+              <option>Quem vai ser o MVP?</option>
+              <option>Quem vai ser o ROY?</option>
+              <option>Quem vai ser o DPOY?</option>
+              <option>Quem vai ser o MIP?</option>
+              <option>Quem vai ser o 6homem?</option>
+            </optgroup>
+            <optgroup label="Temporada regular">
+              <option>Quem vai ser o seed1 - LESTE?</option>
+              <option>Quem vai ser o seed1 - OESTE?</option>
+            </optgroup>
+            <optgroup label="Draft">
+              <option>Quem vai a pick01?</option>
+            </optgroup>
+            <optgroup label="Playoffs — Quartas">
+              <option>Quartas 01 - OESTE?</option>
+              <option>Quartas 02 - OESTE?</option>
+              <option>Quartas 03 - OESTE?</option>
+              <option>Quartas 04 - OESTE?</option>
+              <option>Quartas 01 - LESTE?</option>
+              <option>Quartas 02 - LESTE?</option>
+              <option>Quartas 03 - LESTE?</option>
+              <option>Quartas 04 - LESTE?</option>
+            </optgroup>
+            <optgroup label="Playoffs — Semis">
+              <option>Semis 01 - OESTE?</option>
+              <option>Semis 02 - OESTE?</option>
+              <option>Semis 01 - LESTE?</option>
+              <option>Semis 02 - LESTE?</option>
+            </optgroup>
+            <optgroup label="Playoffs — Finais">
+              <option>Final de Conferência?</option>
+              <option>Final NBA?</option>
+            </optgroup>
+          </select>
+
           <label class="f-label">Pergunta / Evento</label>
           <input type="text" name="nome_evento" id="nomeInput" class="f-input"
                  placeholder="Ex: Quem ganha o jogo?" required>
@@ -792,6 +831,15 @@ function initAC(input) {
   document.addEventListener('click', e => {
     if (!wrap.contains(e.target)) drop.style.display = 'none';
   });
+}
+
+function aplicarPreset(select) {
+  const valor = select.value;
+  if (!valor) return;
+  const nomeInput = document.getElementById('nomeInput');
+  nomeInput.value = valor;
+  select.value = ''; // volta ao placeholder, deixa reutilizar pra proxima aposta
+  nomeInput.focus();
 }
 
 function addOpcao(id='', nome='', img='') {
