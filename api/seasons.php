@@ -1659,7 +1659,23 @@ try {
 
             $pdo->prepare("UPDATE teams SET ranking_titles = COALESCE(ranking_titles,0)+1 WHERE id = ?")->execute([$champion]);
 
+            // Campeão já registrado anteriormente pra essa temporada (se houver), pra manter o
+            // Hall da Fama consistente mesmo se o admin corrigir o campeão depois de já ter registrado.
+            $stmtPrevChampion = $pdo->prepare("SELECT champion_team_id FROM season_history WHERE season_id = ?");
+            $stmtPrevChampion->execute([$seasonId]);
+            $prevChampionRaw = $stmtPrevChampion->fetchColumn();
+            $prevChampion = ($prevChampionRaw !== false && $prevChampionRaw !== null) ? (int)$prevChampionRaw : null;
+
             $pdo->prepare("INSERT INTO season_history (season_id,league,sprint_number,season_number,year,champion_team_id,runner_up_team_id,mvp_player,mvp_team_id,dpoy_player,dpoy_team_id,mip_player,mip_team_id,sixth_man_player,sixth_man_team_id,roy_player,roy_team_id,nba_cup_team_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE league=VALUES(league),sprint_number=VALUES(sprint_number),season_number=VALUES(season_number),year=VALUES(year),champion_team_id=VALUES(champion_team_id),runner_up_team_id=VALUES(runner_up_team_id),mvp_player=VALUES(mvp_player),mvp_team_id=VALUES(mvp_team_id),dpoy_player=VALUES(dpoy_player),dpoy_team_id=VALUES(dpoy_team_id),mip_player=VALUES(mip_player),mip_team_id=VALUES(mip_team_id),sixth_man_player=VALUES(sixth_man_player),sixth_man_team_id=VALUES(sixth_man_team_id),roy_player=VALUES(roy_player),roy_team_id=VALUES(roy_team_id),nba_cup_team_id=VALUES(nba_cup_team_id)")->execute([$seasonId,$league2,$sprintNumber2,$seasonNumber2,(int)($seasonData2['year']??date('Y')),$champion,$runnerUp,$input['mvp']??null,!empty($input['mvp_team_id'])?(int)$input['mvp_team_id']:null,$input['dpoy']??null,!empty($input['dpoy_team_id'])?(int)$input['dpoy_team_id']:null,$input['mip']??null,!empty($input['mip_team_id'])?(int)$input['mip_team_id']:null,$input['sixth_man']??null,!empty($input['sixth_man_team_id'])?(int)$input['sixth_man_team_id']:null,$input['roy']??null,!empty($input['roy_team_id'])?(int)$input['roy_team_id']:null,$nbaCupTeamId2]);
+
+            // Hall da Fama: soma o título pro campeão (por liga), e se o campeão dessa
+            // temporada estiver sendo corrigido, tira o título do campeão antigo primeiro.
+            if ($prevChampion !== $champion) {
+                if ($prevChampion !== null) {
+                    hallOfFameRemoveTitle($pdo, $prevChampion, $league2);
+                }
+                hallOfFameAddTitle($pdo, $champion, $league2);
+            }
 
             $pdo->commit();
             snapshotPlayersForSeason($pdo, $seasonId, $league2);
