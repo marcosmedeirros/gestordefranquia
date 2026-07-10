@@ -32,6 +32,7 @@ try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN titulos INT NOT NULL D
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN pts_medio DECIMAL(4,1) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN reb_medio DECIMAL(4,1) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN ast_medio DECIMAL(4,1) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN premios_checado TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
 // ── Mapeamento abreviaturas NBA ──────────────────────────────────────────────
 $TEAM_MAP = [
@@ -358,9 +359,12 @@ if ($action === 'import_awards') {
     $offset    = max(0, (int)($_GET['offset'] ?? 0));
     $chunkSize = 50;
     $parallel  = 5;
+    $forca     = !empty($_GET['force']); // force=1 reprocessa todos, mesmo quem ja foi checado
 
-    $allPids = $pdo->query("SELECT nba_person_id FROM hoopgrid_players WHERE nba_person_id IS NOT NULL ORDER BY id")
-                   ->fetchAll(PDO::FETCH_COLUMN);
+    $sqlPendentesPremios = $forca
+        ? "SELECT nba_person_id FROM hoopgrid_players WHERE nba_person_id IS NOT NULL ORDER BY id"
+        : "SELECT nba_person_id FROM hoopgrid_players WHERE nba_person_id IS NOT NULL AND premios_checado=0 ORDER BY id";
+    $allPids = $pdo->query($sqlPendentesPremios)->fetchAll(PDO::FETCH_COLUMN);
     $total = count($allPids);
 
     if ($offset >= $total) { echo "DONE:{$total}\n"; flush(); exit; }
@@ -375,7 +379,8 @@ if ($action === 'import_awards') {
     foreach ($stmtE->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $existingMap[(int)$r['nba_person_id']] = json_decode($r['premios'] ?: '[]', true) ?: [];
     }
-    $stmtU = $pdo->prepare("UPDATE hoopgrid_players SET premios=?, titulos=? WHERE nba_person_id=?");
+    $stmtU = $pdo->prepare("UPDATE hoopgrid_players SET premios=?, titulos=?, premios_checado=1 WHERE nba_person_id=?");
+    $stmtChecado = $pdo->prepare("UPDATE hoopgrid_players SET premios_checado=1 WHERE nba_person_id=?");
 
     $mapAward = function(string $desc, $allnbaNum): ?string {
         $d = strtolower(trim($desc));
@@ -459,12 +464,12 @@ if ($action === 'import_awards') {
             $data = json_decode($raw, true);
             $rhdrs = $data['resultSets'][0]['headers'] ?? [];
             $rrows = $data['resultSets'][0]['rowSet']   ?? [];
-            if (!$rhdrs) continue;
+            if (!$rhdrs) { $errors++; continue; }
 
             $ix      = array_flip($rhdrs);
             $iDesc   = $ix['DESCRIPTION']        ?? null;
             $iAllNba = $ix['ALL_NBA_TEAM_NUMBER'] ?? null;
-            if ($iDesc === null) continue;
+            if ($iDesc === null) { $errors++; continue; }
 
             $current = $existingMap[$pid] ?? [];
             $changed = false;
@@ -478,11 +483,15 @@ if ($action === 'import_awards') {
                     $changed   = true;
                 }
             }
+            // Resposta valida da API - marca como checado independente de ter premio ou nao,
+            // pra nao reprocessar esse jogador de novo em reinicios futuros.
             if ($changed || $titulos > 0) {
                 sort($current);
                 $stmtU->execute([json_encode(array_values($current)), $titulos, $pid]);
-                $updated++;
+            } else {
+                $stmtChecado->execute([$pid]);
             }
+            $updated++;
         }
 
         curl_multi_close($mh);
