@@ -63,12 +63,24 @@ function dbGames(): ?PDO
 
 function ensureSchema(PDO $pdo, string $dbName): void
 {
-    // Carrega e executa migrações automáticas
+    // Carrega e executa migrações automáticas — mas só de verdade a cada X segundos.
+    // Rodar a lista inteira (dezenas de SHOW/ALTER) em toda requisição deixava até o
+    // login lento (~1.5s só nisso), o que sob carga real pode até estourar timeout
+    // no cliente. As migrações são idempotentes, então pular a maioria das chamadas
+    // é seguro — o próximo request após o throttle aplica qualquer migração nova.
+    $marker = __DIR__ . '/.migrations_last_run';
+    $throttleSeconds = 60;
+    if (is_file($marker) && (time() - (int)@file_get_contents($marker)) < $throttleSeconds) {
+        return;
+    }
+
     require_once __DIR__ . '/migrations.php';
-    
+
     try {
         runMigrations();
     } catch (Exception $e) {
         error_log('Erro ao executar migrações: ' . $e->getMessage());
     }
+
+    @file_put_contents($marker, (string)time());
 }
