@@ -1927,11 +1927,10 @@ async function loadHallOfFameList() {
           ${rows.map(row => `
           <div style="display:flex;align-items:center;gap:8px;padding-left:6px">
             <span style="font-size:10px;font-weight:700;background:var(--red-soft);color:var(--red);border:1px solid rgba(252,0,37,.2);border-radius:999px;padding:1px 7px;min-width:52px;text-align:center">${row.league}${row.league === g.current_league ? ' •' : ''}</span>
-            ${row.is_active ? `
             <select data-hof-league="${row.id}"
               style="background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:5px 6px;color:var(--text);font-size:12px;font-weight:600;outline:none">
               ${['ELITE', 'NEXT', 'RISE', 'ROOKIE'].map(lg => `<option value="${lg}" ${row.league === lg ? 'selected' : ''}>${lg}</option>`).join('')}
-            </select>` : ''}
+            </select>
             <input type="number" min="0" value="${row.titles || 0}" data-hof-title="${row.id}"
               style="width:64px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:5px 8px;color:var(--amber);font-size:13px;font-weight:700;text-align:center;outline:none">
             <button class="btn-ghost" style="padding:5px 8px;color:#22c55e" onclick="saveHallOfFameTitles(${row.id})" title="Salvar">

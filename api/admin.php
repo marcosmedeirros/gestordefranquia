@@ -1918,9 +1918,18 @@ if ($method === 'POST') {
                     echo json_encode(['success' => false, 'error' => 'Time nao encontrado']);
                     exit;
                 }
-                $league = $team['league'] ?? $league;
+                $teamCurrentLeague = $team['league'] ?? null;
+                // Respeita a liga escolhida no formulário (pra permitir cadastrar título
+                // histórico de uma liga diferente da atual do time); só usa a liga atual
+                // do time como fallback se nenhuma foi selecionada.
+                $league = $league ?: $teamCurrentLeague;
                 $teamName = trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''));
                 $gmName = $team['owner_name'] ?? '';
+                // Se a liga escolhida não é a atual do time, o registro não pode ficar
+                // "ativo" de verdade (o time não está mais lá) -- vira histórico.
+                if ($teamCurrentLeague !== null && $league !== $teamCurrentLeague) {
+                    $isActive = false;
+                }
             } else {
                 if ($gmName === '') {
                     http_response_code(400);
@@ -1929,24 +1938,24 @@ if ($method === 'POST') {
                 }
             }
 
-            // Se já existe um registro ativo pra esse time nessa liga, soma os títulos
+            // Se já existe um registro pra esse time+liga (ativo ou não), soma os títulos
             // em vez de criar outra linha (evita duplicar/misturar o mesmo time+liga).
             $existingHofId = null;
-            if ($isActive) {
-                $stmtHofExisting = $pdo->prepare('SELECT id FROM hall_of_fame WHERE team_id = ? AND league = ? AND is_active = 1 LIMIT 1');
+            if ($teamId) {
+                $stmtHofExisting = $pdo->prepare('SELECT id FROM hall_of_fame WHERE team_id = ? AND league = ? LIMIT 1');
                 $stmtHofExisting->execute([$teamId, $league]);
                 $existingHofId = $stmtHofExisting->fetchColumn() ?: null;
             }
 
             if ($existingHofId) {
-                $pdo->prepare('UPDATE hall_of_fame SET titles = titles + ?, team_name = ?, gm_name = ? WHERE id = ?')
-                    ->execute([$titles, $teamName ?: null, $gmName ?: null, (int)$existingHofId]);
+                $pdo->prepare('UPDATE hall_of_fame SET titles = titles + ?, team_name = ?, gm_name = ?, is_active = ? WHERE id = ?')
+                    ->execute([$titles, $teamName ?: null, $gmName ?: null, $isActive ? 1 : 0, (int)$existingHofId]);
             } else {
                 $stmt = $pdo->prepare('INSERT INTO hall_of_fame (is_active, league, team_id, team_name, gm_name, titles) VALUES (?, ?, ?, ?, ?, ?)');
                 $stmt->execute([
                     $isActive ? 1 : 0,
                     $league ?: null,
-                    $isActive ? $teamId : null,
+                    $teamId,
                     $teamName ?: null,
                     $gmName ?: null,
                     $titles
