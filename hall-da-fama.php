@@ -172,6 +172,17 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .hof-badge.active { background: rgba(34,197,94,.10); color: var(--green); border: 1px solid rgba(34,197,94,.2); }
     .hof-badge.inactive { background: var(--panel-3); color: var(--text-3); border: 1px solid var(--border); }
 
+    /* Badges de título em destaque (número grande) usados no pódio */
+    .title-badge {
+      display: inline-flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 8px 14px; border-radius: 12px;
+      background: var(--panel-3); border: 1px solid var(--border-md);
+    }
+    .title-badge.current { background: var(--red-soft); border-color: var(--border-red); }
+    .title-badge .num { font-size: 24px; font-weight: 900; line-height: 1; color: var(--amber); }
+    .title-badge .lg { font-size: 9px; font-weight: 700; letter-spacing: .5px; color: var(--text-2); }
+    .title-badge.current .lg { color: var(--red); }
+
     /* ── Pódio (top 3) ───────────────────────────── */
     .hof-podium {
       display: grid;
@@ -199,10 +210,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .podium-name { font-size: 15px; font-weight: 800; color: var(--text); line-height: 1.25; }
     .podium-card.rank-1 .podium-name { font-size: 18px; }
     .podium-team { font-size: 11px; color: var(--text-2); margin-top: 2px; min-height: 14px; }
-    .podium-score { font-size: 30px; font-weight: 900; color: var(--amber); line-height: 1; margin-top: 14px; }
-    .podium-card.rank-1 .podium-score { font-size: 40px; }
-    .podium-score-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--text-3); margin: 3px 0 12px; }
-    .podium-badges { display: flex; justify-content: center; gap: 5px; flex-wrap: wrap; }
+    .podium-titles { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+    .podium-card.rank-1 .title-badge .num { font-size: 30px; }
+    .podium-card.rank-1 .title-badge { padding: 10px 16px; }
     @media (max-width: 700px) {
       .hof-podium { grid-template-columns: 1fr; }
       .podium-card.rank-1, .podium-card.rank-2, .podium-card.rank-3 { order: initial; }
@@ -221,8 +231,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .hof-row-name { flex: 1; min-width: 0; }
     .hof-row-name .name { font-size: 14px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .hof-row-name .team { font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .hof-row-badges { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; max-width: 45%; }
-    .hof-row-score { font-size: 19px; font-weight: 800; color: var(--amber); min-width: 34px; text-align: right; flex-shrink: 0; }
+    .hof-row-badges { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; max-width: 60%; }
     @media (max-width: 560px) {
       .hof-row-badges { display: none; }
     }
@@ -419,17 +428,27 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  function leagueBadges(g) {
+  function sortedLeagueEntries(g) {
     return Object.entries(g.leagues || {})
       .filter(([lg]) => activeFilter === 'ALL' || lg === activeFilter)
-      .sort((a, b) => (HOF_LEAGUE_ORDER[a[0]] ?? 9) - (HOF_LEAGUE_ORDER[b[0]] ?? 9))
+      .sort((a, b) => (HOF_LEAGUE_ORDER[a[0]] ?? 9) - (HOF_LEAGUE_ORDER[b[0]] ?? 9));
+  }
+
+  function leagueBadges(g) {
+    return sortedLeagueEntries(g)
       .map(([lg, titles]) => `<span class="hof-badge league${lg === g.current_league ? ' current' : ''}">${escHtml(lg)} ${titles}</span>`)
       .join('');
   }
 
-  function headlineFor(g) {
-    // "Todas": pontuação ponderada por liga (Elite pesa mais). Filtrado numa liga: título bruto daquela liga.
-    return activeFilter === 'ALL' ? (Number(g.weighted_score) || 0) : (Number((g.leagues || {})[activeFilter]) || 0);
+  // Números grandes de título (sem pontuação calculada) — um badge por liga que o GM tem título.
+  function titleBadgesLarge(g) {
+    return sortedLeagueEntries(g)
+      .map(([lg, titles]) => `
+        <span class="title-badge${lg === g.current_league ? ' current' : ''}">
+          <span class="num">${titles}</span>
+          <span class="lg">${escHtml(lg)}</span>
+        </span>
+      `).join('');
   }
 
   function renderHallOfFame(groups) {
@@ -464,9 +483,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
               <div class="podium-medal">${PODIUM_MEDALS[idx]}</div>
               <div class="podium-name">${gmName}</div>
               <div class="podium-team">${teams}</div>
-              <div class="podium-score">${headlineFor(g)}</div>
-              <div class="podium-score-label">${activeFilter === 'ALL' ? 'pontos' : 'título' + (headlineFor(g) === 1 ? '' : 's') + ' na ' + activeFilter}</div>
-              <div class="podium-badges">${leagueBadges(g)}</div>
+              <div class="podium-titles">${titleBadgesLarge(g)}</div>
             </div>
           `;
         }).join('')}
@@ -486,7 +503,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
                 ${teams ? `<div class="team">${teams}</div>` : ''}
               </div>
               <div class="hof-row-badges">${leagueBadges(g)}</div>
-              <div class="hof-row-score">${headlineFor(g)}</div>
             </div>
           `;
         }).join('')}
