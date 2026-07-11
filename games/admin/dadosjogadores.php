@@ -35,7 +35,10 @@ try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN ast_medio DECIMAL(4,1)
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN premios_checado TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players MODIFY COLUMN pais VARCHAR(30) NOT NULL DEFAULT 'USA'"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN draft_time VARCHAR(5) NULL"); } catch (Exception $e) {}
-try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN posicao VARCHAR(10) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN posicao VARCHAR(20) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE hoopgrid_players MODIFY COLUMN posicao VARCHAR(20) NULL"); } catch (Exception $e) {}
+// Reprocessa quem teve a posicao truncada quando a coluna ainda era VARCHAR(10) (ex.: "Forward-Ce")
+try { $pdo->exec("UPDATE hoopgrid_players SET bio_checado=0 WHERE bio_checado=1 AND CHAR_LENGTH(posicao)=10"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN altura VARCHAR(10) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN peso INT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE hoopgrid_players ADD COLUMN nascimento DATE NULL"); } catch (Exception $e) {}
