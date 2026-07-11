@@ -214,7 +214,7 @@ if ($action === 'save_player' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $id     = isset($body['id']) ? (int)$body['id'] : 0;
     $nome   = trim($body['nome'] ?? '');
     $times  = json_encode(array_values(array_filter(array_map('trim', (array)($body['times'] ?? [])))));
-    $pais   = strtoupper(trim($body['pais'] ?? 'USA'));
+    $pais   = trim($body['pais'] ?? 'USA') ?: 'USA';
     $premios= json_encode(array_values(array_filter(array_map('trim', (array)($body['premios'] ?? [])))));
     $eras   = json_encode(array_values(array_filter(array_map('trim', (array)($body['eras'] ?? [])))));
     $pid    = !empty($body['nba_person_id']) ? (int)$body['nba_person_id'] : null;
@@ -1565,7 +1565,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       </div>
       <div>
         <label class="f-label">País</label>
-        <input class="inp" id="ePais" placeholder="USA" maxlength="5">
+        <input class="inp" id="ePais" placeholder="USA">
       </div>
     </div>
 
@@ -1791,7 +1791,7 @@ async function savePlayer() {
   const body = {
     id:            id ? parseInt(id) : 0,
     nome:          qs('eNome').value.trim(),
-    pais:          qs('ePais').value.trim().toUpperCase() || 'USA',
+    pais:          qs('ePais').value.trim() || 'USA',
     times:         _selTimes,
     eras:          _selEras,
     premios:       _selPremios,
