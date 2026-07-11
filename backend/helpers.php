@@ -792,23 +792,26 @@ function hallOfFameAddTitle(PDO $pdo, int $teamId, string $league): void
 {
     ensureHallOfFameLeagueUnique($pdo);
 
+    $stmtTeam = $pdo->prepare('SELECT t.city, t.name, t.user_id, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.id = ?');
+    $stmtTeam->execute([$teamId]);
+    $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
+    $teamName = trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''));
+    $gmName = $team['owner_name'] ?? '';
+    $userId = isset($team['user_id']) ? (int)$team['user_id'] : null;
+
     $stmtExisting = $pdo->prepare('SELECT id FROM hall_of_fame WHERE team_id = ? AND league = ? AND is_active = 1 LIMIT 1');
     $stmtExisting->execute([$teamId, $league]);
     $existingId = $stmtExisting->fetchColumn();
 
     if ($existingId) {
-        $pdo->prepare('UPDATE hall_of_fame SET titles = titles + 1 WHERE id = ?')->execute([(int)$existingId]);
+        // Atualiza também o GM/dono atual, caso tenha mudado desde o último título.
+        $pdo->prepare('UPDATE hall_of_fame SET titles = titles + 1, gm_name = ?, user_id = ? WHERE id = ?')
+            ->execute([$gmName ?: null, $userId, (int)$existingId]);
         return;
     }
 
-    $stmtTeam = $pdo->prepare('SELECT t.city, t.name, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.id = ?');
-    $stmtTeam->execute([$teamId]);
-    $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
-    $teamName = trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''));
-    $gmName = $team['owner_name'] ?? '';
-
-    $pdo->prepare('INSERT INTO hall_of_fame (is_active, league, team_id, team_name, gm_name, titles) VALUES (1, ?, ?, ?, ?, 1)')
-        ->execute([$league, $teamId, $teamName ?: null, $gmName ?: null]);
+    $pdo->prepare('INSERT INTO hall_of_fame (is_active, league, team_id, user_id, team_name, gm_name, titles) VALUES (1, ?, ?, ?, ?, ?, 1)')
+        ->execute([$league, $teamId, $userId, $teamName ?: null, $gmName ?: null]);
 }
 
 // Remove 1 título do time na liga informada — usado quando o campeão de uma
@@ -824,6 +827,93 @@ function hallOfFameRemoveTitle(PDO $pdo, int $teamId, string $league): void
 
     $newTitles = max(0, (int)$row['titles'] - 1);
     $pdo->prepare('UPDATE hall_of_fame SET titles = ? WHERE id = ?')->execute([$newTitles, (int)$row['id']]);
+}
+
+// Agrupa os registros do Hall da Fama por GM (por user_id quando disponível,
+// caindo pro nome do GM como fallback nos registros congelados/legados sem
+// vínculo de conta). Cada grupo junta os times que a pessoa teve e soma os
+// títulos por liga, pra montar um card único por pessoa em vez de uma linha
+// por time+liga. Ordena por títulos na Elite primeiro (a divisão top),
+// depois pelo total geral.
+function getHallOfFameGrouped(PDO $pdo): array
+{
+    $rows = $pdo->query("
+        SELECT hof.id, hof.is_active, hof.league, hof.team_id, hof.user_id AS stored_user_id,
+               hof.team_name, hof.gm_name, hof.titles,
+               t.city AS team_city, t.name AS team_name_live, u.name AS gm_name_live
+        FROM hall_of_fame hof
+        LEFT JOIN teams t ON hof.team_id = t.id
+        LEFT JOIN users u ON t.user_id = u.id
+        WHERE hof.titles > 0
+        ORDER BY hof.id
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $groups = [];
+    foreach ($rows as $row) {
+        $isActive = (int)($row['is_active'] ?? 0) === 1;
+        $teamName = $isActive
+            ? trim(($row['team_city'] ?? '') . ' ' . ($row['team_name_live'] ?? ''))
+            : (string)($row['team_name'] ?? '');
+        if ($teamName === '') {
+            $teamName = (string)($row['team_name'] ?? '');
+        }
+        $gmName = $isActive ? ($row['gm_name_live'] ?? '') : ($row['gm_name'] ?? '');
+        if (!$gmName) {
+            $gmName = $row['gm_name'] ?? '';
+        }
+
+        $userId = $row['stored_user_id'] !== null ? (int)$row['stored_user_id'] : null;
+        $groupKey = $userId ? ('u' . $userId) : ('n' . mb_strtolower(trim($gmName)));
+        if ($groupKey === 'n') {
+            $groupKey = 'row' . $row['id']; // sem nome nem user_id: nao agrupa com nada
+        }
+
+        if (!isset($groups[$groupKey])) {
+            $groups[$groupKey] = [
+                'gm_name' => $gmName,
+                'user_id' => $userId,
+                'is_active' => false,
+                'current_league' => null,
+                'teams' => [],
+                'leagues' => [],
+                'total_titles' => 0,
+                'rows' => [],
+            ];
+        }
+
+        if ($gmName && !$groups[$groupKey]['gm_name']) {
+            $groups[$groupKey]['gm_name'] = $gmName;
+        }
+        if ($teamName && !in_array($teamName, $groups[$groupKey]['teams'], true)) {
+            $groups[$groupKey]['teams'][] = $teamName;
+        }
+        $league = $row['league'] ?: 'N/A';
+        $groups[$groupKey]['leagues'][$league] = ($groups[$groupKey]['leagues'][$league] ?? 0) + (int)$row['titles'];
+        $groups[$groupKey]['total_titles'] += (int)$row['titles'];
+        $groups[$groupKey]['rows'][] = [
+            'id' => (int)$row['id'],
+            'league' => $league,
+            'team_name' => $teamName,
+            'titles' => (int)$row['titles'],
+            'is_active' => $isActive,
+        ];
+        if ($isActive) {
+            $groups[$groupKey]['is_active'] = true;
+            $groups[$groupKey]['current_league'] = $league;
+        }
+    }
+
+    $result = array_values($groups);
+    usort($result, function (array $a, array $b): int {
+        $eliteA = $a['leagues']['ELITE'] ?? 0;
+        $eliteB = $b['leagues']['ELITE'] ?? 0;
+        if ($eliteA !== $eliteB) {
+            return $eliteB <=> $eliteA;
+        }
+        return $b['total_titles'] <=> $a['total_titles'];
+    });
+
+    return $result;
 }
 
 function normalizeBrazilianPhone(?string $input): ?string

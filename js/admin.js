@@ -1899,45 +1899,48 @@ async function submitHallOfFameEntry() {
   }
 }
 
+const HOF_LEAGUE_ORDER = { ELITE: 0, NEXT: 1, RISE: 2, ROOKIE: 3 };
+
 async function loadHallOfFameList() {
   const container = document.getElementById('hofList');
   if (!container) return;
   container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-orange"></div></div>';
   try {
     const data = await api('admin.php?action=hall_of_fame');
-    const items = data.items || [];
-    if (!items.length) {
+    const groups = data.groups || [];
+    if (!groups.length) {
       container.innerHTML = '<p class="empty-state" style="padding:32px">Nenhum registro ainda.</p>';
       return;
     }
 
-    container.innerHTML = items.map(item => {
-      const isActive = item.is_active;
-      const sc = isActive ? '#22c55e' : 'var(--text-3)';
+    container.innerHTML = groups.map(g => {
+      const sc = g.is_active ? '#22c55e' : 'var(--text-3)';
+      const rows = [...(g.rows || [])].sort((a, b) => (HOF_LEAGUE_ORDER[a.league] ?? 9) - (HOF_LEAGUE_ORDER[b.league] ?? 9));
       return `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:700;color:var(--text)">${escapeHtml(item.team_name || item.gm_name || '—')}</div>
-          <div style="display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap">
-            ${item.league ? `<span style="font-size:10px;font-weight:700;background:var(--red-soft);color:var(--red);border:1px solid rgba(252,0,37,.2);border-radius:999px;padding:1px 7px">${item.league}</span>` : ''}
-            <span style="font-size:10px;font-weight:600;color:${sc}">${isActive ? 'Ativo' : 'Inativo'}</span>
-            ${item.gm_name && item.team_name ? `<span style="font-size:11px;color:var(--text-3)">GM: ${escapeHtml(item.gm_name)}</span>` : ''}
-          </div>
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <div style="font-size:14px;font-weight:700;color:var(--text)">${escapeHtml(g.gm_name || '—')}</div>
+          <span style="font-size:10px;font-weight:600;color:${sc}">${g.is_active ? 'Ativo' : 'Inativo'}</span>
+          ${g.teams && g.teams.length ? `<span style="font-size:11px;color:var(--text-3)">${escapeHtml(g.teams.join(' / '))}</span>` : ''}
         </div>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          ${isActive ? `
-          <select data-hof-league="${item.id}"
-            style="background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:5px 6px;color:var(--text);font-size:12px;font-weight:600;outline:none">
-            ${['ELITE', 'NEXT', 'RISE', 'ROOKIE'].map(lg => `<option value="${lg}" ${item.league === lg ? 'selected' : ''}>${lg}</option>`).join('')}
-          </select>` : ''}
-          <input type="number" min="0" value="${item.titles || 0}" data-hof-title="${item.id}"
-            style="width:64px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:5px 8px;color:var(--amber);font-size:13px;font-weight:700;text-align:center;outline:none">
-          <button class="btn-ghost" style="padding:5px 8px;color:#22c55e" onclick="saveHallOfFameTitles(${item.id})" title="Salvar">
-            <i class="bi bi-floppy"></i>
-          </button>
-          <button class="btn-ghost" style="padding:5px 8px;color:#ef4444" onclick="deleteHallOfFameEntry(${item.id})" title="Remover">
-            <i class="bi bi-trash3"></i>
-          </button>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${rows.map(row => `
+          <div style="display:flex;align-items:center;gap:8px;padding-left:6px">
+            <span style="font-size:10px;font-weight:700;background:var(--red-soft);color:var(--red);border:1px solid rgba(252,0,37,.2);border-radius:999px;padding:1px 7px;min-width:52px;text-align:center">${row.league}${row.league === g.current_league ? ' •' : ''}</span>
+            ${row.is_active ? `
+            <select data-hof-league="${row.id}"
+              style="background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:5px 6px;color:var(--text);font-size:12px;font-weight:600;outline:none">
+              ${['ELITE', 'NEXT', 'RISE', 'ROOKIE'].map(lg => `<option value="${lg}" ${row.league === lg ? 'selected' : ''}>${lg}</option>`).join('')}
+            </select>` : ''}
+            <input type="number" min="0" value="${row.titles || 0}" data-hof-title="${row.id}"
+              style="width:64px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:5px 8px;color:var(--amber);font-size:13px;font-weight:700;text-align:center;outline:none">
+            <button class="btn-ghost" style="padding:5px 8px;color:#22c55e" onclick="saveHallOfFameTitles(${row.id})" title="Salvar">
+              <i class="bi bi-floppy"></i>
+            </button>
+            <button class="btn-ghost" style="padding:5px 8px;color:#ef4444" onclick="deleteHallOfFameEntry(${row.id})" title="Remover">
+              <i class="bi bi-trash3"></i>
+            </button>
+          </div>`).join('')}
         </div>
       </div>`;
     }).join('');

@@ -918,44 +918,7 @@ if ($method === 'GET') {
         case 'hall_of_fame':
             ensureHallOfFameTable($pdo);
             if ($method === 'GET') {
-                $query = "
-                    SELECT
-                        hof.*,
-                        t.city AS team_city,
-                        t.name AS team_name_live,
-                        u.name AS gm_name_live
-                    FROM hall_of_fame hof
-                    LEFT JOIN teams t ON hof.team_id = t.id
-                    LEFT JOIN users u ON t.user_id = u.id
-                    ORDER BY hof.titles DESC, COALESCE(hof.team_name, t.name) ASC, hof.id DESC
-                ";
-                $stmt = $pdo->query($query);
-                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                $items = array_map(static function (array $row): array {
-                    $isActive = (int)($row['is_active'] ?? 0) === 1;
-                    $teamName = $isActive
-                        ? trim(($row['team_city'] ?? '') . ' ' . ($row['team_name_live'] ?? ''))
-                        : (string)($row['team_name'] ?? '');
-                    if ($teamName === '') {
-                        $teamName = (string)($row['team_name'] ?? '');
-                    }
-                    $gmName = $isActive ? ($row['gm_name_live'] ?? '') : ($row['gm_name'] ?? '');
-                    if (!$gmName) {
-                        $gmName = $row['gm_name'] ?? '';
-                    }
-                    return [
-                        'id' => (int)$row['id'],
-                        'is_active' => $isActive ? 1 : 0,
-                        'league' => $row['league'] ?? null,
-                        'team_id' => isset($row['team_id']) ? (int)$row['team_id'] : null,
-                        'team_name' => $teamName,
-                        'gm_name' => $gmName,
-                        'titles' => (int)($row['titles'] ?? 0)
-                    ];
-                }, $rows);
-
-                echo json_encode(['success' => true, 'items' => $items]);
+                echo json_encode(['success' => true, 'groups' => getHallOfFameGrouped($pdo)]);
                 break;
             }
 

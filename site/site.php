@@ -20,11 +20,10 @@ try {
     }
 } catch (Exception $e) {}
 
-// Hall da Fama — times com mais títulos históricos
+// Hall da Fama — GMs agrupados, com títulos somados por liga (ordenado pela Elite primeiro)
 $hallOfFame = [];
 try {
-    $stmt = $pdo->query("SELECT team_name, league, gm_name, titles FROM hall_of_fame WHERE is_active = 1 AND team_name IS NOT NULL ORDER BY titles DESC LIMIT 8");
-    $hallOfFame = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $hallOfFame = array_slice(getHallOfFameGrouped($pdo), 0, 8);
 } catch (Exception $e) {}
 
 // Números reais do site — nada fabricado. Times/temporada por liga, total de
@@ -819,10 +818,20 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 }
 .hof-card:hover { border-color: var(--line-2); }
 .hof-rank { font-family: var(--font-display); font-weight: 800; font-size: 30px; color: var(--red); line-height: 1; flex-shrink: 0; width: 48px; }
-.hof-info { min-width: 0; }
+.hof-info { min-width: 0; flex: 1; }
 .hof-name { font-size: 15px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hof-meta { font-size: 12px; color: var(--ink-mute); margin-top: 3px; }
+.hof-meta { font-size: 12px; color: var(--ink-mute); margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .hof-titles { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--red); margin-top: 5px; }
+.hof-status { font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border-radius: 999px; padding: 1px 7px; }
+.hof-status-active { background: rgba(46,168,91,.15); color: var(--green); }
+.hof-status-inactive { background: rgba(255,255,255,.08); color: var(--ink-dim); }
+.hof-leagues { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.hof-league-pill {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  border: 1px solid var(--line-2); border-radius: 8px; padding: 3px 8px;
+  color: var(--ink-mute);
+}
+.hof-league-pill.hof-league-current { border-color: var(--red); color: var(--red); background: rgba(230,57,70,.08); }
 
 /* ============ Como Jogamos ============ */
 .system { background: var(--bg); border-top: 1px solid var(--line); }
@@ -1362,6 +1371,8 @@ function SystemFBA() {
   );
 }
 
+const HOF_LEAGUE_ORDER = { ELITE: 0, NEXT: 1, RISE: 2, ROOKIE: 3 };
+
 function HallOfFame() {
   const items = window.__SITE_DATA__?.hallOfFame || [];
   if (!items.length) return null;
@@ -1374,16 +1385,31 @@ function HallOfFame() {
           <a className="section-link" href="#inscricao">Inscreva-se →</a>
         </div>
         <div className="hof-grid">
-          {items.map((h, i) => (
-            <div className="hof-card" key={i}>
-              <div className="hof-rank">{String(i + 1).padStart(2, "0")}</div>
-              <div className="hof-info">
-                <div className="hof-name">{h.team_name}</div>
-                <div className="hof-meta">{h.gm_name}{h.league ? " · " + h.league : ""}</div>
-                <div className="hof-titles">{h.titles} título{h.titles == 1 ? "" : "s"}</div>
+          {items.map((h, i) => {
+            const leagueEntries = Object.entries(h.leagues || {})
+              .sort((a, b) => (HOF_LEAGUE_ORDER[a[0]] ?? 9) - (HOF_LEAGUE_ORDER[b[0]] ?? 9));
+            return (
+              <div className="hof-card" key={i}>
+                <div className="hof-rank">{String(i + 1).padStart(2, "0")}</div>
+                <div className="hof-info">
+                  <div className="hof-name">{h.gm_name || "—"}</div>
+                  <div className="hof-meta">
+                    <span>{(h.teams || []).join(" / ")}</span>
+                    <span className={"hof-status " + (h.is_active ? "hof-status-active" : "hof-status-inactive")}>
+                      {h.is_active ? "Ativo" : "Inativo"}
+                    </span>
+                  </div>
+                  <div className="hof-leagues">
+                    {leagueEntries.map(([lg, titles]) => (
+                      <span key={lg} className={"hof-league-pill" + (lg === h.current_league ? " hof-league-current" : "")}>
+                        {lg} {titles}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

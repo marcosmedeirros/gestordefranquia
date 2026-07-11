@@ -1123,6 +1123,18 @@ function runMigrations() {
     }
 
     try {
+        $hasHofTableForUserId = $pdo->query("SHOW TABLES LIKE 'hall_of_fame'")->fetch();
+        if ($hasHofTableForUserId) {
+            $hasHofUserId = $pdo->query("SHOW COLUMNS FROM hall_of_fame LIKE 'user_id'")->fetch();
+            if (!$hasHofUserId) {
+                $pdo->exec("ALTER TABLE hall_of_fame ADD COLUMN user_id INT NULL AFTER team_id");
+            }
+        }
+    } catch (Exception $e) {
+        $errors[] = "ajuste_hof_user_id: " . $e->getMessage();
+    }
+
+    try {
         // Congela automaticamente o registro do Hall da Fama de um time quando ele
         // muda de liga (acesso/descenso): o registro da liga antiga vira "inativo"
         // (nome do time e do GM congelados no momento da mudança), e um novo registro
