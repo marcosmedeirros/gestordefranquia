@@ -829,12 +829,16 @@ function hallOfFameRemoveTitle(PDO $pdo, int $teamId, string $league): void
     $pdo->prepare('UPDATE hall_of_fame SET titles = ? WHERE id = ?')->execute([$newTitles, (int)$row['id']]);
 }
 
+// Peso de cada título de acordo com a liga, usado pra rankear o Hall da Fama
+// geral — um título na Elite vale mais que um na Rookie, já que é a divisão top.
+const HOF_LEAGUE_WEIGHT = ['ELITE' => 4, 'NEXT' => 3, 'RISE' => 2, 'ROOKIE' => 1];
+
 // Agrupa os registros do Hall da Fama por GM (por user_id quando disponível,
 // caindo pro nome do GM como fallback nos registros congelados/legados sem
 // vínculo de conta). Cada grupo junta os times que a pessoa teve e soma os
 // títulos por liga, pra montar um card único por pessoa em vez de uma linha
-// por time+liga. Ordena por títulos na Elite primeiro (a divisão top),
-// depois pelo total geral.
+// por time+liga. Ordena pela pontuação ponderada por liga (HOF_LEAGUE_WEIGHT),
+// já que um título na Elite deve pesar mais que um na Rookie.
 function getHallOfFameGrouped(PDO $pdo): array
 {
     $rows = $pdo->query("
@@ -877,6 +881,7 @@ function getHallOfFameGrouped(PDO $pdo): array
                 'teams' => [],
                 'leagues' => [],
                 'total_titles' => 0,
+                'weighted_score' => 0,
                 'rows' => [],
             ];
         }
@@ -890,6 +895,7 @@ function getHallOfFameGrouped(PDO $pdo): array
         $league = $row['league'] ?: 'N/A';
         $groups[$groupKey]['leagues'][$league] = ($groups[$groupKey]['leagues'][$league] ?? 0) + (int)$row['titles'];
         $groups[$groupKey]['total_titles'] += (int)$row['titles'];
+        $groups[$groupKey]['weighted_score'] += (int)$row['titles'] * (HOF_LEAGUE_WEIGHT[$league] ?? 0);
         $groups[$groupKey]['rows'][] = [
             'id' => (int)$row['id'],
             'league' => $league,
@@ -905,10 +911,8 @@ function getHallOfFameGrouped(PDO $pdo): array
 
     $result = array_values($groups);
     usort($result, function (array $a, array $b): int {
-        $eliteA = $a['leagues']['ELITE'] ?? 0;
-        $eliteB = $b['leagues']['ELITE'] ?? 0;
-        if ($eliteA !== $eliteB) {
-            return $eliteB <=> $eliteA;
+        if ($a['weighted_score'] !== $b['weighted_score']) {
+            return $b['weighted_score'] <=> $a['weighted_score'];
         }
         return $b['total_titles'] <=> $a['total_titles'];
     });

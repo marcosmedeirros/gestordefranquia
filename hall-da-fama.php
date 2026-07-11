@@ -161,63 +161,71 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .filter-pill:hover { border-color: var(--border-red); color: var(--red); }
     .filter-pill.active { background: var(--red-soft); border-color: var(--border-red); color: var(--red); }
 
-    /* ── HOF grid ────────────────────────────────── */
-    .hof-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 12px;
-    }
-
-    /* ── HOF card ────────────────────────────────── */
-    .hof-card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      display: flex; flex-direction: column; gap: 14px;
-      transition: all var(--t) var(--ease);
-      position: relative;
-      overflow: hidden;
-    }
-    .hof-card::before {
-      content: '';
-      position: absolute; top: 0; left: 0; right: 0; height: 2px;
-      background: var(--accent-top, transparent);
-      transition: opacity var(--t) var(--ease);
-    }
-    .hof-card:hover { border-color: var(--border-md); transform: translateY(-2px); }
-    .hof-card.top-1 { --accent-top: linear-gradient(90deg, #f59e0b, #fbbf24); border-color: rgba(245,158,11,.25); }
-    .hof-card.top-2 { --accent-top: linear-gradient(90deg, #94a3b8, #cbd5e1); }
-    .hof-card.top-3 { --accent-top: linear-gradient(90deg, #cd7c4a, #e09a68); }
-
-    .hof-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-
-    .hof-rank {
-      width: 32px; height: 32px; border-radius: 9px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px; font-weight: 800; flex-shrink: 0;
-    }
-    .hof-rank.r1 { background: rgba(245,158,11,.15); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); }
-    .hof-rank.r2 { background: rgba(148,163,184,.12); color: #94a3b8; border: 1px solid rgba(148,163,184,.2); }
-    .hof-rank.r3 { background: rgba(205,124,74,.12); color: #cd7c4a; border: 1px solid rgba(205,124,74,.2); }
-    .hof-rank.rn { background: var(--panel-3); color: var(--text-3); border: 1px solid var(--border); }
-
-    .hof-titles-block { text-align: right; }
-    .hof-titles-num { font-size: 28px; font-weight: 800; line-height: 1; color: var(--amber); }
-    .hof-titles-label { font-size: 10px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-3); margin-top: 2px; }
-
-    .hof-name { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.2; margin-bottom: 2px; }
-    .hof-team { font-size: 12px; color: var(--text-2); }
-
-    .hof-footer { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    /* ── HOF badges (compartilhado pódio + lista) ──── */
     .hof-badge {
       display: inline-flex; align-items: center; gap: 4px;
       padding: 3px 8px; border-radius: 999px;
       font-size: 10px; font-weight: 700;
     }
-    .hof-badge.league { background: var(--red-soft); color: var(--red); border: 1px solid var(--border-red); }
+    .hof-badge.league { background: var(--panel-3); color: var(--text-2); border: 1px solid var(--border-md); }
+    .hof-badge.league.current { background: var(--red-soft); color: var(--red); border: 1px solid var(--border-red); }
     .hof-badge.active { background: rgba(34,197,94,.10); color: var(--green); border: 1px solid rgba(34,197,94,.2); }
     .hof-badge.inactive { background: var(--panel-3); color: var(--text-3); border: 1px solid var(--border); }
+
+    /* ── Pódio (top 3) ───────────────────────────── */
+    .hof-podium {
+      display: grid;
+      grid-template-columns: 1fr 1.12fr 1fr;
+      gap: 14px;
+      margin-bottom: 28px;
+      align-items: end;
+    }
+    .podium-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 18px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      transition: all var(--t) var(--ease);
+    }
+    .podium-card:hover { border-color: var(--border-md); transform: translateY(-2px); }
+    .podium-card.rank-1 { order: 2; padding: 30px 22px; border-color: rgba(245,158,11,.35); background: linear-gradient(180deg, rgba(245,158,11,.12), var(--panel) 65%); }
+    .podium-card.rank-2 { order: 1; border-color: rgba(148,163,184,.25); background: linear-gradient(180deg, rgba(148,163,184,.08), var(--panel) 65%); }
+    .podium-card.rank-3 { order: 3; border-color: rgba(205,124,74,.25); background: linear-gradient(180deg, rgba(205,124,74,.08), var(--panel) 65%); }
+    .podium-medal { font-size: 30px; line-height: 1; margin-bottom: 6px; }
+    .podium-card.rank-1 .podium-medal { font-size: 40px; }
+    .podium-name { font-size: 15px; font-weight: 800; color: var(--text); line-height: 1.25; }
+    .podium-card.rank-1 .podium-name { font-size: 18px; }
+    .podium-team { font-size: 11px; color: var(--text-2); margin-top: 2px; min-height: 14px; }
+    .podium-score { font-size: 30px; font-weight: 900; color: var(--amber); line-height: 1; margin-top: 14px; }
+    .podium-card.rank-1 .podium-score { font-size: 40px; }
+    .podium-score-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--text-3); margin: 3px 0 12px; }
+    .podium-badges { display: flex; justify-content: center; gap: 5px; flex-wrap: wrap; }
+    @media (max-width: 700px) {
+      .hof-podium { grid-template-columns: 1fr; }
+      .podium-card.rank-1, .podium-card.rank-2, .podium-card.rank-3 { order: initial; }
+    }
+
+    /* ── Lista (rank 4+) ─────────────────────────── */
+    .hof-list { display: flex; flex-direction: column; gap: 8px; }
+    .hof-row {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 16px;
+      transition: border-color var(--t) var(--ease);
+    }
+    .hof-row:hover { border-color: var(--border-md); }
+    .hof-row-rank { width: 26px; text-align: center; font-weight: 700; color: var(--text-3); font-size: 13px; flex-shrink: 0; }
+    .hof-row-name { flex: 1; min-width: 0; }
+    .hof-row-name .name { font-size: 14px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hof-row-name .team { font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hof-row-badges { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; max-width: 45%; }
+    .hof-row-score { font-size: 19px; font-weight: 800; color: var(--amber); min-width: 34px; text-align: right; flex-shrink: 0; }
+    @media (max-width: 560px) {
+      .hof-row-badges { display: none; }
+    }
 
     /* ── Empty / spinner ─────────────────────────── */
     .state-empty { padding: 48px 20px; text-align: center; color: var(--text-3); }
@@ -236,9 +244,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       .topbar { display: flex; }
       .page-hero, .content { padding-left: 16px; padding-right: 16px; }
       .page-hero { padding-top: 18px; }
-    }
-    @media (max-width: 480px) {
-      .hof-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -388,7 +393,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   if (sbOverlay) sbOverlay.addEventListener('click', closeSidebar);
 
   // ── Hall da Fama ──────────────────────────────────
-  let hallOfFameItems = [];
+  const HOF_LEAGUE_ORDER = { ELITE: 0, NEXT: 1, RISE: 2, ROOKIE: 3 };
+  let hallOfFameGroups = [];
   let activeFilter = 'ALL';
 
   // Filtros em pills
@@ -402,33 +408,34 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   });
 
   function getFiltered() {
-    if (activeFilter === 'ALL') return hallOfFameItems;
-    return hallOfFameItems.filter(item => (item.league || '').toUpperCase() === activeFilter);
+    if (activeFilter === 'ALL') return hallOfFameGroups;
+    return hallOfFameGroups.filter(g => Number((g.leagues || {})[activeFilter]) > 0);
   }
 
-  function rankClass(idx) {
-    if (idx === 0) return 'r1';
-    if (idx === 1) return 'r2';
-    if (idx === 2) return 'r3';
-    return 'rn';
-  }
-
-  function cardTopClass(idx) {
-    if (idx === 0) return 'hof-card top-1';
-    if (idx === 1) return 'hof-card top-2';
-    if (idx === 2) return 'hof-card top-3';
-    return 'hof-card';
-  }
+  const PODIUM_MEDALS = ['🥇', '🥈', '🥉'];
 
   function escHtml(str) {
     if (!str) return '';
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  function renderHallOfFame(items) {
+  function leagueBadges(g) {
+    return Object.entries(g.leagues || {})
+      .filter(([lg]) => activeFilter === 'ALL' || lg === activeFilter)
+      .sort((a, b) => (HOF_LEAGUE_ORDER[a[0]] ?? 9) - (HOF_LEAGUE_ORDER[b[0]] ?? 9))
+      .map(([lg, titles]) => `<span class="hof-badge league${lg === g.current_league ? ' current' : ''}">${escHtml(lg)} ${titles}</span>`)
+      .join('');
+  }
+
+  function headlineFor(g) {
+    // "Todas": pontuação ponderada por liga (Elite pesa mais). Filtrado numa liga: título bruto daquela liga.
+    return activeFilter === 'ALL' ? (Number(g.weighted_score) || 0) : (Number((g.leagues || {})[activeFilter]) || 0);
+  }
+
+  function renderHallOfFame(groups) {
     const container = document.getElementById('hallOfFameContainer');
 
-    if (!items.length) {
+    if (!groups.length) {
       container.innerHTML = `
         <div class="state-empty">
           <i class="bi bi-award"></i>
@@ -438,45 +445,55 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       return;
     }
 
-    // Ordenar por títulos desc (já deve vir ordenado da API, mas garantimos)
-    const sorted = [...items].sort((a, b) => (Number(b.titles) || 0) - (Number(a.titles) || 0));
+    // A API já manda ordenado pela pontuação ponderada (Elite pesa mais). Quando um
+    // filtro de liga específica está ativo, reordenamos pelo título bruto daquela liga.
+    const sorted = activeFilter === 'ALL'
+      ? groups
+      : [...groups].sort((a, b) => (Number((b.leagues || {})[activeFilter]) || 0) - (Number((a.leagues || {})[activeFilter]) || 0));
 
-    container.innerHTML = `
-      <div class="hof-grid">
-        ${sorted.map((item, idx) => {
-          const isActive   = Number(item.is_active) === 1;
-          const titles     = Number(item.titles) || 0;
-          const gmName     = escHtml(item.gm_name || 'GM não informado');
-          const teamName   = escHtml(item.team_name || '');
-          const league     = escHtml(item.league || '');
+    const podium = sorted.slice(0, 3);
+    const rest = sorted.slice(3);
 
+    const podiumHtml = podium.length ? `
+      <div class="hof-podium">
+        ${podium.map((g, idx) => {
+          const gmName = escHtml(g.gm_name || 'GM não informado');
+          const teams = escHtml((g.teams || []).join(' / '));
           return `
-            <div class="${cardTopClass(idx)}">
-              <div class="hof-card-top">
-                <div style="display:flex;align-items:center;gap:10px">
-                  <div class="hof-rank ${rankClass(idx)}">${idx + 1}</div>
-                  <div>
-                    <div class="hof-name">${gmName}</div>
-                    ${isActive && teamName ? `<div class="hof-team">${teamName}</div>` : ''}
-                  </div>
-                </div>
-                <div class="hof-titles-block">
-                  <div class="hof-titles-num">${titles}</div>
-                  <div class="hof-titles-label">${titles === 1 ? 'título' : 'títulos'}</div>
-                </div>
-              </div>
-              <div class="hof-footer">
-                ${league ? `<span class="hof-badge league">${league}</span>` : ''}
-                <span class="hof-badge ${isActive ? 'active' : 'inactive'}">
-                  <i class="bi bi-${isActive ? 'circle-fill' : 'circle'}" style="font-size:7px"></i>
-                  ${isActive ? 'Ativo' : 'Inativo'}
-                </span>
-              </div>
+            <div class="podium-card rank-${idx + 1}">
+              <div class="podium-medal">${PODIUM_MEDALS[idx]}</div>
+              <div class="podium-name">${gmName}</div>
+              <div class="podium-team">${teams}</div>
+              <div class="podium-score">${headlineFor(g)}</div>
+              <div class="podium-score-label">${activeFilter === 'ALL' ? 'pontos' : 'título' + (headlineFor(g) === 1 ? '' : 's') + ' na ' + activeFilter}</div>
+              <div class="podium-badges">${leagueBadges(g)}</div>
             </div>
           `;
         }).join('')}
       </div>
-    `;
+    ` : '';
+
+    const listHtml = rest.length ? `
+      <div class="hof-list">
+        ${rest.map((g, idx) => {
+          const gmName = escHtml(g.gm_name || 'GM não informado');
+          const teams = escHtml((g.teams || []).join(' / '));
+          return `
+            <div class="hof-row">
+              <div class="hof-row-rank">${idx + 4}</div>
+              <div class="hof-row-name">
+                <div class="name">${gmName}</div>
+                ${teams ? `<div class="team">${teams}</div>` : ''}
+              </div>
+              <div class="hof-row-badges">${leagueBadges(g)}</div>
+              <div class="hof-row-score">${headlineFor(g)}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    ` : '';
+
+    container.innerHTML = podiumHtml + listHtml;
   }
 
   async function loadHallOfFame() {
@@ -493,7 +510,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       const data = await resp.json();
       if (!data.success) throw new Error(data.error || 'Falha ao carregar');
 
-      hallOfFameItems = Array.isArray(data.items) ? data.items : [];
+      hallOfFameGroups = Array.isArray(data.groups) ? data.groups : [];
       renderHallOfFame(getFiltered());
     } catch (e) {
       container.innerHTML = `
