@@ -173,7 +173,7 @@ if ($action === 'list') {
     $fTime  = trim($_GET['time'] ?? '');
     $fMedias= $_GET['medias'] ?? '';
 
-    $orderCols = ['nome'=>'nome','pts_medio'=>'pts_medio','reb_medio'=>'reb_medio','ast_medio'=>'ast_medio','titulos'=>'titulos'];
+    $orderCols = ['nome'=>'nome','pts_medio'=>'pts_medio','reb_medio'=>'reb_medio','ast_medio'=>'ast_medio','titulos'=>'titulos','nascimento'=>'nascimento'];
     $orderBy   = $orderCols[$_GET['orderby'] ?? 'nome'] ?? 'nome';
     $orderDir  = (strtoupper($_GET['orderdir'] ?? 'ASC') === 'DESC') ? 'DESC' : 'ASC';
     $orderSql  = ($orderBy === 'nome') ? "nome {$orderDir}" : "{$orderBy} IS NULL, {$orderBy} {$orderDir}";
@@ -1533,11 +1533,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           <th class="mob-hide sortable" onclick="setSort('pts_medio')">PPG<span class="sort-ic" data-col="pts_medio"></span></th>
           <th class="mob-hide sortable" onclick="setSort('reb_medio')">RPG<span class="sort-ic" data-col="reb_medio"></span></th>
           <th class="mob-hide sortable" onclick="setSort('ast_medio')">APG<span class="sort-ic" data-col="ast_medio"></span></th>
+          <th class="mob-hide">Posição</th>
+          <th class="mob-hide sortable" onclick="setSort('nascimento')">Idade<span class="sort-ic" data-col="nascimento"></span></th>
           <th>Status</th>
           <th style="text-align:right">Ações</th>
         </tr>
       </thead>
-      <tbody id="tbody"><tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-3)">Carregando...</td></tr></tbody>
+      <tbody id="tbody"><tr><td colspan="13" style="text-align:center;padding:30px;color:var(--text-3)">Carregando...</td></tr></tbody>
     </table>
     </div>
 
@@ -1660,7 +1662,7 @@ async function loadPlayers(page = 1) {
 function renderTable(d) {
   const tb = qs('tbody');
   if (!d.players?.length) {
-    tb.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:30px;color:#555">Nenhum jogador encontrado.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:30px;color:#555">Nenhum jogador encontrado.</td></tr>';
     qs('pageInfo').textContent = '';
     qs('pagination').innerHTML = '';
     return;
@@ -1680,6 +1682,16 @@ function renderTable(d) {
       ? `<span class="tag" style="background:rgba(245,158,11,.15);color:#fbbf24">🏆 ${p.titulos}</span>`
       : '<span style="color:#555">—</span>';
     const fmtNum = (v) => (v === null || v === undefined || v === '') ? '<span style="color:#555">—</span>' : `<span style="color:#c084fc;font-weight:600">${parseFloat(v).toFixed(1)}</span>`;
+    const posicao = p.posicao ? `<span class="tag gray">${esc(p.posicao)}</span>` : '<span style="color:#555">—</span>';
+    let idade = '<span style="color:#555">—</span>';
+    if (p.nascimento) {
+      const nasc = new Date(p.nascimento + 'T00:00:00');
+      const hoje = new Date();
+      let anos = hoje.getFullYear() - nasc.getFullYear();
+      const m = hoje.getMonth() - nasc.getMonth();
+      if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) anos--;
+      idade = `${anos} anos`;
+    }
     return `<tr>
       <td><strong>${esc(p.nome)}</strong></td>
       <td class="mob-hide">${timeAtual}</td>
@@ -1691,6 +1703,8 @@ function renderTable(d) {
       <td class="mob-hide">${fmtNum(p.pts_medio)}</td>
       <td class="mob-hide">${fmtNum(p.reb_medio)}</td>
       <td class="mob-hide">${fmtNum(p.ast_medio)}</td>
+      <td class="mob-hide">${posicao}</td>
+      <td class="mob-hide">${idade}</td>
       <td>${ativo}</td>
       <td style="text-align:right;white-space:nowrap">
         <button class="btn-ic" onclick="openModal(${JSON.stringify(p).replace(/"/g,'&quot;')})" title="Editar"><i class="bi bi-pencil"></i></button>
