@@ -1123,6 +1123,38 @@ function runMigrations() {
     }
 
     try {
+        // Congela automaticamente o registro do Hall da Fama de um time quando ele
+        // muda de liga (acesso/descenso): o registro da liga antiga vira "inativo"
+        // (nome do time e do GM congelados no momento da mudança), e um novo registro
+        // "ativo" passa a contar os títulos do zero na liga nova.
+        $hasHofTable = $pdo->query("SHOW TABLES LIKE 'hall_of_fame'")->fetch();
+        if ($hasHofTable) {
+            $triggerExists = $pdo->query("
+                SELECT TRIGGER_NAME FROM information_schema.TRIGGERS
+                WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME = 'trg_hof_freeze_on_league_change'
+            ")->fetch();
+            if (!$triggerExists) {
+                $pdo->exec("
+                    CREATE TRIGGER trg_hof_freeze_on_league_change
+                    AFTER UPDATE ON teams
+                    FOR EACH ROW
+                    BEGIN
+                        IF NEW.league <> OLD.league THEN
+                            UPDATE hall_of_fame
+                            SET is_active = 0,
+                                team_name = CONCAT(OLD.city, ' ', OLD.name),
+                                gm_name = (SELECT name FROM users WHERE id = OLD.user_id LIMIT 1)
+                            WHERE team_id = OLD.id AND league = OLD.league AND is_active = 1;
+                        END IF;
+                    END
+                ");
+            }
+        }
+    } catch (Exception $e) {
+        $errors[] = "ajuste_hof_freeze_trigger: " . $e->getMessage();
+    }
+
+    try {
         $hasDirectiveDeadlines = $pdo->query("SHOW TABLES LIKE 'directive_deadlines'")->fetch();
         if ($hasDirectiveDeadlines) {
             $deadlineColumn = $pdo->query("SHOW COLUMNS FROM directive_deadlines LIKE 'deadline_date'")->fetch(PDO::FETCH_ASSOC);

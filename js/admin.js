@@ -1787,9 +1787,16 @@ async function showHallOfFame() {
           </div>
 
           <div id="hofInactiveFields" style="display:none">
-            <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px">Nome do GM</div>
-            <input type="text" id="hofGmName" placeholder="Ex: John Doe"
-              style="width:100%;background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;outline:none">
+            <div style="margin-bottom:10px">
+              <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px">Nome do Time (opcional)</div>
+              <input type="text" id="hofTeamName" placeholder="Ex: Montreal Saints"
+                style="width:100%;background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;outline:none">
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px">Nome do GM</div>
+              <input type="text" id="hofGmName" placeholder="Ex: John Doe"
+                style="width:100%;background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;outline:none">
+            </div>
           </div>
 
           <div>
@@ -1875,6 +1882,7 @@ async function submitHallOfFameEntry() {
     payload.team_id = parseInt(document.getElementById('hofTeam').value || '0', 10);
   } else {
     payload.gm_name = (document.getElementById('hofGmName').value || '').trim();
+    payload.team_name = (document.getElementById('hofTeamName').value || '').trim();
   }
 
   try {
@@ -1884,6 +1892,7 @@ async function submitHallOfFameEntry() {
     });
     document.getElementById('hofTitles').value = 0;
     document.getElementById('hofGmName').value = '';
+    document.getElementById('hofTeamName').value = '';
     loadHallOfFameList();
   } catch (e) {
     alert(e.error || 'Erro ao salvar');
