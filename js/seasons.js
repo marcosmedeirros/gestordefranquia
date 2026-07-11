@@ -382,6 +382,8 @@ let _regPtsCacheKey = '';
 let _regPtsLeague = '';
 let _regPtsSeasonId = null;
 let _regPtsPendingPayload = null;
+let _regPtsForceEdit = false;
+let _regPtsIsCorrection = false;
 
 function _regPtsSaveCache() {
     if (!_regPtsCacheKey) return;
@@ -509,6 +511,10 @@ async function _saveReviewedPoints(seasonId, league) {
     const inputs = document.querySelectorAll('.review-pts-input');
     if (!inputs.length) return;
 
+    if (_regPtsIsCorrection && !confirm('Esta temporada já tinha sido registrada antes. Salvar agora vai sobrescrever o campeão, a classificação e os prêmios registrados anteriormente. Confirmar?')) {
+        return;
+    }
+
     const btn = document.getElementById('btnSaveReview');
     const originalHtml = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Salvando...'; }
@@ -533,6 +539,18 @@ async function _saveReviewedPoints(seasonId, league) {
                 points_prizes:   parseInt(inp.dataset.ptsPrizes,   10) || 0,
             }))
             .filter(r => r.team_id);
+
+        if (_regPtsIsCorrection) {
+            // Correção: zera os pontos/locks antigos desta temporada (revertendo o
+            // ranking_points anterior de cada time) antes de salvar os novos valores,
+            // pra não deixar pontuação "fantasma" de times que saíram do resultado corrigido.
+            await api('history-points.php', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'delete_season_points', season_id: seasonId, league })
+            });
+            _regPtsIsCorrection = false;
+            _regPtsForceEdit = false;
+        }
 
         await api('history-points.php', {
             method: 'POST',
@@ -731,6 +749,9 @@ async function showRegistroPontuacao(league) {
         return;
     }
 
+    if (_regPtsSeasonId !== season.id) {
+        _regPtsForceEdit = false;
+    }
     seasonsState.currentSeasonId = season.id;
     _regPtsSeasonId = season.id;
     _regPtsCacheKey = `reg_pts_v2_${league}_${season.id}`;
@@ -740,6 +761,7 @@ async function showRegistroPontuacao(league) {
         const hist = await api(`seasons.php?action=check_season_history&season_id=${season.id}`);
         histRegistered = !!hist.registered;
     } catch (_) {}
+    _regPtsIsCorrection = histRegistered;
 
     let allTeams = [];
     try {
@@ -792,12 +814,22 @@ async function showRegistroPontuacao(league) {
             </div>
         </div>
 
-        ${histRegistered ? `
+        ${histRegistered && !_regPtsForceEdit ? `
         <div class="panel" style="border-color:rgba(239,68,68,.3)">
-            <p style="color:#ef4444;margin:0"><i class="bi bi-lock-fill me-2"></i>
-                A pontuação desta temporada já foi registrada. Não é possível registrar novamente.
+            <p style="color:#ef4444;margin:0 0 12px"><i class="bi bi-lock-fill me-2"></i>
+                A pontuação desta temporada já foi registrada.
             </p>
+            <button type="button" class="btn btn-orange" style="border-radius:15px" onclick="_regPtsForceEdit = true; showRegistroPontuacao('${league}');">
+                <i class="bi bi-pencil-fill me-1"></i> Corrigir registro
+            </button>
         </div>` : `
+        ${histRegistered ? `
+        <div class="panel mb-3" style="border-color:rgba(245,158,11,.4)">
+            <p style="color:#f59e0b;margin:0"><i class="bi bi-exclamation-triangle-fill me-2"></i>
+                Esta temporada já foi registrada antes. Ao salvar, o campeão, a classificação e os prêmios
+                registrados anteriormente serão <b>sobrescritos</b> pelos novos dados preenchidos abaixo.
+            </p>
+        </div>` : ''}
         <form id="formRegistroPontuacao" onsubmit="saveRegistroPontuacao(event, ${season.id}, '${league}')">
 
             <!-- 1. Premiações -->
