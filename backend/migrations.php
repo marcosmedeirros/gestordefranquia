@@ -1207,6 +1207,17 @@ function runMigrations() {
         $errors[] = "ajuste_drop_uniq_pick: " . $e->getMessage();
     }
 
+    try {
+        // Entradas manuais legadas do Hall da Fama ficaram sem liga definida (N/A);
+        // todas essas são da ELITE.
+        $hasHofTableForLeagueFix = $pdo->query("SHOW TABLES LIKE 'hall_of_fame'")->fetch();
+        if ($hasHofTableForLeagueFix) {
+            $pdo->exec("UPDATE hall_of_fame SET league = 'ELITE' WHERE league IS NULL OR league = '' OR league = 'N/A'");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_hof_league_na: " . $e->getMessage();
+    }
+
     return [
         'success' => count($errors) === 0,
         'executed' => $executed,
