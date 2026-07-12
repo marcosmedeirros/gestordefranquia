@@ -236,7 +236,7 @@ if ($method === 'GET') {
             exit;
         }
 
-        $conditions = [];
+        $conditions = ["tp.type <> 'AVISO_TRADE'"];
         $params = [];
         if ($teamId) {
             $conditions[] = 'tp.team_id = ?';
