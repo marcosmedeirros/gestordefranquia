@@ -5,7 +5,10 @@ require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 
 $user = getUserSession();
-if (($user['user_type'] ?? 'jogador') !== 'admin') {
+$thePatheticExtraEditors = ['gustavodossantosgonzaga58@gmail.com'];
+$isThePatheticEditor = ($user['user_type'] ?? 'jogador') === 'admin'
+    || in_array(strtolower($user['email'] ?? ''), $thePatheticExtraEditors, true);
+if (!$isThePatheticEditor) {
     header('Location: /dashboard.php');
     exit;
 }
