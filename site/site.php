@@ -1001,7 +1001,6 @@ function Nav() {
           <a href="#about">FBA</a>
           <a href="#divisions">Divisões</a>
           <a href="#how">Como funciona</a>
-          <a href="/site/gamesfba.php">Games</a>
           <a href="/site/pathetic.php">The Pathetic</a>
         </div>
         <a href={window.__IS_LOGGED_IN__ ? "/dashboard.php" : "/login.php"} className="nav-cta">Jogar</a>
@@ -1192,19 +1191,10 @@ function Divisions({ onOpenWaitlist }) {
 function MoreContent() {
   const ITEMS = [
     {
-      id: "games",
-      name: "Games",
-      tag: "Modos extras · Jogue agora",
-      desc: "Games paralelos dentro da FBA. Teste seus conhecimentos e reflexos com os mini-games oficiais da liga.",
-      color: "#2A6FDB",
-      href: "/site/gamesfba.php",
-      cta: "Jogar",
-    },
-    {
       id: "pathetic",
       name: "The Pathetic",
       tag: "Jornal da liga",
-      desc: "O jornal oficial da FBA. Cobertura, bastidores e análises de cada rodada, temporada e transferência da liga.",
+      desc: "O jornal oficial da FBA. Cobertura, bastidores, análises de cada rodada, temporada e transferência da liga — e os mini-games oficiais.",
       color: "#E63946",
       href: "/site/pathetic.php",
       cta: "Ler",
@@ -1215,7 +1205,7 @@ function MoreContent() {
       <div className="wrap">
         <div className="section-head">
           <span className="section-num">06 / Conteúdo</span>
-          <h2>Games &amp; The Pathetic.</h2>
+          <h2>The Pathetic.</h2>
           <a className="section-link" href="#hall-da-fama">Hall da Fama →</a>
         </div>
         <div className="div-list">
@@ -1227,7 +1217,7 @@ function MoreContent() {
             >
               <div className="div-top">
                 <div className="div-logo">
-                  <i className={"bi " + (d.id === "games" ? "bi-controller" : "bi-newspaper")} style={{ fontSize: 22, color: d.color }}></i>
+                  <i className="bi bi-newspaper" style={{ fontSize: 22, color: d.color }}></i>
                 </div>
                 <div className="div-info">
                   <div className="div-name">
@@ -1446,7 +1436,6 @@ function Footer() {
             <h4>Liga</h4>
             <ul>
               <li><a href="#about">Sobre a FBA</a></li>
-              <li><a href="/site/gamesfba.php">Games</a></li>
               <li><a href="/site/pathetic.php">The Pathetic</a></li>
               <li><a href="#how">Regulamento</a></li>
               <li><a href="#hall-da-fama">Hall of fame</a></li>
