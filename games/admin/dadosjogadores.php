@@ -815,7 +815,7 @@ if ($action === 'import_wikidata') {
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_TIMEOUT        => 8,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_HTTPHEADER     => ['User-Agent: HoopGrid-FBA/1.0'],
         ]);
@@ -841,7 +841,7 @@ if ($action === 'import_wikidata') {
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 45,
+            CURLOPT_TIMEOUT        => 15,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_HTTPHEADER     => [
                 'Accept: application/sparql-results+json',
@@ -871,20 +871,28 @@ if ($action === 'import_wikidata') {
         'ALLNBA2'=> 'All-NBA Second Team',
         'ALLNBA3'=> 'All-NBA Third Team',
     ];
+    $awardsList = array_values($awardsSearch);
+    $awardsKeys = array_keys($awardsSearch);
 
-    $totalUpdated = 0;
+    $offset = max(0, (int)($_GET['offset'] ?? 0));
+    $total  = count($awardsList);
 
-    foreach ($awardsSearch as $awardCode => $searchTerm) {
-        echo "Localizando \"{$searchTerm}\"...\n";
+    if ($offset >= $total) { echo "DONE:{$total}\n"; flush(); exit; }
+
+    // Processa 1 premio por chamada (a query SPARQL sozinha pode levar ~45s,
+    // entao nao da pra fazer mais de um por requisicao sem estourar o limite do host)
+    $awardCode = $awardsKeys[$offset];
+    $searchTerm = $awardsList[$offset];
+
+    echo "[" . ($offset+1) . "/{$total}] Localizando \"{$searchTerm}\"...\n";
+    flush();
+
+    $updated = 0;
+    $qid = wikidataFindQid($searchTerm);
+    if (!$qid) {
+        echo "  Q ID não encontrado — pulando\n";
         flush();
-
-        $qid = wikidataFindQid($searchTerm);
-        if (!$qid) {
-            echo "  Q ID não encontrado — pulando\n\n";
-            flush();
-            usleep(800000);
-            continue;
-        }
+    } else {
         echo "  Q ID: {$qid}\n";
         flush();
 
@@ -892,7 +900,6 @@ if ($action === 'import_wikidata') {
         echo '  Nomes recebidos: ' . count($names) . "\n";
         flush();
 
-        $updated = 0;
         foreach ($names as $name) {
             $stmt = $pdo->prepare("SELECT id, premios FROM hoopgrid_players WHERE nome = ? LIMIT 1");
             $stmt->execute([$name]);
@@ -905,16 +912,18 @@ if ($action === 'import_wikidata') {
                 $pdo->prepare("UPDATE hoopgrid_players SET premios = ? WHERE id = ?")
                     ->execute([json_encode(array_values($existing)), $player['id']]);
                 $updated++;
-                $totalUpdated++;
             }
         }
-
-        echo "  Banco atualizado: {$updated} jogadores\n\n";
+        echo "  Banco atualizado: {$updated} jogadores\n";
         flush();
-        usleep(1500000);
     }
 
-    echo "Concluído! Total de prêmios adicionados: {$totalUpdated}\n";
+    $nextOffset = $offset + 1;
+    if ($nextOffset >= $total) {
+        echo "DONE:{$total}:{$updated}\n";
+    } else {
+        echo "NEXT:{$nextOffset}:{$total}:{$updated}\n";
+    }
     flush();
     exit;
 }
@@ -1962,21 +1971,30 @@ qs('btnImportAll').addEventListener('click', async () => {
   log.scrollTop = log.scrollHeight;
 
   log.textContent += '═══ ETAPA 2/2 — Wikidata ═══\n';
-  try {
-    const r = await fetch('?action=import_wikidata');
-    if (!r.body) { log.textContent += '❌ Streaming não suportado.\n'; }
-    else {
+  let wOffset = 0, wDone = false, wTries = 0;
+  while (!wDone && wTries < 30) {
+    wTries++;
+    try {
+      const r = await fetch(`?action=import_wikidata&offset=${wOffset}`);
       const reader = r.body.getReader();
       const dec = new TextDecoder();
+      let buf = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        log.textContent += dec.decode(value);
+        const txt = dec.decode(value);
+        buf += txt;
+        log.textContent += txt;
         log.scrollTop = log.scrollHeight;
       }
+      const mNext = buf.match(/NEXT:(\d+):(\d+)/);
+      const mDoneM = buf.match(/DONE:(\d+)/);
+      if (mNext) { wOffset = parseInt(mNext[1]); }
+      else if (mDoneM) { wDone = true; }
+      else { log.textContent += '⚠️ Resposta inesperada no Wikidata.\n'; wDone = true; }
+    } catch(e) {
+      log.textContent += `❌ Falha no Wikidata: ${e.message} — tentando de novo...\n`;
     }
-  } catch(e) {
-    log.textContent += `❌ Falha no Wikidata: ${e.message}\n`;
   }
 
   log.textContent += '\n✅ Importação completa!\n';
@@ -1986,27 +2004,48 @@ qs('btnImportAll').addEventListener('click', async () => {
 });
 
 // ── IMPORT WIKIDATA (streaming) ──────────────────────────────────────────────
-qs('btnImportWikidata').addEventListener('click', async () => {
+async function importWikidataChunk(offset) {
   const log = qs('log');
-  const btn = qs('btnImportWikidata');
-  btn.disabled = true;
-  log.textContent = 'Buscando prêmios no Wikidata (MVP, DPOY, ROY, MIP, 6THMAN, HOF, All-NBA)...\nCada prêmio leva ~2s. Aguarde.\n\n';
   try {
-    const r = await fetch('?action=import_wikidata');
-    if (!r.body) { log.textContent += '❌ Streaming não suportado.\n'; btn.disabled = false; return; }
+    const r = await fetch(`?action=import_wikidata&offset=${offset}`);
     const reader = r.body.getReader();
     const dec = new TextDecoder();
+    let buf = '';
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      log.textContent += dec.decode(value);
+      const txt = dec.decode(value);
+      buf += txt;
+      log.textContent += txt;
       log.scrollTop = log.scrollHeight;
     }
-    loadPlayers(1);
+    const mNext = buf.match(/NEXT:(\d+):(\d+)/);
+    const mDone = buf.match(/DONE:(\d+)/);
+    if (mNext) {
+      log.textContent += `\n--- ${mNext[1]}/${mNext[2]} prêmios verificados ---\n\n`;
+      log.scrollTop = log.scrollHeight;
+      setTimeout(() => importWikidataChunk(parseInt(mNext[1])), 300);
+    } else if (mDone) {
+      log.textContent += `\n✅ Wikidata concluído! ${mDone[1]} prêmios verificados.\n`;
+      log.scrollTop = log.scrollHeight;
+      qs('btnImportWikidata').disabled = false;
+      loadPlayers(1);
+    } else {
+      log.textContent += '\n⚠️ Resposta inesperada.\n';
+      qs('btnImportWikidata').disabled = false;
+    }
   } catch(e) {
-    log.textContent += `\n❌ Falha: ${e.message}`;
+    log.textContent += `\n❌ Falha: ${e.message} — tentando novamente...\n`;
+    log.scrollTop = log.scrollHeight;
+    setTimeout(() => importWikidataChunk(offset), 3000);
   }
-  btn.disabled = false;
+}
+
+qs('btnImportWikidata').addEventListener('click', () => {
+  const log = qs('log');
+  qs('btnImportWikidata').disabled = true;
+  log.textContent = 'Buscando prêmios no Wikidata (MVP, DPOY, ROY, MIP, 6THMAN, HOF, All-NBA)...\nUm prêmio por vez, cada consulta pode levar até 15s.\n\n';
+  importWikidataChunk(0);
 });
 
 // ── IMPORT ESTÁTICO ──────────────────────────────────────────────────────────
