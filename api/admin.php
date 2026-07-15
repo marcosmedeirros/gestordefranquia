@@ -1331,6 +1331,24 @@ if ($method === 'PUT') {
             
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
+
+            // Ao fechar a janela de trocas, cancela automaticamente qualquer
+            // troca ainda pendente daquela liga (1x1 e multi-times).
+            if ($trades_enabled === 0) {
+                try {
+                    $pdo->prepare("UPDATE trades SET status = 'cancelled' WHERE league = ? AND status = 'pending'")
+                        ->execute([$league]);
+                } catch (Exception $e) {
+                    error_log('Erro ao cancelar trades pendentes: ' . $e->getMessage());
+                }
+                try {
+                    $pdo->prepare("UPDATE multi_trades SET status = 'cancelled' WHERE league = ? AND status = 'pending'")
+                        ->execute([$league]);
+                } catch (Exception $e) {
+                    error_log('Erro ao cancelar multi_trades pendentes: ' . $e->getMessage());
+                }
+            }
+
             echo json_encode(['success' => true]);
             break;
 
