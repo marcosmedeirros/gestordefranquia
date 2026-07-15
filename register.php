@@ -39,7 +39,7 @@ if ($token !== '') {
 			--radius: 16px;
 			--radius-sm: 10px;
 		}
-		html, body { height: 100%; }
+		html, body { min-height: 100%; }
 		body {
 			margin: 0;
 			font-family: var(--font);

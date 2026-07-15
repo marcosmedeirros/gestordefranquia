@@ -33,7 +33,7 @@
 			--font: 'Poppins', sans-serif;
 		}
 
-		html, body { height: 100%; }
+		html, body { min-height: 100%; }
 		body {
 			margin: 0;
 			font-family: var(--font);
