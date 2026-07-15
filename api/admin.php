@@ -230,7 +230,7 @@ if ($method === 'GET') {
             $stmt = $pdo->prepare("
                 SELECT u.id, u.name, u.email, u.user_type, u.photo_url, u.league,
                        t.id AS team_id, t.name AS team_name, t.city AS team_city,
-                       t.photo_url AS team_photo
+                       t.photo_url AS team_photo, t.league AS team_league
                 FROM users u
                 LEFT JOIN teams t ON t.user_id = u.id
                 $where
@@ -2368,6 +2368,16 @@ if ($method === 'POST') {
             if ($name)  $pdo->prepare("UPDATE users SET name = ? WHERE id = ?")->execute([$name, $targetId]);
             if ($email) $pdo->prepare("UPDATE users SET email = ? WHERE id = ?")->execute([$email, $targetId]);
 
+            // Trocar a liga do time: atualiza teams.league (dispara o trigger de
+            // congelamento do Hall da Fama) e users.league do dono, juntos.
+            $teamLeague = isset($data['team_league']) ? strtoupper(trim((string)$data['team_league'])) : '';
+            if ($teamLeague !== '' && in_array($teamLeague, $validLeagues, true) && !empty($data['team_id'])) {
+                $pdo->prepare("UPDATE teams SET league = ? WHERE id = ? AND user_id = ?")
+                    ->execute([$teamLeague, (int)$data['team_id'], $targetId]);
+                $pdo->prepare("UPDATE users SET league = ? WHERE id = ?")
+                    ->execute([$teamLeague, $targetId]);
+            }
+
             if (isset($data['team_photo']) && $data['team_photo'] !== '' && !empty($data['team_id'])) {
                 $rawPhoto = trim((string)$data['team_photo']);
                 if (str_starts_with($rawPhoto, 'data:image/')) {
@@ -2582,6 +2592,55 @@ if ($method === 'DELETE') {
             $stmt = $pdo->prepare('DELETE FROM picks WHERE id = ?');
             $stmt->execute([$id]);
             echo json_encode(['success' => true, 'message' => 'Pick deletado']);
+            break;
+
+        case 'user':
+            $targetId = (int)$id;
+            if (!$targetId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'user_id inválido']);
+                exit;
+            }
+
+            $stmtU = $pdo->prepare("SELECT id, league FROM users WHERE id = ?");
+            $stmtU->execute([$targetId]);
+            $targetUser = $stmtU->fetch(PDO::FETCH_ASSOC);
+            if (!$targetUser) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Usuário não encontrado']);
+                exit;
+            }
+
+            if (!$isGlobalAdminApi && !in_array($targetUser['league'], $apiAdminLeagues, true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem permissão']);
+                exit;
+            }
+
+            // Só permite apagar usuário que não tem time — evita apagar dono de
+            // time (e o time junto) por engano.
+            $stmtTeamChk = $pdo->prepare("SELECT id FROM teams WHERE user_id = ? LIMIT 1");
+            $stmtTeamChk->execute([$targetId]);
+            if ($stmtTeamChk->fetch()) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Esse usuário tem time — não pode ser apagado por aqui']);
+                exit;
+            }
+
+            try {
+                $pdo->beginTransaction();
+                $pdo->prepare("DELETE FROM league_admins WHERE user_id = ?")->execute([$targetId]);
+                try {
+                    $pdo->prepare("DELETE FROM push_subscriptions WHERE user_id = ?")->execute([$targetId]);
+                } catch (Exception $e) {}
+                $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$targetId]);
+                $pdo->commit();
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Erro ao apagar usuário']);
+            }
             break;
 
         default:

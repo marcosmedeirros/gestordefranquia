@@ -78,7 +78,7 @@ async function showGestao(league) {
         <i class="bi bi-award-fill" style="color:#eab308"></i> Hall da Fama
       </button>
       <a href="/thepathetic-edit.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
-        <i class="bi bi-newspaper" style="color:#fc0025"></i> The Pathetic
+        <i class="bi bi-newspaper" style="color:var(--red)"></i> The Pathetic
       </a>
       <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;position:relative" onclick="showWaitlistModal()">
         <i class="bi bi-person-lines-fill" style="color:#22c55e"></i> Interessados
@@ -138,9 +138,14 @@ function renderGestaoTable(users) {
         </td>
         <td>${adminBadges}</td>
         <td>
-          <button class="btn btn-sm btn-outline-orange" onclick="openGestaoEdit(${u.id})">
-            <i class="bi bi-pencil-fill"></i>
-          </button>
+          <div class="d-flex gap-1">
+            <button class="btn btn-sm btn-outline-orange" onclick="openGestaoEdit(${u.id})" title="Editar">
+              <i class="bi bi-pencil-fill"></i>
+            </button>
+            ${!u.team_id ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteGestaoUser(${u.id}, '${escapeHtml(u.name).replace(/'/g, "\\'")}')" title="Apagar usuário (sem time)">
+              <i class="bi bi-trash-fill"></i>
+            </button>` : ''}
+          </div>
         </td>
       </tr>`;
   }).join('');
@@ -166,6 +171,14 @@ function openGestaoEdit(userId) {
   if (!u) return;
 
   const allLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
+  const teamLeagueField = u.team_id ? `
+    <div class="mb-3">
+      <label class="form-label text-light-gray">Liga do Time</label>
+      <select id="gedit-team-league" class="form-select">
+        ${allLeagues.map(l => `<option value="${l}" ${(u.team_league || u.league) === l ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
+      <div style="font-size:11px;color:var(--text-3);margin-top:4px">Muda a liga do time e do dono junto.</div>
+    </div>` : '';
   const adminChecks = window.IS_GLOBAL_ADMIN ? allLeagues.map(l => `
     <div class="form-check form-check-inline">
       <input class="form-check-input" type="checkbox" id="ck-${l}" value="${l}" ${(u.admin_leagues||[]).includes(l) ? 'checked' : ''}>
@@ -216,6 +229,7 @@ function openGestaoEdit(userId) {
                 </div>
               </div>
             </div>
+            ${teamLeagueField}
             ${window.IS_GLOBAL_ADMIN ? `
             <div class="mb-3">
               <label class="form-label text-light-gray">Ligas Admin</label>
@@ -262,11 +276,13 @@ async function saveGestaoUser() {
   const name     = document.getElementById('gedit-name').value.trim();
   const email    = document.getElementById('gedit-email').value.trim();
   const teamPhoto = document.getElementById('gedit-team-photo').value.trim();
+  const teamLeagueEl = document.getElementById('gedit-team-league');
+  const teamLeague = teamLeagueEl ? teamLeagueEl.value : '';
 
   try {
     await api('admin.php?action=update_user', {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId, team_id: teamId, name, email, team_photo: teamPhoto })
+      body: JSON.stringify({ user_id: userId, team_id: teamId, name, email, team_photo: teamPhoto, team_league: teamLeague })
     });
 
     if (window.IS_GLOBAL_ADMIN) {
@@ -279,6 +295,17 @@ async function saveGestaoUser() {
 
     bootstrap.Modal.getInstance(document.getElementById('gestaoEditModal'))?.hide();
     showAlert('success', 'Usuário atualizado!');
+    showGestao(_gestaoLeague);
+  } catch (e) {
+    showAlert('danger', 'Erro: ' + (e.error || 'Desconhecido'));
+  }
+}
+
+async function deleteGestaoUser(userId, userName) {
+  if (!confirm(`Apagar o usuário "${userName}"? Essa ação não pode ser desfeita.`)) return;
+  try {
+    await api(`admin.php?action=user&id=${userId}`, { method: 'DELETE' });
+    showAlert('success', 'Usuário apagado!');
     showGestao(_gestaoLeague);
   } catch (e) {
     showAlert('danger', 'Erro: ' + (e.error || 'Desconhecido'));
@@ -832,7 +859,7 @@ async function showLeague(league) {
       { icon: 'bi-archive-fill',            label: 'Banco de<br>Classes',        fn: 'showDraftClassBank()',      color: '#a855f7', bg: 'rgba(168,85,247,.08)'  },
       { icon: 'bi-coin',                    label: 'Moedas',                    fn: 'showCoins()',               color: '#f59e0b', bg: 'rgba(245,158,11,.12)'  },
       ...(window.IS_GLOBAL_ADMIN ? [
-        { icon: 'bi-lightning-fill',        label: 'Force<br>Trade',            fn: `showForceTradeModal('${league}')`, color: '#fc0025', bg: 'rgba(252,0,37,.12)'   },
+        { icon: 'bi-lightning-fill',        label: 'Force<br>Trade',            fn: `showForceTradeModal('${league}')`, color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 12%, transparent)'   },
       ] : []),
     ];
 
@@ -944,13 +971,13 @@ async function showLeague(league) {
         </div>
         <div id="srchPlayerPanel">
           <div class="d-flex gap-2">
-            <input type="text" id="srchPlayerInput" class="form-control bg-dark text-white" style="border-color:rgba(252,0,37,.35);font-size:13px" placeholder="Nome do jogador...">
+            <input type="text" id="srchPlayerInput" class="form-control bg-dark text-white" style="border-color:color-mix(in srgb, var(--red) 35%, transparent);font-size:13px" placeholder="Nome do jogador...">
             <button class="btn btn-sm" style="background:var(--red);color:#fff;white-space:nowrap;padding:6px 14px" onclick="runLeaguePlayerSearch()"><i class="bi bi-search"></i></button>
           </div>
           <div id="srchPlayerResults" class="mt-2"></div>
         </div>
         <div id="srchPickPanel" style="display:none">
-          <select id="srchPickTeam" class="form-select bg-dark text-white" style="border-color:rgba(252,0,37,.35);font-size:13px" onchange="runLeaguePickSearch(this.value)">
+          <select id="srchPickTeam" class="form-select bg-dark text-white" style="border-color:color-mix(in srgb, var(--red) 35%, transparent);font-size:13px" onchange="runLeaguePickSearch(this.value)">
             <option value="">Selecionar time...</option>
           </select>
           <div id="srchPickResults" class="mt-2"></div>
@@ -1450,11 +1477,11 @@ ${(() => {
         const swapPartner = p.swap_type && p.swap_partner_name ? ` <span style="font-size:11px;color:var(--text-3)">c/ ${escapeHtml(p.swap_partner_city||'')} ${escapeHtml(p.swap_partner_name)}</span>` : '';
         return `<div class="pun-card" style="display:flex;align-items:center;gap:10px">
   <div style="flex:1;min-width:0">
-    <span style="font-weight:600;color:var(--text)">${p.season_year} · ${p.round}ª rodada</span>${p.swap_type ? ` <span style="background:rgba(252,0,37,.12);color:var(--red);border:1px solid rgba(252,0,37,.25);border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700">${swapLabel(p.swap_type)}</span>${swapPartner}` : ''}
+    <span style="font-weight:600;color:var(--text)">${p.season_year} · ${p.round}ª rodada</span>${p.swap_type ? ` <span style="background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid color-mix(in srgb, var(--red) 25%, transparent);border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700">${swapLabel(p.swap_type)}</span>${swapPartner}` : ''}
     <div style="font-size:12px;color:var(--text-3);margin-top:2px">${escapeHtml(p.city)} ${escapeHtml(p.team_name)}</div>
   </div>
   <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
-    <button class="btn-ghost" style="padding:3px 7px;font-size:10px;font-weight:700;${p.swap_type ? 'color:var(--red);border-color:rgba(252,0,37,.25)' : 'color:var(--text-3)'}" onclick="quickSwapType(${p.id})" title="Tipo de swap">SWAP?</button>
+    <button class="btn-ghost" style="padding:3px 7px;font-size:10px;font-weight:700;${p.swap_type ? 'color:var(--red);border-color:color-mix(in srgb, var(--red) 25%, transparent)' : 'color:var(--text-3)'}" onclick="quickSwapType(${p.id})" title="Tipo de swap">SWAP?</button>
     <button class="btn-ghost" style="padding:5px 7px" onclick="movePick(${p.id})" title="Mover para outro time"><i class="bi bi-arrow-left-right"></i></button>
     <button class="btn-ghost" style="padding:5px 7px" onclick="editPick(${p.id})"><i class="bi bi-pencil-fill"></i></button>
     <button class="btn-ghost" style="padding:5px 7px;color:#ef4444" onclick="deletePick(${p.id})"><i class="bi bi-trash-fill"></i></button>
@@ -1926,7 +1953,7 @@ async function loadHallOfFameList() {
         <div style="display:flex;flex-direction:column;gap:6px">
           ${rows.map(row => `
           <div style="display:flex;align-items:center;gap:8px;padding-left:6px">
-            <span style="font-size:10px;font-weight:700;background:var(--red-soft);color:var(--red);border:1px solid rgba(252,0,37,.2);border-radius:999px;padding:1px 7px;min-width:52px;text-align:center">${row.league}${row.league === g.current_league ? ' •' : ''}</span>
+            <span style="font-size:10px;font-weight:700;background:var(--red-soft);color:var(--red);border:1px solid color-mix(in srgb, var(--red) 20%, transparent);border-radius:999px;padding:1px 7px;min-width:52px;text-align:center">${row.league}${row.league === g.current_league ? ' •' : ''}</span>
             <select data-hof-league="${row.id}"
               style="background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:5px 6px;color:var(--text);font-size:12px;font-weight:600;outline:none">
               ${['ELITE', 'NEXT', 'RISE', 'ROOKIE'].map(lg => `<option value="${lg}" ${row.league === lg ? 'selected' : ''}>${lg}</option>`).join('')}
@@ -2089,7 +2116,7 @@ async function showConfig() {
           <i class="bi bi-arrow-left-right" style="color:#3b82f6;font-size:14px"></i>
         </div>
         <span style="font-size:13px;font-weight:600;color:var(--text)">Trades</span>
-        <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;${(lg.trades_enabled ?? 1) == 1 ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)' : 'background:rgba(252,0,37,.12);color:var(--red);border:1px solid var(--border-red)'}">${(lg.trades_enabled ?? 1) == 1 ? 'Ativas' : 'Bloqueadas'}</span>
+        <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;${(lg.trades_enabled ?? 1) == 1 ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)' : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)'}">${(lg.trades_enabled ?? 1) == 1 ? 'Ativas' : 'Bloqueadas'}</span>
       </div>
       <div style="display:flex;gap:6px">
         <button class="btn ${(lg.trades_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1"
@@ -2110,7 +2137,7 @@ async function showConfig() {
           <i class="bi bi-coin" style="color:#22c55e;font-size:14px"></i>
         </div>
         <span style="font-size:13px;font-weight:600;color:var(--text)">Free Agency</span>
-        <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;${(lg.fa_enabled ?? 1) == 1 ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)' : 'background:rgba(252,0,37,.12);color:var(--red);border:1px solid var(--border-red)'}">${(lg.fa_enabled ?? 1) == 1 ? 'Ativa' : 'Bloqueada'}</span>
+        <span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;${(lg.fa_enabled ?? 1) == 1 ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)' : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)'}">${(lg.fa_enabled ?? 1) == 1 ? 'Ativa' : 'Bloqueada'}</span>
       </div>
       <div style="display:flex;gap:6px">
         <button class="btn ${(lg.fa_enabled ?? 1) == 1 ? 'btn-success' : 'btn-outline-success'} flex-grow-1"
@@ -2186,7 +2213,7 @@ async function _loadLeagueConfigInline(league) {
     const faOn = (lg.fa_enabled ?? 1) == 1;
     const badgeStyle = (on) => on
       ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
-      : 'background:rgba(252,0,37,.12);color:var(--red);border:1px solid var(--border-red)';
+      : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)';
     body.innerHTML = `
       <div style="display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px">
         <div style="display:flex;flex-direction:column;gap:4px">
@@ -4781,7 +4808,7 @@ async function toggleTrades(league, enabled) {
       badge.textContent = on ? 'Ativas' : 'Bloqueadas';
       badge.style.cssText = `font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;${on
         ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
-        : 'background:rgba(252,0,37,.12);color:var(--red);border:1px solid var(--border-red)'}`;
+        : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)'}`;
     }
     showAlert('success', `Trocas ${on ? 'ativadas' : 'desativadas'} para a liga ${league}!`);
   } catch (e) {
@@ -4805,7 +4832,7 @@ async function toggleFA(league, enabled) {
       badge.textContent = on ? 'Ativa' : 'Bloqueada';
       badge.style.cssText = `font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;${on
         ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
-        : 'background:rgba(252,0,37,.12);color:var(--red);border:1px solid var(--border-red)'}`;
+        : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)'}`;
     }
     showAlert('success', `Free Agency ${on ? 'ativada' : 'desativada'} para a liga ${league}!`);
   } catch (e) {
