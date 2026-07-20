@@ -853,6 +853,7 @@ async function showRegistroPontuacao(league) {
             <!-- 2. Classificação -->
             <div class="panel mb-3">
                 <div class="panel-title"><i class="bi bi-list-ol"></i> 2. Classificação da Temporada Regular</div>
+                <div style="font-size:12px;color:var(--text-3);margin-top:4px">Preencha a posição final de <b>todos</b> os times de cada conferência. Os 8 primeiros valem pontos de seed; os demais ficam registrados para o histórico de posições por temporada.</div>
                 <div id="standingsContainer" style="margin-top:12px">
                     <button type="button" class="btn-ghost" onclick="loadTeamsForStandings('${league}')">
                         <i class="bi bi-download me-1"></i> Carregar Times
@@ -924,10 +925,10 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         return;
     }
 
-    const getRankList = (conf) => Array.from({length: 8}, (_, i) => {
-        const s = form.querySelector(`[name="${conf}_rank_${i + 1}"]`);
-        return s ? (s.value || null) : null;
-    }).filter(Boolean);
+    const getRankList = (conf) => Array.from(form.querySelectorAll(`[name^="${conf}_rank_"]`))
+        .sort((a, b) => parseInt(a.name.split('_rank_')[1], 10) - parseInt(b.name.split('_rank_')[1], 10))
+        .map(s => s.value || null)
+        .filter(Boolean);
 
     const fv = name => form.querySelector(`[name="${name}"]`)?.value || null;
 
@@ -973,10 +974,10 @@ async function saveAndAdvanceSeason(event, seasonId, league) {
         return;
     }
 
-    const getRankList = (conf) => Array.from({length: 8}, (_, i) => {
-        const s = form.querySelector(`[name="${conf}_rank_${i + 1}"]`);
-        return s ? (s.value || null) : null;
-    }).filter(Boolean);
+    const getRankList = (conf) => Array.from(form.querySelectorAll(`[name^="${conf}_rank_"]`))
+        .sort((a, b) => parseInt(a.name.split('_rank_')[1], 10) - parseInt(b.name.split('_rank_')[1], 10))
+        .map(s => s.value || null)
+        .filter(Boolean);
 
     const payload = {
         season_id: seasonId,
@@ -1324,13 +1325,20 @@ async function loadTeamsForStandings(league) {
         const makeSlots = (conf, confTeams) => {
             const opts = '<option value="">—</option>' +
                 confTeams.map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`).join('');
-            return Array.from({length: 8}, (_, i) => `
+            const slotCount = Math.max(8, confTeams.length);
+            return Array.from({length: slotCount}, (_, i) => {
+                const rank = i + 1;
+                const isSeedCut = rank === 8 && slotCount > 8;
+                const outOfPlayoffs = rank > 8;
+                return `
                 <div class="d-flex align-items-center gap-2 mb-2">
-                    <span class="text-light-gray fw-bold" style="width:28px;text-align:right">${i + 1}°</span>
+                    <span class="fw-bold" style="width:28px;text-align:right;color:${outOfPlayoffs ? 'var(--text-3)' : 'var(--text-2)'}">${rank}°</span>
                     <select class="form-select form-select-sm bg-dark text-white border-orange"
-                            name="${conf}_rank_${i + 1}" style="border-radius:10px"
+                            name="${conf}_rank_${rank}" style="border-radius:10px;${outOfPlayoffs ? 'opacity:.85' : ''}"
                             onchange="_updateStandingsUnique('${conf}'); _regPtsSaveCache();">${opts}</select>
-                </div>`).join('');
+                </div>
+                ${isSeedCut ? `<div style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;padding-left:36px"><div style="flex:1;height:1px;background:var(--border-red)"></div><span style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--red)">Linha do Playoff</span><div style="flex:1;height:1px;background:var(--border)"></div></div>` : ''}`;
+            }).join('');
         };
 
         const container = document.getElementById('standingsContainer');
@@ -1416,10 +1424,10 @@ function saveSeasonHistory(event, seasonId) {
         return;
     }
 
-    const getRankList = (conf) => Array.from({length: 8}, (_, i) => {
-        const s = form.querySelector(`[name="${conf}_rank_${i + 1}"]`);
-        return s ? (s.value || null) : null;
-    }).filter(Boolean);
+    const getRankList = (conf) => Array.from(form.querySelectorAll(`[name^="${conf}_rank_"]`))
+        .sort((a, b) => parseInt(a.name.split('_rank_')[1], 10) - parseInt(b.name.split('_rank_')[1], 10))
+        .map(s => s.value || null)
+        .filter(Boolean);
 
     const payload = {
         season_id: seasonId,

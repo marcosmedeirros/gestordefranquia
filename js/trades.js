@@ -538,6 +538,10 @@ const submitMultiTrade = async () => {
   const modal = document.getElementById('multiTradeModal');
   const editTradeId = modal?.dataset.editTradeId ? parseInt(modal.dataset.editTradeId, 10) : null;
 
+  if (!leagueAllowsSwap() && noteMentionsSwap(notes)) {
+    return alert(swapNotAllowedNoteMessage());
+  }
+
   try {
     if (editTradeId) {
       await api('trades.php?action=edit_multi_trade', {
@@ -607,7 +611,7 @@ const buildPickSummary = (pick) => {
   const activeSwap = pick.swapRole || pick.swap_type;
   if (activeSwap) {
     const swapLabel = activeSwap === 'SB' ? 'SWAP · Melhor' : activeSwap === 'SW' ? 'SWAP · Pior' : activeSwap;
-    metaParts.push(`<span style="background:rgba(252,0,37,.15);color:#fc0025;border:1px solid rgba(252,0,37,.3);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">${swapLabel}</span>`);
+    metaParts.push(`<span style="background:color-mix(in srgb, var(--red) 15%, transparent);color:var(--red);border:1px solid color-mix(in srgb, var(--red) 30%, transparent);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">${swapLabel}</span>`);
   }
   return {
     title: (pickNumber && isCurrentDraft) ? `Pick ${pickNumber}` : `Pick ${year} R${round}`,
@@ -624,7 +628,19 @@ const findSelectedPickById = (pickId) => {
     || null;
 };
 
+// RISE e ROOKIE não têm swap de picks
+const LEAGUES_WITHOUT_SWAP = ['RISE', 'ROOKIE'];
+const leagueAllowsSwap = () => !LEAGUES_WITHOUT_SWAP.includes(String(myLeague || '').trim().toUpperCase());
+
+// Impede combinar swap por escrito nas observações, em ligas sem swap.
+// \b evita falso positivo (nenhuma palavra em português começa com "sw");
+// separador opcional cobre tentativas de burlar do tipo "s w a p" / "s.w.a.p"
+const noteMentionsSwap = (text) => /\bs[\s._-]?w[\s._-]?a[\s._-]?p/i.test(String(text || ''));
+const swapNotAllowedNoteMessage = () =>
+  `Não existe swap de picks na liga ${String(myLeague || '').trim().toUpperCase()}. Remova a menção a "swap" da observação para enviar.`;
+
 const getSwapCandidateMap = () => {
+  if (!leagueAllowsSwap()) return {};
   const offerPicks  = pickState.offer.selected.filter(p => !p.swap_type);
   const requestPicks = pickState.request.selected.filter(p => !p.swap_type);
   const map = {};
@@ -1447,7 +1463,11 @@ async function submitTrade() {
   if (swapPayload.invalid) {
     return alert('Revise o swap: selecione SB/SW para as duas picks do mesmo ano e rodada.');
   }
-  
+
+  if (!leagueAllowsSwap() && noteMentionsSwap(notes)) {
+    return alert(swapNotAllowedNoteMessage());
+  }
+
   try {
     const payload = {
       to_team_id: parseInt(targetTeam),
@@ -1699,6 +1719,7 @@ function createMultiTradeCard(trade, type) {
     </div>
     <div class="mb-3 d-flex flex-wrap gap-2">${teamsList || `<span style="color:var(--text-3);font-size:13px">Times</span>`}</div>
     <div>${itemsHtml}</div>
+    ${trade.status === 'accepted' ? buildMultiTradeGradeHtml(trade, teamMap) : ''}
     ${trade.notes ? `<div class="tc-notes"><i class="bi bi-chat-left-text me-2"></i>${trade.notes}</div>` : ''}
     ${type === 'league' ? `<div class="reaction-bar mt-3">${buildTradeReactionBar(trade, 'multi')}</div>` : ''}
   `;
@@ -1798,6 +1819,69 @@ async function openEditMultiTrade(trade) {
   bootstrap.Modal.getOrCreateInstance(modal).show();
 }
 
+function _tradeOvrDelta(players) {
+  let delta = 0, known = 0;
+  (players || []).forEach(p => {
+    const cur = p.current_ovr;
+    const at = p.ovr;
+    if (cur !== null && cur !== undefined && at !== null && at !== undefined) {
+      delta += (parseInt(cur) - parseInt(at));
+      known++;
+    }
+  });
+  return { delta, known };
+}
+
+function buildTradeGradeHtml(receivedByA, receivedByB, labelA, labelB) {
+  const a = _tradeOvrDelta(receivedByA);
+  const b = _tradeOvrDelta(receivedByB);
+  if (a.known === 0 && b.known === 0) return '';
+  const fmt = (n) => (n > 0 ? `+${n}` : `${n}`);
+  const colorFor = (n) => n > 0 ? '#22c55e' : (n < 0 ? '#ef4444' : 'var(--text-2)');
+  let verdict = '';
+  if (a.known > 0 && b.known > 0 && a.delta !== b.delta) {
+    verdict = a.delta > b.delta
+      ? `<div style="font-size:11px;color:var(--text-2);margin-top:6px">Quem mais evoluiu desde a troca: <strong style="color:var(--text)">${labelA}</strong></div>`
+      : `<div style="font-size:11px;color:var(--text-2);margin-top:6px">Quem mais evoluiu desde a troca: <strong style="color:var(--text)">${labelB}</strong></div>`;
+  }
+  return `
+    <div class="tc-notes" style="margin-top:12px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);margin-bottom:8px">
+        <i class="bi bi-graph-up me-1"></i>Nota retroativa (variação de OVR desde a troca)
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div><span style="font-size:12px;color:var(--text-2)">${labelA} recebeu: </span><strong style="color:${colorFor(a.delta)}">${a.known ? fmt(a.delta) : 'sem dado'}</strong></div>
+        <div><span style="font-size:12px;color:var(--text-2)">${labelB} recebeu: </span><strong style="color:${colorFor(b.delta)}">${b.known ? fmt(b.delta) : 'sem dado'}</strong></div>
+      </div>
+      ${verdict}
+    </div>`;
+}
+
+function buildMultiTradeGradeHtml(trade, teamMap) {
+  const items = (trade.items || []).filter(it => it.player_id || it.player_name);
+  if (items.length === 0) return '';
+  const byTeam = {};
+  items.forEach(it => {
+    const toId = String(it.to_team_id);
+    if (!byTeam[toId]) byTeam[toId] = [];
+    byTeam[toId].push({ ovr: it.player_ovr, current_ovr: it.current_ovr });
+  });
+  const rows = Object.entries(byTeam).map(([toId, players]) => {
+    const { delta, known } = _tradeOvrDelta(players);
+    const label = teamMap[toId] || `Time ${toId}`;
+    const color = delta > 0 ? '#22c55e' : (delta < 0 ? '#ef4444' : 'var(--text-2)');
+    return `<div><span style="font-size:12px;color:var(--text-2)">${label} recebeu: </span><strong style="color:${color}">${known ? (delta > 0 ? `+${delta}` : delta) : 'sem dado'}</strong></div>`;
+  }).join('');
+  if (!rows) return '';
+  return `
+    <div class="tc-notes" style="margin-top:12px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);margin-bottom:8px">
+        <i class="bi bi-graph-up me-1"></i>Nota retroativa (variação de OVR desde a troca)
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">${rows}</div>
+    </div>`;
+}
+
 function createTradeCard(trade, type) {
   if (!window.__tradeCache__) window.__tradeCache__ = {};
   if (trade.is_multi) {
@@ -1862,6 +1946,7 @@ function createTradeCard(trade, type) {
       </div>
     </div>
 
+    ${trade.status === 'accepted' ? buildTradeGradeHtml(trade.request_players, trade.offer_players, fromTeam, toTeam) : ''}
     ${trade.notes ? `<div class="tc-notes"><i class="bi bi-chat-left-text me-2"></i>${trade.notes}</div>` : ''}
     ${responseNotes}
     ${type === 'league' ? `<div class="reaction-bar mt-3">${buildTradeReactionBar(trade, 'single')}</div>` : ''}
@@ -1917,7 +2002,11 @@ async function respondTrade(tradeId, action) {
   // Pegar observação se existir
   const notesEl = document.getElementById(`responseNotes_${tradeId}`);
   const responseNotes = notesEl ? notesEl.value.trim() : '';
-  
+
+  if (!leagueAllowsSwap() && noteMentionsSwap(responseNotes)) {
+    return alert(swapNotAllowedNoteMessage());
+  }
+
   try {
     await api('trades.php', {
       method: 'PUT',

@@ -355,9 +355,10 @@ try {
 <title>Infos & Forms · FBA</title>
 <link rel="icon" type="image/png" href="/games/fbagames.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--red:#fc0025;--red-soft:rgba(252,0,37,.10);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--border:rgba(255,255,255,.07);--border-md:rgba(255,255,255,.12);--text:#f0f0f3;--text-2:#868690;--text-3:#48484f;--amber:#f59e0b;--green:#22c55e;--purple:#a855f7;--blue:#60a5fa;--radius:14px;--font:'Poppins',sans-serif}
+:root{--red:#fc0025;--red-soft:color-mix(in srgb, var(--red) 10%, transparent);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--border:rgba(255,255,255,.07);--border-md:rgba(255,255,255,.12);--text:#f0f0f3;--text-2:#868690;--text-3:#7d7d85;--amber:#f59e0b;--green:#22c55e;--purple:#a855f7;--blue:#60a5fa;--radius:14px;--font:'Montserrat', sans-serif}
+:root[data-theme="light"]{--bg:#f6f7fb;--panel:#ffffff;--panel-2:#f2f4f8;--border:#e3e6ee;--border-md:#d7dbe6;--text:#111217;--text-2:#5b6270;--text-3:#657080}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 .topbar{position:sticky;top:0;z-index:300;height:54px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px}
@@ -381,12 +382,12 @@ main{max-width:1200px;margin:0 auto;padding:28px 16px 80px}
 /* Card */
 .league-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
 .league-header{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
-.league-badge{font-family:'Oswald',sans-serif;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;letter-spacing:.5px;flex-shrink:0}
+.league-badge{font-family:'Oswald',sans-serif;font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;letter-spacing:.5px;flex-shrink:0}
 .badge-ELITE{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.25)}
 .badge-NEXT{background:rgba(99,102,241,.12);color:#818cf8;border:1px solid rgba(99,102,241,.25)}
 .badge-RISE{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
 .badge-ROOKIE{background:rgba(168,85,247,.12);color:#c084fc;border:1px solid rgba(168,85,247,.25)}
-.copy-btn{margin-left:auto;background:var(--panel-2);border:1px solid var(--border-md);color:var(--text-3);border-radius:7px;padding:3px 9px;font-size:10px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .2s;white-space:nowrap;flex-shrink:0}
+.copy-btn{margin-left:auto;background:var(--panel-2);border:1px solid var(--border-md);color:var(--text-3);border-radius:7px;padding:4px 10px;font-size:10px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .2s;white-space:nowrap;flex-shrink:0}
 .copy-btn:hover{border-color:var(--red);color:var(--red)}
 
 /* Sub-section label inside card */
@@ -415,7 +416,8 @@ main{max-width:1200px;margin:0 auto;padding:28px 16px 80px}
 .pair-b{font-size:11px;font-weight:600;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .empty-state{padding:16px 14px;font-size:11px;color:var(--text-3);text-align:center}
-</style>
+<?php include __DIR__ . '/includes/accent-color.php'; ?>
+    </style>
 </head>
 <body>
 <div class="topbar">
@@ -536,7 +538,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
 
 // ─── Render all sections ─────────────────────────────────────────
 
-renderSection('trades', '🔄', 'rgba(252,0,37,.15)', 'Trades por Time',
+renderSection('trades', '🔄', 'color-mix(in srgb, var(--red) 15%, transparent)', 'Trades por Time',
     'Quem mais e menos movimentou o mercado',
     $tradesByLeague, $leagues, [
         'label_hi' => '🔥 Mais ativos', 'label_lo' => '🧊 Menos ativos',
@@ -553,7 +555,7 @@ renderSection('pares', '🤝', 'rgba(96,165,250,.12)', 'Pares que mais trocaram'
         'pair_mode' => true,
     ]);
 
-renderSection('playoffs', '🎯', 'rgba(252,0,37,.12)', 'Aparições no Playoff',
+renderSection('playoffs', '🎯', 'color-mix(in srgb, var(--red) 12%, transparent)', 'Aparições no Playoff',
     'Times que mais chegaram ao playoff',
     $playoffMap, $leagues, [
         'label_hi' => '🎯 Mais playoffs', 'label_lo' => '📉 Menos playoffs',
@@ -657,7 +659,7 @@ renderSection('draft-ovr', '📈', 'rgba(168,85,247,.10)', 'Aproveitamento do Dr
         'copy_hi' => 'Melhor aproveitamento do draft', 'copy_lo' => 'Menor aproveitamento do draft',
     ]);
 
-renderSection('fa-hot', '🔥', 'rgba(252,0,37,.10)', 'Jogadores mais Disputados na FA',
+renderSection('fa-hot', '🔥', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Jogadores mais Disputados na FA',
     'Jogadores com mais times diferentes fazendo ofertas',
     $faHotMap, $leagues, [
         'label_hi' => '🔥 Mais disputados', 'show_lo' => false,
@@ -666,7 +668,7 @@ renderSection('fa-hot', '🔥', 'rgba(252,0,37,.10)', 'Jogadores mais Disputados
         'suffix' => ' ofertas',
     ]);
 
-renderSection('rejected', '❌', 'rgba(252,0,37,.10)', 'Trades Rejeitadas',
+renderSection('rejected', '❌', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Trades Rejeitadas',
     'Times com mais propostas recusadas pelo adversário',
     $rejectedMap, $leagues, [
         'label_hi' => '❌ Mais rejeitados', 'label_lo' => '✅ Menos rejeitados',

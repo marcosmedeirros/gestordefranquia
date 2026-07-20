@@ -85,29 +85,29 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-	<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 	<link rel="stylesheet" href="/css/styles.css?v=20260225-2">
 
 	<style>
 		/* ── Design Tokens ─────────────────────────────── */
 		:root {
 			--red: #fc0025;
-			--red-2: #ff2a44;
-			--red-soft: rgba(252,0,37,.10);
-			--red-glow: rgba(252,0,37,.18);
+			--red-2: color-mix(in srgb, var(--red) 85%, white);
+			--red-soft: color-mix(in srgb, var(--red) 10%, transparent);
+			--red-glow: color-mix(in srgb, var(--red) 18%, transparent);
 			--bg: #07070a;
 			--panel: #101013;
 			--panel-2: #16161a;
 			--panel-3: #1c1c21;
 			--border: rgba(255,255,255,.06);
 			--border-md: rgba(255,255,255,.10);
-			--border-red: rgba(252,0,37,.22);
+			--border-red: color-mix(in srgb, var(--red) 22%, transparent);
 			--text: #f0f0f3;
 			--text-2: #868690;
-			--text-3: #48484f;
+			--text-3: #7d7d85;
 			--sidebar-w: 260px;
-			--font-display: 'Poppins', sans-serif;
-			--font-body: 'Poppins', sans-serif;
+			--font-display: 'Montserrat', sans-serif;
+			--font-body: 'Montserrat', sans-serif;
 			--radius: 14px;
 			--radius-sm: 10px;
 			--radius-xs: 6px;
@@ -122,10 +122,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			--panel-3: #e9edf4;
 			--border: #e3e6ee;
 			--border-md: #d7dbe6;
-			--border-red: rgba(252,0,37,.18);
+			--border-red: color-mix(in srgb, var(--red) 18%, transparent);
 			--text: #111217;
 			--text-2: #5b6270;
-			--text-3: #8b93a5;
+			--text-3: #657080;
 		}
 
 		*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -207,10 +207,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		.sb-season-val { font-size: 14px; font-weight: 700; color: var(--red); }
 
 		.sb-nav { flex: 1; padding: 12px 10px 8px; }
-		.sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
-		.sb-nav a {
+		.sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 6px; }
+		.sb-nav a { font-family:'Inter',sans-serif;
 			display: flex; align-items: center; gap: 10px;
-			padding: 9px 10px; border-radius: var(--radius-sm);
+			padding: 10px 10px; border-radius: var(--radius-sm);
 			color: var(--text-2); font-size: 13px; font-weight: 500;
 			text-decoration: none; margin-bottom: 2px;
 			transition: all var(--t) var(--ease);
@@ -330,7 +330,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			border-radius: 12px; padding: 12px 14px; width: 100%;
 			transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
 		}
-		.btn-action:hover { transform: translateY(-1px); box-shadow: 0 12px 20px rgba(252,0,37,.18); }
+		.btn-action:hover { transform: translateY(-1px); box-shadow: 0 12px 20px color-mix(in srgb, var(--red) 18%, transparent); }
 
 		.players-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 		.players-table thead th {
@@ -339,7 +339,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		}
 		.players-table tbody td { padding: 12px 10px; border-bottom: 1px solid var(--border); }
 		.players-table tbody tr:hover { background: var(--panel-2); }
-		.players-table .col-actions { width: 160px; }
+		.players-table .col-actions { width: 220px; }
+		.players-table .col-actions .fav-star { width: 28px; height: 28px; vertical-align: middle; }
 
 		.badge-ovr {
 			display: inline-flex; align-items: center; justify-content: center;
@@ -353,7 +354,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		.franchise-player-card { border-color: rgba(245,158,11,.4) !important; background: rgba(245,158,11,.05) !important; }
 		.loyal-player-row { background: rgba(6,182,212,.06) !important; border-left: 3px solid rgba(6,182,212,.45); }
 		.loyal-player-card { border-color: rgba(6,182,212,.4) !important; background: rgba(6,182,212,.05) !important; }
-		.badge-franchise { display:inline-flex; align-items:center; gap:3px; background:rgba(245,158,11,.15); color:#f59e0b; border:1px solid rgba(245,158,11,.35); border-radius:999px; font-size:10px; font-weight:700; padding:2px 7px; margin-left:4px; }
+		.badge-franchise { display:inline-flex; align-items:center; gap:4px; background:rgba(245,158,11,.15); color:#f59e0b; border:1px solid rgba(245,158,11,.35); border-radius:999px; font-size:10px; font-weight:700; padding:2px 8px; margin-left:4px; }
 
 		.players-cards {
 			display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;
@@ -417,7 +418,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		/* ── Mobile list view ───────────────────────── */
 		.mpl-item {
 			display: flex; align-items: center; gap: 12px;
-			padding: 11px 0; border-bottom: 1px solid var(--border);
+			padding: 12px 0; border-bottom: 1px solid var(--border);
 		}
 		.mpl-item:last-child { border-bottom: none; }
 		.mpl-main { flex: 1; min-width: 0; }
@@ -427,13 +428,39 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		}
 		.mpl-meta { font-size: 12px; color: var(--text-2); margin-top: 2px; }
 		.mpl-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
-		.mpl-actions { display: flex; gap: 5px; }
+		.mpl-actions { display: flex; gap: 6px; }
 		.mpl-btn {
-			padding: 4px 9px; border-radius: 6px; font-size: 11px; font-weight: 600;
+			padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
 			border: 1px solid var(--border); background: var(--panel-2); color: var(--text-2);
 			text-decoration: none; cursor: pointer; white-space: nowrap;
 		}
 		.mpl-btn.trade { background: var(--red); color: #fff; border-color: var(--red); }
+
+		/* ── Toggles Favoritos / Comparar ────────────── */
+		.players-toggle-btn {
+			display: inline-flex; align-items: center; gap: 6px;
+			padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+			border: 1px solid var(--border-md); background: var(--panel-2); color: var(--text-2);
+			cursor: pointer; transition: all var(--t, 200ms) var(--ease, ease);
+		}
+		.players-toggle-btn:hover { border-color: var(--border-red); color: var(--text); }
+		.players-toggle-btn.active { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+
+		/* ── Estrela de favorito ─────────────────────── */
+		.fav-star {
+			display: inline-flex; align-items: center; justify-content: center;
+			width: 30px; height: 30px; border-radius: 7px; flex-shrink: 0;
+			border: 1px solid var(--border); background: var(--panel-2); color: var(--text-3);
+			cursor: pointer; font-size: 14px; transition: all var(--t, 200ms) var(--ease, ease);
+		}
+		.fav-star:hover { border-color: #f59e0b; color: #f59e0b; }
+		.fav-star.on { color: #f59e0b; border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.12); }
+		.compare-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--red-soft); border: 1px solid var(--border-red); color: var(--red); border-radius: 999px; padding: 3px 6px 3px 10px; font-size: 12px; font-weight: 600; }
+		.compare-chip button { background: none; border: none; color: var(--red); cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+		tr.compare-selected, .mpl-item.compare-selected { outline: 2px solid var(--red); outline-offset: -2px; }
+		.compare-add { display: none; }
+		body.compare-on .compare-add { display: inline-flex; align-items: center; }
+		.compare-add.active-cmp { background: var(--red); color: #fff; border-color: var(--red); }
 
 		/* ── Responsive ──────────────────────────────── */
 		@media (max-width: 1100px) {
@@ -464,9 +491,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		/* ── Skill Grades ───────────────────────────── */
 		.skill-grades-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
 		.skill-grade-item { background:var(--panel-3); border:1px solid var(--border); border-radius:8px; padding:8px 4px; text-align:center; }
-		.skill-grade-label { font-size:9px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
+		.skill-grade-label { font-size:9px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
 		.skill-grade-value { font-size:15px; font-weight:800; }
-	</style>
+	<?php include __DIR__ . '/includes/accent-color.php'; ?>
+    </style>
 </head>
 <body>
 <div class="app">
@@ -474,74 +502,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	<!-- ══════════════════════════════════════════════
          SIDEBAR
     ══════════════════════════════════════════════ -->
-    <aside class="sidebar" id="sidebar">
-
-        <div class="sb-brand">
-            <div class="sb-logo">FBA</div>
-            <div class="sb-brand-text">
-                FBA Manager
-                <span>Liga <?= htmlspecialchars($user['league']) ?></span>
-            </div>
-        </div>
-
-        <div class="sb-team">
-            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
-                 alt="<?= htmlspecialchars($team['name']) ?>"
-                 onerror="this.src='/img/default-team.png'">
-            <div>
-                <div class="sb-team-name"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></div>
-                <div class="sb-team-league"><?= htmlspecialchars($user['league']) ?></div>
-            </div>
-        </div>
-
-        <nav class="sb-nav">
-            <div class="sb-section">Principal</div>
-            <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
-            <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
-            <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
-            <a href="/players.php" class="active"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
-            <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
-            <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
-            <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
-            <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
-            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
-            <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
-            <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
-
-            <div class="sb-section">Liga</div>
-            <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
-            <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
-            <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
-            <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
-            <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
-            <a href="/estatisticas.php"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
-            <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
-            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
-            <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
-
-            <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
-            <div class="sb-section">Admin</div>
-            <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
-            <?php endif; ?>
-
-            <div class="sb-section">Conta</div>
-            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
-        </nav>
-
-            <button class="sb-theme-toggle" type="button" id="themeToggle">
-                <i class="bi bi-moon"></i>
-                <span>Modo escuro</span>
-            </button>
-
-        <div class="sb-footer">
-            <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>"
-                 alt="<?= htmlspecialchars($user['name']) ?>"
-                 class="sb-avatar"
-                 onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name']) ?>&background=1c1c21&color=fc0025'">
-            <span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
-            <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
-        </div>
-    </aside>
+    <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
     <!-- Overlay mobile -->
     <div class="sb-overlay" id="sbOverlay"></div>
@@ -633,7 +594,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		</div>
 
 		<div class="panel">
-			<div class="panel-title">Jogadores da Liga</div>
+				<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+					<div class="panel-title" style="margin:0">Jogadores da Liga</div>
+					<div style="display:flex;gap:8px;flex-wrap:wrap">
+						<button type="button" id="favFilterBtn" class="players-toggle-btn"><i class="bi bi-star"></i> <span>Favoritos</span></button>
+						<button type="button" id="compareBtn" class="players-toggle-btn"><i class="bi bi-bar-chart-steps"></i> <span>Comparar</span></button>
+					</div>
+				</div>
+				<div id="compareBar" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel-2);border:1px solid var(--border-red);border-radius:10px;padding:10px 14px;margin-bottom:12px"><span style="font-size:12px;color:var(--text-2)"><i class="bi bi-info-circle me-1"></i>Selecione 2 jogadores para comparar</span><span id="compareChips" style="display:flex;gap:6px;flex-wrap:wrap"></span></div>
 
 			<div id="playersLoading" class="text-center py-4">
 				<div class="spinner-border" role="status" style="color: var(--red);"></div>
@@ -681,9 +649,27 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	</div>
 </div>
 
+<div class="modal fade" id="compareModal" tabindex="-1" aria-hidden="true">
+	<div class="modal-dialog modal-lg modal-dialog-scrollable">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title"><i class="bi bi-bar-chart-steps me-2" style="color:var(--red)"></i>Comparar Jogadores</h5>
+				<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+			</div>
+			<div class="modal-body p-0" id="compareContent"></div>
+		</div>
+	</div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/js/pwa.js"></script>
 <script>
+	function _avatarColorHex() {
+		try {
+			const m = getComputedStyle(document.documentElement).getPropertyValue('--red').trim().match(/#([0-9a-fA-F]{6})/);
+			return m ? m[1] : 'fc0025';
+		} catch (e) { return 'fc0025'; }
+	}
 	const themeKey = 'fba-theme';
 	const root = document.documentElement;
 	const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
@@ -749,7 +735,146 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		}
 		return player.nba_player_id
 			? `https://cdn.nba.com/headshots/nba/latest/1040x760/${player.nba_player_id}.png`
-			: `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=121212&color=fc0025&rounded=true&bold=true`;
+			: `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true`;
+	}
+
+	// ── Favoritos + Comparar ─────────────────────────
+	let favoriteIds = new Set();
+	let onlyFavorites = false;
+	let compareMode = false;
+	let compareSel = []; // [{id, name, ovr}]
+
+	function favStarHtml(id) {
+		const on = favoriteIds.has(Number(id));
+		return `<button type="button" class="fav-star ${on ? 'on' : ''}" data-fav="${id}" onclick="event.stopPropagation();toggleFavorite(${id}, this)" title="${on ? 'Remover dos favoritos' : 'Favoritar'}"><i class="bi bi-star${on ? '-fill' : ''}"></i></button>`;
+	}
+	function compareBtnHtml(id) {
+		const sel = compareSel.some(c => Number(c.id) === Number(id));
+		return `<button type="button" class="mpl-btn compare-add${sel ? ' active-cmp' : ''}" data-cmp="${id}" onclick="event.stopPropagation();toggleCompareSelect(${id}, this)" title="Comparar"><i class="bi bi-bar-chart-steps"></i></button>`;
+	}
+
+	async function loadFavorites() {
+		try {
+			const res = await fetch('/api/favorites.php?action=list');
+			const data = await res.json();
+			favoriteIds = new Set((data.ids || []).map(Number));
+		} catch (e) { favoriteIds = new Set(); }
+	}
+
+	async function toggleFavorite(playerId, btn) {
+		try {
+			const res = await fetch('/api/favorites.php', {
+				method: 'POST', headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'toggle', player_id: playerId })
+			});
+			const data = await res.json();
+			if (data.favorited) { favoriteIds.add(Number(playerId)); } else { favoriteIds.delete(Number(playerId)); }
+			// atualizar todas as estrelas desse jogador na tela
+			document.querySelectorAll(`.fav-star[data-fav="${playerId}"]`).forEach(el => {
+				el.classList.toggle('on', data.favorited);
+				el.innerHTML = `<i class="bi bi-star${data.favorited ? '-fill' : ''}"></i>`;
+				el.title = data.favorited ? 'Remover dos favoritos' : 'Favoritar';
+			});
+			// se estamos filtrando por favoritos e desfavoritou, recarregar
+			if (onlyFavorites && !data.favorited) { currentPage = 1; carregarJogadores(); }
+		} catch (e) { alert('Erro ao atualizar favorito'); }
+	}
+
+	function renderCompareChips() {
+		const bar = document.getElementById('compareChips');
+		if (!bar) return;
+		bar.innerHTML = compareSel.map(c => `<span class="compare-chip">${c.name} <button type="button" onclick="removeCompare(${c.id})" title="Remover">&times;</button></span>`).join('');
+	}
+
+	function toggleCompareSelect(playerId, btn) {
+		playerId = Number(playerId);
+		const idx = compareSel.findIndex(c => Number(c.id) === playerId);
+		if (idx >= 0) {
+			compareSel.splice(idx, 1);
+		} else {
+			if (compareSel.length >= 2) { alert('Você já selecionou 2 jogadores. Remova um para trocar.'); return; }
+			// pegar nome/ovr do DOM
+			const row = btn.closest('tr, .mpl-item, .player-card');
+			const name = row ? (row.querySelector('strong, .mpl-name, .player-card-name')?.textContent || 'Jogador').trim() : 'Jogador';
+			compareSel.push({ id: playerId, name });
+		}
+		// marcar linha selecionada
+		document.querySelectorAll('[data-cmp]').forEach(b => {
+			const sel = compareSel.some(c => Number(c.id) === Number(b.dataset.cmp));
+			b.classList.toggle('active-cmp', sel);
+			const cont = b.closest('tr, .mpl-item');
+			if (cont) cont.classList.toggle('compare-selected', sel);
+		});
+		renderCompareChips();
+		if (compareSel.length === 2) openCompareModal(compareSel[0].id, compareSel[1].id);
+	}
+
+	function removeCompare(id) {
+		compareSel = compareSel.filter(c => Number(c.id) !== Number(id));
+		document.querySelectorAll(`[data-cmp="${id}"]`).forEach(b => {
+			b.classList.remove('active-cmp');
+			const cont = b.closest('tr, .mpl-item'); if (cont) cont.classList.remove('compare-selected');
+		});
+		renderCompareChips();
+	}
+
+	async function openCompareModal(id1, id2) {
+		const modalEl = document.getElementById('compareModal');
+		const content = document.getElementById('compareContent');
+		if (!modalEl || !content) return;
+		content.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:48px"><div class="spinner-border" role="status" style="color:var(--red)"></div></div>';
+		const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+		modal.show();
+		try {
+			const [r1, r2] = await Promise.all([
+				fetch(`/api/team.php?action=player_details&player_id=${id1}`).then(r => r.json()),
+				fetch(`/api/team.php?action=player_details&player_id=${id2}`).then(r => r.json())
+			]);
+			const p1 = r1.player || {}, p2 = r2.player || {};
+			const num = v => (v === null || v === undefined || v === '') ? null : Number(v);
+			const cellHead = (p, r) => {
+				const photo = getPlayerPhotoUrl(p);
+				return `<div style="flex:1;text-align:center;padding:16px 10px">
+					<img src="${photo}" alt="${p.name || ''}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--border-red);background:var(--panel-3)" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name || 'P')}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
+					<div style="font-size:15px;font-weight:800;margin-top:8px;line-height:1.15">${p.name || '-'}</div>
+					<div style="font-size:12px;color:var(--text-2)">${p.team_name || '-'}</div>
+					<div style="font-size:28px;font-weight:900;color:var(--red);margin-top:4px">${p.ovr ?? '-'}</div>
+				</div>`;
+			};
+			const cmpRow = (label, v1, v2, better) => {
+				// better: 'high' | 'low' | null
+				const n1 = num(v1), n2 = num(v2);
+				let c1 = 'var(--text)', c2 = 'var(--text)';
+				if (better && n1 !== null && n2 !== null && n1 !== n2) {
+					const win1 = better === 'high' ? n1 > n2 : n1 < n2;
+					c1 = win1 ? 'var(--green)' : 'var(--text-2)';
+					c2 = win1 ? 'var(--text-2)' : 'var(--green)';
+				}
+				return `<div style="display:flex;align-items:center;border-top:1px solid var(--border)">
+					<div style="flex:1;text-align:center;padding:11px 8px;font-weight:700;color:${c1}">${v1 ?? '-'}</div>
+					<div style="width:96px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">${label}</div>
+					<div style="flex:1;text-align:center;padding:11px 8px;font-weight:700;color:${c2}">${v2 ?? '-'}</div>
+				</div>`;
+			};
+			content.innerHTML = `
+				<div style="display:flex;background:var(--panel-2);border-bottom:1px solid var(--border)">
+					${cellHead(p1, r1)}
+					<div style="width:96px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--text-3)">VS</div>
+					${cellHead(p2, r2)}
+				</div>
+				<div>
+					${cmpRow('OVR', p1.ovr, p2.ovr, 'high')}
+					${cmpRow('Idade', p1.age, p2.age, 'low')}
+					${cmpRow('Posição', p1.position, p2.position, null)}
+					${cmpRow('Pos. Sec.', p1.secondary_position || '-', p2.secondary_position || '-', null)}
+					${cmpRow('Badges', p1.badges_count ?? 0, p2.badges_count ?? 0, 'high')}
+				</div>
+				<div style="padding:14px 16px;border-top:1px solid var(--border);text-align:center">
+					<span style="font-size:11px;color:var(--text-3)">Verde = melhor valor. Idade menor é considerada melhor.</span>
+				</div>`;
+		} catch (e) {
+			content.innerHTML = '<div style="padding:24px;color:var(--red);text-align:center">Erro ao carregar comparação.</div>';
+		}
 	}
 
 	function getOvrClass(ovr) {
@@ -896,12 +1021,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	function renderPlayerTagBadge(p) {
 		if (!p.player_tag) return '';
 		const color = p.player_tag_color || '#3b82f6';
-		return `<span style="display:inline-flex;align-items:center;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid ${color}55;background:${color}18;color:${color};margin-left:4px;white-space:nowrap;">${p.player_tag}</span>`;
+		return `<span style="display:inline-flex;align-items:center;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid ${color}55;background:${color}18;color:${color};margin-left:4px;white-space:nowrap;">${p.player_tag}</span>`;
 	}
 
 	function renderTradeBadge(p) {
 		if (!Number(p.available_for_trade)) return '';
-		return `<a href="/mercado.php" title="Disponível para trade" style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid rgba(252,0,37,.35);background:rgba(252,0,37,.12);color:var(--red);margin-left:4px;text-decoration:none;white-space:nowrap;"><i class="bi bi-arrow-left-right"></i> Trade</a>`;
+		return `<a href="/mercado.php" title="Disponível para trade" style="display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid color-mix(in srgb, var(--red) 35%, transparent);background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);margin-left:4px;text-decoration:none;white-space:nowrap;"><i class="bi bi-arrow-left-right"></i> Trade</a>`;
 	}
 
 	function renderTapaBadge(p) {
@@ -930,6 +1055,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						${(p.ovr_delta > 0) ? `<div style="font-size:10px;color:#22c55e;font-weight:700;line-height:1.2">+${p.ovr_delta}</div>` : (p.ovr_delta < 0) ? `<div style="font-size:10px;color:#ef4444;font-weight:700;line-height:1.2">${p.ovr_delta}</div>` : ''}
 					</div>
 					<div class="mpl-actions">
+						${favStarHtml(p.id)}
+						${compareBtnHtml(p.id)}
 						<button class="mpl-btn" type="button" onclick="openPlayerDetails(${p.id})"><i class="bi bi-info-circle"></i></button>
 						<button class="mpl-btn" type="button" onclick="copyPlayerSummary(this)" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
 						<a class="mpl-btn trade" href="/trades.php?player=${p.id}&team=${p.team_id}"><i class="bi bi-arrow-left-right"></i></a>
@@ -949,7 +1076,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			<div class="player-card${franchiseClass}">
 				<div class="player-card-header">
 					<div class="d-flex align-items-center gap-2">
-						<img src="${photoUrl}" alt="${p.name}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=fc0025&rounded=true&bold=true'">
+						<img src="${photoUrl}" alt="${p.name}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
 						<div>
 							<div class="player-card-name">${p.name}${renderTapaBadge(p)}${franchiseBadge}${tagBadgeCard}</div>
 							<div class="player-card-team">${teamName}</div>
@@ -1000,17 +1127,24 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		if (ageMin) params.set('age_min', ageMin);
 		if (ageMax) params.set('age_max', ageMax);
 		if (teamId) params.set('team_id', teamId);
-		params.set('page', currentPage);
-		params.set('per_page', perPage);
+		params.set('page', onlyFavorites ? 1 : currentPage);
+		params.set('per_page', onlyFavorites ? 3000 : perPage);
 
 		try {
 			const res = await fetch(`/api/team.php?${params.toString()}`);
 			const data = await res.json();
-			const players = data.players || [];
-			const pagination = data.pagination || { page: 1, per_page: perPage, total: players.length, total_pages: 1 };
+			let players = data.players || [];
+			let pagination = data.pagination || { page: 1, per_page: perPage, total: players.length, total_pages: 1 };
+			if (onlyFavorites) {
+				players = players.filter(p => favoriteIds.has(Number(p.id)));
+				pagination = { page: 1, per_page: players.length, total: players.length, total_pages: 1 };
+			}
 			totalPages = pagination.total_pages || 1;
 
 			if (!players.length) {
+				emptyState.innerHTML = onlyFavorites
+					? '<i class="bi bi-star" style="font-size:32px;display:block;margin-bottom:10px;color:var(--text-3)"></i>Você ainda não favoritou nenhum jogador.<br><span style="font-size:12px;color:var(--text-3)">Toque na estrela ⭐ de um jogador para adicioná-lo à sua watchlist.</span>'
+					: 'Nenhum jogador encontrado.';
 				emptyState.style.display = 'block';
 			} else {
 				const mobile = isMobile();
@@ -1033,7 +1167,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 							<tr${franchiseRow}>
 								<td>
 									<div class="d-flex align-items-center gap-2">
-										<img src="${photoUrl}" alt="${p.name}" style="width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=fc0025&rounded=true&bold=true'">
+										<img src="${photoUrl}" alt="${p.name}" style="width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
 										<strong>${p.name}</strong>${renderTapaBadge(p)}${franchiseBadgeRow}${tagBadgeRow}${tradeBadgeRow}
 									</div>
 								</td>
@@ -1050,6 +1184,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 									${whatsappLink ? `<a class="btn-outline success" href="${whatsappLink}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Falar</a>` : '<span class="text-light-gray">Sem contato</span>'}
 								</td>
 								<td class="col-actions">
+									${favStarHtml(p.id)}
+									${compareBtnHtml(p.id)}
 									<button class="btn-outline info" type="button" onclick="openPlayerDetails(${p.id})" title="Detalhes"><i class="bi bi-info-circle"></i></button>
 									<button class="btn-outline info" type="button" onclick="copyPlayerSummary(this)" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
 									<a class="btn-trade-action" href="/trades.php?player=${p.id}&team=${p.team_id}" title="Propor trade por este jogador"><i class="bi bi-arrow-left-right"></i></a>
@@ -1101,7 +1237,31 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			carregarJogadores();
 		}
 	});
-	carregarJogadores();
+	// Toggles Favoritos / Comparar
+	const favFilterBtn = document.getElementById('favFilterBtn');
+	const compareBtn = document.getElementById('compareBtn');
+	const compareBar = document.getElementById('compareBar');
+	if (favFilterBtn) favFilterBtn.addEventListener('click', () => {
+		onlyFavorites = !onlyFavorites;
+		favFilterBtn.classList.toggle('active', onlyFavorites);
+		currentPage = 1;
+		carregarJogadores();
+	});
+	if (compareBtn) compareBtn.addEventListener('click', () => {
+		compareMode = !compareMode;
+		compareBtn.classList.toggle('active', compareMode);
+		document.body.classList.toggle('compare-on', compareMode);
+		if (compareBar) compareBar.style.display = compareMode ? 'flex' : 'none';
+		if (!compareMode) {
+			compareSel = [];
+			renderCompareChips();
+			document.querySelectorAll('.compare-selected').forEach(el => el.classList.remove('compare-selected'));
+			document.querySelectorAll('.compare-add.active-cmp').forEach(el => el.classList.remove('active-cmp'));
+		}
+	});
+
+	// Carregar favoritos e então a lista
+	loadFavorites().then(() => carregarJogadores());
 
 	let lastIsMobile = isMobile();
 	let resizeTimer;
@@ -1177,7 +1337,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 				<div style="background:var(--panel-2);padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px">
 					<img src="${photoUrl}" alt="${player.name||''}"
 					     style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--border-red);flex-shrink:0;background:var(--panel-3)"
-					     onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(player.name||'P')}&background=121212&color=fc0025&rounded=true&bold=true'">
+					     onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(player.name||'P')}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
 					<div style="flex:1;min-width:0">
 						<div style="font-size:18px;font-weight:800;line-height:1.2">${player.name||'-'}</div>
 						<div style="font-size:12px;color:var(--text-2);margin-top:2px">${player.team_name||'-'}</div>

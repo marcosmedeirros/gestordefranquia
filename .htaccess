@@ -58,6 +58,7 @@ AddDefaultCharset UTF-8
     RewriteRule ^games/auth/resetar\.php$ /auth/resetar.php [L,R=301]
 
     # Páginas públicas de times: /times/{slug}
+    RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^times/([^/]+)/?$ /times/index.php?slug=$1 [L,QSA]
 
     # Webhook público de trades

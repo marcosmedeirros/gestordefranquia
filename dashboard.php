@@ -8,6 +8,8 @@ $user = getUserSession();
 $pdo = db();
 ensureTeamDirectiveProfileColumns($pdo);
 
+$dashboardShortcuts = getUserShortcuts($user['dashboard_shortcuts'] ?? null);
+
 $stmtTeam = $pdo->prepare('
   SELECT t.*, COUNT(p.id) as player_count
   FROM teams t
@@ -230,6 +232,39 @@ try {
     $s->execute([$team['league']]); $topRanking = $s->fetchAll();
 } catch (Exception $e) {}
 
+// Posição atual no ranking da liga (dado já existente) + última posição registrada por temporada
+$leagueRank = null; $leagueTeamCount = null; $lastSeasonPos = null;
+try {
+    $s = $pdo->prepare("SELECT COUNT(*) FROM teams WHERE league = ?");
+    $s->execute([$team['league']]); $leagueTeamCount = (int)$s->fetchColumn();
+    $s = $pdo->prepare("SELECT COUNT(*) + 1 FROM teams WHERE league = ? AND ranking_points > ?");
+    $s->execute([$team['league'], (int)($team['ranking_points'] ?? 0)]); $leagueRank = (int)$s->fetchColumn();
+} catch (Exception $e) {}
+try {
+    if ($pdo->query("SHOW TABLES LIKE 'season_standings'")->fetch()) {
+        $confCol = $pdo->query("SHOW COLUMNS FROM season_standings LIKE 'conference'")->fetch() ? 'ss.conference' : 'NULL AS conference';
+        $s = $pdo->prepare("SELECT ss.position, {$confCol}, se.year FROM season_standings ss JOIN seasons se ON se.id = ss.season_id WHERE ss.team_id = ? ORDER BY se.year DESC, se.season_number DESC LIMIT 1");
+        $s->execute([$team['id']]); $lastSeasonPos = $s->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+} catch (Exception $e) {}
+
+// Watchlist: jogadores favoritados do usuário (tabela player_favorites)
+$watchlist = [];
+try {
+    $s = $pdo->prepare("
+        SELECT p.id, p.name, p.position, p.age, p.ovr, p.nba_player_id, p.foto_adicional,
+               t.city, t.name AS team_name
+        FROM player_favorites pf
+        JOIN players p ON p.id = pf.player_id
+        LEFT JOIN teams t ON t.id = p.team_id
+        WHERE pf.user_id = ?
+        ORDER BY p.ovr DESC, p.name ASC
+        LIMIT 6
+    ");
+    $s->execute([$user['id']]);
+    $watchlist = $s->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
 $latestRumor = null;
 try {
     $s = $pdo->prepare('
@@ -300,31 +335,31 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/styles.css">
 
     <style>
         /* ── Tokens ──────────────────────────────────── */
         :root {
             --red:        #fc0025;
-            --red-2:      #ff2a44;
-            --red-soft:   rgba(252,0,37,.10);
-            --red-glow:   rgba(252,0,37,.18);
+            --red-2:      color-mix(in srgb, var(--red) 85%, white);
+            --red-soft:   color-mix(in srgb, var(--red) 10%, transparent);
+            --red-glow:   color-mix(in srgb, var(--red) 18%, transparent);
             --bg:         #07070a;
             --panel:      #101013;
             --panel-2:    #16161a;
             --panel-3:    #1c1c21;
             --border:     rgba(255,255,255,.06);
             --border-md:  rgba(255,255,255,.10);
-            --border-red: rgba(252,0,37,.22);
+            --border-red: color-mix(in srgb, var(--red) 22%, transparent);
             --text:       #f0f0f3;
             --text-2:     #868690;
-            --text-3:     #48484f;
+            --text-3:     #7d7d85;
             --green:      #22c55e;
             --amber:      #f59e0b;
             --blue:       #3b82f6;
             --sidebar-w:  260px;
-            --font:       'Poppins', sans-serif;
+            --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
             --radius-xs:  6px;
@@ -339,10 +374,10 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             --panel-3: #e9edf4;
             --border: #e3e6ee;
             --border-md: #d7dbe6;
-            --border-red: rgba(252,0,37,.18);
+            --border-red: color-mix(in srgb, var(--red) 18%, transparent);
             --text: #111217;
             --text-2: #5b6270;
-            --text-3: #8b93a5;
+            --text-3: #657080;
         }
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -416,10 +451,10 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 
         /* Nav */
         .sb-nav { flex: 1; padding: 12px 10px 8px; }
-        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
-        .sb-nav a {
+        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 6px; }
+        .sb-nav a { font-family:'Inter',sans-serif;
             display: flex; align-items: center; gap: 10px;
-            padding: 9px 10px; border-radius: var(--radius-sm);
+            padding: 10px 10px; border-radius: var(--radius-sm);
             color: var(--text-2); font-size: 13px; font-weight: 500;
             text-decoration: none; margin-bottom: 2px;
             transition: all var(--t) var(--ease);
@@ -495,7 +530,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
         .dash-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
         .dash-title { font-size: 26px; font-weight: 800; line-height: 1.1; }
-        .dash-sub { font-size: 13px; color: var(--text-2); margin-top: 3px; }
+        .dash-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
 
         .hero-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 4px; }
         .hbadge {
@@ -512,7 +547,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         /* ── Alert banner (deadline) ─────────────────── */
         .deadline-banner {
             margin: 20px 32px 0;
-            background: linear-gradient(90deg, rgba(252,0,37,.12), rgba(252,0,37,.04));
+            background: linear-gradient(90deg, color-mix(in srgb, var(--red) 12%, transparent), color-mix(in srgb, var(--red) 4%, transparent));
             border: 1px solid var(--border-red);
             border-left: 3px solid var(--red);
             border-radius: var(--radius-sm);
@@ -548,12 +583,54 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
         .draft-banner-left { display: flex; align-items: center; gap: 12px; }
         .draft-banner-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--blue); flex-shrink: 0; }
-        .draft-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; background: rgba(59,130,246,.15); border: 1px solid rgba(59,130,246,.3); color: #93c5fd; font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+        .draft-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; background: rgba(59,130,246,.15); border: 1px solid rgba(59,130,246,.3); color: #93c5fd; font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
         .draft-banner-title { font-size: 14px; font-weight: 700; }
         .draft-banner-sub { font-size: 12px; color: var(--text-2); }
 
         /* ── Content grid ────────────────────────────── */
         .content { padding: 20px 32px 40px; flex: 1; }
+
+        /* ── Atalhos ──────────────────────────────────── */
+        .shortcuts-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+        .shortcut-tile {
+            display: flex; align-items: center; gap: 12px;
+            background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 14px 16px; text-decoration: none; color: var(--text);
+            transition: all var(--t) var(--ease);
+        }
+        .shortcut-tile:hover { border-color: var(--border-red); background: var(--panel-2); transform: translateY(-1px); }
+        .shortcut-tile-icon {
+            width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+            background: var(--red-soft); color: var(--red);
+            display: flex; align-items: center; justify-content: center; font-size: 17px;
+        }
+        .shortcut-tile span { font-size: 13px; font-weight: 600; }
+        @media (max-width: 768px) { .shortcuts-row { grid-template-columns: repeat(2, 1fr); } }
+
+        /* ── Banner de posição na liga ───────────────── */
+        .rank-banner {
+            display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+            background: linear-gradient(135deg, color-mix(in srgb, var(--red) 8%, var(--panel)), var(--panel));
+            border: 1px solid var(--border-red); border-radius: var(--radius);
+            padding: 16px 20px; margin-bottom: 20px; text-decoration: none; color: var(--text);
+            transition: border-color var(--t) var(--ease);
+        }
+        .rank-banner:hover { border-color: var(--red); }
+        .rank-banner-main { display: flex; align-items: center; gap: 14px; }
+        .rank-banner-num { font-size: 34px; font-weight: 900; line-height: 1; color: var(--red); font-variant-numeric: tabular-nums; }
+        .rank-banner-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); }
+        .rank-banner-sub { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+        .rank-banner-sep { width: 1px; align-self: stretch; background: var(--border); }
+        .rank-banner-side { display: flex; align-items: center; gap: 10px; }
+        .rank-banner-pos { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 52px; height: 52px; border-radius: 12px; background: var(--red-soft); border: 1px solid var(--border-red); }
+        .rank-banner-pos b { font-size: 18px; font-weight: 800; color: var(--red); line-height: 1; }
+        .rank-banner-pos span { font-size: 9px; color: var(--red); opacity: .8; font-weight: 700; }
+        .rank-banner-arrow { margin-left: auto; color: var(--text-3); font-size: 18px; }
+        @media (max-width: 560px) {
+            .rank-banner { gap: 12px; padding: 14px 16px; }
+            .rank-banner-sep { display: none; }
+            .rank-banner-arrow { display: none; }
+        }
 
         /* ── Stat cards row ──────────────────────────── */
         .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
@@ -616,6 +693,15 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
         .bc-link:hover { color: var(--red); }
 
+        /* ── Watchlist (De olho em...) ───────────────── */
+        .watch-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: var(--text); transition: background var(--t) var(--ease); }
+        .watch-row:last-child { border-bottom: none; }
+        .watch-row:hover { background: var(--panel-2); }
+        .watch-photo { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); background: var(--panel-3); flex-shrink: 0; }
+        .watch-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .watch-meta { font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .watch-ovr { font-family: 'Oswald', 'Montserrat', sans-serif; font-size: 16px; font-weight: 700; color: var(--red); flex-shrink: 0; }
+
         /* ── Starters card (full width) ──────────────── */
         .span-3 { grid-column: span 3; }
         .span-2 { grid-column: span 2; }
@@ -639,7 +725,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         /* ── Ranking list ────────────────────────────── */
         .rank-row {
             display: flex; align-items: center; gap: 10px;
-            padding: 9px 0;
+            padding: 10px 0;
             border-bottom: 1px solid var(--border);
             transition: all var(--t) var(--ease);
         }
@@ -655,7 +741,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         .rank-owner { font-size: 11px; color: var(--text-2); }
         .rank-pts { font-size: 14px; font-weight: 800; color: var(--red); }
         .rank-pts-label { font-size: 10px; color: var(--text-3); }
-        .rank-row.me { background: var(--red-soft); border-radius: 8px; padding: 9px 8px; margin: 0 -8px; border-bottom: none; }
+        .rank-row.me { background: var(--red-soft); border-radius: 8px; padding: 10px 8px; margin: 0 -8px; border-bottom: none; }
 
         /* ── Rumor card ──────────────────────────────── */
         .rumor-bubble {
@@ -680,7 +766,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         .trade-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .trade-col { background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; }
         .trade-col-label { font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; }
-        .trade-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-2); margin-bottom: 5px; }
+        .trade-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); margin-bottom: 6px; }
         .trade-item i { color: var(--red); font-size: 11px; flex-shrink: 0; }
         .trade-item strong { color: var(--text); }
         .trade-date { font-size: 11px; color: var(--text-3); text-align: center; margin-top: 10px; }
@@ -780,6 +866,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         /* Override bootstrap conflicts */
         .badge { font-family: var(--font); }
         a { color: inherit; }
+    <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
 <body>
@@ -788,76 +875,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
     <!-- ══════════════════════════════════════════════
          SIDEBAR
     ══════════════════════════════════════════════ -->
-    <aside class="sidebar" id="sidebar">
-
-        <div class="sb-brand">
-            <div class="sb-logo">FBA</div>
-            <div class="sb-brand-text">
-                FBA Manager
-                <span>Liga <?= htmlspecialchars($user['league']) ?></span>
-            </div>
-        </div>
-
-        <div class="sb-team">
-            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
-                 alt="<?= htmlspecialchars($team['name']) ?>"
-                 onerror="this.src='/img/default-team.png'">
-            <div>
-                <div class="sb-team-name"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></div>
-                <div class="sb-team-league"><?= htmlspecialchars($user['league']) ?></div>
-            </div>
-        </div>
-
-        <nav class="sb-nav">
-            <div class="sb-section">Principal</div>
-            <a href="/dashboard.php" class="active"><i class="bi bi-house-door-fill"></i> Dashboard</a>
-            <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
-            <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
-            <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
-            <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
-            <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
-            <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
-            <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
-            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
-            <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
-            <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
-
-            <div class="sb-section">Liga</div>
-            <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
-            <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
-            <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
-            <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
-            <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
-            <a href="/estatisticas.php"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
-            <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
-            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
-            <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
-
-            <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
-            <div class="sb-section">Admin</div>
-            <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
-
-            <?php endif; ?>
-
-            <div class="sb-section">Conta</div>
-            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
-            <a href="/team-public-page.php"><i class="bi bi-globe2"></i> Página do Time</a>
-        </nav>
-
-            <button class="sb-theme-toggle" type="button" id="themeToggle">
-                <i class="bi bi-moon"></i>
-                <span>Modo escuro</span>
-            </button>
-
-        <div class="sb-footer">
-            <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>"
-                 alt="<?= htmlspecialchars($user['name']) ?>"
-                 class="sb-avatar"
-                 onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name']) ?>&background=1c1c21&color=fc0025'">
-            <span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
-            <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
-        </div>
-    </aside>
+    <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
     <!-- Overlay mobile -->
     <div class="sb-overlay" id="sbOverlay"></div>
@@ -967,6 +985,45 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         <!-- ── Content ── -->
         <div class="content">
 
+            <!-- Atalhos -->
+            <?php if ($dashboardShortcuts): ?>
+            <div class="shortcuts-row">
+                <?php foreach ($dashboardShortcuts as $sc): ?>
+                <a href="<?= htmlspecialchars($sc['href']) ?>" class="shortcut-tile">
+                    <div class="shortcut-tile-icon"><i class="bi <?= htmlspecialchars($sc['icon']) ?>"></i></div>
+                    <span><?= htmlspecialchars($sc['label']) ?></span>
+                </a>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+
+            <!-- Posição na liga -->
+            <?php if ($leagueRank && $leagueTeamCount): ?>
+            <a href="/rankings.php" class="rank-banner">
+                <div class="rank-banner-main">
+                    <div class="rank-banner-num"><?= $leagueRank ?>º</div>
+                    <div>
+                        <div class="rank-banner-label">Sua posição na liga <?= htmlspecialchars($team['league']) ?></div>
+                        <div class="rank-banner-sub"><?= (int)($team['ranking_points'] ?? 0) ?> pts · de <?= $leagueTeamCount ?> times</div>
+                    </div>
+                </div>
+                <?php if ($lastSeasonPos): ?>
+                <div class="rank-banner-sep"></div>
+                <div class="rank-banner-side">
+                    <div class="rank-banner-pos">
+                        <b><?= (int)$lastSeasonPos['position'] ?>º</b>
+                        <?php if (!empty($lastSeasonPos['conference'])): ?><span><?= $lastSeasonPos['conference'] === 'LESTE' ? 'LESTE' : 'OESTE' ?></span><?php endif; ?>
+                    </div>
+                    <div>
+                        <div class="rank-banner-label">Última temporada registrada</div>
+                        <div class="rank-banner-sub"><?= $lastSeasonPos['year'] ? htmlspecialchars((string)$lastSeasonPos['year']) : '' ?> · classificação final</div>
+                    </div>
+                </div>
+                <?php endif; ?>
+                <i class="bi bi-chevron-right rank-banner-arrow"></i>
+            </a>
+            <?php endif; ?>
+
             <!-- Stat cards -->
             <div class="stats-row">
                 <a href="/my-roster.php" class="stat-c <?= $playersOutOfRange ? 'warn' : '' ?>"
@@ -976,7 +1033,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                             <div class="stat-c-label">Jogadores</div>
                             <div class="stat-c-val"><?= $totalPlayers ?></div>
                         </div>
-                        <div class="stat-c-icon" style="background:rgba(252,0,37,.10)">
+                        <div class="stat-c-icon" style="background:color-mix(in srgb, var(--red) 10%, transparent)">
                             <i class="bi bi-people-fill" style="color:var(--red)"></i>
                         </div>
                     </div>
@@ -1045,12 +1102,12 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                                 $cp = trim((string)($player['foto_adicional'] ?? ''));
                                 if ($cp && !preg_match('#^https?://#i', $cp)) $cp = '/' . ltrim($cp, '/');
                                 $nbId = $player['nba_player_id'] ?? null;
-                                $photo = $cp ?: ($nbId ? "https://cdn.nba.com/headshots/nba/latest/1040x760/{$nbId}.png" : "https://ui-avatars.com/api/?name=" . rawurlencode($pn) . "&background=1c1c21&color=fc0025&rounded=true&bold=true");
+                                $photo = $cp ?: ($nbId ? "https://cdn.nba.com/headshots/nba/latest/1040x760/{$nbId}.png" : "https://ui-avatars.com/api/?name=" . rawurlencode($pn) . "&background=1c1c21&color=" . accentColorHex($user['accent_color'] ?? null) . "&rounded=true&bold=true");
                             ?>
                             <div class="starter-chip" style="animation-delay:<?= .28 + $i * .04 ?>s">
                                 <img class="starter-photo" src="<?= htmlspecialchars($photo) ?>"
                                      alt="<?= htmlspecialchars($pn) ?>"
-                                     onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($pn) ?>&background=1c1c21&color=fc0025&rounded=true&bold=true'">
+                                     onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($pn) ?>&background=1c1c21&color=<?= accentColorHex($user['accent_color'] ?? null) ?>&rounded=true&bold=true'">
                                 <div style="min-width:0">
                                     <div style="margin-bottom:4px"><span class="starter-pos"><?= htmlspecialchars($player['position']) ?></span></div>
                                     <div class="starter-name"><?= htmlspecialchars($pn) ?></div>
@@ -1063,6 +1120,40 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                         <div class="empty">
                             <i class="bi bi-exclamation-circle"></i>
                             <p>Nenhum titular definido. <a href="/my-roster.php" style="color:var(--red)">Adicionar jogadores</a></p>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- ── De olho em... (watchlist) ── -->
+                <div class="bc span-<?= $watchlist ? '2' : '1' ?>" style="animation-delay:.28s">
+                    <div class="bc-head">
+                        <div class="bc-title"><i class="bi bi-star-fill"></i> De olho em...</div>
+                        <a href="/players.php" class="bc-link">Jogadores <i class="bi bi-arrow-right"></i></a>
+                    </div>
+                    <div class="bc-body" style="padding-top:8px;padding-bottom:8px">
+                        <?php if ($watchlist): ?>
+                        <?php foreach ($watchlist as $w):
+                            $wPhoto = trim((string)($w['foto_adicional'] ?? ''));
+                            if ($wPhoto && !preg_match('#^https?://#i', $wPhoto)) $wPhoto = '/' . ltrim($wPhoto, '/');
+                            if (!$wPhoto) $wPhoto = $w['nba_player_id']
+                                ? "https://cdn.nba.com/headshots/nba/latest/1040x760/{$w['nba_player_id']}.png"
+                                : "https://ui-avatars.com/api/?name=" . rawurlencode($w['name']) . "&background=1c1c21&color=" . accentColorHex($user['accent_color'] ?? null) . "&rounded=true&bold=true";
+                            $wOvr = (int)($w['ovr'] ?? 0);
+                        ?>
+                        <a href="/players.php" class="watch-row">
+                            <img class="watch-photo" src="<?= htmlspecialchars($wPhoto) ?>" alt="" onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($w['name']) ?>&background=1c1c21&color=<?= accentColorHex($user['accent_color'] ?? null) ?>&rounded=true&bold=true'">
+                            <div style="min-width:0;flex:1">
+                                <div class="watch-name"><?= htmlspecialchars($w['name']) ?></div>
+                                <div class="watch-meta"><?= htmlspecialchars($w['position'] ?? '-') ?> · <?= (int)($w['age'] ?? 0) ?>a · <?= htmlspecialchars(trim(($w['city'] ?? '') . ' ' . ($w['team_name'] ?? ''))) ?: '—' ?></div>
+                            </div>
+                            <span class="watch-ovr"><?= $wOvr ?></span>
+                        </a>
+                        <?php endforeach; ?>
+                        <?php else: ?>
+                        <div class="empty" style="padding:20px 12px;text-align:center">
+                            <i class="bi bi-star" style="font-size:26px;color:var(--text-3)"></i>
+                            <p style="font-size:12px;color:var(--text-2);margin:8px 0 0">Favorite jogadores em <a href="/players.php" style="color:var(--red)">Jogadores</a> pra acompanhar seus alvos de troca aqui.</p>
                         </div>
                         <?php endif; ?>
                     </div>

@@ -1,5 +1,5 @@
 /* Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 
 /* Corrige sobreposição do menu lateral ao conteúdo principal em telas com sidebar fixa */
 .main-content {
@@ -14,9 +14,11 @@
 
 /* ---------- Design Tokens ---------- */
 :root{
-	/* Brand (IDV) */
-	--fba-brand: #fc0025;
-	--fba-brand-2: #ff2a44; /* usado só em gradiente (mesma identidade do seu CSS) */
+	/* Brand (IDV) — referencia --red pra ficar em sincronia com o token
+	   customizável do resto do app; fallback preserva o valor original
+	   em páginas que só carregam este arquivo (sem definir --red). */
+	--fba-brand: var(--red, #fc0025);
+	--fba-brand-2: color-mix(in srgb, var(--fba-brand) 85%, white); /* usado só em gradiente (mesma identidade do seu CSS) */
 	--fba-white: #ffffff;
 	--fba-black: #0a0a0c;
 	--fba-gray:  #828282;
@@ -25,13 +27,13 @@
 	--fba-bg: #000000;
 	--fba-bg-top: #0b0b0d;
 	--fba-bg-bottom: #000000;
-	--fba-bg-accent-1: rgba(252,0,37,.14);
-	--fba-bg-accent-2: rgba(252,0,37,.10);
+	--fba-bg-accent-1: color-mix(in srgb, var(--fba-brand) 14%, transparent);
+	--fba-bg-accent-2: color-mix(in srgb, var(--fba-brand) 10%, transparent);
 	--fba-dark: var(--fba-black);
 	--fba-panel: #141414;
 	--fba-panel-2: #1a1a1a;
 	--fba-border: #2a2a2a;
-	--fba-brand-soft: rgba(252,0,37,.16);
+	--fba-brand-soft: color-mix(in srgb, var(--fba-brand) 16%, transparent);
 
 	/* Text */
 	--fba-text: var(--fba-white);
@@ -47,10 +49,10 @@
 	--shadow-0: 0 6px 18px rgba(0,0,0,.32);
 	--shadow-1: 0 10px 34px rgba(0,0,0,.45);
 	--shadow-2: 0 18px 60px rgba(0,0,0,.55);
-	--shadow-brand: 0 14px 44px rgba(252,0,37,.25);
+	--shadow-brand: 0 14px 44px color-mix(in srgb, var(--fba-brand) 25%, transparent);
 
 	/* Rings / Focus */
-	--ring: 0 0 0 .25rem rgba(252,0,37,.25);
+	--ring: 0 0 0 .25rem color-mix(in srgb, var(--fba-brand) 25%, transparent);
 
 	/* Motion */
 	--ease: cubic-bezier(.2,.8,.2,1);
@@ -74,13 +76,13 @@
 	--fba-bg: #f6f7fb;
 	--fba-bg-top: #f7f8fb;
 	--fba-bg-bottom: #e9edf4;
-	--fba-bg-accent-1: rgba(252,0,37,.08);
-	--fba-bg-accent-2: rgba(252,0,37,.05);
+	--fba-bg-accent-1: color-mix(in srgb, var(--fba-brand) 8%, transparent);
+	--fba-bg-accent-2: color-mix(in srgb, var(--fba-brand) 5%, transparent);
 	--fba-dark: #f0f2f6;
 	--fba-panel: #ffffff;
 	--fba-panel-2: #f4f6fb;
 	--fba-border: #e3e6ee;
-	--fba-brand-soft: rgba(252,0,37,.10);
+	--fba-brand-soft: color-mix(in srgb, var(--fba-brand) 10%, transparent);
 	--fba-text: #111217;
 	--fba-text-muted: #5b6270;
 }
@@ -93,7 +95,7 @@
 html, body{ height: 100%; }
 
 body{
-	font-family: 'Poppins', system-ui, -apple-system, sans-serif;
+	font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
 	color: var(--fba-text);
 	min-height: 100vh;
 	line-height: 1.45;
@@ -107,7 +109,7 @@ body{
 
 img{ max-width: 100%; display: block; }
 
-::selection{ background: rgba(252,0,37,.28); }
+::selection{ background: color-mix(in srgb, var(--fba-brand) 28%, transparent); }
 
 a{
 	color: var(--fba-text);
@@ -123,11 +125,11 @@ a:hover{ color: var(--fba-brand); }
 }
 
 /* Scrollbar (sidebar já tem, mas isso deixa o resto consistente) */
-*{ scrollbar-width: thin; scrollbar-color: rgba(252,0,37,.85) transparent; }
+*{ scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--fba-brand) 85%, transparent) transparent; }
 *::-webkit-scrollbar{ width: 10px; height: 10px; }
 *::-webkit-scrollbar-track{ background: transparent; }
 *::-webkit-scrollbar-thumb{
-	background: rgba(252,0,37,.85);
+	background: color-mix(in srgb, var(--fba-brand) 85%, transparent);
 	border-radius: 999px;
 	border: 2px solid transparent;
 	background-clip: content-box;
@@ -140,7 +142,7 @@ a:hover{ color: var(--fba-brand); }
 	backdrop-filter: blur(12px);
 	-webkit-backdrop-filter: blur(12px);
 	border-bottom: 2px solid var(--fba-brand);
-	box-shadow: 0 10px 30px rgba(252,0,37,.14);
+	box-shadow: 0 10px 30px color-mix(in srgb, var(--fba-brand) 14%, transparent);
 	position: sticky;
 	top: 0;
 	z-index: 1040;
@@ -152,7 +154,7 @@ a:hover{ color: var(--fba-brand); }
 	inset: 0;
 	pointer-events: none;
 	background:
-		radial-gradient(circle at 15% 0%, rgba(252,0,37,.16), transparent 45%),
+		radial-gradient(circle at 15% 0%, color-mix(in srgb, var(--fba-brand) 16%, transparent), transparent 45%),
 		linear-gradient(180deg, rgba(255,255,255,.05), transparent 60%);
 	opacity: .55;
 }
@@ -192,8 +194,8 @@ a:hover{ color: var(--fba-brand); }
 /* ---------- Hero ---------- */
 .hero-section{
 	background:
-		radial-gradient(circle at 20% 30%, rgba(252,0,37,.18), transparent 55%),
-		radial-gradient(circle at 80% 70%, rgba(252,0,37,.10), transparent 55%);
+		radial-gradient(circle at 20% 30%, color-mix(in srgb, var(--fba-brand) 18%, transparent), transparent 55%),
+		radial-gradient(circle at 80% 70%, color-mix(in srgb, var(--fba-brand) 10%, transparent), transparent 55%);
 	border-bottom: 1px solid var(--fba-border);
 	position: relative;
 	overflow: hidden;
@@ -229,7 +231,7 @@ a:hover{ color: var(--fba-brand); }
 	inset: 0;
 	border-radius: inherit;
 	background:
-		radial-gradient(circle at 20% 10%, rgba(252,0,37,.10), transparent 45%),
+		radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--fba-brand) 10%, transparent), transparent 45%),
 		radial-gradient(circle at 85% 0%, rgba(255,255,255,.05), transparent 40%);
 	opacity: .65;
 	z-index: -1;
@@ -239,7 +241,7 @@ a:hover{ color: var(--fba-brand); }
 .bg-dark-panel:hover{
 	box-shadow: var(--shadow-brand);
 	transform: translateY(-2px);
-	border-color: rgba(252,0,37,.30);
+	border-color: color-mix(in srgb, var(--fba-brand) 30%, transparent);
 	filter: brightness(1.02);
 }
 
@@ -249,7 +251,7 @@ a:hover{ color: var(--fba-brand); }
 }
 
 .card-header{
-	background: rgba(252,0,37,.08) !important;
+	background: color-mix(in srgb, var(--fba-brand) 8%, transparent) !important;
 	border-bottom: 1px solid var(--fba-border);
 }
 
@@ -271,12 +273,12 @@ a:hover{ color: var(--fba-brand); }
 		transform var(--t) var(--ease),
 		box-shadow var(--t) var(--ease),
 		filter var(--t) var(--ease);
-	box-shadow: 0 12px 28px rgba(252,0,37,.28);
+	box-shadow: 0 12px 28px color-mix(in srgb, var(--fba-brand) 28%, transparent);
 }
 
 .btn-orange:hover{
 	transform: translateY(-2px);
-	box-shadow: 0 16px 42px rgba(252,0,37,.36);
+	box-shadow: 0 16px 42px color-mix(in srgb, var(--fba-brand) 36%, transparent);
 	filter: brightness(1.05);
 	color: var(--fba-white);
 }
@@ -302,7 +304,7 @@ a:hover{ color: var(--fba-brand); }
 
 .btn-white:hover{
 	border-color: var(--fba-brand);
-	box-shadow: 0 14px 34px rgba(252,0,37,.16);
+	box-shadow: 0 14px 34px color-mix(in srgb, var(--fba-brand) 16%, transparent);
 	transform: translateY(-1px);
 	filter: brightness(1.01);
 }
@@ -352,7 +354,7 @@ a:hover{ color: var(--fba-brand); }
 	border-color: var(--fba-brand);
 	color: var(--fba-white);
 	font-weight: 950;
-	box-shadow: 0 14px 36px rgba(252,0,37,.26);
+	box-shadow: 0 14px 36px color-mix(in srgb, var(--fba-brand) 26%, transparent);
 }
 
 .btn-toggle-trade:hover{
@@ -508,8 +510,8 @@ a:hover{ color: var(--fba-brand); }
 
 .rumor-chat-own .rumor-chat-bubble{
 	border-radius: 18px 18px 6px 18px;
-	background: rgba(252,0,37,.12);
-	border-color: rgba(252,0,37,.25);
+	background: color-mix(in srgb, var(--fba-brand) 12%, transparent);
+	border-color: color-mix(in srgb, var(--fba-brand) 25%, transparent);
 }
 
 @media (max-width: 576px){
@@ -549,7 +551,7 @@ a:hover{ color: var(--fba-brand); }
 	font-weight: 900;
 	padding: .45rem .9rem;
 	border-radius: 999px;
-	box-shadow: 0 10px 22px rgba(252,0,37,.20);
+	box-shadow: 0 10px 22px color-mix(in srgb, var(--fba-brand) 20%, transparent);
 }
 
 .badge.trade{
@@ -729,13 +731,13 @@ pre{
 	content: "";
 	position: absolute;
 	inset: 0;
-	background: radial-gradient(circle at 25% 0%, rgba(252,0,37,.10), transparent 45%);
+	background: radial-gradient(circle at 25% 0%, color-mix(in srgb, var(--fba-brand) 10%, transparent), transparent 45%);
 	opacity: .7;
 	pointer-events: none;
 }
 
 .roster-card:hover{
-	border-color: rgba(252,0,37,.40);
+	border-color: color-mix(in srgb, var(--fba-brand) 40%, transparent);
 	box-shadow: var(--shadow-brand);
 	transform: translateY(-2px);
 }
@@ -822,7 +824,7 @@ pre{
 	border-radius: 50%;
 	border: 2px solid var(--fba-brand);
 	object-fit: cover;
-	margin: 0 auto 15px;
+	margin: 0 auto 16px;
 	display: block;
 	box-shadow: 0 12px 32px rgba(0,0,0,.28);
 }
@@ -873,8 +875,8 @@ img.broken-image {
 .sidebar-menu a.active{
 	background: var(--fba-brand-soft);
 	color: var(--fba-text);
-	border-color: rgba(252,0,37,.28);
-	box-shadow: 0 8px 20px rgba(252,0,37,.14);
+	border-color: color-mix(in srgb, var(--fba-brand) 28%, transparent);
+	box-shadow: 0 8px 20px color-mix(in srgb, var(--fba-brand) 14%, transparent);
 }
 
 .sidebar-menu i{
@@ -899,7 +901,7 @@ img.broken-image {
 .theme-toggle:hover{
 	transform: translateY(-1px);
 	box-shadow: 0 10px 24px rgba(0,0,0,.16);
-	border-color: rgba(252,0,37,.35);
+	border-color: color-mix(in srgb, var(--fba-brand) 35%, transparent);
 }
 
 :root[data-theme="light"] .dashboard-sidebar{
@@ -907,7 +909,7 @@ img.broken-image {
 }
 
 :root[data-theme="light"] .sidebar-branding{
-	background: linear-gradient(160deg, rgba(252,0,37,.08), rgba(255,255,255,.7));
+	background: linear-gradient(160deg, color-mix(in srgb, var(--fba-brand) 8%, transparent), rgba(255,255,255,.7));
 }
 
 /* ---------- Onboarding steps ---------- */
@@ -961,9 +963,9 @@ img.broken-image {
 
 .step.active{
 	background: linear-gradient(135deg, var(--fba-brand), var(--fba-brand-2));
-	border-color: rgba(252,0,37,.80);
+	border-color: color-mix(in srgb, var(--fba-brand) 80%, transparent);
 	color: var(--fba-white);
-	box-shadow: 0 0 26px rgba(252,0,37,.38);
+	box-shadow: 0 0 26px color-mix(in srgb, var(--fba-brand) 38%, transparent);
 	transform: scale(1.06);
 }
 
@@ -1018,7 +1020,7 @@ img.broken-image {
 
 .photo-upload-overlay i{
 	font-size: 2rem;
-	margin-bottom: 5px;
+	margin-bottom: 6px;
 	color: var(--fba-brand);
 }
 
@@ -1054,13 +1056,13 @@ img.broken-image {
 	content: "";
 	position: absolute;
 	inset: 0;
-	background: radial-gradient(circle at 20% 0%, rgba(252,0,37,.10), transparent 45%);
+	background: radial-gradient(circle at 20% 0%, color-mix(in srgb, var(--fba-brand) 10%, transparent), transparent 45%);
 	opacity: .7;
 	pointer-events: none;
 }
 
 .stat-card:hover{
-	border-color: rgba(252,0,37,.45);
+	border-color: color-mix(in srgb, var(--fba-brand) 45%, transparent);
 	transform: translateY(-3px);
 	box-shadow: var(--shadow-brand);
 }
@@ -1088,7 +1090,7 @@ img.broken-image {
 }
 .accordion-button:not(.collapsed){ box-shadow: none !important; }
 .accordion-button:hover{
-	box-shadow: 0 2px 10px rgba(252,0,37,.12) !important;
+	box-shadow: 0 2px 10px color-mix(in srgb, var(--fba-brand) 12%, transparent) !important;
 }
 .accordion-item{ background-color: var(--fba-panel) !important; }
 
@@ -1105,7 +1107,7 @@ img.broken-image {
 }
 .nav-tabs .nav-link:hover{
 	color: var(--fba-brand);
-	background: rgba(252,0,37,.10);
+	background: color-mix(in srgb, var(--fba-brand) 10%, transparent);
 	transform: translateY(-1px);
 }
 .nav-tabs .nav-link.active{
@@ -1140,7 +1142,7 @@ img.broken-image {
 .table tbody tr{
 	transition: background-color var(--t) var(--ease);
 }
-.table tbody tr:hover{ background: rgba(252,0,37,.08); }
+.table tbody tr:hover{ background: color-mix(in srgb, var(--fba-brand) 8%, transparent); }
 
 /* ---------- Breadcrumb ---------- */
 .breadcrumb-admin{
@@ -1189,13 +1191,13 @@ img.broken-image {
 	content: "";
 	position: absolute;
 	inset: 0;
-	background: radial-gradient(circle at 25% 0%, rgba(252,0,37,.10), transparent 45%);
+	background: radial-gradient(circle at 25% 0%, color-mix(in srgb, var(--fba-brand) 10%, transparent), transparent 45%);
 	opacity: .7;
 	pointer-events: none;
 }
 
 .league-card:hover{
-	border-color: rgba(252,0,37,.55);
+	border-color: color-mix(in srgb, var(--fba-brand) 55%, transparent);
 	transform: translateY(-4px);
 	box-shadow: var(--shadow-brand);
 }
@@ -1220,7 +1222,7 @@ img.broken-image {
 	height: 100%;
 }
 .team-card:hover{
-	border-color: rgba(252,0,37,.55);
+	border-color: color-mix(in srgb, var(--fba-brand) 55%, transparent);
 	box-shadow: var(--shadow-brand);
 	transform: translateY(-3px);
 }
@@ -1276,7 +1278,7 @@ img.broken-image {
 	content: "";
 	position: absolute;
 	inset: 0;
-	background: radial-gradient(circle at 50% 0%, rgba(252,0,37,.12), transparent 55%);
+	background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--fba-brand) 12%, transparent), transparent 55%);
 	opacity: .7;
 	pointer-events: none;
 }
@@ -1370,7 +1372,7 @@ img.broken-image {
 	height: 45px;
 	border-radius: 12px;
 	cursor: pointer;
-	box-shadow: 0 12px 26px rgba(252,0,37,.32);
+	box-shadow: 0 12px 26px color-mix(in srgb, var(--fba-brand) 32%, transparent);
 	transition: transform var(--t) var(--ease), filter var(--t) var(--ease);
 }
 .sidebar-toggle:hover{
@@ -1704,7 +1706,7 @@ img.broken-image {
 
 	.dashboard-content{
 		margin-left: 0;
-		padding: 70px 15px 30px;
+		padding: 70px 16px 30px;
 	}
 
 	.table-responsive{ font-size: .85rem; }
@@ -1784,7 +1786,7 @@ img.broken-image {
 		transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease), border-color var(--t) var(--ease);
 	}
 	.player-card:hover{
-		border-color: rgba(252,0,37,.55);
+		border-color: color-mix(in srgb, var(--fba-brand) 55%, transparent);
 		transform: translateY(-2px);
 		box-shadow: var(--shadow-brand);
 	}
@@ -1852,7 +1854,7 @@ img.broken-image {
 	left: 0;
 	right: 0;
 	z-index: 9999;
-	padding: 0 15px 15px;
+	padding: 0 16px 16px;
 	transition: bottom var(--t) var(--ease);
 }
 
@@ -1869,7 +1871,7 @@ img.broken-image {
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
-	box-shadow: 0 -10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(252,0,37,0.15);
+	box-shadow: 0 -10px 40px rgba(0,0,0,0.5), 0 0 30px color-mix(in srgb, var(--fba-brand) 15%, transparent);
 	backdrop-filter: blur(12px);
 	-webkit-backdrop-filter: blur(12px);
 }
@@ -1935,13 +1937,13 @@ img.broken-image {
 	font-weight: 700;
 	font-size: 0.85rem;
 	cursor: pointer;
-	box-shadow: 0 8px 20px rgba(252,0,37,0.25);
+	box-shadow: 0 8px 20px color-mix(in srgb, var(--fba-brand) 25%, transparent);
 	transition: all var(--t-fast) var(--ease);
 }
 
 .pwa-banner-install:hover {
 	transform: translateY(-1px);
-	box-shadow: 0 12px 28px rgba(252,0,37,0.35);
+	box-shadow: 0 12px 28px color-mix(in srgb, var(--fba-brand) 35%, transparent);
 }
 
 /* Update Toast */
@@ -2043,7 +2045,7 @@ img.broken-image {
 	}
 	
 	#pwa-install-banner {
-		padding-bottom: calc(15px + env(safe-area-inset-bottom));
+		padding-bottom: calc(16px + env(safe-area-inset-bottom));
 	}
 }
 
@@ -2153,7 +2155,7 @@ body.offline::after {
 /* Touch feedback for mobile */
 @media (hover: none) and (pointer: coarse) {
 	.btn, .action-card, .team-card, .league-card, .sidebar-menu a {
-		-webkit-tap-highlight-color: rgba(252,0,37,0.1);
+		-webkit-tap-highlight-color: color-mix(in srgb, var(--fba-brand) 10%, transparent);
 	}
 	
 	.btn:active, .action-card:active, .team-card:active, 
@@ -2178,6 +2180,35 @@ body.offline::after {
 	
 	.dashboard-sidebar {
 		height: -webkit-fill-available;
+	}
+}
+
+/* Foco de teclado — reposto onde outline:none tira o indicador nativo
+   sem alternativa visível. Só aparece pra navegação por teclado/leitor
+   de tela (não em clique de mouse), então não polui a UI. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+	outline: 2px solid var(--fba-brand, #fc0025);
+	outline-offset: 2px;
+}
+
+/* Respeita "reduzir movimento" do sistema. Usa o padrão universal
+   (transition/animation-duration em *, com !important) em vez de só
+   sobrescrever --ease/--t, porque cada página redefine esses tokens no
+   próprio <style> depois deste arquivo — só !important garante que
+   ganha independente da ordem de carregamento. */
+@media (prefers-reduced-motion: reduce) {
+	*, *::before, *::after {
+		animation-duration: 0.01ms !important;
+		animation-delay: 0ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		transition-delay: 0ms !important;
+		scroll-behavior: auto !important;
 	}
 }
 

@@ -135,27 +135,27 @@ if ($teamId) {
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/styles.css?v=20260411">
 
     <style>
         /* ── Design Tokens ─────────────────────────────── */
         :root {
             --red:        #fc0025;
-            --red-soft:   rgba(252,0,37,.10);
-            --red-glow:   rgba(252,0,37,.18);
+            --red-soft:   color-mix(in srgb, var(--red) 10%, transparent);
+            --red-glow:   color-mix(in srgb, var(--red) 18%, transparent);
             --bg:         #07070a;
             --panel:      #101013;
             --panel-2:    #16161a;
             --panel-3:    #1c1c21;
             --border:     rgba(255,255,255,.06);
             --border-md:  rgba(255,255,255,.10);
-            --border-red: rgba(252,0,37,.22);
+            --border-red: color-mix(in srgb, var(--red) 22%, transparent);
             --text:       #f0f0f3;
             --text-2:     #868690;
-            --text-3:     #48484f;
+            --text-3:     #7d7d85;
             --sidebar-w:  260px;
-            --font:       'Poppins', sans-serif;
+            --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
             --ease:       cubic-bezier(.2,.8,.2,1);
@@ -168,10 +168,10 @@ if ($teamId) {
             --panel-3:    #e9edf4;
             --border:     #e3e6ee;
             --border-md:  #d7dbe6;
-            --border-red: rgba(252,0,37,.18);
+            --border-red: color-mix(in srgb, var(--red) 18%, transparent);
             --text:       #111217;
             --text-2:     #5b6270;
-            --text-3:     #8b93a5;
+            --text-3:     #657080;
         }
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -209,8 +209,8 @@ if ($teamId) {
         .sb-season-label { font-size: 10px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-2); }
         .sb-season-val   { font-size: 14px; font-weight: 700; color: var(--red); }
         .sb-nav { flex: 1; padding: 12px 10px 8px; }
-        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
-        .sb-nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-weight: 500; text-decoration: none; margin-bottom: 2px; transition: all var(--t) var(--ease); }
+        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 6px; }
+        .sb-nav a { font-family:'Inter',sans-serif; display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-weight: 500; text-decoration: none; margin-bottom: 2px; transition: all var(--t) var(--ease); }
         .sb-nav a i { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
         .sb-nav a:hover { background: var(--panel-2); color: var(--text); }
         .sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
@@ -314,7 +314,7 @@ if ($teamId) {
         .roster-table thead th[data-sort="ovr"]      { width: 8%; }
         .roster-table thead th[data-sort="age"]      { width: 8%; }
         .roster-table thead th[data-sort="role"]     { width: 12%; }
-        .roster-table tbody td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .roster-table tbody td { padding: 12px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
         .roster-table tbody tr:hover { background: var(--panel-2); }
         .roster-table tbody tr:last-child td { border-bottom: none; }
 
@@ -372,7 +372,7 @@ if ($teamId) {
         .text-orange     { color: var(--red) !important; }
         .text-light-gray { color: var(--text-2) !important; }
         .text-muted      { color: var(--text-3) !important; }
-        .text-danger     { color: #f55 !important; }
+        .text-danger     { color: var(--red) !important; }
         .spinner-border  { color: var(--red) !important; }
 
         /* Bootstrap form elements → tema */
@@ -422,10 +422,10 @@ if ($teamId) {
         /* ── Skill Grades ──────────────────────────────── */
         .skill-grades-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
         .skill-grade-item { background:var(--panel-3); border:1px solid var(--border); border-radius:8px; padding:8px 4px; text-align:center; }
-        .skill-grade-label { font-size:9px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
+        .skill-grade-label { font-size:9px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
         .skill-grade-value { font-size:15px; font-weight:800; }
         .skill-edit-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
-        .skill-edit-grid select { width:100%; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:5px 2px; color:var(--text); font-size:12px; text-align:center; outline:none; }
+        .skill-edit-grid select { width:100%; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:6px 2px; color:var(--text); font-size:12px; text-align:center; outline:none; }
 
         /* ── Responsive ────────────────────────────────── */
         @media (max-width: 1100px) { .stats-strip { grid-template-columns: repeat(2, minmax(0,1fr)); } }
@@ -460,6 +460,7 @@ if ($teamId) {
             #editPlayerModal .fgrid > [style*="span 6"],
             #editPlayerModal .fgrid > [style*="span 12"] { grid-column: span 2 !important; }
         }
+    <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
 <body>
@@ -468,72 +469,7 @@ if ($teamId) {
     <!-- ══════════════════════════════════════
          SIDEBAR
     ══════════════════════════════════════ -->
-    <aside class="sidebar" id="sidebar">
-        <div class="sb-brand">
-            <div class="sb-logo">FBA</div>
-            <div class="sb-brand-text">FBA Manager <span>Liga <?= htmlspecialchars($user['league']) ?></span></div>
-        </div>
-
-        <?php if ($team): ?>
-        <div class="sb-team">
-            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
-                 alt="<?= htmlspecialchars($team['name'] ?? '') ?>"
-                 onerror="this.src='/img/default-team.png'">
-            <div>
-                <div class="sb-team-name"><?= htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?></div>
-                <div class="sb-team-league"><?= htmlspecialchars($user['league']) ?></div>
-            </div>
-        </div>
-        <?php endif; ?>
-
-        <nav class="sb-nav">
-            <div class="sb-section">Principal</div>
-            <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
-            <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
-            <a href="/my-roster.php" class="active"><i class="bi bi-person-fill"></i> Meu Elenco</a>
-            <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
-            <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
-            <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
-            <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
-            <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
-            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
-            <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
-            <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
-
-            <div class="sb-section">Liga</div>
-            <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
-            <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
-            <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
-            <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
-            <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
-            <a href="/estatisticas.php"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
-            <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
-            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
-            <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
-
-            <?php if ($is_admin): ?>
-            <div class="sb-section">Admin</div>
-            <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
-
-            <?php endif; ?>
-
-            <div class="sb-section">Conta</div>
-            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
-        </nav>
-
-        <button class="sb-theme-toggle" type="button" id="themeToggle">
-            <i class="bi bi-moon"></i><span>Modo escuro</span>
-        </button>
-
-        <div class="sb-footer">
-            <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>"
-                 alt="<?= htmlspecialchars($user['name']) ?>"
-                 class="sb-avatar"
-                 onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name']) ?>&background=1c1c21&color=fc0025'">
-            <span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
-            <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
-        </div>
-    </aside>
+    <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
     <div class="sb-overlay" id="sbOverlay"></div>
 
@@ -671,7 +607,7 @@ if ($teamId) {
                             </div>
                         </div>
                         <div style="grid-column: span 4; align-self: end;">
-                            <button type="submit" class="btn-red" id="btn-add-player" style="width:100%;justify-content:center;padding:11px;">
+                            <button type="submit" class="btn-red" id="btn-add-player" style="width:100%;justify-content:center;padding:12px;">
                                 <i class="bi bi-cloud-upload"></i> Cadastrar Jogador
                             </button>
                         </div>
@@ -1361,7 +1297,7 @@ if ($teamId) {
     if (!limitMsg) {
       const msg = document.createElement('div');
       msg.id = 'skill-limit-msg';
-      msg.style.cssText = 'text-align:center;padding:32px 20px;background:rgba(252,0,37,.08);border:1px solid rgba(252,0,37,.35);border-radius:12px;margin-top:12px';
+      msg.style.cssText = 'text-align:center;padding:32px 20px;background:color-mix(in srgb, var(--red) 8%, transparent);border:1px solid color-mix(in srgb, var(--red) 35%, transparent);border-radius:12px;margin-top:12px';
       msg.innerHTML = '<i class="bi bi-slash-circle" style="font-size:36px;color:var(--red);display:block;margin-bottom:12px"></i>'
         + '<div style="font-size:16px;font-weight:800;color:var(--red);letter-spacing:.05em">LIMITE DO SISTEMA ATINGIDO</div>'
         + '<div style="font-size:13px;color:var(--text-2);margin-top:8px">O limite de 980 análises foi atingido. Não é possível enviar mais imagens.</div>';

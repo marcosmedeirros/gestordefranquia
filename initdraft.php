@@ -15,33 +15,45 @@ if (!$token) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Draft Inicial — Admin</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         /* ── Tokens ──────────────────────────────────── */
         :root {
             --red:        #fc0025;
-            --red-soft:   rgba(252,0,37,.10);
-            --red-glow:   rgba(252,0,37,.18);
+            --red-soft:   color-mix(in srgb, var(--red) 10%, transparent);
+            --red-glow:   color-mix(in srgb, var(--red) 18%, transparent);
             --bg:         #07070a;
             --panel:      #101013;
             --panel-2:    #16161a;
             --panel-3:    #1c1c21;
             --border:     rgba(255,255,255,.06);
             --border-md:  rgba(255,255,255,.10);
-            --border-red: rgba(252,0,37,.22);
+            --border-red: color-mix(in srgb, var(--red) 22%, transparent);
             --text:       #f0f0f3;
             --text-2:     #868690;
-            --text-3:     #48484f;
+            --text-3:     #7d7d85;
             --green:      #22c55e;
             --amber:      #f59e0b;
             --blue:       #3b82f6;
-            --font:       'Poppins', sans-serif;
+            --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
             --ease:       cubic-bezier(.2,.8,.2,1);
             --t:          200ms;
+        }
+        :root[data-theme="light"] {
+            --bg:         #f6f7fb;
+            --panel:      #ffffff;
+            --panel-2:    #f2f4f8;
+            --panel-3:    #e9edf4;
+            --border:     #e3e6ee;
+            --border-md:  #d7dbe6;
+            --border-red: color-mix(in srgb, var(--red) 18%, transparent);
+            --text:       #111217;
+            --text-2:     #5b6270;
+            --text-3:     #657080;
         }
 
         *, *::before, *::after { box-sizing: border-box; }
@@ -74,7 +86,7 @@ if (!$token) {
         .token-display {
             display: flex; align-items: center; gap: 6px;
             background: var(--panel-2); border: 1px solid var(--border);
-            border-radius: 8px; padding: 5px 10px;
+            border-radius: 8px; padding: 6px 10px;
         }
         .token-display code { font-size: 11px; color: var(--text-3); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .token-copy-btn {
@@ -134,11 +146,11 @@ if (!$token) {
             padding: 18px 22px;
             margin-bottom: 20px;
         }
-        .session-title { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+        .session-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
 
         /* ── Progress ────────────────────────────────── */
         .prog-bar-wrap { height: 6px; background: var(--panel-3); border-radius: 999px; overflow: hidden; margin-top: 12px; }
-        .prog-bar-fill { height: 100%; background: linear-gradient(90deg, var(--red), #ff2a44); border-radius: 999px; transition: width .5s ease; }
+        .prog-bar-fill { height: 100%; background: linear-gradient(90deg, var(--red), color-mix(in srgb, var(--red) 85%, white)); border-radius: 999px; transition: width .5s ease; }
 
         /* ── Panel card ──────────────────────────────── */
         .panel-card {
@@ -195,7 +207,7 @@ if (!$token) {
         /* ── Tabs ────────────────────────────────────── */
         .custom-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
         .custom-tab {
-            padding: 9px 14px; font-size: 13px; font-weight: 600;
+            padding: 10px 14px; font-size: 13px; font-weight: 600;
             color: var(--text-2); background: transparent; border: none;
             border-bottom: 2px solid transparent; margin-bottom: -1px;
             cursor: pointer; transition: all var(--t) var(--ease);
@@ -222,7 +234,7 @@ if (!$token) {
         .data-table-wrap { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
 
         /* ── Status pills ────────────────────────────── */
-        .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+        .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
         .status-pill.setup      { background: rgba(245,158,11,.12); color: var(--amber); border: 1px solid rgba(245,158,11,.25); }
         .status-pill.in_progress{ background: rgba(34,197,94,.12);  color: var(--green); border: 1px solid rgba(34,197,94,.25); }
         .status-pill.completed  { background: var(--panel-3); color: var(--text-2); border: 1px solid var(--border); }
@@ -287,7 +299,7 @@ if (!$token) {
         .search-input {
             width: 100%;
             background: var(--panel-2); border: 1px solid var(--border-md);
-            border-radius: 9px; padding: 9px 12px;
+            border-radius: 9px; padding: 10px 12px;
             color: var(--text); font-family: var(--font); font-size: 13px;
             outline: none; transition: border-color var(--t) var(--ease);
         }
@@ -295,11 +307,11 @@ if (!$token) {
         .search-input::placeholder { color: var(--text-3); }
 
         /* ── Form fields ─────────────────────────────── */
-        .field-label { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 5px; display: block; }
+        .field-label { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; display: block; }
         .field-input {
             width: 100%;
             background: var(--panel-2); border: 1px solid var(--border-md);
-            border-radius: 8px; padding: 9px 12px;
+            border-radius: 8px; padding: 10px 12px;
             color: var(--text); font-family: var(--font); font-size: 13px;
             outline: none; transition: border-color var(--t) var(--ease);
         }
@@ -411,6 +423,8 @@ if (!$token) {
             .manual-order-row { grid-template-columns: 1fr; }
             .manual-position-select { width: 100%; }
         }
+    input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
+     (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
     </style>
 </head>
 <body>
@@ -508,10 +522,10 @@ if (!$token) {
                                     <div style="font-size:11px;color:var(--text-2);margin-top:2px">Importe via CSV ou adicione manualmente.</div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2">
-                                    <button class="btn-amber" style="padding:7px 12px;font-size:12px" data-bs-toggle="modal" data-bs-target="#importCSVModal">
+                                    <button class="btn-amber" style="padding:8px 12px;font-size:12px" data-bs-toggle="modal" data-bs-target="#importCSVModal">
                                         <i class="bi bi-file-earmark-arrow-up"></i> Importar CSV
                                     </button>
-                                    <button class="btn-red" style="padding:7px 12px;font-size:12px" data-bs-toggle="modal" data-bs-target="#addPlayerModal">
+                                    <button class="btn-red" style="padding:8px 12px;font-size:12px" data-bs-toggle="modal" data-bs-target="#addPlayerModal">
                                         <i class="bi bi-person-plus"></i> Novo Jogador
                                     </button>
                                 </div>
@@ -1013,7 +1027,7 @@ if (!$token) {
         const buttons = [];
 
         if (state.canEditOrder) {
-            buttons.push(`<button class="btn-ghost" style="padding:7px 14px;font-size:12px" onclick="openOrderModal()"><i class="bi bi-sliders me-1"></i>Ordem</button>`);
+            buttons.push(`<button class="btn-ghost" style="padding:8px 14px;font-size:12px" onclick="openOrderModal()"><i class="bi bi-sliders me-1"></i>Ordem</button>`);
         }
 
         if (session.status === 'setup') {
@@ -1027,14 +1041,14 @@ if (!$token) {
                     </div>
                 `);
             } else {
-                buttons.push(`<button class="btn-green" style="padding:7px 14px;font-size:12px" onclick="openScheduleStartPicker()"><i class="bi bi-calendar-event me-1"></i>Definir dia de início</button>`);
+                buttons.push(`<button class="btn-green" style="padding:8px 14px;font-size:12px" onclick="openScheduleStartPicker()"><i class="bi bi-calendar-event me-1"></i>Definir dia de início</button>`);
             }
         }
 
         if (session.status === 'in_progress') {
-            buttons.push(`<button class="btn-ghost" style="padding:7px 14px;font-size:12px" onclick="loadState()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>`);
-            buttons.push(`<button class="btn-ghost" style="padding:7px 14px;font-size:12px" onclick="openDraftViewer()"><i class="bi bi-eye me-1"></i>Ver página do draft</button>`);
-            buttons.push(`<button class="btn-red" style="padding:7px 14px;font-size:12px" onclick="finalizeDraft()"><i class="bi bi-flag me-1"></i>Finalizar</button>`);
+            buttons.push(`<button class="btn-ghost" style="padding:8px 14px;font-size:12px" onclick="loadState()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>`);
+            buttons.push(`<button class="btn-ghost" style="padding:8px 14px;font-size:12px" onclick="openDraftViewer()"><i class="bi bi-eye me-1"></i>Ver página do draft</button>`);
+            buttons.push(`<button class="btn-red" style="padding:8px 14px;font-size:12px" onclick="finalizeDraft()"><i class="bi bi-flag me-1"></i>Finalizar</button>`);
         }
 
         if (session.status === 'completed') {

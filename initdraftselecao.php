@@ -25,33 +25,45 @@ if ($user && isset($user['id'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Draft Inicial — Seleção</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         /* ── Tokens ───────────────────────────────────── */
         :root {
             --red:        #fc0025;
-            --red-soft:   rgba(252,0,37,.10);
-            --red-glow:   rgba(252,0,37,.18);
+            --red-soft:   color-mix(in srgb, var(--red) 10%, transparent);
+            --red-glow:   color-mix(in srgb, var(--red) 18%, transparent);
             --bg:         #07070a;
             --panel:      #101013;
             --panel-2:    #16161a;
             --panel-3:    #1c1c21;
             --border:     rgba(255,255,255,.06);
             --border-md:  rgba(255,255,255,.10);
-            --border-red: rgba(252,0,37,.22);
+            --border-red: color-mix(in srgb, var(--red) 22%, transparent);
             --text:       #f0f0f3;
             --text-2:     #868690;
-            --text-3:     #48484f;
+            --text-3:     #7d7d85;
             --green:      #22c55e;
             --amber:      #f59e0b;
             --blue:       #3b82f6;
-            --font:       'Poppins', sans-serif;
+            --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
             --ease:       cubic-bezier(.2,.8,.2,1);
             --t:          200ms;
+        }
+        :root[data-theme="light"] {
+            --bg:         #f6f7fb;
+            --panel:      #ffffff;
+            --panel-2:    #f2f4f8;
+            --panel-3:    #e9edf4;
+            --border:     #e3e6ee;
+            --border-md:  #d7dbe6;
+            --border-red: color-mix(in srgb, var(--red) 18%, transparent);
+            --text:       #111217;
+            --text-2:     #5b6270;
+            --text-3:     #657080;
         }
 
         *, *::before, *::after { box-sizing: border-box; }
@@ -137,7 +149,7 @@ if ($user && isset($user['id'])) {
         }
         .pick-card.current-pick-highlight {
             border-color: var(--border-red);
-            background: rgba(252,0,37,.06);
+            background: color-mix(in srgb, var(--red) 6%, transparent);
         }
         .pick-card.next-pick-highlight {
             background: var(--panel-3);
@@ -151,9 +163,9 @@ if ($user && isset($user['id'])) {
         .pick-card-sm { padding: 10px 14px; opacity: .9; }
         .pick-flash { animation: pickFlash 1.2s ease-in-out; }
         @keyframes pickFlash {
-            0%   { box-shadow: 0 0 0 rgba(252,0,37,0); }
-            30%  { box-shadow: 0 0 22px rgba(252,0,37,.45); }
-            100% { box-shadow: 0 0 0 rgba(252,0,37,0); }
+            0%   { box-shadow: 0 0 0 color-mix(in srgb, var(--red) 0%, transparent); }
+            30%  { box-shadow: 0 0 22px color-mix(in srgb, var(--red) 45%, transparent); }
+            100% { box-shadow: 0 0 0 color-mix(in srgb, var(--red) 0%, transparent); }
         }
 
         .pick-logo {
@@ -170,7 +182,7 @@ if ($user && isset($user['id'])) {
         }
         .order-item.order-highlight {
             border-color: var(--border-red);
-            background: rgba(252,0,37,.07);
+            background: color-mix(in srgb, var(--red) 7%, transparent);
         }
         .order-item.order-next {
             border-style: dashed;
@@ -195,10 +207,10 @@ if ($user && isset($user['id'])) {
         }
         .pick-summary-name { font-weight: 600; color: var(--text); }
         .pick-summary-meta { color: var(--red); font-size: 11px; }
-        .reaction-bar { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+        .reaction-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
         .reaction-chip {
-            display: inline-flex; align-items: center; gap: 3px;
-            padding: 2px 7px; border-radius: 999px; font-size: 11px;
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 8px; border-radius: 999px; font-size: 11px;
             border: 1px solid var(--border-md);
             background: var(--panel-2); color: var(--text);
             cursor: pointer; user-select: none;
@@ -209,7 +221,7 @@ if ($user && isset($user['id'])) {
         .reaction-count { color: var(--text-2); }
 
         /* ── Status pill ──────────────────────────────── */
-        .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+        .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
         .status-pill.setup       { background: rgba(245,158,11,.12); color: var(--amber); border: 1px solid rgba(245,158,11,.25); }
         .status-pill.in_progress { background: rgba(34,197,94,.12);  color: var(--green); border: 1px solid rgba(34,197,94,.25); }
         .status-pill.completed   { background: var(--panel-3); color: var(--text-2); border: 1px solid var(--border); }
@@ -221,7 +233,7 @@ if ($user && isset($user['id'])) {
         /* ── Buttons ──────────────────────────────────── */
         .btn-red {
             display: inline-flex; align-items: center; gap: 6px;
-            padding: 7px 14px; border-radius: 8px;
+            padding: 8px 14px; border-radius: 8px;
             background: var(--red); border: none; color: #fff;
             font-family: var(--font); font-size: 12px; font-weight: 600;
             cursor: pointer; transition: filter var(--t) var(--ease); text-decoration: none;
@@ -229,7 +241,7 @@ if ($user && isset($user['id'])) {
         .btn-red:hover { filter: brightness(1.12); color: #fff; }
         .btn-ghost {
             display: inline-flex; align-items: center; gap: 6px;
-            padding: 7px 14px; border-radius: 8px;
+            padding: 8px 14px; border-radius: 8px;
             background: transparent; border: 1px solid var(--border-md); color: var(--text-2);
             font-family: var(--font); font-size: 12px; font-weight: 600;
             cursor: pointer; transition: all var(--t) var(--ease); text-decoration: none;
@@ -237,7 +249,7 @@ if ($user && isset($user['id'])) {
         .btn-ghost:hover { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
         .btn-green {
             display: inline-flex; align-items: center; gap: 6px;
-            padding: 7px 14px; border-radius: 8px;
+            padding: 8px 14px; border-radius: 8px;
             background: var(--green); border: none; color: #fff;
             font-family: var(--font); font-size: 12px; font-weight: 600;
             cursor: pointer; transition: filter var(--t) var(--ease);
@@ -245,7 +257,7 @@ if ($user && isset($user['id'])) {
         .btn-green:hover { filter: brightness(1.1); }
         .btn-amber {
             display: inline-flex; align-items: center; gap: 6px;
-            padding: 7px 14px; border-radius: 8px;
+            padding: 8px 14px; border-radius: 8px;
             background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.3); color: var(--amber);
             font-family: var(--font); font-size: 12px; font-weight: 600;
             cursor: pointer; transition: all var(--t) var(--ease);
@@ -317,12 +329,15 @@ if ($user && isset($user['id'])) {
             #poolTableEl thead { display: none; }
             #poolTableEl tbody tr {
                 display: flex; flex-direction: column;
-                gap: 3px; padding: 10px 12px;
+                gap: 4px; padding: 10px 12px;
                 border-bottom: 1px solid var(--border);
             }
             #poolTableEl td { width: 100%; padding: 0; border: 0; }
             #poolTableEl td:first-child { display: none; }
         }
+    input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
+     (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
+    <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
 <body>

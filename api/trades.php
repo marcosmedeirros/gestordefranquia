@@ -1146,6 +1146,37 @@ function fetchPickSwapInfo(PDO $pdo, int $pickId): array
     return $pick;
 }
 
+/**
+ * Ligas que NÃO permitem swap de picks em trocas.
+ * RISE e ROOKIE não têm swap.
+ */
+function leagueAllowsSwap(?string $league): bool
+{
+    $league = strtoupper(trim((string)$league));
+    return !in_array($league, ['RISE', 'ROOKIE'], true);
+}
+
+/**
+ * Detecta menção a "swap" em texto livre (observações), para impedir que se
+ * combine um swap por escrito em ligas que não têm swap.
+ * Cobre variações comuns: swap, swaps, swapar, SWAP, s-w-a-p, s.w.a.p, s w a p.
+ */
+function noteMentionsSwap(?string $text): bool
+{
+    $text = trim((string)$text);
+    if ($text === '') return false;
+    // \b evita falso positivo (nenhuma palavra em português começa com "sw");
+    // separador opcional cobre tentativas de burlar do tipo "s w a p" / "s.w.a.p"
+    return preg_match('/\bs[\s._-]?w[\s._-]?a[\s._-]?p/iu', $text) === 1;
+}
+
+/** Mensagem padrão de recusa por menção a swap. */
+function swapNotAllowedNoteMessage(?string $league): string
+{
+    return 'Não existe swap de picks na liga ' . strtoupper(trim((string)$league))
+        . '. Remova a menção a "swap" da observação para enviar.';
+}
+
 function normalizeSwapPairs(PDO $pdo, array $offerPicks, array $requestPicks, array $swapPairs): array
 {
     if (empty($swapPairs) || !is_array($swapPairs)) {
@@ -1650,7 +1681,8 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
                           COALESCE(p.name, ti.player_name, CONCAT('Jogador #', ti.player_id)) AS name,
                     COALESCE(ti.player_position, p.position) AS position,
                     COALESCE(ti.player_age, p.age) AS age,
-                    COALESCE(ti.player_ovr, p.{$ovrCol}) AS ovr
+                    COALESCE(ti.player_ovr, p.{$ovrCol}) AS ovr,
+                    p.{$ovrCol} AS current_ovr
               FROM trade_items ti
               LEFT JOIN players p ON p.id = ti.player_id
                       WHERE ti.trade_id = ? AND ti.from_team = TRUE AND ti.pick_id IS NULL"
@@ -1687,7 +1719,8 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
                           COALESCE(p.name, ti.player_name, CONCAT('Jogador #', ti.player_id)) AS name,
                     COALESCE(ti.player_position, p.position) AS position,
                     COALESCE(ti.player_age, p.age) AS age,
-                    COALESCE(ti.player_ovr, p.{$ovrCol}) AS ovr
+                    COALESCE(ti.player_ovr, p.{$ovrCol}) AS ovr,
+                    p.{$ovrCol} AS current_ovr
               FROM trade_items ti
               LEFT JOIN players p ON p.id = ti.player_id
                       WHERE ti.trade_id = ? AND ti.from_team = FALSE AND ti.pick_id IS NULL"
@@ -1796,14 +1829,18 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'multi_trades') {
         $ovrCol = playerOvrColumn($pdo);
         $stmtPickInfo = $pdo->prepare('SELECT pk.*, t.city as original_team_city, t.name as original_team_name, lo.city as last_owner_city, lo.name as last_owner_name FROM picks pk JOIN teams t ON pk.original_team_id = t.id LEFT JOIN teams lo ON pk.last_owner_team_id = lo.id WHERE pk.id = ?');
         foreach ($items as &$item) {
-            if ($item['player_id'] && (!$item['player_name'] || !$item['player_ovr'])) {
+            $item['current_ovr'] = null;
+            if ($item['player_id']) {
                 $stmtP = $pdo->prepare("SELECT name, position, age, {$ovrCol} AS ovr FROM players WHERE id = ?");
                 $stmtP->execute([(int)$item['player_id']]);
                 $p = $stmtP->fetch(PDO::FETCH_ASSOC) ?: [];
-                $item['player_name'] = $item['player_name'] ?: ($p['name'] ?? null);
-                $item['player_position'] = $item['player_position'] ?: ($p['position'] ?? null);
-                $item['player_age'] = $item['player_age'] ?: ($p['age'] ?? null);
-                $item['player_ovr'] = $item['player_ovr'] ?: ($p['ovr'] ?? null);
+                if (!$item['player_name'] || !$item['player_ovr']) {
+                    $item['player_name'] = $item['player_name'] ?: ($p['name'] ?? null);
+                    $item['player_position'] = $item['player_position'] ?: ($p['position'] ?? null);
+                    $item['player_age'] = $item['player_age'] ?: ($p['age'] ?? null);
+                    $item['player_ovr'] = $item['player_ovr'] ?: ($p['ovr'] ?? null);
+                }
+                $item['current_ovr'] = $p['ovr'] ?? null;
             }
             if ($item['pick_id']) {
                 $stmtPickInfo->execute([(int)$item['pick_id']]);
@@ -1975,6 +2012,12 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
     if (!$league) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Liga inválida.']);
+        exit;
+    }
+    // RISE e ROOKIE não têm swap: não deixar combinar por escrito na observação
+    if (!leagueAllowsSwap($league) && noteMentionsSwap($notes)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => swapNotAllowedNoteMessage($league)]);
         exit;
     }
     try {
@@ -2256,6 +2299,20 @@ if ($method === 'POST') {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Só é possível propor trades entre times da mesma liga']);
         exit;
+    }
+
+    // RISE e ROOKIE não têm swap de picks
+    if (!leagueAllowsSwap($teamData['league'] ?? null)) {
+        if (!empty($swapPairs)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Swap de picks não é permitido na liga ' . ($teamData['league'] ?? '') . '.']);
+            exit;
+        }
+        if (noteMentionsSwap($notes)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => swapNotAllowedNoteMessage($teamData['league'] ?? null)]);
+            exit;
+        }
     }
 
     try {
@@ -2555,6 +2612,14 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'edit_multi_trade') {
         exit;
     }
 
+    // RISE e ROOKIE não têm swap: não deixar combinar por escrito na observação
+    $editLeague = $trade['league'] ?? ($user['league'] ?? null);
+    if (!leagueAllowsSwap($editLeague) && noteMentionsSwap($notes)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => swapNotAllowedNoteMessage($editLeague)]);
+        exit;
+    }
+
     $stmtAcc = $pdo->prepare('SELECT COUNT(*) FROM multi_trade_teams WHERE trade_id = ? AND accepted_at IS NOT NULL');
     $stmtAcc->execute([$tradeId]);
     if ((int)$stmtAcc->fetchColumn() > 0) {
@@ -2814,7 +2879,15 @@ if ($method === 'PUT') {
         echo json_encode(['success' => false, 'error' => 'Trade não encontrada ou sem permissão']);
         exit;
     }
-    
+
+    // RISE e ROOKIE não têm swap: não deixar combinar por escrito na resposta
+    $respLeague = $trade['league'] ?: ($user['league'] ?? null);
+    if (!leagueAllowsSwap($respLeague) && noteMentionsSwap($responseNotes)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => swapNotAllowedNoteMessage($respLeague)]);
+        exit;
+    }
+
     // Verificar se pode cancelar (só quem enviou)
     if ($action === 'cancelled' && $trade['from_team_id'] != $teamId) {
         http_response_code(403);

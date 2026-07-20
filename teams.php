@@ -197,32 +197,32 @@ function getSerasaScore(int $avisos): array {
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/styles.css?v=20260225-2">
 
     <style>
         /* ── Design Tokens ─────────────────────────────── */
         :root {
             --red: #fc0025;
-            --red-2: #ff2a44;
-            --red-soft: rgba(252,0,37,.10);
-            --red-glow: rgba(252,0,37,.18);
+            --red-2: color-mix(in srgb, var(--red) 85%, white);
+            --red-soft: color-mix(in srgb, var(--red) 10%, transparent);
+            --red-glow: color-mix(in srgb, var(--red) 18%, transparent);
             --bg: #07070a;
             --panel: #101013;
             --panel-2: #16161a;
             --panel-3: #1c1c21;
             --border: rgba(255,255,255,.06);
             --border-strong: rgba(255,255,255,.10);
-            --border-red: rgba(252,0,37,.22);
+            --border-red: color-mix(in srgb, var(--red) 22%, transparent);
             --text: #f0f0f3;
             --text-2: #868690;
-            --text-3: #48484f;
+            --text-3: #7d7d85;
             --radius: 14px;
             --radius-sm: 10px;
             --radius-xs: 6px;
             --sidebar-w: 260px;
-            --font-display: 'Poppins', sans-serif;
-            --font-body: 'Poppins', sans-serif;
+            --font-display: 'Montserrat', sans-serif;
+            --font-body: 'Montserrat', sans-serif;
             --ease: cubic-bezier(.2,.8,.2,1);
             --t: 200ms;
         }
@@ -234,10 +234,10 @@ function getSerasaScore(int $avisos): array {
             --panel-3: #e9edf4;
             --border: #e3e6ee;
             --border-strong: #d7dbe6;
-            --border-red: rgba(252,0,37,.18);
+            --border-red: color-mix(in srgb, var(--red) 18%, transparent);
             --text: #111217;
             --text-2: #5b6270;
-            --text-3: #8b93a5;
+            --text-3: #657080;
         }
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -363,11 +363,11 @@ function getSerasaScore(int $avisos): array {
             padding: 12px 10px 6px;
         }
 
-        .sidebar-nav a, .sb-nav a {
+        .sidebar-nav a, .sb-nav a { font-family:'Inter',sans-serif;
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 9px 10px;
+            padding: 10px 10px;
             border-radius: var(--radius-sm);
             color: var(--text-2);
             font-size: 14px;
@@ -773,7 +773,7 @@ function getSerasaScore(int $avisos): array {
         .team-owner-row {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 6px;
             margin-top: 4px;
         }
 
@@ -830,7 +830,7 @@ function getSerasaScore(int $avisos): array {
         .team-stat-label {
             font-size: 10px;
             color: var(--text-2);
-            margin-top: 3px;
+            margin-top: 4px;
             letter-spacing: .3px;
         }
 
@@ -883,7 +883,7 @@ function getSerasaScore(int $avisos): array {
             font-size: 12px;
             font-weight: 500;
             cursor: pointer;
-            display: flex; align-items: center; justify-content: center; gap: 5px;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
             transition: all var(--t) var(--ease);
             text-decoration: none;
         }
@@ -894,7 +894,7 @@ function getSerasaScore(int $avisos): array {
         }
         .btn-action.primary {
             background: var(--red-soft);
-            border-color: rgba(252,0,37,.2);
+            border-color: color-mix(in srgb, var(--red) 20%, transparent);
             color: var(--red);
         }
         .btn-action.primary:hover {
@@ -1159,8 +1159,8 @@ function getSerasaScore(int $avisos): array {
 
         /* FBA SERASA score badge */
         .serasa-badge {
-            display: inline-flex; align-items: center; gap: 3px;
-            padding: 2px 7px; border-radius: 20px;
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 8px; border-radius: 20px;
             font-size: 10px; font-weight: 700; border: 1px solid;
             margin-top: 4px; letter-spacing: .02em;
         }
@@ -1172,6 +1172,7 @@ function getSerasaScore(int $avisos): array {
         /* badge inline na lista só aparece no mobile */
         .list-serasa-mobile { display: none; }
         @media (max-width: 992px) { .list-serasa-mobile { display: inline-flex; } }
+    <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
 <body>
@@ -1180,75 +1181,7 @@ function getSerasaScore(int $avisos): array {
     <!-- ══════════════════════════════════════════════
          SIDEBAR
     ══════════════════════════════════════════════ -->
-    <aside class="sidebar" id="sidebar">
-
-        <div class="sb-brand">
-            <div class="sb-logo">FBA</div>
-            <div class="sb-brand-text">
-                FBA Manager
-                <span>Liga <?= htmlspecialchars($user['league']) ?></span>
-            </div>
-        </div>
-
-        <div class="sb-team">
-            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
-                 alt="<?= htmlspecialchars($team['name']) ?>"
-                 onerror="this.src='/img/default-team.png'">
-            <div>
-                <div class="sb-team-name"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></div>
-                <div class="sb-team-league"><?= htmlspecialchars($user['league']) ?></div>
-            </div>
-        </div>
-
-        <nav class="sb-nav">
-            <div class="sb-section">Principal</div>
-            <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
-            <a href="/teams.php" class="active"><i class="bi bi-people-fill"></i> Times</a>
-            <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
-            <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
-            <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
-            <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
-            <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
-            <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
-            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
-            <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
-            <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
-
-            <div class="sb-section">Liga</div>
-            <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
-            <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
-            <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
-            <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
-            <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
-            <a href="/estatisticas.php"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
-            <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
-            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
-            <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
-
-            <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
-            <div class="sb-section">Admin</div>
-            <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
-
-            <?php endif; ?>
-
-            <div class="sb-section">Conta</div>
-            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
-        </nav>
-
-            <button class="sb-theme-toggle" type="button" id="themeToggle">
-                <i class="bi bi-moon"></i>
-                <span>Modo escuro</span>
-            </button>
-
-        <div class="sb-footer">
-            <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>"
-                 alt="<?= htmlspecialchars($user['name']) ?>"
-                 class="sb-avatar"
-                 onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name']) ?>&background=1c1c21&color=fc0025'">
-            <span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
-            <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
-        </div>
-    </aside>
+    <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
     <!-- Overlay mobile -->
     <div class="sb-overlay" id="sbOverlay"></div>
@@ -1318,7 +1251,7 @@ function getSerasaScore(int $avisos): array {
                             <img class="team-logo-main"
                                  src="<?= htmlspecialchars(getTeamPhoto($t['photo_url'] ?? null)) ?>"
                                  alt="<?= htmlspecialchars($t['name']) ?>"
-                                 onerror="this.src='https://ui-avatars.com/api/?name=FBA&background=1f1f23&color=fc0025'">
+                                 onerror="this.src='https://ui-avatars.com/api/?name=FBA&background=1f1f23&color=<?= accentColorHex($user['accent_color'] ?? null) ?>'">
                             <img class="team-logo-owner"
                                  src="<?= htmlspecialchars(getUserPhoto($t['owner_photo'] ?? null)) ?>"
                                  alt="<?= htmlspecialchars($t['owner_name'] ?? 'GM') ?>"
@@ -1331,7 +1264,7 @@ function getSerasaScore(int $avisos): array {
                                 <i class="bi bi-person" style="font-size:11px;color:var(--text-3)"></i>
                                 <span class="team-owner-name"><?= htmlspecialchars($t['owner_name']) ?></span>
                             </div>
-                            <div class="roster-badge <?= $rosterOk ? 'ok' : 'nok' ?>" style="padding:3px 6px;" title="<?= $rosterOk ? 'Elenco atualizado' : 'Elenco não atualizado' ?>">
+                            <div class="roster-badge <?= $rosterOk ? 'ok' : 'nok' ?>" style="padding:4px 6px;" title="<?= $rosterOk ? 'Elenco atualizado' : 'Elenco não atualizado' ?>">
                                 <i class="bi bi-<?= $rosterOk ? 'check-circle-fill' : 'clock' ?>"></i>
                             </div>
                             <?php
@@ -1416,11 +1349,9 @@ function getSerasaScore(int $avisos): array {
                             <i class="bi bi-whatsapp"></i>
                         </a>
                         <?php endif; ?>
-                        <?php if (!empty($t['public_enabled']) && !empty($t['public_slug'])): ?>
-                        <a class="btn-action" href="/times/<?= htmlspecialchars($t['public_slug']) ?>" target="_blank" rel="noopener" title="Ver página pública">
-                            <i class="bi bi-globe2"></i>
+                        <a class="btn-action" href="/team-history.php?team_id=<?= (int)$t['id'] ?>" title="Ver histórico e estatísticas do time">
+                            <i class="bi bi-bar-chart-line-fill"></i>
                         </a>
-                        <?php endif; ?>
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -1456,7 +1387,7 @@ function getSerasaScore(int $avisos): array {
                         <img class="list-team-logo"
                              src="<?= htmlspecialchars(getTeamPhoto($t['photo_url'] ?? null)) ?>"
                              alt="<?= htmlspecialchars($t['name']) ?>"
-                             onerror="this.src='https://ui-avatars.com/api/?name=FBA&background=1f1f23&color=fc0025'">
+                             onerror="this.src='https://ui-avatars.com/api/?name=FBA&background=1f1f23&color=<?= accentColorHex($user['accent_color'] ?? null) ?>'">
                         <div>
                             <div class="list-team-name"><?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?></div>
                             <div class="list-team-owner"><?= htmlspecialchars($t['owner_name']) ?></div>
@@ -1475,7 +1406,7 @@ function getSerasaScore(int $avisos): array {
                                 }
                                 $listTag = strtolower($listRawTag ?? '');
                             ?>
-                            <div style="display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap;">
+                            <div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;">
                                 <span style="font-size:10px;color:<?= $listRosterOk ? '#22c55e' : '#f59e0b' ?>;line-height:1" title="<?= $listRosterOk ? 'Elenco atualizado' : 'Elenco não atualizado' ?>">
                                     <i class="bi bi-<?= $listRosterOk ? 'check-circle-fill' : 'clock' ?>"></i>
                                 </span>
@@ -1486,7 +1417,7 @@ function getSerasaScore(int $avisos): array {
                                     $inlineAvisos = (int)($t['avisos_count'] ?? 0);
                                     $inlineScore  = getSerasaScore($inlineAvisos);
                                 ?>
-                                <span class="serasa-badge <?= $inlineScore['cls'] ?> list-serasa-mobile" style="font-size:9px;padding:1px 5px;margin-top:0">
+                                <span class="serasa-badge <?= $inlineScore['cls'] ?> list-serasa-mobile" style="font-size:9px;padding:1px 6px;margin-top:0">
                                     <i class="bi bi-shield-check" style="font-size:8px"></i><?= $inlineScore['label'] ?>
                                 </span>
                             </div>
@@ -1525,11 +1456,9 @@ function getSerasaScore(int $avisos): array {
                             <i class="bi bi-whatsapp"></i>
                         </a>
                         <?php endif; ?>
-                        <?php if (!empty($t['public_enabled']) && !empty($t['public_slug'])): ?>
-                        <a class="btn-action" style="flex:initial;padding:0 10px;" href="/times/<?= htmlspecialchars($t['public_slug']) ?>" target="_blank" rel="noopener" title="Ver página pública">
-                            <i class="bi bi-globe2"></i>
+                        <a class="btn-action" style="flex:initial;padding:0 10px;" href="/team-history.php?team_id=<?= (int)$t['id'] ?>" title="Ver histórico e estatísticas do time">
+                            <i class="bi bi-bar-chart-line-fill"></i>
                         </a>
-                        <?php endif; ?>
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -1684,6 +1613,12 @@ function getSerasaScore(int $avisos): array {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/js/pwa.js"></script>
 <script>
+    function _avatarColorHex() {
+        try {
+            const m = getComputedStyle(document.documentElement).getPropertyValue('--red').trim().match(/#([0-9a-fA-F]{6})/);
+            return m ? m[1] : 'fc0025';
+        } catch (e) { return 'fc0025'; }
+    }
     const themeKey = 'fba-theme';
     const root = document.documentElement;
     const savedTheme = localStorage.getItem(themeKey);
@@ -1841,12 +1776,12 @@ function getSerasaScore(int $avisos): array {
                 sortedPlayers.forEach(p => {
                     const photo = (p.foto_adicional || '').trim()
                         || (p.nba_player_id ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png`
-                            : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=1f1f23&color=fc0025&rounded=true&bold=true`);
-                    const tagHtml = p.player_tag ? (() => { const c = p.player_tag_color || '#3b82f6'; return `<span style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid ${c}55;background:${c}18;color:${c};margin-left:5px;">${p.player_tag}</span>`; })() : '';
+                            : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=1f1f23&color=${_avatarColorHex()}&rounded=true&bold=true`);
+                    const tagHtml = p.player_tag ? (() => { const c = p.player_tag_color || '#3b82f6'; return `<span style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid ${c}55;background:${c}18;color:${c};margin-left:6px;">${p.player_tag}</span>`; })() : '';
                     tbody.innerHTML += `<tr>
                         <td><div style="display:flex;align-items:center;gap:10px">
                             <img src="${photo}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--border-strong)"
-                                 onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=1f1f23&color=fc0025&rounded=true&bold=true'">
+                                 onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=1f1f23&color=${_avatarColorHex()}&rounded=true&bold=true'">
                             <strong>${p.name}</strong>${tagHtml}
                         </div></td>
                         <td><span class="badge-pill yellow">${p.ovr}</span></td>
@@ -2074,7 +2009,7 @@ function getSerasaScore(int $avisos): array {
             })();
             const tagKey = ((team.team_tag || _aiTagForModal) || '').toLowerCase();
             const tagHtml = tagKey
-                ? `<span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;border:1px solid ${tagColors[tagKey]||'#888'};color:${tagColors[tagKey]||'#888'};background:${tagColors[tagKey]||'#888'}22;margin-top:5px;display:inline-block">${tagLabel[tagKey]||tagKey}</span>`
+                ? `<span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;border:1px solid ${tagColors[tagKey]||'#888'};color:${tagColors[tagKey]||'#888'};background:${tagColors[tagKey]||'#888'}22;margin-top:6px;display:inline-block">${tagLabel[tagKey]||tagKey}</span>`
                 : '';
 
             const totalPlayers = Object.values(roster).reduce((a,b) => a + b.length, 0);
@@ -2082,7 +2017,7 @@ function getSerasaScore(int $avisos): array {
             const getPlayerPhoto = (p) => {
                 if (p.foto_adicional && p.foto_adicional.trim()) return p.foto_adicional.trim();
                 if (p.nba_player_id) return `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png`;
-                return `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'?')}&background=1f1f23&color=fc0025&rounded=true&bold=true&size=64`;
+                return `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'?')}&background=1f1f23&color=${_avatarColorHex()}&rounded=true&bold=true&size=64`;
             };
             const posOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
             const normalizePos = (pos) => {
@@ -2113,14 +2048,14 @@ function getSerasaScore(int $avisos): array {
                         const rowBg = isCapBonus ? 'rgba(245,158,11,.08)' : (isLoyal ? 'rgba(6,182,212,.06)' : '');
                         const rowBorder = isCapBonus ? 'border-left:3px solid rgba(245,158,11,.5);' : (isLoyal ? 'border-left:3px solid rgba(6,182,212,.5);' : '');
                         const badge = isCapBonus
-                            ? '<span style="background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.35);border-radius:999px;font-size:9px;font-weight:700;padding:1px 5px;margin-left:4px">Franquia</span>'
-                            : (isLoyal ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:9px;font-weight:700;padding:1px 5px;margin-left:4px">Leal</span>' : '');
+                            ? '<span style="background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.35);border-radius:999px;font-size:9px;font-weight:700;padding:1px 6px;margin-left:4px">Franquia</span>'
+                            : (isLoyal ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:9px;font-weight:700;padding:1px 6px;margin-left:4px">Leal</span>' : '');
                         return `
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0 5px 6px;border-bottom:1px solid var(--border);${rowBg?'background:'+rowBg+';':''}${rowBorder}">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 6px 6px;border-bottom:1px solid var(--border);${rowBg?'background:'+rowBg+';':''}${rowBorder}">
                         <div style="display:flex;align-items:center;gap:8px;min-width:0">
                             <img src="${photoUrl}" alt="${p.name||''}"
                                  style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--panel-3)"
-                                 onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'?')}&background=1f1f23&color=fc0025&rounded=true&bold=true&size=64'">
+                                 onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'?')}&background=1f1f23&color=${_avatarColorHex()}&rounded=true&bold=true&size=64'">
                             <div style="min-width:0">
                                 <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}${badge}</div>
                                 <div style="font-size:11px;color:var(--text-2)">${p.position}${p.secondary_position ? ' / '+p.secondary_position : ''} · ${p.age??'-'}a</div>
@@ -2148,7 +2083,7 @@ function getSerasaScore(int $avisos): array {
                         : '';
                     const hasItems = items.length > 0;
                     return `<div style="border-bottom:1px solid var(--border)">
-                        <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;cursor:${hasItems?'pointer':'default'}"
+                        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;cursor:${hasItems?'pointer':'default'}"
                              ${hasItems ? `onclick="var el=document.getElementById('ti-${idx}');el.style.display=el.style.display==='none'?'block':'none'"` : ''}>
                             <div>
                                 <div style="font-size:12px;font-weight:600">${t.from_team_name} <span style="color:var(--text-3)">↔</span> ${t.to_team_name}</div>

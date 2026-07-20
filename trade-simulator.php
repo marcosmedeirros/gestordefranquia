@@ -97,21 +97,21 @@ $pageSub   = $propose ? 'Monte a troca com até 7 times e envie a proposta.' : '
 <title><?= htmlspecialchars($pageTitle) ?> · FBA</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/styles.css">
 <style>
 :root{
-  --red:#fc0025;--red-soft:rgba(252,0,37,.10);--red-glow:rgba(252,0,37,.18);
+  --red:#fc0025;--red-soft:color-mix(in srgb, var(--red) 10%, transparent);--red-glow:color-mix(in srgb, var(--red) 18%, transparent);
   --bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1c1c21;
-  --border:rgba(255,255,255,.06);--border-md:rgba(255,255,255,.10);--border-red:rgba(252,0,37,.22);
-  --text:#f0f0f3;--text-2:#868690;--text-3:#48484f;
+  --border:rgba(255,255,255,.06);--border-md:rgba(255,255,255,.10);--border-red:color-mix(in srgb, var(--red) 22%, transparent);
+  --text:#f0f0f3;--text-2:#868690;--text-3:#7d7d85;
   --green:#22c55e;--amber:#f59e0b;--blue:#3b82f6;
-  --sidebar-w:260px;--font:'Poppins',sans-serif;
+  --sidebar-w:260px;--font:'Montserrat', sans-serif;
   --radius:14px;--radius-sm:10px;--ease:cubic-bezier(.2,.8,.2,1);--t:200ms;
 }
 :root[data-theme="light"]{
   --bg:#f6f7fb;--panel:#fff;--panel-2:#f2f4f8;--panel-3:#e9edf4;
-  --border:#e3e6ee;--border-md:#d7dbe6;--text:#111217;--text-2:#5b6270;--text-3:#8b93a5;
+  --border:#e3e6ee;--border-md:#d7dbe6;--text:#111217;--text-2:#5b6270;--text-3:#657080;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
@@ -123,13 +123,17 @@ body{overflow-x:hidden}
 .sidebar::-webkit-scrollbar{display:none}
 .sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:299}
 .sb-overlay.show{display:block}
+.sb-brand{padding:22px 18px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0}
+.sb-logo{width:34px;height:34px;border-radius:9px;background:var(--red);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;flex-shrink:0}
+.sb-brand-text{font-weight:700;font-size:15px;line-height:1.1}
+.sb-brand-text span{display:block;font-size:11px;font-weight:400;color:var(--text-2)}
 .sb-team{margin:14px 14px 0;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;display:flex;align-items:center;gap:10px}
 .sb-team img{width:40px;height:40px;border-radius:9px;object-fit:cover;border:1px solid var(--border-md)}
 .sb-team-name{font-size:13px;font-weight:600;color:var(--text);line-height:1.2}
 .sb-team-league{font-size:11px;color:var(--red);font-weight:600}
 .sb-nav{flex:1;padding:12px 10px 8px}
 .sb-section{font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);padding:12px 10px 5px}
-.sb-nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius-sm);color:var(--text-2);font-size:13px;font-weight:500;text-decoration:none;margin-bottom:2px;transition:all var(--t) var(--ease)}
+.sb-nav a { font-family:'Inter',sans-serif;display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:var(--radius-sm);color:var(--text-2);font-size:13px;font-weight:500;text-decoration:none;margin-bottom:2px;transition:all var(--t) var(--ease)}
 .sb-nav a i{font-size:15px;width:18px;text-align:center}
 .sb-nav a:hover{background:var(--panel-2);color:var(--text)}
 .sb-nav a.active{background:var(--red-soft);color:var(--red);font-weight:600}
@@ -159,8 +163,8 @@ body{overflow-x:hidden}
 .btn-r.outline{background:transparent;color:var(--red);border:1px solid var(--border-red)}
 .btn-r.green{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}
 .btn-r:disabled{opacity:.35;cursor:not-allowed}
-.btn-r.sm{padding:5px 12px;font-size:12px}
-.btn-r.lg{padding:11px 24px;font-size:14px;font-weight:700}
+.btn-r.sm{padding:6px 12px;font-size:12px}
+.btn-r.lg{padding:12px 24px;font-size:14px;font-weight:700}
 
 /* Panels container — horizontal scroll for 3+ */
 .sim-panels-wrap{display:flex;overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--panel);-webkit-overflow-scrolling:touch;scrollbar-width:thin}
@@ -172,7 +176,7 @@ body{overflow-x:hidden}
 .sim-panel{display:flex;flex-direction:column;min-width:260px;flex:1;border-right:1px solid var(--border)}
 .sim-panel:last-child{border-right:none}
 .sim-panel-header{padding:14px 16px;border-bottom:1px solid var(--border);background:var(--panel-2);position:relative}
-.sim-panel-close{position:absolute;top:10px;right:10px;background:none;border:none;color:var(--text-3);cursor:pointer;font-size:13px;padding:3px;transition:color .15s}
+.sim-panel-close{position:absolute;top:10px;right:10px;background:none;border:none;color:var(--text-3);cursor:pointer;font-size:13px;padding:4px;transition:color .15s}
 .sim-panel-close:hover{color:var(--red)}
 .sim-team-logo{width:40px;height:40px;border-radius:9px;object-fit:cover;border:1px solid var(--border-md);flex-shrink:0;background:var(--panel-3)}
 .sim-team-name{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -180,25 +184,25 @@ body{overflow-x:hidden}
 .sim-team-select{background:var(--panel-3);border:1px solid var(--border-md);border-radius:8px;color:var(--text);font-size:12px;font-family:var(--font);padding:6px 10px;width:100%;margin-top:8px}
 .sim-team-select:focus{outline:none;border-color:var(--red)}
 .sim-label{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);padding:10px 16px 6px}
-.sim-items{flex:1;padding:0 10px 10px;display:flex;flex-direction:column;gap:5px;min-height:140px}
+.sim-items{flex:1;padding:0 10px 10px;display:flex;flex-direction:column;gap:6px;min-height:140px}
 .sim-empty{display:flex;align-items:center;justify-content:center;height:70px;color:var(--text-3);font-size:12px;border:1px dashed var(--border);border-radius:8px;margin:4px 0}
 
 /* Item card */
-.sim-item{display:flex;align-items:center;gap:8px;padding:9px 10px;background:var(--panel-3);border:1px solid var(--border-md);border-radius:8px}
-.sim-item-ovr{width:34px;height:34px;border-radius:7px;background:rgba(252,0,37,.15);border:1px solid rgba(252,0,37,.3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--red);flex-shrink:0}
+.sim-item{display:flex;align-items:center;gap:8px;padding:10px 10px;background:var(--panel-3);border:1px solid var(--border-md);border-radius:8px}
+.sim-item-ovr{width:34px;height:34px;border-radius:7px;background:color-mix(in srgb, var(--red) 15%, transparent);border:1px solid color-mix(in srgb, var(--red) 30%, transparent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--red);flex-shrink:0}
 .sim-item-pick-icon{width:34px;height:34px;border-radius:7px;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--blue);flex-shrink:0}
 .sim-item-info{flex:1;min-width:0}
 .sim-item-name{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sim-item-meta{font-size:10px;color:var(--text-2)}
 .sim-item-from{font-size:10px;color:var(--blue);font-weight:600}
-.sim-item-del{background:none;border:none;color:var(--text-3);cursor:pointer;font-size:13px;padding:3px;flex-shrink:0;transition:color .15s}
+.sim-item-del{background:none;border:none;color:var(--text-3);cursor:pointer;font-size:13px;padding:4px;flex-shrink:0;transition:color .15s}
 .sim-item-del:hover{color:var(--red)}
-.sim-swap-select{background:var(--panel-2);border:1px solid var(--border-red);border-radius:5px;color:var(--red);font-size:10px;font-weight:700;padding:2px 5px;cursor:pointer;font-family:var(--font);flex-shrink:0}
+.sim-swap-select{background:var(--panel-2);border:1px solid var(--border-red);border-radius:5px;color:var(--red);font-size:10px;font-weight:700;padding:2px 6px;cursor:pointer;font-family:var(--font);flex-shrink:0}
 .sim-swap-select:focus{outline:none}
 
 /* Add buttons */
 .sim-add-bar{padding:6px 10px 10px;display:flex;gap:6px;flex-wrap:wrap}
-.btn-add{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;color:var(--text-2);font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;transition:all .15s}
+.btn-add{display:inline-flex;align-items:center;gap:4px;padding:6px 10px;background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;color:var(--text-2);font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;transition:all .15s}
 .btn-add:hover{border-color:var(--red);color:var(--red)}
 .btn-add:disabled{opacity:.35;cursor:not-allowed}
 
@@ -213,15 +217,15 @@ body{overflow-x:hidden}
 .value-label{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .value-num{font-size:22px;font-weight:800;color:var(--text);line-height:1}
 .value-sub{font-size:10px;color:var(--text-2);margin-top:2px}
-.verdict-panel{background:var(--panel-2);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 18px;gap:5px;border-left:1px solid var(--border);min-width:200px}
-.verdict-badge{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.verdict-panel{background:var(--panel-2);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 18px;gap:6px;border-left:1px solid var(--border);min-width:200px}
+.verdict-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .verdict-badge.valid{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--green)}
 .verdict-badge.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--amber)}
-.verdict-badge.invalid{background:rgba(252,0,37,.12);border:1px solid rgba(252,0,37,.3);color:var(--red)}
-.verdict-badge.robbery{background:rgba(252,0,37,.20);border:2px solid rgba(252,0,37,.55);color:var(--red);animation:pulse-red 1.2s ease-in-out infinite}
+.verdict-badge.invalid{background:color-mix(in srgb, var(--red) 12%, transparent);border:1px solid color-mix(in srgb, var(--red) 30%, transparent);color:var(--red)}
+.verdict-badge.robbery{background:color-mix(in srgb, var(--red) 20%, transparent);border:2px solid color-mix(in srgb, var(--red) 55%, transparent);color:var(--red);animation:pulse-red 1.2s ease-in-out infinite}
 .verdict-badge.neutral{background:var(--panel-3);border:1px solid var(--border);color:var(--text-3)}
 .verdict-hint{font-size:10px;color:var(--text-3);text-align:center}
-@keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 rgba(252,0,37,.4)}50%{box-shadow:0 0 0 6px rgba(252,0,37,0)}}
+@keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--red) 40%, transparent)}50%{box-shadow:0 0 0 6px color-mix(in srgb, var(--red) 0%, transparent)}}
 
 /* CAP bar */
 .cap-bar{display:flex;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-top:12px;overflow-x:auto}
@@ -235,7 +239,7 @@ body{overflow-x:hidden}
 
 /* Bottom bar */
 .sim-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;padding:14px 16px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm)}
-.validity-badge{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.validity-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .validity-badge.valid{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--green)}
 .validity-badge.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--amber)}
 .validity-badge.neutral{background:var(--panel-2);border:1px solid var(--border);color:var(--text-3)}
@@ -248,16 +252,16 @@ body{overflow-x:hidden}
 
 /* Picker modal */
 .picker-list{max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:3px}
-.picker-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;transition:background .15s;border:1px solid transparent}
+.picker-row{display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:8px;cursor:pointer;transition:background .15s;border:1px solid transparent}
 .picker-row:hover{background:var(--panel-2);border-color:var(--border-md)}
-.picker-row.selected{background:rgba(252,0,37,.08);border-color:var(--border-red)}
+.picker-row.selected{background:color-mix(in srgb, var(--red) 8%, transparent);border-color:var(--border-red)}
 .picker-ovr{width:32px;height:32px;border-radius:7px;background:var(--red-soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--red);flex-shrink:0}
 .picker-name{font-size:13px;font-weight:600;color:var(--text)}
 .picker-meta{font-size:11px;color:var(--text-2)}
 .picker-check{margin-left:auto;color:var(--green);font-size:16px;display:none}
 .picker-row.selected .picker-check{display:block}
 .from-team-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
-.from-chip{padding:5px 12px;border-radius:999px;border:1px solid var(--border-md);background:var(--panel-2);color:var(--text-2);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;font-family:var(--font)}
+.from-chip{padding:6px 12px;border-radius:999px;border:1px solid var(--border-md);background:var(--panel-2);color:var(--text-2);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;font-family:var(--font)}
 .from-chip.active{background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.4);color:var(--blue)}
 .modal-content{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)}
 .modal-header{border-bottom:1px solid var(--border);padding:14px 18px}
@@ -318,7 +322,7 @@ body{overflow-x:hidden}
   .sim-team-cap{font-size:11px}
   .sim-team-select{font-size:15px;padding:10px 12px;margin-top:10px}
 
-  .sim-label{padding:10px 14px 5px;font-size:9px}
+  .sim-label{padding:10px 14px 6px;font-size:9px}
   .sim-items{min-height:56px;padding:0 12px 10px}
   .sim-empty{height:56px;font-size:12px}
 
@@ -330,7 +334,7 @@ body{overflow-x:hidden}
   .sim-item-del{font-size:15px;padding:6px}
 
   .sim-add-bar{padding:8px 12px 12px;gap:8px}
-  .btn-add{padding:9px 14px;font-size:12px;min-height:40px;flex:1;justify-content:center}
+  .btn-add{padding:10px 14px;font-size:12px;min-height:40px;flex:1;justify-content:center}
 
   /* Botão "+ Time" — linha separada abaixo dos painéis */
   .sim-add-team-panel{
@@ -363,8 +367,8 @@ body{overflow-x:hidden}
   }
   #validityBadge{display:none}
   .sim-bottom>div{display:flex;gap:8px;width:100%}
-  .sim-bottom .btn-r.lg{flex:1;justify-content:center;padding:13px 12px;font-size:14px}
-  .sim-bottom .btn-r.secondary.sm{white-space:nowrap;padding:13px 14px;font-size:13px}
+  .sim-bottom .btn-r.lg{flex:1;justify-content:center;padding:14px 12px;font-size:14px}
+  .sim-bottom .btn-r.secondary.sm{white-space:nowrap;padding:14px 14px;font-size:13px}
 
   /* Notes */
   .notes-wrap{margin:10px 12px 0}
@@ -385,70 +389,22 @@ body{overflow-x:hidden}
   }
   .modal-footer>span{display:none} /* oculta hint no mobile */
   .modal-footer>div{display:flex;gap:8px;width:100%}
-  .modal-footer .btn-r{flex:1;justify-content:center;padding:13px 12px;font-size:14px}
+  .modal-footer .btn-r{flex:1;justify-content:center;padding:14px 12px;font-size:14px}
   .picker-list{max-height:none}
   .picker-row{padding:14px 12px;min-height:52px;gap:12px}
   .picker-name{font-size:14px}
   .picker-meta{font-size:12px}
-  .from-chip{padding:9px 16px;min-height:40px;font-size:12px}
+  .from-chip{padding:10px 16px;min-height:40px;font-size:12px}
   .form-control{font-size:16px!important} /* evita zoom no iOS */
 }
-</style>
+<?php include __DIR__ . '/includes/accent-color.php'; ?>
+    </style>
 </head>
 <body>
 <div class="app">
 
 <!-- SIDEBAR -->
-<aside class="sidebar" id="sidebar">
-  <?php if ($myTeam): ?>
-  <div class="sb-team">
-    <img src="<?= htmlspecialchars(getTeamPhoto($myTeam['photo_url'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
-    <div>
-      <div class="sb-team-name"><?= htmlspecialchars(trim(($myTeam['city'] ?? '') . ' ' . ($myTeam['name'] ?? ''))) ?></div>
-      <div class="sb-team-league"><?= htmlspecialchars($myTeam['league'] ?? '') ?></div>
-    </div>
-  </div>
-  <?php endif; ?>
-  <nav class="sb-nav">
-    <div class="sb-section">Principal</div>
-    <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
-    <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
-    <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
-    <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
-    <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
-    <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
-    <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
-    <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
-    <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
-    <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
-    <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
-    <div class="sb-section">Liga</div>
-    <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
-    <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
-    <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
-    <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
-    <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
-            <a href="/estatisticas.php"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
-    <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
-    <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
-    <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
-    <?php if ($isAdmin): ?>
-    <div class="sb-section">Admin</div>
-    <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
-    <?php endif; ?>
-    <div class="sb-section">Conta</div>
-    <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
-  </nav>
-  <button class="sb-theme-toggle" type="button" id="themeToggle" data-theme-toggle>
-    <i class="bi bi-moon"></i><span>Modo escuro</span>
-  </button>
-  <div class="sb-footer">
-    <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>" alt="" class="sb-avatar"
-         onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name'] ?? 'U') ?>&background=1c1c21&color=fc0025'">
-    <span class="sb-username"><?= htmlspecialchars($user['name'] ?? '') ?></span>
-    <a href="/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i></a>
-  </div>
-</aside>
+<?php include __DIR__ . '/includes/sidebar.php'; ?>
 <div class="sb-overlay" id="sbOverlay"></div>
 
 <main class="main">
@@ -556,6 +512,9 @@ const CAP_MIN    = <?= $capMin ?>;
 const CAP_MAX    = <?= $capMax ?>;
 const MY_TEAM_ID = <?= $myTeamId ?>;
 const MAX_TEAMS  = 7;
+// RISE e ROOKIE não têm swap de picks
+const MY_LEAGUE  = '<?= htmlspecialchars(strtoupper(trim((string)($user['league'] ?? ''))), ENT_QUOTES) ?>';
+const SWAP_ALLOWED = !['RISE', 'ROOKIE'].includes(MY_LEAGUE);
 
 const SLOT_KEYS = ['A','B','C','D','E','F','G'];
 
@@ -744,7 +703,7 @@ function itemHtml(item, toKey) {
     </div>`;
   } else {
     const pair = findSwapPair(toKey, item);
-    const swapSel = `<select class="sim-swap-select" onchange="setSimSwapRole('${toKey}',${item.id},this.value)" title="${pair ? 'Swap' : 'Swap (adicione uma pick da mesma rodada, ano diferente, do outro lado para parear)'}">
+    const swapSel = !SWAP_ALLOWED ? '' : `<select class="sim-swap-select" onchange="setSimSwapRole('${toKey}',${item.id},this.value)" title="${pair ? 'Swap' : 'Swap (adicione uma pick da mesma rodada, ano diferente, do outro lado para parear)'}">
            <option value="" ${!item.swapRole ? 'selected' : ''}>—</option>
            <option value="SB" ${item.swapRole === 'SB' ? 'selected' : ''}>SB</option>
            <option value="SW" ${item.swapRole === 'SW' ? 'selected' : ''}>SW</option>
@@ -1152,6 +1111,7 @@ function resetAll() {
 
 // ── Swap helpers ──────────────────────────────────────────────────────────────
 function findSwapPair(toKey, item) {
+  if (!SWAP_ALLOWED) return null;
   for (const otherToKey of activeSlots) {
     if (otherToKey === toKey) continue;
     for (const other of (receives[otherToKey] || [])) {

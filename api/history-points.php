@@ -1189,7 +1189,127 @@ try {
             
             echo json_encode(['success' => true, 'teams' => $teams]);
             break;
-            
+
+        // =====================================================
+        // MAIORES TROCAS DA TEMPORADA
+        // =====================================================
+        case 'season_trades':
+            if (!$user) {
+                http_response_code(401);
+                echo json_encode(['success' => false, 'error' => 'Sessão expirada ou usuário não autenticado.']);
+                exit;
+            }
+
+            $seasonId = (int)($_REQUEST['season_id'] ?? 0);
+            if ($seasonId <= 0) {
+                throw new Exception('season_id é obrigatório');
+            }
+
+            $stmtS = $pdo->prepare('SELECT id, league, start_date FROM seasons WHERE id = ?');
+            $stmtS->execute([$seasonId]);
+            $season = $stmtS->fetch(PDO::FETCH_ASSOC);
+            if (!$season) {
+                throw new Exception('Temporada não encontrada');
+            }
+
+            $windowStart = $season['start_date'];
+            $windowEnd = null;
+            if ($windowStart) {
+                $stmtNext = $pdo->prepare('SELECT MIN(start_date) FROM seasons WHERE league = ? AND start_date > ?');
+                $stmtNext->execute([$season['league'], $windowStart]);
+                $windowEnd = $stmtNext->fetchColumn() ?: null;
+            }
+
+            $conditions = ["t.status = 'accepted'", 't.league = ?'];
+            $params = [$season['league']];
+            if ($windowStart) {
+                $conditions[] = 't.created_at >= ?';
+                $params[] = $windowStart . ' 00:00:00';
+            }
+            if ($windowEnd) {
+                $conditions[] = 't.created_at < ?';
+                $params[] = $windowEnd . ' 00:00:00';
+            }
+
+            $stmtTrades = $pdo->prepare("
+                SELECT t.id, t.created_at,
+                       tf.city AS from_city, tf.name AS from_name,
+                       tt.city AS to_city, tt.name AS to_name
+                FROM trades t
+                JOIN teams tf ON tf.id = t.from_team_id
+                JOIN teams tt ON tt.id = t.to_team_id
+                WHERE " . implode(' AND ', $conditions) . "
+                ORDER BY t.created_at ASC
+            ");
+            $stmtTrades->execute($params);
+            $trades = $stmtTrades->fetchAll(PDO::FETCH_ASSOC);
+
+            if ($trades) {
+                $tradeIds = array_column($trades, 'id');
+                $in = implode(',', array_fill(0, count($tradeIds), '?'));
+                $stmtItems = $pdo->prepare("
+                    SELECT ti.trade_id, ti.from_team,
+                           ti.player_name, ti.player_position, ti.player_ovr,
+                           pk.season_year AS pick_year, pk.round AS pick_round
+                    FROM trade_items ti
+                    LEFT JOIN picks pk ON pk.id = ti.pick_id
+                    WHERE ti.trade_id IN ($in)
+                ");
+                $stmtItems->execute($tradeIds);
+                $itemsByTrade = [];
+                foreach ($stmtItems->fetchAll(PDO::FETCH_ASSOC) as $item) {
+                    $itemsByTrade[(int)$item['trade_id']][] = $item;
+                }
+                foreach ($trades as &$trade) {
+                    $items = $itemsByTrade[(int)$trade['id']] ?? [];
+                    $trade['from_items'] = array_values(array_filter($items, fn($i) => (bool)$i['from_team']));
+                    $trade['to_items'] = array_values(array_filter($items, fn($i) => !$i['from_team']));
+                    $trade['item_count'] = count($items);
+                }
+                unset($trade);
+                usort($trades, fn($a, $b) => $b['item_count'] <=> $a['item_count']);
+                $trades = array_slice($trades, 0, 8);
+            }
+
+            echo json_encode(['success' => true, 'trades' => $trades]);
+            break;
+
+        // =====================================================
+        // CLASSIFICAÇÃO FINAL DA TEMPORADA (todos os times)
+        // =====================================================
+        case 'season_standings':
+            if (!$user) {
+                http_response_code(401);
+                echo json_encode(['success' => false, 'error' => 'Sessão expirada ou usuário não autenticado.']);
+                exit;
+            }
+            $seasonId = (int)($_REQUEST['season_id'] ?? 0);
+            if ($seasonId <= 0) {
+                throw new Exception('season_id é obrigatório');
+            }
+
+            $hasStandings = $pdo->query("SHOW TABLES LIKE 'season_standings'")->fetch();
+            if (!$hasStandings) {
+                echo json_encode(['success' => true, 'standings' => [], 'has_conference' => false]);
+                break;
+            }
+            $hasConf = (bool)$pdo->query("SHOW COLUMNS FROM season_standings LIKE 'conference'")->fetch();
+
+            $confSelect = $hasConf ? 'ss.conference' : 'NULL AS conference';
+            $stmtStand = $pdo->prepare("
+                SELECT ss.team_id, ss.position, {$confSelect},
+                       t.city, t.name, t.photo_url
+                FROM season_standings ss
+                JOIN teams t ON t.id = ss.team_id
+                WHERE ss.season_id = ?
+                ORDER BY " . ($hasConf ? 'ss.conference,' : '') . " ss.position ASC
+            ");
+            $stmtStand->execute([$seasonId]);
+            $rows = $stmtStand->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode(['success' => true, 'standings' => $rows, 'has_conference' => $hasConf]);
+            break;
+
         default:
             throw new Exception('Ação não reconhecida: ' . $action);
     }

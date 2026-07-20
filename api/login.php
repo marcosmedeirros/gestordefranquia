@@ -21,7 +21,7 @@ try {
 
     checkLoginRateLimit($pdo, $email);
 
-    $stmt = $pdo->prepare('SELECT id, name, password_hash, user_type, league, email_verified, photo_url, phone, approved FROM users WHERE email = ? LIMIT 1');
+    $stmt = $pdo->prepare('SELECT id, name, password_hash, user_type, league, email_verified, photo_url, phone, approved, accent_color, dashboard_shortcuts FROM users WHERE email = ? LIMIT 1');
     $stmt->execute([$email]);
     $user = $stmt->fetch();
 
@@ -42,6 +42,8 @@ try {
         'photo_url' => $user['photo_url'] ?? null,
         'phone' => $user['phone'] ?? null,
         'approved' => $user['approved'] ?? 1,
+        'accent_color' => $user['accent_color'] ?? null,
+        'dashboard_shortcuts' => $user['dashboard_shortcuts'] ?? null,
     ]);
 
     jsonResponse(200, [

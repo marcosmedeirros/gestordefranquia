@@ -67,6 +67,35 @@ document.getElementById('btn-save-profile')?.addEventListener('click', async () 
   }
 });
 
+// Aparência: cor de destaque + atalhos do dashboard
+document.getElementById('btn-reset-accent-color')?.addEventListener('click', () => {
+  const input = document.getElementById('accent-color-input');
+  if (input) input.value = '#fc0025';
+});
+
+document.getElementById('btn-save-appearance')?.addEventListener('click', async () => {
+  const shortcuts = Array.from(document.querySelectorAll('.shortcut-select'))
+    .map(s => s.value)
+    .filter((v, i, arr) => v && arr.indexOf(v) === i)
+    .slice(0, 4);
+
+  // Envia só o que é de aparência: assim não exige telefone (usuários sem
+  // telefone cadastrado também conseguem salvar) nem grava edições de perfil
+  // que o usuário deixou no formulário sem salvar.
+  const payload = {
+    accent_color: document.getElementById('accent-color-input')?.value || '',
+    dashboard_shortcuts: shortcuts,
+  };
+
+  try {
+    await api('user.php', { method: 'POST', body: JSON.stringify(payload) });
+    alert('Aparência atualizada com sucesso.');
+    window.location.reload();
+  } catch (err) {
+    alert(err.error || 'Erro ao atualizar aparência');
+  }
+});
+
 // Change password
 document.getElementById('btn-change-password')?.addEventListener('click', async () => {
   const form = document.getElementById('form-password');

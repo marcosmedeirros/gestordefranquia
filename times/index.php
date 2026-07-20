@@ -90,7 +90,33 @@ if ($publicMode === 'custom' && $customHtml !== '') {
 // Players
 $players = $starters = [];
 $needPlayers = in_array('roster',$modules)||in_array('lineup',$modules)||in_array('ai_avgs',$modules);
-if ($needPlayers) {
+
+// Temporadas disponíveis (elenco congelado) — só quando o módulo de elenco está ativo
+$availableSeasons = [];
+$selectedSeason = null;
+$isHistoricalView = false;
+if ($needPlayers && in_array('roster',$modules)) {
+    try {
+        $sSeasons = $pdo->prepare('SELECT DISTINCT season_id, year, season_number FROM player_season_log WHERE team_id = ? ORDER BY year DESC, season_number DESC');
+        $sSeasons->execute([$teamId]);
+        $availableSeasons = $sSeasons->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Exception $e) {}
+
+    $requestedSeasonId = isset($_GET['season_id']) ? (int)$_GET['season_id'] : 0;
+    if ($requestedSeasonId > 0) {
+        foreach ($availableSeasons as $as) {
+            if ((int)$as['season_id'] === $requestedSeasonId) { $selectedSeason = $as; break; }
+        }
+    }
+    $isHistoricalView = $selectedSeason !== null;
+}
+
+if ($needPlayers && $isHistoricalView) {
+    $s = $pdo->prepare('SELECT player_id AS id, player_name AS name, position, age, ovr FROM player_season_log WHERE team_id = ? AND season_id = ? ORDER BY ovr DESC, age ASC, player_name ASC');
+    $s->execute([$teamId, (int)$selectedSeason['season_id']]);
+    $players  = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $starters = []; // não há registro de titular no snapshot histórico
+} elseif ($needPlayers) {
     $s = $pdo->prepare('SELECT * FROM players WHERE team_id = ? ORDER BY ovr DESC, age ASC, name ASC');
     $s->execute([$teamId]);
     $players  = $s->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -532,9 +558,22 @@ function ovrColor(int $ovr): string {
     <!-- ROSTER -->
     <div class="section">
         <div class="section-head">
-            <div class="section-title"><i class="bi bi-people-fill"></i> Elenco Completo</div>
+            <div class="section-title"><i class="bi bi-people-fill"></i> Elenco <?= $isHistoricalView ? 'de ' . htmlspecialchars((string)($selectedSeason['year'] ?? '')) : 'Completo' ?></div>
             <span class="section-count"><?= count($players) ?></span>
         </div>
+        <?php if ($availableSeasons): ?>
+        <form method="get" style="margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <label style="font-size:12px;color:var(--tx);opacity:.7">Temporada:</label>
+            <select name="season_id" onchange="this.form.submit()" style="background:var(--c1);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 10px;font-size:12px">
+                <option value="0" <?= !$isHistoricalView ? 'selected' : '' ?>>Atual</option>
+                <?php foreach ($availableSeasons as $as): ?>
+                <option value="<?= (int)$as['season_id'] ?>" <?= ($isHistoricalView && (int)$selectedSeason['season_id'] === (int)$as['season_id']) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars((string)$as['year']) ?><?= $as['season_number'] ? ' · Temp ' . htmlspecialchars((string)$as['season_number']) : '' ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+        </form>
+        <?php endif; ?>
         <div class="card-box card-box-accent" style="overflow-x:auto">
             <table class="ftable">
                 <thead>

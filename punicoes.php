@@ -53,32 +53,44 @@ try {
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/styles.css">
 
     <style>
         :root {
             --red:        #fc0025;
-            --red-soft:   rgba(252,0,37,.10);
-            --red-glow:   rgba(252,0,37,.18);
+            --red-soft:   color-mix(in srgb, var(--red) 10%, transparent);
+            --red-glow:   color-mix(in srgb, var(--red) 18%, transparent);
             --bg:         #07070a;
             --panel:      #101013;
             --panel-2:    #16161a;
             --panel-3:    #1c1c21;
             --border:     rgba(255,255,255,.06);
             --border-md:  rgba(255,255,255,.10);
-            --border-red: rgba(252,0,37,.22);
+            --border-red: color-mix(in srgb, var(--red) 22%, transparent);
             --text:       #f0f0f3;
             --text-2:     #868690;
-            --text-3:     #48484f;
+            --text-3:     #7d7d85;
             --green:      #22c55e;
             --amber:      #f59e0b;
             --sidebar-w:  260px;
-            --font:       'Poppins', sans-serif;
+            --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
             --ease:       cubic-bezier(.2,.8,.2,1);
             --t:          200ms;
+        }
+        :root[data-theme="light"] {
+            --bg:         #f6f7fb;
+            --panel:      #ffffff;
+            --panel-2:    #f2f4f8;
+            --panel-3:    #e9edf4;
+            --border:     #e3e6ee;
+            --border-md:  #d7dbe6;
+            --border-red: color-mix(in srgb, var(--red) 18%, transparent);
+            --text:       #111217;
+            --text-2:     #5b6270;
+            --text-3:     #657080;
         }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { height: 100%; }
@@ -108,8 +120,8 @@ try {
         .sb-season-label { font-size: 10px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-2); }
         .sb-season-val { font-size: 14px; font-weight: 700; color: var(--red); }
         .sb-nav { flex: 1; padding: 12px 10px 8px; }
-        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
-        .sb-nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-weight: 500; text-decoration: none; margin-bottom: 2px; transition: all var(--t) var(--ease); }
+        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 6px; }
+        .sb-nav a { font-family:'Inter',sans-serif; display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-weight: 500; text-decoration: none; margin-bottom: 2px; transition: all var(--t) var(--ease); }
         .sb-nav a i { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
         .sb-nav a:hover { background: var(--panel-2); color: var(--text); }
         .sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
@@ -175,7 +187,7 @@ try {
             width: 100%; padding: 10px; border-radius: var(--radius-sm);
             background: var(--red); border: none; color: #fff;
             font-family: var(--font); font-size: 13px; font-weight: 600;
-            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
             transition: filter var(--t) var(--ease);
         }
         .btn-submit:hover { filter: brightness(1.1); }
@@ -183,7 +195,7 @@ try {
             width: 100%; padding: 10px; border-radius: var(--radius-sm);
             background: transparent; border: 1px solid var(--border-md); color: var(--text-2);
             font-family: var(--font); font-size: 13px; font-weight: 600;
-            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
             transition: all var(--t) var(--ease);
         }
         .btn-submit-outline:hover { border-color: var(--border-red); color: var(--red); }
@@ -201,7 +213,7 @@ try {
         .pun-item:hover { border-color: var(--border-md); }
         .pun-badge {
             display: inline-flex; align-items: center; gap: 4px;
-            padding: 3px 9px; border-radius: 999px;
+            padding: 4px 10px; border-radius: 999px;
             font-size: 10px; font-weight: 700; letter-spacing: .5px;
             background: var(--red-soft); border: 1px solid var(--border-red); color: var(--red);
         }
@@ -227,88 +239,14 @@ try {
             .page-hero { padding: 20px 16px 16px; }
             .content { padding: 16px 16px 40px; }
         }
+    <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
 <body>
 
 <div class="app">
 
-    <aside class="sidebar" id="sidebar">
-        <div class="sb-brand">
-            <div class="sb-logo">FBA</div>
-            <div class="sb-brand-text">
-                FBA Manager
-                <span>Painel do GM</span>
-            </div>
-        </div>
-
-        <?php if ($team): ?>
-        <div class="sb-team">
-            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
-                 alt="<?= htmlspecialchars($team['name'] ?? '') ?>"
-                 onerror="this.src='/img/default-team.png'">
-            <div>
-                <div class="sb-team-name"><?= htmlspecialchars(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')) ?></div>
-                <div class="sb-team-league"><?= htmlspecialchars($user['league']) ?></div>
-            </div>
-        </div>
-        <?php endif; ?>
-
-        <?php if ($currentSeason): ?>
-        <div class="sb-season">
-            <div>
-                <div class="sb-season-label">Temporada</div>
-                <div class="sb-season-val"><?= $seasonDisplayYear ?></div>
-            </div>
-            <div style="text-align:right">
-                <div class="sb-season-label">Sprint</div>
-                <div class="sb-season-val"><?= (int)($currentSeason['sprint_number'] ?? 1) ?></div>
-            </div>
-        </div>
-        <?php endif; ?>
-
-        <nav class="sb-nav">
-            <div class="sb-section">Principal</div>
-            <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
-            <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
-            <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
-            <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
-            <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
-            <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
-            <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
-            <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
-            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
-            <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
-            <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
-
-            <div class="sb-section">Liga</div>
-            <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
-            <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
-            <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
-            <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
-            <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
-            <a href="/estatisticas.php"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
-            <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
-            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
-            <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
-
-            <div class="sb-section">Admin</div>
-            <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
-            <a href="/punicoes.php" class="active"><i class="bi bi-exclamation-triangle-fill"></i> Punições</a>
-
-            <div class="sb-section">Conta</div>
-            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
-        </nav>
-
-        <div class="sb-footer">
-            <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>"
-                 alt="<?= htmlspecialchars($user['name']) ?>"
-                 class="sb-avatar"
-                 onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name']) ?>&background=1c1c21&color=fc0025'">
-            <span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
-            <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
-        </div>
-    </aside>
+    <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
     <div class="sb-overlay" id="sbOverlay"></div>
 

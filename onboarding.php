@@ -20,30 +20,42 @@ $user = getUserSession();
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/styles.css">
 
     <style>
         :root {
             --red:        #fc0025;
-            --red-soft:   rgba(252,0,37,.10);
-            --red-glow:   rgba(252,0,37,.18);
+            --red-soft:   color-mix(in srgb, var(--red) 10%, transparent);
+            --red-glow:   color-mix(in srgb, var(--red) 18%, transparent);
             --bg:         #07070a;
             --panel:      #101013;
             --panel-2:    #16161a;
             --panel-3:    #1c1c21;
             --border:     rgba(255,255,255,.06);
             --border-md:  rgba(255,255,255,.10);
-            --border-red: rgba(252,0,37,.22);
+            --border-red: color-mix(in srgb, var(--red) 22%, transparent);
             --text:       #f0f0f3;
             --text-2:     #868690;
-            --text-3:     #48484f;
+            --text-3:     #7d7d85;
             --sidebar-w:  260px;
-            --font:       'Poppins', sans-serif;
+            --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
             --ease:       cubic-bezier(.2,.8,.2,1);
             --t:          200ms;
+        }
+        :root[data-theme="light"] {
+            --bg:         #f6f7fb;
+            --panel:      #ffffff;
+            --panel-2:    #f2f4f8;
+            --panel-3:    #e9edf4;
+            --border:     #e3e6ee;
+            --border-md:  #d7dbe6;
+            --border-red: color-mix(in srgb, var(--red) 18%, transparent);
+            --text:       #111217;
+            --text-2:     #5b6270;
+            --text-3:     #657080;
         }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { height: 100%; }
@@ -68,10 +80,10 @@ $user = getUserSession();
         .sb-setup-note { margin: 14px 14px 0; background: var(--red-soft); border: 1px solid var(--border-red); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 12px; color: var(--text-2); line-height: 1.5; flex-shrink: 0; }
         .sb-setup-note strong { color: var(--red); display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: .5px; text-transform: uppercase; }
         .sb-nav { flex: 1; padding: 12px 10px 8px; }
-        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
-        .sb-nav a {
+        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 6px; }
+        .sb-nav a { font-family:'Inter',sans-serif;
             display: flex; align-items: center; gap: 10px;
-            padding: 9px 10px; border-radius: var(--radius-sm);
+            padding: 10px 10px; border-radius: var(--radius-sm);
             color: var(--text-3); font-size: 13px; font-weight: 500;
             text-decoration: none; margin-bottom: 2px;
             pointer-events: none; opacity: .45;
@@ -168,8 +180,8 @@ $user = getUserSession();
         /* Form fields */
         .field + .field { margin-top: 16px; }
         .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .field-label { font-size: 11px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-2); margin-bottom: 7px; display: block; }
-        .field-hint { font-size: 11px; color: var(--text-3); margin-top: 5px; }
+        .field-label { font-size: 11px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-2); margin-bottom: 8px; display: block; }
+        .field-hint { font-size: 11px; color: var(--text-3); margin-top: 6px; }
         .form-control, .form-select {
             background: var(--panel-2) !important;
             border: 1px solid var(--border-md) !important;
@@ -198,7 +210,7 @@ $user = getUserSession();
             padding: 10px 22px; border-radius: var(--radius-sm);
             background: var(--red); border: none; color: #fff;
             font-family: var(--font); font-size: 13px; font-weight: 600;
-            cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
             transition: filter var(--t) var(--ease);
         }
         .btn-primary-red:hover:not(:disabled) { filter: brightness(1.1); }
@@ -207,7 +219,7 @@ $user = getUserSession();
             padding: 10px 18px; border-radius: var(--radius-sm);
             background: transparent; border: 1px solid var(--border-md); color: var(--text-2);
             font-family: var(--font); font-size: 13px; font-weight: 500;
-            cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
             transition: all var(--t) var(--ease);
         }
         .btn-ghost:hover { border-color: var(--border-red); color: var(--red); }
@@ -225,6 +237,7 @@ $user = getUserSession();
             .field-row .field + .field { margin-top: 16px; }
             .main { padding: 70px 12px 40px; }
         }
+    <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
 <body>
@@ -261,7 +274,7 @@ $user = getUserSession();
             <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>"
                  alt="<?= htmlspecialchars($user['name']) ?>"
                  class="sb-avatar"
-                 onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name']) ?>&background=1c1c21&color=fc0025'">
+                 onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name']) ?>&background=1c1c21&color=<?= accentColorHex($user['accent_color'] ?? null) ?>'">
             <span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
             <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
         </div>

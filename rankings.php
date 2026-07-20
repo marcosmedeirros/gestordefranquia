@@ -52,14 +52,14 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     <!-- Fonts & Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
         /* ── Tokens Universais ───────────────────────── */
         :root {
             --red:        #fc0025;
-            --red-2:      #ff2a44;
-            --red-soft:   rgba(252,0,37,.10);
+            --red-2:      color-mix(in srgb, var(--red) 85%, white);
+            --red-soft:   color-mix(in srgb, var(--red) 10%, transparent);
             --bg:         #07070a;
             --panel:      #101013;
             --panel-2:    #16161a;
@@ -68,10 +68,10 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             --border-md:  rgba(255,255,255,.10);
             --text:       #f0f0f3;
             --text-2:     #868690;
-            --text-3:     #48484f;
+            --text-3:     #7d7d85;
             --amber:      #f59e0b;
             --sidebar-w:  260px;
-            --font:       'Poppins', sans-serif;
+            --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
             --ease:       cubic-bezier(.2,.8,.2,1);
@@ -87,7 +87,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             --border-md: #d7dbe6;
             --text: #111217;
             --text-2: #5b6270;
-            --text-3: #8b93a5;
+            --text-3: #657080;
         }
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -113,8 +113,8 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .sb-team-league { font-size: 11px; color: var(--red); font-weight: 600; }
         
         .sb-nav { flex: 1; padding: 12px 10px 8px; }
-        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
-        .sb-nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-weight: 500; margin-bottom: 2px; transition: all var(--t) var(--ease); }
+        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 6px; }
+        .sb-nav a { font-family:'Inter',sans-serif; display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-weight: 500; margin-bottom: 2px; transition: all var(--t) var(--ease); }
         .sb-nav a i { font-size: 15px; width: 18px; text-align: center; }
         .sb-nav a:hover { background: var(--panel-2); color: var(--text); }
         .sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
@@ -139,7 +139,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .dash-hero { padding: 32px 32px 24px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
         .dash-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
         .dash-title { font-size: 26px; font-weight: 800; line-height: 1.1; }
-        .dash-sub { font-size: 13px; color: var(--text-2); margin-top: 3px; }
+        .dash-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
         .hero-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .hbadge { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--border-md); background: var(--panel); color: var(--text); font-family: var(--font); cursor: pointer; transition: all var(--t) var(--ease); text-decoration: none; }
         .hbadge:hover { border-color: rgba(255,255,255,.25); color: var(--text); background: var(--panel-2); }
@@ -173,7 +173,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         
         /* Destaque Time Atual */
         .row-me { background: var(--red-soft) !important; }
-        .row-me td { border-bottom-color: rgba(252,0,37,.1); }
+        .row-me td { border-bottom-color: color-mix(in srgb, var(--red) 10%, transparent); }
         .row-me .rank-pos { color: var(--red); }
 
         /* Destaques de subida/queda */
@@ -242,10 +242,10 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             --panel-3:    #e8ebf4;
             --border:     rgba(15,23,42,.09);
             --border-md:  rgba(15,23,42,.14);
-            --border-red: rgba(252,0,37,.20);
+            --border-red: color-mix(in srgb, var(--red) 20%, transparent);
             --text:       #111217;
             --text-2:     #5b6270;
-            --text-3:     #9ca0ae;
+            --text-3:     #657080;
         }
         [data-theme="light"] body { background: var(--bg); color: var(--text); }
         [data-theme="light"] .modal-content { background: var(--panel) !important; color: var(--text) !important; border-color: var(--border-md) !important; }
@@ -302,6 +302,9 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             .league-tabs { gap: 4px; }
             .league-tab { padding: 6px 12px; font-size: 11px; }
         }
+    input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
+     (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
+    <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
 <body>
@@ -309,74 +312,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
 <!-- ══════════════════════════════════════════════
          SIDEBAR
     ══════════════════════════════════════════════ -->
-    <aside class="sidebar" id="sidebar">
-
-        <div class="sb-brand">
-            <div class="sb-logo">FBA</div>
-            <div class="sb-brand-text">
-                FBA Manager
-                <span>Liga <?= htmlspecialchars($user['league']) ?></span>
-            </div>
-        </div>
-
-        <div class="sb-team">
-            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
-                 alt="<?= htmlspecialchars($team['name']) ?>"
-                 onerror="this.src='/img/default-team.png'">
-            <div>
-                <div class="sb-team-name"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></div>
-                <div class="sb-team-league"><?= htmlspecialchars($user['league']) ?></div>
-            </div>
-        </div>
-
-        <nav class="sb-nav">
-            <div class="sb-section">Principal</div>
-            <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
-            <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
-            <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
-            <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
-            <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
-            <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
-            <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
-            <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
-            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
-            <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
-            <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
-
-            <div class="sb-section">Liga</div>
-            <a href="/rankings.php" class="active"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
-            <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
-            <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
-            <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
-            <a href="/estatisticas.php"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
-            <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
-            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
-            <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
-
-            <?php if (($user['user_type'] ?? 'jogador') === 'admin'): ?>
-            <div class="sb-section">Admin</div>
-            <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
-
-            <?php endif; ?>
-
-            <div class="sb-section">Conta</div>
-            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
-        </nav>
-
-            <button class="sb-theme-toggle" type="button" id="themeToggle">
-                <i class="bi bi-moon"></i>
-                <span>Modo escuro</span>
-            </button>
-
-        <div class="sb-footer">
-            <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>"
-                 alt="<?= htmlspecialchars($user['name']) ?>"
-                 class="sb-avatar"
-                 onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name']) ?>&background=1c1c21&color=fc0025'">
-            <span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
-            <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
-        </div>
-    </aside>
+    <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
     <!-- Overlay mobile -->
     <div class="sb-overlay" id="sbOverlay"></div>
@@ -675,10 +611,10 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                     const rankCls = ti === 0 ? 'g' : ti === 1 ? 's' : ti === 2 ? 'b' : '';
                     const barW    = Math.round((t.points / maxPts) * 100);
                     const hasBkd  = (t.points_regular || 0) + (t.points_playoffs || 0) + (t.points_prizes || 0) > 0;
-                    const bkd     = hasBkd ? `<div style="display:flex;gap:3px;flex-shrink:0;align-items:center">
-                        <span title="Regular" style="font-size:9px;background:rgba(99,102,241,.15);color:#818cf8;border-radius:4px;padding:2px 5px;font-weight:700">R${t.points_regular||0}</span>
-                        <span title="Playoffs" style="font-size:9px;background:rgba(252,0,37,.12);color:#fc0025;border-radius:4px;padding:2px 5px;font-weight:700">PO${t.points_playoffs||0}</span>
-                        <span title="Prêmios" style="font-size:9px;background:rgba(245,158,11,.12);color:#f59e0b;border-radius:4px;padding:2px 5px;font-weight:700">Pr${t.points_prizes||0}</span>
+                    const bkd     = hasBkd ? `<div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
+                        <span title="Regular" style="font-size:9px;background:rgba(99,102,241,.15);color:#818cf8;border-radius:4px;padding:2px 6px;font-weight:700">R${t.points_regular||0}</span>
+                        <span title="Playoffs" style="font-size:9px;background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border-radius:4px;padding:2px 6px;font-weight:700">PO${t.points_playoffs||0}</span>
+                        <span title="Prêmios" style="font-size:9px;background:rgba(245,158,11,.12);color:#f59e0b;border-radius:4px;padding:2px 6px;font-weight:700">Pr${t.points_prizes||0}</span>
                     </div>` : '';
                     return `
                     <div class="pts-row">
@@ -750,10 +686,10 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 html += `
                 <div class="pts-row" style="flex-wrap:wrap;gap:6px">
                     <div class="pts-team" style="flex:1">${title}</div>
-                    ${hasBkd2 ? `<div style="display:flex;gap:3px;flex-shrink:0;align-items:center">
-                        <span title="Regular" style="font-size:9px;background:rgba(99,102,241,.15);color:#818cf8;border-radius:4px;padding:2px 5px;font-weight:700">R${s.points_regular||0}</span>
-                        <span title="Playoffs" style="font-size:9px;background:rgba(252,0,37,.12);color:#fc0025;border-radius:4px;padding:2px 5px;font-weight:700">PO${s.points_playoffs||0}</span>
-                        <span title="Prêmios" style="font-size:9px;background:rgba(245,158,11,.12);color:#f59e0b;border-radius:4px;padding:2px 5px;font-weight:700">Pr${s.points_prizes||0}</span>
+                    ${hasBkd2 ? `<div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
+                        <span title="Regular" style="font-size:9px;background:rgba(99,102,241,.15);color:#818cf8;border-radius:4px;padding:2px 6px;font-weight:700">R${s.points_regular||0}</span>
+                        <span title="Playoffs" style="font-size:9px;background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border-radius:4px;padding:2px 6px;font-weight:700">PO${s.points_playoffs||0}</span>
+                        <span title="Prêmios" style="font-size:9px;background:rgba(245,158,11,.12);color:#f59e0b;border-radius:4px;padding:2px 6px;font-weight:700">Pr${s.points_prizes||0}</span>
                     </div>` : ''}
                     <div class="pts-val" style="color:var(--red);font-weight:800">${s.points} pts</div>
                 </div>`;

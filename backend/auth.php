@@ -50,6 +50,8 @@ function getUserSession() {
         'photo_url' => $_SESSION['user_photo'] ?? null,
         'phone' => $_SESSION['user_phone'] ?? null,
         'approved' => $_SESSION['user_approved'] ?? 1,
+        'accent_color' => $_SESSION['user_accent_color'] ?? null,
+        'dashboard_shortcuts' => $_SESSION['user_dashboard_shortcuts'] ?? null,
     ];
 }
 
@@ -62,6 +64,8 @@ function setUserSession($user) {
     $_SESSION['user_photo'] = $user['photo_url'] ?? null;
     $_SESSION['user_phone'] = $user['phone'] ?? null;
     $_SESSION['user_approved'] = $user['approved'] ?? 1;
+    $_SESSION['user_accent_color'] = $user['accent_color'] ?? null;
+    $_SESSION['user_dashboard_shortcuts'] = $user['dashboard_shortcuts'] ?? null;
 }
 
 function destroyUserSession() {

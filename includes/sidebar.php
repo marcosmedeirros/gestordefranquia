@@ -1,167 +1,88 @@
 <?php
-// Garantir que a conexão está disponível
-if (!function_exists('db')) {
-    require_once __DIR__ . '/../backend/db.php';
-}
-// Buscar dados do usuário e time se não existirem
-if (!isset($user) || !isset($team)) {
+/**
+ * Menu lateral padrão do app.
+ * Requer $user (getUserSession()) e $pdo (db()) já definidos pela página.
+ * $team é opcional — se não definido, o cartão do time não é exibido.
+ * Uso: <?php include __DIR__ . '/includes/sidebar.php'; ?>
+ */
+if (!isset($pdo)) {
     $pdo = db();
-    $userId = $_SESSION['user_id'] ?? null;
-    
-    if ($userId) {
-        $stmt = $pdo->prepare("
-            SELECT u.*, t.id as team_id, t.name as team_name, t.city, t.photo_url, t.league
-            FROM users u
-            LEFT JOIN teams t ON t.user_id = u.id
-            WHERE u.id = ?
-        ");
-        $stmt->execute([$userId]);
-        $userData = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($userData) {
-            $user = [
-                'id' => $userData['id'],
-                'name' => $userData['name'],
-                'league' => $userData['league'] ?? 'ELITE',
-                'user_type' => $userData['user_type'] ?? 'jogador'
-            ];
-            $team = [
-                'id' => $userData['team_id'],
-                'name' => $userData['team_name'],
-                'city' => $userData['city'],
-                'photo_url' => $userData['photo_url'],
-                'league' => $userData['league']
-            ];
-        }
+}
+$__sbCurrent = basename($_SERVER['SCRIPT_NAME'] ?? '');
+$__sbIsAdmin = !empty($user['id']) && hasAdminAccess($pdo, (int)$user['id']);
+
+if (!function_exists('sbActive')) {
+    function sbActive(string $page, string $current): string
+    {
+        return $page === $current ? ' class="active"' : '';
     }
 }
-
-$currentPage = basename($_SERVER['PHP_SELF']);
 ?>
-<div class="dashboard-sidebar">
-    <div class="sidebar-branding text-center mb-4">
+<aside class="sidebar" id="sidebar">
+    <div class="sb-brand">
+        <div class="sb-logo">FBA</div>
+        <div class="sb-brand-text">FBA Manager<span>Liga <?= htmlspecialchars($user['league'] ?? '') ?></span></div>
+    </div>
+
+    <?php if (!empty($team)): ?>
+    <div class="sb-team">
         <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
-             alt="<?= htmlspecialchars($team['name'] ?? 'Time') ?>" class="team-avatar">
-        <h5 class="text-white mb-1"><?= htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?></h5>
-        <span class="badge bg-gradient-orange"><?= htmlspecialchars($user['league'] ?? 'ELITE') ?></span>
-        <p class="sidebar-user-name mb-0"><?= htmlspecialchars($user['name'] ?? 'Usuário') ?></p>
+             alt="<?= htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?>"
+             onerror="this.src='/img/default-team.png'">
+        <div>
+            <div class="sb-team-name"><?= htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?></div>
+            <div class="sb-team-league"><?= htmlspecialchars($team['league'] ?? $user['league'] ?? '') ?></div>
+        </div>
     </div>
+    <?php endif; ?>
 
-    <hr style="border-color: var(--fba-border);">
+    <nav class="sb-nav">
+        <div class="sb-section">Principal</div>
+        <a href="/dashboard.php"<?= sbActive('dashboard.php', $__sbCurrent) ?>><i class="bi bi-house-door-fill"></i> Dashboard</a>
+        <a href="/teams.php"<?= sbActive('teams.php', $__sbCurrent) ?>><i class="bi bi-people-fill"></i> Times</a>
+        <a href="/my-roster.php"<?= sbActive('my-roster.php', $__sbCurrent) ?>><i class="bi bi-person-fill"></i> Meu Elenco</a>
+        <a href="/players.php"<?= sbActive('players.php', $__sbCurrent) ?>><i class="bi bi-person-lines-fill"></i> Jogadores</a>
+        <a href="/picks.php"<?= sbActive('picks.php', $__sbCurrent) ?>><i class="bi bi-calendar-check-fill"></i> Picks</a>
+        <a href="/trades.php"<?= sbActive('trades.php', $__sbCurrent) ?>><i class="bi bi-arrow-left-right"></i> Trades</a>
+        <a href="/mercado.php"<?= sbActive('mercado.php', $__sbCurrent) ?>><i class="bi bi-shop"></i> Mercado</a>
+        <a href="/free-agency.php"<?= sbActive('free-agency.php', $__sbCurrent) ?>><i class="bi bi-coin"></i> Free Agency</a>
+        <a href="/leilao.php"<?= sbActive('leilao.php', $__sbCurrent) ?>><i class="bi bi-hammer"></i> Leilão</a>
+        <a href="/drafts.php"<?= sbActive('drafts.php', $__sbCurrent) ?>><i class="bi bi-trophy"></i> Draft</a>
+        <a href="/tapas.php"<?= sbActive('tapas.php', $__sbCurrent) ?>><i class="bi bi-hand-index-thumb"></i> Tapas</a>
 
-    <ul class="sidebar-menu">
-        <li>
-            <a href="/dashboard.php" class="<?= $currentPage === 'dashboard.php' ? 'active' : '' ?>">
-                <i class="bi bi-house-door-fill"></i>
-                Dashboard
-            </a>
-        </li>
-        <li>
-            <a href="/teams.php" class="<?= $currentPage === 'teams.php' ? 'active' : '' ?>">
-                <i class="bi bi-people-fill"></i>
-                Times
-            </a>
-        </li>
-        <li>
-            <a href="/my-roster.php" class="<?= $currentPage === 'my-roster.php' ? 'active' : '' ?>">
-                <i class="bi bi-person-fill"></i>
-                Meu Elenco
-            </a>
-        </li>
-        <li>
-            <a href="/players.php" class="<?= $currentPage === 'players.php' ? 'active' : '' ?>">
-                <i class="bi bi-person-lines-fill"></i>
-                Jogadores
-            </a>
-        </li>
-        <li>
-            <a href="/picks.php" class="<?= $currentPage === 'picks.php' ? 'active' : '' ?>">
-                <i class="bi bi-calendar-check-fill"></i>
-                Picks
-            </a>
-        </li>
-        <li>
-            <a href="/trades.php" class="<?= $currentPage === 'trades.php' ? 'active' : '' ?>">
-                <i class="bi bi-arrow-left-right"></i>
-                Trades
-            </a>
-        </li>
-        <li>
-            <a href="/free-agency.php" class="<?= $currentPage === 'free-agency.php' ? 'active' : '' ?>">
-                <i class="bi bi-coin"></i>
-                Free Agency
-            </a>
-        </li>
-        <li>
-            <a href="/leilao.php" class="<?= $currentPage === 'leilao.php' ? 'active' : '' ?>">
-                <i class="bi bi-hammer"></i>
-                Leilão
-            </a>
-        </li>
-        <li>
-            <a href="/drafts.php" class="<?= $currentPage === 'drafts.php' ? 'active' : '' ?>">
-                <i class="bi bi-trophy"></i>
-                Draft
-            </a>
-        </li>
-        <li>
-            <a href="/rankings.php" class="<?= $currentPage === 'rankings.php' ? 'active' : '' ?>">
-                <i class="bi bi-bar-chart-fill"></i>
-                Rankings
-            </a>
-        </li>
-        <li>
-            <a href="/history.php" class="<?= $currentPage === 'history.php' ? 'active' : '' ?>">
-                <i class="bi bi-clock-history"></i>
-                Histórico
-            </a>
-        </li>
-        <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
-        <li>
-            <a href="/admin.php" class="<?= $currentPage === 'admin.php' ? 'active' : '' ?>">
-                <i class="bi bi-shield-lock-fill"></i>
-                Admin
-            </a>
-        </li>
-        <li>
-            <a href="/punicoes.php" class="<?= $currentPage === 'punicoes.php' ? 'active' : '' ?>">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                Punições
-            </a>
-        </li>
+        <div class="sb-section">Liga</div>
+        <a href="/rankings.php"<?= sbActive('rankings.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-fill"></i> Rankings</a>
+        <a href="/history.php"<?= sbActive('history.php', $__sbCurrent) ?>><i class="bi bi-clock-history"></i> Histórico</a>
+        <a href="/hall-da-fama.php"<?= sbActive('hall-da-fama.php', $__sbCurrent) ?>><i class="bi bi-award-fill"></i> Hall da Fama</a>
+        <a href="/diretrizes.php"<?= sbActive('diretrizes.php', $__sbCurrent) ?>><i class="bi bi-clipboard-data"></i> Diretrizes</a>
+        <a href="/mundo-fba.php"<?= sbActive('mundo-fba.php', $__sbCurrent) ?>><i class="bi bi-globe2"></i> Mundo FBA</a>
+        <a href="/estatisticas.php"<?= sbActive('estatisticas.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
+        <a href="/ouvidoria.php"<?= sbActive('ouvidoria.php', $__sbCurrent) ?>><i class="bi bi-chat-dots"></i> Ouvidoria</a>
+        <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
+        <a href="/thepathetic.php"<?= sbActive('thepathetic.php', $__sbCurrent) ?>><i class="bi bi-newspaper"></i> The Pathetic</a>
+
+        <?php if ($__sbIsAdmin): ?>
+        <div class="sb-section">Admin</div>
+        <a href="/admin.php"<?= sbActive('admin.php', $__sbCurrent) ?>><i class="bi bi-shield-lock-fill"></i> Admin</a>
+        <a href="/punicoes.php"<?= sbActive('punicoes.php', $__sbCurrent) ?>><i class="bi bi-exclamation-triangle-fill"></i> Punições</a>
         <?php endif; ?>
-        <li>
-            <a href="/settings.php" class="<?= $currentPage === 'settings.php' ? 'active' : '' ?>">
-                <i class="bi bi-gear-fill"></i>
-                Minha Conta
-            </a>
-        </li>
-        <li>
-            <a href="/team-public-page.php" class="<?= $currentPage === 'team-public-page.php' ? 'active' : '' ?>">
-                <i class="bi bi-globe2"></i>
-                Página do Time
-            </a>
-        </li>
-        <li>
-            <a href="/thepathetic.php" class="<?= $currentPage === 'thepathetic.php' ? 'active' : '' ?>">
-                <i class="bi bi-newspaper"></i>
-                The Pathetic
-            </a>
-        </li>
-    </ul>
 
-    <hr style="border-color: var(--fba-border);">
+        <div class="sb-section">Conta</div>
+        <a href="/team-public-page.php"<?= sbActive('team-public-page.php', $__sbCurrent) ?>><i class="bi bi-globe2"></i> Página do Time</a>
+        <a href="/settings.php"<?= sbActive('settings.php', $__sbCurrent) ?>><i class="bi bi-gear-fill"></i> Minha Conta</a>
+    </nav>
 
-    <div class="text-center mb-3">
-        <button class="theme-toggle w-100" id="themeToggle" type="button">
-            <i class="bi bi-moon-stars-fill"></i>
-            <span>Tema claro</span>
-        </button>
+    <button class="sb-theme-toggle" type="button" id="themeToggle">
+        <i class="bi bi-moon"></i>
+        <span>Modo escuro</span>
+    </button>
+
+    <div class="sb-footer">
+        <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>"
+             alt="<?= htmlspecialchars($user['name'] ?? '') ?>"
+             class="sb-avatar"
+             onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name'] ?? 'U') ?>&background=1c1c21&color=<?= accentColorHex($user['accent_color'] ?? null) ?>'">
+        <span class="sb-username"><?= htmlspecialchars($user['name'] ?? '') ?></span>
+        <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
     </div>
-
-    <div class="text-center">
-        <a href="/logout.php" class="btn btn-outline-danger btn-sm w-100">
-            <i class="bi bi-box-arrow-right me-2"></i>Sair
-        </a>
-    </div>
-</div>
+</aside>

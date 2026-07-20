@@ -60,7 +60,7 @@ if ($user['approved'] == 1) {
             width: 100px;
             height: 100px;
             margin: 0 auto 30px;
-            background: linear-gradient(135deg, var(--fba-brand) 0%, #ff2a44 100%);
+            background: linear-gradient(135deg, var(--fba-brand) 0%, var(--fba-brand-2) 100%);
             border-radius: 50%;
             display: flex;
             align-items: center;

@@ -25,20 +25,20 @@ $team_id = $team ? (int)$team['id'] : null;
     <meta name="theme-color" content="#0a0a0c">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/styles.css?v=20260225-2">
     <style>
         :root {
-            --red: #fc0025; --red-2: #ff2a44; --red-soft: rgba(252,0,37,.10);
+            --red: #fc0025; --red-2: color-mix(in srgb, var(--red) 85%, white); --red-soft: color-mix(in srgb, var(--red) 10%, transparent);
             --bg: #07070a; --panel: #101013; --panel-2: #16161a; --panel-3: #1c1c21;
             --border: rgba(255,255,255,.06); --border-md: rgba(255,255,255,.10);
-            --text: #f0f0f3; --text-2: #868690; --text-3: #48484f;
-            --sidebar-w: 260px; --font: 'Poppins', sans-serif;
+            --text: #f0f0f3; --text-2: #868690; --text-3: #7d7d85;
+            --sidebar-w: 260px; --font: 'Montserrat', sans-serif;
             --radius: 14px; --radius-sm: 10px; --ease: cubic-bezier(.2,.8,.2,1); --t: 200ms;
         }
         :root[data-theme="light"] {
             --bg: #f6f7fb; --panel: #fff; --panel-2: #f2f4f8; --panel-3: #e9edf4;
-            --border: #e3e6ee; --border-md: #d7dbe6; --text: #111217; --text-2: #5b6270; --text-3: #8b93a5;
+            --border: #e3e6ee; --border-md: #d7dbe6; --text: #111217; --text-2: #5b6270; --text-3: #657080;
         }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased; }
@@ -58,13 +58,13 @@ $team_id = $team ? (int)$team['id'] : null;
         .sb-team-name { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.3; }
         .sb-team-league { font-size: 10px; color: var(--text-3); }
         .sb-nav { flex: 1; padding: 12px 10px 8px; }
-        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
-        .sb-nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; color: var(--text-2); text-decoration: none; transition: background var(--t), color var(--t); }
+        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 6px; }
+        .sb-nav a { font-family:'Inter',sans-serif; display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; color: var(--text-2); text-decoration: none; transition: background var(--t), color var(--t); }
         .sb-nav a i { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
         .sb-nav a:hover { background: var(--panel-2); color: var(--text); }
         .sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
         .sb-nav a.active i { color: var(--red); }
-        .sb-theme-toggle { margin: 8px 10px; padding: 9px 10px; background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-family: var(--font); cursor: pointer; display: flex; align-items: center; gap: 8px; width: calc(100% - 20px); }
+        .sb-theme-toggle { margin: 8px 10px; padding: 10px 10px; background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-family: var(--font); cursor: pointer; display: flex; align-items: center; gap: 8px; width: calc(100% - 20px); }
         .sb-footer { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border); flex-shrink: 0; }
         .sb-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
         .sb-username { font-size: 12px; font-weight: 600; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -96,15 +96,15 @@ $team_id = $team ? (int)$team['id'] : null;
         .btn-primary-fba { background: var(--red); color: #fff; border: none; border-radius: var(--radius-sm); padding: 10px 20px; font-size: 13px; font-weight: 700; font-family: var(--font); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: opacity .2s; }
         .btn-primary-fba:hover { opacity: .85; }
         .btn-primary-fba:disabled { opacity: .4; cursor: not-allowed; }
-        .btn-ghost-sm { background: none; border: 1px solid var(--border-md); border-radius: 8px; color: var(--text-2); font-size: 12px; font-weight: 600; font-family: var(--font); padding: 6px 12px; cursor: pointer; transition: background .15s, color .15s; display: inline-flex; align-items: center; gap: 5px; }
+        .btn-ghost-sm { background: none; border: 1px solid var(--border-md); border-radius: 8px; color: var(--text-2); font-size: 12px; font-weight: 600; font-family: var(--font); padding: 6px 12px; cursor: pointer; transition: background .15s, color .15s; display: inline-flex; align-items: center; gap: 6px; }
         .btn-ghost-sm:hover { background: var(--panel-2); color: var(--text); }
 
         .request-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
-        .badge-tapa { display: inline-flex; align-items: center; gap: 4px; background: rgba(249,115,22,.15); color: #f97316; border: 1px solid rgba(249,115,22,.35); border-radius: 999px; font-size: 10px; font-weight: 700; padding: 2px 7px; }
-        .badge-approved { display: inline-flex; align-items: center; gap: 4px; background: rgba(34,197,94,.12); color: #22c55e; border: 1px solid rgba(34,197,94,.3); border-radius: 999px; font-size: 10px; font-weight: 700; padding: 2px 7px; }
-        .badge-rejected { display: inline-flex; align-items: center; gap: 4px; background: rgba(239,68,68,.12); color: #ef4444; border: 1px solid rgba(239,68,68,.3); border-radius: 999px; font-size: 10px; font-weight: 700; padding: 2px 7px; }
-        .badge-pending { display: inline-flex; align-items: center; gap: 4px; background: rgba(245,158,11,.12); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); border-radius: 999px; font-size: 10px; font-weight: 700; padding: 2px 7px; }
-        .badge-badge { display: inline-flex; align-items: center; gap: 4px; background: rgba(139,92,246,.15); color: #a78bfa; border: 1px solid rgba(139,92,246,.35); border-radius: 999px; font-size: 10px; font-weight: 700; padding: 2px 7px; }
+        .badge-tapa { display: inline-flex; align-items: center; gap: 4px; background: rgba(249,115,22,.15); color: #f97316; border: 1px solid rgba(249,115,22,.35); border-radius: 999px; font-size: 10px; font-weight: 700; padding: 2px 8px; }
+        .badge-approved { display: inline-flex; align-items: center; gap: 4px; background: rgba(34,197,94,.12); color: #22c55e; border: 1px solid rgba(34,197,94,.3); border-radius: 999px; font-size: 10px; font-weight: 700; padding: 2px 8px; }
+        .badge-rejected { display: inline-flex; align-items: center; gap: 4px; background: rgba(239,68,68,.12); color: #ef4444; border: 1px solid rgba(239,68,68,.3); border-radius: 999px; font-size: 10px; font-weight: 700; padding: 2px 8px; }
+        .badge-pending { display: inline-flex; align-items: center; gap: 4px; background: rgba(245,158,11,.12); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); border-radius: 999px; font-size: 10px; font-weight: 700; padding: 2px 8px; }
+        .badge-badge { display: inline-flex; align-items: center; gap: 4px; background: rgba(139,92,246,.15); color: #a78bfa; border: 1px solid rgba(139,92,246,.35); border-radius: 999px; font-size: 10px; font-weight: 700; padding: 2px 8px; }
 
         .player-tapa-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
 
@@ -124,68 +124,13 @@ $team_id = $team ? (int)$team['id'] : null;
             .topbar { display: flex; }
             .main { margin-left: 0; width: 100%; padding: 64px 16px 40px; }
         }
+    <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
 <body>
 <div class="app">
 
-    <aside class="sidebar" id="sidebar">
-        <div class="sb-brand">
-            <div class="sb-logo">FBA</div>
-            <div class="sb-brand-text">FBA Manager <span>Liga <?= htmlspecialchars($user['league'] ?? '') ?></span></div>
-        </div>
-        <?php if ($team): ?>
-        <div class="sb-team">
-            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>" alt="" onerror="this.src='/img/default-team.png'">
-            <div>
-                <div class="sb-team-name"><?= htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?></div>
-                <div class="sb-team-league"><?= htmlspecialchars($user['league'] ?? '') ?></div>
-            </div>
-        </div>
-        <?php endif; ?>
-        <nav class="sb-nav">
-            <div class="sb-section">Principal</div>
-            <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
-            <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
-            <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
-            <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
-            <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
-            <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
-            <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
-            <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
-            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
-            <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
-            <a href="/tapas.php" class="active"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
-
-            <div class="sb-section">Liga</div>
-            <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
-            <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
-            <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
-            <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
-            <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
-            <a href="/estatisticas.php"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
-            <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
-            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
-            <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
-
-            <?php if ($is_admin): ?>
-            <div class="sb-section">Admin</div>
-            <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
-            <?php endif; ?>
-
-            <div class="sb-section">Conta</div>
-            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
-            <a href="/team-public-page.php"><i class="bi bi-globe2"></i> Página do Time</a>
-        </nav>
-        <button class="sb-theme-toggle" type="button" id="themeToggle">
-            <i class="bi bi-moon"></i><span>Modo escuro</span>
-        </button>
-        <div class="sb-footer">
-            <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>" alt="" class="sb-avatar" onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name'] ?? '') ?>&background=1c1c21&color=fc0025'">
-            <span class="sb-username"><?= htmlspecialchars($user['name'] ?? '') ?></span>
-            <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
-        </div>
-    </aside>
+    <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
     <div class="sb-overlay" id="sbOverlay"></div>
 
@@ -423,7 +368,7 @@ async function loadLeagueRecipients() {
                 <div style="flex:1;min-width:0">
                     <div style="font-weight:600;font-size:13px;color:var(--text)">
                         ${escHtml(p.name)}
-                        ${p.tapa_count > 0 ? `<span style="display:inline-flex;align-items:center;gap:3px;margin-left:6px;font-size:11px;color:#f97316"><i class="bi bi-hand-index-thumb"></i>${p.tapa_count > 1 ? 'x' + p.tapa_count : ''}</span>` : ''}
+                        ${p.tapa_count > 0 ? `<span style="display:inline-flex;align-items:center;gap:4px;margin-left:6px;font-size:11px;color:#f97316"><i class="bi bi-hand-index-thumb"></i>${p.tapa_count > 1 ? 'x' + p.tapa_count : ''}</span>` : ''}
                         ${p.badge_name ? `<span class="badge-badge" style="margin-left:6px"><i class="bi bi-award"></i> ${escHtml(p.badge_name)}</span>` : ''}
                     </div>
                     <div style="font-size:11px;color:var(--text-3)">${escHtml(p.position)} &bull; OVR ${p.ovr} &bull; ${escHtml(p.city)} ${escHtml(p.team_name)}</div>

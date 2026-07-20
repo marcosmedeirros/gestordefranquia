@@ -20,19 +20,25 @@ if ($method === 'POST') {
     $body = readJsonBody();
     $name = trim($body['name'] ?? $user['name']);
     $photoUrl = trim($body['photo_url'] ?? '');
-    $phoneRaw = trim((string)($body['phone'] ?? ''));
-    $phone = normalizeBrazilianPhone($phoneRaw);
 
     if ($name === '') {
         jsonResponse(422, ['error' => 'Nome é obrigatório.']);
     }
 
-    if ($phoneRaw === '') {
-        jsonResponse(422, ['error' => 'Telefone é obrigatório.']);
-    }
-
-    if (!$phone) {
-        jsonResponse(422, ['error' => 'Telefone inválido. Informe DDD brasileiro ou código do país (apenas números).']);
+    // O telefone só é exigido quando o cliente está de fato editando o perfil.
+    // Requisições que mexem apenas em aparência (cor/atalhos) não mandam o campo
+    // e mantêm o telefone já salvo — inclusive quando ele está vazio.
+    if (array_key_exists('phone', $body)) {
+        $phoneRaw = trim((string)$body['phone']);
+        if ($phoneRaw === '') {
+            jsonResponse(422, ['error' => 'Telefone é obrigatório.']);
+        }
+        $phone = normalizeBrazilianPhone($phoneRaw);
+        if (!$phone) {
+            jsonResponse(422, ['error' => 'Telefone inválido. Informe DDD brasileiro ou código do país (apenas números).']);
+        }
+    } else {
+        $phone = $user['phone'] ?? null;
     }
 
     // Salvar foto se vier como data URL
@@ -67,14 +73,36 @@ if ($method === 'POST') {
         $photoUrl = ($photoUrl !== '') ? $photoUrl : ($user['photo_url'] ?? null);
     }
 
-    $stmt = $pdo->prepare('UPDATE users SET name = ?, photo_url = ?, phone = ? WHERE id = ?');
-    $stmt->execute([$name, $photoUrl ?: null, $phone, $user['id']]);
+    // Cor de destaque (opcional) — string vazia limpa e volta pro padrão.
+    $accentColorRaw = array_key_exists('accent_color', $body) ? trim((string)$body['accent_color']) : null;
+    $accentColor = $user['accent_color'] ?? null;
+    if ($accentColorRaw !== null) {
+        if ($accentColorRaw === '') {
+            $accentColor = null;
+        } elseif (isValidAccentColor($accentColorRaw)) {
+            $accentColor = $accentColorRaw;
+        }
+    }
+
+    // Atalhos do dashboard (opcional) — até 4 chaves válidas do catálogo.
+    $shortcuts = $user['dashboard_shortcuts'] ?? null;
+    if (array_key_exists('dashboard_shortcuts', $body) && is_array($body['dashboard_shortcuts'])) {
+        $catalog = getShortcutCatalog();
+        $keys = array_values(array_filter(array_map('strval', $body['dashboard_shortcuts']), fn($k) => isset($catalog[$k])));
+        $keys = array_slice(array_unique($keys), 0, 4);
+        $shortcuts = $keys ? implode(',', $keys) : null;
+    }
+
+    $stmt = $pdo->prepare('UPDATE users SET name = ?, photo_url = ?, phone = ?, accent_color = ?, dashboard_shortcuts = ? WHERE id = ?');
+    $stmt->execute([$name, $photoUrl ?: null, $phone, $accentColor, $shortcuts, $user['id']]);
 
     // Atualizar sessão
     $updated = $user;
     $updated['name'] = $name;
     $updated['photo_url'] = $photoUrl ?: $user['photo_url'] ?? null;
     $updated['phone'] = $phone;
+    $updated['accent_color'] = $accentColor;
+    $updated['dashboard_shortcuts'] = $shortcuts;
     setUserSession($updated);
 
     jsonResponse(200, ['message' => 'Perfil atualizado.']);

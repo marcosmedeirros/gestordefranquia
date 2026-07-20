@@ -988,3 +988,60 @@ function formatBrazilianPhone(?string $phone): ?string
 
     return '+' . $digits;
 }
+
+/**
+ * Catálogo de páginas que podem virar atalho no dashboard — mesma lista
+ * de navegação usada em includes/sidebar.php.
+ */
+function getShortcutCatalog(): array {
+    return [
+        'trades'           => ['label' => 'Trades',         'icon' => 'bi-arrow-left-right',     'href' => '/trades.php'],
+        'players'          => ['label' => 'Jogadores',       'icon' => 'bi-person-lines-fill',    'href' => '/players.php'],
+        'teams'            => ['label' => 'Times',           'icon' => 'bi-people-fill',          'href' => '/teams.php'],
+        'my-roster'        => ['label' => 'Meu Elenco',      'icon' => 'bi-person-fill',          'href' => '/my-roster.php'],
+        'picks'            => ['label' => 'Picks',           'icon' => 'bi-calendar-check-fill',  'href' => '/picks.php'],
+        'mercado'          => ['label' => 'Mercado',         'icon' => 'bi-shop',                 'href' => '/mercado.php'],
+        'free-agency'      => ['label' => 'Free Agency',     'icon' => 'bi-coin',                 'href' => '/free-agency.php'],
+        'leilao'           => ['label' => 'Leilão',          'icon' => 'bi-hammer',                'href' => '/leilao.php'],
+        'drafts'           => ['label' => 'Draft',           'icon' => 'bi-trophy',                'href' => '/drafts.php'],
+        'tapas'            => ['label' => 'Tapas',           'icon' => 'bi-hand-index-thumb',     'href' => '/tapas.php'],
+        'rankings'         => ['label' => 'Rankings',        'icon' => 'bi-bar-chart-fill',       'href' => '/rankings.php'],
+        'history'          => ['label' => 'Histórico',       'icon' => 'bi-clock-history',        'href' => '/history.php'],
+        'hall-da-fama'     => ['label' => 'Hall da Fama',    'icon' => 'bi-award-fill',           'href' => '/hall-da-fama.php'],
+        'diretrizes'       => ['label' => 'Diretrizes',      'icon' => 'bi-clipboard-data',       'href' => '/diretrizes.php'],
+        'mundo-fba'        => ['label' => 'Mundo FBA',       'icon' => 'bi-globe2',                'href' => '/mundo-fba.php'],
+        'estatisticas'     => ['label' => 'Estatísticas',    'icon' => 'bi-bar-chart-line-fill',  'href' => '/estatisticas.php'],
+        'ouvidoria'        => ['label' => 'Ouvidoria',       'icon' => 'bi-chat-dots',            'href' => '/ouvidoria.php'],
+        'thepathetic'      => ['label' => 'The Pathetic',    'icon' => 'bi-newspaper',            'href' => '/thepathetic.php'],
+        'team-public-page' => ['label' => 'Página do Time',  'icon' => 'bi-globe2',                'href' => '/team-public-page.php'],
+        'settings'         => ['label' => 'Minha Conta',     'icon' => 'bi-gear-fill',            'href' => '/settings.php'],
+    ];
+}
+
+function getDefaultShortcuts(): array {
+    return ['trades', 'players', 'teams', 'my-roster'];
+}
+
+/**
+ * Resolve os atalhos salvos do usuário (string "key1,key2,..." vindo de
+ * users.dashboard_shortcuts) pro padrão renderizável, caindo pro padrão
+ * (Trades/Jogadores/Times/Meu Elenco) quando vazio ou inválido.
+ */
+function getUserShortcuts(?string $stored): array {
+    $catalog = getShortcutCatalog();
+    $keys = $stored ? array_filter(array_map('trim', explode(',', $stored))) : [];
+    $keys = array_values(array_filter($keys, fn($k) => isset($catalog[$k])));
+    if (!$keys) {
+        $keys = getDefaultShortcuts();
+    }
+    $keys = array_slice($keys, 0, 4);
+    return array_map(fn($k) => ['key' => $k] + $catalog[$k], $keys);
+}
+
+function isValidAccentColor(?string $color): bool {
+    return $color !== null && preg_match('/^#[0-9a-fA-F]{6}$/', $color) === 1;
+}
+
+function accentColorHex(?string $accentColor): string {
+    return isValidAccentColor($accentColor) ? ltrim($accentColor, '#') : 'fc0025';
+}

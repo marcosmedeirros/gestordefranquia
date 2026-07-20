@@ -71,27 +71,27 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/styles.css?v=20260225-2">
 
     <style>
         /* ── Design Tokens ─────────────────────────────── */
         :root {
             --red:        #fc0025;
-            --red-soft:   rgba(252,0,37,.10);
-            --red-glow:   rgba(252,0,37,.18);
+            --red-soft:   color-mix(in srgb, var(--red) 10%, transparent);
+            --red-glow:   color-mix(in srgb, var(--red) 18%, transparent);
             --bg:         #07070a;
             --panel:      #101013;
             --panel-2:    #16161a;
             --panel-3:    #1c1c21;
             --border:     rgba(255,255,255,.06);
             --border-md:  rgba(255,255,255,.10);
-            --border-red: rgba(252,0,37,.22);
+            --border-red: color-mix(in srgb, var(--red) 22%, transparent);
             --text:       #f0f0f3;
             --text-2:     #868690;
-            --text-3:     #48484f;
+            --text-3:     #7d7d85;
             --sidebar-w:  260px;
-            --font:       'Poppins', sans-serif;
+            --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
             --ease:       cubic-bezier(.2,.8,.2,1);
@@ -104,10 +104,10 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             --panel-3:  #e9edf4;
             --border:   #e3e6ee;
             --border-md:#d7dbe6;
-            --border-red:rgba(252,0,37,.18);
+            --border-red:color-mix(in srgb, var(--red) 18%, transparent);
             --text:     #111217;
             --text-2:   #5b6270;
-            --text-3:   #8b93a5;
+            --text-3:   #657080;
         }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html { -webkit-text-size-adjust: 100%; }
@@ -152,10 +152,10 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         .sb-season-label { font-size: 10px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-2); }
         .sb-season-val { font-size: 14px; font-weight: 700; color: var(--red); }
         .sb-nav { flex: 1; padding: 12px 10px 8px; }
-        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
-        .sb-nav a {
+        .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 6px; }
+        .sb-nav a { font-family:'Inter',sans-serif;
             display: flex; align-items: center; gap: 10px;
-            padding: 9px 10px; border-radius: var(--radius-sm);
+            padding: 10px 10px; border-radius: var(--radius-sm);
             color: var(--text-2); font-size: 13px; font-weight: 500;
             text-decoration: none; margin-bottom: 2px;
             transition: all var(--t) var(--ease);
@@ -235,7 +235,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             cursor: pointer; transition: border-color var(--t) var(--ease), transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
             height: 100%;
         }
-        .league-card:hover { border-color: var(--border-red); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(252,0,37,.08); }
+        .league-card:hover { border-color: var(--border-red); transform: translateY(-2px); box-shadow: 0 8px 24px color-mix(in srgb, var(--red) 8%, transparent); }
         .league-card h3 { font-size: 22px; font-weight: 800; color: var(--red); margin-bottom: 6px; font-family: var(--font); }
         .league-card p { font-size: 13px; margin-bottom: 10px; }
 
@@ -248,7 +248,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         }
         .action-card:hover { border-color: var(--border-red); transform: translateY(-2px); }
         .action-card > i { font-size: 26px; color: var(--red); margin-bottom: 10px; }
-        .action-card h4 { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
+        .action-card h4 { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
         .action-card p { font-size: 12px; color: var(--text-2); margin: 0; }
 
         /* ── Team Cards ───────────────────────────────── */
@@ -280,11 +280,11 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         .btn-back:hover { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
         .btn-orange {
             background: var(--red); border: none; color: #fff;
-            font-weight: 700; border-radius: 10px; padding: 9px 18px;
+            font-weight: 700; border-radius: 10px; padding: 10px 18px;
             font-size: 13px; cursor: pointer; font-family: var(--font);
             transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
         }
-        .btn-orange:hover, .btn-orange:focus { transform: translateY(-1px); box-shadow: 0 8px 16px rgba(252,0,37,.24); color: #fff; }
+        .btn-orange:hover, .btn-orange:focus { transform: translateY(-1px); box-shadow: 0 8px 16px color-mix(in srgb, var(--red) 24%, transparent); color: #fff; }
         .btn-orange:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
         .btn-outline-orange {
             background: transparent; border: 1px solid var(--border-red);
@@ -327,7 +327,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             background: transparent; border: none; border-bottom: 2px solid transparent;
             color: var(--text-2); font-size: 13px; font-weight: 500; font-family: var(--font);
             padding: 10px 16px; cursor: pointer; transition: all var(--t) var(--ease);
-            display: flex; align-items: center; gap: 7px; margin-bottom: -1px;
+            display: flex; align-items: center; gap: 8px; margin-bottom: -1px;
         }
         .admin-qnav-btn:hover { color: var(--text); }
         .admin-qnav-btn.active { color: var(--red); border-bottom-color: var(--red); font-weight: 600; }
@@ -362,9 +362,9 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             gap: 32px; flex-wrap: wrap;
         }
         .league-hero-name { font-size: 38px; font-weight: 900; letter-spacing: -1px; color: var(--text); line-height: 1; }
-        .league-hero-name small { display: block; font-size: 10px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--red); margin-bottom: 5px; }
+        .league-hero-name small { display: block; font-size: 10px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--red); margin-bottom: 6px; }
         .league-hero-stats { display: flex; gap: 32px; }
-        .league-hero-stat { display: flex; flex-direction: column; gap: 3px; }
+        .league-hero-stat { display: flex; flex-direction: column; gap: 4px; }
         .league-hero-stat-val { font-size: 24px; font-weight: 800; color: var(--text); line-height: 1; }
         .league-hero-stat-lbl { font-size: 11px; color: var(--text-3); font-weight: 500; }
         .league-hero-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -398,7 +398,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             background: var(--panel); border: 1px solid var(--border);
             border-radius: var(--radius-sm); padding: 18px 16px;
             display: flex; flex-direction: column; align-items: flex-start;
-            gap: 11px; cursor: pointer; position: relative; overflow: hidden;
+            gap: 12px; cursor: pointer; position: relative; overflow: hidden;
             transition: border-color var(--t) var(--ease), transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
             text-align: left; font-family: var(--font);
         }
@@ -416,7 +416,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             position: absolute; top: 9px; right: 9px;
             background: var(--red); color: #fff; font-size: 10px; font-weight: 700;
             min-width: 18px; height: 18px; border-radius: 9px;
-            display: flex; align-items: center; justify-content: center; padding: 0 5px;
+            display: flex; align-items: center; justify-content: center; padding: 0 6px;
         }
         .search-results-panel {
             background: var(--panel); border: 1px solid var(--border);
@@ -425,7 +425,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         }
         .search-result-row {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 7px 0; border-bottom: 1px solid var(--border);
+            padding: 8px 0; border-bottom: 1px solid var(--border);
         }
         .search-result-row:last-child { border-bottom: none; }
 
@@ -436,7 +436,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         }
         .pun-card {
             background: var(--panel-2); border: 1px solid var(--border);
-            border-radius: var(--radius-sm); padding: 13px 15px; margin-bottom: 8px;
+            border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 8px;
             transition: border-color var(--t) var(--ease);
         }
         .pun-card:last-child { margin-bottom: 0; }
@@ -444,16 +444,16 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         .pun-card-reverted { opacity: .55; }
         .pun-card-head {
             display: flex; align-items: flex-start; justify-content: space-between;
-            gap: 12px; margin-bottom: 5px;
+            gap: 12px; margin-bottom: 6px;
         }
         .pun-card-title { font-size: 13px; font-weight: 600; color: var(--text); }
         .pun-card-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
         .pun-card-meta { font-size: 11px; color: var(--text-3); }
         .pun-badge {
-            display: inline-flex; align-items: center; padding: 2px 9px;
+            display: inline-flex; align-items: center; padding: 2px 10px;
             border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap;
         }
-        .pun-badge-on  { background: rgba(252,0,37,.1); border: 1px solid rgba(252,0,37,.2); color: var(--red); }
+        .pun-badge-on  { background: color-mix(in srgb, var(--red) 10%, transparent); border: 1px solid color-mix(in srgb, var(--red) 20%, transparent); color: var(--red); }
         .pun-badge-off { background: var(--panel-3); border: 1px solid var(--border); color: var(--text-3); }
 
         /* ── Responsive ───────────────────────────────── */
@@ -473,7 +473,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
                 justify-content: flex-start;
             }
             .admin-quicknav::-webkit-scrollbar { display: none; }
-            .admin-qnav-btn { padding: 10px 13px; font-size: 12px; flex-shrink: 0; }
+            .admin-qnav-btn { padding: 10px 14px; font-size: 12px; flex-shrink: 0; }
 
             /* Page header */
             .page-top { margin-bottom: 14px; }
@@ -500,7 +500,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
 
             /* Action grid */
             .action-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
-            .action-tile { padding: 14px 12px; gap: 9px; }
+            .action-tile { padding: 14px 12px; gap: 10px; }
             .action-tile-icon { width: 36px; height: 36px; font-size: 16px; }
             .action-tile-label { font-size: 11px; }
 
@@ -524,7 +524,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             /* Tabelas geradas dinamicamente */
             #mainContainer .table { font-size: 12px; }
             #mainContainer .table td,
-            #mainContainer .table th { padding: 7px 8px; white-space: nowrap; }
+            #mainContainer .table th { padding: 8px 8px; white-space: nowrap; }
 
             /* Admin selector */
             .admin-sel { flex-wrap: wrap; }
@@ -544,7 +544,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             .league-hero-name { font-size: 22px; }
             .league-hero-stats { gap: 14px; }
             .league-hero-stat-val { font-size: 18px; }
-            .action-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 7px; }
+            .action-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
             .action-tile { padding: 12px 10px; }
             .panel { padding: 14px 12px 16px; }
 
@@ -673,7 +673,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
 
         /* Alerts */
         .alert-info    { background: var(--panel-2)         !important; border-color: var(--border)     !important; color: var(--text) !important; }
-        .alert-danger  { background: rgba(252,0,37,.10)     !important; border-color: var(--border-red) !important; color: var(--text) !important; }
+        .alert-danger  { background: color-mix(in srgb, var(--red) 10%, transparent)     !important; border-color: var(--border-red) !important; color: var(--text) !important; }
         .alert-warning { background: rgba(255,193,7,.10)    !important; border-color: rgba(255,193,7,.3)!important; color: var(--text) !important; }
         .alert-success { background: rgba(37,198,119,.10)   !important; border-color: rgba(37,198,119,.3)!important; color: var(--text) !important; }
 
@@ -696,7 +696,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         .btn-outline-primary:hover { background: rgba(33,150,243,.12) !important; }
         .btn-secondary { background: var(--panel-3) !important; border-color: var(--border-md) !important; color: var(--text-2) !important; }
         .btn-secondary:hover { background: var(--panel-2) !important; color: var(--text) !important; }
-        .btn-outline-danger:hover { background: rgba(252,0,37,.12) !important; }
+        .btn-outline-danger:hover { background: color-mix(in srgb, var(--red) 12%, transparent) !important; }
 
         /* Form switch */
         .form-switch .form-check-input {
@@ -717,6 +717,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
 
         /* Pre */
         pre { color: var(--text-2) !important; font-size: 12px; }
+    <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
 <body>
@@ -725,75 +726,7 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
     <!-- ══════════════════════════════════════════════
          SIDEBAR
     ══════════════════════════════════════════════ -->
-    <aside class="sidebar" id="sidebar">
-
-        <div class="sb-brand">
-            <div class="sb-logo">FBA</div>
-            <div class="sb-brand-text">
-                FBA Manager
-                <span>Liga <?= htmlspecialchars($team['league'] ?? '') ?></span>
-            </div>
-        </div>
-
-        <?php if ($team): ?>
-        <div class="sb-team">
-            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
-                 alt="<?= htmlspecialchars($team['name'] ?? '') ?>"
-                 onerror="this.src='/img/default-team.png'">
-            <div>
-                <div class="sb-team-name"><?= htmlspecialchars(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')) ?></div>
-                <div class="sb-team-league"><?= htmlspecialchars($team['league'] ?? '') ?></div>
-            </div>
-        </div>
-        <?php endif; ?>
-
-        <nav class="sb-nav">
-            <div class="sb-section">Principal</div>
-            <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
-            <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
-            <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
-            <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
-            <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
-            <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
-            <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
-            <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
-            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
-            <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
-            <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
-
-            <div class="sb-section">Liga</div>
-            <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
-            <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
-            <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
-            <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
-            <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
-            <a href="/estatisticas.php"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
-            <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
-            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
-            <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
-
-            <div class="sb-section">Admin</div>
-            <a href="/admin.php" class="active"><i class="bi bi-shield-lock-fill"></i> Admin</a>
-
-            <div class="sb-section">Conta</div>
-            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
-            <a href="/team-public-page.php"><i class="bi bi-globe2"></i> Página do Time</a>
-        </nav>
-
-        <button class="sb-theme-toggle" type="button" id="themeToggle">
-            <i class="bi bi-moon"></i>
-            <span>Modo escuro</span>
-        </button>
-
-        <div class="sb-footer">
-            <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>"
-                 alt="<?= htmlspecialchars($user['name'] ?? '') ?>"
-                 class="sb-avatar"
-                 onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name'] ?? 'Admin') ?>&background=1c1c21&color=fc0025'">
-            <span class="sb-username"><?= htmlspecialchars($user['name'] ?? '') ?></span>
-            <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
-        </div>
-    </aside>
+    <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
     <!-- Overlay mobile -->
     <div class="sb-overlay" id="sbOverlay"></div>

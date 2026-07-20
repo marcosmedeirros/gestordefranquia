@@ -1,4 +1,10 @@
 // my-roster-v2.js - Tabela + Quinteto Titular
+function _avatarColorHex() {
+  try {
+    const m = getComputedStyle(document.documentElement).getPropertyValue('--red').trim().match(/#([0-9a-fA-F]{6})/);
+    return m ? m[1] : 'fc0025';
+  } catch (e) { return 'fc0025'; }
+}
 const api = async (path, options = {}) => {
   const res = await fetch(`/api/${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -1425,7 +1431,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div style="background:var(--panel-2);padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px">
           <img src="${photoUrl}" alt="${player.name||''}"
                style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--border-red);flex-shrink:0;background:var(--panel-3)"
-               onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(player.name||'P')}&background=121212&color=fc0025&rounded=true&bold=true'">
+               onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(player.name||'P')}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
           <div style="flex:1;min-width:0">
             <div style="font-size:18px;font-weight:800;line-height:1.2">${player.name||'-'}</div>
             <div style="font-size:12px;color:var(--text-2);margin-top:2px">${player.team_name||'-'}</div>

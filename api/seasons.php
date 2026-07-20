@@ -1606,6 +1606,25 @@ try {
                 }
             } catch (Exception $ignored) {}
 
+            // Garantir tabela de classificação (posição final de TODOS os times por temporada).
+            // DDL causa commit implícito no MySQL, então roda antes de beginTransaction.
+            $pdo->exec("CREATE TABLE IF NOT EXISTS season_standings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                season_id INT NOT NULL,
+                team_id INT NOT NULL,
+                position INT NOT NULL,
+                conference VARCHAR(20) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_season_team (season_id, team_id),
+                INDEX idx_season_pos (season_id, position)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+            try {
+                $chkConf = $pdo->query("SHOW COLUMNS FROM season_standings LIKE 'conference'");
+                if (!$chkConf->fetch()) {
+                    $pdo->exec("ALTER TABLE season_standings ADD COLUMN conference VARCHAR(20) NULL AFTER position");
+                }
+            } catch (Exception $ignored) {}
+
             $pdo->beginTransaction();
             $stmtSeason2 = $pdo->prepare("SELECT s.league, s.season_number, s.year, COALESCE(sp.sprint_number, 1) AS sprint_number FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.id = ?");
             $stmtSeason2->execute([$seasonId]);
@@ -1675,6 +1694,29 @@ try {
                     hallOfFameRemoveTitle($pdo, $prevChampion, $league2);
                 }
                 hallOfFameAddTitle($pdo, $champion, $league2);
+            }
+
+            // Classificação final de TODOS os times (não só os 8 do playoff).
+            // standings_leste / standings_oeste chegam ordenados (1º, 2º, ...) por conferência.
+            $standingsLeste = (isset($input['standings_leste']) && is_array($input['standings_leste'])) ? $input['standings_leste'] : [];
+            $standingsOeste = (isset($input['standings_oeste']) && is_array($input['standings_oeste'])) ? $input['standings_oeste'] : [];
+            if ($standingsLeste || $standingsOeste) {
+                $pdo->prepare("DELETE FROM season_standings WHERE season_id = ?")->execute([$seasonId]);
+                $stmtStanding = $pdo->prepare("INSERT INTO season_standings (season_id, team_id, position, conference) VALUES (?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE position = VALUES(position), conference = VALUES(conference)");
+                $seenStandingTeams = [];
+                $insertStandings = function(array $list, string $conf) use ($stmtStanding, $seasonId, &$seenStandingTeams) {
+                    $pos = 1;
+                    foreach ($list as $tid) {
+                        $tid = (int)$tid;
+                        if ($tid <= 0 || isset($seenStandingTeams[$tid])) continue;
+                        $seenStandingTeams[$tid] = true;
+                        $stmtStanding->execute([$seasonId, $tid, $pos, $conf]);
+                        $pos++;
+                    }
+                };
+                $insertStandings($standingsLeste, 'LESTE');
+                $insertStandings($standingsOeste, 'OESTE');
             }
 
             $pdo->commit();

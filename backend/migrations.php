@@ -1218,6 +1218,19 @@ function runMigrations() {
         $errors[] = "ajuste_hof_league_na: " . $e->getMessage();
     }
 
+    try {
+        $hasAccentColor = $pdo->query("SHOW COLUMNS FROM users LIKE 'accent_color'")->fetch();
+        if (!$hasAccentColor) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN accent_color VARCHAR(7) NULL AFTER photo_url");
+        }
+        $hasDashboardShortcuts = $pdo->query("SHOW COLUMNS FROM users LIKE 'dashboard_shortcuts'")->fetch();
+        if (!$hasDashboardShortcuts) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN dashboard_shortcuts VARCHAR(255) NULL AFTER accent_color");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_users_appearance: " . $e->getMessage();
+    }
+
     return [
         'success' => count($errors) === 0,
         'executed' => $executed,

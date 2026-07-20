@@ -415,9 +415,10 @@ try {
 <title>Estatísticas · FBA</title>
 <link rel="icon" type="image/png" href="/games/fbagames.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--red:#fc0025;--red-soft:rgba(252,0,37,.10);--border-red:rgba(252,0,37,.25);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1e1e24;--border:rgba(255,255,255,.07);--border-md:rgba(255,255,255,.12);--text:#f0f0f3;--text-2:#868690;--text-3:#48484f;--amber:#f59e0b;--green:#22c55e;--purple:#a855f7;--blue:#60a5fa;--radius:14px;--radius-sm:10px;--font:'Poppins',sans-serif;--sidebar-w:260px;--t:.2s;--ease:cubic-bezier(.4,0,.2,1)}
+:root{--red:#fc0025;--red-soft:color-mix(in srgb, var(--red) 10%, transparent);--border-red:color-mix(in srgb, var(--red) 25%, transparent);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1e1e24;--border:rgba(255,255,255,.07);--border-md:rgba(255,255,255,.12);--text:#f0f0f3;--text-2:#868690;--text-3:#7d7d85;--amber:#f59e0b;--green:#22c55e;--purple:#a855f7;--blue:#60a5fa;--radius:14px;--radius-sm:10px;--font:'Montserrat', sans-serif;--sidebar-w:260px;--t:.2s;--ease:cubic-bezier(.4,0,.2,1)}
+:root[data-theme="light"]{--bg:#f6f7fb;--panel:#ffffff;--panel-2:#f2f4f8;--panel-3:#e9edf4;--border:#e3e6ee;--border-md:#d7dbe6;--border-red:color-mix(in srgb, var(--red) 18%, transparent);--text:#111217;--text-2:#5b6270;--text-3:#657080}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 
@@ -434,7 +435,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .sb-team-league{font-size:11px;color:var(--red);font-weight:600}
 .sb-nav{flex:1;padding:12px 10px 8px}
 .sb-section{font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-3);padding:12px 10px 5px}
-.sb-nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius-sm);color:var(--text-2);font-size:13px;font-weight:500;text-decoration:none;margin-bottom:2px;transition:all var(--t) var(--ease)}
+.sb-nav a { font-family:'Inter',sans-serif;display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:var(--radius-sm);color:var(--text-2);font-size:13px;font-weight:500;text-decoration:none;margin-bottom:2px;transition:all var(--t) var(--ease)}
 .sb-nav a i{font-size:15px;width:18px;text-align:center;flex-shrink:0}
 .sb-nav a:hover{background:var(--panel-2);color:var(--text)}
 .sb-nav a.active{background:var(--red-soft);color:var(--red);font-weight:600}
@@ -497,12 +498,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 /* Card */
 .league-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
 .league-header{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
-.league-badge{font-family:'Oswald',sans-serif;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;letter-spacing:.5px;flex-shrink:0}
+.league-badge{font-family:'Oswald',sans-serif;font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;letter-spacing:.5px;flex-shrink:0}
 .badge-ELITE{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.25)}
 .badge-NEXT{background:rgba(99,102,241,.12);color:#818cf8;border:1px solid rgba(99,102,241,.25)}
 .badge-RISE{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
 .badge-ROOKIE{background:rgba(168,85,247,.12);color:#c084fc;border:1px solid rgba(168,85,247,.25)}
-.copy-btn{margin-left:auto;background:var(--panel-2);border:1px solid var(--border-md);color:var(--text-3);border-radius:7px;padding:3px 9px;font-size:10px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .2s;white-space:nowrap;flex-shrink:0}
+.copy-btn{margin-left:auto;background:var(--panel-2);border:1px solid var(--border-md);color:var(--text-3);border-radius:7px;padding:4px 10px;font-size:10px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .2s;white-space:nowrap;flex-shrink:0}
 .copy-btn:hover{border-color:var(--red);color:var(--red)}
 
 /* Sub-section label inside card */
@@ -523,10 +524,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .rval.blue{color:var(--blue)}
 .rval.purple{color:var(--purple)}
 .divider{height:1px;background:var(--border);margin:2px 0}
-.rank-row.my-team{background:rgba(252,0,37,.10);border-left:3px solid var(--red)}
+.rank-row.my-team{background:color-mix(in srgb, var(--red) 10%, transparent);border-left:3px solid var(--red)}
 .rank-row.my-team .rname{color:#fff;font-weight:700}
 .rank-row.my-team .rn{color:var(--red)}
-.my-team-sep{height:1px;background:rgba(252,0,37,.2);margin:2px 0}
+.my-team-sep{height:1px;background:color-mix(in srgb, var(--red) 20%, transparent);margin:2px 0}
 .my-team-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--red);padding:5px 14px 2px}
 
 /* Pair rows */
@@ -535,69 +536,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .pair-names{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .pair-a{font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pair-b{font-size:11px;font-weight:500;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pair-row.my-team{background:rgba(252,0,37,.10);border-left:3px solid var(--red)}
+.pair-row.my-team{background:color-mix(in srgb, var(--red) 10%, transparent);border-left:3px solid var(--red)}
 .pair-row.my-team .pair-a{color:#fff;font-weight:700}
 .pair-row.my-team .rn{color:var(--red)}
 
 .empty-state{padding:16px 14px;font-size:11px;color:var(--text-3);text-align:center}
-</style>
+<?php include __DIR__ . '/includes/accent-color.php'; ?>
+    </style>
 </head>
 <body>
 
-<aside class="sidebar" id="sidebar">
-  <div class="sb-brand">
-    <div class="sb-logo">FBA</div>
-    <div class="sb-brand-text">FBA Manager<span>Liga <?= htmlspecialchars($user['league'] ?? '') ?></span></div>
-  </div>
-  <?php if ($myTeam): ?>
-  <div class="sb-team">
-    <img src="<?= htmlspecialchars($myTeam['photo_url'] ?? '/img/default-team.png') ?>" alt="" onerror="this.src='/img/default-team.png'">
-    <div>
-      <div class="sb-team-name"><?= htmlspecialchars($myTeamName) ?></div>
-      <div class="sb-team-league"><?= htmlspecialchars($user['league'] ?? '') ?></div>
-    </div>
-  </div>
-  <?php endif; ?>
-  <nav class="sb-nav">
-    <div class="sb-section">Principal</div>
-    <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
-    <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
-    <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
-    <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
-    <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
-    <a href="/trades.php"><i class="bi bi-arrow-left-right"></i> Trades</a>
-    <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
-    <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
-    <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
-    <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
-    <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
-    <div class="sb-section">Liga</div>
-    <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
-    <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
-    <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
-    <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
-    <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
-    <a href="/estatisticas.php" class="active"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
-    <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
-    <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
-    <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
-    <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
-    <div class="sb-section">Admin</div>
-    <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
-    <?php endif; ?>
-    <div class="sb-section">Conta</div>
-    <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
-    <a href="/team-public-page.php"><i class="bi bi-globe2"></i> Página do Time</a>
-  </nav>
-  <div class="sb-footer">
-    <img src="<?= htmlspecialchars(getUserPhoto($user['photo_url'] ?? null)) ?>"
-         alt="<?= htmlspecialchars($user['name']) ?>"
-         class="sb-avatar"
-         onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name']) ?>&background=1c1c21&color=fc0025'">
-    <span class="sb-username"><?= htmlspecialchars($user['name']) ?></span>
-    <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
-  </div>
-</aside>
+<?php include __DIR__ . '/includes/sidebar.php'; ?>
 
 <div class="sb-overlay" id="sbOverlay"></div>
 
@@ -804,7 +753,7 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
 echo '<div class="stats-flow" id="statsFlow">';
 echo '<div class="stats-flow-break"></div>';
 
-renderSection('playoffs', '🎯', 'rgba(252,0,37,.12)', 'Aparições no Playoff',
+renderSection('playoffs', '🎯', 'color-mix(in srgb, var(--red) 12%, transparent)', 'Aparições no Playoff',
     'Times que mais chegaram ao playoff',
     $playoffMap, $leagues, [
         'label_hi' => '🎯 Mais playoffs', 'label_lo' => '📉 Menos playoffs',
@@ -896,7 +845,7 @@ renderSection('draft-ovr', '📈', 'rgba(168,85,247,.10)', 'Aproveitamento do Dr
 
 
 
-renderSection('punicoes', '⚠️', 'rgba(252,0,37,.12)', 'Punições Recebidas',
+renderSection('punicoes', '⚠️', 'color-mix(in srgb, var(--red) 12%, transparent)', 'Punições Recebidas',
     'Times que mais receberam punições ativas na liga',
     $punicoesMap, $leagues, [
         'label_hi' => '⚠️ Mais punições', 'label_lo' => '✅ Menos punições',
@@ -1011,7 +960,7 @@ renderSection('rise-titulos', '🏆', 'rgba(251,191,36,.12)', 'Ranking de Títul
         'only_league' => 'RISE',
     ], $myTeamName);
 
-renderSection('rise-dinastia', '🔥', 'rgba(252,0,37,.12)', 'Maior Dinastia — Títulos Seguidos',
+renderSection('rise-dinastia', '🔥', 'color-mix(in srgb, var(--red) 12%, transparent)', 'Maior Dinastia — Títulos Seguidos',
     'Maior sequência de títulos consecutivos na história da RISE',
     ['RISE' => $riseHistory['dinastia']], ['RISE'], [
         'label_hi' => '🔥 Maior sequência', 'show_lo' => false,
@@ -1030,7 +979,7 @@ renderSection('rise-rivalidades', '⚔️', 'rgba(96,165,250,.12)', 'Maiores Riv
         'only_league' => 'RISE',
     ], $myTeamName);
 
-renderSection('rise-dominio', '💀', 'rgba(252,0,37,.10)', 'Domínio Total — Rivalidade Mais Desequilibrada',
+renderSection('rise-dominio', '💀', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Domínio Total — Rivalidade Mais Desequilibrada',
     'Maior saldo de vitórias em confrontos diretos (mínimo 3 jogos)',
     ['RISE' => $riseHistory['dominio']], ['RISE'], [
         'label_hi' => '💀 Maior domínio', 'show_lo' => false,
@@ -1087,7 +1036,7 @@ renderSection('rise-sweeps-dados', '🧹', 'rgba(34,197,94,.10)', 'Sweeps Aplica
         'only_league' => 'RISE',
     ], $myTeamName);
 
-renderSection('rise-sweeps-sofridos', '🧹', 'rgba(252,0,37,.10)', 'Sweeps Sofridos (0-4)',
+renderSection('rise-sweeps-sofridos', '🧹', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Sweeps Sofridos (0-4)',
     'Séries perdidas sem vencer um jogo sequer',
     ['RISE' => $riseHistory['sweeps_sofridos']], ['RISE'], [
         'label_hi' => '🧹 Mais sweeps sofridos', 'show_lo' => false,
@@ -1105,7 +1054,7 @@ renderSection('rise-jogo7', '🎬', 'rgba(251,191,36,.10)', 'Guerreiros do Jogo 
         'only_league' => 'RISE',
     ], $myTeamName);
 
-renderSection('trades-recusadas', '❌', 'rgba(252,0,37,.10)', 'Trades Recusadas',
+renderSection('trades-recusadas', '❌', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Trades Recusadas',
     'Times envolvidos no maior número de trades rejeitadas',
     $tradesRecusadasMap, $leagues, [
         'label_hi' => '❌ Mais recusadas', 'label_lo' => '✅ Menos recusadas',

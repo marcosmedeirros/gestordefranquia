@@ -150,29 +150,29 @@ try {
   <link rel="apple-touch-icon" href="/img/fba-logo.png?v=3">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/styles.css">
   <style>
     :root {
       --red:        #fc0025;
-      --red-2:      #ff2a44;
-      --red-soft:   rgba(252,0,37,.10);
-      --red-glow:   rgba(252,0,37,.18);
+      --red-2:      color-mix(in srgb, var(--red) 85%, white);
+      --red-soft:   color-mix(in srgb, var(--red) 10%, transparent);
+      --red-glow:   color-mix(in srgb, var(--red) 18%, transparent);
       --bg:         #07070a;
       --panel:      #101013;
       --panel-2:    #16161a;
       --panel-3:    #1c1c21;
       --border:     rgba(255,255,255,.06);
       --border-md:  rgba(255,255,255,.10);
-      --border-red: rgba(252,0,37,.22);
+      --border-red: color-mix(in srgb, var(--red) 22%, transparent);
       --text:       #f0f0f3;
       --text-2:     #868690;
-      --text-3:     #48484f;
+      --text-3:     #7d7d85;
       --green:      #22c55e;
       --amber:      #f59e0b;
       --blue:       #3b82f6;
       --sidebar-w:  260px;
-      --font:       'Poppins', sans-serif;
+      --font:       'Montserrat', sans-serif;
       --radius:     14px;
       --radius-sm:  10px;
       --radius-xs:  6px;
@@ -181,8 +181,8 @@ try {
     }
     :root[data-theme="light"] {
       --bg: #f6f7fb; --panel: #ffffff; --panel-2: #f2f4f8; --panel-3: #e9edf4;
-      --border: #e3e6ee; --border-md: #d7dbe6; --border-red: rgba(252,0,37,.18);
-      --text: #111217; --text-2: #5b6270; --text-3: #8b93a5;
+      --border: #e3e6ee; --border-md: #d7dbe6; --border-red: color-mix(in srgb, var(--red) 18%, transparent);
+      --text: #111217; --text-2: #5b6270; --text-3: #657080;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
@@ -210,13 +210,17 @@ try {
     .sidebar::-webkit-scrollbar { display: none; }
     .sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 299; }
     .sb-overlay.show, .sb-overlay.active { display: block; }
+    .sb-brand { padding: 22px 18px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+    .sb-logo { width: 34px; height: 34px; border-radius: 9px; background: var(--red); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #fff; flex-shrink: 0; }
+    .sb-brand-text { font-weight: 700; font-size: 15px; line-height: 1.1; }
+    .sb-brand-text span { display: block; font-size: 11px; font-weight: 400; color: var(--text-2); }
     .sb-team { margin: 14px 14px 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
     .sb-team img { width: 40px; height: 40px; border-radius: 9px; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
     .sb-team-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.2; }
     .sb-team-league { font-size: 11px; color: var(--red); font-weight: 600; }
     .sb-nav { flex: 1; padding: 12px 10px 8px; }
-    .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 5px; }
-    .sb-nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-weight: 500; text-decoration: none; margin-bottom: 2px; transition: all var(--t) var(--ease); }
+    .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 6px; }
+    .sb-nav a { font-family:'Inter',sans-serif; display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-weight: 500; text-decoration: none; margin-bottom: 2px; transition: all var(--t) var(--ease); }
     .sb-nav a i { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
     .sb-nav a:hover { background: var(--panel-2); color: var(--text); }
     .sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
@@ -258,10 +262,10 @@ try {
     .btn-r:disabled { opacity: .4; cursor: not-allowed; }
 
     /* Badge */
-    .tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .tag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
     .tag.gray  { background: var(--panel-3); color: var(--text-2); }
     .tag.green { background: rgba(34,197,94,.12); color: #22c55e; }
-    .tag.red   { background: rgba(252,0,37,.12); color: var(--red); }
+    .tag.red   { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); }
 
     /* Tabs */
     .nav-tabs { border-bottom: 1px solid var(--border); }
@@ -308,7 +312,7 @@ try {
     .pick-option-card {
       display: flex; justify-content: space-between; align-items: center;
       background: var(--panel-3); border: 1px solid var(--border);
-      border-radius: 8px; padding: 9px 12px;
+      border-radius: 8px; padding: 10px 12px;
       transition: border var(--t);
     }
     .pick-option-card:hover { border-color: var(--red); }
@@ -326,7 +330,7 @@ try {
     .selected-pick-actions { display: flex; gap: 8px; align-items: center; }
     .pick-protection-select {
       background: #fff; color: #000; border: 1px solid var(--red);
-      border-radius: 6px; padding: 5px 8px; min-width: 130px; font-size: 12px;
+      border-radius: 6px; padding: 6px 8px; min-width: 130px; font-size: 12px;
     }
     .pick-empty-state {
       text-align: center; padding: 12px;
@@ -337,7 +341,7 @@ try {
     /* Reaction chips */
     .reaction-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     .reaction-chip {
-      display: inline-flex; align-items: center; gap: 5px;
+      display: inline-flex; align-items: center; gap: 6px;
       padding: 4px 10px; border-radius: 999px;
       border: 1px solid var(--border); background: var(--panel-2);
       color: var(--text); font-size: 12px; cursor: pointer;
@@ -350,7 +354,7 @@ try {
     .team-chip {
       display: inline-flex; align-items: center; gap: 8px;
       background: var(--panel-2); border: 1px solid var(--border);
-      border-radius: 30px; padding: 5px 12px;
+      border-radius: 30px; padding: 6px 12px;
     }
     .team-chip-badge {
       width: 28px; height: 28px; border-radius: 50%;
@@ -360,13 +364,13 @@ try {
     }
 
     /* Trade value verdict badges */
-    .tv-verdict-badge{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+    .tv-verdict-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
     .tv-neutral{background:var(--panel-3);border:1px solid var(--border);color:var(--text-3)}
     .tv-valid{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#22c55e}
     .tv-warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--amber)}
-    .tv-invalid{background:rgba(252,0,37,.12);border:1px solid rgba(252,0,37,.3);color:var(--red)}
-    .tv-robbery{background:rgba(252,0,37,.20);border:2px solid rgba(252,0,37,.55);color:var(--red);animation:tv-pulse 1.2s ease-in-out infinite}
-    @keyframes tv-pulse{0%,100%{box-shadow:0 0 0 0 rgba(252,0,37,.4)}50%{box-shadow:0 0 0 6px rgba(252,0,37,0)}}
+    .tv-invalid{background:color-mix(in srgb, var(--red) 12%, transparent);border:1px solid color-mix(in srgb, var(--red) 30%, transparent);color:var(--red)}
+    .tv-robbery{background:color-mix(in srgb, var(--red) 20%, transparent);border:2px solid color-mix(in srgb, var(--red) 55%, transparent);color:var(--red);animation:tv-pulse 1.2s ease-in-out infinite}
+    @keyframes tv-pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--red) 40%, transparent)}50%{box-shadow:0 0 0 6px color-mix(in srgb, var(--red) 0%, transparent)}}
 
     /* CAP impact card */
     .cap-card {
@@ -382,7 +386,7 @@ try {
     }
     .tl-player-card:last-child { border-bottom: none; }
     .tl-player-card:hover { background: var(--panel-2); }
-    .tl-player-name { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+    .tl-player-name { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
     .tl-player-meta { font-size: 12px; color: var(--text-2); line-height: 1.5; }
     .tl-team-chip {
       display: inline-flex; align-items: center; gap: 6px;
@@ -404,11 +408,11 @@ try {
     .tc-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; overflow-wrap: break-word; word-break: break-word; }
     .tc-date { font-size: 12px; color: var(--text-2); }
     .tc-side-title { font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
-    .tc-item { font-size: 13px; color: var(--text); padding: 3px 0; display: flex; align-items: center; gap: 6px; }
+    .tc-item { font-size: 13px; color: var(--text); padding: 4px 0; display: flex; align-items: center; gap: 6px; }
     .tc-notes { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 10px 12px; margin-top: 12px; font-size: 13px; color: var(--text-2); }
     .tc-response-notes { background: var(--panel-2); border-left: 3px solid var(--amber); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; padding: 10px 12px; margin-top: 10px; }
     .tc-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-    .btn-r.sm { padding: 5px 12px; font-size: 12px; }
+    .btn-r.sm { padding: 6px 12px; font-size: 12px; }
     .tag.amber { background: rgba(245,158,11,.12); color: var(--amber); }
     .tag.blue  { background: rgba(59,130,246,.12); color: var(--blue); }
 
@@ -430,75 +434,14 @@ try {
       .tc { padding: 14px; }
       .tc-header { gap: 8px; }
     }
-  </style>
+  <?php include __DIR__ . '/includes/accent-color.php'; ?>
+    </style>
 </head>
 <body>
   <div class="app">
 
     <!-- ═══ SIDEBAR ════════════════════════════════════════════ -->
-    <aside class="sidebar" id="sidebar">
-
-        <?php if ($team): ?>
-        <div class="sb-team">
-            <img src="<?= htmlspecialchars($team['photo_url'] ?? '/img/default-team.png') ?>"
-                 alt="<?= htmlspecialchars(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')) ?>"
-                 onerror="this.src='/img/default-team.png'">
-            <div>
-                <div class="sb-team-name"><?= htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?></div>
-                <div class="sb-team-league"><?= htmlspecialchars($team['league'] ?? '') ?></div>
-            </div>
-        </div>
-        <?php endif; ?>
-
-        <nav class="sb-nav">
-            <div class="sb-section">Principal</div>
-            <a href="/dashboard.php"><i class="bi bi-house-door-fill"></i> Dashboard</a>
-            <a href="/teams.php"><i class="bi bi-people-fill"></i> Times</a>
-            <a href="/my-roster.php"><i class="bi bi-person-fill"></i> Meu Elenco</a>
-            <a href="/players.php"><i class="bi bi-person-lines-fill"></i> Jogadores</a>
-            <a href="/picks.php"><i class="bi bi-calendar-check-fill"></i> Picks</a>
-            <a href="/trades.php" class="active"><i class="bi bi-arrow-left-right"></i> Trades</a>
-            <a href="/mercado.php"><i class="bi bi-shop"></i> Mercado</a>
-            <a href="/free-agency.php"><i class="bi bi-coin"></i> Free Agency</a>
-            <a href="/leilao.php"><i class="bi bi-hammer"></i> Leilão</a>
-            <a href="/drafts.php"><i class="bi bi-trophy"></i> Draft</a>
-            <a href="/tapas.php"><i class="bi bi-hand-index-thumb"></i> Tapas</a>
-
-            <div class="sb-section">Liga</div>
-            <a href="/rankings.php"><i class="bi bi-bar-chart-fill"></i> Rankings</a>
-            <a href="/history.php"><i class="bi bi-clock-history"></i> Histórico</a>
-            <a href="/hall-da-fama.php"><i class="bi bi-award-fill"></i> Hall da Fama</a>
-            <a href="/diretrizes.php"><i class="bi bi-clipboard-data"></i> Diretrizes</a>
-            <a href="/mundo-fba.php"><i class="bi bi-globe2"></i> Mundo FBA</a>
-            <a href="/estatisticas.php"><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
-            <a href="/ouvidoria.php"><i class="bi bi-chat-dots"></i> Ouvidoria</a>
-            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
-            <a href="/thepathetic.php"><i class="bi bi-newspaper"></i> The Pathetic</a>
-
-            <?php if (hasAdminAccess($pdo, (int)$user['id'])): ?>
-            <div class="sb-section">Admin</div>
-            <a href="/admin.php"><i class="bi bi-shield-lock-fill"></i> Admin</a>
-
-            <?php endif; ?>
-
-            <div class="sb-section">Conta</div>
-            <a href="/settings.php"><i class="bi bi-gear-fill"></i> Minha Conta</a>
-        </nav>
-
-        <button class="sb-theme-toggle" type="button" id="themeToggle" data-theme-toggle>
-            <i class="bi bi-moon"></i>
-            <span>Modo escuro</span>
-        </button>
-
-        <div class="sb-footer">
-            <img src="<?= htmlspecialchars($user['photo_url'] ?? '/img/default-avatar.png') ?>"
-                 alt="<?= htmlspecialchars($user['name'] ?? '') ?>"
-                 class="sb-avatar"
-                 onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($user['name'] ?? 'U') ?>&background=1c1c21&color=fc0025'">
-            <span class="sb-username"><?= htmlspecialchars($user['name'] ?? '') ?></span>
-            <a href="/logout.php" class="sb-logout" title="Sair"><i class="bi bi-box-arrow-right"></i></a>
-        </div>
-    </aside>
+    <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
     <!-- Overlay mobile -->
     <div class="sb-overlay" id="sbOverlay"></div>
@@ -757,7 +700,7 @@ try {
             <div class="mb-3">
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <label class="form-label mb-0">Itens da troca</label>
-                <button type="button" class="btn-r secondary" style="padding:5px 10px;font-size:12px" id="addMultiTradeItemBtn">
+                <button type="button" class="btn-r secondary" style="padding:6px 10px;font-size:12px" id="addMultiTradeItemBtn">
                   <i class="bi bi-plus-lg"></i>Adicionar item
                 </button>
               </div>

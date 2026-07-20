@@ -17,7 +17,7 @@
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 	<link rel="stylesheet" href="/css/styles.css" />
 
@@ -30,8 +30,18 @@
 			--border: rgba(255,255,255,.08);
 			--text: #f2f2f5;
 			--text-2: #8c8c98;
-			--font: 'Poppins', sans-serif;
+			--font: 'Montserrat', sans-serif;
 		}
+		:root[data-theme="light"] {
+			--bg: #f6f7fb;
+			--panel: #ffffff;
+			--panel-2: #f2f4f8;
+			--border: #e3e6ee;
+			--text: #111217;
+			--text-2: #5b6270;
+		}
+
+		.text-danger { color: var(--red) !important; }
 
 		html, body { min-height: 100%; }
 		body {
@@ -39,8 +49,8 @@
 			font-family: var(--font);
 			color: var(--text);
 			background:
-				radial-gradient(900px 460px at 15% 10%, rgba(252,0,37,.16), transparent 55%),
-				radial-gradient(900px 460px at 85% 95%, rgba(252,0,37,.09), transparent 55%),
+				radial-gradient(900px 460px at 15% 10%, color-mix(in srgb, var(--red) 16%, transparent), transparent 55%),
+				radial-gradient(900px 460px at 85% 95%, color-mix(in srgb, var(--red) 9%, transparent), transparent 55%),
 				var(--bg);
 		}
 
@@ -69,7 +79,7 @@
 			display: flex;
 			flex-direction: column;
 			justify-content: center;
-			background: linear-gradient(180deg, rgba(252,0,37,.08), transparent 45%);
+			background: linear-gradient(180deg, color-mix(in srgb, var(--red) 8%, transparent), transparent 45%);
 		}
 		.brand-logo { max-width: 340px; width: 100%; height: auto; }
 		.brand-title { margin: 14px 0 0; font-size: 34px; font-weight: 800; line-height: 1.05; }
@@ -103,13 +113,13 @@
 		}
 		.form-head h2 { margin: 0; font-size: 20px; font-weight: 800; }
 		.badge-red {
-			border: 1px solid rgba(252,0,37,.3);
-			background: rgba(252,0,37,.12);
+			border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+			background: color-mix(in srgb, var(--red) 12%, transparent);
 			color: var(--red);
 			border-radius: 999px;
 			font-size: 11px;
 			font-weight: 700;
-			padding: 5px 10px;
+			padding: 6px 10px;
 		}
 
 		.form-label {
@@ -130,7 +140,7 @@
 		}
 		.form-control:focus {
 			border-color: var(--red) !important;
-			box-shadow: 0 0 0 .2rem rgba(252,0,37,.15) !important;
+			box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--red) 15%, transparent) !important;
 		}
 
 		.btn-main {

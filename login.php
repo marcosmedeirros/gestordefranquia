@@ -25,14 +25,14 @@
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 	<link rel="stylesheet" href="/css/styles.css" />
 
 	<style>
 		:root {
 			--red: #fc0025;
-			--red-2: #ff2a44;
+			--red-2: color-mix(in srgb, var(--red) 85%, white);
 			--bg: #07070a;
 			--panel: #101013;
 			--panel-2: #16161a;
@@ -40,18 +40,29 @@
 			--border: rgba(255,255,255,.08);
 			--text: #f0f0f3;
 			--text-2: #8d8d98;
-			--font: 'Poppins', sans-serif;
+			--font: 'Montserrat', sans-serif;
 			--radius: 16px;
 			--radius-sm: 10px;
 		}
+		:root[data-theme="light"] {
+			--bg: #f6f7fb;
+			--panel: #ffffff;
+			--panel-2: #f2f4f8;
+			--panel-3: #e9edf4;
+			--border: #e3e6ee;
+			--text: #111217;
+			--text-2: #5b6270;
+		}
+
+		.text-danger { color: var(--red) !important; }
 
 		html, body { min-height: 100%; }
 		body {
 			margin: 0;
 			font-family: var(--font);
 			background:
-				radial-gradient(1200px 500px at 12% 8%, rgba(252,0,37,.16), transparent 55%),
-				radial-gradient(1000px 420px at 88% 90%, rgba(252,0,37,.08), transparent 55%),
+				radial-gradient(1200px 500px at 12% 8%, color-mix(in srgb, var(--red) 16%, transparent), transparent 55%),
+				radial-gradient(1000px 420px at 88% 90%, color-mix(in srgb, var(--red) 8%, transparent), transparent 55%),
 				var(--bg);
 			color: var(--text);
 		}
@@ -135,11 +146,11 @@
 		}
 		.auth-head h2 { margin: 0; font-size: 18px; font-weight: 800; }
 		.chip {
-			border: 1px solid rgba(252,0,37,.3);
+			border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
 			color: var(--red);
-			background: rgba(252,0,37,.10);
+			background: color-mix(in srgb, var(--red) 10%, transparent);
 			border-radius: 999px;
-			padding: 5px 10px;
+			padding: 6px 10px;
 			font-size: 11px;
 			font-weight: 700;
 		}
@@ -164,7 +175,7 @@
 		}
 		.form-control:focus, .form-select:focus {
 			border-color: var(--red) !important;
-			box-shadow: 0 0 0 .2rem rgba(252,0,37,.15) !important;
+			box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--red) 15%, transparent) !important;
 		}
 		.form-control::placeholder { color: #6d6d78; }
 

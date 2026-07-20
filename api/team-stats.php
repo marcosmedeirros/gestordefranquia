@@ -54,7 +54,7 @@ foreach ($standingsRaw as $r) {
 }
 
 // ── 5. Picks trocadas ────────────────────────────────────────────
-$stmtPicks = $pdo->prepare("SELECT COUNT(*) AS traded FROM picks WHERE original_team_id != current_team_id AND (original_team_id = ? OR current_team_id = ?)");
+$stmtPicks = $pdo->prepare("SELECT COUNT(*) AS traded FROM picks WHERE original_team_id != team_id AND (original_team_id = ? OR team_id = ?)");
 $stmtPicks->execute([$teamId, $teamId]);
 $picksOwned = $stmtPicks->fetch(PDO::FETCH_ASSOC);
 
@@ -94,6 +94,7 @@ $stmtSeasons->execute([$teamId]);
 $seasonsList = $stmtSeasons->fetchAll(PDO::FETCH_ASSOC);
 
 $avgByYear = [];
+$bestSeasonMeta = null;
 foreach ($seasonsList as $sv) {
     $sTop = $pdo->prepare("SELECT ovr, age FROM player_season_log WHERE team_id = ? AND season_id = ? AND ovr > 0 ORDER BY ovr DESC LIMIT 5");
     $sTop->execute([$teamId, $sv['season_id']]);
@@ -102,6 +103,131 @@ foreach ($seasonsList as $sv) {
     $avgOvr = round(array_sum(array_column($rows, 'ovr')) / count($rows), 1);
     $avgAge = round(array_sum(array_column($rows, 'age')) / count($rows), 1);
     $avgByYear[] = ['year' => $sv['year'], 'players' => count($rows), 'avg_ovr' => $avgOvr, 'avg_age' => $avgAge];
+    if ($bestSeasonMeta === null || $avgOvr > $bestSeasonMeta['avg_ovr']) {
+        $bestSeasonMeta = ['season_id' => $sv['season_id'], 'year' => $sv['year'], 'avg_ovr' => $avgOvr];
+    }
+}
+
+// ── 7c. Melhor elenco já montado (temporada com maior OVR médio dos top 5) ──
+$bestRoster = null;
+if ($bestSeasonMeta) {
+    try {
+        $sBR = $pdo->prepare("SELECT player_name, position, ovr, age FROM player_season_log WHERE team_id = ? AND season_id = ? AND ovr > 0 ORDER BY ovr DESC LIMIT 8");
+        $sBR->execute([$teamId, $bestSeasonMeta['season_id']]);
+        $bestRoster = [
+            'year'    => $bestSeasonMeta['year'] !== null ? (int)$bestSeasonMeta['year'] : null,
+            'avg_ovr' => $bestSeasonMeta['avg_ovr'],
+            'players' => $sBR->fetchAll(PDO::FETCH_ASSOC),
+        ];
+    } catch (Exception $e) { $bestRoster = null; }
+}
+
+// ── 7b. Posição final por temporada (season_standings) ───────────
+$positionsByYear = [];
+try {
+    if ($pdo->query("SHOW TABLES LIKE 'season_standings'")->fetch()) {
+        $hasConf = (bool)$pdo->query("SHOW COLUMNS FROM season_standings LIKE 'conference'")->fetch();
+        $confCol = $hasConf ? 'ss.conference' : 'NULL AS conference';
+        $sPos = $pdo->prepare("
+            SELECT ss.position, {$confCol}, s.year, s.season_number
+            FROM season_standings ss
+            JOIN seasons s ON s.id = ss.season_id
+            WHERE ss.team_id = ?
+            ORDER BY s.year ASC, s.season_number ASC
+        ");
+        $sPos->execute([$teamId]);
+        foreach ($sPos->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $positionsByYear[] = [
+                'year'       => $r['year'] !== null ? (int)$r['year'] : null,
+                'season_number' => $r['season_number'] !== null ? (int)$r['season_number'] : null,
+                'position'   => (int)$r['position'],
+                'conference' => $r['conference'],
+                'made_playoffs' => (int)$r['position'] <= 8,
+            ];
+        }
+    }
+} catch (Exception $e) { $positionsByYear = []; }
+
+// ── 7d. Trades por ciclo ─────────────────────────────────────────
+$tradesByCycle = [];
+try {
+    $sTC = $pdo->prepare("
+        SELECT COALESCE(cycle, 0) AS cycle, COUNT(*) AS total
+        FROM trades
+        WHERE status = 'accepted' AND (from_team_id = ? OR to_team_id = ?)
+        GROUP BY COALESCE(cycle, 0)
+        ORDER BY cycle ASC
+    ");
+    $sTC->execute([$teamId, $teamId]);
+    foreach ($sTC->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $tradesByCycle[] = ['cycle' => (int)$r['cycle'], 'total' => (int)$r['total']];
+    }
+} catch (Exception $e) { $tradesByCycle = []; }
+
+// ── 7e. Trades por time parceiro ─────────────────────────────────
+$tradesByPartner = [];
+try {
+    $sTP = $pdo->prepare("
+        SELECT other.id AS team_id, CONCAT(other.city, ' ', other.name) AS team_name,
+               other.photo_url, COUNT(*) AS total
+        FROM trades tr
+        JOIN teams other ON other.id = CASE WHEN tr.from_team_id = ? THEN tr.to_team_id ELSE tr.from_team_id END
+        WHERE tr.status = 'accepted' AND (tr.from_team_id = ? OR tr.to_team_id = ?)
+        GROUP BY other.id, other.city, other.name, other.photo_url
+        ORDER BY total DESC, team_name ASC
+    ");
+    $sTP->execute([$teamId, $teamId, $teamId]);
+    foreach ($sTP->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $tradesByPartner[] = [
+            'team_id'   => (int)$r['team_id'],
+            'team_name' => $r['team_name'],
+            'photo_url' => $r['photo_url'],
+            'total'     => (int)$r['total'],
+        ];
+    }
+} catch (Exception $e) { $tradesByPartner = []; }
+
+// ── 7f. Estatísticas comparativas da liga (mesmas métricas do estatisticas.php) ──
+// Para cada métrica: valor do time + posição dele entre os times da mesma liga.
+$leagueStats = [];
+$teamLeague = $team['league'] ?? null;
+if ($teamLeague) {
+    $metricQueries = [
+        'drafted' => "SELECT t.id, COUNT(p.id) AS val FROM teams t
+                      LEFT JOIN players p ON p.drafted_by_team_id = t.id
+                      WHERE t.league = ? GROUP BY t.id",
+        'turnover' => "SELECT t.id, COUNT(DISTINCT psl.player_id) AS val FROM teams t
+                       LEFT JOIN player_season_log psl ON psl.team_id = t.id
+                       WHERE t.league = ? GROUP BY t.id",
+        'fa' => "SELECT t.id, COUNT(far.id) AS val FROM teams t
+                 LEFT JOIN fa_requests far ON far.winner_team_id = t.id AND far.status = 'assigned'
+                 WHERE t.league = ? GROUP BY t.id",
+        'avg_age' => "SELECT t.id, ROUND(AVG(p.age), 1) AS val FROM teams t
+                      LEFT JOIN players p ON p.team_id = t.id
+                      WHERE t.league = ? GROUP BY t.id",
+        'avg_ovr' => "SELECT t.id, ROUND(AVG(p.ovr), 1) AS val FROM teams t
+                      LEFT JOIN players p ON p.team_id = t.id
+                      WHERE t.league = ? GROUP BY t.id",
+    ];
+    foreach ($metricQueries as $key => $sql) {
+        try {
+            $st = $pdo->prepare($sql);
+            $st->execute([$teamLeague]);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+            if (!$rows) continue;
+            // ordenar desc para achar a posição do time
+            usort($rows, static fn($a, $b) => (float)$b['val'] <=> (float)$a['val']);
+            $value = null; $rank = null;
+            foreach ($rows as $i => $r) {
+                if ((int)$r['id'] === $teamId) { $value = $r['val']; $rank = $i + 1; break; }
+            }
+            $leagueStats[$key] = [
+                'value' => $value !== null ? (float)$value : null,
+                'rank'  => $rank,
+                'total' => count($rows),
+            ];
+        } catch (Exception $e) { /* métrica indisponível */ }
+    }
 }
 
 // ── 8. Prêmios individuais ───────────────────────────────────────
@@ -176,6 +302,11 @@ echo json_encode([
         'top4' => $top4Regular,
         'top8' => $top8Regular,
     ],
+    'positions' => $positionsByYear,
+    'best_roster' => $bestRoster,
+    'trades_by_cycle' => $tradesByCycle,
+    'trades_by_partner' => $tradesByPartner,
+    'league_stats' => $leagueStats,
     'picks'    => [
         'traded' => (int)($picksOwned['traded'] ?? 0),
     ],

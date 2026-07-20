@@ -100,31 +100,43 @@ function getOvrColor($ovr) {
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="FBA Manager">
     <link rel="apple-touch-icon" href="/img/fba-logo.png?v=3">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         /* ── Tokens ──────────────────────────────────── */
         :root {
             --red:        #fc0025;
-            --red-soft:   rgba(252,0,37,.10);
+            --red-soft:   color-mix(in srgb, var(--red) 10%, transparent);
             --bg:         #07070a;
             --panel:      #101013;
             --panel-2:    #16161a;
             --panel-3:    #1c1c21;
             --border:     rgba(255,255,255,.06);
             --border-md:  rgba(255,255,255,.10);
-            --border-red: rgba(252,0,37,.22);
+            --border-red: color-mix(in srgb, var(--red) 22%, transparent);
             --text:       #f0f0f3;
             --text-2:     #868690;
-            --text-3:     #48484f;
+            --text-3:     #7d7d85;
             --green:      #22c55e;
             --amber:      #f59e0b;
-            --font:       'Poppins', sans-serif;
+            --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
             --ease:       cubic-bezier(.2,.8,.2,1);
             --t:          200ms;
+        }
+        :root[data-theme="light"] {
+            --bg:         #f6f7fb;
+            --panel:      #ffffff;
+            --panel-2:    #f2f4f8;
+            --panel-3:    #e9edf4;
+            --border:     #e3e6ee;
+            --border-md:  #d7dbe6;
+            --border-red: color-mix(in srgb, var(--red) 18%, transparent);
+            --text:       #111217;
+            --text-2:     #5b6270;
+            --text-3:     #657080;
         }
         *, *::before, *::after { box-sizing: border-box; }
         html, body { height: 100%; }
@@ -151,7 +163,7 @@ function getOvrColor($ovr) {
 
         /* ── Page header ──────────────────────────────── */
         .page-head { margin-bottom: 22px; }
-        .page-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--red); margin-bottom: 5px; }
+        .page-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--red); margin-bottom: 6px; }
         .page-title { font-size: 1.5rem; font-weight: 800; margin-bottom: 4px; }
         .page-sub { font-size: 13px; color: var(--text); }
 
@@ -167,7 +179,7 @@ function getOvrColor($ovr) {
         /* ── Search / Filter ─────────────────────────── */
         .search-input, .filter-select {
             background: var(--panel-2); border: 1px solid var(--border-md);
-            border-radius: 8px; padding: 9px 12px;
+            border-radius: 8px; padding: 10px 12px;
             color: var(--text); font-family: var(--font); font-size: 13px;
             outline: none; transition: border-color var(--t) var(--ease); width: 100%;
         }
@@ -218,6 +230,9 @@ function getOvrColor($ovr) {
             .data-table th:nth-child(5),
             .data-table td:nth-child(5) { display: none; }
         }
+    input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
+     (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
+    <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
 <body>
