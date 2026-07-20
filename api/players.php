@@ -255,7 +255,7 @@ if ($method === 'GET') {
     // Query simples e direta
     $sql = "SELECT * FROM players";
     $params = [];
-    
+
     if ($teamId) {
         $sql .= ' WHERE team_id = ?';
         $params[] = $teamId;
@@ -266,6 +266,45 @@ if ($method === 'GET') {
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Pedigree de draft (usado pela avaliação de trade): em que pick o
+        // jogador foi escolhido. Uma consulta só para todos os jogadores.
+        if ($players) {
+            try {
+                $ids = array_map(static fn($p) => (int)$p['id'], $players);
+                $in = implode(',', array_fill(0, count($ids), '?'));
+                // O pick pode estar no draft de temporada (draft_order) ou no
+                // draft inicial da liga (initdraft_order) — os dois contam.
+                $stmtD = $pdo->prepare("
+                    SELECT picked_player_id, MIN(pick_position) AS pick_position, MIN(round) AS round
+                    FROM (
+                        SELECT picked_player_id, pick_position, round FROM draft_order
+                        WHERE picked_player_id IN ($in)
+                        UNION ALL
+                        SELECT picked_player_id, pick_position, round FROM initdraft_order
+                        WHERE picked_player_id IN ($in)
+                    ) d
+                    GROUP BY picked_player_id
+                ");
+                $stmtD->execute(array_merge($ids, $ids));
+                $draftMap = [];
+                foreach ($stmtD->fetchAll(PDO::FETCH_ASSOC) as $d) {
+                    $draftMap[(int)$d['picked_player_id']] = [
+                        'pick' => (int)$d['pick_position'],
+                        'round' => (int)$d['round'],
+                    ];
+                }
+                foreach ($players as &$p) {
+                    $d = $draftMap[(int)$p['id']] ?? null;
+                    $p['draft_pick']  = $d['pick']  ?? null;
+                    $p['draft_round'] = $d['round'] ?? null;
+                }
+                unset($p);
+            } catch (Exception $e) {
+                foreach ($players as &$p) { $p['draft_pick'] = null; $p['draft_round'] = null; }
+                unset($p);
+            }
+        }
 
         // Computa cap_bonus_eligible para ligas RISE (draft_pool = draft de temporadas)
         if ($teamId) {

@@ -506,6 +506,7 @@ body{overflow-x:hidden}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/trade-value.js?v=20260716"></script>
 <script>
 const IS_PROPOSE = <?= $propose ? 'true' : 'false' ?>;
 const CAP_MIN    = <?= $capMin ?>;
@@ -1145,20 +1146,9 @@ function setSimSwapRole(toKey, itemId, role) {
 }
 
 // ── Trade Value Metric ────────────────────────────────────────────────────────
+// Modelo compartilhado com a página de trades — ver js/trade-value.js.
 function calcItemValue(item) {
-  const ovr = +(item.ovr || 0);
-  const age = +(item.age || 25);
-  if (ovr > 0) {
-    let val = ovr;
-    if (age <= 22)       val += 18;
-    else if (age <= 25)  val += 12;
-    else if (age <= 28)  val += 6;
-    else if (age <= 31)  val += 0;
-    else if (age <= 33)  val -= 8;
-    else                 val -= 16;
-    return Math.max(1, val);
-  }
-  return (+(item.round || 2) === 1) ? 60 : 30;
+  return window.TradeValue ? window.TradeValue.itemValue(item) : 0;
 }
 
 function calcTeamOffersValue(fromKey) {
@@ -1172,14 +1162,11 @@ function calcTeamOffersValue(fromKey) {
 
 function tradeVerdict(values) {
   const nonZero = values.filter(v => v > 0);
-  if (nonZero.length < 2) return { label: 'AGUARDANDO', cls: 'neutral', icon: 'hourglass-split', hint: 'adicione itens para avaliar' };
-  const max = Math.max(...values), min = Math.min(...values);
-  if (max === 0) return { label: 'AGUARDANDO', cls: 'neutral', icon: 'hourglass-split', hint: 'adicione itens' };
-  const diff = (max - min) / max;
-  if (diff <= 0.08) return { label: 'TROCA JUSTA', cls: 'valid', icon: 'check-circle-fill', hint: 'valores equivalentes' };
-  if (diff <= 0.18) return { label: 'LEVEMENTE DESIGUAL', cls: 'warn', icon: 'exclamation-triangle-fill', hint: 'pequena diferença' };
-  if (diff <= 0.32) return { label: 'DESEQUILIBRADA', cls: 'invalid', icon: 'x-octagon-fill', hint: 'diferença significativa' };
-  return { label: 'ISSO É UM ROUBO!', cls: 'robbery', icon: 'emoji-dizzy-fill', hint: 'grande desequilíbrio' };
+  if (nonZero.length < 2 || !window.TradeValue) {
+    return { label: 'AGUARDANDO', cls: 'neutral', icon: 'hourglass-split', hint: 'adicione itens para avaliar' };
+  }
+  const v = window.TradeValue.verdict(Math.max(...values), Math.min(...values));
+  return { label: v.label, cls: v.key, icon: v.icon, hint: v.title };
 }
 
 function updateValueBar() {

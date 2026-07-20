@@ -1,18 +1,8 @@
 // ── Trade Value Metric ────────────────────────────────────────────────────────
+// O modelo de avaliação vive em js/trade-value.js (compartilhado com o
+// simulador). Aqui fica só a ponte, para não duplicar a fórmula.
 function calcItemValue(item) {
-  const ovr = +(item.ovr || 0);
-  const age = +(item.age || 25);
-  if (ovr > 0) {
-    let val = ovr;
-    if (age <= 22)       val += 18;
-    else if (age <= 25)  val += 12;
-    else if (age <= 28)  val += 6;
-    else if (age <= 31)  val += 0;
-    else if (age <= 33)  val -= 8;
-    else                 val -= 16;
-    return Math.max(1, val);
-  }
-  return (+(item.round || 2) === 1) ? 60 : 30;
+  return window.TradeValue ? window.TradeValue.itemValue(item) : 0;
 }
 
 function updateTradeValueDisplay() {
@@ -28,31 +18,33 @@ function updateTradeValueDisplay() {
   const targetEl = document.getElementById('tvTargetValue');
   const verdictEl = document.getElementById('tvVerdict');
 
-  if (myEl)     myEl.textContent     = myValue     || '—';
-  if (targetEl) targetEl.textContent = targetValue || '—';
+  // Valores arredondados só na exibição — a conta continua com casas decimais.
+  if (myEl)     myEl.textContent     = myValue     ? Math.round(myValue)     : '—';
+  if (targetEl) targetEl.textContent = targetValue ? Math.round(targetValue) : '—';
   if (!verdictEl) return;
 
-  const total = myValue + targetValue;
-  if (total === 0) {
-    verdictEl.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-    verdictEl.className = 'tv-verdict-badge tv-neutral';
+  const v = window.TradeValue
+    ? window.TradeValue.verdict(myValue, targetValue)
+    : { key: 'neutral', label: '', title: '', icon: 'hourglass-split' };
+
+  verdictEl.innerHTML = `<i class="bi bi-${v.icon}"></i>${v.label}`;
+  verdictEl.className = `tv-verdict-badge tv-${v.key}`;
+
+  // Explica o porquê: quem está levando vantagem e o peso de cada peça.
+  if (v.key === 'neutral') {
     verdictEl.title = 'Aguardando itens';
-    return;
+  } else {
+    const detalhe = (items) => items
+      .map(i => `${i.name || 'Pick'} (${Math.round(window.TradeValue.itemValue(i))}) — ${window.TradeValue.explain(i)}`)
+      .join('\n');
+    const ladoForte = myValue > targetValue ? 'Você está oferecendo mais valor'
+                    : targetValue > myValue ? 'Você está recebendo mais valor'
+                    : 'Lados equivalentes';
+    verdictEl.title =
+      `${v.title}\n${ladoForte}\n\n` +
+      `VOCÊ OFERECE (${Math.round(myValue)}):\n${detalhe([...offerPlayers, ...offerPicks]) || '—'}\n\n` +
+      `VOCÊ RECEBE (${Math.round(targetValue)}):\n${detalhe([...requestPlayers, ...requestPicks]) || '—'}`;
   }
-
-  const max = Math.max(myValue, targetValue);
-  const min = Math.min(myValue, targetValue);
-  const diff = max > 0 ? (max - min) / max : 0;
-
-  let icon, label, cls, title;
-  if (diff <= 0.08)       { icon = 'check-circle-fill';        label = 'JUSTA';     cls = 'tv-valid';   title = 'Troca Justa'; }
-  else if (diff <= 0.18)  { icon = 'exclamation-triangle-fill';label = 'DESIGUAL';  cls = 'tv-warn';    title = 'Levemente Desigual'; }
-  else if (diff <= 0.32)  { icon = 'x-octagon-fill';           label = 'DESEQ.';   cls = 'tv-invalid'; title = 'Desequilibrada'; }
-  else                    { icon = 'emoji-dizzy-fill';          label = 'ROUBO!';   cls = 'tv-robbery'; title = 'Isso é um Roubo!'; }
-
-  verdictEl.innerHTML = `<i class="bi bi-${icon}"></i>${label}`;
-  verdictEl.className = `tv-verdict-badge ${cls}`;
-  verdictEl.title = title;
 }
 
 const api = async (path, options = {}) => {

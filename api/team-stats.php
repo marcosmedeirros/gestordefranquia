@@ -128,8 +128,14 @@ try {
     if ($pdo->query("SHOW TABLES LIKE 'season_standings'")->fetch()) {
         $hasConf = (bool)$pdo->query("SHOW COLUMNS FROM season_standings LIKE 'conference'")->fetch();
         $confCol = $hasConf ? 'ss.conference' : 'NULL AS conference';
+        // conference_size = quantos times havia naquela conferência/temporada,
+        // usado para escalar o eixo do gráfico de posições.
+        $sizeExpr = $hasConf
+            ? "(SELECT COUNT(*) FROM season_standings ss2 WHERE ss2.season_id = ss.season_id AND ss2.conference <=> ss.conference)"
+            : "(SELECT COUNT(*) FROM season_standings ss2 WHERE ss2.season_id = ss.season_id)";
         $sPos = $pdo->prepare("
-            SELECT ss.position, {$confCol}, s.year, s.season_number
+            SELECT ss.position, {$confCol}, s.year, s.season_number,
+                   {$sizeExpr} AS conference_size
             FROM season_standings ss
             JOIN seasons s ON s.id = ss.season_id
             WHERE ss.team_id = ?
@@ -142,6 +148,7 @@ try {
                 'season_number' => $r['season_number'] !== null ? (int)$r['season_number'] : null,
                 'position'   => (int)$r['position'],
                 'conference' => $r['conference'],
+                'conference_size' => isset($r['conference_size']) ? (int)$r['conference_size'] : null,
                 'made_playoffs' => (int)$r['position'] <= 8,
             ];
         }

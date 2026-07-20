@@ -137,16 +137,49 @@ $team = $stmtTeam->fetch() ?: null;
         /* ── Content ─────────────────────────────────── */
         .content { padding: 20px 32px 48px; flex: 1; }
 
-        /* ── Settings grid ───────────────────────────── */
-        .settings-grid {
+        /* ── Layout em seções ────────────────────────── */
+        .settings-layout {
             display: grid;
-            grid-template-columns: 1fr 360px;
-            gap: 16px;
+            grid-template-columns: 244px minmax(0, 1fr);
+            gap: 24px;
             align-items: start;
             max-width: 1100px;
         }
-        .settings-main { display: flex; flex-direction: column; gap: 16px; }
-        .settings-side  { display: flex; flex-direction: column; gap: 16px; }
+
+        /* Menu de seções (sticky no desktop) */
+        .settings-nav {
+            display: flex; flex-direction: column; gap: 4px;
+            position: sticky; top: 24px;
+        }
+        .snav-item {
+            display: flex; align-items: center; gap: 12px; width: 100%;
+            padding: 11px 12px; border-radius: var(--radius-sm);
+            background: transparent; border: 1px solid transparent;
+            color: var(--text-2); cursor: pointer; text-align: left;
+            font-family: var(--font); transition: all var(--t) var(--ease);
+        }
+        .snav-item:hover { background: var(--panel); color: var(--text); }
+        .snav-item.active {
+            background: var(--panel); border-color: var(--border-red); color: var(--text);
+        }
+        .snav-ico {
+            width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; font-size: 14px;
+            background: var(--panel-2); border: 1px solid var(--border);
+            color: var(--text-3); transition: all var(--t) var(--ease);
+        }
+        .snav-item.active .snav-ico,
+        .snav-item:hover .snav-ico { background: var(--red-soft); border-color: var(--border-red); color: var(--red); }
+        .snav-txt { display: flex; flex-direction: column; min-width: 0; }
+        .snav-label { font-size: 13px; font-weight: 600; line-height: 1.2; }
+        .snav-desc { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+        .snav-item.active .snav-desc { color: var(--text-2); }
+
+        /* Painel: uma seção por vez */
+        .settings-panel { min-width: 0; }
+        .ssec { display: none; flex-direction: column; gap: 16px; }
+        .ssec.active { display: flex; animation: ssecIn .22s var(--ease) both; }
+        @keyframes ssecIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
         /* ── Card (bc pattern from dashboard) ────────── */
         .bc {
@@ -256,8 +289,22 @@ $team = $stmtTeam->fetch() ?: null;
 
         /* ── Responsive ──────────────────────────────── */
         @media (max-width: 1024px) {
-            .settings-grid { grid-template-columns: 1fr; }
-            .settings-side  { grid-row: auto; }
+            /* Menu vira faixa horizontal de chips acima do conteúdo */
+            .settings-layout { grid-template-columns: 1fr; gap: 16px; }
+            .settings-nav {
+                position: static; flex-direction: row; gap: 8px;
+                overflow-x: auto; padding-bottom: 4px;
+                scrollbar-width: none; -webkit-overflow-scrolling: touch;
+            }
+            .settings-nav::-webkit-scrollbar { display: none; }
+            .snav-item {
+                flex-direction: column; align-items: center; gap: 6px;
+                width: auto; flex: 0 0 auto; min-width: 86px;
+                padding: 10px 14px; background: var(--panel);
+                border-color: var(--border);
+            }
+            .snav-desc { display: none; }
+            .snav-label { font-size: 12px; white-space: nowrap; }
         }
         @media (max-width: 992px) {
             .main { margin-left: 0; padding-top: 54px; }
@@ -316,11 +363,30 @@ $team = $stmtTeam->fetch() ?: null;
 
         <!-- Content -->
         <div class="content">
-            <div class="settings-grid">
+            <div class="settings-layout">
 
-                <!-- ═══ COLUNA PRINCIPAL ═══════════════════ -->
-                <div class="settings-main">
+                <nav class="settings-nav" id="settingsNav" aria-label="Seções da conta">
+                    <button type="button" class="snav-item active" data-sec="perfil">
+                        <span class="snav-ico"><i class="bi bi-person-fill"></i></span>
+                        <span class="snav-txt"><span class="snav-label">Perfil</span><span class="snav-desc">Nome, foto e contato</span></span>
+                    </button>
+                    <button type="button" class="snav-item" data-sec="aparencia">
+                        <span class="snav-ico"><i class="bi bi-palette-fill"></i></span>
+                        <span class="snav-txt"><span class="snav-label">Aparência</span><span class="snav-desc">Cor e atalhos</span></span>
+                    </button>
+                    <button type="button" class="snav-item" data-sec="time">
+                        <span class="snav-ico"><i class="bi bi-trophy-fill"></i></span>
+                        <span class="snav-txt"><span class="snav-label">Meu Time</span><span class="snav-desc">Escudo e cabeçalho</span></span>
+                    </button>
+                    <button type="button" class="snav-item" data-sec="seguranca">
+                        <span class="snav-ico"><i class="bi bi-shield-lock-fill"></i></span>
+                        <span class="snav-txt"><span class="snav-label">Segurança</span><span class="snav-desc">Senha de acesso</span></span>
+                    </button>
+                </nav>
 
+                <div class="settings-panel">
+
+                    <section class="ssec active" id="sec-perfil">
                     <!-- ── Meu Perfil ──────────────────────── -->
                     <div class="bc">
                         <div class="bc-head">
@@ -379,7 +445,9 @@ $team = $stmtTeam->fetch() ?: null;
                             </form>
                         </div>
                     </div>
+                    </section>
 
+                    <section class="ssec" id="sec-aparencia">
                     <!-- ── Aparência ────────────────────────── -->
                     <div class="bc">
                         <div class="bc-head">
@@ -433,7 +501,9 @@ $team = $stmtTeam->fetch() ?: null;
                             </form>
                         </div>
                     </div>
+                    </section>
 
+                    <section class="ssec" id="sec-time">
                     <!-- ── Meu Time ────────────────────────── -->
                     <?php if ($team): ?>
                     <div class="bc">
@@ -525,39 +595,6 @@ $team = $stmtTeam->fetch() ?: null;
                     </div>
                     <?php endif; ?>
 
-                </div><!-- /settings-main -->
-
-                <!-- ═══ COLUNA LATERAL ════════════════════ -->
-                <div class="settings-side">
-
-                    <!-- ── Alterar Senha ───────────────────── -->
-                    <div class="bc">
-                        <div class="bc-head">
-                            <div class="bc-icon"><i class="bi bi-shield-lock-fill"></i></div>
-                            <div>
-                                <div class="bc-title">Alterar Senha</div>
-                                <div class="bc-sub">Troque sua senha de acesso</div>
-                            </div>
-                        </div>
-                        <div class="bc-body">
-                            <form id="form-password">
-                                <div class="fg">
-                                    <label class="fl">Senha atual</label>
-                                    <input type="password" name="current_password" class="fi" required placeholder="••••••••">
-                                </div>
-                                <div class="fg">
-                                    <label class="fl">Nova senha</label>
-                                    <input type="password" name="new_password" class="fi" required placeholder="••••••••">
-                                </div>
-                                <div class="btn-row" style="margin-top:14px;">
-                                    <button type="button" class="btn-ghost" id="btn-change-password">
-                                        <i class="bi bi-key-fill"></i> Alterar Senha
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-
                     <!-- ── Cabeçalho Personalizado ─────────── -->
                     <?php if ($team): ?>
                     <div class="bc">
@@ -591,10 +628,40 @@ $team = $stmtTeam->fetch() ?: null;
                         </div>
                     </div>
                     <?php endif; ?>
+                    </section>
 
-                </div><!-- /settings-side -->
+                    <section class="ssec" id="sec-seguranca">
+                    <!-- ── Alterar Senha ───────────────────── -->
+                    <div class="bc">
+                        <div class="bc-head">
+                            <div class="bc-icon"><i class="bi bi-shield-lock-fill"></i></div>
+                            <div>
+                                <div class="bc-title">Alterar Senha</div>
+                                <div class="bc-sub">Troque sua senha de acesso</div>
+                            </div>
+                        </div>
+                        <div class="bc-body">
+                            <form id="form-password">
+                                <div class="fg">
+                                    <label class="fl">Senha atual</label>
+                                    <input type="password" name="current_password" class="fi" required placeholder="••••••••">
+                                </div>
+                                <div class="fg">
+                                    <label class="fl">Nova senha</label>
+                                    <input type="password" name="new_password" class="fi" required placeholder="••••••••">
+                                </div>
+                                <div class="btn-row" style="margin-top:14px;">
+                                    <button type="button" class="btn-ghost" id="btn-change-password">
+                                        <i class="bi bi-key-fill"></i> Alterar Senha
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    </section>
 
-            </div><!-- /settings-grid -->
+                </div><!-- /settings-panel -->
+            </div><!-- /settings-layout -->
         </div><!-- /content -->
     </main>
 </div><!-- /app -->
@@ -604,6 +671,30 @@ $team = $stmtTeam->fetch() ?: null;
 <script src="/js/pwa.js"></script>
 <script>
 (function () {
+    // Navegação por seções (Perfil / Aparência / Meu Time / Segurança).
+    // O hash na URL permite link direto, ex: /settings.php#aparencia
+    const nav = document.getElementById('settingsNav');
+    if (nav) {
+        const items = Array.from(nav.querySelectorAll('.snav-item'));
+        const secoes = Array.from(document.querySelectorAll('.ssec'));
+        const mostrar = (chave, atualizarHash) => {
+            const alvo = document.getElementById('sec-' + chave);
+            if (!alvo) return false;
+            secoes.forEach(s => s.classList.toggle('active', s === alvo));
+            items.forEach(b => b.classList.toggle('active', b.dataset.sec === chave));
+            if (atualizarHash) history.replaceState(null, '', '#' + chave);
+            return true;
+        };
+        items.forEach(b => b.addEventListener('click', () => mostrar(b.dataset.sec, true)));
+        // Abre a seção do hash, se houver e for válida
+        const inicial = (location.hash || '').replace('#', '');
+        if (inicial) mostrar(inicial, false);
+        window.addEventListener('hashchange', () => {
+            const h = (location.hash || '').replace('#', '');
+            if (h) mostrar(h, false);
+        });
+    }
+
     // Sidebar toggle
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sbOverlay');

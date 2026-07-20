@@ -88,6 +88,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .skeleton{background:linear-gradient(90deg,var(--panel-2) 25%,var(--panel-3) 50%,var(--panel-2) 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:8px}
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .empty{text-align:center;padding:24px;color:var(--text-3);font-size:13px}
+.pos-chart{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px 6px;margin-bottom:14px}
+.ver-todos-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:10px;padding:9px 12px;border-radius:8px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
+.ver-todos-btn:hover{border-color:var(--border-red);color:var(--red);background:var(--red-soft)}
 @media(max-width:640px){.two-col{grid-template-columns:1fr}.stats-grid{grid-template-columns:repeat(2,1fr)}.hero-name{font-size:18px}}
 
 /* -- Layout com menu lateral -- */
@@ -384,6 +387,62 @@ async function load(){
       </table></div>`
     : '<div class="empty">Nenhum histórico ainda</div>';
 
+  // ── Gráfico de posições (SVG inline, eixo Y invertido: 1º no topo) ──
+  function renderPositionChart(pos) {
+    const W = 660, H = 230;
+    const padL = 30, padR = 16, padT = 16, padB = 30;
+    const n = pos.length;
+    // escala do eixo Y = tamanho da conferência (quantos times disputavam)
+    const maxPos = Math.max(
+      ...pos.map(p => p.conference_size || 0),
+      ...pos.map(p => p.position),
+      10
+    );
+    const innerW = W - padL - padR, innerH = H - padT - padB;
+    const x = i => n === 1 ? padL + innerW / 2 : padL + (i * innerW) / (n - 1);
+    const y = p => padT + ((p - 1) / (maxPos - 1)) * innerH;
+
+    const yPlayoff = y(8);
+    const zonaPlayoff = maxPos > 8
+      ? `<rect x="${padL}" y="${padT}" width="${innerW}" height="${yPlayoff - padT}"
+             fill="var(--red)" opacity=".07"></rect>
+         <line x1="${padL}" y1="${yPlayoff}" x2="${W - padR}" y2="${yPlayoff}"
+             stroke="var(--red)" stroke-width="1" stroke-dasharray="4 4" opacity=".5"></line>
+         <text x="${W - padR}" y="${yPlayoff - 5}" text-anchor="end"
+             font-size="9" fill="var(--red)" opacity=".8" font-weight="700">ZONA DE PLAYOFF</text>`
+      : '';
+
+    // linhas de referência: 1º e último
+    const eixoY = [1, maxPos].map(p => `
+      <line x1="${padL}" y1="${y(p)}" x2="${W - padR}" y2="${y(p)}" stroke="var(--border)" stroke-width="1"></line>
+      <text x="${padL - 6}" y="${y(p) + 3}" text-anchor="end" font-size="9" fill="var(--text-3)">${p}º</text>`).join('');
+
+    const linha = n > 1
+      ? `<polyline fill="none" stroke="var(--red)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"
+              points="${pos.map((p, i) => `${x(i)},${y(p.position)}`).join(' ')}"></polyline>`
+      : '';
+
+    const pontos = pos.map((p, i) => {
+      const primeiro = p.position === 1;
+      const cor = primeiro ? 'var(--amber)' : (p.made_playoffs ? 'var(--red)' : 'var(--text-3)');
+      const anoLbl = p.year ?? (p.season_number ? 'T' + p.season_number : '');
+      return `
+        <circle cx="${x(i)}" cy="${y(p.position)}" r="${primeiro ? 6 : 4.5}"
+                fill="${cor}" stroke="var(--panel)" stroke-width="2">
+          <title>${anoLbl}: ${p.position}º de ${p.conference_size || maxPos}${primeiro ? ' — 1º da conferência' : (p.made_playoffs ? ' — playoffs' : ' — fora dos playoffs')}</title>
+        </circle>
+        <text x="${x(i)}" y="${y(p.position) - 11}" text-anchor="middle" font-size="10"
+              font-weight="700" fill="${cor}">${p.position}º</text>
+        <text x="${x(i)}" y="${H - 10}" text-anchor="middle" font-size="9" fill="var(--text-3)">${anoLbl}</text>`;
+    }).join('');
+
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="auto"
+                 style="display:block;max-height:240px;overflow:visible" role="img"
+                 aria-label="Gráfico de posição por temporada">
+        ${zonaPlayoff}${eixoY}${linha}${pontos}
+      </svg>`;
+  }
+
   // ── Posição por Temporada ──
   if (positions && positions.length > 0) {
     document.getElementById('positions-panel').style.display = 'block';
@@ -405,7 +464,8 @@ async function load(){
       </div>`;
     };
     document.getElementById('positions-content').innerHTML =
-      `<div style="display:flex;gap:10px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:thin">${positions.map(posBadge).join('')}</div>
+      `<div class="pos-chart">${renderPositionChart(positions)}</div>
+       <div style="display:flex;gap:10px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:thin">${positions.map(posBadge).join('')}</div>
        <div style="font-size:11px;color:var(--text-3);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">
          <span><i class="bi bi-trophy-fill" style="color:var(--amber)"></i> 1º da conferência</span>
          <span><span style="color:var(--red);font-weight:700">PO</span> Zona de playoffs (top 8)</span>
@@ -447,18 +507,33 @@ async function load(){
       </div>`).join('');
   }
 
-  // ── Trades por time parceiro ──
+  // ── Trades por time parceiro (mostra 8, com opção de ver todos) ──
   if (tradesByPartner.length) {
     document.getElementById('partner-panel').style.display = 'block';
-    document.getElementById('partner-content').innerHTML = tradesByPartner.slice(0, 8).map(p => `
+    const LIMITE = 8;
+    const linhaParceiro = p => `
       <div class="row">
         <div style="display:flex;align-items:center;gap:8px;min-width:0">
           <img src="${esc(p.photo_url || '/img/default-team.png')}" alt="" style="width:24px;height:24px;border-radius:6px;object-fit:cover;flex-shrink:0" onerror="this.src='/img/default-team.png'">
           <span style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.team_name)}</span>
         </div>
         <span class="row-val" style="font-size:15px;color:var(--red)">${p.total}</span>
-      </div>`).join('')
-      + (tradesByPartner.length > 8 ? `<div style="font-size:11px;color:var(--text-3);padding-top:8px">+ ${tradesByPartner.length - 8} outros times</div>` : '');
+      </div>`;
+    const alvo = document.getElementById('partner-content');
+    let expandido = false;
+    const desenhar = () => {
+      const lista = expandido ? tradesByPartner : tradesByPartner.slice(0, LIMITE);
+      const restantes = tradesByPartner.length - LIMITE;
+      alvo.innerHTML = lista.map(linhaParceiro).join('')
+        + (restantes > 0 ? `
+          <button type="button" id="partner-toggle" class="ver-todos-btn">
+            <i class="bi bi-chevron-${expandido ? 'up' : 'down'}"></i>
+            ${expandido ? 'Ver menos' : `Ver todos os ${tradesByPartner.length} times`}
+          </button>` : '');
+      const btn = document.getElementById('partner-toggle');
+      if (btn) btn.addEventListener('click', () => { expandido = !expandido; desenhar(); });
+    };
+    desenhar();
   }
 
   // ── Estatísticas na liga ──
