@@ -535,14 +535,40 @@ async function load(){
         ${isFirst ? '<i class="bi bi-trophy-fill" style="font-size:10px;color:var(--amber)"></i>' : (top8 ? '<span style="font-size:8px;color:var(--red);font-weight:700;text-transform:uppercase;letter-spacing:.4px">PO</span>' : '<span style="font-size:8px;color:var(--text-3)">—</span>')}
       </div>`;
     };
+
+    const positionsTable = `<div style="overflow-x:auto;margin-top:12px">
+      <table class="year-table" style="min-width:100%">
+        <thead><tr><th>Temporada</th><th>Posição</th><th>Conferência</th><th>Playoffs</th></tr></thead>
+        <tbody>${positions.map(p => {
+          const yr = p.year ?? (p.season_number ? 'T'+p.season_number : '—');
+          const conf = p.conference ? (p.conference === 'LESTE' ? 'Leste' : 'Oeste') : '—';
+          const status = p.position === 1 ? '1º da conferência' : (p.made_playoffs ? 'Playoffs' : 'Fora dos playoffs');
+          return `<tr>
+            <td style="font-weight:700">${yr}</td>
+            <td><span style="font-family:'Oswald',sans-serif;font-size:14px;font-weight:700;color:${p.position === 1 ? 'var(--amber)' : 'var(--red)'}">${p.position}º</span></td>
+            <td style="color:var(--text-2)">${conf}</td>
+            <td style="color:var(--text-2)">${status}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`;
+
+    let chartHTML = '';
+    try {
+      chartHTML = `<div class="pos-chart">${renderPositionChart(positions)}</div>`;
+    } catch (err) {
+      chartHTML = '';
+    }
+
     document.getElementById('positions-content').innerHTML =
-      `<div class="pos-chart">${renderPositionChart(positions)}</div>
+      `${chartHTML || `<div class="empty" style="padding:16px 12px;margin-bottom:12px;border:1px dashed var(--border);border-radius:10px">Gráfico indisponível nesta tela, mas a classificação por temporada continua abaixo.</div>`}
        <div style="display:flex;gap:10px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:thin">${positions.map(posBadge).join('')}</div>
        <div class="positions-legend">
          <span><i class="bi bi-trophy-fill" style="color:var(--amber)"></i> 1º da conferência</span>
          <span><span style="color:var(--red);font-weight:700">PO</span> Zona de playoffs (top 8)</span>
          <span>L/O = Leste / Oeste</span>
-       </div>`;
+       </div>
+       ${positionsTable}`;
   }
 
   // ── Melhor elenco já montado ──

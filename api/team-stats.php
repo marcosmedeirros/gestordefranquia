@@ -183,15 +183,43 @@ try {
         GROUP BY other.id, other.city, other.name, other.photo_url
         ORDER BY total DESC, team_name ASC
     ");
+    $stmtLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $stmtLeague->execute([$teamId]);
+    $league = $stmtLeague->fetchColumn();
+
+    $teamRows = [];
+    if ($league) {
+        $stmtTeams = $pdo->prepare("SELECT id AS team_id, CONCAT(city, ' ', name) AS team_name, photo_url FROM teams WHERE league = ? AND id <> ? ORDER BY city ASC, name ASC");
+        $stmtTeams->execute([$league, $teamId]);
+        $teamRows = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    $countByTeam = [];
+    $sTP = $pdo->prepare("
+        SELECT other.id AS team_id, COUNT(*) AS total
+        FROM trades tr
+        JOIN teams other ON other.id = CASE WHEN tr.from_team_id = ? THEN tr.to_team_id ELSE tr.from_team_id END
+        WHERE tr.status = 'accepted' AND (tr.from_team_id = ? OR tr.to_team_id = ?)
+        GROUP BY other.id
+    ");
     $sTP->execute([$teamId, $teamId, $teamId]);
     foreach ($sTP->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $countByTeam[(int)$r['team_id']] = (int)$r['total'];
+    }
+
+    foreach ($teamRows as $r) {
+        $tid = (int)$r['team_id'];
         $tradesByPartner[] = [
-            'team_id'   => (int)$r['team_id'],
+            'team_id'   => $tid,
             'team_name' => $r['team_name'],
             'photo_url' => $r['photo_url'],
-            'total'     => (int)$r['total'],
+            'total'     => $countByTeam[$tid] ?? 0,
         ];
     }
+    usort($tradesByPartner, static function(array $a, array $b): int {
+        if ($a['total'] !== $b['total']) return $b['total'] <=> $a['total'];
+        return strcmp($a['team_name'], $b['team_name']);
+    });
 } catch (Exception $e) { $tradesByPartner = []; }
 
 // ── 7f. Estatísticas comparativas da liga (mesmas métricas do estatisticas.php) ──
