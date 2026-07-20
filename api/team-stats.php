@@ -155,23 +155,58 @@ try {
     }
 } catch (Exception $e) { $positionsByYear = []; }
 
-// ── 7d. Trades por ciclo ─────────────────────────────────────────
+// ── 7d. Trades por ciclo (trades simples + multi-trades) ─────────
+// multi_trades só passou a registrar o ciclo depois desta atualização;
+// trocas multi-time antigas caem no grupo "cycle = null" (sem ciclo
+// conhecido) em vez de serem contadas erradas ou descartadas.
 $tradesByCycle = [];
 try {
+    // PHP converte chave de array null em "" — usamos um sentinel numérico
+    // interno pro grupo "sem ciclo" e só voltamos a null na saída.
+    $SEM_CICLO = -1;
+    $cycleCounts = [];
     $sTC = $pdo->prepare("
-        SELECT COALESCE(cycle, 0) AS cycle, COUNT(*) AS total
+        SELECT cycle, COUNT(*) AS total
         FROM trades
         WHERE status = 'accepted' AND (from_team_id = ? OR to_team_id = ?)
-        GROUP BY COALESCE(cycle, 0)
-        ORDER BY cycle ASC
+        GROUP BY cycle
     ");
     $sTC->execute([$teamId, $teamId]);
     foreach ($sTC->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $tradesByCycle[] = ['cycle' => (int)$r['cycle'], 'total' => (int)$r['total']];
+        $key = $r['cycle'] !== null ? (int)$r['cycle'] : $SEM_CICLO;
+        $cycleCounts[$key] = ($cycleCounts[$key] ?? 0) + (int)$r['total'];
+    }
+
+    $hasMultiCycle = (bool)$pdo->query("SHOW COLUMNS FROM multi_trades LIKE 'cycle'")->fetch();
+    $cycleCol = $hasMultiCycle ? 'mt.cycle' : 'NULL';
+    $sMTC = $pdo->prepare("
+        SELECT {$cycleCol} AS cycle, COUNT(*) AS total
+        FROM multi_trades mt
+        JOIN multi_trade_teams mtt ON mtt.trade_id = mt.id
+        WHERE mt.status = 'accepted' AND mtt.team_id = ?
+        GROUP BY {$cycleCol}
+    ");
+    $sMTC->execute([$teamId]);
+    foreach ($sMTC->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $key = $r['cycle'] !== null ? (int)$r['cycle'] : $SEM_CICLO;
+        $cycleCounts[$key] = ($cycleCounts[$key] ?? 0) + (int)$r['total'];
+    }
+
+    ksort($cycleCounts);
+    // "sem ciclo" vai pro fim da lista em vez de ficar antes do ciclo 1
+    if (array_key_exists($SEM_CICLO, $cycleCounts)) {
+        $semCiclo = $cycleCounts[$SEM_CICLO];
+        unset($cycleCounts[$SEM_CICLO]);
+        $cycleCounts[$SEM_CICLO] = $semCiclo;
+    }
+    foreach ($cycleCounts as $cycle => $total) {
+        $tradesByCycle[] = ['cycle' => ($cycle === $SEM_CICLO ? null : $cycle), 'total' => $total];
     }
 } catch (Exception $e) { $tradesByCycle = []; }
 
-// ── 7e. Trades por time parceiro ─────────────────────────────────
+// ── 7e. Trades por time parceiro (trades simples + multi-trades) ──
+// Numa multi-trade com 3+ times, cada outro participante conta como
+// parceiro — o time negociou com todos eles naquele evento.
 $tradesByPartner = [];
 try {
     $stmtLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
@@ -198,6 +233,20 @@ try {
         $countByTeam[(int)$r['team_id']] = (int)$r['total'];
     }
 
+    $sMTP = $pdo->prepare("
+        SELECT other.team_id AS team_id, COUNT(*) AS total
+        FROM multi_trade_teams mine
+        JOIN multi_trades mt ON mt.id = mine.trade_id AND mt.status = 'accepted'
+        JOIN multi_trade_teams other ON other.trade_id = mine.trade_id AND other.team_id <> mine.team_id
+        WHERE mine.team_id = ?
+        GROUP BY other.team_id
+    ");
+    $sMTP->execute([$teamId]);
+    foreach ($sMTP->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $tid = (int)$r['team_id'];
+        $countByTeam[$tid] = ($countByTeam[$tid] ?? 0) + (int)$r['total'];
+    }
+
     foreach ($teamRows as $r) {
         $tid = (int)$r['team_id'];
         $tradesByPartner[] = [
@@ -212,6 +261,32 @@ try {
         return strcmp($a['team_name'], $b['team_name']);
     });
 } catch (Exception $e) { $tradesByPartner = []; }
+
+// ── 7g. Hall dos aposentados ──────────────────────────────────────
+// Jogadores que passaram pelo time, bateram 86+ de OVR em ALGUM momento
+// (não precisa ser no fim da carreira) e hoje já saíram da liga de vez
+// (removidos da tabela players — não só trocados pra outro time).
+$retiredLegends = [];
+try {
+    $sRL = $pdo->prepare("
+        SELECT psl.player_id, psl.player_name, MAX(psl.ovr) AS peak_ovr,
+               MIN(psl.year) AS first_year, MAX(psl.year) AS last_year
+        FROM player_season_log psl
+        WHERE psl.team_id = ?
+          AND NOT EXISTS (SELECT 1 FROM players p WHERE p.id = psl.player_id)
+        GROUP BY psl.player_id, psl.player_name
+        HAVING peak_ovr >= 86
+        ORDER BY peak_ovr DESC
+    ");
+    $sRL->execute([$teamId]);
+    $retiredLegends = $sRL->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($retiredLegends as &$rl) {
+        $rl['peak_ovr'] = (int)$rl['peak_ovr'];
+        $rl['first_year'] = $rl['first_year'] !== null ? (int)$rl['first_year'] : null;
+        $rl['last_year'] = $rl['last_year'] !== null ? (int)$rl['last_year'] : null;
+    }
+    unset($rl);
+} catch (Exception $e) { $retiredLegends = []; }
 
 // ── 7f. Estatísticas comparativas da liga (mesmas métricas do estatisticas.php) ──
 // Para cada métrica: valor do time + posição dele entre os times da mesma liga.
@@ -332,6 +407,7 @@ echo json_encode([
     'best_roster' => $bestRoster,
     'trades_by_cycle' => $tradesByCycle,
     'trades_by_partner' => $tradesByPartner,
+    'retired_legends' => $retiredLegends,
     'league_stats' => $leagueStats,
     'picks'    => [
         'traded' => (int)($picksOwned['traded'] ?? 0),

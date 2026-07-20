@@ -271,6 +271,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <div id="best-roster-content"></div>
   </div>
 
+  <div class="panel" id="legends-panel" style="display:none">
+    <div class="section-title"><i class="bi bi-star-fill" style="color:var(--amber)"></i> Hall dos Aposentados <span style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0">(bateram 86+ de OVR alguma vez e já saíram da liga)</span></div>
+    <div id="legends-content"></div>
+  </div>
+
   <div class="panel">
     <div class="section-title"><i class="bi bi-arrow-left-right"></i> Trades</div>
     <div class="history-accordion">
@@ -362,7 +367,8 @@ async function load(){
 
   const { team, seasons, playoffs, regular, picks, trades, players, drafted, awards, gm, positions } = data;
   const bestRoster = data.best_roster, tradesByCycle = data.trades_by_cycle || [],
-        tradesByPartner = data.trades_by_partner || [], leagueStats = data.league_stats || {};
+        tradesByPartner = data.trades_by_partner || [], leagueStats = data.league_stats || {},
+        retiredLegends = data.retired_legends || [];
 
   document.querySelectorAll('.history-acc-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -589,6 +595,31 @@ async function load(){
           </div>`).join('')}
       </div>
       <div style="font-size:11px;color:var(--text-3);margin-top:10px">Destacados = os 5 que definiram a média da temporada.</div>`;
+  }
+
+  // ── Hall dos aposentados ──
+  // Jogadores que já passaram pelo time, bateram 86+ de OVR em algum momento
+  // (não precisa ter sido no fim da carreira) e já saíram da liga de vez.
+  if (retiredLegends.length) {
+    document.getElementById('legends-panel').style.display = 'block';
+    document.getElementById('legends-content').innerHTML =
+      `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px">
+        ${retiredLegends.map(p => {
+          const periodo = p.first_year && p.last_year
+            ? (p.first_year === p.last_year ? p.first_year : `${p.first_year}–${p.last_year}`)
+            : '';
+          return `
+          <div style="display:flex;align-items:center;gap:10px;background:var(--panel-2);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:10px 12px">
+            <i class="bi bi-star-fill" style="color:var(--amber);font-size:14px;flex-shrink:0"></i>
+            <div style="min-width:0;flex:1">
+              <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.player_name)}</div>
+              ${periodo ? `<div style="font-size:10px;color:var(--text-3)">${periodo}</div>` : ''}
+            </div>
+            <span style="font-family:'Oswald',sans-serif;font-size:16px;font-weight:800;color:var(--amber)">${p.peak_ovr}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:10px">OVR = o pico que o jogador atingiu enquanto esteve no time, não o valor no momento em que saiu.</div>`;
   }
 
   // ── Trades por ciclo ──

@@ -1231,6 +1231,15 @@ function runMigrations() {
         $errors[] = "ajuste_users_appearance: " . $e->getMessage();
     }
 
+    try {
+        $hasMultiTradeCycle = $pdo->query("SHOW COLUMNS FROM multi_trades LIKE 'cycle'")->fetch();
+        if (!$hasMultiTradeCycle) {
+            $pdo->exec("ALTER TABLE multi_trades ADD COLUMN cycle INT NULL AFTER league");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_multi_trades_cycle: " . $e->getMessage();
+    }
+
     return [
         'success' => count($errors) === 0,
         'executed' => $executed,

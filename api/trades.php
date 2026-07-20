@@ -1529,8 +1529,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'force_
         $pdo->beginTransaction();
 
         $creatorId = $teams[0];
-        $pdo->prepare('INSERT INTO multi_trades (league, created_by_team_id, notes, status) VALUES (?, ?, ?, ?)')
-            ->execute([$league, $creatorId, $notes, 'pending']);
+        if (!columnExists($pdo, 'multi_trades', 'cycle')) {
+            $pdo->exec('ALTER TABLE multi_trades ADD COLUMN cycle INT NULL AFTER league');
+        }
+        $stmtForceCycle = $pdo->prepare('SELECT current_cycle FROM teams WHERE id = ?');
+        $stmtForceCycle->execute([$creatorId]);
+        $forceCycle = $stmtForceCycle->fetchColumn();
+        $forceCycle = $forceCycle !== false ? (int)$forceCycle : null;
+
+        $pdo->prepare('INSERT INTO multi_trades (league, created_by_team_id, notes, status, cycle) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$league, $creatorId, $notes, 'pending', $forceCycle]);
         $forceTradeId = (int)$pdo->lastInsertId();
 
         $stmtFT = $pdo->prepare('INSERT INTO multi_trade_teams (trade_id, team_id, accepted_at) VALUES (?, ?, NOW())');
@@ -2092,8 +2100,19 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
 
         $pdo->beginTransaction();
 
-        $stmtTrade = $pdo->prepare('INSERT INTO multi_trades (league, created_by_team_id, notes) VALUES (?, ?, ?)');
-        $stmtTrade->execute([$league, $teamId, $notes]);
+        // Ciclo da liga no momento da troca (usado pra "Trades por Ciclo" no
+        // histórico do time). current_cycle é sincronizado por liga, então
+        // qualquer time participante serve de referência.
+        if (!columnExists($pdo, 'multi_trades', 'cycle')) {
+            $pdo->exec('ALTER TABLE multi_trades ADD COLUMN cycle INT NULL AFTER league');
+        }
+        $stmtCycle = $pdo->prepare('SELECT current_cycle FROM teams WHERE id = ?');
+        $stmtCycle->execute([$teamId]);
+        $tradeCycle = $stmtCycle->fetchColumn();
+        $tradeCycle = $tradeCycle !== false ? (int)$tradeCycle : null;
+
+        $stmtTrade = $pdo->prepare('INSERT INTO multi_trades (league, created_by_team_id, notes, cycle) VALUES (?, ?, ?, ?)');
+        $stmtTrade->execute([$league, $teamId, $notes, $tradeCycle]);
         $tradeId = (int)$pdo->lastInsertId();
 
         $stmtTeam = $pdo->prepare('INSERT INTO multi_trade_teams (trade_id, team_id) VALUES (?, ?)');
