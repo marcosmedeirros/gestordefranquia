@@ -174,15 +174,6 @@ try {
 // ── 7e. Trades por time parceiro ─────────────────────────────────
 $tradesByPartner = [];
 try {
-    $sTP = $pdo->prepare("
-        SELECT other.id AS team_id, CONCAT(other.city, ' ', other.name) AS team_name,
-               other.photo_url, COUNT(*) AS total
-        FROM trades tr
-        JOIN teams other ON other.id = CASE WHEN tr.from_team_id = ? THEN tr.to_team_id ELSE tr.from_team_id END
-        WHERE tr.status = 'accepted' AND (tr.from_team_id = ? OR tr.to_team_id = ?)
-        GROUP BY other.id, other.city, other.name, other.photo_url
-        ORDER BY total DESC, team_name ASC
-    ");
     $stmtLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
     $stmtLeague->execute([$teamId]);
     $league = $stmtLeague->fetchColumn();
