@@ -89,9 +89,56 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .empty{text-align:center;padding:24px;color:var(--text-3);font-size:13px}
 .pos-chart{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px 6px;margin-bottom:14px}
+.pos-chart svg .pos-line{stroke-dasharray:900;stroke-dashoffset:900;animation:lineDraw 1.15s ease forwards}
+.pos-chart svg .pos-dot{opacity:0;transform-box:fill-box;transform-origin:center;animation:dotPop .45s ease forwards}
+.pos-chart svg .pos-dot-label{opacity:0;animation:fadeInUp .45s ease forwards}
+@keyframes lineDraw{to{stroke-dashoffset:0}}
+@keyframes dotPop{0%{opacity:0;transform:scale(.55)}70%{opacity:1;transform:scale(1.08)}100%{opacity:1;transform:scale(1)}}
+@keyframes fadeInUp{0%{opacity:0;transform:translateY(4px)}100%{opacity:1;transform:translateY(0)}}
+.positions-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--text-3)}
+.positions-legend span{display:inline-flex;align-items:center;gap:5px}
+.history-accordion{display:flex;flex-direction:column;gap:10px}
+.history-acc-item{background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.history-acc-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:transparent;border:0;color:var(--text);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;text-align:left}
+.history-acc-toggle:hover{background:var(--red-soft)}
+.history-acc-title{display:flex;align-items:center;gap:10px;min-width:0}
+.history-acc-title i{color:var(--red);font-size:15px;flex-shrink:0}
+.history-acc-badge{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 8px;border-radius:999px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-2);font-size:11px;font-weight:800;flex-shrink:0}
+.history-acc-chevron{transition:transform var(--t) var(--ease);color:var(--text-2)}
+.history-acc-item.open .history-acc-chevron{transform:rotate(180deg)}
+.history-acc-body{display:none;padding:0 16px 16px}
+.history-acc-item.open .history-acc-body{display:block}
+.trade-panel{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px}
 .ver-todos-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:10px;padding:9px 12px;border-radius:8px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
 .ver-todos-btn:hover{border-color:var(--border-red);color:var(--red);background:var(--red-soft)}
-@media(max-width:640px){.two-col{grid-template-columns:1fr}.stats-grid{grid-template-columns:repeat(2,1fr)}.hero-name{font-size:18px}}
+@media(max-width:640px){
+  .content{padding:18px 12px 72px}
+  .panel{padding:16px 14px}
+  .two-col{grid-template-columns:1fr}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .hero{padding:18px}
+  .hero-name{font-size:18px}
+  .section-title{font-size:12px;line-height:1.25;flex-wrap:wrap}
+  .section-title span{display:block;width:100%}
+  .history-acc-toggle{padding:12px 12px}
+  .history-acc-body{padding:0 12px 12px}
+  .positions-legend{gap:10px;font-size:10px}
+  .pos-chart{padding:10px 10px 4px;overflow-x:auto}
+  .pos-chart svg{min-width:520px}
+  .year-table{font-size:11px}
+  .row{gap:10px}
+  .row-val{font-size:16px}
+}
+@media(max-width:430px){
+  .stats-grid{grid-template-columns:1fr}
+  .hero{gap:14px}
+  .hero-logo{width:60px;height:60px;border-radius:14px}
+  .history-acc-title{gap:8px}
+  .history-acc-badge{min-width:24px;height:24px;font-size:10px}
+  .trade-panel{padding:10px}
+  .positions-legend{flex-direction:column;align-items:flex-start;gap:6px}
+  .pos-chart svg{min-width:480px}
+}
 
 /* -- Layout com menu lateral -- */
     .app { display: flex; min-height: 100vh; }
@@ -224,14 +271,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <div id="best-roster-content"></div>
   </div>
 
-  <div class="two-col">
-    <div class="panel" id="cycle-panel" style="display:none;margin-bottom:0">
-      <div class="section-title"><i class="bi bi-arrow-repeat"></i> Trades por Ciclo</div>
-      <div id="cycle-content"></div>
-    </div>
-    <div class="panel" id="partner-panel" style="display:none;margin-bottom:0">
-      <div class="section-title"><i class="bi bi-people"></i> Trades por Time</div>
-      <div id="partner-content"></div>
+  <div class="panel">
+    <div class="section-title"><i class="bi bi-arrow-left-right"></i> Trades</div>
+    <div class="history-accordion">
+      <div class="history-acc-item open" id="cycle-acc-item" style="display:none">
+        <button type="button" class="history-acc-toggle" data-target="cycle-panel">
+          <span class="history-acc-title"><i class="bi bi-arrow-repeat"></i><span>Trades por Ciclo</span></span>
+          <span style="display:flex;align-items:center;gap:10px"><span class="history-acc-badge" id="cycle-count-badge">0</span><i class="bi bi-chevron-down history-acc-chevron"></i></span>
+        </button>
+        <div class="history-acc-body">
+          <div class="trade-panel" id="cycle-panel"><div id="cycle-content"></div></div>
+        </div>
+      </div>
+      <div class="history-acc-item" id="partner-acc-item" style="display:none">
+        <button type="button" class="history-acc-toggle" data-target="partner-panel">
+          <span class="history-acc-title"><i class="bi bi-people"></i><span>Trades por Time</span></span>
+          <span style="display:flex;align-items:center;gap:10px"><span class="history-acc-badge" id="partner-count-badge">0</span><i class="bi bi-chevron-down history-acc-chevron"></i></span>
+        </button>
+        <div class="history-acc-body">
+          <div class="trade-panel" id="partner-panel"><div id="partner-content"></div></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -303,6 +363,18 @@ async function load(){
   const { team, seasons, playoffs, regular, picks, trades, players, drafted, awards, gm, positions } = data;
   const bestRoster = data.best_roster, tradesByCycle = data.trades_by_cycle || [],
         tradesByPartner = data.trades_by_partner || [], leagueStats = data.league_stats || {};
+
+  document.querySelectorAll('.history-acc-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = btn.closest('.history-acc-item');
+      if (!item) return;
+      const isOpen = item.classList.contains('open');
+      document.querySelectorAll('.history-acc-item.open').forEach(openItem => {
+        if (openItem !== item) openItem.classList.remove('open');
+      });
+      item.classList.toggle('open', !isOpen);
+    });
+  });
 
   document.getElementById('hero-owner').textContent = team.owner_name ? `GM: ${team.owner_name}` : '';
 
@@ -418,7 +490,7 @@ async function load(){
       <text x="${padL - 6}" y="${y(p) + 3}" text-anchor="end" font-size="9" fill="var(--text-3)">${p}º</text>`).join('');
 
     const linha = n > 1
-      ? `<polyline fill="none" stroke="var(--red)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"
+            ? `<polyline class="pos-line" fill="none" stroke="var(--red)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"
               points="${pos.map((p, i) => `${x(i)},${y(p.position)}`).join(' ')}"></polyline>`
       : '';
 
@@ -427,13 +499,13 @@ async function load(){
       const cor = primeiro ? 'var(--amber)' : (p.made_playoffs ? 'var(--red)' : 'var(--text-3)');
       const anoLbl = p.year ?? (p.season_number ? 'T' + p.season_number : '');
       return `
-        <circle cx="${x(i)}" cy="${y(p.position)}" r="${primeiro ? 6 : 4.5}"
+          <circle class="pos-dot" style="animation-delay:${120 + i * 85}ms" cx="${x(i)}" cy="${y(p.position)}" r="${primeiro ? 6 : 4.5}"
                 fill="${cor}" stroke="var(--panel)" stroke-width="2">
           <title>${anoLbl}: ${p.position}º de ${p.conference_size || maxPos}${primeiro ? ' — 1º da conferência' : (p.made_playoffs ? ' — playoffs' : ' — fora dos playoffs')}</title>
         </circle>
-        <text x="${x(i)}" y="${y(p.position) - 11}" text-anchor="middle" font-size="10"
+          <text class="pos-dot-label" style="animation-delay:${180 + i * 85}ms" x="${x(i)}" y="${y(p.position) - 11}" text-anchor="middle" font-size="10"
               font-weight="700" fill="${cor}">${p.position}º</text>
-        <text x="${x(i)}" y="${H - 10}" text-anchor="middle" font-size="9" fill="var(--text-3)">${anoLbl}</text>`;
+          <text class="pos-dot-label" style="animation-delay:${220 + i * 85}ms" x="${x(i)}" y="${H - 10}" text-anchor="middle" font-size="9" fill="var(--text-3)">${anoLbl}</text>`;
     }).join('');
 
     return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="auto"
@@ -466,7 +538,7 @@ async function load(){
     document.getElementById('positions-content').innerHTML =
       `<div class="pos-chart">${renderPositionChart(positions)}</div>
        <div style="display:flex;gap:10px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:thin">${positions.map(posBadge).join('')}</div>
-       <div style="font-size:11px;color:var(--text-3);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">
+       <div class="positions-legend">
          <span><i class="bi bi-trophy-fill" style="color:var(--amber)"></i> 1º da conferência</span>
          <span><span style="color:var(--red);font-weight:700">PO</span> Zona de playoffs (top 8)</span>
          <span>L/O = Leste / Oeste</span>
@@ -495,7 +567,8 @@ async function load(){
 
   // ── Trades por ciclo ──
   if (tradesByCycle.length) {
-    document.getElementById('cycle-panel').style.display = 'block';
+    document.getElementById('cycle-acc-item').style.display = 'block';
+    document.getElementById('cycle-count-badge').textContent = tradesByCycle.reduce((acc, c) => acc + (c.total || 0), 0);
     const maxC = Math.max(...tradesByCycle.map(c => c.total), 1);
     document.getElementById('cycle-content').innerHTML = tradesByCycle.map(c => `
       <div style="display:flex;align-items:center;gap:10px;padding:6px 0">
@@ -509,7 +582,8 @@ async function load(){
 
   // ── Trades por time parceiro (mostra 8, com opção de ver todos) ──
   if (tradesByPartner.length) {
-    document.getElementById('partner-panel').style.display = 'block';
+    document.getElementById('partner-acc-item').style.display = 'block';
+    document.getElementById('partner-count-badge').textContent = tradesByPartner.length;
     const LIMITE = 8;
     const linhaParceiro = p => `
       <div class="row">
