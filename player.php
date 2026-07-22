@@ -71,6 +71,45 @@ try {
     $career = $stmtC->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 
+// ── Estatísticas por temporada ─────────────────────────
+$statsSeasons = [];
+$statsCarreira = null;
+try {
+    $stmtSt = $pdo->prepare("
+        SELECT ps.season_number, s.year, ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg,
+               ps.ast_pg, ps.stl_pg, ps.blk_pg, ps.source,
+               CONCAT(t.city,' ',t.name) AS team_name
+        FROM player_season_stats ps
+        LEFT JOIN seasons s ON s.id = ps.season_id
+        LEFT JOIN teams   t ON t.id = ps.team_id
+        WHERE ps.player_id = ?
+        ORDER BY ps.season_number ASC, ps.id ASC
+    ");
+    $stmtSt->execute([$playerId]);
+    $statsSeasons = $stmtSt->fetchAll(PDO::FETCH_ASSOC);
+
+    if ($statsSeasons) {
+        // Média da carreira ponderada pelos jogos: sem isso, uma temporada de
+        // 3 jogos pesaria igual a uma de 82.
+        $jogos = 0;
+        $acc = ['min_pg'=>0,'pts_pg'=>0,'reb_pg'=>0,'ast_pg'=>0,'stl_pg'=>0,'blk_pg'=>0];
+        foreach ($statsSeasons as $l) {
+            $g = (int)$l['games'];
+            if ($g <= 0) continue;
+            $jogos += $g;
+            foreach ($acc as $k => $_) $acc[$k] += (float)$l[$k] * $g;
+        }
+        $statsCarreira = ['games' => $jogos, 'temporadas' => count($statsSeasons)];
+        foreach ($acc as $k => $v) $statsCarreira[$k] = $jogos > 0 ? round($v / $jogos, 1) : 0;
+    }
+} catch (Exception $e) {}
+
+/** Formata média por jogo sem zero à direita inútil (21.0 → 21). */
+function fmtPg($v): string {
+    $v = (float)$v;
+    return rtrim(rtrim(number_format($v, 1, ',', ''), '0'), ',');
+}
+
 // ── Contrato (ELITE ativo) ─────────────────────────────
 $salary = null; $capMode = 'ovr_sum';
 if (!$isRetired) {
@@ -264,6 +303,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .sk-sum-v.sk-strong{color:#22c55e}
 .sk-sum-v.sk-weak{color:#f97316}
 
+/* Estatísticas por temporada */
+.st-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:10px;margin-bottom:16px}
+.st-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:13px 14px}
+.st-card.alt{border-color:var(--border-md);background:var(--panel-2)}
+.st-v{font-family:'Oswald',sans-serif;font-size:24px;font-weight:700;color:var(--red);line-height:1}
+.st-card.alt .st-v{color:var(--text)}
+.st-l{font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-3);margin-top:5px}
+.st-l span{display:block;font-weight:500;letter-spacing:0;text-transform:none;opacity:.85}
+.st-best{color:var(--amber);font-weight:700}
+.st-total td{border-top:1px solid var(--border-md);font-weight:700;background:var(--panel-2)}
+
 /* Barra de ações do jogador */
 .p-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;padding-top:18px;border-top:1px solid var(--border)}
 .act{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:10px;background:var(--panel);border:1px solid var(--border);color:var(--text-2);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:none;transition:all var(--t) var(--ease);white-space:nowrap}
@@ -386,6 +436,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   <div class="tabs" id="tabs">
     <button class="tab-btn active" data-tab="geral">Visão geral</button>
     <?php if ($salary): ?><button class="tab-btn" data-tab="contrato">Contrato</button><?php endif; ?>
+    <?php if ($statsSeasons): ?><button class="tab-btn" data-tab="estatisticas">Estatísticas</button><?php endif; ?>
     <button class="tab-btn" data-tab="carreira">Carreira</button>
     <?php if (!$isRetired): ?><button class="tab-btn" data-tab="draft">Draft</button><?php endif; ?>
     <button class="tab-btn" data-tab="premios">Prêmios</button>
@@ -432,6 +483,73 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   <?php endif; ?>
 
   <!-- Carreira -->
+  <?php if ($statsSeasons): ?>
+  <div class="tab-pane" id="pane-estatisticas">
+    <?php $c = $statsCarreira; ?>
+    <div class="st-cards">
+      <?php foreach ([['PTS','pts_pg'],['REB','reb_pg'],['AST','ast_pg'],['ROU','stl_pg'],['TOC','blk_pg'],['MIN','min_pg']] as [$lbl,$k]): ?>
+        <div class="st-card">
+          <div class="st-v"><?= fmtPg($c[$k]) ?></div>
+          <div class="st-l"><?= $lbl ?> <span>por jogo</span></div>
+        </div>
+      <?php endforeach; ?>
+      <div class="st-card alt">
+        <div class="st-v"><?= (int)$c['games'] ?></div>
+        <div class="st-l">Jogos <span>em <?= (int)$c['temporadas'] ?> temporada<?= $c['temporadas'] == 1 ? '' : 's' ?></span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title"><i class="bi bi-bar-chart-fill"></i> Por temporada
+        <i class="bi bi-question-circle info-hint" title="Médias por jogo. O acumulado da carreira é ponderado pelos jogos disputados em cada temporada."></i>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="tbl">
+          <thead><tr>
+            <th>Temporada</th><th>Time</th><th class="num">J</th><th class="num">MIN</th>
+            <th class="num">PTS</th><th class="num">REB</th><th class="num">AST</th>
+            <th class="num">ROU</th><th class="num">TOC</th>
+          </tr></thead>
+          <tbody>
+          <?php
+            // Melhor temporada de cada estatística ganha destaque.
+            $melhor = [];
+            foreach (['pts_pg','reb_pg','ast_pg','stl_pg','blk_pg'] as $k) {
+                $melhor[$k] = max(array_map(fn($l) => (float)$l[$k], $statsSeasons));
+            }
+            foreach (array_reverse($statsSeasons) as $l): ?>
+            <tr>
+              <td>T<?= (int)$l['season_number'] ?><?= $l['year'] ? ' <span style="color:var(--text-3);font-size:11px">(' . (int)$l['year'] . ')</span>' : '' ?></td>
+              <td><?= htmlspecialchars($l['team_name'] ?: '—') ?></td>
+              <td class="num"><?= (int)$l['games'] ?></td>
+              <td class="num"><?= fmtPg($l['min_pg']) ?></td>
+              <?php foreach (['pts_pg','reb_pg','ast_pg','stl_pg','blk_pg'] as $k):
+                $eMelhor = count($statsSeasons) > 1 && (float)$l[$k] > 0 && (float)$l[$k] == $melhor[$k]; ?>
+                <td class="num<?= $eMelhor ? ' st-best' : '' ?>"<?= $eMelhor ? ' title="Melhor temporada da carreira"' : '' ?>><?= fmtPg($l[$k]) ?></td>
+              <?php endforeach; ?>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
+          <?php if (count($statsSeasons) > 1): ?>
+          <tfoot>
+            <tr class="st-total">
+              <td colspan="2">Carreira</td>
+              <td class="num"><?= (int)$c['games'] ?></td>
+              <td class="num"><?= fmtPg($c['min_pg']) ?></td>
+              <td class="num"><?= fmtPg($c['pts_pg']) ?></td>
+              <td class="num"><?= fmtPg($c['reb_pg']) ?></td>
+              <td class="num"><?= fmtPg($c['ast_pg']) ?></td>
+              <td class="num"><?= fmtPg($c['stl_pg']) ?></td>
+              <td class="num"><?= fmtPg($c['blk_pg']) ?></td>
+            </tr>
+          </tfoot>
+          <?php endif; ?>
+        </table>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <div class="tab-pane" id="pane-carreira">
     <div class="panel">
       <div class="section-title"><i class="bi bi-graph-up"></i> Evolução por temporada</div>

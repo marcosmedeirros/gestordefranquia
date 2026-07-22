@@ -32,13 +32,7 @@ function temporadaAtiva(PDO $pdo, string $league): ?array {
 }
 
 // ── GET: série do jogador ────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $action = $_GET['action'] ?? '';
-    if ($action !== 'season_stats') {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Ação inválida']);
-        exit;
-    }
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'season_stats') {
     $playerId = (int)($_GET['player_id'] ?? 0);
     if (!$playerId) {
         http_response_code(400);
@@ -73,6 +67,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     foreach ($soma as $k => $v) $carreira[$k] = $jogos > 0 ? round($v / $jogos, 1) : 0;
 
     echo json_encode(['success' => true, 'seasons' => $linhas, 'career' => $carreira]);
+    exit;
+}
+
+// Elenco atual de um time com as estatísticas da temporada corrente.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'team_roster_stats') {
+    $tid = (int)($_GET['team_id'] ?? 0);
+    if (!$tid) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'team_id obrigatório']);
+        exit;
+    }
+    $stT = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $stT->execute([$tid]);
+    $lg = $stT->fetchColumn();
+    if (!$lg) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+        exit;
+    }
+    $temp = temporadaAtiva($pdo, (string)$lg);
+
+    $st = $pdo->prepare("
+        SELECT p.id, p.name, p.position, p.secondary_position, p.ovr, p.age, p.role,
+               ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg
+        FROM players p
+        LEFT JOIN player_season_stats ps
+               ON ps.player_id = p.id AND ps.season_id <=> ?
+        WHERE p.team_id = ?
+        ORDER BY (ps.pts_pg IS NULL), ps.pts_pg DESC, p.ovr DESC
+    ");
+    $st->execute([$temp['id'] ?? null, $tid]);
+
+    echo json_encode([
+        'success'       => true,
+        'season_number' => $temp['season_number'] ?? null,
+        'players'       => $st->fetchAll(PDO::FETCH_ASSOC),
+    ]);
     exit;
 }
 

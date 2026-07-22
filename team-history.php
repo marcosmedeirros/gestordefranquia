@@ -265,6 +265,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   </div>
 
   <div class="panel" data-th-tab="elenco">
+    <div class="section-title"><i class="bi bi-clipboard-data"></i> Elenco atual
+      <span id="roster-season" style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0"></span>
+    </div>
+    <div id="roster-stats"><div class="skeleton" style="height:160px"></div></div>
+  </div>
+
+  <div class="panel" data-th-tab="elenco">
     <div class="section-title"><i class="bi bi-people-fill"></i> Melhor por Posição</div>
     <div id="best-by-pos"><div class="skeleton" style="height:160px"></div></div>
   </div>
@@ -659,6 +666,64 @@ async function load(){
 }
 
 load();
+
+/* Elenco atual com as estatisticas da temporada */
+(async function carregarElencoAtual() {
+  const box = document.getElementById('roster-stats');
+  if (!box) return;
+  try {
+    const r = await fetch(`/api/player_stats.php?action=team_roster_stats&team_id=${TEAM_ID}`);
+    const d = await r.json();
+    if (!d.success || !(d.players || []).length) {
+      box.innerHTML = '<div class="empty">Nenhum jogador no elenco.</div>';
+      return;
+    }
+    const lbl = document.getElementById('roster-season');
+    if (lbl && d.season_number) lbl.textContent = `— temporada ${d.season_number}`;
+
+    // Sem estatistica registrada, mostra o traco em vez de zero: zero seria
+    // "jogou e nao pontuou", que e diferente de "ninguem preencheu ainda".
+    const n = v => (v === null || v === undefined) ? '—'
+      : String(Number(v)).replace('.', ',');
+
+    const linhas = d.players.map(p => `
+      <tr>
+        <td><a href="/player.php?id=${p.id}" style="color:inherit;text-decoration:none">${esc(p.name)}</a></td>
+        <td style="color:var(--text-2)">${esc(p.position || '')}${p.secondary_position ? '/' + esc(p.secondary_position) : ''}</td>
+        <td style="text-align:center;font-weight:700">${p.ovr ?? '—'}</td>
+        <td style="text-align:center;color:var(--text-2)">${p.age ?? '—'}</td>
+        <td style="text-align:center">${n(p.games)}</td>
+        <td style="text-align:center">${n(p.min_pg)}</td>
+        <td style="text-align:center;font-weight:700;color:var(--red)">${n(p.pts_pg)}</td>
+        <td style="text-align:center">${n(p.reb_pg)}</td>
+        <td style="text-align:center">${n(p.ast_pg)}</td>
+        <td style="text-align:center">${n(p.stl_pg)}</td>
+        <td style="text-align:center">${n(p.blk_pg)}</td>
+      </tr>`).join('');
+
+    const comStats = d.players.filter(p => p.games !== null).length;
+    box.innerHTML = `
+      <div style="overflow-x:auto">
+        <table class="year-table" style="min-width:100%">
+          <thead><tr>
+            <th>Jogador</th><th>Pos</th><th style="text-align:center">OVR</th>
+            <th style="text-align:center">Idade</th><th style="text-align:center">J</th>
+            <th style="text-align:center">MIN</th><th style="text-align:center">PTS</th>
+            <th style="text-align:center">REB</th><th style="text-align:center">AST</th>
+            <th style="text-align:center">ROU</th><th style="text-align:center">TOC</th>
+          </tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+      </div>
+      ${comStats < d.players.length
+        ? `<div style="font-size:11px;color:var(--text-3);margin-top:10px">
+             ${d.players.length - comStats} de ${d.players.length} jogadores ainda sem estatísticas nesta temporada.
+           </div>`
+        : ''}`;
+  } catch (e) {
+    box.innerHTML = '<div class="empty">Não foi possível carregar o elenco.</div>';
+  }
+})();
 
 /* Copiar link desta pagina */
 (function(){
