@@ -1151,23 +1151,45 @@ function getSerasaScore(int $avisos): array {
             .team-stat:nth-child(3) { border-top: 1px solid var(--border); }
         }
 
-        /* Mobile list view — flex row, show only Team + CAP + Actions */
+        /* Mobile list view — linha compacta: escudo + nome/dono, CAP e uma
+           unica acao. Os cinco botoes ocupavam 184px dos 343 disponiveis e
+           espremiam o nome do time em 78px, que entao quebrava em varias
+           linhas e deixava a "lista" com 117px de altura por item. */
         @media (max-width: 600px) {
             .list-header { display: none; }
             .list-row {
                 display: flex;
                 align-items: center;
-                padding: 10px 12px;
-                gap: 8px;
+                padding: 9px 12px;
+                gap: 10px;
+                min-height: 56px;
             }
-            .list-team-cell { flex: 1; min-width: 0; }
+            .list-team-cell { flex: 1 1 auto; min-width: 0; gap: 9px; }
             .list-team-cell > div { min-width: 0; overflow: hidden; }
-            .list-team-logo { width: 32px; height: 32px; }
-            .list-team-name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            .list-team-owner { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .list-team-logo { width: 34px; height: 34px; flex-shrink: 0; }
+            .list-team-name { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .list-team-owner { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            /* Os selos de status ficavam numa terceira linha e deixavam cada
+               item com 117px — mais alto que um card. Tentar coloca-los na
+               linha do dono nao resolve: nome de dono longo empurra tudo de
+               volta para baixo. Numa lista o essencial e escudo, nome, dono e
+               CAP; status e serasa seguem no modo grade e nos detalhes. */
+            /* !important porque o container dos selos traz display:flex inline. */
+            .list-team-cell > div > div:last-child:not(.list-team-name):not(.list-team-owner) { display: none !important; }
+
+            /* Só o CAP fica; o resto some para o nome respirar. */
             .list-cell { display: none; }
-            .list-row > .list-cell:nth-child(2) { display: flex; flex-shrink: 0; align-items: center; }
-            .list-actions { flex-shrink: 0; gap: 4px; }
+            .list-row > .list-cell:nth-child(2) {
+                display: flex; flex-shrink: 0; align-items: center;
+                min-width: 42px; justify-content: flex-end;
+            }
+
+            /* Uma acao só: abrir os detalhes do time. As demais continuam
+               disponiveis no modo grade e na pagina do time. */
+            .list-actions { flex-shrink: 0; gap: 0; }
+            .list-actions > * { display: none; }
+            .list-actions > *:first-child { display: inline-flex; }
+            .list-actions .btn-action { width: 34px; height: 34px; }
         }
 
         /* Stagger animation */
