@@ -1,8 +1,8 @@
 <?php
 /**
  * Busca global (super filtro): jogadores ativos, jogadores aposentados e times.
- * Escopo de liga aplicado no BACKEND — usuário comum só enxerga a própria liga;
- * admin enxerga todas (a liga vem identificada em cada resultado).
+ * Escopo de liga aplicado no BACKEND: a busca só devolve a liga do time do
+ * usuário — inclusive para admin, que antes enxergava todas as ligas.
  */
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
@@ -20,15 +20,25 @@ if (mb_strlen($q) < 2) {
     exit;
 }
 
-$isAdmin    = hasAdminAccess($pdo, (int)$user['id']);
-$userLeague = $user['league'] ?? '';
-$like       = '%' . $q . '%';
-$starts     = $q . '%';
-$LIMIT      = 8;
+// A liga do TIME manda: o cadastro do usuário pode estar desatualizado em
+// relação à franquia que ele controla hoje.
+$stmtLg = $pdo->prepare('SELECT league FROM teams WHERE user_id = ? LIMIT 1');
+$stmtLg->execute([(int)$user['id']]);
+$userLeague = $stmtLg->fetchColumn() ?: ($user['league'] ?? '');
 
-// Filtro de liga: admin vê tudo; demais, só a própria liga.
-$leagueSqlTeams   = $isAdmin ? '' : ' AND t.league = :lg';
-$leagueSqlLog     = $isAdmin ? '' : ' AND psl.league = :lg';
+$like   = '%' . $q . '%';
+$starts = $q . '%';
+$LIMIT  = 8;
+
+// Sem liga definida não há o que buscar — melhor devolver vazio do que tudo.
+if ($userLeague === '') {
+    echo json_encode(['success' => true, 'players' => [], 'teams' => [], 'q' => $q]);
+    exit;
+}
+
+// Escopo de liga vale para todo mundo, admin incluído.
+$leagueSqlTeams = ' AND t.league = :lg';
+$leagueSqlLog   = ' AND psl.league = :lg';
 
 try {
     // ── Jogadores ativos ────────────────────────────────
@@ -43,7 +53,7 @@ try {
     $st = $pdo->prepare($sql);
     $st->bindValue(':like', $like);
     $st->bindValue(':starts', $starts);
-    if (!$isAdmin) $st->bindValue(':lg', $userLeague);
+    $st->bindValue(':lg', $userLeague);
     $st->execute();
 
     $players = [];
@@ -81,7 +91,7 @@ try {
     $stR = $pdo->prepare($sqlRet);
     $stR->bindValue(':like', $like);
     $stR->bindValue(':starts', $starts);
-    if (!$isAdmin) $stR->bindValue(':lg', $userLeague);
+    $stR->bindValue(':lg', $userLeague);
     $stR->execute();
 
     foreach ($stR->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -112,7 +122,7 @@ try {
     $stT = $pdo->prepare($sqlT);
     $stT->bindValue(':like', $like);
     $stT->bindValue(':starts', $starts);
-    if (!$isAdmin) $stT->bindValue(':lg', $userLeague);
+    $stT->bindValue(':lg', $userLeague);
     $stT->execute();
 
     $teams = [];
