@@ -726,9 +726,12 @@ if ($teamId) {
                     </select>
                     <div class="toolbar-sep"></div>
                     <!-- Importar Skills -->
+                    <?php // Leitura por foto e exclusiva da ELITE (ver api/vision_skills.php). ?>
+                    <?php if ($isElite): ?>
                     <button id="btn-import-skills" class="btn-ghost" type="button" title="Importar Skills por Imagem">
                         <i class="bi bi-camera"></i> Atualizar
                     </button>
+                    <?php endif; ?>
                     <!-- IA -->
                     <button id="btn-ai-analysis" class="btn-ghost-blue" type="button">
                         <i class="bi bi-robot"></i> Análise IA
@@ -1166,7 +1169,7 @@ if ($teamId) {
   let _visionDetected = [];
   let _visionRoster   = [];
   let _visionUsed     = parseInt(sessionStorage.getItem('_visionUsed') || '0', 10);
-  const VISION_HARD_LIMIT = 980;
+  const VISION_HARD_LIMIT = 6; // espelha VISION_LIMIT em api/vision_skills.php
 
   const modal       = document.getElementById('importSkillsModal');
   const step1       = document.getElementById('skill-import-step1');

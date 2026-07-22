@@ -27,8 +27,15 @@ if (empty($body['image'])) {
     exit;
 }
 
-const VISION_LIMIT = 2;
+// Quantas leituras por time por temporada. 32 times x 4 temporadas/mes x 6 =
+// 768 chamadas no pior caso, dentro da cota gratuita de 1.000/mes do Vision.
+const VISION_LIMIT = 6;
+// Freio geral: por mais que os times individualmente respeitem o limite, a liga
+// inteira nunca passa disto no mes, para a cota gratuita nao virar cobranca.
+const VISION_MONTHLY_CAP = 900;
 const VISION_UNLIMITED_EMAILS = ['medeirros99@gmail.com'];
+// Leitura por foto e recurso da ELITE; as demais ligas atualizam manualmente.
+const VISION_LEAGUES = ['ELITE'];
 
 $user = getUserSession();
 $pdo  = db();
@@ -48,6 +55,13 @@ $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
 $teamId = $team ? (int)$team['id'] : null;
 
+// Só a ELITE usa leitura por foto.
+if (!$team || !in_array($team['league'] ?? '', VISION_LEAGUES, true)) {
+    http_response_code(403);
+    echo json_encode(['error' => 'A atualização por foto é exclusiva da ELITE. Nas demais ligas a atualização é manual.']);
+    exit;
+}
+
 // Buscar temporada ativa
 $seasonId = null;
 if ($team) {
@@ -65,6 +79,25 @@ $isUnlimited = in_array($user['email'] ?? '', VISION_UNLIMITED_EMAILS);
 if (!$isUnlimited && $currentCount >= VISION_LIMIT) {
     http_response_code(429);
     echo json_encode(['error' => "Limite de " . VISION_LIMIT . " análises por temporada atingido.", 'limit' => VISION_LIMIT, 'used' => $currentCount]);
+    exit;
+}
+
+// Freio da liga no mes corrente. Conta o consumo real de chamadas ao Vision,
+// nao por time, para nunca ultrapassar a cota gratuita.
+$pdo->exec("CREATE TABLE IF NOT EXISTS vision_monthly_usage (
+    ym    CHAR(7) NOT NULL PRIMARY KEY,
+    count INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+$ym = date('Y-m');
+$stmtMonth = $pdo->prepare('SELECT count FROM vision_monthly_usage WHERE ym = ?');
+$stmtMonth->execute([$ym]);
+$monthCount = (int)($stmtMonth->fetchColumn() ?: 0);
+if ($monthCount >= VISION_MONTHLY_CAP) {
+    http_response_code(429);
+    echo json_encode([
+        'error' => 'A liga atingiu o limite mensal de leituras por foto. Atualize manualmente ou tente no próximo mês.',
+        'limit' => VISION_LIMIT, 'used' => $currentCount,
+    ]);
     exit;
 }
 
@@ -121,6 +154,11 @@ $pdo->prepare('INSERT INTO vision_skill_usage (team_id, season_id, count) VALUES
     ON DUPLICATE KEY UPDATE count = count + 1')
     ->execute([$teamId, $seasonId]);
 $currentCount++;
+
+// Consumo mensal da liga (o freio geral olha para este contador).
+$pdo->prepare('INSERT INTO vision_monthly_usage (ym, count) VALUES (?, 1)
+    ON DUPLICATE KEY UPDATE count = count + 1')
+    ->execute([$ym]);
 
 $detected = parseSkillTable($annotations);
 $matched  = autoMatchPlayers($detected, $rosterPlayers);

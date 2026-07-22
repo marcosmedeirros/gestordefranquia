@@ -1017,6 +1017,50 @@ function runMigrations() {
         $errors[] = "criar_app_flags: " . $e->getMessage();
     }
 
+    // Estatisticas por jogador por temporada. Uma linha por jogador/temporada,
+    // sobrescrita a cada atualizacao — o historico e a serie de temporadas.
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS player_season_stats (
+            id            INT AUTO_INCREMENT PRIMARY KEY,
+            player_id     INT NOT NULL,
+            season_id     INT NULL,
+            season_number INT NULL,
+            league        VARCHAR(20) NULL,
+            team_id       INT NULL,
+            games         INT NOT NULL DEFAULT 0,
+            min_pg        DECIMAL(4,1) NOT NULL DEFAULT 0,
+            pts_pg        DECIMAL(4,1) NOT NULL DEFAULT 0,
+            reb_pg        DECIMAL(4,1) NOT NULL DEFAULT 0,
+            ast_pg        DECIMAL(4,1) NOT NULL DEFAULT 0,
+            stl_pg        DECIMAL(4,1) NOT NULL DEFAULT 0,
+            blk_pg        DECIMAL(4,1) NOT NULL DEFAULT 0,
+            source        ENUM('foto','manual') NOT NULL DEFAULT 'manual',
+            updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_player_season (player_id, season_id),
+            KEY idx_player (player_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (PDOException $e) {
+        $errors[] = "criar_player_season_stats: " . $e->getMessage();
+    }
+
+    // Snapshot por temporada tambem guarda as letras de skill, para dar
+    // comparacao de evolucao alem do OVR.
+    try {
+        $temLog = $pdo->query("SHOW TABLES LIKE 'player_season_log'")->fetch();
+        if ($temLog) {
+            $cols = ['skill_in','skill_mid','skill_3pt','skill_post_d','skill_per_d',
+                     'skill_play','skill_reb','skill_athl','skill_iq','skill_pot'];
+            foreach ($cols as $col) {
+                $existe = $pdo->query("SHOW COLUMNS FROM player_season_log LIKE '{$col}'")->fetch();
+                if (!$existe) {
+                    $pdo->exec("ALTER TABLE player_season_log ADD COLUMN {$col} VARCHAR(3) NULL");
+                }
+            }
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_player_season_log_skills: " . $e->getMessage();
+    }
+
     try {
         $hasLeagueSettingsTable = $pdo->query("SHOW TABLES LIKE 'league_settings'")->fetch();
         if ($hasLeagueSettingsTable) {
