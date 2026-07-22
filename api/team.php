@@ -102,6 +102,11 @@ if ($method === 'GET') {
     $ageMin = isset($_GET['age_min']) ? (int)$_GET['age_min'] : null;
     $ageMax = isset($_GET['age_max']) ? (int)$_GET['age_max'] : null;
         $availableForTrade = isset($_GET['available_for_trade']) && $_GET['available_for_trade'] === '1';
+        // Função no elenco. Lista fechada: o valor vai direto para a comparação
+        // com a coluna ENUM, então não aceita nada fora dela.
+        $rolesValidos = ['Titular', 'Banco', 'Outro', 'G-League'];
+        $role = trim($_GET['role'] ?? '');
+        if ($role !== '' && !in_array($role, $rolesValidos, true)) $role = '';
         $page = max(1, (int)($_GET['page'] ?? 1));
         $perPage = (int)($_GET['per_page'] ?? 50);
         if ($perPage <= 0) $perPage = 50;
@@ -140,6 +145,10 @@ if ($method === 'GET') {
             $where .= ' AND t.id = ?';
             $params[] = $teamFilter;
         }
+        if ($role !== '') {
+            $where .= ' AND p.role = ?';
+            $params[] = $role;
+        }
 
         $countStmt = $pdo->prepare("SELECT COUNT(*)
             FROM players p
@@ -158,6 +167,7 @@ if ($method === 'GET') {
             $stmt = $pdo->prepare("
                                 SELECT p.id, p.name, p.nba_player_id, p.foto_adicional, p.age, p.ovr, p.position, p.secondary_position
                                     {$badgesSelect}{$tapasSelect},
+                  p.role,
                   p.was_traded, p.drafted_by_team_id,
                   COALESCE(p.available_for_trade, 0) as available_for_trade,
                   COALESCE(p.player_tag, NULL) as player_tag,
