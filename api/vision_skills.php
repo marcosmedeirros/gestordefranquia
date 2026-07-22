@@ -27,15 +27,16 @@ if (empty($body['image'])) {
     exit;
 }
 
-// Quantas leituras por time por temporada. 32 times x 4 temporadas/mes x 6 =
-// 768 chamadas no pior caso, dentro da cota gratuita de 1.000/mes do Vision.
-const VISION_LIMIT = 6;
+// Quantas leituras por time por temporada. 92 times (ELITE+NEXT+RISE) x 4
+// temporadas/mes x 4 = 1.472 no pior caso. Passa ~472 da cota gratuita de
+// 1.000/mes, o que custa cerca de US$ 0,71 (~R$ 3,60) por mes.
+const VISION_LIMIT = 4;
 // Freio geral: por mais que os times individualmente respeitem o limite, a liga
-// inteira nunca passa disto no mes, para a cota gratuita nao virar cobranca.
-const VISION_MONTHLY_CAP = 900;
+// inteira nunca passa disto no mes, para o excedente nao fugir do previsto.
+const VISION_MONTHLY_CAP = 1600;
 const VISION_UNLIMITED_EMAILS = ['medeirros99@gmail.com'];
-// Leitura por foto e recurso da ELITE; as demais ligas atualizam manualmente.
-const VISION_LEAGUES = ['ELITE'];
+// Ligas com leitura por foto liberada (ROOKIE fica de fora).
+const VISION_LEAGUES = ['ELITE', 'NEXT', 'RISE'];
 
 $user = getUserSession();
 $pdo  = db();
@@ -55,10 +56,10 @@ $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
 $teamId = $team ? (int)$team['id'] : null;
 
-// Só a ELITE usa leitura por foto.
+// Ligas com leitura por foto liberada.
 if (!$team || !in_array($team['league'] ?? '', VISION_LEAGUES, true)) {
     http_response_code(403);
-    echo json_encode(['error' => 'A atualização por foto é exclusiva da ELITE. Nas demais ligas a atualização é manual.']);
+    echo json_encode(['error' => 'A atualização por foto não está disponível para a sua liga.']);
     exit;
 }
 
@@ -143,22 +144,22 @@ if (!empty($visionData['error'])) {
     exit;
 }
 
+// O Google cobra a chamada mesmo quando nao acha texto nenhum, entao o uso e
+// contado assim que a resposta chega. Contar so no sucesso deixaria uma imagem
+// ruim repetida furar o freio sem aparecer em lugar nenhum.
+$pdo->prepare('INSERT INTO vision_skill_usage (team_id, season_id, count) VALUES (?, ?, 1)
+    ON DUPLICATE KEY UPDATE count = count + 1')
+    ->execute([$teamId, $seasonId]);
+$currentCount++;
+$pdo->prepare('INSERT INTO vision_monthly_usage (ym, count) VALUES (?, 1)
+    ON DUPLICATE KEY UPDATE count = count + 1')
+    ->execute([$ym]);
+
 $annotations = $visionData['responses'][0]['textAnnotations'] ?? [];
 if (empty($annotations)) {
     echo json_encode(['detected' => [], 'roster' => $rosterPlayers, 'used' => $currentCount, 'limit' => VISION_LIMIT]);
     exit;
 }
-
-// Incrementar uso
-$pdo->prepare('INSERT INTO vision_skill_usage (team_id, season_id, count) VALUES (?, ?, 1)
-    ON DUPLICATE KEY UPDATE count = count + 1')
-    ->execute([$teamId, $seasonId]);
-$currentCount++;
-
-// Consumo mensal da liga (o freio geral olha para este contador).
-$pdo->prepare('INSERT INTO vision_monthly_usage (ym, count) VALUES (?, 1)
-    ON DUPLICATE KEY UPDATE count = count + 1')
-    ->execute([$ym]);
 
 $detected = parseSkillTable($annotations);
 $matched  = autoMatchPlayers($detected, $rosterPlayers);

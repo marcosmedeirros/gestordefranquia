@@ -9,7 +9,7 @@
  * posicional: acha a linha do cabeçalho, guarda o X de cada coluna e associa
  * cada número da linha à coluna mais próxima.
  *
- * Exclusivo da ELITE e sujeito à mesma cota de vision_skills.php.
+ * Liberado para ELITE, NEXT e RISE, com a mesma cota de vision_skills.php.
  */
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
@@ -38,10 +38,10 @@ if (empty($body['image'])) {
     exit;
 }
 
-const STATS_LIMIT = 6;
-const STATS_MONTHLY_CAP = 900;
+const STATS_LIMIT = 4;
+const STATS_MONTHLY_CAP = 1600;
 const STATS_UNLIMITED_EMAILS = ['medeirros99@gmail.com'];
-const STATS_LEAGUES = ['ELITE'];
+const STATS_LEAGUES = ['ELITE', 'NEXT', 'RISE'];
 
 $user = getUserSession();
 $pdo  = db();
@@ -51,7 +51,7 @@ $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
 if (!$team || !in_array($team['league'] ?? '', STATS_LEAGUES, true)) {
     http_response_code(403);
-    echo json_encode(['error' => 'A atualização por foto é exclusiva da ELITE. Nas demais ligas a atualização é manual.']);
+    echo json_encode(['error' => 'A atualização por foto não está disponível para a sua liga.']);
     exit;
 }
 $teamId = (int)$team['id'];
@@ -135,17 +135,19 @@ if (!empty($visionData['error'])) {
     exit;
 }
 
-$annotations = $visionData['responses'][0]['textAnnotations'] ?? [];
-if (empty($annotations)) {
-    echo json_encode(['detected' => [], 'roster' => $rosterPlayers, 'used' => $currentCount, 'limit' => STATS_LIMIT]);
-    exit;
-}
-
+// O Google cobra a chamada mesmo sem achar texto: conta antes de avaliar o
+// resultado, senao uma imagem ruim repetida fura o freio sem ser registrada.
 $pdo->prepare('INSERT INTO vision_skill_usage (team_id, season_id, count) VALUES (?, ?, 1)
     ON DUPLICATE KEY UPDATE count = count + 1')->execute([$teamId, $seasonId]);
 $currentCount++;
 $pdo->prepare('INSERT INTO vision_monthly_usage (ym, count) VALUES (?, 1)
     ON DUPLICATE KEY UPDATE count = count + 1')->execute([$ym]);
+
+$annotations = $visionData['responses'][0]['textAnnotations'] ?? [];
+if (empty($annotations)) {
+    echo json_encode(['detected' => [], 'roster' => $rosterPlayers, 'used' => $currentCount, 'limit' => STATS_LIMIT]);
+    exit;
+}
 
 $detected = parseStatsTable($annotations);
 $matched  = statsMatchPlayers($detected, $rosterPlayers);

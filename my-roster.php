@@ -88,6 +88,9 @@ if ($teamId) {
 
 $canAddPlayers = in_array(strtoupper((string)($team['league'] ?? '')), ['ELITE', 'NEXT', 'RISE'], true);
 $isElite = strtoupper((string)($team['league'] ?? '')) === 'ELITE';
+// Ligas com atualizacao por foto. Precisa bater com VISION_LEAGUES em
+// api/vision_skills.php e STATS_LEAGUES em api/vision_stats.php.
+$podeFoto = in_array(strtoupper((string)($team['league'] ?? '')), ['ELITE', 'NEXT', 'RISE'], true);
 $is_admin = hasAdminAccess($pdo, (int)$user['id']);
 
 // ── Dados para copiar time ────────────────────────────────
@@ -726,8 +729,8 @@ if ($teamId) {
                     </select>
                     <div class="toolbar-sep"></div>
                     <!-- Importar Skills -->
-                    <?php // Leitura por foto e exclusiva da ELITE (ver api/vision_skills.php). ?>
-                    <?php if ($isElite): ?>
+                    <?php // Leitura por foto: ELITE, NEXT e RISE (ver $podeFoto). ?>
+                    <?php if ($podeFoto): ?>
                     <button id="btn-import-skills" class="btn-ghost" type="button" title="Importar Skills por Imagem">
                         <i class="bi bi-camera"></i> Atualizar
                     </button>
@@ -1169,7 +1172,7 @@ if ($teamId) {
   let _visionDetected = [];
   let _visionRoster   = [];
   let _visionUsed     = parseInt(sessionStorage.getItem('_visionUsed') || '0', 10);
-  const VISION_HARD_LIMIT = 6; // espelha VISION_LIMIT em api/vision_skills.php
+  const VISION_HARD_LIMIT = 4; // espelha VISION_LIMIT em api/vision_skills.php
 
   const modal       = document.getElementById('importSkillsModal');
   const step1       = document.getElementById('skill-import-step1');
