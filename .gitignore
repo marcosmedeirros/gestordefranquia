@@ -4,3 +4,4 @@ backend/config.php
 backend/config.local.php
 games/core/wordlist5.php
 backend/.migrations_last_run
+_test_login.php
