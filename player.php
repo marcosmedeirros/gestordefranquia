@@ -264,6 +264,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .sk-sum-v.sk-strong{color:#22c55e}
 .sk-sum-v.sk-weak{color:#f97316}
 
+/* Barra de ações do jogador */
+.p-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.act{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:10px;background:var(--panel);border:1px solid var(--border);color:var(--text-2);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:none;transition:all var(--t) var(--ease);white-space:nowrap}
+.act:hover{border-color:var(--border-md);color:var(--text);background:var(--panel-2)}
+.act i{font-size:14px}
+.act-primary{background:var(--red);border-color:var(--red);color:#fff}
+.act-primary:hover{background:var(--red);border-color:var(--red);color:#fff;filter:brightness(1.1)}
+.act.on{background:var(--amber-soft,rgba(245,158,11,.12));border-color:rgba(245,158,11,.35);color:var(--amber)}
+@media (max-width:640px){
+  .p-actions{gap:6px}
+  .act{padding:8px 11px;font-size:12px}
+}
+
 /* Grupos lado a lado */
 .sk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;align-items:start}
 .sk-card{margin-bottom:0}
@@ -368,6 +381,31 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <div class="l"><?= $isRetired ? 'Último OVR' : 'OVR' ?></div>
     </div>
   </div>
+
+  <?php if (!$isRetired):
+    // Ações disponíveis dependem de quem está olhando: no próprio elenco não
+    // faz sentido propor troca por ele.
+    $meuTimeId = $team ? (int)$team['id'] : 0;
+    $doMeuTime = $meuTimeId && $meuTimeId === $dispTeamId;
+  ?>
+  <div class="p-actions">
+    <?php if ($doMeuTime): ?>
+      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>&propose=1">
+        <i class="bi bi-arrow-left-right"></i> Usar em uma troca</a>
+      <a class="act" href="/my-roster.php"><i class="bi bi-people-fill"></i> Meu elenco</a>
+    <?php else: ?>
+      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>&propose=1">
+        <i class="bi bi-arrow-left-right"></i> Propor troca por <?= htmlspecialchars(mb_strimwidth($playerName, 0, 22, '…')) ?></a>
+      <a class="act" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>">
+        <i class="bi bi-calculator"></i> Simular troca</a>
+    <?php endif; ?>
+    <button class="act" id="btnFav" data-pid="<?= $playerId ?>" title="Salvar na sua lista de observados">
+      <i class="bi bi-star"></i> <span>Favoritar</span></button>
+    <a class="act" href="/team-history.php?team_id=<?= $dispTeamId ?>"><i class="bi bi-buildings"></i> Página do time</a>
+    <a class="act" href="/players.php?q=<?= rawurlencode($playerName) ?>"><i class="bi bi-people"></i> Comparar</a>
+    <button class="act" id="btnShare" title="Copiar o link deste perfil"><i class="bi bi-link-45deg"></i> <span>Copiar link</span></button>
+  </div>
+  <?php endif; ?>
 
   <!-- Abas -->
   <div class="tabs" id="tabs">
@@ -635,6 +673,67 @@ document.querySelectorAll('#tabs .tab-btn').forEach(btn => {
   });
   svg += `</svg>`;
   el.innerHTML = svg;
+})();
+
+/* ── Ações do jogador ── */
+(function(){
+  const fav = document.getElementById('btnFav');
+  if (fav) {
+    const pid = parseInt(fav.dataset.pid, 10);
+
+    // Reflete o estado atual antes de permitir clicar, senão o botão mentiria.
+    fetch('/api/favorites.php?action=list')
+      .then(r => r.json())
+      .then(d => {
+        const ids = (d.player_ids || d.favorites || d.ids || []).map(Number);
+        if (ids.includes(pid)) marcar(true);
+      })
+      .catch(() => {});
+
+    function marcar(on) {
+      fav.classList.toggle('on', on);
+      fav.querySelector('i').className = on ? 'bi bi-star-fill' : 'bi bi-star';
+      fav.querySelector('span').textContent = on ? 'Favoritado' : 'Favoritar';
+    }
+
+    fav.addEventListener('click', async () => {
+      fav.disabled = true;
+      try {
+        const r = await fetch('/api/favorites.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'toggle', player_id: pid })
+        });
+        const d = await r.json();
+        if (typeof d.favorited === 'boolean') marcar(d.favorited);
+      } catch (e) { /* silencioso: acao secundaria */ }
+      finally { fav.disabled = false; }
+    });
+  }
+
+  const share = document.getElementById('btnShare');
+  if (share) {
+    share.addEventListener('click', async () => {
+      const url = location.href;
+      let ok = false;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(url); ok = true;
+        }
+      } catch (e) { ok = false; }
+      if (!ok) {
+        const ta = document.createElement('textarea');
+        ta.value = url; ta.style.position = 'fixed'; ta.style.top = '-1000px';
+        document.body.appendChild(ta); ta.select();
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+      }
+      const sp = share.querySelector('span'), ic = share.querySelector('i');
+      sp.textContent = ok ? 'Link copiado!' : 'Não foi possível copiar';
+      ic.className = ok ? 'bi bi-check-lg' : 'bi bi-exclamation-triangle';
+      setTimeout(() => { sp.textContent = 'Copiar link'; ic.className = 'bi bi-link-45deg'; }, 2000);
+    });
+  }
 })();
 </script>
 </body>

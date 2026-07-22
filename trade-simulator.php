@@ -575,6 +575,17 @@ async function boot() {
     const sel = document.getElementById(`sel_${activeSlots[0]}`);
     if (sel) { sel.value = MY_TEAM_ID; loadTeam(activeSlots[0], MY_TEAM_ID); }
   }
+
+  // Chegando de "Propor troca" na pagina de um time/jogador, ja abre o outro
+  // lado com aquele time, senao o botao levaria a uma tela vazia.
+  const alvo = parseInt(new URLSearchParams(window.location.search).get('team_id') || '0', 10);
+  if (alvo && alvo !== Number(MY_TEAM_ID) && activeSlots[1]) {
+    const selB = document.getElementById(`sel_${activeSlots[1]}`);
+    if (selB && [...selB.options].some(o => Number(o.value) === alvo)) {
+      selB.value = String(alvo);
+      loadTeam(activeSlots[1], alvo);
+    }
+  }
 }
 
 function populateTeamSelect(key, teamsList) {

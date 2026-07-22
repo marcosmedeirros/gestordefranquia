@@ -89,6 +89,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .empty{text-align:center;padding:24px;color:var(--text-3);font-size:13px}
 /* Abas da página do time */
+/* Barra de ações do time */
+.t-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.act{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:10px;background:var(--panel);border:1px solid var(--border);color:var(--text-2);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:none;transition:all var(--t) var(--ease);white-space:nowrap}
+.act:hover{border-color:var(--border-md);color:var(--text);background:var(--panel-2)}
+.act i{font-size:14px}
+.act-primary{background:var(--red);border-color:var(--red);color:#fff}
+.act-primary:hover{background:var(--red);border-color:var(--red);color:#fff;filter:brightness(1.1)}
+@media (max-width:640px){.act{padding:8px 11px;font-size:12px}}
 .th-tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:16px;padding-bottom:2px}
 .th-tab{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:9px 16px;color:var(--text-2);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all var(--t)}
 .th-tab:hover{color:var(--text)}
@@ -225,6 +233,22 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <div style="font-size:12px;color:var(--text-2);margin-top:4px" id="hero-owner"></div>
       <span class="league-badge"><?= htmlspecialchars($teamInfo['league']) ?></span>
     </div>
+  </div>
+
+  <?php $ehMeuTime = $team && (int)$team['id'] === $teamId; ?>
+  <div class="t-actions">
+    <?php if ($ehMeuTime): ?>
+      <a class="act act-primary" href="/my-roster.php"><i class="bi bi-people-fill"></i> Gerenciar elenco</a>
+      <a class="act" href="/trades.php"><i class="bi bi-arrow-left-right"></i> Minhas trades</a>
+      <a class="act" href="/picks.php"><i class="bi bi-ticket-perforated"></i> Minhas picks</a>
+      <a class="act" href="/team-public-page.php"><i class="bi bi-globe2"></i> Página pública</a>
+    <?php else: ?>
+      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $teamId ?>&propose=1">
+        <i class="bi bi-arrow-left-right"></i> Propor troca</a>
+      <a class="act" href="/trade-simulator.php?team_id=<?= $teamId ?>">
+        <i class="bi bi-calculator"></i> Simular troca</a>
+    <?php endif; ?>
+    <button class="act" id="btnShareTeam" title="Copiar o link desta página"><i class="bi bi-link-45deg"></i> <span>Copiar link</span></button>
   </div>
 
   <div class="th-tabs" id="thTabs">
@@ -634,6 +658,31 @@ async function load(){
 }
 
 load();
+
+/* Copiar link desta pagina */
+(function(){
+  const b = document.getElementById('btnShareTeam');
+  if (!b) return;
+  b.addEventListener('click', async () => {
+    let ok = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(location.href); ok = true;
+      }
+    } catch (e) { ok = false; }
+    if (!ok) {
+      const ta = document.createElement('textarea');
+      ta.value = location.href; ta.style.position = 'fixed'; ta.style.top = '-1000px';
+      document.body.appendChild(ta); ta.select();
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+    }
+    const sp = b.querySelector('span'), ic = b.querySelector('i');
+    sp.textContent = ok ? 'Link copiado!' : 'Não foi possível copiar';
+    ic.className = ok ? 'bi bi-check-lg' : 'bi bi-exclamation-triangle';
+    setTimeout(() => { sp.textContent = 'Copiar link'; ic.className = 'bi bi-link-45deg'; }, 2000);
+  });
+})();
 </script>
 </body>
 </html>

@@ -1221,6 +1221,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	searchInput.addEventListener('keydown', (e) => {
 		if (e.key === 'Enter') { currentPage = 1; carregarJogadores(); }
 	});
+
+	// Permite chegar aqui com a busca ja preenchida, ex.: /players.php?q=LeBron
+	(function preencherBuscaDaUrl() {
+		const q = new URLSearchParams(window.location.search).get('q');
+		if (q) searchInput.value = q;
+	})();
 	positionFilter.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
 	ovrMinInput.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
 	ovrMaxInput.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
