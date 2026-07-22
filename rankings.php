@@ -153,6 +153,19 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .filter-btn:hover { border-color: var(--border-md); color: var(--text); }
         .filter-btn.active { background: var(--red); border-color: var(--red); color: #fff; }
 
+        /* Copiar ranking p/ WhatsApp — separado dos filtros de liga */
+        .wpp-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+            border-radius: 99px; background: var(--panel); border: 1px solid var(--border);
+            color: var(--text-2); font-size: 12px; font-weight: 600; cursor: pointer;
+            transition: all var(--t) var(--ease); white-space: nowrap; font-family: inherit; }
+        .wpp-btn:hover { border-color: #25d366; color: #25d366; }
+        .wpp-btn i { font-size: 14px; }
+        .wpp-btn.copied { background: rgba(37,211,102,.12); border-color: #25d366; color: #25d366; }
+        @media (max-width: 640px) {
+            .wpp-btn { margin-left: 0; }
+            .wpp-btn span { display: none; }
+        }
+
         /* ── Minimal Table ───────────────────────────── */
         .table-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; animation: fadeUp 0.4s var(--ease); }
         .m-table { width: 100%; border-collapse: collapse; text-align: left; }
@@ -358,6 +371,18 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 <button type="button" class="filter-btn" data-league="NEXT" onclick="loadRanking('NEXT')">NEXT</button>
                 <button type="button" class="filter-btn" data-league="RISE" onclick="loadRanking('RISE')">RISE</button>
                 <button type="button" class="filter-btn" data-league="ROOKIE" onclick="loadRanking('ROOKIE')">ROOKIE</button>
+                <button type="button" class="wpp-btn" id="btnCopyWpp" onclick="copyRankingWpp()" title="Copia o ranking desta liga em texto, pronto para colar no WhatsApp">
+                    <i class="bi bi-whatsapp"></i> <span>Copiar p/ WhatsApp</span>
+                </button>
+            </div>
+
+            <!-- Fallback: aparece só se o navegador bloquear a cópia automática -->
+            <div id="wppManual" style="display:none;margin-bottom:20px">
+                <div style="font-size:11.5px;color:var(--text-3);margin-bottom:6px">
+                    <i class="bi bi-info-circle"></i> Seu navegador bloqueou a cópia automática. O texto já está selecionado — use Ctrl+C (ou Cmd+C).
+                </div>
+                <textarea id="wppManualText" readonly rows="8"
+                    style="width:100%;background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:10px;padding:12px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
             </div>
 
             <!-- Tabela Container -->
@@ -471,6 +496,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     
     const currentTeamId = parseInt("<?= (int)($team['id'] ?? 0) ?>", 10) || 0;
     let currentLeague = userLeague;
+    let currentRanking = [];
     const currentSeasonId   = <?= $currentSeasonId   ? (int)$currentSeasonId   : 'null' ?>;
     const currentSeasonYear = <?= (int)$currentSeasonYear ?>;
 
@@ -487,6 +513,10 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         const container = document.getElementById('rankingContainer');
         container.innerHTML = '<div class="spinner"></div>';
 
+        // Esconde o texto manual da liga anterior, que ficaria desatualizado.
+        const manualBox = document.getElementById('wppManual');
+        if (manualBox) manualBox.style.display = 'none';
+
         try {
             const response = await fetch(`/api/history-points.php?action=get_ranking&league=${encodeURIComponent(currentLeague)}`);
             const data = await response.json();
@@ -494,6 +524,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             if (!data.success) throw new Error(data.error);
 
             const ranking = data.ranking[currentLeague] || [];
+            currentRanking = ranking; // usado pelo "Copiar p/ WhatsApp"
 
             if (ranking.length === 0) {
                 container.innerHTML = `
@@ -567,6 +598,87 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             console.error(e);
             container.innerHTML = `<div style="color: #ef4444; padding: 20px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px;">Erro ao carregar ranking: ${e.message || 'Desconhecido'}</div>`;
         }
+    }
+
+    /* ── Copiar ranking para o WhatsApp ── */
+
+    // Monta o texto em si. No WhatsApp *texto* vira negrito.
+    function buildRankingWppText() {
+        const linhas = [];
+        linhas.push(`*RANKING ${currentLeague}* 🏆`);
+        linhas.push('');
+
+        currentRanking.forEach((team, idx) => {
+            const pos    = idx + 1;
+            const medalha = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`;
+            const pontos  = Number(team.total_points || 0);
+            const titulos = Number(team.total_titles || 0);
+
+            let linha = `${medalha} ${team.team_name} — *${pontos}* pts`;
+            if (titulos > 0) linha += ` · ${titulos}🏆`;
+            linhas.push(linha);
+        });
+
+        linhas.push('');
+        linhas.push(`_${currentRanking.length} franquias · fbabrasil.com.br_`);
+        return linhas.join('\n');
+    }
+
+    async function copyRankingWpp() {
+        const btn = document.getElementById('btnCopyWpp');
+        const label = btn.querySelector('span');
+        const icon  = btn.querySelector('i');
+
+        if (!currentRanking.length) {
+            alert('Não há ranking carregado para copiar.');
+            return;
+        }
+
+        const texto = buildRankingWppText();
+        let ok = false;
+        try {
+            // Só existe em contexto seguro (https ou localhost); no resto cai no fallback.
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(texto);
+                ok = true;
+            }
+        } catch (e) { ok = false; }
+
+        if (!ok) {
+            const ta = document.createElement('textarea');
+            ta.value = texto;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.top = '-1000px';
+            document.body.appendChild(ta);
+            ta.select();
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+            document.body.removeChild(ta);
+        }
+
+        // Último recurso: alguns navegadores bloqueiam a cópia automática.
+        // Em vez de só avisar, mostra o texto pronto e já selecionado.
+        const manual = document.getElementById('wppManual');
+        const manualTa = document.getElementById('wppManualText');
+        if (ok) {
+            manual.style.display = 'none';
+        } else {
+            manualTa.value = texto;
+            manual.style.display = 'block';
+            manualTa.focus();
+            manualTa.select();
+        }
+
+        const iconOriginal  = icon.className;
+        const labelOriginal = label.textContent;
+        btn.classList.toggle('copied', ok);
+        icon.className  = ok ? 'bi bi-check-lg' : 'bi bi-clipboard';
+        label.textContent = ok ? 'Copiado!' : 'Copie abaixo';
+        setTimeout(() => {
+            btn.classList.remove('copied');
+            icon.className = iconOriginal;
+            label.textContent = labelOriginal;
+        }, 2000);
     }
 
     // Load initial
