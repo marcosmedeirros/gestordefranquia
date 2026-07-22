@@ -65,6 +65,7 @@ let allTeams = [];
 let myPlayers = [];
 let targetTeamPlayers = [];
 let myPicks = [];
+let capSalaryMode = false; // ELITE: cap por folha salarial
 let allLeagueTrades = []; // Armazenar trades da liga para busca
 const tradesById = new Map(); // cache seguro de trades por id
 const currentSeasonYear = Number(window.__CURRENT_SEASON_YEAR__ || new Date().getFullYear());
@@ -155,6 +156,10 @@ const formatTradePickPlain = (pick) => {
 };
 
 const calcTop8Cap = (players = []) => {
+  // ELITE (salary): folha = soma dos salários de todo o elenco resultante.
+  if (capSalaryMode) {
+    return players.reduce((sum, p) => sum + (Number(p.salary) || 0), 0);
+  }
   const sorted = [...players].sort((a, b) => (Number(b.ovr) || 0) - (Number(a.ovr) || 0));
   return sorted.slice(0, 8).reduce((sum, p) => sum + (Number(p.ovr) || 0), 0);
 };
@@ -165,7 +170,7 @@ const computeCapProjection = (basePlayers = [], outgoing = [], incoming = []) =>
   return calcTop8Cap(roster);
 };
 
-const formatCapValue = (value) => Number.isFinite(value) ? value.toLocaleString('pt-BR') : '-';
+const formatCapValue = (value) => Number.isFinite(value) ? (value.toLocaleString('pt-BR') + (capSalaryMode ? 'M' : '')) : '-';
 
 function updateCapImpact() {
   const capRow = document.getElementById('capImpactRow');
@@ -1380,7 +1385,8 @@ async function loadMyAssets() {
     // Meus jogadores disponíveis para troca
     const playersData = await api(`players.php?team_id=${myTeamId}`);
   myPlayers = playersData.players || [];
-    
+  capSalaryMode = !!playersData.salary_mode;
+
   console.log('Meus jogadores carregados:', myPlayers.length);
     
     setAvailablePlayers('offer', myPlayers, { resetSelected: true });

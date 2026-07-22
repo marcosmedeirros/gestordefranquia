@@ -71,8 +71,8 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css?v=20260225-2">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css?v=20260721">
 
     <style>
         /* ── Design Tokens ─────────────────────────────── */
@@ -223,9 +223,10 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         .panel {
             background: var(--panel); border: 1px solid var(--border);
             border-radius: var(--radius); padding: 20px 22px 22px;
+            box-shadow: 0 1px 3px rgba(0,0,0,.18), 0 8px 24px -18px rgba(0,0,0,.5);
         }
         .panel + .panel { margin-top: 20px; }
-        .panel-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .panel-title { font-family: 'Oswald', var(--font); font-size: 16px; font-weight: 700; letter-spacing: .3px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
         .panel-title i { color: var(--red); }
 
         /* ── League Cards ─────────────────────────────── */
@@ -456,6 +457,33 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         .pun-badge-on  { background: color-mix(in srgb, var(--red) 10%, transparent); border: 1px solid color-mix(in srgb, var(--red) 20%, transparent); color: var(--red); }
         .pun-badge-off { background: var(--panel-3); border: 1px solid var(--border); color: var(--text-3); }
 
+        /* ── Card de punição (remodelado) ───────────────── */
+        .pun-v2 { display:flex; overflow:hidden; background:var(--panel-2); border:1px solid var(--border);
+            border-radius:12px; margin-bottom:10px; transition:border-color var(--t) var(--ease), box-shadow var(--t) var(--ease); }
+        .pun-v2:last-child { margin-bottom:0; }
+        .pun-v2:hover { border-color:var(--border-md); box-shadow:0 4px 16px -10px rgba(0,0,0,.6); }
+        .pun-v2-bar { width:4px; background:var(--red); flex-shrink:0; }
+        .pun-v2.is-reverted { opacity:.6; }
+        .pun-v2.is-reverted .pun-v2-bar { background:var(--text-3); }
+        .pun-v2-body { flex:1; min-width:0; padding:13px 15px; }
+        .pun-v2-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+        .pun-v2-team { display:flex; align-items:center; gap:9px; min-width:0; }
+        .pun-v2-logo { width:32px; height:32px; border-radius:9px; background:var(--panel-3); border:1px solid var(--border-md);
+            display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; color:var(--red); flex-shrink:0; }
+        .pun-v2-teamname { display:block; font-size:13.5px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .pun-v2-league { display:block; font-size:10px; font-weight:700; color:var(--text-3); letter-spacing:.5px; }
+        .pun-v2-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+        .pun-v2-chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+        .pun-chip { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; padding:3px 9px;
+            border-radius:999px; background:var(--panel-3); border:1px solid var(--border); color:var(--text-2); }
+        .pun-chip.type { background:color-mix(in srgb, var(--red) 12%, transparent); border-color:var(--border-red); color:var(--red); }
+        .pun-v2-motive { font-size:12.5px; color:var(--text-2); margin-top:9px; line-height:1.45; }
+        .pun-v2-date { font-size:10.5px; color:var(--text-3); margin-top:9px; display:flex; align-items:center; gap:5px; }
+        @media (max-width: 640px) {
+            .pun-v2-top { flex-direction:column; gap:8px; }
+            .pun-v2-actions { width:100%; }
+        }
+
         /* ── Responsive ───────────────────────────────── */
         @media (max-width: 992px) {
             .sidebar { transform: translateX(-260px); }
@@ -597,6 +625,30 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         }
         .table-dark tbody tr:hover > * { background: var(--panel-3); }
 
+        /* ── Tabelas do admin: mais respiro, cabeçalho destacado, hover suave ── */
+        #mainContainer .table { border-collapse: separate; border-spacing: 0; margin-bottom: 0; }
+        #mainContainer .table > thead > tr > th {
+            background: var(--panel-2);
+            padding: 12px 14px;
+            font-family: 'Oswald', var(--font);
+            font-size: 11px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: .1em;
+            color: var(--text-3) !important;
+            border-bottom: 1px solid var(--border) !important;
+            white-space: nowrap;
+        }
+        #mainContainer .table > thead > tr > th:first-child { border-top-left-radius: 10px; }
+        #mainContainer .table > thead > tr > th:last-child  { border-top-right-radius: 10px; }
+        #mainContainer .table > tbody > tr > td {
+            padding: 11px 14px; vertical-align: middle;
+            border-top: 1px solid var(--border) !important;
+        }
+        #mainContainer .table > tbody > tr { transition: background var(--t) var(--ease); }
+        #mainContainer .table > tbody > tr:hover > td { background: var(--panel-3); }
+        /* container rolável arredondado para tabelas largas */
+        #mainContainer .table-responsive { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        #mainContainer .table-responsive > .table > thead > tr > th { border-radius: 0; }
+
         /* Form controls */
         .form-select,
         .form-control {
@@ -651,10 +703,13 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             border-color: var(--border) !important;
             border-radius: var(--radius) !important;
             color: var(--text) !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,.16), 0 10px 28px -20px rgba(0,0,0,.55) !important;
+            transition: border-color var(--t) var(--ease), transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
         }
         .card-header {
             background: var(--panel-2) !important;
             border-color: var(--border) !important;
+            font-weight: 600;
         }
         .card-body { color: var(--text) !important; }
 

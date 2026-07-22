@@ -332,7 +332,23 @@ if ($method === 'GET') {
             } catch (Exception $e) {}
         }
 
-        echo json_encode(['success' => true, 'players' => $players, 'count' => count($players), 'team_id' => $teamId]);
+        // Salário por jogador (ELITE / modo salary) — aditivo, não altera os demais usos.
+        $salaryMode = false;
+        try {
+            require_once __DIR__ . '/../backend/salary_cap.php';
+            $lgStmt = $pdo->prepare("SELECT ls.cap_mode FROM teams t JOIN league_settings ls ON ls.league = t.league WHERE t.id = ?");
+            $lgStmt->execute([$teamId]);
+            if (($lgStmt->fetchColumn() ?: 'ovr_sum') === 'salary') {
+                $summary = getTeamCapSummary($pdo, (int)$teamId);
+                $salById = [];
+                foreach ($summary['roster'] as $rp) { $salById[(int)$rp['id']] = (int)$rp['total_salary']; }
+                foreach ($players as &$p) { $p['salary'] = $salById[(int)$p['id']] ?? 0; }
+                unset($p);
+                $salaryMode = true;
+            }
+        } catch (Exception $e) { $salaryMode = false; }
+
+        echo json_encode(['success' => true, 'players' => $players, 'count' => count($players), 'team_id' => $teamId, 'salary_mode' => $salaryMode]);
         exit;
     } catch (Exception $e) {
         http_response_code(500);

@@ -106,24 +106,45 @@ window.loadPunishments = async function({ teamId = '', league = '' } = {}) {
       return;
     }
     container.innerHTML = rows.map(p => {
-      const pickInfo = p.pick_id ? ` · Pick ${p.season_year || ''} R${p.round || ''}` : '';
-      const teamName = `${p.city || ''} ${p.name || ''}`.trim();
+      const teamName = `${p.city || ''} ${p.name || ''}`.trim() || 'Time';
       const league = p.league || p.team_league || '-';
       const reverted = !!p.reverted_at;
       const punLabel = p.punishment_label || _getTypeLabel(p.type);
+      const initial = teamName.charAt(0).toUpperCase();
+      const pickChip = p.pick_id
+        ? `<span class="pun-chip"><i class="bi bi-ticket-detailed"></i> Pick ${p.season_year || ''} R${p.round || ''}</span>`
+        : '';
+      let dataFmt = p.created_at || '';
+      try {
+        const d = new Date((p.created_at || '').replace(' ', 'T'));
+        if (!isNaN(d)) dataFmt = d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      } catch (e) {}
+      const revertedInfo = reverted && p.reverted_at ? ` · revertida em ${String(p.reverted_at).slice(0, 10).split('-').reverse().join('/')}` : '';
+
       return `
-        <div class="pun-card${reverted ? ' pun-card-reverted' : ''}">
-          <div class="pun-card-head">
-            <div>
-              <div class="pun-card-title">${punLabel}</div>
-              <div class="pun-card-sub">${p.motive || '-'}${pickInfo}</div>
+        <div class="pun-v2${reverted ? ' is-reverted' : ''}">
+          <div class="pun-v2-bar"></div>
+          <div class="pun-v2-body">
+            <div class="pun-v2-top">
+              <div class="pun-v2-team">
+                <span class="pun-v2-logo">${initial}</span>
+                <span style="min-width:0">
+                  <span class="pun-v2-teamname">${teamName}</span>
+                  <span class="pun-v2-league">${league}</span>
+                </span>
+              </div>
+              <div class="pun-v2-actions">
+                <span class="pun-badge ${reverted ? 'pun-badge-off' : 'pun-badge-on'}">${reverted ? 'Revertida' : 'Ativa'}</span>
+                ${reverted ? '' : `<button class="btn-ghost" style="padding:4px 10px;font-size:11px" onclick="revertPunishment(${p.id})">Reverter</button>`}
+              </div>
             </div>
-            <div class="d-flex align-items-center gap-2 flex-shrink-0">
-              <span class="pun-badge ${reverted ? 'pun-badge-off' : 'pun-badge-on'}">${reverted ? 'Revertida' : 'Ativa'}</span>
-              ${reverted ? '' : `<button class="btn-ghost" style="padding:4px 10px;font-size:11px" onclick="revertPunishment(${p.id})">Reverter</button>`}
+            <div class="pun-v2-chips">
+              <span class="pun-chip type">${punLabel}</span>
+              ${pickChip}
             </div>
+            ${p.motive ? `<div class="pun-v2-motive">${p.motive}</div>` : ''}
+            <div class="pun-v2-date"><i class="bi bi-clock"></i> ${dataFmt}${revertedInfo}</div>
           </div>
-          <div class="pun-card-meta">${teamName} · ${league} · ${p.created_at}</div>
         </div>`;
     }).join('');
   } catch (e) {

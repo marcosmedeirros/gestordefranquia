@@ -850,9 +850,9 @@ async function showRegistroPontuacao(league) {
                 </div>
             </div>
 
-            <!-- 2. Classificação -->
+            <!-- 2. Posições -->
             <div class="panel mb-3">
-                <div class="panel-title"><i class="bi bi-list-ol"></i> 2. Classificação da Temporada Regular</div>
+                <div class="panel-title"><i class="bi bi-list-ol"></i> 2. Posições</div>
                 <div style="font-size:12px;color:var(--text-3);margin-top:4px">Preencha a posição final de <b>todos</b> os times de cada conferência. Os 8 primeiros valem pontos de seed; os demais ficam registrados para o histórico de posições por temporada.</div>
                 <div id="standingsContainer" style="margin-top:12px">
                     <button type="button" class="btn-ghost" onclick="loadTeamsForStandings('${league}')">

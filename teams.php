@@ -2,17 +2,20 @@
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
+require_once __DIR__ . '/backend/salary_cap.php';
 requireAuth();
 
 $user = getUserSession();
 $pdo = db();
 
-$stmtSettings = $pdo->prepare('SELECT cap_min, cap_max, max_trades FROM league_settings WHERE league = ?');
+$stmtSettings = $pdo->prepare('SELECT cap_min, cap_max, max_trades, cap_mode FROM league_settings WHERE league = ?');
 $stmtSettings->execute([$user['league']]);
-$leagueSettings = $stmtSettings->fetch(PDO::FETCH_ASSOC) ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3];
+$leagueSettings = $stmtSettings->fetch(PDO::FETCH_ASSOC) ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'cap_mode' => 'ovr_sum'];
 $capMin = (int)($leagueSettings['cap_min'] ?? 0);
 $capMax = (int)($leagueSettings['cap_max'] ?? 0);
 $maxTrades = (int)($leagueSettings['max_trades'] ?? 3);
+// Novo Salary Cap (folha em dinheiro) — só quando a liga está em modo 'salary' (hoje, ELITE).
+$salaryCapMode = (($leagueSettings['cap_mode'] ?? 'ovr_sum') === 'salary');
 
 $currentSeasonYear = null;
 $currentSprintNumber = null;
@@ -80,7 +83,7 @@ function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?strin
 
 $stmt = $pdo->prepare('
     SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.tapas, t.roster_updated_at, t.team_tag,
-             t.trades_used, t.public_enabled, t.public_slug,
+             t.trades_used, t.public_enabled, t.public_slug, t.conference,
              u.name AS owner_name, u.email AS owner_email, u.phone AS owner_phone, u.photo_url AS owner_photo,
              (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL AND tp.type <> \'AVISO_TRADE\') as punicoes_count,
              (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.type = \'AVISO_TRADE\' AND tp.reverted_at IS NULL) as avisos_count,
@@ -159,6 +162,14 @@ foreach ($teams as &$t) {
     $t['cap_top8'] = (int)($capResult['cap'] ?? 0);
     $t['restricted_bonus'] = restrictedCapBonus($pdo, (int)$t['id']);
     $t['trades_used'] = (int)($t['trades_used'] ?? 0);
+
+    // Folha salarial (novo cap) — só quando a liga está em modo salary.
+    if ($salaryCapMode) {
+        $cs = getTeamCapSummary($pdo, (int)$t['id']);
+        $t['salary_payroll'] = (int)$cs['payroll'];
+        $t['salary_cap_max'] = (int)$cs['cap_max'];
+        $t['salary_status']  = $cs['status'];
+    }
 }
 unset($t);
 
@@ -198,7 +209,7 @@ function getSerasaScore(int $avisos): array {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css?v=20260225-2">
+    <link rel="stylesheet" href="/css/styles.css?v=20260721">
 
     <style>
         /* ── Design Tokens ─────────────────────────────── */
@@ -677,6 +688,17 @@ function getSerasaScore(int $avisos): array {
             white-space: nowrap;
         }
         .sort-btn:hover { border-color: var(--red); color: var(--red); }
+
+        /* Filtro de conferência */
+        .conf-filter { display: inline-flex; gap: 4px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
+        .conf-btn {
+            background: transparent; border: none; border-radius: 8px;
+            padding: 7px 13px; color: var(--text-2); font-family: var(--font);
+            font-size: 12px; font-weight: 600; cursor: pointer; transition: all .18s;
+            white-space: nowrap;
+        }
+        .conf-btn:hover { color: var(--text); }
+        .conf-btn.active { background: var(--red-soft); color: var(--red); border: 1px solid var(--border-red); padding: 6px 12px; }
 
         /* ── Teams Grid ────────────────────────────────── */
         .content-area {
@@ -1213,6 +1235,11 @@ function getSerasaScore(int $avisos): array {
                 <i class="bi bi-search search-icon"></i>
                 <input type="text" id="searchInput" class="search-input" placeholder="Buscar time, cidade ou GM...">
             </div>
+            <div class="conf-filter" id="confFilter">
+                <button class="conf-btn active" data-conf="">Todas</button>
+                <button class="conf-btn" data-conf="LESTE">Leste</button>
+                <button class="conf-btn" data-conf="OESTE">Oeste</button>
+            </div>
             <button class="sort-btn" id="capSortBtn">
                 <i class="bi bi-sort-down"></i> CAP <span id="capSortLabel">↓</span>
             </button>
@@ -1239,9 +1266,16 @@ function getSerasaScore(int $avisos): array {
                     $effectiveCapMax = $capMax + $teamBonus;
                     $capRange = $effectiveCapMax - $capMin;
                     $capPct = $capRange > 0 ? min(100, max(0, round(($t['cap_top8'] - $capMin) / $capRange * 100))) : 0;
+                    // Modo salary (ELITE): usa folha salarial em vez de soma de OVR.
+                    $salPayroll = (int)($t['salary_payroll'] ?? 0);
+                    $salCapMax  = (int)($t['salary_cap_max'] ?? 0);
+                    $salStatus  = $t['salary_status'] ?? 'dentro_do_cap';
+                    $salPct     = $salCapMax > 0 ? min(100, max(0, round($salPayroll / $salCapMax * 100))) : 0;
+                    $salColor   = $salStatus === 'over_the_cap' ? '#ef4444' : ($salStatus === 'abaixo_do_piso' ? '#f59e0b' : '#22c55e');
+                    $sortCapVal = $salaryCapMode ? $salPayroll : (int)$t['cap_top8'];
                     $searchKey = strtolower(($t['city'] ?? '') . ' ' . ($t['name'] ?? '') . ' ' . ($t['owner_name'] ?? ''));
                 ?>
-                <div class="team-card" data-search="<?= htmlspecialchars($searchKey) ?>" data-cap="<?= (int)$t['cap_top8'] ?>" style="animation-delay:<?= $i * 0.04 ?>s">
+                <div class="team-card" data-search="<?= htmlspecialchars($searchKey) ?>" data-cap="<?= $sortCapVal ?>" data-conf="<?= htmlspecialchars($t['conference'] ?? '') ?>" style="animation-delay:<?= $i * 0.04 ?>s">
                     <?php
                         $rua = $t['roster_updated_at'] ?? null;
                         $rosterOk = $rua && (!$seasonCreatedAt || strtotime($rua) >= strtotime($seasonCreatedAt));
@@ -1299,8 +1333,13 @@ function getSerasaScore(int $avisos): array {
 
                     <div class="team-stats">
                         <div class="team-stat">
+                            <?php if ($salaryCapMode): ?>
+                            <div class="team-stat-val" style="color:<?= $salColor ?>"><?= $salPayroll ?><span style="font-size:.55em;opacity:.75">M</span></div>
+                            <div class="team-stat-label">Folha</div>
+                            <?php else: ?>
                             <div class="team-stat-val red"><?= (int)$t['cap_top8'] ?><?= $teamBonus > 0 ? '<span style="font-size:.65em;color:#f59e0b;margin-left:2px">+' . $teamBonus . '</span>' : '' ?></div>
                             <div class="team-stat-label">CAP</div>
+                            <?php endif; ?>
                         </div>
                         <div class="team-stat">
                             <div class="team-stat-val"><?= (int)$t['total_players'] ?></div>
@@ -1321,7 +1360,17 @@ function getSerasaScore(int $avisos): array {
                         </div>
                     </div>
 
-                    <?php if ($capMax > 0): ?>
+                    <?php if ($salaryCapMode): ?>
+                    <div class="cap-bar-wrap">
+                        <div class="cap-bar-header">
+                            <span class="cap-label">Folha — <?= $salPayroll ?>M / <?= $salCapMax ?>M<?php if ($t['salary_cap_max'] - CAP_BASE_MILLIONS > 0): ?> <span style="color:#f59e0b" title="Cap Flex">⚡+<?= $salCapMax - CAP_BASE_MILLIONS ?></span><?php endif; ?></span>
+                            <span class="cap-value" style="color:<?= $salColor ?>"><?= $salPct ?>%</span>
+                        </div>
+                        <div class="cap-track">
+                            <div class="cap-fill" style="width:<?= $salPct ?>%;background:<?= $salColor ?>"></div>
+                        </div>
+                    </div>
+                    <?php elseif ($capMax > 0): ?>
                     <div class="cap-bar-wrap">
                         <div class="cap-bar-header">
                             <span class="cap-label">CAP — <?= $capMin ?> / <?= $effectiveCapMax ?><?= $teamBonus > 0 ? ' <span style="color:#f59e0b">🏆+' . $teamBonus . '</span>' : '' ?></span>
@@ -1381,8 +1430,12 @@ function getSerasaScore(int $avisos): array {
                         : null;
                     $searchKey = strtolower(($t['city'] ?? '') . ' ' . ($t['name'] ?? '') . ' ' . ($t['owner_name'] ?? ''));
                     $listBonus = (int)($t['restricted_bonus'] ?? 0);
+                    $salPayrollL = (int)($t['salary_payroll'] ?? 0);
+                    $salStatusL  = $t['salary_status'] ?? 'dentro_do_cap';
+                    $salColorL   = $salStatusL === 'over_the_cap' ? '#ef4444' : ($salStatusL === 'abaixo_do_piso' ? '#f59e0b' : '#22c55e');
+                    $sortCapValL = $salaryCapMode ? $salPayrollL : (int)$t['cap_top8'];
                 ?>
-                <div class="list-row" data-search="<?= htmlspecialchars($searchKey) ?>" data-cap="<?= (int)$t['cap_top8'] ?>" style="animation-delay:<?= $i * 0.02 ?>s">
+                <div class="list-row" data-search="<?= htmlspecialchars($searchKey) ?>" data-cap="<?= $sortCapValL ?>" data-conf="<?= htmlspecialchars($t['conference'] ?? '') ?>" style="animation-delay:<?= $i * 0.02 ?>s">
                     <div class="list-team-cell">
                         <img class="list-team-logo"
                              src="<?= htmlspecialchars(getTeamPhoto($t['photo_url'] ?? null)) ?>"
@@ -1424,7 +1477,11 @@ function getSerasaScore(int $avisos): array {
                         </div>
                     </div>
                     <div class="list-cell" style="text-align:center">
+                        <?php if ($salaryCapMode): ?>
+                        <span class="badge-pill" style="color:<?= $salColorL ?>;border-color:<?= $salColorL ?>44;background:<?= $salColorL ?>18"><?= $salPayrollL ?>M</span>
+                        <?php else: ?>
                         <span class="badge-pill red"><?= (int)$t['cap_top8'] ?><?= $listBonus > 0 ? '<span style="font-size:.75em;color:#f59e0b;margin-left:3px">+' . $listBonus . '</span>' : '' ?></span>
+                        <?php endif; ?>
                     </div>
                     <div class="list-cell" style="text-align:center"><?= (int)$t['total_players'] ?></div>
                     <div class="list-cell" style="text-align:center">
@@ -1684,24 +1741,43 @@ function getSerasaScore(int $avisos): array {
         btnList.classList.add('active'); btnGrid.classList.remove('active');
     });
 
-    /* ── Search ─────────────────────────────────────── */
-    document.getElementById('searchInput').addEventListener('input', function () {
-        const term = this.value.toLowerCase().trim();
+    /* ── Search + filtro de conferência ─────────────── */
+    let confFilter = '';
+
+    function applyTeamFilters() {
+        const term = (document.getElementById('searchInput').value || '').toLowerCase().trim();
         let gVis = 0, lVis = 0;
+        const matches = (el) => {
+            const okTerm = !term || (el.dataset.search || '').includes(term);
+            const okConf = !confFilter || (el.dataset.conf || '') === confFilter;
+            return okTerm && okConf;
+        };
 
         document.querySelectorAll('#teamsGrid .team-card').forEach(el => {
-            const match = !term || el.dataset.search.includes(term);
-            el.style.display = match ? '' : 'none';
-            if (match) gVis++;
+            const m = matches(el);
+            el.style.display = m ? '' : 'none';
+            if (m) gVis++;
         });
         document.querySelectorAll('#teamsList .list-row').forEach(el => {
-            const match = !term || el.dataset.search.includes(term);
-            el.style.display = match ? '' : 'none';
-            if (match) lVis++;
+            const m = matches(el);
+            el.style.display = m ? '' : 'none';
+            if (m) lVis++;
         });
 
-        document.getElementById('gridEmpty').style.display = (gVis === 0 && term) ? 'block' : 'none';
-        document.getElementById('listEmpty').style.display = (lVis === 0 && term) ? 'block' : 'none';
+        const filtering = !!term || !!confFilter;
+        document.getElementById('gridEmpty').style.display = (gVis === 0 && filtering) ? 'block' : 'none';
+        document.getElementById('listEmpty').style.display = (lVis === 0 && filtering) ? 'block' : 'none';
+    }
+
+    document.getElementById('searchInput').addEventListener('input', applyTeamFilters);
+
+    document.querySelectorAll('#confFilter .conf-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#confFilter .conf-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            confFilter = btn.dataset.conf || '';
+            applyTeamFilters();
+        });
     });
 
     /* ── Sort by CAP ────────────────────────────────── */

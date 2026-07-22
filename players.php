@@ -86,7 +86,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 	<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-	<link rel="stylesheet" href="/css/styles.css?v=20260225-2">
+	<link rel="stylesheet" href="/css/styles.css?v=20260721">
 
 	<style>
 		/* ── Design Tokens ─────────────────────────────── */
@@ -422,6 +422,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		}
 		.mpl-item:last-child { border-bottom: none; }
 		.mpl-main { flex: 1; min-width: 0; }
+		.pl-link { color: inherit; text-decoration: none; }
+		.pl-link:hover { color: var(--red); text-decoration: underline; }
 		.mpl-name {
 			font-weight: 600; font-size: 14px; color: var(--text);
 			white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -1046,7 +1048,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		return `
 			<div class="mpl-item">
 				<div class="mpl-main">
-					<div class="mpl-name">${p.name}${renderTapaBadge(p)}${franchiseBadge}${tagBadge}${tradeBadge}</div>
+					<div class="mpl-name"><a class="pl-link" href="player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)}${franchiseBadge}${tagBadge}${tradeBadge}</div>
 					<div class="mpl-meta">${p.position ?? '-'} · ${p.age ?? '-'}a · Badges ${p.badges_count ?? 0} · ${teamName}</div>
 				</div>
 				<div class="mpl-right">
@@ -1078,7 +1080,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					<div class="d-flex align-items-center gap-2">
 						<img src="${photoUrl}" alt="${p.name}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
 						<div>
-							<div class="player-card-name">${p.name}${renderTapaBadge(p)}${franchiseBadge}${tagBadgeCard}</div>
+							<div class="player-card-name"><a class="pl-link" href="player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)}${franchiseBadge}${tagBadgeCard}</div>
 							<div class="player-card-team">${teamName}</div>
 						</div>
 					</div>
@@ -1168,7 +1170,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 								<td>
 									<div class="d-flex align-items-center gap-2">
 										<img src="${photoUrl}" alt="${p.name}" style="width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
-										<strong>${p.name}</strong>${renderTapaBadge(p)}${franchiseBadgeRow}${tagBadgeRow}${tradeBadgeRow}
+										<strong><a class="pl-link" href="player.php?id=${p.id}">${p.name}</a></strong>${renderTapaBadge(p)}${franchiseBadgeRow}${tagBadgeRow}${tradeBadgeRow}
 									</div>
 								</td>
 								<td>

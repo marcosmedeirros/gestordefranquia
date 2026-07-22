@@ -1752,11 +1752,11 @@ async function showTrades() {
   ${tr.notes ? `<div class="pun-card-meta" style="margin-top:6px"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</div>` : ''}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">
     <div>
-      <div style="font-size:11px;font-weight:600;color:var(--red);margin-bottom:4px">${tr.from_city} ${tr.from_name} oferece:</div>
+      <div style="font-size:11px;font-weight:600;color:var(--red);margin-bottom:4px">${tr.to_city} ${tr.to_name} recebe:</div>
       ${offerHtml}
     </div>
     <div>
-      <div style="font-size:11px;font-weight:600;color:var(--red);margin-bottom:4px">${tr.to_city} ${tr.to_name} oferece:</div>
+      <div style="font-size:11px;font-weight:600;color:var(--red);margin-bottom:4px">${tr.from_city} ${tr.from_name} recebe:</div>
       ${requestHtml}
     </div>
   </div>
@@ -3770,6 +3770,16 @@ async function showFreeAgency() {
             border-radius:var(--radius-sm);cursor:pointer" onclick="_leilaoStart()">
             <i class="bi bi-hammer me-2"></i>Começar Leilão
           </button>
+
+          <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:8px">
+              Leilão que já aconteceu fora do app? Registre o resultado e a troca é executada na hora.
+            </div>
+            <button class="btn-ghost" style="width:100%;padding:9px;font-size:13px;font-weight:600"
+              onclick="abrirCadastroManualAdmin('${league}')">
+              <i class="bi bi-plus-lg me-2"></i>Cadastrar leilão manualmente
+            </button>
+          </div>
         </div>
       </div>
 
@@ -3795,6 +3805,58 @@ async function showFreeAgency() {
       </div>
       <div id="leilaoHistoricoContainer"><p class="empty-state">Carregando...</p></div>
     </div>
+
+    <!-- Modal: cadastro manual de leilão -->
+    <div class="modal fade" id="modalCadManualAdmin" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-hammer me-2" style="color:#f59e0b"></i>Cadastrar Leilão Manualmente</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" style="max-height:78vh;overflow-y:auto">
+            <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">
+              O jogador leiloado vai para o vencedor e os jogadores/picks enviados vão para o vendedor — como uma troca.
+              Só aparecem times da liga <strong>${league}</strong>.
+            </p>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" style="font-size:12px">Time vendedor</label>
+                <select id="cmaSeller" class="form-select form-select-sm" onchange="cmaOnSellerChange()"><option value="">Carregando...</option></select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" style="font-size:12px">Jogador leiloado <span style="color:var(--text-3)">(do vendedor)</span></label>
+                <select id="cmaPlayer" class="form-select form-select-sm"><option value="">Selecione o vendedor primeiro</option></select>
+              </div>
+            </div>
+            <hr style="border-color:var(--border);margin:16px 0">
+            <div class="mb-3">
+              <label class="form-label" style="font-size:12px">Time vencedor</label>
+              <select id="cmaWinner" class="form-select form-select-sm" onchange="cmaOnWinnerChange()"><option value="">Carregando...</option></select>
+            </div>
+            <div class="mb-3">
+              <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Jogadores enviados pelo vencedor</div>
+              <div id="cmaOfferPlayers"><p class="empty-state">Selecione o vencedor primeiro</p></div>
+            </div>
+            <div class="mb-3">
+              <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Picks enviadas pelo vencedor</div>
+              <div id="cmaOfferPicks"><p class="empty-state">Selecione o vencedor primeiro</p></div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label" style="font-size:12px">Observação <span style="color:var(--text-3)">(opcional)</span></label>
+              <textarea id="cmaObs" class="form-control form-control-sm" rows="2" placeholder="Ex: leilão do Discord em 20/07..."></textarea>
+            </div>
+            <div id="cmaError" style="display:none;color:#ef4444;font-size:13px;margin-top:6px"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-orange" id="cmaSubmit" onclick="enviarCadastroManualAdmin()">
+              <i class="bi bi-check-lg me-1"></i>Cadastrar e executar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   `;
 
   document.getElementById('leilaoSearchInput').addEventListener('keydown', e => {
@@ -3811,6 +3873,114 @@ async function showFreeAgency() {
 
 let _leilaoSearchResult = null;
 let _leilaoAtivos = [];
+
+/* ── Cadastro manual de leilão (admin) ─────────────────────────── */
+let _cmaLeague = '';
+function _cmaEsc(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function abrirCadastroManualAdmin(league) {
+  _cmaLeague = league || '';
+  const modal = new bootstrap.Modal(document.getElementById('modalCadManualAdmin'));
+  document.getElementById('cmaError').style.display = 'none';
+  document.getElementById('cmaObs').value = '';
+  document.getElementById('cmaPlayer').innerHTML = '<option value="">Selecione o vendedor primeiro</option>';
+  document.getElementById('cmaOfferPlayers').innerHTML = '<p class="empty-state">Selecione o vencedor primeiro</p>';
+  document.getElementById('cmaOfferPicks').innerHTML = '<p class="empty-state">Selecione o vencedor primeiro</p>';
+  modal.show();
+  try {
+    const res = await fetch(`/api/leilao.php?action=league_teams&league=${encodeURIComponent(_cmaLeague)}`);
+    const data = await res.json();
+    const teams = data.success ? (data.teams || []) : [];
+    const opts = '<option value="">Selecione...</option>' +
+      teams.map(t => `<option value="${t.id}">${_cmaEsc(t.team_name)}</option>`).join('');
+    document.getElementById('cmaSeller').innerHTML = opts;
+    document.getElementById('cmaWinner').innerHTML = opts;
+  } catch (e) {
+    document.getElementById('cmaSeller').innerHTML = '<option value="">Erro ao carregar times</option>';
+  }
+}
+
+async function cmaOnSellerChange() {
+  const id = document.getElementById('cmaSeller').value;
+  const sel = document.getElementById('cmaPlayer');
+  if (!id) { sel.innerHTML = '<option value="">Selecione o vendedor primeiro</option>'; return; }
+  sel.innerHTML = '<option value="">Carregando...</option>';
+  try {
+    const res = await fetch(`/api/leilao.php?action=seller_items&seller_team_id=${id}`);
+    const d = await res.json();
+    const players = d.success ? (d.players || []) : [];
+    sel.innerHTML = '<option value="">Selecione o jogador...</option>' +
+      players.map(p => `<option value="${p.id}">${_cmaEsc(p.name)} · ${_cmaEsc(p.position||'')} · ${p.ovr||'?'} OVR</option>`).join('');
+  } catch (e) { sel.innerHTML = '<option value="">Erro ao carregar</option>'; }
+}
+
+async function cmaOnWinnerChange() {
+  const id = document.getElementById('cmaWinner').value;
+  const pc = document.getElementById('cmaOfferPlayers');
+  const kc = document.getElementById('cmaOfferPicks');
+  if (!id) {
+    pc.innerHTML = '<p class="empty-state">Selecione o vencedor primeiro</p>';
+    kc.innerHTML = '<p class="empty-state">Selecione o vencedor primeiro</p>';
+    return;
+  }
+  pc.innerHTML = '<p class="empty-state">Carregando...</p>'; kc.innerHTML = '';
+  try {
+    const res = await fetch(`/api/leilao.php?action=seller_items&seller_team_id=${id}`);
+    const d = await res.json();
+    const players = d.success ? (d.players || []) : [];
+    const picks = d.success ? (d.picks || []) : [];
+    const chip = (v, label, cls) => `<label style="display:inline-flex;align-items:center;gap:7px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:6px 11px;margin:0 6px 6px 0;font-size:12.5px;cursor:pointer">
+      <input type="checkbox" class="${cls}" value="${v}"> <span>${label}</span></label>`;
+    pc.innerHTML = players.length
+      ? players.map(p => chip(p.id, `${_cmaEsc(p.name)} <span style="color:var(--text-3)">· ${p.ovr||'?'} OVR</span>`, 'cma-op')).join('')
+      : '<p class="empty-state">Sem jogadores.</p>';
+    kc.innerHTML = picks.length
+      ? picks.map(k => chip(k.id, `Pick ${k.season_year} R${k.round}`, 'cma-ok')).join('')
+      : '<p class="empty-state">Sem picks.</p>';
+  } catch (e) { pc.innerHTML = '<p class="empty-state" style="color:#ef4444">Erro ao carregar</p>'; }
+}
+
+async function enviarCadastroManualAdmin() {
+  const err = document.getElementById('cmaError');
+  err.style.display = 'none';
+  const showErr = m => { err.textContent = m; err.style.display = 'block'; };
+  const seller = parseInt(document.getElementById('cmaSeller').value, 10);
+  const winner = parseInt(document.getElementById('cmaWinner').value, 10);
+  const player = parseInt(document.getElementById('cmaPlayer').value, 10);
+  const ops = Array.from(document.querySelectorAll('.cma-op:checked')).map(c => parseInt(c.value, 10));
+  const oks = Array.from(document.querySelectorAll('.cma-ok:checked')).map(c => parseInt(c.value, 10));
+  const obs = document.getElementById('cmaObs').value.trim();
+
+  if (!seller || !player) return showErr('Selecione o time vendedor e o jogador leiloado.');
+  if (!winner) return showErr('Selecione o time vencedor.');
+  if (seller === winner) return showErr('Vendedor e vencedor não podem ser o mesmo time.');
+  if (!ops.length && !oks.length) return showErr('O vencedor precisa enviar ao menos um jogador ou pick.');
+
+  const btn = document.getElementById('cmaSubmit');
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Cadastrando...';
+  try {
+    const res = await fetch('/api/leilao.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'cadastrar_manual', seller_team_id: seller, winner_team_id: winner,
+        auctioned_player_id: player, offered_player_ids: ops, offered_pick_ids: oks, obs
+      })
+    });
+    const d = await res.json();
+    if (!d.success) return showErr(d.error || 'Erro ao cadastrar.');
+    bootstrap.Modal.getInstance(document.getElementById('modalCadManualAdmin'))?.hide();
+    if (typeof showAlert === 'function') showAlert('success', 'Leilão cadastrado e troca executada!');
+    if (typeof _leilaoLoadHistory === 'function') _leilaoLoadHistory();
+    if (typeof _leilaoLoadActive === 'function') _leilaoLoadActive();
+  } catch (e) {
+    showErr('Erro ao cadastrar o leilão.');
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+  }
+}
 
 async function _leilaoDoSearch() {
   const input = document.getElementById('leilaoSearchInput');

@@ -977,7 +977,16 @@ function updateRosterStats() {
   const capMin = Number(window.__CAP_MIN__);
   document.getElementById('total-players').textContent = totalPlayers;
   const capEl = document.getElementById('cap-top8');
-  if (capEl) {
+  if (capEl && window.__SALARY_CAP__) {
+    // Liga em modo salary (ELITE): mostra a folha salarial (estado confirmado do elenco).
+    const sc = window.__SALARY_CAP__;
+    const color = sc.status === 'over_the_cap' ? '#ef4444' : (sc.status === 'abaixo_do_piso' ? 'var(--amber)' : 'var(--green)');
+    capEl.style.fontSize = '14px';
+    capEl.innerHTML = `<span style="color:${color};font-weight:700">${sc.payroll}M</span>`
+      + ` <span style="color:var(--text-3)">/ ${sc.cap_max}M</span>`;
+    const bl0 = document.getElementById('cap-bonus-label'); if (bl0) bl0.textContent = '';
+    const cr0 = document.getElementById('cap-range'); if (cr0) cr0.textContent = '';
+  } else if (capEl) {
     const showFull = Number.isFinite(capMin) && Number.isFinite(capMaxAdjusted)
       && capMin > 0 && Number(window.__CAP_MAX__) > 0;
     if (showFull) {

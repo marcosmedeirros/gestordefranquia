@@ -503,6 +503,8 @@ foreach ($leagueOrder as $league) {
         $s = $pdo->prepare("
             SELECT t.id, t.city, t.name, t.photo_url AS team_photo, t.team_tag,
                    t.public_enabled, t.public_slug,
+                   COALESCE(t.ranking_points, 0) AS ranking_points,
+                   COALESCE(t.ranking_titles, 0) AS ranking_titles,
                    u.name AS owner_name,
                    (SELECT AVG(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = 'titular') AS starters_avg_ovr,
                    (SELECT MAX(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = 'titular') AS starters_max_ovr,
@@ -534,7 +536,19 @@ foreach ($leagueOrder as $league) {
         $t['starters'] = $byPos;
     }
     unset($t);
-    usort($teams, fn($a, $b) => $b['cap_top8'] - $a['cap_top8']);
+    // Ordena pela posição no ranking da liga (mesmo critério da tabela de ranking:
+    // pontos, depois títulos, depois nome) — não mais pelo CAP.
+    usort($teams, function ($a, $b) {
+        $pa = (int)($a['ranking_points'] ?? 0); $pb = (int)($b['ranking_points'] ?? 0);
+        if ($pa !== $pb) return $pb <=> $pa;
+        $ta = (int)($a['ranking_titles'] ?? 0); $tb = (int)($b['ranking_titles'] ?? 0);
+        if ($ta !== $tb) return $tb <=> $ta;
+        return strcmp((string)($a['name'] ?? ''), (string)($b['name'] ?? ''));
+    });
+    // Posição no ranking (1..N) para exibir no card
+    $rankPos = 0;
+    foreach ($teams as &$t) { $t['rank_pos'] = ++$rankPos; }
+    unset($t);
 
     // Última temporada encerrada
     $lastSeason = null; $seasonYear = null;
@@ -1385,6 +1399,10 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                                 <?php endif; ?>
                             </div>
                             <div class="team-gm"><i class="bi bi-person-fill" style="font-size:10px;margin-right:3px"></i><?= htmlspecialchars($t['owner_name']) ?></div>
+                        </div>
+                        <div class="team-cap" title="Posição no ranking da liga">
+                            <div class="cap-val"><?= (int)($t['rank_pos'] ?? 0) ?>º</div>
+                            <div class="cap-lbl">Ranking</div>
                         </div>
                         <div class="team-cap">
                             <div class="cap-val"><?= $t['cap_top8'] ?></div>

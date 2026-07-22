@@ -17,6 +17,7 @@ $league = $team['league'] ?? '';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
     <?php include __DIR__ . '/includes/head-pwa.php'; ?>
     <title>Trade List — FBA Manager</title>
     <link rel="manifest" href="/manifest.json">
@@ -82,22 +83,6 @@ $league = $team['league'] ?? '';
 
         /* ── Layout ──────────────────────────────────── */
         .app-wrap { max-width: 960px; margin: 0 auto; padding: 24px 20px 56px; }
-
-        /* ── Topbar ──────────────────────────────────── */
-        .app-topbar {
-            display: flex; align-items: center; justify-content: space-between;
-            gap: 14px; flex-wrap: wrap;
-            padding: 14px 20px;
-            background: var(--panel);
-            border-bottom: 1px solid var(--border);
-            margin-bottom: 28px;
-        }
-        .app-topbar-left { display: flex; align-items: center; gap: 12px; }
-        .app-logo { width: 32px; height: 32px; border-radius: 8px; background: var(--red); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; color: #fff; flex-shrink: 0; }
-        .app-title { font-size: 15px; font-weight: 700; line-height: 1.1; }
-        .app-title span { display: block; font-size: 11px; font-weight: 400; color: var(--text-2); }
-        .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2); text-decoration: none; transition: color var(--t) var(--ease); }
-        .back-link:hover { color: var(--red); }
 
         /* ── Page header ──────────────────────────────── */
         .page-head { margin-bottom: 22px; }
@@ -181,20 +166,66 @@ $league = $team['league'] ?? '';
         }
     input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
      (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
+
+    /* ── Shell padrão (sidebar + main + topbar mobile) ── */
+    :root { --sidebar-w: 260px; }
+    .app { display: flex; min-height: 100vh; }
+    .sidebar { position: fixed; top: 0; left: 0; width: 260px; height: 100vh; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 300; transition: transform var(--t) var(--ease); overflow-y: auto; scrollbar-width: none; }
+    .sidebar::-webkit-scrollbar { display: none; }
+    .sb-brand { padding: 22px 18px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+    .sb-logo { width: 34px; height: 34px; border-radius: 9px; background: var(--red); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #fff; flex-shrink: 0; }
+    .sb-brand-text { font-weight: 700; font-size: 15px; line-height: 1.1; }
+    .sb-brand-text span { display: block; font-size: 11px; font-weight: 400; color: var(--text-2); }
+    .sb-team { margin: 14px 14px 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .sb-team img { width: 40px; height: 40px; border-radius: 9px; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
+    .sb-team-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.2; }
+    .sb-team-league { font-size: 11px; color: var(--red); font-weight: 600; }
+    .sb-nav { flex: 1; padding: 12px 10px 8px; }
+    .sb-section { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); padding: 12px 10px 6px; }
+    .sb-nav a { font-family:'Inter',sans-serif; display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-weight: 500; text-decoration: none; margin-bottom: 2px; transition: all var(--t) var(--ease); }
+    .sb-nav a i { font-size: 15px; width: 18px; text-align: center; flex-shrink: 0; }
+    .sb-nav a:hover { background: var(--panel-2); color: var(--text); }
+    .sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
+    .sb-nav a.active i { color: var(--red); }
+    .sb-theme-toggle{margin:10px 14px;display:flex;align-items:center;gap:8px;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0}
+    .sb-theme-toggle:hover{color:var(--text)}
+    .sb-footer { padding: 12px 14px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .sb-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
+    .sb-username { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sb-logout { width: 26px; height: 26px; border-radius: 7px; background: transparent; border: 1px solid var(--border); color: var(--text-2); display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; transition: all var(--t) var(--ease); text-decoration: none; flex-shrink: 0; }
+    .sb-logout:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+    .topbar { display: none; position: fixed; top: 0; left: 0; right: 0; height: 54px; background: var(--panel); border-bottom: 1px solid var(--border); align-items: center; padding: 0 16px; gap: 12px; z-index: 260; }
+    .topbar-title { font-weight: 700; font-size: 15px; flex: 1; }
+    .topbar-title em { color: var(--red); font-style: normal; }
+    .menu-btn { width: 34px; height: 34px; border-radius: 9px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 17px; }
+    .icon-btn{width:34px;height:34px;border-radius:10px;background:transparent;border:1px solid var(--border);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;text-decoration:none;transition:all .2s}
+    .icon-btn:hover{background:var(--red-soft);border-color:var(--red);color:var(--red)}
+    .sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 250; }
+    .sb-overlay.show { display: block; }
+    .main { margin-left: var(--sidebar-w); min-height: 100vh; width: calc(100% - var(--sidebar-w)); }
+    @media (max-width: 992px) {
+        :root { --sidebar-w: 0px; }
+        .sidebar { transform: translateX(-260px); }
+        .sidebar.open { transform: translateX(0); }
+        .main { margin-left: 0; width: 100%; padding-top: 54px; }
+        .topbar { display: flex; }
+    }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
 <body>
+<div class="app">
 
-<!-- Topbar -->
-<div class="app-topbar">
-    <div class="app-topbar-left">
-        <div class="app-logo">FBA</div>
-        <div class="app-title">Trade List <span>Jogadores disponíveis para troca</span></div>
-    </div>
-    <a href="trades.php" class="back-link"><i class="bi bi-arrow-left"></i> Trades</a>
-</div>
+<?php include __DIR__ . '/includes/sidebar.php'; ?>
+<div class="sb-overlay" id="sbOverlay"></div>
 
+<header class="topbar">
+  <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
+  <div class="topbar-title">Trade <em>List</em></div>
+  <a href="trades.php" class="icon-btn"><i class="bi bi-arrow-left"></i></a>
+</header>
+
+<main class="main">
 <div class="app-wrap">
 
     <div class="page-head">
@@ -231,9 +262,30 @@ $league = $team['league'] ?? '';
     </div>
 
 </div><!-- .app-wrap -->
+</main>
+</div><!-- .app -->
 
 <script>
 window.__USER_LEAGUE__ = '<?= htmlspecialchars($league, ENT_QUOTES) ?>';
+(function(){
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sbOverlay');
+  const menuBtn = document.getElementById('menuBtn');
+  if (menuBtn) menuBtn.addEventListener('click', () => { sidebar?.classList.add('open'); overlay?.classList.add('show'); });
+  if (overlay) overlay.addEventListener('click', () => { sidebar?.classList.remove('open'); overlay.classList.remove('show'); });
+  const themeToggle = document.getElementById('themeToggle');
+  const themeKey = 'fba-theme';
+  const applyTheme = (t) => {
+    if (t === 'light') { document.documentElement.setAttribute('data-theme','light'); if (themeToggle) themeToggle.innerHTML = '<i class="bi bi-sun"></i><span>Modo claro</span>'; return; }
+    document.documentElement.removeAttribute('data-theme'); if (themeToggle) themeToggle.innerHTML = '<i class="bi bi-moon"></i><span>Modo escuro</span>';
+  };
+  applyTheme(localStorage.getItem(themeKey) || 'dark');
+  if (themeToggle) themeToggle.addEventListener('click', () => {
+    const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    const next = cur === 'light' ? 'dark' : 'light';
+    localStorage.setItem(themeKey, next); applyTheme(next);
+  });
+})();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/js/trade-list.js"></script>

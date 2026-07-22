@@ -2,10 +2,19 @@
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
+require_once __DIR__ . '/backend/salary_cap.php';
 requireAuth();
 
 $user = getUserSession();
 $pdo  = db();
+
+// Liga em modo salary (folha em dinheiro)? Hoje, ELITE.
+$__salaryMode = false;
+try {
+    $sm = $pdo->prepare("SELECT cap_mode FROM league_settings WHERE league = ?");
+    $sm->execute([$user['league'] ?? '']);
+    $__salaryMode = (($sm->fetchColumn() ?: 'ovr_sum') === 'salary');
+} catch (Exception $e) { $__salaryMode = false; }
 
 // ── API inline ────────────────────────────────────────────────────────────────
 $action = $_GET['action'] ?? '';
@@ -60,7 +69,25 @@ if ($action === 'roster') {
     } catch (Exception $e) {}
 
     $cap = topEightCap($pdo, $tid);
-    echo json_encode(['ok' => true, 'team' => $team, 'players' => $players, 'picks' => $picks, 'cap' => $cap]);
+
+    // Modo salary (ELITE): injeta salário por jogador e usa a folha como "cap".
+    $salaryMode = false; $capMaxSalary = 0; $capMinSalary = 0;
+    if ($__salaryMode) {
+        try {
+            $summary = getTeamCapSummary($pdo, $tid);
+            $salById = [];
+            foreach ($summary['roster'] as $rp) { $salById[(int)$rp['id']] = (int)$rp['total_salary']; }
+            foreach ($players as &$pp) { $pp['salary'] = $salById[(int)$pp['id']] ?? 0; }
+            unset($pp);
+            $salaryMode   = true;
+            $cap          = (int)$summary['payroll'];
+            $capMaxSalary = (int)$summary['cap_max'];
+            $capMinSalary = (int)$summary['cap_floor'];
+        } catch (Exception $e) { $salaryMode = false; }
+    }
+
+    echo json_encode(['ok' => true, 'team' => $team, 'players' => $players, 'picks' => $picks,
+        'cap' => $cap, 'salaryMode' => $salaryMode, 'capMaxSalary' => $capMaxSalary, 'capMinSalary' => $capMinSalary]);
     exit;
 }
 
@@ -595,6 +622,9 @@ async function loadTeam(key, teamId) {
     players: d.players,
     picks:   d.picks,
     cap:     d.cap,
+    salaryMode: !!d.salaryMode,
+    capMaxSalary: d.capMaxSalary || 0,
+    capMinSalary: d.capMinSalary || 0,
     tradedOut: new Set(),
   };
   receives[key] = [];
@@ -842,7 +872,7 @@ function confirmPicker() {
     if (pickerType === 'player') {
       const p = src.players.find(pl => pl.id === id);
       if (!p) return;
-      receives[pickerToSlot].push({ id, type: 'player', fromKey: pickerFromSlot, name: p.name, pos: p.position, age: p.age, ovr: p.ovr });
+      receives[pickerToSlot].push({ id, type: 'player', fromKey: pickerFromSlot, name: p.name, pos: p.position, age: p.age, ovr: p.ovr, salary: p.salary });
       teams[pickerFromSlot].tradedOut.add(id);
     } else {
       const pk = src.picks.find(pk => pk.id === id);
@@ -913,9 +943,12 @@ function simTop8(key) {
   if (!t) return 0;
   const tradedOut = t.tradedOut;
   const keep = t.players.filter(p => !tradedOut.has(p.id));
-  // Add incoming players (those in receives[key])
   const incoming = receives[key].filter(i => i.type === 'player');
   const all = [...keep, ...incoming];
+  // ELITE (salaryMode): a "folha" é a soma dos salários de todo o elenco resultante.
+  if (t.salaryMode) {
+    return all.reduce((s, p) => s + (+(p.salary || 0)), 0);
+  }
   all.sort((a, b) => b.ovr - a.ovr);
   return all.slice(0, 8).reduce((s, p) => s + (+p.ovr), 0);
 }
@@ -938,21 +971,28 @@ function recalc() {
     const newCap = simTop8(key);
     const delta  = newCap - t.cap;
     const totalAfter = t.players.filter(p => !t.tradedOut.has(p.id)).length + receives[key].filter(i => i.type === 'player').length;
-    const cls = capClass(newCap);
+
+    // Limites/formatação: ELITE usa folha em M; demais, soma de OVR.
+    const sMode = !!t.salaryMode;
+    const capMin = sMode ? (t.capMinSalary || 0) : CAP_MIN;
+    const capMax = sMode ? (t.capMaxSalary || 0) : CAP_MAX;
+    const fmt = v => sMode ? `${v}M` : `${v}`;
+    const cls = capClassL(newCap, capMin, capMax);
     if (cls === 'bad' || cls === 'warn') anyInvalid = true;
 
     // Update cap info in panel header
+    const capLbl = sMode ? 'Folha' : 'CAP';
     const ci = document.getElementById(`capInfo_${key}`);
-    if (ci) ci.textContent = hasItems ? `CAP: ${t.cap} → ${newCap}${delta !== 0 ? ` (${delta > 0 ? '+' : ''}${delta})` : ''}` : `CAP: ${t.cap}`;
+    if (ci) ci.textContent = hasItems ? `${capLbl}: ${fmt(t.cap)} → ${fmt(newCap)}${delta !== 0 ? ` (${delta > 0 ? '+' : ''}${fmt(delta)})` : ''}` : `${capLbl}: ${fmt(t.cap)}`;
 
     const panel = document.createElement('div');
     panel.className = 'cap-panel';
     panel.innerHTML = `
       <div class="cap-label">${escH(t.name)}</div>
-      <div class="cap-row"><span>Atual</span><span class="cap-val">${t.cap}</span></div>
-      <div class="cap-row"><span>Pós-trade</span><span class="cap-val ${cls}">${newCap}</span></div>
+      <div class="cap-row"><span>${sMode ? 'Folha atual' : 'Atual'}</span><span class="cap-val">${fmt(t.cap)}</span></div>
+      <div class="cap-row"><span>Pós-trade</span><span class="cap-val ${cls}">${fmt(newCap)}</span></div>
       <div class="cap-row"><span>Jogadores</span><span class="cap-val">${t.players.filter(p=>!t.tradedOut.has(p.id)).length} → ${totalAfter}</span></div>
-      ${CAP_MAX > 0 ? `<div class="cap-row"><span style="font-size:10px">Limite ${CAP_MIN}–${CAP_MAX}</span><span class="cap-val ${cls}" style="font-size:10px">${capStatus(newCap)}</span></div>` : ''}
+      ${capMax > 0 ? `<div class="cap-row"><span style="font-size:10px">${sMode ? 'Teto ' + fmt(capMax) : 'Limite ' + capMin + '–' + capMax}</span><span class="cap-val ${cls}" style="font-size:10px">${capStatusL(newCap, capMin, capMax)}</span></div>` : ''}
     `;
     capBar.appendChild(panel);
   });
@@ -980,16 +1020,18 @@ function updateValidity(cls, text) {
   el.innerHTML = `<i class="bi bi-${icon}"></i>${text}`;
 }
 
-function capClass(cap) {
-  if (!CAP_MAX) return '';
-  if (cap > CAP_MAX) return 'bad';
-  if (CAP_MIN > 0 && cap < CAP_MIN) return 'warn';
+function capClass(cap) { return capClassL(cap, CAP_MIN, CAP_MAX); }
+function capStatus(cap) { return capStatusL(cap, CAP_MIN, CAP_MAX); }
+function capClassL(cap, min, max) {
+  if (!max) return '';
+  if (cap > max) return 'bad';
+  if (min > 0 && cap < min) return 'warn';
   return 'ok';
 }
-function capStatus(cap) {
-  if (!CAP_MAX) return '—';
-  if (cap > CAP_MAX) return '⚠ Acima';
-  if (CAP_MIN > 0 && cap < CAP_MIN) return '⚠ Abaixo';
+function capStatusL(cap, min, max) {
+  if (!max) return '—';
+  if (cap > max) return '⚠ Acima';
+  if (min > 0 && cap < min) return '⚠ Abaixo';
   return '✓ OK';
 }
 

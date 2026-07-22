@@ -217,6 +217,34 @@ try {
             font-size: 10px; font-weight: 700; letter-spacing: .5px;
             background: var(--red-soft); border: 1px solid var(--border-red); color: var(--red);
         }
+        .pun-badge-off { background: var(--panel-3); border: 1px solid var(--border); color: var(--text-3); }
+
+        /* ── Card de punição (remodelado) ───────────────── */
+        .pun-v2 { display:flex; overflow:hidden; background:var(--panel-2); border:1px solid var(--border);
+            border-radius:12px; margin-bottom:10px; transition:border-color var(--t) var(--ease), box-shadow var(--t) var(--ease); }
+        .pun-v2:last-child { margin-bottom:0; }
+        .pun-v2:hover { border-color:var(--border-md); box-shadow:0 4px 16px -10px rgba(0,0,0,.6); }
+        .pun-v2-bar { width:4px; background:var(--red); flex-shrink:0; }
+        .pun-v2.is-reverted { opacity:.6; }
+        .pun-v2.is-reverted .pun-v2-bar { background:var(--text-3); }
+        .pun-v2-body { flex:1; min-width:0; padding:13px 15px; }
+        .pun-v2-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+        .pun-v2-team { display:flex; align-items:center; gap:9px; min-width:0; }
+        .pun-v2-logo { width:32px; height:32px; border-radius:9px; background:var(--panel-3); border:1px solid var(--border-md);
+            display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; color:var(--red); flex-shrink:0; }
+        .pun-v2-teamname { display:block; font-size:13.5px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .pun-v2-league { display:block; font-size:10px; font-weight:700; color:var(--text-3); letter-spacing:.5px; }
+        .pun-v2-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+        .pun-v2-chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+        .pun-chip { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700; padding:3px 9px;
+            border-radius:999px; background:var(--panel-3); border:1px solid var(--border); color:var(--text-2); }
+        .pun-chip.type { background:color-mix(in srgb, var(--red) 12%, transparent); border-color:var(--border-red); color:var(--red); }
+        .pun-v2-motive { font-size:12.5px; color:var(--text-2); margin-top:9px; line-height:1.45; }
+        .pun-v2-date { font-size:10.5px; color:var(--text-3); margin-top:9px; display:flex; align-items:center; gap:5px; }
+        @media (max-width: 640px) {
+            .pun-v2-top { flex-direction:column; gap:8px; }
+            .pun-v2-actions { width:100%; }
+        }
 
         /* Bootstrap compat */
         .bg-dark-panel { background: var(--panel-2) !important; }

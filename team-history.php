@@ -88,6 +88,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .skeleton{background:linear-gradient(90deg,var(--panel-2) 25%,var(--panel-3) 50%,var(--panel-2) 75%);background-size:200% 100%;animation:shimmer 1.2s infinite;border-radius:8px}
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .empty{text-align:center;padding:24px;color:var(--text-3);font-size:13px}
+/* Abas da página do time */
+.th-tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:16px;padding-bottom:2px}
+.th-tab{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:9px 16px;color:var(--text-2);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all var(--t)}
+.th-tab:hover{color:var(--text)}
+.th-tab.active{background:var(--red-soft);border-color:var(--border-red);color:var(--red)}
+.th-hidden{display:none !important}
 .pos-chart{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px 6px;margin-bottom:14px}
 .pos-chart svg .pos-line{stroke-dasharray:900;stroke-dashoffset:900;animation:lineDraw 1.15s ease forwards}
 .pos-chart svg .pos-dot{opacity:0;transform-box:fill-box;transform-origin:center;animation:dotPop .45s ease forwards}
@@ -235,17 +241,25 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </div>
   </div>
 
-  <div class="section-title"><i class="bi bi-bar-chart-fill"></i> Visão Geral</div>
-  <div class="stats-grid" id="stats-grid">
+  <div class="th-tabs" id="thTabs">
+    <button class="th-tab active" data-tab="geral">Visão geral</button>
+    <button class="th-tab" data-tab="elenco">Elenco</button>
+    <button class="th-tab" data-tab="historico">Histórico</button>
+    <button class="th-tab" data-tab="trades">Trades</button>
+    <button class="th-tab" data-tab="legado">Legado</button>
+  </div>
+
+  <div class="section-title" data-th-tab="geral"><i class="bi bi-bar-chart-fill"></i> Visão Geral</div>
+  <div class="stats-grid" id="stats-grid" data-th-tab="geral">
     <?php for($i=0;$i<6;$i++): ?>
     <div class="stat-card"><div class="skeleton" style="height:10px;width:55%;margin-bottom:8px"></div><div class="skeleton" style="height:28px;width:45%"></div></div>
     <?php endfor; ?>
   </div>
 
-  <div class="section-title"><i class="bi bi-trophy-fill"></i> Desempenho por Fase</div>
-  <div class="panel" id="phases-panel"><div class="skeleton" style="height:180px"></div></div>
+  <div class="section-title" data-th-tab="geral"><i class="bi bi-trophy-fill"></i> Desempenho por Fase</div>
+  <div class="panel" id="phases-panel" data-th-tab="geral"><div class="skeleton" style="height:180px"></div></div>
 
-  <div class="two-col">
+  <div class="two-col" data-th-tab="geral">
     <div class="panel">
       <div class="section-title"><i class="bi bi-person-fill"></i> Destaque</div>
       <div id="players-content"><div class="skeleton" style="height:80px"></div></div>
@@ -256,27 +270,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" data-th-tab="elenco">
     <div class="section-title"><i class="bi bi-people-fill"></i> Melhor por Posição</div>
     <div id="best-by-pos"><div class="skeleton" style="height:160px"></div></div>
   </div>
 
-  <div class="panel" id="positions-panel" style="display:none">
+  <div class="panel" id="positions-panel" style="display:none" data-th-tab="historico">
     <div class="section-title"><i class="bi bi-list-ol"></i> Posição por Temporada <span style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0">(classificação da temporada regular)</span></div>
     <div id="positions-content"></div>
   </div>
 
-  <div class="panel" id="best-roster-panel" style="display:none">
+  <div class="panel" id="best-roster-panel" style="display:none" data-th-tab="elenco">
     <div class="section-title"><i class="bi bi-gem"></i> Melhor Elenco Já Montado <span id="best-roster-year" style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0"></span></div>
     <div id="best-roster-content"></div>
   </div>
 
-  <div class="panel" id="legends-panel" style="display:none">
+  <div class="panel" id="legends-panel" style="display:none" data-th-tab="legado">
     <div class="section-title"><i class="bi bi-star-fill" style="color:var(--amber)"></i> Hall dos Aposentados <span style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0">(bateram 86+ de OVR alguma vez e já saíram da liga)</span></div>
     <div id="legends-content"></div>
   </div>
 
-  <div class="panel">
+  <div class="panel" data-th-tab="trades">
     <div class="section-title"><i class="bi bi-arrow-left-right"></i> Trades</div>
     <div class="history-accordion">
       <div class="history-acc-item open" id="cycle-acc-item" style="display:none">
@@ -300,27 +314,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </div>
   </div>
 
-  <div class="panel" id="league-stats-panel" style="display:none">
+  <div class="panel" id="league-stats-panel" style="display:none" data-th-tab="geral">
     <div class="section-title"><i class="bi bi-graph-up-arrow"></i> Estatísticas na Liga <span style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0">(valor do time e posição entre os times da liga)</span></div>
     <div id="league-stats-content"></div>
   </div>
 
-  <div class="panel">
+  <div class="panel" data-th-tab="historico">
     <div class="section-title"><i class="bi bi-graph-up"></i> Evolução por Temporada <span style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0">(top 5 titulares)</span></div>
     <div id="avg-by-year"><div class="skeleton" style="height:100px"></div></div>
   </div>
 
-  <div class="panel" id="drafted-panel" style="display:none">
+  <div class="panel" id="drafted-panel" style="display:none" data-th-tab="elenco">
     <div class="section-title"><i class="bi bi-star-fill" style="color:var(--purple)"></i> Draftados pelo Clube</div>
     <div id="drafted-content"></div>
   </div>
 
-  <div class="panel">
+  <div class="panel" data-th-tab="historico">
     <div class="section-title"><i class="bi bi-award-fill"></i> Prêmios Individuais</div>
     <div id="awards-content"><div class="skeleton" style="height:50px"></div></div>
   </div>
 
-  <div class="panel" id="champ-panel" style="display:none">
+  <div class="panel" id="champ-panel" style="display:none" data-th-tab="elenco">
     <div class="section-title"><i class="bi bi-stars"></i> Elenco Campeão — <span id="champ-year"></span></div>
     <div id="champ-roster"></div>
   </div>
@@ -336,6 +350,24 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   const menuBtn = document.getElementById('menuBtn');
   if (menuBtn) menuBtn.addEventListener('click', () => { sidebar?.classList.add('open'); overlay?.classList.add('show'); });
   if (overlay) overlay.addEventListener('click', () => { sidebar?.classList.remove('open'); overlay.classList.remove('show'); });
+})();
+
+/* Abas: apenas mostram/escondem as seções (nenhum bloco muda de lugar).
+   Painéis que o próprio JS esconde por falta de dados continuam escondidos. */
+(function(){
+  const tabs = document.getElementById('thTabs');
+  if (!tabs) return;
+  function apply(tab){
+    document.querySelectorAll('[data-th-tab]').forEach(el => {
+      el.classList.toggle('th-hidden', el.dataset.thTab !== tab);
+    });
+    tabs.querySelectorAll('.th-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  }
+  tabs.addEventListener('click', e => {
+    const btn = e.target.closest('.th-tab');
+    if (btn) apply(btn.dataset.tab);
+  });
+  apply('geral');
 })();
 
 const TEAM_ID = <?= $teamId ?>;

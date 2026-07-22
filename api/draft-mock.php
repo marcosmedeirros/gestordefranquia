@@ -222,8 +222,8 @@ switch ($action) {
             $stmtChk = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
             $stmtChk->execute([$currentTeamId, $playerToPick['name']]);
             if (!$stmtChk->fetchColumn()) {
-                $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, "Banco", 0)')
-                    ->execute([$currentTeamId, $currentTeamId, $playerToPick['name'], $playerToPick['position'], (int)$playerToPick['age'], (int)$playerToPick['ovr']]);
+                $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, draft_round, draft_pick_position, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
+                    ->execute([$currentTeamId, $currentTeamId, (int)$currentPick['round'], (int)$currentPick['pick_position'], $playerToPick['name'], $playerToPick['position'], (int)$playerToPick['age'], (int)$playerToPick['ovr']]);
             }
 
             // Avança para próxima pick

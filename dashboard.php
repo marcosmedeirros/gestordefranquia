@@ -2,6 +2,7 @@
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
+require_once __DIR__ . '/backend/salary_cap.php';
 requireAuth();
 
 $user = getUserSession();
@@ -126,6 +127,18 @@ $capMaxBase = $capMax;
 $capMax = capMaxWithRestrictedBonus($pdo, (int)$team['id'], (int)$capMax);
 
 $capOk = $teamCap >= $capMin && $teamCap <= $capMax;
+
+// Novo Salary Cap (folha em dinheiro) — só para ligas em modo 'salary' (hoje, ELITE).
+$salaryCapMode = false;
+$salCap = null;
+try {
+    $stmtCapMode = $pdo->prepare("SELECT cap_mode FROM league_settings WHERE league = ?");
+    $stmtCapMode->execute([$team['league']]);
+    $salaryCapMode = (($stmtCapMode->fetchColumn() ?: 'ovr_sum') === 'salary');
+    if ($salaryCapMode) {
+        $salCap = getTeamCapSummary($pdo, (int)$team['id']);
+    }
+} catch (Exception $e) { $salaryCapMode = false; }
 
 $editalData = null; $hasEdital = false;
 try {
@@ -1041,6 +1054,25 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     <div class="stat-c-bar"><div class="stat-c-fill" style="width:<?= $playersPct ?>%"></div></div>
                 </a>
 
+                <?php if ($salaryCapMode && $salCap):
+                    $salColor = $salCap['status'] === 'over_the_cap' ? '#ef4444' : ($salCap['status'] === 'abaixo_do_piso' ? 'var(--amber)' : 'var(--green)');
+                    $salStatusTxt = $salCap['status'] === 'over_the_cap' ? 'Acima do teto' : ($salCap['status'] === 'abaixo_do_piso' ? 'Abaixo do piso' : 'Dentro do cap');
+                    $salPct = $salCap['cap_max'] > 0 ? min(100, round($salCap['payroll'] / $salCap['cap_max'] * 100)) : 0;
+                ?>
+                <a href="/cap.php" class="stat-c" style="--accent:<?= $salColor ?>;animation-delay:.1s;text-decoration:none">
+                    <div class="stat-c-top">
+                        <div>
+                            <div class="stat-c-label">Salary Cap</div>
+                            <div class="stat-c-val" style="color:<?= $salColor ?>"><?= (int)$salCap['payroll'] ?>M</div>
+                        </div>
+                        <div class="stat-c-icon" style="background:color-mix(in srgb, <?= $salColor ?> 12%, transparent)">
+                            <i class="bi bi-cash-stack" style="color:<?= $salColor ?>"></i>
+                        </div>
+                    </div>
+                    <div class="stat-c-note">Folha <?= (int)$salCap['payroll'] ?>M / <?= (int)$salCap['cap_max'] ?>M · <?= $salStatusTxt ?></div>
+                    <div class="stat-c-bar"><div class="stat-c-fill" style="width:<?= $salPct ?>%;background:<?= $salColor ?>"></div></div>
+                </a>
+                <?php else: ?>
                 <div class="stat-c <?= $capOk ? 'ok' : 'warn' ?>"
                      style="--accent:<?= $capOk ? 'var(--green)' : '#ef4444' ?>; animation-delay:.1s">
                     <div class="stat-c-top">
@@ -1055,6 +1087,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     <div class="stat-c-note">Faixa: <?= $capMin ?> – <?= $capMax ?></div>
                     <div class="stat-c-bar"><div class="stat-c-fill" style="width:<?= $capPct ?>%"></div></div>
                 </div>
+                <?php endif; ?>
 
                 <a href="/picks.php" class="stat-c" style="--accent:var(--green);animation-delay:.15s">
                     <div class="stat-c-top">
@@ -1272,8 +1305,13 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                             </div>
                             <?php endif; ?>
                             <div class="league-stat">
+                                <?php if ($salaryCapMode && $salCap): ?>
+                                <div class="league-stat-label">Teto Salarial</div>
+                                <div class="league-stat-val" style="font-size:12px"><?= (int)$salCap['cap_max'] ?>M</div>
+                                <?php else: ?>
                                 <div class="league-stat-label">CAP Faixa</div>
                                 <div class="league-stat-val" style="font-size:12px"><?= $capMin ?>–<?= $capMax ?></div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -1422,7 +1460,11 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             <?php if ($currentSeason): ?>
             <div class="footer-item"><strong>Temporada:</strong> <?= $seasonDisplayYear ?></div>
             <?php endif; ?>
+            <?php if ($salaryCapMode && $salCap): ?>
+            <div class="footer-item"><strong>Folha:</strong> <?= (int)$salCap['payroll'] ?>M / <?= (int)$salCap['cap_max'] ?>M</div>
+            <?php else: ?>
             <div class="footer-item"><strong>CAP:</strong> <?= $teamCap ?> (<?= $capMin ?>–<?= $capMax ?>)</div>
+            <?php endif; ?>
             <div class="footer-item"><strong>Trades:</strong> <?= $tradesCount ?>/<?= $maxTrades ?></div>
         </div>
 

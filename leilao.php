@@ -252,6 +252,13 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         </div>
 
         <div class="content">
+            <?php if ($is_admin): ?>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+                <button type="button" class="btn btn-orange" onclick="abrirCadastroManual()">
+                    <i class="bi bi-plus-lg me-1"></i>Cadastrar leilão manualmente
+                </button>
+            </div>
+            <?php endif; ?>
             <div class="panel-card">
                 <div class="panel-card-header"><i class="bi bi-hammer panel-card-icon"></i><span class="panel-card-title">Leilões Ativos</span></div>
                 <div class="panel-card-body"><div id="leiloesAtivosContainer"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div></div>
@@ -339,6 +346,63 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
     </div>
 </div>
 
+<?php if ($is_admin): ?>
+<!-- Modal: Cadastrar Leilão Manualmente (admin) -->
+<div class="modal fade" id="modalCadastroManual" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-hammer" style="color:var(--red)"></i> Cadastrar Leilão Manualmente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="max-height:80vh;overflow-y:auto">
+                <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">
+                    Registra um leilão que já aconteceu: o jogador leiloado vai para o vencedor, e os jogadores/picks
+                    enviados vão para o vendedor — como uma troca. Só aparecem times da liga.
+                </p>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Time vendedor</label>
+                        <select id="cmSeller" class="form-select" onchange="cmOnSellerChange()"><option value="">Carregando...</option></select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Jogador leiloado <span style="color:var(--text-3);font-weight:400">(do vendedor)</span></label>
+                        <select id="cmPlayer" class="form-select"><option value="">Selecione o vendedor primeiro</option></select>
+                    </div>
+                </div>
+
+                <hr style="border-color:var(--border);margin:16px 0">
+
+                <div class="mb-3">
+                    <label class="form-label">Time vencedor</label>
+                    <select id="cmWinner" class="form-select" onchange="cmOnWinnerChange()"><option value="">Carregando...</option></select>
+                </div>
+
+                <div class="mb-3">
+                    <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Jogadores enviados pelo vencedor</div>
+                    <div id="cmOfferPlayers"><p style="color:var(--text-3);font-size:13px">Selecione o vencedor primeiro</p></div>
+                </div>
+                <div class="mb-3">
+                    <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Picks enviadas pelo vencedor</div>
+                    <div id="cmOfferPicks"><p style="color:var(--text-3);font-size:13px">Selecione o vencedor primeiro</p></div>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label">Observação <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+                    <textarea id="cmObs" class="form-control" rows="2" placeholder="Ex: leilão do Discord em 20/07..."></textarea>
+                </div>
+                <div id="cmError" style="display:none;color:#ef4444;font-size:13px;margin-top:6px"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-orange" id="cmSubmit" onclick="enviarCadastroManual()"><i class="bi bi-check-lg me-1"></i>Cadastrar e executar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     const isAdmin = <?= $is_admin ? 'true' : 'false' ?>;
@@ -373,5 +437,118 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         applyTheme(next);
     });
 </script>
+
+<?php if ($is_admin): ?>
+<script>
+/* ── Cadastro manual de leilão (admin) ────────────────── */
+function _cmEsc(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+let _cmTeams = [];
+
+async function abrirCadastroManual(){
+    const modal = new bootstrap.Modal(document.getElementById('modalCadastroManual'));
+    document.getElementById('cmError').style.display = 'none';
+    document.getElementById('cmObs').value = '';
+    document.getElementById('cmPlayer').innerHTML = '<option value="">Selecione o vendedor primeiro</option>';
+    document.getElementById('cmOfferPlayers').innerHTML = '<p style="color:var(--text-3);font-size:13px">Selecione o vencedor primeiro</p>';
+    document.getElementById('cmOfferPicks').innerHTML = '<p style="color:var(--text-3);font-size:13px">Selecione o vencedor primeiro</p>';
+    modal.show();
+    try {
+        const res = await fetch('api/leilao.php?action=league_teams');
+        const data = await res.json();
+        _cmTeams = data.success ? (data.teams || []) : [];
+        const opts = '<option value="">Selecione...</option>' + _cmTeams.map(t => `<option value="${t.id}">${_cmEsc(t.team_name)}</option>`).join('');
+        document.getElementById('cmSeller').innerHTML = opts;
+        document.getElementById('cmWinner').innerHTML = opts;
+    } catch(e) {
+        document.getElementById('cmSeller').innerHTML = '<option value="">Erro ao carregar times</option>';
+    }
+}
+
+async function cmOnSellerChange(){
+    const sellerId = document.getElementById('cmSeller').value;
+    const sel = document.getElementById('cmPlayer');
+    if (!sellerId) { sel.innerHTML = '<option value="">Selecione o vendedor primeiro</option>'; return; }
+    sel.innerHTML = '<option value="">Carregando...</option>';
+    try {
+        const res = await fetch(`api/leilao.php?action=seller_items&seller_team_id=${sellerId}`);
+        const data = await res.json();
+        const players = data.success ? (data.players || []) : [];
+        sel.innerHTML = '<option value="">Selecione o jogador...</option>' +
+            players.map(p => `<option value="${p.id}">${_cmEsc(p.name)} · ${_cmEsc(p.position||'')} · ${p.ovr||'?'} OVR</option>`).join('');
+    } catch(e){ sel.innerHTML = '<option value="">Erro ao carregar</option>'; }
+}
+
+async function cmOnWinnerChange(){
+    const winnerId = document.getElementById('cmWinner').value;
+    const pc = document.getElementById('cmOfferPlayers');
+    const kc = document.getElementById('cmOfferPicks');
+    if (!winnerId) {
+        pc.innerHTML = '<p style="color:var(--text-3);font-size:13px">Selecione o vencedor primeiro</p>';
+        kc.innerHTML = '<p style="color:var(--text-3);font-size:13px">Selecione o vencedor primeiro</p>';
+        return;
+    }
+    pc.innerHTML = '<p style="color:var(--text-3);font-size:13px">Carregando...</p>';
+    kc.innerHTML = '';
+    try {
+        const res = await fetch(`api/leilao.php?action=seller_items&seller_team_id=${winnerId}`);
+        const data = await res.json();
+        const players = data.success ? (data.players || []) : [];
+        const picks = data.success ? (data.picks || []) : [];
+        const chip = (id, label, name) => `<label style="display:inline-flex;align-items:center;gap:7px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:7px 11px;margin:0 6px 6px 0;font-size:13px;cursor:pointer">
+            <input type="checkbox" class="${name}" value="${id}"> <span>${label}</span></label>`;
+        pc.innerHTML = players.length
+            ? players.map(p => chip(p.id, `${_cmEsc(p.name)} <span style="color:var(--text-3)">· ${p.ovr||'?'} OVR</span>`, 'cm-offer-player')).join('')
+            : '<p style="color:var(--text-3);font-size:13px">Sem jogadores.</p>';
+        kc.innerHTML = picks.length
+            ? picks.map(k => chip(k.id, `Pick ${k.season_year} R${k.round}`, 'cm-offer-pick')).join('')
+            : '<p style="color:var(--text-3);font-size:13px">Sem picks.</p>';
+    } catch(e){ pc.innerHTML = '<p style="color:#ef4444;font-size:13px">Erro ao carregar</p>'; }
+}
+
+async function enviarCadastroManual(){
+    const errEl = document.getElementById('cmError');
+    errEl.style.display = 'none';
+    const seller = parseInt(document.getElementById('cmSeller').value, 10);
+    const winner = parseInt(document.getElementById('cmWinner').value, 10);
+    const player = parseInt(document.getElementById('cmPlayer').value, 10);
+    const offeredPlayers = Array.from(document.querySelectorAll('.cm-offer-player:checked')).map(c => parseInt(c.value, 10));
+    const offeredPicks   = Array.from(document.querySelectorAll('.cm-offer-pick:checked')).map(c => parseInt(c.value, 10));
+    const obs = document.getElementById('cmObs').value.trim();
+
+    const showErr = (m) => { errEl.textContent = m; errEl.style.display = 'block'; };
+    if (!seller || !player) return showErr('Selecione o time vendedor e o jogador leiloado.');
+    if (!winner) return showErr('Selecione o time vencedor.');
+    if (seller === winner) return showErr('Vendedor e vencedor não podem ser o mesmo time.');
+    if (!offeredPlayers.length && !offeredPicks.length) return showErr('O vencedor precisa enviar ao menos um jogador ou pick.');
+
+    const btn = document.getElementById('cmSubmit');
+    btn.disabled = true;
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Cadastrando...';
+    try {
+        const res = await fetch('api/leilao.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'cadastrar_manual',
+                seller_team_id: seller, winner_team_id: winner, auctioned_player_id: player,
+                offered_player_ids: offeredPlayers, offered_pick_ids: offeredPicks, obs
+            })
+        });
+        const data = await res.json();
+        if (!data.success) return showErr(data.error || 'Erro ao cadastrar.');
+        bootstrap.Modal.getInstance(document.getElementById('modalCadastroManual'))?.hide();
+        if (typeof carregarHistoricoLeiloes === 'function') carregarHistoricoLeiloes();
+        if (typeof carregarLeiloesAtivos === 'function') carregarLeiloesAtivos(true);
+        alert('Leilão cadastrado e troca executada com sucesso!');
+    } catch(e){
+        showErr('Erro ao cadastrar o leilão.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+    }
+}
+</script>
+<?php endif; ?>
 </body>
 </html>

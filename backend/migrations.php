@@ -992,6 +992,35 @@ function runMigrations() {
     }
 
     try {
+        $hasPlayersTable = $pdo->query("SHOW TABLES LIKE 'players'")->fetch();
+        if ($hasPlayersTable) {
+            $hasDraftRound = $pdo->query("SHOW COLUMNS FROM players LIKE 'draft_round'")->fetch();
+            if (!$hasDraftRound) {
+                $pdo->exec("ALTER TABLE players ADD COLUMN draft_round TINYINT NULL AFTER drafted_season_number");
+                $pdo->exec("ALTER TABLE players ADD COLUMN draft_pick_position INT NULL AFTER draft_round");
+                // Backfill: jogadores já em elenco antes deste sistema existir são tratados
+                // como "ainda no time que os draftou" para fins de Cap Flex (decisão de produto).
+                $pdo->exec("UPDATE players SET drafted_by_team_id = team_id WHERE drafted_by_team_id IS NULL");
+            }
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_players_draft_salary: " . $e->getMessage();
+    }
+
+    try {
+        $hasLeagueSettingsTable = $pdo->query("SHOW TABLES LIKE 'league_settings'")->fetch();
+        if ($hasLeagueSettingsTable) {
+            $hasCapMode = $pdo->query("SHOW COLUMNS FROM league_settings LIKE 'cap_mode'")->fetch();
+            if (!$hasCapMode) {
+                $pdo->exec("ALTER TABLE league_settings ADD COLUMN cap_mode ENUM('ovr_sum','salary') NOT NULL DEFAULT 'ovr_sum' AFTER cap_max");
+                $pdo->exec("UPDATE league_settings SET cap_mode = 'salary' WHERE league = 'ELITE'");
+            }
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_league_settings_cap_mode: " . $e->getMessage();
+    }
+
+    try {
         $hasTradesTable = $pdo->query("SHOW TABLES LIKE 'trades'")->fetch();
         if ($hasTradesTable) {
             $hasFromTeamId = $pdo->query("SHOW COLUMNS FROM trades LIKE 'from_team_id'")->fetch();

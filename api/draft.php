@@ -551,6 +551,347 @@ if ($method === 'POST') {
             }
             break;
 
+        // ADMIN: Calcula (sem gravar) a ordem de draft via loteria ponderada — só ELITE.
+        // Usa a classificação da temporada ELITE anterior à do draft_session informado.
+        // Não escreve nada; o admin confirma chamando 'set_draft_order' com o resultado.
+        case 'run_lottery':
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+
+            $draftSessionId = $data['draft_session_id'] ?? null;
+            if (!$draftSessionId) {
+                echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']);
+                exit;
+            }
+
+            $stmtDS = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ?');
+            $stmtDS->execute([(int)$draftSessionId]);
+            $lotterySession = $stmtDS->fetch();
+            if (!$lotterySession) {
+                echo json_encode(['success' => false, 'error' => 'Sessão de draft não encontrada']);
+                exit;
+            }
+            if ($lotterySession['league'] !== 'ELITE') {
+                echo json_encode(['success' => false, 'error' => 'A loteria está disponível só para a liga ELITE']);
+                exit;
+            }
+
+            $stmtUpcoming = $pdo->prepare('SELECT season_number FROM seasons WHERE id = ?');
+            $stmtUpcoming->execute([(int)$lotterySession['season_id']]);
+            $upcomingSeasonNumber = $stmtUpcoming->fetchColumn();
+            if ($upcomingSeasonNumber === false) {
+                echo json_encode(['success' => false, 'error' => 'Temporada do draft não encontrada']);
+                exit;
+            }
+            $standingsSeasonNumber = (int)$upcomingSeasonNumber - 1;
+            if ($standingsSeasonNumber < 1) {
+                echo json_encode(['success' => false, 'error' => 'Não há temporada anterior para basear a loteria']);
+                exit;
+            }
+
+            $stmtStandingsSeason = $pdo->prepare("SELECT id FROM seasons WHERE league = 'ELITE' AND season_number = ? ORDER BY created_at DESC LIMIT 1");
+            $stmtStandingsSeason->execute([$standingsSeasonNumber]);
+            $standingsSeasonId = $stmtStandingsSeason->fetchColumn();
+            if (!$standingsSeasonId) {
+                echo json_encode(['success' => false, 'error' => 'Temporada ELITE anterior (nº ' . $standingsSeasonNumber . ') não encontrada']);
+                exit;
+            }
+
+            // Posição é por conferência (1..16 em cada). COALESCE cobre standings legados
+            // sem conferência, caindo na conferência atual do time.
+            $stmtST = $pdo->prepare('
+                SELECT ss.team_id, ss.position, COALESCE(ss.conference, t.conference) AS conference,
+                       CONCAT(t.city," ",t.name) AS team_name, t.photo_url
+                FROM season_standings ss
+                JOIN teams t ON t.id = ss.team_id
+                WHERE ss.season_id = ?
+                ORDER BY ss.position ASC
+            ');
+            $stmtST->execute([(int)$standingsSeasonId]);
+            $allStandings = $stmtST->fetchAll(PDO::FETCH_ASSOC);
+            if (!$allStandings) {
+                echo json_encode(['success' => false, 'error' => 'Não há "Posições" registradas para a temporada anterior (nº ' . $standingsSeasonNumber . ')']);
+                exit;
+            }
+
+            // Playoff = top 8 de CADA conferência (conta as duas). Elegíveis à loteria = o resto.
+            $PLAYOFF_PER_CONF = 8;
+            $byConf = [];
+            foreach ($allStandings as $row) {
+                $conf = $row['conference'] ?: 'UNICA';
+                $byConf[$conf][] = $row;
+            }
+            foreach ($byConf as $conf => &$list) {
+                usort($list, fn($a, $b) => (int)$a['position'] <=> (int)$b['position']);
+            }
+            unset($list);
+
+            $teamNames = [];
+            $teamConf = [];
+            $teamPhoto = [];
+            $eligible = [];
+            $playoffRows = [];
+            foreach ($byConf as $conf => $list) {
+                $cut = min($PLAYOFF_PER_CONF, count($list));
+                foreach ($list as $idx => $row) {
+                    $tid = (int)$row['team_id'];
+                    $teamNames[$tid] = $row['team_name'];
+                    $teamConf[$tid] = $conf === 'UNICA' ? '' : $conf;
+                    $teamPhoto[$tid] = (!empty($row['photo_url']) && trim($row['photo_url']) !== '') ? $row['photo_url'] : '/img/default-team.png';
+                    if ($idx < $cut) {
+                        $playoffRows[] = $row;
+                    } else {
+                        $eligible[] = $row;
+                    }
+                }
+            }
+            $playoffTeamIds = array_map(fn($r) => (int)$r['team_id'], $playoffRows);
+
+            // Pool de loteria: pior pro melhor (posição maior = pior), interleaviando conferências.
+            usort($eligible, fn($a, $b) => (int)$b['position'] <=> (int)$a['position']);
+
+            // Cauda de playoff no draft: quem foi menos longe pica antes; campeão pica por último.
+            // Usa playoff_results (o quão longe foi) quando existir; desempata por pior posição.
+            $poScore = ['first_round' => 1, 'second_round' => 2, 'conference_final' => 3, 'runner_up' => 4, 'champion' => 5];
+            $poRank = [];
+            $stmtPO = $pdo->prepare('SELECT team_id, position FROM playoff_results WHERE season_id = ?');
+            $stmtPO->execute([(int)$standingsSeasonId]);
+            foreach ($stmtPO->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $poRank[(int)$r['team_id']] = $poScore[$r['position']] ?? 0;
+            }
+            usort($playoffRows, function ($a, $b) use ($poRank) {
+                $ra = $poRank[(int)$a['team_id']] ?? 0;
+                $rb = $poRank[(int)$b['team_id']] ?? 0;
+                if ($ra !== $rb) return $ra <=> $rb;
+                return (int)$b['position'] <=> (int)$a['position'];
+            });
+            $playoffTail = array_map(fn($r) => (int)$r['team_id'], $playoffRows);
+
+            $n = count($eligible);
+            $adjustments = [];
+            $balls = [];
+
+            if ($n > 0) {
+                // Faixas relativas ao nº de elegíveis (espírito "3-2-1" da NBA, sem fixar em 16 times)
+                $bottomSize = min($n, max(1, (int)round($n * 0.3)));
+                $topSize = min($n - $bottomSize, max(1, (int)round($n * 0.2)));
+                $middleSize = $n - $bottomSize - $topSize;
+
+                foreach ($eligible as $i => $row) {
+                    $tid = (int)$row['team_id'];
+                    if ($i < $bottomSize) {
+                        $balls[$tid] = 2; // piores times: "relegados", menos bolinhas de propósito
+                    } elseif ($i < $bottomSize + $middleSize) {
+                        $balls[$tid] = 3; // pico de chance
+                    } else {
+                        $posInTop = $i - $bottomSize - $middleSize;
+                        $balls[$tid] = ($posInTop < ceil($topSize / 2)) ? 2 : 1; // taper perto do corte de playoff
+                    }
+                }
+            }
+            $totalBalls = array_sum($balls);
+
+            // Regras anti-tanking: olha as últimas 2 sessões de draft ELITE anteriores a esta
+            $stmtPrevSessions = $pdo->prepare("
+                SELECT ds.id FROM draft_sessions ds
+                JOIN seasons s ON s.id = ds.season_id
+                WHERE ds.league = 'ELITE' AND ds.id != ?
+                ORDER BY s.season_number DESC LIMIT 2
+            ");
+            $stmtPrevSessions->execute([(int)$draftSessionId]);
+            $prevSessionIds = array_map('intval', $stmtPrevSessions->fetchAll(PDO::FETCH_COLUMN));
+
+            $lastPick1TeamId = null;
+            $top5History = [];
+            foreach ($prevSessionIds as $idx => $sid) {
+                $stmtR1 = $pdo->prepare('SELECT team_id, pick_position FROM draft_order WHERE draft_session_id = ? AND round = 1 AND pick_position <= 5 ORDER BY pick_position ASC');
+                $stmtR1->execute([$sid]);
+                $rows = $stmtR1->fetchAll(PDO::FETCH_ASSOC);
+                $top5History[$idx] = array_map(fn($r) => (int)$r['team_id'], $rows);
+                if ($idx === 0) {
+                    foreach ($rows as $r) {
+                        if ((int)$r['pick_position'] === 1) $lastPick1TeamId = (int)$r['team_id'];
+                    }
+                }
+            }
+            $repeatTop5Teams = (isset($top5History[0]) && isset($top5History[1]))
+                ? array_values(array_intersect($top5History[0], $top5History[1]))
+                : [];
+
+            // Sorteio ponderado sem reposição pro top-4 (resto some em ordem inversa de standing)
+            $pool = $balls;
+            $drawOrder = [];
+            $maxDraws = min(4, $n);
+            for ($pickNum = 1; $pickNum <= $maxDraws; $pickNum++) {
+                $drawPool = $pool;
+                if ($pickNum === 1 && $lastPick1TeamId !== null && isset($drawPool[$lastPick1TeamId]) && count($drawPool) > 1) {
+                    unset($drawPool[$lastPick1TeamId]);
+                    $adjustments[] = ($teamNames[$lastPick1TeamId] ?? "Time #$lastPick1TeamId") . ' ficou fora do sorteio da pick #1 por já tê-la vencido na temporada anterior.';
+                }
+                $sumDrawPool = array_sum($drawPool);
+                $rand = mt_rand(1, max(1, $sumDrawPool));
+                $cum = 0;
+                $winner = null;
+                foreach ($drawPool as $tid => $w) {
+                    $cum += $w;
+                    if ($rand <= $cum) { $winner = (int)$tid; break; }
+                }
+                if ($winner === null) { $winner = (int)array_key_last($drawPool); }
+                $drawOrder[] = $winner;
+                unset($pool[$winner]);
+            }
+
+            $remainingEligible = [];
+            foreach ($eligible as $row) {
+                $tid = (int)$row['team_id'];
+                if (!in_array($tid, $drawOrder, true)) $remainingEligible[] = $tid;
+            }
+            $lotteryPortion = array_merge($drawOrder, $remainingEligible);
+
+            // Anti-tanking: ninguém pode ficar 3 temporadas seguidas com pick top-5
+            $top5Slice = array_slice($lotteryPortion, 0, 5);
+            foreach ($top5Slice as $i => $tid) {
+                if (in_array($tid, $repeatTop5Teams, true) && isset($lotteryPortion[5])) {
+                    $adjustments[] = ($teamNames[$tid] ?? "Time #$tid") . ' rebaixado(a) pra fora do top-5 por já ter ficado nele nas 2 temporadas anteriores.';
+                    array_splice($lotteryPortion, $i, 1);
+                    array_splice($lotteryPortion, 5, 0, [$tid]);
+                }
+            }
+
+            $finalOrderIds = array_merge($lotteryPortion, $playoffTail);
+
+            // Ordem "natural" (sem sorteio): elegíveis em ordem pior->melhor, depois a cauda de playoff.
+            // Serve pra medir quanto cada time subiu/caiu com a loteria.
+            $naturalOrderIds = array_merge(array_map(fn($r) => (int)$r['team_id'], $eligible), $playoffTail);
+            $expectedSlot = [];
+            foreach ($naturalOrderIds as $i => $tid) {
+                $expectedSlot[(int)$tid] = $i + 1;
+            }
+
+            $eligibleCount = count($eligible);
+
+            // ── Dono atual das picks de 1ª rodada do ano do draft (swaps/trocas) ──
+            // O slot é definido pela campanha do time de origem, mas quem escolhe é
+            // o dono atual da pick. Convenção NBA: "Dono (via ORI)".
+            $stmtY = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year
+                                    FROM seasons s LEFT JOIN sprints sp ON sp.id = s.sprint_id
+                                    WHERE s.id = ?');
+            $stmtY->execute([(int)$lotterySession['season_id']]);
+            $yrow = $stmtY->fetch(PDO::FETCH_ASSOC);
+            $draftYear = 0;
+            if ($yrow) {
+                $draftYear = (!empty($yrow['start_year']) && isset($yrow['season_number']))
+                    ? (int)$yrow['start_year'] + (int)$yrow['season_number'] - 1
+                    : (int)($yrow['year'] ?? 0);
+            }
+            $pickOwner = [];
+            if ($draftYear > 0) {
+                $stmtPk = $pdo->prepare('SELECT p.original_team_id, p.team_id AS owner_id,
+                                                CONCAT(t.city," ",t.name) AS owner_name,
+                                                t.photo_url AS owner_photo, t.conference AS owner_conf
+                                         FROM picks p JOIN teams t ON t.id = p.team_id
+                                         WHERE p.season_year = ? AND p.round = 1');
+                $stmtPk->execute([$draftYear]);
+                foreach ($stmtPk->fetchAll(PDO::FETCH_ASSOC) as $pk) {
+                    $pickOwner[(int)$pk['original_team_id']] = $pk;
+                }
+            }
+            // sigla de 3 letras a partir da cidade (ex.: Oakland -> OAK)
+            $abbr3 = function ($full) {
+                $city = trim((string)$full);
+                $clean = preg_replace('/[^A-Za-zÀ-ÿ]/u', '', $city);
+                $clean = iconv('UTF-8', 'ASCII//TRANSLIT', $clean) ?: $clean;
+                return mb_strtoupper(mb_substr($clean, 0, 3));
+            };
+            $stmtCity = $pdo->prepare('SELECT city FROM teams WHERE id = ?');
+
+            $orderOut = [];
+            foreach ($finalOrderIds as $i => $tid) {
+                $tid = (int)$tid;
+                $actual = $i + 1;
+                $expected = $expectedSlot[$tid] ?? $actual;
+                $isPlayoff = in_array($tid, $playoffTeamIds, true);
+                // Quem escolhe: dono atual da pick (pode ser outro time por troca/swap)
+                $own = $pickOwner[$tid] ?? null;
+                $isSwap = $own && (int)$own['owner_id'] !== $tid;
+                $pickerId    = $isSwap ? (int)$own['owner_id'] : $tid;
+                $pickerName  = $isSwap ? $own['owner_name'] : ($teamNames[$tid] ?? "Time #$tid");
+                $pickerPhoto = $isSwap
+                    ? ((!empty($own['owner_photo']) && trim($own['owner_photo']) !== '') ? $own['owner_photo'] : '/img/default-team.png')
+                    : ($teamPhoto[$tid] ?? '/img/default-team.png');
+                $pickerConf  = $isSwap ? ($own['owner_conf'] ?? '') : ($teamConf[$tid] ?? '');
+                $originAbbr = '';
+                if ($isSwap) {
+                    $stmtCity->execute([$tid]);
+                    $originAbbr = $abbr3($stmtCity->fetchColumn() ?: ($teamNames[$tid] ?? ''));
+                }
+
+                $orderOut[] = [
+                    'position' => $actual,
+                    'team_id' => $pickerId,
+                    'team_name' => $pickerName,
+                    'conference' => $pickerConf,
+                    'photo_url' => $pickerPhoto,
+                    'source' => $isPlayoff ? 'playoff' : (in_array($tid, $drawOrder, true) ? 'lottery' : 'reverse_standings'),
+                    'expected_slot' => $expected,
+                    'delta' => $isPlayoff ? 0 : ($expected - $actual), // >0 subiu, <0 caiu
+                    // swap: o slot veio da campanha do time de origem
+                    'is_swap' => (bool)$isSwap,
+                    'origin_team_id' => $tid,
+                    'origin_name' => $teamNames[$tid] ?? '',
+                    'origin_abbr' => $originAbbr,
+                ];
+            }
+
+            // Quem passou na frente de cada time que caiu: times naturalmente ATRÁS
+            // (expected_slot maior) que terminaram numa pick melhor (position menor).
+            // A quantidade bate exatamente com o tamanho da queda.
+            foreach ($orderOut as &$e) {
+                $e['passed_by'] = [];
+                if ($e['source'] === 'playoff' || $e['delta'] >= 0) continue;
+                foreach ($orderOut as $o) {
+                    if ($o['position'] === $e['position']) continue;
+                    if ($o['position'] < $e['position'] && $o['expected_slot'] > $e['expected_slot']) {
+                        $e['passed_by'][] = [
+                            'team_id' => $o['team_id'],
+                            'team_name' => $o['team_name'],
+                            'photo_url' => $o['photo_url'],
+                        ];
+                    }
+                }
+            }
+            unset($e);
+            $ballsOut = [];
+            foreach ($eligible as $row) {
+                $tid = (int)$row['team_id'];
+                $b = $balls[$tid] ?? 0;
+                $ballsOut[] = [
+                    'team_id' => $tid,
+                    'team_name' => $teamNames[$tid] ?? "Time #$tid",
+                    'conference' => $teamConf[$tid] ?? '',
+                    'photo_url' => $teamPhoto[$tid] ?? '/img/default-team.png',
+                    'position_anterior' => (int)$row['position'],
+                    'balls' => $b,
+                    'odds_pct' => $totalBalls > 0 ? round(($b / $totalBalls) * 100, 2) : 0,
+                ];
+            }
+
+            echo json_encode([
+                'success' => true,
+                'draft_session_id' => (int)$draftSessionId,
+                'standings_season_id' => (int)$standingsSeasonId,
+                'standings_season_number' => $standingsSeasonNumber,
+                'eligible_count' => $eligibleCount,
+                'playoff_count' => count($playoffTail),
+                'balls' => $ballsOut,
+                'order' => $orderOut,
+                'adjustments' => $adjustments,
+            ]);
+            break;
+
         // ADMIN: Definir ordem completa (sem "via", permite repetição, sem snake)
         case 'set_draft_order':
             if (!$isAdmin) {
@@ -957,8 +1298,8 @@ if ($method === 'POST') {
                     $duplicateRoster = true;
                 } else {
                     try {
-                        $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, drafted_season_number, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
-                            ->execute([(int)$targetTeamId, (int)$targetTeamId, $draftSeasonNumber, $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                        $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, drafted_season_number, draft_round, draft_pick_position, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
+                            ->execute([(int)$targetTeamId, (int)$targetTeamId, $draftSeasonNumber, (int)$currentPick['round'], (int)$currentPick['pick_position'], $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
                     } catch (Exception $e) {
                         if (str_contains($e->getMessage(), 'unique_player_per_team')) {
                             $duplicateRoster = true;
@@ -1140,7 +1481,7 @@ if ($method === 'POST') {
                     $duplicateRoster = true;
                 } else {
                     try {
-                        $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, drafted_season_number, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
+                        $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, drafted_season_number, draft_round, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, 2, ?, ?, ?, ?, "Banco", 0)')
                             ->execute([$targetTeamId, $targetTeamId, $draftSeasonNumber, $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
                     } catch (Exception $e) {
                         if (str_contains($e->getMessage(), 'unique_player_per_team')) {
@@ -1225,8 +1566,8 @@ if ($method === 'POST') {
 
                 $playerName = trim((string)($player['name'] ?? ''));
                 try {
-                    $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, drafted_season_number, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
-                        ->execute([(int)$pick['team_id'], (int)$pick['team_id'], $batchDraftSeasonNumber, $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                    $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, drafted_season_number, draft_round, draft_pick_position, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
+                        ->execute([(int)$pick['team_id'], (int)$pick['team_id'], $batchDraftSeasonNumber, (int)$pick['round'], (int)$pick['pick_position'], $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
                 } catch (Exception $e) {
                     if (str_contains($e->getMessage(), 'unique_player_per_team')) {
                         $duplicateRoster = true;

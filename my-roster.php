@@ -61,6 +61,19 @@ if ($team && !empty($team['league'])) {
     } catch (Exception $e) {}
 }
 
+// Novo Salary Cap (folha) — só para ligas em modo 'salary' (hoje, ELITE).
+$salaryCapMode = false;
+$salCap = null;
+try {
+    require_once __DIR__ . '/backend/salary_cap.php';
+    $stmtSalMode = $pdo->prepare("SELECT cap_mode FROM league_settings WHERE league = ?");
+    $stmtSalMode->execute([$team['league']]);
+    $salaryCapMode = (($stmtSalMode->fetchColumn() ?: 'ovr_sum') === 'salary');
+    if ($salaryCapMode && $teamId) {
+        $salCap = getTeamCapSummary($pdo, (int)$teamId);
+    }
+} catch (Exception $e) { $salaryCapMode = false; }
+
 $capBonus = $teamId ? restrictedCapBonus($pdo, (int)$teamId) : 0;
 $capMaxBase = $capMax;
 $capMax = $teamId ? capMaxWithRestrictedBonus($pdo, (int)$teamId, (int)$capMax) : $capMax;
@@ -136,7 +149,7 @@ if ($teamId) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css?v=20260411">
+    <link rel="stylesheet" href="/css/styles.css?v=20260721">
 
     <style>
         /* ── Design Tokens ─────────────────────────────── */
@@ -520,7 +533,7 @@ if ($teamId) {
                 <div class="stat-pill-icon"><i class="bi bi-graph-up"></i></div>
                 <div>
                     <div class="stat-pill-val" id="cap-top8">—</div>
-                    <div class="stat-pill-label">CAP <span id="cap-bonus-label" class="cap-bonus-label"></span></div>
+                    <div class="stat-pill-label"><?= $salaryCapMode ? 'Folha' : 'CAP' ?> <span id="cap-bonus-label" class="cap-bonus-label"></span></div>
                     <div id="cap-range" style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px"></div>
                 </div>
             </div>
@@ -951,6 +964,7 @@ if ($teamId) {
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
     window.__CAP_MIN__ = <?= (int)$capMin ?>;
     window.__CAP_MAX__ = <?= (int)$capMaxBase ?>;
+    window.__SALARY_CAP__ = <?= ($salaryCapMode && $salCap) ? json_encode(['payroll' => (int)$salCap['payroll'], 'cap_max' => (int)$salCap['cap_max'], 'status' => $salCap['status']]) : 'null' ?>;
     window.__LEAGUE__ = <?= json_encode($team['league'] ?? '') ?>;
     window.__TEAM_TAG__ = <?= json_encode($team['team_tag'] ?? null) ?>;
     window.__TEAM_TAG_SOURCE__ = <?= json_encode($team['team_tag_source'] ?? null) ?>;
