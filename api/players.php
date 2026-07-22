@@ -336,9 +336,15 @@ if ($method === 'GET') {
         $salaryMode = false;
         try {
             require_once __DIR__ . '/../backend/salary_cap.php';
-            $lgStmt = $pdo->prepare("SELECT ls.cap_mode FROM teams t JOIN league_settings ls ON ls.league = t.league WHERE t.id = ?");
+            require_once __DIR__ . '/../backend/preview_gate.php';
+            $lgStmt = $pdo->prepare("SELECT t.league, ls.cap_mode FROM teams t JOIN league_settings ls ON ls.league = t.league WHERE t.id = ?");
             $lgStmt->execute([$teamId]);
-            if (($lgStmt->fetchColumn() ?: 'ovr_sum') === 'salary') {
+            $lgRow = $lgStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            // A ELITE esta com o cap desligado enquanto o sistema e avaliado;
+            // quem abriu o preview enxerga o modo salario sem que a liga veja.
+            $ligado = (($lgRow['cap_mode'] ?? 'ovr_sum') === 'salary')
+                   || (previewActive('cap') && strtoupper((string)($lgRow['league'] ?? '')) === 'ELITE');
+            if ($ligado) {
                 $summary = getTeamCapSummary($pdo, (int)$teamId);
                 $salById = [];
                 foreach ($summary['roster'] as $rp) { $salById[(int)$rp['id']] = (int)$rp['total_salary']; }

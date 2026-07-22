@@ -172,6 +172,71 @@ const computeCapProjection = (basePlayers = [], outgoing = [], incoming = []) =>
 
 const formatCapValue = (value) => Number.isFinite(value) ? (value.toLocaleString('pt-BR') + (capSalaryMode ? 'M' : '')) : '-';
 
+/**
+ * Casamento salarial de troca (120%) — só no modo salário.
+ * Vale para toda troca, com ou sem espaço no cap: nenhum lado pode receber
+ * mais de 120% do que envia. Espelha checkTradeSalaryMatch() do backend.
+ */
+const TRADE_MATCH_PCT = 120;
+
+const somaSalarios = (lista = []) => lista.reduce((s, p) => s + (Number(p.salary) || 0), 0);
+
+function checarMatch120() {
+  if (!capSalaryMode) return [];
+  const meuEnvia   = somaSalarios(playerState.offer.selected || []);
+  const meuRecebe  = somaSalarios(playerState.request.selected || []);
+  if (meuEnvia === 0 && meuRecebe === 0) return [];
+
+  const nomeAlvo = (() => {
+    const sel = document.getElementById('targetTeam');
+    return sel?.selectedOptions?.[0]?.textContent?.trim() || 'O outro time';
+  })();
+
+  const lados = [
+    { nome: 'Você', envia: meuEnvia,  recebe: meuRecebe },
+    { nome: nomeAlvo, envia: meuRecebe, recebe: meuEnvia },
+  ];
+
+  return lados.reduce((out, l) => {
+    const limite = Math.floor(l.envia * TRADE_MATCH_PCT / 100);
+    if (l.recebe > limite) {
+      const envioMinimo = Math.ceil(l.recebe / (TRADE_MATCH_PCT / 100));
+      out.push({ ...l, limite, excesso: l.recebe - limite,
+                 faltaEnviar: Math.max(0, envioMinimo - l.envia) });
+    }
+    return out;
+  }, []);
+}
+
+/** Faixa de aviso e bloqueio do botão de enviar. */
+function aplicarTrava120() {
+  const viol = checarMatch120();
+  const capRow = document.getElementById('capImpactRow');
+  let box = document.getElementById('aviso120Modal');
+  if (!box && capRow && capRow.parentNode) {
+    box = document.createElement('div');
+    box.id = 'aviso120Modal';
+    box.className = 'alert alert-danger py-2 px-3 mt-2 mb-0';
+    box.style.fontSize = '12.5px';
+    capRow.parentNode.insertBefore(box, capRow.nextSibling);
+  }
+  if (box) {
+    if (!viol.length) box.style.display = 'none';
+    else {
+      box.style.display = 'block';
+      box.innerHTML = `<strong>Troca barrada pela regra dos ${TRADE_MATCH_PCT}%.</strong><br>`
+        + viol.map(v => `${v.nome} receberia ${v.recebe}M enviando ${v.envia}M — limite ${v.limite}M, passou ${v.excesso}M.`).join('<br>');
+    }
+  }
+
+  // Bloqueia o envio, não só avisa.
+  document.querySelectorAll('#btnEnviarProposta, [data-enviar-proposta], #submitTradeBtn').forEach(b => {
+    b.disabled = viol.length > 0;
+    b.title = viol.length ? `Troca estoura o limite de ${TRADE_MATCH_PCT}%` : '';
+  });
+  return viol;
+}
+
 function updateCapImpact() {
   const capRow = document.getElementById('capImpactRow');
   if (!capRow) return;
@@ -247,6 +312,7 @@ function updateCapImpact() {
   if (capTargetPlayersEl) capTargetPlayersEl.textContent = targetTeamPlayers.length || '-';
   if (capTargetPlayersProjectedEl) capTargetPlayersProjectedEl.textContent = targetPlayersProjected !== null ? targetPlayersProjected : '-';
   updateTradeValueDisplay();
+  aplicarTrava120();
 }
 
 const getTeamLabel = (team) => team ? `${team.city} ${team.name}` : 'Time';
@@ -1446,6 +1512,13 @@ async function submitTrade() {
   const counterTo = modalEl && modalEl.dataset.counterTo ? parseInt(modalEl.dataset.counterTo, 10) : null;
   const swapPayload = buildSwapPairsPayload();
   
+  // Última barreira: mesmo que o botão escape habilitado, a troca não sai.
+  const viol120 = checarMatch120();
+  if (viol120.length) {
+    return alert(`Troca barrada pela regra dos ${TRADE_MATCH_PCT}%:\n\n`
+      + viol120.map(v => `${v.nome} receberia ${v.recebe}M enviando ${v.envia}M (limite ${v.limite}M).`).join('\n'));
+  }
+
   if (!targetTeam) {
     return alert('Selecione um time.');
   }

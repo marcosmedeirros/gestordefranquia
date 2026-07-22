@@ -8,13 +8,20 @@ requireAuth();
 $user = getUserSession();
 $pdo  = db();
 
-// Liga em modo salary (folha em dinheiro)? Hoje, ELITE.
+require_once __DIR__ . '/backend/preview_gate.php';
+
+// Liga em modo salary (folha em dinheiro). A ELITE esta desligada em producao
+// enquanto o sistema e avaliado, entao o modo tambem liga para quem abriu o
+// preview do cap — assim da para testar sem que a liga inteira veja.
 $__salaryMode = false;
 try {
     $sm = $pdo->prepare("SELECT cap_mode FROM league_settings WHERE league = ?");
     $sm->execute([$user['league'] ?? '']);
     $__salaryMode = (($sm->fetchColumn() ?: 'ovr_sum') === 'salary');
 } catch (Exception $e) { $__salaryMode = false; }
+
+$__capPreview = previewActive('cap') && strtoupper((string)($user['league'] ?? '')) === 'ELITE';
+if ($__capPreview) $__salaryMode = true;
 
 // ── API inline ────────────────────────────────────────────────────────────────
 $action = $_GET['action'] ?? '';
@@ -964,6 +971,48 @@ function simTop8(key) {
   return all.slice(0, 8).reduce((s, p) => s + (+p.ovr), 0);
 }
 
+/**
+ * Casamento salarial de troca (120%).
+ *
+ * Regra da liga: vale para TODA troca, tendo o time espaco no cap ou nao —
+ * nenhum lado pode receber mais de 120% do que envia. Quem manda 10M recebe
+ * no maximo 12M. Receber menos nunca e problema.
+ *
+ * Espelha checkTradeSalaryMatch() em backend/salary_cap.php; se um dia a
+ * porcentagem mudar, os dois precisam mudar juntos.
+ */
+const TRADE_MATCH_PCT = 120;
+
+function matching120(key) {
+  const t = teams[key];
+  if (!t || !t.salaryMode) return null;
+  const enviado  = t.players.filter(p => t.tradedOut.has(p.id))
+                            .reduce((s, p) => s + (+(p.salary || 0)), 0);
+  const recebido = (receives[key] || []).filter(i => i.type === 'player')
+                            .reduce((s, p) => s + (+(p.salary || 0)), 0);
+  if (enviado === 0 && recebido === 0) return null;
+
+  const limite = Math.floor(enviado * TRADE_MATCH_PCT / 100);
+  if (recebido <= limite) return { ok: true, enviado, recebido, limite };
+
+  const envioMinimo = Math.ceil(recebido / (TRADE_MATCH_PCT / 100));
+  return {
+    ok: false, enviado, recebido, limite,
+    excesso: recebido - limite,
+    faltaEnviar: Math.max(0, envioMinimo - enviado),
+  };
+}
+
+/** Lados que estouram a regra. Vazio = troca liberada. */
+function violacoes120() {
+  const out = [];
+  activeSlots.forEach(k => {
+    const m = matching120(k);
+    if (m && !m.ok) out.push({ key: k, nome: teams[k]?.name || k, ...m });
+  });
+  return out;
+}
+
 function recalc() {
   const hasAny = activeSlots.some(k => teams[k]);
   const hasItems = activeSlots.some(k => (receives[k] || []).length > 0);
@@ -1004,12 +1053,27 @@ function recalc() {
       <div class="cap-row"><span>Pós-trade</span><span class="cap-val ${cls}">${fmt(newCap)}</span></div>
       <div class="cap-row"><span>Jogadores</span><span class="cap-val">${t.players.filter(p=>!t.tradedOut.has(p.id)).length} → ${totalAfter}</span></div>
       ${capMax > 0 ? `<div class="cap-row"><span style="font-size:10px">${sMode ? 'Teto ' + fmt(capMax) : 'Limite ' + capMin + '–' + capMax}</span><span class="cap-val ${cls}" style="font-size:10px">${capStatusL(newCap, capMin, capMax)}</span></div>` : ''}
+      ${(() => {
+        const m = matching120(key);
+        if (!m) return '';
+        return `<div class="cap-row" title="${m.ok
+            ? `Recebe ${m.recebido}M enviando ${m.enviado}M — dentro do limite de ${m.limite}M.`
+            : `Excesso de ${m.excesso}M. Precisaria enviar mais ${m.faltaEnviar}M ou receber ${m.excesso}M a menos.`}">
+          <span style="font-size:10px">Envia/recebe</span>
+          <span class="cap-val ${m.ok ? 'ok' : 'bad'}" style="font-size:10px">
+            ${m.enviado}M / ${m.recebido}M ${m.ok ? '✓' : `⚠ +${m.excesso}M`}
+          </span></div>`;
+      })()}
     `;
     capBar.appendChild(panel);
   });
 
-  if (!hasItems) { updateValidity('neutral','AGUARDANDO'); updateValueBar(); return; }
-  updateValidity(anyInvalid ? 'warn' : 'valid', anyInvalid ? 'CAP ALTERADO' : 'OK');
+  if (!hasItems) { updateValidity('neutral','AGUARDANDO'); updateValueBar(); mostrarAviso120([]); return; }
+
+  const viol = violacoes120();
+  if (viol.length) updateValidity('invalid', `ESTOURA ${TRADE_MATCH_PCT}%`);
+  else updateValidity(anyInvalid ? 'warn' : 'valid', anyInvalid ? 'CAP ALTERADO' : 'OK');
+  mostrarAviso120(viol);
   updateValueBar();
 
   if (IS_PROPOSE) {
@@ -1021,7 +1085,29 @@ function recalc() {
 function canSubmit() {
   const loadedTeams = activeSlots.filter(k => teams[k]).length;
   const hasItems = activeSlots.some(k => (receives[k] || []).length > 0);
-  return loadedTeams >= 2 && hasItems;
+  // A regra dos 120% barra o envio, nao so avisa.
+  return loadedTeams >= 2 && hasItems && violacoes120().length === 0;
+}
+
+/** Faixa explicando por que a troca esta barrada. */
+function mostrarAviso120(viol) {
+  let box = document.getElementById('aviso120');
+  if (!box) {
+    const bar = document.getElementById('capBar');
+    if (!bar || !bar.parentNode) return;
+    box = document.createElement('div');
+    box.id = 'aviso120';
+    box.style.cssText = 'display:none;margin:10px 0;padding:11px 14px;border-radius:10px;'
+      + 'background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.3);color:#f87171;'
+      + 'font-size:12.5px;line-height:1.5';
+    bar.parentNode.insertBefore(box, bar.nextSibling);
+  }
+  if (!viol.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = `<strong>Troca barrada pela regra dos ${TRADE_MATCH_PCT}%.</strong><ul style="margin:6px 0 0 16px;padding:0">`
+    + viol.map(v => `<li><strong>${escH(v.nome)}</strong> receberia ${v.recebido}M enviando ${v.enviado}M.
+        O limite é ${v.limite}M — passou ${v.excesso}M. Envie mais ${v.faltaEnviar}M ou receba ${v.excesso}M a menos.</li>`).join('')
+    + '</ul>';
 }
 
 function updateValidity(cls, text) {
@@ -1048,6 +1134,12 @@ function capStatusL(cap, min, max) {
 
 // ── Submit ────────────────────────────────────────────────────────────────────
 async function submitTrade() {
+  const viol = violacoes120();
+  if (viol.length) {
+    alert(`Troca barrada pela regra dos ${TRADE_MATCH_PCT}%:\n\n`
+      + viol.map(v => `${v.nome} receberia ${v.recebido}M enviando ${v.enviado}M (limite ${v.limite}M).`).join('\n'));
+    return;
+  }
   if (!canSubmit()) { alert('Complete a trade antes de enviar.'); return; }
   const notes = document.getElementById('tradeNotes')?.value || '';
   const btn = document.getElementById('submitBtn');
