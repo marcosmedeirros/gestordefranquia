@@ -322,6 +322,66 @@ if ($teamId) {
             cursor: pointer; white-space: nowrap; user-select: none;
         }
         .roster-table thead th.sortable:hover { color: var(--text-2); }
+        /* Indicador de direcao da ordenacao */
+        .roster-table thead th.sortable::after { content: ''; margin-left: 5px; opacity: .35; font-size: 10px; }
+        .roster-table thead th.sorted-asc::after  { content: '▲'; opacity: 1; color: var(--red); }
+        .roster-table thead th.sorted-desc::after { content: '▼'; opacity: 1; color: var(--red); }
+
+        /* Nome do jogador leva ao perfil */
+        .roster-player-link { color: inherit; text-decoration: none; }
+        .roster-player-link:hover { color: var(--red); text-decoration: underline; }
+
+        /* ── Acoes em massa ─────────────────────────── */
+        .sel-col { width: 34px; }
+        .roster-table td.sel-col input, .roster-table th.sel-col input { accent-color: var(--red); cursor: pointer; }
+        .bulk-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+            padding: 10px 14px; border-radius: 11px; background: color-mix(in srgb, var(--red) 8%, transparent);
+            border: 1px solid var(--border-red); }
+        .bulk-count { font-size: 12px; color: var(--text-2); margin-right: 4px; }
+        .bulk-count b { font-family: 'Oswald', sans-serif; font-size: 14px; color: var(--red); }
+        .btn-bulk { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 9px;
+            background: var(--panel-2); border: 1px solid var(--border-md); color: var(--text-2);
+            font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s; }
+        .btn-bulk:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
+        .btn-bulk:disabled { opacity: .55; cursor: not-allowed; }
+        .btn-bulk.ghost { background: transparent; border-color: var(--border); }
+
+        /* ── Barra do CAP ───────────────────────────── */
+        /* Largura fluida: com valor fixo a barra estourava o stat-pill no mobile. */
+        .cap-gauge { margin-top: 5px; width: 100%; max-width: 132px; min-width: 0; }
+        .cap-gauge-bar { display: block; height: 5px; background: var(--panel-3); border-radius: 999px;
+            overflow: hidden; border: 1px solid var(--border); }
+        .cap-gauge-bar i { display: block; height: 100%; border-radius: 999px; background: var(--green);
+            transition: width .4s var(--ease); }
+        .cap-gauge.over  .cap-gauge-bar i { background: #ef4444; }
+        .cap-gauge.under .cap-gauge-bar i { background: var(--amber); }
+        .cap-gauge-ends { display: flex; justify-content: space-between; margin-top: 3px; }
+        .cap-gauge-ends em { font-style: normal; font-size: 9px; color: var(--text-3); letter-spacing: .3px; }
+
+        /* ── Composicao do elenco ───────────────────── */
+        #roster-composition:empty { display: none; }
+        .comp-row { display: grid; grid-template-columns: minmax(220px, 1fr) 2fr; gap: 16px;
+            background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px;
+            padding: 14px 16px; margin-bottom: 14px; }
+        .comp-title { font-size: 10px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
+            color: var(--text-3); margin-bottom: 9px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .comp-title small { font-weight: 500; letter-spacing: 0; text-transform: none; opacity: .8; }
+        .comp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .comp-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600;
+            padding: 4px 10px; border-radius: 999px; background: var(--panel-3);
+            border: 1px solid var(--border); color: var(--text-2); }
+        .comp-chip b { font-family: 'Oswald', sans-serif; font-size: 13px; color: var(--text); }
+        .comp-warn { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700;
+            padding: 3px 9px; border-radius: 999px; background: rgba(245,158,11,.12);
+            border: 1px solid rgba(245,158,11,.3); color: var(--amber); text-transform: none; letter-spacing: 0; }
+        .comp-poss { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px 14px; }
+        .comp-pos { display: flex; align-items: center; gap: 7px; }
+        .comp-pos-l { font-family: 'Oswald', sans-serif; font-size: 11px; font-weight: 700; color: var(--text-2); width: 20px; }
+        .comp-pos-bar { flex: 1; height: 6px; background: var(--panel-3); border-radius: 999px; overflow: hidden; }
+        .comp-pos-bar i { display: block; height: 100%; background: var(--red); border-radius: 999px; }
+        .comp-pos-n { font-family: 'Oswald', sans-serif; font-size: 12px; font-weight: 700; width: 16px; text-align: right; }
+        .comp-pos-n.zero { color: var(--amber); }
+        @media (max-width: 760px) { .comp-row { grid-template-columns: 1fr; } }
         .roster-table thead th[data-sort="name"]     { width: 30%; }
         .roster-table thead th[data-sort="position"] { width: 10%; }
         .roster-table thead th[data-sort="ovr"]      { width: 8%; }
@@ -534,6 +594,11 @@ if ($teamId) {
                 <div>
                     <div class="stat-pill-val" id="cap-top8">—</div>
                     <div class="stat-pill-label"><?= $salaryCapMode ? 'Folha' : 'CAP' ?> <span id="cap-bonus-label" class="cap-bonus-label"></span></div>
+                    <!-- Barra: onde a folha esta entre o piso e o teto -->
+                    <div id="cap-gauge" class="cap-gauge" style="display:none">
+                        <span class="cap-gauge-bar"><i></i></span>
+                        <span class="cap-gauge-ends"><em id="cap-gauge-min"></em><em id="cap-gauge-max"></em></span>
+                    </div>
                     <div id="cap-range" style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px"></div>
                 </div>
             </div>
@@ -682,14 +747,33 @@ if ($teamId) {
             </div>
 
             <!-- Tabela desktop -->
+            <!-- Composição do elenco (preenchida por renderRosterComposition) -->
+            <div id="roster-composition"></div>
+
+            <!-- Ações em massa: aparece só quando há jogador selecionado -->
+            <div id="bulk-bar" class="bulk-bar" style="display:none">
+                <span class="bulk-count"><b id="bulk-n">0</b> selecionado(s)</span>
+                <button type="button" class="btn-bulk" id="bulk-trade-on">
+                    <i class="bi bi-check-circle"></i> Marcar disponível p/ troca
+                </button>
+                <button type="button" class="btn-bulk" id="bulk-trade-off">
+                    <i class="bi bi-x-circle"></i> Marcar indisponível
+                </button>
+                <button type="button" class="btn-bulk ghost" id="bulk-clear">Limpar seleção</button>
+            </div>
+
             <div id="players-table-wrapper" style="display:none;">
                 <div class="table-responsive">
                     <table class="roster-table table table-dark table-hover align-middle mb-0" id="players-table">
                         <thead>
                             <tr>
+                                <th class="sel-col"><input type="checkbox" id="sel-all" title="Selecionar todos os visíveis"></th>
                                 <th data-sort="name"     class="sortable">Jogador</th>
                                 <th data-sort="position" class="sortable">Posição</th>
                                 <th data-sort="ovr"      class="sortable">OVR</th>
+                                <?php if ($salaryCapMode): ?>
+                                <th data-sort="salary"   class="sortable">Salário</th>
+                                <?php endif; ?>
                                 <th data-sort="age"      class="sortable">Idade</th>
                                 <th data-sort="role"     class="sortable">Função</th>
                                 <th>Transferência</th>
@@ -964,7 +1048,7 @@ if ($teamId) {
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
     window.__CAP_MIN__ = <?= (int)$capMin ?>;
     window.__CAP_MAX__ = <?= (int)$capMaxBase ?>;
-    window.__SALARY_CAP__ = <?= ($salaryCapMode && $salCap) ? json_encode(['payroll' => (int)$salCap['payroll'], 'cap_max' => (int)$salCap['cap_max'], 'status' => $salCap['status']]) : 'null' ?>;
+    window.__SALARY_CAP__ = <?= ($salaryCapMode && $salCap) ? json_encode(['payroll' => (int)$salCap['payroll'], 'cap_max' => (int)$salCap['cap_max'], 'cap_floor' => (int)$salCap['cap_floor'], 'status' => $salCap['status'], 'roster' => array_map(fn($r) => ['id' => (int)$r['id'], 'total_salary' => (int)$r['total_salary']], $salCap['roster'])]) : 'null' ?>;
     window.__LEAGUE__ = <?= json_encode($team['league'] ?? '') ?>;
     window.__TEAM_TAG__ = <?= json_encode($team['team_tag'] ?? null) ?>;
     window.__TEAM_TAG_SOURCE__ = <?= json_encode($team['team_tag_source'] ?? null) ?>;
@@ -1072,7 +1156,7 @@ if ($teamId) {
     document.getElementById('btn-copy-team')?.addEventListener('click', () => _doCopy(_buildSummary('team'), 'Time'));
     document.getElementById('btn-copy-roster')?.addEventListener('click', () => _doCopy(_buildSummary('roster'), 'Elenco'));
 </script>
-<script src="/js/my-roster-v2.js?v=20260519-2"></script>
+<script src="/js/my-roster-v2.js?v=20260722"></script>
 <script>
 (function () {
   const GRADE_OPTIONS = ['-','A+','A','A-','B+','B','B-','C+','C','C-','D+','D','D-','F'];

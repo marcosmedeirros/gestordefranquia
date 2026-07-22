@@ -723,6 +723,129 @@ function sortPlayers(field) {
   renderPlayers(allPlayers);
 }
 
+/* ── Selecao em massa ──────────────────────────────
+   Guarda os ids marcados fora do DOM para a selecao sobreviver a
+   reordenacao, filtro e recarga da tabela. */
+const selectedIds = new Set();
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulk-bar');
+  if (!bar) return;
+  // Só conta quem continua visível: filtrar não pode agir sobre quem sumiu.
+  const visiveis = new Set([...document.querySelectorAll('.sel-player')].map(i => Number(i.dataset.id)));
+  [...selectedIds].forEach(id => { if (!visiveis.has(id)) selectedIds.delete(id); });
+
+  const n = selectedIds.size;
+  bar.style.display = n ? 'flex' : 'none';
+  const el = document.getElementById('bulk-n');
+  if (el) el.textContent = n;
+
+  const todos = document.getElementById('sel-all');
+  if (todos) {
+    todos.checked = n > 0 && n === visiveis.size;
+    todos.indeterminate = n > 0 && n < visiveis.size;
+  }
+}
+
+async function bulkSetTrade(disponivel) {
+  const ids = [...selectedIds];
+  if (!ids.length) return;
+  const bar = document.getElementById('bulk-bar');
+  bar.querySelectorAll('button').forEach(b => { b.disabled = true; });
+  let erros = 0;
+  for (const id of ids) {
+    try {
+      await api('players.php', { method: 'PUT', body: JSON.stringify({ id, available_for_trade: disponivel ? 1 : 0 }) });
+    } catch (e) { erros++; }
+  }
+  bar.querySelectorAll('button').forEach(b => { b.disabled = false; });
+  if (erros) alert(`${erros} de ${ids.length} não puderam ser atualizados.`);
+  selectedIds.clear();
+  loadPlayers();
+}
+
+// Modo salario (ELITE com cap ligado). Fora dele, nada de salario aparece.
+const SALARY_MODE = !!(window.__SALARY_CAP__ && window.__SALARY_CAP__.roster);
+const SALARY_BY_ID = SALARY_MODE
+  ? Object.fromEntries(window.__SALARY_CAP__.roster.map(r => [Number(r.id), Number(r.total_salary)]))
+  : {};
+function playerSalary(p) { return SALARY_BY_ID[Number(p.id)] ?? 0; }
+
+/**
+ * Composição do elenco: quantos por função e por posição.
+ * Usa o elenco inteiro, não o filtrado — é uma leitura do time, não da tabela.
+ */
+function renderRosterComposition(players) {
+  const box = document.getElementById('roster-composition');
+  if (!box) return;
+  const lista = players || [];
+  if (!lista.length) { box.innerHTML = ''; return; }
+
+  const funcoes = ['Titular', 'Banco', 'G-League', 'Outro'];
+  const porFuncao = {};
+  funcoes.forEach(f => { porFuncao[f] = 0; });
+  const porPos = { PG: 0, SG: 0, SF: 0, PF: 0, C: 0 };
+
+  lista.forEach(p => {
+    const f = normalizeRoleKey(p.role);
+    if (porFuncao[f] !== undefined) porFuncao[f]++;
+    // Posição secundária conta junto: é onde o jogador também pode atuar.
+    [p.position, p.secondary_position].forEach(pos => {
+      const k = (pos || '').trim().toUpperCase();
+      if (porPos[k] !== undefined) porPos[k]++;
+    });
+  });
+
+  const titulares = porFuncao['Titular'];
+  const avisoTitulares = titulares === 5 ? '' :
+    `<span class="comp-warn" title="O quinteto titular deve ter exatamente 5 jogadores.">
+       <i class="bi bi-exclamation-triangle-fill"></i> ${titulares} titular${titulares === 1 ? '' : 'es'}</span>`;
+
+  // Posição sem ninguém é o buraco que interessa ver de relance.
+  const vazias = Object.entries(porPos).filter(([, n]) => n === 0).map(([k]) => k);
+  const avisoPos = vazias.length
+    ? `<span class="comp-warn" title="Nenhum jogador do elenco atua nesta posição.">
+         <i class="bi bi-exclamation-triangle-fill"></i> sem ${vazias.join(', ')}</span>`
+    : '';
+
+  const chipFuncao = funcoes
+    .filter(f => porFuncao[f] > 0 || f === 'Titular' || f === 'Banco')
+    .map(f => `<span class="comp-chip"><b>${porFuncao[f]}</b> ${f}</span>`).join('');
+
+  const maxPos = Math.max(...Object.values(porPos), 1);
+  const barrasPos = Object.entries(porPos).map(([k, n]) => `
+    <div class="comp-pos" title="${n} jogador${n === 1 ? '' : 'es'} atuam em ${k} (inclui posição secundária)">
+      <span class="comp-pos-l">${k}</span>
+      <span class="comp-pos-bar"><i style="width:${Math.round(n / maxPos * 100)}%"></i></span>
+      <span class="comp-pos-n${n === 0 ? ' zero' : ''}">${n}</span>
+    </div>`).join('');
+
+  box.innerHTML = `
+    <div class="comp-row">
+      <div class="comp-block">
+        <div class="comp-title">Por função</div>
+        <div class="comp-chips">${chipFuncao}${avisoTitulares}</div>
+      </div>
+      <div class="comp-block">
+        <div class="comp-title">Por posição <small>(inclui secundária)</small> ${avisoPos}</div>
+        <div class="comp-poss">${barrasPos}</div>
+      </div>
+    </div>`;
+}
+
+/** Seta na coluna ordenada — sem isso não dá para saber a direção do clique. */
+function updateSortIndicator() {
+  document.querySelectorAll('#players-table thead th.sortable').forEach(th => {
+    th.classList.remove('sorted-asc', 'sorted-desc');
+    if (th.dataset.sort === currentSort.field) {
+      th.classList.add(currentSort.ascending ? 'sorted-asc' : 'sorted-desc');
+    }
+  });
+  // Mantém o seletor de ordenação em sincronia com o clique no cabeçalho.
+  const sel = document.getElementById('sort-select');
+  if (sel && sel.value !== currentSort.field) sel.value = currentSort.field;
+}
+
 function renderPlayers(players) {
   let sorted = applyFilters([...players]);
   sorted.sort((a, b) => {
@@ -736,6 +859,10 @@ function renderPlayers(players) {
     if (currentSort.field === 'trade') {
       aVal = a.available_for_trade ? 1 : 0;
       bVal = b.available_for_trade ? 1 : 0;
+    }
+    if (currentSort.field === 'salary') {
+      aVal = playerSalary(a);
+      bVal = playerSalary(b);
     }
     if (['ovr', 'age', 'seasons_in_league'].includes(currentSort.field)) {
       aVal = Number(aVal);
@@ -755,6 +882,9 @@ function renderPlayers(players) {
     }
     return 0;
   });
+
+  updateSortIndicator();
+  renderRosterComposition(players);
 
   // Renderizar Quinteto Titular (grid) + Banco (lista lateral)
   const grid = document.getElementById('players-grid');
@@ -808,7 +938,7 @@ function renderPlayers(players) {
             </div>
             <div class="text-center">
               <div class="fw-bold" style="font-size: 1.8rem; line-height: 1; color: ${ovrColor};">${p.ovr}</div>
-              <small class="text-light-gray">${p.age} anos</small>
+              <small class="text-light-gray">${p.age} anos${SALARY_MODE ? ` · <span style="color:var(--red);font-weight:700">${playerSalary(p)}M</span>` : ""}</small>
             </div>
           </div>`;
         col.appendChild(card);
@@ -890,13 +1020,13 @@ function renderPlayersMobileCards(players) {
                style="width: 44px; height: 44px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div>
-            <div class="fw-bold" style="color:var(--text);">${p.name}${renderTapaBadge(p)} ${franchiseBadge}${tagBadgeMobile}</div>
+            <div class="fw-bold" style="color:var(--text);"><a class="roster-player-link" href="/player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)} ${franchiseBadge}${tagBadgeMobile}</div>
             <div class="text-light-gray small">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''} • ${normalizeRoleKey(p.role)}</div>
           </div>
         </div>
         <div class="text-end">
           <div class="fw-bold" style="color:${getOvrColor(p.ovr)}; font-size: 1.2rem;">${p.ovr}${(p.ovr_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px">+${p.ovr_delta}</span>` : (p.ovr_delta < 0) ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:4px">${p.ovr_delta}</span>` : ''}</div>
-          <small class="text-light-gray">${p.age} anos</small>
+          <small class="text-light-gray">${p.age} anos${SALARY_MODE ? ` · <span style="color:var(--red);font-weight:700">${playerSalary(p)}M</span>` : ""}</small>
         </div>
       </div>
       <div class="mt-2">
@@ -923,7 +1053,7 @@ function renderPlayersTable(players) {
   if (!wrapper || !tbody) return;
   tbody.innerHTML = '';
   if (!players || players.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-light-gray">Nenhum jogador encontrado.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${SALARY_MODE ? 9 : 8}" class="text-center text-light-gray">Nenhum jogador encontrado.</td></tr>`;
     wrapper.style.display = '';
     return;
   }
@@ -936,19 +1066,21 @@ function renderPlayersTable(players) {
     if (isFranchiseEligible(p)) tr.classList.add('franchise-player-row');
     else if (isLoyalPlayer(p)) tr.classList.add('loyal-player-row');
     tr.innerHTML = `
+      <td class="sel-col"><input type="checkbox" class="sel-player" data-id="${p.id}" ${selectedIds.has(Number(p.id)) ? 'checked' : ''}></td>
       <td>
         <div class="d-flex align-items-center gap-2">
           <img src="${photoUrl}" alt="${p.name}"
                style="width: 36px; height: 36px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div class="d-flex flex-column">
-            <span class="fw-semibold">${p.name}${renderTapaBadge(p)} ${franchiseBadge}${tagBadge}</span>
+            <span class="fw-semibold"><a class="roster-player-link" href="/player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)} ${franchiseBadge}${tagBadge}</span>
             <small class="text-light-gray">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</small>
           </div>
         </div>
       </td>
       <td>${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</td>
       <td><span style="color:${getOvrColor(p.ovr)};" class="fw-bold">${p.ovr}</span>${(p.ovr_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px">+${p.ovr_delta}</span>` : (p.ovr_delta < 0) ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:4px">${p.ovr_delta}</span>` : ''}</td>
+      ${SALARY_MODE ? `<td class="fw-bold" style="color:var(--red)">${playerSalary(p)}M</td>` : ''}
       <td>${p.age}</td>
       <td>${normalizeRoleKey(p.role)}</td>
       <td>
@@ -967,6 +1099,35 @@ function renderPlayersTable(players) {
     tbody.appendChild(tr);
   });
   wrapper.style.display = '';
+  updateBulkBar();
+}
+
+/**
+ * Barra do CAP: posiciona o valor atual entre o piso e o teto e rotula os
+ * extremos, que antes eram dois números soltos ao lado do valor do time.
+ */
+function updateCapGauge(min, atual, max, sufixo) {
+  const box = document.getElementById('cap-gauge');
+  if (!box) return;
+  const fill = box.querySelector('.cap-gauge-bar i');
+  const elMin = document.getElementById('cap-gauge-min');
+  const elMax = document.getElementById('cap-gauge-max');
+
+  const ok = [min, atual, max].every(v => Number.isFinite(Number(v))) && Number(max) > 0;
+  if (!ok) { box.style.display = 'none'; return; }
+
+  min = Number(min); atual = Number(atual); max = Number(max);
+  // A barra mede o trecho piso→teto; abaixo do piso fica vazia, acima enche.
+  const span = (max - min) || 1;
+  const pct = Math.max(0, Math.min(100, Math.round((atual - min) / span * 100)));
+
+  box.style.display = '';
+  box.classList.toggle('over', atual > max);
+  box.classList.toggle('under', atual < min);
+  fill.style.width = (atual > max ? 100 : pct) + '%';
+  elMin.textContent = `mín ${min}${sufixo}`;
+  elMax.textContent = `máx ${max}${sufixo}`;
+  box.title = `Seu time: ${atual}${sufixo} — piso ${min}${sufixo}, teto ${max}${sufixo}`;
 }
 
 function updateRosterStats() {
@@ -986,19 +1147,22 @@ function updateRosterStats() {
       + ` <span style="color:var(--text-3)">/ ${sc.cap_max}M</span>`;
     const bl0 = document.getElementById('cap-bonus-label'); if (bl0) bl0.textContent = '';
     const cr0 = document.getElementById('cap-range'); if (cr0) cr0.textContent = '';
+    updateCapGauge(sc.cap_floor, sc.payroll, sc.cap_max, 'M');
   } else if (capEl) {
     const showFull = Number.isFinite(capMin) && Number.isFinite(capMaxAdjusted)
       && capMin > 0 && Number(window.__CAP_MAX__) > 0;
     if (showFull) {
-      capEl.style.fontSize = '14px';
-      capEl.innerHTML = `<span style="color:var(--text-3);font-weight:500">${capMin}</span>`
-        + ` <span style="color:var(--text-3)">/</span> `
-        + `${topEight}`
-        + ` <span style="color:var(--text-3)">/</span> `
-        + `<span style="color:var(--text-3);font-weight:500">${capMaxAdjusted}</span>`;
+      // Sem rotulo, "630 / 675 / 678" nao diz o que e cada numero. O valor do
+      // meio e o do time e ganha destaque; os extremos viram legenda da barra.
+      capEl.style.fontSize = '18px';
+      const cor = topEight > capMaxAdjusted ? '#ef4444' : (topEight < capMin ? 'var(--amber)' : 'var(--green)');
+      capEl.innerHTML = `<span style="color:${cor};font-weight:700"
+        title="Soma de OVR do seu Top 8. Mínimo ${capMin}, máximo ${capMaxAdjusted}.">${topEight}</span>`;
+      updateCapGauge(capMin, topEight, capMaxAdjusted, '');
     } else {
       capEl.style.fontSize = '';
       capEl.textContent = topEight;
+      updateCapGauge(null, null, null, '');
     }
   }
   const bonusLabel = document.getElementById('cap-bonus-label');
@@ -1094,8 +1258,33 @@ document.addEventListener('DOMContentLoaded', () => {
     renderPlayers(allPlayers);
   });
   document.querySelector('#players-table thead')?.addEventListener('click', (e) => {
+    if (e.target.id === 'sel-all') return; // o checkbox do cabecalho nao ordena
     const th = e.target.closest('th.sortable');
     if (th && th.dataset.sort) sortPlayers(th.dataset.sort);
+  });
+
+  // Selecao em massa
+  document.getElementById('players-table-body')?.addEventListener('change', (e) => {
+    const cb = e.target.closest('.sel-player');
+    if (!cb) return;
+    const id = Number(cb.dataset.id);
+    if (cb.checked) selectedIds.add(id); else selectedIds.delete(id);
+    updateBulkBar();
+  });
+  document.getElementById('sel-all')?.addEventListener('change', (e) => {
+    document.querySelectorAll('.sel-player').forEach(cb => {
+      cb.checked = e.target.checked;
+      const id = Number(cb.dataset.id);
+      if (e.target.checked) selectedIds.add(id); else selectedIds.delete(id);
+    });
+    updateBulkBar();
+  });
+  document.getElementById('bulk-trade-on')?.addEventListener('click', () => bulkSetTrade(true));
+  document.getElementById('bulk-trade-off')?.addEventListener('click', () => bulkSetTrade(false));
+  document.getElementById('bulk-clear')?.addEventListener('click', () => {
+    selectedIds.clear();
+    document.querySelectorAll('.sel-player').forEach(cb => { cb.checked = false; });
+    updateBulkBar();
   });
 
   const editPhotoInput = document.getElementById('edit-foto-adicional');
