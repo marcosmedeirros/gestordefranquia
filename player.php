@@ -120,16 +120,41 @@ try {
 } catch (Exception $e) {}
 
 // ── Atributos (skills) ─────────────────────────────────
-$skillMap = [
-    'skill_in' => 'Finalização', 'skill_mid' => 'Meia-distância', 'skill_3pt' => 'Três pontos',
-    'skill_post_d' => 'Defesa de poste', 'skill_per_d' => 'Defesa de perímetro', 'skill_play' => 'Armação',
-    'skill_reb' => 'Rebote', 'skill_athl' => 'Atletismo', 'skill_iq' => 'QI de jogo', 'skill_pot' => 'Potencial',
+// Agrupados por area para a aba nao virar uma lista solta de 10 barras.
+$skillGroups = [
+    'Ataque'  => ['bi-bullseye', [
+        'skill_in'  => 'Finalização', 'skill_mid' => 'Meia-distância', 'skill_3pt' => 'Três pontos',
+        'skill_play' => 'Armação',
+    ]],
+    'Defesa'  => ['bi-shield-fill', [
+        'skill_post_d' => 'Defesa de poste', 'skill_per_d' => 'Defesa de perímetro', 'skill_reb' => 'Rebote',
+    ]],
+    'Físico e mental' => ['bi-lightning-charge-fill', [
+        'skill_athl' => 'Atletismo', 'skill_iq' => 'QI de jogo', 'skill_pot' => 'Potencial',
+    ]],
 ];
-$skills = [];
+
+$skills = [];               // continua plano: usado para saber se a aba aparece
+$skillsByGroup = [];
 if (!$isRetired) {
-    foreach ($skillMap as $col => $label) {
-        if (isset($P[$col]) && $P[$col] !== null && $P[$col] !== '') $skills[$label] = $P[$col];
+    foreach ($skillGroups as $groupName => [$groupIcon, $cols]) {
+        foreach ($cols as $col => $label) {
+            if (isset($P[$col]) && $P[$col] !== null && $P[$col] !== '') {
+                $skills[$label] = $P[$col];
+                $skillsByGroup[$groupName]['icon'] = $groupIcon;
+                $skillsByGroup[$groupName]['items'][$label] = $P[$col];
+            }
+        }
     }
+}
+
+// Cor por faixa de valor, na mesma leitura do OVR usada no resto do site.
+function skillTone(int $v): string {
+    if ($v >= 90) return 'elite';
+    if ($v >= 80) return 'otimo';
+    if ($v >= 70) return 'bom';
+    if ($v >= 60) return 'medio';
+    return 'fraco';
 }
 
 $AWARD_LABELS = ['mvp'=>'MVP','dpoy'=>'DPOY','mip'=>'MIP','6th_man'=>'6º Homem','roy'=>'ROY'];
@@ -141,6 +166,22 @@ $dispAge  = $isRetired ? (int)($R['age'] ?? 0) : (int)($P['age'] ?? 0);
 $dispTeam = $isRetired ? ($R['team_name'] ?? '') : trim($P['t_city'] . ' ' . $P['t_name']);
 $dispTeamId    = $isRetired ? null : (int)$P['t_id'];
 $dispTeamPhoto = (!$isRetired && !empty($P['t_photo'])) ? $P['t_photo'] : '/img/default-team.png';
+
+// Foto do jogador — mesma regra do getPlayerPhotoUrl() de players.php:
+// foto enviada pelo GM, senao o headshot da NBA, senao avatar com as iniciais.
+$avatarFallback = 'https://ui-avatars.com/api/?name=' . rawurlencode($playerName ?: 'P')
+                . '&background=121212&color=fc0025&rounded=true&bold=true';
+
+$nbaPhoto = (!$isRetired && !empty($P['nba_player_id']))
+    ? 'https://cdn.nba.com/headshots/nba/latest/1040x760/' . rawurlencode((string)$P['nba_player_id']) . '.png'
+    : '';
+
+$custom = $isRetired ? '' : trim((string)($P['foto_adicional'] ?? ''));
+$dispPhoto = $custom !== '' ? $custom : ($nbaPhoto ?: $avatarFallback);
+
+// Se a foto enviada pelo GM sumir do servidor, ainda tenta o headshot da NBA
+// antes de desistir e mostrar as iniciais.
+$photoFallback = ($custom !== '' && $nbaPhoto !== '') ? $nbaPhoto : $avatarFallback;
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -163,7 +204,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .content{max-width:1000px;margin:0 auto;padding:24px 16px 80px;width:100%}
 /* hero */
 .p-hero{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px;display:flex;gap:20px;align-items:center;flex-wrap:wrap}
-.p-avatar{width:88px;height:88px;border-radius:20px;background:var(--panel-2);border:1px solid var(--border-md);display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;font-size:32px;font-weight:800;color:var(--red);flex-shrink:0}
+.p-avatar{width:88px;height:88px;border-radius:20px;background:var(--panel-2);border:1px solid var(--border-md);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+.p-avatar img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
 .p-name{font-family:'Oswald',sans-serif;font-size:28px;font-weight:800;line-height:1.1}
 .p-sub{font-size:13px;color:var(--text-2);margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .p-team-link{display:inline-flex;align-items:center;gap:7px;color:var(--text);text-decoration:none;font-weight:600}
@@ -198,11 +240,33 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .tbl tr:last-child td{border-bottom:none}
 .tbl td.num,.tbl th.num{text-align:right;font-family:'Oswald',sans-serif;font-weight:700}
 .empty{text-align:center;padding:22px;color:var(--text-3);font-size:13px}
-.skill-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.skill-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.skill-row:last-child{margin-bottom:0}
 .skill-name{font-size:12px;color:var(--text-2);width:140px;flex-shrink:0}
 .skill-bar{flex:1;height:8px;background:var(--panel-3);border-radius:999px;overflow:hidden}
-.skill-fill{height:100%;background:var(--red);border-radius:999px}
+.skill-fill{height:100%;background:var(--red);border-radius:999px;transition:width .5s var(--ease)}
 .skill-val{font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;width:34px;text-align:right}
+
+/* Escala de cor por faixa — mesma leitura do OVR no resto do site */
+.tone-elite{background:#22c55e} .skill-val.tone-elite{background:none;color:#22c55e}
+.tone-otimo{background:#84cc16} .skill-val.tone-otimo{background:none;color:#84cc16}
+.tone-bom  {background:#eab308} .skill-val.tone-bom  {background:none;color:#eab308}
+.tone-medio{background:#f97316} .skill-val.tone-medio{background:none;color:#f97316}
+.tone-fraco{background:#ef4444} .skill-val.tone-fraco{background:none;color:#ef4444}
+
+/* Resumo no topo da aba */
+.sk-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
+.sk-sum-item{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.sk-sum-l{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px}
+.sk-sum-v{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;line-height:1.1}
+.sk-sum-v span{font-size:15px;opacity:.85;margin-left:4px}
+.sk-sum-v.sk-strong,.sk-sum-v.sk-weak{font-size:14px;font-family:var(--font);font-weight:600}
+.sk-sum-v.sk-strong{color:#22c55e}
+.sk-sum-v.sk-weak{color:#f97316}
+
+/* Grupos lado a lado */
+.sk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;align-items:start}
+.sk-card{margin-bottom:0}
 /* gráfico de carreira */
 .chart{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:14px;overflow-x:auto}
 @media(max-width:640px){
@@ -270,7 +334,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
   <!-- Cabeçalho -->
   <div class="p-hero">
-    <div class="p-avatar"><?= htmlspecialchars(mb_strtoupper(mb_substr($playerName, 0, 1))) ?></div>
+    <div class="p-avatar">
+      <img src="<?= htmlspecialchars($dispPhoto) ?>" alt="<?= htmlspecialchars($playerName) ?>"
+           data-fb2="<?= htmlspecialchars($avatarFallback, ENT_QUOTES) ?>"
+           onerror="this.onerror=function(){this.onerror=null;this.src=this.dataset.fb2};this.src='<?= htmlspecialchars($photoFallback, ENT_QUOTES) ?>'">
+    </div>
     <div style="min-width:0">
       <div class="p-name"><?= htmlspecialchars($playerName) ?></div>
       <div class="p-sub">
@@ -459,19 +527,50 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   <!-- Atributos -->
   <?php if ($skills): ?>
   <div class="tab-pane" id="pane-atributos">
-    <div class="panel">
-      <div class="section-title"><i class="bi bi-sliders"></i> Atributos</div>
-      <?php foreach ($skills as $label => $val):
-        $num = is_numeric($val) ? max(0, min(99, (int)$val)) : null; ?>
-        <div class="skill-row">
-          <div class="skill-name"><?= htmlspecialchars($label) ?></div>
-          <?php if ($num !== null): ?>
-            <div class="skill-bar"><div class="skill-fill" style="width:<?= round($num / 99 * 100) ?>%"></div></div>
-            <div class="skill-val"><?= $num ?></div>
-          <?php else: ?>
-            <div style="flex:1;font-size:12px;color:var(--text-2)"><?= htmlspecialchars((string)$val) ?></div>
-          <?php endif; ?>
-        </div>
+    <?php
+      $nums = array_filter(array_map(fn($v) => is_numeric($v) ? (int)$v : null, $skills), fn($v) => $v !== null);
+      $melhorLabel = ''; $piorLabel = '';
+      if ($nums) {
+          $melhorLabel = array_search(max($nums), $nums, true);
+          $piorLabel   = array_search(min($nums), $nums, true);
+      }
+    ?>
+    <?php if ($nums): ?>
+    <div class="sk-summary">
+      <div class="sk-sum-item">
+        <div class="sk-sum-l">Média dos atributos</div>
+        <div class="sk-sum-v"><?= round(array_sum($nums) / count($nums)) ?></div>
+      </div>
+      <div class="sk-sum-item">
+        <div class="sk-sum-l">Ponto forte</div>
+        <div class="sk-sum-v sk-strong"><?= htmlspecialchars($melhorLabel) ?> <span><?= max($nums) ?></span></div>
+      </div>
+      <div class="sk-sum-item">
+        <div class="sk-sum-l">Ponto fraco</div>
+        <div class="sk-sum-v sk-weak"><?= htmlspecialchars($piorLabel) ?> <span><?= min($nums) ?></span></div>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <div class="sk-grid">
+      <?php foreach ($skillsByGroup as $groupName => $group): ?>
+      <div class="panel sk-card">
+        <div class="section-title"><i class="bi <?= htmlspecialchars($group['icon']) ?>"></i> <?= htmlspecialchars($groupName) ?></div>
+        <?php foreach ($group['items'] as $label => $val):
+          $num = is_numeric($val) ? max(0, min(99, (int)$val)) : null; ?>
+          <div class="skill-row">
+            <div class="skill-name"><?= htmlspecialchars($label) ?></div>
+            <?php if ($num !== null): ?>
+              <div class="skill-bar">
+                <div class="skill-fill tone-<?= skillTone($num) ?>" style="width:<?= round($num / 99 * 100) ?>%"></div>
+              </div>
+              <div class="skill-val tone-<?= skillTone($num) ?>"><?= $num ?></div>
+            <?php else: ?>
+              <div style="flex:1;font-size:12px;color:var(--text-2)"><?= htmlspecialchars((string)$val) ?></div>
+            <?php endif; ?>
+          </div>
+        <?php endforeach; ?>
+      </div>
       <?php endforeach; ?>
     </div>
   </div>

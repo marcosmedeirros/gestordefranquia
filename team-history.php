@@ -94,15 +94,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .th-tab:hover{color:var(--text)}
 .th-tab.active{background:var(--red-soft);border-color:var(--border-red);color:var(--red)}
 .th-hidden{display:none !important}
-.pos-chart{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px 6px;margin-bottom:14px}
-.pos-chart svg .pos-line{stroke-dasharray:900;stroke-dashoffset:900;animation:lineDraw 1.15s ease forwards}
-.pos-chart svg .pos-dot{opacity:0;transform-box:fill-box;transform-origin:center;animation:dotPop .45s ease forwards}
-.pos-chart svg .pos-dot-label{opacity:0;animation:fadeInUp .45s ease forwards}
-@keyframes lineDraw{to{stroke-dashoffset:0}}
-@keyframes dotPop{0%{opacity:0;transform:scale(.55)}70%{opacity:1;transform:scale(1.08)}100%{opacity:1;transform:scale(1)}}
-@keyframes fadeInUp{0%{opacity:0;transform:translateY(4px)}100%{opacity:1;transform:translateY(0)}}
-.positions-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--text-3)}
-.positions-legend span{display:inline-flex;align-items:center;gap:5px}
 .history-accordion{display:flex;flex-direction:column;gap:10px}
 .history-acc-item{background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden}
 .history-acc-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:transparent;border:0;color:var(--text);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;text-align:left}
@@ -128,9 +119,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   .section-title span{display:block;width:100%}
   .history-acc-toggle{padding:12px 12px}
   .history-acc-body{padding:0 12px 12px}
-  .positions-legend{gap:10px;font-size:10px}
-  .pos-chart{padding:10px 10px 4px;overflow-x:auto}
-  .pos-chart svg{min-width:520px}
   .year-table{font-size:11px}
   .row{gap:10px}
   .row-val{font-size:16px}
@@ -142,8 +130,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   .history-acc-title{gap:8px}
   .history-acc-badge{min-width:24px;height:24px;font-size:10px}
   .trade-panel{padding:10px}
-  .positions-legend{flex-direction:column;align-items:flex-start;gap:6px}
-  .pos-chart svg{min-width:480px}
 }
 
 /* -- Layout com menu lateral -- */
@@ -275,11 +261,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <div id="best-by-pos"><div class="skeleton" style="height:160px"></div></div>
   </div>
 
-  <div class="panel" id="positions-panel" style="display:none" data-th-tab="historico">
-    <div class="section-title"><i class="bi bi-list-ol"></i> Posição por Temporada <span style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0">(classificação da temporada regular)</span></div>
-    <div id="positions-content"></div>
-  </div>
-
   <div class="panel" id="best-roster-panel" style="display:none" data-th-tab="elenco">
     <div class="section-title"><i class="bi bi-gem"></i> Melhor Elenco Já Montado <span id="best-roster-year" style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0"></span></div>
     <div id="best-roster-content"></div>
@@ -397,7 +378,7 @@ async function load(){
   const data = await res.json();
   if(!data.success){ document.querySelector('main').innerHTML='<div class="empty">Erro ao carregar dados.</div>'; return; }
 
-  const { team, seasons, playoffs, regular, picks, trades, players, drafted, awards, gm, positions } = data;
+  const { team, seasons, playoffs, regular, picks, trades, players, drafted, awards, gm } = data;
   const bestRoster = data.best_roster, tradesByCycle = data.trades_by_cycle || [],
         tradesByPartner = data.trades_by_partner || [], leagueStats = data.league_stats || {},
         retiredLegends = data.retired_legends || [];
@@ -497,117 +478,6 @@ async function load(){
       </table></div>`
     : '<div class="empty">Nenhum histórico ainda</div>';
 
-  // ── Gráfico de posições (SVG inline, eixo Y invertido: 1º no topo) ──
-  function renderPositionChart(pos) {
-    const W = 660, H = 230;
-    const padL = 30, padR = 16, padT = 16, padB = 30;
-    const n = pos.length;
-    // escala do eixo Y = tamanho da conferência (quantos times disputavam)
-    const maxPos = Math.max(
-      ...pos.map(p => p.conference_size || 0),
-      ...pos.map(p => p.position),
-      10
-    );
-    const innerW = W - padL - padR, innerH = H - padT - padB;
-    const x = i => n === 1 ? padL + innerW / 2 : padL + (i * innerW) / (n - 1);
-    const y = p => padT + ((p - 1) / (maxPos - 1)) * innerH;
-
-    const yPlayoff = y(8);
-    const zonaPlayoff = maxPos > 8
-      ? `<rect x="${padL}" y="${padT}" width="${innerW}" height="${yPlayoff - padT}"
-             fill="var(--red)" opacity=".07"></rect>
-         <line x1="${padL}" y1="${yPlayoff}" x2="${W - padR}" y2="${yPlayoff}"
-             stroke="var(--red)" stroke-width="1" stroke-dasharray="4 4" opacity=".5"></line>
-         <text x="${W - padR}" y="${yPlayoff - 5}" text-anchor="end"
-             font-size="9" fill="var(--red)" opacity=".8" font-weight="700">ZONA DE PLAYOFF</text>`
-      : '';
-
-    // linhas de referência: 1º e último
-    const eixoY = [1, maxPos].map(p => `
-      <line x1="${padL}" y1="${y(p)}" x2="${W - padR}" y2="${y(p)}" stroke="var(--border)" stroke-width="1"></line>
-      <text x="${padL - 6}" y="${y(p) + 3}" text-anchor="end" font-size="9" fill="var(--text-3)">${p}º</text>`).join('');
-
-    const linha = n > 1
-            ? `<polyline class="pos-line" fill="none" stroke="var(--red)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"
-              points="${pos.map((p, i) => `${x(i)},${y(p.position)}`).join(' ')}"></polyline>`
-      : '';
-
-    const pontos = pos.map((p, i) => {
-      const primeiro = p.position === 1;
-      const cor = primeiro ? 'var(--amber)' : (p.made_playoffs ? 'var(--red)' : 'var(--text-3)');
-      const anoLbl = p.year ?? (p.season_number ? 'T' + p.season_number : '');
-      return `
-          <circle class="pos-dot" style="animation-delay:${120 + i * 85}ms" cx="${x(i)}" cy="${y(p.position)}" r="${primeiro ? 6 : 4.5}"
-                fill="${cor}" stroke="var(--panel)" stroke-width="2">
-          <title>${anoLbl}: ${p.position}º de ${p.conference_size || maxPos}${primeiro ? ' — 1º da conferência' : (p.made_playoffs ? ' — playoffs' : ' — fora dos playoffs')}</title>
-        </circle>
-          <text class="pos-dot-label" style="animation-delay:${180 + i * 85}ms" x="${x(i)}" y="${y(p.position) - 11}" text-anchor="middle" font-size="10"
-              font-weight="700" fill="${cor}">${p.position}º</text>
-          <text class="pos-dot-label" style="animation-delay:${220 + i * 85}ms" x="${x(i)}" y="${H - 10}" text-anchor="middle" font-size="9" fill="var(--text-3)">${anoLbl}</text>`;
-    }).join('');
-
-    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="auto"
-                 style="display:block;max-height:240px;overflow:visible" role="img"
-                 aria-label="Gráfico de posição por temporada">
-        ${zonaPlayoff}${eixoY}${linha}${pontos}
-      </svg>`;
-  }
-
-  // ── Posição por Temporada ──
-  if (positions && positions.length > 0) {
-    document.getElementById('positions-panel').style.display = 'block';
-    const posBadge = (p) => {
-      const isFirst = p.position === 1;
-      const top8 = p.made_playoffs;
-      const bg = isFirst ? 'rgba(245,158,11,.14)' : (top8 ? 'var(--red-soft)' : 'var(--panel-3)');
-      const bd = isFirst ? 'rgba(245,158,11,.35)' : (top8 ? 'var(--border-red)' : 'var(--border)');
-      const col = isFirst ? 'var(--amber)' : (top8 ? 'var(--red)' : 'var(--text-2)');
-      const confLbl = p.conference ? (p.conference === 'LESTE' ? 'L' : 'O') : '';
-      const yr = p.year ?? (p.season_number ? 'T'+p.season_number : '—');
-      return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:64px">
-        <div style="font-size:11px;color:var(--text-3);font-weight:600">${yr}</div>
-        <div style="width:46px;height:46px;border-radius:12px;background:${bg};border:1px solid ${bd};display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1">
-          <span style="font-family:'Oswald',sans-serif;font-size:18px;font-weight:800;color:${col}">${p.position}º</span>
-          ${confLbl ? `<span style="font-size:8px;font-weight:700;color:${col};opacity:.75;letter-spacing:.5px">${confLbl}</span>` : ''}
-        </div>
-        ${isFirst ? '<i class="bi bi-trophy-fill" style="font-size:10px;color:var(--amber)"></i>' : (top8 ? '<span style="font-size:8px;color:var(--red);font-weight:700;text-transform:uppercase;letter-spacing:.4px">PO</span>' : '<span style="font-size:8px;color:var(--text-3)">—</span>')}
-      </div>`;
-    };
-
-    const positionsTable = `<div style="overflow-x:auto;margin-top:12px">
-      <table class="year-table" style="min-width:100%">
-        <thead><tr><th>Temporada</th><th>Posição</th><th>Conferência</th><th>Playoffs</th></tr></thead>
-        <tbody>${positions.map(p => {
-          const yr = p.year ?? (p.season_number ? 'T'+p.season_number : '—');
-          const conf = p.conference ? (p.conference === 'LESTE' ? 'Leste' : 'Oeste') : '—';
-          const status = p.position === 1 ? '1º da conferência' : (p.made_playoffs ? 'Playoffs' : 'Fora dos playoffs');
-          return `<tr>
-            <td style="font-weight:700">${yr}</td>
-            <td><span style="font-family:'Oswald',sans-serif;font-size:14px;font-weight:700;color:${p.position === 1 ? 'var(--amber)' : 'var(--red)'}">${p.position}º</span></td>
-            <td style="color:var(--text-2)">${conf}</td>
-            <td style="color:var(--text-2)">${status}</td>
-          </tr>`;
-        }).join('')}</tbody>
-      </table>
-    </div>`;
-
-    let chartHTML = '';
-    try {
-      chartHTML = `<div class="pos-chart">${renderPositionChart(positions)}</div>`;
-    } catch (err) {
-      chartHTML = '';
-    }
-
-    document.getElementById('positions-content').innerHTML =
-      `${chartHTML || `<div class="empty" style="padding:16px 12px;margin-bottom:12px;border:1px dashed var(--border);border-radius:10px">Gráfico indisponível nesta tela, mas a classificação por temporada continua abaixo.</div>`}
-       <div style="display:flex;gap:10px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:thin">${positions.map(posBadge).join('')}</div>
-       <div class="positions-legend">
-         <span><i class="bi bi-trophy-fill" style="color:var(--amber)"></i> 1º da conferência</span>
-         <span><span style="color:var(--red);font-weight:700">PO</span> Zona de playoffs (top 8)</span>
-         <span>L/O = Leste / Oeste</span>
-       </div>
-       ${positionsTable}`;
-  }
 
   // ── Melhor elenco já montado ──
   if (bestRoster && bestRoster.players && bestRoster.players.length) {
