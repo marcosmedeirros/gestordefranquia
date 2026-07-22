@@ -307,7 +307,10 @@ $team = $stmtTeam->fetch() ?: null;
             .snav-label { font-size: 12px; white-space: nowrap; }
         }
         @media (max-width: 992px) {
-            .main { margin-left: 0; padding-top: 54px; }
+            /* Zera a variavel tambem: .main usa width: calc(100% - var(--sidebar-w)),
+               entao so limpar a margem deixava a pagina com 115px num celular. */
+            :root { --sidebar-w: 0px; }
+            .main { margin-left: 0; width: 100%; padding-top: 54px; }
             .sidebar { transform: translateX(-260px); }
             .sidebar.open { transform: translateX(0); }
             .topbar { display: flex; }
