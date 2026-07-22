@@ -16,6 +16,8 @@
 
 const CAP_BASE_MILLIONS = 205;
 const CAP_FLOOR_MILLIONS = 180;
+// Quantos jogadores do elenco podem gerar Cap Flex ao mesmo tempo.
+const CAP_FLEX_MAX_PLAYERS = 3;
 
 /** Tabela de salário por OVR (em milhões). OVR 77 ou menos cai no "veteran minimum". */
 function capOvrSalaryTable(): array
@@ -176,7 +178,6 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     $players = $stmtPlayers->fetchAll(PDO::FETCH_ASSOC);
 
     $payroll = 0;
-    $capFlexTotal = 0;
     $roster = [];
     foreach ($players as $p) {
         $baseSalary = getPlayerBaseSalary($p);
@@ -185,7 +186,6 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
         $flex = getPlayerCapFlex($p);
 
         $payroll += $baseSalary + $bonus;
-        $capFlexTotal += $flex;
 
         $roster[] = [
             'id' => (int)$p['id'],
@@ -197,8 +197,28 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
             'total_salary' => $baseSalary + $bonus,
             'cap_flex_eligible' => $flex > 0,
             'cap_flex_value' => $flex,
+            'cap_flex_counted' => false,
             'is_on_draft_team' => $p['drafted_by_team_id'] !== null && (int)$p['drafted_by_team_id'] === (int)$p['team_id'],
         ];
+    }
+
+    // O Cap Flex vale para no máximo CAP_FLEX_MAX_PLAYERS jogadores. Quando o
+    // elenco tem mais elegíveis, contam os de maior flex (desempate pelo OVR).
+    $elegiveis = [];
+    foreach ($roster as $i => $r) {
+        if ($r['cap_flex_value'] > 0) $elegiveis[$i] = $r;
+    }
+    uasort($elegiveis, function ($a, $b) {
+        return ($b['cap_flex_value'] <=> $a['cap_flex_value']) ?: ($b['ovr'] <=> $a['ovr']);
+    });
+
+    $capFlexTotal = 0;
+    $contados = 0;
+    foreach ($elegiveis as $i => $r) {
+        if ($contados >= CAP_FLEX_MAX_PLAYERS) break;
+        $roster[$i]['cap_flex_counted'] = true;
+        $capFlexTotal += $r['cap_flex_value'];
+        $contados++;
     }
 
     $capMax = CAP_BASE_MILLIONS + $capFlexTotal;
@@ -216,6 +236,9 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
         'cap_base' => CAP_BASE_MILLIONS,
         'cap_floor' => CAP_FLOOR_MILLIONS,
         'cap_flex_total' => $capFlexTotal,
+        'cap_flex_max_players' => CAP_FLEX_MAX_PLAYERS,
+        'cap_flex_used_slots' => $contados,
+        'cap_flex_eligible_count' => count($elegiveis),
         'cap_max' => $capMax,
         'payroll' => $payroll,
         'space' => $space,
