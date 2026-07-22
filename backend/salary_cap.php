@@ -18,6 +18,8 @@ const CAP_BASE_MILLIONS = 205;
 const CAP_FLOOR_MILLIONS = 180;
 // Quantos jogadores do elenco podem gerar Cap Flex ao mesmo tempo.
 const CAP_FLEX_MAX_PLAYERS = 3;
+// Numa troca, o time sem espaco no teto so pode receber ate esta % do que envia.
+const CAP_TRADE_MATCH_PCT = 120;
 
 /** Tabela de salário por OVR (em milhões). OVR 77 ou menos cai no "veteran minimum". */
 function capOvrSalaryTable(): array
@@ -296,4 +298,62 @@ function getCapSuggestions(array $summary): array
     }
 
     return $out;
+}
+
+/**
+ * Casamento salarial de troca (regra dos 120%).
+ *
+ * A trava só vale para o lado que TERMINARIA a troca acima do Cap Máximo:
+ * quem ainda tem espaço no teto pode absorver salário livremente, como na NBA.
+ * Para o lado sem espaço, o que ele recebe não pode passar de 120% do que envia.
+ *
+ * @param int $payrollAtual folha do time antes da troca
+ * @param int $capMax       teto do time (Cap Base + Cap Flex)
+ * @param int $enviado      soma dos salários que saem
+ * @param int $recebido     soma dos salários que entram
+ */
+function checkTradeSalaryMatch(int $payrollAtual, int $capMax, int $enviado, int $recebido): array
+{
+    $folhaDepois = $payrollAtual - $enviado + $recebido;
+    $limite = (int)floor($enviado * (CAP_TRADE_MATCH_PCT / 100));
+
+    $base = [
+        'enviado'        => $enviado,
+        'recebido'       => $recebido,
+        'folha_depois'   => $folhaDepois,
+        'cap_max'        => $capMax,
+        'limite_receber' => $limite,
+        'pct'            => CAP_TRADE_MATCH_PCT,
+    ];
+
+    // Termina dentro do teto: nada a casar.
+    if ($folhaDepois <= $capMax) {
+        return $base + [
+            'ok'      => true,
+            'aplica'  => false,
+            'motivo'  => 'Termina dentro do Cap Máximo — não precisa casar salários.',
+            'excesso' => 0,
+        ];
+    }
+
+    if ($recebido <= $limite) {
+        return $base + [
+            'ok'      => true,
+            'aplica'  => true,
+            'motivo'  => "Fica acima do teto, mas recebe {$recebido}M dentro do limite de {$limite}M (" . CAP_TRADE_MATCH_PCT . "% de {$enviado}M).",
+            'excesso' => 0,
+        ];
+    }
+
+    // Estourou: diz de quanto é o excesso e o que faria a troca passar.
+    $excesso = $recebido - $limite;
+    $envioMinimo = (int)ceil($recebido / (CAP_TRADE_MATCH_PCT / 100));
+    return $base + [
+        'ok'            => false,
+        'aplica'        => true,
+        'excesso'       => $excesso,
+        'envio_minimo'  => $envioMinimo,
+        'falta_enviar'  => max(0, $envioMinimo - $enviado),
+        'motivo'        => "Recebe {$recebido}M enviando {$enviado}M — o limite é {$limite}M (" . CAP_TRADE_MATCH_PCT . "%). Excesso de {$excesso}M.",
+    ];
 }

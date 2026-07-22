@@ -109,6 +109,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .sim-status.ok{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--green)}
 .sim-status.bad{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444}
 .sim-status.warn{background:var(--amber-soft);border:1px solid var(--border-amber);color:var(--amber)}
+.sim-verdict{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:11px;font-size:12.5px;line-height:1.55}
+.sim-verdict i{font-size:16px;flex-shrink:0;margin-top:1px}
+.sim-verdict.ok{background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.28);color:var(--green)}
+.sim-verdict.bad{background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.30);color:#f87171}
+.sim-verdict li{margin-bottom:4px}
 @media (max-width: 760px){
   .sim-teams{grid-template-columns:1fr}
   .sim-cards{grid-template-columns:1fr}
@@ -476,7 +481,36 @@ function simDelta(antes, depois) {
   return `<span class="delta ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}M</span>`;
 }
 
-function simCard(titulo, antes, depois) {
+// Veredito da regra dos 120%: é o que decide se a troca pode sair.
+function vereditoHtml(d, nomeA, nomeB) {
+  if (d.valida) {
+    const aplicou = d.matching.a.aplica || d.matching.b.aplica;
+    return `<div class="sim-verdict ok">
+      <i class="bi bi-check-circle-fill"></i>
+      <div><strong>Troca permitida.</strong>
+      ${aplicou
+        ? ` O casamento salarial de ${d.matching.a.pct}% foi respeitado.`
+        : ` Os dois times terminam dentro do teto, então a regra dos ${d.matching.a.pct}% nem precisa ser aplicada.`}</div>
+    </div>`;
+  }
+  const problemas = [];
+  [['a', nomeA], ['b', nomeB]].forEach(([k, nome]) => {
+    const m = d.matching[k];
+    if (m.ok) return;
+    problemas.push(`<li><strong>${esc(nome)}</strong> ficaria acima do teto recebendo
+      <strong>${m.recebido}M</strong> e enviando <strong>${m.enviado}M</strong>.
+      O limite é ${m.limite_receber}M (${m.pct}% de ${m.enviado}M) — passou <strong>${m.excesso}M</strong>.
+      Para valer, precisaria enviar pelo menos ${m.envio_minimo}M
+      (mais ${m.falta_enviar}M) ou receber ${m.excesso}M a menos.</li>`);
+  });
+  return `<div class="sim-verdict bad">
+    <i class="bi bi-x-octagon-fill"></i>
+    <div><strong>Troca barrada pela regra dos ${d.matching.a.pct}%.</strong>
+      <ul style="margin:6px 0 0 16px;padding:0">${problemas.join('')}</ul></div>
+  </div>`;
+}
+
+function simCard(titulo, antes, depois, m) {
   const st = depois.status === 'over_the_cap'
     ? { cls: 'bad', txt: 'Acima do teto' }
     : depois.status === 'abaixo_do_piso'
@@ -485,6 +519,18 @@ function simCard(titulo, antes, depois) {
   const linha = (lbl, a, b, sufixo = 'M') =>
     `<div class="sim-line"><span class="lbl">${lbl}</span>
        <span class="val">${a}${sufixo} → ${b}${sufixo} ${simDelta(a, b)}</span></div>`;
+
+  let match = '';
+  if (m) {
+    match = m.aplica
+      ? `<div class="sim-line"><span class="lbl">Envia / recebe</span>
+           <span class="val">${m.enviado}M / ${m.recebido}M
+           <span class="delta ${m.ok ? 'down' : 'up'}">limite ${m.limite_receber}M</span></span></div>`
+      : `<div class="sim-line"><span class="lbl">Envia / recebe</span>
+           <span class="val">${m.enviado}M / ${m.recebido}M
+           <span class="delta same">sem trava</span></span></div>`;
+  }
+
   return `
     <div class="sim-card">
       <h4>${esc(titulo)}</h4>
@@ -492,7 +538,9 @@ function simCard(titulo, antes, depois) {
       ${linha('Cap flex', antes.cap_flex_total, depois.cap_flex_total)}
       ${linha('Cap máximo', antes.cap_max, depois.cap_max)}
       ${linha('Espaço', antes.space, depois.space)}
+      ${match}
       <span class="sim-status ${st.cls}"><i class="bi bi-circle-fill" style="font-size:6px"></i> ${st.txt}</span>
+      ${m && !m.ok ? '<span class="sim-status bad" style="margin-left:6px"><i class="bi bi-x-octagon-fill" style="font-size:9px"></i> Estoura os ' + m.pct + '%</span>' : ''}
     </div>`;
 }
 
@@ -527,13 +575,14 @@ async function simular() {
 
     out.style.display = 'block';
     out.innerHTML = `
-      <div style="font-size:12px;color:var(--text-2);margin-bottom:12px;line-height:1.6">
+      ${vereditoHtml(d, nomeA, nomeB)}
+      <div style="font-size:12px;color:var(--text-2);margin:12px 0;line-height:1.6">
         <strong>${esc(nomeA)}</strong> envia: ${esc(nomes(sendA, 'a'))}<br>
         <strong>${esc(nomeB)}</strong> envia: ${esc(nomes(sendB, 'b'))}
       </div>
       <div class="sim-cards">
-        ${simCard(nomeA, d.antes.a, d.depois.a)}
-        ${simCard(nomeB, d.antes.b, d.depois.b)}
+        ${simCard(nomeA, d.antes.a, d.depois.a, d.matching.a)}
+        ${simCard(nomeB, d.antes.b, d.depois.b, d.matching.b)}
       </div>`;
     out.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (e) {

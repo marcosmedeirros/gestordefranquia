@@ -127,6 +127,22 @@ if ($action === 'simulate_trade') {
         ];
         // Simulação: nada aqui pode sobreviver ao request.
         $pdo->rollBack();
+
+        // Salário que cada lado envia/recebe, pelo estado ANTES da troca.
+        $somaSalarios = function (array $ids, array $resumo): int {
+            $total = 0;
+            foreach ($resumo['roster'] as $p) {
+                if (in_array((int)$p['id'], $ids, true)) $total += (int)$p['total_salary'];
+            }
+            return $total;
+        };
+        $saiA = $somaSalarios($sendA, $antes['a']);
+        $saiB = $somaSalarios($sendB, $antes['b']);
+
+        $matching = [
+            'a' => checkTradeSalaryMatch((int)$antes['a']['payroll'], (int)$antes['a']['cap_max'], $saiA, $saiB),
+            'b' => checkTradeSalaryMatch((int)$antes['b']['payroll'], (int)$antes['b']['cap_max'], $saiB, $saiA),
+        ];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         http_response_code(500);
@@ -134,7 +150,13 @@ if ($action === 'simulate_trade') {
         exit;
     }
 
-    echo json_encode(['success' => true, 'antes' => $antes, 'depois' => $depois]);
+    echo json_encode([
+        'success'  => true,
+        'antes'    => $antes,
+        'depois'   => $depois,
+        'matching' => $matching,
+        'valida'   => $matching['a']['ok'] && $matching['b']['ok'],
+    ]);
     exit;
 }
 
