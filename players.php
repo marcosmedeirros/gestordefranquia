@@ -429,6 +429,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 		}
 		.mpl-meta { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+		/* Estatisticas no cartao do mobile: linha propria, para nao competir
+		   com o nome nem espremer a meta quando o nome e longo. */
+		.mpl-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 5px; font-size: 11px; color: var(--text-3); }
+		.mpl-stats b { font-family: 'Oswald', sans-serif; font-size: 13px; color: var(--text); font-weight: 700; }
+		.mpl-stats .j { margin-left: auto; opacity: .8; }
+		/* Colunas de estatistica na tabela desktop */
+		.col-stat { text-align: center; }
+		.col-stat b { font-family: 'Oswald', sans-serif; font-size: 14px; color: var(--red); }
 		.mpl-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
 		.mpl-actions { display: flex; gap: 6px; }
 		.mpl-btn {
@@ -565,6 +573,17 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					</select>
 				</div>
 				<div class="field field-half" style="grid-column: span 2;">
+					<label for="playersSortSelect">Ordenar por</label>
+					<select id="playersSortSelect">
+						<option value="ovr">OVR</option>
+						<option value="pts">Pontos por jogo</option>
+						<option value="reb">Rebotes por jogo</option>
+						<option value="ast">Assistências por jogo</option>
+						<option value="name">Nome</option>
+						<option value="age">Idade</option>
+					</select>
+				</div>
+				<div class="field field-half" style="grid-column: span 2;">
 					<label for="playersRoleFilter">Funcao</label>
 					<select id="playersRoleFilter">
 						<option value="">Todas</option>
@@ -629,6 +648,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 							<th>OVR</th>
 							<th>Idade</th>
 							<th>Posicao</th>
+							<th class="col-stat" title="Pontos por jogo na temporada">PTS</th>
+							<th class="col-stat" title="Rebotes por jogo na temporada">REB</th>
+							<th class="col-stat" title="Assistências por jogo na temporada">AST</th>
 							<th>Posicao Sec.</th>
 							<th>Badges</th>
 							<th>Time</th>
@@ -724,6 +746,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	const searchInput = document.getElementById('playersSearchInput');
 	const positionFilter = document.getElementById('playersPositionFilter');
 	const roleFilter = document.getElementById('playersRoleFilter');
+	const sortSelect = document.getElementById('playersSortSelect');
 	const ovrMinInput = document.getElementById('playersOvrMin');
 	const ovrMaxInput = document.getElementById('playersOvrMax');
 	const ageMinInput = document.getElementById('playersAgeMin');
@@ -1054,6 +1077,25 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		return html ? ` <span style="font-size:12px">${html}</span>` : '';
 	}
 
+	// Média por jogo sem zero inútil à direita (21.0 → 21). Sem registro vira
+	// traço: zero significaria "jogou e não pontuou".
+	function pg(v) {
+		if (v === null || v === undefined || v === '') return '—';
+		return String(Number(v)).replace('.', ',');
+	}
+	function temStats(p) { return p.games !== null && p.games !== undefined; }
+
+	/** Linha compacta de estatísticas — usada no cartão do mobile. */
+	function statsLinha(p) {
+		if (!temStats(p)) return '';
+		return `<div class="mpl-stats">
+			<span><b>${pg(p.pts_pg)}</b> PTS</span>
+			<span><b>${pg(p.reb_pg)}</b> REB</span>
+			<span><b>${pg(p.ast_pg)}</b> AST</span>
+			<span class="j">${p.games}J</span>
+		</div>`;
+	}
+
 	function renderPlayerListItem(p, teamName) {
 		const ovr = Number(p.ovr || 0);
 		const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px;margin-left:4px">Leal</span>' : '');
@@ -1064,6 +1106,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 				<div class="mpl-main">
 					<div class="mpl-name"><a class="pl-link" href="player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)}${franchiseBadge}${tagBadge}${tradeBadge}</div>
 					<div class="mpl-meta">${p.position ?? '-'} · ${p.age ?? '-'}a · Badges ${p.badges_count ?? 0} · ${teamName}</div>
+					${statsLinha(p)}
 				</div>
 				<div class="mpl-right">
 					<div style="text-align:right">
@@ -1121,6 +1164,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		const query = searchInput.value.trim();
 		const position = positionFilter.value;
 		const role = roleFilter.value;
+		const sort = sortSelect.value;
 		const ovrMin = ovrMinInput.value;
 		const ovrMax = ovrMaxInput.value;
 		const ageMin = ageMinInput.value;
@@ -1140,6 +1184,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		if (query) params.set('query', query);
 		if (position) params.set('position', position);
 		if (role) params.set('role', role);
+		if (sort) params.set('sort', sort);
 		if (ovrMin) params.set('ovr_min', ovrMin);
 		if (ovrMax) params.set('ovr_max', ovrMax);
 		if (ageMin) params.set('age_min', ageMin);
@@ -1195,6 +1240,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						</td>
 								<td>${p.age ?? '-'}</td>
 								<td>${p.position ?? '-'}</td>
+								<td class="col-stat"><b>${pg(p.pts_pg)}</b></td>
+								<td class="col-stat">${pg(p.reb_pg)}</td>
+								<td class="col-stat">${pg(p.ast_pg)}</td>
 								<td>${p.secondary_position ?? '-'}</td>
 								<td>${p.badges_count ?? 0}</td>
 								<td>${teamName || '-'}</td>
@@ -1245,6 +1293,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	})();
 	positionFilter.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
 	roleFilter.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
+	sortSelect.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
 	ovrMinInput.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
 	ovrMaxInput.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });
 	ageMinInput.addEventListener('change', () => { currentPage = 1; carregarJogadores(); });

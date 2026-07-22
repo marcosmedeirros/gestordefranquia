@@ -150,6 +150,34 @@ if ($method === 'GET') {
             $params[] = $role;
         }
 
+        // Estatísticas da temporada corrente da liga, para a listagem poder
+        // mostrar e ordenar por PTS/REB/AST. LEFT JOIN: quem não tem registro
+        // continua aparecendo, com os campos nulos.
+        $seasonAtual = null;
+        try {
+            $stSeason = $pdo->prepare("SELECT id FROM seasons WHERE league = ?
+                                       AND (status IS NULL OR status <> 'completed')
+                                       ORDER BY id DESC LIMIT 1");
+            $stSeason->execute([$league]);
+            $seasonAtual = $stSeason->fetchColumn() ?: null;
+        } catch (Exception $e) { $seasonAtual = null; }
+
+        $joinStats = $seasonAtual
+            ? 'LEFT JOIN player_season_stats ps ON ps.player_id = p.id AND ps.season_id = ' . (int)$seasonAtual
+            : 'LEFT JOIN player_season_stats ps ON 1 = 0';
+
+        // Ordenação: só nomes de coluna conhecidos entram na consulta.
+        $ordens = [
+            'ovr'  => 'p.ovr DESC, p.name ASC',
+            'name' => 'p.name ASC',
+            'age'  => 'p.age ASC, p.ovr DESC',
+            'pts'  => 'ps.pts_pg IS NULL, ps.pts_pg DESC, p.ovr DESC',
+            'reb'  => 'ps.reb_pg IS NULL, ps.reb_pg DESC, p.ovr DESC',
+            'ast'  => 'ps.ast_pg IS NULL, ps.ast_pg DESC, p.ovr DESC',
+        ];
+        $sortKey = strtolower(trim($_GET['sort'] ?? 'ovr'));
+        $orderBy = $ordens[$sortKey] ?? $ordens['ovr'];
+
         $countStmt = $pdo->prepare("SELECT COUNT(*)
             FROM players p
             JOIN teams t ON p.team_id = t.id
@@ -174,12 +202,14 @@ if ($method === 'GET') {
                   COALESCE(p.player_tag_color, NULL) as player_tag_color,
                   COALESCE(p.player_tag_copy, 0) as player_tag_copy,
                   t.id as team_id, t.city, t.name as team_name, t.league,
-                  u.phone as owner_phone
+                  u.phone as owner_phone,
+                  ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg
                 FROM players p
                 JOIN teams t ON p.team_id = t.id
                 JOIN users u ON t.user_id = u.id
+                {$joinStats}
                 WHERE {$where}
-                ORDER BY p.ovr DESC, p.name ASC
+                ORDER BY {$orderBy}
                 LIMIT {$perPage} OFFSET {$offset}
             ");
         } catch (Exception $e) {
