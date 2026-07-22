@@ -484,21 +484,18 @@ function simDelta(antes, depois) {
 // Veredito da regra dos 120%: é o que decide se a troca pode sair.
 function vereditoHtml(d, nomeA, nomeB) {
   if (d.valida) {
-    const aplicou = d.matching.a.aplica || d.matching.b.aplica;
     return `<div class="sim-verdict ok">
       <i class="bi bi-check-circle-fill"></i>
       <div><strong>Troca permitida.</strong>
-      ${aplicou
-        ? ` O casamento salarial de ${d.matching.a.pct}% foi respeitado.`
-        : ` Os dois times terminam dentro do teto, então a regra dos ${d.matching.a.pct}% nem precisa ser aplicada.`}</div>
+      Os dois lados respeitam o limite de ${d.matching.a.pct}% no casamento salarial.</div>
     </div>`;
   }
   const problemas = [];
   [['a', nomeA], ['b', nomeB]].forEach(([k, nome]) => {
     const m = d.matching[k];
     if (m.ok) return;
-    problemas.push(`<li><strong>${esc(nome)}</strong> ficaria acima do teto recebendo
-      <strong>${m.recebido}M</strong> e enviando <strong>${m.enviado}M</strong>.
+    problemas.push(`<li><strong>${esc(nome)}</strong> receberia
+      <strong>${m.recebido}M</strong> enviando <strong>${m.enviado}M</strong>.
       O limite é ${m.limite_receber}M (${m.pct}% de ${m.enviado}M) — passou <strong>${m.excesso}M</strong>.
       Para valer, precisaria enviar pelo menos ${m.envio_minimo}M
       (mais ${m.falta_enviar}M) ou receber ${m.excesso}M a menos.</li>`);
@@ -522,13 +519,9 @@ function simCard(titulo, antes, depois, m) {
 
   let match = '';
   if (m) {
-    match = m.aplica
-      ? `<div class="sim-line"><span class="lbl">Envia / recebe</span>
-           <span class="val">${m.enviado}M / ${m.recebido}M
-           <span class="delta ${m.ok ? 'down' : 'up'}">limite ${m.limite_receber}M</span></span></div>`
-      : `<div class="sim-line"><span class="lbl">Envia / recebe</span>
-           <span class="val">${m.enviado}M / ${m.recebido}M
-           <span class="delta same">sem trava</span></span></div>`;
+    match = `<div class="sim-line"><span class="lbl">Envia / recebe</span>
+       <span class="val">${m.enviado}M / ${m.recebido}M
+       <span class="delta ${m.ok ? 'down' : 'up'}">limite ${m.limite_receber}M</span></span></div>`;
   }
 
   return `

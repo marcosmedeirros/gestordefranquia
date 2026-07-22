@@ -303,12 +303,13 @@ function getCapSuggestions(array $summary): array
 /**
  * Casamento salarial de troca (regra dos 120%).
  *
- * A trava só vale para o lado que TERMINARIA a troca acima do Cap Máximo:
- * quem ainda tem espaço no teto pode absorver salário livremente, como na NBA.
- * Para o lado sem espaço, o que ele recebe não pode passar de 120% do que envia.
+ * Vale para TODA troca, tendo o time espaço no cap ou não: nenhum lado pode
+ * receber mais de 120% do que envia. Quem manda 10M recebe no máximo 12M.
+ * (Receber menos do que envia nunca é problema — a trava só pega quem recebe
+ * a mais.)
  *
- * @param int $payrollAtual folha do time antes da troca
- * @param int $capMax       teto do time (Cap Base + Cap Flex)
+ * @param int $payrollAtual folha do time antes da troca (só informativo aqui)
+ * @param int $capMax       teto do time (só informativo aqui)
  * @param int $enviado      soma dos salários que saem
  * @param int $recebido     soma dos salários que entram
  */
@@ -324,23 +325,13 @@ function checkTradeSalaryMatch(int $payrollAtual, int $capMax, int $enviado, int
         'cap_max'        => $capMax,
         'limite_receber' => $limite,
         'pct'            => CAP_TRADE_MATCH_PCT,
+        'aplica'         => true,
     ];
-
-    // Termina dentro do teto: nada a casar.
-    if ($folhaDepois <= $capMax) {
-        return $base + [
-            'ok'      => true,
-            'aplica'  => false,
-            'motivo'  => 'Termina dentro do Cap Máximo — não precisa casar salários.',
-            'excesso' => 0,
-        ];
-    }
 
     if ($recebido <= $limite) {
         return $base + [
             'ok'      => true,
-            'aplica'  => true,
-            'motivo'  => "Fica acima do teto, mas recebe {$recebido}M dentro do limite de {$limite}M (" . CAP_TRADE_MATCH_PCT . "% de {$enviado}M).",
+            'motivo'  => "Recebe {$recebido}M enviando {$enviado}M — dentro do limite de {$limite}M (" . CAP_TRADE_MATCH_PCT . "% de {$enviado}M).",
             'excesso' => 0,
         ];
     }
@@ -350,7 +341,6 @@ function checkTradeSalaryMatch(int $payrollAtual, int $capMax, int $enviado, int
     $envioMinimo = (int)ceil($recebido / (CAP_TRADE_MATCH_PCT / 100));
     return $base + [
         'ok'            => false,
-        'aplica'        => true,
         'excesso'       => $excesso,
         'envio_minimo'  => $envioMinimo,
         'falta_enviar'  => max(0, $envioMinimo - $enviado),
