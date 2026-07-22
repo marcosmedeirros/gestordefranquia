@@ -335,10 +335,10 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
   </div>
 
   <?php if (!$setupSessions): ?>
-  <div class="panel empty">
+  <div class="panel bc-off" style="text-align:center">
     <i class="bi bi-info-circle" style="font-size:22px;color:var(--text-3)"></i>
     <p style="margin-top:10px">Nenhuma sessão de draft ELITE com status "setup" encontrada. Crie a sessão de draft
-    da próxima temporada primeiro (na tela de Draft) antes de sortear a ordem aqui.</p>
+    da próxima temporada primeiro (na tela de Draft) antes de sortear a ordem de verdade.</p>
   </div>
   <?php else: ?>
 
@@ -354,6 +354,14 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
         </select>
       </div>
       <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Preparar Loteria</button>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <?php /* A demonstracao nao depende de sessao/temporada, entao fica fora do if acima. */ ?>
+  <div class="section-title bc-off"><i class="bi bi-play-circle"></i> Ver como funciona</div>
+  <div class="panel bc-off">
+    <div class="form-row">
       <button class="btn-ghost2" id="btnDemo" title="Roda a cerimônia inteira com uma campanha fictícia, sem cadastrar nada e sem tocar no draft real"><i class="bi bi-play-circle"></i> Modo demonstração</button>
     </div>
     <div style="margin-top:10px;font-size:11.5px;color:var(--text-3);line-height:1.5">
@@ -447,8 +455,6 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       seguidas com pick entre 1 e 5. Se o sorteio esbarrar nisso, o ajuste é aplicado e aparece listado.</div>
     </details>
   </div>
-
-  <?php endif; ?>
  </div>
 </main>
 </div>
@@ -483,7 +489,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
   }
 })();
 
-<?php if ($setupSessions): ?>
+<?php /* Sempre carregado: o modo demonstracao funciona sem sessao de draft. */ ?>
 function esc(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 /* selo "via XXX" quando a pick veio de outro time (swap/troca) */
@@ -567,7 +573,8 @@ let busy = false;
 const $ = (id) => document.getElementById(id);
 
 async function prepare(isDemo){
-  const sessionId = $('sessionSelect').value;
+  const sel = $('sessionSelect');
+  const sessionId = sel ? sel.value : '';
   const btn = isDemo ? $('btnDemo') : $('btnPrepare');
   const label = isDemo
     ? '<i class="bi bi-play-circle"></i> Modo demonstração'
@@ -845,12 +852,15 @@ async function confirmOrder(){
   }
 }
 
-$('btnPrepare').addEventListener('click', () => prepare(false));
+// Sem sessao de draft em "setup" a pagina nao tem estes controles, mas o
+// modo demonstracao continua disponivel.
+if ($('btnPrepare')) $('btnPrepare').addEventListener('click', () => prepare(false));
 $('btnDemo').addEventListener('click', () => prepare(true));
 $('btnReveal').addEventListener('click', revealNext);
 $('btnConfirm').addEventListener('click', confirmOrder);
-$('btnRedo').addEventListener('click', prepare);
-<?php endif; ?>
+// "Sortear de novo" repete o mesmo modo do sorteio atual. Sem a arrow o
+// listener passaria o proprio evento como isDemo, que e sempre truthy.
+$('btnRedo').addEventListener('click', () => prepare(!!(result && result.demo)));
 </script>
 </body>
 </html>
