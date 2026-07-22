@@ -224,24 +224,31 @@ function gradesFromChars(array $rowWords, array $colX, array $skillKeys): array 
     }
     usort($chars, fn($a, $b) => $a['x'] <=> $b['x']);
 
-    // Meia-distância entre colunas define o alcance de cada uma.
     $xs = [];
     foreach ($skillKeys as $k) if (isset($colX[$k])) $xs[$k] = $colX[$k];
     if (count($xs) < 2) return [];
-    $ordenadas = $xs; asort($ordenadas);
-    $vals = array_values($ordenadas);
-    $meio = [];
-    for ($i = 0; $i < count($vals) - 1; $i++) $meio[] = ($vals[$i + 1] - $vals[$i]) / 2;
-    $alcance = $meio ? min($meio) * 0.9 : 40;
+    asort($xs);
+    $chaves = array_keys($xs);
+    $vals   = array_values($xs);
 
     $grades = [];
-    foreach ($xs as $key => $cx) {
-        $doCampo = array_values(array_filter($chars, fn($c) => abs($c['x'] - $cx) <= $alcance));
+    foreach ($chaves as $i => $key) {
+        // Os valores são alinhados à esquerda, começando um pouco antes do
+        // centro do cabeçalho, e a célula se estende para a direita quando tem
+        // seta de mudança ("A+ ▼A"). Por isso a janela é assimétrica, e
+        // proporcional ao espaçamento das colunas em vez de um valor fixo.
+        $gapDir = isset($vals[$i + 1]) ? $vals[$i + 1] - $vals[$i] : ($vals[$i] - $vals[$i - 1]);
+        $ini = $vals[$i] - $gapDir * 0.25;
+        $fim = $vals[$i] + $gapDir * 0.65;
+
+        $doCampo = array_values(array_filter($chars, fn($c) => $c['x'] >= $ini && $c['x'] <= $fim));
         if (!$doCampo) continue;
-        // Letra mais à direita = valor vigente; o sinal vem logo depois dela.
+
+        // Nota vigente = a letra mais à direita da célula; o sinal vem logo
+        // depois dela. Antes da seta fica o valor anterior, que é descartado.
         $idxLetra = null;
-        for ($i = count($doCampo) - 1; $i >= 0; $i--) {
-            if (preg_match('/^[A-DF]$/', $doCampo[$i]['t'])) { $idxLetra = $i; break; }
+        for ($j = count($doCampo) - 1; $j >= 0; $j--) {
+            if (preg_match('/^[A-DF]$/', $doCampo[$j]['t'])) { $idxLetra = $j; break; }
         }
         if ($idxLetra === null) continue;
         $nota = $doCampo[$idxLetra]['t'];
@@ -251,6 +258,62 @@ function gradesFromChars(array $rowWords, array $colX, array $skillKeys): array 
         $grades[$key] = $nota;
     }
     return $grades;
+}
+
+/**
+ * Nome, idade e rating pelas colunas do cabeçalho.
+ *
+ * O nome fica à esquerda da coluna POS; sem esse corte, a sigla da posição
+ * entra colada no nome ("J. Johnson SG"). Idade e rating são lidos dígito a
+ * dígito, porque o rating chega junto com a variação ("91-2" = 91, delta -2).
+ */
+function nameAgeRatingFromChars(array $rowWords, array $colX): array {
+    $chars = [];
+    foreach ($rowWords as $w) {
+        foreach (explodeTokenChars($w) as $c) $chars[] = $c;
+    }
+    usort($chars, fn($a, $b) => $a['x'] <=> $b['x']);
+
+    $posX    = $colX['_pos']    ?? null;
+    $ageX    = $colX['_age']    ?? null;
+    $ratingX = $colX['_rating'] ?? null;
+    $nameX   = $colX['_name']   ?? 0;
+
+    // Limite do nome: bem antes da coluna de posição.
+    $limiteNome = $posX !== null ? $nameX + ($posX - $nameX) * 0.6 : ($ageX ?? PHP_INT_MAX);
+
+    $nome = '';
+    foreach ($chars as $c) {
+        if ($c['x'] >= $limiteNome) continue;
+        if (preg_match('/^[A-Za-zÀ-ÿ.\'\-]$/u', $c['text'])) $nome .= $c['text'];
+        elseif ($nome !== '' && substr($nome, -1) !== ' ') $nome .= ' ';
+    }
+    $nome = trim(preg_replace('/\s+/', ' ', $nome));
+
+    // Idade e rating só saem de um token inteiro e limpo ("34", "94"). Quando o
+    // ruído do fundo cola tudo num token só, montar o número caractere a
+    // caractere produzia valores plausíveis mas errados (94 virava 40) — e um
+    // rating errado vira OVR errado. Nesses casos preferimos devolver nada e
+    // deixar o campo para o GM preencher na revisão.
+    $numero = function (?float $cx, int $min, int $max) use ($rowWords): ?int {
+        if ($cx === null) return null;
+        $melhor = null; $melhorDist = PHP_INT_MAX;
+        foreach ($rowWords as $w) {
+            $t = trim($w['text']);
+            if (!preg_match('/^\d{2}$/', $t)) continue;
+            $v = (int)$t;
+            if ($v < $min || $v > $max) continue;
+            $d = abs($w['x'] - $cx);
+            if ($d <= 45 && $d < $melhorDist) { $melhorDist = $d; $melhor = $v; }
+        }
+        return $melhor;
+    };
+
+    return [
+        'name'   => $nome,
+        'age'    => $numero($ageX, 15, 50),
+        'rating' => $numero($ratingX, 40, 99),
+    ];
 }
 
 function parseSkillTable($annotations) {
@@ -297,6 +360,9 @@ function parseSkillTable($annotations) {
         'POST'   => 'post_d', 'PER'    => 'per_d',  'PLAY' => 'play',
         'REB'    => 'reb',    'ATHL'   => 'athl',   'IQ'   => 'iq',
         'POT'    => 'pot',    'AGE'    => '_age',   'RATING' => '_rating',
+        // NAME e POS delimitam onde o nome termina — sem POS, a sigla da
+        // posição vem colada no nome.
+        'NAME'   => '_name',  'POS'    => '_pos',
     ];
     $colX = [];
     foreach ($headerRow as $w) {
@@ -336,40 +402,22 @@ function parseSkillTable($annotations) {
         // Leitura por caractere: cobre as linhas em que o OCR cola o ruído do
         // fundo aos valores. O caminho antigo, por token inteiro, perdia a
         // maioria das notas e todos os sinais + e -.
+        // Tudo pela leitura por caractere, ancorada nas colunas do cabeçalho.
         $grades = gradesFromChars($row, $colX, $skillKeys);
-        if (empty($nameWords) && empty($grades)) continue;
+        // Uma linha de jogador tem as 10 notas. Exigir a maioria descarta
+        // linhas de interface ("Sort", "View") que caem na mesma faixa.
+        if (count($grades) < 6) continue;
 
-        // Nome: só o que parece nome, sem posição, números ou ruído colado.
-        $nomePartes = [];
-        foreach ($nameWords as $nw) {
-            foreach (preg_split('/0{3,}/', $nw['text']) as $pedaco) {
-                $limpo = trim(preg_replace('/[^A-Za-zÀ-ÿ.\'\- ]/u', '', $pedaco));
-                if ($limpo !== '' && preg_match('/[A-Za-zÀ-ÿ]{2,}|^[A-Z]\.$/u', $limpo)) {
-                    $nomePartes[] = $limpo;
-                }
-            }
-        }
-        $name = trim(implode(' ', $nomePartes));
-        if (!$name || empty($grades)) continue;
+        $info = nameAgeRatingFromChars($row, $colX);
+        $name = $info['name'];
+        if ($name === '' || !preg_match('/[A-Za-zÀ-ÿ]{2,}/u', $name)) continue;
 
-        // Assign numeric values to age/rating columns
-        $age    = null;
-        $rating = null;
-        foreach ($numericWords as $nw) {
-            $nearestKey  = null;
-            $nearestDist = PHP_INT_MAX;
-            foreach ($numericKeys as $key) {
-                if (!isset($colX[$key])) continue;
-                $d = abs($nw['x'] - $colX[$key]);
-                if ($d < $nearestDist) { $nearestDist = $d; $nearestKey = $key; }
-            }
-            if ($nearestKey === '_age'    && $age    === null) $age    = (int)$nw['text'];
-            if ($nearestKey === '_rating' && $rating === null) $rating = (int)$nw['text'];
-        }
-
-        if (!empty($grades)) {
-            $detected[] = ['name' => $name, 'grades' => $grades, 'age' => $age, 'rating' => $rating];
-        }
+        $detected[] = [
+            'name'   => $name,
+            'grades' => $grades,
+            'age'    => $info['age'],
+            'rating' => $info['rating'],
+        ];
     }
 
     return $detected;
