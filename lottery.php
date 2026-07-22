@@ -354,6 +354,13 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
         </select>
       </div>
       <button class="btn-red" id="btnPrepare"><i class="bi bi-dice-5-fill"></i> Preparar Loteria</button>
+      <button class="btn-ghost2" id="btnDemo" title="Roda a cerimônia inteira com uma campanha fictícia, sem cadastrar nada e sem tocar no draft real"><i class="bi bi-play-circle"></i> Modo demonstração</button>
+    </div>
+    <div style="margin-top:10px;font-size:11.5px;color:var(--text-3);line-height:1.5">
+      <i class="bi bi-info-circle"></i>
+      O <strong>modo demonstração</strong> sorteia com posições fictícias usando os times reais da ELITE.
+      Serve para ver como a loteria funciona — não precisa de temporada nem de "Posições" cadastradas,
+      e o resultado não pode ser aplicado ao draft.
     </div>
   </div>
 
@@ -408,6 +415,10 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     </div>
 
     <div class="panel" id="confirmPanel" style="display:none">
+      <div id="demoBanner" style="display:none;align-items:center;gap:8px;margin-bottom:12px;padding:10px 12px;border-radius:10px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.28);color:#fbbf24;font-size:12px;font-weight:600">
+        <i class="bi bi-cone-striped"></i>
+        Demonstração — campanha fictícia. Este resultado não pode ser aplicado ao draft.
+      </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn-red" id="btnConfirm"><i class="bi bi-check-lg"></i> Confirmar e aplicar ao draft</button>
         <button class="btn-ghost2" id="btnRedo"><i class="bi bi-arrow-repeat"></i> Sortear de novo</button>
@@ -555,27 +566,39 @@ let busy = false;
 
 const $ = (id) => document.getElementById(id);
 
-async function prepare(){
+async function prepare(isDemo){
   const sessionId = $('sessionSelect').value;
-  const btn = $('btnPrepare');
+  const btn = isDemo ? $('btnDemo') : $('btnPrepare');
+  const label = isDemo
+    ? '<i class="bi bi-play-circle"></i> Modo demonstração'
+    : '<i class="bi bi-dice-5-fill"></i> Preparar Loteria';
+
+  if (!isDemo && !sessionId) { alert('Escolha uma sessão de draft.'); return; }
+
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Preparando...';
   try {
+    const payload = isDemo
+      ? { action: 'run_lottery', demo: true }
+      : { action: 'run_lottery', draft_session_id: parseInt(sessionId, 10) };
     const res = await fetch('/api/draft.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'run_lottery', draft_session_id: parseInt(sessionId, 10) })
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (!data.success) { alert(data.error || 'Erro ao preparar a loteria.'); return; }
     result = data;
     setupBoardAndOdds(data);
+    // Numa demo o resultado é descartável: nao pode ser gravado no draft.
+    $('demoBanner').style.display = data.demo ? 'flex' : 'none';
+    $('btnConfirm').style.display = data.demo ? 'none' : '';
     $('resultSection').style.display = 'block';
   } catch (e) {
     alert('Erro ao preparar a loteria.');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-dice-5-fill"></i> Preparar Loteria';
+    btn.innerHTML = label;
   }
 }
 
@@ -822,7 +845,8 @@ async function confirmOrder(){
   }
 }
 
-$('btnPrepare').addEventListener('click', prepare);
+$('btnPrepare').addEventListener('click', () => prepare(false));
+$('btnDemo').addEventListener('click', () => prepare(true));
 $('btnReveal').addEventListener('click', revealNext);
 $('btnConfirm').addEventListener('click', confirmOrder);
 $('btnRedo').addEventListener('click', prepare);

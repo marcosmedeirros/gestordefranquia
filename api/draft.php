@@ -561,6 +561,47 @@ if ($method === 'POST') {
                 exit;
             }
 
+            // Modo demonstração: sorteia com posições fictícias, sem depender de
+            // temporada/standings cadastrados e sem tocar em nada do draft real.
+            // Serve para mostrar a cerimônia a quem está avaliando a feature.
+            $isDemo = !empty($data['demo']);
+
+            if ($isDemo) {
+                // Times reais da ELITE (nomes e escudos de verdade), campanha sorteada.
+                $stmtDemo = $pdo->prepare('
+                    SELECT t.id AS team_id, t.conference,
+                           CONCAT(t.city," ",t.name) AS team_name, t.photo_url
+                    FROM teams t
+                    WHERE t.league = "ELITE"
+                ');
+                $stmtDemo->execute();
+                $demoTeams = $stmtDemo->fetchAll(PDO::FETCH_ASSOC);
+                if (count($demoTeams) < 4) {
+                    echo json_encode(['success' => false, 'error' => 'Não há times da ELITE suficientes para a demonstração']);
+                    exit;
+                }
+
+                shuffle($demoTeams);
+                $posByConf = [];
+                $allStandings = [];
+                foreach ($demoTeams as $t) {
+                    $conf = $t['conference'] ?: 'LESTE';
+                    $posByConf[$conf] = ($posByConf[$conf] ?? 0) + 1;
+                    $allStandings[] = [
+                        'team_id'    => (int)$t['team_id'],
+                        'position'   => $posByConf[$conf],
+                        'conference' => $conf,
+                        'team_name'  => $t['team_name'],
+                        'photo_url'  => $t['photo_url'],
+                    ];
+                }
+
+                // Zerado de propósito: sem playoff_results e sem swaps de picks na demo.
+                $draftSessionId        = 0;
+                $standingsSeasonId     = 0;
+                $standingsSeasonNumber = 0;
+                $lotterySession        = ['id' => 0, 'league' => 'ELITE', 'season_id' => 0];
+            } else {
             $draftSessionId = $data['draft_session_id'] ?? null;
             if (!$draftSessionId) {
                 echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']);
@@ -615,6 +656,7 @@ if ($method === 'POST') {
             if (!$allStandings) {
                 echo json_encode(['success' => false, 'error' => 'Não há "Posições" registradas para a temporada anterior (nº ' . $standingsSeasonNumber . ')']);
                 exit;
+            }
             }
 
             // Playoff = top 8 de CADA conferência (conta as duas). Elegíveis à loteria = o resto.
@@ -881,6 +923,7 @@ if ($method === 'POST') {
 
             echo json_encode([
                 'success' => true,
+                'demo' => $isDemo,
                 'draft_session_id' => (int)$draftSessionId,
                 'standings_season_id' => (int)$standingsSeasonId,
                 'standings_season_number' => $standingsSeasonNumber,
