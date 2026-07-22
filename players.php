@@ -571,7 +571,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						<option value="Titular">Titular</option>
 						<option value="Banco">Banco</option>
 						<option value="Outro">Outro</option>
+						<?php // G-League so existe na ELITE; nas demais ligas a opcao nao aparece. ?>
+						<?php if (($user['league'] ?? '') === 'ELITE'): ?>
 						<option value="G-League">G-League</option>
+						<?php endif; ?>
 					</select>
 				</div>
 				<div class="field field-half" style="grid-column: span 2;">
