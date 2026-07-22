@@ -1264,6 +1264,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     const canTradePick = session.status === 'in_progress' && !isCompleted && (isAdmin || isMyPick);
     const canAdminPick   = isAdmin && session.status === 'in_progress' && !isCompleted;
     const canAdminRevert = isAdmin && session.status === 'in_progress' && isCompleted;
+    // Permite voltar/adiantar o ponteiro do draft para uma escolha ainda aberta
+    const canAdminSetCurrent = isAdmin && session.status === 'in_progress' && !isCompleted && !isCurrent;
 
     let cls = 'pick-card';
     if (isCurrent)   cls += ' current';
@@ -1278,6 +1280,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
             ${canTradePick ? `<button class="pick-trade-btn" title="Trocar pick" onclick="openTradePickModal(${pick.id}, ${pick.round}, ${pick.pick_position}, ${pick.team_id}, '${(pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'")}')"><i class="bi bi-arrow-left-right"></i></button>` : ''}
             ${canAdminPick   ? `<button class="pick-trade-btn" title="Escolher jogador (Admin)" style="border-color:rgba(245,158,11,.4);color:var(--amber)" onclick="openAdminPickForSlot(${pick.id}, ${pick.round}, ${pick.pick_position}, '${(pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'")}')"><i class="bi bi-person-plus-fill"></i></button>` : ''}
             ${canAdminRevert ? `<button class="pick-trade-btn" title="Reverter pick (Admin)" style="border-color:rgba(239,68,68,.35);color:#ef4444" onclick="revertPick(${pick.id}, '${pick.player_name ? pick.player_name.replace(/'/g, "\\'") : ''}')"><i class="bi bi-arrow-counterclockwise"></i></button>` : ''}
+            ${canAdminSetCurrent ? `<button class="pick-trade-btn" title="Definir como escolha atual (Admin)" style="border-color:rgba(96,165,250,.4);color:#60a5fa" onclick="setCurrentPick(${pick.round}, ${pick.pick_position})"><i class="bi bi-crosshair"></i></button>` : ''}
           </div>
         </div>
         <div class="pick-team">${pick.team_city} ${pick.team_name}</div>
@@ -1606,6 +1609,24 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         method: 'POST',
         body: JSON.stringify({ action: 'revert_pick', pick_id: pickId })
       });
+      await loadDraft();
+    } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
+  }
+
+  async function setCurrentPick(round, pickPosition) {
+    if (!currentDraftSession) return;
+    if (!confirm(`Voltar o draft para a escolha #${pickPosition} da rodada ${round}?\n\nO relógio da escolha reinicia e o time dessa posição passa a ser a vez.`)) return;
+    try {
+      const result = await api('draft.php', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'set_current_pick',
+          draft_session_id: currentDraftSession.id,
+          round: Number(round),
+          pick_position: Number(pickPosition)
+        })
+      });
+      if (result && result.success === false) { alert(result.error || 'Não foi possível definir a escolha atual'); return; }
       await loadDraft();
     } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
   }

@@ -1703,13 +1703,35 @@ if ($method === 'POST') {
                 exit;
             }
             try {
-                $stmt = $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ? WHERE id = ? AND status = "in_progress"');
-                $stmt->execute([$round, $pickPosition, $draftSessionId]);
-                if ($stmt->rowCount() === 0) {
-                    echo json_encode(['success' => false, 'error' => 'Draft não encontrado ou não está em andamento']);
-                } else {
-                    echo json_encode(['success' => true, 'message' => "Pick atual definida: Rodada {$round} · #{$pickPosition}"]);
+                // Checagens explicitas: rowCount() nao serve aqui porque o MySQL
+                // devolve 0 tambem quando a escolha ja e a atual (valor inalterado).
+                $stmtChk = $pdo->prepare('SELECT status FROM draft_sessions WHERE id = ?');
+                $stmtChk->execute([$draftSessionId]);
+                $status = $stmtChk->fetchColumn();
+                if ($status === false) {
+                    echo json_encode(['success' => false, 'error' => 'Draft não encontrado']);
+                    exit;
                 }
+                if ($status !== 'in_progress') {
+                    echo json_encode(['success' => false, 'error' => 'O draft precisa estar em andamento para definir a escolha atual']);
+                    exit;
+                }
+
+                $stmtSlot = $pdo->prepare('SELECT picked_player_id FROM draft_order WHERE draft_session_id = ? AND round = ? AND pick_position = ?');
+                $stmtSlot->execute([$draftSessionId, $round, $pickPosition]);
+                $slot = $stmtSlot->fetch(PDO::FETCH_ASSOC);
+                if (!$slot) {
+                    echo json_encode(['success' => false, 'error' => "Não existe escolha #{$pickPosition} na rodada {$round}"]);
+                    exit;
+                }
+                if ($slot['picked_player_id'] !== null) {
+                    echo json_encode(['success' => false, 'error' => "A escolha #{$pickPosition} já foi feita; reverta ela antes de voltar o draft para lá"]);
+                    exit;
+                }
+
+                $pdo->prepare('UPDATE draft_sessions SET current_round = ?, current_pick = ?, current_pick_started_at = NOW() WHERE id = ?')
+                    ->execute([$round, $pickPosition, $draftSessionId]);
+                echo json_encode(['success' => true, 'message' => "Escolha atual definida: Rodada {$round} · #{$pickPosition}"]);
             } catch (Exception $e) {
                 echo json_encode(['success' => false, 'error' => 'Erro']);
             }
