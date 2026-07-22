@@ -43,4 +43,13 @@ function requirePreview(string $feature): void
         header('Location: /dashboard.php');
         exit;
     }
+
+    // Liberado, mas ainda sem login: manda para o login sabendo voltar para ca.
+    // Sem isto o requireAuth() jogaria a pessoa no dashboard depois de entrar,
+    // e como estas paginas nao estao em nenhum menu, nao haveria como chegar nelas.
+    if (empty($_SESSION['user_id'])) {
+        $back = $_SERVER['REQUEST_URI'] ?? '/';
+        header('Location: /login.php?next=' . urlencode($back));
+        exit;
+    }
 }

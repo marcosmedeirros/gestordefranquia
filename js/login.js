@@ -15,6 +15,17 @@ const showMessage = (elementId, message, type = 'danger') => {
     </div>`;
 };
 
+// Destino pos-login vindo de ?next=. So aceita caminho interno: precisa comecar
+// com uma unica "/" — "//host" e "/\host" viram URL absoluta no navegador e
+// serviriam para mandar quem loga para fora do site.
+const safeNextUrl = () => {
+    const next = new URLSearchParams(window.location.search).get('next');
+    if (!next) return null;
+    if (!next.startsWith('/')) return null;
+    if (next.startsWith('//') || next.startsWith('/\\')) return null;
+    return next;
+};
+
 // Login form
 document.getElementById('form-login').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -32,7 +43,7 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
         
         showMessage('login-message', 'Login realizado com sucesso! Redirecionando...', 'success');
         setTimeout(() => {
-            window.location.href = '/dashboard.php';
+            window.location.href = safeNextUrl() || '/dashboard.php';
         }, 1000);
     } catch (err) {
         showMessage('login-message', err.error || 'Erro ao fazer login', 'danger');
