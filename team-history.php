@@ -90,7 +90,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .empty{text-align:center;padding:24px;color:var(--text-3);font-size:13px}
 /* Abas da página do time */
 /* Barra de ações do time */
-.t-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.t-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;padding-top:18px;border-top:1px solid var(--border)}
 .act{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:10px;background:var(--panel);border:1px solid var(--border);color:var(--text-2);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:none;transition:all var(--t) var(--ease);white-space:nowrap}
 .act:hover{border-color:var(--border-md);color:var(--text);background:var(--panel-2)}
 .act i{font-size:14px}
@@ -235,22 +235,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </div>
   </div>
 
-  <?php $ehMeuTime = $team && (int)$team['id'] === $teamId; ?>
-  <div class="t-actions">
-    <?php if ($ehMeuTime): ?>
-      <a class="act act-primary" href="/my-roster.php"><i class="bi bi-people-fill"></i> Gerenciar elenco</a>
-      <a class="act" href="/trades.php"><i class="bi bi-arrow-left-right"></i> Minhas trades</a>
-      <a class="act" href="/picks.php"><i class="bi bi-ticket-perforated"></i> Minhas picks</a>
-      <a class="act" href="/team-public-page.php"><i class="bi bi-globe2"></i> Página pública</a>
-    <?php else: ?>
-      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $teamId ?>&propose=1">
-        <i class="bi bi-arrow-left-right"></i> Propor troca</a>
-      <a class="act" href="/trade-simulator.php?team_id=<?= $teamId ?>">
-        <i class="bi bi-calculator"></i> Simular troca</a>
-    <?php endif; ?>
-    <button class="act" id="btnShareTeam" title="Copiar o link desta página"><i class="bi bi-link-45deg"></i> <span>Copiar link</span></button>
-  </div>
-
   <div class="th-tabs" id="thTabs">
     <button class="th-tab active" data-tab="geral">Visão geral</button>
     <button class="th-tab" data-tab="elenco">Elenco</button>
@@ -342,6 +326,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   <div class="panel" id="champ-panel" style="display:none" data-th-tab="elenco">
     <div class="section-title"><i class="bi bi-stars"></i> Elenco Campeão — <span id="champ-year"></span></div>
     <div id="champ-roster"></div>
+  </div>
+
+  <?php // Fica no fim: as acoes sao o passo seguinte a ler o historico.
+    $ehMeuTime = $team && (int)$team['id'] === $teamId; ?>
+  <div class="t-actions">
+    <?php if ($ehMeuTime): ?>
+      <a class="act act-primary" href="/my-roster.php"><i class="bi bi-people-fill"></i> Gerenciar elenco</a>
+      <a class="act" href="/trades.php"><i class="bi bi-arrow-left-right"></i> Minhas trades</a>
+      <a class="act" href="/picks.php"><i class="bi bi-ticket-perforated"></i> Minhas picks</a>
+      <a class="act" href="/team-public-page.php"><i class="bi bi-globe2"></i> Página pública</a>
+    <?php else: ?>
+      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $teamId ?>&propose=1">
+        <i class="bi bi-arrow-left-right"></i> Propor troca</a>
+      <a class="act" href="/trade-simulator.php?team_id=<?= $teamId ?>">
+        <i class="bi bi-calculator"></i> Simular troca</a>
+    <?php endif; ?>
+    <button class="act" id="btnShareTeam" title="Copiar o link desta página"><i class="bi bi-link-45deg"></i> <span>Copiar link</span></button>
   </div>
  </div><!-- .content -->
 </main>

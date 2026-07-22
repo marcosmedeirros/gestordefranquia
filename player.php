@@ -265,7 +265,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .sk-sum-v.sk-weak{color:#f97316}
 
 /* Barra de ações do jogador */
-.p-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.p-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;padding-top:18px;border-top:1px solid var(--border)}
 .act{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:10px;background:var(--panel);border:1px solid var(--border);color:var(--text-2);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:none;transition:all var(--t) var(--ease);white-space:nowrap}
 .act:hover{border-color:var(--border-md);color:var(--text);background:var(--panel-2)}
 .act i{font-size:14px}
@@ -381,31 +381,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <div class="l"><?= $isRetired ? 'Último OVR' : 'OVR' ?></div>
     </div>
   </div>
-
-  <?php if (!$isRetired):
-    // Ações disponíveis dependem de quem está olhando: no próprio elenco não
-    // faz sentido propor troca por ele.
-    $meuTimeId = $team ? (int)$team['id'] : 0;
-    $doMeuTime = $meuTimeId && $meuTimeId === $dispTeamId;
-  ?>
-  <div class="p-actions">
-    <?php if ($doMeuTime): ?>
-      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>&propose=1">
-        <i class="bi bi-arrow-left-right"></i> Usar em uma troca</a>
-      <a class="act" href="/my-roster.php"><i class="bi bi-people-fill"></i> Meu elenco</a>
-    <?php else: ?>
-      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>&propose=1">
-        <i class="bi bi-arrow-left-right"></i> Propor troca por <?= htmlspecialchars(mb_strimwidth($playerName, 0, 22, '…')) ?></a>
-      <a class="act" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>">
-        <i class="bi bi-calculator"></i> Simular troca</a>
-    <?php endif; ?>
-    <button class="act" id="btnFav" data-pid="<?= $playerId ?>" title="Salvar na sua lista de observados">
-      <i class="bi bi-star"></i> <span>Favoritar</span></button>
-    <a class="act" href="/team-history.php?team_id=<?= $dispTeamId ?>"><i class="bi bi-buildings"></i> Página do time</a>
-    <a class="act" href="/players.php?q=<?= rawurlencode($playerName) ?>"><i class="bi bi-people"></i> Comparar</a>
-    <button class="act" id="btnShare" title="Copiar o link deste perfil"><i class="bi bi-link-45deg"></i> <span>Copiar link</span></button>
-  </div>
-  <?php endif; ?>
 
   <!-- Abas -->
   <div class="tabs" id="tabs">
@@ -611,6 +586,31 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       </div>
       <?php endforeach; ?>
     </div>
+  </div>
+  <?php endif; ?>
+
+  <?php if (!$isRetired):
+    // Fica no fim da pagina: as acoes sao o passo seguinte a ler o perfil.
+    // Quem ja tem o jogador no proprio elenco nao precisa "propor troca por ele".
+    $meuTimeId = $team ? (int)$team['id'] : 0;
+    $doMeuTime = $meuTimeId && $meuTimeId === $dispTeamId;
+  ?>
+  <div class="p-actions">
+    <?php if ($doMeuTime): ?>
+      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>&propose=1">
+        <i class="bi bi-arrow-left-right"></i> Usar em uma troca</a>
+      <a class="act" href="/my-roster.php"><i class="bi bi-people-fill"></i> Meu elenco</a>
+    <?php else: ?>
+      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>&propose=1">
+        <i class="bi bi-arrow-left-right"></i> Propor troca por <?= htmlspecialchars(mb_strimwidth($playerName, 0, 22, '…')) ?></a>
+      <a class="act" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>">
+        <i class="bi bi-calculator"></i> Simular troca</a>
+    <?php endif; ?>
+    <button class="act" id="btnFav" data-pid="<?= $playerId ?>" title="Salvar na sua lista de observados">
+      <i class="bi bi-star"></i> <span>Favoritar</span></button>
+    <a class="act" href="/team-history.php?team_id=<?= $dispTeamId ?>"><i class="bi bi-buildings"></i> Página do time</a>
+    <a class="act" href="/players.php?q=<?= rawurlencode($playerName) ?>"><i class="bi bi-people"></i> Comparar</a>
+    <button class="act" id="btnShare" title="Copiar o link deste perfil"><i class="bi bi-link-45deg"></i> <span>Copiar link</span></button>
   </div>
   <?php endif; ?>
 
