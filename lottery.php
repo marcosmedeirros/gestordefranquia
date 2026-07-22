@@ -2,6 +2,9 @@
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
+require_once __DIR__ . '/backend/preview_gate.php';
+// Funcionalidade em avaliacao: fora de qualquer menu, so abre com ?preview=<token>
+requirePreview('lottery');
 requireAuth();
 $user = getUserSession();
 $pdo  = db();

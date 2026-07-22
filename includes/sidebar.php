@@ -50,9 +50,7 @@ if (!function_exists('sbActive')) {
         <a href="/free-agency.php"<?= sbActive('free-agency.php', $__sbCurrent) ?>><i class="bi bi-coin"></i> Free Agency</a>
         <a href="/leilao.php"<?= sbActive('leilao.php', $__sbCurrent) ?>><i class="bi bi-hammer"></i> Leilão</a>
         <a href="/drafts.php"<?= sbActive('drafts.php', $__sbCurrent) ?>><i class="bi bi-trophy"></i> Draft</a>
-        <?php if ($__sbIsElite): ?>
-        <a href="/cap.php"<?= sbActive('cap.php', $__sbCurrent) ?>><i class="bi bi-cash-stack"></i> Salary Cap</a>
-        <?php endif; ?>
+        <?php /* Salary Cap (ELITE): em avaliacao, acessivel apenas por link — ver backend/preview_gate.php */ ?>
         <a href="/tapas.php"<?= sbActive('tapas.php', $__sbCurrent) ?>><i class="bi bi-hand-index-thumb"></i> Tapas</a>
 
         <div class="sb-section">Liga</div>
@@ -70,7 +68,7 @@ if (!function_exists('sbActive')) {
         <div class="sb-section">Admin</div>
         <a href="/admin.php"<?= sbActive('admin.php', $__sbCurrent) ?>><i class="bi bi-shield-lock-fill"></i> Admin</a>
         <a href="/punicoes.php"<?= sbActive('punicoes.php', $__sbCurrent) ?>><i class="bi bi-exclamation-triangle-fill"></i> Punições</a>
-        <a href="/lottery.php"<?= sbActive('lottery.php', $__sbCurrent) ?>><i class="bi bi-shuffle"></i> Loteria (ELITE)</a>
+        <?php /* Loteria (ELITE): em avaliacao, acessivel apenas por link — ver backend/preview_gate.php */ ?>
         <?php endif; ?>
 
         <div class="sb-section">Conta</div>

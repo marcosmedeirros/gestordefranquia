@@ -1007,13 +1007,33 @@ function runMigrations() {
         $errors[] = "ajuste_players_draft_salary: " . $e->getMessage();
     }
 
+    // Marcador para migracoes de dados que so podem rodar uma vez.
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS app_flags (
+            flag VARCHAR(64) NOT NULL PRIMARY KEY,
+            applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (PDOException $e) {
+        $errors[] = "criar_app_flags: " . $e->getMessage();
+    }
+
     try {
         $hasLeagueSettingsTable = $pdo->query("SHOW TABLES LIKE 'league_settings'")->fetch();
         if ($hasLeagueSettingsTable) {
             $hasCapMode = $pdo->query("SHOW COLUMNS FROM league_settings LIKE 'cap_mode'")->fetch();
             if (!$hasCapMode) {
                 $pdo->exec("ALTER TABLE league_settings ADD COLUMN cap_mode ENUM('ovr_sum','salary') NOT NULL DEFAULT 'ovr_sum' AFTER cap_max");
-                $pdo->exec("UPDATE league_settings SET cap_mode = 'salary' WHERE league = 'ELITE'");
+            }
+
+            // O salary cap da ELITE ficou visivel para todos por engano; segue em
+            // avaliacao e so deve ser visto pelas paginas de preview (por link).
+            // Roda uma unica vez: se o admin ligar 'salary' de novo, nao desliga.
+            $st = $pdo->prepare("SELECT 1 FROM app_flags WHERE flag = ?");
+            $st->execute(['cap_mode_elite_off_2026_07']);
+            if (!$st->fetchColumn()) {
+                $pdo->exec("UPDATE league_settings SET cap_mode = 'ovr_sum' WHERE league = 'ELITE'");
+                $ins = $pdo->prepare("INSERT INTO app_flags (flag) VALUES (?)");
+                $ins->execute(['cap_mode_elite_off_2026_07']);
             }
         }
     } catch (PDOException $e) {

@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/salary_cap.php';
+require_once __DIR__ . '/../backend/preview_gate.php';
 requireAuth();
 
 header('Content-Type: application/json; charset=utf-8');
@@ -41,7 +42,10 @@ if ($action === 'summary') {
         echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
         exit;
     }
-    if (($leagueInfo['cap_mode'] ?? 'ovr_sum') !== 'salary') {
+    // Quem entrou pela pagina de preview avalia o Salary Cap mesmo com a liga
+    // ainda no modo antigo; fora do preview, vale a configuracao da liga.
+    $capMode = previewActive('cap') ? 'salary' : ($leagueInfo['cap_mode'] ?? 'ovr_sum');
+    if ($capMode !== 'salary') {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'Esta liga ainda usa o sistema de Cap antigo (soma de OVR). O Salary Cap novo vale só para a ELITE.']);
         exit;

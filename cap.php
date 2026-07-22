@@ -1,6 +1,9 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/preview_gate.php';
+// Funcionalidade em avaliacao: fora de qualquer menu, so abre com ?preview=<token>
+requirePreview('cap');
 requireAuth();
 $user = getUserSession();
 $pdo  = db();
@@ -11,9 +14,9 @@ $team = $stmtMine->fetch(PDO::FETCH_ASSOC) ?: null;
 
 if (!$team) { header('Location: teams.php'); exit; }
 
-$stmtMode = $pdo->prepare("SELECT cap_mode FROM league_settings WHERE league = ?");
-$stmtMode->execute([$team['league']]);
-$capMode = $stmtMode->fetchColumn() ?: 'ovr_sum';
+// Dentro do preview o modo salario vale mesmo com a liga desligada,
+// que e justamente o que os admins vao avaliar aqui.
+$capMode = 'salary';
 $teamId = (int)$team['id'];
 ?>
 <!DOCTYPE html>
