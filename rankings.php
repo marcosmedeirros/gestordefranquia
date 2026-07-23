@@ -179,6 +179,16 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .rank-pos { font-size: 13px; font-weight: 800; color: var(--text-3); text-align: center; width: 24px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
         .rank-pos.gold { color: var(--amber); font-size: 15px; }
         .rank-pos.silver { color: #94a3b8; font-size: 15px; }
+        /* Variacao de posicao em relacao ao fim da sprint anterior */
+        .rk-var { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 800;
+            padding: 2px 6px; border-radius: 999px; line-height: 1; white-space: nowrap; }
+        .rk-var i { font-size: 9px; }
+        .rk-var.up   { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
+        .rk-var.down { color: #ef4444; background: rgba(239,68,68,.12); }
+        .rk-var.same { color: var(--text-3); background: var(--panel-2); }
+        .rk-var.none { color: var(--text-3); background: transparent; opacity: .5; }
+        .rk-legenda { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 11px;
+            color: var(--text-3); margin-bottom: 12px; }
         .rank-pos.bronze { color: #cd7c4a; font-size: 15px; }
         .rank-shift { display: inline-flex; align-items: center; margin-left: 8px; font-size: 10px; font-weight: 700; }
         .rank-shift.up { color: #22c55e; }
@@ -497,6 +507,23 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     const currentTeamId = parseInt("<?= (int)($team['id'] ?? 0) ?>", 10) || 0;
     let currentLeague = userLeague;
     let currentRanking = [];
+    let comparadoCom = {};
+
+    const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    /**
+     * Seta de variação de posição. rank_delta positivo = subiu (a posição
+     * anterior era um número maior). Time sem referência anterior não mostra
+     * nada, em vez de fingir que ficou parado.
+     */
+    function setaVariacao(team) {
+        const d = Number(team.rank_delta || 0);
+        const anterior = team.prev_position;
+        if (!anterior) return '<span class="rk-var none" title="Sem posição anterior registrada">—</span>';
+        if (d > 0) return `<span class="rk-var up" title="Subiu ${d} posição(ões) — antes era ${anterior}º"><i class="bi bi-caret-up-fill"></i>${d}</span>`;
+        if (d < 0) return `<span class="rk-var down" title="Caiu ${Math.abs(d)} posição(ões) — antes era ${anterior}º"><i class="bi bi-caret-down-fill"></i>${Math.abs(d)}</span>`;
+        return '<span class="rk-var same" title="Manteve a posição">=</span>';
+    }
     const currentSeasonId   = <?= $currentSeasonId   ? (int)$currentSeasonId   : 'null' ?>;
     const currentSeasonYear = <?= (int)$currentSeasonYear ?>;
 
@@ -525,6 +552,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
 
             const ranking = data.ranking[currentLeague] || [];
             currentRanking = ranking; // usado pelo "Copiar p/ WhatsApp"
+            comparadoCom = data.compared_to || {};
 
             if (ranking.length === 0) {
                 container.innerHTML = `
@@ -553,7 +581,12 @@ $seasonDisplayYear = (string)$currentSeasonYear;
 
                 return `
                 <tr class="${rowClass}">
-                    <td><div class="rank-pos ${posClass}">${idx + 1}º</div></td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:7px">
+                            <div class="rank-pos ${posClass}">${idx + 1}º</div>
+                            ${setaVariacao(team)}
+                        </div>
+                    </td>
                     <td>
                         <span class="team-name-cell">${team.team_name}</span>
                         ${team.owner_name ? `<span class="team-gm-cell">GM: ${team.owner_name}</span>` : ''}
@@ -574,7 +607,16 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 </tr>`;
             }).join('');
 
+            const refer = comparadoCom[currentLeague];
             container.innerHTML = `
+                <div class="rk-legenda">
+                    <span><span class="rk-var up"><i class="bi bi-caret-up-fill"></i>2</span> subiu</span>
+                    <span><span class="rk-var down"><i class="bi bi-caret-down-fill"></i>1</span> caiu</span>
+                    <span><span class="rk-var same">=</span> manteve</span>
+                    <span style="margin-left:auto">${refer
+                        ? 'Comparado com o fim da <strong>' + esc(refer) + '</strong>'
+                        : 'Comparado com a última pontuação registrada'}</span>
+                </div>
                 <div class="table-card">
                     <div class="table-responsive">
                         <table class="m-table">

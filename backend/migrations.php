@@ -1017,6 +1017,28 @@ function runMigrations() {
         $errors[] = "criar_app_flags: " . $e->getMessage();
     }
 
+    // Historico do ranking por sprint. Ao fechar a sprint a pontuacao corrente
+    // e zerada; sem este congelamento a classificacao daquele ciclo se perdia.
+    // Tambem e a base da variacao de posicao mostrada em rankings.php.
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS ranking_snapshots (
+            id          INT AUTO_INCREMENT PRIMARY KEY,
+            league      VARCHAR(20) NOT NULL,
+            sprint_id   INT NULL,
+            sprint_number INT NULL,
+            team_id     INT NOT NULL,
+            position    INT NOT NULL,
+            points      INT NOT NULL DEFAULT 0,
+            titles      INT NOT NULL DEFAULT 0,
+            label       VARCHAR(120) NULL,
+            created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_sprint_team (sprint_id, team_id),
+            KEY idx_liga_sprint (league, sprint_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (PDOException $e) {
+        $errors[] = "criar_ranking_snapshots: " . $e->getMessage();
+    }
+
     // Rascunho tatico do time: o que o GM ajusta no dia a dia em tatica.php.
     // Nao e vinculado a deadline — e o estado atual da equipe, que alimenta o
     // formulario de diretrizes na hora do envio oficial.

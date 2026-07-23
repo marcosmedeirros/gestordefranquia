@@ -965,6 +965,61 @@ try {
         // RANKING
         // =====================================================
 
+        // Congela a classificação atual da liga como o fim de uma sprint.
+        // Sem isto, ao zerar os pontos o ciclo inteiro se perdia.
+        case 'save_ranking_snapshot': {
+            if (!hasAdminAccess($pdo, (int)($user['id'] ?? 0))) {
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                break;
+            }
+            $lg = strtoupper(trim((string)($_REQUEST['league'] ?? '')));
+            if (!in_array($lg, ['ELITE','NEXT','RISE','ROOKIE'], true)) {
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                break;
+            }
+            $rotulo = trim((string)($_REQUEST['label'] ?? ''));
+
+            $stSp = $pdo->prepare("SELECT id, sprint_number FROM sprints WHERE league = ? ORDER BY sprint_number DESC LIMIT 1");
+            $stSp->execute([$lg]);
+            $sprint = $stSp->fetch(PDO::FETCH_ASSOC) ?: null;
+
+            $stR = $pdo->prepare("SELECT t.id AS team_id, COALESCE(t.ranking_points,0) AS pts,
+                                         COALESCE(t.ranking_titles,0) AS tit
+                                  FROM teams t WHERE t.league = ?
+                                  ORDER BY pts DESC, tit DESC, t.city, t.name");
+            $stR->execute([$lg]);
+            $linhas = $stR->fetchAll(PDO::FETCH_ASSOC);
+            if (!$linhas) { echo json_encode(['success' => false, 'error' => 'Nenhum time nesta liga']); break; }
+
+            $ins = $pdo->prepare("INSERT INTO ranking_snapshots
+                (league, sprint_id, sprint_number, team_id, position, points, titles, label)
+                VALUES (?,?,?,?,?,?,?,?)
+                ON DUPLICATE KEY UPDATE position=VALUES(position), points=VALUES(points),
+                                        titles=VALUES(titles), label=VALUES(label)");
+            $pos = 0;
+            foreach ($linhas as $r) {
+                $pos++;
+                $ins->execute([$lg, $sprint['id'] ?? null, $sprint['sprint_number'] ?? null,
+                               (int)$r['team_id'], $pos, (int)$r['pts'], (int)$r['tit'], $rotulo ?: null]);
+            }
+            echo json_encode(['success' => true, 'saved' => $pos,
+                              'sprint' => $sprint['sprint_number'] ?? null]);
+            break;
+        }
+
+        // Sprints congeladas, para a tela poder mostrar o historico.
+        case 'list_ranking_snapshots': {
+            $lg = strtoupper(trim((string)($_REQUEST['league'] ?? '')));
+            $st = $pdo->prepare("SELECT sprint_id, sprint_number, label, MAX(created_at) AS created_at,
+                                        COUNT(*) AS times
+                                 FROM ranking_snapshots WHERE league = ?
+                                 GROUP BY sprint_id, sprint_number, label
+                                 ORDER BY sprint_number DESC, created_at DESC");
+            $st->execute([$lg]);
+            echo json_encode(['success' => true, 'snapshots' => $st->fetchAll(PDO::FETCH_ASSOC)]);
+            break;
+        }
+
         case 'get_ranking':
             $league = $_REQUEST['league'] ?? null;
             $hasRankingPointsCol = teamColumnExists($pdo, 'ranking_points');
@@ -1082,10 +1137,30 @@ try {
                 $grouped[$row['league']][] = $row;
             }
 
-            // Calcula movimento de posição com base na última temporada registrada
+            // Calcula movimento de posição. O snapshot da sprint tem prioridade:
+            // ele guarda a posição real do fim do ciclo anterior, enquanto
+            // team_season_points e uma reconstrucao a partir de pontos soltos.
             $prevSeasonPositions = [];
+            $snapshotLabel = [];
             $leaguesToCheck = $league ? [$league] : array_keys($grouped);
             foreach ($leaguesToCheck as $lg) {
+                try {
+                    $stSnap = $pdo->prepare("SELECT sprint_id, sprint_number, label FROM ranking_snapshots
+                                             WHERE league = ? ORDER BY sprint_number DESC, created_at DESC LIMIT 1");
+                    $stSnap->execute([$lg]);
+                    $snap = $stSnap->fetch(PDO::FETCH_ASSOC);
+                    if ($snap) {
+                        $stPos = $pdo->prepare("SELECT team_id, position FROM ranking_snapshots
+                                                WHERE league = ? AND sprint_id <=> ?");
+                        $stPos->execute([$lg, $snap['sprint_id']]);
+                        foreach ($stPos->fetchAll(PDO::FETCH_ASSOC) as $sr) {
+                            $prevSeasonPositions[$lg][(int)$sr['team_id']] = (int)$sr['position'];
+                        }
+                        $snapshotLabel[$lg] = $snap['label'] ?: ('Sprint ' . $snap['sprint_number']);
+                        continue; // ja temos a referencia mais confiavel
+                    }
+                } catch (Exception $e) { /* sem snapshot, cai no calculo antigo */ }
+
                 $stmtSeason = $pdo->prepare('SELECT season_id FROM team_season_points WHERE league = ? ORDER BY season_id DESC LIMIT 1');
                 $stmtSeason->execute([$lg]);
                 $lastSeasonId = (int)($stmtSeason->fetchColumn() ?: 0);
@@ -1112,7 +1187,8 @@ try {
                 }
             }
 
-            echo json_encode(['success' => true, 'ranking' => $grouped]);
+            echo json_encode(['success' => true, 'ranking' => $grouped,
+                              'compared_to' => $snapshotLabel]);
             break;
 
         case 'save_ranking_totals':
