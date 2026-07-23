@@ -424,7 +424,12 @@ $isElite = ($team['league'] ?? '') === 'ELITE';
                 </div>
             </div>
 
-            <form id="form-diretrizes">
+            <?php /* novalidate: os campos de minuto tem min=5, e os jogadores fora
+               da rotacao ficam escondidos com valor 0 — :invalid. A validacao
+               HTML5 nativa entao abortava o submit sem disparar o handler e sem
+               mostrar nada (o campo esta display:none), travando o envio no
+               mobile. A validacao real e feita em JS, com modal explicativo. */ ?>
+            <form id="form-diretrizes" novalidate>
                 <input type="hidden" id="deadline-id" value="<?= ($directiveMode === 'deadline' && $deadline) ? (int)$deadline['id'] : '' ?>">
 
                 <?php // Carrega uma das taticas montadas em tatica.php. ?>

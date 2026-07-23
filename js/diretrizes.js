@@ -70,9 +70,12 @@ function applyDirectiveToForm(d) {
   if (Array.isArray(d.bench_players) && d.bench_players.length > 0) {
     benchIds = d.bench_players.map(id => parseInt(id)).filter(id => !isNaN(id));
   } else if (d.player_minutes && Object.keys(d.player_minutes).length > 0) {
+    // Só é banco quem realmente joga (minutos > 0). A tática guarda minutos de
+    // todo o elenco para distribuir 240, entao sem este filtro os jogadores com
+    // 0 minuto virariam banco e a validacao os barraria por "reserva com <5min".
     Object.keys(d.player_minutes).forEach(playerId => {
       const id = parseInt(playerId);
-      if (!starterIds.includes(id)) benchIds.push(id);
+      if (!starterIds.includes(id) && parseInt(d.player_minutes[playerId]) > 0) benchIds.push(id);
     });
   } else {
     for (let i = 1; i <= 3; i++) {
