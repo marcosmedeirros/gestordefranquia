@@ -1890,68 +1890,11 @@ async function openEditMultiTrade(trade) {
   bootstrap.Modal.getOrCreateInstance(modal).show();
 }
 
-function _tradeOvrDelta(players) {
-  let delta = 0, known = 0;
-  (players || []).forEach(p => {
-    const cur = p.current_ovr;
-    const at = p.ovr;
-    if (cur !== null && cur !== undefined && at !== null && at !== undefined) {
-      delta += (parseInt(cur) - parseInt(at));
-      known++;
-    }
-  });
-  return { delta, known };
-}
-
-function buildTradeGradeHtml(receivedByA, receivedByB, labelA, labelB) {
-  const a = _tradeOvrDelta(receivedByA);
-  const b = _tradeOvrDelta(receivedByB);
-  if (a.known === 0 && b.known === 0) return '';
-  const fmt = (n) => (n > 0 ? `+${n}` : `${n}`);
-  const colorFor = (n) => n > 0 ? '#22c55e' : (n < 0 ? '#ef4444' : 'var(--text-2)');
-  let verdict = '';
-  if (a.known > 0 && b.known > 0 && a.delta !== b.delta) {
-    verdict = a.delta > b.delta
-      ? `<div style="font-size:11px;color:var(--text-2);margin-top:6px">Quem mais evoluiu desde a troca: <strong style="color:var(--text)">${labelA}</strong></div>`
-      : `<div style="font-size:11px;color:var(--text-2);margin-top:6px">Quem mais evoluiu desde a troca: <strong style="color:var(--text)">${labelB}</strong></div>`;
-  }
-  return `
-    <div class="tc-notes" style="margin-top:12px">
-      <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);margin-bottom:8px">
-        <i class="bi bi-graph-up me-1"></i>Nota retroativa (variação de OVR desde a troca)
-      </div>
-      <div style="display:flex;gap:16px;flex-wrap:wrap">
-        <div><span style="font-size:12px;color:var(--text-2)">${labelA} recebeu: </span><strong style="color:${colorFor(a.delta)}">${a.known ? fmt(a.delta) : 'sem dado'}</strong></div>
-        <div><span style="font-size:12px;color:var(--text-2)">${labelB} recebeu: </span><strong style="color:${colorFor(b.delta)}">${b.known ? fmt(b.delta) : 'sem dado'}</strong></div>
-      </div>
-      ${verdict}
-    </div>`;
-}
-
-function buildMultiTradeGradeHtml(trade, teamMap) {
-  const items = (trade.items || []).filter(it => it.player_id || it.player_name);
-  if (items.length === 0) return '';
-  const byTeam = {};
-  items.forEach(it => {
-    const toId = String(it.to_team_id);
-    if (!byTeam[toId]) byTeam[toId] = [];
-    byTeam[toId].push({ ovr: it.player_ovr, current_ovr: it.current_ovr });
-  });
-  const rows = Object.entries(byTeam).map(([toId, players]) => {
-    const { delta, known } = _tradeOvrDelta(players);
-    const label = teamMap[toId] || `Time ${toId}`;
-    const color = delta > 0 ? '#22c55e' : (delta < 0 ? '#ef4444' : 'var(--text-2)');
-    return `<div><span style="font-size:12px;color:var(--text-2)">${label} recebeu: </span><strong style="color:${color}">${known ? (delta > 0 ? `+${delta}` : delta) : 'sem dado'}</strong></div>`;
-  }).join('');
-  if (!rows) return '';
-  return `
-    <div class="tc-notes" style="margin-top:12px">
-      <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);margin-bottom:8px">
-        <i class="bi bi-graph-up me-1"></i>Nota retroativa (variação de OVR desde a troca)
-      </div>
-      <div style="display:flex;gap:16px;flex-wrap:wrap">${rows}</div>
-    </div>`;
-}
+/* A "nota retroativa" (variação de OVR desde a troca) foi removida do card a
+   pedido da liga: quase sempre saía zerada e só poluía a leitura. As funções
+   continuam existindo, vazias, para não mexer em todos os pontos de chamada. */
+function buildTradeGradeHtml() { return ''; }
+function buildMultiTradeGradeHtml() { return ''; }
 
 function createTradeCard(trade, type) {
   if (!window.__tradeCache__) window.__tradeCache__ = {};

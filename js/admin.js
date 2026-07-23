@@ -1677,22 +1677,24 @@ async function showTrades() {
 
       const teamsLine = (tr.teams || []).map(t => teamMap[t.id] || `Time ${t.id}`).join(' · ');
 
+      // Agrupado por quem ENVIA: ler "o time X manda tal jogador" e mais
+      // direto para o admin do que descobrir quem mandou item a item.
       const byTeam = {};
       (tr.items || []).forEach(item => {
-        const toId = String(item.to_team_id);
-        if (!byTeam[toId]) byTeam[toId] = [];
-        byTeam[toId].push(item);
+        const fromId = String(item.from_team_id);
+        if (!byTeam[fromId]) byTeam[fromId] = [];
+        byTeam[fromId].push(item);
       });
       const itemsHtml = Object.keys(byTeam).length > 0
-        ? Object.entries(byTeam).map(([toId, teamItems]) => {
-            const toLabel = teamMap[toId] || `Time ${toId}`;
+        ? Object.entries(byTeam).map(([fromId, teamItems]) => {
+            const fromLabel = teamMap[fromId] || `Time ${fromId}`;
             const rows = teamItems.map(item => {
               const detail = formatMultiTradeItemDetail(item);
-              const fromLabel = teamMap[String(item.from_team_id)];
-              const fromHtml = fromLabel ? `<span style="color:var(--text-3);font-size:11px">de ${fromLabel} → </span>` : '';
-              return `<div style="font-size:12px;color:var(--text);padding:2px 0">${fromHtml}${detail}</div>`;
+              const toLabel = teamMap[String(item.to_team_id)];
+              const toHtml = toLabel ? `<span style="color:var(--text-3);font-size:11px"> → para ${toLabel}</span>` : '';
+              return `<div style="font-size:12px;color:var(--text);padding:2px 0">${detail}${toHtml}</div>`;
             }).join('');
-            return `<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--red);margin-bottom:2px">${toLabel} recebe:</div>${rows}</div>`;
+            return `<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--red);margin-bottom:2px">${fromLabel} envia:</div>${rows}</div>`;
           }).join('')
         : '<span style="color:var(--text-3);font-size:12px">Nenhum item</span>';
 
@@ -1752,11 +1754,11 @@ async function showTrades() {
   ${tr.notes ? `<div class="pun-card-meta" style="margin-top:6px"><i class="bi bi-chat-left-text me-1"></i>${tr.notes}</div>` : ''}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">
     <div>
-      <div style="font-size:11px;font-weight:600;color:var(--red);margin-bottom:4px">${tr.to_city} ${tr.to_name} recebe:</div>
+      <div style="font-size:11px;font-weight:600;color:var(--red);margin-bottom:4px">${tr.from_city} ${tr.from_name} envia:</div>
       ${offerHtml}
     </div>
     <div>
-      <div style="font-size:11px;font-weight:600;color:var(--red);margin-bottom:4px">${tr.from_city} ${tr.from_name} recebe:</div>
+      <div style="font-size:11px;font-weight:600;color:var(--red);margin-bottom:4px">${tr.to_city} ${tr.to_name} envia:</div>
       ${requestHtml}
     </div>
   </div>

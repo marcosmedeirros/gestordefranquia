@@ -732,7 +732,7 @@ try {
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/trade-value.js?v=20260716"></script>
-  <script src="/js/trades.js?v=20260722"></script>
+  <script src="/js/trades.js?v=20260723"></script>
   <script src="/js/pwa.js?v=20260130"></script>
   <script>
     // Mobile sidebar
