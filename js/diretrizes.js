@@ -490,9 +490,40 @@ async function loadExistingDirective() {
       if (data.directive.technical_model) {
         modelMeta = { ...modelMeta, currentModel: data.directive.technical_model };
       }
+      return;
     }
+    // Sem diretriz para este prazo: usa a tática que o GM montou no dia a dia,
+    // para ele revisar em vez de digitar tudo de novo. O que já foi enviado
+    // nunca é sobrescrito — por isso o return acima.
+    await aplicarTaticaSalva();
   } catch (err) {
     console.error('Erro ao carregar diretriz:', err);
+  }
+}
+
+/** Traz o rascunho de tatica.php para o formulário de envio. */
+async function aplicarTaticaSalva() {
+  try {
+    const t = await api('tactics.php?action=get');
+    if (!t.success || !t.tactics) return;
+
+    // applyDirectiveToForm espera os minutos em player_minutes; o formato é o
+    // mesmo, então dá para reaproveitar a função inteira.
+    applyDirectiveToForm({ ...t.tactics, player_minutes: t.tactics.player_minutes || {} });
+
+    const form = document.getElementById('form-diretrizes');
+    if (form && !document.getElementById('aviso-tatica')) {
+      const box = document.createElement('div');
+      box.id = 'aviso-tatica';
+      box.className = 'alert alert-info py-2 px-3 mb-3';
+      box.style.fontSize = '13px';
+      box.innerHTML = '<i class="bi bi-clipboard2-pulse me-2"></i>'
+        + 'Preenchido com a sua <strong>Tática</strong>. Revise e envie — '
+        + 'ajustes feitos aqui valem só para esta diretriz.';
+      form.insertBefore(box, form.firstChild);
+    }
+  } catch (err) {
+    // Sem tática salva a página segue em branco, como antes.
   }
 }
 

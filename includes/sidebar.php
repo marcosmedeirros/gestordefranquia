@@ -57,6 +57,7 @@ if (!function_exists('sbActive')) {
         <a href="/rankings.php"<?= sbActive('rankings.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-fill"></i> Rankings</a>
         <a href="/history.php"<?= sbActive('history.php', $__sbCurrent) ?>><i class="bi bi-clock-history"></i> Histórico</a>
         <a href="/hall-da-fama.php"<?= sbActive('hall-da-fama.php', $__sbCurrent) ?>><i class="bi bi-award-fill"></i> Hall da Fama</a>
+        <a href="/tatica.php"<?= sbActive('tatica.php', $__sbCurrent) ?>><i class="bi bi-clipboard2-pulse"></i> Tática</a>
         <a href="/diretrizes.php"<?= sbActive('diretrizes.php', $__sbCurrent) ?>><i class="bi bi-clipboard-data"></i> Diretrizes</a>
         <a href="/mundo-fba.php"<?= sbActive('mundo-fba.php', $__sbCurrent) ?>><i class="bi bi-globe2"></i> Mundo FBA</a>
         <a href="/estatisticas.php"<?= sbActive('estatisticas.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>

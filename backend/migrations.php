@@ -1017,6 +1017,42 @@ function runMigrations() {
         $errors[] = "criar_app_flags: " . $e->getMessage();
     }
 
+    // Rascunho tatico do time: o que o GM ajusta no dia a dia em tatica.php.
+    // Nao e vinculado a deadline — e o estado atual da equipe, que alimenta o
+    // formulario de diretrizes na hora do envio oficial.
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS team_tactics (
+            team_id              INT NOT NULL PRIMARY KEY,
+            starter_1_id         INT NULL,
+            starter_2_id         INT NULL,
+            starter_3_id         INT NULL,
+            starter_4_id         INT NULL,
+            starter_5_id         INT NULL,
+            bench_1_id           INT NULL,
+            bench_2_id           INT NULL,
+            bench_3_id           INT NULL,
+            gleague_1_id         INT NULL,
+            gleague_2_id         INT NULL,
+            pace                 VARCHAR(50) NULL,
+            offensive_rebound    VARCHAR(50) NULL,
+            offensive_aggression VARCHAR(50) NULL,
+            defensive_focus      VARCHAR(50) NULL,
+            defensive_rebound    VARCHAR(50) NULL,
+            rotation_style       VARCHAR(50) NULL,
+            game_style           VARCHAR(50) NULL,
+            offense_style        VARCHAR(50) NULL,
+            rotation_players     INT NULL,
+            veteran_focus        INT NULL,
+            technical_model      VARCHAR(60) NULL,
+            playbook             TEXT NULL,
+            notes                TEXT NULL,
+            player_minutes       TEXT NULL,
+            updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (PDOException $e) {
+        $errors[] = "criar_team_tactics: " . $e->getMessage();
+    }
+
     // Estatisticas por jogador por temporada. Uma linha por jogador/temporada,
     // sobrescrita a cada atualizacao — o historico e a serie de temporadas.
     try {

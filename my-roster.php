@@ -732,6 +732,9 @@ if ($teamId) {
                     <a href="/atualizar-elenco.php" class="btn-ghost" title="Atualizar OVR, idade, atributos e estatísticas">
                         <i class="bi bi-arrow-repeat"></i> Atualizar
                     </a>
+                    <a href="/tatica.php" class="btn-ghost" title="Quinteto, minutos e sistema de jogo">
+                        <i class="bi bi-clipboard2-pulse"></i> Tática
+                    </a>
                     <!-- IA -->
                     <button id="btn-ai-analysis" class="btn-ghost-blue" type="button">
                         <i class="bi bi-robot"></i> Análise IA
