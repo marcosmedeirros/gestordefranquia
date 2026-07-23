@@ -105,6 +105,11 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			--text: #f0f0f3;
 			--text-2: #868690;
 			--text-3: #7d7d85;
+			/* A comparacao usa --green para marcar o melhor valor, mas a
+			   variavel nunca foi declarada aqui: o destaque caia no herdado e
+			   nenhuma linha ficava verde. */
+			--green: #22c55e;
+			--amber: #f59e0b;
 			--sidebar-w: 260px;
 			--font-display: 'Montserrat', sans-serif;
 			--font-body: 'Montserrat', sans-serif;
@@ -865,11 +870,17 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 		modal.show();
 		try {
-			const [r1, r2] = await Promise.all([
+			// As estatisticas vem de outro endpoint; se falharem, a comparacao
+			// continua funcionando so com os atributos.
+			const [r1, r2, s1, s2] = await Promise.all([
 				fetch(`/api/team.php?action=player_details&player_id=${id1}`).then(r => r.json()),
-				fetch(`/api/team.php?action=player_details&player_id=${id2}`).then(r => r.json())
+				fetch(`/api/team.php?action=player_details&player_id=${id2}`).then(r => r.json()),
+				fetch(`/api/player_stats.php?action=season_stats&player_id=${id1}`).then(r => r.json()).catch(() => null),
+				fetch(`/api/player_stats.php?action=season_stats&player_id=${id2}`).then(r => r.json()).catch(() => null)
 			]);
 			const p1 = r1.player || {}, p2 = r2.player || {};
+			const c1s = (s1 && s1.success && s1.career && s1.career.games > 0) ? s1.career : null;
+			const c2s = (s2 && s2.success && s2.career && s2.career.games > 0) ? s2.career : null;
 			const num = v => (v === null || v === undefined || v === '') ? null : Number(v);
 			const cellHead = (p, r) => {
 				const photo = getPlayerPhotoUrl(p);
@@ -882,7 +893,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			};
 			const cmpRow = (label, v1, v2, better) => {
 				// better: 'high' | 'low' | null
-				const n1 = num(v1), n2 = num(v2);
+				// As estatisticas chegam formatadas em pt-BR ("21,3"); Number()
+				// nao entende a virgula e devolveria NaN, matando a comparacao.
+				const paraNum = v => {
+					if (v === null || v === undefined || v === '') return null;
+					const n = Number(String(v).replace(',', '.'));
+					return Number.isFinite(n) ? n : null;
+				};
+				const n1 = paraNum(v1), n2 = paraNum(v2);
 				let c1 = 'var(--text)', c2 = 'var(--text)';
 				if (better && n1 !== null && n2 !== null && n1 !== n2) {
 					const win1 = better === 'high' ? n1 > n2 : n1 < n2;
@@ -908,8 +926,25 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					${cmpRow('Pos. Sec.', p1.secondary_position || '-', p2.secondary_position || '-', null)}
 					${cmpRow('Badges', p1.badges_count ?? 0, p2.badges_count ?? 0, 'high')}
 				</div>
+				${(c1s || c2s) ? `
+				<div style="display:flex;align-items:center;gap:8px;padding:11px 16px;background:var(--panel-2);border-top:1px solid var(--border)">
+					<i class="bi bi-bar-chart-fill" style="color:var(--red);font-size:13px"></i>
+					<span style="font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--text-2)">Estatísticas de carreira</span>
+					<span style="font-size:10px;color:var(--text-3);margin-left:auto">médias por jogo</span>
+				</div>
+				<div>
+					${cmpRow('PTS', c1s ? pg(c1s.pts_pg) : null, c2s ? pg(c2s.pts_pg) : null, 'high')}
+					${cmpRow('REB', c1s ? pg(c1s.reb_pg) : null, c2s ? pg(c2s.reb_pg) : null, 'high')}
+					${cmpRow('AST', c1s ? pg(c1s.ast_pg) : null, c2s ? pg(c2s.ast_pg) : null, 'high')}
+					${cmpRow('ROU', c1s ? pg(c1s.stl_pg) : null, c2s ? pg(c2s.stl_pg) : null, 'high')}
+					${cmpRow('TOC', c1s ? pg(c1s.blk_pg) : null, c2s ? pg(c2s.blk_pg) : null, 'high')}
+					${cmpRow('MIN', c1s ? pg(c1s.min_pg) : null, c2s ? pg(c2s.min_pg) : null, 'high')}
+					${cmpRow('Jogos', c1s ? c1s.games : null, c2s ? c2s.games : null, 'high')}
+					${cmpRow('Temporadas', c1s ? c1s.temporadas : null, c2s ? c2s.temporadas : null, null)}
+				</div>` : ''}
 				<div style="padding:14px 16px;border-top:1px solid var(--border);text-align:center">
-					<span style="font-size:11px;color:var(--text-3)">Verde = melhor valor. Idade menor é considerada melhor.</span>
+					<span style="font-size:11px;color:var(--text-3)">Verde = melhor valor. Idade menor é considerada melhor.
+					${(c1s || c2s) && !(c1s && c2s) ? '<br>Um dos jogadores ainda não tem estatísticas registradas.' : ''}</span>
 				</div>`;
 		} catch (e) {
 			content.innerHTML = '<div style="padding:24px;color:var(--red);text-align:center">Erro ao carregar comparação.</div>';
