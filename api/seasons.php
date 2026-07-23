@@ -3,6 +3,7 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
+require_once dirname(__DIR__) . '/backend/helpers.php'; // congelarRankingDaSprint()
 
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
@@ -2182,6 +2183,11 @@ try {
 
             // 8. Resetar tapas dos times
             $pdo->exec("UPDATE teams SET tapas = 0 WHERE league = '$league'");
+
+            // 8.5 Congelar a classificacao ANTES de zerar. Sem isto, o ciclo
+            // inteiro se perdia: os pontos eram apagados e nao havia como
+            // saber quem tinha ganho a sprint.
+            congelarRankingDaSprint($pdo, $league, 'Fim da sprint');
 
             // 9. Zerar ranking (pontos e tÃ­tulos) e limpar histÃ³rico detalhado da liga
             if (columnExists($pdo, 'teams', 'ranking_points')) {

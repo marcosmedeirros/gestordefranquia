@@ -1045,3 +1045,75 @@ function isValidAccentColor(?string $color): bool {
 function accentColorHex(?string $accentColor): string {
     return isValidAccentColor($accentColor) ? ltrim($accentColor, '#') : 'fc0025';
 }
+
+/**
+ * Congela a classificação atual do ranking de uma liga.
+ *
+ * Chamado ao fechar a sprint (antes de zerar os pontos) e pelo botão manual do
+ * admin. Sem isto a pontuação do ciclo se perdia por completo — e é também a
+ * referência da variação de posição mostrada em rankings.php.
+ *
+ * Nunca lança: congelar é acessório, não pode derrubar o reset da temporada.
+ *
+ * @return int quantos times foram congelados
+ */
+function congelarRankingDaSprint(PDO $pdo, string $league, ?string $label = null): int
+{
+    $league = strtoupper(trim($league));
+    if (!in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) return 0;
+
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS ranking_snapshots (
+            id            INT AUTO_INCREMENT PRIMARY KEY,
+            league        VARCHAR(20) NOT NULL,
+            sprint_id     INT NULL,
+            sprint_number INT NULL,
+            team_id       INT NOT NULL,
+            position      INT NOT NULL,
+            points        INT NOT NULL DEFAULT 0,
+            titles        INT NOT NULL DEFAULT 0,
+            label         VARCHAR(120) NULL,
+            created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_sprint_team (sprint_id, team_id),
+            KEY idx_liga_sprint (league, sprint_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $stSp = $pdo->prepare("SELECT id, sprint_number FROM sprints WHERE league = ?
+                               ORDER BY sprint_number DESC LIMIT 1");
+        $stSp->execute([$league]);
+        $sprint = $stSp->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        $temPts = false; $temTit = false;
+        foreach ($pdo->query("SHOW COLUMNS FROM teams") as $c) {
+            if ($c['Field'] === 'ranking_points') $temPts = true;
+            if ($c['Field'] === 'ranking_titles') $temTit = true;
+        }
+        $selPts = $temPts ? 'COALESCE(t.ranking_points,0)' : '0';
+        $selTit = $temTit ? 'COALESCE(t.ranking_titles,0)' : '0';
+
+        $st = $pdo->prepare("SELECT t.id AS team_id, {$selPts} AS pts, {$selTit} AS tit
+                             FROM teams t WHERE t.league = ?
+                             ORDER BY pts DESC, tit DESC, t.city, t.name");
+        $st->execute([$league]);
+        $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+        if (!$linhas) return 0;
+
+        // Uma sprint que ja tinha sido congelada e regravada: o estado final
+        // manda, nao o de uma tentativa anterior.
+        $ins = $pdo->prepare("INSERT INTO ranking_snapshots
+            (league, sprint_id, sprint_number, team_id, position, points, titles, label)
+            VALUES (?,?,?,?,?,?,?,?)
+            ON DUPLICATE KEY UPDATE position=VALUES(position), points=VALUES(points),
+                                    titles=VALUES(titles), label=VALUES(label)");
+        $pos = 0;
+        foreach ($linhas as $r) {
+            $pos++;
+            $ins->execute([$league, $sprint['id'] ?? null, $sprint['sprint_number'] ?? null,
+                           (int)$r['team_id'], $pos, (int)$r['pts'], (int)$r['tit'], $label]);
+        }
+        return $pos;
+    } catch (Throwable $e) {
+        error_log('congelarRankingDaSprint: ' . $e->getMessage());
+        return 0;
+    }
+}

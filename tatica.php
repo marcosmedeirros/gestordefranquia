@@ -308,10 +308,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </div>
 
     <div class="savebar">
-      <button class="btn" id="btnSalvar"><i class="bi bi-save2"></i> Salvar tática</button>
+      <button class="btn" id="btnSalvar"><i class="bi bi-save2"></i> Salvar agora</button>
       <a class="btn ghost" href="diretrizes.php"><i class="bi bi-send"></i> Ir para o envio</a>
       <button class="btn ghost" id="btnRepetir" title="Preenche com a última diretriz enviada"><i class="bi bi-arrow-counterclockwise"></i> Repetir a anterior</button>
-      <span class="st" id="statusSalvar"></span>
+      <span class="st" id="statusSalvar"><i class="bi bi-cloud-check"></i> Salva automaticamente</span>
     </div>
     <div id="msgSalvar"></div>
   </div>
@@ -338,6 +338,11 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
 let ELENCO = [], SUGERIDO = null, ULTIMA = null, SLOT = 'regular';
+// Estado do autosave. Declarado aqui porque carregar() usa antes do fim do
+// arquivo — com let mais abaixo daria erro de acesso antes da inicialização.
+let sujo = false;
+let carregando = true; // durante a carga os campos mudam sozinhos: não é edição
+let timerAuto = null;
 
 function msg(tipo, texto) {
   $('msgSalvar').innerHTML = `<div class="aviso ${tipo}" style="margin-top:12px"><i class="bi bi-${
@@ -447,6 +452,7 @@ function aplicarMinutos(mapa) {
 /* ── Carga ── */
 async function carregar(slot) {
   SLOT = slot || SLOT;
+  carregando = true; // trocar de slot repopula os campos: não é edição
   $('carregando').style.display = '';
   $('conteudo').style.display = 'none';
   $('msgSalvar').innerHTML = '';
@@ -501,6 +507,9 @@ async function carregar(slot) {
   $('btnRepetir').style.display = ULTIMA ? '' : 'none';
   $('carregando').style.display = 'none';
   $('conteudo').style.display = '';
+  // Só a partir daqui as mudanças são do usuário, não da carga.
+  carregando = false;
+  sujo = false;
 }
 
 function aplicarSugestao() {
@@ -539,50 +548,92 @@ $('btnRepetir').addEventListener('click', () => {
 });
 
 /* ── Salvar ── */
-$('btnSalvar').addEventListener('click', async () => {
-  const btn = $('btnSalvar');
-  const { dup } = atualizarQuinteto();
-  if (dup.length) { msg('err', 'Corrija o quinteto: há jogador repetido.'); return; }
-
-  const total = somarMinutos();
-  if (total !== 240) {
-    const ok = confirm(`Os minutos somam ${total}, não 240.\n\nSalvar mesmo assim? A diretriz oficial exige exatamente 240.`);
-    if (!ok) return;
-  }
-
+/* ── Gravação ──────────────────────────────────────
+   Uma função só, usada pelo autosave e pelo botão. O autosave nao interrompe
+   com confirm: quinteto repetido ou minutos fora de 240 sao avisados na tela,
+   mas o rascunho continua sendo guardado — quem valida de verdade e o envio
+   da diretriz. */
+function montarPayload() {
   const payload = { action: 'save', slot: SLOT, player_minutes: {} };
   document.querySelectorAll('[data-f]').forEach(el => { payload[el.dataset.f] = el.value || null; });
   document.querySelectorAll('#minLista input[data-min]').forEach(i => {
     payload.player_minutes[i.dataset.min] = parseInt(i.value, 10) || 0;
   });
+  return payload;
+}
 
-  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Salvando…';
+function statusSalvamento(estado, texto) {
+  const el = $('statusSalvar');
+  const icones = { salvando: 'arrow-repeat', ok: 'cloud-check', erro: 'exclamation-triangle' };
+  el.innerHTML = `<i class="bi bi-${icones[estado] || 'cloud-check'}"></i> ${texto}`;
+  el.style.color = estado === 'erro' ? '#f87171' : '';
+}
+
+async function gravar({ silencioso = false } = {}) {
+  atualizarQuinteto();
+  somarMinutos();
+  statusSalvamento('salvando', 'Salvando…');
   try {
-    const r = await fetch('/api/tactics.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const r = await fetch('/api/tactics.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(montarPayload())
+    });
     const d = await r.json();
-    if (!r.ok || !d.success) msg('err', esc(d.error || 'Erro ao salvar.'));
-    else {
-      const nome = document.querySelector(`.slot-btn[data-slot="${SLOT}"]`)?.textContent.trim() || 'Tática';
-      msg('ok', `<strong>${esc(nome)}</strong> salva. Ao abrir <strong>Diretrizes</strong>, escolha esta tática para o formulário vir preenchido com ela.`);
-      $('statusSalvar').textContent = 'Salvo às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      document.querySelector(`.slot-btn[data-slot="${SLOT}"]`)?.classList.add('saved');
-      sujo = false; // acabou de gravar: nao precisa mais avisar ao trocar de slot
+    if (!r.ok || !d.success) {
+      statusSalvamento('erro', 'Não salvou');
+      if (!silencioso) msg('err', esc(d.error || 'Erro ao salvar.'));
+      return false;
     }
-  } catch (e) { msg('err', 'Erro ao salvar.'); }
-  finally { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save2"></i> Salvar tática'; }
-});
+    const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    statusSalvamento('ok', 'Salvo às ' + hora);
+    document.querySelector(`.slot-btn[data-slot="${SLOT}"]`)?.classList.add('saved');
+    sujo = false;
+    if (!silencioso) {
+      const nome = document.querySelector(`.slot-btn[data-slot="${SLOT}"]`)?.textContent.trim() || 'Tática';
+      msg('ok', `<strong>${esc(nome)}</strong> salva. Em <strong>Diretrizes</strong>, escolha esta tática para o formulário vir preenchido com ela.`);
+    }
+    return true;
+  } catch (e) {
+    statusSalvamento('erro', 'Sem conexão');
+    if (!silencioso) msg('err', 'Erro ao salvar.');
+    return false;
+  }
+}
 
-// Troca de slot. Avisa antes de sair com alteracao nao salva.
-let sujo = false;
-document.addEventListener('input', e => { if (e.target.closest('#conteudo')) sujo = true; });
-document.addEventListener('change', e => { if (e.target.closest('#conteudo')) sujo = true; });
+// Autosave com espera: sem debounce, arrastar um campo de minutos dispararia
+// uma requisicao por tecla.
+function agendarAutosave() {
+  sujo = true;
+  statusSalvamento('salvando', 'Alterações pendentes…');
+  clearTimeout(timerAuto);
+  timerAuto = setTimeout(() => gravar({ silencioso: true }), 1200);
+}
 
-$('slots').addEventListener('click', e => {
+$('btnSalvar').addEventListener('click', () => gravar());
+
+// Qualquer alteração agenda o autosave.
+['input', 'change'].forEach(ev =>
+  document.addEventListener(ev, e => {
+    if (carregando) return;
+    if (e.target.closest('#conteudo')) agendarAutosave();
+  })
+);
+
+// Troca de slot: grava o pendente antes de sair, em vez de perguntar.
+$('slots').addEventListener('click', async e => {
   const b = e.target.closest('.slot-btn');
   if (!b || b.dataset.slot === SLOT) return;
-  if (sujo && !confirm('Você tem alterações não salvas nesta tática. Trocar mesmo assim?')) return;
-  sujo = false;
+  clearTimeout(timerAuto);
+  if (sujo) await gravar({ silencioso: true });
   carregar(b.dataset.slot);
+});
+
+// Fechar a aba com algo pendente: grava sem esperar a resposta.
+window.addEventListener('beforeunload', () => {
+  if (!sujo) return;
+  clearTimeout(timerAuto);
+  navigator.sendBeacon?.('/api/tactics.php',
+    new Blob([JSON.stringify(montarPayload())], { type: 'application/json' }));
 });
 
 carregar('regular');

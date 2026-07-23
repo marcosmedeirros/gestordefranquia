@@ -978,32 +978,11 @@ try {
                 break;
             }
             $rotulo = trim((string)($_REQUEST['label'] ?? ''));
-
-            $stSp = $pdo->prepare("SELECT id, sprint_number FROM sprints WHERE league = ? ORDER BY sprint_number DESC LIMIT 1");
-            $stSp->execute([$lg]);
-            $sprint = $stSp->fetch(PDO::FETCH_ASSOC) ?: null;
-
-            $stR = $pdo->prepare("SELECT t.id AS team_id, COALESCE(t.ranking_points,0) AS pts,
-                                         COALESCE(t.ranking_titles,0) AS tit
-                                  FROM teams t WHERE t.league = ?
-                                  ORDER BY pts DESC, tit DESC, t.city, t.name");
-            $stR->execute([$lg]);
-            $linhas = $stR->fetchAll(PDO::FETCH_ASSOC);
-            if (!$linhas) { echo json_encode(['success' => false, 'error' => 'Nenhum time nesta liga']); break; }
-
-            $ins = $pdo->prepare("INSERT INTO ranking_snapshots
-                (league, sprint_id, sprint_number, team_id, position, points, titles, label)
-                VALUES (?,?,?,?,?,?,?,?)
-                ON DUPLICATE KEY UPDATE position=VALUES(position), points=VALUES(points),
-                                        titles=VALUES(titles), label=VALUES(label)");
-            $pos = 0;
-            foreach ($linhas as $r) {
-                $pos++;
-                $ins->execute([$lg, $sprint['id'] ?? null, $sprint['sprint_number'] ?? null,
-                               (int)$r['team_id'], $pos, (int)$r['pts'], (int)$r['tit'], $rotulo ?: null]);
-            }
-            echo json_encode(['success' => true, 'saved' => $pos,
-                              'sprint' => $sprint['sprint_number'] ?? null]);
+            // Mesma funcao usada no fim da sprint, para o resultado ser igual.
+            $n = congelarRankingDaSprint($pdo, $lg, $rotulo ?: 'Congelado manualmente');
+            echo json_encode($n > 0
+                ? ['success' => true, 'saved' => $n]
+                : ['success' => false, 'error' => 'Nenhum time nesta liga ou falha ao congelar']);
             break;
         }
 

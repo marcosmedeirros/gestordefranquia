@@ -893,3 +893,89 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadExistingDirective();
   }
 });
+
+/* ── Autosave do rascunho ──────────────────────────────────
+   Toda alteração no formulário é guardada na tática (slot escolhido), para o
+   trabalho não se perder ao fechar a página.
+
+   O ENVIO da diretriz continua manual e deliberado: no modo deadline, salvar
+   sozinho publicaria uma diretriz oficial incompleta a cada tecla digitada.
+   O que o autosave faz aqui é preservar o rascunho — quem confirma o envio
+   continua sendo o GM, pelo botão. */
+(function () {
+  const form = document.getElementById('form-diretrizes');
+  if (!form) return;
+
+  let timer = null, pendente = false, pronto = false;
+
+  // Espera a carga inicial terminar: applyDirectiveToForm mexe nos campos e
+  // dispararia o autosave com os valores que acabaram de ser lidos.
+  setTimeout(() => { pronto = true; }, 2500);
+
+  function montarPayloadTatica() {
+    const fd = new FormData(form);
+    const p = { action: 'save', slot: (document.getElementById('tactic-slot')?.value || 'regular'), player_minutes: {} };
+    ['pace','offensive_rebound','offensive_aggression','defensive_focus','defensive_rebound',
+     'rotation_style','game_style','offense_style','rotation_players','veteran_focus',
+     'technical_model','playbook','notes',
+     'starter_1_id','starter_2_id','starter_3_id','starter_4_id','starter_5_id',
+     'gleague_1_id','gleague_2_id'].forEach(k => { p[k] = fd.get(k) || null; });
+
+    // Banco: o formulário usa checkboxes, a tática guarda três posições.
+    const banco = [...form.querySelectorAll('input[name="bench_players[]"]:checked')].map(i => i.value);
+    p.bench_1_id = banco[0] || null;
+    p.bench_2_id = banco[1] || null;
+    p.bench_3_id = banco[2] || null;
+
+    form.querySelectorAll('[data-player-id]').forEach(i => {
+      const v = parseInt(i.value, 10);
+      if (!isNaN(v)) p.player_minutes[i.dataset.playerId] = v;
+    });
+    return p;
+  }
+
+  function marcarStatus(txt, erro) {
+    let el = document.getElementById('autosave-status');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'autosave-status';
+      el.style.cssText = 'font-size:11.5px;color:var(--text-3,#7d7d85);margin-top:8px;display:flex;align-items:center;gap:5px';
+      form.appendChild(el);
+    }
+    el.innerHTML = `<i class="bi bi-${erro ? 'exclamation-triangle' : 'cloud-check'}"></i> ${txt}`;
+    el.style.color = erro ? '#f87171' : '';
+  }
+
+  async function gravarRascunho() {
+    if (!pendente) return;
+    pendente = false;
+    try {
+      const r = await fetch('/api/tactics.php', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(montarPayloadTatica())
+      });
+      const d = await r.json();
+      marcarStatus(d.success
+        ? 'Rascunho salvo às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        : 'Não foi possível salvar o rascunho', !d.success);
+    } catch (e) {
+      marcarStatus('Sem conexão — rascunho não salvo', true);
+    }
+  }
+
+  ['input', 'change'].forEach(ev => form.addEventListener(ev, (e) => {
+    if (!pronto) return;
+    if (e.target.closest('#tatica-slots')) return; // carregar tatica nao e edicao
+    pendente = true;
+    marcarStatus('Alterações pendentes…');
+    clearTimeout(timer);
+    timer = setTimeout(gravarRascunho, 1500);
+  }));
+
+  window.addEventListener('beforeunload', () => {
+    if (!pendente) return;
+    clearTimeout(timer);
+    navigator.sendBeacon?.('/api/tactics.php',
+      new Blob([JSON.stringify(montarPayloadTatica())], { type: 'application/json' }));
+  });
+})();
