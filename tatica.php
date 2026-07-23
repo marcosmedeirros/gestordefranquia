@@ -114,6 +114,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .aviso.ok{background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.28);color:var(--green)}
 .aviso.err{background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.3);color:#f87171}
 
+/* Slots de tática */
+.slots{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:18px 0 14px}
+.slot-btn{position:relative;padding:9px 18px;border-radius:999px;background:var(--panel);border:1px solid var(--border);color:var(--text-2);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:all var(--t) var(--ease)}
+.slot-btn:hover{border-color:var(--border-md);color:var(--text)}
+.slot-btn.active{background:var(--red);border-color:var(--red);color:#fff}
+.slot-btn .dot{display:none;position:absolute;top:6px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--green)}
+.slot-btn.saved .dot{display:block}
+.slot-btn.active .dot{background:#fff}
+.slots-hint{font-size:11px;color:var(--text-3);margin-left:auto}
+@media (max-width:760px){.slots-hint{margin-left:0;width:100%}}
+
 /* Quinteto */
 .court{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
 .slot{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px 10px;text-align:center;transition:border-color var(--t) var(--ease)}
@@ -214,6 +225,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <?= $deadline['phase'] === 'playoffs' ? ' (playoffs)' : '' ?>.</div>
   </div>
   <?php endif; ?>
+
+  <div class="slots" id="slots">
+    <?php foreach (['regular' => 'Temporada Regular', 'playoffs' => 'Playoffs', 'outra' => 'Outra'] as $k => $lbl): ?>
+      <button type="button" class="slot-btn<?= $k === 'regular' ? ' active' : '' ?>" data-slot="<?= $k ?>">
+        <?= $lbl ?><span class="dot" title="Já configurada"></span>
+      </button>
+    <?php endforeach; ?>
+    <span class="slots-hint">Três táticas salvas em paralelo. Na diretriz você escolhe qual usar.</span>
+  </div>
 
   <div id="carregando" class="panel" style="text-align:center;color:var(--text-3);font-size:13px">Carregando elenco…</div>
 
@@ -317,7 +337,7 @@ const POSICOES = ['PG','SG','SF','PF','C'];
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-let ELENCO = [], SUGERIDO = null, ULTIMA = null;
+let ELENCO = [], SUGERIDO = null, ULTIMA = null, SLOT = 'regular';
 
 function msg(tipo, texto) {
   $('msgSalvar').innerHTML = `<div class="aviso ${tipo}" style="margin-top:12px"><i class="bi bi-${
@@ -425,14 +445,26 @@ function aplicarMinutos(mapa) {
 }
 
 /* ── Carga ── */
-async function carregar() {
-  const r = await fetch('/api/tactics.php?action=get');
+async function carregar(slot) {
+  SLOT = slot || SLOT;
+  $('carregando').style.display = '';
+  $('conteudo').style.display = 'none';
+  $('msgSalvar').innerHTML = '';
+
+  const r = await fetch('/api/tactics.php?action=get&slot=' + encodeURIComponent(SLOT));
   const d = await r.json();
   if (!d.success) { $('carregando').textContent = d.error || 'Erro ao carregar.'; return; }
 
   ELENCO = d.players || [];
   SUGERIDO = d.suggested || null;
   ULTIMA = d.last || null;
+
+  // Marca com ponto verde os slots que ja tem tatica salva.
+  const salvos = d.saved_slots || {};
+  document.querySelectorAll('.slot-btn').forEach(b => {
+    b.classList.toggle('saved', !!salvos[b.dataset.slot]);
+    b.classList.toggle('active', b.dataset.slot === SLOT);
+  });
 
   if (!ELENCO.length) { $('carregando').textContent = 'Seu elenco está vazio.'; return; }
 
@@ -452,6 +484,9 @@ async function carregar() {
       if (t[f] !== null && t[f] !== undefined) el.value = t[f];
     });
     aplicarMinutos(t.player_minutes || {});
+    // Um slot novo abre copiando a tatica regular, para nao comecar do zero.
+    if (t._origem === 'regular') msg('info', 'Começando a partir da tática da <strong>Temporada Regular</strong>. Ajuste e salve para separar as duas.');
+    else if (t._origem === 'perfil') msg('info', 'Preenchido com o perfil tático que o seu time já tinha em Diretrizes.');
   } else if (SUGERIDO) {
     // Primeira vez: abre com quinteto E minutos prontos, para o GM so ajustar.
     aplicarSugestao();
@@ -515,7 +550,7 @@ $('btnSalvar').addEventListener('click', async () => {
     if (!ok) return;
   }
 
-  const payload = { action: 'save', player_minutes: {} };
+  const payload = { action: 'save', slot: SLOT, player_minutes: {} };
   document.querySelectorAll('[data-f]').forEach(el => { payload[el.dataset.f] = el.value || null; });
   document.querySelectorAll('#minLista input[data-min]').forEach(i => {
     payload.player_minutes[i.dataset.min] = parseInt(i.value, 10) || 0;
@@ -527,14 +562,30 @@ $('btnSalvar').addEventListener('click', async () => {
     const d = await r.json();
     if (!r.ok || !d.success) msg('err', esc(d.error || 'Erro ao salvar.'));
     else {
-      msg('ok', 'Tática salva. Ao abrir <strong>Diretrizes</strong> para enviar, o formulário já virá com estes dados.');
+      const nome = document.querySelector(`.slot-btn[data-slot="${SLOT}"]`)?.textContent.trim() || 'Tática';
+      msg('ok', `<strong>${esc(nome)}</strong> salva. Ao abrir <strong>Diretrizes</strong>, escolha esta tática para o formulário vir preenchido com ela.`);
       $('statusSalvar').textContent = 'Salvo às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      document.querySelector(`.slot-btn[data-slot="${SLOT}"]`)?.classList.add('saved');
+      sujo = false; // acabou de gravar: nao precisa mais avisar ao trocar de slot
     }
   } catch (e) { msg('err', 'Erro ao salvar.'); }
   finally { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save2"></i> Salvar tática'; }
 });
 
-carregar();
+// Troca de slot. Avisa antes de sair com alteracao nao salva.
+let sujo = false;
+document.addEventListener('input', e => { if (e.target.closest('#conteudo')) sujo = true; });
+document.addEventListener('change', e => { if (e.target.closest('#conteudo')) sujo = true; });
+
+$('slots').addEventListener('click', e => {
+  const b = e.target.closest('.slot-btn');
+  if (!b || b.dataset.slot === SLOT) return;
+  if (sujo && !confirm('Você tem alterações não salvas nesta tática. Trocar mesmo assim?')) return;
+  sujo = false;
+  carregar(b.dataset.slot);
+});
+
+carregar('regular');
 </script>
 </body>
 </html>

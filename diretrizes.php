@@ -243,6 +243,14 @@ $isElite = ($team['league'] ?? '') === 'ELITE';
         .sc-head { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
         .sc-icon { width: 30px; height: 30px; border-radius: 8px; background: var(--red-soft); border: 1px solid var(--border-red); display: flex; align-items: center; justify-content: center; color: var(--red); font-size: 14px; flex-shrink: 0; }
         .sc-title { font-size: 13px; font-weight: 700; }
+        .sc-sub { font-size: 11.5px; color: var(--text-2); margin-top: 2px; }
+        /* Botoes de carregar tatica */
+        .btn-tatica { padding: 8px 16px; border-radius: 999px; background: var(--panel-2);
+            border: 1px solid var(--border-md); color: var(--text-2); font-family: inherit;
+            font-size: 12.5px; font-weight: 600; cursor: pointer; transition: all .2s; }
+        .btn-tatica:hover { border-color: var(--red); color: var(--red); }
+        .btn-tatica.active { background: var(--red); border-color: var(--red); color: #fff; }
+        .btn-tatica:disabled { opacity: .45; cursor: not-allowed; }
         .sc-body { padding: 20px; }
 
         /* Form fields */
@@ -418,6 +426,25 @@ $isElite = ($team['league'] ?? '') === 'ELITE';
 
             <form id="form-diretrizes">
                 <input type="hidden" id="deadline-id" value="<?= ($directiveMode === 'deadline' && $deadline) ? (int)$deadline['id'] : '' ?>">
+
+                <?php // Carrega uma das taticas montadas em tatica.php. ?>
+                <div class="sc" id="tatica-picker" style="display:none">
+                    <div class="sc-head">
+                        <div class="sc-icon"><i class="bi bi-clipboard2-pulse"></i></div>
+                        <div>
+                            <div class="sc-title">Carregar tática</div>
+                            <div class="sc-sub">Traz o que você montou em <a href="tatica.php" style="color:var(--red)">Tática</a>. Ajustes aqui valem só para este envio.</div>
+                        </div>
+                    </div>
+                    <div class="sc-body">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap" id="tatica-slots">
+                            <?php foreach (['regular' => 'Temporada Regular', 'playoffs' => 'Playoffs', 'outra' => 'Outra'] as $k => $lbl): ?>
+                              <button type="button" class="btn-tatica" data-slot="<?= $k ?>"><?= $lbl ?></button>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+                <input type="hidden" name="tactic_slot" id="tactic-slot" value="regular">
 
                 <!-- Quinteto Titular -->
                 <div class="sc">

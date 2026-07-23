@@ -31,6 +31,14 @@ $teamId = (int)$team['id'];
 /** Ordem natural do quinteto: armador a pivô. */
 const TATICA_ORDEM_POS = ['PG' => 1, 'SG' => 2, 'SF' => 3, 'PF' => 4, 'C' => 5];
 
+/** Os três slots de tática. Fora deles, cai no regular. */
+const TATICA_SLOTS = ['regular' => 'Temporada Regular', 'playoffs' => 'Playoffs', 'outra' => 'Outra'];
+
+function tacticaSlot($v): string {
+    $v = strtolower(trim((string)$v));
+    return isset(TATICA_SLOTS[$v]) ? $v : 'regular';
+}
+
 const TATICA_CAMPOS = [
     'starter_1_id','starter_2_id','starter_3_id','starter_4_id','starter_5_id',
     'bench_1_id','bench_2_id','bench_3_id','gleague_1_id','gleague_2_id',
@@ -143,11 +151,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $stmtP->execute([$teamId]);
     $jogadores = $stmtP->fetchAll(PDO::FETCH_ASSOC);
 
-    $stmtT = $pdo->prepare('SELECT * FROM team_tactics WHERE team_id = ?');
-    $stmtT->execute([$teamId]);
+    $slot = tacticaSlot($_GET['slot'] ?? 'regular');
+
+    // Quais slots ja tem algo salvo, para a tela marcar os preenchidos.
+    $stmtSlots = $pdo->prepare('SELECT slot, updated_at FROM team_tactics WHERE team_id = ?');
+    $stmtSlots->execute([$teamId]);
+    $slotsSalvos = [];
+    foreach ($stmtSlots->fetchAll(PDO::FETCH_ASSOC) as $r) $slotsSalvos[$r['slot']] = $r['updated_at'];
+
+    $stmtT = $pdo->prepare('SELECT * FROM team_tactics WHERE team_id = ? AND slot = ?');
+    $stmtT->execute([$teamId, $slot]);
     $tatica = $stmtT->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($tatica) {
         $tatica['player_minutes'] = json_decode((string)$tatica['player_minutes'], true) ?: [];
+    } elseif ($slot !== 'regular') {
+        // Slot novo: parte da tatica regular, que e a base do time.
+        $stmtBase = $pdo->prepare("SELECT * FROM team_tactics WHERE team_id = ? AND slot = 'regular'");
+        $stmtBase->execute([$teamId]);
+        $base = $stmtBase->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($base) {
+            $base['player_minutes'] = json_decode((string)$base['player_minutes'], true) ?: [];
+            $base['_origem'] = 'regular';
+            $tatica = $base;
+        }
     } else {
         // Sem rascunho ainda: aproveita o perfil tático que o time já tem em
         // diretrizes.php, para quem já usava o sistema não recomeçar do zero.
@@ -184,6 +210,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         'team'      => ['id' => $teamId, 'name' => trim($team['city'] . ' ' . $team['name']), 'league' => $team['league']],
         'players'   => $jogadores,
         'tactics'   => $tatica,
+        'slot'      => $slot,
+        'slots'     => TATICA_SLOTS,
+        'saved_slots' => $slotsSalvos,
         'last'      => $ultima,
         'suggested' => [
             'starters' => $quintetoSugerido,
@@ -206,7 +235,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmtE->execute([$teamId]);
     $doElenco = array_map('intval', $stmtE->fetchAll(PDO::FETCH_COLUMN));
 
-    $valores = ['team_id' => $teamId];
+    $slot = tacticaSlot($body['slot'] ?? 'regular');
+    $valores = ['team_id' => $teamId, 'slot' => $slot];
     foreach (TATICA_CAMPOS as $campo) {
         $v = $body[$campo] ?? null;
         if (substr($campo, -3) === '_id') {
@@ -229,7 +259,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $cols = array_keys($valores);
     $ph   = implode(',', array_fill(0, count($cols), '?'));
-    $upd  = implode(',', array_map(fn($c) => "$c = VALUES($c)", array_diff($cols, ['team_id'])));
+    $upd  = implode(',', array_map(fn($c) => "$c = VALUES($c)", array_diff($cols, ['team_id', 'slot'])));
 
     try {
         $sql = 'INSERT INTO team_tactics (' . implode(',', $cols) . ") VALUES ($ph) ON DUPLICATE KEY UPDATE $upd";
@@ -238,14 +268,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Espelha no perfil tático do time (teams.directive_profile), que e o
         // que diretrizes.php le quando nao ha deadline aberta. Sem isso as duas
         // telas mostrariam coisas diferentes — o oposto de estar sincronizado.
-        $perfil = [];
-        foreach (TATICA_CAMPOS as $campo) $perfil[$campo] = $valores[$campo];
-        $perfil['bench_players'] = array_values(array_filter([
-            $valores['bench_1_id'], $valores['bench_2_id'], $valores['bench_3_id'],
-        ]));
-        $perfil['player_minutes'] = $minutos;
-        $pdo->prepare('UPDATE teams SET directive_profile = ?, directive_profile_updated_at = NOW() WHERE id = ?')
-            ->execute([json_encode($perfil), $teamId]);
+        // So o slot regular vira perfil: ele e a tatica base do time.
+        if ($slot === 'regular') {
+            $perfil = [];
+            foreach (TATICA_CAMPOS as $campo) $perfil[$campo] = $valores[$campo];
+            $perfil['bench_players'] = array_values(array_filter([
+                $valores['bench_1_id'], $valores['bench_2_id'], $valores['bench_3_id'],
+            ]));
+            $perfil['player_minutes'] = $minutos;
+            $pdo->prepare('UPDATE teams SET directive_profile = ?, directive_profile_updated_at = NOW() WHERE id = ?')
+                ->execute([json_encode($perfil), $teamId]);
+        }
     } catch (Throwable $e) {
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro ao salvar a tática.']);

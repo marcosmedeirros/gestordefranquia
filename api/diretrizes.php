@@ -64,6 +64,47 @@ function saveTeamDirectiveProfile(PDO $pdo, int $teamId, array $data): void
     $profile = buildTeamDirectiveProfilePayload($data);
     $stmt = $pdo->prepare('UPDATE teams SET directive_profile = ?, directive_profile_updated_at = NOW() WHERE id = ?');
     $stmt->execute([json_encode($profile), $teamId]);
+
+    // Espelha na tatica, para as duas telas andarem juntas nos dois sentidos.
+    // O slot vem do formulario; sem ele, o padrao e a temporada regular.
+    syncTacticaFromDirective($pdo, $teamId, $data, $profile);
+}
+
+/** Grava o mesmo conteúdo em team_tactics (contrapartida do espelho da tática). */
+function syncTacticaFromDirective(PDO $pdo, int $teamId, array $data, array $profile): void
+{
+    $slotsValidos = ['regular', 'playoffs', 'outra'];
+    $slot = strtolower(trim((string)($data['tactic_slot'] ?? 'regular')));
+    if (!in_array($slot, $slotsValidos, true)) $slot = 'regular';
+
+    $campos = [
+        'starter_1_id','starter_2_id','starter_3_id','starter_4_id','starter_5_id',
+        'bench_1_id','bench_2_id','bench_3_id','gleague_1_id','gleague_2_id',
+        'pace','offensive_rebound','offensive_aggression','defensive_focus',
+        'defensive_rebound','rotation_style','game_style','offense_style',
+        'rotation_players','veteran_focus','technical_model','playbook','notes',
+    ];
+
+    $valores = ['team_id' => $teamId, 'slot' => $slot];
+    foreach ($campos as $c) {
+        $v = $profile[$c] ?? null;
+        if (substr($c, -3) === '_id')  $valores[$c] = ((int)$v > 0) ? (int)$v : null;
+        elseif (in_array($c, ['rotation_players','veteran_focus'], true)) $valores[$c] = ($v === null || $v === '') ? null : (int)$v;
+        else $valores[$c] = ($v === null || $v === '') ? null : (string)$v;
+    }
+    $minutos = [];
+    foreach (($profile['player_minutes'] ?? []) as $pid => $m) $minutos[(int)$pid] = max(0, min(48, (int)$m));
+    $valores['player_minutes'] = json_encode($minutos);
+
+    try {
+        $cols = array_keys($valores);
+        $ph   = implode(',', array_fill(0, count($cols), '?'));
+        $upd  = implode(',', array_map(fn($c) => "$c = VALUES($c)", array_diff($cols, ['team_id','slot'])));
+        $pdo->prepare('INSERT INTO team_tactics (' . implode(',', $cols) . ") VALUES ($ph) ON DUPLICATE KEY UPDATE $upd")
+            ->execute(array_values($valores));
+    } catch (Throwable $e) {
+        // O envio da diretriz nunca pode falhar por causa do espelho.
+    }
 }
 
 function buildDeadlineDateTime(?string $date, ?string $time = null): string {

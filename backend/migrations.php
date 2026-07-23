@@ -1022,7 +1022,7 @@ function runMigrations() {
     // formulario de diretrizes na hora do envio oficial.
     try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS team_tactics (
-            team_id              INT NOT NULL PRIMARY KEY,
+            team_id              INT NOT NULL,
             starter_1_id         INT NULL,
             starter_2_id         INT NULL,
             starter_3_id         INT NULL,
@@ -1047,10 +1047,25 @@ function runMigrations() {
             playbook             TEXT NULL,
             notes                TEXT NULL,
             player_minutes       TEXT NULL,
-            updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            slot                 ENUM('regular','playoffs','outra') NOT NULL DEFAULT 'regular',
+            updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (team_id, slot)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     } catch (PDOException $e) {
         $errors[] = "criar_team_tactics: " . $e->getMessage();
+    }
+
+    // A tabela nasceu com uma tatica por time; agora sao tres (regular,
+    // playoffs e outra), entao a chave passa a incluir o slot.
+    try {
+        $temSlot = $pdo->query("SHOW COLUMNS FROM team_tactics LIKE 'slot'")->fetch();
+        if (!$temSlot) {
+            $pdo->exec("ALTER TABLE team_tactics
+                        ADD COLUMN slot ENUM('regular','playoffs','outra') NOT NULL DEFAULT 'regular'");
+            $pdo->exec("ALTER TABLE team_tactics DROP PRIMARY KEY, ADD PRIMARY KEY (team_id, slot)");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_team_tactics_slot: " . $e->getMessage();
     }
 
     // Estatisticas por jogador por temporada. Uma linha por jogador/temporada,

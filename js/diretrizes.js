@@ -171,9 +171,29 @@ async function loadTeamProfile() {
     if (teamProfile) {
       applyDirectiveToForm(teamProfile);
     }
+    // Sem deadline aberta a tela edita o perfil do time. O perfil ja e espelho
+    // da tatica regular, entao aqui so precisamos montar o seletor para o GM
+    // poder puxar a de playoffs ou a outra.
+    montarSeletorTatica();
   } catch (err) {
     console.error('Erro ao carregar diretriz do time:', err);
   }
+}
+
+/** Só liga os botões de slot, sem sobrescrever o que já está na tela. */
+async function montarSeletorTatica() {
+  try {
+    const t = await api('tactics.php?action=get&slot=regular');
+    if (!t.success) return;
+    const salvos = t.saved_slots || {};
+    document.querySelectorAll('#tatica-slots .btn-tatica').forEach(b => {
+      const s = b.dataset.slot;
+      b.disabled = !salvos[s];
+      b.title = salvos[s] ? 'Carregar esta tática' : 'Nenhuma tática salva neste slot';
+    });
+    const picker = document.getElementById('tatica-picker');
+    if (picker) picker.style.display = Object.keys(salvos).length ? '' : 'none';
+  } catch (err) { /* sem tatica, o seletor fica escondido */ }
 }
 
 // Renderizar campos de minutagem para cada jogador
@@ -501,31 +521,60 @@ async function loadExistingDirective() {
   }
 }
 
-/** Traz o rascunho de tatica.php para o formulário de envio. */
-async function aplicarTaticaSalva() {
+/** Traz uma das táticas de tatica.php para o formulário de envio. */
+async function aplicarTaticaSalva(slot = 'regular') {
   try {
-    const t = await api('tactics.php?action=get');
-    if (!t.success || !t.tactics) return;
+    const t = await api(`tactics.php?action=get&slot=${encodeURIComponent(slot)}`);
+    if (!t.success) return false;
+
+    // Só marca os slots realmente salvos — os demais ficam desabilitados para
+    // o GM não achar que existe uma tática de playoffs que ele nunca montou.
+    const salvos = t.saved_slots || {};
+    document.querySelectorAll('#tatica-slots .btn-tatica').forEach(b => {
+      const s = b.dataset.slot;
+      b.disabled = !salvos[s];
+      b.title = salvos[s] ? 'Carregar esta tática' : 'Nenhuma tática salva neste slot';
+      b.classList.toggle('active', s === slot && !!salvos[s]);
+    });
+    const picker = document.getElementById('tatica-picker');
+    if (picker) picker.style.display = Object.keys(salvos).length ? '' : 'none';
+
+    if (!t.tactics) return false;
 
     // applyDirectiveToForm espera os minutos em player_minutes; o formato é o
     // mesmo, então dá para reaproveitar a função inteira.
     applyDirectiveToForm({ ...t.tactics, player_minutes: t.tactics.player_minutes || {} });
+    const hidden = document.getElementById('tactic-slot');
+    if (hidden) hidden.value = slot;
 
     const form = document.getElementById('form-diretrizes');
-    if (form && !document.getElementById('aviso-tatica')) {
-      const box = document.createElement('div');
+    const nome = document.querySelector(`#tatica-slots .btn-tatica[data-slot="${slot}"]`)?.textContent.trim() || 'Tática';
+    let box = document.getElementById('aviso-tatica');
+    if (!box && form) {
+      box = document.createElement('div');
       box.id = 'aviso-tatica';
       box.className = 'alert alert-info py-2 px-3 mb-3';
       box.style.fontSize = '13px';
-      box.innerHTML = '<i class="bi bi-clipboard2-pulse me-2"></i>'
-        + 'Preenchido com a sua <strong>Tática</strong>. Revise e envie — '
-        + 'ajustes feitos aqui valem só para esta diretriz.';
       form.insertBefore(box, form.firstChild);
     }
+    if (box) {
+      box.innerHTML = '<i class="bi bi-clipboard2-pulse me-2"></i>'
+        + `Preenchido com a tática <strong>${nome}</strong>. Revise e envie — `
+        + 'ajustes feitos aqui valem só para esta diretriz.';
+    }
+    return true;
   } catch (err) {
     // Sem tática salva a página segue em branco, como antes.
+    return false;
   }
 }
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('#tatica-slots .btn-tatica');
+  if (!b || b.disabled) return;
+  if (!confirm('Carregar esta tática? O formulário será preenchido com ela.')) return;
+  aplicarTaticaSalva(b.dataset.slot);
+});
 
 // Enviar diretrizes
 document.getElementById('form-diretrizes')?.addEventListener('submit', async (e) => {
