@@ -15,7 +15,7 @@
  */
 
 const CAP_BASE_MILLIONS = 205;
-const CAP_FLOOR_MILLIONS = 180;
+const CAP_FLOOR_MILLIONS = 170;
 // Quantos jogadores do elenco podem gerar Cap Flex ao mesmo tempo.
 const CAP_FLEX_MAX_PLAYERS = 3;
 // Numa troca, o time sem espaco no teto so pode receber ate esta % do que envia.

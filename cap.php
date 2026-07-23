@@ -302,7 +302,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </details>
     <details>
       <summary><i class="bi bi-shield-check"></i> Status do time</summary>
-      <div class="rules-body">Cap Máximo = 205M + soma do Cap Flex do elenco. Cap Mínimo = 180M — fica abaixo do piso
+      <div class="rules-body">Cap Máximo = 205M + soma do Cap Flex do elenco. Cap Mínimo = 170M — fica abaixo do piso
       só é um problema de verdade depois da Trade Deadline (a validação automática disso ainda não existe, é só um
       aviso informativo por enquanto).</div>
     </details>
