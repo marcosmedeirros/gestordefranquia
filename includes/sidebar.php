@@ -43,6 +43,7 @@ if (!function_exists('sbActive')) {
         <a href="/dashboard.php"<?= sbActive('dashboard.php', $__sbCurrent) ?>><i class="bi bi-house-door-fill"></i> Dashboard</a>
         <a href="/teams.php"<?= sbActive('teams.php', $__sbCurrent) ?>><i class="bi bi-people-fill"></i> Times</a>
         <a href="/my-roster.php"<?= sbActive('my-roster.php', $__sbCurrent) ?>><i class="bi bi-person-fill"></i> Meu Elenco</a>
+        <a href="/tatica.php"<?= sbActive('tatica.php', $__sbCurrent) ?>><i class="bi bi-clipboard2-pulse"></i> Tática</a>
         <a href="/players.php"<?= sbActive('players.php', $__sbCurrent) ?>><i class="bi bi-person-lines-fill"></i> Jogadores</a>
         <a href="/picks.php"<?= sbActive('picks.php', $__sbCurrent) ?>><i class="bi bi-calendar-check-fill"></i> Picks</a>
         <a href="/trades.php"<?= sbActive('trades.php', $__sbCurrent) ?>><i class="bi bi-arrow-left-right"></i> Trades</a>
@@ -54,10 +55,10 @@ if (!function_exists('sbActive')) {
         <a href="/tapas.php"<?= sbActive('tapas.php', $__sbCurrent) ?>><i class="bi bi-hand-index-thumb"></i> Tapas</a>
 
         <div class="sb-section">Liga</div>
+        <a href="/tabela.php"<?= sbActive('tabela.php', $__sbCurrent) ?>><i class="bi bi-table"></i> Tabela</a>
         <a href="/rankings.php"<?= sbActive('rankings.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-fill"></i> Rankings</a>
         <a href="/history.php"<?= sbActive('history.php', $__sbCurrent) ?>><i class="bi bi-clock-history"></i> Histórico</a>
         <a href="/hall-da-fama.php"<?= sbActive('hall-da-fama.php', $__sbCurrent) ?>><i class="bi bi-award-fill"></i> Hall da Fama</a>
-        <a href="/tatica.php"<?= sbActive('tatica.php', $__sbCurrent) ?>><i class="bi bi-clipboard2-pulse"></i> Tática</a>
         <a href="/diretrizes.php"<?= sbActive('diretrizes.php', $__sbCurrent) ?>><i class="bi bi-clipboard-data"></i> Diretrizes</a>
         <a href="/mundo-fba.php"<?= sbActive('mundo-fba.php', $__sbCurrent) ?>><i class="bi bi-globe2"></i> Mundo FBA</a>
         <a href="/estatisticas.php"<?= sbActive('estatisticas.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
