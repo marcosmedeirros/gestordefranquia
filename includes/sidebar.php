@@ -12,6 +12,25 @@ $__sbCurrent = basename($_SERVER['SCRIPT_NAME'] ?? '');
 $__sbIsAdmin = !empty($user['id']) && hasAdminAccess($pdo, (int)$user['id']);
 $__sbIsElite = (($team['league'] ?? $user['league'] ?? '') === 'ELITE');
 
+// Draft Inicial (initdraft) ativo: item no menu.
+// - Da liga do usuário: aparece abaixo de "Draft".
+// - De outras ligas (só admin): aparece abaixo do menu "Admin".
+$__sbLeague = $team['league'] ?? $user['league'] ?? '';
+$__sbMyInitDraft = null;
+$__sbOtherInitDrafts = [];
+try {
+    $__sbStmt = $pdo->query("SELECT league, access_token FROM initdraft_sessions WHERE status IN ('setup','in_progress') ORDER BY id DESC");
+    foreach ($__sbStmt->fetchAll(PDO::FETCH_ASSOC) as $__row) {
+        if ($__row['league'] === $__sbLeague) {
+            if (!$__sbMyInitDraft) $__sbMyInitDraft = $__row;
+        } elseif (!isset($__sbOtherInitDrafts[$__row['league']])) {
+            $__sbOtherInitDrafts[$__row['league']] = $__row;
+        }
+    }
+} catch (Exception $e) {
+    // tabela pode não existir em instalações antigas
+}
+
 if (!function_exists('sbActive')) {
     function sbActive(string $page, string $current): string
     {
@@ -51,6 +70,9 @@ if (!function_exists('sbActive')) {
         <a href="/free-agency.php"<?= sbActive('free-agency.php', $__sbCurrent) ?>><i class="bi bi-coin"></i> Free Agency</a>
         <a href="/leilao.php"<?= sbActive('leilao.php', $__sbCurrent) ?>><i class="bi bi-hammer"></i> Leilão</a>
         <a href="/drafts.php"<?= sbActive('drafts.php', $__sbCurrent) ?>><i class="bi bi-trophy"></i> Draft</a>
+        <?php if ($__sbMyInitDraft): ?>
+        <a href="/initdraftselecao.php?token=<?= urlencode($__sbMyInitDraft['access_token']) ?>"<?= sbActive('initdraftselecao.php', $__sbCurrent) ?>><i class="bi bi-stars"></i> Draft Inicial</a>
+        <?php endif; ?>
         <?php /* Salary Cap (ELITE): em avaliacao, acessivel apenas por link — ver backend/preview_gate.php */ ?>
         <a href="/tapas.php"<?= sbActive('tapas.php', $__sbCurrent) ?>><i class="bi bi-hand-index-thumb"></i> Tapas</a>
 
@@ -69,6 +91,9 @@ if (!function_exists('sbActive')) {
         <?php if ($__sbIsAdmin): ?>
         <div class="sb-section">Admin</div>
         <a href="/admin.php"<?= sbActive('admin.php', $__sbCurrent) ?>><i class="bi bi-shield-lock-fill"></i> Admin</a>
+        <?php foreach ($__sbOtherInitDrafts as $__lg => $__sess): ?>
+        <a href="/initdraftselecao.php?token=<?= urlencode($__sess['access_token']) ?>"><i class="bi bi-stars"></i> Draft Inicial — <?= htmlspecialchars($__lg) ?></a>
+        <?php endforeach; ?>
         <a href="/punicoes.php"<?= sbActive('punicoes.php', $__sbCurrent) ?>><i class="bi bi-exclamation-triangle-fill"></i> Punições</a>
         <?php /* Loteria (ELITE): em avaliacao, acessivel apenas por link — ver backend/preview_gate.php */ ?>
         <?php endif; ?>
