@@ -52,16 +52,30 @@ if ($action === 'roster') {
     try {
         $league = $team['league'] ?? ($user['league'] ?? '');
         $currentYear = (int)date('Y');
+        $anoDoAno = function ($row) {
+            if (!$row) return 0;
+            return isset($row['start_year'], $row['season_number'])
+                ? (int)$row['start_year'] + (int)$row['season_number'] - 1
+                : (int)($row['year'] ?? 0);
+        };
         if ($league) {
-            $sY = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed")) ORDER BY s.created_at DESC LIMIT 1');
-            $sY->execute([$league]);
-            $row = $sY->fetch(PDO::FETCH_ASSOC);
-            if ($row) {
-                $y = isset($row['start_year'], $row['season_number'])
-                    ? (int)$row['start_year'] + (int)$row['season_number'] - 1
-                    : (int)($row['year'] ?? 0);
-                if ($y > 0) $currentYear = $y;
+            // Prioriza o ano do draft em andamento (setup/in_progress): a escolha
+            // desse draft e de um ano que pode ser anterior a temporada ativa, e
+            // sem isto ficaria de fora do picker por ser "passada". Espelha o
+            // mesmo criterio de api/picks.php.
+            $dY = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year
+                FROM draft_sessions ds JOIN seasons s ON ds.season_id = s.id
+                LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                WHERE ds.league = ? AND ds.status IN ("setup","in_progress")
+                ORDER BY ds.created_at DESC LIMIT 1');
+            $dY->execute([$league]);
+            $y = $anoDoAno($dY->fetch(PDO::FETCH_ASSOC));
+            if ($y <= 0) {
+                $sY = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed")) ORDER BY s.created_at DESC LIMIT 1');
+                $sY->execute([$league]);
+                $y = $anoDoAno($sY->fetch(PDO::FETCH_ASSOC));
             }
+            if ($y > 0) $currentYear = $y;
         }
         $stmtPk = $pdo->prepare('
             SELECT pk.id, pk.season_year, pk.round,
