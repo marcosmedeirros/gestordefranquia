@@ -11,7 +11,7 @@ if (!$token) {
 
 $pdo = db();
 $user = getUserSession();
-$isAdmin = hasAdminAccess($pdo, (int)$user['id']);
+$isAdmin = ($user && isset($user['id'])) ? hasAdminAccess($pdo, (int)$user['id']) : false;
 $userTeamId = null;
 if ($user && isset($user['id'])) {
     $stmtTeam = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
@@ -24,7 +24,8 @@ if ($user && isset($user['id'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Draft Inicial — Seleção</title>
+    <script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
+    <title>Draft Inicial — Sala de Seleção</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
@@ -95,6 +96,20 @@ if ($user && isset($user['id'])) {
         .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2); text-decoration: none; transition: color var(--t) var(--ease); }
         .back-link:hover { color: var(--red); }
 
+        .token-display { display: flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+        .token-display code { font-size: 11px; color: var(--text-3); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .token-copy-btn { background: transparent; border: none; color: var(--text-3); cursor: pointer; font-size: 12px; padding: 0; transition: color var(--t) var(--ease); }
+        .token-copy-btn:hover { color: var(--red); }
+
+        /* ── Feedback ─────────────────────────────────── */
+        .fb-alert { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; margin-bottom: 12px; }
+        .fb-alert.success { background: rgba(34,197,94,.10); border: 1px solid rgba(34,197,94,.2); color: var(--green); }
+        .fb-alert.danger  { background: rgba(239,68,68,.10);  border: 1px solid rgba(239,68,68,.2);  color: #ef4444; }
+        .fb-alert.warning { background: rgba(245,158,11,.10); border: 1px solid rgba(245,158,11,.2); color: var(--amber); }
+        .fb-alert.info    { background: rgba(59,130,246,.10); border: 1px solid rgba(59,130,246,.2); color: var(--blue); }
+        .fb-close { background: none; border: none; color: inherit; cursor: pointer; font-size: 15px; opacity: .7; }
+        .fb-close:hover { opacity: 1; }
+
         /* ── Hero ─────────────────────────────────────── */
         .hero {
             background: var(--panel);
@@ -108,57 +123,32 @@ if ($user && isset($user['id'])) {
         .hero-sub { font-size: 13px; color: var(--text-2); }
 
         /* ── Stat grid ────────────────────────────────── */
-        .stat-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 10px;
-            margin-top: 18px;
-        }
-        .stat-card {
-            background: var(--panel-2);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            padding: 14px 16px;
-        }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 18px; }
+        .stat-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; }
         .stat-label { font-size: 10px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-2); margin-bottom: 6px; }
         .stat-value { font-size: 1.1rem; font-weight: 700; }
 
+        /* ── Admin panel ──────────────────────────────── */
+        .admin-panel { background: var(--panel); border: 1px solid var(--border-red); border-radius: var(--radius); margin-bottom: 20px; overflow: hidden; }
+        .admin-panel-head { padding: 16px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .admin-panel-title { font-size: 13px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+        .admin-panel-title i { color: var(--red); }
+        .admin-panel-body { padding: 20px 22px; }
+        .prog-bar-wrap { height: 6px; background: var(--panel-3); border-radius: 999px; overflow: hidden; margin-top: 12px; }
+        .prog-bar-fill { height: 100%; background: linear-gradient(90deg, var(--red), color-mix(in srgb, var(--red) 85%, white)); border-radius: 999px; transition: width .5s ease; }
+        .adm-section-title { font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--text-3); margin: 4px 0 10px; }
+
         /* ── Panel card ───────────────────────────────── */
-        .panel-card {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            overflow: hidden;
-            height: 100%;
-        }
-        .panel-card-head {
-            padding: 14px 18px;
-            border-bottom: 1px solid var(--border);
-            display: flex; align-items: center; justify-content: space-between; gap: 8px;
-        }
+        .panel-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; height: 100%; }
+        .panel-card-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .panel-card-title { font-size: 13px; font-weight: 700; }
         .panel-card-sub { font-size: 11px; color: var(--text-2); margin-top: 2px; }
         .panel-card-body { padding: 16px 18px; }
 
         /* ── Pick card ────────────────────────────────── */
-        .pick-card {
-            background: var(--panel-2);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            padding: 14px;
-        }
-        .pick-card.current-pick-highlight {
-            border-color: var(--border-red);
-            background: color-mix(in srgb, var(--red) 6%, transparent);
-        }
-        .pick-card.next-pick-highlight {
-            background: var(--panel-3);
-            border-color: var(--border);
-        }
-        .pick-card.compact {
-            padding: 8px 12px;
-            border-radius: 8px;
-        }
+        .pick-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; }
+        .pick-card.current-pick-highlight { border-color: var(--border-red); background: color-mix(in srgb, var(--red) 6%, transparent); }
+        .pick-card.next-pick-highlight { background: var(--panel-3); border-color: var(--border); }
         .pick-card-lg { padding: 16px; }
         .pick-card-sm { padding: 10px 14px; opacity: .9; }
         .pick-flash { animation: pickFlash 1.2s ease-in-out; }
@@ -167,55 +157,32 @@ if ($user && isset($user['id'])) {
             30%  { box-shadow: 0 0 22px color-mix(in srgb, var(--red) 45%, transparent); }
             100% { box-shadow: 0 0 0 color-mix(in srgb, var(--red) 0%, transparent); }
         }
-
-        .pick-logo {
-            width: 40px; height: 40px; border-radius: 50%;
-            object-fit: cover; border: 1px solid var(--border-md);
-            flex-shrink: 0;
-        }
+        .pick-logo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
 
         /* ── Order list ───────────────────────────────── */
-        .order-item {
-            display: flex; align-items: center; gap: 10px;
-            background: var(--panel-2); border: 1px solid var(--border);
-            border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 6px;
-        }
-        .order-item.order-highlight {
-            border-color: var(--border-red);
-            background: color-mix(in srgb, var(--red) 7%, transparent);
-        }
-        .order-item.order-next {
-            border-style: dashed;
-            border-color: rgba(255,255,255,.12);
-        }
-        .order-rank {
-            width: 28px; height: 28px; border-radius: 50%;
-            background: var(--red-soft); border: 1px solid var(--border-red);
-            display: grid; place-items: center;
-            font-weight: 700; font-size: 12px; color: var(--red); flex-shrink: 0;
-        }
+        .order-item { display: flex; align-items: center; gap: 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 6px; }
+        .order-item.order-highlight { border-color: var(--border-red); background: color-mix(in srgb, var(--red) 7%, transparent); }
+        .order-item.order-next { border-style: dashed; border-color: rgba(255,255,255,.12); }
+        .order-rank { width: 28px; height: 28px; border-radius: 50%; background: var(--red-soft); border: 1px solid var(--border-red); display: grid; place-items: center; font-weight: 700; font-size: 12px; color: var(--red); flex-shrink: 0; }
         .team-chip { display: flex; align-items: center; gap: 8px; }
         .team-chip img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
         .team-chip-name { font-size: 13px; font-weight: 600; line-height: 1.2; }
         .team-chip-gm { font-size: 11px; color: var(--text-2); }
 
+        .order-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .order-btn { width: 28px; height: 28px; border-radius: 7px; background: transparent; border: 1px solid var(--border); color: var(--text-2); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; transition: all var(--t) var(--ease); }
+        .order-btn:hover { border-color: var(--border-md); color: var(--text); }
+        .order-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+        .manual-order-row { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 6px; }
+        .manual-position-select { width: 68px; }
+
         /* ── Pick summary (reaction bar) ──────────────── */
-        .pick-summary {
-            background: var(--panel-3); border: 1px solid var(--border);
-            border-radius: 8px; padding: 8px 10px; margin-top: 6px;
-            font-size: 12px;
-        }
+        .pick-summary { background: var(--panel-3); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-top: 6px; font-size: 12px; }
         .pick-summary-name { font-weight: 600; color: var(--text); }
         .pick-summary-meta { color: var(--red); font-size: 11px; }
         .reaction-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-        .reaction-chip {
-            display: inline-flex; align-items: center; gap: 4px;
-            padding: 2px 8px; border-radius: 999px; font-size: 11px;
-            border: 1px solid var(--border-md);
-            background: var(--panel-2); color: var(--text);
-            cursor: pointer; user-select: none;
-            transition: all var(--t) var(--ease);
-        }
+        .reaction-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; border: 1px solid var(--border-md); background: var(--panel-2); color: var(--text); cursor: pointer; user-select: none; transition: all var(--t) var(--ease); }
         .reaction-chip:hover { border-color: var(--border-red); background: var(--red-soft); }
         .reaction-chip.active { background: var(--red-soft); border-color: var(--border-red); }
         .reaction-count { color: var(--text-2); }
@@ -231,61 +198,41 @@ if ($user && isset($user['id'])) {
         .badge-drafted   { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: var(--panel-3); color: var(--text-3); border: 1px solid var(--border); }
 
         /* ── Buttons ──────────────────────────────────── */
-        .btn-red {
-            display: inline-flex; align-items: center; gap: 6px;
-            padding: 8px 14px; border-radius: 8px;
-            background: var(--red); border: none; color: #fff;
-            font-family: var(--font); font-size: 12px; font-weight: 600;
-            cursor: pointer; transition: filter var(--t) var(--ease); text-decoration: none;
-        }
+        .btn-red { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; background: var(--red); border: none; color: #fff; font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; transition: filter var(--t) var(--ease); text-decoration: none; }
         .btn-red:hover { filter: brightness(1.12); color: #fff; }
-        .btn-ghost {
-            display: inline-flex; align-items: center; gap: 6px;
-            padding: 8px 14px; border-radius: 8px;
-            background: transparent; border: 1px solid var(--border-md); color: var(--text-2);
-            font-family: var(--font); font-size: 12px; font-weight: 600;
-            cursor: pointer; transition: all var(--t) var(--ease); text-decoration: none;
-        }
+        .btn-red:disabled { opacity: .5; cursor: not-allowed; }
+        .btn-ghost { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; background: transparent; border: 1px solid var(--border-md); color: var(--text-2); font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; transition: all var(--t) var(--ease); text-decoration: none; }
         .btn-ghost:hover { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
-        .btn-green {
-            display: inline-flex; align-items: center; gap: 6px;
-            padding: 8px 14px; border-radius: 8px;
-            background: var(--green); border: none; color: #fff;
-            font-family: var(--font); font-size: 12px; font-weight: 600;
-            cursor: pointer; transition: filter var(--t) var(--ease);
-        }
+        .btn-ghost:disabled { opacity: .4; cursor: not-allowed; }
+        .btn-green { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; background: var(--green); border: none; color: #fff; font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; transition: filter var(--t) var(--ease); }
         .btn-green:hover { filter: brightness(1.1); }
-        .btn-amber {
-            display: inline-flex; align-items: center; gap: 6px;
-            padding: 8px 14px; border-radius: 8px;
-            background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.3); color: var(--amber);
-            font-family: var(--font); font-size: 12px; font-weight: 600;
-            cursor: pointer; transition: all var(--t) var(--ease);
-        }
+        .btn-green:disabled { opacity: .5; cursor: not-allowed; }
+        .btn-amber { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.3); color: var(--amber); font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; transition: all var(--t) var(--ease); }
         .btn-amber:hover { background: rgba(245,158,11,.2); }
+        .btn-amber:disabled { opacity: .4; cursor: not-allowed; }
+        .btn-sm-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px; background: transparent; border: 1px solid var(--border); color: var(--text-2); font-size: 12px; cursor: pointer; transition: all var(--t) var(--ease); }
+        .btn-sm-icon:hover { border-color: var(--border-md); color: var(--text); }
+        .btn-sm-icon.danger:hover { border-color: rgba(239,68,68,.4); color: #ef4444; background: rgba(239,68,68,.08); }
+        .btn-sm-icon.amber:hover { border-color: rgba(245,158,11,.4); color: var(--amber); background: rgba(245,158,11,.08); }
 
         /* ── Search/Filter inputs ─────────────────────── */
-        .search-input, .filter-select {
-            background: var(--panel-2); border: 1px solid var(--border-md);
-            border-radius: 8px; padding: 8px 12px;
-            color: var(--text); font-family: var(--font); font-size: 13px;
-            outline: none; transition: border-color var(--t) var(--ease);
-            width: 100%;
-        }
+        .search-input, .filter-select { background: var(--panel-2); border: 1px solid var(--border-md); border-radius: 8px; padding: 8px 12px; color: var(--text); font-family: var(--font); font-size: 13px; outline: none; transition: border-color var(--t) var(--ease); width: 100%; }
         .search-input:focus, .filter-select:focus { border-color: var(--red); }
         .search-input::placeholder { color: var(--text-3); }
         .filter-select option { background: var(--panel-2); }
         .filter-check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); cursor: pointer; }
         .filter-check input { accent-color: var(--red); }
 
+        /* ── Form fields ──────────────────────────────── */
+        .field-label { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; display: block; }
+        .field-input { width: 100%; background: var(--panel-2); border: 1px solid var(--border-md); border-radius: 8px; padding: 10px 12px; color: var(--text); font-family: var(--font); font-size: 13px; outline: none; transition: border-color var(--t) var(--ease); }
+        .field-input:focus { border-color: var(--red); }
+        .field-input::placeholder { color: var(--text-3); }
+
         /* ── Data table ───────────────────────────────── */
         .data-table-wrap { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
         .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .data-table th {
-            font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase;
-            color: var(--text-3); padding: 10px 12px; border-bottom: 1px solid var(--border);
-            text-align: left; white-space: nowrap; background: var(--panel-2);
-        }
+        .data-table th { font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--text-3); padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; background: var(--panel-2); }
         .data-table th.sortable { cursor: pointer; user-select: none; }
         .data-table th.sortable:hover { color: var(--text-2); }
         .data-table th.sortable.active { color: var(--text); }
@@ -303,10 +250,7 @@ if ($user && isset($user['id'])) {
         .pag-wrap .page-item.disabled .page-link { opacity: .4; }
 
         /* ── Roster grid ──────────────────────────────── */
-        .roster-card {
-            background: var(--panel-2); border: 1px solid var(--border);
-            border-radius: var(--radius-sm); padding: 14px;
-        }
+        .roster-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; }
         .roster-list { list-style: none; padding: 0; margin: 0; font-size: 12px; color: var(--text-2); }
         .roster-list li { padding: 4px 0; border-bottom: 1px solid var(--border); }
         .roster-list li:last-child { border-bottom: none; }
@@ -315,28 +259,32 @@ if ($user && isset($user['id'])) {
         /* ── Empty state ──────────────────────────────── */
         .state-empty { padding: 24px 16px; text-align: center; color: var(--text-3); font-size: 13px; }
 
-        /* ── TV mode ──────────────────────────────────── */
-        body.tv-mode .app-wrap { max-width: 1600px; }
-        body.tv-mode .hero-title { font-size: clamp(2rem, 3.5vw, 2.8rem); }
-        body.tv-mode .pick-card { padding: 18px; font-size: 1.05rem; }
+        /* ── Bootstrap tabs / modal overrides ─────────── */
+        .nav-tabs { border-bottom: 1px solid var(--border); }
+        .nav-tabs .nav-link { color: var(--text-2); border: none; border-bottom: 2px solid transparent; font-family: var(--font); font-size: 13px; font-weight: 600; }
+        .nav-tabs .nav-link.active { color: var(--red); border-bottom-color: var(--red); background: transparent; }
+        .nav-tabs .nav-link:hover { color: var(--text); }
+        .modal-content { background: var(--panel); border: 1px solid var(--border-md); border-radius: var(--radius); color: var(--text); font-family: var(--font); }
+        .modal-header { border-bottom: 1px solid var(--border); padding: 18px 20px; }
+        .modal-header .modal-title { font-size: 14px; font-weight: 700; }
+        .modal-body { padding: 20px; }
+        .modal-footer { border-top: 1px solid var(--border); padding: 14px 20px; gap: 8px; }
 
         /* ── Responsive ───────────────────────────────── */
         @media (max-width: 768px) {
             .app-wrap { padding: 16px 14px 40px; }
             .hero { padding: 18px 20px; }
+            .manual-order-row { grid-template-columns: 1fr; }
+            .manual-position-select { width: 100%; }
         }
         @media (max-width: 576px) {
             #poolTableEl thead { display: none; }
-            #poolTableEl tbody tr {
-                display: flex; flex-direction: column;
-                gap: 4px; padding: 10px 12px;
-                border-bottom: 1px solid var(--border);
-            }
+            #poolTableEl tbody tr { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
             #poolTableEl td { width: 100%; padding: 0; border: 0; }
             #poolTableEl td:first-child { display: none; }
         }
-    input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
-     (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
+        input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
@@ -348,15 +296,17 @@ if ($user && isset($user['id'])) {
         <div class="app-logo">FBA</div>
         <div class="app-title">Sala de Seleção <span>Draft Inicial</span></div>
     </div>
-    <div class="d-flex align-items-center gap-3 flex-wrap">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
         <span id="leagueName" style="font-size:12px;font-weight:700;color:var(--text-2)"></span>
         <button class="btn-ghost" onclick="loadState()"><i class="bi bi-arrow-clockwise"></i> Atualizar</button>
         <button class="btn-ghost" id="toggleSoundButton"><i class="bi bi-volume-mute"></i> Som</button>
-        <button class="btn-ghost" id="toggleTvButton"><i class="bi bi-fullscreen"></i> TV</button>
         <?php if ($isAdmin): ?>
-        <button class="btn-amber" id="openRoundNowButton" onclick="adminOpenNextRoundNow()">
-            <i class="bi bi-lightning-charge"></i> Abrir rodada
-        </button>
+        <div class="token-display" title="Token de acesso">
+            <i class="bi bi-key" style="font-size:12px;color:var(--text-3)"></i>
+            <code id="tokenDisplay"></code>
+            <button class="token-copy-btn" onclick="copyToken()" title="Copiar token"><i class="bi bi-clipboard"></i></button>
+        </div>
+        <button class="btn-red" id="toggleAdminButton" onclick="toggleAdminPanel()"><i class="bi bi-sliders"></i> Painel Admin</button>
         <?php endif; ?>
         <a href="dashboard.php" class="back-link"><i class="bi bi-arrow-left"></i> Dashboard</a>
     </div>
@@ -364,13 +314,133 @@ if ($user && isset($user['id'])) {
 
 <div class="app-wrap">
 
+    <div id="feedback"></div>
+
     <!-- Hero -->
     <section class="hero">
         <div class="hero-eyebrow">Draft Inicial</div>
         <h1 class="hero-title">Sala de Seleção</h1>
-        <p class="hero-sub">Acompanhe picks, ordem e elencos em montagem.</p>
+        <p class="hero-sub">Acompanhe as picks, o pool de jogadores e os elencos se formando em tempo real.</p>
         <div class="stat-grid" id="statGrid"></div>
     </section>
+
+    <?php if ($isAdmin): ?>
+    <!-- Admin panel -->
+    <section class="admin-panel d-none" id="adminPanel">
+        <div class="admin-panel-head">
+            <div style="flex:1;min-width:220px">
+                <div class="admin-panel-title"><i class="bi bi-shield-lock"></i> Painel do Admin</div>
+                <div class="d-flex justify-content-between mb-1 mt-2" style="font-size:12px;color:var(--text-2)">
+                    <span id="admProgressLabel"></span>
+                    <span id="admProgressPercent"></span>
+                </div>
+                <div class="prog-bar-wrap"><div class="prog-bar-fill" id="admProgressBar" style="width:0%"></div></div>
+            </div>
+            <button class="btn-ghost" onclick="toggleAdminPanel()"><i class="bi bi-x-lg"></i> Fechar</button>
+        </div>
+        <div class="admin-panel-body">
+            <ul class="nav nav-tabs mb-3" id="adminTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#adm-order" type="button" role="tab">Ordem &amp; Início</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#adm-players" type="button" role="tab">Jogadores</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#adm-live" type="button" role="tab">Agendamento &amp; Controle</button>
+                </li>
+            </ul>
+
+            <div class="tab-content">
+                <!-- Tab: Ordem & Início -->
+                <div class="tab-pane fade show active" id="adm-order" role="tabpanel">
+                    <div class="row g-4">
+                        <div class="col-md-5">
+                            <div class="adm-section-title">Total de rodadas</div>
+                            <div class="d-flex gap-2 align-items-center mb-4">
+                                <input type="number" id="admTotalRounds" class="field-input" min="1" max="10" style="max-width:100px">
+                                <button class="btn-ghost" onclick="saveTotalRounds()"><i class="bi bi-check2"></i> Salvar</button>
+                            </div>
+                            <div class="adm-section-title">Iniciar</div>
+                            <div id="admStartArea"></div>
+                        </div>
+                        <div class="col-md-7">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                <div class="adm-section-title mb-0">Ordem da 1ª rodada</div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn-ghost" id="admShuffleBtn" onclick="shuffleOrder()"><i class="bi bi-shuffle"></i> Sortear</button>
+                                    <button class="btn-ghost" id="admResetOrderBtn" onclick="resetManualOrder()"><i class="bi bi-arrow-counterclockwise"></i> Resetar</button>
+                                    <button class="btn-green" id="admSaveOrderBtn" onclick="saveManualOrder()"><i class="bi bi-check2-circle"></i> Salvar ordem</button>
+                                </div>
+                            </div>
+                            <div id="admOrderHint" style="font-size:11px;color:var(--text-2);margin-bottom:10px"></div>
+                            <div id="admManualOrderList" style="max-height:420px;overflow-y:auto"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Jogadores -->
+                <div class="tab-pane fade" id="adm-players" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+                        <div>
+                            <div style="font-size:14px;font-weight:700">Pool de jogadores</div>
+                            <div style="font-size:11px;color:var(--text-2);margin-top:2px">Adicionar, editar e remover só é permitido durante a configuração.</div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn-amber" data-bs-toggle="modal" data-bs-target="#importCSVModal"><i class="bi bi-file-earmark-arrow-up"></i> Importar CSV</button>
+                            <button class="btn-red" data-bs-toggle="modal" data-bs-target="#addPlayerModal"><i class="bi bi-person-plus"></i> Novo Jogador</button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <input type="text" id="admPoolSearch" class="search-input" placeholder="Filtrar por nome ou posição…">
+                    </div>
+                    <div class="data-table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th><th>Jogador</th><th>Pos</th><th>OVR</th><th>Idade</th><th>Status</th><th style="text-align:right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admPoolTable"></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2 pag-wrap" id="admPoolPagination"></div>
+                </div>
+
+                <!-- Tab: Agendamento & Controle -->
+                <div class="tab-pane fade" id="adm-live" role="tabpanel">
+                    <div class="row g-4">
+                        <div class="col-md-7">
+                            <div class="adm-section-title">Agendamento (1 rodada por dia)</div>
+                            <p style="font-size:12px;color:var(--text-2);margin-bottom:12px">00:01 (Brasília) libera a rodada do dia. Sem relógio: as picks avançam quando alguém escolhe.</p>
+                            <div class="row g-3">
+                                <div class="col-sm-6">
+                                    <label class="field-label">Dia 01 (DD/MM/AAAA)</label>
+                                    <input type="text" id="admDailyStart" class="field-input" placeholder="dd/mm/aaaa">
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="field-label">Previsão de término</label>
+                                    <input type="text" id="admDailyEnd" class="field-input" readonly style="opacity:.6">
+                                </div>
+                                <div class="col-12">
+                                    <button class="btn-amber" onclick="saveDailySchedule()"><i class="bi bi-calendar-check"></i> Salvar agendamento</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <div class="adm-section-title">Controle ao vivo</div>
+                            <div class="d-flex flex-column gap-2" style="max-width:260px">
+                                <button class="btn-amber" onclick="adminOpenNextRoundNow()"><i class="bi bi-lightning-charge"></i> Abrir rodada agora</button>
+                                <button class="btn-red" onclick="finalizeDraft()"><i class="bi bi-flag"></i> Finalizar draft</button>
+                            </div>
+                            <p style="font-size:11px;color:var(--text-2);margin-top:10px">Como admin, você pode registrar a pick de qualquer time pelo botão <strong>Escolher</strong> na tabela do pool.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <?php endif; ?>
 
     <!-- Main grid -->
     <div class="row g-4">
@@ -381,7 +451,7 @@ if ($user && isset($user['id'])) {
                 <div class="panel-card-head">
                     <div>
                         <div class="panel-card-title">Pick Atual</div>
-                        <div class="panel-card-sub" id="clockBanner"></div>
+                        <div class="panel-card-sub" id="pickSub"></div>
                     </div>
                 </div>
                 <div class="panel-card-body">
@@ -460,36 +530,147 @@ if ($user && isset($user['id'])) {
 
 </div><!-- .app-wrap -->
 
+<?php if ($isAdmin): ?>
+<!-- ══════ Modais Admin ══════ -->
+
+<!-- Add Player Modal -->
+<div class="modal fade" id="addPlayerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="addPlayerForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Adicionar Jogador</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="field-label">Nome</label>
+                            <input type="text" name="name" class="field-input" required placeholder="Nome completo">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="field-label">Posição</label>
+                            <select name="position" class="field-input">
+                                <option value="PG">PG</option>
+                                <option value="SG">SG</option>
+                                <option value="SF" selected>SF</option>
+                                <option value="PF">PF</option>
+                                <option value="C">C</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="field-label">Idade</label>
+                            <input type="number" name="age" min="16" max="45" class="field-input" required placeholder="22">
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="field-label">OVR</label>
+                            <input type="number" name="ovr" min="40" max="99" class="field-input" required placeholder="75">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn-red">Adicionar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Player Modal -->
+<div class="modal fade" id="editPlayerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="editPlayerForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Editar Jogador</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="player_id" id="editPlayerId">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="field-label">Nome</label>
+                            <input type="text" name="name" id="editPlayerName" class="field-input" required>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="field-label">Posição</label>
+                            <select name="position" id="editPlayerPosition" class="field-input">
+                                <option value="PG">PG</option>
+                                <option value="SG">SG</option>
+                                <option value="SF">SF</option>
+                                <option value="PF">PF</option>
+                                <option value="C">C</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="field-label">Idade</label>
+                            <input type="number" name="age" id="editPlayerAge" min="16" max="45" class="field-input" required>
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="field-label">OVR</label>
+                            <input type="number" name="ovr" id="editPlayerOvr" min="40" max="99" class="field-input" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn-red">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Import CSV Modal -->
+<div class="modal fade" id="importCSVModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="importCSVForm" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title">Importar Jogadores via CSV</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size:12px;color:var(--text-2);margin-bottom:14px">Formato: <code style="color:var(--red)">name,position,age,ovr</code>. Use o template para evitar erros.</p>
+                    <div class="mb-3">
+                        <label class="field-label">Arquivo CSV</label>
+                        <input type="file" name="csv_file" class="field-input" accept=".csv" required style="padding:6px 10px;cursor:pointer">
+                    </div>
+                    <button type="button" class="btn-ghost" onclick="downloadCSVTemplate()"><i class="bi bi-download"></i> Baixar Template</button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn-red">Importar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const TOKEN = '<?php echo htmlspecialchars($token, ENT_QUOTES); ?>';
-    const API_URL = 'api/initdraft.php';
-    const USER_TEAM_ID = <?php echo $userTeamId ? (int)$userTeamId : 'null'; ?>;
-    const IS_ADMIN = <?php echo $isAdmin ? 'true' : 'false'; ?>;
+        const API_URL = 'api/initdraft.php';
+        const USER_TEAM_ID = <?php echo $userTeamId ? (int)$userTeamId : 'null'; ?>;
+        const IS_ADMIN = <?php echo $isAdmin ? 'true' : 'false'; ?>;
 
         const state = {
             session: null,
             order: [],
             teams: [],
             pool: [],
+            canEditOrder: false,
         };
 
-        const elements = {
-            leagueName: document.getElementById('leagueName'),
-            statGrid: document.getElementById('statGrid'),
-            clockBanner: document.getElementById('clockBanner'),
-            currentPickCard: document.getElementById('currentPickCard'),
-            nextPickCard: document.getElementById('nextPickCard'),
-            orderList: document.getElementById('orderList'),
-            poolTable: document.getElementById('poolTable'),
-            poolMeta: document.getElementById('poolMeta'),
-            rosterGrid: document.getElementById('rosterGrid'),
-            rosterMeta: document.getElementById('rosterMeta'),
-            toggleSoundButton: document.getElementById('toggleSoundButton'),
-            toggleTvButton: document.getElementById('toggleTvButton'),
-            poolSearch: document.getElementById('poolSearch'),
-            poolPositionFilter: document.getElementById('poolPositionFilter'),
-            poolPagination: document.getElementById('poolPagination'),
+        const adminState = {
+            manualOrder: [],
+            orderDirty: false,
+            poolSearch: '',
+            poolPage: 1,
+            poolPageSize: 12,
+            autoOpened: false,
         };
 
         const uiState = {
@@ -502,28 +683,42 @@ if ($user && isset($user['id'])) {
             poolSortAsc: false,
             poolPage: 1,
             poolPageSize: 15,
-            clockTickInterval: null,
-            clockPickId: null,
-            clockDeadlineMs: null,
         };
 
-        function parseSqlDatetimeToMs(value) {
-            if (!value) return null;
-            // Expecting YYYY-MM-DD HH:mm:ss
-            // Treat as local time (browser). Since server uses America/Sao_Paulo and most users are too, this is OK.
-            const normalized = String(value).trim().replace(' ', 'T');
-            const date = new Date(normalized);
-            const ms = date.getTime();
-            return Number.isFinite(ms) ? ms : null;
-        }
+        const elements = {
+            leagueName: document.getElementById('leagueName'),
+            statGrid: document.getElementById('statGrid'),
+            pickSub: document.getElementById('pickSub'),
+            currentPickCard: document.getElementById('currentPickCard'),
+            nextPickCard: document.getElementById('nextPickCard'),
+            orderList: document.getElementById('orderList'),
+            poolTable: document.getElementById('poolTable'),
+            poolMeta: document.getElementById('poolMeta'),
+            rosterGrid: document.getElementById('rosterGrid'),
+            rosterMeta: document.getElementById('rosterMeta'),
+            toggleSoundButton: document.getElementById('toggleSoundButton'),
+            poolSearch: document.getElementById('poolSearch'),
+            poolPositionFilter: document.getElementById('poolPositionFilter'),
+            poolPagination: document.getElementById('poolPagination'),
+            feedback: document.getElementById('feedback'),
+        };
 
-        // Relógio removido (sistema antigo sem timer)
-
+        // ── Helpers ─────────────────────────────────────
         function teamLabel(pick) {
             if (!pick) return '—';
             return `${pick.team_city || ''} ${pick.team_name || ''}`.trim();
         }
 
+        function showMessage(message, type = 'success') {
+            elements.feedback.innerHTML = `
+                <div class="fb-alert ${type}">
+                    <span>${message}</span>
+                    <button class="fb-close" onclick="this.parentElement.remove()"><i class="bi bi-x"></i></button>
+                </div>`;
+            setTimeout(() => { const el = elements.feedback.firstElementChild; if (el) el.remove(); }, 5000);
+        }
+
+        // ── Live view rendering ─────────────────────────
         function renderStats() {
             const session = state.session;
             if (!session) return;
@@ -533,13 +728,12 @@ if ($user && isset($user['id'])) {
             const total = state.order.length || (session.total_rounds ?? 0) * (state.teams.length || 0);
             const progress = total ? Math.round((drafted / total) * 100) : 0;
             const currentPick = state.order.find((pick) => !pick.picked_player_id);
-            const nextPick = state.order.find((pick, idx) => !pick.picked_player_id && idx > state.order.indexOf(currentPick));
 
-            const statusLabel2 = { setup: 'Configuração', in_progress: 'Em andamento', completed: 'Concluído' }[session.status] || session.status || '—';
+            const statusLabel = { setup: 'Configuração', in_progress: 'Em andamento', completed: 'Concluído' }[session.status] || session.status || '—';
             elements.statGrid.innerHTML = `
                 <div class="stat-card">
                     <div class="stat-label">Status</div>
-                    <div class="status-pill ${session.status}">${statusLabel2}</div>
+                    <div class="status-pill ${session.status}">${statusLabel}</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Rodada</div>
@@ -554,6 +748,11 @@ if ($user && isset($user['id'])) {
                     <div class="stat-value">${drafted} / ${total} <span style="font-size:.8rem;color:var(--text-2)">(${progress}%)</span></div>
                 </div>
             `;
+            if (elements.pickSub) {
+                elements.pickSub.textContent = session.status === 'in_progress'
+                    ? `Rodada ${session.current_round ?? '—'} em andamento`
+                    : statusLabel;
+            }
         }
 
         function renderPickCard(target, pick, label, highlightClass = '') {
@@ -565,12 +764,11 @@ if ($user && isset($user['id'])) {
                 <div class="pick-card ${highlightClass}">
                     <div class="d-flex align-items-center gap-3">
                         <img class="pick-logo" src="${pick.team_photo || '/img/default-team.png'}" alt="${pick.team_name || 'Time'}" onerror="this.src='/img/default-team.png'">
-                        <div class="pick-rank">${pick.pick_position}</div>
                         <div>
                             <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--red)">${label}</div>
                             <div style="font-weight:700;font-size:14px">${teamLabel(pick)}</div>
                             <div style="font-size:11px;color:var(--text-2)">GM: ${pick.team_owner || 'Sem GM'}</div>
-                            <div style="font-size:11px;color:var(--red)">Rodada ${pick.round}</div>
+                            <div style="font-size:11px;color:var(--red)">Rodada ${pick.round} · Pick ${pick.pick_position}</div>
                         </div>
                     </div>
                 </div>
@@ -645,7 +843,6 @@ if ($user && isset($user['id'])) {
                 return matchesSearch && matchesPosition && matchesAvailability;
             });
 
-            // Ordenação (clique no cabeçalho): default OVR desc
             const sortField = uiState.poolSortField || 'ovr';
             const asc = !!uiState.poolSortAsc;
             filtered.sort((a, b) => {
@@ -655,18 +852,14 @@ if ($user && isset($user['id'])) {
                 } else if (sortField === 'age') {
                     cmp = (Number(a.age) || 0) - (Number(b.age) || 0);
                 } else if (sortField === 'name') {
-                    const av = (a.name || '').toString().toLowerCase();
-                    const bv = (b.name || '').toString().toLowerCase();
-                    cmp = av.localeCompare(bv);
+                    cmp = (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase());
                 }
                 return asc ? cmp : -cmp;
             });
 
             const total = filtered.length;
             const totalPages = Math.max(1, Math.ceil(total / uiState.poolPageSize));
-            if (uiState.poolPage > totalPages) {
-                uiState.poolPage = totalPages;
-            }
+            if (uiState.poolPage > totalPages) uiState.poolPage = totalPages;
             const startIndex = (uiState.poolPage - 1) * uiState.poolPageSize;
             const pageItems = filtered.slice(startIndex, startIndex + uiState.poolPageSize);
 
@@ -684,7 +877,7 @@ if ($user && isset($user['id'])) {
                     const drafted = player.draft_status === 'drafted';
                     const action = (!drafted && canPick)
                         ? `<button class="btn-green" style="padding:4px 12px;font-size:11px" onclick="makePick(${player.id})"><i class="bi bi-check2"></i> Escolher</button>`
-                        : '<span style="color:var(--text-3)">—</span>';
+                        : (drafted ? '<span class="badge-drafted">Drafted</span>' : '<span style="color:var(--text-3)">—</span>');
                     return `
                         <tr>
                             <td>${startIndex + index + 1}</td>
@@ -710,8 +903,7 @@ if ($user && isset($user['id'])) {
 
         function changePoolPage(page) {
             uiState.poolPage = page;
-            const currentPick = state.order.find((pick) => !pick.picked_player_id);
-            renderPool(currentPick);
+            renderPool(getCurrentPick());
         }
 
         function renderRosters() {
@@ -719,12 +911,7 @@ if ($user && isset($user['id'])) {
             const grouped = {};
             picks.forEach((pick) => {
                 const key = pick.team_id;
-                if (!grouped[key]) {
-                    grouped[key] = {
-                        team: pick,
-                        players: []
-                    };
-                }
+                if (!grouped[key]) grouped[key] = { team: pick, players: [] };
                 grouped[key].players.push(pick);
             });
 
@@ -763,7 +950,16 @@ if ($user && isset($user['id'])) {
                 .join('');
         }
 
-        async function loadState() {
+        function getCurrentPick() {
+            return state.order.find((pick) => !pick.picked_player_id);
+        }
+
+        function getNextPick(currentPick) {
+            return state.order.find((pick, idx) => !pick.picked_player_id && idx > state.order.indexOf(currentPick));
+        }
+
+        // ── Load & refresh ──────────────────────────────
+        async function loadState(fromAuto = false) {
             try {
                 const [stateRes, poolRes] = await Promise.all([
                     fetch(`${API_URL}?action=state&token=${TOKEN}`).then((r) => r.json()),
@@ -774,16 +970,19 @@ if ($user && isset($user['id'])) {
                 state.order = stateRes.order || [];
                 state.teams = stateRes.teams || [];
                 state.pool = poolRes.success ? poolRes.players : [];
+                state.canEditOrder = !!stateRes.can_edit_order;
+
                 renderStats();
-                const currentPick = state.order.find((pick) => !pick.picked_player_id);
-                const nextPick = state.order.find((pick, idx) => !pick.picked_player_id && idx > state.order.indexOf(currentPick));
+                const currentPick = getCurrentPick();
+                const nextPick = getNextPick(currentPick);
                 handlePickChange(currentPick);
-                // sem relógio
                 renderPickCard(elements.currentPickCard, currentPick, 'Pick Atual', 'current-pick-highlight pick-card-lg');
                 renderPickCard(elements.nextPickCard, nextPick, 'Próximo', 'next-pick-highlight pick-card-sm');
                 renderOrderList(currentPick, nextPick);
                 renderPool(currentPick);
                 renderRosters();
+
+                if (IS_ADMIN) renderAdmin(fromAuto);
             } catch (error) {
                 elements.poolTable.innerHTML = `<tr><td colspan="6" style="color:#ef4444;padding:16px;text-align:center">${error.message}</td></tr>`;
             }
@@ -793,19 +992,15 @@ if ($user && isset($user['id'])) {
             const isMobile = window.matchMedia('(max-width: 768px)').matches;
             if (!isMobile) {
                 setInterval(() => {
-                    if (document.visibilityState === 'visible') {
-                        loadState();
-                    }
+                    if (document.visibilityState === 'visible') loadState(true);
                 }, 10000);
             }
-
             document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'visible') {
-                    loadState();
-                }
+                if (document.visibilityState === 'visible') loadState(true);
             });
         }
 
+        // ── Picks & reactions (live) ────────────────────
         async function makePick(playerId) {
             if (!confirm('Confirmar a escolha deste jogador?')) return;
             try {
@@ -822,59 +1017,31 @@ if ($user && isset($user['id'])) {
             }
         }
 
-        async function adminOpenNextRoundNow() {
-            if (!IS_ADMIN) return;
-            if (!confirm('Abrir rodada imediatamente?')) return;
-            try {
-                const sessionId = state.session?.id;
-                if (!sessionId) throw new Error('Sessão não carregada');
-                const res = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'admin_open_next_round_now', session_id: sessionId })
-                });
-                const data = await res.json();
-                if (!data.success) throw new Error(data.error || 'Falha ao abrir rodada');
-                await loadState();
-            } catch (error) {
-                alert(error.message);
-            }
-        }
-
         async function reactPick(pickId, emoji) {
-            try {
-                const res = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'react_pick', token: TOKEN, pick_id: pickId, emoji })
-                });
-                const data = await res.json();
-                if (!data.success) throw new Error(data.error || 'Erro ao reagir');
-                await loadState();
-            } catch (error) {
-                alert(error.message);
-            }
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'react_pick', token: TOKEN, pick_id: pickId, emoji })
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao reagir');
+            await loadState();
         }
 
         async function removeReaction(pickId) {
-            try {
-                const res = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'remove_reaction', token: TOKEN, pick_id: pickId })
-                });
-                const data = await res.json();
-                if (!data.success) throw new Error(data.error || 'Erro ao remover reação');
-                await loadState();
-            } catch (error) {
-                alert(error.message);
-            }
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'remove_reaction', token: TOKEN, pick_id: pickId })
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao remover reação');
+            await loadState();
         }
 
         async function toggleReaction(pickId, emoji) {
             try {
                 const emo = decodeURIComponent(emoji);
-                // Descobre reação atual do usuário nessa pick
                 const pick = state.order.find(p => p.id === pickId);
                 const mineEmoji = (pick && Array.isArray(pick.reactions)) ? (pick.reactions.find(r => r.mine)?.emoji || null) : null;
                 if (mineEmoji === emo) {
@@ -893,13 +1060,9 @@ if ($user && isset($user['id'])) {
                 elements.currentPickCard.classList.remove('pick-flash');
                 void elements.currentPickCard.offsetWidth;
                 elements.currentPickCard.classList.add('pick-flash');
-                if (uiState.soundEnabled) {
-                    playBeep();
-                }
+                if (uiState.soundEnabled) playBeep();
             }
-            if (pickId) {
-                uiState.lastPickId = pickId;
-            }
+            if (pickId) uiState.lastPickId = pickId;
         }
 
         function playBeep() {
@@ -934,28 +1097,17 @@ if ($user && isset($user['id'])) {
             }
         }
 
-        function toggleTvMode() {
-            document.body.classList.toggle('tv-mode');
-            const isTv = document.body.classList.contains('tv-mode');
-            if (isTv && document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(() => {});
-            } else if (!isTv && document.fullscreenElement) {
-                document.exitFullscreen().catch(() => {});
-            }
-        }
-
+        // ── Pool filters/sort (live) ────────────────────
         elements.poolSearch?.addEventListener('input', (event) => {
             uiState.poolSearch = event.target.value.toLowerCase();
             uiState.poolPage = 1;
-            const currentPick = state.order.find((pick) => !pick.picked_player_id);
-            renderPool(currentPick);
+            renderPool(getCurrentPick());
         });
 
         elements.poolPositionFilter?.addEventListener('change', (event) => {
             uiState.poolPosition = event.target.value;
             uiState.poolPage = 1;
-            const currentPick = state.order.find((pick) => !pick.picked_player_id);
-            renderPool(currentPick);
+            renderPool(getCurrentPick());
         });
 
         document.querySelector('#poolTableEl thead')?.addEventListener('click', (e) => {
@@ -964,21 +1116,19 @@ if ($user && isset($user['id'])) {
             const field = th.dataset.sort;
             if (!field) return;
             if (uiState.poolSortField === field) {
-                uiState.poolSortAsc = !uiState.poolSortAsc; // alterna
+                uiState.poolSortAsc = !uiState.poolSortAsc;
             } else {
                 uiState.poolSortField = field;
-                uiState.poolSortAsc = false; // primeiro clique: desc
+                uiState.poolSortAsc = false;
             }
             uiState.poolPage = 1;
-            const currentPick = state.order.find((pick) => !pick.picked_player_id);
-            renderPool(currentPick);
+            renderPool(getCurrentPick());
         });
 
         document.getElementById('poolOnlyAvailable')?.addEventListener('change', (e) => {
             uiState.poolOnlyAvailable = !!e.target.checked;
             uiState.poolPage = 1;
-            const currentPick = state.order.find((pick) => !pick.picked_player_id);
-            renderPool(currentPick);
+            renderPool(getCurrentPick());
         });
 
         function updatePoolSortIndicators() {
@@ -988,8 +1138,7 @@ if ($user && isset($user['id'])) {
                 th.classList.remove('active');
                 const span = th.querySelector('.sort-indicator');
                 if (span) span.textContent = '';
-                const field = th.dataset.sort;
-                if (field === uiState.poolSortField) {
+                if (th.dataset.sort === uiState.poolSortField) {
                     th.classList.add('active');
                     const indicator = th.querySelector('.sort-indicator');
                     if (indicator) indicator.textContent = uiState.poolSortAsc ? '▲' : '▼';
@@ -998,10 +1147,514 @@ if ($user && isset($user['id'])) {
         }
 
         elements.toggleSoundButton?.addEventListener('click', toggleSound);
-        elements.toggleTvButton?.addEventListener('click', toggleTvMode);
 
-    setupAutoRefresh();
-    loadState();
+<?php if ($isAdmin): ?>
+        // ══════════════════════════════════════════════
+        //  ADMIN
+        // ══════════════════════════════════════════════
+        const admElements = {
+            tokenDisplay: document.getElementById('tokenDisplay'),
+            panel: document.getElementById('adminPanel'),
+            toggleBtn: document.getElementById('toggleAdminButton'),
+            progressLabel: document.getElementById('admProgressLabel'),
+            progressPercent: document.getElementById('admProgressPercent'),
+            progressBar: document.getElementById('admProgressBar'),
+            totalRounds: document.getElementById('admTotalRounds'),
+            startArea: document.getElementById('admStartArea'),
+            orderHint: document.getElementById('admOrderHint'),
+            manualOrderList: document.getElementById('admManualOrderList'),
+            shuffleBtn: document.getElementById('admShuffleBtn'),
+            resetOrderBtn: document.getElementById('admResetOrderBtn'),
+            saveOrderBtn: document.getElementById('admSaveOrderBtn'),
+            poolSearch: document.getElementById('admPoolSearch'),
+            poolTable: document.getElementById('admPoolTable'),
+            poolPagination: document.getElementById('admPoolPagination'),
+            dailyStart: document.getElementById('admDailyStart'),
+            dailyEnd: document.getElementById('admDailyEnd'),
+        };
+
+        if (admElements.tokenDisplay) admElements.tokenDisplay.textContent = TOKEN;
+
+        function copyToken() {
+            navigator.clipboard.writeText(TOKEN).then(() => showMessage('Token copiado para a área de transferência.'));
+        }
+
+        function toggleAdminPanel() {
+            if (!admElements.panel) return;
+            const willOpen = admElements.panel.classList.contains('d-none');
+            admElements.panel.classList.toggle('d-none');
+            admElements.toggleBtn?.classList.toggle('btn-red', !willOpen);
+            admElements.toggleBtn?.classList.toggle('btn-ghost', willOpen);
+            if (willOpen) admElements.panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function renderAdmin(fromAuto = false) {
+            renderAdminProgress();
+            renderStartArea();
+            renderAdmPool();
+            syncScheduleInputs();
+            // Não sobrescrever a ordem em edição durante um refresh automático
+            if (!adminState.orderDirty) {
+                adminState.manualOrder = getRoundOneOrder();
+                renderManualOrder();
+            }
+            updateOrderControls();
+
+            // Na primeira carga, abre o painel automaticamente se ainda está em configuração
+            if (!adminState.autoOpened) {
+                adminState.autoOpened = true;
+                if (state.session?.status === 'setup') toggleAdminPanel();
+            }
+        }
+
+        function syncScheduleInputs() {
+            const session = state.session;
+            if (!session || !admElements.dailyStart) return;
+            if (document.activeElement === admElements.dailyStart) return;
+            admElements.dailyStart.value = formatDateBr(session.daily_schedule_start_date || '');
+            refreshScheduleEnd();
+        }
+
+        function renderAdminProgress() {
+            const session = state.session;
+            if (!session) return;
+            const drafted = state.order.filter((p) => p.picked_player_id).length;
+            const total = state.order.length || (session.total_rounds ?? 0) * (state.teams.length || 0);
+            const progress = total ? Math.round((drafted / total) * 100) : 0;
+            admElements.progressLabel.textContent = `${drafted} de ${total} picks · Liga ${session.league}`;
+            admElements.progressPercent.textContent = `${progress}%`;
+            admElements.progressBar.style.width = `${progress}%`;
+            if (admElements.totalRounds && document.activeElement !== admElements.totalRounds) {
+                admElements.totalRounds.value = session.total_rounds ?? '';
+            }
+        }
+
+        function renderStartArea() {
+            const session = state.session;
+            if (!session || !admElements.startArea) return;
+            if (session.status === 'setup') {
+                const ready = state.order.length > 0;
+                admElements.startArea.innerHTML = ready
+                    ? `<button class="btn-green" onclick="startDraft()"><i class="bi bi-play-fill"></i> Iniciar draft</button>`
+                    : `<div style="font-size:12px;color:var(--text-2)">Defina e salve a ordem para liberar o início.</div>`;
+            } else if (session.status === 'in_progress') {
+                admElements.startArea.innerHTML = `<span class="status-pill in_progress">Draft em andamento</span>`;
+            } else {
+                admElements.startArea.innerHTML = `<span class="status-pill completed">Draft concluído</span>`;
+            }
+        }
+
+        function getRoundOneOrder() {
+            if (!state.order.length) return state.teams.map((team) => team.id);
+            return state.order
+                .filter((pick) => pick.round === 1)
+                .sort((a, b) => a.pick_position - b.pick_position)
+                .map((pick) => pick.team_id);
+        }
+
+        function updateOrderControls() {
+            const canEdit = state.canEditOrder;
+            [admElements.shuffleBtn, admElements.resetOrderBtn, admElements.saveOrderBtn].forEach(b => { if (b) b.disabled = !canEdit; });
+            if (admElements.orderHint) {
+                admElements.orderHint.textContent = canEdit
+                    ? 'Ajuste a posição de cada time e clique em Salvar ordem. As demais rodadas seguem o formato snake.'
+                    : 'Ordem bloqueada após a primeira pick.';
+            }
+        }
+
+        function renderManualOrder() {
+            if (!admElements.manualOrderList) return;
+            if (!adminState.manualOrder.length) {
+                admElements.manualOrderList.innerHTML = '<div class="state-empty">Sem times na liga.</div>';
+                return;
+            }
+            const teamsById = Object.fromEntries(state.teams.map((team) => [team.id, team]));
+            const total = adminState.manualOrder.length;
+            const canEdit = state.canEditOrder;
+            const options = Array.from({ length: total }, (_, idx) => idx + 1);
+            admElements.manualOrderList.innerHTML = adminState.manualOrder
+                .map((teamId, index) => {
+                    const team = teamsById[teamId] || {};
+                    const controls = canEdit ? `
+                        <select class="field-input manual-position-select" onchange="updateManualOrderPosition(${teamId}, this.value)">
+                            ${options.map((pos) => `<option value="${pos}" ${pos === index + 1 ? 'selected' : ''}>#${pos}</option>`).join('')}
+                        </select>` : `<div class="order-rank">${index + 1}</div>`;
+                    return `
+                        <div class="manual-order-row">
+                            ${controls}
+                            <div class="d-flex align-items-center gap-2">
+                                <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--border-md)">
+                                <div>
+                                    <div class="team-chip-name">${team.city || ''} ${team.name || ''}</div>
+                                    <div class="team-chip-gm">${team.owner_name || 'Sem GM'}</div>
+                                </div>
+                            </div>
+                            <div class="order-actions">
+                                <button class="order-btn" ${!canEdit || index === 0 ? 'disabled' : ''} onclick="moveManualTeam(${index}, -1)"><i class="bi bi-arrow-up"></i></button>
+                                <button class="order-btn" ${!canEdit || index === total - 1 ? 'disabled' : ''} onclick="moveManualTeam(${index}, 1)"><i class="bi bi-arrow-down"></i></button>
+                            </div>
+                        </div>`;
+                })
+                .join('');
+        }
+
+        function updateManualOrderPosition(teamId, position) {
+            const newPos = parseInt(position, 10);
+            if (!Number.isFinite(newPos)) return;
+            const index = adminState.manualOrder.indexOf(parseInt(teamId, 10));
+            if (index === -1) return;
+            const updated = [...adminState.manualOrder];
+            const [removed] = updated.splice(index, 1);
+            updated.splice(newPos - 1, 0, removed);
+            adminState.manualOrder = updated;
+            adminState.orderDirty = true;
+            renderManualOrder();
+        }
+
+        function moveManualTeam(index, delta) {
+            const newIndex = index + delta;
+            if (newIndex < 0 || newIndex >= adminState.manualOrder.length) return;
+            const updated = [...adminState.manualOrder];
+            const [removed] = updated.splice(index, 1);
+            updated.splice(newIndex, 0, removed);
+            adminState.manualOrder = updated;
+            adminState.orderDirty = true;
+            renderManualOrder();
+        }
+
+        function shuffleOrder() {
+            if (!state.canEditOrder) return;
+            const arr = [...adminState.manualOrder];
+            for (let i = arr.length - 1; i > 0; i -= 1) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            adminState.manualOrder = arr;
+            adminState.orderDirty = true;
+            renderManualOrder();
+            showMessage('Ordem sorteada. Revise e clique em Salvar ordem.', 'info');
+        }
+
+        function resetManualOrder() {
+            adminState.manualOrder = getRoundOneOrder();
+            adminState.orderDirty = false;
+            renderManualOrder();
+        }
+
+        async function saveManualOrder() {
+            if (!state.canEditOrder) { showMessage('A ordem não pode mais ser alterada após a primeira pick.', 'warning'); return; }
+            if (!adminState.manualOrder.length) { showMessage('Defina a ordem antes de salvar.', 'warning'); return; }
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'set_manual_order', token: TOKEN, team_ids: adminState.manualOrder }),
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao salvar ordem');
+                adminState.orderDirty = false;
+                showMessage('Ordem salva com sucesso.');
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
+        }
+
+        async function saveTotalRounds() {
+            const value = parseInt(admElements.totalRounds?.value, 10);
+            if (Number.isNaN(value) || value < 1 || value > 10) { showMessage('Informe um número de rodadas entre 1 e 10.', 'warning'); return; }
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'set_total_rounds', token: TOKEN, total_rounds: value }),
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao atualizar rodadas');
+                showMessage('Total de rodadas atualizado. Salve a ordem novamente para reconstruir as rodadas.', 'info');
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
+        }
+
+        async function startDraft() {
+            if (!confirm('Deseja iniciar o draft?')) return;
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'start', token: TOKEN }),
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao iniciar');
+                showMessage('Draft iniciado.');
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
+        }
+
+        async function finalizeDraft() {
+            if (!confirm('Deseja finalizar o draft? Certifique-se de que todas as picks foram feitas.')) return;
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'finalize', token: TOKEN }),
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao finalizar');
+                showMessage('Draft finalizado com sucesso.');
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
+        }
+
+        async function adminOpenNextRoundNow() {
+            if (!confirm('Abrir rodada imediatamente?')) return;
+            try {
+                const sessionId = state.session?.id;
+                if (!sessionId) throw new Error('Sessão não carregada');
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'admin_open_next_round_now', session_id: sessionId })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Falha ao abrir rodada');
+                showMessage('Rodada aberta.');
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
+        }
+
+        // ── Agendamento (datas) ─────────────────────────
+        function formatDateBr(isoDate) {
+            if (!isoDate) return '';
+            const [y, m, d] = isoDate.split('-');
+            if (!y || !m || !d) return '';
+            return `${d}/${m}/${y}`;
+        }
+        function parseDateBrToIso(brDate) {
+            if (!brDate) return '';
+            const parts = brDate.split('/');
+            if (parts.length !== 3) return '';
+            const [d, m, y] = parts.map((p) => p.trim());
+            if (!d || !m || !y) return '';
+            return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+        }
+        function computeScheduleEndDate(startDate, totalRounds) {
+            if (!startDate) return '';
+            const rounds = parseInt(totalRounds, 10);
+            if (Number.isNaN(rounds) || rounds < 1) return '';
+            const base = new Date(`${startDate}T00:00:00-03:00`);
+            if (Number.isNaN(base.getTime())) return '';
+            base.setDate(base.getDate() + (rounds - 1));
+            const y = base.getFullYear();
+            const m = String(base.getMonth() + 1).padStart(2, '0');
+            const d = String(base.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function refreshScheduleEnd() {
+            const iso = parseDateBrToIso(admElements.dailyStart?.value || '');
+            const computed = computeScheduleEndDate(iso, state.session?.total_rounds);
+            if (admElements.dailyEnd) admElements.dailyEnd.value = formatDateBr(computed) || '—';
+        }
+
+        admElements.dailyStart?.addEventListener('input', refreshScheduleEnd);
+
+        async function saveDailySchedule() {
+            try {
+                const startDate = parseDateBrToIso(admElements.dailyStart?.value || '');
+                if (!startDate) { showMessage('Informe a data no formato dd/mm/aaaa.', 'warning'); return; }
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'set_daily_schedule', token: TOKEN, enabled: 1, start_date: startDate }),
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao salvar agendamento');
+                showMessage('Agendamento salvo. A rodada do dia abre às 00:01 (Brasília) a partir do Dia 01.');
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
+        }
+
+        // ── Admin pool management ───────────────────────
+        admElements.poolSearch?.addEventListener('input', (e) => {
+            adminState.poolSearch = e.target.value.toLowerCase();
+            adminState.poolPage = 1;
+            renderAdmPool();
+        });
+
+        function admFilteredPool() {
+            const needle = adminState.poolSearch.trim();
+            return (state.pool || []).filter((player) => {
+                if (!needle) return true;
+                return (player.name || '').toLowerCase().includes(needle) || (player.position || '').toLowerCase().includes(needle);
+            });
+        }
+
+        function renderAdmPool() {
+            if (!admElements.poolTable) return;
+            const filtered = admFilteredPool();
+            const isSetup = state.session?.status === 'setup';
+
+            if (!filtered.length) {
+                admElements.poolTable.innerHTML = '<tr><td colspan="7" class="state-empty">Nenhum jogador no pool.</td></tr>';
+                admElements.poolPagination.innerHTML = '';
+                return;
+            }
+
+            const totalPages = Math.max(1, Math.ceil(filtered.length / adminState.poolPageSize));
+            if (adminState.poolPage > totalPages) adminState.poolPage = totalPages;
+            const start = (adminState.poolPage - 1) * adminState.poolPageSize;
+            const pageItems = filtered.slice(start, start + adminState.poolPageSize);
+
+            admElements.poolTable.innerHTML = pageItems
+                .map((player, index) => {
+                    const drafted = player.draft_status === 'drafted';
+                    const canManage = isSetup && !drafted;
+                    const editBtn = canManage ? `<button class="btn-sm-icon amber" onclick="openEditPlayer(${player.id})"><i class="bi bi-pencil"></i></button>` : '';
+                    const delBtn = canManage ? `<button class="btn-sm-icon danger" onclick="deleteInitDraftPlayer(${player.id}, '${(player.name || '').replace(/'/g, "\\'")}')"><i class="bi bi-trash"></i></button>` : '';
+                    const actions = (editBtn || delBtn) ? `<div style="display:flex;gap:4px;justify-content:flex-end">${editBtn} ${delBtn}</div>` : '<span style="color:var(--text-3)">—</span>';
+                    return `
+                        <tr>
+                            <td>${start + index + 1}</td>
+                            <td class="td-name">${player.name}</td>
+                            <td>${player.position}</td>
+                            <td style="font-weight:700;color:var(--text)">${player.ovr}</td>
+                            <td>${player.age ?? '—'}</td>
+                            <td><span class="${drafted ? 'badge-drafted' : 'badge-available'}">${drafted ? 'Drafted' : 'Disponível'}</span></td>
+                            <td style="text-align:right">${actions}</td>
+                        </tr>`;
+                })
+                .join('');
+
+            admElements.poolPagination.innerHTML = `
+                <span style="font-size:11px;color:var(--text-2)">${filtered.length} jogadores · Pág. ${adminState.poolPage} de ${totalPages}</span>
+                <div class="d-flex gap-2">
+                    <button class="btn-ghost" style="padding:4px 10px;font-size:11px" ${adminState.poolPage === 1 ? 'disabled' : ''} onclick="changeAdmPoolPage(${adminState.poolPage - 1})">← Anterior</button>
+                    <button class="btn-ghost" style="padding:4px 10px;font-size:11px" ${adminState.poolPage === totalPages ? 'disabled' : ''} onclick="changeAdmPoolPage(${adminState.poolPage + 1})">Próxima →</button>
+                </div>`;
+        }
+
+        function changeAdmPoolPage(page) {
+            adminState.poolPage = page;
+            renderAdmPool();
+        }
+
+        async function deleteInitDraftPlayer(playerId, playerName) {
+            if (!confirm(`Remover ${playerName} do draft inicial?`)) return;
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'delete_player', token: TOKEN, player_id: playerId }),
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao remover jogador');
+                showMessage('Jogador removido do pool.');
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
+        }
+
+        function openEditPlayer(playerId) {
+            const player = state.pool.find(p => p.id === playerId);
+            if (!player) { showMessage('Jogador não encontrado.', 'warning'); return; }
+            document.getElementById('editPlayerId').value = player.id;
+            document.getElementById('editPlayerName').value = player.name || '';
+            document.getElementById('editPlayerPosition').value = player.position || 'SF';
+            document.getElementById('editPlayerAge').value = player.age || 19;
+            document.getElementById('editPlayerOvr').value = player.ovr || 70;
+            new bootstrap.Modal(document.getElementById('editPlayerModal')).show();
+        }
+
+        async function handleAddPlayer(event) {
+            event.preventDefault();
+            const payload = Object.fromEntries(new FormData(event.target).entries());
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'add_player', token: TOKEN, ...payload }),
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao adicionar jogador');
+                showMessage('Jogador adicionado ao pool.');
+                event.target.reset();
+                bootstrap.Modal.getInstance(document.getElementById('addPlayerModal'))?.hide();
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
+        }
+
+        async function handleEditPlayer(event) {
+            event.preventDefault();
+            const payload = Object.fromEntries(new FormData(event.target).entries());
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'edit_player', token: TOKEN, ...payload }),
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao editar jogador');
+                showMessage('Jogador atualizado com sucesso.');
+                bootstrap.Modal.getInstance(document.getElementById('editPlayerModal'))?.hide();
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
+        }
+
+        async function handleImportCSV(event) {
+            event.preventDefault();
+            const form = event.target;
+            const fileInput = form.querySelector('input[type="file"]');
+            if (!fileInput.files.length) { showMessage('Selecione um arquivo CSV.', 'warning'); return; }
+            const formData = new FormData(form);
+            formData.append('action', 'import_csv');
+            formData.append('token', TOKEN);
+            try {
+                const res = await fetch(API_URL, { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao importar CSV');
+                showMessage(`Importação concluída: ${data.imported} jogadores.`);
+                form.reset();
+                bootstrap.Modal.getInstance(document.getElementById('importCSVModal'))?.hide();
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
+        }
+
+        function downloadCSVTemplate() {
+            const csv = 'name,position,age,ovr\nJohn Doe,SF,22,75';
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'initdraft-template.csv';
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        document.getElementById('addPlayerForm')?.addEventListener('submit', handleAddPlayer);
+        document.getElementById('editPlayerForm')?.addEventListener('submit', handleEditPlayer);
+        document.getElementById('importCSVForm')?.addEventListener('submit', handleImportCSV);
+<?php endif; ?>
+
+        setupAutoRefresh();
+        loadState();
     </script>
 </body>
 </html>
