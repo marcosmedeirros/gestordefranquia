@@ -181,10 +181,16 @@ const TRADE_MATCH_PCT = 120;
 
 const somaSalarios = (lista = []) => lista.reduce((s, p) => s + (Number(p.salary) || 0), 0);
 
+// Valor de pick no casamento: 1ª rodada 5M, 2ª rodada nada. A pick não entra
+// na folha do elenco, só no envia/recebe da troca.
+const pickSalary = (round) => Number(round) === 1 ? 5 : 0;
+const somaPicks = (lista = []) => lista.reduce((s, p) => s + pickSalary(p.round), 0);
+
 function checarMatch120() {
   if (!capSalaryMode) return [];
-  const meuEnvia   = somaSalarios(playerState.offer.selected || []);
-  const meuRecebe  = somaSalarios(playerState.request.selected || []);
+  // offer = o que eu envio; request = o que eu recebo.
+  const meuEnvia   = somaSalarios(playerState.offer.selected || [])   + somaPicks(pickState.offer.selected || []);
+  const meuRecebe  = somaSalarios(playerState.request.selected || []) + somaPicks(pickState.request.selected || []);
   if (meuEnvia === 0 && meuRecebe === 0) return [];
 
   const nomeAlvo = (() => {

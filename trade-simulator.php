@@ -983,13 +983,30 @@ function simTop8(key) {
  */
 const TRADE_MATCH_PCT = 120;
 
+// Valor de pick no casamento salarial: 1ª rodada vale 5M, 2ª rodada nada.
+// A pick nao entra na folha do elenco (nao e jogador), so no envia/recebe.
+function pickSalary(round) { return Number(round) === 1 ? 5 : 0; }
+
 function matching120(key) {
   const t = teams[key];
   if (!t || !t.salaryMode) return null;
-  const enviado  = t.players.filter(p => t.tradedOut.has(p.id))
-                            .reduce((s, p) => s + (+(p.salary || 0)), 0);
-  const recebido = (receives[key] || []).filter(i => i.type === 'player')
-                            .reduce((s, p) => s + (+(p.salary || 0)), 0);
+
+  // Jogadores que saem + picks que saem deste time (estao em receives de
+  // outros slots, marcadas com fromKey === key).
+  let enviado = t.players.filter(p => t.tradedOut.has(p.id))
+                         .reduce((s, p) => s + (+(p.salary || 0)), 0);
+  activeSlots.forEach(s => {
+    (receives[s] || []).forEach(i => {
+      if (i.type === 'pick' && i.fromKey === key) enviado += pickSalary(i.round);
+    });
+  });
+
+  // Jogadores e picks que este time recebe.
+  let recebido = 0;
+  (receives[key] || []).forEach(i => {
+    if (i.type === 'player') recebido += (+(i.salary || 0));
+    else if (i.type === 'pick') recebido += pickSalary(i.round);
+  });
   if (enviado === 0 && recebido === 0) return null;
 
   const limite = Math.floor(enviado * TRADE_MATCH_PCT / 100);
