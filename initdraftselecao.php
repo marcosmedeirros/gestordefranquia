@@ -370,6 +370,17 @@ if ($user && isset($user['id'])) {
         .roster-list li { display:flex; align-items:center; gap:8px; }
         .roster-list li .rl-ovr { margin-left:auto; font-weight:700; color:var(--text); font-size:12px; }
 
+        /* Grid denso de elencos (30-32 times num card só) */
+        .rosters-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(215px, 1fr)); gap:12px; align-items:start; }
+        .rosters-grid .roster-card { padding:12px; margin:0; }
+        .rosters-grid .roster-head { margin-bottom:8px; }
+        .rosters-grid .team-chip img { width:28px; height:28px; }
+        .rosters-grid .team-chip-name { font-size:12px; }
+        .rosters-grid .team-chip-gm { font-size:10px; }
+        .rosters-grid .roster-list { font-size:11px; }
+        .rosters-grid .roster-list li { padding:3px 0; }
+        .rosters-grid .roster-empty { font-size:11px; color:var(--text-3); padding:4px 0; }
+
         /* ── Player detail (offcanvas) ── */
         .pd-offcanvas { background:var(--panel); color:var(--text); border-left:1px solid var(--border-md); width:380px; }
         .pd-hero { display:flex; align-items:center; gap:14px; padding:18px; border-bottom:1px solid var(--border); }
@@ -586,27 +597,27 @@ if ($user && isset($user['id'])) {
             </div>
         </div>
 
-        <!-- Ordem (snake) + Elencos -->
+        <!-- Ordem (snake) -->
         <div class="col-lg-5">
             <div class="panel-card">
-                <div class="panel-card-head" style="border-bottom:1px solid var(--border);padding-bottom:0">
-                    <ul class="nav nav-tabs" id="boardTabs" role="tablist" style="border-bottom:none;margin-bottom:-1px">
-                        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-snake" type="button">Ordem (Snake)</button></li>
-                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-rosters" type="button">Elencos <span id="rosterCount" style="opacity:.7"></span></button></li>
-                    </ul>
+                <div class="panel-card-head">
+                    <div class="panel-card-title"><i class="bi bi-list-ol" style="color:var(--red);margin-right:6px"></i>Ordem do Draft (Snake)</div>
                 </div>
                 <div class="panel-card-body">
-                    <div class="tab-content">
-                        <div class="tab-pane fade show active" id="tab-snake" role="tabpanel">
-                            <div id="snakeBoard" style="max-height:660px;overflow-y:auto"><div class="state-empty">Carregando…</div></div>
-                        </div>
-                        <div class="tab-pane fade" id="tab-rosters" role="tabpanel">
-                            <div style="font-size:11px;color:var(--text-2);margin-bottom:10px" id="rosterMeta"></div>
-                            <div id="rosterGrid" style="max-height:660px;overflow-y:auto"><div class="state-empty">Nenhum elenco montado ainda.</div></div>
-                        </div>
-                    </div>
+                    <div id="snakeBoard" style="max-height:720px;overflow-y:auto"><div class="state-empty">Carregando…</div></div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Elencos em montagem (todos os times, full width) -->
+    <div class="panel-card mt-4">
+        <div class="panel-card-head">
+            <div class="panel-card-title"><i class="bi bi-people-fill" style="color:var(--red);margin-right:6px"></i>Elencos em Montagem</div>
+            <span style="font-size:11px;color:var(--text-2)" id="rosterMeta"></span>
+        </div>
+        <div class="panel-card-body">
+            <div class="rosters-grid" id="rosterGrid"><div class="state-empty">Nenhum elenco montado ainda.</div></div>
         </div>
     </div>
 
@@ -1039,39 +1050,38 @@ if ($user && isset($user['id'])) {
             oc.show();
         }
 
-        // ── Elencos (rosters) ───────────────────────────
+        // ── Elencos (rosters) — todos os times da liga ──
         function renderRosters() {
-            const picks = state.order.filter((p) => p.picked_player_id);
-            const grouped = {};
-            picks.forEach((pick) => {
-                const key = pick.team_id;
-                if (!grouped[key]) grouped[key] = { team: pick, players: [] };
-                grouped[key].players.push(pick);
+            const teams = (state.teams || []).slice().sort((a, b) =>
+                `${a.city || ''} ${a.name || ''}`.localeCompare(`${b.city || ''} ${b.name || ''}`));
+            const byTeam = {};
+            state.order.filter((p) => p.picked_player_id).forEach((pick) => {
+                (byTeam[pick.team_id] = byTeam[pick.team_id] || []).push(pick);
             });
-            const teams = Object.values(grouped).sort((a, b) => b.players.length - a.players.length);
-            if (elements.rosterMeta) elements.rosterMeta.textContent = `${teams.length} time${teams.length === 1 ? '' : 's'} com escolhas`;
-            if (elements.rosterCount) elements.rosterCount.textContent = teams.length ? `(${teams.length})` : '';
-            if (!teams.length) { elements.rosterGrid.innerHTML = '<div class="state-empty">Nenhum elenco montado ainda.</div>'; return; }
+            const totalPicks = state.order.filter((p) => p.picked_player_id).length;
+            if (elements.rosterMeta) elements.rosterMeta.textContent = `${teams.length} times · ${totalPicks} escolhas`;
+            if (!teams.length) { elements.rosterGrid.innerHTML = '<div class="state-empty">Nenhum time na liga.</div>'; return; }
 
-            elements.rosterGrid.innerHTML = teams.map((g) => {
-                const ovrs = g.players.map((p) => Number(p.player_ovr) || 0).filter(Boolean);
-                const avg = ovrs.length ? Math.round(ovrs.reduce((a, b) => a + b, 0) / ovrs.length) : '—';
-                const list = g.players
-                    .sort((a, b) => (Number(b.player_ovr) || 0) - (Number(a.player_ovr) || 0))
-                    .map((pick) => {
+            elements.rosterGrid.innerHTML = teams.map((team) => {
+                const players = (byTeam[team.id] || []).slice().sort((a, b) => (Number(b.player_ovr) || 0) - (Number(a.player_ovr) || 0));
+                const ovrs = players.map((p) => Number(p.player_ovr) || 0).filter(Boolean);
+                const avg = ovrs.length ? Math.round(ovrs.reduce((a, b) => a + b, 0) / ovrs.length) : null;
+                const body = players.length
+                    ? `<ul class="roster-list">${players.map((pick) => {
                         const age = (pick.player_age != null && pick.player_age !== '') ? `${pick.player_age}a` : '';
                         return `<li><span class="pos-badge ${posClass(pick.player_position)}">${pick.player_position || ''}</span> <span style="color:var(--text)">${pick.player_name}</span> <span style="color:var(--text-3);font-size:11px">${age}</span> <span class="rl-ovr">${pick.player_ovr ?? '—'}</span></li>`;
-                    }).join('');
+                    }).join('')}</ul>`
+                    : '<div class="roster-empty">Sem escolhas ainda</div>';
                 return `
-                    <div class="roster-card mb-2">
+                    <div class="roster-card">
                         <div class="roster-head">
                             <div class="team-chip">
-                                <img src="${g.team.team_photo || '/img/default-team.png'}" onerror="this.src='/img/default-team.png'" alt="">
-                                <div><div class="team-chip-name">${teamLabel(g.team)}</div><div class="team-chip-gm">${g.team.team_owner || 'Sem GM'}</div></div>
+                                <img src="${team.photo_url || '/img/default-team.png'}" onerror="this.src='/img/default-team.png'" alt="">
+                                <div><div class="team-chip-name">${team.city || ''} ${team.name || ''}</div><div class="team-chip-gm">${team.owner_name || 'Sem GM'}</div></div>
                             </div>
-                            <div class="roster-badges"><span class="roster-stat">${g.players.length} pick${g.players.length === 1 ? '' : 's'}</span><span class="roster-stat">OVR méd ${avg}</span></div>
+                            <div class="roster-badges"><span class="roster-stat">${players.length}</span>${avg != null ? `<span class="roster-stat">Ø${avg}</span>` : ''}</div>
                         </div>
-                        <ul class="roster-list">${list}</ul>
+                        ${body}
                     </div>`;
             }).join('');
         }
