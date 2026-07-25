@@ -285,6 +285,107 @@ if ($user && isset($user['id'])) {
         }
         input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
+        /* ══════ Draft room (nova sala) ══════ */
+        .pos-badge { display:inline-flex; align-items:center; justify-content:center; min-width:34px; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:800; letter-spacing:.5px; border:1px solid transparent; }
+        .pos-PG { background:rgba(59,130,246,.14); color:#60a5fa; border-color:rgba(59,130,246,.3); }
+        .pos-SG { background:rgba(6,182,212,.14);  color:#22d3ee; border-color:rgba(6,182,212,.3); }
+        .pos-SF { background:rgba(34,197,94,.14);  color:#4ade80; border-color:rgba(34,197,94,.3); }
+        .pos-PF { background:rgba(245,158,11,.14); color:#fbbf24; border-color:rgba(245,158,11,.3); }
+        .pos-C  { background:rgba(244,63,94,.14);  color:#fb7185; border-color:rgba(244,63,94,.3); }
+
+        .ovr-chip { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; width:46px; height:46px; border-radius:12px; background:var(--panel-3); border:1px solid var(--border-md); flex-shrink:0; }
+        .ovr-chip .ovr-num { font-size:18px; font-weight:800; line-height:1; }
+        .ovr-chip .ovr-lbl { font-size:8px; font-weight:700; letter-spacing:.5px; color:var(--text-3); margin-top:1px; }
+        .ovr-elite .ovr-num { color:#fbbf24; } .ovr-elite { border-color:rgba(245,158,11,.4); }
+        .ovr-good  .ovr-num { color:#4ade80; }
+        .ovr-mid   .ovr-num { color:var(--text); }
+        .ovr-low   .ovr-num { color:var(--text-2); }
+
+        /* ── Clock board (na vez / próximo / última) ── */
+        .clock-board { display:grid; grid-template-columns: 1.4fr 1fr 1.1fr; gap:14px; margin-bottom:20px; }
+        .clock-cell { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; position:relative; overflow:hidden; }
+        .clock-cell .cell-label { font-size:10px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; color:var(--text-3); margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+        .clock-now { border-color:var(--border-red); background:linear-gradient(135deg, color-mix(in srgb, var(--red) 12%, var(--panel)), var(--panel) 60%); }
+        .clock-now .cell-label { color:var(--red); }
+        .clock-now::after { content:""; position:absolute; inset:0; border-radius:var(--radius); box-shadow:0 0 0 1px var(--border-red) inset; animation:clockPulse 2.4s var(--ease) infinite; pointer-events:none; }
+        @keyframes clockPulse { 0%,100%{ box-shadow:0 0 0 1px var(--border-red) inset, 0 0 0 color-mix(in srgb,var(--red) 0%,transparent);} 50%{ box-shadow:0 0 0 1px var(--border-red) inset, 0 0 26px color-mix(in srgb,var(--red) 22%,transparent);} }
+        .clock-team { display:flex; align-items:center; gap:14px; }
+        .clock-team img { width:60px; height:60px; border-radius:14px; object-fit:cover; border:1px solid var(--border-md); flex-shrink:0; }
+        .clock-team-name { font-size:20px; font-weight:800; line-height:1.1; }
+        .clock-team-gm { font-size:12px; color:var(--text-2); margin-top:2px; }
+        .clock-pick-tag { display:inline-flex; align-items:center; gap:6px; margin-top:8px; font-size:12px; font-weight:700; color:var(--red); background:var(--red-soft); border:1px solid var(--border-red); border-radius:999px; padding:3px 10px; }
+        .clock-next-list { display:flex; flex-direction:column; gap:8px; }
+        .clock-next-item { display:flex; align-items:center; gap:9px; }
+        .clock-next-item img { width:30px; height:30px; border-radius:8px; object-fit:cover; border:1px solid var(--border-md); flex-shrink:0; }
+        .clock-next-rank { width:20px; font-size:11px; font-weight:700; color:var(--text-3); text-align:center; flex-shrink:0; }
+        .clock-next-name { font-size:13px; font-weight:600; line-height:1.15; }
+        .clock-next-meta { font-size:10px; color:var(--text-3); }
+        .clock-last { }
+        .clock-last-player { font-size:16px; font-weight:800; }
+        .clock-last-team { font-size:12px; color:var(--text-2); margin-top:2px; }
+        .clock-last-empty { font-size:13px; color:var(--text-3); }
+        .clock-flash { animation:pickFlash 1.2s ease-in-out; }
+        .board-progress { grid-column:1 / -1; }
+        .board-progress-bar { height:8px; background:var(--panel-3); border-radius:999px; overflow:hidden; }
+        .board-progress-fill { height:100%; background:linear-gradient(90deg,var(--red),color-mix(in srgb,var(--red) 80%,#fff)); border-radius:999px; transition:width .5s var(--ease); }
+
+        /* ── Filters ── */
+        .filter-chip { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:999px; font-size:12px; font-weight:700; cursor:pointer; user-select:none; border:1px solid var(--border-md); background:var(--panel-2); color:var(--text-2); transition:all var(--t) var(--ease); }
+        .filter-chip:hover { color:var(--text); border-color:var(--border-red); }
+        .filter-chip.active { background:var(--red-soft); border-color:var(--border-red); color:var(--red); }
+
+        /* ── Pool as cards ── */
+        .pool-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px; }
+        .player-card { position:relative; display:flex; align-items:center; gap:12px; background:var(--panel-2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; cursor:pointer; transition:all var(--t) var(--ease); }
+        .player-card:hover { border-color:var(--border-red); transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.25); }
+        .player-card.is-drafted { opacity:.5; }
+        .player-card .pc-body { flex:1; min-width:0; }
+        .player-card .pc-name { font-size:14px; font-weight:700; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .player-card .pc-meta { display:flex; align-items:center; gap:6px; margin-top:6px; font-size:11px; color:var(--text-2); }
+        .player-card .pc-pick { width:100%; margin-top:10px; justify-content:center; }
+        .player-card-wrap { display:flex; flex-direction:column; }
+        .pc-rank { position:absolute; top:8px; right:10px; font-size:10px; font-weight:700; color:var(--text-3); }
+
+        /* ── Snake board ── */
+        .snake-round { margin-bottom:16px; }
+        .snake-round-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+        .snake-round-title { font-size:11px; font-weight:800; letter-spacing:.8px; text-transform:uppercase; color:var(--text-2); }
+        .snake-dir { font-size:10px; color:var(--text-3); display:inline-flex; align-items:center; gap:3px; }
+        .snake-pick { display:flex; align-items:center; gap:10px; background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:8px 10px; margin-bottom:5px; }
+        .snake-pick.is-current { border-color:var(--border-red); background:color-mix(in srgb,var(--red) 8%,transparent); }
+        .snake-pick.is-done { }
+        .snake-num { width:30px; height:30px; border-radius:8px; background:var(--panel-3); border:1px solid var(--border-md); display:grid; place-items:center; font-size:11px; font-weight:800; color:var(--text-2); flex-shrink:0; }
+        .snake-pick.is-current .snake-num { background:var(--red-soft); border-color:var(--border-red); color:var(--red); }
+        .snake-body { flex:1; min-width:0; }
+        .snake-team { font-size:12px; font-weight:600; color:var(--text-2); }
+        .snake-player { font-size:13px; font-weight:700; display:flex; align-items:center; gap:6px; }
+        .snake-onclock { font-size:11px; font-weight:700; color:var(--red); display:inline-flex; align-items:center; gap:5px; }
+        .snake-onclock .dot { width:7px; height:7px; border-radius:50%; background:var(--red); animation:clockPulse 1.6s infinite; }
+        .snake-react { display:flex; gap:4px; flex-wrap:wrap; margin-top:5px; }
+
+        /* ── Roster cards ── */
+        .roster-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+        .roster-badges { display:flex; gap:6px; }
+        .roster-stat { font-size:10px; font-weight:700; color:var(--text-3); background:var(--panel-3); border:1px solid var(--border); border-radius:6px; padding:2px 7px; }
+        .roster-list li { display:flex; align-items:center; gap:8px; }
+        .roster-list li .rl-ovr { margin-left:auto; font-weight:700; color:var(--text); font-size:12px; }
+
+        /* ── Player detail (offcanvas) ── */
+        .pd-offcanvas { background:var(--panel); color:var(--text); border-left:1px solid var(--border-md); width:380px; }
+        .pd-hero { display:flex; align-items:center; gap:14px; padding:18px; border-bottom:1px solid var(--border); }
+        .pd-hero img { width:72px; height:72px; border-radius:16px; object-fit:cover; border:1px solid var(--border-md); background:var(--panel-2); }
+        .pd-name { font-size:20px; font-weight:800; line-height:1.1; }
+        .pd-sub { font-size:12px; color:var(--text-2); margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+        .pd-section { padding:14px 18px; border-bottom:1px solid var(--border); }
+        .pd-section h6 { font-size:10px; font-weight:800; letter-spacing:.8px; text-transform:uppercase; color:var(--text-3); margin-bottom:8px; }
+        .pd-section p { font-size:13px; color:var(--text-2); margin:0; line-height:1.5; }
+        .pd-tag { display:inline-block; font-size:11px; padding:3px 9px; border-radius:999px; background:var(--panel-2); border:1px solid var(--border-md); color:var(--text); margin:0 4px 4px 0; }
+
+        @media (max-width: 900px) {
+            .clock-board { grid-template-columns:1fr; }
+            .pool-grid { grid-template-columns:1fr 1fr; }
+        }
+        @media (max-width: 560px) { .pool-grid { grid-template-columns:1fr; } .pd-offcanvas { width:100%; } }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
@@ -442,93 +543,79 @@ if ($user && isset($user['id'])) {
     </section>
     <?php endif; ?>
 
-    <!-- Main grid -->
+    <!-- Draft board: na vez / a seguir / última escolha -->
+    <section class="clock-board" id="clockBoard">
+        <div class="clock-cell clock-now"><div class="cell-label">Na vez</div><div class="state-empty" style="padding:8px 0">Carregando…</div></div>
+        <div class="clock-cell"><div class="cell-label">A seguir</div></div>
+        <div class="clock-cell"><div class="cell-label">Última escolha</div></div>
+    </section>
+
     <div class="row g-4">
-
-        <!-- Left column: picks + order -->
-        <div class="col-lg-4">
-            <div class="panel-card mb-4">
-                <div class="panel-card-head">
-                    <div>
-                        <div class="panel-card-title">Pick Atual</div>
-                        <div class="panel-card-sub" id="pickSub"></div>
-                    </div>
-                </div>
-                <div class="panel-card-body">
-                    <div id="currentPickCard"></div>
-                    <div style="margin:14px 0 10px;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3)">Próximo Pick</div>
-                    <div id="nextPickCard"></div>
-                </div>
-            </div>
-
+        <!-- Pool de jogadores (cards + filtros) -->
+        <div class="col-lg-7">
             <div class="panel-card">
                 <div class="panel-card-head">
-                    <div class="panel-card-title">Ordem do Draft</div>
-                </div>
-                <div class="panel-card-body" id="orderList" style="min-height:60px">
-                    <div class="state-empty">Carregando…</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right column: pool + rosters -->
-        <div class="col-lg-8">
-            <div class="panel-card mb-4">
-                <div class="panel-card-head">
-                    <div class="panel-card-title">Jogadores do Pool</div>
+                    <div class="panel-card-title"><i class="bi bi-people-fill" style="color:var(--red);margin-right:6px"></i>Pool de Jogadores</div>
                     <span style="font-size:11px;color:var(--text-2)" id="poolMeta"></span>
                 </div>
                 <div class="panel-card-body">
-                    <div class="d-flex flex-column flex-md-row gap-2 mb-3">
-                        <input type="text" id="poolSearch" class="search-input" placeholder="Buscar jogador…">
-                        <select id="poolPositionFilter" class="filter-select" style="max-width:160px">
-                            <option value="">Todas as posições</option>
-                            <option value="PG">PG</option>
-                            <option value="SG">SG</option>
-                            <option value="SF">SF</option>
-                            <option value="PF">PF</option>
-                            <option value="C">C</option>
-                        </select>
-                        <label class="filter-check" style="white-space:nowrap">
-                            <input type="checkbox" id="poolOnlyAvailable" checked>
-                            Disponíveis
-                        </label>
+                    <input type="text" id="poolSearch" class="search-input mb-3" placeholder="Buscar jogador por nome…">
+                    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+                        <div class="d-flex flex-wrap gap-2" id="posChips">
+                            <span class="filter-chip active" data-pos="">Todos</span>
+                            <span class="filter-chip" data-pos="PG">PG</span>
+                            <span class="filter-chip" data-pos="SG">SG</span>
+                            <span class="filter-chip" data-pos="SF">SF</span>
+                            <span class="filter-chip" data-pos="PF">PF</span>
+                            <span class="filter-chip" data-pos="C">C</span>
+                        </div>
+                        <div class="ms-auto d-flex gap-2 align-items-center flex-wrap">
+                            <select id="poolSortSelect" class="filter-select" style="width:auto">
+                                <option value="ovr">OVR ↓</option>
+                                <option value="ovr_asc">OVR ↑</option>
+                                <option value="age">Idade ↓</option>
+                                <option value="age_asc">Idade ↑</option>
+                                <option value="name">Nome A-Z</option>
+                            </select>
+                            <label class="filter-check" style="white-space:nowrap"><input type="checkbox" id="poolOnlyAvailable" checked> Disponíveis</label>
+                        </div>
                     </div>
-                    <div class="data-table-wrap">
-                        <table class="data-table" id="poolTableEl">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th class="sortable" data-sort="name">Jogador <span class="sort-indicator"></span></th>
-                                    <th>Pos</th>
-                                    <th class="sortable" data-sort="ovr">OVR <span class="sort-indicator"></span></th>
-                                    <th class="sortable" data-sort="age">Idade <span class="sort-indicator"></span></th>
-                                    <th style="text-align:right">Ação</th>
-                                </tr>
-                            </thead>
-                            <tbody id="poolTable"></tbody>
-                        </table>
-                    </div>
+                    <div class="pool-grid" id="poolGrid"><div class="state-empty">Carregando…</div></div>
                     <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2 pag-wrap" id="poolPagination"></div>
-                </div>
-            </div>
-
-            <div class="panel-card">
-                <div class="panel-card-head">
-                    <div class="panel-card-title">Elencos em Montagem</div>
-                    <span style="font-size:11px;color:var(--text-2)" id="rosterMeta"></span>
-                </div>
-                <div class="panel-card-body">
-                    <div class="row g-3" id="rosterGrid">
-                        <div class="state-empty">Nenhum elenco montado ainda.</div>
-                    </div>
                 </div>
             </div>
         </div>
 
+        <!-- Ordem (snake) + Elencos -->
+        <div class="col-lg-5">
+            <div class="panel-card">
+                <div class="panel-card-head" style="border-bottom:1px solid var(--border);padding-bottom:0">
+                    <ul class="nav nav-tabs" id="boardTabs" role="tablist" style="border-bottom:none;margin-bottom:-1px">
+                        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-snake" type="button">Ordem (Snake)</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-rosters" type="button">Elencos <span id="rosterCount" style="opacity:.7"></span></button></li>
+                    </ul>
+                </div>
+                <div class="panel-card-body">
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="tab-snake" role="tabpanel">
+                            <div id="snakeBoard" style="max-height:660px;overflow-y:auto"><div class="state-empty">Carregando…</div></div>
+                        </div>
+                        <div class="tab-pane fade" id="tab-rosters" role="tabpanel">
+                            <div style="font-size:11px;color:var(--text-2);margin-bottom:10px" id="rosterMeta"></div>
+                            <div id="rosterGrid" style="max-height:660px;overflow-y:auto"><div class="state-empty">Nenhum elenco montado ainda.</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div><!-- .app-wrap -->
+
+<!-- Detalhe do jogador -->
+<div class="offcanvas offcanvas-end pd-offcanvas" tabindex="-1" id="playerDetail" aria-labelledby="playerDetailLabel">
+    <div id="playerDetailBody"></div>
+</div>
 
 <?php if ($isAdmin): ?>
 <!-- ══════ Modais Admin ══════ -->
@@ -679,26 +766,24 @@ if ($user && isset($user['id'])) {
             poolSearch: '',
             poolPosition: '',
             poolOnlyAvailable: true,
-            poolSortField: 'ovr',
-            poolSortAsc: false,
+            poolSort: 'ovr',
             poolPage: 1,
-            poolPageSize: 15,
+            poolPageSize: 16,
         };
 
         const elements = {
             leagueName: document.getElementById('leagueName'),
             statGrid: document.getElementById('statGrid'),
-            pickSub: document.getElementById('pickSub'),
-            currentPickCard: document.getElementById('currentPickCard'),
-            nextPickCard: document.getElementById('nextPickCard'),
-            orderList: document.getElementById('orderList'),
-            poolTable: document.getElementById('poolTable'),
+            clockBoard: document.getElementById('clockBoard'),
+            snakeBoard: document.getElementById('snakeBoard'),
+            poolGrid: document.getElementById('poolGrid'),
             poolMeta: document.getElementById('poolMeta'),
             rosterGrid: document.getElementById('rosterGrid'),
             rosterMeta: document.getElementById('rosterMeta'),
+            rosterCount: document.getElementById('rosterCount'),
             toggleSoundButton: document.getElementById('toggleSoundButton'),
             poolSearch: document.getElementById('poolSearch'),
-            poolPositionFilter: document.getElementById('poolPositionFilter'),
+            poolSortSelect: document.getElementById('poolSortSelect'),
             poolPagination: document.getElementById('poolPagination'),
             feedback: document.getElementById('feedback'),
         };
@@ -718,236 +803,277 @@ if ($user && isset($user['id'])) {
             setTimeout(() => { const el = elements.feedback.firstElementChild; if (el) el.remove(); }, 5000);
         }
 
-        // ── Live view rendering ─────────────────────────
+        // ── Helpers de exibição ─────────────────────────
+        const POS_LIST = ['PG','SG','SF','PF','C'];
+        function posClass(p) { return POS_LIST.includes(p) ? `pos-${p}` : 'pos-SF'; }
+        function ovrClass(v) { v = Number(v) || 0; return v >= 85 ? 'ovr-elite' : v >= 78 ? 'ovr-good' : v >= 68 ? 'ovr-mid' : 'ovr-low'; }
+        function roundSize() { return state.order.filter(p => Number(p.round) === 1).length || state.teams.length || 0; }
+        function globalPickNo(pick) { const rs = roundSize() || 1; return (Number(pick.round) - 1) * rs + Number(pick.pick_position); }
+        function reactionChips(pick) {
+            const reactions = Array.isArray(pick.reactions) ? pick.reactions : [];
+            const mine = reactions.find(r => r.mine)?.emoji || null;
+            const counts = Object.fromEntries(reactions.map(r => [r.emoji, r.count]));
+            return ['👍','❤️','😂','😮','😢','😡'].map(e => {
+                const cnt = counts[e] || 0;
+                const cls = mine === e ? 'reaction-chip active' : 'reaction-chip';
+                return `<span class="${cls}" onclick="event.stopPropagation();toggleReaction(${pick.id}, '${encodeURIComponent(e)}')">${e}${cnt ? ' <span class="reaction-count">' + cnt + '</span>' : ''}</span>`;
+            }).join('');
+        }
+
+        // ── Hero stats ──────────────────────────────────
         function renderStats() {
             const session = state.session;
             if (!session) return;
-
             elements.leagueName.textContent = session.league || '-';
-            const drafted = state.order.filter((pick) => pick.picked_player_id).length;
+            const drafted = state.order.filter((p) => p.picked_player_id).length;
             const total = state.order.length || (session.total_rounds ?? 0) * (state.teams.length || 0);
             const progress = total ? Math.round((drafted / total) * 100) : 0;
-            const currentPick = state.order.find((pick) => !pick.picked_player_id);
-
+            const currentPick = getCurrentPick();
             const statusLabel = { setup: 'Configuração', in_progress: 'Em andamento', completed: 'Concluído' }[session.status] || session.status || '—';
             elements.statGrid.innerHTML = `
-                <div class="stat-card">
-                    <div class="stat-label">Status</div>
-                    <div class="status-pill ${session.status}">${statusLabel}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Rodada</div>
-                    <div class="stat-value">${session.current_round ?? '—'} / ${session.total_rounds ?? '—'}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Time Atual</div>
-                    <div class="stat-value" style="font-size:.95rem">${currentPick ? teamLabel(currentPick) : '—'}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Progresso</div>
-                    <div class="stat-value">${drafted} / ${total} <span style="font-size:.8rem;color:var(--text-2)">(${progress}%)</span></div>
-                </div>
+                <div class="stat-card"><div class="stat-label">Status</div><div class="status-pill ${session.status}">${statusLabel}</div></div>
+                <div class="stat-card"><div class="stat-label">Rodada</div><div class="stat-value">${session.current_round ?? '—'} / ${session.total_rounds ?? '—'}</div></div>
+                <div class="stat-card"><div class="stat-label">Na vez</div><div class="stat-value" style="font-size:.95rem">${currentPick ? teamLabel(currentPick) : '—'}</div></div>
+                <div class="stat-card"><div class="stat-label">Progresso</div><div class="stat-value">${drafted} / ${total} <span style="font-size:.8rem;color:var(--text-2)">(${progress}%)</span></div></div>
             `;
-            if (elements.pickSub) {
-                elements.pickSub.textContent = session.status === 'in_progress'
-                    ? `Rodada ${session.current_round ?? '—'} em andamento`
-                    : statusLabel;
-            }
         }
 
-        function renderPickCard(target, pick, label, highlightClass = '') {
-            if (!pick) {
-                target.innerHTML = `<div class="state-empty" style="padding:12px 0;font-size:12px">Nenhuma pick disponível.</div>`;
-                return;
-            }
-            target.innerHTML = `
-                <div class="pick-card ${highlightClass}">
-                    <div class="d-flex align-items-center gap-3">
-                        <img class="pick-logo" src="${pick.team_photo || '/img/default-team.png'}" alt="${pick.team_name || 'Time'}" onerror="this.src='/img/default-team.png'">
+        // ── Clock board (na vez / a seguir / última) ────
+        function renderClockBoard(currentPick, nextPick) {
+            const board = elements.clockBoard;
+            if (!board) return;
+            const drafted = state.order.filter((p) => p.picked_player_id).length;
+            const total = state.order.length || 0;
+            const progress = total ? Math.round((drafted / total) * 100) : 0;
+
+            // Na vez
+            let nowHtml;
+            if (currentPick) {
+                nowHtml = `
+                    <div class="cell-label"><span class="snake-onclock"><span class="dot"></span></span> Na vez</div>
+                    <div class="clock-team">
+                        <img src="${currentPick.team_photo || '/img/default-team.png'}" alt="${currentPick.team_name || ''}" onerror="this.src='/img/default-team.png'">
                         <div>
-                            <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--red)">${label}</div>
-                            <div style="font-weight:700;font-size:14px">${teamLabel(pick)}</div>
-                            <div style="font-size:11px;color:var(--text-2)">GM: ${pick.team_owner || 'Sem GM'}</div>
-                            <div style="font-size:11px;color:var(--red)">Rodada ${pick.round} · Pick ${pick.pick_position}</div>
+                            <div class="clock-team-name">${teamLabel(currentPick)}</div>
+                            <div class="clock-team-gm">GM: ${currentPick.team_owner || 'Sem GM'}</div>
+                            <span class="clock-pick-tag"><i class="bi bi-hourglass-split"></i> Rodada ${currentPick.round} · Pick ${currentPick.pick_position} · #${globalPickNo(currentPick)} geral</span>
                         </div>
+                    </div>`;
+            } else {
+                const done = state.session?.status === 'completed';
+                nowHtml = `<div class="cell-label">Na vez</div><div class="state-empty" style="padding:10px 0">${done ? 'Draft concluído 🏆' : 'Aguardando início'}</div>`;
+            }
+
+            // A seguir (próximos 4)
+            const upcoming = state.order.filter((p) => !p.picked_player_id).slice(1, 6);
+            const nextHtml = `
+                <div class="cell-label"><i class="bi bi-arrow-down-up"></i> A seguir</div>
+                <div class="clock-next-list">
+                    ${upcoming.length ? upcoming.map((p) => `
+                        <div class="clock-next-item">
+                            <span class="clock-next-rank">#${globalPickNo(p)}</span>
+                            <img src="${p.team_photo || '/img/default-team.png'}" onerror="this.src='/img/default-team.png'" alt="">
+                            <div><div class="clock-next-name">${teamLabel(p)}</div><div class="clock-next-meta">R${p.round} · Pick ${p.pick_position}</div></div>
+                        </div>`).join('') : '<div class="state-empty" style="padding:6px 0;font-size:12px">Sem próximos.</div>'}
+                </div>`;
+
+            // Última escolha
+            const done = state.order.filter((p) => p.picked_player_id);
+            const last = done.length ? done.reduce((a, b) => globalPickNo(b) > globalPickNo(a) ? b : a) : null;
+            const lastHtml = `
+                <div class="cell-label"><i class="bi bi-check2-circle"></i> Última escolha</div>
+                ${last ? `
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="ovr-chip ${ovrClass(last.player_ovr)}"><span class="ovr-num">${last.player_ovr ?? '—'}</span><span class="ovr-lbl">OVR</span></div>
+                        <div style="min-width:0">
+                            <div class="clock-last-player">${last.player_name || '—'}</div>
+                            <div class="clock-last-team"><span class="pos-badge ${posClass(last.player_position)}">${last.player_position || ''}</span> → ${teamLabel(last)}</div>
+                        </div>
+                    </div>` : '<div class="clock-last-empty">Nenhuma escolha ainda.</div>'}`;
+
+            board.innerHTML = `
+                <div class="clock-cell clock-now" id="clockNowCell">${nowHtml}</div>
+                <div class="clock-cell">${nextHtml}</div>
+                <div class="clock-cell">${lastHtml}</div>
+                <div class="clock-cell board-progress">
+                    <div class="d-flex justify-content-between mb-2" style="font-size:11px;color:var(--text-2)">
+                        <span>${drafted} de ${total} escolhas feitas</span><span style="color:var(--red);font-weight:700">${progress}%</span>
                     </div>
-                </div>
-            `;
+                    <div class="board-progress-bar"><div class="board-progress-fill" style="width:${progress}%"></div></div>
+                </div>`;
         }
 
-        function renderOrderList(currentPick, nextPick) {
-            if (!state.order.length) {
-                elements.orderList.innerHTML = '<div class="state-empty">Ordem ainda não definida.</div>';
-                return;
-            }
-            const displayRound = Number(state.session?.current_round || 1);
-            const roundPicks = state.order
-                .filter((pick) => pick.round === displayRound)
-                .sort((a, b) => a.pick_position - b.pick_position);
-            elements.orderList.innerHTML = roundPicks
-                .map((pick, index) => {
+        // ── Snake board (ordem + escolhas) ──────────────
+        function renderSnakeBoard(currentPick) {
+            const el = elements.snakeBoard;
+            if (!el) return;
+            if (!state.order.length) { el.innerHTML = '<div class="state-empty">Ordem ainda não definida.</div>'; return; }
+            const rounds = [...new Set(state.order.map((p) => Number(p.round)))].sort((a, b) => a - b);
+            el.innerHTML = rounds.map((r) => {
+                const picks = state.order.filter((p) => Number(p.round) === r).sort((a, b) => a.pick_position - b.pick_position);
+                const even = r % 2 === 0;
+                const rows = picks.map((pick) => {
                     const picked = !!pick.picked_player_id;
-                    const reactions = Array.isArray(pick.reactions) ? pick.reactions : [];
-                    const mineEmoji = reactions.find(r => r.mine)?.emoji || null;
-                    const emojiList = ['👍','❤️','😂','😮','😢','😡'];
-                    const countsMap = Object.fromEntries(reactions.map(r => [r.emoji, r.count]));
-
-                    const chips = emojiList.map(e => {
-                        const cnt = countsMap[e] || 0;
-                        const activeClass = mineEmoji === e ? 'reaction-chip active' : 'reaction-chip';
-                        const enc = encodeURIComponent(e);
-                        return `<span class="${activeClass}" onclick="toggleReaction(${pick.id}, '${enc}')">${e} <span class="reaction-count">${cnt}</span></span>`;
-                    }).join(' ');
-
-                    const pickSummary = picked ? `
-                        <div class="pick-summary">
-                            <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
-                                <div>
-                                    <span class="pick-summary-name">${pick.player_name}</span>
-                                    <span class="pick-summary-meta"> (${pick.player_position ?? ''} · ${pick.player_ovr ?? '-'}${pick.player_age ? '/' + pick.player_age + 'y' : ''})</span>
-                                </div>
-                                <div class="reaction-bar">${chips}</div>
-                            </div>
-                        </div>
-                    ` : '';
-
-                    const isCurrentTeam = currentPick && pick.team_id === currentPick.team_id;
-                    const isNextTeam = nextPick && pick.team_id === nextPick.team_id;
+                    const isCurrent = currentPick && pick.id === currentPick.id;
+                    let body;
+                    if (picked) {
+                        body = `
+                            <div class="snake-team">${teamLabel(pick)}</div>
+                            <div class="snake-player"><span class="pos-badge ${posClass(pick.player_position)}">${pick.player_position || ''}</span> ${pick.player_name} <span style="color:var(--text-3);font-weight:600">${pick.player_ovr ?? ''}</span></div>
+                            <div class="snake-react">${reactionChips(pick)}</div>`;
+                    } else if (isCurrent) {
+                        body = `<div class="snake-team">${teamLabel(pick)}</div><div class="snake-onclock"><span class="dot"></span> Escolhendo agora…</div>`;
+                    } else {
+                        body = `<div class="snake-team">${teamLabel(pick)}</div><div style="font-size:12px;color:var(--text-3)">Aguardando</div>`;
+                    }
                     return `
-                        <div class="order-item ${isCurrentTeam ? 'order-highlight' : ''} ${isNextTeam && !isCurrentTeam ? 'order-next' : ''}" style="flex-direction:column;align-items:stretch">
-                            <div class="d-flex align-items-center gap-2">
-                                <div class="order-rank">${index + 1}</div>
-                                <div class="team-chip">
-                                    <img src="${pick.team_photo || '/img/default-team.png'}" alt="${pick.team_name || 'Time'}" onerror="this.src='/img/default-team.png'">
-                                    <div>
-                                        <div class="team-chip-name">${teamLabel(pick)}</div>
-                                        <div class="team-chip-gm">${pick.team_owner || 'Sem GM'}</div>
-                                    </div>
-                                </div>
-                            </div>
-                            ${pickSummary}
+                        <div class="snake-pick ${isCurrent ? 'is-current' : ''} ${picked ? 'is-done' : ''}">
+                            <div class="snake-num">${globalPickNo(pick)}</div>
+                            <img src="${pick.team_photo || '/img/default-team.png'}" onerror="this.src='/img/default-team.png'" alt="" style="width:30px;height:30px;border-radius:8px;object-fit:cover;border:1px solid var(--border-md);flex-shrink:0">
+                            <div class="snake-body">${body}</div>
+                        </div>`;
+                }).join('');
+                return `
+                    <div class="snake-round">
+                        <div class="snake-round-head">
+                            <span class="snake-round-title">Rodada ${r}</span>
+                            <span class="snake-dir">${even ? '<i class="bi bi-arrow-left"></i> snake' : '<i class="bi bi-arrow-right"></i>'}</span>
                         </div>
-                    `;
-                })
-                .join('');
+                        ${rows}
+                    </div>`;
+            }).join('');
+        }
+
+        // ── Pool (cards + filtros + detalhe) ────────────
+        function poolFilteredSorted() {
+            const search = uiState.poolSearch.trim();
+            const pos = uiState.poolPosition;
+            const filtered = (state.pool || []).filter((p) => {
+                const okS = !search || (p.name || '').toLowerCase().includes(search);
+                const okP = !pos || p.position === pos || p.secondary_position === pos;
+                const okA = !uiState.poolOnlyAvailable || p.draft_status !== 'drafted';
+                return okS && okP && okA;
+            });
+            const [field, dir] = (uiState.poolSort || 'ovr').split('_');
+            const asc = dir === 'asc';
+            filtered.sort((a, b) => {
+                let c = 0;
+                if (field === 'ovr') c = (Number(a.ovr) || 0) - (Number(b.ovr) || 0);
+                else if (field === 'age') c = (Number(a.age) || 0) - (Number(b.age) || 0);
+                else if (field === 'name') return (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase());
+                return asc ? c : -c;
+            });
+            return filtered;
         }
 
         function renderPool(currentPick) {
-            const pool = state.pool || [];
-            const search = uiState.poolSearch.trim();
-            const positionFilter = uiState.poolPosition;
-            const filtered = pool.filter((player) => {
-                const matchesSearch = !search || (player.name || '').toLowerCase().includes(search);
-                const matchesPosition = !positionFilter || player.position === positionFilter;
-                const matchesAvailability = !uiState.poolOnlyAvailable || (player.draft_status !== 'drafted');
-                return matchesSearch && matchesPosition && matchesAvailability;
-            });
-
-            const sortField = uiState.poolSortField || 'ovr';
-            const asc = !!uiState.poolSortAsc;
-            filtered.sort((a, b) => {
-                let cmp = 0;
-                if (sortField === 'ovr') {
-                    cmp = (Number(a.ovr) || 0) - (Number(b.ovr) || 0);
-                } else if (sortField === 'age') {
-                    cmp = (Number(a.age) || 0) - (Number(b.age) || 0);
-                } else if (sortField === 'name') {
-                    cmp = (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase());
-                }
-                return asc ? cmp : -cmp;
-            });
-
+            const grid = elements.poolGrid;
+            if (!grid) return;
+            const filtered = poolFilteredSorted();
             const total = filtered.length;
             const totalPages = Math.max(1, Math.ceil(total / uiState.poolPageSize));
             if (uiState.poolPage > totalPages) uiState.poolPage = totalPages;
-            const startIndex = (uiState.poolPage - 1) * uiState.poolPageSize;
-            const pageItems = filtered.slice(startIndex, startIndex + uiState.poolPageSize);
+            const start = (uiState.poolPage - 1) * uiState.poolPageSize;
+            const items = filtered.slice(start, start + uiState.poolPageSize);
 
-            elements.poolMeta.textContent = `${total} jogadores`;
-            if (!pageItems.length) {
-                elements.poolTable.innerHTML = '<tr><td colspan="6" class="state-empty" style="padding:20px">Nenhum jogador disponível.</td></tr>';
-                elements.poolPagination.innerHTML = '';
-                updatePoolSortIndicators();
-                return;
-            }
+            elements.poolMeta.textContent = `${total} jogador${total === 1 ? '' : 'es'}`;
+            if (!items.length) { grid.innerHTML = '<div class="state-empty" style="grid-column:1/-1">Nenhum jogador encontrado.</div>'; elements.poolPagination.innerHTML = ''; return; }
 
             const canPick = state.session?.status === 'in_progress' && (IS_ADMIN || (currentPick && USER_TEAM_ID && currentPick.team_id === USER_TEAM_ID));
-            elements.poolTable.innerHTML = pageItems
-                .map((player, index) => {
-                    const drafted = player.draft_status === 'drafted';
-                    const action = (!drafted && canPick)
-                        ? `<button class="btn-green" style="padding:4px 12px;font-size:11px" onclick="makePick(${player.id})"><i class="bi bi-check2"></i> Escolher</button>`
-                        : (drafted ? '<span class="badge-drafted">Drafted</span>' : '<span style="color:var(--text-3)">—</span>');
-                    return `
-                        <tr>
-                            <td>${startIndex + index + 1}</td>
-                            <td class="td-name">${player.name}</td>
-                            <td>${player.position}</td>
-                            <td style="font-weight:700;color:var(--text)">${player.ovr}</td>
-                            <td>${player.age || '—'}</td>
-                            <td style="text-align:right">${action}</td>
-                        </tr>
-                    `;
-                })
-                .join('');
+            grid.innerHTML = items.map((p, i) => {
+                const drafted = p.draft_status === 'drafted';
+                const sec = (p.secondary_position && POS_LIST.includes(p.secondary_position)) ? `<span class="pos-badge ${posClass(p.secondary_position)}">${p.secondary_position}</span>` : '';
+                const pickBtn = (!drafted && canPick) ? `<button class="btn-green pc-pick" onclick="event.stopPropagation();makePick(${p.id})"><i class="bi bi-check2"></i> Escolher</button>` : '';
+                const draftedTag = drafted ? '<span class="badge-drafted">Draftado</span>' : '';
+                return `
+                    <div class="player-card-wrap">
+                        <div class="player-card ${drafted ? 'is-drafted' : ''}" onclick="openPlayerDetail(${p.id})">
+                            <span class="pc-rank">#${start + i + 1}</span>
+                            <div class="ovr-chip ${ovrClass(p.ovr)}"><span class="ovr-num">${p.ovr ?? '—'}</span><span class="ovr-lbl">OVR</span></div>
+                            <div class="pc-body">
+                                <div class="pc-name">${p.name}</div>
+                                <div class="pc-meta"><span class="pos-badge ${posClass(p.position)}">${p.position || ''}</span>${sec}<span>${p.age ? p.age + ' anos' : '—'}</span>${draftedTag}</div>
+                            </div>
+                        </div>
+                        ${pickBtn}
+                    </div>`;
+            }).join('');
 
-            elements.poolPagination.innerHTML = `
+            elements.poolPagination.innerHTML = totalPages <= 1 ? '' : `
                 <span style="font-size:11px;color:var(--text-2)">Pág. ${uiState.poolPage} de ${totalPages}</span>
                 <div class="d-flex gap-2">
                     <button class="btn-ghost" style="padding:4px 10px;font-size:11px" ${uiState.poolPage === 1 ? 'disabled' : ''} onclick="changePoolPage(${uiState.poolPage - 1})">← Anterior</button>
                     <button class="btn-ghost" style="padding:4px 10px;font-size:11px" ${uiState.poolPage === totalPages ? 'disabled' : ''} onclick="changePoolPage(${uiState.poolPage + 1})">Próxima →</button>
+                </div>`;
+        }
+
+        function changePoolPage(page) { uiState.poolPage = page; renderPool(getCurrentPick()); }
+
+        function openPlayerDetail(playerId) {
+            const p = (state.pool || []).find((x) => x.id === playerId);
+            if (!p) return;
+            const body = document.getElementById('playerDetailBody');
+            const currentPick = getCurrentPick();
+            const canPick = state.session?.status === 'in_progress' && (IS_ADMIN || (currentPick && USER_TEAM_ID && currentPick.team_id === USER_TEAM_ID));
+            const drafted = p.draft_status === 'drafted';
+            const teamsById = Object.fromEntries(state.teams.map((t) => [t.id, t]));
+            const byTeam = drafted && p.drafted_by_team_id ? teamsById[p.drafted_by_team_id] : null;
+            const sec = (p.secondary_position && POS_LIST.includes(p.secondary_position)) ? `<span class="pos-badge ${posClass(p.secondary_position)}">${p.secondary_position}</span>` : '';
+            const section = (title, val) => val ? `<div class="pd-section"><h6>${title}</h6><p>${String(val).replace(/</g,'&lt;')}</p></div>` : '';
+            body.innerHTML = `
+                <div class="pd-hero">
+                    <div class="offcanvas-header p-0" style="position:absolute;top:10px;right:12px"><button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button></div>
+                    ${p.photo_url ? `<img src="${p.photo_url}" onerror="this.style.display='none'" alt="">` : `<div class="ovr-chip ${ovrClass(p.ovr)}" style="width:72px;height:72px;border-radius:16px"><span class="ovr-num" style="font-size:26px">${p.ovr ?? '—'}</span><span class="ovr-lbl">OVR</span></div>`}
+                    <div style="min-width:0">
+                        <div class="pd-name">${p.name}</div>
+                        <div class="pd-sub"><span class="pos-badge ${posClass(p.position)}">${p.position || ''}</span>${sec}<span>${p.age ? p.age + ' anos' : ''}</span><span>OVR ${p.ovr ?? '—'}</span></div>
+                    </div>
                 </div>
+                <div class="pd-section"><h6>Status</h6><p>${drafted ? ('Draftado' + (byTeam ? ' por ' + (byTeam.city || '') + ' ' + (byTeam.name || '') : '')) : 'Disponível no pool'}</p></div>
+                ${section('Bio', p.bio)}
+                ${section('Pontos fortes', p.strengths)}
+                ${section('Pontos fracos', p.weaknesses)}
+                ${(!drafted && canPick) ? `<div class="pd-section"><button class="btn-green" style="width:100%;justify-content:center" onclick="makePick(${p.id})"><i class="bi bi-check2-circle"></i> Escolher ${p.name}</button></div>` : ''}
             `;
-            updatePoolSortIndicators();
+            const oc = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('playerDetail'));
+            oc.show();
         }
 
-        function changePoolPage(page) {
-            uiState.poolPage = page;
-            renderPool(getCurrentPick());
-        }
-
+        // ── Elencos (rosters) ───────────────────────────
         function renderRosters() {
-            const picks = state.order.filter((pick) => pick.picked_player_id);
+            const picks = state.order.filter((p) => p.picked_player_id);
             const grouped = {};
             picks.forEach((pick) => {
                 const key = pick.team_id;
                 if (!grouped[key]) grouped[key] = { team: pick, players: [] };
                 grouped[key].players.push(pick);
             });
+            const teams = Object.values(grouped).sort((a, b) => b.players.length - a.players.length);
+            if (elements.rosterMeta) elements.rosterMeta.textContent = `${teams.length} time${teams.length === 1 ? '' : 's'} com escolhas`;
+            if (elements.rosterCount) elements.rosterCount.textContent = teams.length ? `(${teams.length})` : '';
+            if (!teams.length) { elements.rosterGrid.innerHTML = '<div class="state-empty">Nenhum elenco montado ainda.</div>'; return; }
 
-            const teams = Object.values(grouped);
-            elements.rosterMeta.textContent = `${teams.length} times com picks`;
-
-            if (!teams.length) {
-                elements.rosterGrid.innerHTML = '<div class="state-empty">Nenhum elenco montado ainda.</div>';
-                return;
-            }
-
-            elements.rosterGrid.innerHTML = teams
-                .map((group) => {
-                    const roster = group.players
-                        .map((pick) => {
-                            const ovr = (pick.player_ovr ?? '—');
-                            const age = (pick.player_age != null && pick.player_age !== '') ? `${pick.player_age}y` : '—';
-                            return `<li>${pick.player_name} <span class="roster-player-pos">${pick.player_position ?? ''} · ${ovr}/${age}</span></li>`;
-                        })
-                        .join('');
-                    return `
-                        <div class="col-md-6 col-xl-4">
-                            <div class="roster-card h-100">
-                                <div class="team-chip mb-3">
-                                    <img src="${group.team.team_photo || '/img/default-team.png'}" alt="${group.team.team_name || 'Time'}" onerror="this.src='/img/default-team.png'">
-                                    <div>
-                                        <div class="team-chip-name">${teamLabel(group.team)}</div>
-                                        <div class="team-chip-gm">${group.team.team_owner || 'Sem GM'}</div>
-                                    </div>
-                                </div>
-                                <ul class="roster-list">${roster}</ul>
+            elements.rosterGrid.innerHTML = teams.map((g) => {
+                const ovrs = g.players.map((p) => Number(p.player_ovr) || 0).filter(Boolean);
+                const avg = ovrs.length ? Math.round(ovrs.reduce((a, b) => a + b, 0) / ovrs.length) : '—';
+                const list = g.players
+                    .sort((a, b) => (Number(b.player_ovr) || 0) - (Number(a.player_ovr) || 0))
+                    .map((pick) => {
+                        const age = (pick.player_age != null && pick.player_age !== '') ? `${pick.player_age}a` : '';
+                        return `<li><span class="pos-badge ${posClass(pick.player_position)}">${pick.player_position || ''}</span> <span style="color:var(--text)">${pick.player_name}</span> <span style="color:var(--text-3);font-size:11px">${age}</span> <span class="rl-ovr">${pick.player_ovr ?? '—'}</span></li>`;
+                    }).join('');
+                return `
+                    <div class="roster-card mb-2">
+                        <div class="roster-head">
+                            <div class="team-chip">
+                                <img src="${g.team.team_photo || '/img/default-team.png'}" onerror="this.src='/img/default-team.png'" alt="">
+                                <div><div class="team-chip-name">${teamLabel(g.team)}</div><div class="team-chip-gm">${g.team.team_owner || 'Sem GM'}</div></div>
                             </div>
+                            <div class="roster-badges"><span class="roster-stat">${g.players.length} pick${g.players.length === 1 ? '' : 's'}</span><span class="roster-stat">OVR méd ${avg}</span></div>
                         </div>
-                    `;
-                })
-                .join('');
+                        <ul class="roster-list">${list}</ul>
+                    </div>`;
+            }).join('');
         }
 
         function getCurrentPick() {
@@ -976,15 +1102,14 @@ if ($user && isset($user['id'])) {
                 const currentPick = getCurrentPick();
                 const nextPick = getNextPick(currentPick);
                 handlePickChange(currentPick);
-                renderPickCard(elements.currentPickCard, currentPick, 'Pick Atual', 'current-pick-highlight pick-card-lg');
-                renderPickCard(elements.nextPickCard, nextPick, 'Próximo', 'next-pick-highlight pick-card-sm');
-                renderOrderList(currentPick, nextPick);
+                renderClockBoard(currentPick, nextPick);
+                renderSnakeBoard(currentPick);
                 renderPool(currentPick);
                 renderRosters();
 
                 if (IS_ADMIN) renderAdmin(fromAuto);
             } catch (error) {
-                elements.poolTable.innerHTML = `<tr><td colspan="6" style="color:#ef4444;padding:16px;text-align:center">${error.message}</td></tr>`;
+                if (elements.poolGrid) elements.poolGrid.innerHTML = `<div class="state-empty" style="grid-column:1/-1;color:#ef4444">${error.message}</div>`;
             }
         }
 
@@ -1057,9 +1182,12 @@ if ($user && isset($user['id'])) {
         function handlePickChange(currentPick) {
             const pickId = currentPick?.id || null;
             if (pickId && uiState.lastPickId && pickId !== uiState.lastPickId) {
-                elements.currentPickCard.classList.remove('pick-flash');
-                void elements.currentPickCard.offsetWidth;
-                elements.currentPickCard.classList.add('pick-flash');
+                const cell = document.getElementById('clockNowCell');
+                if (cell) {
+                    cell.classList.remove('clock-flash');
+                    void cell.offsetWidth;
+                    cell.classList.add('clock-flash');
+                }
                 if (uiState.soundEnabled) playBeep();
             }
             if (pickId) uiState.lastPickId = pickId;
@@ -1104,23 +1232,17 @@ if ($user && isset($user['id'])) {
             renderPool(getCurrentPick());
         });
 
-        elements.poolPositionFilter?.addEventListener('change', (event) => {
-            uiState.poolPosition = event.target.value;
+        document.getElementById('posChips')?.addEventListener('click', (e) => {
+            const chip = e.target.closest('.filter-chip');
+            if (!chip) return;
+            uiState.poolPosition = chip.dataset.pos || '';
+            document.querySelectorAll('#posChips .filter-chip').forEach((c) => c.classList.toggle('active', c === chip));
             uiState.poolPage = 1;
             renderPool(getCurrentPick());
         });
 
-        document.querySelector('#poolTableEl thead')?.addEventListener('click', (e) => {
-            const th = e.target.closest('th.sortable');
-            if (!th) return;
-            const field = th.dataset.sort;
-            if (!field) return;
-            if (uiState.poolSortField === field) {
-                uiState.poolSortAsc = !uiState.poolSortAsc;
-            } else {
-                uiState.poolSortField = field;
-                uiState.poolSortAsc = false;
-            }
+        elements.poolSortSelect?.addEventListener('change', (e) => {
+            uiState.poolSort = e.target.value;
             uiState.poolPage = 1;
             renderPool(getCurrentPick());
         });
@@ -1130,21 +1252,6 @@ if ($user && isset($user['id'])) {
             uiState.poolPage = 1;
             renderPool(getCurrentPick());
         });
-
-        function updatePoolSortIndicators() {
-            const thead = document.querySelector('#poolTableEl thead');
-            if (!thead) return;
-            thead.querySelectorAll('th.sortable').forEach(th => {
-                th.classList.remove('active');
-                const span = th.querySelector('.sort-indicator');
-                if (span) span.textContent = '';
-                if (th.dataset.sort === uiState.poolSortField) {
-                    th.classList.add('active');
-                    const indicator = th.querySelector('.sort-indicator');
-                    if (indicator) indicator.textContent = uiState.poolSortAsc ? '▲' : '▼';
-                }
-            });
-        }
 
         elements.toggleSoundButton?.addEventListener('click', toggleSound);
 
