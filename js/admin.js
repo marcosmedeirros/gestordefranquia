@@ -815,6 +815,15 @@ async function showLeague(league) {
     const seasonNumber = currentSeason ? (parseInt(currentSeason.season_number) || 1) : '—';
     const totalSeasons = currentSeason?.sprint_max_seasons || seasons[0]?.sprint_max_seasons || '—';
 
+    // Sessão de Draft Inicial (initdraft) da temporada atual, se houver
+    let initDraftSession = null;
+    if (currentSeason?.id) {
+      try {
+        const idr = await api(`initdraft.php?action=session_for_season&season_id=${currentSeason.id}`);
+        if (idr && idr.session) initDraftSession = idr.session;
+      } catch (e) {}
+    }
+
     const teamCards = teams.map(t => `
       <div class="col-6 col-md-4 col-xl-3">
         <div class="team-card" onclick="showTeam(${t.id})">
@@ -872,6 +881,33 @@ async function showLeague(league) {
         ${a.badgeId ? `<span class="action-tile-badge" id="${a.badgeId}" style="display:none">0</span>` : ''}
       </button>`).join('');
 
+    // Card do Draft Inicial (initdraft) — aparece quando há sessão em configuração ou em andamento
+    const initDraftCard = (initDraftSession && ['setup', 'in_progress'].includes(initDraftSession.status)) ? (() => {
+      const isRunning = initDraftSession.status === 'in_progress';
+      const statusColor = isRunning ? '#22c55e' : '#f59e0b';
+      const statusBg = isRunning ? 'rgba(34,197,94,.1)' : 'rgba(245,158,11,.1)';
+      const statusLabel = isRunning ? 'Em andamento' : 'Configurando';
+      const sub = isRunning
+        ? `Rodada ${initDraftSession.current_round || 1} de ${initDraftSession.total_rounds || '?'}`
+        : 'Configure a ordem, o pool de jogadores e inicie o draft.';
+      const token = encodeURIComponent(initDraftSession.access_token || '');
+      return `
+      <div class="panel mb-3" style="border-color:rgba(168,85,247,.35)">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title"><i class="bi bi-stars" style="color:#a855f7"></i> Draft Inicial — ${league}</div>
+            <div class="panel-sub">${sub}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span class="pun-badge" style="background:${statusBg};color:${statusColor};border:1px solid ${statusColor}40">${statusLabel}</span>
+            <a class="btn-ghost" style="color:#a855f7;border-color:rgba(168,85,247,.3);text-decoration:none" href="initdraftselecao.php?token=${token}">
+              <i class="bi bi-gear me-1"></i> Configurar Draft Inicial
+            </a>
+          </div>
+        </div>
+      </div>`;
+    })() : '';
+
     const activeDraft = draftData?.draft;
     const draftCard = (activeDraft && ['setup', 'in_progress'].includes(activeDraft.status) && !currentSeason) ? (() => {
       const isRunning = activeDraft.status === 'in_progress';
@@ -888,7 +924,7 @@ async function showLeague(league) {
       <div class="panel mb-3" style="border-color:rgba(168,85,247,.35)">
         <div class="panel-header">
           <div>
-            <div class="panel-title"><i class="bi bi-trophy-fill" style="color:#a855f7"></i> Draft Inicial — ${league}</div>
+            <div class="panel-title"><i class="bi bi-trophy-fill" style="color:#a855f7"></i> Draft de Temporada — ${league}</div>
             <div class="panel-sub">${sub}</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -947,6 +983,7 @@ async function showLeague(league) {
 
       <div id="leaguePlayerSearchResults"></div>
 
+      ${initDraftCard}
       ${draftCard}
 
       <div class="action-grid">${actionTiles}</div>
@@ -2963,6 +3000,9 @@ async function showDirectives() {
     const data = await api(apiUrl);
     // Exibe apenas deadlines das ligas que este admin gerencia
     const deadlines = (data.deadlines || []).filter(d => _leagues.includes(d.league));
+    // Cache p/ o modal de edição conseguir pré-preencher os campos
+    window._dirDeadlineCache = {};
+    deadlines.forEach(d => { window._dirDeadlineCache[d.id] = d; });
 
     container.innerHTML = `
       <div class="mb-4">
@@ -2997,6 +3037,7 @@ async function showDirectives() {
                     <button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="toggleDeadlineStatus(${d.id}, ${d.is_active})">
                       <i class="bi bi-toggle-${d.is_active ? 'on' : 'off'}"></i>
                     </button>
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="showEditDeadlineModal(${d.id})"><i class="bi bi-pencil me-1"></i>Editar</button>
                     <button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#ef4444" onclick="deleteDeadline(${d.id}, '${d.league}')"><i class="bi bi-trash"></i></button>
                   </div>
                 </div>
@@ -3094,6 +3135,109 @@ async function createDeadline() {
     showDirectives();
   } catch (e) {
     alert('Erro ao criar prazo: ' + (e.error || e.message));
+  }
+}
+
+// Extrai {date:'YYYY-MM-DD', time:'HH:mm'} do prazo, no fuso America/Sao_Paulo.
+function _deadlineDateTimeParts(d) {
+  const raw = d && d.deadline_date ? String(d.deadline_date) : '';
+  const m = raw.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/);
+  if (m) return { date: m[1], time: m[2] };
+  try {
+    const dt = new Date(d.deadline_date_iso || d.deadline_date);
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    });
+    const p = Object.fromEntries(fmt.formatToParts(dt).map(x => [x.type, x.value]));
+    return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+  } catch (e) {
+    return { date: '', time: '23:59' };
+  }
+}
+
+function showEditDeadlineModal(id) {
+  const d = (window._dirDeadlineCache || {})[id];
+  if (!d) { alert('Prazo não encontrado. Recarregue a lista.'); return; }
+  const parts = _deadlineDateTimeParts(d);
+  const isPlayoffs = (d.phase || 'regular') === 'playoffs';
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.innerHTML = `
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark-panel border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white">Editar Prazo de Diretrizes</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label text-white">Liga</label>
+            <input type="text" class="form-control bg-dark text-white border-orange" value="${escapeHtml(d.league || '')}" disabled>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white">Data do Prazo</label>
+            <input type="date" class="form-control bg-dark text-white border-orange" id="edit-deadline-date" value="${parts.date}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white">Horário limite (Horário de São Paulo)</label>
+            <input type="time" class="form-control bg-dark text-white border-orange" id="edit-deadline-time" value="${parts.time}" required>
+            <small class="text-light-gray">O prazo será salvo considerando o fuso America/Sao_Paulo.</small>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white">Descrição</label>
+            <input type="text" class="form-control bg-dark text-white border-orange" id="edit-deadline-description" placeholder="Ex: Diretrizes da Rodada 1">
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-white">Fase</label>
+            <select class="form-select bg-dark text-white border-orange" id="edit-deadline-phase">
+              <option value="regular">Temporada Regular (máx 40 min)</option>
+              <option value="playoffs">Playoffs (máx 45 min)</option>
+            </select>
+            <small class="text-light-gray">Define o limite máximo de minutagem por jogador no formulário.</small>
+          </div>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" onclick="saveEditDeadline(${d.id})">Salvar alterações</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  const descEl = modal.querySelector('#edit-deadline-description');
+  if (descEl) descEl.value = d.description || '';
+  const phaseEl = modal.querySelector('#edit-deadline-phase');
+  if (phaseEl) phaseEl.value = isPlayoffs ? 'playoffs' : 'regular';
+  const bsModal = new bootstrap.Modal(modal);
+  bsModal.show();
+  modal.addEventListener('hidden.bs.modal', () => modal.remove());
+}
+
+async function saveEditDeadline(id) {
+  const date = document.getElementById('edit-deadline-date').value;
+  const time = document.getElementById('edit-deadline-time').value;
+  const description = document.getElementById('edit-deadline-description').value;
+  const phase = document.getElementById('edit-deadline-phase').value;
+
+  if (!date) { alert('Preencha a data'); return; }
+  if (!time) { alert('Preencha o horário'); return; }
+
+  try {
+    await api('diretrizes.php', {
+      method: 'PUT',
+      body: JSON.stringify({ id, deadline_date: date, deadline_time: time, description, phase })
+    });
+    alert('Prazo atualizado com sucesso!');
+    const modalEl = document.querySelector('.modal.show') || document.querySelector('.modal');
+    if (modalEl) {
+      const modalInstance = bootstrap.Modal.getInstance(modalEl);
+      if (modalInstance) modalInstance.hide();
+    }
+    showDirectives();
+  } catch (e) {
+    alert('Erro ao atualizar prazo: ' + (e.error || e.message));
   }
 }
 

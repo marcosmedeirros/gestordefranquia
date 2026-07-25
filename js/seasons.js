@@ -1040,13 +1040,35 @@ async function _submitCriarSprint(event, league) {
             body: JSON.stringify({ league, season_year: startYear, start_year: startYear })
         });
         showAlert('success', data.message || 'Sprint criado com sucesso!');
-        setTimeout(() => {
-            if (typeof showAdminDraft === 'function') {
-                showAdminDraft(league);
-            } else {
-                showLeague(league);
+
+        // Após criar o sprint, cria (ou recupera) a sessão de Draft Inicial (initdraft)
+        // da nova temporada e leva o admin direto para a página de configuração dela.
+        const seasonId = data.season_id;
+        let token = null;
+        if (seasonId) {
+            try {
+                const created = await api('initdraft.php', {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'create_session', season_id: seasonId })
+                });
+                token = created.token || null;
+            } catch (e) {
+                // Sessão pode já existir para esta temporada — recupera o token existente.
             }
-        }, 800);
+            if (!token) {
+                try {
+                    const existing = await api(`initdraft.php?action=session_for_season&season_id=${seasonId}`);
+                    token = existing?.session?.access_token || null;
+                } catch (e) {}
+            }
+        }
+
+        if (token) {
+            window.location.href = 'initdraftselecao.php?token=' + encodeURIComponent(token);
+        } else {
+            showAlert('danger', 'Sprint criado, mas não consegui abrir o Draft Inicial automaticamente. Use o card "Draft Inicial" na aba da liga.');
+            setTimeout(() => showLeague(league), 1000);
+        }
     } catch (e) {
         btn.disabled = false;
         btn.innerHTML = orig;
