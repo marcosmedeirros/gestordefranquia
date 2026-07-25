@@ -580,40 +580,22 @@ if (!$token) {
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <?php /* O sorteio nao e feito no site: a ordem da 1a rodada e
+                   definida a mao aqui, e o formato snake se aplica nas demais. */ ?>
                 <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--amber);margin-bottom:14px">
-                    Utilize os botões para ajustar manualmente ou clique em "Sorteio" para gerar uma ordem aleatória. O formato snake será aplicado nas demais rodadas.
+                    Arraste ou use as setas para definir a ordem da 1ª rodada. As demais rodadas seguem o formato snake automaticamente.
                 </div>
-                <div class="d-flex flex-column flex-md-row gap-2 mb-3">
-                    <button class="btn-ghost flex-fill" type="button" id="orderModeManual" onclick="setOrderMode('manual')">
-                        <i class="bi bi-list-ol"></i> Ordenar manualmente
-                    </button>
-                    <button class="btn-amber flex-fill" type="button" id="orderModeLottery" onclick="setOrderMode('lottery')">
-                        <i class="bi bi-shuffle"></i> Sorteio (loteria)
-                    </button>
-                </div>
-                <div id="lotterySection" class="d-none">
-                    <div class="lottery-stage" id="lotteryStage">
-                        <div class="text-center state-empty" id="lotteryPlaceholder">Clique em Sorteio para iniciar.</div>
-                        <div class="lottery-track" id="lotteryTrack"></div>
-                    </div>
-                    <div class="lottery-results" id="lotteryResults"></div>
-                </div>
-                <div id="manualSection" class="d-none">
+                <div id="manualSection">
                     <div style="font-size:11px;color:var(--text-2);margin-bottom:10px">Defina a posição de cada time antes de aplicar.</div>
                     <div id="manualOrderList"></div>
                 </div>
             </div>
             <div class="modal-footer justify-content-between">
-                <div class="d-flex flex-wrap gap-2">
-                    <button class="btn-ghost" type="button" id="resetOrderButton" onclick="resetManualOrder()">
-                        <i class="bi bi-arrow-counterclockwise"></i> Resetar
-                    </button>
-                    <button class="btn-amber" type="button" id="lotteryButton" onclick="randomizeOrder()">
-                        <i class="bi bi-shuffle"></i> Iniciar sorteio
-                    </button>
-                </div>
+                <button class="btn-ghost" type="button" id="resetOrderButton" onclick="resetManualOrder()">
+                    <i class="bi bi-arrow-counterclockwise"></i> Resetar
+                </button>
                 <button class="btn-green" type="button" id="applyOrderButton" onclick="submitManualOrder()">
-                    <i class="bi bi-check2-circle"></i> Aplicar
+                    <i class="bi bi-check2-circle"></i> Aplicar ordem
                 </button>
             </div>
         </div>
@@ -836,10 +818,8 @@ if (!$token) {
     const orderModal = new bootstrap.Modal(document.getElementById('orderModal'));
 
     document.getElementById('orderModal').addEventListener('show.bs.modal', () => {
+        // So ordem manual: sorteio nao e feito no site.
         renderManualOrderList();
-        setOrderMode('select');
-        resetLotteryView();
-        updateLotteryButton();
     });
 
     function showMessage(message, type = 'success') {
