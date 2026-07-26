@@ -332,6 +332,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         calcMatchScorePreds($pdo,$mid,$sh,$sa);
         echo json_encode(['ok'=>true]); exit;
     }
+    if ($act==='get_ranking') {
+        $rk=[];
+        try {
+            $rk=$pdo->query("SELECT u.nome, p.points+COALESCE(SUM(sp.points_earned),0) AS points FROM copa26_predictions p JOIN usuarios u ON u.id=p.user_id LEFT JOIN copa26_score_preds sp ON sp.user_id=p.user_id WHERE u.copa26_pago=1 GROUP BY p.user_id,u.nome,p.points,p.submitted_at ORDER BY points DESC, (p.submitted_at IS NOT NULL) DESC, p.submitted_at ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+        } catch(Exception $e){}
+        echo json_encode(['ok'=>true,'ranking'=>$rk]); exit;
+    }
     if ($act==='calc_score_preds'&&$isAdmin) {
         $matches=$pdo->query("SELECT id,score_home,score_away FROM copa26_matches WHERE score_home IS NOT NULL")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($matches as $m) calcMatchScorePreds($pdo,(int)$m['id'],(int)$m['score_home'],(int)$m['score_away']);
@@ -348,10 +355,19 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         echo json_encode(['ok'=>true]); exit;
     }
     if ($act==='update_match'&&$isAdmin) {
-        $sh=$body['score_home']!==''&&$body['score_home']!==null?(int)$body['score_home']:null;
-        $sa=$body['score_away']!==''&&$body['score_away']!==null?(int)$body['score_away']:null;
-        $pdo->prepare("UPDATE copa26_matches SET match_date=?,match_time=?,home_team_id=?,away_team_id=?,score_home=?,score_away=? WHERE id=?")
-            ->execute([$body['date']??null,$body['time']??null,(int)($body['home_id']??0),(int)($body['away_id']??0),$sh,$sa,(int)($body['match_id']??0)]);
+        $mid=(int)($body['match_id']??0);
+        $hasScore = array_key_exists('score_home',$body) && $body['score_home']!==null && $body['score_home']!==''
+                 && array_key_exists('score_away',$body) && $body['score_away']!==null && $body['score_away']!=='';
+        if ($hasScore) {
+            $sh=(int)$body['score_home']; $sa=(int)$body['score_away'];
+            $pdo->prepare("UPDATE copa26_matches SET match_date=?,match_time=?,home_team_id=?,away_team_id=?,score_home=?,score_away=? WHERE id=?")
+                ->execute([$body['date']??null,$body['time']??null,(int)($body['home_id']??0),(int)($body['away_id']??0),$sh,$sa,$mid]);
+            calcMatchScorePreds($pdo,$mid,$sh,$sa); // recontar pontos do placar
+        } else {
+            // Editar só data/hora/times NÃO apaga o placar já lançado
+            $pdo->prepare("UPDATE copa26_matches SET match_date=?,match_time=?,home_team_id=?,away_team_id=? WHERE id=?")
+                ->execute([$body['date']??null,$body['time']??null,(int)($body['home_id']??0),(int)($body['away_id']??0),$mid]);
+        }
         echo json_encode(['ok'=>true]); exit;
     }
     if ($act==='seed_fixtures'&&$isAdmin) {
@@ -1436,7 +1452,7 @@ $defaultTab     = $showGruposTab ? 'grupos' : 'jogos';
 
     <!-- Quick actions -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
-      <button class="btn-r gold" onclick="calcScorePreds()"><i class="bi bi-calculator-fill"></i>Conferir Pontos</button>
+      <button class="btn-r gold" onclick="calcScorePreds()"><i class="bi bi-calculator-fill"></i>Recontar ranking</button>
       <button class="btn-r secondary" style="border-color:rgba(239,68,68,.3);color:#ef4444" onclick="delAllMatches()"><i class="bi bi-trash-fill"></i>Apagar todos os jogos</button>
     </div>
 
@@ -1972,7 +1988,8 @@ async function confirmResult(matchId){
 }
 async function calcScorePreds(){
     const r=await post({action:'calc_score_preds'});
-    showToast(r.ok?r.msg||'Pontos recalculados!':r.msg||'Erro.',!r.ok);
+    if(r.ok) await refreshRanking();
+    showToast(r.ok?((r.msg?r.msg+' ':'')+'Ranking recontado.'):r.msg||'Erro.',!r.ok);
 }
 async function delMatch(matchId){
     if(!confirm('Remover jogo?'))return;const r=await post({action:'del_match',match_id:matchId});if(r.ok)location.reload();
@@ -2098,8 +2115,7 @@ async function saveMatch(id){
         date:document.getElementById('ei_date_'+id)?.value||'',
         time:document.getElementById('ei_time_'+id)?.value||'',
         home_id:+document.getElementById('ei_home_'+id)?.value||0,
-        away_id:+document.getElementById('ei_away_'+id)?.value||0,
-        score_home:null,score_away:null});
+        away_id:+document.getElementById('ei_away_'+id)?.value||0});
     if(r.ok){showToast('Jogo atualizado!');setTimeout(()=>location.reload(),700);}
     else showToast('Erro.',true);
 }
@@ -2120,7 +2136,8 @@ async function adminSaveResult(id){
     if(sh===''||sa===''){showToast('Informe os dois placares.',true);return;}
     const r=await post({action:'set_result',match_id:id,home:+sh,away:+sa});
     if(r.ok){
-        showToast('Resultado salvo! Pontos calculados.');
+        showToast('Resultado salvo! Ranking recontado.');
+        refreshRanking();
         // re-lock inputs
         const shi=document.getElementById('adm_sh_'+id);
         const sai=document.getElementById('adm_sa_'+id);
@@ -2160,6 +2177,22 @@ function copyTop5(){
     if(!lines.length){showToast('Nenhum dado no ranking.',true);return;}
     const header='TOP 5 BOLÃO COPA\n1 ponto: vencedor | 3 pontos: placar exato\n\n';
     navigator.clipboard.writeText(header+lines.join('\n')).then(()=>showToast('Top 5 copiado!')).catch(()=>showToast('Erro ao copiar.',true));
+}
+const MY_NAME=<?=json_encode($usuario['nome']??'')?>;
+async function refreshRanking(){
+    const r=await post({action:'get_ranking'});
+    if(!r||!r.ok||!Array.isArray(r.ranking))return;
+    const tbody=document.querySelector('#rankingTable tbody');
+    if(!tbody)return; // tabela só existe se houver palpites
+    tbody.innerHTML=r.ranking.map((row,i)=>{
+        const pos=i+1;
+        const medal=pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':pos;
+        const isMe=(row.nome||'').toLowerCase()===(MY_NAME||'').toLowerCase();
+        const pts=parseInt(row.points)||0;
+        return `<tr${isMe?' class="me"':''}><td>${medal}</td>`+
+            `<td><span class="ranking-name">${escH(row.nome||'')}${isMe?' <span style="color:var(--red);font-size:10px">(você)</span>':''}</span></td>`+
+            `<td style="text-align:right"><span class="ranking-pts${pts===0?' zero':''}">${pts}</span></td></tr>`;
+    }).join('');
 }
 let _bracketOpen = <?=json_encode((bool)$bracketOpen)?>;
 let _groupsOpen  = <?=json_encode((bool)$groupsOpen)?>;
