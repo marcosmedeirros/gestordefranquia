@@ -4,7 +4,6 @@ require_once __DIR__ . '/backend/db.php';
 requireAuth();
 $user = getUserSession();
 $pdo  = db();
-// Liga inicial: a do time do usuário, senão ELITE
 $stmtT = $pdo->prepare("SELECT league FROM teams WHERE user_id = ? LIMIT 1");
 $stmtT->execute([$user['id']]);
 $myLeague = $stmtT->fetchColumn() ?: 'ELITE';
@@ -20,313 +19,360 @@ if (!in_array($myLeague, ['ELITE', 'NEXT', 'RISE'], true)) $myLeague = 'ELITE';
 <title>Retrospectiva · FBA Manager</title>
 <link rel="icon" type="image/png" href="/games/fbagames.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--red:#fc0025;--red-soft:color-mix(in srgb,var(--red) 10%,transparent);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1e1e24;--border:rgba(255,255,255,.07);--border-md:rgba(255,255,255,.12);--text:#f0f0f3;--text-2:#8a8a94;--text-3:#6f6f78;--amber:#f59e0b;--green:#22c55e;--blue:#60a5fa;--radius:14px;--sidebar-w:260px;--font:'Montserrat',sans-serif;--t:.2s;--ease:cubic-bezier(.4,0,.2,1)}
-:root[data-theme="light"]{--bg:#f6f7fb;--panel:#fff;--panel-2:#f2f4f8;--panel-3:#e9edf4;--border:#e3e6ee;--border-md:#d7dbe6;--text:#111217;--text-2:#5b6270;--text-3:#7a8291}
+:root{
+  --red:#fc0025; --red-2:#ff3355;
+  --bg:#08080c; --bg-2:#0d0d13;
+  --panel:#141419; --panel-2:#1a1a22; --panel-3:#22222c;
+  --border:rgba(255,255,255,.08); --border-2:rgba(255,255,255,.14);
+  --ink:#f4f4f7; --ink-2:#a2a2ae; --ink-3:#6c6c78;
+  --gold:#f4c95d; --blue:#7cb3e8; --green:#57cfa0; --amber:#f59e0b;
+  --radius:18px; --radius-sm:12px;
+  --disp:'Oswald',sans-serif; --body:'Inter',sans-serif;
+  --shadow:0 20px 60px -24px rgba(0,0,0,.7);
+  --t:.22s cubic-bezier(.4,0,.2,1);
+  /* tiers do heatmap */
+  --t1:#f4c95d; --t2:#9ec5ec; --t3:#9ad9bd; --t4:#d6d9df; --t5:#f2aca6;
+}
+:root[data-theme="light"]{
+  --bg:#eef1f7; --bg-2:#e7ebf3;
+  --panel:#ffffff; --panel-2:#f4f6fb; --panel-3:#e9edf4;
+  --border:#e4e8f0; --border-2:#d3d9e6;
+  --ink:#12141a; --ink-2:#5a6172; --ink-3:#8b93a4;
+  --shadow:0 18px 50px -28px rgba(20,30,60,.35);
+}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
-.app{display:flex;min-height:100vh}
-.main{margin-left:var(--sidebar-w);width:calc(100% - var(--sidebar-w));min-height:100vh}
-.wrap{max-width:1280px;margin:0 auto;padding:22px 20px 80px}
-@media(max-width:992px){:root{--sidebar-w:0px}.main{width:100%;padding-top:54px}}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--body); color:var(--ink); line-height:1.5;
+  background:
+    radial-gradient(1100px 520px at 50% -160px, color-mix(in srgb,var(--red) 20%, transparent), transparent 70%),
+    linear-gradient(180deg,var(--bg-2),var(--bg));
+  background-attachment:fixed; min-height:100vh; -webkit-font-smoothing:antialiased;
+}
+a{color:inherit;text-decoration:none}
+.page{max-width:1200px;margin:0 auto;padding:20px 20px 90px}
 
-.topbar{display:none;position:fixed;top:0;left:0;right:0;height:54px;background:var(--panel);border-bottom:1px solid var(--border);align-items:center;padding:0 16px;gap:12px;z-index:260}
-.menu-btn{width:34px;height:34px;border-radius:9px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:17px}
-.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);z-index:250}
-.sb-overlay.show{display:block}
-@media(max-width:992px){.topbar{display:flex}}
+/* Topbar */
+.top{display:flex;align-items:center;gap:12px;margin-bottom:34px}
+.brand{display:flex;align-items:center;gap:11px}
+.brand .mark{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,var(--red),#c30f38);display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--disp);font-weight:700;font-size:15px;box-shadow:0 8px 22px -8px var(--red)}
+.brand b{font-family:var(--disp);font-weight:600;font-size:16px;letter-spacing:.5px}
+.brand span{display:block;font-size:11px;color:var(--ink-3);font-weight:500;letter-spacing:.3px;margin-top:-2px}
+.top .right{margin-left:auto;display:flex;gap:8px}
+.ghost-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:11px;background:var(--panel);border:1px solid var(--border);color:var(--ink-2);font-family:var(--body);font-size:13px;font-weight:600;cursor:pointer;transition:var(--t)}
+.ghost-btn:hover{border-color:var(--border-2);color:var(--ink)}
 
-/* Header */
-.hero{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:18px}
-.hero h1{font-family:'Oswald',sans-serif;font-size:30px;font-weight:700;letter-spacing:.5px;line-height:1}
-.hero h1 em{color:var(--red);font-style:normal}
-.hero .sub{font-size:13px;color:var(--text-2);margin-top:6px}
-.league-tabs{margin-left:auto;display:flex;gap:6px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:4px}
-.league-tabs button{padding:8px 16px;border-radius:9px;background:transparent;border:none;color:var(--text-2);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:all var(--t)}
-.league-tabs button.active{background:var(--red);color:#fff}
+/* Hero */
+.hero{position:relative;margin-bottom:26px}
+.hero .kicker{font-family:var(--disp);font-size:12px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--red);margin-bottom:6px}
+.hero h1{font-family:var(--disp);font-size:clamp(38px,7vw,64px);font-weight:700;line-height:.98;letter-spacing:-.5px}
+.hero h1 .lg{color:transparent;-webkit-text-stroke:1.4px var(--ink-2)}
+.hero .lead{font-size:14.5px;color:var(--ink-2);margin-top:12px;max-width:560px}
+.leaguebar{display:flex;gap:7px;margin-top:20px;flex-wrap:wrap}
+.leaguebar button{font-family:var(--disp);font-weight:600;font-size:14px;letter-spacing:1px;padding:9px 20px;border-radius:12px;background:var(--panel);border:1px solid var(--border);color:var(--ink-2);cursor:pointer;transition:var(--t)}
+.leaguebar button:hover{border-color:var(--border-2);color:var(--ink)}
+.leaguebar button.active{background:linear-gradient(135deg,var(--red),#d11033);border-color:transparent;color:#fff;box-shadow:0 10px 26px -12px var(--red)}
+
+/* headline strip */
+.strip{display:flex;gap:0;flex-wrap:wrap;margin-top:22px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.strip .cell{flex:1;min-width:120px;padding:16px 20px;border-right:1px solid var(--border)}
+.strip .cell:last-child{border-right:none}
+.strip .n{font-family:var(--disp);font-size:30px;font-weight:700;line-height:1}
+.strip .l{font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--ink-3);margin-top:5px}
 
 /* Tabs */
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;overflow-x:auto;scrollbar-width:none}
+.tabs{display:flex;gap:4px;margin:28px 0 22px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border)}
 .tabs::-webkit-scrollbar{display:none}
-.tab{padding:11px 16px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-2);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all var(--t)}
-.tab:hover{color:var(--text)}
-.tab.active{color:var(--red);border-bottom-color:var(--red)}
-.tabpane{display:none}
-.tabpane.active{display:block;animation:fade .25s var(--ease)}
-@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.tab{display:inline-flex;align-items:center;gap:8px;padding:12px 18px;background:none;border:none;border-bottom:2px solid transparent;color:var(--ink-3);font-family:var(--body);font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;transition:var(--t)}
+.tab i{font-size:15px}
+.tab:hover{color:var(--ink)}
+.tab.active{color:var(--ink);border-bottom-color:var(--red)}
 
-.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
-.section-title{font-family:'Oswald',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text-2);margin:0 0 14px;display:flex;align-items:center;gap:8px}
-.section-title i{color:var(--red)}
-.muted{color:var(--text-3);font-size:13px}
-.empty{text-align:center;color:var(--text-3);padding:40px 16px;font-size:14px}
+/* Cards / panels */
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+.panel + .panel{margin-top:18px}
+.h{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.h .t{font-family:var(--disp);font-size:16px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+.h .sub{font-size:12.5px;color:var(--ink-3);font-weight:400}
+.h .ico{width:30px;height:30px;border-radius:9px;background:var(--red-soft,rgba(252,0,37,.12));display:flex;align-items:center;justify-content:center;color:var(--red);font-size:15px;background:color-mix(in srgb,var(--red) 13%, transparent)}
+.empty{text-align:center;color:var(--ink-3);padding:60px 16px;font-size:14px}
+.loading{text-align:center;color:var(--ink-3);padding:70px 16px;font-size:14px}
+.loading i{font-size:26px;display:block;margin-bottom:12px;animation:spin 1s linear infinite;color:var(--red)}
+@keyframes spin{to{transform:rotate(360deg)}}
 
-/* Superlative cards */
-.super-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:20px}
-.super{background:linear-gradient(150deg,var(--panel-2),var(--panel));border:1px solid var(--border);border-radius:14px;padding:15px 16px;position:relative;overflow:hidden}
-.super .ic{font-size:20px;margin-bottom:8px;display:block}
-.super .lab{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--text-3)}
-.super .val{font-family:'Oswald',sans-serif;font-size:20px;font-weight:700;margin-top:3px;line-height:1.15}
-.super .meta{font-size:11.5px;color:var(--text-2);margin-top:3px}
+/* Superlative tiles */
+.supers{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;margin-bottom:20px}
+.tile{position:relative;background:linear-gradient(155deg,var(--panel-2),var(--panel));border:1px solid var(--border);border-radius:16px;padding:18px;overflow:hidden;transition:var(--t)}
+.tile:hover{border-color:var(--border-2);transform:translateY(-2px)}
+.tile::after{content:'';position:absolute;top:-40px;right:-40px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--accent,var(--red)) 26%,transparent),transparent 70%);opacity:.5}
+.tile .emoji{font-size:24px;position:relative}
+.tile .lab{font-size:10.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--ink-3);margin-top:12px}
+.tile .val{font-family:var(--disp);font-size:22px;font-weight:700;line-height:1.12;margin-top:4px;position:relative}
+.tile .meta{font-size:12px;color:var(--ink-2);margin-top:5px;position:relative}
 
-/* Leaderboard */
-.lb{width:100%;border-collapse:collapse;font-size:13px}
-.lb th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);padding:8px 10px;border-bottom:1px solid var(--border)}
-.lb td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
-.lb tr:last-child td{border-bottom:none}
-.lb .num{text-align:right;font-family:'Oswald',sans-serif;font-weight:700}
-.lb .pos{width:34px;color:var(--text-3);font-family:'Oswald',sans-serif;font-weight:700}
-.lb .tm{display:flex;align-items:center;gap:9px;min-width:0}
-.lb .tm img{width:24px;height:24px;border-radius:7px;object-fit:cover;border:1px solid var(--border-md);background:var(--panel-3);flex-shrink:0}
-.lb .tm .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.medal{color:var(--amber)}
+/* Tables */
+.tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
+.tbl thead th{position:sticky;top:0;text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-3);padding:0 12px 11px;border-bottom:1px solid var(--border);background:var(--panel)}
+.tbl tbody td{padding:11px 12px;border-bottom:1px solid var(--border)}
+.tbl tbody tr:last-child td{border-bottom:none}
+.tbl tbody tr{transition:background var(--t)}
+.tbl tbody tr:hover{background:color-mix(in srgb,var(--ink) 4%, transparent)}
+.tbl .num{text-align:right;font-family:var(--disp);font-weight:600}
+.tbl .pos{width:44px}
+.pos-badge{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;font-family:var(--disp);font-weight:700;font-size:13px;color:var(--ink-2);background:var(--panel-3)}
+.pos-badge.g1{background:linear-gradient(135deg,#f4c95d,#d99e2b);color:#3a2a00}
+.pos-badge.g2{background:linear-gradient(135deg,#cfd6e2,#9aa4b8);color:#1c2330}
+.pos-badge.g3{background:linear-gradient(135deg,#e0a774,#b9793f);color:#2c1600}
+.team-cell{display:flex;align-items:center;gap:10px;min-width:0}
+.team-cell img{width:30px;height:30px;border-radius:9px;object-fit:cover;border:1px solid var(--border-2);background:var(--panel-3);flex-shrink:0}
+.team-cell .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;background:color-mix(in srgb,var(--gold) 16%,transparent);color:var(--gold);border:1px solid color-mix(in srgb,var(--gold) 30%,transparent)}
 
 /* Heatmap */
-.hm-scroll{overflow-x:auto;scrollbar-width:thin}
-.hm{border-collapse:separate;border-spacing:3px;font-size:11px}
-.hm th.col{font-family:'Oswald',sans-serif;font-size:11px;font-weight:600;color:var(--text-2);text-align:center;padding:2px 0;white-space:nowrap}
-.hm th.col small{display:block;font-size:9px;color:var(--text-3);font-weight:400}
-.hm td.team,.hm th.team{text-align:left;padding-right:10px;position:sticky;left:0;background:var(--panel);z-index:2}
-.hm .abbr{font-family:'Oswald',sans-serif;font-weight:700;font-size:12px}
-.hm .tn{font-size:10.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
-.hm .cell{width:34px;height:30px;text-align:center;border-radius:7px;font-family:'Oswald',sans-serif;font-weight:700;font-size:12px;color:#1a1a1a}
-.hm .cell.empty{background:var(--panel-3)!important;color:var(--text-3)}
-.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:11.5px;color:var(--text-2)}
-.legend span{display:inline-flex;align-items:center;gap:6px}
-.legend i{width:16px;height:16px;border-radius:5px;display:inline-block}
+.hm-wrap{overflow-x:auto;scrollbar-width:thin;margin:0 -4px;padding:0 4px}
+.hm{border-collapse:separate;border-spacing:4px}
+.hm thead th.col{font-family:var(--disp);font-size:12px;font-weight:600;color:var(--ink-2);text-align:center;padding-bottom:6px;white-space:nowrap;min-width:38px}
+.hm thead th.col small{display:block;font-size:9.5px;color:var(--ink-3);font-weight:400}
+.hm .rk{width:36px;color:var(--ink-3);font-family:var(--disp);font-weight:700;font-size:12px;text-align:center}
+.hm td.team,.hm th.teamh{text-align:left;position:sticky;left:0;z-index:3;background:var(--panel);padding-right:14px}
+.hm td.team .in{display:flex;align-items:center;gap:9px}
+.hm td.team img{width:26px;height:26px;border-radius:8px;object-fit:cover;border:1px solid var(--border-2);background:var(--panel-3);flex-shrink:0}
+.hm td.team .abbr{font-family:var(--disp);font-weight:700;font-size:13px;letter-spacing:.5px}
+.hm td.team .tn{font-size:10.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;line-height:1.1}
+.hm .cell{width:38px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:9px;font-family:var(--disp);font-weight:700;font-size:13px;color:#171717;cursor:default;transition:transform .12s ease}
+.hm .cell:hover{transform:scale(1.14);box-shadow:0 6px 16px -6px rgba(0,0,0,.6);position:relative;z-index:5}
+.hm .cell.void{background:var(--panel-3)!important;color:var(--ink-3);font-weight:500}
+.hm .tot{font-family:var(--disp);font-weight:700;font-size:14px;text-align:right;padding-left:12px;white-space:nowrap}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:18px;font-size:12px;color:var(--ink-2);font-weight:500}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:18px;height:18px;border-radius:6px}
 
 /* Champions */
-.champ-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.champ{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;align-items:center;gap:12px}
-.champ img{width:46px;height:46px;border-radius:11px;object-fit:cover;border:1px solid var(--border-md);background:var(--panel-3);flex-shrink:0}
-.champ .season{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--amber)}
-.champ .cname{font-weight:700;font-size:13.5px;line-height:1.2;margin-top:2px}
-.champ .vice{font-size:11px;color:var(--text-3);margin-top:2px}
+.champs{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.champ{position:relative;background:var(--panel-2);border:1px solid var(--border);border-radius:16px;padding:16px;display:flex;align-items:center;gap:13px;overflow:hidden;transition:var(--t)}
+.champ:hover{border-color:var(--border-2);transform:translateY(-2px)}
+.champ.latest{border-color:color-mix(in srgb,var(--gold) 40%,transparent);background:linear-gradient(150deg,color-mix(in srgb,var(--gold) 10%,var(--panel-2)),var(--panel-2))}
+.champ .logo{width:52px;height:52px;border-radius:13px;object-fit:cover;border:1px solid var(--border-2);background:var(--panel-3);flex-shrink:0}
+.champ .season{font-family:var(--disp);font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--gold)}
+.champ .cname{font-family:var(--disp);font-weight:600;font-size:16px;line-height:1.1;margin-top:3px}
+.champ .vice{font-size:11px;color:var(--ink-3);margin-top:4px}
+.champ .ring{position:absolute;top:12px;right:14px;font-size:16px}
 
-/* Awards table */
-.aw{width:100%;border-collapse:collapse;font-size:12.5px}
-.aw th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3);padding:8px;border-bottom:1px solid var(--border);white-space:nowrap}
-.aw td{padding:8px;border-bottom:1px solid var(--border)}
-.aw tr:last-child td{border-bottom:none}
+/* Awards */
+.aw{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+.aw thead th{text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);padding:0 12px 11px;border-bottom:1px solid var(--border);white-space:nowrap}
+.aw tbody td{padding:12px;border-bottom:1px solid var(--border);vertical-align:top}
+.aw tbody tr:last-child td{border-bottom:none}
+.aw tbody tr:hover{background:color-mix(in srgb,var(--ink) 4%, transparent)}
+.aw .season-cell{font-family:var(--disp);font-weight:700;color:var(--red);font-size:15px}
+.aw .season-cell small{display:block;color:var(--ink-3);font-size:11px;font-weight:400;font-family:var(--body)}
 .aw .pl{font-weight:600}
-.aw .tm{font-size:11px;color:var(--text-3)}
-.aw .s{font-family:'Oswald',sans-serif;font-weight:700;color:var(--red);white-space:nowrap}
+.aw .tm{font-size:11px;color:var(--ink-3);margin-top:1px}
+.aw .dash{color:var(--ink-3)}
+
+@media(max-width:640px){
+  .page{padding:16px 14px 70px}
+  .panel{padding:16px}
+  .hero h1{font-size:40px}
+  .strip .cell{min-width:50%;flex:1 1 50%}
+}
 </style>
 </head>
 <body>
-<div class="app">
-<?php include __DIR__ . '/includes/sidebar.php'; ?>
-<div class="sb-overlay" id="sbOverlay"></div>
-<header class="topbar">
-  <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
-  <div style="font-weight:700">Retrospectiva</div>
-</header>
+<div class="page">
 
-<main class="main">
- <div class="wrap">
-  <div class="hero">
-    <div>
-      <h1><i class="bi bi-hourglass-split" style="color:var(--red)"></i> Retro<em>spectiva</em></h1>
-      <div class="sub" id="heroSub">Panorama histórico da liga — temporada a temporada</div>
+  <div class="top">
+    <a href="/dashboard.php" class="brand">
+      <div class="mark">FBA</div>
+      <div><b>RETROSPECTIVA</b><span>panorama histórico</span></div>
+    </a>
+    <div class="right">
+      <button class="ghost-btn" id="themeBtn" title="Tema"><i class="bi bi-circle-half"></i></button>
+      <a href="/dashboard.php" class="ghost-btn"><i class="bi bi-arrow-left"></i> Voltar</a>
     </div>
-    <div class="league-tabs" id="leagueTabs">
+  </div>
+
+  <div class="hero">
+    <div class="kicker">Liga FBA · linha do tempo</div>
+    <h1>A história em <span class="lg">números</span></h1>
+    <p class="lead" id="lead">Cada temporada, cada campeão, cada escalada no acumulado — a jornada completa de cada franquia.</p>
+    <div class="leaguebar" id="leaguebar">
       <?php foreach (['ELITE','NEXT','RISE'] as $lg): ?>
       <button data-league="<?= $lg ?>" class="<?= $lg === $myLeague ? 'active' : '' ?>"><?= $lg ?></button>
       <?php endforeach; ?>
     </div>
+    <div class="strip" id="strip"></div>
   </div>
 
   <div class="tabs" id="tabs">
-    <button class="tab active" data-tab="panorama"><i class="bi bi-grid-1x2"></i> Panorama</button>
-    <button class="tab" data-tab="acumulado"><i class="bi bi-diagram-3"></i> Posição no Acumulado</button>
-    <button class="tab" data-tab="campeoes"><i class="bi bi-trophy"></i> Campeões</button>
-    <button class="tab" data-tab="premios"><i class="bi bi-award"></i> Prêmios</button>
+    <button class="tab active" data-tab="panorama"><i class="bi bi-grid-1x2-fill"></i> Panorama</button>
+    <button class="tab" data-tab="acumulado"><i class="bi bi-diagram-3-fill"></i> Posição no Acumulado</button>
+    <button class="tab" data-tab="campeoes"><i class="bi bi-trophy-fill"></i> Campeões</button>
+    <button class="tab" data-tab="premios"><i class="bi bi-award-fill"></i> Prêmios</button>
   </div>
 
-  <div id="content"><div class="empty"><i class="bi bi-hourglass"></i> Carregando…</div></div>
- </div>
-</main>
+  <div id="content"><div class="loading"><i class="bi bi-hourglass-split"></i> Carregando retrospectiva…</div></div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-let LEAGUE = <?= json_encode($myLeague) ?>;
-let TAB = 'panorama';
-let DATA = null;
+let LEAGUE = <?= json_encode($myLeague) ?>, TAB = 'panorama', DATA = null;
+const LOGO='/img/default-team.png';
+const img=(u,cls)=>`<img class="${cls||''}" src="${esc(u||LOGO)}" onerror="this.src='${LOGO}'">`;
 
-/* sidebar mobile + tema */
-(function(){
-  const sb=$('sidebar'),ov=$('sbOverlay'),mb=$('menuBtn');
-  if(mb)mb.onclick=()=>{sb?.classList.add('open');ov?.classList.add('show')};
-  if(ov)ov.onclick=()=>{sb?.classList.remove('open');ov.classList.remove('show')};
-  const tt=$('themeToggle');
-  if(tt)tt.onclick=()=>{const l=document.documentElement.getAttribute('data-theme')==='light';localStorage.setItem('fba-theme',l?'dark':'light');document.documentElement.setAttribute('data-theme',l?'dark':'light')};
-})();
+$('themeBtn').onclick=()=>{const l=document.documentElement.getAttribute('data-theme')==='light';localStorage.setItem('fba-theme',l?'dark':'light');document.documentElement.setAttribute('data-theme',l?'dark':'light')};
 
-function tier(rank){
-  if(rank===1) return {bg:'#f0c14b'};
-  if(rank<=4)  return {bg:'#a9c9ea'};
-  if(rank<=8)  return {bg:'#a7ddc4'};
-  if(rank<=16) return {bg:'#d9d7cf'};
-  return {bg:'#f2b8b5'};
-}
-const LOGO = '/img/default-team.png';
-const img = (u,cls) => `<img class="${cls}" src="${esc(u||LOGO)}" onerror="this.src='${LOGO}'">`;
+const TIER = r => r===1?'var(--t1)':r<=4?'var(--t2)':r<=8?'var(--t3)':r<=16?'var(--t4)':'var(--t5)';
+const posBadge = i => `<span class="pos-badge ${i<3?'g'+(i+1):''}">${i+1}</span>`;
 
 async function load(){
-  $('content').innerHTML = '<div class="empty"><i class="bi bi-hourglass"></i> Carregando…</div>';
+  $('content').innerHTML='<div class="loading"><i class="bi bi-hourglass-split"></i> Carregando…</div>';
+  $('strip').innerHTML='';
   try{
-    const r = await fetch(`/api/retrospectiva.php?league=${encodeURIComponent(LEAGUE)}`);
-    DATA = await r.json();
-    if(!DATA.success){ $('content').innerHTML=`<div class="empty">Erro: ${esc(DATA.error||'')}</div>`; return; }
-    if(DATA.empty || !DATA.seasons.length){ $('content').innerHTML='<div class="empty">Ainda não há temporadas registradas para esta liga.</div>'; return; }
-    $('heroSub').textContent = `${LEAGUE} · ${DATA.seasons.length} temporada${DATA.seasons.length>1?'s':''} · ${DATA.teams.length} times`;
+    const r=await fetch(`/api/retrospectiva.php?league=${encodeURIComponent(LEAGUE)}`);
+    DATA=await r.json();
+    if(!DATA.success){$('content').innerHTML=`<div class="panel"><div class="empty">Erro: ${esc(DATA.error||'')}</div></div>`;return;}
+    if(DATA.empty||!DATA.seasons.length){$('content').innerHTML='<div class="panel"><div class="empty">Ainda não há temporadas registradas nesta liga.</div></div>';return;}
+    const s=DATA.superlatives||{};
+    $('strip').innerHTML=[
+      ['n',DATA.seasons.length,'Temporadas'],
+      ['n',DATA.teams.length,'Franquias'],
+      ['n',s.n_champions||0,'Campeões diferentes'],
+      ['n',(s.most_titles?.titles||0),'Recorde de títulos'],
+    ].map(c=>`<div class="cell"><div class="${c[0]}">${c[1]}</div><div class="l">${c[2]}</div></div>`).join('');
     render();
-  }catch(e){ $('content').innerHTML='<div class="empty">Falha ao carregar.</div>'; }
+  }catch(e){$('content').innerHTML='<div class="panel"><div class="empty">Falha ao carregar.</div></div>';}
 }
 
-function render(){
-  if(TAB==='panorama') return renderPanorama();
-  if(TAB==='acumulado') return renderHeatmap();
-  if(TAB==='campeoes') return renderChampions();
-  if(TAB==='premios') return renderAwards();
-}
+function render(){({panorama:renderPanorama,acumulado:renderHeatmap,campeoes:renderChampions,premios:renderAwards}[TAB]||renderPanorama)();}
 
 function renderPanorama(){
-  const s = DATA.superlatives || {};
-  const card = (ic,lab,val,meta) => val ? `<div class="super"><span class="ic">${ic}</span><div class="lab">${lab}</div><div class="val">${esc(val)}</div>${meta?`<div class="meta">${esc(meta)}</div>`:''}</div>` : '';
-  const supers = [
-    card('🏆','Mais títulos', s.most_titles?.team, s.most_titles?`${s.most_titles.titles} título(s)`:''),
-    card('👑','Mais tempo em 1º', s.top_dog?.team, s.top_dog?`${s.top_dog.seasons} temporada(s) no topo`:''),
-    card('🔥','Maior pontuação', s.best_season?`${s.best_season.points} pts`:null, s.best_season?`${s.best_season.team} · ${s.best_season.season||''}`:''),
-    card('📈','Maior escalada', s.biggest_riser && s.biggest_riser.delta>0?s.biggest_riser.team:null, s.biggest_riser?`subiu ${s.biggest_riser.delta} posições (${s.biggest_riser.from}º → ${s.biggest_riser.to}º)`:''),
-    card('🎯','Mais consistente', s.most_consistent?.team, s.most_consistent?`${s.most_consistent.avg}º na média do acumulado`:''),
-    card('📅','Histórico', `${s.n_seasons} temporadas`, `${s.n_champions} campeões diferentes`),
+  const s=DATA.superlatives||{};
+  const tile=(emoji,accent,lab,val,meta)=>val?`<div class="tile" style="--accent:${accent}"><span class="emoji">${emoji}</span><div class="lab">${lab}</div><div class="val">${esc(val)}</div>${meta?`<div class="meta">${esc(meta)}</div>`:''}</div>`:'';
+  const tiles=[
+    tile('🏆','var(--gold)','Mais títulos', s.most_titles?.team, s.most_titles?`${s.most_titles.titles} título${s.most_titles.titles>1?'s':''}`:''),
+    tile('👑','var(--red)','Mais tempo em 1º', s.top_dog?.team, s.top_dog?`${s.top_dog.seasons} temporada${s.top_dog.seasons>1?'s':''} liderando o acumulado`:''),
+    tile('🔥','#f97316','Maior pontuação', s.best_season?`${s.best_season.points} pts`:null, s.best_season?`${s.best_season.team} · ${s.best_season.season||''} (${s.best_season.year||''})`:''),
+    tile('📈','var(--green)','Maior escalada', (s.biggest_riser&&s.biggest_riser.delta>0)?s.biggest_riser.team:null, s.biggest_riser?`subiu ${s.biggest_riser.delta} posições · ${s.biggest_riser.from}º → ${s.biggest_riser.to}º`:''),
+    tile('🎯','var(--blue)','Mais consistente', s.most_consistent?.team, s.most_consistent?`${s.most_consistent.avg}º de média no acumulado`:''),
   ].filter(Boolean).join('');
 
-  const lb = DATA.leaderboard.map((t,i)=>`
+  const rows=DATA.leaderboard.map((t,i)=>`
     <tr>
-      <td class="pos">${i+1}</td>
-      <td><div class="tm">${img(t.photo_url,'')}<span class="nm">${esc(t.name)}</span></div></td>
-      <td class="num">${t.total}</td>
+      <td class="pos">${posBadge(i)}</td>
+      <td><div class="team-cell">${img(t.photo_url)}<span class="nm">${esc(t.name)}</span></div></td>
+      <td class="num" style="color:var(--red)">${t.total}</td>
       <td class="num">${t.played}</td>
       <td class="num">${t.avg}</td>
       <td class="num">${t.best}</td>
-      <td class="num">${t.titles>0?`<span class="medal">🏆 ${t.titles}</span>`:'—'}</td>
+      <td class="num">${t.titles>0?`<span class="chip">🏆 ${t.titles}</span>`:'<span class="dash" style="color:var(--ink-3)">—</span>'}</td>
     </tr>`).join('');
 
-  $('content').innerHTML = `
-    <div class="super-grid">${supers}</div>
-    <div class="card">
-      <div class="section-title"><i class="bi bi-bar-chart-fill"></i> Ranking histórico — pontos acumulados</div>
+  $('content').innerHTML=`
+    <div class="supers">${tiles}</div>
+    <div class="panel">
+      <div class="h"><div class="ico"><i class="bi bi-bar-chart-fill"></i></div><div><div class="t">Ranking histórico</div></div><div class="sub" style="margin-left:auto">pontos acumulados em todas as temporadas</div></div>
       <div style="overflow-x:auto">
-        <table class="lb">
-          <thead><tr><th></th><th>Time</th><th class="num">Total</th><th class="num">Temp.</th><th class="num">Média</th><th class="num">Melhor</th><th class="num">Títulos</th></tr></thead>
-          <tbody>${lb}</tbody>
+        <table class="tbl">
+          <thead><tr><th></th><th>Franquia</th><th class="num">Total</th><th class="num">Temp.</th><th class="num">Média</th><th class="num">Melhor</th><th class="num">Títulos</th></tr></thead>
+          <tbody>${rows}</tbody>
         </table>
       </div>
     </div>`;
 }
 
 function renderHeatmap(){
-  const seasons = DATA.seasons;
-  // ordena times pelo total acumulado (melhor no topo) usando o leaderboard
-  const order = DATA.leaderboard.map(t=>t.team_id);
-  const byId = {}; DATA.teams.forEach(t=>byId[t.team_id]=t);
-  const head = seasons.map(s=>`<th class="col">${s.label}<small>${s.year?String(s.year).slice(2):''}</small></th>`).join('');
-  const rows = order.map(tid=>{
-    const t = byId[tid]; if(!t) return '';
-    const cells = seasons.map((s,i)=>{
-      const rank = (DATA.heatmap[tid]||[])[i];
-      if(rank==null) return `<td><div class="cell empty">–</div></td>`;
-      return `<td><div class="cell" style="background:${tier(rank).bg}">${rank}</div></td>`;
+  const S=DATA.seasons, order=DATA.leaderboard, byId={};
+  DATA.teams.forEach(t=>byId[t.team_id]=t);
+  const head=S.map(s=>`<th class="col">${s.label}<small>${s.year?"'"+String(s.year).slice(2):''}</small></th>`).join('');
+  const rows=order.map((lt,idx)=>{
+    const t=byId[lt.team_id]; if(!t) return '';
+    const ranks=DATA.heatmap[lt.team_id]||[], cum=DATA.cumulative[lt.team_id]||[];
+    const cells=S.map((s,i)=>{
+      const rk=ranks[i];
+      if(rk==null) return `<td><div class="cell void">·</div></td>`;
+      const tip=`${t.name} · ${s.label}${s.year?' ('+s.year+')':''}: ${rk}º lugar · ${cum[i]??0} pts acumulados`;
+      return `<td><div class="cell" style="background:${TIER(rk)}" title="${esc(tip)}">${rk}</div></td>`;
     }).join('');
     return `<tr>
-      <td class="team"><div class="abbr">${esc(t.abbr)}</div><div class="tn">${esc(t.name)}</div></td>
+      <td class="rk">${idx+1}</td>
+      <td class="team"><div class="in">${img(t.photo_url)}<div style="min-width:0"><div class="abbr">${esc(t.abbr)}</div><div class="tn">${esc(t.name)}</div></div></div></td>
       ${cells}
+      <td class="tot" style="color:${TIER(lt.final_rank||30)}">${lt.total}</td>
     </tr>`;
   }).join('');
 
-  $('content').innerHTML = `
-    <div class="card">
-      <div class="section-title"><i class="bi bi-diagram-3-fill"></i> Posição no acumulado <span class="muted" style="font-weight:400;text-transform:none;letter-spacing:0">· colocação de cada time na soma de pontos até cada temporada</span></div>
-      <div class="hm-scroll">
+  $('content').innerHTML=`
+    <div class="panel">
+      <div class="h"><div class="ico"><i class="bi bi-diagram-3-fill"></i></div><div><div class="t">Posição no acumulado</div></div><div class="sub" style="margin-left:auto">colocação na soma de pontos até cada temporada</div></div>
+      <div class="hm-wrap">
         <table class="hm">
-          <thead><tr><th class="team"></th>${head}</tr></thead>
+          <thead><tr><th></th><th class="teamh"></th>${head}<th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
       <div class="legend">
-        <span><i style="background:#f0c14b"></i> 1º</span>
-        <span><i style="background:#a9c9ea"></i> 2º–4º</span>
-        <span><i style="background:#a7ddc4"></i> 5º–8º</span>
-        <span><i style="background:#d9d7cf"></i> 9º–16º</span>
-        <span><i style="background:#f2b8b5"></i> 17º+</span>
+        <span><i style="background:var(--t1)"></i> 1º lugar</span>
+        <span><i style="background:var(--t2)"></i> 2º–4º</span>
+        <span><i style="background:var(--t3)"></i> 5º–8º</span>
+        <span><i style="background:var(--t4)"></i> 9º–16º</span>
+        <span><i style="background:var(--t5)"></i> 17º ou pior</span>
+        <span style="color:var(--ink-3)">· passe o mouse numa célula para ver os pontos</span>
       </div>
     </div>`;
 }
 
 function renderChampions(){
-  const champs = (DATA.champions||[]).filter(c=>c.champion).slice().reverse();
-  const counts = {};
-  (DATA.champions||[]).forEach(c=>{ if(c.champion) counts[c.champion]=(counts[c.champion]||0)+1; });
-  const rank = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-  const grid = champs.length ? champs.map(c=>`
-    <div class="champ">
-      ${img(c.champion_photo,'')}
+  const champs=(DATA.champions||[]).filter(c=>c.champion).slice().reverse();
+  const counts={};(DATA.champions||[]).forEach(c=>{if(c.champion)counts[c.champion]=(counts[c.champion]||0)+1;});
+  const rank=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const grid=champs.length?champs.map((c,i)=>`
+    <div class="champ ${i===0?'latest':''}">
+      ${i===0?'<span class="ring">🏅</span>':''}
+      ${img(c.champion_photo,'logo')}
       <div style="min-width:0">
-        <div class="season">T${c.season_number}${c.year?` · ${c.year}`:''}</div>
-        <div class="cname">🏆 ${esc(c.champion)}</div>
-        ${c.runner_up?`<div class="vice">vice: ${esc(c.runner_up)}</div>`:''}
+        <div class="season">${c.year?c.year:'T'+c.season_number}</div>
+        <div class="cname">${esc(c.champion)}</div>
+        ${c.runner_up?`<div class="vice">vice · ${esc(c.runner_up)}</div>`:''}
       </div>
-    </div>`).join('') : '<div class="empty">Nenhum campeão registrado ainda.</div>';
-  const rankHtml = rank.length ? `
-    <div class="card" style="margin-top:16px">
-      <div class="section-title"><i class="bi bi-stack"></i> Títulos por franquia</div>
-      <table class="lb"><tbody>${rank.map(([nm,c],i)=>`<tr><td class="pos">${i+1}</td><td><span class="nm" style="font-weight:600">${esc(nm)}</span></td><td class="num">${'🏆'.repeat(Math.min(c,5))} ${c}</td></tr>`).join('')}</tbody></table>
-    </div>` : '';
-  $('content').innerHTML = `
-    <div class="card">
-      <div class="section-title"><i class="bi bi-trophy-fill"></i> Campeões por temporada</div>
-      <div class="champ-grid">${grid}</div>
+    </div>`).join(''):'<div class="empty">Nenhum campeão registrado ainda.</div>';
+  const rankHtml=rank.length?`
+    <div class="panel">
+      <div class="h"><div class="ico"><i class="bi bi-stack"></i></div><div class="t">Títulos por franquia</div></div>
+      <table class="tbl"><tbody>${rank.map(([nm,c],i)=>`<tr><td class="pos">${posBadge(i)}</td><td><span class="nm" style="font-weight:600">${esc(nm)}</span></td><td class="num">${'🏆'.repeat(Math.min(c,6))} <span style="color:var(--gold)">${c}</span></td></tr>`).join('')}</tbody></table>
+    </div>`:'';
+  $('content').innerHTML=`
+    <div class="panel">
+      <div class="h"><div class="ico"><i class="bi bi-trophy-fill"></i></div><div class="t">Campeões por temporada</div><div class="sub" style="margin-left:auto">do mais recente ao primeiro</div></div>
+      <div class="champs">${grid}</div>
     </div>${rankHtml}`;
 }
 
 function renderAwards(){
-  const aw = (DATA.awards||[]).filter(a=>a.mvp.player||a.dpoy.player||a.roy.player||a.mip.player||a.sixth.player).slice().reverse();
-  const cell = o => o && o.player ? `<div class="pl">${esc(o.player)}</div><div class="tm">${esc(o.team||'')}</div>` : '<span class="muted">—</span>';
-  const rows = aw.length ? aw.map(a=>`
+  const aw=(DATA.awards||[]).filter(a=>a.mvp.player||a.dpoy.player||a.roy.player||a.mip.player||a.sixth.player).slice().reverse();
+  const cell=o=>o&&o.player?`<div class="pl">${esc(o.player)}</div><div class="tm">${esc(o.team||'')}</div>`:'<span class="dash">—</span>';
+  const rows=aw.length?aw.map(a=>`
     <tr>
-      <td class="s">T${a.season_number}${a.year?`<br><span class="tm">${a.year}</span>`:''}</td>
+      <td><div class="season-cell">${a.year||'T'+a.season_number}<small>T${a.season_number}</small></div></td>
       <td>${cell(a.mvp)}</td><td>${cell(a.dpoy)}</td><td>${cell(a.mip)}</td><td>${cell(a.sixth)}</td><td>${cell(a.roy)}</td>
-    </tr>`).join('') : '<tr><td colspan="6" class="empty">Nenhum prêmio registrado ainda.</td></tr>';
-  $('content').innerHTML = `
-    <div class="card">
-      <div class="section-title"><i class="bi bi-award-fill"></i> Prêmios individuais por temporada</div>
+    </tr>`).join(''):'<tr><td colspan="6"><div class="empty">Nenhum prêmio registrado ainda.</div></td></tr>';
+  $('content').innerHTML=`
+    <div class="panel">
+      <div class="h"><div class="ico"><i class="bi bi-award-fill"></i></div><div class="t">Prêmios individuais</div><div class="sub" style="margin-left:auto">temporada a temporada</div></div>
       <div style="overflow-x:auto">
         <table class="aw">
-          <thead><tr><th>Temp.</th><th>MVP</th><th>DPOY</th><th>MIP</th><th>6º Homem</th><th>ROY</th></tr></thead>
+          <thead><tr><th>Temporada</th><th>🏆 MVP</th><th>🛡️ DPOY</th><th>📈 MIP</th><th>🔥 6º Homem</th><th>🌟 ROY</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
     </div>`;
 }
 
-/* eventos */
-$('leagueTabs').addEventListener('click', e=>{
-  const b = e.target.closest('button'); if(!b) return;
-  LEAGUE = b.dataset.league;
-  [...$('leagueTabs').children].forEach(x=>x.classList.toggle('active', x===b));
-  load();
-});
-$('tabs').addEventListener('click', e=>{
-  const b = e.target.closest('.tab'); if(!b) return;
-  TAB = b.dataset.tab;
-  [...$('tabs').children].forEach(x=>x.classList.toggle('active', x===b));
-  if(DATA) render();
-});
+$('leaguebar').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;LEAGUE=b.dataset.league;[...$('leaguebar').children].forEach(x=>x.classList.toggle('active',x===b));load();});
+$('tabs').addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;TAB=b.dataset.tab;[...$('tabs').children].forEach(x=>x.classList.toggle('active',x===b));if(DATA)render();});
 
 load();
 </script>
