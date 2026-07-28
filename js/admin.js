@@ -115,8 +115,11 @@ function renderGestaoTable(users) {
   }
 
   const rows = users.map(u => {
-    const adminBadges = (u.admin_leagues || []).map(l =>
-      `<span class="badge bg-gradient-orange me-1" style="font-size:10px">${l}</span>`).join('') || '<span class="text-muted" style="font-size:12px">—</span>';
+    const globalBadge = u.user_type === 'admin'
+      ? `<span class="badge me-1" style="font-size:10px;background:var(--red,#fc0025);color:#fff">GERAL</span>` : '';
+    const leagueBadges = (u.admin_leagues || []).map(l =>
+      `<span class="badge bg-gradient-orange me-1" style="font-size:10px">${l}</span>`).join('');
+    const adminBadges = (globalBadge + leagueBadges) || '<span class="text-muted" style="font-size:12px">—</span>';
     const teamPhoto = u.team_photo
       ? `<img src="${escapeHtml(u.team_photo)}" style="width:30px;height:30px;border-radius:8px;object-fit:cover;border:1px solid var(--border)" onerror="this.style.display='none'">`
       : `<div style="width:30px;height:30px;border-radius:8px;background:var(--panel-3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center"><i class="bi bi-people" style="font-size:14px;color:var(--text-3)"></i></div>`;
@@ -234,6 +237,14 @@ function openGestaoEdit(userId) {
             <div class="mb-3">
               <label class="form-label text-light-gray">Ligas Admin</label>
               <div class="d-flex flex-wrap gap-2 mt-1">${adminChecks}</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Admin Geral</label>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="gedit-global-admin" ${u.user_type === 'admin' ? 'checked' : ''}>
+                <label class="form-check-label" for="gedit-global-admin" style="font-size:13px">Este usuário é administrador do sistema</label>
+              </div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:4px">Acesso total de admin. Não interfere no admin de liga acima.</div>
             </div>` : ''}
             ${resetBtn}
           </div>
@@ -286,11 +297,19 @@ async function saveGestaoUser() {
     });
 
     if (window.IS_GLOBAL_ADMIN) {
-      const leagues = Array.from(document.querySelectorAll('#gestaoEditModal .form-check-input:checked')).map(c => c.value);
+      const leagues = Array.from(document.querySelectorAll('#gestaoEditModal #ck-ELITE, #gestaoEditModal #ck-NEXT, #gestaoEditModal #ck-RISE, #gestaoEditModal #ck-ROOKIE')).filter(c => c.checked).map(c => c.value);
       await api('admin.php?action=set_user_league_admin', {
         method: 'POST',
         body: JSON.stringify({ user_id: userId, leagues })
       });
+
+      const globalAdminEl = document.getElementById('gedit-global-admin');
+      if (globalAdminEl) {
+        await api('admin.php?action=set_global_admin', {
+          method: 'POST',
+          body: JSON.stringify({ user_id: userId, is_admin: globalAdminEl.checked })
+        });
+      }
     }
 
     bootstrap.Modal.getInstance(document.getElementById('gestaoEditModal'))?.hide();

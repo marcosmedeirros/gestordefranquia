@@ -2421,6 +2421,20 @@ if ($method === 'POST') {
             echo json_encode(['success' => true, 'leagues' => $leagues]);
             break;
 
+        case 'set_global_admin':
+            // Admin GERAL do sistema (users.user_type). Não mexe em league_admins.
+            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin global']); exit; }
+            $targetId = (int)($data['user_id'] ?? 0);
+            if (!$targetId) { http_response_code(400); echo json_encode(['success' => false, 'error' => 'user_id inválido']); exit; }
+            $enable = !empty($data['is_admin']);
+            // Impede o admin de remover o próprio acesso global (evita se trancar de fora)
+            if (!$enable && $targetId === (int)($user['id'] ?? 0)) {
+                http_response_code(400); echo json_encode(['success' => false, 'error' => 'Você não pode remover o próprio admin geral.']); exit;
+            }
+            $pdo->prepare("UPDATE users SET user_type = ? WHERE id = ?")->execute([$enable ? 'admin' : 'jogador', $targetId]);
+            echo json_encode(['success' => true, 'user_type' => $enable ? 'admin' : 'jogador']);
+            break;
+
         case 'reset_user_password':
             if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin global']); exit; }
             $targetId = (int)($data['user_id'] ?? 0);
