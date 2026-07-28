@@ -54,6 +54,7 @@ let _gestaoUsers = [];
 let _gestaoLeague = _leagues[0] || 'ELITE';
 
 async function showGestao(league) {
+  if (!window.IS_GLOBAL_ADMIN) { showHome(); return; }
   appState.view = 'gestao';
   updateBreadcrumb();
   if (league) _gestaoLeague = league;
@@ -133,19 +134,21 @@ function renderGestaoTable(users) {
 
     return `
       <tr>
-        <td>
-          <div style="font-weight:600">${escapeHtml(u.name)}</div>
-          <div style="font-size:11px;color:var(--text-3)">${escapeHtml(u.email)}</div>
+        <td data-label="Usuário">
+          <div>
+            <div style="font-weight:600">${escapeHtml(u.name)}</div>
+            <div style="font-size:11px;color:var(--text-3)">${escapeHtml(u.email)}</div>
+          </div>
         </td>
-        <td>
+        <td data-label="Time">
           <div class="d-flex align-items-center gap-2">
             ${teamPhoto}
             <span style="font-size:13px">${teamName}</span>
           </div>
         </td>
-        <td>${leagueBadges}</td>
-        <td>${globalAdminCell}</td>
-        <td>
+        <td data-label="Ligas Admin">${leagueBadges}</td>
+        <td data-label="Admin Geral">${globalAdminCell}</td>
+        <td class="gestao-actions">
           <div class="d-flex gap-1">
             <button class="btn btn-sm btn-outline-orange" onclick="openGestaoEdit(${u.id})" title="Editar">
               <i class="bi bi-pencil-fill"></i>
@@ -160,7 +163,7 @@ function renderGestaoTable(users) {
 
   container.innerHTML = `
     <div class="table-responsive">
-      <table class="table table-dark table-hover" style="font-size:13px">
+      <table class="table table-dark table-hover gestao-table" style="font-size:13px">
         <thead>
           <tr>
             <th>Usuário</th>

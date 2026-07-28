@@ -804,9 +804,11 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             <i class="bi bi-trophy-fill"></i> <?= htmlspecialchars($lg) ?>
         </button>
         <?php endforeach; ?>
+        <?php if ($isGlobalAdmin): ?>
         <button class="admin-qnav-btn" id="qnav-gestao" onclick="showGestao()">
             <i class="bi bi-people-fill"></i> Gestão
         </button>
+        <?php endif; ?>
     </nav>
 
     <div class="page-top">

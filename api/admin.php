@@ -213,6 +213,8 @@ if ($method === 'GET') {
     switch ($action) {
 
         case 'get_users':
+            // Gestão de usuários é exclusiva do Admin Geral (não interfere no admin de liga)
+            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin geral']); exit; }
             $leagueFilter = strtoupper(trim((string)($_GET['league'] ?? '')));
             $allowedLeagues = $isGlobalAdminApi ? $validLeagues : $apiAdminLeagues;
 
@@ -2351,17 +2353,10 @@ if ($method === 'POST') {
             break;
 
         case 'update_user':
+            // Gestão de usuários é exclusiva do Admin Geral (não interfere no admin de liga)
+            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin geral']); exit; }
             $targetId = (int)($data['user_id'] ?? 0);
             if (!$targetId) { http_response_code(400); echo json_encode(['success' => false, 'error' => 'user_id inválido']); exit; }
-
-            if (!$isGlobalAdminApi) {
-                $stmtChk = $pdo->prepare("SELECT league FROM users WHERE id = ?");
-                $stmtChk->execute([$targetId]);
-                $targetLeague = $stmtChk->fetchColumn();
-                if (!in_array($targetLeague, $apiAdminLeagues, true)) {
-                    http_response_code(403); echo json_encode(['success' => false, 'error' => 'Sem permissão']); exit;
-                }
-            }
 
             $name  = trim((string)($data['name'] ?? ''));
             $email = trim((string)($data['email'] ?? ''));
@@ -2609,6 +2604,12 @@ if ($method === 'DELETE') {
             break;
 
         case 'user':
+            // Gestão de usuários é exclusiva do Admin Geral (não interfere no admin de liga)
+            if (!$isGlobalAdminApi) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas admin geral']);
+                exit;
+            }
             $targetId = (int)$id;
             if (!$targetId) {
                 http_response_code(400);
@@ -2622,12 +2623,6 @@ if ($method === 'DELETE') {
             if (!$targetUser) {
                 http_response_code(404);
                 echo json_encode(['success' => false, 'error' => 'Usuário não encontrado']);
-                exit;
-            }
-
-            if (!$isGlobalAdminApi && !in_array($targetUser['league'], $apiAdminLeagues, true)) {
-                http_response_code(403);
-                echo json_encode(['success' => false, 'error' => 'Sem permissão']);
                 exit;
             }
 
