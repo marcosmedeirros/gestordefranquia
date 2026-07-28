@@ -115,11 +115,15 @@ function renderGestaoTable(users) {
   }
 
   const rows = users.map(u => {
-    const globalBadge = u.user_type === 'admin'
-      ? `<span class="badge me-1" style="font-size:10px;background:var(--red,#fc0025);color:#fff">GERAL</span>` : '';
     const leagueBadges = (u.admin_leagues || []).map(l =>
-      `<span class="badge bg-gradient-orange me-1" style="font-size:10px">${l}</span>`).join('');
-    const adminBadges = (globalBadge + leagueBadges) || '<span class="text-muted" style="font-size:12px">—</span>';
+      `<span class="badge bg-gradient-orange me-1" style="font-size:10px">${l}</span>`).join('') || '<span class="text-muted" style="font-size:12px">—</span>';
+    const globalAdminCell = window.IS_GLOBAL_ADMIN
+      ? `<div class="form-check form-switch m-0" title="Ativar/desativar Admin Geral">
+          <input class="form-check-input" type="checkbox" role="switch" ${u.user_type === 'admin' ? 'checked' : ''} onchange="toggleGlobalAdmin(${u.id}, this.checked, this)">
+        </div>`
+      : (u.user_type === 'admin'
+          ? `<span class="badge" style="font-size:10px;background:var(--red,#fc0025);color:#fff">GERAL</span>`
+          : '<span class="text-muted" style="font-size:12px">—</span>');
     const teamPhoto = u.team_photo
       ? `<img src="${escapeHtml(u.team_photo)}" style="width:30px;height:30px;border-radius:8px;object-fit:cover;border:1px solid var(--border)" onerror="this.style.display='none'">`
       : `<div style="width:30px;height:30px;border-radius:8px;background:var(--panel-3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center"><i class="bi bi-people" style="font-size:14px;color:var(--text-3)"></i></div>`;
@@ -139,7 +143,8 @@ function renderGestaoTable(users) {
             <span style="font-size:13px">${teamName}</span>
           </div>
         </td>
-        <td>${adminBadges}</td>
+        <td>${leagueBadges}</td>
+        <td>${globalAdminCell}</td>
         <td>
           <div class="d-flex gap-1">
             <button class="btn btn-sm btn-outline-orange" onclick="openGestaoEdit(${u.id})" title="Editar">
@@ -161,12 +166,28 @@ function renderGestaoTable(users) {
             <th>Usuário</th>
             <th>Time</th>
             <th>Ligas Admin</th>
+            <th>Admin Geral</th>
             <th style="width:60px"></th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
+}
+
+async function toggleGlobalAdmin(userId, checked, checkboxEl) {
+  try {
+    await api('admin.php?action=set_global_admin', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, is_admin: checked })
+    });
+    const u = _gestaoUsers.find(x => x.id == userId);
+    if (u) u.user_type = checked ? 'admin' : 'jogador';
+    showAlert('success', checked ? 'Admin Geral ativado.' : 'Admin Geral desativado.');
+  } catch (e) {
+    if (checkboxEl) checkboxEl.checked = !checked;
+    showAlert('danger', 'Erro: ' + (e.error || 'Desconhecido'));
+  }
 }
 
 function openGestaoEdit(userId) {
@@ -237,14 +258,7 @@ function openGestaoEdit(userId) {
             <div class="mb-3">
               <label class="form-label text-light-gray">Ligas Admin</label>
               <div class="d-flex flex-wrap gap-2 mt-1">${adminChecks}</div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label text-light-gray">Admin Geral</label>
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" role="switch" id="gedit-global-admin" ${u.user_type === 'admin' ? 'checked' : ''}>
-                <label class="form-check-label" for="gedit-global-admin" style="font-size:13px">Este usuário é administrador do sistema</label>
-              </div>
-              <div style="font-size:11px;color:var(--text-3);margin-top:4px">Acesso total de admin. Não interfere no admin de liga acima.</div>
+              <div style="font-size:11px;color:var(--text-3);margin-top:4px">O Admin Geral (acesso total) é ativado direto na tabela, sem precisar abrir esta edição.</div>
             </div>` : ''}
             ${resetBtn}
           </div>
@@ -302,14 +316,6 @@ async function saveGestaoUser() {
         method: 'POST',
         body: JSON.stringify({ user_id: userId, leagues })
       });
-
-      const globalAdminEl = document.getElementById('gedit-global-admin');
-      if (globalAdminEl) {
-        await api('admin.php?action=set_global_admin', {
-          method: 'POST',
-          body: JSON.stringify({ user_id: userId, is_admin: globalAdminEl.checked })
-        });
-      }
     }
 
     bootstrap.Modal.getInstance(document.getElementById('gestaoEditModal'))?.hide();
