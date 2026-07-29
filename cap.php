@@ -1,9 +1,16 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/preview_gate.php';
 requireAuth();
 $user = getUserSession();
 $pdo  = db();
+
+// A pagina nao e mais restrita (esta no menu da ELITE), mas o link de preview
+// continua valendo: abrir com ?preview=<token> liga o modo salario e a
+// simulacao de troca nesta sessao, mesmo se a liga ainda estiver no modo antigo.
+// Sem esta chamada nada le o token da URL e previewActive() nunca fica true.
+previewUnlock('cap');
 
 $stmtMine = $pdo->prepare("SELECT id, city, name, league, photo_url FROM teams WHERE user_id = ? LIMIT 1");
 $stmtMine->execute([$user['id']]);
@@ -16,6 +23,7 @@ if (!$team) { header('Location: teams.php'); exit; }
 $stmtCapMode = $pdo->prepare("SELECT cap_mode FROM league_settings WHERE league = ?");
 $stmtCapMode->execute([$team['league'] ?? '']);
 $capMode = $stmtCapMode->fetchColumn() ?: 'ovr_sum';
+if (previewActive('cap')) { $capMode = 'salary'; }
 $teamId = (int)$team['id'];
 ?>
 <!DOCTYPE html>

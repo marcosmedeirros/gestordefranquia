@@ -10,9 +10,12 @@ $pdo  = db();
 
 require_once __DIR__ . '/backend/preview_gate.php';
 
-// Liga em modo salary (folha em dinheiro). A ELITE esta desligada em producao
-// enquanto o sistema e avaliado, entao o modo tambem liga para quem abriu o
-// preview do cap — assim da para testar sem que a liga inteira veja.
+// Le o ?preview=<token> da URL: sem isto previewActive() nunca fica true e o
+// link de preview do cap nao liga nada.
+previewUnlock('cap');
+
+// Liga em modo salary (folha em dinheiro). Quem abriu o link de preview do cap
+// tambem enxerga o modo salario, mesmo se a liga ainda estiver no modo antigo.
 $__salaryMode = false;
 try {
     $sm = $pdo->prepare("SELECT cap_mode FROM league_settings WHERE league = ?");
