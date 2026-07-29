@@ -116,7 +116,12 @@ if ($action === 'roster') {
 }
 
 // ── Page vars ─────────────────────────────────────────────────────────────────
-$propose = !empty($_GET['propose']);   // show submit button
+// Trade Machine: monta, mostra o impacto (CAP/folha, casamento salarial, valor)
+// e envia — tudo na mesma tela. Antes a pagina se dividia em dois modos pelo
+// ?propose=1 (simulador sem enviar x "Nova Trade"), o que obrigava a refazer a
+// montagem ao decidir propor. O parametro continua aceito para nao quebrar
+// links antigos, mas nao muda mais nada: quem so quer simular e so nao enviar.
+$propose = true;
 
 $stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
@@ -135,8 +140,10 @@ if ($myTeam) {
 }
 $isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
-$pageTitle = $propose ? 'Nova Trade' : 'Simulador de Trade';
-$pageSub   = $propose ? 'Monte a troca com até 7 times e envie a proposta.' : 'Simule trocas sem enviar nada.';
+$pageTitle = 'Trade Machine';
+$pageSub   = $__salaryMode
+    ? 'Monte a troca com até 7 times e veja o impacto na folha e no casamento salarial antes de enviar.'
+    : 'Monte a troca com até 7 times e veja o impacto no CAP antes de enviar.';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -499,7 +506,6 @@ body{overflow-x:hidden}
       <div id="validityBadge" class="validity-badge neutral">
         <i class="bi bi-hourglass-split"></i>AGUARDANDO
       </div>
-      <?php if ($propose): ?>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <a href="/trades.php" class="btn-r secondary sm" style="text-decoration:none"><i class="bi bi-arrow-left"></i>Voltar</a>
         <button class="btn-r secondary sm" id="copyTradeBtn" onclick="copyTrade()"><i class="bi bi-clipboard"></i>Copiar</button>
@@ -507,13 +513,6 @@ body{overflow-x:hidden}
           <i class="bi bi-send-fill"></i>Enviar Proposta
         </button>
       </div>
-      <?php else: ?>
-      <div style="display:flex;gap:8px">
-        <a href="/trades.php" class="btn-r secondary sm" style="text-decoration:none"><i class="bi bi-arrow-left"></i>Voltar</a>
-        <button class="btn-r secondary sm" id="copyTradeBtn" onclick="copyTrade()"><i class="bi bi-clipboard"></i>Copiar</button>
-        <a href="/trade-simulator.php?propose=1" class="btn-r outline sm" style="text-decoration:none"><i class="bi bi-send"></i>Propor esta trade</a>
-      </div>
-      <?php endif; ?>
     </div>
 
     <!-- Notes (propose mode only) -->

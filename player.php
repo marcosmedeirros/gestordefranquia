@@ -717,14 +717,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   ?>
   <div class="p-actions">
     <?php if ($doMeuTime): ?>
-      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>&propose=1">
+      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>">
         <i class="bi bi-arrow-left-right"></i> Usar em uma troca</a>
       <a class="act" href="/my-roster.php"><i class="bi bi-people-fill"></i> Meu elenco</a>
     <?php else: ?>
-      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>&propose=1">
-        <i class="bi bi-arrow-left-right"></i> Propor troca por <?= htmlspecialchars(mb_strimwidth($playerName, 0, 22, '…')) ?></a>
-      <a class="act" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>">
-        <i class="bi bi-calculator"></i> Simular troca</a>
+      <?php /* Simular e propor viraram a mesma tela (Trade Machine), entao um botao so. */ ?>
+      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $dispTeamId ?>">
+        <i class="bi bi-arrow-left-right"></i> Montar troca por <?= htmlspecialchars(mb_strimwidth($playerName, 0, 22, '…')) ?></a>
     <?php endif; ?>
     <button class="act" id="btnFav" data-pid="<?= $playerId ?>" title="Salvar na sua lista de observados">
       <i class="bi bi-star"></i> <span>Favoritar</span></button>

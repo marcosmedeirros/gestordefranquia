@@ -351,10 +351,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <a class="act" href="/picks.php"><i class="bi bi-ticket-perforated"></i> Minhas picks</a>
       <a class="act" href="/team-public-page.php"><i class="bi bi-globe2"></i> Página pública</a>
     <?php else: ?>
-      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $teamId ?>&propose=1">
-        <i class="bi bi-arrow-left-right"></i> Propor troca</a>
-      <a class="act" href="/trade-simulator.php?team_id=<?= $teamId ?>">
-        <i class="bi bi-calculator"></i> Simular troca</a>
+      <?php /* Simular e propor viraram a mesma tela (Trade Machine), entao um botao so. */ ?>
+      <a class="act act-primary" href="/trade-simulator.php?team_id=<?= $teamId ?>">
+        <i class="bi bi-arrow-left-right"></i> Montar troca</a>
     <?php endif; ?>
     <button class="act" id="btnShareTeam" title="Copiar o link desta página"><i class="bi bi-link-45deg"></i> <span>Copiar link</span></button>
   </div>
