@@ -8,10 +8,9 @@ $pdo  = db();
 
 $isGlobalAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 $adminLeagues  = getAdminLeagues($pdo, (int)$user['id']);
-if (!$isGlobalAdmin && empty($adminLeagues)) {
-    header('Location: /dashboard.php');
-    exit;
-}
+// Qualquer jogador pode ver a loteria (regras + ordem já sorteada); só quem
+// administra ELITE/NEXT/RISE consegue de fato rodar a cerimônia e confirmar.
+$canRunLottery = $isGlobalAdmin || !empty($adminLeagues);
 
 $stmtMine = $pdo->prepare("SELECT id, city, name, league, photo_url FROM teams WHERE user_id = ? LIMIT 1");
 $stmtMine->execute([$user['id']]);
@@ -31,6 +30,38 @@ if ($lotteryLeagues) {
     ");
     $stmtSessions->execute($lotteryLeagues);
     $setupSessions = $stmtSessions->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// Ordem já confirmada (via "Confirmar e aplicar ao draft") da liga do jogador
+// logado — visível pra todo mundo, mesmo quem não administra a loteria.
+$myViewLeague = strtoupper((string)($team['league'] ?? $user['league'] ?? ''));
+$confirmedOrder = [];
+$confirmedSessionInfo = null;
+if (in_array($myViewLeague, ['ELITE', 'NEXT', 'RISE'], true)) {
+    $stmtLastSession = $pdo->prepare("
+        SELECT ds.id, s.season_number, s.year
+        FROM draft_sessions ds
+        JOIN seasons s ON s.id = ds.season_id
+        WHERE ds.league = ?
+        ORDER BY ds.id DESC
+        LIMIT 1
+    ");
+    $stmtLastSession->execute([$myViewLeague]);
+    $lastSession = $stmtLastSession->fetch(PDO::FETCH_ASSOC);
+    if ($lastSession) {
+        $stmtOrder = $pdo->prepare("
+            SELECT do.pick_position, CONCAT(t.city,' ',t.name) AS team_name, t.photo_url, t.conference
+            FROM draft_order do
+            JOIN teams t ON t.id = do.team_id
+            WHERE do.draft_session_id = ? AND do.round = 1
+            ORDER BY do.pick_position ASC
+        ");
+        $stmtOrder->execute([(int)$lastSession['id']]);
+        $confirmedOrder = $stmtOrder->fetchAll(PDO::FETCH_ASSOC);
+        if ($confirmedOrder) {
+            $confirmedSessionInfo = $lastSession;
+        }
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -337,6 +368,26 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     revela pick por pick no clique. Os times do playoff (8 de cada conferência) ficam travados no fim da ordem.</div>
   </div>
 
+  <?php if (!$canRunLottery): ?>
+  <div class="section-title bc-off"><i class="bi bi-list-ol"></i> Ordem do draft<?= $confirmedSessionInfo ? ' — Temporada ' . (int)$confirmedSessionInfo['season_number'] : '' ?></div>
+  <div class="panel bc-off">
+    <?php if (!$confirmedOrder): ?>
+    <div class="empty"><i class="bi bi-hourglass-split" style="font-size:22px;display:block;margin-bottom:8px"></i>A ordem do draft desta temporada ainda não foi sorteada. Volte mais tarde.</div>
+    <?php else: ?>
+    <div class="board">
+      <?php foreach ($confirmedOrder as $o): ?>
+      <div class="board-slot">
+        <span class="board-pos"><?= (int)$o['pick_position'] ?></span>
+        <img class="board-logo" src="<?= htmlspecialchars($o['photo_url'] ?: '/img/default-team.png') ?>" alt="" onerror="this.src='/img/default-team.png'">
+        <span class="board-team"><?= htmlspecialchars($o['team_name']) ?></span>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($canRunLottery): ?>
   <?php if (!$setupSessions): ?>
   <div class="panel bc-off" style="text-align:center">
     <i class="bi bi-info-circle" style="font-size:22px;color:var(--text-3)"></i>
@@ -437,6 +488,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       </div>
     </div>
   </div>
+  <?php endif; ?>
 
   <div class="section-title bc-off"><i class="bi bi-journal-text"></i> Como funciona</div>
   <div class="panel rules-panel bc-off">
@@ -860,15 +912,15 @@ async function confirmOrder(){
   }
 }
 
-// Sem sessao de draft em "setup" a pagina nao tem estes controles, mas o
-// modo demonstracao continua disponivel.
+// Quem não administra loteria nenhuma não tem esses controles na página
+// (só vê a ordem já confirmada), então todos os binds ficam guardados.
 if ($('btnPrepare')) $('btnPrepare').addEventListener('click', () => prepare(false));
-$('btnDemo').addEventListener('click', () => prepare(true));
-$('btnReveal').addEventListener('click', revealNext);
-$('btnConfirm').addEventListener('click', confirmOrder);
+if ($('btnDemo')) $('btnDemo').addEventListener('click', () => prepare(true));
+if ($('btnReveal')) $('btnReveal').addEventListener('click', revealNext);
+if ($('btnConfirm')) $('btnConfirm').addEventListener('click', confirmOrder);
 // "Sortear de novo" repete o mesmo modo do sorteio atual. Sem a arrow o
 // listener passaria o proprio evento como isDemo, que e sempre truthy.
-$('btnRedo').addEventListener('click', () => prepare(!!(result && result.demo)));
+if ($('btnRedo')) $('btnRedo').addEventListener('click', () => prepare(!!(result && result.demo)));
 </script>
 </body>
 </html>

@@ -16,6 +16,9 @@ $__sbIsElite = (($team['league'] ?? $user['league'] ?? '') === 'ELITE');
 // - Da liga do usuário: aparece abaixo de "Draft".
 // - De outras ligas (só admin): aparece abaixo do menu "Admin".
 $__sbLeague = $team['league'] ?? $user['league'] ?? '';
+// Loteria: qualquer jogador de ELITE/NEXT/RISE pode ver a ordem já sorteada;
+// quem administra alguma dessas ligas também vê (mesmo com time em outra liga).
+$__sbLotteryVisible = in_array(strtoupper((string)$__sbLeague), ['ELITE', 'NEXT', 'RISE'], true) || $__sbIsAdmin;
 $__sbMyInitDraft = null;
 $__sbOtherInitDrafts = [];
 try {
@@ -74,7 +77,7 @@ if (!function_exists('sbActive')) {
         <?php if ($__sbMyInitDraft): ?>
         <a href="/initdraftselecao.php?token=<?= urlencode($__sbMyInitDraft['access_token']) ?>"<?= sbActive('initdraftselecao.php', $__sbCurrent) ?>><i class="bi bi-stars"></i> Draft Inicial</a>
         <?php endif; ?>
-        <?php if ($__sbIsElite || $__sbIsAdmin): ?>
+        <?php if ($__sbIsElite): ?>
         <a href="/cap.php"<?= sbActive('cap.php', $__sbCurrent) ?>><i class="bi bi-cash-stack"></i> Salário Cap</a>
         <?php endif; ?>
         <?php /* Tapas: oculto temporariamente, vai passar por alteração */ ?>
@@ -89,6 +92,9 @@ if (!function_exists('sbActive')) {
         <a href="/ouvidoria.php"<?= sbActive('ouvidoria.php', $__sbCurrent) ?>><i class="bi bi-chat-dots"></i> Ouvidoria</a>
         <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
         <a href="/thepathetic.php"<?= sbActive('thepathetic.php', $__sbCurrent) ?>><i class="bi bi-newspaper"></i> The Pathetic</a>
+        <?php if ($__sbLotteryVisible): ?>
+        <a href="/lottery.php"<?= sbActive('lottery.php', $__sbCurrent) ?>><i class="bi bi-shuffle"></i> Loteria</a>
+        <?php endif; ?>
 
         <?php if ($__sbIsAdmin): ?>
         <div class="sb-section">Admin</div>
@@ -97,7 +103,6 @@ if (!function_exists('sbActive')) {
         <a href="/initdraftselecao.php?token=<?= urlencode($__sess['access_token']) ?>"><i class="bi bi-stars"></i> Draft Inicial — <?= htmlspecialchars($__lg) ?></a>
         <?php endforeach; ?>
         <?php /* Punições: oculto temporariamente, vai passar por alteração */ ?>
-        <a href="/lottery.php"<?= sbActive('lottery.php', $__sbCurrent) ?>><i class="bi bi-shuffle"></i> Loteria</a>
         <?php endif; ?>
 
         <div class="sb-section">Conta</div>
