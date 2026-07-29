@@ -153,6 +153,41 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .reveal-actions{margin-top:18px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 .reveal-hint{font-size:11px;color:var(--text-3);margin-top:10px}
 
+/* Globo de bolinhas — sorteio de cada pick */
+.ball-machine{position:relative;width:min(210px,62vw);height:min(210px,62vw);margin:0 auto;display:none}
+.ball-machine.on{display:block}
+.ball-globe{position:absolute;inset:0;border-radius:50%;border:3px solid var(--border-md);overflow:hidden;
+  background:radial-gradient(circle at 32% 26%, rgba(255,255,255,.10), transparent 58%), var(--panel-3);
+  box-shadow:inset 0 0 42px rgba(0,0,0,.55), 0 0 0 1px var(--red-soft)}
+.ball-globe::after{content:'';position:absolute;left:14%;top:10%;width:34%;height:22%;border-radius:50%;
+  background:rgba(255,255,255,.09);filter:blur(6px);pointer-events:none}
+.lottery-ball{position:absolute;left:50%;top:50%;width:42px;height:42px;margin:-21px 0 0 -21px;border-radius:50%;
+  background:var(--panel);border:2px solid var(--border-md);display:flex;align-items:center;justify-content:center;
+  overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.45);
+  animation-name:ballTumble;animation-timing-function:linear;animation-iteration-count:infinite;
+  transition:opacity .45s var(--ease)}
+.lottery-ball img{width:30px;height:30px;object-fit:contain;pointer-events:none}
+@keyframes ballTumble{
+  from{transform:rotate(0deg) translateX(var(--r)) rotate(0deg)}
+  to{transform:rotate(360deg) translateX(var(--r)) rotate(-360deg)}
+}
+.ball-globe.slowing .lottery-ball{opacity:.22;animation-duration:3.6s!important}
+@keyframes ballDrawn{
+  0%{transform:scale(.65);opacity:.35}
+  55%{transform:scale(2.15)}
+  100%{transform:scale(1.95);opacity:1}
+}
+.lottery-ball.drawn{z-index:5;opacity:1!important;border-color:var(--red);
+  box-shadow:0 0 0 4px var(--red-soft),0 0 34px var(--red-glow);
+  animation:ballDrawn .78s cubic-bezier(.2,1.25,.4,1) forwards!important}
+body.broadcast .ball-machine{width:min(280px,52vw);height:min(280px,52vw)}
+body.broadcast .lottery-ball{width:52px;height:52px;margin:-26px 0 0 -26px}
+body.broadcast .lottery-ball img{width:38px;height:38px}
+@media(prefers-reduced-motion:reduce){
+  .lottery-ball{animation:none!important}
+  .lottery-ball.drawn{animation:none!important;transform:scale(1.9)}
+}
+
 /* Urna — quem ainda está concorrendo */
 .bowl-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .bowl-count{font-family:'Oswald',sans-serif;font-size:13px;font-weight:800;color:var(--red)}
@@ -443,6 +478,9 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <div class="reveal-fx" id="revealFx" aria-hidden="true"></div>
       <div class="reveal-pick" id="revealPickLabel">Pronto para começar</div>
       <div class="reveal-card">
+        <div class="ball-machine" id="ballMachine" aria-hidden="true">
+          <div class="ball-globe" id="ballGlobe"></div>
+        </div>
         <img class="reveal-logo" id="revealLogo" src="/img/default-team.png" alt="" style="visibility:hidden" onerror="this.src='/img/default-team.png'">
         <div class="reveal-number" id="revealNumber">#?</div>
         <div class="reveal-team q" id="revealTeam">—</div>
@@ -744,6 +782,8 @@ function setupBoardAndOdds(data){
   // Estado do palco
   $('confirmPanel').style.display = 'none';
   $('revealStage').classList.remove('armed');
+  $('ballMachine')?.classList.remove('on');
+  $('revealLogo').style.display = '';
   $('revealLogo').style.visibility = 'hidden';
   $('revealLogo').className = 'reveal-logo';
   $('revealNumber').className = 'reveal-number';
@@ -785,6 +825,45 @@ function updateRevealButton(){
   $('revealPickLabel').textContent = revealQueue.length === 1 ? 'A escolha nº 1 — grande final' : `Faltam ${revealQueue.length} escolhas`;
 }
 
+const REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * Cerimônia da bolinha: joga no globo uma bolinha por time ainda na urna,
+ * gira todas, desacelera e "puxa" a do time sorteado. O resultado já veio
+ * pronto do servidor — isto é só a encenação. Chama onDone() no fim.
+ */
+function spinBalls(pool, entry, onDone){
+  const machine = $('ballMachine'), globe = $('ballGlobe');
+  if (!machine || !globe || REDUCED_MOTION) { onDone(); return; }
+
+  globe.classList.remove('slowing');
+  globe.innerHTML = '';
+  machine.classList.add('on'); // precisa estar visível antes de medir o raio
+
+  const raio = Math.max(Math.min(machine.clientWidth, machine.clientHeight) / 2 - 26, 20);
+  globe.innerHTML = pool.map(o => {
+    // Órbitas e velocidades diferentes por bolinha = movimento de urna, não de carrossel.
+    const r = Math.round(10 + Math.random() * raio);
+    const dur = (1.0 + Math.random() * 0.9).toFixed(2);
+    const delay = (-Math.random() * 2).toFixed(2);
+    const dir = Math.random() < 0.5 ? 'normal' : 'reverse';
+    return `<div class="lottery-ball" id="lb-${o.team_id}" style="--r:${r}px;animation-duration:${dur}s;animation-delay:${delay}s;animation-direction:${dir}">
+      <img src="${esc(o.photo_url || LOGO_FALLBACK)}" alt="" onerror="this.src='${LOGO_FALLBACK}'">
+    </div>`;
+  }).join('');
+
+  const giro = 1600 + Math.random() * 700;
+  setTimeout(() => {
+    globe.classList.add('slowing');
+    const bola = document.getElementById('lb-' + entry.team_id);
+    if (bola) bola.classList.add('drawn');
+    setTimeout(() => {
+      machine.classList.remove('on');
+      onDone();
+    }, bola ? 820 : 200);
+  }, giro);
+}
+
 function revealNext(){
   if (busy || !revealQueue.length) return;
   busy = true;
@@ -794,10 +873,9 @@ function revealNext(){
   btn.disabled = true;
   $('revealStage').classList.add('armed');
 
-  // decoys = times de loteria ainda não revelados (pra embaralhar nome + logo)
+  // decoys = times de loteria ainda não revelados (as outras bolinhas do globo)
   const decoys = result.order
     .filter(o => o.source !== 'playoff' && !revealed.has(o.position) && o.position !== pos);
-  const pool = decoys.length ? decoys : [entry];
 
   const numEl = $('revealNumber'), teamEl = $('revealTeam'), confEl = $('revealConf'), moveEl = $('revealMove'), logoEl = $('revealLogo'), passedEl = $('revealPassed');
   numEl.className = 'reveal-number on';
@@ -808,21 +886,20 @@ function revealNext(){
   passedEl.className = 'reveal-passed';
   passedEl.innerHTML = '';
   $('revealVia').innerHTML = '';
-  teamEl.className = 'reveal-team shuffling';
+  // O nome e o escudo só aparecem depois que a bolinha sai do globo. Aqui é
+  // display:none (e não visibility) para o escudo não deixar um vão de 120px
+  // entre o globo e o número da pick enquanto as bolinhas giram.
+  teamEl.className = 'reveal-team q';
+  teamEl.textContent = '';
   logoEl.className = 'reveal-logo';
-  logoEl.style.visibility = 'visible';
+  logoEl.style.display = 'none';
 
-  let steps = 12 + Math.floor(Math.random() * 4);
-  let delay = 55;
-  function tick(){
-    if (steps <= 0) { land(); return; }
-    const dc = pool[Math.floor(Math.random() * pool.length)];
-    teamEl.textContent = dc.team_name;
-    logoEl.src = dc.photo_url || LOGO_FALLBACK;
-    steps--; delay += 14;
-    setTimeout(tick, delay);
-  }
+  // Todas as bolinhas que ainda estão na urna, com a sorteada entre elas.
+  spinBalls([entry].concat(decoys), entry, land);
+
   function land(){
+    logoEl.style.display = '';
+    logoEl.style.visibility = 'visible';
     teamEl.className = 'reveal-team landed';
     teamEl.textContent = entry.team_name;
     confEl.textContent = entry.conference || '';
@@ -885,7 +962,6 @@ function revealNext(){
     busy = false;
     updateRevealButton();
   }
-  tick();
 }
 
 async function confirmOrder(){
