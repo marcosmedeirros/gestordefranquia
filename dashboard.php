@@ -22,6 +22,20 @@ $stmtTeam = $pdo->prepare('
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
+// Cobranca da atualizacao de elenco: depois que o draft da temporada fecha, o
+// GM precisa atualizar o time (OVR/idade/skills) — e so entao as trades liberam
+// para ele. Enquanto nao atualiza, o dashboard cobra a cada carregamento.
+$precisaAtualizarElenco = false;
+$temporadaPendente = null;
+if ($team) {
+    $temporadaPendente = temporadaAtivaDaLiga($pdo, (string)($team['league'] ?? ''));
+    if ($temporadaPendente) {
+        $sid = (int)$temporadaPendente['id'];
+        $precisaAtualizarElenco = draftConcluidoNaTemporada($pdo, $sid)
+            && !elencoAtualizadoNaTemporada($pdo, (int)$team['id'], $sid);
+    }
+}
+
 $gamesConnectUrl = '/api/games-link.php?action=start';
 $showGamesConnect = false;
 $gamesTapasValue = null;
@@ -1569,5 +1583,47 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
     });
 
 </script>
+
+<?php if ($precisaAtualizarElenco): ?>
+<!-- Cobranca da atualizacao de elenco (aparece a cada carregamento ate o GM atualizar) -->
+<style>
+.upd-overlay{position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.upd-box{width:100%;max-width:440px;background:var(--panel);border:1px solid var(--border-md);
+  border-radius:var(--radius);padding:28px 26px;text-align:center;box-shadow:0 30px 80px -30px rgba(0,0,0,.7)}
+.upd-icon{width:60px;height:60px;border-radius:50%;background:var(--red-soft);color:var(--red);
+  display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 16px}
+.upd-box h2{font-size:19px;font-weight:800;margin-bottom:8px}
+.upd-box p{font-size:13.5px;color:var(--text-2);line-height:1.6;margin-bottom:6px}
+.upd-warn{margin:14px 0 18px;padding:10px 14px;border-radius:var(--radius-sm);font-size:12.5px;
+  background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.30);color:#f59e0b}
+.upd-actions{display:flex;gap:10px;flex-wrap:wrap}
+.upd-actions a,.upd-actions button{flex:1;min-width:130px;padding:11px 16px;border-radius:var(--radius-sm);
+  font-family:var(--font);font-size:13.5px;font-weight:700;cursor:pointer;text-decoration:none;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.upd-go{background:var(--red);border:none;color:#fff}
+.upd-later{background:transparent;border:1px solid var(--border-md);color:var(--text-2)}
+.upd-later:hover{color:var(--text)}
+</style>
+<div class="upd-overlay" id="updOverlay" role="dialog" aria-modal="true" aria-labelledby="updTitle">
+  <div class="upd-box">
+    <div class="upd-icon"><i class="bi bi-clipboard-data"></i></div>
+    <h2 id="updTitle">Atualize seu elenco</h2>
+    <p>O draft da temporada <?= (int)($temporadaPendente['season_number'] ?? 0) ?> acabou. Antes de seguir, atualize OVR, idade e skills do seu time.</p>
+    <div class="upd-warn"><i class="bi bi-exclamation-triangle-fill me-1"></i>Enquanto não atualizar, você não consegue enviar nem receber propostas de trade.</div>
+    <div class="upd-actions">
+      <a href="/atualizar-elenco.php" class="upd-go"><i class="bi bi-arrow-right-circle"></i>Atualizar agora</a>
+      <button type="button" class="upd-later" id="updLater">Agora não</button>
+    </div>
+  </div>
+</div>
+<script>
+  // "Agora não" só fecha nesta visita — a cobrança volta no próximo carregamento,
+  // porque o que decide é o servidor (o elenco ainda não foi atualizado).
+  document.getElementById('updLater')?.addEventListener('click', () => {
+    document.getElementById('updOverlay')?.remove();
+  });
+</script>
+<?php endif; ?>
 </body>
 </html>

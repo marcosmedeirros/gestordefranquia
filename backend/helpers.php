@@ -1166,3 +1166,62 @@ function assetUrl(string $path): string
     $mtime = @filemtime(__DIR__ . '/..' . $rel);
     return $mtime ? $rel . '?v=' . $mtime : $rel;
 }
+
+/**
+ * Temporada ativa de uma liga (a mais recente que ainda não foi concluída).
+ * Devolve ['id','season_number','year'] ou null.
+ */
+function temporadaAtivaDaLiga(PDO $pdo, string $league): ?array
+{
+    try {
+        $st = $pdo->prepare("SELECT id, season_number, year FROM seasons
+                             WHERE league = ? AND (status IS NULL OR status <> 'completed')
+                             ORDER BY id DESC LIMIT 1");
+        $st->execute([strtoupper(trim($league))]);
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/**
+ * O time já fez a atualização de elenco da temporada ativa?
+ *
+ * O sinal é a existência de linhas em player_season_log para (time, temporada
+ * ativa) — é o que atualizar-elenco.php grava ao confirmar (save_snapshot em
+ * api/player_stats.php). Não confunde com o snapshot automático de
+ * api/seasons.php: aquele roda para a temporada que está sendo ENCERRADA, e
+ * aqui só olhamos a que está em andamento.
+ *
+ * Sem temporada ativa não há o que cobrar — devolve true para não travar nada.
+ */
+function elencoAtualizadoNaTemporada(PDO $pdo, ?int $teamId, ?int $seasonId): bool
+{
+    if (!$teamId || !$seasonId) return true;
+    try {
+        $st = $pdo->prepare("SELECT 1 FROM player_season_log
+                             WHERE team_id = ? AND season_id = ? LIMIT 1");
+        $st->execute([$teamId, $seasonId]);
+        return (bool)$st->fetchColumn();
+    } catch (Throwable $e) {
+        // Tabela ausente numa base antiga: não é motivo para bloquear trades.
+        return true;
+    }
+}
+
+/**
+ * O draft da temporada ativa da liga já foi concluído?
+ * É o gatilho para começar a cobrar a atualização de elenco.
+ */
+function draftConcluidoNaTemporada(PDO $pdo, ?int $seasonId): bool
+{
+    if (!$seasonId) return false;
+    try {
+        $st = $pdo->prepare("SELECT 1 FROM draft_sessions
+                             WHERE season_id = ? AND status = 'completed' LIMIT 1");
+        $st->execute([$seasonId]);
+        return (bool)$st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
