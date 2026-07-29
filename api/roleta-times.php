@@ -77,6 +77,48 @@ function ensureRoletaTimesTable(PDO $pdo): void
 }
 ensureRoletaTimesTable($pdo);
 
+/**
+ * Avisa os 32 GMs da roleta (não a liga ELITE inteira — os 32 times se
+ * misturam entre ligas) que alguém acabou de sair. Casamento é pelo
+ * team_name da roleta -> teams.city+name -> teams.user_id, o mesmo usado
+ * pra buscar o escudo em estadoRoleta(). Quem não bate (nome sem time
+ * correspondente) simplesmente não recebe — best-effort, nunca quebra o
+ * giro por causa de notificação.
+ */
+function notificarSaidaRoleta(PDO $pdo, string $gmName, int $pick): void
+{
+    $pushFile = dirname(__DIR__) . '/backend/push.php';
+    if (!file_exists($pushFile)) return;
+
+    try {
+        $stmt = $pdo->query("
+            SELECT DISTINCT t.user_id
+            FROM roleta_times rt
+            JOIN teams t ON CONCAT(t.city, ' ', t.name) = rt.team_name
+            WHERE t.user_id IS NOT NULL
+        ");
+        $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Throwable $e) {
+        error_log('notificarSaidaRoleta (buscar GMs): ' . $e->getMessage());
+        return;
+    }
+    if (!$userIds) return;
+
+    require_once $pushFile;
+    $payload = [
+        'title' => 'Roleta dos 32 🎲',
+        'body'  => "{$gmName} saiu — escolha {$pick} definida!",
+        'url'   => '/roleta-times.php',
+    ];
+    foreach ($userIds as $uid) {
+        try {
+            sendPushToUser($pdo, (int)$uid, $payload);
+        } catch (Throwable $e) {
+            error_log('notificarSaidaRoleta (push user_id=' . $uid . '): ' . $e->getMessage());
+        }
+    }
+}
+
 /** Só admin gira/reinicia; ver é livre. */
 function exigirAdmin(PDO $pdo): void
 {
@@ -161,6 +203,10 @@ if ($method === 'POST') {
             echo json_encode(['success' => false, 'error' => 'Erro ao girar a roleta.']);
             exit;
         }
+
+        // Fora da transação (já commitada) — notificação é best-effort e não
+        // pode atrasar/travar a resposta do giro em si.
+        notificarSaidaRoleta($pdo, $escolhido['gm_name'], $pick);
 
         echo json_encode([
             'success'      => true,
