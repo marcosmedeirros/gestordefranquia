@@ -110,6 +110,73 @@ function isLeagueAdmin(PDO $pdo, int $userId, string $league): bool {
     return (bool)$stmt->fetch();
 }
 
+function ensureMaintenanceModeTable(PDO $pdo): void {
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS maintenance_mode (
+            id TINYINT PRIMARY KEY DEFAULT 1,
+            enabled TINYINT(1) NOT NULL DEFAULT 0,
+            message TEXT NULL,
+            enabled_by INT NULL,
+            enabled_at DATETIME NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $pdo->exec("INSERT IGNORE INTO maintenance_mode (id, enabled) VALUES (1, 0)");
+    } catch (Throwable $e) { /* nunca deixa essa checagem derrubar o site */ }
+}
+
+/**
+ * Bloqueia o app inteiro quando o modo manutenção está ativo — só admin GLOBAL
+ * (user_type='admin') passa direto; qualquer outra pessoa (inclusive admin de
+ * liga) cai na página /manutencao.php. Chamado uma vez por request, de dentro
+ * de db(), então roda em toda página/endpoint que abre conexão com o banco.
+ *
+ * Deliberadamente tolerante a falha: qualquer erro aqui deixa a checagem
+ * passar (não queremos que um bug nessa função tire o site do ar sozinho).
+ */
+function checkMaintenanceGate(PDO $pdo): void {
+    static $checked = false;
+    if ($checked) return;
+    $checked = true;
+
+    // CLI (cron, scripts de migração) não tem requisição HTTP pra bloquear.
+    if (php_sapi_name() === 'cli') return;
+
+    try {
+        ensureMaintenanceModeTable($pdo);
+        $stmt = $pdo->query("SELECT enabled, message FROM maintenance_mode WHERE id = 1 LIMIT 1");
+        $row = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : null;
+    } catch (Throwable $e) {
+        return;
+    }
+    if (!$row || (int)$row['enabled'] !== 1) return;
+
+    // Admin geral sempre passa direto, mesmo com manutenção ativa.
+    if (($_SESSION['user_type'] ?? '') === 'admin') return;
+
+    $scriptPath = $_SERVER['SCRIPT_NAME'] ?? '';
+    $script = basename($scriptPath);
+    $isApi = strpos($scriptPath, '/api/') !== false;
+
+    // Login/logout ficam sempre acessíveis — senão um admin geral deslogado
+    // não teria como entrar de novo pra desativar a manutenção.
+    $alwaysAllowed = ['login.php', 'logout.php', 'manutencao.php'];
+    if (in_array($script, $alwaysAllowed, true)) return;
+
+    if ($isApi) {
+        http_response_code(503);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => false,
+            'error' => $row['message'] ?: 'O site está em manutenção no momento.',
+            'maintenance' => true,
+        ]);
+        exit;
+    }
+
+    header('Location: /manutencao.php');
+    exit;
+}
+
 // Retorna true para admin global (user_type='admin') OU admin de qualquer liga (league_admins)
 function hasAdminAccess(PDO $pdo, int $userId): bool {
     $stmt = $pdo->prepare("SELECT user_type FROM users WHERE id = ? LIMIT 1");
