@@ -82,16 +82,11 @@ a{color:inherit;text-decoration:none}
   .menu-btn{display:flex}
   .topbar{display:flex}
   .top .menu-btn{display:none}
-  .page-hero-title{font-size:18px}
 }
 
 /* ── Conteúdo da página ───────────────────────────────────────── */
-.page{max-width:1080px;margin:0 auto;padding:20px 20px 90px}
+.page{padding:20px 32px 40px}
 .top{display:flex;align-items:center;gap:12px;margin-bottom:26px}
-.brand{display:flex;align-items:center;gap:11px}
-.brand .mark{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,var(--red),var(--red-2));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;box-shadow:0 8px 22px -8px var(--red)}
-.brand b{font-weight:700;font-size:16px;letter-spacing:.5px}
-.brand span{display:block;font-size:11px;color:var(--text-3);font-weight:500;margin-top:-2px}
 .right{margin-left:auto;display:flex;gap:8px}
 .gbtn{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:11px;background:var(--panel);border:1px solid var(--border);color:var(--text-2);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:var(--t)}
 .gbtn:hover{border-color:var(--border-md);color:var(--text)}
@@ -143,6 +138,13 @@ a{color:inherit;text-decoration:none}
 .loading{text-align:center;color:var(--text-3);padding:60px;font-size:14px}
 .loading i{font-size:24px;display:block;margin-bottom:10px;color:var(--red);animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* Mobile do conteudo: precisa vir DEPOIS das regras base de .page/.page-hero-*,
+   senao a base (mais abaixo no arquivo) ganharia por ordem de fonte — media
+   query nao soma especificidade. */
+@media (max-width:992px){
+  .page{padding:20px 16px 40px}
+  .page-hero-title{font-size:18px}
+}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:0.01ms !important;animation-delay:0ms !important;animation-iteration-count:1 !important;transition-duration:0.01ms !important;transition-delay:0ms !important;scroll-behavior:auto !important}}
 <?php include __DIR__ . '/includes/accent-color.php'; ?>
 </style>
@@ -159,10 +161,6 @@ a{color:inherit;text-decoration:none}
 <div class="page">
   <div class="top">
     <button class="menu-btn" id="menuBtn" aria-label="Abrir menu"><i class="bi bi-list"></i></button>
-    <a href="/dashboard.php" class="brand">
-      <div class="mark">FBA</div>
-      <div><b>DISPENSAS</b><span>waiver · ELITE</span></div>
-    </a>
     <div class="right">
       <button class="gbtn" id="adminResolve" style="display:none"><i class="bi bi-hourglass-bottom"></i> Resolver vencidos</button>
       <button class="gbtn" id="refresh"><i class="bi bi-arrow-clockwise"></i> Atualizar</button>

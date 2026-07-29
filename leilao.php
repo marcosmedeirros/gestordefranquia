@@ -158,10 +158,6 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         .form-label { font-size: 12px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
         .form-check-label { color: var(--text-2); font-size: 13px; }
         .form-check-input:checked { background-color: var(--red); border-color: var(--red); }
-        /* Remove o anel de foco global (--ring, em css/styles.css) especificamente
-           nesta página — nos botões de leilão ele ficava "grudado" como uma sombra
-           colorida visível após o clique. */
-        .btn:focus-visible, button:focus-visible { box-shadow: none !important; }
         /* Buttons */
         .btn-orange { background: var(--red); border: none; color: #fff; font-weight: 600; font-size: 13px; border-radius: var(--radius-xs); padding: 8px 18px; transition: background var(--t); }
         .btn-orange:hover, .btn-orange:focus { background: var(--red-2); color: #fff; }

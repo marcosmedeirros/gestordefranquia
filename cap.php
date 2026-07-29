@@ -43,7 +43,7 @@ $teamId = (int)$team['id'];
 body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 .icon-btn{width:34px;height:34px;border-radius:10px;background:transparent;border:1px solid var(--border);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;text-decoration:none;transition:all .2s}
 .icon-btn:hover{background:var(--red-soft);border-color:var(--red);color:var(--red)}
-.content{max-width:1000px;margin:0 auto;padding:24px 16px 80px;width:100%}
+.content{padding:20px 32px 40px;width:100%}
 .page-hero{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;padding:0 0 4px;margin-bottom:8px}
 .page-hero-eyebrow{font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--red);margin-bottom:4px}
 .page-hero-title{font-size:26px;font-weight:800;color:var(--text);line-height:1.1}
@@ -134,7 +134,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .empty{text-align:center;padding:24px;color:var(--text-3);font-size:13px}
 @media(max-width:640px){
-  .content{padding:18px 12px 72px}
+  .content{padding:20px 16px 40px}
   .panel{padding:16px 14px}
   .stats-grid{grid-template-columns:repeat(2,1fr)}
   .roster-table{font-size:12px}

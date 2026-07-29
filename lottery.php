@@ -82,7 +82,7 @@ if (in_array($myViewLeague, ['ELITE', 'NEXT', 'RISE'], true)) {
 body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 .icon-btn{width:34px;height:34px;border-radius:10px;background:transparent;border:1px solid var(--border);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;text-decoration:none;transition:all .2s}
 .icon-btn:hover{background:var(--red-soft);border-color:var(--red);color:var(--red)}
-.content{max-width:960px;margin:0 auto;padding:24px 16px 80px;width:100%}
+.content{padding:20px 32px 40px;width:100%}
 /* Cabeçalho padrão do site (mesmo de trades.php) — plano, sem card.
    Fica dentro de .content, então já herda o max-width/padding lateral da coluna. */
 .page-hero{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:24px}
@@ -236,7 +236,7 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
 .rules-panel summary:hover{color:var(--red)}
 .rules-panel .rules-body{font-size:12px;color:var(--text-2);padding:6px 0 10px 4px;line-height:1.6}
 @media(max-width:640px){
-  .content{padding:18px 12px 72px}
+  .content{padding:20px 16px 40px}
   .panel{padding:16px 14px}
   .form-row{flex-direction:column;align-items:stretch}
   .board{grid-template-columns:1fr}

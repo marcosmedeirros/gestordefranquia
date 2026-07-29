@@ -272,14 +272,11 @@ a:hover{ color: var(--fba-brand); }
 	padding: .75rem 1.5rem;
 	transition:
 		transform var(--t) var(--ease),
-		box-shadow var(--t) var(--ease),
 		filter var(--t) var(--ease);
-	box-shadow: 0 12px 28px color-mix(in srgb, var(--fba-brand) 28%, transparent);
 }
 
 .btn-orange:hover{
 	transform: translateY(-2px);
-	box-shadow: 0 16px 42px color-mix(in srgb, var(--fba-brand) 36%, transparent);
 	filter: brightness(1.05);
 	color: var(--fba-white);
 }
