@@ -74,7 +74,7 @@ if (!function_exists('sbActive')) {
         <?php if ($__sbMyInitDraft): ?>
         <a href="/initdraftselecao.php?token=<?= urlencode($__sbMyInitDraft['access_token']) ?>"<?= sbActive('initdraftselecao.php', $__sbCurrent) ?>><i class="bi bi-stars"></i> Draft Inicial</a>
         <?php endif; ?>
-        <?php if ($__sbIsElite): ?>
+        <?php if ($__sbIsElite || $__sbIsAdmin): ?>
         <a href="/cap.php"<?= sbActive('cap.php', $__sbCurrent) ?>><i class="bi bi-cash-stack"></i> Salário Cap</a>
         <?php endif; ?>
         <?php /* Tapas: oculto temporariamente, vai passar por alteração */ ?>
