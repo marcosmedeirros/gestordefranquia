@@ -51,13 +51,15 @@ if ($is_admin) {
     $leagues = $stmt->fetchAll() ?: [];
 }
 
+// $team (e nao $team_sidebar) e o nome que includes/sidebar.php espera para
+// montar o cartao do time no topo do menu.
 $team_name = '';
-$team_sidebar = [];
+$team = [];
 if ($team_id) {
     $stmt = $pdo->prepare("SELECT id, name, city, photo_url, league FROM teams WHERE id = ?");
     $stmt->execute([$team_id]);
-    $team_sidebar = $stmt->fetch() ?: [];
-    $team_name = $team_sidebar['name'] ?? '';
+    $team = $stmt->fetch() ?: [];
+    $team_name = $team['name'] ?? '';
 }
 
 // Dados do usuário para a sidebar
@@ -80,7 +82,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="<?= assetUrl('css/styles.css') ?>">
     <?php include 'includes/head-pwa.php'; ?>
     <style>
         :root {
@@ -436,6 +438,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-inbox" style="color:var(--red)"></i>Propostas Recebidas</h5>
+                <span id="chatPrazo" style="margin-left:auto;margin-right:12px"></span>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" style="padding:0;display:flex;flex-direction:column">
@@ -522,7 +525,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
     const userTeamName = '<?= addslashes($team_name) ?>';
     const currentLeagueId = <?= $league_id ? $league_id : 'null' ?>;
 </script>
-<script src="/js/leilao.js"></script>
+<script src="<?= assetUrl('js/leilao.js') ?>"></script>
 <script src="/js/pwa.js"></script>
 <script>
     const sidebar = document.getElementById('sidebar');

@@ -765,7 +765,8 @@ function listarMensagensLeilao(PDO $pdo, $leilao_id, ?int $team_id, bool $is_adm
         return;
     }
 
-    $stmt = $pdo->prepare("SELECT team_id, status FROM leilao_jogadores WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT team_id, status, data_fim, UNIX_TIMESTAMP(data_fim) AS data_fim_ts
+                           FROM leilao_jogadores WHERE id = ?");
     $stmt->execute([$leilao_id]);
     $leilao = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$leilao) {
@@ -838,7 +839,15 @@ function listarMensagensLeilao(PDO $pdo, $leilao_id, ?int $team_id, bool $is_adm
         $result[] = $m;
     }
 
-    echo json_encode(['success' => true, 'messages' => $result]);
+    // O prazo vai junto para a conversa poder mostrar o mesmo cronometro de
+    // 20min que aparece no card do leilao.
+    echo json_encode([
+        'success'     => true,
+        'messages'    => $result,
+        'status'      => $leilao['status'],
+        'data_fim'    => $leilao['data_fim'],
+        'data_fim_ts' => $leilao['data_fim_ts'] !== null ? (int)$leilao['data_fim_ts'] : null,
+    ]);
 }
 
 // ========== FUNCOES POST ==========
@@ -1215,18 +1224,32 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
     
     // Buscar proposta e leilao
     $stmt = $pdo->prepare("SELECT lp.*, l.player_id, l.team_id as leilao_team_id, l.id as leilao_id, l.data_fim,
+                           l.status as leilao_status,
                            l.is_temp_player, l.temp_name, l.temp_position, l.temp_age, l.temp_ovr
                            FROM leilao_propostas lp
                            JOIN leilao_jogadores l ON lp.leilao_id = l.id
                            WHERE lp.id = ?");
     $stmt->execute([$proposta_id]);
     $proposta = $stmt->fetch();
-    
+
     if (!$proposta) {
         echo json_encode(['success' => false, 'error' => 'Proposta nao encontrada']);
         return;
     }
-    
+
+    // Aceitar executa a troca na hora e finaliza o leilao. Sem esta trava, uma
+    // segunda chamada (a UI nao oferece, mas a API aceitava) executaria a troca
+    // de novo: o jogador leiloado passaria para o segundo vencedor sem que os
+    // ativos do primeiro voltassem para ele.
+    if (($proposta['leilao_status'] ?? '') === 'finalizado') {
+        echo json_encode(['success' => false, 'error' => 'Este leilao ja foi finalizado — nao da para aceitar outra proposta.']);
+        return;
+    }
+    if (($proposta['status'] ?? '') !== 'pendente') {
+        echo json_encode(['success' => false, 'error' => 'Esta proposta nao esta mais pendente.']);
+        return;
+    }
+
     // Verificar se e dono do jogador ou admin
     if (!$is_admin) {
         if (!empty($proposta['leilao_team_id']) && $proposta['leilao_team_id'] != $team_id) {

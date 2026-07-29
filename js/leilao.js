@@ -246,9 +246,25 @@ async function _loadPropostasContent(leilaoId, isOwner) {
     const data = await _fetchJson(`api/leilao.php?action=listar_mensagens&leilao_id=${leilaoId}`);
     container.innerHTML = _renderChatTimeline(data.messages || [], leilaoId);
     container.scrollTop = container.scrollHeight;
+    _renderPrazoChat(data);
   } catch (e) {
     container.innerHTML = `<p style="color:#ef4444;font-size:13px;text-align:center;padding:20px 0">${_esc(e.message||'Erro ao carregar')}</p>`;
   }
+}
+
+/** Mostra na conversa o mesmo cronometro de 20min que aparece no card. */
+function _renderPrazoChat(data) {
+  const el = document.getElementById('chatPrazo');
+  if (!el) return;
+  const encerrado = data.status === 'finalizado' || !data.data_fim
+    || (data.data_fim_ts && data.data_fim_ts * 1000 <= Date.now());
+  if (encerrado) {
+    el.innerHTML = `<span style="font-size:11px;font-weight:700;color:var(--text-3);border:1px solid var(--border);border-radius:999px;padding:3px 10px">Encerrado</span>`;
+    return;
+  }
+  el.innerHTML = `<span class="auction-timer" data-end-time="${_esc(data.data_fim)}"${data.data_fim_ts ? ` data-end-ts="${Number(data.data_fim_ts) * 1000}"` : ''}
+      style="font-size:13px;font-weight:700;color:#22c55e;font-variant-numeric:tabular-nums">20:00</span>`;
+  iniciarCronometros(); // reaproveita o mesmo relogio dos cards
 }
 
 async function verMinhasPropostasRecebidas(leilaoId) {
@@ -1145,18 +1161,27 @@ function setupAdminEvents() {
   btnCadastrar.addEventListener('click', cadastrarJogadorLeilao);
   createBtn?.addEventListener('click', criarJogadorParaLista);
 
-  searchBtn?.addEventListener('click', async () => {
+  // Antes, todo caminho de falha (sem liga, termo curto, zero resultados, erro
+  // de rede) apenas escondia a lista sem dizer nada — de fora, a busca parecia
+  // simplesmente não funcionar. Agora cada caso mostra o motivo.
+  const mostrarAvisoBusca = (msg) => {
+    if (!searchResults) return;
+    searchResults.innerHTML = `<div class="list-group-item" style="background:transparent;border-color:var(--border);color:var(--text-2);font-size:13px">${_esc(msg)}</div>`;
+    searchResults.style.display = 'block';
+  };
+
+  const buscarJogadorLeilao = async () => {
     const term = searchInput?.value.trim();
     const leagueName = selectLeague.options?.[selectLeague.selectedIndex]?.dataset?.leagueName || '';
-    if (!term || term.length < 2 || !leagueName) {
-      if (searchResults) searchResults.style.display = 'none';
-      return;
-    }
+    if (!leagueName) { mostrarAvisoBusca('Escolha a liga antes de buscar.'); return; }
+    if (!term || term.length < 2) { mostrarAvisoBusca('Digite pelo menos 2 letras do nome.'); return; }
+
+    mostrarAvisoBusca('Buscando...');
     try {
       const data = await _fetchJson(`api/team.php?action=search_player&query=${encodeURIComponent(term)}&league=${encodeURIComponent(leagueName)}`);
       const players = data.players || [];
       if (!searchResults) return;
-      if (!players.length) { searchResults.style.display = 'none'; return; }
+      if (!players.length) { mostrarAvisoBusca(`Nenhum jogador em ${leagueName} para "${term}".`); return; }
       searchResults.innerHTML = players.map(p =>
         `<button type="button" class="list-group-item list-group-item-action" data-player-id="${p.id}" data-team-id="${p.team_id}">${_esc(p.name)} — ${_esc(p.team_name)} (${p.ovr||p.overall})</button>`
       ).join('');
@@ -1172,8 +1197,13 @@ function setupAdminEvents() {
         });
       });
     } catch (e) {
-      if (searchResults) searchResults.style.display = 'none';
+      mostrarAvisoBusca('Erro ao buscar: ' + (e.message || 'tente novamente'));
     }
+  };
+
+  searchBtn?.addEventListener('click', buscarJogadorLeilao);
+  searchInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); buscarJogadorLeilao(); }
   });
 
   setMode();

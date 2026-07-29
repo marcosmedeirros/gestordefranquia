@@ -1151,3 +1151,18 @@ function congelarRankingDaSprint(PDO $pdo, string $league, ?string $label = null
         return 0;
     }
 }
+
+/**
+ * URL de um asset local com ?v=<mtime do arquivo>.
+ *
+ * O service worker (sw.js) serve CSS em Cache First, entao sem isto o
+ * navegador de quem ja acessou continua com a versao antiga ate o CACHE_NAME
+ * mudar. Com o mtime na query, qualquer alteracao no arquivo ja vira uma URL
+ * nova — e enquanto nada muda, o cache segue valendo.
+ */
+function assetUrl(string $path): string
+{
+    $rel = '/' . ltrim($path, '/');
+    $mtime = @filemtime(__DIR__ . '/..' . $rel);
+    return $mtime ? $rel . '?v=' . $mtime : $rel;
+}

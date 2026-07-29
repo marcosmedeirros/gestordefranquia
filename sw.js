@@ -1,5 +1,8 @@
 // Service Worker para FBA Manager PWA
-const CACHE_NAME = 'fba-manager-v15';
+// Subir esta versao a cada mudanca de CSS: o activate apaga todo cache com
+// nome diferente, e o CSS e servido em Cache First (ficaria preso na versao
+// antiga no navegador de quem ja acessou).
+const CACHE_NAME = 'fba-manager-v16';
 const OFFLINE_URL = '/offline.html';
 
 // Arquivos essenciais para cache (apenas CSS e imagens, não JS)
