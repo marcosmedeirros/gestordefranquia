@@ -25,6 +25,14 @@ if ($method === 'POST') {
     $data = readJsonBody();
     $action = (string)($data['action'] ?? '');
 
+    // Roteamento explicito: o front (ouvidoria.php) nao envia "action" ao criar
+    // mensagem, entao '' e 'create_message' sao equivalentes para compatibilidade.
+    // Qualquer outro valor de action e rejeitado.
+    $allowedActions = ['', 'create_message', 'delete_message'];
+    if (!in_array($action, $allowedActions, true)) {
+        jsonErr('Ação inválida', 400);
+    }
+
     if ($action === 'delete_message') {
         if (($user['user_type'] ?? 'jogador') !== 'admin') {
             jsonErr('Acesso negado', 403);
@@ -43,6 +51,14 @@ if ($method === 'POST') {
             jsonErr('Erro ao apagar mensagem.', 500);
         }
         exit;
+    }
+
+    // action === '' ou 'create_message': fluxo de criacao de mensagem.
+    // Rate limit leve baseado em sessao: no maximo 1 envio a cada 30s.
+    $now = time();
+    $lastSubmit = (int)($_SESSION['ouvidoria_last_submit'] ?? 0);
+    if ($now - $lastSubmit < 30) {
+        jsonErr('Aguarde um momento antes de enviar outra mensagem.', 429);
     }
 
     $subject = trim((string)($data['subject'] ?? ''));
@@ -65,6 +81,7 @@ if ($method === 'POST') {
     try {
         $stmt = $pdo->prepare('INSERT INTO ouvidoria_messages (subject, message) VALUES (?, ?)');
         $stmt->execute([$subject, $message]);
+        $_SESSION['ouvidoria_last_submit'] = $now;
         echo json_encode(['success' => true]);
     } catch (Exception $e) {
         jsonErr('Erro ao salvar mensagem.', 500);

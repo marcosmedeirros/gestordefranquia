@@ -90,10 +90,15 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             --text:       #f0f0f3;
             --text-2:     #868690;
             --text-3:     #7d7d85;
+            --green:      #22c55e;
+            --amber:      #f59e0b;
+            --blue:       #3b82f6;
+            --border-strong: var(--border-md);
             --sidebar-w:  260px;
             --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
+            --radius-xs:  6px;
             --ease:       cubic-bezier(.2,.8,.2,1);
             --t:          200ms;
         }
@@ -649,6 +654,33 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         #mainContainer .table-responsive { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
         #mainContainer .table-responsive > .table > thead > tr > th { border-radius: 0; }
 
+        /* ── Mobile: tabelas largas não podem ficar cortadas ── */
+        @media (max-width: 640px) {
+            /* baseline: qualquer tabela larga rola na horizontal em vez de cortar colunas */
+            #mainContainer .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+            /* Gestão de usuários: a tabela vira cards empilhados (nada de coluna cortada) */
+            .gestao-table, .gestao-table thead, .gestao-table tbody,
+            .gestao-table th, .gestao-table td, .gestao-table tr { display: block; width: 100%; }
+            .gestao-table { min-width: 0 !important; }
+            .gestao-table thead { display: none; }
+            .gestao-table tbody tr {
+                margin-bottom: 12px; border: 1px solid var(--border); border-radius: 12px;
+                padding: 10px 12px; background: var(--panel-2);
+            }
+            .gestao-table tbody tr:last-child { margin-bottom: 0; }
+            .gestao-table td {
+                border: none !important; padding: 5px 0;
+                display: flex; align-items: center; gap: 8px;
+            }
+            .gestao-table td::before {
+                content: attr(data-label); font-size: 10px; font-weight: 700; letter-spacing: .5px;
+                text-transform: uppercase; color: var(--text-3); min-width: 92px; flex-shrink: 0;
+            }
+            .gestao-table td.gestao-actions { justify-content: flex-end; padding-top: 8px; }
+            .gestao-table td.gestao-actions::before { content: none; }
+        }
+
         /* Form controls */
         .form-select,
         .form-control {
@@ -772,6 +804,8 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
 
         /* Pre */
         pre { color: var(--text-2) !important; font-size: 12px; }
+
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>

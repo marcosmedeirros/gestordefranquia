@@ -369,6 +369,17 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .draft-status-pill.active { background: rgba(34,197,94,.12); color: var(--green); border: 1px solid rgba(34,197,94,.25); }
     .draft-status-pill.done   { background: var(--panel-3); color: var(--text-2); border: 1px solid var(--border); }
 
+    .pun-badge {
+      display: inline-flex; align-items: center;
+      padding: 2px 8px; border-radius: 999px;
+      font-size: 10px; font-weight: 700;
+      background: var(--panel-3); color: var(--text-3);
+      border: 1px solid var(--border);
+    }
+    .pun-badge.pending { background: rgba(245,158,11,.12); color: var(--amber); border-color: rgba(245,158,11,.3); }
+    .pun-badge.won      { background: rgba(34,197,94,.12); color: var(--green); border-color: rgba(34,197,94,.3); }
+    .pun-badge.lost     { background: rgba(239,68,68,.12); color: var(--red); border-color: rgba(239,68,68,.3); }
+
     /* ── My turn banner ──────────────────────────── */
     .my-turn-banner {
       background: linear-gradient(90deg, rgba(34,197,94,.12), rgba(34,197,94,.04));
@@ -478,11 +489,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
     /* ── Empty / info states ─────────────────────── */
     .state-empty {
-      padding: 32px 20px;
+      padding: 24px 16px;
       text-align: center; color: var(--text-3);
     }
-    .state-empty i { font-size: 32px; display: block; margin-bottom: 10px; }
-    .state-empty p { font-size: 13px; }
+    .state-empty i { font-size: 28px; display: block; margin-bottom: 8px; }
+    .state-empty p { font-size: 12px; }
 
     .info-note {
       background: rgba(245,158,11,.08);
@@ -546,38 +557,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .modal-footer { border-top: 1px solid var(--border); padding: 14px 20px; gap: 8px; }
 
     /* ── Mock Draft Card ────────────────────────────── */
-    .mock-card {
-      background: var(--panel);
-      border: 1px solid var(--border-md);
-      border-radius: var(--radius);
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-    .mock-card-header {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 12px;
-    }
-    .mock-title {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 13px; font-weight: 700;
-    }
-    .mock-title i { color: var(--amber); }
     .mock-badge {
       font-size: 10px; font-weight: 700; padding: 2px 8px;
       border-radius: 99px;
     }
     .mock-badge.on  { background: rgba(34,197,94,.15); color: var(--green); border: 1px solid rgba(34,197,94,.3); }
     .mock-badge.off { background: var(--panel-2); color: var(--text-3); border: 1px solid var(--border); }
-    .mock-toggle-wrap {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 12px; color: var(--text-2);
-    }
-    .mock-toggle-wrap .form-check-input {
-      width: 2em; height: 1em; cursor: pointer;
-      background-color: var(--panel-3);
-      border-color: var(--border-md);
-    }
-    .mock-toggle-wrap .form-check-input:checked { background-color: var(--green); border-color: var(--green); }
     .mock-queue-list {
       display: flex; flex-direction: column; gap: 6px;
       margin-bottom: 10px;
@@ -615,7 +600,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       .pick-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
     }
   input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
-     (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
@@ -935,6 +920,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   let currentPickForTrade = null;
   let allowPickSelections = true;
 
+  const esc = s => (s || '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
   const api = async (path, options = {}) => {
     const res = await fetch(`/api/${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
     let body = {};
@@ -1040,7 +1027,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       if (Number(session.current_round) === 2) {
         currentPickLabel = '2ª rodada';
       } else if (currentPickInfo) {
-        currentPickLabel = `${currentPickInfo.team_city} ${currentPickInfo.team_name}`;
+        currentPickLabel = `${esc(currentPickInfo.team_city)} ${esc(currentPickInfo.team_name)}`;
       }
     } else if (session.status === 'setup') {
       currentPickLabel = 'Aguardando início';
@@ -1133,7 +1120,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         </div>
         <div class="panel-body">
           <div class="pick-grid">
-            ${round1Picks.map((p, idx) => renderPickCard(p, session, idx + 1)).join('')}
+            ${round1Picks.map(p => renderPickCard(p, session)).join('')}
           </div>
         </div>
       </div>
@@ -1222,9 +1209,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           ${round2History.map(pick => `
             <div class="pick-card completed">
               <div class="pick-num"><span class="pick-badge done"><i class="bi bi-check2"></i> R2</span></div>
-              <div class="pick-team">${pick.team_city} ${pick.team_name}</div>
+              <div class="pick-team">${esc(pick.team_city)} ${esc(pick.team_name)}</div>
               <div class="pick-result">
-                <div class="pick-result-name">${pick.player_name}</div>
+                <div class="pick-result-name">${esc(pick.player_name)}</div>
               </div>
             </div>
           `).join('')}
@@ -1254,7 +1241,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     }
   }
 
-  function renderPickCard(pick, session, displayNum) {
+  function renderPickCard(pick, session) {
     const isCurrent  = session.status === 'in_progress' &&
                        pick.round == session.current_round &&
                        pick.pick_position == session.current_pick &&
@@ -1277,18 +1264,18 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         <div class="pick-num">
           <span class="pick-badge ${isCompleted ? 'done' : isCurrent ? 'active' : 'pending'}">#${pick.pick_position}</span>
           <div style="display:flex;gap:3px">
-            ${canTradePick ? `<button class="pick-trade-btn" title="Trocar pick" onclick="openTradePickModal(${pick.id}, ${pick.round}, ${pick.pick_position}, ${pick.team_id}, '${(pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'")}')"><i class="bi bi-arrow-left-right"></i></button>` : ''}
-            ${canAdminPick   ? `<button class="pick-trade-btn" title="Escolher jogador (Admin)" style="border-color:rgba(245,158,11,.4);color:var(--amber)" onclick="openAdminPickForSlot(${pick.id}, ${pick.round}, ${pick.pick_position}, '${(pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'")}')"><i class="bi bi-person-plus-fill"></i></button>` : ''}
-            ${canAdminRevert ? `<button class="pick-trade-btn" title="Reverter pick (Admin)" style="border-color:rgba(239,68,68,.35);color:#ef4444" onclick="revertPick(${pick.id}, '${pick.player_name ? pick.player_name.replace(/'/g, "\\'") : ''}')"><i class="bi bi-arrow-counterclockwise"></i></button>` : ''}
+            ${canTradePick ? `<button class="pick-trade-btn" title="Trocar pick" onclick="openTradePickModal(${pick.id}, ${pick.round}, ${pick.pick_position}, ${pick.team_id}, '${esc((pick.team_city + ' ' + pick.team_name).replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')"><i class="bi bi-arrow-left-right"></i></button>` : ''}
+            ${canAdminPick   ? `<button class="pick-trade-btn" title="Escolher jogador (Admin)" style="border-color:rgba(245,158,11,.4);color:var(--amber)" onclick="openAdminPickForSlot(${pick.id}, ${pick.round}, ${pick.pick_position}, '${esc((pick.team_city + ' ' + pick.team_name).replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')"><i class="bi bi-person-plus-fill"></i></button>` : ''}
+            ${canAdminRevert ? `<button class="pick-trade-btn" title="Reverter pick (Admin)" style="border-color:rgba(239,68,68,.35);color:#ef4444" onclick="revertPick(${pick.id}, '${pick.player_name ? esc(pick.player_name.replace(/\\/g, '\\\\').replace(/'/g, "\\'")) : ''}')"><i class="bi bi-arrow-counterclockwise"></i></button>` : ''}
             ${canAdminSetCurrent ? `<button class="pick-trade-btn" title="Definir como escolha atual (Admin)" style="border-color:rgba(96,165,250,.4);color:#60a5fa" onclick="setCurrentPick(${pick.round}, ${pick.pick_position})"><i class="bi bi-crosshair"></i></button>` : ''}
           </div>
         </div>
-        <div class="pick-team">${pick.team_city} ${pick.team_name}</div>
-        ${pick.traded_from_team_id ? `<div class="pick-via"><i class="bi bi-arrow-right"></i> via ${pick.traded_from_city || ''} ${pick.traded_from_name || ''}</div>` : ''}
+        <div class="pick-team">${esc(pick.team_city)} ${esc(pick.team_name)}</div>
+        ${pick.traded_from_team_id ? `<div class="pick-via"><i class="bi bi-arrow-right"></i> via ${esc(pick.traded_from_city || '')} ${esc(pick.traded_from_name || '')}</div>` : ''}
         ${isCompleted ? `
           <div class="pick-result">
-            <div class="pick-result-name">${pick.player_name}</div>
-            <div class="pick-result-meta">${pick.player_position} · OVR ${pick.player_ovr}</div>
+            <div class="pick-result-name">${esc(pick.player_name)}</div>
+            <div class="pick-result-meta">${esc(pick.player_position)} · OVR ${pick.player_ovr}</div>
           </div>
         ` : `
           <div class="pick-waiting">
@@ -1394,10 +1381,10 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       return;
     }
     container.innerHTML = players.map(p => `
-      <div class="player-chip${allowPick ? '' : ''}" ${allowPick ? `onclick="makePick(${p.id}, '${p.name.replace(/'/g, "\\'")}')"` : ''} style="${allowPick ? 'cursor:pointer' : ''}">
-        <div class="player-chip-name">${p.name}</div>
+      <div class="player-chip${allowPick ? '' : ''}" ${allowPick ? `onclick="makePick(${p.id}, '${esc(p.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')"` : ''} style="${allowPick ? 'cursor:pointer' : ''}">
+        <div class="player-chip-name">${esc(p.name)}</div>
         <div>
-          <span class="player-chip-pos">${p.position}</span>
+          <span class="player-chip-pos">${esc(p.position)}</span>
           <span class="player-chip-ovr">OVR ${p.ovr}</span>
         </div>
         <div class="player-chip-age">${p.age} anos</div>
@@ -1419,7 +1406,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       const data = await api(`draft.php?action=available_players&season_id=${currentDraftSession.season_id}`);
       const players = data.players || [];
       playerSelect.innerHTML = '<option value="">Selecione o jogador…</option>' +
-        players.map(p => `<option value="${p.id}">${p.name} (${p.position}) - OVR ${p.ovr}</option>`).join('');
+        players.map(p => `<option value="${p.id}">${esc(p.name)} (${esc(p.position)}) - OVR ${p.ovr}</option>`).join('');
     } catch (e) {
       playerSelect.innerHTML = '<option value="">Erro ao carregar jogadores</option>';
     }
@@ -1449,7 +1436,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         <div style="font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Suas ofertas</div>
         ${offers.map(o => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 8px;border-radius:6px;background:var(--panel-2);margin-bottom:5px">
-            <div style="font-size:13px;color:var(--text)">${o.player_name} <span style="color:var(--text-3);font-size:11px">· pick ${o.claimed_pick}</span></div>
+            <div style="font-size:13px;color:var(--text)">${esc(o.player_name)} <span style="color:var(--text-3);font-size:11px">· pick ${o.claimed_pick}</span></div>
             <div style="display:flex;align-items:center;gap:8px">
               ${round2StatusBadge[o.status] || ''}
               ${o.status === 'pending' ? `<button class="btn-ghost" style="padding:2px 8px;font-size:11px;color:#ef4444" onclick="cancelRound2Offer(${o.id})"><i class="bi bi-x"></i></button>` : ''}
@@ -1529,8 +1516,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       if (!players.length) { playersList.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-person-x"></i><p>Nenhum jogador disponível.</p></div>'; return; }
       playersList.innerHTML = players.map(p => `
         <div class="player-chip">
-          <div class="player-chip-name">${p.name}</div>
-          <div><span class="player-chip-pos">${p.position}</span> <span class="player-chip-ovr">OVR ${p.ovr}</span></div>
+          <div class="player-chip-name">${esc(p.name)}</div>
+          <div><span class="player-chip-pos">${esc(p.position)}</span> <span class="player-chip-ovr">OVR ${p.ovr}</span></div>
         </div>
       `).join('');
     } catch (e) {
@@ -1811,7 +1798,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   function renderHistoricalPickCard(pick, draftStatus, draftSessionId) {
     const isCompleted = pick.picked_player_id !== null;
     const canEdit = isAdmin && !isCompleted;
-    const teamFullName = (pick.team_city + ' ' + pick.team_name).replace(/'/g, "\\'");
+    const teamFullName = esc((pick.team_city + ' ' + pick.team_name).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
 
     return `
       <div class="pick-card${isCompleted ? ' completed' : ''}${canEdit ? ' clickable' : ''}"
@@ -1819,12 +1806,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         <div class="pick-num">
           <span class="pick-badge ${isCompleted ? 'done' : 'pending'}">#${pick.pick_position}</span>
         </div>
-        <div class="pick-team">${pick.team_city} ${pick.team_name}</div>
-        ${pick.traded_from_team_id ? `<div class="pick-via"><i class="bi bi-arrow-right"></i> via ${pick.traded_from_city || ''} ${pick.traded_from_name || ''}</div>` : ''}
+        <div class="pick-team">${esc(pick.team_city)} ${esc(pick.team_name)}</div>
+        ${pick.traded_from_team_id ? `<div class="pick-via"><i class="bi bi-arrow-right"></i> via ${esc(pick.traded_from_city || '')} ${esc(pick.traded_from_name || '')}</div>` : ''}
         ${isCompleted ? `
           <div class="pick-result">
-            <div class="pick-result-name">${pick.player_name || 'Jogador Desconhecido'}</div>
-            ${pick.player_position ? `<div class="pick-result-meta">${pick.player_position}${pick.player_ovr ? ' · OVR ' + pick.player_ovr : ''}</div>` : ''}
+            <div class="pick-result-name">${esc(pick.player_name || 'Jogador Desconhecido')}</div>
+            ${pick.player_position ? `<div class="pick-result-meta">${esc(pick.player_position)}${pick.player_ovr ? ' · OVR ' + pick.player_ovr : ''}</div>` : ''}
           </div>
         ` : `
           <div class="pick-waiting">
@@ -1867,9 +1854,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       return;
     }
     container.innerHTML = players.map(p => `
-      <div class="player-chip" onclick="fillPastPick(${p.id}, '${(p.name || '').replace(/'/g, "\\'")}')" style="cursor:pointer">
-        <div class="player-chip-name">${p.name || 'Sem nome'}</div>
-        <div><span class="player-chip-pos">${p.position || 'N/A'}</span> <span class="player-chip-ovr">OVR ${p.ovr || '0'}</span></div>
+      <div class="player-chip" onclick="fillPastPick(${p.id}, '${esc((p.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')" style="cursor:pointer">
+        <div class="player-chip-name">${esc(p.name || 'Sem nome')}</div>
+        <div><span class="player-chip-pos">${esc(p.position || 'N/A')}</span> <span class="player-chip-ovr">OVR ${p.ovr || '0'}</span></div>
         <div class="player-chip-age">${p.age || '?'} anos</div>
       </div>
     `).join('');
@@ -1926,7 +1913,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       : `<span class="mock-badge off">Auto OFF</span>`;
 
     const queueSummary = mockQueue.length > 0
-      ? mockQueue.slice(0, 3).map((item, i) => `<div style="font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i+1}. ${item.player_name}</div>`).join('') +
+      ? mockQueue.slice(0, 3).map((item, i) => `<div style="font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i+1}. ${esc(item.player_name)}</div>`).join('') +
         (mockQueue.length > 3 ? `<div style="font-size:10px;color:var(--text-3)">+${mockQueue.length - 3} mais</div>` : '')
       : `<div style="font-size:11px;color:var(--text-3)">Sem jogadores</div>`;
 
@@ -2005,8 +1992,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     listEl.innerHTML = mockQueue.map((item, idx) => `
       <div class="mock-queue-item">
         <span class="mock-queue-num">${idx + 1}</span>
-        <span class="mock-queue-name">${item.player_name}</span>
-        <span class="mock-queue-meta">${item.player_position} · OVR ${item.player_ovr}</span>
+        <span class="mock-queue-name">${esc(item.player_name)}</span>
+        <span class="mock-queue-meta">${esc(item.player_position)} · OVR ${item.player_ovr}</span>
         <button class="mock-queue-del" onclick="removeFromMockQueue(${item.player_id})" title="Remover"><i class="bi bi-x-lg"></i></button>
       </div>`).join('');
   }
@@ -2020,9 +2007,9 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       return;
     }
     container.innerHTML = players.map(p => `
-      <div class="player-chip" onclick="addPlayerToMockQueue(${p.id}, '${p.name.replace(/'/g,"\\'")}', '${p.position}', ${p.ovr})" style="cursor:pointer">
-        <div class="player-chip-name">${p.name}</div>
-        <div><span class="player-chip-pos">${p.position}</span><span class="player-chip-ovr">OVR ${p.ovr}</span></div>
+      <div class="player-chip" onclick="addPlayerToMockQueue(${p.id}, '${esc(p.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}', '${esc(p.position.replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}', ${p.ovr})" style="cursor:pointer">
+        <div class="player-chip-name">${esc(p.name)}</div>
+        <div><span class="player-chip-pos">${esc(p.position)}</span><span class="player-chip-ovr">OVR ${p.ovr}</span></div>
         <div class="player-chip-age">${p.age} anos</div>
       </div>`).join('');
   }
@@ -2098,7 +2085,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       body.innerHTML = mocks.map(m => `
         <div style="margin-bottom:16px;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
           <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--panel-3)">
-            <span style="font-size:13px;font-weight:700;color:var(--text);flex:1">${m.team_name}</span>
+            <span style="font-size:13px;font-weight:700;color:var(--text);flex:1">${esc(m.team_name)}</span>
             <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;${m.is_active ? 'background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)' : 'background:var(--panel-3);color:var(--text-3);border:1px solid var(--border)'}">
               ${m.is_active ? 'Auto ON' : 'Auto OFF'}
             </span>
@@ -2108,8 +2095,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
               ${m.queue.map((q, i) => `
                 <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);${q.draft_status === 'drafted' ? 'opacity:.4;text-decoration:line-through' : ''}">
                   <span style="font-size:11px;font-weight:700;color:var(--text-3);width:18px;text-align:center">${i + 1}</span>
-                  <span style="font-size:12px;font-weight:600;color:var(--text);flex:1">${q.player_name}</span>
-                  <span style="font-size:11px;color:var(--text-2)">${q.position}</span>
+                  <span style="font-size:12px;font-weight:600;color:var(--text);flex:1">${esc(q.player_name)}</span>
+                  <span style="font-size:11px;color:var(--text-2)">${esc(q.position)}</span>
                   <span style="font-size:11px;font-weight:700;color:var(--red)">OVR ${q.ovr}</span>
                   ${q.draft_status === 'drafted' ? '<span style="font-size:10px;color:var(--text-3)">Já draftado</span>' : ''}
                 </div>`).join('')}

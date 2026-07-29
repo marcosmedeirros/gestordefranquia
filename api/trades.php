@@ -1038,6 +1038,26 @@ function getTeamLeague(PDO $pdo, int $teamId): ?string
     return $stmt->fetchColumn() ?: null;
 }
 
+/**
+ * Trocas liberadas na liga? A comissão bloqueia (trades_enabled=0) durante a
+ * atualização dos elencos — que muda OVR e, com isso, o salary cap — e só libera
+ * quando os times estão atualizados. Sem registro = liberado (padrão histórico).
+ */
+function areTradesEnabled(PDO $pdo, ?string $league): bool
+{
+    if (!$league) return true;
+    try {
+        $stmt = $pdo->prepare('SELECT trades_enabled FROM league_settings WHERE league = ?');
+        $stmt->execute([$league]);
+        $val = $stmt->fetchColumn();
+        return $val === false || $val === null || (int)$val === 1;
+    } catch (Exception $e) {
+        return true; // em erro de leitura, não trava o fluxo
+    }
+}
+
+const TRADES_LOCKED_MSG = 'Trocas bloqueadas no momento — aguardando a atualização dos times (isso afeta o salary cap). Assim que a comissão liberar, você poderá enviar propostas.';
+
 function normalizePickId(PDO $pdo, int $pickId): int
 {
     $stmtPick = $pdo->prepare('SELECT * FROM picks WHERE id = ?');
@@ -2098,6 +2118,12 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
             }
         }
 
+        if (!areTradesEnabled($pdo, $league)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => TRADES_LOCKED_MSG]);
+            exit;
+        }
+
         $pdo->beginTransaction();
 
         // Ciclo da liga no momento da troca (usado pra "Trades por Ciclo" no
@@ -2224,6 +2250,8 @@ if ($method === 'POST') {
     $swapMap = [];
     $counterTradeId = isset($data['counter_to_trade_id']) ? (int)$data['counter_to_trade_id'] : null;
     $counterTrade = null;
+    $modifyTradeId = isset($data['modify_trade_id']) ? (int)$data['modify_trade_id'] : null;
+    $modifyTrade = null;
     
     if (!$toTeamId) {
         http_response_code(400);
@@ -2292,7 +2320,33 @@ if ($method === 'POST') {
             exit;
         }
     }
-    
+
+    if ($modifyTradeId) {
+        $stmtModify = $pdo->prepare('SELECT * FROM trades WHERE id = ?');
+        $stmtModify->execute([$modifyTradeId]);
+        $modifyTrade = $stmtModify->fetch(PDO::FETCH_ASSOC);
+        if (!$modifyTrade) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Trade original não encontrada para modificar']);
+            exit;
+        }
+        if ((int)$modifyTrade['from_team_id'] !== (int)$teamId) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Você não pode modificar esta trade']);
+            exit;
+        }
+        if ($modifyTrade['status'] !== 'pending') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'A trade original não está mais pendente']);
+            exit;
+        }
+        if ((int)$modifyTrade['to_team_id'] !== (int)$toTeamId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Selecione o mesmo time da proposta original para modificar']);
+            exit;
+        }
+    }
+
     // Validar liga do time alvo
     $stmtTargetTeam = $pdo->prepare('SELECT id, league FROM teams WHERE id = ?');
     $stmtTargetTeam->execute([$toTeamId]);
@@ -2339,6 +2393,12 @@ if ($method === 'POST') {
     } catch (Exception $e) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
+        exit;
+    }
+
+    if (!areTradesEnabled($pdo, $teamData['league'])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => TRADES_LOCKED_MSG]);
         exit;
     }
 
@@ -2586,7 +2646,14 @@ if ($method === 'POST') {
             $stmtCounterUpdate = $pdo->prepare('UPDATE trades SET status = ?, response_notes = ? WHERE id = ?');
             $stmtCounterUpdate->execute(['countered', $counterNote, $counterTradeId]);
         }
-        
+
+        if ($modifyTrade) {
+            // Cancela a proposta antiga só agora, na mesma transação da nova — se
+            // algo acima falhar, a original continua pendente em vez de sumir.
+            $stmtModifyUpdate = $pdo->prepare('UPDATE trades SET status = ? WHERE id = ?');
+            $stmtModifyUpdate->execute(['cancelled', $modifyTradeId]);
+        }
+
         $pdo->commit();
         try {
             sendTradeWebhook($pdo, (int)$tradeId, 'trade_created');
@@ -2732,6 +2799,12 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
     if ($action === 'cancelled' && (int)$trade['created_by_team_id'] !== (int)$teamId) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'Só quem criou pode cancelar']);
+        exit;
+    }
+
+    if ($action === 'accepted' && !areTradesEnabled($pdo, $trade['league'] ?? null)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => TRADES_LOCKED_MSG]);
         exit;
     }
 
@@ -2934,6 +3007,11 @@ if ($method === 'PUT') {
             $tradeLeague = getTeamLeague($pdo, (int)$trade['from_team_id'])
                 ?? getTeamLeague($pdo, (int)$trade['to_team_id'])
                 ?? $user['league'];
+        }
+        if (!areTradesEnabled($pdo, $tradeLeague)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => TRADES_LOCKED_MSG]);
+            exit;
         }
         $maxTrades = getLeagueMaxTrades($pdo, $tradeLeague ?: $user['league'], 3);
         $fromTradesUsed = getTeamTradesUsed($pdo, (int)$trade['from_team_id']);

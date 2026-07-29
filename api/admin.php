@@ -21,6 +21,21 @@ if (!$isGlobalAdminApi && empty($apiAdminLeagues)) {
     exit;
 }
 
+/**
+ * Garante que o admin autenticado tem permissão sobre a liga alvo desta ação.
+ * Admin global sempre passa. Admin de liga só passa se $league estiver entre suas ligas.
+ * Encerra a resposta com 403 se não tiver permissão.
+ */
+function requireLeagueScope(bool $isGlobalAdmin, array $adminLeagues, ?string $league): void {
+    if ($isGlobalAdmin) return;
+    $league = $league ? strtoupper(trim($league)) : null;
+    if (!$league || !in_array($league, $adminLeagues, true)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Você não tem permissão para administrar esta liga.']);
+        exit;
+    }
+}
+
 // Ensure n8n_webhook_url column exists
 try {
     $pdo->exec("ALTER TABLE league_settings ADD COLUMN IF NOT EXISTS n8n_webhook_url TEXT NULL");
@@ -46,29 +61,6 @@ function tableExists(PDO $pdo, string $table): bool {
         return $stmt->rowCount() > 0;
     } catch (Exception $e) { return false; }
 }
-function ensureHallOfFameTable(PDO $pdo): void
-{
-    try {
-        $stmt = $pdo->query("SHOW TABLES LIKE 'hall_of_fame'");
-        if ($stmt->rowCount() > 0) {
-            return;
-        }
-        $pdo->exec("CREATE TABLE hall_of_fame (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            is_active TINYINT(1) NOT NULL DEFAULT 1,
-            league ENUM('ELITE','NEXT','RISE','ROOKIE') NULL,
-            team_id INT NULL,
-            team_name VARCHAR(255) NULL,
-            gm_name VARCHAR(255) NULL,
-            titles INT NOT NULL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_hof_titles (titles)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-    } catch (Exception $e) {
-        // ignore
-    }
-}
 function playerOvrColumn(PDO $pdo): string {
     return columnExists($pdo, 'players', 'ovr') ? 'ovr' : (columnExists($pdo, 'players', 'overall') ? 'overall' : 'ovr');
 }
@@ -89,128 +81,25 @@ function ensureTradeInGameColumn(PDO $pdo): void
 
 ensureTradeInGameColumn($pdo);
 
-function handleFreeAgentCreation(PDO $pdo, array $validLeagues, array $data): void
-{
-    $name = trim($data['name'] ?? '');
-    $age = isset($data['age']) ? (int)$data['age'] : null;
-    $position = strtoupper(trim($data['position'] ?? ''));
-    $secondaryPosition = $data['secondary_position'] ?? null;
-    $ovr = isset($data['ovr']) ? (int)$data['ovr'] : null;
-    $league = strtoupper($data['league'] ?? 'ELITE');
-    $originalTeamName = trim($data['original_team_name'] ?? '');
-
-    if (!in_array($league, $validLeagues, true)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Liga inválida']);
-        return;
-    }
-
-    if ($name === '' || !$age || !$position || !$ovr) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Preencha nome, idade, posição e OVR']);
-        return;
-    }
-
-    try {
-        $stmt = $pdo->prepare('
-            INSERT INTO free_agents (name, age, position, secondary_position, ovr, league, original_team_id, original_team_name)
-            VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
-        ');
-        $stmt->execute([
-            $name,
-            $age,
-            $position,
-            $secondaryPosition ?: null,
-            $ovr,
-            $league,
-            $originalTeamName ?: null
-        ]);
-
-        echo json_encode(['success' => true, 'message' => 'Free agent criado com sucesso!']);
-    } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao criar free agent']);
-    }
-}
-
-function handleFreeAgentAssignment(PDO $pdo, array $data): void
-{
-    $freeAgentId = isset($data['free_agent_id']) ? (int)$data['free_agent_id'] : null;
-    $teamId = isset($data['team_id']) ? (int)$data['team_id'] : null;
-
-    if (!$freeAgentId || !$teamId) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Free agent e time são obrigatórios']);
-        return;
-    }
-
-    $stmtFA = $pdo->prepare('SELECT * FROM free_agents WHERE id = ?');
-    $stmtFA->execute([$freeAgentId]);
-    $freeAgent = $stmtFA->fetch(PDO::FETCH_ASSOC);
-
-    if (!$freeAgent) {
-        http_response_code(404);
-        echo json_encode(['success' => false, 'error' => 'Free agent não encontrado']);
-        return;
-    }
-
-    $stmtTeam = $pdo->prepare('SELECT id, league, city, name FROM teams WHERE id = ?');
-    $stmtTeam->execute([$teamId]);
-    $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
-
-    if (!$team) {
-        http_response_code(404);
-        echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
-        return;
-    }
-
-    if (strtoupper($team['league']) !== strtoupper($freeAgent['league'])) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Time e jogador precisam ser da mesma liga']);
-        return;
-    }
-
-    try {
-        $pdo->beginTransaction();
-
-        $stmtPlayer = $pdo->prepare('
-            INSERT INTO players (team_id, name, age, seasons_in_league, position, secondary_position, role, available_for_trade, ovr)
-            VALUES (?, ?, ?, 0, ?, ?, "Banco", 0, ?)
-        ');
-        $stmtPlayer->execute([
-            $teamId,
-            $freeAgent['name'],
-            $freeAgent['age'],
-            $freeAgent['position'],
-            $freeAgent['secondary_position'],
-            $freeAgent['ovr']
-        ]);
-
-        $stmtDelete = $pdo->prepare('DELETE FROM free_agents WHERE id = ?');
-        $stmtDelete->execute([$freeAgentId]);
-
-        $stmtUpdateTeam = $pdo->prepare('UPDATE teams SET fa_signings_used = COALESCE(fa_signings_used, 0) + 1 WHERE id = ?');
-        $stmtUpdateTeam->execute([$teamId]);
-
-        $stmtOffers = $pdo->prepare('UPDATE free_agent_offers SET status = CASE WHEN team_id = ? THEN "accepted" ELSE "rejected" END WHERE free_agent_id = ? AND status = "pending"');
-        $stmtOffers->execute([$teamId, $freeAgentId]);
-
-        $pdo->commit();
-
-        echo json_encode([
-            'success' => true,
-            'message' => sprintf('%s agora faz parte de %s %s', $freeAgent['name'], $team['city'], $team['name'])
-        ]);
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erro ao atribuir jogador']);
-    }
-}
-
 // GET - Listar dados do admin
 if ($method === 'GET') {
     switch ($action) {
+
+        case 'maintenance_status':
+            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin geral']); exit; }
+            ensureMaintenanceModeTable($pdo);
+            $stmtMaint = $pdo->query("SELECT m.enabled, m.message, m.enabled_at, u.name AS enabled_by_name
+                                       FROM maintenance_mode m LEFT JOIN users u ON u.id = m.enabled_by
+                                       WHERE m.id = 1 LIMIT 1");
+            $maintRow = $stmtMaint ? $stmtMaint->fetch(PDO::FETCH_ASSOC) : null;
+            echo json_encode([
+                'success' => true,
+                'enabled' => (bool)($maintRow['enabled'] ?? false),
+                'message' => $maintRow['message'] ?? null,
+                'enabled_at' => $maintRow['enabled_at'] ?? null,
+                'enabled_by_name' => $maintRow['enabled_by_name'] ?? null,
+            ]);
+            break;
 
         case 'get_users':
             // Gestão de usuários é exclusiva do Admin Geral (não interfere no admin de liga)
@@ -258,6 +147,7 @@ if ($method === 'GET') {
                 echo json_encode(['success' => false, 'error' => 'Liga inválida']);
                 break;
             }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
 
             $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.league = ? ORDER BY t.city, t.name');
             $stmtTeams->execute([$league]);
@@ -334,6 +224,7 @@ if ($method === 'GET') {
                 echo json_encode(['success' => false, 'error' => 'Liga inválida']);
                 break;
             }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
 
             $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name FROM teams t WHERE t.league = ? ORDER BY t.city, t.name');
             $stmtTeams->execute([$league]);
@@ -403,6 +294,9 @@ if ($method === 'GET') {
             // Listar todas as ligas com configurações
             $stmtLeagues = $pdo->query("SELECT name FROM leagues ORDER BY FIELD(name,'ELITE','NEXT','RISE','ROOKIE')");
             $leagues = $stmtLeagues->fetchAll(PDO::FETCH_COLUMN);
+            if (!$isGlobalAdminApi) {
+                $leagues = array_values(array_intersect($leagues, $apiAdminLeagues));
+            }
 
             $result = [];
             foreach ($leagues as $league) {
@@ -451,14 +345,20 @@ if ($method === 'GET') {
             ";
             
             if ($league) {
+                requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
                 $query .= " WHERE t.league = ? ORDER BY t.city, t.name";
                 $stmt = $pdo->prepare($query);
                 $stmt->execute([$league]);
+            } elseif (!$isGlobalAdminApi) {
+                $ph = implode(',', array_fill(0, count($apiAdminLeagues), '?'));
+                $query .= " WHERE t.league IN ($ph) ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.city, t.name";
+                $stmt = $pdo->prepare($query);
+                $stmt->execute($apiAdminLeagues);
             } else {
                 $query .= " ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.city, t.name";
                 $stmt = $pdo->query($query);
             }
-            
+
             $teams = [];
             while ($team = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $capTop8 = topEightCap($pdo, $team['id']);
@@ -480,6 +380,7 @@ if ($method === 'GET') {
                 echo json_encode(['success' => false, 'error' => 'Liga e busca obrigatorias']);
                 break;
             }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
 
             $ovrCol = playerOvrColumn($pdo);
             $stmt = $pdo->prepare("SELECT p.id, p.name, p.position, p.age, p.{$ovrCol} as ovr,
@@ -522,6 +423,7 @@ if ($method === 'GET') {
                 echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
                 exit;
             }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $team['league'] ?? null);
 
             // Buscar jogadores
             $stmtPlayers = $pdo->prepare("
@@ -597,8 +499,13 @@ if ($method === 'GET') {
             }
             
             if ($league) {
+                requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
                 $conditions[] = "from_team.league = ?";
                 $params[] = $league;
+            } elseif (!$isGlobalAdminApi) {
+                $ph = implode(',', array_fill(0, count($apiAdminLeagues), '?'));
+                $conditions[] = "from_team.league IN ($ph)";
+                foreach ($apiAdminLeagues as $al) { $params[] = $al; }
             }
 
             if ($teamId > 0) {
@@ -697,6 +604,10 @@ if ($method === 'GET') {
                 if ($league) {
                     $multiConditions[] = 'COALESCE(mt.league, creator.league) = ?';
                     $multiParams[] = $league;
+                } elseif (!$isGlobalAdminApi) {
+                    $ph = implode(',', array_fill(0, count($apiAdminLeagues), '?'));
+                    $multiConditions[] = "COALESCE(mt.league, creator.league) IN ($ph)";
+                    foreach ($apiAdminLeagues as $al) { $multiParams[] = $al; }
                 }
 
                 if ($teamId > 0) {
@@ -820,224 +731,14 @@ if ($method === 'GET') {
                 }
                 break;
             }
-
-            if ($method === 'POST') {
-                $body = json_decode(file_get_contents('php://input'), true) ?? [];
-                $subAction = $body['sub'] ?? '';
-
-                if ($subAction === 'save') {
-                    $name = trim($body['name'] ?? '');
-                    $players = $body['players'] ?? [];
-                    if (!$name) { echo json_encode(['success' => false, 'error' => 'Nome obrigatório']); break; }
-                    $pdo->beginTransaction();
-                    try {
-                        $s = $pdo->prepare("INSERT INTO draft_class_templates (name, created_by) VALUES (?, ?)");
-                        $s->execute([$name, (int)$user['id']]);
-                        $tplId = (int)$pdo->lastInsertId();
-                        $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age) VALUES (?,?,?,?,?)");
-                        foreach ($players as $p) {
-                            $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age']]);
-                        }
-                        $pdo->commit();
-                        echo json_encode(['success' => true, 'template_id' => $tplId, 'message' => 'Classe salva com sucesso!']);
-                    } catch (Exception $e) {
-                        $pdo->rollBack();
-                        echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
-                    }
-                    break;
-                }
-
-                if ($subAction === 'rename') {
-                    $tplId = (int)($body['template_id'] ?? 0);
-                    $name  = trim($body['name'] ?? '');
-                    if (!$tplId || !$name) { echo json_encode(['success' => false, 'error' => 'Dados inválidos']); break; }
-                    $pdo->prepare("UPDATE draft_class_templates SET name=? WHERE id=?")->execute([$name, $tplId]);
-                    echo json_encode(['success' => true]);
-                    break;
-                }
-
-                if ($subAction === 'add_player') {
-                    $tplId = (int)($body['template_id'] ?? 0);
-                    $p = $body['player'] ?? [];
-                    if (!$tplId || empty($p['name'])) { echo json_encode(['success' => false, 'error' => 'Dados inválidos']); break; }
-                    $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age) VALUES (?,?,?,?,?)");
-                    $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age']]);
-                    echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId()]);
-                    break;
-                }
-
-                if ($subAction === 'update_player') {
-                    $pid = (int)($body['player_id'] ?? 0);
-                    $p = $body['player'] ?? [];
-                    if (!$pid || empty($p['name'])) { echo json_encode(['success' => false, 'error' => 'Dados inválidos']); break; }
-                    $pdo->prepare("UPDATE draft_class_template_players SET name=?,position=?,ovr=?,age=? WHERE id=?")
-                        ->execute([trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $pid]);
-                    echo json_encode(['success' => true]);
-                    break;
-                }
-
-                if ($subAction === 'delete_player') {
-                    $pid = (int)($body['player_id'] ?? 0);
-                    if (!$pid) { echo json_encode(['success' => false, 'error' => 'player_id obrigatório']); break; }
-                    $pdo->prepare("DELETE FROM draft_class_template_players WHERE id=?")->execute([$pid]);
-                    echo json_encode(['success' => true]);
-                    break;
-                }
-
-                if ($subAction === 'delete') {
-                    $tplId = (int)($body['template_id'] ?? 0);
-                    if (!$tplId) { echo json_encode(['success' => false, 'error' => 'template_id obrigatório']); break; }
-                    $pdo->prepare("DELETE FROM draft_class_templates WHERE id=?")->execute([$tplId]);
-                    echo json_encode(['success' => true, 'message' => 'Classe excluída.']);
-                    break;
-                }
-
-                if ($subAction === 'replace_players') {
-                    $tplId = (int)($body['template_id'] ?? 0);
-                    $players = $body['players'] ?? [];
-                    if (!$tplId) { echo json_encode(['success' => false, 'error' => 'template_id obrigatório']); break; }
-                    $pdo->beginTransaction();
-                    try {
-                        $pdo->prepare("DELETE FROM draft_class_template_players WHERE template_id=?")->execute([$tplId]);
-                        $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age) VALUES (?,?,?,?,?)");
-                        foreach ($players as $p) {
-                            $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age']]);
-                        }
-                        $pdo->commit();
-                        echo json_encode(['success' => true, 'inserted' => count($players)]);
-                    } catch (Exception $e) {
-                        $pdo->rollBack();
-                        echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
-                    }
-                    break;
-                }
-
-                echo json_encode(['success' => false, 'error' => 'Ação desconhecida']);
-                break;
-            }
             break;
 
         case 'hall_of_fame':
+            // Só GET chega aqui (estamos dentro do bloco if ($method === 'GET') do topo do arquivo).
+            // POST/PUT/DELETE de hall_of_fame são tratados nos cases 'hall_of_fame' correspondentes
+            // de cada bloco de método, mais abaixo no arquivo.
             ensureHallOfFameTable($pdo);
-            if ($method === 'GET') {
-                echo json_encode(['success' => true, 'groups' => getHallOfFameGrouped($pdo)]);
-                break;
-            }
-
-            $data = json_decode(file_get_contents('php://input'), true);
-            if ($method === 'POST') {
-                $isActive = (int)($data['is_active'] ?? 0) === 1;
-                $titles = isset($data['titles']) ? (int)$data['titles'] : 0;
-
-                if ($titles < 0) {
-                    http_response_code(400);
-                    echo json_encode(['success' => false, 'error' => 'Titulos invalidos']);
-                    break;
-                }
-
-                $league = $data['league'] ?? null;
-                $teamId = isset($data['team_id']) ? (int)$data['team_id'] : null;
-                $teamName = trim((string)($data['team_name'] ?? ''));
-                $gmName = trim((string)($data['gm_name'] ?? ''));
-
-                if ($isActive) {
-                    if (!$teamId) {
-                        http_response_code(400);
-                        echo json_encode(['success' => false, 'error' => 'Time obrigatorio']);
-                        break;
-                    }
-                    $stmtTeam = $pdo->prepare('SELECT t.league, t.city, t.name, u.name AS owner_name FROM teams t JOIN users u ON t.user_id = u.id WHERE t.id = ?');
-                    $stmtTeam->execute([$teamId]);
-                    $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
-                    if (!$team) {
-                        http_response_code(404);
-                        echo json_encode(['success' => false, 'error' => 'Time nao encontrado']);
-                        break;
-                    }
-                    $league = $team['league'] ?? $league;
-                    $teamName = trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''));
-                    $gmName = $team['owner_name'] ?? '';
-                } else {
-                    if ($gmName === '') {
-                        http_response_code(400);
-                        echo json_encode(['success' => false, 'error' => 'Nome do GM obrigatorio']);
-                        break;
-                    }
-                }
-
-                $stmt = $pdo->prepare('INSERT INTO hall_of_fame (is_active, league, team_id, team_name, gm_name, titles) VALUES (?, ?, ?, ?, ?, ?)');
-                $stmt->execute([
-                    $isActive ? 1 : 0,
-                    $league ?: null,
-                    $isActive ? $teamId : null,
-                    $teamName ?: null,
-                    $gmName ?: null,
-                    $titles
-                ]);
-
-                echo json_encode(['success' => true]);
-                break;
-            }
-
-            if ($method === 'PUT') {
-                $id = isset($data['id']) ? (int)$data['id'] : 0;
-                if ($id <= 0) {
-                    http_response_code(400);
-                    echo json_encode(['success' => false, 'error' => 'ID obrigatorio']);
-                    break;
-                }
-                $titles = isset($data['titles']) ? (int)$data['titles'] : null;
-                if ($titles !== null && $titles < 0) {
-                    http_response_code(400);
-                    echo json_encode(['success' => false, 'error' => 'Titulos invalidos']);
-                    break;
-                }
-
-                $fields = [];
-                $params = [];
-                if ($titles !== null) {
-                    $fields[] = 'titles = ?';
-                    $params[] = $titles;
-                }
-
-                $teamName = isset($data['team_name']) ? trim((string)$data['team_name']) : null;
-                $gmName = isset($data['gm_name']) ? trim((string)$data['gm_name']) : null;
-                if ($teamName !== null) {
-                    $fields[] = 'team_name = ?';
-                    $params[] = $teamName;
-                }
-                if ($gmName !== null) {
-                    $fields[] = 'gm_name = ?';
-                    $params[] = $gmName;
-                }
-
-                $params[] = $id;
-                if (empty($fields)) {
-                    echo json_encode(['success' => true]);
-                    break;
-                }
-
-                $stmt = $pdo->prepare('UPDATE hall_of_fame SET ' . implode(', ', $fields) . ' WHERE id = ?');
-                $stmt->execute($params);
-                echo json_encode(['success' => true]);
-                break;
-            }
-
-            if ($method === 'DELETE') {
-                $id = isset($data['id']) ? (int)$data['id'] : 0;
-                if ($id <= 0) {
-                    http_response_code(400);
-                    echo json_encode(['success' => false, 'error' => 'ID obrigatorio']);
-                    break;
-                }
-                $stmt = $pdo->prepare('DELETE FROM hall_of_fame WHERE id = ?');
-                $stmt->execute([$id]);
-                echo json_encode(['success' => true]);
-                break;
-            }
-
-            http_response_code(405);
-            echo json_encode(['success' => false, 'error' => 'Metodo nao suportado']);
+            echo json_encode(['success' => true, 'groups' => getHallOfFameGrouped($pdo)]);
             break;
 
         case 'divisions':
@@ -1048,99 +749,13 @@ if ($method === 'GET') {
                 echo json_encode(['success' => false, 'error' => 'Liga obrigatória']);
                 exit;
             }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
 
             $stmt = $pdo->prepare("SELECT * FROM divisions WHERE league = ? ORDER BY importance DESC, name");
             $stmt->execute([$league]);
             $divisions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             echo json_encode(['success' => true, 'divisions' => $divisions]);
-            break;
-
-        case 'free_agents':
-            $league = strtoupper($_GET['league'] ?? 'ELITE');
-            if (!in_array($league, $validLeagues, true)) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
-                exit;
-            }
-
-            $stmt = $pdo->prepare('
-                SELECT fa.*, (
-                    SELECT COUNT(*) FROM free_agent_offers 
-                    WHERE free_agent_id = fa.id AND status = "pending"
-                ) AS pending_offers
-                FROM free_agents fa
-                WHERE fa.league = ?
-                ORDER BY fa.ovr DESC, fa.name ASC
-            ');
-            $stmt->execute([$league]);
-            $agents = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            echo json_encode(['success' => true, 'league' => $league, 'free_agents' => $agents]);
-            break;
-
-        case 'free_agent_offers':
-            $league = strtoupper($_GET['league'] ?? 'ELITE');
-            if (!in_array($league, $validLeagues, true)) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
-                exit;
-            }
-
-            $stmt = $pdo->prepare('
-                SELECT fao.*, 
-                       fa.name AS player_name, fa.position, fa.ovr, fa.age, fa.original_team_name,
-                       t.name AS team_name, t.city AS team_city
-                FROM free_agent_offers fao
-                JOIN free_agents fa ON fao.free_agent_id = fa.id
-                JOIN teams t ON fao.team_id = t.id
-                WHERE fa.league = ? AND fao.status = "pending"
-                ORDER BY fa.name, fao.created_at ASC
-            ');
-            $stmt->execute([$league]);
-            $offers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $grouped = [];
-            foreach ($offers as $offer) {
-                $faId = $offer['free_agent_id'];
-                if (!isset($grouped[$faId])) {
-                    $grouped[$faId] = [
-                        'player' => [
-                            'id' => $faId,
-                            'name' => $offer['player_name'],
-                            'position' => $offer['position'],
-                            'ovr' => $offer['ovr'],
-                            'age' => $offer['age'],
-                            'original_team' => $offer['original_team_name']
-                        ],
-                        'offers' => []
-                    ];
-                }
-                $grouped[$faId]['offers'][] = [
-                    'id' => $offer['id'],
-                    'team_id' => $offer['team_id'],
-                    'team_name' => $offer['team_city'] . ' ' . $offer['team_name'],
-                    'notes' => $offer['notes'],
-                    'created_at' => $offer['created_at']
-                ];
-            }
-
-            echo json_encode(['success' => true, 'league' => $league, 'players' => array_values($grouped)]);
-            break;
-
-        case 'free_agent_teams':
-            $league = strtoupper($_GET['league'] ?? 'ELITE');
-            if (!in_array($league, $validLeagues, true)) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
-                exit;
-            }
-
-            $stmt = $pdo->prepare('SELECT id, city, name FROM teams WHERE league = ? ORDER BY city, name');
-            $stmt->execute([$league]);
-            $teams = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            echo json_encode(['success' => true, 'league' => $league, 'teams' => $teams]);
             break;
 
         case 'coins':
@@ -1157,14 +772,20 @@ if ($method === 'GET') {
             ";
             
             if ($league && in_array($league, $validLeagues, true)) {
+                requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
                 $query .= " WHERE t.league = ? ORDER BY t.moedas DESC, t.city, t.name";
                 $stmt = $pdo->prepare($query);
                 $stmt->execute([$league]);
+            } elseif (!$isGlobalAdminApi) {
+                $ph = implode(',', array_fill(0, count($apiAdminLeagues), '?'));
+                $query .= " WHERE t.league IN ($ph) ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.moedas DESC, t.city, t.name";
+                $stmt = $pdo->prepare($query);
+                $stmt->execute($apiAdminLeagues);
             } else {
                 $query .= " ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE'), t.moedas DESC, t.city, t.name";
                 $stmt = $pdo->query($query);
             }
-            
+
             $teams = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             echo json_encode(['success' => true, 'teams' => $teams, 'league' => $league]);
@@ -1179,10 +800,20 @@ if ($method === 'GET') {
                 exit;
             }
 
+            $stmtCoinsLogTeam = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+            $stmtCoinsLogTeam->execute([$teamId]);
+            $coinsLogTeamLeague = $stmtCoinsLogTeam->fetchColumn();
+            if ($coinsLogTeamLeague === false) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $coinsLogTeamLeague);
+
             $stmt = $pdo->prepare("
-                SELECT * FROM team_coins_log 
-                WHERE team_id = ? 
-                ORDER BY created_at DESC 
+                SELECT * FROM team_coins_log
+                WHERE team_id = ?
+                ORDER BY created_at DESC
                 LIMIT 50
             ");
             $stmt->execute([$teamId]);
@@ -1210,6 +841,29 @@ if ($method === 'PUT') {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'ID obrigatorio']);
                 exit;
+            }
+
+            $stmtHofExistingRow = $pdo->prepare('SELECT league FROM hall_of_fame WHERE id = ?');
+            $stmtHofExistingRow->execute([$id]);
+            $hofExistingRow = $stmtHofExistingRow->fetch(PDO::FETCH_ASSOC);
+            if (!$hofExistingRow) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Registro não encontrado']);
+                exit;
+            }
+            // Escopa pela liga atual do registro (se houver). Registros históricos
+            // sem liga definida ficam restritos ao admin global.
+            if (!empty($hofExistingRow['league'])) {
+                requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $hofExistingRow['league']);
+            } elseif (!$isGlobalAdminApi) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Você não tem permissão para administrar esta liga.']);
+                exit;
+            }
+            // Se o payload pedir para mover o registro pra outra liga, o admin
+            // também precisa ter permissão sobre a liga de destino.
+            if (isset($data['league']) && in_array($data['league'], ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
+                requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $data['league']);
             }
 
             $titles = isset($data['titles']) ? (int)$data['titles'] : null;
@@ -1254,13 +908,6 @@ if ($method === 'PUT') {
             echo json_encode(['success' => true]);
             exit;
 
-        case 'free_agent':
-            handleFreeAgentCreation($pdo, $validLeagues, $data);
-            break;
-
-        case 'free_agent_assign':
-            handleFreeAgentAssignment($pdo, $data);
-            break;
         case 'league_settings':
             // Atualizar configurações de liga
             $league = $data['league'] ?? null;
@@ -1275,6 +922,28 @@ if ($method === 'PUT') {
             if (!$league) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Liga obrigatória']);
+                exit;
+            }
+            if (!in_array(strtoupper($league), $validLeagues, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
+
+            if ($cap_min !== null && $cap_min < 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'cap_min não pode ser negativo']);
+                exit;
+            }
+            if ($cap_max !== null && $cap_max < 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'cap_max não pode ser negativo']);
+                exit;
+            }
+            if ($cap_min !== null && $cap_max !== null && $cap_min > $cap_max) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'cap_min não pode ser maior que cap_max']);
                 exit;
             }
 
@@ -1369,6 +1038,16 @@ if ($method === 'PUT') {
                 exit;
             }
 
+            $stmtTeamScope = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+            $stmtTeamScope->execute([$teamId]);
+            $teamScopeLeague = $stmtTeamScope->fetchColumn();
+            if ($teamScopeLeague === false) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $teamScopeLeague);
+
             $updates = [];
             $params = [];
 
@@ -1431,6 +1110,16 @@ if ($method === 'PUT') {
                 exit;
             }
 
+            $stmtPlayerScope = $pdo->prepare('SELECT t.league FROM players p JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+            $stmtPlayerScope->execute([$playerId]);
+            $playerScopeLeague = $stmtPlayerScope->fetchColumn();
+            if ($playerScopeLeague === false) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Jogador não encontrado']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $playerScopeLeague);
+
             $updates = [];
             $params  = [];
 
@@ -1441,6 +1130,15 @@ if ($method === 'PUT') {
                     echo json_encode(['success' => false, 'error' => 'Time de destino inválido']);
                     exit;
                 }
+                $stmtDestTeamScope = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+                $stmtDestTeamScope->execute([$newTeamId]);
+                $destTeamLeague = $stmtDestTeamScope->fetchColumn();
+                if ($destTeamLeague === false) {
+                    http_response_code(404);
+                    echo json_encode(['success' => false, 'error' => 'Time de destino não encontrado']);
+                    exit;
+                }
+                requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $destTeamLeague);
                 $updates[] = 'team_id = ?';
                 $params[]  = $newTeamId;
             }
@@ -1500,8 +1198,25 @@ if ($method === 'PUT') {
                 exit;
             }
 
-            $stmt = $pdo->prepare("UPDATE trades SET status = 'cancelled' WHERE id = ?");
+            $stmtCancelTradeLeague = $pdo->prepare('SELECT COALESCE(t.league, ft.league) AS league FROM trades t JOIN teams ft ON t.from_team_id = ft.id WHERE t.id = ?');
+            $stmtCancelTradeLeague->execute([$tradeId]);
+            $cancelTradeLeague = $stmtCancelTradeLeague->fetchColumn();
+            if ($cancelTradeLeague === false) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Trade não encontrada']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $cancelTradeLeague);
+
+            // Só cancela trade pendente — 'accepted' já moveu ativos (usar revert_trade) e
+            // cancelar uma já 'rejected'/'cancelled'/'countered' não faz sentido.
+            $stmt = $pdo->prepare("UPDATE trades SET status = 'cancelled' WHERE id = ? AND status = 'pending'");
             $stmt->execute([$tradeId]);
+            if ($stmt->rowCount() === 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Só é possível cancelar trades pendentes.']);
+                exit;
+            }
 
             echo json_encode(['success' => true, 'message' => 'Trade cancelada']);
             break;
@@ -1509,6 +1224,10 @@ if ($method === 'PUT') {
         case 'trade_in_game':
             $tradeId = $data['trade_id'] ?? null;
             $isInGame = isset($data['is_in_game']) ? (int)$data['is_in_game'] : null;
+            // Front-end já sabe se o card é de trade simples ou múltipla (tr.is_multi) e manda
+            // isso explícito — evita colisão de ID entre as duas tabelas (sequências independentes).
+            // Se não vier (chamada antiga/externa), cai no fallback por tentativa.
+            $isMultiFlag = array_key_exists('is_multi', $data) ? (bool)$data['is_multi'] : null;
 
             if (!$tradeId || $isInGame === null) {
                 http_response_code(400);
@@ -1516,12 +1235,47 @@ if ($method === 'PUT') {
                 exit;
             }
 
-            // Tenta atualizar em trades primeiro; se não afetou nenhuma linha, tenta multi_trades
-            $stmt = $pdo->prepare('UPDATE trades SET is_in_game = ? WHERE id = ?');
-            $stmt->execute([$isInGame ? 1 : 0, $tradeId]);
-            if ($stmt->rowCount() === 0 && tableExists($pdo, 'multi_trades')) {
-                $pdo->prepare('UPDATE multi_trades SET is_in_game = ? WHERE id = ?')
-                    ->execute([$isInGame ? 1 : 0, $tradeId]);
+            if ($isMultiFlag === true) {
+                $tigLeague = false;
+                if (tableExists($pdo, 'multi_trades')) {
+                    $s = $pdo->prepare('SELECT COALESCE(mt.league, ct.league) AS league FROM multi_trades mt JOIN teams ct ON ct.id = mt.created_by_team_id WHERE mt.id = ?');
+                    $s->execute([$tradeId]);
+                    $tigLeague = $s->fetchColumn();
+                }
+            } elseif ($isMultiFlag === false) {
+                $s = $pdo->prepare('SELECT COALESCE(t.league, ft.league) AS league FROM trades t JOIN teams ft ON t.from_team_id = ft.id WHERE t.id = ?');
+                $s->execute([$tradeId]);
+                $tigLeague = $s->fetchColumn();
+            } else {
+                // Fallback (sem is_multi informado): tenta trades, depois multi_trades
+                $stmtTigLeague = $pdo->prepare('SELECT COALESCE(t.league, ft.league) AS league FROM trades t JOIN teams ft ON t.from_team_id = ft.id WHERE t.id = ?');
+                $stmtTigLeague->execute([$tradeId]);
+                $tigLeague = $stmtTigLeague->fetchColumn();
+                if ($tigLeague === false && tableExists($pdo, 'multi_trades')) {
+                    $stmtTigMultiLeague = $pdo->prepare('SELECT COALESCE(mt.league, ct.league) AS league FROM multi_trades mt JOIN teams ct ON ct.id = mt.created_by_team_id WHERE mt.id = ?');
+                    $stmtTigMultiLeague->execute([$tradeId]);
+                    $tigLeague = $stmtTigMultiLeague->fetchColumn();
+                }
+            }
+            if ($tigLeague === false) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Trade não encontrada']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $tigLeague);
+
+            if ($isMultiFlag === true) {
+                $pdo->prepare('UPDATE multi_trades SET is_in_game = ? WHERE id = ?')->execute([$isInGame ? 1 : 0, $tradeId]);
+            } elseif ($isMultiFlag === false) {
+                $pdo->prepare('UPDATE trades SET is_in_game = ? WHERE id = ?')->execute([$isInGame ? 1 : 0, $tradeId]);
+            } else {
+                // Fallback: tenta trades primeiro; se não afetou nenhuma linha, tenta multi_trades
+                $stmt = $pdo->prepare('UPDATE trades SET is_in_game = ? WHERE id = ?');
+                $stmt->execute([$isInGame ? 1 : 0, $tradeId]);
+                if ($stmt->rowCount() === 0 && tableExists($pdo, 'multi_trades')) {
+                    $pdo->prepare('UPDATE multi_trades SET is_in_game = ? WHERE id = ?')
+                        ->execute([$isInGame ? 1 : 0, $tradeId]);
+                }
             }
 
             echo json_encode(['success' => true]);
@@ -1535,6 +1289,15 @@ if ($method === 'PUT') {
                 echo json_encode(['success' => false, 'error' => 'pick_id obrigatório']);
                 exit;
             }
+            $stmtClearPickScope = $pdo->prepare('SELECT t.league FROM picks p JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+            $stmtClearPickScope->execute([(int)$pickId]);
+            $clearPickLeague = $stmtClearPickScope->fetchColumn();
+            if ($clearPickLeague === false) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Pick não encontrada']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $clearPickLeague);
             $stmtClear = $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
             $stmtClear->execute([(int)$pickId]);
             echo json_encode(['success' => true, 'message' => 'Campos de swap da pick limpos com sucesso']);
@@ -1550,11 +1313,21 @@ if ($method === 'PUT') {
                 exit;
             }
 
+            $stmtRevertTradeLeague = $pdo->prepare('SELECT COALESCE(t.league, ft.league) AS league FROM trades t JOIN teams ft ON t.from_team_id = ft.id WHERE t.id = ?');
+            $stmtRevertTradeLeague->execute([$tradeId]);
+            $revertTradeLeague = $stmtRevertTradeLeague->fetchColumn();
+            if ($revertTradeLeague === false) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Trade não encontrada']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $revertTradeLeague);
+
             try {
                 $pdo->beginTransaction();
 
-                // Buscar trade
-                $stmtTrade = $pdo->prepare("SELECT * FROM trades WHERE id = ? AND status = 'accepted'");
+                // Buscar trade (FOR UPDATE evita corrida entre dois cliques de reverter)
+                $stmtTrade = $pdo->prepare("SELECT * FROM trades WHERE id = ? AND status = 'accepted' FOR UPDATE");
                 $stmtTrade->execute([$tradeId]);
                 $trade = $stmtTrade->fetch(PDO::FETCH_ASSOC);
 
@@ -1573,47 +1346,42 @@ if ($method === 'PUT') {
 
                 // Reverter transferências
                 foreach ($items as $item) {
+                    // originalTeamId: time que deve receber de volta. expectedCurrentTeamId: time
+                    // que deveria estar com o ativo agora (quem recebeu nesta troca) — só revertemos
+                    // se o ativo ainda estiver lá; se já foi negociado de novo pra um terceiro time,
+                    // não mexemos (evita "roubar" um ativo de um time não relacionado a esta troca).
+                    $originalTeamId = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
+                    $expectedCurrentTeamId = $item['from_team'] ? $trade['to_team_id'] : $trade['from_team_id'];
+
                     if ($item['player_id']) {
-                        // Reverter jogador para o time original
-                        $originalTeamId = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
-                        
                         // Verificar time atual do jogador
                         $stmtCheckPlayer = $pdo->prepare('SELECT team_id, name FROM players WHERE id = ?');
                         $stmtCheckPlayer->execute([$item['player_id']]);
                         $player = $stmtCheckPlayer->fetch(PDO::FETCH_ASSOC);
-                        
+
                         if (!$player) {
                             $errors[] = "Jogador ID {$item['player_id']} não encontrado (pode ter sido dispensado)";
-                            continue;
-                        }
-                        
-                        // Só reverter se o jogador não estiver já no time original (evita duplicação)
-                        if ((int)$player['team_id'] !== (int)$originalTeamId) {
+                        } elseif ((int)$player['team_id'] === (int)$expectedCurrentTeamId) {
                             $stmtRevert = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ?');
                             $stmtRevert->execute([$originalTeamId, $item['player_id']]);
                             $playersReverted[] = $player['name'];
-                        } else {
+                        } elseif ((int)$player['team_id'] === (int)$originalTeamId) {
                             // Jogador já está no time original (pode ter sido revertido antes)
                             $playersReverted[] = $player['name'] . ' (já estava no time)';
+                        } else {
+                            $errors[] = "Jogador {$player['name']} não está no time esperado (foi negociado novamente) — não revertido";
                         }
                     }
 
                     if ($item['pick_id']) {
-                        // Reverter pick para o time original
-                        $originalTeamId = $item['from_team'] ? $trade['from_team_id'] : $trade['to_team_id'];
-                        
                         // Verificar estado atual da pick
                         $stmtCheckPick = $pdo->prepare('SELECT team_id, original_team_id, last_owner_team_id, season_year, round FROM picks WHERE id = ?');
                         $stmtCheckPick->execute([$item['pick_id']]);
                         $pick = $stmtCheckPick->fetch(PDO::FETCH_ASSOC);
-                        
+
                         if (!$pick) {
                             $errors[] = "Pick ID {$item['pick_id']} não encontrada";
-                            continue;
-                        }
-                        
-                        // Reverter pick e sempre limpar campos de swap (inclusive picks swap que não mudaram de time)
-                        if ((int)$pick['team_id'] !== (int)$originalTeamId) {
+                        } elseif ((int)$pick['team_id'] === (int)$expectedCurrentTeamId) {
                             // O last_owner deve ser quem tinha antes da trade atual
                             // Se from_team=true, o dono original era from_team, então last_owner deve ser NULL ou from_team
                             // Se from_team=false, o dono original era to_team
@@ -1622,11 +1390,13 @@ if ($method === 'PUT') {
                             $stmtRevert = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
                             $stmtRevert->execute([$originalTeamId, $lastOwnerBeforeTrade, $item['pick_id']]);
                             $picksReverted[] = "{$pick['season_year']} R{$pick['round']}";
-                        } else {
+                        } elseif ((int)$pick['team_id'] === (int)$originalTeamId) {
                             // Pick já está no time original (caso swap), limpar campos de swap residuais
                             $stmtClearSwap = $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
                             $stmtClearSwap->execute([$item['pick_id']]);
                             $picksReverted[] = "{$pick['season_year']} R{$pick['round']} (já estava no time)";
+                        } else {
+                            $errors[] = "Pick {$pick['season_year']} R{$pick['round']} não está no time esperado (foi negociada novamente) — não revertida";
                         }
                     }
                 }
@@ -1642,26 +1412,26 @@ if ($method === 'PUT') {
                 if (!empty($errors)) {
                     $revertLog .= "\nAvisos: " . implode('; ', $errors);
                 }
-                
+
                 $stmtUpdate = $pdo->prepare("UPDATE trades SET status = 'cancelled', notes = CONCAT(IFNULL(notes, ''), '\n', ?) WHERE id = ?");
                 $stmtUpdate->execute([$revertLog, $tradeId]);
 
                 $pdo->commit();
-                
+
                 $response = [
                     'success' => true,
                     'message' => 'Trade revertida com sucesso',
                     'players_reverted' => count($playersReverted),
                     'picks_reverted' => count($picksReverted)
                 ];
-                
+
                 if (!empty($errors)) {
                     $response['warnings'] = $errors;
                 }
-                
+
                 echo json_encode($response);
             } catch (Exception $e) {
-                $pdo->rollBack();
+                if ($pdo->inTransaction()) $pdo->rollBack();
                 http_response_code(500);
                 echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             }
@@ -1682,6 +1452,16 @@ if ($method === 'PUT') {
                 echo json_encode(['success' => false, 'error' => 'Multi-trades não habilitadas']);
                 exit;
             }
+
+            $stmtRevertMultiLeague = $pdo->prepare('SELECT COALESCE(mt.league, ct.league) AS league FROM multi_trades mt JOIN teams ct ON ct.id = mt.created_by_team_id WHERE mt.id = ?');
+            $stmtRevertMultiLeague->execute([$tradeId]);
+            $revertMultiLeague = $stmtRevertMultiLeague->fetchColumn();
+            if ($revertMultiLeague === false) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Trade não encontrada']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $revertMultiLeague);
 
             try {
                 $pdo->beginTransaction();
@@ -1796,6 +1576,35 @@ if ($method === 'PUT') {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Dados obrigatórios ausentes']);
                 exit;
+            }
+
+            $stmtPickTeamScope = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+            $stmtPickTeamScope->execute([(int)$teamId]);
+            $pickTeamLeague = $stmtPickTeamScope->fetchColumn();
+            if ($pickTeamLeague === false) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Time de destino inválido']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $pickTeamLeague);
+
+            $stmtPickOrigTeamScope = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+            $stmtPickOrigTeamScope->execute([(int)$originalTeamId]);
+            $pickOrigTeamLeague = $stmtPickOrigTeamScope->fetchColumn();
+            if ($pickOrigTeamLeague === false) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Time original inválido']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $pickOrigTeamLeague);
+
+            if ($pickId) {
+                $stmtExistingPickScope = $pdo->prepare('SELECT t.league FROM picks p JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+                $stmtExistingPickScope->execute([(int)$pickId]);
+                $existingPickLeague = $stmtExistingPickScope->fetchColumn();
+                if ($existingPickLeague !== false) {
+                    requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $existingPickLeague);
+                }
             }
 
             if ($pickId) {
@@ -1938,11 +1747,17 @@ if ($method === 'POST') {
                     echo json_encode(['success' => false, 'error' => 'Time nao encontrado']);
                     exit;
                 }
+                requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $team['league'] ?? null);
                 $teamCurrentLeague = $team['league'] ?? null;
                 // Respeita a liga escolhida no formulário (pra permitir cadastrar título
                 // histórico de uma liga diferente da atual do time); só usa a liga atual
                 // do time como fallback se nenhuma foi selecionada.
                 $league = $league ?: $teamCurrentLeague;
+                if ($league && $league !== $teamCurrentLeague) {
+                    // Registrando sob uma liga diferente da atual do time: precisa de
+                    // permissão também sobre essa liga de destino.
+                    requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
+                }
                 $teamName = trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''));
                 $gmName = $team['owner_name'] ?? '';
                 // Se a liga escolhida não é a atual do time, o registro não pode ficar
@@ -1955,6 +1770,9 @@ if ($method === 'POST') {
                     http_response_code(400);
                     echo json_encode(['success' => false, 'error' => 'Nome do GM obrigatorio']);
                     exit;
+                }
+                if ($league) {
+                    requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
                 }
             }
 
@@ -2000,6 +1818,16 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Dados obrigatórios ausentes']);
                 exit;
             }
+
+            $stmtNewPlayerTeamScope = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+            $stmtNewPlayerTeamScope->execute([$teamId]);
+            $newPlayerTeamLeague = $stmtNewPlayerTeamScope->fetchColumn();
+            if ($newPlayerTeamLeague === false) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $newPlayerTeamLeague);
 
             $name = trim((string)$name);
             if ($name === '') {
@@ -2073,6 +1901,26 @@ if ($method === 'POST') {
                 exit;
             }
 
+            $stmtPickTeamScope = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+            $stmtPickTeamScope->execute([(int)$teamId]);
+            $pickTeamLeague = $stmtPickTeamScope->fetchColumn();
+            if ($pickTeamLeague === false) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Time de destino inválido']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $pickTeamLeague);
+
+            $stmtPickOrigTeamScope = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+            $stmtPickOrigTeamScope->execute([(int)$originalTeamId]);
+            $pickOrigTeamLeague = $stmtPickOrigTeamScope->fetchColumn();
+            if ($pickOrigTeamLeague === false) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Time original inválido']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $pickOrigTeamLeague);
+
             $stmtExisting = $pdo->prepare('
                 SELECT id FROM picks WHERE original_team_id = ? AND season_year = ? AND round = ?
             ');
@@ -2080,8 +1928,14 @@ if ($method === 'POST') {
             $existingId = $stmtExisting->fetchColumn();
 
             if ($existingId) {
+                $stmtExistingPickScope = $pdo->prepare('SELECT t.league FROM picks p JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+                $stmtExistingPickScope->execute([(int)$existingId]);
+                $existingPickLeague = $stmtExistingPickScope->fetchColumn();
+                if ($existingPickLeague !== false) {
+                    requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $existingPickLeague);
+                }
                 $stmt = $pdo->prepare('
-                    UPDATE picks 
+                    UPDATE picks
                     SET team_id = ?, original_team_id = ?, season_year = ?, round = ?, notes = ?, auto_generated = 0, last_owner_team_id = ?
                     WHERE id = ?
                 ');
@@ -2097,14 +1951,6 @@ if ($method === 'POST') {
             }
 
             echo json_encode(['success' => true, 'pick_id' => $newPickId]);
-            break;
-
-        case 'free_agent':
-            handleFreeAgentCreation($pdo, $validLeagues, $data);
-            break;
-
-        case 'free_agent_assign':
-            handleFreeAgentAssignment($pdo, $data);
             break;
 
         case 'coins':
@@ -2128,7 +1974,7 @@ if ($method === 'POST') {
             }
 
             // Buscar time
-            $stmtTeam = $pdo->prepare('SELECT id, city, name, COALESCE(moedas, 0) as moedas FROM teams WHERE id = ?');
+            $stmtTeam = $pdo->prepare('SELECT id, city, name, league, COALESCE(moedas, 0) as moedas FROM teams WHERE id = ?');
             $stmtTeam->execute([$teamId]);
             $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
 
@@ -2137,6 +1983,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
                 exit;
             }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $team['league'] ?? null);
 
             $currentCoins = (int)$team['moedas'];
             
@@ -2299,6 +2146,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Liga inválida']);
                 exit;
             }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
 
             $amount = (int)$amount;
             if ($amount <= 0) {
@@ -2349,6 +2197,108 @@ if ($method === 'POST') {
                 $pdo->rollBack();
                 http_response_code(500);
                 echo json_encode(['success' => false, 'error' => 'Erro ao distribuir moedas']);
+            }
+            break;
+
+        case 'coins_by_standings':
+            // Distribui moedas automaticamente pela classificação da temporada.
+            // Fórmula: moedas = base + (rank-1) * passo. Por padrão o melhor colocado
+            // (rank 1) recebe menos e vai crescendo (catch-up): base=2, passo=2 →
+            // 1º=2, 2º=4, 3º=6...  'direction' pode inverter (best_most).
+            $league = strtoupper((string)($data['league'] ?? ''));
+            $base   = (int)($data['base'] ?? 2);
+            $step   = (int)($data['step'] ?? 2);
+            $direction = ($data['direction'] ?? 'worst_most'); // worst_most | best_most
+            $reason = trim((string)($data['reason'] ?? '')) ?: 'Moedas por classificação';
+            $apply  = !empty($data['apply']);
+
+            if (!in_array($league, $validLeagues, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
+            if ($base < 0 || $step < 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Base e passo devem ser >= 0']);
+                exit;
+            }
+
+            // Temporada com classificação mais recente da liga (ou a informada).
+            $seasonId = (int)($data['season_id'] ?? 0);
+            if ($seasonId <= 0) {
+                $stmtS = $pdo->prepare('SELECT ss.season_id
+                    FROM season_standings ss JOIN teams t ON t.id = ss.team_id
+                    WHERE t.league = ? ORDER BY ss.season_id DESC LIMIT 1');
+                $stmtS->execute([$league]);
+                $seasonId = (int)($stmtS->fetchColumn() ?: 0);
+            }
+            if ($seasonId <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Nenhuma classificação registrada para esta liga ainda.']);
+                exit;
+            }
+
+            // Ranking da liga: melhor -> pior (vitórias, saldo, e posição como desempate).
+            $stmtRank = $pdo->prepare("
+                SELECT t.id AS team_id, CONCAT(t.city,' ',t.name) AS team_name,
+                       COALESCE(t.moedas,0) AS moedas,
+                       ss.wins, (ss.points_for - ss.points_against) AS pdiff, ss.position
+                FROM season_standings ss
+                JOIN teams t ON t.id = ss.team_id
+                WHERE ss.season_id = ? AND t.league = ?
+                ORDER BY ss.wins DESC, pdiff DESC, ss.position ASC");
+            $stmtRank->execute([$seasonId, $league]);
+            $ranked = $stmtRank->fetchAll(PDO::FETCH_ASSOC);
+            if (!$ranked) {
+                echo json_encode(['success' => false, 'error' => 'Sem times classificados nesta temporada para a liga.']);
+                exit;
+            }
+
+            $n = count($ranked);
+            $dist = [];
+            foreach ($ranked as $i => $r) {
+                // rank 1 = melhor. worst_most: pior recebe mais; best_most: melhor recebe mais.
+                $stepsFromBase = ($direction === 'best_most') ? ($n - 1 - $i) : $i;
+                $amount = $base + $stepsFromBase * $step;
+                $dist[] = [
+                    'rank'        => $i + 1,
+                    'team_id'     => (int)$r['team_id'],
+                    'team_name'   => $r['team_name'],
+                    'current'     => (int)$r['moedas'],
+                    'amount'      => $amount,
+                    'new_balance' => (int)$r['moedas'] + $amount,
+                ];
+            }
+
+            if (!$apply) {
+                echo json_encode(['success' => true, 'preview' => true, 'season_id' => $seasonId, 'distribution' => $dist]);
+                exit;
+            }
+
+            try {
+                $pdo->exec("ALTER TABLE team_coins_log ADD COLUMN IF NOT EXISTS balance_after INT NOT NULL DEFAULT 0");
+                $pdo->exec("ALTER TABLE team_coins_log ADD COLUMN IF NOT EXISTS type VARCHAR(50) NULL");
+            } catch (Exception $ignored) {}
+
+            try {
+                $pdo->beginTransaction();
+                $stmtUp  = $pdo->prepare('UPDATE teams SET moedas = ? WHERE id = ?');
+                $stmtLog = $pdo->prepare('INSERT INTO team_coins_log (team_id, amount, balance_after, reason, admin_id, type)
+                                          VALUES (?, ?, ?, ?, ?, ?)');
+                $adminId = (int)($user['id'] ?? 0) ?: null;
+                $count = 0;
+                foreach ($dist as $d) {
+                    if ($d['amount'] === 0) continue;
+                    $stmtUp->execute([$d['new_balance'], $d['team_id']]);
+                    $stmtLog->execute([$d['team_id'], $d['amount'], $d['new_balance'], $reason, $adminId, 'standings']);
+                    $count++;
+                }
+                $pdo->commit();
+                echo json_encode(['success' => true, 'message' => sprintf('Distribuídas moedas por classificação para %d times da %s.', $count, $league), 'distribution' => $dist]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                http_response_code(500);
+                echo json_encode(['success' => false, 'error' => 'Erro ao distribuir moedas por classificação']);
             }
             break;
 
@@ -2435,9 +2385,25 @@ if ($method === 'POST') {
             $targetId = (int)($data['user_id'] ?? 0);
             if (!$targetId) { http_response_code(400); echo json_encode(['success' => false, 'error' => 'user_id inválido']); exit; }
 
-            $hash = password_hash('fbabrasil123', PASSWORD_DEFAULT);
+            $newPassword = bin2hex(random_bytes(5));
+            $hash = password_hash($newPassword, PASSWORD_DEFAULT);
             $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([$hash, $targetId]);
-            echo json_encode(['success' => true]);
+            echo json_encode(['success' => true, 'new_password' => $newPassword]);
+            break;
+
+        case 'toggle_maintenance':
+            // Só admin GERAL pode ligar/desligar — admin de liga nem passa pela checagem de bloqueio.
+            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin geral']); exit; }
+            ensureMaintenanceModeTable($pdo);
+            $enable = !empty($data['enabled']);
+            $msg = trim((string)($data['message'] ?? ''));
+            if ($enable) {
+                $pdo->prepare("UPDATE maintenance_mode SET enabled = 1, message = ?, enabled_by = ?, enabled_at = NOW() WHERE id = 1")
+                    ->execute([$msg !== '' ? $msg : null, $user['id']]);
+            } else {
+                $pdo->prepare("UPDATE maintenance_mode SET enabled = 0 WHERE id = 1")->execute();
+            }
+            echo json_encode(['success' => true, 'enabled' => $enable]);
             break;
 
         case 'set_team_avisos':
@@ -2449,6 +2415,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Dados inválidos']);
                 break;
             }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
             // IDs atuais não revertidos, ordem crescente (mais antigos primeiro)
             $stmtCur = $pdo->prepare("SELECT id FROM team_punishments WHERE team_id = ? AND type = 'AVISO_TRADE' AND reverted_at IS NULL ORDER BY id ASC");
             $stmtCur->execute([$teamId]);
@@ -2475,6 +2442,7 @@ if ($method === 'POST') {
         case 'check_overdue_trades':
             $league = $data['league'] ?? null;
             if (!$league) { http_response_code(400); echo json_encode(['success' => false, 'error' => 'Liga obrigatória']); break; }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
 
             // Trades pendentes há mais de 24h sem aviso já registrado para esse trade
             $stmtOverdue = $pdo->prepare("
@@ -2528,21 +2496,26 @@ if ($method === 'DELETE') {
                 exit;
             }
             ensureHallOfFameTable($pdo);
+            $stmtHofDelRow = $pdo->prepare('SELECT league FROM hall_of_fame WHERE id = ?');
+            $stmtHofDelRow->execute([$id]);
+            $hofDelRow = $stmtHofDelRow->fetch(PDO::FETCH_ASSOC);
+            if (!$hofDelRow) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Registro não encontrado']);
+                exit;
+            }
+            // Escopa pela liga do registro; registros históricos sem liga definida
+            // ficam restritos ao admin global.
+            if (!empty($hofDelRow['league'])) {
+                requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $hofDelRow['league']);
+            } elseif (!$isGlobalAdminApi) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Você não tem permissão para administrar esta liga.']);
+                exit;
+            }
             $stmt = $pdo->prepare('DELETE FROM hall_of_fame WHERE id = ?');
             $stmt->execute([$id]);
             echo json_encode(['success' => true]);
-            break;
-
-        case 'free_agent':
-            if (!$id) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'error' => 'ID do free agent obrigatório']);
-                exit;
-            }
-
-            $stmt = $pdo->prepare('DELETE FROM free_agents WHERE id = ?');
-            $stmt->execute([$id]);
-            echo json_encode(['success' => true, 'message' => 'Free agent removido']);
             break;
 
         case 'player':
@@ -2551,6 +2524,16 @@ if ($method === 'DELETE') {
                 echo json_encode(['success' => false, 'error' => 'Player ID obrigatório']);
                 exit;
             }
+
+            $stmtDelPlayerScope = $pdo->prepare('SELECT t.league FROM players p JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+            $stmtDelPlayerScope->execute([$id]);
+            $delPlayerLeague = $stmtDelPlayerScope->fetchColumn();
+            if ($delPlayerLeague === false) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Jogador não encontrado']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $delPlayerLeague);
 
             // Snapshot player in trade history before permanent deletion
             try {
@@ -2597,6 +2580,16 @@ if ($method === 'DELETE') {
                 echo json_encode(['success' => false, 'error' => 'Pick ID obrigatório']);
                 exit;
             }
+
+            $stmtDelPickScope = $pdo->prepare('SELECT t.league FROM picks p JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+            $stmtDelPickScope->execute([$id]);
+            $delPickLeague = $stmtDelPickScope->fetchColumn();
+            if ($delPickLeague === false) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Pick não encontrada']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $delPickLeague);
 
             $stmt = $pdo->prepare('DELETE FROM picks WHERE id = ?');
             $stmt->execute([$id]);

@@ -109,7 +109,7 @@ function persistDraftOrder(PDO $pdo, array $roundOneOrder, array $session): void
     $totalRounds = (int)$session['total_rounds'];
 
     if ($totalRounds < 1) {
-        throw new Exception('Total de rodadas inválido para esta sessão');
+        throw new InvalidArgumentException('Total de rodadas inválido para esta sessão');
     }
 
     $pdo->prepare('DELETE FROM initdraft_order WHERE initdraft_session_id = ?')->execute([$sessionId]);
@@ -138,13 +138,13 @@ function getSessionById(PDO $pdo, int $sessionId): ?array {
 
 function performInitDraftPick(PDO $pdo, array $session, int $playerId): void {
     if (!$session) {
-        throw new Exception('Sessão inválida');
+        throw new InvalidArgumentException('Sessão inválida');
     }
     if ($session['status'] !== 'in_progress') {
-        throw new Exception('Draft não está em andamento');
+        throw new InvalidArgumentException('Draft não está em andamento');
     }
     if ($playerId <= 0) {
-        throw new Exception('player_id obrigatório');
+        throw new InvalidArgumentException('player_id obrigatório');
     }
 
     $sessionRound = (int)($session['current_round'] ?? 1);
@@ -159,7 +159,7 @@ function performInitDraftPick(PDO $pdo, array $session, int $playerId): void {
         $stmtPick->execute([$session['id']]);
         $currentPick = $stmtPick->fetch(PDO::FETCH_ASSOC);
         if (!$currentPick) {
-            throw new Exception('Todas as picks já foram realizadas');
+            throw new InvalidArgumentException('Todas as picks já foram realizadas');
         }
         $sessionRound = (int)$currentPick['round'];
         $sessionPick = (int)$currentPick['pick_position'];
@@ -171,22 +171,30 @@ function performInitDraftPick(PDO $pdo, array $session, int $playerId): void {
     $stmtP->execute([$playerId]);
     $player = $stmtP->fetch(PDO::FETCH_ASSOC);
     if (!$player) {
-        throw new Exception('Jogador indisponível');
+        throw new InvalidArgumentException('Jogador indisponível');
     }
 
     try {
         $pdo->beginTransaction();
 
-        $pdo->prepare('UPDATE initdraft_order SET picked_player_id = ?, picked_at = NOW() WHERE id = ?')
-            ->execute([$playerId, $currentPick['id']]);
+        // Trava atômica da pick: só avança se ela ainda estiver livre (evita duplo-submit/corrida entre requisições concorrentes)
+        $stmtLockPick = $pdo->prepare('UPDATE initdraft_order SET picked_player_id = ?, picked_at = NOW() WHERE id = ? AND picked_player_id IS NULL');
+        $stmtLockPick->execute([$playerId, $currentPick['id']]);
+        if ($stmtLockPick->rowCount() === 0) {
+            throw new InvalidArgumentException('Esta pick já foi realizada em outra requisição.');
+        }
 
         $stmtRoundSize = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order WHERE initdraft_session_id = ? AND round = ?');
         $stmtRoundSize->execute([$session['id'], $sessionRound]);
         $roundSize = max(1, (int)$stmtRoundSize->fetchColumn());
         $pickNumber = (($sessionRound - 1) * $roundSize) + $sessionPick;
 
-        $pdo->prepare('UPDATE initdraft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
-            ->execute([$currentPick['team_id'], $pickNumber, $playerId]);
+        // Trava atômica do jogador: só avança se ele ainda estiver disponível (evita o mesmo jogador ser draftado 2x)
+        $stmtLockPlayer = $pdo->prepare('UPDATE initdraft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ? AND draft_status = "available"');
+        $stmtLockPlayer->execute([$currentPick['team_id'], $pickNumber, $playerId]);
+        if ($stmtLockPlayer->rowCount() === 0) {
+            throw new InvalidArgumentException('Jogador indisponível — já foi selecionado por outra requisição.');
+        }
 
         $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, draft_round, draft_pick_position, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
             ->execute([$currentPick['team_id'], $currentPick['team_id'], $sessionRound, $sessionPick, $player['name'], $player['position'], $player['age'], $player['ovr']]);
@@ -255,98 +263,7 @@ function clearDeadlinesForRound(PDO $pdo, int $sessionId, int $round): void {
 }
 
 function resetClockForNextPick(PDO $pdo, int $sessionId): void {
-    $session = getSessionById($pdo, $sessionId);
-    if (!$session) {
-        return;
-    }
-
     // Sistema antigo (sem relógio): não cria deadline nem agenda auto-pick.
-    return;
-
-    $scheduleEnabled = (int)($session['daily_schedule_enabled'] ?? 0) === 1;
-    if (!$scheduleEnabled || ($session['status'] ?? 'setup') !== 'in_progress') {
-        return;
-    }
-
-    $currentRound = (int)($session['current_round'] ?? 0);
-    if ($currentRound <= 0) {
-        return;
-    }
-
-    $now = tzNow();
-    $dailyRound = computeDailyRoundForDate($session['daily_schedule_start_date'] ?? null, $now);
-    if ($dailyRound !== null && $dailyRound !== $currentRound) {
-        // Fora da janela diária configurada; mantém pausado até o próximo dia.
-        return;
-    }
-
-    $currentPick = getCurrentOpenPick($pdo, $sessionId, $currentRound);
-    if (!$currentPick) {
-        clearDeadlinesForRound($pdo, $sessionId, $currentRound);
-        return;
-    }
-
-    $clockStart = $session['daily_clock_start_time'] ?? '19:30:00';
-    $clockStartDate = new DateTimeImmutable($now->format('Y-m-d') . ' ' . $clockStart, $now->getTimezone());
-    if ($now < $clockStartDate) {
-        return;
-    }
-
-    ensureDeadlineForPick($pdo, $currentPick, $now, (int)($session['daily_pick_minutes'] ?? 10), true);
-}
-
-function ensureDeadlineForPick(PDO $pdo, array $pick, DateTimeImmutable $now, int $pickMinutes, bool $forceReset = false): void {
-    if (!$forceReset && !empty($pick['deadline_at'])) return;
-    ensureDeadlineColumn($pdo);
-    $deadline = $now->add(new DateInterval('PT' . max(1, $pickMinutes) . 'M'));
-    $pdo->prepare('UPDATE initdraft_order SET deadline_at = ? WHERE id = ?')
-        ->execute([$deadline->format('Y-m-d H:i:s'), $pick['id']]);
-}
-
-function pickHighestOvrAvailable(PDO $pdo, int $seasonId): ?int {
-    // Regra: maior OVR; empate -> maior idade; empate -> aleatório.
-    // OBS: age pode ser NULL. Neste caso, tratamos como idade "muito baixa" para priorizar quem tem idade definida.
-
-    // 1) Melhor OVR disponível
-    $stmtMax = $pdo->prepare('SELECT MAX(ovr) FROM initdraft_pool WHERE season_id = ? AND draft_status = "available"');
-    $stmtMax->execute([$seasonId]);
-    $maxOvr = $stmtMax->fetchColumn();
-    if ($maxOvr === false || $maxOvr === null) return null;
-    $maxOvr = (int)$maxOvr;
-
-    // 2) Maior idade dentro do melhor OVR
-    $stmtMaxAge = $pdo->prepare('
-        SELECT MAX(COALESCE(NULLIF(age, 0), 0))
-        FROM initdraft_pool
-        WHERE season_id = ? AND draft_status = "available" AND ovr = ?
-    ');
-    $stmtMaxAge->execute([$seasonId, $maxOvr]);
-    $maxAge = $stmtMaxAge->fetchColumn();
-    if ($maxAge === false || $maxAge === null) {
-        $maxAge = 0;
-    }
-    $maxAge = (int)$maxAge;
-
-    // 3) Seleciona aleatoriamente entre os empatados
-    $stmt = $pdo->prepare('
-        SELECT id
-        FROM initdraft_pool
-        WHERE season_id = ?
-          AND draft_status = "available"
-          AND ovr = ?
-        AND COALESCE(NULLIF(age, 0), 0) = ?
-    ');
-    $stmt->execute([$seasonId, $maxOvr, $maxAge]);
-    $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    if (!$ids) return null;
-
-    $picked = $ids[random_int(0, count($ids) - 1)];
-    return (int)$picked;
-}
-
-function autoPickIfTimedOut(PDO $pdo, array $session, DateTimeImmutable $now): void {
-    // Sistema antigo (sem relógio): sem auto-pick.
-    return;
 }
 
 function ensureDailyPickWindow(array $session, DateTimeImmutable $now): void {
@@ -359,20 +276,20 @@ function ensureDailyPickWindow(array $session, DateTimeImmutable $now): void {
 
     $dailyRound = computeDailyRoundForDate($session['daily_schedule_start_date'] ?? null, $now);
     if (!$dailyRound) {
-        throw new Exception('Draft ainda não iniciou (aguarde 19:30)');
+        throw new InvalidArgumentException('Draft ainda não iniciou (aguarde 19:30)');
     }
 
     if ($dailyRound > (int)$session['total_rounds']) {
-        throw new Exception('Draft diário já encerrou');
+        throw new InvalidArgumentException('Draft diário já encerrou');
     }
 
     if ((int)($session['current_round'] ?? 1) !== $dailyRound) {
-        throw new Exception('Draft pausado até 19:30 do próximo dia');
+        throw new InvalidArgumentException('Draft pausado até 19:30 do próximo dia');
     }
 
     $openAfter = new DateTimeImmutable($now->format('Y-m-d') . ' 00:01:00', $now->getTimezone());
     if ($now < $openAfter) {
-        throw new Exception('Draft diário inicia às 00:01');
+        throw new InvalidArgumentException('Draft diário inicia às 00:01');
     }
 }
 
@@ -425,17 +342,19 @@ if ($method === 'GET') {
                 $token = $_GET['token'] ?? null;
                 $sessionId = $_GET['id'] ?? null;
 
-                if (!$token && !$sessionId) throw new Exception('token ou id obrigatório');
+                if (!$token && !$sessionId) throw new InvalidArgumentException('token ou id obrigatório');
 
                 if ($token) {
                     $session = getSessionByToken($pdo, $token);
-                } else {
+                } elseif ($isAdmin) {
                     $stmt = $pdo->prepare('SELECT * FROM initdraft_sessions WHERE id = ?');
                     $stmt->execute([$sessionId]);
                     $session = $stmt->fetch(PDO::FETCH_ASSOC);
+                } else {
+                    throw new InvalidArgumentException('Não autorizado');
                 }
 
-                if (!$session) throw new Exception('Sessão não encontrada');
+                if (!$session) throw new InvalidArgumentException('Sessão não encontrada');
 
                 // Aplicar regras do agendamento diário (fallback do cron)
                 $session = applyDailySchedule($pdo, $session);
@@ -525,7 +444,7 @@ if ($method === 'GET') {
 
             case 'session_for_season': {
                 $seasonId = (int)($_GET['season_id'] ?? 0);
-                if (!$seasonId) throw new Exception('season_id obrigatório');
+                if (!$seasonId) throw new InvalidArgumentException('season_id obrigatório');
 
                 $stmt = $pdo->prepare('SELECT * FROM initdraft_sessions WHERE season_id = ? LIMIT 1');
                 $stmt->execute([$seasonId]);
@@ -545,7 +464,7 @@ if ($method === 'GET') {
                     $session = getSessionByToken($pdo, $token);
                 }
 
-                if (!$session) throw new Exception('Sessão não encontrada');
+                if (!$session) throw new InvalidArgumentException('Sessão não encontrada');
 
                 $stmt = $pdo->prepare('SELECT * FROM initdraft_pool WHERE season_id = ? AND draft_status = "available" ORDER BY ovr DESC, name ASC');
                 $stmt->execute([$session['season_id']]);
@@ -556,7 +475,7 @@ if ($method === 'GET') {
             case 'pool': {
                 $token = $_GET['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
-                if (!$session) throw new Exception('Sessão não encontrada');
+                if (!$session) throw new InvalidArgumentException('Sessão não encontrada');
 
                 $stmt = $pdo->prepare('SELECT * FROM initdraft_pool WHERE season_id = ? ORDER BY draft_status ASC, ovr DESC, name ASC');
                 $stmt->execute([$session['season_id']]);
@@ -568,8 +487,12 @@ if ($method === 'GET') {
             default:
                 echo json_encode(['success' => false, 'error' => 'Ação inválida']);
         }
-    } catch (Exception $e) {
+    } catch (InvalidArgumentException $e) {
         http_response_code(400);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    } catch (Throwable $e) {
+        error_log('[api/initdraft.php][GET] ' . $e->getMessage());
+        http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
     }
     exit;
@@ -586,21 +509,21 @@ if ($method === 'POST') {
         switch ($action) {
             // ADMIN: criar sessão de initdraft (gera token único)
             case 'create_session': {
-                if (!$isAdmin) throw new Exception('Apenas administradores');
+                if (!$isAdmin) throw new InvalidArgumentException('Apenas administradores');
 
                 $seasonId = (int)($data['season_id'] ?? 0);
-                if (!$seasonId) throw new Exception('season_id obrigatório');
+                if (!$seasonId) throw new InvalidArgumentException('season_id obrigatório');
 
                 // Buscar liga da temporada
                 $stmtS = $pdo->prepare('SELECT league FROM seasons WHERE id = ?');
                 $stmtS->execute([$seasonId]);
                 $season = $stmtS->fetch(PDO::FETCH_ASSOC);
-                if (!$season) throw new Exception('Temporada não encontrada');
+                if (!$season) throw new InvalidArgumentException('Temporada não encontrada');
 
                 // Verifica se já existe
                 $stmtChk = $pdo->prepare('SELECT id FROM initdraft_sessions WHERE season_id = ?');
                 $stmtChk->execute([$seasonId]);
-                if ($stmtChk->fetch()) throw new Exception('Já existe uma sessão de initdraft para esta temporada');
+                if ($stmtChk->fetch()) throw new InvalidArgumentException('Já existe uma sessão de initdraft para esta temporada');
 
                 $totalRounds = (int)($data['total_rounds'] ?? 5);
                 if ($totalRounds < 1) $totalRounds = 1; if ($totalRounds > 10) $totalRounds = 10;
@@ -613,38 +536,11 @@ if ($method === 'POST') {
                 break;
             }
 
-            // ADMIN/TOKEN: importar jogadores (array de objetos)
-            case 'import_players': {
-                $token = $data['token'] ?? null;
-                $session = getSessionByToken($pdo, $token);
-                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
-
-                $players = $data['players'] ?? [];
-                if (!is_array($players) || count($players) === 0) throw new Exception('Nada para importar');
-
-                // Campos mínimos: name, position, age, ovr
-                $stmt = $pdo->prepare('INSERT INTO initdraft_pool (season_id, name, position, age, ovr) VALUES (?, ?, ?, ?, ?)');
-                $count = 0;
-                foreach ($players as $p) {
-                    $stmt->execute([
-                        $session['season_id'],
-                        $p['name'] ?? '',
-                        $p['position'] ?? 'SF',
-                        (int)($p['age'] ?? 20),
-                        (int)($p['ovr'] ?? 70),
-                    ]);
-                    $count++;
-                }
-
-                echo json_encode(['success' => true, 'imported' => $count]);
-                break;
-            }
-
             // ADMIN/TOKEN: adicionar um jogador manualmente
             case 'add_player': {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
-                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
+                if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
 
                 // Campos mínimos
                 $stmt = $pdo->prepare('INSERT INTO initdraft_pool (season_id, name, position, age, ovr) VALUES (?, ?, ?, ?, ?)');
@@ -662,16 +558,16 @@ if ($method === 'POST') {
             case 'edit_player': {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
-                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
-                if ($session['status'] !== 'setup') throw new Exception('Só é possível editar jogadores durante setup');
+                if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
+                if ($session['status'] !== 'setup') throw new InvalidArgumentException('Só é possível editar jogadores durante setup');
 
                 $playerId = (int)($data['player_id'] ?? 0);
-                if (!$playerId) throw new Exception('player_id obrigatório');
+                if (!$playerId) throw new InvalidArgumentException('player_id obrigatório');
 
                 // Verificar se o jogador existe e não foi draftado
                 $stmt = $pdo->prepare('SELECT id FROM initdraft_pool WHERE id = ? AND season_id = ? AND draft_status = "available"');
                 $stmt->execute([$playerId, $session['season_id']]);
-                if (!$stmt->fetch()) throw new Exception('Jogador não encontrado ou já foi draftado');
+                if (!$stmt->fetch()) throw new InvalidArgumentException('Jogador não encontrado ou já foi draftado');
 
                 // Atualizar dados
                 $stmt = $pdo->prepare('UPDATE initdraft_pool SET name = ?, position = ?, age = ?, ovr = ? WHERE id = ?');
@@ -690,15 +586,15 @@ if ($method === 'POST') {
             case 'delete_player': {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
-                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
-                if ($session['status'] !== 'setup') throw new Exception('Só é possível remover jogadores durante setup');
+                if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
+                if ($session['status'] !== 'setup') throw new InvalidArgumentException('Só é possível remover jogadores durante setup');
 
                 $playerId = (int)($data['player_id'] ?? 0);
-                if (!$playerId) throw new Exception('player_id obrigatório');
+                if (!$playerId) throw new InvalidArgumentException('player_id obrigatório');
 
-                $stmt = $pdo->prepare('SELECT id FROM initdraft_pool WHERE id = ? AND draft_status = "available"');
-                $stmt->execute([$playerId]);
-                if (!$stmt->fetch()) throw new Exception('Jogador não pode ser removido');
+                $stmt = $pdo->prepare('SELECT id FROM initdraft_pool WHERE id = ? AND season_id = ? AND draft_status = "available"');
+                $stmt->execute([$playerId, $session['season_id']]);
+                if (!$stmt->fetch()) throw new InvalidArgumentException('Jogador não pode ser removido');
 
                 $pdo->prepare('DELETE FROM initdraft_pool WHERE id = ?')->execute([$playerId]);
 
@@ -710,16 +606,16 @@ if ($method === 'POST') {
             case 'import_csv': {
                 $token = $_POST['token'] ?? ($data['token'] ?? null);
                 $session = getSessionByToken($pdo, $token);
-                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
+                if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
 
-                if (!isset($_FILES['csv_file'])) throw new Exception('Arquivo CSV obrigatório');
+                if (!isset($_FILES['csv_file'])) throw new InvalidArgumentException('Arquivo CSV obrigatório');
                 $file = $_FILES['csv_file'];
-                if ($file['error'] !== UPLOAD_ERR_OK) throw new Exception('Falha no upload');
+                if ($file['error'] !== UPLOAD_ERR_OK) throw new InvalidArgumentException('Falha no upload');
                 $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-                if ($ext !== 'csv') throw new Exception('Arquivo deve ser CSV');
+                if ($ext !== 'csv') throw new InvalidArgumentException('Arquivo deve ser CSV');
 
                 $handle = fopen($file['tmp_name'], 'r');
-                if (!$handle) throw new Exception('Não foi possível ler o arquivo');
+                if (!$handle) throw new InvalidArgumentException('Não foi possível ler o arquivo');
 
                 // Tenta detectar cabeçalho; aceita colunas: name,position,age,ovr
                 $header = fgetcsv($handle, 1000, ',');
@@ -763,17 +659,17 @@ if ($method === 'POST') {
             case 'randomize_order': {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
-                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
-                if (($session['status'] ?? 'setup') === 'completed') throw new Exception('Draft já finalizado');
+                if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
+                if (($session['status'] ?? 'setup') === 'completed') throw new InvalidArgumentException('Draft já finalizado');
 
                 $hasPicks = hasAnyPickMade($pdo, (int)$session['id']);
-                if ($hasPicks) throw new Exception('Não é possível alterar a ordem após a primeira pick');
+                if ($hasPicks) throw new InvalidArgumentException('Não é possível alterar a ordem após a primeira pick');
 
                 // Buscar times da liga
                 $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name, t.photo_url, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.league = ? ORDER BY t.name ASC');
                 $stmtTeams->execute([$session['league']]);
                 $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
-                if (!$teams) throw new Exception('Sem times na liga');
+                if (!$teams) throw new InvalidArgumentException('Sem times na liga');
 
                 $teamIds = array_column($teams, 'id');
                 shuffle($teamIds);
@@ -801,26 +697,26 @@ if ($method === 'POST') {
             case 'set_manual_order': {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
-                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
-                if (($session['status'] ?? 'setup') === 'completed') throw new Exception('Draft já finalizado');
+                if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
+                if (($session['status'] ?? 'setup') === 'completed') throw new InvalidArgumentException('Draft já finalizado');
 
                 $hasPicks = hasAnyPickMade($pdo, (int)$session['id']);
-                if ($hasPicks) throw new Exception('Não é possível alterar a ordem após a primeira pick');
+                if ($hasPicks) throw new InvalidArgumentException('Não é possível alterar a ordem após a primeira pick');
 
                 $teamIds = $data['team_ids'] ?? [];
-                if (!is_array($teamIds) || count($teamIds) === 0) throw new Exception('Informe a ordem completa dos times');
+                if (!is_array($teamIds) || count($teamIds) === 0) throw new InvalidArgumentException('Informe a ordem completa dos times');
                 $teamIds = array_values(array_map('intval', $teamIds));
 
                 $stmtTeams = $pdo->prepare('SELECT id FROM teams WHERE league = ? ORDER BY id ASC');
                 $stmtTeams->execute([$session['league']]);
                 $leagueTeams = $stmtTeams->fetchAll(PDO::FETCH_COLUMN);
-                if (!$leagueTeams) throw new Exception('Sem times cadastrados para a liga');
+                if (!$leagueTeams) throw new InvalidArgumentException('Sem times cadastrados para a liga');
 
                 sort($leagueTeams);
                 $sortedInput = $teamIds;
                 sort($sortedInput);
                 if ($leagueTeams !== $sortedInput) {
-                    throw new Exception('A ordem precisa incluir todos os times da liga exatamente uma vez');
+                    throw new InvalidArgumentException('A ordem precisa incluir todos os times da liga exatamente uma vez');
                 }
 
                 try {
@@ -839,15 +735,15 @@ if ($method === 'POST') {
             case 'set_total_rounds': {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
-                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
-                if (($session['status'] ?? 'setup') === 'completed') throw new Exception('Draft já finalizado');
+                if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
+                if (($session['status'] ?? 'setup') === 'completed') throw new InvalidArgumentException('Draft já finalizado');
 
                 $hasPicks = hasAnyPickMade($pdo, (int)$session['id']);
-                if ($hasPicks) throw new Exception('Não é possível alterar rodadas após a primeira pick');
+                if ($hasPicks) throw new InvalidArgumentException('Não é possível alterar rodadas após a primeira pick');
 
                 $totalRounds = (int)($data['total_rounds'] ?? 0);
                 if ($totalRounds < 1 || $totalRounds > 10) {
-                    throw new Exception('Informe um número de rodadas entre 1 e 10');
+                    throw new InvalidArgumentException('Informe um número de rodadas entre 1 e 10');
                 }
 
                 // Atualizar total_rounds na sessão
@@ -864,20 +760,20 @@ if ($method === 'POST') {
             case 'set_daily_schedule': {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
-                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
-                if ($session['status'] !== 'setup') throw new Exception('Só é possível configurar o agendamento durante setup');
+                if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
+                if ($session['status'] !== 'setup') throw new InvalidArgumentException('Só é possível configurar o agendamento durante setup');
 
                 ensureDailyScheduleColumns($pdo);
 
                 $enabled = (int)($data['enabled'] ?? 0) === 1 ? 1 : 0;
                 $startDate = trim((string)($data['start_date'] ?? ''));
                 if ($enabled && !$startDate) {
-                    throw new Exception('Informe a data de início');
+                    throw new InvalidArgumentException('Informe a data de início');
                 }
                 if ($startDate) {
                     $dt = DateTimeImmutable::createFromFormat('Y-m-d', $startDate, new DateTimeZone('America/Sao_Paulo'));
                     if (!$dt || $dt->format('Y-m-d') !== $startDate) {
-                        throw new Exception('Data inválida (use YYYY-MM-DD)');
+                        throw new InvalidArgumentException('Data inválida (use YYYY-MM-DD)');
                     }
                 }
 
@@ -904,12 +800,13 @@ if ($method === 'POST') {
             case 'start': {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
-                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
+                if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
+                if (($session['status'] ?? 'setup') === 'completed') throw new InvalidArgumentException('Draft já finalizado — não pode ser reiniciado.');
 
                 // Precisa ter ordem
                 $stmt = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order WHERE initdraft_session_id = ?');
                 $stmt->execute([$session['id']]);
-                if ((int)$stmt->fetchColumn() === 0) throw new Exception('Defina a ordem antes de iniciar');
+                if ((int)$stmt->fetchColumn() === 0) throw new InvalidArgumentException('Defina a ordem antes de iniciar');
 
                 $pdo->prepare('UPDATE initdraft_sessions SET status = "in_progress", started_at = NOW() WHERE id = ?')->execute([$session['id']]);
                 echo json_encode(['success' => true]);
@@ -920,19 +817,19 @@ if ($method === 'POST') {
             case 'react_pick': {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
-                if (!$session) throw new Exception('Sessão inválida');
-                if (!$user || !isset($user['id'])) throw new Exception('Faça login para reagir');
+                if (!$session) throw new InvalidArgumentException('Sessão inválida');
+                if (!$user || !isset($user['id'])) throw new InvalidArgumentException('Faça login para reagir');
 
                 ensureInitDraftReactionsTable($pdo);
                 ensureEmojiBinaryCollation($pdo);
 
                 $pickId = (int)($data['pick_id'] ?? 0);
                 $emoji = trim((string)($data['emoji'] ?? ''));
-                if ($pickId <= 0 || $emoji === '') throw new Exception('pick_id e emoji obrigatórios');
+                if ($pickId <= 0 || $emoji === '') throw new InvalidArgumentException('pick_id e emoji obrigatórios');
                 // Confirma que a pick pertence à sessão
                 $stmtChk = $pdo->prepare('SELECT id FROM initdraft_order WHERE id = ? AND initdraft_session_id = ?');
                 $stmtChk->execute([$pickId, $session['id']]);
-                if (!$stmtChk->fetch()) throw new Exception('Pick inválida');
+                if (!$stmtChk->fetch()) throw new InvalidArgumentException('Pick inválida');
 
                 // Limita tamanho do emoji
                 if (strlen($emoji) > 16) $emoji = substr($emoji, 0, 16);
@@ -952,17 +849,17 @@ if ($method === 'POST') {
             case 'remove_reaction': {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
-                if (!$session) throw new Exception('Sessão inválida');
-                if (!$user || !isset($user['id'])) throw new Exception('Faça login para reagir');
+                if (!$session) throw new InvalidArgumentException('Sessão inválida');
+                if (!$user || !isset($user['id'])) throw new InvalidArgumentException('Faça login para reagir');
 
                 ensureInitDraftReactionsTable($pdo);
                 ensureEmojiBinaryCollation($pdo);
 
                 $pickId = (int)($data['pick_id'] ?? 0);
-                if ($pickId <= 0) throw new Exception('pick_id obrigatório');
+                if ($pickId <= 0) throw new InvalidArgumentException('pick_id obrigatório');
                 $stmtChk = $pdo->prepare('SELECT id FROM initdraft_order WHERE id = ? AND initdraft_session_id = ?');
                 $stmtChk->execute([$pickId, $session['id']]);
-                if (!$stmtChk->fetch()) throw new Exception('Pick inválida');
+                if (!$stmtChk->fetch()) throw new InvalidArgumentException('Pick inválida');
 
                 $pdo->prepare('DELETE FROM initdraft_reactions WHERE initdraft_order_id = ? AND user_id = ?')->execute([$pickId, $user['id']]);
 
@@ -978,7 +875,7 @@ if ($method === 'POST') {
                 $token = $data['token'] ?? null;
                 $playerId = (int)($data['player_id'] ?? 0);
                 $session = getSessionByToken($pdo, $token);
-                if (!$session) throw new Exception('Sessão inválida');
+                if (!$session) throw new InvalidArgumentException('Sessão inválida');
 
                 ensureDailyPickWindow($session, tzNow());
 
@@ -989,11 +886,11 @@ if ($method === 'POST') {
             }
 
             case 'admin_make_pick': {
-                if (!$isAdmin) throw new Exception('Apenas administradores');
+                if (!$isAdmin) throw new InvalidArgumentException('Apenas administradores');
                 $sessionId = (int)($data['session_id'] ?? 0);
                 $playerId = (int)($data['player_id'] ?? 0);
                 $session = getSessionById($pdo, $sessionId);
-                if (!$session) throw new Exception('Sessão inválida');
+                if (!$session) throw new InvalidArgumentException('Sessão inválida');
 
                 ensureDailyPickWindow($session, tzNow());
 
@@ -1005,10 +902,10 @@ if ($method === 'POST') {
 
             // ADMIN: abrir rodada imediatamente (sem aguardar virada do dia)
             case 'admin_open_next_round_now': {
-                if (!$isAdmin) throw new Exception('Apenas administradores');
+                if (!$isAdmin) throw new InvalidArgumentException('Apenas administradores');
                 $sessionId = (int)($data['session_id'] ?? 0);
                 $session = getSessionById($pdo, $sessionId);
-                if (!$session) throw new Exception('Sessão inválida');
+                if (!$session) throw new InvalidArgumentException('Sessão inválida');
 
                 ensureDailyScheduleColumns($pdo);
 
@@ -1074,12 +971,12 @@ if ($method === 'POST') {
             case 'finalize': {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
-                if (!ensureAdminOrToken($session, $token)) throw new Exception('Não autorizado');
+                if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
 
                 // Apenas marca completed se todas picks efetuadas
                 $stmtMissing = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order WHERE initdraft_session_id = ? AND picked_player_id IS NULL');
                 $stmtMissing->execute([$session['id']]);
-                if ((int)$stmtMissing->fetchColumn() > 0) throw new Exception('Ainda existem picks pendentes');
+                if ((int)$stmtMissing->fetchColumn() > 0) throw new InvalidArgumentException('Ainda existem picks pendentes');
 
                 $pdo->prepare('UPDATE initdraft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')->execute([$session['id']]);
                 echo json_encode(['success' => true]);
@@ -1089,8 +986,12 @@ if ($method === 'POST') {
             default:
                 echo json_encode(['success' => false, 'error' => 'Ação inválida']);
         }
-    } catch (Exception $e) {
+    } catch (InvalidArgumentException $e) {
         http_response_code(400);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    } catch (Throwable $e) {
+        error_log('[api/initdraft.php][POST] ' . $e->getMessage());
+        http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
     }
     exit;

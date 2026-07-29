@@ -865,34 +865,46 @@ if ($method === 'DELETE') {
             $league = 'ELITE';
         }
 
-        $seasonInfo = resolveSeasonInfo($pdo, $league);
-        $hasSeasonIdCol = playersColumnExists($pdo, 'free_agents', 'season_id');
-        $hasSeasonYearCol = playersColumnExists($pdo, 'free_agents', 'season_year');
+        // Waiver 12h é exclusivo da ELITE. Nas demais ligas, a dispensa cai
+        // direto no free agency (fluxo antigo).
+        $toWaiver = ($league === 'ELITE');
 
-        $columns = ['name', 'age', 'position', 'secondary_position', 'overall', 'league', 'original_team_id', 'original_team_name'];
-        $values = [
-            $row['name'],
-            $row['age'],
-            $row['position'],
-            $row['secondary_position'] ?? null,
-            $row['ovr'],
-            $league,
-            $row['team_id'],
-            trim(($row['city'] ?? '') . ' ' . ($row['team_name'] ?? '')) ?: null
-        ];
+        if ($toWaiver) {
+            require_once __DIR__ . '/../backend/waivers.php';
+            $stmtFull = $pdo->prepare('SELECT * FROM players WHERE id = ?');
+            $stmtFull->execute([$playerId]);
+            $fullPlayer = $stmtFull->fetch(PDO::FETCH_ASSOC) ?: $row;
+            enterWaiver($pdo, $fullPlayer, $league);
+        } else {
+            $seasonInfo = resolveSeasonInfo($pdo, $league);
+            $hasSeasonIdCol = playersColumnExists($pdo, 'free_agents', 'season_id');
+            $hasSeasonYearCol = playersColumnExists($pdo, 'free_agents', 'season_year');
 
-        if ($hasSeasonIdCol) {
-            $columns[] = 'season_id';
-            $values[] = $seasonInfo['id'];
+            $columns = ['name', 'age', 'position', 'secondary_position', 'overall', 'league', 'original_team_id', 'original_team_name'];
+            $values = [
+                $row['name'],
+                $row['age'],
+                $row['position'],
+                $row['secondary_position'] ?? null,
+                $row['ovr'],
+                $league,
+                $row['team_id'],
+                trim(($row['city'] ?? '') . ' ' . ($row['team_name'] ?? '')) ?: null
+            ];
+
+            if ($hasSeasonIdCol) {
+                $columns[] = 'season_id';
+                $values[] = $seasonInfo['id'];
+            }
+            if ($hasSeasonYearCol) {
+                $columns[] = 'season_year';
+                $values[] = $seasonInfo['year'];
+            }
+
+            $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+            $stmtFA = $pdo->prepare('INSERT INTO free_agents (' . implode(', ', $columns) . ') VALUES (' . $placeholders . ')');
+            $stmtFA->execute($values);
         }
-        if ($hasSeasonYearCol) {
-            $columns[] = 'season_year';
-            $values[] = $seasonInfo['year'];
-        }
-
-        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
-        $stmtFA = $pdo->prepare('INSERT INTO free_agents (' . implode(', ', $columns) . ') VALUES (' . $placeholders . ')');
-        $stmtFA->execute($values);
 
         snapshotTradeItemsForPlayer($pdo, $row);
         $del = $pdo->prepare('DELETE FROM players WHERE id = ?');
@@ -911,7 +923,9 @@ if ($method === 'DELETE') {
     $waiversRemaining = max(0, $MAX_WAIVERS - ($row['waivers_used'] + 1));
 
     jsonResponse(200, [
-        'message' => 'Jogador dispensado e enviado para a Free Agency.',
+        'message' => ($league === 'ELITE')
+            ? ($row['name'] . ' foi para as Dispensas (waiver) — 12h para os times darem lance antes de virar free agent.')
+            : 'Jogador dispensado e enviado para a Free Agency.',
         'cap_top8' => $newCap,
         'waivers_remaining' => $waiversRemaining
     ]);

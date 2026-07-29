@@ -71,6 +71,8 @@ const tradesById = new Map(); // cache seguro de trades por id
 const currentSeasonYear = Number(window.__CURRENT_SEASON_YEAR__ || new Date().getFullYear());
 const tradeEmojiList = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
+const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
 function _fmtTradeDate(createdAt, status) {
   // MySQL retorna "YYYY-MM-DD HH:MM:SS"; Safari exige "T" como separador
   const d = new Date((createdAt || '').replace(' ', 'T'));
@@ -321,7 +323,7 @@ function updateCapImpact() {
   aplicarTrava120();
 }
 
-const getTeamLabel = (team) => team ? `${team.city} ${team.name}` : 'Time';
+const getTeamLabel = (team) => esc(team ? `${team.city} ${team.name}` : 'Time');
 
 const buildTradeReactionBar = (trade, tradeType) => {
   const reactions = Array.isArray(trade.reactions) ? trade.reactions : [];
@@ -438,10 +440,6 @@ const updateMultiItemTeamOptions = () => {
   });
 };
 
-const getMultiAssetCache = (type, teamId) => {
-  return multiTradeState.assets[type][teamId] || [];
-};
-
 const loadMultiAssets = async (teamId, type) => {
   if (!teamId) return [];
   if (multiTradeState.assets[type][teamId]) {
@@ -484,7 +482,7 @@ const updateMultiItemOptions = async (row, keepItemSelection = false) => {
 
   if (type === 'player') {
     itemSelect.innerHTML = '<option value="">Selecione o jogador</option>' + list.map((player) => {
-      return `<option value="${player.id}">${formatTradePlayerDisplay(player)}</option>`;
+      return `<option value="${player.id}">${esc(formatTradePlayerDisplay(player))}</option>`;
     }).join('');
   } else {
     itemSelect.innerHTML = '<option value="">Selecione a pick</option>' + list.map((pick) => {
@@ -1040,7 +1038,7 @@ function renderPlayerOptions(side) {
 
   const selectedIds = playerState[side].selected.map((p) => Number(p.id));
   container.innerHTML = players.map((player) => {
-    const display = formatTradePlayerDisplay(player);
+    const display = esc(formatTradePlayerDisplay(player));
     const isSelected = selectedIds.includes(Number(player.id));
     const disabledAttr = isSelected ? 'disabled' : '';
     const selectedClass = isSelected ? 'is-selected' : '';
@@ -1069,7 +1067,7 @@ function renderSelectedPlayers(side) {
   }
 
   container.innerHTML = selected.map((player) => {
-    const display = formatTradePlayerDisplay(player);
+    const display = esc(formatTradePlayerDisplay(player));
     return `
       <div class="selected-pick-card" data-player-id="${player.id}">
         <div class="selected-pick-info">
@@ -1150,6 +1148,7 @@ function addPickToSelection(side, pickId, fallbackPick = null, shouldRender = tr
     renderPickOptions(side);
     renderSelectedPicks('offer');
     renderSelectedPicks('request');
+    updateCapImpact();
   }
 }
 
@@ -1160,6 +1159,7 @@ function removePickFromSelection(side, pickId) {
   renderPickOptions(side);
   renderSelectedPicks('offer');
   renderSelectedPicks('request');
+  updateCapImpact();
 }
 
 function resetPickSelection(side) {
@@ -1168,6 +1168,7 @@ function resetPickSelection(side) {
   renderPickOptions(side);
   renderSelectedPicks('offer');
   renderSelectedPicks('request');
+  updateCapImpact();
 }
 
 function getPickPayload(side) {
@@ -1183,6 +1184,7 @@ function prefillPickSelections(side, picksFromTrade) {
   if (!Array.isArray(picksFromTrade) || picksFromTrade.length === 0) {
     renderPickOptions(side);
     renderSelectedPicks(side);
+    updateCapImpact();
     return;
   }
   picksFromTrade.forEach((pick) => {
@@ -1190,6 +1192,7 @@ function prefillPickSelections(side, picksFromTrade) {
   });
   renderPickOptions(side);
   renderSelectedPicks(side);
+  updateCapImpact();
 }
 
 
@@ -1213,6 +1216,9 @@ function clearCounterProposalState() {
   const modalEl = document.getElementById('proposeTradeModal');
   if (modalEl && modalEl.dataset.counterTo) {
     delete modalEl.dataset.counterTo;
+  }
+  if (modalEl && modalEl.dataset.modifyFrom) {
+    delete modalEl.dataset.modifyFrom;
   }
   const targetSelect = document.getElementById('targetTeam');
   if (targetSelect) {
@@ -1243,7 +1249,7 @@ function populateLeagueTradesTeamFilter() {
   leagueTeams.forEach((team) => {
     const option = document.createElement('option');
     option.value = String(team.id);
-    option.textContent = getTeamLabel(team);
+    option.textContent = team ? `${team.city} ${team.name}` : 'Time';
     select.appendChild(option);
   });
 
@@ -1378,6 +1384,20 @@ async function init() {
       await openTradeWithPreselectedPlayer(preselectedPlayerId, preselectedTeamId);
     }, 500);
   }
+
+  // Verificar se há pick pré-selecionada na URL (vindo de picks.php)
+  const preselectedPickId = urlParams.get('offer_pick');
+  if (preselectedPickId) {
+    setTimeout(() => {
+      openTradeWithPreselectedPick(preselectedPickId);
+    }, 500);
+  }
+}
+
+function openTradeWithPreselectedPick(pickId) {
+  addPickToSelection('offer', Number(pickId));
+  const modal = new bootstrap.Modal(document.getElementById('proposeTradeModal'));
+  modal.show();
 }
 
 async function openTradeWithPreselectedPlayer(playerId, teamId) {
@@ -1516,6 +1536,7 @@ async function submitTrade() {
   const notes = document.getElementById('tradeNotes').value;
   const modalEl = document.getElementById('proposeTradeModal');
   const counterTo = modalEl && modalEl.dataset.counterTo ? parseInt(modalEl.dataset.counterTo, 10) : null;
+  const modifyFrom = modalEl && modalEl.dataset.modifyFrom ? parseInt(modalEl.dataset.modifyFrom, 10) : null;
   const swapPayload = buildSwapPairsPayload();
   
   // Última barreira: mesmo que o botão escape habilitado, a troca não sai.
@@ -1558,13 +1579,16 @@ async function submitTrade() {
     if (counterTo) {
       payload.counter_to_trade_id = counterTo;
     }
+    if (modifyFrom) {
+      payload.modify_trade_id = modifyFrom;
+    }
 
     await api('trades.php', {
       method: 'POST',
       body: JSON.stringify(payload)
     });
-    
-    alert('Proposta de trade enviada!');
+
+    alert(modifyFrom ? 'Proposta atualizada!' : 'Proposta de trade enviada!');
     bootstrap.Modal.getInstance(document.getElementById('proposeTradeModal')).hide();
     clearCounterProposalState();
     document.getElementById('proposeTradeForm').reset();
@@ -1619,13 +1643,13 @@ function filterLeagueTrades(searchTerm) {
   if (filtered.length === 0) {
     const selectedTeamName = teamFilter?.selectedOptions?.[0]?.textContent || 'time selecionado';
     if (term && selectedTeamId) {
-      container.innerHTML = `<div class="text-center text-light-gray py-4">Nenhuma trade encontrada para ${selectedTeamName} com "${searchTerm}"</div>`;
+      container.innerHTML = `<div class="empty"><i class="bi bi-search"></i><p>Nenhuma trade encontrada para ${esc(selectedTeamName)} com "${esc(searchTerm)}"</p></div>`;
     } else if (selectedTeamId) {
-      container.innerHTML = `<div class="text-center text-light-gray py-4">Nenhuma trade encontrada para ${selectedTeamName}</div>`;
+      container.innerHTML = `<div class="empty"><i class="bi bi-search"></i><p>Nenhuma trade encontrada para ${esc(selectedTeamName)}</p></div>`;
     } else if (term) {
-      container.innerHTML = `<div class="text-center text-light-gray py-4">Nenhuma trade encontrada com "${searchTerm}"</div>`;
+      container.innerHTML = `<div class="empty"><i class="bi bi-search"></i><p>Nenhuma trade encontrada com "${esc(searchTerm)}"</p></div>`;
     } else {
-      container.innerHTML = '<div class="text-center text-light-gray py-4">Nenhuma trade encontrada</div>';
+      container.innerHTML = '<div class="empty"><i class="bi bi-arrow-left-right"></i><p>Nenhuma trade encontrada</p></div>';
     }
     badge.textContent = '0 trocas';
     return;
@@ -1668,7 +1692,7 @@ async function loadTrades(type) {
     }
 
     if (combined.length === 0) {
-      container.innerHTML = '<div class="text-center text-light-gray py-4">Nenhuma trade encontrada</div>';
+      container.innerHTML = '<div class="empty"><i class="bi bi-arrow-left-right"></i><p>Nenhuma trade encontrada</p></div>';
       return;
     }
 
@@ -1678,7 +1702,7 @@ async function loadTrades(type) {
       container.appendChild(card);
     });
   } catch (err) {
-    container.innerHTML = '<div class="text-center text-danger py-4">Erro ao carregar trades</div>';
+    container.innerHTML = '<div class="empty" style="color:#ef4444"><i class="bi bi-exclamation-triangle-fill"></i><p>Erro ao carregar trades</p></div>';
   }
 }
 
@@ -1762,9 +1786,9 @@ function createMultiTradeCard(trade, type) {
         const rows = teamItems.map((item) => {
           let detail = '';
           if (item.player_id || item.player_name) {
-            detail = formatTradePlayerDisplay({ name: item.player_name, position: item.player_position, age: item.player_age, ovr: item.player_ovr });
+            detail = esc(formatTradePlayerDisplay({ name: item.player_name, position: item.player_position, age: item.player_age, ovr: item.player_ovr }));
           } else if (item.pick_id) {
-            detail = formatTradePickDisplay(item);
+            detail = esc(formatTradePickDisplay(item));
           }
           const fromLabel = teamMap[String(item.from_team_id)];
           const fromHtml = fromLabel
@@ -1797,7 +1821,7 @@ function createMultiTradeCard(trade, type) {
     <div class="mb-3 d-flex flex-wrap gap-2">${teamsList || `<span style="color:var(--text-3);font-size:13px">Times</span>`}</div>
     <div>${itemsHtml}</div>
     ${trade.status === 'accepted' ? buildMultiTradeGradeHtml(trade, teamMap) : ''}
-    ${trade.notes ? `<div class="tc-notes"><i class="bi bi-chat-left-text me-2"></i>${trade.notes}</div>` : ''}
+    ${trade.notes ? `<div class="tc-notes"><i class="bi bi-chat-left-text me-2"></i>${esc(trade.notes)}</div>` : ''}
     ${type === 'league' ? `<div class="reaction-bar mt-3">${buildTradeReactionBar(trade, 'multi')}</div>` : ''}
   `;
 
@@ -1923,13 +1947,13 @@ function createTradeCard(trade, type) {
     'countered': '<span class="tag blue">Contraproposta</span>'
   }[trade.status] || '';
 
-  const fromTeam = `${trade.from_city} ${trade.from_name}`;
-  const toTeam   = `${trade.to_city} ${trade.to_name}`;
+  const fromTeam = esc(`${trade.from_city} ${trade.from_name}`);
+  const toTeam   = esc(`${trade.to_city} ${trade.to_name}`);
 
   const responseNotes = trade.response_notes ? `
     <div class="tc-response-notes">
       <div style="font-size:11px;font-weight:600;color:var(--amber);margin-bottom:4px"><i class="bi bi-chat-dots me-1"></i>Resposta:</div>
-      <div style="font-size:13px;color:var(--text-2)">${trade.response_notes}</div>
+      <div style="font-size:13px;color:var(--text-2)">${esc(trade.response_notes)}</div>
     </div>
   ` : '';
 
@@ -1951,23 +1975,23 @@ function createTradeCard(trade, type) {
       <div class="col-md-6">
         <div class="tc-side-title">${fromTeam} oferece</div>
         <ul class="list-unstyled mb-0">
-          ${trade.offer_players.map(p => `<li class="tc-item"><i class="bi bi-person-fill" style="color:var(--red)"></i>${formatTradePlayerDisplay(p)}</li>`).join('')}
-          ${trade.offer_picks.map(p => `<li class="tc-item"><i class="bi bi-trophy-fill" style="color:var(--red)"></i>${formatTradePickDisplay(p)}</li>`).join('')}
+          ${trade.offer_players.map(p => `<li class="tc-item"><i class="bi bi-person-fill" style="color:var(--red)"></i>${esc(formatTradePlayerDisplay(p))}</li>`).join('')}
+          ${trade.offer_picks.map(p => `<li class="tc-item"><i class="bi bi-trophy-fill" style="color:var(--red)"></i>${esc(formatTradePickDisplay(p))}</li>`).join('')}
           ${(trade.offer_players.length === 0 && trade.offer_picks.length === 0) ? '<li style="color:var(--text-3);font-size:13px">Nenhum item</li>' : ''}
         </ul>
       </div>
       <div class="col-md-6">
         <div class="tc-side-title">${toTeam} envia</div>
         <ul class="list-unstyled mb-0">
-          ${trade.request_players.map(p => `<li class="tc-item"><i class="bi bi-person-fill" style="color:var(--red)"></i>${formatTradePlayerDisplay(p)}</li>`).join('')}
-          ${trade.request_picks.map(p => `<li class="tc-item"><i class="bi bi-trophy-fill" style="color:var(--red)"></i>${formatTradePickDisplay(p)}</li>`).join('')}
+          ${trade.request_players.map(p => `<li class="tc-item"><i class="bi bi-person-fill" style="color:var(--red)"></i>${esc(formatTradePlayerDisplay(p))}</li>`).join('')}
+          ${trade.request_picks.map(p => `<li class="tc-item"><i class="bi bi-trophy-fill" style="color:var(--red)"></i>${esc(formatTradePickDisplay(p))}</li>`).join('')}
           ${(trade.request_players.length === 0 && trade.request_picks.length === 0) ? '<li style="color:var(--text-3);font-size:13px">Nenhum item</li>' : ''}
         </ul>
       </div>
     </div>
 
     ${trade.status === 'accepted' ? buildTradeGradeHtml(trade.request_players, trade.offer_players, fromTeam, toTeam) : ''}
-    ${trade.notes ? `<div class="tc-notes"><i class="bi bi-chat-left-text me-2"></i>${trade.notes}</div>` : ''}
+    ${trade.notes ? `<div class="tc-notes"><i class="bi bi-chat-left-text me-2"></i>${esc(trade.notes)}</div>` : ''}
     ${responseNotes}
     ${type === 'league' ? `<div class="reaction-bar mt-3">${buildTradeReactionBar(trade, 'single')}</div>` : ''}
 
@@ -2145,36 +2169,21 @@ async function openModifyTrade(tradeId) {
   const trade = tradesById.get(Number(tradeId));
   if (!trade) { alert('Dados da trade não encontrados. Recarregue a página.'); return; }
 
-  if (!confirm('Para modificar, a proposta atual será cancelada e uma nova será criada. Continuar?')) {
-    return;
-  }
+  // A proposta original só é cancelada no envio (submitTrade), na mesma
+  // transação da nova — fechar o modal sem enviar não perde a original.
+  document.getElementById('targetTeam').value = trade.to_team_id;
+  await onTargetTeamChange({ target: document.getElementById('targetTeam') });
 
-  try {
-    await api('trades.php', {
-      method: 'PUT',
-      body: JSON.stringify({ trade_id: tradeId, action: 'cancelled' })
-    });
+  prefillPlayerSelections('offer', trade.offer_players || []);
+  prefillPlayerSelections('request', trade.request_players || []);
+  prefillPickSelections('offer', trade.offer_picks || []);
+  prefillPickSelections('request', trade.request_picks || []);
 
-    // Recarregar meus assets para refletir possíveis mudanças
-    await loadMyAssets();
+  document.getElementById('tradeNotes').value = trade.notes || '';
 
-    document.getElementById('targetTeam').value = trade.to_team_id;
-    await onTargetTeamChange({ target: document.getElementById('targetTeam') });
-
-    prefillPlayerSelections('offer', trade.offer_players || []);
-    prefillPlayerSelections('request', trade.request_players || []);
-    prefillPickSelections('offer', trade.offer_picks || []);
-    prefillPickSelections('request', trade.request_picks || []);
-
-    document.getElementById('tradeNotes').value = trade.notes || '';
-
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('proposeTradeModal')).show();
-
-    loadTrades('sent');
-    loadTrades('history');
-  } catch (err) {
-    alert(err.error || 'Erro ao modificar trade');
-  }
+  const modalEl = document.getElementById('proposeTradeModal');
+  modalEl.dataset.modifyFrom = tradeId;
+  bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
 
 // Inicializar

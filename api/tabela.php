@@ -84,11 +84,20 @@ $stPos->execute([$seasonId]);
 $lancados = [];
 foreach ($stPos->fetchAll(PDO::FETCH_ASSOC) as $r) $lancados[(int)$r['team_id']] = $r;
 
-// Todos os times da liga, para completar quem não foi lançado
-$stTimes = $pdo->prepare("SELECT id, CONCAT(city,' ',name) AS name, photo_url, conference, user_id
-                          FROM teams WHERE league = ?");
-$stTimes->execute([$league]);
-$times = $stTimes->fetchAll(PDO::FETCH_ASSOC);
+// Times da liga atual, usados só para completar quem ainda não teve a posição
+// lançada. Só faz sentido buscar isso para a temporada em andamento — numa
+// temporada já encerrada a fonte de verdade de quem jogou é o próprio
+// season_standings (via $lancados, seasonId), não a liga atual do time: um
+// time promovido/rebaixado depois não pode sumir da tabela histórica só
+// porque hoje está em outra liga.
+$temporadaEmAndamento = ($season['status'] ?? null) !== 'completed';
+$times = [];
+if ($temporadaEmAndamento) {
+    $stTimes = $pdo->prepare("SELECT id, CONCAT(city,' ',name) AS name, photo_url, conference, user_id
+                              FROM teams WHERE league = ?");
+    $stTimes->execute([$league]);
+    $times = $stTimes->fetchAll(PDO::FETCH_ASSOC);
+}
 
 /**
  * Embaralhamento estável: o mesmo time cai sempre no mesmo lugar dentro da
@@ -106,27 +115,29 @@ function ordemEstavel(array $lista, int $semente): array {
 
 $conferencias = [];
 foreach (['LESTE', 'OESTE'] as $conf) {
-    $daConf = array_values(array_filter($times, fn($t) => strtoupper((string)$t['conference']) === $conf));
-
+    // Fonte de verdade de quem jogou a temporada: season_standings (via
+    // $lancados, já filtrado por season_id), não a liga atual do time.
     $comPos = [];
-    $semPos = [];
-    foreach ($daConf as $t) {
-        $id = (int)$t['id'];
-        if (isset($lancados[$id]) && (int)$lancados[$id]['position'] > 0) {
-            $comPos[] = [
-                'team_id' => $id, 'name' => $lancados[$id]['name'],
-                'photo_url' => $lancados[$id]['photo_url'], 'position' => (int)$lancados[$id]['position'],
-                'wins' => (int)$lancados[$id]['wins'], 'losses' => (int)$lancados[$id]['losses'],
-                'informado' => true, 'user_id' => $t['user_id'],
-            ];
-        } else {
-            $semPos[] = $t;
-        }
+    foreach ($lancados as $id => $r) {
+        if (strtoupper((string)$r['conference']) !== $conf) continue;
+        if ((int)$r['position'] <= 0) continue;
+        $comPos[] = [
+            'team_id' => $id, 'name' => $r['name'], 'photo_url' => $r['photo_url'],
+            'position' => (int)$r['position'], 'wins' => (int)$r['wins'], 'losses' => (int)$r['losses'],
+            'informado' => true, 'user_id' => $r['user_id'],
+        ];
     }
     usort($comPos, fn($a, $b) => $a['position'] <=> $b['position']);
 
     // Quem não foi lançado entra depois, em ordem estável — é o caso de só as
-    // 8 primeiras posições terem sido informadas.
+    // 8 primeiras posições terem sido informadas. Só se aplica à temporada em
+    // andamento ($times fica vazio numa temporada já encerrada).
+    $semPos = array_values(array_filter($times, function ($t) use ($conf, $lancados) {
+        if (strtoupper((string)$t['conference']) !== $conf) return false;
+        $id = (int)$t['id'];
+        return !(isset($lancados[$id]) && (int)$lancados[$id]['position'] > 0);
+    }));
+
     $ocupadas = array_column($comPos, 'position');
     $proxima = 1;
     foreach (ordemEstavel($semPos, $seasonId) as $t) {
@@ -163,5 +174,4 @@ echo json_encode([
     'season'      => $season,
     'conferences' => $conferencias,
     'playoffs'    => $playoffs,
-    'tem_posicoes'=> count($lancados) > 0,
 ]);

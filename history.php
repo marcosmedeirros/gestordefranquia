@@ -17,7 +17,6 @@ if (!$team) {
 }
 
 $userLeague = $team['league'];
-$isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
 $currentSeason = null;
 try {
@@ -196,9 +195,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .season-head-left { display: flex; align-items: center; gap: 12px; }
     .season-icon { width: 36px; height: 36px; border-radius: 9px; background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.2); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
     .season-title { font-size: 15px; font-weight: 700; }
-    .season-sub { font-size: 11px; color: var(--text-2); margin-top: 2px; }
-    .season-year-badge { display: inline-flex; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--red-soft); color: var(--red); border: 1px solid var(--border-red); }
-
     .season-body { padding: 18px 20px; }
 
     /* ── Awards grid ─────────────────────────────── */
@@ -281,9 +277,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .state-empty i { font-size: 36px; display: block; margin-bottom: 12px; }
     .state-empty p { font-size: 13px; max-width: 320px; margin: 0 auto; }
 
-    .spinner { width: 28px; height: 28px; border: 3px solid var(--border-md); border-top-color: var(--red); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
     /* ── Skeleton loaders ────────────────────────── */
     .sk { background: linear-gradient(90deg, var(--panel-2) 25%, var(--panel-3) 50%, var(--panel-2) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: 8px; }
     @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
@@ -316,16 +309,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       .season-body { padding: 14px 16px; }
       .season-foot { padding: 10px 16px; }
     }
-    /* classes usadas pelo history.js */
-    .text-orange       { color: var(--red) !important; }
-    .bg-dark-secondary { background: var(--panel-2); }
-    .btn-outline-orange {
-      border: 1px solid var(--red); color: var(--red);
-      background: transparent; border-radius: 8px; font-size: .82rem;
-      padding: 4px 12px; font-family: var(--font); cursor: pointer;
-      transition: background .15s, color .15s;
-    }
-    .btn-outline-orange:hover { background: var(--red-soft); }
   <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>

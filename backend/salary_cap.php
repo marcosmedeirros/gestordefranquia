@@ -17,7 +17,7 @@
 const CAP_BASE_MILLIONS = 205;
 const CAP_FLOOR_MILLIONS = 170;
 // Quantos jogadores do elenco podem gerar Cap Flex ao mesmo tempo.
-const CAP_FLEX_MAX_PLAYERS = 3;
+const CAP_FLEX_MAX_PLAYERS = 2;
 // Numa troca, o time sem espaco no teto so pode receber ate esta % do que envia.
 const CAP_TRADE_MATCH_PCT = 120;
 
@@ -93,11 +93,11 @@ function getPlayerCapFlex(array $player): int
 }
 
 /**
- * Tabela de bônus por prêmio individual (em milhões). Só os prêmios abaixo têm
- * fonte de dados hoje (season_awards, preenchida pelo card "Posições" / Registro
- * de Pontuação). Finais MVP, All-NBA e All-Defensivo estão documentados na
- * especificação original mas não têm nenhum formulário de registro no sistema
- * ainda — não é possível calcular esses bônus até essa tela existir.
+ * Tabela de bônus por prêmio individual (em milhões), conforme o deck FBA Elite 15.
+ * Todos são lidos de season_awards por award_type e valem só pela temporada
+ * seguinte ao prêmio (bônus temporário — ver getAwardBonusesByPlayerName).
+ * Cadastro: prêmios simples no "Registro de Pontuação"; Finals MVP / All-NBA /
+ * All-Defensive na tela de prêmios estendidos (admin).
  */
 function capAwardBonusTable(): array
 {
@@ -107,6 +107,10 @@ function capAwardBonusTable(): array
         'roy' => 2,
         'mip' => 2,
         '6th_man' => 2,
+        'finals_mvp' => 3,
+        // All-NBA (1º/2º/3º time) e All-Defensive (1º/2º time). Cada time premia 5 jogadores.
+        'all_nba_1' => 3, 'all_nba_2' => 2, 'all_nba_3' => 1,
+        'all_def_1' => 2, 'all_def_2' => 1,
     ];
 }
 

@@ -174,11 +174,14 @@ foreach ($teams as &$t) {
 unset($t);
 
 $totalCapTop8 = 0;
+$totalPayroll = 0;
 foreach ($teams as $t) {
     $totalCapTop8 += (int)($t['cap_top8'] ?? 0);
+    $totalPayroll += (int)($t['salary_payroll'] ?? 0);
 }
 $teamsCount = count($teams);
 $averageCapTop8 = $teamsCount > 0 ? round($totalCapTop8 / $teamsCount, 1) : 0;
+$averagePayroll = $teamsCount > 0 ? round($totalPayroll / $teamsCount, 1) : 0;
 
 $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas franquias na FBA?');
 
@@ -285,7 +288,7 @@ function getSerasaScore(int $avisos): array {
             scrollbar-width: none;
             transition: transform var(--t) var(--ease);
         }
-        .sidebar-brand, .sb-brand {
+        .sb-brand {
             padding: 24px 20px 20px;
             border-bottom: 1px solid var(--border);
             display: flex;
@@ -293,7 +296,7 @@ function getSerasaScore(int $avisos): array {
             gap: 12px;
         }
 
-        .sidebar-logo, .sb-logo {
+        .sb-logo {
             width: 36px; height: 36px;
             border-radius: 10px;
             background: var(--red);
@@ -306,14 +309,14 @@ function getSerasaScore(int $avisos): array {
             flex-shrink: 0;
         }
 
-        .sidebar-brand-text, .sb-brand-text {
+        .sb-brand-text {
             font-family: var(--font-display);
             font-weight: 800;
             font-size: 16px;
             color: var(--text);
             line-height: 1.1;
         }
-        .sidebar-brand-text span, .sb-brand-text span {
+        .sb-brand-text span {
             display: block;
             font-size: 11px;
             font-weight: 400;
@@ -322,7 +325,7 @@ function getSerasaScore(int $avisos): array {
         }
 
         /* My Team card in sidebar */
-        .sidebar-myteam, .sb-team {
+        .sb-team {
             margin: 16px 14px;
             background: var(--panel-2);
             border: 1px solid var(--border);
@@ -332,18 +335,18 @@ function getSerasaScore(int $avisos): array {
             align-items: center;
             gap: 10px;
         }
-        .sidebar-myteam img, .sb-team img {
+        .sb-team img {
             width: 38px; height: 38px;
             border-radius: 8px;
             object-fit: cover;
             border: 1px solid var(--border-strong);
             flex-shrink: 0;
         }
-        .sidebar-myteam-info, .sb-team-info {
+        .sb-team-info {
             flex: 1;
             min-width: 0;
         }
-        .sidebar-myteam-name, .sb-team-name {
+        .sb-team-name {
             font-weight: 600;
             font-size: 13px;
             color: var(--text);
@@ -351,21 +354,21 @@ function getSerasaScore(int $avisos): array {
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .sidebar-myteam-sub, .sb-team-league {
+        .sb-team-league {
             font-size: 11px;
             color: var(--text-2);
         }
 
         /* Nav */
-        .sidebar-nav, .sb-nav {
+        .sb-nav {
             flex: 1;
             overflow-y: auto;
             padding: 8px 10px;
             scrollbar-width: none;
         }
-        .sidebar-nav::-webkit-scrollbar, .sb-nav::-webkit-scrollbar { display: none; }
+        .sb-nav::-webkit-scrollbar { display: none; }
 
-        .sidebar-nav-label, .sb-section {
+        .sb-section {
             font-size: 10px;
             font-weight: 600;
             letter-spacing: 1.2px;
@@ -374,7 +377,7 @@ function getSerasaScore(int $avisos): array {
             padding: 12px 10px 6px;
         }
 
-        .sidebar-nav a, .sb-nav a { font-family:'Inter',sans-serif;
+        .sb-nav a { font-family:'Inter',sans-serif;
             display: flex;
             align-items: center;
             gap: 10px;
@@ -387,31 +390,31 @@ function getSerasaScore(int $avisos): array {
             transition: all var(--t) var(--ease);
             margin-bottom: 2px;
         }
-        .sidebar-nav a i, .sb-nav a i {
+        .sb-nav a i {
             font-size: 16px;
             width: 20px;
             text-align: center;
             flex-shrink: 0;
         }
-        .sidebar-nav a:hover, .sb-nav a:hover {
+        .sb-nav a:hover {
             background: var(--panel-2);
             color: var(--text);
         }
-        .sidebar-nav a.active, .sb-nav a.active {
+        .sb-nav a.active {
             background: var(--red-soft);
             color: var(--red);
             font-weight: 600;
         }
-        .sidebar-nav a.active i, .sb-nav a.active i { color: var(--red); }
+        .sb-nav a.active i { color: var(--red); }
 
-        .sidebar-footer, .sb-footer {
+        .sb-footer {
             padding: 14px;
             border-top: 1px solid var(--border);
             display: flex;
             align-items: center;
             gap: 10px;
         }
-        .sidebar-theme-toggle, .sb-theme-toggle {
+        .sb-theme-toggle {
             margin: 0 14px 12px;
             padding: 8px 10px;
             border-radius: 10px;
@@ -423,18 +426,18 @@ function getSerasaScore(int $avisos): array {
             cursor: pointer;
             transition: all var(--t) var(--ease);
         }
-        .sidebar-theme-toggle:hover, .sb-theme-toggle:hover {
+        .sb-theme-toggle:hover {
             border-color: var(--border-red);
             color: var(--red);
         }
-        .sidebar-user-avatar, .sb-avatar {
+        .sb-avatar {
             width: 32px; height: 32px;
             border-radius: 50%;
             object-fit: cover;
             border: 1px solid var(--border-strong);
             flex-shrink: 0;
         }
-        .sidebar-user-name, .sb-username {
+        .sb-username {
             font-size: 13px;
             font-weight: 500;
             color: var(--text);
@@ -444,7 +447,7 @@ function getSerasaScore(int $avisos): array {
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .sidebar-logout, .sb-logout {
+        .sb-logout {
             width: 28px; height: 28px;
             border-radius: 8px;
             background: transparent;
@@ -457,7 +460,7 @@ function getSerasaScore(int $avisos): array {
             text-decoration: none;
             flex-shrink: 0;
         }
-        .sidebar-logout:hover, .sb-logout:hover {
+        .sb-logout:hover {
             background: var(--red-soft);
             border-color: var(--red);
             color: var(--red);
@@ -476,15 +479,15 @@ function getSerasaScore(int $avisos): array {
             gap: 12px;
             z-index: 199;
         }
-        .topbar-brand, .topbar-title {
+        .topbar-title {
             font-family: var(--font-display);
             font-weight: 800;
             font-size: 16px;
             color: var(--text);
             flex: 1;
         }
-        .topbar-brand em, .topbar-title em { color: var(--red); font-style: normal; }
-        .topbar-menu-btn, .menu-btn {
+        .topbar-title em { color: var(--red); font-style: normal; }
+        .menu-btn {
             width: 36px; height: 36px;
             border-radius: 10px;
             background: var(--panel-2);
@@ -496,7 +499,7 @@ function getSerasaScore(int $avisos): array {
         }
 
         /* Overlay */
-        .sidebar-overlay, .sb-overlay {
+        .sb-overlay {
             display: none;
             position: fixed;
             inset: 0;
@@ -504,7 +507,7 @@ function getSerasaScore(int $avisos): array {
             backdrop-filter: blur(4px);
             z-index: 250;
         }
-        .sidebar-overlay.active, .sb-overlay.show { display: block; }
+        .sb-overlay.show { display: block; }
 
         .sb-season {
             margin: 0 14px 8px;
@@ -560,7 +563,7 @@ function getSerasaScore(int $avisos): array {
 
         .page-title {
             font-family: var(--font-display);
-            font-size: 28px;
+            font-size: 26px;
             font-weight: 800;
             color: var(--text);
             line-height: 1.1;
@@ -568,50 +571,8 @@ function getSerasaScore(int $avisos): array {
 
         .page-sub {
             font-size: 13px;
-            color: var(--text);
-            margin-top: 4px;
-        }
-
-        /* ── Stats Strip ───────────────────────────────── */
-        .stats-strip {
-            display: flex;
-            gap: 12px;
-            padding: 24px 32px 0;
-            flex-wrap: wrap;
-        }
-
-        .stat-pill {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 12px 18px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .stat-pill-icon {
-            width: 32px; height: 32px;
-            border-radius: 8px;
-            background: var(--red-soft);
-            display: flex; align-items: center; justify-content: center;
-            color: var(--red);
-            font-size: 14px;
-            flex-shrink: 0;
-        }
-
-        .stat-pill-val {
-            font-family: var(--font-display);
-            font-weight: 700;
-            font-size: 17px;
-            color: var(--text);
-            line-height: 1;
-        }
-
-        .stat-pill-label {
-            font-size: 11px;
             color: var(--text-2);
-            margin-top: 2px;
+            margin-top: 4px;
         }
 
         /* ── Search + Controls ─────────────────────────── */
@@ -722,6 +683,7 @@ function getSerasaScore(int $avisos): array {
             position: relative;
             cursor: default;
         }
+        .team-card-mine { border-color: var(--border-red); box-shadow: 0 0 0 1px var(--border-red); }
 
         .team-card::before {
             content: '';
@@ -1134,7 +1096,7 @@ function getSerasaScore(int $avisos): array {
             .sidebar.open { transform: translateX(0); }
             .main { margin-left: 0; width: 100%; padding-top: 54px; }
             .topbar { display: flex; }
-            .page-top, .stats-strip, .controls, .content-area { padding-left: 16px; padding-right: 16px; }
+            .page-top, .controls, .content-area { padding-left: 16px; padding-right: 16px; }
             .footer-strip { margin: 0 16px 24px; }
             .teams-grid { grid-template-columns: 1fr; }
             .list-header, .list-row {
@@ -1296,8 +1258,9 @@ function getSerasaScore(int $avisos): array {
                     $salColor   = $salStatus === 'over_the_cap' ? '#ef4444' : ($salStatus === 'abaixo_do_piso' ? '#f59e0b' : '#22c55e');
                     $sortCapVal = $salaryCapMode ? $salPayroll : (int)$t['cap_top8'];
                     $searchKey = strtolower(($t['city'] ?? '') . ' ' . ($t['name'] ?? '') . ' ' . ($t['owner_name'] ?? ''));
+                    $isMyTeam = $team && (int)$t['id'] === (int)$team['id'];
                 ?>
-                <div class="team-card" data-search="<?= htmlspecialchars($searchKey) ?>" data-cap="<?= $sortCapVal ?>" data-conf="<?= htmlspecialchars($t['conference'] ?? '') ?>" style="animation-delay:<?= $i * 0.04 ?>s">
+                <div class="team-card<?= $isMyTeam ? ' team-card-mine' : '' ?>" data-search="<?= htmlspecialchars($searchKey) ?>" data-cap="<?= $sortCapVal ?>" data-conf="<?= htmlspecialchars($t['conference'] ?? '') ?>" style="animation-delay:<?= $i * 0.04 ?>s">
                     <?php
                         $rua = $t['roster_updated_at'] ?? null;
                         $rosterOk = $rua && (!$seasonCreatedAt || strtotime($rua) >= strtotime($seasonCreatedAt));
@@ -1456,8 +1419,9 @@ function getSerasaScore(int $avisos): array {
                     $salStatusL  = $t['salary_status'] ?? 'dentro_do_cap';
                     $salColorL   = $salStatusL === 'over_the_cap' ? '#ef4444' : ($salStatusL === 'abaixo_do_piso' ? '#f59e0b' : '#22c55e');
                     $sortCapValL = $salaryCapMode ? $salPayrollL : (int)$t['cap_top8'];
+                    $isMyTeamL = $team && (int)$t['id'] === (int)$team['id'];
                 ?>
-                <div class="list-row" data-search="<?= htmlspecialchars($searchKey) ?>" data-cap="<?= $sortCapValL ?>" data-conf="<?= htmlspecialchars($t['conference'] ?? '') ?>" style="animation-delay:<?= $i * 0.02 ?>s">
+                <div class="list-row<?= $isMyTeamL ? ' team-card-mine' : '' ?>" data-search="<?= htmlspecialchars($searchKey) ?>" data-cap="<?= $sortCapValL ?>" data-conf="<?= htmlspecialchars($t['conference'] ?? '') ?>" style="animation-delay:<?= $i * 0.02 ?>s">
                     <div class="list-team-cell">
                         <img class="list-team-logo"
                              src="<?= htmlspecialchars(getTeamPhoto($t['photo_url'] ?? null)) ?>"
@@ -1551,9 +1515,15 @@ function getSerasaScore(int $avisos): array {
 
         <!-- Footer strip -->
         <div class="footer-strip">
+            <?php if ($salaryCapMode): ?>
+            <div class="footer-stat"><strong>Folha Total:</strong> <?= number_format($totalPayroll, 0, ',', '.') ?>M</div>
+            <div class="footer-stat"><strong>Média por time:</strong> <?= number_format($averagePayroll, 1, ',', '.') ?>M</div>
+            <div class="footer-stat"><strong>Base do Cap:</strong> <?= CAP_BASE_MILLIONS ?>M</div>
+            <?php else: ?>
             <div class="footer-stat"><strong>CAP Total:</strong> <?= number_format($totalCapTop8, 0, ',', '.') ?></div>
             <div class="footer-stat"><strong>Média por time:</strong> <?= number_format($averageCapTop8, 1, ',', '.') ?></div>
             <div class="footer-stat"><strong>Faixa de CAP:</strong> <?= $capMin ?> – <?= $capMax ?></div>
+            <?php endif; ?>
             <div class="footer-stat"><strong>Trades por temporada:</strong> <?= $maxTrades ?></div>
         </div>
 
@@ -1561,39 +1531,6 @@ function getSerasaScore(int $avisos): array {
 </div>
 
 <!-- ═══ MODAIS ══════════════════════════════════════════════ -->
-
-<!-- Modal Jogadores -->
-<div class="modal fade" id="playersModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalTitle"></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div id="loading" class="text-center py-4">
-                    <div class="spinner-border text-red" role="status"></div>
-                </div>
-                <div id="content" style="display:none">
-                    <div class="table-responsive">
-                        <table class="table table-dark mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Jogador</th>
-                                    <th>OVR</th>
-                                    <th>Idade</th>
-                                    <th>Posição</th>
-                                    <th>Função</th>
-                                </tr>
-                            </thead>
-                            <tbody id="playersList"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- Modal Picks -->
 <div class="modal fade" id="picksModal" tabindex="-1">
@@ -1834,68 +1771,6 @@ function getSerasaScore(int $avisos): array {
     });
     sortByCap(); // default sort on load
 
-    /* ── Ver Jogadores ──────────────────────────────── */
-    async function verJogadores(teamId, teamName) {
-        const titleEl   = document.getElementById('modalTitle');
-        const loadingEl = document.getElementById('loading');
-        const contentEl = document.getElementById('content');
-        const tbody     = document.getElementById('playersList');
-
-        titleEl.textContent = 'Elenco: ' + teamName;
-        loadingEl.style.display = 'block';
-        loadingEl.innerHTML = '<div class="spinner-border text-red" role="status"></div>';
-        contentEl.style.display = 'none';
-
-        new bootstrap.Modal(document.getElementById('playersModal')).show();
-        try {
-            const data = await fetch(`/api/team-players.php?team_id=${teamId}`).then(r => r.json());
-            if (!data.success || !Array.isArray(data.players)) throw new Error();
-            tbody.innerHTML = '';
-            if (!data.players.length) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center" style="color:var(--text-2)">Nenhum jogador</td></tr>';
-            } else {
-                const posOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
-                const starters = [];
-                const others = [];
-                data.players.forEach((p) => {
-                    if (String(p.role || '').toLowerCase() === 'titular') {
-                        starters.push(p);
-                    } else {
-                        others.push(p);
-                    }
-                });
-                starters.sort((a, b) => {
-                    const aPos = posOrder[String(a.position || '').toUpperCase()] ?? 99;
-                    const bPos = posOrder[String(b.position || '').toUpperCase()] ?? 99;
-                    if (aPos !== bPos) return aPos - bPos;
-                    return String(a.name || '').localeCompare(String(b.name || ''));
-                });
-                const sortedPlayers = starters.concat(others);
-                sortedPlayers.forEach(p => {
-                    const photo = (p.foto_adicional || '').trim()
-                        || (p.nba_player_id ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png`
-                            : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=1f1f23&color=${_avatarColorHex()}&rounded=true&bold=true`);
-                    const tagHtml = p.player_tag ? (() => { const c = p.player_tag_color || '#3b82f6'; return `<span style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:700;border:1px solid ${c}55;background:${c}18;color:${c};margin-left:6px;">${p.player_tag}</span>`; })() : '';
-                    tbody.innerHTML += `<tr>
-                        <td><div style="display:flex;align-items:center;gap:10px">
-                            <img src="${photo}" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--border-strong)"
-                                 onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=1f1f23&color=${_avatarColorHex()}&rounded=true&bold=true'">
-                            <strong>${p.name}</strong>${tagHtml}
-                        </div></td>
-                        <td><span class="badge-pill yellow">${p.ovr}</span></td>
-                        <td>${p.age}</td>
-                        <td>${p.position}</td>
-                        <td>${p.role}</td>
-                    </tr>`;
-                });
-            }
-            loadingEl.style.display = 'none';
-            contentEl.style.display = 'block';
-        } catch {
-            loadingEl.innerHTML = '<div style="color:#ef4444;text-align:center">Erro ao carregar jogadores</div>';
-        }
-    }
-
     /* ── Ver Picks ──────────────────────────────────── */
     async function verPicks(teamId, teamName) {
         const titleEl    = document.getElementById('picksModalTitle');
@@ -1915,7 +1790,7 @@ function getSerasaScore(int $avisos): array {
             const data = await fetch(`/api/picks.php?team_id=${teamId}&include_away=1`).then(r => r.json());
             if (data.error) throw new Error(data.error);
 
-            const baseYear = (Number(currentSeasonYear) || 0) + 1;
+            const baseYear = Number(currentSeasonYear) || 0;
             let picks = (data.picks || []).filter(pk => Number(pk.season_year) >= baseYear)
                                           .sort((a,b) => Number(a.season_year)-Number(b.season_year) || Number(a.round)-Number(b.round));
 
@@ -2020,7 +1895,7 @@ function getSerasaScore(int $avisos): array {
             if (!teamInfo) throw new Error('Time não encontrado');
 
             const roster = playersData.players || [];
-            let picks = (picksData.picks || []).filter(pk => Number(pk.season_year) > Number(currentSeasonYear));
+            let picks = (picksData.picks || []).filter(pk => Number(pk.season_year) >= Number(currentSeasonYear));
 
             const positions = ['PG','SG','SF','PF','C'];
             const startersMap = {};
@@ -2211,7 +2086,7 @@ function getSerasaScore(int $avisos): array {
             content.innerHTML = `
                 <div style="padding:18px 20px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
                     <img src="${logoSrc}" alt="logo" onerror="this.src='/img/default-team.png'"
-                         style="width:60px;height:60px;border-radius:10px;object-fit:cover;border:2px solid var(--border-md);flex-shrink:0">
+                         style="width:60px;height:60px;border-radius:10px;object-fit:cover;border:2px solid var(--border-strong);flex-shrink:0">
                     <div style="flex:1;min-width:0">
                         <div style="font-size:10px;color:var(--red);font-weight:700;text-transform:uppercase;letter-spacing:1px">${team.league||''}${team.conference ? ' · '+team.conference : ''}</div>
                         <div style="font-size:17px;font-weight:800;line-height:1.2">${team.city||''} ${team.name||''}</div>

@@ -110,6 +110,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			   nenhuma linha ficava verde. */
 			--green: #22c55e;
 			--amber: #f59e0b;
+			--blue: #3b82f6;
 			--sidebar-w: 260px;
 			--font-display: 'Montserrat', sans-serif;
 			--font-body: 'Montserrat', sans-serif;
@@ -283,9 +284,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		}
 
 		.page-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
-		.page-eyebrow { font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; }
-		.page-title { font-size: 32px; font-family: var(--font-display); margin-bottom: 6px; }
-		.page-sub { color: var(--text); font-size: 14px; }
+		.page-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
+		.page-title { font-size: 26px; font-weight: 800; line-height: 1.1; font-family: var(--font-display); margin-bottom: 6px; }
+		.page-sub { color: var(--text-2); font-size: 13px; margin-top: 4px; }
 
 		.stats-strip { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; margin-bottom: 26px; }
 		.stat-pill {
@@ -351,35 +352,17 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			display: inline-flex; align-items: center; justify-content: center;
 			padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
 		}
-		.ovr-high { background: rgba(37,198,119,.18); color: #25c677; }
-		.ovr-mid { background: rgba(33,133,208,.18); color: #2196f3; }
-		.ovr-low { background: rgba(255,193,7,.18); color: #ffc107; }
+		.ovr-high { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+		.ovr-mid { background: color-mix(in srgb, var(--blue) 18%, transparent); color: var(--blue); }
+		.ovr-low { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
 		.ovr-base { background: rgba(130,130,138,.18); color: #9aa0ac; }
 		.franchise-player-row { background: rgba(245,158,11,.07) !important; border-left: 3px solid rgba(245,158,11,.45); }
-		.franchise-player-card { border-color: rgba(245,158,11,.4) !important; background: rgba(245,158,11,.05) !important; }
 		.loyal-player-row { background: rgba(6,182,212,.06) !important; border-left: 3px solid rgba(6,182,212,.45); }
-		.loyal-player-card { border-color: rgba(6,182,212,.4) !important; background: rgba(6,182,212,.05) !important; }
 		.badge-franchise { display:inline-flex; align-items:center; gap:4px; background:rgba(245,158,11,.15); color:#f59e0b; border:1px solid rgba(245,158,11,.35); border-radius:999px; font-size:10px; font-weight:700; padding:2px 8px; margin-left:4px; }
 
 		.players-cards {
 			display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;
 		}
-		.player-card {
-			background: var(--panel-2);
-			border: 1px solid var(--border);
-			border-radius: var(--radius-sm);
-			padding: 14px;
-			display: flex; flex-direction: column; gap: 12px;
-		}
-		.player-card-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-		.player-card-header img { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border); object-fit: cover; }
-		.player-card-name { font-weight: 700; }
-		.player-card-team { color: var(--text-2); font-size: 12px; }
-		.player-card-body { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
-		.player-card-stat { font-size: 12px; color: var(--text-2); }
-		.player-card-stat strong { display: block; color: var(--text); font-size: 13px; }
-		.player-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-		.player-card-actions .btn { flex: 1 1 120px; }
 
 		.btn-outline {
 			border: 1px solid var(--border);
@@ -390,9 +373,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			font-size: 12px;
 			font-weight: 600;
 		}
-		.btn-outline.success { border-color: rgba(37,198,119,.4); color: #25c677; }
-		.btn-outline.info { border-color: rgba(33,133,208,.4); color: #3da0ff; }
-		.btn-outline.warning { border-color: rgba(255,193,7,.5); color: #ffc107; }
+		.btn-outline.success { border-color: color-mix(in srgb, var(--green) 40%, transparent); color: var(--green); }
+		.btn-outline.info { border-color: color-mix(in srgb, var(--blue) 40%, transparent); color: var(--blue); }
+		.btn-outline.warning { border-color: color-mix(in srgb, var(--amber) 50%, transparent); color: var(--amber); }
 
 		.btn-trade-action {
 			background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
@@ -405,7 +388,9 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		}
 
 		.text-light-gray { color: var(--text-2); }
-		.empty-state { text-align: center; color: var(--text-2); padding: 30px 0; }
+		.empty-state { text-align: center; color: var(--text-3); padding: 24px 16px; }
+		.empty-state i { font-size: 28px; display: block; margin-bottom: 8px; }
+		.empty-state p { font-size: 12px; margin: 0; }
 
 		.pagination-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 16px; }
 		.pagination-bar .btn-outline { padding: 6px 12px; }
@@ -667,7 +652,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 				</table>
 			</div>
 			<div id="playersCardsWrap" class="players-cards" style="display:none;"></div>
-			<div id="playersEmpty" class="empty-state" style="display:none;">Nenhum jogador encontrado.</div>
+			<div id="playersEmpty" class="empty-state" style="display:none;"><i class="bi bi-search"></i><p>Nenhum jogador encontrado.</p></div>
 			<div id="playersPagination" class="pagination-bar" style="display:none;">
 				<div class="text-light-gray" id="playersPaginationInfo"></div>
 				<div class="d-flex gap-2">
@@ -684,6 +669,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		<div class="modal-content">
 			<div class="modal-header">
 				<h5 class="modal-title" id="playerDetailsTitle">Detalhes do Jogador</h5>
+				<a href="#" id="playerDetailsFullLink" class="btn-outline info" style="margin-left:auto;margin-right:12px;text-decoration:none;font-size:12px;padding:6px 12px;" title="Ver perfil completo"><i class="bi bi-arrow-up-right-square me-1"></i>Perfil completo</a>
 				<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
 			</div>
 			<div class="modal-body p-0" id="playerDetailsContent"></div>
@@ -838,8 +824,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		} else {
 			if (compareSel.length >= 2) { alert('Você já selecionou 2 jogadores. Remova um para trocar.'); return; }
 			// pegar nome/ovr do DOM
-			const row = btn.closest('tr, .mpl-item, .player-card');
-			const name = row ? (row.querySelector('strong, .mpl-name, .player-card-name')?.textContent || 'Jogador').trim() : 'Jogador';
+			const row = btn.closest('tr, .mpl-item');
+			const name = row ? (row.querySelector('strong, .mpl-name')?.textContent || 'Jogador').trim() : 'Jogador';
 			compareSel.push({ id: playerId, name });
 		}
 		// marcar linha selecionada
@@ -982,21 +968,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		{ key: 'pot', label: 'POT' },
 	];
 
-	const SKILL_GRADE_EDIT_FIELDS = [
-		{ key: 'in', label: 'IN' },
-		{ key: 'mid', label: 'MID' },
-		{ key: 'pt3', label: '3PT' },
-		{ key: 'post_d', label: 'POST D' },
-		{ key: 'per_d', label: 'PER D' },
-		{ key: 'play', label: 'PLAY' },
-		{ key: 'reb', label: 'REB' },
-		{ key: 'athl', label: 'ATHL' },
-		{ key: 'iq', label: 'IQ' },
-		{ key: 'pot', label: 'POT' },
-	];
-
-	const GRADE_OPTIONS = ['-', 'A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'F'];
-
 	function parseSkillGrades(raw) {
 		if (!raw) return {};
 		if (typeof raw === 'object') return raw;
@@ -1051,33 +1022,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 				}).join('')}
 			</div>
 		`;
-	}
-
-	function buildSkillGradesEditorHtml(grades) {
-		return `
-			<div class="skill-edit-grid">
-				${SKILL_GRADE_EDIT_FIELDS.map(field => {
-					const value = grades[field.key] || '-';
-					return `<label style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--text-2);">
-						<span style="text-transform:uppercase;letter-spacing:.08em;font-weight:700;">${field.label}</span>
-						<select data-skill-key="${field.key}">
-							${GRADE_OPTIONS.map(opt => `<option value="${opt}"${opt === value ? ' selected' : ''}>${opt}</option>`).join('')}
-						</select>
-					</label>`;
-				}).join('')}
-			</div>
-		`;
-	}
-
-	function collectSkillGradesFromEditor(container, baseGrades) {
-		const nextGrades = { ...baseGrades };
-		if (!container) return nextGrades;
-		container.querySelectorAll('[data-skill-key]').forEach(sel => {
-			const key = sel.getAttribute('data-skill-key');
-			if (!key) return;
-			nextGrades[key] = sel.value;
-		});
-		return nextGrades;
 	}
 
 	function isLoyalPlayer(p) {
@@ -1155,41 +1099,6 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						<button class="mpl-btn" type="button" onclick="copyPlayerSummary(this)" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
 						<a class="mpl-btn trade" href="/trades.php?player=${p.id}&team=${p.team_id}"><i class="bi bi-arrow-left-right"></i></a>
 					</div>
-				</div>
-			</div>
-		`;
-	}
-
-	function renderPlayerCard(p, whatsappLink, teamName) {
-		const ovr = Number(p.ovr || 0);
-		const photoUrl = getPlayerPhotoUrl(p);
-		const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px">Leal</span>' : '');
-		const franchiseClass = isFranchiseEligible(p) ? ' franchise-player-card' : (isLoyalPlayer(p) ? ' loyal-player-card' : '');
-		const tagBadgeCard = renderPlayerTagBadge(p);
-		return `
-			<div class="player-card${franchiseClass}">
-				<div class="player-card-header">
-					<div class="d-flex align-items-center gap-2">
-						<img src="${photoUrl}" alt="${p.name}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
-						<div>
-							<div class="player-card-name"><a class="pl-link" href="player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)}${franchiseBadge}${tagBadgeCard}</div>
-							<div class="player-card-team">${teamName}</div>
-						</div>
-					</div>
-					<span class="badge-ovr ${getOvrClass(ovr)}">${p.ovr}</span>
-				</div>
-				<div class="player-card-body">
-					<div class="player-card-stat"><strong>${p.age ?? '-'}</strong>Idade</div>
-					<div class="player-card-stat"><strong>${p.position ?? '-'}</strong>Posicao</div>
-					<div class="player-card-stat"><strong>${p.secondary_position ?? '-'}</strong>Posicao Sec.</div>
-					<div class="player-card-stat"><strong>${p.badges_count ?? 0}</strong>Badges</div>
-					<div class="player-card-stat"><strong>${p.team_name ?? '-'}</strong>Time</div>
-				</div>
-				<div class="player-card-actions">
-					${whatsappLink ? `<a class="btn-outline success" href="${whatsappLink}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Falar</a>` : '<span class="text-light-gray">Sem contato</span>'}
-					<button class="btn-outline info" type="button" onclick="openPlayerDetails(${p.id})"><i class="bi bi-info-circle"></i> Detalhes</button>
-					<button class="btn-outline info" type="button" onclick="copyPlayerSummary(this)" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
-					<a class="btn-trade-action" href="/trades.php?player=${p.id}&team=${p.team_id}" title="Propor trade por este jogador"><i class="bi bi-arrow-left-right"></i> Trocar</a>
 				</div>
 			</div>
 		`;
@@ -1369,6 +1278,20 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		}
 	});
 
+	// Chega aqui com um jogador pré-selecionado pra comparar (vindo do botão "Comparar" em player.php)
+	(function preSelecionarComparacao() {
+		const params = new URLSearchParams(window.location.search);
+		const compareId = params.get('compare_id');
+		if (!compareId) return;
+		const compareName = params.get('compare_name') || 'Jogador';
+		compareMode = true;
+		if (compareBtn) compareBtn.classList.add('active');
+		document.body.classList.add('compare-on');
+		if (compareBar) compareBar.style.display = 'flex';
+		compareSel.push({ id: Number(compareId), name: compareName });
+		renderCompareChips();
+	})();
+
 	// Carregar favoritos e então a lista
 	loadFavorites().then(() => carregarJogadores());
 
@@ -1392,6 +1315,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		if (!detailsModalEl) return;
 		const content = document.getElementById('playerDetailsContent');
 		const titleEl = document.getElementById('playerDetailsTitle');
+		const fullLinkEl = document.getElementById('playerDetailsFullLink');
+		if (fullLinkEl) fullLinkEl.href = `player.php?id=${playerId}`;
 		if (content) content.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;padding:48px"><div class="spinner-border" role="status" style="color:var(--red);width:2rem;height:2rem;"></div></div>';
 		if (titleEl) titleEl.textContent = 'Detalhes';
 		detailsModal?.show();

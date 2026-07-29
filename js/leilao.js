@@ -36,7 +36,10 @@ function _renderPropostasHtml(propostas, showActions, leilaoId) {
   const sortedPropostas = [...propostas].sort((a, b) =>
     (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3)
   );
-  return sortedPropostas.map(p => {
+  return sortedPropostas.map(p => _renderPropostaCard(p, showActions, leilaoId)).join('');
+}
+
+function _renderPropostaCard(p, showActions, leilaoId) {
     const jogs = (p.jogadores || []).map(j => {
       const age = j.age ? ` · ${j.age} anos` : '';
       return `<span style="display:inline-flex;align-items:center;background:var(--panel-3);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0"><strong style="color:var(--text)">${_esc(j.name)}</strong>&nbsp;<span style="color:var(--text-2)">${_esc(j.position||'')} · OVR ${j.overall||j.ovr||'?'}${age}</span></span>`;
@@ -121,7 +124,6 @@ function _renderPropostasHtml(propostas, showActions, leilaoId) {
         ${personalizedHtml}
         ${actionHtml}
       </div>`;
-  }).join('');
 }
 
 function _applyLeilaoTableLabels(root = document) {
@@ -184,17 +186,60 @@ function _getModalInstance() {
   return bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el);
 }
 
+function _fmtMsgTime(ts) {
+  if (!ts) return '';
+  const d = new Date(String(ts).replace(' ', 'T'));
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function _renderChatTimeline(messages, leilaoId) {
+  if (!messages || !messages.length) {
+    return '<p style="text-align:center;color:var(--text-3);font-size:13px;padding:24px 0">Nenhuma mensagem ou proposta ainda.</p>';
+  }
+  return messages.map(m => {
+    const isMine = userTeamId && Number(m.team_id) === Number(userTeamId);
+    const align = isMine ? 'flex-end' : 'flex-start';
+    const teamLabel = _esc(m.team_name || 'Time');
+    const timeLabel = _fmtMsgTime(m.created_at);
+
+    if (m.tipo === 'proposal' && m.proposta) {
+      const showActions = (_modalIsOwner || isAdmin) && m.proposta.status === 'pendente';
+      return `
+        <div style="display:flex;flex-direction:column;align-items:${align};margin-bottom:14px">
+          <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;padding:0 4px">
+            <strong style="color:var(--text-2)">${teamLabel}</strong> enviou uma proposta${timeLabel ? ' · ' + timeLabel : ''}
+          </div>
+          <div style="width:100%;max-width:520px">${_renderPropostaCard(m.proposta, showActions, leilaoId)}</div>
+        </div>`;
+    }
+
+    const bubbleColor = isMine ? 'var(--red-soft)' : 'var(--panel-2)';
+    const bubbleBorder = isMine ? 'var(--border-red)' : 'var(--border)';
+    return `
+      <div style="display:flex;flex-direction:column;align-items:${align};margin-bottom:10px">
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:3px;padding:0 4px">
+          <strong style="color:var(--text-2)">${teamLabel}</strong>${timeLabel ? ' · ' + timeLabel : ''}
+        </div>
+        <div style="max-width:75%;background:${bubbleColor};border:1px solid ${bubbleBorder};border-radius:12px;padding:8px 13px;font-size:13px;color:var(--text);white-space:pre-wrap;word-break:break-word">${_esc(m.texto || '')}</div>
+      </div>`;
+  }).join('');
+}
+
 async function _loadPropostasContent(leilaoId, isOwner) {
   _modalLeilaoId = leilaoId;
   _modalIsOwner = isOwner;
   const container = document.getElementById('listaPropostasRecebidas');
+  const composeBar = document.getElementById('chatComposeBar');
+  if (composeBar) composeBar.style.display = userTeamId ? 'flex' : 'none';
+  const titleEl = document.querySelector('#modalVerPropostas .modal-title');
+  if (titleEl) titleEl.innerHTML = '<i class="bi bi-chat-dots" style="color:var(--red)"></i>Negociação';
   if (!container) return;
   container.innerHTML = '<div style="display:flex;justify-content:center;padding:32px"><div class="spinner-border" style="color:var(--red);width:1.5rem;height:1.5rem" role="status"></div></div>';
   try {
-    const endpoint = isOwner ? 'ver_propostas' : 'ver_propostas_enviadas';
-    const data = await _fetchJson(`api/leilao.php?action=${endpoint}&leilao_id=${leilaoId}`);
-    const propostas = data.propostas || [];
-    container.innerHTML = _renderPropostasHtml(propostas, isOwner, leilaoId);
+    const data = await _fetchJson(`api/leilao.php?action=listar_mensagens&leilao_id=${leilaoId}`);
+    container.innerHTML = _renderChatTimeline(data.messages || [], leilaoId);
+    container.scrollTop = container.scrollHeight;
   } catch (e) {
     container.innerHTML = `<p style="color:#ef4444;font-size:13px;text-align:center;padding:20px 0">${_esc(e.message||'Erro ao carregar')}</p>`;
   }
@@ -211,11 +256,44 @@ async function verPropostasEnviadas(leilaoId) {
   document.getElementById('leilaoIdVerPropostas').value = leilaoId;
   _getModalInstance().show();
   await _loadPropostasContent(leilaoId, false);
+  _startPropostasAutoRefresh(leilaoId, false);
 }
 
 async function verPropostasAdmin(leilaoId) {
   await verMinhasPropostasRecebidas(leilaoId);
 }
+
+async function _sendChatMessage() {
+  const input = document.getElementById('chatMessageInput');
+  const texto = input?.value.trim();
+  if (!texto || !_modalLeilaoId) return;
+  const btn = document.getElementById('btnEnviarMensagemChat');
+  if (btn) btn.disabled = true;
+  try {
+    const data = await _fetchJson('api/leilao.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'enviar_mensagem', leilao_id: _modalLeilaoId, texto })
+    });
+    if (data.success) {
+      input.value = '';
+      await _loadPropostasContent(_modalLeilaoId, _modalIsOwner);
+    } else {
+      alert('Erro: ' + (data.error || 'Erro desconhecido'));
+    }
+  } catch (e) {
+    alert('Erro ao enviar mensagem: ' + (e.message || ''));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+document.getElementById('btnEnviarMensagemChat')?.addEventListener('click', _sendChatMessage);
+document.getElementById('chatMessageInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    _sendChatMessage();
+  }
+});
 
 // Botão de refresh manual dentro do modal
 window._refreshPropostas = async function() {
@@ -234,10 +312,10 @@ function _startPropostasAutoRefresh(leilaoId, isOwner) {
     const container = document.getElementById('listaPropostasRecebidas');
     if (!container) return;
     try {
-      const endpoint = isOwner ? 'ver_propostas' : 'ver_propostas_enviadas';
-      const data = await _fetchJson(`api/leilao.php?action=${endpoint}&leilao_id=${leilaoId}`);
-      const propostas = data.propostas || [];
-      container.innerHTML = _renderPropostasHtml(propostas, isOwner, leilaoId);
+      const data = await _fetchJson(`api/leilao.php?action=listar_mensagens&leilao_id=${leilaoId}`);
+      const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
+      container.innerHTML = _renderChatTimeline(data.messages || [], leilaoId);
+      if (nearBottom) container.scrollTop = container.scrollHeight;
     } catch (e) {}
   }, 15000);
 }
@@ -280,7 +358,7 @@ async function carregarLeiloesAtivos(silent = false) {
       const actionHtml = (() => {
         if (!userTeamId || isMyTeam) return '';
         if (faDisabled) return `<button disabled style="width:100%;padding:9px;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;color:var(--text-3);font-size:13px;font-weight:600;cursor:not-allowed">Período fechado</button>`;
-        return `<button onclick="abrirModalProposta(${l.id}, '${l.player_name.replace(/'/g,"\\'")}', ${l.team_id || 'null'})"
+        return `<button onclick="abrirModalProposta(${l.id}, '${_esc(l.player_name.replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}', ${l.team_id || 'null'})"
           class="auction-propose-btn"
           style="width:100%;padding:9px;background:var(--red);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">
           <i class="bi bi-send me-1"></i>Enviar Proposta
@@ -387,10 +465,13 @@ async function carregarHistoricoLeiloes() {
 }
 
 async function verPropostaVencedora(leilaoId) {
+  clearInterval(_propostsAutoRefresh);
   document.getElementById('leilaoIdVerPropostas').value = leilaoId;
   const modalEl = document.getElementById('modalVerPropostas');
   const titleEl = modalEl?.querySelector('.modal-title');
   if (titleEl) titleEl.innerHTML = '<i class="bi bi-trophy" style="color:#22c55e;margin-right:8px"></i>Proposta Vencedora';
+  const composeBar = document.getElementById('chatComposeBar');
+  if (composeBar) composeBar.style.display = 'none';
   _getModalInstance().show();
   const container = document.getElementById('listaPropostasRecebidas');
   if (!container) return;
@@ -794,7 +875,7 @@ async function carregarLeiloesAdmin(silent = false) {
                 <i class="bi bi-x-lg me-1"></i>Cancelar
               </button>` : ''}
             ${l.status === 'finalizado' ? `
-              <button onclick="reverterLeilao(${l.id}, '${(l.player_name||'').replace(/'/g,"\\'")}' )"
+              <button onclick="reverterLeilao(${l.id}, '${_esc((l.player_name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}' )"
                 style="padding:5px 12px;background:transparent;border:1px solid rgba(245,158,11,.35);border-radius:8px;color:#f59e0b;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font)">
                 <i class="bi bi-arrow-counterclockwise me-1"></i>Reverter
               </button>` : ''}

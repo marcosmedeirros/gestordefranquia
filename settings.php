@@ -16,17 +16,9 @@ $team = $stmtTeam->fetch() ?: null;
 <head>
     <meta charset="UTF-8">
     <script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title>Minha Conta — FBA Manager</title>
 
     <?php include __DIR__ . '/includes/head-pwa.php'; ?>
-
-    <link rel="manifest" href="/manifest.json?v=3">
-    <meta name="theme-color" content="#07070a">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="FBA Manager">
-    <link rel="apple-touch-icon" href="/img/fba-logo.png?v=3">
 
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -121,7 +113,7 @@ $team = $stmtTeam->fetch() ?: null;
         .hero-left {}
         .page-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
         .page-title { font-size: 26px; font-weight: 800; line-height: 1.1; }
-        .page-sub { font-size: 13px; color: var(--text); margin-top: 4px; }
+        .page-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
 
         /* user hero card */
         .hero-user {
@@ -197,7 +189,7 @@ $team = $stmtTeam->fetch() ?: null;
             display: flex; align-items: center; justify-content: center;
             font-size: 14px; color: var(--red); flex-shrink: 0;
         }
-        .bc-title { font-size: 14px; font-weight: 700; }
+        .bc-title { font-size: 13px; font-weight: 700; }
         .bc-sub   { font-size: 11px; color: var(--text-2); margin-top: 1px; }
         .bc-body  { padding: 20px; flex: 1; }
 
@@ -504,6 +496,40 @@ $team = $stmtTeam->fetch() ?: null;
                             </form>
                         </div>
                     </div>
+
+                    <!-- Notificações -->
+                    <div class="bc">
+                        <div class="bc-head">
+                            <div class="bc-icon"><i class="bi bi-bell-fill"></i></div>
+                            <div>
+                                <div class="bc-title">Notificações</div>
+                                <div class="bc-sub">Avisos push do navegador</div>
+                            </div>
+                        </div>
+                        <div class="bc-body">
+                            <label class="toggle-row" for="push-notifications-toggle">
+                                <input type="checkbox" id="push-notifications-toggle">
+                                <span class="toggle-label">Receber notificações push neste dispositivo</span>
+                            </label>
+                            <div class="fh" id="push-notifications-hint">Verificando permissão do navegador...</div>
+                        </div>
+                    </div>
+
+                    <!-- Atalhos Externos -->
+                    <div class="bc">
+                        <div class="bc-head">
+                            <div class="bc-icon"><i class="bi bi-controller"></i></div>
+                            <div>
+                                <div class="bc-title">FBA Games</div>
+                                <div class="bc-sub">Plataforma de mini-games da liga</div>
+                            </div>
+                        </div>
+                        <div class="bc-body">
+                            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener" class="btn-ghost" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none">
+                                <i class="bi bi-box-arrow-up-right"></i> Abrir FBA Games
+                            </a>
+                        </div>
+                    </div>
                     </section>
 
                     <section class="ssec" id="sec-time">
@@ -712,7 +738,7 @@ $team = $stmtTeam->fetch() ?: null;
 
     // Theme toggle
     const key = 'fba-theme';
-    const themeBtn = document.querySelector('[data-theme-toggle]');
+    const themeBtn = document.getElementById('themeToggle');
     const applyTheme = (t) => {
         if (t === 'light') {
             document.documentElement.setAttribute('data-theme', 'light');
@@ -750,6 +776,42 @@ $team = $stmtTeam->fetch() ?: null;
     }
     tagSel && tagSel.addEventListener('change', updateTagHint);
     updateTagHint();
+
+    // Notificações push
+    const pushToggle = document.getElementById('push-notifications-toggle');
+    const pushHint = document.getElementById('push-notifications-hint');
+    async function refreshPushState() {
+        if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+            if (pushToggle) pushToggle.disabled = true;
+            if (pushHint) pushHint.textContent = 'Seu navegador não suporta notificações push.';
+            return;
+        }
+        if (Notification.permission === 'denied') {
+            if (pushToggle) { pushToggle.checked = false; pushToggle.disabled = true; }
+            if (pushHint) pushHint.textContent = 'Bloqueadas nas permissões do navegador. Libere o acesso a notificações nas configurações do site para ativar.';
+            return;
+        }
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (pushToggle) { pushToggle.checked = !!sub; pushToggle.disabled = false; }
+        if (pushHint) pushHint.textContent = sub ? 'Ativadas neste dispositivo.' : 'Desativadas. Ative para receber avisos de trades, leilão e mais.';
+    }
+    if (pushToggle) {
+        pushToggle.addEventListener('change', async (e) => {
+            pushToggle.disabled = true;
+            if (e.target.checked) {
+                await window.initPushNotifications();
+            } else {
+                await window.unsubscribeFromPush();
+            }
+            await refreshPushState();
+        });
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(refreshPushState);
+        } else {
+            refreshPushState();
+        }
+    }
 })();
 </script>
 </body>

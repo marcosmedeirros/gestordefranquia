@@ -45,7 +45,7 @@ $stmtPicks = $pdo->prepare('
     LEFT JOIN teams last_owner ON p.last_owner_team_id = last_owner.id
     LEFT JOIN picks swap_pick ON p.swap_pair_pick_id = swap_pick.id
     LEFT JOIN teams swap_team ON swap_pick.original_team_id = swap_team.id
-    WHERE p.team_id = ? AND p.season_year > ?
+    WHERE p.team_id = ? AND p.season_year >= ?
     ORDER BY p.season_year, p.round
 ');
 $stmtPicks->execute([$team['id'], $currentSeasonYear]);
@@ -58,7 +58,7 @@ $stmtPicksAway = $pdo->prepare('
     LEFT JOIN teams current_owner ON p.team_id = current_owner.id
     LEFT JOIN picks swap_pick ON p.swap_pair_pick_id = swap_pick.id
     LEFT JOIN teams swap_team ON swap_pick.original_team_id = swap_team.id
-    WHERE p.original_team_id = ? AND p.team_id <> ? AND p.season_year > ?
+    WHERE p.original_team_id = ? AND p.team_id <> ? AND p.season_year >= ?
     ORDER BY p.season_year, p.round
 ');
 $stmtPicksAway->execute([$team['id'], $team['id'], $currentSeasonYear]);
@@ -87,6 +87,9 @@ function extractSwapTags(?string $notes): array
     }
     return $tags;
 }
+
+$allPickYears = array_values(array_unique(array_map(fn($p) => (int)$p['season_year'], $picks)));
+sort($allPickYears);
 
 $totalPicks   = count($picks);
 $ownPicks     = count(array_filter($picks, fn($p) => (int)$p['original_team_id'] === (int)$team['id']));
@@ -260,6 +263,10 @@ $tradedAway   = count($picksAway);
         .pick-origin { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .pick-status { flex-shrink: 0; }
+        .pick-value { flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--text-2); background: var(--panel-3); border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px; min-width: 46px; text-align: center; }
+        .btn-pick-trade { flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-2); display: flex; align-items: center; justify-content: center; font-size: 13px; text-decoration: none; transition: color var(--t) var(--ease), border-color var(--t) var(--ease); }
+        .btn-pick-trade:hover { color: var(--red); border-color: var(--border-red); }
+        .year-filter { margin-left: 12px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); font-size: 11px; font-weight: 600; border-radius: 8px; padding: 5px 10px; cursor: pointer; }
         .tag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
         .tag.green  { background: rgba(34,197,94,.12);  color: var(--green); border: 1px solid rgba(34,197,94,.2); }
         .tag.blue   { background: rgba(59,130,246,.12); color: var(--blue);  border: 1px solid rgba(59,130,246,.2); }
@@ -365,7 +372,15 @@ $tradedAway   = count($picksAway);
         <div class="content">
 
             <!-- Picks por rodada -->
-            <div class="section-label"><i class="bi bi-calendar-check"></i> Picks disponíveis</div>
+            <div class="section-label" style="align-items:center">
+                <i class="bi bi-calendar-check"></i> Picks disponíveis
+                <select id="yearFilter" class="year-filter">
+                    <option value="all">Todos os anos</option>
+                    <?php foreach ($allPickYears as $y): ?>
+                    <option value="<?= (int)$y ?>"><?= (int)$y ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
 
             <div class="picks-grid">
 
@@ -384,11 +399,10 @@ $tradedAway   = count($picksAway);
                     <?php else: ?>
                     <?php foreach ($picksByRound['1'] as $pick):
                         $isOwn = (int)$pick['original_team_id'] === (int)$team['id'];
-                        $isAuto = !empty($pick['auto_generated']);
                         $st = $pick['swap_type'] ?? null;
                         $swapTags = $st ? [strtoupper($st)] : extractSwapTags($pick['notes'] ?? '');
                     ?>
-                    <div class="pick-row">
+                    <div class="pick-row" data-year="<?= (int)$pick['season_year'] ?>">
                         <div class="pick-year"><?= (int)$pick['season_year'] ?></div>
                         <div class="pick-mid">
                             <div><span class="pick-round-tag r1">1ª Rodada</span></div>
@@ -407,6 +421,7 @@ $tradedAway   = count($picksAway);
                                 <?php endif; ?>
                             </div>
                         </div>
+                        <span class="pick-value" data-round="1" data-year="<?= (int)$pick['season_year'] ?>" title="Valor estimado de troca"></span>
                         <div class="pick-status">
                             <?php if ($isOwn): ?>
                                 <span class="tag green"><i class="bi bi-house-fill" style="font-size:9px"></i> Própria</span>
@@ -414,6 +429,7 @@ $tradedAway   = count($picksAway);
                                 <span class="tag blue"><i class="bi bi-arrow-down-circle" style="font-size:9px"></i> Recebida</span>
                             <?php endif; ?>
                         </div>
+                        <a class="btn-pick-trade" href="/trades.php?offer_pick=<?= (int)$pick['id'] ?>" title="Propor troca com esta pick"><i class="bi bi-arrow-left-right"></i></a>
                     </div>
                     <?php endforeach; ?>
                     <?php endif; ?>
@@ -434,11 +450,10 @@ $tradedAway   = count($picksAway);
                     <?php else: ?>
                     <?php foreach ($picksByRound['2'] as $pick):
                         $isOwn = (int)$pick['original_team_id'] === (int)$team['id'];
-                        $isAuto = !empty($pick['auto_generated']);
                         $st = $pick['swap_type'] ?? null;
                         $swapTags = $st ? [strtoupper($st)] : extractSwapTags($pick['notes'] ?? '');
                     ?>
-                    <div class="pick-row">
+                    <div class="pick-row" data-year="<?= (int)$pick['season_year'] ?>">
                         <div class="pick-year blue"><?= (int)$pick['season_year'] ?></div>
                         <div class="pick-mid">
                             <div><span class="pick-round-tag r2">2ª Rodada</span></div>
@@ -457,6 +472,7 @@ $tradedAway   = count($picksAway);
                                 <?php endif; ?>
                             </div>
                         </div>
+                        <span class="pick-value" data-round="2" data-year="<?= (int)$pick['season_year'] ?>" title="Valor estimado de troca"></span>
                         <div class="pick-status">
                             <?php if ($isOwn): ?>
                                 <span class="tag green"><i class="bi bi-house-fill" style="font-size:9px"></i> Própria</span>
@@ -464,41 +480,12 @@ $tradedAway   = count($picksAway);
                                 <span class="tag blue"><i class="bi bi-arrow-down-circle" style="font-size:9px"></i> Recebida</span>
                             <?php endif; ?>
                         </div>
+                        <a class="btn-pick-trade" href="/trades.php?offer_pick=<?= (int)$pick['id'] ?>" title="Propor troca com esta pick"><i class="bi bi-arrow-left-right"></i></a>
                     </div>
                     <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
 
-                <!-- Outras rodadas (se existir) -->
-                <?php if (!empty($picksByRound['other'])): ?>
-                <div class="round-panel" style="animation-delay:.15s;grid-column:span 2">
-                    <div class="round-head">
-                        <div class="round-badge" style="background:var(--panel-3);color:var(--text-2)"><i class="bi bi-three-dots" style="font-size:12px"></i></div>
-                        <div class="round-title">Outras Rodadas</div>
-                        <span class="round-count"><?= count($picksByRound['other']) ?> pick<?= count($picksByRound['other']) !== 1 ? 's' : '' ?></span>
-                    </div>
-                    <?php foreach ($picksByRound['other'] as $pick):
-                        $isOwn = (int)$pick['original_team_id'] === (int)$team['id'];
-                    ?>
-                    <div class="pick-row">
-                        <div class="pick-year" style="color:var(--text-2)"><?= (int)$pick['season_year'] ?></div>
-                        <div class="pick-mid">
-                            <div><span class="pick-round-tag" style="background:var(--panel-3);color:var(--text-2);border:1px solid var(--border)"><?= (int)$pick['round'] ?>ª Rodada</span></div>
-                            <div class="pick-origin">
-                                <?php if ($isOwn): ?>
-                                    <i class="bi bi-check-circle-fill" style="color:var(--green);font-size:11px;margin-right:3px"></i>Própria
-                                <?php else: ?>
-                                    <i class="bi bi-arrow-down-circle-fill" style="color:var(--blue);font-size:11px;margin-right:3px"></i>via <?= htmlspecialchars($pick['original_city'] . ' ' . $pick['original_name']) ?>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                        <div class="pick-status">
-                            <span class="tag <?= $isOwn ? 'green' : 'blue' ?>"><?= $isOwn ? 'Própria' : 'Recebida' ?></span>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-                <?php endif; ?>
             </div>
 
             <!-- Picks cedidas a outros times -->
@@ -519,7 +506,7 @@ $tradedAway   = count($picksAway);
                 <?php else: ?>
                 <?php foreach ($picksAway as $pick): ?>
                 <?php $st = $pick['swap_type'] ?? null; $swapTags = $st ? [strtoupper($st)] : extractSwapTags($pick['notes'] ?? ''); ?>
-                <div class="away-row">
+                <div class="away-row" data-year="<?= (int)$pick['season_year'] ?>">
                     <div class="away-year"><?= (int)$pick['season_year'] ?></div>
                     <div class="away-mid">
                         <div class="away-team"><?= htmlspecialchars(trim(($pick['current_city'] ?? '') . ' ' . ($pick['current_name'] ?? ''))) ?: 'Não definido' ?></div>
@@ -546,6 +533,10 @@ $tradedAway   = count($picksAway);
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/js/pwa.js"></script>
+<script src="/js/trade-value.js?v=20260716"></script>
+<script>
+    window.__CURRENT_SEASON_YEAR__ = <?= (int)$currentSeasonYear ?>;
+</script>
 <script>
     const sidebar   = document.getElementById('sidebar');
     const sbOverlay = document.getElementById('sbOverlay');
@@ -576,6 +567,26 @@ $tradedAway   = count($picksAway);
     document.querySelectorAll('.round-panel, .away-panel').forEach((el, i) => {
         el.style.animationDelay = (i * 0.06 + 0.05) + 's';
     });
+
+    // Valor estimado de troca (mesmo modelo de trades.php/trade-simulator.php)
+    if (window.TradeValue) {
+        document.querySelectorAll('.pick-value').forEach(el => {
+            const item = { round: Number(el.dataset.round), season_year: Number(el.dataset.year) };
+            el.textContent = Math.round(TradeValue.itemValue(item));
+            el.title = TradeValue.explain(item);
+        });
+    }
+
+    // Filtro por ano
+    const yearFilter = document.getElementById('yearFilter');
+    if (yearFilter) {
+        yearFilter.addEventListener('change', () => {
+            const year = yearFilter.value;
+            document.querySelectorAll('.pick-row, .away-row').forEach(row => {
+                row.style.display = (year === 'all' || row.dataset.year === year) ? '' : 'none';
+            });
+        });
+    }
 </script>
 </body>
 </html>

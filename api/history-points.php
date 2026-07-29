@@ -16,14 +16,10 @@ set_error_handler(function($severity, $message, $file, $line) {
 });
 
 set_exception_handler(function($e) {
+    error_log('[api/history-points.php] ' . $e->getMessage() . ' em ' . $e->getFile() . ':' . $e->getLine());
     header('Content-Type: application/json');
     http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => $e->getMessage(),
-        'file' => basename($e->getFile()),
-        'line' => $e->getLine()
-    ]);
+    echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
     exit;
 });
 
@@ -33,13 +29,6 @@ require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/helpers.php';
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit(0);
-}
 
 $action = $_REQUEST['action'] ?? '';
 $rawInput = file_get_contents('php://input');
@@ -52,12 +41,20 @@ if (!$action && is_array($jsonPayload) && isset($jsonPayload['action'])) {
 }
 
 // Obter usuário atual
+$pdo = db();
 $user = getUserSession();
+
+// Toda a API exige usuário autenticado (nenhuma action aqui é destinada a acesso anônimo)
+if (!$user) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Não autorizado. Faça login para continuar.']);
+    exit;
+}
 
 // Verificar se é admin para ações protegidas
 $adminActions = ['save_history', 'delete_history', 'save_season_points', 'save_ranking_totals', 'edit_season_points', 'delete_season_points'];
 if (in_array($action, $adminActions)) {
-    if (!$user || ($user['user_type'] ?? 'jogador') !== 'admin') {
+    if (!hasAdminAccess($pdo, (int)$user['id'])) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'Acesso negado. Apenas administradores podem realizar esta ação.']);
         exit;
@@ -65,7 +62,6 @@ if (in_array($action, $adminActions)) {
 }
 
 // Verificar se as tabelas existem
-$pdo = db();
 // Garantir colunas ROY na tabela season_history (para compatibilidade)
 function ensureSeasonHistoryRoyColumns(PDO $pdo): void {
     // roy_player
@@ -549,6 +545,17 @@ try {
 
             ensureSeasonPointsLogTable($pdo);
             ensureSeasonPointsBreakdownColumns($pdo);
+            // Séries de playoff: quantos jogos (4 a 7) foi cada série do time.
+            // DDL fora da transação (CREATE TABLE causa commit implícito no MySQL).
+            $pdo->exec("CREATE TABLE IF NOT EXISTS playoff_series (
+                id         INT AUTO_INCREMENT PRIMARY KEY,
+                season_id  INT NOT NULL,
+                team_id    INT NOT NULL,
+                round      VARCHAR(20) NOT NULL,
+                games      TINYINT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_series (season_id, team_id, round)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
             $pdo->beginTransaction();
 
@@ -627,6 +634,24 @@ try {
                         $seasonId, $league, $sprintNumber, $seasonNumber,
                         $teamId, $teamName, $prevPoints, $points, $delta
                     ]);
+                }
+
+                // Séries de playoff (opcional): quantos jogos foi cada série de cada time.
+                $series = $data['series'] ?? [];
+                if (is_array($series)) {
+                    $validRounds = ['r1', 'r2', 'cf', 'fin'];
+                    $pdo->prepare("DELETE FROM playoff_series WHERE season_id = ?")->execute([$seasonId]);
+                    $insSeries = $pdo->prepare("INSERT INTO playoff_series (season_id, team_id, round, games)
+                        VALUES (?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE games = VALUES(games)");
+                    foreach ($series as $s) {
+                        $tid   = (int)($s['team_id'] ?? 0);
+                        $round = (string)($s['round'] ?? '');
+                        $games = (int)($s['games'] ?? 0);
+                        if ($tid > 0 && in_array($round, $validRounds, true) && $games >= 4 && $games <= 7) {
+                            $insSeries->execute([$seasonId, $tid, $round, $games]);
+                        }
+                    }
                 }
 
                 $pdo->commit();
@@ -1189,6 +1214,7 @@ try {
             try {
                 $stmtPoints = $pdo->prepare("UPDATE teams SET ranking_points = ? WHERE id = ? AND league = ?");
                 $stmtPointsTitles = $pdo->prepare("UPDATE teams SET ranking_points = ?, ranking_titles = ? WHERE id = ? AND league = ?");
+                $notFound = [];
                 foreach ($teamPoints as $tp) {
                     $teamId = (int)($tp['team_id'] ?? 0);
                     $points = (int)($tp['points'] ?? 0);
@@ -1196,9 +1222,14 @@ try {
                     if (array_key_exists('titles', $tp)) {
                         $titles = (int)($tp['titles'] ?? 0);
                         $stmtPointsTitles->execute([$points, $titles, $teamId, $league]);
+                        if ($stmtPointsTitles->rowCount() === 0) $notFound[] = $teamId;
                     } else {
                         $stmtPoints->execute([$points, $teamId, $league]);
+                        if ($stmtPoints->rowCount() === 0) $notFound[] = $teamId;
                     }
+                }
+                if (!empty($notFound)) {
+                    throw new Exception('Time(s) não encontrado(s) na liga informada (id: ' . implode(', ', $notFound) . ')');
                 }
                 $pdo->commit();
             } catch (Exception $e) {
@@ -1249,12 +1280,6 @@ try {
         // MAIORES TROCAS DA TEMPORADA
         // =====================================================
         case 'season_trades':
-            if (!$user) {
-                http_response_code(401);
-                echo json_encode(['success' => false, 'error' => 'Sessão expirada ou usuário não autenticado.']);
-                exit;
-            }
-
             $seasonId = (int)($_REQUEST['season_id'] ?? 0);
             if ($seasonId <= 0) {
                 throw new Exception('season_id é obrigatório');
@@ -1268,19 +1293,19 @@ try {
             }
 
             $windowStart = $season['start_date'];
-            $windowEnd = null;
-            if ($windowStart) {
-                $stmtNext = $pdo->prepare('SELECT MIN(start_date) FROM seasons WHERE league = ? AND start_date > ?');
-                $stmtNext->execute([$season['league'], $windowStart]);
-                $windowEnd = $stmtNext->fetchColumn() ?: null;
+            if (!$windowStart) {
+                // Sem data de início não dá pra delimitar a janela da temporada com segurança —
+                // melhor não mostrar nada do que misturar trocas de todas as temporadas da liga.
+                echo json_encode(['success' => true, 'trades' => []]);
+                break;
             }
 
-            $conditions = ["t.status = 'accepted'", 't.league = ?'];
-            $params = [$season['league']];
-            if ($windowStart) {
-                $conditions[] = 't.created_at >= ?';
-                $params[] = $windowStart . ' 00:00:00';
-            }
+            $stmtNext = $pdo->prepare('SELECT MIN(start_date) FROM seasons WHERE league = ? AND start_date > ?');
+            $stmtNext->execute([$season['league'], $windowStart]);
+            $windowEnd = $stmtNext->fetchColumn() ?: null;
+
+            $conditions = ["t.status = 'accepted'", 't.league = ?', 't.created_at >= ?'];
+            $params = [$season['league'], $windowStart . ' 00:00:00'];
             if ($windowEnd) {
                 $conditions[] = 't.created_at < ?';
                 $params[] = $windowEnd . ' 00:00:00';
@@ -1333,11 +1358,6 @@ try {
         // CLASSIFICAÇÃO FINAL DA TEMPORADA (todos os times)
         // =====================================================
         case 'season_standings':
-            if (!$user) {
-                http_response_code(401);
-                echo json_encode(['success' => false, 'error' => 'Sessão expirada ou usuário não autenticado.']);
-                exit;
-            }
             $seasonId = (int)($_REQUEST['season_id'] ?? 0);
             if ($seasonId <= 0) {
                 throw new Exception('season_id é obrigatório');

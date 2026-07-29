@@ -1,3 +1,5 @@
+const esc = s => (s || '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
 document.addEventListener('DOMContentLoaded', function () {
     const container = document.getElementById('historyContainer');
     const league = container?.dataset?.league || 'ELITE';
@@ -25,13 +27,13 @@ async function loadHistory(league) {
 
         if (!data.success) throw new Error(data.error || 'Erro ao carregar histórico');
 
-        const history = data.history[league] || [];
+        const history = data.history[league] || data.history[league.toUpperCase()] || data.history[league.toLowerCase()] || [];
 
         if (history.length === 0) {
             container.innerHTML = `
                 <div class="state-empty">
                     <i class="bi bi-clock-history"></i>
-                    <p>O histórico de temporadas da liga ${league.toUpperCase()} aparecerá aqui após ser registrado.</p>
+                    <p>O histórico de temporadas da liga ${esc(league.toUpperCase())} aparecerá aqui após ser registrado.</p>
                 </div>`;
             return;
         }
@@ -66,8 +68,8 @@ async function loadHistory(league) {
                         <div class="award-icon ${a.cls}">${a.icon}</div>
                         <div>
                             <div class="award-label ${a.cls}">${a.label}</div>
-                            <div class="award-name">${season[a.nameKey]}</div>
-                            ${a.teamKey && season[a.teamKey] ? `<div class="award-team">${season[a.teamKey]}</div>` : ''}
+                            <div class="award-name">${esc(season[a.nameKey])}</div>
+                            ${a.teamKey && season[a.teamKey] ? `<div class="award-team">${esc(season[a.teamKey])}</div>` : ''}
                         </div>
                     </div>`)
                 .join('');
@@ -88,7 +90,7 @@ async function loadHistory(league) {
                         <div class="season-head-left">
                             <div class="season-icon">🏆</div>
                             <div>
-                                <div class="season-title">${title}</div>
+                                <div class="season-title">${esc(title)}</div>
                             </div>
                         </div>
                     </div>
@@ -132,10 +134,10 @@ async function viewDraftHistory(seasonId) {
                 <td>
                     <span class="pick-pill ${p.round === 1 ? 'r1' : 'r2'}">R${p.round} #${p.pick_position}</span>
                 </td>
-                <td class="td-player">${p.player_name || '-'}</td>
-                <td><span class="pos-pill">${p.player_position || '-'}</span></td>
+                <td class="td-player">${esc(p.player_name || '-')}</td>
+                <td><span class="pos-pill">${esc(p.player_position || '-')}</span></td>
                 <td>${p.player_ovr || '-'}</td>
-                <td>${p.team_city || ''} ${p.team_name || ''}${p.traded_from_city ? ` <span style="color:var(--text-3);font-size:11px">(via ${p.traded_from_city})</span>` : ''}</td>
+                <td>${esc(p.team_city || '')} ${esc(p.team_name || '')}${p.traded_from_city ? ` <span style="color:var(--text-3);font-size:11px">(via ${esc(p.traded_from_city)})</span>` : ''}</td>
             </tr>`).join('');
 
         document.body.insertAdjacentHTML('beforeend', `
@@ -181,7 +183,7 @@ function _formatTradeItem(item) {
     if (item.pick_year) {
         return `Pick ${item.pick_round === '2' ? '2ª' : '1ª'} rodada ${item.pick_year}`;
     }
-    return `${item.player_name || 'Jogador'}${item.player_position ? ` (${item.player_position})` : ''}${item.player_ovr ? ` · ${item.player_ovr} OVR` : ''}`;
+    return `${esc(item.player_name || 'Jogador')}${item.player_position ? ` (${esc(item.player_position)})` : ''}${item.player_ovr ? ` · ${item.player_ovr} OVR` : ''}`;
 }
 
 async function viewSeasonTrades(seasonId) {
@@ -202,7 +204,7 @@ async function viewSeasonTrades(seasonId) {
 
         const rows = trades.map(t => `
             <div style="padding:12px 16px;border-bottom:1px solid var(--line, var(--border))">
-                <div style="font-size:12px;font-weight:700;margin-bottom:6px">${t.from_city} ${t.from_name} <i class="bi bi-arrow-left-right" style="margin:0 6px;color:var(--red)"></i> ${t.to_city} ${t.to_name}</div>
+                <div style="font-size:12px;font-weight:700;margin-bottom:6px">${esc(t.from_city)} ${esc(t.from_name)} <i class="bi bi-arrow-left-right" style="margin:0 6px;color:var(--red)"></i> ${esc(t.to_city)} ${esc(t.to_name)}</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px;color:var(--text-2)">
                     <div>${t.from_items.length ? t.from_items.map(_formatTradeItem).map(x => `<div>• ${x}</div>`).join('') : '<div>—</div>'}</div>
                     <div>${t.to_items.length ? t.to_items.map(_formatTradeItem).map(x => `<div>• ${x}</div>`).join('') : '<div>—</div>'}</div>
@@ -236,8 +238,8 @@ async function viewSeasonTrades(seasonId) {
 function _standingsRowHtml(s, idx) {
     const pos = parseInt(s.position, 10);
     const logo = s.photo_url
-        ? `<img src="${s.photo_url}" alt="" style="width:26px;height:26px;border-radius:7px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">`
-        : `<div style="width:26px;height:26px;border-radius:7px;background:var(--panel-3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--text-3);flex-shrink:0">${(s.city||'?')[0]}</div>`;
+        ? `<img src="${esc(s.photo_url)}" alt="" style="width:26px;height:26px;border-radius:7px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">`
+        : `<div style="width:26px;height:26px;border-radius:7px;background:var(--panel-3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--text-3);flex-shrink:0">${esc((s.city||'?')[0])}</div>`;
     const isTop = pos <= 8;
     const posColor = pos === 1 ? 'var(--amber, #f59e0b)' : (isTop ? 'var(--red)' : 'var(--text-3)');
     const cut = pos === 8 ? `<div style="display:flex;align-items:center;gap:8px;margin:6px 0;padding:0 14px"><div style="flex:1;height:1px;background:var(--border-red)"></div><span style="font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--red)">Playoffs</span><div style="flex:1;height:1px;background:var(--border)"></div></div>` : '';
@@ -245,7 +247,7 @@ function _standingsRowHtml(s, idx) {
         <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;${isTop ? '' : 'opacity:.72'}">
             <span style="width:26px;text-align:center;font-weight:800;font-size:14px;color:${posColor};flex-shrink:0">${pos}º</span>
             ${logo}
-            <span style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.city || ''} ${s.name || ''}</span>
+            <span style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.city || '')} ${esc(s.name || '')}</span>
         </div>${cut}`;
 }
 

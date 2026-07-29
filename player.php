@@ -266,6 +266,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .tab-pane{display:none}
 .tab-pane.active{display:block}
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px}
+.info-hint{color:var(--text-3);cursor:help;font-size:12px}
+.info-hint:hover{color:var(--text-2)}
 .section-title{font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-2);margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .section-title i{color:var(--red)}
 .grid-2{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
@@ -727,7 +729,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <button class="act" id="btnFav" data-pid="<?= $playerId ?>" title="Salvar na sua lista de observados">
       <i class="bi bi-star"></i> <span>Favoritar</span></button>
     <a class="act" href="/team-history.php?team_id=<?= $dispTeamId ?>"><i class="bi bi-buildings"></i> Página do time</a>
-    <a class="act" href="/players.php?q=<?= rawurlencode($playerName) ?>"><i class="bi bi-people"></i> Comparar</a>
+    <a class="act" href="/players.php?compare_id=<?= (int)$playerId ?>&compare_name=<?= rawurlencode($playerName) ?>"><i class="bi bi-people"></i> Comparar</a>
     <button class="act" id="btnShare" title="Copiar o link deste perfil"><i class="bi bi-link-45deg"></i> <span>Copiar link</span></button>
   </div>
   <?php endif; ?>

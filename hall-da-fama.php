@@ -14,7 +14,6 @@ $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch();
 
 $userLeague = $team['league'] ?? ($user['league'] ?? 'ELITE');
-$isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
 $currentSeason = null;
 try {
@@ -181,8 +180,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     }
     .hof-badge.league { background: var(--panel-3); color: var(--text-2); border: 1px solid var(--border-md); }
     .hof-badge.league.current { background: var(--red-soft); color: var(--red); border: 1px solid var(--border-red); }
-    .hof-badge.active { background: rgba(34,197,94,.10); color: var(--green); border: 1px solid rgba(34,197,94,.2); }
-    .hof-badge.inactive { background: var(--panel-3); color: var(--text-3); border: 1px solid var(--border); }
 
     /* Badges de título em destaque (número grande) usados no pódio */
     .title-badge {

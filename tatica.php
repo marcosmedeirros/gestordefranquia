@@ -1,11 +1,8 @@
 <?php
 /**
- * Tática — a tela de trabalho do dia a dia.
- *
- * O GM ajusta aqui quinteto, rotação, minutos e o sistema de jogo, com o
- * elenco de verdade na frente. Nada é enviado ao jogo por esta página: o que
- * ela guarda alimenta o formulário de diretrizes.php na hora do envio oficial,
- * para o GM só revisar em vez de digitar tudo de novo.
+ * Tática — tela única do GM. Sem envio, sem prazo: o time mantém 3 táticas
+ * nomeadas em paralelo e a que estiver marcada como ativa já é a oficial.
+ * O admin controla quando a edição fica aberta (corte diário + toggle manual).
  */
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
@@ -22,15 +19,7 @@ if (!$team) { header('Location: my-roster.php'); exit; }
 
 $isElite = strtoupper((string)$team['league']) === 'ELITE';
 
-// Próxima deadline de diretrizes da liga, para a página lembrar o GM.
-$deadline = null;
-try {
-    $st = $pdo->prepare("SELECT deadline_date, description, phase FROM directive_deadlines
-                         WHERE league = ? AND is_active = 1 AND deadline_date >= NOW()
-                         ORDER BY deadline_date ASC LIMIT 1");
-    $st->execute([$team['league']]);
-    $deadline = $st->fetch(PDO::FETCH_ASSOC) ?: null;
-} catch (Exception $e) {}
+$SLOT_LABELS = ['regular' => 'Tática 1', 'playoffs' => 'Tática 2', 'outra' => 'Tática 3'];
 
 $OPCOES = [
     'pace' => ['no_preference' => 'Sem preferência', 'patient' => 'Patient Offense',
@@ -50,7 +39,6 @@ $OPCOES = [
                                'conservative' => 'Conservative Defense', 'neutral' => 'Neutral Defensive Aggression'],
     'defensive_focus' => ['no_preference' => 'Sem preferência', 'neutral' => 'Neutral Defensive Focus',
                           'protect_paint' => 'Protect the Paint', 'limit_perimeter' => 'Limit Perimeter Shots'],
-    'rotation_style' => ['auto' => 'Automática', 'manual' => 'Manual'],
     'technical_model' => ['HC' => 'HC', 'FBA 14' => 'FBA 14', 'Michael Stauffer' => 'Michael Stauffer',
                           'Joe Mazzulla' => 'Joe Mazzulla', 'Mark Daigneault' => 'Mark Daigneault',
                           'Greg Popovich' => 'Greg Popovich', 'Phil Jackson' => 'Phil Jackson'],
@@ -114,16 +102,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .aviso.ok{background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.28);color:var(--green)}
 .aviso.err{background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.3);color:#f87171}
 
-/* Slots de tática */
+/* Táticas (abas) */
 .slots{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:18px 0 14px}
-.slot-btn{position:relative;padding:9px 18px;border-radius:999px;background:var(--panel);border:1px solid var(--border);color:var(--text-2);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:all var(--t) var(--ease)}
+.slot-btn{position:relative;padding:9px 18px;border-radius:999px;background:var(--panel);border:1px solid var(--border);color:var(--text-2);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:all var(--t) var(--ease);display:flex;align-items:center;gap:6px}
 .slot-btn:hover{border-color:var(--border-md);color:var(--text)}
 .slot-btn.active{background:var(--red);border-color:var(--red);color:#fff}
-.slot-btn .dot{display:none;position:absolute;top:6px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--green)}
+.slot-btn .dot{display:none;width:6px;height:6px;border-radius:50%;background:var(--green)}
 .slot-btn.saved .dot{display:block}
 .slot-btn.active .dot{background:#fff}
+.slot-btn .star{display:none;color:var(--green);font-size:12px}
+.slot-btn.is-official .star{display:inline}
+.slot-btn.active .star{color:#fff}
 .slots-hint{font-size:11px;color:var(--text-3);margin-left:auto}
 @media (max-width:760px){.slots-hint{margin-left:0;width:100%}}
+
+.tactic-status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.tactic-status .badge-ativa{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--green);background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);padding:6px 12px;border-radius:999px}
+.tactic-status .badge-ativa i{font-size:13px}
 
 /* Quinteto */
 .court{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
@@ -136,22 +131,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .slot.dup{border-color:#ef4444}
 .slot.dup .slot-info{color:#f87171}
 
-/* Minutos */
-.min-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.min-total{font-family:'Oswald',sans-serif;font-size:20px;font-weight:700}
-.min-total.ok{color:var(--green)}.min-total.over{color:#ef4444}.min-total.under{color:var(--amber)}
-.min-bar{flex:1;min-width:120px;height:7px;background:var(--panel-3);border-radius:999px;overflow:hidden;border:1px solid var(--border)}
-.min-bar i{display:block;height:100%;background:var(--green);border-radius:999px;transition:width .3s var(--ease)}
-.min-bar.over i{background:#ef4444}.min-bar.under i{background:var(--amber)}
-.mrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
-.mrow:last-child{border-bottom:none}
-.mrow .nm{flex:1;min-width:0;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mrow .tag{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--panel-3);border:1px solid var(--border);color:var(--text-3);flex-shrink:0}
-.mrow .tag.tit{background:var(--red-soft);border-color:var(--border-red);color:var(--red)}
-.mrow .ov{font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;color:var(--text-2);width:26px;text-align:right;flex-shrink:0}
-.mrow input{width:62px;background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:8px;padding:5px 6px;font-family:inherit;font-size:12.5px;text-align:center;flex-shrink:0}
-.mrow input:focus{outline:none;border-color:var(--red)}
-.mrow.zero .nm,.mrow.zero .ov{opacity:.5}
+/* Minutos previstos (somente leitura) */
+.min-preview{display:flex;flex-wrap:wrap;gap:8px}
+.min-chip{display:flex;align-items:center;gap:7px;background:var(--panel-2);border:1px solid var(--border);border-radius:999px;padding:5px 10px 5px 6px;font-size:11.5px}
+.min-chip .tag{font-size:9px;font-weight:700;padding:2px 6px;border-radius:999px;background:var(--panel-3);color:var(--text-3)}
+.min-chip .tag.tit{background:var(--red-soft);color:var(--red)}
+.min-chip .mn{font-family:'Oswald',sans-serif;font-weight:700;color:var(--text)}
 
 /* Sistema */
 .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:13px}
@@ -159,6 +144,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .field select,.field input,.field textarea{width:100%;background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:9px;padding:8px 10px;font-family:inherit;font-size:12.5px}
 .field select:focus,.field input:focus,.field textarea:focus{outline:none;border-color:var(--red)}
 .field textarea{resize:vertical;min-height:76px}
+.field select:disabled,.field input:disabled,.field textarea:disabled{opacity:.55;cursor:not-allowed}
 
 .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:10px;background:var(--red);border:1px solid var(--red);color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:filter var(--t) var(--ease);text-decoration:none}
 .btn:hover:not(:disabled){filter:brightness(1.1)}
@@ -166,6 +152,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .btn.ghost{background:var(--panel-2);border-color:var(--border-md);color:var(--text-2)}
 .btn.ghost:hover:not(:disabled){border-color:var(--red);color:var(--red);filter:none}
 .btn.sm{padding:7px 12px;font-size:12px}
+.btn.success{background:var(--green);border-color:var(--green)}
 
 /* Barra fixa de salvar */
 .savebar{position:sticky;bottom:0;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:13px 18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 -6px 24px -12px rgba(0,0,0,.7);margin-top:4px}
@@ -212,32 +199,26 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
   <div class="aviso info" style="margin-top:16px">
     <i class="bi bi-info-circle"></i>
-    <div>Ajuste aqui o seu time no dia a dia. <strong>Nada é enviado ao jogo por esta página</strong> —
-    na hora da diretriz, o formulário em <a href="diretrizes.php" style="color:var(--red)">Diretrizes</a>
-    já vem preenchido com o que estiver salvo aqui, e você só revisa e envia.</div>
+    <div>Mantenha até <strong>3 táticas</strong> prontas em paralelo e marque qual está <strong>ativa</strong> —
+    é ela que vale a qualquer momento, sem precisar enviar nada.</div>
   </div>
 
-  <?php if ($deadline): ?>
-  <div class="aviso warn">
-    <i class="bi bi-calendar-event"></i>
-    <div>Próxima diretriz: <strong><?= htmlspecialchars($deadline['description'] ?: 'sem descrição') ?></strong>
-    até <?= date('d/m/Y \à\s H:i', strtotime($deadline['deadline_date'])) ?>
-    <?= $deadline['phase'] === 'playoffs' ? ' (playoffs)' : '' ?>.</div>
-  </div>
-  <?php endif; ?>
+  <div id="avisoJanela"></div>
 
   <div class="slots" id="slots">
-    <?php foreach (['regular' => 'Temporada Regular', 'playoffs' => 'Playoffs', 'outra' => 'Outra'] as $k => $lbl): ?>
+    <?php foreach ($SLOT_LABELS as $k => $lbl): ?>
       <button type="button" class="slot-btn<?= $k === 'regular' ? ' active' : '' ?>" data-slot="<?= $k ?>">
-        <?= $lbl ?><span class="dot" title="Já configurada"></span>
+        <span class="dot" title="Já configurada"></span><?= $lbl ?><i class="bi bi-check-circle-fill star" title="Tática ativa"></i>
       </button>
     <?php endforeach; ?>
-    <span class="slots-hint">Três táticas salvas em paralelo. Na diretriz você escolhe qual usar.</span>
+    <span class="slots-hint">Três táticas em paralelo — só a marcada como ativa vale.</span>
   </div>
 
   <div id="carregando" class="panel" style="text-align:center;color:var(--text-3);font-size:13px">Carregando elenco…</div>
 
   <div id="conteudo" style="display:none">
+
+    <div class="tactic-status" id="tacticStatus"></div>
 
     <!-- Quinteto -->
     <div class="panel">
@@ -252,17 +233,33 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       <div id="avisoQuinteto"></div>
     </div>
 
-    <!-- Rotação e minutos -->
+    <?php if ($isElite): ?>
+    <!-- G-League -->
+    <div class="panel" id="painelGleague">
+      <div class="section-title"><i class="bi bi-arrow-down-circle"></i> G-League
+        <span class="hint" id="gleagueHint"></span>
+      </div>
+      <div class="fgrid" id="gleagueCampos"></div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Rotação -->
     <div class="panel">
-      <div class="section-title"><i class="bi bi-stopwatch"></i> Minutos por jogo
-        <span class="hint">A soma precisa fechar 240 (5 jogadores × 48 minutos).</span>
+      <div class="section-title"><i class="bi bi-stopwatch"></i> Rotação
+        <span class="hint">Você define quantos jogadores entram na rotação — o sistema distribui os minutos automaticamente.</span>
       </div>
-      <div class="min-head">
-        <span class="min-total" id="minTotal">0 / 240</span>
-        <span class="min-bar" id="minBar"><i style="width:0"></i></span>
-        <button class="btn ghost sm" id="btnSugMinutos"><i class="bi bi-magic"></i> Distribuir automático</button>
+      <div class="fgrid" style="margin-bottom:14px">
+        <div class="field">
+          <label for="f_rotation_players">Jogadores na rotação</label>
+          <input type="number" id="f_rotation_players" data-f="rotation_players" min="5" max="15" placeholder="ex.: 9">
+        </div>
+        <div class="field">
+          <label for="f_veteran_focus">Foco em veteranos (0–100)</label>
+          <input type="number" id="f_veteran_focus" data-f="veteran_focus" min="0" max="100" placeholder="ex.: 50">
+        </div>
       </div>
-      <div id="minLista"></div>
+      <div class="section-title" style="margin-bottom:8px"><i class="bi bi-eye"></i> Minutos previstos <span class="hint">Calculado pelo sistema — não é editável aqui.</span></div>
+      <div class="min-preview" id="minPreview"></div>
     </div>
 
     <!-- Sistema -->
@@ -274,7 +271,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
             'offense_style' => 'Foco ofensivo', 'pace' => 'Ritmo',
             'offensive_rebound' => 'Rebote ofensivo', 'defensive_rebound' => 'Rebote defensivo',
             'offensive_aggression' => 'Agressividade defensiva', 'defensive_focus' => 'Foco defensivo',
-            'rotation_style' => 'Rotação',
         ] as $campo => $rotulo): ?>
         <div class="field">
           <label for="f_<?= $campo ?>"><?= $rotulo ?></label>
@@ -286,14 +282,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           </select>
         </div>
         <?php endforeach; ?>
-        <div class="field">
-          <label for="f_rotation_players">Jogadores na rotação</label>
-          <input type="number" id="f_rotation_players" data-f="rotation_players" min="5" max="15" placeholder="ex.: 9">
-        </div>
-        <div class="field">
-          <label for="f_veteran_focus">Foco em veteranos (0–100)</label>
-          <input type="number" id="f_veteran_focus" data-f="veteran_focus" min="0" max="100" placeholder="ex.: 50">
-        </div>
       </div>
       <div class="fgrid" style="margin-top:13px">
         <div class="field" style="grid-column:1/-1">
@@ -309,8 +297,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
     <div class="savebar">
       <button class="btn" id="btnSalvar"><i class="bi bi-save2"></i> Salvar agora</button>
-      <a class="btn ghost" href="diretrizes.php"><i class="bi bi-send"></i> Ir para o envio</a>
-      <button class="btn ghost" id="btnRepetir" title="Preenche com a última diretriz enviada"><i class="bi bi-arrow-counterclockwise"></i> Repetir a anterior</button>
+      <button class="btn success" id="btnAtivar"><i class="bi bi-check-circle"></i> Ativar esta tática</button>
+      <button class="btn ghost" id="btnCopiar"><i class="bi bi-files"></i> Copiar de outra tática</button>
       <span class="st" id="statusSalvar"><i class="bi bi-cloud-check"></i> Salva automaticamente</span>
     </div>
     <div id="msgSalvar"></div>
@@ -326,7 +314,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   const sb = document.getElementById('sidebar'), ov = document.getElementById('sbOverlay');
   document.getElementById('menuBtn')?.addEventListener('click', () => { sb?.classList.add('open'); ov?.classList.add('show'); });
   ov?.addEventListener('click', () => { sb?.classList.remove('open'); ov?.classList.remove('show'); });
-  const btn = document.querySelector('[data-theme-toggle]');
+  const btn = document.getElementById('themeToggle');
   const aplica = t => { document.documentElement.dataset.theme = t; localStorage.setItem('fba-theme', t);
     if (btn) btn.innerHTML = t === 'light' ? '<i class="bi bi-sun"></i><span>Modo claro</span>' : '<i class="bi bi-moon"></i><span>Modo escuro</span>'; };
   aplica(localStorage.getItem('fba-theme') || 'dark');
@@ -334,12 +322,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 })();
 
 const POSICOES = ['PG','SG','SF','PF','C'];
+const SLOT_LABELS = <?= json_encode($SLOT_LABELS, JSON_UNESCAPED_UNICODE) ?>;
+const IS_ELITE = <?= $isElite ? 'true' : 'false' ?>;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-let ELENCO = [], SUGERIDO = null, ULTIMA = null, SLOT = 'regular';
-// Estado do autosave. Declarado aqui porque carregar() usa antes do fim do
-// arquivo — com let mais abaixo daria erro de acesso antes da inicialização.
+let ELENCO = [], TATICAS = {}, ACTIVE_SLOT = null, SLOT = 'regular', GLEAGUE_SLOTS = 0, EDIT_WINDOW = { open: true };
 let sujo = false;
 let carregando = true; // durante a carga os campos mudam sozinhos: não é edição
 let timerAuto = null;
@@ -347,6 +335,19 @@ let timerAuto = null;
 function msg(tipo, texto) {
   $('msgSalvar').innerHTML = `<div class="aviso ${tipo}" style="margin-top:12px"><i class="bi bi-${
     tipo === 'ok' ? 'check-circle-fill' : tipo === 'err' ? 'x-octagon-fill' : 'info-circle'}"></i><div>${texto}</div></div>`;
+}
+
+function renderJanela() {
+  const box = $('avisoJanela');
+  if (EDIT_WINDOW.open) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="aviso warn"><i class="bi bi-lock-fill"></i><div>Edição fechada no momento${
+    EDIT_WINDOW.reason ? ' — ' + esc(EDIT_WINDOW.reason) : ''}. Reabre às <strong>${esc((EDIT_WINDOW.daily_cutoff_time || '').slice(0,5))}</strong> ou quando o admin liberar.</div></div>`;
+}
+
+function aplicarBloqueioEdicao() {
+  const bloqueado = !EDIT_WINDOW.open;
+  document.querySelectorAll('#conteudo select, #conteudo input, #conteudo textarea').forEach(el => { el.disabled = bloqueado; });
+  ['btnSugQuinteto','btnLimparQuinteto','btnSalvar','btnAtivar','btnCopiar'].forEach(id => { const el = $(id); if (el) el.disabled = bloqueado; });
 }
 
 /* ── Quinteto ── */
@@ -363,7 +364,7 @@ function montarQuinteto() {
       </div>
     </div>`).join('');
   $('court').addEventListener('change', e => {
-    if (e.target.tagName === 'SELECT') { atualizarQuinteto(); marcarTitulares(); }
+    if (e.target.tagName === 'SELECT') { atualizarQuinteto(); atualizarPreviewMinutos(); }
   });
 }
 
@@ -396,169 +397,169 @@ function quintetoIds() {
   return [...document.querySelectorAll('#court select')].map(s => parseInt(s.value, 10)).filter(Boolean);
 }
 
-/* ── Minutos ── */
-function montarMinutos() {
+function gleagueIds() {
+  if (!IS_ELITE) return [];
+  return [$('f_gleague_1_id'), $('f_gleague_2_id')].filter(Boolean).map(s => parseInt(s.value, 10)).filter(Boolean);
+}
+
+/* ── G-League ── */
+function montarGleague() {
+  const box = $('gleagueCampos');
+  if (!box) return;
+  const hint = $('gleagueHint');
+  if (!GLEAGUE_SLOTS) {
+    if (hint) hint.textContent = 'Elenco pequeno demais para enviar jogadores à G-League.';
+    box.innerHTML = '';
+    return;
+  }
+  if (hint) hint.textContent = `Elenco com ${ELENCO.length} jogadores — até ${GLEAGUE_SLOTS} vaga(s).`;
+  const opts = p => `<option value="${p.id}">${esc(p.name)}</option>`;
+  let html = `<div class="field"><label for="f_gleague_1_id">G-League 1</label>
+    <select id="f_gleague_1_id" data-f="gleague_1_id"><option value="">—</option>${ELENCO.map(opts).join('')}</select></div>`;
+  if (GLEAGUE_SLOTS >= 2) {
+    html += `<div class="field"><label for="f_gleague_2_id">G-League 2</label>
+      <select id="f_gleague_2_id" data-f="gleague_2_id"><option value="">—</option>${ELENCO.map(opts).join('')}</select></div>`;
+  }
+  box.innerHTML = html;
+  box.querySelectorAll('select').forEach(s => s.addEventListener('change', atualizarPreviewMinutos));
+}
+
+/* ── Minutos previstos (somente leitura) ── */
+function atualizarPreviewMinutos() {
+  // Pedimos ao backend pra recalcular com o quinteto/rotação atuais da tela,
+  // sem esperar o autosave — assim o GM ve o efeito na hora.
+  clearTimeout(atualizarPreviewMinutos._t);
+  atualizarPreviewMinutos._t = setTimeout(async () => {
+    try {
+      const r = await fetch('/api/tactics.php?action=preview_minutes', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(montarPayload())
+      });
+      const d = await r.json();
+      if (d.success) renderPreviewMinutos(d.preview_minutes || {});
+    } catch (e) { /* pré-visualização é cortesia — sem bloquear a tela por isso */ }
+  }, 350);
+}
+
+function renderPreviewMinutos(mapa) {
   const q = quintetoIds();
-  const ordenado = [...ELENCO].sort((a, b) => {
-    const qa = q.includes(Number(a.id)) ? 1 : 0, qb = q.includes(Number(b.id)) ? 1 : 0;
-    if (qa !== qb) return qb - qa;
-    return Number(b.ovr) - Number(a.ovr);
-  });
-  $('minLista').innerHTML = ordenado.map(p => {
-    const titular = q.includes(Number(p.id));
-    return `<div class="mrow" data-pid="${p.id}">
-      <span class="nm">${esc(p.name)}</span>
-      <span class="tag ${titular ? 'tit' : ''}">${titular ? 'Titular' : esc(p.role || '—')}</span>
-      <span class="ov">${p.ovr}</span>
-      <input type="number" min="0" max="48" data-min="${p.id}" value="0">
-    </div>`;
+  const ids = Object.keys(mapa).map(Number);
+  if (!ids.length) { $('minPreview').innerHTML = '<span style="color:var(--text-3);font-size:12px">Defina o quinteto para ver a prévia.</span>'; return; }
+  const ordenado = ids.sort((a, b) => (mapa[b] || 0) - (mapa[a] || 0));
+  $('minPreview').innerHTML = ordenado.map(id => {
+    const p = ELENCO.find(x => Number(x.id) === id);
+    if (!p) return '';
+    const titular = q.includes(id);
+    return `<div class="min-chip"><span class="tag ${titular ? 'tit' : ''}">${titular ? 'Tit' : 'Banco'}</span>
+      <span>${esc(p.name)}</span><span class="mn">${mapa[id]}min</span></div>`;
   }).join('');
-  $('minLista').addEventListener('input', e => { if (e.target.dataset.min) somarMinutos(); });
-}
-
-function marcarTitulares() {
-  const q = quintetoIds();
-  document.querySelectorAll('#minLista .mrow').forEach(r => {
-    const titular = q.includes(Number(r.dataset.pid));
-    const tag = r.querySelector('.tag');
-    const p = ELENCO.find(x => Number(x.id) === Number(r.dataset.pid));
-    tag.classList.toggle('tit', titular);
-    tag.textContent = titular ? 'Titular' : (p?.role || '—');
-  });
-}
-
-function somarMinutos() {
-  let total = 0;
-  document.querySelectorAll('#minLista input[data-min]').forEach(i => {
-    const v = parseInt(i.value, 10) || 0;
-    total += v;
-    i.closest('.mrow').classList.toggle('zero', v === 0);
-  });
-  const el = $('minTotal'), bar = $('minBar');
-  el.textContent = `${total} / 240`;
-  el.className = 'min-total ' + (total === 240 ? 'ok' : total > 240 ? 'over' : 'under');
-  bar.className = 'min-bar ' + (total === 240 ? '' : total > 240 ? 'over' : 'under');
-  bar.querySelector('i').style.width = Math.min(100, total / 240 * 100) + '%';
-  return total;
-}
-
-function aplicarMinutos(mapa) {
-  document.querySelectorAll('#minLista input[data-min]').forEach(i => {
-    i.value = mapa[i.dataset.min] ?? 0;
-  });
-  somarMinutos();
 }
 
 /* ── Carga ── */
-async function carregar(slot) {
-  SLOT = slot || SLOT;
-  carregando = true; // trocar de slot repopula os campos: não é edição
+async function carregar() {
+  carregando = true;
   $('carregando').style.display = '';
   $('conteudo').style.display = 'none';
   $('msgSalvar').innerHTML = '';
 
-  const r = await fetch('/api/tactics.php?action=get&slot=' + encodeURIComponent(SLOT));
+  const r = await fetch('/api/tactics.php?action=get');
   const d = await r.json();
   if (!d.success) { $('carregando').textContent = d.error || 'Erro ao carregar.'; return; }
 
   ELENCO = d.players || [];
-  SUGERIDO = d.suggested || null;
-  ULTIMA = d.last || null;
-
-  // Marca com ponto verde os slots que ja tem tatica salva.
-  const salvos = d.saved_slots || {};
-  document.querySelectorAll('.slot-btn').forEach(b => {
-    b.classList.toggle('saved', !!salvos[b.dataset.slot]);
-    b.classList.toggle('active', b.dataset.slot === SLOT);
-  });
+  TATICAS = d.tactics || {};
+  ACTIVE_SLOT = d.active_slot || 'regular';
+  GLEAGUE_SLOTS = d.gleague_slots || 0;
+  EDIT_WINDOW = d.edit_window || { open: true };
+  SLOT = ACTIVE_SLOT;
 
   if (!ELENCO.length) { $('carregando').textContent = 'Seu elenco está vazio.'; return; }
 
+  renderJanela();
   montarQuinteto();
-  montarMinutos();
+  montarGleague();
+  mostrarSlot(SLOT);
 
-  const t = d.tactics;
-  if (t) {
-    // Ja existe rascunho salvo: restaura tudo como estava.
-    POSICOES.forEach((_, i) => {
-      const s = document.querySelector(`#court select[data-f="starter_${i+1}_id"]`);
-      if (s && t[`starter_${i+1}_id`]) s.value = t[`starter_${i+1}_id`];
-    });
-    document.querySelectorAll('[data-f]').forEach(el => {
-      const f = el.dataset.f;
-      if (f.startsWith('starter_')) return;
-      if (t[f] !== null && t[f] !== undefined) el.value = t[f];
-    });
-    aplicarMinutos(t.player_minutes || {});
-    // Um slot novo abre copiando a tatica regular, para nao comecar do zero.
-    if (t._origem === 'regular') msg('info', 'Começando a partir da tática da <strong>Temporada Regular</strong>. Ajuste e salve para separar as duas.');
-    else if (t._origem === 'perfil') msg('info', 'Preenchido com o perfil tático que o seu time já tinha em Diretrizes.');
-  } else if (SUGERIDO) {
-    // Primeira vez: abre com quinteto E minutos prontos, para o GM so ajustar.
-    aplicarSugestao();
-    aplicarMinutos(SUGERIDO.minutes || {});
-    msg('info', 'Quinteto e minutos montados a partir do seu elenco. Ajuste o que quiser e salve.');
-  }
-
-  atualizarQuinteto();
-  marcarTitulares();
-  somarMinutos();
-
-  $('btnRepetir').style.display = ULTIMA ? '' : 'none';
   $('carregando').style.display = 'none';
   $('conteudo').style.display = '';
-  // Só a partir daqui as mudanças são do usuário, não da carga.
+  aplicarBloqueioEdicao();
+}
+
+function mostrarSlot(slot) {
+  SLOT = slot;
+  carregando = true;
+  document.querySelectorAll('.slot-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.slot === SLOT);
+    b.classList.toggle('saved', !!TATICAS[b.dataset.slot]?.saved);
+    b.classList.toggle('is-official', b.dataset.slot === ACTIVE_SLOT);
+  });
+
+  const t = TATICAS[slot]?.data || {};
+  POSICOES.forEach((_, i) => {
+    const s = document.querySelector(`#court select[data-f="starter_${i+1}_id"]`);
+    if (s) s.value = t[`starter_${i+1}_id`] || '';
+  });
+  document.querySelectorAll('[data-f]').forEach(el => {
+    const f = el.dataset.f;
+    if (f.startsWith('starter_')) return;
+    el.value = (t[f] !== null && t[f] !== undefined) ? t[f] : '';
+  });
+
+  atualizarQuinteto();
+  renderPreviewMinutos(TATICAS[slot]?.preview_minutes || {});
+
+  const statusBox = $('tacticStatus');
+  statusBox.innerHTML = (slot === ACTIVE_SLOT)
+    ? `<span class="badge-ativa"><i class="bi bi-check-circle-fill"></i> Esta é a tática ativa agora</span>`
+    : '';
+  $('btnAtivar').style.display = (slot === ACTIVE_SLOT) ? 'none' : '';
+
   carregando = false;
   sujo = false;
 }
 
 function aplicarSugestao() {
-  (SUGERIDO?.starters || []).forEach((id, i) => {
+  (window.SUGERIDO_STARTERS || []).forEach((id, i) => {
     const s = document.querySelector(`#court select[data-f="starter_${i+1}_id"]`);
     if (s) s.value = id || '';
   });
   atualizarQuinteto();
-  marcarTitulares();
+  atualizarPreviewMinutos();
 }
 
-$('btnSugQuinteto').addEventListener('click', () => { aplicarSugestao(); msg('info', 'Quinteto sugerido pelo elenco.'); });
+$('btnSugQuinteto').addEventListener('click', async () => {
+  try {
+    const r = await fetch('/api/tactics.php?action=get');
+    const d = await r.json();
+    window.SUGERIDO_STARTERS = d.suggested_starters || [];
+    aplicarSugestao();
+    msg('info', 'Quinteto sugerido pelo elenco.');
+  } catch (e) { /* mantém quinteto atual se a sugestão falhar */ }
+});
 $('btnLimparQuinteto').addEventListener('click', () => {
   document.querySelectorAll('#court select').forEach(s => { s.value = ''; });
-  atualizarQuinteto(); marcarTitulares();
+  atualizarQuinteto(); atualizarPreviewMinutos();
 });
-$('btnSugMinutos').addEventListener('click', () => {
-  aplicarMinutos(SUGERIDO?.minutes || {});
-  msg('info', 'Minutos distribuídos por função e OVR, fechando 240.');
-});
-$('btnRepetir').addEventListener('click', () => {
-  if (!ULTIMA) return;
-  if (!confirm('Preencher com a última diretriz enviada? O que está na tela será substituído.')) return;
-  POSICOES.forEach((_, i) => {
-    const s = document.querySelector(`#court select[data-f="starter_${i+1}_id"]`);
-    if (s) s.value = ULTIMA[`starter_${i+1}_id`] || '';
-  });
+$('btnCopiar').addEventListener('click', () => {
+  const outros = Object.keys(SLOT_LABELS).filter(k => k !== SLOT && TATICAS[k]?.saved);
+  if (!outros.length) { msg('info', 'Nenhuma outra tática salva para copiar.'); return; }
+  const escolha = prompt('Copiar de qual tática?\n' + outros.map(k => `${k} = ${SLOT_LABELS[k]}`).join('\n'), outros[0]);
+  if (!escolha || !outros.includes(escolha)) return;
+  const origem = TATICAS[escolha]?.data || {};
   document.querySelectorAll('[data-f]').forEach(el => {
     const f = el.dataset.f;
-    if (f.startsWith('starter_')) return;
-    if (ULTIMA[f] !== null && ULTIMA[f] !== undefined) el.value = ULTIMA[f];
+    el.value = (origem[f] !== null && origem[f] !== undefined) ? origem[f] : '';
   });
-  aplicarMinutos(ULTIMA.player_minutes || {});
-  atualizarQuinteto(); marcarTitulares();
-  msg('info', 'Preenchido com a última diretriz enviada. Revise e salve.');
+  atualizarQuinteto();
+  atualizarPreviewMinutos();
+  agendarAutosave();
+  msg('info', `Copiado de <strong>${esc(SLOT_LABELS[escolha])}</strong>. Revise e salve.`);
 });
 
-/* ── Salvar ── */
-/* ── Gravação ──────────────────────────────────────
-   Uma função só, usada pelo autosave e pelo botão. O autosave nao interrompe
-   com confirm: quinteto repetido ou minutos fora de 240 sao avisados na tela,
-   mas o rascunho continua sendo guardado — quem valida de verdade e o envio
-   da diretriz. */
+/* ── Salvar / ativar ── */
 function montarPayload() {
-  const payload = { action: 'save', slot: SLOT, player_minutes: {} };
+  const payload = { action: 'save', slot: SLOT };
   document.querySelectorAll('[data-f]').forEach(el => { payload[el.dataset.f] = el.value || null; });
-  document.querySelectorAll('#minLista input[data-min]').forEach(i => {
-    payload.player_minutes[i.dataset.min] = parseInt(i.value, 10) || 0;
-  });
   return payload;
 }
 
@@ -570,8 +571,8 @@ function statusSalvamento(estado, texto) {
 }
 
 async function gravar({ silencioso = false } = {}) {
+  if (!EDIT_WINDOW.open) return false;
   atualizarQuinteto();
-  somarMinutos();
   statusSalvamento('salvando', 'Salvando…');
   try {
     const r = await fetch('/api/tactics.php', {
@@ -586,12 +587,10 @@ async function gravar({ silencioso = false } = {}) {
     }
     const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     statusSalvamento('ok', 'Salvo às ' + hora);
+    if (TATICAS[SLOT]) TATICAS[SLOT].saved = true;
     document.querySelector(`.slot-btn[data-slot="${SLOT}"]`)?.classList.add('saved');
     sujo = false;
-    if (!silencioso) {
-      const nome = document.querySelector(`.slot-btn[data-slot="${SLOT}"]`)?.textContent.trim() || 'Tática';
-      msg('ok', `<strong>${esc(nome)}</strong> salva. Em <strong>Diretrizes</strong>, escolha esta tática para o formulário vir preenchido com ela.`);
-    }
+    if (!silencioso) msg('ok', `<strong>${esc(SLOT_LABELS[SLOT])}</strong> salva.`);
     return true;
   } catch (e) {
     statusSalvamento('erro', 'Sem conexão');
@@ -600,18 +599,32 @@ async function gravar({ silencioso = false } = {}) {
   }
 }
 
-// Autosave com espera: sem debounce, arrastar um campo de minutos dispararia
-// uma requisicao por tecla.
+$('btnAtivar').addEventListener('click', async () => {
+  if (!EDIT_WINDOW.open) return;
+  if (sujo) await gravar({ silencioso: true });
+  try {
+    const r = await fetch('/api/tactics.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set_active', slot: SLOT })
+    });
+    const d = await r.json();
+    if (!d.success) { msg('err', esc(d.error || 'Erro ao ativar.')); return; }
+    ACTIVE_SLOT = SLOT;
+    mostrarSlot(SLOT);
+    msg('ok', `<strong>${esc(SLOT_LABELS[SLOT])}</strong> agora é a tática ativa do time.`);
+  } catch (e) { msg('err', 'Erro ao ativar.'); }
+});
+
+$('btnSalvar').addEventListener('click', () => gravar());
+
 function agendarAutosave() {
+  if (!EDIT_WINDOW.open) return;
   sujo = true;
   statusSalvamento('salvando', 'Alterações pendentes…');
   clearTimeout(timerAuto);
   timerAuto = setTimeout(() => gravar({ silencioso: true }), 1200);
 }
 
-$('btnSalvar').addEventListener('click', () => gravar());
-
-// Qualquer alteração agenda o autosave.
 ['input', 'change'].forEach(ev =>
   document.addEventListener(ev, e => {
     if (carregando) return;
@@ -619,24 +632,22 @@ $('btnSalvar').addEventListener('click', () => gravar());
   })
 );
 
-// Troca de slot: grava o pendente antes de sair, em vez de perguntar.
 $('slots').addEventListener('click', async e => {
   const b = e.target.closest('.slot-btn');
   if (!b || b.dataset.slot === SLOT) return;
   clearTimeout(timerAuto);
   if (sujo) await gravar({ silencioso: true });
-  carregar(b.dataset.slot);
+  mostrarSlot(b.dataset.slot);
 });
 
-// Fechar a aba com algo pendente: grava sem esperar a resposta.
 window.addEventListener('beforeunload', () => {
-  if (!sujo) return;
+  if (!sujo || !EDIT_WINDOW.open) return;
   clearTimeout(timerAuto);
   navigator.sendBeacon?.('/api/tactics.php',
     new Blob([JSON.stringify(montarPayload())], { type: 'application/json' }));
 });
 
-carregar('regular');
+carregar();
 </script>
 </body>
 </html>

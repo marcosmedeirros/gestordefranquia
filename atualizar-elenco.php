@@ -84,6 +84,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .sb-nav a i{font-size:15px;width:18px;text-align:center;flex-shrink:0}
 .sb-nav a:hover{background:var(--panel-2);color:var(--text)}
 .sb-nav a.active{background:var(--red-soft);color:var(--red);font-weight:600}
+.sb-theme-toggle{margin:0 14px 12px;padding:8px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--panel-2);color:var(--text);display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:600;cursor:pointer;transition:all var(--t) var(--ease)}
+.sb-theme-toggle:hover{border-color:var(--border-red);color:var(--red)}
 .sb-footer{padding:12px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
 .sb-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--border-md);flex-shrink:0}
 .sb-username{font-size:12px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -335,7 +337,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   const sb = document.getElementById('sidebar'), ov = document.getElementById('sbOverlay');
   document.getElementById('menuBtn')?.addEventListener('click', () => { sb?.classList.add('open'); ov?.classList.add('show'); });
   ov?.addEventListener('click', () => { sb?.classList.remove('open'); ov?.classList.remove('show'); });
-  const btn = document.querySelector('[data-theme-toggle]');
+  const btn = document.getElementById('themeToggle');
   const aplica = t => { document.documentElement.dataset.theme = t; localStorage.setItem('fba-theme', t);
     if (btn) btn.innerHTML = t === 'light' ? '<i class="bi bi-sun"></i><span>Modo claro</span>' : '<i class="bi bi-moon"></i><span>Modo escuro</span>'; };
   aplica(localStorage.getItem('fba-theme') || 'dark');

@@ -10,6 +10,14 @@ const _pApi = (typeof api === 'function') ? api : async (path, opts = {}) => {
 const _notify = (type, msg) =>
   typeof showAlert === 'function' ? showAlert(type, msg) : alert(msg);
 
+// Reusa o escapeHtml global de admin.js quando disponível (mesma página no admin.php);
+// caso contrário (ex.: punicoes.php standalone), usa uma implementação própria.
+// Nome com prefixo (_escapeHtml) para não colidir com a declaração `function escapeHtml` de admin.js
+// quando os dois scripts são carregados juntos (redeclaração global geraria SyntaxError).
+const _escapeHtml = (typeof escapeHtml === 'function')
+  ? escapeHtml
+  : (s => (s || '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'));
+
 let _punCatalog = [];
 let _motiveCatalog = [];
 const _BAN_TYPES = new Set(['BAN_TRADES', 'BAN_TRADES_PICKS', 'BAN_FREE_AGENCY', 'ROTACAO_AUTOMATICA']);
@@ -68,7 +76,7 @@ async function _loadTeams(league, targetId, emptyLabel = 'Selecione o time...') 
   if (!league) { sel.innerHTML = `<option value="">${emptyLabel}</option>`; return; }
   const data = await _pApi(`punicoes.php?action=teams&league=${encodeURIComponent(league)}`);
   sel.innerHTML = `<option value="">${emptyLabel}</option>` + (data.teams || []).map(t =>
-    `<option value="${t.id}">${t.city} ${t.name}</option>`
+    `<option value="${t.id}">${_escapeHtml(t.city)} ${_escapeHtml(t.name)}</option>`
   ).join('');
 }
 
@@ -106,10 +114,10 @@ window.loadPunishments = async function({ teamId = '', league = '' } = {}) {
       return;
     }
     container.innerHTML = rows.map(p => {
-      const teamName = `${p.city || ''} ${p.name || ''}`.trim() || 'Time';
+      const teamName = _escapeHtml(`${p.city || ''} ${p.name || ''}`.trim() || 'Time');
       const league = p.league || p.team_league || '-';
       const reverted = !!p.reverted_at;
-      const punLabel = p.punishment_label || _getTypeLabel(p.type);
+      const punLabel = _escapeHtml(p.punishment_label || _getTypeLabel(p.type));
       const initial = teamName.charAt(0).toUpperCase();
       const pickChip = p.pick_id
         ? `<span class="pun-chip"><i class="bi bi-ticket-detailed"></i> Pick ${p.season_year || ''} R${p.round || ''}</span>`
@@ -142,7 +150,7 @@ window.loadPunishments = async function({ teamId = '', league = '' } = {}) {
               <span class="pun-chip type">${punLabel}</span>
               ${pickChip}
             </div>
-            ${p.motive ? `<div class="pun-v2-motive">${p.motive}</div>` : ''}
+            ${p.motive ? `<div class="pun-v2-motive">${_escapeHtml(p.motive)}</div>` : ''}
             <div class="pun-v2-date"><i class="bi bi-clock"></i> ${dataFmt}${revertedInfo}</div>
           </div>
         </div>`;

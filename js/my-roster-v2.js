@@ -167,108 +167,6 @@ function collectSkillGradesFromEditor(container, baseGrades) {
   return nextGrades;
 }
 
-function normalizePlayerName(name) {
-  return (name || '')
-    .toString()
-    .toLowerCase()
-    .replace(/\./g, '')
-    .replace(/[^a-z0-9 ]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function buildPlayerLookup(players) {
-  const lookup = new Map();
-  players.forEach(p => {
-    const full = normalizePlayerName(p.name);
-    if (full) lookup.set(full, p);
-    const parts = full.split(' ').filter(Boolean);
-    if (parts.length >= 2) {
-      const initialLast = `${parts[0][0]} ${parts[parts.length - 1]}`.trim();
-      lookup.set(initialLast, p);
-    }
-  });
-  return lookup;
-}
-
-function cleanGradeToken(token) {
-  const match = String(token || '').toUpperCase().match(/[ABCDF][+-]?/);
-  return match ? match[0] : '';
-}
-
-function isGradeToken(token) {
-  return cleanGradeToken(token) !== '';
-}
-
-function extractSkillRowFromTokens(tokens) {
-  const gradeTokens = [];
-  tokens.forEach((token, idx) => {
-    const cleanToken = cleanGradeToken(token);
-    if (cleanToken) {
-      gradeTokens.push({ idx, token: cleanToken });
-    }
-  });
-  if (gradeTokens.length < 6) return null;
-  const lastGrades = gradeTokens.slice(-10);
-  const firstGradeIndex = lastGrades[0]?.idx ?? -1;
-  if (firstGradeIndex < 0) return null;
-  const skillTokens = lastGrades.map(item => item.token);
-  while (skillTokens.length < 10) skillTokens.push('-');
-
-  const headerTokens = tokens.slice(0, firstGradeIndex).filter(Boolean);
-  const upperHeader = headerTokens.map(t => t.toUpperCase());
-  let posIndex = -1;
-  ['PG', 'SG', 'SF', 'PF', 'C'].forEach(pos => {
-    const found = upperHeader.lastIndexOf(pos);
-    if (found > posIndex) posIndex = found;
-  });
-  if (posIndex < 0) return null;
-
-  const pos = (headerTokens[posIndex] || '').toUpperCase();
-  const numericTokens = headerTokens
-    .slice(posIndex + 1)
-    .map(t => {
-      const match = String(t).match(/(\d{2,3})/);
-      return match ? match[1] : null;
-    })
-    .filter(Boolean);
-  const age = numericTokens[0] ? parseInt(numericTokens[0], 10) : null;
-  const ovr = numericTokens[1] ? parseInt(numericTokens[1], 10) : null;
-  const name = headerTokens.slice(0, posIndex).join(' ').trim();
-  if (!name) return null;
-  return {
-    name,
-    age,
-    ovr,
-    grades: {
-      in: skillTokens[0],
-      mid: skillTokens[1],
-      pt3: skillTokens[2],
-      post_d: skillTokens[3],
-      per_d: skillTokens[4],
-      play: skillTokens[5],
-      reb: skillTokens[6],
-      athl: skillTokens[7],
-      iq: skillTokens[8],
-      pot: skillTokens[9],
-    }
-  };
-}
-
-function extractSkillRowsFromText(text) {
-  const lines = (text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const rows = [];
-  lines.forEach(line => {
-    if (/player name|view list|detailed|tendency|badge|player list/i.test(line)) return;
-    const cleanLine = line.replace(/[|]/g, ' ').replace(/[^A-Za-z0-9+\-\. ]+/g, ' ').trim();
-    const tokens = cleanLine.split(/\s+/).filter(Boolean);
-    if (tokens.length < 10) return;
-    const row = extractSkillRowFromTokens(tokens);
-    if (row) rows.push(row);
-  });
-  return rows;
-}
-
 const roleOrder = { 'Titular': 0, 'Banco': 1, 'Outro': 2, 'G-League': 3 };
 const starterPositionOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
 
@@ -362,7 +260,6 @@ let currentSearch = '';
 let currentRoleFilter = '';
 let editPhotoFile = null;
 let pendingWaivePlayerId = null;
-let pendingSkillUpdates = [];
 
 const DEFAULT_FA_LIMITS = { waiversUsed: 0, waiversMax: 3, signingsUsed: 0, signingsMax: 3 };
 let currentFALimits = { ...DEFAULT_FA_LIMITS };
@@ -680,10 +577,23 @@ function openWaiveModal(player) {
   const capEl = document.getElementById('waive-player-cap');
   const statusEl = document.getElementById('waive-cap-status');
   if (nameEl) nameEl.textContent = player.name || 'jogador';
-  const newCap = getCapAfterRemoval(player.id);
-  if (capEl) capEl.textContent = newCap;
-  const remaining = allPlayers.filter((p) => String(p.id) !== String(player.id));
-  if (statusEl) statusEl.textContent = getCapStatusText(newCap, remaining);
+
+  if (SALARY_MODE && window.__SALARY_CAP__) {
+    // Liga em modo Salary Cap (ELITE): mostra a folha em milhões, não o Top 8 por OVR.
+    const sc = window.__SALARY_CAP__;
+    const newPayroll = Math.max(0, Number(sc.payroll) - playerSalary(player));
+    if (capEl) capEl.textContent = `${newPayroll}M`;
+    let status = 'Você vai ficar dentro do cap.';
+    if (Number.isFinite(Number(sc.cap_max)) && newPayroll > Number(sc.cap_max)) status = 'Você vai ficar acima do cap.';
+    else if (Number.isFinite(Number(sc.cap_floor)) && newPayroll < Number(sc.cap_floor)) status = 'Você vai ficar abaixo do piso.';
+    if (statusEl) statusEl.textContent = status;
+  } else {
+    const newCap = getCapAfterRemoval(player.id);
+    if (capEl) capEl.textContent = newCap;
+    const remaining = allPlayers.filter((p) => String(p.id) !== String(player.id));
+    if (statusEl) statusEl.textContent = getCapStatusText(newCap, remaining);
+  }
+
   const modalEl = document.getElementById('waivePlayerModal');
   if (modalEl) {
     new bootstrap.Modal(modalEl).show();
@@ -911,7 +821,7 @@ function renderPlayers(players) {
     startersSection.className = 'roster-section';
     startersSection.innerHTML = '<h5>Quinteto Titular</h5>';
     if (starters.length === 0) {
-      startersSection.innerHTML += '<div class="text-center text-light-gray">Sem jogadores marcados como Titular.</div>';
+      startersSection.innerHTML += '<div class="empty-state"><i class="bi bi-person-x"></i><p>Sem jogadores marcados como Titular.</p></div>';
     } else {
       const list = document.createElement('div');
       list.className = 'row g-3';
@@ -954,7 +864,7 @@ function renderPlayers(players) {
     benchSection.className = 'roster-section';
     benchSection.innerHTML = '<h5>Banco</h5>';
     if (bench.length === 0) {
-      benchSection.innerHTML += '<div class="text-center text-light-gray">Sem jogadores no banco.</div>';
+      benchSection.innerHTML += '<div class="empty-state"><i class="bi bi-person-x"></i><p>Sem jogadores no banco.</p></div>';
     } else {
       const ul = document.createElement('ul');
       ul.className = 'list-group list-group-flush';
@@ -1002,12 +912,12 @@ function renderPlayersMobileCards(players) {
   container.innerHTML = '';
   container.style.display = '';
   if (!players || players.length === 0) {
-    container.innerHTML = '<div class="text-center text-light-gray">Nenhum jogador encontrado.</div>';
+    container.innerHTML = '<div class="empty-state"><i class="bi bi-search"></i><p>Nenhum jogador encontrado.</p></div>';
     return;
   }
 
   players.forEach(p => {
-    const canRetire = Number(p.age) >= 35;
+    const canRetire = Number(p.age) > 35;
     const photoUrl = getPlayerPhotoUrl(p);
     const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge franchise-badge">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span class="badge loyal-badge">Leal</span>' : '');
     const tagBadgeMobile = renderPlayerTagBadge(p);
@@ -1053,12 +963,12 @@ function renderPlayersTable(players) {
   if (!wrapper || !tbody) return;
   tbody.innerHTML = '';
   if (!players || players.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="${SALARY_MODE ? 9 : 8}" class="text-center text-light-gray">Nenhum jogador encontrado.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${SALARY_MODE ? 9 : 8}"><div class="empty-state"><i class="bi bi-search"></i><p>Nenhum jogador encontrado.</p></div></td></tr>`;
     wrapper.style.display = '';
     return;
   }
   players.forEach(p => {
-    const canRetire = Number(p.age) >= 35;
+    const canRetire = Number(p.age) > 35;
     const photoUrl = getPlayerPhotoUrl(p);
     const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge franchise-badge ms-1">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span class="badge loyal-badge ms-1">Leal</span>' : '');
     const tagBadge = renderPlayerTagBadge(p);
@@ -1229,6 +1139,7 @@ async function loadPlayers() {
     currentSort = { field: 'role', ascending: true };
     renderPlayers(allPlayers);
     if (statusEl) statusEl.style.display = 'none';
+    checkAndApplyAiTag();
   } catch (err) {
     console.error('Erro ao carregar:', err);
     if (statusEl) {

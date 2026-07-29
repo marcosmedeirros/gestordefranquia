@@ -16,16 +16,19 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id'];
-$is_admin = $_SESSION['is_admin'] ?? (($_SESSION['user_type'] ?? '') === 'admin');
 $team_id = $_SESSION['team_id'] ?? null;
 $league_id = $_SESSION['current_league_id'] ?? null;
 
 $pdo = db();
+// Admin global (user_type='admin') OU admin da liga via league_admins — mesmo critério
+// usado na página leilao.php, em api/market.php e api/draft.php.
+$is_admin = hasAdminAccess($pdo, (int)$user_id);
 ensureTempPlayerColumns($pdo);
 ensureAuctionTableCompat($pdo);
 ensureProposalPicksTable($pdo);
 ensureProposalObsColumn($pdo);
 ensurePersonalizedProposalSupport($pdo);
+ensureLeilaoMensagensTable($pdo);
 
 function teamColumnExists(PDO $pdo, string $column): bool
 {
@@ -198,6 +201,22 @@ function ensurePersonalizedProposalSupport(PDO $pdo): void {
     } catch (Throwable $e) {}
 }
 
+function ensureLeilaoMensagensTable(PDO $pdo): void
+{
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS leilao_mensagens (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            leilao_id INT NOT NULL,
+            team_id INT NOT NULL,
+            tipo ENUM('text','proposal') NOT NULL DEFAULT 'text',
+            texto TEXT NULL,
+            proposta_id INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_leilao_mensagens (leilao_id, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) { /* ignore */ }
+}
+
 function criarJogadorParaLeilao(PDO $pdo, array $new_player, int $user_id, ?int $league_id): array
 {
     $name = trim((string)($new_player['name'] ?? ''));
@@ -269,6 +288,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         case 'league_teams':
             leagueTeams($pdo, $league_id, $user_id, $is_admin, $_GET['league'] ?? null);
             break;
+        case 'listar_mensagens':
+            $leilao_id = $_GET['leilao_id'] ?? 0;
+            listarMensagensLeilao($pdo, $leilao_id, $team_id, $is_admin);
+            break;
         default:
             echo json_encode(['success' => false, 'error' => 'Acao nao reconhecida']);
     }
@@ -313,6 +336,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'cadastrar':
             if (!$is_admin) {
                 echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+                exit;
+            }
+            // O leilão pode ser cadastrado em qualquer liga escolhida no dropdown do painel;
+            // um admin de liga (não-global) só pode cadastrar nas ligas que ele administra.
+            $cadastrarLeagueName = getLeagueNameById($pdo, isset($body['league_id']) ? (int)$body['league_id'] : null);
+            if ($cadastrarLeagueName && !in_array(strtoupper($cadastrarLeagueName), getAdminLeagues($pdo, (int)$user_id), true)) {
+                echo json_encode(['success' => false, 'error' => 'Você não administra essa liga']);
                 exit;
             }
             cadastrarLeilao($pdo, $body, $user_id);
@@ -373,6 +403,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
         case 'recusar_proposta':
             recusarProposta($pdo, $body, $team_id, $is_admin);
+            break;
+        case 'enviar_mensagem':
+            enviarMensagemLeilao($pdo, $body, $team_id);
             break;
         default:
             echo json_encode(['success' => false, 'error' => 'Acao nao reconhecida']);
@@ -715,6 +748,93 @@ function historicoLeiloes($pdo, $league_id) {
     echo json_encode(['success' => true, 'leiloes' => $payload]);
 }
 
+/**
+ * Timeline cronológica de um leilão: mensagens de texto + propostas embutidas
+ * (cada proposta enviada gera uma mensagem tipo='proposal' espelhada em leilao_mensagens).
+ * Mesma regra de acesso do ver_propostas: leilão finalizado + não-dono/admin só vê a proposta aceita.
+ */
+function listarMensagensLeilao(PDO $pdo, $leilao_id, ?int $team_id, bool $is_admin): void {
+    if (!$leilao_id) {
+        echo json_encode(['success' => false, 'error' => 'ID do leilão não informado']);
+        return;
+    }
+
+    $stmt = $pdo->prepare("SELECT team_id, status FROM leilao_jogadores WHERE id = ?");
+    $stmt->execute([$leilao_id]);
+    $leilao = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$leilao) {
+        echo json_encode(['success' => false, 'error' => 'Leilão não encontrado']);
+        return;
+    }
+
+    $isOwner = !empty($leilao['team_id']) && $leilao['team_id'] == $team_id;
+    $isFinished = $leilao['status'] === 'finalizado';
+    $onlyAccepted = $isFinished && !$is_admin && !$isOwner;
+
+    $stmt = $pdo->prepare("SELECT lm.*, t.name as team_name
+                           FROM leilao_mensagens lm
+                           JOIN teams t ON lm.team_id = t.id
+                           WHERE lm.leilao_id = ?
+                           ORDER BY lm.created_at ASC, lm.id ASC");
+    $stmt->execute([$leilao_id]);
+    $mensagens = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $ovrCol = playerOvrColumn($pdo);
+    $result = [];
+    foreach ($mensagens as $m) {
+        if ($m['tipo'] === 'proposal') {
+            if (empty($m['proposta_id'])) {
+                continue;
+            }
+            $stmtP = $pdo->prepare("SELECT * FROM leilao_propostas WHERE id = ?");
+            $stmtP->execute([$m['proposta_id']]);
+            $proposta = $stmtP->fetch(PDO::FETCH_ASSOC);
+            if (!$proposta) {
+                continue;
+            }
+            if ($onlyAccepted && $proposta['status'] !== 'aceita') {
+                continue;
+            }
+
+            $stmt2 = $pdo->prepare("SELECT p.id, p.name, p.position, p.age, p.{$ovrCol} as ovr FROM players p
+                                    JOIN leilao_proposta_jogadores lpj ON p.id = lpj.player_id
+                                    WHERE lpj.proposta_id = ?");
+            $stmt2->execute([$proposta['id']]);
+            $proposta['jogadores'] = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmt3 = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, lpp.swap_type,
+                                           CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')) AS original_team_name
+                                    FROM leilao_proposta_picks lpp
+                                    JOIN picks pk ON pk.id = lpp.pick_id
+                                    LEFT JOIN teams t ON t.id = pk.original_team_id
+                                    WHERE lpp.proposta_id = ?");
+            $stmt3->execute([$proposta['id']]);
+            $proposta['picks'] = $stmt3->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmt4 = $pdo->prepare("SELECT pl.id, pl.name, pl.position, pl.age, pl.{$ovrCol} as ovr
+                                    FROM leilao_proposta_extra_players ep
+                                    JOIN players pl ON pl.id = ep.player_id
+                                    WHERE ep.proposta_id = ?");
+            $stmt4->execute([$proposta['id']]);
+            $proposta['extra_jogadores'] = $stmt4->fetchAll(PDO::FETCH_ASSOC);
+
+            $stmt5 = $pdo->prepare("SELECT pk.id, pk.season_year, pk.round, ep.swap_type,
+                                           CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')) AS original_team_name
+                                    FROM leilao_proposta_extra_picks ep
+                                    JOIN picks pk ON pk.id = ep.pick_id
+                                    LEFT JOIN teams t ON t.id = pk.original_team_id
+                                    WHERE ep.proposta_id = ?");
+            $stmt5->execute([$proposta['id']]);
+            $proposta['extra_picks'] = $stmt5->fetchAll(PDO::FETCH_ASSOC);
+
+            $m['proposta'] = $proposta;
+        }
+        $result[] = $m;
+    }
+
+    echo json_encode(['success' => true, 'messages' => $result]);
+}
+
 // ========== FUNCOES POST ==========
 
 function minhasPicks(PDO $pdo, ?int $team_id, ?int $league_id): void {
@@ -835,7 +955,7 @@ function cadastrarLeilao($pdo, $body, $user_id) {
 }
 
 function iniciarLeilao($pdo, $body) {
-    if (!isset($_SESSION['is_admin']) && (($_SESSION['user_type'] ?? '') !== 'admin')) {
+    if (!hasAdminAccess($pdo, (int)($_SESSION['user_id'] ?? 0))) {
         echo json_encode(['success' => false, 'error' => 'Acesso negado']);
         return;
     }
@@ -850,7 +970,7 @@ function iniciarLeilao($pdo, $body) {
 }
 
 function removerTempLeilao($pdo, $body) {
-    if (!isset($_SESSION['is_admin']) && (($_SESSION['user_type'] ?? '') !== 'admin')) {
+    if (!hasAdminAccess($pdo, (int)($_SESSION['user_id'] ?? 0))) {
         echo json_encode(['success' => false, 'error' => 'Acesso negado']);
         return;
     }
@@ -1064,6 +1184,12 @@ function enviarProposta($pdo, $body, $team_id, $league_id) {
                 }
             }
         }
+
+        // Espelha a proposta na timeline de chat do leilão (best-effort: não deve derrubar a proposta em si)
+        try {
+            $stmt = $pdo->prepare("INSERT INTO leilao_mensagens (leilao_id, team_id, tipo, proposta_id) VALUES (?, ?, 'proposal', ?)");
+            $stmt->execute([$leilao_id, $team_id, $proposta_id]);
+        } catch (Throwable $e) { /* ignore — a proposta em si já foi salva */ }
 
         $pdo->commit();
         echo json_encode(['success' => true, 'proposta_id' => $proposta_id]);
@@ -1448,6 +1574,36 @@ function recusarProposta($pdo, $body, $team_id, $is_admin) {
     
     $stmt = $pdo->prepare("UPDATE leilao_propostas SET status = 'recusada' WHERE id = ?");
     $stmt->execute([$proposta_id]);
-    
+
+    echo json_encode(['success' => true]);
+}
+
+function enviarMensagemLeilao(PDO $pdo, $body, ?int $team_id): void {
+    if (!$team_id) {
+        echo json_encode(['success' => false, 'error' => 'Você precisa ter um time para enviar mensagens']);
+        return;
+    }
+    $leilao_id = (int)($body['leilao_id'] ?? 0);
+    $texto = trim((string)($body['texto'] ?? ''));
+
+    if (!$leilao_id || $texto === '') {
+        echo json_encode(['success' => false, 'error' => 'Mensagem vazia']);
+        return;
+    }
+    if (mb_strlen($texto) > 1000) {
+        echo json_encode(['success' => false, 'error' => 'Mensagem muito longa (máx. 1000 caracteres)']);
+        return;
+    }
+
+    $stmt = $pdo->prepare("SELECT id FROM leilao_jogadores WHERE id = ?");
+    $stmt->execute([$leilao_id]);
+    if (!$stmt->fetch()) {
+        echo json_encode(['success' => false, 'error' => 'Leilão não encontrado']);
+        return;
+    }
+
+    $ins = $pdo->prepare("INSERT INTO leilao_mensagens (leilao_id, team_id, tipo, texto) VALUES (?, ?, 'text', ?)");
+    $ins->execute([$leilao_id, $team_id, $texto]);
+
     echo json_encode(['success' => true]);
 }

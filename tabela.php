@@ -8,7 +8,6 @@
  */
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
-require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 
 $user = getUserSession();
@@ -18,7 +17,6 @@ $stmtTeam = $pdo->prepare('SELECT id, city, name, league, photo_url FROM teams W
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch(PDO::FETCH_ASSOC) ?: null;
 
-$isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 $minhaLiga = strtoupper((string)($team['league'] ?? $user['league'] ?? 'ELITE'));
 $meuTimeId = $team ? (int)$team['id'] : 0;
 ?>
@@ -34,7 +32,7 @@ $meuTimeId = $team ? (int)$team['id'] : 0;
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=Oswald:wght@600;700&display=swap" rel="stylesheet">
 <style>
-:root{--red:#fc0025;--red-soft:color-mix(in srgb, var(--red) 10%, transparent);--border-red:color-mix(in srgb, var(--red) 25%, transparent);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1e1e24;--border:rgba(255,255,255,.07);--border-md:rgba(255,255,255,.12);--text:#f0f0f3;--text-2:#868690;--text-3:#7d7d85;--amber:#f59e0b;--green:#22c55e;--radius:14px;--radius-sm:10px;--font:'Montserrat',sans-serif;--sidebar-w:260px;--t:.2s;--ease:cubic-bezier(.4,0,.2,1)}
+:root{--red:#fc0025;--red-soft:color-mix(in srgb, var(--red) 10%, transparent);--border-red:color-mix(in srgb, var(--red) 25%, transparent);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1e1e24;--border:rgba(255,255,255,.07);--border-md:rgba(255,255,255,.12);--text:#f0f0f3;--text-2:#868690;--text-3:#7d7d85;--amber:#f59e0b;--green:#22c55e;--blue:#3b82f6;--radius:14px;--radius-sm:10px;--radius-xs:6px;--font:'Montserrat',sans-serif;--sidebar-w:260px;--t:.2s;--ease:cubic-bezier(.4,0,.2,1)}
 :root[data-theme="light"]{--bg:#f6f7fb;--panel:#fff;--panel-2:#f2f4f8;--panel-3:#e9edf4;--border:#e3e6ee;--border-md:#d7dbe6;--text:#111217;--text-2:#5b6270;--text-3:#657080}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
@@ -65,9 +63,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .content{max-width:1180px;margin:0 auto;padding:26px 22px 80px}
 
 .page-eyebrow{font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--red);margin-bottom:4px}
-.page-title{font-family:'Oswald',sans-serif;font-size:25px;font-weight:700;display:flex;align-items:center;gap:10px}
+.page-title{font-size:26px;font-weight:800;line-height:1.1;display:flex;align-items:center;gap:10px}
 .page-title i{color:var(--red)}
-.page-sub{font-size:13px;color:var(--text-2);margin-top:5px}
+.page-sub{font-size:13px;color:var(--text-2);margin-top:4px}
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px}
 .section-title{font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-2);margin-bottom:14px;display:flex;align-items:center;gap:8px}
 .section-title i{color:var(--red)}
@@ -78,7 +76,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .fbtn.active{background:var(--red);border-color:var(--red);color:#fff}
 .sel{background:var(--panel);border:1px solid var(--border-md);color:var(--text);border-radius:999px;padding:8px 14px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
 .sel:focus{outline:none;border-color:var(--red)}
-.badge-atual{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:var(--red-soft);border:1px solid var(--border-red);color:var(--red)}
 
 /* Conferências */
 .confs{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -96,6 +93,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .tname a{color:inherit;text-decoration:none}
 .tname a:hover{color:var(--red)}
 .tflag{font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--panel-3);border:1px solid var(--border);color:var(--text-3);flex-shrink:0}
+.twl{font-size:11px;font-weight:600;color:var(--text-2);flex-shrink:0}
 .corte{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--green)}
 .corte::before,.corte::after{content:'';flex:1;height:1px;background:color-mix(in srgb, var(--green) 28%, transparent)}
 
@@ -115,7 +113,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .campeao .nm{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;line-height:1.15}
 .campeao .sub{font-size:12px;color:var(--text-2);margin-top:2px}
 
-.vazio{text-align:center;padding:26px;color:var(--text-3);font-size:13px}
+.vazio{padding:24px 16px;text-align:center;color:var(--text-3)}
+.vazio i{font-size:28px;display:block;margin-bottom:8px}
+.vazio p{font-size:12px;margin:0}
 .nota{font-size:11px;color:var(--text-3);margin-top:12px;display:flex;align-items:center;gap:6px}
 
 @media (max-width:992px){
@@ -159,7 +159,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <select class="sel" id="selTemporada" style="margin-left:auto"></select>
   </div>
 
-  <div id="conteudo"><div class="panel vazio">Carregando…</div></div>
+  <div id="conteudo"><div class="panel vazio"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div></div>
 
  </div>
 </main>
@@ -171,7 +171,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   const sb = document.getElementById('sidebar'), ov = document.getElementById('sbOverlay');
   document.getElementById('menuBtn')?.addEventListener('click', () => { sb?.classList.add('open'); ov?.classList.add('show'); });
   ov?.addEventListener('click', () => { sb?.classList.remove('open'); ov?.classList.remove('show'); });
-  const btn = document.querySelector('[data-theme-toggle]');
+  const btn = document.getElementById('themeToggle');
   const aplica = t => { document.documentElement.dataset.theme = t; localStorage.setItem('fba-theme', t);
     if (btn) btn.innerHTML = t === 'light' ? '<i class="bi bi-sun"></i><span>Modo claro</span>' : '<i class="bi bi-moon"></i><span>Modo escuro</span>'; };
   aplica(localStorage.getItem('fba-theme') || 'dark');
@@ -180,7 +180,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
 const MEU_TIME = <?= $meuTimeId ?>;
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const LOGO = '/img/default-team.png';
 
 let LIGA = '<?= $minhaLiga ?>', TEMPORADAS = [], SEASON_ID = null;
@@ -202,6 +202,7 @@ function linhaTime(t, i) {
       <span class="tpos">${t.position}º</span>
       <img class="tlogo" src="${esc(t.photo_url || LOGO)}" alt="" onerror="this.src='${LOGO}'">
       <span class="tname"><a href="/team-history.php?team_id=${t.team_id}">${esc(t.name)}</a></span>
+      ${t.informado ? `<span class="twl">${t.wins}-${t.losses}</span>` : ''}
       ${t.informado ? '' : '<span class="tflag" title="Posição não lançada pela administração">não confirmada</span>'}
     </div>`;
 }
@@ -209,7 +210,7 @@ function linhaTime(t, i) {
 function render(d) {
   const box = $('conteudo');
   if (!d.season) {
-    box.innerHTML = '<div class="panel vazio">Nenhuma temporada com classificação lançada nesta liga.</div>';
+    box.innerHTML = '<div class="panel vazio"><i class="bi bi-inbox"></i><p>Nenhuma temporada com classificação lançada nesta liga.</p></div>';
     return;
   }
 
@@ -259,10 +260,10 @@ function render(d) {
           <span>${esc(p.name)}</span></div>`).join('')}
       </div>`).join('') + '</div>';
   } else if (temAlgo) {
-    html += '<div class="panel vazio" style="margin-top:16px">Playoffs ainda não lançados nesta temporada.</div>';
+    html += '<div class="panel vazio" style="margin-top:16px"><i class="bi bi-inbox"></i><p>Playoffs ainda não lançados nesta temporada.</p></div>';
   }
 
-  box.innerHTML = html || '<div class="panel vazio">Nada lançado nesta temporada.</div>';
+  box.innerHTML = html || '<div class="panel vazio"><i class="bi bi-inbox"></i><p>Nada lançado nesta temporada.</p></div>';
 }
 
 async function carregarTemporadas() {
@@ -285,7 +286,7 @@ async function carregarTemporadas() {
 }
 
 async function carregarTabela() {
-  $('conteudo').innerHTML = '<div class="panel vazio">Carregando…</div>';
+  $('conteudo').innerHTML = '<div class="panel vazio"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div>';
   const r = await fetch(`/api/tabela.php?action=table&season_id=${SEASON_ID}&league=${encodeURIComponent(LIGA)}`);
   render(await r.json());
 }

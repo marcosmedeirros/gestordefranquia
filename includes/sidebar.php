@@ -69,19 +69,19 @@ if (!function_exists('sbActive')) {
         <a href="/mercado.php"<?= sbActive('mercado.php', $__sbCurrent) ?>><i class="bi bi-shop"></i> Mercado</a>
         <a href="/free-agency.php"<?= sbActive('free-agency.php', $__sbCurrent) ?>><i class="bi bi-coin"></i> Free Agency</a>
         <a href="/leilao.php"<?= sbActive('leilao.php', $__sbCurrent) ?>><i class="bi bi-hammer"></i> Leilão</a>
+        <a href="/dispensas.php"<?= sbActive('dispensas.php', $__sbCurrent) ?>><i class="bi bi-hourglass-split"></i> Dispensas</a>
         <a href="/drafts.php"<?= sbActive('drafts.php', $__sbCurrent) ?>><i class="bi bi-trophy"></i> Draft</a>
         <?php if ($__sbMyInitDraft): ?>
         <a href="/initdraftselecao.php?token=<?= urlencode($__sbMyInitDraft['access_token']) ?>"<?= sbActive('initdraftselecao.php', $__sbCurrent) ?>><i class="bi bi-stars"></i> Draft Inicial</a>
         <?php endif; ?>
         <?php /* Salary Cap (ELITE): em avaliacao, acessivel apenas por link — ver backend/preview_gate.php */ ?>
-        <a href="/tapas.php"<?= sbActive('tapas.php', $__sbCurrent) ?>><i class="bi bi-hand-index-thumb"></i> Tapas</a>
+        <?php /* Tapas: oculto temporariamente, vai passar por alteração */ ?>
 
         <div class="sb-section">Liga</div>
         <a href="/tabela.php"<?= sbActive('tabela.php', $__sbCurrent) ?>><i class="bi bi-table"></i> Tabela</a>
         <a href="/rankings.php"<?= sbActive('rankings.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-fill"></i> Rankings</a>
         <a href="/history.php"<?= sbActive('history.php', $__sbCurrent) ?>><i class="bi bi-clock-history"></i> Histórico</a>
         <a href="/hall-da-fama.php"<?= sbActive('hall-da-fama.php', $__sbCurrent) ?>><i class="bi bi-award-fill"></i> Hall da Fama</a>
-        <?php /* Diretrizes saiu do menu: o acesso e pelo botao "Ir para o envio" em tatica.php. */ ?>
         <a href="/mundo-fba.php"<?= sbActive('mundo-fba.php', $__sbCurrent) ?>><i class="bi bi-globe2"></i> Mundo FBA</a>
         <a href="/estatisticas.php"<?= sbActive('estatisticas.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
         <a href="/ouvidoria.php"<?= sbActive('ouvidoria.php', $__sbCurrent) ?>><i class="bi bi-chat-dots"></i> Ouvidoria</a>
@@ -94,7 +94,7 @@ if (!function_exists('sbActive')) {
         <?php foreach ($__sbOtherInitDrafts as $__lg => $__sess): ?>
         <a href="/initdraftselecao.php?token=<?= urlencode($__sess['access_token']) ?>"><i class="bi bi-stars"></i> Draft Inicial — <?= htmlspecialchars($__lg) ?></a>
         <?php endforeach; ?>
-        <a href="/punicoes.php"<?= sbActive('punicoes.php', $__sbCurrent) ?>><i class="bi bi-exclamation-triangle-fill"></i> Punições</a>
+        <?php /* Punições: oculto temporariamente, vai passar por alteração */ ?>
         <?php /* Loteria (ELITE): em avaliacao, acessivel apenas por link — ver backend/preview_gate.php */ ?>
         <?php endif; ?>
 

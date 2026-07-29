@@ -51,7 +51,7 @@ function slugifyTeamName(string $name): string {
 $stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
-if (!$team) { http_response_code(404); echo "Time não encontrado."; exit; }
+if (!$team) { header('Location: /onboarding.php'); exit; }
 
 // Módulos fixos
 $fixedModules = [
@@ -114,15 +114,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $modules    = array_values(array_filter($modules, fn($k) => is_string($k) && in_array($k, $allValidKeys, true)));
     $modules    = array_values(array_unique($modules));
 
-    // Slug
-    $baseSlug  = slugifyTeamName((string)($team['name'] ?? ''));
-    if ($baseSlug === '') $baseSlug = 'time-'.(int)$team['id'];
-    $candidate = $baseSlug; $i = 2;
-    $stmtEx    = $pdo->prepare('SELECT id FROM teams WHERE public_slug = ? AND id <> ? LIMIT 1');
-    while (true) {
-        $stmtEx->execute([$candidate,(int)$team['id']]);
-        if (!$stmtEx->fetchColumn()) break;
-        $candidate = $baseSlug.'-'.$i; $i++;
+    // Slug — só gera um novo na primeira vez. Depois de existir, mantém fixo:
+    // recalcular a cada salvamento mudaria a URL pública toda vez que o nome
+    // do time mudasse em outra tela, quebrando links já compartilhados.
+    if (!empty($team['public_slug'])) {
+        $candidate = $team['public_slug'];
+    } else {
+        $baseSlug  = slugifyTeamName((string)($team['name'] ?? ''));
+        if ($baseSlug === '') $baseSlug = 'time-'.(int)$team['id'];
+        $candidate = $baseSlug; $i = 2;
+        $stmtEx    = $pdo->prepare('SELECT id FROM teams WHERE public_slug = ? AND id <> ? LIMIT 1');
+        while (true) {
+            $stmtEx->execute([$candidate,(int)$team['id']]);
+            if (!$stmtEx->fetchColumn()) break;
+            $candidate = $baseSlug.'-'.$i; $i++;
+        }
     }
 
     $primarySave   = isValidHexColor($primary)   ? $primary   : null;
@@ -140,7 +146,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($raw2) { $dec2=json_decode((string)$raw2,true); if(is_array($dec2)) $customBlocks=$dec2; }
         $flash = 'Configuração salva com sucesso.';
     } catch (PDOException $e) {
-        $flash = 'Erro ao salvar: '.$e->getMessage(); $flashType = 'danger';
+        error_log('[team-public-page] save: ' . $e->getMessage());
+        $flash = 'Erro ao salvar as configurações. Tente novamente.'; $flashType = 'danger';
     }
 }
 
@@ -159,15 +166,26 @@ foreach ($customBlocks as $b) {
 $allKeys = array_column($availableModules,'key');
 
 // Módulos existentes (respeitando blocos)
+$hasSavedModules = !empty($team['public_modules']);
 $existingModules = [];
-if (!empty($team['public_modules'])) {
+if ($hasSavedModules) {
     $decodedEx = json_decode((string)$team['public_modules'], true);
     if (is_array($decodedEx))
         $existingModules = array_values(array_filter($decodedEx, fn($k) => is_string($k) && in_array($k, $allKeys, true)));
 }
-// Adiciona módulos fixos ausentes ao final
+// Guarda o que estava de fato salvo (ligado) antes de completar a lista —
+// um módulo fixo desligado precisa continuar aparecendo (pra poder religar),
+// mas sem isso ele "ressuscitava" marcado no próximo salvamento.
+$savedModuleKeys = $existingModules;
+// Adiciona módulos fixos ausentes ao final, só pra sempre terem uma linha na tela.
 foreach ($fixedKeys as $fk) {
     if (!in_array($fk, $existingModules)) $existingModules[] = $fk;
+}
+// Mesma coisa pros blocos customizados: desmarcar não pode fazer o bloco sumir
+// da lista sem jeito de religar — o conteúdo continua salvo em public_blocks.
+foreach ($customBlocks as $cb) {
+    $bk = 'block_'.($cb['id'] ?? '');
+    if ($bk !== 'block_' && !in_array($bk, $existingModules)) $existingModules[] = $bk;
 }
 
 $primaryValue   = $team['public_primary_color'] ?? '#fc0025';
@@ -192,9 +210,10 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
 <head>
     <meta charset="UTF-8">
     <script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-    <meta name="theme-color" content="#fc0025">
     <title>Página Pública — FBA Manager</title>
+
+    <?php include __DIR__ . '/includes/head-pwa.php'; ?>
+    <meta name="theme-color" content="#fc0025">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -262,7 +281,7 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
         .page-hero{padding:32px 32px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;}
         .page-eyebrow{font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--red);margin-bottom:4px;}
         .page-title{font-size:26px;font-weight:800;line-height:1.1;}
-        .page-sub{font-size:13px;color: var(--text);margin-top:4px;}
+        .page-sub{font-size:13px;color: var(--text-2);margin-top:4px;}
         .content{padding:24px 32px 40px;flex:1;}
 
         /* Cards */
@@ -486,7 +505,7 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
                         </div>
                         <div class="bc-body">
                             <input type="hidden" name="public_modules" id="public_modules"
-                                   value="<?= htmlspecialchars(json_encode($existingModules, JSON_UNESCAPED_SLASHES)) ?>">
+                                   value="<?= htmlspecialchars(json_encode($savedModuleKeys, JSON_UNESCAPED_SLASHES)) ?>">
 
                             <div id="modulesList" class="d-flex flex-column gap-2">
                                 <?php foreach ($existingModules as $k):
@@ -494,13 +513,14 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
                                     $isBlock = str_starts_with($k, 'block_');
                                     $bid = $isBlock ? substr($k, 6) : null;
                                     $blockData = ($bid && isset($blockMap[$bid])) ? $blockMap[$bid] : null;
+                                    $isChecked = in_array($k, $savedModuleKeys, true) || (!$hasSavedModules && !$isBlock);
                                 ?>
                                 <div class="module-item <?= $isBlock?'is-block':'' ?>" draggable="true" data-key="<?= htmlspecialchars($k) ?>">
                                     <div class="module-item-row">
                                         <div class="module-handle"><i class="bi bi-grip-vertical"></i></div>
                                         <div class="flex-grow-1">
                                             <div class="form-check m-0">
-                                                <input class="form-check-input module-check" type="checkbox" checked id="mod_<?= htmlspecialchars($k) ?>">
+                                                <input class="form-check-input module-check" type="checkbox" <?= $isChecked ? 'checked' : '' ?> id="mod_<?= htmlspecialchars($k) ?>">
                                                 <label class="form-check-label" for="mod_<?= htmlspecialchars($k) ?>"
                                                        style="font-size:13px;color:var(--text)">
                                                     <?= htmlspecialchars($label) ?>
@@ -562,7 +582,7 @@ foreach ($customBlocks as $b) { if (!empty($b['id'])) $blockMap[$b['id']] = $b; 
 
                     <!-- Salvar -->
                     <div class="d-flex justify-content-end gap-2">
-                        <?php if ($publicUrl): ?>
+                        <?php if ($publicUrl && $isEnabled): ?>
                         <a class="btn-outline" href="<?= htmlspecialchars($publicUrl) ?>" target="_blank" rel="noopener">
                             <i class="bi bi-eye"></i> Visualizar
                         </a>

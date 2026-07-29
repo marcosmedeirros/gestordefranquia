@@ -79,14 +79,13 @@ if ($team) {
     }
 }
 
-$teamDirectiveProfile = null;
-$teamDirectiveProfileUpdatedAt = null;
-if ($team && !empty($team['directive_profile'])) {
-    $decodedProfile = json_decode($team['directive_profile'], true);
-    if (is_array($decodedProfile)) {
-        $teamDirectiveProfile = $decodedProfile;
-        $teamDirectiveProfileUpdatedAt = $team['directive_profile_updated_at'] ?? null;
-    }
+$hasActiveTactic = false;
+if ($team) {
+    try {
+        $stmtActiveTactic = $pdo->prepare('SELECT 1 FROM team_tactics WHERE team_id = ? AND is_active = 1 LIMIT 1');
+        $stmtActiveTactic->execute([(int)$team['id']]);
+        $hasActiveTactic = (bool)$stmtActiveTactic->fetchColumn();
+    } catch (Exception $e) { error_log('dashboard active_tactic: ' . $e->getMessage()); }
 }
 
 if (!$team) {
@@ -120,7 +119,7 @@ try {
     $stmtCapLimits->execute([$team['league']]);
     $capLimits = $stmtCapLimits->fetch();
     if ($capLimits) { $capMin = $capLimits['cap_min'] ?? 0; $capMax = $capLimits['cap_max'] ?? 999; }
-} catch (Exception $e) {}
+} catch (Exception $e) { error_log('dashboard cap_limits: ' . $e->getMessage()); }
 
 $capBonus = restrictedCapBonus($pdo, (int)$team['id']);
 $capMaxBase = $capMax;
@@ -146,35 +145,35 @@ try {
     $stmtEdital->execute([$team['league']]);
     $editalData = $stmtEdital->fetch();
     $hasEdital = $editalData && !empty($editalData['edital_file']);
-} catch (Exception $e) {}
+} catch (Exception $e) { error_log('dashboard edital: ' . $e->getMessage()); }
 
-$activeDirectiveDeadline = null; $hasActiveDirectiveSubmission = false;
+// Tática não tem mais prazo de envio — só avisa aqui quando o admin fechou a
+// edição (corte diário ou toggle manual), pra o GM saber que não é hoje.
+$tacticEditClosed = false; $tacticEditReopensAt = null;
 try {
-    $nowBrasilia = (new DateTime('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d H:i:s');
-    $stmtDirective = $pdo->prepare("SELECT * FROM directive_deadlines WHERE league = ? AND is_active = 1 AND deadline_date > ? ORDER BY deadline_date ASC LIMIT 1");
-    $stmtDirective->execute([$team['league'], $nowBrasilia]);
-    $activeDirectiveDeadline = $stmtDirective->fetch();
-    if ($activeDirectiveDeadline && !empty($activeDirectiveDeadline['deadline_date'])) {
-        try {
-            $deadlineDateTime = new DateTime($activeDirectiveDeadline['deadline_date'], new DateTimeZone('America/Sao_Paulo'));
-            $activeDirectiveDeadline['deadline_date_display'] = $deadlineDateTime->format('d/m/Y \à\s H:i');
-        } catch (Exception $e) {
-            $activeDirectiveDeadline['deadline_date_display'] = date('d/m/Y', strtotime($activeDirectiveDeadline['deadline_date']));
+    $stmtWindow = $pdo->prepare('SELECT * FROM tactic_edit_windows WHERE league = ?');
+    $stmtWindow->execute([$team['league']]);
+    $windowRow = $stmtWindow->fetch(PDO::FETCH_ASSOC);
+    if ($windowRow) {
+        $agora = date('Y-m-d H:i:s');
+        $manualOpenUntil = $windowRow['manual_open_until'] ?? null;
+        if ($manualOpenUntil && $manualOpenUntil > $agora) {
+            $tacticEditClosed = false;
+        } elseif (!empty($windowRow['manual_closed'])) {
+            $tacticEditClosed = true;
+        } else {
+            $tacticEditClosed = date('H:i:s') >= $windowRow['daily_cutoff_time'];
         }
+        $tacticEditReopensAt = substr($windowRow['daily_cutoff_time'], 0, 5);
     }
-    if ($activeDirectiveDeadline && !empty($team['id'])) {
-        $stmtHasDirective = $pdo->prepare("SELECT id FROM team_directives WHERE team_id = ? AND deadline_id = ? LIMIT 1");
-        $stmtHasDirective->execute([(int)$team['id'], (int)$activeDirectiveDeadline['id']]);
-        $hasActiveDirectiveSubmission = (bool)$stmtHasDirective->fetchColumn();
-    }
-} catch (Exception $e) {}
+} catch (Exception $e) { error_log('dashboard tactic_edit_window: ' . $e->getMessage()); }
 
 $currentSeason = null;
 try {
     $stmtSeason = $pdo->prepare("SELECT s.season_number, s.year, s.status, sp.sprint_number, sp.start_year FROM seasons s INNER JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ('completed')) ORDER BY s.created_at DESC LIMIT 1");
     $stmtSeason->execute([$team['league']]);
     $currentSeason = $stmtSeason->fetch();
-} catch (Exception $e) {}
+} catch (Exception $e) { error_log('dashboard current_season: ' . $e->getMessage()); }
 
 $seasonDisplayYear = null;
 if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season_number'])) {
@@ -197,7 +196,7 @@ $stmtPicks = $pdo->prepare("SELECT p.season_year, p.round, orig.city, orig.name 
 $stmtPicks->execute([$team['id']]);
 $teamPicks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
 $copySeasonYear = !empty($seasonDisplayYear) ? (int)$seasonDisplayYear : (int)date('Y');
-$teamPicksForCopy = array_values(array_filter($teamPicks, fn($p) => (int)($p['season_year'] ?? 0) > $copySeasonYear));
+$teamPicksForCopy = array_values(array_filter($teamPicks, fn($p) => (int)($p['season_year'] ?? 0) >= $copySeasonYear));
 $firstRoundPicksCount = count(array_filter($teamPicks, fn($p) => (int)($p['round'] ?? 0) === 1 && (int)($p['season_year'] ?? 0) >= $copySeasonYear));
 
 function syncTeamTradeCounterDashboard(PDO $pdo, int $teamId): int {
@@ -230,20 +229,20 @@ try {
         foreach ([['lastTradeFromPlayers','TRUE'],['lastTradeToPlayers','FALSE']] as [$var, $col]) { $s = $q($col); $s->execute([$lastTrade['id']]); $$var = $s->fetchAll(); }
         foreach ([['lastTradeFromPicks','TRUE'],['lastTradeToPicks','FALSE']] as [$var, $col]) { $s = $q2($col); $s->execute([$lastTrade['id']]); $$var = $s->fetchAll(); }
     }
-} catch (Exception $e) {}
+} catch (Exception $e) { error_log('dashboard last_trade: ' . $e->getMessage()); }
 
 $maxTrades = 3; $tradesEnabled = 1;
 try {
     $s = $pdo->prepare('SELECT max_trades, trades_enabled FROM league_settings WHERE league = ?');
     $s->execute([$team['league']]); $r = $s->fetch();
     if ($r) { if (isset($r['max_trades'])) $maxTrades = (int)$r['max_trades']; if (isset($r['trades_enabled'])) $tradesEnabled = (int)$r['trades_enabled']; }
-} catch (Exception $e) {}
+} catch (Exception $e) { error_log('dashboard trade_settings: ' . $e->getMessage()); }
 
 $topRanking = [];
 try {
     $s = $pdo->prepare("SELECT t.id, t.city, t.name, t.photo_url, t.ranking_points, u.name as owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.league = ? ORDER BY t.ranking_points DESC LIMIT 5");
     $s->execute([$team['league']]); $topRanking = $s->fetchAll();
-} catch (Exception $e) {}
+} catch (Exception $e) { error_log('dashboard top_ranking: ' . $e->getMessage()); }
 
 // Posição atual no ranking da liga (dado já existente) + última posição registrada por temporada
 $leagueRank = null; $leagueTeamCount = null; $lastSeasonPos = null;
@@ -252,14 +251,14 @@ try {
     $s->execute([$team['league']]); $leagueTeamCount = (int)$s->fetchColumn();
     $s = $pdo->prepare("SELECT COUNT(*) + 1 FROM teams WHERE league = ? AND ranking_points > ?");
     $s->execute([$team['league'], (int)($team['ranking_points'] ?? 0)]); $leagueRank = (int)$s->fetchColumn();
-} catch (Exception $e) {}
+} catch (Exception $e) { error_log('dashboard league_rank: ' . $e->getMessage()); }
 try {
     if ($pdo->query("SHOW TABLES LIKE 'season_standings'")->fetch()) {
         $confCol = $pdo->query("SHOW COLUMNS FROM season_standings LIKE 'conference'")->fetch() ? 'ss.conference' : 'NULL AS conference';
         $s = $pdo->prepare("SELECT ss.position, {$confCol}, se.year FROM season_standings ss JOIN seasons se ON se.id = ss.season_id WHERE ss.team_id = ? ORDER BY se.year DESC, se.season_number DESC LIMIT 1");
         $s->execute([$team['id']]); $lastSeasonPos = $s->fetch(PDO::FETCH_ASSOC) ?: null;
     }
-} catch (Exception $e) {}
+} catch (Exception $e) { error_log('dashboard last_season_position: ' . $e->getMessage()); }
 
 // Watchlist: jogadores favoritados do usuário (tabela player_favorites)
 $watchlist = [];
@@ -276,7 +275,7 @@ try {
     ");
     $s->execute([$user['id']]);
     $watchlist = $s->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {}
+} catch (Exception $e) { error_log('dashboard watchlist: ' . $e->getMessage()); }
 
 $latestRumor = null;
 try {
@@ -289,7 +288,7 @@ try {
         ORDER BY mp.created_at DESC LIMIT 1
     ');
     $s->execute([$team['league']]); $latestRumor = $s->fetch(PDO::FETCH_ASSOC);
-} catch (Exception $e) {}
+} catch (Exception $e) { error_log('dashboard latest_rumor: ' . $e->getMessage()); }
 
 $lastChampion = null; $lastRunnerUp = null; $lastMVP = null; $lastSprintInfo = null;
 try {
@@ -303,7 +302,7 @@ try {
             if (!empty($lastSprintInfo['mvp_team_id'])) { $sm = $pdo->prepare("SELECT city, name FROM teams WHERE id = ?"); $sm->execute([$lastSprintInfo['mvp_team_id']]); $mvpTeam = $sm->fetch(); if ($mvpTeam) { $lastMVP['team_city']=$mvpTeam['city']; $lastMVP['team_name']=$mvpTeam['name']; } }
         }
     }
-} catch (Exception $e) {}
+} catch (Exception $e) { error_log('dashboard last_sprint_info: ' . $e->getMessage()); }
 
 $activeInitDraftSession = null; $currentDraftPick = null; $nextDraftPick = null;
 $remainingDraftPicks = 0; $initDraftTeamsPerRound = 0;
@@ -321,7 +320,7 @@ try {
             $s = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order WHERE initdraft_session_id = ? AND round = 1'); $s->execute([$sid]); $initDraftTeamsPerRound = (int)$s->fetchColumn();
         }
     }
-} catch (Exception $e) {}
+} catch (Exception $e) { error_log('dashboard init_draft_session: ' . $e->getMessage()); }
 
 $activeDraft = $activeInitDraftSession && $currentDraftPick;
 $currentDraftOverallNumber = null; $nextDraftOverallNumber = null;
@@ -879,6 +878,8 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         /* Override bootstrap conflicts */
         .badge { font-family: var(--font); }
         a { color: inherit; }
+
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
@@ -935,38 +936,19 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             </div>
         </div>
 
-        <!-- Deadline banner -->
-        <?php if ($activeDirectiveDeadline): ?>
-        <a href="/diretrizes.php" class="deadline-banner text-decoration-none">
+        <!-- Aviso de janela de tática fechada -->
+        <?php if ($tacticEditClosed): ?>
+        <a href="/tatica.php" class="deadline-banner text-decoration-none">
             <div class="deadline-left">
-                <div class="deadline-icon">
-                    <?php if ($hasActiveDirectiveSubmission): ?>
-                    <i class="bi bi-check-circle-fill"></i>
-                    <?php else: ?>
-                    <i class="bi bi-clock-fill"></i>
-                    <?php endif; ?>
-                </div>
+                <div class="deadline-icon"><i class="bi bi-lock-fill"></i></div>
                 <div>
-                    <div class="deadline-title">
-                        <?php if ($hasActiveDirectiveSubmission): ?>
-                        <i class="bi bi-check2 me-1" style="color:var(--green)"></i>Rotação Enviada — Revisar
-                        <?php else: ?>
-                        Envio de Rotações Pendente
-                        <?php endif; ?>
-                    </div>
+                    <div class="deadline-title">Edição de tática fechada</div>
                     <div class="deadline-sub">
-                        <?= htmlspecialchars($activeDirectiveDeadline['description'] ?? 'Diretrizes de jogo') ?> ·
-                        Prazo: <strong><?= htmlspecialchars($activeDirectiveDeadline['deadline_date_display'] ?? '') ?></strong>
+                        Reabre às <strong><?= htmlspecialchars($tacticEditReopensAt ?? '') ?></strong> ou quando o admin liberar.
                     </div>
                 </div>
             </div>
-            <div class="deadline-btn">
-                <?php if ($hasActiveDirectiveSubmission): ?>
-                <i class="bi bi-search"></i> Revisar
-                <?php else: ?>
-                <i class="bi bi-send-fill"></i> Enviar agora
-                <?php endif; ?>
-            </div>
+            <div class="deadline-btn"><i class="bi bi-eye"></i> Ver tática</div>
         </a>
         <?php endif; ?>
 
@@ -1174,7 +1156,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                                 : "https://ui-avatars.com/api/?name=" . rawurlencode($w['name']) . "&background=1c1c21&color=" . accentColorHex($user['accent_color'] ?? null) . "&rounded=true&bold=true";
                             $wOvr = (int)($w['ovr'] ?? 0);
                         ?>
-                        <a href="/players.php" class="watch-row">
+                        <a href="/player.php?id=<?= (int)$w['id'] ?>" class="watch-row">
                             <img class="watch-photo" src="<?= htmlspecialchars($wPhoto) ?>" alt="" onerror="this.src='https://ui-avatars.com/api/?name=<?= rawurlencode($w['name']) ?>&background=1c1c21&color=<?= accentColorHex($user['accent_color'] ?? null) ?>&rounded=true&bold=true'">
                             <div style="min-width:0;flex:1">
                                 <div class="watch-name"><?= htmlspecialchars($w['name']) ?></div>
@@ -1416,9 +1398,9 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     </div>
                     <div class="bc-body">
                         <div class="quick-grid">
-                            <a href="/diretrizes.php?mode=profile" class="quick-btn">
-                                <i class="bi bi-clipboard-data"></i>
-                                <div class="quick-btn-label">Diretrizes<?= $teamDirectiveProfile ? ' ✓' : '' ?></div>
+                            <a href="/tatica.php" class="quick-btn">
+                                <i class="bi bi-clipboard2-pulse"></i>
+                                <div class="quick-btn-label">Tática<?= $hasActiveTactic ? ' ✓' : '' ?></div>
                             </a>
                             <a href="/ouvidoria.php" class="quick-btn">
                                 <i class="bi bi-chat-left-dots"></i>
@@ -1470,33 +1452,6 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 
     </main>
 </div>
-
-<!-- Modal admin draft -->
-<?php if (($user['user_type'] ?? '') === 'admin'): ?>
-<div class="modal fade" id="adminInitDraftModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content" style="background:var(--panel);border:1px solid var(--border-md);border-radius:var(--radius)">
-            <div class="modal-header" style="border-color:var(--border)">
-                <h5 class="modal-title" style="font-family:var(--font);font-weight:700">
-                    <i class="bi bi-hand-index-thumb me-2" style="color:var(--red)"></i>Escolher jogador (Admin)
-                </h5>
-                <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="table-responsive">
-                    <table class="table table-dark table-sm align-middle mb-0">
-                        <thead><tr><th>Jogador</th><th>Pos</th><th>OVR</th><th></th></tr></thead>
-                        <tbody id="adminInitDraftPlayers"><tr><td colspan="4" class="text-center" style="color:var(--text-2)">Carregando...</td></tr></tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="modal-footer" style="border-color:var(--border)">
-                <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-            </div>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/js/pwa.js"></script>
@@ -1613,38 +1568,6 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         catch { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); alert('Time copiado!'); }
     });
 
-    /* ── Admin draft ─────────────────────────────── */
-    const INIT_DRAFT_SESSION_ID = <?= $activeInitDraftSession ? (int)$activeInitDraftSession['id'] : 'null' ?>;
-    const IS_ADMIN_USER = <?= (($user['user_type'] ?? '') === 'admin') ? 'true' : 'false' ?>;
-    const esc = v => String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-
-    async function openAdminInitDraftModal() {
-        if (!IS_ADMIN_USER || !INIT_DRAFT_SESSION_ID) return;
-        await loadAdminInitDraftPlayers();
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('adminInitDraftModal')).show();
-    }
-
-    async function loadAdminInitDraftPlayers() {
-        const tbody = document.getElementById('adminInitDraftPlayers');
-        if (!tbody) return;
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center" style="color:var(--text-2)">Carregando...</td></tr>';
-        try {
-            const data = await fetch(`/api/initdraft.php?action=available_players&session_id=${INIT_DRAFT_SESSION_ID}`).then(r => r.json());
-            if (!data.success) throw new Error(data.error || 'Falha');
-            const players = data.players || [];
-            tbody.innerHTML = players.length ? players.map(p => `<tr><td>${esc(p.name)}</td><td><span style="background:var(--red-soft);color:var(--red);padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700">${esc(p.position)}</span></td><td>${esc(p.ovr)}</td><td class="text-end"><button class="btn btn-sm btn-success" onclick="adminMakeInitDraftPick(${p.id},this)"><i class="bi bi-check2"></i></button></td></tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--text-2)">Nenhum disponível</td></tr>';
-        } catch(e) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#ef4444">${e.message}</td></tr>`; }
-    }
-
-    async function adminMakeInitDraftPick(playerId, btn) {
-        if (!IS_ADMIN_USER || !INIT_DRAFT_SESSION_ID || !confirm('Confirmar?')) return;
-        btn?.classList.add('disabled');
-        try {
-            const data = await fetch('/api/initdraft.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'admin_make_pick',session_id:INIT_DRAFT_SESSION_ID,player_id:playerId}) }).then(r => r.json());
-            if (!data.success) throw new Error(data.error || 'Falha');
-            alert('Pick registrada!'); location.reload();
-        } catch(e) { alert(e.message); btn?.classList.remove('disabled'); }
-    }
 </script>
 </body>
 </html>

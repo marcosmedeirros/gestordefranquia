@@ -7,14 +7,6 @@ requireAuth();
 $user = getUserSession();
 $pdo  = db();
 
-// Time do usuário para sidebar
-$myTeam = null;
-try {
-    $s = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
-    $s->execute([$user['id']]);
-    $myTeam = $s->fetch(PDO::FETCH_ASSOC) ?: null;
-} catch (Exception $e) {}
-
 // Ano da temporada para sidebar
 $seasonDisplayYear = (int)date('Y');
 try {
@@ -480,12 +472,21 @@ foreach ($leagueOrder as $league) {
     // Temporada atual e total de temporadas da liga
     $leagueMaxSeasons = ['ELITE' => 20, 'NEXT' => 20, 'RISE' => 15];
     $currentSeasonNum = null;
+    $activeSeasonYear = null; // ano da temporada ATIVA (em andamento), quando houver
     $totalSeasons = $leagueMaxSeasons[$league] ?? null;
     try {
-        $s = $pdo->prepare("SELECT season_number FROM seasons WHERE league = ? AND status NOT IN ('completed') ORDER BY created_at DESC LIMIT 1");
+        $s = $pdo->prepare("
+            SELECT s.season_number, sp.start_year
+            FROM seasons s INNER JOIN sprints sp ON s.sprint_id = sp.id
+            WHERE s.league = ? AND s.status NOT IN ('completed')
+            ORDER BY s.created_at DESC LIMIT 1
+        ");
         $s->execute([$league]);
-        $r = $s->fetchColumn();
-        if ($r !== false) $currentSeasonNum = (int)$r;
+        $r = $s->fetch(PDO::FETCH_ASSOC);
+        if ($r) {
+            $currentSeasonNum = (int)$r['season_number'];
+            if (isset($r['start_year'])) $activeSeasonYear = (int)$r['start_year'] + (int)$r['season_number'] - 1;
+        }
     } catch (Exception $e) {}
     // Se não houver temporada ativa, pega a última encerrada
     if ($currentSeasonNum === null) {
@@ -597,8 +598,9 @@ foreach ($leagueOrder as $league) {
             $runnerUp = ['city'=>$sh['ru_city'],'team_name'=>$sh['ru_name'],'team_photo'=>$sh['team_photo_r'],'owner_name'=>$sh['ru_owner']];
         }
     } catch (Exception $e) {}
-    // Fallback: playoff_results
-    if (!$champion && $lastSeason) {
+    // Fallback: playoff_results — roda quando falta campeão OU vice (ex.: season_history
+    // tem champion_team_id mas runner_up_team_id nulo, embora playoff_results tenha o dado)
+    if ((!$champion || !$runnerUp) && $lastSeason) {
         try {
             $s = $pdo->prepare("
                 SELECT pr.position, t.city, t.name AS team_name, t.photo_url AS team_photo, u.name AS owner_name
@@ -610,9 +612,9 @@ foreach ($leagueOrder as $league) {
             $s->execute([$lastSeason['id']]);
             foreach ($s->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
                 if ($r['position'] === 'champion') {
-                    $champion = $r;
+                    if (!$champion) $champion = $r;
                 } else {
-                    $runnerUp = $r;
+                    if (!$runnerUp) $runnerUp = $r;
                 }
             }
         } catch (Exception $e) {}
@@ -736,8 +738,6 @@ foreach ($leagueOrder as $league) {
     }
     usort($powerRanking, static fn($a, $b) => $b['score'] <=> $a['score']);
 
-    $powerSummary = null;
-
     // Conferência de cada time
     $confMap = [];
     try {
@@ -751,7 +751,9 @@ foreach ($leagueOrder as $league) {
     // Picks futuros por time — apenas 1ª rodada conta (2ª rodada tem valor marginal)
     $picksPerTeam = [];
     try {
-        $pickYear = $seasonYear ?? (int)date('Y');
+        // Prioriza o ano da temporada ATIVA (em andamento); só cai para a última
+        // temporada encerrada quando não há sprint em andamento no momento.
+        $pickYear = $activeSeasonYear ?? $seasonYear ?? (int)date('Y');
         $sp2 = $pdo->prepare("SELECT p.team_id, COUNT(*) AS cnt FROM picks p JOIN teams t ON p.team_id = t.id WHERE t.league = ? AND CAST(p.season_year AS UNSIGNED) >= ? AND p.round = '1' GROUP BY p.team_id");
         $sp2->execute([$league, $pickYear]);
         foreach ($sp2->fetchAll(PDO::FETCH_ASSOC) as $r) $picksPerTeam[(int)$r['team_id']] = (int)$r['cnt'];
@@ -759,7 +761,7 @@ foreach ($leagueOrder as $league) {
 
     $analysis      = buildLeagueAnalysis($powerRanking, $ranking, $picksPerTeam, $currentSeasonNum, $totalSeasons, $league);
     $seasonPreview = buildSeasonPreview($powerRanking, $teams);
-    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking','currentSeasonNum','totalSeasons','powerRanking','powerSummary','analysis','seasonPreview');
+    $leagueData[$league] = compact('teams','lastSeason','seasonYear','champion','runnerUp','awards','hof','playerCount','tradesCount','avgCap','ranking','currentSeasonNum','totalSeasons','powerRanking','analysis','seasonPreview');
 }
 
 $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 'ELITE';
@@ -787,6 +789,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             --panel-3:    #1c1c21;
             --border:     rgba(255,255,255,.06);
             --border-md:  rgba(255,255,255,.10);
+            --border-strong: var(--border-md);
             --border-red: color-mix(in srgb, var(--red) 22%, transparent);
             --text:       #f0f0f3;
             --text-2:     #868690;
@@ -798,6 +801,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
+            --radius-xs:  6px;
             --ease:       cubic-bezier(.2,.8,.2,1);
             --t:          200ms;
         }
@@ -849,9 +853,9 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .main { margin-left:var(--sidebar-w); min-height:100vh; width:calc(100% - var(--sidebar-w)); display:flex; flex-direction:column; }
         .page-hero { padding:28px 32px 20px; border-bottom:1px solid var(--border); }
         .page-eyebrow { font-size:11px; font-weight:600; letter-spacing:1.4px; text-transform:uppercase; color:var(--red); margin-bottom:4px; }
-        .page-title { font-size:22px; font-weight:800; display:flex; align-items:center; gap:10px; }
+        .page-title { font-size:26px; font-weight:800; line-height:1.1; display:flex; align-items:center; gap:10px; }
         .page-title i { color:var(--red); }
-        .page-sub { font-size:13px; color: var(--text); margin-top:4px; }
+        .page-sub { font-size:13px; color: var(--text-2); margin-top:4px; }
         .content { padding:24px 32px 56px; flex:1; }
 
         /* ── League tabs ────────────────────────────────────── */
@@ -1114,12 +1118,9 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .power-metric .lbl { font-size:9px; letter-spacing:.6px; text-transform:uppercase; color:var(--text); }
 
         /* ── Empty state ────────────────────────────────────── */
-        .empty-state {
-            text-align:center; padding:40px 20px; color:var(--text-3);
-            background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
-        }
-        .empty-state i { font-size:28px; display:block; margin-bottom:10px; }
-        .empty-state p { font-size:13px; margin:0; }
+        .empty-state { padding:24px 16px; text-align:center; color:var(--text-3); }
+        .empty-state i { font-size:28px; display:block; margin-bottom:8px; }
+        .empty-state p { font-size:12px; margin:0; }
 
         /* ── SuperComputador FBA ────────────────────────────── */
         .sc-wrap {
@@ -1201,6 +1202,7 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             .starters-table td, .starters-table th { padding:8px 6px; font-size:12px; }
         }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
     </style>
 </head>
 <body>

@@ -40,7 +40,9 @@ try {
     $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN current_pick_started_at DATETIME NULL");
 } catch (Exception $e) {} // já existe
 
-$isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
+// Admin global (user_type='admin') OU admin da liga via league_admins — mesmo critério
+// usado em drafts.php (a página) e em api/leilao.php e api/market.php.
+$isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
 $stmtTeam = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
@@ -151,11 +153,32 @@ switch ($action) {
             exit;
         }
 
-        $stmtSess = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ? AND status = "in_progress"');
+        $stmtSess = $pdo->prepare('
+            SELECT *, TIMESTAMPDIFF(MINUTE, current_pick_started_at, NOW()) AS minutes_elapsed
+            FROM draft_sessions WHERE id = ? AND status = "in_progress"
+        ');
         $stmtSess->execute([$draftSessionId]);
         $session = $stmtSess->fetch();
         if (!$session) {
             echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'not_in_progress']);
+            exit;
+        }
+
+        // Só executa o auto-pick depois de 30 min na vez do time atual (o mesmo prazo
+        // anunciado em drafts.php). current_pick_started_at é gravado com NOW() sempre
+        // que a vez de um time começa (start_draft, make_pick, trade_pick, fill_past_pick,
+        // set_current_pick, e o próprio auto-pick ao avançar pra próxima escolha).
+        // Se vier NULL (sessão antiga nunca avançada por esses fluxos, sem como saber há
+        // quanto tempo está esperando), tratamos com segurança como "ainda não decorreu
+        // tempo suficiente" — evita autopickar de surpresa e tomar a escolha de alguém
+        // que acabou de começar sua vez.
+        $minutesElapsed = $session['minutes_elapsed'];
+        if ($minutesElapsed === null) {
+            echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'pick_not_started']);
+            exit;
+        }
+        if ((int)$minutesElapsed < 30) {
+            echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'wait_30min', 'minutes_elapsed' => (int)$minutesElapsed]);
             exit;
         }
 

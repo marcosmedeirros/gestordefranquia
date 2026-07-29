@@ -69,12 +69,15 @@ try {
             --text-3:     #7d7d85;
             --green:      #22c55e;
             --amber:      #f59e0b;
+            --blue:       #3b82f6;
             --sidebar-w:  260px;
             --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
+            --radius-xs:  6px;
             --ease:       cubic-bezier(.2,.8,.2,1);
             --t:          200ms;
+            --border-strong: rgba(255,255,255,.10);
         }
 
         :root[data-theme="light"] {
@@ -88,6 +91,7 @@ try {
             --text: #111217;
             --text-2: #5b6270;
             --text-3: #657080;
+            --border-strong: #d7dbe6;
         }
 
         .sb-theme-toggle {
@@ -158,7 +162,7 @@ try {
         .page-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
         .page-title { font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
         .page-title i { color: var(--red); }
-        .page-sub { font-size: 13px; color: var(--text); margin-top: 4px; }
+        .page-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
         .content { padding: 24px 32px 48px; flex: 1; }
 
         /* Anon badge */
@@ -235,6 +239,8 @@ try {
             .content { padding: 16px 16px 40px; }
             .panel { max-width: 100%; }
         }
+
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>

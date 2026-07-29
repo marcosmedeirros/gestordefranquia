@@ -80,7 +80,8 @@ try {
             --bg: #07070a; --panel: #101013; --panel-2: #16161a; --panel-3: #1c1c21;
             --border: rgba(255,255,255,.06); --border-md: rgba(255,255,255,.10); --border-red: color-mix(in srgb, var(--red) 22%, transparent);
             --text: #f0f0f3; --text-2: #868690; --text-3: #7d7d85;
-            --sidebar-w: 260px; --font: 'Montserrat', sans-serif; --radius: 14px; --radius-sm: 10px;
+            --green: #22c55e; --amber: #f59e0b; --blue: #3b82f6;
+            --sidebar-w: 260px; --font: 'Montserrat', sans-serif; --radius: 14px; --radius-sm: 10px; --radius-xs: 6px;
             --ease: cubic-bezier(.2,.8,.2,1); --t: 200ms;
         }
         :root[data-theme="light"] {
@@ -129,9 +130,9 @@ try {
 
         .main { margin-left: var(--sidebar-w); width: calc(100% - var(--sidebar-w)); padding: 32px 40px 60px; }
         .page-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 22px; flex-wrap: wrap; }
-        .page-eyebrow { font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; }
-        .page-title { font-size: 32px; font-family: var(--font); margin-bottom: 6px; }
-        .page-sub { color: var(--text); font-size: 14px; }
+        .page-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
+        .page-title { font-size: 26px; font-weight: 800; line-height: 1.1; font-family: var(--font); margin-bottom: 6px; }
+        .page-sub { color: var(--text-2); font-size: 13px; margin-top: 4px; }
 
         .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; }
         .panel + .panel { margin-top: 16px; }
@@ -168,9 +169,9 @@ try {
         .mc-footer .btn-red { flex: 1; justify-content: center; }
 
         .badge-ovr { display: inline-flex; align-items: center; justify-content: center; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-        .ovr-high { background: rgba(34,197,94,.18); color: #22c55e; }
-        .ovr-mid { background: rgba(59,130,246,.18); color: #3b82f6; }
-        .ovr-low { background: rgba(245,158,11,.18); color: #f59e0b; }
+        .ovr-high { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+        .ovr-mid { background: color-mix(in srgb, var(--blue) 18%, transparent); color: var(--blue); }
+        .ovr-low { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
         .ovr-base { background: rgba(130,130,138,.18); color: #9aa0ac; }
 
         /* Filter bar */
@@ -179,7 +180,8 @@ try {
         .filter-bar .field input, .filter-bar .field select { width: 100%; }
 
         #market-loading { text-align: center; padding: 48px; }
-        #market-empty { text-align: center; padding: 48px; color: var(--text-2); font-size: 14px; display: none; }
+        #market-empty { text-align: center; padding: 24px 16px; color: var(--text-3); font-size: 12px; display: none; }
+        #market-empty i { font-size: 28px; display: block; margin-bottom: 8px; }
         #market-count { font-size: 12px; color: var(--text-2); margin-bottom: 14px; }
 
         /* Mobile list */
@@ -292,7 +294,7 @@ try {
 
             <div id="market-grid" class="market-grid" style="display:none"></div>
             <div id="market-list" style="display:none"></div>
-            <div id="market-empty">Nenhum jogador disponível para trade no momento.</div>
+            <div id="market-empty"><i class="bi bi-shop"></i>Nenhum jogador disponível para trade no momento.</div>
         </div>
         </div>
 
@@ -317,7 +319,10 @@ try {
             </div>
 
             <!-- Posts list - renderizado server-side para persistir em qualquer navegação -->
-            <div id="feed-loading" style="display:none"></div>
+            <div id="feed-loading" style="display:none;text-align:center;padding:48px">
+                <div class="spinner-border" role="status" style="width:2rem;height:2rem;color:var(--red)"></div>
+                <p style="color:var(--text-2);font-size:13px;margin-top:12px">Carregando mural…</p>
+            </div>
             <div id="feed-list">
             <?php foreach ($feedPosts as $fp):
                 $fpTeam    = trim(($fp['team_city'] ?? '') . ' ' . ($fp['team_name'] ?? ''));
@@ -386,7 +391,7 @@ try {
     /* ── Theme ─────────────────────────── */
     const themeKey = 'fba-theme';
     const root = document.documentElement;
-    const savedTheme = localStorage.getItem(themeKey) || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    const savedTheme = localStorage.getItem(themeKey) || 'dark';
     root.dataset.theme = savedTheme;
     const themeToggle = document.getElementById('themeToggle');
     const updateToggle = t => { if (!themeToggle) return; themeToggle.innerHTML = t === 'light' ? '<i class="bi bi-moon-stars-fill"></i><span>Tema escuro</span>' : '<i class="bi bi-sun-fill"></i><span>Tema claro</span>'; };
@@ -423,19 +428,20 @@ try {
     function renderCard(p) {
         const ovr = Number(p.ovr || 0);
         const photo = getPhotoUrl(p);
-        const teamName = `${p.city || ''} ${p.team_name || ''}`.trim();
+        const name = escHtml(p.name || '');
+        const teamName = escHtml(`${p.city || ''} ${p.team_name || ''}`.trim());
         const isMyTeam = MY_TEAM_ID && (int(p.team_id) === int(MY_TEAM_ID));
         const deltaHtml = p.ovr_delta > 0
             ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px">+${p.ovr_delta}</span>`
             : p.ovr_delta < 0
                 ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:4px">${p.ovr_delta}</span>` : '';
-        const tagHtml = p.player_tag ? `<span class="mc-tag" style="border:1px solid ${(p.player_tag_color||'#3b82f6')}55;background:${(p.player_tag_color||'#3b82f6')}18;color:${p.player_tag_color||'#3b82f6'}">${p.player_tag}</span>` : '';
+        const tagHtml = p.player_tag ? `<span class="mc-tag" style="border:1px solid ${(p.player_tag_color||'#3b82f6')}55;background:${(p.player_tag_color||'#3b82f6')}18;color:${p.player_tag_color||'#3b82f6'}">${escHtml(p.player_tag)}</span>` : '';
 
         return `<div class="market-card">
             <div class="mc-header">
-                <img class="mc-photo" src="${photo}" alt="${p.name}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
+                <img class="mc-photo" src="${photo}" alt="${name}" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
                 <div style="flex:1;min-width:0">
-                    <div class="mc-name">${p.name} ${tagHtml}</div>
+                    <div class="mc-name">${name} ${tagHtml}</div>
                     <div class="mc-team">${teamName}</div>
                 </div>
                 <div style="text-align:right;flex-shrink:0">
@@ -458,12 +464,12 @@ try {
 
     function renderListItem(p) {
         const ovr = Number(p.ovr || 0);
-        const teamName = `${p.city || ''} ${p.team_name || ''}`.trim();
+        const teamName = escHtml(`${p.city || ''} ${p.team_name || ''}`.trim());
         const isMyTeam = MY_TEAM_ID && (int(p.team_id) === int(MY_TEAM_ID));
         return `<div class="mpl-item">
             <div class="mpl-main">
-                <div class="mpl-name">${p.name}</div>
-                <div class="mpl-meta">${p.position || '—'} · ${p.age || '—'}a · ${teamName}</div>
+                <div class="mpl-name">${escHtml(p.name || '')}</div>
+                <div class="mpl-meta">${escHtml(p.position || '—')} · ${p.age || '—'}a · ${teamName}</div>
             </div>
             <div class="mpl-right">
                 <span class="badge-ovr ${getOvrClass(ovr)}">${ovr}</span>
@@ -525,7 +531,7 @@ try {
         } catch {
             document.getElementById('market-loading').style.display = 'none';
             document.getElementById('market-empty').style.display = '';
-            document.getElementById('market-empty').textContent = 'Erro ao carregar o mercado.';
+            document.getElementById('market-empty').innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i>Erro ao carregar o mercado.';
         }
     }
 
@@ -644,11 +650,6 @@ try {
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    function prependFeedPost(post) {
-        const list = document.getElementById('feed-list');
-        list.insertAdjacentHTML('afterbegin', renderFeedPost(post));
-    }
-
     async function loadFeed() {
         const loading = document.getElementById('feed-loading');
         const list    = document.getElementById('feed-list');
@@ -711,12 +712,12 @@ try {
                     const label = (s.season_number ? `Temp ${s.season_number}` : '') + (s.year ? ` · ${s.year}` : '') || `Temporada ${si+1}`;
                     const d = si > 0 ? ((parseInt(s.ovr)||0) - (parseInt(seasonLog[si-1].ovr)||0)) : 0;
                     const dHtml = d > 0 && si > 0 ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:6px">+${d}</span>` : d < 0 && si > 0 ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:6px">${d}</span>` : '';
-                    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><div><div style="font-size:12px;font-weight:600">${label}</div><div style="font-size:11px;color:var(--text-2)">${s.team_name||'-'} · ${s.age??'-'}a</div></div><div style="display:flex;align-items:center"><span style="color:var(--red);font-weight:800;font-size:15px">${s.ovr??'-'}</span>${dHtml}</div></div>`;
+                    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><div><div style="font-size:12px;font-weight:600">${escHtml(label)}</div><div style="font-size:11px;color:var(--text-2)">${escHtml(s.team_name||'-')} · ${s.age??'-'}a</div></div><div style="display:flex;align-items:center"><span style="color:var(--red);font-weight:800;font-size:15px">${s.ovr??'-'}</span>${dHtml}</div></div>`;
                 }).join('')
                 : '<div style="font-size:13px;color:var(--text-3);padding:8px 0">Nenhum snapshot registrado.</div>';
 
             const transferHtml = transfers.length
-                ? transfers.map(t => `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-size:12px;font-weight:600">${t.from_team} <span style="color:var(--text-3)">→</span> ${t.to_team}</div>${t.year ? `<div style="font-size:11px;color:var(--text-3)">${t.year}</div>` : ''}</div>`).join('')
+                ? transfers.map(t => `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><div style="font-size:12px;font-weight:600">${escHtml(t.from_team||'')} <span style="color:var(--text-3)">→</span> ${escHtml(t.to_team||'')}</div>${t.year ? `<div style="font-size:11px;color:var(--text-3)">${escHtml(String(t.year))}</div>` : ''}</div>`).join('')
                 : '<div style="font-size:13px;color:var(--text-3);padding:8px 0">Nenhuma trade encontrada.</div>';
 
             const photo = getPhotoUrl(player);
@@ -725,8 +726,8 @@ try {
                 <div style="background:var(--panel-2);padding:20px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px">
                     <img src="${photo}" alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--border-red);flex-shrink:0;background:var(--panel-3)" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(player.name||'P')}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
                     <div style="flex:1;min-width:0">
-                        <div style="font-size:18px;font-weight:800;line-height:1.2">${player.name||'-'}</div>
-                        <div style="font-size:12px;color:var(--text-2);margin-top:2px">${player.team_name||'-'}</div>
+                        <div style="font-size:18px;font-weight:800;line-height:1.2">${escHtml(player.name||'-')}</div>
+                        <div style="font-size:12px;color:var(--text-2);margin-top:2px">${escHtml(player.team_name||'-')}</div>
                         <div style="font-size:30px;font-weight:900;color:var(--red);line-height:1;margin-top:4px">${player.ovr??'-'}</div>
                     </div>
                     ${!isMyTeam ? `<a href="${tradeUrl(player)}" class="btn-red" style="flex-shrink:0"><i class="bi bi-arrow-left-right"></i> Propor Trade</a>` : ''}

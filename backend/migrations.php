@@ -1406,6 +1406,37 @@ function runMigrations() {
         $errors[] = "ajuste_multi_trades_cycle: " . $e->getMessage();
     }
 
+    // Tatica vira 3 taticas nomeadas com uma marcada como ativa (reforma do
+    // fluxo de diretrizes: sem envio, o que esta ativo e o oficial).
+    try {
+        $hasIsActive = $pdo->query("SHOW COLUMNS FROM team_tactics LIKE 'is_active'")->fetch();
+        if (!$hasIsActive) {
+            $pdo->exec("ALTER TABLE team_tactics ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 0 AFTER slot");
+            // Toda equipe ja tem ao menos um rascunho no slot 'regular' — vira a
+            // ativa por padrao pra ninguem ficar sem tatica ativa apos a migracao.
+            $pdo->exec("UPDATE team_tactics SET is_active = 1 WHERE slot = 'regular'");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_team_tactics_is_active: " . $e->getMessage();
+    }
+
+    // Janela de edicao da tatica, controlada pelo admin por liga: corte diario
+    // (ex: ate 17h) + override manual (abrir por X horas ou fechar na hora).
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS tactic_edit_windows (
+            league             ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL PRIMARY KEY,
+            daily_cutoff_time  TIME NOT NULL DEFAULT '17:00:00',
+            manual_open_until  DATETIME NULL,
+            manual_closed      TINYINT(1) NOT NULL DEFAULT 0,
+            updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        foreach (['ELITE', 'NEXT', 'RISE', 'ROOKIE'] as $lg) {
+            $pdo->prepare("INSERT IGNORE INTO tactic_edit_windows (league) VALUES (?)")->execute([$lg]);
+        }
+    } catch (PDOException $e) {
+        $errors[] = "criar_tactic_edit_windows: " . $e->getMessage();
+    }
+
     return [
         'success' => count($errors) === 0,
         'executed' => $executed,

@@ -1345,7 +1345,9 @@ try {
             // 2. Salvar Tabelas Auxiliares (Playoff Results e Awards)
             // (Mantemos essa parte pois ela alimenta a exibição visual do histórico)
             $pdo->prepare("DELETE FROM playoff_results WHERE season_id = ?")->execute([$seasonId]);
-            $pdo->prepare("DELETE FROM season_awards WHERE season_id = ?")->execute([$seasonId]);
+            // Só limpa os prêmios simples; os estendidos (finals_mvp, all_nba_*, all_def_*)
+            // têm cadastro próprio e não podem ser apagados aqui.
+            $pdo->prepare("DELETE FROM season_awards WHERE season_id = ? AND award_type IN ('mvp','dpoy','mip','6th_man','roy')")->execute([$seasonId]);
             
             $stmtPlayoff = $pdo->prepare("INSERT INTO playoff_results (season_id, team_id, position) VALUES (?, ?, ?)");
             $stmtPlayoff->execute([$seasonId, $champion, 'champion']);
@@ -1637,7 +1639,9 @@ try {
             $nbaCupTeamId2 = ($league2 === 'ELITE' && !empty($input['nba_cup_team_id'])) ? (int)$input['nba_cup_team_id'] : null;
 
             $pdo->prepare("DELETE FROM playoff_results WHERE season_id = ?")->execute([$seasonId]);
-            $pdo->prepare("DELETE FROM season_awards WHERE season_id = ?")->execute([$seasonId]);
+            // Só limpa os prêmios simples; os estendidos (finals_mvp, all_nba_*, all_def_*)
+            // têm cadastro próprio e não podem ser apagados aqui.
+            $pdo->prepare("DELETE FROM season_awards WHERE season_id = ? AND award_type IN ('mvp','dpoy','mip','6th_man','roy')")->execute([$seasonId]);
 
             $stmtPO2 = $pdo->prepare("INSERT INTO playoff_results (season_id, team_id, position) VALUES (?, ?, ?)");
             $stmtPO2->execute([$seasonId, $champion, 'champion']);
@@ -1991,6 +1995,14 @@ try {
             if (!$stmtHistCheck->fetch()) throw new Exception('Registre a pontuação antes de avançar a temporada');
             $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$seasonId]);
             snapshotPlayersForSeason($pdo, $seasonId, $advSeason['league']);
+            // Tática reabre automaticamente pra todos ao virar a temporada — remove
+            // qualquer fechamento manual anterior do admin, volta pro corte diário padrão.
+            try {
+                $pdo->prepare("UPDATE tactic_edit_windows SET manual_closed = 0, manual_open_until = NULL WHERE league = ?")
+                    ->execute([$advSeason['league']]);
+            } catch (Throwable $e) {
+                error_log('[advance_season] reset tactic_edit_windows: ' . $e->getMessage());
+            }
             echo json_encode(['success' => true, 'message' => 'Temporada marcada como concluída']);
             break;
 

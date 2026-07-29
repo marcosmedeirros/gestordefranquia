@@ -45,6 +45,12 @@ if (!$team_id) {
     }
 }
 
+$leagues = [];
+if ($is_admin) {
+    $stmt = $pdo->query("SELECT id, name FROM leagues ORDER BY name");
+    $leagues = $stmt->fetchAll() ?: [];
+}
+
 $team_name = '';
 $team_sidebar = [];
 if ($team_id) {
@@ -258,6 +264,98 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
                     <i class="bi bi-plus-lg me-1"></i>Cadastrar leilão manualmente
                 </button>
             </div>
+
+            <div class="panel-card">
+                <div class="panel-card-header"><i class="bi bi-plus-circle panel-card-icon"></i><span class="panel-card-title">Criar Leilão</span></div>
+                <div class="panel-card-body">
+                    <div class="row g-3 align-items-end mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Liga</label>
+                            <select id="selectLeague" class="form-select">
+                                <option value="">Selecione...</option>
+                                <?php foreach ($leagues as $league): ?>
+                                    <option value="<?= (int)$league['id'] ?>" data-league-name="<?= htmlspecialchars($league['name']) ?>"><?= htmlspecialchars($league['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="auctionMode" id="auctionModeSearch" value="search" checked>
+                                    <label class="form-check-label" for="auctionModeSearch">Buscar jogador existente</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="auctionMode" id="auctionModeCreate" value="create">
+                                    <label class="form-check-label" for="auctionModeCreate">Criar jogador novo</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <button id="btnCadastrarLeilao" class="btn btn-orange w-100" disabled>
+                                <i class="bi bi-play-fill me-1"></i>Iniciar leilão (20min)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="border-top:1px solid var(--border);padding-top:16px">
+                        <div id="auctionSearchArea">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-8">
+                                    <label class="form-label">Buscar jogador</label>
+                                    <input type="text" id="auctionPlayerSearch" class="form-control" placeholder="Digite o nome do jogador">
+                                </div>
+                                <div class="col-md-4">
+                                    <button class="btn btn-outline-orange w-100" id="auctionSearchBtn" type="button"><i class="bi bi-search me-1"></i>Buscar</button>
+                                </div>
+                            </div>
+                            <div class="list-group mt-2" id="auctionPlayerResults" style="display:none"></div>
+                            <div style="color:var(--text-2);font-size:13px;margin-top:8px" id="auctionSelectedLabel"></div>
+                            <input type="hidden" id="auctionSelectedPlayerId">
+                            <input type="hidden" id="auctionSelectedTeamId">
+                        </div>
+
+                        <div id="auctionCreateArea" style="display:none">
+                            <p class="info-box">O jogador criado aqui não pertence a nenhum time — ao ser vendido no leilão, vai direto para o time vencedor.</p>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label">Nome</label>
+                                    <input type="text" id="auctionPlayerName" class="form-control" placeholder="Nome do jogador">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Posição</label>
+                                    <select id="auctionPlayerPosition" class="form-select">
+                                        <option value="PG">PG</option>
+                                        <option value="SG">SG</option>
+                                        <option value="SF">SF</option>
+                                        <option value="PF">PF</option>
+                                        <option value="C">C</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Idade</label>
+                                    <input type="number" id="auctionPlayerAge" class="form-control" value="25">
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">OVR</label>
+                                    <input type="number" id="auctionPlayerOvr" class="form-control" value="70">
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button class="btn btn-success w-100" type="button" id="btnCriarJogadorLeilao"><i class="bi bi-plus-lg me-1"></i>Criar (pendente)</button>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px"><i class="bi bi-person-plus me-1"></i>Jogadores criados (pendentes de iniciar)</div>
+                                <div id="auctionTempList"><p style="color:var(--text-3);font-size:13px">Nenhum jogador criado.</p></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-card">
+                <div class="panel-card-header"><i class="bi bi-list-check panel-card-icon"></i><span class="panel-card-title">Todos os Leilões (Admin)</span></div>
+                <div class="panel-card-body"><div id="adminLeiloesContainer"><p style="color:var(--text-3);font-size:13px">Carregando...</p></div></div>
+            </div>
             <?php endif; ?>
             <div class="panel-card">
                 <div class="panel-card-header"><i class="bi bi-hammer panel-card-icon"></i><span class="panel-card-title">Leilões Ativos</span></div>
@@ -327,7 +425,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
     </div>
 </div>
 
-<!-- Modal: Ver Propostas -->
+<!-- Modal: Ver Propostas / Chat da Negociação -->
 <div class="modal fade" id="modalVerPropostas" tabindex="-1">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -335,9 +433,13 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
                 <h5 class="modal-title"><i class="bi bi-inbox" style="color:var(--red)"></i>Propostas Recebidas</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="padding:0;display:flex;flex-direction:column">
                 <input type="hidden" id="leilaoIdVerPropostas">
-                <div id="listaPropostasRecebidas"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
+                <div id="listaPropostasRecebidas" style="padding:20px;max-height:60vh;overflow-y:auto"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
+                <div id="chatComposeBar" style="display:none;gap:8px;padding:14px 20px;border-top:1px solid var(--border)">
+                    <textarea id="chatMessageInput" class="form-control" rows="1" placeholder="Escreva uma mensagem..." style="resize:none"></textarea>
+                    <button type="button" class="btn btn-orange" id="btnEnviarMensagemChat" style="flex-shrink:0"><i class="bi bi-send"></i></button>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
@@ -420,7 +522,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
     if (sbOverlay) sbOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sbOverlay.classList.remove('show'); });
     // Theme
     const themeKey = 'fba-theme';
-    const themeBtn = document.querySelector('[data-theme-toggle]');
+    const themeBtn = document.getElementById('themeToggle');
     const applyTheme = (theme) => {
         if (theme === 'light') {
             document.documentElement.setAttribute('data-theme', 'light');

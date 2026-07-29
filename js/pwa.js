@@ -255,6 +255,25 @@ async function savePushSubscription(subscription) {
   }
 }
 
+async function unsubscribeFromPush() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      await fetch('/api/push-subscribe.php', {
+        method:  'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ endpoint: sub.endpoint }),
+      });
+      await sub.unsubscribe();
+    }
+    localStorage.removeItem('push-subscribed');
+  } catch (err) {
+    console.log('[PWA] Erro ao cancelar push subscription:', err);
+  }
+}
+
 // Inicia push 4 s após o SW estar pronto (evita bloquear carregamento)
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.ready.then(() => setTimeout(initPushNotifications, 4000));

@@ -380,6 +380,57 @@ try {
     $gmStats['fba_points'] = (int)$sFP->fetch(PDO::FETCH_ASSOC)['c'];
 } catch (Exception $e) { $gmStats['fba_points'] = 0; }
 
+// ── Campanhas de playoff (placares das séries de playoff_series, ex.: 4x2) ──
+$playoffCampaigns = [];
+try {
+    $stmtSeries = $pdo->prepare("
+        SELECT ps.season_id, ps.round, ps.games, s.year, s.season_number,
+               pr.position AS result
+        FROM playoff_series ps
+        JOIN seasons s ON s.id = ps.season_id
+        LEFT JOIN playoff_results pr ON pr.season_id = ps.season_id AND pr.team_id = ps.team_id
+        WHERE ps.team_id = ?
+        ORDER BY s.year DESC, s.season_number DESC, FIELD(ps.round,'r1','r2','cf','fin')");
+    $stmtSeries->execute([$teamId]);
+    $bySeason = [];
+    foreach ($stmtSeries->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $sid = (int)$r['season_id'];
+        if (!isset($bySeason[$sid])) {
+            $bySeason[$sid] = [
+                'season_id'     => $sid,
+                'year'          => $r['year'] !== null ? (int)$r['year'] : null,
+                'season_number' => $r['season_number'] !== null ? (int)$r['season_number'] : null,
+                'result'        => $r['result'],
+                'series'        => [],
+            ];
+        }
+        $bySeason[$sid]['series'][] = ['round' => $r['round'], 'games' => (int)$r['games']];
+    }
+    $roundOrder = ['r1', 'r2', 'cf', 'fin'];
+    foreach ($bySeason as &$c) {
+        // O time venceu todas as séries menos a última que jogou (a eliminação),
+        // exceto o campeão, que venceu todas — inclusive a final.
+        $lostRound = null;
+        if ($c['result'] !== 'champion') {
+            $rs = array_map(fn($s) => $s['round'], $c['series']);
+            usort($rs, fn($a, $b) => array_search($a, $roundOrder) <=> array_search($b, $roundOrder));
+            $lostRound = end($rs) ?: null;
+        }
+        foreach ($c['series'] as &$s) {
+            $won = ($s['round'] !== $lostRound);
+            $teamW = $won ? 4 : max(0, $s['games'] - 4);
+            $oppW  = $won ? max(0, $s['games'] - 4) : 4;
+            $s['won']   = $won;
+            $s['score'] = $teamW . 'x' . $oppW;
+        }
+        unset($s);
+    }
+    unset($c);
+    $playoffCampaigns = array_values($bySeason);
+} catch (Exception $e) {
+    $playoffCampaigns = [];
+}
+
 echo json_encode([
     'success'  => true,
     'team'     => $team,
@@ -397,6 +448,7 @@ echo json_encode([
         'first_round'   => $playoffResults['first_round'],
         'champ_seasons' => $champSeasons,
         'champ_roster'  => $champRoster,
+        'campaigns'     => $playoffCampaigns,
     ],
     'regular'  => [
         'top1' => $top1Regular,

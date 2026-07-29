@@ -156,8 +156,8 @@ if ($user && isset($user['id'])) {
             padding: 22px 28px;
             margin-bottom: 20px;
         }
-        .hero-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--red); margin-bottom: 6px; }
-        .hero-title { font-size: clamp(1.4rem, 2.5vw, 1.8rem); font-weight: 800; margin-bottom: 4px; }
+        .hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 6px; }
+        .hero-title { font-size: 26px; font-weight: 800; line-height: 1.1; margin-bottom: 4px; }
         .hero-sub { font-size: 13px; color: var(--text-2); }
 
         /* ── Stat grid ────────────────────────────────── */
@@ -183,24 +183,14 @@ if ($user && isset($user['id'])) {
         .panel-card-sub { font-size: 11px; color: var(--text-2); margin-top: 2px; }
         .panel-card-body { padding: 16px 18px; }
 
-        /* ── Pick card ────────────────────────────────── */
-        .pick-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; }
-        .pick-card.current-pick-highlight { border-color: var(--border-red); background: color-mix(in srgb, var(--red) 6%, transparent); }
-        .pick-card.next-pick-highlight { background: var(--panel-3); border-color: var(--border); }
-        .pick-card-lg { padding: 16px; }
-        .pick-card-sm { padding: 10px 14px; opacity: .9; }
-        .pick-flash { animation: pickFlash 1.2s ease-in-out; }
+        /* keyframe compartilhada com .clock-flash (sala nova) */
         @keyframes pickFlash {
             0%   { box-shadow: 0 0 0 color-mix(in srgb, var(--red) 0%, transparent); }
             30%  { box-shadow: 0 0 22px color-mix(in srgb, var(--red) 45%, transparent); }
             100% { box-shadow: 0 0 0 color-mix(in srgb, var(--red) 0%, transparent); }
         }
-        .pick-logo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
 
         /* ── Order list ───────────────────────────────── */
-        .order-item { display: flex; align-items: center; gap: 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 6px; }
-        .order-item.order-highlight { border-color: var(--border-red); background: color-mix(in srgb, var(--red) 7%, transparent); }
-        .order-item.order-next { border-style: dashed; border-color: rgba(255,255,255,.12); }
         .order-rank { width: 28px; height: 28px; border-radius: 50%; background: var(--red-soft); border: 1px solid var(--border-red); display: grid; place-items: center; font-weight: 700; font-size: 12px; color: var(--red); flex-shrink: 0; }
         .team-chip { display: flex; align-items: center; gap: 8px; }
         .team-chip img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
@@ -215,10 +205,7 @@ if ($user && isset($user['id'])) {
         .manual-order-row { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 6px; }
         .manual-position-select { width: 68px; }
 
-        /* ── Pick summary (reaction bar) ──────────────── */
-        .pick-summary { background: var(--panel-3); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-top: 6px; font-size: 12px; }
-        .pick-summary-name { font-weight: 600; color: var(--text); }
-        .pick-summary-meta { color: var(--red); font-size: 11px; }
+        /* ── Reaction bar ──────────────────────────────── */
         .reaction-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
         .reaction-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; border: 1px solid var(--border-md); background: var(--panel-2); color: var(--text); cursor: pointer; user-select: none; transition: all var(--t) var(--ease); }
         .reaction-chip:hover { border-color: var(--border-red); background: var(--red-soft); }
@@ -292,10 +279,11 @@ if ($user && isset($user['id'])) {
         .roster-list { list-style: none; padding: 0; margin: 0; font-size: 12px; color: var(--text-2); }
         .roster-list li { padding: 4px 0; border-bottom: 1px solid var(--border); }
         .roster-list li:last-child { border-bottom: none; }
-        .roster-player-pos { color: var(--red); font-weight: 600; }
 
         /* ── Empty state ──────────────────────────────── */
-        .state-empty { padding: 24px 16px; text-align: center; color: var(--text-3); font-size: 13px; }
+        .state-empty { padding: 24px 16px; text-align: center; color: var(--text-3); }
+        .state-empty i { font-size: 28px; display: block; margin-bottom: 8px; }
+        .state-empty p { font-size: 12px; margin: 0; }
 
         /* ── Bootstrap tabs / modal overrides ─────────── */
         .nav-tabs { border-bottom: 1px solid var(--border); }
@@ -600,7 +588,7 @@ if ($user && isset($user['id'])) {
 
     <!-- Draft board: na vez / a seguir / última escolha -->
     <section class="clock-board" id="clockBoard">
-        <div class="clock-cell clock-now"><div class="cell-label">Na vez</div><div class="state-empty" style="padding:8px 0">Carregando…</div></div>
+        <div class="clock-cell clock-now"><div class="cell-label">Na vez</div><div class="state-empty" style="padding:8px 0"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div></div>
         <div class="clock-cell"><div class="cell-label">A seguir</div></div>
         <div class="clock-cell"><div class="cell-label">Última escolha</div></div>
     </section>
@@ -635,7 +623,7 @@ if ($user && isset($user['id'])) {
                             <label class="filter-check" style="white-space:nowrap"><input type="checkbox" id="poolOnlyAvailable" checked> Disponíveis</label>
                         </div>
                     </div>
-                    <div class="pool-grid" id="poolGrid"><div class="state-empty">Carregando…</div></div>
+                    <div class="pool-grid" id="poolGrid"><div class="state-empty"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div></div>
                     <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2 pag-wrap" id="poolPagination"></div>
                 </div>
             </div>
@@ -648,7 +636,7 @@ if ($user && isset($user['id'])) {
                     <div class="panel-card-title"><i class="bi bi-list-ol" style="color:var(--red);margin-right:6px"></i>Ordem do Draft (Snake)</div>
                 </div>
                 <div class="panel-card-body">
-                    <div id="snakeBoard" style="max-height:720px;overflow-y:auto"><div class="state-empty">Carregando…</div></div>
+                    <div id="snakeBoard" style="max-height:720px;overflow-y:auto"><div class="state-empty"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div></div>
                 </div>
             </div>
         </div>
@@ -661,7 +649,7 @@ if ($user && isset($user['id'])) {
             <span style="font-size:11px;color:var(--text-2)" id="rosterMeta"></span>
         </div>
         <div class="panel-card-body">
-            <div class="rosters-grid" id="rosterGrid"><div class="state-empty">Nenhum elenco montado ainda.</div></div>
+            <div class="rosters-grid" id="rosterGrid"><div class="state-empty"><i class="bi bi-inbox"></i><p>Nenhum elenco montado ainda.</p></div></div>
         </div>
     </div>
 
@@ -838,7 +826,6 @@ if ($user && isset($user['id'])) {
             poolMeta: document.getElementById('poolMeta'),
             rosterGrid: document.getElementById('rosterGrid'),
             rosterMeta: document.getElementById('rosterMeta'),
-            rosterCount: document.getElementById('rosterCount'),
             toggleSoundButton: document.getElementById('toggleSoundButton'),
             poolSearch: document.getElementById('poolSearch'),
             poolSortSelect: document.getElementById('poolSortSelect'),
@@ -847,9 +834,11 @@ if ($user && isset($user['id'])) {
         };
 
         // ── Helpers ─────────────────────────────────────
+        const esc = s => (s || '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
         function teamLabel(pick) {
             if (!pick) return '—';
-            return `${pick.team_city || ''} ${pick.team_name || ''}`.trim();
+            return `${esc(pick.team_city || '')} ${esc(pick.team_name || '')}`.trim();
         }
 
         function showMessage(message, type = 'success') {
@@ -897,7 +886,7 @@ if ($user && isset($user['id'])) {
         }
 
         // ── Clock board (na vez / a seguir / última) ────
-        function renderClockBoard(currentPick, nextPick) {
+        function renderClockBoard(currentPick) {
             const board = elements.clockBoard;
             if (!board) return;
             const drafted = state.order.filter((p) => p.picked_player_id).length;
@@ -910,16 +899,16 @@ if ($user && isset($user['id'])) {
                 nowHtml = `
                     <div class="cell-label"><span class="snake-onclock"><span class="dot"></span></span> Na vez</div>
                     <div class="clock-team">
-                        <img src="${currentPick.team_photo || '/img/default-team.png'}" alt="${currentPick.team_name || ''}" onerror="this.src='/img/default-team.png'">
+                        <img src="${currentPick.team_photo || '/img/default-team.png'}" alt="${esc(currentPick.team_name || '')}" onerror="this.src='/img/default-team.png'">
                         <div>
                             <div class="clock-team-name">${teamLabel(currentPick)}</div>
-                            <div class="clock-team-gm">GM: ${currentPick.team_owner || 'Sem GM'}</div>
+                            <div class="clock-team-gm">GM: ${esc(currentPick.team_owner || 'Sem GM')}</div>
                             <span class="clock-pick-tag"><i class="bi bi-hourglass-split"></i> Rodada ${currentPick.round} · Pick ${currentPick.pick_position} · #${globalPickNo(currentPick)} geral</span>
                         </div>
                     </div>`;
             } else {
                 const done = state.session?.status === 'completed';
-                nowHtml = `<div class="cell-label">Na vez</div><div class="state-empty" style="padding:10px 0">${done ? 'Draft concluído 🏆' : 'Aguardando início'}</div>`;
+                nowHtml = `<div class="cell-label">Na vez</div><div class="state-empty" style="padding:10px 0"><i class="bi ${done ? 'bi-trophy' : 'bi-hourglass-split'}"></i><p>${done ? 'Draft concluído 🏆' : 'Aguardando início'}</p></div>`;
             }
 
             // A seguir (próximos 4)
@@ -932,7 +921,7 @@ if ($user && isset($user['id'])) {
                             <span class="clock-next-rank">#${globalPickNo(p)}</span>
                             <img src="${p.team_photo || '/img/default-team.png'}" onerror="this.src='/img/default-team.png'" alt="">
                             <div><div class="clock-next-name">${teamLabel(p)}</div><div class="clock-next-meta">R${p.round} · Pick ${p.pick_position}</div></div>
-                        </div>`).join('') : '<div class="state-empty" style="padding:6px 0;font-size:12px">Sem próximos.</div>'}
+                        </div>`).join('') : '<div class="state-empty" style="padding:6px 0"><i class="bi bi-inbox"></i><p>Sem próximos.</p></div>'}
                 </div>`;
 
             // Última escolha
@@ -944,8 +933,8 @@ if ($user && isset($user['id'])) {
                     <div class="d-flex align-items-center gap-3">
                         <div class="ovr-chip ${ovrClass(last.player_ovr)}"><span class="ovr-num">${last.player_ovr ?? '—'}</span><span class="ovr-lbl">OVR</span></div>
                         <div style="min-width:0">
-                            <div class="clock-last-player">${last.player_name || '—'}</div>
-                            <div class="clock-last-team"><span class="pos-badge ${posClass(last.player_position)}">${last.player_position || ''}</span> → ${teamLabel(last)}</div>
+                            <div class="clock-last-player">${esc(last.player_name || '—')}</div>
+                            <div class="clock-last-team"><span class="pos-badge ${posClass(last.player_position)}">${esc(last.player_position || '')}</span> → ${teamLabel(last)}</div>
                         </div>
                     </div>` : '<div class="clock-last-empty">Nenhuma escolha ainda.</div>'}`;
 
@@ -965,7 +954,7 @@ if ($user && isset($user['id'])) {
         function renderSnakeBoard(currentPick) {
             const el = elements.snakeBoard;
             if (!el) return;
-            if (!state.order.length) { el.innerHTML = '<div class="state-empty">Ordem ainda não definida.</div>'; return; }
+            if (!state.order.length) { el.innerHTML = '<div class="state-empty"><i class="bi bi-inbox"></i><p>Ordem ainda não definida.</p></div>'; return; }
             const rounds = [...new Set(state.order.map((p) => Number(p.round)))].sort((a, b) => a - b);
             el.innerHTML = rounds.map((r) => {
                 const picks = state.order.filter((p) => Number(p.round) === r).sort((a, b) => a.pick_position - b.pick_position);
@@ -977,7 +966,7 @@ if ($user && isset($user['id'])) {
                     if (picked) {
                         body = `
                             <div class="snake-team">${teamLabel(pick)}</div>
-                            <div class="snake-player"><span class="pos-badge ${posClass(pick.player_position)}">${pick.player_position || ''}</span> ${pick.player_name} <span style="color:var(--text-3);font-weight:600">${pick.player_ovr ?? ''}</span></div>
+                            <div class="snake-player"><span class="pos-badge ${posClass(pick.player_position)}">${esc(pick.player_position || '')}</span> ${esc(pick.player_name)} <span style="color:var(--text-3);font-weight:600">${pick.player_ovr ?? ''}</span></div>
                             <div class="snake-react">${reactionChips(pick)}</div>`;
                     } else if (isCurrent) {
                         body = `<div class="snake-team">${teamLabel(pick)}</div><div class="snake-onclock"><span class="dot"></span> Escolhendo agora…</div>`;
@@ -1035,13 +1024,13 @@ if ($user && isset($user['id'])) {
             const items = filtered.slice(start, start + uiState.poolPageSize);
 
             elements.poolMeta.textContent = `${total} jogador${total === 1 ? '' : 'es'}`;
-            if (!items.length) { grid.innerHTML = '<div class="state-empty" style="grid-column:1/-1">Nenhum jogador encontrado.</div>'; elements.poolPagination.innerHTML = ''; return; }
+            if (!items.length) { grid.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-search"></i><p>Nenhum jogador encontrado.</p></div>'; elements.poolPagination.innerHTML = ''; return; }
 
             const canPick = state.session?.status === 'in_progress' && (IS_ADMIN || (currentPick && USER_TEAM_ID && currentPick.team_id === USER_TEAM_ID));
             grid.innerHTML = items.map((p, i) => {
                 const drafted = p.draft_status === 'drafted';
                 const sec = (p.secondary_position && POS_LIST.includes(p.secondary_position)) ? `<span class="pos-badge ${posClass(p.secondary_position)}">${p.secondary_position}</span>` : '';
-                const pickBtn = (!drafted && canPick) ? `<button class="btn-green pc-pick" onclick="event.stopPropagation();makePick(${p.id})"><i class="bi bi-check2"></i> Escolher</button>` : '';
+                const pickBtn = (!drafted && canPick) ? `<button class="btn-green pc-pick" onclick="event.stopPropagation();makePick(${p.id}, this)"><i class="bi bi-check2"></i> Escolher</button>` : '';
                 const draftedTag = drafted ? '<span class="badge-drafted">Draftado</span>' : '';
                 return `
                     <div class="player-card-wrap">
@@ -1049,8 +1038,8 @@ if ($user && isset($user['id'])) {
                             <span class="pc-rank">#${start + i + 1}</span>
                             <div class="ovr-chip ${ovrClass(p.ovr)}"><span class="ovr-num">${p.ovr ?? '—'}</span><span class="ovr-lbl">OVR</span></div>
                             <div class="pc-body">
-                                <div class="pc-name">${p.name}</div>
-                                <div class="pc-meta"><span class="pos-badge ${posClass(p.position)}">${p.position || ''}</span>${sec}<span>${p.age ? p.age + ' anos' : '—'}</span>${draftedTag}</div>
+                                <div class="pc-name">${esc(p.name)}</div>
+                                <div class="pc-meta"><span class="pos-badge ${posClass(p.position)}">${esc(p.position || '')}</span>${sec}<span>${p.age ? p.age + ' anos' : '—'}</span>${draftedTag}</div>
                             </div>
                         </div>
                         ${pickBtn}
@@ -1077,21 +1066,21 @@ if ($user && isset($user['id'])) {
             const teamsById = Object.fromEntries(state.teams.map((t) => [t.id, t]));
             const byTeam = drafted && p.drafted_by_team_id ? teamsById[p.drafted_by_team_id] : null;
             const sec = (p.secondary_position && POS_LIST.includes(p.secondary_position)) ? `<span class="pos-badge ${posClass(p.secondary_position)}">${p.secondary_position}</span>` : '';
-            const section = (title, val) => val ? `<div class="pd-section"><h6>${title}</h6><p>${String(val).replace(/</g,'&lt;')}</p></div>` : '';
+            const section = (title, val) => val ? `<div class="pd-section"><h6>${esc(title)}</h6><p>${esc(val)}</p></div>` : '';
             body.innerHTML = `
                 <div class="pd-hero">
                     <div class="offcanvas-header p-0" style="position:absolute;top:10px;right:12px"><button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button></div>
                     ${p.photo_url ? `<img src="${p.photo_url}" onerror="this.style.display='none'" alt="">` : `<div class="ovr-chip ${ovrClass(p.ovr)}" style="width:72px;height:72px;border-radius:16px"><span class="ovr-num" style="font-size:26px">${p.ovr ?? '—'}</span><span class="ovr-lbl">OVR</span></div>`}
                     <div style="min-width:0">
-                        <div class="pd-name">${p.name}</div>
-                        <div class="pd-sub"><span class="pos-badge ${posClass(p.position)}">${p.position || ''}</span>${sec}<span>${p.age ? p.age + ' anos' : ''}</span><span>OVR ${p.ovr ?? '—'}</span></div>
+                        <div class="pd-name">${esc(p.name)}</div>
+                        <div class="pd-sub"><span class="pos-badge ${posClass(p.position)}">${esc(p.position || '')}</span>${sec}<span>${p.age ? p.age + ' anos' : ''}</span><span>OVR ${p.ovr ?? '—'}</span></div>
                     </div>
                 </div>
-                <div class="pd-section"><h6>Status</h6><p>${drafted ? ('Draftado' + (byTeam ? ' por ' + (byTeam.city || '') + ' ' + (byTeam.name || '') : '')) : 'Disponível no pool'}</p></div>
+                <div class="pd-section"><h6>Status</h6><p>${drafted ? ('Draftado' + (byTeam ? ' por ' + esc((byTeam.city || '') + ' ' + (byTeam.name || '')) : '')) : 'Disponível no pool'}</p></div>
                 ${section('Bio', p.bio)}
                 ${section('Pontos fortes', p.strengths)}
                 ${section('Pontos fracos', p.weaknesses)}
-                ${(!drafted && canPick) ? `<div class="pd-section"><button class="btn-green" style="width:100%;justify-content:center" onclick="makePick(${p.id})"><i class="bi bi-check2-circle"></i> Escolher ${p.name}</button></div>` : ''}
+                ${(!drafted && canPick) ? `<div class="pd-section"><button class="btn-green" style="width:100%;justify-content:center" onclick="makePick(${p.id}, this)"><i class="bi bi-check2-circle"></i> Escolher ${esc(p.name)}</button></div>` : ''}
             `;
             const oc = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('playerDetail'));
             oc.show();
@@ -1107,7 +1096,7 @@ if ($user && isset($user['id'])) {
             });
             const totalPicks = state.order.filter((p) => p.picked_player_id).length;
             if (elements.rosterMeta) elements.rosterMeta.textContent = `${teams.length} times · ${totalPicks} escolhas`;
-            if (!teams.length) { elements.rosterGrid.innerHTML = '<div class="state-empty">Nenhum time na liga.</div>'; return; }
+            if (!teams.length) { elements.rosterGrid.innerHTML = '<div class="state-empty"><i class="bi bi-inbox"></i><p>Nenhum time na liga.</p></div>'; return; }
 
             elements.rosterGrid.innerHTML = teams.map((team) => {
                 const players = (byTeam[team.id] || []).slice().sort((a, b) => (Number(b.player_ovr) || 0) - (Number(a.player_ovr) || 0));
@@ -1116,7 +1105,7 @@ if ($user && isset($user['id'])) {
                 const body = players.length
                     ? `<ul class="roster-list">${players.map((pick) => {
                         const age = (pick.player_age != null && pick.player_age !== '') ? `${pick.player_age}a` : '';
-                        return `<li><span class="pos-badge ${posClass(pick.player_position)}">${pick.player_position || ''}</span> <span style="color:var(--text)">${pick.player_name}</span> <span style="color:var(--text-3);font-size:11px">${age}</span> <span class="rl-ovr">${pick.player_ovr ?? '—'}</span></li>`;
+                        return `<li><span class="pos-badge ${posClass(pick.player_position)}">${esc(pick.player_position || '')}</span> <span style="color:var(--text)">${esc(pick.player_name)}</span> <span style="color:var(--text-3);font-size:11px">${age}</span> <span class="rl-ovr">${pick.player_ovr ?? '—'}</span></li>`;
                     }).join('')}</ul>`
                     : '<div class="roster-empty">Sem escolhas ainda</div>';
                 return `
@@ -1124,7 +1113,7 @@ if ($user && isset($user['id'])) {
                         <div class="roster-head">
                             <div class="team-chip">
                                 <img src="${team.photo_url || '/img/default-team.png'}" onerror="this.src='/img/default-team.png'" alt="">
-                                <div><div class="team-chip-name">${team.city || ''} ${team.name || ''}</div><div class="team-chip-gm">${team.owner_name || 'Sem GM'}</div></div>
+                                <div><div class="team-chip-name">${esc(team.city || '')} ${esc(team.name || '')}</div><div class="team-chip-gm">${esc(team.owner_name || 'Sem GM')}</div></div>
                             </div>
                             <div class="roster-badges"><span class="roster-stat">${players.length}</span>${avg != null ? `<span class="roster-stat">Ø${avg}</span>` : ''}</div>
                         </div>
@@ -1135,10 +1124,6 @@ if ($user && isset($user['id'])) {
 
         function getCurrentPick() {
             return state.order.find((pick) => !pick.picked_player_id);
-        }
-
-        function getNextPick(currentPick) {
-            return state.order.find((pick, idx) => !pick.picked_player_id && idx > state.order.indexOf(currentPick));
         }
 
         // ── Load & refresh ──────────────────────────────
@@ -1157,16 +1142,15 @@ if ($user && isset($user['id'])) {
 
                 renderStats();
                 const currentPick = getCurrentPick();
-                const nextPick = getNextPick(currentPick);
                 handlePickChange(currentPick);
-                renderClockBoard(currentPick, nextPick);
+                renderClockBoard(currentPick);
                 renderSnakeBoard(currentPick);
                 renderPool(currentPick);
                 renderRosters();
 
                 if (IS_ADMIN) renderAdmin(fromAuto);
             } catch (error) {
-                if (elements.poolGrid) elements.poolGrid.innerHTML = `<div class="state-empty" style="grid-column:1/-1;color:#ef4444">${error.message}</div>`;
+                if (elements.poolGrid) elements.poolGrid.innerHTML = `<div class="state-empty" style="grid-column:1/-1;color:#ef4444"><i class="bi bi-exclamation-triangle-fill"></i><p>${esc(error.message)}</p></div>`;
             }
         }
 
@@ -1183,8 +1167,14 @@ if ($user && isset($user['id'])) {
         }
 
         // ── Picks & reactions (live) ────────────────────
-        async function makePick(playerId) {
+        async function makePick(playerId, btn) {
             if (!confirm('Confirmar a escolha deste jogador?')) return;
+            if (btn && btn.disabled) return;
+            const originalHtml = btn ? btn.innerHTML : null;
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Enviando...';
+            }
             try {
                 const res = await fetch(API_URL, {
                     method: 'POST',
@@ -1196,6 +1186,11 @@ if ($user && isset($user['id'])) {
                 await loadState();
             } catch (error) {
                 alert(error.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                }
             }
         }
 
@@ -1429,7 +1424,7 @@ if ($user && isset($user['id'])) {
         function renderManualOrder() {
             if (!admElements.manualOrderList) return;
             if (!adminState.manualOrder.length) {
-                admElements.manualOrderList.innerHTML = '<div class="state-empty">Sem times na liga.</div>';
+                admElements.manualOrderList.innerHTML = '<div class="state-empty"><i class="bi bi-inbox"></i><p>Sem times na liga.</p></div>';
                 return;
             }
             const teamsById = Object.fromEntries(state.teams.map((team) => [team.id, team]));
@@ -1447,10 +1442,10 @@ if ($user && isset($user['id'])) {
                         <div class="manual-order-row">
                             ${controls}
                             <div class="d-flex align-items-center gap-2">
-                                <img src="${team.photo_url || '/img/default-team.png'}" alt="${team.name || 'Time'}" onerror="this.src='/img/default-team.png'" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--border-md)">
+                                <img src="${team.photo_url || '/img/default-team.png'}" alt="${esc(team.name || 'Time')}" onerror="this.src='/img/default-team.png'" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--border-md)">
                                 <div>
-                                    <div class="team-chip-name">${team.city || ''} ${team.name || ''}</div>
-                                    <div class="team-chip-gm">${team.owner_name || 'Sem GM'}</div>
+                                    <div class="team-chip-name">${esc(team.city || '')} ${esc(team.name || '')}</div>
+                                    <div class="team-chip-gm">${esc(team.owner_name || 'Sem GM')}</div>
                                 </div>
                             </div>
                             <div class="order-actions">
@@ -1670,7 +1665,7 @@ if ($user && isset($user['id'])) {
             const isSetup = state.session?.status === 'setup';
 
             if (!filtered.length) {
-                admElements.poolTable.innerHTML = '<tr><td colspan="7" class="state-empty">Nenhum jogador no pool.</td></tr>';
+                admElements.poolTable.innerHTML = '<tr><td colspan="7" class="state-empty"><i class="bi bi-inbox"></i><p>Nenhum jogador no pool.</p></td></tr>';
                 admElements.poolPagination.innerHTML = '';
                 return;
             }
@@ -1685,13 +1680,13 @@ if ($user && isset($user['id'])) {
                     const drafted = player.draft_status === 'drafted';
                     const canManage = isSetup && !drafted;
                     const editBtn = canManage ? `<button class="btn-sm-icon amber" onclick="openEditPlayer(${player.id})"><i class="bi bi-pencil"></i></button>` : '';
-                    const delBtn = canManage ? `<button class="btn-sm-icon danger" onclick="deleteInitDraftPlayer(${player.id}, '${(player.name || '').replace(/'/g, "\\'")}')"><i class="bi bi-trash"></i></button>` : '';
+                    const delBtn = canManage ? `<button class="btn-sm-icon danger" onclick="deleteInitDraftPlayer(${player.id}, '${esc((player.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}')"><i class="bi bi-trash"></i></button>` : '';
                     const actions = (editBtn || delBtn) ? `<div style="display:flex;gap:4px;justify-content:flex-end">${editBtn} ${delBtn}</div>` : '<span style="color:var(--text-3)">—</span>';
                     return `
                         <tr>
                             <td>${start + index + 1}</td>
-                            <td class="td-name">${player.name}</td>
-                            <td>${player.position}</td>
+                            <td class="td-name">${esc(player.name)}</td>
+                            <td>${esc(player.position)}</td>
                             <td style="font-weight:700;color:var(--text)">${player.ovr}</td>
                             <td>${player.age ?? '—'}</td>
                             <td><span class="${drafted ? 'badge-drafted' : 'badge-available'}">${drafted ? 'Drafted' : 'Disponível'}</span></td>

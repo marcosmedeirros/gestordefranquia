@@ -275,7 +275,8 @@ if ($teamId) {
         .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; }
         .panel + .panel { margin-top: 16px; }
         .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
-        .panel-title { font-family: var(--font); font-size: 16px; font-weight: 600; }
+        .panel-title { font-family: var(--font); font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .panel-title i { color: var(--red); font-size: 15px; }
         .panel-sub   { color: var(--text-2); font-size: 12px; margin-top: 2px; }
 
         /* ── Form fields ───────────────────────────────── */
@@ -341,7 +342,7 @@ if ($teamId) {
             padding: 10px 14px; border-radius: 11px; background: color-mix(in srgb, var(--red) 8%, transparent);
             border: 1px solid var(--border-red); }
         .bulk-count { font-size: 12px; color: var(--text-2); margin-right: 4px; }
-        .bulk-count b { font-family: 'Oswald', sans-serif; font-size: 14px; color: var(--red); }
+        .bulk-count b { font-family: var(--font); font-size: 14px; color: var(--red); }
         .btn-bulk { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 9px;
             background: var(--panel-2); border: 1px solid var(--border-md); color: var(--text-2);
             font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s; }
@@ -373,16 +374,16 @@ if ($teamId) {
         .comp-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600;
             padding: 4px 10px; border-radius: 999px; background: var(--panel-3);
             border: 1px solid var(--border); color: var(--text-2); }
-        .comp-chip b { font-family: 'Oswald', sans-serif; font-size: 13px; color: var(--text); }
+        .comp-chip b { font-family: var(--font); font-size: 13px; color: var(--text); }
         .comp-warn { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700;
             padding: 3px 9px; border-radius: 999px; background: rgba(245,158,11,.12);
             border: 1px solid rgba(245,158,11,.3); color: var(--amber); text-transform: none; letter-spacing: 0; }
         .comp-poss { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px 14px; }
         .comp-pos { display: flex; align-items: center; gap: 7px; }
-        .comp-pos-l { font-family: 'Oswald', sans-serif; font-size: 11px; font-weight: 700; color: var(--text-2); width: 20px; }
+        .comp-pos-l { font-family: var(--font); font-size: 11px; font-weight: 700; color: var(--text-2); width: 20px; }
         .comp-pos-bar { flex: 1; height: 6px; background: var(--panel-3); border-radius: 999px; overflow: hidden; }
         .comp-pos-bar i { display: block; height: 100%; background: var(--red); border-radius: 999px; }
-        .comp-pos-n { font-family: 'Oswald', sans-serif; font-size: 12px; font-weight: 700; width: 16px; text-align: right; }
+        .comp-pos-n { font-family: var(--font); font-size: 12px; font-weight: 700; width: 16px; text-align: right; }
         .comp-pos-n.zero { color: var(--amber); }
         @media (max-width: 760px) { .comp-row { grid-template-columns: 1fr; } }
         .roster-table thead th[data-sort="name"]     { width: 30%; }
@@ -493,7 +494,9 @@ if ($teamId) {
         .btn-close-white { filter: invert(1); }
 
         /* Empty state */
-        .empty-state { text-align: center; color: var(--text-2); padding: 32px 0; font-size: 14px; }
+        .empty-state { padding: 24px 16px; text-align: center; color: var(--text-3); }
+        .empty-state i { font-size: 28px; display: block; margin-bottom: 8px; }
+        .empty-state p { font-size: 12px; margin: 0; }
 
         /* ── Skill Grades ──────────────────────────────── */
         .skill-grades-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
@@ -582,6 +585,9 @@ if ($teamId) {
             <i class="bi bi-exclamation-triangle me-2"></i>Você ainda não possui um time. Crie um no onboarding.
         </div>
         <?php else: ?>
+
+        <!-- Selo da franquia (Contending/Buying/Selling/Rebuilding) -->
+        <div id="franchise-tag-bar" style="display:none;margin-bottom:16px"></div>
 
         <!-- Stats strip -->
         <div class="stats-strip">
@@ -991,7 +997,6 @@ if ($teamId) {
 </div>
 
 
-<!-- Modal: Importar Skills por Imagem -->
 <!-- ══════════════════════════════════════
      SCRIPTS
 ══════════════════════════════════════ -->

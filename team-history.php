@@ -253,6 +253,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   <div class="section-title" data-th-tab="geral"><i class="bi bi-trophy-fill"></i> Desempenho por Fase</div>
   <div class="panel" id="phases-panel" data-th-tab="geral"><div class="skeleton" style="height:180px"></div></div>
 
+  <div id="playoff-campaigns-wrap" data-th-tab="geral" style="display:none">
+    <div class="section-title"><i class="bi bi-diagram-3-fill"></i> Campanhas de Playoff <span style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0">(placar de cada série)</span></div>
+    <div class="panel" id="playoff-campaigns-panel"></div>
+  </div>
+
   <div class="two-col" data-th-tab="geral">
     <div class="panel">
       <div class="section-title"><i class="bi bi-person-fill"></i> Destaque</div>
@@ -453,6 +458,33 @@ async function load(){
   ];
   const phaseHTML = phases.map(p => row(p.icon, p.label, p.val, p.color)).join('');
   document.getElementById('phases-panel').innerHTML = phaseHTML || '<div class="empty">Nenhum dado ainda</div>';
+
+  // ── Campanhas de Playoff (placar de cada série) ──
+  (function(){
+    const camps = playoffs.campaigns || [];
+    const wrap = document.getElementById('playoff-campaigns-wrap');
+    if (!wrap) return;
+    if (!camps.length) { wrap.style.display = 'none'; return; }
+    const RES = { champion:'Campeão 🏆', runner_up:'Vice-campeão', conference_final:'Final de Conferência', second_round:'Semifinal', first_round:'1ª Rodada' };
+    const RLBL = { r1:'1ª Rodada', r2:'Semifinal', cf:'Final Conf.', fin:'Final' };
+    document.getElementById('playoff-campaigns-panel').innerHTML = camps.map(c => {
+      const title = c.year ? `${c.year}` : (c.season_number ? `Temporada ${c.season_number}` : '—');
+      const resLabel = RES[c.result] || 'Playoffs';
+      const series = (c.series || []).map(s => `
+        <span style="display:inline-flex;align-items:center;gap:5px;background:var(--panel-2);border:1px solid ${s.won?'rgba(34,197,94,.3)':'rgba(239,68,68,.3)'};border-radius:8px;padding:3px 9px;font-size:12px">
+          <span style="color:var(--text-3);font-size:11px">${RLBL[s.round]||s.round}</span>
+          <b style="color:${s.won?'#22c55e':'#ef4444'}">${s.score}</b>
+        </span>`).join('');
+      return `<div style="padding:9px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <b style="font-family:'Oswald',sans-serif;font-size:14px">${title}</b>
+          <span style="font-size:11px;color:var(--text-2)">${resLabel}</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${series}</div>
+      </div>`;
+    }).join('');
+    wrap.style.display = '';
+  })();
 
   // ── Destaque ──
   let pHTML = '';

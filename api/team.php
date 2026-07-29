@@ -84,7 +84,7 @@ if ($method === 'GET') {
         if (!$user) {
             jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
         }
-        $isAdmin = ($user['user_type'] ?? '') === 'admin' || !empty($_SESSION['is_admin']);
+        $isAdmin = hasAdminAccess($pdo, (int)$user['id']);
         $league = $user['league'] ?? 'ROOKIE';
         $leagueParam = strtoupper(trim($_GET['league'] ?? ''));
         if ($leagueParam !== '' && $isAdmin) {
@@ -284,7 +284,7 @@ if ($method === 'GET') {
             jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
         }
 
-        $isAdmin = ($user['user_type'] ?? '') === 'admin' || !empty($_SESSION['is_admin']);
+        $isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
         $stmtPlayer = $pdo->prepare('
             SELECT p.*, t.id AS team_id, t.city, t.name AS team_name, t.league,
@@ -650,7 +650,7 @@ if ($method === 'GET') {
     }
 
     $league = null;
-    $isAdmin = ($user['user_type'] ?? '') === 'admin' || !empty($_SESSION['is_admin']);
+    $isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
     if ($leagueParam && $isAdmin) {
         $league = $leagueParam;

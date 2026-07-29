@@ -71,7 +71,9 @@ ensureTeamFreeAgencyColumns($pdo);
 ensureNewFaTables($pdo);
 
 $user_id = $_SESSION['user_id'];
-$is_admin = $_SESSION['is_admin'] ?? (($_SESSION['user_type'] ?? '') === 'admin');
+// Admin global (user_type='admin') OU admin da liga via league_admins — mesmo critério
+// usado na página leilao.php, em api/market.php e api/draft.php.
+$is_admin = hasAdminAccess($pdo, (int)$user_id);
 $team_id = $_SESSION['team_id'] ?? null;
 
 $team = null;
@@ -516,6 +518,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$is_admin) {
                 jsonError('Acesso negado', 403);
             }
+            // Ação cria free agent em uma liga arbitrária vinda do payload; admin de
+            // liga (não-global) só pode cadastrar nas ligas que ele administra.
+            $addPlayerLeague = strtoupper(trim((string)($body['league'] ?? '')));
+            if ($addPlayerLeague && !in_array($addPlayerLeague, getAdminLeagues($pdo, (int)$user_id), true)) {
+                jsonError('Você não administra essa liga', 403);
+            }
             addPlayer($pdo, $body);
             break;
         case 'remove_player':
@@ -538,6 +546,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $enabled = (int)!!($body['enabled'] ?? 0);
             if (!$league) {
                 jsonError('Liga invalida');
+            }
+            // Liga arbitrária vinda do payload; admin de liga (não-global) só pode
+            // ligar/desligar a FA das ligas que ele administra.
+            if (!in_array($league, getAdminLeagues($pdo, (int)$user_id), true)) {
+                jsonError('Você não administra essa liga', 403);
             }
             ensureFaEnabledColumn($pdo);
             try {

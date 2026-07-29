@@ -114,10 +114,14 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             --text:       #f0f0f3;
             --text-2:     #868690;
             --text-3:     #7d7d85;
+            --green:      #22c55e;
+            --amber:      #f59e0b;
+            --blue:       #3b82f6;
             --sidebar-w:  260px;
             --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
+            --radius-xs:  6px;
             --ease:       cubic-bezier(.2,.8,.2,1);
             --t:          200ms;
         }
@@ -133,6 +137,10 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             --text-2:     #5b6270;
             --text-3:     #657080;
         }
+        [data-theme="light"] .modal-content { background: var(--panel) !important; color: var(--text) !important; border-color: var(--border-md) !important; }
+        [data-theme="light"] .modal-header { background: var(--panel-2) !important; border-color: var(--border) !important; }
+        [data-theme="light"] .modal-footer { background: var(--panel-2) !important; border-color: var(--border) !important; }
+        [data-theme="light"] .btn-close { filter: none; }
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html { -webkit-text-size-adjust: 100%; }
@@ -245,9 +253,9 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         }
 
         .page-top  { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
-        .page-eyebrow { font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; }
-        .page-title   { font-size: 32px; font-family: var(--font); margin-bottom: 6px; }
-        .page-sub     { color: var(--text); font-size: 14px; }
+        .page-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
+        .page-title   { font-size: 26px; font-weight: 800; line-height: 1.1; font-family: var(--font); margin-bottom: 6px; }
+        .page-sub     { color: var(--text-2); font-size: 13px; margin-top: 4px; }
 
         /* ── Stats strip ───────────────────────────────── */
         .stats-strip { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; margin-bottom: 26px; }
@@ -315,8 +323,8 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 
         /* ── Buttons ───────────────────────────────────── */
         .btn-red {
-            background: var(--red); color: #fff; border: none; border-radius: 10px;
-            padding: 10px 20px; font-weight: 700; font-size: 14px; font-family: var(--font);
+            background: var(--red); color: #fff; border: none; border-radius: 8px;
+            padding: 8px 16px; font-weight: 600; font-size: 12px; font-family: var(--font);
             cursor: pointer; transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
             display: inline-flex; align-items: center; gap: 6px;
         }
@@ -357,7 +365,9 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         .divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
 
         /* ── Empty state ───────────────────────────────── */
-        .empty-state { text-align: center; color: var(--text-2); padding: 32px 0; font-size: 14px; }
+        .empty-state { text-align: center; color: var(--text-3); padding: 24px 16px; }
+        .empty-state i { font-size: 28px; display: block; margin-bottom: 8px; }
+        .empty-state p { font-size: 12px; margin: 0; }
 
         /* ── Admin select ──────────────────────────────── */
         .admin-sel { display: flex; align-items: center; gap: 8px; }
@@ -1006,7 +1016,6 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
     const defaultAdminLeague = '<?= addslashes($default_admin_league) ?>';
     const currentLeagueId  = <?= $league_id ?? 'null' ?>;
     const leagueIdByName   = <?= json_encode(array_reduce($leagues_admin, static function ($c, $l) { $c[$l['name']] = (int)$l['id']; return $c; }, [])) ?>;
-    const useNewFreeAgency = true;
 
     /* ── Tema ─────────────────────────── */
     const themeKey = 'fba-theme';
@@ -1059,18 +1068,9 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             if (target) {
                 target.classList.add('show', 'active');
             }
-            // fire data loading for specific tabs
-            const tabId = btn.id;
-            if (tabId === 'fa-history-tab') {
-                if (typeof carregarHistoricoNovaFA === 'function') carregarHistoricoNovaFA();
-                if (typeof carregarHistoricoFA === 'function' && typeof useNewFreeAgency !== 'undefined' && !useNewFreeAgency) carregarHistoricoFA();
-                if (typeof carregarDispensados === 'function') carregarDispensados();
-            } else if (tabId === 'fa-admin-tab') {
-                if (typeof carregarSolicitacoesNovaFA === 'function') carregarSolicitacoesNovaFA();
-                if (typeof carregarFreeAgentsAdmin === 'function') carregarFreeAgentsAdmin();
-                if (typeof carregarPropostasAdmin === 'function') carregarPropostasAdmin();
-                if (typeof carregarHistoricoContratacoes === 'function') carregarHistoricoContratacoes();
-            }
+            // Carregamento de dados fica só no listener shown.bs.tab (initNewFreeAgency,
+            // js/free-agency.js) — duplicar aqui causava requisições em corrida e podia
+            // repetir opções nos filtros de temporada/time.
         });
         // also keep Bootstrap's shown.bs.tab for compatibility
         btn.addEventListener('shown.bs.tab', () => {

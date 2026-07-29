@@ -20,15 +20,21 @@ $stmtMine = $pdo->prepare("SELECT id, city, name, league, photo_url FROM teams W
 $stmtMine->execute([$user['id']]);
 $team = $stmtMine->fetch(PDO::FETCH_ASSOC) ?: null;
 
-$stmtSessions = $pdo->prepare("
-    SELECT ds.id, ds.status, s.season_number, s.year
-    FROM draft_sessions ds
-    JOIN seasons s ON s.id = ds.season_id
-    WHERE ds.league = 'ELITE' AND ds.status = 'setup'
-    ORDER BY s.season_number DESC
-");
-$stmtSessions->execute();
-$setupSessions = $stmtSessions->fetchAll(PDO::FETCH_ASSOC);
+// A loteria só mostra as ligas que o GM logado administra (as demais, não).
+$lotteryLeagues = array_values(array_intersect(['ELITE', 'NEXT', 'RISE'], $adminLeagues));
+$setupSessions = [];
+if ($lotteryLeagues) {
+    $ph = implode(',', array_fill(0, count($lotteryLeagues), '?'));
+    $stmtSessions = $pdo->prepare("
+        SELECT ds.id, ds.status, ds.league, s.season_number, s.year
+        FROM draft_sessions ds
+        JOIN seasons s ON s.id = ds.season_id
+        WHERE ds.league IN ($ph) AND ds.status = 'setup'
+        ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE'), s.season_number DESC
+    ");
+    $stmtSessions->execute($lotteryLeagues);
+    $setupSessions = $stmtSessions->fetchAll(PDO::FETCH_ASSOC);
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -328,17 +334,17 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
  <div class="content">
 
   <div class="hero bc-off">
-    <div class="hero-title"><i class="bi bi-shuffle"></i> Loteria do Draft — ELITE</div>
-    <div class="hero-sub">A ordem é sorteada de uma vez no servidor (justa, com base nas chances), e você revela pick por
-    pick no clique — igual à cerimônia da NBA. Times fora do playoff das duas conferências entram no sorteio; os 16 do
-    playoff (8 de cada conferência) já ficam travados no fim da ordem.</div>
+    <div class="hero-title"><i class="bi bi-shuffle"></i> Loteria do Draft 3-2-1</div>
+    <div class="hero-sub">Modelo anti-tanking (ELITE, NEXT e RISE): os 16 times fora do playoff entram em 4 grupos com
+    chances diferentes — o pior time deixa de ser o favorito à Pick 1. A ordem é sorteada de uma vez no servidor e você
+    revela pick por pick no clique. Os times do playoff (8 de cada conferência) ficam travados no fim da ordem.</div>
   </div>
 
   <?php if (!$setupSessions): ?>
   <div class="panel bc-off" style="text-align:center">
     <i class="bi bi-info-circle" style="font-size:22px;color:var(--text-3)"></i>
-    <p style="margin-top:10px">Nenhuma sessão de draft ELITE com status "setup" encontrada. Crie a sessão de draft
-    da próxima temporada primeiro (na tela de Draft) antes de sortear a ordem de verdade.</p>
+    <p style="margin-top:10px">Nenhuma sessão de draft (ELITE, NEXT ou RISE) com status "setup" encontrada. Crie a sessão
+    de draft da próxima temporada primeiro (na tela de Draft) antes de sortear a ordem de verdade.</p>
   </div>
   <?php else: ?>
 
@@ -349,7 +355,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
         <label>Sessão de draft (ELITE)</label>
         <select id="sessionSelect">
           <?php foreach ($setupSessions as $s): ?>
-          <option value="<?= (int)$s['id'] ?>">Temporada <?= (int)$s['season_number'] ?><?= $s['year'] ? ' (' . htmlspecialchars($s['year']) . ')' : '' ?> — sessão #<?= (int)$s['id'] ?></option>
+          <option value="<?= (int)$s['id'] ?>">[<?= htmlspecialchars($s['league']) ?>] Temporada <?= (int)$s['season_number'] ?><?= $s['year'] ? ' (' . htmlspecialchars($s['year']) . ')' : '' ?> — sessão #<?= (int)$s['id'] ?></option>
           <?php endforeach; ?>
         </select>
       </div>
@@ -374,11 +380,11 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
 
   <div id="resultSection" style="display:none">
 
-    <div class="section-title bc-off"><i class="bi bi-percent"></i> Chances da loteria<i class="bi bi-question-circle info-hint" title="Só os times fora do playoff das duas conferências entram. Chance % = bolinhas do time ÷ total de bolinhas. Isto é mostrado ANTES de revelar, pra todos saberem as probabilidades."></i></div>
+    <div class="section-title bc-off"><i class="bi bi-percent"></i> Chances da loteria (3-2-1)<i class="bi bi-question-circle info-hint" title="Os 16 times fora do playoff entram em 4 grupos. Cada grupo tem uma chance própria de conseguir uma pick no Top 3 e no Top 5. Mostrado ANTES de revelar, pra todos saberem as probabilidades."></i></div>
     <div class="panel bc-off">
       <div style="overflow-x:auto">
         <table class="balls-table" id="ballsTable">
-          <thead><tr><th>Time</th><th class="num">Posição</th><th class="num">Bolinhas</th><th class="num">Chance da #1</th></tr></thead>
+          <thead><tr><th>Time</th><th>Grupo</th><th class="num">Pos</th><th class="num">Top 3</th><th class="num">Top 5</th></tr></thead>
           <tbody id="ballsBody"></tbody>
         </table>
       </div>
@@ -439,20 +445,24 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
   <div class="panel rules-panel bc-off">
     <details>
       <summary><i class="bi bi-diagram-2"></i> Quem entra na loteria</summary>
-      <div class="rules-body">Playoff = os 8 melhores de cada conferência (16 no total, contando as duas). Todos os outros
-      times, das duas conferências, entram na loteria pelas primeiras picks. Os 16 do playoff pegam as últimas picks,
-      em ordem inversa do quão longe foram (o campeão escolhe por último).</div>
+      <div class="rules-body">Playoff = os 8 melhores de cada conferência (16 no total). Todos os outros — os 16 times
+      fora do playoff (posições 9 a 16 de cada conferência) — entram na loteria e disputam as 16 primeiras picks. Os 16
+      do playoff pegam as últimas picks, em ordem inversa do quão longe foram (o campeão escolhe por último).</div>
     </details>
     <details>
-      <summary><i class="bi bi-circle-half"></i> Bolinhas e chances</summary>
-      <div class="rules-body">Entre os times de loteria: os ~30% piores ganham 2 bolinhas (faixa "relegada" — o pior
-      time NÃO tem a maior chance, é anti-tanking), a faixa do meio ganha 3 (pico de chance), e os mais perto do corte
-      de playoff ganham 2 ou 1. As picks 1 a 4 são sorteadas por peso; o resto vem em ordem inversa de campanha.</div>
+      <summary><i class="bi bi-circle-half"></i> Os 4 grupos e as chances</summary>
+      <div class="rules-body">Os 16 times de loteria são divididos em 4 grupos (modelo 3-2-1), cada um com bolinhas e
+      chances próprias:<br>
+      • <strong>3 piores recordes da liga</strong> — 2 bolinhas · 16% Top 3 / 28% Top 5<br>
+      • <strong>4º ao 10º pior recorde (fora do play-in)</strong> — 3 bolinhas · 24% / 39% (a <em>maior</em> chance)<br>
+      • <strong>Eliminados no play-in (9º e 10º de cada conferência)</strong> — 2 bolinhas · 16% / 28%<br>
+      • <strong>Derrotados no 7x8 (os 2 menos ruins)</strong> — 1 bolinha · 8% / 15% (a <em>menor</em> chance)<br>
+      Assim o pior time deixa de ser o favorito à Pick 1 — quem tentou competir até o fim é mais premiado.</div>
     </details>
     <details>
-      <summary><i class="bi bi-shield-exclamation"></i> Anti-tanking</summary>
-      <div class="rules-body">Um time não pode ganhar a pick #1 duas temporadas seguidas, nem ficar 3 temporadas
-      seguidas com pick entre 1 e 5. Se o sorteio esbarrar nisso, o ajuste é aplicado e aparece listado.</div>
+      <summary><i class="bi bi-shield-exclamation"></i> Piso de proteção</summary>
+      <div class="rules-body">Os 3 piores times não podem cair além da Pick 12; os demais times da loteria podem cair
+      até a Pick 16. Se o sorteio esbarrar nessa trava, o ajuste é aplicado e aparece listado.</div>
     </details>
   </div>
  </div>
@@ -622,13 +632,14 @@ function setupBoardAndOdds(data){
   photoById = {};
   data.order.forEach(o => { photoById[o.team_id] = o.photo_url; });
 
-  // Chances (antes de revelar)
+  // Chances (antes de revelar) — agrupadas pelos 4 grupos do modelo 3-2-1
   $('ballsBody').innerHTML = data.balls.map(b => `
     <tr>
       <td><span style="display:inline-flex;align-items:center;gap:8px">${logo(b.photo_url,'board-logo')}${esc(b.team_name)}${b.conference ? `<span class="conf-chip">${esc(b.conference)}</span>` : ''}</span></td>
+      <td><span class="conf-chip" title="${b.balls} bolinha(s)">${esc(b.group_label || '')}</span></td>
       <td class="num">${b.position_anterior}º</td>
-      <td class="num">${b.balls}</td>
-      <td class="num">${b.odds_pct}%</td>
+      <td class="num">${b.top3_pct}%</td>
+      <td class="num">${b.top5_pct}%</td>
     </tr>
   `).join('');
 
@@ -649,7 +660,7 @@ function setupBoardAndOdds(data){
     <div class="bowl-tile" id="bowl-${b.team_id}">
       ${logo(b.photo_url,'bowl-logo')}
       <div class="bowl-name">${esc(b.team_name)}</div>
-      <div class="bowl-odds">${b.odds_pct}%</div>
+      <div class="bowl-odds" title="Chance de Top 5: ${b.top5_pct}%">${b.top3_pct}% <span style="font-size:9px;color:var(--text-3);font-weight:600">Top 3</span></div>
       <div class="bowl-pos">${b.position_anterior}º ${esc(b.conference || '')}</div>
     </div>
   `).join('');

@@ -833,6 +833,40 @@ function hallOfFameRemoveTitle(PDO $pdo, int $teamId, string $league): void
 // geral — um título na Elite vale mais que um na Rookie, já que é a divisão top.
 const HOF_LEAGUE_WEIGHT = ['ELITE' => 4, 'NEXT' => 3, 'RISE' => 2, 'ROOKIE' => 1];
 
+// Garante a tabela hall_of_fame (e a coluna user_id, usada por getHallOfFameGrouped()
+// para agrupar por conta em vez de casar por nome de GM). Função única compartilhada
+// por api/hall-of-fame.php e api/admin.php — evita duas cópias divergirem no futuro.
+function ensureHallOfFameTable(PDO $pdo): void
+{
+    try {
+        $stmt = $pdo->query("SHOW TABLES LIKE 'hall_of_fame'");
+        if ($stmt->rowCount() === 0) {
+            $pdo->exec("CREATE TABLE hall_of_fame (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                league ENUM('ELITE','NEXT','RISE','ROOKIE') NULL,
+                team_id INT NULL,
+                user_id INT NULL,
+                team_name VARCHAR(255) NULL,
+                gm_name VARCHAR(255) NULL,
+                titles INT NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_hof_titles (titles)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+            return;
+        }
+        // Tabela já existia de antes da coluna user_id ser introduzida — garante que exista,
+        // sem depender só da migração assíncrona (que tem throttle e pode não ter rodado ainda).
+        $hasUserId = $pdo->query("SHOW COLUMNS FROM hall_of_fame LIKE 'user_id'")->fetch();
+        if (!$hasUserId) {
+            $pdo->exec("ALTER TABLE hall_of_fame ADD COLUMN user_id INT NULL AFTER team_id");
+        }
+    } catch (Exception $e) {
+        // ignore
+    }
+}
+
 // Agrupa os registros do Hall da Fama por GM (por user_id quando disponível,
 // caindo pro nome do GM como fallback nos registros congelados/legados sem
 // vínculo de conta). Cada grupo junta os times que a pessoa teve e soma os
@@ -1008,7 +1042,7 @@ function getShortcutCatalog(): array {
         'rankings'         => ['label' => 'Rankings',        'icon' => 'bi-bar-chart-fill',       'href' => '/rankings.php'],
         'history'          => ['label' => 'Histórico',       'icon' => 'bi-clock-history',        'href' => '/history.php'],
         'hall-da-fama'     => ['label' => 'Hall da Fama',    'icon' => 'bi-award-fill',           'href' => '/hall-da-fama.php'],
-        'diretrizes'       => ['label' => 'Diretrizes',      'icon' => 'bi-clipboard-data',       'href' => '/diretrizes.php'],
+        'diretrizes'       => ['label' => 'Tática',          'icon' => 'bi-clipboard2-pulse',     'href' => '/tatica.php'],
         'mundo-fba'        => ['label' => 'Mundo FBA',       'icon' => 'bi-globe2',                'href' => '/mundo-fba.php'],
         'estatisticas'     => ['label' => 'Estatísticas',    'icon' => 'bi-bar-chart-line-fill',  'href' => '/estatisticas.php'],
         'ouvidoria'        => ['label' => 'Ouvidoria',       'icon' => 'bi-chat-dots',            'href' => '/ouvidoria.php'],

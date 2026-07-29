@@ -65,6 +65,7 @@ async function showGestao(league) {
             onclick="showGestao('${lg}')">${lg}</button>`).join('');
 
   container.innerHTML = `
+    <div id="maintenanceBanner" class="mb-3"></div>
     <div class="mb-3 d-flex align-items-center justify-content-center flex-wrap gap-2" style="position:relative">
       <div class="d-flex gap-2 flex-wrap justify-content-center">${leagueTabs}</div>
       <button class="btn btn-sm btn-outline-orange" onclick="showGestao('${_gestaoLeague}')" style="position:absolute; right:0">
@@ -106,6 +107,65 @@ async function showGestao(league) {
     const wl = await api('waitlist.php');
     updateWaitlistBadge((wl.requests || []).filter(r => r.status === 'pending').length);
   } catch (e) {}
+
+  loadMaintenanceStatus();
+}
+
+async function loadMaintenanceStatus() {
+  const el = document.getElementById('maintenanceBanner');
+  if (!el) return;
+  try {
+    const data = await api('admin.php?action=maintenance_status');
+    renderMaintenanceBanner(data);
+  } catch (e) {
+    el.innerHTML = '';
+  }
+}
+
+function renderMaintenanceBanner(data) {
+  const el = document.getElementById('maintenanceBanner');
+  if (!el) return;
+  const on = !!data.enabled;
+  const sub = on
+    ? `Ativado por ${escapeHtml(data.enabled_by_name || '—')} em ${data.enabled_at ? new Date(data.enabled_at.replace(' ', 'T')).toLocaleString('pt-BR') : '—'}`
+    : 'O site está funcionando normalmente para todos os usuários.';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between;
+      background:${on ? 'rgba(239,68,68,.1)' : 'var(--panel)'};
+      border:1px solid ${on ? 'rgba(239,68,68,.35)' : 'var(--border)'};
+      border-radius:12px;padding:14px 18px;">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0">
+        <i class="bi ${on ? 'bi-cone-striped' : 'bi-check-circle-fill'}" style="font-size:20px;color:${on ? '#ef4444' : '#22c55e'}"></i>
+        <div style="min-width:0">
+          <div style="font-weight:700;font-size:13px;color:var(--text)">Modo Manutenção: ${on ? 'ATIVO' : 'Desativado'}</div>
+          <div style="font-size:11px;color:var(--text-3)">${sub}</div>
+        </div>
+      </div>
+      <button class="btn btn-sm ${on ? 'btn-outline-orange' : 'btn-orange'}" style="flex-shrink:0" onclick="toggleMaintenanceMode(${on ? 'false' : 'true'})">
+        <i class="bi ${on ? 'bi-play-fill' : 'bi-cone-striped'} me-1"></i>${on ? 'Desativar manutenção' : 'Ativar manutenção'}
+      </button>
+    </div>`;
+}
+
+async function toggleMaintenanceMode(enable) {
+  let message = '';
+  if (enable) {
+    const confirmMsg = 'Isso vai bloquear o app inteiro para todo mundo, exceto admins gerais. Tem certeza?';
+    if (!confirm(confirmMsg)) return;
+    message = prompt('Mensagem opcional para exibir na página de manutenção (deixe em branco pra usar o texto padrão):', '') || '';
+  } else {
+    if (!confirm('Desativar o modo manutenção e liberar o site para todo mundo?')) return;
+  }
+  try {
+    const data = await api('admin.php?action=toggle_maintenance', {
+      method: 'POST',
+      body: JSON.stringify({ enabled: enable, message })
+    });
+    showAlert('success', enable ? 'Modo manutenção ativado.' : 'Modo manutenção desativado.');
+    loadMaintenanceStatus();
+  } catch (e) {
+    alert(e.error || 'Erro ao atualizar modo manutenção');
+  }
 }
 
 function renderGestaoTable(users) {
@@ -214,7 +274,7 @@ function openGestaoEdit(userId) {
 
   const resetBtn = window.IS_GLOBAL_ADMIN ? `
     <button type="button" class="btn btn-outline-warning w-100 mt-2" onclick="confirmResetPassword(${u.id}, '${escapeHtml(u.name)}')">
-      <i class="bi bi-key-fill me-1"></i>Redefinir senha para fbabrasil123
+      <i class="bi bi-key-fill me-1"></i>Redefinir senha
     </button>` : '';
 
   const modalHtml = `
@@ -341,12 +401,13 @@ async function deleteGestaoUser(userId, userName) {
 }
 
 async function confirmResetPassword(userId, userName) {
-  if (!confirm(`Redefinir a senha de "${userName}" para fbabrasil123?`)) return;
+  if (!confirm(`Redefinir a senha de "${userName}"? Uma nova senha aleatória será gerada.`)) return;
   try {
-    await api('admin.php?action=reset_user_password', {
+    const data = await api('admin.php?action=reset_user_password', {
       method: 'POST',
       body: JSON.stringify({ user_id: userId })
     });
+    alert(`Nova senha de ${userName}: ${data.new_password}\n\nAnote agora — ela não será mostrada de novo. Repasse ao usuário por um canal seguro.`);
     showAlert('success', `Senha de ${userName} redefinida!`);
   } catch (e) {
     showAlert('danger', 'Erro: ' + (e.error || 'Desconhecido'));
@@ -384,7 +445,6 @@ function updateBreadcrumb() {
       config:       () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Configurações</li>'; return 'Configurações das Ligas'; },
       seasons:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Temporadas</li>'; return 'Gerenciar Temporadas'; },
       ranking:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Rankings</li>'; return 'Rankings Globais'; },
-      freeagency:   () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Leilões</li>'; return 'Gerenciar Leilões'; },
       faadmin:      () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Free Agency</li>'; return 'Free Agency'; },
       punicoes:     () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Punições</li>'; return 'Punições'; },
       coins:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Moedas</li>'; return 'Gerenciar Moedas'; },
@@ -393,6 +453,8 @@ function updateBreadcrumb() {
       halloffame:   () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Hall da Fama</li>'; return 'Hall da Fama'; },
       dispensas:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Dispensas</li>'; return 'Dispensas por Temporada'; },
       pontuacao:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Pontuação</li>'; return 'Pontuação por Temporada'; },
+      extawards:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Prêmios Estendidos</li>'; return 'Prêmios Estendidos'; },
+      scheduler:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Agendador</li>'; return 'Agendador de Fases'; },
       gestao:       () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Gestão</li>'; return 'Gestão de Usuários'; },
       draft:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Draft</li>'; return `Draft — ${appState.currentLeague || ''}`; },
     };
@@ -884,17 +946,19 @@ async function showLeague(league) {
     const actions = [
       { icon: 'bi-arrow-left-right',  label: 'Trades',               fn: 'showTrades()',            color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
       { icon: 'bi-people-fill',       label: 'Free Agency',          fn: 'showFAAdmin()',           color: '#22c55e', bg: 'rgba(34,197,94,.12)'  },
-      { icon: 'bi-hammer',            label: 'Leilões',              fn: 'showFreeAgency()',        color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
       { icon: 'bi-bar-chart-steps',         label: 'Pontuação<br>por Time',      fn: 'showPointsManagement()',    color: '#06b6d4', bg: 'rgba(6,182,212,.12)'   },
       { icon: 'bi-clipboard-data-fill',     label: 'Pontuação da<br>Temporada',  fn: `showRegistroPontuacao('${league}')`,   color: '#10b981', bg: 'rgba(16,185,129,.12)'  },
+      { icon: 'bi-star-half',               label: 'Prêmios<br>Estendidos',      fn: `showExtendedAwards('${league}')`,      color: '#eab308', bg: 'rgba(234,179,8,.12)'   },
+      { icon: 'bi-alarm',                   label: 'Agendador<br>de Fases',      fn: `showScheduler('${league}')`,           color: '#3b82f6', bg: 'rgba(59,130,246,.12)'  },
       { icon: 'bi-shield-check',            label: 'FBA SERASA',                fn: 'showSerasaAdmin()',         color: '#8b5cf6', bg: 'rgba(139,92,246,.12)'  },
       { icon: 'bi-person-dash-fill',        label: 'Dispensas',                 fn: 'showDispensas()',           color: '#ef4444', bg: 'rgba(239,68,68,.12)'   },
       { icon: 'bi-hand-index-thumb',        label: 'Tapas',                     fn: 'showTapas()',               color: '#f97316', bg: 'rgba(249,115,22,.12)'  },
-      { icon: 'bi-clipboard-check',         label: 'Diretrizes',                fn: 'showDirectives()',          color: '#14b8a6', bg: 'rgba(20,184,166,.12)'  },
+      { icon: 'bi-clipboard2-pulse',        label: 'Tática',                    fn: 'showTaticaAdmin()',         color: '#14b8a6', bg: 'rgba(20,184,166,.12)'  },
       { icon: 'bi-exclamation-triangle-fill', label: 'Punições',               fn: 'showPunicoes()',            color: '#f43f5e', bg: 'rgba(244,63,94,.12)'   },
       { icon: 'bi-trophy-fill',             label: 'Draft',                     fn: 'showAdminDraft()',          color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
       { icon: 'bi-archive-fill',            label: 'Banco de<br>Classes',        fn: 'showDraftClassBank()',      color: '#a855f7', bg: 'rgba(168,85,247,.08)'  },
       { icon: 'bi-coin',                    label: 'Moedas',                    fn: 'showCoins()',               color: '#f59e0b', bg: 'rgba(245,158,11,.12)'  },
+      { icon: 'bi-record-circle',           label: 'Roleta',                    fn: "window.location.href='/roleta.php'", color: '#ec4899', bg: 'rgba(236,72,153,.12)'  },
       ...(window.IS_GLOBAL_ADMIN ? [
         { icon: 'bi-lightning-fill',        label: 'Force<br>Trade',            fn: `showForceTradeModal('${league}')`, color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 12%, transparent)'   },
       ] : []),
@@ -1777,7 +1841,7 @@ async function showTrades() {
       ${pendingNote}
       <span class="pun-badge" style="background:${statusColor}20;color:${statusColor};border-color:${statusColor}40">${statusLabel}</span>
       <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3);cursor:pointer">
-        <input type="checkbox" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked)" style="width:14px;height:14px;cursor:pointer">
+        <input type="checkbox" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked, true)" style="width:14px;height:14px;cursor:pointer">
         Game
       </label>
       ${tr.status === 'accepted' ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="revertMultiTrade(${tr.id})">Reverter</button>` : ''}
@@ -1809,7 +1873,7 @@ async function showTrades() {
     <div class="d-flex align-items-center gap-2 flex-shrink-0">
       <span class="pun-badge" style="background:${statusColor}20;color:${statusColor};border-color:${statusColor}40">${statusLabel}</span>
       <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3);cursor:pointer">
-        <input type="checkbox" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked)" style="width:14px;height:14px;cursor:pointer">
+        <input type="checkbox" ${isAccepted ? 'checked' : ''} onchange="toggleAdminTradeAccept(${tr.id}, this.checked, false)" style="width:14px;height:14px;cursor:pointer">
         Game
       </label>
       ${tr.status === 'pending' ? `<button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#ef4444;border-color:rgba(239,68,68,.3)" onclick="cancelTrade(${tr.id})">Cancelar</button>` : ''}
@@ -1955,7 +2019,7 @@ async function loadHallOfFameTeams(league) {
       return;
     }
     select.innerHTML = teams
-      .map(t => `<option value="${t.id}">${t.city} ${t.name}</option>`)
+      .map(t => `<option value="${t.id}">${escapeHtml(t.city)} ${escapeHtml(t.name)}</option>`)
       .join('');
   } catch (e) {
     select.innerHTML = '<option value="">Erro ao carregar</option>';
@@ -2073,7 +2137,7 @@ async function deleteHallOfFameEntry(id) {
   }
 }
 
-async function toggleAdminTradeAccept(tradeId, checked) {
+async function toggleAdminTradeAccept(tradeId, checked, isMulti) {
   const card = document.querySelector(`[data-trade-id="${tradeId}"]`);
   if (card) {
     card.classList.toggle('is-accepted', checked);
@@ -2081,7 +2145,7 @@ async function toggleAdminTradeAccept(tradeId, checked) {
   try {
     await api('admin.php?action=trade_in_game', {
       method: 'PUT',
-      body: JSON.stringify({ trade_id: tradeId, is_in_game: checked ? 1 : 0 })
+      body: JSON.stringify({ trade_id: tradeId, is_in_game: checked ? 1 : 0, is_multi: !!isMulti })
     });
   } catch (e) {
     if (card) {
@@ -2358,9 +2422,9 @@ function editTeam(teamId) {
   modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
 <h5 class="modal-title text-white">Editar Time</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
 <div class="modal-body"><div class="mb-3"><label class="form-label text-light-gray">Cidade</label>
-<input type="text" class="form-control bg-dark text-white border-orange" id="editTeamCity" value="${t.city}"></div>
+<input type="text" class="form-control bg-dark text-white border-orange" id="editTeamCity" value="${escapeHtml(t.city)}"></div>
 <div class="mb-3"><label class="form-label text-light-gray">Nome</label>
-<input type="text" class="form-control bg-dark text-white border-orange" id="editTeamName" value="${t.name}"></div>
+<input type="text" class="form-control bg-dark text-white border-orange" id="editTeamName" value="${escapeHtml(t.name)}"></div>
 <div class="mb-3"><label class="form-label text-light-gray">Conferência</label>
 <select class="form-select bg-dark text-white border-orange" id="editTeamConference">
 <option value="">Sem conferência</option><option value="LESTE" ${t.conference === 'LESTE' ? 'selected' : ''}>LESTE</option>
@@ -2922,25 +2986,8 @@ async function deleteEdital(league) {
 
 document.addEventListener('DOMContentLoaded', init);
 
-// ========== DIRETRIZES ==========
-function formatDeadlineDateTime(value) {
-  if (!value) return '-';
-  try {
-    return new Intl.DateTimeFormat('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      dateStyle: 'short',
-      timeStyle: 'short'
-    }).format(new Date(value));
-  } catch (e) {
-    try {
-      return new Date(value).toLocaleString('pt-BR');
-    } catch (err) {
-      return value;
-    }
-  }
-}
-
-function formatDirectiveTimestamp(value) {
+// ========== TÁTICA (janela de edição + visão ao vivo) ==========
+function formatDirectiveTimestampAdmin(value) {
   if (!value) return '-';
   try {
     const date = new Date(value);
@@ -2951,652 +2998,105 @@ function formatDirectiveTimestamp(value) {
   }
 }
 
-function normalizeDirectiveMinutes(raw) {
-  if (!raw) return {};
-  if (typeof raw === 'string') {
-    try {
-      raw = JSON.parse(raw);
-    } catch (e) {
-      return {};
-    }
-  }
-  if (Array.isArray(raw)) {
-    return raw.reduce((acc, row) => {
-      if (row && row.player_id) acc[row.player_id] = row.minutes_per_game;
-      return acc;
-    }, {});
-  }
-  if (typeof raw === 'object') return raw;
-  return {};
-}
-
-function normalizeDirectivePlayerInfo(raw) {
-  if (!raw) return {};
-  if (typeof raw === 'string') {
-    try {
-      raw = JSON.parse(raw);
-    } catch (e) {
-      return {};
-    }
-  }
-  if (Array.isArray(raw)) {
-    return raw.reduce((acc, row) => {
-      if (row && row.player_id) {
-        acc[row.player_id] = {
-          name: row.player_name || row.name || '?',
-          position: row.player_position || row.position || '?',
-          ovr: row.player_ovr ?? row.ovr ?? null,
-          age: row.player_age ?? row.age ?? null
-        };
-      }
-      return acc;
-    }, {});
-  }
-  if (typeof raw === 'object') return raw;
-  return {};
-}
-
-function filterDirCards(val) {
-  const q = (val || '').trim().toLowerCase();
-  document.querySelectorAll('.admin-check-card').forEach(card => {
-    const name = card.dataset.teamName || '';
-    card.style.display = (!q || name.includes(q)) ? '' : 'none';
-  });
-}
-
-function filterPtsTeam(val) {
-  const q = (val || '').trim().toLowerCase();
-  document.querySelectorAll('#ptsMgmtContent [data-team-name]').forEach(row => {
-    row.style.display = (!q || (row.dataset.teamName || '').includes(q)) ? '' : 'none';
-  });
-}
-
-async function showDirectives() {
-  appState.view = 'directives';
+async function showTaticaAdmin() {
+  appState.view = 'tatica-admin';
   updateBreadcrumb();
 
-  const _dirLeague = appState.currentLeague || null;
-  const _dirBack = _dirLeague ? `showLeague('${_dirLeague}')` : 'showHome()';
-
+  const league = appState.currentLeague || _leagues[0] || 'ELITE';
   const container = document.getElementById('mainContainer');
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
 
   try {
-    const apiUrl = _dirLeague
-      ? `diretrizes.php?action=list_deadlines_admin&league=${encodeURIComponent(_dirLeague)}`
-      : 'diretrizes.php?action=list_deadlines_admin';
-    const data = await api(apiUrl);
-    // Exibe apenas deadlines das ligas que este admin gerencia
-    const deadlines = (data.deadlines || []).filter(d => _leagues.includes(d.league));
-    // Cache p/ o modal de edição conseguir pré-preencher os campos
-    window._dirDeadlineCache = {};
-    deadlines.forEach(d => { window._dirDeadlineCache[d.id] = d; });
-
-    container.innerHTML = `
-      <div class="mb-4">
-        <button class="btn btn-back" onclick="${_dirBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
-        <button class="btn btn-orange float-end" onclick="showCreateDeadlineModal()">
-          <i class="bi bi-plus-circle me-2"></i>Criar Prazo
-        </button>
-      </div>
-      
-      <div class="panel">
-        <div class="panel-header">
-          <div class="panel-title"><i class="bi bi-calendar-event"></i> Prazos de Diretrizes</div>
-        </div>
-        ${deadlines.length === 0
-          ? '<p class="empty-state">Nenhum prazo configurado.</p>'
-          : deadlines.map(d => {
-              const isPlayoffs = (d.phase || 'regular') === 'playoffs';
-              const phaseColor = isPlayoffs ? '#ef4444' : '#06b6d4';
-              const statusColor = d.is_active ? '#22c55e' : 'var(--text-3)';
-              return `
-              <div class="pun-card mb-2">
-                <div class="pun-card-head">
-                  <div>
-                    <div class="pun-card-title">${escapeHtml(d.description || 'Sem descrição')}</div>
-                    <div class="pun-card-sub">${formatDeadlineDateTime(d.deadline_date_iso || d.deadline_date)}</div>
-                  </div>
-                  <div class="d-flex align-items-center gap-2 flex-shrink-0 flex-wrap">
-                    <span class="pun-badge" style="background:${phaseColor}20;color:${phaseColor};border-color:${phaseColor}40">${isPlayoffs ? 'Playoffs' : 'Regular'}</span>
-                    <span class="pun-badge" style="background:${statusColor}20;color:${statusColor};border-color:${statusColor}40">${d.is_active ? 'Ativo' : 'Inativo'}</span>
-                    <span style="font-size:11px;color:#06b6d4">${d.submissions_count} time(s)</span>
-                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="viewDirectives(${d.id}, '${d.league}')"><i class="bi bi-eye me-1"></i>Ver</button>
-                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="toggleDeadlineStatus(${d.id}, ${d.is_active})">
-                      <i class="bi bi-toggle-${d.is_active ? 'on' : 'off'}"></i>
-                    </button>
-                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="showEditDeadlineModal(${d.id})"><i class="bi bi-pencil me-1"></i>Editar</button>
-                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px;color:#ef4444" onclick="deleteDeadline(${d.id}, '${d.league}')"><i class="bi bi-trash"></i></button>
-                  </div>
-                </div>
-              </div>`;
-            }).join('')}
-      </div>
-    `;
+    const [winRes, overviewRes] = await Promise.all([
+      api(`tactics.php?action=admin_window&league=${encodeURIComponent(league)}`),
+      api(`tactics.php?action=admin_overview&league=${encodeURIComponent(league)}`),
+    ]);
+    renderTaticaAdmin(league, winRes.window, overviewRes.teams || []);
   } catch (e) {
-    container.innerHTML = '<div class="alert alert-danger">Erro ao carregar prazos</div>';
+    container.innerHTML = `<div class="alert alert-danger">Erro ao carregar tática: ${escapeHtml(e.error || e.message || 'Desconhecido')}</div>`;
   }
 }
 
-function showCreateDeadlineModal() {
-  const modal = document.createElement('div');
-  modal.className = 'modal fade';
-  modal.innerHTML = `
-    <div class="modal-dialog">
-      <div class="modal-content bg-dark-panel border-orange">
-        <div class="modal-header border-orange">
-          <h5 class="modal-title text-white">Criar Prazo de Diretrizes</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label text-white">Liga</label>
-            <select class="form-select bg-dark text-white border-orange" id="deadline-league">
-              ${_leagues.map(l => `<option value="${l}"${l === (appState.currentLeague || '') ? ' selected' : ''}>${l}</option>`).join('')}
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label text-white">Data do Prazo</label>
-            <input type="date" class="form-control bg-dark text-white border-orange" id="deadline-date" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label text-white">Horário limite (Horário de São Paulo)</label>
-            <input type="time" class="form-control bg-dark text-white border-orange" id="deadline-time" value="23:59" required>
-            <small class="text-light-gray">O prazo será salvo considerando o fuso America/Sao_Paulo.</small>
-          </div>
-          <div class="mb-3">
-            <label class="form-label text-white">Descrição</label>
-            <input type="text" class="form-control bg-dark text-white border-orange" id="deadline-description" 
-                   placeholder="Ex: Diretrizes da Rodada 1">
-          </div>
-          <div class="mb-3">
-            <label class="form-label text-white">Fase</label>
-            <select class="form-select bg-dark text-white border-orange" id="deadline-phase">
-              <option value="regular" selected>Temporada Regular (máx 40 min)</option>
-              <option value="playoffs">Playoffs (máx 45 min)</option>
-            </select>
-            <small class="text-light-gray">Define o limite máximo de minutagem por jogador no formulário.</small>
-          </div>
-        </div>
-        <div class="modal-footer border-orange">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-orange" onclick="createDeadline()">Criar</button>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  const bsModal = new bootstrap.Modal(modal);
-  bsModal.show();
-  modal.addEventListener('hidden.bs.modal', () => modal.remove());
-}
-
-async function createDeadline() {
-  const league = document.getElementById('deadline-league').value;
-  const date = document.getElementById('deadline-date').value;
-  const time = document.getElementById('deadline-time').value;
-  const description = document.getElementById('deadline-description').value;
-  const phase = document.getElementById('deadline-phase').value;
-  
-  if (!date) {
-    alert('Preencha a data');
-    return;
-  }
-  if (!time) {
-    alert('Preencha o horário');
-    return;
-  }
-  
-  try {
-    await api('diretrizes.php', {
-      method: 'POST',
-      body: JSON.stringify({ action: 'create_deadline', league, deadline_date: date, deadline_time: time, description, phase })
-    });
-    alert('Prazo criado com sucesso!');
-    const modalEl = document.querySelector('.modal.show') || document.querySelector('.modal');
-    if (modalEl) {
-      const modalInstance = bootstrap.Modal.getInstance(modalEl);
-      if (modalInstance) {
-        modalInstance.hide();
-      }
-    }
-    showDirectives();
-  } catch (e) {
-    alert('Erro ao criar prazo: ' + (e.error || e.message));
-  }
-}
-
-// Extrai {date:'YYYY-MM-DD', time:'HH:mm'} do prazo, no fuso America/Sao_Paulo.
-function _deadlineDateTimeParts(d) {
-  const raw = d && d.deadline_date ? String(d.deadline_date) : '';
-  const m = raw.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/);
-  if (m) return { date: m[1], time: m[2] };
-  try {
-    const dt = new Date(d.deadline_date_iso || d.deadline_date);
-    const fmt = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Sao_Paulo',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: false
-    });
-    const p = Object.fromEntries(fmt.formatToParts(dt).map(x => [x.type, x.value]));
-    return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
-  } catch (e) {
-    return { date: '', time: '23:59' };
-  }
-}
-
-function showEditDeadlineModal(id) {
-  const d = (window._dirDeadlineCache || {})[id];
-  if (!d) { alert('Prazo não encontrado. Recarregue a lista.'); return; }
-  const parts = _deadlineDateTimeParts(d);
-  const isPlayoffs = (d.phase || 'regular') === 'playoffs';
-  const modal = document.createElement('div');
-  modal.className = 'modal fade';
-  modal.innerHTML = `
-    <div class="modal-dialog">
-      <div class="modal-content bg-dark-panel border-orange">
-        <div class="modal-header border-orange">
-          <h5 class="modal-title text-white">Editar Prazo de Diretrizes</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label class="form-label text-white">Liga</label>
-            <input type="text" class="form-control bg-dark text-white border-orange" value="${escapeHtml(d.league || '')}" disabled>
-          </div>
-          <div class="mb-3">
-            <label class="form-label text-white">Data do Prazo</label>
-            <input type="date" class="form-control bg-dark text-white border-orange" id="edit-deadline-date" value="${parts.date}" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label text-white">Horário limite (Horário de São Paulo)</label>
-            <input type="time" class="form-control bg-dark text-white border-orange" id="edit-deadline-time" value="${parts.time}" required>
-            <small class="text-light-gray">O prazo será salvo considerando o fuso America/Sao_Paulo.</small>
-          </div>
-          <div class="mb-3">
-            <label class="form-label text-white">Descrição</label>
-            <input type="text" class="form-control bg-dark text-white border-orange" id="edit-deadline-description" placeholder="Ex: Diretrizes da Rodada 1">
-          </div>
-          <div class="mb-3">
-            <label class="form-label text-white">Fase</label>
-            <select class="form-select bg-dark text-white border-orange" id="edit-deadline-phase">
-              <option value="regular">Temporada Regular (máx 40 min)</option>
-              <option value="playoffs">Playoffs (máx 45 min)</option>
-            </select>
-            <small class="text-light-gray">Define o limite máximo de minutagem por jogador no formulário.</small>
-          </div>
-        </div>
-        <div class="modal-footer border-orange">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-orange" onclick="saveEditDeadline(${d.id})">Salvar alterações</button>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  const descEl = modal.querySelector('#edit-deadline-description');
-  if (descEl) descEl.value = d.description || '';
-  const phaseEl = modal.querySelector('#edit-deadline-phase');
-  if (phaseEl) phaseEl.value = isPlayoffs ? 'playoffs' : 'regular';
-  const bsModal = new bootstrap.Modal(modal);
-  bsModal.show();
-  modal.addEventListener('hidden.bs.modal', () => modal.remove());
-}
-
-async function saveEditDeadline(id) {
-  const date = document.getElementById('edit-deadline-date').value;
-  const time = document.getElementById('edit-deadline-time').value;
-  const description = document.getElementById('edit-deadline-description').value;
-  const phase = document.getElementById('edit-deadline-phase').value;
-
-  if (!date) { alert('Preencha a data'); return; }
-  if (!time) { alert('Preencha o horário'); return; }
-
-  try {
-    await api('diretrizes.php', {
-      method: 'PUT',
-      body: JSON.stringify({ id, deadline_date: date, deadline_time: time, description, phase })
-    });
-    alert('Prazo atualizado com sucesso!');
-    const modalEl = document.querySelector('.modal.show') || document.querySelector('.modal');
-    if (modalEl) {
-      const modalInstance = bootstrap.Modal.getInstance(modalEl);
-      if (modalInstance) modalInstance.hide();
-    }
-    showDirectives();
-  } catch (e) {
-    alert('Erro ao atualizar prazo: ' + (e.error || e.message));
-  }
-}
-
-async function toggleDeadlineStatus(id, currentStatus) {
-  try {
-    await api('diretrizes.php', {
-      method: 'PUT',
-      body: JSON.stringify({ id, is_active: currentStatus ? 0 : 1 })
-    });
-    showDirectives();
-  } catch (e) {
-    alert('Erro ao atualizar status');
-  }
-}
-
-async function deleteDeadline(id, league) {
-  const confirmMsg = `Tem certeza que deseja excluir este prazo de diretrizes da liga ${league}?\n\nTodas as diretrizes enviadas para este prazo também serão excluídas!`;
-  if (!confirm(confirmMsg)) return;
-  
-  try {
-    await api('diretrizes.php', {
-      method: 'DELETE',
-      body: JSON.stringify({ id })
-    });
-    alert('Prazo excluído com sucesso!');
-    showDirectives();
-  } catch (e) {
-    alert('Erro ao excluir prazo: ' + (e.error || e.message));
-  }
-}
-
-async function viewDirectives(deadlineId, league) {
+function renderTaticaAdmin(league, win, teams) {
   const container = document.getElementById('mainContainer');
-  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
-  
-  try {
-  const data = await api(`diretrizes.php?action=view_all_directives_admin&deadline_id=${deadlineId}&league=${encodeURIComponent(league)}&debug=1&_ts=${Date.now()}`);
-  const directives = Array.isArray(data.directives) ? data.directives.filter(Boolean) : [];
-  const fallbackNotice = data.fallback ? '<div class="alert alert-info mb-3">Mostrando diretrizes recentes da liga (prazo sem envios).</div>' : '';
-  const debugPayload = JSON.stringify(data || {}, null, 2);
-  const debugInfo = `
-    <div class="alert alert-warning small mb-3">
-      Debug: total=${data.debug?.total_directives ?? 'N/A'} · deadline=${data.debug?.deadline_count ?? 'N/A'} · league=${data.debug?.league_count ?? 'N/A'} · join=${data.debug?.league_join_count ?? 'N/A'} · fallback=${data.fallback ? '1' : '0'}
-      <pre class="mt-2 mb-0" style="white-space: pre-wrap;">${debugPayload}</pre>
+  const statusBadge = win.open
+    ? '<span class="pun-badge" style="background:#22c55e20;color:#22c55e;border-color:#22c55e40">Aberta</span>'
+    : `<span class="pun-badge" style="background:var(--text-3)20;color:var(--text-3);border-color:var(--text-3)40">Fechada${win.reason ? ' — ' + escapeHtml(win.reason) : ''}</span>`;
+
+  const rows = teams.map(t => {
+    const at = t.active_tactic;
+    if (!at) {
+      return `<tr><td>${escapeHtml(t.team.name)}</td><td colspan="4" class="text-light-gray">Nenhuma tática ativa ainda</td></tr>`;
+    }
+    return `<tr>
+      <td>${escapeHtml(t.team.name)}</td>
+      <td><span class="pun-badge" style="background:#14b8a620;color:#14b8a6;border-color:#14b8a640">${escapeHtml(at.slot_label)}</span></td>
+      <td style="font-size:12px">${(at.starters || []).map(escapeHtml).join(', ') || '—'}</td>
+      <td>${at.rotation_players ?? '—'}</td>
+      <td style="font-size:11px" class="text-light-gray">${at.updated_at ? formatDirectiveTimestampAdmin(at.updated_at) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const _dirBack = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
+
+  container.innerHTML = `
+    <div class="mb-4">
+      <button class="btn btn-back" onclick="${_dirBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
+    </div>
+
+    <div class="panel mb-3">
+      <div class="panel-header">
+        <div class="panel-title"><i class="bi bi-clipboard2-pulse"></i> Janela de edição — ${escapeHtml(league)}</div>
+      </div>
+      <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
+        <div>${statusBadge}</div>
+        <div class="text-light-gray" style="font-size:12px">Corte diário: <strong>${escapeHtml(win.daily_cutoff_time)}</strong></div>
+      </div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <input type="time" id="taticaCutoffInput" class="form-control form-control-sm bg-dark text-white border-orange" style="width:120px" value="${escapeHtml(win.daily_cutoff_time)}">
+        <button class="btn-ghost" style="padding:6px 12px;font-size:12px" onclick="saveTaticaCutoff('${league}')">Salvar corte</button>
+        <span class="mx-1 text-light-gray">|</span>
+        <button class="btn-ghost" style="padding:6px 12px;font-size:12px;color:#22c55e" onclick="openTaticaWindow('${league}', 3)">Abrir por 3h</button>
+        <button class="btn-ghost" style="padding:6px 12px;font-size:12px;color:#22c55e" onclick="openTaticaWindow('${league}', 24)">Abrir por 24h</button>
+        <button class="btn-ghost" style="padding:6px 12px;font-size:12px;color:#ef4444" onclick="closeTaticaWindow('${league}')">Fechar agora</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><i class="bi bi-broadcast"></i> Tática ativa de cada time</div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-dark table-sm align-middle">
+          <thead><tr><th>Time</th><th>Tática</th><th>Titulares</th><th>Rotação</th><th>Atualizado</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="5" class="text-light-gray">Nenhum time nesta liga.</td></tr>'}</tbody>
+        </table>
+      </div>
     </div>
   `;
-    
-    // Mapear labels para os novos valores
-    const gameStyleLabels = {
-      'balanced': 'Balanced', 'triangle': 'Triangle', 'grit_grind': 'Grit & Grind',
-      'pace_space': 'Pace & Space', 'perimeter_centric': 'Perimeter Centric',
-      'post_centric': 'Post Centric', 'seven_seconds': 'Seven Seconds',
-      'defense': 'Defense', 'defensive_focus': 'Defensive Focus',
-      'franchise_player': 'Franchise Player', 'most_stars': 'Maior nº de Estrelas'
-    };
-    const offenseStyleLabels = {
-      'no_preference': 'No Preference', 'pick_roll': 'Pick & Roll',
-      'neutral': 'Neutral Focus', 'play_through_star': 'Play Through Star',
-      'get_to_basket': 'Get to Basket', 'get_shooters_open': 'Get Shooters Open', 'feed_post': 'Feed Post'
-    };
-    const paceLabels = {
-      'no_preference': 'No Preference', 'patient': 'Patient', 'average': 'Average', 'shoot_at_will': 'Shoot at Will'
-    };
-    const defAggrLabels = {
-      'physical': 'Physical', 'no_preference': 'No Preference', 'conservative': 'Conservative', 'neutral': 'Neutral'
-    };
-    const offRebLabels = {
-      'limit_transition': 'Limit Transition', 'no_preference': 'No Preference', 
-      'crash_glass': 'Crash Offensive Glass', 'some_crash': 'Some Crash, Others Get Back'
-    };
-    const defRebLabels = {
-      'run_transition': 'Run in Transition', 'crash_glass': 'Crash Defensive Glass', 
-      'some_crash': 'Some Crash Others Run', 'no_preference': 'No Preference'
-    };
-    const defFocusLabels = {
-      'no_preference': 'No Preference', 'neutral': 'Neutral Defensive Focus',
-      'protect_paint': 'Protect the Paint', 'limit_perimeter': 'Limit Perimeter Shots'
-    };
-    const rotationLabels = { 'manual': 'Manual', 'auto': 'Automática' };
-    
-    container.innerHTML = `
-      <div class="mb-4">
-        <button class="btn btn-back" onclick="showDirectives()"><i class="bi bi-arrow-left"></i> Voltar</button>
-      </div>
-      
-      <div class="card bg-dark-panel border-orange">
-        <div class="card-header bg-transparent border-orange d-flex align-items-center justify-content-between flex-wrap gap-2">
-          <h5 class="text-white mb-0"><i class="bi bi-clipboard-data me-2"></i>Diretrizes Enviadas - Liga ${league}</h5>
-          <input type="text" id="dirTeamSearch" class="form-control form-control-sm" style="width:200px;font-size:13px" placeholder="Filtrar por time..." oninput="filterDirCards(this.value)">
-        </div>
-        <div class="card-body">
-          ${fallbackNotice}
-          ${directives.length === 0 ? 
-            `${debugInfo}${fallbackNotice}<p class="text-light-gray text-center py-4">Nenhuma diretriz enviada ainda</p>` :
-            directives.map(d => {
-              const submittedAt = d.submitted_at || d.created_at || null;
-              const isAccepted = Number(d.admin_accepted || 0) === 1;
-              const pm = normalizeDirectiveMinutes(d.player_minutes);
-              const playerInfo = normalizeDirectivePlayerInfo(d.player_info);
-              const isManualRotation = d.rotation_style === 'manual';
-              const prev = d.previous_directive || null;
-              const prevPm = prev ? normalizeDirectiveMinutes(prev.player_minutes) : {};
-              const hasPrev = !!prev;
-              const changedField = (field) => hasPrev && String(prev?.[field] ?? '') !== String(d?.[field] ?? '');
-              
-              // Coletar IDs dos titulares
-              const starterIds = [];
-              for (let i = 1; i <= 5; i++) {
-                const id = d['starter_' + i + '_id'];
-                if (id) starterIds.push(parseInt(id));
-              }
-              
-              const starters = [1,2,3,4,5].map(i => {
-                const id = d['starter_' + i + '_id'];
-                // Só mostrar minutos se rotação for manual
-                const m = isManualRotation && id && pm[id] ? `${pm[id]} min` : '';
-                const name = d['starter_' + i + '_name'] || '?';
-                const pos = d['starter_' + i + '_pos'] || '?';
-                const ovr = d['starter_' + i + '_ovr'] ?? '?';
-                const age = d['starter_' + i + '_age'] ?? '?';
-                const prevId = prev ? prev['starter_' + i + '_id'] : null;
-                const starterChanged = hasPrev && String(prevId ?? '') !== String(id ?? '');
-                const minutesChanged = isManualRotation && hasPrev && id && typeof prevPm[id] !== 'undefined' && String(prevPm[id]) !== String(pm[id]);
-                const rowClass = (starterChanged || minutesChanged) ? 'text-danger' : '';
-                return `<li class="${rowClass}">${name} (${pos}, ${ovr}/${age}y)${m ? ' - ' + m : ''}</li>`;
-              }).join('');
-              
-              // Banco dinâmico: pegar dos player_minutes os que não são titulares
-              const benchItems = [];
-              const prevStarterIds = [];
-              if (hasPrev) {
-                for (let i = 1; i <= 5; i++) {
-                  const pid = prev['starter_' + i + '_id'];
-                  if (pid) prevStarterIds.push(parseInt(pid));
-                }
-              }
-              const prevBenchIds = [];
-              if (hasPrev) {
-                if (prev && prev.player_minutes && Object.keys(prevPm).length > 0) {
-                  Object.keys(prevPm).forEach(playerId => {
-                    const id = parseInt(playerId);
-                    if (!prevStarterIds.includes(id)) prevBenchIds.push(id);
-                  });
-                } else {
-                  for (let i = 1; i <= 3; i++) {
-                    const bid = prev['bench_' + i + '_id'];
-                    if (bid) prevBenchIds.push(parseInt(bid));
-                  }
-                }
-              }
-              Object.keys(pm).forEach(playerId => {
-                const id = parseInt(playerId);
-                if (!starterIds.includes(id)) {
-                  // Usar player_info para pegar nome e posição
-                  let name = '?', pos = '?', ovr = '?', age = '?';
-                  if (playerInfo[id]) {
-                    name = playerInfo[id].name || '?';
-                    pos = playerInfo[id].position || '?';
-                    ovr = playerInfo[id].ovr ?? '?';
-                    age = playerInfo[id].age ?? '?';
-                  } else {
-                    // Fallback para bench_X columns (compatibilidade)
-                    for (let i = 1; i <= 3; i++) {
-                      if (parseInt(d['bench_' + i + '_id']) === id) {
-                        name = d['bench_' + i + '_name'] || '?';
-                        pos = d['bench_' + i + '_pos'] || '?';
-                        ovr = d['bench_' + i + '_ovr'] ?? '?';
-                        age = d['bench_' + i + '_age'] ?? '?';
-                        break;
-                      }
-                    }
-                  }
-                  // Só mostrar minutos se rotação for manual
-                  const minLabel = isManualRotation ? ` - ${pm[playerId]} min` : '';
-                  const benchChanged = hasPrev && prevBenchIds.length > 0 && !prevBenchIds.includes(id);
-                  const minutesChanged = isManualRotation && hasPrev && typeof prevPm[id] !== 'undefined' && String(prevPm[id]) !== String(pm[playerId]);
-                  const rowClass = (benchChanged || minutesChanged) ? 'text-danger' : '';
-                  benchItems.push(`<li class="${rowClass}">${name} (${pos}, ${ovr}/${age}y)${minLabel}</li>`);
-                }
-              });
-              const bench = benchItems.length > 0 ? benchItems.join('') : '<li class="text-light-gray">Nenhum jogador no banco</li>';
-              
-              // Jogadores enviados para a G-League
-              const gLeaguePlayers = [1, 2].map(i => {
-                const id = d[`gleague_${i}_id`];
-                if (!id) return null;
-                const info = playerInfo[id] || {};
-                const name = d[`gleague_${i}_name`] || info.name || '?';
-                const pos = d[`gleague_${i}_pos`] || info.position || '?';
-                const ovr = d[`gleague_${i}_ovr`] ?? info.ovr ?? '?';
-                const age = d[`gleague_${i}_age`] ?? info.age ?? '?';
-                return `<li>${name} (${pos}, ${ovr}/${age}y)</li>`;
-              }).filter(Boolean);
-              const gLeagueList = gLeaguePlayers.length > 0 ? gLeaguePlayers.join('') : '<li class="text-light-gray">Nenhum jogador enviado para a G-League</li>';
-              
-              const isEliteLeague = ['ELITE', 'NEXT'].includes(String(league || '').toUpperCase());
-              const isEliteOnly = String(league || '').toUpperCase() === 'ELITE';
-              let technicalModelValue = d.technical_model || null;
-              let playbookValue = d.playbook || null;
-              if ((!technicalModelValue || !playbookValue) && d.directive_profile) {
-                try {
-                  const profile = typeof d.directive_profile === 'string'
-                    ? JSON.parse(d.directive_profile)
-                    : d.directive_profile;
-                  if (profile && !technicalModelValue && profile.technical_model) {
-                    technicalModelValue = profile.technical_model;
-                  }
-                  if (profile && !playbookValue && profile.playbook) {
-                    playbookValue = profile.playbook;
-                  }
-                } catch (e) {
-                  // ignore JSON parse errors
-                }
-              }
-              const technicalModelLabel = escapeHtml(technicalModelValue || 'Nao informado');
-              const playbookLabel = escapeHtml(playbookValue || 'Nao informado');
-
-              return `
-              <div class="card bg-dark mb-3 admin-check-card ${isAccepted ? 'is-accepted' : ''}" data-directive-id="${d.id}" data-team-name="${((d.city||'') + ' ' + (d.team_name||'')).toLowerCase()}">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <div>
-                    <h6 class="text-white mb-0">${d.city} ${d.team_name}</h6>
-                    <small class="text-light-gray">Enviado em ${formatDirectiveTimestamp(submittedAt || d.submitted_at)}</small>
-                  </div>
-                  <div class="d-flex align-items-center gap-2">
-                    <div class="form-check form-switch m-0">
-                      <input class="form-check-input" type="checkbox" role="switch" ${isAccepted ? 'checked' : ''} onchange="toggleAdminDirectiveAccept(${d.id}, this.checked)">
-                      <label class="form-check-label text-light-gray">Foi pro jogo</label>
-                    </div>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteDirective(${d.id}, ${deadlineId}, '${league}')">
-                      <i class="bi bi-trash"></i> Excluir
-                    </button>
-                  </div>
-                </div>
-                <div class="card-body">
-                  <div class="row">
-                    <div class="col-md-6">
-                      <h6 class="text-orange mb-2">Quinteto Titular</h6>
-                      <ul class="text-light-gray small">
-                        ${starters}
-                      </ul>
-                    </div>
-                    <div class="col-md-6">
-                      <h6 class="text-orange mb-2">Banco (${benchItems.length} jogadores)</h6>
-                      <ul class="text-light-gray small">
-                        ${bench}
-                      </ul>
-                    </div>
-                    ${isEliteOnly ? `<div class="col-md-6 col-lg-4 mt-3">
-                      <h6 class="text-orange mb-2">G-League</h6>
-                      <ul class="text-light-gray small">
-                        ${gLeagueList}
-                      </ul>
-                    </div>` : ''}
-                    <div class="col-12 mt-3">
-                      <h6 class="text-orange">Estilo de Jogo</h6>
-                      <div class="row text-light-gray small">
-                        <div class="col-md-4">Game Style: ${changedField('game_style') ? `<span class="text-danger">${gameStyleLabels[d.game_style] || d.game_style}</span>` : (gameStyleLabels[d.game_style] || d.game_style)}</div>
-                        <div class="col-md-4">Rotação: ${changedField('rotation_style') ? `<span class="text-danger">${rotationLabels[d.rotation_style] || d.rotation_style}</span>` : (rotationLabels[d.rotation_style] || d.rotation_style)}</div>
-                      </div>
-                    </div>
-                    <div class="col-12 mt-3">
-                      <h6 class="text-orange">Configurações</h6>
-                      <div class="row text-light-gray small">
-                        <div class="col-md-4">Offensive Focus: ${changedField('offense_style') ? `<span class="text-danger">${offenseStyleLabels[d.offense_style] || d.offense_style}</span>` : (offenseStyleLabels[d.offense_style] || d.offense_style)}</div>
-                        <div class="col-md-4">Offensive Tempo: ${changedField('pace') ? `<span class="text-danger">${paceLabels[d.pace] || d.pace}</span>` : (paceLabels[d.pace] || d.pace)}</div>
-                        <div class="col-md-4">Offensive Rebounding: ${changedField('offensive_rebound') ? `<span class="text-danger">${offRebLabels[d.offensive_rebound] || d.offensive_rebound}</span>` : (offRebLabels[d.offensive_rebound] || d.offensive_rebound)}</div>
-                        <div class="col-md-4 mt-2">Defensive Focus: ${changedField('defensive_focus') ? `<span class="text-danger">${defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference'}</span>` : (defFocusLabels[d.defensive_focus] || d.defensive_focus || 'No Preference')}</div>
-                        <div class="col-md-4 mt-2">Defensive Aggression: ${changedField('offensive_aggression') ? `<span class="text-danger">${defAggrLabels[d.offensive_aggression] || d.offensive_aggression}</span>` : (defAggrLabels[d.offensive_aggression] || d.offensive_aggression)}</div>
-                        <div class="col-md-4 mt-2">Defensive Rebounding: ${changedField('defensive_rebound') ? `<span class="text-danger">${defRebLabels[d.defensive_rebound] || d.defensive_rebound}</span>` : (defRebLabels[d.defensive_rebound] || d.defensive_rebound)}</div>
-                      </div>
-                    </div>
-                    ${isEliteLeague ? `<div class="col-12 mt-3">
-                      <h6 class="text-orange">Tecnicas</h6>
-                      <div class="row text-light-gray small">
-                        <div class="col-md-4">Modelo técnico: ${changedField('technical_model') ? `<span class="text-danger">${technicalModelLabel}</span>` : technicalModelLabel}${parseInt(d.technical_model_changed) === 1 ? ' <span class="badge bg-warning text-dark ms-2">ALTERADO</span>' : ''}</div>
-                      </div>
-                      <div class="text-light-gray small mt-2">Playbook: ${changedField('playbook') ? `<span class="text-danger">${playbookLabel}</span>` : playbookLabel}</div>
-                    </div>` : ''}
-                    ${isManualRotation ? `<div class="col-12 mt-3">
-                      <h6 class="text-orange">Rotação e Foco</h6>
-                      <div class="row text-light-gray small">
-                        <div class="col-md-6">Jogadores na Rotação: ${changedField('rotation_players') ? `<span class="text-danger">${d.rotation_players || 10}</span>` : (d.rotation_players || 10)}</div>
-                        <div class="col-md-6">Foco Veteranos: ${changedField('veteran_focus') ? `<span class="text-danger">${d.veteran_focus || 50}%</span>` : (d.veteran_focus || 50) + '%'}</div>
-                      </div>
-                    </div>` : ''}
-                    ${d.notes ? `<div class="col-12 mt-3"><h6 class="text-orange">Observações</h6><p class="text-light-gray">${changedField('notes') ? `<span class="text-danger">${d.notes}</span>` : d.notes}</p></div>` : ''}
-                  </div>
-                </div>
-              </div>
-            `;
-            }).join('')
-          }
-        </div>
-      </div>
-    `;
-  } catch (e) {
-    container.innerHTML = `<div class="alert alert-danger">Erro ao carregar diretrizes: ${e.error || e.message || 'Desconhecido'}</div>`;
-  }
 }
 
-async function toggleAdminDirectiveAccept(directiveId, checked) {
-  const card = document.querySelector(`[data-directive-id="${directiveId}"]`);
+async function saveTaticaCutoff(league) {
+  const val = document.getElementById('taticaCutoffInput')?.value;
+  if (!val) return;
   try {
-    await api('diretrizes.php', {
-      method: 'PATCH',
-      body: JSON.stringify({ directive_id: directiveId, accepted: checked })
-    });
-    if (card) card.classList.toggle('is-accepted', checked);
-  } catch (e) {
-    alert(e.error || 'Erro ao salvar aceite da diretriz');
-    // Reverter o checkbox visualmente
-    const checkbox = card?.querySelector('input[type="checkbox"]');
-    if (checkbox) checkbox.checked = !checked;
-  }
+    await api('tactics.php', { method: 'POST', body: JSON.stringify({ action: 'admin_window', league, daily_cutoff_time: val }) });
+    showTaticaAdmin();
+  } catch (e) { alert(e.error || 'Erro ao salvar corte'); }
 }
 
-// Função para excluir diretriz
-async function deleteDirective(directiveId, deadlineId, league) {
-  if (!confirm('Tem certeza que deseja excluir esta diretriz? O time terá que enviar novamente.')) return;
-  
+async function openTaticaWindow(league, hours) {
   try {
-    await api('diretrizes.php', {
-      method: 'DELETE',
-      body: JSON.stringify({ action: 'delete_directive', directive_id: directiveId })
-    });
-    alert('Diretriz excluída com sucesso');
-    viewDirectives(deadlineId, league);
-  } catch (e) {
-    alert(e.error || 'Erro ao excluir diretriz');
-  }
+    await api('tactics.php', { method: 'POST', body: JSON.stringify({ action: 'admin_window', league, open_for_hours: hours }) });
+    showTaticaAdmin();
+  } catch (e) { alert(e.error || 'Erro ao abrir janela'); }
+}
+
+async function closeTaticaWindow(league) {
+  try {
+    await api('tactics.php', { method: 'POST', body: JSON.stringify({ action: 'admin_window', league, manual_closed: true, clear_manual_open: true }) });
+    showTaticaAdmin();
+  } catch (e) { alert(e.error || 'Erro ao fechar janela'); }
 }
 
 // ========== FREE AGENCY ADMIN ==========
@@ -3904,631 +3404,7 @@ async function adminFaChangeTeamConfirm() {
   } catch(e) { showAlert('danger', 'Erro de conexão.'); }
 }
 
-async function showFreeAgency() {
-  appState.view = 'freeagency';
-  updateBreadcrumb();
-
-  const league = appState.currentLeague || _leagues[0] || 'ELITE';
-  const container = document.getElementById('mainContainer');
-
-  container.innerHTML = `
-    <div class="mb-4">
-      <button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>
-    </div>
-
-    <div class="row g-4 mb-4">
-      <div class="col-lg-5">
-        <div class="panel h-100">
-          <div class="panel-header">
-            <div class="panel-title"><i class="bi bi-search" style="color:#f59e0b;margin-right:8px"></i>Cadastrar Leilão</div>
-          </div>
-          <div style="position:relative;margin-bottom:12px">
-            <div class="d-flex gap-2">
-              <input id="leilaoSearchInput" type="text" class="form-control" placeholder="Buscar jogador da liga ${league}..."
-                style="background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:var(--radius-sm);padding:8px 12px;font-size:13px;">
-              <button class="btn-ghost" style="padding:7px 14px;white-space:nowrap" onclick="_leilaoDoSearch()">
-                <i class="bi bi-search"></i>
-              </button>
-            </div>
-            <div id="leilaoSearchDrop" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:50;
-              background:var(--panel-3);border:1px solid var(--border-md);border-radius:var(--radius-sm);
-              max-height:220px;overflow-y:auto;margin-top:2px"></div>
-          </div>
-          <div id="leilaoSelectedInfo" style="display:none;padding:10px 14px;background:var(--panel-3);
-            border-radius:var(--radius-sm);border:1px solid var(--border-md);margin-bottom:12px">
-            <div id="leilaoSelectedName" style="font-weight:600;font-size:14px;color:var(--text)"></div>
-            <div id="leilaoSelectedSub" style="font-size:12px;color:var(--text-3);margin-top:2px"></div>
-          </div>
-          <button id="leilaoStartBtn" style="display:none;width:100%;padding:10px;font-size:13px;font-weight:600;
-            background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.3);
-            border-radius:var(--radius-sm);cursor:pointer" onclick="_leilaoStart()">
-            <i class="bi bi-hammer me-2"></i>Começar Leilão
-          </button>
-
-          <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:8px">
-              Leilão que já aconteceu fora do app? Registre o resultado e a troca é executada na hora.
-            </div>
-            <button class="btn-ghost" style="width:100%;padding:9px;font-size:13px;font-weight:600"
-              onclick="abrirCadastroManualAdmin('${league}')">
-              <i class="bi bi-plus-lg me-2"></i>Cadastrar leilão manualmente
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-lg-7">
-        <div class="panel h-100">
-          <div class="panel-header">
-            <div class="panel-title"><i class="bi bi-broadcast" style="color:#22c55e;margin-right:8px"></i>Leilões Ativos</div>
-            <button class="btn-ghost" style="padding:6px 10px;font-size:12px" onclick="_leilaoLoadActive()">
-              <i class="bi bi-arrow-repeat"></i>
-            </button>
-          </div>
-          <div id="leilaoAtivosContainer"><p class="empty-state">Carregando...</p></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-header">
-        <div class="panel-title"><i class="bi bi-clock-history" style="color:var(--text-3);margin-right:8px"></i>Histórico de Leilões</div>
-        <button class="btn-ghost" style="padding:6px 10px;font-size:12px" onclick="_leilaoLoadHistory()">
-          <i class="bi bi-arrow-repeat"></i>
-        </button>
-      </div>
-      <div id="leilaoHistoricoContainer"><p class="empty-state">Carregando...</p></div>
-    </div>
-
-    <!-- Modal: cadastro manual de leilão -->
-    <div class="modal fade" id="modalCadManualAdmin" tabindex="-1">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title"><i class="bi bi-hammer me-2" style="color:#f59e0b"></i>Cadastrar Leilão Manualmente</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body" style="max-height:78vh;overflow-y:auto">
-            <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">
-              O jogador leiloado vai para o vencedor e os jogadores/picks enviados vão para o vendedor — como uma troca.
-              Só aparecem times da liga <strong>${league}</strong>.
-            </p>
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label" style="font-size:12px">Time vendedor</label>
-                <select id="cmaSeller" class="form-select form-select-sm" onchange="cmaOnSellerChange()"><option value="">Carregando...</option></select>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label" style="font-size:12px">Jogador leiloado <span style="color:var(--text-3)">(do vendedor)</span></label>
-                <select id="cmaPlayer" class="form-select form-select-sm"><option value="">Selecione o vendedor primeiro</option></select>
-              </div>
-            </div>
-            <hr style="border-color:var(--border);margin:16px 0">
-            <div class="mb-3">
-              <label class="form-label" style="font-size:12px">Time vencedor</label>
-              <select id="cmaWinner" class="form-select form-select-sm" onchange="cmaOnWinnerChange()"><option value="">Carregando...</option></select>
-            </div>
-            <div class="mb-3">
-              <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Jogadores enviados pelo vencedor</div>
-              <div id="cmaOfferPlayers"><p class="empty-state">Selecione o vencedor primeiro</p></div>
-            </div>
-            <div class="mb-3">
-              <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Picks enviadas pelo vencedor</div>
-              <div id="cmaOfferPicks"><p class="empty-state">Selecione o vencedor primeiro</p></div>
-            </div>
-            <div class="mb-2">
-              <label class="form-label" style="font-size:12px">Observação <span style="color:var(--text-3)">(opcional)</span></label>
-              <textarea id="cmaObs" class="form-control form-control-sm" rows="2" placeholder="Ex: leilão do Discord em 20/07..."></textarea>
-            </div>
-            <div id="cmaError" style="display:none;color:#ef4444;font-size:13px;margin-top:6px"></div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
-            <button type="button" class="btn btn-orange" id="cmaSubmit" onclick="enviarCadastroManualAdmin()">
-              <i class="bi bi-check-lg me-1"></i>Cadastrar e executar
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  document.getElementById('leilaoSearchInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter') _leilaoDoSearch();
-  });
-
-  _leilaoSearchResult = null;
-  await Promise.all([_leilaoLoadActive(), _leilaoLoadHistory()]);
-}
-
-// ============================================
-// LEILÕES - GESTÃO ADMIN
-// ============================================
-
-let _leilaoSearchResult = null;
-let _leilaoAtivos = [];
-
-/* ── Cadastro manual de leilão (admin) ─────────────────────────── */
-let _cmaLeague = '';
-function _cmaEsc(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-async function abrirCadastroManualAdmin(league) {
-  _cmaLeague = league || '';
-  const modal = new bootstrap.Modal(document.getElementById('modalCadManualAdmin'));
-  document.getElementById('cmaError').style.display = 'none';
-  document.getElementById('cmaObs').value = '';
-  document.getElementById('cmaPlayer').innerHTML = '<option value="">Selecione o vendedor primeiro</option>';
-  document.getElementById('cmaOfferPlayers').innerHTML = '<p class="empty-state">Selecione o vencedor primeiro</p>';
-  document.getElementById('cmaOfferPicks').innerHTML = '<p class="empty-state">Selecione o vencedor primeiro</p>';
-  modal.show();
-  try {
-    const res = await fetch(`/api/leilao.php?action=league_teams&league=${encodeURIComponent(_cmaLeague)}`);
-    const data = await res.json();
-    const teams = data.success ? (data.teams || []) : [];
-    const opts = '<option value="">Selecione...</option>' +
-      teams.map(t => `<option value="${t.id}">${_cmaEsc(t.team_name)}</option>`).join('');
-    document.getElementById('cmaSeller').innerHTML = opts;
-    document.getElementById('cmaWinner').innerHTML = opts;
-  } catch (e) {
-    document.getElementById('cmaSeller').innerHTML = '<option value="">Erro ao carregar times</option>';
-  }
-}
-
-async function cmaOnSellerChange() {
-  const id = document.getElementById('cmaSeller').value;
-  const sel = document.getElementById('cmaPlayer');
-  if (!id) { sel.innerHTML = '<option value="">Selecione o vendedor primeiro</option>'; return; }
-  sel.innerHTML = '<option value="">Carregando...</option>';
-  try {
-    const res = await fetch(`/api/leilao.php?action=seller_items&seller_team_id=${id}`);
-    const d = await res.json();
-    const players = d.success ? (d.players || []) : [];
-    sel.innerHTML = '<option value="">Selecione o jogador...</option>' +
-      players.map(p => `<option value="${p.id}">${_cmaEsc(p.name)} · ${_cmaEsc(p.position||'')} · ${p.ovr||'?'} OVR</option>`).join('');
-  } catch (e) { sel.innerHTML = '<option value="">Erro ao carregar</option>'; }
-}
-
-async function cmaOnWinnerChange() {
-  const id = document.getElementById('cmaWinner').value;
-  const pc = document.getElementById('cmaOfferPlayers');
-  const kc = document.getElementById('cmaOfferPicks');
-  if (!id) {
-    pc.innerHTML = '<p class="empty-state">Selecione o vencedor primeiro</p>';
-    kc.innerHTML = '<p class="empty-state">Selecione o vencedor primeiro</p>';
-    return;
-  }
-  pc.innerHTML = '<p class="empty-state">Carregando...</p>'; kc.innerHTML = '';
-  try {
-    const res = await fetch(`/api/leilao.php?action=seller_items&seller_team_id=${id}`);
-    const d = await res.json();
-    const players = d.success ? (d.players || []) : [];
-    const picks = d.success ? (d.picks || []) : [];
-    const chip = (v, label, cls) => `<label style="display:inline-flex;align-items:center;gap:7px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:6px 11px;margin:0 6px 6px 0;font-size:12.5px;cursor:pointer">
-      <input type="checkbox" class="${cls}" value="${v}"> <span>${label}</span></label>`;
-    pc.innerHTML = players.length
-      ? players.map(p => chip(p.id, `${_cmaEsc(p.name)} <span style="color:var(--text-3)">· ${p.ovr||'?'} OVR</span>`, 'cma-op')).join('')
-      : '<p class="empty-state">Sem jogadores.</p>';
-    kc.innerHTML = picks.length
-      ? picks.map(k => chip(k.id, `Pick ${k.season_year} R${k.round}`, 'cma-ok')).join('')
-      : '<p class="empty-state">Sem picks.</p>';
-  } catch (e) { pc.innerHTML = '<p class="empty-state" style="color:#ef4444">Erro ao carregar</p>'; }
-}
-
-async function enviarCadastroManualAdmin() {
-  const err = document.getElementById('cmaError');
-  err.style.display = 'none';
-  const showErr = m => { err.textContent = m; err.style.display = 'block'; };
-  const seller = parseInt(document.getElementById('cmaSeller').value, 10);
-  const winner = parseInt(document.getElementById('cmaWinner').value, 10);
-  const player = parseInt(document.getElementById('cmaPlayer').value, 10);
-  const ops = Array.from(document.querySelectorAll('.cma-op:checked')).map(c => parseInt(c.value, 10));
-  const oks = Array.from(document.querySelectorAll('.cma-ok:checked')).map(c => parseInt(c.value, 10));
-  const obs = document.getElementById('cmaObs').value.trim();
-
-  if (!seller || !player) return showErr('Selecione o time vendedor e o jogador leiloado.');
-  if (!winner) return showErr('Selecione o time vencedor.');
-  if (seller === winner) return showErr('Vendedor e vencedor não podem ser o mesmo time.');
-  if (!ops.length && !oks.length) return showErr('O vencedor precisa enviar ao menos um jogador ou pick.');
-
-  const btn = document.getElementById('cmaSubmit');
-  btn.disabled = true;
-  const orig = btn.innerHTML;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Cadastrando...';
-  try {
-    const res = await fetch('/api/leilao.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'cadastrar_manual', seller_team_id: seller, winner_team_id: winner,
-        auctioned_player_id: player, offered_player_ids: ops, offered_pick_ids: oks, obs
-      })
-    });
-    const d = await res.json();
-    if (!d.success) return showErr(d.error || 'Erro ao cadastrar.');
-    bootstrap.Modal.getInstance(document.getElementById('modalCadManualAdmin'))?.hide();
-    if (typeof showAlert === 'function') showAlert('success', 'Leilão cadastrado e troca executada!');
-    if (typeof _leilaoLoadHistory === 'function') _leilaoLoadHistory();
-    if (typeof _leilaoLoadActive === 'function') _leilaoLoadActive();
-  } catch (e) {
-    showErr('Erro ao cadastrar o leilão.');
-  } finally {
-    btn.disabled = false; btn.innerHTML = orig;
-  }
-}
-
-async function _leilaoDoSearch() {
-  const input = document.getElementById('leilaoSearchInput');
-  const drop = document.getElementById('leilaoSearchDrop');
-  const term = input?.value.trim();
-  if (!term || term.length < 2) return;
-  const league = appState.currentLeague || _leagues[0] || 'ELITE';
-  drop.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--text-3)">Buscando...</div>';
-  drop.style.display = 'block';
-  try {
-    const data = await api(`team.php?action=search_player&query=${encodeURIComponent(term)}&league=${encodeURIComponent(league)}`);
-    const players = data.players || [];
-    if (!players.length) {
-      drop.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--text-3)">Nenhum jogador encontrado nesta liga</div>';
-      return;
-    }
-    drop.innerHTML = players.map(p => {
-      const ovr = p.ovr || p.overall || '—';
-      const teamName = p.team_name || '';
-      return `<div
-        data-pid="${p.id}" data-tid="${p.team_id || 0}"
-        data-name="${escapeHtml(p.name)}" data-pos="${escapeHtml(p.position || '')}"
-        data-ovr="${ovr === '—' ? 0 : ovr}"
-        onclick="_leilaoSelectFromEl(this)"
-        style="padding:10px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);
-               display:flex;justify-content:space-between;align-items:center;transition:background .15s"
-        onmouseover="this.style.background='var(--panel-2)'" onmouseout="this.style.background=''">
-        <div>
-          <span style="font-weight:600;color:var(--text)">${escapeHtml(p.name)}</span>
-          <span style="color:var(--text-3);margin-left:6px;font-size:11px">${escapeHtml(p.position || '')} · ${escapeHtml(teamName)}</span>
-        </div>
-        <span style="font-size:11px;color:var(--text-3)">OVR ${ovr}</span>
-      </div>`;
-    }).join('');
-  } catch (e) {
-    drop.innerHTML = `<div style="padding:10px;font-size:12px;color:#ef4444">${e.error || 'Erro na busca'}</div>`;
-  }
-}
-
-function _leilaoSelectFromEl(el) {
-  _leilaoSelect(
-    parseInt(el.dataset.pid),
-    parseInt(el.dataset.tid),
-    el.dataset.name,
-    el.dataset.pos,
-    parseInt(el.dataset.ovr)
-  );
-}
-
-function _leilaoSelect(playerId, teamId, name, pos, ovr) {
-  _leilaoSearchResult = { id: playerId, team_id: teamId, name, pos, ovr };
-  const drop = document.getElementById('leilaoSearchDrop');
-  if (drop) drop.style.display = 'none';
-  const inp = document.getElementById('leilaoSearchInput');
-  if (inp) inp.value = name;
-  const infoBox = document.getElementById('leilaoSelectedInfo');
-  const nameEl = document.getElementById('leilaoSelectedName');
-  const subEl = document.getElementById('leilaoSelectedSub');
-  const btn = document.getElementById('leilaoStartBtn');
-  if (infoBox) infoBox.style.display = 'block';
-  if (nameEl) nameEl.textContent = name;
-  if (subEl) subEl.textContent = `${pos} · OVR ${ovr}`;
-  if (btn) btn.style.display = 'block';
-}
-
-async function _leilaoStart() {
-  if (!_leilaoSearchResult) return;
-  const league = appState.currentLeague || _leagues[0] || 'ELITE';
-  const leagueId = leagueIdByName[league];
-  if (!leagueId) { alert('ID da liga não encontrado.'); return; }
-  const btn = document.getElementById('leilaoStartBtn');
-  if (btn) btn.disabled = true;
-  try {
-    await api('leilao.php', {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'cadastrar',
-        player_id: _leilaoSearchResult.id,
-        team_id: _leilaoSearchResult.team_id || null,
-        league_id: leagueId
-      })
-    });
-    _leilaoSearchResult = null;
-    const infoBox = document.getElementById('leilaoSelectedInfo');
-    const inp = document.getElementById('leilaoSearchInput');
-    if (infoBox) infoBox.style.display = 'none';
-    if (inp) inp.value = '';
-    if (btn) { btn.style.display = 'none'; btn.disabled = false; }
-    showAlert('success', 'Leilão iniciado!');
-    await _leilaoLoadActive();
-  } catch (e) {
-    if (btn) btn.disabled = false;
-    alert(e.error || 'Erro ao iniciar leilão');
-  }
-}
-
-async function _leilaoLoadActive() {
-  const container = document.getElementById('leilaoAtivosContainer');
-  if (!container) return;
-  const league = appState.currentLeague || _leagues[0] || 'ELITE';
-  try {
-    const data = await api('leilao.php?action=listar_admin');
-    _leilaoAtivos = (data.leiloes || []).filter(l => l.league_name === league && l.status === 'ativo');
-    _leilaoRenderActive();
-    // Auto-abre propostas de leilões com pelo menos 1 proposta
-    for (const l of _leilaoAtivos) {
-      if (Number(l.total_propostas) > 0) {
-        leilaoTogglePropostas(l.id);
-      }
-    }
-  } catch (e) {
-    container.innerHTML = `<p class="empty-state" style="color:#ef4444">${e.error || 'Erro ao carregar'}</p>`;
-  }
-}
-
-function _leilaoRenderActive() {
-  const container = document.getElementById('leilaoAtivosContainer');
-  if (!container) return;
-  if (!_leilaoAtivos.length) {
-    container.innerHTML = '<p class="empty-state">Nenhum leilão ativo nesta liga.</p>';
-    return;
-  }
-  const now = Date.now() / 1000;
-  container.innerHTML = _leilaoAtivos.map(l => {
-    const ts = Number(l.data_fim_ts) || 0;
-    const secsLeft = ts - now;
-    const expired = ts > 0 && secsLeft <= 0;
-    const timeStr = ts === 0 ? '—' : expired ? 'Expirado' : _leilaoFmtTime(secsLeft);
-    const timeColor = expired ? '#ef4444' : secsLeft < 300 ? '#f59e0b' : '#22c55e';
-    return `
-      <div class="pun-card" style="margin-bottom:12px" id="leilao-card-${l.id}">
-        <div class="pun-card-head">
-          <div>
-            <div class="pun-card-title">${l.player_name}
-              <span style="font-size:11px;font-weight:400;color:var(--text-3)">&nbsp;${l.position || ''} · OVR ${l.ovr || '—'}</span>
-            </div>
-            <div class="pun-card-sub">${l.team_name || 'Sem time'} · ${l.total_propostas || 0} proposta(s)</div>
-          </div>
-          <div class="d-flex align-items-center gap-2 flex-shrink-0">
-            <span style="font-size:12px;font-weight:600;color:${timeColor}">${timeStr}</span>
-            <button class="btn-ghost" style="padding:4px 10px;font-size:11px"
-              onclick="leilaoTogglePropostas(${l.id})"><i class="bi bi-list-ul me-1"></i>Propostas</button>
-            <button class="btn-ghost" style="padding:4px 10px;font-size:11px;color:#ef4444"
-              onclick="leiaoCancelar(${l.id})" title="Cancelar leilão"><i class="bi bi-x-lg"></i></button>
-          </div>
-        </div>
-        <div id="leilao-propostas-${l.id}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-          <p class="empty-state" style="font-size:12px">Carregando...</p>
-        </div>
-      </div>`;
-  }).join('');
-}
-
-function _leilaoFmtTime(secs) {
-  if (secs <= 0) return 'Expirado';
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = Math.floor(secs % 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
-
-window.leilaoTogglePropostas = async function(leilaoId) {
-  const div = document.getElementById(`leilao-propostas-${leilaoId}`);
-  if (!div) return;
-  if (div.style.display !== 'none') { div.style.display = 'none'; return; }
-  div.style.display = 'block';
-  div.innerHTML = '<p class="empty-state" style="font-size:12px">Carregando...</p>';
-  try {
-    const data = await api(`leilao.php?action=ver_propostas&leilao_id=${leilaoId}`);
-    const propostas = data.propostas || [];
-    if (!propostas.length) {
-      div.innerHTML = '<p class="empty-state" style="font-size:12px">Nenhuma proposta ainda.</p>';
-      return;
-    }
-    const _statusOrd = { pendente: 0, aceita: 1, recusada: 2 };
-    propostas.sort((a, b) => (_statusOrd[a.status] ?? 3) - (_statusOrd[b.status] ?? 3));
-    div.innerHTML = propostas.map(p => {
-      const jogs = (p.jogadores || []).map(j => escapeHtml(j.name)).join(', ') || '—';
-      const obs = (p.obs || p.notas || '').trim();
-      const statusMap = { aceita: '#22c55e', recusada: '#ef4444', pendente: '#f59e0b' };
-      const sc = statusMap[p.status] || 'var(--text-3)';
-      // picks separadas por rodada
-      const _esc = s => escapeHtml(String(s ?? ''));
-      const _pickBadge = pk => {
-        const orig = (pk.original_team_name || '').trim();
-        return `<span style="display:inline-flex;align-items:center;background:rgba(59,130,246,.1);color:#3b82f6;border:1px solid rgba(59,130,246,.25);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0">${_esc(pk.season_year)} R${pk.round||'?'}${orig ? `<span style="font-size:10px;color:var(--text);margin-left:5px">${_esc(orig)}</span>` : ''}</span>`;
-      };
-      const allPicks = p.picks || [];
-      const r1 = allPicks.filter(pk => Number(pk.round) === 1);
-      const r2 = allPicks.filter(pk => Number(pk.round) !== 1);
-      let picksHtml = '';
-      if (allPicks.length) {
-        if (r1.length) picksHtml += `<div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">1ª Rodada</div><div>${r1.map(_pickBadge).join('')}</div>`;
-        if (r2.length) picksHtml += `<div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin:${r1.length ? '8px' : '0'} 0 3px">2ª Rodada</div><div>${r2.map(_pickBadge).join('')}</div>`;
-      } else {
-        picksHtml = '<span style="color:var(--text-3);font-size:12px">—</span>';
-      }
-      return `
-        <div style="padding:12px 14px;background:var(--panel-2);border-radius:var(--radius-sm);
-          margin-bottom:8px;border:1px solid var(--border)">
-          <div class="d-flex justify-content-between align-items-start gap-2" style="margin-bottom:10px">
-            <div style="font-weight:600;font-size:13px;color:var(--text)">${escapeHtml(p.team_name || '—')}</div>
-            <div class="d-flex align-items-center gap-1 flex-shrink-0">
-              <span style="font-size:10px;font-weight:600;color:${sc};text-transform:uppercase">${p.status}</span>
-              ${p.status === 'pendente' ? `
-                <button class="btn-ghost" style="padding:3px 9px;font-size:11px;color:#22c55e;margin-left:6px"
-                  onclick="leilaoAceitar(${p.id},${leilaoId})">Aceitar</button>
-                <button class="btn-ghost" style="padding:3px 9px;font-size:11px;color:#ef4444"
-                  onclick="leilaoRecusar(${p.id},${leilaoId})">Recusar</button>
-              ` : ''}
-            </div>
-          </div>
-          <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Jogadores</div>
-          <div style="font-size:12px;color:var(--text);margin-bottom:10px">${jogs}</div>
-          <div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Picks</div>
-          <div>${picksHtml}</div>
-          ${obs ? `<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:10px 12px;margin-top:10px"><div style="font-size:10px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px"><i class="bi bi-sticky me-1"></i>Observação</div><div style="font-size:13px;color:var(--text)">${_esc(obs)}</div></div>` : ''}
-        </div>`;
-    }).join('');
-  } catch (e) {
-    div.innerHTML = `<p class="empty-state" style="font-size:12px;color:#ef4444">${e.error || 'Erro'}</p>`;
-  }
-};
-
-window.leilaoAceitar = async function(propostaId, leilaoId) {
-  if (!confirm('Aceitar esta proposta? O jogador será transferido.')) return;
-  try {
-    await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'aceitar_proposta', proposta_id: propostaId }) });
-    showAlert('success', 'Proposta aceita!');
-    await Promise.all([_leilaoLoadActive(), _leilaoLoadHistory()]);
-  } catch (e) { alert(e.error || 'Erro ao aceitar'); }
-};
-
-window.leilaoRecusar = async function(propostaId, leilaoId) {
-  if (!confirm('Recusar esta proposta?')) return;
-  try {
-    await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'recusar_proposta', proposta_id: propostaId }) });
-    showAlert('success', 'Proposta recusada.');
-    await leilaoTogglePropostas(leilaoId);
-  } catch (e) { alert(e.error || 'Erro ao recusar'); }
-};
-
-window.leiaoCancelar = async function(leilaoId) {
-  if (!confirm('Cancelar este leilão? Todas as propostas serão recusadas.')) return;
-  try {
-    await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'cancelar', leilao_id: leilaoId }) });
-    showAlert('success', 'Leilão cancelado.');
-    await Promise.all([_leilaoLoadActive(), _leilaoLoadHistory()]);
-  } catch (e) { alert(e.error || 'Erro ao cancelar'); }
-};
-
-async function _leilaoLoadHistory() {
-  const container = document.getElementById('leilaoHistoricoContainer');
-  if (!container) return;
-  const league = appState.currentLeague || _leagues[0] || 'ELITE';
-  const leagueId = leagueIdByName[league] || null;
-  try {
-    const url = leagueId ? `leilao.php?action=historico&league_id=${leagueId}` : 'leilao.php?action=historico';
-    const data = await api(url);
-    const leiloes = data.leiloes || [];
-    if (!leiloes.length) {
-      container.innerHTML = '<p class="empty-state">Nenhum leilão finalizado nesta liga.</p>';
-      return;
-    }
-    container.innerHTML = leiloes.map(l => {
-      const winnerHtml = l.winner_team_name
-        ? `<span style="color:#22c55e;font-weight:600">${escapeHtml(l.winner_team_name)}</span>`
-        : `<span style="color:var(--text-3)">Sem vencedor</span>`;
-      const dateStr = l.data_fim ? String(l.data_fim).split(' ')[0] : '—';
-      const nProp = Number(l.total_propostas) || 0;
-      return `
-        <div class="pun-card" style="margin-bottom:10px">
-          <div class="pun-card-head">
-            <div style="flex:1;min-width:0">
-              <div class="pun-card-title">${escapeHtml(l.player_name || '—')}
-                <span style="font-size:11px;font-weight:400;color:var(--text-3)">&nbsp;${escapeHtml(l.position || '')}${l.ovr ? ' · OVR ' + l.ovr : ''}</span>
-              </div>
-              <div class="pun-card-sub">
-                ${escapeHtml(l.team_name || '—')} · Vencedor: ${winnerHtml} · ${dateStr}
-                ${nProp > 0 ? `<span style="margin-left:6px;font-size:11px;color:var(--text-3)">${nProp} oferta(s)</span>` : ''}
-              </div>
-            </div>
-            <button class="btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0"
-              onclick="_leilaoToggleHistPropostas(${l.id}, this)">
-              <i class="bi bi-list-ul me-1"></i>Ver Ofertas
-            </button>
-          </div>
-          <div id="leilao-hist-propostas-${l.id}" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"></div>
-        </div>`;
-    }).join('');
-  } catch (e) {
-    container.innerHTML = `<p class="empty-state" style="color:#ef4444">${e.error || 'Erro ao carregar histórico'}</p>`;
-  }
-}
-
-window._leilaoToggleHistPropostas = async function(leilaoId, btn) {
-  const div = document.getElementById(`leilao-hist-propostas-${leilaoId}`);
-  if (!div) return;
-  if (div.style.display !== 'none') {
-    div.style.display = 'none';
-    if (btn) btn.innerHTML = '<i class="bi bi-list-ul me-1"></i>Ver Ofertas';
-    return;
-  }
-  div.style.display = 'block';
-  if (btn) btn.innerHTML = '<i class="bi bi-chevron-up me-1"></i>Fechar';
-  div.innerHTML = '<p class="empty-state" style="font-size:12px">Carregando...</p>';
-  try {
-    const data = await api(`leilao.php?action=ver_propostas&leilao_id=${leilaoId}`);
-    const propostas = data.propostas || [];
-    if (!propostas.length) {
-      div.innerHTML = '<p class="empty-state" style="font-size:12px">Nenhuma oferta registrada neste leilão.</p>';
-      return;
-    }
-    const statusMap = { aceita: '#22c55e', recusada: '#ef4444', pendente: '#f59e0b' };
-    div.innerHTML = propostas.map(p => {
-      const sc = statusMap[p.status] || 'var(--text-3)';
-      const borderColor = p.status === 'aceita' ? 'rgba(34,197,94,.3)' : 'var(--border)';
-      const jogsHtml = (p.jogadores || []).length
-        ? (p.jogadores || []).map(j => {
-            const meta = [j.position, j.ovr ? `OVR ${j.ovr}` : null, j.age ? `${j.age} anos` : null].filter(Boolean).join(' · ');
-            return `<div style="display:flex;align-items:baseline;gap:6px">
-              <span style="color:#fff;font-weight:500">${escapeHtml(j.name)}</span>
-              ${meta ? `<span style="font-size:10px;color:var(--text-3)">${meta}</span>` : ''}
-            </div>`;
-          }).join('')
-        : '<span style="color:var(--text-3)">—</span>';
-      const obs2 = (p.obs || p.notas || '').trim();
-      const _esc2 = s => escapeHtml(String(s ?? ''));
-      const _badge2 = pk => {
-        const orig = (pk.original_team_name || pk.current_team_name || '').trim();
-        return `<span style="display:inline-flex;align-items:center;background:rgba(59,130,246,.1);color:#3b82f6;border:1px solid rgba(59,130,246,.25);border-radius:6px;padding:3px 9px;font-size:11px;margin:2px 2px 2px 0">${_esc2(pk.season_year)} R${pk.round||'?'}${orig ? `<span style="font-size:10px;color:var(--text);margin-left:5px">${_esc2(orig)}</span>` : ''}</span>`;
-      };
-      const allPicks2 = p.picks || [];
-      const r1b = allPicks2.filter(pk => Number(pk.round) === 1);
-      const r2b = allPicks2.filter(pk => Number(pk.round) !== 1);
-      let picksHtml = '';
-      if (allPicks2.length) {
-        if (r1b.length) picksHtml += `<div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">1ª Rodada</div><div>${r1b.map(_badge2).join('')}</div>`;
-        if (r2b.length) picksHtml += `<div style="font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin:${r1b.length ? '8px' : '0'} 0 3px">2ª Rodada</div><div>${r2b.map(_badge2).join('')}</div>`;
-      } else {
-        picksHtml = '<span style="color:var(--text-3);font-size:12px">—</span>';
-      }
-      return `
-        <div style="padding:10px 12px;background:var(--panel-2);border-radius:var(--radius-sm);
-          margin-bottom:8px;border:1px solid ${borderColor}">
-          <div class="d-flex justify-content-between align-items-start gap-2">
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:700;font-size:13px;color:#fff;margin-bottom:6px">${escapeHtml(p.team_name || '—')}</div>
-              <div style="font-size:11px;color:var(--text-3);margin-bottom:2px">Jogadores</div>
-              <div style="font-size:12px;margin-bottom:6px">${jogsHtml}</div>
-              <div style="font-size:11px;color:var(--text-3);margin-bottom:2px">Picks</div>
-              <div style="font-size:12px;margin-bottom:${obs2 ? 6 : 0}px">${picksHtml}</div>
-              ${obs2 ? `<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:10px 12px;margin-top:6px"><div style="font-size:10px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px"><i class="bi bi-sticky me-1"></i>Observação</div><div style="font-size:13px;color:var(--text)">${_esc2(obs2)}</div></div>` : ''}
-            </div>
-            <span style="font-size:10px;font-weight:700;color:${sc};text-transform:uppercase;
-              flex-shrink:0;padding:3px 9px;background:${sc}18;border:1px solid ${sc}44;border-radius:999px">
-              ${p.status}
-            </span>
-          </div>
-        </div>`;
-    }).join('');
-  } catch (e) {
-    div.innerHTML = `<p class="empty-state" style="font-size:12px;color:#ef4444">${e.error || 'Erro ao carregar ofertas'}</p>`;
-  }
-};
-
-function setFreeAgencyLeague(league) {
-  appState.currentFAleague = league;
-}
-
-function refreshAdminFreeAgency() {
-  _leilaoLoadActive();
-}
+// (painel de leilão admin consolidado em leilao.php — ver Bloco 2/Bloco 6)
 
 // ========== MOEDAS ==========
 let coinsLeague = 'ELITE';
@@ -4549,7 +3425,8 @@ async function showCoins(league) {
       <div class="panel-title" style="margin-bottom:0"><i class="bi bi-coin" style="color:#f59e0b"></i> Moedas — ${league}</div>
       <div class="panel-sub">Free Agency coins dos times da liga</div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn-ghost" onclick="openDistStandings()" title="Distribui moedas automaticamente pela classificação da temporada"><i class="bi bi-trophy me-1" style="color:#f59e0b"></i>Distribuir por classificação</button>
       <button class="btn-orange" onclick="saveAllCoins()"><i class="bi bi-save2 me-1"></i>Salvar</button>
     </div>
   </div>
@@ -4598,9 +3475,98 @@ async function showCoins(league) {
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="distStandingsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-trophy me-2" style="color:#f59e0b"></i>Distribuir moedas por classificação</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">Moedas = <b>base + (posição-1) × passo</b>, pela classificação da última temporada registrada. Ex.: base 2, passo 2 → 1º=2, 2º=4, 3º=6…</p>
+        <div class="row g-2 mb-2">
+          <div class="col-4"><label class="pun-field-label">Base</label><input type="number" class="form-control" id="distBase" min="0" value="2"></div>
+          <div class="col-4"><label class="pun-field-label">Passo</label><input type="number" class="form-control" id="distStep" min="0" value="2"></div>
+          <div class="col-4"><label class="pun-field-label">Quem recebe mais</label>
+            <select class="form-select" id="distDirection">
+              <option value="worst_most">Pior colocado</option>
+              <option value="best_most">Melhor colocado</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-2"><label class="pun-field-label">Motivo</label><input type="text" class="form-control" id="distReason" value="Moedas por classificação"></div>
+        <button type="button" class="btn-ghost" onclick="previewDistStandings()"><i class="bi bi-eye me-1"></i>Pré-visualizar</button>
+        <div id="distPreview" style="margin-top:12px"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn-orange" id="distApplyBtn" onclick="applyDistStandings()" disabled><i class="bi bi-coin me-1"></i>Aplicar distribuição</button>
+      </div>
+    </div>
+  </div>
+</div>
 `;
 
   loadCoinsTeams();
+}
+
+function openDistStandings() {
+  document.getElementById('distPreview').innerHTML = '';
+  document.getElementById('distApplyBtn').disabled = true;
+  new bootstrap.Modal(document.getElementById('distStandingsModal')).show();
+}
+
+function _distParams(apply) {
+  return {
+    action: 'coins_by_standings',
+    league: coinsLeague,
+    base: parseInt(document.getElementById('distBase').value || '0', 10),
+    step: parseInt(document.getElementById('distStep').value || '0', 10),
+    direction: document.getElementById('distDirection').value,
+    reason: document.getElementById('distReason').value,
+    apply: apply
+  };
+}
+
+async function previewDistStandings() {
+  const box = document.getElementById('distPreview');
+  box.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm" style="color:var(--red)"></div></div>';
+  try {
+    const data = await api('admin.php?action=coins_by_standings', { method: 'POST', body: JSON.stringify(_distParams(false)) });
+    const dist = data.distribution || [];
+    if (!dist.length) { box.innerHTML = '<div style="color:var(--text-3);font-size:13px">Nada a distribuir.</div>'; return; }
+    box.innerHTML = `
+      <div style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:10px">
+        <table class="table table-dark table-sm mb-0" style="font-size:12.5px">
+          <thead><tr><th>#</th><th>Time</th><th class="text-end">Moedas</th><th class="text-end">Novo saldo</th></tr></thead>
+          <tbody>${dist.map(d => `<tr>
+            <td>${d.rank}º</td>
+            <td>${escapeHtml(d.team_name)}</td>
+            <td class="text-end" style="color:#f59e0b;font-weight:700">+${d.amount}</td>
+            <td class="text-end">${d.new_balance}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+    document.getElementById('distApplyBtn').disabled = false;
+  } catch (e) {
+    box.innerHTML = `<div style="color:#ef4444;font-size:13px">Erro: ${escapeHtml(e.error || 'Desconhecido')}</div>`;
+  }
+}
+
+async function applyDistStandings() {
+  if (!confirm('Aplicar a distribuição de moedas por classificação? As moedas serão somadas ao saldo atual de cada time.')) return;
+  const btn = document.getElementById('distApplyBtn');
+  btn.disabled = true;
+  try {
+    const data = await api('admin.php?action=coins_by_standings', { method: 'POST', body: JSON.stringify(_distParams(true)) });
+    showAlert('success', data.message || 'Moedas distribuídas!');
+    bootstrap.Modal.getInstance(document.getElementById('distStandingsModal'))?.hide();
+    loadCoinsTeams();
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao distribuir moedas');
+    btn.disabled = false;
+  }
 }
 
 async function loadCoinsTeams() {
@@ -5378,20 +4344,73 @@ const PTS_PLAYOFF = [
 ];
 const PTS_AWARDS = ['MVP','DPOY','MIP','6° Homem','ROY'];
 
+// ── Séries de playoff: quantos jogos (4 a 7) foi cada série que o time jogou ──
+const SERIES_ROUNDS = [
+  { key:'r1',  label:'1ª Rod.' },
+  { key:'r2',  label:'Semi' },
+  { key:'cf',  label:'Final Conf.' },
+  { key:'fin', label:'Final' },
+];
+// Quantas séries o time jogou, a partir do valor do dropdown de playoff (pontos acumulados)
+function _seriesCountForPlayoff(v) {
+  v = parseInt(v || '0', 10);
+  if (v <= 0) return 0;   // não participou
+  if (v === 1) return 1;  // caiu na 1ª rodada → 1 série
+  if (v === 3) return 2;  // semifinalista → 2 séries
+  if (v === 6) return 3;  // final de conferência → 3 séries
+  return 4;               // vice (8) ou campeão (11) → 4 séries
+}
+// (Re)desenha os seletores de jogos por série do time conforme o playoff escolhido
+function renderPtsSeries(sid, teamId) {
+  const form = document.getElementById(`pts-form-${sid}`) || document.getElementById(`pts-edit-form-${sid}`);
+  const container = document.getElementById(`pts-series-${sid}-${teamId}`);
+  if (!form || !container) return;
+  const playoffSel = form.querySelector(`.pts-play-sel[data-team-id="${teamId}"]`);
+  const count = _seriesCountForPlayoff(playoffSel ? playoffSel.value : 0);
+  if (!count) { container.style.display = 'none'; container.innerHTML = ''; return; }
+  // preserva o que já estava selecionado ao trocar o nível do playoff
+  const prev = {};
+  container.querySelectorAll('.pts-series-sel').forEach(s => { prev[s.dataset.round] = s.value; });
+  const selStyle = 'background:var(--panel-2);border:1px solid var(--border-md);border-radius:6px;padding:2px 4px;color:var(--text);font-size:11px';
+  container.style.display = 'block';
+  container.innerHTML =
+    `<div style="font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);margin-bottom:3px">Jogos por série (4–7)</div>
+     <div style="display:flex;flex-wrap:wrap;gap:8px">` +
+    SERIES_ROUNDS.slice(0, count).map(r => `
+       <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-2)">${r.label}
+         <select class="pts-series-sel" data-team-id="${teamId}" data-round="${r.key}" style="${selStyle}">
+           <option value="">–</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option>
+         </select>
+       </label>`).join('') +
+    `</div>`;
+  container.querySelectorAll('.pts-series-sel').forEach(s => { if (prev[s.dataset.round]) s.value = prev[s.dataset.round]; });
+}
+// Coleta as séries preenchidas do formulário para enviar ao backend
+function collectPtsSeries(sid) {
+  const form = document.getElementById(`pts-form-${sid}`) || document.getElementById(`pts-edit-form-${sid}`);
+  if (!form) return [];
+  return Array.from(form.querySelectorAll('.pts-series-sel'))
+    .filter(s => s.value)
+    .map(s => ({ team_id: parseInt(s.dataset.teamId, 10), round: s.dataset.round, games: parseInt(s.value, 10) }));
+}
+
 function buildPtsForm(seasonId, league, leagueTeams, inputClass) {
   const sid = String(seasonId);
   const isElite = (league||'').toUpperCase() === 'ELITE';
   const sel = 'background:var(--panel-2);border:1px solid var(--border-md);border-radius:7px;padding:3px 5px;color:var(--text);font-size:11px;flex-shrink:0';
 
   const teamRows = leagueTeams.map(t => `
-    <div data-team-name="${(t.team_name||'').toLowerCase()}" style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border)">
-      <span style="font-size:12px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.team_name||'')}</span>
-      <select class="pts-reg-sel" data-team-id="${t.team_id}" onchange="calcPtsPreview('${sid}')" style="${sel};max-width:150px">
-        ${PTS_REGULAR.map(o=>`<option value="${o.v}">${o.l}</option>`).join('')}
-      </select>
-      <select class="pts-play-sel" data-team-id="${t.team_id}" onchange="calcPtsPreview('${sid}')" style="${sel};max-width:190px">
-        ${PTS_PLAYOFF.map(o=>`<option value="${o.v}">${o.l}</option>`).join('')}
-      </select>
+    <div data-team-name="${(t.team_name||'').toLowerCase()}" style="padding:5px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:12px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.team_name||'')}</span>
+        <select class="pts-reg-sel" data-team-id="${t.team_id}" onchange="calcPtsPreview('${sid}')" style="${sel};max-width:150px">
+          ${PTS_REGULAR.map(o=>`<option value="${o.v}">${o.l}</option>`).join('')}
+        </select>
+        <select class="pts-play-sel" data-team-id="${t.team_id}" onchange="calcPtsPreview('${sid}');renderPtsSeries('${sid}',${t.team_id})" style="${sel};max-width:190px">
+          ${PTS_PLAYOFF.map(o=>`<option value="${o.v}">${o.l}</option>`).join('')}
+        </select>
+      </div>
+      <div class="pts-series" id="pts-series-${sid}-${t.team_id}" style="display:none;margin-top:6px;padding-left:2px"></div>
     </div>`).join('');
 
   const awardRows = PTS_AWARDS.map(a => `
@@ -5622,10 +4641,20 @@ async function savePtsMgmt(seasonId, league) {
     points:  parseInt(inp.value || '0', 10)
   }));
 
+  const summary = team_points
+    .filter(tp => tp.points > 0)
+    .map(tp => {
+      const nameEl = card.querySelector(`.pts-pv-val[data-tid="${tp.team_id}"]`);
+      const name = nameEl ? nameEl.closest('div')?.querySelector('span:first-child')?.textContent?.trim() || tp.team_id : tp.team_id;
+      return `${name}: ${tp.points} pts`;
+    }).join('\n') || '(todos com 0 pontos)';
+
+  if (!confirm(`Confirmar registro de pontuação para ${league}?\n\n${summary}\n\nEsta ação não poderá ser desfeita.`)) return;
+
   try {
     await api('history-points.php', {
       method: 'POST',
-      body: JSON.stringify({ action: 'save_season_points', season_id: seasonId, league, team_points })
+      body: JSON.stringify({ action: 'save_season_points', season_id: seasonId, league, team_points, series: collectPtsSeries(String(seasonId)) })
     });
     showAlert('success', 'Pontuação salva com sucesso!');
     showPointsManagement(league);
@@ -5680,6 +4709,192 @@ async function deletePtsMgmt(seasonId, league) {
 }
 
 // ── Registro de Pontuação (formulário inteligente) ───────────────────
+
+// ══════════════════════════════════════════════
+// AGENDADOR DE FASES (fechar/abrir trades, fechar FA)
+// ══════════════════════════════════════════════
+let _schedLeague = 'ELITE';
+const SCHED_LABELS = { trades_close:'Fechar Trades', trades_open:'Abrir Trades', fa_close:'Fechar Free Agency', fa_open:'Abrir Free Agency' };
+
+async function showScheduler(league) {
+  league = league || appState.currentLeague || 'ELITE';
+  _schedLeague = league;
+  appState.view = 'scheduler';
+  updateBreadcrumb();
+  const container = document.getElementById('mainContainer');
+  const back = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
+  container.innerHTML = `
+    <div class="mb-4">
+      <button class="btn btn-back me-2" onclick="${back}"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <span class="text-light-gray" style="font-size:14px;font-weight:600">Agendador de Fases — ${escapeHtml(league)}</span>
+    </div>
+    <div class="panel mb-3">
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:12px"><i class="bi bi-info-circle me-1"></i>Defina o horário e o sistema executa sozinho (via o cron): fechar/abrir trades e fechar a Free Agency (resolve cada oferta pro maior lance, respeitando prioridade, saldo e o limite de 3). As dispensas já resolvem sozinhas nos 12h.</div>
+      <div id="schedTradesStatus" style="margin-bottom:14px"></div>
+      <div class="row g-2" style="align-items:flex-end">
+        <div class="col-auto"><label class="pun-field-label">Ação</label>
+          <select class="form-select" id="schedType" style="min-width:180px">
+            <option value="trades_close">Fechar Trades</option>
+            <option value="trades_open">Abrir Trades</option>
+            <option value="fa_close">Fechar Free Agency (resolve ofertas)</option>
+            <option value="fa_open">Abrir Free Agency</option>
+          </select>
+        </div>
+        <div class="col-auto"><label class="pun-field-label">Data e hora</label>
+          <input type="datetime-local" class="form-control" id="schedRunAt" style="min-width:220px">
+        </div>
+        <div class="col-auto"><button class="btn-orange" onclick="createSchedEvent()"><i class="bi bi-plus-lg me-1"></i>Agendar</button></div>
+      </div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center" style="margin-bottom:10px">
+      <div class="text-light-gray" style="font-size:13px;font-weight:600">Eventos</div>
+      <button class="btn btn-sm btn-outline-secondary" onclick="runSchedDue()"><i class="bi bi-play-fill"></i> Rodar vencidos agora</button>
+    </div>
+    <div id="schedList"><div class="text-center py-4"><div class="spinner-border" style="color:var(--red)"></div></div></div>`;
+  loadSchedEvents();
+}
+
+async function loadSchedEvents() {
+  const box = document.getElementById('schedList');
+  try {
+    const d = await api(`scheduler.php?league=${encodeURIComponent(_schedLeague)}`);
+    const on = Number(d.trades_enabled) === 1;
+    document.getElementById('schedTradesStatus').innerHTML =
+      `Trades agora: <span class="badge ${on?'bg-success':'bg-danger'}">${on?'Abertas':'Fechadas'}</span>`;
+    const ev = d.events || [];
+    if (!ev.length) { box.innerHTML = '<div class="alert alert-info">Nenhum evento agendado.</div>'; return; }
+    box.innerHTML = ev.map(e => {
+      const label = SCHED_LABELS[e.type] || e.type;
+      const when = (e.run_at || '').replace('T', ' ').slice(0, 16);
+      let st, right = '';
+      if (e.status === 'pending') {
+        const sl = Number(e.seconds_left);
+        const tag = sl > 0 ? `em ${Math.floor(sl/3600)}h${Math.floor((sl%3600)/60)}m` : 'vencido (aguardando cron)';
+        st = `<span class="badge bg-warning text-dark">Agendado</span> <span style="font-size:11px;color:var(--text-3)">${tag}</span>`;
+        right = `<button class="btn btn-sm btn-outline-danger" onclick="cancelSchedEvent(${e.id})">Cancelar</button>`;
+      } else if (e.status === 'done') {
+        st = `<span class="badge bg-success">Executado</span> <span style="font-size:11px;color:var(--text-3)">${escapeHtml(e.result||'')}</span>`;
+      } else if (e.status === 'failed') {
+        st = `<span class="badge bg-danger">Falhou</span> <span style="font-size:11px;color:var(--text-3)">${escapeHtml(e.result||'')}</span>`;
+      } else {
+        st = `<span class="badge bg-secondary">Cancelado</span>`;
+      }
+      return `<div class="pun-card mb-2" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div><div style="font-weight:600;color:var(--text)">${label}</div><div style="font-size:12px;color:var(--text-3)"><i class="bi bi-calendar-event me-1"></i>${when}</div></div>
+        <div style="margin-left:auto;text-align:right">${st}</div>
+        <div>${right}</div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    box.innerHTML = `<div class="alert alert-danger">Erro: ${escapeHtml(e.error || 'Desconhecido')}</div>`;
+  }
+}
+
+async function createSchedEvent() {
+  const type = document.getElementById('schedType').value;
+  const runAt = document.getElementById('schedRunAt').value;
+  if (!runAt) { showAlert('warning', 'Escolha a data e hora.'); return; }
+  try {
+    await api('scheduler.php', { method: 'POST', body: JSON.stringify({ action: 'create', league: _schedLeague, type, run_at: runAt }) });
+    showAlert('success', 'Evento agendado.');
+    loadSchedEvents();
+  } catch (e) { showAlert('danger', e.error || 'Erro ao agendar'); }
+}
+
+async function cancelSchedEvent(id) {
+  if (!confirm('Cancelar este evento agendado?')) return;
+  try { await api('scheduler.php', { method: 'POST', body: JSON.stringify({ action: 'cancel', id }) }); loadSchedEvents(); }
+  catch (e) { showAlert('danger', e.error || 'Erro'); }
+}
+
+async function runSchedDue() {
+  try {
+    const d = await api('scheduler.php', { method: 'POST', body: JSON.stringify({ action: 'run_due' }) });
+    showAlert('success', `Executados: ${d.done||0} · falhas: ${d.failed||0}`);
+    loadSchedEvents();
+  } catch (e) { showAlert('danger', e.error || 'Erro'); }
+}
+
+// ══════════════════════════════════════════════
+// PRÊMIOS ESTENDIDOS (Finals MVP, All-NBA, All-Defensive)
+// ══════════════════════════════════════════════
+let _extLeague = 'ELITE', _extSeasons = [], _extTeams = [], _extSeasonId = null;
+
+async function showExtendedAwards(league) {
+  league = league || appState.currentLeague || 'ELITE';
+  _extLeague = league;
+  appState.view = 'extawards';
+  updateBreadcrumb();
+  const container = document.getElementById('mainContainer');
+  const back = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
+  container.innerHTML = `
+    <div class="mb-4">
+      <button class="btn btn-back me-2" onclick="${back}"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <span class="text-light-gray" style="font-size:14px;font-weight:600">Prêmios Estendidos — ${escapeHtml(league)}</span>
+    </div>
+    <div class="panel mb-3">
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:12px"><i class="bi bi-info-circle me-1"></i>Finals MVP, All-NBA (1º/2º/3º) e All-Defensive (1º/2º). Cada bônus vale <b>só na temporada seguinte</b>, somando ao salário base no cap (ELITE). Preencha time + jogador em cada vaga.</div>
+      <div style="max-width:360px">
+        <label class="pun-field-label">Temporada</label>
+        <select class="form-select" id="extSeasonSel" onchange="loadExtendedAwards()"></select>
+      </div>
+    </div>
+    <div id="extContent"><div class="text-center py-4"><div class="spinner-border" style="color:var(--red)"></div></div></div>`;
+  try {
+    const data = await api(`extended-awards.php?league=${encodeURIComponent(league)}`);
+    _extSeasons = data.seasons || []; _extTeams = data.teams || [];
+    const sel = document.getElementById('extSeasonSel');
+    sel.innerHTML = _extSeasons.map(s => `<option value="${s.id}">${escapeHtml(s.year || ('T' + s.season_number))} (T${s.season_number})</option>`).join('');
+    if (_extSeasons.length) loadExtendedAwards();
+    else document.getElementById('extContent').innerHTML = '<div class="alert alert-info">Nenhuma temporada nesta liga.</div>';
+  } catch (e) {
+    document.getElementById('extContent').innerHTML = `<div class="alert alert-danger">Erro: ${escapeHtml(e.error || 'Desconhecido')}</div>`;
+  }
+}
+
+async function loadExtendedAwards() {
+  const seasonId = document.getElementById('extSeasonSel').value;
+  _extSeasonId = seasonId;
+  const box = document.getElementById('extContent');
+  box.innerHTML = '<div class="text-center py-4"><div class="spinner-border" style="color:var(--red)"></div></div>';
+  let existing = [];
+  try { const d = await api(`extended-awards.php?league=${encodeURIComponent(_extLeague)}&season_id=${seasonId}`); existing = d.awards || []; } catch (e) {}
+  const byType = {};
+  existing.forEach(a => { (byType[a.award_type] ||= []).push(a); });
+  const teamOpts = sel => `<option value="">— time —</option>` + _extTeams.map(t => `<option value="${t.id}" ${String(sel) === String(t.id) ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('');
+  const row = (type, idx) => {
+    const ex = (byType[type] || [])[idx] || {};
+    return `<div class="ext-row" data-type="${type}" style="display:flex;gap:8px;margin-bottom:6px">
+      <select class="form-select form-select-sm ext-team" style="max-width:230px">${teamOpts(ex.team_id)}</select>
+      <input class="form-control form-control-sm ext-player" placeholder="Nome do jogador" value="${escapeHtml(ex.player_name || '')}">
+    </div>`;
+  };
+  const section = (title, type, n) => `
+    <div class="panel mb-3">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">${title}</div>
+      ${Array.from({ length: n }, (_, i) => row(type, i)).join('')}
+    </div>`;
+  box.innerHTML = `
+    ${section('🏆 Finals MVP <span style="color:var(--text-3);font-weight:400;font-size:11px">(+3M)</span>', 'finals_mvp', 1)}
+    ${section('All-NBA — 1º Time <span style="color:var(--text-3);font-weight:400;font-size:11px">(+3M · 5 jogadores)</span>', 'all_nba_1', 5)}
+    ${section('All-NBA — 2º Time <span style="color:var(--text-3);font-weight:400;font-size:11px">(+2M · 5 jogadores)</span>', 'all_nba_2', 5)}
+    ${section('All-NBA — 3º Time <span style="color:var(--text-3);font-weight:400;font-size:11px">(+1M · 5 jogadores)</span>', 'all_nba_3', 5)}
+    ${section('All-Defensive — 1º Time <span style="color:var(--text-3);font-weight:400;font-size:11px">(+2M · 5 jogadores)</span>', 'all_def_1', 5)}
+    ${section('All-Defensive — 2º Time <span style="color:var(--text-3);font-weight:400;font-size:11px">(+1M · 5 jogadores)</span>', 'all_def_2', 5)}
+    <button class="btn-orange" onclick="saveExtendedAwards()"><i class="bi bi-save me-1"></i>Salvar prêmios estendidos</button>`;
+}
+
+async function saveExtendedAwards() {
+  const awards = [...document.querySelectorAll('.ext-row')]
+    .map(r => ({ award_type: r.dataset.type, team_id: r.querySelector('.ext-team').value, player_name: r.querySelector('.ext-player').value.trim() }))
+    .filter(a => a.team_id && a.player_name);
+  try {
+    const d = await api('extended-awards.php', { method: 'POST', body: JSON.stringify({ season_id: _extSeasonId, awards }) });
+    showAlert('success', `Prêmios estendidos salvos (${d.saved} registro${d.saved === 1 ? '' : 's'}).`);
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro ao salvar prêmios');
+  }
+}
 
 async function showRegistroPontuacao(league) {
   league = league || appState.currentLeague || 'ELITE';
@@ -5834,7 +5049,7 @@ async function _regPtsSave(seasonId, league) {
   try {
     await api('history-points.php', {
       method: 'POST',
-      body: JSON.stringify({ action: 'save_season_points', season_id: seasonId, league, team_points: teamPoints })
+      body: JSON.stringify({ action: 'save_season_points', season_id: seasonId, league, team_points: teamPoints, series: collectPtsSeries(String(seasonId)) })
     });
     showAlert('success', 'Pontuação registrada com sucesso!');
     showRegistroPontuacao(league);

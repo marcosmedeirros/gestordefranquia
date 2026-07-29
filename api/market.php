@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/helpers.php';
 requireAuth();
 
 $user   = getUserSession();
@@ -122,7 +123,7 @@ try {
             $row = $stmt->fetch();
             if (!$row) { http_response_code(404); echo json_encode(['error' => 'Post não encontrado']); exit; }
 
-            $isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
+            $isAdmin = hasAdminAccess($pdo, (int)$user['id']);
             if (!$isAdmin && (int)$row['user_id'] !== (int)$user['id']) {
                 http_response_code(403); echo json_encode(['error' => 'Sem permissão']); exit;
             }

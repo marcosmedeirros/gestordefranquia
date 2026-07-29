@@ -13,7 +13,6 @@ $team = $stmtTeam->fetch();
 
 $isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 $userLeague = strtoupper($team['league'] ?? $user['league'] ?? 'ELITE');
-$currentTeamId = (int)($team['id'] ?? 0);
 $currentSeason = null;
 $currentSeasonId = null;
 $currentSeasonYear = (int)date('Y');
@@ -66,14 +65,18 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             --panel-3:    #1c1c21;
             --border:     rgba(255,255,255,.06);
             --border-md:  rgba(255,255,255,.10);
+            --border-strong: rgba(255,255,255,.10);
             --text:       #f0f0f3;
             --text-2:     #868690;
             --text-3:     #7d7d85;
+            --green:      #22c55e;
             --amber:      #f59e0b;
+            --blue:       #3b82f6;
             --sidebar-w:  260px;
             --font:       'Montserrat', sans-serif;
             --radius:     14px;
             --radius-sm:  10px;
+            --radius-xs:  6px;
             --ease:       cubic-bezier(.2,.8,.2,1);
             --t:          200ms;
         }
@@ -85,6 +88,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             --panel-3: #e9edf4;
             --border: #e3e6ee;
             --border-md: #d7dbe6;
+            --border-strong: #d7dbe6;
             --text: #111217;
             --text-2: #5b6270;
             --text-3: #657080;
@@ -190,10 +194,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .rk-legenda { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 11px;
             color: var(--text-3); margin-bottom: 12px; }
         .rank-pos.bronze { color: #cd7c4a; font-size: 15px; }
-        .rank-shift { display: inline-flex; align-items: center; margin-left: 8px; font-size: 10px; font-weight: 700; }
-        .rank-shift.up { color: #22c55e; }
-        .rank-shift.down { color: #ef4444; }
-        
+
         /* Destaque Time Atual */
         .row-me { background: var(--red-soft) !important; }
         .row-me td { border-bottom-color: color-mix(in srgb, var(--red) 10%, transparent); }
@@ -251,25 +252,15 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .pts-bar-wrap { width: 80px; height: 5px; background: var(--panel-3); border-radius: 3px; flex-shrink: 0; }
         .pts-bar { height: 5px; border-radius: 3px; background: var(--red); transition: width .4s var(--ease); }
         .pts-val { font-size: 13px; font-weight: 800; color: var(--red); min-width: 42px; text-align: right; flex-shrink: 0; }
-        .pts-empty { padding: 40px 20px; text-align: center; color: var(--text-3); font-size: 13px; }
+        .pts-empty { padding: 24px 16px; text-align: center; color: var(--text-3); }
+        .pts-empty i { font-size: 28px; display: block; margin-bottom: 8px; }
+        .pts-empty p { font-size: 12px; margin: 0; }
         
         @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
         .ranking-panel { animation: fadeUp .35s var(--ease) both; }
 
         /* ── Light theme overrides ───────────────────── */
-        :root[data-theme="light"] {
-            --bg:         #f4f6fb;
-            --panel:      #ffffff;
-            --panel-2:    #f0f2f8;
-            --panel-3:    #e8ebf4;
-            --border:     rgba(15,23,42,.09);
-            --border-md:  rgba(15,23,42,.14);
-            --border-red: color-mix(in srgb, var(--red) 20%, transparent);
-            --text:       #111217;
-            --text-2:     #5b6270;
-            --text-3:     #657080;
-        }
         [data-theme="light"] body { background: var(--bg); color: var(--text); }
         [data-theme="light"] .modal-content { background: var(--panel) !important; color: var(--text) !important; border-color: var(--border-md) !important; }
         [data-theme="light"] .modal-header { background: var(--panel-2) !important; border-color: var(--border) !important; }
@@ -306,27 +297,18 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             .m-table th, .m-table td { padding: 12px; }
             .dash-hero, .content { padding-left: 16px; padding-right: 16px; }
             .dash-hero { padding-top: 18px; }
-            .podium { gap: 8px; }
-            .podium-item { max-width: 130px; }
-            .podium-logo { width: 40px; height: 40px; }
             .hide-mobile { display: none !important; }
         }
         @media (max-width: 600px) {
             .m-table th, .m-table td { padding: 10px 12px; font-size: 12px; }
             .rank-pos { font-size: 12px; }
             .rank-pos.gold, .rank-pos.silver, .rank-pos.bronze { font-size: 13px; }
-            .rank-shift { font-size: 9px; margin-left: 6px; }
             .team-name-cell { font-size: 13px; }
             .team-gm-cell { font-size: 10px; }
             .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         }
-        @media (max-width: 480px) {
-            .podium { display: none; }
-            .league-tabs { gap: 4px; }
-            .league-tab { padding: 6px 12px; font-size: 11px; }
-        }
     input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
-     (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
@@ -501,15 +483,16 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     if (sbOverlay) sbOverlay.addEventListener('click', closeSidebar);
 
     /* ── Lógica de Rankings ── */
-    let userLeague = "<?= htmlspecialchars($user['league'] ?? 'ELITE') ?>".toUpperCase();
+    let userLeague = "<?= htmlspecialchars($userLeague) ?>".toUpperCase();
     if (userLeague.includes("?=")) userLeague = "ELITE"; // Fallback para o modo de preview
-    
+
     const currentTeamId = parseInt("<?= (int)($team['id'] ?? 0) ?>", 10) || 0;
     let currentLeague = userLeague;
     let currentRanking = [];
     let comparadoCom = {};
+    let _rankingRequestSeq = 0;
 
-    const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const esc = s => (s || '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
     /**
      * Seta de variação de posição. rank_delta positivo = subiu (a posição
@@ -534,6 +517,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     }
 
     async function loadRanking(league = userLeague) {
+        const mySeq = ++_rankingRequestSeq;
         currentLeague = league.toUpperCase();
         updateActiveButton(currentLeague);
 
@@ -547,7 +531,11 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         try {
             const response = await fetch(`/api/history-points.php?action=get_ranking&league=${encodeURIComponent(currentLeague)}`);
             const data = await response.json();
-            
+
+            // Uma requisição mais nova já foi disparada (ex.: clique rápido trocando de liga) —
+            // aborta silenciosamente para não sobrescrever o estado com uma resposta desatualizada.
+            if (mySeq !== _rankingRequestSeq) return;
+
             if (!data.success) throw new Error(data.error);
 
             const ranking = data.ranking[currentLeague] || [];
@@ -556,9 +544,11 @@ $seasonDisplayYear = (string)$currentSeasonYear;
 
             if (ranking.length === 0) {
                 container.innerHTML = `
-                    <div style="text-align:center; padding: 40px; color: var(--text-3); background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);">
-                        <i class="bi bi-bar-chart" style="font-size:24px; display:block; margin-bottom:8px"></i>
-                        Nenhum dado de ranking disponível ainda para a liga ${currentLeague}.
+                    <div class="table-card">
+                        <div class="pts-empty">
+                            <i class="bi bi-bar-chart"></i>
+                            <p>Nenhum dado de ranking disponível ainda para a liga ${currentLeague}.</p>
+                        </div>
                     </div>`;
                 return;
             }
@@ -588,8 +578,8 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                         </div>
                     </td>
                     <td>
-                        <span class="team-name-cell">${team.team_name}</span>
-                        ${team.owner_name ? `<span class="team-gm-cell">GM: ${team.owner_name}</span>` : ''}
+                        <span class="team-name-cell">${esc(team.team_name)}</span>
+                        ${team.owner_name ? `<span class="team-gm-cell">GM: ${esc(team.owner_name)}</span>` : ''}
                     </td>
                     <td class="hide-mobile"><span class="league-badge">${team.league}</span></td>
                     <td style="text-align: center; color: var(--text-2); font-weight: 600;">${team.total_titles || 0}</td>
@@ -600,7 +590,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                         <button class="hbadge" style="padding:4px 8px;font-size:11px;gap:4px"
                             data-bs-toggle="modal" data-bs-target="#teamLogModal"
                             data-team-id="${team.team_id}"
-                            data-team-name="${(team.team_name || '').replace(/"/g,'&quot;')}">
+                            data-team-name="${esc(team.team_name)}">
                             <i class="bi bi-journal-text"></i>
                         </button>
                     </td>
@@ -637,8 +627,9 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                     </div>
                 </div>`;
         } catch (e) {
+            if (mySeq !== _rankingRequestSeq) return; // idem: resposta desatualizada, ignora
             console.error(e);
-            container.innerHTML = `<div style="color: #ef4444; padding: 20px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px;">Erro ao carregar ranking: ${e.message || 'Desconhecido'}</div>`;
+            container.innerHTML = `<div style="color: #ef4444; padding: 20px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px;">Erro ao carregar ranking: ${esc(e.message || 'Desconhecido')}</div>`;
         }
     }
 
@@ -748,7 +739,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 return true;
             });
             if (!filtered.length) {
-                ptsHistoryBody.innerHTML = '<div class="pts-empty"><i class="bi bi-inbox" style="font-size:28px;display:block;margin-bottom:8px"></i>Nenhuma pontuação registrada ainda.</div>';
+                ptsHistoryBody.innerHTML = '<div class="pts-empty"><i class="bi bi-inbox"></i><p>Nenhuma pontuação registrada ainda.</p></div>';
                 return;
             }
 
@@ -773,7 +764,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                     return `
                     <div class="pts-row">
                         <div class="pts-rank ${rankCls}">${ti + 1}</div>
-                        <div class="pts-team">${t.team_name}</div>
+                        <div class="pts-team">${esc(t.team_name)}</div>
                         ${bkd}
                         <div class="pts-bar-wrap"><div class="pts-bar" style="width:${barW}%"></div></div>
                         <div class="pts-val">${t.points}</div>
@@ -791,7 +782,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             });
             ptsHistoryBody.innerHTML = html;
         } catch (e) {
-            ptsHistoryBody.innerHTML = `<div class="pts-empty" style="color:#ef4444"><i class="bi bi-exclamation-circle" style="font-size:24px;display:block;margin-bottom:8px"></i>${e.message}</div>`;
+            ptsHistoryBody.innerHTML = `<div class="pts-empty" style="color:#ef4444"><i class="bi bi-exclamation-circle"></i><p>${esc(e.message)}</p></div>`;
         }
     }
 
@@ -821,7 +812,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 return true;
             });
             if (!filtered.length) {
-                teamLogBody.innerHTML = '<div class="pts-empty"><i class="bi bi-inbox" style="font-size:28px;display:block;margin-bottom:8px"></i>Nenhuma temporada encontrada.</div>';
+                teamLogBody.innerHTML = '<div class="pts-empty"><i class="bi bi-inbox"></i><p>Nenhuma temporada encontrada.</p></div>';
                 return;
             }
 
@@ -850,7 +841,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             });
             teamLogBody.innerHTML = html;
         } catch (e) {
-            teamLogBody.innerHTML = `<div class="pts-empty" style="color:#ef4444"><i class="bi bi-exclamation-circle" style="font-size:24px;display:block;margin-bottom:8px"></i>${e.message}</div>`;
+            teamLogBody.innerHTML = `<div class="pts-empty" style="color:#ef4444"><i class="bi bi-exclamation-circle"></i><p>${esc(e.message)}</p></div>`;
         }
     }
 
@@ -885,7 +876,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             rows.forEach(row => {
                 editBody.innerHTML += `
                 <tr data-team-id="${row.team_id}">
-                    <td style="font-weight: 600; font-size: 13px;">${row.team_name}</td>
+                    <td style="font-weight: 600; font-size: 13px;">${esc(row.team_name)}</td>
                     <td><input type="number" class="minimal-input js-edit-titles" value="${row.total_titles || 0}" min="0"></td>
                     <td><input type="number" class="minimal-input js-edit-points" value="${row.total_points || 0}" min="0"></td>
                 </tr>`;

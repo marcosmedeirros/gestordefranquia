@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/helpers.php';
 requireAuth();
 
 $user = getUserSession();
@@ -237,8 +238,9 @@ try {
       padding: 28px 28px 0;
       display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 14px;
     }
-    .page-hero-title { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.2; }
-    .page-hero-sub { font-size: 13px; color: var(--text); margin-top: 4px; }
+    .page-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
+    .page-hero-title { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1.1; }
+    .page-hero-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
     .page-hero-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
     .content { padding: 24px 28px 40px; }
@@ -328,15 +330,14 @@ try {
     }
     .selected-pick-info { flex: 1; min-width: 180px; }
     .selected-pick-actions { display: flex; gap: 8px; align-items: center; }
-    .pick-protection-select {
-      background: #fff; color: #000; border: 1px solid var(--red);
-      border-radius: 6px; padding: 6px 8px; min-width: 130px; font-size: 12px;
-    }
     .pick-empty-state {
       text-align: center; padding: 12px;
       background: var(--panel-2); border: 1px dashed var(--border);
       border-radius: 8px; color: var(--text-2); font-size: 13px;
     }
+    .empty { text-align: center; color: var(--text-3); padding: 24px 16px; }
+    .empty i { font-size: 28px; display: block; margin-bottom: 8px; }
+    .empty p { font-size: 12px; margin: 0; }
 
     /* Reaction chips */
     .reaction-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -376,29 +377,6 @@ try {
     .cap-card {
       background: var(--panel-2); border: 1px solid var(--border);
       border-radius: var(--radius-sm); padding: 14px;
-    }
-
-    /* ── Trade List cards ── */
-    .tl-player-card {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 16px; border-bottom: 1px solid var(--border); gap: 12px;
-      transition: background var(--t) var(--ease);
-    }
-    .tl-player-card:last-child { border-bottom: none; }
-    .tl-player-card:hover { background: var(--panel-2); }
-    .tl-player-name { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-    .tl-player-meta { font-size: 12px; color: var(--text-2); line-height: 1.5; }
-    .tl-team-chip {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: var(--panel-3); border: 1px solid var(--border);
-      border-radius: 20px; padding: 4px 12px;
-      font-size: 11px; font-weight: 500; color: var(--text-2);
-      white-space: nowrap; flex-shrink: 0;
-    }
-    .tl-team-badge { font-size: 10px; font-weight: 700; color: var(--red); }
-    @media (max-width: 576px) {
-      .tl-player-card { flex-direction: column; align-items: flex-start; gap: 8px; }
-      .tl-team-chip { align-self: flex-start; }
     }
 
     /* Trade cards */
@@ -469,11 +447,12 @@ try {
       <!-- Page hero -->
       <div class="page-hero">
         <div>
+          <div class="page-hero-eyebrow">Liga · Trades</div>
           <h1 class="page-hero-title"><i class="bi bi-arrow-left-right me-2" style="color:var(--red)"></i>Trades</h1>
           <p class="page-hero-sub">Gerencie e acompanhe todas as trocas da sua liga</p>
         </div>
         <div class="page-hero-actions">
-          <span class="tag gray"><?= $tradeCount ?>/<?= $maxTrades ?> trocas usadas</span>
+          <span class="tag <?= $tradeCount >= $maxTrades ? 'red' : 'gray' ?>"><?= $tradeCount ?>/<?= $maxTrades ?> trocas usadas</span>
           <?php if ($tradesEnabled == 0): ?>
             <button class="btn-r secondary" disabled><i class="bi bi-lock-fill"></i>Bloqueadas</button>
           <?php elseif ($tradeCount >= $maxTrades): ?>
@@ -750,7 +729,7 @@ try {
     // Theme
     (function(){
       const key = 'fba-theme';
-      const themeBtn = document.querySelector('[data-theme-toggle]');
+      const themeBtn = document.getElementById('themeToggle');
       const apply = (t) => {
         if (t === 'light') {
           document.documentElement.setAttribute('data-theme','light');
