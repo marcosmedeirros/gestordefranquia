@@ -83,10 +83,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .icon-btn{width:34px;height:34px;border-radius:10px;background:transparent;border:1px solid var(--border);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;text-decoration:none;transition:all .2s}
 .icon-btn:hover{background:var(--red-soft);border-color:var(--red);color:var(--red)}
 .content{max-width:960px;margin:0 auto;padding:24px 16px 80px;width:100%}
-.hero{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px}
-.hero-title{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;display:flex;align-items:center;gap:10px}
-.hero-title i{color:var(--red)}
-.hero-sub{font-size:13px;color:var(--text-2);margin-top:6px;line-height:1.5}
+/* Cabeçalho padrão do site (mesmo de trades.php) — plano, sem card.
+   Fica dentro de .content, então já herda o max-width/padding lateral da coluna. */
+.page-hero{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:24px}
+.page-hero-eyebrow{font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--red);margin-bottom:4px}
+.page-hero-title{font-size:26px;font-weight:800;color:var(--text);line-height:1.1}
+.page-hero-sub{font-size:13px;color:var(--text-2);margin-top:4px;line-height:1.5}
+.page-hero-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .section-title{font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-2);margin:22px 0 12px;display:flex;align-items:center;gap:8px}
 .section-title i{color:var(--red)}
 .info-hint{color:var(--text-3);font-size:12px;cursor:help;margin-left:4px}
@@ -280,6 +283,7 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
   .main { margin-left: 0; width: 100%; padding-top: 54px; }
   .topbar { display: flex; }
   .content { padding-left: 16px; padding-right: 16px; }
+  .page-hero-title { font-size: 18px; }
 }
 /* selo de swap: pick que veio de outro time */
 .via-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:800;letter-spacing:.5px;padding:2px 7px;border-radius:999px;background:rgba(168,85,247,.14);border:1px solid rgba(168,85,247,.38);color:#a855f7;text-transform:uppercase;white-space:nowrap;flex-shrink:0}
@@ -396,11 +400,12 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
 <main class="main">
  <div class="content">
 
-  <div class="hero bc-off">
-    <div class="hero-title"><i class="bi bi-shuffle"></i> Loteria do Draft 3-2-1</div>
-    <div class="hero-sub">Modelo anti-tanking (ELITE, NEXT e RISE): os 16 times fora do playoff entram em 4 grupos com
-    chances diferentes — o pior time deixa de ser o favorito à Pick 1. A ordem é sorteada de uma vez no servidor e você
-    revela pick por pick no clique. Os times do playoff (8 de cada conferência) ficam travados no fim da ordem.</div>
+  <div class="page-hero bc-off">
+    <div>
+      <div class="page-hero-eyebrow">Liga · Loteria</div>
+      <h1 class="page-hero-title"><i class="bi bi-shuffle" style="color:var(--red);margin-right:8px"></i>Loteria do Draft</h1>
+      <p class="page-hero-sub">Modelo 3-2-1 anti-tanking: os 16 times fora do playoff disputam as primeiras picks em 4 grupos com chances diferentes.</p>
+    </div>
   </div>
 
   <?php if (!$canRunLottery): ?>
@@ -550,6 +555,12 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
       <summary><i class="bi bi-shield-exclamation"></i> Piso de proteção</summary>
       <div class="rules-body">Os 3 piores times não podem cair além da Pick 12; os demais times da loteria podem cair
       até a Pick 16. Se o sorteio esbarrar nessa trava, o ajuste é aplicado e aparece listado.</div>
+    </details>
+    <details>
+      <summary><i class="bi bi-shuffle"></i> Como o sorteio e a revelação acontecem</summary>
+      <div class="rules-body">O modelo 3-2-1 anti-tanking vale para as três ligas (ELITE, NEXT e RISE): o pior time
+      deixa de ser o favorito à Pick 1. A ordem é sorteada de uma vez no servidor e você revela pick por pick no clique.
+      Os times do playoff (8 de cada conferência) ficam travados no fim da ordem.</div>
     </details>
   </div>
  </div>

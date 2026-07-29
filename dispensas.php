@@ -82,6 +82,7 @@ a{color:inherit;text-decoration:none}
   .menu-btn{display:flex}
   .topbar{display:flex}
   .top .menu-btn{display:none}
+  .page-hero-title{font-size:18px}
 }
 
 /* ── Conteúdo da página ───────────────────────────────────────── */
@@ -94,10 +95,12 @@ a{color:inherit;text-decoration:none}
 .right{margin-left:auto;display:flex;gap:8px}
 .gbtn{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:11px;background:var(--panel);border:1px solid var(--border);color:var(--text-2);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:var(--t)}
 .gbtn:hover{border-color:var(--border-md);color:var(--text)}
-.hero .kicker{font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--red);margin-bottom:4px}
-.hero h1{font-size:26px;font-weight:800;line-height:1.1}
-.hero .lead{font-size:13px;color:var(--text-2);margin-top:8px;max-width:680px}
-.mine-bid{margin-top:14px;display:inline-flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 14px;font-size:13px}
+.page-hero{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px}
+.page-hero-eyebrow{font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--red);margin-bottom:4px}
+.page-hero-title{font-size:26px;font-weight:800;color:var(--text);line-height:1.1}
+.page-hero-sub{font-size:13px;color:var(--text-2);margin-top:4px;max-width:680px}
+.page-hero-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mine-bid{display:inline-flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 14px;font-size:13px}
 .mine-bid b{color:var(--red);font-size:16px}
 .section{font-size:14px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-2);margin:26px 0 14px;display:flex;align-items:center;gap:9px}
 .section i{color:var(--red)}
@@ -167,11 +170,16 @@ a{color:inherit;text-decoration:none}
     </div>
   </div>
 
-  <div class="hero">
-    <div class="kicker">FBA Elite · <span id="waiverHoursKicker">12h</span> de janela</div>
-    <h1>Dispensas</h1>
-    <p class="lead">Todo jogador dispensado na ELITE fica <b><span id="waiverHoursLead">12h</span> em waiver</b> antes de virar free agent. Nesse período, os times dão <b>lance com o espaço disponível no seu salary cap</b> — ao fim, o jogador vai pro <b>maior lance</b> (desempate: quem deu o lance primeiro) e o salário dele entra no cap do vencedor. Sem lances, cai no free agency.</p>
-    <div class="mine-bid" id="mineBid" style="display:none"><i class="bi bi-wallet2" style="color:var(--red)"></i> Seu lance possível agora: <b id="myBidVal">—</b> de espaço no cap</div>
+  <!-- Page hero -->
+  <div class="page-hero">
+    <div>
+      <div class="page-hero-eyebrow">FBA Elite · <span id="waiverHoursKicker">12h</span> de janela</div>
+      <h1 class="page-hero-title"><i class="bi bi-hourglass-split" style="color:var(--red);margin-right:8px"></i>Dispensas</h1>
+      <p class="page-hero-sub">Todo jogador dispensado na ELITE fica <b><span id="waiverHoursLead">12h</span> em waiver</b> antes de virar free agent. Nesse período, os times dão <b>lance com o espaço disponível no seu salary cap</b> — ao fim, o jogador vai pro <b>maior lance</b> (desempate: quem deu o lance primeiro) e o salário dele entra no cap do vencedor. Sem lances, cai no free agency.</p>
+    </div>
+    <div class="page-hero-actions">
+      <div class="mine-bid" id="mineBid" style="display:none"><i class="bi bi-wallet2" style="color:var(--red)"></i> Seu lance possível agora: <b id="myBidVal">—</b> de espaço no cap</div>
+    </div>
   </div>
 
   <div id="content"><div class="loading"><i class="bi bi-hourglass-split"></i> Carregando dispensas…</div></div>

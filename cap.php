@@ -44,10 +44,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .icon-btn{width:34px;height:34px;border-radius:10px;background:transparent;border:1px solid var(--border);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;text-decoration:none;transition:all .2s}
 .icon-btn:hover{background:var(--red-soft);border-color:var(--red);color:var(--red)}
 .content{max-width:1000px;margin:0 auto;padding:24px 16px 80px;width:100%}
-.hero{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:8px}
-.hero-title{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;display:flex;align-items:center;gap:10px}
-.hero-title i{color:var(--red)}
-.hero-team{font-size:14px;color:var(--text-2);margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.page-hero{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:14px;padding:0 0 4px;margin-bottom:8px}
+.page-hero-eyebrow{font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:var(--red);margin-bottom:4px}
+.page-hero-title{font-size:26px;font-weight:800;color:var(--text);line-height:1.1}
+.page-hero-sub{font-size:13px;color:var(--text-2);margin-top:4px}
+.page-hero-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .league-badge{display:inline-block;background:var(--red-soft);border:1px solid var(--border-red);color:var(--red);border-radius:999px;font-size:10px;font-weight:700;padding:4px 10px;letter-spacing:.5px}
 .status-badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;font-size:11px;font-weight:700;padding:5px 12px}
 .status-badge.ok{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.3)}
@@ -136,8 +137,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   .content{padding:18px 12px 72px}
   .panel{padding:16px 14px}
   .stats-grid{grid-template-columns:repeat(2,1fr)}
-  .hero{padding:18px}
-  .hero-name{font-size:18px}
   .roster-table{font-size:12px}
   .roster-table th:nth-child(2),.roster-table td:nth-child(2){display:none}
 }
@@ -182,6 +181,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   .main { margin-left: 0; width: 100%; padding-top: 54px; }
   .topbar { display: flex; }
   .content { padding-left: 16px; padding-right: 16px; }
+  .page-hero-title { font-size: 18px; }
 }
 <?php include __DIR__ . '/includes/accent-color.php'; ?>
 </style>
@@ -201,9 +201,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 <main class="main">
  <div class="content">
 
-  <div class="hero">
-    <div class="hero-title"><i class="bi bi-cash-stack"></i> Salary Cap</div>
-    <div class="hero-team"><?= htmlspecialchars(trim($team['city'] . ' ' . $team['name'])) ?>
+  <!-- Page hero -->
+  <div class="page-hero">
+    <div>
+      <div class="page-hero-eyebrow">Liga · Salary Cap</div>
+      <h1 class="page-hero-title"><i class="bi bi-cash-stack" style="color:var(--red);margin-right:8px"></i>Salary Cap</h1>
+      <p class="page-hero-sub">Folha salarial, espaço no cap e simulador de trocas do <?= htmlspecialchars(trim($team['city'] . ' ' . $team['name'])) ?></p>
+    </div>
+    <div class="page-hero-actions">
       <span class="league-badge"><?= htmlspecialchars($team['league']) ?></span>
       <span class="status-badge" id="statusBadge" style="display:none"></span>
     </div>
