@@ -68,6 +68,11 @@ $stmt->execute([$user_id]);
 $user = $stmt->fetch() ?: [];
 $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador');
 
+// Liga do proprio usuario ja vem escolhida no formulario de criar leilao —
+// deixar em "Selecione..." obrigava um passo extra e fazia a busca de jogador
+// recusar o termo digitado ate escolher a liga na mao.
+$minhaLiga = strtoupper(trim((string)($team['league'] ?? $user['league'] ?? '')));
+
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -281,7 +286,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
                             <select id="selectLeague" class="form-select">
                                 <option value="">Selecione...</option>
                                 <?php foreach ($leagues as $league): ?>
-                                    <option value="<?= (int)$league['id'] ?>" data-league-name="<?= htmlspecialchars($league['name']) ?>"><?= htmlspecialchars($league['name']) ?></option>
+                                    <option value="<?= (int)$league['id'] ?>" data-league-name="<?= htmlspecialchars($league['name']) ?>"<?= (strtoupper(trim($league['name'])) === $minhaLiga && $minhaLiga !== '') ? ' selected' : '' ?>><?= htmlspecialchars($league['name']) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -445,6 +450,9 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
                 <input type="hidden" id="leilaoIdVerPropostas">
                 <div id="listaPropostasRecebidas" style="padding:20px;max-height:60vh;overflow-y:auto"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
                 <div id="chatComposeBar" style="display:none;flex-direction:column;gap:8px;padding:14px 20px;border-top:1px solid var(--border)">
+                    <button type="button" class="btn btn-success" id="btnFecharLeilao" style="display:none;width:100%">
+                        <i class="bi bi-check2-circle me-1"></i>Fechar leilão e executar a troca escolhida
+                    </button>
                     <button type="button" class="btn-outline-orange" id="btnNovaPropostaChat" style="display:none;width:100%">
                         <i class="bi bi-send-plus me-1"></i>Enviar proposta (jogadores/picks)
                     </button>

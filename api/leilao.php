@@ -401,6 +401,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'aceitar_proposta':
             aceitarProposta($pdo, $body, $team_id, $is_admin);
             break;
+        case 'fechar_leilao':
+            fecharLeilao($pdo, $body, $team_id, $is_admin);
+            break;
         case 'recusar_proposta':
             recusarProposta($pdo, $body, $team_id, $is_admin);
             break;
@@ -416,6 +419,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ========== FUNCOES GET ==========
 
 function listarLeiloesAtivos($pdo, $league_id, $team_id = null) {
+    // Sem cron no projeto: a cada listagem fechamos os leiloes cujos 20min ja
+    // acabaram e que tem uma proposta escolhida (mesmo padrao do waiver).
+    resolverLeiloesExpirados($pdo);
+
     $ovrColumn = playerOvrColumn($pdo);
     // O prazo de 20min só fecha a janela de novas propostas (ver enviarProposta()).
     // Um leilão expirado continua aparecendo pro PRÓPRIO vendedor (pra ele poder
@@ -1237,16 +1244,10 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
         return;
     }
 
-    // Aceitar executa a troca na hora e finaliza o leilao. Sem esta trava, uma
-    // segunda chamada (a UI nao oferece, mas a API aceitava) executaria a troca
-    // de novo: o jogador leiloado passaria para o segundo vencedor sem que os
-    // ativos do primeiro voltassem para ele.
+    // Depois de finalizado a troca ja foi executada — nao da para trocar de
+    // vencedor sem desfazer o que ja mudou de time.
     if (($proposta['leilao_status'] ?? '') === 'finalizado') {
-        echo json_encode(['success' => false, 'error' => 'Este leilao ja foi finalizado — nao da para aceitar outra proposta.']);
-        return;
-    }
-    if (($proposta['status'] ?? '') !== 'pendente') {
-        echo json_encode(['success' => false, 'error' => 'Esta proposta nao esta mais pendente.']);
+        echo json_encode(['success' => false, 'error' => 'Este leilao ja foi fechado — nao da para escolher outra proposta.']);
         return;
     }
 
@@ -1262,15 +1263,115 @@ function aceitarProposta($pdo, $body, $team_id, $is_admin) {
         }
     }
 
+    // Aceitar e uma ESCOLHA PROVISORIA: nada muda de time agora. O vendedor pode
+    // trocar de ideia quantas vezes quiser enquanto o leilao estiver aberto — a
+    // escolha anterior volta para 'recusada' e a ultima escolhida e a que vale.
+    // A troca so acontece em fecharLeilao() (no fim dos 20min ou no botao).
     $pdo->beginTransaction();
-
     try {
-        _executarTrocaLeilao($pdo, $proposta);
+        $pdo->prepare("UPDATE leilao_propostas SET status = 'recusada'
+                       WHERE leilao_id = ? AND status = 'aceita' AND id <> ?")
+            ->execute([$proposta['leilao_id'], $proposta_id]);
+        $pdo->prepare("UPDATE leilao_propostas SET status = 'aceita' WHERE id = ?")
+            ->execute([$proposta_id]);
         $pdo->commit();
-        echo json_encode(['success' => true, 'message' => 'Troca realizada com sucesso']);
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        echo json_encode(['success' => false, 'error' => 'Erro ao processar troca']);
+        echo json_encode([
+            'success' => true,
+            'message' => 'Proposta escolhida. A troca é executada quando o leilão fechar.',
+        ]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('aceitarProposta: ' . $e->getMessage());
+        echo json_encode(['success' => false, 'error' => 'Erro ao escolher a proposta']);
+    }
+}
+
+/**
+ * Fecha o leilao: executa de fato a troca da proposta escolhida (status
+ * 'aceita') e marca o leilao como finalizado. Chamado pelo botao do vendedor/
+ * admin e por resolverLeiloesExpirados() quando os 20min acabam.
+ */
+function fecharLeilao($pdo, $body, $team_id, $is_admin) {
+    $leilao_id = (int)($body['leilao_id'] ?? 0);
+    if (!$leilao_id) {
+        echo json_encode(['success' => false, 'error' => 'ID do leilao nao informado']);
+        return;
+    }
+
+    $stmt = $pdo->prepare("SELECT id, team_id, status FROM leilao_jogadores WHERE id = ?");
+    $stmt->execute([$leilao_id]);
+    $leilao = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$leilao) {
+        echo json_encode(['success' => false, 'error' => 'Leilao nao encontrado']);
+        return;
+    }
+    if ($leilao['status'] === 'finalizado') {
+        echo json_encode(['success' => false, 'error' => 'Este leilao ja foi fechado']);
+        return;
+    }
+    if (!$is_admin && (empty($leilao['team_id']) || $leilao['team_id'] != $team_id)) {
+        echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+        return;
+    }
+
+    $erro = _fecharLeilaoComEscolhida($pdo, $leilao_id);
+    if ($erro !== null) {
+        echo json_encode(['success' => false, 'error' => $erro]);
+        return;
+    }
+    echo json_encode(['success' => true, 'message' => 'Leilao fechado e troca executada.']);
+}
+
+/**
+ * Executa a troca da proposta escolhida de um leilao. Devolve null em caso de
+ * sucesso ou a mensagem de erro. Nao imprime nada — quem chama decide.
+ */
+function _fecharLeilaoComEscolhida($pdo, int $leilao_id): ?string
+{
+    $stmt = $pdo->prepare("SELECT lp.*, l.player_id, l.team_id as leilao_team_id, l.id as leilao_id,
+                                  l.is_temp_player, l.temp_name, l.temp_position, l.temp_age, l.temp_ovr
+                           FROM leilao_propostas lp
+                           JOIN leilao_jogadores l ON lp.leilao_id = l.id
+                           WHERE lp.leilao_id = ? AND lp.status = 'aceita'
+                           ORDER BY lp.id DESC LIMIT 1");
+    $stmt->execute([$leilao_id]);
+    $escolhida = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$escolhida) {
+        return 'Escolha uma proposta antes de fechar o leilao.';
+    }
+
+    $pdo->beginTransaction();
+    try {
+        _executarTrocaLeilao($pdo, $escolhida);
+        $pdo->commit();
+        return null;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('_fecharLeilaoComEscolhida #' . $leilao_id . ': ' . $e->getMessage());
+        return 'Erro ao executar a troca do leilao.';
+    }
+}
+
+/**
+ * Rede de seguranca (o projeto nao tem cron para leilao): fecha sozinho os
+ * leiloes cujos 20min acabaram E que ja tem uma proposta escolhida. Sem escolha,
+ * o leilao continua aberto esperando a decisao do vendedor.
+ */
+function resolverLeiloesExpirados(PDO $pdo): void
+{
+    try {
+        $stmt = $pdo->query("SELECT l.id
+                             FROM leilao_jogadores l
+                             WHERE l.status = 'ativo'
+                               AND l.data_fim IS NOT NULL AND l.data_fim <= NOW()
+                               AND EXISTS (SELECT 1 FROM leilao_propostas p
+                                           WHERE p.leilao_id = l.id AND p.status = 'aceita')");
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $id) {
+            _fecharLeilaoComEscolhida($pdo, (int)$id);
+        }
+    } catch (Throwable $e) {
+        // Best-effort: roda a cada listagem, nao pode derrubar a pagina.
+        error_log('resolverLeiloesExpirados: ' . $e->getMessage());
     }
 }
 

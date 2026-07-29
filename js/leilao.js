@@ -98,16 +98,19 @@ function _renderPropostaCard(p, showActions, leilaoId) {
 
     const borderColor = p.status === 'aceita' ? 'rgba(34,197,94,.3)' : p.status === 'recusada' ? 'rgba(239,68,68,.12)' : 'var(--border)';
 
-    const actionHtml = (showActions && p.status === 'pendente') ? `
+    // "Escolher" (e não "Aceitar"): a troca só acontece ao fechar o leilão, e
+    // até lá o vendedor pode trocar de escolhida — inclusive voltar numa que
+    // ja tinha sido preterida.
+    const actionHtml = showActions ? `
       <div style="display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
         <button onclick="aceitarProposta(${p.id})"
           style="flex:1;padding:9px;background:#22c55e;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">
-          <i class="bi bi-check-lg me-1"></i>Aceitar
+          <i class="bi bi-check-lg me-1"></i>Escolher esta
         </button>
-        <button onclick="recusarProposta(${p.id}, ${leilaoId})"
+        ${p.status === 'pendente' ? `<button onclick="recusarProposta(${p.id}, ${leilaoId})"
           style="flex:1;padding:9px;background:transparent;border:1px solid rgba(239,68,68,.4);border-radius:8px;color:#ef4444;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font)">
           <i class="bi bi-x-lg me-1"></i>Recusar
-        </button>
+        </button>` : ''}
       </div>` : '';
 
     return `
@@ -195,7 +198,7 @@ function _fmtMsgTime(ts) {
   return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-function _renderChatTimeline(messages, leilaoId) {
+function _renderChatTimeline(messages, leilaoId, leilaoAberto = true) {
   if (!messages || !messages.length) {
     return '<p style="text-align:center;color:var(--text-3);font-size:13px;padding:24px 0">Nenhuma mensagem ou proposta ainda.</p>';
   }
@@ -206,12 +209,20 @@ function _renderChatTimeline(messages, leilaoId) {
     const timeLabel = _fmtMsgTime(m.created_at);
 
     if (m.tipo === 'proposal' && m.proposta) {
-      const showActions = (_modalIsOwner || isAdmin) && m.proposta.status === 'pendente';
+      // Enquanto o leilão está aberto o vendedor pode trocar de escolhida
+      // quantas vezes quiser — por isso as ações também aparecem numa proposta
+      // já recusada. Só a que está escolhida agora não mostra "Escolher".
+      const podeDecidir = (_modalIsOwner || isAdmin) && leilaoAberto;
+      const showActions = podeDecidir && m.proposta.status !== 'aceita';
+      const selo = m.proposta.status === 'aceita'
+        ? `<div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:4px;padding:0 4px"><i class="bi bi-check-circle-fill me-1"></i>Escolhida${leilaoAberto ? ' (a troca acontece ao fechar)' : ''}</div>`
+        : '';
       return `
         <div style="display:flex;flex-direction:column;align-items:${align};margin-bottom:14px">
           <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;padding:0 4px">
             <strong style="color:var(--text-2)">${teamLabel}</strong> enviou uma proposta${timeLabel ? ' · ' + timeLabel : ''}
           </div>
+          ${selo}
           <div style="width:100%;max-width:520px">${_renderPropostaCard(m.proposta, showActions, leilaoId)}</div>
         </div>`;
     }
@@ -233,7 +244,8 @@ async function _loadPropostasContent(leilaoId, isOwner) {
   _modalIsOwner = isOwner;
   const container = document.getElementById('listaPropostasRecebidas');
   const composeBar = document.getElementById('chatComposeBar');
-  if (composeBar) composeBar.style.display = userTeamId ? 'flex' : 'none';
+  // Admin sem time também precisa da barra: é dela que sai o botão de fechar.
+  if (composeBar) composeBar.style.display = (userTeamId || isAdmin) ? 'flex' : 'none';
   // Só quem está oferecendo (não o vendedor) manda proposta estruturada —
   // o vendedor aceita/recusa/conversa, não faz oferta pelo próprio jogador.
   const novaPropostaBtn = document.getElementById('btnNovaPropostaChat');
@@ -244,11 +256,49 @@ async function _loadPropostasContent(leilaoId, isOwner) {
   container.innerHTML = '<div style="display:flex;justify-content:center;padding:32px"><div class="spinner-border" style="color:var(--red);width:1.5rem;height:1.5rem" role="status"></div></div>';
   try {
     const data = await _fetchJson(`api/leilao.php?action=listar_mensagens&leilao_id=${leilaoId}`);
-    container.innerHTML = _renderChatTimeline(data.messages || [], leilaoId);
+    const leilaoAberto = data.status !== 'finalizado';
+    container.innerHTML = _renderChatTimeline(data.messages || [], leilaoId, leilaoAberto);
     container.scrollTop = container.scrollHeight;
     _renderPrazoChat(data);
+    _renderBotaoFechar(data, leilaoId, isOwner);
   } catch (e) {
     container.innerHTML = `<p style="color:#ef4444;font-size:13px;text-align:center;padding:20px 0">${_esc(e.message||'Erro ao carregar')}</p>`;
+  }
+}
+
+/**
+ * Botão de fechar o leilão: só para o vendedor (ou admin), só com o leilão
+ * aberto e alguma proposta já escolhida. É ele que de fato executa a troca.
+ */
+function _renderBotaoFechar(data, leilaoId, isOwner) {
+  const btn = document.getElementById('btnFecharLeilao');
+  if (!btn) return;
+  const aberto = data.status !== 'finalizado';
+  const temEscolhida = (data.messages || []).some(m => m.proposta && m.proposta.status === 'aceita');
+  const podeFechar = aberto && temEscolhida && (isOwner || isAdmin);
+  btn.style.display = podeFechar ? '' : 'none';
+  btn.onclick = () => fecharLeilao(leilaoId);
+}
+
+async function fecharLeilao(leilaoId) {
+  if (!confirm('Fechar o leilão agora?\n\nA troca da proposta escolhida será executada e o leilão não poderá mais mudar de vencedor.')) return;
+  const btn = document.getElementById('btnFecharLeilao');
+  if (btn) btn.disabled = true;
+  try {
+    const data = await _fetchJson('api/leilao.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'fechar_leilao', leilao_id: leilaoId })
+    });
+    if (!data.success) { alert('Erro: ' + (data.error || 'Erro desconhecido')); return; }
+    bootstrap.Modal.getInstance(document.getElementById('modalVerPropostas'))?.hide();
+    carregarLeiloesAtivos();
+    carregarPropostasRecebidas();
+    carregarHistoricoLeiloes();
+    if (isAdmin) carregarLeiloesAdmin();
+  } catch (e) {
+    alert('Erro ao fechar o leilão: ' + (e.message || ''));
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -836,23 +886,23 @@ document.getElementById('btnEnviarProposta')?.addEventListener('click', async fu
 // ── Aceitar / Recusar ─────────────────────────────────────────────────────────
 
 async function aceitarProposta(propostaId) {
-  if (!confirm('Aceitar esta proposta? A troca será processada.')) return;
+  if (!confirm('Escolher esta proposta?\n\nNada muda de time agora: você pode trocar a escolha enquanto o leilão estiver aberto. A troca é executada ao fechar o leilão (no fim dos 20min ou no botão "Fechar leilão").')) return;
   try {
     const data = await _fetchJson('api/leilao.php', {
       method: 'POST',
       body: JSON.stringify({ action:'aceitar_proposta', proposta_id:propostaId })
     });
     if (data.success) {
-      bootstrap.Modal.getInstance(document.getElementById('modalVerPropostas'))?.hide();
-      carregarLeiloesAtivos();
-      carregarPropostasRecebidas();
-      carregarHistoricoLeiloes();
-      if (isAdmin) carregarLeiloesAdmin();
+      // O modal fica aberto: a escolha é reversível, então faz sentido continuar
+      // vendo a negociação (e o botão de fechar aparece logo abaixo).
+      await _loadPropostasContent(_modalLeilaoId, _modalIsOwner);
+      carregarLeiloesAtivos(true);
+      carregarPropostasRecebidas(true);
     } else {
       alert('Erro: ' + (data.error || 'Erro desconhecido'));
     }
   } catch (e) {
-    alert('Erro ao aceitar proposta: ' + (e.message || ''));
+    alert('Erro ao escolher proposta: ' + (e.message || ''));
   }
 }
 

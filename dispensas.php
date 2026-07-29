@@ -159,15 +159,6 @@ a{color:inherit;text-decoration:none}
 </header>
 <main class="main">
 <div class="page">
-  <div class="top">
-    <button class="menu-btn" id="menuBtn" aria-label="Abrir menu"><i class="bi bi-list"></i></button>
-    <div class="right">
-      <button class="gbtn" id="adminResolve" style="display:none"><i class="bi bi-hourglass-bottom"></i> Resolver vencidos</button>
-      <button class="gbtn" id="refresh"><i class="bi bi-arrow-clockwise"></i> Atualizar</button>
-      <a href="/dashboard.php" class="gbtn"><i class="bi bi-arrow-left"></i> Voltar</a>
-    </div>
-  </div>
-
   <!-- Page hero -->
   <div class="page-hero">
     <div>
@@ -175,8 +166,13 @@ a{color:inherit;text-decoration:none}
       <h1 class="page-hero-title"><i class="bi bi-hourglass-split" style="color:var(--red);margin-right:8px"></i>Dispensas</h1>
       <p class="page-hero-sub">Todo jogador dispensado na ELITE fica <b><span id="waiverHoursLead">12h</span> em waiver</b> antes de virar free agent. Nesse período, os times dão <b>lance com o espaço disponível no seu salary cap</b> — ao fim, o jogador vai pro <b>maior lance</b> (desempate: quem deu o lance primeiro) e o salário dele entra no cap do vencedor. Sem lances, cai no free agency.</p>
     </div>
-    <div class="page-hero-actions">
+    <div class="page-hero-actions" style="flex-direction:column;align-items:flex-end">
       <div class="mine-bid" id="mineBid" style="display:none"><i class="bi bi-wallet2" style="color:var(--red)"></i> Seu lance possível agora: <b id="myBidVal">—</b> de espaço no cap</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+        <button class="gbtn" id="adminResolve" style="display:none"><i class="bi bi-hourglass-bottom"></i> Resolver vencidos</button>
+        <button class="gbtn" id="refresh"><i class="bi bi-arrow-clockwise"></i> Atualizar</button>
+        <a href="/dashboard.php" class="gbtn"><i class="bi bi-arrow-left"></i> Voltar</a>
+      </div>
     </div>
   </div>
 
