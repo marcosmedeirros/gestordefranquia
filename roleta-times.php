@@ -72,7 +72,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
 /* Roleta */
 .roda-area{display:flex;flex-direction:column;align-items:center;gap:20px}
-.roda-palco{position:relative;width:min(360px,82vw);height:min(360px,82vw)}
+.roda-palco{position:relative;width:min(420px,86vw);height:min(420px,86vw)}
 .roda-ponteiro{position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:0;height:0;z-index:5;
   border-left:14px solid transparent;border-right:14px solid transparent;border-top:22px solid var(--red);
   filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
@@ -81,8 +81,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   transition:transform 4.2s cubic-bezier(.12,.72,.15,1)}
 .rt-fatias{position:absolute;inset:0;border-radius:50%}
 .rt-rotulo{position:absolute;top:50%;left:50%;width:50%;height:2px;transform-origin:0 50%;
-  display:flex;align-items:center;justify-content:flex-end;padding-right:14px}
-.rt-rotulo span{font-size:12px;font-weight:800;color:#fff;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.55)}
+  display:flex;align-items:center;justify-content:flex-end;padding-right:10px}
+.rt-rotulo span{font-weight:800;color:#fff;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.55)}
 .rt-roda-vazia{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   text-align:center;color:var(--text-3);font-size:13px;padding:24px}
 .roda-hub{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:52px;height:52px;border-radius:50%;
@@ -174,13 +174,10 @@ input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(-
               <div class="roda" id="rtRoda"></div>
               <div class="roda-hub"><i class="bi bi-dice-5-fill"></i></div>
             </div>
-            <?php if ($rtIsAdmin): ?>
-              <button class="btn-girar" id="rtGirar" disabled>Carregando...</button>
-            <?php else: ?>
-              <p style="font-size:12px;color:var(--text-3);text-align:center">
-                <i class="bi bi-eye"></i> Acompanhe o sorteio — só a organização gira a roleta.
-              </p>
-            <?php endif; ?>
+            <?php /* Botão visível pra todo mundo — quem não é admin recebe o aviso
+                     do próprio servidor ao clicar (exigirAdmin em api/roleta-times.php),
+                     então não precisa esconder aqui pra proteger nada. */ ?>
+            <button class="btn-girar" id="rtGirar" disabled>Carregando...</button>
           </div>
         </div>
       </div>

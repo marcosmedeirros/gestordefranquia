@@ -103,18 +103,20 @@ function rtRenderRoleta(urna) {
 
   let html = `<div class="rt-fatias" style="background:conic-gradient(from 0deg, ${stops})"></div>`;
 
-  // Com muitas fatias o nome não cabe: até 16 mostra o nome curto, acima disso
-  // a roleta fica só com as cores e o resultado aparece grande embaixo.
-  if (n <= 16) {
-    urna.forEach((t, i) => {
-      const meio = i * ang + ang / 2;
-      // A faixa do rótulo aponta para "leste" na orientação neutra do CSS, mas
-      // o conic-gradient começa no norte — daí os 90° de correção.
-      html += `<div class="rt-rotulo" style="transform:rotate(${meio - 90}deg)">
-                 <span>${_rtEsc(rtNomeCurtoGM(t.gm_name))}</span>
-               </div>`;
-    });
-  }
+  // Sempre mostra o nome de todo mundo (32 fatias inclusive) — o que muda com
+  // mais gente na urna é o tamanho da letra, pra caber sem sobrepor a fatia
+  // vizinha. O rótulo é um risco radial: o "comprimento" do texto vai em
+  // direção ao raio (tem espaço de sobra), quem aperta é a altura da linha
+  // contra o arco entre uma fatia e a outra — por isso a fonte encolhe com n.
+  const fonte = n <= 8 ? 14 : n <= 16 ? 12 : n <= 24 ? 10 : 8.5;
+  urna.forEach((t, i) => {
+    const meio = i * ang + ang / 2;
+    // A faixa do rótulo aponta para "leste" na orientação neutra do CSS, mas
+    // o conic-gradient começa no norte — daí os 90° de correção.
+    html += `<div class="rt-rotulo" style="transform:rotate(${meio - 90}deg)">
+               <span style="font-size:${fonte}px">${_rtEsc(rtNomeCurtoGM(t.gm_name))}</span>
+             </div>`;
+  });
   roda.innerHTML = html;
 }
 
