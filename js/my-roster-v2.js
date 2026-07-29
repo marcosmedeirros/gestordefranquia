@@ -906,6 +906,48 @@ function renderPlayers(players) {
   }
 }
 
+/**
+ * Botoes de acao de um jogador — usados na tabela desktop e nos cards mobile.
+ *
+ * Antes eram 5-6 botoes do Bootstrap (btn-outline-*), cada um com borda
+ * colorida forte: quebravam em 2-2-1 dentro da coluna estreita e deixavam a
+ * linha da tabela com 60-70px so de altura. Agora sai uma fila unica de
+ * icones neutros, com a cor de estado aparecendo so no hover, e um separador
+ * entre as acoes neutras (detalhes/copiar/editar) e as de risco
+ * (troca/dispensar/aposentar).
+ *
+ * As classes de comportamento (btn-details-player, btn-copy-player,
+ * btn-edit-player, btn-toggle-trade, btn-waive-player, btn-retire-player),
+ * os data-attributes e a condicao do "Aposentar" continuam identicos — quem
+ * muda e so a casca visual.
+ *
+ * @param {Object} p          jogador
+ * @param {string} extraClass classes extras no container (usado no mobile)
+ */
+function renderPlayerActions(p, extraClass = '') {
+  const canRetire = Number(p.age) > 35;              // aposentadoria: so 36+
+  const isAvailable = !!p.available_for_trade;       // mesma checagem do badge da linha
+  const tradeLabel = isAvailable
+    ? 'Marcar como indisponível para troca'
+    : 'Marcar como disponível para troca';
+  return `
+      <div class="row-actions ${extraClass}">
+        <button type="button" class="act-btn act-info btn-details-player" data-id="${p.id}"
+                title="Ver detalhes do jogador" aria-label="Ver detalhes do jogador"><i class="bi bi-info-circle"></i></button>
+        <button type="button" class="act-btn btn-copy-player" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}"
+                title="Copiar resumo do jogador" aria-label="Copiar resumo do jogador"><i class="bi bi-clipboard"></i></button>
+        <button type="button" class="act-btn btn-edit-player" data-id="${p.id}"
+                title="Editar jogador" aria-label="Editar jogador"><i class="bi bi-pencil"></i></button>
+        <span class="act-sep" aria-hidden="true"></span>
+        <button type="button" class="act-btn btn-toggle-trade${isAvailable ? ' is-on' : ''}" data-id="${p.id}" data-trade="${p.available_for_trade}"
+                title="${tradeLabel}" aria-label="${tradeLabel}"><i class="bi ${isAvailable ? 'bi-check-circle' : 'bi-x-circle'}"></i></button>
+        <button type="button" class="act-btn act-warn btn-waive-player" data-id="${p.id}" data-name="${p.name}"
+                title="Dispensar jogador" aria-label="Dispensar jogador"><i class="bi bi-hand-thumbs-down"></i></button>
+        ${canRetire ? `<button type="button" class="act-btn act-danger btn-retire-player" data-id="${p.id}" data-name="${p.name}"
+                title="Aposentar jogador" aria-label="Aposentar jogador"><i class="bi bi-box-arrow-right"></i></button>` : ''}
+      </div>`;
+}
+
 function renderPlayersMobileCards(players) {
   const container = document.getElementById('players-mobile-cards');
   if (!container) return;
@@ -917,7 +959,6 @@ function renderPlayersMobileCards(players) {
   }
 
   players.forEach(p => {
-    const canRetire = Number(p.age) > 35;
     const photoUrl = getPlayerPhotoUrl(p);
     const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge franchise-badge">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span class="badge loyal-badge">Leal</span>' : '');
     const tagBadgeMobile = renderPlayerTagBadge(p);
@@ -942,16 +983,7 @@ function renderPlayersMobileCards(players) {
       <div class="mt-2">
         ${p.available_for_trade ? '<span class="badge bg-success">Disponível</span>' : '<span class="badge bg-secondary">Indisp.</span>'}
       </div>
-      <div class="roster-mobile-actions mt-3">
-        <button class="btn btn-outline-info btn-sm btn-details-player" data-id="${p.id}" title="Detalhes"><i class="bi bi-info-circle"></i></button>
-        <button class="btn btn-outline-secondary btn-sm btn-copy-player" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
-        <button class="btn btn-outline-light btn-sm btn-edit-player" data-id="${p.id}" title="Editar"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-outline-warning btn-sm btn-waive-player" data-id="${p.id}" data-name="${p.name}" title="Dispensar"><i class="bi bi-hand-thumbs-down"></i></button>
-        ${canRetire ? `<button class="btn btn-outline-danger btn-sm btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar"><i class="bi bi-box-arrow-right"></i></button>` : ''}
-        <button class="btn btn-sm ${p.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'} btn-toggle-trade" data-id="${p.id}" data-trade="${p.available_for_trade}" title="Disponibilidade para Troca">
-          <i class="bi ${p.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'}"></i>
-        </button>
-      </div>
+${renderPlayerActions(p, 'roster-mobile-actions mt-3')}
     `;
     container.appendChild(card);
   });
@@ -968,7 +1000,6 @@ function renderPlayersTable(players) {
     return;
   }
   players.forEach(p => {
-    const canRetire = Number(p.age) > 35;
     const photoUrl = getPlayerPhotoUrl(p);
     const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge franchise-badge ms-1">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span class="badge loyal-badge ms-1">Leal</span>' : '');
     const tagBadge = renderPlayerTagBadge(p);
@@ -996,16 +1027,7 @@ function renderPlayersTable(players) {
       <td>
         ${p.available_for_trade ? '<span class="badge bg-success">Disponível</span>' : '<span class="badge bg-secondary">Indisp.</span>'}
       </td>
-      <td class="text-end">
-        <button class="btn btn-sm btn-outline-info btn-details-player" data-id="${p.id}" title="Detalhes"><i class="bi bi-info-circle"></i></button>
-        <button class="btn btn-sm btn-outline-secondary btn-copy-player" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
-        <button class="btn btn-sm btn-outline-light btn-edit-player" data-id="${p.id}" title="Editar"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm btn-outline-warning btn-waive-player" data-id="${p.id}" data-name="${p.name}" title="Dispensar"><i class="bi bi-hand-thumbs-down"></i></button>
-        ${canRetire ? `<button class="btn btn-sm btn-outline-danger btn-retire-player" data-id="${p.id}" data-name="${p.name}" title="Aposentar"><i class="bi bi-box-arrow-right"></i></button>` : ''}
-        <button class="btn btn-sm ${p.available_for_trade ? 'btn-outline-success' : 'btn-outline-danger'} btn-toggle-trade" data-id="${p.id}" data-trade="${p.available_for_trade}" title="Disponibilidade para Troca">
-          <i class="bi ${p.available_for_trade ? 'bi-check-circle' : 'bi-x-circle'}"></i>
-        </button>
-      </td>`;
+      <td class="text-end row-actions-cell">${renderPlayerActions(p)}</td>`;
     tbody.appendChild(tr);
   });
   wrapper.style.display = '';

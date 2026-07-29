@@ -395,6 +395,42 @@ if ($teamId) {
         .roster-table tbody tr:hover { background: var(--panel-2); }
         .roster-table tbody tr:last-child td { border-bottom: none; }
 
+        /* ── Coluna de acoes ────────────────────────── */
+        /* Eram 5-6 botoes do Bootstrap com borda colorida forte: quebravam em
+           2-2-1 dentro da coluna estreita e inchavam a altura da linha. Agora
+           e uma fila unica de icones neutros; a cor de estado so aparece no
+           hover, e um separador divide as acoes neutras das de risco. */
+        .roster-table th.actions-col,
+        .roster-table td.row-actions-cell { width: 1px; white-space: nowrap; padding-left: 8px; }
+        .row-actions {
+            display: flex; align-items: center; justify-content: flex-end;
+            flex-wrap: nowrap; gap: 3px; white-space: nowrap;
+        }
+        /* Fio fino separando neutras (detalhes/copiar/editar) das de risco */
+        .row-actions .act-sep {
+            flex: 0 0 auto; width: 1px; height: 18px;
+            background: var(--border-md); margin: 0 4px;
+        }
+        .act-btn {
+            flex: 0 0 auto; width: 32px; height: 32px; padding: 0;
+            display: inline-flex; align-items: center; justify-content: center;
+            background: transparent; border: 1px solid transparent;
+            border-radius: var(--radius-sm); color: var(--text-2);
+            font-size: 14px; line-height: 1; cursor: pointer;
+            transition: background var(--t) var(--ease), color var(--t) var(--ease),
+                        border-color var(--t) var(--ease);
+        }
+        .act-btn i { display: block; pointer-events: none; }
+        .act-btn:hover { background: var(--panel-3); border-color: var(--border-md); color: var(--text); }
+        .act-btn:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
+        /* Cor de estado discreta: so no hover */
+        .act-btn.act-info:hover   { background: rgba(13,202,240,.10);  border-color: rgba(13,202,240,.30);  color: #0dcaf0; }
+        .act-btn.act-warn:hover   { background: rgba(245,158,11,.10);  border-color: rgba(245,158,11,.30);  color: #f59e0b; }
+        .act-btn.act-danger:hover { background: var(--red-soft);       border-color: var(--border-red);     color: var(--red); }
+        /* Troca: verde e estado (disponivel), nao acao destrutiva */
+        .act-btn.btn-toggle-trade.is-on { color: #22c55e; }
+        .act-btn.btn-toggle-trade.is-on:hover { background: rgba(34,197,94,.10); border-color: rgba(34,197,94,.30); color: #22c55e; }
+
         /* ── Roster sections (quinteto JS-generated) ───── */
         .roster-sections { display: flex; flex-direction: column; gap: 1.5rem; }
         .roster-section h5 {
@@ -439,8 +475,9 @@ if ($teamId) {
             border-radius: var(--radius-sm);
             padding: 14px 16px;
         }
-        .roster-mobile-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-        .roster-mobile-actions .btn { flex: 1 1 auto; min-width: 40px; }
+        /* Mesma fila de icones da tabela, so que alinhada a esquerda do card.
+           Aqui pode quebrar linha: em telas de 320px os 6 icones nao cabem. */
+        .roster-mobile-actions { justify-content: flex-start; flex-wrap: wrap; }
 
         /* ── Status/loading area ───────────────────────── */
         #players-status { text-align: center; padding: 32px 0; }
@@ -516,6 +553,9 @@ if ($teamId) {
             .fgrid { grid-template-columns: 1fr 1fr; }
             #players-table-wrapper, #players-grid { display: none !important; }
             .roster-mobile-cards { display: flex !important; flex-direction: column; gap: 10px; }
+            /* Alvo de toque maior no mobile */
+            .act-btn { width: 36px; height: 36px; font-size: 15px; }
+            .row-actions { gap: 6px; }
         }
         @media (min-width: 993px) {
             .roster-mobile-cards { display: none !important; }
@@ -789,7 +829,7 @@ if ($teamId) {
                                 <th data-sort="age"      class="sortable">Idade</th>
                                 <th data-sort="role"     class="sortable">Função</th>
                                 <th>Transferência</th>
-                                <th class="text-end">Ações</th>
+                                <th class="text-end actions-col">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="players-table-body"></tbody>
@@ -1115,6 +1155,6 @@ if ($teamId) {
     document.getElementById('btn-copy-team')?.addEventListener('click', () => _doCopy(_buildSummary('team'), 'Time'));
     document.getElementById('btn-copy-roster')?.addEventListener('click', () => _doCopy(_buildSummary('roster'), 'Elenco'));
 </script>
-<script src="/js/my-roster-v2.js?v=20260722"></script>
+<script src="/js/my-roster-v2.js?v=20260729"></script>
 </body>
 </html>
