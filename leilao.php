@@ -158,6 +158,10 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         .form-label { font-size: 12px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
         .form-check-label { color: var(--text-2); font-size: 13px; }
         .form-check-input:checked { background-color: var(--red); border-color: var(--red); }
+        /* Remove o anel de foco global (--ring, em css/styles.css) especificamente
+           nesta página — nos botões de leilão ele ficava "grudado" como uma sombra
+           colorida visível após o clique. */
+        .btn:focus-visible, button:focus-visible { box-shadow: none !important; }
         /* Buttons */
         .btn-orange { background: var(--red); border: none; color: #fff; font-weight: 600; font-size: 13px; border-radius: var(--radius-xs); padding: 8px 18px; transition: background var(--t); }
         .btn-orange:hover, .btn-orange:focus { background: var(--red-2); color: #fff; }
@@ -168,6 +172,11 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         /* Badges */
         .badge-admin { background: var(--red-soft); color: var(--red); border: 1px solid var(--border-red); font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; }
         .badge-team { background: var(--panel-3); color: var(--text-2); border: 1px solid var(--border); font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+        /* Destaque do leilão ativo (em andamento, aceitando propostas) */
+        .auction-card-live { border-color: color-mix(in srgb, var(--green) 45%, var(--border)) !important; box-shadow: 0 0 0 1px color-mix(in srgb, var(--green) 20%, transparent), 0 12px 28px -18px color-mix(in srgb, var(--green) 45%, transparent); }
+        .live-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 800; letter-spacing: .04em; color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); border: 1px solid color-mix(in srgb, var(--green) 35%, transparent); border-radius: 999px; padding: 3px 9px 3px 7px; text-transform: uppercase; white-space: nowrap; }
+        .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; animation: livePulse 1.6s ease-in-out infinite; }
+        @keyframes livePulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 55%, transparent); } 50% { opacity: .55; box-shadow: 0 0 0 4px transparent; } }
         /* Modals */
         .modal-content { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); }
         .modal-header { border-bottom: 1px solid var(--border); padding: 16px 20px; }
@@ -436,9 +445,14 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
             <div class="modal-body" style="padding:0;display:flex;flex-direction:column">
                 <input type="hidden" id="leilaoIdVerPropostas">
                 <div id="listaPropostasRecebidas" style="padding:20px;max-height:60vh;overflow-y:auto"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
-                <div id="chatComposeBar" style="display:none;gap:8px;padding:14px 20px;border-top:1px solid var(--border)">
-                    <textarea id="chatMessageInput" class="form-control" rows="1" placeholder="Escreva uma mensagem..." style="resize:none"></textarea>
-                    <button type="button" class="btn btn-orange" id="btnEnviarMensagemChat" style="flex-shrink:0"><i class="bi bi-send"></i></button>
+                <div id="chatComposeBar" style="display:none;flex-direction:column;gap:8px;padding:14px 20px;border-top:1px solid var(--border)">
+                    <button type="button" class="btn-outline-orange" id="btnNovaPropostaChat" style="display:none;width:100%">
+                        <i class="bi bi-send-plus me-1"></i>Enviar proposta (jogadores/picks)
+                    </button>
+                    <div style="display:flex;gap:8px">
+                        <textarea id="chatMessageInput" class="form-control" rows="1" placeholder="Escreva uma mensagem..." style="resize:none"></textarea>
+                        <button type="button" class="btn btn-orange" id="btnEnviarMensagemChat" style="flex-shrink:0"><i class="bi bi-send"></i></button>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">

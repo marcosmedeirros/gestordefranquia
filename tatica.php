@@ -56,7 +56,7 @@ $OPCOES = [
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=Oswald:wght@600;700&display=swap" rel="stylesheet">
 <style>
-:root{--red:#fc0025;--red-soft:color-mix(in srgb, var(--red) 10%, transparent);--border-red:color-mix(in srgb, var(--red) 25%, transparent);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1e1e24;--border:rgba(255,255,255,.07);--border-md:rgba(255,255,255,.12);--text:#f0f0f3;--text-2:#868690;--text-3:#7d7d85;--amber:#f59e0b;--green:#22c55e;--radius:14px;--radius-sm:10px;--font:'Montserrat',sans-serif;--sidebar-w:260px;--t:.2s;--ease:cubic-bezier(.4,0,.2,1)}
+:root{--red:#fc0025;--red-2:color-mix(in srgb, var(--red) 85%, white);--red-soft:color-mix(in srgb, var(--red) 10%, transparent);--red-glow:color-mix(in srgb, var(--red) 18%, transparent);--border-red:color-mix(in srgb, var(--red) 25%, transparent);--bg:#07070a;--panel:#101013;--panel-2:#16161a;--panel-3:#1e1e24;--border:rgba(255,255,255,.07);--border-md:rgba(255,255,255,.12);--border-strong:var(--border-md);--text:#f0f0f3;--text-2:#868690;--text-3:#7d7d85;--amber:#f59e0b;--green:#22c55e;--blue:#3b82f6;--radius:14px;--radius-sm:10px;--radius-xs:6px;--font:'Montserrat',sans-serif;--sidebar-w:260px;--t:.2s;--ease:cubic-bezier(.4,0,.2,1)}
 :root[data-theme="light"]{--bg:#f6f7fb;--panel:#fff;--panel-2:#f2f4f8;--panel-3:#e9edf4;--border:#e3e6ee;--border-md:#d7dbe6;--text:#111217;--text-2:#5b6270;--text-3:#657080}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
@@ -73,6 +73,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .sb-nav a i{font-size:15px;width:18px;text-align:center;flex-shrink:0}
 .sb-nav a:hover{background:var(--panel-2);color:var(--text)}
 .sb-nav a.active{background:var(--red-soft);color:var(--red);font-weight:600}
+.sb-theme-toggle{margin:0 14px 12px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:600;cursor:pointer;transition:all var(--t) var(--ease)}
+.sb-theme-toggle:hover{border-color:var(--border-red);color:var(--red)}
 .sb-footer{padding:12px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
 .sb-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--border-md);flex-shrink:0}
 .sb-username{font-size:12px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -176,6 +178,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   .savebar{position:static;box-shadow:none}
   .savebar .st{margin-left:0;width:100%}
 }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
 <?php include __DIR__ . '/includes/accent-color.php'; ?>
 </style>
 </head>

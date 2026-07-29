@@ -74,7 +74,9 @@ if (!function_exists('sbActive')) {
         <?php if ($__sbMyInitDraft): ?>
         <a href="/initdraftselecao.php?token=<?= urlencode($__sbMyInitDraft['access_token']) ?>"<?= sbActive('initdraftselecao.php', $__sbCurrent) ?>><i class="bi bi-stars"></i> Draft Inicial</a>
         <?php endif; ?>
-        <?php /* Salary Cap (ELITE): em avaliacao, acessivel apenas por link — ver backend/preview_gate.php */ ?>
+        <?php if ($__sbIsElite): ?>
+        <a href="/cap.php"<?= sbActive('cap.php', $__sbCurrent) ?>><i class="bi bi-cash-stack"></i> Salário Cap</a>
+        <?php endif; ?>
         <?php /* Tapas: oculto temporariamente, vai passar por alteração */ ?>
 
         <div class="sb-section">Liga</div>
@@ -95,7 +97,7 @@ if (!function_exists('sbActive')) {
         <a href="/initdraftselecao.php?token=<?= urlencode($__sess['access_token']) ?>"><i class="bi bi-stars"></i> Draft Inicial — <?= htmlspecialchars($__lg) ?></a>
         <?php endforeach; ?>
         <?php /* Punições: oculto temporariamente, vai passar por alteração */ ?>
-        <?php /* Loteria (ELITE): em avaliacao, acessivel apenas por link — ver backend/preview_gate.php */ ?>
+        <a href="/lottery.php"<?= sbActive('lottery.php', $__sbCurrent) ?>><i class="bi bi-shuffle"></i> Loteria</a>
         <?php endif; ?>
 
         <div class="sb-section">Conta</div>

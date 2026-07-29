@@ -172,6 +172,16 @@ if ($method === 'POST') {
             break;
         }
 
+        case 'clear_history': {
+            // Limpa o histórico de eliminação, devolvendo os anos eliminados para o pool
+            // (mantém o mesmo conjunto de anos cadastrados, só "desfaz" os giros já feitos).
+            $league = requireLeagueAccess($admin_leagues, $body['league'] ?? null);
+            $stmt = $pdo->prepare("UPDATE roleta_anos SET status = 'pool', elimination_order = NULL, eliminated_at = NULL WHERE league = ? AND status = 'eliminated'");
+            $stmt->execute([$league]);
+            echo json_encode(['success' => true, 'league' => $league] + loadState($pdo, $league));
+            break;
+        }
+
         default:
             echo json_encode(['success' => false, 'error' => 'Ação não reconhecida']);
     }

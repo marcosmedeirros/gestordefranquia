@@ -186,6 +186,20 @@ async function rlReset() {
   }
 }
 
+async function rlClearHistory() {
+  if (rlSpinning) return;
+  if (!confirm(`Limpar o histórico de eliminação de ${rlCurrentLeague}? Os anos já eliminados voltam para a roleta (os anos cadastrados não são apagados).`)) return;
+  try {
+    await _rlFetch('api/roleta.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'clear_history', league: rlCurrentLeague })
+    });
+    await rlLoadState();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
 async function rlSpin() {
   if (rlSpinning || rlRenderedPool.length < 2) return;
   rlSpinning = true;
@@ -238,5 +252,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (e.key === 'Enter') { e.preventDefault(); rlAddYear(); }
   });
   document.getElementById('btnReset')?.addEventListener('click', rlReset);
+  document.getElementById('btnClearHistory')?.addEventListener('click', rlClearHistory);
   document.getElementById('btnSpin')?.addEventListener('click', rlSpin);
 });

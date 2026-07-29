@@ -25,8 +25,10 @@ if ($user && isset($user['id'])) {
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
+    <?php include __DIR__ . '/includes/head-pwa.php'; ?>
+    <meta name="theme-color" content="#fc0025">
     <title>Draft Inicial — Sala de Seleção</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -35,6 +37,7 @@ if ($user && isset($user['id'])) {
         /* ── Tokens ───────────────────────────────────── */
         :root {
             --red:        #fc0025;
+            --red-2:      color-mix(in srgb, var(--red) 85%, white);
             --red-soft:   color-mix(in srgb, var(--red) 10%, transparent);
             --red-glow:   color-mix(in srgb, var(--red) 18%, transparent);
             --bg:         #07070a;
@@ -88,6 +91,9 @@ if ($user && isset($user['id'])) {
         .sidebar { position: fixed; top: 0; left: 0; width: 260px; height: 100vh; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 300; overflow-y: auto; scrollbar-width: none; transition: transform var(--t) var(--ease); }
         .sidebar::-webkit-scrollbar { display: none; }
         .sb-brand { padding: 22px 18px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+        .sb-logo { width: 34px; height: 34px; border-radius: 9px; background: var(--red); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #fff; flex-shrink: 0; }
+        .sb-brand-text { font-weight: 700; font-size: 15px; line-height: 1.1; }
+        .sb-brand-text span { display: block; font-size: 11px; font-weight: 400; color: var(--text-2); }
         .sb-team { margin: 14px 14px 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
         .sb-team img { width: 40px; height: 40px; border-radius: 9px; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
         .sb-team-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.2; }
@@ -286,10 +292,10 @@ if ($user && isset($user['id'])) {
         .state-empty p { font-size: 12px; margin: 0; }
 
         /* ── Bootstrap tabs / modal overrides ─────────── */
-        .nav-tabs { border-bottom: 1px solid var(--border); }
-        .nav-tabs .nav-link { color: var(--text-2); border: none; border-bottom: 2px solid transparent; font-family: var(--font); font-size: 13px; font-weight: 600; }
+        .nav-tabs { border-bottom: 1px solid var(--border); gap: 0; }
+        .nav-tabs .nav-link { color: var(--text-2); border: none; border-bottom: 2px solid transparent; border-radius: 0; font-family: var(--font); font-size: 13px; font-weight: 600; padding: 10px 16px; margin-bottom: -1px; transition: all var(--t) var(--ease); }
         .nav-tabs .nav-link.active { color: var(--red); border-bottom-color: var(--red); background: transparent; }
-        .nav-tabs .nav-link:hover { color: var(--text); }
+        .nav-tabs .nav-link:hover { color: var(--text); background: var(--panel-2); }
         .modal-content { background: var(--panel); border: 1px solid var(--border-md); border-radius: var(--radius); color: var(--text); font-family: var(--font); }
         .modal-header { border-bottom: 1px solid var(--border); padding: 18px 20px; }
         .modal-header .modal-title { font-size: 14px; font-weight: 700; }

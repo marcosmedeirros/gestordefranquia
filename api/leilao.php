@@ -244,7 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     
     switch ($action) {
         case 'listar_ativos':
-            listarLeiloesAtivos($pdo, $league_id);
+            listarLeiloesAtivos($pdo, $league_id, $team_id);
             break;
         case 'listar_admin':
             if (!$is_admin) {
@@ -415,31 +415,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ========== FUNCOES GET ==========
 
-function listarLeiloesAtivos($pdo, $league_id) {
+function listarLeiloesAtivos($pdo, $league_id, $team_id = null) {
     $ovrColumn = playerOvrColumn($pdo);
-    $sql = "SELECT l.*, 
-                   COALESCE(l.temp_name, p.name) as player_name, 
-                   COALESCE(l.temp_position, p.position) as position, 
-                   COALESCE(l.temp_age, p.age) as age, 
+    // O prazo de 20min só fecha a janela de novas propostas (ver enviarProposta()).
+    // Um leilão expirado continua aparecendo pro PRÓPRIO vendedor (pra ele poder
+    // aceitar uma proposta recebida ou decidir cancelar) — sem isso, um leilão sem
+    // decisão do vendedor dentro dos 20min sumia da lista e ficava "preso": nem
+    // ativo visível, nem finalizado, nem no histórico.
+    $sql = "SELECT l.*,
+                   COALESCE(l.temp_name, p.name) as player_name,
+                   COALESCE(l.temp_position, p.position) as position,
+                   COALESCE(l.temp_age, p.age) as age,
                    COALESCE(l.temp_ovr, p.{$ovrColumn}) as ovr,
                    t.name as team_name,
                    lg.name as league_name,
                    (SELECT COUNT(*) FROM leilao_propostas WHERE leilao_id = l.id) as total_propostas,
-                   UNIX_TIMESTAMP(l.data_fim) as data_fim_ts
+                   UNIX_TIMESTAMP(l.data_fim) as data_fim_ts,
+                   (l.data_fim IS NOT NULL AND l.data_fim <= NOW()) as expirado
             FROM leilao_jogadores l
             LEFT JOIN players p ON l.player_id = p.id
             LEFT JOIN teams t ON l.team_id = t.id
             LEFT JOIN leagues lg ON l.league_id = lg.id
-            WHERE l.status = 'ativo' AND (l.data_fim IS NULL OR l.data_fim > NOW())";
-    
+            WHERE l.status = 'ativo' AND (l.data_fim IS NULL OR l.data_fim > NOW() OR l.team_id = ?)";
+    $params = [$team_id ?: 0];
+
     if ($league_id) {
         $sql .= " AND l.league_id = ?";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$league_id]);
-    } else {
-        $stmt = $pdo->query($sql);
+        $params[] = $league_id;
     }
-    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+
     $leiloes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode(['success' => true, 'leiloes' => $leiloes]);
 }

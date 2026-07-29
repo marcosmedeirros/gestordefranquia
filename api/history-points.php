@@ -1141,50 +1141,33 @@ try {
                 $grouped[$row['league']][] = $row;
             }
 
-            // Calcula movimento de posição. O snapshot da sprint tem prioridade:
-            // ele guarda a posição real do fim do ciclo anterior, enquanto
-            // team_season_points e uma reconstrucao a partir de pontos soltos.
-            $prevSeasonPositions = [];
-            $snapshotLabel = [];
-            $leaguesToCheck = $league ? [$league] : array_keys($grouped);
-            foreach ($leaguesToCheck as $lg) {
-                try {
-                    $stSnap = $pdo->prepare("SELECT sprint_id, sprint_number, label FROM ranking_snapshots
-                                             WHERE league = ? ORDER BY sprint_number DESC, created_at DESC LIMIT 1");
-                    $stSnap->execute([$lg]);
-                    $snap = $stSnap->fetch(PDO::FETCH_ASSOC);
-                    if ($snap) {
-                        $stPos = $pdo->prepare("SELECT team_id, position FROM ranking_snapshots
-                                                WHERE league = ? AND sprint_id <=> ?");
-                        $stPos->execute([$lg, $snap['sprint_id']]);
-                        foreach ($stPos->fetchAll(PDO::FETCH_ASSOC) as $sr) {
-                            $prevSeasonPositions[$lg][(int)$sr['team_id']] = (int)$sr['position'];
-                        }
-                        $snapshotLabel[$lg] = $snap['label'] ?: ('Sprint ' . $snap['sprint_number']);
-                        continue; // ja temos a referencia mais confiavel
-                    }
-                } catch (Exception $e) { /* sem snapshot, cai no calculo antigo */ }
-
-                $stmtSeason = $pdo->prepare('SELECT season_id FROM team_season_points WHERE league = ? ORDER BY season_id DESC LIMIT 1');
-                $stmtSeason->execute([$lg]);
-                $lastSeasonId = (int)($stmtSeason->fetchColumn() ?: 0);
-                if (!$lastSeasonId) {
-                    continue;
-                }
-
-                $stmtRank = $pdo->prepare('SELECT team_id, points FROM team_season_points WHERE league = ? AND season_id = ? ORDER BY points DESC, team_id ASC');
-                $stmtRank->execute([$lg, $lastSeasonId]);
-                $pos = 1;
-                foreach ($stmtRank->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                    $prevSeasonPositions[$lg][(int)$row['team_id']] = $pos;
-                    $pos++;
-                }
-            }
-
+            // Calcula movimento de posição comparando a pontuação atual (total_points,
+            // já exibida no ranking) com o valor reconstituído de antes do último
+            // ajuste de "Pontuação por Temporada" (season_points_log.delta). Isso
+            // garante que a variação reflita a última temporada lançada — e não o
+            // fim de uma sprint (ciclo bem mais longo, congelado raramente), que era
+            // a referência antiga e ficava desatualizada/errada entre sprints.
             foreach ($grouped as $lg => $rows) {
+                $prevCumulative = [];
+                foreach ($rows as $row) {
+                    $tid = (int)$row['team_id'];
+                    $prevCumulative[$tid] = (int)$row['total_points'] - ($lastDeltas[$tid] ?? 0);
+                }
+                $order = $rows;
+                usort($order, function ($a, $b) use ($prevCumulative) {
+                    return $prevCumulative[(int)$b['team_id']] <=> $prevCumulative[(int)$a['team_id']];
+                });
+                $prevPosByTeam = [];
+                foreach ($order as $idx => $r) {
+                    $prevPosByTeam[(int)$r['team_id']] = $idx + 1;
+                }
+
                 foreach ($rows as $idx => $row) {
+                    $tid = (int)$row['team_id'];
                     $currentPos = $idx + 1;
-                    $prevPos = $prevSeasonPositions[$lg][(int)$row['team_id']] ?? null;
+                    // Só mostra variação para times que de fato têm um delta registrado —
+                    // sem isso, não há como saber se ficaram parados ou não há referência.
+                    $prevPos = isset($lastDeltas[$tid]) ? $prevPosByTeam[$tid] : null;
                     $row['rank_delta'] = $prevPos ? ($prevPos - $currentPos) : 0;
                     $row['prev_position'] = $prevPos;
                     $grouped[$lg][$idx] = $row;
@@ -1192,7 +1175,7 @@ try {
             }
 
             echo json_encode(['success' => true, 'ranking' => $grouped,
-                              'compared_to' => $snapshotLabel]);
+                              'compared_to' => []]);
             break;
 
         case 'save_ranking_totals':

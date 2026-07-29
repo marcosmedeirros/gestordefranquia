@@ -145,6 +145,8 @@ function _applyLeilaoTableLabels(root = document) {
 
 let _modalLeilaoId = null;
 let _modalIsOwner = false;
+let _modalPlayerName = '';
+let _modalSellerTeamId = null;
 let _propostsAutoRefresh = null;
 let _currentProposalSellerTeamId = null;
 let _customOfferOpen = false;
@@ -232,6 +234,10 @@ async function _loadPropostasContent(leilaoId, isOwner) {
   const container = document.getElementById('listaPropostasRecebidas');
   const composeBar = document.getElementById('chatComposeBar');
   if (composeBar) composeBar.style.display = userTeamId ? 'flex' : 'none';
+  // Só quem está oferecendo (não o vendedor) manda proposta estruturada —
+  // o vendedor aceita/recusa/conversa, não faz oferta pelo próprio jogador.
+  const novaPropostaBtn = document.getElementById('btnNovaPropostaChat');
+  if (novaPropostaBtn) novaPropostaBtn.style.display = (!isOwner && userTeamId) ? '' : 'none';
   const titleEl = document.querySelector('#modalVerPropostas .modal-title');
   if (titleEl) titleEl.innerHTML = '<i class="bi bi-chat-dots" style="color:var(--red)"></i>Negociação';
   if (!container) return;
@@ -252,8 +258,10 @@ async function verMinhasPropostasRecebidas(leilaoId) {
   _startPropostasAutoRefresh(leilaoId, true);
 }
 
-async function verPropostasEnviadas(leilaoId) {
+async function verPropostasEnviadas(leilaoId, playerName, sellerTeamId) {
   document.getElementById('leilaoIdVerPropostas').value = leilaoId;
+  _modalPlayerName = playerName || '';
+  _modalSellerTeamId = sellerTeamId || null;
   _getModalInstance().show();
   await _loadPropostasContent(leilaoId, false);
   _startPropostasAutoRefresh(leilaoId, false);
@@ -301,6 +309,15 @@ window._refreshPropostas = async function() {
   await _loadPropostasContent(_modalLeilaoId, _modalIsOwner);
 };
 
+// Permite enviar uma proposta estruturada (jogadores/picks) sem sair da
+// negociação — reaproveita o mesmo modal usado a partir da lista de leilões.
+async function abrirNovaPropostaDaNegociacao() {
+  if (!_modalLeilaoId) return;
+  _getModalInstance()?.hide();
+  await abrirModalProposta(_modalLeilaoId, _modalPlayerName, _modalSellerTeamId);
+}
+document.getElementById('btnNovaPropostaChat')?.addEventListener('click', abrirNovaPropostaDaNegociacao);
+
 function _startPropostasAutoRefresh(leilaoId, isOwner) {
   clearInterval(_propostsAutoRefresh);
   _propostsAutoRefresh = setInterval(async () => {
@@ -345,14 +362,19 @@ async function carregarLeiloesAtivos(silent = false) {
 
     const cards = data.leiloes.map(l => {
       const isMyTeam = l.team_id == userTeamId;
+      const expirado = !!Number(l.expirado);
       const teamLabel = _esc(l.team_name || 'Sem time');
       const borderLeft = isMyTeam ? 'border-left:3px solid #f59e0b;' : '';
       const myBadge = isMyTeam ? `<span style="font-size:10px;font-weight:700;color:#f59e0b;padding:2px 8px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:999px;margin-left:6px">Seu Jogador</span>` : '';
+      const liveBadge = !expirado ? `<span class="live-badge"><span class="live-dot"></span>Ao vivo</span>` : '';
+      const encerradoNote = (isMyTeam && expirado)
+        ? `<div style="font-size:11.5px;color:#f59e0b;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:6px 10px;margin-bottom:8px"><i class="bi bi-hourglass-split me-1"></i>Prazo encerrado — aguardando sua decisão</div>`
+        : '';
 
       const propCount = Number(l.total_propostas) || 0;
       const timerHtml = l.data_fim
         ? `<span class="auction-timer" data-end-time="${l.data_fim}"${l.data_fim_ts ? ` data-end-ts="${Number(l.data_fim_ts)*1000}"` : ''}
-            style="font-size:13px;font-weight:700;color:#22c55e;font-variant-numeric:tabular-nums">20:00</span>`
+            style="font-size:13px;font-weight:700;color:#22c55e;font-variant-numeric:tabular-nums">${expirado ? 'Encerrado' : '20:00'}</span>`
         : '';
 
       const actionHtml = (() => {
@@ -366,7 +388,7 @@ async function carregarLeiloesAtivos(silent = false) {
       })();
 
       const verBtn = (!isMyTeam && userTeamId) ? `
-        <button onclick="verPropostasEnviadas(${l.id})"
+        <button onclick="verPropostasEnviadas(${l.id}, '${_esc(l.player_name.replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}', ${l.team_id || 'null'})"
           style="width:100%;padding:7px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-2);font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font);margin-bottom:8px">
           <i class="bi bi-eye me-1"></i>Ver propostas
         </button>` : '';
@@ -378,9 +400,10 @@ async function carregarLeiloesAtivos(silent = false) {
         </button>` : '';
 
       return `
-        <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;${borderLeft}">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <div class="${!expirado ? 'auction-card-live' : ''}" style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;${borderLeft}">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap">
             <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">${liveBadge}</div>
               <div style="font-size:16px;font-weight:700;color:var(--text);line-height:1.2">
                 ${_esc(l.player_name)}${myBadge}
               </div>
@@ -395,6 +418,7 @@ async function carregarLeiloesAtivos(silent = false) {
               <i class="bi bi-chat-dots"></i>${propCount} proposta${propCount !== 1 ? 's' : ''}
             </div>
           </div>
+          ${encerradoNote}
           <div style="display:flex;flex-direction:column;gap:0">
             ${verBtn}${ownerBtn}${actionHtml}
           </div>

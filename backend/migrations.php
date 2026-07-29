@@ -1152,6 +1152,16 @@ function runMigrations() {
                 $ins = $pdo->prepare("INSERT INTO app_flags (flag) VALUES (?)");
                 $ins->execute(['cap_mode_elite_off_2026_07']);
             }
+
+            // Avaliacao concluida: Salary Cap liberado no menu para a ELITE.
+            // Roda uma unica vez: se o admin trocar para 'ovr_sum' depois, nao reverte.
+            $st2 = $pdo->prepare("SELECT 1 FROM app_flags WHERE flag = ?");
+            $st2->execute(['cap_mode_elite_on_2026_07']);
+            if (!$st2->fetchColumn()) {
+                $pdo->exec("UPDATE league_settings SET cap_mode = 'salary' WHERE league = 'ELITE'");
+                $ins2 = $pdo->prepare("INSERT INTO app_flags (flag) VALUES (?)");
+                $ins2->execute(['cap_mode_elite_on_2026_07']);
+            }
         }
     } catch (PDOException $e) {
         $errors[] = "ajuste_league_settings_cap_mode: " . $e->getMessage();

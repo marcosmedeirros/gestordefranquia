@@ -277,7 +277,7 @@ try {
       border-bottom: 2px solid transparent; margin-bottom: -1px;
       transition: color var(--t), border-color var(--t);
     }
-    .nav-tabs .nav-link:hover { color: var(--text); background: var(--red-soft); border-bottom-color: var(--border-red); }
+    .nav-tabs .nav-link:hover { color: var(--red); background: var(--red-soft); border-bottom-color: var(--border-red); }
     .nav-tabs .nav-link.active { color: var(--red); border-bottom-color: var(--red); font-weight: 600; background: transparent; }
 
     /* Form controls */

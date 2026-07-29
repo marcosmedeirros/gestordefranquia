@@ -1,0 +1,142 @@
+<?php
+/**
+ * API do Waiver (ELITE). GET lista os jogadores no waiver + reivindicações;
+ * POST claim/unclaim (times reivindicam) e resolve (admin). Resolve os vencidos
+ * preguiçosamente a cada acesso, como rede de segurança do agendador.
+ */
+require_once __DIR__ . '/../backend/auth.php';
+require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/waivers.php';
+header('Content-Type: application/json');
+
+requireAuth();
+$user = getUserSession();
+$pdo  = db();
+
+// Tudo abaixo fica protegido por um try/catch geral: qualquer erro inesperado
+// (banco, coluna faltando, etc.) deve virar uma resposta JSON de erro — nunca
+// um fatal cru, que quebraria o JSON.parse() no front e faria a lista de
+// dispensados simplesmente não carregar.
+try {
+    $stmtT = $pdo->prepare("SELECT id, league FROM teams WHERE user_id = ? LIMIT 1");
+    $stmtT->execute([(int)$user['id']]);
+    $team = $stmtT->fetch(PDO::FETCH_ASSOC) ?: null;
+    $myTeamId = $team ? (int)$team['id'] : 0;
+    $myLeague = $team ? strtoupper($team['league']) : ($user['league'] ?? 'ELITE');
+    try { $isAdmin = hasAdminAccess($pdo, (int)$user['id']); } catch (Throwable $e) { $isAdmin = false; }
+
+    ensureWaiverTables($pdo);
+    // Rede de segurança: resolve vencidos ao abrir (o agendador é o principal).
+    resolveExpiredWaivers($pdo);
+
+    $method = $_SERVER['REQUEST_METHOD'];
+
+    if ($method === 'GET') {
+        $stmt = $pdo->prepare("
+            SELECT wr.id, wr.name, wr.age, wr.position, wr.secondary_position, wr.ovr, wr.team_id,
+                   wr.expires_at, TIMESTAMPDIFF(SECOND, NOW(), wr.expires_at) AS seconds_left,
+                   CONCAT(t.city,' ',t.name) AS waived_by_name, t.photo_url AS waived_by_photo,
+                   (SELECT COUNT(*) FROM waiver_claims wc WHERE wc.retention_id = wr.id) AS claim_count,
+                   (SELECT COUNT(*) FROM waiver_claims wc WHERE wc.retention_id = wr.id AND wc.team_id = ?) AS mine
+            FROM waiver_retention wr
+            JOIN teams t ON t.id = wr.team_id
+            WHERE wr.status = 'open' AND wr.league = 'ELITE'
+            ORDER BY wr.expires_at ASC");
+        $stmt->execute([$myTeamId]);
+        $open = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Lance do meu time = espaço no cap agora; e o maior lance / meu lance por waiver.
+        $myCapSpace = null;
+        if ($myLeague === 'ELITE' && $myTeamId > 0) {
+            try { $myCapSpace = (int)getTeamCapSummary($pdo, $myTeamId)['space']; } catch (Throwable $e) {}
+        }
+        $mxStmt = $pdo->prepare("SELECT MAX(bid_space) FROM waiver_claims WHERE retention_id = ?");
+        $mbStmt = $pdo->prepare("SELECT bid_space FROM waiver_claims WHERE retention_id = ? AND team_id = ?");
+        foreach ($open as &$w) {
+            $rid = (int)$w['id'];
+            try {
+                $mxStmt->execute([$rid]);
+                $tv = $mxStmt->fetchColumn();
+                $w['top_bid'] = ($tv !== null && $tv !== false) ? (int)$tv : null;
+                $mbStmt->execute([$rid, $myTeamId]);
+                $mv = $mbStmt->fetchColumn();
+                $w['my_bid'] = ($mv !== null && $mv !== false) ? (int)$mv : null;
+            } catch (Throwable $e) {
+                // Não deixa um erro pontual (ex.: coluna bid_space faltando numa base
+                // antiga) derrubar a listagem inteira — só esse card fica sem lance.
+                error_log('waivers.php bid lookup #' . $rid . ': ' . $e->getMessage());
+                $w['top_bid'] = null;
+                $w['my_bid'] = null;
+            }
+        }
+        unset($w);
+
+        // Resolvidos recentes (para mostrar o desfecho)
+        $recent = $pdo->query("
+            SELECT wr.name, wr.ovr, wr.status, wr.resolved_at,
+                   CONCAT(t.city,' ',t.name) AS from_name,
+                   (SELECT CONCAT(c.city,' ',c.name) FROM teams c WHERE c.id = wr.claimed_by_team_id) AS to_name
+            FROM waiver_retention wr JOIN teams t ON t.id = wr.team_id
+            WHERE wr.status IN ('claimed','cleared') AND wr.league = 'ELITE'
+            ORDER BY wr.resolved_at DESC LIMIT 12")->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode([
+            'success' => true, 'league' => 'ELITE',
+            'my_team_id' => $myTeamId, 'my_league' => $myLeague, 'is_admin' => $isAdmin,
+            'can_claim' => ($myLeague === 'ELITE' && $myTeamId > 0),
+            'my_cap_space' => $myCapSpace,
+            'waiver_hours' => WAIVER_HOURS,
+            'open' => $open, 'recent' => $recent,
+        ]);
+        exit;
+    }
+
+    if ($method === 'POST') {
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $action = $data['action'] ?? '';
+
+        if ($action === 'resolve') {
+            if (!$isAdmin) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas administradores']); exit; }
+            echo json_encode(['success' => true] + resolveExpiredWaivers($pdo));
+            exit;
+        }
+
+        $wid = (int)($data['id'] ?? 0);
+        if ($wid <= 0) { echo json_encode(['success' => false, 'error' => 'ID inválido']); exit; }
+
+        // Waiver alvo
+        $st = $pdo->prepare("SELECT * FROM waiver_retention WHERE id = ?");
+        $st->execute([$wid]);
+        $w = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$w || $w['status'] !== 'open') { echo json_encode(['success' => false, 'error' => 'Waiver não está mais disponível.']); exit; }
+
+        if ($action === 'claim') {
+            if ($myTeamId <= 0 || $myLeague !== 'ELITE') { echo json_encode(['success' => false, 'error' => 'Só times da ELITE podem dar lance.']); exit; }
+            if ((int)$w['team_id'] === $myTeamId) { echo json_encode(['success' => false, 'error' => 'Você não pode dar lance num jogador que o seu time dispensou.']); exit; }
+            if (strtotime($w['expires_at']) <= time()) { echo json_encode(['success' => false, 'error' => 'A janela de 12h já encerrou.']); exit; }
+            // O lance é o espaço no cap do time neste momento.
+            $bidSpace = null;
+            try { $bidSpace = (int)getTeamCapSummary($pdo, $myTeamId)['space']; } catch (Throwable $e) {}
+            $pdo->prepare("INSERT INTO waiver_claims (retention_id, team_id, bid_space) VALUES (?, ?, ?)
+                           ON DUPLICATE KEY UPDATE bid_space = VALUES(bid_space)")->execute([$wid, $myTeamId, $bidSpace]);
+            echo json_encode(['success' => true, 'claimed' => true, 'bid_space' => $bidSpace]);
+            exit;
+        }
+
+        if ($action === 'unclaim') {
+            $pdo->prepare("DELETE FROM waiver_claims WHERE retention_id = ? AND team_id = ?")->execute([$wid, $myTeamId]);
+            echo json_encode(['success' => true, 'claimed' => false]);
+            exit;
+        }
+
+        echo json_encode(['success' => false, 'error' => 'Ação inválida']);
+        exit;
+    }
+
+    http_response_code(405);
+    echo json_encode(['success' => false, 'error' => 'Método não suportado']);
+} catch (Throwable $e) {
+    error_log('api/waivers.php: ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => 'Erro ao carregar dispensas. Tente novamente.']);
+}
