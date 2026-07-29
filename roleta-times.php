@@ -105,7 +105,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   border-radius:var(--radius);padding:16px 20px;text-align:center;margin-bottom:16px}
 .rt-anuncio-pick{font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--red)}
 .rt-anuncio-time{font-size:26px;font-weight:800;margin-top:2px}
-.rt-anuncio-sub{font-size:12px;color:var(--text-3);margin-top:2px}
 
 /* Botão de copiar (histórico e anúncio) — texto pronto pra colar no WhatsApp */
 .rt-copy-btn{background:var(--panel-2);border:1px solid var(--border-md);color:var(--text-2);
@@ -120,8 +119,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   background:var(--panel-2);border:1px solid var(--border);margin-bottom:6px}
 .rt-urna-item img{width:30px;height:30px;border-radius:8px;object-fit:contain;background:var(--panel-3);flex-shrink:0}
 .rt-urna-txt{min-width:0}
-.rt-urna-time{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rt-urna-gm{font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rt-urna-gm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* Histórico de saída */
 .rt-hist-linha{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);
@@ -132,7 +130,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   border:1px solid var(--border-red);border-radius:999px;padding:3px 10px;flex-shrink:0}
 .rt-hist-logo{width:28px;height:28px;border-radius:7px;object-fit:contain;background:var(--panel-3);flex-shrink:0}
 .rt-hist-time{flex:1;min-width:120px;font-size:13px;font-weight:600;line-height:1.25}
-.rt-hist-time small{display:block;font-size:11px;font-weight:400;color:var(--text-3)}
 .rt-hist-hora{font-size:11px;color:var(--text-3);flex-shrink:0}
 
 .rt-vazio{text-align:center;padding:26px 16px;color:var(--text-3)}

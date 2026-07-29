@@ -141,7 +141,6 @@ function rtRenderUrna(urna) {
     <div class="rt-urna-item" id="rt-urna-${t.id}">
       <img src="${_rtEsc(t.photo_url || RT_LOGO_PADRAO)}" alt="" onerror="this.src='${RT_LOGO_PADRAO}'">
       <div class="rt-urna-txt">
-        <div class="rt-urna-time">${_rtEsc(t.team_name)}</div>
         <div class="rt-urna-gm">${_rtEsc(t.gm_name)}</div>
       </div>
     </div>`).join('');
@@ -165,10 +164,7 @@ function rtRenderHistorico(sorteados, total) {
         <span class="rt-hist-saida">${i + 1}º a sair</span>
         <span class="rt-hist-pick">Escolha ${t.pick_number}</span>
         <img class="rt-hist-logo" src="${_rtEsc(t.photo_url || RT_LOGO_PADRAO)}" alt="" onerror="this.src='${RT_LOGO_PADRAO}'">
-        <span class="rt-hist-time">
-          ${_rtEsc(t.team_name)}
-          <small>${_rtEsc(t.gm_name)}</small>
-        </span>
+        <span class="rt-hist-time">${_rtEsc(t.gm_name)}</span>
         <span class="rt-hist-hora">${_rtEsc(quando)}</span>
         <button type="button" class="rt-copy-btn" title="Copiar para colar no WhatsApp"
                 data-copy-pick="${t.pick_number}" data-copy-gm="${_rtEsc(t.gm_name)}">
@@ -241,7 +237,6 @@ function rtAnunciar(data) {
     <div class="rt-anuncio-box">
       <div class="rt-anuncio-pick">Escolha ${data.pick}</div>
       <div class="rt-anuncio-time">${_rtEsc(data.gm_name)}</div>
-      <div class="rt-anuncio-sub">${_rtEsc(data.time)}</div>
       <button type="button" class="rt-copy-btn rt-copy-btn-grande" title="Copiar para colar no WhatsApp"
               data-copy-pick="${data.pick}" data-copy-gm="${_rtEsc(data.gm_name)}">
         <i class="bi bi-clipboard me-1"></i>Copiar
