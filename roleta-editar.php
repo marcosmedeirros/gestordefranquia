@@ -4,6 +4,7 @@ require_once 'backend/config.php';
 require_once 'backend/db.php';
 $pdo = db();
 require_once 'backend/auth.php';
+require_once 'backend/helpers.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -126,7 +127,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         .grid{display:grid;grid-template-columns:1.05fr .95fr;gap:20px;align-items:start}
         @media(max-width:992px){.grid{grid-template-columns:1fr}}
 
-        .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+        .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px;color:var(--text)}
         .card-head{padding:15px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:9px}
         .card-head-left{display:flex;align-items:center;gap:9px}
         .card-head i{color:var(--red);font-size:15px}
@@ -184,8 +185,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         .rl-ac-item:hover { background: var(--panel-3); }
         .rl-ac-item img { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--panel-3); }
         .rl-ac-empty { padding: 10px 12px; font-size: 12px; color: var(--text-3); }
-        .rl-check-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
-        .rl-check-row label { font-size: 13px; font-weight: 600; color: var(--text); margin: 0; }
+        .rl-check-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; color: var(--text); margin: 0; }
         .form-control { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-xs); font-size: 13px; }
         .form-control:focus { background: var(--panel-2); border-color: var(--red); color: var(--text); box-shadow: 0 0 0 3px var(--red-soft); }
 
@@ -273,7 +273,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
     const ROLETA_ID = <?= (int)$roletaId ?>;
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/js/roleta-editar.js"></script>
+<script src="<?= assetUrl('/js/roleta-editar.js') ?>"></script>
 <script src="/js/pwa.js"></script>
 <script>
     const sidebar = document.getElementById('sidebar');

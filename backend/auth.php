@@ -162,7 +162,7 @@ function checkMaintenanceGate(PDO $pdo): void {
     // times é pública de propósito (sem login) e continua valendo mesmo com
     // o resto do site em manutenção. basename() ignora o diretório, então
     // "roleta-times.php" aqui já libera tanto a página quanto a api/ dela.
-    $alwaysAllowed = ['login.php', 'logout.php', 'manutencao.php', 'roleta-times.php'];
+    $alwaysAllowed = ['login.php', 'logout.php', 'manutencao.php', 'roleta-times.php', 'roleta.php', 'roleta-editar.php'];
     if (in_array($script, $alwaysAllowed, true)) return;
 
     if ($isApi) {

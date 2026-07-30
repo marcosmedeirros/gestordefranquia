@@ -4,6 +4,7 @@ require_once 'backend/config.php';
 require_once 'backend/db.php';
 $pdo = db();
 require_once 'backend/auth.php';
+require_once 'backend/helpers.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -145,8 +146,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         .rl-chip { display: inline-flex; align-items: center; gap: 7px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 5px 8px 5px 12px; font-size: 12px; font-weight: 600; color: var(--text); }
         .rl-chip button { background: transparent; border: none; color: var(--text-3); width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; }
         .rl-chip button:hover { background: var(--red-soft); color: var(--red); }
-        .rl-check-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-top: 14px; }
-        .rl-check-row label { font-size: 13px; font-weight: 600; color: var(--text); margin: 0; }
+        .rl-check-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-top: 14px; font-size: 13px; font-weight: 600; color: var(--text); }
         .rl-check-row small { display: block; font-size: 11px; color: var(--text-3); font-weight: 400; }
 
         input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
@@ -245,7 +245,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/js/roleta.js"></script>
+<script src="<?= assetUrl('/js/roleta.js') ?>"></script>
 <script src="/js/pwa.js"></script>
 <script>
     const sidebar = document.getElementById('sidebar');
