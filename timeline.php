@@ -98,7 +98,7 @@ if ($team_id) {
         .tl-tab.active { background: var(--red); color: #fff; box-shadow: 0 4px 14px -4px var(--red-glow); }
         .tl-hidden { display: none !important; }
 
-        .tl-chips { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 16px; padding-bottom: 2px; }
+        .tl-chips { display: flex; justify-content: center; gap: 8px; overflow-x: auto; margin-bottom: 16px; padding-bottom: 2px; }
         .tl-chip { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px; color: var(--text-2); font-family: var(--font); font-size: 11.5px; font-weight: 700; letter-spacing: .3px; cursor: pointer; white-space: nowrap; transition: all var(--t); }
         .tl-chip:hover { color: var(--text); }
         .tl-chip.active { background: var(--red); border-color: var(--red); color: #fff; }
@@ -216,7 +216,6 @@ if ($team_id) {
                         <button class="tl-chip" data-league="ELITE">ELITE</button>
                         <button class="tl-chip" data-league="NEXT">NEXT</button>
                         <button class="tl-chip" data-league="RISE">RISE</button>
-                        <button class="tl-chip" data-league="ROOKIE">ROOKIE</button>
                     </div>
                     <div class="tl-stories" id="tlStoriesBar"></div>
                     <div id="tlFeedList"><div class="empty">Carregando...</div></div>
@@ -237,7 +236,6 @@ if ($team_id) {
                         <button class="tl-chip" data-league="ELITE">ELITE</button>
                         <button class="tl-chip" data-league="NEXT">NEXT</button>
                         <button class="tl-chip" data-league="RISE">RISE</button>
-                        <button class="tl-chip" data-league="ROOKIE">ROOKIE</button>
                     </div>
                     <div class="tl-grid" id="tlPostsGrid"></div>
                 </div>
