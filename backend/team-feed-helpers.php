@@ -332,6 +332,61 @@ function getActiveStories(PDO $pdo, int $teamId, int $userId): array
     }, $stmt->fetchAll(PDO::FETCH_ASSOC));
 }
 
+/**
+ * Stories ativas de TODOS os times (Timeline global) — uma entrada por time
+ * com pelo menos 1 story no ar, cada uma trazendo a lista de stories daquele
+ * time (o visualizador cicla por elas). Times com story não vista aparecem
+ * primeiro, depois por mais recente — igual o padrão de qualquer rede social.
+ */
+function getActiveStoriesGlobal(PDO $pdo, int $userId, ?string $league = null, int $limit = 30): array
+{
+    $sql = "
+        SELECT ts.id, ts.team_id, ts.photo_url, ts.texto, ts.created_at,
+               EXISTS(SELECT 1 FROM team_story_views WHERE story_id = ts.id AND user_id = ?) AS vista_por_mim,
+               tm.city AS team_city, tm.name AS team_name, tm.photo_url AS team_photo, tm.league AS team_league
+        FROM team_stories ts
+        JOIN teams tm ON tm.id = ts.team_id
+        WHERE ts.expira_em > NOW() AND ts.deleted_at IS NULL" . ($league ? " AND tm.league = ?" : "") . "
+        ORDER BY ts.team_id, ts.created_at ASC
+    ";
+    $params = $league ? [$userId, $league] : [$userId];
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+
+    $porTime = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $tid = (int)$r['team_id'];
+        if (!isset($porTime[$tid])) {
+            $porTime[$tid] = [
+                'team_id' => $tid,
+                'team_name' => trim($r['team_city'] . ' ' . $r['team_name']),
+                'team_photo' => $r['team_photo'],
+                'team_league' => $r['team_league'],
+                'tem_nao_vista' => false,
+                'ultima_em' => $r['created_at'],
+                'stories' => [],
+            ];
+        }
+        $vista = (bool)$r['vista_por_mim'];
+        if (!$vista) $porTime[$tid]['tem_nao_vista'] = true;
+        $porTime[$tid]['ultima_em'] = $r['created_at'];
+        $porTime[$tid]['stories'][] = [
+            'id' => (int)$r['id'],
+            'photo_url' => $r['photo_url'],
+            'texto' => $r['texto'],
+            'created_at' => $r['created_at'],
+            'vista_por_mim' => $vista,
+        ];
+    }
+
+    $grupos = array_values($porTime);
+    usort($grupos, function ($a, $b) {
+        if ($a['tem_nao_vista'] !== $b['tem_nao_vista']) return $a['tem_nao_vista'] ? -1 : 1;
+        return strtotime((string)$b['ultima_em']) <=> strtotime((string)$a['ultima_em']);
+    });
+    return array_slice($grupos, 0, $limit);
+}
+
 /** Decodifica uma foto em data-URL, valida (tamanho + MIME real) e salva em $subdir. Devolve o caminho público ou null. */
 function salvarFotoFeed(string $dataUrl, string $subdir, int $teamId): ?string
 {

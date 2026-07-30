@@ -53,6 +53,7 @@ if ($method === 'GET') {
     if ($action === 'feed') {
         jsonResponse(200, [
             'success' => true,
+            'stories' => $before ? [] : getActiveStoriesGlobal($pdo, $userId, $league),
             'posts' => getTeamPosts($pdo, null, $userId, 20, $before, $league),
             'timeline' => getTeamTimeline($pdo, null, 20, $before, $league),
         ]);

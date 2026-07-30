@@ -40,7 +40,63 @@ function tlApply(tab) {
 let tlFeedLeague = '';
 let tlFeedPosts = [];
 let tlFeedTimeline = [];
+let tlFeedStorias = []; // grupos de stories por time (barra do topo do Feed)
 const TL_ICONES = { trade: '🔄', punicao: '⚠️', premio: '🏆', playoff: '🏀', draft: '🎓' };
+
+/** Barra de stories no topo do Feed — um círculo por time com story ativa. */
+function tlRenderStoriesBar() {
+  const bar = document.getElementById('tlStoriesBar');
+  if (!bar) return;
+  if (!tlFeedStorias.length) { bar.innerHTML = ''; return; }
+  bar.innerHTML = tlFeedStorias.map((g, i) => `
+    <button type="button" class="tl-story" data-idx="${i}">
+      <span class="tl-story-ring ${g.tem_nao_vista ? 'unseen' : ''}">
+        <img src="${tlEsc(g.team_photo || '/img/default-team.png')}" onerror="this.src='/img/default-team.png'">
+      </span>
+      <span class="tl-story-name">${tlEsc(g.team_name)}</span>
+    </button>`).join('');
+  bar.querySelectorAll('.tl-story').forEach(btn => btn.addEventListener('click', () => tlAbrirStoriasDoTime(Number(btn.dataset.idx))));
+}
+
+/** Abre o visualizador ciclando pelas stories de um time (a partir da barra global). */
+function tlAbrirStoriasDoTime(grupoIdx) {
+  const grupo = tlFeedStorias[grupoIdx];
+  if (!grupo || !grupo.stories.length) return;
+  let i = grupo.stories.findIndex(s => !s.vista_por_mim);
+  if (i === -1) i = 0;
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:2000;display:flex;align-items:center;justify-content:center;flex-direction:column';
+  document.body.appendChild(overlay);
+
+  function render() {
+    const s = grupo.stories[i];
+    if (!s.vista_por_mim) {
+      tfPost('visualizar_story', { story_id: s.id }).catch(() => {});
+      s.vista_por_mim = true;
+      grupo.tem_nao_vista = grupo.stories.some(x => !x.vista_por_mim);
+      tlRenderStoriesBar();
+    }
+    overlay.innerHTML = `
+      <div style="position:absolute;top:16px;left:16px;right:16px;display:flex;gap:4px">
+        ${grupo.stories.map((_, idx) => `<div style="flex:1;height:2.5px;border-radius:2px;background:${idx <= i ? '#fff' : 'rgba(255,255,255,.3)'}"></div>`).join('')}
+      </div>
+      <div style="position:absolute;top:28px;left:16px;display:flex;align-items:center;gap:8px">
+        <img src="${tlEsc(grupo.team_photo || '/img/default-team.png')}" style="width:28px;height:28px;border-radius:50%;object-fit:cover" onerror="this.src='/img/default-team.png'">
+        <span style="color:#fff;font-size:13px;font-weight:700">${tlEsc(grupo.team_name)}</span>
+      </div>
+      <button id="tlStoryClose" style="position:absolute;top:20px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:18px;line-height:1">×</button>
+      <div id="tlStoryPrev" style="position:absolute;left:0;top:0;bottom:0;width:35%;cursor:pointer"></div>
+      <div id="tlStoryNext" style="position:absolute;right:0;top:0;bottom:0;width:65%;cursor:pointer"></div>
+      <img src="${tlEsc(s.photo_url)}" style="max-width:92vw;max-height:78vh;border-radius:12px;object-fit:contain">
+      ${s.texto ? `<div style="color:#fff;margin-top:14px;font-size:14px;max-width:80vw;text-align:center">${tlEsc(s.texto)}</div>` : ''}`;
+
+    overlay.querySelector('#tlStoryClose').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#tlStoryPrev').addEventListener('click', () => { if (i > 0) { i--; render(); } });
+    overlay.querySelector('#tlStoryNext').addEventListener('click', () => { if (i < grupo.stories.length - 1) { i++; render(); } else { overlay.remove(); } });
+  }
+  render();
+}
 
 function tlMesclar(posts, timeline) {
   const p = posts.map(x => ({ ...x, _tipo: 'post', _data: x.created_at }));
@@ -48,35 +104,40 @@ function tlMesclar(posts, timeline) {
   return p.concat(t).sort((a, b) => new Date(b._data) - new Date(a._data));
 }
 
+/** Card de post no formato clássico de rede social: cabeçalho, foto de ponta
+    a ponta, ação de curtir, "N curtidas" e legenda com o nome em negrito. */
 function tlFeedCardPost(p) {
   return `<div class="card">
     <div class="card-head">
       <img src="${tlEsc(p.team_photo || '/img/default-team.png')}" onerror="this.src='/img/default-team.png'">
-      <div>
-        <div class="card-author"><a href="/timeline.php?tab=perfil&team_id=${p.team_id}" style="color:inherit;text-decoration:none">${tlEsc(p.team_name)}</a></div>
+      <div style="min-width:0">
+        <a class="card-author" href="/timeline.php?tab=perfil&team_id=${p.team_id}">${tlEsc(p.team_name)}</a>
         <div class="card-league">${tlEsc(p.team_league || '')} · ${tlEsc(p.author_name)}</div>
       </div>
       <span class="card-time">${tlDataCurta(p.created_at)}</span>
     </div>
-    ${p.texto ? `<div class="card-text">${tlEsc(p.texto)}</div>` : ''}
     ${p.photo_url ? `<img class="card-photo" src="${tlEsc(p.photo_url)}">` : ''}
-    <div class="card-actions">
-      <button type="button" class="like-btn ${p.liked_by_me ? 'liked' : ''}" data-post-id="${p.id}" data-liked="${p.liked_by_me ? '1' : '0'}">
-        <i class="bi ${p.liked_by_me ? 'bi-heart-fill' : 'bi-heart'}"></i> <span>${p.like_count}</span>
-      </button>
+    <div class="card-body">
+      <div class="card-actions">
+        <button type="button" class="like-btn ${p.liked_by_me ? 'liked' : ''}" data-post-id="${p.id}" data-liked="${p.liked_by_me ? '1' : '0'}">
+          <i class="bi ${p.liked_by_me ? 'bi-heart-fill' : 'bi-heart'}"></i>
+        </button>
+      </div>
+      <div class="card-likes" data-like-count>${p.like_count} curtida${p.like_count === 1 ? '' : 's'}</div>
+      ${p.texto ? `<div class="card-caption"><b>${tlEsc(p.team_name)}</b>${tlEsc(p.texto)}</div>` : ''}
     </div>
   </div>`;
 }
-/** Evento automático dentro do Perfil de um time — sem nome/link do time (é redundante, já estamos nele). */
+/** Evento automático dentro do Perfil de um time — sem nome/link do time (é redundante, já estamos nele). Visual discreto de propósito, não é um post. */
 function tlAutoRowPerfil(it) {
-  return `<div class="card auto-row" style="padding:12px 16px">
+  return `<div class="auto-row">
     <span class="auto-icon">${TL_ICONES[it._tipo] || '•'}</span>
     <span class="auto-text">${tlEsc(it.texto)}</span>
     <span class="auto-time">${tlDataCurta(it._data)}</span>
   </div>`;
 }
 function tlAutoRow(it) {
-  return `<div class="card auto-row" style="padding:12px 16px">
+  return `<div class="auto-row">
     <span class="auto-icon">${TL_ICONES[it._tipo] || '•'}</span>
     <span class="auto-text"><a href="/timeline.php?tab=perfil&team_id=${it.team_id}" style="color:inherit;text-decoration:none"><b>${tlEsc(it.team_name)}</b></a> — ${tlEsc(it.texto)}</span>
     <span class="auto-time">${tlDataCurta(it._data)}</span>
@@ -89,6 +150,7 @@ async function tlCarregarFeed(before) {
     const data = await tlGet('feed', { league: tlFeedLeague, before: before || '' });
     if (before) { tlFeedPosts = tlFeedPosts.concat(data.posts); tlFeedTimeline = tlFeedTimeline.concat(data.timeline); }
     else { tlFeedPosts = data.posts; tlFeedTimeline = data.timeline; }
+    if (!before && data.stories) { tlFeedStorias = data.stories; tlRenderStoriesBar(); }
 
     const itens = tlMesclar(tlFeedPosts, tlFeedTimeline);
     if (!itens.length) {
@@ -115,7 +177,8 @@ async function tlToggleLike(btn, listaPosts) {
     btn.dataset.liked = data.liked_by_me ? '1' : '0';
     btn.classList.toggle('liked', data.liked_by_me);
     btn.querySelector('i').className = data.liked_by_me ? 'bi bi-heart-fill' : 'bi bi-heart';
-    btn.querySelector('span').textContent = data.like_count;
+    const likesEl = btn.closest('.card')?.querySelector('[data-like-count]');
+    if (likesEl) likesEl.textContent = `${data.like_count} curtida${data.like_count === 1 ? '' : 's'}`;
   } catch (e) { alert(e.message); }
 }
 
@@ -188,12 +251,13 @@ function tlRenderPerfil() {
     </div>`;
 
   if (d.stories && d.stories.length) {
-    html += `<div style="display:flex;gap:12px;overflow-x:auto;margin-bottom:16px">
+    html += `<div class="tl-stories">
       ${d.stories.map((s, i) => `
-        <button type="button" class="tl-story-avatar" data-idx="${i}" style="background:none;border:none;cursor:pointer;flex-shrink:0">
-          <span style="width:56px;height:56px;border-radius:50%;padding:2px;display:flex;background:${s.vista_por_mim ? 'var(--border-md)' : 'linear-gradient(135deg,var(--red),var(--amber))'}">
-            <img src="${tlEsc(s.photo_url)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;border:2px solid var(--panel)">
+        <button type="button" class="tl-story tl-story-avatar" data-idx="${i}">
+          <span class="tl-story-ring ${s.vista_por_mim ? '' : 'unseen'}">
+            <img src="${tlEsc(s.photo_url)}">
           </span>
+          <span class="tl-story-name">Story</span>
         </button>`).join('')}
     </div>`;
   }
@@ -230,16 +294,21 @@ function tlPerfilCardPost(p) {
   return `<div class="card">
     <div class="card-head">
       <img src="${tlEsc(p.author_photo || '/img/default-team.png')}" onerror="this.src='/img/default-team.png'">
-      <span class="card-author">${tlEsc(p.author_name)}</span>
+      <div style="min-width:0">
+        <span class="card-author">${tlEsc(p.author_name)}</span>
+      </div>
       <span class="card-time">${tlDataCurta(p.created_at)}</span>
     </div>
-    ${p.texto ? `<div class="card-text">${tlEsc(p.texto)}</div>` : ''}
     ${p.photo_url ? `<img class="card-photo" src="${tlEsc(p.photo_url)}">` : ''}
-    <div class="card-actions">
-      <button type="button" class="like-btn ${p.liked_by_me ? 'liked' : ''}" data-post-id="${p.id}" data-liked="${p.liked_by_me ? '1' : '0'}">
-        <i class="bi ${p.liked_by_me ? 'bi-heart-fill' : 'bi-heart'}"></i> <span>${p.like_count}</span>
-      </button>
-      ${podeApagar ? `<button type="button" class="del-btn" data-post-id="${p.id}"><i class="bi bi-trash"></i></button>` : ''}
+    <div class="card-body">
+      <div class="card-actions">
+        <button type="button" class="like-btn ${p.liked_by_me ? 'liked' : ''}" data-post-id="${p.id}" data-liked="${p.liked_by_me ? '1' : '0'}">
+          <i class="bi ${p.liked_by_me ? 'bi-heart-fill' : 'bi-heart'}"></i>
+        </button>
+        ${podeApagar ? `<button type="button" class="del-btn" data-post-id="${p.id}"><i class="bi bi-trash"></i></button>` : ''}
+      </div>
+      <div class="card-likes" data-like-count>${p.like_count} curtida${p.like_count === 1 ? '' : 's'}</div>
+      ${p.texto ? `<div class="card-caption"><b>${tlEsc(p.author_name)}</b>${tlEsc(p.texto)}</div>` : ''}
     </div>
   </div>`;
 }

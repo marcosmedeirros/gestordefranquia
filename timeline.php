@@ -86,56 +86,88 @@ if ($team_id) {
         .sb-logout { width: 26px; height: 26px; border-radius: 7px; background: transparent; border: 1px solid var(--border); color: var(--text-2); display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; transition: all var(--t) var(--ease); text-decoration: none; flex-shrink: 0; }
         .sb-logout:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
 
-        .tl-tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 18px; }
-        .tl-tab { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 9px 16px; color: var(--text-2); font-family: var(--font); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all var(--t); }
+        /* Coluna central estreita, tipo feed de rede social — Posts (grid) usa
+           uma variante mais larga, já que grid precisa de mais espaço. */
+        .tl-col { max-width: 470px; margin: 0 auto; }
+        .tl-col-wide { max-width: 720px; margin: 0 auto; }
+
+        .tl-tabs { display: flex; justify-content: center; gap: 4px; margin-bottom: 20px; background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 4px; max-width: 470px; margin-left: auto; margin-right: auto; }
+        .tl-tab { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; background: transparent; border: none; border-radius: 999px; padding: 9px 10px; color: var(--text-3); font-family: var(--font); font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: all var(--t); }
+        .tl-tab i { font-size: 15px; }
         .tl-tab:hover { color: var(--text); }
-        .tl-tab.active { background: var(--red-soft); border-color: var(--border-red); color: var(--red); }
+        .tl-tab.active { background: var(--red); color: #fff; box-shadow: 0 4px 14px -4px var(--red-glow); }
         .tl-hidden { display: none !important; }
 
-        .tl-chips { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 16px; }
-        .tl-chip { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px; color: var(--text-2); font-family: var(--font); font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
-        .tl-chip.active { background: var(--red-soft); border-color: var(--border-red); color: var(--red); }
+        .tl-chips { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 16px; padding-bottom: 2px; }
+        .tl-chip { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px; color: var(--text-2); font-family: var(--font); font-size: 11.5px; font-weight: 700; letter-spacing: .3px; cursor: pointer; white-space: nowrap; transition: all var(--t); }
+        .tl-chip:hover { color: var(--text); }
+        .tl-chip.active { background: var(--red); border-color: var(--red); color: #fff; }
 
-        .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; color: var(--text); margin-bottom: 12px; }
-        .card-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
-        .card-head img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: var(--panel-3); flex-shrink: 0; }
-        .card-author { font-size: 13px; font-weight: 700; }
-        .card-league { font-size: 10px; color: var(--text-3); font-weight: 600; }
+        /* Barra de stories — anel gradiente pra quem tem story não vista,
+           anel neutro pra já vista. Igual qualquer rede social. */
+        .tl-stories { display: flex; gap: 14px; overflow-x: auto; padding: 2px 2px 14px; margin-bottom: 6px; scrollbar-width: none; }
+        .tl-stories::-webkit-scrollbar { display: none; }
+        .tl-story { background: none; border: none; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; font-family: var(--font); width: 66px; }
+        .tl-story-ring { width: 62px; height: 62px; border-radius: 50%; padding: 2.5px; display: flex; background: var(--border-md); flex-shrink: 0; }
+        .tl-story-ring.unseen { background: linear-gradient(135deg, var(--red), var(--amber)); }
+        .tl-story-ring img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2.5px solid var(--bg-story, var(--bg)); background: var(--panel-3); }
+        .tl-story-name { font-size: 10.5px; color: var(--text-2); max-width: 66px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+
+        /* Post — cabeçalho enxuto, foto de ponta a ponta, ações com ícones e
+           "N curtidas" em linha própria, legenda com o nome em negrito na
+           frente (padrão clássico de rede social). */
+        .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); margin-bottom: 16px; overflow: hidden; }
+        .card-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+        .card-head img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; background: var(--panel-3); flex-shrink: 0; border: 1px solid var(--border-md); }
+        .card-author { font-size: 13.5px; font-weight: 700; text-decoration: none; color: inherit; }
+        .card-league { font-size: 10px; color: var(--text-3); font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
         .card-time { font-size: 11px; color: var(--text-3); margin-left: auto; white-space: nowrap; }
-        .card-text { font-size: 13.5px; line-height: 1.5; margin-bottom: 10px; }
-        .card-photo { width: 100%; max-height: 380px; object-fit: cover; border-radius: 10px; margin-bottom: 10px; display: block; }
-        .card-actions { display: flex; align-items: center; gap: 16px; }
-        .like-btn { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-2); font-family: inherit; padding: 4px 0; }
+        .card-photo { width: 100%; max-height: 520px; object-fit: cover; display: block; background: var(--panel-2); }
+        .card-body { padding: 12px 14px 14px; }
+        .card-actions { display: flex; align-items: center; gap: 18px; margin-bottom: 8px; }
+        .like-btn { display: inline-flex; align-items: center; gap: 0; background: none; border: none; cursor: pointer; font-size: 22px; color: var(--text); font-family: inherit; padding: 2px 0; line-height: 1; transition: transform .15s; }
+        .like-btn:active { transform: scale(1.25); }
         .like-btn.liked { color: var(--red); }
-        .del-btn { margin-left: auto; background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 12px; }
-        .auto-row { display: flex; align-items: center; gap: 11px; padding: 12px 16px; }
-        .auto-icon { width: 30px; height: 30px; border-radius: 9px; background: var(--panel-2); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
-        .auto-text { font-size: 13px; color: var(--text-2); }
-        .auto-text b { color: var(--text); font-weight: 600; }
-        .auto-time { font-size: 11px; color: var(--text-3); margin-left: auto; white-space: nowrap; flex-shrink: 0; }
+        .card-likes { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+        .card-caption { font-size: 13.5px; line-height: 1.5; margin-bottom: 6px; }
+        .card-caption b { font-weight: 700; margin-right: 5px; }
+        .del-btn { margin-left: auto; background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 16px; }
 
-        .tl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
-        .tl-grid-item { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--panel-2); border: 1px solid var(--border); cursor: pointer; }
-        .tl-grid-item img { width: 100%; height: 100%; object-fit: cover; }
-        .tl-grid-item .no-photo { display: flex; align-items: center; justify-content: center; height: 100%; padding: 10px; font-size: 11.5px; color: var(--text-3); text-align: center; }
+        /* Eventos automáticos: discretos de propósito, pra não competir com
+           post de verdade — lê como "atividade do sistema", não conteúdo. */
+        .auto-row { display: flex; align-items: center; gap: 10px; padding: 9px 4px; margin-bottom: 2px; }
+        .auto-icon { width: 26px; height: 26px; border-radius: 50%; background: var(--panel-2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+        .auto-text { font-size: 12.5px; color: var(--text-3); }
+        .auto-text b { color: var(--text-2); font-weight: 600; }
+        .auto-time { font-size: 10.5px; color: var(--text-3); margin-left: auto; white-space: nowrap; flex-shrink: 0; opacity: .8; }
 
-        .btn-orange { background: var(--red); border: none; color: #fff; font-weight: 600; font-size: 13px; border-radius: var(--radius-xs); padding: 9px 18px; transition: background var(--t); cursor: pointer; }
+        .tl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 3px; }
+        .tl-grid-item { position: relative; aspect-ratio: 1; overflow: hidden; background: var(--panel-2); border: none; cursor: pointer; }
+        .tl-grid-item img { width: 100%; height: 100%; object-fit: cover; transition: transform .2s; }
+        .tl-grid-item:hover img { transform: scale(1.04); }
+        .tl-grid-item .no-photo { display: flex; align-items: center; justify-content: center; height: 100%; padding: 10px; font-size: 11.5px; color: var(--text-3); text-align: center; background: var(--panel-2); }
+
+        .btn-orange { background: var(--red); border: none; color: #fff; font-weight: 700; font-size: 13px; border-radius: 999px; padding: 9px 20px; transition: background var(--t); cursor: pointer; }
         .btn-orange:hover { background: var(--red-2); }
         .btn-orange:disabled { background: var(--panel-3); color: var(--text-3); cursor: not-allowed; }
-        .btn-ghost { background: transparent; border: 1px solid var(--border-md); color: var(--text-2); font-weight: 600; font-size: 12px; border-radius: var(--radius-xs); padding: 8px 14px; transition: all var(--t); cursor: pointer; }
+        .btn-ghost { background: var(--panel-2); border: 1px solid var(--border-md); color: var(--text); font-weight: 700; font-size: 12.5px; border-radius: 999px; padding: 8px 16px; transition: all var(--t); cursor: pointer; }
         .btn-ghost:hover { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
         .btn-ghost.following { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
 
-        .tl-search-input { width: 100%; max-width: 420px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-xs); padding: 10px 14px; font-family: var(--font); font-size: 13px; margin-bottom: 16px; }
-        .tl-search-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--panel-2); border: 1px solid var(--border); margin-bottom: 8px; cursor: pointer; }
-        .tl-search-item img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--panel-3); }
+        .tl-search-input { width: 100%; background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 999px; padding: 12px 18px; font-family: var(--font); font-size: 13.5px; margin-bottom: 18px; }
+        .tl-search-input::placeholder { color: var(--text-3); }
+        .tl-search-item { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: var(--radius-sm); background: var(--panel); border: 1px solid var(--border); margin-bottom: 8px; cursor: pointer; text-decoration: none; color: inherit; transition: border-color var(--t); }
+        .tl-search-item:hover { border-color: var(--border-red); }
+        .tl-search-item img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--panel-3); flex-shrink: 0; }
 
-        .tl-profile-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
-        .tl-profile-avatar { width: 62px; height: 62px; border-radius: 16px; object-fit: cover; background: var(--panel-2); border: 1px solid var(--border-md); }
-        .tl-profile-name { font-size: 18px; font-weight: 800; }
-        .tl-profile-sub { font-size: 12px; color: var(--text-3); }
-        .tl-profile-stats { display: flex; gap: 16px; font-size: 12px; color: var(--text-2); margin-top: 4px; }
-        .tl-profile-stats b { color: var(--text); }
+        /* Perfil — cabeçalho estilo perfil de rede social: avatar grande à
+           esquerda, nome/estatísticas/seguir à direita. */
+        .tl-profile-header { display: flex; align-items: center; gap: 22px; margin-bottom: 22px; flex-wrap: wrap; }
+        .tl-profile-avatar { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; background: var(--panel-2); border: 1px solid var(--border-md); flex-shrink: 0; }
+        .tl-profile-name { font-size: 19px; font-weight: 800; }
+        .tl-profile-sub { font-size: 12px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; margin-top: 2px; }
+        .tl-profile-stats { display: flex; gap: 22px; font-size: 13px; color: var(--text-2); margin-top: 10px; }
+        .tl-profile-stats b { color: var(--text); display: block; font-size: 15px; font-weight: 800; }
         .empty { text-align: center; padding: 30px 16px; color: var(--text-3); font-size: 13px; }
 
         input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
@@ -171,42 +203,51 @@ if ($team_id) {
 
         <div class="content">
             <div class="tl-tabs" id="tlTabs">
-                <button class="tl-tab active" data-tab="feed">Feed</button>
-                <button class="tl-tab" data-tab="perfil">Perfil</button>
-                <button class="tl-tab" data-tab="posts">Posts</button>
-                <button class="tl-tab" data-tab="pesquisar">Pesquisar</button>
+                <button class="tl-tab active" data-tab="feed"><i class="bi bi-house-door-fill"></i> Feed</button>
+                <button class="tl-tab" data-tab="perfil"><i class="bi bi-person-circle"></i> Perfil</button>
+                <button class="tl-tab" data-tab="posts"><i class="bi bi-grid-3x3-gap-fill"></i> Posts</button>
+                <button class="tl-tab" data-tab="pesquisar"><i class="bi bi-search"></i> Buscar</button>
             </div>
 
             <div data-tl-tab="feed">
-                <div class="tl-chips" id="tlFeedChips">
-                    <button class="tl-chip active" data-league="">Todas</button>
-                    <button class="tl-chip" data-league="ELITE">ELITE</button>
-                    <button class="tl-chip" data-league="NEXT">NEXT</button>
-                    <button class="tl-chip" data-league="RISE">RISE</button>
-                    <button class="tl-chip" data-league="ROOKIE">ROOKIE</button>
+                <div class="tl-col">
+                    <div class="tl-chips" id="tlFeedChips">
+                        <button class="tl-chip active" data-league="">Todas</button>
+                        <button class="tl-chip" data-league="ELITE">ELITE</button>
+                        <button class="tl-chip" data-league="NEXT">NEXT</button>
+                        <button class="tl-chip" data-league="RISE">RISE</button>
+                        <button class="tl-chip" data-league="ROOKIE">ROOKIE</button>
+                    </div>
+                    <div class="tl-stories" id="tlStoriesBar"></div>
+                    <div id="tlFeedList"><div class="empty">Carregando...</div></div>
+                    <button type="button" class="btn-ghost" id="tlFeedMore" style="display:none;width:100%">Carregar mais</button>
                 </div>
-                <div id="tlFeedList"><div class="empty">Carregando...</div></div>
-                <button type="button" class="btn-ghost" id="tlFeedMore" style="display:none;width:100%">Carregar mais</button>
             </div>
 
             <div data-tl-tab="perfil" class="tl-hidden">
-                <div id="tlPerfilBox"><div class="empty">Carregando...</div></div>
+                <div class="tl-col">
+                    <div id="tlPerfilBox"><div class="empty">Carregando...</div></div>
+                </div>
             </div>
 
             <div data-tl-tab="posts" class="tl-hidden">
-                <div class="tl-chips" id="tlPostsChips">
-                    <button class="tl-chip active" data-league="">Todas</button>
-                    <button class="tl-chip" data-league="ELITE">ELITE</button>
-                    <button class="tl-chip" data-league="NEXT">NEXT</button>
-                    <button class="tl-chip" data-league="RISE">RISE</button>
-                    <button class="tl-chip" data-league="ROOKIE">ROOKIE</button>
+                <div class="tl-col-wide">
+                    <div class="tl-chips" id="tlPostsChips">
+                        <button class="tl-chip active" data-league="">Todas</button>
+                        <button class="tl-chip" data-league="ELITE">ELITE</button>
+                        <button class="tl-chip" data-league="NEXT">NEXT</button>
+                        <button class="tl-chip" data-league="RISE">RISE</button>
+                        <button class="tl-chip" data-league="ROOKIE">ROOKIE</button>
+                    </div>
+                    <div class="tl-grid" id="tlPostsGrid"></div>
                 </div>
-                <div class="tl-grid" id="tlPostsGrid"></div>
             </div>
 
             <div data-tl-tab="pesquisar" class="tl-hidden">
-                <input type="text" id="tlSearchInput" class="tl-search-input" placeholder="Buscar time ou GM...">
-                <div id="tlSearchResults"></div>
+                <div class="tl-col">
+                    <input type="text" id="tlSearchInput" class="tl-search-input" placeholder="Buscar time ou GM...">
+                    <div id="tlSearchResults"></div>
+                </div>
             </div>
         </div>
     </main>
