@@ -98,13 +98,14 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
     // em vez de passar por "?"/$params.
     $limitSql = (int)$limit;
 
-    // Trades 1-para-1 aceitas
+    // Trades 1-para-1 aceitas — só entram na timeline se tiverem pelo menos
+    // um jogador 80+ OVR (o join já filtra isso: trade sem nenhum 80+ some).
     if (!$global) {
         $sql = "
             SELECT t.id, t.from_team_id AS team_id, COALESCE(t.updated_at, t.created_at) AS data_evt,
-                   GROUP_CONCAT(CONCAT(ti.player_name, IF(ti.from_team=1,' (enviado)',' (recebido)')) SEPARATOR ', ') AS itens
+                   GROUP_CONCAT(CONCAT(ti.player_name, ' (', ti.player_age, ' anos, ', ti.player_ovr, ' OVR)', IF(ti.from_team=1,' enviado',' recebido')) SEPARATOR ', ') AS itens
             FROM trades t
-            JOIN trade_items ti ON ti.trade_id = t.id
+            JOIN trade_items ti ON ti.trade_id = t.id AND ti.player_ovr >= 80
             WHERE t.status = 'accepted' AND (t.from_team_id = ? OR t.to_team_id = ?)
             GROUP BY t.id" . ($before ? " HAVING data_evt < ?" : "") . "
             ORDER BY data_evt DESC LIMIT {$limitSql}
@@ -113,9 +114,9 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
     } else {
         $sql = "
             SELECT t.id, t.from_team_id AS team_id, COALESCE(t.updated_at, t.created_at) AS data_evt,
-                   GROUP_CONCAT(ti.player_name SEPARATOR ', ') AS itens
+                   GROUP_CONCAT(CONCAT(ti.player_name, ' (', ti.player_age, ' anos, ', ti.player_ovr, ' OVR) ', IF(ti.from_team=1,'enviado','recebido')) SEPARATOR ', ') AS itens
             FROM trades t
-            JOIN trade_items ti ON ti.trade_id = t.id" .
+            JOIN trade_items ti ON ti.trade_id = t.id AND ti.player_ovr >= 80" .
             ($league ? " JOIN teams tl ON tl.id = t.from_team_id" : "") . "
             WHERE t.status = 'accepted'" . ($league ? " AND tl.league = ?" : "") . "
             GROUP BY t.id" . ($before ? " HAVING data_evt < ?" : "") . "
@@ -126,17 +127,19 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $eventos[] = ['tipo' => 'trade', 'icone' => '🔄', 'texto' => 'Trade concluída: ' . ($r['itens'] ?: '—'), 'data' => $r['data_evt'], 'team_id' => (int)$r['team_id']];
+        $eventos[] = ['tipo' => 'trade', 'icone' => '🔄', 'texto' => 'Trade concluída: ' . $r['itens'], 'data' => $r['data_evt'], 'team_id' => (int)$r['team_id']];
     }
 
-    // Trades multi-time aceitas
+    // Trades multi-time aceitas — mesma regra: só aparece se tiver jogador 80+
+    // OVR (join é LEFT pra não sumir a trade toda, mas descarta no PHP se
+    // "itens" ficar vazio).
     if (!$global) {
         $sql = "
             SELECT mt.id, mt.updated_at AS data_evt,
-                   GROUP_CONCAT(DISTINCT CONCAT(mti.player_name, IF(mti.from_team_id=?,' (enviado)',' (recebido)')) SEPARATOR ', ') AS itens
+                   GROUP_CONCAT(DISTINCT CONCAT(mti.player_name, ' (', mti.player_age, ' anos, ', mti.player_ovr, ' OVR)', IF(mti.from_team_id=?,' enviado',' recebido')) SEPARATOR ', ') AS itens
             FROM multi_trades mt
             JOIN multi_trade_teams mtt ON mtt.trade_id = mt.id AND mtt.team_id = ?
-            LEFT JOIN multi_trade_items mti ON mti.trade_id = mt.id AND (mti.from_team_id = ? OR mti.to_team_id = ?) AND mti.player_name IS NOT NULL
+            LEFT JOIN multi_trade_items mti ON mti.trade_id = mt.id AND (mti.from_team_id = ? OR mti.to_team_id = ?) AND mti.player_ovr >= 80
             WHERE mt.status = 'accepted'" . ($before ? " AND mt.updated_at < ?" : "") . "
             GROUP BY mt.id
             ORDER BY data_evt DESC LIMIT {$limitSql}
@@ -145,14 +148,15 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $eventos[] = ['tipo' => 'trade', 'icone' => '🔄', 'texto' => 'Trade multi-time concluída' . ($r['itens'] ? ': ' . $r['itens'] : ''), 'data' => $r['data_evt'], 'team_id' => $teamId];
+            if (!$r['itens']) continue;
+            $eventos[] = ['tipo' => 'trade', 'icone' => '🔄', 'texto' => 'Trade multi-time concluída: ' . $r['itens'], 'data' => $r['data_evt'], 'team_id' => $teamId];
         }
     } else {
         $sql = "
             SELECT mt.id, mt.created_by_team_id AS team_id, mt.updated_at AS data_evt,
-                   GROUP_CONCAT(DISTINCT mti.player_name SEPARATOR ', ') AS itens
+                   GROUP_CONCAT(DISTINCT CONCAT(mti.player_name, ' (', mti.player_age, ' anos, ', mti.player_ovr, ' OVR) ', IF(mti.from_team_id = mt.created_by_team_id,'enviado','recebido')) SEPARATOR ', ') AS itens
             FROM multi_trades mt
-            LEFT JOIN multi_trade_items mti ON mti.trade_id = mt.id AND mti.player_name IS NOT NULL" .
+            LEFT JOIN multi_trade_items mti ON mti.trade_id = mt.id AND mti.player_ovr >= 80" .
             ($league ? " JOIN teams tl ON tl.id = mt.created_by_team_id" : "") . "
             WHERE mt.status = 'accepted'" . ($league ? " AND tl.league = ?" : "") . ($before ? " AND mt.updated_at < ?" : "") . "
             GROUP BY mt.id
@@ -162,7 +166,8 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-            $eventos[] = ['tipo' => 'trade', 'icone' => '🔄', 'texto' => 'Trade multi-time concluída' . ($r['itens'] ? ': ' . $r['itens'] : ''), 'data' => $r['data_evt'], 'team_id' => (int)$r['team_id']];
+            if (!$r['itens']) continue;
+            $eventos[] = ['tipo' => 'trade', 'icone' => '🔄', 'texto' => 'Trade multi-time concluída: ' . $r['itens'], 'data' => $r['data_evt'], 'team_id' => (int)$r['team_id']];
         }
     }
 
