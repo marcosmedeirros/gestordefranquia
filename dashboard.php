@@ -39,7 +39,18 @@ if ($team) {
 // Cobranca da logo do time: todo time novo entra com a logo padrao do FBA
 // (photo_url vazio, cai no fallback getTeamPhoto()) — cobra até o GM subir
 // uma de verdade, mesmo padrão do popup de atualizar elenco acima.
-$precisaLogo = $team && empty($team['photo_url']);
+// Além do vazio, confere se o arquivo de um caminho local realmente existe —
+// times antigos podem ter um photo_url "fantasma" (upload que se perdeu),
+// que não é vazio mas também não mostra logo nenhuma de verdade.
+$precisaLogo = false;
+if ($team) {
+    $fotoAtual = trim((string)($team['photo_url'] ?? ''));
+    if ($fotoAtual === '') {
+        $precisaLogo = true;
+    } elseif (str_starts_with($fotoAtual, '/img/') && !is_file(__DIR__ . '/' . ltrim($fotoAtual, '/'))) {
+        $precisaLogo = true;
+    }
+}
 
 $gamesConnectUrl = '/api/games-link.php?action=start';
 $showGamesConnect = false;
