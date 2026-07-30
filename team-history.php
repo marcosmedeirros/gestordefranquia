@@ -57,7 +57,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .topbar-logo{width:30px;height:30px;border-radius:8px;background:var(--red);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#fff}
 .icon-btn{width:34px;height:34px;border-radius:10px;background:transparent;border:1px solid var(--border);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;text-decoration:none;transition:all .2s}
 .icon-btn:hover{background:var(--red-soft);border-color:var(--red);color:var(--red)}
-.content{max-width:960px;margin:0 auto;padding:24px 16px 80px;width:100%}
+.content{padding:20px 32px 80px;width:100%}
 .hero{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
 .hero-logo{width:72px;height:72px;border-radius:16px;background:var(--panel-2);border:1px solid var(--border-md);display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;font-size:28px;font-weight:700;color:#fff;flex-shrink:0;overflow:hidden}
 .hero-logo img{width:100%;height:100%;object-fit:contain;border-radius:14px}
@@ -117,7 +117,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .ver-todos-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:10px;padding:9px 12px;border-radius:8px;background:var(--panel-2);border:1px solid var(--border);color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
 .ver-todos-btn:hover{border-color:var(--border-red);color:var(--red);background:var(--red-soft)}
 @media(max-width:640px){
-  .content{padding:18px 12px 72px}
+  .content{padding:18px 16px 72px}
   .panel{padding:16px 14px}
   .two-col{grid-template-columns:1fr}
   .stats-grid{grid-template-columns:repeat(2,1fr)}
@@ -230,11 +230,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <?= mb_strtoupper(mb_substr($teamInfo['city'] ?? '?', 0, 1)) ?>
       <?php endif; ?>
     </div>
-    <div>
+    <div style="min-width:0;flex:1">
       <div class="hero-name"><?= htmlspecialchars($teamInfo['full_name']) ?></div>
       <div style="font-size:12px;color:var(--text-2);margin-top:4px" id="hero-owner"></div>
-      <span class="league-badge"><?= htmlspecialchars($teamInfo['league']) ?></span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">
+        <span class="league-badge"><?= htmlspecialchars($teamInfo['league']) ?></span>
+        <span id="hero-conf" style="display:none"></span>
+        <span id="hero-tag" style="display:none"></span>
+      </div>
     </div>
+    <div id="hero-chips" style="display:flex;gap:10px;flex-wrap:wrap;margin-left:auto"></div>
   </div>
 
   <div class="th-tabs" id="thTabs">
@@ -254,6 +259,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
   <div class="section-title" data-th-tab="geral"><i class="bi bi-trophy-fill"></i> Desempenho por Fase</div>
   <div class="panel" id="phases-panel" data-th-tab="geral"><div class="skeleton" style="height:180px"></div></div>
+
+  <div id="franchise-health-wrap" data-th-tab="geral" style="display:none">
+    <div class="section-title"><i class="bi bi-heart-pulse-fill"></i> Saúde da Franquia</div>
+    <div class="two-col" id="franchise-health-grid"></div>
+  </div>
 
   <div id="playoff-campaigns-wrap" data-th-tab="geral" style="display:none">
     <div class="section-title"><i class="bi bi-diagram-3-fill"></i> Campanhas de Playoff <span style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0">(placar de cada série)</span></div>
@@ -320,6 +330,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   <div class="panel" id="league-stats-panel" style="display:none" data-th-tab="geral">
     <div class="section-title"><i class="bi bi-graph-up-arrow"></i> Estatísticas na Liga <span style="font-size:10px;font-weight:400;color:var(--text-3);text-transform:none;letter-spacing:0">(valor do time e posição entre os times da liga)</span></div>
     <div id="league-stats-content"></div>
+  </div>
+
+  <div class="panel" id="positions-panel" style="display:none" data-th-tab="historico">
+    <div class="section-title"><i class="bi bi-list-ol"></i> Classificação por Temporada</div>
+    <div id="positions-content"></div>
   </div>
 
   <div class="panel" data-th-tab="historico">
@@ -392,6 +407,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 const TEAM_ID = <?= $teamId ?>;
 const AWARD_LABELS = { mvp:'MVP', dpoy:'DPOY', mip:'MIP', '6th_man':'6º Homem', roy:'ROY' };
 const POS_LABELS   = { PG:'Armador', SG:'Ala-Armador', SF:'Ala', PF:'Ala-Pivô', C:'Pivô' };
+const TEAM_TAG_META = {
+  Contending: { label: '🏆 Contending', color: '#10b981', bg: 'rgba(16,185,129,.12)' },
+  Buying:     { label: '📈 Buying',     color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
+  Selling:    { label: '📦 Selling',    color: '#f97316', bg: 'rgba(249,115,22,.12)' },
+  Rebuilding: { label: '🔧 Rebuilding', color: '#64748b', bg: 'rgba(100,116,139,.12)' },
+};
+function chip(label, value, color){
+  return `<div style="background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:8px 14px;text-align:center;min-width:78px">
+    <div style="font-family:'Oswald',sans-serif;font-size:18px;font-weight:700;color:${color||'var(--text)'}">${value}</div>
+    <div style="font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3)">${label}</div>
+  </div>`;
+}
 
 function esc(s){ if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -416,7 +443,7 @@ async function load(){
   const data = await res.json();
   if(!data.success){ document.querySelector('main').innerHTML='<div class="empty">Erro ao carregar dados.</div>'; return; }
 
-  const { team, seasons, playoffs, regular, picks, trades, players, drafted, awards, gm } = data;
+  const { team, seasons, playoffs, regular, picks, trades, players, drafted, awards, gm, positions, cap_summary: capSummary, punishments } = data;
   const bestRoster = data.best_roster, tradesByCycle = data.trades_by_cycle || [],
         tradesByPartner = data.trades_by_partner || [], leagueStats = data.league_stats || {},
         retiredLegends = data.retired_legends || [];
@@ -434,6 +461,27 @@ async function load(){
   });
 
   document.getElementById('hero-owner').textContent = team.owner_name ? `GM: ${team.owner_name}` : '';
+
+  // ── Hero: conferência, status da franquia, ranking e moedas ──
+  if (team.conference) {
+    const confEl = document.getElementById('hero-conf');
+    confEl.style.display = 'inline-block';
+    confEl.className = 'league-badge';
+    confEl.style.background = 'var(--panel-2)'; confEl.style.color = 'var(--text-2)'; confEl.style.borderColor = 'var(--border-md)';
+    confEl.textContent = team.conference;
+  }
+  if (team.team_tag && TEAM_TAG_META[team.team_tag]) {
+    const m = TEAM_TAG_META[team.team_tag];
+    const tagEl = document.getElementById('hero-tag');
+    tagEl.style.display = 'inline-flex';
+    tagEl.style.cssText += `background:${m.bg};color:${m.color};border:1px solid ${m.color}44;border-radius:999px;font-size:11px;font-weight:700;padding:4px 10px`;
+    tagEl.textContent = m.label;
+  }
+  const chips = [];
+  if (team.ranking_points) chips.push(chip('Ranking', team.ranking_points, 'var(--red)'));
+  if (team.ranking_titles) chips.push(chip('Títulos Liga', team.ranking_titles, 'var(--amber)'));
+  if (team.moedas) chips.push(chip('Moedas', team.moedas, '#f59e0b'));
+  document.getElementById('hero-chips').innerHTML = chips.join('');
 
   // ── Visão Geral ──
   const pct = seasons.played > 0 ? Math.round((playoffs.appearances/seasons.played)*100) : 0;
@@ -459,6 +507,62 @@ async function load(){
   ];
   const phaseHTML = phases.map(p => row(p.icon, p.label, p.val, p.color)).join('');
   document.getElementById('phases-panel').innerHTML = phaseHTML || '<div class="empty">Nenhum dado ainda</div>';
+
+  // ── Saúde da Franquia: Salary Cap (ELITE) + Reputação/Punições ──
+  (function(){
+    const wrap = document.getElementById('franchise-health-wrap');
+    const grid = document.getElementById('franchise-health-grid');
+    if (!wrap || !grid) return;
+    let html = '';
+
+    if (capSummary) {
+      const overCap = capSummary.payroll > capSummary.cap_max;
+      const STATUS_LABEL = { dentro_do_cap: 'Dentro do cap', over_the_cap: 'Acima do teto', abaixo_do_piso: 'Abaixo do piso' };
+      html += `<div class="panel">
+        <div class="section-title" style="margin-bottom:10px"><i class="bi bi-cash-stack"></i> Salary Cap</div>
+        <div class="row"><span class="row-label">Folha salarial</span><span class="row-val" style="color:${overCap?'#ef4444':'var(--text)'}">${capSummary.payroll}M</span></div>
+        <div class="row"><span class="row-label">Cap máximo</span><span class="row-val" style="color:var(--amber)">${capSummary.cap_max}M</span></div>
+        <div class="row"><span class="row-label">Espaço disponível</span><span class="row-val" style="color:${capSummary.space<0?'#ef4444':'var(--green)'}">${capSummary.space}M</span></div>
+        <div class="row" style="border:none"><span class="row-label">Status</span><span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:${overCap?'rgba(239,68,68,.12)':'rgba(34,197,94,.12)'};color:${overCap?'#ef4444':'var(--green)'}">${STATUS_LABEL[capSummary.status]||capSummary.status}</span></div>
+        <a href="/cap.php" style="font-size:11px;color:var(--text-3);display:inline-block;margin-top:8px">Ver detalhes do cap →</a>
+      </div>`;
+    }
+
+    const pu = punishments || { total: 0, active: 0, recent: [] };
+    const puColor = pu.active > 0 ? '#ef4444' : 'var(--green)';
+    html += `<div class="panel">
+      <div class="section-title" style="margin-bottom:10px"><i class="bi bi-shield-exclamation"></i> Reputação</div>
+      <div class="row"><span class="row-label">Punições ativas</span><span class="row-val" style="color:${puColor}">${pu.active}</span></div>
+      <div class="row" style="border:none"><span class="row-label">Histórico total</span><span class="row-val">${pu.total}</span></div>
+      ${pu.recent.length ? `<div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+        ${pu.recent.slice(0,3).map(p => `<div style="font-size:11px;color:var(--text-2);display:flex;justify-content:space-between;gap:8px">
+          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.punishment_label || p.motive || p.type || 'Punição')}</span>
+          <span style="color:var(--text-3);flex-shrink:0">${p.reverted_at ? 'revertida' : ''}</span>
+        </div>`).join('')}</div>` : '<div style="font-size:11px;color:var(--text-3);margin-top:8px">Nenhuma punição registrada.</div>'}
+    </div>`;
+
+    grid.innerHTML = html;
+    wrap.style.display = html ? 'block' : 'none';
+  })();
+
+  // ── Classificação por temporada (posição final na conferência) ──
+  (function(){
+    const box = document.getElementById('positions-content');
+    const panel = document.getElementById('positions-panel');
+    if (!box || !panel) return;
+    if (!positions || !positions.length) return;
+    panel.style.display = 'block';
+    box.innerHTML = `<div style="overflow-x:auto"><table class="year-table">
+      <thead><tr><th>Temporada</th><th>Conferência</th><th>Posição</th><th>Playoffs</th></tr></thead>
+      <tbody>${positions.slice().reverse().map(p => `
+        <tr>
+          <td style="font-weight:700">${p.year ?? ('T'+p.season_number)}</td>
+          <td style="color:var(--text-2)">${esc(p.conference || '—')}</td>
+          <td><span class="ovr-pill" style="color:${p.made_playoffs?'var(--green)':'var(--text)'}">${p.position}º${p.conference_size?' de '+p.conference_size:''}</span></td>
+          <td>${p.made_playoffs ? '<span style="color:var(--green);font-size:12px"><i class="bi bi-check-circle-fill"></i> Sim</span>' : '<span style="color:var(--text-3);font-size:12px">Não</span>'}</td>
+        </tr>`).join('')}</tbody>
+    </table></div>`;
+  })();
 
   // ── Campanhas de Playoff (placar de cada série) ──
   (function(){
@@ -719,9 +823,14 @@ load();
     const n = v => (v === null || v === undefined) ? '—'
       : String(Number(v)).replace('.', ',');
 
+    const isLoyal = p => Number(p.is_loyal ?? (Number(p.was_traded ?? 1) === 0 ? 1 : 0)) === 1;
+    const isCapBonus = p => Number(p.cap_bonus_eligible) === 1;
+    const loyalTag = p => isLoyal(p) ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:9px;font-weight:700;padding:1px 6px;margin-left:5px">Leal</span>' : '';
+    const nameColor = p => isCapBonus(p) ? `color:${p.player_tag_color || '#f59e0b'};` : '';
+
     const linhas = d.players.map(p => `
       <tr>
-        <td><a href="/player.php?id=${p.id}" style="color:inherit;text-decoration:none">${esc(p.name)}</a></td>
+        <td><a href="/player.php?id=${p.id}" style="${nameColor(p)}text-decoration:none">${esc(p.name)}</a>${loyalTag(p)}</td>
         <td style="color:var(--text-2)">${esc(p.position || '')}${p.secondary_position ? '/' + esc(p.secondary_position) : ''}</td>
         <td style="text-align:center;font-weight:700">${p.ovr ?? '—'}</td>
         <td style="text-align:center;color:var(--text-2)">${p.age ?? '—'}</td>

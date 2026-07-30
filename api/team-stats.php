@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/salary_cap.php';
 requireAuth();
 
 header('Content-Type: application/json; charset=utf-8');
@@ -431,6 +432,28 @@ try {
     $playoffCampaigns = [];
 }
 
+// ── Salary Cap (só ELITE) ─────────────────────────────────────────
+$capSummary = null;
+if (strtoupper((string)($team['league'] ?? '')) === 'ELITE') {
+    try { $capSummary = getTeamCapSummary($pdo, $teamId); } catch (Exception $e) { $capSummary = null; }
+}
+
+// ── Reputação / punições (FBA SERASA) ────────────────────────────
+$punishments = ['total' => 0, 'active' => 0, 'recent' => []];
+try {
+    $stmtPun = $pdo->prepare("SELECT COUNT(*) AS total, SUM(reverted_at IS NULL) AS active FROM team_punishments WHERE team_id = ?");
+    $stmtPun->execute([$teamId]);
+    $pr = $stmtPun->fetch(PDO::FETCH_ASSOC);
+    $punishments['total'] = (int)($pr['total'] ?? 0);
+    $punishments['active'] = (int)($pr['active'] ?? 0);
+
+    $stmtRecent = $pdo->prepare("SELECT punishment_label, motive, type, created_at, reverted_at
+                                  FROM team_punishments WHERE team_id = ?
+                                  ORDER BY created_at DESC LIMIT 5");
+    $stmtRecent->execute([$teamId]);
+    $punishments['recent'] = $stmtRecent->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
 echo json_encode([
     'success'  => true,
     'team'     => $team,
@@ -456,6 +479,8 @@ echo json_encode([
         'top8' => $top8Regular,
     ],
     'positions' => $positionsByYear,
+    'cap_summary' => $capSummary,
+    'punishments' => $punishments,
     'best_roster' => $bestRoster,
     'trades_by_cycle' => $tradesByCycle,
     'trades_by_partner' => $tradesByPartner,

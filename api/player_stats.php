@@ -11,6 +11,7 @@
  */
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/helpers.php';
 requireAuth();
 
 header('Content-Type: application/json; charset=utf-8');
@@ -90,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'team_ro
 
     $st = $pdo->prepare("
         SELECT p.id, p.name, p.position, p.secondary_position, p.ovr, p.age, p.role,
+               p.team_id, COALESCE(p.was_traded,0) AS was_traded, COALESCE(p.player_tag_color,NULL) AS player_tag_color,
                ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg
         FROM players p
         LEFT JOIN player_season_stats ps
@@ -98,11 +100,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'team_ro
         ORDER BY (ps.pts_pg IS NULL), ps.pts_pg DESC, p.ovr DESC
     ");
     $st->execute([$temp['id'] ?? null, $tid]);
+    $rosterPlayers = $st->fetchAll(PDO::FETCH_ASSOC);
+    markLoyaltyEligibility($pdo, $rosterPlayers);
 
     echo json_encode([
         'success'       => true,
         'season_number' => $temp['season_number'] ?? null,
-        'players'       => $st->fetchAll(PDO::FETCH_ASSOC),
+        'players'       => $rosterPlayers,
     ]);
     exit;
 }
