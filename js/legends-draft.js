@@ -40,6 +40,16 @@ function ldRenderTudo() {
     return;
   }
 
+  // Depois que o admin finaliza, some o quadro/regras/progresso — fica só a
+  // customização de badges (ou um aviso, pra quem não tem jogador aqui).
+  if (d.finalizado) {
+    box.innerHTML = d.meu_pick
+      ? ldBadgesHtml(d)
+      : `<div class="card"><div class="card-body"><div class="ld-vazio" style="padding:16px"><i class="bi bi-info-circle"></i><p>Draft de Lendas finalizado. Você não tem um jogador aqui (sua conta não está entre os 32 participantes da roleta).</p></div></div></div>`;
+    if (d.meu_pick) ldWireBadges();
+    return;
+  }
+
   const picked = d.picks.filter(p => p.player_name).length;
   const pct = Math.round((picked / d.total) * 100);
   const vez = d.picks.find(p => p.pick_number === d.vez_pick_number);
@@ -71,6 +81,8 @@ function ldRenderTudo() {
     html += `<div class="ld-turno" style="border-color:color-mix(in srgb, var(--green) 35%, transparent);background:linear-gradient(135deg,color-mix(in srgb, var(--green) 14%, transparent),transparent)">
       <div class="ld-turno-label" style="color:var(--green)"><i class="bi bi-check-circle-fill"></i> Draft concluído</div>
       <div class="ld-turno-gm">Os ${d.total} jogadores já foram escolhidos.</div>
+      ${d.is_admin ? `<div style="margin-top:10px"><button type="button" class="btn-orange" id="btnLdFinalizar"><i class="bi bi-flag-fill me-1"></i>Finalizar Draft</button>
+        <div style="font-size:11px;color:var(--text-2);margin-top:6px">Depois de finalizar, some o quadro e cada GM vê só a customização de badges do próprio jogador.</div></div>` : ''}
     </div>`;
   }
 
@@ -78,16 +90,12 @@ function ldRenderTudo() {
     <div class="card-body"><div class="ld-board">${d.picks.map(p => ldLinhaBoard(p, d)).join('')}</div></div>
   </div>`;
 
-  if (d.draft_completo && d.meu_pick) {
-    html += ldBadgesHtml(d);
-  } else if (d.draft_completo && !d.meu_pick) {
-    html += `<div class="card"><div class="card-body"><div class="ld-vazio" style="padding:16px"><i class="bi bi-info-circle"></i><p>Você não tem um jogador neste draft (sua conta não está entre os 32 participantes da roleta).</p></div></div></div>`;
-  }
-
   box.innerHTML = html;
 
   const btnEscolher = document.getElementById('btnLdEscolher');
   if (btnEscolher) btnEscolher.addEventListener('click', ldEscolher);
+  const btnFinalizar = document.getElementById('btnLdFinalizar');
+  if (btnFinalizar) btnFinalizar.addEventListener('click', ldFinalizar);
 
   if (d.draft_completo && d.meu_pick) ldWireBadges();
 }
@@ -144,6 +152,24 @@ async function ldEscolher() {
   }
 }
 
+async function ldFinalizar() {
+  if (!confirm('Finalizar o Draft de Lendas?\n\nO quadro some pra todo mundo e cada GM passa a ver só a customização de badges do próprio jogador.')) return;
+  const btn = document.getElementById('btnLdFinalizar');
+  btn.disabled = true;
+  try {
+    const data = await _ldFetch('/api/legends-draft.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'finalizar' }),
+    });
+    ldEstado = data;
+    ldMinhasBadgesEdit = { ...(data.minhas_badges || {}) };
+    ldRenderTudo();
+  } catch (e) {
+    alert(e.message);
+    btn.disabled = false;
+  }
+}
+
 function ldTokensUsados() {
   return Object.values(ldMinhasBadgesEdit).reduce((soma, tier) => soma + (ldEstado.tier_custo[tier] || 0), 0);
 }
@@ -163,6 +189,7 @@ function ldBadgesHtml(d) {
     <div class="ld-tokens-num ${restantes < 0 ? 'over' : ''}" id="ldTokensRestantes">${restantes}/${d.tokens_orcamento} restantes</div></div>
     <button type="button" class="btn-orange" id="btnLdSalvarBadges">Salvar badges</button>
   </div>
+  <div class="ld-legenda">${Object.keys(LD_TIER_LABEL).map(t => `<span><b class="ld-legenda-letra" data-tier="${t}">${LD_TIER_LABEL[t]}</b> ${LD_TIER_NOME[t]} (${d.tier_custo[t]})</span>`).join('')}</div>
   <div class="card"><div class="card-body">`;
 
   Object.entries(porCategoria).forEach(([cat, badges]) => {

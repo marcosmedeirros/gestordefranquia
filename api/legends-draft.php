@@ -109,6 +109,14 @@ function ensureLegendsDraftTables(PDO $pdo): void
         UNIQUE KEY uniq_ldb_pick_badge (pick_id, badge_key),
         CONSTRAINT fk_ldb_pick FOREIGN KEY (pick_id) REFERENCES legends_draft_picks(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // Linha única (id=1) que guarda se o admin já "fechou" o draft — enquanto
+    // não fecha, o quadro completo continua visível mesmo com os 32 escolhidos.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS legends_draft_status (
+        id INT PRIMARY KEY DEFAULT 1,
+        finalizado_em TIMESTAMP NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->exec("INSERT IGNORE INTO legends_draft_status (id, finalizado_em) VALUES (1, NULL)");
 }
 ensureLegendsDraftTables($pdo);
 
@@ -152,8 +160,10 @@ function garantirSeedDoDraft(PDO $pdo): void
 }
 garantirSeedDoDraft($pdo);
 
-function estadoDraft(PDO $pdo, int $sessionUserId): array
+function estadoDraft(PDO $pdo, int $sessionUserId, bool $isAdmin): array
 {
+    $finalizadoEm = $pdo->query("SELECT finalizado_em FROM legends_draft_status WHERE id = 1")->fetchColumn();
+
     $picks = $pdo->query("
         SELECT ldp.id, ldp.pick_number, ldp.team_id, ldp.user_id, ldp.gm_name,
                ldp.player_name, ldp.player_position, ldp.ovr, ldp.age, ldp.picked_at,
@@ -194,13 +204,15 @@ function estadoDraft(PDO $pdo, int $sessionUserId): array
         'tokens_orcamento' => TOKENS_ORCAMENTO,
         'catalogo_badges' => BADGES_CATALOGO,
         'tier_custo' => TIER_CUSTO,
+        'finalizado' => $finalizadoEm !== false && $finalizadoEm !== null,
+        'is_admin' => $isAdmin,
     ];
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    echo json_encode(['success' => true] + estadoDraft($pdo, $user_id));
+    echo json_encode(['success' => true] + estadoDraft($pdo, $user_id, $is_admin));
     exit;
 }
 
@@ -246,7 +258,23 @@ if ($method === 'POST') {
             exit;
         }
 
-        echo json_encode(['success' => true] + estadoDraft($pdo, $user_id));
+        echo json_encode(['success' => true] + estadoDraft($pdo, $user_id, $is_admin));
+        exit;
+    }
+
+    if ($action === 'finalizar') {
+        if (!$is_admin) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Apenas administradores podem finalizar o draft.']);
+            exit;
+        }
+        $temPendente = (bool)$pdo->query("SELECT 1 FROM legends_draft_picks WHERE player_name IS NULL LIMIT 1")->fetchColumn();
+        if ($temPendente) {
+            echo json_encode(['success' => false, 'error' => 'Ainda tem escolha pendente — todo mundo precisa escolher antes de finalizar.']);
+            exit;
+        }
+        $pdo->exec("UPDATE legends_draft_status SET finalizado_em = NOW() WHERE id = 1");
+        echo json_encode(['success' => true] + estadoDraft($pdo, $user_id, $is_admin));
         exit;
     }
 
@@ -298,7 +326,7 @@ if ($method === 'POST') {
             exit;
         }
 
-        echo json_encode(['success' => true] + estadoDraft($pdo, $user_id));
+        echo json_encode(['success' => true] + estadoDraft($pdo, $user_id, $is_admin));
         exit;
     }
 

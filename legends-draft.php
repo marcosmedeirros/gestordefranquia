@@ -140,6 +140,14 @@ if ($team_id) {
         .ld-tokens-num{font-family:'Oswald',sans-serif;font-size:22px;font-weight:800}
         .ld-tokens-num.over{color:#ef4444}
 
+        .ld-legenda{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text-2);margin-bottom:16px;padding:0 2px}
+        .ld-legenda-letra{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;font-size:9px;font-weight:800;color:#fff;margin-right:4px}
+        .ld-legenda-letra[data-tier="bronze"]{background:#a16207}
+        .ld-legenda-letra[data-tier="silver"]{background:#94a3b8}
+        .ld-legenda-letra[data-tier="gold"]{background:#eab308}
+        .ld-legenda-letra[data-tier="hof"]{background:#a855f7}
+        .ld-legenda-letra[data-tier="legend"]{background:#ef4444}
+
         .btn-orange { background: var(--red); border: none; color: #fff; font-weight: 600; font-size: 13px; border-radius: var(--radius-xs); padding: 10px 20px; transition: background var(--t); cursor: pointer; }
         .btn-orange:hover, .btn-orange:focus { background: var(--red-2); color: #fff; }
         .btn-orange:disabled { background: var(--panel-3); color: var(--text-3); cursor: not-allowed; }
