@@ -75,7 +75,8 @@ function rtRenderResumo(data) {
   const faltam = (data.na_urna || []).length;
   const saiu = (data.sorteados || []).length;
   if (data.concluido) {
-    el.innerHTML = `<span class="rt-chip ok"><i class="bi bi-check-circle-fill"></i>Sorteio concluído — 32 escolhas definidas</span>`;
+    el.innerHTML = `<span class="rt-chip ok"><i class="bi bi-check-circle-fill"></i>Sorteio concluído — 32 escolhas definidas</span>
+                    <a href="/legends-draft.php" class="rt-chip next" style="text-decoration:none"><i class="bi bi-stars"></i>Ir para o Draft de Lendas</a>`;
     return;
   }
   el.innerHTML = `<span class="rt-chip"><i class="bi bi-hourglass-split"></i>${faltam} na urna</span>
