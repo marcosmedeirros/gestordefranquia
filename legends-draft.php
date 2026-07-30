@@ -7,6 +7,12 @@ requireAuth();
 $user = getUserSession();
 $pdo = db();
 
+// Preview de badges pro admin: mostra a tela de customização com um jogador
+// de exemplo, sem precisar que o draft de verdade tenha terminado. Só o
+// admin acessa (?preview_badges=1) e o botão de salvar fica desativado.
+$isAdmin = hasAdminAccess($pdo, (int)$user['id']);
+$previewBadges = $isAdmin && isset($_GET['preview_badges']);
+
 $team_id = $_SESSION['team_id'] ?? null;
 $team = [];
 if ($team_id) {
@@ -185,6 +191,12 @@ if ($team_id) {
         <h1 class="page-hero-title"><i class="bi bi-stars" style="color:var(--red)"></i>Draft de Lendas</h1>
         <p class="page-hero-sub">Depois que a Roleta dos 32 termina, a ordem de escolha vira a ordem deste draft. Cada GM escolhe 1 jogador lenda (nome + posição), sempre OVR 80 e 19 anos. No fim, cada um customiza as badges do seu jogador com um orçamento de tokens.</p>
 
+        <?php if ($previewBadges): ?>
+        <div style="margin:0 32px 18px;padding:12px 16px;border-radius:10px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);color:var(--amber);font-size:12.5px">
+            <i class="bi bi-eye-fill" style="margin-right:6px"></i> Modo preview (só admin) — jogador de exemplo, o botão "Salvar badges" não grava nada de verdade.
+        </div>
+        <?php endif; ?>
+
         <div class="content" id="ldContent">
             <div class="ld-vazio"><i class="bi bi-hourglass-split"></i><p>Carregando...</p></div>
         </div>
@@ -215,6 +227,7 @@ if ($team_id) {
         applyTheme(next);
     });
     window.SESSION_USER_ID = <?= (int)$user['id'] ?>;
+    window.LD_PREVIEW_BADGES = <?= $previewBadges ? 'true' : 'false' ?>;
 </script>
 <script src="<?= assetUrl('/js/legends-draft.js') ?>"></script>
 <script src="/js/pwa.js"></script>

@@ -23,6 +23,14 @@ async function _ldFetch(url, options = {}) {
 async function ldCarregar() {
   try {
     const data = await _ldFetch('/api/legends-draft.php');
+    // Preview de badges (admin, ?preview_badges=1): mostra a tela de
+    // customização com um jogador de exemplo, mesmo se o draft de verdade
+    // ainda não terminou — usa o catálogo/custo real, só finge o resultado.
+    if (window.LD_PREVIEW_BADGES) {
+      data.finalizado = true;
+      data.meu_pick = { id: 0, player_name: 'Wilt Chambers (exemplo)', player_position: 'PF', ovr: 80, age: 19 };
+      data.minhas_badges = { hook_specialist: 'legend', post_powerhouse: 'gold', deadeye: 'silver', dimer: 'bronze' };
+    }
     ldEstado = data;
     ldMinhasBadgesEdit = { ...(data.minhas_badges || {}) };
     ldRenderTudo();
@@ -240,6 +248,10 @@ function ldWireBadges() {
 }
 
 async function ldSalvarBadges() {
+  if (window.LD_PREVIEW_BADGES) {
+    alert('Modo preview — as badges não são salvas de verdade aqui.');
+    return;
+  }
   const badges = Object.entries(ldMinhasBadgesEdit).map(([badge_key, tier]) => ({ badge_key, tier }));
   const btn = document.getElementById('btnLdSalvarBadges');
   btn.disabled = true;
