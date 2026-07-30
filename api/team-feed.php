@@ -154,5 +154,10 @@ jsonResponse(405, ['error' => 'Método não permitido']);
 
 } catch (Throwable $e) {
     error_log('api/team-feed.php: ' . $e->getMessage() . ' em ' . $e->getFile() . ':' . $e->getLine());
-    jsonResponse(500, ['error' => 'Erro interno. Tente de novo em instantes.']);
+    $resp = ['error' => 'Erro interno. Tente de novo em instantes.'];
+    // Diagnóstico temporário (só pra admin) — remover assim que a causa raiz for confirmada.
+    if (hasAdminAccess($pdo, $userId)) {
+        $resp['debug'] = $e->getMessage() . ' em ' . basename($e->getFile()) . ':' . $e->getLine();
+    }
+    jsonResponse(500, $resp);
 }
