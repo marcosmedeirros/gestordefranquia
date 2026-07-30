@@ -96,6 +96,7 @@ if (!function_exists('sbActive')) {
         <a href="/lottery.php"<?= sbActive('lottery.php', $__sbCurrent) ?>><i class="bi bi-shuffle"></i> Loteria</a>
         <?php endif; ?>
         <a href="/legends-draft.php"<?= sbActive('legends-draft.php', $__sbCurrent) ?>><i class="bi bi-stars"></i> Draft de Lendas</a>
+        <a href="/timeline.php"<?= sbActive('timeline.php', $__sbCurrent) ?>><i class="bi bi-collection-play-fill"></i> Timeline</a>
 
         <?php if ($__sbIsAdmin): ?>
         <div class="sb-section">Admin</div>
