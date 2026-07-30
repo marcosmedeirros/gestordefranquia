@@ -41,6 +41,11 @@ $playerName = '';
 if ($P) {
     $league = $P['t_league'];
     $playerName = $P['name'];
+    // is_loyal (tag "Leal", qualquer liga) e cap_bonus_eligible (nome destacado
+    // — leal + OVR>=90 + draftado pelo draft da própria temporada).
+    $loyaltyArr = [$P];
+    markLoyaltyEligibility($pdo, $loyaltyArr);
+    $P = $loyaltyArr[0];
 } else {
     // ── Aposentado: último registro do histórico ────────
     $stmtR = $pdo->prepare("
@@ -405,7 +410,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
            onerror="this.onerror=function(){this.onerror=null;this.src=this.dataset.fb2};this.src='<?= htmlspecialchars($photoFallback, ENT_QUOTES) ?>'">
     </div>
     <div style="min-width:0">
-      <div class="p-name"><?= htmlspecialchars($playerName) ?></div>
+      <?php
+        $isLoyal = !$isRetired && !empty($P['is_loyal']);
+        $isCapBonusEligible = !$isRetired && !empty($P['cap_bonus_eligible']);
+        $nameColor = $isCapBonusEligible ? ($P['player_tag_color'] ?: '#f59e0b') : null;
+      ?>
+      <div class="p-name"<?= $nameColor ? ' style="color:' . htmlspecialchars($nameColor) . '"' : '' ?>><?= htmlspecialchars($playerName) ?><?php if ($isLoyal): ?> <span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:11px;font-weight:700;padding:2px 8px;vertical-align:middle">Leal</span><?php endif; ?></div>
       <div class="p-sub">
         <?php if ($dispPos): ?><span><?= htmlspecialchars($dispPos) ?></span> ·<?php endif; ?>
         <?php if ($dispAge): ?><span><?= $dispAge ?> anos</span> ·<?php endif; ?>

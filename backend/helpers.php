@@ -324,6 +324,43 @@ function ensurePlayerRestrictionColumns(PDO $pdo): void
     $checked = true;
 }
 
+/**
+ * Marca cada jogador de $players com is_loyal (nunca foi trocado — tag "Leal"
+ * vale pra qualquer liga) e cap_bonus_eligible (leal + OVR>=90 + draftado pelo
+ * draft da própria temporada, via draft_pool — mesma régua em toda liga). O
+ * EFEITO no cap é que muda por liga: RISE/NEXT usam o bônus por soma de OVR
+ * (restrictedCapBonus), ELITE usa +8M direto no salary cap (salary_cap.php).
+ * Espera que cada item tenha pelo menos team_id, name, ovr, was_traded.
+ */
+function markLoyaltyEligibility(PDO $pdo, array &$players): void
+{
+    if (!$players) return;
+    $teamIds = [];
+    foreach ($players as $p) {
+        $tid = (int)($p['team_id'] ?? 0);
+        if ($tid) $teamIds[$tid] = true;
+    }
+    $seasonDraftPairs = [];
+    if ($teamIds) {
+        try {
+            $ph = implode(',', array_fill(0, count($teamIds), '?'));
+            $stmt = $pdo->prepare("SELECT drafted_by_team_id, name FROM draft_pool WHERE draft_status = 'drafted' AND drafted_by_team_id IN ($ph)");
+            $stmt->execute(array_keys($teamIds));
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $seasonDraftPairs[$r['drafted_by_team_id'] . '|' . $r['name']] = true;
+            }
+        } catch (Exception $e) {}
+    }
+    foreach ($players as &$p) {
+        $notTraded = (int)($p['was_traded'] ?? 0) === 0;
+        $p['is_loyal'] = $notTraded ? 1 : 0;
+        $highOvr = (int)($p['ovr'] ?? 0) >= 90;
+        $key = ($p['team_id'] ?? 0) . '|' . ($p['name'] ?? '');
+        $p['cap_bonus_eligible'] = ($notTraded && $highOvr && isset($seasonDraftPairs[$key])) ? 1 : 0;
+    }
+    unset($p);
+}
+
 function restrictedEligibleCount(PDO $pdo, int $teamId): int
 {
     ensurePlayerRestrictionColumns($pdo);
@@ -332,7 +369,9 @@ function restrictedEligibleCount(PDO $pdo, int $teamId): int
         $leagueStmt->execute([$teamId]);
         $league = strtoupper(trim((string)($leagueStmt->fetchColumn() ?? '')));
         if ($league === '') return 0;
-        if (!str_starts_with($league, 'RISE')) return 0;
+        // Bônus por soma de OVR: vale pra RISE e NEXT (a ELITE usa +8M direto
+        // no salary cap real, calculado em backend/salary_cap.php).
+        if (!str_starts_with($league, 'RISE') && !str_starts_with($league, 'NEXT')) return 0;
 
         $stmt = $pdo->prepare('
             SELECT COUNT(*) FROM players p

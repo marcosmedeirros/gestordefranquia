@@ -3,6 +3,7 @@ header('Content-Type: application/json');
 
 require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
+require_once dirname(__DIR__) . '/backend/helpers.php';
 
 $pdo = db();
 
@@ -35,7 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 SELECT id, name, nba_player_id, foto_adicional, age, position, secondary_position, role, ovr, available_for_trade, seasons_in_league,
                        COALESCE(player_tag, NULL) as player_tag,
                        COALESCE(player_tag_color, NULL) as player_tag_color,
-                       COALESCE(player_tag_copy, 0) as player_tag_copy
+                       COALESCE(player_tag_copy, 0) as player_tag_copy,
+                       COALESCE(was_traded, 0) as was_traded
                 FROM players
                 WHERE team_id = ?
                 ORDER BY role, ovr DESC
@@ -50,6 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
         $stmt->execute([$teamId]);
         $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($players as &$p) { $p['team_id'] = (int)$teamId; }
+        unset($p);
+        markLoyaltyEligibility($pdo, $players);
 
         echo json_encode(['success' => true, 'players' => $players]);
     } catch (PDOException $e) {

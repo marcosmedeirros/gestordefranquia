@@ -1024,16 +1024,27 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		`;
 	}
 
+	// Tag "Leal" vale pra qualquer liga (nunca foi trocado). Prefere a flag do
+	// servidor (is_loyal); cai pro was_traded se ausente.
 	function isLoyalPlayer(p) {
-		return p.league === 'RISE' && Number(p.was_traded ?? 1) === 0;
+		if (p?.is_loyal !== undefined && p?.is_loyal !== null) return Number(p.is_loyal) === 1;
+		return Number(p.was_traded ?? 1) === 0;
 	}
 
+	// Elegível ao bônus de cap (nome destacado): leal + OVR>=90 + draftado pelo
+	// draft da própria temporada — mesma régua em toda liga (cap_bonus_eligible
+	// vem calculado do servidor).
 	function isFranchiseEligible(p) {
-		if (p.league !== 'RISE') return false;
-		return Number(p.was_traded) === 0
-			&& Number(p.drafted_by_team_id) > 0
-			&& Number(p.drafted_by_team_id) === Number(p.team_id)
-			&& Number(p.ovr) >= 90;
+		return Number(p?.cap_bonus_eligible) === 1;
+	}
+
+	function loyalNameStyle(p) {
+		const color = isFranchiseEligible(p) ? (p?.player_tag_color || '#f59e0b') : '';
+		return color ? ` style="color:${color}"` : '';
+	}
+
+	function loyalTagHtml(p) {
+		return isLoyalPlayer(p) ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px;margin-left:4px">Leal</span>' : '';
 	}
 
 	function renderPlayerTagBadge(p) {
@@ -1077,13 +1088,12 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 
 	function renderPlayerListItem(p, teamName) {
 		const ovr = Number(p.ovr || 0);
-		const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px;margin-left:4px">Leal</span>' : '');
 		const tagBadge = renderPlayerTagBadge(p);
 		const tradeBadge = renderTradeBadge(p);
 		return `
 			<div class="mpl-item">
 				<div class="mpl-main">
-					<div class="mpl-name"><a class="pl-link" href="player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)}${franchiseBadge}${tagBadge}${tradeBadge}</div>
+					<div class="mpl-name"><a class="pl-link"${loyalNameStyle(p)} href="player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)}${loyalTagHtml(p)}${tagBadge}${tradeBadge}</div>
 					<div class="mpl-meta">${p.position ?? '-'} · ${p.age ?? '-'}a · Badges ${p.badges_count ?? 0} · ${teamName}</div>
 					${statsLinha(p)}
 				</div>
@@ -1166,16 +1176,14 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					} else {
 						const ovr = Number(p.ovr || 0);
 						const photoUrl = getPlayerPhotoUrl(p);
-						const franchiseRow = isFranchiseEligible(p) ? ' class="franchise-player-row"' : (isLoyalPlayer(p) ? ' class="loyal-player-row"' : '');
-						const franchiseBadgeRow = isFranchiseEligible(p) ? '<span class="badge-franchise">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px">Leal</span>' : '');
 						const tagBadgeRow = renderPlayerTagBadge(p);
 						const tradeBadgeRow = renderTradeBadge(p);
 						tableBody.innerHTML += `
-							<tr${franchiseRow}>
+							<tr>
 								<td>
 									<div class="d-flex align-items-center gap-2">
 										<img src="${photoUrl}" alt="${p.name}" style="width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
-										<strong><a class="pl-link" href="player.php?id=${p.id}">${p.name}</a></strong>${renderTapaBadge(p)}${franchiseBadgeRow}${tagBadgeRow}${tradeBadgeRow}
+										<strong><a class="pl-link"${loyalNameStyle(p)} href="player.php?id=${p.id}">${p.name}</a></strong>${renderTapaBadge(p)}${loyalTagHtml(p)}${tagBadgeRow}${tradeBadgeRow}
 									</div>
 								</td>
 								<td>

@@ -306,31 +306,10 @@ if ($method === 'GET') {
             }
         }
 
-        // Computa cap_bonus_eligible para ligas RISE (draft_pool = draft de temporadas)
-        if ($teamId) {
-            try {
-                $stmtLeague = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
-                $stmtLeague->execute([$teamId]);
-                $league = strtoupper(trim((string)($stmtLeague->fetchColumn() ?? '')));
-                $isRise = str_starts_with($league, 'RISE');
-                $seasonDraftNames = [];
-                if ($isRise) {
-                    $stmtSD = $pdo->prepare('SELECT name FROM draft_pool WHERE drafted_by_team_id = ? AND draft_status = "drafted"');
-                    $stmtSD->execute([$teamId]);
-                    foreach ($stmtSD->fetchAll(PDO::FETCH_COLUMN) as $n) {
-                        $seasonDraftNames[$n] = true;
-                    }
-                }
-                foreach ($players as &$p) {
-                    if (!$isRise) { $p['cap_bonus_eligible'] = 0; continue; }
-                    $notTraded       = (int)($p['was_traded'] ?? 0) === 0;
-                    $highOvr         = (int)($p['ovr'] ?? 0) >= 90;
-                    $fromSeasonDraft = isset($seasonDraftNames[$p['name']]);
-                    $p['cap_bonus_eligible'] = ($notTraded && $highOvr && $fromSeasonDraft) ? 1 : 0;
-                }
-                unset($p);
-            } catch (Exception $e) {}
-        }
+        // Marca is_loyal (tag "Leal", qualquer liga) e cap_bonus_eligible (leal +
+        // OVR>=90 + draftado pelo draft da própria temporada) — vale pra qualquer
+        // liga, com ou sem filtro de time (a função escopa por team_id presente).
+        markLoyaltyEligibility($pdo, $players);
 
         // Salário por jogador (ELITE / modo salary) — aditivo, não altera os demais usos.
         $salaryMode = false;

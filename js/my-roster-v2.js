@@ -531,13 +531,30 @@ function calculateCapTop8(players) {
     .reduce((sum, p) => sum + Number(p.ovr), 0);
 }
 
+// Tag "Leal" vale pra qualquer liga (jogador nunca foi trocado). Prefere a
+// flag calculada no servidor (is_loyal); cai pro was_traded se ausente.
 function isLoyalPlayer(player) {
-  return window.__LEAGUE__ === 'RISE' && Number(player?.was_traded ?? 1) === 0;
+  if (player?.is_loyal !== undefined && player?.is_loyal !== null) return Number(player.is_loyal) === 1;
+  return Number(player?.was_traded ?? 1) === 0;
 }
 
+// Elegível ao bônus de cap (nome destacado): leal + OVR>=90 + draftado pelo
+// draft da própria temporada — mesma régua em toda liga (cap_bonus_eligible
+// vem calculado do servidor por markLoyaltyEligibility).
 function isFranchiseEligible(player) {
-  if (window.__LEAGUE__ !== 'RISE') return false;
-  return Number(player.cap_bonus_eligible) === 1;
+  return Number(player?.cap_bonus_eligible) === 1;
+}
+
+// Nome do jogador destacado (cor escolhida no "estilo" dele) só quando
+// elegível ao bônus de cap; senão nome normal. Jogador leal sem cumprir os
+// requisitos do bônus mostra só a tag, sem cor no nome.
+function loyalNameStyle(player) {
+  const color = isFranchiseEligible(player) ? (player?.player_tag_color || '#f59e0b') : 'var(--text)';
+  return ` style="color:${color}"`;
+}
+
+function loyalTagHtml(player) {
+  return isLoyalPlayer(player) ? '<span class="badge loyal-badge">Leal</span>' : '';
 }
 
 function getRestrictedBonus(players) {
@@ -828,22 +845,19 @@ function renderPlayers(players) {
       starters.forEach(p => {
         const ovrColor = getOvrColor(p.ovr);
         const photoUrl = getPlayerPhotoUrl(p);
-        const loyalBadge = isLoyalPlayer(p) ? '<span class="badge loyal-badge">Leal</span>' : '';
         const tagBadgeStarter = renderPlayerTagBadge(p);
         const col = document.createElement('div');
         col.className = 'col-12 col-sm-6 col-md-4';
         const card = document.createElement('div');
-        const isFE = isFranchiseEligible(p);
-        const isLoyal = isLoyalPlayer(p);
-        card.className = 'card border-orange h-100 roster-card text-center' + (isFE ? ' franchise-player-card' : (isLoyal ? ' loyal-player-card' : ''));
+        card.className = 'card border-orange h-100 roster-card text-center';
         card.innerHTML = `
           <div class="card-body p-3 d-flex flex-column gap-3 align-items-center">
             <img src="${photoUrl}" alt="${p.name}" style="width: 72px; height: 72px; object-fit: cover; border-radius: 50%; border: 2px solid var(--fba-orange); background: #1a1a1a;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
             <div class="text-center">
-              <h6 class="mb-1 fw-bold" style="font-size: 1.05rem; color:var(--text);">${p.name}${renderTapaBadge(p)}</h6>
+              <h6 class="mb-1 fw-bold" style="font-size: 1.05rem;"><span${loyalNameStyle(p)}>${p.name}</span>${renderTapaBadge(p)}</h6>
               <div class="d-flex justify-content-center gap-2 flex-wrap small">
                 <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
-                ${loyalBadge}${tagBadgeStarter}
+                ${loyalTagHtml(p)}${tagBadgeStarter}
               </div>
             </div>
             <div class="text-center">
@@ -869,13 +883,11 @@ function renderPlayers(players) {
       const ul = document.createElement('ul');
       ul.className = 'list-group list-group-flush';
       bench.forEach(p => {
-        const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge franchise-badge ms-1">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span class="badge loyal-badge ms-1">Leal</span>' : '');
         const tagBadgeBench = renderPlayerTagBadge(p);
         const li = document.createElement('li');
-        li.className = 'list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0'
-          + (isFranchiseEligible(p) ? ' franchise-player-li' : (isLoyalPlayer(p) ? ' loyal-player-li' : ''));
+        li.className = 'list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0';
         li.innerHTML = `
-          <span>${p.name}${renderTapaBadge(p)} ${franchiseBadge}${tagBadgeBench} <small class="text-light-gray">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
+          <span><span${loyalNameStyle(p)}>${p.name}</span>${renderTapaBadge(p)} ${loyalTagHtml(p)}${tagBadgeBench} <small class="text-light-gray">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
           <span class=\"fw-bold\" style=\"color:${getOvrColor(p.ovr)}\">${p.ovr}</span>`;
         ul.appendChild(li);
       });
@@ -960,10 +972,9 @@ function renderPlayersMobileCards(players) {
 
   players.forEach(p => {
     const photoUrl = getPlayerPhotoUrl(p);
-    const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge franchise-badge">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span class="badge loyal-badge">Leal</span>' : '');
     const tagBadgeMobile = renderPlayerTagBadge(p);
     const card = document.createElement('div');
-    card.className = 'roster-mobile-card' + (isFranchiseEligible(p) ? ' franchise-player-card' : (isLoyalPlayer(p) ? ' loyal-player-card' : ''));
+    card.className = 'roster-mobile-card';
     card.innerHTML = `
       <div class="d-flex justify-content-between align-items-start gap-2">
         <div class="d-flex align-items-center gap-2">
@@ -971,7 +982,7 @@ function renderPlayersMobileCards(players) {
                style="width: 44px; height: 44px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div>
-            <div class="fw-bold" style="color:var(--text);"><a class="roster-player-link" href="/player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)} ${franchiseBadge}${tagBadgeMobile}</div>
+            <div class="fw-bold"><a class="roster-player-link"${loyalNameStyle(p)} href="/player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)} ${loyalTagHtml(p)}${tagBadgeMobile}</div>
             <div class="text-light-gray small">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''} • ${normalizeRoleKey(p.role)}</div>
           </div>
         </div>
@@ -1001,11 +1012,8 @@ function renderPlayersTable(players) {
   }
   players.forEach(p => {
     const photoUrl = getPlayerPhotoUrl(p);
-    const franchiseBadge = isFranchiseEligible(p) ? '<span class="badge franchise-badge ms-1">🏆 Franquia</span>' : (isLoyalPlayer(p) ? '<span class="badge loyal-badge ms-1">Leal</span>' : '');
     const tagBadge = renderPlayerTagBadge(p);
     const tr = document.createElement('tr');
-    if (isFranchiseEligible(p)) tr.classList.add('franchise-player-row');
-    else if (isLoyalPlayer(p)) tr.classList.add('loyal-player-row');
     tr.innerHTML = `
       <td class="sel-col"><input type="checkbox" class="sel-player" data-id="${p.id}" ${selectedIds.has(Number(p.id)) ? 'checked' : ''}></td>
       <td>
@@ -1014,7 +1022,7 @@ function renderPlayersTable(players) {
                style="width: 36px; height: 36px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div class="d-flex flex-column">
-            <span class="fw-semibold"><a class="roster-player-link" href="/player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)} ${franchiseBadge}${tagBadge}</span>
+            <span class="fw-semibold"><a class="roster-player-link"${loyalNameStyle(p)} href="/player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)} ${loyalTagHtml(p)}${tagBadge}</span>
             <small class="text-light-gray">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</small>
           </div>
         </div>

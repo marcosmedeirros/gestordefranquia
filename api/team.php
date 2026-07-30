@@ -230,6 +230,7 @@ if ($method === 'GET') {
         }
         $stmt->execute($params);
         $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        markLoyaltyEligibility($pdo, $players); // is_loyal / cap_bonus_eligible (tag "Leal" + destaque)
 
         foreach ($players as &$player) {
             appendPhoneFields($player);
@@ -545,32 +546,22 @@ if ($method === 'GET') {
         $tid = (int)$teamRow['id'];
 
         $tapasExtra = playersColumnExists($pdo, 'tapa_count') ? ', COALESCE(tapa_count,0) AS tapa_count, badge_name' : ', 0 AS tapa_count, NULL AS badge_name';
-        $stmtP = $pdo->prepare("SELECT id, name, position, secondary_position, ovr, age, role, foto_adicional, nba_player_id, drafted_by_team_id, drafted_season_number, was_traded, is_franchise_player{$tapasExtra} FROM players WHERE team_id = ? ORDER BY ovr DESC");
+        $stmtP = $pdo->prepare("SELECT id, name, position, secondary_position, ovr, age, role, foto_adicional, nba_player_id,
+                                        drafted_by_team_id, drafted_season_number, was_traded, is_franchise_player,
+                                        COALESCE(player_tag, NULL) as player_tag, COALESCE(player_tag_color, NULL) as player_tag_color
+                                        {$tapasExtra}
+                                 FROM players WHERE team_id = ? ORDER BY ovr DESC");
         $stmtP->execute([$tid]);
 
-        // Para flag cap_bonus_eligible: busca nomes draftados via draft de temporadas
-        $seasonDraftNames = [];
-        $isRiseTeam = str_starts_with(strtoupper($teamRow['league'] ?? ''), 'RISE');
-        if ($isRiseTeam) {
-            try {
-                $stmtSD = $pdo->prepare('SELECT name FROM draft_pool WHERE drafted_by_team_id = ? AND draft_status = "drafted"');
-                $stmtSD->execute([$tid]);
-                foreach ($stmtSD->fetchAll(PDO::FETCH_COLUMN) as $n) {
-                    $seasonDraftNames[$n] = true;
-                }
-            } catch (Exception $e) {}
-        }
+        $teamPlayers = $stmtP->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($teamPlayers as &$p) { $p['team_id'] = $tid; }
+        unset($p);
+        // is_loyal (tag "Leal", qualquer liga) e cap_bonus_eligible (leal + OVR>=90
+        // + draftado pelo draft da própria temporada) — mesma régua em toda liga.
+        markLoyaltyEligibility($pdo, $teamPlayers);
 
         $roster = ['Titular' => [], 'Banco' => [], 'G-League' => [], 'Outro' => []];
-        foreach ($stmtP->fetchAll(PDO::FETCH_ASSOC) as $p) {
-            if ($isRiseTeam) {
-                $notTraded       = (int)($p['was_traded'] ?? 0) === 0;
-                $highOvr         = (int)($p['ovr'] ?? 0) >= 90;
-                $fromSeasonDraft = isset($seasonDraftNames[$p['name']]);
-                $p['cap_bonus_eligible'] = ($notTraded && $highOvr && $fromSeasonDraft) ? 1 : 0;
-            } else {
-                $p['cap_bonus_eligible'] = 0;
-            }
+        foreach ($teamPlayers as $p) {
             $role = isset($roster[$p['role']]) ? $p['role'] : 'Outro';
             $roster[$role][] = $p;
         }

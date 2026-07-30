@@ -1579,12 +1579,14 @@ async function showTeam(teamId) {
   ${t.players.length === 0
     ? '<div style="text-align:center;padding:24px;color:var(--text-3)">Nenhum jogador no elenco</div>'
     : t.players.map(p => {
-        const isFE = t.league === 'RISE' && Number(p.was_traded) === 0 && Number(p.drafted_by_team_id) === t.id && Number(p.ovr) >= 90;
-        const isLoyal = t.league === 'RISE' && Number(p.was_traded) === 0;
-        const borderColor = isFE ? 'rgba(245,158,11,.6)' : (isLoyal ? 'rgba(6,182,212,.6)' : '');
-        return `<div class="pun-card" style="display:flex;align-items:center;gap:12px${borderColor ? ';border-left:3px solid '+borderColor : ''}">
+        // Elegível ao bônus de cap: nunca trocado + OVR>=90 + draftado pela própria franquia.
+        // Aproximação local (sem consultar draft_pool) — vale pra qualquer liga.
+        const isCapEligible = Number(p.was_traded ?? 1) === 0 && Number(p.drafted_by_team_id) === t.id && Number(p.ovr) >= 90;
+        const isLoyal = Number(p.is_loyal ?? (Number(p.was_traded ?? 1) === 0 ? 1 : 0)) === 1;
+        const nameColor = isCapEligible ? (p.player_tag_color || '#f59e0b') : '';
+        return `<div class="pun-card" style="display:flex;align-items:center;gap:12px">
   <div style="flex:1;min-width:0">
-    <span style="font-weight:600;color:var(--text)">${escapeHtml(p.name)}</span>${isFE ? ' <span style="background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px">Franquia</span>' : (isLoyal ? ' <span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px">Leal</span>' : '')}
+    <span style="font-weight:600${nameColor ? ';color:'+nameColor : ';color:var(--text)'}">${escapeHtml(p.name)}</span>${isLoyal ? ' <span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px">Leal</span>' : ''}
     <div style="font-size:12px;color:var(--text-3);margin-top:2px">${escapeHtml(p.position)} · ${p.age} anos · ${escapeHtml(p.role)}</div>
   </div>
   <span style="${ovrStyle(p.ovr)};border-radius:6px;padding:3px 8px;font-size:13px;font-weight:700">${p.ovr}</span>

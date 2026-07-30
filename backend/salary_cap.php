@@ -14,10 +14,17 @@
  *   2. Bônus de prêmio vale só pela temporada seguinte ao prêmio, não é permanente.
  */
 
+require_once __DIR__ . '/helpers.php'; // markLoyaltyEligibility (Bônus de Lealdade)
+
 const CAP_BASE_MILLIONS = 205;
 const CAP_FLOOR_MILLIONS = 170;
 // Quantos jogadores do elenco podem gerar Cap Flex ao mesmo tempo.
 const CAP_FLEX_MAX_PLAYERS = 2;
+// Bônus de Lealdade: jogador leal (nunca trocado, OVR>=90, draftado pelo draft
+// da própria temporada — mesma régua da RISE/NEXT) soma este valor no Cap
+// Máximo, limitado a este nº de jogadores por time.
+const CAP_LOYALTY_MAX_PLAYERS = 2;
+const CAP_LOYALTY_BONUS_MILLIONS = 8;
 // Numa troca, o time sem espaco no teto so pode receber ate esta % do que envia.
 const CAP_TRADE_MATCH_PCT = 120;
 
@@ -177,11 +184,13 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     $awardBonuses = getAwardBonusesByPlayerName($pdo, $teamId, $league);
 
     $stmtPlayers = $pdo->prepare("
-        SELECT id, name, team_id, ovr, seasons_in_league, drafted_by_team_id, draft_round, draft_pick_position
+        SELECT id, name, team_id, ovr, seasons_in_league, drafted_by_team_id, draft_round, draft_pick_position,
+               COALESCE(was_traded, 0) as was_traded
         FROM players WHERE team_id = ? ORDER BY ovr DESC
     ");
     $stmtPlayers->execute([$teamId]);
     $players = $stmtPlayers->fetchAll(PDO::FETCH_ASSOC);
+    markLoyaltyEligibility($pdo, $players); // preenche is_loyal / cap_bonus_eligible
 
     $payroll = 0;
     $roster = [];
@@ -205,6 +214,9 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
             'cap_flex_value' => $flex,
             'cap_flex_counted' => false,
             'is_on_draft_team' => $p['drafted_by_team_id'] !== null && (int)$p['drafted_by_team_id'] === (int)$p['team_id'],
+            'is_loyal' => !empty($p['is_loyal']),
+            'loyalty_bonus_eligible' => !empty($p['cap_bonus_eligible']),
+            'loyalty_bonus_counted' => false,
         ];
     }
 
@@ -227,7 +239,24 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
         $contados++;
     }
 
-    $capMax = CAP_BASE_MILLIONS + $capFlexTotal;
+    // Bônus de Lealdade: até CAP_LOYALTY_MAX_PLAYERS jogadores elegíveis somam
+    // CAP_LOYALTY_BONUS_MILLIONS cada no Cap Máximo (desempate pelo OVR).
+    $loyalElegiveis = [];
+    foreach ($roster as $i => $r) {
+        if (!empty($r['loyalty_bonus_eligible'])) $loyalElegiveis[$i] = $r;
+    }
+    uasort($loyalElegiveis, fn($a, $b) => $b['ovr'] <=> $a['ovr']);
+
+    $capLoyaltyTotal = 0;
+    $loyalContados = 0;
+    foreach ($loyalElegiveis as $i => $r) {
+        if ($loyalContados >= CAP_LOYALTY_MAX_PLAYERS) break;
+        $roster[$i]['loyalty_bonus_counted'] = true;
+        $capLoyaltyTotal += CAP_LOYALTY_BONUS_MILLIONS;
+        $loyalContados++;
+    }
+
+    $capMax = CAP_BASE_MILLIONS + $capFlexTotal + $capLoyaltyTotal;
     $space = $capMax - $payroll;
     $status = 'dentro_do_cap';
     if ($payroll > $capMax) {
@@ -245,6 +274,11 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
         'cap_flex_max_players' => CAP_FLEX_MAX_PLAYERS,
         'cap_flex_used_slots' => $contados,
         'cap_flex_eligible_count' => count($elegiveis),
+        'cap_loyalty_total' => $capLoyaltyTotal,
+        'cap_loyalty_max_players' => CAP_LOYALTY_MAX_PLAYERS,
+        'cap_loyalty_used_slots' => $loyalContados,
+        'cap_loyalty_eligible_count' => count($loyalElegiveis),
+        'cap_loyalty_bonus_millions' => CAP_LOYALTY_BONUS_MILLIONS,
         'cap_max' => $capMax,
         'payroll' => $payroll,
         'space' => $space,
