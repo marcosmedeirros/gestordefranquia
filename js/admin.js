@@ -455,6 +455,7 @@ function updateBreadcrumb() {
       pontuacao:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Pontuação</li>'; return 'Pontuação por Temporada'; },
       extawards:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Prêmios Estendidos</li>'; return 'Prêmios Estendidos'; },
       scheduler:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Agendador</li>'; return 'Agendador de Fases'; },
+      controlpanel: () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Painel de Controle</li>'; return 'Painel de Controle'; },
       gestao:       () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Gestão</li>'; return 'Gestão de Usuários'; },
       draft:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Draft</li>'; return `Draft — ${appState.currentLeague || ''}`; },
     };
@@ -944,6 +945,7 @@ async function showLeague(league) {
       </div>`).join('');
 
     const actions = [
+      { icon: 'bi-speedometer2',            label: 'Painel de<br>Controle',      fn: `showControlPanel('${league}')`,        color: '#ef4444', bg: 'rgba(239,68,68,.12)'   },
       { icon: 'bi-arrow-left-right',  label: 'Trades',               fn: 'showTrades()',            color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
       { icon: 'bi-people-fill',       label: 'Free Agency',          fn: 'showFAAdmin()',           color: '#22c55e', bg: 'rgba(34,197,94,.12)'  },
       { icon: 'bi-bar-chart-steps',         label: 'Pontuação<br>por Time',      fn: 'showPointsManagement()',    color: '#06b6d4', bg: 'rgba(6,182,212,.12)'   },
@@ -4711,6 +4713,128 @@ async function deletePtsMgmt(seasonId, league) {
 }
 
 // ── Registro de Pontuação (formulário inteligente) ───────────────────
+
+// ══════════════════════════════════════════════
+// PAINEL DE CONTROLE CENTRALIZADO
+// ══════════════════════════════════════════════
+let _panelLeague = 'ELITE';
+
+async function showControlPanel(league) {
+  league = league || appState.currentLeague || 'ELITE';
+  _panelLeague = league;
+  appState.view = 'controlpanel';
+  updateBreadcrumb();
+  const container = document.getElementById('mainContainer');
+  const back = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
+  container.innerHTML = `
+    <div class="mb-4">
+      <button class="btn btn-back me-2" onclick="${back}"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <span class="text-light-gray" style="font-size:14px;font-weight:600">Painel de Controle — ${escapeHtml(league)}</span>
+    </div>
+    <div id="panelContent"><div class="text-center py-4"><div class="spinner-border" style="color:var(--red)"></div></div></div>`;
+  loadControlPanel();
+}
+
+async function loadControlPanel() {
+  const league = _panelLeague;
+  const box = document.getElementById('panelContent');
+  try {
+    const d = await api(`admin-control.php?league=${encodeURIComponent(league)}`);
+    const tOn = d.trades_enabled == 1;
+    const faOn = d.fa_enabled == 1;
+    const tw = d.tactic_window;
+    const pct = d.teams_total ? Math.round((d.teams_updated / d.teams_total) * 100) : 100;
+    const naoAtualizados = d.teams_not_updated || [];
+
+    box.innerHTML = `
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="pun-card">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <span style="font-weight:600;color:var(--text)"><i class="bi bi-arrow-left-right me-2"></i>Trades</span>
+              <span id="tradesBadge_${league}" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;${tOn
+                ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
+                : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)'}">${tOn ? 'Ativas' : 'Bloqueadas'}</span>
+            </div>
+            <div class="d-flex gap-2">
+              <button id="tradesOnBtn_${league}" class="btn btn-sm ${tOn ? 'btn-success' : 'btn-outline-success'} flex-grow-1" onclick="toggleTrades('${league}', 1)">Ativas</button>
+              <button id="tradesOffBtn_${league}" class="btn btn-sm ${!tOn ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1" onclick="toggleTrades('${league}', 0)">Bloqueadas</button>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="pun-card">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <span style="font-weight:600;color:var(--text)"><i class="bi bi-people-fill me-2"></i>Free Agency</span>
+              <span id="faBadge_${league}" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;${faOn
+                ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
+                : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)'}">${faOn ? 'Ativa' : 'Bloqueada'}</span>
+            </div>
+            <div class="d-flex gap-2">
+              <button id="faOnBtn_${league}" class="btn btn-sm ${faOn ? 'btn-success' : 'btn-outline-success'} flex-grow-1" onclick="toggleFA('${league}', 1)">Ativa</button>
+              <button id="faOffBtn_${league}" class="btn btn-sm ${!faOn ? 'btn-danger' : 'btn-outline-danger'} flex-grow-1" onclick="toggleFA('${league}', 0)">Bloqueada</button>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="pun-card">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <span style="font-weight:600;color:var(--text)"><i class="bi bi-clipboard-data me-2"></i>Edição de Táticas</span>
+              <span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;${tw.open
+                ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
+                : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)'}">${tw.open ? 'Aberta' : 'Fechada'}</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:8px">${tw.reason ? escapeHtml(tw.reason) : `corte diário às ${tw.daily_cutoff_time}`}</div>
+            <div class="d-flex gap-1 flex-wrap">
+              <button class="btn btn-sm btn-outline-success" onclick="panelOpenTacticWindow(3)">Abrir 3h</button>
+              <button class="btn btn-sm btn-outline-success" onclick="panelOpenTacticWindow(24)">Abrir 24h</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="panelCloseTacticWindow()">Fechar agora</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel mt-3">
+        <div class="panel-header">
+          <div class="panel-title"><i class="bi bi-clipboard2-check me-2"></i>Elencos Atualizados</div>
+          ${d.draft_concluido ? `<span style="font-weight:700;color:${pct === 100 ? '#25c677' : 'var(--red)'}">${d.teams_updated}/${d.teams_total} (${pct}%)</span>` : ''}
+        </div>
+        ${d.draft_concluido ? `<div class="progress mb-2" style="height:6px;background:var(--panel-3)">
+          <div class="progress-bar" style="width:${pct}%;background:${pct === 100 ? '#25c677' : 'var(--red)'}"></div>
+        </div>` : ''}
+        ${!d.draft_concluido
+          ? '<div style="font-size:12px;color:var(--text-3)"><i class="bi bi-info-circle me-1"></i>O draft desta temporada ainda não terminou — a cobrança de atualização de elenco ainda não começou.</div>'
+          : (naoAtualizados.length
+              ? `<div style="font-size:12px;color:var(--text-3);margin-bottom:6px">Ainda não atualizaram:</div>
+                 <div class="d-flex flex-wrap gap-2">${naoAtualizados.map(nm => `<span class="badge bg-secondary">${escapeHtml(nm)}</span>`).join('')}</div>`
+              : '<div style="font-size:12px;color:#25c677"><i class="bi bi-check-circle-fill me-1"></i>Todos os times já atualizaram o elenco nesta temporada.</div>')}
+      </div>
+
+      <div class="d-flex gap-2 mt-3 flex-wrap">
+        <button class="btn-ghost" onclick="showScheduler('${league}')"><i class="bi bi-alarm me-1"></i>Agendador de Fases</button>
+        <button class="btn-ghost" onclick="showConfig()"><i class="bi bi-gear me-1"></i>Configurações da Liga</button>
+        <button class="btn-ghost" onclick="showTaticaAdmin()"><i class="bi bi-clipboard-data me-1"></i>Tática por Time</button>
+      </div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="alert alert-danger">Erro: ${escapeHtml(e.error || 'Desconhecido')}</div>`;
+  }
+}
+
+async function panelOpenTacticWindow(hours) {
+  try {
+    await api('tactics.php', { method: 'POST', body: JSON.stringify({ action: 'admin_window', league: _panelLeague, open_for_hours: hours }) });
+    showAlert('success', `Edição de táticas aberta por ${hours}h.`);
+    loadControlPanel();
+  } catch (e) { showAlert('danger', e.error || 'Erro ao abrir janela'); }
+}
+
+async function panelCloseTacticWindow() {
+  try {
+    await api('tactics.php', { method: 'POST', body: JSON.stringify({ action: 'admin_window', league: _panelLeague, manual_closed: true, clear_manual_open: true }) });
+    showAlert('success', 'Edição de táticas fechada.');
+    loadControlPanel();
+  } catch (e) { showAlert('danger', e.error || 'Erro ao fechar janela'); }
+}
 
 // ══════════════════════════════════════════════
 // AGENDADOR DE FASES (fechar/abrir trades, fechar FA)
