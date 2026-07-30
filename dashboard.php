@@ -36,6 +36,11 @@ if ($team) {
     }
 }
 
+// Cobranca da logo do time: todo time novo entra com a logo padrao do FBA
+// (photo_url vazio, cai no fallback getTeamPhoto()) — cobra até o GM subir
+// uma de verdade, mesmo padrão do popup de atualizar elenco acima.
+$precisaLogo = $team && empty($team['photo_url']);
+
 $gamesConnectUrl = '/api/games-link.php?action=start';
 $showGamesConnect = false;
 $gamesTapasValue = null;
@@ -1584,8 +1589,9 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 
 </script>
 
-<?php if ($precisaAtualizarElenco): ?>
-<!-- Cobranca da atualizacao de elenco (aparece a cada carregamento ate o GM atualizar) -->
+<?php if ($precisaAtualizarElenco || $precisaLogo): ?>
+<!-- Cobrancas que aparecem a cada carregamento ate o GM resolver (o servidor
+     decide, "Agora não" só fecha aquela visita) -->
 <style>
 .upd-overlay{position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);
   display:flex;align-items:center;justify-content:center;padding:20px}
@@ -1605,6 +1611,25 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 .upd-later{background:transparent;border:1px solid var(--border-md);color:var(--text-2)}
 .upd-later:hover{color:var(--text)}
 </style>
+<?php if ($precisaLogo): ?>
+<div class="upd-overlay" id="logoOverlay" role="dialog" aria-modal="true" aria-labelledby="logoTitle">
+  <div class="upd-box">
+    <div class="upd-icon"><i class="bi bi-image"></i></div>
+    <h2 id="logoTitle">Coloque a logo do seu time</h2>
+    <p>Seu time ainda está com a logo padrão do FBA. Suba o escudo de verdade pra aparecer certo pra todo mundo — no Timeline, nos confrontos, em todo lugar.</p>
+    <div class="upd-actions">
+      <a href="/settings.php#sec-time" class="upd-go"><i class="bi bi-arrow-right-circle"></i>Colocar logo agora</a>
+      <button type="button" class="upd-later" id="logoLater">Agora não</button>
+    </div>
+  </div>
+</div>
+<script>
+  document.getElementById('logoLater')?.addEventListener('click', () => {
+    document.getElementById('logoOverlay')?.remove();
+  });
+</script>
+<?php endif; ?>
+<?php if ($precisaAtualizarElenco): ?>
 <div class="upd-overlay" id="updOverlay" role="dialog" aria-modal="true" aria-labelledby="updTitle">
   <div class="upd-box">
     <div class="upd-icon"><i class="bi bi-clipboard-data"></i></div>
@@ -1624,6 +1649,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
     document.getElementById('updOverlay')?.remove();
   });
 </script>
+<?php endif; ?>
 <?php endif; ?>
 </body>
 </html>
