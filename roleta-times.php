@@ -189,8 +189,11 @@ input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(-
     </div>
 
     <div class="card">
-      <div class="card-head"><i class="bi bi-list-ol"></i><span>Ordem de saída</span></div>
-      <div class="card-body scroll"><div id="rtHistorico"></div></div>
+      <div class="card-head" style="justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:9px"><i class="bi bi-list-ol"></i><span>Ordem de saída</span></div>
+        <button type="button" class="btn-ghost" onclick="rtCopiarTudo(this)"><i class="bi bi-clipboard me-1"></i>Copiar tudo</button>
+      </div>
+      <div class="card-body"><div id="rtHistorico"></div></div>
     </div>
   </div>
 </div>

@@ -95,7 +95,8 @@ function estadoRoleta(PDO $pdo, int $roletaId): ?array
             $sorteados[] = $l;
         }
     }
-    usort($sorteados, fn($a, $b) => $b['pick_number'] <=> $a['pick_number']);
+    // Histórico com o mais recente primeiro (menor pick_number = saiu por último).
+    usort($sorteados, fn($a, $b) => $a['pick_number'] <=> $b['pick_number']);
 
     return [
         'id' => (int)$r['id'],

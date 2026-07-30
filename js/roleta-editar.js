@@ -48,7 +48,7 @@ function reRenderTudo(data) {
   document.title = `${data.titulo} — Editar Roleta`;
   reRenderRoda(reUrnaRenderizada);
   reRenderUrna(reUrnaRenderizada, data.bloqueada);
-  reRenderHistorico(data.sorteados || []);
+  reRenderHistorico(data.sorteados || [], data.total || 0);
   reRenderResumo(data);
   reAtualizarBotaoGirar(data);
   reRenderConfig(data);
@@ -118,19 +118,20 @@ function reRenderUrna(urna, bloqueada) {
   }
 }
 
-function reRenderHistorico(sorteados) {
+function reRenderHistorico(sorteados, total) {
   const el = document.getElementById('rtHistorico');
   if (!sorteados.length) {
     el.innerHTML = `<div class="rt-vazio"><i class="bi bi-clock-history"></i><p>Nenhum participante sorteado ainda.</p></div>`;
     return;
   }
-  el.innerHTML = sorteados.map((t, i) => {
+  el.innerHTML = sorteados.map((t) => {
+    const ordem = total - t.pick_number + 1;
     const quando = t.eliminated_at
       ? new Date(String(t.eliminated_at).replace(' ', 'T')).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
       : '';
     return `
       <div class="rt-hist-linha">
-        <span class="rt-hist-saida">${i + 1}º a sair</span>
+        <span class="rt-hist-saida">${ordem}º a sair</span>
         <span class="rt-hist-pick">Escolha ${t.pick_number}</span>
         <img class="rt-hist-logo" src="${_reEsc(t.photo_url || RE_LOGO_PADRAO)}" alt="" onerror="this.src='${RE_LOGO_PADRAO}'">
         <span class="rt-hist-time">${_reEsc(t.nome_display)}</span>
@@ -138,6 +139,40 @@ function reRenderHistorico(sorteados) {
       </div>`;
   }).join('');
 }
+
+/** Copia texto pro clipboard (com fallback pra navegadores/contextos sem a API). */
+async function reCopiar(texto, btnEl) {
+  try {
+    await navigator.clipboard.writeText(texto);
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e2) {}
+    document.body.removeChild(ta);
+  }
+  if (btnEl) {
+    const original = btnEl.innerHTML;
+    btnEl.innerHTML = '<i class="bi bi-check2"></i>';
+    setTimeout(() => { btnEl.innerHTML = original; }, 1200);
+  }
+}
+
+/** Copia a ordem inteira (pick 1 ao último), pronta pra colar no WhatsApp. */
+function reCopiarTudo(btnEl) {
+  const sorteados = (reEstadoAtual && reEstadoAtual.sorteados) || [];
+  if (!sorteados.length) return;
+  const texto = sorteados
+    .slice()
+    .sort((a, b) => a.pick_number - b.pick_number)
+    .map(t => `Pick ${t.pick_number}, ${t.nome_display}`)
+    .join('\n');
+  reCopiar(texto, btnEl);
+}
+window.reCopiarTudo = reCopiarTudo;
 
 function reAtualizarBotaoGirar(data) {
   const btn = document.getElementById('rtGirar');

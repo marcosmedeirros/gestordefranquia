@@ -261,8 +261,11 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
                 </div>
 
                 <div class="card">
-                    <div class="card-head"><div class="card-head-left"><i class="bi bi-list-ol"></i><span>Ordem de saída</span></div></div>
-                    <div class="card-body scroll"><div id="rtHistorico"></div></div>
+                    <div class="card-head">
+                        <div class="card-head-left"><i class="bi bi-list-ol"></i><span>Ordem de saída</span></div>
+                        <button type="button" class="btn-ghost" onclick="reCopiarTudo(this)"><i class="bi bi-clipboard me-1"></i>Copiar tudo</button>
+                    </div>
+                    <div class="card-body"><div id="rtHistorico"></div></div>
                 </div>
             </div>
         </div>

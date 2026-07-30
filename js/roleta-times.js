@@ -13,6 +13,8 @@ const RT_SEM_MOVIMENTO = window.matchMedia && window.matchMedia('(prefers-reduce
 
 let rtUrnaRenderizada = [];   // [{id, team_name, ...}] na ordem desenhada na roleta
 let rtGirando = false;
+let rtUltimoSorteados = [];   // último histórico renderizado, pra "copiar tudo"
+let rtUltimoTotal = 0;
 
 /** Copia texto pro clipboard (com fallback pra navegadores/contextos sem a API). */
 async function rtCopiar(texto, btnEl) {
@@ -58,9 +60,11 @@ async function rtCarregar() {
 
 function rtRenderTudo(data) {
   rtUrnaRenderizada = data.na_urna || [];
+  rtUltimoSorteados = data.sorteados || [];
+  rtUltimoTotal = data.total || 0;
   rtRenderRoleta(rtUrnaRenderizada);
   rtRenderUrna(rtUrnaRenderizada);
-  rtRenderHistorico(data.sorteados || [], data.total || 0);
+  rtRenderHistorico(rtUltimoSorteados, rtUltimoTotal);
   rtRenderResumo(data);
   rtAtualizarBotao(data);
 }
@@ -156,14 +160,15 @@ function rtRenderHistorico(sorteados, total) {
     el.innerHTML = `<div class="rt-vazio"><i class="bi bi-clock-history"></i><p>Nenhum time sorteado ainda.</p></div>`;
     return;
   }
-  el.innerHTML = sorteados.map((t, i) => {
+  el.innerHTML = sorteados.map((t) => {
+    const ordem = total - t.pick_number + 1;
     const quando = t.eliminated_at
       ? new Date(String(t.eliminated_at).replace(' ', 'T')).toLocaleString('pt-BR',
           { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
       : '';
     return `
       <div class="rt-hist-linha">
-        <span class="rt-hist-saida">${i + 1}º a sair</span>
+        <span class="rt-hist-saida">${ordem}º a sair</span>
         <span class="rt-hist-pick">Escolha ${t.pick_number}</span>
         <img class="rt-hist-logo" src="${_rtEsc(t.photo_url || RT_LOGO_PADRAO)}" alt="" onerror="this.src='${RT_LOGO_PADRAO}'">
         <span class="rt-hist-time">${_rtEsc(t.gm_name)}</span>
@@ -175,6 +180,18 @@ function rtRenderHistorico(sorteados, total) {
       </div>`;
   }).join('');
 }
+
+/** Copia a ordem inteira (pick 1 ao último), pronta pra colar no WhatsApp. */
+function rtCopiarTudo(btnEl) {
+  if (!rtUltimoSorteados.length) return;
+  const texto = rtUltimoSorteados
+    .slice()
+    .sort((a, b) => a.pick_number - b.pick_number)
+    .map(t => `Pick ${t.pick_number}, ${t.gm_name}`)
+    .join('\n');
+  rtCopiar(texto, btnEl);
+}
+window.rtCopiarTudo = rtCopiarTudo;
 
 // Delegação: um listener só para todos os botões de copiar (histórico e anúncio).
 document.addEventListener('click', (e) => {

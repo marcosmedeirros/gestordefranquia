@@ -153,8 +153,8 @@ function estadoRoleta(PDO $pdo): array
             $sorteados[] = $l;
         }
     }
-    // Histórico na ordem em que saiu: escolha 32 primeiro.
-    usort($sorteados, fn($a, $b) => $b['pick_number'] <=> $a['pick_number']);
+    // Histórico com o mais recente primeiro (menor pick_number = saiu por último).
+    usort($sorteados, fn($a, $b) => $a['pick_number'] <=> $b['pick_number']);
 
     return [
         'na_urna'    => $naUrna,
