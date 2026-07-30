@@ -4833,7 +4833,9 @@ async function showExtendedAwards(league) {
       <span class="text-light-gray" style="font-size:14px;font-weight:600">Prêmios Estendidos — ${escapeHtml(league)}</span>
     </div>
     <div class="panel mb-3">
-      <div style="font-size:12px;color:var(--text-3);margin-bottom:12px"><i class="bi bi-info-circle me-1"></i>Finals MVP, All-NBA (1º/2º/3º) e All-Defensive (1º/2º). Cada bônus vale <b>só na temporada seguinte</b>, somando ao salário base no cap (ELITE). Preencha time + jogador em cada vaga.</div>
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:12px"><i class="bi bi-info-circle me-1"></i>Finals MVP, All-NBA (1º/2º/3º) e All-Defensive (1º/2º). ${league === 'ELITE'
+        ? 'Cada bônus vale <b>só na temporada seguinte</b>, somando ao salário base no cap.'
+        : 'O salary cap é exclusivo da ELITE, então aqui é só para registro histórico — sem efeito em cap ou salário.'} Preencha time + jogador em cada vaga.</div>
       <div style="max-width:360px">
         <label class="pun-field-label">Temporada</label>
         <select class="form-select" id="extSeasonSel" onchange="loadExtendedAwards()"></select>
@@ -4869,18 +4871,22 @@ async function loadExtendedAwards() {
       <input class="form-control form-control-sm ext-player" placeholder="Nome do jogador" value="${escapeHtml(ex.player_name || '')}">
     </div>`;
   };
+  const isElite = _extLeague === 'ELITE';
+  // Nas demais ligas não há salary cap, então o bônus (+XM) e a contagem de
+  // vagas somem do título — o cadastro vira só registro histórico do prêmio.
+  const detail = d => isElite ? ` <span style="color:var(--text-3);font-weight:400;font-size:11px">(${d})</span>` : '';
   const section = (title, type, n) => `
     <div class="panel mb-3">
       <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">${title}</div>
       ${Array.from({ length: n }, (_, i) => row(type, i)).join('')}
     </div>`;
   box.innerHTML = `
-    ${section('🏆 Finals MVP <span style="color:var(--text-3);font-weight:400;font-size:11px">(+3M)</span>', 'finals_mvp', 1)}
-    ${section('All-NBA — 1º Time <span style="color:var(--text-3);font-weight:400;font-size:11px">(+3M · 5 jogadores)</span>', 'all_nba_1', 5)}
-    ${section('All-NBA — 2º Time <span style="color:var(--text-3);font-weight:400;font-size:11px">(+2M · 5 jogadores)</span>', 'all_nba_2', 5)}
-    ${section('All-NBA — 3º Time <span style="color:var(--text-3);font-weight:400;font-size:11px">(+1M · 5 jogadores)</span>', 'all_nba_3', 5)}
-    ${section('All-Defensive — 1º Time <span style="color:var(--text-3);font-weight:400;font-size:11px">(+2M · 5 jogadores)</span>', 'all_def_1', 5)}
-    ${section('All-Defensive — 2º Time <span style="color:var(--text-3);font-weight:400;font-size:11px">(+1M · 5 jogadores)</span>', 'all_def_2', 5)}
+    ${section('🏆 Finals MVP' + detail('+3M'), 'finals_mvp', 1)}
+    ${section('All-NBA — 1º Time' + detail('+3M · 5 jogadores'), 'all_nba_1', 5)}
+    ${section('All-NBA — 2º Time' + detail('+2M · 5 jogadores'), 'all_nba_2', 5)}
+    ${section('All-NBA — 3º Time' + detail('+1M · 5 jogadores'), 'all_nba_3', 5)}
+    ${section('All-Defensive — 1º Time' + detail('+2M · 5 jogadores'), 'all_def_1', 5)}
+    ${section('All-Defensive — 2º Time' + detail('+1M · 5 jogadores'), 'all_def_2', 5)}
     <button class="btn-orange" onclick="saveExtendedAwards()"><i class="bi bi-save me-1"></i>Salvar prêmios estendidos</button>`;
 }
 
