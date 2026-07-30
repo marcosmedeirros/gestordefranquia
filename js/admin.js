@@ -79,6 +79,9 @@ async function showGestao(league) {
       <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="showHallOfFame()">
         <i class="bi bi-award-fill" style="color:#eab308"></i> Hall da Fama
       </button>
+      <a href="/roleta.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
+        <i class="bi bi-record-circle" style="color:#ec4899"></i> Roletas
+      </a>
       <a href="/thepathetic-edit.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
         <i class="bi bi-newspaper" style="color:var(--red)"></i> The Pathetic
       </a>
@@ -960,7 +963,6 @@ async function showLeague(league) {
       { icon: 'bi-trophy-fill',             label: 'Draft',                     fn: 'showAdminDraft()',          color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
       { icon: 'bi-archive-fill',            label: 'Banco de<br>Classes',        fn: 'showDraftClassBank()',      color: '#a855f7', bg: 'rgba(168,85,247,.08)'  },
       { icon: 'bi-coin',                    label: 'Moedas',                    fn: 'showCoins()',               color: '#f59e0b', bg: 'rgba(245,158,11,.12)'  },
-      { icon: 'bi-record-circle',           label: 'Roleta',                    fn: "window.location.href='/roleta.php'", color: '#ec4899', bg: 'rgba(236,72,153,.12)'  },
       ...(window.IS_GLOBAL_ADMIN ? [
         { icon: 'bi-lightning-fill',        label: 'Force<br>Trade',            fn: `showForceTradeModal('${league}')`, color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 12%, transparent)'   },
       ] : []),

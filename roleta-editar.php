@@ -16,6 +16,18 @@ if (!hasAdminAccess($pdo, (int)$user_id)) {
     exit;
 }
 
+$roletaId = (int)($_GET['id'] ?? 0);
+if (!$roletaId) {
+    header('Location: /roleta.php');
+    exit;
+}
+$stmtCheck = $pdo->prepare("SELECT id FROM roletas WHERE id = ?");
+$stmtCheck->execute([$roletaId]);
+if (!$stmtCheck->fetch()) {
+    header('Location: /roleta.php');
+    exit;
+}
+
 $team_id = $_SESSION['team_id'] ?? null;
 
 $team = [];
@@ -40,7 +52,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
     <meta name="theme-color" content="#fc0025">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Roletas — FBA Manager</title>
+    <title>Editar Roleta — FBA Manager</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -67,12 +79,12 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
         .app { display: flex; min-height: 100vh; }
         .main { margin-left: var(--sidebar-w); min-height: 100vh; width: calc(100% - var(--sidebar-w)); display: flex; flex-direction: column; }
-        .page-hero { padding: 32px 32px 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+        .page-hero { padding: 32px 32px 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
         .hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
         .hero-title { font-size: 26px; font-weight: 800; color: var(--text); margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
-        .hero-sub { font-size: 13px; color: var(--text-2); }
-        .content { padding: 20px 32px 48px; flex: 1; }
-        /* Topbar mobile */
+        .hero-sub { font-size: 13px; color: var(--text-2); max-width: 640px; }
+        .hero-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .content { padding: 18px 32px 48px; flex: 1; }
         .topbar { display: none; height: 54px; background: var(--panel); border-bottom: 1px solid var(--border); padding: 0 16px; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 200; }
         .topbar-title { font-size: 15px; font-weight: 700; color: var(--text); }
         .topbar-title em { color: var(--red); font-style: normal; }
@@ -80,7 +92,6 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         .sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 299; }
         .sb-overlay.show { display: block; }
 
-        /* Menu lateral */
         .sidebar { position: fixed; top: 0; left: 0; width: 260px; height: 100vh; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 300; transition: transform var(--t) var(--ease); overflow-y: auto; scrollbar-width: none; }
         .sidebar::-webkit-scrollbar { display: none; }
         .sb-brand { padding: 22px 18px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
@@ -106,34 +117,66 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         .sb-logout { width: 26px; height: 26px; border-radius: 7px; background: transparent; border: 1px solid var(--border); color: var(--text-2); display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; transition: all var(--t) var(--ease); text-decoration: none; flex-shrink: 0; }
         .sb-logout:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
 
-        .btn-orange { background: var(--red); border: none; color: #fff; font-weight: 600; font-size: 13px; border-radius: var(--radius-xs); padding: 10px 20px; transition: background var(--t); cursor: pointer; }
-        .btn-orange:hover, .btn-orange:focus { background: var(--red-2); color: #fff; }
-        .btn-orange:disabled { background: var(--panel-3); color: var(--text-3); cursor: not-allowed; }
-        .btn-ghost { background: transparent; border: 1px solid var(--border-md); color: var(--text-2); font-weight: 600; font-size: 12px; border-radius: var(--radius-xs); padding: 6px 12px; transition: all var(--t); cursor: pointer; }
-        .btn-ghost:hover { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
+        .rt-chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;color:var(--text-2)}
+        .rt-chip.ok{background:color-mix(in srgb,var(--green) 12%,transparent);border-color:color-mix(in srgb,var(--green) 32%,transparent);color:var(--green)}
+        .rt-chip.next{background:var(--red-soft);border-color:var(--border-red);color:var(--red)}
+        .rt-chip.lock{background:color-mix(in srgb,var(--amber) 12%,transparent);border-color:color-mix(in srgb,var(--amber) 32%,transparent);color:var(--amber)}
+        #rtResumo{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 
-        .empty { padding: 40px 16px; color: var(--text-3); text-align: center; }
-        .empty i { font-size: 32px; display: block; margin-bottom: 10px; }
-        .empty p { font-size: 13px; margin: 0; }
+        .grid{display:grid;grid-template-columns:1.05fr .95fr;gap:20px;align-items:start}
+        @media(max-width:992px){.grid{grid-template-columns:1fr}}
 
-        .roleta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
-        .roleta-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; cursor: pointer; transition: all var(--t) var(--ease); display: flex; flex-direction: column; gap: 10px; }
-        .roleta-card:hover { border-color: var(--border-red); transform: translateY(-2px); }
-        .roleta-card-icon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 19px; }
-        .roleta-card-title { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.25; }
-        .roleta-card-sub { font-size: 11px; color: var(--text-3); }
-        .roleta-card-progress { height: 5px; border-radius: 999px; background: var(--panel-3); overflow: hidden; margin-top: 2px; }
-        .roleta-card-progress > div { height: 100%; background: var(--red); }
-        .roleta-card-status { font-size: 10px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; align-self: flex-start; }
-        .roleta-card-new { border: 1.5px dashed var(--border-md); background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-2); min-height: 138px; }
-        .roleta-card-new:hover { border-color: var(--red); color: var(--red); background: var(--red-soft); }
-        .roleta-card-new i { font-size: 26px; }
+        .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+        .card-head{padding:15px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:9px}
+        .card-head-left{display:flex;align-items:center;gap:9px}
+        .card-head i{color:var(--red);font-size:15px}
+        .card-head span{font-size:14px;font-weight:600}
+        .card-body{padding:20px}
 
-        /* Modal criar roleta */
-        .rl-modal-body .form-label { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
-        .rl-tipo-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
-        .rl-tipo-tab { flex: 1; text-align: center; padding: 9px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--panel-2); color: var(--text-2); font-size: 12px; font-weight: 700; cursor: pointer; transition: all var(--t); }
-        .rl-tipo-tab.active { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
+        .roda-area{display:flex;flex-direction:column;align-items:center;gap:20px}
+        .roda-palco{position:relative;width:min(360px,86vw);height:min(360px,86vw)}
+        .roda-ponteiro{position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:0;height:0;z-index:5;border-left:14px solid transparent;border-right:14px solid transparent;border-top:22px solid var(--red);filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
+        .roda{width:100%;height:100%;border-radius:50%;position:relative;overflow:hidden;border:6px solid var(--panel-3);box-shadow:0 0 0 2px var(--border-md),0 20px 50px -20px rgba(0,0,0,.6);transition:transform 4.2s cubic-bezier(.12,.72,.15,1)}
+        .rt-fatias{position:absolute;inset:0;border-radius:50%}
+        .rt-rotulo{position:absolute;top:50%;left:50%;width:50%;height:2px;transform-origin:0 50%;display:flex;align-items:center;justify-content:flex-end;padding-right:10px}
+        .rt-rotulo span{font-weight:800;color:#fff;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.55)}
+        .rt-roda-vazia{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--text-3);font-size:13px;padding:24px}
+        .roda-hub{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:50%;background:var(--panel);border:3px solid var(--red);z-index:4;display:flex;align-items:center;justify-content:center;color:var(--red);font-size:17px}
+
+        .btn-girar{background:var(--red);border:none;color:#fff;font-family:var(--font);font-weight:700;font-size:14px;border-radius:var(--radius-sm);padding:12px 28px;cursor:pointer;transition:background var(--t)}
+        .btn-girar:hover:not(:disabled){background:var(--red-2)}
+        .btn-girar:disabled{background:var(--panel-3);color:var(--text-3);cursor:not-allowed}
+        .btn-ghost{background:transparent;border:1px solid var(--border-md);color:var(--text-2);font-family:var(--font);font-weight:600;font-size:12px;border-radius:var(--radius-xs);padding:7px 13px;cursor:pointer;transition:all var(--t)}
+        .btn-ghost:hover{border-color:var(--border-red);color:var(--red);background:var(--red-soft)}
+        .btn-ghost.danger:hover{border-color:#ef4444;color:#ef4444;background:rgba(239,68,68,.1)}
+
+        #rtAnuncio{min-height:0}
+        #rtAnuncio.mostrar .rt-anuncio-box{animation:anuncioEntra .55s var(--ease)}
+        @keyframes anuncioEntra{0%{opacity:0;transform:scale(.86)}60%{transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}
+        .rt-anuncio-box{background:linear-gradient(135deg,var(--red-soft),transparent);border:1px solid var(--border-red);border-radius:var(--radius);padding:16px 20px;text-align:center;margin-bottom:16px}
+        .rt-anuncio-pick{font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--red)}
+        .rt-anuncio-time{font-size:24px;font-weight:800;margin-top:2px}
+
+        .rt-urna-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--panel-2);border:1px solid var(--border);margin-bottom:6px}
+        .rt-urna-item img{width:30px;height:30px;border-radius:8px;object-fit:contain;background:var(--panel-3);flex-shrink:0}
+        .rt-urna-txt{min-width:0;flex:1}
+        .rt-urna-gm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .rt-urna-remove{background:transparent;border:none;color:var(--text-3);cursor:pointer;font-size:14px;flex-shrink:0}
+        .rt-urna-remove:hover{color:#ef4444}
+
+        .rt-hist-linha{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);background:var(--panel-2);border:1px solid var(--border);margin-bottom:7px;flex-wrap:wrap}
+        .rt-hist-saida{font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;min-width:62px;flex-shrink:0}
+        .rt-hist-pick{font-family:var(--font);font-size:12px;font-weight:800;color:var(--red);background:var(--red-soft);border:1px solid var(--border-red);border-radius:999px;padding:3px 10px;flex-shrink:0}
+        .rt-hist-logo{width:28px;height:28px;border-radius:7px;object-fit:contain;background:var(--panel-3);flex-shrink:0}
+        .rt-hist-time{flex:1;min-width:120px;font-size:13px;font-weight:600;line-height:1.25}
+        .rt-hist-hora{font-size:11px;color:var(--text-3);flex-shrink:0}
+
+        .rt-vazio{text-align:center;padding:26px 16px;color:var(--text-3)}
+        .rt-vazio i{font-size:26px;display:block;margin-bottom:8px}
+        .rt-vazio p{font-size:12px}
+        .scroll{max-height:380px;overflow-y:auto}
+
+        .edit-locked-msg{font-size:12px;color:var(--text-3);display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm)}
         .rl-autocomplete { position: relative; }
         .rl-autocomplete-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--panel-2); border: 1px solid var(--border-md); border-radius: var(--radius-sm); max-height: 220px; overflow-y: auto; z-index: 50; box-shadow: 0 12px 28px rgba(0,0,0,.3); display: none; }
         .rl-autocomplete-results.show { display: block; }
@@ -141,13 +184,10 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         .rl-ac-item:hover { background: var(--panel-3); }
         .rl-ac-item img { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--panel-3); }
         .rl-ac-empty { padding: 10px 12px; font-size: 12px; color: var(--text-3); }
-        .rl-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; min-height: 30px; }
-        .rl-chip { display: inline-flex; align-items: center; gap: 7px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 5px 8px 5px 12px; font-size: 12px; font-weight: 600; color: var(--text); }
-        .rl-chip button { background: transparent; border: none; color: var(--text-3); width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; }
-        .rl-chip button:hover { background: var(--red-soft); color: var(--red); }
-        .rl-check-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-top: 14px; }
+        .rl-check-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
         .rl-check-row label { font-size: 13px; font-weight: 600; color: var(--text); margin: 0; }
-        .rl-check-row small { display: block; font-size: 11px; color: var(--text-3); font-weight: 400; }
+        .form-control { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-xs); font-size: 13px; }
+        .form-control:focus { background: var(--panel-2); border-color: var(--red); color: var(--text); box-shadow: 0 0 0 3px var(--red-soft); }
 
         input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
@@ -178,74 +218,62 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
 
         <div class="page-hero">
             <div>
-                <div class="hero-eyebrow">Admin · Gestão</div>
-                <h1 class="hero-title"><i class="bi bi-record-circle" style="color:var(--red)"></i>Roletas</h1>
-                <p class="hero-sub">Crie quantas roletas quiser — GMs, times ou lista personalizada — e sorteie a ordem de eliminação de cada uma.</p>
+                <a href="/roleta.php" class="btn-ghost" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;margin-bottom:10px"><i class="bi bi-arrow-left"></i> Todas as roletas</a>
+                <div class="hero-eyebrow">Admin · Roletas</div>
+                <h1 class="hero-title" id="rlTituloHero"><i class="bi bi-record-circle" style="color:var(--red)"></i><span>Carregando...</span></h1>
+                <p class="hero-sub">Cada giro tira um participante da urna. Quem sai primeiro fica com a pior posição, até sobrar só 1.</p>
             </div>
-            <button type="button" class="btn-orange" id="btnNovaRoletaTop"><i class="bi bi-plus-lg me-1"></i>Nova Roleta</button>
+            <div class="hero-actions">
+                <button class="btn-ghost" id="rtReiniciar"><i class="bi bi-arrow-counterclockwise"></i> Reiniciar</button>
+                <button class="btn-ghost danger" id="rlExcluir"><i class="bi bi-trash"></i> Excluir roleta</button>
+            </div>
         </div>
 
         <div class="content">
-            <div class="roleta-grid" id="roletaGrid">
-                <div class="empty"><p>Carregando...</p></div>
+            <div id="rtResumo"></div>
+            <div id="rtAnuncio"></div>
+
+            <div class="grid">
+                <div>
+                    <div class="card">
+                        <div class="card-head"><div class="card-head-left"><i class="bi bi-record-circle"></i><span>Roleta</span></div></div>
+                        <div class="card-body">
+                            <div class="roda-area">
+                                <div class="roda-palco">
+                                    <div class="roda-ponteiro"></div>
+                                    <div class="roda" id="rtRoda"></div>
+                                    <div class="roda-hub"><i class="bi bi-dice-5-fill"></i></div>
+                                </div>
+                                <button class="btn-girar" id="rtGirar" disabled>Carregando...</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-head"><div class="card-head-left"><i class="bi bi-gear"></i><span>Configurações</span></div></div>
+                        <div class="card-body" id="rlConfigBody">Carregando...</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-head"><div class="card-head-left"><i class="bi bi-inbox"></i><span>Ainda na urna</span></div></div>
+                        <div class="card-body scroll"><div id="rtUrna"></div></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-head"><div class="card-head-left"><i class="bi bi-list-ol"></i><span>Ordem de saída</span></div></div>
+                    <div class="card-body scroll"><div id="rtHistorico"></div></div>
+                </div>
             </div>
         </div>
     </main>
 </div>
 
-<!-- Modal: criar roleta -->
-<div class="modal fade" id="modalNovaRoleta" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" style="background:var(--panel);border:1px solid var(--border);color:var(--text)">
-      <div class="modal-header" style="border-color:var(--border)">
-        <h5 class="modal-title"><i class="bi bi-plus-circle me-2" style="color:var(--red)"></i>Nova Roleta</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body rl-modal-body">
-        <div class="mb-3">
-          <div class="form-label">Título</div>
-          <input type="text" id="rlTitulo" class="form-control" placeholder="Ex: Roleta de saída — Temporada 5" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text)">
-        </div>
-
-        <div class="form-label">Tipo de participante</div>
-        <div class="rl-tipo-tabs">
-          <div class="rl-tipo-tab active" data-tipo="gms">GMs</div>
-          <div class="rl-tipo-tab" data-tipo="times">Times</div>
-          <div class="rl-tipo-tab" data-tipo="personalizado">Personalizado</div>
-        </div>
-
-        <div id="rlBuscaWrap">
-          <div class="form-label">Adicionar participantes</div>
-          <div class="rl-autocomplete">
-            <input type="text" id="rlBusca" class="form-control" placeholder="Digite o nome do GM ou do time..." style="background:var(--panel-2);border:1px solid var(--border);color:var(--text)" autocomplete="off">
-            <div class="rl-autocomplete-results" id="rlBuscaResultados"></div>
-          </div>
-        </div>
-        <div id="rlPersonalizadoWrap" style="display:none">
-          <div class="form-label">Adicionar participante</div>
-          <div style="display:flex;gap:8px">
-            <input type="text" id="rlNomeLivre" class="form-control" placeholder="Nome do participante" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text)">
-            <button type="button" class="btn-orange" id="btnAddNomeLivre" style="padding:8px 16px"><i class="bi bi-plus-lg"></i></button>
-          </div>
-        </div>
-
-        <div class="rl-chips" id="rlChips"></div>
-
-        <label class="rl-check-row">
-          <input type="checkbox" id="rlNotificar" checked style="width:16px;height:16px">
-          <span><span style="display:block">Notificar quem sair da roleta</span><small>Envia push pra todos os participantes cadastrados avisando quem foi eliminado a cada giro.</small></span>
-        </label>
-      </div>
-      <div class="modal-footer" style="border-color:var(--border)">
-        <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn-orange" id="btnCriarRoleta">Criar roleta</button>
-      </div>
-    </div>
-  </div>
-</div>
-
+<script>
+    const ROLETA_ID = <?= (int)$roletaId ?>;
+</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/js/roleta.js"></script>
+<script src="/js/roleta-editar.js"></script>
 <script src="/js/pwa.js"></script>
 <script>
     const sidebar = document.getElementById('sidebar');
@@ -253,7 +281,6 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
     const menuBtn = document.getElementById('menuBtn');
     if (menuBtn) menuBtn.addEventListener('click', () => { sidebar.classList.add('open'); sbOverlay.classList.add('show'); });
     if (sbOverlay) sbOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sbOverlay.classList.remove('show'); });
-    // Theme
     const themeKey = 'fba-theme';
     const themeBtn = document.getElementById('themeToggle');
     const applyTheme = (theme) => {

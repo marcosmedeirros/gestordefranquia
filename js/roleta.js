@@ -1,257 +1,205 @@
-/**
- * Roleta de Eliminação de Anos (admin, por liga)
- */
+// Hub de Roletas — lista as roletas criadas (mais um card fixo pra Roleta
+// dos 32 Times, que é uma página separada) e o popup de criar uma nova.
 
-const _rlEsc = s => (s || '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const TIPO_META = {
+  gms: { icon: 'bi-person-badge-fill', color: '#3b82f6', bg: 'rgba(59,130,246,.12)', label: 'GMs' },
+  times: { icon: 'bi-shield-fill', color: '#22c55e', bg: 'rgba(34,197,94,.12)', label: 'Times' },
+  personalizado: { icon: 'bi-list-stars', color: '#a855f7', bg: 'rgba(168,85,247,.12)', label: 'Personalizado' },
+};
 
-const RL_COLORS = ['#fc0025', '#f59e0b', '#3b82f6', '#22c55e', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#f97316', '#14b8a6'];
+let rlTipoAtual = 'gms';
+let rlSelecionados = []; // { team_id?, user_id?, nome_display?, label }
+let rlBuscaTimeout = null;
+let rlModalNovaRoleta = null;
 
-let rlCurrentLeague = (typeof adminLeagues !== 'undefined' && adminLeagues.length) ? adminLeagues[0] : 'ELITE';
-let rlRenderedPool = [];   // [{id, year}] na ordem exibida na roleta agora
-let rlSpinning = false;
-
-async function _rlFetch(url, options = {}) {
-  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); }
-  catch (e) { throw new Error('Resposta inválida do servidor'); }
-  if (!data.success) throw new Error(data.error || 'Erro desconhecido');
-  return data;
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function rlRenderLeagueTabs() {
-  const el = document.getElementById('leagueTabs');
-  if (!el || typeof adminLeagues === 'undefined') return;
-  el.innerHTML = adminLeagues.map(lg =>
-    `<button type="button" class="league-tab${lg === rlCurrentLeague ? ' active' : ''}" onclick="rlSwitchLeague('${lg}')">${_rlEsc(lg)}</button>`
-  ).join('');
-}
-
-function rlSwitchLeague(league) {
-  if (rlSpinning || league === rlCurrentLeague) return;
-  rlCurrentLeague = league;
-  rlRenderLeagueTabs();
-  rlLoadState();
-}
-
-async function rlLoadState() {
-  const poolListEl = document.getElementById('poolList');
-  const histListEl = document.getElementById('histList');
-  if (poolListEl) poolListEl.innerHTML = '<p style="color:var(--text-3);font-size:13px">Carregando...</p>';
-  if (histListEl) histListEl.innerHTML = '<p style="color:var(--text-3);font-size:13px">Carregando...</p>';
-
+async function rlCarregarHub() {
+  const grid = document.getElementById('roletaGrid');
   try {
-    const data = await _rlFetch(`api/roleta.php?action=state&league=${encodeURIComponent(rlCurrentLeague)}`);
-    rlRenderedPool = data.pool || [];
-    rlRenderPoolList(data.pool || []);
-    rlRenderHistory(data.eliminated || []);
-    rlRenderWinnerBanner(data.finished, data.winner);
-    rlRenderWheel(data.pool || []);
-    rlUpdateSpinButton(data.pool || []);
-  } catch (e) {
-    if (poolListEl) poolListEl.innerHTML = `<p style="color:#ef4444;font-size:13px">${_rlEsc(e.message)}</p>`;
-  }
-}
+    const res = await fetch('/api/roleta.php?action=listar');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Erro ao carregar');
 
-function rlRenderPoolList(pool) {
-  const el = document.getElementById('poolList');
-  if (!el) return;
-  if (!pool.length) {
-    el.innerHTML = '<div class="empty"><i class="bi bi-inbox"></i><p>Nenhum ano cadastrado ainda.</p></div>';
-    return;
-  }
-  el.innerHTML = `<div class="pool-list">${pool.map(p => `
-    <span class="pool-chip">${p.year}<button type="button" onclick="rlRemoveYear(${p.id})" title="Remover"><i class="bi bi-x"></i></button></span>
-  `).join('')}</div>`;
-}
+    const cards = [];
 
-function rlRenderHistory(eliminated) {
-  const el = document.getElementById('histList');
-  if (!el) return;
-  if (!eliminated.length) {
-    el.innerHTML = '<div class="empty"><i class="bi bi-clock-history"></i><p>Nenhum giro ainda.</p></div>';
-    return;
-  }
-  el.innerHTML = `<div class="hist-list">${eliminated.map(h => {
-    const time = h.eliminated_at ? new Date(h.eliminated_at.replace(' ', 'T')).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
-    return `<div class="hist-row">
-      <span class="hist-order">${h.elimination_order}</span>
-      <span class="hist-year">${h.year}</span>
-      <span class="hist-time">${_rlEsc(time)}</span>
-    </div>`;
-  }).join('')}</div>`;
-}
+    cards.push(`
+      <div class="roleta-card" onclick="window.location.href='/roleta-times.php'">
+        <div class="roleta-card-icon" style="background:rgba(236,72,153,.12);color:#ec4899"><i class="bi bi-dice-5-fill"></i></div>
+        <div class="roleta-card-title">Roleta dos 32 Times</div>
+        <div class="roleta-card-sub">Página pública · sorteio de ordem inversa</div>
+      </div>`);
 
-function rlRenderWinnerBanner(finished, winner) {
-  const el = document.getElementById('winnerArea');
-  if (!el) return;
-  if (finished && winner) {
-    el.innerHTML = `<div class="winner-banner">
-      <div class="wb-label"><i class="bi bi-trophy-fill me-1"></i>Vencedor da roleta — ${_rlEsc(rlCurrentLeague)}</div>
-      <div class="wb-year">${winner}</div>
-    </div>`;
-  } else {
-    el.innerHTML = '';
-  }
-}
+    data.roletas.forEach(r => {
+      const meta = TIPO_META[r.tipo] || TIPO_META.gms;
+      const pct = r.total ? Math.round((r.sorteados / r.total) * 100) : 0;
+      let statusLabel = 'Não iniciada', statusColor = 'var(--text-3)', statusBg = 'var(--panel-3)';
+      if (r.concluido) { statusLabel = 'Concluída'; statusColor = '#22c55e'; statusBg = 'rgba(34,197,94,.12)'; }
+      else if (r.bloqueada) { statusLabel = 'Em andamento'; statusColor = '#f59e0b'; statusBg = 'rgba(245,158,11,.12)'; }
 
-function rlRenderWheel(pool) {
-  const wheel = document.getElementById('wheel');
-  if (!wheel) return;
-  // Reseta rotação sem animação antes de re-renderizar (evita girar "de volta" visualmente)
-  wheel.style.transition = 'none';
-  wheel.style.transform = 'rotate(0deg)';
-  void wheel.offsetWidth; // força reflow
-  wheel.style.transition = '';
-
-  if (pool.length < 2) {
-    const msg = pool.length === 1
-      ? 'Só resta um ano — já é o vencedor.'
-      : 'Cadastre pelo menos 2 anos para começar.';
-    wheel.innerHTML = `<div class="wheel-empty-msg">${_rlEsc(msg)}</div>`;
-    return;
-  }
-
-  const n = pool.length;
-  const segAngle = 360 / n;
-  const stops = pool.map((p, i) => {
-    const color = RL_COLORS[i % RL_COLORS.length];
-    return `${color} ${i * segAngle}deg ${(i + 1) * segAngle}deg`;
-  }).join(', ');
-
-  let html = `<div style="position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg, ${stops})"></div>`;
-  pool.forEach((p, i) => {
-    const mid = i * segAngle + segAngle / 2;
-    // A faixa do rótulo aponta "leste" (90°) na orientação neutra do CSS, mas o
-    // conic-gradient usa 0°=norte — subtrai 90° pra alinhar o rótulo com sua fatia.
-    html += `<div class="wheel-seg-label" style="transform:rotate(${mid - 90}deg)"><span>${_rlEsc(String(p.year))}</span></div>`;
-  });
-  wheel.innerHTML = html;
-}
-
-function rlUpdateSpinButton(pool) {
-  const btn = document.getElementById('btnSpin');
-  if (!btn) return;
-  btn.disabled = rlSpinning || pool.length < 2;
-}
-
-async function rlAddYear() {
-  const input = document.getElementById('yearInput');
-  const year = parseInt(input?.value, 10);
-  if (!year || year < 1900 || year > 2200) {
-    alert('Informe um ano válido.');
-    return;
-  }
-  const btn = document.getElementById('btnAddYear');
-  if (btn) btn.disabled = true;
-  try {
-    await _rlFetch('api/roleta.php', {
-      method: 'POST',
-      body: JSON.stringify({ action: 'add_year', league: rlCurrentLeague, year })
-    });
-    if (input) input.value = '';
-    await rlLoadState();
-  } catch (e) {
-    alert(e.message);
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
-async function rlRemoveYear(id) {
-  if (rlSpinning) return;
-  try {
-    await _rlFetch('api/roleta.php', {
-      method: 'POST',
-      body: JSON.stringify({ action: 'remove_year', league: rlCurrentLeague, id })
-    });
-    await rlLoadState();
-  } catch (e) {
-    alert(e.message);
-  }
-}
-
-async function rlReset() {
-  if (rlSpinning) return;
-  if (!confirm(`Reiniciar a roleta de ${rlCurrentLeague}? Todos os anos e o histórico desta liga serão apagados.`)) return;
-  try {
-    await _rlFetch('api/roleta.php', {
-      method: 'POST',
-      body: JSON.stringify({ action: 'reset', league: rlCurrentLeague })
-    });
-    await rlLoadState();
-  } catch (e) {
-    alert(e.message);
-  }
-}
-
-async function rlClearHistory() {
-  if (rlSpinning) return;
-  if (!confirm(`Limpar o histórico de eliminação de ${rlCurrentLeague}? Os anos já eliminados voltam para a roleta (os anos cadastrados não são apagados).`)) return;
-  try {
-    await _rlFetch('api/roleta.php', {
-      method: 'POST',
-      body: JSON.stringify({ action: 'clear_history', league: rlCurrentLeague })
-    });
-    await rlLoadState();
-  } catch (e) {
-    alert(e.message);
-  }
-}
-
-async function rlSpin() {
-  if (rlSpinning || rlRenderedPool.length < 2) return;
-  rlSpinning = true;
-  const btn = document.getElementById('btnSpin');
-  if (btn) btn.disabled = true;
-
-  const poolAtSpinTime = rlRenderedPool.slice();
-
-  try {
-    const data = await _rlFetch('api/roleta.php', {
-      method: 'POST',
-      body: JSON.stringify({ action: 'spin', league: rlCurrentLeague })
+      cards.push(`
+      <div class="roleta-card" onclick="window.location.href='/roleta-editar.php?id=${r.id}'">
+        <div class="roleta-card-icon" style="background:${meta.bg};color:${meta.color}"><i class="bi ${meta.icon}"></i></div>
+        <div class="roleta-card-title">${escapeHtml(r.titulo)}</div>
+        <div class="roleta-card-sub">${meta.label} · ${r.sorteados}/${r.total} sorteados${r.notificar_saida ? ' · <i class="bi bi-bell-fill"></i>' : ''}</div>
+        <div class="roleta-card-progress"><div style="width:${pct}%"></div></div>
+        <span class="roleta-card-status" style="color:${statusColor};background:${statusBg}">${statusLabel}</span>
+      </div>`);
     });
 
-    const eliminatedYear = data.eliminated_year;
-    const idx = poolAtSpinTime.findIndex(p => p.year === eliminatedYear);
-    const wheel = document.getElementById('wheel');
+    cards.push(`
+      <button type="button" class="roleta-card roleta-card-new" id="btnNovaRoletaCard">
+        <i class="bi bi-plus-circle"></i>
+        <span style="font-size:13px;font-weight:700">Criar nova roleta</span>
+      </button>`);
 
-    if (wheel && idx !== -1) {
-      const n = poolAtSpinTime.length;
-      const segAngle = 360 / n;
-      const targetMid = idx * segAngle + segAngle / 2;
-      const spins = 5; // voltas completas antes de parar, só efeito visual
-      const finalRotation = spins * 360 + (360 - targetMid);
-      wheel.style.transform = `rotate(${finalRotation}deg)`;
+    grid.innerHTML = cards.join('');
+    const btnCard = document.getElementById('btnNovaRoletaCard');
+    if (btnCard) btnCard.addEventListener('click', rlAbrirModalNovaRoleta);
+  } catch (e) {
+    grid.innerHTML = `<div class="empty"><i class="bi bi-exclamation-triangle"></i><p>Erro ao carregar roletas: ${escapeHtml(e.message || e)}</p></div>`;
+  }
+}
 
-      await new Promise(resolve => setTimeout(resolve, 4300));
+function rlAbrirModalNovaRoleta() {
+  rlTipoAtual = 'gms';
+  rlSelecionados = [];
+  document.getElementById('rlTitulo').value = '';
+  document.getElementById('rlBusca').value = '';
+  document.getElementById('rlNomeLivre').value = '';
+  document.getElementById('rlNotificar').checked = true;
+  document.querySelectorAll('.rl-tipo-tab').forEach(t => t.classList.toggle('active', t.dataset.tipo === 'gms'));
+  document.getElementById('rlBuscaWrap').style.display = '';
+  document.getElementById('rlPersonalizadoWrap').style.display = 'none';
+  rlRenderChips();
+  rlModalNovaRoleta.show();
+}
+
+function rlRenderChips() {
+  const wrap = document.getElementById('rlChips');
+  if (!rlSelecionados.length) { wrap.innerHTML = '<span style="font-size:12px;color:var(--text-3)">Nenhum participante adicionado ainda.</span>'; return; }
+  wrap.innerHTML = rlSelecionados.map((p, i) => `
+    <span class="rl-chip">${escapeHtml(p.label)}<button type="button" onclick="rlRemoverSelecionado(${i})"><i class="bi bi-x"></i></button></span>
+  `).join('');
+}
+
+function rlRemoverSelecionado(i) {
+  rlSelecionados.splice(i, 1);
+  rlRenderChips();
+}
+
+async function rlBuscarParticipantes(q) {
+  const box = document.getElementById('rlBuscaResultados');
+  if (q.length < 2) { box.classList.remove('show'); box.innerHTML = ''; return; }
+  try {
+    const excluir = rlSelecionados.filter(p => p.team_id).map(p => p.team_id).join(',');
+    const res = await fetch(`/api/roleta.php?action=buscar_participantes&q=${encodeURIComponent(q)}&excluir_team_ids=${encodeURIComponent(excluir)}`);
+    const data = await res.json();
+    if (!data.success || !data.resultados.length) {
+      box.innerHTML = '<div class="rl-ac-empty">Nenhum resultado.</div>';
+      box.classList.add('show');
+      return;
     }
-
-    rlSpinning = false;
-    rlRenderPoolList(data.pool || []);
-    rlRenderHistory(data.eliminated || []);
-    rlRenderWinnerBanner(data.finished, data.winner);
-    rlRenderedPool = data.pool || [];
-    rlRenderWheel(data.pool || []);
-    rlUpdateSpinButton(data.pool || []);
+    box.innerHTML = data.resultados.map((r, i) => {
+      const principal = rlTipoAtual === 'times' ? r.time_label : r.gm_label;
+      const secundario = rlTipoAtual === 'times' ? r.gm_label : r.time_label;
+      const foto = r.photo_url || '';
+      return `<div class="rl-ac-item" data-idx="${i}">
+        ${foto ? `<img src="${escapeHtml(foto)}" onerror="this.style.display='none'">` : ''}
+        <span>${escapeHtml(principal)} <span style="color:var(--text-3);font-weight:400">— ${escapeHtml(secundario)} · ${escapeHtml(r.league)}</span></span>
+      </div>`;
+    }).join('');
+    box.classList.add('show');
+    box.querySelectorAll('.rl-ac-item').forEach(el => {
+      el.addEventListener('click', () => rlSelecionarParticipante(data.resultados[Number(el.dataset.idx)]));
+    });
   } catch (e) {
-    rlSpinning = false;
-    if (btn) btn.disabled = rlRenderedPool.length < 2;
-    alert(e.message);
+    box.innerHTML = '<div class="rl-ac-empty">Erro na busca.</div>';
+    box.classList.add('show');
   }
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-  rlRenderLeagueTabs();
-  rlLoadState();
+function rlSelecionarParticipante(r) {
+  if (rlSelecionados.some(p => p.team_id === r.team_id)) return;
+  const label = rlTipoAtual === 'times' ? r.time_label : r.gm_label;
+  rlSelecionados.push({ team_id: r.team_id, user_id: r.user_id, time_label: r.time_label, gm_label: r.gm_label, label });
+  rlRenderChips();
+  document.getElementById('rlBusca').value = '';
+  document.getElementById('rlBuscaResultados').classList.remove('show');
+}
 
-  document.getElementById('btnAddYear')?.addEventListener('click', rlAddYear);
-  document.getElementById('yearInput')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); rlAddYear(); }
+function rlAdicionarNomeLivre() {
+  const input = document.getElementById('rlNomeLivre');
+  const nome = input.value.trim();
+  if (!nome) return;
+  rlSelecionados.push({ nome_display: nome, label: nome });
+  input.value = '';
+  rlRenderChips();
+}
+
+async function rlCriarRoleta() {
+  const titulo = document.getElementById('rlTitulo').value.trim();
+  const notificar = document.getElementById('rlNotificar').checked;
+  if (!titulo) { alert('Digite um título pra roleta.'); return; }
+  if (rlSelecionados.length < 2) { alert('Adicione pelo menos 2 participantes.'); return; }
+
+  const btn = document.getElementById('btnCriarRoleta');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/roleta.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'criar',
+        titulo,
+        tipo: rlTipoAtual,
+        notificar_saida: notificar,
+        participantes: rlSelecionados,
+      }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Erro ao criar roleta');
+    window.location.href = `/roleta-editar.php?id=${data.id}`;
+  } catch (e) {
+    alert(e.message || 'Erro ao criar roleta');
+    btn.disabled = false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  rlModalNovaRoleta = new bootstrap.Modal(document.getElementById('modalNovaRoleta'));
+  rlCarregarHub();
+
+  document.getElementById('btnNovaRoletaTop').addEventListener('click', rlAbrirModalNovaRoleta);
+
+  document.querySelectorAll('.rl-tipo-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      rlTipoAtual = tab.dataset.tipo;
+      document.querySelectorAll('.rl-tipo-tab').forEach(t => t.classList.toggle('active', t === tab));
+      rlSelecionados = [];
+      rlRenderChips();
+      document.getElementById('rlBuscaWrap').style.display = rlTipoAtual === 'personalizado' ? 'none' : '';
+      document.getElementById('rlPersonalizadoWrap').style.display = rlTipoAtual === 'personalizado' ? '' : 'none';
+    });
   });
-  document.getElementById('btnReset')?.addEventListener('click', rlReset);
-  document.getElementById('btnClearHistory')?.addEventListener('click', rlClearHistory);
-  document.getElementById('btnSpin')?.addEventListener('click', rlSpin);
+
+  const buscaInput = document.getElementById('rlBusca');
+  buscaInput.addEventListener('input', () => {
+    clearTimeout(rlBuscaTimeout);
+    const q = buscaInput.value.trim();
+    rlBuscaTimeout = setTimeout(() => rlBuscarParticipantes(q), 250);
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.rl-autocomplete')) document.getElementById('rlBuscaResultados').classList.remove('show');
+  });
+
+  document.getElementById('btnAddNomeLivre').addEventListener('click', rlAdicionarNomeLivre);
+  document.getElementById('rlNomeLivre').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); rlAdicionarNomeLivre(); }
+  });
+
+  document.getElementById('btnCriarRoleta').addEventListener('click', rlCriarRoleta);
 });
