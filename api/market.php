@@ -34,7 +34,10 @@ try {
             $limit  = min(100, (int)($_GET['limit'] ?? 50));
             $offset = max(0,   (int)($_GET['offset'] ?? 0));
 
-            $stmt = $pdo->prepare('
+            // MariaDB rejeita LIMIT/OFFSET vinculado via execute() (chega como
+            // string, ex. LIMIT '50', que o parser não aceita) — $limit e
+            // $offset já são int validados acima, interpola direto na SQL.
+            $stmt = $pdo->prepare("
                 SELECT mp.id, mp.content, mp.created_at,
                        u.name  AS user_name,  u.photo_url  AS user_photo,
                        u.id    AS user_id,
@@ -45,9 +48,9 @@ try {
                 LEFT JOIN teams t ON mp.team_id = t.id
                 WHERE mp.league = ?
                 ORDER BY mp.created_at DESC
-                LIMIT ? OFFSET ?
-            ');
-            $stmt->execute([$league, $limit, $offset]);
+                LIMIT {$limit} OFFSET {$offset}
+            ");
+            $stmt->execute([$league]);
             $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
             echo json_encode(['posts' => $posts]);
             break;
