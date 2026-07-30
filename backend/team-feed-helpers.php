@@ -92,6 +92,11 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
 {
     $eventos = [];
     $global = $teamId === null;
+    // MariaDB rejeita LIMIT vinculado como parâmetro de prepared statement
+    // (chega como string, ex. LIMIT '20', e o parser não aceita) — $limit já
+    // é garantidamente int pela assinatura da função, então interpola direto
+    // em vez de passar por "?"/$params.
+    $limitSql = (int)$limit;
 
     // Trades 1-para-1 aceitas
     if (!$global) {
@@ -102,9 +107,9 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
             JOIN trade_items ti ON ti.trade_id = t.id
             WHERE t.status = 'accepted' AND (t.from_team_id = ? OR t.to_team_id = ?)
             GROUP BY t.id" . ($before ? " HAVING data_evt < ?" : "") . "
-            ORDER BY data_evt DESC LIMIT ?
+            ORDER BY data_evt DESC LIMIT {$limitSql}
         ";
-        $params = $before ? [$teamId, $teamId, $before, $limit] : [$teamId, $teamId, $limit];
+        $params = $before ? [$teamId, $teamId, $before] : [$teamId, $teamId];
     } else {
         $sql = "
             SELECT t.id, t.from_team_id AS team_id, COALESCE(t.updated_at, t.created_at) AS data_evt,
@@ -114,9 +119,9 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
             ($league ? " JOIN teams tl ON tl.id = t.from_team_id" : "") . "
             WHERE t.status = 'accepted'" . ($league ? " AND tl.league = ?" : "") . "
             GROUP BY t.id" . ($before ? " HAVING data_evt < ?" : "") . "
-            ORDER BY data_evt DESC LIMIT ?
+            ORDER BY data_evt DESC LIMIT {$limitSql}
         ";
-        $params = array_values(array_filter([$league, $before, $limit], fn($v) => $v !== null));
+        $params = array_values(array_filter([$league, $before], fn($v) => $v !== null));
     }
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -134,9 +139,9 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
             LEFT JOIN multi_trade_items mti ON mti.trade_id = mt.id AND (mti.from_team_id = ? OR mti.to_team_id = ?) AND mti.player_name IS NOT NULL
             WHERE mt.status = 'accepted'" . ($before ? " AND mt.updated_at < ?" : "") . "
             GROUP BY mt.id
-            ORDER BY data_evt DESC LIMIT ?
+            ORDER BY data_evt DESC LIMIT {$limitSql}
         ";
-        $params = $before ? [$teamId, $teamId, $teamId, $teamId, $before, $limit] : [$teamId, $teamId, $teamId, $teamId, $limit];
+        $params = $before ? [$teamId, $teamId, $teamId, $teamId, $before] : [$teamId, $teamId, $teamId, $teamId];
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -151,9 +156,9 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
             ($league ? " JOIN teams tl ON tl.id = mt.created_by_team_id" : "") . "
             WHERE mt.status = 'accepted'" . ($league ? " AND tl.league = ?" : "") . ($before ? " AND mt.updated_at < ?" : "") . "
             GROUP BY mt.id
-            ORDER BY data_evt DESC LIMIT ?
+            ORDER BY data_evt DESC LIMIT {$limitSql}
         ";
-        $params = array_values(array_filter([$league, $before, $limit], fn($v) => $v !== null));
+        $params = array_values(array_filter([$league, $before], fn($v) => $v !== null));
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -163,14 +168,14 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
 
     // Punições
     if (!$global) {
-        $sql = "SELECT id, team_id, motive, punishment_label, type, created_at, reverted_at FROM team_punishments WHERE team_id = ?" . ($before ? " AND created_at < ?" : "") . " ORDER BY created_at DESC LIMIT ?";
-        $params = $before ? [$teamId, $before, $limit] : [$teamId, $limit];
+        $sql = "SELECT id, team_id, motive, punishment_label, type, created_at, reverted_at FROM team_punishments WHERE team_id = ?" . ($before ? " AND created_at < ?" : "") . " ORDER BY created_at DESC LIMIT {$limitSql}";
+        $params = $before ? [$teamId, $before] : [$teamId];
     } else {
         $sql = "SELECT tp.id, tp.team_id, tp.motive, tp.punishment_label, tp.type, tp.created_at, tp.reverted_at
                 FROM team_punishments tp" . ($league ? " JOIN teams tl ON tl.id = tp.team_id" : "") . "
                 WHERE 1=1" . ($league ? " AND tl.league = ?" : "") . ($before ? " AND tp.created_at < ?" : "") . "
-                ORDER BY tp.created_at DESC LIMIT ?";
-        $params = array_values(array_filter([$league, $before, $limit], fn($v) => $v !== null));
+                ORDER BY tp.created_at DESC LIMIT {$limitSql}";
+        $params = array_values(array_filter([$league, $before], fn($v) => $v !== null));
     }
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -181,14 +186,14 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
 
     // Prêmios da temporada
     if (!$global) {
-        $sql = "SELECT id, team_id, award_type, player_name, created_at FROM season_awards WHERE team_id = ?" . ($before ? " AND created_at < ?" : "") . " ORDER BY created_at DESC LIMIT ?";
-        $params = $before ? [$teamId, $before, $limit] : [$teamId, $limit];
+        $sql = "SELECT id, team_id, award_type, player_name, created_at FROM season_awards WHERE team_id = ?" . ($before ? " AND created_at < ?" : "") . " ORDER BY created_at DESC LIMIT {$limitSql}";
+        $params = $before ? [$teamId, $before] : [$teamId];
     } else {
         $sql = "SELECT sa.id, sa.team_id, sa.award_type, sa.player_name, sa.created_at
                 FROM season_awards sa" . ($league ? " JOIN teams tl ON tl.id = sa.team_id" : "") . "
                 WHERE sa.team_id IS NOT NULL" . ($league ? " AND tl.league = ?" : "") . ($before ? " AND sa.created_at < ?" : "") . "
-                ORDER BY sa.created_at DESC LIMIT ?";
-        $params = array_values(array_filter([$league, $before, $limit], fn($v) => $v !== null));
+                ORDER BY sa.created_at DESC LIMIT {$limitSql}";
+        $params = array_values(array_filter([$league, $before], fn($v) => $v !== null));
     }
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -206,14 +211,14 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
         'first_round' => 'Se classificou pros playoffs.',
     ];
     if (!$global) {
-        $sql = "SELECT id, team_id, position, created_at FROM playoff_results WHERE team_id = ?" . ($before ? " AND created_at < ?" : "") . " ORDER BY created_at DESC LIMIT ?";
-        $params = $before ? [$teamId, $before, $limit] : [$teamId, $limit];
+        $sql = "SELECT id, team_id, position, created_at FROM playoff_results WHERE team_id = ?" . ($before ? " AND created_at < ?" : "") . " ORDER BY created_at DESC LIMIT {$limitSql}";
+        $params = $before ? [$teamId, $before] : [$teamId];
     } else {
         $sql = "SELECT pr.id, pr.team_id, pr.position, pr.created_at
                 FROM playoff_results pr" . ($league ? " JOIN teams tl ON tl.id = pr.team_id" : "") . "
                 WHERE 1=1" . ($league ? " AND tl.league = ?" : "") . ($before ? " AND pr.created_at < ?" : "") . "
-                ORDER BY pr.created_at DESC LIMIT ?";
-        $params = array_values(array_filter([$league, $before, $limit], fn($v) => $v !== null));
+                ORDER BY pr.created_at DESC LIMIT {$limitSql}";
+        $params = array_values(array_filter([$league, $before], fn($v) => $v !== null));
     }
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -224,14 +229,14 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
     // Picks de draft (draft de temporada + draft inicial), nome via lookup em lote
     foreach ([['draft_order', 'draft_pool'], ['initdraft_order', 'initdraft_pool']] as [$tabOrder, $tabPool]) {
         if (!$global) {
-            $sql = "SELECT id, team_id, round, pick_position, picked_player_id, picked_at FROM {$tabOrder} WHERE team_id = ? AND picked_player_id IS NOT NULL" . ($before ? " AND picked_at < ?" : "") . " ORDER BY picked_at DESC LIMIT ?";
-            $params = $before ? [$teamId, $before, $limit] : [$teamId, $limit];
+            $sql = "SELECT id, team_id, round, pick_position, picked_player_id, picked_at FROM {$tabOrder} WHERE team_id = ? AND picked_player_id IS NOT NULL" . ($before ? " AND picked_at < ?" : "") . " ORDER BY picked_at DESC LIMIT {$limitSql}";
+            $params = $before ? [$teamId, $before] : [$teamId];
         } else {
             $sql = "SELECT o.id, o.team_id, o.round, o.pick_position, o.picked_player_id, o.picked_at
                     FROM {$tabOrder} o" . ($league ? " JOIN teams tl ON tl.id = o.team_id" : "") . "
                     WHERE o.picked_player_id IS NOT NULL" . ($league ? " AND tl.league = ?" : "") . ($before ? " AND o.picked_at < ?" : "") . "
-                    ORDER BY o.picked_at DESC LIMIT ?";
-            $params = array_values(array_filter([$league, $before, $limit], fn($v) => $v !== null));
+                    ORDER BY o.picked_at DESC LIMIT {$limitSql}";
+            $params = array_values(array_filter([$league, $before], fn($v) => $v !== null));
         }
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
@@ -302,8 +307,9 @@ function getTeamPosts(PDO $pdo, ?int $teamId, int $userId, int $limit = 20, ?str
     if ($teamId !== null) { $sql .= " AND tp.team_id = ?"; $params[] = $teamId; }
     if ($league) { $sql .= " AND tm.league = ?"; $params[] = $league; }
     if ($before) { $sql .= " AND tp.created_at < ?"; $params[] = $before; }
-    $sql .= " ORDER BY tp.created_at DESC LIMIT ?";
-    $params[] = $limit;
+    // MariaDB rejeita LIMIT vinculado como parâmetro de prepared statement
+    // (chega como string) — $limit já é int pela assinatura da função.
+    $sql .= " ORDER BY tp.created_at DESC LIMIT " . (int)$limit;
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);

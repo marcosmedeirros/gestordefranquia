@@ -148,10 +148,5 @@ jsonResponse(405, ['error' => 'Método não permitido']);
 
 } catch (Throwable $e) {
     error_log('api/timeline.php: ' . $e->getMessage() . ' em ' . $e->getFile() . ':' . $e->getLine());
-    $resp = ['error' => 'Erro interno. Tente de novo em instantes.'];
-    // Diagnóstico temporário (só pra admin) — ver nota em MEMORY/commit: remover assim que a causa raiz for confirmada.
-    if (hasAdminAccess($pdo, $userId)) {
-        $resp['debug'] = $e->getMessage() . ' em ' . basename($e->getFile()) . ':' . $e->getLine();
-    }
-    jsonResponse(500, $resp);
+    jsonResponse(500, ['error' => 'Erro interno. Tente de novo em instantes.']);
 }
