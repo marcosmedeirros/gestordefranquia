@@ -163,31 +163,49 @@ try {
     $trades = $stmtT->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 
+// ── Favoritos (quantos GMs observam este jogador) ──────
+$favoriteCount = 0;
+try {
+    $stmtFav = $pdo->prepare('SELECT COUNT(*) FROM player_favorites WHERE player_id = ?');
+    $stmtFav->execute([$playerId]);
+    $favoriteCount = (int)$stmtFav->fetchColumn();
+} catch (Exception $e) {}
+
 // ── Atributos (skills) ─────────────────────────────────
 // Agrupados por area para a aba nao virar uma lista solta de 10 barras.
 $skillGroups = [
     'Ataque'  => ['bi-bullseye', [
-        'skill_in'  => 'Finalização', 'skill_mid' => 'Meia-distância', 'skill_3pt' => 'Três pontos',
-        'skill_play' => 'Armação',
+        'skill_in'  => ['in',     'Finalização'], 'skill_mid' => ['mid',    'Meia-distância'],
+        'skill_3pt' => ['pt3',    'Três pontos'],  'skill_play' => ['play',  'Armação'],
     ]],
     'Defesa'  => ['bi-shield-fill', [
-        'skill_post_d' => 'Defesa de poste', 'skill_per_d' => 'Defesa de perímetro', 'skill_reb' => 'Rebote',
+        'skill_post_d' => ['post_d', 'Defesa de poste'], 'skill_per_d' => ['per_d', 'Defesa de perímetro'],
+        'skill_reb'    => ['reb',    'Rebote'],
     ]],
     'Físico e mental' => ['bi-lightning-charge-fill', [
-        'skill_athl' => 'Atletismo', 'skill_iq' => 'QI de jogo', 'skill_pot' => 'Potencial',
+        'skill_athl' => ['athl', 'Atletismo'], 'skill_iq' => ['iq', 'QI de jogo'], 'skill_pot' => ['pot', 'Potencial'],
     ]],
 ];
+
+// player_skill_grades (JSON, notas em letra) é a base; as colunas skill_* têm
+// prioridade quando preenchidas — mesma regra do normalizeSkillGrades() no JS.
+$gradesJson = [];
+if (!$isRetired && !empty($P['player_skill_grades'])) {
+    $decoded = json_decode((string)$P['player_skill_grades'], true);
+    if (is_array($decoded)) $gradesJson = $decoded;
+}
 
 $skills = [];               // continua plano: usado para saber se a aba aparece
 $skillsByGroup = [];
 if (!$isRetired) {
     foreach ($skillGroups as $groupName => [$groupIcon, $cols]) {
-        foreach ($cols as $col => $label) {
-            if (isset($P[$col]) && $P[$col] !== null && $P[$col] !== '') {
-                $skills[$label] = $P[$col];
-                $skillsByGroup[$groupName]['icon'] = $groupIcon;
-                $skillsByGroup[$groupName]['items'][$label] = $P[$col];
-            }
+        foreach ($cols as $col => [$jsonKey, $label]) {
+            $val = $P[$col] ?? null;
+            if ($val === null || $val === '') $val = $gradesJson[$jsonKey] ?? null;
+            if ($val === null || $val === '') continue;
+            $skills[$label] = $val;
+            $skillsByGroup[$groupName]['icon'] = $groupIcon;
+            $skillsByGroup[$groupName]['items'][$label] = $val;
         }
     }
 }
@@ -199,6 +217,16 @@ function skillTone(int $v): string {
     if ($v >= 70) return 'bom';
     if ($v >= 60) return 'medio';
     return 'fraco';
+}
+
+// Notas em letra (A+, B, C-...) não têm faixa numérica — mesma leitura de
+// cor usada em players.php (gradeColor).
+function gradeColor(string $v): string {
+    $g = strtoupper(trim($v));
+    if ($g === '' || $g === '-') return 'var(--text-3)';
+    if (in_array($g, ['A+','A','A-','B+'], true)) return '#22c55e';
+    if (in_array($g, ['B','B-','C+','C','C-'], true)) return '#f59e0b';
+    return '#ef4444';
 }
 
 $AWARD_LABELS = ['mvp'=>'MVP','dpoy'=>'DPOY','mip'=>'MIP','6th_man'=>'6º Homem','roy'=>'ROY'];
@@ -245,7 +273,7 @@ $photoFallback = ($custom !== '' && $nbaPhoto !== '') ? $nbaPhoto : $avatarFallb
 body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 .icon-btn{width:34px;height:34px;border-radius:10px;background:transparent;border:1px solid var(--border);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;text-decoration:none;transition:all .2s}
 .icon-btn:hover{background:var(--red-soft);border-color:var(--red);color:var(--red)}
-.content{max-width:1000px;margin:0 auto;padding:24px 16px 80px;width:100%}
+.content{padding:20px 32px 80px;width:100%}
 /* hero */
 .p-hero{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px;display:flex;gap:20px;align-items:center;flex-wrap:wrap}
 .p-avatar{width:88px;height:88px;border-radius:20px;background:var(--panel-2);border:1px solid var(--border-md);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
@@ -260,6 +288,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .badge-ovr{background:var(--red-soft);border:1px solid var(--border-red);color:var(--red)}
 .badge-ret{background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.38);color:var(--amber)}
 .badge-neutral{background:var(--panel-3);border:1px solid var(--border-md);color:var(--text-2)}
+.badge-franchise{background:rgba(168,85,247,.14);border:1px solid rgba(168,85,247,.38);color:var(--purple)}
+.badge-trade{background:var(--red-soft);border:1px solid var(--border-red);color:var(--red)}
 .p-ovrbox{margin-left:auto;text-align:center;flex-shrink:0}
 .p-ovrbox .v{font-family:'Oswald',sans-serif;font-size:44px;font-weight:800;color:var(--red);line-height:1}
 .p-ovrbox .l{font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:1px}
@@ -340,7 +370,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 /* gráfico de carreira */
 .chart{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:14px;overflow-x:auto}
 @media(max-width:640px){
-  .content{padding:18px 12px 72px}
+  .content{padding:18px 16px 72px}
   .panel{padding:16px 14px}
   .p-hero{padding:18px}
   .p-name{font-size:22px}
@@ -435,6 +465,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <?php else: ?>
           <?php if (!empty($P['role'])): ?><span class="badge-x badge-neutral"><?= htmlspecialchars($P['role']) ?></span><?php endif; ?>
           <?php if (!empty($P['player_tag'])): ?><span class="badge-x badge-neutral"><?= htmlspecialchars($P['player_tag']) ?></span><?php endif; ?>
+          <?php if (!empty($P['is_franchise_player'])): ?><span class="badge-x badge-franchise"><i class="bi bi-gem"></i> Franquia</span><?php endif; ?>
+          <?php if (!empty($P['available_for_trade'])): ?><span class="badge-x badge-trade"><i class="bi bi-arrow-left-right"></i> Disponível p/ troca</span><?php endif; ?>
+          <?php if (!empty($P['badge_name'])): ?><span class="badge-x badge-neutral"><i class="bi bi-award"></i> <?= htmlspecialchars($P['badge_name']) ?></span><?php endif; ?>
+          <?php if (!empty($P['tapa_count'])): ?><span class="badge-x badge-neutral" title="Tapas recebidos">🧃 <?= (int)$P['tapa_count'] ?></span><?php endif; ?>
         <?php endif; ?>
       </div>
     </div>
@@ -468,6 +502,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <?php if (!$isRetired): ?>
         <div class="kv"><div class="kv-l">Temporadas na liga</div><div class="kv-v"><?= (int)($P['seasons_in_league'] ?? 0) ?></div></div>
         <div class="kv"><div class="kv-l">Já foi trocado</div><div class="kv-v small"><?= !empty($P['was_traded']) ? 'Sim' : 'Não' ?></div></div>
+        <div class="kv"><div class="kv-l">Disponível pra troca</div><div class="kv-v small"><?= !empty($P['available_for_trade']) ? 'Sim' : 'Não' ?></div></div>
+        <div class="kv"><div class="kv-l">Jogador franquia</div><div class="kv-v small"><?= !empty($P['is_franchise_player']) ? 'Sim' : 'Não' ?></div></div>
+        <div class="kv"><div class="kv-l">Favoritado</div><div class="kv-v"><?= $favoriteCount ?> <span style="font-size:12px;font-family:var(--font);font-weight:500;color:var(--text-3)">GM<?= $favoriteCount == 1 ? '' : 's' ?></span></div></div>
         <?php else: ?>
         <div class="kv"><div class="kv-l">Temporadas no histórico</div><div class="kv-v"><?= count($career) ?></div></div>
         <div class="kv"><div class="kv-l">Status</div><div class="kv-v small">Fora da liga</div></div>
@@ -709,7 +746,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
               </div>
               <div class="skill-val tone-<?= skillTone($num) ?>"><?= $num ?></div>
             <?php else: ?>
-              <div style="flex:1;font-size:12px;color:var(--text-2)"><?= htmlspecialchars((string)$val) ?></div>
+              <div style="flex:1;font-size:15px;font-weight:700;font-family:'Oswald',sans-serif;color:<?= gradeColor((string)$val) ?>"><?= htmlspecialchars((string)$val) ?></div>
             <?php endif; ?>
           </div>
         <?php endforeach; ?>
