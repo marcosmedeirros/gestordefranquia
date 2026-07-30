@@ -9,6 +9,12 @@
  * leitura global mais o toggle de seguir.
  */
 
+// Nunca deixa um aviso/notice do PHP vazar misturado com a resposta (isso
+// quebra o JSON pro cliente: "Unexpected token '<'...") — loga de verdade
+// em vez de mostrar na tela. A API sempre responde só JSON.
+error_reporting(E_ALL);
+ini_set('display_errors', '0');
+
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/auth.php';
@@ -34,6 +40,10 @@ function tlParam(?string $v): ?string
     $v = trim((string)($v ?? ''));
     return $v !== '' ? $v : null;
 }
+
+// Qualquer exceção/erro não previsto vira JSON de erro em vez de estourar
+// uma página de erro em HTML no meio da resposta.
+try {
 
 if ($method === 'GET') {
     $action = $_GET['action'] ?? 'feed';
@@ -134,3 +144,8 @@ if ($method === 'POST') {
 }
 
 jsonResponse(405, ['error' => 'Método não permitido']);
+
+} catch (Throwable $e) {
+    error_log('api/timeline.php: ' . $e->getMessage() . ' em ' . $e->getFile() . ':' . $e->getLine());
+    jsonResponse(500, ['error' => 'Erro interno. Tente de novo em instantes.']);
+}

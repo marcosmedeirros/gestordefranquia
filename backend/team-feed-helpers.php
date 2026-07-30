@@ -112,8 +112,8 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
             FROM trades t
             JOIN trade_items ti ON ti.trade_id = t.id" .
             ($league ? " JOIN teams tl ON tl.id = t.from_team_id" : "") . "
-            WHERE t.status = 'accepted'" . ($league ? " AND tl.league = ?" : "") . ($before ? " HAVING data_evt < ?" : "") . "
-            GROUP BY t.id
+            WHERE t.status = 'accepted'" . ($league ? " AND tl.league = ?" : "") . "
+            GROUP BY t.id" . ($before ? " HAVING data_evt < ?" : "") . "
             ORDER BY data_evt DESC LIMIT ?
         ";
         $params = array_values(array_filter([$league, $before, $limit], fn($v) => $v !== null));
@@ -252,7 +252,11 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
         }
     }
 
-    usort($eventos, fn($a, $b) => strtotime($b['data']) <=> strtotime($a['data']));
+    // strtotime(null) dispara aviso "Passing null..." no PHP 8.1+ (e alguns
+    // eventos antigos podem ter data nula, ex. picked_at não preenchido) —
+    // usa uma data bem antiga como fallback pra não travar a ordenação nem
+    // vazar aviso de PHP na resposta JSON.
+    usort($eventos, fn($a, $b) => strtotime((string)($b['data'] ?? '1970-01-01')) <=> strtotime((string)($a['data'] ?? '1970-01-01')));
 
     // Cada fonte já trouxe até $limit linhas mais recentes (e mais antigas que
     // $before quando presente) — a junção pode passar de $limit, então corta
