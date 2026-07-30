@@ -248,6 +248,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <button class="th-tab" data-tab="historico">Histórico</button>
     <button class="th-tab" data-tab="trades">Trades</button>
     <button class="th-tab" data-tab="legado">Legado</button>
+    <button class="th-tab" data-tab="feed">Feed</button>
   </div>
 
   <div class="section-title" data-th-tab="geral"><i class="bi bi-bar-chart-fill"></i> Visão Geral</div>
@@ -355,6 +356,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   <div class="panel" id="champ-panel" style="display:none" data-th-tab="elenco">
     <div class="section-title"><i class="bi bi-stars"></i> Elenco Campeão — <span id="champ-year"></span></div>
     <div id="champ-roster"></div>
+  </div>
+
+  <div data-th-tab="feed">
+    <div id="feed-stories-bar"></div>
+    <div id="feed-composer" style="display:none"></div>
+    <div class="panel">
+      <div class="section-title"><i class="bi bi-collection-play-fill"></i> Feed do Time</div>
+      <div id="feed-list"><div class="skeleton" style="height:120px"></div></div>
+      <button type="button" class="ver-todos-btn" id="feed-load-more" style="display:none">Carregar mais</button>
+    </div>
   </div>
 
   <?php // Fica no fim: as acoes sao o passo seguinte a ler o historico.
@@ -890,6 +901,276 @@ load();
     ic.className = ok ? 'bi bi-check-lg' : 'bi bi-exclamation-triangle';
     setTimeout(() => { sp.textContent = 'Copiar link'; ic.className = 'bi bi-link-45deg'; }, 2000);
   });
+})();
+
+/* Feed do Time: timeline automatica (trades/draft/premios/punicoes/playoffs)
+   + posts manuais do GM + curtidas + Stories (24h). */
+(function(){
+  const FEED_ICONES = { trade:'🔄', punicao:'⚠️', premio:'🏆', playoff:'🏀', draft:'🎓' };
+  let feedPosts = [];
+  let feedTimeline = [];
+  let feedCanPost = false;
+  let feedStories = [];
+
+  async function feedApi(action, body) {
+    const opts = body
+      ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, team_id: TEAM_ID, ...body }) }
+      : {};
+    const url = body ? '/api/team-feed.php' : `/api/team-feed.php?action=${action}&team_id=${TEAM_ID}`;
+    const res = await fetch(url, opts);
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Erro desconhecido');
+    return data;
+  }
+
+  function feedItemsMesclados() {
+    const posts = feedPosts.map(p => ({ ...p, _tipo: 'post', _data: p.created_at }));
+    const auto = feedTimeline.map(t => ({ ...t, _tipo: t.tipo, _data: t.data }));
+    return posts.concat(auto).sort((a, b) => new Date(b._data) - new Date(a._data));
+  }
+
+  function renderFeedList() {
+    const box = document.getElementById('feed-list');
+    const itens = feedItemsMesclados();
+    if (!itens.length) {
+      box.innerHTML = '<div class="empty">Nada por aqui ainda — trades, picks de draft e prêmios do time aparecem aqui automaticamente.</div>';
+      document.getElementById('feed-load-more').style.display = 'none';
+      return;
+    }
+    box.innerHTML = itens.map(it => {
+      if (it._tipo === 'post') return feedCardPost(it);
+      return `<div class="row" style="align-items:flex-start">
+        <span class="row-label">${FEED_ICONES[it._tipo] || '•'} ${esc(it.texto)}</span>
+        <span style="font-size:11px;color:var(--text-3);white-space:nowrap">${feedDataCurta(it._data)}</span>
+      </div>`;
+    }).join('');
+    document.getElementById('feed-load-more').style.display = itens.length >= 10 ? '' : 'none';
+  }
+
+  function feedCardPost(p) {
+    const podeApagar = feedCanPost;
+    return `<div class="panel" style="margin-bottom:12px" data-post-id="${p.id}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <img src="${esc(p.author_photo || '/img/default-team.png')}" alt="" style="width:26px;height:26px;border-radius:50%;object-fit:cover" onerror="this.src='/img/default-team.png'">
+        <span style="font-size:13px;font-weight:600">${esc(p.author_name)}</span>
+        <span style="font-size:11px;color:var(--text-3);margin-left:auto">${feedDataCurta(p.created_at)}</span>
+      </div>
+      ${p.texto ? `<div style="font-size:13px;margin-bottom:${p.photo_url ? '10px' : '0'}">${esc(p.texto)}</div>` : ''}
+      ${p.photo_url ? `<img src="${esc(p.photo_url)}" alt="" style="width:100%;border-radius:10px;max-height:420px;object-fit:cover;margin-bottom:8px">` : ''}
+      <div style="display:flex;align-items:center;gap:14px">
+        <button type="button" class="feed-like-btn" data-post-id="${p.id}" data-liked="${p.liked_by_me ? '1' : '0'}" style="background:transparent;border:none;cursor:pointer;font-size:13px;color:${p.liked_by_me ? 'var(--red)' : 'var(--text-2)'}">
+          <i class="bi ${p.liked_by_me ? 'bi-heart-fill' : 'bi-heart'}"></i> <span class="feed-like-count">${p.like_count}</span>
+        </button>
+        ${podeApagar ? `<button type="button" class="feed-del-btn" data-post-id="${p.id}" style="background:transparent;border:none;cursor:pointer;font-size:12px;color:var(--text-3)"><i class="bi bi-trash"></i></button>` : ''}
+      </div>
+    </div>`;
+  }
+
+  function feedDataCurta(iso) {
+    if (!iso) return '';
+    return new Date(String(iso).replace(' ', 'T')).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+  }
+
+  function renderFeedStories() {
+    const bar = document.getElementById('feed-stories-bar');
+    if (!feedStories.length) { bar.innerHTML = ''; return; }
+    bar.innerHTML = `<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px">
+      ${feedStories.map((s, i) => `
+        <button type="button" class="feed-story-avatar" data-idx="${i}" style="background:transparent;border:none;cursor:pointer;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:4px">
+          <span style="width:60px;height:60px;border-radius:50%;padding:2px;background:${s.vista_por_mim ? 'var(--border-md)' : 'linear-gradient(135deg,var(--red),var(--amber,#f59e0b))'};display:flex">
+            <img src="${esc(s.photo_url)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;border:2px solid var(--panel)">
+          </span>
+          <span style="font-size:10px;color:var(--text-2);max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Story</span>
+        </button>`).join('')}
+    </div>`;
+    bar.querySelectorAll('.feed-story-avatar').forEach(btn => {
+      btn.addEventListener('click', () => abrirVisualizadorStory(Number(btn.dataset.idx)));
+    });
+  }
+
+  function abrirVisualizadorStory(idx) {
+    const s = feedStories[idx];
+    if (!s) return;
+    feedApi('visualizar_story', { story_id: s.id }).catch(() => {});
+    s.vista_por_mim = true;
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:2000;display:flex;align-items:center;justify-content:center;flex-direction:column';
+    overlay.innerHTML = `
+      <div style="position:absolute;top:16px;right:16px;z-index:2;display:flex;gap:10px">
+        ${feedCanPost ? `<button id="feed-story-del" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;padding:6px 10px;cursor:pointer"><i class="bi bi-trash"></i></button>` : ''}
+        <button id="feed-story-close" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:18px;line-height:1">×</button>
+      </div>
+      <img src="${esc(s.photo_url)}" style="max-width:92vw;max-height:78vh;border-radius:12px;object-fit:contain">
+      ${s.texto ? `<div style="color:#fff;margin-top:14px;font-size:14px;max-width:80vw;text-align:center">${esc(s.texto)}</div>` : ''}`;
+    document.body.appendChild(overlay);
+
+    const fechar = () => overlay.remove();
+    overlay.querySelector('#feed-story-close').addEventListener('click', fechar);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) fechar(); });
+    const btnDel = overlay.querySelector('#feed-story-del');
+    if (btnDel) btnDel.addEventListener('click', async () => {
+      if (!confirm('Apagar essa story?')) return;
+      try {
+        await feedApi('excluir_story', { story_id: s.id });
+        feedStories = feedStories.filter(x => x.id !== s.id);
+        renderFeedStories();
+        fechar();
+      } catch (e) { alert(e.message); }
+    });
+  }
+
+  /* Redimensiona a imagem num canvas (lado maior <=1600px) e reexporta em
+     JPEG antes de mandar — evita depender do limite de upload do host. */
+  function comprimirImagem(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Não foi possível ler a imagem.'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Arquivo de imagem inválido.'));
+        img.onload = () => {
+          const maxLado = 1600;
+          let { width, height } = img;
+          if (width > maxLado || height > maxLado) {
+            const escala = maxLado / Math.max(width, height);
+            width = Math.round(width * escala);
+            height = Math.round(height * escala);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function renderFeedComposer() {
+    const box = document.getElementById('feed-composer');
+    if (!feedCanPost) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    box.innerHTML = `<div class="panel">
+      <textarea id="feed-composer-texto" placeholder="Compartilhe algo sobre o time..." rows="2"
+        style="width:100%;background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-family:var(--font);font-size:13px;resize:vertical"></textarea>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
+        <label class="ver-todos-btn" style="width:auto;padding:8px 14px;cursor:pointer">
+          <i class="bi bi-image"></i> Foto
+          <input type="file" id="feed-composer-foto" accept="image/*" style="display:none">
+        </label>
+        <span id="feed-composer-foto-nome" style="font-size:11px;color:var(--text-3)"></span>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button type="button" class="act" id="feed-btn-story">Postar Story (24h)</button>
+          <button type="button" class="act act-primary" id="feed-btn-postar">Postar</button>
+        </div>
+      </div>
+    </div>`;
+
+    let fotoBase64 = null;
+    document.getElementById('feed-composer-foto').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      document.getElementById('feed-composer-foto-nome').textContent = 'Processando imagem...';
+      try {
+        fotoBase64 = await comprimirImagem(file);
+        document.getElementById('feed-composer-foto-nome').textContent = file.name;
+      } catch (err) {
+        alert(err.message);
+        fotoBase64 = null;
+        document.getElementById('feed-composer-foto-nome').textContent = '';
+      }
+    });
+
+    document.getElementById('feed-btn-postar').addEventListener('click', async (e) => {
+      const texto = document.getElementById('feed-composer-texto').value.trim();
+      if (!texto && !fotoBase64) { alert('Escreva algo ou adicione uma foto.'); return; }
+      e.target.disabled = true;
+      try {
+        const data = await feedApi('postar', { texto, photo_base64: fotoBase64 || '' });
+        feedPosts = data.posts;
+        renderFeedList();
+        document.getElementById('feed-composer-texto').value = '';
+        fotoBase64 = null;
+        document.getElementById('feed-composer-foto-nome').textContent = '';
+        document.getElementById('feed-composer-foto').value = '';
+      } catch (err) { alert(err.message); }
+      e.target.disabled = false;
+    });
+
+    document.getElementById('feed-btn-story').addEventListener('click', async (e) => {
+      if (!fotoBase64) { alert('Stories precisam de uma foto — escolha uma acima antes de postar.'); return; }
+      const texto = document.getElementById('feed-composer-texto').value.trim();
+      e.target.disabled = true;
+      try {
+        const data = await feedApi('postar_story', { texto, photo_base64: fotoBase64 });
+        feedStories = data.stories;
+        renderFeedStories();
+        document.getElementById('feed-composer-texto').value = '';
+        fotoBase64 = null;
+        document.getElementById('feed-composer-foto-nome').textContent = '';
+        document.getElementById('feed-composer-foto').value = '';
+      } catch (err) { alert(err.message); }
+      e.target.disabled = false;
+    });
+  }
+
+  document.addEventListener('click', async (e) => {
+    const likeBtn = e.target.closest('.feed-like-btn');
+    if (likeBtn) {
+      const postId = Number(likeBtn.dataset.postId);
+      const jaCurtiu = likeBtn.dataset.liked === '1';
+      try {
+        const data = await feedApi(jaCurtiu ? 'descurtir' : 'curtir', { post_id: postId });
+        const post = feedPosts.find(p => p.id === postId);
+        if (post) { post.like_count = data.like_count; post.liked_by_me = data.liked_by_me; }
+        renderFeedList();
+      } catch (err) { alert(err.message); }
+      return;
+    }
+    const delBtn = e.target.closest('.feed-del-btn');
+    if (delBtn) {
+      if (!confirm('Apagar este post?')) return;
+      const postId = Number(delBtn.dataset.postId);
+      try {
+        await feedApi('excluir_post', { post_id: postId });
+        feedPosts = feedPosts.filter(p => p.id !== postId);
+        renderFeedList();
+      } catch (err) { alert(err.message); }
+    }
+  });
+
+  document.getElementById('feed-load-more')?.addEventListener('click', async (e) => {
+    const itens = feedItemsMesclados();
+    const before = itens.length ? itens[itens.length - 1]._data : null;
+    if (!before) return;
+    e.target.disabled = true;
+    try {
+      const rPosts = await fetch(`/api/team-feed.php?action=posts&team_id=${TEAM_ID}&before=${encodeURIComponent(before)}`).then(r => r.json());
+      const rTime = await fetch(`/api/team-feed.php?action=timeline&team_id=${TEAM_ID}&before=${encodeURIComponent(before)}`).then(r => r.json());
+      feedPosts = feedPosts.concat(rPosts.posts || []);
+      feedTimeline = feedTimeline.concat(rTime.timeline || []);
+      renderFeedList();
+    } catch (err) { alert('Erro ao carregar mais itens.'); }
+    e.target.disabled = false;
+  });
+
+  async function carregarFeed() {
+    try {
+      const data = await feedApi('estado');
+      feedCanPost = !!data.can_post;
+      feedPosts = data.posts || [];
+      feedTimeline = data.timeline || [];
+      feedStories = data.stories || [];
+      renderFeedStories();
+      renderFeedComposer();
+      renderFeedList();
+    } catch (e) {
+      document.getElementById('feed-list').innerHTML = '<div class="empty">Não foi possível carregar o feed.</div>';
+    }
+  }
+  carregarFeed();
 })();
 </script>
 </body>
