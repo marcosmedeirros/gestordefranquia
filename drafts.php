@@ -637,6 +637,10 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         <p class="hero-sub">Ordem de seleção de jogadores da liga</p>
       </div>
       <div class="hero-actions">
+        <button class="btn-ghost" onclick="openBigBoardModal()">
+          <i class="bi bi-list-ol"></i>
+          <span>Board Completo</span>
+        </button>
         <?php if ($isAdmin): ?>
         <button class="btn-ghost" onclick="openAdminMocksModal()">
           <i class="bi bi-eye-fill"></i>
@@ -722,6 +726,30 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <span style="font-size:12px;color:var(--text-2)" id="availablePlayersCount">0</span>
         </div>
         <div id="availablePlayers" class="pick-grid">
+          <div class="state-empty" style="grid-column:1/-1">
+            <i class="bi bi-hourglass-split"></i><p>Carregando…</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Board Completo — todos os jogadores disponíveis, ordenados (tipo mock 2K), só leitura -->
+<div class="modal fade" id="bigBoardModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title"><i class="bi bi-list-ol"></i> Board Completo</span>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="bigBoardSearch" class="field-input mb-3" placeholder="Buscar jogador por nome ou posição…">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <span style="font-size:12px;color:var(--text-2)">Jogadores disponíveis, em ordem</span>
+          <span style="font-size:12px;color:var(--text-2)" id="bigBoardCount">0</span>
+        </div>
+        <div id="bigBoardPlayers" class="pick-grid">
           <div class="state-empty" style="grid-column:1/-1">
             <i class="bi bi-hourglass-split"></i><p>Carregando…</p>
           </div>
@@ -1373,9 +1401,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     }
   }
 
-  function renderAvailablePlayers(players, allowPick) {
-    const container = document.getElementById('availablePlayers');
-    document.getElementById('availablePlayersCount').textContent = players.length;
+  function renderAvailablePlayers(players, allowPick, containerId, countElId) {
+    containerId = containerId || 'availablePlayers';
+    countElId = countElId || 'availablePlayersCount';
+    const container = document.getElementById(containerId);
+    const countEl = document.getElementById(countElId);
+    if (countEl) countEl.textContent = players.length;
     if (!players.length) {
       container.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-person-x"></i><p>Nenhum jogador encontrado</p></div>';
       return;
@@ -1390,6 +1421,31 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         <div class="player-chip-age">${p.age} anos</div>
       </div>
     `).join('');
+  }
+
+  let bigBoardPlayersList = [];
+  async function openBigBoardModal() {
+    if (!currentDraftSession) { alert('Nenhum draft ativo no momento.'); return; }
+    new bootstrap.Modal(document.getElementById('bigBoardModal')).show();
+
+    const container = document.getElementById('bigBoardPlayers');
+    container.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div>';
+
+    try {
+      const data = await api(`draft.php?action=available_players&season_id=${currentDraftSession.season_id}`);
+      bigBoardPlayersList = data.players || [];
+      renderAvailablePlayers(bigBoardPlayersList, false, 'bigBoardPlayers', 'bigBoardCount');
+      const searchInput = document.getElementById('bigBoardSearch');
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.oninput = e => {
+          const q = e.target.value.toLowerCase();
+          renderAvailablePlayers(bigBoardPlayersList.filter(p => p.name.toLowerCase().includes(q) || p.position.toLowerCase().includes(q)), false, 'bigBoardPlayers', 'bigBoardCount');
+        };
+      }
+    } catch (e) {
+      container.innerHTML = `<div class="state-empty" style="grid-column:1/-1;color:#ef4444"><i class="bi bi-exclamation-circle"></i><p>Erro: ${e.error || 'Desconhecido'}</p></div>`;
+    }
   }
 
   const round2StatusBadge = { pending: '<span class="pun-badge" style="background:rgba(245,158,11,.12);color:#f59e0b;border-color:rgba(245,158,11,.3)">Pendente</span>',
