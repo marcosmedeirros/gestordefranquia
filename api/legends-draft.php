@@ -209,6 +209,59 @@ function estadoDraft(PDO $pdo, int $sessionUserId, bool $isAdmin): array
     ];
 }
 
+/**
+ * Avisa todo mundo que participa do draft ($gmName escolheu $playerName) e,
+ * separadamente, manda um aviso só pra quem é a vez agora — mesmo padrão
+ * best-effort de notificarSaidaRoleta() em api/roleta-times.php (nunca
+ * quebra o fluxo da escolha por causa de notificação).
+ */
+function notificarEscolhaLendas(PDO $pdo, string $gmName, string $playerName): void
+{
+    $pushFile = dirname(__DIR__) . '/backend/push.php';
+    if (!file_exists($pushFile)) return;
+    require_once $pushFile;
+
+    try {
+        $userIds = $pdo->query("SELECT DISTINCT user_id FROM legends_draft_picks WHERE user_id IS NOT NULL")
+            ->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Throwable $e) {
+        error_log('notificarEscolhaLendas (participantes): ' . $e->getMessage());
+        return;
+    }
+
+    $payloadEscolha = [
+        'title' => 'Draft de Lendas ⭐',
+        'body'  => "{$gmName} escolheu {$playerName}!",
+        'url'   => '/legends-draft.php',
+    ];
+    foreach ($userIds as $uid) {
+        try {
+            sendPushToUser($pdo, (int)$uid, $payloadEscolha);
+        } catch (Throwable $e) {
+            error_log('notificarEscolhaLendas (push user_id=' . $uid . '): ' . $e->getMessage());
+        }
+    }
+
+    // Aviso pessoal pra quem é a vez agora (a próxima pick ainda sem jogador).
+    try {
+        $stmtProx = $pdo->query("SELECT user_id FROM legends_draft_picks WHERE player_name IS NULL ORDER BY pick_number ASC LIMIT 1");
+        $proximoUserId = $stmtProx->fetchColumn();
+    } catch (Throwable $e) {
+        $proximoUserId = false;
+    }
+    if ($proximoUserId) {
+        try {
+            sendPushToUser($pdo, (int)$proximoUserId, [
+                'title' => 'Draft de Lendas ⭐',
+                'body'  => 'É a sua vez de escolher!',
+                'url'   => '/legends-draft.php',
+            ]);
+        } catch (Throwable $e) {
+            error_log('notificarEscolhaLendas (push vez user_id=' . $proximoUserId . '): ' . $e->getMessage());
+        }
+    }
+}
+
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
@@ -234,7 +287,7 @@ if ($method === 'POST') {
 
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->query("SELECT id, user_id, player_name FROM legends_draft_picks WHERE player_name IS NULL ORDER BY pick_number ASC LIMIT 1 FOR UPDATE");
+            $stmt = $pdo->query("SELECT id, user_id, gm_name, player_name FROM legends_draft_picks WHERE player_name IS NULL ORDER BY pick_number ASC LIMIT 1 FOR UPDATE");
             $atual = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$atual) {
                 $pdo->rollBack();
@@ -257,6 +310,8 @@ if ($method === 'POST') {
             echo json_encode(['success' => false, 'error' => 'Erro ao registrar a escolha.']);
             exit;
         }
+
+        notificarEscolhaLendas($pdo, $atual['gm_name'], $nome);
 
         echo json_encode(['success' => true] + estadoDraft($pdo, $user_id, $is_admin));
         exit;
