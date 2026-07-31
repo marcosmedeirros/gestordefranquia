@@ -81,6 +81,7 @@ function ldRenderTudo() {
           <option value="C">C</option>
         </select>
         <button type="button" class="btn-orange" id="btnLdEscolher">Confirmar escolha</button>
+        <button type="button" class="ld-btn-pular" id="btnLdPular" data-gm="${_ldEsc(vez.gm_name)}"><i class="bi bi-skip-forward-fill"></i> Pular escolha</button>
       </div>
     </div>`;
   } else if (d.draft_completo) {
@@ -100,6 +101,8 @@ function ldRenderTudo() {
 
   const btnEscolher = document.getElementById('btnLdEscolher');
   if (btnEscolher) btnEscolher.addEventListener('click', ldEscolher);
+  const btnPular = document.getElementById('btnLdPular');
+  if (btnPular) btnPular.addEventListener('click', () => ldAbrirModalPular(btnPular.dataset.gm));
   const btnFinalizar = document.getElementById('btnLdFinalizar');
   if (btnFinalizar) btnFinalizar.addEventListener('click', ldFinalizar);
 
@@ -128,7 +131,7 @@ function ldLinhaBoard(p, d) {
   const classe = ehVez ? 'atual' : (ehMeu ? 'eu' : '');
   const jogador = p.player_name
     ? `<i class="bi bi-star-fill"></i><b>${_ldEsc(p.player_name)}</b> <span class="ld-row-meta">${_ldEsc(p.player_position)}</span>`
-    : (ehVez ? 'escolhendo agora...' : 'aguardando...');
+    : (Number(p.skipped) ? `<span class="ld-pulada"><i class="bi bi-skip-forward-fill"></i> Pulada</span>` : (ehVez ? 'escolhendo agora...' : 'aguardando...'));
   return `
     <div class="ld-row ${classe}">
       <div class="ld-row-pick">${p.pick_number}</div>
@@ -156,6 +159,44 @@ async function ldEscolher() {
     btn.disabled = false;
   }
 }
+
+function ldAbrirModalPular(gmName) {
+  const overlay = document.getElementById('ldPularModalOverlay');
+  const texto = document.getElementById('ldPularModalText');
+  if (texto) texto.textContent = `A escolha de ${gmName} vai ser marcada como pulada e o draft segue pra próxima. Isso não pode ser desfeito.`;
+  if (overlay) overlay.classList.add('open');
+}
+
+function ldFecharModalPular() {
+  const overlay = document.getElementById('ldPularModalOverlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+async function ldConfirmarPular() {
+  const btn = document.getElementById('btnLdConfirmarPular');
+  btn.disabled = true;
+  try {
+    const data = await _ldFetch('/api/legends-draft.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'pular' }),
+    });
+    ldEstado = data;
+    ldMinhasBadgesEdit = { ...(data.minhas_badges || {}) };
+    ldFecharModalPular();
+    ldRenderTudo();
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const btnConfirmar = document.getElementById('btnLdConfirmarPular');
+  if (btnConfirmar) btnConfirmar.addEventListener('click', ldConfirmarPular);
+  const overlay = document.getElementById('ldPularModalOverlay');
+  if (overlay) overlay.addEventListener('click', (e) => { if (e.target === overlay) ldFecharModalPular(); });
+});
 
 async function ldFinalizar() {
   if (!confirm('Finalizar o Draft de Lendas?\n\nO quadro some pra todo mundo e cada GM passa a ver só a customização de badges do próprio jogador.')) return;

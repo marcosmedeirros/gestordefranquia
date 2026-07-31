@@ -95,10 +95,19 @@ function ensureLegendsDraftTables(PDO $pdo): void
         player_position VARCHAR(10) NULL,
         ovr INT NULL,
         age INT NULL,
+        skipped TINYINT(1) NOT NULL DEFAULT 0,
         picked_at TIMESTAMP NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uniq_ldp_pick (pick_number)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    try {
+        $hasSkipped = $pdo->query("SHOW COLUMNS FROM legends_draft_picks LIKE 'skipped'")->fetch();
+        if (!$hasSkipped) {
+            $pdo->exec("ALTER TABLE legends_draft_picks ADD COLUMN skipped TINYINT(1) NOT NULL DEFAULT 0 AFTER age");
+        }
+    } catch (Throwable $e) {
+        error_log('legends-draft ensure skipped: ' . $e->getMessage());
+    }
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS legends_draft_badges (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -145,9 +154,9 @@ function garantirSeedDoDraft(PDO $pdo): void
     // semeado só parte das linhas — só completa o que falta.
     try {
         $stmt = $pdo->query("
-            SELECT rt.pick_number, rt.gm_name, rt.team_name, t.id AS team_id, t.user_id
+            SELECT rt.pick_number, rt.gm_name, t.id AS team_id, t.user_id
             FROM roleta_times rt
-            LEFT JOIN teams t ON CONCAT(t.city,' ',t.name) = rt.team_name
+            LEFT JOIN teams t ON t.id = rt.team_id
             ORDER BY rt.pick_number ASC
         ");
         $ins = $pdo->prepare("INSERT IGNORE INTO legends_draft_picks (pick_number, team_id, user_id, gm_name) VALUES (?,?,?,?)");
@@ -166,7 +175,7 @@ function estadoDraft(PDO $pdo, int $sessionUserId, bool $isAdmin): array
 
     $picks = $pdo->query("
         SELECT ldp.id, ldp.pick_number, ldp.team_id, ldp.user_id, ldp.gm_name,
-               ldp.player_name, ldp.player_position, ldp.ovr, ldp.age, ldp.picked_at,
+               ldp.player_name, ldp.player_position, ldp.ovr, ldp.age, ldp.skipped, ldp.picked_at,
                t.photo_url
         FROM legends_draft_picks ldp
         LEFT JOIN teams t ON t.id = ldp.team_id
@@ -176,7 +185,7 @@ function estadoDraft(PDO $pdo, int $sessionUserId, bool $isAdmin): array
     $vezPickNumber = null;
     $meuPick = null;
     foreach ($picks as $p) {
-        if ($p['player_name'] === null && $vezPickNumber === null) $vezPickNumber = (int)$p['pick_number'];
+        if ($p['player_name'] === null && !$p['skipped'] && $vezPickNumber === null) $vezPickNumber = (int)$p['pick_number'];
         if ((int)($p['user_id'] ?? 0) === $sessionUserId) $meuPick = $p;
     }
 
@@ -215,7 +224,7 @@ function estadoDraft(PDO $pdo, int $sessionUserId, bool $isAdmin): array
  * best-effort de notificarSaidaRoleta() em api/roleta-times.php (nunca
  * quebra o fluxo da escolha por causa de notificação).
  */
-function notificarEscolhaLendas(PDO $pdo, string $gmName, string $playerName): void
+function notificarEscolhaLendas(PDO $pdo, string $gmName, ?string $playerName): void
 {
     $pushFile = dirname(__DIR__) . '/backend/push.php';
     if (!file_exists($pushFile)) return;
@@ -231,7 +240,7 @@ function notificarEscolhaLendas(PDO $pdo, string $gmName, string $playerName): v
 
     $payloadEscolha = [
         'title' => 'Draft de Lendas ⭐',
-        'body'  => "{$gmName} escolheu {$playerName}!",
+        'body'  => $playerName !== null ? "{$gmName} escolheu {$playerName}!" : "A escolha de {$gmName} foi pulada.",
         'url'   => '/legends-draft.php',
     ];
     foreach ($userIds as $uid) {
@@ -242,9 +251,9 @@ function notificarEscolhaLendas(PDO $pdo, string $gmName, string $playerName): v
         }
     }
 
-    // Aviso pessoal pra quem é a vez agora (a próxima pick ainda sem jogador).
+    // Aviso pessoal pra quem é a vez agora (a próxima pick ainda sem jogador nem pulada).
     try {
-        $stmtProx = $pdo->query("SELECT user_id FROM legends_draft_picks WHERE player_name IS NULL ORDER BY pick_number ASC LIMIT 1");
+        $stmtProx = $pdo->query("SELECT user_id FROM legends_draft_picks WHERE player_name IS NULL AND skipped = 0 ORDER BY pick_number ASC LIMIT 1");
         $proximoUserId = $stmtProx->fetchColumn();
     } catch (Throwable $e) {
         $proximoUserId = false;
@@ -287,7 +296,7 @@ if ($method === 'POST') {
 
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->query("SELECT id, user_id, gm_name, player_name FROM legends_draft_picks WHERE player_name IS NULL ORDER BY pick_number ASC LIMIT 1 FOR UPDATE");
+            $stmt = $pdo->query("SELECT id, user_id, gm_name, player_name FROM legends_draft_picks WHERE player_name IS NULL AND skipped = 0 ORDER BY pick_number ASC LIMIT 1 FOR UPDATE");
             $atual = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$atual) {
                 $pdo->rollBack();
@@ -315,13 +324,43 @@ if ($method === 'POST') {
         exit;
     }
 
+    if ($action === 'pular') {
+        // Pula a escolha da vez atual (passa pra próxima) — qualquer pessoa
+        // logada pode fazer isso a qualquer momento, mesma permissão de 'escolher'.
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->query("SELECT id, gm_name FROM legends_draft_picks WHERE player_name IS NULL AND skipped = 0 ORDER BY pick_number ASC LIMIT 1 FOR UPDATE");
+            $atual = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$atual) {
+                $pdo->rollBack();
+                echo json_encode(['success' => false, 'error' => 'O draft já terminou.']);
+                exit;
+            }
+
+            $pdo->prepare("UPDATE legends_draft_picks SET skipped = 1, picked_at = NOW() WHERE id = ?")
+                ->execute([$atual['id']]);
+
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('legends-draft pular: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'Erro ao pular a escolha.']);
+            exit;
+        }
+
+        notificarEscolhaLendas($pdo, $atual['gm_name'], null);
+
+        echo json_encode(['success' => true] + estadoDraft($pdo, $user_id, $is_admin));
+        exit;
+    }
+
     if ($action === 'finalizar') {
         if (!$is_admin) {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'Apenas administradores podem finalizar o draft.']);
             exit;
         }
-        $temPendente = (bool)$pdo->query("SELECT 1 FROM legends_draft_picks WHERE player_name IS NULL LIMIT 1")->fetchColumn();
+        $temPendente = (bool)$pdo->query("SELECT 1 FROM legends_draft_picks WHERE player_name IS NULL AND skipped = 0 LIMIT 1")->fetchColumn();
         if ($temPendente) {
             echo json_encode(['success' => false, 'error' => 'Ainda tem escolha pendente — todo mundo precisa escolher antes de finalizar.']);
             exit;

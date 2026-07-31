@@ -162,6 +162,18 @@ if ($team_id) {
         .btn-ghost { background: transparent; border: 1px solid var(--border-md); color: var(--text-2); font-weight: 600; font-size: 12px; border-radius: var(--radius-xs); padding: 6px 12px; transition: all var(--t); cursor: pointer; }
         .btn-ghost:hover { border-color: var(--border-red); color: var(--red); background: var(--red-soft); }
 
+        .ld-btn-pular{ background:transparent;border:1px solid var(--border-md);color:var(--text-2);font-weight:600;font-size:13px;border-radius:var(--radius-xs);padding:9px 16px;cursor:pointer;transition:all var(--t) }
+        .ld-btn-pular:hover{ border-color:rgba(239,68,68,.4);color:#ef4444;background:rgba(239,68,68,.06) }
+        .ld-pulada{ color:var(--text-3);font-style:italic }
+
+        .ld-modal-overlay{ display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center;padding:20px }
+        .ld-modal-overlay.open{ display:flex }
+        .ld-modal{ background:var(--panel);border:1px solid var(--border-md);border-radius:var(--radius);padding:22px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5) }
+        .ld-modal-title{ font-size:16px;font-weight:800;margin-bottom:10px;display:flex;align-items:center;gap:8px;color:var(--text) }
+        .ld-modal-title i{ color:#ef4444 }
+        .ld-modal-text{ font-size:13px;color:var(--text-2);line-height:1.5;margin-bottom:18px }
+        .ld-modal-actions{ display:flex;gap:10px;justify-content:flex-end }
+
         input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; } }
         @media (max-width: 992px) {
@@ -214,6 +226,17 @@ if ($team_id) {
             <div class="ld-vazio"><i class="bi bi-hourglass-split"></i><p>Carregando...</p></div>
         </div>
     </main>
+</div>
+
+<div class="ld-modal-overlay" id="ldPularModalOverlay">
+    <div class="ld-modal">
+        <div class="ld-modal-title"><i class="bi bi-skip-forward-fill"></i> Pular esta escolha?</div>
+        <p class="ld-modal-text" id="ldPularModalText"></p>
+        <div class="ld-modal-actions">
+            <button type="button" class="btn-ghost" onclick="ldFecharModalPular()">Cancelar</button>
+            <button type="button" class="btn-orange" id="btnLdConfirmarPular">Pular</button>
+        </div>
+    </div>
 </div>
 
 <script>
