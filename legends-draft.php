@@ -125,7 +125,9 @@ if ($team_id) {
         .ld-row-pick{width:30px;height:30px;border-radius:50%;background:var(--panel-3);color:var(--text-3);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
         .ld-row-gm{font-size:13px;font-weight:600;width:180px;flex-shrink:0}
         .ld-row-jogador{flex:1 1 200px;min-width:0;font-size:13px;color:var(--text-2);word-break:break-word}
-        .ld-row-jogador b{color:var(--text)}
+        .ld-row-jogador i.bi-star-fill{color:var(--red);font-size:11px;margin-right:6px}
+        .ld-row-jogador b{color:var(--red);font-size:14.5px;font-weight:800;letter-spacing:.2px}
+        .ld-row-meta{color:var(--text-2);font-size:12px;margin-left:4px}
         .ld-badge-tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;flex-shrink:0}
 
         .ld-badges-cat{margin-bottom:16px}

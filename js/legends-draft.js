@@ -128,7 +128,7 @@ function ldLinhaBoard(p, d) {
   const ehMeu = Number(p.user_id) === Number(window.SESSION_USER_ID);
   const classe = ehVez ? 'atual' : (ehMeu ? 'eu' : '');
   const jogador = p.player_name
-    ? `<b>${_ldEsc(p.player_name)}</b> · ${_ldEsc(p.player_position)} · OVR ${p.ovr} · ${p.age} anos`
+    ? `<i class="bi bi-star-fill"></i><b>${_ldEsc(p.player_name)}</b> <span class="ld-row-meta">${_ldEsc(p.player_position)}</span>`
     : (ehVez ? 'escolhendo agora...' : 'aguardando...');
   return `
     <div class="ld-row ${classe}">
