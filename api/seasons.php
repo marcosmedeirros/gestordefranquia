@@ -2019,7 +2019,7 @@ try {
 
             // A última temporada ativa da liga — deve ser de fato a última do sprint atual
             $stmtFinSeason = $pdo->prepare("
-                SELECT s.id, s.season_number, s.sprint_id, sp.sprint_number
+                SELECT s.id, s.season_number, s.sprint_id, s.year, sp.sprint_number
                 FROM seasons s
                 JOIN sprints sp ON sp.id = s.sprint_id
                 WHERE s.league = ? AND s.status != 'completed'
@@ -2097,8 +2097,11 @@ try {
                 }
                 $pdo->prepare('UPDATE teams SET ' . implode(', ', $teamUpdates) . ' WHERE league = ?')->execute([$league]);
 
-                // 5. Cria o novo sprint (sprint_number seguinte) e a temporada 1 dele
-                $newStartYear = (int)date('Y');
+                // 5. Cria o novo sprint (sprint_number seguinte) e a temporada 1 dele.
+                // O ano continua de onde a sprint anterior parou (não é o ano civil real
+                // — a liga já pode estar em qualquer ano fictício, ex. 2044) — evita
+                // colidir com o UNIQUE (year, league) de temporadas antigas preservadas.
+                $newStartYear = (int)$finSeason['year'] + 1;
                 $pdo->prepare("INSERT INTO sprints (league, sprint_number, start_year, start_date) VALUES (?, ?, ?, CURDATE())")
                     ->execute([$league, $nextSprintNumber, $newStartYear]);
                 $newSprintId = (int)$pdo->lastInsertId();
