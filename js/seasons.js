@@ -35,10 +35,10 @@ async function showSeasonsManagement() {
     container.innerHTML = `<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>`;
 
     const leagues = [
-        { name: 'ELITE',  label: '20 temporadas por sprint' },
-        { name: 'NEXT',   label: '15 temporadas por sprint' },
-        { name: 'RISE',   label: '10 temporadas por sprint' },
-        { name: 'ROOKIE', label: '10 temporadas por sprint' },
+        { name: 'ELITE' },
+        { name: 'NEXT' },
+        { name: 'RISE' },
+        { name: 'ROOKIE' },
     ];
 
     const results = await Promise.allSettled(
@@ -48,23 +48,30 @@ async function showSeasonsManagement() {
     const leagueCards = leagues.map((l, i) => {
         const season = results[i].status === 'fulfilled' ? results[i].value?.season : null;
         const hasSprint = !!season;
+        const maxSeasons = season?.sprint_max_seasons;
+        const label = maxSeasons ? `${maxSeasons} temporadas por sprint` : 'Temporadas por sprint';
         const seasonInfo = season
             ? `Sprint ${season.sprint_number || '?'} · T${season.season_number || '?'} · ${season.year || ''}`
             : 'Sem sprint ativo';
+        const isLastSeason = hasSprint && maxSeasons && Number(season.season_number) === Number(maxSeasons);
 
-        const mainBtn = hasSprint
-            ? `<button class="btn btn-sm btn-outline-orange w-100 mb-2" onclick="showAvancarTemporada('${l.name}')">
-                   <i class="bi bi-arrow-right-circle me-1"></i>Avançar Temporada
-               </button>`
-            : `<button class="btn btn-sm btn-orange w-100 mb-2" onclick="showAvancarTemporada('${l.name}')">
+        const mainBtn = !hasSprint
+            ? `<button class="btn btn-sm btn-orange w-100 mb-2" onclick="showAvancarTemporada('${l.name}')">
                    <i class="bi bi-play-circle me-1"></i>Criar Sprint
+               </button>`
+            : isLastSeason
+            ? `<button class="btn btn-sm btn-danger w-100 mb-2" onclick="showFinalizarSprint('${l.name}')">
+                   <i class="bi bi-flag-fill me-1"></i>Finalizar Sprint
+               </button>`
+            : `<button class="btn btn-sm btn-outline-orange w-100 mb-2" onclick="showAvancarTemporada('${l.name}')">
+                   <i class="bi bi-arrow-right-circle me-1"></i>Avançar Temporada
                </button>`;
 
         return `
             <div class="col-md-6 col-lg-3">
                 <div class="league-card" style="cursor:default">
                     <h3>${l.name}</h3>
-                    <p class="text-light-gray mb-1">${l.label}</p>
+                    <p class="text-light-gray mb-1">${label}</p>
                     <p class="mb-3" style="font-size:11px;color:${hasSprint ? '#ff6b00' : '#666'}">${seasonInfo}</p>
                     ${mainBtn}
                     <button class="btn btn-sm btn-outline-secondary w-100" onclick="showPointsManagement('${l.name}')">
@@ -729,6 +736,139 @@ async function _confirmAdvanceSeason(seasonId, league) {
         showLeague(league);
     } catch (e) {
         showAlert('danger', 'Erro: ' + (e.error || 'Desconhecido'));
+    }
+}
+
+// ========== FINALIZAR SPRINT (última temporada do ciclo) ==========
+async function showFinalizarSprint(league) {
+    seasonsState.currentLeague = league;
+    const container = document.getElementById('mainContainer');
+    container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+
+    const season = await loadCurrentSeason(league);
+    if (!season) {
+        showAlert('danger', 'Nenhuma temporada ativa encontrada para esta liga.');
+        showLeague(league);
+        return;
+    }
+
+    seasonsState.currentSeasonId = season.id;
+    seasonsState._finalizingSeason = season;
+
+    let histRegistered = false;
+    try {
+        const hist = await api(`seasons.php?action=check_season_history&season_id=${season.id}`);
+        histRegistered = !!hist.registered;
+    } catch (_) {}
+
+    const seasonLabel = `T${season.season_number} · Sprint ${season.sprint_number || '?'} · ${season.year || ''}`;
+
+    if (!histRegistered) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <button class="btn-ghost" onclick="showLeague('${league}')"><i class="bi bi-arrow-left me-1"></i> Voltar</button>
+            </div>
+            <div class="panel">
+                <div class="panel-title"><i class="bi bi-flag-fill" style="color:#ef4444"></i> Finalizar Sprint — ${league}</div>
+                <p style="color:var(--text-2);font-size:13px;margin-bottom:12px">Última temporada do sprint: <strong style="color:var(--red)">${seasonLabel}</strong></p>
+                <div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#f59e0b">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    A pontuação desta temporada ainda não foi registrada. Registre os resultados antes de finalizar o sprint.
+                </div>
+                <div style="display:flex;gap:10px">
+                    <button class="btn-orange" onclick="showRegistroPontuacao('${league}')">
+                        <i class="bi bi-clipboard-data-fill me-1"></i> Ir para Registro de Pontuação
+                    </button>
+                    <button class="btn-ghost" onclick="showLeague('${league}')">Cancelar</button>
+                </div>
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="mb-3">
+            <button class="btn-ghost" onclick="showLeague('${league}')"><i class="bi bi-arrow-left me-1"></i> Voltar</button>
+        </div>
+        <div class="panel" style="border-color:rgba(239,68,68,.35)">
+            <div class="panel-title"><i class="bi bi-flag-fill" style="color:#ef4444"></i> Finalizar Sprint — ${league}</div>
+            <p style="color:var(--text-2);font-size:13px;margin-bottom:4px">Última temporada do sprint: <strong style="color:var(--red)">${seasonLabel}</strong></p>
+            <p style="color:#22c55e;font-size:13px;margin-bottom:16px">
+                <i class="bi bi-check-circle-fill me-1"></i>Pontuação registrada. O sprint pode ser finalizado.
+            </p>
+            <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:13px;color:var(--text)">
+                <div style="font-weight:700;color:#ef4444;margin-bottom:8px"><i class="bi bi-exclamation-triangle-fill me-1"></i>Isso é irreversível. Ao finalizar:</div>
+                <ul style="margin:0 0 0 18px;padding:0;color:var(--text-2);line-height:1.7">
+                    <li>A classificação final desta sprint é congelada e fica salva pra consulta depois.</li>
+                    <li><strong style="color:var(--text)">O elenco de todos os times da liga ${league} é apagado.</strong></li>
+                    <li>Picks, trocas, propostas de Free Agency e táticas salvas da liga são removidas.</li>
+                    <li>Pontos/títulos de ranking, moedas e contadores dos times zeram.</li>
+                    <li>Um novo sprint começa, e você será direcionado pra configurar o novo Draft Inicial.</li>
+                </ul>
+            </div>
+            <div style="margin-bottom:16px">
+                <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:6px">Digite <strong>${league}</strong> pra confirmar</label>
+                <input type="text" id="finalizarSprintConfirmInput" placeholder="${league}"
+                       style="background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:15px;width:200px">
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <button class="btn btn-danger" id="btnFinalizeSprintConfirm" onclick="_confirmFinalizeSprint('${league}')">
+                    <i class="bi bi-flag-fill me-1"></i> Finalizar Sprint
+                </button>
+                <button class="btn-ghost" onclick="showLeague('${league}')">Cancelar</button>
+            </div>
+        </div>`;
+}
+
+async function _confirmFinalizeSprint(league) {
+    const input = document.getElementById('finalizarSprintConfirmInput');
+    if (!input || input.value.trim().toUpperCase() !== league.toUpperCase()) {
+        alert(`Digite "${league}" no campo pra confirmar.`);
+        return;
+    }
+    if (!confirm(`Finalizar o sprint da liga ${league} agora?\n\nO elenco de todos os times será apagado e um novo sprint vai começar. Essa ação não pode ser desfeita.`)) return;
+
+    const btn = document.getElementById('btnFinalizeSprintConfirm');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Finalizando...'; }
+
+    try {
+        const data = await api('seasons.php?action=finalize_sprint', {
+            method: 'POST',
+            body: JSON.stringify({ league })
+        });
+        seasonsState._finalizingSeason = null;
+        showAlert('success', data.message || 'Sprint finalizado!');
+
+        // Mesmo padrão de _submitCriarSprint: cria (ou recupera) a sessão de Draft
+        // Inicial da nova temporada e leva o admin direto pra configurá-la.
+        const seasonId = data.season_id;
+        let token = null;
+        if (seasonId) {
+            try {
+                const created = await api('initdraft.php', {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'create_session', season_id: seasonId })
+                });
+                token = created.token || null;
+            } catch (e) {
+                // Sessão pode já existir — recupera o token existente.
+            }
+            if (!token) {
+                try {
+                    const existing = await api(`initdraft.php?action=session_for_season&season_id=${seasonId}`);
+                    token = existing?.session?.access_token || null;
+                } catch (e) {}
+            }
+        }
+
+        if (token) {
+            window.location.href = 'initdraftselecao.php?token=' + encodeURIComponent(token);
+        } else {
+            showAlert('danger', 'Sprint finalizado, mas não consegui abrir o Draft Inicial automaticamente. Use o card "Draft Inicial" na aba da liga.');
+            setTimeout(() => showLeague(league), 1000);
+        }
+    } catch (e) {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-flag-fill me-1"></i> Finalizar Sprint'; }
+        alert('Erro ao finalizar o sprint: ' + (e?.error || 'Desconhecido'));
     }
 }
 

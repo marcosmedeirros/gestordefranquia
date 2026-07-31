@@ -151,13 +151,15 @@ function fetchLeagueTeams(PDO $pdo, string $league): array
 function ensureLeagueSprintDefaults(PDO $pdo): void
 {
     try {
+        // INSERT IGNORE: só semeia o padrão pra liga sem linha nenhuma ainda —
+        // nunca sobrescreve um max_seasons já existente (seja o seed anterior ou
+        // uma configuração manual feita em Admin).
         $pdo->exec("
-            INSERT INTO league_sprint_config (league, max_seasons) VALUES
-            ('ELITE', 20),
+            INSERT IGNORE INTO league_sprint_config (league, max_seasons) VALUES
+            ('ELITE', 25),
             ('NEXT', 20),
-            ('RISE', 16),
+            ('RISE', 15),
             ('ROOKIE', 10)
-            ON DUPLICATE KEY UPDATE max_seasons = GREATEST(VALUES(max_seasons), max_seasons)
         ");
     } catch (Exception $e) {
         error_log('Erro ao garantir league_sprint_config: ' . $e->getMessage());
@@ -328,8 +330,8 @@ ensureLeagueSprintDefaults($pdo);
 $adminActions = ['create_season', 'end_season', 'start_draft', 'end_draft', 'add_draft_player',
                  'update_draft_player', 'delete_draft_player', 'clear_draft_pool', 'assign_draft_pick',
                  'set_standings', 'set_playoff_results', 'set_awards', 'reset_teams', 'reset_sprint',
-                 'adjust_picks', 'run_picks', 'register_pontuacao', 'advance_season', 'resync_season_points',
-                 'audit_points_integrity', 'recalculate_points_check', 'debug_team_season_raw'];
+                 'adjust_picks', 'run_picks', 'register_pontuacao', 'advance_season', 'finalize_sprint',
+                 'resync_season_points', 'audit_points_integrity', 'recalculate_points_check', 'debug_team_season_raw'];
 
 if (in_array($action, $adminActions) && ($user['user_type'] ?? 'jogador') !== 'admin') {
     http_response_code(403);
@@ -2004,6 +2006,123 @@ try {
                 error_log('[advance_season] reset tactic_edit_windows: ' . $e->getMessage());
             }
             echo json_encode(['success' => true, 'message' => 'Temporada marcada como concluída']);
+            break;
+
+        // ========== FINALIZAR SPRINT (fecha o ciclo, congela o histórico, abre um novo) ==========
+        case 'finalize_sprint':
+            if ($method !== 'POST') throw new Exception('Método inválido');
+            $input = json_decode(file_get_contents('php://input'), true);
+            $league = isset($input['league']) ? strtoupper((string)$input['league']) : null;
+            if (!$league || !in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
+                throw new Exception('Liga inválida');
+            }
+
+            // A última temporada ativa da liga — deve ser de fato a última do sprint atual
+            $stmtFinSeason = $pdo->prepare("
+                SELECT s.id, s.season_number, s.sprint_id, sp.sprint_number
+                FROM seasons s
+                JOIN sprints sp ON sp.id = s.sprint_id
+                WHERE s.league = ? AND s.status != 'completed'
+                ORDER BY s.id DESC LIMIT 1
+            ");
+            $stmtFinSeason->execute([$league]);
+            $finSeason = $stmtFinSeason->fetch(PDO::FETCH_ASSOC);
+            if (!$finSeason) throw new Exception('Nenhuma temporada ativa encontrada para esta liga');
+
+            $stmtMaxSeasons = $pdo->prepare("SELECT max_seasons FROM league_sprint_config WHERE league = ?");
+            $stmtMaxSeasons->execute([$league]);
+            $maxSeasons = (int)($stmtMaxSeasons->fetchColumn() ?: 0);
+            if ($maxSeasons <= 0 || (int)$finSeason['season_number'] < $maxSeasons) {
+                throw new Exception('Esta liga ainda não chegou na última temporada do sprint — use "Avançar Temporada".');
+            }
+
+            $stmtHistCheck = $pdo->prepare("SELECT id FROM season_history WHERE season_id = ? LIMIT 1");
+            $stmtHistCheck->execute([$finSeason['id']]);
+            if (!$stmtHistCheck->fetch()) throw new Exception('Registre a pontuação antes de finalizar o sprint');
+
+            $seasonId = (int)$finSeason['id'];
+            $sprintId = (int)$finSeason['sprint_id'];
+            $finishedSprintNumber = (int)$finSeason['sprint_number'];
+            $nextSprintNumber = $finishedSprintNumber + 1;
+            $newSeasonId = null;
+
+            $pdo->beginTransaction();
+            try {
+                // 1. Fecha a última temporada do sprint (mesmo passo que advance_season já faz)
+                $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$seasonId]);
+                snapshotPlayersForSeason($pdo, $seasonId, $league);
+
+                // 2. Congela a classificação final da sprint (campeão/pontos/títulos) ANTES de zerar —
+                // fica salva em ranking_snapshots pra consulta depois.
+                congelarRankingDaSprint($pdo, $league, 'Fim da sprint');
+
+                // 3. Fecha o sprint
+                $pdo->prepare("UPDATE sprints SET status = 'completed', end_date = CURDATE() WHERE id = ?")->execute([$sprintId]);
+
+                // 4. Zera o estado "vivo" da liga pro novo ciclo. NÃO apaga seasons/sprints
+                // antigos nem season_history/playoff_results/season_awards/team_ranking_points/
+                // ranking_snapshots/player_season_log — tudo isso fica como histórico consultável.
+                $pdo->prepare("DELETE p FROM players p INNER JOIN teams t ON p.team_id = t.id WHERE t.league = ?")
+                    ->execute([$league]);
+                $pdo->prepare("DELETE FROM trades WHERE from_team_id IN (SELECT id FROM teams WHERE league = ?)
+                                                   OR to_team_id IN (SELECT id FROM teams WHERE league = ?)")
+                    ->execute([$league, $league]);
+                $pdo->prepare("DELETE dp FROM draft_pool dp INNER JOIN seasons s ON dp.season_id = s.id WHERE s.sprint_id = ?")
+                    ->execute([$sprintId]);
+                $pdo->prepare("DELETE ss FROM season_standings ss INNER JOIN seasons s ON ss.season_id = s.id WHERE s.sprint_id = ?")
+                    ->execute([$sprintId]);
+                $pdo->prepare("DELETE fao FROM free_agent_offers fao INNER JOIN free_agents fa ON fao.free_agent_id = fa.id WHERE fa.league = ?")
+                    ->execute([$league]);
+                $pdo->prepare("DELETE FROM free_agents WHERE league = ?")->execute([$league]);
+                $pdo->prepare("DELETE FROM picks WHERE league = ?")->execute([$league]);
+
+                // Tática de cada time referencia diretamente os player_id do elenco que
+                // acabou de ser apagado (titulares/banco/G-League) — sem isso, a config
+                // antiga (inclusive estilo de jogo/playbook) carregaria pro novo sprint.
+                try {
+                    $pdo->prepare("DELETE tt FROM team_tactics tt INNER JOIN teams t ON tt.team_id = t.id WHERE t.league = ?")
+                        ->execute([$league]);
+                } catch (Throwable $e) {
+                    error_log('[finalize_sprint] limpar team_tactics: ' . $e->getMessage());
+                }
+
+                $teamUpdates = ['waivers_used = 0', 'fa_signings_used = 0', 'tapas = 0', 'moedas = 0'];
+                foreach (['ranking_points', 'ranking_titles', 'current_cycle', 'trades_cycle', 'trades_used'] as $col) {
+                    if (columnExists($pdo, 'teams', $col)) $teamUpdates[] = "{$col} = 0";
+                }
+                $pdo->prepare('UPDATE teams SET ' . implode(', ', $teamUpdates) . ' WHERE league = ?')->execute([$league]);
+
+                // 5. Cria o novo sprint (sprint_number seguinte) e a temporada 1 dele
+                $newStartYear = (int)date('Y');
+                $pdo->prepare("INSERT INTO sprints (league, sprint_number, start_year, start_date) VALUES (?, ?, ?, CURDATE())")
+                    ->execute([$league, $nextSprintNumber, $newStartYear]);
+                $newSprintId = (int)$pdo->lastInsertId();
+
+                $newSeasonNumber = 1;
+                $newYear = calculateSeasonYear($newStartYear, $newSeasonNumber);
+                $pdo->prepare("INSERT INTO seasons (sprint_id, league, season_number, year, start_date, status, current_phase)
+                               VALUES (?, ?, ?, ?, CURDATE(), 'draft', 'draft')")
+                    ->execute([$newSprintId, $league, $newSeasonNumber, $newYear]);
+                $newSeasonId = (int)$pdo->lastInsertId();
+
+                $teams = fetchLeagueTeams($pdo, $league);
+                if (!empty($teams)) {
+                    syncAutoGeneratedPicks($pdo, $league, $teams, $newSeasonId, getPickWindowYears($newStartYear, $newSeasonNumber, $maxSeasons));
+                }
+
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                error_log('[finalize_sprint] ' . $e->getMessage());
+                throw new Exception('Erro ao finalizar o sprint: ' . $e->getMessage());
+            }
+
+            echo json_encode([
+                'success' => true,
+                'season_id' => $newSeasonId,
+                'sprint_number' => $nextSprintNumber,
+                'message' => "Sprint {$finishedSprintNumber} finalizada! Sprint {$nextSprintNumber} criada — configure o Draft Inicial."
+            ]);
             break;
 
             // ========== DEFINIR PONTOS MANUAIS DA TEMPORADA (ADMIN) ==========

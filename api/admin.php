@@ -304,6 +304,10 @@ if ($method === 'GET') {
                 $stmtCfg->execute([$league]);
                 $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1, 'n8n_webhook_url' => ''];
 
+                $stmtSprintCfg = $pdo->prepare('SELECT max_seasons FROM league_sprint_config WHERE league = ?');
+                $stmtSprintCfg->execute([$league]);
+                $maxSeasons = (int)($stmtSprintCfg->fetchColumn() ?: 0);
+
                 $stmtTeams = $pdo->prepare('SELECT COUNT(*) as total FROM teams WHERE league = ?');
                 $stmtTeams->execute([$league]);
                 $teamCount = $stmtTeams->fetch()['total'];
@@ -313,6 +317,7 @@ if ($method === 'GET') {
                     'cap_min' => (int)$cfg['cap_min'],
                     'cap_max' => (int)$cfg['cap_max'],
                     'max_trades' => (int)$cfg['max_trades'],
+                    'max_seasons' => $maxSeasons,
                     'edital' => $cfg['edital'],
                     'edital_file' => $cfg['edital'],
                     'trades_enabled' => (int)($cfg['trades_enabled'] ?? 1),
@@ -921,6 +926,7 @@ if ($method === 'PUT') {
             $trades_enabled = isset($data['trades_enabled']) ? (int)$data['trades_enabled'] : null;
             $fa_enabled = isset($data['fa_enabled']) ? (int)$data['fa_enabled'] : null;
             $n8n_webhook_url = array_key_exists('n8n_webhook_url', $data) ? trim((string)$data['n8n_webhook_url']) : null;
+            $max_seasons = isset($data['max_seasons']) ? (int)$data['max_seasons'] : null;
 
             if (!$league) {
                 http_response_code(400);
@@ -947,6 +953,11 @@ if ($method === 'PUT') {
             if ($cap_min !== null && $cap_max !== null && $cap_min > $cap_max) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'cap_min não pode ser maior que cap_max']);
+                exit;
+            }
+            if ($max_seasons !== null && $max_seasons < 1) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'max_seasons deve ser pelo menos 1']);
                 exit;
             }
 
@@ -982,29 +993,41 @@ if ($method === 'PUT') {
                 $params[] = $n8n_webhook_url;
             }
 
-            if (empty($updates)) {
+            if (empty($updates) && $max_seasons === null) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Nenhum campo para atualizar']);
                 exit;
             }
 
-            $params[] = $league;
-            
-            // Verifica se já existe
-            $stmtCheck = $pdo->prepare('SELECT id FROM league_settings WHERE league = ?');
-            $stmtCheck->execute([$league]);
-            
-            if ($stmtCheck->fetch()) {
-                $sql = 'UPDATE league_settings SET ' . implode(', ', $updates) . ' WHERE league = ?';
-            } else {
-                $sql = 'INSERT INTO league_settings (league, ' . implode(', ', array_map(function($u) {
-                    return explode(' = ', $u)[0];
-                }, $updates)) . ') VALUES (?, ' . implode(', ', array_fill(0, count($updates), '?')) . ')';
-                array_unshift($params, $league);
+            if (!empty($updates)) {
+                $params[] = $league;
+
+                // Verifica se já existe
+                $stmtCheck = $pdo->prepare('SELECT id FROM league_settings WHERE league = ?');
+                $stmtCheck->execute([$league]);
+
+                if ($stmtCheck->fetch()) {
+                    $sql = 'UPDATE league_settings SET ' . implode(', ', $updates) . ' WHERE league = ?';
+                } else {
+                    $sql = 'INSERT INTO league_settings (league, ' . implode(', ', array_map(function($u) {
+                        return explode(' = ', $u)[0];
+                    }, $updates)) . ') VALUES (?, ' . implode(', ', array_fill(0, count($updates), '?')) . ')';
+                    array_unshift($params, $league);
+                }
+
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
             }
-            
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
+
+            // max_seasons vive numa tabela separada (league_sprint_config, usada
+            // pelo sistema de sprints em api/seasons.php) — edição intencional do
+            // admin aqui sempre vale, ao contrário do seed automático que só
+            // preenche quando a liga ainda não tem linha nenhuma.
+            if ($max_seasons !== null) {
+                $pdo->prepare("INSERT INTO league_sprint_config (league, max_seasons) VALUES (?, ?)
+                               ON DUPLICATE KEY UPDATE max_seasons = VALUES(max_seasons)")
+                    ->execute([$league, $max_seasons]);
+            }
 
             // Ao fechar a janela de trocas, cancela automaticamente qualquer
             // troca ainda pendente daquela liga (1x1 e multi-times).

@@ -1299,9 +1299,13 @@ async function showLeague(league) {
             <i class="bi bi-calendar2-check"></i> Picks
           </button>
           ${currentSeason
-            ? `<button class="btn-ghost" style="color:#10b981;border-color:rgba(16,185,129,.3)" onclick="showAvancarTemporada('${league}')">
-                 <i class="bi bi-arrow-right-circle-fill me-1"></i>Avançar Temporada
-               </button>`
+            ? (Number(seasonNumber) === Number(totalSeasons) && totalSeasons !== '—'
+                ? `<button class="btn-ghost" style="color:#ef4444;border-color:rgba(239,68,68,.3)" onclick="showFinalizarSprint('${league}')">
+                     <i class="bi bi-flag-fill me-1"></i>Finalizar Sprint
+                   </button>`
+                : `<button class="btn-ghost" style="color:#10b981;border-color:rgba(16,185,129,.3)" onclick="showAvancarTemporada('${league}')">
+                     <i class="bi bi-arrow-right-circle-fill me-1"></i>Avançar Temporada
+                   </button>`)
             : `<button class="btn-ghost" style="color:#f97316;border-color:rgba(249,115,22,.3)" onclick="showAvancarTemporada('${league}')">
                  <i class="bi bi-play-circle-fill me-1"></i>Criar Sprint
                </button>`
@@ -2596,6 +2600,10 @@ async function _loadLeagueConfigInline(league) {
         <div style="display:flex;flex-direction:column;gap:4px">
           <div style="font-size:11px;font-weight:600;color:var(--text-2)">Máx. Trocas/Temp.</div>
           <input type="number" class="form-control form-control-sm" style="width:90px" value="${lg.max_trades || 3}" data-league="${lg.league}" data-field="max_trades">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-2)">Temporadas/Sprint</div>
+          <input type="number" class="form-control form-control-sm" style="width:90px" min="1" value="${lg.max_seasons || ''}" data-league="${lg.league}" data-field="max_seasons">
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px">
           <div style="font-size:11px;font-weight:600;color:var(--text-2)"><i class="bi bi-webhook me-1"></i>Webhook N8N</div>

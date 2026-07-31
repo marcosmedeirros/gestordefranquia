@@ -172,12 +172,15 @@ function runMigrations() {
                 ('ROOKIE', 618, 648, 3);"
         ],
         'seed_league_sprint_config' => [
-            'sql' => "INSERT INTO league_sprint_config (league, max_seasons) VALUES
-                ('ELITE', 20),
-                ('NEXT', 15),
-                ('RISE', 10),
-                ('ROOKIE', 10)
-            ON DUPLICATE KEY UPDATE max_seasons = VALUES(max_seasons);"
+            // INSERT IGNORE (não ON DUPLICATE KEY UPDATE): essa migração roda em toda
+            // request (via ensureSchema/runMigrations) — sobrescrever aqui apagaria
+            // qualquer max_seasons configurado manualmente em Admin. Só semeia o
+            // valor padrão pra liga que ainda não tem linha nenhuma.
+            'sql' => "INSERT IGNORE INTO league_sprint_config (league, max_seasons) VALUES
+                ('ELITE', 25),
+                ('NEXT', 20),
+                ('RISE', 15),
+                ('ROOKIE', 10);"
         ],
         'insert_leagues' => [
             'condition' => "SELECT COUNT(*) as cnt FROM leagues",
