@@ -525,6 +525,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
     /* ── Player select card ──────────────────────── */
     .player-chip {
+      position: relative;
       background: var(--panel-2);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
@@ -538,6 +539,21 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .player-chip-pos { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: var(--red-soft); color: var(--red); border: 1px solid var(--border-red); margin-right: 4px; }
     .player-chip-ovr { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: rgba(34,197,94,.1); color: var(--green); border: 1px solid rgba(34,197,94,.2); }
     .player-chip-age { font-size: 11px; color: var(--text-2); margin-top: 6px; }
+    /* Número da ordem (pick_hint) — destacado, sempre no mesmo canto, mesma
+       posição fixa do jogador na lista, saia ele ou não (ver .drafted). */
+    .player-chip-order {
+      position: absolute; top: -8px; left: -8px;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--red); color: #fff;
+      font-size: 11px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 6px -1px rgba(0,0,0,.4);
+    }
+    /* Jogador já draftado: continua na posição/ordem dele, só fica cinza. */
+    .player-chip.drafted { cursor: not-allowed; opacity: .5; filter: grayscale(.6); }
+    .player-chip.drafted:hover { transform: none; border-color: var(--border); background: var(--panel-2); }
+    .player-chip.drafted .player-chip-order { background: var(--text-3); }
+    .player-chip-drafted-tag { font-size: 10px; font-weight: 700; color: var(--text-3); margin-top: 4px; text-transform: uppercase; letter-spacing: .3px; }
 
     /* ── Modal overrides ─────────────────────────── */
     .modal-content {
@@ -639,7 +655,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       <div class="hero-actions">
         <button class="btn-ghost" onclick="openBigBoardModal()">
           <i class="bi bi-list-ol"></i>
-          <span>Board Completo</span>
+          <span>Ver Jogadores</span>
         </button>
         <?php if ($isAdmin): ?>
         <button class="btn-ghost" onclick="openAdminMocksModal()">
@@ -735,18 +751,19 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   </div>
 </div>
 
-<!-- Modal: Board Completo — todos os jogadores disponíveis, ordenados (tipo mock 2K), só leitura -->
+<!-- Modal: Ver Jogadores — todos os jogadores da temporada, ordenados (tipo mock 2K); já
+     draftado continua na posição dele, só fica cinza (não reordena/some da lista) -->
 <div class="modal fade" id="bigBoardModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <span class="modal-title"><i class="bi bi-list-ol"></i> Board Completo</span>
+        <span class="modal-title"><i class="bi bi-list-ol"></i> Ver Jogadores</span>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <input type="text" id="bigBoardSearch" class="field-input mb-3" placeholder="Buscar jogador por nome ou posição…">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <span style="font-size:12px;color:var(--text-2)">Jogadores disponíveis, em ordem</span>
+          <span style="font-size:12px;color:var(--text-2)">Todos os jogadores, em ordem</span>
           <span style="font-size:12px;color:var(--text-2)" id="bigBoardCount">0</span>
         </div>
         <div id="bigBoardPlayers" class="pick-grid">
@@ -1411,16 +1428,22 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       container.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-person-x"></i><p>Nenhum jogador encontrado</p></div>';
       return;
     }
-    container.innerHTML = players.map(p => `
-      <div class="player-chip${allowPick ? '' : ''}" ${allowPick ? `onclick="makePick(${p.id}, '${esc(p.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')"` : ''} style="${allowPick ? 'cursor:pointer' : ''}">
+    container.innerHTML = players.map(p => {
+      const drafted = p.draft_status === 'drafted';
+      const clickable = allowPick && !drafted;
+      return `
+      <div class="player-chip${drafted ? ' drafted' : ''}" ${clickable ? `onclick="makePick(${p.id}, '${esc(p.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')"` : ''} style="${clickable ? 'cursor:pointer' : ''}">
+        ${p.pick_hint ? `<span class="player-chip-order">${p.pick_hint}</span>` : ''}
         <div class="player-chip-name">${esc(p.name)}</div>
         <div>
           <span class="player-chip-pos">${esc(p.position)}</span>
           <span class="player-chip-ovr">OVR ${p.ovr}</span>
         </div>
         <div class="player-chip-age">${p.age} anos</div>
+        ${drafted ? `<div class="player-chip-drafted-tag">Draftado</div>` : ''}
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   let bigBoardPlayersList = [];
@@ -1432,7 +1455,11 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     container.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div>';
 
     try {
-      const data = await api(`draft.php?action=available_players&season_id=${currentDraftSession.season_id}`);
+      // board_players traz TODOS os jogadores da temporada (disponíveis + já
+      // draftados) na ordem fixa (pick_hint) — diferente de available_players,
+      // que só traz quem ainda não saiu. É o que permite o já draftado
+      // continuar aparecendo cinza na posição dele, sem reordenar os outros.
+      const data = await api(`draft.php?action=board_players&season_id=${currentDraftSession.season_id}`);
       bigBoardPlayersList = data.players || [];
       renderAvailablePlayers(bigBoardPlayersList, false, 'bigBoardPlayers', 'bigBoardCount');
       const searchInput = document.getElementById('bigBoardSearch');

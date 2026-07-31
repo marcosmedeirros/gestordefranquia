@@ -178,6 +178,28 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'players' => $players]);
             break;
 
+        // "Ver Jogadores" (board completo): TODOS os jogadores da temporada,
+        // disponíveis ou já draftados, na mesma ordem fixa — ao contrário de
+        // available_players, não filtra por status, pra quem já saiu continuar
+        // aparecendo (cinza, no front) na posição/ordem dele.
+        case 'board_players':
+            $seasonId = $_GET['season_id'] ?? null;
+            if (!$seasonId) {
+                echo json_encode(['success' => false, 'error' => 'season_id obrigatório']);
+                exit;
+            }
+
+            $stmt = $pdo->prepare(
+                "SELECT * FROM draft_pool
+                 WHERE season_id = ?
+                 ORDER BY COALESCE(pick_hint, 999999) ASC, ovr DESC, name ASC"
+            );
+            $stmt->execute([$seasonId]);
+            $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode(['success' => true, 'players' => $players]);
+            break;
+
         // Verificar se é a vez do time
         case 'my_turn':
             $draftSessionId = $_GET['draft_session_id'] ?? null;
