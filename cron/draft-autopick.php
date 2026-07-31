@@ -13,6 +13,10 @@ try {
     $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN current_pick_started_at DATETIME NULL");
 } catch (Exception $e) {}
 
+try {
+    $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN round1_clock_start_at DATETIME NULL");
+} catch (Exception $e) {}
+
 function notifyNextPickCron(PDO $pdo, int $teamId, int $round, int $pickPosition): void {
     $stmt = $pdo->prepare('SELECT u.id FROM teams t JOIN users u ON t.user_id = u.id WHERE t.id = ? LIMIT 1');
     $stmt->execute([$teamId]);
@@ -43,11 +47,6 @@ function runAutopickForSession(PDO $pdo, int $draftSessionId): void {
 
     $currentTeamId = (int)$currentPick['team_id'];
 
-    $stmtSettings = $pdo->prepare('SELECT is_active FROM draft_mock_settings WHERE team_id = ? AND draft_session_id = ?');
-    $stmtSettings->execute([$currentTeamId, $draftSessionId]);
-    $settings = $stmtSettings->fetch(PDO::FETCH_ASSOC);
-    if (empty($settings['is_active'])) return;
-
     $startedAt = $session['current_pick_started_at'] ?? null;
     if (!$startedAt) {
         $pdo->prepare('UPDATE draft_sessions SET current_pick_started_at = NOW() WHERE id = ?')
@@ -55,20 +54,52 @@ function runAutopickForSession(PDO $pdo, int $draftSessionId): void {
         return;
     }
 
-    $elapsed = time() - strtotime($startedAt);
-    if ($elapsed < 1800) return;
+    // Relógio da 1ª rodada agendado pelo admin (round1_clock_start_at, ver
+    // api/draft.php:set_round1_clock) — mesma regra de api/draft-mock.php:check_autopick,
+    // mantida em sincronia aqui porque esse cron roda em paralelo com aquele endpoint.
+    $now = time();
+    $clockStartTs = !empty($session['round1_clock_start_at']) ? strtotime($session['round1_clock_start_at']) : null;
+    $clockArmed = $clockStartTs !== null && $now >= $clockStartTs;
+    $pickStartedTs = strtotime($startedAt);
 
-    $stmtQueue = $pdo->prepare('
-        SELECT mq.player_id, dp.name, dp.position, dp.age, dp.ovr
-        FROM draft_mock_queue mq
-        JOIN draft_pool dp ON mq.player_id = dp.id
-        WHERE mq.team_id = ? AND mq.draft_session_id = ?
-          AND dp.draft_status = "available"
-        ORDER BY mq.priority ASC
-        LIMIT 1
-    ');
-    $stmtQueue->execute([$currentTeamId, $draftSessionId]);
-    $playerToPick = $stmtQueue->fetch(PDO::FETCH_ASSOC);
+    if ($clockArmed) {
+        $thresholdSeconds = 5 * 60;
+        $referenceTs = max($pickStartedTs, $clockStartTs);
+    } else {
+        $thresholdSeconds = 1800;
+        $referenceTs = $pickStartedTs;
+    }
+    if (($now - $referenceTs) < $thresholdSeconds) return;
+
+    $playerToPick = null;
+    $stmtSettings = $pdo->prepare('SELECT is_active FROM draft_mock_settings WHERE team_id = ? AND draft_session_id = ?');
+    $stmtSettings->execute([$currentTeamId, $draftSessionId]);
+    $settings = $stmtSettings->fetch(PDO::FETCH_ASSOC);
+    if (!empty($settings['is_active'])) {
+        $stmtQueue = $pdo->prepare('
+            SELECT mq.player_id, dp.name, dp.position, dp.age, dp.ovr
+            FROM draft_mock_queue mq
+            JOIN draft_pool dp ON mq.player_id = dp.id
+            WHERE mq.team_id = ? AND mq.draft_session_id = ?
+              AND dp.draft_status = "available"
+            ORDER BY mq.priority ASC
+            LIMIT 1
+        ');
+        $stmtQueue->execute([$currentTeamId, $draftSessionId]);
+        $playerToPick = $stmtQueue->fetch(PDO::FETCH_ASSOC);
+    }
+
+    if (!$playerToPick && $clockArmed) {
+        $stmtBest = $pdo->prepare('
+            SELECT id AS player_id, name, position, age, ovr
+            FROM draft_pool
+            WHERE season_id = ? AND draft_status = "available"
+            ORDER BY COALESCE(pick_hint, 999999) ASC, ovr DESC, name ASC
+            LIMIT 1
+        ');
+        $stmtBest->execute([(int)$session['season_id']]);
+        $playerToPick = $stmtBest->fetch(PDO::FETCH_ASSOC);
+    }
     if (!$playerToPick) return;
 
     $pdo->beginTransaction();

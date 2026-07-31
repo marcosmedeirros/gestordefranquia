@@ -5468,6 +5468,26 @@ async function showAdminDraft(league) {
           ${draft.pick_deadline_ts ? `<span id="admin-draft-detail-timer" style="font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:#22c55e;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:6px;padding:2px 10px">⏱ --:--</span>` : ''}
         </div>` : '';
 
+      // Relógio da 1ª rodada: admin agenda quando o prazo por pick cai de 30min pra 5min
+      // (com fallback pra melhor da ordem geral se a fila pessoal do time não resolver).
+      // Editável em setup ou em andamento, pra dar tempo do admin agendar antes de iniciar.
+      let round1ClockPanel = '';
+      if (draftStatus === 'setup' || draftStatus === 'in_progress') {
+        const clockRaw = draft.round1_clock_start_at ? String(draft.round1_clock_start_at) : '';
+        const clockValueForInput = clockRaw ? clockRaw.slice(0, 16).replace(' ', 'T') : '';
+        const clockArmed = clockRaw && new Date(clockRaw.replace(' ', 'T')).getTime() <= Date.now();
+        round1ClockPanel = `
+          <div style="padding:10px 16px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div>
+              <label class="pun-field-label" style="font-size:11px;color:var(--text-3);display:block;margin-bottom:3px">Relógio da 1ª rodada (5min/pick a partir daqui)</label>
+              <input type="datetime-local" class="form-control form-control-sm" id="round1ClockInput_${draft.id}" value="${clockValueForInput}" style="min-width:200px">
+            </div>
+            <button class="btn-ghost" style="font-size:12px" onclick="_adminSetRound1Clock(${draft.id}, '${league}')"><i class="bi bi-clock-history me-1"></i>Salvar</button>
+            ${clockRaw ? `<button class="btn-ghost" style="font-size:12px;color:#ef4444" onclick="_adminClearRound1Clock(${draft.id}, '${league}')"><i class="bi bi-x-circle me-1"></i>Remover</button>` : ''}
+            <span style="font-size:11px;color:var(--text-3)">${clockRaw ? (clockArmed ? 'Ativo — picks agora têm 5min' : 'Agendado — ainda não chegou a hora') : 'Sem relógio definido — prazo de sempre (30min + fila)'}</span>
+          </div>`;
+      }
+
       sessionPanel = `
         <div class="panel mb-3">
           <div class="panel-header">
@@ -5478,6 +5498,7 @@ async function showAdminDraft(league) {
             </div>
           </div>
           ${currentInfo}
+          ${round1ClockPanel}
         </div>`;
     }
 
@@ -5793,6 +5814,29 @@ async function _adminDraftStart(draftSessionId, league) {
     showAdminDraft(league);
   } catch(e) {
     showAlert('danger', e.error || 'Erro ao iniciar draft');
+  }
+}
+
+async function _adminSetRound1Clock(draftSessionId, league) {
+  const input = document.getElementById(`round1ClockInput_${draftSessionId}`);
+  const value = input?.value || '';
+  try {
+    const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'set_round1_clock', draft_session_id: draftSessionId, round1_clock_start_at: value }) });
+    showAlert('success', result.message || 'Relógio salvo!');
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao salvar o relógio');
+  }
+}
+
+async function _adminClearRound1Clock(draftSessionId, league) {
+  if (!confirm('Remover o relógio da 1ª rodada? As picks voltam a ter o prazo de sempre (30min + fila).')) return;
+  try {
+    const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'set_round1_clock', draft_session_id: draftSessionId, round1_clock_start_at: '' }) });
+    showAlert('success', result.message || 'Relógio removido');
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao remover o relógio');
   }
 }
 

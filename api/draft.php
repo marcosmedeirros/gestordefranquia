@@ -24,6 +24,10 @@ $pdo = db();
 ensurePlayerRestrictionColumns($pdo);
 try { $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN current_pick_started_at DATETIME NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE draft_pool ADD COLUMN pick_hint INT NULL"); } catch (Exception $e) {}
+// Relógio da 1ª rodada, agendado pelo admin — antes desse horário (ou se nunca definido),
+// autopick continua só o de 30min/fila de sempre; depois dele, vira 5min + fallback pela
+// ordem geral (ver ensureRound2DeadlineSet acima pro mesmo padrão aplicado à 2ª rodada).
+try { $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN round1_clock_start_at DATETIME NULL"); } catch (Exception $e) {}
 // 2ª rodada: mock por pick (substitui o antigo sistema de "ofertas" draft_round2_offers,
 // que nunca era resolvido de verdade — ver ensureRound2DeadlineSet/resolveRound2MocksIfDue).
 try { $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN round2_mock_deadline DATETIME NULL"); } catch (Exception $e) {}
@@ -197,6 +201,16 @@ if ($method === 'GET') {
             $draft = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($draft && !empty($draft['current_pick_started_at'])) {
                 $draft['pick_deadline_ts'] = strtotime($draft['current_pick_started_at']) + 1800;
+            }
+            // Relógio da 1ª rodada (round1_clock_start_at): só devolve o prazo calculado da
+            // pick atual (5min) quando o relógio já estiver armado — mesma fórmula usada em
+            // check_autopick/runAutopickForSession (maior entre início da pick e hora marcada).
+            if ($draft && !empty($draft['round1_clock_start_at'])) {
+                $clockStartTs = strtotime($draft['round1_clock_start_at']);
+                if (time() >= $clockStartTs && !empty($draft['current_pick_started_at'])) {
+                    $effectiveStart = max(strtotime($draft['current_pick_started_at']), $clockStartTs);
+                    $draft['round1_pick_deadline_ts'] = $effectiveStart + 300;
+                }
             }
 
             echo json_encode(['success' => true, 'draft' => $draft]);
@@ -1894,6 +1908,39 @@ if ($method === 'POST') {
             } catch (Exception $e) {
                 echo json_encode(['success' => false, 'error' => 'Erro']);
             }
+            break;
+
+        // ADMIN: agenda (ou limpa, se vier vazio) o relógio da 1ª rodada — a partir dessa
+        // data/hora, a pick atual passa a ter 5min (fallback pela ordem geral se a fila
+        // pessoal do time não resolver), em vez do prazo de 30min de sempre.
+        case 'set_round1_clock':
+            if (!$isAdmin) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+                exit;
+            }
+            $draftSessionId = (int)($data['draft_session_id'] ?? 0);
+            if (!$draftSessionId) {
+                echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']);
+                exit;
+            }
+            $rawValue = trim((string)($data['round1_clock_start_at'] ?? ''));
+            $clockValue = null;
+            if ($rawValue !== '') {
+                $ts = strtotime($rawValue);
+                if ($ts === false) {
+                    echo json_encode(['success' => false, 'error' => 'Data/hora inválida']);
+                    exit;
+                }
+                $clockValue = date('Y-m-d H:i:s', $ts);
+            }
+            $pdo->prepare('UPDATE draft_sessions SET round1_clock_start_at = ? WHERE id = ?')
+                ->execute([$clockValue, $draftSessionId]);
+            echo json_encode([
+                'success' => true,
+                'message' => $clockValue ? "Relógio da 1ª rodada agendado para {$clockValue}" : 'Relógio da 1ª rodada removido',
+                'round1_clock_start_at' => $clockValue,
+            ]);
             break;
 
         default:

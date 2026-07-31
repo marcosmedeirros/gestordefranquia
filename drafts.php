@@ -1037,6 +1037,12 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
     const isMyTurn = currentPickInfo && parseInt(currentPickInfo.team_id) === userTeamId && session.current_round == 1;
     const showRound2Team = session.status === 'in_progress' && session.current_round == 2 && userTeamId;
+    // Relógio da 1ª rodada (admin agenda em js/admin.js): antes da hora marcada, só um aviso
+    // informativo; depois dela, uma contagem regressiva de 5min pra pick atual (o backend já
+    // faz o autopick pela ordem geral se ninguém escolher a tempo — isso aqui é só exibição).
+    const round1ClockInfo = (session.status === 'in_progress' && Number(session.current_round) === 1 && session.round1_clock_start_at)
+      ? getRound1ClockInfo(session)
+      : null;
     const round2History = round2Raw
       .filter(p => p.picked_player_id)
       .sort((a, b) => {
@@ -1135,6 +1141,16 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     }
 
     // Round 1
+    let round1ClockHtml = '';
+    if (round1ClockInfo) {
+      if (!round1ClockInfo.armed) {
+        const d = new Date(round1ClockInfo.clockStartMs);
+        const dateLabel = d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        round1ClockHtml = `<div style="font-size:12px;color:var(--text-2);margin-bottom:12px"><i class="bi bi-clock"></i> Escolhas livres até ${dateLabel} — depois disso, 5min por pick.</div>`;
+      } else {
+        round1ClockHtml = `<div id="round1ClockCountdown" style="font-size:13px;font-weight:700;margin-bottom:12px"></div>`;
+      }
+    }
     html += `
       <div class="panel" style="margin-bottom:14px">
         <div class="round-head">
@@ -1143,6 +1159,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <span class="round-count">${round1Picks.length} picks</span>
         </div>
         <div class="panel-body">
+          ${round1ClockHtml}
           <div class="pick-grid">
             ${round1Picks.map(p => renderPickCard(p, session)).join('')}
           </div>
@@ -1213,6 +1230,44 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     if (showRound2Team) {
       loadRound2Board();
     }
+    if (round1ClockInfo && round1ClockInfo.armed && round1ClockInfo.deadlineMs) {
+      startRound1Countdown(round1ClockInfo.deadlineMs);
+    }
+  }
+
+  // Calcula, a partir da sessão, se o relógio da 1ª rodada já está armado e (se sim) o
+  // instante em que a pick atual estoura — mesma fórmula usada no backend
+  // (check_autopick/runAutopickForSession): maior entre início da pick e a hora marcada,
+  // mais 5 minutos.
+  function getRound1ClockInfo(session) {
+    const clockStartMs = new Date(String(session.round1_clock_start_at).replace(' ', 'T')).getTime();
+    const armed = Date.now() >= clockStartMs;
+    if (!armed) return { armed: false, clockStartMs };
+    if (!session.current_pick_started_at) return { armed: true, deadlineMs: null };
+    const pickStartedMs = new Date(String(session.current_pick_started_at).replace(' ', 'T')).getTime();
+    return { armed: true, deadlineMs: Math.max(pickStartedMs, clockStartMs) + 5 * 60 * 1000 };
+  }
+
+  let round1CountdownInterval = null;
+  function startRound1Countdown(deadlineMs) {
+    clearInterval(round1CountdownInterval);
+    const el = document.getElementById('round1ClockCountdown');
+    if (!el) return;
+    const tick = () => {
+      const remaining = Math.floor((deadlineMs - Date.now()) / 1000);
+      if (remaining <= 0) {
+        el.innerHTML = '⏱ Prazo esgotado — resolvendo…';
+        el.style.color = 'var(--text-3)';
+        clearInterval(round1CountdownInterval);
+        return;
+      }
+      const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+      const s = String(remaining % 60).padStart(2, '0');
+      el.innerHTML = `⏱ Escolha atual: ${m}:${s} (senão, melhor disponível pela ordem é escolhido)`;
+      el.style.color = remaining < 60 ? '#ef4444' : 'var(--amber)';
+    };
+    tick();
+    round1CountdownInterval = setInterval(tick, 1000);
   }
 
   function renderPickCard(pick, session) {
