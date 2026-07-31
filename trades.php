@@ -453,12 +453,25 @@ try {
         </div>
         <div class="page-hero-actions">
           <span class="tag <?= $tradeCount >= $maxTrades ? 'red' : 'gray' ?>"><?= $tradeCount ?>/<?= $maxTrades ?> trocas usadas</span>
+          <?php
+          // Trade Rápida (popup 1x1, sem CAP) foi tirada de todo mundo quando a
+          // Trade Machine entrou (ELITE mexe na folha, ficava perigoso). NEXT e
+          // RISE não têm o novo cap, então mantêm as duas portas.
+          $__showQuickTrade = in_array($team['league'] ?? '', ['NEXT', 'RISE'], true);
+          ?>
           <?php if ($tradesEnabled == 0): ?>
             <button class="btn-r secondary" disabled><i class="bi bi-lock-fill"></i>Bloqueadas</button>
           <?php elseif ($tradeCount >= $maxTrades): ?>
+            <?php if ($__showQuickTrade): ?>
+            <button class="btn-r secondary" disabled><i class="bi bi-lightning-fill"></i>Trade Rápida</button>
+            <?php endif; ?>
             <button class="btn-r primary" disabled><i class="bi bi-sliders"></i>Trade Machine</button>
           <?php else: ?>
-            <?php /* Uma porta so: a Trade Machine monta, mostra o impacto no CAP/folha e envia. */ ?>
+            <?php if ($__showQuickTrade): ?>
+            <button class="btn-r secondary" data-bs-toggle="modal" data-bs-target="#proposeTradeModal">
+              <i class="bi bi-lightning-fill"></i>Trade Rápida
+            </button>
+            <?php endif; ?>
             <a href="/trade-simulator.php" class="btn-r primary" style="text-decoration:none">
               <i class="bi bi-sliders"></i>Trade Machine
             </a>
