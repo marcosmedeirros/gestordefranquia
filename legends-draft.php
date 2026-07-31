@@ -123,9 +123,8 @@ if ($team_id) {
         .ld-row.atual{border-color:var(--border-red);background:var(--red-soft)}
         .ld-row.eu{border-color:color-mix(in srgb, var(--blue) 40%, transparent)}
         .ld-row-pick{width:30px;height:30px;border-radius:50%;background:var(--panel-3);color:var(--text-3);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-        .ld-row img{width:28px;height:28px;border-radius:7px;object-fit:contain;background:var(--panel-3);flex-shrink:0}
-        .ld-row-gm{font-size:13px;font-weight:600;min-width:140px;flex:1 1 auto}
-        .ld-row-jogador{flex:2 1 200px;min-width:0;font-size:13px;color:var(--text-2);word-break:break-word}
+        .ld-row-gm{font-size:13px;font-weight:600;width:180px;flex-shrink:0}
+        .ld-row-jogador{flex:1 1 200px;min-width:0;font-size:13px;color:var(--text-2);word-break:break-word}
         .ld-row-jogador b{color:var(--text)}
         .ld-badge-tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;flex-shrink:0}
 
@@ -175,7 +174,7 @@ if ($team_id) {
         }
         @media (max-width: 480px) {
             .card-body { padding: 14px; }
-            .ld-row-gm { min-width: 0; flex-basis: 100%; }
+            .ld-row-gm { width: auto; flex-basis: 100%; }
             .ld-row-jogador { flex-basis: 100%; }
             .ld-form-row input { min-width: 0; flex-basis: 100%; }
             .ld-tokens-bar { flex-direction: column; align-items: flex-start; }

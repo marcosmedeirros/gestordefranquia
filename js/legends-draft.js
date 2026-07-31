@@ -4,7 +4,6 @@
 const _ldEsc = s => (s == null ? '' : String(s))
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const LD_LOGO_PADRAO = '/img/default-team.png';
 const LD_TIER_LABEL = { bronze: 'B', silver: 'P', gold: 'O', hof: 'H', legend: 'L' };
 const LD_TIER_NOME = { bronze: 'Bronze', silver: 'Prata', gold: 'Ouro', hof: 'HOF', legend: 'Legend' };
 
@@ -134,7 +133,6 @@ function ldLinhaBoard(p, d) {
   return `
     <div class="ld-row ${classe}">
       <div class="ld-row-pick">${p.pick_number}</div>
-      <img src="${_ldEsc(p.photo_url || LD_LOGO_PADRAO)}" alt="" onerror="this.src='${LD_LOGO_PADRAO}'">
       <div class="ld-row-gm">${_ldEsc(p.gm_name)}</div>
       <div class="ld-row-jogador">${jogador}</div>
     </div>`;
