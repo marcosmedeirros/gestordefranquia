@@ -111,7 +111,7 @@ function tlFeedCardPost(p) {
     <div class="card-head">
       <img src="${tlEsc(p.team_photo || '/img/default-team.png')}" onerror="this.src='/img/default-team.png'">
       <div style="min-width:0">
-        <a class="card-author" href="/timeline.php?tab=perfil&team_id=${p.team_id}">${tlEsc(p.team_name)}</a>
+        <a class="card-author" href="/timeline.php?tab=pesquisar&team_id=${p.team_id}">${tlEsc(p.team_name)}</a>
         <div class="card-league">${tlEsc(p.team_league || '')} · ${tlEsc(p.author_name)}</div>
       </div>
       <span class="card-time">${tlDataCurta(p.created_at)}</span>
@@ -139,7 +139,7 @@ function tlAutoRowPerfil(it) {
 function tlAutoRow(it) {
   return `<div class="auto-row">
     <span class="auto-icon">${TL_ICONES[it._tipo] || '•'}</span>
-    <span class="auto-text"><a href="/timeline.php?tab=perfil&team_id=${it.team_id}" style="color:inherit;text-decoration:none"><b>${tlEsc(it.team_name)}</b></a> — ${tlEsc(it.texto)}</span>
+    <span class="auto-text"><a href="/timeline.php?tab=pesquisar&team_id=${it.team_id}" style="color:inherit;text-decoration:none"><b>${tlEsc(it.team_name)}</b></a> — ${tlEsc(it.texto)}</span>
     <span class="auto-time">${tlDataCurta(it._data)}</span>
   </div>`;
 }
@@ -190,7 +190,7 @@ async function tlCarregarPostsGrid() {
     const data = await tlGet('posts_grid', { league: tlPostsLeague });
     if (!data.posts.length) { box.innerHTML = '<div class="empty">Nenhum post ainda.</div>'; return; }
     box.innerHTML = data.posts.map(p => `
-      <a class="tl-grid-item" href="/timeline.php?tab=perfil&team_id=${p.team_id}">
+      <a class="tl-grid-item" href="/timeline.php?tab=pesquisar&team_id=${p.team_id}">
         ${p.photo_url ? `<img src="${tlEsc(p.photo_url)}">` : `<div class="no-photo">${tlEsc(p.texto || '')}</div>`}
       </a>`).join('');
   } catch (e) {
@@ -198,22 +198,144 @@ async function tlCarregarPostsGrid() {
   }
 }
 
-/* ---- Pesquisar ---- */
+/* ---- Pesquisar ----
+   A aba Perfil é sempre e só o meu time — ver o perfil de outro time (via
+   busca, ou clicando num nome no Feed/Posts) acontece DENTRO da aba Buscar,
+   nunca troca pra aba Perfil nem mistura com tlPerfilData. É sempre
+   somente-leitura (sem compor post/story nem apagar), mesmo que a API
+   devolva can_post=true (ex. admin) — postar só na própria aba Perfil. */
 let tlSearchTimeout = null;
+let tlBuscaPerfilData = null;
+
 async function tlBuscarContas(q) {
   const box = document.getElementById('tlSearchResults');
+  tlBuscaPerfilData = null;
   if (q.length < 2) { box.innerHTML = ''; return; }
   try {
     const data = await tlGet('buscar_contas', { q });
     if (!data.resultados.length) { box.innerHTML = '<div class="empty">Nenhum resultado.</div>'; return; }
     box.innerHTML = data.resultados.map(r => `
-      <a class="tl-search-item" href="/timeline.php?tab=perfil&team_id=${r.team_id}" style="text-decoration:none;color:inherit">
+      <button type="button" class="tl-search-item" data-team-id="${r.team_id}" style="width:100%;text-align:left;font-family:inherit">
         <img src="${tlEsc(r.photo_url || '/img/default-team.png')}" onerror="this.src='/img/default-team.png'">
         <div><div style="font-size:13px;font-weight:600">${tlEsc(r.time_label)}</div><div style="font-size:11px;color:var(--text-3)">${tlEsc(r.gm_label)} · ${tlEsc(r.league)}</div></div>
-      </a>`).join('');
+      </button>`).join('');
+    box.querySelectorAll('.tl-search-item').forEach(btn => btn.addEventListener('click', () => tlVerPerfilBusca(Number(btn.dataset.teamId))));
   } catch (e) {
     box.innerHTML = `<div class="empty">Erro na busca: ${tlEsc(e.message)}</div>`;
   }
+}
+
+async function tlVerPerfilBusca(teamId) {
+  const box = document.getElementById('tlSearchResults');
+  box.innerHTML = '<div class="empty">Carregando...</div>';
+  try {
+    const data = await tlGet('perfil', { team_id: teamId });
+    tlBuscaPerfilData = data;
+    tlRenderPerfilBusca();
+  } catch (e) {
+    box.innerHTML = `<div class="empty">${tlEsc(e.message)}</div>`;
+  }
+}
+
+function tlRenderPerfilBusca() {
+  const d = tlBuscaPerfilData;
+  const box = document.getElementById('tlSearchResults');
+  const nomeTime = `${d.team.city} ${d.team.name}`.trim();
+
+  let html = `
+    <button type="button" class="btn-ghost" id="tlBuscaVoltar" style="margin-bottom:14px"><i class="bi bi-arrow-left"></i> Voltar à busca</button>
+    <div class="tl-profile-header">
+      <img class="tl-profile-avatar" src="${tlEsc(d.team.photo_url || '/img/default-team.png')}" onerror="this.src='/img/default-team.png'">
+      <div style="flex:1;min-width:0">
+        <div class="tl-profile-name">${tlEsc(nomeTime)}</div>
+        <div class="tl-profile-sub">${tlEsc(d.team.league)}</div>
+        <div class="tl-profile-stats"><span><b>${d.follower_count}</b> seguidores</span><span><b>${d.following_count}</b> seguindo</span></div>
+      </div>
+      <button type="button" class="btn-ghost ${d.is_following ? 'following' : ''}" id="tlBuscaBtnSeguir">${d.is_following ? 'Seguindo' : 'Seguir'}</button>
+    </div>`;
+
+  if (d.stories && d.stories.length) {
+    html += `<div class="tl-stories">
+      ${d.stories.map((s, i) => `
+        <button type="button" class="tl-story tl-busca-story" data-idx="${i}">
+          <span class="tl-story-ring ${s.vista_por_mim ? '' : 'unseen'}">
+            <img src="${tlEsc(s.photo_url)}">
+          </span>
+          <span class="tl-story-name">Story</span>
+        </button>`).join('')}
+    </div>`;
+  }
+
+  const itens = tlMesclar(d.posts, d.timeline);
+  html += itens.length
+    ? itens.map(it => it._tipo === 'post' ? tlBuscaCardPost(it) : tlAutoRowPerfil(it)).join('')
+    : '<div class="empty">Nada por aqui ainda.</div>';
+
+  box.innerHTML = html;
+  tlWirePerfilBusca();
+}
+
+function tlBuscaCardPost(p) {
+  return `<div class="card">
+    <div class="card-head">
+      <img src="${tlEsc(p.author_photo || '/img/default-team.png')}" onerror="this.src='/img/default-team.png'">
+      <span class="card-author">${tlEsc(p.author_name)}</span>
+      <span class="card-time">${tlDataCurta(p.created_at)}</span>
+    </div>
+    ${p.photo_url ? `<img class="card-photo" src="${tlEsc(p.photo_url)}">` : ''}
+    <div class="card-body">
+      <div class="card-actions">
+        <button type="button" class="like-btn ${p.liked_by_me ? 'liked' : ''}" data-post-id="${p.id}" data-liked="${p.liked_by_me ? '1' : '0'}">
+          <i class="bi ${p.liked_by_me ? 'bi-heart-fill' : 'bi-heart'}"></i>
+        </button>
+      </div>
+      <div class="card-likes" data-like-count>${p.like_count} curtida${p.like_count === 1 ? '' : 's'}</div>
+      ${p.texto ? `<div class="card-caption"><b>${tlEsc(p.author_name)}</b>${tlEsc(p.texto)}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function tlWirePerfilBusca() {
+  const btnVoltar = document.getElementById('tlBuscaVoltar');
+  if (btnVoltar) btnVoltar.addEventListener('click', () => {
+    tlBuscaPerfilData = null;
+    tlBuscarContas(document.getElementById('tlSearchInput').value.trim());
+  });
+
+  const btnSeguir = document.getElementById('tlBuscaBtnSeguir');
+  if (btnSeguir) btnSeguir.addEventListener('click', async () => {
+    btnSeguir.disabled = true;
+    try {
+      const data = await tlPost(tlBuscaPerfilData.is_following ? 'deixar_de_seguir' : 'seguir', { team_id: tlBuscaPerfilData.team.id });
+      tlBuscaPerfilData.is_following = data.is_following;
+      tlBuscaPerfilData.follower_count = data.follower_count;
+      tlRenderPerfilBusca();
+    } catch (e) { alert(e.message); btnSeguir.disabled = false; }
+  });
+
+  document.querySelectorAll('#tlSearchResults .like-btn').forEach(btn => btn.addEventListener('click', () => tlToggleLike(btn, tlBuscaPerfilData.posts)));
+  document.querySelectorAll('.tl-busca-story').forEach(btn => btn.addEventListener('click', () => tlAbrirStoryBusca(Number(btn.dataset.idx))));
+}
+
+function tlAbrirStoryBusca(idx) {
+  const s = tlBuscaPerfilData.stories[idx];
+  if (!s) return;
+  tfPost('visualizar_story', { story_id: s.id }).catch(() => {});
+  s.vista_por_mim = true;
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:2000;display:flex;align-items:center;justify-content:center;flex-direction:column';
+  overlay.innerHTML = `
+    <div style="position:absolute;top:16px;right:16px;z-index:2">
+      <button id="tlStoryClose" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:18px;line-height:1">×</button>
+    </div>
+    <img src="${tlEsc(s.photo_url)}" style="max-width:92vw;max-height:78vh;border-radius:12px;object-fit:contain">
+    ${s.texto ? `<div style="color:#fff;margin-top:14px;font-size:14px;max-width:80vw;text-align:center">${tlEsc(s.texto)}</div>` : ''}`;
+  document.body.appendChild(overlay);
+
+  const fechar = () => overlay.remove();
+  overlay.querySelector('#tlStoryClose').addEventListener('click', fechar);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) fechar(); });
 }
 
 /* ---- Perfil ---- */
@@ -475,6 +597,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   tlCarregarFeed();
-  if (tabInicial === 'perfil') tlCarregarPerfil(params.get('team_id') || window.MY_TEAM_ID || null);
+  // Perfil é sempre o meu time — nunca lê team_id da URL aqui (isso vai pra
+  // aba Buscar, ver tlVerPerfilBusca).
+  if (tabInicial === 'perfil') tlCarregarPerfil(window.MY_TEAM_ID || null);
   if (tabInicial === 'posts') tlCarregarPostsGrid();
+  if (tabInicial === 'pesquisar' && params.get('team_id')) tlVerPerfilBusca(Number(params.get('team_id')));
 });
