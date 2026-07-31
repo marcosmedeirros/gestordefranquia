@@ -74,6 +74,27 @@ function ensureRoletaTimesTable(PDO $pdo): void
             $ins->execute([$i + 1, $t[0], $t[1]]);
         }
     }
+
+    // team_id resolvido uma vez (por CONCAT(city,name), o mesmo casamento de
+    // sempre) e guardado — sem isso, renomear um time em Gestão quebra
+    // silenciosamente tanto o escudo quanto a notificação daquele time na
+    // roleta, porque o casamento por string parava de bater. Uma vez
+    // resolvido, team_id nunca é sobrescrito (não desfaz o vínculo se o nome
+    // mudar de novo depois).
+    try {
+        $hasTeamId = $pdo->query("SHOW COLUMNS FROM roleta_times LIKE 'team_id'")->fetch();
+        if (!$hasTeamId) {
+            $pdo->exec("ALTER TABLE roleta_times ADD COLUMN team_id INT NULL AFTER team_name");
+        }
+        $pdo->exec("
+            UPDATE roleta_times rt
+            JOIN teams t ON CONCAT(t.city, ' ', t.name) = rt.team_name
+            SET rt.team_id = t.id
+            WHERE rt.team_id IS NULL
+        ");
+    } catch (Throwable $e) {
+        error_log('ensureRoletaTimesTable (team_id): ' . $e->getMessage());
+    }
 }
 ensureRoletaTimesTable($pdo);
 
@@ -94,10 +115,13 @@ function notificarSaidaRoleta(PDO $pdo, string $gmName, int $pick): void
         $stmt = $pdo->query("
             SELECT DISTINCT t.user_id
             FROM roleta_times rt
-            JOIN teams t ON CONCAT(t.city, ' ', t.name) = rt.team_name
+            JOIN teams t ON t.id = rt.team_id
             WHERE t.user_id IS NOT NULL
         ");
         $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        if (!$userIds) {
+            error_log('notificarSaidaRoleta: nenhum GM casado via team_id pra "' . $gmName . '" — verifique roleta_times.team_id');
+        }
     } catch (Throwable $e) {
         error_log('notificarSaidaRoleta (buscar GMs): ' . $e->getMessage());
         return;
@@ -139,7 +163,7 @@ function estadoRoleta(PDO $pdo): array
     $sql = "SELECT rt.id, rt.ordem, rt.team_name, rt.gm_name, rt.pick_number, rt.eliminated_at,
                    t.photo_url
             FROM roleta_times rt
-            LEFT JOIN teams t ON CONCAT(t.city, ' ', t.name) = rt.team_name
+            LEFT JOIN teams t ON t.id = rt.team_id
             ORDER BY rt.ordem ASC";
     $linhas = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
 
