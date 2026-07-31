@@ -718,55 +718,9 @@ if ($method === 'POST') {
                 exit;
             }
 
-            // Modo demonstração: sorteia com posições fictícias, sem depender de
-            // temporada/standings cadastrados e sem tocar em nada do draft real.
-            // Serve para mostrar a cerimônia a quem está avaliando a feature.
-            $isDemo = !empty($data['demo']);
-
             // Ligas que o GM logado administra (a loteria é por liga do GM).
             $myLeagues = array_values(array_intersect(['ELITE', 'NEXT', 'RISE'], getAdminLeagues($pdo, (int)$user['id'])));
 
-            if ($isDemo) {
-                // Demo usa os times reais da própria liga do GM (nomes e escudos de verdade), campanha sorteada.
-                $demoLeague = $myLeagues[0] ?? 'ELITE';
-                $stmtDemo = $pdo->prepare('
-                    SELECT t.id AS team_id, t.conference,
-                           CONCAT(t.city," ",t.name) AS team_name, t.photo_url
-                    FROM teams t
-                    WHERE t.league = ?
-                ');
-                $stmtDemo->execute([$demoLeague]);
-                $demoTeams = $stmtDemo->fetchAll(PDO::FETCH_ASSOC);
-                if (count($demoTeams) < 4) {
-                    echo json_encode(['success' => false, 'error' => 'Não há times de ' . $demoLeague . ' suficientes para a demonstração']);
-                    exit;
-                }
-
-                shuffle($demoTeams);
-                $posByConf = [];
-                $allStandings = [];
-                foreach ($demoTeams as $t) {
-                    $conf = $t['conference'] ?: 'LESTE';
-                    $posByConf[$conf] = ($posByConf[$conf] ?? 0) + 1;
-                    $allStandings[] = [
-                        'team_id'    => (int)$t['team_id'],
-                        'position'   => $posByConf[$conf],
-                        'conference' => $conf,
-                        // Sem temporada real: recorde fictício coerente (pior posição = menos vitórias)
-                        'wins'       => max(0, 20 - $posByConf[$conf]),
-                        'points_for' => 0,
-                        'points_against' => 0,
-                        'team_name'  => $t['team_name'],
-                        'photo_url'  => $t['photo_url'],
-                    ];
-                }
-
-                // Zerado de propósito: sem playoff_results e sem swaps de picks na demo.
-                $draftSessionId        = 0;
-                $standingsSeasonId     = 0;
-                $standingsSeasonNumber = 0;
-                $lotterySession        = ['id' => 0, 'league' => $demoLeague, 'season_id' => 0];
-            } else {
             $draftSessionId = $data['draft_session_id'] ?? null;
             if (!$draftSessionId) {
                 echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']);
@@ -827,7 +781,6 @@ if ($method === 'POST') {
             if (!$allStandings) {
                 echo json_encode(['success' => false, 'error' => 'Não há "Posições" registradas para a temporada anterior (nº ' . $standingsSeasonNumber . ')']);
                 exit;
-            }
             }
 
             // Playoff = top 8 de CADA conferência (conta as duas). Elegíveis à loteria = o resto.
@@ -1108,7 +1061,6 @@ if ($method === 'POST') {
 
             echo json_encode([
                 'success' => true,
-                'demo' => $isDemo,
                 'draft_session_id' => (int)$draftSessionId,
                 'standings_season_id' => (int)$standingsSeasonId,
                 'standings_season_number' => $standingsSeasonNumber,

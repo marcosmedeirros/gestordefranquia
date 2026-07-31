@@ -452,20 +452,6 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
   </div>
   <?php endif; ?>
 
-  <?php /* A demonstracao nao depende de sessao/temporada, entao fica fora do if acima. */ ?>
-  <div class="section-title bc-off"><i class="bi bi-play-circle"></i> Ver como funciona</div>
-  <div class="panel bc-off">
-    <div class="form-row">
-      <button class="btn-ghost2" id="btnDemo" title="Roda a cerimônia inteira com uma campanha fictícia, sem cadastrar nada e sem tocar no draft real"><i class="bi bi-play-circle"></i> Modo demonstração</button>
-    </div>
-    <div style="margin-top:10px;font-size:11.5px;color:var(--text-3);line-height:1.5">
-      <i class="bi bi-info-circle"></i>
-      O <strong>modo demonstração</strong> sorteia com posições fictícias usando os times reais da ELITE.
-      Serve para ver como a loteria funciona — não precisa de temporada nem de "Posições" cadastradas,
-      e o resultado não pode ser aplicado ao draft.
-    </div>
-  </div>
-
   <div id="resultSection" style="display:none">
 
     <div class="section-title bc-off"><i class="bi bi-percent"></i> Chances da loteria (3-2-1)<i class="bi bi-question-circle info-hint" title="Os 16 times fora do playoff entram em 4 grupos. Cada grupo tem uma chance própria de conseguir uma pick no Top 3 e no Top 5. Mostrado ANTES de revelar, pra todos saberem as probabilidades."></i></div>
@@ -520,10 +506,6 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     </div>
 
     <div class="panel" id="confirmPanel" style="display:none">
-      <div id="demoBanner" style="display:none;align-items:center;gap:8px;margin-bottom:12px;padding:10px 12px;border-radius:10px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.28);color:#fbbf24;font-size:12px;font-weight:600">
-        <i class="bi bi-cone-striped"></i>
-        Demonstração — campanha fictícia. Este resultado não pode ser aplicado ao draft.
-      </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn-red" id="btnConfirm"><i class="bi bi-check-lg"></i> Confirmar e aplicar ao draft</button>
         <button class="btn-ghost2" id="btnRedo"><i class="bi bi-arrow-repeat"></i> Sortear de novo</button>
@@ -597,7 +579,6 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
   }
 })();
 
-<?php /* Sempre carregado: o modo demonstracao funciona sem sessao de draft. */ ?>
 function esc(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 /* selo "via XXX" quando a pick veio de outro time (swap/troca) */
@@ -680,22 +661,18 @@ let busy = false;
 
 const $ = (id) => document.getElementById(id);
 
-async function prepare(isDemo){
+async function prepare(){
   const sel = $('sessionSelect');
   const sessionId = sel ? sel.value : '';
-  const btn = isDemo ? $('btnDemo') : $('btnPrepare');
-  const label = isDemo
-    ? '<i class="bi bi-play-circle"></i> Modo demonstração'
-    : '<i class="bi bi-dice-5-fill"></i> Preparar Loteria';
+  const btn = $('btnPrepare');
+  const label = '<i class="bi bi-dice-5-fill"></i> Preparar Loteria';
 
-  if (!isDemo && !sessionId) { alert('Escolha uma sessão de draft.'); return; }
+  if (!sessionId) { alert('Escolha uma sessão de draft.'); return; }
 
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Preparando...';
   try {
-    const payload = isDemo
-      ? { action: 'run_lottery', demo: true }
-      : { action: 'run_lottery', draft_session_id: parseInt(sessionId, 10) };
+    const payload = { action: 'run_lottery', draft_session_id: parseInt(sessionId, 10) };
     const res = await fetch('/api/draft.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -705,9 +682,7 @@ async function prepare(isDemo){
     if (!data.success) { alert(data.error || 'Erro ao preparar a loteria.'); return; }
     result = data;
     setupBoardAndOdds(data);
-    // Numa demo o resultado é descartável: nao pode ser gravado no draft.
-    $('demoBanner').style.display = data.demo ? 'flex' : 'none';
-    $('btnConfirm').style.display = data.demo ? 'none' : '';
+    $('btnConfirm').style.display = '';
     $('resultSection').style.display = 'block';
   } catch (e) {
     alert('Erro ao preparar a loteria.');
@@ -1001,13 +976,10 @@ async function confirmOrder(){
 
 // Quem não administra loteria nenhuma não tem esses controles na página
 // (só vê a ordem já confirmada), então todos os binds ficam guardados.
-if ($('btnPrepare')) $('btnPrepare').addEventListener('click', () => prepare(false));
-if ($('btnDemo')) $('btnDemo').addEventListener('click', () => prepare(true));
+if ($('btnPrepare')) $('btnPrepare').addEventListener('click', () => prepare());
 if ($('btnReveal')) $('btnReveal').addEventListener('click', revealNext);
 if ($('btnConfirm')) $('btnConfirm').addEventListener('click', confirmOrder);
-// "Sortear de novo" repete o mesmo modo do sorteio atual. Sem a arrow o
-// listener passaria o proprio evento como isDemo, que e sempre truthy.
-if ($('btnRedo')) $('btnRedo').addEventListener('click', () => prepare(!!(result && result.demo)));
+if ($('btnRedo')) $('btnRedo').addEventListener('click', () => prepare());
 </script>
 </body>
 </html>
