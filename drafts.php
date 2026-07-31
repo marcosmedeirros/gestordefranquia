@@ -776,6 +776,26 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   </div>
 </div>
 
+<!-- Modal: escolher o mock de uma pick da 2ª rodada -->
+<div class="modal fade" id="round2MockModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title"><i class="bi bi-send-check"></i> Mock — <span id="round2MockPickLabel"></span></span>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="round2MockSearch" class="field-input mb-3" placeholder="Buscar jogador por nome ou posição…">
+        <div id="round2MockPlayers" class="pick-grid">
+          <div class="state-empty" style="grid-column:1/-1">
+            <i class="bi bi-hourglass-split"></i><p>Carregando…</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Preencher pick passada (Admin) -->
 <div class="modal fade" id="fillPastPickModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -870,46 +890,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
             <div class="state-empty" style="grid-column:1/-1"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: Adicionar jogador ao draft (Admin) -->
-<div class="modal fade" id="addDraftPlayerModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <span class="modal-title"><i class="bi bi-person-plus"></i> Novo jogador do draft</span>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <form id="addDraftPlayerForm">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div style="grid-column:1/-1">
-              <label class="field-label">Nome</label>
-              <input type="text" class="field-input" name="name" required placeholder="Nome do jogador">
-            </div>
-            <div>
-              <label class="field-label">Posição</label>
-              <input type="text" class="field-input" name="position" maxlength="3" placeholder="PG" required>
-            </div>
-            <div>
-              <label class="field-label">Idade</label>
-              <input type="number" class="field-input" name="age" min="16" max="50" required placeholder="22">
-            </div>
-            <div>
-              <label class="field-label">OVR</label>
-              <input type="number" class="field-input" name="ovr" min="40" max="99" required placeholder="75">
-            </div>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn-red" onclick="submitAddDraftPlayer()">
-          <i class="bi bi-check2-circle"></i> Adicionar jogador
-        </button>
       </div>
     </div>
   </div>
@@ -1057,7 +1037,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
     const isMyTurn = currentPickInfo && parseInt(currentPickInfo.team_id) === userTeamId && session.current_round == 1;
     const showRound2Team = session.status === 'in_progress' && session.current_round == 2 && userTeamId;
-    const showRound2Admin = isAdmin && session.status === 'in_progress' && session.current_round == 2;
     const round2History = round2Raw
       .filter(p => p.picked_player_id)
       .sort((a, b) => {
@@ -1185,61 +1164,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     if (showRound2Team) {
       html += `
         <div class="r2-panel" style="margin-bottom:14px">
-          <div class="r2-panel-title"><i class="bi bi-send-check"></i> Ofertar jogador — 2ª Rodada</div>
-          <p style="font-size:12px;color:var(--text-2);margin-bottom:10px">
-            A 2ª rodada é rápida: escolha o jogador que já pegou no 2K, informe qual pick você tem
-            (ex: 37) e envie. Quem tiver a melhor pick pro jogador leva — o admin confirma.
+          <div class="r2-panel-title"><i class="bi bi-send-check"></i> Mock da 2ª rodada</div>
+          <p style="font-size:12px;color:var(--text-2);margin-bottom:6px">
+            20 minutos depois da última pick da 1ª rodada, o sistema resolve sozinho: cada pick com
+            mock leva o jogador escolhido, se ele ainda estiver disponível. É opcional — quem não
+            enviar mock fica em aberto pro admin preencher depois.
           </p>
-          <div id="round2TeamPicksHint" style="font-size:11px;color:var(--text-3);margin-bottom:10px"></div>
-          <div style="display:grid;grid-template-columns:1fr 110px auto;gap:10px;align-items:end">
-            <div>
-              <label class="field-label">Jogador</label>
-              <select class="field-input" id="round2OfferPlayerSelect">
-                <option value="">Selecione o jogador…</option>
-              </select>
-            </div>
-            <div>
-              <label class="field-label">Sua pick</label>
-              <input type="number" min="1" class="field-input" id="round2OfferPickInput" placeholder="Ex: 37">
-            </div>
-            <div>
-              <button class="btn-red" style="padding:9px 14px" onclick="submitRound2Offer()"><i class="bi bi-send"></i> Enviar</button>
-            </div>
-          </div>
-          <div id="round2MyOffers" style="margin-top:14px"></div>
-        </div>
-      `;
-    }
-
-    if (showRound2Admin) {
-      html += `
-        <div class="r2-panel">
-          <div class="r2-panel-title"><i class="bi bi-person-check"></i> Registrar pick manualmente (Admin)</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">
-            <div>
-              <label class="field-label">Time</label>
-              <select class="field-input" id="round2TeamSelect">
-                <option value="">Selecione o time…</option>
-              </select>
-            </div>
-            <div>
-              <label class="field-label">Jogador disponível</label>
-              <select class="field-input" id="round2PlayerSelect">
-                <option value="">Selecione o jogador…</option>
-              </select>
-            </div>
-            <div>
-              <button class="btn-red" style="padding:9px 14px" onclick="submitRound2Pick()"><i class="bi bi-check2-circle"></i> Enviar</button>
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;margin-bottom:8px">
-            <span style="font-size:11px;color:var(--text-2)">Jogadores disponíveis</span>
-            <span style="font-size:11px;color:var(--text-2)" id="round2PlayersCount">0</span>
-          </div>
-          <div style="margin-bottom:10px">
-            <button class="btn-ghost-sm" onclick="openAddDraftPlayerModal()"><i class="bi bi-person-plus"></i> Adicionar novo jogador ao draft</button>
-          </div>
-          <div id="round2PlayersList" class="pick-grid"></div>
+          <div id="round2Countdown" style="font-size:13px;font-weight:700;margin-bottom:12px"></div>
+          <div id="round2Board"><div class="state-empty"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div></div>
         </div>
       `;
     }
@@ -1262,7 +1194,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           `).join('')}
         </div>
       `;
-    } else if (!showRound2Admin) {
+    } else {
       html += `<div class="state-empty"><i class="bi bi-clock"></i><p>Nenhuma pick registrada na 2ª rodada.</p></div>`;
     }
 
@@ -1279,10 +1211,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     }
 
     if (showRound2Team) {
-      initRound2TeamPanel();
-    }
-    if (showRound2Admin) {
-      initRound2AdminPanel(round2Raw);
+      loadRound2Board();
     }
   }
 
@@ -1475,190 +1404,128 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     }
   }
 
-  const round2StatusBadge = { pending: '<span class="pun-badge" style="background:rgba(245,158,11,.12);color:#f59e0b;border-color:rgba(245,158,11,.3)">Pendente</span>',
-                               won:     '<span class="pun-badge" style="background:rgba(34,197,94,.12);color:#22c55e;border-color:rgba(34,197,94,.3)">Ganhou</span>',
-                               lost:    '<span class="pun-badge" style="background:rgba(239,68,68,.12);color:#ef4444;border-color:rgba(239,68,68,.3)">Perdeu</span>' };
+  // ---- 2ª rodada: board de picks + mock por pick + relógio de 20min ----
+  let round2CountdownInterval = null;
+  let round2MockDraftOrderId = null;
+  let round2MockPlayersList = [];
 
-  async function initRound2TeamPanel() {
+  async function loadRound2Board() {
     if (!currentDraftSession) return;
-    const playerSelect = document.getElementById('round2OfferPlayerSelect');
-    const hintEl = document.getElementById('round2TeamPicksHint');
-    if (!playerSelect) return;
-
-    try {
-      const data = await api(`draft.php?action=available_players&season_id=${currentDraftSession.season_id}`);
-      const players = data.players || [];
-      playerSelect.innerHTML = '<option value="">Selecione o jogador…</option>' +
-        players.map(p => `<option value="${p.id}">${esc(p.name)} (${esc(p.position)}) - OVR ${p.ovr}</option>`).join('');
-    } catch (e) {
-      playerSelect.innerHTML = '<option value="">Erro ao carregar jogadores</option>';
-    }
-
-    if (hintEl) {
-      try {
-        const picksData = await api('draft.php?action=team_round2_picks');
-        const picks = picksData.picks || [];
-        hintEl.textContent = picks.length
-          ? `Picks de 2ª rodada que o app registra pro seu time: ${picks.map(p => p.season_year).join(', ')} (referência — o que valeu no 2K é o que você digitar acima)`
-          : 'O app não tem nenhuma pick de 2ª rodada registrada pro seu time — digite a que valeu no 2K.';
-      } catch (e) { hintEl.textContent = ''; }
-    }
-
-    await refreshRound2MyOffers();
-  }
-
-  async function refreshRound2MyOffers() {
-    if (!currentDraftSession) return;
-    const box = document.getElementById('round2MyOffers');
+    const box = document.getElementById('round2Board');
     if (!box) return;
     try {
-      const data = await api(`draft.php?action=round2_offers&draft_session_id=${currentDraftSession.id}`);
-      const offers = data.offers || [];
-      if (!offers.length) { box.innerHTML = ''; return; }
-      box.innerHTML = `
-        <div style="font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Suas ofertas</div>
-        ${offers.map(o => `
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 8px;border-radius:6px;background:var(--panel-2);margin-bottom:5px">
-            <div style="font-size:13px;color:var(--text)">${esc(o.player_name)} <span style="color:var(--text-3);font-size:11px">· pick ${o.claimed_pick}</span></div>
-            <div style="display:flex;align-items:center;gap:8px">
-              ${round2StatusBadge[o.status] || ''}
-              ${o.status === 'pending' ? `<button class="btn-ghost" style="padding:2px 8px;font-size:11px;color:#ef4444" onclick="cancelRound2Offer(${o.id})"><i class="bi bi-x"></i></button>` : ''}
-            </div>
-          </div>
-        `).join('')}
-      `;
-    } catch (e) {}
-  }
-
-  async function submitRound2Offer() {
-    if (!currentDraftSession) return;
-    const playerSelect = document.getElementById('round2OfferPlayerSelect');
-    const pickInput = document.getElementById('round2OfferPickInput');
-    if (!playerSelect || !pickInput) return;
-    const playerId = playerSelect.value;
-    const claimedPick = pickInput.value;
-    if (!playerId) { alert('Selecione o jogador.'); return; }
-    if (!claimedPick || parseInt(claimedPick, 10) < 1) { alert('Informe a pick que você tem.'); return; }
-    try {
-      const result = await api('draft.php', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'submit_round2_offer', draft_session_id: currentDraftSession.id, player_id: parseInt(playerId, 10), claimed_pick: parseInt(claimedPick, 10) })
-      });
-      pickInput.value = '';
-      playerSelect.value = '';
-      await refreshRound2MyOffers();
-    } catch (e) { alert('Erro: ' + (e.error || e.message || 'Desconhecido')); }
-  }
-
-  async function cancelRound2Offer(offerId) {
-    if (!confirm('Cancelar essa oferta?')) return;
-    try {
-      await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'cancel_round2_offer', offer_id: offerId }) });
-      await refreshRound2MyOffers();
-    } catch (e) { alert('Erro: ' + (e.error || e.message || 'Desconhecido')); }
-  }
-
-  async function initRound2AdminPanel(round2PicksRaw) {
-    if (!currentDraftSession) return;
-    const teamSelect = document.getElementById('round2TeamSelect');
-    const playerSelect = document.getElementById('round2PlayerSelect');
-    const playersList = document.getElementById('round2PlayersList');
-    if (!teamSelect || !playerSelect || !playersList) return;
-    teamSelect.innerHTML = '<option value="">Carregando times…</option>';
-    const league = currentDraftSession.league || userLeague;
-    const teamsById = new Map();
-    try {
-      const data = await api(`draft.php?action=league_teams&league=${encodeURIComponent(league)}`);
-      (data.teams || []).forEach(t => teamsById.set(String(t.id), `${t.city} ${t.name}`));
+      const data = await api(`draft.php?action=round2_board&draft_session_id=${currentDraftSession.id}`);
+      renderRound2Board(data.picks || []);
+      startRound2Countdown(data.round2_mock_deadline);
     } catch (e) {
-      // fallback: apenas os times que já têm picks no round2
-      round2PicksRaw.forEach(p => teamsById.set(String(p.team_id), `${p.team_city} ${p.team_name}`));
-    }
-    teamSelect.innerHTML = '<option value="">Selecione o time…</option>';
-    Array.from(teamsById.entries()).sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, label]) => {
-      const opt = document.createElement('option'); opt.value = id; opt.textContent = label; teamSelect.appendChild(opt);
-    });
-    refreshRound2Players();
-  }
-
-  async function refreshRound2Players() {
-    if (!currentDraftSession) return;
-    const playerSelect = document.getElementById('round2PlayerSelect');
-    const playersList = document.getElementById('round2PlayersList');
-    const playersCount = document.getElementById('round2PlayersCount');
-    if (!playerSelect || !playersList) return;
-    playerSelect.innerHTML = '<option value="">Selecione o jogador…</option>';
-    playersList.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-hourglass-split"></i></div>';
-    try {
-      const data = await api(`draft.php?action=available_players&season_id=${currentDraftSession.season_id}`);
-      const players = data.players || [];
-      if (playersCount) playersCount.textContent = players.length;
-      players.forEach(p => {
-        const opt = document.createElement('option'); opt.value = p.id; opt.textContent = `${p.name} (${p.position}) - OVR ${p.ovr}`; playerSelect.appendChild(opt);
-      });
-      if (!players.length) { playersList.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-person-x"></i><p>Nenhum jogador disponível.</p></div>'; return; }
-      playersList.innerHTML = players.map(p => `
-        <div class="player-chip">
-          <div class="player-chip-name">${esc(p.name)}</div>
-          <div><span class="player-chip-pos">${esc(p.position)}</span> <span class="player-chip-ovr">OVR ${p.ovr}</span></div>
-        </div>
-      `).join('');
-    } catch (e) {
-      playersList.innerHTML = `<div class="state-empty" style="grid-column:1/-1;color:#ef4444"><i class="bi bi-exclamation-circle"></i><p>Erro: ${e.error || 'Desconhecido'}</p></div>`;
+      box.innerHTML = `<div class="state-empty" style="color:#ef4444"><i class="bi bi-exclamation-circle"></i><p>Erro: ${e.error || 'Desconhecido'}</p></div>`;
     }
   }
 
-  async function submitRound2Pick() {
-    if (!currentDraftSession) return;
-    const teamSelect = document.getElementById('round2TeamSelect');
-    const playerSelect = document.getElementById('round2PlayerSelect');
-    if (!teamSelect || !playerSelect) return;
-    const teamId = teamSelect.value;
-    const playerId = playerSelect.value;
-    if (!teamId) { alert('Selecione o time.'); return; }
-    if (!playerId) { alert('Selecione o jogador.'); return; }
-    try {
-      const result = await api('draft.php', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'make_pick', draft_session_id: currentDraftSession.id, round: 2, player_id: parseInt(playerId, 10), team_id: parseInt(teamId, 10) })
-      });
-      alert(result.message || 'Pick registrada!');
-      await loadDraft();
-    } catch (e) { alert('Erro: ' + (e.error || e.message || 'Desconhecido')); }
+  function renderRound2Board(picks) {
+    const box = document.getElementById('round2Board');
+    if (!box) return;
+    if (!picks.length) { box.innerHTML = '<div class="state-empty"><i class="bi bi-clock"></i><p>Nenhuma pick de 2ª rodada.</p></div>'; return; }
+    box.innerHTML = picks.map(p => {
+      const resolved = !!p.picked_player_id;
+      let right;
+      if (resolved) {
+        right = `<span class="pun-badge" style="background:rgba(34,197,94,.12);color:#22c55e;border-color:rgba(34,197,94,.3)">Resolvida</span>`;
+      } else if (p.is_own) {
+        right = p.mock_player
+          ? `<span style="font-size:12px;color:var(--text)">${esc(p.mock_player.name)}</span>
+             <button class="btn-ghost" style="padding:3px 9px;font-size:11px" onclick="openRound2MockPicker(${p.draft_order_id}, ${p.pick_position})">Trocar</button>
+             <button class="btn-ghost" style="padding:3px 9px;font-size:11px;color:#ef4444" onclick="cancelRound2Mock(${p.draft_order_id})"><i class="bi bi-x"></i></button>`
+          : `<button class="btn-red" style="padding:6px 14px;font-size:12px" onclick="openRound2MockPicker(${p.draft_order_id}, ${p.pick_position})"><i class="bi bi-send"></i> Deixar mock</button>`;
+      } else {
+        right = p.has_mock
+          ? `<span style="font-size:11px;color:var(--text-3)"><i class="bi bi-check-circle"></i> Mock enviado</span>`
+          : `<span style="font-size:11px;color:var(--text-3)">Sem mock</span>`;
+      }
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border-radius:8px;background:var(--panel-2);margin-bottom:6px;${resolved ? 'opacity:.6' : ''}">
+          <div style="font-size:13px;color:var(--text)">#${p.pick_position} · ${esc(p.team_name)}${p.is_own ? ' <span style="color:var(--red);font-size:11px;font-weight:700">(você)</span>' : ''}</div>
+          <div style="display:flex;align-items:center;gap:6px">${right}</div>
+        </div>`;
+    }).join('');
   }
 
-  function openAddDraftPlayerModal() {
-    if (!currentDraftSession) {
-      alert('Nenhum draft ativo no momento.');
-      return;
-    }
-    const modalEl = document.getElementById('addDraftPlayerModal');
-    if (!modalEl) return;
-    const form = document.getElementById('addDraftPlayerForm');
-    if (form) form.reset();
-    bootstrap.Modal.getOrCreateInstance(modalEl).show();
-  }
-
-  async function submitAddDraftPlayer() {
-    if (!currentDraftSession) return;
-    const form = document.getElementById('addDraftPlayerForm');
-    if (!form) return;
-    const formData = new FormData(form);
-    const payload = {
-      action: 'add_draft_player',
-      draft_session_id: currentDraftSession.id,
-      name: String(formData.get('name') || '').trim(),
-      position: String(formData.get('position') || '').trim().toUpperCase(),
-      age: Number(formData.get('age')),
-      ovr: Number(formData.get('ovr'))
+  function startRound2Countdown(deadlineIso) {
+    clearInterval(round2CountdownInterval);
+    const el = document.getElementById('round2Countdown');
+    if (!el) return;
+    if (!deadlineIso) { el.textContent = ''; return; }
+    const deadlineTs = new Date(String(deadlineIso).replace(' ', 'T')).getTime();
+    const tick = () => {
+      const remaining = Math.floor((deadlineTs - Date.now()) / 1000);
+      if (remaining <= 0) {
+        el.innerHTML = '⏱ Prazo esgotado — resolvendo…';
+        el.style.color = 'var(--text-3)';
+        clearInterval(round2CountdownInterval);
+        return;
+      }
+      const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+      const s = String(remaining % 60).padStart(2, '0');
+      el.innerHTML = `⏱ Resolve em ${m}:${s}`;
+      el.style.color = remaining < 120 ? '#ef4444' : 'var(--amber)';
     };
-    if (!payload.name || !payload.position || !payload.age || !payload.ovr) { alert('Preencha todos os campos.'); return; }
+    tick();
+    round2CountdownInterval = setInterval(tick, 1000);
+  }
+
+  function openRound2MockPicker(draftOrderId, pickPosition) {
+    if (!currentDraftSession) return;
+    round2MockDraftOrderId = draftOrderId;
+    const label = document.getElementById('round2MockPickLabel');
+    if (label) label.textContent = `Pick #${pickPosition}`;
+    new bootstrap.Modal(document.getElementById('round2MockModal')).show();
+
+    const container = document.getElementById('round2MockPlayers');
+    container.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div>';
+    api(`draft.php?action=available_players&season_id=${currentDraftSession.season_id}`).then(data => {
+      round2MockPlayersList = data.players || [];
+      renderRound2MockPlayers(round2MockPlayersList);
+      const searchInput = document.getElementById('round2MockSearch');
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.oninput = e => {
+          const q = e.target.value.toLowerCase();
+          renderRound2MockPlayers(round2MockPlayersList.filter(p => p.name.toLowerCase().includes(q) || p.position.toLowerCase().includes(q)));
+        };
+      }
+    }).catch(e => {
+      container.innerHTML = `<div class="state-empty" style="grid-column:1/-1;color:#ef4444"><p>Erro: ${e.error || 'Desconhecido'}</p></div>`;
+    });
+  }
+
+  function renderRound2MockPlayers(players) {
+    const container = document.getElementById('round2MockPlayers');
+    if (!container) return;
+    if (!players.length) { container.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-person-x"></i><p>Nenhum jogador encontrado</p></div>'; return; }
+    container.innerHTML = players.map(p => `
+      <div class="player-chip" style="cursor:pointer" onclick="chooseRound2Mock(${p.id})">
+        <div class="player-chip-name">${esc(p.name)}</div>
+        <div><span class="player-chip-pos">${esc(p.position)}</span> <span class="player-chip-ovr">OVR ${p.ovr}</span></div>
+        <div class="player-chip-age">${p.age} anos</div>
+      </div>
+    `).join('');
+  }
+
+  async function chooseRound2Mock(playerId) {
+    if (!round2MockDraftOrderId) return;
     try {
-      const result = await api('draft.php', { method: 'POST', body: JSON.stringify(payload) });
-      alert(result.message || 'Jogador adicionado!');
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('addDraftPlayerModal')).hide();
-      refreshRound2Players();
-    } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
+      await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'submit_round2_mock', draft_order_id: round2MockDraftOrderId, player_id: playerId }) });
+      bootstrap.Modal.getInstance(document.getElementById('round2MockModal'))?.hide();
+      await loadRound2Board();
+    } catch (e) { alert('Erro: ' + (e.error || e.message || 'Desconhecido')); }
+  }
+
+  async function cancelRound2Mock(draftOrderId) {
+    if (!confirm('Remover o mock dessa pick?')) return;
+    try {
+      await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'cancel_round2_mock', draft_order_id: draftOrderId }) });
+      await loadRound2Board();
+    } catch (e) { alert('Erro: ' + (e.error || e.message || 'Desconhecido')); }
   }
 
   async function finalizeDraft() {

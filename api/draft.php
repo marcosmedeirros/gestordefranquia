@@ -24,6 +24,20 @@ $pdo = db();
 ensurePlayerRestrictionColumns($pdo);
 try { $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN current_pick_started_at DATETIME NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE draft_pool ADD COLUMN pick_hint INT NULL"); } catch (Exception $e) {}
+// 2ª rodada: mock por pick (substitui o antigo sistema de "ofertas" draft_round2_offers,
+// que nunca era resolvido de verdade — ver ensureRound2DeadlineSet/resolveRound2MocksIfDue).
+try { $pdo->exec("ALTER TABLE draft_sessions ADD COLUMN round2_mock_deadline DATETIME NULL"); } catch (Exception $e) {}
+$pdo->exec("CREATE TABLE IF NOT EXISTS draft_round2_mocks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    draft_order_id INT NOT NULL,
+    team_id INT NOT NULL,
+    player_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_r2mock_pick (draft_order_id),
+    FOREIGN KEY (draft_order_id) REFERENCES draft_order(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY (player_id) REFERENCES draft_pool(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 $method = $_SERVER['REQUEST_METHOD'];
 
 // Buscar time do usuário
@@ -67,6 +81,96 @@ function notifyNextPick(PDO $pdo, int $teamId, int $round, int $pickPosition): v
         'url'        => '/drafts.php',
         'primaryKey' => 'draft_pick_' . $teamId . '_' . $round . '_' . $pickPosition,
     ]);
+}
+
+// Na primeira vez que a sessão chega na rodada 2, liga o relógio de 20min (idempotente —
+// só seta se ainda for NULL). Sem cron nesse projeto: essa função é chamada oportunisticamente
+// no topo das ações de round2, igual o padrão já usado em resolverLeiloesExpirados (api/leilao.php).
+function ensureRound2DeadlineSet(PDO $pdo, int $draftSessionId): void {
+    $stmt = $pdo->prepare('SELECT current_round, round2_mock_deadline FROM draft_sessions WHERE id = ? AND status = "in_progress"');
+    $stmt->execute([$draftSessionId]);
+    $session = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($session && (int)$session['current_round'] === 2 && empty($session['round2_mock_deadline'])) {
+        $pdo->prepare('UPDATE draft_sessions SET round2_mock_deadline = DATE_ADD(NOW(), INTERVAL 20 MINUTE) WHERE id = ?')
+            ->execute([$draftSessionId]);
+    }
+}
+
+// Resolve os mocks da rodada 2 quando o prazo vence (ou na hora, se $force — botão "Resolver
+// agora" do admin). Processa as picks em ordem de pick_position: quem tem a pick mais alta e
+// mandou mock leva o jogador, se ele ainda estiver disponível (não levado por uma pick anterior
+// nessa mesma passada). Pick sem mock, ou cujo jogador já foi levado, fica em aberto — o admin
+// preenche depois pelo "Preencher pick passada", igual já é feito hoje. No final, o draft é
+// marcado concluído (rodada 2 é sempre a última).
+function resolveRound2MocksIfDue(PDO $pdo, int $draftSessionId, bool $force = false): void {
+    $stmt = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ? AND status = "in_progress"');
+    $stmt->execute([$draftSessionId]);
+    $session = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$session || (int)$session['current_round'] !== 2) return;
+    if (!$force) {
+        if (empty($session['round2_mock_deadline'])) return;
+        if (strtotime($session['round2_mock_deadline']) > time()) return;
+    }
+
+    $stmtSeasonNum = $pdo->prepare('SELECT season_number FROM seasons WHERE id = ?');
+    $stmtSeasonNum->execute([$session['season_id']]);
+    $draftSeasonNumber = (int)($stmtSeasonNum->fetchColumn() ?: 1);
+
+    $stmtRoundSize = $pdo->prepare('SELECT COUNT(*) FROM draft_order WHERE draft_session_id = ? AND round = 2');
+    $stmtRoundSize->execute([$draftSessionId]);
+    $roundSize = (int)$stmtRoundSize->fetchColumn();
+
+    $stmtPicks = $pdo->prepare('SELECT * FROM draft_order WHERE draft_session_id = ? AND round = 2 AND picked_player_id IS NULL ORDER BY pick_position ASC');
+    $stmtPicks->execute([$draftSessionId]);
+    $picks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
+
+    $stmtMocks = $pdo->prepare('SELECT draft_order_id, player_id FROM draft_round2_mocks WHERE draft_order_id IN (SELECT id FROM draft_order WHERE draft_session_id = ? AND round = 2 AND picked_player_id IS NULL)');
+    $stmtMocks->execute([$draftSessionId]);
+    $mockByPick = [];
+    foreach ($stmtMocks->fetchAll(PDO::FETCH_ASSOC) as $m) { $mockByPick[(int)$m['draft_order_id']] = (int)$m['player_id']; }
+
+    $pdo->beginTransaction();
+    try {
+        $claimed = [];
+        foreach ($picks as $pick) {
+            $playerId = $mockByPick[(int)$pick['id']] ?? null;
+            if (!$playerId || isset($claimed[$playerId])) continue;
+
+            $stmtPlayer = $pdo->prepare('SELECT * FROM draft_pool WHERE id = ? AND draft_status = "available"');
+            $stmtPlayer->execute([$playerId]);
+            $player = $stmtPlayer->fetch(PDO::FETCH_ASSOC);
+            if (!$player) continue;
+
+            $targetTeamId = (int)$pick['team_id'];
+            $pickNumber = (($pick['round'] - 1) * $roundSize) + $pick['pick_position'];
+
+            $pdo->prepare('UPDATE draft_order SET picked_player_id = ?, picked_at = NOW() WHERE id = ?')
+                ->execute([$playerId, (int)$pick['id']]);
+            $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
+                ->execute([$targetTeamId, $pickNumber, $playerId]);
+
+            $playerName = trim((string)($player['name'] ?? ''));
+            $stmtExisting = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
+            $stmtExisting->execute([$targetTeamId, $playerName]);
+            if (!$stmtExisting->fetchColumn()) {
+                try {
+                    $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, drafted_season_number, draft_round, draft_pick_position, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
+                        ->execute([$targetTeamId, $targetTeamId, $draftSeasonNumber, (int)$pick['round'], (int)$pick['pick_position'], $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
+                } catch (Exception $e) {
+                    if (!str_contains($e->getMessage(), 'unique_player_per_team')) throw $e;
+                }
+            }
+
+            $claimed[$playerId] = true;
+        }
+
+        $pdo->prepare('UPDATE draft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
+            ->execute([$draftSessionId]);
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        error_log('resolveRound2MocksIfDue: ' . $e->getMessage());
+    }
 }
 
 // ========== GET ==========
@@ -359,43 +463,58 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'players' => $players]);
             break;
 
-        // Ofertas da 2ª rodada: admin vê todas (pra resolver disputas), time vê só as próprias
-        case 'round2_offers':
+        // Board da 2ª rodada: todas as picks (round=2) da sessão, ordenadas por pick_position.
+        // Cada time só vê o jogador do PRÓPRIO mock (has_mock indica se tem, sem revelar quem,
+        // pras picks dos outros times); admin vê o mock de todo mundo. Resolve sozinho (lazy,
+        // sem cron) se o prazo de 20min já passou.
+        case 'round2_board':
             $draftSessionId = $_GET['draft_session_id'] ?? null;
             if (!$draftSessionId) {
                 echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']);
                 exit;
             }
-            $sql = "SELECT o.*, t.city AS team_city, t.name AS team_name,
-                           dp.name AS player_name, dp.position AS player_position, dp.ovr AS player_ovr
-                    FROM draft_round2_offers o
-                    INNER JOIN teams t ON o.team_id = t.id
-                    INNER JOIN draft_pool dp ON o.player_id = dp.id
-                    WHERE o.draft_session_id = ?";
-            $params = [(int)$draftSessionId];
-            if (!$isAdmin) {
-                if (!$team) {
-                    echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
-                    exit;
-                }
-                $sql .= " AND o.team_id = ?";
-                $params[] = (int)$team['id'];
-            }
-            $sql .= " ORDER BY o.player_id ASC, o.claimed_pick ASC, o.created_at ASC";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
-            echo json_encode(['success' => true, 'offers' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
-            break;
+            ensureRound2DeadlineSet($pdo, (int)$draftSessionId);
+            resolveRound2MocksIfDue($pdo, (int)$draftSessionId);
 
-        // Picks de 2ª rodada que o app registra pro time do usuário (referência, não obrigatório)
-        case 'team_round2_picks':
-            if (!$team) {
-                echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
-                exit;
-            }
-            $stmt = $pdo->prepare("SELECT id, season_year FROM picks WHERE team_id = ? AND round = '2' ORDER BY season_year ASC");
-            $stmt->execute([(int)$team['id']]);
-            echo json_encode(['success' => true, 'picks' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+            $stmtDeadline = $pdo->prepare('SELECT round2_mock_deadline FROM draft_sessions WHERE id = ?');
+            $stmtDeadline->execute([(int)$draftSessionId]);
+            $deadline = $stmtDeadline->fetchColumn();
+
+            $stmt = $pdo->prepare(
+                "SELECT o.id AS draft_order_id, o.team_id, o.pick_position, o.picked_player_id,
+                        t.city AS team_city, t.name AS team_name,
+                        m.player_id AS mock_player_id, dp.name AS mock_player_name,
+                        dp.position AS mock_player_position, dp.ovr AS mock_player_ovr
+                 FROM draft_order o
+                 INNER JOIN teams t ON o.team_id = t.id
+                 LEFT JOIN draft_round2_mocks m ON m.draft_order_id = o.id
+                 LEFT JOIN draft_pool dp ON dp.id = m.player_id
+                 WHERE o.draft_session_id = ? AND o.round = 2
+                 ORDER BY o.pick_position ASC"
+            );
+            $stmt->execute([(int)$draftSessionId]);
+            $myTeamId = $team['id'] ?? null;
+            $picks = array_map(function ($r) use ($isAdmin, $myTeamId) {
+                $isOwn = $myTeamId && (int)$r['team_id'] === (int)$myTeamId;
+                $canSeeMock = $isAdmin || $isOwn;
+                return [
+                    'draft_order_id' => (int)$r['draft_order_id'],
+                    'team_id' => (int)$r['team_id'],
+                    'team_name' => trim($r['team_city'] . ' ' . $r['team_name']),
+                    'pick_position' => (int)$r['pick_position'],
+                    'picked_player_id' => $r['picked_player_id'] !== null ? (int)$r['picked_player_id'] : null,
+                    'is_own' => (bool)$isOwn,
+                    'has_mock' => $r['mock_player_id'] !== null,
+                    'mock_player' => ($canSeeMock && $r['mock_player_id'] !== null) ? [
+                        'id' => (int)$r['mock_player_id'],
+                        'name' => $r['mock_player_name'],
+                        'position' => $r['mock_player_position'],
+                        'ovr' => (int)$r['mock_player_ovr'],
+                    ] : null,
+                ];
+            }, $stmt->fetchAll(PDO::FETCH_ASSOC));
+
+            echo json_encode(['success' => true, 'picks' => $picks, 'round2_mock_deadline' => $deadline]);
             break;
 
         default:
@@ -1447,170 +1566,75 @@ if ($method === 'POST') {
             }
             break;
 
-        // 2ª rodada: time envia oferta por um jogador informando a pick que possui (segundo o 2K, não valida contra a tabela picks)
-        case 'submit_round2_offer':
-            if (!$team) {
-                echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
-                exit;
-            }
-            $draftSessionId = $data['draft_session_id'] ?? null;
+        // 2ª rodada: dono da pick (ou admin, pra qualquer pick) deixa/troca o mock dela —
+        // upsert, só pode setar em pick ainda não resolvida.
+        case 'submit_round2_mock':
+            $draftOrderId = $data['draft_order_id'] ?? null;
             $playerId = $data['player_id'] ?? null;
-            $claimedPick = isset($data['claimed_pick']) ? (int)$data['claimed_pick'] : 0;
-            if (!$draftSessionId || !$playerId || $claimedPick < 1) {
+            if (!$draftOrderId || !$playerId) {
                 echo json_encode(['success' => false, 'error' => 'Dados incompletos']);
                 exit;
             }
-
-            $stmtSession = $pdo->prepare('SELECT id FROM draft_sessions WHERE id = ? AND status = "in_progress"');
-            $stmtSession->execute([(int)$draftSessionId]);
-            if (!$stmtSession->fetch()) {
-                echo json_encode(['success' => false, 'error' => 'Draft não está em andamento']);
+            $stmtPick = $pdo->prepare('SELECT * FROM draft_order WHERE id = ? AND round = 2 AND picked_player_id IS NULL');
+            $stmtPick->execute([(int)$draftOrderId]);
+            $pick = $stmtPick->fetch(PDO::FETCH_ASSOC);
+            if (!$pick) {
+                echo json_encode(['success' => false, 'error' => 'Pick não encontrada ou já resolvida']);
                 exit;
             }
-
+            if (!$isAdmin && (!$team || (int)$pick['team_id'] !== (int)$team['id'])) {
+                echo json_encode(['success' => false, 'error' => 'Essa pick não é sua']);
+                exit;
+            }
             $stmtPlayer = $pdo->prepare('SELECT id FROM draft_pool WHERE id = ? AND draft_status = "available"');
             $stmtPlayer->execute([(int)$playerId]);
             if (!$stmtPlayer->fetch()) {
                 echo json_encode(['success' => false, 'error' => 'Jogador não disponível']);
                 exit;
             }
-
-            $stmtDup = $pdo->prepare("SELECT id FROM draft_round2_offers WHERE draft_session_id = ? AND team_id = ? AND player_id = ? AND status = 'pending'");
-            $stmtDup->execute([(int)$draftSessionId, (int)$team['id'], (int)$playerId]);
-            if ($stmtDup->fetch()) {
-                echo json_encode(['success' => false, 'error' => 'Você já enviou uma oferta para esse jogador']);
-                exit;
-            }
-
-            $pdo->prepare('INSERT INTO draft_round2_offers (draft_session_id, team_id, player_id, claimed_pick) VALUES (?, ?, ?, ?)')
-                ->execute([(int)$draftSessionId, (int)$team['id'], (int)$playerId, $claimedPick]);
-
-            echo json_encode(['success' => true, 'message' => 'Oferta enviada! Aguarde a confirmação do admin.']);
+            $pdo->prepare(
+                'INSERT INTO draft_round2_mocks (draft_order_id, team_id, player_id) VALUES (?, ?, ?)
+                 ON DUPLICATE KEY UPDATE player_id = VALUES(player_id), created_at = NOW()'
+            )->execute([(int)$draftOrderId, (int)$pick['team_id'], (int)$playerId]);
+            echo json_encode(['success' => true, 'message' => 'Mock salvo!']);
             break;
 
-        // 2ª rodada: time cancela uma oferta própria ainda pendente
-        case 'cancel_round2_offer':
-            if (!$team) {
-                echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+        // 2ª rodada: dono da pick (ou admin) remove o mock dela
+        case 'cancel_round2_mock':
+            $draftOrderId = $data['draft_order_id'] ?? null;
+            if (!$draftOrderId) {
+                echo json_encode(['success' => false, 'error' => 'draft_order_id obrigatório']);
                 exit;
             }
-            $offerId = $data['offer_id'] ?? null;
-            if (!$offerId) {
-                echo json_encode(['success' => false, 'error' => 'offer_id obrigatório']);
+            $stmtPick = $pdo->prepare('SELECT team_id FROM draft_order WHERE id = ? AND round = 2');
+            $stmtPick->execute([(int)$draftOrderId]);
+            $ownerTeamId = $stmtPick->fetchColumn();
+            if (!$ownerTeamId) {
+                echo json_encode(['success' => false, 'error' => 'Pick não encontrada']);
                 exit;
             }
-            $pdo->prepare("DELETE FROM draft_round2_offers WHERE id = ? AND team_id = ? AND status = 'pending'")
-                ->execute([(int)$offerId, (int)$team['id']]);
-            echo json_encode(['success' => true, 'message' => 'Oferta cancelada']);
+            if (!$isAdmin && (!$team || (int)$ownerTeamId !== (int)$team['id'])) {
+                echo json_encode(['success' => false, 'error' => 'Essa pick não é sua']);
+                exit;
+            }
+            $pdo->prepare('DELETE FROM draft_round2_mocks WHERE draft_order_id = ?')->execute([(int)$draftOrderId]);
+            echo json_encode(['success' => true, 'message' => 'Mock removido']);
             break;
 
-        // ADMIN: confirma a oferta vencedora (melhor pick) de um jogador da 2ª rodada.
-        // Marca as demais ofertas pendentes pro mesmo jogador como perdidas.
-        case 'resolve_round2_offer':
+        // ADMIN: força a resolução da rodada 2 agora, sem esperar os 20min do relógio
+        case 'resolve_round2_now':
             if (!$isAdmin) {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
                 exit;
             }
-            $offerId = $data['offer_id'] ?? null;
-            if (!$offerId) {
-                echo json_encode(['success' => false, 'error' => 'offer_id obrigatório']);
+            $draftSessionId = $data['draft_session_id'] ?? null;
+            if (!$draftSessionId) {
+                echo json_encode(['success' => false, 'error' => 'draft_session_id obrigatório']);
                 exit;
             }
-
-            $stmtOffer = $pdo->prepare("SELECT * FROM draft_round2_offers WHERE id = ? AND status = 'pending'");
-            $stmtOffer->execute([(int)$offerId]);
-            $offer = $stmtOffer->fetch();
-            if (!$offer) {
-                echo json_encode(['success' => false, 'error' => 'Oferta não encontrada ou já resolvida']);
-                exit;
-            }
-
-            $draftSessionId = (int)$offer['draft_session_id'];
-            $targetTeamId = (int)$offer['team_id'];
-            $playerId = (int)$offer['player_id'];
-
-            $stmtSession = $pdo->prepare('SELECT * FROM draft_sessions WHERE id = ? AND status = "in_progress"');
-            $stmtSession->execute([$draftSessionId]);
-            $session = $stmtSession->fetch();
-            if (!$session) {
-                echo json_encode(['success' => false, 'error' => 'Draft não está em andamento']);
-                exit;
-            }
-
-            $stmtPlayer = $pdo->prepare('SELECT * FROM draft_pool WHERE id = ? AND draft_status = "available"');
-            $stmtPlayer->execute([$playerId]);
-            $player = $stmtPlayer->fetch();
-            if (!$player) {
-                echo json_encode(['success' => false, 'error' => 'Jogador não está mais disponível']);
-                exit;
-            }
-
-            $stmtSeasonNum = $pdo->prepare('SELECT season_number FROM seasons WHERE id = ?');
-            $stmtSeasonNum->execute([$session['season_id']]);
-            $draftSeasonNumber = (int)($stmtSeasonNum->fetchColumn() ?: 1);
-
-            try {
-                $duplicateRoster = false;
-                $pdo->beginTransaction();
-
-                // Preenche uma pick pendente de rodada 2 do time no draft_order, se existir.
-                // Se o time já preencheu todas as que tinha (ex.: ganhou mais ofertas do que
-                // picks formais registradas), cria uma pick extra só pra manter o histórico coerente.
-                $stmtOrderRow = $pdo->prepare('SELECT id FROM draft_order WHERE draft_session_id = ? AND round = 2 AND team_id = ? AND picked_player_id IS NULL ORDER BY pick_position ASC LIMIT 1');
-                $stmtOrderRow->execute([$draftSessionId, $targetTeamId]);
-                $orderRowId = $stmtOrderRow->fetchColumn();
-
-                if (!$orderRowId) {
-                    $stmtMaxPos = $pdo->prepare('SELECT COALESCE(MAX(pick_position), 0) FROM draft_order WHERE draft_session_id = ? AND round = 2');
-                    $stmtMaxPos->execute([$draftSessionId]);
-                    $newPos = (int)$stmtMaxPos->fetchColumn() + 1;
-                    $pdo->prepare('INSERT INTO draft_order (draft_session_id, team_id, original_team_id, pick_position, round) VALUES (?, ?, ?, ?, 2)')
-                        ->execute([$draftSessionId, $targetTeamId, $targetTeamId, $newPos]);
-                    $orderRowId = (int)$pdo->lastInsertId();
-                }
-
-                $pdo->prepare('UPDATE draft_order SET picked_player_id = ?, picked_at = NOW() WHERE id = ?')
-                    ->execute([$playerId, (int)$orderRowId]);
-
-                $pdo->prepare('UPDATE draft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
-                    ->execute([$targetTeamId, (int)$offer['claimed_pick'], $playerId]);
-
-                $playerName = trim((string)($player['name'] ?? ''));
-                $stmtExisting = $pdo->prepare('SELECT id FROM players WHERE team_id = ? AND name = ? LIMIT 1');
-                $stmtExisting->execute([$targetTeamId, $playerName]);
-                $existingPlayerId = $stmtExisting->fetchColumn();
-
-                if ($existingPlayerId) {
-                    $duplicateRoster = true;
-                } else {
-                    try {
-                        $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, drafted_season_number, draft_round, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, 2, ?, ?, ?, ?, "Banco", 0)')
-                            ->execute([$targetTeamId, $targetTeamId, $draftSeasonNumber, $playerName, $player['position'], (int)$player['age'], (int)$player['ovr']]);
-                    } catch (Exception $e) {
-                        if (str_contains($e->getMessage(), 'unique_player_per_team')) {
-                            $duplicateRoster = true;
-                        } else {
-                            throw $e;
-                        }
-                    }
-                }
-
-                $pdo->prepare("UPDATE draft_round2_offers SET status = 'won', resolved_at = NOW() WHERE id = ?")
-                    ->execute([(int)$offerId]);
-                $pdo->prepare("UPDATE draft_round2_offers SET status = 'lost', resolved_at = NOW() WHERE player_id = ? AND status = 'pending' AND id != ?")
-                    ->execute([$playerId, (int)$offerId]);
-
-                $pdo->commit();
-
-                $message = $duplicateRoster
-                    ? 'Pick confirmada! Jogador já existia no elenco e não foi duplicado.'
-                    : 'Pick confirmada!';
-                echo json_encode(['success' => true, 'message' => $message, 'player' => $player]);
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => 'Erro ao confirmar pick']);
-            }
+            resolveRound2MocksIfDue($pdo, (int)$draftSessionId, true);
+            echo json_encode(['success' => true, 'message' => 'Rodada 2 resolvida!']);
             break;
 
 // ADMIN: Preencher pick de draft passado/completado

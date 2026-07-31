@@ -5416,11 +5416,13 @@ async function showAdminDraft(league) {
       } catch(e) {}
     }
 
-    let round2Offers = [];
+    let round2Board = [];
+    let round2Deadline = null;
     if (draft && draft.status === 'in_progress' && Number(draft.current_round) === 2) {
       try {
-        const rd = await api(`draft.php?action=round2_offers&draft_session_id=${draft.id}`);
-        round2Offers = rd.offers || [];
+        const rd = await api(`draft.php?action=round2_board&draft_session_id=${draft.id}`);
+        round2Board = rd.picks || [];
+        round2Deadline = rd.round2_mock_deadline || null;
       } catch(e) {}
     }
 
@@ -5617,52 +5619,50 @@ async function showAdminDraft(league) {
       }
     }
 
-    // Ofertas da 2ª rodada (times ofertam, a melhor pick pro jogador ganha, admin confirma)
-    let round2OffersPanel = '';
-    if (round2Offers.length > 0) {
-      const byPlayer = new Map();
-      round2Offers.forEach(o => {
-        if (!byPlayer.has(o.player_id)) byPlayer.set(o.player_id, []);
-        byPlayer.get(o.player_id).push(o);
-      });
-      const groups = [...byPlayer.values()].map(list => {
-        const pending = list.filter(o => o.status === 'pending').sort((a, b) => Number(a.claimed_pick) - Number(b.claimed_pick));
-        const resolved = list.filter(o => o.status !== 'pending');
-        if (!pending.length && !resolved.length) return '';
-        const first = list[0];
-        const rows = [...pending, ...resolved].map((o, i) => {
-          const isBest = o.status === 'pending' && i === 0;
-          const statusMap = { pending: ['#f59e0b', 'Pendente'], won: ['#22c55e', 'Ganhou'], lost: ['#ef4444', 'Perdeu'] };
-          const [sColor, sLabel] = statusMap[o.status] || ['#94a3b8', o.status];
-          return `
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:6px;margin-bottom:4px;${isBest ? 'background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.3)' : 'background:var(--panel-2)'}">
-              <div style="font-size:13px;color:var(--text)">${escapeHtml(o.team_city)} ${escapeHtml(o.team_name)} <span style="color:var(--text-3);font-size:11px">· pick ${escapeHtml(String(o.claimed_pick))}</span></div>
-              <div style="display:flex;align-items:center;gap:6px">
-                <span class="pun-badge" style="background:${sColor}20;color:${sColor};border-color:${sColor}40">${sLabel}</span>
-                ${isBest ? `<button class="btn-ghost" style="padding:3px 9px;font-size:11px;color:#22c55e" onclick="_adminResolveRound2Offer(${o.id}, '${league}')"><i class="bi bi-check2-circle me-1"></i>OK</button>` : ''}
-              </div>
-            </div>`;
-        }).join('');
+    // Board da 2ª rodada: cada pick com o mock que o time deixou (admin vê todos); resolve
+    // sozinho (lazy) quando o relógio de 20min vence, ou na hora via "Resolver agora".
+    let round2BoardPanel = '';
+    if (round2Board.length > 0) {
+      const pendentes = round2Board.filter(p => !p.picked_player_id);
+      const playerOptions = availablePlayers.map(pl => `<option value="${pl.id}">${escapeHtml(pl.name)} (${escapeHtml(pl.position)}) - OVR ${pl.ovr}</option>`).join('');
+      const rows = round2Board.map(p => {
+        const resolved = !!p.picked_player_id;
+        const mockLabel = p.mock_player
+          ? `${escapeHtml(p.mock_player.name)} <span style="color:var(--text-3);font-size:11px">(${escapeHtml(p.mock_player.position || '')} · OVR ${p.mock_player.ovr})</span>`
+          : '<span style="color:var(--text-3)">sem mock</span>';
         return `
-          <div style="margin-bottom:12px">
-            <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px">${escapeHtml(first.player_name)} <span style="font-size:11px;font-weight:400;color:var(--text-3)">${escapeHtml(first.player_position || '')} · OVR ${first.player_ovr || '-'}</span></div>
-            ${rows}
+          <div style="padding:6px 8px;border-radius:6px;margin-bottom:4px;${resolved ? 'opacity:.55' : ''};background:var(--panel-2)">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <div style="font-size:13px;color:var(--text)">#${p.pick_position} · ${escapeHtml(p.team_name)}</div>
+              <div style="font-size:13px;color:var(--text)">${resolved ? '<span class="pun-badge" style="background:#22c55e20;color:#22c55e;border-color:#22c55e40">Resolvida</span>' : mockLabel}</div>
+            </div>
+            ${!resolved ? `
+              <div style="display:flex;gap:6px;margin-top:6px">
+                <select class="form-select form-select-sm" id="_r2AdminMockSelect_${p.draft_order_id}" style="font-size:11px;flex:1">
+                  <option value="">Definir/trocar mock…</option>
+                  ${playerOptions}
+                </select>
+                <button class="btn-ghost" style="padding:3px 9px;font-size:11px" onclick="_adminSetRound2Mock(${p.draft_order_id}, '${league}')"><i class="bi bi-check2"></i></button>
+              </div>` : ''}
           </div>`;
       }).join('');
 
-      round2OffersPanel = `
+      round2BoardPanel = `
         <div class="panel mb-3">
           <div class="panel-header">
-            <div class="panel-title"><i class="bi bi-inboxes-fill" style="color:#a855f7"></i> Ofertas — 2ª Rodada</div>
-            <span style="font-size:11px;color:var(--text-3)">${round2Offers.filter(o => o.status === 'pending').length} pendente(s)</span>
+            <div class="panel-title"><i class="bi bi-inboxes-fill" style="color:#a855f7"></i> 2ª Rodada — Mocks</div>
+            <span style="font-size:11px;color:var(--text-3)">${pendentes.length} pendente(s)${round2Deadline ? ` · relógio até ${escapeHtml(round2Deadline)}` : ''}</span>
           </div>
-          <div style="padding:12px 16px">${groups || '<p style="color:var(--text-3);font-size:13px;text-align:center;padding:12px">Sem ofertas pendentes.</p>'}</div>
+          <div style="padding:12px 16px">
+            ${rows}
+            ${pendentes.length ? `<button class="btn-ghost" style="margin-top:8px;color:#ef4444" onclick="_adminResolveRound2Now(${draft.id}, '${league}')"><i class="bi bi-lightning-fill me-1"></i>Resolver agora</button>` : ''}
+          </div>
         </div>`;
     }
 
     container.innerHTML = `
       <div class="mb-4">${back}</div>
-      ${round2OffersPanel}
+      ${round2BoardPanel}
       ${sessionPanel}
       ${orderPanel}
       ${playersPanel}`;
@@ -5796,14 +5796,27 @@ async function _adminDraftStart(draftSessionId, league) {
   }
 }
 
-async function _adminResolveRound2Offer(offerId, league) {
-  if (!confirm('Confirmar essa pick? O jogador vai pro elenco do time e as outras ofertas pendentes pra ele serão marcadas como perdidas.')) return;
+async function _adminSetRound2Mock(draftOrderId, league) {
+  const sel = document.getElementById(`_r2AdminMockSelect_${draftOrderId}`);
+  const playerId = sel?.value;
+  if (!playerId) { showAlert('warning', 'Selecione um jogador'); return; }
   try {
-    const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'resolve_round2_offer', offer_id: offerId }) });
-    showAlert('success', result.message || 'Pick confirmada!');
+    const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'submit_round2_mock', draft_order_id: draftOrderId, player_id: parseInt(playerId, 10) }) });
+    showAlert('success', result.message || 'Mock definido!');
     showAdminDraft(league);
   } catch(e) {
-    showAlert('danger', e.error || 'Erro ao confirmar pick');
+    showAlert('danger', e.error || 'Erro ao definir mock');
+  }
+}
+
+async function _adminResolveRound2Now(draftSessionId, league) {
+  if (!confirm('Resolver a 2ª rodada agora? Cada pick com mock leva o jogador (se ainda disponível); quem não tem mock fica em aberto. O draft é marcado concluído.')) return;
+  try {
+    const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'resolve_round2_now', draft_session_id: draftSessionId }) });
+    showAlert('success', result.message || 'Rodada 2 resolvida!');
+    showAdminDraft(league);
+  } catch(e) {
+    showAlert('danger', e.error || 'Erro ao resolver a rodada 2');
   }
 }
 
