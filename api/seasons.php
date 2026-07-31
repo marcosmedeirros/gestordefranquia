@@ -2046,20 +2046,25 @@ try {
             $nextSprintNumber = $finishedSprintNumber + 1;
             $newSeasonId = null;
 
+            // congelarRankingDaSprint() e snapshotPlayersForSeason() fazem CREATE TABLE IF NOT
+            // EXISTS (ranking_snapshots / player_season_log) — DDL sempre causa commit implícito
+            // no MySQL/InnoDB, mesmo quando a tabela já existe e o CREATE não muda nada (mesma
+            // razão pela qual save_history, mais acima neste arquivo, já chama snapshotPlayers-
+            // ForSeason fora de qualquer transação). As duas rodam ANTES da transação — e antes
+            // do DELETE FROM players — porque snapshotam o estado atual (elenco/ranking) que a
+            // transação abaixo vai apagar/zerar.
+            snapshotPlayersForSeason($pdo, $seasonId, $league);
+            congelarRankingDaSprint($pdo, $league, 'Fim da sprint');
+
             $pdo->beginTransaction();
             try {
                 // 1. Fecha a última temporada do sprint (mesmo passo que advance_season já faz)
                 $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$seasonId]);
-                snapshotPlayersForSeason($pdo, $seasonId, $league);
 
-                // 2. Congela a classificação final da sprint (campeão/pontos/títulos) ANTES de zerar —
-                // fica salva em ranking_snapshots pra consulta depois.
-                congelarRankingDaSprint($pdo, $league, 'Fim da sprint');
-
-                // 3. Fecha o sprint
+                // 2. Fecha o sprint
                 $pdo->prepare("UPDATE sprints SET status = 'completed', end_date = CURDATE() WHERE id = ?")->execute([$sprintId]);
 
-                // 4. Zera o estado "vivo" da liga pro novo ciclo. NÃO apaga seasons/sprints
+                // 3. Zera o estado "vivo" da liga pro novo ciclo. NÃO apaga seasons/sprints
                 // antigos nem season_history/playoff_results/season_awards/team_ranking_points/
                 // ranking_snapshots/player_season_log — tudo isso fica como histórico consultável.
                 $pdo->prepare("DELETE p FROM players p INNER JOIN teams t ON p.team_id = t.id WHERE t.league = ?")
@@ -2097,21 +2102,34 @@ try {
                 }
                 $pdo->prepare('UPDATE teams SET ' . implode(', ', $teamUpdates) . ' WHERE league = ?')->execute([$league]);
 
-                // 5. Cria o novo sprint (sprint_number seguinte) e a temporada 1 dele.
+                // 4. Cria o novo sprint (sprint_number seguinte) e a temporada 1 dele.
                 // O ano continua de onde a sprint anterior parou (não é o ano civil real
                 // — a liga já pode estar em qualquer ano fictício, ex. 2044) — evita
                 // colidir com o UNIQUE (year, league) de temporadas antigas preservadas.
+                // Idempotente por (league, sprint_number)/(sprint_id, season_number): se uma
+                // tentativa anterior já tiver criado o sprint/temporada novos (ex. falhou
+                // depois disso), reaproveita em vez de tentar inserir de novo e colidir.
                 $newStartYear = (int)$finSeason['year'] + 1;
-                $pdo->prepare("INSERT INTO sprints (league, sprint_number, start_year, start_date) VALUES (?, ?, ?, CURDATE())")
-                    ->execute([$league, $nextSprintNumber, $newStartYear]);
-                $newSprintId = (int)$pdo->lastInsertId();
+                $stmtExistingSprint = $pdo->prepare("SELECT id FROM sprints WHERE league = ? AND sprint_number = ?");
+                $stmtExistingSprint->execute([$league, $nextSprintNumber]);
+                $newSprintId = (int)($stmtExistingSprint->fetchColumn() ?: 0);
+                if (!$newSprintId) {
+                    $pdo->prepare("INSERT INTO sprints (league, sprint_number, start_year, start_date) VALUES (?, ?, ?, CURDATE())")
+                        ->execute([$league, $nextSprintNumber, $newStartYear]);
+                    $newSprintId = (int)$pdo->lastInsertId();
+                }
 
                 $newSeasonNumber = 1;
                 $newYear = calculateSeasonYear($newStartYear, $newSeasonNumber);
-                $pdo->prepare("INSERT INTO seasons (sprint_id, league, season_number, year, start_date, status, current_phase)
-                               VALUES (?, ?, ?, ?, CURDATE(), 'draft', 'draft')")
-                    ->execute([$newSprintId, $league, $newSeasonNumber, $newYear]);
-                $newSeasonId = (int)$pdo->lastInsertId();
+                $stmtExistingSeason = $pdo->prepare("SELECT id FROM seasons WHERE sprint_id = ? AND season_number = ?");
+                $stmtExistingSeason->execute([$newSprintId, $newSeasonNumber]);
+                $newSeasonId = (int)($stmtExistingSeason->fetchColumn() ?: 0);
+                if (!$newSeasonId) {
+                    $pdo->prepare("INSERT INTO seasons (sprint_id, league, season_number, year, start_date, status, current_phase)
+                                   VALUES (?, ?, ?, ?, CURDATE(), 'draft', 'draft')")
+                        ->execute([$newSprintId, $league, $newSeasonNumber, $newYear]);
+                    $newSeasonId = (int)$pdo->lastInsertId();
+                }
 
                 $teams = fetchLeagueTeams($pdo, $league);
                 if (!empty($teams)) {
