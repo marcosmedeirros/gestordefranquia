@@ -261,6 +261,11 @@ function openGestaoEdit(userId) {
   if (!u) return;
 
   const allLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
+  const teamNameField = u.team_id ? `
+    <div class="mb-3">
+      <label class="form-label text-light-gray">Nome do Time</label>
+      <input type="text" id="gedit-team-name" class="form-control" value="${escapeHtml(u.team_name || '')}">
+    </div>` : '';
   const teamLeagueField = u.team_id ? `
     <div class="mb-3">
       <label class="form-label text-light-gray">Liga do Time</label>
@@ -319,6 +324,7 @@ function openGestaoEdit(userId) {
                 </div>
               </div>
             </div>
+            ${teamNameField}
             ${teamLeagueField}
             ${window.IS_GLOBAL_ADMIN ? `
             <div class="mb-3">
@@ -367,13 +373,15 @@ async function saveGestaoUser() {
   const name     = document.getElementById('gedit-name').value.trim();
   const email    = document.getElementById('gedit-email').value.trim();
   const teamPhoto = document.getElementById('gedit-team-photo').value.trim();
+  const teamNameEl = document.getElementById('gedit-team-name');
+  const teamName = teamNameEl ? teamNameEl.value.trim() : '';
   const teamLeagueEl = document.getElementById('gedit-team-league');
   const teamLeague = teamLeagueEl ? teamLeagueEl.value : '';
 
   try {
     await api('admin.php?action=update_user', {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId, team_id: teamId, name, email, team_photo: teamPhoto, team_league: teamLeague })
+      body: JSON.stringify({ user_id: userId, team_id: teamId, name, email, team_photo: teamPhoto, team_name: teamName, team_league: teamLeague })
     });
 
     if (window.IS_GLOBAL_ADMIN) {
