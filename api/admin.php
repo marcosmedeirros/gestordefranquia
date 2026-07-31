@@ -714,6 +714,9 @@ if ($method === 'GET') {
                 INDEX idx_dctp_tpl (template_id),
                 CONSTRAINT fk_dctp_tpl FOREIGN KEY (template_id) REFERENCES draft_class_templates(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            // Tabela já existia sem essa coluna em produção — CREATE TABLE IF NOT EXISTS não adiciona
+            // coluna em tabela já criada, precisa do ALTER (mesmo padrão do pick_hint em draft_pool).
+            try { $pdo->exec("ALTER TABLE draft_class_template_players ADD COLUMN pick_hint INT NULL"); } catch (Exception $e) {}
 
             if ($method === 'GET') {
                 $subAction = $_GET['sub'] ?? 'list';
@@ -725,7 +728,7 @@ if ($method === 'GET') {
                 } elseif ($subAction === 'players') {
                     $tplId = (int)($_GET['template_id'] ?? 0);
                     if (!$tplId) { echo json_encode(['success' => false, 'error' => 'template_id obrigatório']); break; }
-                    $stmt = $pdo->prepare("SELECT id, name, position, ovr, age FROM draft_class_template_players WHERE template_id=? ORDER BY ovr DESC");
+                    $stmt = $pdo->prepare("SELECT id, name, position, ovr, age, pick_hint FROM draft_class_template_players WHERE template_id=? ORDER BY COALESCE(pick_hint, 999999) ASC, ovr DESC");
                     $stmt->execute([$tplId]);
                     echo json_encode(['success' => true, 'players' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
                 }
@@ -1659,8 +1662,15 @@ if ($method === 'POST') {
         case 'draft_class_bank':
             $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_templates (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(120) NOT NULL, created_by INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_template_players (id INT AUTO_INCREMENT PRIMARY KEY, template_id INT NOT NULL, name VARCHAR(120) NOT NULL, position VARCHAR(20) NOT NULL, ovr INT NOT NULL, age INT NOT NULL, INDEX idx_dctp_tpl (template_id), CONSTRAINT fk_dctp_tpl2 FOREIGN KEY (template_id) REFERENCES draft_class_templates(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            try { $pdo->exec("ALTER TABLE draft_class_template_players ADD COLUMN pick_hint INT NULL"); } catch (Exception $e) {}
             $body = $data ?? [];
             $subAction = $body['sub'] ?? '';
+            // Ordem é opcional em todo lugar — sem valor definido, pick_hint fica NULL
+            // (mesmo critério de "sem ordem definida" usado no board real de disponíveis).
+            $readPickHint = function ($p) {
+                $v = $p['pick_hint'] ?? null;
+                return ($v !== null && $v !== '') ? (int)$v : null;
+            };
             if ($subAction === 'save') {
                 $tplName = trim($body['name'] ?? '');
                 $players = $body['players'] ?? [];
@@ -1670,8 +1680,8 @@ if ($method === 'POST') {
                     $s = $pdo->prepare("INSERT INTO draft_class_templates (name, created_by) VALUES (?, ?)");
                     $s->execute([$tplName, (int)$user['id']]);
                     $tplId = (int)$pdo->lastInsertId();
-                    $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age) VALUES (?,?,?,?,?)");
-                    foreach ($players as $p) { $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age']]); }
+                    $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age, pick_hint) VALUES (?,?,?,?,?,?)");
+                    foreach ($players as $p) { $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p)]); }
                     $pdo->commit();
                     echo json_encode(['success' => true, 'template_id' => $tplId, 'message' => 'Classe salva com sucesso!']);
                 } catch (Exception $e) { $pdo->rollBack(); echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']); }
@@ -1683,13 +1693,13 @@ if ($method === 'POST') {
             } elseif ($subAction === 'add_player') {
                 $tplId = (int)($body['template_id'] ?? 0); $p = $body['player'] ?? [];
                 if (!$tplId || empty($p['name'])) { echo json_encode(['success' => false, 'error' => 'Dados inválidos']); break; }
-                $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age) VALUES (?,?,?,?,?)");
-                $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age']]);
+                $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age, pick_hint) VALUES (?,?,?,?,?,?)");
+                $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p)]);
                 echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId()]);
             } elseif ($subAction === 'update_player') {
                 $pid = (int)($body['player_id'] ?? 0); $p = $body['player'] ?? [];
                 if (!$pid || empty($p['name'])) { echo json_encode(['success' => false, 'error' => 'Dados inválidos']); break; }
-                $pdo->prepare("UPDATE draft_class_template_players SET name=?,position=?,ovr=?,age=? WHERE id=?")->execute([trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $pid]);
+                $pdo->prepare("UPDATE draft_class_template_players SET name=?,position=?,ovr=?,age=?,pick_hint=? WHERE id=?")->execute([trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p), $pid]);
                 echo json_encode(['success' => true]);
             } elseif ($subAction === 'delete_player') {
                 $pid = (int)($body['player_id'] ?? 0);
@@ -1702,8 +1712,8 @@ if ($method === 'POST') {
                 $pdo->beginTransaction();
                 try {
                     $pdo->prepare("DELETE FROM draft_class_template_players WHERE template_id=?")->execute([$tplId]);
-                    $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age) VALUES (?,?,?,?,?)");
-                    foreach ($players as $p) { $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age']]); }
+                    $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age, pick_hint) VALUES (?,?,?,?,?,?)");
+                    foreach ($players as $p) { $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p)]); }
                     $pdo->commit();
                     echo json_encode(['success' => true, 'inserted' => count($players)]);
                 } catch (Exception $e) { $pdo->rollBack(); echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']); }

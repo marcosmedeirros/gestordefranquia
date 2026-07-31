@@ -6095,7 +6095,7 @@ async function _adminDraftUseClassFromBank(draftSessionId, league) {
   if (!tplId) { showAlert('warning', 'Selecione uma classe do banco'); return; }
   try {
     const data = await api(`admin.php?action=draft_class_bank&sub=players&template_id=${tplId}`);
-    _draftImportRows = (data.players || []).map(p => ({ name: p.name, position: p.position, ovr: p.ovr, age: p.age }));
+    _draftImportRows = (data.players || []).map(p => ({ name: p.name, position: p.position, ovr: p.ovr, age: p.age, pick_hint: p.pick_hint ?? null }));
     if (!_draftImportRows.length) { showAlert('warning', 'Classe sem jogadores'); return; }
     document.getElementById('draftImportCount').textContent = _draftImportRows.length;
     document.getElementById('draftImportTable').innerHTML = `
@@ -6105,6 +6105,7 @@ async function _adminDraftUseClassFromBank(draftSessionId, league) {
           <th style="padding:6px 8px;color:var(--text-3);text-align:center">Pos</th>
           <th style="padding:6px 8px;color:var(--text-3);text-align:center">OVR</th>
           <th style="padding:6px 8px;color:var(--text-3);text-align:center">Idade</th>
+          <th style="padding:6px 8px;color:var(--text-3);text-align:center">Ordem</th>
         </tr></thead>
         <tbody>${_draftImportRows.slice(0,50).map(p=>`
           <tr style="border-top:1px solid var(--border)">
@@ -6112,8 +6113,9 @@ async function _adminDraftUseClassFromBank(draftSessionId, league) {
             <td style="padding:5px 8px;color:var(--text-3);text-align:center">${p.position}</td>
             <td style="padding:5px 8px;color:#a855f7;font-weight:600;text-align:center">${p.ovr}</td>
             <td style="padding:5px 8px;color:var(--text-3);text-align:center">${p.age}</td>
+            <td style="padding:5px 8px;color:var(--text-3);text-align:center">${p.pick_hint ?? '—'}</td>
           </tr>`).join('')}
-        ${_draftImportRows.length>50?`<tr><td colspan="4" style="padding:5px 10px;color:var(--text-3);text-align:center">+${_draftImportRows.length-50} mais…</td></tr>`:''}
+        ${_draftImportRows.length>50?`<tr><td colspan="5" style="padding:5px 10px;color:var(--text-3);text-align:center">+${_draftImportRows.length-50} mais…</td></tr>`:''}
         </tbody></table>`;
     document.getElementById('draftImportPreview').style.display = 'block';
     document.getElementById('draftImportDropzone').style.display = 'none';
@@ -6246,7 +6248,7 @@ async function _adminDraftUseClassBank(draftSid, seasonId, league) {
 
   try {
     const data = await api(`admin.php?action=draft_class_bank&sub=players&template_id=${tplId}`);
-    const players = (data.players || []).map(p => ({ name: p.name, position: p.position, ovr: p.ovr, age: p.age }));
+    const players = (data.players || []).map(p => ({ name: p.name, position: p.position, ovr: p.ovr, age: p.age, pick_hint: p.pick_hint ?? null }));
     if (!players.length) { showAlert('warning', 'Classe sem jogadores'); return; }
 
     if (!confirm(`Importar ${players.length} jogadores da classe para o pool? Os jogadores já existentes no pool serão mantidos.`)) return;
@@ -6399,6 +6401,7 @@ function _draftClassOpenEditModal(templateId, name, players = []) {
               </select>
               <input type="number" id="_dcNewOvr" class="form-control form-control-sm" placeholder="OVR" min="1" max="99" style="flex:1;min-width:60px">
               <input type="number" id="_dcNewAge" class="form-control form-control-sm" placeholder="Idade" min="18" max="45" style="flex:1;min-width:60px">
+              <input type="number" id="_dcNewOrdem" class="form-control form-control-sm" placeholder="Ordem (opcional)" min="1" style="flex:1;min-width:90px">
               <button class="btn-ghost" style="color:#22c55e;white-space:nowrap" onclick="_dcAddPlayer()"><i class="bi bi-plus-lg me-1"></i>Add</button>
             </div>
           </div>
@@ -6451,6 +6454,7 @@ function _dcRenderPlayerList() {
       <th style="padding:7px;color:var(--text-3);font-weight:500;text-align:center">Pos</th>
       <th style="padding:7px;color:var(--text-3);font-weight:500;text-align:center">OVR</th>
       <th style="padding:7px;color:var(--text-3);font-weight:500;text-align:center">Idade</th>
+      <th style="padding:7px;color:var(--text-3);font-weight:500;text-align:center">Ordem</th>
       <th style="padding:7px;width:60px"></th>
     </tr></thead>
     <tbody>
@@ -6471,6 +6475,9 @@ function _dcRenderPlayerList() {
             <input type="number" value="${p.age}" min="18" max="45" class="form-control form-control-sm" style="font-size:11px;width:52px" onchange="_dcEditPlayerField(${p.id || i}, 'age', this.value)">
           </td>
           <td style="padding:5px 7px;text-align:center">
+            <input type="number" value="${p.pick_hint ?? ''}" min="1" placeholder="—" class="form-control form-control-sm" style="font-size:11px;width:52px" onchange="_dcEditPlayerField(${p.id || i}, 'pick_hint', this.value)">
+          </td>
+          <td style="padding:5px 7px;text-align:center">
             <button class="btn-ghost" style="padding:2px 6px;color:#ef4444" onclick="_dcDeletePlayer(${p.id})"><i class="bi bi-trash"></i></button>
           </td>
         </tr>`).join('')}
@@ -6481,11 +6488,15 @@ function _dcRenderPlayerList() {
 function _dcEditPlayerField(playerId, field, value) {
   const p = _dcEditPlayers.find(x => x.id == playerId);
   if (!p) return;
-  p[field] = field === 'ovr' || field === 'age' ? parseInt(value, 10) : value;
+  if (field === 'pick_hint') {
+    p[field] = value === '' ? null : parseInt(value, 10);
+  } else {
+    p[field] = field === 'ovr' || field === 'age' ? parseInt(value, 10) : value;
+  }
   // Salva no backend
   api('admin.php?action=draft_class_bank', {
     method: 'POST',
-    body: JSON.stringify({ sub: 'update_player', player_id: playerId, player: { name: p.name, position: p.position, ovr: p.ovr, age: p.age } })
+    body: JSON.stringify({ sub: 'update_player', player_id: playerId, player: { name: p.name, position: p.position, ovr: p.ovr, age: p.age, pick_hint: p.pick_hint ?? null } })
   }).catch(e => showAlert('danger', e.error || 'Erro ao atualizar'));
 }
 
@@ -6494,17 +6505,20 @@ async function _dcAddPlayer() {
   const pos  = document.getElementById('_dcNewPos')?.value;
   const ovr  = parseInt(document.getElementById('_dcNewOvr')?.value, 10);
   const age  = parseInt(document.getElementById('_dcNewAge')?.value, 10);
+  const ordemRaw = document.getElementById('_dcNewOrdem')?.value;
+  const pickHint = ordemRaw ? parseInt(ordemRaw, 10) : null;
   if (!name || !pos || isNaN(ovr) || isNaN(age)) { showAlert('warning', 'Preencha todos os campos'); return; }
   try {
     const res = await api('admin.php?action=draft_class_bank', {
       method: 'POST',
-      body: JSON.stringify({ sub: 'add_player', template_id: _dcEditTemplateId, player: { name, position: pos, ovr, age } })
+      body: JSON.stringify({ sub: 'add_player', template_id: _dcEditTemplateId, player: { name, position: pos, ovr, age, pick_hint: pickHint } })
     });
-    _dcEditPlayers.push({ id: res.id, name, position: pos, ovr, age });
+    _dcEditPlayers.push({ id: res.id, name, position: pos, ovr, age, pick_hint: pickHint });
     document.getElementById('_dcPlayerList').innerHTML = _dcRenderPlayerList();
     document.getElementById('_dcNewName').value = '';
     document.getElementById('_dcNewOvr').value = '';
     document.getElementById('_dcNewAge').value = '';
+    document.getElementById('_dcNewOrdem').value = '';
     showAlert('success', 'Jogador adicionado!');
   } catch(e) { showAlert('danger', e.error || 'Erro'); }
 }
@@ -6643,13 +6657,16 @@ function _dcParseCSV(text) {
   const sep = lines[0].includes(';') ? ';' : ',';
   const headers = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g,''));
   const ni = headers.indexOf('name'), pi = headers.indexOf('position'), oi = headers.indexOf('ovr'), ai = headers.indexOf('age');
+  const hi = headers.indexOf('ordem') >= 0 ? headers.indexOf('ordem') : headers.indexOf('pick_hint');
   if (ni<0||pi<0||oi<0||ai<0) return null;
   const rows = [];
   for (let i=1;i<lines.length;i++) {
     const cols = lines[i].split(sep).map(c => c.trim().replace(/^["']|["']$/g,''));
     const name = cols[ni]||'', pos = (cols[pi]||'').toUpperCase(), ovr=parseInt(cols[oi],10), age=parseInt(cols[ai],10);
     if (!name||!pos||isNaN(ovr)||isNaN(age)||ovr<=0||age<=0) continue;
-    rows.push({ name, position:pos, ovr, age });
+    const hintRaw = hi >= 0 ? cols[hi] : '';
+    const pick_hint = hintRaw && parseInt(hintRaw, 10) > 0 ? parseInt(hintRaw, 10) : null;
+    rows.push({ name, position:pos, ovr, age, pick_hint });
   }
   return rows;
 }
@@ -6661,6 +6678,7 @@ function _dcPreviewTable(rows) {
       <th style="padding:6px 8px;color:var(--text-3);text-align:center">Pos</th>
       <th style="padding:6px 8px;color:var(--text-3);text-align:center">OVR</th>
       <th style="padding:6px 8px;color:var(--text-3);text-align:center">Idade</th>
+      <th style="padding:6px 8px;color:var(--text-3);text-align:center">Ordem</th>
     </tr></thead>
     <tbody>${rows.slice(0,50).map(p=>`
       <tr style="border-top:1px solid var(--border)">
@@ -6668,8 +6686,9 @@ function _dcPreviewTable(rows) {
         <td style="padding:5px 8px;color:var(--text-3);text-align:center">${p.position}</td>
         <td style="padding:5px 8px;color:#a855f7;font-weight:600;text-align:center">${p.ovr}</td>
         <td style="padding:5px 8px;color:var(--text-3);text-align:center">${p.age}</td>
+        <td style="padding:5px 8px;color:var(--text-3);text-align:center">${p.pick_hint ?? '—'}</td>
       </tr>`).join('')}
-    ${rows.length>50?`<tr><td colspan="4" style="padding:5px 10px;color:var(--text-3);text-align:center">+${rows.length-50} mais…</td></tr>`:''}
+    ${rows.length>50?`<tr><td colspan="5" style="padding:5px 10px;color:var(--text-3);text-align:center">+${rows.length-50} mais…</td></tr>`:''}
     </tbody></table>`;
 }
 

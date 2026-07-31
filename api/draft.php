@@ -1245,13 +1245,15 @@ if ($method === 'POST') {
             $seasonId = (int)$session['season_id'];
             $inserted = 0;
             $errors = [];
-            $stmtInsert = $pdo->prepare('INSERT INTO draft_pool (season_id, name, position, age, ovr, draft_status) VALUES (?, ?, ?, ?, ?, "available")');
+            $stmtInsert = $pdo->prepare('INSERT INTO draft_pool (season_id, name, position, age, ovr, pick_hint, draft_status) VALUES (?, ?, ?, ?, ?, ?, "available")');
 
             foreach ($players as $i => $p) {
                 $pName     = trim((string)($p['name'] ?? ''));
                 $pPosition = strtoupper(trim((string)($p['position'] ?? '')));
                 $pAge      = (int)($p['age'] ?? 0);
                 $pOvr      = (int)($p['ovr'] ?? 0);
+                $pHintRaw  = $p['pick_hint'] ?? null;
+                $pHint     = ($pHintRaw !== null && $pHintRaw !== '') ? (int)$pHintRaw : null;
 
                 if ($pName === '' || $pPosition === '' || $pAge <= 0 || $pOvr <= 0) {
                     $errors[] = 'Linha ' . ($i + 2) . ': dados inválidos (nome=' . $pName . ', pos=' . $pPosition . ', age=' . $pAge . ', ovr=' . $pOvr . ')';
@@ -1259,7 +1261,7 @@ if ($method === 'POST') {
                 }
 
                 try {
-                    $stmtInsert->execute([$seasonId, $pName, $pPosition, $pAge, $pOvr]);
+                    $stmtInsert->execute([$seasonId, $pName, $pPosition, $pAge, $pOvr, $pHint]);
                     $inserted++;
                 } catch (Exception $ex) {
                     $errors[] = 'Linha ' . ($i + 2) . ': ' . $ex->getMessage();
