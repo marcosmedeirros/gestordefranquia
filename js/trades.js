@@ -125,16 +125,12 @@ const formatTradePickDisplay = (pick) => {
     : (pick.original_team_name || null);
 
   let display = (pickNumber && isCurrentDraft)
-    ? `Pick ${pickNumber}${originalTeam ? ` (${originalTeam})` : ''}${hasYearRound ? ` - ${year} R${round}` : ''}`
+    ? `Escolha ${pickNumber}${originalTeam ? ` (${originalTeam})` : ''}${hasYearRound ? ` - ${year} R${round}` : ''}`
     : `Pick ${year} R${round}${originalTeam ? ` (${originalTeam})` : ''}`;
 
   const swapTag = pick.swap_type || (['SB','SW'].includes(pick.protection) ? pick.protection : null);
   if (swapTag) {
     display += ` <span class="badge bg-secondary ms-1">${swapTag}</span>`;
-  }
-
-  if (isCurrentDraft) {
-    display += ' - Draft atual';
   }
 
   return display;
@@ -150,7 +146,7 @@ const formatTradePickPlain = (pick) => {
     ? `${pick.original_team_city} ${pick.original_team_name}`
     : (pick.original_team_name || null);
   let display = (pickNumber && isCurrentDraft)
-    ? `Pick ${pickNumber}${originalTeam ? ` (${originalTeam})` : ''}${year !== '?' && round !== '?' ? ` - ${year} R${round}` : ''}`
+    ? `Escolha ${pickNumber}${originalTeam ? ` (${originalTeam})` : ''}${year !== '?' && round !== '?' ? ` - ${year} R${round}` : ''}`
     : `Pick ${year} R${round}${originalTeam ? ` (${originalTeam})` : ''}`;
   const swapTag = pick.swap_type || (['SB','SW'].includes(pick.protection) ? pick.protection : null);
   if (swapTag) display += ` ${swapTag}`;
@@ -681,7 +677,7 @@ const buildPickSummary = (pick) => {
     metaParts.push(`<span style="background:color-mix(in srgb, var(--red) 15%, transparent);color:var(--red);border:1px solid color-mix(in srgb, var(--red) 30%, transparent);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">${swapLabel}</span>`);
   }
   return {
-    title: (pickNumber && isCurrentDraft) ? `Pick ${pickNumber}` : `Pick ${year} R${round}`,
+    title: (pickNumber && isCurrentDraft) ? `Escolha ${pickNumber}` : `Pick ${year} R${round}`,
     origin,
     via,
     meta: metaParts.join(' ')
