@@ -37,7 +37,8 @@ if ($team_id) {
     <?php include 'includes/head-pwa.php'; ?>
     <style>
         :root {
-            --red: #fc0025; --red-2: color-mix(in srgb, var(--red) 85%, white); --red-soft: color-mix(in srgb, var(--red) 10%, transparent); --red-glow: color-mix(in srgb, var(--red) 18%, transparent);
+            /* Draft de Lendas tem identidade própria em dourado, fixa — não segue a cor de destaque pessoal do usuário (ver override no fim deste bloco). */
+            --red: #d4af37; --red-2: color-mix(in srgb, var(--red) 85%, white); --red-soft: color-mix(in srgb, var(--red) 10%, transparent); --red-glow: color-mix(in srgb, var(--red) 18%, transparent);
             --bg: #07070a; --panel: #101013; --panel-2: #16161a; --panel-3: #1c1c21;
             --border: rgba(255,255,255,.06); --border-md: rgba(255,255,255,.10); --border-red: color-mix(in srgb, var(--red) 22%, transparent);
             --text: #f0f0f3; --text-2: #868690; --text-3: #7d7d85;
@@ -118,21 +119,21 @@ if ($team_id) {
         .ld-form-row input{flex:1;min-width:200px}
 
         .ld-board{display:flex;flex-direction:column;gap:6px}
-        .ld-row{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:var(--radius-sm);background:var(--panel-2);border:1px solid var(--border)}
+        .ld-row{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:var(--radius-sm);background:var(--panel-2);border:1px solid var(--border);flex-wrap:wrap}
         .ld-row.atual{border-color:var(--border-red);background:var(--red-soft)}
         .ld-row.eu{border-color:color-mix(in srgb, var(--blue) 40%, transparent)}
         .ld-row-pick{width:30px;height:30px;border-radius:50%;background:var(--panel-3);color:var(--text-3);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
         .ld-row img{width:28px;height:28px;border-radius:7px;object-fit:contain;background:var(--panel-3);flex-shrink:0}
-        .ld-row-gm{font-size:13px;font-weight:600;min-width:140px}
-        .ld-row-jogador{flex:1;font-size:13px;color:var(--text-2)}
+        .ld-row-gm{font-size:13px;font-weight:600;min-width:140px;flex:1 1 auto}
+        .ld-row-jogador{flex:2 1 200px;min-width:0;font-size:13px;color:var(--text-2);word-break:break-word}
         .ld-row-jogador b{color:var(--text)}
         .ld-badge-tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;flex-shrink:0}
 
         .ld-badges-cat{margin-bottom:16px}
         .ld-badges-cat-title{font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:8px}
-        .ld-badge-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+        .ld-badge-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap}
         .ld-badge-row:last-child{border-bottom:none}
-        .ld-badge-nome{font-size:13px;font-weight:600}
+        .ld-badge-nome{font-size:13px;font-weight:600;flex:1 1 auto;min-width:0}
         .ld-tier-picker{display:flex;gap:4px;flex-wrap:wrap}
         .ld-tier-btn{width:30px;height:26px;border-radius:6px;border:1px solid var(--border-md);background:var(--panel-3);color:var(--text-3);font-size:10px;font-weight:800;cursor:pointer;transition:all var(--t)}
         .ld-tier-btn.on{border-color:transparent;color:#fff}
@@ -170,8 +171,19 @@ if ($team_id) {
             .topbar { display: flex; }
             .page-hero-eyebrow, .page-hero-title, .page-hero-sub { margin-left: 16px; margin-right: 16px; }
             .content { padding: 0 16px 48px; }
+            .ld-tokens-bar { top: 54px; }
+        }
+        @media (max-width: 480px) {
+            .card-body { padding: 14px; }
+            .ld-row-gm { min-width: 0; flex-basis: 100%; }
+            .ld-row-jogador { flex-basis: 100%; }
+            .ld-form-row input { min-width: 0; flex-basis: 100%; }
+            .ld-tokens-bar { flex-direction: column; align-items: flex-start; }
+            .ld-tokens-bar button { align-self: stretch; }
         }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
+        /* Reforça o dourado por cima da cor de destaque pessoal (accent-color.php acima também usa !important). */
+        :root{--red:#d4af37 !important}
     </style>
 </head>
 <body>
