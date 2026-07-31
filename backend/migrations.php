@@ -1192,6 +1192,22 @@ function runMigrations() {
     }
 
     try {
+        // Pedido do admin: limpa o escudo de todos os times uma única vez, pra
+        // forçar todo mundo a subir um escudo novo. Roda uma vez só (via
+        // app_flags) — depois disso, quem subir um escudo novo não tem esse
+        // ajuste mexendo de novo.
+        $st4 = $pdo->prepare("SELECT 1 FROM app_flags WHERE flag = ?");
+        $st4->execute(['clear_team_logos_2026_07']);
+        if (!$st4->fetchColumn()) {
+            $pdo->exec("UPDATE teams SET photo_url = NULL");
+            $ins4 = $pdo->prepare("INSERT INTO app_flags (flag) VALUES (?)");
+            $ins4->execute(['clear_team_logos_2026_07']);
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_clear_team_logos: " . $e->getMessage();
+    }
+
+    try {
         $hasTradesTable = $pdo->query("SHOW TABLES LIKE 'trades'")->fetch();
         if ($hasTradesTable) {
             $hasFromTeamId = $pdo->query("SHOW COLUMNS FROM trades LIKE 'from_team_id'")->fetch();
