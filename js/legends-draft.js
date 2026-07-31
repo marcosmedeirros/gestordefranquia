@@ -82,7 +82,6 @@ function ldRenderTudo() {
         </select>
         <button type="button" class="btn-orange" id="btnLdEscolher">Confirmar escolha</button>
       </div>
-      ${!ehMinhaVez ? `<div style="font-size:11px;color:var(--text-3);margin-top:6px">Qualquer pessoa pode cadastrar essa escolha (ex: recebeu o mock de ${_ldEsc(vez.gm_name)}).</div>` : ''}
     </div>`;
   } else if (d.draft_completo) {
     html += `<div class="ld-turno" style="border-color:color-mix(in srgb, var(--green) 35%, transparent);background:linear-gradient(135deg,color-mix(in srgb, var(--green) 14%, transparent),transparent)">
