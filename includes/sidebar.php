@@ -80,11 +80,16 @@ if (!function_exists('sbActive')) {
         <?php if ($__sbIsElite): ?>
         <a href="/cap.php"<?= sbActive('cap.php', $__sbCurrent) ?>><i class="bi bi-cash-stack"></i> Salário Cap</a>
         <?php endif; ?>
+        <?php if ($__sbLotteryVisible): ?>
+        <a href="/lottery.php"<?= sbActive('lottery.php', $__sbCurrent) ?>><i class="bi bi-shuffle"></i> Loteria</a>
+        <?php endif; ?>
         <?php /* Tapas: oculto temporariamente, vai passar por alteração */ ?>
+        <?php /* Draft de Lendas: sem item no menu, acesso só por link direto */ ?>
 
         <div class="sb-section">Liga</div>
         <a href="/tabela.php"<?= sbActive('tabela.php', $__sbCurrent) ?>><i class="bi bi-table"></i> Tabela</a>
         <a href="/rankings.php"<?= sbActive('rankings.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-fill"></i> Rankings</a>
+        <a href="/timeline.php"<?= sbActive('timeline.php', $__sbCurrent) ?>><i class="bi bi-collection-play-fill"></i> Timeline</a>
         <a href="/history.php"<?= sbActive('history.php', $__sbCurrent) ?>><i class="bi bi-clock-history"></i> Histórico</a>
         <a href="/hall-da-fama.php"<?= sbActive('hall-da-fama.php', $__sbCurrent) ?>><i class="bi bi-award-fill"></i> Hall da Fama</a>
         <a href="/mundo-fba.php"<?= sbActive('mundo-fba.php', $__sbCurrent) ?>><i class="bi bi-globe2"></i> Mundo FBA</a>
@@ -92,11 +97,6 @@ if (!function_exists('sbActive')) {
         <a href="/ouvidoria.php"<?= sbActive('ouvidoria.php', $__sbCurrent) ?>><i class="bi bi-chat-dots"></i> Ouvidoria</a>
         <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
         <a href="/thepathetic.php"<?= sbActive('thepathetic.php', $__sbCurrent) ?>><i class="bi bi-newspaper"></i> The Pathetic</a>
-        <?php if ($__sbLotteryVisible): ?>
-        <a href="/lottery.php"<?= sbActive('lottery.php', $__sbCurrent) ?>><i class="bi bi-shuffle"></i> Loteria</a>
-        <?php endif; ?>
-        <a href="/legends-draft.php"<?= sbActive('legends-draft.php', $__sbCurrent) ?>><i class="bi bi-stars"></i> Draft de Lendas</a>
-        <a href="/timeline.php"<?= sbActive('timeline.php', $__sbCurrent) ?>><i class="bi bi-collection-play-fill"></i> Timeline</a>
 
         <?php if ($__sbIsAdmin): ?>
         <div class="sb-section">Admin</div>
