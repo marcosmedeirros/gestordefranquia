@@ -60,9 +60,17 @@ async function showGestao(league) {
   if (league) _gestaoLeague = league;
 
   const container = document.getElementById('mainContainer');
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+
+  let leagueCounts = {};
+  try {
+    const leaguesData = await api('admin.php?action=leagues');
+    (leaguesData.leagues || []).forEach(l => { leagueCounts[l.league] = l.team_count; });
+  } catch (e) {}
+
   const leagueTabs = _leagues.map(lg => `
     <button class="btn btn-sm ${lg === _gestaoLeague ? 'btn-orange' : 'btn-outline-orange'}"
-            onclick="showGestao('${lg}')">${lg}</button>`).join('');
+            onclick="showGestao('${lg}')">${lg}${leagueCounts[lg] !== undefined ? ` <span style="opacity:.75">| ${leagueCounts[lg]}</span>` : ''}</button>`).join('');
 
   container.innerHTML = `
     <div id="maintenanceBanner" class="mb-3"></div>
