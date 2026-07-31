@@ -450,13 +450,19 @@ $minhaLiga = strtoupper(trim((string)($team['league'] ?? $user['league'] ?? ''))
                 <input type="hidden" id="leilaoIdVerPropostas">
                 <div id="listaPropostasRecebidas" style="padding:20px;max-height:60vh;overflow-y:auto"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
                 <div id="chatComposeBar" style="display:none;flex-direction:column;gap:8px;padding:14px 20px;border-top:1px solid var(--border)">
+                    <div id="leilaoEncerradoAviso" style="display:none;font-size:12.5px;color:var(--text-3);background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:10px 12px;text-align:center">
+                        <i class="bi bi-hourglass-split me-1"></i>Leilão encerrado — aguardando resolução do admin.
+                    </div>
+                    <button type="button" class="btn btn-orange" id="btnResolverLeilao" style="display:none;width:100%">
+                        <i class="bi bi-hammer me-1"></i>Resolver Leilão
+                    </button>
                     <button type="button" class="btn btn-success" id="btnFecharLeilao" style="display:none;width:100%">
                         <i class="bi bi-check2-circle me-1"></i>Fechar leilão e executar a troca escolhida
                     </button>
                     <button type="button" class="btn-outline-orange" id="btnNovaPropostaChat" style="display:none;width:100%">
                         <i class="bi bi-send-plus me-1"></i>Enviar proposta (jogadores/picks)
                     </button>
-                    <div style="display:flex;gap:8px">
+                    <div id="chatMessageInputRow" style="display:flex;gap:8px">
                         <textarea id="chatMessageInput" class="form-control" rows="1" placeholder="Escreva uma mensagem..." style="resize:none"></textarea>
                         <button type="button" class="btn btn-orange" id="btnEnviarMensagemChat" style="flex-shrink:0"><i class="bi bi-send"></i></button>
                     </div>
@@ -468,6 +474,31 @@ $minhaLiga = strtoupper(trim((string)($team['league'] ?? $user['league'] ?? ''))
         </div>
     </div>
 </div>
+
+<?php if ($is_admin): ?>
+<!-- Modal: Resolver Leilão (admin) — desfecho após o leilão expirar -->
+<div class="modal fade" id="modalResolverLeilao" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-hammer" style="color:var(--red)"></i>Resolver Leilão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="max-height:75vh;overflow-y:auto">
+                <div id="resolverLeilaoBody"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-outline-orange" onclick="encerrarSemTroca()">
+                    <i class="bi bi-x-circle me-1"></i>Encerrar sem troca
+                </button>
+                <button type="button" class="btn btn-success" id="btnConfirmarResolucao" onclick="confirmarResolucaoLeilao()">
+                    <i class="bi bi-check2-circle me-1"></i>Confirmar resolução
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php if ($is_admin): ?>
 <!-- Modal: Cadastrar Leilão Manualmente (admin) -->

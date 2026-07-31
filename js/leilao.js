@@ -256,11 +256,13 @@ async function _loadPropostasContent(leilaoId, isOwner) {
   container.innerHTML = '<div style="display:flex;justify-content:center;padding:32px"><div class="spinner-border" style="color:var(--red);width:1.5rem;height:1.5rem" role="status"></div></div>';
   try {
     const data = await _fetchJson(`api/leilao.php?action=listar_mensagens&leilao_id=${leilaoId}`);
-    const leilaoAberto = data.status !== 'finalizado';
+    const expirado = !!(data.data_fim_ts && data.data_fim_ts * 1000 <= Date.now());
+    const leilaoAberto = data.status !== 'finalizado' && !expirado;
     container.innerHTML = _renderChatTimeline(data.messages || [], leilaoId, leilaoAberto);
     container.scrollTop = container.scrollHeight;
     _renderPrazoChat(data);
-    _renderBotaoFechar(data, leilaoId, isOwner);
+    _renderBotaoFechar(data, leilaoId, isOwner, expirado);
+    _renderEstadoExpirado(data, leilaoId, expirado);
   } catch (e) {
     container.innerHTML = `<p style="color:#ef4444;font-size:13px;text-align:center;padding:20px 0">${_esc(e.message||'Erro ao carregar')}</p>`;
   }
@@ -268,16 +270,41 @@ async function _loadPropostasContent(leilaoId, isOwner) {
 
 /**
  * Botão de fechar o leilão: só para o vendedor (ou admin), só com o leilão
- * aberto e alguma proposta já escolhida. É ele que de fato executa a troca.
+ * aberto (e ainda dentro do prazo) e alguma proposta já escolhida. É ele que
+ * de fato executa a troca. Depois de expirado, esse caminho some — o desfecho
+ * passa a ser exclusivamente pelo popup de resolução do admin.
  */
-function _renderBotaoFechar(data, leilaoId, isOwner) {
+function _renderBotaoFechar(data, leilaoId, isOwner, expirado = false) {
   const btn = document.getElementById('btnFecharLeilao');
   if (!btn) return;
-  const aberto = data.status !== 'finalizado';
+  const aberto = data.status !== 'finalizado' && !expirado;
   const temEscolhida = (data.messages || []).some(m => m.proposta && m.proposta.status === 'aceita');
   const podeFechar = aberto && temEscolhida && (isOwner || isAdmin);
   btn.style.display = podeFechar ? '' : 'none';
   btn.onclick = () => fecharLeilao(leilaoId);
+}
+
+/**
+ * Quando o prazo do leilão expira, o chat/propostas encerram: some o campo de
+ * mensagem e o botão de nova proposta, e aparece um aviso (ou, pro admin, o
+ * botão que abre o popup de resolução).
+ */
+function _renderEstadoExpirado(data, leilaoId, expirado) {
+  const aviso = document.getElementById('leilaoEncerradoAviso');
+  const btnResolver = document.getElementById('btnResolverLeilao');
+  const msgRow = document.getElementById('chatMessageInputRow');
+  const bloqueado = expirado && data.status !== 'finalizado';
+
+  if (aviso) aviso.style.display = (bloqueado && !isAdmin) ? 'block' : 'none';
+  if (btnResolver) {
+    btnResolver.style.display = (bloqueado && isAdmin) ? '' : 'none';
+    btnResolver.onclick = () => abrirResolverLeilao(leilaoId, data.team_id);
+  }
+  if (msgRow) msgRow.style.display = bloqueado ? 'none' : 'flex';
+  if (bloqueado) {
+    const novaPropostaBtn = document.getElementById('btnNovaPropostaChat');
+    if (novaPropostaBtn) novaPropostaBtn.style.display = 'none';
+  }
 }
 
 async function fecharLeilao(leilaoId) {
@@ -299,6 +326,163 @@ async function fecharLeilao(leilaoId) {
     alert('Erro ao fechar o leilão: ' + (e.message || ''));
   } finally {
     if (btn) btn.disabled = false;
+  }
+}
+
+// ── Popup de resolução do admin (leilão expirado) ────────────────────────────
+
+let _resolverLeilaoId = null;
+let _resolverSellerTeamId = null;
+let _resolverPropostas = [];
+let _resolverSellerData = { players: [], picks: [] };
+
+function _getResolverModalInstance() {
+  const el = document.getElementById('modalResolverLeilao');
+  if (!el) return null;
+  return bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el);
+}
+
+function _renderCheckboxList(items, cls, labelFn, checkedIds) {
+  if (!items.length) return '<p style="font-size:12px;color:var(--text-3)">Nenhum item disponível.</p>';
+  return items.map(it => `
+    <label style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer;margin-bottom:5px">
+      <input type="checkbox" class="${cls}" value="${it.id}"${checkedIds && checkedIds.has(Number(it.id)) ? ' checked' : ''} style="flex-shrink:0;margin:0">
+      <span style="font-size:13px;color:var(--text)">${_esc(labelFn(it))}</span>
+    </label>`).join('');
+}
+
+async function abrirResolverLeilao(leilaoId, sellerTeamId) {
+  _resolverLeilaoId = leilaoId;
+  _resolverSellerTeamId = sellerTeamId || null;
+  bootstrap.Modal.getInstance(document.getElementById('modalVerPropostas'))?.hide();
+  const modal = _getResolverModalInstance();
+  if (!modal) return;
+  modal.show();
+  const body = document.getElementById('resolverLeilaoBody');
+  if (body) body.innerHTML = '<div style="display:flex;justify-content:center;padding:32px"><div class="spinner-border" style="color:var(--red);width:1.5rem;height:1.5rem" role="status"></div></div>';
+  try {
+    const [dataMsgs, dataSeller] = await Promise.all([
+      _fetchJson(`api/leilao.php?action=listar_mensagens&leilao_id=${leilaoId}`),
+      _resolverSellerTeamId
+        ? _fetchJson(`api/leilao.php?action=seller_items&seller_team_id=${_resolverSellerTeamId}`).catch(() => ({ players: [], picks: [] }))
+        : Promise.resolve({ players: [], picks: [] })
+    ]);
+    // Uma proposta por time — mensagens vêm em ordem cronológica, então a última de cada time é a mais recente.
+    const porTime = {};
+    (dataMsgs.messages || []).forEach(m => { if (m.tipo === 'proposal' && m.proposta) porTime[m.proposta.team_id] = m.proposta; });
+    _resolverPropostas = Object.values(porTime);
+    _resolverSellerData = dataSeller || { players: [], picks: [] };
+    _renderResolverLeilaoBody();
+  } catch (e) {
+    if (body) body.innerHTML = `<p style="color:#ef4444;font-size:13px;text-align:center;padding:20px 0">${_esc(e.message || 'Erro ao carregar')}</p>`;
+  }
+}
+
+function _renderResolverLeilaoBody() {
+  const body = document.getElementById('resolverLeilaoBody');
+  if (!body) return;
+  if (!_resolverPropostas.length) {
+    body.innerHTML = '<p style="text-align:center;color:var(--text-3);font-size:13px;padding:16px 0">Nenhuma proposta foi enviada pra este leilão — só é possível encerrar sem troca.</p>';
+    return;
+  }
+  const options = _resolverPropostas.map(p => `<option value="${p.id}">${_esc(p.team_name || ('Time #' + p.team_id))}</option>`).join('');
+  body.innerHTML = `
+    <div class="mb-3">
+      <label class="form-label">Time vencedor</label>
+      <select id="resolverPropostaSelect" class="form-select" onchange="_renderResolverItensDaProposta()">${options}</select>
+    </div>
+    <div id="resolverItensProposta"></div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px"><i class="bi bi-plus-circle me-1"></i>Itens extras do vendedor (opcional)</div>
+      <div id="resolverSellerItens"></div>
+    </div>`;
+  _renderResolverItensDaProposta();
+}
+
+function _renderResolverItensDaProposta() {
+  const select = document.getElementById('resolverPropostaSelect');
+  const proposta = _resolverPropostas.find(p => Number(p.id) === Number(select?.value));
+  const el = document.getElementById('resolverItensProposta');
+  if (!proposta || !el) return;
+
+  const jogadoresHtml = _renderCheckboxList(proposta.jogadores || [], 'resolverOfertaPlayer',
+    j => `${j.name} · ${j.position || ''} · OVR ${j.ovr || '?'}`, new Set((proposta.jogadores || []).map(j => Number(j.id))));
+  const picksHtml = _renderCheckboxList(proposta.picks || [], 'resolverOfertaPick',
+    pk => `${pk.season_year} R${pk.round}${pk.original_team_name ? ' · ' + pk.original_team_name.trim() : ''}${pk.swap_type ? ' [' + pk.swap_type + ']' : ''}`,
+    new Set((proposta.picks || []).map(pk => Number(pk.id))));
+
+  el.innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Itens enviados nesta proposta</div>
+    ${jogadoresHtml}
+    ${picksHtml}`;
+
+  // Itens extras do vendedor: pré-marcados os que já vieram de uma "Oferta Personalizada".
+  const extraPlayerIds = new Set((proposta.extra_jogadores || []).map(j => Number(j.id)));
+  const extraPickIds = new Set((proposta.extra_picks || []).map(pk => Number(pk.id)));
+  const sellerItensEl = document.getElementById('resolverSellerItens');
+  if (sellerItensEl) {
+    const sellerJogadoresHtml = _renderCheckboxList(_resolverSellerData.players || [], 'resolverExtraPlayer',
+      p => `${p.name} · ${p.position || ''} · OVR ${p.ovr || '?'}`, extraPlayerIds);
+    const sellerPicksHtml = _renderCheckboxList(_resolverSellerData.picks || [], 'resolverExtraPick',
+      pk => `${pk.season_year} R${pk.round}${pk.original_team_name ? ' · ' + pk.original_team_name.trim() : ''}`, extraPickIds);
+    sellerItensEl.innerHTML = `${sellerJogadoresHtml}${sellerPicksHtml}`;
+  }
+}
+
+async function confirmarResolucaoLeilao() {
+  const select = document.getElementById('resolverPropostaSelect');
+  const propostaId = select ? Number(select.value) : null;
+  if (!propostaId) { alert('Selecione o time vencedor.'); return; }
+
+  const player_ids = [...document.querySelectorAll('.resolverOfertaPlayer:checked')].map(el => Number(el.value));
+  const pick_ids = [...document.querySelectorAll('.resolverOfertaPick:checked')].map(el => Number(el.value));
+  const extra_player_ids = [...document.querySelectorAll('.resolverExtraPlayer:checked')].map(el => Number(el.value));
+  const extra_pick_ids = [...document.querySelectorAll('.resolverExtraPick:checked')].map(el => Number(el.value));
+
+  if (!confirm('Confirmar esta resolução?\n\nA troca será executada e o leilão não poderá mais mudar de vencedor.')) return;
+  const btn = document.getElementById('btnConfirmarResolucao');
+  if (btn) btn.disabled = true;
+  try {
+    const data = await _fetchJson('api/leilao.php', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'admin_fechar_leilao',
+        leilao_id: _resolverLeilaoId,
+        proposta_id: propostaId,
+        player_ids, pick_ids, extra_player_ids, extra_pick_ids
+      })
+    });
+    if (!data.success) { alert('Erro: ' + (data.error || 'Erro desconhecido')); return; }
+    _getResolverModalInstance()?.hide();
+    carregarLeiloesAtivos();
+    carregarHistoricoLeiloes();
+    if (isAdmin) carregarLeiloesAdmin();
+    if (typeof carregarLeiloesAdminCard === 'function') carregarLeiloesAdminCard();
+  } catch (e) {
+    alert('Erro ao resolver o leilão: ' + (e.message || ''));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function encerrarSemTroca(leilaoId) {
+  const id = leilaoId || _resolverLeilaoId;
+  if (!id) return;
+  if (!confirm('Encerrar este leilão sem executar nenhuma troca?')) return;
+  try {
+    const data = await _fetchJson('api/leilao.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'admin_encerrar_sem_troca', leilao_id: id })
+    });
+    if (!data.success) { alert('Erro: ' + (data.error || 'Erro desconhecido')); return; }
+    _getResolverModalInstance()?.hide();
+    bootstrap.Modal.getInstance(document.getElementById('modalVerPropostas'))?.hide();
+    carregarLeiloesAtivos();
+    carregarHistoricoLeiloes();
+    if (isAdmin) carregarLeiloesAdmin();
+    if (typeof carregarLeiloesAdminCard === 'function') carregarLeiloesAdminCard();
+  } catch (e) {
+    alert('Erro ao encerrar o leilão: ' + (e.message || ''));
   }
 }
 

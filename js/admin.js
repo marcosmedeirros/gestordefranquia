@@ -665,6 +665,229 @@ function showWaitlistModal() {
   }
 }
 
+// ── Leilão (admin): acompanhar e resolver os leilões da liga ────────────────
+
+async function showLeilaoAdmin(league) {
+  league = league || appState.currentLeague;
+  appState.view = 'leilao_admin';
+  updateBreadcrumb();
+  const container = document.getElementById('mainContainer');
+  container.innerHTML = '<div class="text-center py-5"><div class="spinner-border" style="color:var(--red)"></div></div>';
+  const back = `<button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>`;
+
+  try {
+    const data = await api(`leilao.php?action=listar_admin&league=${league}`);
+    const leiloes = data.leiloes || [];
+    const ativos = leiloes.filter(l => l.status !== 'finalizado');
+    const precisamResolucao = ativos.filter(l => Number(l.expirado));
+    const emAndamento = ativos.filter(l => !Number(l.expirado));
+    const finalizados = leiloes.filter(l => l.status === 'finalizado').slice(0, 20);
+
+    const renderCard = (l, destacar) => `
+      <div class="panel mb-2" style="${destacar ? 'border-color:rgba(239,68,68,.4)' : ''}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 16px">
+          <div style="flex:1;min-width:160px">
+            <div style="font-weight:600;font-size:14px;color:var(--text)">${escapeHtml(l.player_name || '—')}</div>
+            <div style="font-size:12px;color:var(--text-3)">${escapeHtml(l.team_name || 'Sem time')} · ${l.total_propostas || 0} proposta(s)</div>
+          </div>
+          ${destacar ? '<span class="pun-badge" style="background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.4)">Precisa resolução</span>' : ''}
+          <button class="btn-ghost" style="color:#ef4444;border-color:rgba(239,68,68,.3)" onclick="_leilaoAdminAbrirResolucao(${l.id}, ${l.team_id ? Number(l.team_id) : 'null'}, '${league}')">
+            <i class="bi bi-hammer me-1"></i> Resolver
+          </button>
+        </div>
+      </div>`;
+
+    container.innerHTML = `
+      <div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
+        ${back}
+        <span class="text-light-gray" style="font-size:14px;font-weight:600">Leilão — ${escapeHtml(league)}</span>
+      </div>
+      <div class="panel mb-3">
+        <div class="panel-header"><div class="panel-title"><i class="bi bi-hourglass-split" style="color:#ef4444"></i> Precisam de resolução (${precisamResolucao.length})</div></div>
+        <div class="panel-body">${precisamResolucao.length ? precisamResolucao.map(l => renderCard(l, true)).join('') : '<p style="color:var(--text-3);font-size:13px">Nenhum leilão expirado aguardando resolução.</p>'}</div>
+      </div>
+      <div class="panel mb-3">
+        <div class="panel-header"><div class="panel-title"><i class="bi bi-broadcast" style="color:#22c55e"></i> Em andamento (${emAndamento.length})</div></div>
+        <div class="panel-body">${emAndamento.length ? emAndamento.map(l => renderCard(l, false)).join('') : '<p style="color:var(--text-3);font-size:13px">Nenhum leilão em andamento no momento.</p>'}</div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title"><i class="bi bi-clock-history" style="color:var(--text-3)"></i> Últimos finalizados</div></div>
+        <div class="panel-body">${finalizados.length ? finalizados.map(l => `
+          <div style="display:flex;justify-content:space-between;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border);font-size:13px">
+            <span style="color:var(--text)">${escapeHtml(l.player_name || '—')}</span>
+            <span style="color:var(--text-3)">${escapeHtml(l.team_name || '—')}</span>
+          </div>`).join('') : '<p style="color:var(--text-3);font-size:13px">Nenhum leilão finalizado ainda.</p>'}</div>
+      </div>`;
+  } catch (e) {
+    container.innerHTML = `<div class="mb-3">${back}</div><div class="alert alert-danger">Erro ao carregar leilões: ${escapeHtml(e.error || e.message || '')}</div>`;
+  }
+}
+
+let _leilaoAdminLeilaoId = null;
+let _leilaoAdminSellerTeamId = null;
+let _leilaoAdminLeague = null;
+let _leilaoAdminPropostas = [];
+let _leilaoAdminSellerData = { players: [], picks: [] };
+
+function ensureLeilaoResolveModal() {
+  if (document.getElementById('leilaoAdminResolveModal')) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'leilaoAdminResolveModal';
+  modal.tabIndex = -1;
+  modal.innerHTML = `
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content bg-dark border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-hammer me-2" style="color:#ef4444"></i>Resolver Leilão</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="leilaoAdminResolveBody"><p style="color:var(--text-3);font-size:13px">Carregando...</p></div>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-outline-light" onclick="_leilaoAdminEncerrarSemTroca()">
+            <i class="bi bi-x-circle me-1"></i>Encerrar sem troca
+          </button>
+          <button type="button" class="btn btn-success" onclick="_leilaoAdminConfirmarResolucao()">
+            <i class="bi bi-check2-circle me-1"></i>Confirmar resolução
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function _leilaoAdminCheckboxList(items, cls, labelFn, checkedIds) {
+  if (!items.length) return '<p style="font-size:12px;color:var(--text-3)">Nenhum item disponível.</p>';
+  return items.map(it => `
+    <label style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer;margin-bottom:5px">
+      <input type="checkbox" class="${cls}" value="${it.id}"${checkedIds && checkedIds.has(Number(it.id)) ? ' checked' : ''} style="flex-shrink:0;margin:0">
+      <span style="font-size:13px;color:var(--text)">${escapeHtml(labelFn(it))}</span>
+    </label>`).join('');
+}
+
+async function _leilaoAdminAbrirResolucao(leilaoId, sellerTeamId, league) {
+  _leilaoAdminLeilaoId = leilaoId;
+  _leilaoAdminSellerTeamId = sellerTeamId || null;
+  _leilaoAdminLeague = league;
+  ensureLeilaoResolveModal();
+  const modalEl = document.getElementById('leilaoAdminResolveModal');
+  const modal = new bootstrap.Modal(modalEl);
+  modal.show();
+  const body = document.getElementById('leilaoAdminResolveBody');
+  if (body) body.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-orange"></div></div>';
+  try {
+    const [dataMsgs, dataSeller] = await Promise.all([
+      api(`leilao.php?action=listar_mensagens&leilao_id=${leilaoId}`),
+      _leilaoAdminSellerTeamId
+        ? api(`leilao.php?action=seller_items&seller_team_id=${_leilaoAdminSellerTeamId}`).catch(() => ({ players: [], picks: [] }))
+        : Promise.resolve({ players: [], picks: [] })
+    ]);
+    const porTime = {};
+    (dataMsgs.messages || []).forEach(m => { if (m.tipo === 'proposal' && m.proposta) porTime[m.proposta.team_id] = m.proposta; });
+    _leilaoAdminPropostas = Object.values(porTime);
+    _leilaoAdminSellerData = dataSeller || { players: [], picks: [] };
+    _leilaoAdminRenderResolveBody();
+  } catch (e) {
+    if (body) body.innerHTML = `<p style="color:#ef4444;font-size:13px">${escapeHtml(e.error || e.message || 'Erro ao carregar')}</p>`;
+  }
+}
+
+function _leilaoAdminRenderResolveBody() {
+  const body = document.getElementById('leilaoAdminResolveBody');
+  if (!body) return;
+  if (!_leilaoAdminPropostas.length) {
+    body.innerHTML = '<p style="text-align:center;color:var(--text-3);font-size:13px;padding:16px 0">Nenhuma proposta foi enviada pra este leilão — só é possível encerrar sem troca.</p>';
+    return;
+  }
+  const options = _leilaoAdminPropostas.map(p => `<option value="${p.id}">${escapeHtml(p.team_name || ('Time #' + p.team_id))}</option>`).join('');
+  body.innerHTML = `
+    <div class="mb-3">
+      <label class="pun-field-label">Time vencedor</label>
+      <select id="leilaoAdminPropostaSelect" class="form-select" onchange="_leilaoAdminRenderItensDaProposta()">${options}</select>
+    </div>
+    <div id="leilaoAdminItensProposta"></div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px"><i class="bi bi-plus-circle me-1"></i>Itens extras do vendedor (opcional)</div>
+      <div id="leilaoAdminSellerItens"></div>
+    </div>`;
+  _leilaoAdminRenderItensDaProposta();
+}
+
+function _leilaoAdminRenderItensDaProposta() {
+  const select = document.getElementById('leilaoAdminPropostaSelect');
+  const proposta = _leilaoAdminPropostas.find(p => Number(p.id) === Number(select?.value));
+  const el = document.getElementById('leilaoAdminItensProposta');
+  if (!proposta || !el) return;
+
+  const jogadoresHtml = _leilaoAdminCheckboxList(proposta.jogadores || [], 'leilaoAdminOfertaPlayer',
+    j => `${j.name} · ${j.position || ''} · OVR ${j.ovr || '?'}`, new Set((proposta.jogadores || []).map(j => Number(j.id))));
+  const picksHtml = _leilaoAdminCheckboxList(proposta.picks || [], 'leilaoAdminOfertaPick',
+    pk => `${pk.season_year} R${pk.round}${pk.original_team_name ? ' · ' + pk.original_team_name.trim() : ''}${pk.swap_type ? ' [' + pk.swap_type + ']' : ''}`,
+    new Set((proposta.picks || []).map(pk => Number(pk.id))));
+
+  el.innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Itens enviados nesta proposta</div>
+    ${jogadoresHtml}
+    ${picksHtml}`;
+
+  const extraPlayerIds = new Set((proposta.extra_jogadores || []).map(j => Number(j.id)));
+  const extraPickIds = new Set((proposta.extra_picks || []).map(pk => Number(pk.id)));
+  const sellerEl = document.getElementById('leilaoAdminSellerItens');
+  if (sellerEl) {
+    const sellerJogadoresHtml = _leilaoAdminCheckboxList(_leilaoAdminSellerData.players || [], 'leilaoAdminExtraPlayer',
+      p => `${p.name} · ${p.position || ''} · OVR ${p.ovr || '?'}`, extraPlayerIds);
+    const sellerPicksHtml = _leilaoAdminCheckboxList(_leilaoAdminSellerData.picks || [], 'leilaoAdminExtraPick',
+      pk => `${pk.season_year} R${pk.round}${pk.original_team_name ? ' · ' + pk.original_team_name.trim() : ''}`, extraPickIds);
+    sellerEl.innerHTML = `${sellerJogadoresHtml}${sellerPicksHtml}`;
+  }
+}
+
+async function _leilaoAdminConfirmarResolucao() {
+  const select = document.getElementById('leilaoAdminPropostaSelect');
+  const propostaId = select ? Number(select.value) : null;
+  if (!propostaId) { alert('Selecione o time vencedor.'); return; }
+
+  const player_ids = [...document.querySelectorAll('.leilaoAdminOfertaPlayer:checked')].map(el => Number(el.value));
+  const pick_ids = [...document.querySelectorAll('.leilaoAdminOfertaPick:checked')].map(el => Number(el.value));
+  const extra_player_ids = [...document.querySelectorAll('.leilaoAdminExtraPlayer:checked')].map(el => Number(el.value));
+  const extra_pick_ids = [...document.querySelectorAll('.leilaoAdminExtraPick:checked')].map(el => Number(el.value));
+
+  if (!confirm('Confirmar esta resolução?\n\nA troca será executada e o leilão não poderá mais mudar de vencedor.')) return;
+  try {
+    await api('leilao.php', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'admin_fechar_leilao',
+        leilao_id: _leilaoAdminLeilaoId,
+        proposta_id: propostaId,
+        player_ids, pick_ids, extra_player_ids, extra_pick_ids
+      })
+    });
+    bootstrap.Modal.getInstance(document.getElementById('leilaoAdminResolveModal'))?.hide();
+    showLeilaoAdmin(_leilaoAdminLeague);
+  } catch (e) {
+    alert('Erro ao resolver o leilão: ' + (e.error || e.message || ''));
+  }
+}
+
+async function _leilaoAdminEncerrarSemTroca() {
+  if (!_leilaoAdminLeilaoId) return;
+  if (!confirm('Encerrar este leilão sem executar nenhuma troca?')) return;
+  try {
+    await api('leilao.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'admin_encerrar_sem_troca', leilao_id: _leilaoAdminLeilaoId })
+    });
+    bootstrap.Modal.getInstance(document.getElementById('leilaoAdminResolveModal'))?.hide();
+    showLeilaoAdmin(_leilaoAdminLeague);
+  } catch (e) {
+    alert('Erro ao encerrar o leilão: ' + (e.error || e.message || ''));
+  }
+}
+
 const WAITLIST_STATUS_LABEL = { pending: 'Aguardando', link_sent: 'Link enviado', accepted: 'Aceito', registered: 'Cadastrado' };
 const WAITLIST_STATUS_COLOR = { pending: '#f59e0b', link_sent: '#3b82f6', accepted: '#22c55e', registered: '#22c55e' };
 
@@ -961,6 +1184,7 @@ async function showLeague(league) {
       { icon: 'bi-clipboard2-pulse',        label: 'Tática',                    fn: 'showTaticaAdmin()',         color: '#14b8a6', bg: 'rgba(20,184,166,.12)'  },
       { icon: 'bi-exclamation-triangle-fill', label: 'Punições',               fn: 'showPunicoes()',            color: '#f43f5e', bg: 'rgba(244,63,94,.12)'   },
       { icon: 'bi-trophy-fill',             label: 'Draft',                     fn: 'showAdminDraft()',          color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
+      { icon: 'bi-hammer',                  label: 'Leilão',                    fn: `showLeilaoAdmin('${league}')`, color: '#ef4444', bg: 'rgba(239,68,68,.12)'  },
       { icon: 'bi-archive-fill',            label: 'Banco de<br>Classes',        fn: 'showDraftClassBank()',      color: '#a855f7', bg: 'rgba(168,85,247,.08)'  },
       { icon: 'bi-coin',                    label: 'Moedas',                    fn: 'showCoins()',               color: '#f59e0b', bg: 'rgba(245,158,11,.12)'  },
       ...(window.IS_GLOBAL_ADMIN ? [
