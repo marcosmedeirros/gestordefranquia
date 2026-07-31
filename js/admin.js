@@ -1299,7 +1299,7 @@ async function showLeague(league) {
             <i class="bi bi-calendar2-check"></i> Picks
           </button>
           ${currentSeason
-            ? (Number(seasonNumber) === Number(totalSeasons) && totalSeasons !== '—'
+            ? (totalSeasons !== '—' && Number(seasonNumber) >= Number(totalSeasons)
                 ? `<button class="btn-ghost" style="color:#ef4444;border-color:rgba(239,68,68,.3)" onclick="showFinalizarSprint('${league}')">
                      <i class="bi bi-flag-fill me-1"></i>Finalizar Sprint
                    </button>`

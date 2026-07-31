@@ -53,7 +53,7 @@ async function showSeasonsManagement() {
         const seasonInfo = season
             ? `Sprint ${season.sprint_number || '?'} · T${season.season_number || '?'} · ${season.year || ''}`
             : 'Sem sprint ativo';
-        const isLastSeason = hasSprint && maxSeasons && Number(season.season_number) === Number(maxSeasons);
+        const isLastSeason = hasSprint && maxSeasons && Number(season.season_number) >= Number(maxSeasons);
 
         const mainBtn = !hasSprint
             ? `<button class="btn btn-sm btn-orange w-100 mb-2" onclick="showAvancarTemporada('${l.name}')">
