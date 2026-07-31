@@ -73,6 +73,9 @@ async function showGestao(league) {
       </button>
     </div>
     <div class="d-flex gap-2 mb-3 flex-wrap justify-content-center">
+      <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="openCreateGmModal()">
+        <i class="bi bi-person-plus-fill" style="color:#22c55e"></i> Adicionar GM
+      </button>
       <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="showOuvidoriaModal()">
         <i class="bi bi-chat-left-dots-fill" style="color:#8b5cf6"></i> Ouvidoria
       </button>
@@ -194,6 +197,8 @@ function renderGestaoTable(users) {
     const teamName = u.team_city
       ? `${escapeHtml(u.team_city)} ${escapeHtml(u.team_name || '')}`
       : (u.team_name ? escapeHtml(u.team_name) : '<span class="text-muted">—</span>');
+    const teamLabelPlain = (u.team_city ? `${u.team_city} ${u.team_name || ''}` : (u.team_name || '')).trim().replace(/'/g, "\\'");
+    const gmNamePlain = escapeHtml(u.name).replace(/'/g, "\\'");
 
     return `
       <tr>
@@ -218,7 +223,9 @@ function renderGestaoTable(users) {
             </button>
             ${!u.team_id ? `<button class="btn btn-sm btn-outline-danger" onclick="deleteGestaoUser(${u.id}, '${escapeHtml(u.name).replace(/'/g, "\\'")}')" title="Apagar usuário (sem time)">
               <i class="bi bi-trash-fill"></i>
-            </button>` : ''}
+            </button>` : `<button class="btn btn-sm btn-outline-danger" onclick="deleteGestaoTeam(${u.team_id}, '${teamLabelPlain}', '${gmNamePlain}')" title="Apagar time e o GM dono">
+              <i class="bi bi-x-octagon-fill"></i>
+            </button>`}
           </div>
         </td>
       </tr>`;
@@ -408,6 +415,113 @@ async function deleteGestaoUser(userId, userName) {
     showGestao(_gestaoLeague);
   } catch (e) {
     showAlert('danger', 'Erro: ' + (e.error || 'Desconhecido'));
+  }
+}
+
+async function deleteGestaoTeam(teamId, teamName, gmName) {
+  if (!confirm(`Apagar o time "${teamName}" e o GM "${gmName}"?\n\nIsso apaga o elenco, picks, trocas e a conta de login do GM. Essa ação não pode ser desfeita.`)) return;
+  try {
+    await api(`admin.php?action=team_and_owner&team_id=${teamId}`, { method: 'DELETE' });
+    showAlert('success', 'Time e GM apagados!');
+    showGestao(_gestaoLeague);
+  } catch (e) {
+    showAlert('danger', 'Erro: ' + (e.error || 'Desconhecido'));
+  }
+}
+
+function ensureCreateGmModal() {
+  if (document.getElementById('createGmModal')) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'createGmModal';
+  modal.tabIndex = -1;
+  modal.innerHTML = `
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-person-plus-fill me-2" style="color:#22c55e"></i>Adicionar GM</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label text-light-gray">Liga</label>
+            <select id="cgm-league" class="form-select">
+              ${_leagues.map(lg => `<option value="${lg}">${lg}</option>`).join('')}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-light-gray">Nome do GM</label>
+            <input type="text" id="cgm-name" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-light-gray">E-mail</label>
+            <input type="email" id="cgm-email" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-light-gray">Nome do Time</label>
+            <input type="text" id="cgm-team-name" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-light-gray">Cidade do Time</label>
+            <input type="text" id="cgm-team-city" class="form-control">
+          </div>
+          <div style="font-size:11px;color:var(--text-3)">
+            Senha padrão: <strong>fbabrasil123</strong> — enviada por e-mail junto com o link de login. O GM pode trocar depois.
+          </div>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-orange" id="cgm-submit-btn" onclick="submitCreateGm()">
+            <i class="bi bi-check-lg me-1"></i>Criar GM
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function openCreateGmModal() {
+  ensureCreateGmModal();
+  document.getElementById('cgm-league').value = _gestaoLeague || _leagues[0];
+  document.getElementById('cgm-name').value = '';
+  document.getElementById('cgm-email').value = '';
+  document.getElementById('cgm-team-name').value = '';
+  document.getElementById('cgm-team-city').value = '';
+  new bootstrap.Modal(document.getElementById('createGmModal')).show();
+}
+
+async function submitCreateGm() {
+  const name = document.getElementById('cgm-name').value.trim();
+  const email = document.getElementById('cgm-email').value.trim();
+  const league = document.getElementById('cgm-league').value;
+  const teamName = document.getElementById('cgm-team-name').value.trim();
+  const teamCity = document.getElementById('cgm-team-city').value.trim();
+
+  if (!name || !email || !teamName || !teamCity) {
+    alert('Preencha todos os campos.');
+    return;
+  }
+
+  const btn = document.getElementById('cgm-submit-btn');
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Criando...';
+  try {
+    const data = await api('admin.php?action=create_gm', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, league, team_name: teamName, team_city: teamCity })
+    });
+    bootstrap.Modal.getInstance(document.getElementById('createGmModal'))?.hide();
+    showAlert('success', data.email_sent
+      ? 'GM criado e e-mail enviado!'
+      : 'GM criado, mas o e-mail não pôde ser enviado — repasse o login e a senha (fbabrasil123) manualmente.');
+    showGestao(league);
+  } catch (e) {
+    alert('Erro ao criar GM: ' + (e.error || 'Desconhecido'));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
   }
 }
 

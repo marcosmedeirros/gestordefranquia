@@ -267,6 +267,43 @@ Equipe FBA Manager
     return $params ? mail($email, $subject, $message, $headers, $params) : mail($email, $subject, $message, $headers);
 }
 
+/**
+ * E-mail de boas-vindas pro GM criado direto pelo admin em Gestão — link de
+ * login + senha padrão em texto (aviso pra trocar depois). Mesmo mecanismo de
+ * envio de sendPasswordResetEmail (SMTP cru se configurado, senão mail() nativo).
+ */
+function sendGmWelcomeEmail(string $email, string $name, string $password, string $league): bool
+{
+    $config = loadConfig();
+    $loginUrl = 'https://fbabrasil.com.br/login.php';
+    $subject = 'Bem-vindo ao FBA Manager!';
+
+    $message = "
+Olá {$name},
+
+Seu time na liga {$league} foi criado no FBA Manager!
+
+Acesse pelo link abaixo com os dados de acesso:
+{$loginUrl}
+
+E-mail: {$email}
+Senha: {$password}
+
+Recomendamos trocar sua senha assim que possível em Configurações.
+
+Atenciosamente,
+Equipe FBA Manager
+    ";
+
+    if (!empty($config['mail']['smtp']['host'])) {
+        return sendViaSmtp($email, $subject, $message, $config);
+    }
+
+    $headers = implode("\r\n", buildMailHeaders($config));
+    $params = buildMailParams($config);
+    return $params ? mail($email, $subject, $message, $headers, $params) : mail($email, $subject, $message, $headers);
+}
+
 function topEightCap(PDO $pdo, int $teamId): int
 {
     $stmt = $pdo->prepare('SELECT SUM(ovr) as cap FROM (

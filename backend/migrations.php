@@ -1171,6 +1171,27 @@ function runMigrations() {
     }
 
     try {
+        // league_sprint_config.max_seasons vinha sendo sobrescrito pra valores
+        // errados em toda request (bug do ensureLeagueSprintDefaults, ja corrigido)
+        // — corrige os valores atuais uma unica vez pros corretos. Roda so uma vez:
+        // depois disso, o admin pode editar max_seasons livremente em Admin >
+        // configuracoes da liga sem essa correcao mexer de novo.
+        $st3 = $pdo->prepare("SELECT 1 FROM app_flags WHERE flag = ?");
+        $st3->execute(['league_sprint_config_fix_2026_07']);
+        if (!$st3->fetchColumn()) {
+            $pdo->exec("
+                INSERT INTO league_sprint_config (league, max_seasons) VALUES
+                ('ELITE', 25), ('NEXT', 20), ('RISE', 15), ('ROOKIE', 10)
+                ON DUPLICATE KEY UPDATE max_seasons = VALUES(max_seasons)
+            ");
+            $ins3 = $pdo->prepare("INSERT INTO app_flags (flag) VALUES (?)");
+            $ins3->execute(['league_sprint_config_fix_2026_07']);
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_league_sprint_config_fix: " . $e->getMessage();
+    }
+
+    try {
         $hasTradesTable = $pdo->query("SHOW TABLES LIKE 'trades'")->fetch();
         if ($hasTradesTable) {
             $hasFromTeamId = $pdo->query("SHOW COLUMNS FROM trades LIKE 'from_team_id'")->fetch();

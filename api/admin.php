@@ -2419,6 +2419,74 @@ if ($method === 'POST') {
             echo json_encode(['success' => true, 'user_type' => $enable ? 'admin' : 'jogador']);
             break;
 
+        case 'create_gm':
+            // Cria um GM novo direto pela liga: usuário + time, com senha padrão,
+            // e manda um e-mail de boas-vindas com o link de login. Admin geral só.
+            if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin geral']); exit; }
+
+            $gmName = trim((string)($data['name'] ?? ''));
+            $gmEmail = strtolower(trim((string)($data['email'] ?? '')));
+            $gmLeague = strtoupper(trim((string)($data['league'] ?? '')));
+            $teamName = trim((string)($data['team_name'] ?? ''));
+            $teamCity = trim((string)($data['team_city'] ?? ''));
+
+            if ($gmName === '' || $gmEmail === '' || $teamName === '' || $teamCity === '') {
+                http_response_code(422);
+                echo json_encode(['success' => false, 'error' => 'Nome do GM, e-mail, nome do time e cidade são obrigatórios.']);
+                exit;
+            }
+            if (!filter_var($gmEmail, FILTER_VALIDATE_EMAIL)) {
+                http_response_code(422);
+                echo json_encode(['success' => false, 'error' => 'E-mail inválido.']);
+                exit;
+            }
+            if (!in_array($gmLeague, $validLeagues, true)) {
+                http_response_code(422);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida.']);
+                exit;
+            }
+
+            $stmtEmailChk = $pdo->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
+            $stmtEmailChk->execute([$gmEmail]);
+            if ($stmtEmailChk->fetch()) {
+                http_response_code(409);
+                echo json_encode(['success' => false, 'error' => 'Já existe uma conta com esse e-mail.']);
+                exit;
+            }
+
+            $defaultPassword = 'fbabrasil123';
+            $hash = password_hash($defaultPassword, PASSWORD_BCRYPT);
+            $verificationToken = bin2hex(random_bytes(16));
+
+            try {
+                $pdo->beginTransaction();
+                $pdo->prepare("INSERT INTO users (name, email, password_hash, user_type, league, verification_token, approved) VALUES (?, ?, ?, 'jogador', ?, ?, 1)")
+                    ->execute([$gmName, $gmEmail, $hash, $gmLeague, $verificationToken]);
+                $newUserId = (int)$pdo->lastInsertId();
+
+                $pdo->prepare("INSERT INTO teams (user_id, league, name, city, mascot) VALUES (?, ?, ?, ?, ?)")
+                    ->execute([$newUserId, $gmLeague, $teamName, $teamCity, $teamName]);
+                $newTeamId = (int)$pdo->lastInsertId();
+
+                $pdo->commit();
+            } catch (Exception $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                error_log('[create_gm] ' . $e->getMessage());
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Erro ao criar o GM.']);
+                exit;
+            }
+
+            $emailSent = false;
+            try {
+                $emailSent = sendGmWelcomeEmail($gmEmail, $gmName, $defaultPassword, $gmLeague);
+            } catch (Exception $e) {
+                error_log('[create_gm] envio de e-mail falhou: ' . $e->getMessage());
+            }
+
+            echo json_encode(['success' => true, 'user_id' => $newUserId, 'team_id' => $newTeamId, 'email_sent' => $emailSent]);
+            break;
+
         case 'reset_user_password':
             if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin global']); exit; }
             $targetId = (int)($data['user_id'] ?? 0);
@@ -2681,6 +2749,118 @@ if ($method === 'DELETE') {
                 $pdo->rollBack();
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Erro ao apagar usuário']);
+            }
+            break;
+
+        case 'team_and_owner':
+            // Apaga um time inteiro e o usuário/GM dono junto — caminho que
+            // 'user' recusa de propósito (comentário logo acima). Só admin geral.
+            if (!$isGlobalAdminApi) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas admin geral']);
+                exit;
+            }
+            $teamId = (int)($_GET['team_id'] ?? 0);
+            if (!$teamId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'team_id inválido']);
+                exit;
+            }
+
+            $stmtTeamRow = $pdo->prepare("SELECT id, user_id, league FROM teams WHERE id = ?");
+            $stmtTeamRow->execute([$teamId]);
+            $teamRow = $stmtTeamRow->fetch(PDO::FETCH_ASSOC);
+            if (!$teamRow) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Time não encontrado']);
+                exit;
+            }
+            $ownerId = (int)$teamRow['user_id'];
+
+            try {
+                $pdo->beginTransaction();
+
+                // Jogadores do time: preserva nome/posição/idade/OVR no histórico de
+                // trocas e no leilão antes de apagar (mesmo padrão já usado em
+                // DELETE admin.php?action=player, só que em lote pro time inteiro).
+                $stmtPlayers = $pdo->prepare("SELECT id, name, position, age, ovr FROM players WHERE team_id = ?");
+                $stmtPlayers->execute([$teamId]);
+                $teamPlayers = $stmtPlayers->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($teamPlayers as $pr) {
+                    try {
+                        $pdo->prepare(
+                            "UPDATE trade_items
+                             SET player_name = COALESCE(player_name, ?), player_position = COALESCE(player_position, ?),
+                                 player_age = COALESCE(player_age, ?), player_ovr = COALESCE(player_ovr, ?), player_id = NULL
+                             WHERE player_id = ?"
+                        )->execute([$pr['name'], $pr['position'], $pr['age'], $pr['ovr'], $pr['id']]);
+                        $pdo->prepare(
+                            "UPDATE multi_trade_items
+                             SET player_name = COALESCE(player_name, ?), player_position = COALESCE(player_position, ?),
+                                 player_age = COALESCE(player_age, ?), player_ovr = COALESCE(player_ovr, ?), player_id = NULL
+                             WHERE player_id = ?"
+                        )->execute([$pr['name'], $pr['position'], $pr['age'], $pr['ovr'], $pr['id']]);
+                    } catch (Exception $e) {}
+                    try {
+                        $pdo->prepare("UPDATE leilao_jogadores SET temp_name = COALESCE(temp_name, ?) WHERE player_id = ?")
+                            ->execute([$pr['name'], $pr['id']]);
+                    } catch (Exception $e) {}
+                }
+                $pdo->prepare("DELETE FROM players WHERE team_id = ?")->execute([$teamId]);
+
+                // Picks: só as que o time TEM hoje (dono atual) somem com ele. Uma pick
+                // que ele mandou pra outro time em troca (original_team_id = este time,
+                // mas quem tem hoje é outro) precisa ficar — só que original_team_id tem
+                // FK com ON DELETE CASCADE pra teams (confirmado testando localmente: sem
+                // isso, apagar o time apagava essas picks também, por baixo dos panos).
+                // Reatribui a "origem" pro dono atual antes de apagar o time, pra a FK não
+                // cascatear em cima delas.
+                $pdo->prepare("UPDATE picks SET original_team_id = team_id WHERE original_team_id = ? AND team_id != ?")
+                    ->execute([$teamId, $teamId]);
+                $pdo->prepare("DELETE FROM picks WHERE team_id = ?")->execute([$teamId]);
+
+                // Trocas 1x1 e itens associados
+                try {
+                    $pdo->prepare("DELETE FROM trade_items WHERE trade_id IN (SELECT id FROM trades WHERE from_team_id = ? OR to_team_id = ?)")
+                        ->execute([$teamId, $teamId]);
+                    $pdo->prepare("DELETE FROM trades WHERE from_team_id = ? OR to_team_id = ?")->execute([$teamId, $teamId]);
+                } catch (Exception $e) {}
+
+                // Trocas multi-times e itens associados
+                try {
+                    $pdo->prepare("DELETE FROM multi_trade_items WHERE from_team_id = ? OR to_team_id = ?")->execute([$teamId, $teamId]);
+                    $pdo->prepare("DELETE FROM multi_trade_teams WHERE team_id = ?")->execute([$teamId]);
+                    $pdo->prepare("DELETE FROM multi_trades WHERE created_by_team_id = ?")->execute([$teamId]);
+                } catch (Exception $e) {}
+
+                try { $pdo->prepare("DELETE FROM season_standings WHERE team_id = ?")->execute([$teamId]); } catch (Exception $e) {}
+                try { $pdo->prepare("DELETE FROM team_ranking_points WHERE team_id = ?")->execute([$teamId]); } catch (Exception $e) {}
+                try { $pdo->prepare("DELETE FROM team_tactics WHERE team_id = ?")->execute([$teamId]); } catch (Exception $e) {}
+                try {
+                    $pdo->prepare("DELETE FROM initdraft_order WHERE team_id = ? OR original_team_id = ?")->execute([$teamId, $teamId]);
+                    $pdo->prepare("UPDATE initdraft_order SET traded_from_team_id = NULL WHERE traded_from_team_id = ?")->execute([$teamId]);
+                } catch (Exception $e) {}
+                try { $pdo->prepare("UPDATE draft_pool SET drafted_by_team_id = NULL WHERE drafted_by_team_id = ?")->execute([$teamId]); } catch (Exception $e) {}
+                try {
+                    $pdo->prepare("DELETE fao FROM free_agent_offers fao WHERE fao.team_id = ?")->execute([$teamId]);
+                    $pdo->prepare("UPDATE free_agents SET original_team_id = NULL WHERE original_team_id = ?")->execute([$teamId]);
+                } catch (Exception $e) {}
+
+                $pdo->prepare("DELETE FROM league_admins WHERE user_id = ?")->execute([$ownerId]);
+                try {
+                    $pdo->prepare("DELETE FROM push_subscriptions WHERE user_id = ?")->execute([$ownerId]);
+                } catch (Exception $e) {}
+
+                $pdo->prepare("DELETE FROM teams WHERE id = ?")->execute([$teamId]);
+                $pdo->prepare("DELETE FROM users WHERE id = ?")->execute([$ownerId]);
+
+                $pdo->commit();
+                echo json_encode(['success' => true]);
+            } catch (Exception $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                error_log('[team_and_owner] ' . $e->getMessage());
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Erro ao apagar o time.']);
             }
             break;
 
