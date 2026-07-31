@@ -266,10 +266,13 @@ $user = getUserSession();
                     <div class="field-label" style="margin-bottom:8px">Cabeçalho obrigatório</div>
                     <div class="code-block mb-3">nome,posicao,idade,ovr</div>
 
+                    <div class="field-label" style="margin-bottom:8px">Coluna opcional</div>
+                    <div class="code-block mb-3">ordem <span style="opacity:.7">— posição do jogador no board de disponíveis (menor = aparece primeiro)</span></div>
+
                     <div class="field-label" style="margin-bottom:8px">Exemplo de dados</div>
-                    <div class="code-block example mb-4">LeBron James,SF,39,96
-Stephen Curry,PG,35,95
-Kevin Durant,PF,35,94</div>
+                    <div class="code-block example mb-4">LeBron James,SF,39,96,1
+Stephen Curry,PG,35,95,2
+Kevin Durant,PF,35,94,</div>
 
                     <button class="btn-ghost" onclick="downloadTemplate()">
                         <i class="bi bi-download"></i> Baixar Template CSV
@@ -434,7 +437,7 @@ Kevin Durant,PF,35,94</div>
     }
 
     function downloadTemplate() {
-        const csv = 'nome,posicao,idade,ovr\nLeBron James,SF,39,96\nStephen Curry,PG,35,95\nKevin Durant,PF,35,94\n';
+        const csv = 'nome,posicao,idade,ovr,ordem\nLeBron James,SF,39,96,1\nStephen Curry,PG,35,95,2\nKevin Durant,PF,35,94,\n';
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');

@@ -6000,7 +6000,7 @@ async function _adminDraftSubmitPick(draftSessionId, pickId, league) {
 // ── Draft CSV Import ────────────────────────────────────────────────────────
 
 function _adminDraftDownloadTemplate() {
-  const csv = 'name,position,ovr,age\nLeBron James,SF,97,39\nStephen Curry,PG,96,36\n';
+  const csv = 'name,position,ovr,age,ordem\nLeBron James,SF,97,39,1\nStephen Curry,PG,96,36,2\n';
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -6036,7 +6036,7 @@ function _adminDraftImportModal(draftSessionId, seasonId, league) {
         </div>
         <div style="font-size:11px;color:var(--text-3);margin-bottom:10px;text-align:center">— ou importe um novo CSV —</div>
         <p style="font-size:12px;color:var(--text-3);margin-bottom:12px">
-          CSV com colunas: <strong style="color:var(--text)">name, position, ovr, age</strong>.
+          CSV com colunas: <strong style="color:var(--text)">name, position, ovr, age</strong> e, opcional, <strong style="color:var(--text)">ordem</strong> (posição no board de disponíveis).
           <button class="btn-ghost" style="padding:2px 8px;font-size:11px;margin-left:6px" onclick="_adminDraftDownloadTemplate()">
             <i class="bi bi-download me-1"></i>Baixar modelo
           </button>
@@ -6152,6 +6152,7 @@ function _adminDraftParseCSV(file, draftSessionId, league) {
     const posIdx  = headers.indexOf('position');
     const ovrIdx  = headers.indexOf('ovr');
     const ageIdx  = headers.indexOf('age');
+    const hintIdx = headers.indexOf('ordem') >= 0 ? headers.indexOf('ordem') : headers.indexOf('pick_hint');
 
     if (nameIdx < 0 || posIdx < 0 || ovrIdx < 0 || ageIdx < 0) {
       showAlert('danger', 'Cabeçalho inválido. Esperado: name, position, ovr, age');
@@ -6167,12 +6168,14 @@ function _adminDraftParseCSV(file, draftSessionId, league) {
       const pos  = (cols[posIdx] || '').toUpperCase();
       const ovr  = parseInt(cols[ovrIdx], 10);
       const age  = parseInt(cols[ageIdx], 10);
+      const hintRaw = hintIdx >= 0 ? cols[hintIdx] : '';
+      const pick_hint = hintRaw && parseInt(hintRaw, 10) > 0 ? parseInt(hintRaw, 10) : null;
 
       if (!name || !pos || isNaN(ovr) || isNaN(age) || ovr <= 0 || age <= 0) {
         errRows.push(i + 1);
         continue;
       }
-      _draftImportRows.push({ name, position: pos, ovr, age });
+      _draftImportRows.push({ name, position: pos, ovr, age, pick_hint });
     }
 
     const preview = document.getElementById('draftImportPreview');
@@ -6199,6 +6202,7 @@ function _adminDraftParseCSV(file, draftSessionId, league) {
             <th style="padding:7px 10px;color:var(--text-3);font-weight:500">Pos</th>
             <th style="padding:7px 10px;color:var(--text-3);font-weight:500">OVR</th>
             <th style="padding:7px 10px;color:var(--text-3);font-weight:500">Idade</th>
+            <th style="padding:7px 10px;color:var(--text-3);font-weight:500">Ordem</th>
           </tr>
         </thead>
         <tbody>
@@ -6208,8 +6212,9 @@ function _adminDraftParseCSV(file, draftSessionId, league) {
               <td style="padding:6px 10px;color:var(--text-3);text-align:center">${escapeHtml(p.position)}</td>
               <td style="padding:6px 10px;color:#a855f7;font-weight:600;text-align:center">${p.ovr}</td>
               <td style="padding:6px 10px;color:var(--text-3);text-align:center">${p.age}</td>
+              <td style="padding:6px 10px;color:var(--text-3);text-align:center">${p.pick_hint ?? '—'}</td>
             </tr>`).join('')}
-          ${_draftImportRows.length > 50 ? `<tr><td colspan="4" style="padding:6px 10px;color:var(--text-3);text-align:center">+${_draftImportRows.length - 50} mais…</td></tr>` : ''}
+          ${_draftImportRows.length > 50 ? `<tr><td colspan="5" style="padding:6px 10px;color:var(--text-3);text-align:center">+${_draftImportRows.length - 50} mais…</td></tr>` : ''}
         </tbody>
       </table>`;
 
