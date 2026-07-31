@@ -2074,7 +2074,9 @@ try {
                 $pdo->prepare("DELETE fao FROM free_agent_offers fao INNER JOIN free_agents fa ON fao.free_agent_id = fa.id WHERE fa.league = ?")
                     ->execute([$league]);
                 $pdo->prepare("DELETE FROM free_agents WHERE league = ?")->execute([$league]);
-                $pdo->prepare("DELETE FROM picks WHERE league = ?")->execute([$league]);
+                // picks não tem coluna league própria — escopo pelo dono atual da pick
+                $pdo->prepare("DELETE p FROM picks p INNER JOIN teams t ON p.team_id = t.id WHERE t.league = ?")
+                    ->execute([$league]);
 
                 // Tática de cada time referencia diretamente os player_id do elenco que
                 // acabou de ser apagado (titulares/banco/G-League) — sem isso, a config
@@ -2086,8 +2088,11 @@ try {
                     error_log('[finalize_sprint] limpar team_tactics: ' . $e->getMessage());
                 }
 
-                $teamUpdates = ['waivers_used = 0', 'fa_signings_used = 0', 'tapas = 0', 'moedas = 0'];
-                foreach (['ranking_points', 'ranking_titles', 'current_cycle', 'trades_cycle', 'trades_used'] as $col) {
+                // moedas é a única destas colunas que create_season já mexe sem
+                // proteção (prova de que sempre existe) — as demais variam entre
+                // instalações, então checa antes de incluir no UPDATE.
+                $teamUpdates = ['moedas = 0'];
+                foreach (['waivers_used', 'fa_signings_used', 'tapas', 'ranking_points', 'ranking_titles', 'current_cycle', 'trades_cycle', 'trades_used'] as $col) {
                     if (columnExists($pdo, 'teams', $col)) $teamUpdates[] = "{$col} = 0";
                 }
                 $pdo->prepare('UPDATE teams SET ' . implode(', ', $teamUpdates) . ' WHERE league = ?')->execute([$league]);
