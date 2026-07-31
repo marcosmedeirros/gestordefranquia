@@ -294,11 +294,9 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'O draft já terminou.']);
                 exit;
             }
-            if (!$is_admin && (int)($atual['user_id'] ?? 0) !== $user_id) {
-                $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => 'Ainda não é a sua vez.']);
-                exit;
-            }
+            // Qualquer pessoa logada pode registrar a escolha da vez atual (não só
+            // quem é o dono dela, nem só admin) — na prática, às vezes um GM manda
+            // o mock pra outra pessoa cadastrar por ele.
 
             $pdo->prepare("UPDATE legends_draft_picks SET player_name = ?, player_position = ?, ovr = 80, age = 19, picked_at = NOW() WHERE id = ?")
                 ->execute([$nome, $pos, $atual['id']]);

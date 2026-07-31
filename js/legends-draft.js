@@ -71,7 +71,6 @@ function ldRenderTudo() {
     <div class="ld-turno">
       <div class="ld-turno-label">Escolha ${vez.pick_number} de ${d.total}</div>
       <div class="ld-turno-gm">${_ldEsc(vez.gm_name)}${ehMinhaVez ? ' — é a sua vez!' : ''}</div>
-      ${ehMinhaVez ? `
       <div class="ld-form-row">
         <input type="text" id="ldNomeJogador" placeholder="Nome do jogador (lenda)" maxlength="150">
         <select id="ldPosicaoJogador">
@@ -82,7 +81,8 @@ function ldRenderTudo() {
           <option value="C">C</option>
         </select>
         <button type="button" class="btn-orange" id="btnLdEscolher">Confirmar escolha</button>
-      </div>` : `<div style="font-size:12px;color:var(--text-2);margin-top:8px">Aguardando ${_ldEsc(vez.gm_name)} escolher...</div>`}
+      </div>
+      ${!ehMinhaVez ? `<div style="font-size:11px;color:var(--text-3);margin-top:6px">Qualquer pessoa pode cadastrar essa escolha (ex: recebeu o mock de ${_ldEsc(vez.gm_name)}).</div>` : ''}
     </div>`;
   } else if (d.draft_completo) {
     html += `<div class="ld-turno" style="border-color:color-mix(in srgb, var(--green) 35%, transparent);background:linear-gradient(135deg,color-mix(in srgb, var(--green) 14%, transparent),transparent)">
