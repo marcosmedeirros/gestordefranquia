@@ -2114,7 +2114,12 @@ try {
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) $pdo->rollBack();
                 error_log('[finalize_sprint] ' . $e->getMessage());
-                throw new Exception('Erro ao finalizar o sprint: ' . $e->getMessage());
+                // DIAGNÓSTICO TEMPORÁRIO: expõe a mensagem real (o catch externo do
+                // arquivo sempre troca por "Erro interno do servidor.") — reverter
+                // depois de identificar a causa do 400 em produção.
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Erro ao finalizar o sprint: ' . $e->getMessage()]);
+                exit;
             }
 
             echo json_encode([
