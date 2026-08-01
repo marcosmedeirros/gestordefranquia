@@ -763,6 +763,10 @@ async function showFinalizarSprint(league) {
 
     const seasonLabel = `T${season.season_number} · Sprint ${season.sprint_number || '?'} · ${season.year || ''}`;
 
+    // Sugestão: continuar a contagem de anos da liga (que é fictícia e pode
+    // estar bem à frente do ano real), mas quem decide é o admin.
+    const proximoAnoSugerido = Number(season.year) ? Number(season.year) + 1 : new Date().getFullYear();
+
     if (!histRegistered) {
         container.innerHTML = `
             <div class="mb-3">
@@ -806,6 +810,14 @@ async function showFinalizarSprint(league) {
                 </ul>
             </div>
             <div style="margin-bottom:16px">
+                <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:6px">Ano inicial do novo sprint</label>
+                <input type="number" id="finalizarSprintStartYear" value="${proximoAnoSugerido}" min="1900" max="2200"
+                       style="background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:15px;width:160px">
+                <div style="font-size:11.5px;color:var(--text-3);margin-top:6px">
+                    A temporada 1 do novo sprint começa nesse ano, e as picks são geradas a partir dele.
+                </div>
+            </div>
+            <div style="margin-bottom:16px">
                 <label style="font-size:12px;color:var(--text-2);display:block;margin-bottom:6px">Digite <strong>${league}</strong> pra confirmar</label>
                 <input type="text" id="finalizarSprintConfirmInput" placeholder="${league}"
                        style="background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:15px;width:200px">
@@ -820,12 +832,18 @@ async function showFinalizarSprint(league) {
 }
 
 async function _confirmFinalizeSprint(league) {
+    const startYear = parseInt(document.getElementById('finalizarSprintStartYear')?.value, 10);
+    if (!startYear || startYear < 1900 || startYear > 2200) {
+        alert('Informe o ano inicial do novo sprint (entre 1900 e 2200).');
+        return;
+    }
+
     const input = document.getElementById('finalizarSprintConfirmInput');
     if (!input || input.value.trim().toUpperCase() !== league.toUpperCase()) {
         alert(`Digite "${league}" no campo pra confirmar.`);
         return;
     }
-    if (!confirm(`Finalizar o sprint da liga ${league} agora?\n\nO elenco de todos os times será apagado e um novo sprint vai começar. Essa ação não pode ser desfeita.`)) return;
+    if (!confirm(`Finalizar o sprint da liga ${league} agora?\n\nO novo sprint vai começar em ${startYear}. O elenco de todos os times será apagado. Essa ação não pode ser desfeita.`)) return;
 
     const btn = document.getElementById('btnFinalizeSprintConfirm');
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Finalizando...'; }
@@ -833,7 +851,7 @@ async function _confirmFinalizeSprint(league) {
     try {
         const data = await api('seasons.php?action=finalize_sprint', {
             method: 'POST',
-            body: JSON.stringify({ league })
+            body: JSON.stringify({ league, start_year: startYear })
         });
         seasonsState._finalizingSeason = null;
         showAlert('success', data.message || 'Sprint finalizado!');

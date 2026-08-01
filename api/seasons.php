@@ -2016,6 +2016,14 @@ try {
             if (!$league || !in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
                 throw new Exception('Liga inválida');
             }
+            $requestedStartYear = isset($input['start_year']) ? (int)$input['start_year'] : 0;
+            if ($requestedStartYear !== 0 && ($requestedStartYear < 1900 || $requestedStartYear > 2200)) {
+                // Resposta direta: o catch geral desta API troca a mensagem por
+                // um "Erro interno do servidor" que não ajuda quem digitou errado.
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Ano inicial inválido — informe um ano entre 1900 e 2200.']);
+                exit;
+            }
 
             // A última temporada ativa da liga — deve ser de fato a última do sprint atual
             $stmtFinSeason = $pdo->prepare("
@@ -2109,7 +2117,12 @@ try {
                 // Idempotente por (league, sprint_number)/(sprint_id, season_number): se uma
                 // tentativa anterior já tiver criado o sprint/temporada novos (ex. falhou
                 // depois disso), reaproveita em vez de tentar inserir de novo e colidir.
-                $newStartYear = (int)$finSeason['year'] + 1;
+                // O ano inicial do novo sprint vem do admin (o formulário de
+                // finalizar pergunta). Sem valor válido, cai no padrão de
+                // continuar a contagem: ano da última temporada + 1.
+                $newStartYear = ($requestedStartYear >= 1900 && $requestedStartYear <= 2200)
+                    ? $requestedStartYear
+                    : (int)$finSeason['year'] + 1;
                 $stmtExistingSprint = $pdo->prepare("SELECT id FROM sprints WHERE league = ? AND sprint_number = ?");
                 $stmtExistingSprint->execute([$league, $nextSprintNumber]);
                 $newSprintId = (int)($stmtExistingSprint->fetchColumn() ?: 0);

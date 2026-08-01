@@ -1171,6 +1171,45 @@ function runMigrations() {
     }
 
     try {
+        // seasons.status nasceu com os rotulos em portugues
+        // ('planejamento','regular','playoffs','finalizado'), mas o codigo sempre
+        // gravou 'draft' e 'completed'. Como o MariaDB trunca ENUM invalido em
+        // silencio, quase toda temporada acabou com status vazio — o que faz
+        // "temporada concluida" nunca ser de fato marcada como tal.
+        // Aqui o ENUM passa a aceitar os dois conjuntos (mudanca aditiva, nao
+        // mexe em linha nenhuma) e as linhas vazias sao classificadas: a mais
+        // recente de cada liga fica 'regular', as anteriores 'completed'.
+        $col = $pdo->query("SHOW COLUMNS FROM seasons LIKE 'status'")->fetch(PDO::FETCH_ASSOC);
+        $tipo = strtolower((string)($col['Type'] ?? ''));
+        if ($tipo !== '' && strpos($tipo, "'completed'") === false) {
+            $pdo->exec("
+                ALTER TABLE seasons MODIFY COLUMN status
+                ENUM('planejamento','regular','playoffs','finalizado','draft','completed')
+                NOT NULL DEFAULT 'draft'
+            ");
+        }
+
+        $st3 = $pdo->prepare("SELECT 1 FROM app_flags WHERE flag = ?");
+        $st3->execute(['seasons_status_backfill_2026_08']);
+        if (!$st3->fetchColumn()) {
+            // Vazio + é a temporada mais nova da liga  -> em andamento
+            $pdo->exec("
+                UPDATE seasons s
+                JOIN (SELECT league, MAX(id) AS ultima FROM seasons GROUP BY league) u
+                  ON u.league = s.league AND u.ultima = s.id
+                SET s.status = 'regular'
+                WHERE s.status = '' OR s.status IS NULL
+            ");
+            // Vazio + não é a mais nova -> já acabou
+            $pdo->exec("UPDATE seasons SET status = 'completed' WHERE status = '' OR status IS NULL");
+            $ins3 = $pdo->prepare("INSERT INTO app_flags (flag) VALUES (?)");
+            $ins3->execute(['seasons_status_backfill_2026_08']);
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_seasons_status: " . $e->getMessage();
+    }
+
+    try {
         // league_sprint_config.max_seasons vinha sendo sobrescrito pra valores
         // errados em toda request (bug do ensureLeagueSprintDefaults, ja corrigido)
         // — corrige os valores atuais uma unica vez pros corretos. Roda so uma vez:
