@@ -70,6 +70,14 @@ $games_disponiveis = [
         'titulo' => '💣 Bomba',
         'arquivo' => 'bomba.php'
     ],
+    'blackjack' => [
+        'titulo' => '🃏 Blackjack',
+        'arquivo' => 'blackjack.php'
+    ],
+    'roleta' => [
+        'titulo' => '🎡 Roleta',
+        'arquivo' => 'roleta.php'
+    ],
     'hoopgrid' => [
         'titulo' => '🏀 Hoop Grid',
         'arquivo' => 'hoopgrid.php'
@@ -82,7 +90,7 @@ $games_disponiveis = [
 
 // Valida se o game existe
 if (!isset($games_disponiveis[$game])) {
-    header("Location: ../index.php");
+    header("Location: /games.php");
     exit;
 }
 

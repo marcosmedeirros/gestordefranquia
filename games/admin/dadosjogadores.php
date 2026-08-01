@@ -1438,13 +1438,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 <body>
 <div class="page-wrap">
 
+<!-- Depois da fusão esta tela é uma sub-página do Admin do site: em vez do
+     menu do antigo subdomínio, só o caminho de volta. -->
 <nav class="top-nav">
   <div class="top-nav-logo">FBA</div>
   <div class="top-nav-brand">FBA <span>Admin</span></div>
-  <a href="/games.php"              class="top-nav-link"><i class="bi bi-lightning-charge"></i><span>Apostas</span></a>
-  <a href="/games.php"              class="top-nav-link"><i class="bi bi-joystick"></i><span>Games</span></a>
-  <a href="controlegames.php"         class="top-nav-link"><i class="bi bi-gear-fill"></i><span>Controles</span></a>
-  <a href="/logout.php"        class="top-nav-link"><i class="bi bi-box-arrow-right"></i><span>Sair</span></a>
+  <a href="/admin.php" class="top-nav-link"><i class="bi bi-arrow-left"></i><span>Voltar ao Admin</span></a>
 </nav>
 
 <!-- CONTEÚDO -->

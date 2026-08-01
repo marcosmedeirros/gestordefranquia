@@ -132,6 +132,75 @@ try {
     $historico = [];
 }
 
+// ── Ranking ─────────────────────────────────────────────────────────────────
+// Um SELECT só traz todo mundo; a separação Geral / por liga é feita em PHP,
+// porque são os mesmos dados vistos de ângulos diferentes.
+// A porcentagem sai de acertos ÷ palpites em eventos que já encerraram —
+// palpite de evento aberto ainda não é acerto nem erro.
+$rankingBase = [];
+try {
+    $stmtRk = $pdo->query("
+        SELECT g.id, g.pontos, g.fba_points, g.acertos_eventos,
+               u.name AS gm, u.photo_url, COALESCE(u.league, 'ROOKIE') AS league,
+               (
+                   SELECT COUNT(*)
+                   FROM palpites p
+                   JOIN opcoes o ON o.id = p.opcao_id
+                   JOIN eventos e ON e.id = o.evento_id
+                   WHERE p.id_usuario = g.id
+                     AND e.status = 'encerrada'
+                     AND e.vencedor_opcao_id IS NOT NULL
+               ) AS palpites_resolvidos
+        FROM games_usuarios g
+        JOIN users u ON u.id = g.id
+    ");
+    foreach ($stmtRk->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $resolvidos = (int)$r['palpites_resolvidos'];
+        $acertos    = (int)$r['acertos_eventos'];
+        $rankingBase[] = [
+            'gm'         => $r['gm'],
+            'foto'       => getUserPhoto($r['photo_url'] ?? null),
+            'league'     => $r['league'],
+            'pontos'     => (int)$r['pontos'],
+            'fba_points' => (int)$r['fba_points'],
+            'acertos'    => $acertos,
+            'resolvidos' => $resolvidos,
+            'pct'        => $resolvidos > 0 ? round($acertos * 100 / $resolvidos, 1) : null,
+        ];
+    }
+} catch (Throwable $e) {
+    error_log('[games.php] ranking: ' . $e->getMessage());
+}
+
+$rankingLigas = ['GERAL' => 'Geral', 'ELITE' => 'ELITE', 'NEXT' => 'NEXT', 'RISE' => 'RISE', 'ROOKIE' => 'ROOKIE'];
+
+/** Ordena por um critério e devolve o top N. Quem não tem % fica no fim. */
+function rankingPor(array $base, string $liga, string $criterio, int $limite = 10): array {
+    $lista = $liga === 'GERAL' ? $base : array_values(array_filter($base, fn($r) => $r['league'] === $liga));
+    usort($lista, function ($a, $b) use ($criterio) {
+        if ($criterio === 'pct') {
+            // Sem palpite resolvido não entra na disputa de porcentagem.
+            if ($a['pct'] === null && $b['pct'] === null) return 0;
+            if ($a['pct'] === null) return 1;
+            if ($b['pct'] === null) return -1;
+            if ($a['pct'] === $b['pct']) return $b['acertos'] <=> $a['acertos'];
+            return $b['pct'] <=> $a['pct'];
+        }
+        return $b[$criterio] <=> $a[$criterio];
+    });
+    if ($criterio === 'pct') {
+        $lista = array_values(array_filter($lista, fn($r) => $r['pct'] !== null));
+    }
+    return array_slice($lista, 0, $limite);
+}
+
+$rankingCriterios = [
+    'pontos'     => ['label' => 'Moedas',     'icone' => 'bi-coin',       'cor' => '#f59e0b', 'sufixo' => ''],
+    'fba_points' => ['label' => 'FBA Points', 'icone' => 'bi-star-fill',  'cor' => '#fc0025', 'sufixo' => ''],
+    'acertos'    => ['label' => 'Acertos',    'icone' => 'bi-trophy-fill','cor' => '#22c55e', 'sufixo' => ''],
+    'pct'        => ['label' => '% de acerto','icone' => 'bi-percent',    'cor' => '#3b82f6', 'sufixo' => '%'],
+];
+
 // ── Catálogo de minigames ───────────────────────────────────────────────────
 $jogosDiarios = [
     ['key' => 'termo',     'nome' => 'Termo',       'sub' => 'Adivinhe a palavra',  'icone' => 'bi-fonts',            'cor' => '#22c55e'],
@@ -146,7 +215,10 @@ $jogosLivres = [
     ['key' => 'roleta',    'nome' => 'Roleta',      'sub' => 'Cassino europeu',   'icone' => 'bi-record-circle',  'cor' => '#22c55e'],
 ];
 
-$abaInicial = (isset($_GET['aba']) && $_GET['aba'] === 'apostas') || $apostaMsg || $apostaErro ? 'apostas' : 'games';
+$abasValidas = ['games', 'apostas', 'ranking'];
+$abaInicial = 'games';
+if (isset($_GET['aba']) && in_array($_GET['aba'], $abasValidas, true)) $abaInicial = $_GET['aba'];
+if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -287,6 +359,27 @@ $abaInicial = (isset($_GET['aba']) && $_GET['aba'] === 'apostas') || $apostaMsg 
     .pill.errou { background:rgba(239,68,68,.12); color:#ef4444; }
     .tbl-wrap { overflow-x:auto; }
 
+    /* ranking */
+    .rk-ligas { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+    .rk-liga { background:var(--panel); border:1px solid var(--border-md); color:var(--text-2);
+        font-family:var(--font); font-size:12.5px; font-weight:700; border-radius:20px;
+        padding:7px 16px; cursor:pointer; transition:all var(--t) var(--ease); }
+    .rk-liga:hover { color:var(--text); }
+    .rk-liga.active { background:var(--red-soft); border-color:var(--border-red); color:var(--red); }
+    .rk-bloco { display:none; }
+    .rk-bloco.active { display:block; }
+    .rk-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+    .rk-linha { display:flex; align-items:center; gap:11px; padding:8px 8px; border-radius:var(--radius-sm); }
+    .rk-linha:hover { background:var(--panel-2); }
+    .rk-pos { width:22px; text-align:center; font-size:12px; font-weight:800; color:var(--text-3); flex-shrink:0; }
+    .rk-pos.top { color:var(--amber); }
+    .rk-foto { width:30px; height:30px; border-radius:50%; object-fit:cover;
+        border:1px solid var(--border-md); flex-shrink:0; }
+    .rk-nome { flex:1; min-width:0; font-size:13px; font-weight:600;
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rk-val { font-size:13.5px; font-weight:800; flex-shrink:0;
+        font-variant-numeric:tabular-nums; }
+
     @media (max-width:992px) {
         :root { --sidebar-w: 0px; }
         .main { margin-left:0; padding-top:54px; }
@@ -352,6 +445,9 @@ $abaInicial = (isset($_GET['aba']) && $_GET['aba'] === 'apostas') || $apostaMsg 
             <button class="g-tab <?= $abaInicial === 'apostas' ? 'active' : '' ?>" data-aba="apostas" onclick="trocarAba('apostas')">
                 <i class="bi bi-graph-up-arrow"></i> Apostas
             </button>
+            <button class="g-tab <?= $abaInicial === 'ranking' ? 'active' : '' ?>" data-aba="ranking" onclick="trocarAba('ranking')">
+                <i class="bi bi-bar-chart-fill"></i> Ranking
+            </button>
         </div>
 
         <!-- ── Aba Games ─────────────────────────────────────────────── -->
@@ -378,19 +474,6 @@ $abaInicial = (isset($_GET['aba']) && $_GET['aba'] === 'apostas') || $apostaMsg 
                 <?php endforeach; ?>
             </div>
 
-            <div class="sec-label"><i class="bi bi-collection-fill"></i> Coleção</div>
-            <div class="grid">
-                <a class="card-jogo" href="/games/album-fba.php">
-                    <div class="ico" style="background:#f59e0b1f;color:#f59e0b"><i class="bi bi-images"></i></div>
-                    <div class="nome">Álbum FBA</div>
-                    <div class="sub">Figurinhas e mercado</div>
-                </a>
-                <a class="card-jogo" href="/games/user/ranking.php">
-                    <div class="ico" style="background:#a855f71f;color:#a855f7"><i class="bi bi-bar-chart-fill"></i></div>
-                    <div class="nome">Ranking</div>
-                    <div class="sub">Quem lidera a liga</div>
-                </a>
-            </div>
         </div>
 
         <!-- ── Aba Apostas ───────────────────────────────────────────── -->
@@ -471,6 +554,55 @@ $abaInicial = (isset($_GET['aba']) && $_GET['aba'] === 'apostas') || $apostaMsg 
             </div>
         </div>
 
+        <!-- ── Aba Ranking ───────────────────────────────────────────── -->
+        <div class="g-pane <?= $abaInicial === 'ranking' ? 'active' : '' ?>" id="pane-ranking">
+            <div class="rk-ligas">
+                <?php foreach ($rankingLigas as $chave => $rotulo): ?>
+                <button type="button" class="rk-liga <?= $chave === 'GERAL' ? 'active' : '' ?>"
+                        data-liga="<?= $chave ?>" onclick="trocarLigaRanking('<?= $chave ?>')">
+                    <?= htmlspecialchars($rotulo) ?>
+                </button>
+                <?php endforeach; ?>
+            </div>
+
+            <?php foreach ($rankingLigas as $chave => $rotulo): ?>
+            <div class="rk-bloco <?= $chave === 'GERAL' ? 'active' : '' ?>" id="rk-<?= $chave ?>">
+                <div class="rk-grid">
+                    <?php foreach ($rankingCriterios as $crit => $meta):
+                        $lista = rankingPor($rankingBase, $chave, $crit);
+                    ?>
+                    <div class="card">
+                        <div class="card-head">
+                            <div class="card-head-left">
+                                <i class="bi <?= $meta['icone'] ?>" style="color:<?= $meta['cor'] ?>"></i>
+                                <?= htmlspecialchars($meta['label']) ?>
+                            </div>
+                        </div>
+                        <div class="card-body" style="padding:8px 10px 12px">
+                            <?php if (empty($lista)): ?>
+                                <div class="vazio" style="padding:26px 12px"><p>Sem dados ainda.</p></div>
+                            <?php else: ?>
+                                <?php foreach ($lista as $i => $r): ?>
+                                <div class="rk-linha">
+                                    <div class="rk-pos <?= $i < 3 ? 'top' : '' ?>"><?= $i + 1 ?></div>
+                                    <img class="rk-foto" src="<?= htmlspecialchars($r['foto']) ?>" alt="">
+                                    <div class="rk-nome"><?= htmlspecialchars($r['gm']) ?></div>
+                                    <div class="rk-val" style="color:<?= $meta['cor'] ?>">
+                                        <?= $crit === 'pct'
+                                            ? number_format($r['pct'], 1, ',', '.')
+                                            : number_format($r[$crit], 0, ',', '.') ?><?= $meta['sufixo'] ?>
+                                    </div>
+                                </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+
     </div>
 </main>
 </div>
@@ -480,14 +612,20 @@ function trocarAba(aba) {
     document.querySelectorAll('.g-tab').forEach(t => t.classList.toggle('active', t.dataset.aba === aba));
     document.querySelectorAll('.g-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + aba));
     try { sessionStorage.setItem('gamesAba', aba); } catch (e) {}
-    history.replaceState(null, '', aba === 'apostas' ? '?aba=apostas' : location.pathname);
+    history.replaceState(null, '', aba === 'games' ? location.pathname : '?aba=' + aba);
 }
+
+function trocarLigaRanking(liga) {
+    document.querySelectorAll('.rk-liga').forEach(b => b.classList.toggle('active', b.dataset.liga === liga));
+    document.querySelectorAll('.rk-bloco').forEach(b => b.classList.toggle('active', b.id === 'rk-' + liga));
+}
+
 (function () {
     // Só restaura a aba salva quando a URL não pediu uma explicitamente.
     if (!location.search.includes('aba=')) {
         try {
             const salva = sessionStorage.getItem('gamesAba');
-            if (salva === 'apostas') trocarAba('apostas');
+            if (salva && salva !== 'games') trocarAba(salva);
         } catch (e) {}
     }
     const menuBtn = document.getElementById('menuBtn');

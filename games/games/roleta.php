@@ -141,7 +141,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     
     <style>
         body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; }
-        .navbar-custom { background: linear-gradient(180deg, #1e1e1e 0%, #121212 100%); border-bottom: 1px solid #333; padding: 15px; }
+        /* Topbar padrão dos jogos (mesma dos diários) */
+        .game-topbar { display:flex; align-items:center; justify-content:space-between; gap:12px;
+            padding:10px 14px; background:#101013; border-bottom:1px solid rgba(255,255,255,.06);
+            position:sticky; top:0; z-index:50; }
+        .game-topbar-left { display:flex; align-items:center; gap:10px; }
+        .game-back { display:flex; align-items:center; justify-content:center; width:32px; height:32px;
+            border-radius:9px; border:1px solid rgba(255,255,255,.06); background:transparent;
+            color:#868690; text-decoration:none; font-size:14px; transition:.2s; flex-shrink:0; }
+        .game-back:hover { border-color:#FC082B; color:#FC082B; background:rgba(252,8,43,.10); }
+        .game-name { font-size:15px; font-weight:800; color:#f0f0f3; }
+        .game-name span { color:#FC082B; }
     .saldo-badge { background-color: #FC082B; color: #000; padding: 5px 15px; border-radius: 20px; font-weight: 800; }
 
         /* MESA DE APOSTAS */
@@ -212,7 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         }
 
         @media (max-width: 768px) {
-            .navbar-custom { padding: 12px; }
+            .game-topbar { padding: 9px 12px; }
             .betting-table { padding: 12px; max-width: 100%; }
             .bet-grid { grid-template-columns: 40px repeat(12, minmax(32px, 1fr)); gap: 1px; }
             .bet-cell { height: 48px; font-size: 0.9rem; }
@@ -223,14 +233,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 <body>
 <?php render_mobile_orientation_guard(false); ?>
 
-<div class="navbar-custom d-flex justify-content-between align-items-center shadow-lg sticky-top">
-    <div class="d-flex align-items-center gap-3">
-        <span class="fs-5">Olá, <strong><?= htmlspecialchars($meu_perfil['nome']) ?></strong></span>
+<!-- Mesma topbar dos outros jogos: voltar pro /games.php e o saldo. -->
+<div class="game-topbar">
+    <div class="game-topbar-left">
+        <a href="/games.php" class="game-back" title="Voltar"><i class="bi bi-arrow-left"></i></a>
+        <span class="game-name">🎡 <span>Roleta</span></span>
     </div>
-    <div class="d-flex align-items-center gap-3">
-        <a href="/games.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar</a>
-        <span class="saldo-badge" id="saldoDisplay"><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> pts</span>
-    </div>
+    <span class="saldo-badge" id="saldoDisplay"><?= number_format($meu_perfil['pontos'], 0, ',', '.') ?> pts</span>
 </div>
 
 <div class="container mt-4 pb-5">
