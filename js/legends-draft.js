@@ -108,6 +108,9 @@ function ldRenderTudo() {
   document.querySelectorAll('.ld-btn-preencher').forEach(btn => {
     btn.addEventListener('click', () => ldAbrirModalPreencher(Number(btn.dataset.pick), btn.dataset.gm));
   });
+  document.querySelectorAll('.ld-btn-desfazer').forEach(btn => {
+    btn.addEventListener('click', () => ldDesfazer(Number(btn.dataset.pick), btn.dataset.gm));
+  });
 
   if (d.draft_completo && d.meu_pick) ldWireBadges();
 }
@@ -133,7 +136,7 @@ function ldLinhaBoard(p, d) {
   const ehMeu = Number(p.user_id) === Number(window.SESSION_USER_ID);
   const classe = ehVez ? 'atual' : (ehMeu ? 'eu' : '');
   const jogador = p.player_name
-    ? `<i class="bi bi-star-fill"></i><b>${_ldEsc(p.player_name)}</b> <span class="ld-row-meta">${_ldEsc(p.player_position)}</span>`
+    ? `<i class="bi bi-star-fill"></i><b>${_ldEsc(p.player_name)}</b> <span class="ld-row-meta">${_ldEsc(p.player_position)}</span>${!d.finalizado ? `<button type="button" class="ld-btn-desfazer" data-pick="${p.pick_number}" data-gm="${_ldEsc(p.gm_name)}" title="Desfazer escolha"><i class="bi bi-arrow-counterclockwise"></i></button>` : ''}`
     : (Number(p.skipped)
         ? `<span class="ld-pulada"><i class="bi bi-skip-forward-fill"></i> Pulada</span><button type="button" class="ld-btn-preencher" data-pick="${p.pick_number}" data-gm="${_ldEsc(p.gm_name)}">Escolher</button>`
         : (ehVez ? 'escolhendo agora...' : 'aguardando...'));
@@ -193,6 +196,21 @@ async function ldConfirmarPular() {
     alert(e.message);
   } finally {
     btn.disabled = false;
+  }
+}
+
+async function ldDesfazer(pickNumber, gmName) {
+  if (!confirm(`Desfazer a escolha de ${gmName} (pick ${pickNumber})? Ela volta a ficar pulada — dá pra escolher de novo depois.`)) return;
+  try {
+    const data = await _ldFetch('/api/legends-draft.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'desfazer', pick_number: pickNumber }),
+    });
+    ldEstado = data;
+    ldMinhasBadgesEdit = { ...(data.minhas_badges || {}) };
+    ldRenderTudo();
+  } catch (e) {
+    alert(e.message);
   }
 }
 

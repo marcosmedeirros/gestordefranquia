@@ -362,6 +362,47 @@ if ($method === 'POST') {
         exit;
     }
 
+    if ($action === 'desfazer') {
+        // Desfaz uma escolha já feita — a pick volta a ficar "pulada" (dá pra
+        // preencher de novo depois pelo botão "Escolher"). Mesma permissão
+        // aberta de 'escolher'/'pular'.
+        $pickAlvo = isset($body['pick_number']) ? (int)$body['pick_number'] : 0;
+        if ($pickAlvo <= 0) {
+            echo json_encode(['success' => false, 'error' => 'Pick inválida.']);
+            exit;
+        }
+        $finalizadoEm = $pdo->query("SELECT finalizado_em FROM legends_draft_status WHERE id = 1")->fetchColumn();
+        if ($finalizadoEm !== false && $finalizadoEm !== null) {
+            echo json_encode(['success' => false, 'error' => 'O draft já foi finalizado — não dá mais pra desfazer escolhas.']);
+            exit;
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare("SELECT id, player_name FROM legends_draft_picks WHERE pick_number = ? FOR UPDATE");
+            $stmt->execute([$pickAlvo]);
+            $atual = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$atual || $atual['player_name'] === null) {
+                $pdo->rollBack();
+                echo json_encode(['success' => false, 'error' => 'Essa escolha ainda não foi feita.']);
+                exit;
+            }
+
+            $pdo->prepare("UPDATE legends_draft_picks SET player_name = NULL, player_position = NULL, ovr = NULL, age = NULL, skipped = 1, picked_at = NOW() WHERE id = ?")
+                ->execute([$atual['id']]);
+
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('legends-draft desfazer: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'Erro ao desfazer a escolha.']);
+            exit;
+        }
+
+        echo json_encode(['success' => true] + estadoDraft($pdo, $user_id, $is_admin));
+        exit;
+    }
+
     if ($action === 'finalizar') {
         if (!$is_admin) {
             http_response_code(403);
