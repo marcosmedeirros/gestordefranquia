@@ -111,6 +111,9 @@ function ldRenderTudo() {
   document.querySelectorAll('.ld-btn-desfazer').forEach(btn => {
     btn.addEventListener('click', () => ldDesfazer(Number(btn.dataset.pick), btn.dataset.gm));
   });
+  document.querySelectorAll('.ld-btn-despular').forEach(btn => {
+    btn.addEventListener('click', () => ldDespular(Number(btn.dataset.pick), btn.dataset.gm));
+  });
 
   if (d.draft_completo && d.meu_pick) ldWireBadges();
 }
@@ -138,7 +141,7 @@ function ldLinhaBoard(p, d) {
   const jogador = p.player_name
     ? `<i class="bi bi-star-fill"></i><b>${_ldEsc(p.player_name)}</b> <span class="ld-row-meta">${_ldEsc(p.player_position)}</span>${!d.finalizado ? `<button type="button" class="ld-btn-desfazer" data-pick="${p.pick_number}" data-gm="${_ldEsc(p.gm_name)}" title="Desfazer escolha"><i class="bi bi-arrow-counterclockwise"></i></button>` : ''}`
     : (Number(p.skipped)
-        ? `<span class="ld-pulada"><i class="bi bi-skip-forward-fill"></i> Pulada</span><button type="button" class="ld-btn-preencher" data-pick="${p.pick_number}" data-gm="${_ldEsc(p.gm_name)}">Escolher</button>`
+        ? `<span class="ld-pulada"><i class="bi bi-skip-forward-fill"></i> Pulada</span><button type="button" class="ld-btn-preencher" data-pick="${p.pick_number}" data-gm="${_ldEsc(p.gm_name)}">Escolher</button><button type="button" class="ld-btn-despular" data-pick="${p.pick_number}" data-gm="${_ldEsc(p.gm_name)}" title="Tirar do pulado"><i class="bi bi-arrow-counterclockwise"></i></button>`
         : (ehVez ? 'escolhendo agora...' : 'aguardando...'));
   return `
     <div class="ld-row ${classe}">
@@ -205,6 +208,21 @@ async function ldDesfazer(pickNumber, gmName) {
     const data = await _ldFetch('/api/legends-draft.php', {
       method: 'POST',
       body: JSON.stringify({ action: 'desfazer', pick_number: pickNumber }),
+    });
+    ldEstado = data;
+    ldMinhasBadgesEdit = { ...(data.minhas_badges || {}) };
+    ldRenderTudo();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function ldDespular(pickNumber, gmName) {
+  if (!confirm(`Tirar a pick ${pickNumber} (${gmName}) do "pulada"? Ela volta a aguardar a vez normalmente.`)) return;
+  try {
+    const data = await _ldFetch('/api/legends-draft.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'despular', pick_number: pickNumber }),
     });
     ldEstado = data;
     ldMinhasBadgesEdit = { ...(data.minhas_badges || {}) };

@@ -403,6 +403,46 @@ if ($method === 'POST') {
         exit;
     }
 
+    if ($action === 'despular') {
+        // Tira o "pulado" de uma pick sem preencher jogador — ela volta pra
+        // fila normal (pode virar a vez de novo). Mesma permissão aberta de
+        // 'escolher'/'pular'.
+        $pickAlvo = isset($body['pick_number']) ? (int)$body['pick_number'] : 0;
+        if ($pickAlvo <= 0) {
+            echo json_encode(['success' => false, 'error' => 'Pick inválida.']);
+            exit;
+        }
+        $finalizadoEm = $pdo->query("SELECT finalizado_em FROM legends_draft_status WHERE id = 1")->fetchColumn();
+        if ($finalizadoEm !== false && $finalizadoEm !== null) {
+            echo json_encode(['success' => false, 'error' => 'O draft já foi finalizado.']);
+            exit;
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare("SELECT id, skipped, player_name FROM legends_draft_picks WHERE pick_number = ? FOR UPDATE");
+            $stmt->execute([$pickAlvo]);
+            $atual = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$atual || !$atual['skipped'] || $atual['player_name'] !== null) {
+                $pdo->rollBack();
+                echo json_encode(['success' => false, 'error' => 'Essa pick não está pulada.']);
+                exit;
+            }
+
+            $pdo->prepare("UPDATE legends_draft_picks SET skipped = 0 WHERE id = ?")->execute([$atual['id']]);
+
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('legends-draft despular: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'Erro ao tirar do pulado.']);
+            exit;
+        }
+
+        echo json_encode(['success' => true] + estadoDraft($pdo, $user_id, $is_admin));
+        exit;
+    }
+
     if ($action === 'finalizar') {
         if (!$is_admin) {
             http_response_code(403);

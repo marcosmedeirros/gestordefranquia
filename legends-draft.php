@@ -167,8 +167,8 @@ if ($team_id) {
         .ld-pulada{ color:var(--text-3);font-style:italic }
         .ld-btn-preencher{ background:transparent;border:1px solid var(--border-md);color:var(--text-2);font-weight:600;font-size:11px;border-radius:var(--radius-xs);padding:3px 10px;margin-left:8px;cursor:pointer;transition:all var(--t) }
         .ld-btn-preencher:hover{ border-color:var(--border-red);color:var(--red);background:var(--red-soft) }
-        .ld-btn-desfazer{ background:transparent;border:1px solid var(--border-md);color:var(--text-3);border-radius:var(--radius-xs);padding:3px 7px;margin-left:8px;cursor:pointer;font-size:12px;line-height:1;transition:all var(--t) }
-        .ld-btn-desfazer:hover{ border-color:var(--border-red);color:var(--red);background:var(--red-soft) }
+        .ld-btn-desfazer, .ld-btn-despular{ background:transparent;border:1px solid var(--border-md);color:var(--text-3);border-radius:var(--radius-xs);padding:3px 7px;margin-left:8px;cursor:pointer;font-size:12px;line-height:1;transition:all var(--t) }
+        .ld-btn-desfazer:hover, .ld-btn-despular:hover{ border-color:var(--border-red);color:var(--red);background:var(--red-soft) }
 
         .ld-modal-overlay{ display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center;padding:20px }
         .ld-modal-overlay.open{ display:flex }
