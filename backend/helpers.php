@@ -1116,7 +1116,7 @@ function getShortcutCatalog(): array {
         'drafts'           => ['label' => 'Draft',           'icon' => 'bi-trophy',                'href' => '/drafts.php'],
         'tapas'            => ['label' => 'Tapas',           'icon' => 'bi-hand-index-thumb',     'href' => '/tapas.php'],
         'rankings'         => ['label' => 'Rankings',        'icon' => 'bi-bar-chart-fill',       'href' => '/rankings.php'],
-        'history'          => ['label' => 'Histórico',       'icon' => 'bi-clock-history',        'href' => '/history.php'],
+        'history'          => ['label' => 'Prêmios',         'icon' => 'bi-trophy-fill',          'href' => '/history.php'],
         'hall-da-fama'     => ['label' => 'Hall da Fama',    'icon' => 'bi-award-fill',           'href' => '/hall-da-fama.php'],
         'diretrizes'       => ['label' => 'Tática',          'icon' => 'bi-clipboard2-pulse',     'href' => '/tatica.php'],
         'mundo-fba'        => ['label' => 'Mundo FBA',       'icon' => 'bi-globe2',                'href' => '/mundo-fba.php'],

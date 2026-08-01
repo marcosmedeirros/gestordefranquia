@@ -293,13 +293,47 @@ try {
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
             $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
+            // Prêmios estendidos (Finals MVP, All-NBA 1º/2º/3º, All-Defensive
+            // 1º/2º) vivem em season_awards, cadastrados em Admin > Prêmios
+            // Estendidos. Vêm junto para a página mostrar os times completos.
+            $seasonIds = array_values(array_filter(array_map(
+                fn($r) => (int)($r['season_id'] ?? 0),
+                $history
+            )));
+            $extPorTemporada = [];
+            if ($seasonIds) {
+                try {
+                    $tipos = ['finals_mvp', 'all_nba_1', 'all_nba_2', 'all_nba_3', 'all_def_1', 'all_def_2'];
+                    $phS = implode(',', array_fill(0, count($seasonIds), '?'));
+                    $phT = implode(',', array_fill(0, count($tipos), '?'));
+                    $stmtExt = $pdo->prepare("
+                        SELECT sa.season_id, sa.award_type, sa.player_name,
+                               CONCAT(t.city, ' ', t.name) AS team_name
+                        FROM season_awards sa
+                        LEFT JOIN teams t ON t.id = sa.team_id
+                        WHERE sa.season_id IN ({$phS}) AND sa.award_type IN ({$phT})
+                        ORDER BY sa.id
+                    ");
+                    $stmtExt->execute(array_merge($seasonIds, $tipos));
+                    foreach ($stmtExt->fetchAll(PDO::FETCH_ASSOC) as $a) {
+                        $extPorTemporada[(int)$a['season_id']][$a['award_type']][] = [
+                            'player_name' => $a['player_name'],
+                            'team_name'   => $a['team_name'],
+                        ];
+                    }
+                } catch (Throwable $e) {
+                    error_log('[get_history] premios estendidos: ' . $e->getMessage());
+                }
+            }
+
             // Agrupar por liga
             $grouped = [];
             foreach ($history as $row) {
+                $row['extended_awards'] = $extPorTemporada[(int)($row['season_id'] ?? 0)] ?? [];
                 $grouped[$row['league']][] = $row;
             }
-            
+
             echo json_encode(['success' => true, 'history' => $grouped]);
             break;
             

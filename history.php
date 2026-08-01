@@ -45,7 +45,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   <script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#fc0025" />
-  <title>Histórico - FBA Manager</title>
+  <title>Prêmios - FBA Manager</title>
 
   <?php include __DIR__ . '/includes/head-pwa.php'; ?>
 
@@ -240,6 +240,38 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     .award-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.2; }
     .award-team { font-size: 11px; color: var(--text-2); margin-top: 2px; }
 
+    /* ── Times de fim de temporada (All-NBA / All-Defensive) ── */
+    .award-teams {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 12px; margin-top: 16px;
+    }
+    .award-team-block {
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 14px;
+    }
+    .award-team-title {
+      font-size: 10px; font-weight: 700; letter-spacing: .6px;
+      text-transform: uppercase; margin-bottom: 8px;
+    }
+    .award-team-title.gold   { color: var(--amber); }
+    .award-team-title.silver { color: #94a3b8; }
+    .award-team-title.amber  { color: var(--amber); }
+    .award-team-title.blue   { color: var(--blue); }
+    .award-team-title.purple { color: var(--purple); }
+    .award-team-list { list-style: none; margin: 0; padding: 0; counter-reset: atl; }
+    .award-team-list li {
+      counter-increment: atl; display: flex; align-items: baseline; gap: 8px;
+      padding: 4px 0; border-bottom: 1px solid var(--border);
+    }
+    .award-team-list li:last-child { border-bottom: none; }
+    .award-team-list li::before {
+      content: counter(atl); flex-shrink: 0; width: 16px;
+      font-size: 10px; font-weight: 700; color: var(--text-3);
+      font-variant-numeric: tabular-nums;
+    }
+    .atl-player { font-size: 12.5px; font-weight: 600; color: var(--text); }
+    .atl-team { font-size: 10.5px; color: var(--text-3); margin-left: auto; text-align: right; }
+
     /* ── Season footer ───────────────────────────── */
     .season-foot {
       padding: 12px 20px;
@@ -339,8 +371,8 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
     <div class="page-hero">
       <div class="hero-eyebrow">Liga · <?= htmlspecialchars($userLeague) ?></div>
-      <h1 class="hero-title">Histórico de Temporadas</h1>
-      <p class="hero-sub">Campeões, premiações e ordem do draft por sprint</p>
+      <h1 class="hero-title">Prêmios</h1>
+      <p class="hero-sub">Campeões, prêmios individuais e os times All-NBA e All-Defensive de cada temporada</p>
     </div>
 
     <div class="content">

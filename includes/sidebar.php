@@ -91,7 +91,7 @@ if (!function_exists('sbActive')) {
         <a href="/rankings.php"<?= sbActive('rankings.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-fill"></i> Rankings</a>
         <a href="/timeline.php"<?= sbActive('timeline.php', $__sbCurrent) ?>><i class="bi bi-collection-play-fill"></i> Timeline</a>
         <a href="/games.php"<?= sbActive('games.php', $__sbCurrent) ?>><i class="bi bi-controller"></i> Games</a>
-        <a href="/history.php"<?= sbActive('history.php', $__sbCurrent) ?>><i class="bi bi-clock-history"></i> Histórico</a>
+        <a href="/history.php"<?= sbActive('history.php', $__sbCurrent) ?>><i class="bi bi-trophy-fill"></i> Prêmios</a>
         <a href="/hall-da-fama.php"<?= sbActive('hall-da-fama.php', $__sbCurrent) ?>><i class="bi bi-award-fill"></i> Hall da Fama</a>
         <a href="/mundo-fba.php"<?= sbActive('mundo-fba.php', $__sbCurrent) ?>><i class="bi bi-globe2"></i> Mundo FBA</a>
         <a href="/estatisticas.php"<?= sbActive('estatisticas.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>

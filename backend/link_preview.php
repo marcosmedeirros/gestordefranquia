@@ -61,7 +61,7 @@ function metaDaPagina(string $arquivo): array
         'dispensas.php'        => ['Dispensas', 'Os jogadores dispensados e a janela para reivindicar.'],
         'lottery.php'          => ['Loteria', 'O sorteio da ordem do draft da FBA.'],
         'games.php'            => ['Games', 'Os minigames e as apostas da FBA.'],
-        'history.php'          => ['Histórico', 'A história das temporadas da FBA.'],
+        'history.php'          => ['Prêmios', 'Campeões, prêmios individuais e os times All-NBA e All-Defensive da FBA.'],
         'hall-da-fama.php'     => ['Hall da Fama', 'Os imortais da FBA.'],
         'mundo-fba.php'        => ['Mundo FBA', 'Uma visão geral de todas as ligas da FBA.'],
         'thepathetic.php'      => ['The Pathetic', 'O jornal da FBA.'],

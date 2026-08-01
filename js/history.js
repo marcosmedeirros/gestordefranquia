@@ -51,6 +51,15 @@ async function loadHistory(league) {
             { key: 'roy',        nameKey: 'roy_player',        teamKey: 'roy_team_name',      icon: '🌟', cls: 'red',    label: 'ROY'          },
         ];
 
+        // Times de fim de temporada, cadastrados em Admin > Prêmios Estendidos.
+        const times = [
+            { type: 'all_nba_1', label: 'All-NBA · 1º Time',        cls: 'gold'   },
+            { type: 'all_nba_2', label: 'All-NBA · 2º Time',        cls: 'silver' },
+            { type: 'all_nba_3', label: 'All-NBA · 3º Time',        cls: 'amber'  },
+            { type: 'all_def_1', label: 'All-Defensive · 1º Time',  cls: 'blue'   },
+            { type: 'all_def_2', label: 'All-Defensive · 2º Time',  cls: 'purple' },
+        ];
+
         let html = '';
 
         history.forEach(season => {
@@ -71,6 +80,33 @@ async function loadHistory(league) {
                             <div class="award-name">${esc(season[a.nameKey])}</div>
                             ${a.teamKey && season[a.teamKey] ? `<div class="award-team">${esc(season[a.teamKey])}</div>` : ''}
                         </div>
+                    </div>`)
+                .join('');
+
+            const ext = season.extended_awards || {};
+            const finalsMvp = (ext.finals_mvp || [])[0];
+            const finalsHtml = finalsMvp ? `
+                <div class="award-chip">
+                    <div class="award-icon gold">🏅</div>
+                    <div>
+                        <div class="award-label gold">Finals MVP</div>
+                        <div class="award-name">${esc(finalsMvp.player_name)}</div>
+                        ${finalsMvp.team_name ? `<div class="award-team">${esc(finalsMvp.team_name)}</div>` : ''}
+                    </div>
+                </div>` : '';
+
+            const timesHtml = times
+                .filter(t => (ext[t.type] || []).length)
+                .map(t => `
+                    <div class="award-team-block">
+                        <div class="award-team-title ${t.cls}">${t.label}</div>
+                        <ol class="award-team-list">
+                            ${ext[t.type].map(p => `
+                                <li>
+                                    <span class="atl-player">${esc(p.player_name)}</span>
+                                    ${p.team_name ? `<span class="atl-team">${esc(p.team_name)}</span>` : ''}
+                                </li>`).join('')}
+                        </ol>
                     </div>`)
                 .join('');
 
@@ -95,7 +131,8 @@ async function loadHistory(league) {
                         </div>
                     </div>
                     <div class="season-body">
-                        ${chips ? `<div class="awards-grid">${chips}</div>` : '<p style="color:var(--text-3);font-size:13px">Sem premiações registradas.</p>'}
+                        ${(chips || finalsHtml) ? `<div class="awards-grid">${chips}${finalsHtml}</div>` : '<p style="color:var(--text-3);font-size:13px">Sem premiações registradas.</p>'}
+                        ${timesHtml ? `<div class="award-teams">${timesHtml}</div>` : ''}
                     </div>
                     ${footHtml}
                 </div>`;
