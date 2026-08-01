@@ -386,7 +386,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <!-- TOP BAR -->
 <div class="topbar">
   <div class="topbar-left">
-    <a href="../games.php" class="back-btn"><i class="bi bi-arrow-left"></i></a>
+    <a href="/games.php" class="back-btn"><i class="bi bi-arrow-left"></i></a>
     <div class="game-title">Grade <span>NBA</span><span class="daily-badge"><i class="bi bi-calendar3"></i>Diário</span></div>
   </div>
   <div class="topbar-chips">
@@ -455,7 +455,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div class="result-sub">Volte amanhã para tentar novamente.</div>
   <?php endif; ?>
   <div style="margin-top:20px">
-    <a href="../games.php" class="btn-ghost"><i class="bi bi-house"></i>Menu</a>
+    <a href="/games.php" class="btn-ghost"><i class="bi bi-house"></i>Menu</a>
   </div>
 </div>
 <!-- Grade congelada -->
@@ -545,14 +545,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <div class="result-sub" id="resultSubText"></div>
   <div class="result-points" id="resultPoints"></div>
   <div class="result-points-label">moedas ganhas</div>
-  <div style="margin-top:20px"><a href="../games.php" class="btn-ghost"><i class="bi bi-house"></i>Menu</a></div>
+  <div style="margin-top:20px"><a href="/games.php" class="btn-ghost"><i class="bi bi-house"></i>Menu</a></div>
 </div>
 
 <div id="gaveUpPanel" style="display:none" class="result-panel">
   <div class="result-icon">😔</div>
   <div class="result-title">Desistência</div>
   <div class="result-sub">Você preencheu <strong id="gaveUpCount">0</strong>/9 quadrantes.<br>Volte amanhã!</div>
-  <div style="margin-top:20px"><a href="../games.php" class="btn-ghost"><i class="bi bi-house"></i>Menu</a></div>
+  <div style="margin-top:20px"><a href="/games.php" class="btn-ghost"><i class="bi bi-house"></i>Menu</a></div>
 </div>
 <?php endif; ?>
 

@@ -194,7 +194,7 @@ if (!isset($_SESSION['user_id'])) {
 
   <!-- Topbar -->
   <div class="topbar">
-    <a href="../index.php" class="topbar-brand">
+    <a href="/games.php" class="topbar-brand">
       <div class="topbar-logo">FBA</div>
       <span class="topbar-name">FBA <span>Games</span></span>
     </a>
@@ -204,7 +204,7 @@ if (!isset($_SESSION['user_id'])) {
       Moedas: <span id="coin-count" style="font-size:15px;margin-left:2px">0</span>
     </div>
     <div class="topbar-actions">
-      <a href="../index.php" class="icon-btn" title="Painel"><i class="bi bi-arrow-left"></i></a>
+      <a href="/games.php" class="icon-btn" title="Painel"><i class="bi bi-arrow-left"></i></a>
     </div>
   </div>
 

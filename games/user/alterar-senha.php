@@ -86,8 +86,8 @@ try {
 <body>
     <div class="navbar-custom d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center gap-2">
-            <a href="../index.php" class="brand-name"><i class="bi bi-controller me-1"></i>FBA games</a>
-            <a href="../index.php" class="btn btn-sm btn-outline-light ms-2">Voltar</a>
+            <a href="/games.php" class="brand-name"><i class="bi bi-controller me-1"></i>FBA games</a>
+            <a href="/games.php" class="btn btn-sm btn-outline-light ms-2">Voltar</a>
         </div>
         <div class="d-flex align-items-center gap-2">
             <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format((float)($usuario['pontos'] ?? 0), 0, ',', '.') ?> pts</span>

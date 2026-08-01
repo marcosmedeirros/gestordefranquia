@@ -332,7 +332,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
 <body>
 <div class="topbar">
   <div class="topbar-left">
-    <a href="../games.php" class="back-btn" title="Voltar"><i class="bi bi-arrow-left"></i></a>
+    <a href="/games.php" class="back-btn" title="Voltar"><i class="bi bi-arrow-left"></i></a>
     <span class="game-title">💣 <span>Bomba</span><span class="daily-badge"><i class="bi bi-calendar3"></i>Diário</span></span>
   </div>
   <div class="topbar-right">
@@ -434,7 +434,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
 
     <?php endif; ?>
 
-    <a href="../games.php" class="volta-btn"><i class="bi bi-arrow-left"></i> Voltar aos Jogos</a>
+    <a href="/games.php" class="volta-btn"><i class="bi bi-arrow-left"></i> Voltar aos Jogos</a>
 </div>
 
 <script>

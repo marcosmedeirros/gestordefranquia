@@ -760,10 +760,10 @@ try {
   </div>
   <nav class="sb-nav">
     <div class="sb-nav-section">Menu</div>
-    <a href="index.php" class="sb-link active">
+    <a href="/games/index.php" class="sb-link active">
       <i class="bi bi-lightning-charge"></i>Apostas
     </a>
-    <a href="games.php" class="sb-link">
+    <a href="/games.php" class="sb-link">
       <i class="bi bi-joystick"></i>Games
     </a>
     <a href="copa26.php" class="sb-link">

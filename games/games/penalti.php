@@ -416,7 +416,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 <body>
 
 <div class="topbar">
-  <a href="../games.php" class="topbar-back"><i class="bi bi-arrow-left"></i></a>
+  <a href="/games.php" class="topbar-back"><i class="bi bi-arrow-left"></i></a>
   <div class="topbar-title">🏆 <span>Copa do Mundo 2026</span></div>
   <div class="topbar-chip"><img src="../moeda.png" style="width:16px;height:16px;object-fit:contain;vertical-align:middle"><span id="coins-display"><?= number_format($moedas,0,',','.') ?></span></div>
   <div class="topbar-chip" style="border-color:rgba(255,215,0,.2);color:var(--gold)"><i class="bi bi-trophy-fill" style="color:var(--gold)"></i><span id="mob-conq"><?= count($conquistas_arr) ?>/16</span></div>

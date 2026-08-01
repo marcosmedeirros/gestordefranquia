@@ -831,8 +831,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   </div>
   <nav class="sb-nav">
     <div class="sb-nav-section">Menu</div>
-    <a href="../index.php"              class="sb-link"><i class="bi bi-lightning-charge"></i>Apostas</a>
-    <a href="../games.php"              class="sb-link"><i class="bi bi-joystick"></i>Games</a>
+    <a href="/games.php"              class="sb-link"><i class="bi bi-lightning-charge"></i>Apostas</a>
+    <a href="/games.php"              class="sb-link"><i class="bi bi-joystick"></i>Games</a>
     <a href="../copa26.php"             class="sb-link"><i class="bi bi-trophy-fill"></i>Copa 2026</a>
     <a href="../user/ranking-geral.php" class="sb-link"><i class="bi bi-trophy"></i>Ranking Geral</a>
     <div class="sb-nav-section">Admin</div>

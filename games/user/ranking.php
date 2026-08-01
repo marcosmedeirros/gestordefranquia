@@ -353,7 +353,7 @@ try {
   </div>
   <nav class="sb-nav">
     <div class="sb-nav-section">Menu</div>
-    <a href="../index.php" class="sb-link">
+    <a href="/games.php" class="sb-link">
       <i class="bi bi-lightning-charge"></i>Apostas
     </a>
     <a href="../games.php" class="sb-link">
@@ -387,7 +387,7 @@ try {
     <span class="mob-chip"><img src="../moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"><?= number_format($meu_perfil['pontos'] ?? 0, 0, ',', '.') ?></span>
     <span class="mob-chip"><img src="../lebron.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"><?= number_format($meu_perfil['fba_points'] ?? 0, 0, ',', '.') ?></span>
   </div>
-  <a href="../index.php" class="mob-back" title="Voltar"><i class="bi bi-arrow-left"></i></a>
+  <a href="/games.php" class="mob-back" title="Voltar"><i class="bi bi-arrow-left"></i></a>
 </div>
 
 <div class="main">

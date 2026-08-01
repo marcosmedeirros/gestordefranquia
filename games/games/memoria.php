@@ -235,7 +235,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <div class="topbar">
   <div class="topbar-left">
-    <a href="../games.php" class="back-btn"><i class="bi bi-arrow-left"></i></a>
+    <a href="/games.php" class="back-btn"><i class="bi bi-arrow-left"></i></a>
     <span class="game-title">🧠 <span>Memória</span><span class="daily-badge"><i class="bi bi-calendar3"></i>Diário</span></span>
   </div>
   <div class="topbar-right">
@@ -253,7 +253,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <span class="result-icon">🧠🏆</span>
     <div class="result-title" style="color:var(--green)">Missão Cumprida!</div>
     <div class="result-sub">Completou em <strong style="color:var(--text)"><?= $dados_jogo['movimentos'] ?></strong> movimentos · <strong style="color:var(--green)">+<?= $PONTOS_VITORIA ?> moedas</strong></div>
-    <a href="../games.php" class="btn-back"><i class="bi bi-arrow-left"></i>Voltar aos Jogos</a>
+    <a href="/games.php" class="btn-back"><i class="bi bi-arrow-left"></i>Voltar aos Jogos</a>
   </div>
 
   <?php elseif($status_atual === 'perdeu'): ?>
@@ -261,7 +261,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <span class="result-icon">💥</span>
     <div class="result-title" style="color:var(--red)">Você perdeu!</div>
     <div class="result-sub">Atingiu o limite de <strong style="color:var(--text)"><?= $LIMITE_MOVIMENTOS ?></strong> movimentos sem completar. Tente amanhã!</div>
-    <a href="../games.php" class="btn-back"><i class="bi bi-arrow-left"></i>Voltar aos Jogos</a>
+    <a href="/games.php" class="btn-back"><i class="bi bi-arrow-left"></i>Voltar aos Jogos</a>
   </div>
 
   <?php else: ?>

@@ -595,7 +595,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:10px">
-    <a href="../games.php" class="back-btn"><i class="bi bi-arrow-left"></i></a>
+    <a href="/games.php" class="back-btn"><i class="bi bi-arrow-left"></i></a>
     <span class="game-title">Cone<span>xões</span> NBA<span class="daily-badge"><i class="bi bi-calendar3"></i>Diário</span></span>
   </div>
   <div class="topbar-right">

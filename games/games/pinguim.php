@@ -483,7 +483,7 @@ html, body {
     <!-- TOP BAR -->
     <div class="top-bar">
         <div class="top-bar-left">
-            <a href="../games.php" class="back-btn">
+            <a href="/games.php" class="back-btn">
                 <i class="bi bi-arrow-left"></i>
             </a>
             <span class="player-name">🐧 Pinguim Run</span>

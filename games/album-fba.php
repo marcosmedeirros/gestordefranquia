@@ -189,7 +189,7 @@ $teams = [
 
 <!-- Topbar -->
 <div class="topbar">
-  <a href="index.php" class="topbar-brand">
+  <a href="/games.php" class="topbar-brand">
     <div class="topbar-logo">FBA</div>
     <span class="topbar-name">FBA <span>Games</span></span>
   </a>
@@ -198,7 +198,7 @@ $teams = [
     <i class="bi bi-coin"></i>
     Moedas: <strong id="coin-count" style="font-size:14px;margin-left:2px">0</strong>
   </div>
-  <a href="index.php" class="icon-btn" title="Voltar"><i class="bi bi-arrow-left"></i></a>
+  <a href="/games.php" class="icon-btn" title="Voltar"><i class="bi bi-arrow-left"></i></a>
 </div>
 
 <!-- Tabs -->

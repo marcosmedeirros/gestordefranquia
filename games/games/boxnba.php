@@ -361,7 +361,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <!-- TOP BAR -->
 <div class="topbar">
   <div class="topbar-left">
-    <a href="../games.php" class="back-btn" title="Voltar"><i class="bi bi-arrow-left"></i></a>
+    <a href="/games.php" class="back-btn" title="Voltar"><i class="bi bi-arrow-left"></i></a>
     <span class="game-title">Box <span>NBA</span><span class="daily-badge"><i class="bi bi-calendar3"></i>Diário</span></span>
   </div>
   <div class="topbar-right">

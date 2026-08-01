@@ -459,7 +459,7 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
             <i class="bi bi-cash-coin"></i>
         </a>
         <?php endif; ?>
-        <a href="../games.php" class="btn btn-sm btn-outline-light border-0">
+        <a href="/games.php" class="btn btn-sm btn-outline-light border-0">
             <i class="bi bi-arrow-left"></i>
         </a>
     </div>

@@ -337,7 +337,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <!-- Topbar -->
 <div class="topbar">
-  <a href="../games.php" class="topbar-back"><i class="bi bi-arrow-left"></i></a>
+  <a href="/games.php" class="topbar-back"><i class="bi bi-arrow-left"></i></a>
   <div class="topbar-title">Quem Sou Eu? <span>NBA</span></div>
   <div class="topbar-chip"><i class="bi bi-calendar3"></i><?= date('d/m/Y') ?></div>
 </div>

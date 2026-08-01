@@ -16,6 +16,14 @@ $user = getUserSession();
 $pdo  = db();
 $userId = (int) $user['id'];
 
+// O cartão do time no topo da sidebar só aparece se $team existir.
+$stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
+$stmtTeam->execute([$userId]);
+$team = $stmtTeam->fetch(PDO::FETCH_ASSOC) ?: null;
+if ($team) {
+    $team['photo_url'] = getTeamPhoto($team['photo_url'] ?? null);
+}
+
 $nowBrt    = new DateTime('now', new DateTimeZone('America/Sao_Paulo'));
 $nowBrtStr = $nowBrt->format('Y-m-d H:i:s');
 
@@ -128,23 +136,14 @@ try {
 $jogosDiarios = [
     ['key' => 'termo',     'nome' => 'Termo',       'sub' => 'Adivinhe a palavra',  'icone' => 'bi-fonts',            'cor' => '#22c55e'],
     ['key' => 'memoria',   'nome' => 'Memória',     'sub' => 'Ache os pares',       'icone' => 'bi-grid-3x3-gap-fill','cor' => '#a855f7'],
-    ['key' => 'boxnba',    'nome' => 'Box NBA',     'sub' => 'Quem é o jogador?',   'icone' => 'bi-box',              'cor' => '#f59e0b'],
-    ['key' => 'quemsoueu', 'nome' => 'Quem Sou Eu?','sub' => 'Descubra pelas dicas','icone' => 'bi-question-circle',  'cor' => '#3b82f6'],
     ['key' => 'bomba',     'nome' => 'Bomba',       'sub' => 'Ache os diamantes',   'icone' => 'bi-gem',              'cor' => '#ef4444'],
-    ['key' => 'grade',     'nome' => 'Grade NBA',   'sub' => 'Preencha a grade',    'icone' => 'bi-grid-3x3',         'cor' => '#06b6d4'],
-    ['key' => 'hoopgrid',  'nome' => 'Hoop Grid',   'sub' => 'Cruze os times',      'icone' => 'bi-diagram-3',        'cor' => '#ec4899'],
-    ['key' => 'conexoes',  'nome' => 'Conexões',    'sub' => 'Agrupe por tema',     'icone' => 'bi-link-45deg',       'cor' => '#8b5cf6'],
+    ['key' => 'quemsoueu', 'nome' => 'Quem Sou Eu?','sub' => 'Descubra pelas dicas','icone' => 'bi-question-circle',  'cor' => '#3b82f6'],
 ];
 $jogosLivres = [
-    ['key' => 'flappy',    'nome' => 'Flappy Bird', 'sub' => 'Desvie dos canos',  'icone' => 'bi-airplane',      'cor' => '#f43f5e'],
-    ['key' => 'pinguim',   'nome' => 'Pinguim Run', 'sub' => 'Corra e ganhe',     'icone' => 'bi-snow',          'cor' => '#38bdf8'],
-    ['key' => 'xadrez',    'nome' => 'Xadrez',      'sub' => 'Desafie um GM',     'icone' => 'bi-regex',         'cor' => '#94a3b8'],
-    ['key' => 'poker',     'nome' => 'Poker',       'sub' => 'Texas Hold\'em',    'icone' => 'bi-suit-spade-fill','cor' => '#eab308'],
+    ['key' => 'flappy',    'nome' => 'Flappy Bird', 'sub' => 'Desvie dos canos',  'icone' => 'bi-airplane',       'cor' => '#f43f5e'],
+    ['key' => 'pinguim',   'nome' => 'Pinguim Run', 'sub' => 'Corra e ganhe',     'icone' => 'bi-snow',           'cor' => '#38bdf8'],
     ['key' => 'blackjack', 'nome' => 'Blackjack',   'sub' => 'Chegue a 21',       'icone' => 'bi-suit-heart-fill','cor' => '#ef4444'],
-    ['key' => 'roleta',    'nome' => 'Roleta',      'sub' => 'Cassino europeu',   'icone' => 'bi-record-circle', 'cor' => '#22c55e'],
-    ['key' => 'penalti',   'nome' => 'Pênaltis',    'sub' => 'Bata e defenda',    'icone' => 'bi-dribbble',      'cor' => '#84cc16'],
-    ['key' => 'pnipnaval', 'nome' => 'Batalha Naval','sub' => 'Afunde a frota',   'icone' => 'bi-water',         'cor' => '#0ea5e9'],
-    ['key' => 'acerteacesta','nome' => 'Acerte a Cesta','sub' => 'Lance livre',   'icone' => 'bi-bullseye',      'cor' => '#f97316'],
+    ['key' => 'roleta',    'nome' => 'Roleta',      'sub' => 'Cassino europeu',   'icone' => 'bi-record-circle',  'cor' => '#22c55e'],
 ];
 
 $abaInicial = (isset($_GET['aba']) && $_GET['aba'] === 'apostas') || $apostaMsg || $apostaErro ? 'apostas' : 'games';

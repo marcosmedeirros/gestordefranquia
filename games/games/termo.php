@@ -563,7 +563,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <div class="topbar">
   <div class="topbar-left">
-    <a href="../games.php" class="back-btn"><i class="bi bi-arrow-left"></i></a>
+    <a href="/games.php" class="back-btn"><i class="bi bi-arrow-left"></i></a>
     <span class="game-title">📝 <span>Termo</span><span class="daily-badge"><i class="bi bi-calendar3"></i>Diário</span></span>
     <div class="mode-tabs">
       <a href="index.php?game=termo" class="mode-tab <?= $modo === 'normal' ? 'active' : '' ?>">Normal</a>
@@ -602,7 +602,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         for($i=0;$i<5;$i++){if($lch[$i]!==null&&strpos(removerAcentos($PALAVRA_DO_DIA),$lch[$i])!==false&&($cnt[$lch[$i]]??0)>0){$res[$i]='present';$cnt[$lch[$i]]--;}}
       ?><div class="result-row"><?php foreach($res as $r):$c=($r=='correct')?'#538d4e':(($r=='present')?'#b59f3b':'#3a3a3c');?><div class="result-sq" style="background:<?=$c?>"></div><?php endforeach;?></div><?php endforeach;?>
     </div>
-    <a href="../games.php" class="btn-back"><i class="bi bi-arrow-left"></i>Voltar aos Jogos</a>
+    <a href="/games.php" class="btn-back"><i class="bi bi-arrow-left"></i>Voltar aos Jogos</a>
   </div>
   <?php else: ?>
   <div class="board" id="board">
@@ -635,7 +635,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         Palavra 2: <strong style="color:var(--text)"><?= $PALAVRA_D2 ?></strong> <?= $ganhou_2 ? '✅' : '❌' ?>
       <?php endif; ?>
     </div>
-    <a href="../games.php" class="btn-back"><i class="bi bi-arrow-left"></i>Voltar aos Jogos</a>
+    <a href="/games.php" class="btn-back"><i class="bi bi-arrow-left"></i>Voltar aos Jogos</a>
   </div>
   <?php else: ?>
   <div class="dueto-wrap">

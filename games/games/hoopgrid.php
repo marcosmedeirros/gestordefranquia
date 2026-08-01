@@ -642,7 +642,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <div class="topbar">
   <div class="topbar-l">
-    <a href="../games.php" class="back"><i class="bi bi-arrow-left"></i></a>
+    <a href="/games.php" class="back"><i class="bi bi-arrow-left"></i></a>
     <span class="title">Hoop <span>Grid</span><span class="badge-daily"><i class="bi bi-calendar3"></i> Diário</span></span>
   </div>
   <div class="topbar-r">
