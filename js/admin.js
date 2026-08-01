@@ -1489,7 +1489,10 @@ async function showLeague(league) {
     ]);
     const teams = data.teams || [];
     const seasons = seasonData.seasons || [];
-    const currentSeason = seasons.find(s => s.status !== 'completed') || seasons[0] || null;
+    // Sem o `|| seasons[0]`: quando todas as temporadas estão concluídas não
+    // existe temporada ativa, e cair na primeira da lista fazia o botão dizer
+    // "Avançar Temporada" onde o certo é "Iniciar Sprint".
+    const currentSeason = seasons.find(s => s.status !== 'completed') || null;
     const seasonYear = currentSeason
       ? (currentSeason.start_year && currentSeason.season_number
           ? (parseInt(currentSeason.start_year) + parseInt(currentSeason.season_number) - 1)
@@ -1668,7 +1671,7 @@ async function showLeague(league) {
                      <i class="bi bi-arrow-right-circle-fill me-1"></i>Avançar Temporada
                    </button>`)
             : `<button class="btn-ghost" style="color:#f97316;border-color:rgba(249,115,22,.3)" onclick="showAvancarTemporada('${league}')">
-                 <i class="bi bi-play-circle-fill me-1"></i>Criar Sprint
+                 <i class="bi bi-play-circle-fill me-1"></i>Iniciar Sprint
                </button>`
           }
         </div>

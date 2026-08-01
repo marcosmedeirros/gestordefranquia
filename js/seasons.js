@@ -57,7 +57,7 @@ async function showSeasonsManagement() {
 
         const mainBtn = !hasSprint
             ? `<button class="btn btn-sm btn-orange w-100 mb-2" onclick="showAvancarTemporada('${l.name}')">
-                   <i class="bi bi-play-circle me-1"></i>Criar Sprint
+                   <i class="bi bi-play-circle me-1"></i>Iniciar Sprint
                </button>`
             : isLastSeason
             ? `<button class="btn btn-sm btn-danger w-100 mb-2" onclick="showFinalizarSprint('${l.name}')">
@@ -633,7 +633,7 @@ async function showAvancarTemporada(league) {
                 <button class="btn-ghost" onclick="showLeague('${league}')"><i class="bi bi-arrow-left me-1"></i> Voltar</button>
             </div>
             <div class="panel">
-                <div class="panel-title"><i class="bi bi-play-circle-fill" style="color:#f97316"></i> Criar Sprint — ${league}</div>
+                <div class="panel-title"><i class="bi bi-play-circle-fill" style="color:#f97316"></i> Iniciar Sprint — ${league}</div>
                 <p style="color:var(--text-2);font-size:13px;margin-bottom:20px">
                     Defina o ano inicial do sprint. As picks serão configuradas automaticamente para todos os times.
                     Após criar, você será direcionado para configurar o Draft Inicial.
@@ -646,7 +646,7 @@ async function showAvancarTemporada(league) {
                     </div>
                     <div style="display:flex;gap:10px;flex-wrap:wrap">
                         <button type="submit" class="btn-orange">
-                            <i class="bi bi-plus-circle me-1"></i> Criar Sprint
+                            <i class="bi bi-plus-circle me-1"></i> Iniciar Sprint
                         </button>
                         <button type="button" class="btn-ghost" onclick="showLeague('${league}')">Cancelar</button>
                     </div>

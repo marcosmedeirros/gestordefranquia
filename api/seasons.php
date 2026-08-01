@@ -174,6 +174,21 @@ function ensureLeagueSprintDefaults(PDO $pdo): void
 function ensureSprintStartYear(PDO $pdo, array $sprint, ?int $requestedStartYear, ?int $currentSeasonYear = null, ?int $currentSeasonNumber = null): int
 {
     $startYear = (int)($sprint['start_year'] ?? 0);
+
+    // Sprint que ainda não tem nenhuma temporada não começou de verdade: o ano
+    // que o admin informar em "Iniciar Sprint" manda, mesmo que a linha já
+    // tenha sido criada antes com outro ano. Com temporada já criada, o ano é
+    // fixo — mexer nele bagunçaria os anos das temporadas existentes.
+    if ($requestedStartYear && $requestedStartYear > 0 && $requestedStartYear !== $startYear) {
+        $stmtTem = $pdo->prepare("SELECT COUNT(*) FROM seasons WHERE sprint_id = ?");
+        $stmtTem->execute([$sprint['id']]);
+        if ((int)$stmtTem->fetchColumn() === 0) {
+            $pdo->prepare("UPDATE sprints SET start_year = ? WHERE id = ?")
+                ->execute([$requestedStartYear, $sprint['id']]);
+            return $requestedStartYear;
+        }
+    }
+
     if ($startYear > 0) {
         return $startYear;
     }
@@ -2481,6 +2496,9 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    // A mensagem genérica protege o usuário, mas engolir o motivo deixava
+    // qualquer falha aqui indiagnosticável. O log fica com o detalhe.
+    error_log('[seasons.php:' . $action . '] ' . $e->getMessage());
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
 }
