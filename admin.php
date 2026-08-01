@@ -842,6 +842,9 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         <button class="admin-qnav-btn" id="qnav-gestao" onclick="showGestao()">
             <i class="bi bi-people-fill"></i> Gestão
         </button>
+        <button class="admin-qnav-btn" id="qnav-games" onclick="showGamesAdmin()">
+            <i class="bi bi-controller"></i> Games
+        </button>
         <?php endif; ?>
     </nav>
 

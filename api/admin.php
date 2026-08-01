@@ -2127,24 +2127,8 @@ if ($method === 'POST') {
                     $stmtUpdate->execute([$newBalance, $removed, $teamId]);
                     $currentUsed += $removed;
 
-                    $gamesUserId = 0;
-                    if (!empty($team['user_id'])) {
-                        $stmtUser = $pdo->prepare('SELECT games_user_id FROM users WHERE id = ?');
-                        $stmtUser->execute([(int)$team['user_id']]);
-                        $gamesUserId = (int)($stmtUser->fetchColumn() ?: 0);
-                    }
-
-                    if ($gamesUserId > 0 && function_exists('dbGames')) {
-                        $gamesPdo = dbGames();
-                        if ($gamesPdo) {
-                            try {
-                                $stmtGames = $gamesPdo->prepare('UPDATE usuarios SET numero_tapas = GREATEST(COALESCE(numero_tapas, 0) - ?, 0) WHERE id = ?');
-                                $stmtGames->execute([$removed, $gamesUserId]);
-                            } catch (Exception $e) {
-                                // Ignora falha no sync com Games para nao quebrar o fluxo admin
-                            }
-                        }
-                    }
+                    // O sync com o antigo banco do games saiu na fusão: os tapas
+                    // agora vivem só aqui, sem contraparte do outro lado.
                 } else {
                     $stmtUpdate = $pdo->prepare('UPDATE teams SET tapas = ? WHERE id = ?');
                     $stmtUpdate->execute([$newBalance, $teamId]);

@@ -12,7 +12,9 @@ if (!$user) {
 }
 
 $pdo      = db();
-$pdoGames = dbGames();
+// A ponte com o antigo banco do games saiu na fusão; tapas agora vivem só
+// aqui no banco do site (e a tela está escondida do menu).
+$pdoGames = null;
 $method   = $_SERVER['REQUEST_METHOD'];
 $action   = $_GET['action'] ?? '';
 $isAdmin  = ($user['user_type'] ?? 'jogador') === 'admin';
