@@ -3124,9 +3124,17 @@ async function _loadLeagueConfigInline(league) {
           <div style="font-size:11px;font-weight:600;color:var(--text-2)">Temporadas/Sprint</div>
           <input type="number" class="form-control form-control-sm" style="width:90px" min="1" value="${lg.max_seasons || ''}" data-league="${lg.league}" data-field="max_seasons">
         </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px">
-          <div style="font-size:11px;font-weight:600;color:var(--text-2)"><i class="bi bi-webhook me-1"></i>Webhook N8N</div>
-          <input type="text" class="form-control form-control-sm" placeholder="https://n8n.exemplo.com/webhook/..." value="${lg.n8n_webhook_url || ''}" data-league="${lg.league}" data-field="n8n_webhook_url">
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-2)"><i class="bi bi-camera-reels me-1"></i>Vídeo Progression</div>
+          <input type="text" class="form-control form-control-sm" placeholder="Link do vídeo" value="${lg.progression_video_url || ''}" data-league="${lg.league}" data-field="progression_video_url">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-2)"><i class="bi bi-gear me-1"></i>Vídeo Sistemas</div>
+          <input type="text" class="form-control form-control-sm" placeholder="Link do vídeo" value="${lg.sistemas_video_url || ''}" data-league="${lg.league}" data-field="sistemas_video_url">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-2)"><i class="bi bi-coin me-1"></i>Vídeo Free Agency</div>
+          <input type="text" class="form-control form-control-sm" placeholder="Link do vídeo" value="${lg.freeagency_video_url || ''}" data-league="${lg.league}" data-field="freeagency_video_url">
         </div>
         <div style="background:var(--red-soft);border:1px solid var(--border-red);border-radius:10px;padding:7px 12px;text-align:center;min-width:80px">
           <div style="font-size:13px;font-weight:700;color:var(--red)">${lg.cap_min}–${lg.cap_max}</div>
