@@ -4,6 +4,7 @@ header('Content-Type: application/json');
 require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
 require_once dirname(__DIR__) . '/backend/helpers.php'; // congelarRankingDaSprint()
+require_once dirname(__DIR__) . '/backend/checklist_temporada.php';
 
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
@@ -672,6 +673,33 @@ try {
             throw new Exception('Método não suportado');
 
         // ========== BUSCAR TEMPORADA ATUAL ==========
+        case 'season_checklist':
+            // O que ainda falta pra poder virar a temporada desta liga.
+            $league = strtoupper((string)($_GET['league'] ?? ''));
+            if (!in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
+                throw new Exception('Liga inválida');
+            }
+            $stmtCk = $pdo->prepare("
+                SELECT s.id, s.season_number, s.year, sp.sprint_number
+                FROM seasons s JOIN sprints sp ON sp.id = s.sprint_id
+                WHERE s.league = ? AND s.status != 'completed'
+                ORDER BY s.id DESC LIMIT 1
+            ");
+            $stmtCk->execute([$league]);
+            $seasonCk = $stmtCk->fetch(PDO::FETCH_ASSOC);
+            if (!$seasonCk) {
+                echo json_encode(['success' => true, 'season' => null, 'itens' => [], 'completo' => false]);
+                break;
+            }
+            $itensCk = checklistDaTemporada($pdo, $league, $seasonCk);
+            echo json_encode([
+                'success'  => true,
+                'season'   => $seasonCk,
+                'itens'    => $itensCk,
+                'completo' => checklistCompleto($itensCk),
+            ]);
+            break;
+
         case 'current_season':
             $league = $_GET['league'] ?? null;
             if (!$league) {

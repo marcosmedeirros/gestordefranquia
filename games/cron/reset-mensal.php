@@ -5,10 +5,10 @@
  * Deve ser executado todo dia 01 de cada mês às 00:00:01 BRT (= 03:00:01 UTC).
  *
  * Configuração no cPanel / Hostinger:
- *   1 3 1 * *   /usr/local/bin/php /home/u289267434/domains/games.fbabrasil.com.br/public_html/cron/reset-mensal.php
+ *   1 3 1 * *   /usr/local/bin/php /home/u289267434/domains/fbabrasil.com.br/public_html/games/cron/reset-mensal.php
  *
  * Ou via URL protegida por chave (ex.: para cron externo / EasyCron):
- *   https://games.fbabrasil.com.br/cron/reset-mensal.php?key=SEU_CRON_SECRET
+ *   https://fbabrasil.com.br/games/cron/reset-mensal.php?key=SEU_CRON_SECRET
  */
 
 // A chave sai do código-fonte: vem do ambiente. Sem chave configurada, só

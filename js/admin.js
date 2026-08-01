@@ -1614,6 +1614,8 @@ async function showLeague(league) {
 
       <div id="leaguePlayerSearchResults"></div>
 
+      <div id="seasonChecklist"></div>
+
       ${initDraftCard}
       ${draftCard}
 
@@ -1679,8 +1681,69 @@ async function showLeague(league) {
 
     ensureOuvidoriaModal();
     _loadLeagueConfigInline(league);
+    _loadSeasonChecklist(league);
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar liga</div>';
+  }
+}
+
+// Checklist da temporada: o que ainda falta pra poder virar a temporada.
+// Carrega depois da tela montada pra não segurar o render da liga.
+async function _loadSeasonChecklist(league) {
+  const wrap = document.getElementById('seasonChecklist');
+  if (!wrap) return;
+  try {
+    const data = await api(`seasons.php?action=season_checklist&league=${encodeURIComponent(league)}`);
+    if (!data.season || !(data.itens || []).length) { wrap.innerHTML = ''; return; }
+
+    const obrigatoriosPendentes = data.itens.filter(i => i.obrigatorio && i.feito !== true).length;
+
+    const linhas = data.itens.map(i => {
+      const estado = i.feito === true ? 'ok' : (i.feito === null ? 'indef' : 'pend');
+      const icone  = i.feito === true ? 'bi-check-circle-fill'
+                   : (i.feito === null ? 'bi-question-circle' : 'bi-circle');
+      return `
+        <div class="ck-item ${estado}">
+          <i class="bi ${icone}"></i>
+          <div class="ck-txt">
+            <div class="ck-titulo">${escapeHtml(i.titulo)}${i.obrigatorio ? '' : ' <span class="ck-opt">opcional</span>'}</div>
+            ${i.detalhe ? `<div class="ck-sub">${escapeHtml(i.detalhe)}</div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+
+    wrap.innerHTML = `
+      <div class="panel mt-3">
+        <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <span><i class="bi bi-list-check" style="color:#10b981"></i> Checklist da Temporada ${parseInt(data.season.season_number)}</span>
+          <span class="ck-resumo ${data.completo ? 'ok' : ''}">
+            ${data.completo
+              ? '<i class="bi bi-check-lg"></i> pronta pra avançar'
+              : `${obrigatoriosPendentes} ${obrigatoriosPendentes === 1 ? 'item pendente' : 'itens pendentes'}`}
+          </span>
+        </div>
+        <div class="ck-lista">${linhas}</div>
+      </div>
+      <style>
+        .ck-lista { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; padding:4px 0; }
+        .ck-item { display:flex; align-items:flex-start; gap:10px; padding:10px 12px;
+                   border:1px solid var(--border); border-radius:10px; background:var(--panel-2); }
+        .ck-item i { font-size:15px; flex-shrink:0; margin-top:1px; }
+        .ck-item.ok    { border-color:rgba(16,185,129,.3); }
+        .ck-item.ok i  { color:#10b981; }
+        .ck-item.pend i{ color:var(--text-3); }
+        .ck-item.indef i { color:#f59e0b; }
+        .ck-titulo { font-size:13px; font-weight:700; }
+        .ck-item.ok .ck-titulo { color:#10b981; }
+        .ck-sub { font-size:11px; color:var(--text-3); margin-top:1px; }
+        .ck-opt { font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
+                  color:var(--text-3); border:1px solid var(--border); border-radius:20px; padding:1px 6px; }
+        .ck-resumo { font-size:11px; font-weight:700; color:var(--text-3);
+                     background:var(--panel-3); border-radius:20px; padding:3px 10px; }
+        .ck-resumo.ok { color:#10b981; background:rgba(16,185,129,.12); }
+      </style>`;
+  } catch (e) {
+    wrap.innerHTML = '';
   }
 }
 
