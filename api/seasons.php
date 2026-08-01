@@ -2054,6 +2054,44 @@ try {
             $nextSprintNumber = $finishedSprintNumber + 1;
             $newSeasonId = null;
 
+            // O ano inicial do novo sprint. Sem escolha do admin, continua a
+            // contagem da liga (ano da última temporada + 1).
+            $newStartYear = ($requestedStartYear >= 1900 && $requestedStartYear <= 2200)
+                ? $requestedStartYear
+                : (int)$finSeason['year'] + 1;
+
+            // seasons tem UNIQUE(year, league): se já existe temporada dessa liga
+            // no ano escolhido (histórico de sprints anteriores fica preservado),
+            // o INSERT lá embaixo estoura. Checa AGORA, antes de apagar elenco ou
+            // qualquer outra coisa — assim o admin só corrige o ano e tenta de novo.
+            // Conta qualquer temporada da liga nesse ano — inclusive as do sprint
+            // que está fechando, que continuam existindo como histórico. A única
+            // exceção é o próprio sprint novo: se uma tentativa anterior já o
+            // criou, reaproveitar é o esperado, não conflito.
+            $anoNovaTemporada = calculateSeasonYear($newStartYear, 1);
+            $stmtAnoLivre = $pdo->prepare("
+                SELECT s.id FROM seasons s
+                JOIN sprints sp ON sp.id = s.sprint_id
+                WHERE s.league = ? AND s.year = ? AND sp.sprint_number <> ?
+                LIMIT 1
+            ");
+            $stmtAnoLivre->execute([$league, $anoNovaTemporada, $nextSprintNumber]);
+            if ($stmtAnoLivre->fetch()) {
+                // Sugere o primeiro ano livre a partir do último já usado.
+                $stmtUltimoAno = $pdo->prepare("SELECT COALESCE(MAX(year), 0) FROM seasons WHERE league = ?");
+                $stmtUltimoAno->execute([$league]);
+                $sugestao = (int)$stmtUltimoAno->fetchColumn() + 1;
+
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'error' => "A liga {$league} já tem uma temporada no ano {$anoNovaTemporada}. "
+                             . "Escolha outro ano inicial — o primeiro livre é {$sugestao}.",
+                    'suggested_start_year' => $sugestao,
+                ]);
+                exit;
+            }
+
             // congelarRankingDaSprint() e snapshotPlayersForSeason() fazem CREATE TABLE IF NOT
             // EXISTS (ranking_snapshots / player_season_log) — DDL sempre causa commit implícito
             // no MySQL/InnoDB, mesmo quando a tabela já existe e o CREATE não muda nada (mesma
@@ -2117,12 +2155,7 @@ try {
                 // Idempotente por (league, sprint_number)/(sprint_id, season_number): se uma
                 // tentativa anterior já tiver criado o sprint/temporada novos (ex. falhou
                 // depois disso), reaproveita em vez de tentar inserir de novo e colidir.
-                // O ano inicial do novo sprint vem do admin (o formulário de
-                // finalizar pergunta). Sem valor válido, cai no padrão de
-                // continuar a contagem: ano da última temporada + 1.
-                $newStartYear = ($requestedStartYear >= 1900 && $requestedStartYear <= 2200)
-                    ? $requestedStartYear
-                    : (int)$finSeason['year'] + 1;
+                // $newStartYear já foi calculado e validado antes da transação.
                 $stmtExistingSprint = $pdo->prepare("SELECT id FROM sprints WHERE league = ? AND sprint_number = ?");
                 $stmtExistingSprint->execute([$league, $nextSprintNumber]);
                 $newSprintId = (int)($stmtExistingSprint->fetchColumn() ?: 0);

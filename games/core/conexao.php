@@ -56,10 +56,12 @@ try {
             }
 
             // Compatibilidade: o código do games lê estas chaves de sessão,
-            // que no site têm outro nome.
+            // que no site têm outro nome. O is_admin do Games é gerenciado pela
+            // Gestão — admin geral do site entra junto, por cima.
             $_SESSION['nome']     = $__perfil['nome'] ?? ($_SESSION['user_name'] ?? '');
             $_SESSION['email']    = $__perfil['email'] ?? ($_SESSION['user_email'] ?? '');
-            $_SESSION['is_admin'] = (($_SESSION['user_type'] ?? '') === 'admin') ? 1 : 0;
+            $_SESSION['is_admin'] = ((($_SESSION['user_type'] ?? '') === 'admin')
+                || (int)($__perfil['is_admin'] ?? 0) === 1) ? 1 : 0;
         } catch (PDOException $e) {
             error_log('[games] perfil do usuario: ' . $e->getMessage());
         }

@@ -189,3 +189,20 @@ function hasAdminAccess(PDO $pdo, int $userId): bool {
     $stmt2->execute([$userId]);
     return (bool)$stmt2->fetch();
 }
+
+// Admin do Games: quem pode ver a aba Games do Admin e mexer em apostas,
+// pontos e controle de jogos. Admin geral entra direto; os demais precisam do
+// sinalizador games_usuarios.is_admin, que a Gestão liga e desliga.
+function hasGamesAdminAccess(PDO $pdo, int $userId): bool {
+    if ($userId <= 0) return false;
+    $stmt = $pdo->prepare("SELECT user_type FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([$userId]);
+    if ($stmt->fetchColumn() === 'admin') return true;
+    try {
+        $stmt2 = $pdo->prepare("SELECT is_admin FROM games_usuarios WHERE id = ? LIMIT 1");
+        $stmt2->execute([$userId]);
+        return (int)$stmt2->fetchColumn() === 1;
+    } catch (Throwable $e) {
+        return false;
+    }
+}

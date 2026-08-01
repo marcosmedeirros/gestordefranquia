@@ -1301,3 +1301,27 @@ function draftConcluidoNaTemporada(PDO $pdo, ?int $seasonId): bool
         return false;
     }
 }
+
+/**
+ * Garante o schema do Games no banco do site.
+ *
+ * As tabelas do games nascem sozinhas no primeiro acesso a uma página de jogo
+ * (games/core/conexao.php). Mas as telas de administração podem ser abertas
+ * antes disso — e aí quebravam com "table doesn't exist". Esta função é o
+ * ponto único: barata em regime normal (uma consulta), roda o SQL só quando a
+ * tabela de perfil ainda não existe.
+ */
+function ensureGamesSchema(PDO $pdo): void
+{
+    static $ok = false;
+    if ($ok) return;
+    try {
+        if (!$pdo->query("SHOW TABLES LIKE 'games_usuarios'")->fetch()) {
+            $sql = @file_get_contents(__DIR__ . '/../sql/games_merge.sql');
+            if ($sql !== false) $pdo->exec($sql);
+        }
+        $ok = true;
+    } catch (Throwable $e) {
+        error_log('[ensureGamesSchema] ' . $e->getMessage());
+    }
+}

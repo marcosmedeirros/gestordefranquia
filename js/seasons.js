@@ -886,7 +886,13 @@ async function _confirmFinalizeSprint(league) {
         }
     } catch (e) {
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-flag-fill me-1"></i> Finalizar Sprint'; }
-        alert('Erro ao finalizar o sprint: ' + (e?.error || 'Desconhecido'));
+        // A API já manda a mensagem pronta — só prefixa quando não veio nada.
+        const msg = e?.error || e?.message;
+        alert(msg || 'Erro ao finalizar o sprint. Tente de novo.');
+        // Se o ano bateu com uma temporada que já existe, a API sugere um livre.
+        const sugerido = e?.suggested_start_year;
+        const campo = document.getElementById('finalizarSprintStartYear');
+        if (sugerido && campo) { campo.value = sugerido; campo.focus(); }
     }
 }
 

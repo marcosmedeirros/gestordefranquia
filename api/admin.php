@@ -290,6 +290,38 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'text' => trim(implode("\n", $lines))]);
             break;
 
+        case 'games_users':
+            // Perfis de jogo (aba Games do Admin): saldo de moedas/FBA Points
+            // e quem é admin do Games.
+            ensureGamesSchema($pdo);
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            $busca = trim((string)($_GET['q'] ?? ''));
+            $sqlGU = "
+                SELECT u.id, u.name, u.email, u.league, u.user_type,
+                       COALESCE(g.pontos, 0) AS pontos,
+                       COALESCE(g.fba_points, 0) AS fba_points,
+                       COALESCE(g.acertos_eventos, 0) AS acertos_eventos,
+                       COALESCE(g.is_admin, 0) AS games_admin,
+                       (g.id IS NOT NULL) AS tem_perfil
+                FROM users u
+                LEFT JOIN games_usuarios g ON g.id = u.id
+            ";
+            $paramsGU = [];
+            if ($busca !== '') {
+                $sqlGU .= " WHERE u.name LIKE ? OR u.email LIKE ? ";
+                $paramsGU[] = '%' . $busca . '%';
+                $paramsGU[] = '%' . $busca . '%';
+            }
+            $sqlGU .= " ORDER BY u.name ASC";
+            $stmtGU = $pdo->prepare($sqlGU);
+            $stmtGU->execute($paramsGU);
+            echo json_encode(['success' => true, 'users' => $stmtGU->fetchAll(PDO::FETCH_ASSOC)]);
+            break;
+
         case 'leagues':
             // Listar todas as ligas com configurações
             $stmtLeagues = $pdo->query("SELECT name FROM leagues ORDER BY FIELD(name,'ELITE','NEXT','RISE','ROOKIE')");
@@ -1682,6 +1714,72 @@ if ($method === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
 
     switch ($action) {
+        case 'games_user_saldo':
+            // Ajuste de moedas / FBA Points de um GM, pela aba Games do Admin.
+            ensureGamesSchema($pdo);
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            $alvoId = (int)($data['user_id'] ?? 0);
+            $pontos = isset($data['pontos']) ? (int)$data['pontos'] : null;
+            $fbaPts = isset($data['fba_points']) ? (int)$data['fba_points'] : null;
+            if ($alvoId <= 0 || ($pontos === null && $fbaPts === null)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Dados inválidos']);
+                exit;
+            }
+            try {
+                // Garante o perfil: quem nunca abriu o Games ainda não tem linha.
+                $pdo->prepare("
+                    INSERT IGNORE INTO games_usuarios (id, nome, email, league)
+                    SELECT id, name, email, COALESCE(league,'ROOKIE') FROM users WHERE id = ?
+                ")->execute([$alvoId]);
+
+                $sets = [];
+                $vals = [];
+                if ($pontos !== null) { $sets[] = 'pontos = ?';     $vals[] = max(0, $pontos); }
+                if ($fbaPts !== null) { $sets[] = 'fba_points = ?'; $vals[] = max(0, $fbaPts); }
+                $vals[] = $alvoId;
+                $pdo->prepare('UPDATE games_usuarios SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($vals);
+                echo json_encode(['success' => true]);
+            } catch (Throwable $e) {
+                error_log('[games_user_saldo] ' . $e->getMessage());
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Erro ao salvar o saldo.']);
+            }
+            exit;
+
+        case 'games_admin_toggle':
+            // Liga/desliga o "Admin Games" de um usuário — só admin geral mexe.
+            ensureGamesSchema($pdo);
+            if (!$isGlobalAdminApi) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas admin geral']);
+                exit;
+            }
+            $alvoId = (int)($data['user_id'] ?? 0);
+            $ligar  = !empty($data['enabled']) ? 1 : 0;
+            if ($alvoId <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'user_id inválido']);
+                exit;
+            }
+            try {
+                $pdo->prepare("
+                    INSERT IGNORE INTO games_usuarios (id, nome, email, league)
+                    SELECT id, name, email, COALESCE(league,'ROOKIE') FROM users WHERE id = ?
+                ")->execute([$alvoId]);
+                $pdo->prepare('UPDATE games_usuarios SET is_admin = ? WHERE id = ?')->execute([$ligar, $alvoId]);
+                echo json_encode(['success' => true, 'enabled' => (bool)$ligar]);
+            } catch (Throwable $e) {
+                error_log('[games_admin_toggle] ' . $e->getMessage());
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Erro ao alterar o acesso.']);
+            }
+            exit;
+
         case 'draft_class_bank':
             $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_templates (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(120) NOT NULL, created_by INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
             $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_template_players (id INT AUTO_INCREMENT PRIMARY KEY, template_id INT NOT NULL, name VARCHAR(120) NOT NULL, position VARCHAR(20) NOT NULL, ovr INT NOT NULL, age INT NOT NULL, INDEX idx_dctp_tpl (template_id), CONSTRAINT fk_dctp_tpl2 FOREIGN KEY (template_id) REFERENCES draft_class_templates(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");

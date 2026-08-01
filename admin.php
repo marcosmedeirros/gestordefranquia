@@ -7,9 +7,11 @@ $user = getUserSession();
 $pdo = db();
 
 $isGlobalAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
+$isGamesAdmin  = hasGamesAdminAccess($pdo, (int)$user['id']);
 $adminLeagues  = getAdminLeagues($pdo, (int)$user['id']);
 
-if (!$isGlobalAdmin && empty($adminLeagues)) {
+// Admin do Games também entra aqui — só que enxerga apenas a aba Games.
+if (!$isGlobalAdmin && empty($adminLeagues) && !$isGamesAdmin) {
     header('Location: /dashboard.php');
     exit;
 }
@@ -842,6 +844,8 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         <button class="admin-qnav-btn" id="qnav-gestao" onclick="showGestao()">
             <i class="bi bi-people-fill"></i> Gestão
         </button>
+        <?php endif; ?>
+        <?php if ($isGamesAdmin): ?>
         <button class="admin-qnav-btn" id="qnav-games" onclick="showGamesAdmin()">
             <i class="bi bi-controller"></i> Games
         </button>
@@ -969,6 +973,7 @@ function showAlert(type, message) {
 <script>
 window.ADMIN_LEAGUES    = <?= json_encode(array_values($adminLeagues)) ?>;
 window.IS_GLOBAL_ADMIN  = <?= $isGlobalAdmin ? 'true' : 'false' ?>;
+window.IS_GAMES_ADMIN   = <?= $isGamesAdmin ? 'true' : 'false' ?>;
 /* variáveis necessárias para free-agency.js */
 const isAdmin          = <?= $isGlobalAdmin || !empty($adminLeagues) ? 'true' : 'false' ?>;
 const userLeague       = <?= $team ? "'" . addslashes($team['league'] ?? '') . "'" : 'null' ?>;

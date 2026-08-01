@@ -56,21 +56,15 @@ let _gestaoLeague = _leagues[0] || 'ELITE';
 // Aba Games do Admin. Depois da fusão as telas de administração do games
 // vivem em /games/admin/, dentro do próprio site e com a mesma sessão — aqui
 // fica o índice delas.
-function showGamesAdmin() {
-  if (!window.IS_GLOBAL_ADMIN) { showHome(); return; }
+async function showGamesAdmin() {
+  if (!window.IS_GAMES_ADMIN) { showHome(); return; }
   appState.view = 'games';
   updateBreadcrumb();
 
   const atalhos = [
-    { url: '/games/admin/dashboard.php',        icone: 'bi-graph-up-arrow',   titulo: 'Apostas',              desc: 'Criar eventos, definir opções e fechar o resultado' },
-    { url: '/games/admin/dadosjogadores.php',   icone: 'bi-database-fill',    titulo: 'Base de Jogadores',    desc: 'Banco de jogadores que alimenta os jogos' },
-    { url: '/games/admin/controle-usuarios.php',icone: 'bi-people-fill',      titulo: 'Usuários',             desc: 'Ver e ajustar os perfis de jogo' },
-    { url: '/games/admin/controle-pontuacao.php',icone: 'bi-coin',            titulo: 'Pontos e Moedas',      desc: 'Creditar ou remover saldo dos GMs' },
-    { url: '/games/admin/controlegames.php',    icone: 'bi-toggles',          titulo: 'Controle de Jogos',    desc: 'Ligar pontuação em dobro por jogo' },
-    { url: '/games/admin/controle-financas.php',icone: 'bi-cash-stack',       titulo: 'Finanças',             desc: 'Movimentação de moedas e FBA Points' },
-    { url: '/games/admin/ranking-atividade.php',icone: 'bi-activity',         titulo: 'Atividade',            desc: 'Quem está jogando o quê' },
-    { url: '/games/admin/hoopgrid-seeder.php',  icone: 'bi-diagram-3-fill',   titulo: 'Hoop Grid',            desc: 'Semear os desafios do Hoop Grid' },
-    { url: '/games/admin/bracket-admin.php',    icone: 'bi-trophy-fill',      titulo: 'Brackets',             desc: 'Chaves e palpites de playoffs' },
+    { url: '/admin-apostas.php',              icone: 'bi-graph-up-arrow', titulo: 'Apostas',           desc: 'Criar eventos, acompanhar palpites e encerrar pagando os acertos' },
+    { url: '/games/admin/dadosjogadores.php', icone: 'bi-database-fill',  titulo: 'Base de Jogadores', desc: 'Banco de jogadores que alimenta os jogos' },
+    { url: '/admin-games-controle.php',       icone: 'bi-toggles',        titulo: 'Controle de Jogos', desc: 'Ligar pontuação em dobro por jogo' },
   ];
 
   const cards = atalhos.map(a => `
@@ -94,7 +88,140 @@ function showGamesAdmin() {
         <i class="bi bi-box-arrow-up-right me-1"></i>Ver a página de Games
       </a>
     </div>
-    <div class="row g-3">${cards}</div>`;
+    <div class="row g-3 mb-4">${cards}</div>
+
+    <div class="panel">
+      <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <span><i class="bi bi-coin" style="color:#f59e0b"></i> Pontos e Moedas</span>
+        <input type="text" id="gamesUserSearch" placeholder="Buscar por nome ou e-mail..."
+               oninput="_filtrarGamesUsers(this.value)"
+               style="background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;min-width:220px">
+      </div>
+      <div id="gamesUsersWrap" class="text-center py-4">
+        <div class="spinner-border text-orange"></div>
+      </div>
+    </div>`;
+
+  _carregarGamesUsers();
+}
+
+let _gamesUsersCache = [];
+
+async function _carregarGamesUsers() {
+  const wrap = document.getElementById('gamesUsersWrap');
+  try {
+    const data = await api('admin.php?action=games_users');
+    _gamesUsersCache = data.users || [];
+    _renderGamesUsers(_gamesUsersCache);
+  } catch (e) {
+    if (wrap) wrap.innerHTML = `<div class="text-danger small p-3">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function _filtrarGamesUsers(termo) {
+  const t = (termo || '').trim().toLowerCase();
+  if (!t) { _renderGamesUsers(_gamesUsersCache); return; }
+  _renderGamesUsers(_gamesUsersCache.filter(u =>
+    (u.name || '').toLowerCase().includes(t) || (u.email || '').toLowerCase().includes(t)));
+}
+
+function _renderGamesUsers(users) {
+  const wrap = document.getElementById('gamesUsersWrap');
+  if (!wrap) return;
+  if (!users.length) {
+    wrap.innerHTML = '<div class="text-secondary small p-3 text-center">Nenhum usuário encontrado.</div>';
+    return;
+  }
+
+  const linhas = users.map(u => {
+    const ehAdminGeral = u.user_type === 'admin';
+    const marcado = Number(u.games_admin) === 1 || ehAdminGeral;
+    return `
+      <tr>
+        <td>
+          <div class="fw-semibold">${escapeHtml(u.name || '—')}</div>
+          <div class="small text-secondary">${escapeHtml(u.email || '')}</div>
+        </td>
+        <td><span class="badge bg-secondary">${escapeHtml(u.league || '—')}</span></td>
+        <td style="width:130px">
+          <input type="number" min="0" class="form-control form-control-sm" value="${Number(u.pontos) || 0}"
+                 id="gu-pontos-${u.id}">
+        </td>
+        <td style="width:130px">
+          <input type="number" min="0" class="form-control form-control-sm" value="${Number(u.fba_points) || 0}"
+                 id="gu-fba-${u.id}">
+        </td>
+        <td class="text-center">${Number(u.acertos_eventos) || 0}</td>
+        <td class="text-center">
+          ${window.IS_GLOBAL_ADMIN ? `
+            <div class="form-check form-switch d-inline-block" title="${ehAdminGeral ? 'Admin geral já tem acesso' : 'Ver a aba Games no Admin'}">
+              <input class="form-check-input" type="checkbox" ${marcado ? 'checked' : ''} ${ehAdminGeral ? 'disabled' : ''}
+                     onchange="_toggleGamesAdmin(${u.id}, this.checked, this)">
+            </div>` : (marcado ? '<i class="bi bi-check-lg text-success"></i>' : '—')}
+        </td>
+        <td class="text-end">
+          <button class="btn btn-sm btn-orange" onclick="_salvarGamesSaldo(${u.id}, this)">
+            <i class="bi bi-check-lg"></i>
+          </button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div class="table-responsive">
+      <table class="table table-dark table-hover align-middle mb-0">
+        <thead><tr>
+          <th>GM</th><th>Liga</th><th>Moedas</th><th>FBA Points</th>
+          <th class="text-center">Acertos</th><th class="text-center">Admin Games</th><th></th>
+        </tr></thead>
+        <tbody>${linhas}</tbody>
+      </table>
+    </div>`;
+}
+
+async function _salvarGamesSaldo(userId, btn) {
+  const pontos = parseInt(document.getElementById(`gu-pontos-${userId}`)?.value, 10);
+  const fba    = parseInt(document.getElementById(`gu-fba-${userId}`)?.value, 10);
+  if (isNaN(pontos) || isNaN(fba) || pontos < 0 || fba < 0) {
+    showAlert('warning', 'Informe valores válidos (zero ou mais).');
+    return;
+  }
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  try {
+    await api('admin.php?action=games_user_saldo', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, pontos, fba_points: fba })
+    });
+    const cached = _gamesUsersCache.find(u => Number(u.id) === Number(userId));
+    if (cached) { cached.pontos = pontos; cached.fba_points = fba; }
+    btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+    showAlert('success', 'Saldo atualizado.');
+  } catch (e) {
+    showAlert('danger', e.message);
+    btn.innerHTML = original;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function _toggleGamesAdmin(userId, enabled, el) {
+  el.disabled = true;
+  try {
+    await api('admin.php?action=games_admin_toggle', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, enabled })
+    });
+    const cached = _gamesUsersCache.find(u => Number(u.id) === Number(userId));
+    if (cached) cached.games_admin = enabled ? 1 : 0;
+    showAlert('success', enabled ? 'Agora esse GM vê a aba Games.' : 'Acesso ao admin do Games removido.');
+  } catch (e) {
+    el.checked = !enabled;
+    showAlert('danger', e.message);
+  } finally {
+    el.disabled = false;
+  }
 }
 
 async function showGestao(league) {
@@ -595,13 +722,19 @@ async function init() {
   if (window.location.hash === '#temporadas' && typeof showSeasonsManagement === 'function') {
     history.replaceState(null, '', window.location.pathname);
     showSeasonsManagement();
+  } else if (!_leagues.length && window.IS_GAMES_ADMIN) {
+    // Quem só é admin do Games não tem liga nenhuma pra abrir.
+    showGamesAdmin();
   } else {
     showLeague(_leagues[0]);
   }
 }
 
 // showHome() mantido para compatibilidade com botões "Voltar" nas sub-views
-function showHome() { showLeague(appState.currentLeague || _leagues[0]); }
+function showHome() {
+  if (!_leagues.length && window.IS_GAMES_ADMIN) { showGamesAdmin(); return; }
+  showLeague(appState.currentLeague || _leagues[0]);
+}
 
 function updateBreadcrumb() {
   const breadcrumb = document.getElementById('breadcrumb');
