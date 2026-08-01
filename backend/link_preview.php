@@ -38,6 +38,7 @@ function metaDaPagina(string $arquivo): array
 {
     $mapa = [
         'legends-draft.php'    => ['Draft de Lendas', 'Acompanhe o Draft de Lendas da FBA ao vivo — quem escolheu quem, pick a pick.'],
+        'draft-aleatorio.php'  => ['Draft Aleatório', 'Um draft da FBA na ordem sorteada pela roleta — acompanhe pick a pick.'],
         'drafts.php'           => ['Draft', 'A sala do Draft da FBA: ordem das escolhas, relógio e quem está na vez.'],
         'initdraftselecao.php' => ['Draft Inicial', 'A sala do Draft Inicial da FBA — a montagem dos elencos do zero.'],
         'draft-players.php'    => ['Classe do Draft', 'Os prospectos disponíveis na próxima classe de draft da FBA.'],

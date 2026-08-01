@@ -54,6 +54,32 @@ function reRenderTudo(data) {
   reRenderConfig(data);
   document.getElementById('rlExcluir').disabled = data.bloqueada;
   document.getElementById('rlExcluir').title = data.bloqueada ? 'Já teve o 1º sorteio — não pode mais ser excluída.' : '';
+  reAtualizarBotaoDraft(data);
+}
+
+/** O draft só faz sentido depois que a ordem está fechada. */
+function reAtualizarBotaoDraft(data) {
+  const btn = document.getElementById('rtCriarDraft');
+  if (!btn) return;
+  btn.style.display = data.concluido ? '' : 'none';
+}
+
+async function reCriarDraft() {
+  const btn = document.getElementById('rtCriarDraft');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/drafts-aleatorios.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'criar_de_roleta', roleta_id: ROLETA_ID }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Erro ao criar o draft');
+    window.location.href = `/draft-aleatorio.php?id=${data.id}`;
+  } catch (e) {
+    alert(e.message);
+    btn.disabled = false;
+  }
 }
 
 function reRenderResumo(data) {
@@ -437,6 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('rtGirar').addEventListener('click', reGirar);
   document.getElementById('rtReiniciar').addEventListener('click', reReiniciar);
   document.getElementById('rlExcluir').addEventListener('click', reExcluirRoleta);
+  document.getElementById('rtCriarDraft').addEventListener('click', reCriarDraft);
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.rl-autocomplete')) {
       document.querySelectorAll('.rl-autocomplete-results').forEach(el => el.classList.remove('show'));

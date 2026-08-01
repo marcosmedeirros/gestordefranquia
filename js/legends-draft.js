@@ -59,7 +59,10 @@ function ldRenderTudo() {
 
   const picked = d.picks.filter(p => p.player_name).length;
   const pct = Math.round((picked / d.total) * 100);
-  const vez = d.picks.find(p => p.pick_number === d.vez_pick_number);
+  // pick_number chega como string do PDO e vez_pick_number como número — sem o
+  // Number() o === nunca casa e o card da vez (com "Confirmar escolha"/"Pular")
+  // simplesmente não aparecia.
+  const vez = d.picks.find(p => Number(p.pick_number) === Number(d.vez_pick_number));
   const ehMinhaVez = vez && Number(vez.user_id) === Number(window.SESSION_USER_ID);
 
   let html = `
@@ -135,7 +138,7 @@ function ldRegrasHtml() {
 }
 
 function ldLinhaBoard(p, d) {
-  const ehVez = p.pick_number === d.vez_pick_number;
+  const ehVez = Number(p.pick_number) === Number(d.vez_pick_number);
   const ehMeu = Number(p.user_id) === Number(window.SESSION_USER_ID);
   const classe = ehVez ? 'atual' : (ehMeu ? 'eu' : '');
   const jogador = p.player_name

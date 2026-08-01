@@ -224,6 +224,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
                 <p class="hero-sub">Cada giro tira um participante da urna. Quem sai primeiro fica com a pior posição, até sobrar só 1.</p>
             </div>
             <div class="hero-actions">
+                <button class="btn-ghost" id="rtCriarDraft" style="display:none"><i class="bi bi-shuffle"></i> <span>Criar draft dessa ordem</span></button>
                 <button class="btn-ghost" id="rtReiniciar"><i class="bi bi-arrow-counterclockwise"></i> Reiniciar</button>
                 <button class="btn-ghost danger" id="rlExcluir"><i class="bi bi-trash"></i> Excluir roleta</button>
             </div>

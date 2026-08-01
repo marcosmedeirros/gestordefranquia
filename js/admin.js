@@ -264,6 +264,9 @@ async function showGestao(league) {
       <a href="/roleta.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
         <i class="bi bi-record-circle" style="color:#ec4899"></i> Roletas
       </a>
+      <a href="/drafts-aleatorios.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
+        <i class="bi bi-shuffle" style="color:#a855f7"></i> Drafts Aleatórios
+      </a>
       <a href="/thepathetic-edit.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
         <i class="bi bi-newspaper" style="color:var(--red)"></i> The Pathetic
       </a>
