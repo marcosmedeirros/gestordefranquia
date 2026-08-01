@@ -6,7 +6,7 @@ require '../core/conexao.php';
 require_once __DIR__ . '/../core/nba-players-db.php';
 nba_ensure_tables($pdo);
 
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = (int)$_SESSION['user_id'];
 $PONTOS_VITORIA = 120 * getGamePointsMultiplier($pdo, 'conexoes');
 
@@ -451,7 +451,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($new_groups > 0) {
-          $pdo->prepare("UPDATE usuarios SET pontos = pontos + ? WHERE id = ?")
+          $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")
             ->execute([$new_groups * 50, $user_id]);
         }
       }

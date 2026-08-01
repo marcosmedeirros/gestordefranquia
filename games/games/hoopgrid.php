@@ -1,7 +1,7 @@
 ﻿<?php
 // hoopgrid.php — Grade NBA 3×3: encontre o jogador que satisfaz os dois critérios
 require '../core/conexao.php';
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = (int)$_SESSION['user_id'];
 $PONTOS_VITORIA = 150 * getGamePointsMultiplier($pdo, 'hoopgrid');
 
@@ -492,7 +492,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $curr = json_decode($res, true) ?: [];
                 $newCells = 0;
                 foreach ($curr as $r) { if (!isset($prevKeys[$r['key'] ?? ''])) $newCells++; }
-                if ($newCells > 0) $pdo->prepare("UPDATE usuarios SET pontos = pontos + ? WHERE id = ?")->execute([$newCells * 25, $user_id]);
+                if ($newCells > 0) $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")->execute([$newCells * 25, $user_id]);
             }
             if ($row) {
                 $pdo->prepare("UPDATE hoopgrid_historico SET respostas=?,tentativas_restantes=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")

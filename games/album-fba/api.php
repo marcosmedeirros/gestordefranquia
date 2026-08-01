@@ -194,7 +194,7 @@ function buildCollectionMap(PDO $pdo, int $userId): array
 
 function fetchUserPointsAlbum(PDO $pdo, int $userId): int
 {
-    $stmt = $pdo->prepare('SELECT pontos FROM usuarios WHERE id = ? LIMIT 1');
+    $stmt = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ? LIMIT 1');
     $stmt->execute([$userId]);
     return (int)($stmt->fetchColumn() ?: 0);
 }
@@ -235,7 +235,7 @@ if ($method === 'GET' && $action === 'market_state') {
             m.created_at,
             u.nome AS seller_name
         FROM album_fba_market m
-        JOIN usuarios u ON u.id = m.seller_user_id
+        JOIN games_usuarios u ON u.id = m.seller_user_id
         WHERE m.status = 'active'
         ORDER BY m.created_at DESC, m.id DESC
         LIMIT 300
@@ -445,7 +445,7 @@ if ($method === 'POST' && $action === 'buy_listing') {
             jsonErrorAlbum('Voce nao pode comprar o proprio anuncio');
         }
 
-        $stmtBuyer = $pdo->prepare('SELECT pontos FROM usuarios WHERE id = ? FOR UPDATE');
+        $stmtBuyer = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ? FOR UPDATE');
         $stmtBuyer->execute([$userId]);
         $buyerPoints = (int)($stmtBuyer->fetchColumn() ?: 0);
         if ($buyerPoints < $pricePoints) {
@@ -453,7 +453,7 @@ if ($method === 'POST' && $action === 'buy_listing') {
             jsonErrorAlbum('Pontos insuficientes para comprar esta cartinha');
         }
 
-        $stmtSeller = $pdo->prepare('SELECT pontos FROM usuarios WHERE id = ? FOR UPDATE');
+        $stmtSeller = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ? FOR UPDATE');
         $stmtSeller->execute([$sellerId]);
         $sellerExists = $stmtSeller->fetchColumn();
         if ($sellerExists === false) {
@@ -461,10 +461,10 @@ if ($method === 'POST' && $action === 'buy_listing') {
             jsonErrorAlbum('Vendedor invalido');
         }
 
-        $stmtDebitBuyer = $pdo->prepare('UPDATE usuarios SET pontos = pontos - ? WHERE id = ?');
+        $stmtDebitBuyer = $pdo->prepare('UPDATE games_usuarios SET pontos = pontos - ? WHERE id = ?');
         $stmtDebitBuyer->execute([$pricePoints, $userId]);
 
-        $stmtCreditSeller = $pdo->prepare('UPDATE usuarios SET pontos = pontos + ? WHERE id = ?');
+        $stmtCreditSeller = $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?');
         $stmtCreditSeller->execute([$pricePoints, $sellerId]);
 
         $stmtAddSticker = $pdo->prepare('

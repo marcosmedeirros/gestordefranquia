@@ -3,14 +3,14 @@ session_start();
 require '../core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: ../auth/login.php");
+    header("Location: /login.php");
     exit;
 }
 
 $user_id = $_SESSION['user_id'];
 
 try {
-    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas,0) as numero_tapas FROM usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM games_usuarios WHERE id = :id");
     $stmt->execute([':id' => $user_id]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -312,7 +312,7 @@ try {
     <?php endif; ?>
   </nav>
   <div class="sb-footer">
-    <a href="../auth/logout.php" class="sb-logout">
+    <a href="/logout.php" class="sb-logout">
       <i class="bi bi-box-arrow-right"></i>Sair
     </a>
   </div>

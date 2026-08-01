@@ -1,6 +1,6 @@
 ﻿<?php
 session_start();
-if (!isset($_SESSION['user_id'])) { header('Location: auth/login.php'); exit; }
+if (!isset($_SESSION['user_id'])) { header('Location: /login.php'); exit; }
 
 $teams = [
     'Anchorage Envood','Athens Olympics','Boston Panthers','Buffalo Blackouts',

@@ -1,7 +1,7 @@
 ﻿<?php
 if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = (int)$_SESSION['user_id'];
 
 // diff: 1=Iniciante 2=Médio 3=Difícil 4=Elite
@@ -92,13 +92,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("SELECT id FROM penalti_desbloqueados WHERE id_usuario=? AND team_slug=?");
         $stmt->execute([$user_id, $slug]);
         if ($stmt->fetch()) { echo json_encode(['ok'=>true,'already'=>true]); exit; }
-        $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=?");
+        $stmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id=?");
         $stmt->execute([$user_id]);
         $u = $stmt->fetch(PDO::FETCH_ASSOC);
         if ((int)($u['pontos'] ?? 0) < 1000) { echo json_encode(['ok'=>false,'msg'=>'Moedas insuficientes']); exit; }
-        $pdo->prepare("UPDATE usuarios SET pontos=pontos-1000 WHERE id=?")->execute([$user_id]);
+        $pdo->prepare("UPDATE games_usuarios SET pontos=pontos-1000 WHERE id=?")->execute([$user_id]);
         $pdo->prepare("INSERT IGNORE INTO penalti_desbloqueados (id_usuario,team_slug) VALUES (?,?)")->execute([$user_id,$slug]);
-        $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=?");
+        $stmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id=?");
         $stmt->execute([$user_id]);
         $newM = (int)($stmt->fetch(PDO::FETCH_ASSOC)['pontos'] ?? 0);
         echo json_encode(['ok'=>true,'moedas'=>$newM]); exit;
@@ -113,8 +113,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare("INSERT IGNORE INTO penalti_conquistas (id_usuario,team_slug) VALUES (?,?)")->execute([$user_id,$slug]);
         $newMoedas = null; $newFba = null;
         if (!$jaConquistou) {
-            $pdo->prepare("UPDATE usuarios SET pontos=pontos+500 WHERE id=?")->execute([$user_id]);
-            $s = $pdo->prepare("SELECT pontos, fba_points FROM usuarios WHERE id=?");
+            $pdo->prepare("UPDATE games_usuarios SET pontos=pontos+500 WHERE id=?")->execute([$user_id]);
+            $s = $pdo->prepare("SELECT pontos, fba_points FROM games_usuarios WHERE id=?");
             $s->execute([$user_id]);
             $uRow = $s->fetch(PDO::FETCH_ASSOC);
             $newMoedas = (int)($uRow['pontos'] ?? 0);
@@ -127,8 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtBonus = $pdo->prepare("INSERT IGNORE INTO penalti_fba_bonus (id_usuario) VALUES (?)");
                 $stmtBonus->execute([$user_id]);
                 if ($stmtBonus->rowCount() > 0) {
-                    $pdo->prepare("UPDATE usuarios SET fba_points=fba_points+500 WHERE id=?")->execute([$user_id]);
-                    $sf = $pdo->prepare("SELECT fba_points FROM usuarios WHERE id=?");
+                    $pdo->prepare("UPDATE games_usuarios SET fba_points=fba_points+500 WHERE id=?")->execute([$user_id]);
+                    $sf = $pdo->prepare("SELECT fba_points FROM games_usuarios WHERE id=?");
                     $sf->execute([$user_id]);
                     $newFba = (int)($sf->fetch(PDO::FETCH_ASSOC)['fba_points'] ?? 0);
                 }
@@ -157,7 +157,7 @@ try {
     $conquistas_arr = array_column($s->fetchAll(PDO::FETCH_ASSOC),'team_slug');
 } catch(PDOException $e) {}
 try {
-    $s = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM usuarios WHERE id=?");
+    $s = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM games_usuarios WHERE id=?");
     $s->execute([$user_id]);
     $usuario = $s->fetch(PDO::FETCH_ASSOC) ?: [];
     $moedas  = (int)($usuario['pontos'] ?? 0);
@@ -173,7 +173,7 @@ try {
                  WHERE p2.id_usuario = pc.id_usuario
                  ORDER BY p2.conquistado_em DESC LIMIT 1) AS ultimo_slug
          FROM penalti_conquistas pc
-         JOIN usuarios u ON u.id = pc.id_usuario
+         JOIN games_usuarios u ON u.id = pc.id_usuario
          GROUP BY pc.id_usuario, u.nome
          ORDER BY total DESC, completado_em ASC
          LIMIT 10"

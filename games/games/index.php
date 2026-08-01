@@ -9,7 +9,7 @@ require '../core/conexao.php';
 
 // Segurança
 if (!isset($_SESSION['user_id'])) {
-    header("Location: ../auth/login.php");
+    header("Location: /login.php");
     exit;
 }
 
@@ -45,10 +45,6 @@ $games_disponiveis = [
     'corrida' => [
         'titulo' => '🏎️ Corrida Neon',
         'arquivo' => 'corrida.php'
-    ],
-    'tigrinho' => [
-        'titulo' => '🐯 Fortune Tiger',
-        'arquivo' => 'tigrinho.php'
     ],
     'poker' => [
         'titulo' => '🃏 Poker',

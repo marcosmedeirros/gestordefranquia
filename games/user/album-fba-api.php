@@ -88,7 +88,7 @@ function ranking(PDO $pdo): array
 {
     global $hiddenRankingEmailLower;
     $sql = "SELECT u.id user_id, u.nome, COALESCE(c1.ovr,0)+COALESCE(c2.ovr,0)+COALESCE(c3.ovr,0)+COALESCE(c4.ovr,0)+COALESCE(c5.ovr,0) total_ovr
-        FROM usuarios u
+        FROM games_usuarios u
         LEFT JOIN fba_user_team uq ON uq.user_id=u.id
         LEFT JOIN fba_cards c1 ON c1.id=uq.slot_pg
         LEFT JOIN fba_cards c2 ON c2.id=uq.slot_sg
@@ -105,7 +105,7 @@ function ranking(PDO $pdo): array
 function rankingTeam(PDO $pdo, int $targetUserId): array
 {
     $stmt = $pdo->prepare("SELECT u.nome, ut.slot_pg, ut.slot_sg, ut.slot_sf, ut.slot_pf, ut.slot_c
-        FROM usuarios u
+        FROM games_usuarios u
         LEFT JOIN fba_user_team ut ON ut.user_id = u.id
         WHERE u.id = :id
         LIMIT 1");
@@ -192,7 +192,7 @@ function draw(PDO $pdo, array $rates): ?array
 
 schema($pdo);
 
-$meStmt = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id=:id");
+$meStmt = $pdo->prepare("SELECT nome, pontos, is_admin FROM games_usuarios WHERE id=:id");
 $meStmt->execute([':id' => $user_id]);
 $me = $meStmt->fetch(PDO::FETCH_ASSOC);
 if (!$me) out(['ok' => false, 'message' => 'Usuário inválido'], 400);
@@ -217,14 +217,14 @@ if ($action === 'buy_pack') {
     if (!isset($cfg[$type])) out(['ok' => false, 'message' => 'Pacote inválido'], 400);
     try {
         $pdo->beginTransaction();
-        $u = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=:id FOR UPDATE");
+        $u = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id=:id FOR UPDATE");
         $u->execute([':id' => $user_id]);
         $coins = (int)$u->fetchColumn();
         if ($coins < (int)$cfg[$type]['price']) {
             $pdo->rollBack();
             out(['ok' => false, 'message' => 'Moedas insuficientes'], 400);
         }
-        $d = $pdo->prepare("UPDATE usuarios SET pontos = pontos - :p WHERE id=:id");
+        $d = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :p WHERE id=:id");
         $d->execute([':p' => (int)$cfg[$type]['price'], ':id' => $user_id]);
         $coll = collection($pdo, $user_id);
         $cards = [];
@@ -247,10 +247,10 @@ if ($action === 'buy_pack') {
             $cards[] = $card;
         }
         if ($bonusPoints > 0) {
-            $bonus = $pdo->prepare("UPDATE usuarios SET pontos = pontos + :b WHERE id = :id");
+            $bonus = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :b WHERE id = :id");
             $bonus->execute([':b' => $bonusPoints, ':id' => $user_id]);
         }
-        $n = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=:id");
+        $n = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id=:id");
         $n->execute([':id' => $user_id]);
         $final = (int)$n->fetchColumn();
         $pdo->commit();

@@ -3,7 +3,7 @@ session_start();
 require '../core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: ../auth/login.php"); exit;
+    header("Location: /login.php"); exit;
 }
 $user_id = (int)$_SESSION['user_id'];
 $PONTOS_VITORIA = 200 * getGamePointsMultiplier($pdo, 'grade');
@@ -224,12 +224,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare("UPDATE grade_historico SET respostas=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")
                     ->execute([$respostas,$concluido,$desistiu,$pontos,$row['id']]);
                 if ($concluido && $row['pontos_ganhos'] == 0 && $pontos > 0)
-                    $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$pontos,$user_id]);
+                    $pdo->prepare("UPDATE games_usuarios SET pontos=pontos+? WHERE id=?")->execute([$pontos,$user_id]);
             } else {
                 $pdo->prepare("INSERT INTO grade_historico (id_usuario,data_jogo,respostas,concluido,desistiu,pontos_ganhos) VALUES(?,?,?,?,?,?)")
                     ->execute([$user_id,$hoje,$respostas,$concluido,$desistiu,$pontos]);
                 if ($concluido && $pontos > 0)
-                    $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")->execute([$pontos,$user_id]);
+                    $pdo->prepare("UPDATE games_usuarios SET pontos=pontos+? WHERE id=?")->execute([$pontos,$user_id]);
             }
             echo json_encode(['ok'=>true]);
         } catch (PDOException $e) { echo json_encode(['ok'=>false]); }

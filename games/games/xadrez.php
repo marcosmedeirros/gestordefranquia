@@ -6,11 +6,11 @@ error_reporting(E_ALL);
 require '../core/conexao.php';
 
 // 1. Segurança e Dados do Usuário
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 
 try {
-    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM games_usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -32,8 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $stmtGames = $pdo->prepare("
                 SELECT p.*, u1.nome as desafiante_nome, u2.nome as desafiado_nome 
                 FROM xadrez_partidas p
-                JOIN usuarios u1 ON p.id_desafiante = u1.id
-                JOIN usuarios u2 ON p.id_desafiado = u2.id
+                JOIN games_usuarios u1 ON p.id_desafiante = u1.id
+                JOIN games_usuarios u2 ON p.id_desafiado = u2.id
                 WHERE (p.id_desafiante = :id OR p.id_desafiado = :id)
                 AND p.status IN ('pendente', 'andamento')
                 ORDER BY p.id DESC
@@ -82,11 +82,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
             $pdo->beginTransaction();
             
-            $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id FOR UPDATE");
             $stmt->execute([':id' => $user_id]);
             if ($stmt->fetchColumn() < $valor) throw new Exception("Saldo insuficiente.");
 
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $valor, ':id' => $user_id]);
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $valor, ':id' => $user_id]);
 
             $stmtIns = $pdo->prepare("INSERT INTO xadrez_partidas (id_desafiante, id_desafiado, valor_aposta, vez_de, status, tempo_brancas, tempo_pretas) VALUES (:id1, :id2, :val, :id1, 'pendente', 600, 600)");
             $stmtIns->execute([':id1' => $user_id, ':id2' => $oponente_id, ':val' => $valor]);
@@ -108,11 +108,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 throw new Exception("Partida inválida.");
             }
 
-            $stmtUser = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+            $stmtUser = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id");
             $stmtUser->execute([':id' => $user_id]);
             if ($stmtUser->fetchColumn() < $partida['valor_aposta']) throw new Exception("Pontos insuficientes.");
 
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $partida['valor_aposta'], ':id' => $user_id]);
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $partida['valor_aposta'], ':id' => $user_id]);
 
             $pdo->prepare("UPDATE xadrez_partidas SET status = 'andamento', ultimo_movimento = :t WHERE id = :id")
                 ->execute([':t' => $agora, ':id' => $partida_id]);
@@ -167,14 +167,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             if ($game_over) {
                 if ($draw) {
                     $novo_status = 'empate';
-                    $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id IN (:p1, :p2)")
+                    $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id IN (:p1, :p2)")
                         ->execute([':val' => $partida['valor_aposta'], ':p1' => $partida['id_desafiante'], ':p2' => $partida['id_desafiado']]);
                 } else {
                     $novo_status = 'finalizada';
                     if (!$vencedor) $vencedor = $user_id; 
                     
                     $premio = $partida['valor_aposta'] * 2;
-                    $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :id")
+                    $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")
                         ->execute([':val' => $premio, ':id' => $vencedor]);
                 }
             }
@@ -220,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 $vencedor = ($partida['vez_de'] == $partida['id_desafiante']) ? $partida['id_desafiado'] : $partida['id_desafiante'];
                 $premio = $partida['valor_aposta'] * 2;
                 
-                $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $premio, ':id' => $vencedor]);
+                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $premio, ':id' => $vencedor]);
                 $pdo->prepare("UPDATE xadrez_partidas SET status = 'finalizada', vencedor = :v WHERE id = :id")->execute([':v' => $vencedor, ':id' => $partida_id]);
                 
                 $pdo->commit();
@@ -245,7 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $vencedor = ($user_id == $partida['id_desafiante']) ? $partida['id_desafiado'] : $partida['id_desafiante'];
             $premio = $partida['valor_aposta'] * 2;
 
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $premio, ':id' => $vencedor]);
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $premio, ':id' => $vencedor]);
             $pdo->prepare("UPDATE xadrez_partidas SET status = 'finalizada', vencedor = :v WHERE id = :id")->execute([':v' => $vencedor, ':id' => $partida_id]);
 
             $pdo->commit();
@@ -278,7 +278,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 }
 
 // --- 2. DADOS DA PÃGINA (INICIAL) ---
-$stmtUsers = $pdo->prepare("SELECT id, nome FROM usuarios WHERE id != :id");
+$stmtUsers = $pdo->prepare("SELECT id, nome FROM games_usuarios WHERE id != :id");
 $stmtUsers->execute([':id' => $user_id]);
 $usuarios = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
 
@@ -286,8 +286,8 @@ $usuarios = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
 $stmtGames = $pdo->prepare("
     SELECT p.*, u1.nome as desafiante_nome, u2.nome as desafiado_nome 
     FROM xadrez_partidas p
-    JOIN usuarios u1 ON p.id_desafiante = u1.id
-    JOIN usuarios u2 ON p.id_desafiado = u2.id
+    JOIN games_usuarios u1 ON p.id_desafiante = u1.id
+    JOIN games_usuarios u2 ON p.id_desafiado = u2.id
     WHERE (p.id_desafiante = :id OR p.id_desafiado = :id)
     AND p.status IN ('pendente', 'andamento')
     ORDER BY p.id DESC
@@ -300,7 +300,7 @@ try {
     $stmtRankChess = $pdo->query("
         SELECT u.nome, COUNT(p.id) as vitorias 
         FROM xadrez_partidas p 
-        JOIN usuarios u ON p.vencedor = u.id 
+        JOIN games_usuarios u ON p.vencedor = u.id 
         WHERE p.status = 'finalizada' 
         GROUP BY p.vencedor 
         ORDER BY vitorias DESC 
@@ -315,8 +315,8 @@ $jogo_ativo = null;
 if (isset($_GET['id'])) {
     $stmtAtivo = $pdo->prepare("SELECT p.*, u1.nome as desafiante_nome, u2.nome as desafiado_nome 
                                 FROM xadrez_partidas p
-                                JOIN usuarios u1 ON p.id_desafiante = u1.id
-                                JOIN usuarios u2 ON p.id_desafiado = u2.id 
+                                JOIN games_usuarios u1 ON p.id_desafiante = u1.id
+                                JOIN games_usuarios u2 ON p.id_desafiado = u2.id 
                                 WHERE p.id = :id");
     $stmtAtivo->execute([':id' => $_GET['id']]);
     $jogo_ativo = $stmtAtivo->fetch(PDO::FETCH_ASSOC);

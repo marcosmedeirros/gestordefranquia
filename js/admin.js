@@ -53,6 +53,50 @@ function updateTradeFilter(nextFilters = {}) {
 let _gestaoUsers = [];
 let _gestaoLeague = _leagues[0] || 'ELITE';
 
+// Aba Games do Admin. Depois da fusão as telas de administração do games
+// vivem em /games/admin/, dentro do próprio site e com a mesma sessão — aqui
+// fica o índice delas.
+function showGamesAdmin() {
+  if (!window.IS_GLOBAL_ADMIN) { showHome(); return; }
+  appState.view = 'games';
+  updateBreadcrumb();
+
+  const atalhos = [
+    { url: '/games/admin/dashboard.php',        icone: 'bi-graph-up-arrow',   titulo: 'Apostas',              desc: 'Criar eventos, definir opções e fechar o resultado' },
+    { url: '/games/admin/dadosjogadores.php',   icone: 'bi-database-fill',    titulo: 'Base de Jogadores',    desc: 'Banco de jogadores que alimenta os jogos' },
+    { url: '/games/admin/controle-usuarios.php',icone: 'bi-people-fill',      titulo: 'Usuários',             desc: 'Ver e ajustar os perfis de jogo' },
+    { url: '/games/admin/controle-pontuacao.php',icone: 'bi-coin',            titulo: 'Pontos e Moedas',      desc: 'Creditar ou remover saldo dos GMs' },
+    { url: '/games/admin/controlegames.php',    icone: 'bi-toggles',          titulo: 'Controle de Jogos',    desc: 'Ligar pontuação em dobro por jogo' },
+    { url: '/games/admin/controle-financas.php',icone: 'bi-cash-stack',       titulo: 'Finanças',             desc: 'Movimentação de moedas e FBA Points' },
+    { url: '/games/admin/ranking-atividade.php',icone: 'bi-activity',         titulo: 'Atividade',            desc: 'Quem está jogando o quê' },
+    { url: '/games/admin/hoopgrid-seeder.php',  icone: 'bi-diagram-3-fill',   titulo: 'Hoop Grid',            desc: 'Semear os desafios do Hoop Grid' },
+    { url: '/games/admin/bracket-admin.php',    icone: 'bi-trophy-fill',      titulo: 'Brackets',             desc: 'Chaves e palpites de playoffs' },
+  ];
+
+  const cards = atalhos.map(a => `
+    <div class="col-12 col-md-6 col-xl-4">
+      <a href="${a.url}" class="action-tile w-100 h-100 text-start" style="text-decoration:none">
+        <i class="bi ${a.icone}"></i>
+        <div>
+          <div class="fw-bold">${a.titulo}</div>
+          <div class="small text-secondary">${a.desc}</div>
+        </div>
+      </a>
+    </div>`).join('');
+
+  document.getElementById('mainContainer').innerHTML = `
+    <div class="mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div class="small text-secondary">
+        <i class="bi bi-info-circle me-1"></i>
+        O games agora roda dentro do fbabrasil.com.br, no mesmo banco e com o mesmo login.
+      </div>
+      <a href="/games.php" class="btn btn-sm btn-outline-orange">
+        <i class="bi bi-box-arrow-up-right me-1"></i>Ver a página de Games
+      </a>
+    </div>
+    <div class="row g-3">${cards}</div>`;
+}
+
 async function showGestao(league) {
   if (!window.IS_GLOBAL_ADMIN) { showHome(); return; }
   appState.view = 'gestao';
@@ -590,6 +634,7 @@ function updateBreadcrumb() {
       scheduler:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Agendador</li>'; return 'Agendador de Fases'; },
       controlpanel: () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Painel de Controle</li>'; return 'Painel de Controle'; },
       gestao:       () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Gestão</li>'; return 'Gestão de Usuários'; },
+      games:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Games</li>'; return 'Games e Apostas'; },
       draft:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Draft</li>'; return `Draft — ${appState.currentLeague || ''}`; },
     };
     const fn = labels[appState.view];
@@ -598,11 +643,9 @@ function updateBreadcrumb() {
 
   // Atualiza aba ativa do quicknav
   document.querySelectorAll('.admin-qnav-btn').forEach(b => b.classList.remove('active'));
-  const activeId = appState.view === 'gestao'
-    ? 'qnav-gestao'
-    : appState.view === 'seasons'
-      ? 'qnav-temporadas'
-      : `qnav-${(appState.currentLeague || _leagues[0]).toLowerCase()}`;
+  const abasFixas = { gestao: 'qnav-gestao', games: 'qnav-games', seasons: 'qnav-temporadas' };
+  const activeId = abasFixas[appState.view]
+    || `qnav-${(appState.currentLeague || _leagues[0]).toLowerCase()}`;
   const activeBtn = document.getElementById(activeId);
   if (activeBtn) activeBtn.classList.add('active');
 }
@@ -1310,7 +1353,8 @@ async function showLeague(league) {
       { icon: 'bi-alarm',                   label: 'Agendador<br>de Fases',      fn: `showScheduler('${league}')`,           color: '#3b82f6', bg: 'rgba(59,130,246,.12)'  },
       { icon: 'bi-shield-check',            label: 'FBA SERASA',                fn: 'showSerasaAdmin()',         color: '#8b5cf6', bg: 'rgba(139,92,246,.12)'  },
       { icon: 'bi-person-dash-fill',        label: 'Dispensas',                 fn: 'showDispensas()',           color: '#ef4444', bg: 'rgba(239,68,68,.12)'   },
-      { icon: 'bi-hand-index-thumb',        label: 'Tapas',                     fn: 'showTapas()',               color: '#f97316', bg: 'rgba(249,115,22,.12)'  },
+      // Tapas escondido na fusão — a tela e a função continuam existindo.
+      // { icon: 'bi-hand-index-thumb',        label: 'Tapas',                     fn: 'showTapas()',               color: '#f97316', bg: 'rgba(249,115,22,.12)'  },
       { icon: 'bi-clipboard2-pulse',        label: 'Tática',                    fn: 'showTaticaAdmin()',         color: '#14b8a6', bg: 'rgba(20,184,166,.12)'  },
       { icon: 'bi-exclamation-triangle-fill', label: 'Punições',               fn: 'showPunicoes()',            color: '#f43f5e', bg: 'rgba(244,63,94,.12)'   },
       { icon: 'bi-trophy-fill',             label: 'Draft',                     fn: 'showAdminDraft()',          color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },

@@ -36,7 +36,7 @@ if ($new !== $confirm) {
 
 try {
     $userId = (int)$_SESSION['user_id'];
-    $stmt = $pdo->prepare('SELECT senha FROM usuarios WHERE id = :id LIMIT 1');
+    $stmt = $pdo->prepare('SELECT senha FROM games_usuarios WHERE id = :id LIMIT 1');
     $stmt->execute([':id' => $userId]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -55,7 +55,7 @@ try {
     }
 
     $newHash = password_hash($new, PASSWORD_DEFAULT);
-    $stmtUpd = $pdo->prepare('UPDATE usuarios SET senha = :senha WHERE id = :id');
+    $stmtUpd = $pdo->prepare('UPDATE games_usuarios SET senha = :senha WHERE id = :id');
     $stmtUpd->execute([':senha' => $newHash, ':id' => $userId]);
 
     echo json_encode(['success' => true, 'message' => 'Senha atualizada com sucesso.']);

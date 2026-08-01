@@ -3,7 +3,7 @@
 // session_start já chamado em games/index.php
 require '../core/conexao.php';
 
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = (int)$_SESSION['user_id'];
 $PONTOS_VITORIA = 150 * getGamePointsMultiplier($pdo, 'boxnba');
 
@@ -197,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($new_cells > 0) {
-          $pdo->prepare("UPDATE usuarios SET pontos = pontos + ? WHERE id = ?")
+          $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")
             ->execute([$new_cells * 25, $user_id]);
         }
       }

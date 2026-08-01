@@ -3,14 +3,14 @@ session_start();
 require '../core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: ../auth/login.php");
+    header("Location: /login.php");
     exit;
 }
 
 $user_id = (int)$_SESSION['user_id'];
 
 try {
-    $stmt = $pdo->prepare("SELECT nome, pontos FROM usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT nome, pontos FROM games_usuarios WHERE id = :id");
     $stmt->execute([':id' => $user_id]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -91,7 +91,7 @@ try {
         </div>
         <div class="d-flex align-items-center gap-2">
             <span class="saldo-badge"><i class="bi bi-coin me-1"></i><?= number_format((float)($usuario['pontos'] ?? 0), 0, ',', '.') ?> pts</span>
-            <a href="../auth/logout.php" class="btn btn-sm btn-outline-danger border-0" title="Sair">
+            <a href="/logout.php" class="btn btn-sm btn-outline-danger border-0" title="Sair">
                 <i class="bi bi-box-arrow-right"></i>
             </a>
         </div>

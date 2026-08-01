@@ -3,9 +3,9 @@ session_start();
 require '../core/conexao.php';
 require_once '../core/nba-players-db.php';
 
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 
-$stmt = $pdo->prepare("SELECT is_admin, nome FROM usuarios WHERE id = :id");
+$stmt = $pdo->prepare("SELECT is_admin, nome FROM games_usuarios WHERE id = :id");
 $stmt->execute([':id' => $_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$user || $user['is_admin'] != 1) { die("Acesso negado."); }

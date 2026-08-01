@@ -15,7 +15,7 @@ $TOTAL_DIAMANTES = 4;
 $TOTAL_BOMBAS = 5;
 $VIDAS_INICIAIS = 2;
 
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 
 // Criar tabela se não existir
@@ -38,7 +38,7 @@ try {
 
 // Dados do usuário
 try {
-    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin FROM games_usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -187,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
         // Adicionar pontos ao usuário
         try {
             $pdo->beginTransaction();
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos + :pts WHERE id = :uid")
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :pts WHERE id = :uid")
                 ->execute([':pts' => $pontos, ':uid' => $user_id]);
             $pdo->commit();
         } catch (Exception $e) {

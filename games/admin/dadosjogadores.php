@@ -5,12 +5,12 @@
  */
 session_start();
 require '../core/conexao.php';
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 
-$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas,0) as numero_tapas FROM usuarios WHERE id = ?");
+$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points FROM games_usuarios WHERE id = ?");
 $stmt->execute([$_SESSION['user_id']]);
 $u = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$u) { header("Location: ../auth/login.php"); exit; }
+if (!$u) { header("Location: /login.php"); exit; }
 $isAdmin = !empty($u['is_admin']);
 
 // Garante que a tabela existe
@@ -1444,7 +1444,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   <a href="../index.php"              class="top-nav-link"><i class="bi bi-lightning-charge"></i><span>Apostas</span></a>
   <a href="../games.php"              class="top-nav-link"><i class="bi bi-joystick"></i><span>Games</span></a>
   <a href="controlegames.php"         class="top-nav-link"><i class="bi bi-gear-fill"></i><span>Controles</span></a>
-  <a href="../auth/logout.php"        class="top-nav-link"><i class="bi bi-box-arrow-right"></i><span>Sair</span></a>
+  <a href="/logout.php"        class="top-nav-link"><i class="bi bi-box-arrow-right"></i><span>Sair</span></a>
 </nav>
 
 <!-- CONTEÚDO -->

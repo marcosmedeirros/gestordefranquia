@@ -5,14 +5,14 @@ if (session_status() === PHP_SESSION_NONE) {
 require '../core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header('Location: ../auth/login.php');
+    header('Location: /login.php');
     exit;
 }
 
 $userId = (int)$_SESSION['user_id'];
 $usuario = ['nome' => 'Coach', 'pontos' => 0];
 try {
-    $stmt = $pdo->prepare('SELECT nome, pontos FROM usuarios WHERE id = :id');
+    $stmt = $pdo->prepare('SELECT nome, pontos FROM games_usuarios WHERE id = :id');
     $stmt->execute([':id' => $userId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($row) {

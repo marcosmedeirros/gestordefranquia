@@ -95,7 +95,7 @@ if (!function_exists('sbActive')) {
         <a href="/mundo-fba.php"<?= sbActive('mundo-fba.php', $__sbCurrent) ?>><i class="bi bi-globe2"></i> Mundo FBA</a>
         <a href="/estatisticas.php"<?= sbActive('estatisticas.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
         <a href="/ouvidoria.php"<?= sbActive('ouvidoria.php', $__sbCurrent) ?>><i class="bi bi-chat-dots"></i> Ouvidoria</a>
-        <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener"><i class="bi bi-controller"></i> FBA Games</a>
+        <a href="/games.php"<?= sbActive("games.php", $__sbCurrent) ?>><i class="bi bi-controller"></i> Games</a>
         <a href="/thepathetic.php"<?= sbActive('thepathetic.php', $__sbCurrent) ?>><i class="bi bi-newspaper"></i> The Pathetic</a>
 
         <?php if ($__sbIsAdmin): ?>

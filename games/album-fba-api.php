@@ -185,7 +185,7 @@ function ranking(PDO $pdo): array
 {
     global $hiddenRankingEmailLower;
     $sql = "SELECT u.id user_id, u.nome, COALESCE(c1.ovr,0)+COALESCE(c2.ovr,0)+COALESCE(c3.ovr,0)+COALESCE(c4.ovr,0)+COALESCE(c5.ovr,0) total_ovr
-        FROM usuarios u
+        FROM games_usuarios u
         LEFT JOIN fba_user_team uq ON uq.user_id=u.id
         LEFT JOIN fba_cards c1 ON c1.id=uq.slot_pg
         LEFT JOIN fba_cards c2 ON c2.id=uq.slot_sg
@@ -202,7 +202,7 @@ function ranking(PDO $pdo): array
 function rankingTeam(PDO $pdo, int $targetUserId): array
 {
     $stmt = $pdo->prepare("SELECT u.nome, ut.slot_pg, ut.slot_sg, ut.slot_sf, ut.slot_pf, ut.slot_c
-        FROM usuarios u
+        FROM games_usuarios u
         LEFT JOIN fba_user_team ut ON ut.user_id = u.id
         WHERE u.id = :id
         LIMIT 1");
@@ -402,7 +402,7 @@ function consumeUserCards(PDO $pdo, int $userId, array $cardCounts): void
 }
 schema($pdo);
 
-$meStmt = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id=:id");
+$meStmt = $pdo->prepare("SELECT nome, pontos, is_admin FROM games_usuarios WHERE id=:id");
 $meStmt->execute([':id' => $user_id]);
 $me = $meStmt->fetch(PDO::FETCH_ASSOC);
 if (!$me) out(['ok' => false, 'message' => 'UsuÃ¡rio invÃ¡lido'], 400);
@@ -444,7 +444,7 @@ if ($action === 'market_state') {
                c.nome card_name, c.raridade card_rarity, COALESCE(c.collection_name, 'Geral') card_collection,
                t.nome card_team
         FROM fba_market_listings m
-        INNER JOIN usuarios u ON u.id = m.seller_user_id
+        INNER JOIN games_usuarios u ON u.id = m.seller_user_id
         INNER JOIN fba_cards c ON c.id = m.card_id
         INNER JOIN fba_card_teams t ON t.id = c.team_id
         WHERE m.status = 'active'
@@ -454,7 +454,7 @@ if ($action === 'market_state') {
     $rows = $listStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $myRows = array_values(array_filter($rows, static fn($r) => (int)$r['seller_user_id'] === $user_id));
-    $coinsStmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+    $coinsStmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id");
     $coinsStmt->execute([':id' => $user_id]);
     $coins = (int)$coinsStmt->fetchColumn();
 
@@ -578,7 +578,7 @@ if ($action === 'market_buy_listing') {
         }
         $price = (int)$row['price_points'];
 
-        $buyerQ = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+        $buyerQ = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id FOR UPDATE");
         $buyerQ->execute([':id' => $user_id]);
         $buyerCoins = (int)$buyerQ->fetchColumn();
         if ($buyerCoins < $price) {
@@ -586,15 +586,15 @@ if ($action === 'market_buy_listing') {
             out(['ok' => false, 'message' => 'Pontos insuficientes'], 400);
         }
 
-        $sellerQ = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+        $sellerQ = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id FOR UPDATE");
         $sellerQ->execute([':id' => $sellerId]);
         if ($sellerQ->fetchColumn() === false) {
             $pdo->rollBack();
             out(['ok' => false, 'message' => 'Vendedor invalido'], 400);
         }
 
-        $pdo->prepare("UPDATE usuarios SET pontos = pontos - :p WHERE id = :id")->execute([':p' => $price, ':id' => $user_id]);
-        $pdo->prepare("UPDATE usuarios SET pontos = pontos + :p WHERE id = :id")->execute([':p' => $price, ':id' => $sellerId]);
+        $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :p WHERE id = :id")->execute([':p' => $price, ':id' => $user_id]);
+        $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :p WHERE id = :id")->execute([':p' => $price, ':id' => $sellerId]);
         $pdo->prepare("INSERT INTO fba_user_collection (user_id, card_id, quantidade) VALUES (:u, :c, 1) ON DUPLICATE KEY UPDATE quantidade = quantidade + 1")
             ->execute([':u' => $user_id, ':c' => (int)$row['card_id']]);
         $done = $pdo->prepare("UPDATE fba_market_listings SET status = 'sold', buyer_user_id = :b, sold_at = NOW() WHERE id = :id AND status = 'active'");
@@ -672,11 +672,11 @@ if ($action === 'claim_daily_pack') {
             $pulled[] = $card;
         }
         if ($bonusPoints > 0) {
-            $bonus = $pdo->prepare("UPDATE usuarios SET pontos = pontos + :b WHERE id = :id");
+            $bonus = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :b WHERE id = :id");
             $bonus->execute([':b' => $bonusPoints, ':id' => $user_id]);
         }
 
-        $coinsStmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+        $coinsStmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id");
         $coinsStmt->execute([':id' => $user_id]);
         $coins = (int)$coinsStmt->fetchColumn();
 
@@ -726,11 +726,11 @@ if ($action === 'trade_pack') {
         }
 
         if ($bonusPoints > 0) {
-            $bonus = $pdo->prepare("UPDATE usuarios SET pontos = pontos + :b WHERE id = :id");
+            $bonus = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :b WHERE id = :id");
             $bonus->execute([':b' => $bonusPoints, ':id' => $user_id]);
         }
 
-        $coinsStmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+        $coinsStmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id");
         $coinsStmt->execute([':id' => $user_id]);
         $coins = (int)$coinsStmt->fetchColumn();
 
@@ -787,7 +787,7 @@ if ($action === 'trade_missing') {
         $ins->execute([':u' => $user_id, ':c' => $newCard['id']]);
 
         $coll = collection($pdo, $user_id);
-        $coinsStmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+        $coinsStmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id");
         $coinsStmt->execute([':id' => $user_id]);
         $coins = (int)$coinsStmt->fetchColumn();
 
@@ -806,14 +806,14 @@ if ($action === 'buy_pack') {
     if (!isset($cfg[$type])) out(['ok' => false, 'message' => 'Pacote invÃ¡lido'], 400);
     try {
         $pdo->beginTransaction();
-        $u = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=:id FOR UPDATE");
+        $u = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id=:id FOR UPDATE");
         $u->execute([':id' => $user_id]);
         $coins = (int)$u->fetchColumn();
         if ($coins < (int)$cfg[$type]['price']) {
             $pdo->rollBack();
             out(['ok' => false, 'message' => 'Moedas insuficientes'], 400);
         }
-        $d = $pdo->prepare("UPDATE usuarios SET pontos = pontos - :p WHERE id=:id");
+        $d = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :p WHERE id=:id");
         $d->execute([':p' => (int)$cfg[$type]['price'], ':id' => $user_id]);
         $coll = collection($pdo, $user_id);
         $cards = [];
@@ -836,10 +836,10 @@ if ($action === 'buy_pack') {
             $cards[] = $card;
         }
         if ($bonusPoints > 0) {
-            $bonus = $pdo->prepare("UPDATE usuarios SET pontos = pontos + :b WHERE id = :id");
+            $bonus = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :b WHERE id = :id");
             $bonus->execute([':b' => $bonusPoints, ':id' => $user_id]);
         }
-        $n = $pdo->prepare("SELECT pontos FROM usuarios WHERE id=:id");
+        $n = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id=:id");
         $n->execute([':id' => $user_id]);
         $final = (int)$n->fetchColumn();
         $pdo->commit();
@@ -889,10 +889,10 @@ if ($action === 'redeem_collection') {
         $ins = $pdo->prepare("INSERT INTO fba_collection_rewards (user_id, collection_name) VALUES (:u, :c)");
         $ins->execute([':u' => $user_id, ':c' => $collectionName]);
 
-        $pdo->prepare("UPDATE usuarios SET fba_points = COALESCE(fba_points, 0) + 500 WHERE id = :id")
+        $pdo->prepare("UPDATE games_usuarios SET fba_points = COALESCE(fba_points, 0) + 500 WHERE id = :id")
             ->execute([':id' => $user_id]);
 
-        $fp = $pdo->prepare("SELECT fba_points FROM usuarios WHERE id = :id");
+        $fp = $pdo->prepare("SELECT fba_points FROM games_usuarios WHERE id = :id");
         $fp->execute([':id' => $user_id]);
         $fbaPoints = (int)$fp->fetchColumn();
 

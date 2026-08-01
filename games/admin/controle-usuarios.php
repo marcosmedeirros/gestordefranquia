@@ -3,9 +3,9 @@ session_start();
 require '../core/conexao.php';
 /** @var PDO $pdo */
 
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 
-$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = :id");
+$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points FROM games_usuarios WHERE id = :id");
 $stmt->execute([':id' => $_SESSION['user_id']]);
 $admin = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$admin || $admin['is_admin'] != 1) die("Acesso negado.");
@@ -22,9 +22,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
             $valor = (int)$_POST['valor'];
             if ($uid <= 0 || $valor === 0) throw new Exception("Dados inválidos.");
             $col = $tipo === 'fba_points' ? 'fba_points' : 'pontos';
-            $pdo->prepare("UPDATE usuarios SET {$col} = {$col} + :v WHERE id = :id")
+            $pdo->prepare("UPDATE games_usuarios SET {$col} = {$col} + :v WHERE id = :id")
                 ->execute([':v' => $valor, ':id' => $uid]);
-            $row = $pdo->prepare("SELECT pontos, fba_points FROM usuarios WHERE id = :id");
+            $row = $pdo->prepare("SELECT pontos, fba_points FROM games_usuarios WHERE id = :id");
             $row->execute([':id' => $uid]);
             echo json_encode(['ok' => true, 'saldo' => $row->fetch(PDO::FETCH_ASSOC)]);
             exit;
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
             $pontos = (int)$_POST['pontos'];
             $fba    = (int)$_POST['fba_points'];
             if ($uid <= 0) throw new Exception("Usuário inválido.");
-            $pdo->prepare("UPDATE usuarios SET pontos = :p, fba_points = :f WHERE id = :id")
+            $pdo->prepare("UPDATE games_usuarios SET pontos = :p, fba_points = :f WHERE id = :id")
                 ->execute([':p' => $pontos, ':f' => $fba, ':id' => $uid]);
             echo json_encode(['ok' => true]);
             exit;
@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
             $val = (int)$_POST['valor'];
             if ($uid <= 0) throw new Exception("Usuário inválido.");
             if ($uid === (int)$_SESSION['user_id']) throw new Exception("Você não pode remover seu próprio acesso admin.");
-            $pdo->prepare("UPDATE usuarios SET is_admin = :v WHERE id = :id")
+            $pdo->prepare("UPDATE games_usuarios SET is_admin = :v WHERE id = :id")
                 ->execute([':v' => ($val ? 1 : 0), ':id' => $uid]);
             echo json_encode(['ok' => true]);
             exit;
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
 
 // ── Carrega usuários ───────────────────────────────────────────────────────────
 $usuarios = $pdo->query(
-    "SELECT id, nome, email, pontos, fba_points, is_admin FROM usuarios ORDER BY nome ASC"
+    "SELECT id, nome, email, pontos, fba_points, is_admin FROM games_usuarios ORDER BY nome ASC"
 )->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
@@ -308,7 +308,7 @@ $usuarios = $pdo->query(
     <a href="dadosjogadores.php"        class="sb-link"><i class="bi bi-person-lines-fill"></i>Dados dos Jogadores</a>
   </nav>
   <div class="sb-footer">
-    <a href="../auth/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a>
+    <a href="/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a>
   </div>
 </aside>
 

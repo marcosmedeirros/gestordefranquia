@@ -7,12 +7,12 @@ require '../core/conexao.php';
 require_once '../core/mobile-helpers.php';
 
 // 1. Segurança
-if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 
 // 2. Dados do Usuário
 try {
-    $stmtMe = $pdo->prepare("SELECT nome, pontos FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT nome, pontos FROM games_usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -50,14 +50,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $pdo->beginTransaction();
 
             // 2. Verifica e Desconta Saldo
-            $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id FOR UPDATE");
             $stmt->execute([':id' => $user_id]);
             $saldoAtual = $stmt->fetchColumn();
 
             if ($saldoAtual < $totalApostado) throw new Exception("Saldo insuficiente!");
 
             // Desconta a aposta
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $totalApostado, ':id' => $user_id]);
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $totalApostado, ':id' => $user_id]);
 
             // 3. Sorteio
             $numeroSorteado = $ROULETTE_ORDER[array_rand($ROULETTE_ORDER)];
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
             // Paga prêmios
             if ($totalGanho > 0) {
-                $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $totalGanho, ':id' => $user_id]);
+                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $totalGanho, ':id' => $user_id]);
             }
 
             $pdo->commit();

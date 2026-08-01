@@ -4,7 +4,7 @@ error_reporting(E_ALL);
 // session_start já foi chamado em games/index.php
 require '../core/conexao.php';
 
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 $hiddenRankingEmailLower = 'medeirros99@gmail.com';
 $pointsMultiplier = getGamePointsMultiplier($pdo, 'flappy');
@@ -12,9 +12,9 @@ $pointsMultiplier = getGamePointsMultiplier($pdo, 'flappy');
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS flappy_historico (id INT AUTO_INCREMENT PRIMARY KEY, id_usuario INT NOT NULL, pontuacao INT NOT NULL, data_jogo DATETIME DEFAULT CURRENT_TIMESTAMP)");
     $pdo->exec("CREATE TABLE IF NOT EXISTS flappy_compras_skins (id INT AUTO_INCREMENT PRIMARY KEY, id_usuario INT NOT NULL, skin VARCHAR(50) NOT NULL, data_compra DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(id_usuario, skin))");
-    try { $pdo->exec("ALTER TABLE usuarios ADD COLUMN flappy_skin_equipada VARCHAR(50) DEFAULT 'default'"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE games_usuarios ADD COLUMN flappy_skin_equipada VARCHAR(50) DEFAULT 'default'"); } catch (Exception $e) {}
 
-    $stmtMe = $pdo->prepare("SELECT nome, pontos, flappy_skin_equipada FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT nome, pontos, flappy_skin_equipada FROM games_usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 
@@ -26,7 +26,7 @@ try {
     $stmtRecorde->execute([':id' => $user_id]);
     $recorde = $stmtRecorde->fetchColumn() ?: 0;
 
-    $stmtRank = $pdo->prepare("SELECT u.nome, MAX(h.pontuacao) as recorde FROM flappy_historico h JOIN usuarios u ON h.id_usuario = u.id WHERE LOWER(u.email) <> :hidden_email GROUP BY h.id_usuario ORDER BY recorde DESC LIMIT 5");
+    $stmtRank = $pdo->prepare("SELECT u.nome, MAX(h.pontuacao) as recorde FROM flappy_historico h JOIN games_usuarios u ON h.id_usuario = u.id WHERE LOWER(u.email) <> :hidden_email GROUP BY h.id_usuario ORDER BY recorde DESC LIMIT 5");
     $stmtRank->execute([':hidden_email' => $hiddenRankingEmailLower]);
     $ranking_flappy = $stmtRank->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { die("Erro DB: " . $e->getMessage()); }
@@ -76,13 +76,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         $preco = $catalogo_skins[$skin]['preco'];
         try {
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id FOR UPDATE");
             $stmt->execute([':id' => $user_id]);
             if ($stmt->fetchColumn() < $preco) throw new Exception("Saldo insuficiente!");
             $stmtCheck = $pdo->prepare("SELECT id FROM flappy_compras_skins WHERE id_usuario = :uid AND skin = :skin");
             $stmtCheck->execute([':uid' => $user_id, ':skin' => $skin]);
             if ($stmtCheck->rowCount() > 0) throw new Exception("Você já tem essa skin!");
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :uid")->execute([':val' => $preco, ':uid' => $user_id]);
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :val WHERE id = :uid")->execute([':val' => $preco, ':uid' => $user_id]);
             $pdo->prepare("INSERT INTO flappy_compras_skins (id_usuario, skin) VALUES (:uid, :skin)")->execute([':uid' => $user_id, ':skin' => $skin]);
             $pdo->commit();
             echo json_encode(['sucesso' => true]);
@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 $stmtCheck->execute([':uid' => $user_id, ':skin' => $skin]);
                 if ($stmtCheck->rowCount() == 0) throw new Exception("Skin não encontrada.");
             }
-            $pdo->prepare("UPDATE usuarios SET flappy_skin_equipada = :skin WHERE id = :uid")->execute([':skin' => $skin, ':uid' => $user_id]);
+            $pdo->prepare("UPDATE games_usuarios SET flappy_skin_equipada = :skin WHERE id = :uid")->execute([':skin' => $skin, ':uid' => $user_id]);
             echo json_encode(['sucesso' => true]);
         } catch (Exception $e) { echo json_encode(['erro' => $e->getMessage()]); }
         exit;
@@ -109,11 +109,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             if (!$run_active && empty($_SESSION['flappy_score_saved'])) throw new Exception('Sessão de jogo inválida.');
             if (!empty($_SESSION['flappy_revive_used'])) throw new Exception('Revive já utilizado.');
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id FOR UPDATE");
             $stmt->execute([':id' => $user_id]);
             $saldo = (int)$stmt->fetchColumn();
             if ($saldo < 10) throw new Exception('Saldo insuficiente.');
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos - 10 WHERE id = :id")->execute([':id' => $user_id]);
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - 10 WHERE id = :id")->execute([':id' => $user_id]);
             $pdo->commit();
             $_SESSION['flappy_revive_used'] = true;
             $_SESSION['flappy_run_active']  = true;
@@ -136,10 +136,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $pdo->prepare("INSERT INTO flappy_historico (id_usuario, pontuacao) VALUES (:uid, :score)")
                 ->execute([':uid' => $user_id, ':score' => $score]);
             if ($coins_earned > 0) {
-                $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :id")
+                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")
                     ->execute([':val' => $coins_earned, ':id' => $user_id]);
             }
-            $stmtSaldo = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+            $stmtSaldo = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id");
             $stmtSaldo->execute([':id' => $user_id]);
             $novo_saldo = (int)$stmtSaldo->fetchColumn();
             $pdo->commit();

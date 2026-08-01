@@ -6,12 +6,12 @@
  */
 session_start();
 require '../core/conexao.php';
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 
-$stmt = $pdo->prepare("SELECT is_admin, nome FROM usuarios WHERE id = ?");
+$stmt = $pdo->prepare("SELECT is_admin, nome FROM games_usuarios WHERE id = ?");
 $stmt->execute([$_SESSION['user_id']]);
 $u = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$u || empty($u['is_admin'])) { header("Location: ../auth/login.php"); exit; }
+if (!$u || empty($u['is_admin'])) { header("Location: /login.php"); exit; }
 
 $hiddenEmailLower = 'medeirros99@gmail.com';
 
@@ -66,7 +66,7 @@ foreach ($fontes as [$tabela, $colUser, $colData]) {
 }
 
 // Nomes dos usuários (exclui a conta oculta)
-$usuarios = $pdo->query("SELECT id, nome, email FROM usuarios")->fetchAll(PDO::FETCH_ASSOC);
+$usuarios = $pdo->query("SELECT id, nome, email FROM games_usuarios")->fetchAll(PDO::FETCH_ASSOC);
 $nomes = [];
 foreach ($usuarios as $us) {
     if (strtolower($us['email']) === $hiddenEmailLower) continue;

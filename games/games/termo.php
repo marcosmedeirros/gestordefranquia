@@ -47,13 +47,13 @@ try {
 } catch (Exception $e) {}
 
 // 1. Segurança
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 
 
 // --- 2. DADOS DO USUÁRIO (PARA O HEADER) ---
 try {
-    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin FROM games_usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -350,7 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
                 $pts = $PONTOS_VITORIA_DUETO;
                 $pdo->prepare("UPDATE termo_dueto_historico SET pontos_ganhos=:p WHERE id_usuario=:u AND data_jogo=:d")
                     ->execute([':p'=>$pts,':u'=>$user_id,':d'=>$hoje]);
-                $pdo->prepare("UPDATE usuarios SET pontos=pontos+:p WHERE id=:u")
+                $pdo->prepare("UPDATE games_usuarios SET pontos=pontos+:p WHERE id=:u")
                     ->execute([':p'=>$pts,':u'=>$user_id]);
                 // Streak dueto
                 $stmtPD = $pdo->prepare("SELECT data_jogo, streak_count FROM termo_dueto_historico WHERE id_usuario=:u AND data_jogo < :d ORDER BY data_jogo DESC LIMIT 1");
@@ -444,7 +444,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
             $pdo->prepare("UPDATE termo_historico SET ganhou = 1, pontos_ganhos = :pts WHERE id_usuario = :uid AND data_jogo = :dt")
                 ->execute([':pts' => $PONTOS_VITORIA, ':uid' => $user_id, ':dt' => $hoje]);
 
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos + :pts WHERE id = :uid")
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :pts WHERE id = :uid")
                 ->execute([':pts' => $PONTOS_VITORIA, ':uid' => $user_id]);
 
             // Atualizar sequência quando finaliza o dia

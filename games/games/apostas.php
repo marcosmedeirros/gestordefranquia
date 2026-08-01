@@ -16,7 +16,7 @@ $nowBrtStr = $nowBrt->format('Y-m-d H:i:s');
 
 // Segurança
 if (!isset($_SESSION['user_id'])) {
-    header("Location: ../auth/login.php");
+    header("Location: /login.php");
     exit;
 }
 
@@ -24,7 +24,7 @@ $user_id = $_SESSION['user_id'];
 
 // 1. Dados do Usuário
 try {
-    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, tapas_disponiveis FROM usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM games_usuarios WHERE id = :id");
     $stmt->execute([':id' => $user_id]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -34,11 +34,6 @@ try {
 $loja_msg = null;
 $loja_erro = null;
 
-$tapas_limite_mes = 2;
-$tapas_disponiveis = (int)($usuario['tapas_disponiveis'] ?? $tapas_limite_mes);
-$tapas_disponiveis = max(0, min($tapas_limite_mes, $tapas_disponiveis));
-$tapas_compradas_mes = max(0, $tapas_limite_mes - $tapas_disponiveis);
-$tapas_restantes = max(0, $tapas_disponiveis);
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
     $acao_loja = $_POST['acao_loja'];
@@ -48,14 +43,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
             $ganho_fba = 100;
 
             $pdo->beginTransaction();
-            $stmtSaldo = $pdo->prepare("SELECT pontos, fba_points FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmtSaldo = $pdo->prepare("SELECT pontos, fba_points FROM games_usuarios WHERE id = :id FOR UPDATE");
             $stmtSaldo->execute([':id' => $user_id]);
             $saldo = $stmtSaldo->fetch(PDO::FETCH_ASSOC);
             if (!$saldo || (int)$saldo['pontos'] < $custo_moedas) {
                 throw new Exception('Moedas insuficientes para a troca.');
             }
 
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos - :cost, fba_points = fba_points + :gain WHERE id = :id")
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :cost, fba_points = fba_points + :gain WHERE id = :id")
                 ->execute([':cost' => $custo_moedas, ':gain' => $ganho_fba, ':id' => $user_id]);
             $pdo->prepare("INSERT INTO fba_shop_purchases (user_id, item, qty) VALUES (:uid, 'moedas_to_fba', 1)")
                 ->execute([':uid' => $user_id]);
@@ -66,32 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
             $loja_msg = 'Troca realizada: 1000 moedas por 100 FBA Points.';
         }
 
-        if ($acao_loja === 'comprar_tapa') {
-            $custo_fba = 3500;
-            if ($tapas_disponiveis <= 0) {
-                throw new Exception('Limite mensal de tapas atingido.');
-            }
-
-            $pdo->beginTransaction();
-            $stmtSaldo = $pdo->prepare("SELECT fba_points FROM usuarios WHERE id = :id FOR UPDATE");
-            $stmtSaldo->execute([':id' => $user_id]);
-            $saldo = $stmtSaldo->fetch(PDO::FETCH_ASSOC);
-            if (!$saldo || (int)$saldo['fba_points'] < $custo_fba) {
-                throw new Exception('FBA Points insuficientes para comprar o tapa.');
-            }
-
-            $pdo->prepare("UPDATE usuarios SET fba_points = fba_points - :cost, tapas_disponiveis = GREATEST(COALESCE(tapas_disponiveis, 0) - 1, 0) WHERE id = :id")
-                ->execute([':cost' => $custo_fba, ':id' => $user_id]);
-            $pdo->prepare("INSERT INTO fba_shop_purchases (user_id, item, qty) VALUES (:uid, 'tapa', 1)")
-                ->execute([':uid' => $user_id]);
-
-            $pdo->commit();
-            $usuario['fba_points'] = (int)$saldo['fba_points'] - $custo_fba;
-            $tapas_disponiveis = max(0, $tapas_disponiveis - 1);
-            $tapas_compradas_mes = min($tapas_limite_mes, $tapas_compradas_mes + 1);
-            $tapas_restantes = max(0, $tapas_disponiveis);
-            $loja_msg = 'Tapa comprado com sucesso.';
-        }
+        // O item "tapa" saiu da loja na fusão. A mecânica de compra segue
+        // aqui (moedas -> FBA Points -> item) esperando os itens novos.
     } catch (Exception $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -543,15 +514,8 @@ $msg = isset($_GET['msg']) ? htmlspecialchars($_GET['msg']) : "";
         </div>
         <div class="col-12 col-md-6">
             <div class="card-evento">
-                <div class="evento-titulo">Badges / Tapas</div>
-                <div class="text-secondary mb-2">1 tapa custa 3500 FBA Points.</div>
-                <div class="text-secondary mb-3">Comprados no mes: <?= $tapas_compradas_mes ?>/<?= $tapas_limite_mes ?>.</div>
-                <form method="POST">
-                    <input type="hidden" name="acao_loja" value="comprar_tapa">
-                    <button type="submit" class="btn btn-warning w-100" <?= ($tapas_restantes <= 0 || (int)($usuario['fba_points'] ?? 0) < 3500) ? 'disabled' : '' ?>>
-                        Comprar 1 tapa
-                    </button>
-                </form>
+                <div class="evento-titulo">Em breve</div>
+                <div class="text-secondary mb-2">Novos itens pra trocar por FBA Points estão a caminho.</div>
             </div>
         </div>
     </div>

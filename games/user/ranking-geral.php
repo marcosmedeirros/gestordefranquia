@@ -4,7 +4,7 @@ session_start();
 require '../core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: ../auth/login.php");
+    header("Location: /login.php");
     exit;
 }
 
@@ -12,7 +12,7 @@ $user_id = $_SESSION['user_id'];
 $hiddenRankingEmailLower = 'marcoscemd@gmail.com';
 
 try {
-    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM games_usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -60,7 +60,7 @@ try {
                      AND e.vencedor_opcao_id = p.opcao_id THEN 1
                     ELSE 0
                 END), 0) AS acertos
-            FROM usuarios u
+            FROM games_usuarios u
             LEFT JOIN palpites p
                 ON p.id_usuario = u.id
                AND p.data_palpite BETWEEN :start_at AND :end_at
@@ -81,7 +81,7 @@ try {
         SELECT u.id, u.nome, u.pontos, COALESCE(u.fba_points, 0) AS fba_points, u.league,
                COALESCE(u.acertos_eventos, 0) as acertos,
                COALESCE(u.numero_tapas, 0) as numero_tapas
-            FROM usuarios u
+            FROM games_usuarios u
             WHERE LOWER(u.email) <> :hidden_email
             ORDER BY u.pontos DESC
         ");
@@ -107,7 +107,7 @@ try {
                      AND e.vencedor_opcao_id = p.opcao_id THEN 1
                     ELSE 0
                 END), 0) AS acertos
-            FROM usuarios u
+            FROM games_usuarios u
             LEFT JOIN palpites p
                 ON p.id_usuario = u.id
                AND p.data_palpite BETWEEN :start_at AND :end_at
@@ -132,7 +132,7 @@ try {
         SELECT u.id, u.nome, u.pontos, COALESCE(u.fba_points, 0) AS fba_points, u.league,
                COALESCE(u.acertos_eventos, 0) as acertos,
                COALESCE(u.numero_tapas, 0) as numero_tapas
-            FROM usuarios u
+            FROM games_usuarios u
             WHERE u.league = :league
               AND LOWER(u.email) <> :hidden_email
             ORDER BY u.pontos DESC
@@ -576,7 +576,7 @@ $tab_labels = [
     </a>
   </nav>
   <div class="sb-footer">
-    <a href="../auth/logout.php" class="sb-logout">
+    <a href="/logout.php" class="sb-logout">
       <i class="bi bi-box-arrow-right"></i>Sair
     </a>
   </div>

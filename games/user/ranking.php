@@ -6,7 +6,7 @@ require '../core/avatar.php';
 require '../core/sequencia_dias.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: ../auth/login.php");
+    header("Location: /login.php");
     exit;
 }
 
@@ -14,7 +14,7 @@ $user_id = $_SESSION['user_id'];
 $hiddenRankingEmailLower = 'marcoscemd@gmail.com';
 
 try {
-    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM games_usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -53,7 +53,7 @@ try {
 
 $maior_cafe = null;
 try {
-    $stmt = $pdo->query("SELECT id, nome, cafes_feitos FROM usuarios WHERE cafes_feitos > 0 ORDER BY cafes_feitos DESC LIMIT 1");
+    $stmt = $pdo->query("SELECT id, nome, cafes_feitos FROM games_usuarios WHERE cafes_feitos > 0 ORDER BY cafes_feitos DESC LIMIT 1");
     $maior_cafe = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $maior_cafe = null;
@@ -61,7 +61,7 @@ try {
 
 try {
     $sql = "SELECT u.id, u.nome, u.pontos, (u.pontos - 50) as lucro_liquido
-            FROM usuarios u
+            FROM games_usuarios u
             WHERE LOWER(u.email) <> :hidden_email
             ORDER BY lucro_liquido DESC";
     $stmt = $pdo->prepare($sql);
@@ -373,7 +373,7 @@ try {
     <?php endif; ?>
   </nav>
   <div class="sb-footer">
-    <a href="../auth/logout.php" class="sb-logout">
+    <a href="/logout.php" class="sb-logout">
       <i class="bi bi-box-arrow-right"></i>Sair
     </a>
   </div>

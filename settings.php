@@ -525,8 +525,8 @@ $team = $stmtTeam->fetch() ?: null;
                             </div>
                         </div>
                         <div class="bc-body">
-                            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener" class="btn-ghost" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none">
-                                <i class="bi bi-box-arrow-up-right"></i> Abrir FBA Games
+                            <a href="/games.php" class="btn-ghost" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none">
+                                <i class="bi bi-controller"></i> Abrir Games
                             </a>
                         </div>
                     </div>

@@ -88,62 +88,9 @@ if ($precisaRevisarSprint) {
     $precisaAtualizarElenco = false;
 }
 
-$gamesConnectUrl = '/api/games-link.php?action=start';
-$showGamesConnect = false;
-$gamesTapasValue = null;
-$gamesSyncDisplay = null;
-$isGamesLinked = false;
-
-if ($team) {
-    try {
-        $userStmt = $pdo->prepare('SELECT id, email, games_user_id, games_linked_at FROM users WHERE id = ?');
-        $userStmt->execute([$user['id']]);
-        $userRow = $userStmt->fetch(PDO::FETCH_ASSOC) ?: [];
-        $gamesUserId = (int)($userRow['games_user_id'] ?? 0);
-        $emailLower = strtolower(trim((string)($userRow['email'] ?? '')));
-
-        $gamesPdo = function_exists('dbGames') ? dbGames() : null;
-        if ($gamesPdo && $emailLower !== '') {
-            if ($gamesUserId > 0) {
-                $isGamesLinked = true;
-                $stmtGames = $gamesPdo->prepare('SELECT id, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = ? LIMIT 1');
-                $stmtGames->execute([$gamesUserId]);
-                $gamesRow = $stmtGames->fetch(PDO::FETCH_ASSOC);
-                if ($gamesRow) {
-                    $gamesTapasValue = (int)$gamesRow['numero_tapas'];
-                } else {
-                    $showGamesConnect = true;
-                }
-            } else {
-                $stmtGames = $gamesPdo->prepare('SELECT id, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE LOWER(email) = ? LIMIT 1');
-                $stmtGames->execute([$emailLower]);
-                $gamesRow = $stmtGames->fetch(PDO::FETCH_ASSOC);
-                if ($gamesRow) {
-                    $gamesUserId = (int)$gamesRow['id'];
-                    $gamesTapasValue = (int)$gamesRow['numero_tapas'];
-                    $pdo->prepare('UPDATE users SET games_user_id = ?, games_linked_at = COALESCE(games_linked_at, NOW()) WHERE id = ?')
-                        ->execute([$gamesUserId, $user['id']]);
-                    $isGamesLinked = true;
-                } else {
-                    $showGamesConnect = true;
-                }
-            }
-
-            if ($gamesTapasValue !== null) {
-                $pdo->prepare('UPDATE teams SET tapas = ? WHERE id = ?')->execute([$gamesTapasValue, $team['id']]);
-                $pdo->prepare('UPDATE users SET games_tapas_synced_at = NOW() WHERE id = ?')->execute([$user['id']]);
-                $team['tapas'] = $gamesTapasValue;
-                $gamesSyncDisplay = 'Conectado a conta games';
-            }
-
-            if ($isGamesLinked) {
-                $showGamesConnect = false;
-            }
-        }
-    } catch (Exception $e) {
-        $showGamesConnect = false;
-    }
-}
+// A ponte com o antigo banco do games saiu na fusão: agora é tudo um banco
+// só e o acesso é a própria sessão do site, então não existe mais
+// "conectar ao games" nem sincronização de tapas por carregamento.
 
 $hasActiveTactic = false;
 if ($team) {
@@ -990,12 +937,6 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     <i class="bi bi-coin" style="font-size:10px"></i>
                     <?= (int)($team['moedas'] ?? 0) ?> moedas
                 </span>
-                <?php if ($gamesSyncDisplay): ?>
-                <span class="hbadge green">
-                    <i class="bi bi-link-45deg" style="font-size:10px"></i>
-                    <?= htmlspecialchars($gamesSyncDisplay) ?>
-                </span>
-                <?php endif; ?>
                 <button id="copyTeamBtn" class="hbadge" style="cursor:pointer;background:var(--panel-2);border-color:var(--border-md)">
                     <i class="bi bi-clipboard-check" style="font-size:10px"></i> Copiar time
                 </button>
@@ -1472,16 +1413,10 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                                 <i class="bi bi-chat-left-dots"></i>
                                 <div class="quick-btn-label">Ouvidoria</div>
                             </a>
-                            <a href="https://games.fbabrasil.com.br/auth/login.php" target="_blank" rel="noopener" class="quick-btn">
+                            <a href="/games.php" class="quick-btn">
                                 <i class="bi bi-controller"></i>
-                                <div class="quick-btn-label">FBA Games</div>
+                                <div class="quick-btn-label">Games</div>
                             </a>
-                            <?php if ($showGamesConnect): ?>
-                            <a href="<?= htmlspecialchars($gamesConnectUrl) ?>" class="quick-btn">
-                                <i class="bi bi-link-45deg"></i>
-                                <div class="quick-btn-label">Conectar ao Games</div>
-                            </a>
-                            <?php endif; ?>
                             <a href="/my-roster.php" class="quick-btn">
                                 <i class="bi bi-person-lines-fill"></i>
                                 <div class="quick-btn-label">Elenco</div>

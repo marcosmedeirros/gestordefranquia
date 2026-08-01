@@ -186,7 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'palpi
             ->execute([count($tentativas), $acertou?1:0, $pontosGanhos, json_encode($tentativas), $user_id, $hoje]);
 
         if ($pontosGanhos > 0) {
-            $pdo->prepare("UPDATE usuarios SET pontos=pontos+? WHERE id=?")
+            $pdo->prepare("UPDATE games_usuarios SET pontos=pontos+? WHERE id=?")
                 ->execute([$pontosGanhos, $user_id]);
         }
     } catch (PDOException $e) {}

@@ -1,34 +1,20 @@
 ﻿<?php
-session_start();
 date_default_timezone_set('America/Sao_Paulo');
 
-$adminKey = 'nba2026admin';
-if (isset($_GET['admin']) && $_GET['admin'] === $adminKey) {
-    $_SESSION['bracket_admin_ok'] = true;
-}
-$isAdmin = !empty($_SESSION['bracket_admin_ok']);
+// Antes da fusão, esta página liberava admin por querystring com uma chave
+// fixa no código (?admin=...). Agora quem decide é o site: precisa estar
+// logado e ser admin geral, igual a qualquer outra tela de administração.
+require_once __DIR__ . '/core/conexao.php';
 
+$isAdmin = (($_SESSION['user_type'] ?? '') === 'admin');
 if (!$isAdmin) {
     http_response_code(403);
     echo '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acesso negado</title>
 	<link rel="icon" type="image/png" href="/games/fbagames.png"></head><body style="font-family:Arial,sans-serif;background:#0a0b0f;color:#fff;padding:24px;">';
-    echo '<h2>Acesso negado</h2><p>Use o link de admin para acessar esta pagina.</p>';
-    echo '<p><a style="color:#7cc3ff;" href="bracketadmin.php?admin=' . urlencode($adminKey) . '">Abrir com chave de admin</a></p>';
+    echo '<h2>Acesso negado</h2><p>Esta página é restrita aos administradores da FBA.</p>';
+    echo '<p><a style="color:#7cc3ff;" href="/dashboard.php">Voltar ao dashboard</a></p>';
     echo '</body></html>';
     exit;
-}
-
-// --- DB ---
-$host = 'localhost';
-$dbname = 'u289267434_gamesfba';
-$user = 'u289267434_gamesfba';
-$pass = 'Gamesfba@123';
-
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $user, $pass);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    die('Erro DB: ' . $e->getMessage());
 }
 
 $pdo->exec("CREATE TABLE IF NOT EXISTS nba_bracket_apostadores (
