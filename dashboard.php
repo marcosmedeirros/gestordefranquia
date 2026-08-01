@@ -170,22 +170,22 @@ try {
 } catch (Exception $e) { error_log('dashboard edital: ' . $e->getMessage()); }
 
 // Vídeos administrativos da liga: Progression, Sistemas e Free Agency.
-// Cada um só vira card se o admin tiver preenchido o link na Central da Liga.
-$leagueVideoCards = [];
+// Os 3 espaços aparecem sempre — o que não tiver link ainda mostra "Em breve".
+$leagueVideoCards = [
+    ['key' => 'progression', 'title' => 'Progression', 'icon' => 'bi-camera-reels-fill', 'url' => null],
+    ['key' => 'sistemas',    'title' => 'Sistemas',    'icon' => 'bi-gear-fill',          'url' => null],
+    ['key' => 'freeagency',  'title' => 'Free Agency', 'icon' => 'bi-coin',               'url' => null],
+];
 try {
     $stmtVideos = $pdo->prepare('SELECT progression_video_url, sistemas_video_url, freeagency_video_url FROM league_settings WHERE league = ?');
     $stmtVideos->execute([$team['league']]);
     $videoUrls = $stmtVideos->fetch() ?: [];
-    $videoDefs = [
-        ['key' => 'progression', 'title' => 'Progression', 'icon' => 'bi-camera-reels-fill', 'url' => $videoUrls['progression_video_url'] ?? null],
-        ['key' => 'sistemas',    'title' => 'Sistemas',    'icon' => 'bi-gear-fill',          'url' => $videoUrls['sistemas_video_url'] ?? null],
-        ['key' => 'freeagency',  'title' => 'Free Agency', 'icon' => 'bi-coin',               'url' => $videoUrls['freeagency_video_url'] ?? null],
-    ];
-    foreach ($videoDefs as $def) {
-        $embed = resolveVideoEmbed($def['url']);
-        if ($embed) $leagueVideoCards[] = $def + ['embed' => $embed];
-    }
+    $leagueVideoCards[0]['url'] = $videoUrls['progression_video_url'] ?? null;
+    $leagueVideoCards[1]['url'] = $videoUrls['sistemas_video_url'] ?? null;
+    $leagueVideoCards[2]['url'] = $videoUrls['freeagency_video_url'] ?? null;
 } catch (Exception $e) { error_log('dashboard league videos: ' . $e->getMessage()); }
+foreach ($leagueVideoCards as &$vcDef) { $vcDef['embed'] = resolveVideoEmbed($vcDef['url']); }
+unset($vcDef);
 
 // Tática não tem mais prazo de envio — só avisa aqui quando o admin fechou a
 // edição (corte diário ou toggle manual), pra o GM saber que não é hoje.
@@ -802,6 +802,10 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         .vid-action-btn:hover { border-color: var(--red); color: var(--red); background: var(--panel-3); }
         .vid-action-btn.copied { background: var(--green); border-color: var(--green); color: #fff; }
         .prog-video-hint { font-size: 11px; color: var(--text-3); line-height: 1.4; margin-top: 8px; }
+        .prog-video-placeholder { background: var(--panel-2); border: 1px dashed var(--border-md); }
+        .prog-placeholder-inner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-3); }
+        .prog-placeholder-inner i { font-size: 26px; }
+        .prog-placeholder-inner span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
 
         /* ── Watchlist (De olho em...) ───────────────── */
         .watch-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: var(--text); transition: background var(--t) var(--ease); }
@@ -1398,7 +1402,14 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                         <div class="bc-title"><i class="bi <?= $vc['icon'] ?>"></i> <?= htmlspecialchars($vc['title']) ?></div>
                     </div>
                     <div class="bc-body">
-                        <?php if ($embed['type'] === 'direct'): ?>
+                        <?php if (!$embed): ?>
+                        <div class="prog-video-wrap prog-video-placeholder">
+                            <div class="prog-placeholder-inner">
+                                <i class="bi bi-hourglass-split"></i>
+                                <span>Em breve</span>
+                            </div>
+                        </div>
+                        <?php elseif ($embed['type'] === 'direct'): ?>
                         <div class="prog-video-wrap" id="wrap_<?= $key ?>">
                             <video id="vid_<?= $key ?>" class="prog-video" controls playsinline preload="metadata" crossorigin="anonymous">
                                 <source src="<?= htmlspecialchars($embed['embed_url']) ?>">
@@ -1410,7 +1421,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                         </div>
                         <?php endif; ?>
 
-                        <?php if ($embed['type'] === 'direct' || $embed['type'] === 'iframe'): ?>
+                        <?php if ($embed && ($embed['type'] === 'direct' || $embed['type'] === 'iframe')): ?>
                         <div class="prog-video-actions">
                             <button type="button" class="vid-action-btn" data-action="fullscreen" data-key="<?= $key ?>" title="Tela cheia"><i class="bi bi-arrows-fullscreen"></i></button>
                             <button type="button" class="vid-action-btn" data-action="capture" data-key="<?= $key ?>" title="Capturar tela"><i class="bi bi-camera-fill"></i></button>
@@ -1419,7 +1430,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                         <?php if ($embed['type'] === 'iframe'): ?>
                         <div class="prog-video-hint">A captura de tela vai pedir pra você compartilhar a tela — escolha "Esta guia/aba" na janela do navegador pra capturar certinho.</div>
                         <?php endif; ?>
-                        <?php else: ?>
+                        <?php elseif ($embed && $embed['type'] === 'link'): ?>
                         <div class="empty">
                             <i class="bi bi-play-circle" style="font-size:26px"></i>
                             <p style="margin:8px 0 12px">Vídeo disponível como link externo.</p>
