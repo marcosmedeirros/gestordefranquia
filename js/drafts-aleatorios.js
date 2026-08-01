@@ -36,6 +36,7 @@ async function dcCarregar() {
         </div>
         <div class="dc-card-actions">
           <a class="btn-ghost" href="/draft-aleatorio.php?id=${d.id}"><i class="bi bi-box-arrow-up-right me-1"></i>Abrir</a>
+          <button type="button" class="btn-ghost" onclick="dcCopiarLink(${d.id}, this)" title="Copiar link do draft"><i class="bi bi-link-45deg"></i></button>
           <button type="button" class="btn-ghost" onclick="dcRenomear(${d.id}, '${_dcEsc(d.titulo).replace(/'/g, "\\'")}')"><i class="bi bi-pencil"></i></button>
           <button type="button" class="btn-ghost dc-btn-del" onclick="dcExcluir(${d.id}, '${_dcEsc(d.titulo).replace(/'/g, "\\'")}')"><i class="bi bi-trash"></i></button>
         </div>
@@ -106,6 +107,16 @@ async function dcRenomear(id, atual) {
   } catch (e) { alert(e.message); }
 }
 window.dcRenomear = dcRenomear;
+
+function dcCopiarLink(id, btn) {
+  const url = `${window.location.origin}/draft-aleatorio.php?id=${id}`;
+  const original = btn.innerHTML;
+  navigator.clipboard.writeText(url).then(() => {
+    btn.innerHTML = '<i class="bi bi-check2"></i>';
+    setTimeout(() => { btn.innerHTML = original; }, 1600);
+  }).catch(() => alert('Não consegui copiar o link.'));
+}
+window.dcCopiarLink = dcCopiarLink;
 
 async function dcExcluir(id, titulo) {
   if (!confirm(`Excluir o draft "${titulo}"? As escolhas registradas nele são apagadas. A roleta de origem continua intacta e dá pra gerar o draft de novo.`)) return;

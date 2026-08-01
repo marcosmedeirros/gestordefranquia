@@ -506,6 +506,32 @@ if ($method === 'POST') {
         exit;
     }
 
+    if ($action === 'renomear_gm') {
+        if (!$is_admin) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Apenas administradores podem editar o nome do GM.']);
+            exit;
+        }
+        $pickNumber = (int)($body['pick_number'] ?? 0);
+        $nome = trim((string)($body['nome'] ?? ''));
+        if (!$pickNumber) {
+            echo json_encode(['success' => false, 'error' => 'Escolha inválida.']);
+            exit;
+        }
+        if ($nome === '') {
+            echo json_encode(['success' => false, 'error' => 'Nome obrigatório.']);
+            exit;
+        }
+        $stmt = $pdo->prepare("UPDATE draft_aleatorio_picks SET nome_display = ? WHERE draft_id = ? AND pick_number = ?");
+        $stmt->execute([mb_substr($nome, 0, 180), $draftId, $pickNumber]);
+        if ($stmt->rowCount() === 0) {
+            echo json_encode(['success' => false, 'error' => 'Escolha não encontrada.']);
+            exit;
+        }
+        echo json_encode(['success' => true] + estadoDraftAleatorio($pdo, $draftId, $user_id, $is_admin));
+        exit;
+    }
+
     if ($action === 'finalizar') {
         if (!$is_admin) {
             http_response_code(403);

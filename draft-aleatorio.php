@@ -134,7 +134,9 @@ if ($team_id) {
         .da-row-pick{width:30px;height:30px;border-radius:50%;background:var(--panel-3);color:var(--text-3);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
         .da-row-foto{width:28px;height:28px;border-radius:7px;object-fit:cover;border:1px solid var(--border-md);flex-shrink:0;background:var(--panel-3)}
         .da-row-foto-vazia{display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:13px}
-        .da-row-gm{font-size:13px;font-weight:600;width:180px;flex-shrink:0}
+        .da-row-gm{font-size:13px;font-weight:600;width:180px;flex-shrink:0;display:flex;align-items:center;gap:6px}
+        .da-btn-editar-gm{background:transparent;border:1px solid var(--border-md);color:var(--text-3);border-radius:var(--radius-xs);padding:2px 6px;cursor:pointer;font-size:11px;line-height:1;transition:all var(--t);flex-shrink:0}
+        .da-btn-editar-gm:hover{border-color:var(--border-red);color:var(--red);background:var(--red-soft)}
         .da-row-jogador{flex:1 1 200px;min-width:0;font-size:13px;color:var(--text-2);word-break:break-word}
         .da-row-jogador i.bi-check-circle-fill{color:var(--green);font-size:11px;margin-right:6px}
         .da-row-jogador b{color:var(--red);font-size:14.5px;font-weight:800;letter-spacing:.2px}

@@ -84,7 +84,10 @@ function daRenderTudo() {
     <div class="card">
       <div class="card-head">
         <div class="card-head-left"><i class="bi bi-list-ol"></i><span>Quadro do Draft</span></div>
-        <button type="button" class="btn-ghost" id="btnDaCopiar"><i class="bi bi-clipboard me-1"></i>Copiar ordem</button>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn-ghost" id="btnDaCopiarLink"><i class="bi bi-link-45deg me-1"></i>Copiar link</button>
+          <button type="button" class="btn-ghost" id="btnDaCopiar"><i class="bi bi-clipboard me-1"></i>Copiar ordem</button>
+        </div>
       </div>
       <div class="card-body"><div class="da-board">${d.picks.map(p => daLinhaBoard(p, d)).join('')}</div></div>
     </div>`;
@@ -96,6 +99,7 @@ function daRenderTudo() {
   on('btnDaFinalizar', daFinalizar);
   on('btnDaReabrir', daReabrir);
   on('btnDaCopiar', daCopiarOrdem);
+  on('btnDaCopiarLink', daCopiarLink);
   const btnPular = document.getElementById('btnDaPular');
   if (btnPular) btnPular.addEventListener('click', () => daAbrirModalPular(btnPular.dataset.gm));
 
@@ -105,6 +109,8 @@ function daRenderTudo() {
     b.addEventListener('click', () => daDesfazer(Number(b.dataset.pick), b.dataset.gm)));
   document.querySelectorAll('.da-btn-despular').forEach(b =>
     b.addEventListener('click', () => daDespular(Number(b.dataset.pick), b.dataset.gm)));
+  document.querySelectorAll('.da-btn-editar-gm').forEach(b =>
+    b.addEventListener('click', () => daRenomearGM(Number(b.dataset.pick), b.dataset.gm)));
 
   const input = document.getElementById('daNomeJogador');
   if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter') daEscolher(); });
@@ -134,11 +140,15 @@ function daLinhaBoard(p, d) {
     jogador = ehVez ? 'escolhendo agora...' : 'aguardando...';
   }
 
+  const editarGm = d.is_admin
+    ? `<button type="button" class="da-btn-editar-gm" data-pick="${p.pick_number}" data-gm="${gm}" title="Editar nome do GM"><i class="bi bi-pencil"></i></button>`
+    : '';
+
   return `
     <div class="da-row ${classe}">
       <div class="da-row-pick">${p.pick_number}</div>
       ${foto}
-      <div class="da-row-gm">${gm}</div>
+      <div class="da-row-gm"><span>${gm}</span>${editarGm}</div>
       <div class="da-row-jogador">${jogador}</div>
     </div>`;
 }
@@ -268,6 +278,28 @@ async function daReabrir() {
     });
     daRenderTudo();
   } catch (e) { alert(e.message); }
+}
+
+async function daRenomearGM(pick, atual) {
+  const nome = prompt('Nome do GM para esta escolha:', atual);
+  if (nome === null) return;
+  if (!nome.trim()) { alert('O nome não pode ficar vazio.'); return; }
+  try {
+    daEstado = await _daFetch('/api/drafts-aleatorios.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'renomear_gm', id: window.DRAFT_ID, pick_number: pick, nome: nome.trim() }),
+    });
+    daRenderTudo();
+  } catch (e) { alert(e.message); }
+}
+
+function daCopiarLink(ev) {
+  const btn = ev.currentTarget;
+  const original = btn.innerHTML;
+  navigator.clipboard.writeText(window.location.href).then(() => {
+    btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copiado!';
+    setTimeout(() => { btn.innerHTML = original; }, 1600);
+  }).catch(() => alert('Não consegui copiar o link.'));
 }
 
 function daCopiarOrdem(ev) {
