@@ -165,6 +165,8 @@ if ($team_id) {
         .ld-btn-pular{ background:transparent;border:1px solid var(--border-md);color:var(--text-2);font-weight:600;font-size:13px;border-radius:var(--radius-xs);padding:9px 16px;cursor:pointer;transition:all var(--t) }
         .ld-btn-pular:hover{ border-color:rgba(239,68,68,.4);color:#ef4444;background:rgba(239,68,68,.06) }
         .ld-pulada{ color:var(--text-3);font-style:italic }
+        .ld-btn-preencher{ background:transparent;border:1px solid var(--border-md);color:var(--text-2);font-weight:600;font-size:11px;border-radius:var(--radius-xs);padding:3px 10px;margin-left:8px;cursor:pointer;transition:all var(--t) }
+        .ld-btn-preencher:hover{ border-color:var(--border-red);color:var(--red);background:var(--red-soft) }
 
         .ld-modal-overlay{ display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center;padding:20px }
         .ld-modal-overlay.open{ display:flex }
@@ -235,6 +237,27 @@ if ($team_id) {
         <div class="ld-modal-actions">
             <button type="button" class="btn-ghost" onclick="ldFecharModalPular()">Cancelar</button>
             <button type="button" class="btn-orange" id="btnLdConfirmarPular">Pular</button>
+        </div>
+    </div>
+</div>
+
+<div class="ld-modal-overlay" id="ldPreencherModalOverlay">
+    <div class="ld-modal">
+        <div class="ld-modal-title"><i class="bi bi-star-fill"></i> Escolher jogador</div>
+        <p class="ld-modal-text" id="ldPreencherModalText"></p>
+        <div class="ld-form-row" style="margin-top:0">
+            <input type="text" id="ldPreencherNome" placeholder="Nome do jogador (lenda)" maxlength="150">
+            <select id="ldPreencherPosicao">
+                <option value="PG">PG</option>
+                <option value="SG">SG</option>
+                <option value="SF">SF</option>
+                <option value="PF">PF</option>
+                <option value="C">C</option>
+            </select>
+        </div>
+        <div class="ld-modal-actions" style="margin-top:16px">
+            <button type="button" class="btn-ghost" onclick="ldFecharModalPreencher()">Cancelar</button>
+            <button type="button" class="btn-orange" id="btnLdConfirmarPreencher">Confirmar</button>
         </div>
     </div>
 </div>

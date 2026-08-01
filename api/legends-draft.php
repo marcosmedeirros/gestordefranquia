@@ -285,6 +285,7 @@ if ($method === 'POST') {
     if ($action === 'escolher') {
         $nome = trim((string)($body['player_name'] ?? ''));
         $pos  = strtoupper(trim((string)($body['player_position'] ?? '')));
+        $pickAlvo = isset($body['pick_number']) ? (int)$body['pick_number'] : null;
         if ($nome === '') {
             echo json_encode(['success' => false, 'error' => 'Digite o nome do jogador.']);
             exit;
@@ -296,18 +297,25 @@ if ($method === 'POST') {
 
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->query("SELECT id, user_id, gm_name, player_name FROM legends_draft_picks WHERE player_name IS NULL AND skipped = 0 ORDER BY pick_number ASC LIMIT 1 FOR UPDATE");
+            if ($pickAlvo !== null && $pickAlvo > 0) {
+                // Preenchendo uma escolha específica (ex: uma pick que tinha sido
+                // pulada antes) — não precisa ser a da vez atual nem skipped=0.
+                $stmt = $pdo->prepare("SELECT id, user_id, gm_name, player_name FROM legends_draft_picks WHERE pick_number = ? AND player_name IS NULL FOR UPDATE");
+                $stmt->execute([$pickAlvo]);
+            } else {
+                $stmt = $pdo->query("SELECT id, user_id, gm_name, player_name FROM legends_draft_picks WHERE player_name IS NULL AND skipped = 0 ORDER BY pick_number ASC LIMIT 1 FOR UPDATE");
+            }
             $atual = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$atual) {
                 $pdo->rollBack();
-                echo json_encode(['success' => false, 'error' => 'O draft já terminou.']);
+                echo json_encode(['success' => false, 'error' => $pickAlvo !== null ? 'Essa escolha já foi preenchida.' : 'O draft já terminou.']);
                 exit;
             }
             // Qualquer pessoa logada pode registrar a escolha da vez atual (não só
             // quem é o dono dela, nem só admin) — na prática, às vezes um GM manda
             // o mock pra outra pessoa cadastrar por ele.
 
-            $pdo->prepare("UPDATE legends_draft_picks SET player_name = ?, player_position = ?, ovr = 80, age = 19, picked_at = NOW() WHERE id = ?")
+            $pdo->prepare("UPDATE legends_draft_picks SET player_name = ?, player_position = ?, ovr = 80, age = 19, skipped = 0, picked_at = NOW() WHERE id = ?")
                 ->execute([$nome, $pos, $atual['id']]);
 
             $pdo->commit();

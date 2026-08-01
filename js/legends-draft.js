@@ -105,6 +105,9 @@ function ldRenderTudo() {
   if (btnPular) btnPular.addEventListener('click', () => ldAbrirModalPular(btnPular.dataset.gm));
   const btnFinalizar = document.getElementById('btnLdFinalizar');
   if (btnFinalizar) btnFinalizar.addEventListener('click', ldFinalizar);
+  document.querySelectorAll('.ld-btn-preencher').forEach(btn => {
+    btn.addEventListener('click', () => ldAbrirModalPreencher(Number(btn.dataset.pick), btn.dataset.gm));
+  });
 
   if (d.draft_completo && d.meu_pick) ldWireBadges();
 }
@@ -131,7 +134,9 @@ function ldLinhaBoard(p, d) {
   const classe = ehVez ? 'atual' : (ehMeu ? 'eu' : '');
   const jogador = p.player_name
     ? `<i class="bi bi-star-fill"></i><b>${_ldEsc(p.player_name)}</b> <span class="ld-row-meta">${_ldEsc(p.player_position)}</span>`
-    : (Number(p.skipped) ? `<span class="ld-pulada"><i class="bi bi-skip-forward-fill"></i> Pulada</span>` : (ehVez ? 'escolhendo agora...' : 'aguardando...'));
+    : (Number(p.skipped)
+        ? `<span class="ld-pulada"><i class="bi bi-skip-forward-fill"></i> Pulada</span><button type="button" class="ld-btn-preencher" data-pick="${p.pick_number}" data-gm="${_ldEsc(p.gm_name)}">Escolher</button>`
+        : (ehVez ? 'escolhendo agora...' : 'aguardando...'));
   return `
     <div class="ld-row ${classe}">
       <div class="ld-row-pick">${p.pick_number}</div>
@@ -191,11 +196,56 @@ async function ldConfirmarPular() {
   }
 }
 
+function ldAbrirModalPreencher(pickNumber, gmName) {
+  const overlay = document.getElementById('ldPreencherModalOverlay');
+  const texto = document.getElementById('ldPreencherModalText');
+  const nome = document.getElementById('ldPreencherNome');
+  const pos = document.getElementById('ldPreencherPosicao');
+  if (texto) texto.textContent = `Escolha ${pickNumber} — ${gmName}. Se deixar em branco e confirmar, a escolha continua pulada.`;
+  if (nome) nome.value = '';
+  if (pos) pos.value = 'PG';
+  if (overlay) { overlay.dataset.pick = pickNumber; overlay.classList.add('open'); }
+}
+
+function ldFecharModalPreencher() {
+  const overlay = document.getElementById('ldPreencherModalOverlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+async function ldConfirmarPreencher() {
+  const overlay = document.getElementById('ldPreencherModalOverlay');
+  const pickNumber = Number(overlay.dataset.pick);
+  const nome = document.getElementById('ldPreencherNome').value.trim();
+  const pos = document.getElementById('ldPreencherPosicao').value;
+  if (!nome) { ldFecharModalPreencher(); return; }
+  const btn = document.getElementById('btnLdConfirmarPreencher');
+  btn.disabled = true;
+  try {
+    const data = await _ldFetch('/api/legends-draft.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'escolher', player_name: nome, player_position: pos, pick_number: pickNumber }),
+    });
+    ldEstado = data;
+    ldMinhasBadgesEdit = { ...(data.minhas_badges || {}) };
+    ldFecharModalPreencher();
+    ldRenderTudo();
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const btnConfirmar = document.getElementById('btnLdConfirmarPular');
   if (btnConfirmar) btnConfirmar.addEventListener('click', ldConfirmarPular);
   const overlay = document.getElementById('ldPularModalOverlay');
   if (overlay) overlay.addEventListener('click', (e) => { if (e.target === overlay) ldFecharModalPular(); });
+
+  const btnConfirmarPreencher = document.getElementById('btnLdConfirmarPreencher');
+  if (btnConfirmarPreencher) btnConfirmarPreencher.addEventListener('click', ldConfirmarPreencher);
+  const overlayPreencher = document.getElementById('ldPreencherModalOverlay');
+  if (overlayPreencher) overlayPreencher.addEventListener('click', (e) => { if (e.target === overlayPreencher) ldFecharModalPreencher(); });
 });
 
 async function ldFinalizar() {
