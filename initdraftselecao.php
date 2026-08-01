@@ -84,7 +84,9 @@ if ($user && isset($user['id'])) {
         }
 
         /* ── Layout ───────────────────────────────────── */
-        .app-wrap { max-width: 1280px; margin: 0 auto; padding: 24px 20px 48px; }
+        /* Largura total, mesmas margens laterais do dashboard (32px / 16px no
+           mobile) — antes um max-width de 1280px deixava sobra dos dois lados. */
+        .app-wrap { padding: 20px 32px 48px; }
 
         /* ── App shell + menu lateral ─────────────────── */
         .app { display: flex; min-height: 100vh; }
@@ -120,23 +122,21 @@ if ($user && isset($user['id'])) {
             :root { --sidebar-w: 0px; }
             .sidebar { transform: translateX(-260px); }
             .sidebar.open { transform: translateX(0); }
-            .main { margin-left: 0; width: 100%; }
+            .main { margin-left: 0; width: 100%; padding-top: 54px; }
             .menu-btn { display: flex; }
         }
 
         /* ── Topbar ───────────────────────────────────── */
-        .app-topbar {
-            display: flex; align-items: center; justify-content: space-between;
-            gap: 14px; flex-wrap: wrap;
-            padding: 14px 20px;
-            background: var(--panel);
+        /* Topbar só no mobile, igual ao dashboard — no desktop quem identifica
+           a página é o próprio hero, sem uma segunda barra em cima. */
+        .topbar {
+            display: none; position: fixed; top: 0; left: 0; right: 0;
+            height: 54px; background: var(--panel);
             border-bottom: 1px solid var(--border);
-            margin-bottom: 24px;
+            align-items: center; gap: 10px; padding: 0 16px; z-index: 200;
         }
-        .app-topbar-left { display: flex; align-items: center; gap: 12px; }
-        .app-logo { width: 32px; height: 32px; border-radius: 8px; background: var(--red); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; color: #fff; flex-shrink: 0; }
-        .app-title { font-size: 15px; font-weight: 700; line-height: 1.1; }
-        .app-title span { display: block; font-size: 11px; font-weight: 400; color: var(--text-2); }
+        .topbar-title { font-size: 15px; font-weight: 700; }
+        .topbar-title em { color: var(--red); font-style: normal; }
         .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-2); text-decoration: none; transition: color var(--t) var(--ease); }
         .back-link:hover { color: var(--red); }
 
@@ -154,20 +154,19 @@ if ($user && isset($user['id'])) {
         .fb-close { background: none; border: none; color: inherit; cursor: pointer; font-size: 15px; opacity: .7; }
         .fb-close:hover { opacity: 1; }
 
-        /* ── Hero ─────────────────────────────────────── */
+        /* ── Hero (mesmo padrão/margens do dashboard) ─── */
         .hero {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 22px 28px;
-            margin-bottom: 20px;
+            padding: 32px 32px 0;
+            display: flex; align-items: flex-start; justify-content: space-between;
+            gap: 16px; flex-wrap: wrap;
         }
-        .hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 6px; }
-        .hero-title { font-size: 26px; font-weight: 800; line-height: 1.1; margin-bottom: 4px; }
-        .hero-sub { font-size: 13px; color: var(--text-2); }
+        .hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
+        .hero-title { font-size: 26px; font-weight: 800; line-height: 1.1; }
+        .hero-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+        .hero-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 4px; }
 
         /* ── Stat grid ────────────────────────────────── */
-        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 18px; }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
         .stat-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; }
         .stat-label { font-size: 10px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--text-2); margin-bottom: 6px; }
         .stat-value { font-size: 1.1rem; font-weight: 700; }
@@ -303,9 +302,14 @@ if ($user && isset($user['id'])) {
         .modal-footer { border-top: 1px solid var(--border); padding: 14px 20px; gap: 8px; }
 
         /* ── Responsive ───────────────────────────────── */
+        /* Estes overrides ficam DEPOIS das regras base de .topbar/.hero/.app-wrap:
+           o media query de 992px lá em cima vem antes delas e perderia a disputa. */
+        @media (max-width: 992px) {
+            .topbar { display: flex; }
+            .hero { padding: 18px 16px 0; }
+            .app-wrap { padding: 16px 16px 40px; }
+        }
         @media (max-width: 768px) {
-            .app-wrap { padding: 16px 14px 40px; }
-            .hero { padding: 18px 20px; }
             .manual-order-row { grid-template-columns: 1fr; }
             .manual-position-select { width: 100%; }
         }
@@ -439,15 +443,20 @@ if ($user && isset($user['id'])) {
 <div class="sb-overlay" id="sbOverlay"></div>
 <main class="main">
 
-<!-- Topbar -->
-<div class="app-topbar">
-    <div class="app-topbar-left">
-        <button class="menu-btn" id="menuBtn" aria-label="Abrir menu"><i class="bi bi-list"></i></button>
-        <div class="app-logo">FBA</div>
-        <div class="app-title">Sala de Seleção <span>Draft Inicial</span></div>
+<!-- Topbar (só mobile) -->
+<header class="topbar">
+    <button class="menu-btn" id="menuBtn" aria-label="Abrir menu"><i class="bi bi-list"></i></button>
+    <div class="topbar-title">FBA <em>Draft Inicial</em></div>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+    <div>
+        <div class="hero-eyebrow">Draft Inicial<span id="leagueName"></span></div>
+        <h1 class="hero-title">Sala de Seleção</h1>
+        <p class="hero-sub">Acompanhe as picks, o pool de jogadores e os elencos se formando em tempo real.</p>
     </div>
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span id="leagueName" style="font-size:12px;font-weight:700;color:var(--text-2)"></span>
+    <div class="hero-actions">
         <button class="btn-ghost" onclick="loadState()"><i class="bi bi-arrow-clockwise"></i> Atualizar</button>
         <button class="btn-ghost" id="toggleSoundButton"><i class="bi bi-volume-mute"></i> Som</button>
         <?php if ($isAdmin): ?>
@@ -460,19 +469,13 @@ if ($user && isset($user['id'])) {
         <?php endif; ?>
         <a href="dashboard.php" class="back-link"><i class="bi bi-arrow-left"></i> Dashboard</a>
     </div>
-</div>
+</section>
 
 <div class="app-wrap">
 
     <div id="feedback"></div>
 
-    <!-- Hero -->
-    <section class="hero">
-        <div class="hero-eyebrow">Draft Inicial</div>
-        <h1 class="hero-title">Sala de Seleção</h1>
-        <p class="hero-sub">Acompanhe as picks, o pool de jogadores e os elencos se formando em tempo real.</p>
-        <div class="stat-grid" id="statGrid"></div>
-    </section>
+    <div class="stat-grid" id="statGrid"></div>
 
     <?php if ($isAdmin): ?>
     <!-- Admin panel -->
@@ -877,7 +880,7 @@ if ($user && isset($user['id'])) {
         function renderStats() {
             const session = state.session;
             if (!session) return;
-            elements.leagueName.textContent = session.league || '-';
+            elements.leagueName.textContent = session.league ? ' · ' + session.league : '';
             const drafted = state.order.filter((p) => p.picked_player_id).length;
             const total = state.order.length || (session.total_rounds ?? 0) * (state.teams.length || 0);
             const progress = total ? Math.round((drafted / total) * 100) : 0;
