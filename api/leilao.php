@@ -59,6 +59,36 @@ function getLeagueNameById(PDO $pdo, ?int $league_id): ?string
     }
 }
 
+/**
+ * Data de corte da sprint em andamento. leilao_jogadores não tem season_id nem
+ * sprint_id, então o critério é a data de início da sprint ativa da liga:
+ * leilão criado antes disso é de um ciclo já encerrado e não deve mais aparecer.
+ * Devolve null quando a liga não tem sprint ativa (aí não filtra por data).
+ */
+function corteDaSprintDoLeilao(PDO $pdo, ?int $league_id): ?string
+{
+    static $cache = [];
+    if (!$league_id) return null;
+    if (array_key_exists($league_id, $cache)) return $cache[$league_id];
+
+    $nome = getLeagueNameById($pdo, $league_id);
+    $corte = null;
+    if ($nome) {
+        try {
+            $stmt = $pdo->prepare("SELECT start_date FROM sprints
+                                   WHERE league = ? AND status = 'active'
+                                   ORDER BY id DESC LIMIT 1");
+            $stmt->execute([strtoupper(trim($nome))]);
+            $d = $stmt->fetchColumn();
+            $corte = $d ? $d . ' 00:00:00' : null;
+        } catch (Throwable $e) {
+            $corte = null;
+        }
+    }
+    $cache[$league_id] = $corte;
+    return $corte;
+}
+
 function getCurrentSeasonYear(PDO $pdo, ?int $league_id): ?int
 {
     $leagueName = getLeagueNameById($pdo, $league_id);
@@ -78,7 +108,10 @@ function getCurrentSeasonYear(PDO $pdo, ?int $league_id): ?int
     }
 }
 
-if (!$team_id) {
+// Também entra aqui quando o time já está na sessão mas a liga não: todo o
+// escopo do leilão (liga + sprint) depende de $league_id, e sem ele as listas
+// sairiam vazias.
+if (!$team_id || !$league_id) {
     $select = ['id'];
     $hasLeagueId = teamColumnExists($pdo, 'league_id');
     $hasLeagueName = teamColumnExists($pdo, 'league');
@@ -92,7 +125,7 @@ if (!$team_id) {
     $stmt->execute([$user_id]);
     $teamRow = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($teamRow) {
-        $team_id = (int) $teamRow['id'];
+        if (!$team_id) $team_id = (int) $teamRow['id'];
         if (!$league_id) {
             if ($hasLeagueId && !empty($teamRow['league_id'])) {
                 $league_id = (int) $teamRow['league_id'];
@@ -267,10 +300,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             listarLeiloesTemporarios($pdo);
             break;
         case 'minhas_propostas':
-            minhasPropostas($pdo, $team_id);
+            minhasPropostas($pdo, $team_id, $league_id);
             break;
         case 'propostas_recebidas':
-            propostasRecebidas($pdo, $team_id);
+            propostasRecebidas($pdo, $team_id, $league_id);
             break;
         case 'ver_propostas':
             $leilao_id = $_GET['leilao_id'] ?? 0;
@@ -281,7 +314,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             verPropostasEnviadas($pdo, $leilao_id, $team_id);
             break;
         case 'historico':
-            $league_id_param = $_GET['league_id'] ?? null;
+            // Só o admin escolhe a liga; para o GM é sempre a dele — antes, um
+            // league_id na URL (ou a ausência dele) trazia leilão de outra liga.
+            $league_id_param = $league_id;
+            if ($is_admin && !empty($_GET['league_id'])) {
+                $league_id_param = (int)$_GET['league_id'];
+            }
             historicoLeiloes($pdo, $league_id_param);
             break;
         case 'minhas_picks':
@@ -469,6 +507,10 @@ function listarLeiloesAtivos($pdo, $league_id, $team_id = null) {
         $sql .= " AND l.league_id = ?";
         $params[] = $league_id;
     }
+    if ($corte = corteDaSprintDoLeilao($pdo, $league_id)) {
+        $sql .= " AND l.created_at >= ?";
+        $params[] = $corte;
+    }
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 
@@ -493,10 +535,16 @@ function listarLeiloesAdmin($pdo, ?int $league_id = null) {
             LEFT JOIN teams t ON l.team_id = t.id
             LEFT JOIN leagues lg ON l.league_id = lg.id";
     $params = [];
+    $where = [];
     if ($league_id) {
-        $sql .= " WHERE l.league_id = ?";
+        $where[] = 'l.league_id = ?';
         $params[] = $league_id;
     }
+    if ($corte = corteDaSprintDoLeilao($pdo, $league_id)) {
+        $where[] = 'l.created_at >= ?';
+        $params[] = $corte;
+    }
+    if ($where) $sql .= ' WHERE ' . implode(' AND ', $where);
     $sql .= " ORDER BY l.created_at DESC";
 
     $stmt = $pdo->prepare($sql);
@@ -526,12 +574,14 @@ function listarLeiloesTemporarios($pdo) {
     echo json_encode(['success' => true, 'leiloes' => $leiloes]);
 }
 
-function minhasPropostas($pdo, $team_id) {
+function minhasPropostas($pdo, $team_id, ?int $league_id = null) {
     if (!$team_id) {
         echo json_encode(['success' => true, 'propostas' => []]);
         return;
     }
-    
+    $corte = corteDaSprintDoLeilao($pdo, $league_id);
+    $filtroSprint = $corte ? ' AND l.created_at >= ?' : '';
+
     $sql = "SELECT lp.*, 
                    l.player_id,
                    COALESCE(l.temp_name, p.name) as player_name,
@@ -543,21 +593,24 @@ function minhasPropostas($pdo, $team_id) {
             LEFT JOIN teams t ON l.team_id = t.id
             LEFT JOIN leilao_proposta_jogadores lpj ON lp.id = lpj.proposta_id
             LEFT JOIN players po ON lpj.player_id = po.id
-            WHERE lp.team_id = ?
+            WHERE lp.team_id = ?{$filtroSprint}
             GROUP BY lp.id
             ORDER BY lp.created_at DESC";
-    
+
+    $params = [$team_id];
+    if ($corte) $params[] = $corte;
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$team_id]);
+    $stmt->execute($params);
     $propostas = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode(['success' => true, 'propostas' => $propostas]);
 }
 
-function propostasRecebidas($pdo, $team_id) {
+function propostasRecebidas($pdo, $team_id, ?int $league_id = null) {
     if (!$team_id) {
         echo json_encode(['success' => true, 'leiloes' => []]);
         return;
     }
+    $corte = corteDaSprintDoLeilao($pdo, $league_id);
 
     $ovrColumn = playerOvrColumn($pdo);
     $sql = "SELECT l.id, l.status,
@@ -566,10 +619,12 @@ function propostasRecebidas($pdo, $team_id) {
                    COALESCE(l.temp_ovr, p.{$ovrColumn}) as ovr
             FROM leilao_jogadores l
             LEFT JOIN players p ON l.player_id = p.id
-            WHERE l.team_id = ? AND l.status = 'ativo'";
+            WHERE l.team_id = ? AND l.status = 'ativo'" . ($corte ? ' AND l.created_at >= ?' : '');
 
+    $params = [$team_id];
+    if ($corte) $params[] = $corte;
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$team_id]);
+    $stmt->execute($params);
     $leiloes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $ovrCol = playerOvrColumn($pdo);
@@ -742,11 +797,18 @@ function verPropostasEnviadas($pdo, $leilao_id, $team_id) {
 }
 
 function historicoLeiloes($pdo, $league_id) {
+    // Sem liga resolvida não mostra nada: antes, um GET sem league_id trazia o
+    // histórico de todas as ligas de uma vez.
+    if (!$league_id) {
+        echo json_encode(['success' => true, 'leiloes' => []]);
+        return;
+    }
     $params = [];
-    $where = "l.status = 'finalizado'";
-    if ($league_id) {
-        $where .= " AND l.league_id = ?";
-        $params[] = $league_id;
+    $where = "l.status = 'finalizado' AND l.league_id = ?";
+    $params[] = $league_id;
+    if ($corte = corteDaSprintDoLeilao($pdo, (int)$league_id)) {
+        $where .= " AND l.created_at >= ?";
+        $params[] = $corte;
     }
     $ovrColumn = playerOvrColumn($pdo);
     $sql = "SELECT l.id, l.data_fim,

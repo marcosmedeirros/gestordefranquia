@@ -9,6 +9,11 @@ $user_id        = (int)$_SESSION['user_id'];
 $hoje           = date('Y-m-d');
 $MAX_TENTATIVAS = 8;
 
+// Mesma recompensa dos outros diários (100), e passando pelo multiplicador do
+// admin como termo/memória/bomba — antes eram 200 fixos, fora do padrão.
+$BASE_PONTOS_VITORIA = 100;
+$PONTOS_VITORIA = $BASE_PONTOS_VITORIA * getGamePointsMultiplier($pdo, 'quemsoueu');
+
 // ─── DATASET ────────────────────────────────────────────────────────────────
 // n=nome, t=time(sigla), pos=posição, h=altura(polegadas), age=idade, num=camisa
 $QSE_PLAYERS = [
@@ -176,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'palpi
     $acertou       = ($guessedId === $targetPlayer['id']);
     $fim           = $acertou || count($tentativas) >= $MAX_TENTATIVAS;
 
-    $pontosGanhos = $acertou ? 200 : 0;
+    $pontosGanhos = $acertou ? $PONTOS_VITORIA : 0;
 
     try {
         $pdo->prepare("UPDATE quemsoueu_partidas
