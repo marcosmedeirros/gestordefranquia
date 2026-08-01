@@ -8,6 +8,10 @@ requireAuth();
 $user = getUserSession();
 $pdo = db();
 
+// A liga vem do time no banco, não da sessão gravada no login: quando o admin
+// move o time de liga, esta página tem que passar a listar a liga nova na hora.
+$user['league'] = ligaAtualDoUsuario($pdo, $user);
+
 $stmtSettings = $pdo->prepare('SELECT cap_min, cap_max, max_trades, cap_mode FROM league_settings WHERE league = ?');
 $stmtSettings->execute([$user['league']]);
 $leagueSettings = $stmtSettings->fetch(PDO::FETCH_ASSOC) ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'cap_mode' => 'ovr_sum'];

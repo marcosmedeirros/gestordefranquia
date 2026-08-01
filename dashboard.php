@@ -8,6 +8,10 @@ requireAuth();
 
 $user = getUserSession();
 $pdo = db();
+// A liga sai do time no banco, não da que ficou na sessão desde o login: quando
+// o admin move o time de liga, o GM tem que ver a liga nova sem deslogar. Como
+// isto também corrige a sessão, o resto do app já carrega certo em seguida.
+$user['league'] = ligaAtualDoUsuario($pdo, $user);
 ensureTeamDirectiveProfileColumns($pdo);
 
 $dashboardShortcuts = getUserShortcuts($user['dashboard_shortcuts'] ?? null);

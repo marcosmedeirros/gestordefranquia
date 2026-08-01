@@ -1269,6 +1269,37 @@ function temporadaAtivaDaLiga(PDO $pdo, string $league): ?array
  *
  * @return array|null ['id','sprint_number','start_year','start_date']
  */
+/**
+ * Liga real do usuário logado: a do time dele no banco, não a que ficou
+ * gravada na sessão no login. Quando o admin movia um time de liga, o GM
+ * continuava vendo a liga antiga em todo lugar até deslogar e logar de novo.
+ * Além de devolver a liga certa, corrige a sessão quando as duas divergem,
+ * então a próxima página já carrega certa sozinha.
+ *
+ * Quem não tem time (admin geral, por exemplo) mantém a liga da sessão.
+ */
+function ligaAtualDoUsuario(PDO $pdo, ?array $user = null): string
+{
+    $ligaSessao = strtoupper((string)($user['league'] ?? $_SESSION['user_league'] ?? 'ROOKIE'));
+    $userId     = (int)($user['id'] ?? $_SESSION['user_id'] ?? 0);
+    if (!$userId) return $ligaSessao;
+
+    try {
+        $st = $pdo->prepare('SELECT league FROM teams WHERE user_id = ? LIMIT 1');
+        $st->execute([$userId]);
+        $ligaDoTime = $st->fetchColumn();
+    } catch (Throwable $e) {
+        return $ligaSessao;
+    }
+    if (!$ligaDoTime) return $ligaSessao;
+
+    $ligaDoTime = strtoupper((string)$ligaDoTime);
+    if ($ligaDoTime !== $ligaSessao) {
+        $_SESSION['user_league'] = $ligaDoTime;
+    }
+    return $ligaDoTime;
+}
+
 function sprintAtualDaLiga(PDO $pdo, string $league): ?array
 {
     try {
