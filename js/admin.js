@@ -448,9 +448,15 @@ function openGestaoEdit(userId) {
 
   const allLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
   const teamNameField = u.team_id ? `
-    <div class="mb-3">
-      <label class="form-label text-light-gray">Nome do Time</label>
-      <input type="text" id="gedit-team-name" class="form-control" value="${escapeHtml(u.team_name || '')}">
+    <div class="row g-2 mb-3">
+      <div class="col-12 col-sm-7">
+        <label class="form-label text-light-gray">Nome do Time</label>
+        <input type="text" id="gedit-team-name" class="form-control" value="${escapeHtml(u.team_name || '')}">
+      </div>
+      <div class="col-12 col-sm-5">
+        <label class="form-label text-light-gray">Cidade</label>
+        <input type="text" id="gedit-team-city" class="form-control" value="${escapeHtml(u.team_city || '')}">
+      </div>
     </div>` : '';
   const teamLeagueField = u.team_id ? `
     <div class="mb-3">
@@ -561,13 +567,15 @@ async function saveGestaoUser() {
   const teamPhoto = document.getElementById('gedit-team-photo').value.trim();
   const teamNameEl = document.getElementById('gedit-team-name');
   const teamName = teamNameEl ? teamNameEl.value.trim() : '';
+  const teamCityEl = document.getElementById('gedit-team-city');
+  const teamCity = teamCityEl ? teamCityEl.value.trim() : '';
   const teamLeagueEl = document.getElementById('gedit-team-league');
   const teamLeague = teamLeagueEl ? teamLeagueEl.value : '';
 
   try {
     await api('admin.php?action=update_user', {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId, team_id: teamId, name, email, team_photo: teamPhoto, team_name: teamName, team_league: teamLeague })
+      body: JSON.stringify({ user_id: userId, team_id: teamId, name, email, team_photo: teamPhoto, team_name: teamName, team_city: teamCity, team_league: teamLeague })
     });
 
     if (window.IS_GLOBAL_ADMIN) {
@@ -1668,11 +1676,6 @@ async function showLeague(league) {
 
       <div id="leaguePlayerSearchResults"></div>
 
-      <div class="panel mt-3">
-        <div class="panel-title"><i class="bi bi-speedometer2" style="color:#ef4444"></i> Painel de Controle</div>
-        <div id="panelContent"><div class="text-center py-3"><div class="spinner-border" style="color:var(--red)"></div></div></div>
-      </div>
-
       <div id="seasonChecklist"></div>
 
       ${initDraftCard}
@@ -1741,10 +1744,6 @@ async function showLeague(league) {
     ensureOuvidoriaModal();
     _loadLeagueConfigInline(league);
     _loadSeasonChecklist(league);
-    // Painel de Controle inline: loadControlPanel() escreve em #panelContent,
-    // que agora vive na própria aba da liga.
-    _panelLeague = league;
-    loadControlPanel();
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar liga</div>';
   }
@@ -1752,6 +1751,42 @@ async function showLeague(league) {
 
 // Checklist da temporada: o que ainda falta pra poder virar a temporada.
 // Carrega depois da tela montada pra não segurar o render da liga.
+// Janela de tática e progresso dos elencos, ao lado das outras chaves da liga.
+// Vem do admin-control.php porque são estados calculados, não configuração.
+async function _carregarControlesExtras(league) {
+  const box = document.getElementById(`ctrlExtra_${league}`);
+  if (!box) return;
+  try {
+    const d = await api(`admin-control.php?league=${encodeURIComponent(league)}`);
+    const tw = d.tactic_window || {};
+    const aberta = !!tw.open;
+    const pct = d.teams_total ? Math.round((d.teams_updated / d.teams_total) * 100) : 100;
+    const tudoPronto = pct === 100;
+
+    const caixa = 'display:flex;align-items:center;gap:7px;background:var(--panel-3);'
+                + 'border:1px solid var(--border);border-radius:10px;padding:8px 12px';
+    const selo = (ok) => ok
+      ? 'font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
+      : 'font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)';
+
+    box.innerHTML = `
+      <div style="${caixa}">
+        <i class="bi bi-clipboard2-pulse" style="color:#14b8a6;font-size:13px;flex-shrink:0"></i>
+        <span style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">Tática</span>
+        <span style="${selo(aberta)}">${aberta ? 'Aberta' : 'Fechada'}</span>
+        ${tw.daily_cutoff_time ? `<span style="font-size:10.5px;color:var(--text-3);white-space:nowrap">até ${escapeHtml(String(tw.daily_cutoff_time))}</span>` : ''}
+      </div>
+      ${d.draft_concluido ? `
+      <div style="${caixa}">
+        <i class="bi bi-people-fill" style="color:#f59e0b;font-size:13px;flex-shrink:0"></i>
+        <span style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">Elencos</span>
+        <span style="${selo(tudoPronto)}">${d.teams_updated}/${d.teams_total}</span>
+      </div>` : ''}`;
+  } catch (e) {
+    box.innerHTML = '';
+  }
+}
+
 async function _loadSeasonChecklist(league) {
   const wrap = document.getElementById('seasonChecklist');
   if (!wrap) return;
@@ -3068,7 +3103,13 @@ async function _loadLeagueConfigInline(league) {
               onclick="toggleFA('${lg.league}', 0)" id="faOffBtn_${lg.league}">Bloqueada</button>
           </div>
         </div>
+
+        <!-- Janela de tática e elencos atualizados: era o que só existia no
+             antigo Painel de Controle, que duplicava tudo o resto daqui
+             (inclusive os mesmos ids dos botões de Trades e FA). -->
+        <div id="ctrlExtra_${lg.league}" style="display:contents"></div>
       </div>`;
+    _carregarControlesExtras(league);
     document.getElementById('saveConfigInlineBtn')?.addEventListener('click', async () => {
       const inputs = body.querySelectorAll('input[data-league]');
       const payload = { league };

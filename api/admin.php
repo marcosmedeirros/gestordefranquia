@@ -2444,6 +2444,12 @@ if ($method === 'POST') {
                     ->execute([$teamName, (int)$data['team_id'], $targetId]);
             }
 
+            $teamCity = trim((string)($data['team_city'] ?? ''));
+            if ($teamCity !== '' && !empty($data['team_id'])) {
+                $pdo->prepare("UPDATE teams SET city = ? WHERE id = ? AND user_id = ?")
+                    ->execute([$teamCity, (int)$data['team_id'], $targetId]);
+            }
+
             if (isset($data['team_photo']) && $data['team_photo'] !== '' && !empty($data['team_id'])) {
                 $rawPhoto = trim((string)$data['team_photo']);
                 if (str_starts_with($rawPhoto, 'data:image/')) {
