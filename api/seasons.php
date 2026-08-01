@@ -798,28 +798,64 @@ try {
             
             // Buscar ou criar sprint atual
             $stmtSprint = $pdo->prepare("
-                SELECT id, sprint_number, start_year FROM sprints 
-                WHERE league = ? AND status = 'active' 
+                SELECT id, sprint_number, start_year FROM sprints
+                WHERE league = ? AND status = 'active'
                 ORDER BY id DESC LIMIT 1
             ");
             $stmtSprint->execute([$league]);
             $sprint = $stmtSprint->fetch();
-            
+
+            // "Iniciar Sprint" (o admin clica quando não há temporada em
+            // andamento) pede um sprint NOVO. Sem isto, o código achava o
+            // sprint antigo ainda marcado como ativo e tentava só acrescentar
+            // mais uma temporada nele — com o ano preso ao ano dele, o que
+            // rejeitava o ano informado e virava "Erro interno do servidor".
+            if ($sprint && !empty($data['new_sprint'])) {
+                $stmtTemAtiva = $pdo->prepare("
+                    SELECT COUNT(*) FROM seasons WHERE sprint_id = ? AND status != 'completed'
+                ");
+                $stmtTemAtiva->execute([$sprint['id']]);
+
+                // Só encerra o sprint anterior se ele de fato não tem mais
+                // temporada em andamento — senão isto viraria um jeito
+                // silencioso de abandonar um sprint no meio.
+                if ((int)$stmtTemAtiva->fetchColumn() === 0) {
+                    $pdo->prepare("UPDATE sprints SET status = 'completed', end_date = CURDATE() WHERE id = ?")
+                        ->execute([$sprint['id']]);
+                    $sprint = false; // cai no ramo de criação abaixo
+                } else {
+                    // Sem isto o fluxo seguia adiante e falhava lá na frente com
+                    // "o ano informado não bate", que não diz o que está errado.
+                    $pdo->rollBack();
+                    http_response_code(400);
+                    echo json_encode([
+                        'success' => false,
+                        'error' => "A liga {$league} ainda tem uma temporada em andamento nesta sprint. "
+                                 . 'Use "Avançar Temporada" ou finalize a sprint antes de começar outra.',
+                    ]);
+                    exit;
+                }
+            }
+
             if (!$sprint) {
                 $startYear = $requestedStartYear ?: $requestedYear;
                 if (!$startYear) {
                     throw new Exception('Informe o ano inicial do sprint (ex: 2016).');
                 }
 
-                // Criar primeiro sprint
+                // Numeração continua de onde a liga parou — fixar em 1 batia no
+                // UNIQUE(league, sprint_number) quando a liga já teve sprints.
+                $stmtProx = $pdo->prepare("SELECT COALESCE(MAX(sprint_number), 0) + 1 FROM sprints WHERE league = ?");
+                $stmtProx->execute([$league]);
+                $sprintNumber = (int)$stmtProx->fetchColumn();
+
                 $stmtCreate = $pdo->prepare("
-                    INSERT INTO sprints (league, sprint_number, start_year, start_date) 
-                    VALUES (?, 1, ?, CURDATE())
+                    INSERT INTO sprints (league, sprint_number, start_year, start_date)
+                    VALUES (?, ?, ?, CURDATE())
                 ");
-                $stmtCreate->execute([$league, $startYear]);
+                $stmtCreate->execute([$league, $sprintNumber, $startYear]);
                 $sprintId = $pdo->lastInsertId();
-                $sprintNumber = 1;
-                $sprint = ['id' => $sprintId, 'start_year' => $startYear, 'sprint_number' => 1];
+                $sprint = ['id' => $sprintId, 'start_year' => $startYear, 'sprint_number' => $sprintNumber];
             } else {
                 $sprintId = $sprint['id'];
                 $sprintNumber = $sprint['sprint_number'];

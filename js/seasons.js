@@ -1201,7 +1201,9 @@ async function _submitCriarSprint(event, league) {
     try {
         const data = await api('seasons.php?action=create_season', {
             method: 'POST',
-            body: JSON.stringify({ league, season_year: startYear, start_year: startYear })
+            // new_sprint: este é o "Iniciar Sprint" — pede sprint nova, não mais
+            // uma temporada dentro da que já existe.
+            body: JSON.stringify({ league, season_year: startYear, start_year: startYear, new_sprint: true })
         });
         showAlert('success', data.message || 'Sprint criado com sucesso!');
 
