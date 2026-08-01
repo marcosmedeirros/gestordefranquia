@@ -2899,6 +2899,57 @@ async function toggleAdminTradeAccept(tradeId, checked, isMulti) {
   }
 }
 
+// Campo de vídeo de liga: link (YouTube/Vimeo/Drive/.mp4) OU upload direto de
+// arquivo. O upload salva na hora (não depende do botão Salvar do card); o
+// campo de link só reflete o resultado pra deixar claro o que está valendo.
+function videoFieldHtml(league, slot, label, value, small) {
+  const inputCls = small ? 'form-control form-control-sm' : 'form-control';
+  const uid = `vid_${slot}_${league}`;
+  return `
+    <div data-video-field style="display:flex;flex-direction:column;gap:4px;${small ? 'flex:1;min-width:150px' : ''}">
+      <div style="font-size:11px;font-weight:600;color:var(--text-2)">${label}</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="text" class="${inputCls}" placeholder="Link do YouTube, Vimeo, Drive ou .mp4" value="${(value || '').replace(/"/g, '&quot;')}" data-league="${league}" data-field="${slot === 'progression' ? 'progression_video_url' : slot === 'sistemas' ? 'sistemas_video_url' : 'freeagency_video_url'}" id="${uid}_input" style="flex:1">
+        <label class="btn-ghost" style="cursor:pointer;padding:6px 9px;margin:0" title="Enviar arquivo de vídeo (upload)">
+          <i class="bi bi-upload"></i>
+          <input type="file" accept="video/mp4,video/webm,video/quicktime,video/ogg" style="display:none" onchange="handleLeagueVideoUpload(this,'${league}','${slot}')">
+        </label>
+      </div>
+      <div class="lg-video-upload-status" id="${uid}_status" style="font-size:10.5px;color:var(--text-3);min-height:13px"></div>
+    </div>`;
+}
+
+async function handleLeagueVideoUpload(fileInput, league, slot) {
+  const file = fileInput.files[0];
+  if (!file) return;
+  const field = fileInput.closest('[data-video-field]');
+  const textInput = field?.querySelector('input[type=text]');
+  const statusEl = field?.querySelector('.lg-video-upload-status');
+  if (statusEl) statusEl.innerHTML = '<span class="spinner-border spinner-border-sm" style="width:10px;height:10px;border-width:1.5px"></span> Enviando...';
+
+  const fd = new FormData();
+  fd.append('league', league);
+  fd.append('slot', slot);
+  fd.append('file', file);
+
+  try {
+    const res = await fetch('/api/league-video-upload.php', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Erro no upload');
+    if (textInput) textInput.value = data.url;
+    if (statusEl) {
+      statusEl.innerHTML = '<i class="bi bi-check2-circle" style="color:#25c677"></i> Enviado e salvo!';
+      setTimeout(() => { statusEl.innerHTML = ''; }, 3000);
+    }
+  } catch (e) {
+    alert(e.message || 'Erro ao enviar o vídeo.');
+    if (statusEl) statusEl.innerHTML = '';
+  } finally {
+    fileInput.value = '';
+  }
+}
+window.handleLeagueVideoUpload = handleLeagueVideoUpload;
+
 async function showConfig() {
   appState.view = 'config';
   updateBreadcrumb();
@@ -2984,20 +3035,11 @@ async function showConfig() {
   </div>
   <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px"><i class="bi bi-camera-reels me-1"></i>Vídeos</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:8px">
-    <div>
-      <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Progression</div>
-      <input type="text" class="form-control" placeholder="Link do YouTube, Vimeo, Drive ou .mp4" value="${lg.progression_video_url || ''}" data-league="${lg.league}" data-field="progression_video_url" />
-    </div>
-    <div>
-      <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Sistemas</div>
-      <input type="text" class="form-control" placeholder="Link do YouTube, Vimeo, Drive ou .mp4" value="${lg.sistemas_video_url || ''}" data-league="${lg.league}" data-field="sistemas_video_url" />
-    </div>
-    <div>
-      <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Free Agency</div>
-      <input type="text" class="form-control" placeholder="Link do YouTube, Vimeo, Drive ou .mp4" value="${lg.freeagency_video_url || ''}" data-league="${lg.league}" data-field="freeagency_video_url" />
-    </div>
+    ${videoFieldHtml(lg.league, 'progression', 'Progression', lg.progression_video_url, false)}
+    ${videoFieldHtml(lg.league, 'sistemas', 'Sistemas', lg.sistemas_video_url, false)}
+    ${videoFieldHtml(lg.league, 'freeagency', 'Free Agency', lg.freeagency_video_url, false)}
   </div>
-  <div style="font-size:11px;color:var(--text-3);margin-bottom:24px">Cada um aparece como um card no dashboard de todo mundo desta liga, se tiver link preenchido. Link direto de arquivo de vídeo (.mp4/.webm) permite capturar o frame parado; links do YouTube/Vimeo/Drive tocam incorporados (a captura usa compartilhamento de tela do navegador).</div>
+  <div style="font-size:11px;color:var(--text-3);margin-bottom:24px">Cada um aparece como um card no dashboard de todo mundo desta liga, se tiver link ou vídeo enviado. Cole um link do YouTube/Vimeo/Drive, ou clique no ícone de upload pra enviar um arquivo de vídeo direto (até 300MB) — o upload salva na hora, sem precisar clicar em Salvar. Vídeo enviado como arquivo permite capturar o frame parado; links incorporados (YouTube/Vimeo/Drive) usam compartilhamento de tela pra capturar.</div>
 
   <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px">Status da Liga</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:24px">
@@ -3124,18 +3166,9 @@ async function _loadLeagueConfigInline(league) {
           <div style="font-size:11px;font-weight:600;color:var(--text-2)">Temporadas/Sprint</div>
           <input type="number" class="form-control form-control-sm" style="width:90px" min="1" value="${lg.max_seasons || ''}" data-league="${lg.league}" data-field="max_seasons">
         </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-          <div style="font-size:11px;font-weight:600;color:var(--text-2)"><i class="bi bi-camera-reels me-1"></i>Vídeo Progression</div>
-          <input type="text" class="form-control form-control-sm" placeholder="Link do vídeo" value="${lg.progression_video_url || ''}" data-league="${lg.league}" data-field="progression_video_url">
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-          <div style="font-size:11px;font-weight:600;color:var(--text-2)"><i class="bi bi-gear me-1"></i>Vídeo Sistemas</div>
-          <input type="text" class="form-control form-control-sm" placeholder="Link do vídeo" value="${lg.sistemas_video_url || ''}" data-league="${lg.league}" data-field="sistemas_video_url">
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px">
-          <div style="font-size:11px;font-weight:600;color:var(--text-2)"><i class="bi bi-coin me-1"></i>Vídeo Free Agency</div>
-          <input type="text" class="form-control form-control-sm" placeholder="Link do vídeo" value="${lg.freeagency_video_url || ''}" data-league="${lg.league}" data-field="freeagency_video_url">
-        </div>
+        ${videoFieldHtml(lg.league, 'progression', '<i class="bi bi-camera-reels me-1"></i>Vídeo Progression', lg.progression_video_url, true)}
+        ${videoFieldHtml(lg.league, 'sistemas', '<i class="bi bi-gear me-1"></i>Vídeo Sistemas', lg.sistemas_video_url, true)}
+        ${videoFieldHtml(lg.league, 'freeagency', '<i class="bi bi-coin me-1"></i>Vídeo Free Agency', lg.freeagency_video_url, true)}
         <div style="background:var(--red-soft);border:1px solid var(--border-red);border-radius:10px;padding:7px 12px;text-align:center;min-width:80px">
           <div style="font-size:13px;font-weight:700;color:var(--red)">${lg.cap_min}–${lg.cap_max}</div>
           <div style="font-size:10px;color:var(--text-3)">CAP Range</div>

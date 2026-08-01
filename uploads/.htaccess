@@ -6,8 +6,8 @@
     Deny from all
 </FilesMatch>
 
-# Permitir apenas arquivos PDF e documentos
-<FilesMatch "\.(pdf|doc|docx)$">
+# Permitir apenas arquivos PDF, documentos e vídeos
+<FilesMatch "\.(pdf|doc|docx|mp4|webm|mov|ogg|ogv)$">
     Order Allow,Deny
     Allow from all
 </FilesMatch>
