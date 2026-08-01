@@ -1,6 +1,6 @@
 ﻿<?php
 // ranking.php - CLASSIFICAÇÃO GERAL
-session_start();
+if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
 require '../core/avatar.php';
 require '../core/sequencia_dias.php';

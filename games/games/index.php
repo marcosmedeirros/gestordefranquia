@@ -4,7 +4,7 @@
  * Carrega dinamicamente os games baseado no parâmetro 'game'
  */
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
 
 // Segurança

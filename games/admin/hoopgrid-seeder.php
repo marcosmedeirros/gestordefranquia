@@ -3,7 +3,7 @@
  * hoopgrid-seeder.php
  * Gerenciador do banco de jogadores NBA (usado em múltiplos jogos)
  */
-session_start();
+if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 

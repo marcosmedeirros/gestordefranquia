@@ -1,5 +1,5 @@
 ﻿<?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
 /** @var \PDO $pdo */
 if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }

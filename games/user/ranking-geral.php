@@ -1,6 +1,6 @@
 ﻿<?php
 // ranking-geral.php - RANKING COMPLETO COM ABAS (FBA games)
-session_start();
+if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) {

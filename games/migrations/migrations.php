@@ -2,7 +2,7 @@
 // Arquivo de migrações do banco de dados
 // Este arquivo deve ser executado uma única vez para preparar o banco
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) session_start();
 
 // Verificar autenticação
 if (!isset($_SESSION['user_id'])) {

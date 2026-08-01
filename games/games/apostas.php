@@ -6,7 +6,7 @@
  * - GET: Listar eventos disponíveis + histórico do usuário
  */
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
 require '../core/funcoes.php';
 

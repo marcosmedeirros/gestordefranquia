@@ -1,5 +1,5 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) session_start();
 require __DIR__ . '/../core/conexao.php';
 if (!isset($_SESSION['user_id'])) { http_response_code(403); die('Não autorizado'); }
 $stmt = $pdo->prepare("SELECT is_admin FROM games_usuarios WHERE id=?");

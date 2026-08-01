@@ -4,7 +4,7 @@
  * Ranking de quem mais "fez coisas" na plataforma (acessos, jogos, apostas, tigrinho).
  * Junta todas as tabelas *_historico + usuario_acessos + palpites + tigrinho_historico.
  */
-session_start();
+if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 

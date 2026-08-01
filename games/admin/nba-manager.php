@@ -1,5 +1,5 @@
 ﻿<?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
 require_once '../core/nba-players-db.php';
 

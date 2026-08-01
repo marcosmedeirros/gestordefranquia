@@ -2,7 +2,7 @@
 // roleta.php - CASSINO FBA games (ROLETA EUROPEIA 🎡) - MODO REAL
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
-session_start();
+if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
 require_once '../core/mobile-helpers.php';
 

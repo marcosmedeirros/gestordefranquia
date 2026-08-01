@@ -108,6 +108,17 @@ try {
         ");
         $stM->execute([$userId, $ev['id']]);
         $ev['meu_palpite'] = (int) ($stM->fetchColumn() ?: 0);
+
+        // Prazo em linguagem de quem lê ("faltam 3h"), e marca urgência quando
+        // falta menos de um dia — é o que decide se a pessoa age agora.
+        $limite = new DateTime($ev['data_limite'], new DateTimeZone('America/Sao_Paulo'));
+        $faltam = $nowBrt->diff($limite);
+        $horas  = ($faltam->days * 24) + $faltam->h;
+        $ev['urgente'] = $horas < 24;
+        if ($faltam->days > 0)      $ev['prazo_txt'] = "faltam {$faltam->days} " . ($faltam->days === 1 ? 'dia' : 'dias');
+        elseif ($faltam->h > 0)     $ev['prazo_txt'] = "faltam {$faltam->h}h";
+        elseif ($faltam->i > 0)     $ev['prazo_txt'] = "faltam {$faltam->i} min";
+        else                        $ev['prazo_txt'] = 'encerrando';
     }
     unset($ev);
 } catch (Throwable $e) {
@@ -131,6 +142,49 @@ try {
 } catch (Throwable $e) {
     $historico = [];
 }
+
+// ── Estado dos jogos diários ────────────────────────────────────────────────
+// O que mais falta na página é saber, de relance, o que já foi jogado hoje —
+// sem isso a pessoa precisa entrar em cada um pra descobrir. Cada jogo guarda
+// isso na sua própria tabela, então é uma consulta por jogo (todas por índice,
+// baratas). Falha em qualquer uma não derruba a página: fica "não sei".
+$hoje = $nowBrt->format('Y-m-d');
+
+/** Retorna true/false se der pra saber, null se a tabela não responder. */
+function jogouHoje(PDO $pdo, string $sql, array $params): ?bool {
+    try {
+        $st = $pdo->prepare($sql);
+        $st->execute($params);
+        return (bool)$st->fetchColumn();
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+$statusDiario = [
+    'termo'     => jogouHoje($pdo, "SELECT 1 FROM termo_historico WHERE id_usuario=? AND data_jogo=? LIMIT 1", [$userId, $hoje]),
+    'memoria'   => jogouHoje($pdo, "SELECT 1 FROM memoria_historico WHERE id_usuario=? AND data_jogo=? AND status<>'jogando' LIMIT 1", [$userId, $hoje]),
+    'bomba'     => jogouHoje($pdo, "SELECT 1 FROM bomba_historico WHERE id_usuario=? AND data_jogo=? AND status<>'jogando' LIMIT 1", [$userId, $hoje]),
+    'quemsoueu' => jogouHoje($pdo, "SELECT 1 FROM quemsoueu_partidas WHERE id_usuario=? AND data_jogo=? AND concluido=1 LIMIT 1", [$userId, $hoje]),
+];
+
+// Sequências: só valem se a última partida foi hoje ou ontem.
+$ontem = (clone $nowBrt)->modify('-1 day')->format('Y-m-d');
+$streaks = ['termo' => 0, 'memoria' => 0];
+foreach (['termo' => 'termo_historico', 'memoria' => 'memoria_historico'] as $jogo => $tabela) {
+    try {
+        $st = $pdo->prepare("SELECT data_jogo, streak_count FROM {$tabela} WHERE id_usuario=? ORDER BY data_jogo DESC LIMIT 1");
+        $st->execute([$userId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if ($row && in_array($row['data_jogo'], [$hoje, $ontem], true)) {
+            $streaks[$jogo] = (int)($row['streak_count'] ?? 0);
+        }
+    } catch (Throwable $e) {}
+}
+
+$diariosConhecidos = array_filter($statusDiario, fn($v) => $v !== null);
+$diariosFeitos = count(array_filter($diariosConhecidos));
+$diariosTotal  = count($diariosConhecidos);
 
 // ── Ranking ─────────────────────────────────────────────────────────────────
 // Um SELECT só traz todo mundo; a separação Geral / por liga é feita em PHP,
@@ -161,6 +215,7 @@ try {
             'gm'         => $r['gm'],
             'foto'       => getUserPhoto($r['photo_url'] ?? null),
             'league'     => $r['league'],
+            'sou_eu'     => (int)$r['id'] === $userId,
             'pontos'     => (int)$r['pontos'],
             'fba_points' => (int)$r['fba_points'],
             'acertos'    => $acertos,
@@ -313,17 +368,42 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
 
     /* catálogo */
     .sec-label { font-size:11px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase;
+                 width:100%;
                  color:var(--text-3); margin:0 0 14px; display:flex; align-items:center; gap:8px; }
     .sec-label i { color:var(--red); font-size:13px; }
     .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(178px,1fr)); gap:14px; margin-bottom:34px; }
     .card-jogo { display:flex; flex-direction:column; align-items:flex-start; gap:3px; text-decoration:none;
                  background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
-                 padding:18px 16px; transition:all var(--t) var(--ease); }
+                 padding:18px 16px; transition:all var(--t) var(--ease); position:relative; }
     .card-jogo:hover { border-color:var(--border-md); transform:translateY(-2px); }
+    .card-jogo:active { transform:translateY(0); }
+    .card-topo { display:flex; align-items:flex-start; justify-content:space-between;
+                 width:100%; margin-bottom:9px; }
     .card-jogo .ico { width:42px; height:42px; border-radius:11px; display:flex; align-items:center;
-                      justify-content:center; font-size:20px; margin-bottom:9px; }
+                      justify-content:center; font-size:20px; }
     .card-jogo .nome { font-size:14px; font-weight:700; color:var(--text); }
-    .card-jogo .sub { font-size:11.5px; color:var(--text-3); }
+    .card-jogo .sub { font-size:11.5px; color:var(--text-3); display:flex; align-items:center; gap:7px; }
+
+    /* Já jogado hoje: o card recua um pouco, sem sumir — ainda dá pra rejogar */
+    .card-jogo.feito { border-color:rgba(34,197,94,.22); }
+    .card-jogo.feito .ico { opacity:.55; }
+    .card-jogo.feito .nome { color:var(--text-2); }
+    .card-jogo.feito .sub { color:var(--green); }
+
+    .selo { display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .selo.ok { width:20px; height:20px; border-radius:50%; background:rgba(34,197,94,.15);
+               color:var(--green); font-size:11px; }
+    .selo.pendente { width:7px; height:7px; border-radius:50%; background:var(--red); margin-top:6px;
+                     box-shadow:0 0 0 3px color-mix(in srgb, var(--red) 18%, transparent); }
+
+    .streak { display:inline-flex; align-items:center; gap:3px; font-size:10.5px; font-weight:800;
+              color:var(--amber); background:rgba(245,158,11,.12); border-radius:20px; padding:1px 7px; }
+
+    .sec-contador { margin-left:auto; font-size:10.5px; font-weight:800; letter-spacing:.3px;
+                    color:var(--text-3); background:var(--panel-2); border:1px solid var(--border);
+                    border-radius:20px; padding:3px 10px; text-transform:none; }
+    .sec-contador.completo { color:var(--green); border-color:rgba(34,197,94,.3);
+                             background:rgba(34,197,94,.10); }
 
     /* apostas */
     .card { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:16px; }
@@ -331,7 +411,9 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
                  justify-content:space-between; gap:12px; flex-wrap:wrap; }
     .card-head-left { display:flex; align-items:center; gap:9px; font-weight:700; font-size:14px; }
     .card-head-left i { color:var(--red); }
-    .prazo { font-size:11.5px; color:var(--text-3); display:flex; align-items:center; gap:5px; }
+    .prazo { font-size:11.5px; color:var(--text-3); display:flex; align-items:center; gap:5px;
+             background:var(--panel-2); border:1px solid var(--border); border-radius:20px; padding:3px 10px; }
+    .prazo.urgente { color:var(--amber); border-color:rgba(245,158,11,.3); background:rgba(245,158,11,.10); }
     .card-body { padding:16px 18px; }
     .opcoes { display:flex; gap:10px; flex-wrap:wrap; }
     .op-btn { flex:1; min-width:150px; background:var(--panel-2); border:1px solid var(--border-md); color:var(--text);
@@ -372,7 +454,18 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
     .rk-linha { display:flex; align-items:center; gap:11px; padding:8px 8px; border-radius:var(--radius-sm); }
     .rk-linha:hover { background:var(--panel-2); }
     .rk-pos { width:22px; text-align:center; font-size:12px; font-weight:800; color:var(--text-3); flex-shrink:0; }
-    .rk-pos.top { color:var(--amber); }
+    /* Pódio: ouro, prata e bronze dão a leitura das 3 primeiras posições sem
+       precisar contar as linhas. */
+    .rk-linha:nth-child(1) .rk-pos { color:#f5c542; }
+    .rk-linha:nth-child(2) .rk-pos { color:#c9ced6; }
+    .rk-linha:nth-child(3) .rk-pos { color:#cd8032; }
+    .rk-linha:nth-child(1) .rk-foto { border-color:#f5c542; }
+    .rk-linha:nth-child(2) .rk-foto { border-color:#c9ced6; }
+    .rk-linha:nth-child(3) .rk-foto { border-color:#cd8032; }
+    .rk-linha:nth-child(1) .rk-nome { font-weight:700; }
+    /* Destaca a linha do próprio GM, pra ele se achar na lista */
+    .rk-linha.eu { background:var(--red-soft); }
+    .rk-linha.eu .rk-nome { color:var(--red); font-weight:700; }
     .rk-foto { width:30px; height:30px; border-radius:50%; object-fit:cover;
         border:1px solid var(--border-md); flex-shrink:0; }
     .rk-nome { flex:1; min-width:0; font-size:13px; font-weight:600;
@@ -452,13 +545,39 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
 
         <!-- ── Aba Games ─────────────────────────────────────────────── -->
         <div class="g-pane <?= $abaInicial === 'games' ? 'active' : '' ?>" id="pane-games">
-            <div class="sec-label"><i class="bi bi-calendar-check-fill"></i> Minigames diários</div>
+            <div class="sec-label">
+                <i class="bi bi-calendar-check-fill"></i> Minigames diários
+                <?php if ($diariosTotal > 0): ?>
+                <span class="sec-contador <?= $diariosFeitos === $diariosTotal ? 'completo' : '' ?>">
+                    <?= $diariosFeitos ?>/<?= $diariosTotal ?> hoje
+                </span>
+                <?php endif; ?>
+            </div>
             <div class="grid">
-                <?php foreach ($jogosDiarios as $j): ?>
-                <a class="card-jogo" href="/games/games/index.php?game=<?= urlencode($j['key']) ?>">
-                    <div class="ico" style="background:<?= $j['cor'] ?>1f;color:<?= $j['cor'] ?>"><i class="bi <?= $j['icone'] ?>"></i></div>
+                <?php foreach ($jogosDiarios as $j):
+                    $feito  = $statusDiario[$j['key']] ?? null;
+                    $streak = $streaks[$j['key']] ?? 0;
+                ?>
+                <a class="card-jogo <?= $feito === true ? 'feito' : '' ?>" href="/games/games/index.php?game=<?= urlencode($j['key']) ?>">
+                    <div class="card-topo">
+                        <div class="ico" style="background:<?= $j['cor'] ?>1f;color:<?= $j['cor'] ?>"><i class="bi <?= $j['icone'] ?>"></i></div>
+                        <?php if ($feito === true): ?>
+                            <span class="selo ok" title="Você já jogou hoje"><i class="bi bi-check-lg"></i></span>
+                        <?php elseif ($feito === false): ?>
+                            <span class="selo pendente" title="Ainda não jogou hoje"></span>
+                        <?php endif; ?>
+                    </div>
                     <div class="nome"><?= htmlspecialchars($j['nome']) ?></div>
-                    <div class="sub"><?= htmlspecialchars($j['sub']) ?></div>
+                    <div class="sub">
+                        <?php if ($feito === true): ?>
+                            Jogado hoje
+                        <?php else: ?>
+                            <?= htmlspecialchars($j['sub']) ?>
+                        <?php endif; ?>
+                        <?php if ($streak > 1): ?>
+                            <span class="streak" title="Sequência de dias"><i class="bi bi-fire"></i><?= $streak ?></span>
+                        <?php endif; ?>
+                    </div>
                 </a>
                 <?php endforeach; ?>
             </div>
@@ -496,9 +615,10 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
                 <div class="card">
                     <div class="card-head">
                         <div class="card-head-left"><i class="bi bi-flag-fill"></i> <?= htmlspecialchars($ev['nome']) ?></div>
-                        <div class="prazo">
+                        <div class="prazo <?= !empty($ev['urgente']) ? 'urgente' : '' ?>"
+                             title="Fecha em <?= date('d/m/Y \à\s H:i', strtotime($ev['data_limite'])) ?>">
                             <i class="bi bi-clock"></i>
-                            até <?= date('d/m/Y H:i', strtotime($ev['data_limite'])) ?>
+                            <?= htmlspecialchars($ev['prazo_txt']) ?>
                         </div>
                     </div>
                     <div class="card-body">
@@ -583,8 +703,8 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
                                 <div class="vazio" style="padding:26px 12px"><p>Sem dados ainda.</p></div>
                             <?php else: ?>
                                 <?php foreach ($lista as $i => $r): ?>
-                                <div class="rk-linha">
-                                    <div class="rk-pos <?= $i < 3 ? 'top' : '' ?>"><?= $i + 1 ?></div>
+                                <div class="rk-linha <?= !empty($r['sou_eu']) ? 'eu' : '' ?>">
+                                    <div class="rk-pos"><?= $i + 1 ?></div>
                                     <img class="rk-foto" src="<?= htmlspecialchars($r['foto']) ?>" alt="">
                                     <div class="rk-nome"><?= htmlspecialchars($r['gm']) ?></div>
                                     <div class="rk-val" style="color:<?= $meta['cor'] ?>">
