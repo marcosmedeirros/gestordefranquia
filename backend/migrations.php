@@ -1210,6 +1210,47 @@ function runMigrations() {
     }
 
     try {
+        // seasons tinha UNIQUE(year, league), o que impedia dois sprints da
+        // mesma liga de usarem o mesmo ano. Só que sprint é um ciclo novo e pode
+        // recomeçar o calendário — então o ano se repete de propósito. A
+        // identidade real de uma temporada é (sprint, número da temporada).
+        $indices = [];
+        foreach ($pdo->query("SHOW INDEX FROM seasons")->fetchAll(PDO::FETCH_ASSOC) as $ix) {
+            $indices[$ix['Key_name'] ?? ''] = true;
+        }
+
+        if (!isset($indices['uniq_sprint_season'])) {
+            // Antes de criar o índice novo, resolve duplicatas que porventura
+            // existam (sprint + número repetidos) — senão o ALTER falha.
+            $dups = $pdo->query("
+                SELECT sprint_id, season_number, COUNT(*) c
+                FROM seasons GROUP BY sprint_id, season_number HAVING c > 1
+            ")->fetchAll(PDO::FETCH_ASSOC);
+            if (empty($dups)) {
+                $pdo->exec("ALTER TABLE seasons ADD UNIQUE KEY uniq_sprint_season (sprint_id, season_number)");
+            } else {
+                $errors[] = 'ajuste_seasons_unique: ha temporadas duplicadas por (sprint, numero); indice nao criado';
+            }
+        }
+
+        // Só derruba o antigo depois que o novo existe, pra nunca ficar sem
+        // nenhuma proteção contra temporada duplicada.
+        $indices = [];
+        foreach ($pdo->query("SHOW INDEX FROM seasons")->fetchAll(PDO::FETCH_ASSOC) as $ix) {
+            $indices[$ix['Key_name'] ?? ''] = true;
+        }
+        if (isset($indices['uniq_sprint_season']) && isset($indices['uniq_season_year_league'])) {
+            $pdo->exec("ALTER TABLE seasons DROP INDEX uniq_season_year_league");
+            // O ano continua sendo consultado com frequência; vira índice comum.
+            if (!isset($indices['idx_season_year_league'])) {
+                $pdo->exec("ALTER TABLE seasons ADD INDEX idx_season_year_league (year, league)");
+            }
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_seasons_unique: " . $e->getMessage();
+    }
+
+    try {
         // league_sprint_config.max_seasons vinha sendo sobrescrito pra valores
         // errados em toda request (bug do ensureLeagueSprintDefaults, ja corrigido)
         // — corrige os valores atuais uma unica vez pros corretos. Roda so uma vez:

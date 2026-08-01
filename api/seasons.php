@@ -92,14 +92,18 @@ function resolveSeasonYear(PDO $pdo, string $league): int {
             $yearCandidate = max($yearCandidate, $maxLeagueYear + 1);
         }
 
-        // Garantir que não exista conflito com combinação liga+ano, mesmo sem índice único
-        $stmtExists = $pdo->prepare('SELECT COUNT(*) FROM seasons WHERE league = ? AND year = ?');
-        while (true) {
-            $stmtExists->execute([$league, $yearCandidate]);
-            if ((int)$stmtExists->fetchColumn() === 0) {
-                break;
+        // Só empurra o ano pra frente se o banco de fato exigir ano único. Sem
+        // o índice, sprints diferentes podem repetir o ano de propósito (um
+        // ciclo novo recomeçando o calendário da liga).
+        if ($hasYearUnique || $hasYearLeagueUnique) {
+            $stmtExists = $pdo->prepare('SELECT COUNT(*) FROM seasons WHERE league = ? AND year = ?');
+            while (true) {
+                $stmtExists->execute([$league, $yearCandidate]);
+                if ((int)$stmtExists->fetchColumn() === 0) {
+                    break;
+                }
+                $yearCandidate++;
             }
-            $yearCandidate++;
         }
 
         return $yearCandidate;
@@ -812,10 +816,13 @@ try {
                 throw new Exception("O ano informado ({$requestedYear}) não bate com o ano esperado para esta sprint ({$year}). Ajuste o ano inicial do sprint se necessário.");
             }
 
-            $stmtVerify = $pdo->prepare("SELECT COUNT(*) FROM seasons WHERE league = ? AND year = ?");
-            $stmtVerify->execute([$league, $year]);
+            // Ano repetido entre sprints é permitido (um ciclo novo pode
+            // recomeçar o calendário da liga). O que não pode repetir é a
+            // temporada dentro do mesmo sprint.
+            $stmtVerify = $pdo->prepare("SELECT COUNT(*) FROM seasons WHERE sprint_id = ? AND season_number = ?");
+            $stmtVerify->execute([$sprintId, $seasonNumber]);
             if ((int)$stmtVerify->fetchColumn() > 0) {
-                throw new Exception("Já existe uma temporada registrada para o ano {$year} na liga {$league}.");
+                throw new Exception("A temporada {$seasonNumber} já existe neste sprint da liga {$league}.");
             }
             
             $stmtSeason = $pdo->prepare("
@@ -2060,36 +2067,42 @@ try {
                 ? $requestedStartYear
                 : (int)$finSeason['year'] + 1;
 
-            // seasons tem UNIQUE(year, league): se já existe temporada dessa liga
-            // no ano escolhido (histórico de sprints anteriores fica preservado),
-            // o INSERT lá embaixo estoura. Checa AGORA, antes de apagar elenco ou
-            // qualquer outra coisa — assim o admin só corrige o ano e tenta de novo.
-            // Conta qualquer temporada da liga nesse ano — inclusive as do sprint
-            // que está fechando, que continuam existindo como histórico. A única
-            // exceção é o próprio sprint novo: se uma tentativa anterior já o
-            // criou, reaproveitar é o esperado, não conflito.
+            // Repetir o ano de um sprint anterior é permitido de propósito: um
+            // ciclo novo pode recomeçar o calendário da liga no mesmo ano. A
+            // migração troca o UNIQUE(year, league) por UNIQUE(sprint_id,
+            // season_number), que é a identidade real da temporada. Aqui só
+            // garante que o banco já está com a restrição nova antes de mexer
+            // em qualquer coisa destrutiva.
             $anoNovaTemporada = calculateSeasonYear($newStartYear, 1);
-            $stmtAnoLivre = $pdo->prepare("
-                SELECT s.id FROM seasons s
-                JOIN sprints sp ON sp.id = s.sprint_id
-                WHERE s.league = ? AND s.year = ? AND sp.sprint_number <> ?
-                LIMIT 1
-            ");
-            $stmtAnoLivre->execute([$league, $anoNovaTemporada, $nextSprintNumber]);
-            if ($stmtAnoLivre->fetch()) {
-                // Sugere o primeiro ano livre a partir do último já usado.
-                $stmtUltimoAno = $pdo->prepare("SELECT COALESCE(MAX(year), 0) FROM seasons WHERE league = ?");
-                $stmtUltimoAno->execute([$league]);
-                $sugestao = (int)$stmtUltimoAno->fetchColumn() + 1;
+            $temIndiceAntigo = false;
+            try {
+                foreach ($pdo->query("SHOW INDEX FROM seasons")->fetchAll(PDO::FETCH_ASSOC) as $ix) {
+                    if (($ix['Key_name'] ?? '') === 'uniq_season_year_league') { $temIndiceAntigo = true; break; }
+                }
+            } catch (Throwable $e) {}
 
-                http_response_code(400);
-                echo json_encode([
-                    'success' => false,
-                    'error' => "A liga {$league} já tem uma temporada no ano {$anoNovaTemporada}. "
-                             . "Escolha outro ano inicial — o primeiro livre é {$sugestao}.",
-                    'suggested_start_year' => $sugestao,
-                ]);
-                exit;
+            if ($temIndiceAntigo) {
+                $stmtAnoLivre = $pdo->prepare("
+                    SELECT s.id FROM seasons s
+                    JOIN sprints sp ON sp.id = s.sprint_id
+                    WHERE s.league = ? AND s.year = ? AND sp.sprint_number <> ?
+                    LIMIT 1
+                ");
+                $stmtAnoLivre->execute([$league, $anoNovaTemporada, $nextSprintNumber]);
+                if ($stmtAnoLivre->fetch()) {
+                    $stmtUltimoAno = $pdo->prepare("SELECT COALESCE(MAX(year), 0) FROM seasons WHERE league = ?");
+                    $stmtUltimoAno->execute([$league]);
+                    $sugestao = (int)$stmtUltimoAno->fetchColumn() + 1;
+
+                    http_response_code(400);
+                    echo json_encode([
+                        'success' => false,
+                        'error' => "A liga {$league} já tem uma temporada no ano {$anoNovaTemporada}. "
+                                 . "Escolha outro ano inicial — o primeiro livre é {$sugestao}.",
+                        'suggested_start_year' => $sugestao,
+                    ]);
+                    exit;
+                }
             }
 
             // congelarRankingDaSprint() e snapshotPlayersForSeason() fazem CREATE TABLE IF NOT
