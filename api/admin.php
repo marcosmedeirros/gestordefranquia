@@ -1751,6 +1751,38 @@ if ($method === 'POST') {
             }
             exit;
 
+        case 'games_zerar':
+            // Zera moedas OU FBA Points de todo mundo de uma vez — é o mesmo
+            // efeito do reset mensal, mas na mão, para quando o admin precisar
+            // recomeçar fora da virada do mês. Um campo por vez, de propósito:
+            // zerar os dois juntos raramente é o que se quer e não dá pra
+            // desfazer.
+            ensureGamesSchema($pdo);
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            $campo = (string)($data['campo'] ?? '');
+            if (!in_array($campo, ['pontos', 'fba_points'], true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Campo inválido']);
+                exit;
+            }
+            try {
+                $stmt = $pdo->prepare("UPDATE games_usuarios SET {$campo} = 0 WHERE {$campo} <> 0");
+                $stmt->execute();
+                $afetados = $stmt->rowCount();
+                error_log(sprintf('[games_zerar] %s zerado por user_id=%d (%d usuários)',
+                    $campo, (int)$user['id'], $afetados));
+                echo json_encode(['success' => true, 'afetados' => $afetados]);
+            } catch (Throwable $e) {
+                error_log('[games_zerar] ' . $e->getMessage());
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Erro ao zerar.']);
+            }
+            exit;
+
         case 'games_admin_toggle':
             // Liga/desliga o "Admin Games" de um usuário — só admin geral mexe.
             ensureGamesSchema($pdo);

@@ -93,9 +93,17 @@ async function showGamesAdmin() {
     <div class="panel">
       <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
         <span><i class="bi bi-coin" style="color:#f59e0b"></i> Pontos e Moedas</span>
-        <input type="text" id="gamesUserSearch" placeholder="Buscar por nome ou e-mail..."
-               oninput="_filtrarGamesUsers(this.value)"
-               style="background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;min-width:220px">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button class="btn btn-sm btn-outline-danger" onclick="_zerarGames('pontos')">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Zerar moedas
+          </button>
+          <button class="btn btn-sm btn-outline-danger" onclick="_zerarGames('fba_points')">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Zerar FBA Points
+          </button>
+          <input type="text" id="gamesUserSearch" placeholder="Buscar por nome ou e-mail..."
+                 oninput="_filtrarGamesUsers(this.value)"
+                 style="background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;min-width:220px">
+        </div>
       </div>
       <div id="gamesUsersWrap" class="text-center py-4">
         <div class="spinner-border text-orange"></div>
@@ -115,6 +123,34 @@ async function _carregarGamesUsers() {
     _renderGamesUsers(_gamesUsersCache);
   } catch (e) {
     if (wrap) wrap.innerHTML = `<div class="text-danger small p-3">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+/**
+ * Zera moedas ou FBA Points de todos os usuários de uma vez. É o mesmo efeito
+ * do reset do dia 1, só que na mão — não dá pra desfazer, então pede o nome do
+ * campo digitado antes de mandar.
+ */
+async function _zerarGames(campo) {
+  const rotulo = campo === 'pontos' ? 'moedas' : 'FBA Points';
+  const confirma = prompt(
+    `Isso zera ${rotulo} de TODOS os usuários e não pode ser desfeito.\n\n` +
+    `Para confirmar, digite: ${rotulo}`
+  );
+  if (confirma === null) return;
+  if (confirma.trim().toLowerCase() !== rotulo.toLowerCase()) {
+    showAlert('warning', 'Confirmação não bateu — nada foi zerado.');
+    return;
+  }
+  try {
+    const d = await api('admin.php?action=games_zerar', {
+      method: 'POST',
+      body: JSON.stringify({ campo }),
+    });
+    showAlert('success', `${rotulo} zerados (${d.afetados} usuário${d.afetados === 1 ? '' : 's'}).`);
+    _carregarGamesUsers();
+  } catch (e) {
+    showAlert('danger', e.error || e.message || `Erro ao zerar ${rotulo}.`);
   }
 }
 
