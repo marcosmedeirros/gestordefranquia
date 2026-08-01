@@ -718,11 +718,61 @@ async function confirmResetPassword(userId, userName) {
   }
 }
 
+// Onde você estava, guardado na URL. Assim recarregar (ou F5 sem querer) não
+// joga de volta pra ELITE, e o endereço fica compartilhável.
+// Formato: #view ou #view:LIGA
+const _viewRestore = {
+  league:       (lg) => showLeague(lg),
+  trades:       ()   => showTrades(),
+  config:       ()   => showConfig(),
+  ranking:      ()   => showSerasaAdmin(),
+  faadmin:      ()   => showFAAdmin(),
+  punicoes:     ()   => showPunicoes(),
+  coins:        (lg) => showCoins(lg),
+  tapas:        ()   => showTapas(),
+  userApprovals:()   => showUserApprovals(),
+  halloffame:   ()   => showHallOfFame(),
+  dispensas:    ()   => showDispensas(),
+  pontuacao:    (lg) => showRegistroPontuacao(lg),
+  extawards:    (lg) => showExtendedAwards(lg),
+  scheduler:    (lg) => showScheduler(lg),
+  controlpanel: (lg) => showLeague(lg), // virou parte da aba da liga
+  gestao:       (lg) => showGestao(lg),
+  games:        ()   => showGamesAdmin(),
+  draft:        (lg) => showAdminDraft(lg),
+  // 'team' depende de um time escolhido, que a URL não carrega — volta pra liga.
+  team:         (lg) => showLeague(lg),
+};
+
+/** Grava a view atual na URL. Chamado pelo updateBreadcrumb. */
+function _syncAdminHash() {
+  const v = appState.view;
+  if (!v) return;
+  const lg = appState.currentLeague;
+  const alvo = '#' + v + (lg ? ':' + lg : '');
+  if (location.hash !== alvo) history.replaceState(null, '', location.pathname + alvo);
+}
+
 async function init() {
-  if (window.location.hash === '#temporadas' && typeof showSeasonsManagement === 'function') {
+  const hash = (window.location.hash || '').replace(/^#/, '');
+
+  if (hash === 'temporadas' && typeof showSeasonsManagement === 'function') {
     history.replaceState(null, '', window.location.pathname);
     showSeasonsManagement();
-  } else if (!_leagues.length && window.IS_GAMES_ADMIN) {
+    return;
+  }
+
+  if (hash) {
+    const [view, liga] = hash.split(':');
+    const restaurar = _viewRestore[view];
+    // A liga da URL só vale se a pessoa tiver acesso a ela.
+    const lg = (liga && _leagues.includes(liga)) ? liga : (_leagues[0] || null);
+    if (restaurar) {
+      try { restaurar(lg); return; } catch (e) { /* cai no padrão abaixo */ }
+    }
+  }
+
+  if (!_leagues.length && window.IS_GAMES_ADMIN) {
     // Quem só é admin do Games não tem liga nenhuma pra abrir.
     showGamesAdmin();
   } else {
@@ -781,6 +831,8 @@ function updateBreadcrumb() {
     || `qnav-${(appState.currentLeague || _leagues[0]).toLowerCase()}`;
   const activeBtn = document.getElementById(activeId);
   if (activeBtn) activeBtn.classList.add('active');
+
+  _syncAdminHash();
 }
 
 function escapeHtml(value) {
@@ -1477,7 +1529,9 @@ async function showLeague(league) {
       </div>`).join('');
 
     const actions = [
-      { icon: 'bi-speedometer2',            label: 'Painel de<br>Controle',      fn: `showControlPanel('${league}')`,        color: '#ef4444', bg: 'rgba(239,68,68,.12)'   },
+      // Painel de Controle saiu daqui: as chaves da liga (trades, FA, janela de
+      // tática) agora vêm direto na aba, logo abaixo — não faz sentido esconder
+      // atrás de um card o que se olha toda hora.
       { icon: 'bi-arrow-left-right',  label: 'Trades',               fn: 'showTrades()',            color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
       { icon: 'bi-people-fill',       label: 'Free Agency',          fn: 'showFAAdmin()',           color: '#22c55e', bg: 'rgba(34,197,94,.12)'  },
       { icon: 'bi-bar-chart-steps',         label: 'Pontuação<br>por Time',      fn: 'showPointsManagement()',    color: '#06b6d4', bg: 'rgba(6,182,212,.12)'   },
@@ -1614,6 +1668,11 @@ async function showLeague(league) {
 
       <div id="leaguePlayerSearchResults"></div>
 
+      <div class="panel mt-3">
+        <div class="panel-title"><i class="bi bi-speedometer2" style="color:#ef4444"></i> Painel de Controle</div>
+        <div id="panelContent"><div class="text-center py-3"><div class="spinner-border" style="color:var(--red)"></div></div></div>
+      </div>
+
       <div id="seasonChecklist"></div>
 
       ${initDraftCard}
@@ -1682,6 +1741,10 @@ async function showLeague(league) {
     ensureOuvidoriaModal();
     _loadLeagueConfigInline(league);
     _loadSeasonChecklist(league);
+    // Painel de Controle inline: loadControlPanel() escreve em #panelContent,
+    // que agora vive na própria aba da liga.
+    _panelLeague = league;
+    loadControlPanel();
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar liga</div>';
   }

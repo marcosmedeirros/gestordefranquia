@@ -22,6 +22,12 @@ if (session_status() === PHP_SESSION_NONE) {
 
 function requireAuth() {
     if (!isset($_SESSION['user_id'])) {
+        // Robô de preview de link (WhatsApp e afins) recebe as meta tags da
+        // página em vez de ser mandado pro login — senão todo link da FBA
+        // aparece como "FBA Manager - Login", seja qual for a página.
+        require_once __DIR__ . '/link_preview.php';
+        responderPreviewSeRobo();
+
         header('Location: /login.php');
         exit;
     }
