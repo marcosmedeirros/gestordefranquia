@@ -33,11 +33,16 @@ function ensureDraftsAleatoriosTables(PDO $pdo): void
         id INT AUTO_INCREMENT PRIMARY KEY,
         roleta_id INT NULL,
         titulo VARCHAR(180) NOT NULL,
+        league VARCHAR(40) NULL,
         criado_por INT NULL,
         finalizado_em TIMESTAMP NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uniq_da_roleta (roleta_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    if ($pdo->query("SHOW COLUMNS FROM drafts_aleatorios LIKE 'league'")->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE drafts_aleatorios ADD COLUMN league VARCHAR(40) NULL AFTER titulo");
+    }
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS draft_aleatorio_picks (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -67,7 +72,7 @@ function draftFinalizado(PDO $pdo, int $draftId): bool
 
 function estadoDraftAleatorio(PDO $pdo, int $draftId, int $sessionUserId, bool $isAdmin): ?array
 {
-    $stmt = $pdo->prepare("SELECT id, roleta_id, titulo, finalizado_em, created_at FROM drafts_aleatorios WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, roleta_id, titulo, league, finalizado_em, created_at FROM drafts_aleatorios WHERE id = ?");
     $stmt->execute([$draftId]);
     $d = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$d) return null;
@@ -97,6 +102,7 @@ function estadoDraftAleatorio(PDO $pdo, int $draftId, int $sessionUserId, bool $
         'id'              => (int)$d['id'],
         'roleta_id'       => $d['roleta_id'] !== null ? (int)$d['roleta_id'] : null,
         'titulo'          => $d['titulo'],
+        'league'          => $d['league'],
         'picks'           => $picks,
         'total'           => count($picks),
         'feitas'          => $feitas,
@@ -108,16 +114,49 @@ function estadoDraftAleatorio(PDO $pdo, int $draftId, int $sessionUserId, bool $
     ];
 }
 
-/** Avisa quem participa do draft. Best-effort: nunca derruba a escolha. */
-function notificarEscolhaDraftAleatorio(PDO $pdo, int $draftId, string $titulo, string $nome, ?string $playerName): void
+/** Descobre a liga do draft: pelos times sorteados na roleta ou, na falta deles, pela liga de quem criou. */
+function detectarLigaDraftAleatorio(PDO $pdo, int $roletaId, int $criadoPor): ?string
+{
+    try {
+        $stmt = $pdo->prepare("SELECT t.league FROM roleta_participantes rp
+                               JOIN teams t ON t.id = rp.team_id
+                               WHERE rp.roleta_id = ? AND t.league IS NOT NULL AND t.league <> ''
+                               LIMIT 1");
+        $stmt->execute([$roletaId]);
+        $league = $stmt->fetchColumn();
+        if ($league) return (string)$league;
+    } catch (Throwable $e) {}
+
+    try {
+        $stmt = $pdo->prepare("SELECT league FROM users WHERE id = ?");
+        $stmt->execute([$criadoPor]);
+        $league = $stmt->fetchColumn();
+        if ($league) return (string)$league;
+    } catch (Throwable $e) {}
+
+    return null;
+}
+
+/**
+ * Avisa a liga do draft a cada escolha. Só manda pra gente da mesma liga do
+ * draft (nunca vaza pra outras ligas). Drafts antigos sem liga detectada
+ * caem no comportamento anterior: só avisa quem já está nas picks.
+ * Best-effort: nunca derruba a escolha.
+ */
+function notificarEscolhaDraftAleatorio(PDO $pdo, int $draftId, string $titulo, string $nome, ?string $playerName, ?string $league = null): void
 {
     $pushFile = dirname(__DIR__) . '/backend/push.php';
     if (!file_exists($pushFile)) return;
     require_once $pushFile;
 
     try {
-        $stmt = $pdo->prepare("SELECT DISTINCT user_id FROM draft_aleatorio_picks WHERE draft_id = ? AND user_id IS NOT NULL");
-        $stmt->execute([$draftId]);
+        if ($league) {
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE league = ?");
+            $stmt->execute([$league]);
+        } else {
+            $stmt = $pdo->prepare("SELECT DISTINCT user_id FROM draft_aleatorio_picks WHERE draft_id = ? AND user_id IS NOT NULL");
+            $stmt->execute([$draftId]);
+        }
         $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
     } catch (Throwable $e) {
         error_log('notificarEscolhaDraftAleatorio (participantes): ' . $e->getMessage());
@@ -277,11 +316,12 @@ if ($method === 'POST') {
         }
 
         $titulo = trim((string)($body['titulo'] ?? '')) ?: (string)$roleta['titulo'];
+        $league = detectarLigaDraftAleatorio($pdo, $roletaId, $user_id);
 
         $pdo->beginTransaction();
         try {
-            $pdo->prepare("INSERT INTO drafts_aleatorios (roleta_id, titulo, criado_por) VALUES (?,?,?)")
-                ->execute([$roletaId, mb_substr($titulo, 0, 180), $user_id]);
+            $pdo->prepare("INSERT INTO drafts_aleatorios (roleta_id, titulo, league, criado_por) VALUES (?,?,?,?)")
+                ->execute([$roletaId, mb_substr($titulo, 0, 180), $league, $user_id]);
             $draftId = (int)$pdo->lastInsertId();
 
             // pick_number da roleta já é a ordem do draft: quem sobrou por
@@ -378,7 +418,7 @@ if ($method === 'POST') {
         }
 
         $estado = estadoDraftAleatorio($pdo, $draftId, $user_id, $is_admin);
-        notificarEscolhaDraftAleatorio($pdo, $draftId, $estado['titulo'] ?? 'Draft', $atual['nome_display'], $nome);
+        notificarEscolhaDraftAleatorio($pdo, $draftId, $estado['titulo'] ?? 'Draft', $atual['nome_display'], $nome, $estado['league'] ?? null);
         echo json_encode(['success' => true] + $estado);
         exit;
     }
@@ -411,7 +451,7 @@ if ($method === 'POST') {
         }
 
         $estado = estadoDraftAleatorio($pdo, $draftId, $user_id, $is_admin);
-        notificarEscolhaDraftAleatorio($pdo, $draftId, $estado['titulo'] ?? 'Draft', $atual['nome_display'], null);
+        notificarEscolhaDraftAleatorio($pdo, $draftId, $estado['titulo'] ?? 'Draft', $atual['nome_display'], null, $estado['league'] ?? null);
         echo json_encode(['success' => true] + $estado);
         exit;
     }

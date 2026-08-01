@@ -166,9 +166,11 @@ function checkMaintenanceGate(PDO $pdo): void {
     // Login/logout ficam sempre acessíveis — senão um admin geral deslogado
     // não teria como entrar de novo pra desativar a manutenção. A roleta dos
     // times é pública de propósito (sem login) e continua valendo mesmo com
-    // o resto do site em manutenção. basename() ignora o diretório, então
-    // "roleta-times.php" aqui já libera tanto a página quanto a api/ dela.
-    $alwaysAllowed = ['login.php', 'logout.php', 'manutencao.php', 'roleta-times.php', 'roleta.php', 'roleta-editar.php', 'legends-draft.php'];
+    // o resto do site em manutenção, assim como os drafts (legends e
+    // aleatórios) — quem está no meio de um draft ao vivo não pode ficar
+    // travado. basename() ignora o diretório, então "roleta-times.php" e
+    // "drafts-aleatorios.php" aqui já liberam tanto a página quanto a api/ delas.
+    $alwaysAllowed = ['login.php', 'logout.php', 'manutencao.php', 'roleta-times.php', 'roleta.php', 'roleta-editar.php', 'legends-draft.php', 'draft-aleatorio.php', 'drafts-aleatorios.php'];
     if (in_array($script, $alwaysAllowed, true)) return;
 
     if ($isApi) {
