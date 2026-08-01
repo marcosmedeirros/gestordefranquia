@@ -3,7 +3,7 @@ session_start();
 require '../core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: ../auth/login.php"); exit;
+    header("Location: /login.php"); exit;
 }
 $user_id = (int)$_SESSION['user_id'];
 $PONTOS_VITORIA = 200 * getGamePointsMultiplier($pdo, 'grade');

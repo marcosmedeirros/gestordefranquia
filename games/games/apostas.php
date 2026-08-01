@@ -16,7 +16,7 @@ $nowBrtStr = $nowBrt->format('Y-m-d H:i:s');
 
 // Segurança
 if (!isset($_SESSION['user_id'])) {
-    header("Location: ../auth/login.php");
+    header("Location: /login.php");
     exit;
 }
 

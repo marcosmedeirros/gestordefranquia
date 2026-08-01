@@ -4,7 +4,7 @@ error_reporting(E_ALL);
 // session_start já foi chamado em games/index.php
 require '../core/conexao.php';
 
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 $hiddenRankingEmailLower = 'medeirros99@gmail.com';
 $pointsMultiplier = getGamePointsMultiplier($pdo, 'flappy');
@@ -12,7 +12,7 @@ $pointsMultiplier = getGamePointsMultiplier($pdo, 'flappy');
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS flappy_historico (id INT AUTO_INCREMENT PRIMARY KEY, id_usuario INT NOT NULL, pontuacao INT NOT NULL, data_jogo DATETIME DEFAULT CURRENT_TIMESTAMP)");
     $pdo->exec("CREATE TABLE IF NOT EXISTS flappy_compras_skins (id INT AUTO_INCREMENT PRIMARY KEY, id_usuario INT NOT NULL, skin VARCHAR(50) NOT NULL, data_compra DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(id_usuario, skin))");
-    try { $pdo->exec("ALTER TABLE usuarios ADD COLUMN flappy_skin_equipada VARCHAR(50) DEFAULT 'default'"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE games_usuarios ADD COLUMN flappy_skin_equipada VARCHAR(50) DEFAULT 'default'"); } catch (Exception $e) {}
 
     $stmtMe = $pdo->prepare("SELECT nome, pontos, flappy_skin_equipada FROM games_usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);

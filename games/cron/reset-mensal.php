@@ -11,11 +11,14 @@
  *   https://games.fbabrasil.com.br/cron/reset-mensal.php?key=SEU_CRON_SECRET
  */
 
-define('CRON_SECRET', 'fba_reset_2025_@xK9!mQ');
+// A chave sai do código-fonte: vem do ambiente. Sem chave configurada, só
+// roda por CLI — que é como o cron da Hostinger chama de qualquer forma.
+$cron_secret = (string) (getenv('FBA_GAMES_CRON_SECRET') ?: '');
 
-// ── Aceita chamada via CLI ou via HTTP com chave correta ───────────────────────
-$via_cli = (PHP_SAPI === 'cli');
-$via_http = isset($_GET['key']) && hash_equals(CRON_SECRET, $_GET['key']);
+$via_cli  = (PHP_SAPI === 'cli');
+$via_http = $cron_secret !== ''
+    && isset($_GET['key'])
+    && hash_equals($cron_secret, (string) $_GET['key']);
 
 if (!$via_cli && !$via_http) {
     http_response_code(403);
@@ -36,16 +39,13 @@ function log_msg(string $msg): void {
 }
 
 // ── Conexão ────────────────────────────────────────────────────────────────────
-$host   = 'localhost';
-$dbname = 'u289267434_gamesfba';
-$user   = 'u289267434_gamesfba';
-$pass   = 'Gamesfba@123';
+// Depois da fusão o games vive no banco do site — sem credencial própria aqui.
+require_once __DIR__ . '/../../backend/db.php';
 
 try {
-    $pdo = new PDO("mysql:host={$host};dbname={$dbname};charset=utf8mb4", $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    ]);
-} catch (PDOException $e) {
+    $pdo = db();
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (Throwable $e) {
     log_msg("ERRO conexão: " . $e->getMessage());
     exit(1);
 }

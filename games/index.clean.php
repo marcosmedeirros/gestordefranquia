@@ -7,7 +7,7 @@ session_start();
 require 'core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: auth/login.php");
+    header("Location: /login.php");
     exit;
 }
 
@@ -820,7 +820,7 @@ try {
     </a>
   </nav>
   <div class="sb-footer">
-    <a href="auth/logout.php" class="sb-logout">
+    <a href="/logout.php" class="sb-logout">
       <i class="bi bi-box-arrow-right"></i>Sair
     </a>
   </div>

@@ -1,7 +1,7 @@
 ﻿<?php
 session_start();
 require 'core/conexao.php';
-if (!isset($_SESSION['user_id'])) { header("Location: auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 
 $user_id = $_SESSION['user_id'];
 $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, tapas_disponiveis, COALESCE(numero_tapas,0) as numero_tapas FROM games_usuarios WHERE id=:id");
@@ -323,7 +323,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
     <a href="admin/bracket-admin.php" class="sb-link"><i class="bi bi-trophy"></i>Admin Bracket</a>
     <?php endif; ?>
   </nav>
-  <div class="sb-footer"><a href="auth/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a></div>
+  <div class="sb-footer"><a href="/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a></div>
 </aside>
 
 <div class="page">

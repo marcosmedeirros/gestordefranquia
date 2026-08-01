@@ -7,18 +7,13 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Parâmetros de conexão
-$host = 'localhost';
-$db = 'u289267434_gamesfba';
-$user = 'u289267434_gamesfba';
-$pass = 'Gamesfba@123';
+require_once __DIR__ . '/../../backend/db.php';
 
 try {
-    // Conectar ao banco
-    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-    ]);
+    // Depois da fusão o games vive no banco do site.
+    $pdo = db();
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
     
     // SQL para criar a tabela
     $sql = "

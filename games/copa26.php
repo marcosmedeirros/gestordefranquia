@@ -2,10 +2,10 @@
 session_start();
 date_default_timezone_set('America/Sao_Paulo');
 require 'core/conexao.php';
-if (!isset($_SESSION['user_id'])) { header("Location: auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 
 $user_id = (int)$_SESSION['user_id'];
-try { $pdo->exec("ALTER TABLE usuarios ADD COLUMN copa26_pago TINYINT(1) NOT NULL DEFAULT 0"); } catch(Exception $e){}
+try { $pdo->exec("ALTER TABLE games_usuarios ADD COLUMN copa26_pago TINYINT(1) NOT NULL DEFAULT 0"); } catch(Exception $e){}
 $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas,0) as numero_tapas, tapas_disponiveis, COALESCE(copa26_pago,0) as copa26_pago FROM games_usuarios WHERE id=?");
 $stmt->execute([$user_id]);
 $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -927,7 +927,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit
     </a>
   </nav>
   <div class="sb-footer">
-    <a class="sb-logout" href="auth/logout.php"><i class="bi bi-box-arrow-right"></i>Sair</a>
+    <a class="sb-logout" href="/logout.php"><i class="bi bi-box-arrow-right"></i>Sair</a>
   </div>
 </aside>
 <div class="sb-overlay" id="sbOverlay" onclick="closeSidebar()"></div>

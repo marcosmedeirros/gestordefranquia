@@ -2,7 +2,7 @@
 session_start();
 require '../core/conexao.php';
 /** @var \PDO $pdo */
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 
 $user_id = (int)$_SESSION['user_id'];
 $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas,0) as numero_tapas FROM games_usuarios WHERE id=?");
@@ -11,7 +11,7 @@ $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 $isAdmin = !empty($usuario['is_admin']);
 
 // Garante coluna
-try { $pdo->exec("ALTER TABLE usuarios ADD COLUMN copa26_pago TINYINT(1) NOT NULL DEFAULT 0"); } catch(Exception $e){}
+try { $pdo->exec("ALTER TABLE games_usuarios ADD COLUMN copa26_pago TINYINT(1) NOT NULL DEFAULT 0"); } catch(Exception $e){}
 
 // ── POST: toggle pagamento ───────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -223,7 +223,7 @@ try {
     </a>
   </nav>
   <div class="sb-footer">
-    <a href="../auth/logout.php" class="sb-logout">
+    <a href="/logout.php" class="sb-logout">
       <i class="bi bi-box-arrow-right"></i>Sair
     </a>
   </div>

@@ -5,7 +5,7 @@ error_reporting(E_ALL);
 // session_start já foi chamado em games/index.php
 require '../core/conexao.php';
 
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 $sala_id = 1; 
 

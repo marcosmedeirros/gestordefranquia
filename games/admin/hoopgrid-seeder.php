@@ -5,12 +5,12 @@
  */
 session_start();
 require '../core/conexao.php';
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 
 $stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas,0) as numero_tapas FROM games_usuarios WHERE id = ?");
 $stmt->execute([$_SESSION['user_id']]);
 $u = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$u) { header("Location: ../auth/login.php"); exit; }
+if (!$u) { header("Location: /login.php"); exit; }
 $isAdmin = !empty($u['is_admin']);
 
 // Garante que a tabela existe
@@ -843,7 +843,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <a href="controle-usuarios.php"     class="sb-link"><i class="bi bi-people-fill"></i>Controle de Usuários</a>
   </nav>
   <div class="sb-footer">
-    <a href="../auth/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a>
+    <a href="/logout.php" class="sb-logout"><i class="bi bi-box-arrow-right"></i>Sair</a>
   </div>
 </aside>
 

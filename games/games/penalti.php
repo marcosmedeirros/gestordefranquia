@@ -1,7 +1,7 @@
 ﻿<?php
 if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = (int)$_SESSION['user_id'];
 
 // diff: 1=Iniciante 2=Médio 3=Difícil 4=Elite

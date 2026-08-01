@@ -5,7 +5,7 @@ if (session_status() === PHP_SESSION_NONE) {
 require '../core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header('Location: ../auth/login.php');
+    header('Location: /login.php');
     exit;
 }
 

@@ -8,7 +8,7 @@ require '../core/conexao.php';
 require_once '../core/mobile-helpers.php';
 
 // 1. Segurança Básica
-if (!isset($_SESSION['user_id'])) { header("Location: auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 $hiddenRankingEmailLower = 'medeirros99@gmail.com';
 $pointsMultiplier = getGamePointsMultiplier($pdo, 'pinguim');
@@ -26,7 +26,7 @@ try {
 
     // Coluna de skin equipada
     try {
-        $pdo->exec("ALTER TABLE usuarios ADD COLUMN skin_equipada VARCHAR(50) DEFAULT 'default'");
+        $pdo->exec("ALTER TABLE games_usuarios ADD COLUMN skin_equipada VARCHAR(50) DEFAULT 'default'");
     } catch (Exception $e) {}
 
 } catch (PDOException $e) {

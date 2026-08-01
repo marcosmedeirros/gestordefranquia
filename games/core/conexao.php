@@ -1,25 +1,74 @@
 <?php
 // core/conexao.php
+//
+// Ponto único de integração do games com o fbabrasil.com.br. Depois da fusão
+// este arquivo não abre mais conexão própria nem tem login próprio: usa o
+// banco e a sessão do site. Como as 55 páginas do games já dão require nele,
+// trocar aqui liga o sistema inteiro de uma vez.
 
 // Garantir que as funções de data usem o fuso horário de Brasília
 date_default_timezone_set('America/Sao_Paulo');
 
-$host = 'localhost';
-$dbname = 'u289267434_gamesfba';
-$user = 'u289267434_gamesfba';
-$pass = 'Gamesfba@123';
+require_once __DIR__ . '/../../backend/db.php';
+require_once __DIR__ . '/../../backend/auth.php';
+
+// Quem manda no acesso é o site — não existe mais login do games.
+requireAuth();
 
 try {
-    // Conexão com PDO
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);
-    
-    // Configura o PDO para lançar exceções em caso de erro (bom para debug)
+    $pdo = db();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    // Schema do games: roda uma vez só, quando a tabela de perfil ainda não
+    // existe. Em regime normal custa uma consulta barata por request — as
+    // outras tabelas do games cada página cria sozinha, como sempre fez.
+    try {
+        if (!$pdo->query("SHOW TABLES LIKE 'games_usuarios'")->fetch()) {
+            $__schema = @file_get_contents(__DIR__ . '/../../sql/games_merge.sql');
+            if ($__schema !== false) {
+                $pdo->exec($__schema);
+            }
+        }
+    } catch (PDOException $e) {
+        error_log('[games] schema inicial: ' . $e->getMessage());
+    }
+
+    // Perfil de jogo do GM: nasce sozinho no primeiro acesso, espelhando
+    // nome/e-mail/liga do cadastro do site. O id é o mesmo do users.
+    $__uid = (int) ($_SESSION['user_id'] ?? 0);
+    if ($__uid > 0) {
+        try {
+            $__st = $pdo->prepare("SELECT nome, email, is_admin FROM games_usuarios WHERE id = ?");
+            $__st->execute([$__uid]);
+            $__perfil = $__st->fetch(PDO::FETCH_ASSOC);
+
+            if (!$__perfil) {
+                $pdo->prepare("
+                    INSERT IGNORE INTO games_usuarios (id, nome, email, league, is_admin)
+                    SELECT id, name, email, COALESCE(league, 'ROOKIE'), ?
+                    FROM users WHERE id = ?
+                ")->execute([
+                    (($_SESSION['user_type'] ?? '') === 'admin') ? 1 : 0,
+                    $__uid,
+                ]);
+                $__st->execute([$__uid]);
+                $__perfil = $__st->fetch(PDO::FETCH_ASSOC) ?: [];
+            }
+
+            // Compatibilidade: o código do games lê estas chaves de sessão,
+            // que no site têm outro nome.
+            $_SESSION['nome']     = $__perfil['nome'] ?? ($_SESSION['user_name'] ?? '');
+            $_SESSION['email']    = $__perfil['email'] ?? ($_SESSION['user_email'] ?? '');
+            $_SESSION['is_admin'] = (($_SESSION['user_type'] ?? '') === 'admin') ? 1 : 0;
+        } catch (PDOException $e) {
+            error_log('[games] perfil do usuario: ' . $e->getMessage());
+        }
+    }
     try {
         $stmt = $pdo->prepare("SHOW COLUMNS FROM games_usuarios LIKE 'fba_points'");
         $stmt->execute();
         if (!$stmt->fetch()) {
-            $pdo->exec("ALTER TABLE usuarios ADD COLUMN fba_points INT NOT NULL DEFAULT 0 AFTER pontos");
+            $pdo->exec("ALTER TABLE games_usuarios ADD COLUMN fba_points INT NOT NULL DEFAULT 0 AFTER pontos");
         }
     } catch (PDOException $e) {
         // Silencia erro de ajuste de schema para nao quebrar a conexao
@@ -29,7 +78,7 @@ try {
         $stmt = $pdo->prepare("SHOW COLUMNS FROM games_usuarios LIKE 'acertos_eventos'");
         $stmt->execute();
         if (!$stmt->fetch()) {
-            $pdo->exec("ALTER TABLE usuarios ADD COLUMN acertos_eventos INT NOT NULL DEFAULT 0 AFTER fba_points");
+            $pdo->exec("ALTER TABLE games_usuarios ADD COLUMN acertos_eventos INT NOT NULL DEFAULT 0 AFTER fba_points");
             $pdo->exec("
                 UPDATE games_usuarios u
                 LEFT JOIN (
@@ -53,7 +102,7 @@ try {
         $stmt = $pdo->prepare("SHOW COLUMNS FROM games_usuarios LIKE 'tapas_disponiveis'");
         $stmt->execute();
         if (!$stmt->fetch()) {
-            $pdo->exec("ALTER TABLE usuarios ADD COLUMN tapas_disponiveis INT NOT NULL DEFAULT 2 AFTER numero_tapas");
+            $pdo->exec("ALTER TABLE games_usuarios ADD COLUMN tapas_disponiveis INT NOT NULL DEFAULT 2 AFTER numero_tapas");
             $pdo->exec("UPDATE games_usuarios SET tapas_disponiveis = 2 WHERE tapas_disponiveis IS NULL");
         }
     } catch (PDOException $e) {
@@ -202,77 +251,4 @@ if (!function_exists('getGamePointsMultiplier')) {
     }
 }
 
-// ── Botão "Resolver Jogo" exclusivo para medeirros15@gmail.com ─────────────────
-if (!isset($GLOBALS['__dev_shutdown_registered'])) {
-    $GLOBALS['__dev_shutdown_registered'] = true;
-
-    $__isDev = false;
-    if (isset($_SESSION['user_id'])) {
-        if (isset($_SESSION['email'])) {
-            $__isDev = ($_SESSION['email'] === 'medeirros15@gmail.com');
-        } else {
-            try {
-                $__s = $pdo->prepare("SELECT email FROM games_usuarios WHERE id = ?");
-                $__s->execute([(int)$_SESSION['user_id']]);
-                $_SESSION['email'] = (string)$__s->fetchColumn();
-                $__isDev = ($_SESSION['email'] === 'medeirros15@gmail.com');
-            } catch (Exception $_) {}
-        }
-    }
-
-    if ($__isDev) {
-        register_shutdown_function(function () {
-            // Só injeta em arquivos dentro de games/games/
-            $script = str_replace('\\', '/', $_SERVER['SCRIPT_FILENAME'] ?? '');
-            if (!str_contains($script, '/games/games/')) return;
-
-            $game = basename($_SERVER['SCRIPT_FILENAME'] ?? 'game', '.php');
-            $gameJs = addslashes($game);
-
-            echo <<<HTML
-<div id="__devBtn" style="position:fixed;bottom:20px;left:16px;z-index:99999;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:flex-start;gap:6px">
-  <button onclick="__devResolve__()" style="background:#fc0025;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 4px 18px rgba(252,0,37,.45);letter-spacing:.01em">
-    ⚡ Resolver Jogo
-  </button>
-  <div id="__devToast" style="display:none;background:#161618;border:1px solid #2a2a2e;border-radius:8px;padding:8px 12px;font-size:12px;white-space:nowrap;max-width:220px"></div>
-</div>
-<script>
-async function __devResolve__() {
-  const btn = document.querySelector('#__devBtn button');
-  const toast = document.getElementById('__devToast');
-  btn.disabled = true;
-  btn.innerHTML = '⏳ Resolvendo...';
-  toast.style.display = 'none';
-  try {
-    const r = await fetch('/api/admin_resolve.php', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({game: '$gameJs'}),
-      credentials: 'include'
-    });
-    const d = await r.json();
-    toast.style.display = 'block';
-    if (d.sucesso) {
-      toast.style.color = '#4ade80';
-      toast.textContent = '✅ +' + d.moedas + ' moedas · saldo: ' + d.novo_saldo;
-      btn.innerHTML = '✅ Resolvido';
-    } else {
-      toast.style.color = '#f87171';
-      toast.textContent = '❌ ' + (d.erro || 'Erro desconhecido');
-      btn.disabled = false;
-      btn.innerHTML = '⚡ Resolver Jogo';
-    }
-  } catch (e) {
-    btn.disabled = false;
-    btn.innerHTML = '⚡ Resolver Jogo';
-    toast.style.display = 'block';
-    toast.style.color = '#f87171';
-    toast.textContent = '❌ Erro de rede';
-  }
-}
-</script>
-HTML;
-        });
-    }
-}
 ?>

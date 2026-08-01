@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 require '../core/conexao.php';
 
 // 1. Segurança e Dados do Usuário
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 
 try {

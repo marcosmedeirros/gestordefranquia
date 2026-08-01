@@ -3,7 +3,7 @@ session_start();
 require 'core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: auth/login.php");
+    header("Location: /login.php");
     exit;
 }
 
@@ -24,7 +24,7 @@ $tapas_disponiveis = max(0, min($tapas_limite_mes, $tapas_disponiveis));
 
 /* ── Stats de jogos ── */
 $flappy_pontos = 0; $pinguim_pontos = 0; $xadrez_vitorias = 0;
-$batalha_naval_vitorias = 0; $tigrinho_premios = 0;
+$batalha_naval_vitorias = 0;
 $termo_streak = 0; $memoria_streak = 0; $grade_concluiu_hoje = false;
 $boxnba_concluiu_hoje = false;
 $hoopgrid_concluiu_hoje = false;
@@ -35,7 +35,6 @@ try { $stmt = $pdo->prepare("SELECT MAX(pontuacao) AS r FROM flappy_historico WH
 try { $stmt = $pdo->prepare("SELECT MAX(pontuacao_final) AS r FROM dino_historico WHERE id_usuario = ?"); $stmt->execute([$user_id]); $pinguim_pontos = (int)($stmt->fetch(PDO::FETCH_ASSOC)['r'] ?? 0); } catch (PDOException $e) {}
 try { $stmt = $pdo->prepare("SELECT COUNT(*) AS t FROM xadrez_partidas WHERE vencedor = ? AND status = 'finalizada'"); $stmt->execute([$user_id]); $xadrez_vitorias = (int)($stmt->fetch(PDO::FETCH_ASSOC)['t'] ?? 0); } catch (PDOException $e) {}
 try { $stmt = $pdo->prepare("SELECT COUNT(*) AS t FROM naval_salas WHERE vencedor_id = ? AND status = 'fim'"); $stmt->execute([$user_id]); $batalha_naval_vitorias = (int)($stmt->fetch(PDO::FETCH_ASSOC)['t'] ?? 0); } catch (PDOException $e) {}
-try { $stmt = $pdo->prepare("SELECT SUM(premio) AS t FROM tigrinho_historico WHERE id_usuario = ?"); $stmt->execute([$user_id]); $tigrinho_premios = (int)($stmt->fetch(PDO::FETCH_ASSOC)['t'] ?? 0); } catch (PDOException $e) {}
 
 $today = date('Y-m-d');
 $yesterday = date('Y-m-d', strtotime('-1 day'));
@@ -328,7 +327,7 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     </a>
   </nav>
   <div class="sb-footer">
-    <a href="auth/logout.php" class="sb-logout">
+    <a href="/logout.php" class="sb-logout">
       <i class="bi bi-box-arrow-right"></i>Sair
     </a>
   </div>
@@ -376,10 +375,6 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     <div class="stat-card">
       <div class="stat-label"><i class="bi bi-lightning-charge"></i>Streak Memória</div>
       <div class="stat-value"><?= $memoria_streak ?></div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label"><i class="bi bi-emoji-smile"></i>Prêmios Tigrinho</div>
-      <div class="stat-value"><?= number_format($tigrinho_premios, 0, ',', '.') ?></div>
     </div>
     <?php /* OCULTO PROVISORIAMENTE
     <div class="stat-card">
@@ -437,7 +432,6 @@ try { $r = $pdo->query("SELECT vencedor FROM xadrez_partidas WHERE status='final
     <a href="games/index.php?game=pinguim"     class="game-card"><span class="game-icon">🐧</span><div class="game-title">Pinguim Run</div><div class="game-sub">Corra e ganhe</div></a>
     <a href="games/roleta.php"                 class="game-card"><span class="game-icon">🎡</span><div class="game-title">Roleta</div><div class="game-sub">Cassino Europeu</div></a>
     <a href="games/blackjack.php"              class="game-card"><span class="game-icon">🃏</span><div class="game-title">Blackjack</div><div class="game-sub">Chegue a 21</div></a>
-    <a href="games/index.php?game=tigrinho"    class="game-card"><span class="game-icon">🐯</span><div class="game-title">Tigrinho</div><div class="game-sub">Fortune Tiger</div></a>
 <a href="https://games.fbabrasil.com.br/album-fba.php" class="game-card"><span class="game-icon">🖼️</span><div class="game-title">Album FBA</div><div class="game-sub">Figurinhas</div></a>
   </div>
 

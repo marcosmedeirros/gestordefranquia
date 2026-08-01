@@ -12,10 +12,14 @@
  *   Adicione &ano=2025 para especificar o ano.
  */
 
-define('CRON_SECRET', 'fba_reset_2025_@xK9!mQ');
+// A chave sai do código-fonte: vem do ambiente. Sem chave configurada, só
+// roda por CLI — que é como o cron da Hostinger chama de qualquer forma.
+$cron_secret = (string) (getenv('FBA_GAMES_CRON_SECRET') ?: '');
 
 $via_cli  = (PHP_SAPI === 'cli');
-$via_http = isset($_GET['key']) && hash_equals(CRON_SECRET, $_GET['key']);
+$via_http = $cron_secret !== ''
+    && isset($_GET['key'])
+    && hash_equals($cron_secret, (string) $_GET['key']);
 
 if (!$via_cli && !$via_http) { http_response_code(403); exit('Acesso negado.'); }
 
@@ -29,14 +33,12 @@ function logR(string $msg): void {
     if (PHP_SAPI === 'cli') echo $linha;
 }
 
-// Conexão
+// Conexão — depois da fusão o games vive no banco do site.
+require_once __DIR__ . '/../../backend/db.php';
 try {
-    $pdo = new PDO(
-        "mysql:host=localhost;dbname=u289267434_gamesfba;charset=utf8mb4",
-        'u289267434_gamesfba', 'Gamesfba@123',
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-    );
-} catch (PDOException $e) { logR("ERRO conexão: " . $e->getMessage()); exit(1); }
+    $pdo = db();
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (Throwable $e) { logR("ERRO conexão: " . $e->getMessage()); exit(1); }
 
 $ano = (int)($_GET['ano'] ?? date('Y'));
 logR("Iniciando snapshot {$ano}...");

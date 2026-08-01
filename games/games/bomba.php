@@ -15,7 +15,7 @@ $TOTAL_DIAMANTES = 4;
 $TOTAL_BOMBAS = 5;
 $VIDAS_INICIAIS = 2;
 
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 
 // Criar tabela se não existir

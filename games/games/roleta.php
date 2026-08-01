@@ -7,7 +7,7 @@ require '../core/conexao.php';
 require_once '../core/mobile-helpers.php';
 
 // 1. Segurança
-if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = $_SESSION['user_id'];
 
 // 2. Dados do Usuário

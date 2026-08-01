@@ -1,7 +1,7 @@
 ﻿<?php
 // hoopgrid.php — Grade NBA 3×3: encontre o jogador que satisfaz os dois critérios
 require '../core/conexao.php';
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 $user_id = (int)$_SESSION['user_id'];
 $PONTOS_VITORIA = 150 * getGamePointsMultiplier($pdo, 'hoopgrid');
 

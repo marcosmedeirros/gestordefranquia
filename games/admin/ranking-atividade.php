@@ -6,12 +6,12 @@
  */
 session_start();
 require '../core/conexao.php';
-if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
+if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 
 $stmt = $pdo->prepare("SELECT is_admin, nome FROM games_usuarios WHERE id = ?");
 $stmt->execute([$_SESSION['user_id']]);
 $u = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$u || empty($u['is_admin'])) { header("Location: ../auth/login.php"); exit; }
+if (!$u || empty($u['is_admin'])) { header("Location: /login.php"); exit; }
 
 $hiddenEmailLower = 'medeirros99@gmail.com';
 

@@ -3,12 +3,14 @@ session_start();
 date_default_timezone_set('America/Sao_Paulo');
 
 // --- DB ---
-$host = 'localhost'; $dbname = 'u289267434_gamesfba';
-$user = 'u289267434_gamesfba'; $pass = 'Gamesfba@123';
+// Depois da fusão o games vive no banco do site. Esta página segue aberta a
+// quem não tem login (o bolão aceita inscrição por nome + telefone), por isso
+// usa db() direto em vez do core/conexao.php, que exige sessão.
+require_once __DIR__ . '/../backend/db.php';
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $user, $pass);
+    $pdo = db();
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) { die("Erro DB: " . $e->getMessage()); }
+} catch (Throwable $e) { die("Erro DB: " . $e->getMessage()); }
 
 // --- SETUP TABLES ---
 $pdo->exec("CREATE TABLE IF NOT EXISTS nba_bracket_apostadores (
