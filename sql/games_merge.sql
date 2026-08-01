@@ -41,8 +41,6 @@ CREATE TABLE IF NOT EXISTS `games_usuarios` (
   `termo_streak` INT(11) DEFAULT 0,
   `termo_last` DATE DEFAULT NULL,
   `league` ENUM('ELITE','RISE','NEXT','ROOKIE') DEFAULT 'ROOKIE',
-  `numero_tapas` INT(11) DEFAULT 0,
-  `tapas_disponiveis` INT(11) NOT NULL DEFAULT 2,
   `copa26_pago` TINYINT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `idx_gu_email` (`email`),

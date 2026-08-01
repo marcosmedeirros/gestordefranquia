@@ -2,7 +2,7 @@
 session_start();
 require '../core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
-$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM games_usuarios WHERE id=:id");
+$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points FROM games_usuarios WHERE id=:id");
 $stmt->execute([':id'=>$_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$user || !$user['is_admin']) die("Acesso negado.");

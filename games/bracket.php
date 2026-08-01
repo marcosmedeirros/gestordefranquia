@@ -4,7 +4,7 @@ require 'core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 
 $user_id = $_SESSION['user_id'];
-$stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, tapas_disponiveis, COALESCE(numero_tapas,0) as numero_tapas FROM games_usuarios WHERE id=:id");
+$stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points FROM games_usuarios WHERE id=:id");
 $stmt->execute([':id' => $user_id]);
 $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 

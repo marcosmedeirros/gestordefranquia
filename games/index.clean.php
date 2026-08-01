@@ -28,7 +28,7 @@ $hiddenRankingEmail = 'medeirros99@gmail.com';
 $hiddenRankingEmailLower = strtolower($hiddenRankingEmail);
 
 try {
-    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, league, fba_points, tapas_disponiveis, COALESCE(numero_tapas, 0) as numero_tapas FROM games_usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, league, fba_points FROM games_usuarios WHERE id = :id");
     $stmt->execute([':id' => $user_id]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -70,33 +70,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
             $loja_msg = 'Troca realizada: 1000 moedas por 100 FBA Points.';
         }
 
-        if ($acao_loja === 'comprar_tapa') {
-            $custo_fba = 3500;
-            if ($tapas_disponiveis <= 0) {
-                throw new Exception('Limite mensal de tapas atingido.');
-            }
-
-            $pdo->beginTransaction();
-            $stmtSaldo = $pdo->prepare("SELECT fba_points FROM games_usuarios WHERE id = :id FOR UPDATE");
-            $stmtSaldo->execute([':id' => $user_id]);
-            $saldo = $stmtSaldo->fetch(PDO::FETCH_ASSOC);
-            if (!$saldo || (int)$saldo['fba_points'] < $custo_fba) {
-                throw new Exception('FBA Points insuficientes para comprar o tapa.');
-            }
-
-            $pdo->prepare("UPDATE games_usuarios SET fba_points = fba_points - :cost, numero_tapas = COALESCE(numero_tapas,0) + 1, tapas_disponiveis = GREATEST(COALESCE(tapas_disponiveis, 0) - 1, 0) WHERE id = :id")
-                ->execute([':cost' => $custo_fba, ':id' => $user_id]);
-            $pdo->prepare("INSERT INTO fba_shop_purchases (user_id, item, qty) VALUES (:uid, 'tapa', 1)")
-                ->execute([':uid' => $user_id]);
-
-            $pdo->commit();
-            $usuario['fba_points'] = (int)$saldo['fba_points'] - $custo_fba;
-            $tapas_disponiveis = max(0, $tapas_disponiveis - 1);
-            $tapas_compradas_mes = min($tapas_limite_mes, $tapas_compradas_mes + 1);
-            $tapas_restantes = max(0, $tapas_disponiveis);
-            if (isset($usuario['numero_tapas'])) $usuario['numero_tapas']++;
-            $loja_msg = 'Tapa comprado com sucesso.';
-        }
+        // O item "tapa" saiu da loja na fusão. A mecânica de compra segue
+        // aqui (moedas -> FBA Points -> item) esperando os itens novos.
     } catch (Exception $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         $loja_erro = $e->getMessage();
@@ -1039,14 +1014,8 @@ try {
         </form>
       </div>
       <div class="loja-card">
-        <div class="loja-title">Badges / Tapas</div>
-        <div class="loja-desc"><?= $tapas_restantes ?>/<?= $tapas_limite_mes ?> disponíveis · 3.500 FBA Points</div>
-        <form method="POST">
-          <input type="hidden" name="acao_loja" value="comprar_tapa">
-          <button type="submit" class="btn-loja danger" <?= ($tapas_restantes <= 0 || (int)($usuario['fba_points'] ?? 0) < 3500) ? 'disabled' : '' ?>>
-            <i class="bi bi-hand-index me-1"></i>Comprar 1 tapa
-          </button>
-        </form>
+        <div class="loja-title">Em breve</div>
+        <div class="loja-desc">Novos itens pra trocar por FBA Points estão a caminho.</div>
       </div>
     </div>
 

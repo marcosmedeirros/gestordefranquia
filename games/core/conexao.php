@@ -99,17 +99,6 @@ try {
     }
 
     try {
-        $stmt = $pdo->prepare("SHOW COLUMNS FROM games_usuarios LIKE 'tapas_disponiveis'");
-        $stmt->execute();
-        if (!$stmt->fetch()) {
-            $pdo->exec("ALTER TABLE games_usuarios ADD COLUMN tapas_disponiveis INT NOT NULL DEFAULT 2 AFTER numero_tapas");
-            $pdo->exec("UPDATE games_usuarios SET tapas_disponiveis = 2 WHERE tapas_disponiveis IS NULL");
-        }
-    } catch (PDOException $e) {
-        // Silencia erro de ajuste de schema para nao quebrar a conexao
-    }
-
-    try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS fba_shop_purchases (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id INT NOT NULL,
