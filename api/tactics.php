@@ -289,29 +289,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $stmtTeams->execute([$league]);
         $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
 
+        // Campos de configuração que o admin precisa ver pra reproduzir a
+        // tática dentro do jogo. Minutos por jogador ficaram de fora: não são
+        // mais usados. A ordem aqui é a ordem que aparece na tela.
+        $camposConfig = [
+            'game_style'           => 'Estilo de Jogo',
+            'offense_style'        => 'Estilo Ofensivo',
+            'pace'                 => 'Ritmo',
+            'offensive_aggression' => 'Agressividade Ofensiva',
+            'offensive_rebound'    => 'Rebote Ofensivo',
+            'defensive_focus'      => 'Foco Defensivo',
+            'defensive_rebound'    => 'Rebote Defensivo',
+            'rotation_style'       => 'Estilo de Rotação',
+            'rotation_players'     => 'Jogadores na Rotação',
+            'veteran_focus'        => 'Foco em Veteranos',
+            'technical_model'      => 'Modelo Técnico',
+            'playbook'             => 'Playbook',
+            'notes'                => 'Observações',
+        ];
+
         $overview = [];
         foreach ($teams as $t) {
-            $stmtA = $pdo->prepare("SELECT tt.slot, tt.rotation_players, tt.game_style, tt.updated_at,
-                    s1.name AS s1, s2.name AS s2, s3.name AS s3, s4.name AS s4, s5.name AS s5
+            $stmtA = $pdo->prepare("
+                SELECT tt.*,
+                       s1.name AS s1, s2.name AS s2, s3.name AS s3, s4.name AS s4, s5.name AS s5,
+                       b1.name AS b1, b2.name AS b2, b3.name AS b3,
+                       g1.name AS g1, g2.name AS g2
                 FROM team_tactics tt
                 LEFT JOIN players s1 ON s1.id = tt.starter_1_id
                 LEFT JOIN players s2 ON s2.id = tt.starter_2_id
                 LEFT JOIN players s3 ON s3.id = tt.starter_3_id
                 LEFT JOIN players s4 ON s4.id = tt.starter_4_id
                 LEFT JOIN players s5 ON s5.id = tt.starter_5_id
-                WHERE tt.team_id = ? AND tt.is_active = 1 LIMIT 1");
+                LEFT JOIN players b1 ON b1.id = tt.bench_1_id
+                LEFT JOIN players b2 ON b2.id = tt.bench_2_id
+                LEFT JOIN players b3 ON b3.id = tt.bench_3_id
+                LEFT JOIN players g1 ON g1.id = tt.gleague_1_id
+                LEFT JOIN players g2 ON g2.id = tt.gleague_2_id
+                WHERE tt.team_id = ? AND tt.is_active = 1 LIMIT 1
+            ");
             $stmtA->execute([(int)$t['id']]);
             $ativa = $stmtA->fetch(PDO::FETCH_ASSOC) ?: null;
 
+            $tatica = null;
+            if ($ativa) {
+                // O snapshot é a tática como estava na virada da temporada.
+                // Comparando com a atual sai o que o time mexeu desde então —
+                // é isso que a tela pinta de vermelho.
+                $antes = [];
+                if (!empty($ativa['snapshot_json'])) {
+                    $decodificado = json_decode((string)$ativa['snapshot_json'], true);
+                    if (is_array($decodificado)) $antes = $decodificado;
+                }
+
+                $config = [];
+                foreach ($camposConfig as $campo => $rotulo) {
+                    $valor = $ativa[$campo] ?? null;
+                    $config[] = [
+                        'campo'   => $campo,
+                        'rotulo'  => $rotulo,
+                        'valor'   => ($valor === null || $valor === '') ? null : (string)$valor,
+                        // Só marca como alterado quando existe snapshot: sem ele
+                        // não dá pra saber o que mudou, e pintar tudo de vermelho
+                        // seria pior que não pintar nada.
+                        'mudou'   => $antes
+                            ? ((string)($antes[$campo] ?? '') !== (string)($valor ?? ''))
+                            : false,
+                    ];
+                }
+
+                $elencoCampos = [
+                    'starter_1_id' => $ativa['s1'], 'starter_2_id' => $ativa['s2'],
+                    'starter_3_id' => $ativa['s3'], 'starter_4_id' => $ativa['s4'],
+                    'starter_5_id' => $ativa['s5'],
+                ];
+                $titulares = [];
+                foreach ($elencoCampos as $campo => $nome) {
+                    if (!$nome) continue;
+                    $titulares[] = [
+                        'nome'  => $nome,
+                        'mudou' => $antes ? ((string)($antes[$campo] ?? '') !== (string)($ativa[$campo] ?? '')) : false,
+                    ];
+                }
+
+                $tatica = [
+                    'slot_label'    => TATICA_SLOTS[$ativa['slot']] ?? $ativa['slot'],
+                    'titulares'     => $titulares,
+                    'banco'         => array_values(array_filter([$ativa['b1'], $ativa['b2'], $ativa['b3']])),
+                    'gleague'       => array_values(array_filter([$ativa['g1'], $ativa['g2']])),
+                    'config'        => $config,
+                    'updated_at'    => $ativa['updated_at'],
+                    'feito_no_jogo' => (int)($ativa['feito_no_jogo'] ?? 0) === 1,
+                    'tem_snapshot'  => !empty($antes),
+                ];
+            }
+
             $overview[] = [
                 'team' => ['id' => (int)$t['id'], 'name' => trim($t['city'] . ' ' . $t['name'])],
-                'active_tactic' => $ativa ? [
-                    'slot_label' => TATICA_SLOTS[$ativa['slot']] ?? $ativa['slot'],
-                    'starters' => array_values(array_filter([$ativa['s1'], $ativa['s2'], $ativa['s3'], $ativa['s4'], $ativa['s5']])),
-                    'rotation_players' => $ativa['rotation_players'],
-                    'game_style' => $ativa['game_style'],
-                    'updated_at' => $ativa['updated_at'],
-                ] : null,
+                'active_tactic' => $tatica,
             ];
         }
 
@@ -403,6 +478,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true) ?: [];
     $action = $body['action'] ?? '';
+
+    // Marca/desmarca "feito no jogo" — some sozinho a cada virada de temporada.
+    if ($action === 'admin_feito_no_jogo') {
+        if (!hasAdminAccess($pdo, $user['id'])) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Sem permissão.']);
+            exit;
+        }
+        // $body já veio lido no topo do bloco POST.
+        $teamId = (int)($body['team_id'] ?? 0);
+        $feito  = !empty($body['feito']) ? 1 : 0;
+        if ($teamId <= 0) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Time inválido.']);
+            exit;
+        }
+        $pdo->prepare("UPDATE team_tactics SET feito_no_jogo = ? WHERE team_id = ? AND is_active = 1")
+            ->execute([$feito, $teamId]);
+        echo json_encode(['success' => true, 'feito' => (bool)$feito]);
+        exit;
+    }
 
     if ($action === 'admin_window') {
         if (!hasAdminAccess($pdo, $user['id'])) {

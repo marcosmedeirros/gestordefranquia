@@ -3738,18 +3738,71 @@ function renderTaticaAdmin(league, win, teams) {
     ? '<span class="pun-badge" style="background:#22c55e20;color:#22c55e;border-color:#22c55e40">Aberta</span>'
     : `<span class="pun-badge" style="background:var(--text-3)20;color:var(--text-3);border-color:var(--text-3)40">Fechada${win.reason ? ' — ' + escapeHtml(win.reason) : ''}</span>`;
 
+  // Acordeão: um time por linha, abre e mostra a tática exata dele. O que o
+  // time mexeu desde a virada da temporada sai em vermelho — por isso o
+  // snapshot existe.
   const rows = teams.map(t => {
     const at = t.active_tactic;
+    const tid = t.team.id;
+
     if (!at) {
-      return `<tr><td>${escapeHtml(t.team.name)}</td><td colspan="4" class="text-light-gray">Nenhuma tática ativa ainda</td></tr>`;
+      return `
+        <div class="tac-item">
+          <div class="tac-head" style="cursor:default">
+            <i class="bi bi-dash-circle" style="color:var(--text-3)"></i>
+            <span class="tac-nome">${escapeHtml(t.team.name)}</span>
+            <span class="tac-vazio">Sem tática enviada</span>
+          </div>
+        </div>`;
     }
-    return `<tr>
-      <td>${escapeHtml(t.team.name)}</td>
-      <td><span class="pun-badge" style="background:#14b8a620;color:#14b8a6;border-color:#14b8a640">${escapeHtml(at.slot_label)}</span></td>
-      <td style="font-size:12px">${(at.starters || []).map(escapeHtml).join(', ') || '—'}</td>
-      <td>${at.rotation_players ?? '—'}</td>
-      <td style="font-size:11px" class="text-light-gray">${at.updated_at ? formatDirectiveTimestampAdmin(at.updated_at) : '—'}</td>
-    </tr>`;
+
+    const marcado = at.feito_no_jogo;
+    const mudancas = [
+      ...(at.titulares || []).filter(x => x.mudou),
+      ...(at.config || []).filter(x => x.mudou),
+    ].length;
+
+    const titulares = (at.titulares || []).length
+      ? at.titulares.map(x => `<span class="tac-jog ${x.mudou ? 'mudou' : ''}">${escapeHtml(x.nome)}</span>`).join('')
+      : '<span class="tac-vazio">—</span>';
+
+    const config = (at.config || []).filter(c => c.valor !== null).map(c => `
+      <div class="tac-campo ${c.mudou ? 'mudou' : ''}">
+        <span class="tac-campo-rotulo">${escapeHtml(c.rotulo)}</span>
+        <span class="tac-campo-valor">${escapeHtml(String(c.valor))}</span>
+      </div>`).join('') || '<div class="tac-vazio">Nenhuma configuração preenchida.</div>';
+
+    return `
+      <div class="tac-item">
+        <div class="tac-head" onclick="_tacToggle(${tid})">
+          <i class="bi bi-chevron-right tac-seta" id="tac-seta-${tid}"></i>
+          <span class="tac-nome">${escapeHtml(t.team.name)}</span>
+          <span class="pun-badge" style="background:#14b8a620;color:#14b8a6;border-color:#14b8a640">${escapeHtml(at.slot_label)}</span>
+          ${mudancas > 0 ? `<span class="tac-mudou-badge">${mudancas} ${mudancas === 1 ? 'mudança' : 'mudanças'}</span>` : ''}
+          <span class="tac-data">${at.updated_at ? formatDirectiveTimestampAdmin(at.updated_at) : '—'}</span>
+          <label class="tac-feito" onclick="event.stopPropagation()">
+            <input type="checkbox" ${marcado ? 'checked' : ''} onchange="_tacFeito(${tid}, this.checked, this)">
+            <span>Feito no jogo</span>
+          </label>
+        </div>
+        <div class="tac-corpo" id="tac-corpo-${tid}">
+          ${!at.tem_snapshot ? `
+          <div class="tac-aviso">
+            <i class="bi bi-info-circle"></i>
+            Ainda não houve virada de temporada com esta tática — nada a comparar, então nada aparece em vermelho.
+          </div>` : ''}
+          <div class="tac-secao">Titulares</div>
+          <div class="tac-jogadores">${titulares}</div>
+          ${(at.banco || []).length ? `
+            <div class="tac-secao">Banco</div>
+            <div class="tac-jogadores">${at.banco.map(n => `<span class="tac-jog">${escapeHtml(n)}</span>`).join('')}</div>` : ''}
+          ${(at.gleague || []).length ? `
+            <div class="tac-secao">G-League</div>
+            <div class="tac-jogadores">${at.gleague.map(n => `<span class="tac-jog">${escapeHtml(n)}</span>`).join('')}</div>` : ''}
+          <div class="tac-secao">Configurações</div>
+          <div class="tac-campos">${config}</div>
+        </div>
+      </div>`;
   }).join('');
 
   const _dirBack = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
@@ -3779,16 +3832,69 @@ function renderTaticaAdmin(league, win, teams) {
 
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title"><i class="bi bi-broadcast"></i> Tática ativa de cada time</div>
+        <div class="panel-title"><i class="bi bi-broadcast"></i> Tática de cada time</div>
       </div>
-      <div class="table-responsive">
-        <table class="table table-dark table-sm align-middle">
-          <thead><tr><th>Time</th><th>Tática</th><th>Titulares</th><th>Rotação</th><th>Atualizado</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="5" class="text-light-gray">Nenhum time nesta liga.</td></tr>'}</tbody>
-        </table>
+      <div style="font-size:11.5px;color:var(--text-3);margin-bottom:12px">
+        Abra um time pra ver a tática exata dele. Em <span style="color:#ef4444;font-weight:700">vermelho</span>,
+        o que o time mexeu desde a virada da temporada. O "Feito no jogo" zera sozinho a cada temporada nova.
       </div>
+      <div class="tac-lista">${rows || '<div class="tac-vazio">Nenhum time nesta liga.</div>'}</div>
     </div>
+
+    <style>
+      .tac-lista { display:flex; flex-direction:column; gap:7px; }
+      .tac-item { border:1px solid var(--border); border-radius:10px; background:var(--panel-2); overflow:hidden; }
+      .tac-head { display:flex; align-items:center; gap:10px; padding:11px 14px; cursor:pointer; flex-wrap:wrap; }
+      .tac-head:hover { background:var(--panel-3); }
+      .tac-seta { color:var(--text-3); font-size:12px; transition:transform .18s; flex-shrink:0; }
+      .tac-seta.aberto { transform:rotate(90deg); }
+      .tac-nome { font-size:13.5px; font-weight:700; flex:1; min-width:140px; }
+      .tac-data { font-size:11px; color:var(--text-3); }
+      .tac-mudou-badge { font-size:10px; font-weight:700; padding:1px 8px; border-radius:999px;
+        background:rgba(239,68,68,.12); color:#ef4444; border:1px solid rgba(239,68,68,.3); }
+      .tac-feito { display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600;
+        color:var(--text-2); cursor:pointer; margin:0; white-space:nowrap; }
+      .tac-corpo { display:none; padding:4px 14px 14px; border-top:1px solid var(--border); }
+      .tac-corpo.aberto { display:block; }
+      .tac-secao { font-size:10px; font-weight:800; letter-spacing:.9px; text-transform:uppercase;
+        color:var(--text-3); margin:14px 0 7px; }
+      .tac-jogadores { display:flex; flex-wrap:wrap; gap:6px; }
+      .tac-jog { font-size:12px; font-weight:600; padding:4px 10px; border-radius:8px;
+        background:var(--panel-3); border:1px solid var(--border); }
+      .tac-jog.mudou { border-color:rgba(239,68,68,.45); color:#ef4444; background:rgba(239,68,68,.08); }
+      .tac-campos { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:7px; }
+      .tac-campo { display:flex; align-items:center; justify-content:space-between; gap:10px;
+        padding:7px 11px; border-radius:8px; background:var(--panel-3); border:1px solid var(--border); }
+      .tac-campo.mudou { border-color:rgba(239,68,68,.45); background:rgba(239,68,68,.08); }
+      .tac-campo-rotulo { font-size:11px; color:var(--text-3); }
+      .tac-campo.mudou .tac-campo-rotulo { color:#ef4444; }
+      .tac-campo-valor { font-size:12px; font-weight:700; text-align:right; }
+      .tac-campo.mudou .tac-campo-valor { color:#ef4444; }
+      .tac-vazio { font-size:12px; color:var(--text-3); }
+      .tac-aviso { font-size:11.5px; color:var(--text-3); background:var(--panel-3);
+        border:1px solid var(--border); border-radius:8px; padding:8px 12px; margin-top:12px; }
+    </style>
   `;
+}
+
+function _tacToggle(teamId) {
+  document.getElementById(`tac-corpo-${teamId}`)?.classList.toggle('aberto');
+  document.getElementById(`tac-seta-${teamId}`)?.classList.toggle('aberto');
+}
+
+async function _tacFeito(teamId, feito, el) {
+  el.disabled = true;
+  try {
+    await api('tactics.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'admin_feito_no_jogo', team_id: teamId, feito }),
+    });
+  } catch (e) {
+    el.checked = !feito;
+    showAlert('danger', e.error || e.message || 'Não consegui salvar.');
+  } finally {
+    el.disabled = false;
+  }
 }
 
 async function saveTaticaCutoff(league) {

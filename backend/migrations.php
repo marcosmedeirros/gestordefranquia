@@ -1251,6 +1251,24 @@ function runMigrations() {
     }
 
     try {
+        // Card de Tática no Admin: marcar o que já foi aplicado dentro do jogo
+        // e conseguir mostrar em vermelho o que o time mexeu desde a virada da
+        // temporada. O snapshot guarda a tática como ela estava na virada.
+        $cols = [];
+        foreach ($pdo->query("SHOW COLUMNS FROM team_tactics")->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            $cols[$c['Field']] = true;
+        }
+        if (!isset($cols['feito_no_jogo'])) {
+            $pdo->exec("ALTER TABLE team_tactics ADD COLUMN feito_no_jogo TINYINT(1) NOT NULL DEFAULT 0");
+        }
+        if (!isset($cols['snapshot_json'])) {
+            $pdo->exec("ALTER TABLE team_tactics ADD COLUMN snapshot_json TEXT NULL");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_team_tactics_admin: " . $e->getMessage();
+    }
+
+    try {
         // league_sprint_config.max_seasons vinha sendo sobrescrito pra valores
         // errados em toda request (bug do ensureLeagueSprintDefaults, ja corrigido)
         // — corrige os valores atuais uma unica vez pros corretos. Roda so uma vez:
