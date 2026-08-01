@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } elseif (!in_array($liga, $ligas_validas, true)) {
         $erro = "Selecione uma liga válida.";
     } else {
-        $stmt = $pdo->prepare("SELECT id FROM usuarios WHERE email = :email");
+        $stmt = $pdo->prepare("SELECT id FROM games_usuarios WHERE email = :email");
         $stmt->execute([':email' => $email]);
 
         if ($stmt->rowCount() > 0) {
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             } catch (Exception $e) {}
 
             try {
-                $sql = "INSERT INTO usuarios (nome, email, senha, pontos, is_admin, league) VALUES (:nome, :email, :senha, 50.00, 0, :league)";
+                $sql = "INSERT INTO games_usuarios (nome, email, senha, pontos, is_admin, league) VALUES (:nome, :email, :senha, 50.00, 0, :league)";
                 $pdo->prepare($sql)->execute([':nome' => $nome, ':email' => $email, ':senha' => $senhaHash, ':league' => $liga]);
                 $sucesso = "Conta criada com sucesso! Redirecionando...";
                 header("refresh:2;url=login.php");

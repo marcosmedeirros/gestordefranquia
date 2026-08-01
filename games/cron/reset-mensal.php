@@ -63,7 +63,7 @@ try {
     $pdo->exec("
         INSERT INTO retrospectiva_anual (user_id, ano, total_fba_points, total_moedas)
         SELECT id, {$ano}, COALESCE(fba_points, 0), COALESCE(pontos, 0)
-        FROM usuarios
+        FROM games_usuarios
         ON DUPLICATE KEY UPDATE
             total_fba_points = total_fba_points + VALUES(total_fba_points),
             total_moedas     = total_moedas     + VALUES(total_moedas)
@@ -78,10 +78,10 @@ try {
     $pdo->beginTransaction();
 
     // Conta usuários antes do reset para o log
-    $total = (int)$pdo->query("SELECT COUNT(*) FROM usuarios")->fetchColumn();
+    $total = (int)$pdo->query("SELECT COUNT(*) FROM games_usuarios")->fetchColumn();
 
     // Zera moedas (pontos) e FBA Points
-    $afetados = $pdo->exec("UPDATE usuarios SET pontos = 0, fba_points = 0");
+    $afetados = $pdo->exec("UPDATE games_usuarios SET pontos = 0, fba_points = 0");
 
     $pdo->commit();
 

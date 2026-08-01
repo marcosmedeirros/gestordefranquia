@@ -9,7 +9,7 @@ require '../core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 
-$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = :id");
+$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM games_usuarios WHERE id = :id");
 $stmt->execute([':id' => $_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -26,11 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!empty($_POST['action'])) {
         try {
             if ($_POST['action'] === 'zerar_pontos') {
-                $pdo->exec("UPDATE usuarios SET pontos = 0, fba_points = 0");
+                $pdo->exec("UPDATE games_usuarios SET pontos = 0, fba_points = 0");
                 $mensagem = 'FBA Points e Moedas zerados para todos os usuários.';
                 $msgType  = 'success';
             } elseif ($_POST['action'] === 'resetar_tapas') {
-                $pdo->exec("UPDATE usuarios SET tapas_disponiveis = 2");
+                $pdo->exec("UPDATE games_usuarios SET tapas_disponiveis = 2");
                 $mensagem = 'Tapas disponíveis resetadas para 2/2 para todos os usuários.';
                 $msgType  = 'success';
             }

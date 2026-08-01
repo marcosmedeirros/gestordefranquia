@@ -15,7 +15,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $senhaHash = password_hash($senha, PASSWORD_DEFAULT);
 
     try {
-        $sql = "INSERT INTO usuarios (nome, email, senha) VALUES (:nome, :email, :senha)";
+        $sql = "INSERT INTO games_usuarios (nome, email, senha) VALUES (:nome, :email, :senha)";
         $stmt = $pdo->prepare($sql);
         
         $stmt->bindParam(':nome', $nome);

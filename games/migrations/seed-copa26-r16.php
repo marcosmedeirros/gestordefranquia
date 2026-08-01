@@ -2,7 +2,7 @@
 session_start();
 require __DIR__ . '/../core/conexao.php';
 if (!isset($_SESSION['user_id'])) { http_response_code(403); die('Não autorizado'); }
-$stmt = $pdo->prepare("SELECT is_admin FROM usuarios WHERE id=?");
+$stmt = $pdo->prepare("SELECT is_admin FROM games_usuarios WHERE id=?");
 $stmt->execute([(int)$_SESSION['user_id']]);
 $u = $stmt->fetch(PDO::FETCH_ASSOC);
 if (empty($u['is_admin'])) { http_response_code(403); die('Apenas admin'); }

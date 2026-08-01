@@ -2,7 +2,7 @@
 session_start();
 require '../core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
-$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id=:id");
+$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM games_usuarios WHERE id=:id");
 $stmt->execute([':id'=>$_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$user || !$user['is_admin']) die("Acesso negado.");
@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && !empty($_POST['acao'])) {
                 $winner->execute([$cycle['id']]);
                 $w = $winner->fetch(PDO::FETCH_ASSOC);
                 if ($w && (int)$w['pts']>0) {
-                    $pdo->prepare("UPDATE usuarios SET fba_points=fba_points+100 WHERE id=?")->execute([$w['user_id']]);
+                    $pdo->prepare("UPDATE games_usuarios SET fba_points=fba_points+100 WHERE id=?")->execute([$w['user_id']]);
                     $pdo->prepare("UPDATE fba_bracket_cycles SET status='closed',winner_user_id=?,points_paid=1 WHERE id=?")->execute([$w['user_id'],$cycle['id']]);
                 } else {
                     $pdo->prepare("UPDATE fba_bracket_cycles SET status='closed' WHERE id=?")->execute([$cycle['id']]);

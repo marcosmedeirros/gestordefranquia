@@ -11,7 +11,7 @@ $user_id = $_SESSION['user_id'];
 $hiddenRankingEmailLower = 'marcoscemd@gmail.com';
 
 try {
-    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, league, fba_points, tapas_disponiveis, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, league, fba_points, tapas_disponiveis, COALESCE(numero_tapas, 0) as numero_tapas FROM games_usuarios WHERE id = :id");
     $stmt->execute([':id' => $user_id]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -92,7 +92,7 @@ try {
 $ranking_leagues = ['GERAL' => 'Geral'];
 $ranking_points  = ['GERAL' => []];
 try {
-    $stmt = $pdo->prepare("SELECT u.id, u.nome, u.pontos, u.league FROM usuarios u WHERE LOWER(u.email) <> :h ORDER BY pontos DESC LIMIT 5");
+    $stmt = $pdo->prepare("SELECT u.id, u.nome, u.pontos, u.league FROM games_usuarios u WHERE LOWER(u.email) <> :h ORDER BY pontos DESC LIMIT 5");
     $stmt->execute([':h' => $hiddenRankingEmailLower]);
     $ranking_points['GERAL'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {}

@@ -492,7 +492,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $curr = json_decode($res, true) ?: [];
                 $newCells = 0;
                 foreach ($curr as $r) { if (!isset($prevKeys[$r['key'] ?? ''])) $newCells++; }
-                if ($newCells > 0) $pdo->prepare("UPDATE usuarios SET pontos = pontos + ? WHERE id = ?")->execute([$newCells * 25, $user_id]);
+                if ($newCells > 0) $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")->execute([$newCells * 25, $user_id]);
             }
             if ($row) {
                 $pdo->prepare("UPDATE hoopgrid_historico SET respostas=?,tentativas_restantes=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")

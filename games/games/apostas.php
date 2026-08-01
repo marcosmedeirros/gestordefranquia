@@ -24,7 +24,7 @@ $user_id = $_SESSION['user_id'];
 
 // 1. Dados do Usuário
 try {
-    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, tapas_disponiveis FROM usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, tapas_disponiveis FROM games_usuarios WHERE id = :id");
     $stmt->execute([':id' => $user_id]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -48,14 +48,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
             $ganho_fba = 100;
 
             $pdo->beginTransaction();
-            $stmtSaldo = $pdo->prepare("SELECT pontos, fba_points FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmtSaldo = $pdo->prepare("SELECT pontos, fba_points FROM games_usuarios WHERE id = :id FOR UPDATE");
             $stmtSaldo->execute([':id' => $user_id]);
             $saldo = $stmtSaldo->fetch(PDO::FETCH_ASSOC);
             if (!$saldo || (int)$saldo['pontos'] < $custo_moedas) {
                 throw new Exception('Moedas insuficientes para a troca.');
             }
 
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos - :cost, fba_points = fba_points + :gain WHERE id = :id")
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :cost, fba_points = fba_points + :gain WHERE id = :id")
                 ->execute([':cost' => $custo_moedas, ':gain' => $ganho_fba, ':id' => $user_id]);
             $pdo->prepare("INSERT INTO fba_shop_purchases (user_id, item, qty) VALUES (:uid, 'moedas_to_fba', 1)")
                 ->execute([':uid' => $user_id]);
@@ -73,14 +73,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao_loja'])) {
             }
 
             $pdo->beginTransaction();
-            $stmtSaldo = $pdo->prepare("SELECT fba_points FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmtSaldo = $pdo->prepare("SELECT fba_points FROM games_usuarios WHERE id = :id FOR UPDATE");
             $stmtSaldo->execute([':id' => $user_id]);
             $saldo = $stmtSaldo->fetch(PDO::FETCH_ASSOC);
             if (!$saldo || (int)$saldo['fba_points'] < $custo_fba) {
                 throw new Exception('FBA Points insuficientes para comprar o tapa.');
             }
 
-            $pdo->prepare("UPDATE usuarios SET fba_points = fba_points - :cost, tapas_disponiveis = GREATEST(COALESCE(tapas_disponiveis, 0) - 1, 0) WHERE id = :id")
+            $pdo->prepare("UPDATE games_usuarios SET fba_points = fba_points - :cost, tapas_disponiveis = GREATEST(COALESCE(tapas_disponiveis, 0) - 1, 0) WHERE id = :id")
                 ->execute([':cost' => $custo_fba, ':id' => $user_id]);
             $pdo->prepare("INSERT INTO fba_shop_purchases (user_id, item, qty) VALUES (:uid, 'tapa', 1)")
                 ->execute([':uid' => $user_id]);

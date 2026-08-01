@@ -41,7 +41,7 @@ try {
 $ano = (int)($_GET['ano'] ?? date('Y'));
 logR("Iniciando snapshot {$ano}...");
 
-$usuarios    = $pdo->query("SELECT id FROM usuarios")->fetchAll(PDO::FETCH_COLUMN);
+$usuarios    = $pdo->query("SELECT id FROM games_usuarios")->fetchAll(PDO::FETCH_COLUMN);
 $processados = 0; $erros = 0;
 
 foreach ($usuarios as $uid) {

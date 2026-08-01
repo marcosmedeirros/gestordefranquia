@@ -33,10 +33,10 @@ $MOEDAS = 200;
 try {
     $pdo->beginTransaction();
 
-    $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :id")
+    $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")
         ->execute([':val' => $MOEDAS, ':id' => $userId]);
 
-    $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id");
     $stmt->execute([':id' => $userId]);
     $novoSaldo = (int)$stmt->fetchColumn();
 

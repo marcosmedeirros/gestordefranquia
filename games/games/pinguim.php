@@ -35,7 +35,7 @@ try {
 
 // 2. Dados do Usuário e Skins
 try {
-    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, skin_equipada FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin, skin_equipada FROM games_usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 
@@ -46,7 +46,7 @@ try {
     $stmtRank = $pdo->prepare("
         SELECT u.nome, MAX(d.pontuacao_final) as recorde
         FROM dino_historico d
-        JOIN usuarios u ON d.id_usuario = u.id
+        JOIN games_usuarios u ON d.id_usuario = u.id
         WHERE LOWER(u.email) <> :hidden_email
         GROUP BY d.id_usuario
         ORDER BY recorde DESC
@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
         try {
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id FOR UPDATE");
             $stmt->execute([':id' => $user_id]);
             if ($stmt->fetchColumn() < $preco) throw new Exception("Saldo insuficiente!");
 
@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $stmtCheck->execute([':uid' => $user_id, ':skin' => $skin]);
             if ($stmtCheck->rowCount() > 0) throw new Exception("Você já possui esta skin!");
 
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $preco, ':id' => $user_id]);
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $preco, ':id' => $user_id]);
             $pdo->prepare("INSERT INTO compras_skins (id_usuario, skin) VALUES (:uid, :skin)")->execute([':uid' => $user_id, ':skin' => $skin]);
 
             $pdo->commit();
@@ -136,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
         if ($skin !== 'default' && $stmtCheck->rowCount() == 0) { echo json_encode(['erro' => 'Skin não adquirida.']); exit; }
 
-        $pdo->prepare("UPDATE usuarios SET skin_equipada = :skin WHERE id = :id")->execute([':skin' => $skin, ':id' => $user_id]);
+        $pdo->prepare("UPDATE games_usuarios SET skin_equipada = :skin WHERE id = :id")->execute([':skin' => $skin, ':id' => $user_id]);
         echo json_encode(['sucesso' => true]);
         exit;
     }
@@ -161,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     $creditado += $coins_per_100;
                 }
 
-                $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :uid")
+                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :uid")
                     ->execute([':val' => $creditado, ':uid' => $user_id]);
 
                 $_SESSION['pinguim_last_milestone'] = $novo_milestone;
@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
             $_SESSION['pinguim_last_score'] = max($last_score, $score_atual);
 
-            $stmtSaldo = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+            $stmtSaldo = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id");
             $stmtSaldo->execute([':id' => $user_id]);
             $novo_saldo = (int)$stmtSaldo->fetchColumn();
 
@@ -187,11 +187,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             if (!$run_active) throw new Exception('Sessão de jogo inválida.');
             if (!empty($_SESSION['pinguim_revive_used'])) throw new Exception('Revive já utilizado.');
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id FOR UPDATE");
             $stmt->execute([':id' => $user_id]);
             $saldo = $stmt->fetchColumn();
             if ($saldo < $custo) throw new Exception("Saldo insuficiente.");
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $custo, ':id' => $user_id]);
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $custo, ':id' => $user_id]);
             $pdo->commit();
             $_SESSION['pinguim_revive_used'] = true;
             echo json_encode(['sucesso' => true, 'novo_saldo' => $saldo - $custo]);

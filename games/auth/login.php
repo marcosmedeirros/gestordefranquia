@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (empty($email) || empty($senha)) {
         $erro = "Preencha todos os campos.";
     } else {
-        $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE email = :email");
+        $stmt = $pdo->prepare("SELECT * FROM games_usuarios WHERE email = :email");
         $stmt->execute([':email' => $email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 

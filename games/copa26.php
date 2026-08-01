@@ -6,7 +6,7 @@ if (!isset($_SESSION['user_id'])) { header("Location: auth/login.php"); exit; }
 
 $user_id = (int)$_SESSION['user_id'];
 try { $pdo->exec("ALTER TABLE usuarios ADD COLUMN copa26_pago TINYINT(1) NOT NULL DEFAULT 0"); } catch(Exception $e){}
-$stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas,0) as numero_tapas, tapas_disponiveis, COALESCE(copa26_pago,0) as copa26_pago FROM usuarios WHERE id=?");
+$stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas,0) as numero_tapas, tapas_disponiveis, COALESCE(copa26_pago,0) as copa26_pago FROM games_usuarios WHERE id=?");
 $stmt->execute([$user_id]);
 $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 $isAdmin = !empty($usuario['is_admin']);
@@ -335,7 +335,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     if ($act==='get_ranking') {
         $rk=[];
         try {
-            $rk=$pdo->query("SELECT u.nome, p.points+COALESCE(SUM(sp.points_earned),0) AS points FROM copa26_predictions p JOIN usuarios u ON u.id=p.user_id LEFT JOIN copa26_score_preds sp ON sp.user_id=p.user_id WHERE u.copa26_pago=1 GROUP BY p.user_id,u.nome,p.points,p.submitted_at ORDER BY points DESC, (p.submitted_at IS NOT NULL) DESC, p.submitted_at ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+            $rk=$pdo->query("SELECT u.nome, p.points+COALESCE(SUM(sp.points_earned),0) AS points FROM copa26_predictions p JOIN games_usuarios u ON u.id=p.user_id LEFT JOIN copa26_score_preds sp ON sp.user_id=p.user_id WHERE u.copa26_pago=1 GROUP BY p.user_id,u.nome,p.points,p.submitted_at ORDER BY points DESC, (p.submitted_at IS NOT NULL) DESC, p.submitted_at ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
         } catch(Exception $e){}
         echo json_encode(['ok'=>true,'ranking'=>$rk]); exit;
     }
@@ -505,7 +505,7 @@ $offBracket = $official?(json_decode($official['bracket_json'] ??'{}',true)?:[])
 
 $ranking=[];
 try {
-    $ranking=$pdo->query("SELECT u.nome, p.points+COALESCE(SUM(sp.points_earned),0) AS points, p.champion, p.submitted_at FROM copa26_predictions p JOIN usuarios u ON u.id=p.user_id LEFT JOIN copa26_score_preds sp ON sp.user_id=p.user_id WHERE u.copa26_pago=1 GROUP BY p.user_id,u.nome,p.points,p.champion,p.submitted_at ORDER BY points DESC, (p.submitted_at IS NOT NULL) DESC, p.submitted_at ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+    $ranking=$pdo->query("SELECT u.nome, p.points+COALESCE(SUM(sp.points_earned),0) AS points, p.champion, p.submitted_at FROM copa26_predictions p JOIN games_usuarios u ON u.id=p.user_id LEFT JOIN copa26_score_preds sp ON sp.user_id=p.user_id WHERE u.copa26_pago=1 GROUP BY p.user_id,u.nome,p.points,p.champion,p.submitted_at ORDER BY points DESC, (p.submitted_at IS NOT NULL) DESC, p.submitted_at ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
 } catch(Exception $e){}
 
 

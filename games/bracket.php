@@ -4,7 +4,7 @@ require 'core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: auth/login.php"); exit; }
 
 $user_id = $_SESSION['user_id'];
-$stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, tapas_disponiveis, COALESCE(numero_tapas,0) as numero_tapas FROM usuarios WHERE id=:id");
+$stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, tapas_disponiveis, COALESCE(numero_tapas,0) as numero_tapas FROM games_usuarios WHERE id=:id");
 $stmt->execute([':id' => $user_id]);
 $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -61,7 +61,7 @@ function closeCycleIfExpired(PDO $pdo, array $cycle, ?int $dow): void {
     $w = $pdo->prepare("SELECT user_id, MAX(points) as pts FROM fba_bracket_picks WHERE cycle_id=? AND locked=1 GROUP BY user_id ORDER BY pts DESC LIMIT 1");
     $w->execute([$cycle['id']]); $winner = $w->fetch(PDO::FETCH_ASSOC);
     if ($winner && (int)$winner['pts']>0) {
-        $pdo->prepare("UPDATE usuarios SET fba_points=fba_points+100 WHERE id=?")->execute([$winner['user_id']]);
+        $pdo->prepare("UPDATE games_usuarios SET fba_points=fba_points+100 WHERE id=?")->execute([$winner['user_id']]);
         $pdo->prepare("UPDATE fba_bracket_cycles SET status='closed',winner_user_id=?,points_paid=1 WHERE id=?")->execute([$winner['user_id'],$cycle['id']]);
     } else $pdo->prepare("UPDATE fba_bracket_cycles SET status='closed' WHERE id=?")->execute([$cycle['id']]);
 }
@@ -110,7 +110,7 @@ foreach ($leagues as $lg) {
     $officialResults[$lg]=$official;
     if ($pick&&$official) { $np=calcPoints($pick,$official); if($np!=(int)$pick['points']){$pdo->prepare("UPDATE fba_bracket_picks SET points=? WHERE id=?")->execute([$np,$pick['id']]);$pick['points']=$np;} }
     $userPicks[$lg]=$pick?:null;
-    $stmt3=$pdo->prepare("SELECT p.user_id,u.nome,p.points,p.locked,p.locked_at FROM fba_bracket_picks p JOIN usuarios u ON u.id=p.user_id WHERE p.cycle_id=? ORDER BY p.points DESC,p.locked_at ASC LIMIT 20"); $stmt3->execute([$cid]); $rankings[$lg]=$stmt3->fetchAll(PDO::FETCH_ASSOC);
+    $stmt3=$pdo->prepare("SELECT p.user_id,u.nome,p.points,p.locked,p.locked_at FROM fba_bracket_picks p JOIN games_usuarios u ON u.id=p.user_id WHERE p.cycle_id=? ORDER BY p.points DESC,p.locked_at ASC LIMIT 20"); $stmt3->execute([$cid]); $rankings[$lg]=$stmt3->fetchAll(PDO::FETCH_ASSOC);
 }
 
 $dayNames=[1=>'Segunda',2=>'Terça',3=>'Quarta',4=>'Quinta',5=>'Sexta',6=>'Sábado',7=>'Domingo'];

@@ -24,7 +24,7 @@ try {
 
     ensureResetColumns($pdo);
 
-    $stmt = $pdo->prepare('SELECT id, reset_token_expiry FROM usuarios WHERE reset_token = ? LIMIT 1');
+    $stmt = $pdo->prepare('SELECT id, reset_token_expiry FROM games_usuarios WHERE reset_token = ? LIMIT 1');
     $stmt->execute([$token]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -38,7 +38,7 @@ try {
     }
 
     $hash = password_hash($password, PASSWORD_BCRYPT);
-    $update = $pdo->prepare('UPDATE usuarios SET senha = :senha, reset_token = NULL, reset_token_expiry = NULL WHERE id = :id');
+    $update = $pdo->prepare('UPDATE games_usuarios SET senha = :senha, reset_token = NULL, reset_token_expiry = NULL WHERE id = :id');
     $update->execute([':senha' => $hash, ':id' => $user['id']]);
 
     jsonResponse(200, ['message' => 'Senha redefinida com sucesso!']);

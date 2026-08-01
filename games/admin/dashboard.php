@@ -5,7 +5,7 @@ require '../core/funcoes.php';
 
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 
-$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = :id");
+$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM games_usuarios WHERE id = :id");
 $stmt->execute([':id' => $_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $pdo->prepare("UPDATE eventos SET status='encerrada', vencedor_opcao_id=? WHERE id=?")
                     ->execute([$vencedor_opcao_id, $id_evento]);
                 $payStmt = $pdo->prepare("
-                    UPDATE usuarios u
+                    UPDATE games_usuarios u
                     JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id=?) p ON p.id_usuario=u.id
                     SET u.fba_points=u.fba_points+75, u.acertos_eventos=u.acertos_eventos+1
                 ");
@@ -131,13 +131,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 } else {
                     if (!empty($vencedor_antigo)) {
                         $pdo->prepare("
-                            UPDATE usuarios u
+                            UPDATE games_usuarios u
                             JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id=?) p ON p.id_usuario=u.id
                             SET u.fba_points=u.fba_points-75, u.acertos_eventos=GREATEST(u.acertos_eventos-1,0)
                         ")->execute([$vencedor_antigo]);
                     }
                     $pdo->prepare("
-                        UPDATE usuarios u
+                        UPDATE games_usuarios u
                         JOIN (SELECT DISTINCT id_usuario FROM palpites WHERE opcao_id=?) p ON p.id_usuario=u.id
                         SET u.fba_points=u.fba_points+75, u.acertos_eventos=u.acertos_eventos+1
                     ")->execute([$novo_vencedor_opcao_id]);

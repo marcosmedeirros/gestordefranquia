@@ -451,7 +451,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($new_groups > 0) {
-          $pdo->prepare("UPDATE usuarios SET pontos = pontos + ? WHERE id = ?")
+          $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")
             ->execute([$new_groups * 50, $user_id]);
         }
       }

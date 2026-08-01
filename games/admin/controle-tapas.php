@@ -4,7 +4,7 @@ require '../core/conexao.php';
 
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 
-$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM usuarios WHERE id = :id");
+$stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points, COALESCE(numero_tapas, 0) as numero_tapas FROM games_usuarios WHERE id = :id");
 $stmt->execute([':id' => $_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -18,10 +18,10 @@ $hiddenEmailLower = 'marcoscemd@gmail.com';
 // ENDPOINTS AJAX
 // =========================================================================
 if (isset($_GET['ajax_tapas'])) {
-    $stmtTapas = $pdo->prepare("SELECT id, nome, numero_tapas FROM usuarios WHERE numero_tapas > 0 AND LOWER(email) <> ? ORDER BY numero_tapas DESC, nome ASC");
+    $stmtTapas = $pdo->prepare("SELECT id, nome, numero_tapas FROM games_usuarios WHERE numero_tapas > 0 AND LOWER(email) <> ? ORDER BY numero_tapas DESC, nome ASC");
     $stmtTapas->execute([$hiddenEmailLower]);
     $usuarios_tapas = $stmtTapas->fetchAll(PDO::FETCH_ASSOC);
-    $stmtAllUsers = $pdo->prepare("SELECT id, nome FROM usuarios WHERE LOWER(email) <> ? ORDER BY nome ASC");
+    $stmtAllUsers = $pdo->prepare("SELECT id, nome FROM games_usuarios WHERE LOWER(email) <> ? ORDER BY nome ASC");
     $stmtAllUsers->execute([$hiddenEmailLower]);
     $todos_usuarios = $stmtAllUsers->fetchAll(PDO::FETCH_ASSOC);
     header('Content-Type: application/json');
@@ -33,12 +33,12 @@ if (isset($_POST['admin_tapa_action']) && isset($_POST['ajax'])) {
     $msg = '';
     if ($_POST['admin_tapa_action'] === 'remover' && !empty($_POST['remover_id'])) {
         $id = (int)$_POST['remover_id'];
-        $pdo->prepare("UPDATE usuarios SET numero_tapas = GREATEST(numero_tapas-1,0) WHERE id = ?")->execute([$id]);
+        $pdo->prepare("UPDATE games_usuarios SET numero_tapas = GREATEST(numero_tapas-1,0) WHERE id = ?")->execute([$id]);
         $msg = 'Tapa removido!';
     }
     if ($_POST['admin_tapa_action'] === 'adicionar' && !empty($_POST['adicionar_id'])) {
         $id = (int)$_POST['adicionar_id'];
-        $pdo->prepare("UPDATE usuarios SET numero_tapas = COALESCE(numero_tapas,0)+1 WHERE id = ?")->execute([$id]);
+        $pdo->prepare("UPDATE games_usuarios SET numero_tapas = COALESCE(numero_tapas,0)+1 WHERE id = ?")->execute([$id]);
         $msg = 'Tapa adicionado!';
     }
     header('Content-Type: application/json');

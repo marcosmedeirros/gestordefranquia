@@ -18,7 +18,7 @@ try {
 
     ensureResetColumns($pdo);
 
-    $stmt = $pdo->prepare('SELECT id, nome FROM usuarios WHERE email = ? LIMIT 1');
+    $stmt = $pdo->prepare('SELECT id, nome FROM games_usuarios WHERE email = ? LIMIT 1');
     $stmt->execute([$email]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -30,7 +30,7 @@ try {
     $token = bin2hex(random_bytes(32));
     $expiry = date('Y-m-d H:i:s', strtotime('+1 hour'));
 
-    $update = $pdo->prepare('UPDATE usuarios SET reset_token = ?, reset_token_expiry = ? WHERE id = ?');
+    $update = $pdo->prepare('UPDATE games_usuarios SET reset_token = ?, reset_token_expiry = ? WHERE id = ?');
     $update->execute([$token, $expiry, $user['id']]);
 
     $resetUrl = buildGamesResetUrl($token);

@@ -5,7 +5,7 @@ require '../core/conexao.php';
 if (!isset($_SESSION['user_id'])) { header("Location: ../auth/login.php"); exit; }
 
 $user_id = (int)$_SESSION['user_id'];
-$stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas,0) as numero_tapas FROM usuarios WHERE id=?");
+$stmt = $pdo->prepare("SELECT nome, pontos, is_admin, fba_points, COALESCE(numero_tapas,0) as numero_tapas FROM games_usuarios WHERE id=?");
 $stmt->execute([$user_id]);
 $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 $isAdmin = !empty($usuario['is_admin']);
@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($act === 'toggle_pago') {
         $uid  = (int)($body['user_id'] ?? 0);
         $pago = (int)($body['pago'] ?? 0) ? 1 : 0;
-        $pdo->prepare("UPDATE usuarios SET copa26_pago=? WHERE id=?")->execute([$pago, $uid]);
+        $pdo->prepare("UPDATE games_usuarios SET copa26_pago=? WHERE id=?")->execute([$pago, $uid]);
         echo json_encode(['ok'=>true]);
     }
     exit;
@@ -34,7 +34,7 @@ try {
     $participants = $pdo->query("
         SELECT u.id, u.nome, u.email, u.copa26_pago,
                p.submitted_at, p.points, p.champion
-        FROM usuarios u
+        FROM games_usuarios u
         LEFT JOIN copa26_predictions p ON p.user_id = u.id
         ORDER BY u.copa26_pago DESC, p.submitted_at DESC, u.nome ASC
     ")->fetchAll(PDO::FETCH_ASSOC);

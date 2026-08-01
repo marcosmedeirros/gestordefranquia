@@ -286,7 +286,7 @@ function abrirLootBox($pdo, $user_id, $tipo_caixa) {
     
     try {
         // Verificar saldo
-        $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+        $stmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id");
         $stmt->execute([':id' => $user_id]);
         $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -333,7 +333,7 @@ function abrirLootBox($pdo, $user_id, $tipo_caixa) {
         if (!$pdo->inTransaction()) $pdo->beginTransaction();
 
         // Descontar pontos
-        $stmt = $pdo->prepare("UPDATE usuarios SET pontos = pontos - :preco WHERE id = :id AND pontos >= :preco");
+        $stmt = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :preco WHERE id = :id AND pontos >= :preco");
         $stmt->execute([':preco' => $caixa['preco'], ':id' => $user_id]);
         
         if ($stmt->rowCount() === 0) {
@@ -364,7 +364,7 @@ function abrirLootBox($pdo, $user_id, $tipo_caixa) {
                 $item_duplicado = true;
                 
                 // Adicionar 10 moedas pelo item duplicado
-                $stmtBonus = $pdo->prepare("UPDATE usuarios SET pontos = pontos + 10 WHERE id = :id");
+                $stmtBonus = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + 10 WHERE id = :id");
                 $stmtBonus->execute([':id' => $user_id]);
                 @file_put_contents($logFile, "  ✨ +10 moedas adicionadas por item duplicado\n", FILE_APPEND | LOCK_EX);
             } else {
@@ -380,7 +380,7 @@ function abrirLootBox($pdo, $user_id, $tipo_caixa) {
         @file_put_contents($logFile, "  Transação commitada\n", FILE_APPEND | LOCK_EX);
 
         // Buscar pontos atuais
-        $stmt = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id");
+        $stmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id");
         $stmt->execute([':id' => $user_id]);
         $usuarioAtual = $stmt->fetch(PDO::FETCH_ASSOC);
         

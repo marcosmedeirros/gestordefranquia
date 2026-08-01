@@ -40,7 +40,7 @@ try {
         pronto TINYINT(1) DEFAULT 0
     )");
 
-    $stmtMe = $pdo->prepare("SELECT nome, pontos FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT nome, pontos FROM games_usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 
@@ -48,7 +48,7 @@ try {
     $stmtRank = $pdo->query("
         SELECT u.nome, COUNT(s.id) as vitorias
         FROM naval_salas s
-        JOIN usuarios u ON s.vencedor_id = u.id
+        JOIN games_usuarios u ON s.vencedor_id = u.id
         WHERE s.status = 'fim'
         GROUP BY s.vencedor_id
         ORDER BY vitorias DESC
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $stmt = $pdo->prepare("
                 SELECT s.*, u.nome as criador 
                 FROM naval_salas s
-                JOIN usuarios u ON s.id_jog1 = u.id
+                JOIN games_usuarios u ON s.id_jog1 = u.id
                 WHERE s.status = 'aguardando'
                 ORDER BY s.id DESC
             ");
@@ -121,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $pdo->beginTransaction();
             
             // Verifica Saldo
-            $stmtS = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmtS = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id FOR UPDATE");
             $stmtS->execute([':id' => $user_id]);
             if ($stmtS->fetchColumn() < $valor) throw new Exception("Saldo insuficiente.");
 
@@ -131,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $sala_id = $pdo->lastInsertId();
 
             // Debita do Criador
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :uid")->execute([':val' => $valor, ':uid' => $user_id]);
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :val WHERE id = :uid")->execute([':val' => $valor, ':uid' => $user_id]);
 
             // Prepara Tabuleiro do Criador
             $pdo->prepare("INSERT INTO naval_tabuleiros (id_sala, id_usuario, navios, tiros_recebidos) VALUES (:sid, :uid, '[]', '[]')")
@@ -159,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             if ($sala['status'] != 'aguardando') throw new Exception("Sala não está mais disponível.");
 
             // Reembolsa os pontos ao criador
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :uid")
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :uid")
                 ->execute([':val' => $valor, ':uid' => $user_id]);
 
             // Deleta a sala
@@ -189,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $aposta = $sala['valor_aposta'] ?? 10;
 
             // Verifica Saldo
-            $stmtS = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+            $stmtS = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id FOR UPDATE");
             $stmtS->execute([':id' => $user_id]);
             if ($stmtS->fetchColumn() < $aposta) throw new Exception("Saldo insuficiente.");
 
@@ -198,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 ->execute([':uid' => $user_id, ':id' => $sala_id]);
 
             // Debita do Desafiante
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :uid")
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :val WHERE id = :uid")
                 ->execute([':val' => $aposta, ':uid' => $user_id]);
 
             // Prepara Tabuleiro do Desafiante
@@ -218,8 +218,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $stmtS = $pdo->prepare("
                 SELECT s.*, u1.nome as nome1, u2.nome as nome2 
                 FROM naval_salas s
-                LEFT JOIN usuarios u1 ON s.id_jog1 = u1.id
-                LEFT JOIN usuarios u2 ON s.id_jog2 = u2.id
+                LEFT JOIN games_usuarios u1 ON s.id_jog1 = u1.id
+                LEFT JOIN games_usuarios u2 ON s.id_jog2 = u2.id
                 WHERE s.id = :id
             ");
             $stmtS->execute([':id' => $sala_id]);
@@ -344,7 +344,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 
                 // Paga Prêmio (Total das apostas)
                 $premio = ($sala['valor_aposta'] ?? 10) * 2;
-                $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $premio, ':id' => $user_id]);
+                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $premio, ':id' => $user_id]);
             } else {
                 if (!$acertou) {
                     $pdo->prepare("UPDATE naval_salas SET vez_de = :vez WHERE id = :id")
@@ -380,7 +380,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     ->execute([':vid' => $oponente_id, ':id' => $sala_id]);
 
                 $premio = ($sala['valor_aposta'] ?? 10) * 2;
-                $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :id")
+                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")
                     ->execute([':val' => $premio, ':id' => $oponente_id]);
 
                 $pdo->commit();
@@ -390,7 +390,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 // Sem oponente: encerra sala e reembolsa o criador
                 // Se o usuário que criou é quem desistiu, reembolsa
                 if ($sala['id_jog1'] == $user_id) {
-                    $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :id")
+                    $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")
                         ->execute([':val' => ($sala['valor_aposta'] ?? 10), ':id' => $user_id]);
                 }
                 $pdo->prepare("UPDATE naval_salas SET status = 'fim' WHERE id = :id")->execute([':id' => $sala_id]);

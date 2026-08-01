@@ -30,7 +30,7 @@ $user_id = $_SESSION['user_id'];
 
 // --- 2. DADOS DO USUÁRIO (PARA O HEADER) ---
 try {
-    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin FROM games_usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -151,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             try {
                 $pdo->beginTransaction();
 
-                $pdo->prepare("UPDATE usuarios SET pontos = pontos + :pts WHERE id = :uid")
+                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :pts WHERE id = :uid")
                     ->execute([':pts' => $pontos, ':uid' => $user_id]);
 
                 $pdo->commit();

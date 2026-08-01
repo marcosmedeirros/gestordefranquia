@@ -10,7 +10,7 @@ $user_id = $_SESSION['user_id'];
 $sala_id = 1; 
 
 try {
-    $stmtMe = $pdo->prepare("SELECT id, nome, pontos, fba_points FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT id, nome, pontos, fba_points FROM games_usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -219,7 +219,7 @@ function finalizar_mao($pdo, $sala_id, $vencedor_info, $vencedor_mao = null) {
 
 function remover_prontos_expirados($pdo, $sala_id) {
     $pdo->beginTransaction();
-    $pdo->prepare("UPDATE usuarios u JOIN poker_jogadores p ON u.id = p.id_usuario SET u.pontos = u.pontos + p.chips WHERE p.id_sala = :sala AND p.aguardando = 0 AND p.pronto = 0 AND p.pronto_deadline IS NOT NULL AND p.pronto_deadline < NOW()")
+    $pdo->prepare("UPDATE games_usuarios u JOIN poker_jogadores p ON u.id = p.id_usuario SET u.pontos = u.pontos + p.chips WHERE p.id_sala = :sala AND p.aguardando = 0 AND p.pronto = 0 AND p.pronto_deadline IS NOT NULL AND p.pronto_deadline < NOW()")
         ->execute([':sala' => $sala_id]);
     $pdo->prepare("DELETE FROM poker_jogadores WHERE id_sala = :sala AND aguardando = 0 AND pronto = 0 AND pronto_deadline IS NOT NULL AND pronto_deadline < NOW()")
         ->execute([':sala' => $sala_id]);
@@ -283,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $pronto_deadline = ($sala && $sala['status'] === 'esperando') ? date('Y-m-d H:i:s', time() + 60) : null;
 
             $pdo->beginTransaction();
-            $pdo->prepare("UPDATE usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $buy_in, ':id' => $user_id]);
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $buy_in, ':id' => $user_id]);
             $pdo->prepare("INSERT INTO poker_jogadores (id_sala, id_usuario, nome, chips, status, posicao, pronto, aguardando, pronto_deadline) VALUES (:sala, :uid, :nome, :chips, 'ativo', :pos, 0, :aguardando, :deadline)")
                 ->execute([':sala' => $sala_id, ':uid' => $user_id, ':nome' => $meu_perfil['nome'], ':chips' => $buy_in, ':pos' => $pos, ':aguardando' => $aguardando, ':deadline' => $pronto_deadline]);
             $pdo->commit();
@@ -297,7 +297,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $meuAssento = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($meuAssento) {
-                $pdo->prepare("UPDATE usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $meuAssento['chips'], ':id' => $user_id]);
+                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $meuAssento['chips'], ':id' => $user_id]);
                 $pdo->prepare("DELETE FROM poker_jogadores WHERE id_sala = :sala AND id_usuario = :uid")->execute([':sala' => $sala_id, ':uid' => $user_id]);
             }
             $pdo->commit();

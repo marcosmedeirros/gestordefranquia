@@ -20,7 +20,7 @@ try {
 } catch (Exception $e) {}
 
 try {
-    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin FROM usuarios WHERE id = :id");
+    $stmtMe = $pdo->prepare("SELECT nome, pontos, is_admin FROM games_usuarios WHERE id = :id");
     $stmtMe->execute([':id' => $user_id]);
     $meu_perfil = $stmtMe->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 
     try {
         $pdo->beginTransaction();
-        $stmtSaldo = $pdo->prepare("SELECT pontos FROM usuarios WHERE id = :id FOR UPDATE");
+        $stmtSaldo = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id FOR UPDATE");
         $stmtSaldo->execute([':id' => $user_id]);
         $saldo = (int)$stmtSaldo->fetchColumn();
 
@@ -97,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao']) && $_POST['ac
 
         $novo_saldo = $saldo - $aposta + $premio;
 
-        $stmtUpd = $pdo->prepare("UPDATE usuarios SET pontos = :p WHERE id = :id");
+        $stmtUpd = $pdo->prepare("UPDATE games_usuarios SET pontos = :p WHERE id = :id");
         $stmtUpd->execute([':p' => $novo_saldo, ':id' => $user_id]);
 
         $stmtHist = $pdo->prepare("INSERT INTO tigrinho_historico (id_usuario, aposta, premio, simbolos) VALUES (:id, :aposta, :premio, :simbolos)");

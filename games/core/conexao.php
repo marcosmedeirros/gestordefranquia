@@ -16,7 +16,7 @@ try {
     // Configura o PDO para lançar exceções em caso de erro (bom para debug)
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     try {
-        $stmt = $pdo->prepare("SHOW COLUMNS FROM usuarios LIKE 'fba_points'");
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM games_usuarios LIKE 'fba_points'");
         $stmt->execute();
         if (!$stmt->fetch()) {
             $pdo->exec("ALTER TABLE usuarios ADD COLUMN fba_points INT NOT NULL DEFAULT 0 AFTER pontos");
@@ -26,12 +26,12 @@ try {
     }
 
     try {
-        $stmt = $pdo->prepare("SHOW COLUMNS FROM usuarios LIKE 'acertos_eventos'");
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM games_usuarios LIKE 'acertos_eventos'");
         $stmt->execute();
         if (!$stmt->fetch()) {
             $pdo->exec("ALTER TABLE usuarios ADD COLUMN acertos_eventos INT NOT NULL DEFAULT 0 AFTER fba_points");
             $pdo->exec("
-                UPDATE usuarios u
+                UPDATE games_usuarios u
                 LEFT JOIN (
                     SELECT p.id_usuario AS user_id, COUNT(*) AS acertos
                     FROM palpites p
@@ -50,11 +50,11 @@ try {
     }
 
     try {
-        $stmt = $pdo->prepare("SHOW COLUMNS FROM usuarios LIKE 'tapas_disponiveis'");
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM games_usuarios LIKE 'tapas_disponiveis'");
         $stmt->execute();
         if (!$stmt->fetch()) {
             $pdo->exec("ALTER TABLE usuarios ADD COLUMN tapas_disponiveis INT NOT NULL DEFAULT 2 AFTER numero_tapas");
-            $pdo->exec("UPDATE usuarios SET tapas_disponiveis = 2 WHERE tapas_disponiveis IS NULL");
+            $pdo->exec("UPDATE games_usuarios SET tapas_disponiveis = 2 WHERE tapas_disponiveis IS NULL");
         }
     } catch (PDOException $e) {
         // Silencia erro de ajuste de schema para nao quebrar a conexao
@@ -212,7 +212,7 @@ if (!isset($GLOBALS['__dev_shutdown_registered'])) {
             $__isDev = ($_SESSION['email'] === 'medeirros15@gmail.com');
         } else {
             try {
-                $__s = $pdo->prepare("SELECT email FROM usuarios WHERE id = ?");
+                $__s = $pdo->prepare("SELECT email FROM games_usuarios WHERE id = ?");
                 $__s->execute([(int)$_SESSION['user_id']]);
                 $_SESSION['email'] = (string)$__s->fetchColumn();
                 $__isDev = ($_SESSION['email'] === 'medeirros15@gmail.com');

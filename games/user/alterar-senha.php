@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = (int)$_SESSION['user_id'];
 
 try {
-    $stmt = $pdo->prepare("SELECT nome, pontos FROM usuarios WHERE id = :id");
+    $stmt = $pdo->prepare("SELECT nome, pontos FROM games_usuarios WHERE id = :id");
     $stmt->execute([':id' => $user_id]);
     $usuario = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
