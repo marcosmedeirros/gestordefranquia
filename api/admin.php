@@ -41,9 +41,11 @@ try {
     $pdo->exec("ALTER TABLE league_settings ADD COLUMN IF NOT EXISTS n8n_webhook_url TEXT NULL");
 } catch (Exception $e) { /* silencia — coluna pode já existir ou engine não suporta IF NOT EXISTS */ }
 
-// Ensure progression_video_url column exists
+// Ensure league video columns exist (Progression, Sistemas, Free Agency)
 try {
     $pdo->exec("ALTER TABLE league_settings ADD COLUMN IF NOT EXISTS progression_video_url TEXT NULL");
+    $pdo->exec("ALTER TABLE league_settings ADD COLUMN IF NOT EXISTS sistemas_video_url TEXT NULL");
+    $pdo->exec("ALTER TABLE league_settings ADD COLUMN IF NOT EXISTS freeagency_video_url TEXT NULL");
 } catch (Exception $e) { /* silencia — coluna pode já existir ou engine não suporta IF NOT EXISTS */ }
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -337,9 +339,9 @@ if ($method === 'GET') {
 
             $result = [];
             foreach ($leagues as $league) {
-                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, max_trades, edital, trades_enabled, fa_enabled, COALESCE(n8n_webhook_url, \'\') as n8n_webhook_url, COALESCE(progression_video_url, \'\') as progression_video_url FROM league_settings WHERE league = ?');
+                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, max_trades, edital, trades_enabled, fa_enabled, COALESCE(n8n_webhook_url, \'\') as n8n_webhook_url, COALESCE(progression_video_url, \'\') as progression_video_url, COALESCE(sistemas_video_url, \'\') as sistemas_video_url, COALESCE(freeagency_video_url, \'\') as freeagency_video_url FROM league_settings WHERE league = ?');
                 $stmtCfg->execute([$league]);
-                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1, 'n8n_webhook_url' => '', 'progression_video_url' => ''];
+                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1, 'n8n_webhook_url' => '', 'progression_video_url' => '', 'sistemas_video_url' => '', 'freeagency_video_url' => ''];
 
                 $stmtSprintCfg = $pdo->prepare('SELECT max_seasons FROM league_sprint_config WHERE league = ?');
                 $stmtSprintCfg->execute([$league]);
@@ -361,6 +363,8 @@ if ($method === 'GET') {
                     'fa_enabled' => (int)($cfg['fa_enabled'] ?? 1),
                     'n8n_webhook_url' => $cfg['n8n_webhook_url'] ?? '',
                     'progression_video_url' => $cfg['progression_video_url'] ?? '',
+                    'sistemas_video_url' => $cfg['sistemas_video_url'] ?? '',
+                    'freeagency_video_url' => $cfg['freeagency_video_url'] ?? '',
                     'team_count' => (int)$teamCount
                 ];
             }
@@ -965,6 +969,8 @@ if ($method === 'PUT') {
             $fa_enabled = isset($data['fa_enabled']) ? (int)$data['fa_enabled'] : null;
             $n8n_webhook_url = array_key_exists('n8n_webhook_url', $data) ? trim((string)$data['n8n_webhook_url']) : null;
             $progression_video_url = array_key_exists('progression_video_url', $data) ? trim((string)$data['progression_video_url']) : null;
+            $sistemas_video_url = array_key_exists('sistemas_video_url', $data) ? trim((string)$data['sistemas_video_url']) : null;
+            $freeagency_video_url = array_key_exists('freeagency_video_url', $data) ? trim((string)$data['freeagency_video_url']) : null;
             $max_seasons = isset($data['max_seasons']) ? (int)$data['max_seasons'] : null;
 
             if (!$league) {
@@ -1034,6 +1040,14 @@ if ($method === 'PUT') {
             if ($progression_video_url !== null) {
                 $updates[] = 'progression_video_url = ?';
                 $params[] = $progression_video_url;
+            }
+            if ($sistemas_video_url !== null) {
+                $updates[] = 'sistemas_video_url = ?';
+                $params[] = $sistemas_video_url;
+            }
+            if ($freeagency_video_url !== null) {
+                $updates[] = 'freeagency_video_url = ?';
+                $params[] = $freeagency_video_url;
             }
 
             if (empty($updates) && $max_seasons === null) {

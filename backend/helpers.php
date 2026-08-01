@@ -774,14 +774,15 @@ function getUserPhoto(?string $photoUrl, string $default = '/img/default-avatar.
 }
 
 /**
- * Interpreta a URL do vídeo de Progression de uma liga e decide como exibi-la:
+ * Interpreta a URL de um vídeo administrativo de liga (Progression, Sistemas,
+ * Free Agency) e decide como exibi-lo no dashboard:
  * - 'direct': arquivo de vídeo (mp4/webm/ogg/mov) tocado num <video> nativo,
- *   o único caso em que dá pra pausar e capturar o frame via canvas (embeds
- *   de terceiros são cross-origin e o navegador bloqueia a captura).
+ *   o único caso em que dá pra capturar o frame direto via canvas (embeds
+ *   de terceiros são cross-origin e o navegador bloqueia a leitura do canvas).
  * - 'iframe': YouTube, Vimeo ou Google Drive, incorporado num iframe.
  * - 'link': qualquer outra URL — mostra só um botão "Assistir" que abre em nova aba.
  */
-function progressionVideoEmbed(?string $url): ?array
+function resolveVideoEmbed(?string $url): ?array
 {
     $url = trim((string)$url);
     if ($url === '') return null;

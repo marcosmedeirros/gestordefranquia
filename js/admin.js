@@ -2982,11 +2982,22 @@ async function showConfig() {
     <input type="text" class="form-control" placeholder="https://n8n.exemplo.com/webhook/..." value="${lg.n8n_webhook_url || ''}" data-league="${lg.league}" data-field="n8n_webhook_url" />
     <div style="font-size:11px;color:var(--text-3);margin-top:4px">Disparado automaticamente quando uma trade com jogador OVR 80+ for aceita nesta liga.</div>
   </div>
-  <div style="margin-bottom:24px">
-    <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px"><i class="bi bi-camera-reels me-1"></i>Vídeo de Progression</div>
-    <input type="text" class="form-control" placeholder="Link do YouTube, Vimeo, Google Drive ou de um arquivo .mp4" value="${lg.progression_video_url || ''}" data-league="${lg.league}" data-field="progression_video_url" />
-    <div style="font-size:11px;color:var(--text-3);margin-top:4px">Aparece incorporado no dashboard de todo mundo desta liga. Link direto de arquivo de vídeo (.mp4/.webm) permite pausar e capturar o frame; links do YouTube/Vimeo/Drive só tocam incorporados.</div>
+  <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px"><i class="bi bi-camera-reels me-1"></i>Vídeos</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:8px">
+    <div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Progression</div>
+      <input type="text" class="form-control" placeholder="Link do YouTube, Vimeo, Drive ou .mp4" value="${lg.progression_video_url || ''}" data-league="${lg.league}" data-field="progression_video_url" />
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Sistemas</div>
+      <input type="text" class="form-control" placeholder="Link do YouTube, Vimeo, Drive ou .mp4" value="${lg.sistemas_video_url || ''}" data-league="${lg.league}" data-field="sistemas_video_url" />
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Free Agency</div>
+      <input type="text" class="form-control" placeholder="Link do YouTube, Vimeo, Drive ou .mp4" value="${lg.freeagency_video_url || ''}" data-league="${lg.league}" data-field="freeagency_video_url" />
+    </div>
   </div>
+  <div style="font-size:11px;color:var(--text-3);margin-bottom:24px">Cada um aparece como um card no dashboard de todo mundo desta liga, se tiver link preenchido. Link direto de arquivo de vídeo (.mp4/.webm) permite capturar o frame parado; links do YouTube/Vimeo/Drive tocam incorporados (a captura usa compartilhamento de tela do navegador).</div>
 
   <div style="font-size:12px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px">Status da Liga</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:24px">
@@ -3056,7 +3067,8 @@ async function saveLeagueSettings(btn) {
   inputs.forEach(inp => {
     const lg = inp.dataset.league;
     groups[lg] = groups[lg] || { league: lg };
-    const value = (inp.dataset.field === 'edital' || inp.dataset.field === 'n8n_webhook_url' || inp.dataset.field === 'progression_video_url') ? inp.value : parseInt(inp.value);
+    const stringFields = ['edital', 'n8n_webhook_url', 'progression_video_url', 'sistemas_video_url', 'freeagency_video_url'];
+    const value = stringFields.includes(inp.dataset.field) ? inp.value : parseInt(inp.value);
     groups[lg][inp.dataset.field] = value;
   });
 

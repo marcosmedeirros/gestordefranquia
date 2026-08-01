@@ -169,12 +169,23 @@ try {
     $hasEdital = $editalData && !empty($editalData['edital_file']);
 } catch (Exception $e) { error_log('dashboard edital: ' . $e->getMessage()); }
 
-$progressionVideo = null;
+// Vídeos administrativos da liga: Progression, Sistemas e Free Agency.
+// Cada um só vira card se o admin tiver preenchido o link na Central da Liga.
+$leagueVideoCards = [];
 try {
-    $stmtProgVideo = $pdo->prepare('SELECT progression_video_url FROM league_settings WHERE league = ?');
-    $stmtProgVideo->execute([$team['league']]);
-    $progressionVideo = progressionVideoEmbed($stmtProgVideo->fetchColumn() ?: null);
-} catch (Exception $e) { error_log('dashboard progression_video: ' . $e->getMessage()); }
+    $stmtVideos = $pdo->prepare('SELECT progression_video_url, sistemas_video_url, freeagency_video_url FROM league_settings WHERE league = ?');
+    $stmtVideos->execute([$team['league']]);
+    $videoUrls = $stmtVideos->fetch() ?: [];
+    $videoDefs = [
+        ['key' => 'progression', 'title' => 'Progression', 'icon' => 'bi-camera-reels-fill', 'url' => $videoUrls['progression_video_url'] ?? null],
+        ['key' => 'sistemas',    'title' => 'Sistemas',    'icon' => 'bi-gear-fill',          'url' => $videoUrls['sistemas_video_url'] ?? null],
+        ['key' => 'freeagency',  'title' => 'Free Agency', 'icon' => 'bi-coin',               'url' => $videoUrls['freeagency_video_url'] ?? null],
+    ];
+    foreach ($videoDefs as $def) {
+        $embed = resolveVideoEmbed($def['url']);
+        if ($embed) $leagueVideoCards[] = $def + ['embed' => $embed];
+    }
+} catch (Exception $e) { error_log('dashboard league videos: ' . $e->getMessage()); }
 
 // Tática não tem mais prazo de envio — só avisa aqui quando o admin fechou a
 // edição (corte diário ou toggle manual), pra o GM saber que não é hoje.
@@ -775,14 +786,22 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
         .bc-link:hover { color: var(--red); }
 
-        /* ── Vídeo de Progression ─────────────────────── */
+        /* ── Vídeos da liga (Progression / Sistemas / Free Agency) ── */
         .prog-video-wrap { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden; background: #000; }
+        .prog-video-wrap:fullscreen { aspect-ratio: unset; border-radius: 0; }
         .prog-video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
         video.prog-video { object-fit: contain; }
-        .prog-video-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
-        .prog-capture-btn { display: inline-flex; align-items: center; gap: 6px; }
-        .prog-capture-btn.copied { background: var(--green) !important; }
-        .prog-video-hint { font-size: 11px; color: var(--text-3); line-height: 1.4; }
+        .prog-video-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+        .vid-action-btn {
+            width: 34px; height: 34px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--panel-2); border: 1px solid var(--border-md); border-radius: 9px;
+            color: var(--text-2); font-size: 14px; cursor: pointer; text-decoration: none;
+            transition: all var(--t) var(--ease);
+        }
+        .vid-action-btn:hover { border-color: var(--red); color: var(--red); background: var(--panel-3); }
+        .vid-action-btn.copied { background: var(--green); border-color: var(--green); color: #fff; }
+        .prog-video-hint { font-size: 11px; color: var(--text-3); line-height: 1.4; margin-top: 8px; }
 
         /* ── Watchlist (De olho em...) ───────────────── */
         .watch-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: var(--text); transition: background var(--t) var(--ease); }
@@ -1372,44 +1391,44 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     </div>
                 </div>
 
-                <?php if ($progressionVideo): ?>
-                <!-- ── Vídeo de Progression ── -->
-                <div class="bc span-3" style="animation-delay:.36s">
+                <?php foreach ($leagueVideoCards as $vi => $vc): $embed = $vc['embed']; $key = $vc['key']; ?>
+                <!-- ── Vídeo: <?= htmlspecialchars($vc['title']) ?> ── -->
+                <div class="bc" style="animation-delay:<?= .36 + $vi * .03 ?>s">
                     <div class="bc-head">
-                        <div class="bc-title"><i class="bi bi-camera-reels-fill"></i> Vídeo de Progression</div>
-                        <?php if ($progressionVideo['type'] !== 'direct'): ?>
-                        <a href="<?= htmlspecialchars($progressionVideo['raw_url']) ?>" target="_blank" rel="noopener" class="bc-link">Abrir <i class="bi bi-box-arrow-up-right"></i></a>
-                        <?php endif; ?>
+                        <div class="bc-title"><i class="bi <?= $vc['icon'] ?>"></i> <?= htmlspecialchars($vc['title']) ?></div>
                     </div>
                     <div class="bc-body">
-                        <?php if ($progressionVideo['type'] === 'direct'): ?>
-                        <div class="prog-video-wrap">
-                            <video id="progVideoEl" class="prog-video" controls playsinline preload="metadata" crossorigin="anonymous">
-                                <source src="<?= htmlspecialchars($progressionVideo['embed_url']) ?>">
+                        <?php if ($embed['type'] === 'direct'): ?>
+                        <div class="prog-video-wrap" id="wrap_<?= $key ?>">
+                            <video id="vid_<?= $key ?>" class="prog-video" controls playsinline preload="metadata" crossorigin="anonymous">
+                                <source src="<?= htmlspecialchars($embed['embed_url']) ?>">
                             </video>
                         </div>
+                        <?php elseif ($embed['type'] === 'iframe'): ?>
+                        <div class="prog-video-wrap" id="wrap_<?= $key ?>">
+                            <iframe class="prog-video" src="<?= htmlspecialchars($embed['embed_url']) ?>" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy" title="<?= htmlspecialchars($vc['title']) ?>"></iframe>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if ($embed['type'] === 'direct' || $embed['type'] === 'iframe'): ?>
                         <div class="prog-video-actions">
-                            <button type="button" class="btn-orange prog-capture-btn" id="btnProgCapture">
-                                <i class="bi bi-camera-fill"></i> Pausar e capturar frame
-                            </button>
-                            <span class="prog-video-hint">Pausa o vídeo no momento atual e copia a imagem pra área de transferência — é só colar (Ctrl+V) onde quiser.</span>
+                            <button type="button" class="vid-action-btn" data-action="fullscreen" data-key="<?= $key ?>" title="Tela cheia"><i class="bi bi-arrows-fullscreen"></i></button>
+                            <button type="button" class="vid-action-btn" data-action="capture" data-key="<?= $key ?>" title="Capturar tela"><i class="bi bi-camera-fill"></i></button>
+                            <a class="vid-action-btn" href="<?= htmlspecialchars($embed['raw_url']) ?>" target="_blank" rel="noopener" title="Abrir no YouTube"><i class="bi bi-youtube"></i></a>
                         </div>
-                        <canvas id="progVideoCanvas" style="display:none"></canvas>
-                        <?php elseif ($progressionVideo['type'] === 'iframe'): ?>
-                        <div class="prog-video-wrap">
-                            <iframe class="prog-video" src="<?= htmlspecialchars($progressionVideo['embed_url']) ?>" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy" title="Vídeo de Progression"></iframe>
-                        </div>
-                        <div class="prog-video-hint" style="margin-top:10px">Vídeo incorporado de um serviço externo — pausar e capturar o frame automaticamente não é possível aqui (só funciona com link direto de arquivo de vídeo). Use o print de tela do seu dispositivo se precisar guardar um momento.</div>
+                        <?php if ($embed['type'] === 'iframe'): ?>
+                        <div class="prog-video-hint">A captura de tela vai pedir pra você compartilhar a tela — escolha "Esta guia/aba" na janela do navegador pra capturar certinho.</div>
+                        <?php endif; ?>
                         <?php else: ?>
                         <div class="empty">
                             <i class="bi bi-play-circle" style="font-size:26px"></i>
                             <p style="margin:8px 0 12px">Vídeo disponível como link externo.</p>
-                            <a href="<?= htmlspecialchars($progressionVideo['raw_url']) ?>" target="_blank" rel="noopener" class="btn-orange" style="display:inline-flex">Assistir</a>
+                            <a href="<?= htmlspecialchars($embed['raw_url']) ?>" target="_blank" rel="noopener" class="btn-orange" style="display:inline-flex">Assistir</a>
                         </div>
                         <?php endif; ?>
                     </div>
                 </div>
-                <?php endif; ?>
+                <?php endforeach; ?>
 
                 <!-- ── Info da Liga ── -->
                 <div class="bc" style="animation-delay:.38s">
@@ -1669,43 +1688,108 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         catch { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); alert('Time copiado!'); }
     });
 
-    // Vídeo de Progression: pausa no frame atual, desenha num canvas e copia
-    // a imagem pra área de transferência. Só funciona com <video> nativo
-    // (arquivo direto) — embeds de terceiros (iframe) são cross-origin e o
-    // navegador bloqueia a leitura do canvas nesse caso.
-    document.getElementById('btnProgCapture')?.addEventListener('click', () => {
-        const video = document.getElementById('progVideoEl');
-        const canvas = document.getElementById('progVideoCanvas');
-        const btn = document.getElementById('btnProgCapture');
-        if (!video || !canvas || !btn) return;
-
-        video.pause();
-        const original = btn.innerHTML;
-        const corsMsg = 'Não consegui capturar esse frame — o servidor do vídeo provavelmente bloqueia captura entre origens (CORS). Tente hospedar o vídeo no mesmo domínio do site, ou use um print de tela.';
-
+    // Vídeos da liga (Progression / Sistemas / Free Agency): tela cheia e
+    // captura de frame pra área de transferência.
+    //
+    // Captura tem dois caminhos:
+    // - <video> nativo (link direto de arquivo): desenha o frame atual num
+    //   canvas — simples, sem prompt de permissão.
+    // - <iframe> (YouTube/Vimeo/Drive): cross-origin, então o canvas não
+    //   consegue ler o conteúdo. O único jeito honesto de capturar o que
+    //   está na tela é pedir compartilhamento de tela (getDisplayMedia) e
+    //   recortar a área do card — só funciona se a pessoa escolher
+    //   "Esta guia/aba" no prompt do navegador.
+    async function flashCopiedBlob(btn, blob) {
         try {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            const original = btn.innerHTML;
+            btn.classList.add('copied');
+            btn.innerHTML = '<i class="bi bi-check2"></i>';
+            setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = original; }, 2000);
+        } catch (e) {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'video-frame.png';
+            link.click();
+            alert('Seu navegador não deixa copiar imagem direto pra área de transferência — baixei o print pra você.');
+        }
+    }
+
+    function captureFromVideoEl(video, btn) {
+        video.pause();
+        try {
+            const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth || 1280;
             canvas.height = video.videoHeight || 720;
             canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-            canvas.toBlob(async (blob) => {
-                if (!blob) { alert(corsMsg); return; }
-                try {
-                    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-                    btn.classList.add('copied');
-                    btn.innerHTML = '<i class="bi bi-check2"></i> Copiado! Cole onde quiser';
-                    setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = original; }, 2500);
-                } catch (e) {
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = 'progression-frame.png';
-                    link.click();
-                    alert('Seu navegador não deixa copiar imagem direto pra área de transferência — baixei o print pra você.');
-                }
+            canvas.toBlob((blob) => {
+                if (!blob) { alert('Não consegui capturar esse frame.'); return; }
+                flashCopiedBlob(btn, blob);
             }, 'image/png');
         } catch (e) {
-            alert(corsMsg);
-            btn.innerHTML = original;
+            alert('Não consegui capturar esse frame — o servidor do vídeo provavelmente bloqueia captura entre origens (CORS).');
         }
+    }
+
+    async function captureViaScreenShare(wrap, btn) {
+        if (!navigator.mediaDevices?.getDisplayMedia) {
+            alert('Seu navegador não suporta captura de tela. Tente um print manual.');
+            return;
+        }
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getDisplayMedia({ video: true, preferCurrentTab: true });
+        } catch (e) {
+            return; // usuário cancelou o prompt
+        }
+        try {
+            const tempVideo = document.createElement('video');
+            tempVideo.muted = true;
+            tempVideo.srcObject = stream;
+            await tempVideo.play();
+            await new Promise(r => setTimeout(r, 200)); // deixa um frame real renderizar
+
+            const rect = wrap.getBoundingClientRect();
+            const scaleX = tempVideo.videoWidth / window.innerWidth;
+            const scaleY = tempVideo.videoHeight / window.innerHeight;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(rect.width * scaleX));
+            canvas.height = Math.max(1, Math.round(rect.height * scaleY));
+            canvas.getContext('2d').drawImage(
+                tempVideo,
+                rect.left * scaleX, rect.top * scaleY, rect.width * scaleX, rect.height * scaleY,
+                0, 0, canvas.width, canvas.height
+            );
+            canvas.toBlob((blob) => {
+                if (!blob) { alert('Não consegui gerar a imagem capturada.'); return; }
+                flashCopiedBlob(btn, blob);
+            }, 'image/png');
+        } catch (e) {
+            alert('Não consegui capturar a tela.');
+        } finally {
+            stream.getTracks().forEach(t => t.stop());
+        }
+    }
+
+    document.querySelectorAll('.vid-action-btn[data-action]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const key = btn.dataset.key;
+            const wrap = document.getElementById('wrap_' + key);
+            if (!wrap) return;
+
+            if (btn.dataset.action === 'fullscreen') {
+                const req = wrap.requestFullscreen || wrap.webkitRequestFullscreen;
+                if (req) req.call(wrap);
+                return;
+            }
+
+            if (btn.dataset.action === 'capture') {
+                const video = document.getElementById('vid_' + key);
+                if (video) captureFromVideoEl(video, btn);
+                else captureViaScreenShare(wrap, btn);
+            }
+        });
     });
 
 </script>
