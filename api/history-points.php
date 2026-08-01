@@ -278,10 +278,16 @@ try {
             
             $params = [];
             if ($league) {
-                $sql .= " WHERE sh.league = ?";
+                // Só a sprint atual: season_history guarda todas as sprints, e
+                // sem o filtro a página listava campeões de ciclos encerrados
+                // misturados com o atual.
+                $idsSprint = seasonIdsDaSprintAtual($pdo, $league);
+                $ph = implode(',', array_fill(0, count($idsSprint), '?'));
+                $sql .= " WHERE sh.league = ? AND sh.season_id IN ({$ph})";
                 $params[] = $league;
+                $params = array_merge($params, $idsSprint);
             }
-            
+
             $sql .= " ORDER BY sh.league, sh.year DESC, sh.sprint_number DESC, sh.season_number DESC";
             
             $stmt = $pdo->prepare($sql);
@@ -723,10 +729,11 @@ try {
                 FROM team_season_points tsp
                 LEFT JOIN teams t ON tsp.team_id = t.id
                 LEFT JOIN seasons s ON tsp.season_id = s.id
-                WHERE tsp.league = ?
+                WHERE tsp.league = ? AND tsp.season_id IN (SELECT id FROM seasons WHERE sprint_id = (
+                        SELECT id FROM sprints WHERE league = ? AND status = 'active' ORDER BY id DESC LIMIT 1))
                 ORDER BY tsp.sprint_number DESC, tsp.season_number DESC, tsp.points DESC
             ");
-            $stmt->execute([$league]);
+            $stmt->execute([$league, $league]);
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             $seasons = [];
@@ -829,10 +836,11 @@ try {
                        sp.sprint_number, sp.start_year
                 FROM seasons s
                 LEFT JOIN sprints sp ON s.sprint_id = sp.id
-                WHERE s.league = ?
+                WHERE s.league = ? AND s.sprint_id = (
+                        SELECT id FROM sprints WHERE league = ? AND status = 'active' ORDER BY id DESC LIMIT 1)
                 ORDER BY s.id ASC
             ");
-            $stmtAS->execute([$teamLeague]);
+            $stmtAS->execute([$teamLeague, $teamLeague]);
             $allSeasonsForTeam = $stmtAS->fetchAll(PDO::FETCH_ASSOC);
 
             ensureSeasonPointsBreakdownColumns($pdo);

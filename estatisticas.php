@@ -23,6 +23,12 @@ try {
     $myTeamLeague = $myTeam['league'] ?? $myTeamLeague;
 } catch (Exception) {}
 
+// Toda estatística baseada em temporada olha só a sprint em andamento de cada
+// liga — misturar sprints antigas com a atual inflava contagens e sequências.
+// Elenco/picks atuais e trocas não precisam do filtro: são zerados pelo
+// finalize_sprint. As sprints são por liga, então basta pegar as ativas.
+$TEMPORADAS_DA_SPRINT = "(SELECT id FROM seasons WHERE sprint_id IN (SELECT id FROM sprints WHERE status = 'active'))";
+
 function queryByLeague(PDO $pdo, string $sql, array $params = []): array {
     try {
         $stmt = $pdo->prepare($sql);
@@ -63,6 +69,7 @@ $playoffMap = queryByLeague($pdo, "
     SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT tsp.season_id) AS count
     FROM teams t
     LEFT JOIN team_season_points tsp ON tsp.team_id=t.id AND tsp.points>=3 AND tsp.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
+         AND tsp.season_id IN $TEMPORADAS_DA_SPRINT
     GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($playoffMap);
@@ -108,6 +115,7 @@ $rotMap = queryByLeague($pdo, "
     SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT psl.player_id) AS count
     FROM teams t
     LEFT JOIN player_season_log psl ON psl.team_id=t.id AND psl.league COLLATE utf8mb4_unicode_ci=t.league COLLATE utf8mb4_unicode_ci
+         AND psl.season_id IN $TEMPORADAS_DA_SPRINT
     GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($rotMap);
@@ -118,6 +126,7 @@ $faMap = queryByLeague($pdo, "
            COUNT(far.id) AS count
     FROM teams t
     LEFT JOIN fa_requests far ON far.winner_team_id = t.id AND far.status = 'assigned'
+         AND far.season_id IN $TEMPORADAS_DA_SPRINT
     GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($faMap);
@@ -132,6 +141,7 @@ try {
         JOIN draft_sessions ds ON ds.id=do_.draft_session_id
         JOIN teams t ON t.id=do_.original_team_id
         WHERE do_.pick_position <= 5 AND do_.round = 1 AND do_.picked_player_id IS NOT NULL
+          AND ds.season_id IN $TEMPORADAS_DA_SPRINT
         GROUP BY ds.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($ot5Raw as $r) $origTop5Map[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
@@ -152,6 +162,7 @@ try {
         JOIN draft_sessions ds ON ds.id=do_.draft_session_id
         JOIN teams t ON t.id=do_.team_id
         WHERE do_.pick_position <= 5 AND do_.round = 1 AND do_.picked_player_id IS NOT NULL
+          AND ds.season_id IN $TEMPORADAS_DA_SPRINT
         GROUP BY ds.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($tp5Raw as $r) $top5PicksMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
@@ -170,6 +181,7 @@ try {
             FROM draft_order do_
             JOIN draft_sessions ds ON ds.id=do_.draft_session_id
             WHERE do_.pick_position <= 5 AND do_.round = 1 AND do_.picked_player_id IS NOT NULL
+              AND ds.season_id IN $TEMPORADAS_DA_SPRINT
         )
         ORDER BY t.league, t.city, t.name
     ")->fetchAll(PDO::FETCH_ASSOC);
@@ -192,6 +204,7 @@ try {
         FROM team_season_points tsp
         JOIN teams t ON t.id=tsp.team_id
         JOIN seasons s ON s.id=tsp.season_id
+        WHERE tsp.season_id IN $TEMPORADAS_DA_SPRINT
         ORDER BY tsp.league, tsp.team_id, s.season_number ASC
     ")->fetchAll(PDO::FETCH_ASSOC);
     $byTeam = [];
@@ -232,6 +245,7 @@ try {
         FROM player_season_log psl
         LEFT JOIN players p ON p.name = psl.player_name
         LEFT JOIN teams pt ON pt.id = p.team_id
+        WHERE psl.season_id IN $TEMPORADAS_DA_SPRINT
         GROUP BY psl.league, psl.player_name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($ptRaw as $r) $playerTeamsMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count'],'team'=>$r['team'] ?? ''];
@@ -248,7 +262,7 @@ try {
         LEFT JOIN (
             SELECT team_id, player_id, COUNT(*) AS seasons
             FROM player_season_log
-            WHERE ovr >= 78
+            WHERE ovr >= 78 AND season_id IN $TEMPORADAS_DA_SPRINT
             GROUP BY team_id, player_id
         ) sub ON sub.team_id=t.id
         GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC

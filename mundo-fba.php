@@ -491,8 +491,8 @@ foreach ($leagueOrder as $league) {
     // Se não houver temporada ativa, pega a última encerrada
     if ($currentSeasonNum === null) {
         try {
-            $s = $pdo->prepare("SELECT MAX(season_number) FROM seasons WHERE league = ?");
-            $s->execute([$league]);
+            $s = $pdo->prepare("SELECT MAX(season_number) FROM seasons WHERE league = ? AND sprint_id = (SELECT id FROM sprints WHERE league = ? AND status = 'active' ORDER BY id DESC LIMIT 1)");
+            $s->execute([$league, $league]);
             $r = $s->fetchColumn();
             if ($r !== false) $currentSeasonNum = (int)$r;
         } catch (Exception $e) {}
@@ -557,10 +557,10 @@ foreach ($leagueOrder as $league) {
         $s = $pdo->prepare("
             SELECT s.id, s.season_number, sp.start_year, s.year
             FROM seasons s INNER JOIN sprints sp ON s.sprint_id = sp.id
-            WHERE s.league = ? AND s.status = 'completed'
+            WHERE s.league = ? AND s.status = 'completed' AND s.sprint_id = (SELECT id FROM sprints WHERE league = ? AND status = 'active' ORDER BY id DESC LIMIT 1)
             ORDER BY s.created_at DESC LIMIT 1
         ");
-        $s->execute([$league]);
+        $s->execute([$league, $league]);
         $lastSeason = $s->fetch(PDO::FETCH_ASSOC) ?: null;
         if ($lastSeason) {
             $seasonYear = isset($lastSeason['start_year'], $lastSeason['season_number'])
@@ -582,11 +582,11 @@ foreach ($leagueOrder as $league) {
             LEFT JOIN users uc ON tc.user_id = uc.id
             LEFT JOIN teams tr ON sh.runner_up_team_id = tr.id
             LEFT JOIN users ur ON tr.user_id = ur.id
-            WHERE sh.league = ?
+            WHERE sh.league = ? AND sh.season_id IN (SELECT id FROM seasons WHERE sprint_id = (SELECT id FROM sprints WHERE league = ? AND status = 'active' ORDER BY id DESC LIMIT 1))
             ORDER BY sh.year DESC, sh.sprint_number DESC, sh.season_number DESC, sh.id DESC
             LIMIT 1
         ");
-        $s->execute([$league]);
+        $s->execute([$league, $league]);
         $sh = $s->fetch(PDO::FETCH_ASSOC);
         if ($sh && $sh['champion_team_id']) {
             $championTeamId = (int)$sh['champion_team_id'];
@@ -630,11 +630,11 @@ foreach ($leagueOrder as $league) {
         $s = $pdo->prepare("
             SELECT sh.mvp_player, sh.dpoy_player, sh.mip_player, sh.sixth_man_player {$roySel}
             FROM season_history sh
-            WHERE sh.league = ?
+            WHERE sh.league = ? AND sh.season_id IN (SELECT id FROM seasons WHERE sprint_id = (SELECT id FROM sprints WHERE league = ? AND status = 'active' ORDER BY id DESC LIMIT 1))
             ORDER BY sh.year DESC, sh.sprint_number DESC, sh.season_number DESC, sh.id DESC
             LIMIT 1
         ");
-        $s->execute([$league]);
+        $s->execute([$league, $league]);
         $row = $s->fetch(PDO::FETCH_ASSOC);
         if ($row) {
             $map = ['mvp'=>'mvp_player','dpoy'=>'dpoy_player','mip'=>'mip_player','smoy'=>'sixth_man_player','roy'=>'roy_player'];

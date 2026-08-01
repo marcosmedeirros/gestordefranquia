@@ -998,9 +998,16 @@ function listMyFaRequests(PDO $pdo, ?int $teamId): void
         JOIN fa_request_offers o ON o.request_id = r.id
         LEFT JOIN teams wt ON r.winner_team_id = wt.id
         WHERE o.team_id = ?
+          AND r.season_id IN (
+              SELECT id FROM seasons WHERE sprint_id = (
+                  SELECT id FROM sprints
+                  WHERE league = (SELECT league FROM teams WHERE id = ?) AND status = "active"
+                  ORDER BY id DESC LIMIT 1
+              )
+          )
         ORDER BY o.created_at DESC
     ');
-    $stmt->execute([$teamId]);
+    $stmt->execute([$teamId, $teamId]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $requests = [];
@@ -1083,8 +1090,11 @@ function listAdminFaRequests(PDO $pdo, string $league): void
 function listNewFaHistory(PDO $pdo, string $league): void
 {
     $seasonFilter = isset($_GET['season_year']) ? (int)$_GET['season_year'] : null;
-    $where = 'r.league = ? AND r.status = "assigned"';
-    $params = [$league];
+    // Só a sprint em andamento — o histórico das sprints anteriores fica fora.
+    $where = 'r.league = ? AND r.status = "assigned"'
+           . ' AND r.season_id IN (SELECT id FROM seasons WHERE sprint_id ='
+           . ' (SELECT id FROM sprints WHERE league = ? AND status = "active" ORDER BY id DESC LIMIT 1))';
+    $params = [$league, $league];
     if ($seasonFilter) {
         $where .= ' AND r.season_year = ?';
         $params[] = $seasonFilter;

@@ -435,9 +435,10 @@ if ($method === 'GET') {
                  FROM seasons s
                  LEFT JOIN draft_sessions ds ON ds.season_id = s.id
                  WHERE s.league = ?
-                 ORDER BY s.year DESC, s.season_number DESC"
+                   AND s.sprint_id = (SELECT id FROM sprints WHERE league = ? AND status = 'active' ORDER BY id DESC LIMIT 1)
+                 ORDER BY s.id DESC"
             );
-            $stmt->execute([$league]);
+            $stmt->execute([$league, $league]);
             $seasons = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             echo json_encode(['success' => true, 'seasons' => $seasons]);

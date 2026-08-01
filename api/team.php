@@ -246,6 +246,8 @@ if ($method === 'GET') {
                     SELECT player_id, ovr, season_id
                     FROM player_season_log
                     WHERE player_id IN ($inPh)
+                      AND season_id IN (SELECT id FROM seasons WHERE sprint_id IN
+                                        (SELECT id FROM sprints WHERE status = 'active'))
                     ORDER BY player_id ASC, season_id DESC
                 ");
                 $stmtDelta->execute($playerIds);
@@ -454,7 +456,11 @@ if ($method === 'GET') {
         try {
             $stmtLog = $pdo->prepare("
                 SELECT season_id, season_number, sprint_number, year, team_id, team_name, ovr, age
-                FROM player_season_log WHERE player_id = ? ORDER BY season_id ASC
+                FROM player_season_log
+                WHERE player_id = ?
+                  AND season_id IN (SELECT id FROM seasons WHERE sprint_id IN
+                                    (SELECT id FROM sprints WHERE status = 'active'))
+                ORDER BY season_id ASC
             ");
             $stmtLog->execute([$playerId]);
             $seasonLog = $stmtLog->fetchAll(PDO::FETCH_ASSOC);

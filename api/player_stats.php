@@ -49,6 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'season_
         LEFT JOIN seasons s ON s.id = ps.season_id
         LEFT JOIN teams   t ON t.id = ps.team_id
         WHERE ps.player_id = ?
+          AND ps.season_id IN (SELECT id FROM seasons WHERE sprint_id IN
+                               (SELECT id FROM sprints WHERE status = 'active'))
         ORDER BY s.season_number ASC, ps.id ASC
     ");
     $st->execute([$playerId]);

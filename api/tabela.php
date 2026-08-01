@@ -10,6 +10,7 @@
  */
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/helpers.php';
 requireAuth();
 
 header('Content-Type: application/json; charset=utf-8');
@@ -21,6 +22,12 @@ $ligasValidas = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 $league = strtoupper(trim((string)($_GET['league'] ?? ($user['league'] ?? 'ELITE'))));
 if (!in_array($league, $ligasValidas, true)) $league = 'ELITE';
 
+// Só a sprint em andamento. Sem isto, a ordenação por season_number fazia a
+// página abrir numa temporada da sprint anterior: na sprint nova a temporada é
+// a 1, e uma temporada 15 da sprint passada ganhava o "maior número".
+$sprintAtual   = sprintAtualDaLiga($pdo, $league);
+$sprintIdAtual = $sprintAtual ? (int)$sprintAtual['id'] : 0;
+
 $action = $_GET['action'] ?? 'table';
 
 // ── Temporadas que já têm classificação lançada ──────────
@@ -31,12 +38,12 @@ if ($action === 'seasons') {
                (SELECT COUNT(*) FROM playoff_results pr WHERE pr.season_id = s.id) AS playoffs
         FROM seasons s
         LEFT JOIN season_standings ss ON ss.season_id = s.id
-        WHERE s.league = ?
+        WHERE s.league = ? AND s.sprint_id = ?
         GROUP BY s.id
         HAVING times > 0 OR playoffs > 0
-        ORDER BY s.season_number DESC
+        ORDER BY s.id DESC
     ");
-    $st->execute([$league]);
+    $st->execute([$league, $sprintIdAtual]);
     echo json_encode(['success' => true, 'league' => $league, 'seasons' => $st->fetchAll(PDO::FETCH_ASSOC)]);
     exit;
 }
@@ -47,12 +54,12 @@ if (!$seasonId) {
     // Sem temporada informada, pega a mais recente que tenha algo lançado.
     $st = $pdo->prepare("
         SELECT s.id FROM seasons s
-        WHERE s.league = ?
+        WHERE s.league = ? AND s.sprint_id = ?
           AND (EXISTS (SELECT 1 FROM season_standings ss WHERE ss.season_id = s.id)
             OR EXISTS (SELECT 1 FROM playoff_results pr WHERE pr.season_id = s.id))
-        ORDER BY s.season_number DESC LIMIT 1
+        ORDER BY s.id DESC LIMIT 1
     ");
-    $st->execute([$league]);
+    $st->execute([$league, $sprintIdAtual]);
     $seasonId = (int)($st->fetchColumn() ?: 0);
 }
 if (!$seasonId) {

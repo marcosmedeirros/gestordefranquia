@@ -1261,6 +1261,55 @@ function temporadaAtivaDaLiga(PDO $pdo, string $league): ?array
 }
 
 /**
+ * A sprint em andamento de uma liga.
+ *
+ * Toda tela deve mostrar só dados da sprint atual — sprint é um ciclo fechado,
+ * e o que ficou pra trás vira histórico, não se mistura. Esta consulta estava
+ * copiada em três lugares (dashboard, api/team, api/seasons); aqui fica uma vez.
+ *
+ * @return array|null ['id','sprint_number','start_year','start_date']
+ */
+function sprintAtualDaLiga(PDO $pdo, string $league): ?array
+{
+    try {
+        $st = $pdo->prepare("SELECT id, sprint_number, start_year, start_date
+                             FROM sprints WHERE league = ? AND status = 'active'
+                             ORDER BY id DESC LIMIT 1");
+        $st->execute([strtoupper(trim($league))]);
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/**
+ * Os ids de temporada que pertencem à sprint atual da liga.
+ *
+ * Serve pros filtros `... IN (...)` nas tabelas que guardam season_id
+ * (season_history, team_season_points, player_season_log, fa_requests,
+ * season_awards, playoff_results, draft_sessions).
+ *
+ * Devolve [0] quando não há sprint ativa: um id impossível, pra consulta não
+ * virar "sem filtro" e passar a mostrar tudo — falhar vazio é mais seguro que
+ * falhar mostrando dados de outra sprint.
+ *
+ * @return int[]
+ */
+function seasonIdsDaSprintAtual(PDO $pdo, string $league): array
+{
+    $sprint = sprintAtualDaLiga($pdo, $league);
+    if (!$sprint) return [0];
+    try {
+        $st = $pdo->prepare("SELECT id FROM seasons WHERE sprint_id = ?");
+        $st->execute([(int)$sprint['id']]);
+        $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+        return $ids ?: [0];
+    } catch (Throwable $e) {
+        return [0];
+    }
+}
+
+/**
  * O time já fez a atualização de elenco da temporada ativa?
  *
  * O sinal é a existência de linhas em player_season_log para (time, temporada
