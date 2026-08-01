@@ -52,6 +52,42 @@ if ($team) {
     }
 }
 
+// Revisão de dados no início de cada sprint: na primeira vez que o GM entra
+// numa sprint nova, cobra uma conferida em nome/cidade/mascote/GM/e-mail/logo.
+// O que marca "já revisou" é o id da sprint ativa da liga gravado no time —
+// quando finalize_sprint cria a sprint seguinte, o id muda e a cobrança volta
+// sozinha, sem precisar resetar flag nenhuma.
+$precisaRevisarSprint = false;
+$sprintAtual = null;
+if ($team) {
+    try {
+        $stmtColRv = $pdo->prepare("SHOW COLUMNS FROM teams LIKE ?");
+        $stmtColRv->execute(['sprint_review_sprint_id']);
+        if (!$stmtColRv->fetch()) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN sprint_review_sprint_id INT NULL DEFAULT NULL");
+        }
+        $stmtSprint = $pdo->prepare("SELECT id, sprint_number FROM sprints WHERE league = ? AND status = 'active' ORDER BY id DESC LIMIT 1");
+        $stmtSprint->execute([(string)($team['league'] ?? '')]);
+        $sprintAtual = $stmtSprint->fetch();
+        if ($sprintAtual) {
+            $stmtRv = $pdo->prepare("SELECT sprint_review_sprint_id FROM teams WHERE id = ?");
+            $stmtRv->execute([(int)$team['id']]);
+            $revisadaEm = $stmtRv->fetchColumn();
+            $precisaRevisarSprint = ((int)$revisadaEm !== (int)$sprintAtual['id']);
+        }
+    } catch (Throwable $e) {
+        error_log('[dashboard sprint_review] ' . $e->getMessage());
+        $precisaRevisarSprint = false;
+    }
+}
+
+// Enquanto a revisão da sprint não for feita, ela é a única cobrança na tela
+// (é bloqueante) — as outras voltam a aparecer no carregamento seguinte.
+if ($precisaRevisarSprint) {
+    $precisaLogo = false;
+    $precisaAtualizarElenco = false;
+}
+
 $gamesConnectUrl = '/api/games-link.php?action=start';
 $showGamesConnect = false;
 $gamesTapasValue = null;
@@ -1599,6 +1635,154 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
     });
 
 </script>
+
+<?php if ($precisaRevisarSprint): ?>
+<!-- Revisão obrigatória de início de sprint: não dá pra fechar sem salvar. -->
+<style>
+.rev-overlay{position:fixed;inset:0;z-index:5200;background:rgba(0,0,0,.82);backdrop-filter:blur(5px);
+  display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto}
+.rev-box{width:100%;max-width:520px;background:var(--panel);border:1px solid var(--border-md);
+  border-radius:var(--radius);padding:26px 24px;box-shadow:0 30px 80px -30px rgba(0,0,0,.8);margin:auto}
+.rev-head{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.rev-icon{width:44px;height:44px;flex-shrink:0;border-radius:50%;background:var(--red-soft);color:var(--red);
+  display:flex;align-items:center;justify-content:center;font-size:20px}
+.rev-box h2{font-size:18px;font-weight:800;margin:0}
+.rev-sub{font-size:13px;color:var(--text-2);line-height:1.6;margin:10px 0 18px}
+.rev-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.rev-field{display:flex;flex-direction:column;gap:5px}
+.rev-field.full{grid-column:1 / -1}
+.rev-field label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)}
+.rev-field input{background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);
+  border-radius:var(--radius-sm);padding:10px 12px;font-family:var(--font);font-size:13.5px;width:100%}
+.rev-field input:focus{outline:none;border-color:var(--red)}
+.rev-logo{display:flex;align-items:center;gap:14px;margin-top:16px;padding:14px;border-radius:var(--radius-sm);
+  border:1px dashed var(--border-md)}
+.rev-logo img{width:56px;height:56px;object-fit:contain;border-radius:8px;background:var(--panel-2);flex-shrink:0}
+.rev-logo-txt{flex:1;min-width:0}
+.rev-logo-txt b{display:block;font-size:13px;margin-bottom:3px}
+.rev-logo-txt span{font-size:11.5px;color:var(--text-3);line-height:1.5}
+.rev-logo-btn{padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border-md);
+  background:transparent;color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.rev-logo-btn:hover{color:var(--text);border-color:var(--red)}
+.rev-erro{margin-top:14px;padding:10px 13px;border-radius:var(--radius-sm);font-size:12.5px;display:none;
+  background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.30);color:#ef4444}
+.rev-actions{margin-top:20px}
+.rev-actions button{width:100%;padding:12px 16px;border-radius:var(--radius-sm);background:var(--red);border:none;
+  color:#fff;font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer}
+.rev-actions button:disabled{opacity:.6;cursor:not-allowed}
+@media (max-width:520px){ .rev-grid{grid-template-columns:1fr} }
+</style>
+<div class="rev-overlay" id="revOverlay" role="dialog" aria-modal="true" aria-labelledby="revTitle">
+  <div class="rev-box">
+    <div class="rev-head">
+      <div class="rev-icon"><i class="bi bi-clipboard-check"></i></div>
+      <h2 id="revTitle">Confira os dados do seu time</h2>
+    </div>
+    <p class="rev-sub">Começou a Sprint <?= (int)($sprintAtual['sprint_number'] ?? 0) ?> da <?= htmlspecialchars((string)($team['league'] ?? ''), ENT_QUOTES, 'UTF-8') ?>. Antes de seguir, revise as informações abaixo e corrija o que estiver desatualizado.</p>
+
+    <div class="rev-grid">
+      <div class="rev-field full">
+        <label for="revTeamName">Nome do time</label>
+        <input type="text" id="revTeamName" maxlength="100" value="<?= htmlspecialchars((string)($team['name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+      </div>
+      <div class="rev-field">
+        <label for="revCity">Cidade</label>
+        <input type="text" id="revCity" maxlength="100" value="<?= htmlspecialchars((string)($team['city'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+      </div>
+      <div class="rev-field">
+        <label for="revMascot">Mascote</label>
+        <input type="text" id="revMascot" maxlength="100" value="<?= htmlspecialchars((string)($team['mascot'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+      </div>
+      <div class="rev-field">
+        <label for="revGm">Nome do GM</label>
+        <input type="text" id="revGm" maxlength="100" value="<?= htmlspecialchars((string)($user['name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+      </div>
+      <div class="rev-field">
+        <label for="revEmail">E-mail</label>
+        <input type="email" id="revEmail" maxlength="150" value="<?= htmlspecialchars((string)($user['email'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+      </div>
+    </div>
+
+    <div class="rev-logo">
+      <img id="revLogoPreview" src="<?= htmlspecialchars(getTeamPhoto($team['photo_url'] ?? null), ENT_QUOTES, 'UTF-8') ?>" alt="Logo do time">
+      <div class="rev-logo-txt">
+        <b>Escudo do time</b>
+        <span>PNG, JPG ou WEBP. Se não trocar agora, a gente continua cobrando depois.</span>
+      </div>
+      <label class="rev-logo-btn">
+        Trocar
+        <input type="file" id="revLogoInput" accept="image/png,image/jpeg,image/webp" style="display:none">
+      </label>
+    </div>
+
+    <div class="rev-erro" id="revErro"></div>
+    <div class="rev-actions">
+      <button type="button" id="revSalvar"><i class="bi bi-check-lg me-1"></i>Confirmar e continuar</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  let revFotoBase64 = '';
+  const erro = document.getElementById('revErro');
+  const btn = document.getElementById('revSalvar');
+
+  // Trava o scroll do dashboard atrás do modal (o modal rola sozinho).
+  document.body.style.overflow = 'hidden';
+
+  document.getElementById('revLogoInput')?.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      erro.textContent = 'A imagem precisa ter no máximo 3 MB.';
+      erro.style.display = 'block';
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      revFotoBase64 = ev.target.result;
+      document.getElementById('revLogoPreview').src = revFotoBase64;
+      erro.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  btn?.addEventListener('click', async () => {
+    erro.style.display = 'none';
+    const payload = {
+      action: 'sprint_review',
+      name: document.getElementById('revTeamName').value.trim(),
+      city: document.getElementById('revCity').value.trim(),
+      mascot: document.getElementById('revMascot').value.trim(),
+      gm_name: document.getElementById('revGm').value.trim(),
+      email: document.getElementById('revEmail').value.trim(),
+      photo_url: revFotoBase64,
+    };
+    if (!payload.name || !payload.city || !payload.mascot || !payload.gm_name || !payload.email) {
+      erro.textContent = 'Preencha todos os campos antes de continuar.';
+      erro.style.display = 'block';
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/team.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Erro ao salvar.');
+      window.location.reload();
+    } catch (e) {
+      erro.textContent = e.message;
+      erro.style.display = 'block';
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
+<?php endif; ?>
 
 <?php if ($precisaAtualizarElenco || $precisaLogo): ?>
 <!-- Cobrancas que aparecem a cada carregamento ate o GM resolver (o servidor

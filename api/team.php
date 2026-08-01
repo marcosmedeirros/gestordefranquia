@@ -720,6 +720,100 @@ if ($method === 'POST') {
         jsonResponse(200, ['success' => true, 'tag' => $tag]);
     }
 
+    // ── sprint_review: revisão obrigatória dos dados no início de cada sprint ──
+    // Salva time + GM de uma vez só e marca a sprint como revisada, pra o popup
+    // bloqueante do dashboard parar de aparecer até a próxima sprint começar.
+    if (($body['action'] ?? '') === 'sprint_review') {
+        $sessionUser = getUserSession();
+        if (!$sessionUser || !isset($sessionUser['id'])) jsonResponse(401, ['error' => 'Sessão expirada.']);
+        $userId = (int) $sessionUser['id'];
+
+        $stmtT = $pdo->prepare('SELECT id, league, name, city, photo_url FROM teams WHERE user_id = ? LIMIT 1');
+        $stmtT->execute([$userId]);
+        $teamRow = $stmtT->fetch();
+        if (!$teamRow) jsonResponse(404, ['error' => 'Time não encontrado.']);
+
+        $rvName   = trim((string)($body['name'] ?? ''));
+        $rvCity   = trim((string)($body['city'] ?? ''));
+        $rvMascot = trim((string)($body['mascot'] ?? ''));
+        $rvGm     = trim((string)($body['gm_name'] ?? ''));
+        $rvEmail  = trim((string)($body['email'] ?? ''));
+        $rvPhoto  = trim((string)($body['photo_url'] ?? ''));
+
+        if ($rvName === '' || $rvCity === '' || $rvMascot === '' || $rvGm === '') {
+            jsonResponse(422, ['error' => 'Preencha nome do time, cidade, mascote e nome do GM.']);
+        }
+        if ($rvEmail === '' || !filter_var($rvEmail, FILTER_VALIDATE_EMAIL)) {
+            jsonResponse(422, ['error' => 'E-mail inválido.']);
+        }
+        $stmtDup = $pdo->prepare('SELECT id FROM users WHERE email = ? AND id != ? LIMIT 1');
+        $stmtDup->execute([$rvEmail, $userId]);
+        if ($stmtDup->fetch()) jsonResponse(422, ['error' => 'Esse e-mail já está em uso por outro GM.']);
+
+        // Logo nova (data URL) — mesmo tratamento do PUT abaixo.
+        if ($rvPhoto !== '' && str_starts_with($rvPhoto, 'data:image/')) {
+            try {
+                $commaPos = strpos($rvPhoto, ',');
+                $meta = substr($rvPhoto, 0, $commaPos);
+                $base64 = substr($rvPhoto, $commaPos + 1);
+                $ext = 'png';
+                if (preg_match('/data:(image\/(png|jpeg|jpg|webp));base64/i', $meta, $m)) {
+                    $mime = strtolower($m[1]);
+                    if ($mime === 'image/jpeg' || $mime === 'image/jpg') { $ext = 'jpg'; }
+                    if ($mime === 'image/webp') { $ext = 'webp'; }
+                }
+                $binary = base64_decode($base64);
+                if ($binary === false) throw new Exception('Falha ao decodificar imagem.');
+                $dirFs = __DIR__ . '/../img/teams';
+                if (!is_dir($dirFs)) { @mkdir($dirFs, 0775, true); }
+                $filename = 'team-' . $userId . '-' . time() . '.' . $ext;
+                if (file_put_contents($dirFs . '/' . $filename, $binary) === false) {
+                    throw new Exception('Falha ao salvar imagem.');
+                }
+                $rvPhoto = '/img/teams/' . $filename;
+            } catch (Exception $e) {
+                $rvPhoto = '';
+            }
+        }
+
+        // Sprint ativa da liga do time — é o que marca "já revisou".
+        $stmtSp = $pdo->prepare("SELECT id FROM sprints WHERE league = ? AND status = 'active' ORDER BY id DESC LIMIT 1");
+        $stmtSp->execute([(string)$teamRow['league']]);
+        $sprintId = (int) ($stmtSp->fetchColumn() ?: 0);
+
+        if (!teamColumnExists($pdo, 'sprint_review_sprint_id')) {
+            try { $pdo->exec("ALTER TABLE teams ADD COLUMN sprint_review_sprint_id INT NULL DEFAULT NULL"); } catch (Exception $e) {}
+        }
+        if (!teamColumnExists($pdo, 'sprint_review_sprint_id')) {
+            jsonResponse(500, ['error' => 'Não foi possível preparar o banco para a revisão.']);
+        }
+
+        try {
+            $pdo->beginTransaction();
+            $pdo->prepare('UPDATE users SET name = ?, email = ? WHERE id = ?')
+                ->execute([$rvGm, $rvEmail, $userId]);
+            $pdo->prepare('UPDATE teams SET name = ?, city = ?, mascot = ?, photo_url = ?, sprint_review_sprint_id = ? WHERE id = ?')
+                ->execute([
+                    $rvName,
+                    $rvCity,
+                    $rvMascot,
+                    $rvPhoto !== '' ? $rvPhoto : $teamRow['photo_url'],
+                    $sprintId ?: null,
+                    (int) $teamRow['id'],
+                ]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[sprint_review] ' . $e->getMessage());
+            jsonResponse(400, ['error' => 'Erro ao salvar os dados.']);
+        }
+
+        $_SESSION['user_name'] = $rvGm;
+        $_SESSION['user_email'] = $rvEmail;
+
+        jsonResponse(200, ['success' => true]);
+    }
+
     $name = trim($body['name'] ?? '');
     $city = trim($body['city'] ?? '');
     $mascot = trim($body['mascot'] ?? '');
