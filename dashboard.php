@@ -3,6 +3,7 @@ require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/salary_cap.php';
+require_once __DIR__ . '/backend/pendencias.php';
 requireAuth();
 
 $user = getUserSession();
@@ -91,6 +92,10 @@ if ($precisaRevisarSprint) {
 // A ponte com o antigo banco do games saiu na fusão: agora é tudo um banco
 // só e o acesso é a própria sessão do site, então não existe mais
 // "conectar ao games" nem sincronização de tapas por carregamento.
+
+// Tudo que tem prazo ou trava alguma coisa, reunido num lugar só — é o
+// primeiro bloco da página. Ver backend/pendencias.php.
+$pendencias = pendenciasDoGm($pdo, $user, $team ?: null);
 
 $hasActiveTactic = false;
 if ($team) {
@@ -616,6 +621,41 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         .content { padding: 20px 32px 40px; flex: 1; }
 
         /* ── Atalhos ──────────────────────────────────── */
+        /* ── Precisa de você ─────────────────────────────────────────── */
+        .pend-bloco { margin-bottom: 22px; }
+        .pend-titulo { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800;
+            letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); margin-bottom: 12px; }
+        .pend-titulo i { color: var(--red); font-size: 13px; }
+        .pend-contador { background: var(--red); color: #fff; font-size: 10.5px; font-weight: 800;
+            border-radius: 20px; padding: 1px 8px; letter-spacing: 0; }
+        .pend-lista { display: flex; flex-direction: column; gap: 8px; }
+        .pend-item { display: flex; align-items: center; gap: 13px; text-decoration: none;
+            background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--border-md);
+            border-radius: var(--radius-sm); padding: 13px 16px; transition: all var(--t) var(--ease); }
+        .pend-item:hover { border-color: var(--border-md); transform: translateX(2px); }
+        /* A cor da borda esquerda é o que separa "tem relógio correndo" de
+           "resolve quando puder" sem precisar ler nada. */
+        .pend-item.alta  { border-left-color: var(--red); }
+        .pend-item.media { border-left-color: var(--amber); }
+        .pend-item.baixa { border-left-color: var(--text-3); }
+        .pend-ico { width: 34px; height: 34px; border-radius: 10px; background: var(--panel-2);
+            display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+        .pend-item.alta  .pend-ico { color: var(--red);   background: var(--red-soft); }
+        .pend-item.media .pend-ico { color: var(--amber); background: rgba(245,158,11,.10); }
+        .pend-item.baixa .pend-ico { color: var(--text-2); }
+        .pend-txt { flex: 1; min-width: 0; }
+        .pend-item-titulo { font-size: 13.5px; font-weight: 700; color: var(--text); }
+        .pend-item-sub { font-size: 11.5px; color: var(--text-3); margin-top: 1px; }
+        .pend-prazo { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+            font-size: 11px; font-weight: 700; color: var(--amber);
+            background: rgba(245,158,11,.10); border: 1px solid rgba(245,158,11,.28);
+            border-radius: 20px; padding: 3px 10px; white-space: nowrap; }
+        .pend-seta { color: var(--text-3); font-size: 13px; flex-shrink: 0; }
+        @media (max-width: 640px) {
+            .pend-item { padding: 12px 13px; gap: 10px; }
+            .pend-prazo { display: none; }
+        }
+
         .shortcuts-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
         .shortcut-tile {
             display: flex; align-items: center; gap: 12px;
@@ -986,6 +1026,34 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 
         <!-- ── Content ── -->
         <div class="content">
+
+            <!-- Precisa de você: tudo que tem prazo ou trava alguma coisa,
+                 reunido num lugar só. Vem antes de qualquer outra coisa. -->
+            <?php if (!empty($pendencias)): ?>
+            <div class="pend-bloco">
+                <div class="pend-titulo">
+                    <i class="bi bi-bell-fill"></i> Precisa de você
+                    <span class="pend-contador"><?= count($pendencias) ?></span>
+                </div>
+                <div class="pend-lista">
+                    <?php foreach ($pendencias as $p): ?>
+                    <a class="pend-item <?= htmlspecialchars($p['urgencia']) ?>" href="<?= htmlspecialchars($p['url']) ?>">
+                        <div class="pend-ico"><i class="bi <?= htmlspecialchars($p['icone']) ?>"></i></div>
+                        <div class="pend-txt">
+                            <div class="pend-item-titulo"><?= htmlspecialchars($p['titulo']) ?></div>
+                            <?php if (!empty($p['detalhe'])): ?>
+                            <div class="pend-item-sub"><?= htmlspecialchars($p['detalhe']) ?></div>
+                            <?php endif; ?>
+                        </div>
+                        <?php if (!empty($p['prazo'])): ?>
+                        <span class="pend-prazo"><i class="bi bi-clock"></i><?= htmlspecialchars($p['prazo']) ?></span>
+                        <?php endif; ?>
+                        <i class="bi bi-chevron-right pend-seta"></i>
+                    </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <!-- Atalhos -->
             <?php if ($dashboardShortcuts): ?>
@@ -1398,58 +1466,10 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     </div>
                 </div>
 
-                <!-- ── Ações Rápidas ── -->
-                <div class="bc span-3" style="animation-delay:.5s">
-                    <div class="bc-head">
-                        <div class="bc-title"><i class="bi bi-lightning-fill"></i> Ações Rápidas</div>
-                    </div>
-                    <div class="bc-body">
-                        <div class="quick-grid">
-                            <a href="/tatica.php" class="quick-btn">
-                                <i class="bi bi-clipboard2-pulse"></i>
-                                <div class="quick-btn-label">Tática<?= $hasActiveTactic ? ' ✓' : '' ?></div>
-                            </a>
-                            <a href="/ouvidoria.php" class="quick-btn">
-                                <i class="bi bi-chat-left-dots"></i>
-                                <div class="quick-btn-label">Ouvidoria</div>
-                            </a>
-                            <a href="/games.php" class="quick-btn">
-                                <i class="bi bi-controller"></i>
-                                <div class="quick-btn-label">Games</div>
-                            </a>
-                            <a href="/my-roster.php" class="quick-btn">
-                                <i class="bi bi-person-lines-fill"></i>
-                                <div class="quick-btn-label">Elenco</div>
-                            </a>
-                            <a href="/trades.php" class="quick-btn">
-                                <i class="bi bi-arrow-left-right"></i>
-                                <div class="quick-btn-label">Trades</div>
-                            </a>
-                            <a href="/free-agency.php" class="quick-btn">
-                                <i class="bi bi-coin"></i>
-                                <div class="quick-btn-label">Free Agency</div>
-                            </a>
-                        </div>
-                    </div>
-                </div>
 
             </div><!-- /bento -->
         </div><!-- /content -->
 
-        <!-- Footer strip -->
-        <div class="footer-strip">
-            <div class="footer-item"><strong>Time:</strong> <?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></div>
-            <div class="footer-item"><strong>Liga:</strong> <?= htmlspecialchars($user['league']) ?></div>
-            <?php if ($currentSeason): ?>
-            <div class="footer-item"><strong>Temporada:</strong> <?= $seasonDisplayYear ?></div>
-            <?php endif; ?>
-            <?php if ($salaryCapMode && $salCap): ?>
-            <div class="footer-item"><strong>Folha:</strong> <?= (int)$salCap['payroll'] ?>M / <?= (int)$salCap['cap_max'] ?>M</div>
-            <?php else: ?>
-            <div class="footer-item"><strong>CAP:</strong> <?= $teamCap ?> (<?= $capMin ?>–<?= $capMax ?>)</div>
-            <?php endif; ?>
-            <div class="footer-item"><strong>Trades:</strong> <?= $tradesCount ?>/<?= $maxTrades ?></div>
-        </div>
 
     </main>
 </div>
