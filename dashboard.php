@@ -651,6 +651,12 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             background: rgba(245,158,11,.10); border: 1px solid rgba(245,158,11,.28);
             border-radius: 20px; padding: 3px 10px; white-space: nowrap; }
         .pend-seta { color: var(--text-3); font-size: 13px; flex-shrink: 0; }
+        .pend-vazio { display: flex; align-items: center; gap: 13px; background: var(--panel);
+            border: 1px solid rgba(34,197,94,.22); border-left: 3px solid var(--green);
+            border-radius: var(--radius-sm); padding: 13px 16px; }
+        .pend-vazio > i { color: var(--green); font-size: 18px; flex-shrink: 0; }
+        .pend-vazio b { display: block; font-size: 13.5px; font-weight: 700; color: var(--text); }
+        .pend-vazio span { font-size: 11.5px; color: var(--text-3); }
         @media (max-width: 640px) {
             .pend-item { padding: 12px 13px; gap: 10px; }
             .pend-prazo { display: none; }
@@ -1028,13 +1034,27 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         <div class="content">
 
             <!-- Precisa de você: tudo que tem prazo ou trava alguma coisa,
-                 reunido num lugar só. Vem antes de qualquer outra coisa. -->
-            <?php if (!empty($pendencias)): ?>
+                 reunido num lugar só. Vem antes de qualquer outra coisa.
+                 Aparece mesmo sem pendência: sem isso a pessoa que está em dia
+                 nunca descobre que o painel existe, e fica sem a confirmação
+                 de que não há nada esperando por ela. -->
+            <?php if ($team): ?>
             <div class="pend-bloco">
                 <div class="pend-titulo">
                     <i class="bi bi-bell-fill"></i> Precisa de você
+                    <?php if (!empty($pendencias)): ?>
                     <span class="pend-contador"><?= count($pendencias) ?></span>
+                    <?php endif; ?>
                 </div>
+                <?php if (empty($pendencias)): ?>
+                <div class="pend-vazio">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <div>
+                        <b>Tudo em dia</b>
+                        <span>Nenhuma proposta esperando, nenhum prazo correndo e nada travado no seu time.</span>
+                    </div>
+                </div>
+                <?php else: ?>
                 <div class="pend-lista">
                     <?php foreach ($pendencias as $p): ?>
                     <a class="pend-item <?= htmlspecialchars($p['urgencia']) ?>" href="<?= htmlspecialchars($p['url']) ?>">
@@ -1052,6 +1072,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     </a>
                     <?php endforeach; ?>
                 </div>
+                <?php endif; ?>
             </div>
             <?php endif; ?>
 
