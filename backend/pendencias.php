@@ -254,6 +254,28 @@ function pendenciasDoGm(PDO $pdo, array $user, ?array $team): array
         }
     } catch (Throwable $e) {}
 
+    // ── Elenco não atualizado depois do draft ───────────────────────────────
+    // Vira temporada, o draft fecha, e o GM precisa registrar OVR/idade/skills.
+    // Enquanto não faz, as trocas ficam bloqueadas pra ele — então é urgente,
+    // e antes só existia como modal (que some quando o de revisão de sprint
+    // aparece, deixando a pessoa travada sem saber por quê).
+    try {
+        $temporada = temporadaAtivaDaLiga($pdo, $league);
+        if ($temporada) {
+            $sid = (int)$temporada['id'];
+            if (draftConcluidoNaTemporada($pdo, $sid) && !elencoAtualizadoNaTemporada($pdo, $teamId, $sid)) {
+                $itens[] = [
+                    'urgencia' => 'alta',
+                    'icone'    => 'bi-clipboard-data-fill',
+                    'titulo'   => 'Atualize seu time',
+                    'detalhe'  => 'O draft da temporada ' . (int)($temporada['season_number'] ?? 0)
+                                . ' acabou. Enquanto não atualizar, você não envia nem recebe trocas.',
+                    'url'      => '/atualizar-elenco.php',
+                ];
+            }
+        }
+    } catch (Throwable $e) {}
+
     // ── Elenco fora do tamanho permitido ────────────────────────────────────
     try {
         $st = $pdo->prepare("SELECT COUNT(*) FROM players WHERE team_id = ?");

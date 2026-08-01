@@ -12,6 +12,14 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';
 
+/**
+ * A timeline começa aqui. Nada anterior a esta data aparece — o histórico
+ * antigo continua no banco, só não entra mais no feed.
+ */
+if (!defined('FEED_DATA_CORTE')) {
+    define('FEED_DATA_CORTE', '2026-07-30 00:00:00');
+}
+
 function ensureTeamFeedTables(PDO $pdo): void
 {
     $pdo->exec("CREATE TABLE IF NOT EXISTS team_posts (
@@ -270,6 +278,15 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
     // vazar aviso de PHP na resposta JSON.
     usort($eventos, fn($a, $b) => strtotime((string)($b['data'] ?? '1970-01-01')) <=> strtotime((string)($a['data'] ?? '1970-01-01')));
 
+    // Corte da timeline: só entra o que aconteceu de FEED_DATA_CORTE em diante.
+    // O filtro fica aqui, depois da junção, pra valer de uma vez pra todas as
+    // fontes (trades, picks, dispensas…) sem repetir a condição em cada SQL.
+    $corte = strtotime(FEED_DATA_CORTE);
+    $eventos = array_values(array_filter(
+        $eventos,
+        fn($e) => strtotime((string)($e['data'] ?? '1970-01-01')) >= $corte
+    ));
+
     // Cada fonte já trouxe até $limit linhas mais recentes (e mais antigas que
     // $before quando presente) — a junção pode passar de $limit, então corta
     // aqui; a próxima página usa a data do último item devolvido como "before".
@@ -314,6 +331,8 @@ function getTeamPosts(PDO $pdo, ?int $teamId, int $userId, int $limit = 20, ?str
     if ($teamId !== null) { $sql .= " AND tp.team_id = ?"; $params[] = $teamId; }
     if ($league) { $sql .= " AND tm.league = ?"; $params[] = $league; }
     if ($before) { $sql .= " AND tp.created_at < ?"; $params[] = $before; }
+    // Mesmo corte da timeline: post anterior à data não aparece mais no feed.
+    $sql .= " AND tp.created_at >= ?"; $params[] = FEED_DATA_CORTE;
     // MariaDB rejeita LIMIT vinculado como parâmetro de prepared statement
     // (chega como string) — $limit já é int pela assinatura da função.
     $sql .= " ORDER BY tp.created_at DESC LIMIT " . (int)$limit;
