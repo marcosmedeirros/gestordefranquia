@@ -41,6 +41,11 @@ try {
     $pdo->exec("ALTER TABLE league_settings ADD COLUMN IF NOT EXISTS n8n_webhook_url TEXT NULL");
 } catch (Exception $e) { /* silencia — coluna pode já existir ou engine não suporta IF NOT EXISTS */ }
 
+// Ensure progression_video_url column exists
+try {
+    $pdo->exec("ALTER TABLE league_settings ADD COLUMN IF NOT EXISTS progression_video_url TEXT NULL");
+} catch (Exception $e) { /* silencia — coluna pode já existir ou engine não suporta IF NOT EXISTS */ }
+
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 $validLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
@@ -332,9 +337,9 @@ if ($method === 'GET') {
 
             $result = [];
             foreach ($leagues as $league) {
-                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, max_trades, edital, trades_enabled, fa_enabled, COALESCE(n8n_webhook_url, \'\') as n8n_webhook_url FROM league_settings WHERE league = ?');
+                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, max_trades, edital, trades_enabled, fa_enabled, COALESCE(n8n_webhook_url, \'\') as n8n_webhook_url, COALESCE(progression_video_url, \'\') as progression_video_url FROM league_settings WHERE league = ?');
                 $stmtCfg->execute([$league]);
-                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1, 'n8n_webhook_url' => ''];
+                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1, 'n8n_webhook_url' => '', 'progression_video_url' => ''];
 
                 $stmtSprintCfg = $pdo->prepare('SELECT max_seasons FROM league_sprint_config WHERE league = ?');
                 $stmtSprintCfg->execute([$league]);
@@ -355,6 +360,7 @@ if ($method === 'GET') {
                     'trades_enabled' => (int)($cfg['trades_enabled'] ?? 1),
                     'fa_enabled' => (int)($cfg['fa_enabled'] ?? 1),
                     'n8n_webhook_url' => $cfg['n8n_webhook_url'] ?? '',
+                    'progression_video_url' => $cfg['progression_video_url'] ?? '',
                     'team_count' => (int)$teamCount
                 ];
             }
@@ -958,6 +964,7 @@ if ($method === 'PUT') {
             $trades_enabled = isset($data['trades_enabled']) ? (int)$data['trades_enabled'] : null;
             $fa_enabled = isset($data['fa_enabled']) ? (int)$data['fa_enabled'] : null;
             $n8n_webhook_url = array_key_exists('n8n_webhook_url', $data) ? trim((string)$data['n8n_webhook_url']) : null;
+            $progression_video_url = array_key_exists('progression_video_url', $data) ? trim((string)$data['progression_video_url']) : null;
             $max_seasons = isset($data['max_seasons']) ? (int)$data['max_seasons'] : null;
 
             if (!$league) {
@@ -1023,6 +1030,10 @@ if ($method === 'PUT') {
             if ($n8n_webhook_url !== null) {
                 $updates[] = 'n8n_webhook_url = ?';
                 $params[] = $n8n_webhook_url;
+            }
+            if ($progression_video_url !== null) {
+                $updates[] = 'progression_video_url = ?';
+                $params[] = $progression_video_url;
             }
 
             if (empty($updates) && $max_seasons === null) {

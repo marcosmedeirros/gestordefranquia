@@ -773,6 +773,34 @@ function getUserPhoto(?string $photoUrl, string $default = '/img/default-avatar.
     return $photoUrl;
 }
 
+/**
+ * Interpreta a URL do vídeo de Progression de uma liga e decide como exibi-la:
+ * - 'direct': arquivo de vídeo (mp4/webm/ogg/mov) tocado num <video> nativo,
+ *   o único caso em que dá pra pausar e capturar o frame via canvas (embeds
+ *   de terceiros são cross-origin e o navegador bloqueia a captura).
+ * - 'iframe': YouTube, Vimeo ou Google Drive, incorporado num iframe.
+ * - 'link': qualquer outra URL — mostra só um botão "Assistir" que abre em nova aba.
+ */
+function progressionVideoEmbed(?string $url): ?array
+{
+    $url = trim((string)$url);
+    if ($url === '') return null;
+
+    if (preg_match('#(?:youtube\.com/(?:watch\?v=|embed/|shorts/)|youtu\.be/)([A-Za-z0-9_-]{6,})#i', $url, $m)) {
+        return ['type' => 'iframe', 'embed_url' => 'https://www.youtube.com/embed/' . $m[1], 'raw_url' => $url];
+    }
+    if (preg_match('#vimeo\.com/(?:video/)?(\d+)#i', $url, $m)) {
+        return ['type' => 'iframe', 'embed_url' => 'https://player.vimeo.com/video/' . $m[1], 'raw_url' => $url];
+    }
+    if (preg_match('#drive\.google\.com/file/d/([A-Za-z0-9_-]+)#i', $url, $m)) {
+        return ['type' => 'iframe', 'embed_url' => 'https://drive.google.com/file/d/' . $m[1] . '/preview', 'raw_url' => $url];
+    }
+    if (preg_match('#\.(mp4|webm|ogg|ogv|mov)(\?.*)?$#i', $url)) {
+        return ['type' => 'direct', 'embed_url' => $url, 'raw_url' => $url];
+    }
+    return ['type' => 'link', 'embed_url' => null, 'raw_url' => $url];
+}
+
 function ensureLoginAttemptsTable(PDO $pdo): void
 {
     static $checked = false;
