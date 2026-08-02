@@ -16,13 +16,28 @@ function daTempo(seg) {
 }
 let daPickAlvo = null; // pick sendo preenchida pelo modal (null = a da vez)
 
+// Trava de envio: enquanto uma ação de escrita está em voo, nenhuma outra sai.
+// Sem isso, clique duplo (ou Enter + clique) disparava duas requisições — a
+// segunda chegava depois da primeira já ter avançado a vez e acabava
+// registrando a escolha do GM seguinte junto, como se tivesse escolhido 2x.
+let daEmVoo = false;
+
 async function _daFetch(url, options = {}) {
-  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
-  const txt = await res.text();
-  let data;
-  try { data = JSON.parse(txt); } catch (e) { throw new Error('Resposta inválida do servidor'); }
-  if (!data.success) throw new Error(data.error || 'Erro desconhecido');
-  return data;
+  const ehEscrita = String(options.method || 'GET').toUpperCase() === 'POST';
+  if (ehEscrita) {
+    if (daEmVoo) throw new Error('Calma — a ação anterior ainda está sendo registrada.');
+    daEmVoo = true;
+  }
+  try {
+    const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+    const txt = await res.text();
+    let data;
+    try { data = JSON.parse(txt); } catch (e) { throw new Error('Resposta inválida do servidor'); }
+    if (!data.success) throw new Error(data.error || 'Erro desconhecido');
+    return data;
+  } finally {
+    if (ehEscrita) daEmVoo = false;
+  }
 }
 
 async function daCarregar() {
@@ -90,6 +105,7 @@ function daRenderTudo() {
         <div class="card-head-left"><i class="bi bi-list-ol"></i><span>Quadro do Draft</span></div>
         <div style="display:flex;gap:8px">
           <button type="button" class="btn-ghost" id="btnDaCopiarLink"><i class="bi bi-link-45deg me-1"></i>Copiar link</button>
+          <button type="button" class="btn-ghost" id="btnDaCopiarEscolhas"><i class="bi bi-clipboard-check me-1"></i>Copiar escolhas</button>
           <button type="button" class="btn-ghost" id="btnDaCopiar"><i class="bi bi-clipboard me-1"></i>Copiar ordem</button>
         </div>
       </div>
@@ -103,6 +119,7 @@ function daRenderTudo() {
   on('btnDaFinalizar', daFinalizar);
   on('btnDaReabrir', daReabrir);
   on('btnDaCopiar', daCopiarOrdem);
+  on('btnDaCopiarEscolhas', daCopiarEscolhas);
   on('btnDaCopiarLink', daCopiarLink);
   const btnPular = document.getElementById('btnDaPular');
   if (btnPular) btnPular.addEventListener('click', () => daAbrirModalPular(btnPular.dataset.gm));
@@ -308,18 +325,36 @@ function daCopiarLink(ev) {
   }).catch(() => alert('Não consegui copiar o link.'));
 }
 
+/** Copia texto e dá o retorno visual no próprio botão. */
+function daCopiar(texto, btn) {
+  const original = btn.innerHTML;
+  navigator.clipboard.writeText(texto).then(() => {
+    btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copiado!';
+    setTimeout(() => { btn.innerHTML = original; }, 1600);
+  }).catch(() => prompt('Copie o texto abaixo:', texto));
+}
+
+/** Ordem completa do draft, escolhidos ou não. */
 function daCopiarOrdem(ev) {
   const texto = daEstado.picks
     .map(p => `Pick ${p.pick_number}, ${p.nome_display}`
       + (p.player_name ? ' — ' + p.player_name : '')
       + (p.tempo_seg != null ? ' [' + daTempo(p.tempo_seg) + ']' : ''))
     .join('\n');
-  const btn = ev.currentTarget;
-  const original = btn.innerHTML;
-  navigator.clipboard.writeText(texto).then(() => {
-    btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copiado!';
-    setTimeout(() => { btn.innerHTML = original; }, 1600);
-  }).catch(() => alert('Não consegui copiar.'));
+  daCopiar(texto, ev.currentTarget);
+}
+
+/**
+ * Só as escolhas já feitas, no formato de mandar no grupo:
+ * "1 - Oakland Blue Foxes - LeBron James". Puladas ainda sem jogador ficam
+ * de fora — o que interessa colar é quem já escolheu.
+ */
+function daCopiarEscolhas(ev) {
+  const feitas = daEstado.picks.filter(p => p.player_name);
+  if (!feitas.length) { alert('Ainda não tem nenhuma escolha pra copiar.'); return; }
+  const texto = `${daEstado.titulo} — escolhas até agora\n\n`
+    + feitas.map(p => `${p.pick_number} - ${p.nome_display} - ${p.player_name}`).join('\n');
+  daCopiar(texto, ev.currentTarget);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

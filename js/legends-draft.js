@@ -18,13 +18,28 @@ function ldTempo(seg) {
   return Math.floor(seg / 3600) + 'h ' + String(Math.floor((seg % 3600) / 60)).padStart(2, '0') + 'm';
 }
 
+// Trava de envio: enquanto uma ação de escrita está em voo, nenhuma outra sai.
+// Sem isso, clique duplo (ou Enter + clique) disparava duas requisições — a
+// segunda chegava depois da primeira já ter avançado a vez e acabava
+// registrando a escolha do GM seguinte junto, como se tivesse escolhido 2x.
+let ldEmVoo = false;
+
 async function _ldFetch(url, options = {}) {
-  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
-  const txt = await res.text();
-  let data;
-  try { data = JSON.parse(txt); } catch (e) { throw new Error('Resposta inválida do servidor'); }
-  if (!data.success) throw new Error(data.error || 'Erro desconhecido');
-  return data;
+  const ehEscrita = String(options.method || 'GET').toUpperCase() === 'POST';
+  if (ehEscrita) {
+    if (ldEmVoo) throw new Error('Calma — a ação anterior ainda está sendo registrada.');
+    ldEmVoo = true;
+  }
+  try {
+    const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+    const txt = await res.text();
+    let data;
+    try { data = JSON.parse(txt); } catch (e) { throw new Error('Resposta inválida do servidor'); }
+    if (!data.success) throw new Error(data.error || 'Erro desconhecido');
+    return data;
+  } finally {
+    if (ehEscrita) ldEmVoo = false;
+  }
 }
 
 async function ldCarregar() {
@@ -97,7 +112,10 @@ function ldRenderTudo() {
     </div>`;
   }
 
-  html += `<div class="card"><div class="card-head"><div class="card-head-left"><i class="bi bi-list-ol"></i><span>Quadro do Draft</span></div></div>
+  html += `<div class="card"><div class="card-head">
+      <div class="card-head-left"><i class="bi bi-list-ol"></i><span>Quadro do Draft</span></div>
+      <button type="button" class="btn-ghost" id="btnLdCopiarEscolhas"><i class="bi bi-clipboard-check me-1"></i>Copiar escolhas</button>
+    </div>
     <div class="card-body"><div class="ld-board">${d.picks.map(p => ldLinhaBoard(p, d)).join('')}</div></div>
   </div>`;
 
@@ -109,6 +127,8 @@ function ldRenderTudo() {
   if (btnPular) btnPular.addEventListener('click', () => ldAbrirModalPular(btnPular.dataset.gm));
   const btnFinalizar = document.getElementById('btnLdFinalizar');
   if (btnFinalizar) btnFinalizar.addEventListener('click', ldFinalizar);
+  const btnCopiar = document.getElementById('btnLdCopiarEscolhas');
+  if (btnCopiar) btnCopiar.addEventListener('click', ldCopiarEscolhas);
   document.querySelectorAll('.ld-btn-preencher').forEach(btn => {
     btn.addEventListener('click', () => ldAbrirModalPreencher(Number(btn.dataset.pick), btn.dataset.gm));
   });
@@ -136,6 +156,23 @@ function ldRegrasHtml() {
       </ul>
     </div>
   </div>`;
+}
+
+/**
+ * Só as escolhas já feitas, no formato de mandar no grupo:
+ * "1 - Fulano - LeBron James". Puladas ainda sem jogador ficam de fora.
+ */
+function ldCopiarEscolhas(ev) {
+  const feitas = (ldEstado?.picks || []).filter(p => p.player_name);
+  if (!feitas.length) { alert('Ainda não tem nenhuma escolha pra copiar.'); return; }
+  const texto = 'Draft de Lendas — escolhas até agora\n\n'
+    + feitas.map(p => `${p.pick_number} - ${p.gm_name} - ${p.player_name}`).join('\n');
+  const btn = ev.currentTarget;
+  const original = btn.innerHTML;
+  navigator.clipboard.writeText(texto).then(() => {
+    btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copiado!';
+    setTimeout(() => { btn.innerHTML = original; }, 1600);
+  }).catch(() => prompt('Copie o texto abaixo:', texto));
 }
 
 function ldLinhaBoard(p, d) {
