@@ -880,6 +880,13 @@ function ensureHallOfFameLeagueUnique(PDO $pdo): void
     if ($checked) {
         return;
     }
+    // DDL dentro de transação causa COMMIT implícito no MySQL — o commit() lá
+    // na frente morreria com "There is no active transaction" e a ação
+    // devolveria erro mesmo tendo gravado tudo. Quem chama dentro de uma
+    // transação tem que garantir o índice ANTES de abri-la.
+    if ($pdo->inTransaction()) {
+        return;
+    }
     try {
         $idx = $pdo->query("SHOW INDEX FROM hall_of_fame WHERE Key_name = 'uk_hof_team_league'")->fetch();
         if (!$idx) {

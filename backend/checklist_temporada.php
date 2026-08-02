@@ -57,10 +57,22 @@ function checklistDaTemporada(PDO $pdo, string $league, array $season): array
     // do draft, gravado quando a loteria roda.
     if (in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
         try {
-            $st = $pdo->prepare("SELECT draft_order_snapshot FROM seasons WHERE id = ?");
+            // A loteria está feita quando a ordem do draft existe (draft_order).
+            // O draft_order_snapshot serve de alternativa, mas sozinho não vale:
+            // ele só é gravado ao FINALIZAR os playoffs, muito depois — quem
+            // olhasse só pra ele via a loteria como pendente mesmo já sorteada.
+            $st = $pdo->prepare("SELECT COUNT(*) FROM draft_order do_
+                                 JOIN draft_sessions ds ON ds.id = do_.draft_session_id
+                                 WHERE ds.season_id = ?");
             $st->execute([$seasonId]);
-            $snap = $st->fetchColumn();
-            $add('loteria', 'Loteria feita', !empty($snap), empty($snap) ? 'ordem do draft ainda não sorteada' : 'ordem do draft definida');
+            $temOrdem = (int)$st->fetchColumn() > 0;
+
+            if (!$temOrdem) {
+                $st2 = $pdo->prepare("SELECT draft_order_snapshot FROM seasons WHERE id = ?");
+                $st2->execute([$seasonId]);
+                $temOrdem = !empty($st2->fetchColumn());
+            }
+            $add('loteria', 'Loteria feita', $temOrdem, $temOrdem ? 'ordem do draft definida' : 'ordem do draft ainda não sorteada');
         } catch (Throwable $e) {
             $add('loteria', 'Loteria feita', null, 'não deu pra verificar');
         }
@@ -95,7 +107,10 @@ function checklistDaTemporada(PDO $pdo, string $league, array $season): array
         $abertos = (int)$fa['abertos'];
 
         if ($total === 0) {
-            $add('fa', 'Free Agency feita', false, 'nenhum pedido registrado ainda');
+            // Temporada sem nenhum pedido é uma free agency sem pendência, não
+            // uma etapa por fazer — marcar como pendente travaria o avanço de
+            // uma temporada em que simplesmente ninguém pediu ninguém.
+            $add('fa', 'Free Agency feita', true, 'nenhum pedido nesta temporada');
         } else {
             $add('fa', 'Free Agency feita', $abertos === 0,
                 $abertos === 0 ? "{$total} pedidos, todos resolvidos" : "{$abertos} de {$total} pedidos ainda abertos");
