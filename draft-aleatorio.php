@@ -141,6 +141,7 @@ if ($team_id) {
         .da-row-jogador i.bi-check-circle-fill{color:var(--green);font-size:11px;margin-right:6px}
         .da-row-jogador b{color:var(--red);font-size:14.5px;font-weight:800;letter-spacing:.2px}
         .da-row-meta{color:var(--text-2);font-size:12px;margin-left:6px}
+        .da-row-tempo{margin-left:auto;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;font-size:11px;font-weight:600;color:var(--text-3);background:var(--panel-3);border:1px solid var(--border);border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums}
 
         .da-btn-pular{background:transparent;border:1px solid var(--border-md);color:var(--text-2);font-weight:600;font-size:13px;border-radius:var(--radius-xs);padding:9px 16px;cursor:pointer;transition:all var(--t)}
         .da-btn-pular:hover{border-color:rgba(239,68,68,.4);color:#ef4444;background:rgba(239,68,68,.06)}
@@ -218,10 +219,6 @@ if ($team_id) {
         <p class="da-modal-text" id="daPreencherModalText"></p>
         <div class="da-form-row" style="margin-top:0">
             <input type="text" id="daPreencherNome" placeholder="Nome do jogador" maxlength="150">
-            <select id="daPreencherPosicao">
-                <option value="PG">PG</option><option value="SG">SG</option>
-                <option value="SF">SF</option><option value="PF">PF</option><option value="C">C</option>
-            </select>
         </div>
         <div class="da-modal-actions" style="margin-top:16px">
             <button type="button" class="btn-ghost" onclick="daFecharModalPreencher()">Cancelar</button>

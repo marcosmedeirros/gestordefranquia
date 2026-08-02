@@ -6,6 +6,14 @@ const _daEsc = s => (s == null ? '' : String(s))
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 let daEstado = null;
+
+/** Segundos -> "12s" / "3m 05s" / "1h 02m". */
+function daTempo(seg) {
+  seg = Math.max(0, Math.round(Number(seg) || 0));
+  if (seg < 60) return seg + 's';
+  if (seg < 3600) return Math.floor(seg / 60) + 'm ' + String(seg % 60).padStart(2, '0') + 's';
+  return Math.floor(seg / 3600) + 'h ' + String(Math.floor((seg % 3600) / 60)).padStart(2, '0') + 'm';
+}
 let daPickAlvo = null; // pick sendo preenchida pelo modal (null = a da vez)
 
 async function _daFetch(url, options = {}) {
@@ -62,10 +70,6 @@ function daRenderTudo() {
       <div class="da-turno-gm">${_daEsc(vez.nome_display)}${ehMinhaVez ? ' — é a sua vez!' : ''}</div>
       <div class="da-form-row">
         <input type="text" id="daNomeJogador" placeholder="Nome do jogador" maxlength="150">
-        <select id="daPosicaoJogador">
-          <option value="PG">PG</option><option value="SG">SG</option>
-          <option value="SF">SF</option><option value="PF">PF</option><option value="C">C</option>
-        </select>
         <button type="button" class="btn-orange" id="btnDaEscolher">Confirmar escolha</button>
         <button type="button" class="da-btn-pular" id="btnDaPular" data-gm="${_daEsc(vez.nome_display)}"><i class="bi bi-skip-forward-fill"></i> Pular escolha</button>
       </div>
@@ -128,7 +132,6 @@ function daLinhaBoard(p, d) {
   let jogador;
   if (p.player_name) {
     jogador = `<i class="bi bi-check-circle-fill"></i><b>${_daEsc(p.player_name)}</b>`
-      + `<span class="da-row-meta">${_daEsc(p.player_position)}</span>`
       + (!d.finalizado ? `<button type="button" class="da-btn-desfazer" data-pick="${p.pick_number}" data-gm="${gm}" title="Desfazer escolha"><i class="bi bi-arrow-counterclockwise"></i></button>` : '');
   } else if (Number(p.skipped)) {
     jogador = `<span class="da-pulada"><i class="bi bi-skip-forward-fill"></i> Pulada</span>`
@@ -144,25 +147,30 @@ function daLinhaBoard(p, d) {
     ? `<button type="button" class="da-btn-editar-gm" data-pick="${p.pick_number}" data-gm="${gm}" title="Editar nome do GM"><i class="bi bi-pencil"></i></button>`
     : '';
 
+  // Quanto essa escolha demorou (vem pronto da API, em segundos).
+  const tempo = p.tempo_seg != null
+    ? `<span class="da-row-tempo" title="Tempo que essa escolha levou"><i class="bi bi-stopwatch"></i>${daTempo(p.tempo_seg)}</span>`
+    : '';
+
   return `
     <div class="da-row ${classe}">
       <div class="da-row-pick">${p.pick_number}</div>
       ${foto}
       <div class="da-row-gm"><span>${gm}</span>${editarGm}</div>
       <div class="da-row-jogador">${jogador}</div>
+      ${tempo}
     </div>`;
 }
 
 async function daEscolher() {
   const nome = document.getElementById('daNomeJogador').value.trim();
-  const pos = document.getElementById('daPosicaoJogador').value;
   if (!nome) { alert('Digite o nome do jogador.'); return; }
   const btn = document.getElementById('btnDaEscolher');
   btn.disabled = true;
   try {
     daEstado = await _daFetch('/api/drafts-aleatorios.php', {
       method: 'POST',
-      body: JSON.stringify({ action: 'escolher', id: window.DRAFT_ID, player_name: nome, player_position: pos }),
+      body: JSON.stringify({ action: 'escolher', id: window.DRAFT_ID, player_name: nome }),
     });
     daRenderTudo();
   } catch (e) {
@@ -203,7 +211,6 @@ function daAbrirModalPreencher(pick, gm) {
   const t = document.getElementById('daPreencherModalText');
   if (t) t.textContent = `Escolha ${pick} — ${gm}.`;
   document.getElementById('daPreencherNome').value = '';
-  document.getElementById('daPreencherPosicao').value = 'PG';
   document.getElementById('daPreencherModalOverlay').classList.add('open');
   setTimeout(() => document.getElementById('daPreencherNome').focus(), 50);
 }
@@ -215,7 +222,6 @@ window.daFecharModalPreencher = daFecharModalPreencher;
 
 async function daConfirmarPreencher() {
   const nome = document.getElementById('daPreencherNome').value.trim();
-  const pos = document.getElementById('daPreencherPosicao').value;
   if (!nome) { alert('Digite o nome do jogador.'); return; }
   const btn = document.getElementById('btnDaConfirmarPreencher');
   btn.disabled = true;
@@ -224,7 +230,7 @@ async function daConfirmarPreencher() {
       method: 'POST',
       body: JSON.stringify({
         action: 'escolher', id: window.DRAFT_ID,
-        player_name: nome, player_position: pos, pick_number: daPickAlvo,
+        player_name: nome, pick_number: daPickAlvo,
       }),
     });
     daFecharModalPreencher();
@@ -304,7 +310,9 @@ function daCopiarLink(ev) {
 
 function daCopiarOrdem(ev) {
   const texto = daEstado.picks
-    .map(p => `Pick ${p.pick_number}, ${p.nome_display}${p.player_name ? ' — ' + p.player_name + ' (' + p.player_position + ')' : ''}`)
+    .map(p => `Pick ${p.pick_number}, ${p.nome_display}`
+      + (p.player_name ? ' — ' + p.player_name : '')
+      + (p.tempo_seg != null ? ' [' + daTempo(p.tempo_seg) + ']' : ''))
     .join('\n');
   const btn = ev.currentTarget;
   const original = btn.innerHTML;

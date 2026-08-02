@@ -10,6 +10,14 @@ const LD_TIER_NOME = { bronze: 'Bronze', silver: 'Prata', gold: 'Ouro', hof: 'HO
 let ldEstado = null;
 let ldMinhasBadgesEdit = {}; // badge_key -> tier (rascunho local antes de salvar)
 
+/** Segundos -> "12s" / "3m 05s" / "1h 02m". */
+function ldTempo(seg) {
+  seg = Math.max(0, Math.round(Number(seg) || 0));
+  if (seg < 60) return seg + 's';
+  if (seg < 3600) return Math.floor(seg / 60) + 'm ' + String(seg % 60).padStart(2, '0') + 's';
+  return Math.floor(seg / 3600) + 'h ' + String(Math.floor((seg % 3600) / 60)).padStart(2, '0') + 'm';
+}
+
 async function _ldFetch(url, options = {}) {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
   const txt = await res.text();
@@ -76,13 +84,6 @@ function ldRenderTudo() {
       <div class="ld-turno-gm">${_ldEsc(vez.gm_name)}${ehMinhaVez ? ' — é a sua vez!' : ''}</div>
       <div class="ld-form-row">
         <input type="text" id="ldNomeJogador" placeholder="Nome do jogador (lenda)" maxlength="150">
-        <select id="ldPosicaoJogador">
-          <option value="PG">PG</option>
-          <option value="SG">SG</option>
-          <option value="SF">SF</option>
-          <option value="PF">PF</option>
-          <option value="C">C</option>
-        </select>
         <button type="button" class="btn-orange" id="btnLdEscolher">Confirmar escolha</button>
         <button type="button" class="ld-btn-pular" id="btnLdPular" data-gm="${_ldEsc(vez.gm_name)}"><i class="bi bi-skip-forward-fill"></i> Pular escolha</button>
       </div>
@@ -142,28 +143,33 @@ function ldLinhaBoard(p, d) {
   const ehMeu = Number(p.user_id) === Number(window.SESSION_USER_ID);
   const classe = ehVez ? 'atual' : (ehMeu ? 'eu' : '');
   const jogador = p.player_name
-    ? `<i class="bi bi-star-fill"></i><b>${_ldEsc(p.player_name)}</b> <span class="ld-row-meta">${_ldEsc(p.player_position)}</span>${!d.finalizado ? `<button type="button" class="ld-btn-desfazer" data-pick="${p.pick_number}" data-gm="${_ldEsc(p.gm_name)}" title="Desfazer escolha"><i class="bi bi-arrow-counterclockwise"></i></button>` : ''}`
+    ? `<i class="bi bi-star-fill"></i><b>${_ldEsc(p.player_name)}</b>${!d.finalizado ? `<button type="button" class="ld-btn-desfazer" data-pick="${p.pick_number}" data-gm="${_ldEsc(p.gm_name)}" title="Desfazer escolha"><i class="bi bi-arrow-counterclockwise"></i></button>` : ''}`
     : (Number(p.skipped)
         ? `<span class="ld-pulada"><i class="bi bi-skip-forward-fill"></i> Pulada</span><button type="button" class="ld-btn-preencher" data-pick="${p.pick_number}" data-gm="${_ldEsc(p.gm_name)}">Escolher</button><button type="button" class="ld-btn-despular" data-pick="${p.pick_number}" data-gm="${_ldEsc(p.gm_name)}" title="Tirar do pulado"><i class="bi bi-arrow-counterclockwise"></i></button>`
         : (ehVez ? 'escolhendo agora...' : 'aguardando...'));
+  // Quanto essa escolha demorou (vem pronto da API, em segundos).
+  const tempo = p.tempo_seg != null
+    ? `<span class="ld-row-tempo" title="Tempo que essa escolha levou"><i class="bi bi-stopwatch"></i>${ldTempo(p.tempo_seg)}</span>`
+    : '';
+
   return `
     <div class="ld-row ${classe}">
       <div class="ld-row-pick">${p.pick_number}</div>
       <div class="ld-row-gm">${_ldEsc(p.gm_name)}</div>
       <div class="ld-row-jogador">${jogador}</div>
+      ${tempo}
     </div>`;
 }
 
 async function ldEscolher() {
   const nome = document.getElementById('ldNomeJogador').value.trim();
-  const pos = document.getElementById('ldPosicaoJogador').value;
   if (!nome) { alert('Digite o nome do jogador.'); return; }
   const btn = document.getElementById('btnLdEscolher');
   btn.disabled = true;
   try {
     const data = await _ldFetch('/api/legends-draft.php', {
       method: 'POST',
-      body: JSON.stringify({ action: 'escolher', player_name: nome, player_position: pos }),
+      body: JSON.stringify({ action: 'escolher', player_name: nome }),
     });
     ldEstado = data;
     ldMinhasBadgesEdit = { ...(data.minhas_badges || {}) };
@@ -239,10 +245,8 @@ function ldAbrirModalPreencher(pickNumber, gmName) {
   const overlay = document.getElementById('ldPreencherModalOverlay');
   const texto = document.getElementById('ldPreencherModalText');
   const nome = document.getElementById('ldPreencherNome');
-  const pos = document.getElementById('ldPreencherPosicao');
   if (texto) texto.textContent = `Escolha ${pickNumber} — ${gmName}. Se deixar em branco e confirmar, a escolha continua pulada.`;
   if (nome) nome.value = '';
-  if (pos) pos.value = 'PG';
   if (overlay) { overlay.dataset.pick = pickNumber; overlay.classList.add('open'); }
 }
 
@@ -255,14 +259,13 @@ async function ldConfirmarPreencher() {
   const overlay = document.getElementById('ldPreencherModalOverlay');
   const pickNumber = Number(overlay.dataset.pick);
   const nome = document.getElementById('ldPreencherNome').value.trim();
-  const pos = document.getElementById('ldPreencherPosicao').value;
   if (!nome) { ldFecharModalPreencher(); return; }
   const btn = document.getElementById('btnLdConfirmarPreencher');
   btn.disabled = true;
   try {
     const data = await _ldFetch('/api/legends-draft.php', {
       method: 'POST',
-      body: JSON.stringify({ action: 'escolher', player_name: nome, player_position: pos, pick_number: pickNumber }),
+      body: JSON.stringify({ action: 'escolher', player_name: nome, pick_number: pickNumber }),
     });
     ldEstado = data;
     ldMinhasBadgesEdit = { ...(data.minhas_badges || {}) };

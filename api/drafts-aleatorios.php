@@ -78,7 +78,7 @@ function estadoDraftAleatorio(PDO $pdo, int $draftId, int $sessionUserId, bool $
     if (!$d) return null;
 
     $stmtP = $pdo->prepare("
-        SELECT dap.id, dap.pick_number, dap.team_id, dap.user_id, dap.nome_display,
+        SELECT dap.id, dap.pick_number, dap.team_id, dap.user_id, dap.nome_display, dap.created_at,
                dap.player_name, dap.player_position, dap.skipped, dap.picked_at,
                t.photo_url
         FROM draft_aleatorio_picks dap
@@ -88,6 +88,23 @@ function estadoDraftAleatorio(PDO $pdo, int $draftId, int $sessionUserId, bool $
     ");
     $stmtP->execute([$draftId]);
     $picks = $stmtP->fetchAll(PDO::FETCH_ASSOC);
+
+    // Tempo que cada escolha levou: picked_at desta pick menos o picked_at da
+    // anterior (a vez começa quando a anterior sai). A pick 1 conta a partir
+    // da criação do draft. Preenchimentos fora de ordem podem dar diferença
+    // negativa — aí não mostra nada em vez de mostrar um número mentiroso.
+    $anterior = null;
+    foreach ($picks as $i => $p) {
+        $picks[$i]['tempo_seg'] = null;
+        if ($p['picked_at'] !== null) {
+            $base = $anterior ?? $p['created_at'];
+            if ($base !== null) {
+                $delta = strtotime($p['picked_at']) - strtotime($base);
+                if ($delta >= 0) $picks[$i]['tempo_seg'] = $delta;
+            }
+            $anterior = $p['picked_at'];
+        }
+    }
 
     $vezPickNumber = null;
     $feitas = 0;
@@ -368,14 +385,13 @@ if ($method === 'POST') {
 
     if ($action === 'escolher') {
         $nome = trim((string)($body['player_name'] ?? ''));
+        // Posição saiu do formulário — só o nome é digitado. Continua aceita se
+        // vier (drafts antigos gravaram), mas nunca mais é exigida.
         $pos  = strtoupper(trim((string)($body['player_position'] ?? '')));
+        if (!in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true)) $pos = null;
         $pickAlvo = isset($body['pick_number']) ? (int)$body['pick_number'] : null;
         if ($nome === '') {
             echo json_encode(['success' => false, 'error' => 'Digite o nome do jogador.']);
-            exit;
-        }
-        if (!in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true)) {
-            echo json_encode(['success' => false, 'error' => 'Posição inválida.']);
             exit;
         }
         if (draftFinalizado($pdo, $draftId)) {
