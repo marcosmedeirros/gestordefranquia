@@ -4126,8 +4126,11 @@ async function showPunicoes() {
   const league = appState.currentLeague || _leagues[0] || 'ELITE';
   const container = document.getElementById('mainContainer');
   container.innerHTML = `
-    <div class="mb-4">
+    <div class="mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
       <button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <button class="btn btn-outline-danger btn-sm" onclick="zerarPunicoesEAvisos('${league}')">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Zerar punições e avisos da ${league}
+      </button>
     </div>
 
     <div class="row g-4">
@@ -6267,7 +6270,12 @@ async function showSerasaAdmin() {
       : '';
 
     container.innerHTML = `
-      <div class="mb-4"><button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button></div>
+      <div class="mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>
+        <button class="btn btn-outline-danger btn-sm" onclick="zerarSerasaDaLiga('${league}')">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Zerar avisos da ${league}
+        </button>
+      </div>
       ${novoAvisoBanner}
       <div class="panel">
         <div class="panel-header">
@@ -6280,6 +6288,12 @@ async function showSerasaAdmin() {
   } catch (e) {
     container.innerHTML = `<div class="alert alert-danger">Erro: ${escapeHtml(e.error || 'Desconhecido')}</div>`;
   }
+}
+
+async function zerarSerasaDaLiga(league) {
+  if (typeof window.zerarPunicoesEAvisos !== 'function') return;
+  await window.zerarPunicoesEAvisos(league);
+  showSerasaAdmin();
 }
 
 function _serasaEditAvisos(teamId, league, current) {

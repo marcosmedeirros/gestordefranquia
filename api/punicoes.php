@@ -283,9 +283,27 @@ if ($method === 'GET') {
 if ($method === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true) ?: [];
     $action = $body['action'] ?? '';
-    if (!in_array($action, ['add', 'add_motive', 'add_type', 'revert'], true)) {
+    if (!in_array($action, ['add', 'add_motive', 'add_type', 'revert', 'reset_league'], true)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Ação inválida']);
+        exit;
+    }
+
+    if ($action === 'reset_league') {
+        $league = strtoupper(trim($body['league'] ?? ''));
+        if (!in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+            exit;
+        }
+        require_once dirname(__DIR__) . '/backend/team_punishments.php';
+        try {
+            $result = resetPunicoesEAvisosDaLiga($pdo, $league, (int)$user['id']);
+            echo json_encode(['success' => true] + $result);
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Erro ao zerar punições e avisos.']);
+        }
         exit;
     }
 

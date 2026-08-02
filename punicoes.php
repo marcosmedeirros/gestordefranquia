@@ -287,9 +287,14 @@ try {
     </header>
 
     <main class="main">
-        <div class="page-hero">
-            <div class="page-eyebrow">Admin · <?= htmlspecialchars($user['league']) ?></div>
-            <h1 class="page-title"><i class="bi bi-exclamation-triangle-fill"></i> Punições</h1>
+        <div class="page-hero" style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div>
+                <div class="page-eyebrow">Admin · <?= htmlspecialchars($user['league']) ?></div>
+                <h1 class="page-title"><i class="bi bi-exclamation-triangle-fill"></i> Punições</h1>
+            </div>
+            <button type="button" class="btn btn-outline-danger btn-sm" id="btnZerarPunicoesAvisos">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Zerar punições e avisos da liga
+            </button>
         </div>
 
         <div class="content">

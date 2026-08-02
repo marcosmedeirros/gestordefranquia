@@ -2288,6 +2288,15 @@ try {
                 }
                 $pdo->prepare('UPDATE teams SET ' . implode(', ', $teamUpdates) . ' WHERE league = ?')->execute([$league]);
 
+                // Punições e avisos (FBA SERASA) também zeram a cada sprint nova —
+                // ninguém deveria começar a sprint carregando bagagem da anterior.
+                try {
+                    require_once dirname(__DIR__) . '/backend/team_punishments.php';
+                    resetPunicoesEAvisosDaLiga($pdo, $league, $user['id'] ?? null);
+                } catch (Throwable $e) {
+                    error_log('[finalize_sprint] zerar punições/avisos: ' . $e->getMessage());
+                }
+
                 // 4. Cria o novo sprint (sprint_number seguinte) e a temporada 1 dele.
                 // O ano continua de onde a sprint anterior parou (não é o ano civil real
                 // — a liga já pode estar em qualquer ano fictício, ex. 2044) — evita

@@ -172,6 +172,21 @@ window.revertPunishment = async function(id) {
   } catch (e) { alert(e.error || 'Erro ao reverter.'); }
 };
 
+async function zerarPunicoesEAvisos(league) {
+  if (!league) { alert('Selecione uma liga primeiro.'); return; }
+  if (!confirm(`Zerar todas as punições e avisos (FBA SERASA) ativos da ${league}? As punições ficam marcadas como revertidas no histórico, mas nenhum time da liga fica mais com aviso ou banimento vigente.`)) return;
+  try {
+    const data = await _pApi('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'reset_league', league }) });
+    _notify('success', `Zerado! ${data.reverted || 0} punição(ões)/aviso(s) revertidos.`);
+    if (typeof window.loadPunishments === 'function') {
+      await window.loadPunishments({ league, teamId: _el('punicaoHistoryTeam')?.value || _el('punicaoTeam')?.value || '' });
+    }
+  } catch (e) {
+    alert(e.error || 'Erro ao zerar punições e avisos.');
+  }
+}
+window.zerarPunicoesEAvisos = zerarPunicoesEAvisos;
+
 window.initPunicoes = async function(preselectedLeague) {
   let _curLeague = preselectedLeague || '';
   let _curTeamId = '';
@@ -200,6 +215,10 @@ window.initPunicoes = async function(preselectedLeague) {
   });
 
   _el('punicaoType')?.addEventListener('change', _updateFormVisibility);
+
+  _el('btnZerarPunicoesAvisos')?.addEventListener('click', () => {
+    zerarPunicoesEAvisos(_curLeague || _el('punicaoLeague')?.value || '');
+  });
 
   _el('punicaoSubmit')?.addEventListener('click', async () => {
     if (!_curTeamId) { alert('Selecione um time.'); return; }
