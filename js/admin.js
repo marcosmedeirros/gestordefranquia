@@ -671,7 +671,7 @@ function ensureCreateGmModal() {
         <div class="modal-body">
           <div class="mb-3">
             <label class="form-label text-light-gray">Liga</label>
-            <select id="cgm-league" class="form-select">
+            <select id="cgm-league" class="form-select" onchange="toggleCgmTeamFields()">
               ${_leagues.map(lg => `<option value="${lg}">${lg}</option>`).join('')}
             </select>
           </div>
@@ -683,13 +683,22 @@ function ensureCreateGmModal() {
             <label class="form-label text-light-gray">E-mail</label>
             <input type="email" id="cgm-email" class="form-control">
           </div>
-          <div class="mb-3">
-            <label class="form-label text-light-gray">Nome do Time</label>
-            <input type="text" id="cgm-team-name" class="form-control">
+          <div id="cgm-team-fields">
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Nome do Time</label>
+              <input type="text" id="cgm-team-name" class="form-control">
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-light-gray">Cidade do Time</label>
+              <input type="text" id="cgm-team-city" class="form-control">
+            </div>
           </div>
-          <div class="mb-3">
-            <label class="form-label text-light-gray">Cidade do Time</label>
-            <input type="text" id="cgm-team-city" class="form-control">
+          <div class="mb-3" id="cgm-nba-field" style="display:none">
+            <label class="form-label text-light-gray">Time da NBA</label>
+            <select id="cgm-nba-team" class="form-select">
+              <option value="">Escolha um time...</option>
+            </select>
+            <div style="font-size:11px;color:var(--text-3);margin-top:4px">ROOKIE não tem time fictício — é sempre um time real da NBA, um por GM.</div>
           </div>
           <div style="font-size:11px;color:var(--text-3)">
             Senha padrão: <strong>fbabrasil123</strong> — enviada por e-mail junto com o link de login. O GM pode trocar depois.
@@ -714,18 +723,50 @@ function openCreateGmModal() {
   document.getElementById('cgm-email').value = '';
   document.getElementById('cgm-team-name').value = '';
   document.getElementById('cgm-team-city').value = '';
+  toggleCgmTeamFields();
   new bootstrap.Modal(document.getElementById('createGmModal')).show();
+}
+
+let _nbaTeamsCache = null;
+
+function toggleCgmTeamFields() {
+  const isRookie = document.getElementById('cgm-league').value === 'ROOKIE';
+  document.getElementById('cgm-team-fields').style.display = isRookie ? 'none' : '';
+  document.getElementById('cgm-nba-field').style.display = isRookie ? '' : 'none';
+  if (isRookie) populateCgmNbaSelect();
+}
+window.toggleCgmTeamFields = toggleCgmTeamFields;
+
+async function populateCgmNbaSelect() {
+  const sel = document.getElementById('cgm-nba-team');
+  sel.innerHTML = '<option value="">Carregando...</option>';
+  try {
+    if (!_nbaTeamsCache) _nbaTeamsCache = await api('admin.php?action=nba_teams');
+    const taken = new Set((_nbaTeamsCache.taken || []).map(Number));
+    const byConf = { LESTE: [], OESTE: [] };
+    (_nbaTeamsCache.teams || []).forEach(t => byConf[t.conference]?.push(t));
+    const optGroup = (label, list) => `<optgroup label="${label}">${list.map(t => {
+      const isTaken = taken.has(t.id);
+      return `<option value="${t.id}" ${isTaken ? 'disabled' : ''}>${t.city} ${t.name}${isTaken ? ' — já escolhido' : ''}</option>`;
+    }).join('')}</optgroup>`;
+    sel.innerHTML = '<option value="">Escolha um time...</option>'
+      + optGroup('Conferência Leste', byConf.LESTE) + optGroup('Conferência Oeste', byConf.OESTE);
+  } catch (e) {
+    sel.innerHTML = '<option value="">Erro ao carregar times</option>';
+  }
 }
 
 async function submitCreateGm() {
   const name = document.getElementById('cgm-name').value.trim();
   const email = document.getElementById('cgm-email').value.trim();
   const league = document.getElementById('cgm-league').value;
+  const isRookie = league === 'ROOKIE';
   const teamName = document.getElementById('cgm-team-name').value.trim();
   const teamCity = document.getElementById('cgm-team-city').value.trim();
+  const nbaTeamId = document.getElementById('cgm-nba-team').value;
 
-  if (!name || !email || !teamName || !teamCity) {
-    alert('Preencha todos os campos.');
+  if (!name || !email || (isRookie ? !nbaTeamId : (!teamName || !teamCity))) {
+    alert(isRookie ? 'Preencha nome, e-mail e escolha um time da NBA.' : 'Preencha todos os campos.');
     return;
   }
 
@@ -734,14 +775,18 @@ async function submitCreateGm() {
   const orig = btn.innerHTML;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Criando...';
   try {
+    const payload = isRookie
+      ? { name, email, league, nba_team_id: nbaTeamId }
+      : { name, email, league, team_name: teamName, team_city: teamCity };
     const data = await api('admin.php?action=create_gm', {
       method: 'POST',
-      body: JSON.stringify({ name, email, league, team_name: teamName, team_city: teamCity })
+      body: JSON.stringify(payload)
     });
     bootstrap.Modal.getInstance(document.getElementById('createGmModal'))?.hide();
     showAlert('success', data.email_sent
       ? 'GM criado e e-mail enviado!'
       : 'GM criado, mas o e-mail não pôde ser enviado — repasse o login e a senha (fbabrasil123) manualmente.');
+    _nbaTeamsCache = null; // próxima abertura busca de novo (time escolhido agora conta como ocupado)
     showGestao(league);
   } catch (e) {
     alert('Erro ao criar GM: ' + (e.error || 'Desconhecido'));

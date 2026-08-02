@@ -395,6 +395,12 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'history' => $stmtHist->fetchAll(PDO::FETCH_ASSOC)]);
             break;
 
+        case 'nba_teams':
+            // Os 30 times da NBA + quais já foram escolhidos, pro seletor de "Criar GM" na ROOKIE.
+            require_once dirname(__DIR__) . '/backend/nba_teams.php';
+            echo json_encode(['success' => true, 'teams' => nbaTeams(), 'taken' => nbaTeamsTaken($pdo)]);
+            break;
+
         case 'teams':
             // Listar todos os times com detalhes
             $league = $_GET['league'] ?? null;
@@ -2607,8 +2613,10 @@ if ($method === 'POST') {
             $gmLeague = strtoupper(trim((string)($data['league'] ?? '')));
             $teamName = trim((string)($data['team_name'] ?? ''));
             $teamCity = trim((string)($data['team_city'] ?? ''));
+            $nbaTeamId = (int)($data['nba_team_id'] ?? 0);
+            $isRookieLeague = $gmLeague === 'ROOKIE';
 
-            if ($gmName === '' || $gmEmail === '' || $teamName === '' || $teamCity === '') {
+            if ($gmName === '' || $gmEmail === '' || (!$isRookieLeague && ($teamName === '' || $teamCity === ''))) {
                 http_response_code(422);
                 echo json_encode(['success' => false, 'error' => 'Nome do GM, e-mail, nome do time e cidade são obrigatórios.']);
                 exit;
@@ -2622,6 +2630,27 @@ if ($method === 'POST') {
                 http_response_code(422);
                 echo json_encode(['success' => false, 'error' => 'Liga inválida.']);
                 exit;
+            }
+
+            // ROOKIE não tem time fictício — é sempre um time real da NBA,
+            // igual ao cadastro por lista de espera (api/register.php).
+            $nbaTeam = null;
+            if ($isRookieLeague) {
+                require_once dirname(__DIR__) . '/backend/nba_teams.php';
+                $nbaTeam = $nbaTeamId ? nbaTeamById($nbaTeamId) : null;
+                if (!$nbaTeam) {
+                    http_response_code(422);
+                    echo json_encode(['success' => false, 'error' => 'Escolha um time da NBA válido.']);
+                    exit;
+                }
+                ensureNbaTeamColumn($pdo);
+                $stmtTaken = $pdo->prepare('SELECT id FROM teams WHERE nba_team_id = ? LIMIT 1');
+                $stmtTaken->execute([$nbaTeamId]);
+                if ($stmtTaken->fetch()) {
+                    http_response_code(409);
+                    echo json_encode(['success' => false, 'error' => 'Esse time da NBA já foi escolhido por outro GM.']);
+                    exit;
+                }
             }
 
             $stmtEmailChk = $pdo->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
@@ -2642,16 +2671,27 @@ if ($method === 'POST') {
                     ->execute([$gmName, $gmEmail, $hash, $gmLeague, $verificationToken]);
                 $newUserId = (int)$pdo->lastInsertId();
 
-                $pdo->prepare("INSERT INTO teams (user_id, league, name, city, mascot) VALUES (?, ?, ?, ?, ?)")
-                    ->execute([$newUserId, $gmLeague, $teamName, $teamCity, $teamName]);
+                if ($isRookieLeague) {
+                    $pdo->prepare("INSERT INTO teams (user_id, league, conference, name, city, mascot, photo_url, nba_team_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                        ->execute([
+                            $newUserId, $gmLeague, $nbaTeam['conference'], $nbaTeam['name'], $nbaTeam['city'], '',
+                            nbaTeamLogoUrl($nbaTeam['id']), $nbaTeam['id'],
+                        ]);
+                } else {
+                    $pdo->prepare("INSERT INTO teams (user_id, league, name, city, mascot) VALUES (?, ?, ?, ?, ?)")
+                        ->execute([$newUserId, $gmLeague, $teamName, $teamCity, $teamName]);
+                }
                 $newTeamId = (int)$pdo->lastInsertId();
 
                 $pdo->commit();
             } catch (Exception $e) {
                 if ($pdo->inTransaction()) $pdo->rollBack();
                 error_log('[create_gm] ' . $e->getMessage());
+                $msg = ($isRookieLeague && str_contains($e->getMessage(), 'uniq_teams_nba_team_id'))
+                    ? 'Esse time da NBA acabou de ser escolhido por outro GM.'
+                    : 'Erro ao criar o GM.';
                 http_response_code(400);
-                echo json_encode(['success' => false, 'error' => 'Erro ao criar o GM.']);
+                echo json_encode(['success' => false, 'error' => $msg]);
                 exit;
             }
 
