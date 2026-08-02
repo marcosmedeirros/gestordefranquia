@@ -2513,9 +2513,68 @@ if ($method === 'POST') {
         }
     }
     
+    // ── Casamento salarial (120%) ────────────────────────────────────────────
+    // A regra existia só no navegador (js/trades.js desabilita o botão). Quem
+    // chamasse a API direto — ou com a página desatualizada — passava uma troca
+    // ilegal sem resistência nenhuma. Espelha checarMatch120() do front:
+    // vale só no modo salário, pick de 1ª rodada conta 5M e a de 2ª não conta.
+    require_once dirname(__DIR__) . '/backend/salary_cap.php';
+    try {
+        $stmtModo = $pdo->prepare('SELECT cap_mode, cap_max FROM league_settings WHERE league = ?');
+        $stmtModo->execute([$teamData['league']]);
+        $cfgLiga = $stmtModo->fetch(PDO::FETCH_ASSOC) ?: [];
+    } catch (Exception $e) {
+        $cfgLiga = [];
+    }
+
+    if (($cfgLiga['cap_mode'] ?? 'ovr_sum') === 'salary') {
+        // O salário que vale na troca é o total_salary do resumo de cap
+        // (base + bônus de prêmio) — a MESMA fonte do simulador em api/cap.php.
+        // Somar cap_flex aqui inflaria os números e barraria troca legal.
+        $salarioDosJogadores = function (array $ids, array $resumo): int {
+            $ids = array_map('intval', $ids);
+            $total = 0;
+            foreach (($resumo['roster'] ?? []) as $p) {
+                if (in_array((int)$p['id'], $ids, true)) $total += (int)$p['total_salary'];
+            }
+            return $total;
+        };
+        $salarioDasPicks = function (array $picks) use ($pdo): int {
+            $ids = array_values(array_filter(array_map(fn($x) => (int)($x['id'] ?? 0), $picks)));
+            if (!$ids) return 0;
+            $ph = implode(',', array_fill(0, count($ids), '?'));
+            $st = $pdo->prepare("SELECT round FROM picks WHERE id IN ($ph)");
+            $st->execute($ids);
+            $total = 0;
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $round) {
+                if ((int)$round === 1) $total += 5;
+            }
+            return $total;
+        };
+
+        $resumoMeu   = getTeamCapSummary($pdo, (int)$teamId);
+        $resumoOutro = getTeamCapSummary($pdo, (int)$toTeamId);
+
+        $envia  = $salarioDosJogadores($offerPlayers, $resumoMeu)     + $salarioDasPicks($offerPicks);
+        $recebe = $salarioDosJogadores($requestPlayers, $resumoOutro) + $salarioDasPicks($requestPicks);
+
+        if ($envia > 0 || $recebe > 0) {
+            $capMax = (int)($cfgLiga['cap_max'] ?? 0);
+            foreach ([[$envia, $recebe, 'Você'], [$recebe, $envia, 'O outro time']] as [$e, $r, $quem]) {
+                $chk = checkTradeSalaryMatch(0, $capMax, $e, $r);
+                if (empty($chk['ok'])) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' =>
+                        "Troca barrada pela regra dos " . CAP_TRADE_MATCH_PCT . "%: {$quem} receberia {$r}M enviando {$e}M — o limite é {$chk['limite_receber']}M."]);
+                    exit;
+                }
+            }
+        }
+    }
+
     try {
     $pdo->beginTransaction();
-        
+
         // Criar trade (sem coluna cycle - ela é opcional)
     // Definir ciclo atual do time proponente, quando disponível
     $cycle = null;
@@ -2528,6 +2587,20 @@ if ($method === 'POST') {
         }
     } catch (Exception $e) {}
 
+    // Ano da temporada em andamento. A coluna é NOT NULL sem default: num MySQL
+    // em modo estrito o INSERT sem ela falha e a troca não sai (virava um
+    // "Erro ao criar trade" sem rastro). Sem modo estrito gravava 0 — o que
+    // deixava a coluna e o índice idx_trade_season inúteis.
+    $seasonYear = (int)date('Y');
+    try {
+        $stmtAno = $pdo->prepare("SELECT year FROM seasons
+                                  WHERE league = ? AND status <> 'completed'
+                                  ORDER BY created_at DESC LIMIT 1");
+        $stmtAno->execute([$teamData['league']]);
+        $anoVal = $stmtAno->fetchColumn();
+        if ($anoVal) $seasonYear = (int)$anoVal;
+    } catch (Exception $e) {}
+
     // Inserir com coluna cycle se existir
     $hasCycleCol = false;
     try {
@@ -2535,11 +2608,11 @@ if ($method === 'POST') {
     } catch (Exception $e) {}
 
     if ($hasCycleCol) {
-        $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, league, cycle, notes) VALUES (?, ?, ?, ?, ?)');
-        $stmtTrade->execute([$teamId, $toTeamId, $teamData['league'], $cycle, $notes]);
+        $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, league, season_year, cycle, notes) VALUES (?, ?, ?, ?, ?, ?)');
+        $stmtTrade->execute([$teamId, $toTeamId, $teamData['league'], $seasonYear, $cycle, $notes]);
     } else {
-        $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, league, notes) VALUES (?, ?, ?, ?)');
-        $stmtTrade->execute([$teamId, $toTeamId, $teamData['league'], $notes]);
+        $stmtTrade = $pdo->prepare('INSERT INTO trades (from_team_id, to_team_id, league, season_year, notes) VALUES (?, ?, ?, ?, ?)');
+        $stmtTrade->execute([$teamId, $toTeamId, $teamData['league'], $seasonYear, $notes]);
     }
         $tradeId = $pdo->lastInsertId();
         
@@ -2577,7 +2650,7 @@ if ($method === 'POST') {
         
         foreach ($offerPlayers as $playerId) {
             $playerId = (int)$playerId;
-            $params = [$tradeId, $playerId, null, true];
+            $params = [$tradeId, $playerId, null, 1];
             $p = [];
             if ($hasSnapshot) {
                 $stmtP = $pdo->prepare("SELECT id, name, position, {$ovrCol} AS ovr, age FROM players WHERE id = ?");
@@ -2609,7 +2682,7 @@ if ($method === 'POST') {
             if ($pickId <= 0) {
                 continue;
             }
-            $params = [$tradeId, null, $pickId, true];
+            $params = [$tradeId, null, $pickId, 1];
             if ($hasSnapshot) {
                 $params[] = null;
                 $params[] = null;
@@ -2633,7 +2706,7 @@ if ($method === 'POST') {
         // Adicionar itens pedidos
         foreach ($requestPlayers as $playerId) {
             $playerId = (int)$playerId;
-            $params = [$tradeId, $playerId, null, false];
+            $params = [$tradeId, $playerId, null, 0];
             $p = [];
             if ($hasSnapshot) {
                 $stmtP = $pdo->prepare("SELECT id, name, position, {$ovrCol} AS ovr, age FROM players WHERE id = ?");
@@ -2665,7 +2738,7 @@ if ($method === 'POST') {
             if ($pickId <= 0) {
                 continue;
             }
-            $params = [$tradeId, null, $pickId, false];
+            $params = [$tradeId, null, $pickId, 0];
             if ($hasSnapshot) {
                 $params[] = null;
                 $params[] = null;
@@ -2711,6 +2784,9 @@ if ($method === 'POST') {
     } catch (Exception $e) {
         $pdo->rollBack();
         http_response_code(500);
+        // Sem este log, uma proposta recusada virava "Erro ao criar trade" sem
+        // deixar rastro nenhum — impossível descobrir o motivo em produção.
+        error_log('[trades.php:criar] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
         echo json_encode(['success' => false, 'error' => 'Erro ao criar trade']);
     }
     exit;

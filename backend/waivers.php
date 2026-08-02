@@ -16,6 +16,17 @@ const WAIVER_HOURS = 12;
 
 function ensureWaiverTables(PDO $pdo): void
 {
+    // Todo DDL — inclusive CREATE TABLE IF NOT EXISTS numa tabela que já existe
+    // — faz COMMIT implícito no MySQL. Chamada de dentro de uma transação, esta
+    // função encerrava a transação e o commit() seguinte morria com "There is
+    // no active transaction" (era o que derrubava a dispensa de jogador).
+    // Roda uma vez por request e nunca com transação aberta.
+    static $pronto = false;
+    if ($pronto || $pdo->inTransaction()) {
+        return;
+    }
+    $pronto = true;
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS waiver_retention (
         id INT AUTO_INCREMENT PRIMARY KEY,
         player_id INT NULL,

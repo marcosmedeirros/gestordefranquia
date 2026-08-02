@@ -835,6 +835,14 @@ if ($method === 'DELETE') {
         jsonResponse(400, ['error' => 'Limite de dispensas por temporada atingido.']);
     }
 
+    // As tabelas de waiver são criadas sob demanda (DDL). Se isso rodar dentro
+    // da transação, o MySQL faz COMMIT implícito e o rollBack() do catch morre
+    // com "There is no active transaction" — fatal, e escondendo o erro real.
+    if (strtoupper($row['league'] ?? 'ELITE') === 'ELITE') {
+        require_once __DIR__ . '/../backend/waivers.php';
+        ensureWaiverTables($pdo);
+    }
+
     try {
         $pdo->beginTransaction();
 
@@ -894,7 +902,9 @@ if ($method === 'DELETE') {
 
         $pdo->commit();
     } catch (Exception $e) {
-        $pdo->rollBack();
+        // rollBack sem transação ativa vira fatal e mascara o erro de verdade.
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[players.php:dispensar] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
         jsonResponse(500, ['error' => 'Erro ao dispensar jogador']);
     }
 
