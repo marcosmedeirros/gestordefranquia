@@ -1311,11 +1311,11 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                         <?php if ($embed && ($embed['type'] === 'direct' || $embed['type'] === 'iframe')): ?>
                         <div class="prog-video-actions">
                             <button type="button" class="vid-action-btn" data-action="fullscreen" data-key="<?= $key ?>" data-titulo="<?= htmlspecialchars($vc['title'], ENT_QUOTES, 'UTF-8') ?>" title="Abrir grande"><i class="bi bi-arrows-fullscreen"></i></button>
-                            <button type="button" class="vid-action-btn" data-action="capture" data-key="<?= $key ?>" title="Capturar tela"><i class="bi bi-camera-fill"></i></button>
+                            <button type="button" class="vid-action-btn" data-action="capture" data-key="<?= $key ?>" title="Tirar print do vídeo"><i class="bi bi-camera-fill"></i></button>
                             <a class="vid-action-btn" href="<?= htmlspecialchars($embed['raw_url']) ?>" target="_blank" rel="noopener" title="Abrir no YouTube"><i class="bi bi-youtube"></i></a>
                         </div>
                         <?php if ($embed['type'] === 'iframe'): ?>
-                        <div class="prog-video-hint">Abra grande e capture por lá: a imagem sai só do vídeo, sem o resto da página.</div>
+                        <div class="prog-video-hint">Abra grande e clique em Capturar: sai um print só do vídeo. O navegador pede permissão pra ver esta aba porque o YouTube roda em outro site — é só pra tirar a foto, nada fica gravado.</div>
                         <?php endif; ?>
                         <?php elseif ($embed && $embed['type'] === 'link'): ?>
                         <div class="empty">
@@ -1881,7 +1881,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         vidPop.barra.className = 'vid-pop-barra';
         vidPop.barra.innerHTML = `
             <span class="vid-pop-titulo" id="vidPopTitulo"></span>
-            <button type="button" id="vidPopCapturar"><i class="bi bi-camera-fill"></i> Capturar</button>
+            <button type="button" id="vidPopCapturar" title="Tira um print do vídeo e copia"><i class="bi bi-camera-fill"></i> Tirar print</button>
             <button type="button" id="vidPopFechar"><i class="bi bi-x-lg"></i> Fechar</button>`;
         document.body.appendChild(vidPop.barra);
 
