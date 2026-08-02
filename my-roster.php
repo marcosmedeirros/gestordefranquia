@@ -86,11 +86,11 @@ if ($teamId) {
     $playerCount = (int)$stmtCount->fetchColumn();
 }
 
-$canAddPlayers = in_array(strtoupper((string)($team['league'] ?? '')), ['ELITE', 'NEXT', 'RISE'], true);
+$canAddPlayers = in_array(strtoupper((string)($team['league'] ?? '')), ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true);
 $isElite = strtoupper((string)($team['league'] ?? '')) === 'ELITE';
 // Ligas com atualizacao por foto. Precisa bater com VISION_LEAGUES em
 // api/vision_skills.php e STATS_LEAGUES em api/vision_stats.php.
-$podeFoto = in_array(strtoupper((string)($team['league'] ?? '')), ['ELITE', 'NEXT', 'RISE'], true);
+$podeFoto = in_array(strtoupper((string)($team['league'] ?? '')), ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true);
 $is_admin = hasAdminAccess($pdo, (int)$user['id']);
 
 // ── Dados para copiar time ────────────────────────────────
@@ -668,7 +668,7 @@ if ($teamId) {
         </div>
 
         <?php if ($canAddPlayers): ?>
-        <!-- Panel: Adicionar Jogador (somente ELITE/NEXT) -->
+        <!-- Panel: Adicionar Jogador -->
         <div class="panel">
             <div class="panel-header">
                 <div>

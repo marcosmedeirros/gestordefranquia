@@ -24,7 +24,7 @@ $teamId = (int)$team['id'];
 $league = strtoupper((string)$team['league']);
 
 // Precisa bater com VISION_LEAGUES / STATS_LEAGUES nas APIs.
-$podeFoto = in_array($league, ['ELITE', 'NEXT', 'RISE'], true);
+$podeFoto = in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true);
 
 $stmtSeason = $pdo->prepare("SELECT id, season_number, year FROM seasons
                              WHERE league = ? AND (status IS NULL OR status <> 'completed')

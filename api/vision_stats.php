@@ -39,9 +39,9 @@ if (empty($body['image'])) {
 }
 
 const STATS_LIMIT = 4;
-const STATS_MONTHLY_CAP = 1600;
+const STATS_MONTHLY_CAP = 2100;
 const STATS_UNLIMITED_EMAILS = ['medeirros99@gmail.com'];
-const STATS_LEAGUES = ['ELITE', 'NEXT', 'RISE'];
+const STATS_LEAGUES = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
 $user = getUserSession();
 $pdo  = db();

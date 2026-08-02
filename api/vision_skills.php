@@ -27,16 +27,16 @@ if (empty($body['image'])) {
     exit;
 }
 
-// Quantas leituras por time por temporada. 92 times (ELITE+NEXT+RISE) x 4
-// temporadas/mes x 4 = 1.472 no pior caso. Passa ~472 da cota gratuita de
-// 1.000/mes, o que custa cerca de US$ 0,71 (~R$ 3,60) por mes.
+// Quantas leituras por time por temporada. Com as 4 ligas liberadas (ELITE+
+// NEXT+RISE+ROOKIE), o pior caso sobe proporcionalmente ao que era só com 3
+// ligas — o VISION_MONTHLY_CAP abaixo já foi ajustado pra folga equivalente.
 const VISION_LIMIT = 4;
 // Freio geral: por mais que os times individualmente respeitem o limite, a liga
 // inteira nunca passa disto no mes, para o excedente nao fugir do previsto.
-const VISION_MONTHLY_CAP = 1600;
+const VISION_MONTHLY_CAP = 2100;
 const VISION_UNLIMITED_EMAILS = ['medeirros99@gmail.com'];
-// Ligas com leitura por foto liberada (ROOKIE fica de fora).
-const VISION_LEAGUES = ['ELITE', 'NEXT', 'RISE'];
+// Ligas com leitura por foto liberada.
+const VISION_LEAGUES = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
 $user = getUserSession();
 $pdo  = db();
