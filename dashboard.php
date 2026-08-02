@@ -432,10 +432,28 @@ try {
     $s->execute([$team['league']]); $latestRumor = $s->fetch(PDO::FETCH_ASSOC);
 } catch (Exception $e) { error_log('dashboard latest_rumor: ' . $e->getMessage()); }
 
+// Vencedores da última temporada FECHADA — e só da sprint atual. Antes a busca
+// pegava a temporada mais recente da liga inteira, então no começo de uma sprint
+// o card ficava exibindo o campeão da sprint anterior como se fosse o atual.
+// Sem temporada fechada nesta sprint ainda, o card mostra "em breve".
 $lastChampion = null; $lastRunnerUp = null; $lastMVP = null; $lastSprintInfo = null;
 try {
-    $s = $pdo->prepare("SELECT sh.*, t1.id as champion_id, t1.city as champion_city, t1.name as champion_name, t1.photo_url as champion_photo, u1.name as champion_owner, t2.id as runner_up_id, t2.city as runner_up_city, t2.name as runner_up_name, t2.photo_url as runner_up_photo, u2.name as runner_up_owner FROM season_history sh LEFT JOIN teams t1 ON sh.champion_team_id = t1.id LEFT JOIN users u1 ON t1.user_id = u1.id LEFT JOIN teams t2 ON sh.runner_up_team_id = t2.id LEFT JOIN users u2 ON t2.user_id = u2.id WHERE sh.league = ? ORDER BY sh.season_number DESC, sh.sprint_number DESC, sh.season_id DESC LIMIT 1");
-    $s->execute([$team['league']]); $lastSprintInfo = $s->fetch();
+    $sprintIdAtual = (int)($sprintAtual['id'] ?? 0);
+    if (!$sprintIdAtual) {
+        $stmtSpFallback = $pdo->prepare("SELECT id FROM sprints WHERE league = ? ORDER BY sprint_number DESC, id DESC LIMIT 1");
+        $stmtSpFallback->execute([$team['league']]);
+        $sprintIdAtual = (int)($stmtSpFallback->fetchColumn() ?: 0);
+    }
+
+    $s = $pdo->prepare("SELECT sh.*, t1.id as champion_id, t1.city as champion_city, t1.name as champion_name, t1.photo_url as champion_photo, u1.name as champion_owner, t2.id as runner_up_id, t2.city as runner_up_city, t2.name as runner_up_name, t2.photo_url as runner_up_photo, u2.name as runner_up_owner
+                        FROM season_history sh
+                        INNER JOIN seasons se ON se.id = sh.season_id
+                        LEFT JOIN teams t1 ON sh.champion_team_id = t1.id LEFT JOIN users u1 ON t1.user_id = u1.id
+                        LEFT JOIN teams t2 ON sh.runner_up_team_id = t2.id LEFT JOIN users u2 ON t2.user_id = u2.id
+                        WHERE sh.league = ? AND se.sprint_id = ?
+                        ORDER BY sh.season_number DESC, sh.season_id DESC LIMIT 1");
+    $s->execute([$team['league'], $sprintIdAtual]);
+    $lastSprintInfo = $sprintIdAtual ? $s->fetch() : false;
     if ($lastSprintInfo) {
         if ($lastSprintInfo['champion_id']) $lastChampion = ['id'=>$lastSprintInfo['champion_id'],'city'=>$lastSprintInfo['champion_city'],'name'=>$lastSprintInfo['champion_name'],'photo_url'=>$lastSprintInfo['champion_photo'],'owner_name'=>$lastSprintInfo['champion_owner']];
         if ($lastSprintInfo['runner_up_id']) $lastRunnerUp = ['id'=>$lastSprintInfo['runner_up_id'],'city'=>$lastSprintInfo['runner_up_city'],'name'=>$lastSprintInfo['runner_up_name'],'photo_url'=>$lastSprintInfo['runner_up_photo'],'owner_name'=>$lastSprintInfo['runner_up_owner']];
@@ -1729,12 +1747,12 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     </div>
                 </div>
 
-                <!-- ── Último Sprint ── -->
+                <!-- ── Última Temporada (só da sprint atual) ── -->
                 <div class="bc" style="animation-delay:.34s">
                     <div class="bc-head">
-                        <div class="bc-title"><i class="bi bi-award-fill"></i> Último Sprint</div>
+                        <div class="bc-title"><i class="bi bi-award-fill"></i> Última Temporada</div>
                         <?php if ($lastSprintInfo): ?>
-                        <span style="font-size:11px;color:var(--text-2)">Sprint <?= (int)($lastSprintInfo['sprint_number'] ?? 0) ?></span>
+                        <span style="font-size:11px;color:var(--text-2)">Temporada <?= (int)($lastSprintInfo['season_number'] ?? 0) ?></span>
                         <?php endif; ?>
                     </div>
                     <div class="bc-body">
@@ -1774,7 +1792,9 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                         </div>
                         <?php endif; ?>
                         <?php else: ?>
-                        <div class="empty"><i class="bi bi-award"></i><p>Vencedores após o 1º sprint</p></div>
+                        <div class="empty"><i class="bi bi-hourglass-split"></i><p>Em breve</p>
+                            <span style="font-size:11px;color:var(--text-3)">Os vencedores aparecem quando a primeira temporada desta sprint fechar.</span>
+                        </div>
                         <?php endif; ?>
                     </div>
                 </div>

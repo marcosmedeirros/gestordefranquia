@@ -2307,6 +2307,20 @@ try {
                 }
                 $pdo->prepare('UPDATE teams SET ' . implode(', ', $teamUpdates) . ' WHERE league = ?')->execute([$league]);
 
+                // Avisos do FBA SERASA zeram junto com o ciclo: eles medem a
+                // conduta DENTRO da sprint, então carregar pro ciclo novo puniria
+                // o time por algo que já acabou. Reverte em vez de apagar, pra
+                // manter o histórico consultável.
+                try {
+                    $pdo->prepare("UPDATE team_punishments tp
+                                   INNER JOIN teams t ON t.id = tp.team_id
+                                   SET tp.reverted_at = NOW()
+                                   WHERE t.league = ? AND tp.type = 'AVISO_TRADE' AND tp.reverted_at IS NULL")
+                        ->execute([$league]);
+                } catch (Throwable $e) {
+                    error_log('[finalize_sprint] zerar avisos SERASA: ' . $e->getMessage());
+                }
+
                 // 4. Cria o novo sprint (sprint_number seguinte) e a temporada 1 dele.
                 // O ano continua de onde a sprint anterior parou (não é o ano civil real
                 // — a liga já pode estar em qualquer ano fictício, ex. 2044) — evita
