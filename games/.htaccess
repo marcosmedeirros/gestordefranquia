@@ -1,0 +1,10 @@
+# O subdomínio antigo games.fbabrasil.com.br aponta pra ESTA pasta como
+# document root. Quem chega por ele cai numa única tela ("O Games mudou de
+# casa") — nada do app fica acessível por lá. O acesso normal via
+# fbabrasil.com.br/games/... não passa pela condição de Host e segue intacto.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTP_HOST} ^games\. [NC]
+    RewriteCond %{REQUEST_URI} !movido\.php$
+    RewriteRule ^ movido.php [L]
+</IfModule>

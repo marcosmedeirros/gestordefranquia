@@ -1,5 +1,0 @@
-# Subdomínio antigo do games: TODA requisição cai no index.php (a página de
-# "mudou de casa"). Nenhum arquivo do app antigo fica acessível por aqui.
-RewriteEngine On
-RewriteCond %{REQUEST_URI} !^/index\.php$
-RewriteRule . /index.php [L]
