@@ -1541,6 +1541,13 @@ function runMigrations() {
         if (!$hasDashboardShortcuts) {
             $pdo->exec("ALTER TABLE users ADD COLUMN dashboard_shortcuts VARCHAR(255) NULL AFTER accent_color");
         }
+        // Preferencias de notificacao: lista das chaves DESLIGADAS, separadas por
+        // virgula. Guardar o que esta off (e nao o que esta on) faz com que todo
+        // tipo novo ja nasca ligado pra quem ja tinha conta.
+        $hasNotifPrefs = $pdo->query("SHOW COLUMNS FROM users LIKE 'notif_off'")->fetch();
+        if (!$hasNotifPrefs) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN notif_off VARCHAR(255) NULL AFTER dashboard_shortcuts");
+        }
     } catch (PDOException $e) {
         $errors[] = "ajuste_users_appearance: " . $e->getMessage();
     }
@@ -1585,6 +1592,55 @@ function runMigrations() {
         $errors[] = "criar_tactic_edit_windows: " . $e->getMessage();
     }
 
+    // Views do ranking do Admin > Temporadas. api/seasons.php sempre leu delas,
+    // mas elas nunca existiram no banco — as tres acoes (ranking por liga,
+    // ranking geral e historico de campeoes) morriam em "Erro interno do
+    // servidor" e a tela mostrava so "Erro ao carregar ranking".
+    try {
+        $pdo->exec("CREATE OR REPLACE VIEW vw_league_ranking AS
+            SELECT t.id                AS team_id,
+                   t.city              AS city,
+                   t.name              AS team_name,
+                   t.league            AS league,
+                   t.photo_url         AS photo_url,
+                   COALESCE(p.total_points, 0)   AS total_points,
+                   COALESCE(p.seasons_played, 0) AS seasons_played,
+                   COALESCE(c.championships, 0)  AS championships,
+                   COALESCE(r.runner_ups, 0)     AS runner_ups,
+                   COALESCE(a.total_awards, 0)   AS total_awards
+            FROM teams t
+            LEFT JOIN (SELECT team_id, SUM(points) total_points, COUNT(DISTINCT season_id) seasons_played
+                       FROM team_season_points GROUP BY team_id) p ON p.team_id = t.id
+            LEFT JOIN (SELECT champion_team_id tid, COUNT(*) championships
+                       FROM season_history WHERE champion_team_id IS NOT NULL GROUP BY champion_team_id) c ON c.tid = t.id
+            LEFT JOIN (SELECT runner_up_team_id tid, COUNT(*) runner_ups
+                       FROM season_history WHERE runner_up_team_id IS NOT NULL GROUP BY runner_up_team_id) r ON r.tid = t.id
+            LEFT JOIN (SELECT team_id, COUNT(*) total_awards
+                       FROM season_awards GROUP BY team_id) a ON a.team_id = t.id
+            ORDER BY total_points DESC, championships DESC");
+
+        // O ranking geral e a mesma leitura sem filtro de liga — a view por liga
+        // ja carrega a coluna `league`, entao o WHERE fica com quem consulta.
+        $pdo->exec("CREATE OR REPLACE VIEW vw_global_ranking AS
+            SELECT * FROM vw_league_ranking");
+
+        $pdo->exec("CREATE OR REPLACE VIEW vw_champions_history AS
+            SELECT sh.id, sh.season_id, sh.league, sh.year, sh.season_number, sh.sprint_number,
+                   sh.champion_team_id,
+                   CONCAT(COALESCE(tc.city,''), ' ', COALESCE(tc.name,'')) AS champion_name,
+                   tc.photo_url AS champion_photo,
+                   sh.runner_up_team_id,
+                   CONCAT(COALESCE(tr.city,''), ' ', COALESCE(tr.name,'')) AS runner_up_name,
+                   tr.photo_url AS runner_up_photo,
+                   sh.mvp_player, sh.dpoy_player, sh.mip_player, sh.sixth_man_player, sh.roy_player
+            FROM season_history sh
+            LEFT JOIN teams tc ON tc.id = sh.champion_team_id
+            LEFT JOIN teams tr ON tr.id = sh.runner_up_team_id
+            ORDER BY sh.year DESC, sh.season_number DESC");
+    } catch (PDOException $e) {
+        $errors[] = "criar_views_ranking: " . $e->getMessage();
+    }
+
     return [
         'success' => count($errors) === 0,
         'executed' => $executed,
@@ -1595,7 +1651,15 @@ function runMigrations() {
 
 // Executar se chamado diretamente via CLI (nunca via web, para não expor
 // schema/migrações a visitantes anônimos nem permitir re-execução sob demanda).
-if (php_sapi_name() === 'cli') {
+//
+// O teste do arquivo é obrigatório: sem ele, QUALQUER script CLI que chegasse
+// aqui via db.php -> ensureSchema() (o que acontece sempre que o throttle de
+// 60s venceu) rodava as migrações e morria no exit() antes da própria tarefa.
+// Era isso que matava cron/waivers.php e cron/draft-autopick.php em produção:
+// rodando de hora em hora, o marcador estava sempre vencido, então os dois
+// saíam pelo exit() e nunca resolviam nada.
+$entrada = realpath($_SERVER['SCRIPT_FILENAME'] ?? '');
+if (php_sapi_name() === 'cli' && $entrada && $entrada === realpath(__FILE__)) {
     $result = runMigrations();
     echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     exit;

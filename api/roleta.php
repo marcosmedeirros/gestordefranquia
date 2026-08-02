@@ -135,7 +135,7 @@ function notificarSaidaRoletaGenerica(PDO $pdo, int $roletaId, string $titulo, s
     ];
     foreach ($userIds as $uid) {
         try {
-            sendPushToUser($pdo, (int)$uid, $payload);
+            sendPushToUser($pdo, (int)$uid, $payload, 'eventos');
         } catch (Throwable $e) {
             error_log('notificarSaidaRoletaGenerica (push user_id=' . $uid . '): ' . $e->getMessage());
         }

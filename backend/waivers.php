@@ -11,6 +11,7 @@
  */
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/salary_cap.php';
+require_once __DIR__ . '/push.php';
 
 const WAIVER_HOURS = 12;
 
@@ -89,7 +90,31 @@ function enterWaiver(PDO $pdo, array $p, string $league): int
         (int)($p['seasons_in_league'] ?? 0), $p['drafted_by_team_id'] ?? null,
         $p['draft_round'] ?? null, $p['draft_pick_position'] ?? null, $p['role'] ?? 'Titular',
     ]);
-    return (int)$pdo->lastInsertId();
+    $id = (int)$pdo->lastInsertId();
+    notificarEntradaNoWaiver($pdo, $p, $league);
+    return $id;
+}
+
+/** Avisa a liga que abriu um waiver — menos o time que dispensou. */
+function notificarEntradaNoWaiver(PDO $pdo, array $p, string $league): void
+{
+    try {
+        $st = $pdo->prepare("SELECT user_id FROM teams WHERE id = ? LIMIT 1");
+        $st->execute([(int)$p['team_id']]);
+        $donoAntigo = (int)($st->fetchColumn() ?: 0);
+
+        $ovr  = (int)($p['ovr'] ?? 0);
+        $pos  = trim((string)($p['position'] ?? ''));
+        $ficha = trim(($pos !== '' ? $pos . ' · ' : '') . ($ovr ? $ovr . ' OVR' : ''));
+
+        sendPushToLeague($pdo, $league, [
+            'title' => '⏳ Jogador no Waiver',
+            'body'  => trim($p['name'] . ($ficha !== '' ? " ({$ficha})" : '')) . ' está disponível por ' . WAIVER_HOURS . 'h. Dê seu lance!',
+            'url'   => '/free-agency.php',
+        ], 'waiver', $donoAntigo ? [$donoAntigo] : []);
+    } catch (Throwable $e) {
+        error_log('notificarEntradaNoWaiver: ' . $e->getMessage());
+    }
 }
 
 /** Temporada ativa da liga (id/ano) para preencher o free_agents ao liberar. */
@@ -140,6 +165,44 @@ function waiverRecreatePlayer(PDO $pdo, array $w, int $teamId): void
 }
 
 /**
+ * Avisa quem participou do waiver como ele terminou: o vencedor ganha o jogador,
+ * quem perdeu fica sabendo, e sem lance nenhum a liga inteira sabe que caiu na FA.
+ */
+function notificarResultadoDoWaiver(PDO $pdo, array $w, array $claims, int $winner): void
+{
+    try {
+        $nome = (string)$w['name'];
+
+        if (!$claims) {
+            sendPushToLeague($pdo, (string)$w['league'], [
+                'title' => '🆓 Waiver encerrado',
+                'body'  => "Ninguém reivindicou {$nome} — ele caiu no Free Agency.",
+                'url'   => '/free-agency.php',
+            ], 'waiver');
+            return;
+        }
+
+        sendPushToTeam($pdo, $winner, [
+            'title' => '✅ Waiver vencido!',
+            'body'  => "{$nome} é seu. Ele já está no seu elenco.",
+            'url'   => '/my-roster.php',
+        ], 'waiver');
+
+        foreach ($claims as $c) {
+            $tid = (int)$c['team_id'];
+            if ($tid === $winner) continue;
+            sendPushToTeam($pdo, $tid, [
+                'title' => '❌ Waiver perdido',
+                'body'  => "{$nome} foi para outro time — o lance vencedor tinha mais espaço no cap.",
+                'url'   => '/free-agency.php',
+            ], 'waiver');
+        }
+    } catch (Throwable $e) {
+        error_log('notificarResultadoDoWaiver: ' . $e->getMessage());
+    }
+}
+
+/**
  * Resolve todos os waivers vencidos (status open, expires_at <= agora).
  * Chamado pelo agendador (cron), pelo admin e, como rede de segurança, ao abrir a aba.
  * Retorna ['resolved'=>, 'claimed'=>, 'cleared'=>].
@@ -168,6 +231,7 @@ function resolveExpiredWaivers(PDO $pdo): array
             $claims = $cs->fetchAll(PDO::FETCH_ASSOC);
 
             $pdo->beginTransaction();
+            $winner = 0;
             if ($claims) {
                 $winner = (int)$claims[0]['team_id'];
                 waiverRecreatePlayer($pdo, $w, $winner);
@@ -180,6 +244,9 @@ function resolveExpiredWaivers(PDO $pdo): array
             }
             $pdo->commit();
             $out['resolved']++;
+
+            // Só depois do commit — push nunca dentro de transação.
+            notificarResultadoDoWaiver($pdo, $w, $claims, $winner);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) { $pdo->rollBack(); }
             error_log('resolveExpiredWaivers resolve #' . $wid . ': ' . $e->getMessage());

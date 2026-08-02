@@ -278,7 +278,7 @@ function sendMultiTradePush(PDO $pdo, int $tradeId): void
                 'body'       => "{$creatorName} te incluiu em uma trade múltipla!",
                 'url'        => '/trades.php',
                 'primaryKey' => $tradeId,
-            ]);
+            ], 'trade');
         } catch (Exception $e) {
             error_log('[multi-trade-push] trade_id=' . $tradeId . ' user=' . $userId . ' ' . $e->getMessage());
         }
@@ -337,7 +337,7 @@ function sendTradePush(PDO $pdo, int $tradeId, string $event): void
             'body'       => $body,
             'url'        => '/trades.php?trade_id=' . $tradeId,
             'primaryKey' => $tradeId,
-        ]);
+        ], 'trade');
     } catch (Exception $e) {
         error_log('[trade-push] exception trade_id=' . $tradeId . ' msg=' . $e->getMessage());
     }

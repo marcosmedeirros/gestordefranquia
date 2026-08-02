@@ -304,7 +304,7 @@ switch ($action) {
                         'body'       => "Rodada {$next['round']} · Pick #{$next['pick_position']} — É a sua vez!",
                         'url'        => '/drafts.php',
                         'primaryKey' => 'draft_pick_' . $nextTeamId . '_' . $next['round'] . '_' . $next['pick_position'],
-                    ]);
+                    ], 'draft');
                 }
             }
 

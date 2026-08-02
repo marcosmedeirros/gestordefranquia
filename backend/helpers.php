@@ -788,7 +788,17 @@ function resolveVideoEmbed(?string $url): ?array
     if ($url === '') return null;
 
     if (preg_match('#(?:youtube\.com/(?:watch\?v=|embed/|shorts/)|youtu\.be/)([A-Za-z0-9_-]{6,})#i', $url, $m)) {
-        return ['type' => 'iframe', 'embed_url' => 'https://www.youtube.com/embed/' . $m[1], 'raw_url' => $url];
+        // Enxuga a interface do YouTube: sem vídeos relacionados de outros canais,
+        // sem anotações e sem a marca d'água clicável. O nome do vídeo no topo é
+        // do próprio player e o YouTube não deixa remover por parâmetro.
+        $params = http_build_query([
+            'rel'            => 0,
+            'modestbranding' => 1,
+            'iv_load_policy' => 3,
+            'playsinline'    => 1,
+            'color'          => 'white',
+        ]);
+        return ['type' => 'iframe', 'embed_url' => 'https://www.youtube.com/embed/' . $m[1] . '?' . $params, 'raw_url' => $url];
     }
     if (preg_match('#vimeo\.com/(?:video/)?(\d+)#i', $url, $m)) {
         return ['type' => 'iframe', 'embed_url' => 'https://player.vimeo.com/video/' . $m[1], 'raw_url' => $url];
@@ -1182,6 +1192,52 @@ function getUserShortcuts(?string $stored): array {
     }
     $keys = array_slice($keys, 0, 4);
     return array_map(fn($k) => ['key' => $k] + $catalog[$k], $keys);
+}
+
+/**
+ * Tipos de notificação que o GM pode ligar/desligar em Minha Conta.
+ *
+ * A chave é o que os pontos de envio passam pro sendPushToUser(). Tudo nasce
+ * ligado: users.notif_off guarda só o que a pessoa DESLIGOU, então um tipo novo
+ * já vale pra todo mundo sem precisar de backfill.
+ */
+function getNotifCatalog(): array {
+    return [
+        'trade'       => ['label' => 'Trades',            'icon' => 'bi-arrow-left-right',    'desc' => 'Propostas recebidas, aceites, recusas e trades múltiplas.'],
+        'draft'       => ['label' => 'Draft',             'icon' => 'bi-trophy',              'desc' => 'Quando chegar a sua vez de escolher no draft.'],
+        'leilao'      => ['label' => 'Leilão',            'icon' => 'bi-hammer',              'desc' => 'Leilão novo na sua liga, proposta recebida e resultado.'],
+        'waiver'      => ['label' => 'Waivers',           'icon' => 'bi-clock-history',       'desc' => 'Jogador entrando nos waivers e resultado do seu claim.'],
+        'free_agency' => ['label' => 'Free Agency',       'icon' => 'bi-coin',                'desc' => 'Abertura da janela e resultado dos seus pedidos.'],
+        'tatica'      => ['label' => 'Tática',            'icon' => 'bi-clipboard2-pulse',    'desc' => 'Aviso quando a janela de edição da tática abre e fecha.'],
+        'cap'         => ['label' => 'CAP da liga',       'icon' => 'bi-graph-up-arrow',      'desc' => 'Recálculo do teto salarial da sua liga.'],
+        'eventos'     => ['label' => 'Roletas e sorteios','icon' => 'bi-shuffle',             'desc' => 'Roletas, draft de lendas e drafts aleatórios.'],
+    ];
+}
+
+/** Chaves desligadas pelo usuário (string "a,b,c" vinda de users.notif_off). */
+function getUserNotifOff(?string $stored): array {
+    $catalog = getNotifCatalog();
+    $keys = $stored ? array_filter(array_map('trim', explode(',', $stored))) : [];
+    return array_values(array_unique(array_filter($keys, fn($k) => isset($catalog[$k]))));
+}
+
+/** true quando o tipo está ligado pro usuário (ou quando não há tipo definido). */
+function userWantsNotif(PDO $pdo, int $userId, ?string $tipo): bool {
+    if ($tipo === null || $tipo === '') return true;
+    if (!isset(getNotifCatalog()[$tipo])) return true;
+
+    static $cache = [];
+    if (!array_key_exists($userId, $cache)) {
+        try {
+            $st = $pdo->prepare('SELECT notif_off FROM users WHERE id = ? LIMIT 1');
+            $st->execute([$userId]);
+            $cache[$userId] = getUserNotifOff($st->fetchColumn() ?: null);
+        } catch (Throwable $e) {
+            // Coluna ainda não migrada neste banco: manda tudo, como era antes.
+            $cache[$userId] = [];
+        }
+    }
+    return !in_array($tipo, $cache[$userId], true);
 }
 
 function isValidAccentColor(?string $color): bool {

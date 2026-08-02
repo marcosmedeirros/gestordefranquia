@@ -93,8 +93,29 @@ if ($method === 'POST') {
         $shortcuts = $keys ? implode(',', $keys) : null;
     }
 
-    $stmt = $pdo->prepare('UPDATE users SET name = ?, photo_url = ?, phone = ?, accent_color = ?, dashboard_shortcuts = ? WHERE id = ?');
-    $stmt->execute([$name, $photoUrl ?: null, $phone, $accentColor, $shortcuts, $user['id']]);
+    // Notificações desligadas (opcional) — array vazio significa "quero tudo".
+    $notifOff = null;
+    $temNotif = array_key_exists('notif_off', $body) && is_array($body['notif_off']);
+    if ($temNotif) {
+        $catalogo = getNotifCatalog();
+        $chaves = array_values(array_unique(array_filter(
+            array_map('strval', $body['notif_off']),
+            fn($k) => isset($catalogo[$k])
+        )));
+        $notifOff = $chaves ? implode(',', $chaves) : null;
+    }
+
+    $sql    = 'UPDATE users SET name = ?, photo_url = ?, phone = ?, accent_color = ?, dashboard_shortcuts = ?';
+    $params = [$name, $photoUrl ?: null, $phone, $accentColor, $shortcuts];
+    if ($temNotif) {
+        $sql     .= ', notif_off = ?';
+        $params[] = $notifOff;
+    }
+    $sql     .= ' WHERE id = ?';
+    $params[] = $user['id'];
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
 
     // Atualizar sessão
     $updated = $user;
@@ -103,6 +124,7 @@ if ($method === 'POST') {
     $updated['phone'] = $phone;
     $updated['accent_color'] = $accentColor;
     $updated['dashboard_shortcuts'] = $shortcuts;
+    if ($temNotif) $updated['notif_off'] = $notifOff;
     setUserSession($updated);
 
     jsonResponse(200, ['message' => 'Perfil atualizado.']);

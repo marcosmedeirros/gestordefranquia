@@ -10,6 +10,17 @@ $pdo = db();
 $stmtTeam = $pdo->prepare('SELECT * FROM teams WHERE user_id = ? LIMIT 1');
 $stmtTeam->execute([$user['id']]);
 $team = $stmtTeam->fetch() ?: null;
+
+// Preferências de notificação vêm direto do banco: a coluna é nova e sessões
+// abertas antes da migração não têm o campo.
+$notifOffSalvo = null;
+try {
+    $stNotif = $pdo->prepare('SELECT notif_off FROM users WHERE id = ? LIMIT 1');
+    $stNotif->execute([$user['id']]);
+    $notifOffSalvo = $stNotif->fetchColumn() ?: null;
+} catch (Throwable $e) {
+    // Banco ainda sem a coluna — cai no padrão (tudo ligado).
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -278,6 +289,14 @@ $team = $stmtTeam->fetch() ?: null;
         .toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; cursor: pointer; }
         .toggle-row input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--red); flex-shrink: 0; }
         .toggle-label { font-size: 13px; font-weight: 500; color: var(--text); }
+        .notif-prefs { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+        .notif-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border-radius: 10px; cursor: pointer; transition: background 150ms; }
+        .notif-row:hover { background: var(--panel-2); }
+        .notif-row input[type=checkbox] { width: 16px; height: 16px; margin-top: 2px; cursor: pointer; accent-color: var(--red); flex-shrink: 0; }
+        .notif-row > i { font-size: 15px; color: var(--text-2); width: 18px; text-align: center; margin-top: 1px; flex-shrink: 0; }
+        .notif-row input:checked ~ i { color: var(--red); }
+        .notif-name { display: block; font-size: 13px; font-weight: 600; color: var(--text); }
+        .notif-desc { display: block; font-size: 11.5px; color: var(--text-2); margin-top: 1px; }
 
         /* ── Responsive ──────────────────────────────── */
         @media (max-width: 1024px) {
@@ -512,6 +531,33 @@ $team = $stmtTeam->fetch() ?: null;
                                 <span class="toggle-label">Receber notificações push neste dispositivo</span>
                             </label>
                             <div class="fh" id="push-notifications-hint">Verificando permissão do navegador...</div>
+
+                            <div class="notif-prefs">
+                                <div class="fl" style="margin-bottom:4px">O que você quer receber</div>
+                                <div class="fh" style="margin-bottom:12px">Desmarque o que não te interessa. Vale em todos os seus aparelhos.</div>
+                                <?php
+                                $notifCatalog = getNotifCatalog();
+                                $notifOff     = getUserNotifOff($notifOffSalvo);
+                                foreach ($notifCatalog as $nKey => $nItem):
+                                ?>
+                                <label class="notif-row" for="notif-<?= htmlspecialchars($nKey) ?>">
+                                    <input type="checkbox" class="notif-check" id="notif-<?= htmlspecialchars($nKey) ?>"
+                                           data-key="<?= htmlspecialchars($nKey) ?>"
+                                           <?= in_array($nKey, $notifOff, true) ? '' : 'checked' ?>>
+                                    <i class="bi <?= htmlspecialchars($nItem['icon']) ?>"></i>
+                                    <span>
+                                        <span class="notif-name"><?= htmlspecialchars($nItem['label']) ?></span>
+                                        <span class="notif-desc"><?= htmlspecialchars($nItem['desc']) ?></span>
+                                    </span>
+                                </label>
+                                <?php endforeach; ?>
+
+                                <div class="btn-row">
+                                    <button type="button" class="btn-red" id="btn-save-notifs">
+                                        <i class="bi bi-check2-circle"></i> Salvar Notificações
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

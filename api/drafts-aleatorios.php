@@ -188,7 +188,7 @@ function notificarEscolhaDraftAleatorio(PDO $pdo, int $draftId, string $titulo, 
     ];
     foreach ($userIds as $uid) {
         try {
-            sendPushToUser($pdo, (int)$uid, $payload);
+            sendPushToUser($pdo, (int)$uid, $payload, 'eventos');
         } catch (Throwable $e) {
             error_log('notificarEscolhaDraftAleatorio (push user_id=' . $uid . '): ' . $e->getMessage());
         }
@@ -205,7 +205,7 @@ function notificarEscolhaDraftAleatorio(PDO $pdo, int $draftId, string $titulo, 
     }
     if ($proximo) {
         try {
-            sendPushToUser($pdo, (int)$proximo, ['title' => $titulo, 'body' => 'É a sua vez de escolher!', 'url' => $url]);
+            sendPushToUser($pdo, (int)$proximo, ['title' => $titulo, 'body' => 'É a sua vez de escolher!', 'url' => $url], 'eventos');
         } catch (Throwable $e) {
             error_log('notificarEscolhaDraftAleatorio (push vez): ' . $e->getMessage());
         }

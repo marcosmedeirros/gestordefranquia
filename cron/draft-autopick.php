@@ -28,7 +28,7 @@ function notifyNextPickCron(PDO $pdo, int $teamId, int $round, int $pickPosition
         'body'       => "Rodada {$round} · Pick #{$pickPosition} — Você tem 30 min para escolher.",
         'url'        => '/drafts.php',
         'primaryKey' => 'draft_pick_' . $teamId . '_' . $round . '_' . $pickPosition,
-    ]);
+    ], 'draft');
 }
 
 function runAutopickForSession(PDO $pdo, int $draftSessionId): void {

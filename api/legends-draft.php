@@ -261,7 +261,7 @@ function notificarEscolhaLendas(PDO $pdo, string $gmName, ?string $playerName): 
     ];
     foreach ($userIds as $uid) {
         try {
-            sendPushToUser($pdo, (int)$uid, $payloadEscolha);
+            sendPushToUser($pdo, (int)$uid, $payloadEscolha, 'eventos');
         } catch (Throwable $e) {
             error_log('notificarEscolhaLendas (push user_id=' . $uid . '): ' . $e->getMessage());
         }
@@ -280,7 +280,7 @@ function notificarEscolhaLendas(PDO $pdo, string $gmName, ?string $playerName): 
                 'title' => 'Draft de Lendas ⭐',
                 'body'  => 'É a sua vez de escolher!',
                 'url'   => '/legends-draft.php',
-            ]);
+            ], 'eventos');
         } catch (Throwable $e) {
             error_log('notificarEscolhaLendas (push vez user_id=' . $proximoUserId . '): ' . $e->getMessage());
         }
