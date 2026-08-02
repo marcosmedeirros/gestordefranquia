@@ -8,3 +8,5 @@ _test_login.php
 
 # Log do cron de waivers (gerado em runtime)
 games/logs/waivers-cron.log
+
+backend/config.local.php.bak
