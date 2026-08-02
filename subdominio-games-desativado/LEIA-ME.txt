@@ -1,0 +1,20 @@
+COMO DESATIVAR O games.fbabrasil.com.br
+========================================
+
+Esta pasta tem 2 arquivos: index.php e .htaccess.
+Qualquer URL do subdomínio passa a mostrar só a tela
+"O Games mudou de casa", com botão pro fbabrasil.com.br/games.php.
+
+No hPanel da Hostinger:
+
+  1. Websites > fbabrasil.com.br > Subdomínios: veja qual é a pasta
+     (document root) do subdomínio games.
+  2. Abra o Gerenciador de Arquivos nessa pasta.
+  3. Apague (ou renomeie pra backup) o conteúdo antigo.
+  4. Envie os 2 arquivos desta pasta pra lá (index.php e .htaccess).
+
+Pronto: games.fbabrasil.com.br/qualquer-coisa mostra só a tela de aviso
+(com código 410, que avisa o Google que o endereço antigo acabou).
+
+Obs.: o banco antigo u289267434_gamesfba pode ser arquivado depois disso —
+faça um export antes de apagar, por garantia.
