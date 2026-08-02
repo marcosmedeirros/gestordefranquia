@@ -208,9 +208,10 @@ if ($method === 'GET') {
     $action = $_GET['action'] ?? 'listar';
 
     if ($action === 'listar') {
-        // Admin vê as roletas das ligas que administra (mais as antigas sem
-        // liga); GM comum vê só as da própria liga.
-        $ligasVisiveis = $minhasLigasAdmin ?: ligasDoGm($pdo, $user_id);
+        // Ligas que administra MAIS a(s) do próprio time/cadastro (um admin
+        // de outra liga que também é GM não pode ficar sem ver as roletas da
+        // liga onde ele mesmo joga).
+        $ligasVisiveis = array_values(array_unique(array_merge($minhasLigasAdmin, ligasDoGm($pdo, $user_id))));
         $where = '';
         $params = [];
         if ($ligasVisiveis) {

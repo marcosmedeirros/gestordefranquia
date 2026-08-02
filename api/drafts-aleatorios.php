@@ -252,9 +252,11 @@ if ($method === 'GET') {
     $action = $_GET['action'] ?? 'estado';
 
     if ($action === 'listar') {
-        // Cada um vê os drafts da sua liga (admin, das ligas que administra).
+        // Cada um vê os drafts da sua liga: as que administra MAIS a(s) do
+        // próprio time/cadastro (um admin de outra liga que também é GM não
+        // pode ficar sem ver os drafts da liga onde ele mesmo joga).
         // Drafts antigos sem liga continuam aparecendo pra todo mundo.
-        $ligasVisiveis = $minhasLigasAdmin ?: ligasDoUsuarioDraft($pdo, $user_id);
+        $ligasVisiveis = array_values(array_unique(array_merge($minhasLigasAdmin, ligasDoUsuarioDraft($pdo, $user_id))));
         $where = "WHERE d.league IS NULL";
         $params = [];
         if ($ligasVisiveis) {
@@ -347,7 +349,7 @@ if ($method === 'GET') {
         // sem liga continuam livres pra não sumirem de quem já os usava.
         $ligaDraft = !empty($estado['league']) ? strtoupper((string)$estado['league']) : null;
         if ($ligaDraft !== null) {
-            $permitidas = $minhasLigasAdmin ?: ligasDoUsuarioDraft($pdo, $user_id);
+            $permitidas = array_values(array_unique(array_merge($minhasLigasAdmin, ligasDoUsuarioDraft($pdo, $user_id))));
             if (!in_array($ligaDraft, $permitidas, true)) {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Este draft é da liga ' . $ligaDraft . '.']);
