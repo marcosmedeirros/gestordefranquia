@@ -280,7 +280,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .main{max-width:560px;margin:0 auto;padding:14px 12px 60px}
 
 /* ── GRID ── */
-.grid-wrap{display:grid;grid-template-columns:80px repeat(3,1fr);grid-template-rows:80px repeat(3,1fr);gap:4px;margin-bottom:16px}
+.grid-wrap{display:grid;grid-template-columns:80px repeat(3,1fr);grid-template-rows:80px repeat(3,1fr);gap:4px;margin-top:28px;margin-bottom:16px}
 .header-corner{background:transparent}
 .header-col,.header-row{background:var(--panel2);border:1px solid var(--border2);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 4px;text-align:center;position:relative;cursor:default}
 .header-col{border-radius:12px 12px 6px 6px}
@@ -459,9 +459,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
   <div style="text-align:center;font-size:11px;color:var(--text3);padding-bottom:8px">
     Toque em uma célula para adivinhar o jogador · Nova grade amanhã às 00:00
-  </div>
-  <div style="text-align:center;padding:12px 0 4px">
-    <a href="../admin/dadosjogadores.php" style="font-size:12px;font-weight:600;color:#fff;text-decoration:none;background:rgba(252,0,37,.15);border:1px solid rgba(252,0,37,.35);border-radius:8px;padding:7px 16px;display:inline-block;transition:all .2s" onmouseover="this.style.background='rgba(252,0,37,.28)';this.style.borderColor='rgba(252,0,37,.7)'" onmouseout="this.style.background='rgba(252,0,37,.15)';this.style.borderColor='rgba(252,0,37,.35)'">Você achou um erro? Clique aqui e corrija</a>
   </div>
 </div>
 
