@@ -1234,6 +1234,18 @@ function userWantsNotif(PDO $pdo, int $userId, ?string $tipo): bool {
     return !in_array($tipo, $cache[$userId], true);
 }
 
+/** "agora", "12min", "3h", "2d" ou a data — pro carimbo de tempo dos cards. */
+function tempoRelativoCurto(?string $quando): string {
+    $ts = $quando ? strtotime($quando) : false;
+    if (!$ts) return '';
+    $seg = time() - $ts;
+    if ($seg < 60)     return 'agora';
+    if ($seg < 3600)   return floor($seg / 60) . 'min';
+    if ($seg < 86400)  return floor($seg / 3600) . 'h';
+    if ($seg < 604800) return floor($seg / 86400) . 'd';
+    return date('d/m', $ts);
+}
+
 function isValidAccentColor(?string $color): bool {
     return $color !== null && preg_match('/^#[0-9a-fA-F]{6}$/', $color) === 1;
 }

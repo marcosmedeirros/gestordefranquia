@@ -228,16 +228,30 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
 
         <div class="page-hero">
             <div>
-                <a href="/roleta.php" class="btn-ghost" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;margin-bottom:10px"><i class="bi bi-arrow-left"></i> Todas as roletas</a>
-                <div class="hero-eyebrow">Admin · Roletas</div>
+                <?php /* Esta página também é aberta por GM comum (pelo card do
+                         painel), então o caminho de volta muda conforme quem entra. */ ?>
+                <?php $ehAdminAqui = hasAdminAccess($pdo, $user_id); ?>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+                    <?php if ($ehAdminAqui): ?>
+                    <a href="/roleta.php" class="btn-ghost" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px"><i class="bi bi-arrow-left"></i> Todas as roletas</a>
+                    <a href="/admin.php#gestao" class="btn-ghost" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px"><i class="bi bi-sliders"></i> Voltar ao Admin</a>
+                    <?php else: ?>
+                    <a href="/dashboard.php" class="btn-ghost" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px"><i class="bi bi-arrow-left"></i> Voltar ao painel</a>
+                    <?php endif; ?>
+                </div>
+                <div class="hero-eyebrow"><?= $ehAdminAqui ? 'Admin · Roletas' : 'Roleta da ' . htmlspecialchars($ligaRoleta ?? 'liga') ?></div>
                 <h1 class="hero-title" id="rlTituloHero"><i class="bi bi-record-circle" style="color:var(--red)"></i><span>Carregando...</span></h1>
                 <p class="hero-sub">Cada giro tira um participante da urna. Quem sai primeiro fica com a pior posição, até sobrar só 1.</p>
             </div>
+            <?php /* Quem só acompanha não vê ação nenhuma — a API barra do mesmo
+                     jeito, mas botão que sempre dá erro não deve nem aparecer. */ ?>
+            <?php if ($ehAdminAqui): ?>
             <div class="hero-actions">
                 <button class="btn-ghost" id="rtCriarDraft" style="display:none"><i class="bi bi-shuffle"></i> <span>Criar draft dessa ordem</span></button>
                 <button class="btn-ghost" id="rtReiniciar"><i class="bi bi-arrow-counterclockwise"></i> Reiniciar</button>
                 <button class="btn-ghost danger" id="rlExcluir"><i class="bi bi-trash"></i> Excluir roleta</button>
             </div>
+            <?php endif; ?>
         </div>
 
         <div class="content">

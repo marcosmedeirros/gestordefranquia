@@ -52,11 +52,16 @@ function reRenderTudo(data) {
   reRenderResumo(data);
   reAtualizarBotaoGirar(data);
   reRenderConfig(data);
+  // Os botões de ação só existem no HTML pra admin — pra GM que só acompanha
+  // a página nem renderiza o bloco, então tudo aqui é opcional.
   const podeMexer = data.pode_girar !== false;
-  document.getElementById('rlExcluir').disabled = data.bloqueada || !podeMexer;
-  document.getElementById('rlExcluir').title = !podeMexer
-    ? 'Só o admin da liga pode excluir.'
-    : (data.bloqueada ? 'Já teve o 1º sorteio — não pode mais ser excluída.' : '');
+  const btnExcluir = document.getElementById('rlExcluir');
+  if (btnExcluir) {
+    btnExcluir.disabled = data.bloqueada || !podeMexer;
+    btnExcluir.title = !podeMexer
+      ? 'Só o admin da liga pode excluir.'
+      : (data.bloqueada ? 'Já teve o 1º sorteio — não pode mais ser excluída.' : '');
+  }
   reAtualizarBotaoDraft(data);
 }
 
@@ -205,6 +210,7 @@ window.reCopiarTudo = reCopiarTudo;
 
 function reAtualizarBotaoGirar(data) {
   const btn = document.getElementById('rtGirar');
+  if (!btn) return;
   const acabou = !!data.concluido;
 
   // Quem não é admin da liga acompanha o sorteio, mas não gira. O servidor
@@ -524,10 +530,11 @@ async function reSalvarNovosParticipantes() {
 
 document.addEventListener('DOMContentLoaded', () => {
   reCarregar();
-  document.getElementById('rtGirar').addEventListener('click', reGirar);
-  document.getElementById('rtReiniciar').addEventListener('click', reReiniciar);
-  document.getElementById('rlExcluir').addEventListener('click', reExcluirRoleta);
-  document.getElementById('rtCriarDraft').addEventListener('click', reCriarDraft);
+  const ligar = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+  ligar('rtGirar', reGirar);
+  ligar('rtReiniciar', reReiniciar);
+  ligar('rlExcluir', reExcluirRoleta);
+  ligar('rtCriarDraft', reCriarDraft);
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.rl-autocomplete')) {
       document.querySelectorAll('.rl-autocomplete-results').forEach(el => el.classList.remove('show'));

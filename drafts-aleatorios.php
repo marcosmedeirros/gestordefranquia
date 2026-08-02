@@ -69,6 +69,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         .hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
         .hero-title { font-size: 26px; font-weight: 800; color: var(--text); margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
         .hero-sub { font-size: 13px; color: var(--text-2); max-width: 640px; }
+        .hero-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .content { padding: 20px 32px 48px; flex: 1; }
         .topbar { display: none; height: 54px; background: var(--panel); border-bottom: 1px solid var(--border); padding: 0 16px; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 200; }
         .topbar-title { font-size: 15px; font-weight: 700; color: var(--text); }
@@ -174,7 +175,10 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
                 <h1 class="hero-title"><i class="bi bi-shuffle" style="color:var(--red)"></i>Drafts Aleatórios</h1>
                 <p class="hero-sub">Cada draft nasce da ordem sorteada numa roleta concluída. Qualquer pessoa logada registra as escolhas; pular, desfazer e finalizar funcionam igual ao Draft de Lendas.</p>
             </div>
-            <button type="button" class="btn-orange" id="btnNovoDraftTop"><i class="bi bi-plus-lg me-1"></i>Novo Draft</button>
+            <div class="hero-actions">
+                <a class="btn-ghost" href="/admin.php#gestao"><i class="bi bi-arrow-left me-1"></i>Voltar ao Admin</a>
+                <button type="button" class="btn-orange" id="btnNovoDraftTop"><i class="bi bi-plus-lg me-1"></i>Novo Draft</button>
+            </div>
         </div>
 
         <div class="content">

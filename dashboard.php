@@ -4,6 +4,7 @@ require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/salary_cap.php';
 require_once __DIR__ . '/backend/pendencias.php';
+require_once __DIR__ . '/backend/team-feed-helpers.php'; // FEED_DATA_CORTE + tabelas do feed
 requireAuth();
 
 $user = getUserSession();
@@ -244,6 +245,48 @@ if ($ligaDoTime !== '') {
             ];
         }
     } catch (Throwable $e) { /* drafts_aleatorios ainda não existe neste banco */ }
+}
+
+// Último post da Timeline: o mais recente de quem o time segue. Sem ninguém
+// seguido (ou sem post de quem é seguido), mostra o mais recente da liga —
+// card vazio não convida ninguém a abrir a Timeline.
+$ultimoPost = null;
+$postDeQuemSigo = false;
+$meuTimeId = (int)($team['id'] ?? 0);
+$selectPost = "SELECT tp.id, tp.texto, tp.photo_url, tp.created_at,
+                      u.name AS autor, u.photo_url AS autor_foto,
+                      tm.city AS time_cidade, tm.name AS time_nome, tm.photo_url AS time_foto,
+                      (SELECT COUNT(*) FROM team_post_likes WHERE post_id = tp.id) AS curtidas
+               FROM team_posts tp
+               JOIN users u  ON u.id  = tp.author_user_id
+               JOIN teams tm ON tm.id = tp.team_id
+               WHERE tp.deleted_at IS NULL AND tp.created_at >= ?";
+
+// Dois try separados de propósito: team_follows é criada sob demanda pela
+// Timeline, então num banco onde ninguém abriu a Timeline ainda a 1ª consulta
+// explode — e num try só isso levaria embora também o fallback da liga.
+if ($meuTimeId) {
+    try {
+        $stmtPost = $pdo->prepare($selectPost . "
+              AND tp.team_id IN (SELECT followed_team_id FROM team_follows WHERE follower_team_id = ?)
+              AND tp.team_id <> ?
+            ORDER BY tp.created_at DESC LIMIT 1");
+        $stmtPost->execute([FEED_DATA_CORTE, $meuTimeId, $meuTimeId]);
+        $ultimoPost = $stmtPost->fetch(PDO::FETCH_ASSOC) ?: null;
+        $postDeQuemSigo = (bool)$ultimoPost;
+    } catch (Throwable $e) {
+        error_log('dashboard post de quem sigo: ' . $e->getMessage());
+    }
+}
+
+if (!$ultimoPost && $ligaDoTime !== '') {
+    try {
+        $stmtPost = $pdo->prepare($selectPost . " AND tm.league = ? ORDER BY tp.created_at DESC LIMIT 1");
+        $stmtPost->execute([FEED_DATA_CORTE, $ligaDoTime]);
+        $ultimoPost = $stmtPost->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Throwable $e) {
+        error_log('dashboard último post da liga: ' . $e->getMessage());
+    }
 }
 
 // Tática não tem mais prazo de envio — só avisa aqui quando o admin fechou a
@@ -870,6 +913,39 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         .sorteio-seta { color: var(--text-3); font-size: 14px; flex-shrink: 0; }
         .sorteio-item:hover .sorteio-seta { color: var(--red); }
 
+        /* ── Último post da Timeline ── */
+        .tl-post {
+            display: flex; align-items: flex-start; gap: 12px; text-decoration: none;
+            background: var(--panel-2); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 14px;
+            transition: border-color var(--t) var(--ease), background var(--t) var(--ease);
+        }
+        .tl-post:hover { border-color: var(--border-red); background: var(--panel-3); }
+        .tl-post-foto {
+            width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%;
+            object-fit: cover; border: 1px solid var(--border-md);
+        }
+        .tl-post-txt { flex: 1; min-width: 0; }
+        .tl-post-topo { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+        .tl-post-autor { font-size: 13px; font-weight: 700; color: var(--text); }
+        .tl-post-time { font-size: 11.5px; color: var(--text-2); }
+        .tl-post-quando { font-size: 11px; color: var(--text-3); margin-left: auto; flex-shrink: 0; }
+        .tl-post-corpo {
+            font-size: 13px; line-height: 1.5; color: var(--text-2); margin: 6px 0 0;
+            overflow-wrap: anywhere;
+        }
+        .tl-post-pe { display: flex; align-items: center; gap: 14px; margin-top: 8px; font-size: 11px; color: var(--text-3); }
+        .tl-post-pe i { color: var(--red); }
+        .tl-post-dica i { color: var(--text-3); }
+        .tl-post-img {
+            width: 96px; height: 96px; flex-shrink: 0; border-radius: var(--radius-xs);
+            object-fit: cover; border: 1px solid var(--border);
+        }
+        @media (max-width: 560px) {
+            .tl-post-img { width: 64px; height: 64px; }
+            .tl-post-quando { margin-left: 0; }
+        }
+
         /* ── Vídeos da liga (Progression / Sistemas / Free Agency) ── */
         .prog-video-wrap { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden; background: #000; }
         .prog-video-wrap:fullscreen { aspect-ratio: unset; border-radius: 0; }
@@ -1448,6 +1524,42 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                             </a>
                             <?php endforeach; ?>
                         </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($ultimoPost): ?>
+                <!-- ── Último post da Timeline ── -->
+                <div class="bc span-3" style="animation-delay:.24s">
+                    <div class="bc-head">
+                        <div class="bc-title"><i class="bi bi-chat-quote-fill"></i> <?= $postDeQuemSigo ? 'Da sua Timeline' : 'Movimento na ' . htmlspecialchars($ligaDoTime) ?></div>
+                        <a href="/timeline.php" class="bc-link">Ver timeline <i class="bi bi-arrow-right"></i></a>
+                    </div>
+                    <div class="bc-body">
+                        <a class="tl-post" href="/timeline.php">
+                            <img class="tl-post-foto" src="<?= htmlspecialchars($ultimoPost['autor_foto'] ?: ($ultimoPost['time_foto'] ?: '/img/default-team.png')) ?>" alt="">
+                            <div class="tl-post-txt">
+                                <div class="tl-post-topo">
+                                    <span class="tl-post-autor"><?= htmlspecialchars($ultimoPost['autor']) ?></span>
+                                    <span class="tl-post-time"><?= htmlspecialchars(trim($ultimoPost['time_cidade'] . ' ' . $ultimoPost['time_nome'])) ?></span>
+                                    <span class="tl-post-quando"><?= htmlspecialchars(tempoRelativoCurto($ultimoPost['created_at'])) ?></span>
+                                </div>
+                                <?php if (trim((string)$ultimoPost['texto']) !== ''): ?>
+                                <p class="tl-post-corpo"><?= nl2br(htmlspecialchars(mb_strimwidth(trim($ultimoPost['texto']), 0, 240, '…'))) ?></p>
+                                <?php endif; ?>
+                                <div class="tl-post-pe">
+                                    <?php if ((int)$ultimoPost['curtidas'] > 0): ?>
+                                    <span><i class="bi bi-heart-fill"></i> <?= (int)$ultimoPost['curtidas'] ?></span>
+                                    <?php endif; ?>
+                                    <?php if (!$postDeQuemSigo): ?>
+                                    <span class="tl-post-dica"><i class="bi bi-person-plus"></i> Siga times na Timeline pra ver o feed deles aqui</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <?php if (!empty($ultimoPost['photo_url'])): ?>
+                            <img class="tl-post-img" src="<?= htmlspecialchars($ultimoPost['photo_url']) ?>" alt="">
+                            <?php endif; ?>
+                        </a>
                     </div>
                 </div>
                 <?php endif; ?>

@@ -62,7 +62,9 @@ if ($team_id) {
         body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
         .app { display: flex; min-height: 100vh; }
         .main { margin-left: var(--sidebar-w); min-height: 100vh; width: calc(100% - var(--sidebar-w)); display: flex; flex-direction: column; }
-        .page-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin: 32px 32px 4px; }
+        .da-voltar { display: flex; gap: 8px; flex-wrap: wrap; margin: 28px 32px 0; }
+        .da-voltar .btn-ghost { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+        .page-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin: 12px 32px 4px; }
         .page-hero-title { font-size: 26px; font-weight: 800; color: var(--text); margin: 0 32px 4px; display: flex; align-items: center; gap: 10px; }
         .page-hero-sub { font-size: 13px; color: var(--text-2); margin: 0 32px 18px; max-width: 720px; }
         .content { padding: 0 32px 48px; flex: 1; }
@@ -173,7 +175,7 @@ if ($team_id) {
             .sidebar.open { transform: translateX(0); }
             .main { margin-left: 0; width: 100%; padding-top: 54px; }
             .topbar { display: flex; }
-            .page-hero-eyebrow, .page-hero-title, .page-hero-sub { margin-left: 16px; margin-right: 16px; }
+            .page-hero-eyebrow, .page-hero-title, .page-hero-sub, .da-voltar { margin-left: 16px; margin-right: 16px; }
             .content { padding: 0 16px 48px; }
         }
         @media (max-width: 480px) {
@@ -198,6 +200,17 @@ if ($team_id) {
             <div class="topbar-title">FBA <em>Draft</em></div>
         </header>
 
+        <?php /* GM comum também abre esta página pelo card do painel, então o
+                 caminho de volta depende de quem entrou. */ ?>
+        <?php $ehAdminAqui = hasAdminAccess($pdo, (int)$user['id']); ?>
+        <div class="da-voltar">
+            <?php if ($ehAdminAqui): ?>
+            <a class="btn-ghost" href="/drafts-aleatorios.php"><i class="bi bi-arrow-left"></i> Todos os drafts</a>
+            <a class="btn-ghost" href="/admin.php#gestao"><i class="bi bi-sliders"></i> Voltar ao Admin</a>
+            <?php else: ?>
+            <a class="btn-ghost" href="/dashboard.php"><i class="bi bi-arrow-left"></i> Voltar ao painel</a>
+            <?php endif; ?>
+        </div>
         <div class="page-hero-eyebrow">FBA · Draft Aleatório</div>
         <h1 class="page-hero-title"><i class="bi bi-shuffle" style="color:var(--red)"></i><span id="daTitulo"><?= htmlspecialchars($titulo) ?></span></h1>
         <p class="page-hero-sub">A ordem deste draft veio do sorteio da roleta. Qualquer pessoa logada pode registrar a escolha da vez — se o GM não estiver por perto, alguém cadastra por ele.</p>
