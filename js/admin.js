@@ -300,6 +300,9 @@ async function showGestao(league) {
       <a href="/roleta.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
         <i class="bi bi-record-circle" style="color:#ec4899"></i> Roletas
       </a>
+      <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="showConviteRookie()">
+        <i class="bi bi-clipboard-plus" style="color:#a855f7"></i> Link de cadastro ROOKIE
+      </button>
       <a href="/drafts-aleatorios.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
         <i class="bi bi-shuffle" style="color:#a855f7"></i> Drafts Aleatórios
       </a>
