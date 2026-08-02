@@ -290,6 +290,65 @@ function notificarEscolhaLendas(PDO $pdo, string $gmName, ?string $playerName): 
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
+    $action = $_GET['action'] ?? '';
+
+    // Resumo completo pro admin: todo mundo já escolheu quais badges, num
+    // lugar só — depois de finalizado, cada GM só vê a customização do
+    // próprio jogador, então essa é a única forma de ver tudo junto.
+    if ($action === 'admin_resumo') {
+        if (!$is_admin) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Apenas administradores.']);
+            exit;
+        }
+
+        $picks = $pdo->query("
+            SELECT ldp.id, ldp.pick_number, ldp.team_id, ldp.user_id, ldp.gm_name,
+                   ldp.player_name, ldp.player_position, ldp.ovr, ldp.age, ldp.skipped,
+                   t.photo_url, CONCAT(t.city,' ',t.name) AS team_name
+            FROM legends_draft_picks ldp
+            LEFT JOIN teams t ON t.id = ldp.team_id
+            ORDER BY ldp.pick_number ASC
+        ")->fetchAll(PDO::FETCH_ASSOC);
+
+        $badgesByPick = [];
+        foreach ($pdo->query("SELECT pick_id, badge_key, tier, tokens_cost FROM legends_draft_badges")->fetchAll(PDO::FETCH_ASSOC) as $b) {
+            $badgesByPick[(int)$b['pick_id']][] = $b;
+        }
+
+        $badgeInfo = [];
+        foreach (BADGES_CATALOGO as $b) $badgeInfo[$b['key']] = $b;
+
+        foreach ($picks as &$p) {
+            $rows = $badgesByPick[(int)$p['id']] ?? [];
+            $tokens = 0;
+            $badges = [];
+            foreach ($rows as $r) {
+                $tokens += (int)$r['tokens_cost'];
+                $badges[] = [
+                    'key'       => $r['badge_key'],
+                    'label'     => $badgeInfo[$r['badge_key']]['label'] ?? $r['badge_key'],
+                    'categoria' => $badgeInfo[$r['badge_key']]['categoria'] ?? '',
+                    'tier'      => $r['tier'],
+                ];
+            }
+            $p['badges'] = $badges;
+            $p['tokens_usados'] = $tokens;
+        }
+        unset($p);
+
+        $finalizadoEm = $pdo->query("SELECT finalizado_em FROM legends_draft_status WHERE id = 1")->fetchColumn();
+
+        echo json_encode([
+            'success'          => true,
+            'picks'            => $picks,
+            'finalizado'       => $finalizadoEm !== false && $finalizadoEm !== null,
+            'tokens_orcamento' => TOKENS_ORCAMENTO,
+            'tier_custo'       => TIER_CUSTO,
+        ]);
+        exit;
+    }
+
     echo json_encode(['success' => true] + estadoDraft($pdo, $user_id, $is_admin));
     exit;
 }
