@@ -138,11 +138,45 @@ function recalcularCapDaLiga(PDO $pdo, string $league, int $seasonNumber): ?arra
         VALUES (?,?,?,?,?,?,?,?,?,?)")
         ->execute([$league, $seasonNumber, $capMode, (int)round($avg), $marginRecord, $newMin, $newMax, count($values), $acima, $abaixo]);
 
-    return [
+    $resumo = [
         'league' => $league, 'season_number' => $seasonNumber, 'cap_mode' => $capMode,
         'avg' => (int)round($avg), 'margin' => $marginRecord, 'cap_min' => $newMin, 'cap_max' => $newMax,
         'teams_total' => count($values), 'teams_above' => $acima, 'teams_below' => $abaixo,
     ];
+    notificarRecalculoCapDaLiga($pdo, $resumo);
+
+    return $resumo;
+}
+
+/** Avisa por push todo mundo da liga que o CAP mudou. Best-effort. */
+function notificarRecalculoCapDaLiga(PDO $pdo, array $resumo): void
+{
+    $pushFile = __DIR__ . '/push.php';
+    if (!file_exists($pushFile)) return;
+    require_once $pushFile;
+
+    try {
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE league = ?");
+        $stmt->execute([$resumo['league']]);
+        $userIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Throwable $e) {
+        error_log('notificarRecalculoCapDaLiga (usuários): ' . $e->getMessage());
+        return;
+    }
+
+    $unidade = $resumo['cap_mode'] === 'salary' ? 'M' : '';
+    $payload = [
+        'title' => "📊 Novo CAP da {$resumo['league']}",
+        'body'  => "Temporada {$resumo['season_number']}: CAP agora é {$resumo['cap_min']}{$unidade}–{$resumo['cap_max']}{$unidade} (média {$resumo['avg']}{$unidade} entre os times).",
+        'url'   => '/dashboard.php',
+    ];
+    foreach ($userIds as $uid) {
+        try {
+            sendPushToUser($pdo, (int)$uid, $payload);
+        } catch (Throwable $e) {
+            error_log('notificarRecalculoCapDaLiga (push user_id=' . $uid . '): ' . $e->getMessage());
+        }
+    }
 }
 
 /**

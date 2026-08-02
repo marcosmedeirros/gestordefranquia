@@ -216,6 +216,7 @@ if ($team_id) {
                         <button class="tl-chip" data-league="ELITE">ELITE</button>
                         <button class="tl-chip" data-league="NEXT">NEXT</button>
                         <button class="tl-chip" data-league="RISE">RISE</button>
+                        <button class="tl-chip" data-league="ROOKIE">ROOKIE</button>
                     </div>
                     <div class="tl-stories" id="tlStoriesBar"></div>
                     <div id="tlFeedList"><div class="empty">Carregando...</div></div>
@@ -236,6 +237,7 @@ if ($team_id) {
                         <button class="tl-chip" data-league="ELITE">ELITE</button>
                         <button class="tl-chip" data-league="NEXT">NEXT</button>
                         <button class="tl-chip" data-league="RISE">RISE</button>
+                        <button class="tl-chip" data-league="ROOKIE">ROOKIE</button>
                     </div>
                     <div class="tl-grid" id="tlPostsGrid"></div>
                 </div>
