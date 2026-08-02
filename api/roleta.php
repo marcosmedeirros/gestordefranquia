@@ -268,7 +268,12 @@ if ($method === 'GET') {
             exit;
         }
         $podeGirar = $minhasLigasAdmin && ($ligaRoleta === null || in_array($ligaRoleta, $minhasLigasAdmin, true));
-        echo json_encode(['success' => true, 'league' => $ligaRoleta, 'pode_girar' => $podeGirar] + $estado);
+        echo json_encode([
+            'success'      => true,
+            'league'       => $ligaRoleta,
+            'pode_girar'   => $podeGirar,
+            'minhas_ligas' => $podeGirar ? $minhasLigasAdmin : [],
+        ] + $estado);
         exit;
     }
 
@@ -382,6 +387,30 @@ if ($method === 'POST') {
         }
 
         echo json_encode(['success' => true] + estadoRoleta($pdo, $roletaId));
+        exit;
+    }
+
+    // Trocar a liga é uma ação à parte: continua valendo depois do 1º giro,
+    // porque só muda quem enxerga a roleta — não mexe no sorteio em si.
+    if ($action === 'definir_liga') {
+        $id = (int)($body['id'] ?? 0);
+        $nova = strtoupper(trim((string)($body['league'] ?? '')));
+        if (!$id || $nova === '') {
+            echo json_encode(['success' => false, 'error' => 'Roleta e liga são obrigatórias.']);
+            exit;
+        }
+        // Precisa ser admin da liga atual E da liga de destino: senão daria
+        // pra empurrar uma roleta pra uma liga que não é sua.
+        exigirAdminDaRoleta($pdo, $user_id, $minhasLigasAdmin, ligaDaRoleta($pdo, $id));
+        exigirAdminDaRoleta($pdo, $user_id, $minhasLigasAdmin, $nova);
+
+        $pdo->prepare("UPDATE roletas SET league = ? WHERE id = ?")->execute([$nova, $id]);
+        // O draft gerado por esta roleta acompanha a mudança.
+        try {
+            $pdo->prepare("UPDATE drafts_aleatorios SET league = ? WHERE roleta_id = ?")->execute([$nova, $id]);
+        } catch (Throwable $e) { /* banco sem drafts_aleatorios */ }
+
+        echo json_encode(['success' => true, 'league' => $nova]);
         exit;
     }
 

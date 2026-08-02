@@ -879,7 +879,18 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
            cobre a área toda e engole o mouse, então o YouTube nunca recebe hover
            e nunca mostra título, "Mais vídeos" nem a marca. Pausado ou no fim, a
            .yt-capa tampa tudo — é ali que a interface deles apareceria. */
-        .yt-wrap .yt-mount, .yt-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+        /* O YouTube escolhe a resolução pelo tamanho em que o player está
+           desenhado — num card de ~270px ele entrega 240p e a imagem fica
+           borrada. Então o iframe é sempre montado em 1280x720 e reduzido por
+           transform: o YouTube vê um player grande e manda HD, e o HD reduzido
+           fica bem mais nítido que um SD esticado. --yt-escala é recalculada
+           pelo JS a cada mudança de tamanho (inclusive ao abrir o popup). */
+        .yt-wrap .yt-mount, .yt-wrap iframe {
+            position: absolute; top: 0; left: 0; border: 0;
+            width: 1280px; height: 720px;
+            transform-origin: 0 0;
+            transform: scale(var(--yt-escala, 1));
+        }
         .yt-escudo { position: absolute; inset: 0; z-index: 2; cursor: pointer; background: transparent; }
         .yt-capa {
             position: absolute; inset: 0; z-index: 3; display: none;
@@ -970,6 +981,12 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
         .vid-action-btn:hover { border-color: var(--red); color: var(--red); background: var(--panel-3); }
         .vid-action-btn.copied { background: var(--green); border-color: var(--green); color: #fff; }
+        /* No celular o print sai fora: getDisplayMedia não existe em navegador
+           móvel, então o botão só levaria a um erro. Print de tela nativo
+           resolve melhor ali. */
+        @media (max-width: 768px), (pointer: coarse) {
+            .vid-action-btn[data-action="capture"], #vidPopCapturar { display: none !important; }
+        }
         .prog-video-placeholder { background: var(--panel-2); border: 1px dashed var(--border-md); }
         .prog-placeholder-inner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-3); }
         .prog-placeholder-inner i { font-size: 26px; }
@@ -2056,18 +2073,35 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 
         wrap.classList.add('carregando', 'pausado');
 
+        // Mantém o iframe de 1280x720 encaixado na caixa visível. Roda também
+        // quando o card vira popup, que muda de tamanho sem recarregar a página.
+        const ajustarEscala = () => {
+            const largura = wrap.clientWidth;
+            if (largura > 0) wrap.style.setProperty('--yt-escala', largura / 1280);
+        };
+        ajustarEscala();
+        // O popup muda o tamanho do card na mesma tacada em que troca a classe;
+        // guardar a função aqui deixa o vidPopAbrir/Fechar reajustar na hora,
+        // sem depender do momento em que o ResizeObserver resolve entregar.
+        wrap._ytAjustarEscala = ajustarEscala;
+        if (window.ResizeObserver) new ResizeObserver(ajustarEscala).observe(wrap);
+        else window.addEventListener('resize', ajustarEscala);
+
         const player = new YT.Player('ytmount_' + key, {
             videoId,
             playerVars: {
                 controls: 0, disablekb: 1, modestbranding: 1, rel: 0,
                 iv_load_policy: 3, playsinline: 1, fs: 0, showinfo: 0,
+                vq: 'hd1080',
             },
             events: {
                 onReady: () => {
                     wrap.classList.remove('carregando');
+                    pedirAltaQualidade();
                     atualizar();
                 },
                 onStateChange: (e) => {
+                    if (e.data === YT.PlayerState.PLAYING) pedirAltaQualidade();
                     const tocando = e.data === YT.PlayerState.PLAYING;
                     wrap.classList.toggle('pausado', !tocando);
                     // Capa só sai quando está de fato tocando: no BUFFERING o
@@ -2080,6 +2114,23 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             },
         });
         ytPlayers[key] = player;
+
+        /**
+         * Pede a melhor resolução disponível.
+         *
+         * O YouTube decide a qualidade quase toda pelo tamanho em que o player
+         * está desenhado, e ignora o pedido quando não pode atender — por isso
+         * a chamada é só um empurrão, e o que garante HD de verdade é o card
+         * ocupar a largura toda (e o popup abrir em 16:9 grande).
+         */
+        function pedirAltaQualidade() {
+            try {
+                const niveis = player.getAvailableQualityLevels?.() || [];
+                const preferida = ['highres', 'hd2160', 'hd1440', 'hd1080', 'hd720']
+                    .find(q => niveis.includes(q));
+                if (preferida) player.setPlaybackQuality(preferida);
+            } catch (e) { /* API mudou ou ainda não respondeu — segue no automático */ }
+        }
 
         function alternar() {
             const st = player.getPlayerState?.();
@@ -2201,10 +2252,12 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         vidPop.barra.classList.add('on');
         document.getElementById('vidPopTitulo').textContent = titulo || '';
         document.body.style.overflow = 'hidden';
+        wrap._ytAjustarEscala?.();
     }
 
     function vidPopFechar() {
         if (!vidPop.wrap) return;
+        const oQueFecha = vidPop.wrap;
         vidPop.wrap.classList.remove('vid-pop');
         (vidPop.ancestrais || []).forEach(p => p.classList.remove('vid-pop-solto'));
         vidPop.ancestrais = [];
@@ -2214,6 +2267,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         vidPop.fundo.classList.remove('on');
         vidPop.barra.classList.remove('on');
         document.body.style.overflow = '';
+        oQueFecha._ytAjustarEscala?.();
     }
 
     document.addEventListener('keydown', (e) => {

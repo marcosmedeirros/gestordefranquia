@@ -324,15 +324,33 @@ function reRenderConfig(data) {
     return;
   }
 
+  // A liga pode ser trocada a qualquer momento — inclusive depois do 1º giro,
+  // porque ela só decide quem enxerga a roleta, não o resultado do sorteio.
+  const ligas = data.minhas_ligas || [];
+  const blocoLiga = ligas.length ? `
+    <div class="mb-3">
+      <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px">Liga da roleta</div>
+      <div style="display:flex;gap:8px">
+        <select id="rlEditLiga" class="form-control">
+          ${ligas.map(l => `<option value="${_reEsc(l)}"${l === data.league ? ' selected' : ''}>${_reEsc(l)}</option>`).join('')}
+        </select>
+        <button type="button" class="btn-ghost" id="rlSalvarLiga">Salvar</button>
+      </div>
+      <small style="font-size:11px;color:var(--text-3)">Define quem vê a roleta no painel e quem pode girar. O draft gerado por ela acompanha.</small>
+    </div>` : '';
+
   if (data.bloqueada) {
     box.innerHTML = `
       <div class="edit-locked-msg"><i class="bi bi-lock-fill"></i>Esta roleta já teve o 1º sorteio — título, participantes e notificação não podem mais ser editados.</div>
+      ${blocoLiga}
       <div style="margin-top:12px;font-size:12px;color:var(--text-3)">Tipo: <b style="color:var(--text)">${tipoLabel}</b> · Notificação: <b style="color:var(--text)">${data.notificar_saida ? 'ativada' : 'desativada'}</b></div>`;
+    reLigarBotaoLiga();
     return;
   }
 
   reSelecionadosNovos = [];
   box.innerHTML = `
+    ${blocoLiga}
     <div class="mb-2">
       <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px">Título</div>
       <div style="display:flex;gap:8px">
@@ -356,6 +374,7 @@ function reRenderConfig(data) {
       <span>Notificar quem sair da roleta</span>
     </label>`;
 
+  reLigarBotaoLiga();
   document.getElementById('rlSalvarTitulo').addEventListener('click', reSalvarTitulo);
   document.getElementById('rlEditNotificar').addEventListener('change', reSalvarNotificacao);
   reRenderChipsNovos();
@@ -373,6 +392,29 @@ function reRenderConfig(data) {
       reBuscaTimeout = setTimeout(() => reBuscarParticipantes(q, data.tipo), 250);
     });
   }
+}
+
+/** Liga o botão de salvar a liga — existe nos dois estados do painel. */
+function reLigarBotaoLiga() {
+  const btn = document.getElementById('rlSalvarLiga');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const liga = document.getElementById('rlEditLiga').value;
+    btn.disabled = true;
+    try {
+      await _reFetch('/api/roleta.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'definir_liga', id: ROLETA_ID, league: liga }),
+      });
+      const antes = btn.textContent;
+      btn.textContent = 'Salvo!';
+      setTimeout(() => { btn.textContent = antes; btn.disabled = false; }, 1500);
+      reCarregar();
+    } catch (e) {
+      btn.disabled = false;
+      alert(e.message);
+    }
+  });
 }
 
 function reRenderChipsNovos() {

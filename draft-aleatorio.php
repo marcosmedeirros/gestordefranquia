@@ -116,6 +116,12 @@ if ($team_id) {
 
         .da-progress{height:6px;border-radius:999px;background:var(--panel-3);overflow:hidden;margin-bottom:16px}
         .da-progress>div{height:100%;background:var(--red);transition:width .3s}
+        .da-liga-box{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;
+          padding:10px 12px;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm)}
+        .da-liga-label{font-size:12px;font-weight:700;color:var(--text-2);display:flex;align-items:center;gap:6px}
+        .da-liga-label i{color:var(--red)}
+        .da-liga-box select{background:var(--panel-3);border:1px solid var(--border-md);color:var(--text);
+          border-radius:8px;padding:6px 10px;font-family:var(--font);font-size:12.5px;font-weight:600}
 
         .da-turno{background:linear-gradient(135deg,var(--red-soft),transparent);border:1px solid var(--border-red);border-radius:var(--radius);padding:16px 20px;margin-bottom:16px}
         .da-turno-label{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--red);margin-bottom:4px}

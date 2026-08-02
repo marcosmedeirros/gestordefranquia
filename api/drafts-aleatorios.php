@@ -347,7 +347,7 @@ if ($method === 'GET') {
                 exit;
             }
         }
-        echo json_encode(['success' => true] + $estado);
+        echo json_encode(['success' => true, 'minhas_ligas' => $minhasLigasAdmin] + $estado);
         exit;
     }
 
@@ -605,6 +605,33 @@ if ($method === 'POST') {
         }
 
         echo json_encode(['success' => true] + estadoDraftAleatorio($pdo, $draftId, $user_id, $is_admin));
+        exit;
+    }
+
+    // Liga do draft — define quem enxerga ele no painel e na central.
+    if ($action === 'definir_liga') {
+        $nova = strtoupper(trim((string)($body['league'] ?? '')));
+        if (!$minhasLigasAdmin || ($nova !== '' && !in_array($nova, $minhasLigasAdmin, true))) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Você não administra essa liga.']);
+            exit;
+        }
+        // Também precisa administrar a liga em que o draft está hoje.
+        $stAtual = $pdo->prepare("SELECT league FROM drafts_aleatorios WHERE id = ? LIMIT 1");
+        $stAtual->execute([$draftId]);
+        $atual = $stAtual->fetchColumn();
+        if ($atual && !in_array(strtoupper((string)$atual), $minhasLigasAdmin, true)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Só o admin da ' . strtoupper((string)$atual) . ' pode mover este draft.']);
+            exit;
+        }
+        if ($nova === '') {
+            echo json_encode(['success' => false, 'error' => 'Escolha a liga.']);
+            exit;
+        }
+        $pdo->prepare("UPDATE drafts_aleatorios SET league = ? WHERE id = ?")->execute([$nova, $draftId]);
+        echo json_encode(['success' => true, 'minhas_ligas' => $minhasLigasAdmin]
+            + estadoDraftAleatorio($pdo, $draftId, $user_id, $is_admin));
         exit;
     }
 

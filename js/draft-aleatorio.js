@@ -71,6 +71,20 @@ function daRenderTudo() {
 
   let html = `<div class="da-progress"><div style="width:${pct}%"></div></div>`;
 
+  // Liga do draft: decide quem vê o card no painel e na central. Só o admin
+  // das ligas que ele administra troca — a API confere de novo.
+  const ligasDa = d.minhas_ligas || [];
+  if (ligasDa.length) {
+    html += `
+    <div class="da-liga-box">
+      <span class="da-liga-label"><i class="bi bi-flag-fill"></i> Liga do draft</span>
+      <select id="daLiga">
+        ${ligasDa.map(l => `<option value="${_daEsc(l)}"${l === d.league ? ' selected' : ''}>${_daEsc(l)}</option>`).join('')}
+      </select>
+      <button type="button" class="btn-ghost" id="btnDaSalvarLiga">Salvar</button>
+    </div>`;
+  }
+
   if (d.finalizado) {
     html += `
     <div class="da-turno da-turno-ok">
@@ -121,6 +135,7 @@ function daRenderTudo() {
   on('btnDaCopiar', daCopiarOrdem);
   on('btnDaCopiarEscolhas', daCopiarEscolhas);
   on('btnDaCopiarLink', daCopiarLink);
+  on('btnDaSalvarLiga', daSalvarLiga);
   const btnPular = document.getElementById('btnDaPular');
   if (btnPular) btnPular.addEventListener('click', () => daAbrirModalPular(btnPular.dataset.gm));
 
@@ -301,6 +316,23 @@ async function daReabrir() {
     });
     daRenderTudo();
   } catch (e) { alert(e.message); }
+}
+
+async function daSalvarLiga(ev) {
+  const btn = ev.currentTarget;
+  const liga = document.getElementById('daLiga')?.value;
+  if (!liga) return;
+  btn.disabled = true;
+  try {
+    daEstado = await _daFetch('/api/drafts-aleatorios.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'definir_liga', id: window.DRAFT_ID, league: liga }),
+    });
+    daRenderTudo();
+  } catch (e) {
+    btn.disabled = false;
+    alert(e.message);
+  }
 }
 
 async function daRenomearGM(pick, atual) {
