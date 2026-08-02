@@ -44,7 +44,7 @@ async function rlCarregarHub() {
       <div class="roleta-card" onclick="window.location.href='/roleta-editar.php?id=${r.id}'">
         <div class="roleta-card-icon" style="background:${meta.bg};color:${meta.color}"><i class="bi ${meta.icon}"></i></div>
         <div class="roleta-card-title">${escapeHtml(r.titulo)}</div>
-        <div class="roleta-card-sub">${meta.label} · ${r.sorteados}/${r.total} sorteados${r.notificar_saida ? ' · <i class="bi bi-bell-fill"></i>' : ''}</div>
+        <div class="roleta-card-sub">${r.league ? escapeHtml(r.league) + ' · ' : ''}${meta.label} · ${r.sorteados}/${r.total} sorteados${r.notificar_saida ? ' · <i class="bi bi-bell-fill"></i>' : ''}</div>
         <div class="roleta-card-progress"><div style="width:${pct}%"></div></div>
         <span class="roleta-card-status" style="color:${statusColor};background:${statusBg}">${statusLabel}</span>
       </div>`);
@@ -143,7 +143,9 @@ function rlAdicionarNomeLivre() {
 async function rlCriarRoleta() {
   const titulo = document.getElementById('rlTitulo').value.trim();
   const notificar = document.getElementById('rlNotificar').checked;
+  const liga = document.getElementById('rlLiga')?.value || '';
   if (!titulo) { alert('Digite um título pra roleta.'); return; }
+  if (!liga) { alert('Escolha a liga da roleta.'); return; }
   if (rlSelecionados.length < 2) { alert('Adicione pelo menos 2 participantes.'); return; }
 
   const btn = document.getElementById('btnCriarRoleta');
@@ -155,6 +157,7 @@ async function rlCriarRoleta() {
       body: JSON.stringify({
         action: 'criar',
         titulo,
+        league: liga,
         tipo: rlTipoAtual,
         notificar_saida: notificar,
         participantes: rlSelecionados,

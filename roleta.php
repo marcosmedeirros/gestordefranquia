@@ -207,6 +207,16 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
           <input type="text" id="rlTitulo" class="form-control" placeholder="Ex: Roleta de saída — Temporada 5" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text)">
         </div>
 
+        <div class="mb-3">
+          <div class="form-label">Liga</div>
+          <select id="rlLiga" class="form-control" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text)">
+            <?php foreach (getAdminLeagues($pdo, (int)$user_id) as $lgOpt): ?>
+            <option value="<?= htmlspecialchars($lgOpt) ?>"><?= htmlspecialchars($lgOpt) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <small style="color:var(--text-3);font-size:11px">A roleta aparece no painel dos GMs desta liga, e só o admin dela pode girar.</small>
+        </div>
+
         <div class="form-label">Tipo de participante</div>
         <div class="rl-tipo-tabs">
           <div class="rl-tipo-tab active" data-tipo="gms">GMs</div>

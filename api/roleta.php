@@ -24,12 +24,13 @@ if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'error' => 'Não autorizado']);
     exit;
 }
-$user_id = (int)$_SESSION['user_id'];
-if (!hasAdminAccess($pdo, $user_id)) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
-    exit;
-}
+$user_id  = (int)$_SESSION['user_id'];
+$is_admin = hasAdminAccess($pdo, $user_id);
+
+// Ver uma roleta é livre pra quem está na liga dela — é assim que o card do
+// dashboard leva o GM até o sorteio. Criar, editar, girar, reiniciar e excluir
+// continuam restritos, e agora ao admin DAQUELA liga (não a qualquer admin).
+$minhasLigasAdmin = $is_admin ? array_map('strtoupper', getAdminLeagues($pdo, $user_id)) : [];
 
 function ensureRoletasTables(PDO $pdo): void
 {
@@ -37,10 +38,16 @@ function ensureRoletasTables(PDO $pdo): void
         id INT AUTO_INCREMENT PRIMARY KEY,
         titulo VARCHAR(160) NOT NULL,
         tipo ENUM('gms','times','personalizado') NOT NULL DEFAULT 'gms',
+        league VARCHAR(20) NULL,
         notificar_saida TINYINT(1) NOT NULL DEFAULT 1,
         criado_por INT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // Bancos que já tinham a tabela antes da liga existir.
+    if ($pdo->query("SHOW COLUMNS FROM roletas LIKE 'league'")->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE roletas ADD COLUMN league VARCHAR(20) NULL AFTER tipo");
+    }
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS roleta_participantes (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -58,6 +65,52 @@ function ensureRoletasTables(PDO $pdo): void
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 ensureRoletasTables($pdo);
+
+/** Liga da roleta (null = roleta antiga, sem liga definida). */
+function ligaDaRoleta(PDO $pdo, int $roletaId): ?string
+{
+    $stmt = $pdo->prepare("SELECT league FROM roletas WHERE id = ? LIMIT 1");
+    $stmt->execute([$roletaId]);
+    $l = $stmt->fetchColumn();
+    return $l ? strtoupper((string)$l) : null;
+}
+
+/**
+ * Portaria das ações de escrita: girar, editar, reiniciar, excluir.
+ *
+ * Só o admin da liga da roleta passa. Roleta sem liga (as antigas) aceita
+ * qualquer admin — senão elas ficariam inacessíveis pra sempre.
+ */
+function exigirAdminDaRoleta(PDO $pdo, int $userId, array $minhasLigas, ?string $liga): void
+{
+    if (!$minhasLigas) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+        exit;
+    }
+    if ($liga !== null && !in_array($liga, $minhasLigas, true)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Só o admin da ' . $liga . ' pode mexer nesta roleta.']);
+        exit;
+    }
+}
+
+/** Liga do GM logado — usada pra decidir o que ele enxerga. */
+function ligaDoGm(PDO $pdo, int $userId): ?string
+{
+    try {
+        $stmt = $pdo->prepare("SELECT league FROM teams WHERE user_id = ? LIMIT 1");
+        $stmt->execute([$userId]);
+        $l = $stmt->fetchColumn();
+        if ($l) return strtoupper((string)$l);
+        $stmt = $pdo->prepare("SELECT league FROM users WHERE id = ? LIMIT 1");
+        $stmt->execute([$userId]);
+        $l = $stmt->fetchColumn();
+        return $l ? strtoupper((string)$l) : null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
 
 /** Uma roleta trava (título/participantes/notificação) assim que o 1º giro acontece. */
 function roletaBloqueada(PDO $pdo, int $roletaId): bool
@@ -148,31 +201,55 @@ if ($method === 'GET') {
     $action = $_GET['action'] ?? 'listar';
 
     if ($action === 'listar') {
-        $stmt = $pdo->query("
-            SELECT r.id, r.titulo, r.tipo, r.notificar_saida, r.created_at,
+        // Admin vê as roletas das ligas que administra (mais as antigas sem
+        // liga); GM comum vê só as da própria liga.
+        $ligasVisiveis = $minhasLigasAdmin ?: array_filter([ligaDoGm($pdo, $user_id)]);
+        $where = '';
+        $params = [];
+        if ($ligasVisiveis) {
+            $ph = implode(',', array_fill(0, count($ligasVisiveis), '?'));
+            $where = "WHERE (r.league IS NULL OR r.league IN ($ph))";
+            $params = $ligasVisiveis;
+        } else {
+            $where = "WHERE r.league IS NULL";
+        }
+
+        $stmt = $pdo->prepare("
+            SELECT r.id, r.titulo, r.tipo, r.league, r.notificar_saida, r.created_at,
                    COUNT(rp.id) AS total,
                    SUM(rp.pick_number IS NOT NULL) AS sorteados
             FROM roletas r
             LEFT JOIN roleta_participantes rp ON rp.roleta_id = r.id
+            $where
             GROUP BY r.id
             ORDER BY r.created_at DESC
         ");
-        $roletas = array_map(function ($r) {
+        $stmt->execute($params);
+        $roletas = array_map(function ($r) use ($minhasLigasAdmin) {
             $total = (int)$r['total'];
             $sorteados = (int)$r['sorteados'];
+            $liga = $r['league'] ? strtoupper((string)$r['league']) : null;
             return [
                 'id' => (int)$r['id'],
                 'titulo' => $r['titulo'],
                 'tipo' => $r['tipo'],
+                'league' => $liga,
                 'notificar_saida' => (int)$r['notificar_saida'] === 1,
                 'total' => $total,
                 'sorteados' => $sorteados,
                 'concluido' => $total > 0 && $sorteados === $total,
                 'bloqueada' => $sorteados > 0,
+                // O front usa isso pra esconder girar/editar/excluir de quem só assiste.
+                'pode_girar' => $minhasLigasAdmin && ($liga === null || in_array($liga, $minhasLigasAdmin, true)),
             ];
         }, $stmt->fetchAll(PDO::FETCH_ASSOC));
 
-        echo json_encode(['success' => true, 'roletas' => $roletas]);
+        echo json_encode([
+            'success'   => true,
+            'roletas'   => $roletas,
+            'is_admin'  => (bool)$minhasLigasAdmin,
+            'minhas_ligas' => $minhasLigasAdmin,
+        ]);
         exit;
     }
 
@@ -183,11 +260,24 @@ if ($method === 'GET') {
             echo json_encode(['success' => false, 'error' => 'Roleta não encontrada']);
             exit;
         }
-        echo json_encode(['success' => true] + $estado);
+        $ligaRoleta = ligaDaRoleta($pdo, $id);
+        // GM de outra liga não abre a roleta.
+        if (!$minhasLigasAdmin && $ligaRoleta !== null && ligaDoGm($pdo, $user_id) !== $ligaRoleta) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Esta roleta é da liga ' . $ligaRoleta . '.']);
+            exit;
+        }
+        $podeGirar = $minhasLigasAdmin && ($ligaRoleta === null || in_array($ligaRoleta, $minhasLigasAdmin, true));
+        echo json_encode(['success' => true, 'league' => $ligaRoleta, 'pode_girar' => $podeGirar] + $estado);
         exit;
     }
 
     if ($action === 'buscar_participantes') {
+        if (!$minhasLigasAdmin) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+            exit;
+        }
         $q = trim((string)($_GET['q'] ?? ''));
         if (mb_strlen($q) < 2) {
             echo json_encode(['success' => true, 'resultados' => []]);
@@ -236,6 +326,16 @@ if ($method === 'POST') {
         $notificar = !empty($body['notificar_saida']) ? 1 : 0;
         $participantes = is_array($body['participantes'] ?? null) ? $body['participantes'] : [];
 
+        // Liga da roleta: o que o admin escolheu, ou — se ele administra só
+        // uma — a dele. É o que faz a roleta aparecer no dashboard certo.
+        $liga = strtoupper(trim((string)($body['league'] ?? '')));
+        if ($liga === '' && count($minhasLigasAdmin) === 1) $liga = $minhasLigasAdmin[0];
+        if ($liga === '') {
+            echo json_encode(['success' => false, 'error' => 'Escolha a liga da roleta.']);
+            exit;
+        }
+        exigirAdminDaRoleta($pdo, $user_id, $minhasLigasAdmin, $liga);
+
         if ($titulo === '') {
             echo json_encode(['success' => false, 'error' => 'Título obrigatório']);
             exit;
@@ -247,8 +347,8 @@ if ($method === 'POST') {
 
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->prepare("INSERT INTO roletas (titulo, tipo, notificar_saida, criado_por) VALUES (?,?,?,?)");
-            $stmt->execute([$titulo, $tipo, $notificar, $user_id]);
+            $stmt = $pdo->prepare("INSERT INTO roletas (titulo, tipo, league, notificar_saida, criado_por) VALUES (?,?,?,?,?)");
+            $stmt->execute([$titulo, $tipo, $liga, $notificar, $user_id]);
             $roletaId = (int)$pdo->lastInsertId();
 
             $ins = $pdo->prepare("INSERT INTO roleta_participantes (roleta_id, ordem, team_id, user_id, nome_display) VALUES (?,?,?,?,?)");
@@ -287,6 +387,7 @@ if ($method === 'POST') {
 
     if ($action === 'editar') {
         $id = (int)($body['id'] ?? 0);
+        if ($id) exigirAdminDaRoleta($pdo, $user_id, $minhasLigasAdmin, ligaDaRoleta($pdo, $id));
         if (!$id || roletaBloqueada($pdo, $id)) {
             echo json_encode(['success' => false, 'error' => 'Esta roleta já teve o primeiro sorteio e não pode mais ser editada.']);
             exit;
@@ -358,6 +459,8 @@ if ($method === 'POST') {
             echo json_encode(['success' => false, 'error' => 'id obrigatório']);
             exit;
         }
+        // Girar é o ponto que decide a ordem do draft: só o admin da liga.
+        exigirAdminDaRoleta($pdo, $user_id, $minhasLigasAdmin, ligaDaRoleta($pdo, $id));
 
         $pdo->beginTransaction();
         try {
@@ -411,6 +514,7 @@ if ($method === 'POST') {
             echo json_encode(['success' => false, 'error' => 'id obrigatório']);
             exit;
         }
+        exigirAdminDaRoleta($pdo, $user_id, $minhasLigasAdmin, ligaDaRoleta($pdo, $id));
         $pdo->prepare("UPDATE roleta_participantes SET pick_number = NULL, eliminated_at = NULL WHERE roleta_id = ?")->execute([$id]);
         echo json_encode(['success' => true] + estadoRoleta($pdo, $id));
         exit;
@@ -418,6 +522,7 @@ if ($method === 'POST') {
 
     if ($action === 'excluir') {
         $id = (int)($body['id'] ?? 0);
+        if ($id) exigirAdminDaRoleta($pdo, $user_id, $minhasLigasAdmin, ligaDaRoleta($pdo, $id));
         if (!$id || roletaBloqueada($pdo, $id)) {
             echo json_encode(['success' => false, 'error' => 'Esta roleta já teve o primeiro sorteio e não pode mais ser excluída.']);
             exit;

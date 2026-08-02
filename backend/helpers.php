@@ -788,17 +788,11 @@ function resolveVideoEmbed(?string $url): ?array
     if ($url === '') return null;
 
     if (preg_match('#(?:youtube\.com/(?:watch\?v=|embed/|shorts/)|youtu\.be/)([A-Za-z0-9_-]{6,})#i', $url, $m)) {
-        // Enxuga a interface do YouTube: sem vídeos relacionados de outros canais,
-        // sem anotações e sem a marca d'água clicável. O nome do vídeo no topo é
-        // do próprio player e o YouTube não deixa remover por parâmetro.
-        $params = http_build_query([
-            'rel'            => 0,
-            'modestbranding' => 1,
-            'iv_load_policy' => 3,
-            'playsinline'    => 1,
-            'color'          => 'white',
-        ]);
-        return ['type' => 'iframe', 'embed_url' => 'https://www.youtube.com/embed/' . $m[1] . '?' . $params, 'raw_url' => $url];
+        // Tipo próprio: o dashboard monta um player nosso por cima (controles,
+        // barra de progresso e capa), com os controles do YouTube desligados.
+        // Não dá pra remover a marca do YouTube por parâmetro — o jeito é não
+        // deixar a interface deles aparecer.
+        return ['type' => 'youtube', 'video_id' => $m[1], 'embed_url' => null, 'raw_url' => $url];
     }
     if (preg_match('#vimeo\.com/(?:video/)?(\d+)#i', $url, $m)) {
         return ['type' => 'iframe', 'embed_url' => 'https://player.vimeo.com/video/' . $m[1], 'raw_url' => $url];

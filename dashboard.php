@@ -187,6 +187,65 @@ try {
 foreach ($leagueVideoCards as &$vcDef) { $vcDef['embed'] = resolveVideoEmbed($vcDef['url']); }
 unset($vcDef);
 
+// Roletas e drafts aleatórios abertos na liga do GM. Só aparece card quando
+// existe algo em andamento — não é um atalho fixo, é um aviso de "tem sorteio
+// rolando agora". Tudo em best-effort: a tabela pode nem existir no banco.
+$eventosSorteio = [];
+$ligaDoTime = strtoupper((string)($team['league'] ?? ''));
+if ($ligaDoTime !== '') {
+    try {
+        $stmtRol = $pdo->prepare("
+            SELECT r.id, r.titulo,
+                   COUNT(rp.id) AS total,
+                   SUM(rp.pick_number IS NOT NULL) AS sorteados
+            FROM roletas r
+            JOIN roleta_participantes rp ON rp.roleta_id = r.id
+            WHERE UPPER(r.league) = ?
+            GROUP BY r.id
+            HAVING total > 0 AND sorteados < total
+            ORDER BY r.created_at DESC
+            LIMIT 3");
+        $stmtRol->execute([$ligaDoTime]);
+        foreach ($stmtRol->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $eventosSorteio[] = [
+                'tipo'   => 'roleta',
+                'titulo' => $r['titulo'],
+                'href'   => '/roleta-editar.php?id=' . (int)$r['id'],
+                'icone'  => 'bi-dice-5-fill',
+                'feitas' => (int)$r['sorteados'],
+                'total'  => (int)$r['total'],
+                'rotulo' => 'Sorteio em andamento',
+            ];
+        }
+    } catch (Throwable $e) { /* roletas ainda não existe neste banco */ }
+
+    try {
+        $stmtDra = $pdo->prepare("
+            SELECT d.id, d.titulo,
+                   COUNT(dap.id) AS total,
+                   SUM(dap.player_name IS NOT NULL OR dap.skipped = 1) AS resolvidas
+            FROM drafts_aleatorios d
+            JOIN draft_aleatorio_picks dap ON dap.draft_id = d.id
+            WHERE UPPER(d.league) = ? AND d.finalizado_em IS NULL
+            GROUP BY d.id
+            HAVING total > 0 AND resolvidas < total
+            ORDER BY d.created_at DESC
+            LIMIT 3");
+        $stmtDra->execute([$ligaDoTime]);
+        foreach ($stmtDra->fetchAll(PDO::FETCH_ASSOC) as $d) {
+            $eventosSorteio[] = [
+                'tipo'   => 'draft',
+                'titulo' => $d['titulo'],
+                'href'   => '/draft-aleatorio.php?id=' . (int)$d['id'],
+                'icone'  => 'bi-shuffle',
+                'feitas' => (int)$d['resolvidas'],
+                'total'  => (int)$d['total'],
+                'rotulo' => 'Draft aleatório aberto',
+            ];
+        }
+    } catch (Throwable $e) { /* drafts_aleatorios ainda não existe neste banco */ }
+}
+
 // Tática não tem mais prazo de envio — só avisa aqui quando o admin fechou a
 // edição (corte diário ou toggle manual), pra o GM saber que não é hoje.
 $tacticEditClosed = false; $tacticEditReopensAt = null;
@@ -786,9 +845,79 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
         .bc-link:hover { color: var(--red); }
 
+        /* ── Sorteios abertos na liga (roletas / drafts aleatórios) ── */
+        .sorteio-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+        .sorteio-item {
+            display: flex; align-items: center; gap: 12px; text-decoration: none;
+            background: var(--panel-2); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 12px 14px;
+            transition: border-color var(--t) var(--ease), background var(--t) var(--ease);
+        }
+        .sorteio-item:hover { border-color: var(--border-red); background: var(--panel-3); }
+        .sorteio-icone {
+            width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px;
+            background: var(--red-soft); color: var(--red);
+            display: flex; align-items: center; justify-content: center; font-size: 16px;
+        }
+        .sorteio-txt { flex: 1; min-width: 0; }
+        .sorteio-nome {
+            font-size: 13px; font-weight: 700; color: var(--text);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .sorteio-sub { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+        .sorteio-barra { height: 3px; border-radius: 999px; background: var(--panel-3); margin-top: 7px; overflow: hidden; }
+        .sorteio-barra > div { height: 100%; background: var(--red); border-radius: 999px; }
+        .sorteio-seta { color: var(--text-3); font-size: 14px; flex-shrink: 0; }
+        .sorteio-item:hover .sorteio-seta { color: var(--red); }
+
         /* ── Vídeos da liga (Progression / Sistemas / Free Agency) ── */
         .prog-video-wrap { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden; background: #000; }
         .prog-video-wrap:fullscreen { aspect-ratio: unset; border-radius: 0; }
+
+        /* ── Player próprio por cima do YouTube ──
+           O iframe fica no fundo com os controles deles desligados; o .yt-escudo
+           cobre a área toda e engole o mouse, então o YouTube nunca recebe hover
+           e nunca mostra título, "Mais vídeos" nem a marca. Pausado ou no fim, a
+           .yt-capa tampa tudo — é ali que a interface deles apareceria. */
+        .yt-wrap .yt-mount, .yt-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+        .yt-escudo { position: absolute; inset: 0; z-index: 2; cursor: pointer; background: transparent; }
+        .yt-capa {
+            position: absolute; inset: 0; z-index: 3; display: none;
+            align-items: center; justify-content: center;
+            background: #000; cursor: pointer;
+        }
+        .yt-capa.on { display: flex; }
+        .yt-play-grande {
+            width: 62px; height: 62px; border-radius: 50%; cursor: pointer;
+            background: var(--red); border: 0; color: #fff; font-size: 28px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 8px 28px rgba(0,0,0,.5); transition: transform .15s var(--ease);
+        }
+        .yt-capa:hover .yt-play-grande { transform: scale(1.08); }
+        .yt-barra {
+            position: absolute; left: 0; right: 0; bottom: 0; z-index: 4;
+            display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+            background: linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0));
+            opacity: 0; transition: opacity var(--t) var(--ease); pointer-events: none;
+        }
+        .yt-wrap:hover .yt-barra, .yt-wrap.pausado .yt-barra { opacity: 1; pointer-events: auto; }
+        .yt-wrap.carregando .yt-barra { opacity: 0 !important; }
+        .yt-btn {
+            background: transparent; border: 0; color: #fff; cursor: pointer;
+            font-size: 17px; line-height: 1; padding: 2px 4px; flex-shrink: 0;
+            display: flex; align-items: center; transition: color .15s;
+        }
+        .yt-btn:hover { color: var(--red); }
+        .yt-trilha {
+            position: relative; flex: 1; height: 5px; border-radius: 999px; cursor: pointer;
+            background: rgba(255,255,255,.22); overflow: hidden;
+        }
+        .yt-buffer   { position: absolute; inset: 0 auto 0 0; width: 0; background: rgba(255,255,255,.18); }
+        .yt-preenche { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--red); }
+        .yt-tempo {
+            font-size: 11.5px; font-weight: 600; color: #fff; flex-shrink: 0;
+            font-variant-numeric: tabular-nums; letter-spacing: .2px;
+        }
 
         /* Tela cheia como popup: o próprio card do vídeo vira uma janela
            centralizada. Fazer assim, em vez de mover o elemento pra dentro de
@@ -841,7 +970,6 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
         .vid-action-btn:hover { border-color: var(--red); color: var(--red); background: var(--panel-3); }
         .vid-action-btn.copied { background: var(--green); border-color: var(--green); color: #fff; }
-        .prog-video-hint { font-size: 11px; color: var(--text-3); line-height: 1.4; margin-top: 8px; }
         .prog-video-placeholder { background: var(--panel-2); border: 1px dashed var(--border-md); }
         .prog-placeholder-inner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-3); }
         .prog-placeholder-inner i { font-size: 26px; }
@@ -1282,6 +1410,31 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             <!-- Bento grid -->
             <div class="bento">
 
+                <?php if ($eventosSorteio): ?>
+                <!-- ── Sorteios abertos na liga ── -->
+                <div class="bc span-3" style="animation-delay:.22s">
+                    <div class="bc-head">
+                        <div class="bc-title"><i class="bi bi-dice-5-fill"></i> Rolando na <?= htmlspecialchars($ligaDoTime) ?></div>
+                    </div>
+                    <div class="bc-body">
+                        <div class="sorteio-lista">
+                            <?php foreach ($eventosSorteio as $ev):
+                                $pct = $ev['total'] ? round(($ev['feitas'] / $ev['total']) * 100) : 0; ?>
+                            <a class="sorteio-item" href="<?= htmlspecialchars($ev['href']) ?>">
+                                <div class="sorteio-icone"><i class="bi <?= $ev['icone'] ?>"></i></div>
+                                <div class="sorteio-txt">
+                                    <div class="sorteio-nome"><?= htmlspecialchars($ev['titulo']) ?></div>
+                                    <div class="sorteio-sub"><?= htmlspecialchars($ev['rotulo']) ?> · <?= $ev['feitas'] ?>/<?= $ev['total'] ?></div>
+                                    <div class="sorteio-barra"><div style="width:<?= $pct ?>%"></div></div>
+                                </div>
+                                <i class="bi bi-arrow-right sorteio-seta"></i>
+                            </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <?php foreach ($leagueVideoCards as $vi => $vc): $embed = $vc['embed']; $key = $vc['key']; ?>
                 <!-- ── Vídeo: <?= htmlspecialchars($vc['title']) ?> ── -->
                 <div class="bc" style="animation-delay:<?= .36 + $vi * .03 ?>s">
@@ -1302,21 +1455,37 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                                 <source src="<?= htmlspecialchars($embed['embed_url']) ?>">
                             </video>
                         </div>
+                        <?php elseif ($embed['type'] === 'youtube'): ?>
+                        <?php /* Player próprio: o iframe fica atrás de um escudo que
+                                come todo o mouse, então a interface do YouTube nunca
+                                é acionada. Controles, progresso e capa são nossos. */ ?>
+                        <div class="prog-video-wrap yt-wrap" id="wrap_<?= $key ?>"
+                             data-yt="<?= htmlspecialchars($embed['video_id'], ENT_QUOTES, 'UTF-8') ?>"
+                             data-key="<?= $key ?>">
+                            <div class="yt-mount" id="ytmount_<?= $key ?>"></div>
+                            <div class="yt-escudo"></div>
+                            <div class="yt-capa on">
+                                <button type="button" class="yt-play-grande" aria-label="Reproduzir"><i class="bi bi-play-fill"></i></button>
+                            </div>
+                            <div class="yt-barra">
+                                <button type="button" class="yt-btn yt-toggle" aria-label="Reproduzir"><i class="bi bi-play-fill"></i></button>
+                                <div class="yt-trilha"><div class="yt-buffer"></div><div class="yt-preenche"></div></div>
+                                <span class="yt-tempo">0:00 / 0:00</span>
+                                <button type="button" class="yt-btn yt-mudo" aria-label="Silenciar"><i class="bi bi-volume-up-fill"></i></button>
+                            </div>
+                        </div>
                         <?php elseif ($embed['type'] === 'iframe'): ?>
                         <div class="prog-video-wrap" id="wrap_<?= $key ?>">
                             <iframe class="prog-video" src="<?= htmlspecialchars($embed['embed_url']) ?>" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy" title="<?= htmlspecialchars($vc['title']) ?>"></iframe>
                         </div>
                         <?php endif; ?>
 
-                        <?php if ($embed && ($embed['type'] === 'direct' || $embed['type'] === 'iframe')): ?>
+                        <?php if ($embed && in_array($embed['type'], ['direct', 'iframe', 'youtube'], true)): ?>
                         <div class="prog-video-actions">
                             <button type="button" class="vid-action-btn" data-action="fullscreen" data-key="<?= $key ?>" data-titulo="<?= htmlspecialchars($vc['title'], ENT_QUOTES, 'UTF-8') ?>" title="Abrir grande"><i class="bi bi-arrows-fullscreen"></i></button>
                             <button type="button" class="vid-action-btn" data-action="capture" data-key="<?= $key ?>" title="Tirar print do vídeo"><i class="bi bi-camera-fill"></i></button>
-                            <a class="vid-action-btn" href="<?= htmlspecialchars($embed['raw_url']) ?>" target="_blank" rel="noopener" title="Abrir no YouTube"><i class="bi bi-youtube"></i></a>
+                            <a class="vid-action-btn" href="<?= htmlspecialchars($embed['raw_url']) ?>" target="_blank" rel="noopener" title="Abrir em nova aba"><i class="bi bi-box-arrow-up-right"></i></a>
                         </div>
-                        <?php if ($embed['type'] === 'iframe'): ?>
-                        <div class="prog-video-hint">Abra grande e clique em Capturar: sai um print só do vídeo. O navegador pede permissão pra ver esta aba porque o YouTube roda em outro site — é só pra tirar a foto, nada fica gravado.</div>
-                        <?php endif; ?>
                         <?php elseif ($embed && $embed['type'] === 'link'): ?>
                         <div class="empty">
                             <i class="bi bi-play-circle" style="font-size:26px"></i>
@@ -1858,6 +2027,117 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             stream.getTracks().forEach(t => t.stop());
         }
     }
+
+    // ── Player próprio pros vídeos do YouTube ───────────────────────────────
+    // A API do YouTube é usada só como motor: controles deles desligados, um
+    // escudo transparente por cima pra nenhum evento de mouse chegar no iframe
+    // (é o hover que faz aparecer título, "Mais vídeos" e a marca), e capa preta
+    // sempre que o vídeo não está tocando — que é justamente quando a interface
+    // deles apareceria. O resultado é um player com a cara do app.
+    const ytPlayers = {};
+
+    function ytFormatarTempo(seg) {
+        seg = Math.max(0, Math.floor(seg || 0));
+        const m = Math.floor(seg / 60), s = seg % 60;
+        return m + ':' + String(s).padStart(2, '0');
+    }
+
+    function ytMontarUm(wrap) {
+        const key     = wrap.dataset.key;
+        const videoId = wrap.dataset.yt;
+        const capa     = wrap.querySelector('.yt-capa');
+        const escudo   = wrap.querySelector('.yt-escudo');
+        const btn      = wrap.querySelector('.yt-toggle');
+        const btnMudo  = wrap.querySelector('.yt-mudo');
+        const trilha   = wrap.querySelector('.yt-trilha');
+        const preenche = wrap.querySelector('.yt-preenche');
+        const buffer   = wrap.querySelector('.yt-buffer');
+        const tempo    = wrap.querySelector('.yt-tempo');
+
+        wrap.classList.add('carregando', 'pausado');
+
+        const player = new YT.Player('ytmount_' + key, {
+            videoId,
+            playerVars: {
+                controls: 0, disablekb: 1, modestbranding: 1, rel: 0,
+                iv_load_policy: 3, playsinline: 1, fs: 0, showinfo: 0,
+            },
+            events: {
+                onReady: () => {
+                    wrap.classList.remove('carregando');
+                    atualizar();
+                },
+                onStateChange: (e) => {
+                    const tocando = e.data === YT.PlayerState.PLAYING;
+                    wrap.classList.toggle('pausado', !tocando);
+                    // Capa só sai quando está de fato tocando: no BUFFERING o
+                    // YouTube desenha o spinner e o título dele por baixo.
+                    capa.classList.toggle('on', !tocando);
+                    btn.innerHTML = tocando ? '<i class="bi bi-pause-fill"></i>' : '<i class="bi bi-play-fill"></i>';
+                    btn.setAttribute('aria-label', tocando ? 'Pausar' : 'Reproduzir');
+                    if (e.data === YT.PlayerState.ENDED) { preenche.style.width = '100%'; }
+                },
+            },
+        });
+        ytPlayers[key] = player;
+
+        function alternar() {
+            const st = player.getPlayerState?.();
+            if (st === YT.PlayerState.PLAYING) player.pauseVideo();
+            else player.playVideo();
+        }
+        escudo.addEventListener('click', alternar);
+        capa.addEventListener('click', alternar);
+        btn.addEventListener('click', alternar);
+
+        btnMudo.addEventListener('click', () => {
+            const mudo = player.isMuted?.();
+            if (mudo) player.unMute(); else player.mute();
+            btnMudo.innerHTML = mudo ? '<i class="bi bi-volume-up-fill"></i>' : '<i class="bi bi-volume-mute-fill"></i>';
+        });
+
+        function buscarPor(ev) {
+            const dur = player.getDuration?.() || 0;
+            if (!dur) return;
+            const r = trilha.getBoundingClientRect();
+            const frac = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+            player.seekTo(frac * dur, true);
+            preenche.style.width = (frac * 100) + '%';
+        }
+        trilha.addEventListener('click', buscarPor);
+
+        function atualizar() {
+            const dur = player.getDuration?.() || 0;
+            const cur = player.getCurrentTime?.() || 0;
+            if (dur > 0) {
+                preenche.style.width = ((cur / dur) * 100) + '%';
+                buffer.style.width = ((player.getVideoLoadedFraction?.() || 0) * 100) + '%';
+            }
+            tempo.textContent = ytFormatarTempo(cur) + ' / ' + ytFormatarTempo(dur);
+        }
+        setInterval(atualizar, 500);
+    }
+
+    (function ytIniciar() {
+        const wraps = document.querySelectorAll('.yt-wrap[data-yt]');
+        if (!wraps.length) return;
+
+        function montarTodos() { wraps.forEach(ytMontarUm); }
+
+        if (window.YT && window.YT.Player) { montarTodos(); return; }
+        // A API chama um callback global quando termina de carregar; encadeia
+        // com o que já existir pra não atropelar outro script da página.
+        const anterior = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = function () {
+            if (typeof anterior === 'function') anterior();
+            montarTodos();
+        };
+        if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+            const s = document.createElement('script');
+            s.src = 'https://www.youtube.com/iframe_api';
+            document.head.appendChild(s);
+        }
+    })();
 
     // ── Popup do vídeo ──────────────────────────────────────────────────────
     // O card do vídeo vira uma janela centralizada (sem sair do lugar no DOM,

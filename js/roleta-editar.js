@@ -52,8 +52,11 @@ function reRenderTudo(data) {
   reRenderResumo(data);
   reAtualizarBotaoGirar(data);
   reRenderConfig(data);
-  document.getElementById('rlExcluir').disabled = data.bloqueada;
-  document.getElementById('rlExcluir').title = data.bloqueada ? 'Já teve o 1º sorteio — não pode mais ser excluída.' : '';
+  const podeMexer = data.pode_girar !== false;
+  document.getElementById('rlExcluir').disabled = data.bloqueada || !podeMexer;
+  document.getElementById('rlExcluir').title = !podeMexer
+    ? 'Só o admin da liga pode excluir.'
+    : (data.bloqueada ? 'Já teve o 1º sorteio — não pode mais ser excluída.' : '');
   reAtualizarBotaoDraft(data);
 }
 
@@ -203,6 +206,17 @@ window.reCopiarTudo = reCopiarTudo;
 function reAtualizarBotaoGirar(data) {
   const btn = document.getElementById('rtGirar');
   const acabou = !!data.concluido;
+
+  // Quem não é admin da liga acompanha o sorteio, mas não gira. O servidor
+  // também barra — aqui é só pra não oferecer um botão que vai dar erro.
+  if (data.pode_girar === false) {
+    btn.disabled = true;
+    btn.innerHTML = acabou
+      ? '<i class="bi bi-check2-all me-1"></i>Sorteio concluído'
+      : '<i class="bi bi-eye me-1"></i>Só o admin da liga gira';
+    return;
+  }
+
   btn.disabled = reGirando || acabou;
   btn.innerHTML = acabou
     ? '<i class="bi bi-check2-all me-1"></i>Sorteio concluído'
@@ -301,6 +315,14 @@ async function reExcluirRoleta() {
 function reRenderConfig(data) {
   const box = document.getElementById('rlConfigBody');
   const tipoLabel = { gms: 'GMs', times: 'Times', personalizado: 'Personalizado' }[data.tipo] || data.tipo;
+
+  // Espectador (GM da liga que não administra) só lê a ficha da roleta.
+  if (data.pode_girar === false) {
+    box.innerHTML = `
+      <div class="edit-locked-msg"><i class="bi bi-eye-fill"></i>Você está acompanhando esta roleta. Só o admin da ${_reEsc(data.league || 'liga')} pode girar ou editar.</div>
+      <div style="margin-top:12px;font-size:12px;color:var(--text-3)">Tipo: <b style="color:var(--text)">${tipoLabel}</b></div>`;
+    return;
+  }
 
   if (data.bloqueada) {
     box.innerHTML = `

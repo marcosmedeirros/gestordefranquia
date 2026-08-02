@@ -11,22 +11,32 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
-if (!hasAdminAccess($pdo, (int)$user_id)) {
-    header('Location: /dashboard.php');
-    exit;
-}
+$user_id = (int)$_SESSION['user_id'];
 
 $roletaId = (int)($_GET['id'] ?? 0);
 if (!$roletaId) {
     header('Location: /roleta.php');
     exit;
 }
-$stmtCheck = $pdo->prepare("SELECT id FROM roletas WHERE id = ?");
+$stmtCheck = $pdo->prepare("SELECT id, league FROM roletas WHERE id = ?");
 $stmtCheck->execute([$roletaId]);
-if (!$stmtCheck->fetch()) {
-    header('Location: /roleta.php');
+$roletaRow = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+if (!$roletaRow) {
+    header('Location: ' . (hasAdminAccess($pdo, $user_id) ? '/roleta.php' : '/dashboard.php'));
     exit;
+}
+
+// GM da liga acompanha o sorteio (é pra isso que serve o card do dashboard);
+// girar e editar seguem restritos ao admin da liga, checado na API.
+$ligaRoleta = $roletaRow['league'] ? strtoupper((string)$roletaRow['league']) : null;
+if (!hasAdminAccess($pdo, $user_id)) {
+    $stmtLiga = $pdo->prepare('SELECT league FROM teams WHERE user_id = ? LIMIT 1');
+    $stmtLiga->execute([$user_id]);
+    $minhaLiga = strtoupper((string)($stmtLiga->fetchColumn() ?: ''));
+    if ($ligaRoleta === null || $minhaLiga !== $ligaRoleta) {
+        header('Location: /dashboard.php');
+        exit;
+    }
 }
 
 $team_id = $_SESSION['team_id'] ?? null;

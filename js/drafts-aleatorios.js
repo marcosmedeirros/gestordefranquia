@@ -30,7 +30,7 @@ async function dcCarregar() {
         <div class="dc-card-main" onclick="window.location.href='/draft-aleatorio.php?id=${d.id}'">
           <div class="dc-card-icon"><i class="bi bi-shuffle"></i></div>
           <div class="dc-card-title">${_dcEsc(d.titulo)}</div>
-          <div class="dc-card-sub">${d.feitas}/${d.total} escolhidos${d.puladas ? ` · ${d.puladas} pulada${d.puladas > 1 ? 's' : ''}` : ''}</div>
+          <div class="dc-card-sub">${d.league ? _dcEsc(d.league) + ' · ' : ''}${d.feitas}/${d.total} escolhidos${d.puladas ? ` · ${d.puladas} pulada${d.puladas > 1 ? 's' : ''}` : ''}</div>
           <div class="dc-card-progress"><div style="width:${pct}%"></div></div>
           <span class="dc-card-status" style="color:${cor};background:${bg}">${label}</span>
         </div>
@@ -70,7 +70,7 @@ async function dcAbrirModalNovo() {
       <button type="button" class="dc-roleta-item" onclick="dcCriarDeRoleta(${r.id})">
         <div>
           <div class="dc-roleta-nome">${_dcEsc(r.titulo)}</div>
-          <div class="dc-roleta-meta">${r.total} participantes · ${_dcEsc(r.tipo)}</div>
+          <div class="dc-roleta-meta">${r.league ? _dcEsc(r.league) + ' · ' : ''}${r.total} participantes · ${_dcEsc(r.tipo)}</div>
         </div>
         <i class="bi bi-arrow-right"></i>
       </button>`).join('');
