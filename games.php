@@ -168,6 +168,7 @@ $statusDiario = [
     // concluido_em é gravado tanto no acerto quanto ao esgotar as 8 tentativas
     'quemsoueu' => jogouHoje($pdo, "SELECT 1 FROM quemsoueu_partidas WHERE id_usuario=? AND data_jogo=? AND concluido_em IS NOT NULL LIMIT 1", [$userId, $hoje]),
     'boxnba'    => jogouHoje($pdo, "SELECT 1 FROM boxnba_historico WHERE id_usuario=? AND data_jogo=? AND (concluido=1 OR desistiu=1) LIMIT 1", [$userId, $hoje]),
+    'buildplayer'=> jogouHoje($pdo, "SELECT 1 FROM buildplayer_partidas WHERE id_usuario=? AND data_jogo=? LIMIT 1", [$userId, $hoje]),
 ];
 
 // Sequências: só valem se a última partida foi hoje ou ontem.
@@ -267,6 +268,7 @@ $jogosDiarios = [
     ['key' => 'bomba',     'nome' => 'Bomba',       'sub' => 'Ache os diamantes',   'icone' => 'bi-gem',              'cor' => '#ef4444'],
     ['key' => 'quemsoueu', 'nome' => 'Quem Sou Eu?','sub' => 'Descubra pelas dicas','icone' => 'bi-question-circle',  'cor' => '#3b82f6'],
     ['key' => 'boxnba',    'nome' => 'Box NBA',     'sub' => 'Grade 3x3 de craques','icone' => 'bi-grid-3x3',         'cor' => '#f59e0b'],
+    ['key' => 'buildplayer','nome' => 'Build a Player','sub' => 'Monte e simule',      'icone' => 'bi-tools',             'cor' => '#a855f7'],
 ];
 $jogosLivres = [
     ['key' => 'flappy',    'nome' => 'Flappy Bird', 'sub' => 'Desvie dos canos',  'icone' => 'bi-airplane',       'cor' => '#f43f5e'],
