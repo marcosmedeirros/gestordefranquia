@@ -112,6 +112,33 @@ if ($method === 'GET') {
             ]);
             break;
 
+        case 'league_invite':
+            // Link de convite reutilizável da liga. Hoje só a ROOKIE: o cadastro
+            // por convite monta o time escolhendo uma franquia real da NBA, e
+            // esse fluxo é exclusivo dela.
+            require_once __DIR__ . '/../backend/nba_teams.php';
+            $ligaConvite = strtoupper(trim((string)($_GET['league'] ?? 'ROOKIE')));
+            if ($ligaConvite !== 'ROOKIE') {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Convite reutilizável só existe na ROOKIE.']);
+                exit;
+            }
+            if (!in_array($ligaConvite, $apiAdminLeagues, true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso a essa liga']);
+                exit;
+            }
+            ensureLeagueInviteColumn($pdo);
+            $stmtInv = $pdo->prepare('SELECT invite_token FROM league_settings WHERE league = ? LIMIT 1');
+            $stmtInv->execute([$ligaConvite]);
+            $tokenConvite = $stmtInv->fetchColumn() ?: null;
+            echo json_encode([
+                'success' => true,
+                'league'  => $ligaConvite,
+                'token'   => $tokenConvite,
+            ]);
+            break;
+
         case 'get_users':
             // Gestão de usuários é exclusiva do Admin Geral (não interfere no admin de liga)
             if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin geral']); exit; }
@@ -1812,6 +1839,44 @@ if ($method === 'POST') {
                 error_log('[games_user_saldo] ' . $e->getMessage());
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Erro ao salvar o saldo.']);
+            }
+            exit;
+
+        case 'league_invite':
+            // Gera ou revoga o link de convite reutilizável da liga.
+            require_once __DIR__ . '/../backend/nba_teams.php';
+            $ligaConvite = strtoupper(trim((string)($data['league'] ?? 'ROOKIE')));
+            $acaoConvite = (string)($data['acao'] ?? 'gerar');
+            if ($ligaConvite !== 'ROOKIE') {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Convite reutilizável só existe na ROOKIE.']);
+                exit;
+            }
+            if (!in_array($ligaConvite, $apiAdminLeagues, true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso a essa liga']);
+                exit;
+            }
+            if (!in_array($acaoConvite, ['gerar', 'revogar'], true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Ação inválida']);
+                exit;
+            }
+            try {
+                ensureLeagueInviteColumn($pdo);
+                // Gerar de novo invalida o link anterior — é justamente como se
+                // revoga um link que vazou.
+                $novoToken = $acaoConvite === 'gerar' ? bin2hex(random_bytes(16)) : null;
+                $pdo->prepare("INSERT INTO league_settings (league, invite_token) VALUES (?, ?)
+                               ON DUPLICATE KEY UPDATE invite_token = VALUES(invite_token)")
+                    ->execute([$ligaConvite, $novoToken]);
+                error_log(sprintf('[league_invite] %s %s por user_id=%d',
+                    $ligaConvite, $acaoConvite, (int)$user['id']));
+                echo json_encode(['success' => true, 'league' => $ligaConvite, 'token' => $novoToken]);
+            } catch (Throwable $e) {
+                error_log('[league_invite] ' . $e->getMessage());
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Erro ao salvar o convite.']);
             }
             exit;
 

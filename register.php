@@ -11,8 +11,14 @@ if ($token !== '') {
     $waitlistRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 }
 
+// Convite reutilizável da liga (?convite=...): mesmo formulário, só que sem
+// pedido na lista de espera por trás — o mesmo link serve pra várias pessoas.
+$convite      = trim($_GET['convite'] ?? '');
+$ligaConvite  = $convite !== '' ? ligaDoConviteReutilizavel($pdo, $convite) : null;
+$acessoValido = $waitlistRow !== null || $ligaConvite !== null;
+
 $nbaTeamsList = nbaTeams();
-$nbaTakenIds = $waitlistRow ? nbaTeamsTaken($pdo) : [];
+$nbaTakenIds = $acessoValido ? nbaTeamsTaken($pdo) : [];
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -160,7 +166,7 @@ $nbaTakenIds = $waitlistRow ? nbaTeamsTaken($pdo) : [];
 </head>
 <body>
 
-<?php if (!$waitlistRow): ?>
+<?php if (!$acessoValido): ?>
 	<div class="auth-card">
 		<div class="auth-head">
 			<h2><i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Link inválido</h2>
@@ -192,7 +198,7 @@ $nbaTakenIds = $waitlistRow ? nbaTeamsTaken($pdo) : [];
 				</div>
 				<div class="mb-3">
 					<label class="form-label">Nome completo</label>
-					<input name="name" class="form-control" value="<?= htmlspecialchars($waitlistRow['name']) ?>" required>
+					<input name="name" class="form-control" value="<?= htmlspecialchars($waitlistRow['name'] ?? '') ?>" required>
 				</div>
 				<div class="mb-3">
 					<label class="form-label">E-mail</label>
@@ -200,7 +206,7 @@ $nbaTakenIds = $waitlistRow ? nbaTeamsTaken($pdo) : [];
 				</div>
 				<div class="mb-3">
 					<label class="form-label">Telefone (WhatsApp)</label>
-					<input name="phone" type="tel" class="form-control" value="<?= htmlspecialchars($waitlistRow['phone']) ?>" required maxlength="13">
+					<input name="phone" type="tel" class="form-control" value="<?= htmlspecialchars($waitlistRow['phone'] ?? '') ?>" required maxlength="13">
 				</div>
 				<div class="mb-3">
 					<label class="form-label">Senha</label>
@@ -286,7 +292,8 @@ $nbaTakenIds = $waitlistRow ? nbaTeamsTaken($pdo) : [];
 				phone: (formData.get('phone') || '').replace(/\D/g, ''),
 				photo_url: photoDataUrl,
 				nba_team_id: nbaTeamId,
-				waitlist_token: <?= json_encode($token) ?>
+				waitlist_token: <?= json_encode($token) ?>,
+				invite_token: <?= json_encode($convite) ?>
 			};
 			const msgEl = document.getElementById('register-message');
 			try {

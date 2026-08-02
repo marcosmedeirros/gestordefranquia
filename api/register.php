@@ -22,17 +22,23 @@ try {
     $waitlistToken = trim($body['waitlist_token'] ?? '');
     $nbaTeamId = (int)($body['nba_team_id'] ?? 0);
 
-    // Cadastro só é permitido através do link enviado pelo admin a partir
-    // da lista de espera (ver api/waitlist.php). Não existe mais cadastro aberto.
-    if ($waitlistToken === '') {
-        jsonResponse(403, ['error' => 'Cadastro disponível apenas através do link enviado pelo administrador.']);
-    }
+    // Cadastro só acontece por link do admin: ou o individual da lista de
+    // espera (api/waitlist.php), ou o convite reutilizável da liga. Cadastro
+    // aberto, sem link nenhum, continua não existindo.
+    $inviteToken = trim($body['invite_token'] ?? '');
+    $waitlistRow = null;
+    $ligaConvite = $inviteToken !== '' ? ligaDoConviteReutilizavel($pdo, $inviteToken) : null;
 
-    $stmtWl = $pdo->prepare("SELECT * FROM waitlist_requests WHERE token = ? AND status != 'registered' LIMIT 1");
-    $stmtWl->execute([$waitlistToken]);
-    $waitlistRow = $stmtWl->fetch(PDO::FETCH_ASSOC);
-    if (!$waitlistRow) {
-        jsonResponse(404, ['error' => 'Link de cadastro inválido ou já utilizado.']);
+    if ($ligaConvite === null) {
+        if ($waitlistToken === '') {
+            jsonResponse(403, ['error' => 'Cadastro disponível apenas através do link enviado pelo administrador.']);
+        }
+        $stmtWl = $pdo->prepare("SELECT * FROM waitlist_requests WHERE token = ? AND status != 'registered' LIMIT 1");
+        $stmtWl->execute([$waitlistToken]);
+        $waitlistRow = $stmtWl->fetch(PDO::FETCH_ASSOC);
+        if (!$waitlistRow) {
+            jsonResponse(404, ['error' => 'Link de cadastro inválido ou já utilizado.']);
+        }
     }
 
     // Novos cadastros sempre entram na liga ROOKIE — não há mais escolha de liga.
@@ -113,8 +119,12 @@ try {
             nbaTeamLogoUrl($nbaTeam['id']), $nbaTeam['id'],
         ]);
 
-        $stmtDone = $pdo->prepare("UPDATE waitlist_requests SET status = 'registered', registered_user_id = ? WHERE id = ?");
-        $stmtDone->execute([$newUserId, $waitlistRow['id']]);
+        // Só o link individual "queima" ao ser usado; o convite reutilizável
+        // continua valendo pra próxima pessoa.
+        if ($waitlistRow) {
+            $stmtDone = $pdo->prepare("UPDATE waitlist_requests SET status = 'registered', registered_user_id = ? WHERE id = ?");
+            $stmtDone->execute([$newUserId, $waitlistRow['id']]);
+        }
 
         $pdo->commit();
     } catch (PDOException $e) {

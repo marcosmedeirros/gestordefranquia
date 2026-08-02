@@ -56,6 +56,40 @@ function nbaTeamById(int $id): ?array
     return null;
 }
 
+/**
+ * Convite reutilizável da liga: um único link que o admin compartilha no grupo
+ * e várias pessoas usam pra se cadastrar, em vez de um link por pedido da lista
+ * de espera. Fica em league_settings porque é config da liga, e por ser um
+ * token guardado ali dá pra revogar/trocar a qualquer momento.
+ */
+function ensureLeagueInviteColumn(PDO $pdo): void
+{
+    try {
+        if ($pdo->query("SHOW COLUMNS FROM league_settings LIKE 'invite_token'")->rowCount() === 0) {
+            $pdo->exec("ALTER TABLE league_settings ADD COLUMN invite_token VARCHAR(64) NULL");
+        }
+    } catch (Throwable $e) {
+        error_log('ensureLeagueInviteColumn: ' . $e->getMessage());
+    }
+}
+
+/** Liga dona de um convite reutilizável, ou null se o token não valer nada. */
+function ligaDoConviteReutilizavel(PDO $pdo, string $token): ?string
+{
+    $token = trim($token);
+    if ($token === '') return null;
+    ensureLeagueInviteColumn($pdo);
+    try {
+        $stmt = $pdo->prepare('SELECT league FROM league_settings WHERE invite_token = ? LIMIT 1');
+        $stmt->execute([$token]);
+        $league = $stmt->fetchColumn();
+        return $league ? (string)$league : null;
+    } catch (Throwable $e) {
+        error_log('ligaDoConviteReutilizavel: ' . $e->getMessage());
+        return null;
+    }
+}
+
 function ensureNbaTeamColumn(PDO $pdo): void
 {
     try {
