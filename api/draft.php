@@ -720,7 +720,7 @@ if ($method === 'POST') {
             }
 
             // Ligas que o GM logado administra (a loteria é por liga do GM).
-            $myLeagues = array_values(array_intersect(['ELITE', 'NEXT', 'RISE'], getAdminLeagues($pdo, (int)$user['id'])));
+            $myLeagues = array_values(array_intersect(['ELITE', 'NEXT', 'RISE', 'ROOKIE'], getAdminLeagues($pdo, (int)$user['id'])));
 
             $draftSessionId = $data['draft_session_id'] ?? null;
             if (!$draftSessionId) {
@@ -735,8 +735,8 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Sessão de draft não encontrada']);
                 exit;
             }
-            if (!in_array($lotterySession['league'], ['ELITE', 'NEXT', 'RISE'], true)) {
-                echo json_encode(['success' => false, 'error' => 'A loteria está disponível para ELITE, NEXT e RISE']);
+            if (!in_array($lotterySession['league'], ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
+                echo json_encode(['success' => false, 'error' => 'A loteria está disponível para ELITE, NEXT, RISE e ROOKIE']);
                 exit;
             }
             // O GM só pode sortear a loteria da(s) liga(s) que administra.
@@ -758,11 +758,11 @@ if ($method === 'POST') {
                 exit;
             }
 
-            $stmtStandingsSeason = $pdo->prepare("SELECT id FROM seasons WHERE league = 'ELITE' AND season_number = ? ORDER BY created_at DESC LIMIT 1");
-            $stmtStandingsSeason->execute([$standingsSeasonNumber]);
+            $stmtStandingsSeason = $pdo->prepare("SELECT id FROM seasons WHERE league = ? AND season_number = ? ORDER BY created_at DESC LIMIT 1");
+            $stmtStandingsSeason->execute([$lotterySession['league'], $standingsSeasonNumber]);
             $standingsSeasonId = $stmtStandingsSeason->fetchColumn();
             if (!$standingsSeasonId) {
-                echo json_encode(['success' => false, 'error' => 'Temporada ELITE anterior (nº ' . $standingsSeasonNumber . ') não encontrada']);
+                echo json_encode(['success' => false, 'error' => 'Temporada anterior (nº ' . $standingsSeasonNumber . ') da liga ' . $lotterySession['league'] . ' não encontrada']);
                 exit;
             }
 

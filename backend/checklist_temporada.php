@@ -53,9 +53,9 @@ function checklistDaTemporada(PDO $pdo, string $league, array $season): array
     }
 
     // ── Loteria ─────────────────────────────────────────────────────────────
-    // Só ELITE, NEXT e RISE têm loteria; o resultado fica no snapshot da ordem
+    // Todas as ligas têm loteria; o resultado fica no snapshot da ordem
     // do draft, gravado quando a loteria roda.
-    if (in_array($league, ['ELITE', 'NEXT', 'RISE'], true)) {
+    if (in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
         try {
             $st = $pdo->prepare("SELECT draft_order_snapshot FROM seasons WHERE id = ?");
             $st->execute([$seasonId]);

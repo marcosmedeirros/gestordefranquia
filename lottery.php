@@ -9,7 +9,7 @@ $pdo  = db();
 $isGlobalAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 $adminLeagues  = getAdminLeagues($pdo, (int)$user['id']);
 // Qualquer jogador pode ver a loteria (regras + ordem já sorteada); só quem
-// administra ELITE/NEXT/RISE consegue de fato rodar a cerimônia e confirmar.
+// administra ELITE/NEXT/RISE/ROOKIE consegue de fato rodar a cerimônia e confirmar.
 $canRunLottery = $isGlobalAdmin || !empty($adminLeagues);
 
 $stmtMine = $pdo->prepare("SELECT id, city, name, league, photo_url FROM teams WHERE user_id = ? LIMIT 1");
@@ -17,7 +17,7 @@ $stmtMine->execute([$user['id']]);
 $team = $stmtMine->fetch(PDO::FETCH_ASSOC) ?: null;
 
 // A loteria só mostra as ligas que o GM logado administra (as demais, não).
-$lotteryLeagues = array_values(array_intersect(['ELITE', 'NEXT', 'RISE'], $adminLeagues));
+$lotteryLeagues = array_values(array_intersect(['ELITE', 'NEXT', 'RISE', 'ROOKIE'], $adminLeagues));
 $setupSessions = [];
 if ($lotteryLeagues) {
     $ph = implode(',', array_fill(0, count($lotteryLeagues), '?'));
@@ -26,7 +26,7 @@ if ($lotteryLeagues) {
         FROM draft_sessions ds
         JOIN seasons s ON s.id = ds.season_id
         WHERE ds.league IN ($ph) AND ds.status = 'setup'
-        ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE'), s.season_number DESC
+        ORDER BY FIELD(ds.league,'ELITE','NEXT','RISE','ROOKIE'), s.season_number DESC
     ");
     $stmtSessions->execute($lotteryLeagues);
     $setupSessions = $stmtSessions->fetchAll(PDO::FETCH_ASSOC);
@@ -37,7 +37,7 @@ if ($lotteryLeagues) {
 $myViewLeague = strtoupper((string)($team['league'] ?? $user['league'] ?? ''));
 $confirmedOrder = [];
 $confirmedSessionInfo = null;
-if (in_array($myViewLeague, ['ELITE', 'NEXT', 'RISE'], true)) {
+if (in_array($myViewLeague, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
     $stmtLastSession = $pdo->prepare("
         SELECT ds.id, s.season_number, s.year
         FROM draft_sessions ds
@@ -431,7 +431,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
   <?php if (!$setupSessions): ?>
   <div class="panel bc-off" style="text-align:center">
     <i class="bi bi-info-circle" style="font-size:22px;color:var(--text-3)"></i>
-    <p style="margin-top:10px">Nenhuma sessão de draft (ELITE, NEXT ou RISE) com status "setup" encontrada. Crie a sessão
+    <p style="margin-top:10px">Nenhuma sessão de draft (ELITE, NEXT, RISE ou ROOKIE) com status "setup" encontrada. Crie a sessão
     de draft da próxima temporada primeiro (na tela de Draft) antes de sortear a ordem de verdade.</p>
   </div>
   <?php else: ?>
@@ -540,7 +540,7 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
     </details>
     <details>
       <summary><i class="bi bi-shuffle"></i> Como o sorteio e a revelação acontecem</summary>
-      <div class="rules-body">O modelo 3-2-1 anti-tanking vale para as três ligas (ELITE, NEXT e RISE): o pior time
+      <div class="rules-body">O modelo 3-2-1 anti-tanking vale para as quatro ligas (ELITE, NEXT, RISE e ROOKIE): o pior time
       deixa de ser o favorito à Pick 1. A ordem é sorteada de uma vez no servidor e você revela pick por pick no clique.
       Os times do playoff (8 de cada conferência) ficam travados no fim da ordem.</div>
     </details>

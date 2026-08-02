@@ -6,7 +6,7 @@ requireAuth();
 $user = getUserSession();
 $pdo = db();
 
-$leagues = ['ELITE','NEXT','RISE'];
+$leagues = ['ELITE','NEXT','RISE','ROOKIE'];
 $riseHistory = loadRiseHistoryStats();
 
 // Time e dados do usuário logado

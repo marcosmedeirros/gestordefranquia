@@ -559,7 +559,7 @@ try {
         // timestamp de mudança da janela de trocas (league_settings.trades_enabled).
         // Front-end faz polling e recarrega a tela quando a assinatura muda.
         case 'state_signature':
-            $leagues = ['ELITE', 'NEXT', 'RISE'];
+            $leagues = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
             $signatures = [];
             $stmtSeason = $pdo->prepare("SELECT GREATEST(COALESCE(MAX(created_at),0), COALESCE(MAX(updated_at),0)) AS ts FROM seasons WHERE league = ?");
             $stmtSettings = $pdo->prepare("SELECT trades_enabled, updated_at FROM league_settings WHERE league = ?");

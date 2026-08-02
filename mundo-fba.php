@@ -457,11 +457,12 @@ function buildSeasonPreview(array $powerRanking, array $teams): array {
     ];
 }
 
-$leagueOrder = ['ELITE', 'NEXT', 'RISE'];
+$leagueOrder = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 $leagueMeta  = [
-    'ELITE' => ['color' => '#f59e0b', 'icon' => 'bi-trophy-fill',       'label' => 'Liga Elite'],
-    'NEXT'  => ['color' => '#3b82f6', 'icon' => 'bi-lightning-charge-fill', 'label' => 'Liga Next'],
-    'RISE'  => ['color' => '#22c55e', 'icon' => 'bi-graph-up-arrow',    'label' => 'Liga Rise'],
+    'ELITE'  => ['color' => '#f59e0b', 'icon' => 'bi-trophy-fill',       'label' => 'Liga Elite'],
+    'NEXT'   => ['color' => '#3b82f6', 'icon' => 'bi-lightning-charge-fill', 'label' => 'Liga Next'],
+    'RISE'   => ['color' => '#22c55e', 'icon' => 'bi-graph-up-arrow',    'label' => 'Liga Rise'],
+    'ROOKIE' => ['color' => '#a855f7', 'icon' => 'bi-stars',             'label' => 'Liga Rookie'],
 ];
 $leagueData  = [];
 
@@ -470,7 +471,7 @@ try { $capStmt = $pdo->prepare('SELECT COALESCE(SUM(ovr),0) FROM (SELECT ovr FRO
 
 foreach ($leagueOrder as $league) {
     // Temporada atual e total de temporadas da liga
-    $leagueMaxSeasons = ['ELITE' => 20, 'NEXT' => 20, 'RISE' => 15];
+    $leagueMaxSeasons = ['ELITE' => 20, 'NEXT' => 20, 'RISE' => 15, 'ROOKIE' => 10];
     $currentSeasonNum = null;
     $activeSeasonYear = null; // ano da temporada ATIVA (em andamento), quando houver
     $totalSeasons = $leagueMaxSeasons[$league] ?? null;

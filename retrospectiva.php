@@ -7,7 +7,7 @@ $pdo  = db();
 $stmtT = $pdo->prepare("SELECT league FROM teams WHERE user_id = ? LIMIT 1");
 $stmtT->execute([$user['id']]);
 $myLeague = $stmtT->fetchColumn() ?: 'ELITE';
-if (!in_array($myLeague, ['ELITE', 'NEXT', 'RISE'], true)) $myLeague = 'ELITE';
+if (!in_array($myLeague, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) $myLeague = 'ELITE';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -199,7 +199,7 @@ a{color:inherit;text-decoration:none}
     <h1>A história em <span class="lg">números</span></h1>
     <p class="lead" id="lead">Cada temporada, cada campeão, cada escalada no acumulado — a jornada completa de cada franquia.</p>
     <div class="leaguebar" id="leaguebar">
-      <?php foreach (['ELITE','NEXT','RISE'] as $lg): ?>
+      <?php foreach (['ELITE','NEXT','RISE','ROOKIE'] as $lg): ?>
       <button data-league="<?= $lg ?>" class="<?= $lg === $myLeague ? 'active' : '' ?>"><?= $lg ?></button>
       <?php endforeach; ?>
     </div>

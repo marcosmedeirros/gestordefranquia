@@ -16,9 +16,9 @@ $__sbIsElite = (($team['league'] ?? $user['league'] ?? '') === 'ELITE');
 // - Da liga do usuário: aparece abaixo de "Draft".
 // - De outras ligas (só admin): aparece abaixo do menu "Admin".
 $__sbLeague = $team['league'] ?? $user['league'] ?? '';
-// Loteria: qualquer jogador de ELITE/NEXT/RISE pode ver a ordem já sorteada;
+// Loteria: qualquer jogador de ELITE/NEXT/RISE/ROOKIE pode ver a ordem já sorteada;
 // quem administra alguma dessas ligas também vê (mesmo com time em outra liga).
-$__sbLotteryVisible = in_array(strtoupper((string)$__sbLeague), ['ELITE', 'NEXT', 'RISE'], true) || $__sbIsAdmin;
+$__sbLotteryVisible = in_array(strtoupper((string)$__sbLeague), ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true) || $__sbIsAdmin;
 $__sbMyInitDraft = null;
 $__sbOtherInitDrafts = [];
 try {
