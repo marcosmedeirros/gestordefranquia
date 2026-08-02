@@ -22,10 +22,15 @@ $__sbLotteryVisible = in_array(strtoupper((string)$__sbLeague), ['ELITE', 'NEXT'
 $__sbMyInitDraft = null;
 $__sbOtherInitDrafts = [];
 try {
-    $__sbStmt = $pdo->query("SELECT league, access_token FROM initdraft_sessions WHERE status IN ('setup','in_progress') ORDER BY id DESC");
+    // O item da liga do próprio GM só aparece com o draft de fato iniciado —
+    // enquanto o admin ainda está configurando (status 'setup'), a sala não
+    // tem nada útil pra mostrar pra quem não é admin. A lista de "outras
+    // ligas" (só admin, abaixo) continua incluindo 'setup', porque é
+    // justamente o atalho que o admin usa pra voltar e terminar a configuração.
+    $__sbStmt = $pdo->query("SELECT league, access_token, status FROM initdraft_sessions WHERE status IN ('setup','in_progress') ORDER BY id DESC");
     foreach ($__sbStmt->fetchAll(PDO::FETCH_ASSOC) as $__row) {
         if ($__row['league'] === $__sbLeague) {
-            if (!$__sbMyInitDraft) $__sbMyInitDraft = $__row;
+            if (!$__sbMyInitDraft && $__row['status'] === 'in_progress') $__sbMyInitDraft = $__row;
         } elseif (!isset($__sbOtherInitDrafts[$__row['league']])) {
             $__sbOtherInitDrafts[$__row['league']] = $__row;
         }
