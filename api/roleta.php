@@ -95,21 +95,28 @@ function exigirAdminDaRoleta(PDO $pdo, int $userId, array $minhasLigas, ?string 
     }
 }
 
-/** Liga do GM logado — usada pra decidir o que ele enxerga. */
-function ligaDoGm(PDO $pdo, int $userId): ?string
+/**
+ * Ligas do GM logado — do time E do cadastro, usadas pra decidir o que ele
+ * enxerga. Normalmente são a mesma, mas se estiverem dessincronizadas (bug de
+ * dados: teams.league != users.league) aceita qualquer uma das duas, pra não
+ * travar o acesso de quem já está na liga certa por um lado só.
+ */
+function ligasDoGm(PDO $pdo, int $userId): array
 {
+    $ligas = [];
     try {
         $stmt = $pdo->prepare("SELECT league FROM teams WHERE user_id = ? LIMIT 1");
         $stmt->execute([$userId]);
         $l = $stmt->fetchColumn();
-        if ($l) return strtoupper((string)$l);
+        if ($l) $ligas[] = strtoupper((string)$l);
+    } catch (Throwable $e) {}
+    try {
         $stmt = $pdo->prepare("SELECT league FROM users WHERE id = ? LIMIT 1");
         $stmt->execute([$userId]);
         $l = $stmt->fetchColumn();
-        return $l ? strtoupper((string)$l) : null;
-    } catch (Throwable $e) {
-        return null;
-    }
+        if ($l) $ligas[] = strtoupper((string)$l);
+    } catch (Throwable $e) {}
+    return array_values(array_unique($ligas));
 }
 
 /** Uma roleta trava (título/participantes/notificação) assim que o 1º giro acontece. */
@@ -203,7 +210,7 @@ if ($method === 'GET') {
     if ($action === 'listar') {
         // Admin vê as roletas das ligas que administra (mais as antigas sem
         // liga); GM comum vê só as da própria liga.
-        $ligasVisiveis = $minhasLigasAdmin ?: array_filter([ligaDoGm($pdo, $user_id)]);
+        $ligasVisiveis = $minhasLigasAdmin ?: ligasDoGm($pdo, $user_id);
         $where = '';
         $params = [];
         if ($ligasVisiveis) {
@@ -262,7 +269,7 @@ if ($method === 'GET') {
         }
         $ligaRoleta = ligaDaRoleta($pdo, $id);
         // GM de outra liga não abre a roleta.
-        if (!$minhasLigasAdmin && $ligaRoleta !== null && ligaDoGm($pdo, $user_id) !== $ligaRoleta) {
+        if (!$minhasLigasAdmin && $ligaRoleta !== null && !in_array($ligaRoleta, ligasDoGm($pdo, $user_id), true)) {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'Esta roleta é da liga ' . $ligaRoleta . '.']);
             exit;

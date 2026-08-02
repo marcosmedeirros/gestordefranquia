@@ -26,21 +26,28 @@ $user_id  = (int)$_SESSION['user_id'];
 $is_admin = hasAdminAccess($pdo, $user_id);
 $minhasLigasAdmin = $is_admin ? array_map('strtoupper', getAdminLeagues($pdo, $user_id)) : [];
 
-/** Liga do usuário logado (time primeiro, depois o cadastro). */
-function ligaDoUsuarioDraft(PDO $pdo, int $userId): ?string
+/**
+ * Ligas do usuário logado — do time E do cadastro. Normalmente são a mesma,
+ * mas se estiverem dessincronizadas (bug de dados: teams.league != users.league)
+ * aceita qualquer uma das duas, pra não travar o acesso de quem já está na
+ * liga certa por um lado só.
+ */
+function ligasDoUsuarioDraft(PDO $pdo, int $userId): array
 {
+    $ligas = [];
     try {
         $stmt = $pdo->prepare("SELECT league FROM teams WHERE user_id = ? LIMIT 1");
         $stmt->execute([$userId]);
         $l = $stmt->fetchColumn();
-        if ($l) return strtoupper((string)$l);
+        if ($l) $ligas[] = strtoupper((string)$l);
+    } catch (Throwable $e) {}
+    try {
         $stmt = $pdo->prepare("SELECT league FROM users WHERE id = ? LIMIT 1");
         $stmt->execute([$userId]);
         $l = $stmt->fetchColumn();
-        return $l ? strtoupper((string)$l) : null;
-    } catch (Throwable $e) {
-        return null;
-    }
+        if ($l) $ligas[] = strtoupper((string)$l);
+    } catch (Throwable $e) {}
+    return array_values(array_unique($ligas));
 }
 
 function ensureDraftsAleatoriosTables(PDO $pdo): void
@@ -247,7 +254,7 @@ if ($method === 'GET') {
     if ($action === 'listar') {
         // Cada um vê os drafts da sua liga (admin, das ligas que administra).
         // Drafts antigos sem liga continuam aparecendo pra todo mundo.
-        $ligasVisiveis = $minhasLigasAdmin ?: array_filter([ligaDoUsuarioDraft($pdo, $user_id)]);
+        $ligasVisiveis = $minhasLigasAdmin ?: ligasDoUsuarioDraft($pdo, $user_id);
         $where = "WHERE d.league IS NULL";
         $params = [];
         if ($ligasVisiveis) {
@@ -340,7 +347,7 @@ if ($method === 'GET') {
         // sem liga continuam livres pra não sumirem de quem já os usava.
         $ligaDraft = !empty($estado['league']) ? strtoupper((string)$estado['league']) : null;
         if ($ligaDraft !== null) {
-            $permitidas = $minhasLigasAdmin ?: array_filter([ligaDoUsuarioDraft($pdo, $user_id)]);
+            $permitidas = $minhasLigasAdmin ?: ligasDoUsuarioDraft($pdo, $user_id);
             if (!in_array($ligaDraft, $permitidas, true)) {
                 http_response_code(403);
                 echo json_encode(['success' => false, 'error' => 'Este draft é da liga ' . $ligaDraft . '.']);
