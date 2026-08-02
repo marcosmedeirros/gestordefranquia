@@ -12,6 +12,7 @@
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
+require_once __DIR__ . '/../backend/league_cap.php';
 requireAuth();
 
 header('Content-Type: application/json; charset=utf-8');
@@ -253,6 +254,11 @@ if ($action === 'save_snapshot') {
         echo json_encode(['success' => false, 'error' => 'Erro ao salvar o histórico da temporada.']);
         exit;
     }
+
+    // Se este foi o último time da liga a registrar o elenco desta temporada
+    // (ímpar, a cada 2), o CAP da liga é recalculado sozinho a partir da
+    // média de todos os times. Best-effort — nunca derruba o salvamento.
+    maybeAutoRecalcularCapDaLiga($pdo, $league, (int)$season['id'], (int)$season['season_number']);
 
     echo json_encode(['success' => true, 'saved' => $ok,
                       'season_number' => (int)$season['season_number']]);

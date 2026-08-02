@@ -4,6 +4,7 @@ header('Content-Type: application/json');
 require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
 require_once dirname(__DIR__) . '/backend/helpers.php';
+require_once dirname(__DIR__) . '/backend/league_cap.php';
 
 $user = getUserSession();
 if (!$user) {
@@ -47,6 +48,9 @@ try {
     $pdo->exec("ALTER TABLE league_settings ADD COLUMN IF NOT EXISTS sistemas_video_url TEXT NULL");
     $pdo->exec("ALTER TABLE league_settings ADD COLUMN IF NOT EXISTS freeagency_video_url TEXT NULL");
 } catch (Exception $e) { /* silencia — coluna pode já existir ou engine não suporta IF NOT EXISTS */ }
+
+// Ensure CAP auto-recalc columns/history table exist
+ensureLeagueCapAutoTables($pdo);
 
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
@@ -339,9 +343,9 @@ if ($method === 'GET') {
 
             $result = [];
             foreach ($leagues as $league) {
-                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, max_trades, edital, trades_enabled, fa_enabled, COALESCE(n8n_webhook_url, \'\') as n8n_webhook_url, COALESCE(progression_video_url, \'\') as progression_video_url, COALESCE(sistemas_video_url, \'\') as sistemas_video_url, COALESCE(freeagency_video_url, \'\') as freeagency_video_url FROM league_settings WHERE league = ?');
+                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, cap_mode, max_trades, edital, trades_enabled, fa_enabled, COALESCE(n8n_webhook_url, \'\') as n8n_webhook_url, COALESCE(progression_video_url, \'\') as progression_video_url, COALESCE(sistemas_video_url, \'\') as sistemas_video_url, COALESCE(freeagency_video_url, \'\') as freeagency_video_url, cap_auto_last_season, cap_auto_margin, cap_auto_margin_pct FROM league_settings WHERE league = ?');
                 $stmtCfg->execute([$league]);
-                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1, 'n8n_webhook_url' => '', 'progression_video_url' => '', 'sistemas_video_url' => '', 'freeagency_video_url' => ''];
+                $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'cap_mode' => 'ovr_sum', 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1, 'n8n_webhook_url' => '', 'progression_video_url' => '', 'sistemas_video_url' => '', 'freeagency_video_url' => '', 'cap_auto_last_season' => null, 'cap_auto_margin' => LEAGUE_CAP_DEFAULT_OVR_MARGIN, 'cap_auto_margin_pct' => LEAGUE_CAP_DEFAULT_SALARY_MARGIN];
 
                 $stmtSprintCfg = $pdo->prepare('SELECT max_seasons FROM league_sprint_config WHERE league = ?');
                 $stmtSprintCfg->execute([$league]);
@@ -365,11 +369,30 @@ if ($method === 'GET') {
                     'progression_video_url' => $cfg['progression_video_url'] ?? '',
                     'sistemas_video_url' => $cfg['sistemas_video_url'] ?? '',
                     'freeagency_video_url' => $cfg['freeagency_video_url'] ?? '',
+                    'cap_mode' => $cfg['cap_mode'] ?? 'ovr_sum',
+                    'cap_auto_last_season' => $cfg['cap_auto_last_season'] !== null ? (int)$cfg['cap_auto_last_season'] : null,
+                    'cap_auto_margin' => (int)($cfg['cap_auto_margin'] ?? LEAGUE_CAP_DEFAULT_OVR_MARGIN),
+                    'cap_auto_margin_pct' => (int)($cfg['cap_auto_margin_pct'] ?? LEAGUE_CAP_DEFAULT_SALARY_MARGIN),
                     'team_count' => (int)$teamCount
                 ];
             }
 
             echo json_encode(['success' => true, 'leagues' => $result]);
+            break;
+
+        case 'cap_history':
+            // Histórico dos recálculos automáticos de CAP de uma liga (mais recentes primeiro)
+            $league = strtoupper(trim($_GET['league'] ?? ''));
+            if (!in_array($league, $validLeagues, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                exit;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
+            $stmtHist = $pdo->prepare('SELECT season_number, cap_mode, avg_value, margin, cap_min, cap_max, teams_total, teams_above, teams_below, created_at
+                                        FROM league_cap_history WHERE league = ? ORDER BY id DESC LIMIT 10');
+            $stmtHist->execute([$league]);
+            echo json_encode(['success' => true, 'history' => $stmtHist->fetchAll(PDO::FETCH_ASSOC)]);
             break;
 
         case 'teams':
@@ -971,6 +994,8 @@ if ($method === 'PUT') {
             $progression_video_url = array_key_exists('progression_video_url', $data) ? trim((string)$data['progression_video_url']) : null;
             $sistemas_video_url = array_key_exists('sistemas_video_url', $data) ? trim((string)$data['sistemas_video_url']) : null;
             $freeagency_video_url = array_key_exists('freeagency_video_url', $data) ? trim((string)$data['freeagency_video_url']) : null;
+            $cap_auto_margin = isset($data['cap_auto_margin']) ? (int)$data['cap_auto_margin'] : null;
+            $cap_auto_margin_pct = isset($data['cap_auto_margin_pct']) ? (int)$data['cap_auto_margin_pct'] : null;
             $max_seasons = isset($data['max_seasons']) ? (int)$data['max_seasons'] : null;
 
             if (!$league) {
@@ -1048,6 +1073,14 @@ if ($method === 'PUT') {
             if ($freeagency_video_url !== null) {
                 $updates[] = 'freeagency_video_url = ?';
                 $params[] = $freeagency_video_url;
+            }
+            if ($cap_auto_margin !== null) {
+                $updates[] = 'cap_auto_margin = ?';
+                $params[] = max(0, $cap_auto_margin);
+            }
+            if ($cap_auto_margin_pct !== null) {
+                $updates[] = 'cap_auto_margin_pct = ?';
+                $params[] = max(0, $cap_auto_margin_pct);
             }
 
             if (empty($updates) && $max_seasons === null) {

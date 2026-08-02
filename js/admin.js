@@ -3028,6 +3028,24 @@ async function showConfig() {
       <input type="number" class="form-control" value="${lg.max_trades || 3}" data-league="${lg.league}" data-field="max_trades" />
     </div>
   </div>
+  <div style="margin-bottom:24px;background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:16px">
+    <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px"><i class="bi bi-calculator me-1"></i>Recálculo automático do CAP</div>
+    <p style="font-size:11px;color:var(--text-3);margin-bottom:12px;line-height:1.5">
+      A cada 2 temporadas (1, 3, 5...), assim que <b>todos</b> os times da liga atualizarem o elenco, o CAP é recalculado sozinho: soma o CAP de todos os times (${lg.cap_mode === 'salary' ? 'folha salarial' : 'OVR top-8'}), tira a média, e aplica a margem abaixo pra cima e pra baixo.
+      ${lg.cap_auto_last_season ? `Última vez: temporada ${lg.cap_auto_last_season}.` : 'Ainda não recalculou automaticamente nesta liga.'}
+    </p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Margem (pontos de OVR)</div>
+        <input type="number" class="form-control" min="0" value="${lg.cap_auto_margin}" data-league="${lg.league}" data-field="cap_auto_margin" />
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Margem (% da folha — ELITE)</div>
+        <input type="number" class="form-control" min="0" value="${lg.cap_auto_margin_pct}" data-league="${lg.league}" data-field="cap_auto_margin_pct" />
+      </div>
+    </div>
+    <div id="capHistory_${lg.league}" style="margin-top:12px"></div>
+  </div>
   <div style="margin-bottom:24px">
     <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px"><i class="bi bi-webhook me-1"></i>Webhook N8N (trades 80+)</div>
     <input type="text" class="form-control" placeholder="https://n8n.exemplo.com/webhook/..." value="${lg.n8n_webhook_url || ''}" data-league="${lg.league}" data-field="n8n_webhook_url" />
@@ -3100,7 +3118,38 @@ async function showConfig() {
   </div>` : `<div style="font-size:12px;color:var(--text-3);margin-top:8px"><i class="bi bi-info-circle me-1"></i>Nenhum arquivo enviado</div>`}
 
 </div>`).join('');
+    filtered.forEach(lg => loadCapHistory(lg.league));
   } catch (e) {}
+}
+
+async function loadCapHistory(league) {
+  const box = document.getElementById(`capHistory_${league}`);
+  if (!box) return;
+  try {
+    const data = await api(`admin.php?action=cap_history&league=${league}`);
+    const rows = data.history || [];
+    if (!rows.length) {
+      box.innerHTML = '<div style="font-size:11px;color:var(--text-3)">Nenhum recálculo automático registrado ainda.</div>';
+      return;
+    }
+    box.innerHTML = `
+      <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Histórico do CAP</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${rows.map(r => {
+          const dataFmt = r.created_at ? new Date(r.created_at.replace(' ', 'T')).toLocaleDateString('pt-BR') : '';
+          const margemTxt = r.cap_mode === 'salary' ? `${r.margin}%` : `${r.margin} pts`;
+          return `<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-2);background:var(--panel-3);border-radius:8px;padding:6px 10px;flex-wrap:wrap">
+            <span style="font-weight:700;color:var(--text)">Temp. ${r.season_number}</span>
+            <span>média ${r.avg_value} · margem ${margemTxt}</span>
+            <span style="color:var(--red);font-weight:600">${r.cap_min}–${r.cap_max}</span>
+            <span>${r.teams_above} acima · ${r.teams_below} abaixo de ${r.teams_total}</span>
+            <span style="margin-left:auto;color:var(--text-3)">${dataFmt}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+  } catch (e) {
+    box.innerHTML = '';
+  }
 }
 
 async function saveLeagueSettings(btn) {
