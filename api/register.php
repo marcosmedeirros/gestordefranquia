@@ -6,6 +6,7 @@ ini_set('log_errors', 1);
 try {
     require_once __DIR__ . '/../backend/db.php';
     require_once __DIR__ . '/../backend/helpers.php';
+    require_once __DIR__ . '/../backend/nba_teams.php';
 
     requireMethod('POST');
     $pdo = db();
@@ -19,6 +20,7 @@ try {
     $userType = 'jogador'; // Sempre jogador por padrão
     $photoUrl = trim($body['photo_url'] ?? '');
     $waitlistToken = trim($body['waitlist_token'] ?? '');
+    $nbaTeamId = (int)($body['nba_team_id'] ?? 0);
 
     // Cadastro só é permitido através do link enviado pelo admin a partir
     // da lista de espera (ver api/waitlist.php). Não existe mais cadastro aberto.
@@ -44,6 +46,19 @@ try {
         jsonResponse(422, ['error' => 'Informe um telefone válido (DDD brasileiro ou código do país).']);
     }
 
+    // Na ROOKIE não existe criação de time fictício — o GM escolhe um time
+    // real da NBA, e cada time só pode ser escolhido uma vez.
+    $nbaTeam = $nbaTeamId ? nbaTeamById($nbaTeamId) : null;
+    if (!$nbaTeam) {
+        jsonResponse(422, ['error' => 'Escolha um time da NBA válido.']);
+    }
+    ensureNbaTeamColumn($pdo);
+    $stmtTaken = $pdo->prepare('SELECT id FROM teams WHERE nba_team_id = ? LIMIT 1');
+    $stmtTaken->execute([$nbaTeamId]);
+    if ($stmtTaken->fetch()) {
+        jsonResponse(409, ['error' => 'Esse time da NBA já foi escolhido por outro GM. Escolha outro.', 'reload' => true]);
+    }
+
     $exists = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
     $exists->execute([$email]);
     if ($exists->fetch()) {
@@ -53,14 +68,63 @@ try {
     $token = bin2hex(random_bytes(16));
     $hash = password_hash($password, PASSWORD_BCRYPT);
 
-    // Quem chega até aqui já foi aprovado pelo admin na lista de espera
-    // (ele que mandou o link), então o cadastro já entra liberado.
-    $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, user_type, league, verification_token, photo_url, phone, approved) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)');
-    $stmt->execute([$name, $email, $hash, $userType, $league, $token, $photoUrl ?: null, $phone]);
-    $newUserId = (int)$pdo->lastInsertId();
+    // Foto do GM: se vier como data URL, decodifica e salva em img/users
+    // (mesmo padrão de api/user.php).
+    if ($photoUrl && str_starts_with($photoUrl, 'data:image/')) {
+        try {
+            $commaPos = strpos($photoUrl, ',');
+            $meta = substr($photoUrl, 0, $commaPos);
+            $base64 = substr($photoUrl, $commaPos + 1);
+            $mime = null;
+            if (preg_match('/data:(image\/(png|jpeg|jpg|webp));base64/i', $meta, $m)) {
+                $mime = strtolower($m[1]);
+            }
+            $ext = 'png';
+            if ($mime === 'image/jpeg' || $mime === 'image/jpg') { $ext = 'jpg'; }
+            if ($mime === 'image/webp') { $ext = 'webp'; }
+            $binary = base64_decode($base64);
+            if ($binary === false) { throw new Exception('Falha ao decodificar imagem.'); }
 
-    $stmtDone = $pdo->prepare("UPDATE waitlist_requests SET status = 'registered', registered_user_id = ? WHERE id = ?");
-    $stmtDone->execute([$newUserId, $waitlistRow['id']]);
+            $dirFs = __DIR__ . '/../img/users';
+            if (!is_dir($dirFs)) { @mkdir($dirFs, 0775, true); }
+            $filename = 'user-' . $token . '-' . time() . '.' . $ext;
+            if (file_put_contents($dirFs . '/' . $filename, $binary) === false) {
+                throw new Exception('Falha ao salvar imagem.');
+            }
+            $photoUrl = '/img/users/' . $filename;
+        } catch (Exception $e) {
+            $photoUrl = '';
+        }
+    }
+
+    $pdo->beginTransaction();
+    try {
+        // Quem chega até aqui já foi aprovado pelo admin na lista de espera
+        // (ele que mandou o link), então o cadastro já entra liberado.
+        $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, user_type, league, verification_token, photo_url, phone, approved) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)');
+        $stmt->execute([$name, $email, $hash, $userType, $league, $token, $photoUrl ?: null, $phone]);
+        $newUserId = (int)$pdo->lastInsertId();
+
+        // Time = o time da NBA escolhido. Sem criação de time fictício pra
+        // ROOKIE — o elenco vem depois pelo Draft Inicial da liga.
+        $stmtTeam = $pdo->prepare('INSERT INTO teams (user_id, league, conference, name, city, mascot, photo_url, nba_team_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmtTeam->execute([
+            $newUserId, $league, $nbaTeam['conference'], $nbaTeam['name'], $nbaTeam['city'], '',
+            nbaTeamLogoUrl($nbaTeam['id']), $nbaTeam['id'],
+        ]);
+
+        $stmtDone = $pdo->prepare("UPDATE waitlist_requests SET status = 'registered', registered_user_id = ? WHERE id = ?");
+        $stmtDone->execute([$newUserId, $waitlistRow['id']]);
+
+        $pdo->commit();
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        // Corrida: alguém escolheu o mesmo time da NBA entre a checagem e o insert.
+        if ((int)$e->getCode() === 23000 || str_contains($e->getMessage(), 'uniq_teams_nba_team_id')) {
+            jsonResponse(409, ['error' => 'Esse time da NBA acabou de ser escolhido por outro GM. Escolha outro.', 'reload' => true]);
+        }
+        throw $e;
+    }
 
     sendVerificationEmail($email, $token);
 

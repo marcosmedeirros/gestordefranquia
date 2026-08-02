@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/nba_teams.php';
 $pdo = db();
 
 $token = trim($_GET['token'] ?? '');
@@ -9,6 +10,9 @@ if ($token !== '') {
     $stmt->execute([$token]);
     $waitlistRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 }
+
+$nbaTeamsList = nbaTeams();
+$nbaTakenIds = $waitlistRow ? nbaTeamsTaken($pdo) : [];
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -132,6 +136,26 @@ if ($token !== '') {
 		}
 		.auth-links { font-size: 13px; color: var(--text-2); }
 		.auth-links a { color: var(--red); font-weight: 700; }
+
+		.photo-upload { display: flex; align-items: center; gap: 12px; }
+		.photo-upload-circle {
+			width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+			background: var(--panel-3); border: 1px dashed var(--border);
+			display: flex; align-items: center; justify-content: center;
+			overflow: hidden; cursor: pointer; color: var(--text-2); font-size: 20px;
+		}
+		.photo-upload-circle img { width: 100%; height: 100%; object-fit: cover; }
+		.photo-upload-hint { font-size: 11px; color: var(--text-2); }
+
+		.nba-preview {
+			display: none; align-items: center; gap: 10px; margin-top: 10px;
+			background: var(--panel-3); border: 1px solid var(--border);
+			border-radius: var(--radius-sm); padding: 10px 12px;
+		}
+		.nba-preview.show { display: flex; }
+		.nba-preview img { width: 34px; height: 34px; object-fit: contain; flex-shrink: 0; }
+		.nba-preview-name { font-size: 13px; font-weight: 700; }
+		.nba-preview-conf { font-size: 11px; color: var(--text-2); }
 	</style>
 </head>
 <body>
@@ -156,6 +180,17 @@ if ($token !== '') {
 			<div id="register-message"></div>
 			<form id="form-register">
 				<div class="mb-3">
+					<label class="form-label">Foto do GM</label>
+					<div class="photo-upload">
+						<label class="photo-upload-circle" id="photoCircle">
+							<i class="bi bi-camera-fill" id="photoIcon"></i>
+							<img id="photoPreview" style="display:none">
+							<input type="file" id="photoInput" accept="image/png,image/jpeg,image/webp" style="display:none">
+						</label>
+						<span class="photo-upload-hint">Opcional — clique pra escolher uma foto.</span>
+					</div>
+				</div>
+				<div class="mb-3">
 					<label class="form-label">Nome completo</label>
 					<input name="name" class="form-control" value="<?= htmlspecialchars($waitlistRow['name']) ?>" required>
 				</div>
@@ -171,6 +206,30 @@ if ($token !== '') {
 					<label class="form-label">Senha</label>
 					<input id="registerPassword" name="password" type="password" class="form-control" placeholder="Mínimo 6 caracteres" required minlength="6">
 				</div>
+				<div class="mb-3">
+					<label class="form-label">Seu time da NBA</label>
+					<select name="nba_team_id" id="nbaTeamSelect" class="form-control" required>
+						<option value="">Escolha um time...</option>
+						<?php foreach (['LESTE' => 'Conferência Leste', 'OESTE' => 'Conferência Oeste'] as $confKey => $confLabel): ?>
+						<optgroup label="<?= $confLabel ?>">
+							<?php foreach ($nbaTeamsList as $t): if ($t['conference'] !== $confKey) continue;
+								$taken = in_array($t['id'], $nbaTakenIds, true); ?>
+							<option value="<?= $t['id'] ?>" <?= $taken ? 'disabled' : '' ?>>
+								<?= htmlspecialchars($t['city'] . ' ' . $t['name']) ?><?= $taken ? ' — já escolhido' : '' ?>
+							</option>
+							<?php endforeach; ?>
+						</optgroup>
+						<?php endforeach; ?>
+					</select>
+					<div class="nba-preview" id="nbaPreview">
+						<img id="nbaPreviewLogo" src="" alt="">
+						<div>
+							<div class="nba-preview-name" id="nbaPreviewName"></div>
+							<div class="nba-preview-conf" id="nbaPreviewConf"></div>
+						</div>
+					</div>
+					<p class="text-secondary" style="font-size:11px;margin-top:6px">Cada time da NBA só pode ser escolhido por um GM. O elenco vem depois, no Draft Inicial da liga.</p>
+				</div>
 				<p class="text-secondary" style="font-size:12px">Você vai entrar na <strong>Liga ROOKIE</strong>.</p>
 				<button type="submit" class="btn btn-auth w-100">
 					<i class="bi bi-person-plus me-2"></i>Criar conta
@@ -179,14 +238,54 @@ if ($token !== '') {
 		</div>
 	</div>
 	<script>
+		const NBA_TEAMS = <?= json_encode($nbaTeamsList, JSON_UNESCAPED_UNICODE) ?>;
+		const NBA_LOGO = (id) => `https://cdn.nba.com/logos/nba/${id}/global/L/logo.svg`;
+
+		// Foto do GM: preview + guarda como data URL pra mandar no cadastro.
+		let photoDataUrl = '';
+		const photoInput = document.getElementById('photoInput');
+		document.getElementById('photoCircle').addEventListener('click', () => photoInput.click());
+		photoInput.addEventListener('change', () => {
+			const file = photoInput.files[0];
+			if (!file) return;
+			const reader = new FileReader();
+			reader.onload = () => {
+				photoDataUrl = reader.result;
+				const img = document.getElementById('photoPreview');
+				img.src = photoDataUrl;
+				img.style.display = 'block';
+				document.getElementById('photoIcon').style.display = 'none';
+			};
+			reader.readAsDataURL(file);
+		});
+
+		// Time da NBA: mostra o logo e a conferência do time escolhido.
+		document.getElementById('nbaTeamSelect').addEventListener('change', (e) => {
+			const id = parseInt(e.target.value, 10);
+			const team = NBA_TEAMS.find(t => t.id === id);
+			const box = document.getElementById('nbaPreview');
+			if (!team) { box.classList.remove('show'); return; }
+			document.getElementById('nbaPreviewLogo').src = NBA_LOGO(team.id);
+			document.getElementById('nbaPreviewName').textContent = `${team.city} ${team.name}`;
+			document.getElementById('nbaPreviewConf').textContent = team.conference === 'LESTE' ? 'Conferência Leste' : 'Conferência Oeste';
+			box.classList.add('show');
+		});
+
 		document.getElementById('form-register').addEventListener('submit', async (e) => {
 			e.preventDefault();
 			const formData = new FormData(e.target);
+			const nbaTeamId = formData.get('nba_team_id');
+			if (!nbaTeamId) {
+				document.getElementById('register-message').innerHTML = `<div class="alert alert-danger">Escolha um time da NBA.</div>`;
+				return;
+			}
 			const data = {
 				name: formData.get('name'),
 				email: formData.get('email'),
 				password: formData.get('password'),
 				phone: (formData.get('phone') || '').replace(/\D/g, ''),
+				photo_url: photoDataUrl,
+				nba_team_id: nbaTeamId,
 				waitlist_token: <?= json_encode($token) ?>
 			};
 			const msgEl = document.getElementById('register-message');
@@ -202,6 +301,7 @@ if ($token !== '') {
 				setTimeout(() => { window.location.href = '/login.php'; }, 1500);
 			} catch (err) {
 				msgEl.innerHTML = `<div class="alert alert-danger">${err.error || 'Erro ao cadastrar'}</div>`;
+				if (err.reload) setTimeout(() => window.location.reload(), 1800);
 			}
 		});
 	</script>
