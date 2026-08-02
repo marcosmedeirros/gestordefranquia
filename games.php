@@ -165,7 +165,8 @@ $statusDiario = [
     'termo'     => jogouHoje($pdo, "SELECT 1 FROM termo_historico WHERE id_usuario=? AND data_jogo=? LIMIT 1", [$userId, $hoje]),
     'memoria'   => jogouHoje($pdo, "SELECT 1 FROM memoria_historico WHERE id_usuario=? AND data_jogo=? AND status<>'jogando' LIMIT 1", [$userId, $hoje]),
     'bomba'     => jogouHoje($pdo, "SELECT 1 FROM bomba_historico WHERE id_usuario=? AND data_jogo=? AND status<>'jogando' LIMIT 1", [$userId, $hoje]),
-    'quemsoueu' => jogouHoje($pdo, "SELECT 1 FROM quemsoueu_partidas WHERE id_usuario=? AND data_jogo=? AND concluido=1 LIMIT 1", [$userId, $hoje]),
+    // concluido_em é gravado tanto no acerto quanto ao esgotar as 8 tentativas
+    'quemsoueu' => jogouHoje($pdo, "SELECT 1 FROM quemsoueu_partidas WHERE id_usuario=? AND data_jogo=? AND concluido_em IS NOT NULL LIMIT 1", [$userId, $hoje]),
     'boxnba'    => jogouHoje($pdo, "SELECT 1 FROM boxnba_historico WHERE id_usuario=? AND data_jogo=? AND (concluido=1 OR desistiu=1) LIMIT 1", [$userId, $hoje]),
 ];
 
@@ -183,9 +184,11 @@ foreach (['termo' => 'termo_historico', 'memoria' => 'memoria_historico'] as $jo
     } catch (Throwable $e) {}
 }
 
-$diariosConhecidos = array_filter($statusDiario, fn($v) => $v !== null);
-$diariosFeitos = count(array_filter($diariosConhecidos));
-$diariosTotal  = count($diariosConhecidos);
+// O denominador é o número de jogos diários do catálogo, sempre. As tabelas
+// de histórico são criadas na primeira jogada, e o null de "tabela ainda não
+// existe" tirava o jogo da conta — a página mostrava 0/4 com 5 jogos na tela.
+$diariosFeitos = count(array_filter($statusDiario, fn($v) => $v === true));
+$diariosTotal  = count($statusDiario);
 
 // ── Ranking ─────────────────────────────────────────────────────────────────
 // Um SELECT só traz todo mundo; a separação Geral / por liga é feita em PHP,

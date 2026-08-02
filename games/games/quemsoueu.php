@@ -14,75 +14,49 @@ $MAX_TENTATIVAS = 8;
 $BASE_PONTOS_VITORIA = 100;
 $PONTOS_VITORIA = $BASE_PONTOS_VITORIA * getGamePointsMultiplier($pdo, 'quemsoueu');
 
-// ─── DATASET ────────────────────────────────────────────────────────────────
-// n=nome, t=time(sigla), pos=posição, h=altura(polegadas), age=idade, num=camisa
-$QSE_PLAYERS = [
-    ['id'=>1,  'n'=>'LeBron James',             't'=>'LAL','pos'=>'SF','h'=>81,'age'=>40,'num'=>23],
-    ['id'=>2,  'n'=>'Stephen Curry',            't'=>'GSW','pos'=>'PG','h'=>74,'age'=>37,'num'=>30],
-    ['id'=>3,  'n'=>'Kevin Durant',             't'=>'PHX','pos'=>'SF','h'=>83,'age'=>36,'num'=>35],
-    ['id'=>4,  'n'=>'Giannis Antetokounmpo',    't'=>'MIL','pos'=>'PF','h'=>83,'age'=>30,'num'=>34],
-    ['id'=>5,  'n'=>'Nikola Jokic',             't'=>'DEN','pos'=>'C', 'h'=>83,'age'=>30,'num'=>15],
-    ['id'=>6,  'n'=>'Luka Doncic',              't'=>'LAL','pos'=>'PG','h'=>79,'age'=>25,'num'=>7],
-    ['id'=>7,  'n'=>'Joel Embiid',              't'=>'PHI','pos'=>'C', 'h'=>84,'age'=>30,'num'=>21],
-    ['id'=>8,  'n'=>'Jayson Tatum',             't'=>'BOS','pos'=>'SF','h'=>80,'age'=>26,'num'=>0],
-    ['id'=>9,  'n'=>'Shai Gilgeous-Alexander',  't'=>'OKC','pos'=>'SG','h'=>79,'age'=>26,'num'=>2],
-    ['id'=>10, 'n'=>'Anthony Davis',            't'=>'LAL','pos'=>'PF','h'=>82,'age'=>31,'num'=>3],
-    ['id'=>11, 'n'=>'Kawhi Leonard',            't'=>'LAC','pos'=>'SF','h'=>79,'age'=>33,'num'=>2],
-    ['id'=>12, 'n'=>'Jimmy Butler',             't'=>'GSW','pos'=>'SF','h'=>79,'age'=>35,'num'=>4],
-    ['id'=>13, 'n'=>'Damian Lillard',           't'=>'MIL','pos'=>'PG','h'=>75,'age'=>34,'num'=>0],
-    ['id'=>14, 'n'=>'Kyrie Irving',             't'=>'DAL','pos'=>'PG','h'=>75,'age'=>32,'num'=>11],
-    ['id'=>15, 'n'=>'James Harden',             't'=>'LAC','pos'=>'PG','h'=>77,'age'=>35,'num'=>1],
-    ['id'=>16, 'n'=>'Devin Booker',             't'=>'PHX','pos'=>'SG','h'=>78,'age'=>28,'num'=>1],
-    ['id'=>17, 'n'=>'Trae Young',               't'=>'ATL','pos'=>'PG','h'=>73,'age'=>26,'num'=>11],
-    ['id'=>18, 'n'=>'Zion Williamson',          't'=>'NOP','pos'=>'PF','h'=>77,'age'=>24,'num'=>1],
-    ['id'=>19, 'n'=>'Donovan Mitchell',         't'=>'CLE','pos'=>'SG','h'=>74,'age'=>28,'num'=>45],
-    ['id'=>20, 'n'=>'Bam Adebayo',              't'=>'MIA','pos'=>'C', 'h'=>81,'age'=>27,'num'=>13],
-    ['id'=>21, 'n'=>'Ja Morant',                't'=>'MEM','pos'=>'PG','h'=>76,'age'=>25,'num'=>12],
-    ['id'=>22, 'n'=>'Karl-Anthony Towns',       't'=>'NYK','pos'=>'C', 'h'=>84,'age'=>29,'num'=>32],
-    ['id'=>23, 'n'=>'Jaylen Brown',             't'=>'BOS','pos'=>'SG','h'=>78,'age'=>28,'num'=>7],
-    ['id'=>24, 'n'=>'Tyrese Haliburton',        't'=>'IND','pos'=>'PG','h'=>77,'age'=>24,'num'=>0],
-    ['id'=>25, 'n'=>'Domantas Sabonis',         't'=>'SAC','pos'=>'C', 'h'=>81,'age'=>28,'num'=>11],
-    ['id'=>26, 'n'=>'Lauri Markkanen',          't'=>'UTA','pos'=>'PF','h'=>84,'age'=>27,'num'=>23],
-    ['id'=>27, 'n'=>'Evan Mobley',              't'=>'CLE','pos'=>'PF','h'=>84,'age'=>23,'num'=>4],
-    ['id'=>28, 'n'=>'Chet Holmgren',            't'=>'OKC','pos'=>'C', 'h'=>85,'age'=>23,'num'=>7],
-    ['id'=>29, 'n'=>'Victor Wembanyama',        't'=>'SAS','pos'=>'C', 'h'=>87,'age'=>21,'num'=>1],
-    ['id'=>30, 'n'=>'Paolo Banchero',           't'=>'ORL','pos'=>'PF','h'=>82,'age'=>22,'num'=>5],
-    ['id'=>31, 'n'=>'Franz Wagner',             't'=>'ORL','pos'=>'SF','h'=>81,'age'=>23,'num'=>21],
-    ['id'=>32, 'n'=>'Darius Garland',           't'=>'CLE','pos'=>'PG','h'=>73,'age'=>24,'num'=>10],
-    ['id'=>33, 'n'=>'Mikal Bridges',            't'=>'NYK','pos'=>'SF','h'=>79,'age'=>28,'num'=>25],
-    ['id'=>34, 'n'=>'OG Anunoby',               't'=>'NYK','pos'=>'SF','h'=>79,'age'=>27,'num'=>8],
-    ['id'=>35, 'n'=>'Jaren Jackson Jr.',        't'=>'MEM','pos'=>'PF','h'=>83,'age'=>25,'num'=>13],
-    ['id'=>36, 'n'=>'De\'Aaron Fox',            't'=>'SAC','pos'=>'PG','h'=>75,'age'=>27,'num'=>5],
-    ['id'=>37, 'n'=>'Anthony Edwards',          't'=>'MIN','pos'=>'SG','h'=>76,'age'=>23,'num'=>5],
-    ['id'=>38, 'n'=>'Klay Thompson',            't'=>'DAL','pos'=>'SG','h'=>79,'age'=>34,'num'=>31],
-    ['id'=>39, 'n'=>'Draymond Green',           't'=>'GSW','pos'=>'PF','h'=>79,'age'=>34,'num'=>23],
-    ['id'=>40, 'n'=>'Chris Paul',               't'=>'SAS','pos'=>'PG','h'=>72,'age'=>39,'num'=>3],
-    ['id'=>41, 'n'=>'Paul George',              't'=>'PHI','pos'=>'SF','h'=>80,'age'=>34,'num'=>8],
-    ['id'=>42, 'n'=>'Khris Middleton',          't'=>'MIL','pos'=>'SF','h'=>80,'age'=>33,'num'=>22],
-    ['id'=>43, 'n'=>'Jrue Holiday',             't'=>'BOS','pos'=>'SG','h'=>76,'age'=>34,'num'=>4],
-    ['id'=>44, 'n'=>'Rudy Gobert',              't'=>'MIN','pos'=>'C', 'h'=>85,'age'=>32,'num'=>27],
-    ['id'=>45, 'n'=>'Julius Randle',            't'=>'MIN','pos'=>'PF','h'=>81,'age'=>30,'num'=>30],
-    ['id'=>46, 'n'=>'CJ McCollum',              't'=>'NOP','pos'=>'SG','h'=>75,'age'=>33,'num'=>3],
-    ['id'=>47, 'n'=>'Jamal Murray',             't'=>'DEN','pos'=>'PG','h'=>76,'age'=>27,'num'=>27],
-    ['id'=>48, 'n'=>'Michael Porter Jr.',       't'=>'DEN','pos'=>'SF','h'=>82,'age'=>26,'num'=>1],
-    ['id'=>49, 'n'=>'Deandre Ayton',            't'=>'POR','pos'=>'C', 'h'=>84,'age'=>26,'num'=>2],
-    ['id'=>50, 'n'=>'Bradley Beal',             't'=>'PHX','pos'=>'SG','h'=>77,'age'=>31,'num'=>3],
-    ['id'=>51, 'n'=>'Tyler Herro',              't'=>'MIA','pos'=>'SG','h'=>76,'age'=>24,'num'=>14],
-    ['id'=>52, 'n'=>'Scottie Barnes',           't'=>'TOR','pos'=>'PF','h'=>81,'age'=>23,'num'=>4],
-    ['id'=>53, 'n'=>'Brandon Ingram',           't'=>'NOP','pos'=>'SF','h'=>81,'age'=>27,'num'=>14],
-    ['id'=>54, 'n'=>'Desmond Bane',             't'=>'MEM','pos'=>'SG','h'=>77,'age'=>26,'num'=>22],
-    ['id'=>55, 'n'=>'Alperen Sengun',           't'=>'HOU','pos'=>'C', 'h'=>82,'age'=>22,'num'=>28],
-    ['id'=>56, 'n'=>'Kobe Bryant',              't'=>'LAL','pos'=>'SG','h'=>78,'age'=>33,'num'=>24],
-    ['id'=>57, 'n'=>'Tim Duncan',               't'=>'SAS','pos'=>'PF','h'=>84,'age'=>36,'num'=>21],
-    ['id'=>58, 'n'=>'Dirk Nowitzki',            't'=>'DAL','pos'=>'PF','h'=>84,'age'=>37,'num'=>41],
-    ['id'=>59, 'n'=>'Shaquille O\'Neal',        't'=>'LAL','pos'=>'C', 'h'=>85,'age'=>31,'num'=>34],
-    ['id'=>60, 'n'=>'Allen Iverson',            't'=>'PHI','pos'=>'SG','h'=>71,'age'=>31,'num'=>3],
-    ['id'=>61, 'n'=>'Kevin Garnett',            't'=>'BOS','pos'=>'PF','h'=>83,'age'=>32,'num'=>5],
-    ['id'=>62, 'n'=>'Carmelo Anthony',          't'=>'NYK','pos'=>'SF','h'=>80,'age'=>28,'num'=>7],
-    ['id'=>63, 'n'=>'Dwyane Wade',              't'=>'MIA','pos'=>'SG','h'=>77,'age'=>27,'num'=>3],
-    ['id'=>64, 'n'=>'Russell Westbrook',        't'=>'OKC','pos'=>'PG','h'=>75,'age'=>23,'num'=>0],
-    ['id'=>65, 'n'=>'Vince Carter',             't'=>'TOR','pos'=>'SG','h'=>78,'age'=>23,'num'=>15],
-];
+// ─── DATASET: base oficial de jogadores (hoopgrid_players) ─────────────────
+// Palpites: jogadores ATUAIS com bio completa (time, posição, altura,
+// nascimento e camisa vêm da sincronização com a NBA). Alvo do dia: recorte
+// reconhecível — quem tem prêmio na carreira ou média de 12+ pontos.
+// t=time atual, pos=G/F/C (a base guarda a posição genérica), h=altura em
+// polegadas, age=idade real, num=camisa.
+$QSE_PLAYERS = [];
+$QSE_ALVOS   = [];
+try {
+    $stmt = $pdo->query("
+        SELECT id, nome, time_atual, posicao, altura, nascimento, numero_camisa,
+               (premios <> '[]' OR pts_medio >= 12) AS destaque
+        FROM hoopgrid_players
+        WHERE ativo = 1 AND time_atual IS NOT NULL AND posicao IS NOT NULL
+          AND altura IS NOT NULL AND nascimento IS NOT NULL AND numero_camisa IS NOT NULL
+        ORDER BY id ASC");
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        if (!preg_match('/^(\d+)-(\d+)$/', $r['altura'], $m)) continue;
+        $pos = strtoupper(implode('-', array_map(
+            fn($x) => $x[0] ?? '?',
+            explode('-', $r['posicao'])
+        ))); // Forward-Guard -> F-G
+        $idade = (int)((new DateTime($r['nascimento']))->diff(new DateTime('now'))->y);
+        $p = [
+            'id'  => (int)$r['id'],
+            'n'   => $r['nome'],
+            't'   => strtoupper(trim($r['time_atual'])),
+            'pos' => $pos,
+            'h'   => (int)$m[1] * 12 + (int)$m[2],
+            'age' => $idade,
+            'num' => (int)$r['numero_camisa'],
+        ];
+        $QSE_PLAYERS[] = $p;
+        if ((int)$r['destaque'] === 1) $QSE_ALVOS[] = $p;
+    }
+} catch (PDOException $e) {}
+
+// Sem base carregada (tabela vazia/faltando), o jogo avisa em vez de quebrar.
+if (count($QSE_ALVOS) < 10) $QSE_ALVOS = $QSE_PLAYERS;
+if (count($QSE_PLAYERS) < 10) {
+    http_response_code(503);
+    die('A base de jogadores ainda não foi carregada — importe a hoopgrid_players.');
+}
 
 $playerById = [];
 foreach ($QSE_PLAYERS as $p) {
@@ -105,7 +79,7 @@ function qse_cmp($guessed, $target): string {
 
 // Selecionar jogador do dia (mesmo para todos os usuários)
 $dayHash       = abs(crc32($hoje . 'qse'));
-$targetPlayer  = $QSE_PLAYERS[$dayHash % count($QSE_PLAYERS)];
+$targetPlayer  = $QSE_ALVOS[$dayHash % count($QSE_ALVOS)];
 
 // Criar tabela
 try {
