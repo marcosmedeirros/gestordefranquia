@@ -174,10 +174,10 @@ window.revertPunishment = async function(id) {
 
 async function zerarPunicoesEAvisos(league) {
   if (!league) { alert('Selecione uma liga primeiro.'); return; }
-  if (!confirm(`Zerar todas as punições e avisos (FBA SERASA) ativos da ${league}? As punições ficam marcadas como revertidas no histórico, mas nenhum time da liga fica mais com aviso ou banimento vigente.`)) return;
+  if (!confirm(`Zerar todas as punições e avisos (FBA SERASA) da ${league}? Isso APAGA o histórico inteiro (inclusive punições antigas já revertidas) e limpa qualquer banimento vigente — não dá pra desfazer.`)) return;
   try {
     const data = await _pApi('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'reset_league', league }) });
-    _notify('success', `Zerado! ${data.reverted || 0} punição(ões)/aviso(s) revertidos.`);
+    _notify('success', `Zerado! ${data.apagados || 0} punição(ões)/aviso(s) apagados do histórico.`);
     if (typeof window.loadPunishments === 'function') {
       await window.loadPunishments({ league, teamId: _el('punicaoHistoryTeam')?.value || _el('punicaoTeam')?.value || '' });
     }

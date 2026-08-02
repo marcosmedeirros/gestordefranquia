@@ -2309,9 +2309,9 @@ try {
 
                 // Punições e avisos (FBA SERASA) também zeram a cada sprint nova —
                 // ninguém deveria começar a sprint carregando bagagem da anterior.
-                // (resetPunicoesEAvisosDaLiga cobre os avisos AVISO_TRADE/SERASA e
-                // as demais punições, revertendo em vez de apagar pra manter o
-                // histórico consultável, e limpa os banimentos vigentes.)
+                // (resetPunicoesEAvisosDaLiga apaga de vez o histórico de
+                // punições/avisos da liga, ativos e antigos, e limpa os
+                // banimentos vigentes.)
                 try {
                     require_once dirname(__DIR__) . '/backend/team_punishments.php';
                     resetPunicoesEAvisosDaLiga($pdo, $league, $user['id'] ?? null);

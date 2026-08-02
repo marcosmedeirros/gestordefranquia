@@ -7,13 +7,14 @@
  * não dá pra incluir como biblioteca sem disparar o gate dele.
  *
  * "Avisos"/FBA SERASA não é uma tabela separada — é o mesmo team_punishments
- * com type='AVISO_TRADE'. Zerar = marcar reverted_at em tudo que ainda está
- * ativo (reverted_at IS NULL), igual ao botão de reverter individual já faz,
- * preservando o histórico. Não mexe em picks perdidas por punição: no fim
- * de sprint o pool de picks inteiro da liga já é recriado do zero.
+ * com type='AVISO_TRADE'. Zerar = apagar de vez todo o histórico de
+ * punições/avisos da liga (ativos e já revertidos) — não é um revert em
+ * massa, é limpeza mesmo, sem deixar rastro pra trás. Não mexe em picks
+ * perdidas por punição: no fim de sprint o pool de picks inteiro da liga
+ * já é recriado do zero.
  */
 
-function resetPunicoesEAvisosDaLiga(PDO $pdo, string $league, ?int $revertedBy = null): array
+function resetPunicoesEAvisosDaLiga(PDO $pdo, string $league, ?int $triggeredBy = null): array
 {
     try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS team_punishments (
@@ -44,19 +45,18 @@ function resetPunicoesEAvisosDaLiga(PDO $pdo, string $league, ?int $revertedBy =
     $stmtCount = $pdo->prepare("
         SELECT COUNT(*) FROM team_punishments tp
         INNER JOIN teams t ON t.id = tp.team_id
-        WHERE t.league = ? AND tp.reverted_at IS NULL
+        WHERE t.league = ?
     ");
     $stmtCount->execute([$league]);
     $total = (int)$stmtCount->fetchColumn();
 
     if ($total > 0) {
-        $stmtRev = $pdo->prepare("
-            UPDATE team_punishments tp
+        $pdo->prepare("
+            DELETE tp FROM team_punishments tp
             INNER JOIN teams t ON t.id = tp.team_id
-            SET tp.reverted_at = NOW(), tp.reverted_by = ?
-            WHERE t.league = ? AND tp.reverted_at IS NULL
-        ");
-        $stmtRev->execute([$revertedBy, $league]);
+            WHERE t.league = ?
+        ")->execute([$league]);
+        error_log("[resetPunicoesEAvisosDaLiga] liga={$league} apagados={$total} por user_id=" . ($triggeredBy ?? 'sistema'));
     }
 
     // Limpa os banimentos vigentes (trades/picks/FA/rotação automática) —
@@ -68,5 +68,5 @@ function resetPunicoesEAvisosDaLiga(PDO $pdo, string $league, ?int $revertedBy =
             WHERE league = ?")->execute([$league]);
     } catch (Throwable $e) {}
 
-    return ['reverted' => $total];
+    return ['apagados' => $total];
 }
