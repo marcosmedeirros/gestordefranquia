@@ -96,6 +96,25 @@ document.getElementById('btn-save-appearance')?.addEventListener('click', async 
   }
 });
 
+// Notificações: manda a lista do que ficou DESMARCADO (o resto continua ligado).
+document.getElementById('btn-save-notifs')?.addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const off = Array.from(document.querySelectorAll('.notif-check'))
+    .filter(c => !c.checked)
+    .map(c => c.dataset.key);
+
+  btn.disabled = true;
+  try {
+    await api('user.php', { method: 'POST', body: JSON.stringify({ notif_off: off }) });
+    const antes = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check2"></i> Salvo!';
+    setTimeout(() => { btn.innerHTML = antes; btn.disabled = false; }, 1800);
+  } catch (err) {
+    btn.disabled = false;
+    alert(err.error || 'Erro ao salvar as notificações');
+  }
+});
+
 // Change password
 document.getElementById('btn-change-password')?.addEventListener('click', async () => {
   const form = document.getElementById('form-password');

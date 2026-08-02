@@ -513,6 +513,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        $estadoAntes = getEditWindow($pdo, $league)['open'];
+
         $sets = []; $params = [];
         if (isset($body['daily_cutoff_time'])) {
             $t = (string)$body['daily_cutoff_time'];
@@ -535,7 +537,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $params[] = $league;
             $pdo->prepare('UPDATE tactic_edit_windows SET ' . implode(', ', $sets) . ' WHERE league = ?')->execute($params);
         }
-        echo json_encode(['success' => true, 'window' => getEditWindow($pdo, $league)]);
+        $janela = getEditWindow($pdo, $league);
+
+        // Só avisa quando a janela realmente virou — mexer no horário de corte
+        // sem mudar o estado não gera push.
+        if ($janela['open'] !== $estadoAntes) {
+            require_once __DIR__ . '/../backend/push.php';
+            $aviso = $janela['open']
+                ? ['title' => '📋 Tática liberada na ' . $league,
+                   'body'  => 'A janela de edição da tática está aberta' .
+                              (!empty($janela['manual_open_until'])
+                                  ? ' até ' . date('d/m H:i', strtotime($janela['manual_open_until'])) . '.'
+                                  : ' até ' . $janela['daily_cutoff_time'] . '.'),
+                   'url'   => '/tatica.php']
+                : ['title' => '🔒 Tática fechada na ' . $league,
+                   'body'  => 'A janela de edição da tática foi fechada. O que estava salvo é o que vale.',
+                   'url'   => '/tatica.php'];
+            sendPushToLeague($pdo, $league, $aviso, 'tatica');
+        }
+
+        echo json_encode(['success' => true, 'window' => $janela]);
         exit;
     }
 

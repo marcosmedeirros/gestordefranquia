@@ -84,7 +84,7 @@ function notifyNextPick(PDO $pdo, int $teamId, int $round, int $pickPosition): v
         'body'       => "Rodada {$round} · Pick #{$pickPosition} — Você tem 30 min para escolher.",
         'url'        => '/drafts.php',
         'primaryKey' => 'draft_pick_' . $teamId . '_' . $round . '_' . $pickPosition,
-    ]);
+    ], 'draft');
 }
 
 // Na primeira vez que a sessão chega na rodada 2, liga o relógio de 20min (idempotente —

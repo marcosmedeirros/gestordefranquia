@@ -1270,11 +1270,16 @@ try {
         // =====================================================
         
         case 'get_seasons':
-            // Lista temporadas para selects
+            // Lista temporadas para selects.
+            // sprint_number vive em `sprints`, não em `seasons` — sem o JOIN a
+            // query morria com "Unknown column 'sprint_number'" e o select do
+            // Histórico de Pontos ficava vazio.
             $stmt = $pdo->query("
-                SELECT id, sprint_number, season_number, year, status
-                FROM seasons
-                ORDER BY year DESC, sprint_number DESC, season_number DESC
+                SELECT s.id, COALESCE(sp.sprint_number, 1) AS sprint_number,
+                       s.season_number, s.year, s.status
+                FROM seasons s
+                LEFT JOIN sprints sp ON sp.id = s.sprint_id
+                ORDER BY s.year DESC, sprint_number DESC, s.season_number DESC
             ");
             $seasons = $stmt->fetchAll(PDO::FETCH_ASSOC);
             

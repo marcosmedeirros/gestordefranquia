@@ -4,6 +4,7 @@ require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/salary_cap.php';
 require_once __DIR__ . '/backend/pendencias.php';
+require_once __DIR__ . '/backend/team-feed-helpers.php'; // FEED_DATA_CORTE + tabelas do feed
 requireAuth();
 
 $user = getUserSession();
@@ -187,6 +188,107 @@ try {
 foreach ($leagueVideoCards as &$vcDef) { $vcDef['embed'] = resolveVideoEmbed($vcDef['url']); }
 unset($vcDef);
 
+// Roletas e drafts aleatórios abertos na liga do GM. Só aparece card quando
+// existe algo em andamento — não é um atalho fixo, é um aviso de "tem sorteio
+// rolando agora". Tudo em best-effort: a tabela pode nem existir no banco.
+$eventosSorteio = [];
+$ligaDoTime = strtoupper((string)($team['league'] ?? ''));
+if ($ligaDoTime !== '') {
+    try {
+        $stmtRol = $pdo->prepare("
+            SELECT r.id, r.titulo,
+                   COUNT(rp.id) AS total,
+                   SUM(rp.pick_number IS NOT NULL) AS sorteados
+            FROM roletas r
+            JOIN roleta_participantes rp ON rp.roleta_id = r.id
+            WHERE UPPER(r.league) = ?
+            GROUP BY r.id
+            HAVING total > 0 AND sorteados < total
+            ORDER BY r.created_at DESC
+            LIMIT 3");
+        $stmtRol->execute([$ligaDoTime]);
+        foreach ($stmtRol->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $eventosSorteio[] = [
+                'tipo'   => 'roleta',
+                'titulo' => $r['titulo'],
+                'href'   => '/roleta-editar.php?id=' . (int)$r['id'],
+                'icone'  => 'bi-dice-5-fill',
+                'feitas' => (int)$r['sorteados'],
+                'total'  => (int)$r['total'],
+                'rotulo' => 'Sorteio em andamento',
+            ];
+        }
+    } catch (Throwable $e) { /* roletas ainda não existe neste banco */ }
+
+    try {
+        $stmtDra = $pdo->prepare("
+            SELECT d.id, d.titulo,
+                   COUNT(dap.id) AS total,
+                   SUM(dap.player_name IS NOT NULL OR dap.skipped = 1) AS resolvidas
+            FROM drafts_aleatorios d
+            JOIN draft_aleatorio_picks dap ON dap.draft_id = d.id
+            WHERE UPPER(d.league) = ? AND d.finalizado_em IS NULL
+            GROUP BY d.id
+            HAVING total > 0 AND resolvidas < total
+            ORDER BY d.created_at DESC
+            LIMIT 3");
+        $stmtDra->execute([$ligaDoTime]);
+        foreach ($stmtDra->fetchAll(PDO::FETCH_ASSOC) as $d) {
+            $eventosSorteio[] = [
+                'tipo'   => 'draft',
+                'titulo' => $d['titulo'],
+                'href'   => '/draft-aleatorio.php?id=' . (int)$d['id'],
+                'icone'  => 'bi-shuffle',
+                'feitas' => (int)$d['resolvidas'],
+                'total'  => (int)$d['total'],
+                'rotulo' => 'Draft aleatório aberto',
+            ];
+        }
+    } catch (Throwable $e) { /* drafts_aleatorios ainda não existe neste banco */ }
+}
+
+// Último post da Timeline: o mais recente de quem o time segue. Sem ninguém
+// seguido (ou sem post de quem é seguido), mostra o mais recente da liga —
+// card vazio não convida ninguém a abrir a Timeline.
+$ultimoPost = null;
+$postDeQuemSigo = false;
+$meuTimeId = (int)($team['id'] ?? 0);
+$selectPost = "SELECT tp.id, tp.texto, tp.photo_url, tp.created_at,
+                      u.name AS autor, u.photo_url AS autor_foto,
+                      tm.city AS time_cidade, tm.name AS time_nome, tm.photo_url AS time_foto,
+                      (SELECT COUNT(*) FROM team_post_likes WHERE post_id = tp.id) AS curtidas
+               FROM team_posts tp
+               JOIN users u  ON u.id  = tp.author_user_id
+               JOIN teams tm ON tm.id = tp.team_id
+               WHERE tp.deleted_at IS NULL AND tp.created_at >= ?";
+
+// Dois try separados de propósito: team_follows é criada sob demanda pela
+// Timeline, então num banco onde ninguém abriu a Timeline ainda a 1ª consulta
+// explode — e num try só isso levaria embora também o fallback da liga.
+if ($meuTimeId) {
+    try {
+        $stmtPost = $pdo->prepare($selectPost . "
+              AND tp.team_id IN (SELECT followed_team_id FROM team_follows WHERE follower_team_id = ?)
+              AND tp.team_id <> ?
+            ORDER BY tp.created_at DESC LIMIT 1");
+        $stmtPost->execute([FEED_DATA_CORTE, $meuTimeId, $meuTimeId]);
+        $ultimoPost = $stmtPost->fetch(PDO::FETCH_ASSOC) ?: null;
+        $postDeQuemSigo = (bool)$ultimoPost;
+    } catch (Throwable $e) {
+        error_log('dashboard post de quem sigo: ' . $e->getMessage());
+    }
+}
+
+if (!$ultimoPost && $ligaDoTime !== '') {
+    try {
+        $stmtPost = $pdo->prepare($selectPost . " AND tm.league = ? ORDER BY tp.created_at DESC LIMIT 1");
+        $stmtPost->execute([FEED_DATA_CORTE, $ligaDoTime]);
+        $ultimoPost = $stmtPost->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Throwable $e) {
+        error_log('dashboard último post da liga: ' . $e->getMessage());
+    }
+}
+
 // Tática não tem mais prazo de envio — só avisa aqui quando o admin fechou a
 // edição (corte diário ou toggle manual), pra o GM saber que não é hoje.
 $tacticEditClosed = false; $tacticEditReopensAt = null;
@@ -330,10 +432,28 @@ try {
     $s->execute([$team['league']]); $latestRumor = $s->fetch(PDO::FETCH_ASSOC);
 } catch (Exception $e) { error_log('dashboard latest_rumor: ' . $e->getMessage()); }
 
+// Vencedores da última temporada FECHADA — e só da sprint atual. Antes a busca
+// pegava a temporada mais recente da liga inteira, então no começo de uma sprint
+// o card ficava exibindo o campeão da sprint anterior como se fosse o atual.
+// Sem temporada fechada nesta sprint ainda, o card mostra "em breve".
 $lastChampion = null; $lastRunnerUp = null; $lastMVP = null; $lastSprintInfo = null;
 try {
-    $s = $pdo->prepare("SELECT sh.*, t1.id as champion_id, t1.city as champion_city, t1.name as champion_name, t1.photo_url as champion_photo, u1.name as champion_owner, t2.id as runner_up_id, t2.city as runner_up_city, t2.name as runner_up_name, t2.photo_url as runner_up_photo, u2.name as runner_up_owner FROM season_history sh LEFT JOIN teams t1 ON sh.champion_team_id = t1.id LEFT JOIN users u1 ON t1.user_id = u1.id LEFT JOIN teams t2 ON sh.runner_up_team_id = t2.id LEFT JOIN users u2 ON t2.user_id = u2.id WHERE sh.league = ? ORDER BY sh.season_number DESC, sh.sprint_number DESC, sh.season_id DESC LIMIT 1");
-    $s->execute([$team['league']]); $lastSprintInfo = $s->fetch();
+    $sprintIdAtual = (int)($sprintAtual['id'] ?? 0);
+    if (!$sprintIdAtual) {
+        $stmtSpFallback = $pdo->prepare("SELECT id FROM sprints WHERE league = ? ORDER BY sprint_number DESC, id DESC LIMIT 1");
+        $stmtSpFallback->execute([$team['league']]);
+        $sprintIdAtual = (int)($stmtSpFallback->fetchColumn() ?: 0);
+    }
+
+    $s = $pdo->prepare("SELECT sh.*, t1.id as champion_id, t1.city as champion_city, t1.name as champion_name, t1.photo_url as champion_photo, u1.name as champion_owner, t2.id as runner_up_id, t2.city as runner_up_city, t2.name as runner_up_name, t2.photo_url as runner_up_photo, u2.name as runner_up_owner
+                        FROM season_history sh
+                        INNER JOIN seasons se ON se.id = sh.season_id
+                        LEFT JOIN teams t1 ON sh.champion_team_id = t1.id LEFT JOIN users u1 ON t1.user_id = u1.id
+                        LEFT JOIN teams t2 ON sh.runner_up_team_id = t2.id LEFT JOIN users u2 ON t2.user_id = u2.id
+                        WHERE sh.league = ? AND se.sprint_id = ?
+                        ORDER BY sh.season_number DESC, sh.season_id DESC LIMIT 1");
+    $s->execute([$team['league'], $sprintIdAtual]);
+    $lastSprintInfo = $sprintIdAtual ? $s->fetch() : false;
     if ($lastSprintInfo) {
         if ($lastSprintInfo['champion_id']) $lastChampion = ['id'=>$lastSprintInfo['champion_id'],'city'=>$lastSprintInfo['champion_city'],'name'=>$lastSprintInfo['champion_name'],'photo_url'=>$lastSprintInfo['champion_photo'],'owner_name'=>$lastSprintInfo['champion_owner']];
         if ($lastSprintInfo['runner_up_id']) $lastRunnerUp = ['id'=>$lastSprintInfo['runner_up_id'],'city'=>$lastSprintInfo['runner_up_city'],'name'=>$lastSprintInfo['runner_up_name'],'photo_url'=>$lastSprintInfo['runner_up_photo'],'owner_name'=>$lastSprintInfo['runner_up_owner']];
@@ -786,9 +906,163 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
         .bc-link:hover { color: var(--red); }
 
+        /* ── Sorteios abertos na liga (roletas / drafts aleatórios) ── */
+        .sorteio-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+        .sorteio-item {
+            display: flex; align-items: center; gap: 12px; text-decoration: none;
+            background: var(--panel-2); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 12px 14px;
+            transition: border-color var(--t) var(--ease), background var(--t) var(--ease);
+        }
+        .sorteio-item:hover { border-color: var(--border-red); background: var(--panel-3); }
+        .sorteio-icone {
+            width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px;
+            background: var(--red-soft); color: var(--red);
+            display: flex; align-items: center; justify-content: center; font-size: 16px;
+        }
+        .sorteio-txt { flex: 1; min-width: 0; }
+        .sorteio-nome {
+            font-size: 13px; font-weight: 700; color: var(--text);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .sorteio-sub { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+        .sorteio-barra { height: 3px; border-radius: 999px; background: var(--panel-3); margin-top: 7px; overflow: hidden; }
+        .sorteio-barra > div { height: 100%; background: var(--red); border-radius: 999px; }
+        .sorteio-seta { color: var(--text-3); font-size: 14px; flex-shrink: 0; }
+        .sorteio-item:hover .sorteio-seta { color: var(--red); }
+
+        /* ── Último post da Timeline ── */
+        .tl-post {
+            display: flex; align-items: flex-start; gap: 12px; text-decoration: none;
+            background: var(--panel-2); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 14px;
+            transition: border-color var(--t) var(--ease), background var(--t) var(--ease);
+        }
+        .tl-post:hover { border-color: var(--border-red); background: var(--panel-3); }
+        .tl-post-foto {
+            width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%;
+            object-fit: cover; border: 1px solid var(--border-md);
+        }
+        .tl-post-txt { flex: 1; min-width: 0; }
+        .tl-post-topo { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+        .tl-post-autor { font-size: 13px; font-weight: 700; color: var(--text); }
+        .tl-post-time { font-size: 11.5px; color: var(--text-2); }
+        .tl-post-quando { font-size: 11px; color: var(--text-3); margin-left: auto; flex-shrink: 0; }
+        .tl-post-corpo {
+            font-size: 13px; line-height: 1.5; color: var(--text-2); margin: 6px 0 0;
+            overflow-wrap: anywhere;
+        }
+        .tl-post-pe { display: flex; align-items: center; gap: 14px; margin-top: 8px; font-size: 11px; color: var(--text-3); }
+        .tl-post-pe i { color: var(--red); }
+        .tl-post-dica i { color: var(--text-3); }
+        .tl-post-img {
+            width: 96px; height: 96px; flex-shrink: 0; border-radius: var(--radius-xs);
+            object-fit: cover; border: 1px solid var(--border);
+        }
+        @media (max-width: 560px) {
+            .tl-post-img { width: 64px; height: 64px; }
+            .tl-post-quando { margin-left: 0; }
+        }
+
         /* ── Vídeos da liga (Progression / Sistemas / Free Agency) ── */
         .prog-video-wrap { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden; background: #000; }
         .prog-video-wrap:fullscreen { aspect-ratio: unset; border-radius: 0; }
+
+        /* ── Player próprio por cima do YouTube ──
+           O iframe fica no fundo com os controles deles desligados; o .yt-escudo
+           cobre a área toda e engole o mouse, então o YouTube nunca recebe hover
+           e nunca mostra título, "Mais vídeos" nem a marca. Pausado ou no fim, a
+           .yt-capa tampa tudo — é ali que a interface deles apareceria. */
+        /* O YouTube escolhe a resolução pelo tamanho em que o player está
+           desenhado — num card de ~270px ele entrega 240p e a imagem fica
+           borrada. Então o iframe é sempre montado em 1280x720 e reduzido por
+           transform: o YouTube vê um player grande e manda HD, e o HD reduzido
+           fica bem mais nítido que um SD esticado. --yt-escala é recalculada
+           pelo JS a cada mudança de tamanho (inclusive ao abrir o popup). */
+        .yt-wrap .yt-mount, .yt-wrap iframe {
+            position: absolute; top: 0; left: 0; border: 0;
+            width: 1280px; height: 720px;
+            transform-origin: 0 0;
+            transform: scale(var(--yt-escala, 1));
+        }
+        .yt-escudo { position: absolute; inset: 0; z-index: 2; cursor: pointer; background: transparent; }
+        .yt-capa {
+            position: absolute; inset: 0; z-index: 3; display: none;
+            align-items: center; justify-content: center;
+            background: #000; cursor: pointer;
+        }
+        .yt-capa.on { display: flex; }
+        .yt-play-grande {
+            width: 62px; height: 62px; border-radius: 50%; cursor: pointer;
+            background: var(--red); border: 0; color: #fff; font-size: 28px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 8px 28px rgba(0,0,0,.5); transition: transform .15s var(--ease);
+        }
+        .yt-capa:hover .yt-play-grande { transform: scale(1.08); }
+        .yt-barra {
+            position: absolute; left: 0; right: 0; bottom: 0; z-index: 4;
+            display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+            background: linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0));
+            opacity: 0; transition: opacity var(--t) var(--ease); pointer-events: none;
+        }
+        .yt-wrap:hover .yt-barra, .yt-wrap.pausado .yt-barra { opacity: 1; pointer-events: auto; }
+        .yt-wrap.carregando .yt-barra { opacity: 0 !important; }
+        .yt-btn {
+            background: transparent; border: 0; color: #fff; cursor: pointer;
+            font-size: 17px; line-height: 1; padding: 2px 4px; flex-shrink: 0;
+            display: flex; align-items: center; transition: color .15s;
+        }
+        .yt-btn:hover { color: var(--red); }
+        .yt-trilha {
+            position: relative; flex: 1; height: 5px; border-radius: 999px; cursor: pointer;
+            background: rgba(255,255,255,.22); overflow: hidden;
+        }
+        .yt-buffer   { position: absolute; inset: 0 auto 0 0; width: 0; background: rgba(255,255,255,.18); }
+        .yt-preenche { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--red); }
+        .yt-tempo {
+            font-size: 11.5px; font-weight: 600; color: #fff; flex-shrink: 0;
+            font-variant-numeric: tabular-nums; letter-spacing: .2px;
+        }
+
+        /* Tela cheia como popup: o próprio card do vídeo vira uma janela
+           centralizada. Fazer assim, em vez de mover o elemento pra dentro de
+           um modal, é o que mantém o iframe do YouTube tocando — trocar o pai
+           de um iframe recarrega ele e o vídeo volta pro começo. E como o
+           popup É o card, a captura recorta exatamente ele. */
+        .vid-pop-fundo { position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 900; display: none; }
+        .vid-pop-fundo.on { display: block; }
+        /* Qualquer ancestral com transform vira o "viewport" de um filho
+           position:fixed — e o card .bc tem a animação fadeUp, que deixa um
+           transform residual. Sem zerar isso, o popup abria descentralizado
+           (ancorado no card, não na tela). */
+        .vid-pop-solto { transform: none !important; animation: none !important; filter: none !important; }
+        .prog-video-wrap.vid-pop {
+            position: fixed; z-index: 901;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            /* A largura já respeita a altura disponível (78vh × 16/9), então a
+               caixa fica exatamente 16:9 — com max-height a altura era cortada
+               e sobrava tarja preta dos lados. */
+            width: min(94vw, 1280px, calc(78vh * 16 / 9)); aspect-ratio: 16/9;
+            border-radius: 12px; box-shadow: 0 30px 90px rgba(0,0,0,.65);
+        }
+        .vid-pop-barra {
+            position: fixed; z-index: 902; left: 50%; transform: translateX(-50%);
+            bottom: max(18px, calc(11vh - 46px));
+            display: none; align-items: center; gap: 10px;
+            background: var(--panel); border: 1px solid var(--border-md);
+            border-radius: 999px; padding: 8px 10px; box-shadow: 0 12px 30px rgba(0,0,0,.5);
+        }
+        .vid-pop-barra.on { display: flex; }
+        .vid-pop-barra button {
+            display: inline-flex; align-items: center; gap: 7px;
+            background: transparent; border: 1px solid var(--border-md); color: var(--text-2);
+            border-radius: 999px; padding: 8px 15px; font-family: var(--font);
+            font-size: 12.5px; font-weight: 700; cursor: pointer; transition: all .15s;
+        }
+        .vid-pop-barra button:hover { border-color: var(--red); color: var(--red); background: var(--red-soft); }
+        .vid-pop-barra button.ok { border-color: var(--green); color: var(--green); }
+        .vid-pop-titulo { font-size: 12px; color: var(--text-3); padding: 0 6px 0 10px; max-width: 240px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .prog-video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
         video.prog-video { object-fit: contain; }
         .prog-video-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
@@ -801,7 +1075,12 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
         .vid-action-btn:hover { border-color: var(--red); color: var(--red); background: var(--panel-3); }
         .vid-action-btn.copied { background: var(--green); border-color: var(--green); color: #fff; }
-        .prog-video-hint { font-size: 11px; color: var(--text-3); line-height: 1.4; margin-top: 8px; }
+        /* No celular o print sai fora: getDisplayMedia não existe em navegador
+           móvel, então o botão só levaria a um erro. Print de tela nativo
+           resolve melhor ali. */
+        @media (max-width: 768px), (pointer: coarse) {
+            .vid-action-btn[data-action="capture"], #vidPopCapturar { display: none !important; }
+        }
         .prog-video-placeholder { background: var(--panel-2); border: 1px dashed var(--border-md); }
         .prog-placeholder-inner { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-3); }
         .prog-placeholder-inner i { font-size: 26px; }
@@ -1242,6 +1521,129 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             <!-- Bento grid -->
             <div class="bento">
 
+                <?php if ($eventosSorteio): ?>
+                <!-- ── Sorteios abertos na liga ── -->
+                <div class="bc span-3" style="animation-delay:.22s">
+                    <div class="bc-head">
+                        <div class="bc-title"><i class="bi bi-dice-5-fill"></i> Rolando na <?= htmlspecialchars($ligaDoTime) ?></div>
+                    </div>
+                    <div class="bc-body">
+                        <div class="sorteio-lista">
+                            <?php foreach ($eventosSorteio as $ev):
+                                $pct = $ev['total'] ? round(($ev['feitas'] / $ev['total']) * 100) : 0; ?>
+                            <a class="sorteio-item" href="<?= htmlspecialchars($ev['href']) ?>">
+                                <div class="sorteio-icone"><i class="bi <?= $ev['icone'] ?>"></i></div>
+                                <div class="sorteio-txt">
+                                    <div class="sorteio-nome"><?= htmlspecialchars($ev['titulo']) ?></div>
+                                    <div class="sorteio-sub"><?= htmlspecialchars($ev['rotulo']) ?> · <?= $ev['feitas'] ?>/<?= $ev['total'] ?></div>
+                                    <div class="sorteio-barra"><div style="width:<?= $pct ?>%"></div></div>
+                                </div>
+                                <i class="bi bi-arrow-right sorteio-seta"></i>
+                            </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($ultimoPost): ?>
+                <!-- ── Último post da Timeline ── -->
+                <div class="bc span-3" style="animation-delay:.24s">
+                    <div class="bc-head">
+                        <div class="bc-title"><i class="bi bi-chat-quote-fill"></i> <?= $postDeQuemSigo ? 'Da sua Timeline' : 'Movimento na ' . htmlspecialchars($ligaDoTime) ?></div>
+                        <a href="/timeline.php" class="bc-link">Ver timeline <i class="bi bi-arrow-right"></i></a>
+                    </div>
+                    <div class="bc-body">
+                        <a class="tl-post" href="/timeline.php">
+                            <img class="tl-post-foto" src="<?= htmlspecialchars($ultimoPost['autor_foto'] ?: ($ultimoPost['time_foto'] ?: '/img/default-team.png')) ?>" alt="">
+                            <div class="tl-post-txt">
+                                <div class="tl-post-topo">
+                                    <span class="tl-post-autor"><?= htmlspecialchars($ultimoPost['autor']) ?></span>
+                                    <span class="tl-post-time"><?= htmlspecialchars(trim($ultimoPost['time_cidade'] . ' ' . $ultimoPost['time_nome'])) ?></span>
+                                    <span class="tl-post-quando"><?= htmlspecialchars(tempoRelativoCurto($ultimoPost['created_at'])) ?></span>
+                                </div>
+                                <?php if (trim((string)$ultimoPost['texto']) !== ''): ?>
+                                <p class="tl-post-corpo"><?= nl2br(htmlspecialchars(mb_strimwidth(trim($ultimoPost['texto']), 0, 240, '…'))) ?></p>
+                                <?php endif; ?>
+                                <div class="tl-post-pe">
+                                    <?php if ((int)$ultimoPost['curtidas'] > 0): ?>
+                                    <span><i class="bi bi-heart-fill"></i> <?= (int)$ultimoPost['curtidas'] ?></span>
+                                    <?php endif; ?>
+                                    <?php if (!$postDeQuemSigo): ?>
+                                    <span class="tl-post-dica"><i class="bi bi-person-plus"></i> Siga times na Timeline pra ver o feed deles aqui</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <?php if (!empty($ultimoPost['photo_url'])): ?>
+                            <img class="tl-post-img" src="<?= htmlspecialchars($ultimoPost['photo_url']) ?>" alt="">
+                            <?php endif; ?>
+                        </a>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php foreach ($leagueVideoCards as $vi => $vc): $embed = $vc['embed']; $key = $vc['key']; ?>
+                <!-- ── Vídeo: <?= htmlspecialchars($vc['title']) ?> ── -->
+                <div class="bc" style="animation-delay:<?= .36 + $vi * .03 ?>s">
+                    <div class="bc-head">
+                        <div class="bc-title"><i class="bi <?= $vc['icon'] ?>"></i> <?= htmlspecialchars($vc['title']) ?></div>
+                    </div>
+                    <div class="bc-body">
+                        <?php if (!$embed): ?>
+                        <div class="prog-video-wrap prog-video-placeholder">
+                            <div class="prog-placeholder-inner">
+                                <i class="bi bi-hourglass-split"></i>
+                                <span>Em breve</span>
+                            </div>
+                        </div>
+                        <?php elseif ($embed['type'] === 'direct'): ?>
+                        <div class="prog-video-wrap" id="wrap_<?= $key ?>">
+                            <video id="vid_<?= $key ?>" class="prog-video" controls playsinline preload="metadata" crossorigin="anonymous">
+                                <source src="<?= htmlspecialchars($embed['embed_url']) ?>">
+                            </video>
+                        </div>
+                        <?php elseif ($embed['type'] === 'youtube'): ?>
+                        <?php /* Player próprio: o iframe fica atrás de um escudo que
+                                come todo o mouse, então a interface do YouTube nunca
+                                é acionada. Controles, progresso e capa são nossos. */ ?>
+                        <div class="prog-video-wrap yt-wrap" id="wrap_<?= $key ?>"
+                             data-yt="<?= htmlspecialchars($embed['video_id'], ENT_QUOTES, 'UTF-8') ?>"
+                             data-key="<?= $key ?>">
+                            <div class="yt-mount" id="ytmount_<?= $key ?>"></div>
+                            <div class="yt-escudo"></div>
+                            <div class="yt-capa on">
+                                <button type="button" class="yt-play-grande" aria-label="Reproduzir"><i class="bi bi-play-fill"></i></button>
+                            </div>
+                            <div class="yt-barra">
+                                <button type="button" class="yt-btn yt-toggle" aria-label="Reproduzir"><i class="bi bi-play-fill"></i></button>
+                                <div class="yt-trilha"><div class="yt-buffer"></div><div class="yt-preenche"></div></div>
+                                <span class="yt-tempo">0:00 / 0:00</span>
+                                <button type="button" class="yt-btn yt-mudo" aria-label="Silenciar"><i class="bi bi-volume-up-fill"></i></button>
+                            </div>
+                        </div>
+                        <?php elseif ($embed['type'] === 'iframe'): ?>
+                        <div class="prog-video-wrap" id="wrap_<?= $key ?>">
+                            <iframe class="prog-video" src="<?= htmlspecialchars($embed['embed_url']) ?>" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy" title="<?= htmlspecialchars($vc['title']) ?>"></iframe>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if ($embed && in_array($embed['type'], ['direct', 'iframe', 'youtube'], true)): ?>
+                        <div class="prog-video-actions">
+                            <button type="button" class="vid-action-btn" data-action="fullscreen" data-key="<?= $key ?>" data-titulo="<?= htmlspecialchars($vc['title'], ENT_QUOTES, 'UTF-8') ?>" title="Abrir grande"><i class="bi bi-arrows-fullscreen"></i></button>
+                            <button type="button" class="vid-action-btn" data-action="capture" data-key="<?= $key ?>" title="Tirar print do vídeo"><i class="bi bi-camera-fill"></i></button>
+                            <a class="vid-action-btn" href="<?= htmlspecialchars($embed['raw_url']) ?>" target="_blank" rel="noopener" title="Abrir em nova aba"><i class="bi bi-box-arrow-up-right"></i></a>
+                        </div>
+                        <?php elseif ($embed && $embed['type'] === 'link'): ?>
+                        <div class="empty">
+                            <i class="bi bi-play-circle" style="font-size:26px"></i>
+                            <p style="margin:8px 0 12px">Vídeo disponível como link externo.</p>
+                            <a href="<?= htmlspecialchars($embed['raw_url']) ?>" target="_blank" rel="noopener" class="btn-orange" style="display:inline-flex">Assistir</a>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+
                 <!-- ── Starters ── (full width) -->
                 <div class="bc span-3" style="animation-delay:.25s">
                     <div class="bc-head">
@@ -1345,12 +1747,12 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     </div>
                 </div>
 
-                <!-- ── Último Sprint ── -->
+                <!-- ── Última Temporada (só da sprint atual) ── -->
                 <div class="bc" style="animation-delay:.34s">
                     <div class="bc-head">
-                        <div class="bc-title"><i class="bi bi-award-fill"></i> Último Sprint</div>
+                        <div class="bc-title"><i class="bi bi-award-fill"></i> Última Temporada</div>
                         <?php if ($lastSprintInfo): ?>
-                        <span style="font-size:11px;color:var(--text-2)">Sprint <?= (int)($lastSprintInfo['sprint_number'] ?? 0) ?></span>
+                        <span style="font-size:11px;color:var(--text-2)">Temporada <?= (int)($lastSprintInfo['season_number'] ?? 0) ?></span>
                         <?php endif; ?>
                     </div>
                     <div class="bc-body">
@@ -1390,56 +1792,13 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                         </div>
                         <?php endif; ?>
                         <?php else: ?>
-                        <div class="empty"><i class="bi bi-award"></i><p>Vencedores após o 1º sprint</p></div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-
-                <?php foreach ($leagueVideoCards as $vi => $vc): $embed = $vc['embed']; $key = $vc['key']; ?>
-                <!-- ── Vídeo: <?= htmlspecialchars($vc['title']) ?> ── -->
-                <div class="bc" style="animation-delay:<?= .36 + $vi * .03 ?>s">
-                    <div class="bc-head">
-                        <div class="bc-title"><i class="bi <?= $vc['icon'] ?>"></i> <?= htmlspecialchars($vc['title']) ?></div>
-                    </div>
-                    <div class="bc-body">
-                        <?php if (!$embed): ?>
-                        <div class="prog-video-wrap prog-video-placeholder">
-                            <div class="prog-placeholder-inner">
-                                <i class="bi bi-hourglass-split"></i>
-                                <span>Em breve</span>
-                            </div>
-                        </div>
-                        <?php elseif ($embed['type'] === 'direct'): ?>
-                        <div class="prog-video-wrap" id="wrap_<?= $key ?>">
-                            <video id="vid_<?= $key ?>" class="prog-video" controls playsinline preload="metadata" crossorigin="anonymous">
-                                <source src="<?= htmlspecialchars($embed['embed_url']) ?>">
-                            </video>
-                        </div>
-                        <?php elseif ($embed['type'] === 'iframe'): ?>
-                        <div class="prog-video-wrap" id="wrap_<?= $key ?>">
-                            <iframe class="prog-video" src="<?= htmlspecialchars($embed['embed_url']) ?>" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy" title="<?= htmlspecialchars($vc['title']) ?>"></iframe>
-                        </div>
-                        <?php endif; ?>
-
-                        <?php if ($embed && ($embed['type'] === 'direct' || $embed['type'] === 'iframe')): ?>
-                        <div class="prog-video-actions">
-                            <button type="button" class="vid-action-btn" data-action="fullscreen" data-key="<?= $key ?>" title="Tela cheia"><i class="bi bi-arrows-fullscreen"></i></button>
-                            <button type="button" class="vid-action-btn" data-action="capture" data-key="<?= $key ?>" title="Capturar tela"><i class="bi bi-camera-fill"></i></button>
-                            <a class="vid-action-btn" href="<?= htmlspecialchars($embed['raw_url']) ?>" target="_blank" rel="noopener" title="Abrir no YouTube"><i class="bi bi-youtube"></i></a>
-                        </div>
-                        <?php if ($embed['type'] === 'iframe'): ?>
-                        <div class="prog-video-hint">A captura de tela vai pedir pra você compartilhar a tela — escolha "Esta guia/aba" na janela do navegador pra capturar certinho.</div>
-                        <?php endif; ?>
-                        <?php elseif ($embed && $embed['type'] === 'link'): ?>
-                        <div class="empty">
-                            <i class="bi bi-play-circle" style="font-size:26px"></i>
-                            <p style="margin:8px 0 12px">Vídeo disponível como link externo.</p>
-                            <a href="<?= htmlspecialchars($embed['raw_url']) ?>" target="_blank" rel="noopener" class="btn-orange" style="display:inline-flex">Assistir</a>
+                        <div class="empty"><i class="bi bi-hourglass-split"></i><p>Em breve</p>
+                            <span style="font-size:11px;color:var(--text-3)">Os vencedores aparecem quando a primeira temporada desta sprint fechar.</span>
                         </div>
                         <?php endif; ?>
                     </div>
                 </div>
-                <?php endforeach; ?>
+
 
                 <!-- ── Info da Liga ── -->
                 <div class="bc" style="animation-delay:.38s">
@@ -1742,6 +2101,17 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
     }
 
+    /**
+     * Captura só o retângulo de um elemento.
+     *
+     * O caminho bom é o Region Capture (CropTarget + track.cropTo): o próprio
+     * navegador recorta a transmissão no elemento, então sai exatamente o
+     * vídeo, não importa o que a pessoa escolheu compartilhar nem o zoom da
+     * página. Antes disso a conta era manual (retângulo do elemento × escala
+     * da janela) e só acertava se a pessoa escolhesse "Esta guia" — escolhendo
+     * a tela inteira ou outra janela, a imagem saía cortada no lugar errado.
+     * O caminho manual fica de reserva pra quem não tem a API.
+     */
     async function captureViaScreenShare(wrap, btn) {
         if (!navigator.mediaDevices?.getDisplayMedia) {
             alert('Seu navegador não suporta captura de tela. Tente um print manual.');
@@ -1749,29 +2119,53 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
         let stream;
         try {
-            stream = await navigator.mediaDevices.getDisplayMedia({ video: true, preferCurrentTab: true });
+            stream = await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                preferCurrentTab: true,
+                selfBrowserSurface: 'include',
+            });
         } catch (e) {
             return; // usuário cancelou o prompt
         }
         try {
+            const track = stream.getVideoTracks()[0];
+
+            let recortadoPeloNavegador = false;
+            if (window.CropTarget?.fromElement && typeof track.cropTo === 'function') {
+                try {
+                    await track.cropTo(await CropTarget.fromElement(wrap));
+                    recortadoPeloNavegador = true;
+                } catch (e) {
+                    // segue no recorte manual
+                }
+            }
+
             const tempVideo = document.createElement('video');
             tempVideo.muted = true;
             tempVideo.srcObject = stream;
             await tempVideo.play();
-            await new Promise(r => setTimeout(r, 200)); // deixa um frame real renderizar
-
-            const rect = wrap.getBoundingClientRect();
-            const scaleX = tempVideo.videoWidth / window.innerWidth;
-            const scaleY = tempVideo.videoHeight / window.innerHeight;
+            await new Promise(r => setTimeout(r, 250)); // deixa um frame real renderizar
 
             const canvas = document.createElement('canvas');
-            canvas.width = Math.max(1, Math.round(rect.width * scaleX));
-            canvas.height = Math.max(1, Math.round(rect.height * scaleY));
-            canvas.getContext('2d').drawImage(
-                tempVideo,
-                rect.left * scaleX, rect.top * scaleY, rect.width * scaleX, rect.height * scaleY,
-                0, 0, canvas.width, canvas.height
-            );
+            const ctx = canvas.getContext('2d');
+
+            if (recortadoPeloNavegador) {
+                canvas.width = tempVideo.videoWidth;
+                canvas.height = tempVideo.videoHeight;
+                ctx.drawImage(tempVideo, 0, 0);
+            } else {
+                const rect = wrap.getBoundingClientRect();
+                const scaleX = tempVideo.videoWidth / window.innerWidth;
+                const scaleY = tempVideo.videoHeight / window.innerHeight;
+                canvas.width = Math.max(1, Math.round(rect.width * scaleX));
+                canvas.height = Math.max(1, Math.round(rect.height * scaleY));
+                ctx.drawImage(
+                    tempVideo,
+                    rect.left * scaleX, rect.top * scaleY, rect.width * scaleX, rect.height * scaleY,
+                    0, 0, canvas.width, canvas.height
+                );
+            }
+
             canvas.toBlob((blob) => {
                 if (!blob) { alert('Não consegui gerar a imagem capturada.'); return; }
                 flashCopiedBlob(btn, blob);
@@ -1783,6 +2177,235 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
     }
 
+    // ── Player próprio pros vídeos do YouTube ───────────────────────────────
+    // A API do YouTube é usada só como motor: controles deles desligados, um
+    // escudo transparente por cima pra nenhum evento de mouse chegar no iframe
+    // (é o hover que faz aparecer título, "Mais vídeos" e a marca), e capa preta
+    // sempre que o vídeo não está tocando — que é justamente quando a interface
+    // deles apareceria. O resultado é um player com a cara do app.
+    const ytPlayers = {};
+
+    function ytFormatarTempo(seg) {
+        seg = Math.max(0, Math.floor(seg || 0));
+        const m = Math.floor(seg / 60), s = seg % 60;
+        return m + ':' + String(s).padStart(2, '0');
+    }
+
+    function ytMontarUm(wrap) {
+        const key     = wrap.dataset.key;
+        const videoId = wrap.dataset.yt;
+        const capa     = wrap.querySelector('.yt-capa');
+        const escudo   = wrap.querySelector('.yt-escudo');
+        const btn      = wrap.querySelector('.yt-toggle');
+        const btnMudo  = wrap.querySelector('.yt-mudo');
+        const trilha   = wrap.querySelector('.yt-trilha');
+        const preenche = wrap.querySelector('.yt-preenche');
+        const buffer   = wrap.querySelector('.yt-buffer');
+        const tempo    = wrap.querySelector('.yt-tempo');
+
+        wrap.classList.add('carregando', 'pausado');
+
+        // Mantém o iframe de 1280x720 encaixado na caixa visível. Roda também
+        // quando o card vira popup, que muda de tamanho sem recarregar a página.
+        const ajustarEscala = () => {
+            const largura = wrap.clientWidth;
+            if (largura > 0) wrap.style.setProperty('--yt-escala', largura / 1280);
+        };
+        ajustarEscala();
+        // O popup muda o tamanho do card na mesma tacada em que troca a classe;
+        // guardar a função aqui deixa o vidPopAbrir/Fechar reajustar na hora,
+        // sem depender do momento em que o ResizeObserver resolve entregar.
+        wrap._ytAjustarEscala = ajustarEscala;
+        if (window.ResizeObserver) new ResizeObserver(ajustarEscala).observe(wrap);
+        else window.addEventListener('resize', ajustarEscala);
+
+        const player = new YT.Player('ytmount_' + key, {
+            videoId,
+            playerVars: {
+                controls: 0, disablekb: 1, modestbranding: 1, rel: 0,
+                iv_load_policy: 3, playsinline: 1, fs: 0, showinfo: 0,
+                vq: 'hd1080',
+            },
+            events: {
+                onReady: () => {
+                    wrap.classList.remove('carregando');
+                    pedirAltaQualidade();
+                    atualizar();
+                },
+                onStateChange: (e) => {
+                    if (e.data === YT.PlayerState.PLAYING) pedirAltaQualidade();
+                    const tocando = e.data === YT.PlayerState.PLAYING;
+                    wrap.classList.toggle('pausado', !tocando);
+                    // Capa só sai quando está de fato tocando: no BUFFERING o
+                    // YouTube desenha o spinner e o título dele por baixo.
+                    capa.classList.toggle('on', !tocando);
+                    btn.innerHTML = tocando ? '<i class="bi bi-pause-fill"></i>' : '<i class="bi bi-play-fill"></i>';
+                    btn.setAttribute('aria-label', tocando ? 'Pausar' : 'Reproduzir');
+                    if (e.data === YT.PlayerState.ENDED) { preenche.style.width = '100%'; }
+                },
+            },
+        });
+        ytPlayers[key] = player;
+
+        /**
+         * Pede a melhor resolução disponível.
+         *
+         * O YouTube decide a qualidade quase toda pelo tamanho em que o player
+         * está desenhado, e ignora o pedido quando não pode atender — por isso
+         * a chamada é só um empurrão, e o que garante HD de verdade é o card
+         * ocupar a largura toda (e o popup abrir em 16:9 grande).
+         */
+        function pedirAltaQualidade() {
+            try {
+                const niveis = player.getAvailableQualityLevels?.() || [];
+                const preferida = ['highres', 'hd2160', 'hd1440', 'hd1080', 'hd720']
+                    .find(q => niveis.includes(q));
+                if (preferida) player.setPlaybackQuality(preferida);
+            } catch (e) { /* API mudou ou ainda não respondeu — segue no automático */ }
+        }
+
+        function alternar() {
+            const st = player.getPlayerState?.();
+            if (st === YT.PlayerState.PLAYING) player.pauseVideo();
+            else player.playVideo();
+        }
+        escudo.addEventListener('click', alternar);
+        capa.addEventListener('click', alternar);
+        btn.addEventListener('click', alternar);
+
+        btnMudo.addEventListener('click', () => {
+            const mudo = player.isMuted?.();
+            if (mudo) player.unMute(); else player.mute();
+            btnMudo.innerHTML = mudo ? '<i class="bi bi-volume-up-fill"></i>' : '<i class="bi bi-volume-mute-fill"></i>';
+        });
+
+        function buscarPor(ev) {
+            const dur = player.getDuration?.() || 0;
+            if (!dur) return;
+            const r = trilha.getBoundingClientRect();
+            const frac = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+            player.seekTo(frac * dur, true);
+            preenche.style.width = (frac * 100) + '%';
+        }
+        trilha.addEventListener('click', buscarPor);
+
+        function atualizar() {
+            const dur = player.getDuration?.() || 0;
+            const cur = player.getCurrentTime?.() || 0;
+            if (dur > 0) {
+                preenche.style.width = ((cur / dur) * 100) + '%';
+                buffer.style.width = ((player.getVideoLoadedFraction?.() || 0) * 100) + '%';
+            }
+            tempo.textContent = ytFormatarTempo(cur) + ' / ' + ytFormatarTempo(dur);
+        }
+        setInterval(atualizar, 500);
+    }
+
+    (function ytIniciar() {
+        const wraps = document.querySelectorAll('.yt-wrap[data-yt]');
+        if (!wraps.length) return;
+
+        function montarTodos() { wraps.forEach(ytMontarUm); }
+
+        if (window.YT && window.YT.Player) { montarTodos(); return; }
+        // A API chama um callback global quando termina de carregar; encadeia
+        // com o que já existir pra não atropelar outro script da página.
+        const anterior = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = function () {
+            if (typeof anterior === 'function') anterior();
+            montarTodos();
+        };
+        if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+            const s = document.createElement('script');
+            s.src = 'https://www.youtube.com/iframe_api';
+            document.head.appendChild(s);
+        }
+    })();
+
+    // ── Popup do vídeo ──────────────────────────────────────────────────────
+    // O card do vídeo vira uma janela centralizada (sem sair do lugar no DOM,
+    // pra não recarregar o iframe) e ganha uma barra com capturar e fechar.
+    const vidPop = {
+        fundo: null,
+        barra: null,
+        wrap: null,
+        placeholder: null,
+    };
+
+    function vidPopMontar() {
+        if (vidPop.fundo) return;
+
+        vidPop.fundo = document.createElement('div');
+        vidPop.fundo.className = 'vid-pop-fundo';
+        vidPop.fundo.addEventListener('click', vidPopFechar);
+        document.body.appendChild(vidPop.fundo);
+
+        vidPop.barra = document.createElement('div');
+        vidPop.barra.className = 'vid-pop-barra';
+        vidPop.barra.innerHTML = `
+            <span class="vid-pop-titulo" id="vidPopTitulo"></span>
+            <button type="button" id="vidPopCapturar" title="Tira um print do vídeo e copia"><i class="bi bi-camera-fill"></i> Tirar print</button>
+            <button type="button" id="vidPopFechar"><i class="bi bi-x-lg"></i> Fechar</button>`;
+        document.body.appendChild(vidPop.barra);
+
+        vidPop.barra.querySelector('#vidPopFechar').addEventListener('click', vidPopFechar);
+        vidPop.barra.querySelector('#vidPopCapturar').addEventListener('click', (ev) => {
+            if (!vidPop.wrap) return;
+            const btn = ev.currentTarget;
+            const video = vidPop.wrap.querySelector('video.prog-video');
+            if (video) captureFromVideoEl(video, btn);
+            else captureViaScreenShare(vidPop.wrap, btn);
+        });
+    }
+
+    function vidPopAbrir(wrap, titulo) {
+        vidPopMontar();
+        if (vidPop.wrap) vidPopFechar();
+
+        // Guarda o lugar do card pra devolver do jeito que estava.
+        vidPop.placeholder = document.createElement('div');
+        vidPop.placeholder.style.cssText = 'width:100%;aspect-ratio:16/9;border-radius:10px;background:var(--panel-2)';
+        wrap.parentNode.insertBefore(vidPop.placeholder, wrap);
+
+        // Solta o popup de qualquer ancestral com transform/filter, senão o
+        // position:fixed passa a ser relativo a ele em vez de à tela.
+        vidPop.ancestrais = [];
+        for (let p = wrap.parentElement; p && p !== document.body; p = p.parentElement) {
+            const cs = getComputedStyle(p);
+            if (cs.transform !== 'none' || cs.filter !== 'none' || cs.perspective !== 'none') {
+                p.classList.add('vid-pop-solto');
+                vidPop.ancestrais.push(p);
+            }
+        }
+
+        vidPop.wrap = wrap;
+        wrap.classList.add('vid-pop');
+        vidPop.fundo.classList.add('on');
+        vidPop.barra.classList.add('on');
+        document.getElementById('vidPopTitulo').textContent = titulo || '';
+        document.body.style.overflow = 'hidden';
+        wrap._ytAjustarEscala?.();
+    }
+
+    function vidPopFechar() {
+        if (!vidPop.wrap) return;
+        const oQueFecha = vidPop.wrap;
+        vidPop.wrap.classList.remove('vid-pop');
+        (vidPop.ancestrais || []).forEach(p => p.classList.remove('vid-pop-solto'));
+        vidPop.ancestrais = [];
+        vidPop.placeholder?.remove();
+        vidPop.placeholder = null;
+        vidPop.wrap = null;
+        vidPop.fundo.classList.remove('on');
+        vidPop.barra.classList.remove('on');
+        document.body.style.overflow = '';
+        oQueFecha._ytAjustarEscala?.();
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && vidPop.wrap) vidPopFechar();
+    });
+
     document.querySelectorAll('.vid-action-btn[data-action]').forEach(btn => {
         btn.addEventListener('click', () => {
             const key = btn.dataset.key;
@@ -1790,8 +2413,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             if (!wrap) return;
 
             if (btn.dataset.action === 'fullscreen') {
-                const req = wrap.requestFullscreen || wrap.webkitRequestFullscreen;
-                if (req) req.call(wrap);
+                vidPopAbrir(wrap, btn.dataset.titulo);
                 return;
             }
 
@@ -1835,6 +2457,22 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 .rev-logo-btn:hover{color:var(--text);border-color:var(--red)}
 .rev-erro{margin-top:14px;padding:10px 13px;border-radius:var(--radius-sm);font-size:12.5px;display:none;
   background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.30);color:#ef4444}
+.rev-cor{margin-top:16px;padding:14px 15px;border-radius:var(--radius-sm);
+  border:1px solid var(--border-md);background:var(--panel-2)}
+.rev-cor-topo b{display:block;font-size:13px;font-weight:800;margin-bottom:3px}
+.rev-cor-topo b i{color:var(--red);margin-right:6px}
+.rev-cor-topo span{display:block;font-size:11.5px;color:var(--text-3);line-height:1.45}
+.rev-cor-lista{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0 9px}
+.rev-cor-bola{width:30px;height:30px;border-radius:50%;border:2px solid transparent;cursor:pointer;
+  padding:0;transition:transform .12s,border-color .12s;box-shadow:0 0 0 1px rgba(255,255,255,.10) inset}
+.rev-cor-bola:hover{transform:scale(1.12)}
+.rev-cor-bola.ativa{border-color:var(--text);transform:scale(1.12)}
+.rev-cor-custom{width:30px;height:30px;border-radius:50%;border:1px dashed var(--border-md);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-3);font-size:13px;position:relative}
+.rev-cor-custom:hover{border-color:var(--red);color:var(--red)}
+.rev-cor-custom input{position:absolute;inset:0;opacity:0;cursor:pointer;border:0;padding:0}
+.rev-cor-nota{font-size:11.5px;color:var(--text-3)}
+.rev-cor-nota b{color:var(--text-2)}
 .rev-actions{margin-top:20px}
 .rev-actions button{width:100%;padding:12px 16px;border-radius:var(--radius-sm);background:var(--red);border:none;
   color:#fff;font-family:var(--font);font-size:14px;font-weight:700;cursor:pointer}
@@ -1884,6 +2522,36 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
       </label>
     </div>
 
+    <!-- Cor de destaque: aproveita o popup pra mostrar que o recurso existe.
+         Clicar já recolore o app atrás do popup, então a pessoa vê o efeito
+         antes de confirmar. -->
+    <div class="rev-cor">
+      <div class="rev-cor-topo">
+        <b><i class="bi bi-palette-fill"></i> A cor do app é sua</b>
+        <span>Escolha o tom dos detalhes — menus, botões e destaques mudam junto.</span>
+      </div>
+      <div class="rev-cor-lista" id="revCores">
+        <?php
+        $accentAtual = strtolower((string)($user['accent_color'] ?? '#fc0025'));
+        $accentOpcoes = [
+            '#fc0025' => 'Vermelho FBA', '#f97316' => 'Laranja', '#eab308' => 'Dourado',
+            '#22c55e' => 'Verde',        '#06b6d4' => 'Ciano',   '#3b82f6' => 'Azul',
+            '#a855f7' => 'Roxo',         '#ec4899' => 'Rosa',
+        ];
+        foreach ($accentOpcoes as $hex => $nome):
+            $ativa = $accentAtual === $hex ? ' ativa' : '';
+        ?>
+        <button type="button" class="rev-cor-bola<?= $ativa ?>" data-cor="<?= $hex ?>"
+                style="background:<?= $hex ?>" title="<?= htmlspecialchars($nome) ?>" aria-label="<?= htmlspecialchars($nome) ?>"></button>
+        <?php endforeach; ?>
+        <label class="rev-cor-custom" title="Escolher outra cor">
+          <i class="bi bi-eyedropper"></i>
+          <input type="color" id="revCorCustom" value="<?= htmlspecialchars($accentAtual) ?>">
+        </label>
+      </div>
+      <span class="rev-cor-nota">Dá pra trocar quando quiser em <b>Minha Conta</b>.</span>
+    </div>
+
     <div class="rev-erro" id="revErro"></div>
     <div class="rev-actions">
       <button type="button" id="revSalvar"><i class="bi bi-check-lg me-1"></i>Confirmar e continuar</button>
@@ -1895,6 +2563,28 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
   let revFotoBase64 = '';
   const erro = document.getElementById('revErro');
   const btn = document.getElementById('revSalvar');
+
+  // Cor de destaque: aplica na hora em --red. Todo o resto do tema deriva
+  // dessa variável, então a página inteira já muda por trás do popup — é o
+  // jeito de mostrar o recurso em vez de só descrever.
+  const corPadrao = '<?= htmlspecialchars(strtolower((string)($user['accent_color'] ?? '#fc0025')), ENT_QUOTES, 'UTF-8') ?>';
+  let revCor = corPadrao;
+
+  function revAplicarCor(hex) {
+    revCor = hex;
+    document.documentElement.style.setProperty('--red', hex);
+    document.querySelectorAll('.rev-cor-bola').forEach(b => {
+      b.classList.toggle('ativa', b.dataset.cor === hex);
+    });
+  }
+
+  document.getElementById('revCores')?.addEventListener('click', (e) => {
+    const bola = e.target.closest('.rev-cor-bola');
+    if (bola) revAplicarCor(bola.dataset.cor);
+  });
+  document.getElementById('revCorCustom')?.addEventListener('input', (e) => {
+    revAplicarCor(e.target.value.toLowerCase());
+  });
 
   // Trava o scroll do dashboard atrás do modal (o modal rola sozinho).
   document.body.style.overflow = 'hidden';
@@ -1928,6 +2618,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
       email: document.getElementById('revEmail').value.trim(),
       photo_url: revFotoBase64,
     };
+
     if (!payload.name || !payload.city || !payload.mascot || !payload.gm_name || !payload.email) {
       erro.textContent = 'Preencha todos os campos antes de continuar.';
       erro.style.display = 'block';
@@ -1942,6 +2633,20 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Erro ao salvar.');
+
+      // A cor é do usuário, não do time — vai por outra rota. Se falhar, não
+      // segura a revisão: os dados do time já foram salvos e a cor pode ser
+      // ajustada depois em Minha Conta.
+      if (revCor !== corPadrao) {
+        try {
+          await fetch('/api/user.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accent_color: revCor }),
+          });
+        } catch (e) { /* silencioso de propósito */ }
+      }
+
       window.location.reload();
     } catch (e) {
       erro.textContent = e.message;

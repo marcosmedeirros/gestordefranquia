@@ -788,7 +788,11 @@ function resolveVideoEmbed(?string $url): ?array
     if ($url === '') return null;
 
     if (preg_match('#(?:youtube\.com/(?:watch\?v=|embed/|shorts/)|youtu\.be/)([A-Za-z0-9_-]{6,})#i', $url, $m)) {
-        return ['type' => 'iframe', 'embed_url' => 'https://www.youtube.com/embed/' . $m[1], 'raw_url' => $url];
+        // Tipo próprio: o dashboard monta um player nosso por cima (controles,
+        // barra de progresso e capa), com os controles do YouTube desligados.
+        // Não dá pra remover a marca do YouTube por parâmetro — o jeito é não
+        // deixar a interface deles aparecer.
+        return ['type' => 'youtube', 'video_id' => $m[1], 'embed_url' => null, 'raw_url' => $url];
     }
     if (preg_match('#vimeo\.com/(?:video/)?(\d+)#i', $url, $m)) {
         return ['type' => 'iframe', 'embed_url' => 'https://player.vimeo.com/video/' . $m[1], 'raw_url' => $url];
@@ -878,6 +882,13 @@ function ensureHallOfFameLeagueUnique(PDO $pdo): void
 {
     static $checked = false;
     if ($checked) {
+        return;
+    }
+    // DDL dentro de transação causa COMMIT implícito no MySQL — o commit() lá
+    // na frente morreria com "There is no active transaction" e a ação
+    // devolveria erro mesmo tendo gravado tudo. Quem chama dentro de uma
+    // transação tem que garantir o índice ANTES de abri-la.
+    if ($pdo->inTransaction()) {
         return;
     }
     try {
@@ -1175,6 +1186,64 @@ function getUserShortcuts(?string $stored): array {
     }
     $keys = array_slice($keys, 0, 4);
     return array_map(fn($k) => ['key' => $k] + $catalog[$k], $keys);
+}
+
+/**
+ * Tipos de notificação que o GM pode ligar/desligar em Minha Conta.
+ *
+ * A chave é o que os pontos de envio passam pro sendPushToUser(). Tudo nasce
+ * ligado: users.notif_off guarda só o que a pessoa DESLIGOU, então um tipo novo
+ * já vale pra todo mundo sem precisar de backfill.
+ */
+function getNotifCatalog(): array {
+    return [
+        'trade'       => ['label' => 'Trades',            'icon' => 'bi-arrow-left-right',    'desc' => 'Propostas recebidas, aceites, recusas e trades múltiplas.'],
+        'draft'       => ['label' => 'Draft',             'icon' => 'bi-trophy',              'desc' => 'Quando chegar a sua vez de escolher no draft.'],
+        'leilao'      => ['label' => 'Leilão',            'icon' => 'bi-hammer',              'desc' => 'Leilão novo na sua liga, proposta recebida e resultado.'],
+        'waiver'      => ['label' => 'Waivers',           'icon' => 'bi-clock-history',       'desc' => 'Jogador entrando nos waivers e resultado do seu claim.'],
+        'free_agency' => ['label' => 'Free Agency',       'icon' => 'bi-coin',                'desc' => 'Abertura da janela e resultado dos seus pedidos.'],
+        'tatica'      => ['label' => 'Tática',            'icon' => 'bi-clipboard2-pulse',    'desc' => 'Aviso quando a janela de edição da tática abre e fecha.'],
+        'cap'         => ['label' => 'CAP da liga',       'icon' => 'bi-graph-up-arrow',      'desc' => 'Recálculo do teto salarial da sua liga.'],
+        'eventos'     => ['label' => 'Roletas e sorteios','icon' => 'bi-shuffle',             'desc' => 'Roletas, draft de lendas e drafts aleatórios.'],
+    ];
+}
+
+/** Chaves desligadas pelo usuário (string "a,b,c" vinda de users.notif_off). */
+function getUserNotifOff(?string $stored): array {
+    $catalog = getNotifCatalog();
+    $keys = $stored ? array_filter(array_map('trim', explode(',', $stored))) : [];
+    return array_values(array_unique(array_filter($keys, fn($k) => isset($catalog[$k]))));
+}
+
+/** true quando o tipo está ligado pro usuário (ou quando não há tipo definido). */
+function userWantsNotif(PDO $pdo, int $userId, ?string $tipo): bool {
+    if ($tipo === null || $tipo === '') return true;
+    if (!isset(getNotifCatalog()[$tipo])) return true;
+
+    static $cache = [];
+    if (!array_key_exists($userId, $cache)) {
+        try {
+            $st = $pdo->prepare('SELECT notif_off FROM users WHERE id = ? LIMIT 1');
+            $st->execute([$userId]);
+            $cache[$userId] = getUserNotifOff($st->fetchColumn() ?: null);
+        } catch (Throwable $e) {
+            // Coluna ainda não migrada neste banco: manda tudo, como era antes.
+            $cache[$userId] = [];
+        }
+    }
+    return !in_array($tipo, $cache[$userId], true);
+}
+
+/** "agora", "12min", "3h", "2d" ou a data — pro carimbo de tempo dos cards. */
+function tempoRelativoCurto(?string $quando): string {
+    $ts = $quando ? strtotime($quando) : false;
+    if (!$ts) return '';
+    $seg = time() - $ts;
+    if ($seg < 60)     return 'agora';
+    if ($seg < 3600)   return floor($seg / 60) . 'min';
+    if ($seg < 86400)  return floor($seg / 3600) . 'h';
+    if ($seg < 604800) return floor($seg / 86400) . 'd';
+    return date('d/m', $ts);
 }
 
 function isValidAccentColor(?string $color): bool {

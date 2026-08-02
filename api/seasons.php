@@ -1745,6 +1745,10 @@ try {
                 }
             } catch (Exception $ignored) {}
 
+            // Índice do Hall da Fama: também é DDL, e o registro do campeão lá
+            // embaixo depende dele — tem que sair antes da transação abrir.
+            ensureHallOfFameLeagueUnique($pdo);
+
             // Garantir tabela de classificação (posição final de TODOS os times por temporada).
             // DDL causa commit implícito no MySQL, então roda antes de beginTransaction.
             $pdo->exec("CREATE TABLE IF NOT EXISTS season_standings (
@@ -2121,7 +2125,7 @@ try {
             $input = json_decode(file_get_contents('php://input'), true);
             $seasonId = isset($input['season_id']) ? (int)$input['season_id'] : 0;
             if (!$seasonId) throw new Exception('season_id é obrigatório');
-            $stmtAdv = $pdo->prepare("SELECT id, league FROM seasons WHERE id = ? LIMIT 1");
+            $stmtAdv = $pdo->prepare("SELECT id, league, season_number, year, sprint_id FROM seasons WHERE id = ? LIMIT 1");
             $stmtAdv->execute([$seasonId]);
             $advSeason = $stmtAdv->fetch(PDO::FETCH_ASSOC);
             if (!$advSeason) throw new Exception('Temporada não encontrada');
@@ -2129,6 +2133,21 @@ try {
             $stmtHistCheck = $pdo->prepare("SELECT id FROM season_history WHERE season_id = ? LIMIT 1");
             $stmtHistCheck->execute([$seasonId]);
             if (!$stmtHistCheck->fetch()) throw new Exception('Registre a pontuação antes de avançar a temporada');
+
+            // O checklist da temporada é a regra de fechamento: enquanto tiver
+            // item obrigatório pendente (times, loteria, draft, free agency,
+            // pontuação, playoffs) a temporada não avança. Antes ele era só um
+            // painel informativo e o avanço passava por cima de tudo.
+            $itensAdv = checklistDaTemporada($pdo, $advSeason['league'], $advSeason);
+            $pendentes = array_values(array_filter(
+                $itensAdv,
+                fn($i) => !empty($i['obrigatorio']) && ($i['feito'] ?? null) !== true
+            ));
+            if ($pendentes) {
+                $lista = implode(', ', array_map(fn($i) => mb_strtolower($i['titulo']), $pendentes));
+                throw new Exception('Ainda falta fechar: ' . $lista . '. Complete o checklist antes de avançar a temporada.');
+            }
+
             $pdo->prepare("UPDATE seasons SET status = 'completed' WHERE id = ?")->execute([$seasonId]);
             snapshotPlayersForSeason($pdo, $seasonId, $advSeason['league']);
             // Tática reabre automaticamente pra todos ao virar a temporada — remove
@@ -2290,6 +2309,9 @@ try {
 
                 // Punições e avisos (FBA SERASA) também zeram a cada sprint nova —
                 // ninguém deveria começar a sprint carregando bagagem da anterior.
+                // (resetPunicoesEAvisosDaLiga cobre os avisos AVISO_TRADE/SERASA e
+                // as demais punições, revertendo em vez de apagar pra manter o
+                // histórico consultável, e limpa os banimentos vigentes.)
                 try {
                     require_once dirname(__DIR__) . '/backend/team_punishments.php';
                     resetPunicoesEAvisosDaLiga($pdo, $league, $user['id'] ?? null);
@@ -2585,13 +2607,23 @@ try {
         default:
             throw new Exception('Ação inválida');
     }
+} catch (PDOException $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    // Falha de banco: mensagem genérica (não expõe SQL), detalhe só no log.
+    error_log('[seasons.php:' . $action . '] PDO: ' . $e->getMessage());
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
 } catch (Exception $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    // A mensagem genérica protege o usuário, mas engolir o motivo deixava
-    // qualquer falha aqui indiagnosticável. O log fica com o detalhe.
+    // Aqui caem as regras de negócio — todas lançadas com uma mensagem escrita
+    // pro admin ler ("informe o ano", "registre a pontuação antes"...). Trocar
+    // tudo por "Erro interno do servidor" deixava o admin sem saber o que
+    // corrigir e o bug indiagnosticável sem acesso ao log do servidor.
     error_log('[seasons.php:' . $action . '] ' . $e->getMessage());
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }

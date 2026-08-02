@@ -33,8 +33,12 @@ function getSessionByToken($pdo, $token) {
 
 function ensureAdminOrToken($session, $token) {
     global $isAdmin;
+    // Sem sessão não há o que autorizar: o admin passava direto mesmo com token
+    // inválido e o código seguinte acessava $session['id'] num false, soltando
+    // warning do PHP no meio do JSON em vez de um erro limpo.
+    if (!$session) return false;
     if ($isAdmin) return true;
-    return $session && hash_equals($session['access_token'], (string)$token);
+    return hash_equals($session['access_token'], (string)$token);
 }
 
 function ensureDailyScheduleColumns(PDO $pdo): void {

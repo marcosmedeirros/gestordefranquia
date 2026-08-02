@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../backend/config.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
+require_once __DIR__ . '/../backend/push.php';
 
 header('Content-Type: application/json');
 
@@ -1002,6 +1003,54 @@ function sellerItems(PDO $pdo, int $seller_team_id, ?int $league_id): void {
     echo json_encode(['success' => true, 'players' => $players, 'picks' => $picks]);
 }
 
+/**
+ * Nome do jogador em leilão — o real ou o temporário cadastrado na hora.
+ * Nunca lança: só serve pra montar texto de notificação.
+ */
+function nomeDoJogadorDoLeilao(PDO $pdo, int $leilao_id): string
+{
+    try {
+        $st = $pdo->prepare("SELECT l.temp_name, p.name
+                             FROM leilao_jogadores l
+                             LEFT JOIN players p ON p.id = l.player_id
+                             WHERE l.id = ? LIMIT 1");
+        $st->execute([$leilao_id]);
+        $r = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+        return (string)($r['name'] ?: $r['temp_name'] ?: 'Jogador');
+    } catch (Throwable $e) {
+        return 'Jogador';
+    }
+}
+
+/** Avisa a liga que um leilão entrou no ar (menos o time que colocou o jogador). */
+function notificarLeilaoAberto(PDO $pdo, int $leilao_id): void
+{
+    try {
+        $st = $pdo->prepare("SELECT league_id, team_id FROM leilao_jogadores WHERE id = ? LIMIT 1");
+        $st->execute([$leilao_id]);
+        $l = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$l) return;
+
+        $liga = getLeagueNameById($pdo, $l['league_id'] !== null ? (int)$l['league_id'] : null);
+        if (!$liga) return;
+
+        $exceto = [];
+        if (!empty($l['team_id'])) {
+            $su = $pdo->prepare("SELECT user_id FROM teams WHERE id = ? LIMIT 1");
+            $su->execute([(int)$l['team_id']]);
+            if ($uid = (int)($su->fetchColumn() ?: 0)) $exceto[] = $uid;
+        }
+
+        sendPushToLeague($pdo, $liga, [
+            'title' => '🔨 Novo leilão na ' . $liga,
+            'body'  => nomeDoJogadorDoLeilao($pdo, $leilao_id) . ' está no leilão. Você tem 20 min pra mandar sua oferta!',
+            'url'   => '/leilao.php',
+        ], 'leilao', $exceto);
+    } catch (Throwable $e) {
+        error_log('notificarLeilaoAberto #' . $leilao_id . ': ' . $e->getMessage());
+    }
+}
+
 function cadastrarLeilao($pdo, $body, $user_id) {
     $player_id = $body['player_id'] ?? null;
     $team_id = $body['team_id'] ?? null;
@@ -1062,7 +1111,12 @@ function cadastrarLeilao($pdo, $body, $user_id) {
             // ignora caso as colunas temporárias não existam por algum motivo
         }
     }
-    
+
+    // Pendente ainda não está no ar — quem avisa a liga é o iniciarLeilao().
+    if ($status === 'ativo') {
+        notificarLeilaoAberto($pdo, (int)$leilaoId);
+    }
+
     echo json_encode(['success' => true, 'leilao_id' => $leilaoId]);
 }
 
@@ -1078,6 +1132,7 @@ function iniciarLeilao($pdo, $body) {
     }
     $stmt = $pdo->prepare("UPDATE leilao_jogadores SET status = 'ativo', data_inicio = NOW(), data_fim = DATE_ADD(NOW(), INTERVAL 20 MINUTE) WHERE id = ?");
     $stmt->execute([$leilao_id]);
+    notificarLeilaoAberto($pdo, (int)$leilao_id);
     echo json_encode(['success' => true]);
 }
 
@@ -1304,6 +1359,23 @@ function enviarProposta($pdo, $body, $team_id, $league_id) {
         } catch (Throwable $e) { /* ignore — a proposta em si já foi salva */ }
 
         $pdo->commit();
+
+        // Fora da transação: avisa o dono do jogador leiloado que chegou oferta.
+        try {
+            if (!empty($leilao['team_id'])) {
+                $stNome = $pdo->prepare("SELECT CONCAT(city,' ',name) FROM teams WHERE id = ? LIMIT 1");
+                $stNome->execute([$team_id]);
+                $quem = (string)($stNome->fetchColumn() ?: 'Um time');
+                sendPushToTeam($pdo, (int)$leilao['team_id'], [
+                    'title' => '💰 Proposta no seu leilão',
+                    'body'  => "{$quem} fez uma oferta por " . nomeDoJogadorDoLeilao($pdo, (int)$leilao_id) . '.',
+                    'url'   => '/leilao.php',
+                ], 'leilao');
+            }
+        } catch (Throwable $e) {
+            error_log('push proposta leilao #' . $leilao_id . ': ' . $e->getMessage());
+        }
+
         echo json_encode(['success' => true, 'proposta_id' => $proposta_id]);
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -1567,10 +1639,31 @@ function _fecharLeilaoComEscolhida($pdo, int $leilao_id): ?string
         return 'Escolha uma proposta antes de fechar o leilao.';
     }
 
+    $nomeJogador = nomeDoJogadorDoLeilao($pdo, $leilao_id);
+
     $pdo->beginTransaction();
     try {
         _executarTrocaLeilao($pdo, $escolhida);
         $pdo->commit();
+
+        // Depois do commit: vencedor e vendedor sabem que a troca saiu.
+        try {
+            sendPushToTeam($pdo, (int)$escolhida['team_id'], [
+                'title' => '🏆 Leilão vencido!',
+                'body'  => "Sua proposta por {$nomeJogador} foi a escolhida. Ele já está no seu elenco.",
+                'url'   => '/leilao.php',
+            ], 'leilao');
+            if (!empty($escolhida['leilao_team_id'])) {
+                sendPushToTeam($pdo, (int)$escolhida['leilao_team_id'], [
+                    'title' => '✅ Leilão fechado',
+                    'body'  => "A troca de {$nomeJogador} foi executada.",
+                    'url'   => '/leilao.php',
+                ], 'leilao');
+            }
+        } catch (Throwable $e) {
+            error_log('push fecha leilao #' . $leilao_id . ': ' . $e->getMessage());
+        }
+
         return null;
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();

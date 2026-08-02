@@ -1,6 +1,17 @@
 <?php
-function sendPushToUser(PDO $pdo, int $userId, array $data): void
+require_once __DIR__ . '/helpers.php';
+
+/**
+ * Envia um push pro usuário.
+ *
+ * $tipo é uma chave de getNotifCatalog(). Quando informado, respeita o que o GM
+ * escolheu em Minha Conta. Sem tipo (ou tipo desconhecido) o envio é sempre
+ * feito — é o caso dos avisos internos pro admin.
+ */
+function sendPushToUser(PDO $pdo, int $userId, array $data, ?string $tipo = null): void
 {
+    if (!userWantsNotif($pdo, $userId, $tipo)) return;
+
     $autoload = dirname(__DIR__) . '/vendor/autoload.php';
     if (!file_exists($autoload)) {
         error_log('[push] vendor/autoload.php não encontrado — rode: composer install');
@@ -55,5 +66,48 @@ function sendPushToUser(PDO $pdo, int $userId, array $data): void
                 } catch (Exception $e) {}
             }
         }
+    }
+}
+
+/**
+ * Manda o mesmo aviso pra todos os GMs de uma liga.
+ *
+ * $exceto = user_ids que não devem receber (normalmente quem causou o evento).
+ * Nunca lança: notificação não pode derrubar a ação que a disparou.
+ */
+function sendPushToLeague(PDO $pdo, string $league, array $data, ?string $tipo = null, array $exceto = []): void
+{
+    try {
+        $st = $pdo->prepare("SELECT DISTINCT u.id
+                             FROM teams t JOIN users u ON u.id = t.user_id
+                             WHERE t.league = ? AND t.user_id IS NOT NULL");
+        $st->execute([strtoupper($league)]);
+        $userIds = $st->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Throwable $e) {
+        error_log('[push-liga] ' . $e->getMessage());
+        return;
+    }
+
+    $exceto = array_map('intval', $exceto);
+    foreach ($userIds as $uid) {
+        if (in_array((int)$uid, $exceto, true)) continue;
+        try {
+            sendPushToUser($pdo, (int)$uid, $data, $tipo);
+        } catch (Throwable $e) {
+            error_log('[push-liga] user_id=' . $uid . ' ' . $e->getMessage());
+        }
+    }
+}
+
+/** Aviso pro dono de um time (nada acontece se o time não tiver GM). */
+function sendPushToTeam(PDO $pdo, int $teamId, array $data, ?string $tipo = null): void
+{
+    try {
+        $st = $pdo->prepare('SELECT user_id FROM teams WHERE id = ? LIMIT 1');
+        $st->execute([$teamId]);
+        $uid = (int)($st->fetchColumn() ?: 0);
+        if ($uid) sendPushToUser($pdo, $uid, $data, $tipo);
+    } catch (Throwable $e) {
+        error_log('[push-time] team_id=' . $teamId . ' ' . $e->getMessage());
     }
 }

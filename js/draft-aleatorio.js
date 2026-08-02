@@ -6,15 +6,38 @@ const _daEsc = s => (s == null ? '' : String(s))
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 let daEstado = null;
+
+/** Segundos -> "12s" / "3m 05s" / "1h 02m". */
+function daTempo(seg) {
+  seg = Math.max(0, Math.round(Number(seg) || 0));
+  if (seg < 60) return seg + 's';
+  if (seg < 3600) return Math.floor(seg / 60) + 'm ' + String(seg % 60).padStart(2, '0') + 's';
+  return Math.floor(seg / 3600) + 'h ' + String(Math.floor((seg % 3600) / 60)).padStart(2, '0') + 'm';
+}
 let daPickAlvo = null; // pick sendo preenchida pelo modal (null = a da vez)
 
+// Trava de envio: enquanto uma ação de escrita está em voo, nenhuma outra sai.
+// Sem isso, clique duplo (ou Enter + clique) disparava duas requisições — a
+// segunda chegava depois da primeira já ter avançado a vez e acabava
+// registrando a escolha do GM seguinte junto, como se tivesse escolhido 2x.
+let daEmVoo = false;
+
 async function _daFetch(url, options = {}) {
-  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
-  const txt = await res.text();
-  let data;
-  try { data = JSON.parse(txt); } catch (e) { throw new Error('Resposta inválida do servidor'); }
-  if (!data.success) throw new Error(data.error || 'Erro desconhecido');
-  return data;
+  const ehEscrita = String(options.method || 'GET').toUpperCase() === 'POST';
+  if (ehEscrita) {
+    if (daEmVoo) throw new Error('Calma — a ação anterior ainda está sendo registrada.');
+    daEmVoo = true;
+  }
+  try {
+    const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+    const txt = await res.text();
+    let data;
+    try { data = JSON.parse(txt); } catch (e) { throw new Error('Resposta inválida do servidor'); }
+    if (!data.success) throw new Error(data.error || 'Erro desconhecido');
+    return data;
+  } finally {
+    if (ehEscrita) daEmVoo = false;
+  }
 }
 
 async function daCarregar() {
@@ -48,6 +71,20 @@ function daRenderTudo() {
 
   let html = `<div class="da-progress"><div style="width:${pct}%"></div></div>`;
 
+  // Liga do draft: decide quem vê o card no painel e na central. Só o admin
+  // das ligas que ele administra troca — a API confere de novo.
+  const ligasDa = d.minhas_ligas || [];
+  if (ligasDa.length) {
+    html += `
+    <div class="da-liga-box">
+      <span class="da-liga-label"><i class="bi bi-flag-fill"></i> Liga do draft</span>
+      <select id="daLiga">
+        ${ligasDa.map(l => `<option value="${_daEsc(l)}"${l === d.league ? ' selected' : ''}>${_daEsc(l)}</option>`).join('')}
+      </select>
+      <button type="button" class="btn-ghost" id="btnDaSalvarLiga">Salvar</button>
+    </div>`;
+  }
+
   if (d.finalizado) {
     html += `
     <div class="da-turno da-turno-ok">
@@ -62,10 +99,6 @@ function daRenderTudo() {
       <div class="da-turno-gm">${_daEsc(vez.nome_display)}${ehMinhaVez ? ' — é a sua vez!' : ''}</div>
       <div class="da-form-row">
         <input type="text" id="daNomeJogador" placeholder="Nome do jogador" maxlength="150">
-        <select id="daPosicaoJogador">
-          <option value="PG">PG</option><option value="SG">SG</option>
-          <option value="SF">SF</option><option value="PF">PF</option><option value="C">C</option>
-        </select>
         <button type="button" class="btn-orange" id="btnDaEscolher">Confirmar escolha</button>
         <button type="button" class="da-btn-pular" id="btnDaPular" data-gm="${_daEsc(vez.nome_display)}"><i class="bi bi-skip-forward-fill"></i> Pular escolha</button>
       </div>
@@ -86,6 +119,7 @@ function daRenderTudo() {
         <div class="card-head-left"><i class="bi bi-list-ol"></i><span>Quadro do Draft</span></div>
         <div style="display:flex;gap:8px">
           <button type="button" class="btn-ghost" id="btnDaCopiarLink"><i class="bi bi-link-45deg me-1"></i>Copiar link</button>
+          <button type="button" class="btn-ghost" id="btnDaCopiarEscolhas"><i class="bi bi-clipboard-check me-1"></i>Copiar escolhas</button>
           <button type="button" class="btn-ghost" id="btnDaCopiar"><i class="bi bi-clipboard me-1"></i>Copiar ordem</button>
         </div>
       </div>
@@ -99,7 +133,9 @@ function daRenderTudo() {
   on('btnDaFinalizar', daFinalizar);
   on('btnDaReabrir', daReabrir);
   on('btnDaCopiar', daCopiarOrdem);
+  on('btnDaCopiarEscolhas', daCopiarEscolhas);
   on('btnDaCopiarLink', daCopiarLink);
+  on('btnDaSalvarLiga', daSalvarLiga);
   const btnPular = document.getElementById('btnDaPular');
   if (btnPular) btnPular.addEventListener('click', () => daAbrirModalPular(btnPular.dataset.gm));
 
@@ -128,7 +164,6 @@ function daLinhaBoard(p, d) {
   let jogador;
   if (p.player_name) {
     jogador = `<i class="bi bi-check-circle-fill"></i><b>${_daEsc(p.player_name)}</b>`
-      + `<span class="da-row-meta">${_daEsc(p.player_position)}</span>`
       + (!d.finalizado ? `<button type="button" class="da-btn-desfazer" data-pick="${p.pick_number}" data-gm="${gm}" title="Desfazer escolha"><i class="bi bi-arrow-counterclockwise"></i></button>` : '');
   } else if (Number(p.skipped)) {
     jogador = `<span class="da-pulada"><i class="bi bi-skip-forward-fill"></i> Pulada</span>`
@@ -144,25 +179,30 @@ function daLinhaBoard(p, d) {
     ? `<button type="button" class="da-btn-editar-gm" data-pick="${p.pick_number}" data-gm="${gm}" title="Editar nome do GM"><i class="bi bi-pencil"></i></button>`
     : '';
 
+  // Quanto essa escolha demorou (vem pronto da API, em segundos).
+  const tempo = p.tempo_seg != null
+    ? `<span class="da-row-tempo" title="Tempo que essa escolha levou"><i class="bi bi-stopwatch"></i>${daTempo(p.tempo_seg)}</span>`
+    : '';
+
   return `
     <div class="da-row ${classe}">
       <div class="da-row-pick">${p.pick_number}</div>
       ${foto}
       <div class="da-row-gm"><span>${gm}</span>${editarGm}</div>
       <div class="da-row-jogador">${jogador}</div>
+      ${tempo}
     </div>`;
 }
 
 async function daEscolher() {
   const nome = document.getElementById('daNomeJogador').value.trim();
-  const pos = document.getElementById('daPosicaoJogador').value;
   if (!nome) { alert('Digite o nome do jogador.'); return; }
   const btn = document.getElementById('btnDaEscolher');
   btn.disabled = true;
   try {
     daEstado = await _daFetch('/api/drafts-aleatorios.php', {
       method: 'POST',
-      body: JSON.stringify({ action: 'escolher', id: window.DRAFT_ID, player_name: nome, player_position: pos }),
+      body: JSON.stringify({ action: 'escolher', id: window.DRAFT_ID, player_name: nome }),
     });
     daRenderTudo();
   } catch (e) {
@@ -203,7 +243,6 @@ function daAbrirModalPreencher(pick, gm) {
   const t = document.getElementById('daPreencherModalText');
   if (t) t.textContent = `Escolha ${pick} — ${gm}.`;
   document.getElementById('daPreencherNome').value = '';
-  document.getElementById('daPreencherPosicao').value = 'PG';
   document.getElementById('daPreencherModalOverlay').classList.add('open');
   setTimeout(() => document.getElementById('daPreencherNome').focus(), 50);
 }
@@ -215,7 +254,6 @@ window.daFecharModalPreencher = daFecharModalPreencher;
 
 async function daConfirmarPreencher() {
   const nome = document.getElementById('daPreencherNome').value.trim();
-  const pos = document.getElementById('daPreencherPosicao').value;
   if (!nome) { alert('Digite o nome do jogador.'); return; }
   const btn = document.getElementById('btnDaConfirmarPreencher');
   btn.disabled = true;
@@ -224,7 +262,7 @@ async function daConfirmarPreencher() {
       method: 'POST',
       body: JSON.stringify({
         action: 'escolher', id: window.DRAFT_ID,
-        player_name: nome, player_position: pos, pick_number: daPickAlvo,
+        player_name: nome, pick_number: daPickAlvo,
       }),
     });
     daFecharModalPreencher();
@@ -280,6 +318,23 @@ async function daReabrir() {
   } catch (e) { alert(e.message); }
 }
 
+async function daSalvarLiga(ev) {
+  const btn = ev.currentTarget;
+  const liga = document.getElementById('daLiga')?.value;
+  if (!liga) return;
+  btn.disabled = true;
+  try {
+    daEstado = await _daFetch('/api/drafts-aleatorios.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'definir_liga', id: window.DRAFT_ID, league: liga }),
+    });
+    daRenderTudo();
+  } catch (e) {
+    btn.disabled = false;
+    alert(e.message);
+  }
+}
+
 async function daRenomearGM(pick, atual) {
   const nome = prompt('Nome do GM para esta escolha:', atual);
   if (nome === null) return;
@@ -302,16 +357,36 @@ function daCopiarLink(ev) {
   }).catch(() => alert('Não consegui copiar o link.'));
 }
 
-function daCopiarOrdem(ev) {
-  const texto = daEstado.picks
-    .map(p => `Pick ${p.pick_number}, ${p.nome_display}${p.player_name ? ' — ' + p.player_name + ' (' + p.player_position + ')' : ''}`)
-    .join('\n');
-  const btn = ev.currentTarget;
+/** Copia texto e dá o retorno visual no próprio botão. */
+function daCopiar(texto, btn) {
   const original = btn.innerHTML;
   navigator.clipboard.writeText(texto).then(() => {
     btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copiado!';
     setTimeout(() => { btn.innerHTML = original; }, 1600);
-  }).catch(() => alert('Não consegui copiar.'));
+  }).catch(() => prompt('Copie o texto abaixo:', texto));
+}
+
+/** Ordem completa do draft, escolhidos ou não. */
+function daCopiarOrdem(ev) {
+  const texto = daEstado.picks
+    .map(p => `Pick ${p.pick_number}, ${p.nome_display}`
+      + (p.player_name ? ' — ' + p.player_name : '')
+      + (p.tempo_seg != null ? ' [' + daTempo(p.tempo_seg) + ']' : ''))
+    .join('\n');
+  daCopiar(texto, ev.currentTarget);
+}
+
+/**
+ * Só as escolhas já feitas, no formato de mandar no grupo:
+ * "1 - Oakland Blue Foxes - LeBron James". Puladas ainda sem jogador ficam
+ * de fora — o que interessa colar é quem já escolheu.
+ */
+function daCopiarEscolhas(ev) {
+  const feitas = daEstado.picks.filter(p => p.player_name);
+  if (!feitas.length) { alert('Ainda não tem nenhuma escolha pra copiar.'); return; }
+  const texto = `${daEstado.titulo} — escolhas até agora\n\n`
+    + feitas.map(p => `${p.pick_number} - ${p.nome_display} - ${p.player_name}`).join('\n');
+  daCopiar(texto, ev.currentTarget);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

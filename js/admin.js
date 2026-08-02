@@ -300,6 +300,9 @@ async function showGestao(league) {
       <a href="/roleta.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
         <i class="bi bi-record-circle" style="color:#ec4899"></i> Roletas
       </a>
+      <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="showConviteRookie()">
+        <i class="bi bi-clipboard-plus" style="color:#a855f7"></i> Link de cadastro ROOKIE
+      </button>
       <a href="/drafts-aleatorios.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
         <i class="bi bi-shuffle" style="color:#a855f7"></i> Drafts Aleatórios
       </a>
@@ -1075,6 +1078,125 @@ async function deleteOuvidoriaMessage(messageId) {
   }
 }
 
+// ── Convite reutilizável da ROOKIE ──────────────────────────────────────────
+// Um link só, que várias pessoas usam pra se cadastrar (escolhendo o time da
+// NBA). Diferente do link de Convites, que é individual e queima ao ser usado.
+
+function ensureConviteRookieModal() {
+  if (document.getElementById('conviteRookieModal')) return;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'conviteRookieModal';
+  modal.tabIndex = -1;
+  modal.innerHTML = `
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-clipboard-plus me-2" style="color:#a855f7"></i>Inscrição ROOKIE</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-light-gray" style="font-size:12px">
+            Link único de cadastro na ROOKIE. Pode mandar no grupo — quem abrir cria a conta
+            e escolhe um time da NBA que ainda esteja livre. Gerar um novo invalida o anterior.
+          </p>
+          <div id="conviteRookieBody"><div class="text-center py-3"><div class="spinner-border text-orange"></div></div></div>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function showConviteRookie() {
+  ensureConviteRookieModal();
+  _carregarConviteRookie();
+  const el = document.getElementById('conviteRookieModal');
+  if (el) new bootstrap.Modal(el).show();
+}
+
+async function _carregarConviteRookie() {
+  const box = document.getElementById('conviteRookieBody');
+  if (!box) return;
+  try {
+    const d = await api('admin.php?action=league_invite&league=ROOKIE');
+    _renderConviteRookie(d.token || null);
+  } catch (e) {
+    box.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(e.error || e.message || 'Erro ao carregar')}</div>`;
+  }
+}
+
+function _renderConviteRookie(token) {
+  const box = document.getElementById('conviteRookieBody');
+  if (!box) return;
+
+  if (!token) {
+    box.innerHTML = `
+      <div class="alert alert-secondary" style="font-size:13px">Nenhum link ativo no momento.</div>
+      <button class="btn btn-orange w-100" onclick="_gerarConviteRookie()">
+        <i class="bi bi-magic me-1"></i>Gerar link de inscrição
+      </button>`;
+    return;
+  }
+
+  const link = `${window.location.origin}/register.php?convite=${token}`;
+  box.innerHTML = `
+    <div class="mb-2" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);font-weight:700">Link ativo</div>
+    <input type="text" class="form-control mb-2" readonly value="${escapeHtml(link)}"
+           onclick="this.select()" style="font-size:12px">
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-orange flex-grow-1" onclick="_copiarConviteRookie('${escapeHtml(link)}')">
+        <i class="bi bi-clipboard me-1"></i>Copiar link
+      </button>
+      <button class="btn btn-outline-light" onclick="_gerarConviteRookie(true)" title="Invalida o link atual e cria outro">
+        <i class="bi bi-arrow-repeat me-1"></i>Gerar novo
+      </button>
+      <button class="btn btn-outline-danger" onclick="_revogarConviteRookie()" title="Desativa o link sem criar outro">
+        <i class="bi bi-slash-circle"></i>
+      </button>
+    </div>`;
+}
+
+async function _copiarConviteRookie(link) {
+  try {
+    await navigator.clipboard.writeText(link);
+    showAlert('success', 'Link copiado! Agora é só mandar no grupo.');
+  } catch (e) {
+    prompt('Copie o link abaixo:', link);
+  }
+}
+
+async function _gerarConviteRookie(substituindo) {
+  if (substituindo && !confirm('Gerar um link novo invalida o atual — quem já recebeu não vai mais conseguir usar. Continuar?')) return;
+  try {
+    const d = await api('admin.php?action=league_invite', {
+      method: 'POST',
+      body: JSON.stringify({ league: 'ROOKIE', acao: 'gerar' }),
+    });
+    _renderConviteRookie(d.token || null);
+    showAlert('success', 'Link de inscrição gerado.');
+  } catch (e) {
+    showAlert('danger', e.error || e.message || 'Erro ao gerar o link.');
+  }
+}
+
+async function _revogarConviteRookie() {
+  if (!confirm('Desativar o link de inscrição da ROOKIE? Ninguém mais consegue se cadastrar por ele.')) return;
+  try {
+    await api('admin.php?action=league_invite', {
+      method: 'POST',
+      body: JSON.stringify({ league: 'ROOKIE', acao: 'revogar' }),
+    });
+    _renderConviteRookie(null);
+    showAlert('success', 'Link desativado.');
+  } catch (e) {
+    showAlert('danger', e.error || e.message || 'Erro ao revogar o link.');
+  }
+}
+
 function ensureWaitlistModal() {
   if (document.getElementById('waitlistModal')) return;
 
@@ -1645,9 +1767,10 @@ async function showLeague(league) {
       { icon: 'bi-coin',                    label: 'Moedas',                    fn: 'showCoins()',               color: '#f59e0b', bg: 'rgba(245,158,11,.12)'  },
       ...(league === 'ROOKIE' ? [
         // Cadastro de GM novo na ROOKIE é sempre via link de convite (o mesmo
-        // sistema de lista de espera) — atalho pra copiar o link sem precisar
-        // caçar o botão de Convites lá no topo do admin.
-        { icon: 'bi-clipboard-plus',        label: 'Inscrição<br>ROOKIE',        fn: 'showWaitlistModal()',       color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
+        // Link único da ROOKIE: um só link serve pra várias pessoas, dá pra
+        // jogar no grupo. O de Convites (lista de espera) continua existindo
+        // pra convidar alguém específico.
+        { icon: 'bi-clipboard-plus',        label: 'Inscrição<br>ROOKIE',        fn: 'showConviteRookie()',       color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
       ] : []),
       ...(window.IS_GLOBAL_ADMIN ? [
         { icon: 'bi-lightning-fill',        label: 'Force<br>Trade',            fn: `showForceTradeModal('${league}')`, color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 12%, transparent)'   },

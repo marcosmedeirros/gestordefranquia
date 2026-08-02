@@ -155,7 +155,7 @@ echo "<hr><h3 class='ok'>✅ Concluído!</h3>
 <p class='info'>
 <strong>Próximos passos:</strong><br>
 1. <code>index.clean.php</code> já registra acessos diários.<br>
-2. <code>cron/reset-mensal.php</code> já acumula FBA Points e Moedas antes de zerar.<br>
+2. FBA Points e Moedas não zeram mais todo mês — o saldo acumula direto.<br>
 3. Em dezembro execute: <code>cron/retrospectiva-snapshot.php?key=...</code><br>
 4. Pode forçar snapshot a qualquer hora com <code>?key=...&amp;ano=2025</code>
 </p>

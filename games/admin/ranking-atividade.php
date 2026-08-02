@@ -34,11 +34,21 @@ $fontes = [
     ['boxnba_historico',     'id_usuario',  'data_jogo'],
     ['grade_historico',      'id_usuario',  'data_jogo'],
     ['bomba_historico',      'id_usuario',  'data_jogo'],
+    ['quemsoueu_partidas',   'id_usuario',  'data_jogo'],
     ['quemsoueu_basquete',   'id_usuario',  'data_jogo'],
     ['quemsoueu_futebol',    'id_usuario',  'data_jogo'],
     ['palpites',             'id_usuario',  'data_palpite'],
     ['tigrinho_historico',   'id_usuario',  'created_at'],
 ];
+
+// A lista acima carrega games antigos (quemsoueu_basquete/futebol) e tabelas que
+// nem toda instalação tem (usuario_acessos). Tabela que não existe não é erro —
+// é só uma fonte a menos; sem este filtro a tela abria com um bloco vermelho fixo.
+$tabelasExistentes = [];
+foreach ($pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN) as $t) {
+    $tabelasExistentes[strtolower($t)] = true;
+}
+$fontes = array_values(array_filter($fontes, fn($f) => isset($tabelasExistentes[strtolower($f[0])])));
 
 $totais = []; // user_id => ['acessos'=>0, 'jogos'=>0, 'apostas'=>0, 'tigrinho'=>0, 'total'=>0]
 $detalhePorTabela = []; // tabela => [user_id => count]

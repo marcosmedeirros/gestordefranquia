@@ -58,6 +58,10 @@ $games_disponiveis = [
         'titulo' => '🏀 Box NBA',
         'arquivo' => 'boxnba.php'
     ],
+    'buildplayer' => [
+        'titulo' => '🛠️ Build a Player',
+        'arquivo' => 'buildplayer.php'
+    ],
     'conexoes' => [
         'titulo' => '🔗 Conexões NBA',
         'arquivo' => 'conexoes.php'

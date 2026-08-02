@@ -98,13 +98,13 @@ $CRITERIA = [
     ['id'=>'SEN','type'=>'nation','label'=>'Senegal',           'icon'=>'🇸🇳','full'=>'Senegal'],
     ['id'=>'PRI','type'=>'nation','label'=>'Porto Rico',        'icon'=>'🇵🇷','full'=>'Porto Rico'],
     ['id'=>'MVP',       'type'=>'award','label'=>'MVP',             'icon'=>'🏆','full'=>'MVP da Temporada'],
-    ['id'=>'CHAMP',      'type'=>'award','label'=>'Campeão',         'icon'=>'💍','full'=>'Campeão NBA'],
+    ['id'=>'CHAMPION',   'type'=>'award','label'=>'Campeão',         'icon'=>'💍','full'=>'Campeão NBA'],
     ['id'=>'ALLSTAR',   'type'=>'award','label'=>'All-Star',        'icon'=>'⭐','full'=>'All-Star'],
     ['id'=>'DPOY',      'type'=>'award','label'=>'Defensor',        'icon'=>'🛡️','full'=>'Melhor Defensor (DPOY)'],
     ['id'=>'FINALS_MVP','type'=>'award','label'=>'MVP Finais',      'icon'=>'🎖️','full'=>'MVP das Finais'],
     ['id'=>'ROY',       'type'=>'award','label'=>'Calouro Ano',     'icon'=>'🌟','full'=>'Calouro do Ano (ROY)'],
     ['id'=>'SCORING',   'type'=>'award','label'=>'Artilheiro',      'icon'=>'🎯','full'=>'Artilheiro da Temporada'],
-    ['id'=>'6THMAN',    'type'=>'award','label'=>'6º Homem',        'icon'=>'🪑','full'=>'Sexto Homem do Ano'],
+    ['id'=>'SIXTHMAN',  'type'=>'award','label'=>'6º Homem',        'icon'=>'🪑','full'=>'Sexto Homem do Ano'],
 ];
 
 
@@ -143,12 +143,12 @@ function generateDailyGrid(array $players, array $allCriteria): array {
         if ($valid && $minCount >= 1) return ['rows' => $rows, 'cols' => $cols];
     }
     return [
-        'rows' => [$byId['MVP'], $byId['CHAMP'], $byId['ALLSTAR']],
+        'rows' => [$byId['MVP'], $byId['CHAMPION'], $byId['ALLSTAR']],
         'cols' => [$byId['LAL'], $byId['GSW'],      $byId['BOS']],
     ];
 }
 
-srand((int)floor(time() / 86400));
+srand(crc32(date('Y-m-d') . 'boxnba')); // vira à meia-noite local, igual ao data_jogo
 $grid = generateDailyGrid($PLAYERS, $CRITERIA);
 
 $validMap = [];
@@ -179,7 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $stmt->execute([$user_id, $hoje]);
       $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-      // Moedas: SOMENTE 25 por NOVA célula correta (não pode pagar em autosave, fim, etc.)
+      // Moedas: 25 por NOVA célula correta + bônus de 50 ao fechar as 9 (pago uma vez só)
       $already_done = $row && (((int)($row['concluido'] ?? 0) === 1) || ((int)($row['desistiu'] ?? 0) === 1));
       if (!$already_done) {
         $prev_respostas = $row ? (json_decode((string)($row['respostas'] ?? '[]'), true) ?: []) : [];
@@ -196,9 +196,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           }
         }
 
-        if ($new_cells > 0) {
+        // Bônus de 50 ao fechar as 9 células — só na transição (antes tinha
+        // menos de 9, agora tem 9), então não repete em autosave nenhum.
+        $bonus = (count(array_unique($curr_keys)) >= 9 && count(array_unique($prev_keys)) < 9) ? 50 : 0;
+
+        if ($new_cells > 0 || $bonus > 0) {
           $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")
-            ->execute([$new_cells * 25, $user_id]);
+            ->execute([$new_cells * 25 + $bonus, $user_id]);
         }
       }
 
@@ -276,7 +280,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .main{max-width:560px;margin:0 auto;padding:14px 12px 60px}
 
 /* ── GRID ── */
-.grid-wrap{display:grid;grid-template-columns:80px repeat(3,1fr);grid-template-rows:80px repeat(3,1fr);gap:4px;margin-bottom:16px}
+.grid-wrap{display:grid;grid-template-columns:80px repeat(3,1fr);grid-template-rows:80px repeat(3,1fr);gap:4px;margin-top:28px;margin-bottom:16px}
 .header-corner{background:transparent}
 .header-col,.header-row{background:var(--panel2);border:1px solid var(--border2);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 4px;text-align:center;position:relative;cursor:default}
 .header-col{border-radius:12px 12px 6px 6px}
@@ -456,9 +460,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <div style="text-align:center;font-size:11px;color:var(--text3);padding-bottom:8px">
     Toque em uma célula para adivinhar o jogador · Nova grade amanhã às 00:00
   </div>
-  <div style="text-align:center;padding:12px 0 4px">
-    <a href="../admin/dadosjogadores.php" style="font-size:12px;font-weight:600;color:#fff;text-decoration:none;background:rgba(252,0,37,.15);border:1px solid rgba(252,0,37,.35);border-radius:8px;padding:7px 16px;display:inline-block;transition:all .2s" onmouseover="this.style.background='rgba(252,0,37,.28)';this.style.borderColor='rgba(252,0,37,.7)'" onmouseout="this.style.background='rgba(252,0,37,.15)';this.style.borderColor='rgba(252,0,37,.35)'">Você achou um erro? Clique aqui e corrija</a>
-  </div>
 </div>
 
 <script>
@@ -518,7 +519,7 @@ function updateUI() {
 }
 
 function calcPoints(correct, triesLeft) {
-  return correct * 25;
+  return correct * 25 + (correct === 9 ? 50 : 0);
 }
 
 function openCell(r, c) {
@@ -623,7 +624,8 @@ function selectPlayer(name) {
     el.classList.add('done','correct');
     el.innerHTML = buildCellHtml(name);
     closeSearch();
-    showCoinToast('+25 moedas! 🪙');
+    const acertos = Object.values(answers).filter(Boolean).length;
+    showCoinToast(acertos === 9 ? '+25 moedas e +50 de bônus! 🪙🔥' : '+25 moedas! 🪙');
     checkFinish();
   } else {
     tries = Math.max(0, tries - 1);

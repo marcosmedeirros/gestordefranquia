@@ -27,7 +27,10 @@ try {
 
     ensureWaiverTables($pdo);
     // Rede de segurança: resolve vencidos ao abrir (o agendador é o principal).
-    resolveExpiredWaivers($pdo);
+    // O resultado é guardado porque a ação 'resolve' do admin roda depois daqui
+    // — sem isso ela sempre respondia "0 resolvidos", mesmo tendo acabado de
+    // resolver tudo neste mesmo request.
+    $resolvidosNaEntrada = resolveExpiredWaivers($pdo);
 
     $method = $_SERVER['REQUEST_METHOD'];
 
@@ -97,7 +100,10 @@ try {
 
         if ($action === 'resolve') {
             if (!$isAdmin) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas administradores']); exit; }
-            echo json_encode(['success' => true] + resolveExpiredWaivers($pdo));
+            // Soma o que a rede de segurança já resolveu na entrada deste request.
+            $agora = resolveExpiredWaivers($pdo);
+            foreach ($agora as $k => $v) $agora[$k] = $v + ($resolvidosNaEntrada[$k] ?? 0);
+            echo json_encode(['success' => true] + $agora);
             exit;
         }
 

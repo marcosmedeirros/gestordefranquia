@@ -128,6 +128,7 @@ if ($team_id) {
         .ld-row-jogador i.bi-star-fill{color:var(--red);font-size:11px;margin-right:6px}
         .ld-row-jogador b{color:var(--red);font-size:14.5px;font-weight:800;letter-spacing:.2px}
         .ld-row-meta{color:var(--text-2);font-size:12px;margin-left:4px}
+        .ld-row-tempo{margin-left:auto;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;font-size:11px;font-weight:600;color:var(--text-3);background:var(--panel-3);border:1px solid var(--border);border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums}
         .ld-badge-tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;flex-shrink:0}
 
         .ld-badges-cat{margin-bottom:16px}
@@ -249,13 +250,6 @@ if ($team_id) {
         <p class="ld-modal-text" id="ldPreencherModalText"></p>
         <div class="ld-form-row" style="margin-top:0">
             <input type="text" id="ldPreencherNome" placeholder="Nome do jogador (lenda)" maxlength="150">
-            <select id="ldPreencherPosicao">
-                <option value="PG">PG</option>
-                <option value="SG">SG</option>
-                <option value="SF">SF</option>
-                <option value="PF">PF</option>
-                <option value="C">C</option>
-            </select>
         </div>
         <div class="ld-modal-actions" style="margin-top:16px">
             <button type="button" class="btn-ghost" onclick="ldFecharModalPreencher()">Cancelar</button>

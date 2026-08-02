@@ -52,8 +52,16 @@ function reRenderTudo(data) {
   reRenderResumo(data);
   reAtualizarBotaoGirar(data);
   reRenderConfig(data);
-  document.getElementById('rlExcluir').disabled = data.bloqueada;
-  document.getElementById('rlExcluir').title = data.bloqueada ? 'Já teve o 1º sorteio — não pode mais ser excluída.' : '';
+  // Os botões de ação só existem no HTML pra admin — pra GM que só acompanha
+  // a página nem renderiza o bloco, então tudo aqui é opcional.
+  const podeMexer = data.pode_girar !== false;
+  const btnExcluir = document.getElementById('rlExcluir');
+  if (btnExcluir) {
+    btnExcluir.disabled = data.bloqueada || !podeMexer;
+    btnExcluir.title = !podeMexer
+      ? 'Só o admin da liga pode excluir.'
+      : (data.bloqueada ? 'Já teve o 1º sorteio — não pode mais ser excluída.' : '');
+  }
   reAtualizarBotaoDraft(data);
 }
 
@@ -202,7 +210,19 @@ window.reCopiarTudo = reCopiarTudo;
 
 function reAtualizarBotaoGirar(data) {
   const btn = document.getElementById('rtGirar');
+  if (!btn) return;
   const acabou = !!data.concluido;
+
+  // Quem não é admin da liga acompanha o sorteio, mas não gira. O servidor
+  // também barra — aqui é só pra não oferecer um botão que vai dar erro.
+  if (data.pode_girar === false) {
+    btn.disabled = true;
+    btn.innerHTML = acabou
+      ? '<i class="bi bi-check2-all me-1"></i>Sorteio concluído'
+      : '<i class="bi bi-eye me-1"></i>Só o admin da liga gira';
+    return;
+  }
+
   btn.disabled = reGirando || acabou;
   btn.innerHTML = acabou
     ? '<i class="bi bi-check2-all me-1"></i>Sorteio concluído'
@@ -302,15 +322,41 @@ function reRenderConfig(data) {
   const box = document.getElementById('rlConfigBody');
   const tipoLabel = { gms: 'GMs', times: 'Times', personalizado: 'Personalizado' }[data.tipo] || data.tipo;
 
+  // Espectador (GM da liga que não administra) só lê a ficha da roleta.
+  if (data.pode_girar === false) {
+    box.innerHTML = `
+      <div class="edit-locked-msg"><i class="bi bi-eye-fill"></i>Você está acompanhando esta roleta. Só o admin da ${_reEsc(data.league || 'liga')} pode girar ou editar.</div>
+      <div style="margin-top:12px;font-size:12px;color:var(--text-3)">Tipo: <b style="color:var(--text)">${tipoLabel}</b></div>`;
+    return;
+  }
+
+  // A liga pode ser trocada a qualquer momento — inclusive depois do 1º giro,
+  // porque ela só decide quem enxerga a roleta, não o resultado do sorteio.
+  const ligas = data.minhas_ligas || [];
+  const blocoLiga = ligas.length ? `
+    <div class="mb-3">
+      <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px">Liga da roleta</div>
+      <div style="display:flex;gap:8px">
+        <select id="rlEditLiga" class="form-control">
+          ${ligas.map(l => `<option value="${_reEsc(l)}"${l === data.league ? ' selected' : ''}>${_reEsc(l)}</option>`).join('')}
+        </select>
+        <button type="button" class="btn-ghost" id="rlSalvarLiga">Salvar</button>
+      </div>
+      <small style="font-size:11px;color:var(--text-3)">Define quem vê a roleta no painel e quem pode girar. O draft gerado por ela acompanha.</small>
+    </div>` : '';
+
   if (data.bloqueada) {
     box.innerHTML = `
       <div class="edit-locked-msg"><i class="bi bi-lock-fill"></i>Esta roleta já teve o 1º sorteio — título, participantes e notificação não podem mais ser editados.</div>
+      ${blocoLiga}
       <div style="margin-top:12px;font-size:12px;color:var(--text-3)">Tipo: <b style="color:var(--text)">${tipoLabel}</b> · Notificação: <b style="color:var(--text)">${data.notificar_saida ? 'ativada' : 'desativada'}</b></div>`;
+    reLigarBotaoLiga();
     return;
   }
 
   reSelecionadosNovos = [];
   box.innerHTML = `
+    ${blocoLiga}
     <div class="mb-2">
       <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px">Título</div>
       <div style="display:flex;gap:8px">
@@ -334,6 +380,7 @@ function reRenderConfig(data) {
       <span>Notificar quem sair da roleta</span>
     </label>`;
 
+  reLigarBotaoLiga();
   document.getElementById('rlSalvarTitulo').addEventListener('click', reSalvarTitulo);
   document.getElementById('rlEditNotificar').addEventListener('change', reSalvarNotificacao);
   reRenderChipsNovos();
@@ -351,6 +398,29 @@ function reRenderConfig(data) {
       reBuscaTimeout = setTimeout(() => reBuscarParticipantes(q, data.tipo), 250);
     });
   }
+}
+
+/** Liga o botão de salvar a liga — existe nos dois estados do painel. */
+function reLigarBotaoLiga() {
+  const btn = document.getElementById('rlSalvarLiga');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const liga = document.getElementById('rlEditLiga').value;
+    btn.disabled = true;
+    try {
+      await _reFetch('/api/roleta.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'definir_liga', id: ROLETA_ID, league: liga }),
+      });
+      const antes = btn.textContent;
+      btn.textContent = 'Salvo!';
+      setTimeout(() => { btn.textContent = antes; btn.disabled = false; }, 1500);
+      reCarregar();
+    } catch (e) {
+      btn.disabled = false;
+      alert(e.message);
+    }
+  });
 }
 
 function reRenderChipsNovos() {
@@ -460,10 +530,11 @@ async function reSalvarNovosParticipantes() {
 
 document.addEventListener('DOMContentLoaded', () => {
   reCarregar();
-  document.getElementById('rtGirar').addEventListener('click', reGirar);
-  document.getElementById('rtReiniciar').addEventListener('click', reReiniciar);
-  document.getElementById('rlExcluir').addEventListener('click', reExcluirRoleta);
-  document.getElementById('rtCriarDraft').addEventListener('click', reCriarDraft);
+  const ligar = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+  ligar('rtGirar', reGirar);
+  ligar('rtReiniciar', reReiniciar);
+  ligar('rlExcluir', reExcluirRoleta);
+  ligar('rtCriarDraft', reCriarDraft);
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.rl-autocomplete')) {
       document.querySelectorAll('.rl-autocomplete-results').forEach(el => el.classList.remove('show'));

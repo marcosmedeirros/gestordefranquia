@@ -172,7 +172,7 @@ function notificarRecalculoCapDaLiga(PDO $pdo, array $resumo): void
     ];
     foreach ($userIds as $uid) {
         try {
-            sendPushToUser($pdo, (int)$uid, $payload);
+            sendPushToUser($pdo, (int)$uid, $payload, 'cap');
         } catch (Throwable $e) {
             error_log('notificarRecalculoCapDaLiga (push user_id=' . $uid . '): ' . $e->getMessage());
         }

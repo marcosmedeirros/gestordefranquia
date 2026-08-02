@@ -62,7 +62,9 @@ if ($team_id) {
         body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
         .app { display: flex; min-height: 100vh; }
         .main { margin-left: var(--sidebar-w); min-height: 100vh; width: calc(100% - var(--sidebar-w)); display: flex; flex-direction: column; }
-        .page-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin: 32px 32px 4px; }
+        .da-voltar { display: flex; gap: 8px; flex-wrap: wrap; margin: 28px 32px 0; }
+        .da-voltar .btn-ghost { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+        .page-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin: 12px 32px 4px; }
         .page-hero-title { font-size: 26px; font-weight: 800; color: var(--text); margin: 0 32px 4px; display: flex; align-items: center; gap: 10px; }
         .page-hero-sub { font-size: 13px; color: var(--text-2); margin: 0 32px 18px; max-width: 720px; }
         .content { padding: 0 32px 48px; flex: 1; }
@@ -116,6 +118,12 @@ if ($team_id) {
 
         .da-progress{height:6px;border-radius:999px;background:var(--panel-3);overflow:hidden;margin-bottom:16px}
         .da-progress>div{height:100%;background:var(--red);transition:width .3s}
+        .da-liga-box{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;
+          padding:10px 12px;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm)}
+        .da-liga-label{font-size:12px;font-weight:700;color:var(--text-2);display:flex;align-items:center;gap:6px}
+        .da-liga-label i{color:var(--red)}
+        .da-liga-box select{background:var(--panel-3);border:1px solid var(--border-md);color:var(--text);
+          border-radius:8px;padding:6px 10px;font-family:var(--font);font-size:12.5px;font-weight:600}
 
         .da-turno{background:linear-gradient(135deg,var(--red-soft),transparent);border:1px solid var(--border-red);border-radius:var(--radius);padding:16px 20px;margin-bottom:16px}
         .da-turno-label{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--red);margin-bottom:4px}
@@ -141,6 +149,7 @@ if ($team_id) {
         .da-row-jogador i.bi-check-circle-fill{color:var(--green);font-size:11px;margin-right:6px}
         .da-row-jogador b{color:var(--red);font-size:14.5px;font-weight:800;letter-spacing:.2px}
         .da-row-meta{color:var(--text-2);font-size:12px;margin-left:6px}
+        .da-row-tempo{margin-left:auto;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;font-size:11px;font-weight:600;color:var(--text-3);background:var(--panel-3);border:1px solid var(--border);border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums}
 
         .da-btn-pular{background:transparent;border:1px solid var(--border-md);color:var(--text-2);font-weight:600;font-size:13px;border-radius:var(--radius-xs);padding:9px 16px;cursor:pointer;transition:all var(--t)}
         .da-btn-pular:hover{border-color:rgba(239,68,68,.4);color:#ef4444;background:rgba(239,68,68,.06)}
@@ -166,7 +175,7 @@ if ($team_id) {
             .sidebar.open { transform: translateX(0); }
             .main { margin-left: 0; width: 100%; padding-top: 54px; }
             .topbar { display: flex; }
-            .page-hero-eyebrow, .page-hero-title, .page-hero-sub { margin-left: 16px; margin-right: 16px; }
+            .page-hero-eyebrow, .page-hero-title, .page-hero-sub, .da-voltar { margin-left: 16px; margin-right: 16px; }
             .content { padding: 0 16px 48px; }
         }
         @media (max-width: 480px) {
@@ -191,6 +200,17 @@ if ($team_id) {
             <div class="topbar-title">FBA <em>Draft</em></div>
         </header>
 
+        <?php /* GM comum também abre esta página pelo card do painel, então o
+                 caminho de volta depende de quem entrou. */ ?>
+        <?php $ehAdminAqui = hasAdminAccess($pdo, (int)$user['id']); ?>
+        <div class="da-voltar">
+            <?php if ($ehAdminAqui): ?>
+            <a class="btn-ghost" href="/drafts-aleatorios.php"><i class="bi bi-arrow-left"></i> Todos os drafts</a>
+            <a class="btn-ghost" href="/admin.php#gestao"><i class="bi bi-sliders"></i> Voltar ao Admin</a>
+            <?php else: ?>
+            <a class="btn-ghost" href="/dashboard.php"><i class="bi bi-arrow-left"></i> Voltar ao painel</a>
+            <?php endif; ?>
+        </div>
         <div class="page-hero-eyebrow">FBA · Draft Aleatório</div>
         <h1 class="page-hero-title"><i class="bi bi-shuffle" style="color:var(--red)"></i><span id="daTitulo"><?= htmlspecialchars($titulo) ?></span></h1>
         <p class="page-hero-sub">A ordem deste draft veio do sorteio da roleta. Qualquer pessoa logada pode registrar a escolha da vez — se o GM não estiver por perto, alguém cadastra por ele.</p>
@@ -218,10 +238,6 @@ if ($team_id) {
         <p class="da-modal-text" id="daPreencherModalText"></p>
         <div class="da-form-row" style="margin-top:0">
             <input type="text" id="daPreencherNome" placeholder="Nome do jogador" maxlength="150">
-            <select id="daPreencherPosicao">
-                <option value="PG">PG</option><option value="SG">SG</option>
-                <option value="SF">SF</option><option value="PF">PF</option><option value="C">C</option>
-            </select>
         </div>
         <div class="da-modal-actions" style="margin-top:16px">
             <button type="button" class="btn-ghost" onclick="daFecharModalPreencher()">Cancelar</button>

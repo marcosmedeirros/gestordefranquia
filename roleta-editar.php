@@ -11,22 +11,32 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
-if (!hasAdminAccess($pdo, (int)$user_id)) {
-    header('Location: /dashboard.php');
-    exit;
-}
+$user_id = (int)$_SESSION['user_id'];
 
 $roletaId = (int)($_GET['id'] ?? 0);
 if (!$roletaId) {
     header('Location: /roleta.php');
     exit;
 }
-$stmtCheck = $pdo->prepare("SELECT id FROM roletas WHERE id = ?");
+$stmtCheck = $pdo->prepare("SELECT id, league FROM roletas WHERE id = ?");
 $stmtCheck->execute([$roletaId]);
-if (!$stmtCheck->fetch()) {
-    header('Location: /roleta.php');
+$roletaRow = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+if (!$roletaRow) {
+    header('Location: ' . (hasAdminAccess($pdo, $user_id) ? '/roleta.php' : '/dashboard.php'));
     exit;
+}
+
+// GM da liga acompanha o sorteio (é pra isso que serve o card do dashboard);
+// girar e editar seguem restritos ao admin da liga, checado na API.
+$ligaRoleta = $roletaRow['league'] ? strtoupper((string)$roletaRow['league']) : null;
+if (!hasAdminAccess($pdo, $user_id)) {
+    $stmtLiga = $pdo->prepare('SELECT league FROM teams WHERE user_id = ? LIMIT 1');
+    $stmtLiga->execute([$user_id]);
+    $minhaLiga = strtoupper((string)($stmtLiga->fetchColumn() ?: ''));
+    if ($ligaRoleta === null || $minhaLiga !== $ligaRoleta) {
+        header('Location: /dashboard.php');
+        exit;
+    }
 }
 
 $team_id = $_SESSION['team_id'] ?? null;
@@ -218,16 +228,30 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
 
         <div class="page-hero">
             <div>
-                <a href="/roleta.php" class="btn-ghost" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;margin-bottom:10px"><i class="bi bi-arrow-left"></i> Todas as roletas</a>
-                <div class="hero-eyebrow">Admin · Roletas</div>
+                <?php /* Esta página também é aberta por GM comum (pelo card do
+                         painel), então o caminho de volta muda conforme quem entra. */ ?>
+                <?php $ehAdminAqui = hasAdminAccess($pdo, $user_id); ?>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+                    <?php if ($ehAdminAqui): ?>
+                    <a href="/roleta.php" class="btn-ghost" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px"><i class="bi bi-arrow-left"></i> Todas as roletas</a>
+                    <a href="/admin.php#gestao" class="btn-ghost" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px"><i class="bi bi-sliders"></i> Voltar ao Admin</a>
+                    <?php else: ?>
+                    <a href="/dashboard.php" class="btn-ghost" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px"><i class="bi bi-arrow-left"></i> Voltar ao painel</a>
+                    <?php endif; ?>
+                </div>
+                <div class="hero-eyebrow"><?= $ehAdminAqui ? 'Admin · Roletas' : 'Roleta da ' . htmlspecialchars($ligaRoleta ?? 'liga') ?></div>
                 <h1 class="hero-title" id="rlTituloHero"><i class="bi bi-record-circle" style="color:var(--red)"></i><span>Carregando...</span></h1>
                 <p class="hero-sub">Cada giro tira um participante da urna. Quem sai primeiro fica com a pior posição, até sobrar só 1.</p>
             </div>
+            <?php /* Quem só acompanha não vê ação nenhuma — a API barra do mesmo
+                     jeito, mas botão que sempre dá erro não deve nem aparecer. */ ?>
+            <?php if ($ehAdminAqui): ?>
             <div class="hero-actions">
                 <button class="btn-ghost" id="rtCriarDraft" style="display:none"><i class="bi bi-shuffle"></i> <span>Criar draft dessa ordem</span></button>
                 <button class="btn-ghost" id="rtReiniciar"><i class="bi bi-arrow-counterclockwise"></i> Reiniciar</button>
                 <button class="btn-ghost danger" id="rlExcluir"><i class="bi bi-trash"></i> Excluir roleta</button>
             </div>
+            <?php endif; ?>
         </div>
 
         <div class="content">

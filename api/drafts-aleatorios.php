@@ -24,6 +24,24 @@ if (!isset($_SESSION['user_id'])) {
 }
 $user_id  = (int)$_SESSION['user_id'];
 $is_admin = hasAdminAccess($pdo, $user_id);
+$minhasLigasAdmin = $is_admin ? array_map('strtoupper', getAdminLeagues($pdo, $user_id)) : [];
+
+/** Liga do usuário logado (time primeiro, depois o cadastro). */
+function ligaDoUsuarioDraft(PDO $pdo, int $userId): ?string
+{
+    try {
+        $stmt = $pdo->prepare("SELECT league FROM teams WHERE user_id = ? LIMIT 1");
+        $stmt->execute([$userId]);
+        $l = $stmt->fetchColumn();
+        if ($l) return strtoupper((string)$l);
+        $stmt = $pdo->prepare("SELECT league FROM users WHERE id = ? LIMIT 1");
+        $stmt->execute([$userId]);
+        $l = $stmt->fetchColumn();
+        return $l ? strtoupper((string)$l) : null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
 
 function ensureDraftsAleatoriosTables(PDO $pdo): void
 {
@@ -78,7 +96,7 @@ function estadoDraftAleatorio(PDO $pdo, int $draftId, int $sessionUserId, bool $
     if (!$d) return null;
 
     $stmtP = $pdo->prepare("
-        SELECT dap.id, dap.pick_number, dap.team_id, dap.user_id, dap.nome_display,
+        SELECT dap.id, dap.pick_number, dap.team_id, dap.user_id, dap.nome_display, dap.created_at,
                dap.player_name, dap.player_position, dap.skipped, dap.picked_at,
                t.photo_url
         FROM draft_aleatorio_picks dap
@@ -88,6 +106,23 @@ function estadoDraftAleatorio(PDO $pdo, int $draftId, int $sessionUserId, bool $
     ");
     $stmtP->execute([$draftId]);
     $picks = $stmtP->fetchAll(PDO::FETCH_ASSOC);
+
+    // Tempo que cada escolha levou: picked_at desta pick menos o picked_at da
+    // anterior (a vez começa quando a anterior sai). A pick 1 conta a partir
+    // da criação do draft. Preenchimentos fora de ordem podem dar diferença
+    // negativa — aí não mostra nada em vez de mostrar um número mentiroso.
+    $anterior = null;
+    foreach ($picks as $i => $p) {
+        $picks[$i]['tempo_seg'] = null;
+        if ($p['picked_at'] !== null) {
+            $base = $anterior ?? $p['created_at'];
+            if ($base !== null) {
+                $delta = strtotime($p['picked_at']) - strtotime($base);
+                if ($delta >= 0) $picks[$i]['tempo_seg'] = $delta;
+            }
+            $anterior = $p['picked_at'];
+        }
+    }
 
     $vezPickNumber = null;
     $feitas = 0;
@@ -117,6 +152,14 @@ function estadoDraftAleatorio(PDO $pdo, int $draftId, int $sessionUserId, bool $
 /** Descobre a liga do draft: pelos times sorteados na roleta ou, na falta deles, pela liga de quem criou. */
 function detectarLigaDraftAleatorio(PDO $pdo, int $roletaId, int $criadoPor): ?string
 {
+    // A liga escolhida na roleta manda: é o que o admin definiu de propósito.
+    try {
+        $stmt = $pdo->prepare("SELECT league FROM roletas WHERE id = ? LIMIT 1");
+        $stmt->execute([$roletaId]);
+        $league = $stmt->fetchColumn();
+        if ($league) return strtoupper((string)$league);
+    } catch (Throwable $e) {}
+
     try {
         $stmt = $pdo->prepare("SELECT t.league FROM roleta_participantes rp
                                JOIN teams t ON t.id = rp.team_id
@@ -171,7 +214,7 @@ function notificarEscolhaDraftAleatorio(PDO $pdo, int $draftId, string $titulo, 
     ];
     foreach ($userIds as $uid) {
         try {
-            sendPushToUser($pdo, (int)$uid, $payload);
+            sendPushToUser($pdo, (int)$uid, $payload, 'eventos');
         } catch (Throwable $e) {
             error_log('notificarEscolhaDraftAleatorio (push user_id=' . $uid . '): ' . $e->getMessage());
         }
@@ -188,7 +231,7 @@ function notificarEscolhaDraftAleatorio(PDO $pdo, int $draftId, string $titulo, 
     }
     if ($proximo) {
         try {
-            sendPushToUser($pdo, (int)$proximo, ['title' => $titulo, 'body' => 'É a sua vez de escolher!', 'url' => $url]);
+            sendPushToUser($pdo, (int)$proximo, ['title' => $titulo, 'body' => 'É a sua vez de escolher!', 'url' => $url], 'eventos');
         } catch (Throwable $e) {
             error_log('notificarEscolhaDraftAleatorio (push vez): ' . $e->getMessage());
         }
@@ -202,16 +245,29 @@ if ($method === 'GET') {
     $action = $_GET['action'] ?? 'estado';
 
     if ($action === 'listar') {
-        $stmt = $pdo->query("
-            SELECT d.id, d.roleta_id, d.titulo, d.finalizado_em, d.created_at,
+        // Cada um vê os drafts da sua liga (admin, das ligas que administra).
+        // Drafts antigos sem liga continuam aparecendo pra todo mundo.
+        $ligasVisiveis = $minhasLigasAdmin ?: array_filter([ligaDoUsuarioDraft($pdo, $user_id)]);
+        $where = "WHERE d.league IS NULL";
+        $params = [];
+        if ($ligasVisiveis) {
+            $ph = implode(',', array_fill(0, count($ligasVisiveis), '?'));
+            $where = "WHERE (d.league IS NULL OR UPPER(d.league) IN ($ph))";
+            $params = $ligasVisiveis;
+        }
+
+        $stmt = $pdo->prepare("
+            SELECT d.id, d.roleta_id, d.titulo, d.league, d.finalizado_em, d.created_at,
                    COUNT(dap.id) AS total,
                    SUM(dap.player_name IS NOT NULL) AS feitas,
                    SUM(dap.skipped = 1 AND dap.player_name IS NULL) AS puladas
             FROM drafts_aleatorios d
             LEFT JOIN draft_aleatorio_picks dap ON dap.draft_id = d.id
+            $where
             GROUP BY d.id
             ORDER BY d.created_at DESC
         ");
+        $stmt->execute($params);
         $drafts = array_map(function ($r) {
             $total  = (int)$r['total'];
             $feitas = (int)$r['feitas'];
@@ -220,6 +276,7 @@ if ($method === 'GET') {
                 'id'         => (int)$r['id'],
                 'roleta_id'  => $r['roleta_id'] !== null ? (int)$r['roleta_id'] : null,
                 'titulo'     => $r['titulo'],
+                'league'     => $r['league'] ? strtoupper((string)$r['league']) : null,
                 'total'      => $total,
                 'feitas'     => $feitas,
                 'puladas'    => $pulad,
@@ -237,20 +294,32 @@ if ($method === 'GET') {
     // da central. Uma roleta está concluída quando ninguém ficou sem pick.
     if ($action === 'roletas_disponiveis') {
         try {
-            $stmt = $pdo->query("
-                SELECT r.id, r.titulo, r.tipo, COUNT(rp.id) AS total,
+            // Só roletas das ligas que o admin administra (as antigas, sem
+            // liga, continuam disponíveis pra não ficarem órfãs).
+            $filtro = '';
+            $params = [];
+            if ($minhasLigasAdmin) {
+                $ph = implode(',', array_fill(0, count($minhasLigasAdmin), '?'));
+                $filtro = " AND (r.league IS NULL OR UPPER(r.league) IN ($ph))";
+                $params = $minhasLigasAdmin;
+            }
+            $stmt = $pdo->prepare("
+                SELECT r.id, r.titulo, r.tipo, r.league, COUNT(rp.id) AS total,
                        SUM(rp.pick_number IS NULL) AS na_urna
                 FROM roletas r
                 JOIN roleta_participantes rp ON rp.roleta_id = r.id
                 WHERE r.id NOT IN (SELECT roleta_id FROM drafts_aleatorios WHERE roleta_id IS NOT NULL)
+                $filtro
                 GROUP BY r.id
                 HAVING total > 0 AND na_urna = 0
                 ORDER BY r.created_at DESC
             ");
+            $stmt->execute($params);
             $roletas = array_map(fn($r) => [
                 'id'     => (int)$r['id'],
                 'titulo' => $r['titulo'],
                 'tipo'   => $r['tipo'],
+                'league' => $r['league'] ? strtoupper((string)$r['league']) : null,
                 'total'  => (int)$r['total'],
             ], $stmt->fetchAll(PDO::FETCH_ASSOC));
         } catch (Throwable $e) {
@@ -267,7 +336,18 @@ if ($method === 'GET') {
             echo json_encode(['success' => false, 'error' => 'Draft não encontrado']);
             exit;
         }
-        echo json_encode(['success' => true] + $estado);
+        // Mesmo escopo do listar: draft de outra liga não abre. Drafts antigos
+        // sem liga continuam livres pra não sumirem de quem já os usava.
+        $ligaDraft = !empty($estado['league']) ? strtoupper((string)$estado['league']) : null;
+        if ($ligaDraft !== null) {
+            $permitidas = $minhasLigasAdmin ?: array_filter([ligaDoUsuarioDraft($pdo, $user_id)]);
+            if (!in_array($ligaDraft, $permitidas, true)) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Este draft é da liga ' . $ligaDraft . '.']);
+                exit;
+            }
+        }
+        echo json_encode(['success' => true, 'minhas_ligas' => $minhasLigasAdmin] + $estado);
         exit;
     }
 
@@ -368,14 +448,13 @@ if ($method === 'POST') {
 
     if ($action === 'escolher') {
         $nome = trim((string)($body['player_name'] ?? ''));
+        // Posição saiu do formulário — só o nome é digitado. Continua aceita se
+        // vier (drafts antigos gravaram), mas nunca mais é exigida.
         $pos  = strtoupper(trim((string)($body['player_position'] ?? '')));
+        if (!in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true)) $pos = null;
         $pickAlvo = isset($body['pick_number']) ? (int)$body['pick_number'] : null;
         if ($nome === '') {
             echo json_encode(['success' => false, 'error' => 'Digite o nome do jogador.']);
-            exit;
-        }
-        if (!in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true)) {
-            echo json_encode(['success' => false, 'error' => 'Posição inválida.']);
             exit;
         }
         if (draftFinalizado($pdo, $draftId)) {
@@ -526,6 +605,33 @@ if ($method === 'POST') {
         }
 
         echo json_encode(['success' => true] + estadoDraftAleatorio($pdo, $draftId, $user_id, $is_admin));
+        exit;
+    }
+
+    // Liga do draft — define quem enxerga ele no painel e na central.
+    if ($action === 'definir_liga') {
+        $nova = strtoupper(trim((string)($body['league'] ?? '')));
+        if (!$minhasLigasAdmin || ($nova !== '' && !in_array($nova, $minhasLigasAdmin, true))) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Você não administra essa liga.']);
+            exit;
+        }
+        // Também precisa administrar a liga em que o draft está hoje.
+        $stAtual = $pdo->prepare("SELECT league FROM drafts_aleatorios WHERE id = ? LIMIT 1");
+        $stAtual->execute([$draftId]);
+        $atual = $stAtual->fetchColumn();
+        if ($atual && !in_array(strtoupper((string)$atual), $minhasLigasAdmin, true)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Só o admin da ' . strtoupper((string)$atual) . ' pode mover este draft.']);
+            exit;
+        }
+        if ($nova === '') {
+            echo json_encode(['success' => false, 'error' => 'Escolha a liga.']);
+            exit;
+        }
+        $pdo->prepare("UPDATE drafts_aleatorios SET league = ? WHERE id = ?")->execute([$nova, $draftId]);
+        echo json_encode(['success' => true, 'minhas_ligas' => $minhasLigasAdmin]
+            + estadoDraftAleatorio($pdo, $draftId, $user_id, $is_admin));
         exit;
     }
 

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../backend/config.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/helpers.php';
+require_once __DIR__ . '/../backend/push.php';
 
 header('Content-Type: application/json');
 
@@ -558,8 +559,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     jsonError('Tabela league_settings ausente', 500);
                 }
                 // Inserir ou atualizar com base na UNIQUE(league)
+                $estavaLigada = getFaEnabled($pdo, $league);
                 $stmt = $pdo->prepare("INSERT INTO league_settings (league, fa_enabled) VALUES (?, ?) ON DUPLICATE KEY UPDATE fa_enabled = VALUES(fa_enabled)");
                 $stmt->execute([$league, $enabled]);
+
+                // Só avisa quando o estado muda de fato.
+                if ($estavaLigada !== ($enabled === 1)) {
+                    sendPushToLeague($pdo, $league, $enabled === 1
+                        ? ['title' => '💰 Free Agency aberta na ' . $league,
+                           'body'  => 'A janela de propostas está no ar. Corra pros free agents!',
+                           'url'   => '/free-agency.php']
+                        : ['title' => '🔒 Free Agency fechada na ' . $league,
+                           'body'  => 'A janela de propostas foi encerrada. Aguarde as decisões do admin.',
+                           'url'   => '/free-agency.php'],
+                        'free_agency');
+                }
+
                 jsonSuccess(['league' => $league, 'enabled' => $enabled === 1]);
             } catch (Exception $e) {
                 jsonError('Falha ao atualizar status da FA.', 500);
@@ -1740,6 +1755,17 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
         jsonError('Time nao tem moedas suficientes');
     }
 
+    // Quem mais estava na disputa — precisa ser lido ANTES, porque o UPDATE
+    // abaixo já muda todas essas propostas pra "rejected".
+    $perdedores = [];
+    try {
+        $stPerd = $pdo->prepare('SELECT DISTINCT team_id FROM free_agent_offers WHERE free_agent_id = ? AND status = "pending" AND team_id <> ?');
+        $stPerd->execute([(int)$offer['free_agent_id'], (int)$offer['team_id']]);
+        $perdedores = array_map('intval', $stPerd->fetchAll(PDO::FETCH_COLUMN));
+    } catch (Throwable $e) {
+        error_log('approveOffer perdedores: ' . $e->getMessage());
+    }
+
     $pdo->beginTransaction();
     try {
         $columns = ['team_id', 'name', 'age', 'position', 'ovr'];
@@ -1844,6 +1870,26 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
         }
 
         $pdo->commit();
+
+        // Só depois do commit — o resultado da disputa vai pra quem participou.
+        try {
+            $nomeJogador = (string)$offer['player_name'];
+            sendPushToTeam($pdo, (int)$offer['team_id'], [
+                'title' => '✍️ Free Agent assinado!',
+                'body'  => "{$nomeJogador} é seu por " . (int)$offer['amount'] . ' moedas.',
+                'url'   => '/my-roster.php',
+            ], 'free_agency');
+            foreach ($perdedores as $tid) {
+                sendPushToTeam($pdo, $tid, [
+                    'title' => '❌ Free Agent perdido',
+                    'body'  => "{$nomeJogador} assinou com {$offer['team_city']} {$offer['team_name']}.",
+                    'url'   => '/free-agency.php',
+                ], 'free_agency');
+            }
+        } catch (Throwable $e) {
+            error_log('push approveOffer #' . $offer_id . ': ' . $e->getMessage());
+        }
+
         jsonSuccess([
             'message' => sprintf('%s agora faz parte de %s %s', $offer['player_name'], $offer['team_city'], $offer['team_name'])
         ]);

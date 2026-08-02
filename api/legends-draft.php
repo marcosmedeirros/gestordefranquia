@@ -176,11 +176,27 @@ function estadoDraft(PDO $pdo, int $sessionUserId, bool $isAdmin): array
     $picks = $pdo->query("
         SELECT ldp.id, ldp.pick_number, ldp.team_id, ldp.user_id, ldp.gm_name,
                ldp.player_name, ldp.player_position, ldp.ovr, ldp.age, ldp.skipped, ldp.picked_at,
-               t.photo_url
+               ldp.created_at, t.photo_url
         FROM legends_draft_picks ldp
         LEFT JOIN teams t ON t.id = ldp.team_id
         ORDER BY ldp.pick_number ASC
     ")->fetchAll(PDO::FETCH_ASSOC);
+
+    // Tempo de cada escolha: picked_at desta menos o da anterior (a vez começa
+    // quando a anterior sai). A pick 1 conta desde a criação do quadro.
+    // Preenchimento fora de ordem pode dar negativo — nesse caso não mostra.
+    $anterior = null;
+    foreach ($picks as $i => $p) {
+        $picks[$i]['tempo_seg'] = null;
+        if ($p['picked_at'] !== null) {
+            $base = $anterior ?? $p['created_at'];
+            if ($base !== null) {
+                $delta = strtotime($p['picked_at']) - strtotime($base);
+                if ($delta >= 0) $picks[$i]['tempo_seg'] = $delta;
+            }
+            $anterior = $p['picked_at'];
+        }
+    }
 
     $vezPickNumber = null;
     $meuPick = null;
@@ -245,7 +261,7 @@ function notificarEscolhaLendas(PDO $pdo, string $gmName, ?string $playerName): 
     ];
     foreach ($userIds as $uid) {
         try {
-            sendPushToUser($pdo, (int)$uid, $payloadEscolha);
+            sendPushToUser($pdo, (int)$uid, $payloadEscolha, 'eventos');
         } catch (Throwable $e) {
             error_log('notificarEscolhaLendas (push user_id=' . $uid . '): ' . $e->getMessage());
         }
@@ -264,7 +280,7 @@ function notificarEscolhaLendas(PDO $pdo, string $gmName, ?string $playerName): 
                 'title' => 'Draft de Lendas ⭐',
                 'body'  => 'É a sua vez de escolher!',
                 'url'   => '/legends-draft.php',
-            ]);
+            ], 'eventos');
         } catch (Throwable $e) {
             error_log('notificarEscolhaLendas (push vez user_id=' . $proximoUserId . '): ' . $e->getMessage());
         }
@@ -284,14 +300,13 @@ if ($method === 'POST') {
 
     if ($action === 'escolher') {
         $nome = trim((string)($body['player_name'] ?? ''));
+        // Posição saiu do formulário — só o nome é digitado. Ainda é aceita se
+        // vier (escolhas antigas gravaram), mas não é mais exigida.
         $pos  = strtoupper(trim((string)($body['player_position'] ?? '')));
+        if (!in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true)) $pos = null;
         $pickAlvo = isset($body['pick_number']) ? (int)$body['pick_number'] : null;
         if ($nome === '') {
             echo json_encode(['success' => false, 'error' => 'Digite o nome do jogador.']);
-            exit;
-        }
-        if (!in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true)) {
-            echo json_encode(['success' => false, 'error' => 'Posição inválida.']);
             exit;
         }
 
