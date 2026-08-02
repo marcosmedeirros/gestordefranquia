@@ -510,13 +510,16 @@ function openGestaoEdit(userId) {
         <label class="form-label text-light-gray">Liga do Usuário</label>
         <select id="gedit-user-league" class="form-select">${leagueOptions(u.league)}</select>
       </div>`;
-  } else if (leaguesMismatched) {
-    // Usuário e time em ligas diferentes (bug de dados): mostra os dois campos
-    // separados pra permitir corrigir cada lado independentemente.
-    leagueField = `
+  } else {
+    // Sempre mostra os dois campos, lado a lado, pra dar pra conferir e
+    // corrigir cada um independentemente (usuário pode estar em uma liga e o
+    // time em outra por bug de dados).
+    const warningBanner = leaguesMismatched ? `
       <div class="alert alert-warning py-2 px-3 mb-2" style="font-size:12px">
         <i class="bi bi-exclamation-triangle-fill me-1"></i>Usuário e time estão em ligas diferentes. Corrija abaixo.
-      </div>
+      </div>` : '';
+    leagueField = `
+      ${warningBanner}
       <div class="row g-2 mb-3">
         <div class="col-6">
           <label class="form-label text-light-gray">Liga do Usuário</label>
@@ -524,16 +527,8 @@ function openGestaoEdit(userId) {
         </div>
         <div class="col-6">
           <label class="form-label text-light-gray">Liga do Time</label>
-          <select id="gedit-team-league" class="form-select">${leagueOptions(u.team_league)}</select>
+          <select id="gedit-team-league" class="form-select">${leagueOptions(u.team_league || u.league)}</select>
         </div>
-      </div>`;
-  } else {
-    // Usuário e time na mesma liga: um único campo, muda os dois juntos.
-    leagueField = `
-      <div class="mb-3">
-        <label class="form-label text-light-gray">Liga</label>
-        <select id="gedit-league-sync" class="form-select">${leagueOptions(u.team_league || u.league)}</select>
-        <div style="font-size:11px;color:var(--text-3);margin-top:4px">Muda a liga do time e do dono junto.</div>
       </div>`;
   }
   const adminChecks = window.IS_GLOBAL_ADMIN ? allLeagues.map(l => `
@@ -640,18 +635,10 @@ async function saveGestaoUser() {
   const teamCityEl = document.getElementById('gedit-team-city');
   const teamCity = teamCityEl ? teamCityEl.value.trim() : '';
 
-  const syncLeagueEl = document.getElementById('gedit-league-sync');
-  let userLeague = '';
-  let teamLeague = '';
-  if (syncLeagueEl) {
-    userLeague = syncLeagueEl.value;
-    teamLeague = syncLeagueEl.value;
-  } else {
-    const userLeagueEl = document.getElementById('gedit-user-league');
-    const teamLeagueEl = document.getElementById('gedit-team-league');
-    userLeague = userLeagueEl ? userLeagueEl.value : '';
-    teamLeague = teamLeagueEl ? teamLeagueEl.value : '';
-  }
+  const userLeagueEl = document.getElementById('gedit-user-league');
+  const teamLeagueEl = document.getElementById('gedit-team-league');
+  const userLeague = userLeagueEl ? userLeagueEl.value : '';
+  const teamLeague = teamLeagueEl ? teamLeagueEl.value : '';
 
   try {
     await api('admin.php?action=update_user', {
