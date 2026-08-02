@@ -1881,11 +1881,11 @@ if ($method === 'POST') {
             exit;
 
         case 'games_zerar':
-            // Zera moedas OU FBA Points de todo mundo de uma vez — é o mesmo
-            // efeito do reset mensal, mas na mão, para quando o admin precisar
-            // recomeçar fora da virada do mês. Um campo por vez, de propósito:
-            // zerar os dois juntos raramente é o que se quer e não dá pra
-            // desfazer.
+            // Zera moedas OU FBA Points de todo mundo de uma vez. Desde que o
+            // reset automático do dia 1º saiu, este é o ÚNICO jeito de zerar —
+            // o saldo acumula sozinho pra sempre. Um campo por vez, de
+            // propósito: zerar os dois juntos raramente é o que se quer e não
+            // dá pra desfazer.
             ensureGamesSchema($pdo);
             if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
                 http_response_code(403);
