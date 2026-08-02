@@ -1643,6 +1643,12 @@ async function showLeague(league) {
       { icon: 'bi-hammer',                  label: 'Leilão',                    fn: `showLeilaoAdmin('${league}')`, color: '#ef4444', bg: 'rgba(239,68,68,.12)'  },
       { icon: 'bi-archive-fill',            label: 'Banco de<br>Classes',        fn: 'showDraftClassBank()',      color: '#a855f7', bg: 'rgba(168,85,247,.08)'  },
       { icon: 'bi-coin',                    label: 'Moedas',                    fn: 'showCoins()',               color: '#f59e0b', bg: 'rgba(245,158,11,.12)'  },
+      ...(league === 'ROOKIE' ? [
+        // Cadastro de GM novo na ROOKIE é sempre via link de convite (o mesmo
+        // sistema de lista de espera) — atalho pra copiar o link sem precisar
+        // caçar o botão de Convites lá no topo do admin.
+        { icon: 'bi-clipboard-plus',        label: 'Inscrição<br>ROOKIE',        fn: 'showWaitlistModal()',       color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
+      ] : []),
       ...(window.IS_GLOBAL_ADMIN ? [
         { icon: 'bi-lightning-fill',        label: 'Force<br>Trade',            fn: `showForceTradeModal('${league}')`, color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 12%, transparent)'   },
       ] : []),
