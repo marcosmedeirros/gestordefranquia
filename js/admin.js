@@ -500,14 +500,42 @@ function openGestaoEdit(userId) {
         <input type="text" id="gedit-team-city" class="form-control" value="${escapeHtml(u.team_city || '')}">
       </div>
     </div>` : '';
-  const teamLeagueField = u.team_id ? `
-    <div class="mb-3">
-      <label class="form-label text-light-gray">Liga do Time</label>
-      <select id="gedit-team-league" class="form-select">
-        ${allLeagues.map(l => `<option value="${l}" ${(u.team_league || u.league) === l ? 'selected' : ''}>${l}</option>`).join('')}
-      </select>
-      <div style="font-size:11px;color:var(--text-3);margin-top:4px">Muda a liga do time e do dono junto.</div>
-    </div>` : '';
+  const leagueOptions = (selected) => allLeagues.map(l => `<option value="${l}" ${selected === l ? 'selected' : ''}>${l}</option>`).join('');
+  const leaguesMismatched = u.team_id && u.team_league && u.league && u.team_league !== u.league;
+  let leagueField;
+  if (!u.team_id) {
+    // Sem time vinculado: só existe a liga do usuário.
+    leagueField = `
+      <div class="mb-3">
+        <label class="form-label text-light-gray">Liga do Usuário</label>
+        <select id="gedit-user-league" class="form-select">${leagueOptions(u.league)}</select>
+      </div>`;
+  } else if (leaguesMismatched) {
+    // Usuário e time em ligas diferentes (bug de dados): mostra os dois campos
+    // separados pra permitir corrigir cada lado independentemente.
+    leagueField = `
+      <div class="alert alert-warning py-2 px-3 mb-2" style="font-size:12px">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i>Usuário e time estão em ligas diferentes. Corrija abaixo.
+      </div>
+      <div class="row g-2 mb-3">
+        <div class="col-6">
+          <label class="form-label text-light-gray">Liga do Usuário</label>
+          <select id="gedit-user-league" class="form-select">${leagueOptions(u.league)}</select>
+        </div>
+        <div class="col-6">
+          <label class="form-label text-light-gray">Liga do Time</label>
+          <select id="gedit-team-league" class="form-select">${leagueOptions(u.team_league)}</select>
+        </div>
+      </div>`;
+  } else {
+    // Usuário e time na mesma liga: um único campo, muda os dois juntos.
+    leagueField = `
+      <div class="mb-3">
+        <label class="form-label text-light-gray">Liga</label>
+        <select id="gedit-league-sync" class="form-select">${leagueOptions(u.team_league || u.league)}</select>
+        <div style="font-size:11px;color:var(--text-3);margin-top:4px">Muda a liga do time e do dono junto.</div>
+      </div>`;
+  }
   const adminChecks = window.IS_GLOBAL_ADMIN ? allLeagues.map(l => `
     <div class="form-check form-check-inline">
       <input class="form-check-input" type="checkbox" id="ck-${l}" value="${l}" ${(u.admin_leagues||[]).includes(l) ? 'checked' : ''}>
@@ -559,7 +587,7 @@ function openGestaoEdit(userId) {
               </div>
             </div>
             ${teamNameField}
-            ${teamLeagueField}
+            ${leagueField}
             ${window.IS_GLOBAL_ADMIN ? `
             <div class="mb-3">
               <label class="form-label text-light-gray">Ligas Admin</label>
@@ -611,13 +639,24 @@ async function saveGestaoUser() {
   const teamName = teamNameEl ? teamNameEl.value.trim() : '';
   const teamCityEl = document.getElementById('gedit-team-city');
   const teamCity = teamCityEl ? teamCityEl.value.trim() : '';
-  const teamLeagueEl = document.getElementById('gedit-team-league');
-  const teamLeague = teamLeagueEl ? teamLeagueEl.value : '';
+
+  const syncLeagueEl = document.getElementById('gedit-league-sync');
+  let userLeague = '';
+  let teamLeague = '';
+  if (syncLeagueEl) {
+    userLeague = syncLeagueEl.value;
+    teamLeague = syncLeagueEl.value;
+  } else {
+    const userLeagueEl = document.getElementById('gedit-user-league');
+    const teamLeagueEl = document.getElementById('gedit-team-league');
+    userLeague = userLeagueEl ? userLeagueEl.value : '';
+    teamLeague = teamLeagueEl ? teamLeagueEl.value : '';
+  }
 
   try {
     await api('admin.php?action=update_user', {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId, team_id: teamId, name, email, team_photo: teamPhoto, team_name: teamName, team_city: teamCity, team_league: teamLeague })
+      body: JSON.stringify({ user_id: userId, team_id: teamId, name, email, team_photo: teamPhoto, team_name: teamName, team_city: teamCity, user_league: userLeague, team_league: teamLeague })
     });
 
     if (window.IS_GLOBAL_ADMIN) {

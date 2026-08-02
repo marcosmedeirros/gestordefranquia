@@ -2589,14 +2589,23 @@ if ($method === 'POST') {
             if ($name)  $pdo->prepare("UPDATE users SET name = ? WHERE id = ?")->execute([$name, $targetId]);
             if ($email) $pdo->prepare("UPDATE users SET email = ? WHERE id = ?")->execute([$email, $targetId]);
 
-            // Trocar a liga do time: atualiza teams.league (dispara o trigger de
-            // congelamento do Hall da Fama) e users.league do dono, juntos.
+            // Liga do usuário e liga do time são campos independentes no modal de
+            // Gestão (podem divergir por bug de dados antigo) — cada um só é
+            // gravado se veio preenchido, na tabela correspondente. Quando o
+            // admin usa o campo único (mesma liga nos dois lados), o front manda
+            // os dois parâmetros com o mesmo valor, então os dois acabam mudando
+            // juntos mesmo assim.
+            $userLeague = isset($data['user_league']) ? strtoupper(trim((string)$data['user_league'])) : '';
+            if ($userLeague !== '' && in_array($userLeague, $validLeagues, true)) {
+                $pdo->prepare("UPDATE users SET league = ? WHERE id = ?")
+                    ->execute([$userLeague, $targetId]);
+            }
+
+            // Trocar a liga do time dispara o trigger de congelamento do Hall da Fama.
             $teamLeague = isset($data['team_league']) ? strtoupper(trim((string)$data['team_league'])) : '';
             if ($teamLeague !== '' && in_array($teamLeague, $validLeagues, true) && !empty($data['team_id'])) {
                 $pdo->prepare("UPDATE teams SET league = ? WHERE id = ? AND user_id = ?")
                     ->execute([$teamLeague, (int)$data['team_id'], $targetId]);
-                $pdo->prepare("UPDATE users SET league = ? WHERE id = ?")
-                    ->execute([$teamLeague, $targetId]);
             }
 
             $teamName = trim((string)($data['team_name'] ?? ''));
