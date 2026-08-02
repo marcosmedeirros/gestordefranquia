@@ -115,7 +115,23 @@ function responderPreviewSeRobo(): void
 <meta name="twitter:description" content="{$d}">
 <meta name="twitter:image" content="{$i}">
 </head>
-<body><p>{$t}</p></body>
+<body style="font-family:system-ui,sans-serif;background:#07070a;color:#f0f0f3;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center">
+<div>
+<p style="font-size:18px;font-weight:700;margin:0 0 6px">{$t}</p>
+<p style="font-size:13px;color:#868690;margin:0 0 18px">Entre na sua conta pra ver esta página.</p>
+<a href="/login.php" style="display:inline-block;background:#fc0025;color:#fff;text-decoration:none;font-weight:600;padding:12px 26px;border-radius:10px">Entrar</a>
+</div>
+<script>
+// Gente que abre o link pelo navegador interno do WhatsApp/Telegram cai aqui
+// (o User-Agent desses apps é o mesmo do robô de preview) e ficava numa tela
+// sem saída. Robô não executa JS, então o preview do link segue intacto e só
+// a pessoa é levada pro login, com a página de origem guardada pra voltar.
+try {
+  var destino = location.pathname + location.search;
+  location.replace('/login.php?next=' + encodeURIComponent(destino));
+} catch (e) {}
+</script>
+</body>
 </html>
 HTML;
     exit;
