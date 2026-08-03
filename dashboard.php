@@ -1347,6 +1347,13 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             .stats-row { grid-template-columns: 1fr 1fr; }
             .quick-grid { grid-template-columns: repeat(3, 1fr); }
             .dash-hero { padding-top: 18px; }
+            /* Queridômetro: em tela estreita o nome não cabe do lado do rótulo
+               da categoria, então empilha — rótulo em cima, GMs embaixo. */
+            .querido-row { flex-direction: column; align-items: stretch; gap: 8px; }
+            .querido-cat { width: auto; justify-content: flex-start; padding: 0; }
+            .querido-top3 { width: 100%; }
+            .querido-chip { flex: 1 1 auto; min-width: 0; }
+            .querido-nome { overflow: hidden; text-overflow: ellipsis; }
         }
         @media (max-width: 480px) {
             .stats-row { grid-template-columns: 1fr 1fr; }
