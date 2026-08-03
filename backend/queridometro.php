@@ -40,6 +40,18 @@ function queridometroCategorias(): array
     ];
 }
 
+/** Descrição de cada categoria, pro tooltip no card e no popup de voto. */
+function queridometroDescricoes(): array
+{
+    return [
+        'MVP'      => 'O melhor GM da semana — quem mais se destacou.',
+        'MIP'      => 'Most Improved: quem mais evoluiu ultimamente.',
+        'AIR_BALL' => 'O pior GM da semana — decisão errada, jogada furada.',
+        'COBRA'    => 'Não dá pra confiar — promete e não cumpre, trai combinado.',
+        'PLANTA'   => 'Sumido — não participa, não responde, não faz nada na liga.',
+    ];
+}
+
 /** Chave da semana atual (ano ISO + semana ISO), ex: "2026-31". */
 function queridometroWeekKey(): string
 {

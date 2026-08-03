@@ -972,9 +972,11 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             border-radius: var(--radius-sm);
         }
         .querido-cat {
-            flex-shrink: 0; width: 84px; font-size: 12px; font-weight: 800;
+            flex-shrink: 0; width: 92px; font-size: 12px; font-weight: 800;
             padding: 5px 0; text-align: center; border-radius: 999px;
+            display: flex; align-items: center; justify-content: center; gap: 4px;
         }
+        .querido-cat i { font-size: 12px; opacity: .65; }
         .querido-cat-mvp { color: var(--green); }
         .querido-cat-mip { color: var(--blue); }
         .querido-cat-air_ball { color: #ef4444; }
@@ -1689,10 +1691,16 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     </div>
                     <div class="bc-body">
                         <div class="querido-lista">
-                            <?php foreach (queridometroCategorias() as $catKey => $catLabel):
+                            <?php $queridoDescricoes = queridometroDescricoes();
+                            foreach (queridometroCategorias() as $catKey => $catLabel):
                                 $top = $queridoTop3[$catKey] ?? []; ?>
                             <div class="querido-row">
-                                <div class="querido-cat querido-cat-<?= strtolower($catKey) ?>"><?= htmlspecialchars($catLabel) ?></div>
+                                <div class="querido-cat querido-cat-<?= strtolower($catKey) ?>">
+                                    <?= htmlspecialchars($catLabel) ?>
+                                    <span tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top"
+                                          title="<?= htmlspecialchars($queridoDescricoes[$catKey] ?? '') ?>"
+                                          style="cursor:help"><i class="bi bi-info-circle"></i></span>
+                                </div>
                                 <div class="querido-top3" id="querido-top3-<?= $catKey ?>">
                                     <?php if (!$top): ?>
                                     <span class="querido-vazio">Sem votos ainda essa temporada</span>
@@ -2865,7 +2873,12 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
     <div>
       <?php foreach (queridometroCategorias() as $catKey => $catLabel): ?>
       <div class="quer-field">
-        <label for="quer-<?= $catKey ?>"><?= htmlspecialchars($catLabel) ?></label>
+        <label for="quer-<?= $catKey ?>">
+          <?= htmlspecialchars($catLabel) ?>
+          <span tabindex="0" data-bs-toggle="tooltip" data-bs-placement="top"
+                title="<?= htmlspecialchars(queridometroDescricoes()[$catKey] ?? '') ?>"
+                style="cursor:help;text-transform:none;letter-spacing:0"><i class="bi bi-info-circle"></i></span>
+        </label>
         <select id="quer-<?= $catKey ?>" data-cat="<?= $catKey ?>">
           <option value="">Escolha um GM...</option>
           <?php foreach ($queridoTimes as $tt): ?>
@@ -2934,6 +2947,9 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
     } catch (e) { /* silencioso: só não atualiza dessa vez, tenta de novo no próximo ciclo */ }
   }
   setInterval(queridoAtualizarPlacar, 20000);
+
+  document.querySelectorAll('.querido-cat [data-bs-toggle="tooltip"], .quer-field [data-bs-toggle="tooltip"]')
+    .forEach(el => bootstrap.Tooltip.getOrCreateInstance(el, { trigger: 'hover focus' }));
 
   if (!jaVotou) {
     const categorias = <?= json_encode(array_keys(queridometroCategorias())) ?>;
