@@ -25,10 +25,20 @@ if ($ehCli) {
 require_once dirname(__DIR__) . '/core/build_lendas.php';
 
 $resultado = null;
+$zerou = null;
 $erro = null;
 if ($ehCli || ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     try {
-        $resultado = buildAplicarLendasCuradas($pdo);
+        // Zerar tudo: apaga as partidas jogadas (e com elas o ranking). As
+        // notas das lendas ficam — o que se joga fora é o histórico, não o
+        // elenco. Serve pra limpar os testes antes de abrir pra liga.
+        if (($_POST['acao'] ?? '') === 'zerar') {
+            $st = $pdo->query("SELECT COUNT(*) FROM build_partidas");
+            $zerou = (int)$st->fetchColumn();
+            $pdo->exec("DELETE FROM build_partidas");
+        } else {
+            $resultado = buildAplicarLendasCuradas($pdo);
+        }
     } catch (Throwable $e) {
         $erro = $e->getMessage();
     }
@@ -82,6 +92,9 @@ a{color:#f59e0b}
     (<?= $resultado['criados'] ?> precisaram ser criadas na base de jogadores).
 </div>
 <?php endif; ?>
+<?php if ($zerou !== null): ?>
+<div class="ok">Ranking zerado: <b><?= $zerou ?></b> partida<?= $zerou === 1 ? '' : 's' ?> apagada<?= $zerou === 1 ? '' : 's' ?>. As notas das lendas continuam.</div>
+<?php endif; ?>
 
 <div class="box">
     <div class="stats">
@@ -90,12 +103,21 @@ a{color:#f59e0b}
         <div class="stat"><b><?= (int)($porGrupo['GUARD'] ?? 0) ?></b><span>guards</span></div>
         <div class="stat"><b><?= (int)($porGrupo['BIG'] ?? 0) ?></b><span>bigs</span></div>
     </div>
-    <form method="post">
-        <button type="submit"><i class="bi bi-magic"></i> Aplicar elenco curado</button>
-    </form>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <form method="post">
+            <button type="submit"><i class="bi bi-magic"></i> Aplicar elenco curado</button>
+        </form>
+        <form method="post" onsubmit="return confirm('Apagar TODAS as partidas do Build-A-Player?\n\nO ranking volta do zero e todo mundo pode jogar de novo hoje. As notas das lendas continuam. Não dá pra desfazer.')">
+            <input type="hidden" name="acao" value="zerar">
+            <button type="submit" style="background:transparent;border:1px solid rgba(239,68,68,.5);color:#fca5a5">
+                <i class="bi bi-trash"></i> Zerar partidas e ranking
+            </button>
+        </form>
+    </div>
     <p style="font-size:12px;color:#6b6b76;margin:12px 0 0">
-        Pode rodar quantas vezes quiser — reescreve as mesmas notas.
-        Depois, o jogo já funciona em <a href="/games/games/index.php?game=buildplayer">Build-A-Player</a>.
+        Aplicar pode rodar quantas vezes quiser — reescreve as mesmas notas.
+        Zerar apaga só o histórico de partidas (o ranking), nunca as lendas.
+        O jogo fica em <a href="/games/games/index.php?game=buildplayer">Build-A-Player</a>.
     </p>
 </div>
 

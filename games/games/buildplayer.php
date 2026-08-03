@@ -185,6 +185,22 @@ if (($_POST['acao'] ?? '') !== '') {
 
         $partida = bpPartida($pdo, $user_id, $hoje);
         if (!$partida) { echo json_encode(['ok' => false, 'msg' => 'Comece uma partida primeiro.']); exit; }
+
+        // Recomeçar do zero: apaga a partida do dia e volta pra escolha de
+        // tipo. Só vale enquanto ela está em andamento — se desse pra resetar
+        // uma partida FECHADA, dava pra refazer o build até cair no top 1 e
+        // sacar as 500 moedas quantas vezes quisesse.
+        if ($acao === 'recomecar') {
+            if ($partida['concluido_em']) {
+                echo json_encode(['ok' => false, 'msg' => 'A partida de hoje já foi finalizada — amanhã tem outra.']);
+                exit;
+            }
+            $pdo->prepare("DELETE FROM build_partidas WHERE id = ? AND id_usuario = ?")
+                ->execute([(int)$partida['id'], $user_id]);
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
         if ($partida['concluido_em']) { echo json_encode(['ok' => false, 'msg' => 'Esta partida já terminou.']); exit; }
 
         if ($acao === 'girar') {
@@ -409,6 +425,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .spin-btn:active:not(:disabled){transform:scale(.985)}
 .spin-btn:disabled{background:var(--panel3);color:var(--text3);cursor:not-allowed}
 .hint{font-size:11.5px;color:var(--text2);text-align:center;margin-top:10px;min-height:16px}
+.reset-btn{display:block;margin:10px auto 0;background:transparent;border:1px solid var(--border);color:var(--text3);border-radius:9px;padding:6px 14px;font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;transition:.15s}
+.reset-btn:hover{border-color:var(--red);color:var(--red);background:var(--red-soft)}
 
 /* ── NOTAS DA LENDA SORTEADA ── */
 .notas{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:14px}
@@ -553,6 +571,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       </div>
       <button class="spin-btn" id="btnSpin" onclick="bpGirar()" <?= $lendaPendente ? 'disabled' : '' ?>><i class="bi bi-dice-3-fill"></i> GIRAR</button>
       <div class="hint" id="hint"><?= $lendaPendente ? 'Escolha <b>um</b> atributo pra levar.' : 'Gire pra sortear uma lenda.' ?></div>
+      <button type="button" class="reset-btn" onclick="bpRecomecar()"><i class="bi bi-arrow-counterclockwise"></i> Recomeçar do zero</button>
       <div class="notas" id="notas"><?php
         if ($lendaPendente):
           foreach ($lendaPendente['notas'] as $chave => $n):
@@ -631,6 +650,16 @@ async function bpComecar(grupo) {
   if (bpTravado) return;
   bpTravado = true;
   const r = await bpPost({ acao: 'comecar', grupo });
+  if (!r.ok) { alert(r.msg); bpTravado = false; return; }
+  location.reload();
+}
+
+/** Apaga a partida de hoje e volta pra escolha de tipo. */
+async function bpRecomecar() {
+  if (bpTravado) return;
+  if (!confirm('Recomeçar do zero?\n\nTudo que você já escolheu neste build é apagado e você escolhe o tipo de novo. Continua valendo como a sua partida de hoje.')) return;
+  bpTravado = true;
+  const r = await bpPost({ acao: 'recomecar' });
   if (!r.ok) { alert(r.msg); bpTravado = false; return; }
   location.reload();
 }
