@@ -278,6 +278,32 @@ if ($ligaDoTime !== '') {
             ];
         }
     } catch (Throwable $e) { /* drafts_aleatorios ainda não existe neste banco */ }
+
+    try {
+        $stmtLot = $pdo->prepare("
+            SELECT l.id, l.titulo,
+                   COUNT(lp.id) AS total,
+                   SUM(lp.pick_number IS NOT NULL) AS sorteados
+            FROM loterias l
+            JOIN loteria_participantes lp ON lp.loteria_id = l.id
+            WHERE UPPER(l.league) = ?
+            GROUP BY l.id
+            HAVING total > 0 AND sorteados < total
+            ORDER BY l.created_at DESC
+            LIMIT 3");
+        $stmtLot->execute([$ligaDoTime]);
+        foreach ($stmtLot->fetchAll(PDO::FETCH_ASSOC) as $l) {
+            $eventosSorteio[] = [
+                'tipo'   => 'loteria',
+                'titulo' => $l['titulo'],
+                'href'   => '/loteria-aleatoria.php?id=' . (int)$l['id'],
+                'icone'  => 'bi-dice-3-fill',
+                'feitas' => (int)$l['sorteados'],
+                'total'  => (int)$l['total'],
+                'rotulo' => 'Loteria em andamento',
+            ];
+        }
+    } catch (Throwable $e) { /* loterias ainda não existe neste banco */ }
 }
 
 // Último post da Timeline: o mais recente de quem o time segue. Sem ninguém

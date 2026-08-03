@@ -306,6 +306,9 @@ async function showGestao(league) {
       <a href="/drafts-aleatorios.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
         <i class="bi bi-shuffle" style="color:#a855f7"></i> Drafts Aleatórios
       </a>
+      <a href="/loterias-aleatorias.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
+        <i class="bi bi-dice-3-fill" style="color:#f59e0b"></i> Loterias
+      </a>
       <a href="/thepathetic-edit.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
         <i class="bi bi-newspaper" style="color:var(--red)"></i> The Pathetic
       </a>
