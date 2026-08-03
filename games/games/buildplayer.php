@@ -257,10 +257,9 @@ if (($_POST['acao'] ?? '') !== '') {
 }
 
 // ── TELA ────────────────────────────────────────────────────────────────────
-$partida  = bpPartida($pdo, $user_id, $hoje);
+$partida   = bpPartida($pdo, $user_id, $hoje);
 $ATRIBUTOS = buildAtributos();
-
-$temNotas = (int)$pdo->query("SELECT COUNT(*) FROM build_notas")->fetchColumn();
+$temNotas  = (int)$pdo->query("SELECT COUNT(*) FROM build_notas")->fetchColumn();
 
 // A posição exibida é recalculada AGORA, não a gravada no fim da partida:
 // se alguém te ultrapassou depois, o certo é mostrar onde você está hoje.
@@ -271,274 +270,378 @@ if ($partida && $partida['concluido_em']) {
     $posicaoAtual = bpPosicaoNoRank($pdo, (int)$partida['ovr'], (int)$partida['id']);
 }
 
-// Top 10 de todos os tempos, pro quadro lateral.
+$preenchidos = 0;
+if ($partida) {
+    foreach ($ATRIBUTOS as $c => $_) if (!empty($partida['slots'][$c])) $preenchidos++;
+}
+
 $topGeral = $pdo->query("SELECT b.ovr, b.grupo, u.nome
                          FROM build_partidas b
                          INNER JOIN games_usuarios u ON u.id = b.id_usuario
                          WHERE b.concluido_em IS NOT NULL
                          ORDER BY b.ovr DESC, b.id ASC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
 ?>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Build-A-Player</title>
+<link rel="icon" type="image/png" href="/games/fbagames.png">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-    .bp-wrap { max-width: 1080px; margin: 0 auto; }
-    .bp-head { text-align: center; margin-bottom: 18px; }
-    .bp-head h2 { font-size: 22px; font-weight: 900; margin: 0 0 6px; letter-spacing: -.3px; }
-    .bp-head p { font-size: 13px; color: #9aa; margin: 0; }
+:root{
+  --bg:#07070a;--panel:#101013;--panel2:#16161a;--panel3:#1c1c21;
+  --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.14);
+  --red:#fc0025;--red-soft:rgba(252,0,37,.12);--red-glow:rgba(252,0,37,.25);
+  --text:#f0f0f3;--text2:#868690;--text3:#3c3c44;
+  --green:#22c55e;--green-soft:rgba(34,197,94,.12);
+  --amber:#f59e0b;--amber-soft:rgba(245,158,11,.12);
+  --blue:#3b82f6;--blue-soft:rgba(59,130,246,.12);
+  --radius:14px;--font:'Poppins',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 
-    .bp-grid { display: grid; grid-template-columns: 1fr 320px; gap: 16px; align-items: start; }
-    @media (max-width: 900px) { .bp-grid { grid-template-columns: 1fr; } }
+/* TOP BAR — a mesma dos outros jogos */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.back-btn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--text2);text-decoration:none;font-size:14px;transition:.2s;flex-shrink:0}
+.back-btn:hover{border-color:var(--red);color:var(--red);background:var(--red-soft)}
+.game-title{font-size:15px;font-weight:800;color:var(--text)}
+.game-title span{color:var(--red)}
+.daily-badge{display:inline-flex;align-items:center;gap:4px;font-size:8px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--red-soft);border:1px solid var(--red-glow);color:var(--red);margin-left:6px}
+.topbar-right{display:flex;align-items:center;gap:6px}
+.chip{display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:var(--panel2);border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text);white-space:nowrap}
 
-    .bp-card { background: #14141a; border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 16px; }
-    .bp-card h3 { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: #8b8b96; margin: 0 0 12px; }
+.main{max-width:620px;margin:0 auto;padding:16px 12px 60px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.card-title{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 
-    /* Escolha inicial */
-    .bp-escolha { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .bp-tipo { background: #1b1b23; border: 2px solid rgba(255,255,255,.08); border-radius: 14px; padding: 22px 16px; cursor: pointer; text-align: center; transition: all .18s; }
-    .bp-tipo:hover { border-color: #f59e0b; transform: translateY(-2px); }
-    .bp-tipo b { display: block; font-size: 19px; font-weight: 900; margin-bottom: 4px; }
-    .bp-tipo span { font-size: 11.5px; color: #8b8b96; }
+/* ── ESCOLHA DO TIPO ── */
+.intro{text-align:center;padding:8px 0 18px}
+.intro h1{font-size:22px;font-weight:900;letter-spacing:-.4px;margin-bottom:8px}
+.intro p{font-size:13px;color:var(--text2);line-height:1.55;max-width:420px;margin:0 auto}
+.tipos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tipo{background:var(--panel2);border:1.5px solid var(--border);border-radius:var(--radius);padding:22px 14px;text-align:center;cursor:pointer;transition:.2s}
+.tipo:hover{border-color:var(--red);background:var(--red-soft);transform:translateY(-2px)}
+.tipo i{font-size:26px;color:var(--red);display:block;margin-bottom:8px}
+.tipo b{display:block;font-size:17px;font-weight:900;letter-spacing:.5px}
+.tipo span{font-size:10.5px;color:var(--text2);letter-spacing:.4px}
 
-    /* Roletas */
-    .bp-reels { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
-    .bp-reel { background: #0e0e13; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 14px; text-align: center; min-height: 92px; display: flex; flex-direction: column; justify-content: center; }
-    .bp-reel-label { font-size: 10px; font-weight: 800; letter-spacing: 1.2px; color: #6b6b76; margin-bottom: 6px; }
-    .bp-reel-valor { font-size: 17px; font-weight: 900; line-height: 1.15; }
-    .bp-reel.girando .bp-reel-valor { animation: bpFlick .09s steps(1) infinite; }
-    @keyframes bpFlick { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+/* ── ROLETAS ── */
+.reels{display:grid;grid-template-columns:1fr 1.5fr;gap:8px;margin-bottom:12px}
+.reel{background:var(--panel2);border:1px solid var(--border2);border-radius:12px;padding:14px 10px;text-align:center;min-height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;overflow:hidden;transition:.2s}
+.reel-label{font-size:8px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:var(--text3)}
+.reel-val{font-size:16px;font-weight:900;line-height:1.15}
+.reel.spin .reel-val{animation:reelRoll .5s cubic-bezier(.4,0,.6,1) infinite}
+@keyframes reelRoll{0%{transform:translateY(-16px);opacity:0}30%{opacity:1}70%{opacity:1}100%{transform:translateY(16px);opacity:0}}
+.reel.hit{border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
 
-    .bp-spin { width: 100%; background: #f59e0b; color: #17171d; border: 0; border-radius: 12px; padding: 15px; font-size: 15px; font-weight: 900; cursor: pointer; letter-spacing: .3px; }
-    .bp-spin:disabled { background: #26262f; color: #6b6b76; cursor: not-allowed; }
+.spin-btn{width:100%;background:var(--red);color:#fff;border:0;border-radius:12px;padding:15px;font-family:var(--font);font-size:15px;font-weight:800;letter-spacing:.3px;cursor:pointer;transition:.15s}
+.spin-btn:hover:not(:disabled){filter:brightness(1.12)}
+.spin-btn:active:not(:disabled){transform:scale(.985)}
+.spin-btn:disabled{background:var(--panel3);color:var(--text3);cursor:not-allowed}
+.hint{font-size:11.5px;color:var(--text2);text-align:center;margin-top:10px;min-height:16px}
 
-    /* Notas da lenda sorteada */
-    .bp-notas { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 14px; }
-    .bp-nota { background: #1b1b23; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; transition: all .15s; }
-    .bp-nota:hover:not(.ocupado) { border-color: #f59e0b; background: #23232c; }
-    .bp-nota.ocupado { opacity: .35; cursor: not-allowed; }
-    .bp-nota-label { font-size: 11.5px; font-weight: 600; }
-    .bp-nota-letra { font-size: 16px; font-weight: 900; flex-shrink: 0; }
+/* ── NOTAS DA LENDA SORTEADA ── */
+.notas{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:14px}
+.nota{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;transition:.15s}
+.nota:hover:not(.off){border-color:var(--red);background:var(--red-soft);transform:translateY(-1px)}
+.nota.off{opacity:.28;cursor:not-allowed}
+.nota-nome{font-size:11px;font-weight:600;line-height:1.25}
+.nota-letra{font-size:17px;font-weight:900;flex-shrink:0}
 
-    /* Slots do build */
-    .bp-slots { display: flex; flex-direction: column; gap: 6px; }
-    .bp-slot { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #1b1b23; border: 1px solid rgba(255,255,255,.06); border-radius: 9px; padding: 8px 11px; }
-    .bp-slot-nome { font-size: 11.5px; font-weight: 600; color: #b9b9c4; }
-    .bp-slot-de { font-size: 9.5px; color: #6b6b76; display: block; }
-    .bp-slot-letra { font-size: 15px; font-weight: 900; flex-shrink: 0; }
-    .bp-slot.vazio .bp-slot-letra { color: #3a3a45; }
+/* ── SLOTS DO BUILD ── */
+.slots{display:flex;flex-direction:column;gap:5px}
+.slot{display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:8px 11px;transition:.25s}
+.slot.novo{border-color:var(--green);background:var(--green-soft)}
+.slot-icon{width:20px;font-size:12px;color:var(--text3);flex-shrink:0;text-align:center}
+.slot-txt{flex:1;min-width:0}
+.slot-nome{font-size:11.5px;font-weight:600;color:var(--text);display:block}
+.slot-de{font-size:9.5px;color:var(--text3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot-letra{font-size:15px;font-weight:900;flex-shrink:0;color:var(--text3)}
+.grupo-sep{font-size:8px;font-weight:700;letter-spacing:1.1px;color:var(--text3);margin:9px 0 1px;padding-left:2px}
 
-    .bp-ovr { text-align: center; padding: 16px 0 4px; }
-    .bp-ovr-num { font-size: 44px; font-weight: 900; line-height: 1; }
-    .bp-ovr-label { font-size: 10px; font-weight: 800; letter-spacing: 1.4px; color: #6b6b76; }
+.ovr-box{text-align:center;padding:14px 0 2px;margin-top:10px;border-top:1px solid var(--border)}
+.ovr-num{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+.ovr-cap{font-size:9px;font-weight:700;letter-spacing:1.3px;color:var(--text3)}
 
-    .bp-fim { text-align: center; padding: 22px 16px; }
-    .bp-fim h3 { font-size: 15px; color: #e6e6ee; margin-bottom: 10px; }
-    .bp-fim-pos { font-size: 32px; font-weight: 900; color: #f59e0b; }
-    .bp-fim-moedas { font-size: 14px; font-weight: 700; color: #22c55e; margin-top: 8px; }
+/* ── TELA FINAL ── */
+.fim{text-align:center;padding:6px 0}
+.fim-ovr{font-size:58px;font-weight:900;line-height:1;color:var(--amber);font-variant-numeric:tabular-nums}
+.fim-cap{font-size:9px;font-weight:700;letter-spacing:1.4px;color:var(--text3);margin-bottom:16px}
+.fim-pos{display:inline-flex;align-items:baseline;gap:6px;background:var(--panel2);border:1px solid var(--border2);border-radius:999px;padding:8px 18px}
+.fim-pos b{font-size:24px;font-weight:900;color:var(--red)}
+.fim-pos span{font-size:11px;color:var(--text2)}
+.fim-antes{font-size:10px;color:var(--text3);margin-top:6px}
+.fim-moedas{display:inline-flex;align-items:center;gap:7px;background:var(--amber-soft);border:1px solid var(--amber);color:var(--amber);border-radius:999px;padding:9px 18px;font-size:13px;font-weight:800;margin-top:14px}
+.fim-nada{font-size:12px;color:var(--text2);margin-top:14px}
 
-    .bp-rank-item { display: flex; align-items: center; gap: 9px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 12px; }
-    .bp-rank-pos { width: 22px; font-weight: 900; color: #6b6b76; flex-shrink: 0; }
-    .bp-rank-nome { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .bp-rank-ovr { font-weight: 900; color: #f59e0b; }
+/* ── RANKING ── */
+.rank{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
+.rank:last-child{border-bottom:0}
+.rank-pos{width:24px;font-weight:900;color:var(--text3);flex-shrink:0;font-size:11px}
+.rank.top1 .rank-pos{color:#ffd700}
+.rank.top2 .rank-pos{color:#c0c8d4}
+.rank.top3 .rank-pos{color:#cd7f32}
+.rank-nome{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.rank-tag{font-size:8px;font-weight:700;letter-spacing:.6px;color:var(--text3);border:1px solid var(--border);border-radius:999px;padding:1px 7px;flex-shrink:0}
+.rank-ovr{font-weight:900;color:var(--amber);flex-shrink:0;font-variant-numeric:tabular-nums}
 
-    .bp-aviso { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.3); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; color: #f0c674; }
+.aviso{background:var(--amber-soft);border:1px solid var(--amber);border-radius:var(--radius);padding:14px 16px;font-size:12.5px;color:var(--amber);line-height:1.55}
+.aviso a{color:var(--amber);font-weight:700}
+.vazio{font-size:12px;color:var(--text3);text-align:center;padding:14px 0}
+.progresso{height:4px;border-radius:999px;background:var(--panel3);overflow:hidden;margin-bottom:14px}
+.progresso>div{height:100%;background:var(--red);transition:width .35s ease}
+
+@media(max-width:420px){
+  .reels{grid-template-columns:1fr 1.3fr}
+  .reel-val{font-size:14px}
+  .notas{grid-template-columns:1fr}
+}
 </style>
+</head>
+<body>
 
-<div class="bp-wrap">
-    <div class="bp-head">
-        <h2>🏗️ Build-A-Player</h2>
-        <p>Gire a roleta, pegue um atributo de cada lenda e monte o jogador perfeito. Uma partida por dia.</p>
-    </div>
-
-    <?php if (!$temNotas): ?>
-        <div class="bp-aviso">
-            <b>Base de notas ainda vazia.</b> Rode a sincronização em
-            <a href="/games/admin/dadosjogadores.php" style="color:#f59e0b">Dados dos Jogadores</a>
-            pra gerar as notas das lendas antes de liberar o jogo.
-        </div>
-    <?php else: ?>
-
-    <div class="bp-grid">
-        <div>
-            <?php if (!$partida): ?>
-                <div class="bp-card">
-                    <h3>Escolha o tipo de build</h3>
-                    <div class="bp-escolha">
-                        <div class="bp-tipo" onclick="bpComecar('GUARD')">
-                            <b>GUARD</b><span>PG · SG · SF</span>
-                        </div>
-                        <div class="bp-tipo" onclick="bpComecar('BIG')">
-                            <b>BIG</b><span>PF · C</span>
-                        </div>
-                    </div>
-                </div>
-            <?php elseif ($partida['concluido_em']): ?>
-                <div class="bp-card bp-fim">
-                    <h3>Seu build de hoje</h3>
-                    <div class="bp-ovr-num" style="color:#f59e0b"><?= (int)$partida['ovr'] ?></div>
-                    <div class="bp-ovr-label">OVR · <?= htmlspecialchars($partida['grupo']) ?></div>
-                    <div style="margin-top:14px">
-                        <div class="bp-fim-pos">#<?= (int)($posicaoAtual ?? $partida['posicao_rank']) ?></div>
-                        <div style="font-size:11px;color:#8b8b96">no ranking de todos os tempos</div>
-                        <?php if ($posicaoAtual && (int)$posicaoAtual !== (int)$partida['posicao_rank']): ?>
-                        <div style="font-size:10.5px;color:#6b6b76;margin-top:4px">
-                            você fechou em #<?= (int)$partida['posicao_rank'] ?>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                    <?php if ((int)$partida['moedas'] > 0): ?>
-                        <div class="bp-fim-moedas">+<?= (int)$partida['moedas'] ?> moedas 🪙</div>
-                    <?php else: ?>
-                        <div style="font-size:12px;color:#8b8b96;margin-top:10px">Top 10 paga moedas. Amanhã tem mais!</div>
-                    <?php endif; ?>
-                </div>
-            <?php else: ?>
-                <div class="bp-card">
-                    <div class="bp-reels">
-                        <div class="bp-reel" id="bpReelTime">
-                            <div class="bp-reel-label">TIME</div>
-                            <div class="bp-reel-valor" id="bpTime">—</div>
-                        </div>
-                        <div class="bp-reel" id="bpReelLenda">
-                            <div class="bp-reel-label">LENDA</div>
-                            <div class="bp-reel-valor" id="bpLenda">—</div>
-                        </div>
-                    </div>
-                    <button class="bp-spin" id="bpSpin" onclick="bpGirar()">GIRAR</button>
-                    <div id="bpMsg" style="font-size:12px;color:#8b8b96;text-align:center;margin-top:10px">
-                        Gire pra sortear uma lenda e escolher um atributo dela.
-                    </div>
-                    <div class="bp-notas" id="bpNotas"></div>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <div>
-            <div class="bp-card" style="margin-bottom:14px">
-                <h3>Seu build <span id="bpFaltam" style="float:right;color:#f59e0b"></span></h3>
-                <div class="bp-slots" id="bpSlots">
-                    <?php foreach ($ATRIBUTOS as $chave => $info):
-                        $s = $partida['slots'][$chave] ?? null; ?>
-                    <div class="bp-slot <?= $s ? '' : 'vazio' ?>" data-attr="<?= $chave ?>">
-                        <div>
-                            <span class="bp-slot-nome"><?= htmlspecialchars($info['label']) ?></span>
-                            <span class="bp-slot-de"><?= $s ? htmlspecialchars($s['de']) : '—' ?></span>
-                        </div>
-                        <span class="bp-slot-letra"><?= $s ? htmlspecialchars($s['letra']) : '–' ?></span>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-                <div class="bp-ovr">
-                    <div class="bp-ovr-num" id="bpOvr"><?= $partida && $partida['ovr'] ? (int)$partida['ovr'] : '–' ?></div>
-                    <div class="bp-ovr-label">OVR</div>
-                </div>
-            </div>
-
-            <div class="bp-card">
-                <h3>Top 10 de todos os tempos</h3>
-                <?php if (!$topGeral): ?>
-                    <div style="font-size:12px;color:#6b6b76">Ninguém montou um build ainda. Seja o primeiro.</div>
-                <?php else: foreach ($topGeral as $i => $t): ?>
-                    <div class="bp-rank-item">
-                        <span class="bp-rank-pos"><?= $i + 1 ?>º</span>
-                        <span class="bp-rank-nome"><?= htmlspecialchars($t['nome']) ?></span>
-                        <span class="bp-rank-ovr"><?= (int)$t['ovr'] ?></span>
-                    </div>
-                <?php endforeach; endif; ?>
-            </div>
-        </div>
-    </div>
+<div class="topbar">
+  <div class="topbar-left">
+    <a href="/games.php" class="back-btn" title="Voltar"><i class="bi bi-arrow-left"></i></a>
+    <span class="game-title">Build-A-<span>Player</span><span class="daily-badge"><i class="bi bi-calendar3"></i>Diário</span></span>
+  </div>
+  <div class="topbar-right">
+    <?php if ($partida && !$partida['concluido_em']): ?>
+    <div class="chip"><i class="bi bi-grid-3x3-gap"></i><span id="chipSlots"><?= $preenchidos ?>/10</span></div>
     <?php endif; ?>
+    <div class="chip" style="color:var(--amber)"><i class="bi bi-trophy-fill"></i><?= $partida && $partida['ovr'] ? (int)$partida['ovr'] : '—' ?></div>
+  </div>
+</div>
+
+<div class="main">
+
+<?php if (!$temNotas): ?>
+  <div class="aviso">
+    <b>Nenhuma lenda cadastrada ainda.</b><br>
+    Aplique o elenco em <a href="/games/admin/build-lendas.php">Lendas do Build-A-Player</a> pra liberar o jogo.
+  </div>
+
+<?php elseif (!$partida): ?>
+  <div class="intro">
+    <h1>🏗️ Monte sua lenda</h1>
+    <p>Gire a roleta, veja as notas da lenda sorteada e leve <b>uma</b> delas pro seu build. Dez giros, dez atributos — e um OVR no fim.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Escolha o tipo de build</div>
+    <div class="tipos">
+      <div class="tipo" onclick="bpComecar('GUARD')">
+        <i class="bi bi-lightning-charge-fill"></i>
+        <b>GUARD</b><span>PG · SG · SF</span>
+      </div>
+      <div class="tipo" onclick="bpComecar('BIG')">
+        <i class="bi bi-shield-fill"></i>
+        <b>BIG</b><span>PF · C</span>
+      </div>
+    </div>
+  </div>
+
+<?php elseif ($partida['concluido_em']): ?>
+  <div class="card">
+    <div class="card-title">Seu build de hoje · <?= htmlspecialchars($partida['grupo']) ?></div>
+    <div class="fim">
+      <div class="fim-ovr"><?= (int)$partida['ovr'] ?></div>
+      <div class="fim-cap">OVERALL</div>
+      <div class="fim-pos">
+        <b>#<?= (int)($posicaoAtual ?? $partida['posicao_rank']) ?></b>
+        <span>de todos os tempos</span>
+      </div>
+      <?php if ($posicaoAtual && (int)$posicaoAtual !== (int)$partida['posicao_rank']): ?>
+      <div class="fim-antes">você fechou em #<?= (int)$partida['posicao_rank'] ?></div>
+      <?php endif; ?>
+      <?php if ((int)$partida['moedas'] > 0): ?>
+      <div class="fim-moedas"><i class="bi bi-coin"></i>+<?= (int)$partida['moedas'] ?> moedas</div>
+      <?php else: ?>
+      <div class="fim-nada">Top 10 paga moedas. Amanhã tem mais!</div>
+      <?php endif; ?>
+    </div>
+  </div>
+
+<?php else: ?>
+  <div class="progresso"><div id="barra" style="width:<?= $preenchidos * 10 ?>%"></div></div>
+  <div class="card">
+    <div class="reels">
+      <div class="reel" id="reelTime">
+        <div class="reel-label">Time</div>
+        <div class="reel-val" id="valTime">—</div>
+      </div>
+      <div class="reel" id="reelLenda">
+        <div class="reel-label">Lenda</div>
+        <div class="reel-val" id="valLenda">—</div>
+      </div>
+    </div>
+    <button class="spin-btn" id="btnSpin" onclick="bpGirar()"><i class="bi bi-dice-3-fill"></i> GIRAR</button>
+    <div class="hint" id="hint">Gire pra sortear uma lenda.</div>
+    <div class="notas" id="notas"></div>
+  </div>
+<?php endif; ?>
+
+<?php if ($temNotas && $partida): ?>
+  <div class="card">
+    <div class="card-title"><span>Seu build</span><span id="faltam" style="color:var(--red)"></span></div>
+    <div class="slots">
+      <?php $grupoAtual = ''; foreach ($ATRIBUTOS as $chave => $info):
+        if ($info['grupo'] !== $grupoAtual): $grupoAtual = $info['grupo']; ?>
+        <div class="grupo-sep"><?= htmlspecialchars($grupoAtual) ?></div>
+      <?php endif;
+        $s = $partida['slots'][$chave] ?? null; ?>
+      <div class="slot" data-attr="<?= $chave ?>">
+        <span class="slot-icon"><i class="bi bi-<?= $s ? 'check-circle-fill' : 'circle' ?>"></i></span>
+        <span class="slot-txt">
+          <span class="slot-nome"><?= htmlspecialchars($info['label']) ?></span>
+          <span class="slot-de"><?= $s ? htmlspecialchars($s['de']) : 'vazio' ?></span>
+        </span>
+        <span class="slot-letra"><?= $s ? htmlspecialchars($s['letra']) : '–' ?></span>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <div class="ovr-box">
+      <div class="ovr-num" id="ovrNum"><?= $partida['ovr'] ? (int)$partida['ovr'] : '–' ?></div>
+      <div class="ovr-cap">OVERALL</div>
+    </div>
+  </div>
+<?php endif; ?>
+
+<?php if ($temNotas): ?>
+  <div class="card">
+    <div class="card-title"><span><i class="bi bi-trophy-fill"></i> Top 10 de todos os tempos</span></div>
+    <?php if (!$topGeral): ?>
+      <div class="vazio">Ninguém montou um build ainda. Seja o primeiro.</div>
+    <?php else: foreach ($topGeral as $i => $t): ?>
+      <div class="rank <?= $i < 3 ? 'top' . ($i + 1) : '' ?>">
+        <span class="rank-pos"><?= $i + 1 ?>º</span>
+        <span class="rank-nome"><?= htmlspecialchars($t['nome']) ?></span>
+        <span class="rank-tag"><?= htmlspecialchars($t['grupo']) ?></span>
+        <span class="rank-ovr"><?= (int)$t['ovr'] ?></span>
+      </div>
+    <?php endforeach; endif; ?>
+  </div>
+<?php endif; ?>
+
 </div>
 
 <script>
-const BP_ATTRS  = <?= json_encode(array_map(fn($a) => $a['label'], $ATRIBUTOS)) ?>;
-const BP_CORES  = ['#ef4444','#ef4444','#f97316','#f59e0b','#f59e0b','#eab308','#84cc16','#22c55e','#22c55e','#06b6d4','#3b82f6','#a855f7'];
-const BP_LETRAS = <?= json_encode(BUILD_LETRAS) ?>;
-let bpOcupado = false;
+const BP_LABELS = <?= json_encode(array_map(fn($a) => $a['label'], $ATRIBUTOS)) ?>;
+// Cor por nível: vermelho no fundo da escala, roxo no S.
+const BP_CORES = ['#ef4444','#ef4444','#f97316','#f59e0b','#f59e0b','#eab308','#84cc16','#22c55e','#22c55e','#06b6d4','#3b82f6','#a855f7'];
+let bpTravado = false;
 
 async function bpPost(dados) {
-    const body = new URLSearchParams(dados);
-    const res = await fetch(window.location.href, { method: 'POST', body });
-    return res.json();
+  const res = await fetch(window.location.href, { method: 'POST', body: new URLSearchParams(dados) });
+  return res.json();
 }
 
 async function bpComecar(grupo) {
-    if (bpOcupado) return;
-    bpOcupado = true;
-    const r = await bpPost({ acao: 'comecar', grupo });
-    if (!r.ok) { alert(r.msg); bpOcupado = false; return; }
-    window.location.reload();
+  if (bpTravado) return;
+  bpTravado = true;
+  const r = await bpPost({ acao: 'comecar', grupo });
+  if (!r.ok) { alert(r.msg); bpTravado = false; return; }
+  location.reload();
 }
 
-/** Animação dos reels: roda nomes falsos até a resposta do servidor chegar. */
-function bpAnimar(ligar) {
-    document.getElementById('bpReelTime')?.classList.toggle('girando', ligar);
-    document.getElementById('bpReelLenda')?.classList.toggle('girando', ligar);
+/** Roda nomes falsos nos reels enquanto o servidor não responde. */
+function bpRolar(ligar) {
+  document.getElementById('reelTime')?.classList.toggle('spin', ligar);
+  document.getElementById('reelLenda')?.classList.toggle('spin', ligar);
+  if (!ligar) return;
+  const times = ['CHI','LAL','BOS','GSW','MIA','SAS','NYK','PHX','DET','HOU'];
+  const nomes = ['. . .','? ? ?','— — —'];
+  let i = 0;
+  const t = setInterval(() => {
+    if (!document.getElementById('reelTime')?.classList.contains('spin')) { clearInterval(t); return; }
+    document.getElementById('valTime').textContent  = times[i % times.length];
+    document.getElementById('valLenda').textContent = nomes[i % nomes.length];
+    i++;
+  }, 90);
 }
 
 async function bpGirar() {
-    if (bpOcupado) return;
-    bpOcupado = true;
-    const btn = document.getElementById('bpSpin');
-    btn.disabled = true;
-    bpAnimar(true);
-    document.getElementById('bpNotas').innerHTML = '';
+  if (bpTravado) return;
+  bpTravado = true;
+  const btn = document.getElementById('btnSpin');
+  btn.disabled = true;
+  document.getElementById('notas').innerHTML = '';
+  document.getElementById('reelTime').classList.remove('hit');
+  document.getElementById('reelLenda').classList.remove('hit');
+  bpRolar(true);
 
-    const r = await bpPost({ acao: 'girar' });
-    // Segura a animação um pouco pra dar peso ao sorteio.
-    await new Promise(res => setTimeout(res, 700));
-    bpAnimar(false);
+  const r = await bpPost({ acao: 'girar' });
+  // Segura a rolagem um pouco pra dar peso ao sorteio.
+  await new Promise(res => setTimeout(res, 750));
+  bpRolar(false);
 
-    if (!r.ok) {
-        document.getElementById('bpMsg').textContent = r.msg;
-        btn.disabled = false; bpOcupado = false; return;
-    }
+  if (!r.ok) {
+    document.getElementById('hint').textContent = r.msg;
+    btn.disabled = false; bpTravado = false; return;
+  }
 
-    document.getElementById('bpTime').textContent  = r.lenda.time;
-    document.getElementById('bpLenda').textContent = r.lenda.nome;
-    document.getElementById('bpMsg').textContent   = 'Escolha UM atributo pra levar pro seu build.';
+  document.getElementById('valTime').textContent  = r.lenda.time;
+  document.getElementById('valLenda').textContent = r.lenda.nome;
+  document.getElementById('reelTime').classList.add('hit');
+  document.getElementById('reelLenda').classList.add('hit');
+  document.getElementById('hint').innerHTML = 'Escolha <b>um</b> atributo pra levar.';
 
-    const preenchidos = [...document.querySelectorAll('.bp-slot')]
-        .filter(s => !s.classList.contains('vazio')).map(s => s.dataset.attr);
+  const ocupados = [...document.querySelectorAll('.slot')]
+    .filter(s => s.querySelector('.slot-de').textContent !== 'vazio')
+    .map(s => s.dataset.attr);
 
-    document.getElementById('bpNotas').innerHTML = Object.entries(r.lenda.notas).map(([chave, n]) => {
-        const ocupado = preenchidos.includes(chave);
-        return `<div class="bp-nota ${ocupado ? 'ocupado' : ''}" ${ocupado ? '' : `onclick="bpEscolher('${chave}')"`}>
-            <span class="bp-nota-label">${BP_ATTRS[chave]}</span>
-            <span class="bp-nota-letra" style="color:${BP_CORES[n.nivel]}">${n.letra}</span>
-        </div>`;
-    }).join('');
+  document.getElementById('notas').innerHTML = Object.entries(r.lenda.notas).map(([chave, n]) => {
+    const off = ocupados.includes(chave);
+    return `<div class="nota ${off ? 'off' : ''}" ${off ? '' : `onclick="bpEscolher('${chave}')"`}>
+      <span class="nota-nome">${BP_LABELS[chave]}</span>
+      <span class="nota-letra" style="color:${BP_CORES[n.nivel]}">${n.letra}</span>
+    </div>`;
+  }).join('');
 
-    bpOcupado = false;
+  bpTravado = false;
 }
 
 async function bpEscolher(attr) {
-    if (bpOcupado) return;
-    bpOcupado = true;
-    const r = await bpPost({ acao: 'escolher', atributo: attr });
-    if (!r.ok) { alert(r.msg); bpOcupado = false; return; }
+  if (bpTravado) return;
+  bpTravado = true;
+  const r = await bpPost({ acao: 'escolher', atributo: attr });
+  if (!r.ok) { alert(r.msg); bpTravado = false; return; }
 
-    // Atualiza o slot preenchido
-    const slot = document.querySelector(`.bp-slot[data-attr="${attr}"]`);
-    const dado = r.slots[attr];
-    slot.classList.remove('vazio');
-    slot.querySelector('.bp-slot-de').textContent = dado.de;
-    const letra = slot.querySelector('.bp-slot-letra');
-    letra.textContent = dado.letra;
-    letra.style.color = BP_CORES[dado.nivel];
+  const slot = document.querySelector(`.slot[data-attr="${attr}"]`);
+  const dado = r.slots[attr];
+  slot.classList.add('novo');
+  slot.querySelector('.slot-icon').innerHTML = '<i class="bi bi-check-circle-fill"></i>';
+  slot.querySelector('.slot-icon').style.color = 'var(--green)';
+  slot.querySelector('.slot-de').textContent = dado.de;
+  const letra = slot.querySelector('.slot-letra');
+  letra.textContent = dado.letra;
+  letra.style.color = BP_CORES[dado.nivel];
+  setTimeout(() => slot.classList.remove('novo'), 900);
 
-    document.getElementById('bpNotas').innerHTML = '';
-    document.getElementById('bpFaltam').textContent = r.faltam ? `faltam ${r.faltam}` : '';
-    document.getElementById('bpMsg').textContent = r.terminou
-        ? 'Build completo!' : 'Gire de novo pra próxima lenda.';
-    document.getElementById('bpSpin').disabled = false;
+  const feitos = 10 - r.faltam;
+  document.getElementById('barra').style.width = (feitos * 10) + '%';
+  document.getElementById('chipSlots').textContent = feitos + '/10';
+  document.getElementById('faltam').textContent = r.faltam ? `faltam ${r.faltam}` : '';
+  document.getElementById('notas').innerHTML = '';
+  document.getElementById('reelTime').classList.remove('hit');
+  document.getElementById('reelLenda').classList.remove('hit');
+  document.getElementById('hint').textContent = r.terminou ? 'Build completo!' : 'Gire de novo pra próxima lenda.';
+  document.getElementById('btnSpin').disabled = false;
 
-    if (r.terminou) window.location.reload();
-    bpOcupado = false;
+  if (r.terminou) { setTimeout(() => location.reload(), 700); return; }
+  bpTravado = false;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const vazios = document.querySelectorAll('.bp-slot.vazio').length;
-    const el = document.getElementById('bpFaltam');
-    if (el) el.textContent = vazios ? `faltam ${vazios}` : '';
+  const vazios = [...document.querySelectorAll('.slot-de')].filter(e => e.textContent === 'vazio').length;
+  const el = document.getElementById('faltam');
+  if (el) el.textContent = vazios ? `faltam ${vazios}` : '';
 });
 </script>
+</body>
+</html>
