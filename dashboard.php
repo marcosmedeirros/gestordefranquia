@@ -1685,7 +1685,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                                 $top = $queridoTop3[$catKey] ?? []; ?>
                             <div class="querido-row">
                                 <div class="querido-cat querido-cat-<?= strtolower($catKey) ?>"><?= htmlspecialchars($catLabel) ?></div>
-                                <div class="querido-top3">
+                                <div class="querido-top3" id="querido-top3-<?= $catKey ?>">
                                     <?php if (!$top): ?>
                                     <span class="querido-vazio">Sem votos ainda essa temporada</span>
                                     <?php else: foreach ($top as $tt): ?>
@@ -2892,6 +2892,40 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
   }
   document.getElementById('queridoClose')?.addEventListener('click', queridoFechar);
   overlay?.addEventListener('click', (e) => { if (e.target === overlay) queridoFechar(); });
+
+  // Placar ao vivo: atualiza o Top 3 do card sozinho conforme os votos vão
+  // chegando, sem precisar recarregar a página. Roda pra todo mundo, tenha
+  // ou não votado essa semana.
+  function queridoEscapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function queridoRenderTop3(cat, lista) {
+    const el = document.getElementById('querido-top3-' + cat);
+    if (!el) return;
+    if (!lista || !lista.length) {
+      el.innerHTML = '<span class="querido-vazio">Sem votos ainda essa temporada</span>';
+      return;
+    }
+    el.innerHTML = lista.map(t => {
+      const nome = queridoEscapeHtml(((t.city || '') + ' ' + (t.name || '')).trim());
+      const foto = t.photo_url && String(t.photo_url).trim() !== '' ? t.photo_url : '/img/default-team.png';
+      return '<div class="querido-chip">'
+        + '<img src="' + queridoEscapeHtml(foto) + '" alt="" onerror="this.src=\'/img/default-team.png\'">'
+        + '<span class="querido-nome">' + nome + '</span>'
+        + '<span class="querido-votos">' + (parseInt(t.votos, 10) || 0) + '</span>'
+        + '</div>';
+    }).join('');
+  }
+  async function queridoAtualizarPlacar() {
+    try {
+      const res = await fetch('/api/queridometro.php?action=estado');
+      const data = await res.json();
+      if (!data.success) return;
+      Object.keys(data.top3 || {}).forEach(cat => queridoRenderTop3(cat, data.top3[cat]));
+    } catch (e) { /* silencioso: só não atualiza dessa vez, tenta de novo no próximo ciclo */ }
+  }
+  setInterval(queridoAtualizarPlacar, 20000);
 
   if (!jaVotou) {
     const categorias = <?= json_encode(array_keys(queridometroCategorias())) ?>;
