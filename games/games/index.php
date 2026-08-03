@@ -90,6 +90,10 @@ $games_disponiveis = [
         'titulo' => '⚽ Copa Pênaltis',
         'arquivo' => 'penalti.php'
     ],
+    'buildplayer' => [
+        'titulo' => '🏗️ Build-A-Player',
+        'arquivo' => 'buildplayer.php'
+    ],
 ];
 
 // Valida se o game existe
