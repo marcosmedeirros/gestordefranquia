@@ -229,7 +229,12 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         </div>
 
         <div id="rlBuscaWrap">
-          <div class="form-label">Adicionar participantes</div>
+          <div class="form-label" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <span>Adicionar participantes</span>
+            <button type="button" class="btn-ghost" id="btnRlAddTodos" style="padding:4px 10px;font-size:11px;white-space:nowrap">
+              <i class="bi bi-people-fill me-1"></i><span id="rlAddTodosLabel">Adicionar todos os GMs da liga</span>
+            </button>
+          </div>
           <div class="rl-autocomplete">
             <input type="text" id="rlBusca" class="form-control" placeholder="Digite o nome do GM ou do time..." style="background:var(--panel-2);border:1px solid var(--border);color:var(--text)" autocomplete="off">
             <div class="rl-autocomplete-results" id="rlBuscaResultados"></div>

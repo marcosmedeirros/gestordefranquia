@@ -75,6 +75,7 @@ function rlAbrirModalNovaRoleta() {
   document.getElementById('rlBuscaWrap').style.display = '';
   document.getElementById('rlPersonalizadoWrap').style.display = 'none';
   rlRenderChips();
+  rlAtualizarLabelAddTodos();
   rlModalNovaRoleta.show();
 }
 
@@ -140,6 +141,36 @@ function rlAdicionarNomeLivre() {
   rlRenderChips();
 }
 
+function rlAtualizarLabelAddTodos() {
+  const label = document.getElementById('rlAddTodosLabel');
+  if (label) label.textContent = rlTipoAtual === 'times' ? 'Adicionar todos os times da liga' : 'Adicionar todos os GMs da liga';
+}
+
+async function rlAdicionarTodosDaLiga() {
+  const liga = document.getElementById('rlLiga')?.value || '';
+  if (!liga) { alert('Escolha a liga primeiro.'); return; }
+
+  const btn = document.getElementById('btnRlAddTodos');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/roleta.php?action=times_da_liga&liga=${encodeURIComponent(liga)}`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Erro ao buscar os times da liga.');
+    if (!data.resultados.length) { alert('Nenhum time encontrado nessa liga.'); return; }
+
+    data.resultados.forEach(r => {
+      if (rlSelecionados.some(p => p.team_id === r.team_id)) return;
+      const label = rlTipoAtual === 'times' ? r.time_label : r.gm_label;
+      rlSelecionados.push({ team_id: r.team_id, user_id: r.user_id, time_label: r.time_label, gm_label: r.gm_label, label });
+    });
+    rlRenderChips();
+  } catch (e) {
+    alert(e.message || 'Erro ao adicionar os participantes da liga.');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function rlCriarRoleta() {
   const titulo = document.getElementById('rlTitulo').value.trim();
   const notificar = document.getElementById('rlNotificar').checked;
@@ -186,8 +217,11 @@ document.addEventListener('DOMContentLoaded', () => {
       rlRenderChips();
       document.getElementById('rlBuscaWrap').style.display = rlTipoAtual === 'personalizado' ? 'none' : '';
       document.getElementById('rlPersonalizadoWrap').style.display = rlTipoAtual === 'personalizado' ? '' : 'none';
+      rlAtualizarLabelAddTodos();
     });
   });
+
+  document.getElementById('btnRlAddTodos').addEventListener('click', rlAdicionarTodosDaLiga);
 
   const buscaInput = document.getElementById('rlBusca');
   buscaInput.addEventListener('input', () => {

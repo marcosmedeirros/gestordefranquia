@@ -285,6 +285,39 @@ if ($method === 'GET') {
         exit;
     }
 
+    if ($action === 'times_da_liga') {
+        if (!$minhasLigasAdmin) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+            exit;
+        }
+        $liga = strtoupper(trim((string)($_GET['liga'] ?? '')));
+        if ($liga === '') {
+            echo json_encode(['success' => false, 'error' => 'Liga obrigatória']);
+            exit;
+        }
+        $stmt = $pdo->prepare("
+            SELECT t.id AS team_id, t.user_id, t.league, t.photo_url,
+                   CONCAT(t.city,' ',t.name) AS time_label, u.name AS gm_label
+            FROM teams t
+            JOIN users u ON u.id = t.user_id
+            WHERE t.league = ?
+            ORDER BY u.name ASC
+        ");
+        $stmt->execute([$liga]);
+        $resultados = array_map(fn($r) => [
+            'team_id' => (int)$r['team_id'],
+            'user_id' => (int)$r['user_id'],
+            'league' => $r['league'],
+            'photo_url' => $r['photo_url'],
+            'time_label' => $r['time_label'],
+            'gm_label' => $r['gm_label'],
+        ], $stmt->fetchAll(PDO::FETCH_ASSOC));
+
+        echo json_encode(['success' => true, 'resultados' => $resultados]);
+        exit;
+    }
+
     if ($action === 'buscar_participantes') {
         if (!$minhasLigasAdmin) {
             http_response_code(403);
