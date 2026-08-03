@@ -212,6 +212,77 @@ function buildPerfilDoGrupo(string $grupo): array
 }
 
 /**
+ * Quem levou o quê na liga inteira, não só o jogador criado.
+ *
+ * Sem isto a temporada ficava pela metade: "eliminado na semifinal" sem dizer
+ * quem foi campeão, e "nenhum prêmio individual" sem dizer quem ganhou. O
+ * jogador quer saber pra quem perdeu.
+ *
+ * Os outros nomes saem do próprio elenco de lendas — é o mundo do jogo, os
+ * mesmos caras que aparecem na roleta.
+ */
+function buildPremiacaoDaLiga(PDO $pdo, array $time, array $premios, array $playoff, string $nomeJogador): array
+{
+    $ganhou = array_column($premios, 'key');
+    $foiCampeao = !empty($playoff['titulo']);
+
+    // Campeão: o time do jogador quando ele levou o título, senão outro time
+    // sorteado com peso na força — o pior elenco da liga raramente é campeão.
+    if ($foiCampeao) {
+        $campeao = ['nome' => $time['nome'], 'logo' => $time['logo'], 'seu' => true];
+    } else {
+        $forcas = buildForcaDosTimes();
+        $candidatos = array_values(array_filter(nbaTeams(),
+            fn($t) => isset($forcas[$t['abbr']]) && $t['abbr'] !== $time['abbr']));
+        $pesos = array_map(fn($t) => (int)pow(max(1, $forcas[$t['abbr']] - 30), 2.2), $candidatos);
+        $escolhido = $candidatos[buildSortearComPeso($pesos)];
+        $campeao = [
+            'nome' => $escolhido['city'] . ' ' . $escolhido['name'],
+            'logo' => nbaTeamLogoUrl((int)$escolhido['id']),
+            'seu'  => false,
+        ];
+    }
+
+    $lendas = $pdo->query("SELECT p.nome, n.ovr, n.perimeter_d, n.size, n.bounce
+                           FROM build_notas n
+                           INNER JOIN hoopgrid_players p ON p.id = n.player_id")->fetchAll(PDO::FETCH_ASSOC);
+
+    // MVP pesa o OVR; DPOY pesa defesa, tamanho e impulsão. Elevado ao cubo
+    // pra que os melhores dominem de verdade — MVP não é sorteio de rifa.
+    $mvp = in_array('MVP', $ganhou, true)
+        ? ['nome' => $nomeJogador, 'seu' => true]
+        : ['nome' => buildLendaComPeso($lendas, fn($l) => pow(max(1, (int)$l['ovr'] - 60), 3)), 'seu' => false];
+
+    $dpoy = in_array('DPOY', $ganhou, true)
+        ? ['nome' => $nomeJogador, 'seu' => true]
+        : ['nome' => buildLendaComPeso($lendas,
+            fn($l) => pow(max(1, (int)$l['perimeter_d'] + (int)$l['size'] + (int)$l['bounce'] - 8), 3)), 'seu' => false];
+
+    return ['campeao' => $campeao, 'mvp' => $mvp, 'dpoy' => $dpoy];
+}
+
+/** Índice sorteado numa lista de pesos. */
+function buildSortearComPeso(array $pesos): int
+{
+    $total = array_sum($pesos);
+    if ($total <= 0) return 0;
+    $r = random_int(1, $total);
+    foreach ($pesos as $i => $p) {
+        $r -= $p;
+        if ($r <= 0) return $i;
+    }
+    return count($pesos) - 1;
+}
+
+/** Nome de uma lenda sorteada com o peso que a função der. */
+function buildLendaComPeso(array $lendas, callable $peso): string
+{
+    if (!$lendas) return 'um veterano da liga';
+    $pesos = array_map(fn($l) => (int)$peso($l), $lendas);
+    return (string)$lendas[buildSortearComPeso($pesos)]['nome'];
+}
+
+/**
  * Posição do build no top 100 histórico da NBA.
  *
  * Recebe o OVR exato (sem arredondar) pra que dois builds próximos não empatem

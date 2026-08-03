@@ -350,6 +350,10 @@ if (($_POST['acao'] ?? '') !== '') {
                 $season = buildSimularTemporada($slots, (int)$ovr, $time, $grupo);
                 $season['time'] = $time;
                 $season['historico'] = $hist;
+                $season['liga'] = buildPremiacaoDaLiga(
+                    $pdo, $time, $season['premios'], $season['playoff'],
+                    (string)($partida['nome_jogador'] ?: 'Seu jogador')
+                );
 
                 // Moeda só no PRIMEIRO build fechado do dia. Sem isso, jogar
                 // sem limite viraria farm: bastava repetir até cair no top 10
@@ -497,6 +501,14 @@ if ($partida && $partida['concluido_em']) {
              . ((int)$temporada['seed'] > 0 ? ' · ' . (int)$temporada['seed'] . 'º da conferência' : '');
         $l[] = $temporada['playoff']['label'];
         foreach ($temporada['premios'] as $p) $l[] = $p['label'];
+
+        if (!empty($temporada['liga'])) {
+            $lg = $temporada['liga'];
+            $l[] = '';
+            $l[] = '🏆 Campeão: ' . $lg['campeao']['nome'] . ($lg['campeao']['seu'] ? ' (o meu time!)' : '');
+            $l[] = '🏅 MVP: '     . $lg['mvp']['nome']     . ($lg['mvp']['seu'] ? ' (eu!)' : '');
+            $l[] = '🛡️ DPOY: '    . $lg['dpoy']['nome']    . ($lg['dpoy']['seu'] ? ' (eu!)' : '');
+        }
     }
     $l[] = '';
     $l[] = 'Build-A-Player · FBA Brasil';
@@ -648,6 +660,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .premio{background:var(--amber-soft);border:1px solid var(--amber);color:var(--amber);border-radius:999px;padding:7px 14px;font-size:11.5px;font-weight:800}
 .sem-premio{font-size:11px;color:var(--text2);text-align:center;margin-top:10px}
 
+/* ── COMO TERMINOU A LIGA ── */
+.liga{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.liga-cap{font-size:9px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:var(--text2);margin-bottom:9px}
+/* min-height alinha as três linhas: só a do campeão tem logo, e sem isso
+   ela ficava mais alta que as outras duas. */
+.liga-item{display:flex;align-items:center;gap:9px;padding:8px 11px;min-height:42px;background:var(--panel2);border:1px solid var(--border);border-radius:9px;margin-bottom:6px}
+.liga-item:last-child{margin-bottom:0}
+.liga-item.seu{border-color:var(--amber);background:var(--amber-soft)}
+.liga-item img{width:24px;height:24px;object-fit:contain;flex-shrink:0}
+.liga-rot{font-size:10.5px;color:var(--text2);flex-shrink:0;white-space:nowrap}
+.liga-item b{font-size:12.5px;font-weight:700;color:var(--text);margin-left:auto;text-align:right;line-height:1.25}
+.liga-item.seu b{color:var(--amber)}
+
 .fim-moedas{display:flex;align-items:center;justify-content:center;gap:7px;background:var(--amber-soft);border:1px solid var(--amber);color:var(--amber);border-radius:12px;padding:12px;font-size:13.5px;font-weight:800;margin-top:14px}
 .fim-nada{font-size:11.5px;color:var(--text2);text-align:center;margin-top:14px;line-height:1.5}
 .acoes-fim{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
@@ -745,7 +770,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     // Régua da posição: quanto mais perto do topo, mais cheia a barra.
     $pctHist = ($hist && $hist['no_top']) ? max(2, 100 - (($hist['posicao'] - 1) / 99 * 100)) : 0;
   ?>
-  <div class="bpcard">
+  <!-- O veredito (posição na história, moedas, copiar) só entra depois que a
+       temporada rodou. Mostrar isso de cara entregava o final antes do filme. -->
+  <div class="bpcard" id="bpResumo"<?= $revelar ? ' hidden' : '' ?>>
     <div class="jersey">
       <div class="jersey-num"><?= htmlspecialchars($partida['camisa'] ?? '0') ?></div>
       <div class="jersey-txt">
@@ -837,6 +864,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     </div>
     <?php else: ?>
     <div class="sem-premio">Nenhum prêmio individual nesta temporada.</div>
+    <?php endif; ?>
+
+    <?php if (!empty($temporada['liga'])): $lg = $temporada['liga']; ?>
+    <div class="liga">
+      <div class="liga-cap">Como terminou a liga</div>
+      <div class="liga-item <?= $lg['campeao']['seu'] ? 'seu' : '' ?>">
+        <?php if (!empty($lg['campeao']['logo'])): ?>
+        <img src="<?= htmlspecialchars($lg['campeao']['logo']) ?>" alt="">
+        <?php endif; ?>
+        <span class="liga-rot">🏆 Campeão</span>
+        <b><?= htmlspecialchars($lg['campeao']['nome']) ?><?= $lg['campeao']['seu'] ? ' — o seu time!' : '' ?></b>
+      </div>
+      <div class="liga-item <?= $lg['mvp']['seu'] ? 'seu' : '' ?>">
+        <span class="liga-rot">🏅 MVP</span>
+        <b><?= htmlspecialchars($lg['mvp']['nome']) ?><?= $lg['mvp']['seu'] ? ' — você!' : '' ?></b>
+      </div>
+      <div class="liga-item <?= $lg['dpoy']['seu'] ? 'seu' : '' ?>">
+        <span class="liga-rot">🛡️ DPOY</span>
+        <b><?= htmlspecialchars($lg['dpoy']['nome']) ?><?= $lg['dpoy']['seu'] ? ' — você!' : '' ?></b>
+      </div>
+    </div>
     <?php endif; ?>
     </div>
   </div>
@@ -1007,7 +1055,16 @@ function bpRevelarTemporada() {
   setTimeout(() => {
     btn.hidden = true;
     document.getElementById('bpBlocoTemporada').hidden = false;
-    document.getElementById('bpBlocoTemporada').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Só agora entra o veredito: OVR, posição na história e moedas. Ele fica
+    // acima da temporada na página, então o scroll sobe pra ele.
+    setTimeout(() => {
+      const resumo = document.getElementById('bpResumo');
+      if (resumo) {
+        resumo.hidden = false;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }, 1200);
   }, 1500);
 }
 
