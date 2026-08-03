@@ -606,6 +606,32 @@ if ($method === 'POST') {
                 break;
             }
 
+            // ADMIN/TOKEN: esvaziar o pool inteiro da temporada.
+            // Serve pra recomeçar quando o CSV veio errado — por isso só roda
+            // em setup e só apaga quem ainda está disponível: jogador já
+            // escolhido não pode sumir de baixo de uma pick registrada.
+            case 'clear_pool': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
+                if ($session['status'] !== 'setup') throw new InvalidArgumentException('Só é possível limpar o pool durante o setup');
+
+                $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM initdraft_pool WHERE season_id = ? AND draft_status <> "available"');
+                $stmtCount->execute([$session['season_id']]);
+                $jaEscolhidos = (int)$stmtCount->fetchColumn();
+
+                $stmtDel = $pdo->prepare('DELETE FROM initdraft_pool WHERE season_id = ? AND draft_status = "available"');
+                $stmtDel->execute([$session['season_id']]);
+                $removidos = $stmtDel->rowCount();
+
+                echo json_encode([
+                    'success'   => true,
+                    'removidos' => $removidos,
+                    'mantidos'  => $jaEscolhidos,
+                ]);
+                break;
+            }
+
             // ADMIN/TOKEN: importar via CSV (multipart/form-data)
             case 'import_csv': {
                 $token = $_POST['token'] ?? ($data['token'] ?? null);
@@ -713,7 +739,10 @@ if ($method === 'POST') {
 
                 $stmtTeams = $pdo->prepare('SELECT id FROM teams WHERE league = ? ORDER BY id ASC');
                 $stmtTeams->execute([$session['league']]);
-                $leagueTeams = $stmtTeams->fetchAll(PDO::FETCH_COLUMN);
+                // O PDO devolve os ids como TEXTO. Sem o intval aqui, a
+                // comparação estrita lá embaixo (['1','2'] !== [1,2]) dava
+                // errado sempre — e "Salvar ordem" nunca funcionava.
+                $leagueTeams = array_map('intval', $stmtTeams->fetchAll(PDO::FETCH_COLUMN));
                 if (!$leagueTeams) throw new InvalidArgumentException('Sem times cadastrados para a liga');
 
                 sort($leagueTeams);

@@ -527,6 +527,8 @@ if ($user && isset($user['id'])) {
                                 </div>
                             </div>
                             <div id="admOrderHint" style="font-size:11px;color:var(--text-2);margin-bottom:10px"></div>
+                            <input type="text" id="admOrderSearch" class="field-input" placeholder="Buscar time ou GM..." autocomplete="off" style="margin-bottom:8px">
+                            <div id="admOrderSearchEmpty" style="display:none;font-size:12px;color:var(--text-3);padding:12px 2px">Nenhum time encontrado.</div>
                             <div id="admManualOrderList" style="max-height:420px;overflow-y:auto"></div>
                         </div>
                     </div>
@@ -540,6 +542,7 @@ if ($user && isset($user['id'])) {
                             <div style="font-size:11px;color:var(--text-2);margin-top:2px">Adicionar, editar e remover só é permitido durante a configuração.</div>
                         </div>
                         <div class="d-flex flex-wrap gap-2">
+                            <button class="btn-ghost" id="admClearPoolBtn" onclick="clearPool()"><i class="bi bi-trash"></i> Limpar pool</button>
                             <button class="btn-amber" data-bs-toggle="modal" data-bs-target="#importCSVModal"><i class="bi bi-file-earmark-arrow-up"></i> Importar CSV</button>
                             <button class="btn-red" data-bs-toggle="modal" data-bs-target="#addPlayerModal"><i class="bi bi-person-plus"></i> Novo Jogador</button>
                         </div>
@@ -1331,6 +1334,8 @@ if ($user && isset($user['id'])) {
             startArea: document.getElementById('admStartArea'),
             orderHint: document.getElementById('admOrderHint'),
             manualOrderList: document.getElementById('admManualOrderList'),
+            orderSearch: document.getElementById('admOrderSearch'),
+            orderSearchEmpty: document.getElementById('admOrderSearchEmpty'),
             shuffleBtn: document.getElementById('admShuffleBtn'),
             resetOrderBtn: document.getElementById('admResetOrderBtn'),
             saveOrderBtn: document.getElementById('admSaveOrderBtn'),
@@ -1447,8 +1452,11 @@ if ($user && isset($user['id'])) {
                         <select class="field-input manual-position-select" onchange="updateManualOrderPosition(${teamId}, this.value)">
                             ${options.map((pos) => `<option value="${pos}" ${pos === index + 1 ? 'selected' : ''}>#${pos}</option>`).join('')}
                         </select>` : `<div class="order-rank">${index + 1}</div>`;
+                    // data-busca guarda time + cidade + GM já em minúsculas, pro
+                    // filtro não precisar remontar a lista a cada tecla.
+                    const alvoBusca = `${team.city || ''} ${team.name || ''} ${team.owner_name || ''}`.toLowerCase();
                     return `
-                        <div class="manual-order-row">
+                        <div class="manual-order-row" data-busca="${esc(alvoBusca)}">
                             ${controls}
                             <div class="d-flex align-items-center gap-2">
                                 <img src="${team.photo_url || '/img/default-team.png'}" alt="${esc(team.name || 'Time')}" onerror="this.src='/img/default-team.png'" style="width:30px;height:30px;border-radius:50%;object-fit:cover;border:1px solid var(--border-md)">
@@ -1464,12 +1472,42 @@ if ($user && isset($user['id'])) {
                         </div>`;
                 })
                 .join('');
+
+            aplicarFiltroDaOrdem();
+        }
+
+        /**
+         * Filtra a lista da ordem escondendo linhas, sem mexer no array.
+         *
+         * Esconder em vez de re-renderizar só os que casam é de propósito: os
+         * botões de subir/descer e o select de posição trabalham com o índice
+         * real dentro de adminState.manualOrder. Filtrar o array quebraria isso.
+         */
+        function aplicarFiltroDaOrdem() {
+            if (!admElements.manualOrderList) return;
+            const termo = (admElements.orderSearch?.value || '').trim().toLowerCase();
+            const linhas = admElements.manualOrderList.querySelectorAll('.manual-order-row');
+            let visiveis = 0;
+
+            linhas.forEach((linha) => {
+                const casa = !termo || (linha.dataset.busca || '').includes(termo);
+                linha.style.display = casa ? '' : 'none';
+                if (casa) visiveis++;
+            });
+
+            if (admElements.orderSearchEmpty) {
+                admElements.orderSearchEmpty.style.display = (termo && visiveis === 0) ? '' : 'none';
+            }
         }
 
         function updateManualOrderPosition(teamId, position) {
             const newPos = parseInt(position, 10);
             if (!Number.isFinite(newPos)) return;
-            const index = adminState.manualOrder.indexOf(parseInt(teamId, 10));
+            // manualOrder vem do banco com os ids em texto ("46"), então
+            // indexOf(46) nunca achava e o select de posição não fazia nada.
+            // Compara por número dos dois lados.
+            const alvo = parseInt(teamId, 10);
+            const index = adminState.manualOrder.findIndex((id) => parseInt(id, 10) === alvo);
             if (index === -1) return;
             const updated = [...adminState.manualOrder];
             const [removed] = updated.splice(index, 1);
@@ -1653,6 +1691,8 @@ if ($user && isset($user['id'])) {
             }
         }
 
+        admElements.orderSearch?.addEventListener('input', aplicarFiltroDaOrdem);
+
         // ── Admin pool management ───────────────────────
         admElements.poolSearch?.addEventListener('input', (e) => {
             adminState.poolSearch = e.target.value.toLowerCase();
@@ -1672,6 +1712,14 @@ if ($user && isset($user['id'])) {
             if (!admElements.poolTable) return;
             const filtered = admFilteredPool();
             const isSetup = state.session?.status === 'setup';
+
+            // Limpar pool é só no setup (o servidor barra depois). Botão que
+            // sempre dá erro não deve ficar clicável.
+            const btnLimpar = document.getElementById('admClearPoolBtn');
+            if (btnLimpar) {
+                btnLimpar.disabled = !isSetup;
+                btnLimpar.title = isSetup ? '' : 'Só dá pra limpar o pool antes do draft começar.';
+            }
 
             if (!filtered.length) {
                 admElements.poolTable.innerHTML = '<tr><td colspan="7" class="state-empty"><i class="bi bi-inbox"></i><p>Nenhum jogador no pool.</p></td></tr>';
@@ -1731,6 +1779,43 @@ if ($user && isset($user['id'])) {
                 await loadState();
             } catch (error) {
                 showMessage(error.message, 'danger');
+            }
+        }
+
+        /**
+         * Esvazia o pool inteiro — serve pra recomeçar quando o CSV veio errado.
+         * Pede o total digitado na confirmação: é destrutivo e não dá pra desfazer.
+         */
+        async function clearPool() {
+            const total = (state.pool || []).length;
+            if (!total) { showMessage('O pool já está vazio.', 'warning'); return; }
+
+            const resposta = prompt(
+                `Isso apaga os ${total} jogadores do pool do draft inicial. Não dá pra desfazer.\n\n` +
+                `Pra confirmar, digite o número ${total}:`
+            );
+            if (resposta === null) return;
+            if (parseInt(resposta, 10) !== total) { showMessage('Confirmação não bateu — nada foi apagado.', 'warning'); return; }
+
+            const btn = document.getElementById('admClearPoolBtn');
+            if (btn) btn.disabled = true;
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'clear_pool', token: TOKEN }),
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao limpar o pool');
+                showMessage(
+                    `Pool limpo: ${data.removidos} jogador${data.removidos === 1 ? '' : 'es'} removido${data.removidos === 1 ? '' : 's'}.`
+                    + (data.mantidos ? ` ${data.mantidos} já escolhido${data.mantidos === 1 ? '' : 's'} foi mantido.` : '')
+                );
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            } finally {
+                if (btn) btn.disabled = false;
             }
         }
 
