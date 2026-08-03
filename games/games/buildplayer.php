@@ -47,7 +47,7 @@ function bpGarantirTabelas(PDO $pdo): void
         moedas INT NOT NULL DEFAULT 0,
         concluido_em DATETIME NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uk_bp_dia (id_usuario, data_jogo),
+        INDEX idx_bp_usuario (id_usuario, id),
         INDEX idx_bp_rank (ovr)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
@@ -63,6 +63,15 @@ function bpGarantirTabelas(PDO $pdo): void
     foreach ($add as $col => $sql) {
         if (!in_array($col, $cols, true)) $pdo->exec("ALTER TABLE build_partidas {$sql}");
     }
+
+    // O Build deixou de ser jogo diário: dá pra montar quantos builds quiser.
+    // A chave única por (usuário, dia) é o que travava isso — a segunda
+    // partida do dia batia em "Duplicate entry" e nem começava.
+    $temUk = $pdo->query("SHOW INDEX FROM build_partidas WHERE Key_name = 'uk_bp_dia'")->fetch();
+    if ($temUk) $pdo->exec("ALTER TABLE build_partidas DROP INDEX uk_bp_dia");
+
+    $temIdx = $pdo->query("SHOW INDEX FROM build_partidas WHERE Key_name = 'idx_bp_usuario'")->fetch();
+    if (!$temIdx) $pdo->exec("ALTER TABLE build_partidas ADD INDEX idx_bp_usuario (id_usuario, id)");
 }
 bpGarantirTabelas($pdo);
 
@@ -74,11 +83,15 @@ function bpCor(int $nivel): string
     return $cores[$nivel] ?? '#ef4444';
 }
 
-/** Partida do dia (ou null). */
-function bpPartida(PDO $pdo, int $userId, string $hoje): ?array
+/**
+ * A partida que está na tela: a em andamento, se houver, senão a última que
+ * o jogador fechou (é ela que a tela final mostra até ele começar outra).
+ */
+function bpPartida(PDO $pdo, int $userId): ?array
 {
-    $st = $pdo->prepare("SELECT * FROM build_partidas WHERE id_usuario=? AND data_jogo=? LIMIT 1");
-    $st->execute([$userId, $hoje]);
+    $st = $pdo->prepare("SELECT * FROM build_partidas WHERE id_usuario=?
+                         ORDER BY (concluido_em IS NULL) DESC, id DESC LIMIT 1");
+    $st->execute([$userId]);
     $p = $st->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($p) {
         $p['slots']     = json_decode((string)$p['slots'], true) ?: [];
@@ -114,8 +127,8 @@ function bpSortearLenda(PDO $pdo, string $grupo, array $usados, ?int $extraFora 
     $l = $st->fetch(PDO::FETCH_ASSOC) ?: null;
 
     // Pool menor que os 10 slots: repete lenda em vez de deixar a partida
-    // sem saída. Travar aqui prenderia o jogador — ele não terminaria o build
-    // nem poderia começar outro, porque só se joga uma vez por dia.
+    // sem saída. Travar aqui deixaria o build pela metade pra sempre — sem
+    // décimo slot não tem OVR, e sem OVR a partida nunca fecha.
     if (!$l && $bloqueados) {
         $st2 = $pdo->prepare("SELECT n.*, p.nome, p.time_atual, p.times, p.altura, p.peso
                               FROM build_notas n
@@ -196,8 +209,12 @@ if (($_POST['acao'] ?? '') !== '') {
     try {
         if ($acao === 'comecar') {
             $grupo = ($_POST['grupo'] ?? '') === 'BIG' ? 'BIG' : 'GUARD';
-            if (bpPartida($pdo, $user_id, $hoje)) {
-                echo json_encode(['ok' => false, 'msg' => 'Você já jogou hoje. Volte amanhã!']);
+            // Só barra se já existe uma partida ABERTA — dá pra montar quantos
+            // builds quiser, mas um de cada vez.
+            $st = $pdo->prepare("SELECT 1 FROM build_partidas WHERE id_usuario=? AND concluido_em IS NULL LIMIT 1");
+            $st->execute([$user_id]);
+            if ($st->fetchColumn()) {
+                echo json_encode(['ok' => false, 'msg' => 'Você já tem um build em andamento — termine ou recomece ele.']);
                 exit;
             }
             // Sem lenda no grupo não dá pra montar nada — melhor avisar antes
@@ -222,16 +239,16 @@ if (($_POST['acao'] ?? '') !== '') {
             exit;
         }
 
-        $partida = bpPartida($pdo, $user_id, $hoje);
+        $partida = bpPartida($pdo, $user_id);
         if (!$partida) { echo json_encode(['ok' => false, 'msg' => 'Comece uma partida primeiro.']); exit; }
 
-        // Recomeçar do zero: apaga a partida do dia e volta pra escolha de
-        // tipo. Só vale enquanto ela está em andamento — se desse pra resetar
-        // uma partida FECHADA, dava pra refazer o build até cair no top 1 e
-        // sacar as 500 moedas quantas vezes quisesse.
+        // Recomeçar do zero: joga fora o build em andamento e volta pra escolha
+        // de tipo. Uma partida FECHADA nunca é apagada — ela já entrou no
+        // ranking e pode ter pago moedas; pra fazer outro build é só começar
+        // um novo, que agora não tem limite.
         if ($acao === 'recomecar') {
             if ($partida['concluido_em']) {
-                echo json_encode(['ok' => false, 'msg' => 'A partida de hoje já foi finalizada — amanhã tem outra.']);
+                echo json_encode(['ok' => false, 'msg' => 'Esse build já está fechado. Comece um novo.']);
                 exit;
             }
             $pdo->prepare("DELETE FROM build_partidas WHERE id = ? AND id_usuario = ?")
@@ -334,7 +351,19 @@ if (($_POST['acao'] ?? '') !== '') {
                 $season['time'] = $time;
                 $season['historico'] = $hist;
 
-                $moedas = buildMoedasDaPosicaoHistorica($hist);
+                // Moeda só no PRIMEIRO build fechado do dia. Sem isso, jogar
+                // sem limite viraria farm: bastava repetir até cair no top 10
+                // e sacar de novo. Os builds seguintes valem pelo ranking e
+                // pela temporada, que é o que o jogo tem de graça.
+                $st = $pdo->prepare("SELECT 1 FROM build_partidas
+                                     WHERE id_usuario=? AND data_jogo=? AND concluido_em IS NOT NULL
+                                       AND id <> ? LIMIT 1");
+                $st->execute([$user_id, $hoje, (int)$partida['id']]);
+                $primeiroDoDia = !$st->fetchColumn();
+
+                $moedas = $primeiroDoDia ? buildMoedasDaPosicaoHistorica($hist) : 0;
+                $season['primeiro_do_dia'] = $primeiroDoDia;
+
                 $pdo->prepare("UPDATE build_partidas SET posicao_rank=?, moedas=?, temporada=? WHERE id=?")
                     ->execute([$hist['no_top'] ? $hist['posicao'] : 0, $moedas, json_encode($season), (int)$partida['id']]);
                 if ($moedas > 0) {
@@ -361,9 +390,17 @@ if (($_POST['acao'] ?? '') !== '') {
 }
 
 // ── TELA ────────────────────────────────────────────────────────────────────
-$partida   = bpPartida($pdo, $user_id, $hoje);
+$partida   = bpPartida($pdo, $user_id);
 $ATRIBUTOS = buildAtributos();
 $temNotas  = (int)$pdo->query("SELECT COUNT(*) FROM build_notas")->fetchColumn();
+
+// "Montar outro build": o último build está fechado e o jogador pediu a tela
+// inicial de volta. Nada é apagado — aquele build continua no ranking, só sai
+// da tela. Um build EM ANDAMENTO ignora o pedido: pra largar ele existe o
+// "Recomeçar do zero", que avisa o que vai perder.
+if (isset($_GET['novo']) && $partida && $partida['concluido_em']) {
+    $partida = null;
+}
 $temporada = $partida['temporada'] ?? null;
 
 $preenchidos = 0;
@@ -440,7 +477,8 @@ if ($partida && $partida['concluido_em']) {
     if ($temporada) {
         $l[] = '';
         $l[] = '🏀 ' . $temporada['time']['nome'] . ' — '
-             . $temporada['vitorias'] . '-' . $temporada['derrotas'];
+             . $temporada['vitorias'] . '-' . $temporada['derrotas']
+             . ((int)$temporada['seed'] > 0 ? ' · ' . (int)$temporada['seed'] . 'º da conferência' : '');
         $l[] = $temporada['playoff']['label'];
         foreach ($temporada['premios'] as $p) $l[] = $p['label'];
     }
@@ -596,8 +634,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 .fim-moedas{display:flex;align-items:center;justify-content:center;gap:7px;background:var(--amber-soft);border:1px solid var(--amber);color:var(--amber);border-radius:12px;padding:12px;font-size:13.5px;font-weight:800;margin-top:14px}
 .fim-nada{font-size:11.5px;color:var(--text2);text-align:center;margin-top:14px;line-height:1.5}
-.copiar-btn{width:100%;margin-top:12px;background:var(--panel2);border:1.5px solid var(--border2);color:var(--text);border-radius:11px;padding:12px;font-family:var(--font);font-size:13px;font-weight:800;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.acoes-fim{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+@media(max-width:420px){.acoes-fim{grid-template-columns:1fr}}
+.copiar-btn{width:100%;background:var(--panel2);border:1.5px solid var(--border2);color:var(--text);border-radius:11px;padding:12px;font-family:var(--font);font-size:13px;font-weight:800;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px}
 .copiar-btn:hover{border-color:var(--green);color:var(--green);background:var(--green-soft)}
+.novo-btn{width:100%;background:var(--red);border:1.5px solid var(--red);color:#fff;border-radius:11px;padding:12px;font-size:13px;font-weight:800;text-decoration:none;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.novo-btn:hover{filter:brightness(1.12);color:#fff}
 
 /* ── RANKING ── */
 .rank{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
@@ -631,7 +673,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <div class="topbar">
   <div class="topbar-left">
     <a href="/games.php" class="back-btn" title="Voltar"><i class="bi bi-arrow-left"></i></a>
-    <span class="game-title">Build-A-<span>Player</span><span class="daily-badge"><i class="bi bi-calendar3"></i>Diário</span></span>
+    <span class="game-title">Build-A-<span>Player</span><span class="daily-badge"><i class="bi bi-infinity"></i>Livre</span></span>
   </div>
   <div class="topbar-right">
     <?php if ($partida && !$partida['concluido_em']): ?>
@@ -711,11 +753,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
     <?php if ((int)$partida['moedas'] > 0): ?>
     <div class="fim-moedas"><i class="bi bi-coin"></i>+<?= (int)$partida['moedas'] ?> moedas</div>
+    <?php elseif (isset($temporada['primeiro_do_dia']) && !$temporada['primeiro_do_dia']): ?>
+    <div class="fim-nada">Moedas só no <b>primeiro build do dia</b>. Deste aqui em diante vale o ranking e a temporada — jogue quantas vezes quiser.</div>
     <?php else: ?>
-    <div class="fim-nada">Só entrar no <b>top 10 da história</b> paga moedas — e chegar em 1º é quase impossível de propósito. Amanhã tem outra chance.</div>
+    <div class="fim-nada">Só entrar no <b>top 10 da história</b> paga moedas — e chegar em 1º é quase impossível de propósito.</div>
     <?php endif; ?>
 
-    <button type="button" class="copiar-btn" onclick="bpCopiar(this)"><i class="bi bi-clipboard"></i> Copiar build</button>
+    <div class="acoes-fim">
+      <button type="button" class="copiar-btn" onclick="bpCopiar(this)"><i class="bi bi-clipboard"></i> Copiar build</button>
+      <a href="?game=buildplayer&amp;novo=1" class="novo-btn"><i class="bi bi-arrow-repeat"></i> Jogar novamente</a>
+    </div>
   </div>
 
   <?php if ($temporada): $po = $temporada['playoff']; ?>
@@ -870,10 +917,10 @@ async function bpComecar(grupo) {
   location.reload();
 }
 
-/** Apaga a partida de hoje e volta pra escolha de tipo. */
+/** Joga fora o build em andamento e volta pra escolha de tipo. */
 async function bpRecomecar() {
   if (bpTravado) return;
-  if (!confirm('Recomeçar do zero?\n\nTudo que você já escolheu neste build é apagado e você escolhe o tipo de novo. Continua valendo como a sua partida de hoje.')) return;
+  if (!confirm('Recomeçar do zero?\n\nTudo que você já escolheu neste build é apagado e você escolhe o tipo de novo. ')) return;
   bpTravado = true;
   const r = await bpPost({ acao: 'recomecar' });
   if (!r.ok) { alert(r.msg); bpTravado = false; return; }
