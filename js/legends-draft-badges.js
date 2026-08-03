@@ -46,11 +46,17 @@ function lbRenderTudo(data) {
     html += `<div class="lb-banner"><i class="bi bi-exclamation-triangle-fill"></i><span><strong>${semBadges} jogador${semBadges > 1 ? 'es' : ''}</strong> ainda ${semBadges > 1 ? 'estão' : 'está'} sem nenhuma badge configurada pelo GM — aplique a distribuição padrão da cartinha do jogador no 2kratings.com pra ${semBadges > 1 ? 'eles' : 'ele'}.</span></div>`;
   }
 
+  html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <button type="button" class="btn-ghost" id="btnLbCopiarEscolhas"><i class="bi bi-clipboard-check me-1"></i>Copiar todas as escolhas</button>
+    <button type="button" class="btn-ghost" id="btnLbCopiarBadges"><i class="bi bi-clipboard-data me-1"></i>Copiar escolhas + badges</button>
+  </div>`;
   html += `<input type="text" id="lbSearch" class="lb-search" placeholder="Buscar por GM, jogador ou time...">`;
   html += `<div id="lbList"></div>`;
 
   box.innerHTML = html;
   lbRenderLista(_lbPicks);
+  document.getElementById('btnLbCopiarEscolhas').addEventListener('click', ev => lbCopiar(ev, false));
+  document.getElementById('btnLbCopiarBadges').addEventListener('click', ev => lbCopiar(ev, true));
   document.getElementById('lbSearch').addEventListener('input', e => {
     const q = e.target.value.trim().toLowerCase();
     const filtrado = !q ? _lbPicks : _lbPicks.filter(p =>
@@ -59,6 +65,33 @@ function lbRenderTudo(data) {
       (p.team_name || '').toLowerCase().includes(q));
     lbRenderLista(filtrado);
   });
+}
+
+/**
+ * Copia o quadro do draft no formato de mandar no grupo.
+ * Com $comBadges, cada linha ganha as badges configuradas pelo GM embaixo —
+ * é o que serve pra conferir quem ainda não montou o jogador.
+ */
+function lbCopiar(ev, comBadges) {
+  const feitas = _lbPicks.filter(p => p.player_name);
+  if (!feitas.length) { alert('Ainda não tem nenhuma escolha pra copiar.'); return; }
+
+  const linhas = feitas.map(p => {
+    const base = `${p.pick_number} - ${p.gm_name} - ${p.player_name}`;
+    if (!comBadges) return base;
+    const badges = p.badges || [];
+    return badges.length
+      ? `${base}\n   ${badges.map(b => `${b.label} (${b.tier})`).join(', ')}`
+      : `${base}\n   (sem badges)`;
+  });
+
+  const texto = 'Draft de Lendas — resultado\n\n' + linhas.join('\n');
+  const btn = ev.currentTarget;
+  const original = btn.innerHTML;
+  navigator.clipboard.writeText(texto).then(() => {
+    btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copiado!';
+    setTimeout(() => { btn.innerHTML = original; }, 1600);
+  }).catch(() => prompt('Copie o texto abaixo:', texto));
 }
 
 function lbRenderLista(picks) {

@@ -75,8 +75,14 @@ function ldRenderTudo() {
   if (d.finalizado) {
     box.innerHTML = d.meu_pick
       ? ldBadgesHtml(d)
-      : `<div class="card"><div class="card-body"><div class="ld-vazio" style="padding:16px"><i class="bi bi-info-circle"></i><p>Draft de Lendas finalizado. Você não tem um jogador aqui (sua conta não está entre os 32 participantes da roleta).</p></div></div></div>`;
-    if (d.meu_pick) ldWireBadges();
+      : `<div class="card"><div class="card-body"><div class="ld-vazio" style="padding:16px"><i class="bi bi-info-circle"></i><p>Draft de Lendas finalizado. Você não tem um jogador aqui (sua conta não está entre os 32 participantes da roleta).</p>
+           <button type="button" class="btn-ghost" id="btnLdCopiarEscolhas" style="margin-top:12px"><i class="bi bi-clipboard-check me-1"></i>Copiar escolhas</button>
+         </div></div></div>`;
+    if (d.meu_pick) {
+      ldWireBadges();
+    } else {
+      document.getElementById('btnLdCopiarEscolhas')?.addEventListener('click', ldCopiarEscolhas);
+    }
     return;
   }
 
@@ -165,7 +171,10 @@ function ldRegrasHtml() {
 function ldCopiarEscolhas(ev) {
   const feitas = (ldEstado?.picks || []).filter(p => p.player_name);
   if (!feitas.length) { alert('Ainda não tem nenhuma escolha pra copiar.'); return; }
-  const texto = 'Draft de Lendas — escolhas até agora\n\n'
+  const titulo = ldEstado?.finalizado
+    ? 'Draft de Lendas — resultado final'
+    : 'Draft de Lendas — escolhas até agora';
+  const texto = titulo + '\n\n'
     + feitas.map(p => `${p.pick_number} - ${p.gm_name} - ${p.player_name}`).join('\n');
   const btn = ev.currentTarget;
   const original = btn.innerHTML;
@@ -362,7 +371,10 @@ function ldBadgesHtml(d) {
   <div class="ld-tokens-bar">
     <div><div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">Tokens de Badge — ${_ldEsc(d.meu_pick.player_name)}</div>
     <div class="ld-tokens-num ${restantes < 0 ? 'over' : ''}" id="ldTokensRestantes">${restantes}/${d.tokens_orcamento} restantes</div></div>
-    <button type="button" class="btn-orange" id="btnLdSalvarBadges">Salvar badges</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn-ghost" id="btnLdCopiarEscolhas"><i class="bi bi-clipboard-check me-1"></i>Copiar escolhas</button>
+      <button type="button" class="btn-orange" id="btnLdSalvarBadges">Salvar badges</button>
+    </div>
   </div>
   <div class="ld-legenda">${Object.keys(LD_TIER_LABEL).map(t => `<span><b class="ld-legenda-letra" data-tier="${t}">${LD_TIER_LABEL[t]}</b> ${LD_TIER_NOME[t]} (${d.tier_custo[t]})</span>`).join('')}</div>
   <div class="card"><div class="card-body">`;
@@ -397,6 +409,11 @@ function ldAtualizarBarraTokens() {
 }
 
 function ldWireBadges() {
+  // O quadro do draft some depois de finalizado, mas o "copiar escolhas"
+  // continua aqui — é justamente quando dá vontade de mandar a lista no grupo.
+  const btnCopiar = document.getElementById('btnLdCopiarEscolhas');
+  if (btnCopiar) btnCopiar.addEventListener('click', ldCopiarEscolhas);
+
   document.querySelectorAll('.ld-tier-picker').forEach(picker => {
     const badgeKey = picker.dataset.badge;
     picker.querySelectorAll('.ld-tier-btn').forEach(btn => {
