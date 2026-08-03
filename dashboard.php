@@ -5,6 +5,7 @@ require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/salary_cap.php';
 require_once __DIR__ . '/backend/pendencias.php';
 require_once __DIR__ . '/backend/team-feed-helpers.php'; // FEED_DATA_CORTE + tabelas do feed
+require_once __DIR__ . '/backend/queridometro.php';
 requireAuth();
 
 $user = getUserSession();
@@ -101,6 +102,30 @@ if ($precisaRevisarSprint) {
 // Tudo que tem prazo ou trava alguma coisa, reunido num lugar só — é o
 // primeiro bloco da página. Ver backend/pendencias.php.
 $pendencias = pendenciasDoGm($pdo, $user, $team ?: null);
+
+// Queridômetro semanal da liga: MVP, MIP, Air Ball, Cobra e Planta, votados
+// pelos próprios GMs. Popup de voto só aparece quando o time ainda não votou
+// nesta semana (o placar acumula até o avanço de temporada zerar tudo).
+$queridoLeague = '';
+$queridoWeekKey = '';
+$precisaVotarQuerido = false;
+$queridoTimes = [];
+$queridoTop3 = [];
+if ($team) {
+    ensureQuerdometroTable($pdo);
+    $queridoLeague = strtoupper((string)($team['league'] ?? ''));
+    $queridoWeekKey = queridometroWeekKey();
+    $precisaVotarQuerido = $queridoLeague !== '' && !queridometroJaVotou($pdo, $queridoLeague, (int)$team['id'], $queridoWeekKey);
+    $stmtQTimes = $pdo->prepare("SELECT id, name, city, photo_url FROM teams WHERE league = ? AND id != ? ORDER BY city, name");
+    $stmtQTimes->execute([$queridoLeague, (int)$team['id']]);
+    $queridoTimes = $stmtQTimes->fetchAll(PDO::FETCH_ASSOC);
+    $queridoTop3 = queridometroTop3($pdo, $queridoLeague);
+}
+// A revisão de sprint é bloqueante — enquanto ela não sai da tela, o popup
+// do Queridômetro espera o próximo carregamento (mesma regra da logo/elenco acima).
+if ($precisaRevisarSprint) {
+    $precisaVotarQuerido = false;
+}
 
 $hasActiveTactic = false;
 if ($team) {
@@ -931,6 +956,69 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         .sorteio-seta { color: var(--text-3); font-size: 14px; flex-shrink: 0; }
         .sorteio-item:hover .sorteio-seta { color: var(--red); }
 
+        /* ── Queridômetro da liga ── */
+        .querido-lista { display: flex; flex-direction: column; gap: 10px; }
+        .querido-row {
+            display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+            padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+        }
+        .querido-cat {
+            flex-shrink: 0; width: 84px; font-size: 12px; font-weight: 800;
+            padding: 5px 0; text-align: center; border-radius: 999px;
+        }
+        .querido-cat-mvp { color: var(--green); }
+        .querido-cat-mip { color: var(--blue); }
+        .querido-cat-air_ball { color: #ef4444; }
+        .querido-cat-cobra { color: var(--purple); }
+        .querido-cat-planta { color: var(--amber); }
+        .querido-top3 { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+        .querido-vazio { font-size: 12px; color: var(--text-3); }
+        .querido-chip {
+            display: flex; align-items: center; gap: 6px; background: var(--panel-3);
+            border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px 4px 4px;
+        }
+        .querido-chip img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+        .querido-nome { font-size: 11.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
+        .querido-votos {
+            font-size: 10.5px; font-weight: 800; color: var(--text-2); background: var(--panel);
+            border-radius: 999px; padding: 1px 6px;
+        }
+        .querido-btn {
+            background: none; border: 1px solid var(--border-md); color: var(--text-2);
+            font-size: 11px; font-weight: 600; letter-spacing: .3px; border-radius: 999px;
+            padding: 5px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+            transition: color var(--t) var(--ease), border-color var(--t) var(--ease);
+        }
+        .querido-btn:hover { color: var(--red); border-color: var(--border-red); }
+
+        .quer-overlay { position: fixed; inset: 0; z-index: 5100; background: rgba(0,0,0,.72); backdrop-filter: blur(4px);
+            display: flex; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; }
+        .quer-box { width: 100%; max-width: 540px; background: var(--panel); border: 1px solid var(--border-md);
+            border-radius: var(--radius); padding: 26px 24px; box-shadow: 0 30px 80px -30px rgba(0,0,0,.8); margin: auto; position: relative; }
+        .quer-close { position: absolute; top: 14px; right: 14px; width: 30px; height: 30px; border-radius: 50%;
+            background: var(--panel-2); border: 1px solid var(--border); color: var(--text-2); cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 14px; }
+        .quer-close:hover { color: var(--text); }
+        .quer-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+        .quer-icon { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; background: var(--red-soft); color: var(--red);
+            display: flex; align-items: center; justify-content: center; font-size: 20px; }
+        .quer-box h2 { font-size: 18px; font-weight: 800; margin: 0; }
+        .quer-sub { font-size: 13px; color: var(--text-2); line-height: 1.6; margin: 10px 0 18px; }
+        .quer-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+        .quer-field label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-3); }
+        .quer-field select { background: var(--panel-2); border: 1px solid var(--border-md); color: var(--text);
+            border-radius: var(--radius-sm); padding: 10px 12px; font-family: var(--font); font-size: 13.5px; width: 100%; }
+        .quer-field select:focus { outline: none; border-color: var(--red); }
+        .quer-erro { margin-top: 4px; padding: 10px 13px; border-radius: var(--radius-sm); font-size: 12.5px; display: none;
+            background: rgba(239,68,68,.10); border: 1px solid rgba(239,68,68,.30); color: #ef4444; }
+        .quer-actions { margin-top: 12px; }
+        .quer-actions button { width: 100%; padding: 12px 16px; border-radius: var(--radius-sm); background: var(--red); border: none;
+            color: #fff; font-family: var(--font); font-size: 14px; font-weight: 700; cursor: pointer; }
+        .quer-actions button:disabled { opacity: .6; cursor: not-allowed; }
+        .quer-ok { text-align: center; padding: 10px 0 4px; }
+        .quer-ok i { font-size: 34px; color: var(--green); margin-bottom: 10px; display: block; }
+
         /* ── Último post da Timeline ── */
         .tl-post {
             display: flex; align-items: flex-start; gap: 12px; text-decoration: none;
@@ -1578,6 +1666,39 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                             <img class="tl-post-img" src="<?= htmlspecialchars($ultimoPost['photo_url']) ?>" alt="">
                             <?php endif; ?>
                         </a>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($team && $queridoLeague !== ''): ?>
+                <!-- ── Queridômetro da liga ── -->
+                <div class="bc span-3" style="animation-delay:.25s">
+                    <div class="bc-head">
+                        <div class="bc-title"><i class="bi bi-emoji-heart-eyes-fill"></i> Queridômetro da <?= htmlspecialchars($queridoLeague) ?></div>
+                        <button type="button" class="querido-btn" onclick="queridoAbrirModal()">
+                            <?= $precisaVotarQuerido ? 'Votar' : 'Ver / votar' ?> <i class="bi bi-arrow-right"></i>
+                        </button>
+                    </div>
+                    <div class="bc-body">
+                        <div class="querido-lista">
+                            <?php foreach (queridometroCategorias() as $catKey => $catLabel):
+                                $top = $queridoTop3[$catKey] ?? []; ?>
+                            <div class="querido-row">
+                                <div class="querido-cat querido-cat-<?= strtolower($catKey) ?>"><?= htmlspecialchars($catLabel) ?></div>
+                                <div class="querido-top3">
+                                    <?php if (!$top): ?>
+                                    <span class="querido-vazio">Sem votos ainda essa temporada</span>
+                                    <?php else: foreach ($top as $tt): ?>
+                                    <div class="querido-chip">
+                                        <img src="<?= htmlspecialchars(getTeamPhoto($tt['photo_url'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
+                                        <span class="querido-nome"><?= htmlspecialchars(trim(($tt['city'] ?? '') . ' ' . ($tt['name'] ?? ''))) ?></span>
+                                        <span class="querido-votos"><?= (int)$tt['votos'] ?></span>
+                                    </div>
+                                    <?php endforeach; endif; ?>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                 </div>
                 <?php endif; ?>
@@ -2719,6 +2840,113 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
   });
 </script>
 <?php endif; ?>
+<?php endif; ?>
+
+<?php if ($team && $queridoLeague !== ''): ?>
+<!-- ── Queridômetro: popup de voto semanal ── -->
+<div class="quer-overlay" id="queridoOverlay" role="dialog" aria-modal="true" aria-labelledby="queridoTitle" style="display:none">
+  <div class="quer-box">
+    <button type="button" class="quer-close" id="queridoClose" aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
+    <div class="quer-head">
+      <div class="quer-icon"><i class="bi bi-emoji-heart-eyes-fill"></i></div>
+      <h2 id="queridoTitle">Queridômetro da <?= htmlspecialchars($queridoLeague) ?></h2>
+    </div>
+
+    <?php if ($precisaVotarQuerido): ?>
+    <p class="quer-sub">Escolha um time diferente pra cada categoria — não dá pra repetir nem votar no seu próprio time. O placar acumula a temporada inteira.</p>
+    <div>
+      <?php foreach (queridometroCategorias() as $catKey => $catLabel): ?>
+      <div class="quer-field">
+        <label for="quer-<?= $catKey ?>"><?= htmlspecialchars($catLabel) ?></label>
+        <select id="quer-<?= $catKey ?>" data-cat="<?= $catKey ?>">
+          <option value="">Escolha um time...</option>
+          <?php foreach ($queridoTimes as $tt): ?>
+          <option value="<?= (int)$tt['id'] ?>"><?= htmlspecialchars(trim(($tt['city'] ?? '') . ' ' . ($tt['name'] ?? ''))) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <?php endforeach; ?>
+      <div class="quer-erro" id="queridoErro"></div>
+      <div class="quer-actions">
+        <button type="button" id="queridoSalvar"><i class="bi bi-check-lg me-1"></i>Confirmar votos</button>
+      </div>
+    </div>
+    <?php else: ?>
+    <div class="quer-ok">
+      <i class="bi bi-check-circle-fill"></i>
+      <p class="quer-sub" style="margin-top:0">Você já votou essa semana. O placar no card mostra o Top 3 de cada categoria — volta semana que vem pra votar de novo!</p>
+    </div>
+    <?php endif; ?>
+  </div>
+</div>
+<script>
+(function () {
+  const overlay = document.getElementById('queridoOverlay');
+  const jaVotou = <?= json_encode(!$precisaVotarQuerido) ?>;
+
+  window.queridoAbrirModal = function () {
+    if (overlay) overlay.style.display = 'flex';
+  };
+  function queridoFechar() {
+    if (overlay) overlay.style.display = 'none';
+  }
+  document.getElementById('queridoClose')?.addEventListener('click', queridoFechar);
+  overlay?.addEventListener('click', (e) => { if (e.target === overlay) queridoFechar(); });
+
+  if (!jaVotou) {
+    const categorias = <?= json_encode(array_keys(queridometroCategorias())) ?>;
+
+    function queridoAtualizarDisponibilidade() {
+      const selecionados = categorias.map(c => document.getElementById('quer-' + c)?.value).filter(v => v);
+      categorias.forEach(c => {
+        const sel = document.getElementById('quer-' + c);
+        if (!sel) return;
+        Array.from(sel.options).forEach(opt => {
+          if (!opt.value) return;
+          opt.disabled = selecionados.includes(opt.value) && sel.value !== opt.value;
+        });
+      });
+    }
+    categorias.forEach(c => {
+      document.getElementById('quer-' + c)?.addEventListener('change', queridoAtualizarDisponibilidade);
+    });
+
+    const erro = document.getElementById('queridoErro');
+    const btn = document.getElementById('queridoSalvar');
+    btn?.addEventListener('click', async () => {
+      erro.style.display = 'none';
+      const votos = {};
+      for (const c of categorias) {
+        const v = document.getElementById('quer-' + c)?.value;
+        if (!v) {
+          erro.textContent = 'Escolha um time pra todas as categorias.';
+          erro.style.display = 'block';
+          return;
+        }
+        votos[c] = parseInt(v, 10);
+      }
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/queridometro.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'votar', votos }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Erro ao votar.');
+        window.location.reload();
+      } catch (e) {
+        erro.textContent = e.message;
+        erro.style.display = 'block';
+        btn.disabled = false;
+      }
+    });
+
+    // Popup automático ao entrar — só quando o time ainda não votou essa semana.
+    window.queridoAbrirModal();
+  }
+})();
+</script>
 <?php endif; ?>
 </body>
 </html>

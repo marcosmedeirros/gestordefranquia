@@ -2158,6 +2158,12 @@ try {
             } catch (Throwable $e) {
                 error_log('[advance_season] reset tactic_edit_windows: ' . $e->getMessage());
             }
+            try {
+                require_once dirname(__DIR__) . '/backend/queridometro.php';
+                resetQueridometroDaLiga($pdo, $advSeason['league']);
+            } catch (Throwable $e) {
+                error_log('[advance_season] reset queridometro: ' . $e->getMessage());
+            }
             echo json_encode(['success' => true, 'message' => 'Temporada marcada como concluída']);
             break;
 
