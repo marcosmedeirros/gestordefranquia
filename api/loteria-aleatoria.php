@@ -37,9 +37,28 @@ function ensureLoteriasTables(PDO $pdo): void
         tipo ENUM('gms','times','personalizado') NOT NULL DEFAULT 'times',
         league VARCHAR(20) NULL,
         notificar_saida TINYINT(1) NOT NULL DEFAULT 1,
+        revelados INT NOT NULL DEFAULT 0,
         criado_por INT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // Loterias criadas antes da revelação de trás pra frente existir: naquela
+    // versão o pick era atribuído um a um e já saía revelado, então tudo que
+    // tem pick_number conta como revelado.
+    static $migrado = false;
+    if (!$migrado && !$pdo->inTransaction()) {
+        $migrado = true;
+        try {
+            if ($pdo->query("SHOW COLUMNS FROM loterias LIKE 'revelados'")->rowCount() === 0) {
+                $pdo->exec("ALTER TABLE loterias ADD COLUMN revelados INT NOT NULL DEFAULT 0 AFTER notificar_saida");
+                $pdo->exec("UPDATE loterias l SET revelados = (
+                    SELECT COUNT(*) FROM loteria_participantes lp
+                    WHERE lp.loteria_id = l.id AND lp.pick_number IS NOT NULL)");
+            }
+        } catch (Throwable $e) {
+            error_log('[ensureLoteriasTables] migrar revelados: ' . $e->getMessage());
+        }
+    }
 
     // chance guarda a % informada pelo admin (ex: 16.500). O sorteio usa ela
     // como peso, então não precisa somar exatamente 100 — é normalizado na hora.
@@ -112,9 +131,18 @@ function loteriaBloqueada(PDO $pdo, int $id): bool
     return (bool)$stmt->fetchColumn();
 }
 
+/**
+ * Estado da loteria.
+ *
+ * A ordem inteira é decidida no PRIMEIRO clique e fica guardada; o que os
+ * cliques seguintes fazem é revelar, de trás pra frente — a última escolha
+ * primeiro, a escolha 1 por último (igual à loteria da NBA). Por isso o que
+ * separa "revelado" de "ainda na urna" é `revelados`, não o pick_number:
+ * quem já tem pick mas ainda não foi revelado continua escondido.
+ */
 function estadoLoteria(PDO $pdo, int $id): ?array
 {
-    $stmt = $pdo->prepare("SELECT id, titulo, tipo, league, notificar_saida FROM loterias WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, titulo, tipo, league, notificar_saida, revelados FROM loterias WHERE id = ?");
     $stmt->execute([$id]);
     $r = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$r) return null;
@@ -130,25 +158,39 @@ function estadoLoteria(PDO $pdo, int $id): ?array
     $stmtP->execute([$id]);
     $linhas = $stmtP->fetchAll(PDO::FETCH_ASSOC);
 
+    $total     = count($linhas);
+    $revelados = max(0, min($total, (int)$r['revelados']));
+    // Revela de baixo pra cima: com R revelados, aparecem os picks maiores que
+    // (total - R). R=1 mostra só a última escolha; R=total mostra tudo.
+    $corte = $total - $revelados;
+
     $naUrna = [];
     $sorteados = [];
-    $somaRestante = 0.0;
+    $sorteioFeito = false;
+    $somaEscondida = 0.0;
     foreach ($linhas as $l) {
         $l['chance']      = (float)$l['chance'];
         $l['pick_number'] = $l['pick_number'] !== null ? (int)$l['pick_number'] : null;
-        if ($l['pick_number'] === null) {
-            $somaRestante += $l['chance'];
-            $naUrna[] = $l;
-        } else {
+        if ($l['pick_number'] !== null) $sorteioFeito = true;
+
+        if ($l['pick_number'] !== null && $l['pick_number'] > $corte) {
             $sorteados[] = $l;
+        } else {
+            // Ainda escondido — o pick não vai junto, senão a tela entregaria
+            // o resultado antes da hora.
+            $somaEscondida += $l['chance'];
+            unset($l['pick_number'], $l['sorteado_em']);
+            $naUrna[] = $l;
         }
     }
 
-    // Chance REAL de cada um levar a próxima escolha: a % informada
-    // renormalizada sobre quem ainda está na urna. É esse número que a tela
-    // mostra, senão as porcentagens ficariam mentindo depois do 1º sorteio.
+    // Antes do sorteio, mostra a chance de cada um levar a escolha 1. Depois
+    // que a ordem já está decidida esse número não significa mais nada, então
+    // some — o que resta é a % base de quem ainda não foi revelado.
     foreach ($naUrna as &$p) {
-        $p['chance_atual'] = $somaRestante > 0 ? round(($p['chance'] / $somaRestante) * 100, 2) : 0;
+        $p['chance_atual'] = (!$sorteioFeito && $somaEscondida > 0)
+            ? round(($p['chance'] / $somaEscondida) * 100, 2)
+            : null;
     }
     unset($p);
     usort($naUrna, fn($a, $b) => $b['chance'] <=> $a['chance']);
@@ -160,11 +202,16 @@ function estadoLoteria(PDO $pdo, int $id): ?array
         'tipo'            => $r['tipo'],
         'league'          => $r['league'] ? strtoupper((string)$r['league']) : null,
         'notificar_saida' => (int)$r['notificar_saida'] === 1,
+        'revelados'       => $revelados,
+        'sorteio_feito'   => $sorteioFeito,
+        'proxima_pick'    => $revelados < $total ? $total - $revelados : null,
         'na_urna'         => $naUrna,
         'sorteados'       => $sorteados,
-        'total'           => count($linhas),
-        'concluido'       => count($linhas) > 0 && count($naUrna) === 0,
-        'bloqueada'       => count($sorteados) > 0,
+        'total'           => $total,
+        'concluido'       => $total > 0 && $revelados >= $total,
+        // Trava a edição no 1º clique: a ordem inteira já foi decidida ali,
+        // mexer em participante ou chance depois disso não faria sentido.
+        'bloqueada'       => $sorteioFeito,
     ];
 }
 
@@ -511,26 +558,59 @@ if ($method === 'POST') {
 
         $pdo->beginTransaction();
         try {
-            // FOR UPDATE: dois cliques simultâneos no "Sortear" não podem
-            // definir a mesma escolha duas vezes.
-            $stmt = $pdo->prepare("SELECT id, nome_display, chance FROM loteria_participantes
-                                   WHERE loteria_id = ? AND pick_number IS NULL
-                                   ORDER BY ordem ASC FOR UPDATE");
+            // FOR UPDATE: dois cliques simultâneos não podem sortear duas vezes
+            // nem revelar a mesma escolha em dobro.
+            $stmt = $pdo->prepare("SELECT lp.id, lp.nome_display, lp.chance, lp.pick_number
+                                   FROM loteria_participantes lp
+                                   INNER JOIN loterias l ON l.id = lp.loteria_id
+                                   WHERE lp.loteria_id = ? ORDER BY lp.ordem ASC FOR UPDATE");
             $stmt->execute([$id]);
-            $urna = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            if (!$urna) {
+            $todos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if (!$todos) {
+                $pdo->rollBack();
+                echo json_encode(['success' => false, 'error' => 'A loteria não tem participantes.']);
+                exit;
+            }
+            $total = count($todos);
+
+            $stmtRev = $pdo->prepare("SELECT revelados FROM loterias WHERE id = ? FOR UPDATE");
+            $stmtRev->execute([$id]);
+            $revelados = (int)$stmtRev->fetchColumn();
+
+            if ($revelados >= $total) {
                 $pdo->rollBack();
                 echo json_encode(['success' => false, 'error' => 'A loteria já está completa.']);
                 exit;
             }
 
-            $stmtPick = $pdo->prepare("SELECT COALESCE(MAX(pick_number), 0) FROM loteria_participantes WHERE loteria_id = ?");
-            $stmtPick->execute([$id]);
-            $pick = (int)$stmtPick->fetchColumn() + 1;
+            // Primeiro clique: decide a ordem INTEIRA de uma vez, com sorteio
+            // ponderado sem reposição. O 1º sorteado leva a escolha 1, o 2º a
+            // escolha 2, e assim por diante — é aqui que as % valem.
+            $jaSorteado = false;
+            foreach ($todos as $t) { if ($t['pick_number'] !== null) { $jaSorteado = true; break; } }
 
-            $ganhador = sortearComPeso($urna);
-            $pdo->prepare("UPDATE loteria_participantes SET pick_number = ?, sorteado_em = NOW() WHERE id = ?")
-                ->execute([$pick, (int)$ganhador['id']]);
+            if (!$jaSorteado) {
+                $urna = $todos;
+                $upd = $pdo->prepare("UPDATE loteria_participantes SET pick_number = ?, sorteado_em = NOW() WHERE id = ?");
+                for ($pick = 1; $pick <= $total; $pick++) {
+                    $ganhador = sortearComPeso(array_values($urna));
+                    $upd->execute([$pick, (int)$ganhador['id']]);
+                    foreach ($urna as $k => $u) {
+                        if ((int)$u['id'] === (int)$ganhador['id']) { unset($urna[$k]); break; }
+                    }
+                }
+            }
+
+            // Revela de trás pra frente: a escolha revelada agora é a
+            // (total - revelados). Primeiro clique mostra a última; o último
+            // clique mostra a escolha 1.
+            $pickRevelada = $total - $revelados;
+            $pdo->prepare("UPDATE loterias SET revelados = revelados + 1 WHERE id = ?")->execute([$id]);
+
+            $stmtQuem = $pdo->prepare("SELECT id, nome_display FROM loteria_participantes WHERE loteria_id = ? AND pick_number = ? LIMIT 1");
+            $stmtQuem->execute([$id, $pickRevelada]);
+            $revelado = $stmtQuem->fetch(PDO::FETCH_ASSOC) ?: ['id' => 0, 'nome_display' => ''];
+
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -541,13 +621,13 @@ if ($method === 'POST') {
 
         $estado = estadoLoteria($pdo, $id);
         if (!empty($estado['notificar_saida'])) {
-            notificarSorteioLoteria($pdo, $id, (string)$estado['titulo'], (string)$ganhador['nome_display'], $pick);
+            notificarSorteioLoteria($pdo, $id, (string)$estado['titulo'], (string)$revelado['nome_display'], $pickRevelada);
         }
 
         echo json_encode([
             'success'      => true,
-            'sorteado_id'  => (int)$ganhador['id'],
-            'pick_number'  => $pick,
+            'sorteado_id'  => (int)$revelado['id'],
+            'pick_number'  => $pickRevelada,
         ] + $estado);
         exit;
     }
@@ -560,6 +640,7 @@ if ($method === 'POST') {
         }
         exigirAdminDaLoteria($pdo, $minhasLigasAdmin, ligaDaLoteria($pdo, $id));
         $pdo->prepare("UPDATE loteria_participantes SET pick_number = NULL, sorteado_em = NULL WHERE loteria_id = ?")->execute([$id]);
+        $pdo->prepare("UPDATE loterias SET revelados = 0 WHERE id = ?")->execute([$id]);
         echo json_encode(['success' => true] + estadoLoteria($pdo, $id));
         exit;
     }

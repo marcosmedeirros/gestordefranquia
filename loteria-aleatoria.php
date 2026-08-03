@@ -177,7 +177,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
                 </div>
                 <div class="hero-eyebrow"><?= $ehAdminAqui ? 'Admin · Loterias' : 'Loteria da ' . htmlspecialchars($ligaLoteria ?? 'liga') ?></div>
                 <h1 class="hero-title" id="ltTituloHero"><i class="bi bi-dice-3-fill" style="color:var(--red)"></i><span><?= htmlspecialchars($titulo) ?></span></h1>
-                <p class="hero-sub">Cada sorteio define a próxima escolha. Quem tem mais chance sai mais cedo com mais frequência — mas nada é garantido.</p>
+                <p class="hero-sub">A revelação é de trás pra frente, igual à loteria da NBA: sai primeiro a última escolha e a <b>escolha 1 fica pro final</b>. Quem tem mais chance leva as primeiras com mais frequência — mas nada é garantido.</p>
             </div>
             <?php if ($ehAdminAqui): ?>
             <div class="hero-actions">
@@ -219,7 +219,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
                     <div class="card" style="margin-bottom:16px">
                         <div class="card-head">
                             <div class="card-head-left"><i class="bi bi-percent"></i><span>Ainda na urna</span></div>
-                            <span style="font-size:11px;color:var(--text-3)">chance da próxima</span>
+                            <span style="font-size:11px;color:var(--text-3)" id="ltUrnaRotulo">chance da escolha 1</span>
                         </div>
                         <div class="card-body">
                             <div class="lot-urna" id="ltUrna"></div>

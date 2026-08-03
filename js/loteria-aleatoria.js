@@ -30,7 +30,7 @@ function laRenderTudo(destaque = null) {
   const d = laEstado;
   document.querySelector('#ltTituloHero span').textContent = d.titulo;
   document.title = `${d.titulo} — Loteria`;
-  document.getElementById('ltProgresso').textContent = `${d.sorteados.length}/${d.total} definidos`;
+  document.getElementById('ltProgresso').textContent = `${d.revelados}/${d.total} revelados`;
 
   laRenderBola(destaque);
   laRenderUrna();
@@ -57,14 +57,15 @@ function laRenderBola(destaque) {
 
   if (!ultimo) {
     box.className = 'lot-bola';
-    box.innerHTML = `<div class="lot-bola-nome" style="color:var(--text-3);font-size:14px;font-weight:600">Ninguém sorteado ainda</div>
-      <div class="lot-bola-chance">${d.total} participantes na urna</div>`;
+    box.innerHTML = `<div class="lot-bola-nome" style="color:var(--text-3);font-size:14px;font-weight:600">Ninguém revelado ainda</div>
+      <div class="lot-bola-chance">${d.total} participantes na urna · a escolha ${d.total} sai primeiro</div>`;
     return;
   }
 
   box.className = 'lot-bola' + (destaque ? ' novo' : '');
+  const ehPrimeira = Number(ultimo.pick_number) === 1;
   box.innerHTML = `
-    <div class="lot-bola-pick">Escolha ${ultimo.pick_number}</div>
+    <div class="lot-bola-pick">${ehPrimeira ? '🏆 Escolha 1' : 'Escolha ' + ultimo.pick_number}</div>
     <div class="lot-bola-nome">${_laEsc(ultimo.nome_display)}</div>
     <div class="lot-bola-chance">tinha ${Number(ultimo.chance).toFixed(1)}% de chance base</div>`;
 }
@@ -72,16 +73,26 @@ function laRenderBola(destaque) {
 function laRenderUrna() {
   const box = document.getElementById('ltUrna');
   const urna = laEstado.na_urna || [];
+
+  // Depois do 1º clique a ordem inteira já está decidida, então "chance da
+  // próxima" não existe mais — quem está aqui é só quem ainda não foi revelado.
+  const rotulo = document.getElementById('ltUrnaRotulo');
+  if (rotulo) {
+    rotulo.textContent = laEstado.sorteio_feito ? 'ainda não revelados' : 'chance da escolha 1';
+  }
+
   if (!urna.length) {
-    box.innerHTML = '<p style="font-size:12.5px;color:var(--text-3);margin:0">A urna está vazia — todas as escolhas já saíram.</p>';
+    box.innerHTML = '<p style="font-size:12.5px;color:var(--text-3);margin:0">Todo mundo já foi revelado.</p>';
     return;
   }
   box.innerHTML = urna.map(p => `
     <div class="lot-urna-item">
       <img src="${_laEsc(p.photo_url || LA_LOGO_PADRAO)}" alt="" onerror="this.src='${LA_LOGO_PADRAO}'">
       <span class="lot-urna-nome">${_laEsc(p.nome_display)}</span>
-      <span class="lot-urna-base">base ${Number(p.chance).toFixed(1)}%</span>
-      <span class="lot-urna-chance">${Number(p.chance_atual).toFixed(1)}%</span>
+      ${p.chance_atual === null || p.chance_atual === undefined
+        ? `<span class="lot-urna-chance">${Number(p.chance).toFixed(1)}%</span>`
+        : `<span class="lot-urna-base">base ${Number(p.chance).toFixed(1)}%</span>
+           <span class="lot-urna-chance">${Number(p.chance_atual).toFixed(1)}%</span>`}
     </div>`).join('');
 }
 
@@ -89,7 +100,7 @@ function laRenderHistorico() {
   const box = document.getElementById('ltHistorico');
   const lista = laEstado.sorteados || [];
   if (!lista.length) {
-    box.innerHTML = '<p style="font-size:12.5px;color:var(--text-3);margin:0">Nenhuma escolha definida ainda.</p>';
+    box.innerHTML = '<p style="font-size:12.5px;color:var(--text-3);margin:0">Nenhuma escolha revelada ainda — o quadro se preenche de baixo pra cima.</p>';
     return;
   }
   box.innerHTML = lista.map(p => `
@@ -106,7 +117,7 @@ function laRenderBotao() {
 
   if (d.pode_sortear === false) {
     btn.disabled = true;
-    btn.textContent = d.concluido ? 'Loteria concluída' : 'Só o admin da liga sorteia';
+    btn.textContent = d.concluido ? 'Loteria concluída' : 'Só o admin da liga revela';
     return;
   }
   if (d.concluido) {
@@ -114,11 +125,14 @@ function laRenderBotao() {
     btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Loteria concluída';
     return;
   }
-  const proxima = d.sorteados.length + 1;
   btn.disabled = laSorteando;
-  btn.innerHTML = laSorteando
-    ? 'Sorteando...'
-    : `<i class="bi bi-dice-3-fill me-1"></i>Sortear a escolha ${proxima}`;
+  if (laSorteando) { btn.innerHTML = 'Sorteando...'; return; }
+
+  // O 1º clique é o que sorteia de verdade (define a ordem inteira); daí em
+  // diante é revelação, de trás pra frente.
+  btn.innerHTML = d.sorteio_feito
+    ? `<i class="bi bi-eye-fill me-1"></i>Revelar a escolha ${d.proxima_pick}`
+    : `<i class="bi bi-dice-3-fill me-1"></i>Sortear e revelar a escolha ${d.proxima_pick}`;
 }
 
 async function laSortear() {
@@ -172,7 +186,7 @@ function laRenderConfig() {
       ${blocoLiga}
       <div class="lot-aviso">
         <i class="bi bi-lock-fill"></i>
-        <span>A loteria já começou — título, participantes e chances não podem mais mudar. Pra recomeçar do zero, use <b>Reiniciar</b>.</span>
+        <span>A ordem já foi sorteada no primeiro clique — daqui pra frente é só revelar. Título, participantes e chances não mudam mais; pra refazer o sorteio, use <b>Reiniciar</b>.</span>
       </div>
       <p style="font-size:12px;color:var(--text-3);margin:12px 0 0">Tipo: <b style="color:var(--text)">${tipoLabel}</b> · Notificação: <b style="color:var(--text)">${d.notificar_saida ? 'ativada' : 'desativada'}</b></p>`;
     laLigarBotaoLiga();
