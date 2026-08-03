@@ -97,7 +97,26 @@ function bpSortearLenda(PDO $pdo, string $grupo, array $usados): ?array
         if (is_array($lista) && $lista) $time = (string)$lista[0];
     }
     $l['time_exibido'] = $time ?: 'NBA';
+    $l['time_logo']    = bpLogoDoTime($l['time_exibido']);
     return $l;
+}
+
+/**
+ * Logo do time pela sigla, direto do CDN da NBA — mesmo padrão já usado no
+ * Box NBA e no cadastro da ROOKIE. Devolve null quando a sigla não é de um
+ * time atual (franquia extinta, ou lenda sem time definido), e aí a roleta
+ * cai de volta na sigla em texto.
+ */
+function bpLogoDoTime(string $sigla): ?string
+{
+    require_once dirname(__DIR__, 2) . '/backend/nba_teams.php';
+    static $porSigla = null;
+    if ($porSigla === null) {
+        $porSigla = [];
+        foreach (nbaTeams() as $t) $porSigla[$t['abbr']] = (int)$t['id'];
+    }
+    $sigla = strtoupper(trim($sigla));
+    return isset($porSigla[$sigla]) ? nbaTeamLogoUrl($porSigla[$sigla]) : null;
 }
 
 /** OVR do build: média dos valores das dez letras escolhidas. */
@@ -190,6 +209,7 @@ if (($_POST['acao'] ?? '') !== '') {
                     'id'     => (int)$lenda['player_id'],
                     'nome'   => $lenda['nome'],
                     'time'   => $lenda['time_exibido'],
+                    'logo'   => $lenda['time_logo'],
                     'altura' => $lenda['altura'],
                     'peso'   => $lenda['peso'],
                     'notas'  => $notas,
@@ -316,26 +336,37 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .topbar-right{display:flex;align-items:center;gap:6px}
 .chip{display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:var(--panel2);border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text);white-space:nowrap}
 
-.main{max-width:620px;margin:0 auto;padding:16px 12px 60px}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}
-.card-title{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.main{max-width:980px;margin:0 auto;padding:16px 12px 60px}
+/* Duas colunas no desktop: roleta de um lado, build e ranking do outro.
+   Vira uma coluna só no celular. */
+.colunas{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;align-items:start}
+@media(max-width:820px){.colunas{grid-template-columns:1fr}}
+
+/* NÃO usar a classe .card aqui: o Bootstrap define .card com a cor de texto
+   dele (escura no tema claro) e ela desce por herança pra tudo dentro —
+   era o que deixava os nomes dos atributos pretos no fundo preto. */
+.bpcard{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;color:var(--text)}
+.bpcard-title{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 
 /* ── ESCOLHA DO TIPO ── */
 .intro{text-align:center;padding:8px 0 18px}
-.intro h1{font-size:22px;font-weight:900;letter-spacing:-.4px;margin-bottom:8px}
+.intro h1{font-size:22px;font-weight:900;letter-spacing:-.4px;margin-bottom:8px;color:var(--text)}
 .intro p{font-size:13px;color:var(--text2);line-height:1.55;max-width:420px;margin:0 auto}
 .tipos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .tipo{background:var(--panel2);border:1.5px solid var(--border);border-radius:var(--radius);padding:22px 14px;text-align:center;cursor:pointer;transition:.2s}
 .tipo:hover{border-color:var(--red);background:var(--red-soft);transform:translateY(-2px)}
 .tipo i{font-size:26px;color:var(--red);display:block;margin-bottom:8px}
-.tipo b{display:block;font-size:17px;font-weight:900;letter-spacing:.5px}
+.tipo b{display:block;font-size:17px;font-weight:900;letter-spacing:.5px;color:var(--text)}
 .tipo span{font-size:10.5px;color:var(--text2);letter-spacing:.4px}
 
 /* ── ROLETAS ── */
 .reels{display:grid;grid-template-columns:1fr 1.5fr;gap:8px;margin-bottom:12px}
 .reel{background:var(--panel2);border:1px solid var(--border2);border-radius:12px;padding:14px 10px;text-align:center;min-height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;overflow:hidden;transition:.2s}
 .reel-label{font-size:8px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:var(--text3)}
-.reel-val{font-size:16px;font-weight:900;line-height:1.15}
+.reel-val{font-size:16px;font-weight:900;line-height:1.15;color:var(--text)}
+.reel-logo{height:0;overflow:hidden;transition:height .2s}
+.reel-logo.on{height:42px}
+.reel-logo img{height:42px;width:42px;object-fit:contain;display:block;margin:0 auto}
 .reel.spin .reel-val{animation:reelRoll .5s cubic-bezier(.4,0,.6,1) infinite}
 @keyframes reelRoll{0%{transform:translateY(-16px);opacity:0}30%{opacity:1}70%{opacity:1}100%{transform:translateY(16px);opacity:0}}
 .reel.hit{border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
@@ -351,7 +382,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .nota{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;transition:.15s}
 .nota:hover:not(.off){border-color:var(--red);background:var(--red-soft);transform:translateY(-1px)}
 .nota.off{opacity:.28;cursor:not-allowed}
-.nota-nome{font-size:11px;font-weight:600;line-height:1.25}
+.nota-nome{font-size:11px;font-weight:600;line-height:1.25;color:var(--text)}
 .nota-letra{font-size:17px;font-weight:900;flex-shrink:0}
 
 /* ── SLOTS DO BUILD ── */
@@ -366,7 +397,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .grupo-sep{font-size:8px;font-weight:700;letter-spacing:1.1px;color:var(--text3);margin:9px 0 1px;padding-left:2px}
 
 .ovr-box{text-align:center;padding:14px 0 2px;margin-top:10px;border-top:1px solid var(--border)}
-.ovr-num{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+.ovr-num{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:var(--text)}
 .ovr-cap{font-size:9px;font-weight:700;letter-spacing:1.3px;color:var(--text3)}
 
 /* ── TELA FINAL ── */
@@ -387,7 +418,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .rank.top1 .rank-pos{color:#ffd700}
 .rank.top2 .rank-pos{color:#c0c8d4}
 .rank.top3 .rank-pos{color:#cd7f32}
-.rank-nome{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.rank-nome{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;color:var(--text)}
 .rank-tag{font-size:8px;font-weight:700;letter-spacing:.6px;color:var(--text3);border:1px solid var(--border);border-radius:999px;padding:1px 7px;flex-shrink:0}
 .rank-ovr{font-weight:900;color:var(--amber);flex-shrink:0;font-variant-numeric:tabular-nums}
 
@@ -432,8 +463,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <h1>🏗️ Monte sua lenda</h1>
     <p>Gire a roleta, veja as notas da lenda sorteada e leve <b>uma</b> delas pro seu build. Dez giros, dez atributos — e um OVR no fim.</p>
   </div>
-  <div class="card">
-    <div class="card-title">Escolha o tipo de build</div>
+  <div class="bpcard">
+    <div class="bpcard-title">Escolha o tipo de build</div>
     <div class="tipos">
       <div class="tipo" onclick="bpComecar('GUARD')">
         <i class="bi bi-lightning-charge-fill"></i>
@@ -447,8 +478,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
 
 <?php elseif ($partida['concluido_em']): ?>
-  <div class="card">
-    <div class="card-title">Seu build de hoje · <?= htmlspecialchars($partida['grupo']) ?></div>
+  <div class="bpcard">
+    <div class="bpcard-title">Seu build de hoje · <?= htmlspecialchars($partida['grupo']) ?></div>
     <div class="fim">
       <div class="fim-ovr"><?= (int)$partida['ovr'] ?></div>
       <div class="fim-cap">OVERALL</div>
@@ -469,26 +500,34 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <?php else: ?>
   <div class="progresso"><div id="barra" style="width:<?= $preenchidos * 10 ?>%"></div></div>
-  <div class="card">
-    <div class="reels">
-      <div class="reel" id="reelTime">
-        <div class="reel-label">Time</div>
-        <div class="reel-val" id="valTime">—</div>
+<?php endif; ?>
+
+<?php if ($temNotas && $partida && !$partida['concluido_em']): ?>
+<div class="colunas">
+  <div>
+    <div class="bpcard">
+      <div class="reels">
+        <div class="reel" id="reelTime">
+          <div class="reel-label">Time</div>
+          <div class="reel-logo" id="logoTime"></div>
+          <div class="reel-val" id="valTime">—</div>
+        </div>
+        <div class="reel" id="reelLenda">
+          <div class="reel-label">Lenda</div>
+          <div class="reel-val" id="valLenda">—</div>
+        </div>
       </div>
-      <div class="reel" id="reelLenda">
-        <div class="reel-label">Lenda</div>
-        <div class="reel-val" id="valLenda">—</div>
-      </div>
+      <button class="spin-btn" id="btnSpin" onclick="bpGirar()"><i class="bi bi-dice-3-fill"></i> GIRAR</button>
+      <div class="hint" id="hint">Gire pra sortear uma lenda.</div>
+      <div class="notas" id="notas"></div>
     </div>
-    <button class="spin-btn" id="btnSpin" onclick="bpGirar()"><i class="bi bi-dice-3-fill"></i> GIRAR</button>
-    <div class="hint" id="hint">Gire pra sortear uma lenda.</div>
-    <div class="notas" id="notas"></div>
   </div>
+  <div>
 <?php endif; ?>
 
 <?php if ($temNotas && $partida): ?>
-  <div class="card">
-    <div class="card-title"><span>Seu build</span><span id="faltam" style="color:var(--red)"></span></div>
+  <div class="bpcard">
+    <div class="bpcard-title"><span>Seu build</span><span id="faltam" style="color:var(--red)"></span></div>
     <div class="slots">
       <?php $grupoAtual = ''; foreach ($ATRIBUTOS as $chave => $info):
         if ($info['grupo'] !== $grupoAtual): $grupoAtual = $info['grupo']; ?>
@@ -513,8 +552,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <?php endif; ?>
 
 <?php if ($temNotas): ?>
-  <div class="card">
-    <div class="card-title"><span><i class="bi bi-trophy-fill"></i> Top 10 de todos os tempos</span></div>
+  <div class="bpcard">
+    <div class="bpcard-title"><span><i class="bi bi-trophy-fill"></i> Top 10 de todos os tempos</span></div>
     <?php if (!$topGeral): ?>
       <div class="vazio">Ninguém montou um build ainda. Seja o primeiro.</div>
     <?php else: foreach ($topGeral as $i => $t): ?>
@@ -526,6 +565,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       </div>
     <?php endforeach; endif; ?>
   </div>
+<?php endif; ?>
+
+<?php if ($temNotas && $partida && !$partida['concluido_em']): ?>
+  </div>
+</div>
 <?php endif; ?>
 
 </div>
@@ -573,6 +617,7 @@ async function bpGirar() {
   document.getElementById('notas').innerHTML = '';
   document.getElementById('reelTime').classList.remove('hit');
   document.getElementById('reelLenda').classList.remove('hit');
+  document.getElementById('logoTime').classList.remove('on');
   bpRolar(true);
 
   const r = await bpPost({ acao: 'girar' });
@@ -585,6 +630,15 @@ async function bpGirar() {
     btn.disabled = false; bpTravado = false; return;
   }
 
+  // Logo quando a sigla é de um time atual da NBA; senão fica só o texto.
+  const boxLogo = document.getElementById('logoTime');
+  if (r.lenda.logo) {
+    boxLogo.innerHTML = `<img src="${r.lenda.logo}" alt="${r.lenda.time}" onerror="this.parentElement.classList.remove('on')">`;
+    boxLogo.classList.add('on');
+  } else {
+    boxLogo.innerHTML = '';
+    boxLogo.classList.remove('on');
+  }
   document.getElementById('valTime').textContent  = r.lenda.time;
   document.getElementById('valLenda').textContent = r.lenda.nome;
   document.getElementById('reelTime').classList.add('hit');
