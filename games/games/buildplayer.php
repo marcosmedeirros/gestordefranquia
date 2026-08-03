@@ -295,6 +295,39 @@ if ($partida) {
     foreach ($ATRIBUTOS as $c => $_) if (!empty($partida['slots'][$c])) $preenchidos++;
 }
 
+// Lenda que já foi sorteada e está esperando escolha.
+//
+// Sem isto, recarregar a página no meio de um giro deixava o jogador TRAVADO:
+// o servidor lembrava da lenda (atual_player_id) e recusava um novo giro, mas
+// a tela vinha vazia — sem nome e sem os atributos pra clicar. Então a lenda
+// pendente é renderizada já no carregamento, não só na resposta do giro.
+$lendaPendente = null;
+if ($partida && !$partida['concluido_em'] && !empty($partida['atual_player_id'])) {
+    $st = $pdo->prepare("SELECT n.*, p.nome, p.time_atual, p.times
+                         FROM build_notas n
+                         INNER JOIN hoopgrid_players p ON p.id = n.player_id
+                         WHERE n.player_id = ? LIMIT 1");
+    $st->execute([(int)$partida['atual_player_id']]);
+    $lp = $st->fetch(PDO::FETCH_ASSOC);
+    if ($lp) {
+        $timeLp = $lp['time_atual'] ?: '';
+        if ($timeLp === '' && !empty($lp['times'])) {
+            $lista = json_decode((string)$lp['times'], true);
+            if (is_array($lista) && $lista) $timeLp = (string)$lista[0];
+        }
+        $notasLp = [];
+        foreach (array_keys($ATRIBUTOS) as $a) {
+            $notasLp[$a] = ['nivel' => (int)$lp[$a], 'letra' => BUILD_LETRAS[(int)$lp[$a]]];
+        }
+        $lendaPendente = [
+            'nome'  => $lp['nome'],
+            'time'  => $timeLp ?: 'NBA',
+            'logo'  => bpLogoDoTime($timeLp ?: 'NBA'),
+            'notas' => $notasLp,
+        ];
+    }
+}
+
 $topGeral = $pdo->query("SELECT b.ovr, b.grupo, u.nome
                          FROM build_partidas b
                          INNER JOIN games_usuarios u ON u.id = b.id_usuario
@@ -507,19 +540,28 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <div>
     <div class="bpcard">
       <div class="reels">
-        <div class="reel" id="reelTime">
+        <div class="reel <?= $lendaPendente ? 'hit' : '' ?>" id="reelTime">
           <div class="reel-label">Time</div>
-          <div class="reel-logo" id="logoTime"></div>
-          <div class="reel-val" id="valTime">—</div>
+          <div class="reel-logo <?= ($lendaPendente && $lendaPendente['logo']) ? 'on' : '' ?>" id="logoTime"><?php
+            if ($lendaPendente && $lendaPendente['logo']): ?><img src="<?= htmlspecialchars($lendaPendente['logo']) ?>" alt=""><?php endif; ?></div>
+          <div class="reel-val" id="valTime"><?= $lendaPendente ? htmlspecialchars($lendaPendente['time']) : '—' ?></div>
         </div>
-        <div class="reel" id="reelLenda">
+        <div class="reel <?= $lendaPendente ? 'hit' : '' ?>" id="reelLenda">
           <div class="reel-label">Lenda</div>
-          <div class="reel-val" id="valLenda">—</div>
+          <div class="reel-val" id="valLenda"><?= $lendaPendente ? htmlspecialchars($lendaPendente['nome']) : '—' ?></div>
         </div>
       </div>
-      <button class="spin-btn" id="btnSpin" onclick="bpGirar()"><i class="bi bi-dice-3-fill"></i> GIRAR</button>
-      <div class="hint" id="hint">Gire pra sortear uma lenda.</div>
-      <div class="notas" id="notas"></div>
+      <button class="spin-btn" id="btnSpin" onclick="bpGirar()" <?= $lendaPendente ? 'disabled' : '' ?>><i class="bi bi-dice-3-fill"></i> GIRAR</button>
+      <div class="hint" id="hint"><?= $lendaPendente ? 'Escolha <b>um</b> atributo pra levar.' : 'Gire pra sortear uma lenda.' ?></div>
+      <div class="notas" id="notas"><?php
+        if ($lendaPendente):
+          foreach ($lendaPendente['notas'] as $chave => $n):
+            $ocupado = !empty($partida['slots'][$chave]);
+            $cores = ['#ef4444','#ef4444','#f97316','#f59e0b','#f59e0b','#eab308','#84cc16','#22c55e','#22c55e','#06b6d4','#3b82f6','#a855f7'];
+      ?><div class="nota <?= $ocupado ? 'off' : '' ?>"<?= $ocupado ? '' : ' onclick="bpEscolher(\'' . $chave . '\')"' ?>>
+          <span class="nota-nome"><?= htmlspecialchars($ATRIBUTOS[$chave]['label']) ?></span>
+          <span class="nota-letra" style="color:<?= $cores[$n['nivel']] ?>"><?= $n['letra'] ?></span>
+        </div><?php endforeach; endif; ?></div>
     </div>
   </div>
   <div>
@@ -626,8 +668,12 @@ async function bpGirar() {
   bpRolar(false);
 
   if (!r.ok) {
-    document.getElementById('hint').textContent = r.msg;
-    btn.disabled = false; bpTravado = false; return;
+    // Recarrega em vez de deixar os reels com o texto falso da animação: o
+    // servidor é quem sabe se já tem lenda esperando escolha, e a página
+    // sabe desenhar isso. Antes ficava "— — —" e o jogador travava.
+    document.getElementById('hint').textContent = r.msg + ' Atualizando...';
+    setTimeout(() => location.reload(), 900);
+    return;
   }
 
   // Logo quando a sigla é de um time atual da NBA; senão fica só o texto.
