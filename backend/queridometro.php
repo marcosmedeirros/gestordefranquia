@@ -1,7 +1,7 @@
 <?php
 /**
  * Queridômetro da temporada, por liga — cada GM escolhe outro time pra cada
- * categoria (MVP, MIP, Air Ball, Cobra, Planta), sem repetir time entre elas.
+ * categoria (MVP, MIP, Fraco, Cobra, Planta), sem repetir time entre elas.
  * Um voto por time POR TEMPORADA (chave = id da temporada ativa da liga): o
  * popup só aparece uma vez por temporada e o placar zera no avanço de
  * temporada e no fim de sprint (api/seasons.php).
@@ -56,7 +56,10 @@ function queridometroCategorias(): array
     return [
         'MVP'      => 'MVP',
         'MIP'      => 'MIP',
-        'AIR_BALL' => 'Air Ball',
+        // A chave AIR_BALL segue com esse nome de propósito: é o que está
+        // gravado nos votos. Trocá-la exigiria migrar querido_votos sem ganho
+        // nenhum — o que a liga vê é o rótulo.
+        'AIR_BALL' => 'Fraco',
         'COBRA'    => 'Cobra',
         'PLANTA'   => 'Planta',
     ];
@@ -68,7 +71,7 @@ function queridometroDescricoes(): array
     return [
         'MVP'      => 'O melhor GM da temporada — quem mais se destacou.',
         'MIP'      => 'Most Improved: quem mais evoluiu nesta temporada.',
-        'AIR_BALL' => 'O pior GM da temporada — decisão errada, jogada furada.',
+        'AIR_BALL' => 'O pior GM da temporada — decisão errada atrás de decisão errada.',
         'COBRA'    => 'Não dá pra confiar — promete e não cumpre, trai combinado.',
         'PLANTA'   => 'Sumido — não participa, não responde, não faz nada na liga.',
     ];

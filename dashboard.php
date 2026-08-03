@@ -103,7 +103,7 @@ if ($precisaRevisarSprint) {
 // primeiro bloco da página. Ver backend/pendencias.php.
 $pendencias = pendenciasDoGm($pdo, $user, $team ?: null);
 
-// Queridômetro da temporada: MVP, MIP, Air Ball, Cobra e Planta, votados
+// Queridômetro da temporada: MVP, MIP, Fraco, Cobra e Planta, votados
 // pelos próprios GMs. É um voto por temporada: o popup aparece uma vez só e
 // tanto o voto quanto o placar zeram quando a temporada vira.
 $queridoLeague = '';

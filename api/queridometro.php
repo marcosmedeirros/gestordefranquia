@@ -1,7 +1,7 @@
 <?php
 /**
  * Queridômetro da temporada — GM escolhe outro time pra cada categoria (MVP, MIP,
- * Air Ball, Cobra, Planta), sem repetir time entre elas. Um voto por time
+ * Fraco, Cobra, Planta), sem repetir time entre elas. Um voto por time
  * POR TEMPORADA; o placar zera no avanço de temporada e no fim de sprint.
  */
 
