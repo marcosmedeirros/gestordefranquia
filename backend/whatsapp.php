@@ -114,6 +114,15 @@ function whatsappNumero(?string $telefone): ?string
     // normalizeBrazilianPhone já devolve com 55 na frente nos casos comuns;
     // se vier sem, assume Brasil (é o público da liga inteira).
     if (!str_starts_with($digitos, '55')) $digitos = '55' . $digitos;
+
+    // Com o 55 na frente, número brasileiro tem 12 dígitos (fixo/antigo) ou
+    // 13 (celular com o nono). Fora disso é lixo de digitação — quem escreve
+    // "011 51 99420-0231" cai em 16 dígitos. Barrar aqui evita enfileirar uma
+    // mensagem que não tem como ser entregue e ainda gastar as oito
+    // tentativas dela ao longo de dez horas.
+    $tam = strlen($digitos);
+    if ($tam < 12 || $tam > 13) return null;
+
     return $digitos;
 }
 
