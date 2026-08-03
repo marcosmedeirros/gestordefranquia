@@ -2,22 +2,29 @@
 /**
  * buildplayer.php — Build-A-Player
  *
- * Escolhe Guard ou Big, gira as duas roletas (time + lenda) e leva UM atributo
- * da lenda sorteada pro seu build. Dez giros, dez slots, um OVR no fim.
+ * Dá nome e camisa ao jogador, escolhe Guard ou Big, gira as roletas e leva UM
+ * atributo de cada lenda sorteada pro build. Dez giros, dez slots.
+ *
+ * No fim o build é comparado com as LENDAS da NBA — não com os builds dos
+ * outros jogadores. A pergunta é "esse cara seria o quê na história da liga?",
+ * e chegar em 1º significa ter montado algo melhor que LeBron: precisa de nota
+ * de elite em dez slots seguidos, o que é quase impossível de propósito.
+ * Depois disso ele é sorteado pra um time e joga uma temporada de verdade.
  *
  * O sorteio é do SERVIDOR, sempre. Se o giro fosse do cliente dava pra ficar
- * regirando até cair a lenda certa — e o ranking não valeria nada.
+ * regirando até cair a lenda certa — e o build não valeria nada.
  *
  * Incluído por games/games/index.php — $pdo e $_SESSION já disponíveis.
  */
 
 require_once __DIR__ . '/../core/build_notas.php';
+require_once __DIR__ . '/../core/build_liga.php';
 
 $user_id = (int)$_SESSION['user_id'];
 $hoje    = date('Y-m-d');
 
-// Recompensas por posição no Top 100 (o que você pediu).
-const BP_MOEDAS = [1 => 500, 5 => 100, 10 => 50];
+/** Quantas vezes dá pra recusar a lenda sorteada numa mesma partida. */
+const BP_MAX_REROLLS = 2;
 
 buildGarantirTabelaNotas($pdo);
 
@@ -43,8 +50,29 @@ function bpGarantirTabelas(PDO $pdo): void
         UNIQUE KEY uk_bp_dia (id_usuario, data_jogo),
         INDEX idx_bp_rank (ovr)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // Colunas novas. Vão uma a uma porque a tabela já existe em produção —
+    // e nunca dentro de transação: DDL no MySQL comita sozinho no meio.
+    $cols = $pdo->query("SHOW COLUMNS FROM build_partidas")->fetchAll(PDO::FETCH_COLUMN);
+    $add = [
+        'nome_jogador' => "ADD COLUMN nome_jogador VARCHAR(40) NULL AFTER grupo",
+        'camisa'       => "ADD COLUMN camisa VARCHAR(3) NULL AFTER nome_jogador",
+        'rerolls'      => "ADD COLUMN rerolls TINYINT NOT NULL DEFAULT 0 AFTER atual_player_id",
+        'temporada'    => "ADD COLUMN temporada TEXT NULL AFTER moedas",
+    ];
+    foreach ($add as $col => $sql) {
+        if (!in_array($col, $cols, true)) $pdo->exec("ALTER TABLE build_partidas {$sql}");
+    }
 }
 bpGarantirTabelas($pdo);
+
+/** Cor da letra pelo nível: vermelho no fundo da escala, roxo no S. */
+function bpCor(int $nivel): string
+{
+    static $cores = ['#ef4444','#ef4444','#f97316','#f59e0b','#f59e0b','#eab308',
+                     '#84cc16','#22c55e','#22c55e','#06b6d4','#3b82f6','#a855f7'];
+    return $cores[$nivel] ?? '#ef4444';
+}
 
 /** Partida do dia (ou null). */
 function bpPartida(PDO $pdo, int $userId, string $hoje): ?array
@@ -53,20 +81,28 @@ function bpPartida(PDO $pdo, int $userId, string $hoje): ?array
     $st->execute([$userId, $hoje]);
     $p = $st->fetch(PDO::FETCH_ASSOC) ?: null;
     if ($p) {
-        $p['slots']  = json_decode((string)$p['slots'], true) ?: [];
-        $p['usados'] = json_decode((string)$p['usados'], true) ?: [];
+        $p['slots']     = json_decode((string)$p['slots'], true) ?: [];
+        $p['usados']    = json_decode((string)$p['usados'], true) ?: [];
+        $p['temporada'] = json_decode((string)($p['temporada'] ?? ''), true) ?: null;
     }
     return $p;
 }
 
-/** Lenda com nota, do grupo pedido, que ainda não saiu nesta partida. */
-function bpSortearLenda(PDO $pdo, string $grupo, array $usados): ?array
+/**
+ * Lenda com nota, do grupo pedido, que ainda não saiu nesta partida.
+ * $extraFora tira também a lenda recusada num reroll, pra não sortear a mesma.
+ */
+function bpSortearLenda(PDO $pdo, string $grupo, array $usados, ?int $extraFora = null): ?array
 {
+    $bloqueados = array_map('intval', $usados);
+    if ($extraFora) $bloqueados[] = $extraFora;
+    $bloqueados = array_values(array_unique($bloqueados));
+
     $fora = '';
     $params = [$grupo];
-    if ($usados) {
-        $fora = ' AND n.player_id NOT IN (' . implode(',', array_fill(0, count($usados), '?')) . ')';
-        $params = array_merge($params, array_map('intval', $usados));
+    if ($bloqueados) {
+        $fora = ' AND n.player_id NOT IN (' . implode(',', array_fill(0, count($bloqueados), '?')) . ')';
+        $params = array_merge($params, $bloqueados);
     }
 
     $st = $pdo->prepare("SELECT n.*, p.nome, p.time_atual, p.times, p.altura, p.peso
@@ -80,7 +116,7 @@ function bpSortearLenda(PDO $pdo, string $grupo, array $usados): ?array
     // Pool menor que os 10 slots: repete lenda em vez de deixar a partida
     // sem saída. Travar aqui prenderia o jogador — ele não terminaria o build
     // nem poderia começar outro, porque só se joga uma vez por dia.
-    if (!$l && $usados) {
+    if (!$l && $bloqueados) {
         $st2 = $pdo->prepare("SELECT n.*, p.nome, p.time_atual, p.times, p.altura, p.peso
                               FROM build_notas n
                               INNER JOIN hoopgrid_players p ON p.id = n.player_id
@@ -109,7 +145,6 @@ function bpSortearLenda(PDO $pdo, string $grupo, array $usados): ?array
  */
 function bpLogoDoTime(string $sigla): ?string
 {
-    require_once dirname(__DIR__, 2) . '/backend/nba_teams.php';
     static $porSigla = null;
     if ($porSigla === null) {
         $porSigla = [];
@@ -119,37 +154,37 @@ function bpLogoDoTime(string $sigla): ?string
     return isset($porSigla[$sigla]) ? nbaTeamLogoUrl($porSigla[$sigla]) : null;
 }
 
-/** OVR do build: média dos valores das dez letras escolhidas. */
-function bpCalcularOvr(array $slots): int
+/**
+ * OVR do build: média dos valores das dez letras escolhidas.
+ * A versão exata (sem arredondar) alimenta a curva histórica — é o que faz
+ * dois builds parecidos não caírem na mesma posição do top 100.
+ */
+function bpCalcularOvrExato(array $slots): float
 {
     $attrs = array_keys(buildAtributos());
     $soma = 0;
     foreach ($attrs as $a) {
         $soma += buildValorDaLetra((int)($slots[$a]['nivel'] ?? 0));
     }
-    return (int)round($soma / count($attrs));
+    return $soma / count($attrs);
 }
 
-/**
- * Posição no Top 100 de todos os tempos. Empate no OVR desempata pela
- * partida mais antiga — quem chegou primeiro fica na frente.
- */
-function bpPosicaoNoRank(PDO $pdo, int $ovr, int $partidaId): int
+function bpCalcularOvr(array $slots): int
 {
-    $st = $pdo->prepare("SELECT COUNT(*) + 1 FROM build_partidas
-                         WHERE concluido_em IS NOT NULL
-                           AND (ovr > ? OR (ovr = ? AND id < ?))");
-    $st->execute([$ovr, $ovr, $partidaId]);
-    return (int)$st->fetchColumn();
+    return (int)round(bpCalcularOvrExato($slots));
 }
 
-/** Moedas conforme a posição. Fora do top 10 não paga. */
-function bpMoedasDaPosicao(int $pos): int
+/** Nome e camisa como o jogador digitou — limpos, com limite e sem vazio. */
+function bpLimparIdentidade(string $nome, string $camisa): array
 {
-    if ($pos <= 1)  return BP_MOEDAS[1];
-    if ($pos <= 5)  return BP_MOEDAS[5];
-    if ($pos <= 10) return BP_MOEDAS[10];
-    return 0;
+    $nome = trim(preg_replace('/\s+/u', ' ', strip_tags($nome)));
+    if (function_exists('mb_substr')) $nome = mb_substr($nome, 0, 24);
+    if ($nome === '') $nome = 'Sem Nome';
+
+    $camisa = preg_replace('/\D/', '', $camisa);
+    $camisa = $camisa === '' ? (string)random_int(0, 99) : (string)min(99, (int)$camisa);
+
+    return [$nome, $camisa];
 }
 
 // ── AÇÕES (AJAX) ────────────────────────────────────────────────────────────
@@ -173,11 +208,15 @@ if (($_POST['acao'] ?? '') !== '') {
                 echo json_encode(['ok' => false, 'msg' => 'Ainda não há lendas cadastradas nesse tipo de build.']);
                 exit;
             }
+            [$nome, $camisa] = bpLimparIdentidade((string)($_POST['nome'] ?? ''), (string)($_POST['camisa'] ?? ''));
+
             $vazios = [];
             foreach ($attrs as $a) $vazios[$a] = null;
 
-            $pdo->prepare("INSERT INTO build_partidas (id_usuario, data_jogo, grupo, slots, usados) VALUES (?,?,?,?,?)")
-                ->execute([$user_id, $hoje, $grupo, json_encode($vazios), json_encode([])]);
+            $pdo->prepare("INSERT INTO build_partidas
+                           (id_usuario, data_jogo, grupo, nome_jogador, camisa, slots, usados)
+                           VALUES (?,?,?,?,?,?,?)")
+                ->execute([$user_id, $hoje, $grupo, $nome, $camisa, json_encode($vazios), json_encode([])]);
 
             echo json_encode(['ok' => true]);
             exit;
@@ -203,17 +242,32 @@ if (($_POST['acao'] ?? '') !== '') {
 
         if ($partida['concluido_em']) { echo json_encode(['ok' => false, 'msg' => 'Esta partida já terminou.']); exit; }
 
-        if ($acao === 'girar') {
-            // Uma lenda por vez: só gira de novo depois de escolher o atributo.
-            if (!empty($partida['atual_player_id'])) {
+        // Girar e regirar caem no mesmo lugar: a diferença é que o regirar
+        // exige uma lenda na mesa (a que está sendo recusada) e gasta uma das
+        // duas fichas da partida. Duas é o limite justamente pra não virar
+        // "gira até vir o S" — aí o build não teria mérito nenhum.
+        if ($acao === 'girar' || $acao === 'regirar') {
+            $ehReroll = $acao === 'regirar';
+            $atual = (int)($partida['atual_player_id'] ?? 0);
+            $usados = (int)$partida['rerolls'];
+
+            if ($ehReroll) {
+                if (!$atual) { echo json_encode(['ok' => false, 'msg' => 'Não há lenda na mesa pra trocar.']); exit; }
+                if ($usados >= BP_MAX_REROLLS) {
+                    echo json_encode(['ok' => false, 'msg' => 'Suas ' . BP_MAX_REROLLS . ' trocas já acabaram.']);
+                    exit;
+                }
+            } elseif ($atual) {
                 echo json_encode(['ok' => false, 'msg' => 'Escolha um atributo da lenda atual antes de girar.']);
                 exit;
             }
-            $lenda = bpSortearLenda($pdo, $partida['grupo'], $partida['usados']);
+
+            $lenda = bpSortearLenda($pdo, $partida['grupo'], $partida['usados'], $ehReroll ? $atual : null);
             if (!$lenda) { echo json_encode(['ok' => false, 'msg' => 'Acabaram as lendas disponíveis.']); exit; }
 
-            $pdo->prepare("UPDATE build_partidas SET atual_player_id=? WHERE id=?")
-                ->execute([(int)$lenda['player_id'], (int)$partida['id']]);
+            $rerolls = $ehReroll ? $usados + 1 : $usados;
+            $pdo->prepare("UPDATE build_partidas SET atual_player_id=?, rerolls=? WHERE id=?")
+                ->execute([(int)$lenda['player_id'], $rerolls, (int)$partida['id']]);
 
             $notas = [];
             foreach ($attrs as $a) {
@@ -221,6 +275,7 @@ if (($_POST['acao'] ?? '') !== '') {
             }
             echo json_encode([
                 'ok' => true,
+                'trocas_restantes' => BP_MAX_REROLLS - $rerolls,
                 'lenda' => [
                     'id'     => (int)$lenda['player_id'],
                     'nome'   => $lenda['nome'],
@@ -269,15 +324,28 @@ if (($_POST['acao'] ?? '') !== '') {
             $resposta = ['ok' => true, 'slots' => $slots, 'faltam' => $faltam, 'terminou' => $terminou];
 
             if ($terminou) {
-                $pos = bpPosicaoNoRank($pdo, (int)$ovr, (int)$partida['id']);
-                $moedas = bpMoedasDaPosicao($pos);
-                $pdo->prepare("UPDATE build_partidas SET posicao_rank=?, moedas=? WHERE id=?")
-                    ->execute([$pos, $moedas, (int)$partida['id']]);
+                // Fecha a temporada aqui, no servidor, e grava. Se o sorteio do
+                // time e a simulação ficassem pro carregamento da tela final,
+                // bastava dar F5 pra jogar de novo até sair campeão.
+                $grupo  = (string)$partida['grupo'];
+                $hist   = buildPosicaoHistorica(bpCalcularOvrExato($slots), $grupo);
+                $time   = buildSortearTime();
+                $season = buildSimularTemporada($slots, (int)$ovr, $time, $grupo);
+                $season['time'] = $time;
+                $season['historico'] = $hist;
+
+                $moedas = buildMoedasDaPosicaoHistorica($hist);
+                $pdo->prepare("UPDATE build_partidas SET posicao_rank=?, moedas=?, temporada=? WHERE id=?")
+                    ->execute([$hist['no_top'] ? $hist['posicao'] : 0, $moedas, json_encode($season), (int)$partida['id']]);
                 if ($moedas > 0) {
                     $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")
                         ->execute([$moedas, $user_id]);
                 }
-                $resposta += ['ovr' => $ovr, 'posicao' => $pos, 'moedas' => $moedas];
+                $resposta += [
+                    'ovr'     => $ovr,
+                    'posicao' => $hist['no_top'] ? $hist['posicao'] : null,
+                    'moedas'  => $moedas,
+                ];
             }
 
             echo json_encode($resposta);
@@ -296,20 +364,13 @@ if (($_POST['acao'] ?? '') !== '') {
 $partida   = bpPartida($pdo, $user_id, $hoje);
 $ATRIBUTOS = buildAtributos();
 $temNotas  = (int)$pdo->query("SELECT COUNT(*) FROM build_notas")->fetchColumn();
-
-// A posição exibida é recalculada AGORA, não a gravada no fim da partida:
-// se alguém te ultrapassou depois, o certo é mostrar onde você está hoje.
-// As moedas continuam sendo as da posição no momento em que você fechou —
-// prêmio já pago não se recalcula.
-$posicaoAtual = null;
-if ($partida && $partida['concluido_em']) {
-    $posicaoAtual = bpPosicaoNoRank($pdo, (int)$partida['ovr'], (int)$partida['id']);
-}
+$temporada = $partida['temporada'] ?? null;
 
 $preenchidos = 0;
 if ($partida) {
     foreach ($ATRIBUTOS as $c => $_) if (!empty($partida['slots'][$c])) $preenchidos++;
 }
+$trocasRestantes = $partida ? max(0, BP_MAX_REROLLS - (int)$partida['rerolls']) : BP_MAX_REROLLS;
 
 // Lenda que já foi sorteada e está esperando escolha.
 //
@@ -344,11 +405,49 @@ if ($partida && !$partida['concluido_em'] && !empty($partida['atual_player_id'])
     }
 }
 
-$topGeral = $pdo->query("SELECT b.ovr, b.grupo, u.nome
+// Ranking dos melhores builds da liga. Não vale mais moeda nenhuma — é só
+// vitrine, pra ver quem montou o quê.
+$topGeral = $pdo->query("SELECT b.ovr, b.grupo, b.nome_jogador, u.nome
                          FROM build_partidas b
                          INNER JOIN games_usuarios u ON u.id = b.id_usuario
                          WHERE b.concluido_em IS NOT NULL
                          ORDER BY b.ovr DESC, b.id ASC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
+
+// Texto do "copiar build" — montado no PHP pra sair igualzinho ao que está
+// na tela, inclusive a temporada.
+$textoCopiar = '';
+if ($partida && $partida['concluido_em']) {
+    $l = [];
+    $l[] = '🏗️ ' . $partida['nome_jogador'] . ' #' . $partida['camisa']
+         . ' · ' . $partida['grupo'] . ' · OVR ' . (int)$partida['ovr'];
+    if ($temporada) {
+        $h = $temporada['historico'];
+        $l[] = $h['no_top']
+            ? '#' . $h['posicao'] . ' no top 100 da história da NBA · ' . $h['tier']
+            : $h['tier'];
+    }
+    $l[] = '';
+    foreach ($ATRIBUTOS as $chave => $info) {
+        $s = $partida['slots'][$chave] ?? null;
+        // str_pad conta BYTES: com "Finalização" e "Impulsão" a coluna saía
+        // torta, porque cada acento come dois bytes. O preenchimento tem que
+        // ser pelo número de caracteres.
+        $rotulo = $info['label'] . str_repeat(' ', max(1, 22 - mb_strlen($info['label'])));
+        $letra  = ($s['letra'] ?? '-');
+        $letra .= str_repeat(' ', max(1, 4 - mb_strlen($letra)));
+        $l[] = $rotulo . $letra . '(' . ($s['de'] ?? '-') . ')';
+    }
+    if ($temporada) {
+        $l[] = '';
+        $l[] = '🏀 ' . $temporada['time']['nome'] . ' — '
+             . $temporada['vitorias'] . '-' . $temporada['derrotas'];
+        $l[] = $temporada['playoff']['label'];
+        foreach ($temporada['premios'] as $p) $l[] = $p['label'];
+    }
+    $l[] = '';
+    $l[] = 'Build-A-Player · FBA Brasil';
+    $textoCopiar = implode("\n", $l);
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -397,10 +496,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .bpcard{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;color:var(--text)}
 .bpcard-title{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 
-/* ── ESCOLHA DO TIPO ── */
+/* ── IDENTIDADE + ESCOLHA DO TIPO ── */
 .intro{text-align:center;padding:8px 0 18px}
 .intro h1{font-size:22px;font-weight:900;letter-spacing:-.4px;margin-bottom:8px;color:var(--text)}
-.intro p{font-size:13px;color:var(--text2);line-height:1.55;max-width:420px;margin:0 auto}
+.intro p{font-size:13px;color:var(--text2);line-height:1.55;max-width:440px;margin:0 auto}
+.ident{display:grid;grid-template-columns:1fr 92px;gap:10px;margin-bottom:14px}
+.campo label{display:block;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:5px}
+.campo input{width:100%;background:var(--panel2);border:1.5px solid var(--border);border-radius:10px;padding:11px 12px;font-family:var(--font);font-size:14px;font-weight:700;color:var(--text);outline:none;transition:.15s}
+.campo input:focus{border-color:var(--red);background:var(--red-soft)}
+.campo input::placeholder{color:var(--text3);font-weight:500}
+.campo input.camisa{text-align:center;font-size:18px;font-weight:900;font-variant-numeric:tabular-nums}
 .tipos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .tipo{background:var(--panel2);border:1.5px solid var(--border);border-radius:var(--radius);padding:22px 14px;text-align:center;cursor:pointer;transition:.2s}
 .tipo:hover{border-color:var(--red);background:var(--red-soft);transform:translateY(-2px)}
@@ -425,6 +530,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .spin-btn:active:not(:disabled){transform:scale(.985)}
 .spin-btn:disabled{background:var(--panel3);color:var(--text3);cursor:not-allowed}
 .hint{font-size:11.5px;color:var(--text2);text-align:center;margin-top:10px;min-height:16px}
+.reroll-btn{width:100%;margin-top:9px;background:transparent;border:1.5px solid var(--border2);color:var(--text2);border-radius:11px;padding:11px;font-family:var(--font);font-size:12.5px;font-weight:700;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:7px}
+.reroll-btn:hover:not(:disabled){border-color:var(--blue);color:var(--blue);background:var(--blue-soft)}
+.reroll-btn:disabled{opacity:.3;cursor:not-allowed}
+.reroll-btn b{color:var(--blue);font-weight:900}
 .reset-btn{display:block;margin:10px auto 0;background:transparent;border:1px solid var(--border);color:var(--text3);border-radius:9px;padding:6px 14px;font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;transition:.15s}
 .reset-btn:hover{border-color:var(--red);color:var(--red);background:var(--red-soft)}
 
@@ -443,7 +552,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .slot-icon{width:20px;font-size:12px;color:var(--text3);flex-shrink:0;text-align:center}
 .slot-txt{flex:1;min-width:0}
 .slot-nome{font-size:11.5px;font-weight:600;color:var(--text);display:block}
-.slot-de{font-size:9.5px;color:var(--text3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot-de{font-size:9.5px;color:var(--text2);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .slot-letra{font-size:15px;font-weight:900;flex-shrink:0;color:var(--text3)}
 .grupo-sep{font-size:8px;font-weight:700;letter-spacing:1.1px;color:var(--text3);margin:9px 0 1px;padding-left:2px}
 
@@ -451,16 +560,44 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .ovr-num{font-size:38px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:var(--text)}
 .ovr-cap{font-size:9px;font-weight:700;letter-spacing:1.3px;color:var(--text3)}
 
-/* ── TELA FINAL ── */
-.fim{text-align:center;padding:6px 0}
-.fim-ovr{font-size:58px;font-weight:900;line-height:1;color:var(--amber);font-variant-numeric:tabular-nums}
-.fim-cap{font-size:9px;font-weight:700;letter-spacing:1.4px;color:var(--text3);margin-bottom:16px}
-.fim-pos{display:inline-flex;align-items:baseline;gap:6px;background:var(--panel2);border:1px solid var(--border2);border-radius:999px;padding:8px 18px}
-.fim-pos b{font-size:24px;font-weight:900;color:var(--red)}
-.fim-pos span{font-size:11px;color:var(--text2)}
-.fim-antes{font-size:10px;color:var(--text3);margin-top:6px}
-.fim-moedas{display:inline-flex;align-items:center;gap:7px;background:var(--amber-soft);border:1px solid var(--amber);color:var(--amber);border-radius:999px;padding:9px 18px;font-size:13px;font-weight:800;margin-top:14px}
-.fim-nada{font-size:12px;color:var(--text2);margin-top:14px}
+/* ── TELA FINAL: A CAMISA ── */
+.jersey{display:flex;align-items:center;gap:16px;padding:4px 0 16px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.jersey-num{width:78px;height:78px;flex-shrink:0;border-radius:16px;background:var(--red-soft);border:2px solid var(--red);color:var(--red);display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1}
+.jersey-txt{flex:1;min-width:0}
+.jersey-nome{font-size:21px;font-weight:900;letter-spacing:-.4px;color:var(--text);line-height:1.15;word-break:break-word}
+.jersey-tag{display:inline-block;font-size:9px;font-weight:700;letter-spacing:1px;color:var(--text2);border:1px solid var(--border2);border-radius:999px;padding:2px 9px;margin-top:6px}
+.jersey-ovr{text-align:right;flex-shrink:0}
+.jersey-ovr b{display:block;font-size:34px;font-weight:900;color:var(--amber);line-height:1;font-variant-numeric:tabular-nums}
+.jersey-ovr span{font-size:8px;font-weight:700;letter-spacing:1.3px;color:var(--text3)}
+
+/* ── POSIÇÃO NA HISTÓRIA ── */
+.hist{text-align:center;background:var(--panel2);border:1px solid var(--border2);border-radius:12px;padding:16px 14px}
+.hist-num{font-size:44px;font-weight:900;line-height:1;color:var(--red);font-variant-numeric:tabular-nums}
+.hist-cap{font-size:9.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text2);margin-top:4px}
+.hist-tier{display:inline-block;margin-top:11px;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--amber);background:var(--amber-soft);border:1px solid var(--amber);border-radius:999px;padding:5px 14px}
+.hist-barra{height:6px;border-radius:999px;background:var(--panel3);overflow:hidden;margin-top:13px}
+.hist-barra>div{height:100%;background:linear-gradient(90deg,var(--amber),var(--red))}
+
+/* ── TEMPORADA ── */
+.time-linha{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.time-linha img{width:50px;height:50px;object-fit:contain;flex-shrink:0}
+.time-linha b{font-size:15px;font-weight:800;color:var(--text);display:block;line-height:1.2}
+.time-linha span{font-size:10px;color:var(--text3);letter-spacing:.5px}
+.recorde{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center}
+.recorde>div{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:11px 6px}
+.recorde b{display:block;font-size:20px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;color:var(--text)}
+.recorde span{font-size:8.5px;font-weight:700;letter-spacing:.9px;color:var(--text2)}
+.playoff{margin-top:10px;text-align:center;border-radius:10px;padding:11px;font-size:13px;font-weight:800;background:var(--panel2);border:1px solid var(--border);color:var(--text)}
+.playoff.campeao{background:var(--amber-soft);border-color:var(--amber);color:var(--amber)}
+.playoff.fora{color:var(--text2)}
+.premios{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;justify-content:center}
+.premio{background:var(--amber-soft);border:1px solid var(--amber);color:var(--amber);border-radius:999px;padding:7px 14px;font-size:11.5px;font-weight:800}
+.sem-premio{font-size:11px;color:var(--text2);text-align:center;margin-top:10px}
+
+.fim-moedas{display:flex;align-items:center;justify-content:center;gap:7px;background:var(--amber-soft);border:1px solid var(--amber);color:var(--amber);border-radius:12px;padding:12px;font-size:13.5px;font-weight:800;margin-top:14px}
+.fim-nada{font-size:11.5px;color:var(--text2);text-align:center;margin-top:14px;line-height:1.5}
+.copiar-btn{width:100%;margin-top:12px;background:var(--panel2);border:1.5px solid var(--border2);color:var(--text);border-radius:11px;padding:12px;font-family:var(--font);font-size:13px;font-weight:800;cursor:pointer;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.copiar-btn:hover{border-color:var(--green);color:var(--green);background:var(--green-soft)}
 
 /* ── RANKING ── */
 .rank{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
@@ -470,6 +607,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .rank.top2 .rank-pos{color:#c0c8d4}
 .rank.top3 .rank-pos{color:#cd7f32}
 .rank-nome{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;color:var(--text)}
+.rank-nome small{display:block;font-size:9px;color:var(--text3);font-weight:500}
 .rank-tag{font-size:8px;font-weight:700;letter-spacing:.6px;color:var(--text3);border:1px solid var(--border);border-radius:999px;padding:1px 7px;flex-shrink:0}
 .rank-ovr{font-weight:900;color:var(--amber);flex-shrink:0;font-variant-numeric:tabular-nums}
 
@@ -483,6 +621,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   .reels{grid-template-columns:1fr 1.3fr}
   .reel-val{font-size:14px}
   .notas{grid-template-columns:1fr}
+  .jersey-num{width:62px;height:62px;font-size:26px}
+  .jersey-nome{font-size:18px}
 }
 </style>
 </head>
@@ -512,10 +652,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <?php elseif (!$partida): ?>
   <div class="intro">
     <h1>🏗️ Monte sua lenda</h1>
-    <p>Gire a roleta, veja as notas da lenda sorteada e leve <b>uma</b> delas pro seu build. Dez giros, dez atributos — e um OVR no fim.</p>
+    <p>Dê nome e camisa ao seu jogador, gire a roleta e leve <b>um</b> atributo de cada lenda sorteada. No fim ele entra pra história da NBA — e joga uma temporada de verdade.</p>
   </div>
   <div class="bpcard">
-    <div class="bpcard-title">Escolha o tipo de build</div>
+    <div class="bpcard-title">Quem é o seu jogador?</div>
+    <div class="ident">
+      <div class="campo">
+        <label for="bpNome">Nome</label>
+        <input type="text" id="bpNome" maxlength="24" placeholder="Ex: Marcos Silva" autocomplete="off">
+      </div>
+      <div class="campo">
+        <label for="bpCamisa">Camisa</label>
+        <input type="number" id="bpCamisa" class="camisa" min="0" max="99" placeholder="23" inputmode="numeric">
+      </div>
+    </div>
+    <div class="bpcard-title" style="margin-top:4px">Escolha o tipo de build</div>
     <div class="tipos">
       <div class="tipo" onclick="bpComecar('GUARD')">
         <i class="bi bi-lightning-charge-fill"></i>
@@ -529,25 +680,75 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
 
 <?php elseif ($partida['concluido_em']): ?>
+  <?php
+    $hist = $temporada['historico'] ?? null;
+    // Régua da posição: quanto mais perto do topo, mais cheia a barra.
+    $pctHist = ($hist && $hist['no_top']) ? max(2, 100 - (($hist['posicao'] - 1) / 99 * 100)) : 0;
+  ?>
   <div class="bpcard">
-    <div class="bpcard-title">Seu build de hoje · <?= htmlspecialchars($partida['grupo']) ?></div>
-    <div class="fim">
-      <div class="fim-ovr"><?= (int)$partida['ovr'] ?></div>
-      <div class="fim-cap">OVERALL</div>
-      <div class="fim-pos">
-        <b>#<?= (int)($posicaoAtual ?? $partida['posicao_rank']) ?></b>
-        <span>de todos os tempos</span>
+    <div class="jersey">
+      <div class="jersey-num"><?= htmlspecialchars($partida['camisa'] ?? '0') ?></div>
+      <div class="jersey-txt">
+        <div class="jersey-nome"><?= htmlspecialchars($partida['nome_jogador'] ?? 'Sem Nome') ?></div>
+        <span class="jersey-tag"><?= htmlspecialchars($partida['grupo']) ?></span>
       </div>
-      <?php if ($posicaoAtual && (int)$posicaoAtual !== (int)$partida['posicao_rank']): ?>
-      <div class="fim-antes">você fechou em #<?= (int)$partida['posicao_rank'] ?></div>
-      <?php endif; ?>
-      <?php if ((int)$partida['moedas'] > 0): ?>
-      <div class="fim-moedas"><i class="bi bi-coin"></i>+<?= (int)$partida['moedas'] ?> moedas</div>
+      <div class="jersey-ovr"><b><?= (int)$partida['ovr'] ?></b><span>OVERALL</span></div>
+    </div>
+
+    <?php if ($hist): ?>
+    <div class="hist">
+      <?php if ($hist['no_top']): ?>
+        <div class="hist-num">#<?= (int)$hist['posicao'] ?></div>
+        <div class="hist-cap">no top 100 da história da NBA</div>
+        <div class="hist-tier"><?= htmlspecialchars($hist['tier']) ?></div>
+        <div class="hist-barra"><div style="width:<?= round($pctHist) ?>%"></div></div>
       <?php else: ?>
-      <div class="fim-nada">Top 10 paga moedas. Amanhã tem mais!</div>
+        <div class="hist-num" style="color:var(--text2);font-size:28px">fora do top 100</div>
+        <div class="hist-cap" style="margin-top:8px">não entrou na lista dos 100 maiores</div>
       <?php endif; ?>
     </div>
+    <?php endif; ?>
+
+    <?php if ((int)$partida['moedas'] > 0): ?>
+    <div class="fim-moedas"><i class="bi bi-coin"></i>+<?= (int)$partida['moedas'] ?> moedas</div>
+    <?php else: ?>
+    <div class="fim-nada">Só entrar no <b>top 10 da história</b> paga moedas — e chegar em 1º é quase impossível de propósito. Amanhã tem outra chance.</div>
+    <?php endif; ?>
+
+    <button type="button" class="copiar-btn" onclick="bpCopiar(this)"><i class="bi bi-clipboard"></i> Copiar build</button>
   </div>
+
+  <?php if ($temporada): $po = $temporada['playoff']; ?>
+  <div class="bpcard">
+    <div class="bpcard-title"><span><i class="bi bi-calendar-check"></i> A temporada dele</span></div>
+    <div class="time-linha">
+      <?php if (!empty($temporada['time']['logo'])): ?>
+      <img src="<?= htmlspecialchars($temporada['time']['logo']) ?>" alt="">
+      <?php endif; ?>
+      <div>
+        <b><?= htmlspecialchars($temporada['time']['nome']) ?></b>
+        <span>sorteado pro quinteto titular</span>
+      </div>
+    </div>
+    <div class="recorde">
+      <div><b style="color:var(--green)"><?= (int)$temporada['vitorias'] ?></b><span>VITÓRIAS</span></div>
+      <div><b style="color:var(--red)"><?= (int)$temporada['derrotas'] ?></b><span>DERROTAS</span></div>
+      <div><b><?= $temporada['seed'] ? (int)$temporada['seed'] . 'º' : '—' ?></b><span>NA CONF.</span></div>
+    </div>
+    <div class="playoff <?= !empty($po['titulo']) ? 'campeao' : ($po['chegou'] === 'fora' ? 'fora' : '') ?>">
+      <?= htmlspecialchars($po['label']) ?>
+    </div>
+    <?php if ($temporada['premios']): ?>
+    <div class="premios">
+      <?php foreach ($temporada['premios'] as $p): ?>
+      <span class="premio"><?= htmlspecialchars($p['label']) ?></span>
+      <?php endforeach; ?>
+    </div>
+    <?php else: ?>
+    <div class="sem-premio">Nenhum prêmio individual nesta temporada.</div>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
 
 <?php else: ?>
   <div class="progresso"><div id="barra" style="width:<?= $preenchidos * 10 ?>%"></div></div>
@@ -570,16 +771,22 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         </div>
       </div>
       <button class="spin-btn" id="btnSpin" onclick="bpGirar()" <?= $lendaPendente ? 'disabled' : '' ?>><i class="bi bi-dice-3-fill"></i> GIRAR</button>
+      <!-- Não gostou da lenda? Troca. Duas vezes por partida, e só isso: com
+           trocas infinitas dava pra caçar o S em todo slot. -->
+      <button type="button" class="reroll-btn" id="btnReroll" onclick="bpRegirar()"
+              <?= (!$lendaPendente || $trocasRestantes === 0) ? 'disabled' : '' ?>>
+        <i class="bi bi-arrow-repeat"></i> Não gostei, trocar lenda
+        <b id="trocas">(<?= $trocasRestantes ?>)</b>
+      </button>
       <div class="hint" id="hint"><?= $lendaPendente ? 'Escolha <b>um</b> atributo pra levar.' : 'Gire pra sortear uma lenda.' ?></div>
       <button type="button" class="reset-btn" onclick="bpRecomecar()"><i class="bi bi-arrow-counterclockwise"></i> Recomeçar do zero</button>
       <div class="notas" id="notas"><?php
         if ($lendaPendente):
           foreach ($lendaPendente['notas'] as $chave => $n):
             $ocupado = !empty($partida['slots'][$chave]);
-            $cores = ['#ef4444','#ef4444','#f97316','#f59e0b','#f59e0b','#eab308','#84cc16','#22c55e','#22c55e','#06b6d4','#3b82f6','#a855f7'];
       ?><div class="nota <?= $ocupado ? 'off' : '' ?>"<?= $ocupado ? '' : ' onclick="bpEscolher(\'' . $chave . '\')"' ?>>
           <span class="nota-nome"><?= htmlspecialchars($ATRIBUTOS[$chave]['label']) ?></span>
-          <span class="nota-letra" style="color:<?= $cores[$n['nivel']] ?>"><?= $n['letra'] ?></span>
+          <span class="nota-letra" style="color:<?= bpCor((int)$n['nivel']) ?>"><?= $n['letra'] ?></span>
         </div><?php endforeach; endif; ?></div>
     </div>
   </div>
@@ -596,12 +803,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <?php endif;
         $s = $partida['slots'][$chave] ?? null; ?>
       <div class="slot" data-attr="<?= $chave ?>">
-        <span class="slot-icon"><i class="bi bi-<?= $s ? 'check-circle-fill' : 'circle' ?>"></i></span>
+        <span class="slot-icon"<?= $s ? ' style="color:var(--green)"' : '' ?>><i class="bi bi-<?= $s ? 'check-circle-fill' : 'circle' ?>"></i></span>
         <span class="slot-txt">
           <span class="slot-nome"><?= htmlspecialchars($info['label']) ?></span>
           <span class="slot-de"><?= $s ? htmlspecialchars($s['de']) : 'vazio' ?></span>
         </span>
-        <span class="slot-letra"><?= $s ? htmlspecialchars($s['letra']) : '–' ?></span>
+        <!-- A letra sai colorida também aqui, não só na roleta: no resumo
+             final ela ficava com a cor cinza padrão e não dava pra ver de
+             relance se o build era bom. -->
+        <span class="slot-letra"<?= $s ? ' style="color:' . bpCor((int)$s['nivel']) . '"' : '' ?>><?= $s ? htmlspecialchars($s['letra']) : '–' ?></span>
       </div>
       <?php endforeach; ?>
     </div>
@@ -614,13 +824,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <?php if ($temNotas): ?>
   <div class="bpcard">
-    <div class="bpcard-title"><span><i class="bi bi-trophy-fill"></i> Top 10 de todos os tempos</span></div>
+    <div class="bpcard-title"><span><i class="bi bi-trophy-fill"></i> Melhores builds da liga</span><span style="color:var(--text3);font-weight:500;letter-spacing:0;text-transform:none">só vitrine</span></div>
     <?php if (!$topGeral): ?>
       <div class="vazio">Ninguém montou um build ainda. Seja o primeiro.</div>
     <?php else: foreach ($topGeral as $i => $t): ?>
       <div class="rank <?= $i < 3 ? 'top' . ($i + 1) : '' ?>">
         <span class="rank-pos"><?= $i + 1 ?>º</span>
-        <span class="rank-nome"><?= htmlspecialchars($t['nome']) ?></span>
+        <span class="rank-nome">
+          <?= htmlspecialchars($t['nome_jogador'] ?: $t['nome']) ?>
+          <small>por <?= htmlspecialchars($t['nome']) ?></small>
+        </span>
         <span class="rank-tag"><?= htmlspecialchars($t['grupo']) ?></span>
         <span class="rank-ovr"><?= (int)$t['ovr'] ?></span>
       </div>
@@ -639,6 +852,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 const BP_LABELS = <?= json_encode(array_map(fn($a) => $a['label'], $ATRIBUTOS)) ?>;
 // Cor por nível: vermelho no fundo da escala, roxo no S.
 const BP_CORES = ['#ef4444','#ef4444','#f97316','#f59e0b','#f59e0b','#eab308','#84cc16','#22c55e','#22c55e','#06b6d4','#3b82f6','#a855f7'];
+const BP_TEXTO = <?= json_encode($textoCopiar) ?>;
 let bpTravado = false;
 
 async function bpPost(dados) {
@@ -649,7 +863,9 @@ async function bpPost(dados) {
 async function bpComecar(grupo) {
   if (bpTravado) return;
   bpTravado = true;
-  const r = await bpPost({ acao: 'comecar', grupo });
+  const nome   = (document.getElementById('bpNome')?.value || '').trim();
+  const camisa = (document.getElementById('bpCamisa')?.value || '').trim();
+  const r = await bpPost({ acao: 'comecar', grupo, nome, camisa });
   if (!r.ok) { alert(r.msg); bpTravado = false; return; }
   location.reload();
 }
@@ -662,6 +878,26 @@ async function bpRecomecar() {
   const r = await bpPost({ acao: 'recomecar' });
   if (!r.ok) { alert(r.msg); bpTravado = false; return; }
   location.reload();
+}
+
+/** Copia o build inteiro — atributos, temporada e prêmios — como texto. */
+async function bpCopiar(btn) {
+  const original = btn.innerHTML;
+  try {
+    await navigator.clipboard.writeText(BP_TEXTO);
+  } catch (e) {
+    // Sem permissão de clipboard (http, navegador antigo): cai no textarea.
+    const ta = document.createElement('textarea');
+    ta.value = BP_TEXTO;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+  btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado!';
+  setTimeout(() => { btn.innerHTML = original; }, 1800);
 }
 
 /** Roda nomes falsos nos reels enquanto o servidor não responde. */
@@ -680,18 +916,26 @@ function bpRolar(ligar) {
   }, 90);
 }
 
-async function bpGirar() {
+const bpGirar   = () => bpSortear('girar');
+const bpRegirar = () => {
+  if (!confirm('Trocar a lenda sorteada?\n\nVocê perde as notas dela e recebe outra. As trocas são limitadas.')) return;
+  bpSortear('regirar');
+};
+
+async function bpSortear(acao) {
   if (bpTravado) return;
   bpTravado = true;
   const btn = document.getElementById('btnSpin');
+  const btnR = document.getElementById('btnReroll');
   btn.disabled = true;
+  btnR.disabled = true;
   document.getElementById('notas').innerHTML = '';
   document.getElementById('reelTime').classList.remove('hit');
   document.getElementById('reelLenda').classList.remove('hit');
   document.getElementById('logoTime').classList.remove('on');
   bpRolar(true);
 
-  const r = await bpPost({ acao: 'girar' });
+  const r = await bpPost({ acao });
   // Segura a rolagem um pouco pra dar peso ao sorteio.
   await new Promise(res => setTimeout(res, 750));
   bpRolar(false);
@@ -719,6 +963,9 @@ async function bpGirar() {
   document.getElementById('reelTime').classList.add('hit');
   document.getElementById('reelLenda').classList.add('hit');
   document.getElementById('hint').innerHTML = 'Escolha <b>um</b> atributo pra levar.';
+
+  document.getElementById('trocas').textContent = `(${r.trocas_restantes})`;
+  btnR.disabled = r.trocas_restantes <= 0;
 
   const ocupados = [...document.querySelectorAll('.slot')]
     .filter(s => s.querySelector('.slot-de').textContent !== 'vazio')
@@ -759,7 +1006,8 @@ async function bpEscolher(attr) {
   document.getElementById('notas').innerHTML = '';
   document.getElementById('reelTime').classList.remove('hit');
   document.getElementById('reelLenda').classList.remove('hit');
-  document.getElementById('hint').textContent = r.terminou ? 'Build completo!' : 'Gire de novo pra próxima lenda.';
+  document.getElementById('btnReroll').disabled = true;
+  document.getElementById('hint').textContent = r.terminou ? 'Build completo! Sorteando o time...' : 'Gire de novo pra próxima lenda.';
   document.getElementById('btnSpin').disabled = false;
 
   if (r.terminou) { setTimeout(() => location.reload(), 700); return; }

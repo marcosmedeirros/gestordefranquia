@@ -1,0 +1,275 @@
+<?php
+/**
+ * Build-A-Player — a temporada do jogador criado.
+ *
+ * Depois de montar o build, o jogador é sorteado pra um time da NBA e joga
+ * uma temporada com o quinteto titular dele. O resultado depende de duas
+ * coisas: a força do elenco que caiu e a qualidade do build. Cair no melhor
+ * time da liga com um build ruim rende tanto quanto cair num time fraco com
+ * um build ótimo — é isso que faz o sorteio importar.
+ *
+ * A força de cada time é atribuída à mão (0–100), como as notas das lendas:
+ * não existe rating de elenco na base, e derivar de estatística daria errado.
+ */
+
+require_once __DIR__ . '/build_notas.php';
+require_once dirname(__DIR__, 2) . '/backend/nba_teams.php';
+
+/**
+ * Força do elenco de cada time, SEM contar o jogador criado.
+ * Referência: 50 é um time de meio de tabela; 70+ é candidato a título.
+ */
+function buildForcaDosTimes(): array
+{
+    return [
+        'BOS' => 78, 'OKC' => 80, 'DEN' => 74, 'MIN' => 72, 'NYK' => 70,
+        'CLE' => 71, 'MIL' => 68, 'PHI' => 67, 'DAL' => 69, 'LAC' => 63,
+        'PHX' => 64, 'IND' => 65, 'ORL' => 62, 'LAL' => 66, 'GSW' => 63,
+        'MIA' => 61, 'SAC' => 60, 'NOP' => 59, 'HOU' => 62, 'ATL' => 55,
+        'CHI' => 50, 'MEM' => 58, 'SAS' => 54, 'TOR' => 48, 'BKN' => 45,
+        'UTA' => 44, 'POR' => 42, 'CHA' => 41, 'WAS' => 38, 'DET' => 46,
+    ];
+}
+
+/** Sorteia um time pro jogador criado. Devolve sigla, nome, logo e força. */
+function buildSortearTime(): array
+{
+    $forcas = buildForcaDosTimes();
+    $times  = array_values(array_filter(nbaTeams(), fn($t) => isset($forcas[$t['abbr']])));
+    $t = $times[random_int(0, count($times) - 1)];
+
+    return [
+        'abbr'  => $t['abbr'],
+        'nome'  => $t['city'] . ' ' . $t['name'],
+        'logo'  => nbaTeamLogoUrl((int)$t['id']),
+        'forca' => $forcas[$t['abbr']],
+        'conf'  => $t['conference'],
+    ];
+}
+
+/**
+ * Simula a temporada do jogador criado.
+ *
+ * O build entra como o quinto titular, então o time melhora conforme o OVR
+ * dele — mas o elenco continua sendo a maior parte da conta. A aleatoriedade
+ * é real (random_int), não decorativa: o mesmo build no mesmo time pode dar
+ * 48 ou 56 vitórias.
+ */
+function buildSimularTemporada(array $notas, int $ovr, array $time, string $grupo): array
+{
+    // O build entra como DIFERENÇA em relação ao mediano DO TIPO DELE, não
+    // como parcela: um build mediano não muda nada, um ótimo carrega e um ruim
+    // afunda. Somar o OVR direto na média deixava até o pior elenco da liga
+    // nos playoffs — a escala dos dois números não é a mesma.
+    $mediano  = buildPerfilDoGrupo($grupo)['mediano'];
+    $forcaTime = $time['forca'] + (($ovr - $mediano) * 1.2);
+
+    // 41 vitórias é o meio da tabela; cada ponto de força vale ~0,85 vitória.
+    $esperado = 41 + (($forcaTime - 58) * 0.85);
+    $esperado = max(12, min(70, $esperado));
+
+    // Ruído da temporada: lesão, sorte de calendário, elenco que não engrena.
+    $vitorias = (int)round($esperado + (random_int(-600, 600) / 100));
+    $vitorias = max(9, min(73, $vitorias));
+    $derrotas = 82 - $vitorias;
+
+    $seed = buildSeedDaConferencia($vitorias);
+    $playoff = buildSimularPlayoffs($vitorias, $forcaTime, $seed);
+
+    return [
+        'vitorias'   => $vitorias,
+        'derrotas'   => $derrotas,
+        'seed'       => $seed,
+        'forca_time' => round($forcaTime, 1),
+        'playoff'    => $playoff,
+        'premios'    => buildPremiosIndividuais($notas, $ovr, $vitorias, $playoff, $mediano),
+    ];
+}
+
+/** Cabeça de chave aproximada pela quantidade de vitórias. */
+function buildSeedDaConferencia(int $vitorias): int
+{
+    if ($vitorias >= 60) return 1;
+    if ($vitorias >= 55) return 2;
+    if ($vitorias >= 50) return 3;
+    if ($vitorias >= 47) return 4;
+    if ($vitorias >= 44) return 5;
+    if ($vitorias >= 41) return 6;
+    if ($vitorias >= 38) return 7;
+    if ($vitorias >= 35) return 8;
+    return 0; // fora dos playoffs
+}
+
+/**
+ * Playoffs: quatro rodadas, cada uma com chance ligada à força do time e à
+ * cabeça de chave. Time fraco que entra em 8º raramente passa da primeira.
+ */
+function buildSimularPlayoffs(int $vitorias, float $forcaTime, int $seed): array
+{
+    if ($seed === 0) {
+        return ['chegou' => 'fora', 'label' => 'Fora dos playoffs', 'titulo' => false];
+    }
+
+    $rodadas = [
+        1 => ['label' => '1ª rodada',        'proximo' => 'Semifinal de conferência'],
+        2 => ['label' => 'Semifinal de conf.','proximo' => 'Final de conferência'],
+        3 => ['label' => 'Final de conf.',   'proximo' => 'Finais da NBA'],
+        4 => ['label' => 'Finais da NBA',    'proximo' => 'Campeão'],
+    ];
+
+    // Chance por rodada: cresce com a força do time, cai conforme a chave e a
+    // fase. O melhor time da liga ganha o título em ~1 a cada 4 temporadas —
+    // não sempre, que é o que torna o anel uma notícia.
+    $venceu = 0;
+    for ($r = 1; $r <= 4; $r++) {
+        $chance = 46 + (($forcaTime - 58) * 1.6) - (($seed - 1) * 4.5) - (($r - 1) * 6);
+        $chance = max(3, min(88, $chance));
+        if (random_int(1, 100) > $chance) break;
+        $venceu = $r;
+    }
+
+    if ($venceu === 4) {
+        return ['chegou' => 'campeao', 'label' => '🏆 Campeão da NBA', 'titulo' => true];
+    }
+    if ($venceu === 0) {
+        return ['chegou' => 'primeira', 'label' => 'Eliminado na 1ª rodada', 'titulo' => false];
+    }
+    return [
+        'chegou' => 'r' . $venceu,
+        'label'  => 'Eliminado na ' . mb_strtolower($rodadas[$venceu + 1]['label']),
+        'titulo' => false,
+    ];
+}
+
+/**
+ * MVP e DPOY. Nenhum dos dois é dado: o MVP exige build de elite E time
+ * ganhando, e o DPOY exige defesa e tamanho de verdade. É o que faz a
+ * temporada perfeita valer alguma coisa.
+ */
+function buildPremiosIndividuais(array $notas, int $ovr, int $vitorias, array $playoff, int $mediano): array
+{
+    $nivel = fn($a) => (int)($notas[$a]['nivel'] ?? 0);
+
+    // MVP: ataque de elite E time vencendo. Abaixo de 50 vitórias, esquece.
+    // Os dois precisam acontecer juntos — build ótimo em time ruim não leva.
+    $pontosMvp = ($ovr - $mediano - 2) * 4
+               + ($vitorias - 52) * 1.5
+               + ($nivel('jump_shot') + $nivel('finishing') + $nivel('passing') + $nivel('iq') - 34) * 0.8;
+    $mvp = $vitorias >= 50 && random_int(1, 100) <= max(0, min(72, $pontosMvp));
+
+    // DPOY: só sai com defesa e tamanho de verdade. Um build todo montado no
+    // ataque — que é o que a maioria faz — não chega nem perto.
+    $pontosDpoy = (($nivel('perimeter_d') + $nivel('size') + $nivel('bounce')) - 24) * 5
+                + ($vitorias - 45) * 0.5 - 10;
+    $dpoy = random_int(1, 100) <= max(0, min(70, $pontosDpoy));
+
+    $lista = [];
+    if ($mvp)  $lista[] = ['key' => 'MVP',  'label' => '🏅 MVP da temporada'];
+    if ($dpoy) $lista[] = ['key' => 'DPOY', 'label' => '🛡️ Defensor do Ano'];
+    if (!empty($playoff['titulo']) && $mvp) $lista[] = ['key' => 'FMVP', 'label' => '👑 MVP das Finais'];
+
+    return $lista;
+}
+
+/**
+ * Régua de cada tipo de build: OVR mediano e a curva OVR → top 100.
+ *
+ * Por que uma curva, e não comparar o OVR do build com o das lendas?
+ *
+ * Porque as duas coisas não são comparáveis. O OVR de uma lenda é a média das
+ * dez notas REAIS dela — pontos fracos inclusos. O build pega a melhor nota de
+ * cada lenda que aparece, então é uma colagem sem defeito nenhum. Comparando
+ * um com o outro, quase 30% das partidas terminavam em 1º, à frente do LeBron.
+ * Não é "quase impossível", é o padrão.
+ *
+ * E por que uma régua por tipo? Porque BIG e GUARD não jogam o mesmo jogo. O
+ * build precisa preencher os dez slots, e nenhum pivô da história tem nota
+ * alta em Handles ou Arremesso — um BIG sai com OVR ~81 onde um GUARD sai com
+ * ~88. Com régua única, 85% dos bigs ficavam fora do top 100 sem ter feito
+ * nada de errado. Cada um é medido contra os seus.
+ *
+ * Os números vêm de 3.000 partidas simuladas por tipo.
+ */
+function buildPerfilDoGrupo(string $grupo): array
+{
+    if ($grupo === 'BIG') {
+        return [
+            'mediano' => 81, // mediana medida: 81 (p95 86, teto 90)
+            'curva'   => [
+                [90.0, 1], [89.0, 3], [88.0, 6], [87.0, 11], [86.0, 18], [85.0, 25],
+                [84.0, 33], [83.0, 42], [82.0, 50], [81.0, 58], [80.0, 70],
+                [79.0, 82], [78.0, 94], [77.0, 100],
+            ],
+        ];
+    }
+    return [
+        'mediano' => 88, // mediana medida: 88 (p95 92, teto 96)
+        'curva'   => [
+            [95.0, 1], [94.0, 3], [93.0, 6], [92.0, 12], [91.0, 20], [90.0, 30],
+            [89.0, 42], [88.0, 55], [87.0, 68], [86.0, 80], [85.0, 90], [84.0, 100],
+        ],
+    ];
+}
+
+/**
+ * Posição do build no top 100 histórico da NBA.
+ *
+ * Recebe o OVR exato (sem arredondar) pra que dois builds próximos não empatem
+ * na mesma posição — a interpolação entre os pontos da curva dá o número fino.
+ */
+function buildPosicaoHistorica(float $ovrExato, string $grupo): array
+{
+    $curva = buildPerfilDoGrupo($grupo)['curva'];
+    $pos = null;
+
+    if ($ovrExato >= $curva[0][0]) {
+        $pos = 1;
+    } else {
+        for ($i = 0; $i < count($curva) - 1; $i++) {
+            [$ovrAlto, $posAlta] = $curva[$i];
+            [$ovrBaixo, $posBaixa] = $curva[$i + 1];
+            if ($ovrExato >= $ovrBaixo) {
+                $t = ($ovrExato - $ovrBaixo) / ($ovrAlto - $ovrBaixo);
+                $pos = (int)round($posBaixa - $t * ($posBaixa - $posAlta));
+                break;
+            }
+        }
+    }
+
+    // Abaixo do fim da curva o build simplesmente não entra na lista. Mostrar
+    // "#137" seria mentira: a lista tem 100 nomes. E a posição vai a ZERO, não
+    // a 1 — um clamp em 1 aqui fazia o pior build possível voltar como "#1".
+    $noTop = $pos !== null;
+    $pos = $noTop ? max(1, min(100, (int)$pos)) : 0;
+
+    return [
+        'posicao' => $pos,
+        'no_top'  => $noTop,
+        'de'      => 100,
+        'tier'    => buildTierHistorico($pos),
+    ];
+}
+
+/** O que a posição significa em palavras — o número sozinho não diz nada. */
+function buildTierHistorico(int $pos): string
+{
+    if ($pos === 0)  return 'Ficou de fora do top 100';
+    if ($pos === 1)  return 'O MAIOR DE TODOS OS TEMPOS';
+    if ($pos <= 5)   return 'Conversa de GOAT';
+    if ($pos <= 15)  return 'Top 15 histórico';
+    if ($pos <= 30)  return 'Hall da Fama garantido';
+    if ($pos <= 50)  return 'Hall da Fama';
+    if ($pos <= 75)  return 'Vários All-Stars na carreira';
+    return 'Entrou pra lista';
+}
+
+/** Moedas pela posição HISTÓRICA — não pelo ranking entre jogadores. */
+function buildMoedasDaPosicaoHistorica(array $hist): int
+{
+    if (!$hist['no_top']) return 0;
+    $pos = (int)$hist['posicao'];
+    if ($pos <= 1)  return 500;
+    if ($pos <= 5)  return 100;
+    if ($pos <= 10) return 50;
+    return 0;
+}
