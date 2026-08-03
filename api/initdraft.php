@@ -10,6 +10,7 @@ date_default_timezone_set('America/Sao_Paulo');
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/helpers.php';
+require_once __DIR__ . '/../backend/push.php';
 
 header('Content-Type: application/json');
 
@@ -140,6 +141,41 @@ function getSessionById(PDO $pdo, int $sessionId): ?array {
     return $session ?: null;
 }
 
+/**
+ * Avisa a liga do draft que uma pick foi feita — só quem está na mesma liga
+ * da sessão (nunca vaza pra outra liga). Best-effort: nunca derruba a pick.
+ */
+function notificarInitDraftPick(PDO $pdo, array $session, int $teamId, string $playerName, int $round, int $pickPosition): void {
+    try {
+        $stmtTeam = $pdo->prepare('SELECT city, name FROM teams WHERE id = ? LIMIT 1');
+        $stmtTeam->execute([$teamId]);
+        $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
+        $teamName = $team ? trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')) : 'Um time';
+
+        sendPushToLeague($pdo, (string)$session['league'], [
+            'title' => '🏀 Draft Inicial',
+            'body'  => "{$teamName} escolheu {$playerName}! (Rodada {$round} · Pick {$pickPosition})",
+            'url'   => '/initdraftselecao.php?token=' . $session['access_token'],
+        ], 'draft');
+    } catch (Throwable $e) {
+        error_log('[notificarInitDraftPick] ' . $e->getMessage());
+    }
+}
+
+/** Avisa o dono do próximo time que é a vez dele. Best-effort. */
+function notificarInitDraftVez(PDO $pdo, array $session, int $teamId, int $round, int $pickPosition): void {
+    try {
+        sendPushToTeam($pdo, $teamId, [
+            'title'      => '🏀 É a sua vez no Draft Inicial!',
+            'body'       => "Rodada {$round} · Pick #{$pickPosition} — escolha seu jogador.",
+            'url'        => '/initdraftselecao.php?token=' . $session['access_token'],
+            'primaryKey' => 'initdraft_pick_' . $teamId . '_' . $round . '_' . $pickPosition,
+        ], 'draft');
+    } catch (Throwable $e) {
+        error_log('[notificarInitDraftVez] ' . $e->getMessage());
+    }
+}
+
 function performInitDraftPick(PDO $pdo, array $session, int $playerId): void {
     if (!$session) {
         throw new InvalidArgumentException('Sessão inválida');
@@ -209,12 +245,14 @@ function performInitDraftPick(PDO $pdo, array $session, int $playerId): void {
         $stmtCount->execute([$session['id'], $nextRound]);
         $totalPicks = (int)$stmtCount->fetchColumn();
 
+        $completed = false;
         if ($nextPick > $totalPicks) {
             $nextRound++;
             $nextPick = 1;
             if ($nextRound > (int)$session['total_rounds']) {
                 $pdo->prepare('UPDATE initdraft_sessions SET status = "completed", completed_at = NOW(), current_round = ?, current_pick = ? WHERE id = ?')
                     ->execute([$sessionRound, $sessionPick, $session['id']]);
+                $completed = true;
             } else {
                 $pdo->prepare('UPDATE initdraft_sessions SET current_round = ?, current_pick = ? WHERE id = ?')
                     ->execute([$nextRound, $nextPick, $session['id']]);
@@ -228,6 +266,18 @@ function performInitDraftPick(PDO $pdo, array $session, int $playerId): void {
     } catch (Exception $e) {
         $pdo->rollBack();
         throw $e;
+    }
+
+    // Notificações — best-effort, disparam só depois da pick confirmada e
+    // nunca derrubam a resposta se algo der errado aqui.
+    notificarInitDraftPick($pdo, $session, (int)$currentPick['team_id'], (string)$player['name'], $sessionRound, $sessionPick);
+    if (!$completed) {
+        $stmtNext = $pdo->prepare('SELECT team_id FROM initdraft_order WHERE initdraft_session_id = ? AND round = ? AND pick_position = ?');
+        $stmtNext->execute([$session['id'], $nextRound, $nextPick]);
+        $nextTeamId = (int)($stmtNext->fetchColumn() ?: 0);
+        if ($nextTeamId) {
+            notificarInitDraftVez($pdo, $session, $nextTeamId, $nextRound, $nextPick);
+        }
     }
 }
 
@@ -842,6 +892,15 @@ if ($method === 'POST') {
                 if ((int)$stmt->fetchColumn() === 0) throw new InvalidArgumentException('Defina a ordem antes de iniciar');
 
                 $pdo->prepare('UPDATE initdraft_sessions SET status = "in_progress", started_at = NOW() WHERE id = ?')->execute([$session['id']]);
+
+                // Avisa o dono da 1ª pick — dali em diante quem avisa é performInitDraftPick.
+                $stmtFirst = $pdo->prepare('SELECT team_id, round, pick_position FROM initdraft_order WHERE initdraft_session_id = ? AND picked_player_id IS NULL ORDER BY round ASC, pick_position ASC LIMIT 1');
+                $stmtFirst->execute([$session['id']]);
+                $firstPick = $stmtFirst->fetch(PDO::FETCH_ASSOC);
+                if ($firstPick) {
+                    notificarInitDraftVez($pdo, $session, (int)$firstPick['team_id'], (int)$firstPick['round'], (int)$firstPick['pick_position']);
+                }
+
                 echo json_encode(['success' => true]);
                 break;
             }
