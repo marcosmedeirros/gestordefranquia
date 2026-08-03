@@ -173,7 +173,13 @@ if ($user && isset($user['id'])) {
 
         /* ── Admin panel ──────────────────────────────── */
         .admin-panel { background: var(--panel); border: 1px solid var(--border-red); border-radius: var(--radius); margin-bottom: 20px; overflow: hidden; }
-        .admin-panel-head { padding: 16px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        /* Cabeçalho é o gatilho do acordeão — o painel nasce fechado. */
+        .admin-panel-head { width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--border); padding: 16px 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; cursor: pointer; color: inherit; font-family: inherit; text-align: left; transition: background var(--t) var(--ease); }
+        .admin-panel-head:hover { background: var(--panel-2); }
+        .admin-panel-chevron { flex-shrink: 0; color: var(--text-3); font-size: 15px; transition: transform var(--t) var(--ease); }
+        .admin-panel.fechado .admin-panel-head { border-bottom-color: transparent; }
+        .admin-panel.fechado .admin-panel-chevron { transform: rotate(-90deg); }
+        .admin-panel.fechado .admin-panel-body { display: none; }
         .admin-panel-title { font-size: 13px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
         .admin-panel-title i { color: var(--red); }
         .admin-panel-body { padding: 20px 22px; }
@@ -479,9 +485,10 @@ if ($user && isset($user['id'])) {
 
     <?php if ($isAdmin): ?>
     <!-- Admin panel -->
-    <section class="admin-panel d-none" id="adminPanel">
-        <div class="admin-panel-head">
-            <div style="flex:1;min-width:220px">
+    <section class="admin-panel fechado" id="adminPanel">
+        <button type="button" class="admin-panel-head" id="adminPanelToggle" onclick="toggleAdminPanel()"
+                aria-expanded="false" aria-controls="adminPanelBody">
+            <div style="flex:1;min-width:220px;text-align:left">
                 <div class="admin-panel-title"><i class="bi bi-shield-lock"></i> Painel do Admin</div>
                 <div class="d-flex justify-content-between mb-1 mt-2" style="font-size:12px;color:var(--text-2)">
                     <span id="admProgressLabel"></span>
@@ -489,9 +496,9 @@ if ($user && isset($user['id'])) {
                 </div>
                 <div class="prog-bar-wrap"><div class="prog-bar-fill" id="admProgressBar" style="width:0%"></div></div>
             </div>
-            <button class="btn-ghost" onclick="toggleAdminPanel()"><i class="bi bi-x-lg"></i> Fechar</button>
-        </div>
-        <div class="admin-panel-body">
+            <span class="admin-panel-chevron"><i class="bi bi-chevron-down"></i></span>
+        </button>
+        <div class="admin-panel-body" id="adminPanelBody">
             <ul class="nav nav-tabs mb-3" id="adminTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#adm-order" type="button" role="tab">Ordem &amp; Início</button>
@@ -815,7 +822,6 @@ if ($user && isset($user['id'])) {
             poolSearch: '',
             poolPage: 1,
             poolPageSize: 12,
-            autoOpened: false,
         };
 
         const uiState = {
@@ -1354,11 +1360,12 @@ if ($user && isset($user['id'])) {
 
         function toggleAdminPanel() {
             if (!admElements.panel) return;
-            const willOpen = admElements.panel.classList.contains('d-none');
-            admElements.panel.classList.toggle('d-none');
-            admElements.toggleBtn?.classList.toggle('btn-red', !willOpen);
-            admElements.toggleBtn?.classList.toggle('btn-ghost', willOpen);
-            if (willOpen) admElements.panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const vaiAbrir = admElements.panel.classList.contains('fechado');
+            admElements.panel.classList.toggle('fechado', !vaiAbrir);
+            admElements.toggleBtn?.classList.toggle('btn-red', vaiAbrir);
+            admElements.toggleBtn?.classList.toggle('btn-ghost', !vaiAbrir);
+            document.getElementById('adminPanelToggle')?.setAttribute('aria-expanded', vaiAbrir ? 'true' : 'false');
+            if (vaiAbrir) admElements.panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         function renderAdmin(fromAuto = false) {
@@ -1373,11 +1380,9 @@ if ($user && isset($user['id'])) {
             }
             updateOrderControls();
 
-            // Na primeira carga, abre o painel automaticamente se ainda está em configuração
-            if (!adminState.autoOpened) {
-                adminState.autoOpened = true;
-                if (state.session?.status === 'setup') toggleAdminPanel();
-            }
+            // O painel é um acordeão e nasce FECHADO — antes ele abria sozinho
+            // no setup e tomava a tela toda de quem só queria ver o draft.
+            // Quem precisa dele clica no cabeçalho ou no botão do topo.
         }
 
         function syncScheduleInputs() {
