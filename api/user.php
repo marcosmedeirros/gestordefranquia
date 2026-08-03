@@ -105,11 +105,25 @@ if ($method === 'POST') {
         $notifOff = $chaves ? implode(',', $chaves) : null;
     }
 
+    // Opt-in do WhatsApp — separado das preferências de tipo de propósito:
+    // o canal é mais invasivo, então ligar push não liga WhatsApp junto.
+    $temOptin = array_key_exists('whatsapp_optin', $body);
+    if ($temOptin) {
+        // Garante a coluna antes do UPDATE (ela nasce com a integração, que
+        // pode nunca ter sido aberta neste banco).
+        require_once __DIR__ . '/../backend/whatsapp.php';
+        ensureWhatsAppTables($pdo);
+    }
+
     $sql    = 'UPDATE users SET name = ?, photo_url = ?, phone = ?, accent_color = ?, dashboard_shortcuts = ?';
     $params = [$name, $photoUrl ?: null, $phone, $accentColor, $shortcuts];
     if ($temNotif) {
         $sql     .= ', notif_off = ?';
         $params[] = $notifOff;
+    }
+    if ($temOptin) {
+        $sql     .= ', whatsapp_optin = ?';
+        $params[] = !empty($body['whatsapp_optin']) ? 1 : 0;
     }
     $sql     .= ' WHERE id = ?';
     $params[] = $user['id'];

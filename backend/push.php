@@ -1,16 +1,28 @@
 <?php
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/whatsapp.php';
 
 /**
- * Envia um push pro usuário.
+ * Envia o aviso pro usuário — push do navegador e, pra quem ligou o opt-in,
+ * WhatsApp também.
  *
  * $tipo é uma chave de getNotifCatalog(). Quando informado, respeita o que o GM
- * escolheu em Minha Conta. Sem tipo (ou tipo desconhecido) o envio é sempre
- * feito — é o caso dos avisos internos pro admin.
+ * escolheu em Minha Conta (vale pros dois canais). Sem tipo (ou tipo
+ * desconhecido) o envio é sempre feito — é o caso dos avisos internos pro admin.
+ *
+ * O nome continua sendPushToUser porque são ~15 pontos de chamada espalhados;
+ * o WhatsApp entra aqui dentro pra todos ganharem de uma vez.
  */
 function sendPushToUser(PDO $pdo, int $userId, array $data, ?string $tipo = null): void
 {
     if (!userWantsNotif($pdo, $userId, $tipo)) return;
+
+    // Antes do push: se o WhatsApp falhar, o push ainda sai (e vice-versa).
+    try {
+        whatsappParaUsuario($pdo, $userId, whatsappTextoDoAviso($data), $tipo);
+    } catch (Throwable $e) {
+        error_log('[whatsapp] aviso user_id=' . $userId . ': ' . $e->getMessage());
+    }
 
     $autoload = dirname(__DIR__) . '/vendor/autoload.php';
     if (!file_exists($autoload)) {

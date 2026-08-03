@@ -10,3 +10,4 @@ _test_login.php
 games/logs/waivers-cron.log
 
 backend/config.local.php.bak
+games/logs/whatsapp-cron.log

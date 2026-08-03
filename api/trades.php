@@ -247,8 +247,46 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
             } catch (\Throwable $e) {
                 error_log('[n8n-trade-webhook] error: ' . $e->getMessage());
             }
+
+            // Grupo de WhatsApp da liga — mesmo critério do n8n (jogador 80+),
+            // pra não encher o grupo com troca de reserva.
+            try {
+                require_once dirname(__DIR__) . '/backend/whatsapp.php';
+                whatsappParaGrupo($pdo, (string)$trade['league'], montarTextoTradeWhats($payload, $fromPlayers, $toPlayers, $fromPicks, $toPicks), 'trade');
+            } catch (\Throwable $e) {
+                error_log('[whatsapp-trade] ' . $e->getMessage());
+            }
         }
     }
+}
+
+/** Formata a trade pro grupo: quem mandou o quê, com OVR e picks. */
+function montarTextoTradeWhats(array $payload, array $fromPlayers, array $toPlayers, array $fromPicks, array $toPicks): string
+{
+    $nomeFrom = $payload['from_team']['name'] ?? 'Time A';
+    $nomeTo   = $payload['to_team']['name']   ?? 'Time B';
+
+    $lista = function (array $players, array $picks): array {
+        $itens = array_map(
+            fn($p) => '• ' . $p['name'] . ' (' . (int)($p['ovr'] ?? 0) . (!empty($p['position']) ? ' ' . $p['position'] : '') . ')',
+            $players
+        );
+        foreach ($picks as $pk) {
+            $ano   = $pk['season_year'] ?? $pk['year'] ?? '?';
+            $round = $pk['round'] ?? '?';
+            $itens[] = '• Pick ' . $ano . ' (' . $round . 'ª rodada)';
+        }
+        return $itens ?: ['• —'];
+    };
+
+    return implode("\n", array_merge(
+        ['🔄 *TRADE FECHADA*', ''],
+        ['*' . $nomeTo . '* recebe:'],
+        $lista($fromPlayers, $fromPicks),
+        [''],
+        ['*' . $nomeFrom . '* recebe:'],
+        $lista($toPlayers, $toPicks)
+    ));
 }
 
 function sendMultiTradePush(PDO $pdo, int $tradeId): void

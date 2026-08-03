@@ -14,12 +14,33 @@ $team = $stmtTeam->fetch() ?: null;
 // Preferências de notificação vêm direto do banco: a coluna é nova e sessões
 // abertas antes da migração não têm o campo.
 $notifOffSalvo = null;
+$whatsappOptin = false;
+$telefoneExibido = '';
+$temTelefoneValido = false;
 try {
-    $stNotif = $pdo->prepare('SELECT notif_off FROM users WHERE id = ? LIMIT 1');
+    $stNotif = $pdo->prepare('SELECT notif_off, phone FROM users WHERE id = ? LIMIT 1');
     $stNotif->execute([$user['id']]);
-    $notifOffSalvo = $stNotif->fetchColumn() ?: null;
+    $rowNotif = $stNotif->fetch(PDO::FETCH_ASSOC) ?: [];
+    $notifOffSalvo = $rowNotif['notif_off'] ?? null;
+    $telefoneExibido = formatBrazilianPhone($rowNotif['phone'] ?? '');
 } catch (Throwable $e) {
     // Banco ainda sem a coluna — cai no padrão (tudo ligado).
+}
+
+// O bloco do WhatsApp só aparece quando a integração está configurada e ativa.
+$whatsappLigado = false;
+try {
+    require_once __DIR__ . '/backend/whatsapp.php';
+    $whatsappLigado = whatsappConfig($pdo) !== null;
+    if ($whatsappLigado) {
+        $stWa = $pdo->prepare('SELECT whatsapp_optin, phone FROM users WHERE id = ? LIMIT 1');
+        $stWa->execute([$user['id']]);
+        $rowWa = $stWa->fetch(PDO::FETCH_ASSOC) ?: [];
+        $whatsappOptin = !empty($rowWa['whatsapp_optin']);
+        $temTelefoneValido = whatsappNumero($rowWa['phone'] ?? null) !== null;
+    }
+} catch (Throwable $e) {
+    $whatsappLigado = false;
 }
 ?>
 <!DOCTYPE html>
@@ -290,6 +311,7 @@ try {
         .toggle-row input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--red); flex-shrink: 0; }
         .toggle-label { font-size: 13px; font-weight: 500; color: var(--text); }
         .notif-prefs { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+        .wa-box { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); }
         .notif-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border-radius: 10px; cursor: pointer; transition: background 150ms; }
         .notif-row:hover { background: var(--panel-2); }
         .notif-row input[type=checkbox] { width: 16px; height: 16px; margin-top: 2px; cursor: pointer; accent-color: var(--red); flex-shrink: 0; }
@@ -551,6 +573,22 @@ try {
                                     </span>
                                 </label>
                                 <?php endforeach; ?>
+
+                                <?php if ($whatsappLigado): ?>
+                                <div class="wa-box">
+                                    <label class="notif-row" for="wa-optin" style="padding-left:0">
+                                        <input type="checkbox" id="wa-optin" <?= $whatsappOptin ? 'checked' : '' ?>>
+                                        <i class="bi bi-whatsapp" style="color:#25D366"></i>
+                                        <span>
+                                            <span class="notif-name">Receber também no WhatsApp</span>
+                                            <span class="notif-desc">Vai pro número <?= htmlspecialchars($telefoneExibido ?: 'cadastrado no seu perfil') ?>. Valem os mesmos tipos marcados acima.</span>
+                                        </span>
+                                    </label>
+                                    <?php if (!$temTelefoneValido): ?>
+                                    <div class="fh" style="color:var(--amber)"><i class="bi bi-exclamation-triangle-fill"></i> Cadastre um telefone válido no seu perfil pra receber no WhatsApp.</div>
+                                    <?php endif; ?>
+                                </div>
+                                <?php endif; ?>
 
                                 <div class="btn-row">
                                     <button type="button" class="btn-red" id="btn-save-notifs">

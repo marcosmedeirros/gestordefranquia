@@ -103,9 +103,13 @@ document.getElementById('btn-save-notifs')?.addEventListener('click', async (e) 
     .filter(c => !c.checked)
     .map(c => c.dataset.key);
 
+  const wa = document.getElementById('wa-optin');
+  const payload = { notif_off: off };
+  if (wa) payload.whatsapp_optin = wa.checked;
+
   btn.disabled = true;
   try {
-    await api('user.php', { method: 'POST', body: JSON.stringify({ notif_off: off }) });
+    await api('user.php', { method: 'POST', body: JSON.stringify(payload) });
     const antes = btn.innerHTML;
     btn.innerHTML = '<i class="bi bi-check2"></i> Salvo!';
     setTimeout(() => { btn.innerHTML = antes; btn.disabled = false; }, 1800);
