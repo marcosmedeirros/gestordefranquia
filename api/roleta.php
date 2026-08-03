@@ -557,6 +557,54 @@ if ($method === 'POST') {
         exit;
     }
 
+    /**
+     * Duplica a roleta levando SÓ os participantes — o sorteio não vem junto.
+     * Serve pra repetir a mesma lista numa temporada nova sem recadastrar todo
+     * mundo, então a cópia nasce zerada e destravada pra edição.
+     */
+    if ($action === 'duplicar') {
+        $id = (int)($body['id'] ?? 0);
+        if (!$id) {
+            echo json_encode(['success' => false, 'error' => 'id obrigatório']);
+            exit;
+        }
+        $ligaOrigem = ligaDaRoleta($pdo, $id);
+        exigirAdminDaRoleta($pdo, $user_id, $minhasLigasAdmin, $ligaOrigem);
+
+        $stmtOrig = $pdo->prepare("SELECT titulo, tipo, league, notificar_saida FROM roletas WHERE id = ?");
+        $stmtOrig->execute([$id]);
+        $orig = $stmtOrig->fetch(PDO::FETCH_ASSOC);
+        if (!$orig) {
+            echo json_encode(['success' => false, 'error' => 'Roleta não encontrada']);
+            exit;
+        }
+
+        $titulo = trim((string)($body['titulo'] ?? ''));
+        if ($titulo === '') $titulo = $orig['titulo'] . ' (cópia)';
+
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare("INSERT INTO roletas (titulo, tipo, league, notificar_saida, criado_por) VALUES (?,?,?,?,?)")
+                ->execute([mb_substr($titulo, 0, 160), $orig['tipo'], $orig['league'], (int)$orig['notificar_saida'], $user_id]);
+            $novoId = (int)$pdo->lastInsertId();
+
+            // pick_number/eliminated_at ficam de fora de propósito: é o sorteio.
+            $pdo->prepare("INSERT INTO roleta_participantes (roleta_id, ordem, team_id, user_id, nome_display)
+                           SELECT ?, ordem, team_id, user_id, nome_display
+                           FROM roleta_participantes WHERE roleta_id = ? ORDER BY ordem ASC")
+                ->execute([$novoId, $id]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('roleta duplicar #' . $id . ': ' . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'Erro ao duplicar a roleta.']);
+            exit;
+        }
+
+        echo json_encode(['success' => true, 'id' => $novoId]);
+        exit;
+    }
+
     if ($action === 'excluir') {
         $id = (int)($body['id'] ?? 0);
         if ($id) exigirAdminDaRoleta($pdo, $user_id, $minhasLigasAdmin, ligaDaRoleta($pdo, $id));

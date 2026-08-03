@@ -82,6 +82,7 @@ function daRenderTudo() {
         ${ligasDa.map(l => `<option value="${_daEsc(l)}"${l === d.league ? ' selected' : ''}>${_daEsc(l)}</option>`).join('')}
       </select>
       <button type="button" class="btn-ghost" id="btnDaSalvarLiga">Salvar</button>
+      <button type="button" class="btn-ghost" id="btnDaDuplicar" title="Cria outro draft com a mesma ordem, sem as escolhas"><i class="bi bi-copy me-1"></i>Duplicar</button>
     </div>`;
   }
 
@@ -136,6 +137,7 @@ function daRenderTudo() {
   on('btnDaCopiarEscolhas', daCopiarEscolhas);
   on('btnDaCopiarLink', daCopiarLink);
   on('btnDaSalvarLiga', daSalvarLiga);
+  on('btnDaDuplicar', daDuplicar);
   const btnPular = document.getElementById('btnDaPular');
   if (btnPular) btnPular.addEventListener('click', () => daAbrirModalPular(btnPular.dataset.gm));
 
@@ -315,6 +317,20 @@ async function daReabrir() {
       body: JSON.stringify({ action: 'reabrir', id: window.DRAFT_ID }),
     });
     daRenderTudo();
+  } catch (e) { alert(e.message); }
+}
+
+/** Cria outro draft com a mesma ordem de GMs — as escolhas não vêm junto. */
+async function daDuplicar() {
+  const nome = prompt('Nome da cópia:', `${daEstado?.titulo || 'Draft'} (cópia)`);
+  if (nome === null) return;
+  if (!nome.trim()) { alert('O nome não pode ficar vazio.'); return; }
+  try {
+    const data = await _daFetch('/api/drafts-aleatorios.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'duplicar', id: window.DRAFT_ID, titulo: nome.trim() }),
+    });
+    window.location.href = `/draft-aleatorio.php?id=${data.id}`;
   } catch (e) { alert(e.message); }
 }
 

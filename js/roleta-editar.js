@@ -276,6 +276,22 @@ function reAnunciar(data) {
   el.classList.add('mostrar');
 }
 
+/** Cria outra roleta com os mesmos participantes — o sorteio não vem junto. */
+async function reDuplicar() {
+  const nome = prompt('Nome da cópia:', `${reEstadoAtual?.titulo || 'Roleta'} (cópia)`);
+  if (nome === null) return;
+  if (!nome.trim()) { alert('O nome não pode ficar vazio.'); return; }
+  try {
+    const data = await _reFetch('/api/roleta.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'duplicar', id: ROLETA_ID, titulo: nome.trim() }),
+    });
+    window.location.href = `/roleta-editar.php?id=${data.id}`;
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
 async function reReiniciar() {
   if (reGirando) return;
   if (!confirm('Reiniciar o sorteio?\n\nTodas as escolhas definidas serão apagadas e todo mundo volta pra urna.')) return;
@@ -532,6 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
   reCarregar();
   const ligar = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
   ligar('rtGirar', reGirar);
+  ligar('rtDuplicar', reDuplicar);
   ligar('rtReiniciar', reReiniciar);
   ligar('rlExcluir', reExcluirRoleta);
   ligar('rtCriarDraft', reCriarDraft);

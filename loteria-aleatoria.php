@@ -181,6 +181,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
             </div>
             <?php if ($ehAdminAqui): ?>
             <div class="hero-actions">
+                <button class="btn-ghost" id="ltDuplicar"><i class="bi bi-copy"></i> Duplicar</button>
                 <button class="btn-ghost" id="ltReiniciar"><i class="bi bi-arrow-counterclockwise"></i> Reiniciar</button>
                 <button class="btn-ghost" id="ltExcluir" style="border-color:rgba(239,68,68,.4);color:#ef4444"><i class="bi bi-trash"></i> Excluir</button>
             </div>

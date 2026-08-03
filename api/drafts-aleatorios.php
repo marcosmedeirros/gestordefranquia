@@ -715,6 +715,60 @@ if ($method === 'POST') {
         exit;
     }
 
+    /**
+     * Duplica o draft levando SÓ a ordem e os participantes — as escolhas já
+     * feitas (e as puladas) não vêm junto. Serve pra refazer o mesmo draft sem
+     * recadastrar a ordem inteira.
+     *
+     * roleta_id fica NULL na cópia de propósito: a coluna é UNIQUE (uma roleta
+     * gera no máximo um draft), então herdar o vínculo faria o INSERT colidir.
+     */
+    if ($action === 'duplicar') {
+        if (!$minhasLigasAdmin) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Apenas administradores podem duplicar o draft.']);
+            exit;
+        }
+        $stmtOrig = $pdo->prepare("SELECT titulo, league FROM drafts_aleatorios WHERE id = ?");
+        $stmtOrig->execute([$draftId]);
+        $orig = $stmtOrig->fetch(PDO::FETCH_ASSOC);
+        if (!$orig) {
+            echo json_encode(['success' => false, 'error' => 'Draft não encontrado.']);
+            exit;
+        }
+        $ligaOrigem = $orig['league'] ? strtoupper((string)$orig['league']) : null;
+        if ($ligaOrigem !== null && !in_array($ligaOrigem, $minhasLigasAdmin, true)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Só o admin da ' . $ligaOrigem . ' pode duplicar este draft.']);
+            exit;
+        }
+
+        $titulo = trim((string)($body['titulo'] ?? ''));
+        if ($titulo === '') $titulo = $orig['titulo'] . ' (cópia)';
+
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare("INSERT INTO drafts_aleatorios (roleta_id, titulo, league, criado_por) VALUES (NULL, ?, ?, ?)")
+                ->execute([mb_substr($titulo, 0, 180), $orig['league'], $user_id]);
+            $novoId = (int)$pdo->lastInsertId();
+
+            // player_name/player_position/skipped/picked_at ficam de fora: são as escolhas.
+            $pdo->prepare("INSERT INTO draft_aleatorio_picks (draft_id, pick_number, team_id, user_id, nome_display)
+                           SELECT ?, pick_number, team_id, user_id, nome_display
+                           FROM draft_aleatorio_picks WHERE draft_id = ? ORDER BY pick_number ASC")
+                ->execute([$novoId, $draftId]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('draft duplicar #' . $draftId . ': ' . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'Erro ao duplicar o draft.']);
+            exit;
+        }
+
+        echo json_encode(['success' => true, 'id' => $novoId]);
+        exit;
+    }
+
     if ($action === 'excluir') {
         if (!$is_admin) {
             http_response_code(403);

@@ -564,6 +564,52 @@ if ($method === 'POST') {
         exit;
     }
 
+    /**
+     * Duplica a loteria levando participantes E chances — só o sorteio fica
+     * pra trás. É o caso comum: mesmas odds, temporada nova.
+     */
+    if ($action === 'duplicar') {
+        $id = (int)($body['id'] ?? 0);
+        if (!$id) {
+            echo json_encode(['success' => false, 'error' => 'id obrigatório']);
+            exit;
+        }
+        exigirAdminDaLoteria($pdo, $minhasLigasAdmin, ligaDaLoteria($pdo, $id));
+
+        $stmtOrig = $pdo->prepare("SELECT titulo, tipo, league, notificar_saida FROM loterias WHERE id = ?");
+        $stmtOrig->execute([$id]);
+        $orig = $stmtOrig->fetch(PDO::FETCH_ASSOC);
+        if (!$orig) {
+            echo json_encode(['success' => false, 'error' => 'Loteria não encontrada']);
+            exit;
+        }
+
+        $titulo = trim((string)($body['titulo'] ?? ''));
+        if ($titulo === '') $titulo = $orig['titulo'] . ' (cópia)';
+
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare("INSERT INTO loterias (titulo, tipo, league, notificar_saida, criado_por) VALUES (?,?,?,?,?)")
+                ->execute([mb_substr($titulo, 0, 160), $orig['tipo'], $orig['league'], (int)$orig['notificar_saida'], $user_id]);
+            $novoId = (int)$pdo->lastInsertId();
+
+            // chance vem junto; pick_number/sorteado_em não — esses são o sorteio.
+            $pdo->prepare("INSERT INTO loteria_participantes (loteria_id, ordem, team_id, user_id, nome_display, chance)
+                           SELECT ?, ordem, team_id, user_id, nome_display, chance
+                           FROM loteria_participantes WHERE loteria_id = ? ORDER BY ordem ASC")
+                ->execute([$novoId, $id]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('loteria duplicar #' . $id . ': ' . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'Erro ao duplicar a loteria.']);
+            exit;
+        }
+
+        echo json_encode(['success' => true, 'id' => $novoId]);
+        exit;
+    }
+
     if ($action === 'excluir') {
         $id = (int)($body['id'] ?? 0);
         if ($id) exigirAdminDaLoteria($pdo, $minhasLigasAdmin, ligaDaLoteria($pdo, $id));

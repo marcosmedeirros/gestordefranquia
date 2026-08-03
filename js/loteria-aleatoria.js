@@ -45,6 +45,8 @@ function laRenderTudo(destaque = null) {
   }
   const btnReiniciar = document.getElementById('ltReiniciar');
   if (btnReiniciar) btnReiniciar.disabled = d.pode_sortear === false;
+  const btnDuplicar = document.getElementById('ltDuplicar');
+  if (btnDuplicar) btnDuplicar.disabled = d.pode_sortear === false;
 }
 
 /** Bolinha grande: mostra o último sorteado (ou o estado inicial/final). */
@@ -261,6 +263,20 @@ async function laSalvarChances() {
   }
 }
 
+/** Cria outra loteria com os mesmos participantes e chances — sem o sorteio. */
+async function laDuplicar() {
+  const nome = prompt('Nome da cópia:', `${laEstado?.titulo || 'Loteria'} (cópia)`);
+  if (nome === null) return;
+  if (!nome.trim()) { alert('O nome não pode ficar vazio.'); return; }
+  try {
+    const data = await _laFetch('/api/loteria-aleatoria.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'duplicar', id: window.LOTERIA_ID, titulo: nome.trim() }),
+    });
+    window.location.href = `/loteria-aleatoria.php?id=${data.id}`;
+  } catch (e) { alert(e.message); }
+}
+
 async function laReiniciar() {
   if (!confirm('Reiniciar a loteria? Todas as escolhas já sorteadas são apagadas e tudo volta pra urna.')) return;
   try {
@@ -300,6 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
   laCarregar();
   const ligar = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
   ligar('ltSortear', laSortear);
+  ligar('ltDuplicar', laDuplicar);
   ligar('ltReiniciar', laReiniciar);
   ligar('ltExcluir', laExcluir);
   ligar('ltCopiar', laCopiarOrdem);
