@@ -1063,14 +1063,32 @@ if ($action === 'import_stats') {
             $ix  = array_flip($career['headers']);
             $row = $career['rowSet'][0];
 
+            // GP vem do totalizador de carreira, então PTS/REB/AST já chegam
+            // como TOTAL — o /gp transforma em média por jogo.
+            $gp = (int)($row[$ix['GP']] ?? 0);
             $stats = [
                 'pts' => round((float)($row[$ix['PTS']]  ?? 0), 1),
                 'reb' => round((float)($row[$ix['REB']]  ?? 0), 1),
                 'ast' => round((float)($row[$ix['AST']]  ?? 0), 1),
                 'stl' => round((float)($row[$ix['STL']]  ?? 0), 1),
                 'blk' => round((float)($row[$ix['BLK']]  ?? 0), 1),
-                'gp'  => (int)($row[$ix['GP']] ?? 0),
+                'gp'  => $gp,
             ];
+
+            // Splits de arremesso: sem eles não dá pra separar quem pontuava de
+            // fora de quem pontuava no garrafão — Curry e Shaq ficariam com a
+            // mesma nota de Jump Shot no Build-A-Player. A API já devolve estes
+            // campos na mesma resposta, só não estavam sendo guardados.
+            foreach ([
+                'fg3m' => 'FG3M', 'fg3a' => 'FG3A', 'fg3_pct' => 'FG3_PCT',
+                'fgm'  => 'FGM',  'fga'  => 'FGA',  'fg_pct'  => 'FG_PCT',
+                'ftm'  => 'FTM',  'fta'  => 'FTA',  'ft_pct'  => 'FT_PCT',
+                'tov'  => 'TOV',  'min'  => 'MIN',
+            ] as $chave => $coluna) {
+                if (isset($ix[$coluna]) && $row[$ix[$coluna]] !== null) {
+                    $stats[$chave] = round((float)$row[$ix[$coluna]], 3);
+                }
+            }
 
             // Fallback: se o jogador esta marcado ativo mas ainda sem time_atual (ex.: sync_status nao rodou),
             // usa o time da ultima temporada disputada.
