@@ -403,6 +403,22 @@ if (isset($_GET['novo']) && $partida && $partida['concluido_em']) {
 }
 $temporada = $partida['temporada'] ?? null;
 
+// Veio direto do décimo slot: revela o time e a campanha em etapas. Um F5
+// depois disso mostra tudo de uma vez — o resultado já está gravado, então
+// repetir a animação só atrasaria quem só quer reler.
+$revelar = isset($_GET['revelar']) && $partida && $partida['concluido_em'] && $temporada;
+
+// Nome e camisa da última vez, pra não ter que digitar de novo a cada build.
+// Vem do banco (e não do navegador) pra seguir o jogador entre celular e PC.
+$ultimaIdentidade = ['nome' => '', 'camisa' => ''];
+$stId = $pdo->prepare("SELECT nome_jogador, camisa FROM build_partidas
+                       WHERE id_usuario = ? AND nome_jogador IS NOT NULL
+                       ORDER BY id DESC LIMIT 1");
+$stId->execute([$user_id]);
+if ($linhaId = $stId->fetch(PDO::FETCH_ASSOC)) {
+    $ultimaIdentidade = ['nome' => (string)$linhaId['nome_jogador'], 'camisa' => (string)$linhaId['camisa']];
+}
+
 $preenchidos = 0;
 if ($partida) {
     foreach ($ATRIBUTOS as $c => $_) if (!empty($partida['slots'][$c])) $preenchidos++;
@@ -701,11 +717,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <div class="ident">
       <div class="campo">
         <label for="bpNome">Nome</label>
-        <input type="text" id="bpNome" maxlength="24" placeholder="Ex: Marcos Silva" autocomplete="off">
+        <input type="text" id="bpNome" maxlength="24" placeholder="Ex: Marcos Silva" autocomplete="off"
+               value="<?= htmlspecialchars($ultimaIdentidade['nome']) ?>">
       </div>
       <div class="campo">
         <label for="bpCamisa">Camisa</label>
-        <input type="number" id="bpCamisa" class="camisa" min="0" max="99" placeholder="23" inputmode="numeric">
+        <input type="number" id="bpCamisa" class="camisa" min="0" max="99" placeholder="23" inputmode="numeric"
+               value="<?= htmlspecialchars($ultimaIdentidade['camisa']) ?>">
       </div>
     </div>
     <div class="bpcard-title" style="margin-top:4px">Escolha o tipo de build</div>
@@ -768,6 +786,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <?php if ($temporada): $po = $temporada['playoff']; ?>
   <div class="bpcard">
     <div class="bpcard-title"><span><i class="bi bi-calendar-check"></i> A temporada dele</span></div>
+
+    <!-- Chegou agora do último slot: o time e a campanha aparecem em etapas,
+         não de uma vez. O resultado já está decidido e gravado no servidor —
+         isto aqui é só a revelação. Quem recarrega a página vê tudo direto. -->
+    <?php if ($revelar): ?>
+    <div id="bpEtapaTime">
+      <div class="reel" id="reelSorteio" style="margin-bottom:12px">
+        <div class="reel-label">Seu time</div>
+        <div class="reel-val" id="valSorteio">— — —</div>
+      </div>
+      <button type="button" class="spin-btn" id="btnSorteio" onclick="bpRevelarTime()">
+        <i class="bi bi-dice-3-fill"></i> SORTEAR MEU TIME
+      </button>
+    </div>
+    <?php endif; ?>
+
+    <div id="bpBlocoTime"<?= $revelar ? ' hidden' : '' ?>>
     <div class="time-linha">
       <?php if (!empty($temporada['time']['logo'])): ?>
       <img src="<?= htmlspecialchars($temporada['time']['logo']) ?>" alt="">
@@ -777,6 +812,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <span>sorteado pro quinteto titular</span>
       </div>
     </div>
+
+    <?php if ($revelar): ?>
+    <button type="button" class="spin-btn" id="btnSimular" onclick="bpRevelarTemporada()">
+      <i class="bi bi-play-circle-fill"></i> SIMULAR A TEMPORADA
+    </button>
+    <?php endif; ?>
+    </div>
+
+    <div id="bpBlocoTemporada"<?= $revelar ? ' hidden' : '' ?>>
     <div class="recorde">
       <div><b style="color:var(--green)"><?= (int)$temporada['vitorias'] ?></b><span>VITÓRIAS</span></div>
       <div><b style="color:var(--red)"><?= (int)$temporada['derrotas'] ?></b><span>DERROTAS</span></div>
@@ -794,6 +838,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <?php else: ?>
     <div class="sem-premio">Nenhum prêmio individual nesta temporada.</div>
     <?php endif; ?>
+    </div>
   </div>
   <?php endif; ?>
 
@@ -914,7 +959,7 @@ async function bpComecar(grupo) {
   const camisa = (document.getElementById('bpCamisa')?.value || '').trim();
   const r = await bpPost({ acao: 'comecar', grupo, nome, camisa });
   if (!r.ok) { alert(r.msg); bpTravado = false; return; }
-  location.reload();
+  window.location.href = '?game=buildplayer';
 }
 
 /** Joga fora o build em andamento e volta pra escolha de tipo. */
@@ -924,7 +969,46 @@ async function bpRecomecar() {
   bpTravado = true;
   const r = await bpPost({ acao: 'recomecar' });
   if (!r.ok) { alert(r.msg); bpTravado = false; return; }
-  location.reload();
+  window.location.href = '?game=buildplayer&novo=1';
+}
+
+/**
+ * Revelação do time sorteado. O time JÁ foi decidido no servidor quando o
+ * décimo slot fechou — isto aqui só segura o resultado por um instante pra
+ * ele não aparecer de graça junto com o resto.
+ */
+function bpRevelarTime() {
+  const btn = document.getElementById('btnSorteio');
+  if (btn.disabled) return;
+  btn.disabled = true;
+
+  const reel = document.getElementById('reelSorteio');
+  const val  = document.getElementById('valSorteio');
+  const siglas = ['CHI','LAL','BOS','GSW','MIA','SAS','NYK','PHX','DET','HOU','DEN','MIL','PHI','OKC'];
+  reel.classList.add('spin');
+  let i = 0;
+  const rolando = setInterval(() => { val.textContent = siglas[i++ % siglas.length]; }, 80);
+
+  setTimeout(() => {
+    clearInterval(rolando);
+    reel.classList.remove('spin');
+    document.getElementById('bpEtapaTime').hidden = true;
+    document.getElementById('bpBlocoTime').hidden = false;
+  }, 1600);
+}
+
+/** Revela a campanha, os playoffs e os prêmios. */
+function bpRevelarTemporada() {
+  const btn = document.getElementById('btnSimular');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> SIMULANDO 82 JOGOS...';
+
+  setTimeout(() => {
+    btn.hidden = true;
+    document.getElementById('bpBlocoTemporada').hidden = false;
+    document.getElementById('bpBlocoTemporada').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 1500);
 }
 
 /** Copia o build inteiro — atributos, temporada e prêmios — como texto. */
@@ -963,11 +1047,10 @@ function bpRolar(ligar) {
   }, 90);
 }
 
+// Sem confirmação no trocar: o contador de trocas já está no botão, e uma
+// caixa de diálogo no meio de um giro corta o ritmo do jogo.
 const bpGirar   = () => bpSortear('girar');
-const bpRegirar = () => {
-  if (!confirm('Trocar a lenda sorteada?\n\nVocê perde as notas dela e recebe outra. As trocas são limitadas.')) return;
-  bpSortear('regirar');
-};
+const bpRegirar = () => bpSortear('regirar');
 
 async function bpSortear(acao) {
   if (bpTravado) return;
@@ -1057,7 +1140,16 @@ async function bpEscolher(attr) {
   document.getElementById('hint').textContent = r.terminou ? 'Build completo! Sorteando o time...' : 'Gire de novo pra próxima lenda.';
   document.getElementById('btnSpin').disabled = false;
 
-  if (r.terminou) { setTimeout(() => location.reload(), 700); return; }
+  // Build fechado: vai pra tela final REVELANDO, e sem o "novo" na URL.
+  //
+  // location.reload() aqui era um bug: quem chegou pelo "Jogar novamente"
+  // estava em ?novo=1, o reload carregava a mesma URL, e a tela entendia que
+  // o jogador queria começar outro build — jogava fora o resultado e voltava
+  // pro começo sem nunca mostrar o time, a temporada nem o OVR.
+  if (r.terminou) {
+    setTimeout(() => { window.location.href = '?game=buildplayer&revelar=1'; }, 700);
+    return;
+  }
   bpTravado = false;
 }
 
