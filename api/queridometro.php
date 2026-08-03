@@ -1,8 +1,8 @@
 <?php
 /**
- * Queridômetro semanal — GM escolhe outro time pra cada categoria (MVP, MIP,
+ * Queridômetro da temporada — GM escolhe outro time pra cada categoria (MVP, MIP,
  * Air Ball, Cobra, Planta), sem repetir time entre elas. Um voto por time
- * por semana; o placar acumula até o avanço de temporada zerar tudo.
+ * POR TEMPORADA; o placar zera no avanço de temporada e no fim de sprint.
  */
 
 require_once __DIR__ . '/../backend/db.php';
@@ -39,8 +39,8 @@ if ($method === 'GET') {
     $action = $_GET['action'] ?? 'estado';
 
     if ($action === 'estado') {
-        $weekKey = queridometroWeekKey();
-        $jaVotou = queridometroJaVotou($pdo, $league, $myTeamId, $weekKey);
+        $seasonKey = queridometroSeasonKey($pdo, $league);
+        $jaVotou   = queridometroJaVotou($pdo, $league, $myTeamId, $seasonKey);
 
         // O voto é no GM, não no time — id continua sendo o do time (é o que
         // fica gravado), mas o nome/foto exibidos são os do dono dele.
@@ -57,11 +57,11 @@ if ($method === 'GET') {
         echo json_encode([
             'success'    => true,
             'league'     => $league,
-            'week_key'   => $weekKey,
+            'season_key' => $seasonKey,
             'ja_votou'   => $jaVotou,
             'categorias' => queridometroCategorias(),
             'times'      => $times,
-            'top3'       => queridometroTop3($pdo, $league),
+            'top3'       => queridometroTop3($pdo, $league, $seasonKey),
         ]);
         exit;
     }
@@ -76,10 +76,10 @@ if ($method === 'POST') {
     $action = $body['action'] ?? 'votar';
 
     if ($action === 'votar') {
-        $weekKey = queridometroWeekKey();
-        if (queridometroJaVotou($pdo, $league, $myTeamId, $weekKey)) {
+        $seasonKey = queridometroSeasonKey($pdo, $league);
+        if (queridometroJaVotou($pdo, $league, $myTeamId, $seasonKey)) {
             http_response_code(409);
-            echo json_encode(['success' => false, 'error' => 'Você já votou essa semana. Volta semana que vem!']);
+            echo json_encode(['success' => false, 'error' => 'Você já votou nesta temporada. O voto reabre na temporada que vem!']);
             exit;
         }
 
@@ -118,20 +118,20 @@ if ($method === 'POST') {
 
         try {
             $pdo->beginTransaction();
-            $stmtIns = $pdo->prepare("INSERT INTO querido_votos (league, week_key, voter_team_id, voter_user_id, category, voted_team_id) VALUES (?,?,?,?,?,?)");
+            $stmtIns = $pdo->prepare("INSERT INTO querido_votos (league, season_key, voter_team_id, voter_user_id, category, voted_team_id) VALUES (?,?,?,?,?,?)");
             foreach ($categorias as $cat) {
-                $stmtIns->execute([$league, $weekKey, $myTeamId, $userId, $cat, (int)$votos[$cat]]);
+                $stmtIns->execute([$league, $seasonKey, $myTeamId, $userId, $cat, (int)$votos[$cat]]);
             }
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             error_log('[queridometro votar] ' . $e->getMessage());
             http_response_code(409);
-            echo json_encode(['success' => false, 'error' => 'Você já votou essa semana.']);
+            echo json_encode(['success' => false, 'error' => 'Você já votou nesta temporada.']);
             exit;
         }
 
-        echo json_encode(['success' => true, 'top3' => queridometroTop3($pdo, $league)]);
+        echo json_encode(['success' => true, 'top3' => queridometroTop3($pdo, $league, $seasonKey)]);
         exit;
     }
 

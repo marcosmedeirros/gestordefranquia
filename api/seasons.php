@@ -2313,6 +2313,16 @@ try {
                 }
                 $pdo->prepare('UPDATE teams SET ' . implode(', ', $teamUpdates) . ' WHERE league = ?')->execute([$league]);
 
+                // O Queridômetro é por temporada — e fechar a sprint fecha a
+                // última temporada dela, então o placar zera aqui também
+                // (advance_season já faz o mesmo nas viradas normais).
+                try {
+                    require_once dirname(__DIR__) . '/backend/queridometro.php';
+                    resetQueridometroDaLiga($pdo, $league);
+                } catch (Throwable $e) {
+                    error_log('[finalize_sprint] reset queridometro: ' . $e->getMessage());
+                }
+
                 // Punições e avisos (FBA SERASA) também zeram a cada sprint nova —
                 // ninguém deveria começar a sprint carregando bagagem da anterior.
                 // (resetPunicoesEAvisosDaLiga apaga de vez o histórico de

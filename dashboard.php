@@ -103,19 +103,19 @@ if ($precisaRevisarSprint) {
 // primeiro bloco da página. Ver backend/pendencias.php.
 $pendencias = pendenciasDoGm($pdo, $user, $team ?: null);
 
-// Queridômetro semanal da liga: MVP, MIP, Air Ball, Cobra e Planta, votados
-// pelos próprios GMs. Popup de voto só aparece quando o time ainda não votou
-// nesta semana (o placar acumula até o avanço de temporada zerar tudo).
+// Queridômetro da temporada: MVP, MIP, Air Ball, Cobra e Planta, votados
+// pelos próprios GMs. É um voto por temporada: o popup aparece uma vez só e
+// tanto o voto quanto o placar zeram quando a temporada vira.
 $queridoLeague = '';
-$queridoWeekKey = '';
+$queridoSeasonKey = '';
 $precisaVotarQuerido = false;
 $queridoTimes = [];
 $queridoTop3 = [];
 if ($team) {
     ensureQuerdometroTable($pdo);
     $queridoLeague = strtoupper((string)($team['league'] ?? ''));
-    $queridoWeekKey = queridometroWeekKey();
-    $precisaVotarQuerido = $queridoLeague !== '' && !queridometroJaVotou($pdo, $queridoLeague, (int)$team['id'], $queridoWeekKey);
+    $queridoSeasonKey = $queridoLeague !== '' ? queridometroSeasonKey($pdo, $queridoLeague) : '';
+    $precisaVotarQuerido = $queridoLeague !== '' && !queridometroJaVotou($pdo, $queridoLeague, (int)$team['id'], $queridoSeasonKey);
     // O voto é no GM, não no time — id continua sendo o do time (é o que vai
     // pro banco), mas o que aparece pra escolher é o dono dele.
     $stmtQTimes = $pdo->prepare("
@@ -127,7 +127,7 @@ if ($team) {
     ");
     $stmtQTimes->execute([$queridoLeague, (int)$team['id']]);
     $queridoTimes = $stmtQTimes->fetchAll(PDO::FETCH_ASSOC);
-    $queridoTop3 = queridometroTop3($pdo, $queridoLeague);
+    $queridoTop3 = queridometroTop3($pdo, $queridoLeague, $queridoSeasonKey);
 }
 // A revisão de sprint é bloqueante — enquanto ela não sai da tela, o popup
 // do Queridômetro espera o próximo carregamento (mesma regra da logo/elenco acima).
@@ -2866,7 +2866,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 <?php endif; ?>
 
 <?php if ($team && $queridoLeague !== ''): ?>
-<!-- ── Queridômetro: popup de voto semanal ── -->
+<!-- ── Queridômetro: popup de voto da temporada ── -->
 <div class="quer-overlay" id="queridoOverlay" role="dialog" aria-modal="true" aria-labelledby="queridoTitle" style="display:none">
   <div class="quer-box">
     <button type="button" class="quer-close" id="queridoClose" aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
@@ -2876,7 +2876,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
     </div>
 
     <?php if ($precisaVotarQuerido): ?>
-    <p class="quer-sub">Escolha um GM diferente pra cada categoria — não dá pra repetir nem votar em você mesmo. O placar acumula a temporada inteira.</p>
+    <p class="quer-sub">Escolha um GM diferente pra cada categoria — não dá pra repetir nem votar em você mesmo. É um voto por temporada, então escolha com calma.</p>
     <div>
       <?php foreach (queridometroCategorias() as $catKey => $catLabel): ?>
       <div class="quer-field">
@@ -2902,7 +2902,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
     <?php else: ?>
     <div class="quer-ok">
       <i class="bi bi-check-circle-fill"></i>
-      <p class="quer-sub" style="margin-top:0">Você já votou essa semana. O placar no card mostra o Top 3 de cada categoria — volta semana que vem pra votar de novo!</p>
+      <p class="quer-sub" style="margin-top:0">Você já votou nesta temporada. O placar no card mostra o Top 3 de cada categoria — o voto reabre quando a temporada virar.</p>
     </div>
     <?php endif; ?>
   </div>
@@ -2923,7 +2923,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 
   // Placar ao vivo: atualiza o Top 3 do card sozinho conforme os votos vão
   // chegando, sem precisar recarregar a página. Roda pra todo mundo, tenha
-  // ou não votado essa semana.
+  // ou não votado nesta temporada.
   function queridoEscapeHtml(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -3007,7 +3007,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
       }
     });
 
-    // Popup automático ao entrar — só quando o time ainda não votou essa semana.
+    // Popup automático ao entrar — uma vez por temporada, até o time votar.
     window.queridoAbrirModal();
   }
 })();
