@@ -2,6 +2,44 @@
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/auth.php';
+require_once __DIR__ . '/../backend/salary_cap.php';
+
+/**
+ * Resumo da folha pro "Copiar Time" — só nas ligas em salary cap.
+ * Retorna null nas ligas de Top 8 (aí o copiar segue com cap_top8) e também
+ * quando algo falha: notícia de cap não pode derrubar a listagem de times.
+ */
+function teamSalarySummaryForCopy(PDO $pdo, int $teamId, string $league): ?array
+{
+    static $modoPorLiga = [];
+    $league = strtoupper($league);
+    if ($league === '') return null;
+
+    if (!array_key_exists($league, $modoPorLiga)) {
+        try {
+            $st = $pdo->prepare('SELECT cap_mode FROM league_settings WHERE league = ?');
+            $st->execute([$league]);
+            $modoPorLiga[$league] = ($st->fetchColumn() ?: 'ovr_sum') === 'salary';
+        } catch (Throwable $e) {
+            $modoPorLiga[$league] = false;
+        }
+    }
+    if (!$modoPorLiga[$league]) return null;
+
+    try {
+        $s = getTeamCapSummary($pdo, $teamId);
+        return [
+            'payroll'   => (int)$s['payroll'],
+            'cap_max'   => (int)$s['cap_max'],
+            'cap_floor' => (int)$s['cap_floor'],
+            'space'     => (int)$s['space'],
+            'status'    => $s['status'],
+        ];
+    } catch (Throwable $e) {
+        error_log('[team.php salary] team_id=' . $teamId . ' ' . $e->getMessage());
+        return null;
+    }
+}
 
 $pdo = db();
 $method = $_SERVER['REQUEST_METHOD'];
@@ -690,6 +728,9 @@ if ($method === 'GET') {
 
     foreach ($teams as &$team) {
         $team['cap_top8'] = topEightCap($pdo, (int) $team['id']);
+        // Ligas no salary cap (ELITE) precisam da folha pro "Copiar Time" —
+        // sem isso ele mostraria a soma de OVR do Top 8, que lá não vale nada.
+        $team['salary'] = teamSalarySummaryForCopy($pdo, (int) $team['id'], (string)($team['league'] ?? ''));
         $rawPhone = $team['owner_phone'] ?? '';
         $normalizedPhone = $rawPhone !== '' ? normalizeBrazilianPhone($rawPhone) : null;
         if (!$normalizedPhone && $rawPhone !== '') {

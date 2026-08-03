@@ -1107,8 +1107,27 @@ if ($teamId) {
         maxTrades: <?= (int)$maxTradesCopy ?>,
         customHeader: <?= json_encode($team['custom_header'] ?? '') ?>,
         useCustomHeader: <?= !empty($team['use_custom_header']) ? 'true' : 'false' ?>,
-        league: <?= json_encode($team['league'] ?? '') ?>
+        league: <?= json_encode($team['league'] ?? '') ?>,
+        // Liga no salary cap (ELITE) copia a folha, não a soma de OVR do Top 8.
+        salary: <?= ($salaryCapMode && $salCap) ? json_encode([
+            'payroll'   => (int)$salCap['payroll'],
+            'cap_max'   => (int)$salCap['cap_max'],
+            'cap_floor' => (int)$salCap['cap_floor'],
+            'space'     => (int)$salCap['space'],
+            'status'    => $salCap['status'],
+        ]) : 'null' ?>
     };
+
+    /** Linha do CAP no texto copiado — salary cap na ELITE, Top 8 nas demais. */
+    function _linhaCap(meta) {
+        if (!meta.salary) return `_CAP_: ${meta.capMin} / *${meta.cap}* / ${meta.capMax}`;
+        const s = meta.salary;
+        const rotulo = s.status === 'over_the_cap' ? 'acima do teto'
+                     : s.status === 'abaixo_do_piso' ? 'abaixo do piso'
+                     : 'dentro do cap';
+        const sobra = s.space >= 0 ? `${s.space}M livres` : `${Math.abs(s.space)}M acima`;
+        return `_Salary Cap_: *${s.payroll}M* / ${s.cap_max}M — ${sobra} (${rotulo})`;
+    }
 
     function _buildSummary(mode) {
         // mode: 'team' = completo com picks | 'roster' = só titular+banco+CAP
@@ -1140,9 +1159,9 @@ if ($teamId) {
             const r1 = _picksData.filter(pk => pk.round == 1).map(pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''} `);
             const r2 = _picksData.filter(pk => pk.round == 2).map(pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''} `);
             lines.push('_Picks 1º round_:', ...(r1.length ? r1 : ['-']), '', '_Picks 2º round_:', ...(r2.length ? r2 : ['-']), '');
-            lines.push(`_CAP_: ${_teamMeta.capMin} / *${_teamMeta.cap}* / ${_teamMeta.capMax}`, `_Trades_: ${_teamMeta.trades} / ${_teamMeta.maxTrades}`);
+            lines.push(_linhaCap(_teamMeta), `_Trades_: ${_teamMeta.trades} / ${_teamMeta.maxTrades}`);
         } else {
-            lines.push(`_CAP_: ${_teamMeta.capMin} / *${_teamMeta.cap}* / ${_teamMeta.capMax}`);
+            lines.push(_linhaCap(_teamMeta));
         }
         return lines.join('\n');
     }

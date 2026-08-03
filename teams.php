@@ -1849,6 +1849,17 @@ function getSerasaScore(int $avisos): array {
     }
 
     /* ── Copiar Time ────────────────────────────────── */
+    /** Linha do CAP no texto copiado — salary cap na ELITE, Top 8 nas demais. */
+    function linhaCapCopiar(teamInfo) {
+        const s = teamInfo.salary;
+        if (!s) return `_CAP_: ${leagueCapMin} / *${teamInfo.cap_top8??0}* / ${leagueCapMax}`;
+        const rotulo = s.status === 'over_the_cap' ? 'acima do teto'
+                     : s.status === 'abaixo_do_piso' ? 'abaixo do piso'
+                     : 'dentro do cap';
+        const sobra = s.space >= 0 ? `${s.space}M livres` : `${Math.abs(s.space)}M acima`;
+        return `_Salary Cap_: *${s.payroll}M* / ${s.cap_max}M — ${sobra} (${rotulo})`;
+    }
+
     async function copiarTime(teamId, teamName) {
         try {
             const [teamRes, playersRes, picksRes] = await Promise.all([
@@ -1896,7 +1907,7 @@ function getSerasaScore(int $avisos): array {
                 '_G-League_', ...(gleague.length ? gleague.map(p => `${p.position}: ${p.name} - ${p.ovr??'-'} | ${fmt(p.age)}`) : ['-']), '',
                 '_Picks 1° round_:', ...(r1.length ? r1 : ['-']), '',
                 '_Picks 2° round_:', ...(r2.length ? r2 : ['-']), '',
-                `_CAP_: ${leagueCapMin} / *${teamInfo.cap_top8??0}* / ${leagueCapMax}`,
+                linhaCapCopiar(teamInfo),
                 `_Trades_: ${teamInfo.trades_used??0} / ${leagueMaxTrades}`
             ];
 

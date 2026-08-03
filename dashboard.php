@@ -2182,8 +2182,27 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         maxTrades: <?= (int)$maxTrades ?>,
         customHeader: <?= json_encode($team['custom_header'] ?? '') ?>,
         useCustomHeader: <?= !empty($team['use_custom_header']) ? 'true' : 'false' ?>,
-        league: <?= json_encode($team['league'] ?? '') ?>
+        league: <?= json_encode($team['league'] ?? '') ?>,
+        // Liga no salary cap (ELITE) copia a folha, não a soma de OVR do Top 8.
+        salary: <?= ($salaryCapMode && $salCap) ? json_encode([
+            'payroll'   => (int)$salCap['payroll'],
+            'cap_max'   => (int)$salCap['cap_max'],
+            'cap_floor' => (int)$salCap['cap_floor'],
+            'space'     => (int)$salCap['space'],
+            'status'    => $salCap['status'],
+        ]) : 'null' ?>
     };
+
+    /** Linha do CAP no texto copiado — salary cap na ELITE, Top 8 nas demais. */
+    function linhaCap(meta) {
+        if (!meta.salary) return `_CAP_: ${meta.capMin} / *${meta.cap}* / ${meta.capMax}`;
+        const s = meta.salary;
+        const rotulo = s.status === 'over_the_cap' ? 'acima do teto'
+                     : s.status === 'abaixo_do_piso' ? 'abaixo do piso'
+                     : 'dentro do cap';
+        const sobra = s.space >= 0 ? `${s.space}M livres` : `${Math.abs(s.space)}M acima`;
+        return `_Salary Cap_: *${s.payroll}M* / ${s.cap_max}M — ${sobra} (${rotulo})`;
+    }
 
     function buildTeamSummary() {
         const positions = ['PG','SG','SF','PF','C'];
@@ -2216,7 +2235,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         lines.push(
             '_Picks 1º round_:', ...(r1.length ? r1 : ['-']), '',
             '_Picks 2º round_:', ...(r2.length ? r2 : ['-']), '',
-            `_CAP_: ${teamMeta.capMin} / *${teamMeta.cap}* / ${teamMeta.capMax}`,
+            linhaCap(teamMeta),
             `_Trades_: ${teamMeta.trades} / ${teamMeta.maxTrades}`
         );
         return lines.join('\n');
