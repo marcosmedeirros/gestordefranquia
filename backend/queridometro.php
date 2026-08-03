@@ -55,18 +55,24 @@ function queridometroJaVotou(PDO $pdo, string $league, int $teamId, ?string $wee
     return (bool)$stmt->fetchColumn();
 }
 
-/** Top 3 (time + total de votos) de cada categoria, acumulado desde o último reset. */
+/**
+ * Top 3 (GM + total de votos) de cada categoria, acumulado desde o último
+ * reset. O voto é registrado no time (voted_team_id), mas exibido no GM dono
+ * dele — se o time trocar de dono, o placar já acumulado passa a contar pro
+ * dono atual, sem precisar migrar voto nenhum.
+ */
 function queridometroTop3(PDO $pdo, string $league): array
 {
     $out = [];
     foreach (array_keys(queridometroCategorias()) as $cat) {
         $stmt = $pdo->prepare("
-            SELECT t.id, t.name, t.city, t.photo_url, COUNT(*) AS votos
+            SELECT u.id, u.name, u.photo_url, COUNT(*) AS votos
             FROM querido_votos v
             INNER JOIN teams t ON t.id = v.voted_team_id
+            INNER JOIN users u ON u.id = t.user_id
             WHERE v.league = ? AND v.category = ?
-            GROUP BY t.id, t.name, t.city, t.photo_url
-            ORDER BY votos DESC, t.city ASC
+            GROUP BY u.id, u.name, u.photo_url
+            ORDER BY votos DESC, u.name ASC
             LIMIT 3
         ");
         $stmt->execute([$league, $cat]);

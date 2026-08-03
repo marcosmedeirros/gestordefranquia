@@ -42,7 +42,15 @@ if ($method === 'GET') {
         $weekKey = queridometroWeekKey();
         $jaVotou = queridometroJaVotou($pdo, $league, $myTeamId, $weekKey);
 
-        $stmtTimes = $pdo->prepare("SELECT id, name, city, photo_url FROM teams WHERE league = ? AND id != ? ORDER BY city, name");
+        // O voto é no GM, não no time — id continua sendo o do time (é o que
+        // fica gravado), mas o nome/foto exibidos são os do dono dele.
+        $stmtTimes = $pdo->prepare("
+            SELECT t.id, u.name, u.photo_url
+            FROM teams t
+            INNER JOIN users u ON u.id = t.user_id
+            WHERE t.league = ? AND t.id != ?
+            ORDER BY u.name
+        ");
         $stmtTimes->execute([$league, $myTeamId]);
         $times = $stmtTimes->fetchAll(PDO::FETCH_ASSOC);
 
@@ -83,17 +91,17 @@ if ($method === 'POST') {
             $teamId = (int)($votos[$cat] ?? 0);
             if (!$teamId) {
                 http_response_code(422);
-                echo json_encode(['success' => false, 'error' => 'Escolha um time pra todas as categorias.']);
+                echo json_encode(['success' => false, 'error' => 'Escolha um GM pra todas as categorias.']);
                 exit;
             }
             if ($teamId === $myTeamId) {
                 http_response_code(422);
-                echo json_encode(['success' => false, 'error' => 'Você não pode votar no seu próprio time.']);
+                echo json_encode(['success' => false, 'error' => 'Você não pode votar em você mesmo.']);
                 exit;
             }
             if (in_array($teamId, $escolhidos, true)) {
                 http_response_code(422);
-                echo json_encode(['success' => false, 'error' => 'Não dá pra escolher o mesmo time em duas categorias.']);
+                echo json_encode(['success' => false, 'error' => 'Não dá pra escolher o mesmo GM em duas categorias.']);
                 exit;
             }
             $escolhidos[] = $teamId;
@@ -104,7 +112,7 @@ if ($method === 'POST') {
         $stmtCheck->execute([...$escolhidos, $league]);
         if ((int)$stmtCheck->fetchColumn() !== count($escolhidos)) {
             http_response_code(422);
-            echo json_encode(['success' => false, 'error' => 'Time inválido.']);
+            echo json_encode(['success' => false, 'error' => 'GM inválido.']);
             exit;
         }
 

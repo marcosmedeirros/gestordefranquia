@@ -116,7 +116,15 @@ if ($team) {
     $queridoLeague = strtoupper((string)($team['league'] ?? ''));
     $queridoWeekKey = queridometroWeekKey();
     $precisaVotarQuerido = $queridoLeague !== '' && !queridometroJaVotou($pdo, $queridoLeague, (int)$team['id'], $queridoWeekKey);
-    $stmtQTimes = $pdo->prepare("SELECT id, name, city, photo_url FROM teams WHERE league = ? AND id != ? ORDER BY city, name");
+    // O voto é no GM, não no time — id continua sendo o do time (é o que vai
+    // pro banco), mas o que aparece pra escolher é o dono dele.
+    $stmtQTimes = $pdo->prepare("
+        SELECT t.id, u.name, u.photo_url
+        FROM teams t
+        INNER JOIN users u ON u.id = t.user_id
+        WHERE t.league = ? AND t.id != ?
+        ORDER BY u.name
+    ");
     $stmtQTimes->execute([$queridoLeague, (int)$team['id']]);
     $queridoTimes = $stmtQTimes->fetchAll(PDO::FETCH_ASSOC);
     $queridoTop3 = queridometroTop3($pdo, $queridoLeague);
@@ -1690,8 +1698,8 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                                     <span class="querido-vazio">Sem votos ainda essa temporada</span>
                                     <?php else: foreach ($top as $tt): ?>
                                     <div class="querido-chip">
-                                        <img src="<?= htmlspecialchars(getTeamPhoto($tt['photo_url'] ?? null)) ?>" alt="" onerror="this.src='/img/default-team.png'">
-                                        <span class="querido-nome"><?= htmlspecialchars(trim(($tt['city'] ?? '') . ' ' . ($tt['name'] ?? ''))) ?></span>
+                                        <img src="<?= htmlspecialchars(getUserPhoto($tt['photo_url'] ?? null)) ?>" alt="" onerror="this.src='/img/default-avatar.png'">
+                                        <span class="querido-nome"><?= htmlspecialchars((string)($tt['name'] ?? '')) ?></span>
                                         <span class="querido-votos"><?= (int)$tt['votos'] ?></span>
                                     </div>
                                     <?php endforeach; endif; ?>
@@ -2853,15 +2861,15 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
     </div>
 
     <?php if ($precisaVotarQuerido): ?>
-    <p class="quer-sub">Escolha um time diferente pra cada categoria — não dá pra repetir nem votar no seu próprio time. O placar acumula a temporada inteira.</p>
+    <p class="quer-sub">Escolha um GM diferente pra cada categoria — não dá pra repetir nem votar em você mesmo. O placar acumula a temporada inteira.</p>
     <div>
       <?php foreach (queridometroCategorias() as $catKey => $catLabel): ?>
       <div class="quer-field">
         <label for="quer-<?= $catKey ?>"><?= htmlspecialchars($catLabel) ?></label>
         <select id="quer-<?= $catKey ?>" data-cat="<?= $catKey ?>">
-          <option value="">Escolha um time...</option>
+          <option value="">Escolha um GM...</option>
           <?php foreach ($queridoTimes as $tt): ?>
-          <option value="<?= (int)$tt['id'] ?>"><?= htmlspecialchars(trim(($tt['city'] ?? '') . ' ' . ($tt['name'] ?? ''))) ?></option>
+          <option value="<?= (int)$tt['id'] ?>"><?= htmlspecialchars((string)($tt['name'] ?? '')) ?></option>
           <?php endforeach; ?>
         </select>
       </div>
@@ -2908,10 +2916,10 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
       return;
     }
     el.innerHTML = lista.map(t => {
-      const nome = queridoEscapeHtml(((t.city || '') + ' ' + (t.name || '')).trim());
-      const foto = t.photo_url && String(t.photo_url).trim() !== '' ? t.photo_url : '/img/default-team.png';
+      const nome = queridoEscapeHtml((t.name || '').trim());
+      const foto = t.photo_url && String(t.photo_url).trim() !== '' ? t.photo_url : '/img/default-avatar.png';
       return '<div class="querido-chip">'
-        + '<img src="' + queridoEscapeHtml(foto) + '" alt="" onerror="this.src=\'/img/default-team.png\'">'
+        + '<img src="' + queridoEscapeHtml(foto) + '" alt="" onerror="this.src=\'/img/default-avatar.png\'">'
         + '<span class="querido-nome">' + nome + '</span>'
         + '<span class="querido-votos">' + (parseInt(t.votos, 10) || 0) + '</span>'
         + '</div>';
@@ -2953,7 +2961,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
       for (const c of categorias) {
         const v = document.getElementById('quer-' + c)?.value;
         if (!v) {
-          erro.textContent = 'Escolha um time pra todas as categorias.';
+          erro.textContent = 'Escolha um GM pra todas as categorias.';
           erro.style.display = 'block';
           return;
         }
