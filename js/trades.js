@@ -128,9 +128,20 @@ const formatTradePickDisplay = (pick) => {
     ? `Escolha ${pickNumber}${originalTeam ? ` (${originalTeam})` : ''}${hasYearRound ? ` - ${year} R${round}` : ''}`
     : `Pick ${year} R${round}${originalTeam ? ` (${originalTeam})` : ''}`;
 
-  const swapTag = pick.swap_type || (['SB','SW'].includes(pick.protection) ? pick.protection : null);
+  // Escapa a parte textual (nome de time pode ter caractere especial) ANTES
+  // de colar o selo — todo chamador desta função escapava a string INTEIRA
+  // depois, o que também escapava a tag <span> do selo e fazia ele aparecer
+  // como texto cru "<span...>SB</span>" em vez de renderizar. Escapando aqui
+  // dentro e devolvendo HTML de confiança, os chamadores não escapam mais.
+  display = esc(display);
+
+  // pick.swap_type só existe depois que a trade é ACEITA (é quando o servidor
+  // grava o vínculo na tabela picks). Enquanto pendente, o SB/SW proposto vem
+  // em pending_swap_role — sem esse fallback a pick aparecia sem etiqueta
+  // nenhuma pra quem estava decidindo se aceitava o swap ou não.
+  const swapTag = pick.swap_type || pick.pending_swap_role || (['SB','SW'].includes(pick.protection) ? pick.protection : null);
   if (swapTag) {
-    display += ` <span class="badge bg-secondary ms-1">${swapTag}</span>`;
+    display += ` <span class="badge bg-secondary ms-1">${esc(swapTag)}</span>`;
   }
 
   return display;
@@ -148,7 +159,11 @@ const formatTradePickPlain = (pick) => {
   let display = (pickNumber && isCurrentDraft)
     ? `Escolha ${pickNumber}${originalTeam ? ` (${originalTeam})` : ''}${year !== '?' && round !== '?' ? ` - ${year} R${round}` : ''}`
     : `Pick ${year} R${round}${originalTeam ? ` (${originalTeam})` : ''}`;
-  const swapTag = pick.swap_type || (['SB','SW'].includes(pick.protection) ? pick.protection : null);
+  // pick.swap_type só existe depois que a trade é ACEITA (é quando o servidor
+  // grava o vínculo na tabela picks). Enquanto pendente, o SB/SW proposto vem
+  // em pending_swap_role — sem esse fallback a pick aparecia sem etiqueta
+  // nenhuma pra quem estava decidindo se aceitava o swap ou não.
+  const swapTag = pick.swap_type || pick.pending_swap_role || (['SB','SW'].includes(pick.protection) ? pick.protection : null);
   if (swapTag) display += ` ${swapTag}`;
   return display;
 };
@@ -1784,7 +1799,7 @@ function createMultiTradeCard(trade, type) {
           if (item.player_id || item.player_name) {
             detail = esc(formatTradePlayerDisplay({ name: item.player_name, position: item.player_position, age: item.player_age, ovr: item.player_ovr }));
           } else if (item.pick_id) {
-            detail = esc(formatTradePickDisplay(item));
+            detail = formatTradePickDisplay(item);
           }
           const fromLabel = teamMap[String(item.from_team_id)];
           const fromHtml = fromLabel
@@ -1972,7 +1987,7 @@ function createTradeCard(trade, type) {
         <div class="tc-side-title">${fromTeam} oferece</div>
         <ul class="list-unstyled mb-0">
           ${trade.offer_players.map(p => `<li class="tc-item"><i class="bi bi-person-fill" style="color:var(--red)"></i>${esc(formatTradePlayerDisplay(p))}</li>`).join('')}
-          ${trade.offer_picks.map(p => `<li class="tc-item"><i class="bi bi-trophy-fill" style="color:var(--red)"></i>${esc(formatTradePickDisplay(p))}</li>`).join('')}
+          ${trade.offer_picks.map(p => `<li class="tc-item"><i class="bi bi-trophy-fill" style="color:var(--red)"></i>${formatTradePickDisplay(p)}</li>`).join('')}
           ${(trade.offer_players.length === 0 && trade.offer_picks.length === 0) ? '<li style="color:var(--text-3);font-size:13px">Nenhum item</li>' : ''}
         </ul>
       </div>
@@ -1980,7 +1995,7 @@ function createTradeCard(trade, type) {
         <div class="tc-side-title">${toTeam} envia</div>
         <ul class="list-unstyled mb-0">
           ${trade.request_players.map(p => `<li class="tc-item"><i class="bi bi-person-fill" style="color:var(--red)"></i>${esc(formatTradePlayerDisplay(p))}</li>`).join('')}
-          ${trade.request_picks.map(p => `<li class="tc-item"><i class="bi bi-trophy-fill" style="color:var(--red)"></i>${esc(formatTradePickDisplay(p))}</li>`).join('')}
+          ${trade.request_picks.map(p => `<li class="tc-item"><i class="bi bi-trophy-fill" style="color:var(--red)"></i>${formatTradePickDisplay(p)}</li>`).join('')}
           ${(trade.request_players.length === 0 && trade.request_picks.length === 0) ? '<li style="color:var(--text-3);font-size:13px">Nenhum item</li>' : ''}
         </ul>
       </div>

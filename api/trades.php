@@ -1855,11 +1855,18 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
         }
 
         try {
+            // ti.pick_swap_role vem preenchido desde a CRIAÇÃO da proposta — é o
+            // que faz o SB/SW aparecer enquanto a trade ainda está pendente.
+            // pk.swap_type só é gravado na tabela picks no ACEITE (ver o bloco de
+            // 'accepted' mais abaixo), então sem esse fallback a pick aparecia sem
+            // nenhuma etiqueta pra quem estava decidindo se aceitava o swap ou não.
             $stmtOfferPicks = $pdo->prepare('
-                SELECT pk.*, 
+                SELECT pk.*,
                        t.city as original_team_city, t.name as original_team_name,
                        lo.city as last_owner_city, lo.name as last_owner_name,
-                       ti.pick_protection
+                       ti.pick_protection,
+                       ti.pick_swap_role AS pending_swap_role,
+                       ti.pick_swap_pair_id AS pending_swap_pair_id
                 FROM picks pk
                 JOIN trade_items ti ON pk.id = ti.pick_id
                 JOIN teams t ON pk.original_team_id = t.id
@@ -1894,10 +1901,12 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
 
         try {
             $stmtRequestPicks = $pdo->prepare('
-                SELECT pk.*, 
+                SELECT pk.*,
                        t.city as original_team_city, t.name as original_team_name,
                        lo.city as last_owner_city, lo.name as last_owner_name,
-                       ti.pick_protection
+                       ti.pick_protection,
+                       ti.pick_swap_role AS pending_swap_role,
+                       ti.pick_swap_pair_id AS pending_swap_pair_id
                 FROM picks pk
                 JOIN trade_items ti ON pk.id = ti.pick_id
                 JOIN teams t ON pk.original_team_id = t.id
