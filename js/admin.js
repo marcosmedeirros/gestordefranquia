@@ -3687,6 +3687,11 @@ function addPlayer(teamId) {
 <option value="Banco" selected>Banco</option>
 <option value="Outro">Outro</option>
 <option value="G-League">G-League</option></select></div>
+<div class="mb-3 p-3 rounded" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25)">
+<div class="form-check form-switch">
+<input class="form-check-input" type="checkbox" role="switch" id="addPlayerLoyal">
+<label class="form-check-label" for="addPlayerLoyal" style="color:#3b82f6;font-weight:600">🤝 Leal</label></div>
+<small class="text-light-gray d-block mt-1">Jogador cadastrado direto não passa por draft, então a lealdade não tem como ser calculada — marque aqui se ele deve contar como leal.</small></div>
 </div>
 <div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
 <button type="button" class="btn btn-orange" onclick="saveNewPlayer(${teamId})">Adicionar</button></div></div></div>`;
@@ -3704,7 +3709,8 @@ async function saveNewPlayer(teamId) {
     secondary_position: document.getElementById('addPlayerSecondaryPosition').value || null,
     age: parseInt(document.getElementById('addPlayerAge').value),
     ovr: parseInt(document.getElementById('addPlayerOvr').value),
-    role: document.getElementById('addPlayerRole').value
+    role: document.getElementById('addPlayerRole').value,
+    loyal_override: document.getElementById('addPlayerLoyal')?.checked ? 1 : 0
   };
   
   if (!data.name || !data.position) {

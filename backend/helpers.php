@@ -377,14 +377,20 @@ function ensurePlayerRestrictionColumns(PDO $pdo): void
  * (salary_cap.php).
  *
  * draft_pool é exclusivo do draft normal/recorrente — o Draft Inicial grava
- * em initdraft_pool, uma tabela separada, então um jogador vindo de lá nunca
- * casa aqui e corretamente não é leal. O mesmo vale pra quem entrou por Free
- * Agency ou waiver: só o draft normal confere lealdade.
+ * em initdraft_pool, uma tabela separada, então em teoria um jogador vindo de
+ * lá nunca bateria aqui. Na prática, como o pool usa nomes de jogadores reais
+ * da NBA, dava pra um jogador do Draft Inicial coincidir por nome+time com uma
+ * entrada de draft_pool de outra temporada e ser marcado leal por engano (o
+ * bug do "um dia é leal, no outro não"). Por isso performInitDraftPick()
+ * agora grava loyal_override=0 direto na pick, sem depender desse match por
+ * nome. O mesmo vale pra quem entrou por Free Agency ou waiver: só o draft
+ * normal confere lealdade automaticamente.
  *
- * O admin pode sobrepor essa conta manualmente (checkbox "Leal" na edição do
- * jogador, players.loyal_override) — quando setado, vale por cima da regra
- * automática pra is_loyal, mas cap_bonus_eligible continua exigindo OVR>=90
- * mesmo assim (o override muda quem é "leal", não a régua do bônus em si).
+ * O admin (ou o próprio GM, ao cadastrar um jogador direto) pode sobrepor
+ * essa conta manualmente (checkbox "Leal", players.loyal_override) — quando
+ * setado, vale por cima da regra automática pra is_loyal, mas nunca sobrevive
+ * a uma troca (ver notTraded abaixo), e cap_bonus_eligible continua exigindo
+ * OVR>=90 mesmo assim (o override muda quem é "leal", não a régua do bônus).
  *
  * Espera que cada item tenha pelo menos id, team_id, name, ovr, was_traded.
  */
@@ -433,8 +439,10 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
         $fromNormalDraft = isset($seasonDraftPairs[$key]);
         $autoLoyal = $notTraded && $fromNormalDraft;
 
+        // Mesmo um override "leal" não sobrevive a uma troca — lealdade sempre
+        // vale "até ser trocado", venha ela da regra automática ou do check manual.
         $pid = (int)($p['id'] ?? 0);
-        $isLoyal = array_key_exists($pid, $overrides) ? ($overrides[$pid] === 1) : $autoLoyal;
+        $isLoyal = array_key_exists($pid, $overrides) ? ($overrides[$pid] === 1 && $notTraded) : $autoLoyal;
 
         $p['is_loyal'] = $isLoyal ? 1 : 0;
         $p['cap_bonus_eligible'] = ($isLoyal && $highOvr) ? 1 : 0;

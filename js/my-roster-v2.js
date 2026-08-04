@@ -1270,7 +1270,8 @@ document.addEventListener('DOMContentLoaded', () => {
       secondary_position: (formData.get('secondary_position') || '').toString().trim() || null,
       role: (formData.get('role') || 'Titular').toString(),
       ovr: parseInt(formData.get('ovr') || '0', 10),
-      available_for_trade: formData.get('available_for_trade') ? 1 : 0
+      available_for_trade: formData.get('available_for_trade') ? 1 : 0,
+      loyal_override: formData.get('loyal') ? 1 : 0
     };
 
     if (!payload.name || !payload.age || !payload.position || !payload.ovr) {

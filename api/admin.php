@@ -2170,6 +2170,16 @@ if ($method === 'POST') {
                 $values[] = 0;
             }
 
+            // Jogador cadastrado direto (sem passar por draft nenhum): a lealdade
+            // não tem como ser calculada automaticamente, então depende do check
+            // "Leal" do formulário — padrão é não.
+            ensurePlayerRestrictionColumns($pdo);
+            if (columnExists($pdo, 'players', 'loyal_override')) {
+                $columns[] = 'loyal_override';
+                $loyalOnAdd = $data['loyal_override'] ?? null;
+                $values[] = ($loyalOnAdd === 1 || $loyalOnAdd === '1' || $loyalOnAdd === true) ? 1 : 0;
+            }
+
             $columnList = implode(', ', array_map(static fn($col) => "`{$col}`", $columns));
             $placeholders = implode(', ', array_fill(0, count($columns), '?'));
 
@@ -2181,7 +2191,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Erro ao adicionar jogador']);
                 exit;
             }
-            
+
             $newPlayerId = $pdo->lastInsertId();
             echo json_encode(['success' => true, 'player_id' => $newPlayerId]);
             break;

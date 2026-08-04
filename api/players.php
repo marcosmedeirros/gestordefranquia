@@ -441,6 +441,9 @@ if ($method === 'POST') {
     $role = $body['role'] ?? 'Titular';
     $ovr = (int) ($body['ovr'] ?? 0);
     $availableForTrade = isset($body['available_for_trade']) ? (int) ((bool) $body['available_for_trade']) : 0;
+    // Cadastro direto não passa por draft, então a lealdade não tem como ser
+    // calculada automaticamente — depende do check "Leal" do formulário, padrão não.
+    $loyalOverrideOnAdd = !empty($body['loyal_override']) ? 1 : 0;
 
     if (!$teamId || $name === '' || !$age || $position === '' || !$ovr) {
         jsonResponse(422, ['error' => 'Campos obrigatórios: team_id, nome, idade, posição, ovr.']);
@@ -493,8 +496,8 @@ if ($method === 'POST') {
         $warnings[] = 'CAP acima do limite recomendado (' . $prospectiveCap . ' / ' . $capMaxAdjusted . ').';
     }
 
-    $stmt = $pdo->prepare('INSERT INTO players (team_id, name, age, position, role, ovr, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    $stmt->execute([$teamId, $name, $age, $position, $role, $ovr, $availableForTrade]);
+    $stmt = $pdo->prepare('INSERT INTO players (team_id, name, age, position, role, ovr, available_for_trade, loyal_override) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$teamId, $name, $age, $position, $role, $ovr, $availableForTrade, $loyalOverrideOnAdd]);
 
     $newCap = topEightCap($pdo, $teamId);
     $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, $teamId, (int)$config['app']['cap_max']);
