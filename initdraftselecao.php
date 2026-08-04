@@ -618,7 +618,12 @@ if ($user && isset($user['id'])) {
             <div class="panel-card">
                 <div class="panel-card-head">
                     <div class="panel-card-title"><i class="bi bi-people-fill" style="color:var(--red);margin-right:6px"></i>Pool de Jogadores</div>
-                    <span style="font-size:11px;color:var(--text-2)" id="poolMeta"></span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span style="font-size:11px;color:var(--text-2)" id="poolMeta"></span>
+                        <button class="btn-ghost" onclick="baixarPoolCSV()" title="Baixar a lista completa em CSV pra montar sua planilha">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> CSV
+                        </button>
+                    </div>
                 </div>
                 <div class="panel-card-body">
                     <input type="text" id="poolSearch" class="search-input mb-3" placeholder="Buscar jogador por nome…">
@@ -653,6 +658,9 @@ if ($user && isset($user['id'])) {
             <div class="panel-card">
                 <div class="panel-card-head">
                     <div class="panel-card-title"><i class="bi bi-list-ol" style="color:var(--red);margin-right:6px"></i>Ordem do Draft (Snake)</div>
+                    <button class="btn-ghost" id="copiarEscolhasBtn" onclick="copiarEscolhas(this)" title="Copiar as escolhas que já saíram, separadas por rodada">
+                        <i class="bi bi-clipboard"></i> Copiar escolhas
+                    </button>
                 </div>
                 <div class="panel-card-body">
                     <div id="snakeBoard" style="max-height:720px;overflow-y:auto"><div class="state-empty"><i class="bi bi-hourglass-split"></i><p>Carregando…</p></div></div>
@@ -1791,6 +1799,106 @@ if ($user && isset($user['id'])) {
          * Esvazia o pool inteiro — serve pra recomeçar quando o CSV veio errado.
          * Pede o total digitado na confirmação: é destrutivo e não dá pra desfazer.
          */
+        /**
+         * Baixa o pool inteiro em CSV, pra quem quiser montar a própria
+         * planilha de rankings. Sai a lista TODA — não o filtro da tela —
+         * porque o objetivo é ter a base completa pra trabalhar em casa.
+         */
+        function baixarPoolCSV() {
+            const pool = state.pool || [];
+            if (!pool.length) { alert('O pool ainda está vazio.'); return; }
+
+            // Quem levou cada jogador, pra planilha já sair com o histórico.
+            const escolhaPorJogador = {};
+            (state.order || []).forEach((p) => {
+                if (p.picked_player_id) {
+                    escolhaPorJogador[p.picked_player_id] = {
+                        time: `${p.team_city || ''} ${p.team_name || ''}`.trim(),
+                        rodada: p.round,
+                        pick: p.pick_position,
+                    };
+                }
+            });
+
+            // Aspas duplicadas e campo entre aspas: nome com vírgula ou acento
+            // quebra a planilha se sair cru.
+            const campo = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+
+            const linhas = [[
+                'Nome', 'Posicao', 'Posicao2', 'Idade', 'OVR',
+                'Status', 'Draftado por', 'Rodada', 'Pick',
+            ].join(',')];
+
+            pool.forEach((j) => {
+                const e = escolhaPorJogador[j.id] || {};
+                linhas.push([
+                    campo(j.name), campo(j.position), campo(j.secondary_position || ''),
+                    campo(j.age), campo(j.ovr),
+                    campo(j.draft_status === 'drafted' ? 'Draftado' : 'Disponivel'),
+                    campo(e.time || ''), campo(e.rodada || ''), campo(e.pick || ''),
+                ].join(','));
+            });
+
+            // BOM no começo: sem ele o Excel no Windows abre "Adebayo" como
+            // "AdebayoÌ". Escrito como ﻿ e não como o caractere literal,
+            // que é invisível e se perde em qualquer edição do arquivo.
+            const csv = '\uFEFF' + linhas.join('\r\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `draft-inicial-pool-${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        /** Copia as escolhas que já saíram, agrupadas por rodada. */
+        async function copiarEscolhas(btn) {
+            const feitas = (state.order || []).filter((p) => p.picked_player_id);
+            if (!feitas.length) { alert('Nenhuma escolha foi feita ainda.'); return; }
+
+            const porRodada = {};
+            feitas.forEach((p) => {
+                (porRodada[p.round] = porRodada[p.round] || []).push(p);
+            });
+
+            const linhas = [];
+            Object.keys(porRodada)
+                .sort((a, b) => Number(a) - Number(b))
+                .forEach((rodada) => {
+                    linhas.push(`*RODADA ${rodada}*`);
+                    porRodada[rodada]
+                        .sort((a, b) => Number(a.pick_position) - Number(b.pick_position))
+                        .forEach((p) => {
+                            const time = `${p.team_city || ''} ${p.team_name || ''}`.trim();
+                            const pos = p.player_position ? ` ${p.player_position}` : '';
+                            const ovr = p.player_ovr ? ` ${p.player_ovr}` : '';
+                            linhas.push(`${p.pick_position}. ${time} — ${p.player_name}${pos ? ' (' + pos.trim() + (ovr ? ',' + ovr : '') + ')' : ''}`);
+                        });
+                    linhas.push('');
+                });
+
+            const texto = linhas.join('\n').trim();
+            const original = btn.innerHTML;
+            try {
+                await navigator.clipboard.writeText(texto);
+            } catch (e) {
+                // Sem permissão de clipboard (http, navegador antigo).
+                const ta = document.createElement('textarea');
+                ta.value = texto;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                ta.remove();
+            }
+            btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado!';
+            setTimeout(() => { btn.innerHTML = original; }, 1800);
+        }
+
         async function clearPool() {
             const total = (state.pool || []).length;
             if (!total) { showMessage('O pool já está vazio.', 'warning'); return; }
