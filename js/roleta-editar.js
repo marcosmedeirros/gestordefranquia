@@ -213,13 +213,13 @@ function reAtualizarBotaoGirar(data) {
   if (!btn) return;
   const acabou = !!data.concluido;
 
-  // Quem não é admin da liga acompanha o sorteio, mas não gira. O servidor
-  // também barra — aqui é só pra não oferecer um botão que vai dar erro.
-  if (data.pode_girar === false) {
+  // Girar é restrito ao admin geral (nem o admin da liga pode) — o servidor
+  // também barra, aqui é só pra não oferecer um botão que vai dar erro.
+  if (!data.is_global_admin) {
     btn.disabled = true;
     btn.innerHTML = acabou
       ? '<i class="bi bi-check2-all me-1"></i>Sorteio concluído'
-      : '<i class="bi bi-eye me-1"></i>Só o admin da liga gira';
+      : '<i class="bi bi-eye me-1"></i>Só o admin geral gira';
     return;
   }
 

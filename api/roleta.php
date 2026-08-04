@@ -28,9 +28,14 @@ $user_id  = (int)$_SESSION['user_id'];
 $is_admin = hasAdminAccess($pdo, $user_id);
 
 // Ver uma roleta é livre pra quem está na liga dela — é assim que o card do
-// dashboard leva o GM até o sorteio. Criar, editar, girar, reiniciar e excluir
-// continuam restritos, e agora ao admin DAQUELA liga (não a qualquer admin).
+// dashboard leva o GM até o sorteio. Criar, editar, reiniciar e excluir
+// continuam restritos ao admin DAQUELA liga (não a qualquer admin). Girar é
+// mais restrito ainda: só o admin geral, não o admin de liga (ver ação 'girar').
 $minhasLigasAdmin = $is_admin ? array_map('strtoupper', getAdminLeagues($pdo, $user_id)) : [];
+
+$stmtGA = $pdo->prepare("SELECT user_type FROM users WHERE id = ? LIMIT 1");
+$stmtGA->execute([$user_id]);
+$isGlobalAdmin = $stmtGA->fetchColumn() === 'admin';
 
 function ensureRoletasTables(PDO $pdo): void
 {
@@ -277,10 +282,11 @@ if ($method === 'GET') {
         }
         $podeGirar = $minhasLigasAdmin && ($ligaRoleta === null || in_array($ligaRoleta, $minhasLigasAdmin, true));
         echo json_encode([
-            'success'      => true,
-            'league'       => $ligaRoleta,
-            'pode_girar'   => $podeGirar,
-            'minhas_ligas' => $podeGirar ? $minhasLigasAdmin : [],
+            'success'        => true,
+            'league'         => $ligaRoleta,
+            'pode_girar'     => $podeGirar,
+            'is_global_admin' => $isGlobalAdmin,
+            'minhas_ligas'   => $podeGirar ? $minhasLigasAdmin : [],
         ] + $estado);
         exit;
     }
@@ -529,8 +535,13 @@ if ($method === 'POST') {
             echo json_encode(['success' => false, 'error' => 'id obrigatório']);
             exit;
         }
-        // Girar é o ponto que decide a ordem do draft: só o admin da liga.
-        exigirAdminDaRoleta($pdo, $user_id, $minhasLigasAdmin, ligaDaRoleta($pdo, $id));
+        // Girar é o ponto que decide a ordem do draft: só o admin geral,
+        // nem o admin da liga pode (ao contrário das outras ações da roleta).
+        if (!$isGlobalAdmin) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Só o admin geral pode girar a roleta.']);
+            exit;
+        }
 
         $pdo->beginTransaction();
         try {
