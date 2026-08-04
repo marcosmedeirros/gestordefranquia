@@ -82,9 +82,9 @@ async function reAnimarGiroRemoto(participante, data) {
     const n = urnaNoGiro.length;
     const ang = 360 / n;
     const meio = idx * ang + ang / 2;
-    const voltas = 5;
+    const voltas = 4;
     roda.style.transform = `rotate(${voltas * 360 + (360 - meio)}deg)`;
-    await new Promise(r => setTimeout(r, 4300));
+    await new Promise(r => setTimeout(r, 1900));
   }
   reAnunciar({ pick: participante.pick_number, nome_display: participante.nome_display });
   reEstadoAtual = data;
@@ -299,9 +299,9 @@ async function reGirar() {
       const n = urnaNoGiro.length;
       const ang = 360 / n;
       const meio = idx * ang + ang / 2;
-      const voltas = 5;
+      const voltas = 4;
       roda.style.transform = `rotate(${voltas * 360 + (360 - meio)}deg)`;
-      await new Promise(r => setTimeout(r, 4300));
+      await new Promise(r => setTimeout(r, 1900));
     }
 
     reAnunciar(data);

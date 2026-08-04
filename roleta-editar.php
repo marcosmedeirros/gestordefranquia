@@ -147,7 +147,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
         .roda-area{display:flex;flex-direction:column;align-items:center;gap:20px}
         .roda-palco{position:relative;width:min(360px,86vw);height:min(360px,86vw)}
         .roda-ponteiro{position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:0;height:0;z-index:5;border-left:14px solid transparent;border-right:14px solid transparent;border-top:22px solid var(--red);filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
-        .roda{width:100%;height:100%;border-radius:50%;position:relative;overflow:hidden;border:6px solid var(--panel-3);box-shadow:0 0 0 2px var(--border-md),0 20px 50px -20px rgba(0,0,0,.6);transition:transform 4.2s cubic-bezier(.12,.72,.15,1)}
+        .roda{width:100%;height:100%;border-radius:50%;position:relative;overflow:hidden;border:6px solid var(--panel-3);box-shadow:0 0 0 2px var(--border-md),0 20px 50px -20px rgba(0,0,0,.6);transition:transform 1.8s cubic-bezier(.12,.72,.15,1)}
         .rt-fatias{position:absolute;inset:0;border-radius:50%}
         .rt-rotulo{position:absolute;top:50%;left:50%;width:50%;height:2px;transform-origin:0 50%;display:flex;align-items:center;justify-content:flex-end;padding-right:10px}
         .rt-rotulo span{font-weight:800;color:#fff;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.55)}
