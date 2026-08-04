@@ -176,6 +176,28 @@ function estadoRoleta(PDO $pdo, int $roletaId): ?array
     ];
 }
 
+/**
+ * estadoRoleta() + os campos de permissão (league, pode_girar, is_global_admin,
+ * minhas_ligas). Usar sempre que a resposta for re-renderizar o botão de girar
+ * no front — se algum desses campos faltar, o botão "esquece" que o admin
+ * geral pode girar e trava sozinho até recarregar a página.
+ */
+function estadoRoletaComPermissoes(PDO $pdo, int $roletaId, bool $isGlobalAdmin, array $minhasLigasAdmin): ?array
+{
+    $estado = estadoRoleta($pdo, $roletaId);
+    if (!$estado) return null;
+
+    $ligaRoleta = ligaDaRoleta($pdo, $roletaId);
+    $podeGirar = $minhasLigasAdmin && ($ligaRoleta === null || in_array($ligaRoleta, $minhasLigasAdmin, true));
+
+    return [
+        'league'          => $ligaRoleta,
+        'pode_girar'      => $podeGirar,
+        'is_global_admin' => $isGlobalAdmin,
+        'minhas_ligas'    => $podeGirar ? $minhasLigasAdmin : [],
+    ] + $estado;
+}
+
 /** Avisa todo mundo que já passou por essa roleta (best-effort, nunca derruba o giro). */
 function notificarSaidaRoletaGenerica(PDO $pdo, int $roletaId, string $titulo, string $nomeEliminado, int $pick): void
 {
@@ -280,14 +302,7 @@ if ($method === 'GET') {
             echo json_encode(['success' => false, 'error' => 'Esta roleta é da liga ' . $ligaRoleta . '.']);
             exit;
         }
-        $podeGirar = $minhasLigasAdmin && ($ligaRoleta === null || in_array($ligaRoleta, $minhasLigasAdmin, true));
-        echo json_encode([
-            'success'        => true,
-            'league'         => $ligaRoleta,
-            'pode_girar'     => $podeGirar,
-            'is_global_admin' => $isGlobalAdmin,
-            'minhas_ligas'   => $podeGirar ? $minhasLigasAdmin : [],
-        ] + $estado);
+        echo json_encode(['success' => true] + estadoRoletaComPermissoes($pdo, $id, $isGlobalAdmin, $minhasLigasAdmin));
         exit;
     }
 
@@ -433,7 +448,7 @@ if ($method === 'POST') {
             exit;
         }
 
-        echo json_encode(['success' => true] + estadoRoleta($pdo, $roletaId));
+        echo json_encode(['success' => true] + estadoRoletaComPermissoes($pdo, $roletaId, $isGlobalAdmin, $minhasLigasAdmin));
         exit;
     }
 
@@ -525,7 +540,7 @@ if ($method === 'POST') {
             }
         }
 
-        echo json_encode(['success' => true] + estadoRoleta($pdo, $id));
+        echo json_encode(['success' => true] + estadoRoletaComPermissoes($pdo, $id, $isGlobalAdmin, $minhasLigasAdmin));
         exit;
     }
 
@@ -585,7 +600,7 @@ if ($method === 'POST') {
             'sorteado_id' => (int)$escolhido['id'],
             'nome_display' => $escolhido['nome_display'],
             'pick' => $pick,
-        ] + estadoRoleta($pdo, $id));
+        ] + estadoRoletaComPermissoes($pdo, $id, $isGlobalAdmin, $minhasLigasAdmin));
         exit;
     }
 
@@ -597,7 +612,7 @@ if ($method === 'POST') {
         }
         exigirAdminDaRoleta($pdo, $user_id, $minhasLigasAdmin, ligaDaRoleta($pdo, $id));
         $pdo->prepare("UPDATE roleta_participantes SET pick_number = NULL, eliminated_at = NULL WHERE roleta_id = ?")->execute([$id]);
-        echo json_encode(['success' => true] + estadoRoleta($pdo, $id));
+        echo json_encode(['success' => true] + estadoRoletaComPermissoes($pdo, $id, $isGlobalAdmin, $minhasLigasAdmin));
         exit;
     }
 

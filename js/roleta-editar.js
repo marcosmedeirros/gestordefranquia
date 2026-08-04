@@ -14,6 +14,8 @@ let reGirando = false;
 let reEstadoAtual = null;
 let reBuscaTimeout = null;
 let reSelecionadosNovos = []; // participantes escolhidos no autocomplete, ainda não salvos
+let reUltimoTotalSorteados = null; // baseline pro polling detectar giro de outra sessão
+const RE_POLL_MS = 4000;
 
 async function _reFetch(url, options = {}) {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
@@ -35,11 +37,60 @@ function reNomeCurto(nome) {
 async function reCarregar() {
   try {
     const data = await _reFetch(`/api/roleta.php?action=estado&id=${ROLETA_ID}`);
+    reUltimoTotalSorteados = (data.sorteados || []).length;
     reEstadoAtual = data;
     reRenderTudo(data);
   } catch (e) {
     document.getElementById('rtHistorico').innerHTML = `<p style="color:#ef4444;font-size:13px">${_reEsc(e.message)}</p>`;
   }
+}
+
+/**
+ * Roda em segundo plano pra quem está só acompanhando ver o giro acontecer
+ * também, sem precisar recarregar a página. Compara o total de sorteados com
+ * o último conhecido — se aumentou e não fui eu que girei agora, replica a
+ * mesma animação da roda com quem saiu.
+ */
+async function rePoll() {
+  if (reGirando) return; // já girando localmente ou animando outro giro remoto
+  try {
+    const data = await _reFetch(`/api/roleta.php?action=estado&id=${ROLETA_ID}`);
+    const novoTotal = (data.sorteados || []).length;
+    // Só mexe na tela quando detecta um giro novo — senão atrapalharia quem
+    // está no meio de uma edição (título/participantes) a cada poll.
+    if (reUltimoTotalSorteados !== null && novoTotal > reUltimoTotalSorteados) {
+      const idsNaUrnaAntes = new Set(reUrnaRenderizada.map(t => Number(t.id)));
+      const novoSorteio = (data.sorteados || []).find(t => idsNaUrnaAntes.has(Number(t.id)));
+      reUltimoTotalSorteados = novoTotal;
+      if (novoSorteio) {
+        await reAnimarGiroRemoto(novoSorteio, data);
+      } else {
+        reEstadoAtual = data;
+        reRenderTudo(data);
+      }
+    }
+  } catch (e) { /* silencioso: só não atualiza dessa vez */ }
+}
+
+/** Mesma animação de reGirar(), mas pra um giro que outra sessão fez. */
+async function reAnimarGiroRemoto(participante, data) {
+  reGirando = true;
+  const urnaNoGiro = reUrnaRenderizada.slice();
+  const idx = urnaNoGiro.findIndex(t => Number(t.id) === Number(participante.id));
+  const roda = document.getElementById('rtRoda');
+  if (roda && idx !== -1 && !RE_SEM_MOVIMENTO) {
+    const n = urnaNoGiro.length;
+    const ang = 360 / n;
+    const meio = idx * ang + ang / 2;
+    const voltas = 5;
+    roda.style.transform = `rotate(${voltas * 360 + (360 - meio)}deg)`;
+    await new Promise(r => setTimeout(r, 4300));
+  }
+  reAnunciar({ pick: participante.pick_number, nome_display: participante.nome_display });
+  reEstadoAtual = data;
+  reRenderTudo(data);
+  reGirando = false;
+  if (reEstadoAtual) reAtualizarBotaoGirar(reEstadoAtual);
 }
 
 function reRenderTudo(data) {
@@ -254,6 +305,7 @@ async function reGirar() {
     }
 
     reAnunciar(data);
+    reUltimoTotalSorteados = (data.sorteados || []).length;
     reEstadoAtual = data;
     reRenderTudo(data);
   } catch (e) {
@@ -301,6 +353,7 @@ async function reReiniciar() {
       body: JSON.stringify({ action: 'reiniciar', id: ROLETA_ID }),
     });
     document.getElementById('rtAnuncio').innerHTML = '';
+    reUltimoTotalSorteados = (data.sorteados || []).length;
     reEstadoAtual = data;
     reRenderTudo(data);
   } catch (e) {
@@ -557,4 +610,5 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.rl-autocomplete-results').forEach(el => el.classList.remove('show'));
     }
   });
+  setInterval(rePoll, RE_POLL_MS);
 });
