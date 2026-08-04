@@ -591,16 +591,21 @@ if ($method === 'POST') {
             exit;
         }
 
-        if (!empty($roletaRow['notificar_saida'])) {
-            notificarSaidaRoletaGenerica($pdo, $id, $roletaRow['titulo'], $escolhido['nome_display'], $pick);
-        }
-
+        // Responde primeiro, notifica depois: mandar push um por um pra cada
+        // participante é sequencial e pode levar segundos — sem isso, quem
+        // girou ficava esperando a rodada de notificações terminar antes da
+        // roda nem começar a animar.
         echo json_encode([
             'success' => true,
             'sorteado_id' => (int)$escolhido['id'],
             'nome_display' => $escolhido['nome_display'],
             'pick' => $pick,
         ] + estadoRoletaComPermissoes($pdo, $id, $isGlobalAdmin, $minhasLigasAdmin));
+        if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+
+        if (!empty($roletaRow['notificar_saida'])) {
+            notificarSaidaRoletaGenerica($pdo, $id, $roletaRow['titulo'], $escolhido['nome_display'], $pick);
+        }
         exit;
     }
 
