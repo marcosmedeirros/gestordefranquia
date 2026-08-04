@@ -362,11 +362,18 @@ function ensurePlayerRestrictionColumns(PDO $pdo): void
 }
 
 /**
- * Marca cada jogador de $players com is_loyal (nunca foi trocado — tag "Leal"
- * vale pra qualquer liga) e cap_bonus_eligible (leal + OVR>=90 + draftado pelo
- * draft da própria temporada, via draft_pool — mesma régua em toda liga). O
- * EFEITO no cap é que muda por liga: RISE/NEXT usam o bônus por soma de OVR
- * (restrictedCapBonus), ELITE usa +8M direto no salary cap (salary_cap.php).
+ * Marca cada jogador de $players com is_loyal (nunca foi trocado E veio do
+ * DRAFT NORMAL da própria franquia, via draft_pool — tag "Leal", vale pra
+ * qualquer liga) e cap_bonus_eligible (leal + OVR>=90 — mesma régua em toda
+ * liga). O EFEITO no cap é que muda por liga: RISE/NEXT usam o bônus por
+ * soma de OVR (restrictedCapBonus), ELITE usa +8M direto no salary cap
+ * (salary_cap.php).
+ *
+ * draft_pool é exclusivo do draft normal/recorrente — o Draft Inicial grava
+ * em initdraft_pool, uma tabela separada, então um jogador vindo de lá nunca
+ * casa aqui e corretamente não é leal. O mesmo vale pra quem entrou por Free
+ * Agency ou waiver: só o draft normal confere lealdade.
+ *
  * Espera que cada item tenha pelo menos team_id, name, ovr, was_traded.
  */
 function markLoyaltyEligibility(PDO $pdo, array &$players): void
@@ -390,10 +397,11 @@ function markLoyaltyEligibility(PDO $pdo, array &$players): void
     }
     foreach ($players as &$p) {
         $notTraded = (int)($p['was_traded'] ?? 0) === 0;
-        $p['is_loyal'] = $notTraded ? 1 : 0;
         $highOvr = (int)($p['ovr'] ?? 0) >= 90;
         $key = ($p['team_id'] ?? 0) . '|' . ($p['name'] ?? '');
-        $p['cap_bonus_eligible'] = ($notTraded && $highOvr && isset($seasonDraftPairs[$key])) ? 1 : 0;
+        $fromNormalDraft = isset($seasonDraftPairs[$key]);
+        $p['is_loyal'] = ($notTraded && $fromNormalDraft) ? 1 : 0;
+        $p['cap_bonus_eligible'] = ($notTraded && $highOvr && $fromNormalDraft) ? 1 : 0;
     }
     unset($p);
 }

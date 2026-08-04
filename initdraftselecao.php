@@ -387,6 +387,31 @@ if ($user && isset($user['id'])) {
         .player-card .pc-pick { width:100%; margin-top:10px; justify-content:center; }
         .player-card-wrap { display:flex; flex-direction:column; }
         .pc-rank { position:absolute; top:8px; right:10px; font-size:10px; font-weight:700; color:var(--text-3); }
+        .pc-fav { position:absolute; top:6px; left:6px; width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; z-index:2; background:transparent; border:0; color:var(--text-3); transition:all var(--t) var(--ease); }
+        .pc-fav:not(.is-fav):hover { color:var(--red); background:var(--red-soft); }
+        .pc-fav.is-fav { color:var(--red); cursor:default; }
+        .pc-fav.is-fav-removable { cursor:pointer; }
+        .pc-fav.is-fav-removable:hover { color:var(--text); background:rgba(255,255,255,.06); }
+
+        /* ── Pool: aba Pool x aba Favoritos ── */
+        .pool-tabs { display:flex; gap:6px; margin-bottom:12px; border-bottom:1px solid var(--border); }
+        .pool-tab { background:transparent; border:0; border-bottom:2px solid transparent; padding:8px 4px; margin-bottom:-1px; font-size:12.5px; font-weight:700; color:var(--text-2); cursor:pointer; display:flex; align-items:center; gap:5px; transition:all var(--t) var(--ease); }
+        .pool-tab:hover { color:var(--text); }
+        .pool-tab.active { color:var(--red); border-bottom-color:var(--red); }
+        .pool-tab i { font-size:11px; }
+
+        /* ── Mock: resultado de busca + fila ── */
+        .mock-search-row { display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:8px; transition:background var(--t) var(--ease); }
+        .mock-search-row:hover { background:var(--panel-2); }
+        .mock-search-row .msr-name { flex:1; min-width:0; font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .mock-search-row .msr-meta { font-size:10.5px; color:var(--text-3); flex-shrink:0; }
+        .mock-search-row .msr-add { width:26px; height:26px; border-radius:7px; background:var(--red-soft); border:1px solid var(--border-red); color:var(--red); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; font-size:12px; }
+        .mock-search-row .msr-add:disabled { opacity:.3; cursor:not-allowed; }
+        .mock-queue-row { display:flex; align-items:center; gap:9px; background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:8px 10px; margin-bottom:6px; }
+        .mock-queue-row.is-unavailable { opacity:.45; }
+        .mock-queue-row .mqr-body { flex:1; min-width:0; }
+        .mock-queue-row .mqr-name { font-size:12.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .mock-queue-row .mqr-meta { font-size:10.5px; color:var(--text-3); margin-top:1px; }
 
         /* ── Snake board ── */
         .snake-round { margin-bottom:16px; }
@@ -626,6 +651,13 @@ if ($user && isset($user['id'])) {
                     </div>
                 </div>
                 <div class="panel-card-body">
+                    <!-- Pool inteiro x só favoritos. O coração aqui no pool é só de
+                         ADICIONAR — tirar dos favoritos só é possível na própria aba,
+                         pra não sumir um favorito sem querer enquanto se navega. -->
+                    <div class="pool-tabs" id="poolTabs">
+                        <button type="button" class="pool-tab active" data-tab="all" onclick="setPoolTab('all')">Pool</button>
+                        <button type="button" class="pool-tab" data-tab="favorites" onclick="setPoolTab('favorites')"><i class="bi bi-heart-fill"></i> Favoritos <span id="favCount">(0)</span></button>
+                    </div>
                     <input type="text" id="poolSearch" class="search-input mb-3" placeholder="Buscar jogador por nome…">
                     <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
                         <div class="d-flex flex-wrap gap-2" id="posChips">
@@ -668,6 +700,35 @@ if ($user && isset($user['id'])) {
             </div>
         </div>
     </div>
+
+    <?php if ($userTeamId): ?>
+    <!-- Mock automático — só aparece pra quem está logado com um time nesta liga.
+         Escolhe sozinho pelo GM SOMENTE quando "Automático" está ligado; a lista
+         em si não faz nada sozinha. -->
+    <div class="panel-card mt-4" id="mockCard">
+        <div class="panel-card-head">
+            <div class="panel-card-title"><i class="bi bi-robot" style="color:var(--red);margin-right:6px"></i>Seu Mock</div>
+            <label class="filter-check" style="white-space:nowrap" title="Quando ligado, se chegar a sua vez e algum jogador da sua lista ainda estiver disponível, o sistema escolhe por você.">
+                <input type="checkbox" id="mockActiveToggle" onchange="toggleMockActive(this.checked)">
+                Escolher sozinho quando chegar minha vez
+            </label>
+        </div>
+        <div class="panel-card-body">
+            <div class="row g-3">
+                <div class="col-md-5">
+                    <div style="font-size:12px;font-weight:700;margin-bottom:6px">Adicionar à lista</div>
+                    <input type="text" id="mockSearch" class="search-input mb-2" placeholder="Buscar jogador…" oninput="renderMockSearchResults()">
+                    <div id="mockSearchResults" style="max-height:280px;overflow-y:auto"></div>
+                </div>
+                <div class="col-md-7">
+                    <div style="font-size:12px;font-weight:700;margin-bottom:6px">Ordem de prioridade <span id="mockCount" style="color:var(--text-3);font-weight:500"></span></div>
+                    <p style="font-size:11px;color:var(--text-2);margin-bottom:10px">Na sua vez, escolhe o primeiro desta lista que ainda estiver disponível.</p>
+                    <div id="mockQueueList"><div class="state-empty"><i class="bi bi-list-ol"></i><p>Sua lista está vazia.</p></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Elencos em montagem (todos os times, full width) -->
     <div class="panel-card mt-4">
@@ -815,6 +876,8 @@ if ($user && isset($user['id'])) {
         const API_URL = 'api/initdraft.php';
         const USER_TEAM_ID = <?php echo $userTeamId ? (int)$userTeamId : 'null'; ?>;
         const IS_ADMIN = <?php echo $isAdmin ? 'true' : 'false'; ?>;
+        // Favoritar não exige time — vale pra qualquer visitante logado.
+        const IS_LOGGED_IN = <?php echo ($user && isset($user['id'])) ? 'true' : 'false'; ?>;
 
         const state = {
             session: null,
@@ -841,6 +904,7 @@ if ($user && isset($user['id'])) {
             poolSort: 'ovr',
             poolPage: 1,
             poolPageSize: 16,
+            poolTab: 'all', // 'all' | 'favorites'
         };
 
         const elements = {
@@ -1025,7 +1089,8 @@ if ($user && isset($user['id'])) {
                 const okS = !search || (p.name || '').toLowerCase().includes(search);
                 const okP = !pos || p.position === pos || p.secondary_position === pos;
                 const okA = !uiState.poolOnlyAvailable || p.draft_status !== 'drafted';
-                return okS && okP && okA;
+                const okF = uiState.poolTab !== 'favorites' || Number(p.is_favorite) === 1;
+                return okS && okP && okA && okF;
             });
             const [field, dir] = (uiState.poolSort || 'ovr').split('_');
             const asc = dir === 'asc';
@@ -1050,7 +1115,13 @@ if ($user && isset($user['id'])) {
             const items = filtered.slice(start, start + uiState.poolPageSize);
 
             elements.poolMeta.textContent = `${total} jogador${total === 1 ? '' : 'es'}`;
-            if (!items.length) { grid.innerHTML = '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-search"></i><p>Nenhum jogador encontrado.</p></div>'; elements.poolPagination.innerHTML = ''; return; }
+            if (!items.length) {
+                grid.innerHTML = uiState.poolTab === 'favorites'
+                    ? '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-heart"></i><p>Nenhum favorito ainda. Clique no coração de um jogador no Pool pra guardar aqui.</p></div>'
+                    : '<div class="state-empty" style="grid-column:1/-1"><i class="bi bi-search"></i><p>Nenhum jogador encontrado.</p></div>';
+                elements.poolPagination.innerHTML = '';
+                return;
+            }
 
             const canPick = state.session?.status === 'in_progress' && (IS_ADMIN || (currentPick && USER_TEAM_ID && currentPick.team_id === USER_TEAM_ID));
             grid.innerHTML = items.map((p, i) => {
@@ -1058,9 +1129,17 @@ if ($user && isset($user['id'])) {
                 const sec = (p.secondary_position && POS_LIST.includes(p.secondary_position)) ? `<span class="pos-badge ${posClass(p.secondary_position)}">${p.secondary_position}</span>` : '';
                 const pickBtn = (!drafted && canPick) ? `<button class="btn-green pc-pick" onclick="event.stopPropagation();makePick(${p.id}, this)"><i class="bi bi-check2"></i> Escolher</button>` : '';
                 const draftedTag = drafted ? '<span class="badge-drafted">Draftado</span>' : '';
+                const isFav = Number(p.is_favorite) === 1;
+                // Na aba Favoritos o coração remove; no Pool geral ele só adiciona —
+                // já favoritado ali vira um selo fixo, sem ação, pra não sumir um
+                // favorito com um clique acidental enquanto se navega o pool inteiro.
+                const favBtn = !IS_LOGGED_IN ? '' : (uiState.poolTab === 'favorites'
+                    ? `<button type="button" class="pc-fav is-fav is-fav-removable" title="Remover dos favoritos" onclick="event.stopPropagation();toggleFavorite(${p.id})"><i class="bi bi-heart-fill"></i></button>`
+                    : `<button type="button" class="pc-fav ${isFav ? 'is-fav' : ''}" title="${isFav ? 'Favoritado' : 'Favoritar'}" ${isFav ? 'disabled' : `onclick="event.stopPropagation();toggleFavorite(${p.id})"`}><i class="bi bi-heart${isFav ? '-fill' : ''}"></i></button>`);
                 return `
                     <div class="player-card-wrap">
                         <div class="player-card ${drafted ? 'is-drafted' : ''}" onclick="openPlayerDetail(${p.id})">
+                            ${favBtn}
                             <span class="pc-rank">#${start + i + 1}</span>
                             <div class="ovr-chip ${ovrClass(p.ovr)}"><span class="ovr-num">${p.ovr ?? '—'}</span><span class="ovr-lbl">OVR</span></div>
                             <div class="pc-body">
@@ -1082,8 +1161,220 @@ if ($user && isset($user['id'])) {
 
         function changePoolPage(page) { uiState.poolPage = page; renderPool(getCurrentPick()); }
 
+        function updateFavCount() {
+            const el = document.getElementById('favCount');
+            if (!el) return;
+            const n = (state.pool || []).filter((p) => Number(p.is_favorite) === 1).length;
+            el.textContent = `(${n})`;
+        }
+
+        function setPoolTab(tab) {
+            uiState.poolTab = tab;
+            uiState.poolPage = 1;
+            document.querySelectorAll('.pool-tab').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
+            renderPool(getCurrentPick());
+        }
+
+        /** Favoritar/desfavoritar. Otimista na tela, com rollback se o servidor recusar. */
+        async function toggleFavorite(playerId) {
+            if (!IS_LOGGED_IN) return;
+            // O PDO devolve id como string ("5327"); comparar com === contra o
+            // number que vem do onclick nunca bate. Sem o Number(), o clique no
+            // coração não fazia nada — silenciosamente, sem erro no console.
+            const p = (state.pool || []).find((x) => Number(x.id) === playerId);
+            if (!p) return;
+            const antes = Number(p.is_favorite) === 1;
+            p.is_favorite = antes ? 0 : 1;
+            renderPool(getCurrentPick());
+            updateFavCount();
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'toggle_favorite', token: TOKEN, player_id: playerId })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao favoritar');
+                p.is_favorite = data.is_favorite ? 1 : 0;
+            } catch (error) {
+                p.is_favorite = antes ? 1 : 0; // desfaz o otimismo
+                alert('Erro: ' + error.message);
+            }
+            renderPool(getCurrentPick());
+            updateFavCount();
+        }
+
+        // ── Mock automático ─────────────────────────────
+        const mockState = { queue: [], isActive: false, search: '' };
+
+        async function loadMockState() {
+            if (!USER_TEAM_ID) return;
+            try {
+                const res = await fetch(`${API_URL}?action=mock_get&token=${TOKEN}`);
+                const data = await res.json();
+                if (!data.success) return;
+                mockState.queue = data.queue || [];
+                mockState.isActive = !!data.is_active;
+                const toggle = document.getElementById('mockActiveToggle');
+                if (toggle) toggle.checked = mockState.isActive;
+                renderMockQueue();
+                renderMockSearchResults();
+            } catch (error) {
+                console.warn('mock_get:', error);
+            }
+        }
+
+        /** Manda a lista inteira, na ordem atual — mesmo padrão do mock do draft normal. */
+        async function saveMockQueue() {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'mock_save', token: TOKEN, player_ids: mockState.queue.map((q) => q.player_id) })
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Erro ao salvar o mock');
+        }
+
+        async function toggleMockActive(checked) {
+            const toggle = document.getElementById('mockActiveToggle');
+            const antes = mockState.isActive;
+            mockState.isActive = checked;
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'mock_toggle', token: TOKEN, is_active: checked })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Erro ao salvar');
+            } catch (error) {
+                mockState.isActive = antes;
+                if (toggle) toggle.checked = antes;
+                alert('Erro: ' + error.message);
+            }
+        }
+
+        async function addToMock(playerId) {
+            if (mockState.queue.some((q) => Number(q.player_id) === playerId)) return;
+            if (mockState.queue.length >= 20) { alert('Máximo 20 jogadores no mock.'); return; }
+            const p = (state.pool || []).find((x) => Number(x.id) === playerId);
+            if (!p) return;
+            mockState.queue.push({ player_id: playerId, player_name: p.name, player_position: p.position, player_ovr: p.ovr, draft_status: p.draft_status });
+            renderMockQueue();
+            renderMockSearchResults();
+            try {
+                await saveMockQueue();
+            } catch (error) {
+                mockState.queue = mockState.queue.filter((q) => Number(q.player_id) !== playerId);
+                renderMockQueue();
+                renderMockSearchResults();
+                alert('Erro: ' + error.message);
+            }
+        }
+
+        async function removeFromMock(playerId) {
+            const antes = mockState.queue;
+            mockState.queue = mockState.queue.filter((q) => Number(q.player_id) !== playerId);
+            renderMockQueue();
+            renderMockSearchResults();
+            try {
+                await saveMockQueue();
+            } catch (error) {
+                mockState.queue = antes;
+                renderMockQueue();
+                renderMockSearchResults();
+                alert('Erro: ' + error.message);
+            }
+        }
+
+        async function moveMockItem(index, dir) {
+            const newIndex = index + dir;
+            if (newIndex < 0 || newIndex >= mockState.queue.length) return;
+            const antes = [...mockState.queue];
+            const arr = [...mockState.queue];
+            [arr[index], arr[newIndex]] = [arr[newIndex], arr[index]];
+            mockState.queue = arr;
+            renderMockQueue();
+            try {
+                await saveMockQueue();
+            } catch (error) {
+                mockState.queue = antes;
+                renderMockQueue();
+                alert('Erro: ' + error.message);
+            }
+        }
+
+        function renderMockQueue() {
+            const el = document.getElementById('mockQueueList');
+            const countEl = document.getElementById('mockCount');
+            if (countEl) countEl.textContent = `(${mockState.queue.length}/20)`;
+            if (!el) return;
+            if (!mockState.queue.length) {
+                el.innerHTML = '<div class="state-empty"><i class="bi bi-list-ol"></i><p>Sua lista está vazia.</p></div>';
+                return;
+            }
+            const total = mockState.queue.length;
+            el.innerHTML = mockState.queue.map((q, i) => {
+                const unavailable = q.draft_status === 'drafted';
+                return `
+                    <div class="mock-queue-row ${unavailable ? 'is-unavailable' : ''}">
+                        <div class="order-rank">${i + 1}</div>
+                        <div class="mqr-body">
+                            <div class="mqr-name">${esc(q.player_name)}</div>
+                            <div class="mqr-meta">${esc(q.player_position || '')} · OVR ${q.player_ovr ?? '—'}${unavailable ? ' · já draftado' : ''}</div>
+                        </div>
+                        <div class="order-actions">
+                            <button class="order-btn" ${i === 0 ? 'disabled' : ''} onclick="moveMockItem(${i}, -1)"><i class="bi bi-arrow-up"></i></button>
+                            <button class="order-btn" ${i === total - 1 ? 'disabled' : ''} onclick="moveMockItem(${i}, 1)"><i class="bi bi-arrow-down"></i></button>
+                            <button class="order-btn" onclick="removeFromMock(${q.player_id})" title="Remover"><i class="bi bi-x-lg"></i></button>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function renderMockSearchResults() {
+            const el = document.getElementById('mockSearchResults');
+            if (!el) return;
+            const searchInput = document.getElementById('mockSearch');
+            const search = (searchInput?.value || '').trim().toLowerCase();
+            const queuedIds = new Set(mockState.queue.map((q) => Number(q.player_id)));
+            const results = (state.pool || [])
+                .filter((p) => p.draft_status !== 'drafted' && !queuedIds.has(Number(p.id)))
+                .filter((p) => !search || (p.name || '').toLowerCase().includes(search))
+                .sort((a, b) => (Number(b.ovr) || 0) - (Number(a.ovr) || 0))
+                .slice(0, 30);
+            if (!results.length) {
+                el.innerHTML = `<div class="state-empty" style="padding:14px"><p style="font-size:11.5px">${search ? 'Nenhum jogador disponível encontrado.' : 'Digite pra buscar.'}</p></div>`;
+                return;
+            }
+            const cheia = mockState.queue.length >= 20;
+            el.innerHTML = results.map((p) => `
+                <div class="mock-search-row">
+                    <span class="msr-name">${esc(p.name)}</span>
+                    <span class="msr-meta">${esc(p.position || '')} · ${p.ovr ?? '—'}</span>
+                    <button type="button" class="msr-add" ${cheia ? 'disabled' : ''} title="Adicionar ao mock" onclick="addToMock(${p.id})"><i class="bi bi-plus-lg"></i></button>
+                </div>`).join('');
+        }
+
+        /** Chamado a cada poll (loadState). Se autopicked, recarrega tudo — a pick
+         * de outro time pode ter acabado de acontecer sozinha. */
+        async function checkAutopick() {
+            if (!state.session || state.session.status !== 'in_progress') return;
+            try {
+                const res = await fetch(`${API_URL}?action=check_autopick&token=${TOKEN}`);
+                const data = await res.json();
+                if (data.autopicked) await loadState(true);
+            } catch (error) {
+                console.warn('check_autopick:', error);
+            }
+        }
+
         function openPlayerDetail(playerId) {
-            const p = (state.pool || []).find((x) => x.id === playerId);
+            // Bug pré-existente, achado ao testar os favoritos (mesmo padrão): id
+            // vem como string da API, comparar com === contra o number do onclick
+            // nunca batia — clicar num card de jogador não abria o painel de detalhe,
+            // silenciosamente. Nada a ver com mock/favoritos, mas a causa é idêntica.
+            const p = (state.pool || []).find((x) => Number(x.id) === playerId);
             if (!p) return;
             const body = document.getElementById('playerDetailBody');
             const currentPick = getCurrentPick();
@@ -1172,7 +1463,12 @@ if ($user && isset($user['id'])) {
                 renderClockBoard(currentPick);
                 renderSnakeBoard(currentPick);
                 renderPool(currentPick);
+                updateFavCount();
                 renderRosters();
+                // Recarrega o mock a cada poll — sem isso, um jogador que outro time
+                // acabou de draftar continuava aparecendo "disponível" na sua fila até
+                // a página ser recarregada na mão.
+                loadMockState();
 
                 if (IS_ADMIN) renderAdmin(fromAuto);
             } catch (error) {
@@ -1184,11 +1480,11 @@ if ($user && isset($user['id'])) {
             const isMobile = window.matchMedia('(max-width: 768px)').matches;
             if (!isMobile) {
                 setInterval(() => {
-                    if (document.visibilityState === 'visible') loadState(true);
+                    if (document.visibilityState === 'visible') loadState(true).then(checkAutopick);
                 }, 10000);
             }
             document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'visible') loadState(true);
+                if (document.visibilityState === 'visible') loadState(true).then(checkAutopick);
             });
         }
 
@@ -1210,6 +1506,10 @@ if ($user && isset($user['id'])) {
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Erro ao registrar pick');
                 await loadState();
+                // Se o próximo time também tiver o mock ligado, não espera o próximo
+                // poll de 10s pra escolher — importante principalmente no celular,
+                // que não faz polling automático em segundo plano.
+                checkAutopick();
             } catch (error) {
                 alert(error.message);
             } finally {
@@ -2053,7 +2353,8 @@ if ($user && isset($user['id'])) {
         })();
 
         setupAutoRefresh();
-        loadState();
+        loadMockState();
+        loadState().then(checkAutopick);
     </script>
 </body>
 </html>

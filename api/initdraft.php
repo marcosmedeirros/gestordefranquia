@@ -102,6 +102,44 @@ function ensureEmojiBinaryCollation(PDO $pdo): void {
     }
 }
 
+function ensureInitDraftMockTables(PDO $pdo): void {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS initdraft_mock_queue (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        team_id INT NOT NULL,
+        initdraft_session_id INT NOT NULL,
+        player_id INT NOT NULL,
+        priority INT NOT NULL DEFAULT 1,
+        KEY idx_tms (team_id, initdraft_session_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS initdraft_mock_settings (
+        team_id INT NOT NULL,
+        initdraft_session_id INT NOT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 0,
+        PRIMARY KEY (team_id, initdraft_session_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+function ensureInitDraftFavoritesTable(PDO $pdo): void {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS initdraft_favorites (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        player_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_user_player (user_id, player_id),
+        INDEX idx_if_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+/** Time do usuário logado (null se não logado ou sem time). Mesmo padrão do mock do draft normal (api/draft-mock.php). */
+function getUserTeamId(PDO $pdo, ?array $user): ?int {
+    if (!$user || !isset($user['id'])) return null;
+    $stmt = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? LIMIT 1');
+    $stmt->execute([(int)$user['id']]);
+    $id = $stmt->fetchColumn();
+    return $id ? (int)$id : null;
+}
+
 function hasAnyPickMade(PDO $pdo, int $sessionId): bool {
     $stmt = $pdo->prepare('SELECT 1 FROM initdraft_order WHERE initdraft_session_id = ? AND picked_player_id IS NOT NULL LIMIT 1');
     $stmt->execute([$sessionId]);
@@ -534,7 +572,126 @@ if ($method === 'GET') {
                 $stmt = $pdo->prepare('SELECT * FROM initdraft_pool WHERE season_id = ? ORDER BY draft_status ASC, ovr DESC, name ASC');
                 $stmt->execute([$session['season_id']]);
                 $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                // Marca favorito do usuário logado — a aba Favoritos é só um filtro
+                // client-side de state.pool, então isto evita uma segunda ida ao servidor.
+                if ($user && isset($user['id']) && $players) {
+                    ensureInitDraftFavoritesTable($pdo);
+                    $stmtFav = $pdo->prepare('SELECT player_id FROM initdraft_favorites WHERE user_id = ?');
+                    $stmtFav->execute([(int)$user['id']]);
+                    $favIds = array_flip(array_map('intval', $stmtFav->fetchAll(PDO::FETCH_COLUMN)));
+                    foreach ($players as &$p) {
+                        $p['is_favorite'] = isset($favIds[(int)$p['id']]) ? 1 : 0;
+                    }
+                    unset($p);
+                } else {
+                    foreach ($players as &$p) { $p['is_favorite'] = 0; }
+                    unset($p);
+                }
+
                 echo json_encode(['success' => true, 'players' => $players]);
+                break;
+            }
+
+            case 'mock_get': {
+                $token = $_GET['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!$session) throw new InvalidArgumentException('Sessão não encontrada');
+                ensureInitDraftMockTables($pdo);
+
+                $teamId = getUserTeamId($pdo, $user);
+                if (!$teamId) {
+                    echo json_encode(['success' => true, 'queue' => [], 'is_active' => false]);
+                    break;
+                }
+
+                $stmt = $pdo->prepare('
+                    SELECT mq.id, mq.player_id, mq.priority,
+                           ip.name AS player_name, ip.position AS player_position,
+                           ip.ovr AS player_ovr, ip.age AS player_age, ip.draft_status
+                    FROM initdraft_mock_queue mq
+                    JOIN initdraft_pool ip ON mq.player_id = ip.id
+                    WHERE mq.team_id = ? AND mq.initdraft_session_id = ?
+                    ORDER BY mq.priority ASC
+                ');
+                $stmt->execute([$teamId, $session['id']]);
+                $queue = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $stmtS = $pdo->prepare('SELECT is_active FROM initdraft_mock_settings WHERE team_id = ? AND initdraft_session_id = ?');
+                $stmtS->execute([$teamId, $session['id']]);
+                $settings = $stmtS->fetch(PDO::FETCH_ASSOC);
+
+                echo json_encode([
+                    'success'   => true,
+                    'queue'     => $queue,
+                    'is_active' => (bool)($settings['is_active'] ?? false),
+                ]);
+                break;
+            }
+
+            // Chamada pelo poll da própria tela (a cada ~10s): não depende de quem
+            // está com a página aberta ser o time da vez — qualquer visitante com o
+            // token (inclusive o admin acompanhando) pode disparar o autopick de
+            // QUALQUER time, porque quem decide se ele acontece é a config daquele
+            // time, não de quem chamou. Mesmo modelo do check_autopick do draft normal.
+            case 'check_autopick': {
+                $token = $_GET['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!$session) { echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'invalid_session']); break; }
+                ensureInitDraftMockTables($pdo);
+
+                $session = applyDailySchedule($pdo, $session);
+                if (($session['status'] ?? '') !== 'in_progress') {
+                    echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'not_in_progress']);
+                    break;
+                }
+
+                try {
+                    ensureDailyPickWindow($session, tzNow());
+                } catch (InvalidArgumentException $e) {
+                    // Rodada agendada pro dia ainda não abriu — nada de autopick antes disso.
+                    echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'window_closed']);
+                    break;
+                }
+
+                $stmtPick = $pdo->prepare('SELECT * FROM initdraft_order WHERE initdraft_session_id = ? AND picked_player_id IS NULL ORDER BY round ASC, pick_position ASC LIMIT 1');
+                $stmtPick->execute([$session['id']]);
+                $currentPick = $stmtPick->fetch(PDO::FETCH_ASSOC);
+                if (!$currentPick) {
+                    echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'no_pending_pick']);
+                    break;
+                }
+
+                $currentTeamId = (int)$currentPick['team_id'];
+
+                $stmtSettings = $pdo->prepare('SELECT is_active FROM initdraft_mock_settings WHERE team_id = ? AND initdraft_session_id = ?');
+                $stmtSettings->execute([$currentTeamId, $session['id']]);
+                $settings = $stmtSettings->fetch(PDO::FETCH_ASSOC);
+                if (empty($settings['is_active'])) {
+                    echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'mock_inactive']);
+                    break;
+                }
+
+                $stmtQueue = $pdo->prepare("
+                    SELECT mq.player_id FROM initdraft_mock_queue mq
+                    JOIN initdraft_pool ip ON ip.id = mq.player_id
+                    WHERE mq.team_id = ? AND mq.initdraft_session_id = ? AND ip.draft_status = 'available'
+                    ORDER BY mq.priority ASC LIMIT 1
+                ");
+                $stmtQueue->execute([$currentTeamId, $session['id']]);
+                $playerId = (int)($stmtQueue->fetchColumn() ?: 0);
+                if (!$playerId) {
+                    echo json_encode(['success' => true, 'autopicked' => false, 'reason' => 'empty_queue']);
+                    break;
+                }
+
+                // Reaproveita a MESMA função que make_pick/admin_make_pick usam — trava
+                // atômica, inserção no elenco, avanço de pick e notificação do próximo
+                // time saem todos daqui, sem duplicar nenhuma dessas regras.
+                performInitDraftPick($pdo, $session, $playerId);
+                resetClockForNextPick($pdo, (int)$session['id']);
+
+                echo json_encode(['success' => true, 'autopicked' => true, 'player_id' => $playerId]);
                 break;
             }
 
@@ -1072,6 +1229,79 @@ if ($method === 'POST') {
 
                 $pdo->prepare('UPDATE initdraft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')->execute([$session['id']]);
                 echo json_encode(['success' => true]);
+                break;
+            }
+
+            case 'mock_save': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!$session) throw new InvalidArgumentException('Sessão não encontrada');
+                ensureInitDraftMockTables($pdo);
+
+                $teamId = getUserTeamId($pdo, $user);
+                if (!$teamId) throw new InvalidArgumentException('Você precisa estar logado com um time nesta liga.');
+
+                $playerIds = array_values(array_filter(array_map('intval', $data['player_ids'] ?? []), fn($v) => $v > 0));
+                if (count($playerIds) > 20) throw new InvalidArgumentException('Máximo 20 jogadores no mock.');
+
+                $pdo->beginTransaction();
+                try {
+                    $pdo->prepare('DELETE FROM initdraft_mock_queue WHERE team_id = ? AND initdraft_session_id = ?')
+                        ->execute([$teamId, $session['id']]);
+                    foreach ($playerIds as $idx => $playerId) {
+                        $pdo->prepare('INSERT INTO initdraft_mock_queue (team_id, initdraft_session_id, player_id, priority) VALUES (?, ?, ?, ?)')
+                            ->execute([$teamId, $session['id'], $playerId, $idx + 1]);
+                    }
+                    $pdo->commit();
+                    echo json_encode(['success' => true]);
+                } catch (Exception $e) {
+                    $pdo->rollBack();
+                    throw new InvalidArgumentException('Erro ao salvar o mock.');
+                }
+                break;
+            }
+
+            case 'mock_toggle': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!$session) throw new InvalidArgumentException('Sessão não encontrada');
+                ensureInitDraftMockTables($pdo);
+
+                $teamId = getUserTeamId($pdo, $user);
+                if (!$teamId) throw new InvalidArgumentException('Você precisa estar logado com um time nesta liga.');
+
+                $isActive = !empty($data['is_active']);
+                $pdo->prepare('
+                    INSERT INTO initdraft_mock_settings (team_id, initdraft_session_id, is_active)
+                    VALUES (?, ?, ?)
+                    ON DUPLICATE KEY UPDATE is_active = VALUES(is_active)
+                ')->execute([$teamId, $session['id'], $isActive ? 1 : 0]);
+
+                echo json_encode(['success' => true, 'is_active' => $isActive]);
+                break;
+            }
+
+            case 'toggle_favorite': {
+                $token = $data['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!$session) throw new InvalidArgumentException('Sessão não encontrada');
+                if (!$user || !isset($user['id'])) throw new InvalidArgumentException('Você precisa estar logado.');
+                ensureInitDraftFavoritesTable($pdo);
+
+                $playerId = (int)($data['player_id'] ?? 0);
+                if (!$playerId) throw new InvalidArgumentException('player_id obrigatório');
+
+                $stmtChk = $pdo->prepare('SELECT id FROM initdraft_favorites WHERE user_id = ? AND player_id = ?');
+                $stmtChk->execute([(int)$user['id'], $playerId]);
+                if ($stmtChk->fetchColumn()) {
+                    $pdo->prepare('DELETE FROM initdraft_favorites WHERE user_id = ? AND player_id = ?')
+                        ->execute([(int)$user['id'], $playerId]);
+                    echo json_encode(['success' => true, 'is_favorite' => false]);
+                } else {
+                    $pdo->prepare('INSERT INTO initdraft_favorites (user_id, player_id) VALUES (?, ?)')
+                        ->execute([(int)$user['id'], $playerId]);
+                    echo json_encode(['success' => true, 'is_favorite' => true]);
+                }
                 break;
             }
 

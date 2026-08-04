@@ -435,7 +435,7 @@ async function loadCap(){
           ${p.loyalty_bonus_eligible ? (p.loyalty_bonus_counted
             ? `<span class="tag flex" title="Jogador Leal (nunca trocado, OVR≥90, draftado pelo draft da própria temporada) — adiciona +${s.cap_loyalty_bonus_millions}M ao Cap Máximo.">Leal +${s.cap_loyalty_bonus_millions}M</span>`
             : `<span class="tag flex-off" title="Qualifica pro Bônus de Lealdade, mas o time já usou as ${s.cap_loyalty_max_players} vagas com jogadores de OVR maior — este não soma ao Cap Máximo.">Leal +${s.cap_loyalty_bonus_millions}M (fora das vagas)</span>`)
-            : (p.is_loyal ? `<span class="tag" title="Nunca foi trocado, mas não cumpre OVR≥90 + draft da própria temporada — só a tag, sem bônus de cap.">Leal</span>` : '')}
+            : (p.is_loyal ? `<span class="tag" title="Nunca foi trocado e veio do draft normal, mas não cumpre OVR≥90 — só a tag, sem bônus de cap.">Leal</span>` : '')}
         </td>
         <td class="num">${p.total_salary}M</td>
       </tr>
