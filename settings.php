@@ -554,6 +554,16 @@ try {
                             </label>
                             <div class="fh" id="push-notifications-hint">Verificando permissão do navegador...</div>
 
+                            <!-- "Diz que tá ativado mas não chega nada" é o tipo de reclamação
+                                 que não dá pra investigar sem estar olhando o celular da pessoa.
+                                 Este botão manda uma notificação de verdade agora e diz na hora
+                                 se o navegador aceitou — e, se o toggle acima estiver desligado,
+                                 ativa antes de testar, resolvendo os dois casos num clique só. -->
+                            <button type="button" class="btn-ghost" id="btn-test-push" style="margin-top:8px">
+                                <i class="bi bi-broadcast"></i> Testar notificação
+                            </button>
+                            <div class="fh" id="push-test-hint" style="margin-top:6px"></div>
+
                             <div class="notif-prefs">
                                 <div class="fl" style="margin-bottom:4px">O que você quer receber</div>
                                 <div class="fh" style="margin-bottom:12px">Desmarque o que não te interessa. Vale em todos os seus aparelhos.</div>
@@ -895,6 +905,75 @@ try {
         } else {
             refreshPushState();
         }
+    }
+
+    // Testar notificação — resolve as duas dúvidas de quem reclama que
+    // "tá ativado mas não chega nada": se ainda não tem inscrição neste
+    // aparelho, ativa primeiro (mesmo fluxo do toggle); depois manda um push
+    // de verdade e mostra o que o navegador respondeu, sem precisar abrir o
+    // console pra descobrir.
+    const btnTestPush = document.getElementById('btn-test-push');
+    const pushTestHint = document.getElementById('push-test-hint');
+    if (btnTestPush) {
+        btnTestPush.addEventListener('click', async () => {
+            if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+                pushTestHint.textContent = 'Seu navegador não suporta notificações push.';
+                pushTestHint.style.color = 'var(--amber)';
+                return;
+            }
+            if (Notification.permission === 'denied') {
+                pushTestHint.textContent = 'O navegador está bloqueando notificações deste site. Libere o acesso nas configurações do navegador (ícone de cadeado na barra de endereço) e tente de novo.';
+                pushTestHint.style.color = 'var(--amber)';
+                return;
+            }
+
+            btnTestPush.disabled = true;
+            const original = btnTestPush.innerHTML;
+            btnTestPush.innerHTML = '<i class="bi bi-hourglass-split"></i> Testando...';
+            pushTestHint.textContent = '';
+
+            try {
+                // Sem inscrição neste aparelho ainda: ativa primeiro. É o
+                // mesmo fluxo do toggle, então o toggle reflete o resultado.
+                const reg = await navigator.serviceWorker.ready;
+                let sub = await reg.pushManager.getSubscription();
+                if (!sub) {
+                    await window.initPushNotifications();
+                    sub = await reg.pushManager.getSubscription();
+                    await refreshPushState();
+                    if (!sub) {
+                        pushTestHint.textContent = 'Não deu pra ativar — talvez você tenha fechado o pedido de permissão. Tente de novo.';
+                        pushTestHint.style.color = 'var(--amber)';
+                        return;
+                    }
+                }
+
+                const res = await fetch('/api/push-test.php', { method: 'POST' });
+                const json = await res.json();
+
+                if (!json.success) {
+                    pushTestHint.textContent = json.error === 'sem_inscricao'
+                        ? 'Nenhuma inscrição encontrada no servidor. Ative o toggle acima e tente de novo.'
+                        : 'Não deu pra enviar o teste. Tente de novo em alguns segundos.';
+                    pushTestHint.style.color = 'var(--amber)';
+                    return;
+                }
+
+                if (json.enviados > 0) {
+                    pushTestHint.innerHTML = '<i class="bi bi-check-circle-fill"></i> Enviado! Se não aparecer em alguns segundos, o problema é no aparelho — desative e ative de novo o botão acima.';
+                    pushTestHint.style.color = 'var(--green, #22c55e)';
+                } else {
+                    pushTestHint.textContent = 'O navegador recusou o envio — a inscrição deste aparelho provavelmente expirou. Desative e ative de novo o botão acima.';
+                    pushTestHint.style.color = 'var(--amber)';
+                }
+            } catch (err) {
+                pushTestHint.textContent = 'Erro de conexão ao testar. Tente de novo.';
+                pushTestHint.style.color = 'var(--amber)';
+            } finally {
+                btnTestPush.disabled = false;
+                btnTestPush.innerHTML = original;
+            }
+        });
     }
 })();
 </script>

@@ -24,16 +24,32 @@ function sendPushToUser(PDO $pdo, int $userId, array $data, ?string $tipo = null
         error_log('[whatsapp] aviso user_id=' . $userId . ': ' . $e->getMessage());
     }
 
+    sendPushRaw($pdo, $userId, $data);
+}
+
+/**
+ * Manda o push de verdade, sem checar preferência nem WhatsApp — usada pelo
+ * sendPushToUser() acima e pelo botão de teste em Minha Conta (api/push-test.php),
+ * que precisa saber na hora se o navio saiu do porto ou não.
+ *
+ * Devolve quantas inscrições existiam e quantas o serviço de push aceitou.
+ * "Aceitou" não é "o usuário viu": o navegador ainda decide se mostra o toast.
+ * Mas é o sinal mais forte que dá pra ter sem estar olhando o celular da pessoa.
+ */
+function sendPushRaw(PDO $pdo, int $userId, array $data): array
+{
+    $vazio = ['total' => 0, 'sent' => 0, 'failed' => 0];
+
     $autoload = dirname(__DIR__) . '/vendor/autoload.php';
     if (!file_exists($autoload)) {
         error_log('[push] vendor/autoload.php não encontrado — rode: composer install');
-        return;
+        return $vazio;
     }
 
     $configFile = __DIR__ . '/vapid-config.php';
     if (!file_exists($configFile)) {
         error_log('[push] vapid-config.php não encontrado — rode: php setup-push.php');
-        return;
+        return $vazio;
     }
 
     require_once $autoload;
@@ -45,10 +61,10 @@ function sendPushToUser(PDO $pdo, int $userId, array $data, ?string $tipo = null
         $subscriptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         error_log('[push] DB error: ' . $e->getMessage());
-        return;
+        return $vazio;
     }
 
-    if (!$subscriptions) return;
+    if (!$subscriptions) return $vazio;
 
     $auth = [
         'VAPID' => [
@@ -68,17 +84,27 @@ function sendPushToUser(PDO $pdo, int $userId, array $data, ?string $tipo = null
         $webPush->queueNotification($subscription, json_encode($data, JSON_UNESCAPED_UNICODE));
     }
 
+    $sent = 0;
+    $failed = 0;
     foreach ($webPush->flush() as $report) {
-        if (!$report->isSuccess()) {
-            error_log('[push] falhou user_id=' . $userId . ' reason=' . $report->getReason());
-            if ($report->isSubscriptionExpired()) {
-                try {
-                    $pdo->prepare('DELETE FROM push_subscriptions WHERE endpoint = ?')
-                        ->execute([$report->getEndpoint()]);
-                } catch (Exception $e) {}
-            }
+        if ($report->isSuccess()) {
+            $sent++;
+            continue;
+        }
+        $failed++;
+        error_log('[push] falhou user_id=' . $userId . ' reason=' . $report->getReason());
+        if ($report->isSubscriptionExpired()) {
+            // A inscrição morreu do lado do navegador (desinstalou, trocou de
+            // conta, etc). Limpa aqui — é o mesmo motivo de "diz que tá
+            // ativado mas não chega nada": lixo acumulado que ninguém nota.
+            try {
+                $pdo->prepare('DELETE FROM push_subscriptions WHERE endpoint = ?')
+                    ->execute([$report->getEndpoint()]);
+            } catch (Exception $e) {}
         }
     }
+
+    return ['total' => count($subscriptions), 'sent' => $sent, 'failed' => $failed];
 }
 
 /**
