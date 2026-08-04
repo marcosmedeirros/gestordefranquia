@@ -5,6 +5,13 @@ require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
 require_once dirname(__DIR__) . '/backend/helpers.php';
 
+/**
+ * OVR mínimo pra uma trade aceita virar aviso no grupo do WhatsApp e no n8n.
+ * Abaixo disso a negociação acontece normal, só não é anunciada — o grupo é
+ * pra trade que muda alguma coisa, não pra troca de banco.
+ */
+const TRADE_WHATS_OVR_MIN = 82;
+
 $user = getUserSession();
 if (!$user) {
     http_response_code(401);
@@ -217,12 +224,12 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
 
     postTradeWebhook($webhookUrl, $payload, 'trade-webhook', $tradeId);
 
-    // N8N webhook — dispara apenas em trade_accepted com jogador 80+
+    // N8N webhook e grupo do WhatsApp — só em trade_accepted com jogador 82+
     if ($event === 'trade_accepted') {
         $allPlayers = array_merge($fromPlayers, $toPlayers);
         $has80 = false;
         foreach ($allPlayers as $p) {
-            if ((int)($p['ovr'] ?? 0) >= 80) { $has80 = true; break; }
+            if ((int)($p['ovr'] ?? 0) >= TRADE_WHATS_OVR_MIN) { $has80 = true; break; }
         }
         if ($has80) {
             try {
@@ -248,11 +255,16 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
                 error_log('[n8n-trade-webhook] error: ' . $e->getMessage());
             }
 
-            // Grupo de WhatsApp da liga — mesmo critério do n8n (jogador 80+),
-            // pra não encher o grupo com troca de reserva.
+            // Grupo do WhatsApp — o mesmo pras quatro ligas, com a tag da liga
+            // no texto. Só entra trade com jogador 82+, pra não encher o grupo
+            // com troca de reserva.
             try {
                 require_once dirname(__DIR__) . '/backend/whatsapp.php';
-                whatsappParaGrupo($pdo, (string)$trade['league'], montarTextoTradeWhats($payload, $fromPlayers, $toPlayers, $fromPicks, $toPicks), 'trade');
+                whatsappParaGrupoPrincipal(
+                    $pdo,
+                    montarTextoTradeWhats($payload, $fromPlayers, $toPlayers, $fromPicks, $toPicks, (string)$trade['league']),
+                    'trade'
+                );
             } catch (\Throwable $e) {
                 error_log('[whatsapp-trade] ' . $e->getMessage());
             }
@@ -260,33 +272,72 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
     }
 }
 
-/** Formata a trade pro grupo: quem mandou o quê, com OVR e picks. */
-function montarTextoTradeWhats(array $payload, array $fromPlayers, array $toPlayers, array $fromPicks, array $toPicks): string
+/** Lista de itens de um lado da trade: jogadores com OVR e picks. */
+function listaItensTradeWhats(array $players, array $picks): array
+{
+    $itens = array_map(
+        fn($p) => '• ' . $p['name'] . ' (' . (int)($p['ovr'] ?? 0) . (!empty($p['position']) ? ' ' . $p['position'] : '') . ')',
+        $players
+    );
+    foreach ($picks as $pk) {
+        $ano   = $pk['season_year'] ?? $pk['year'] ?? '?';
+        $round = $pk['round'] ?? '?';
+        $itens[] = '• Pick ' . $ano . ' (' . $round . 'ª rodada)';
+    }
+    return $itens ?: ['• —'];
+}
+
+/**
+ * Formata a trade pro grupo: a tag da liga, e o que cada time ENVIA.
+ *
+ * "Envia" e não "recebe" porque no grupo o que se lê primeiro é o nome do
+ * time e o que saiu dele — é assim que a galera comenta trade.
+ */
+function montarTextoTradeWhats(array $payload, array $fromPlayers, array $toPlayers, array $fromPicks, array $toPicks, ?string $league = null): string
 {
     $nomeFrom = $payload['from_team']['name'] ?? 'Time A';
     $nomeTo   = $payload['to_team']['name']   ?? 'Time B';
 
-    $lista = function (array $players, array $picks): array {
-        $itens = array_map(
-            fn($p) => '• ' . $p['name'] . ' (' . (int)($p['ovr'] ?? 0) . (!empty($p['position']) ? ' ' . $p['position'] : '') . ')',
-            $players
-        );
-        foreach ($picks as $pk) {
-            $ano   = $pk['season_year'] ?? $pk['year'] ?? '?';
-            $round = $pk['round'] ?? '?';
-            $itens[] = '• Pick ' . $ano . ' (' . $round . 'ª rodada)';
-        }
-        return $itens ?: ['• —'];
-    };
-
     return implode("\n", array_merge(
-        ['🔄 *TRADE FECHADA*', ''],
-        ['*' . $nomeTo . '* recebe:'],
-        $lista($fromPlayers, $fromPicks),
+        [whatsappTagDaLiga($league) . ' 🔄 *TRADE FECHADA*', ''],
+        ['*' . $nomeFrom . '* envia:'],
+        listaItensTradeWhats($fromPlayers, $fromPicks),
         [''],
-        ['*' . $nomeFrom . '* recebe:'],
-        $lista($toPlayers, $toPicks)
+        ['*' . $nomeTo . '* envia:'],
+        listaItensTradeWhats($toPlayers, $toPicks)
     ));
+}
+
+/** Mesma coisa pra multi-trade: um bloco "envia" por time envolvido. */
+function montarTextoMultiTradeWhats(array $teams, array $items, ?string $league = null): string
+{
+    $nomePorId = [];
+    foreach ($teams as $t) {
+        $nomePorId[(int)($t['id'] ?? 0)] = $t['name'] ?? ('Time ' . ($t['id'] ?? '?'));
+    }
+
+    // Agrupa o que cada time está mandando embora.
+    $enviaPorTime = [];
+    foreach ($items as $it) {
+        $de = (int)($it['from_team_id'] ?? 0);
+        if (!$de) continue;
+        if (!empty($it['player'])) {
+            $p = $it['player'];
+            $enviaPorTime[$de][] = '• ' . $p['name'] . ' (' . (int)($p['ovr'] ?? 0)
+                                 . (!empty($p['position']) ? ' ' . $p['position'] : '') . ')';
+        } elseif (!empty($it['pick'])) {
+            $pk = $it['pick'];
+            $enviaPorTime[$de][] = '• Pick ' . ($pk['season_year'] ?? $pk['year'] ?? '?')
+                                 . ' (' . ($pk['round'] ?? '?') . 'ª rodada)';
+        }
+    }
+
+    $linhas = [whatsappTagDaLiga($league) . ' 🔄 *TRADE FECHADA* (' . count($enviaPorTime) . ' times)', ''];
+    foreach ($enviaPorTime as $timeId => $itens) {
+        $linhas[] = '*' . ($nomePorId[$timeId] ?? ('Time ' . $timeId)) . '* envia:';
+        $linhas = array_merge($linhas, $itens, ['']);
+    }
+    return rtrim(implode("\n", $linhas));
 }
 
 function sendMultiTradePush(PDO $pdo, int $tradeId): void
@@ -594,12 +645,12 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
 
     postTradeWebhook($webhookUrl, $payload, 'multi-trade-webhook', $tradeId);
 
-    // N8N webhook — dispara apenas em trade_accepted com jogador 80+
+    // N8N webhook e grupo do WhatsApp — só em trade_accepted com jogador 82+
     if ($event === 'trade_accepted') {
         $allPlayers = array_filter(array_column($payloadItems, 'player'));
         $has80 = false;
         foreach ($allPlayers as $p) {
-            if ((int)($p['ovr'] ?? 0) >= 80) { $has80 = true; break; }
+            if ((int)($p['ovr'] ?? 0) >= TRADE_WHATS_OVR_MIN) { $has80 = true; break; }
         }
         if ($has80) {
             try {
@@ -624,6 +675,20 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
                 }
             } catch (\Throwable $e) {
                 error_log('[n8n-multi-trade-webhook] error: ' . $e->getMessage());
+            }
+
+            // Grupo do WhatsApp. A multi-trade não mandava nada aqui — só a
+            // trade de dois times avisava, então negociação de três ou mais
+            // times, que é justamente a mais comentada, passava batida.
+            try {
+                require_once dirname(__DIR__) . '/backend/whatsapp.php';
+                whatsappParaGrupoPrincipal(
+                    $pdo,
+                    montarTextoMultiTradeWhats($payloadTeams, $payloadItems, (string)$trade['league']),
+                    'trade'
+                );
+            } catch (\Throwable $e) {
+                error_log('[whatsapp-multi-trade] ' . $e->getMessage());
             }
         }
     }

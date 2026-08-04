@@ -26,11 +26,32 @@ $flash = null; $flashType = 'success';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $content = (string)($_POST['content'] ?? '');
+    $chamada = trim((string)($_POST['chamada_whats'] ?? ''));
+    $avisar  = !empty($_POST['avisar_whats']);
     try {
         $pdo->prepare("INSERT INTO site_pages (page_key, content) VALUES ('thepathetic', ?)
                        ON DUPLICATE KEY UPDATE content = ?, updated_at = CURRENT_TIMESTAMP")
             ->execute([$content, $content]);
         $flash = 'Conteúdo salvo com sucesso.';
+
+        // Aviso no grupo — só quando o editor pede. Salvar é coisa que se faz
+        // várias vezes até a edição ficar boa; avisar a cada save encheria o
+        // grupo de "nova versão" da mesma matéria.
+        if ($avisar) {
+            try {
+                require_once __DIR__ . '/backend/whatsapp.php';
+                $linhas = ['[NOVA VERSÃO] 📰 *The Pathetic*'];
+                if ($chamada !== '') $linhas[] = '';
+                if ($chamada !== '') $linhas[] = $chamada;
+                $linhas[] = '';
+                $linhas[] = 'https://fbabrasil.com.br/thepathetic.php';
+                whatsappParaGrupoPrincipal($pdo, implode("\n", $linhas), 'pathetic');
+                $flash .= ' Aviso enviado no grupo.';
+            } catch (Throwable $e) {
+                error_log('[whatsapp-pathetic] ' . $e->getMessage());
+                $flash .= ' (o aviso no grupo falhou — veja o log)';
+            }
+        }
     } catch (PDOException $e) {
         $flash = 'Erro ao salvar: ' . $e->getMessage();
         $flashType = 'danger';
@@ -201,6 +222,26 @@ try {
                         </div>
                     </div>
 
+                    <div class="bc">
+                        <div class="bc-head">
+                            <div class="bc-title"><i class="bi bi-whatsapp"></i> Avisar no grupo</div>
+                            <span style="font-size:11px;color:var(--text-3)">Só marque quando a edição estiver pronta pra publicar</span>
+                        </div>
+                        <div class="bc-body">
+                            <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:14px">
+                                <input type="checkbox" name="avisar_whats" value="1" id="avisarWhats">
+                                Mandar <b>[NOVA VERSÃO]</b> no grupo The Pathetic ao salvar
+                            </label>
+                            <input type="text" name="chamada_whats" maxlength="180" id="chamadaWhats"
+                                   placeholder="Chamada (opcional) — ex: Trade da semana e o que ninguém viu no draft"
+                                   style="width:100%;margin-top:11px;background:var(--panel-2,#16161a);border:1px solid var(--border);
+                                          border-radius:9px;padding:10px 12px;color:var(--text,#f0f0f3);font-size:13px" disabled>
+                            <p style="font-size:11.5px;color:var(--text-3);margin:9px 0 0">
+                                O link da página vai junto automaticamente. Salvar sem marcar não avisa ninguém.
+                            </p>
+                        </div>
+                    </div>
+
                     <div class="d-flex justify-content-end gap-2">
                         <a class="btn-outline" href="/thepathetic.php" target="_blank" rel="noopener">
                             <i class="bi bi-eye"></i> Visualizar
@@ -209,6 +250,12 @@ try {
                     </div>
                 </div>
             </form>
+            <script>
+              // A chamada só faz sentido se o aviso for sair.
+              document.getElementById('avisarWhats')?.addEventListener('change', function () {
+                document.getElementById('chamadaWhats').disabled = !this.checked;
+              });
+            </script>
         </div>
     </main>
 </div>

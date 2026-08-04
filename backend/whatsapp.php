@@ -48,6 +48,14 @@ function ensureWhatsAppTables(PDO $pdo): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         $pdo->exec("INSERT IGNORE INTO whatsapp_config (id, ativo) VALUES (1, 0)");
 
+        // Grupo único que recebe trades e as novas versões do The Pathetic.
+        // É um só pra liga inteira, com a tag da liga no texto — diferente do
+        // whatsapp_group_id por liga, que continua existindo pra outros usos.
+        $cols = $pdo->query("SHOW COLUMNS FROM whatsapp_config")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('grupo_principal', $cols, true)) {
+            $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN grupo_principal VARCHAR(80) NULL AFTER api_key");
+        }
+
         // Fila: toda mensagem passa por aqui antes de sair. Assim uma queda da
         // instância vira atraso, não aviso perdido.
         $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_fila (
@@ -89,7 +97,7 @@ function whatsappConfig(PDO $pdo): ?array
 
     ensureWhatsAppTables($pdo);
     try {
-        $c = $pdo->query("SELECT base_url, instancia, api_key, ativo FROM whatsapp_config WHERE id = 1")
+        $c = $pdo->query("SELECT base_url, instancia, api_key, grupo_principal, ativo FROM whatsapp_config WHERE id = 1")
                  ->fetch(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         return $cache = null;
@@ -245,6 +253,29 @@ function whatsappParaUsuario(PDO $pdo, int $userId, string $texto, ?string $tipo
 
     whatsappEnfileirar($pdo, $numero, $texto, false, $tipo, $userId);
     whatsappEsvaziarUmaVez($pdo);
+}
+
+/**
+ * Manda no grupo principal — o mesmo pra liga inteira, com a tag da liga no
+ * texto. É por onde saem as trades grandes e as novas versões do The Pathetic.
+ */
+function whatsappParaGrupoPrincipal(PDO $pdo, string $texto, ?string $tipo = null): void
+{
+    $cfg = whatsappConfig($pdo);
+    if (!$cfg) return;
+
+    $grupo = trim((string)($cfg['grupo_principal'] ?? ''));
+    if ($grupo === '') return;
+
+    whatsappEnfileirar($pdo, $grupo, $texto, true, $tipo);
+    whatsappEsvaziarUmaVez($pdo);
+}
+
+/** Tag da liga pro começo da mensagem: [FBA NEXT], [FBA ELITE]... */
+function whatsappTagDaLiga(?string $league): string
+{
+    $l = strtoupper(trim((string)$league));
+    return in_array($l, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true) ? '[FBA ' . $l . ']' : '[FBA]';
 }
 
 /** Manda no grupo da liga (nada acontece se a liga não tiver grupo configurado). */
