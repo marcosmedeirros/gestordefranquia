@@ -141,6 +141,13 @@ function rlAdicionarNomeLivre() {
   rlRenderChips();
 }
 
+/** Cola vários nomes de uma vez (um por linha) — cada linha vira um participante. */
+function rlAdicionarNomesEmLote(texto) {
+  const linhas = texto.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  linhas.forEach(nome => rlSelecionados.push({ nome_display: nome, label: nome }));
+  if (linhas.length) rlRenderChips();
+}
+
 function rlAtualizarLabelAddTodos() {
   const label = document.getElementById('rlAddTodosLabel');
   if (label) label.textContent = rlTipoAtual === 'times' ? 'Adicionar todos os times da liga' : 'Adicionar todos os GMs da liga';
@@ -236,6 +243,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnAddNomeLivre').addEventListener('click', rlAdicionarNomeLivre);
   document.getElementById('rlNomeLivre').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); rlAdicionarNomeLivre(); }
+  });
+  document.getElementById('rlNomeLivre').addEventListener('paste', (e) => {
+    const texto = (e.clipboardData || window.clipboardData).getData('text');
+    if (texto && texto.includes('\n')) {
+      e.preventDefault();
+      rlAdicionarNomesEmLote(texto);
+    }
   });
 
   document.getElementById('btnCriarRoleta').addEventListener('click', rlCriarRoleta);
