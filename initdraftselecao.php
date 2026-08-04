@@ -188,7 +188,13 @@ if ($user && isset($user['id'])) {
         .adm-section-title { font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--text-3); margin: 4px 0 10px; }
 
         /* ── Panel card ───────────────────────────────── */
+        /* height:100% é pra dentro do grid Pool/Snake (col-lg-*, esticado pelo
+           row do Bootstrap pra ficar do tamanho do vizinho mais alto). Um card
+           full-width fora desse grid — como o Mock — não tem essa referência de
+           altura e herda de um ancestral bem maior, virando uma caixa gigante
+           com o conteúdo real (pequeno) lá no topo e um vazio enorme embaixo. */
         .panel-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; height: 100%; }
+        .panel-card.mt-4 { height: auto; }
         .panel-card-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .panel-card-title { font-size: 13px; font-weight: 700; }
         .panel-card-sub { font-size: 11px; color: var(--text-2); margin-top: 2px; }
