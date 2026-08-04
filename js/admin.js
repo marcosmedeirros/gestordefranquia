@@ -3554,6 +3554,11 @@ ${appState.currentTeam.league === 'RISE' ? `<div class="mb-3 p-3 rounded" style=
 <input class="form-check-input" type="checkbox" role="switch" id="editPlayerFranchise" ${Number(p.is_franchise_player) === 1 ? 'checked' : ''}>
 <label class="form-check-label" for="editPlayerFranchise" style="color:#f59e0b;font-weight:600">🏆 Elegível Restricted CAP</label></div>
 <small class="text-light-gray d-block mt-1">Override manual: marca o jogador como elegível para bônus de CAP independente das regras automáticas.</small></div>` : ''}
+<div class="mb-3 p-3 rounded" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25)">
+<div class="form-check form-switch">
+<input class="form-check-input" type="checkbox" role="switch" id="editPlayerLoyal" ${Number(p.is_loyal) === 1 ? 'checked' : ''}>
+<label class="form-check-label" for="editPlayerLoyal" style="color:#3b82f6;font-weight:600">🤝 Leal</label></div>
+<small class="text-light-gray d-block mt-1">Override manual: define se o jogador é "Leal" independente da regra automática (nunca trocado + veio do draft normal do próprio time).</small></div>
 <div class="mb-3"><label class="form-label text-light-gray">Transferir</label>
 <select class="form-select bg-dark text-white border-orange" id="editPlayerTeam"><option value="">Manter no time</option></select></div></div>
 <div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -3585,7 +3590,8 @@ async function savePlayerEdit(playerId) {
     secondary_position: (secondaryPos !== undefined) ? (secondaryPos || null) : undefined,
     ovr: parseInt(document.getElementById('editPlayerOvr').value, 10),
     role: document.getElementById('editPlayerRole').value,
-    is_franchise_player: document.getElementById('editPlayerFranchise')?.checked ? 1 : 0
+    is_franchise_player: document.getElementById('editPlayerFranchise')?.checked ? 1 : 0,
+    loyal_override: document.getElementById('editPlayerLoyal')?.checked ? 1 : 0
   };
   const ageVal = parseInt(document.getElementById('editPlayerAge')?.value || '', 10);
   if (!Number.isNaN(ageVal)) data.age = ageVal;
