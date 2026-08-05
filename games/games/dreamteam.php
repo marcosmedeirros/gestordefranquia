@@ -293,11 +293,11 @@ function dtCpuJogar(PDO $pdo, int $dueloId): void
     if (!$atual || $atual['status'] !== 'draft' || $atual['turno'] !== 'desafiado') return;
 
     $roster = json_decode((string)$atual['roster_desafiado'], true) ?: dtRosterVazio();
-    $time = dtTimePorId((string)$atual['time_sorteado_id']);
-    if (!$time) return;
+    // A CPU não usa botão — sorteia o próprio time na hora (o "Sortear Time" manual é só pro humano).
+    $time = dtSortearTimeValido($roster);
 
     $melhor = dtMelhorEscolha($time, $roster);
-    if ((!$melhor || $melhor['jogador']['ovr'] < 82) && (int)$atual['reroll_disponivel'] === 1) {
+    if (!$melhor || $melhor['jogador']['ovr'] < 82) {
         $novoTime = dtSortearTimeValido($roster);
         $melhorNovo = dtMelhorEscolha($novoTime, $roster);
         if ($melhorNovo && (!$melhor || $melhorNovo['jogador']['ovr'] > $melhor['jogador']['ovr'])) {
@@ -318,9 +318,9 @@ function dtCpuJogar(PDO $pdo, int $dueloId): void
         $pdo->prepare("UPDATE dreamteam_duelos SET status = 'simulado', resultado = ?, id_vencedor = ?, concluido_em = NOW() WHERE id = ?")
             ->execute([json_encode($resultado), $vencedorId, $dueloId]);
     } else {
-        $novoTimeCriador = dtSortearTimeValido($rosterCriador);
-        $pdo->prepare("UPDATE dreamteam_duelos SET turno = 'criador', time_sorteado_id = ?, reroll_disponivel = 1 WHERE id = ?")
-            ->execute([$novoTimeCriador['id'], $dueloId]);
+        // Passa a vez pro criador (sempre humano) sem sortear — ele sorteia clicando no botão.
+        $pdo->prepare("UPDATE dreamteam_duelos SET turno = 'criador', time_sorteado_id = NULL, reroll_disponivel = 1 WHERE id = ?")
+            ->execute([$dueloId]);
     }
 }
 
@@ -495,13 +495,14 @@ if (($_POST['acao'] ?? '') !== '') {
 
                 $rosterVazio = json_encode(dtRosterVazio());
                 $primeiroTurno = random_int(0, 1) ? 'criador' : 'desafiado';
-                $timeInicial = dtSortearTimeValido(dtRosterVazio());
+                // time_sorteado_id nasce vazio — a CPU sorteia sozinha na hora dela (dtCpuJogar); o
+                // criador (sempre humano) só sorteia quando clicar em "Sortear Time".
 
                 $codigo = dtGerarCodigo($pdo);
                 $pdo->prepare("INSERT INTO dreamteam_duelos
                         (codigo, id_criador, id_desafiado, aposta, status, turno, roster_criador, roster_desafiado, time_sorteado_id, reroll_disponivel, entrou_em)
-                        VALUES (?, ?, 0, ?, 'draft', ?, ?, ?, ?, 1, NOW())")
-                    ->execute([$codigo, $user_id, $aposta, $primeiroTurno, $rosterVazio, $rosterVazio, $timeInicial['id']]);
+                        VALUES (?, ?, 0, ?, 'draft', ?, ?, ?, NULL, 1, NOW())")
+                    ->execute([$codigo, $user_id, $aposta, $primeiroTurno, $rosterVazio, $rosterVazio]);
                 $dueloId = (int)$pdo->lastInsertId();
 
                 if ($primeiroTurno === 'desafiado') {
@@ -549,12 +550,12 @@ if (($_POST['acao'] ?? '') !== '') {
 
                 $rosterVazio = json_encode(dtRosterVazio());
                 $primeiroTurno = random_int(0, 1) ? 'criador' : 'desafiado';
-                $timeInicial = dtSortearTimeValido(dtRosterVazio());
+                // PvP: os dois lados são humanos — ninguém sorteia até clicar em "Sortear Time".
                 $pdo->prepare("UPDATE dreamteam_duelos
                         SET id_desafiado = ?, status = 'draft', turno = ?, roster_criador = ?, roster_desafiado = ?,
-                            time_sorteado_id = ?, reroll_disponivel = 1, entrou_em = NOW()
+                            time_sorteado_id = NULL, reroll_disponivel = 1, entrou_em = NOW()
                         WHERE id = ?")
-                    ->execute([$user_id, $primeiroTurno, $rosterVazio, $rosterVazio, $timeInicial['id'], $duelo['id']]);
+                    ->execute([$user_id, $primeiroTurno, $rosterVazio, $rosterVazio, $duelo['id']]);
                 $pdo->commit();
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) $pdo->rollBack();
@@ -583,12 +584,44 @@ if (($_POST['acao'] ?? '') !== '') {
             exit;
         }
 
-        // Gira de novo o time sorteado — 1 vez por rodada, só de quem está na vez.
+        // Sorteia o time da rodada — ação manual (botão "Sortear Time"), só quando ainda não sorteou nessa vez.
+        if ($acao === 'sortear_time') {
+            $duelo = dtDueloAtivo($pdo, $user_id);
+            if (!$duelo || $duelo['status'] !== 'draft') { echo json_encode(['ok' => false, 'msg' => 'Esse duelo não está em draft.']); exit; }
+            $lado = ((int)$duelo['id_criador'] === $user_id) ? 'criador' : 'desafiado';
+            if ($duelo['turno'] !== $lado) { echo json_encode(['ok' => false, 'msg' => 'Não é sua vez.']); exit; }
+            if ($duelo['time_sorteado_id'] !== null) { echo json_encode(['ok' => false, 'msg' => 'Você já sorteou um time nessa rodada.']); exit; }
+
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare('SELECT * FROM dreamteam_duelos WHERE id = ? FOR UPDATE');
+                $st->execute([$duelo['id']]);
+                $atual = $st->fetch(PDO::FETCH_ASSOC);
+                if (!$atual || $atual['status'] !== 'draft' || $atual['turno'] !== $lado || $atual['time_sorteado_id'] !== null) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Não deu pra sortear agora.']);
+                    exit;
+                }
+                $roster = json_decode((string)$atual[$lado === 'criador' ? 'roster_criador' : 'roster_desafiado'], true) ?: dtRosterVazio();
+                $novoTime = dtSortearTimeValido($roster);
+                $pdo->prepare('UPDATE dreamteam_duelos SET time_sorteado_id = ?, reroll_disponivel = 1 WHERE id = ?')
+                    ->execute([$novoTime['id'], $atual['id']]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
+        // Gira de novo o time já sorteado nessa rodada — 1 vez, só de quem está na vez.
         if ($acao === 'girar_de_novo') {
             $duelo = dtDueloAtivo($pdo, $user_id);
             if (!$duelo || $duelo['status'] !== 'draft') { echo json_encode(['ok' => false, 'msg' => 'Esse duelo não está em draft.']); exit; }
             $lado = ((int)$duelo['id_criador'] === $user_id) ? 'criador' : 'desafiado';
             if ($duelo['turno'] !== $lado) { echo json_encode(['ok' => false, 'msg' => 'Não é sua vez.']); exit; }
+            if ($duelo['time_sorteado_id'] === null) { echo json_encode(['ok' => false, 'msg' => 'Sorteie um time primeiro.']); exit; }
             if ((int)$duelo['reroll_disponivel'] !== 1) { echo json_encode(['ok' => false, 'msg' => 'Você já girou de novo nessa rodada.']); exit; }
 
             $pdo->beginTransaction();
@@ -596,7 +629,7 @@ if (($_POST['acao'] ?? '') !== '') {
                 $st = $pdo->prepare('SELECT * FROM dreamteam_duelos WHERE id = ? FOR UPDATE');
                 $st->execute([$duelo['id']]);
                 $atual = $st->fetch(PDO::FETCH_ASSOC);
-                if (!$atual || $atual['status'] !== 'draft' || $atual['turno'] !== $lado || (int)$atual['reroll_disponivel'] !== 1) {
+                if (!$atual || $atual['status'] !== 'draft' || $atual['turno'] !== $lado || (int)$atual['reroll_disponivel'] !== 1 || $atual['time_sorteado_id'] === null) {
                     $pdo->rollBack();
                     echo json_encode(['ok' => false, 'msg' => 'Não deu pra girar de novo.']);
                     exit;
@@ -738,10 +771,10 @@ if (($_POST['acao'] ?? '') !== '') {
                         ->execute([json_encode($resultado), $vencedorId, $atual['id']]);
                 } else {
                     $proximoLado = $lado === 'criador' ? 'desafiado' : 'criador';
-                    $proximoRoster = $proximoLado === 'criador' ? $rosterCriador : $rosterDesafiado;
-                    $novoTime = dtSortearTimeValido($proximoRoster);
-                    $pdo->prepare('UPDATE dreamteam_duelos SET turno = ?, time_sorteado_id = ?, reroll_disponivel = 1 WHERE id = ?')
-                        ->execute([$proximoLado, $novoTime['id'], $atual['id']]);
+                    // time_sorteado_id fica vazio pro próximo turno — se for humano, ele sorteia
+                    // clicando em "Sortear Time"; se for CPU, ela sorteia sozinha logo abaixo.
+                    $pdo->prepare("UPDATE dreamteam_duelos SET turno = ?, time_sorteado_id = NULL, reroll_disponivel = 1 WHERE id = ?")
+                        ->execute([$proximoLado, $atual['id']]);
 
                     if ($proximoLado === 'desafiado' && (int)$atual['id_desafiado'] === 0) {
                         dtCpuJogar($pdo, (int)$atual['id']);
@@ -1094,6 +1127,14 @@ function renderDraft(duelo) {
     ${duelo.minha_vez ? '<i class="bi bi-hand-index-thumb"></i> Sua vez — escolha um jogador' : `Vez de ${esc(duelo.oponente_nome)}...`}
   </div>`;
 
+  if (duelo.minha_vez && !duelo.time_sorteado) {
+    html += `<div class="dtcard" style="text-align:center">
+      <div class="dtcard-title" style="margin-bottom:2px">Sua vez de montar o time</div>
+      <p class="dtcard-sub" style="margin-bottom:14px">Gire a roleta pra ver qual escalação histórica aparece — daí escolhe 1 jogador dela.</p>
+      <button class="btn-dt" id="dtBtnSortear" onclick="dtSortearTime()"><i class="bi bi-shuffle me-2"></i>Sortear Time</button>
+    </div>`;
+  }
+
   if (duelo.time_sorteado) {
     const t = duelo.time_sorteado;
     const vagas = POSICOES.filter(p => !duelo.meu_roster[p]);
@@ -1157,6 +1198,14 @@ async function dtGirarDeNovo() {
   await atualizar();
 }
 
+async function dtSortearTime() {
+  const btn = document.getElementById('dtBtnSortear');
+  if (btn) btn.disabled = true;
+  const r = await dtPost('sortear_time');
+  if (!r.ok) { alert(r.msg); if (btn) btn.disabled = false; return; }
+  await atualizar();
+}
+
 // ── Tela: resultado (simcast por quartos → boxscore final) ──────────────────
 function renderResultado(duelo) {
   if (duelo.id === resultadoFinalId) { renderResultadoFinal(duelo); return; }
@@ -1184,8 +1233,10 @@ async function dtRodarSimcast(duelo) {
 
   let cumA = 0, cumB = 0;
   const linhas = [];
+  await new Promise(res => setTimeout(res, 900)); // pausa inicial antes do 1º quarto, dá suspense
   for (let q = 0; q < 4; q++) {
-    await new Promise(res => setTimeout(res, 700));
+    quartosEl.textContent = linhas.concat(`Q${q + 1}...`).join('  •  ');
+    await new Promise(res => setTimeout(res, 1600));
     const qa = duelo.meu_lado === 'a' ? r.quartos[q].a : r.quartos[q].b;
     const qb = duelo.meu_lado === 'a' ? r.quartos[q].b : r.quartos[q].a;
     cumA += qa; cumB += qb;
@@ -1194,7 +1245,7 @@ async function dtRodarSimcast(duelo) {
     linhas.push(`Q${q + 1} ${qa}-${qb}`);
     quartosEl.textContent = linhas.join('  •  ');
   }
-  await new Promise(res => setTimeout(res, 450));
+  await new Promise(res => setTimeout(res, 1100));
   resultadoFinalId = duelo.id;
   renderResultadoFinal(duelo);
 }
@@ -1280,12 +1331,19 @@ function renderTela(duelo) {
   renderCriarEntrar();
 }
 
+// Só re-renderiza quando o estado realmente muda — sem isso, cada poll de 3s reconstruía a
+// tela inteira (mesmo parado esperando o oponente), dando aquele flicker/"atualizando toda hora".
+let ultimoEstadoHash = JSON.stringify(ESTADO_INICIAL);
+
 async function atualizar() {
   if (processando) return;
   try {
     const r = await dtPost('estado');
     if (!r.ok) return;
     document.getElementById('chipSaldo').textContent = r.pontos;
+    const hash = JSON.stringify(r.duelo);
+    if (hash === ultimoEstadoHash) return;
+    ultimoEstadoHash = hash;
     renderTela(r.duelo);
   } catch (e) { /* silencioso — próximo poll tenta de novo */ }
 }
