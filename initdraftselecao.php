@@ -1047,35 +1047,49 @@ if ($user && isset($user['id'])) {
         }
 
         // ── Snake board (ordem + escolhas) ──────────────
+        function snakePickRowHtml(pick, currentPick) {
+            const picked = !!pick.picked_player_id;
+            const isCurrent = currentPick && pick.id === currentPick.id;
+            let body;
+            if (picked) {
+                body = `
+                    <div class="snake-team">${teamLabel(pick)}</div>
+                    <div class="snake-player"><span class="pos-badge ${posClass(pick.player_position)}">${esc(pick.player_position || '')}</span> ${esc(pick.player_name)} <span style="color:var(--text-3);font-weight:600">${pick.player_ovr ?? ''}</span></div>
+                    <div class="snake-react">${reactionChips(pick)}</div>`;
+            } else if (isCurrent) {
+                body = `<div class="snake-team">${teamLabel(pick)}</div><div class="snake-onclock"><span class="dot"></span> Escolhendo agora…</div>`;
+            } else {
+                body = `<div class="snake-team">${teamLabel(pick)}</div><div style="font-size:12px;color:var(--text-3)">Aguardando</div>`;
+            }
+            return `
+                <div class="snake-pick ${isCurrent ? 'is-current' : ''} ${picked ? 'is-done' : ''}">
+                    <div class="snake-num">${globalPickNo(pick)}</div>
+                    <img src="${pick.team_photo || '/img/default-team.png'}" onerror="this.src='/img/default-team.png'" alt="" style="width:30px;height:30px;border-radius:8px;object-fit:cover;border:1px solid var(--border-md);flex-shrink:0">
+                    <div class="snake-body">${body}</div>
+                </div>`;
+        }
+
         function renderSnakeBoard(currentPick) {
             const el = elements.snakeBoard;
             if (!el) return;
             if (!state.order.length) { el.innerHTML = '<div class="state-empty"><i class="bi bi-inbox"></i><p>Ordem ainda não definida.</p></div>'; return; }
+
+            // Últimas escolhas primeiro, pra galera reagir sem precisar rolar até o fim.
+            const doneDesc = state.order.filter((p) => p.picked_player_id).sort((a, b) => globalPickNo(b) - globalPickNo(a)).slice(0, 5);
+            const pinnedHtml = doneDesc.length ? `
+                <div class="snake-round snake-round-pinned">
+                    <div class="snake-round-head">
+                        <span class="snake-round-title"><i class="bi bi-clock-history"></i> Últimas escolhas</span>
+                    </div>
+                    ${doneDesc.map((pick) => snakePickRowHtml(pick, currentPick)).join('')}
+                </div>
+                <hr style="border-color:var(--border);margin:4px 0 16px">` : '';
+
             const rounds = [...new Set(state.order.map((p) => Number(p.round)))].sort((a, b) => a - b);
-            el.innerHTML = rounds.map((r) => {
+            const orderHtml = rounds.map((r) => {
                 const picks = state.order.filter((p) => Number(p.round) === r).sort((a, b) => a.pick_position - b.pick_position);
                 const even = r % 2 === 0;
-                const rows = picks.map((pick) => {
-                    const picked = !!pick.picked_player_id;
-                    const isCurrent = currentPick && pick.id === currentPick.id;
-                    let body;
-                    if (picked) {
-                        body = `
-                            <div class="snake-team">${teamLabel(pick)}</div>
-                            <div class="snake-player"><span class="pos-badge ${posClass(pick.player_position)}">${esc(pick.player_position || '')}</span> ${esc(pick.player_name)} <span style="color:var(--text-3);font-weight:600">${pick.player_ovr ?? ''}</span></div>
-                            <div class="snake-react">${reactionChips(pick)}</div>`;
-                    } else if (isCurrent) {
-                        body = `<div class="snake-team">${teamLabel(pick)}</div><div class="snake-onclock"><span class="dot"></span> Escolhendo agora…</div>`;
-                    } else {
-                        body = `<div class="snake-team">${teamLabel(pick)}</div><div style="font-size:12px;color:var(--text-3)">Aguardando</div>`;
-                    }
-                    return `
-                        <div class="snake-pick ${isCurrent ? 'is-current' : ''} ${picked ? 'is-done' : ''}">
-                            <div class="snake-num">${globalPickNo(pick)}</div>
-                            <img src="${pick.team_photo || '/img/default-team.png'}" onerror="this.src='/img/default-team.png'" alt="" style="width:30px;height:30px;border-radius:8px;object-fit:cover;border:1px solid var(--border-md);flex-shrink:0">
-                            <div class="snake-body">${body}</div>
-                        </div>`;
-                }).join('');
+                const rows = picks.map((pick) => snakePickRowHtml(pick, currentPick)).join('');
                 return `
                     <div class="snake-round">
                         <div class="snake-round-head">
@@ -1085,6 +1099,8 @@ if ($user && isset($user['id'])) {
                         ${rows}
                     </div>`;
             }).join('');
+
+            el.innerHTML = pinnedHtml + orderHtml;
         }
 
         // ── Pool (cards + filtros + detalhe) ────────────
