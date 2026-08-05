@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
 require_once dirname(__DIR__) . '/backend/helpers.php';
 require_once dirname(__DIR__) . '/backend/league_cap.php';
+require_once dirname(__DIR__) . '/backend/nba_sync.php';
 
 $user = getUserSession();
 if (!$user) {
@@ -358,6 +359,30 @@ if ($method === 'GET') {
             $stmtGU = $pdo->prepare($sqlGU);
             $stmtGU->execute($paramsGU);
             echo json_encode(['success' => true, 'users' => $stmtGU->fetchAll(PDO::FETCH_ASSOC)]);
+            break;
+
+        // Preenche nba_player_id dos jogadores sem foto (draft, FA, cadastro
+        // direto). Roda todo dia sozinho pelo cron; isto aqui é o botão em
+        // Gestão pra rodar na hora, sem esperar. Não é por liga — toca o
+        // cadastro inteiro — então só admin global mesmo.
+        case 'sync_fotos':
+            if (!$isGlobalAdminApi) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores globais.']);
+                break;
+            }
+            $r = syncNbaPlayerPhotos($pdo);
+            if (!$r['ok']) {
+                http_response_code(502);
+                echo json_encode(['success' => false, 'error' => $r['erro']]);
+                break;
+            }
+            echo json_encode([
+                'success' => true,
+                'atualizados' => $r['atualizados'],
+                'total_verificados' => $r['total_verificados'],
+                'sem_correspondencia' => $r['sem_correspondencia'],
+            ]);
             break;
 
         case 'leagues':

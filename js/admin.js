@@ -312,6 +312,9 @@ async function showGestao(league) {
       <a href="/thepathetic-edit.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
         <i class="bi bi-newspaper" style="color:var(--red)"></i> The Pathetic
       </a>
+      <button class="btn-ghost" id="btnSyncFotos" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="syncFotosNBA()">
+        <i class="bi bi-person-bounding-box" style="color:#06b6d4"></i> Sincronizar Fotos NBA
+      </button>
       <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;position:relative" onclick="showWaitlistModal()">
         <i class="bi bi-person-lines-fill" style="color:#22c55e"></i> Interessados
         <span class="action-tile-badge" id="waitlist-badge" style="display:none;position:static">0</span>
@@ -339,6 +342,30 @@ async function showGestao(league) {
   } catch (e) {}
 
   loadMaintenanceStatus();
+}
+
+/** Preenche nba_player_id de quem ainda não tem — é isso que faz a foto aparecer. */
+async function syncFotosNBA() {
+  const btn = document.getElementById('btnSyncFotos');
+  if (!btn) return;
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando…';
+  try {
+    const r = await api('admin.php?action=sync_fotos');
+    const semCorresp = r.sem_correspondencia || [];
+    let msg = `${r.atualizados} de ${r.total_verificados} jogador(es) sem foto foram atualizados.`;
+    if (semCorresp.length) {
+      msg += ` ${semCorresp.length} sem correspondência no cadastro da NBA.`;
+      console.warn('Sem correspondência na NBA:', semCorresp);
+    }
+    showAlert(semCorresp.length && !r.atualizados ? 'warning' : 'success', msg);
+  } catch (e) {
+    showAlert('danger', 'Erro ao sincronizar: ' + (e.error || 'Desconhecido'));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
 }
 
 async function loadMaintenanceStatus() {
