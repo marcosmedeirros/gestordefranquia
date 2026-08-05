@@ -666,6 +666,61 @@ if ($method === 'GET') {
                 break;
             }
 
+            // Baixa o pool inteiro em CSV. Era gerado no client via Blob — funcionava
+            // no desktop, mas navegadores in-app de celular (WhatsApp, Instagram) e o
+            // Safari do iOS costumam ignorar/bloquear download por Blob. Um endpoint
+            // que devolve o arquivo direto com Content-Disposition funciona em
+            // qualquer navegador, sem depender de JS pra montar o download.
+            case 'export_csv': {
+                $token = $_GET['token'] ?? null;
+                $session = getSessionByToken($pdo, $token);
+                if (!$session) throw new InvalidArgumentException('Sessão não encontrada');
+
+                $stmt = $pdo->prepare('SELECT * FROM initdraft_pool WHERE season_id = ? ORDER BY draft_status ASC, ovr DESC, name ASC');
+                $stmt->execute([$session['season_id']]);
+                $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $stmtOrder = $pdo->prepare('
+                    SELECT io.picked_player_id, io.round, io.pick_position,
+                        t.city AS team_city, t.name AS team_name
+                    FROM initdraft_order io
+                    INNER JOIN teams t ON t.id = io.team_id
+                    WHERE io.initdraft_session_id = ? AND io.picked_player_id IS NOT NULL
+                ');
+                $stmtOrder->execute([$session['id']]);
+                $escolhaPorJogador = [];
+                foreach ($stmtOrder->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                    $escolhaPorJogador[(int)$row['picked_player_id']] = [
+                        'time' => trim(($row['team_city'] ?? '') . ' ' . ($row['team_name'] ?? '')),
+                        'rodada' => $row['round'],
+                        'pick' => $row['pick_position'],
+                    ];
+                }
+
+                $campo = function ($v) {
+                    return '"' . str_replace('"', '""', (string)($v ?? '')) . '"';
+                };
+
+                $linhas = [implode(',', ['Nome', 'Posicao', 'Posicao2', 'Idade', 'OVR', 'Status', 'Draftado por', 'Rodada', 'Pick'])];
+                foreach ($players as $j) {
+                    $e = $escolhaPorJogador[(int)$j['id']] ?? ['time' => '', 'rodada' => '', 'pick' => ''];
+                    $linhas[] = implode(',', [
+                        $campo($j['name']), $campo($j['position']), $campo($j['secondary_position'] ?? ''),
+                        $campo($j['age']), $campo($j['ovr']),
+                        $campo($j['draft_status'] === 'drafted' ? 'Draftado' : 'Disponivel'),
+                        $campo($e['time']), $campo($e['rodada']), $campo($e['pick']),
+                    ]);
+                }
+
+                // BOM no começo: sem ele o Excel no Windows abre nome acentuado errado.
+                $csv = "\xEF\xBB\xBF" . implode("\r\n", $linhas);
+                header('Content-Type: text/csv; charset=utf-8');
+                header('Content-Disposition: attachment; filename="draft-inicial-pool-' . date('Y-m-d') . '.csv"');
+                header('Content-Length: ' . strlen($csv));
+                echo $csv;
+                exit;
+            }
+
             case 'mock_get': {
                 $token = $_GET['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);

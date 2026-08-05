@@ -663,9 +663,9 @@ if ($user && isset($user['id'])) {
                     <div class="panel-card-title"><i class="bi bi-people-fill" style="color:var(--red);margin-right:6px"></i>Pool de Jogadores</div>
                     <div class="d-flex align-items-center gap-2">
                         <span style="font-size:11px;color:var(--text-2)" id="poolMeta"></span>
-                        <button class="btn-ghost" onclick="baixarPoolCSV()" title="Baixar a lista completa em CSV pra montar sua planilha">
+                        <a class="btn-ghost" href="api/initdraft.php?action=export_csv&token=<?php echo urlencode($token); ?>" title="Baixar a lista completa em CSV pra montar sua planilha" style="text-decoration:none">
                             <i class="bi bi-file-earmark-spreadsheet"></i> Baixar Jogadores (csv)
-                        </button>
+                        </a>
                     </div>
                 </div>
                 <div class="panel-card-body">
@@ -2230,60 +2230,6 @@ if ($user && isset($user['id'])) {
          * Esvazia o pool inteiro — serve pra recomeçar quando o CSV veio errado.
          * Pede o total digitado na confirmação: é destrutivo e não dá pra desfazer.
          */
-        /**
-         * Baixa o pool inteiro em CSV, pra quem quiser montar a própria
-         * planilha de rankings. Sai a lista TODA — não o filtro da tela —
-         * porque o objetivo é ter a base completa pra trabalhar em casa.
-         */
-        function baixarPoolCSV() {
-            const pool = state.pool || [];
-            if (!pool.length) { alert('O pool ainda está vazio.'); return; }
-
-            // Quem levou cada jogador, pra planilha já sair com o histórico.
-            const escolhaPorJogador = {};
-            (state.order || []).forEach((p) => {
-                if (p.picked_player_id) {
-                    escolhaPorJogador[p.picked_player_id] = {
-                        time: `${p.team_city || ''} ${p.team_name || ''}`.trim(),
-                        rodada: p.round,
-                        pick: p.pick_position,
-                    };
-                }
-            });
-
-            // Aspas duplicadas e campo entre aspas: nome com vírgula ou acento
-            // quebra a planilha se sair cru.
-            const campo = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-
-            const linhas = [[
-                'Nome', 'Posicao', 'Posicao2', 'Idade', 'OVR',
-                'Status', 'Draftado por', 'Rodada', 'Pick',
-            ].join(',')];
-
-            pool.forEach((j) => {
-                const e = escolhaPorJogador[j.id] || {};
-                linhas.push([
-                    campo(j.name), campo(j.position), campo(j.secondary_position || ''),
-                    campo(j.age), campo(j.ovr),
-                    campo(j.draft_status === 'drafted' ? 'Draftado' : 'Disponivel'),
-                    campo(e.time || ''), campo(e.rodada || ''), campo(e.pick || ''),
-                ].join(','));
-            });
-
-            // BOM no começo: sem ele o Excel no Windows abre "Adebayo" como
-            // "AdebayoÌ". Escrito como ﻿ e não como o caractere literal,
-            // que é invisível e se perde em qualquer edição do arquivo.
-            const csv = '\uFEFF' + linhas.join('\r\n');
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `draft-inicial-pool-${new Date().toISOString().slice(0, 10)}.csv`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-        }
 
         /** Copia as escolhas que já saíram, agrupadas por rodada. */
         async function copiarEscolhas(btn) {
