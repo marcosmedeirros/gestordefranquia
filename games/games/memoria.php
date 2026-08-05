@@ -119,55 +119,96 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
     if ($status_atual !== 'jogando') { echo json_encode(['erro' => 'Jogo já finalizado.']); exit; }
 
-    if ($_POST['acao'] == 'atualizar_estado') {
-        $novos_movimentos = (int)$_POST['movimentos'];
-        $pares_encontrados = json_decode($_POST['pares_encontrados'], true) ?? []; 
-        $tempo = (int)$_POST['tempo'];
+    // O SERVIDOR é dono do jogo. O cliente só informa quais DUAS cartas virou; quem confere se
+    // os emojis batem, quem conta os movimentos e quem decide vitória/derrota é este bloco.
+    //
+    // Antes o cliente mandava `movimentos` e a lista `pares_encontrados` e o servidor acreditava:
+    // um único POST com todos os ids marcava "venceu" e pagava o prêmio sem jogar. E o contador
+    // de movimentos vindo do cliente tornava o limite de 18 inexistente.
+    if ($_POST['acao'] == 'virar_cartas') {
+        $a = filter_var($_POST['carta_a'] ?? null, FILTER_VALIDATE_INT);
+        $b = filter_var($_POST['carta_b'] ?? null, FILTER_VALIDATE_INT);
+        $tempo = max(0, min(86400, (int)($_POST['tempo'] ?? 0)));
 
-        foreach ($tabuleiro_atual as &$carta) {
-            if (in_array($carta['id'], $pares_encontrados)) $carta['encontrado'] = true;
-        }
-        
-        $novo_estado_json = json_encode($tabuleiro_atual);
-        $novo_status = 'jogando';
-        $pontos = 0;
-
-        if ($novos_movimentos >= $LIMITE_MOVIMENTOS) {
-            $todos_encontrados = true;
-            foreach ($tabuleiro_atual as $c) { if(!$c['encontrado']) $todos_encontrados = false; }
-            if (!$todos_encontrados) $novo_status = 'perdeu';
+        if ($a === false || $b === false || $a === $b
+            || !isset($tabuleiro_atual[$a]) || !isset($tabuleiro_atual[$b])) {
+            echo json_encode(['erro' => 'Jogada inválida.']);
+            exit;
         }
 
-        if ($novo_status == 'jogando') {
-            $vitoria = true;
-            foreach ($tabuleiro_atual as $c) { if (!$c['encontrado']) { $vitoria = false; break; } }
-            if ($vitoria) { $novo_status = 'venceu'; $pontos = $PONTOS_VITORIA; }
-        }
+        try {
+            $pdo->beginTransaction();
+            // Relê o estado com lock: sem isso, dois requests simultâneos da mesma conta
+            // creditavam o prêmio duas vezes.
+            $stLock = $pdo->prepare("SELECT id, estado_jogo, movimentos, status, pontos_ganhos FROM memoria_historico WHERE id = :id FOR UPDATE");
+            $stLock->execute([':id' => $dados_jogo['id']]);
+            $atual = $stLock->fetch(PDO::FETCH_ASSOC);
+            if (!$atual || $atual['status'] !== 'jogando') {
+                $pdo->rollBack();
+                echo json_encode(['erro' => 'Jogo já finalizado.']);
+                exit;
+            }
 
-        $stmtUpd = $pdo->prepare("UPDATE memoria_historico SET movimentos = :m, tempo_segundos = :t, estado_jogo = :st_json, status = :st, pontos_ganhos = :pts WHERE id = :id");
-        $stmtUpd->execute([':m' => $novos_movimentos, ':t' => $tempo, ':st_json' => $novo_estado_json, ':st' => $novo_status, ':pts' => $pontos, ':id' => $dados_jogo['id']]);
+            $tab = json_decode((string)$atual['estado_jogo'], true);
+            if (!is_array($tab) || !isset($tab[$a], $tab[$b])) {
+                $pdo->rollBack();
+                echo json_encode(['erro' => 'Estado inválido.']);
+                exit;
+            }
+            if (!empty($tab[$a]['encontrado']) || !empty($tab[$b]['encontrado'])) {
+                $pdo->rollBack();
+                echo json_encode(['erro' => 'Carta já encontrada.']);
+                exit;
+            }
 
-        if ($novo_status == 'venceu' && $dados_jogo['pontos_ganhos'] == 0) {
-            try {
-                $pdo->beginTransaction();
+            $movimentos = (int)$atual['movimentos'] + 1;   // contado NO SERVIDOR
+            $acertou = ($tab[$a]['emoji'] === $tab[$b]['emoji']);
+            if ($acertou) {
+                $tab[$a]['encontrado'] = true;
+                $tab[$b]['encontrado'] = true;
+            }
 
+            $venceu = true;
+            foreach ($tab as $c) { if (empty($c['encontrado'])) { $venceu = false; break; } }
+
+            $novo_status = 'jogando';
+            $pontos = (int)$atual['pontos_ganhos'];
+            if ($venceu) {
+                $novo_status = 'venceu';
+            } elseif ($movimentos >= $LIMITE_MOVIMENTOS) {
+                $novo_status = 'perdeu';
+            }
+
+            // Paga uma única vez, dentro da mesma transação do UPDATE de status.
+            if ($novo_status === 'venceu' && (int)$atual['pontos_ganhos'] === 0) {
+                $pontos = $PONTOS_VITORIA;
                 $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :pts WHERE id = :uid")
                     ->execute([':pts' => $pontos, ':uid' => $user_id]);
-
-                $pdo->commit();
-            } catch (Exception $e) {
-                $pdo->rollBack();
             }
+
+            $pdo->prepare("UPDATE memoria_historico SET movimentos = :m, tempo_segundos = :t, estado_jogo = :st_json, status = :st, pontos_ganhos = :pts WHERE id = :id")
+                ->execute([':m' => $movimentos, ':t' => $tempo, ':st_json' => json_encode($tab), ':st' => $novo_status, ':pts' => $pontos, ':id' => $atual['id']]);
+            $pdo->commit();
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[memoria] virar_cartas: ' . $e->getMessage());
+            echo json_encode(['erro' => 'Erro interno.']);
+            exit;
         }
 
         if ($novo_status !== 'jogando') {
-            try {
-                $update_streak();
-            } catch (Exception $e) {
-            }
+            try { $update_streak(); } catch (Exception $e) {}
         }
 
-        echo json_encode(['status' => $novo_status, 'movimentos' => $novos_movimentos]);
+        // Devolve os emojis das duas cartas viradas — é a única forma do cliente descobri-los.
+        echo json_encode([
+            'status'      => $novo_status,
+            'movimentos'  => $movimentos,
+            'acertou'     => $acertou,
+            'emoji_a'     => $tab[$a]['emoji'],
+            'emoji_b'     => $tab[$b]['emoji'],
+            'pontos'      => ($novo_status === 'venceu') ? $pontos : 0,
+        ]);
         exit;
     }
 }
@@ -282,13 +323,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
 
   <div class="memory-grid" id="grid">
-    <?php foreach($tabuleiro_atual as $carta): ?>
-    <div class="card-game <?= $carta['encontrado'] ? 'flip matched' : '' ?>"
-         data-id="<?= $carta['id'] ?>"
-         data-emoji="<?= $carta['emoji'] ?>"
-         <?= $carta['encontrado'] ? 'style="pointer-events:none"' : '' ?>>
+    <?php foreach($tabuleiro_atual as $idx => $carta): ?>
+    <?php
+      // Só carta JÁ ENCONTRADA mostra o emoji. Antes o tabuleiro inteiro saía no HTML
+      // (data-emoji + verso), então "ver código-fonte" entregava o jogo resolvido.
+      $revelada = !empty($carta['encontrado']);
+    ?>
+    <div class="card-game <?= $revelada ? 'flip matched' : '' ?>"
+         data-id="<?= (int)$idx ?>"
+         <?= $revelada ? 'style="pointer-events:none"' : '' ?>>
       <div class="card-face card-front"><i class="bi bi-cpu-fill"></i></div>
-      <div class="card-face card-back"><?= $carta['emoji'] ?></div>
+      <div class="card-face card-back"><?= $revelada ? $carta['emoji'] : '' ?></div>
     </div>
     <?php endforeach; ?>
   </div>
@@ -320,63 +365,72 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     }
     if(moves > 0) startTimer();
 
-    function flipCard() {
+    // O cliente não conhece mais os emojis: ao virar a segunda carta ele pergunta ao servidor,
+    // que responde se bateu e devolve os dois emojis pra exibir.
+    async function flipCard() {
         if(lockBoard || this === firstCard) return;
         startTimer();
         this.classList.add('flip');
         if(!hasFlippedCard) { hasFlippedCard = true; firstCard = this; return; }
         secondCard = this;
-        incrementMoves();
-        checkForMatch();
-    }
+        lockBoard = true;
 
-    function checkForMatch() {
-        firstCard.dataset.emoji === secondCard.dataset.emoji ? disableCards() : unflipCards();
+        let data = null;
+        try {
+            const formData = new FormData();
+            formData.append('acao', 'virar_cartas');
+            formData.append('carta_a', firstCard.dataset.id);
+            formData.append('carta_b', secondCard.dataset.id);
+            formData.append('tempo', seconds);
+            const r = await fetch('index.php?game=memoria', { method: 'POST', body: formData });
+            data = await r.json();
+        } catch (e) { /* trata abaixo */ }
+
+        if (!data || data.erro) {
+            firstCard.classList.remove('flip');
+            secondCard.classList.remove('flip');
+            resetBoard();
+            return;
+        }
+
+        // Mostra os emojis que o servidor revelou
+        firstCard.querySelector('.card-back').textContent  = data.emoji_a;
+        secondCard.querySelector('.card-back').textContent = data.emoji_b;
+
+        moves = data.movimentos;
+        movesDisplay.textContent = moves;
+        if (moves >= LIMITE - 4) movesDisplay.classList.add('warn');
+
+        if (data.acertou) {
+            disableCards();
+        } else {
+            unflipCards();
+        }
+
+        if (data.status === 'venceu' || data.status === 'perdeu') {
+            if (timerInterval) clearInterval(timerInterval);
+            cards.forEach(c => c.removeEventListener('click', flipCard));
+            setTimeout(() => location.reload(), 1200);
+        }
     }
 
     function disableCards() {
         firstCard.classList.add('matched'); secondCard.classList.add('matched');
         firstCard.removeEventListener('click', flipCard); secondCard.removeEventListener('click', flipCard);
-        saveGameState(); resetBoard();
+        resetBoard();
     }
 
     function unflipCards() {
-        lockBoard = true;
         setTimeout(() => {
-            firstCard.classList.remove('flip'); secondCard.classList.remove('flip');
-            saveGameState(); resetBoard();
+            if (firstCard)  firstCard.classList.remove('flip');
+            if (secondCard) secondCard.classList.remove('flip');
+            resetBoard();
         }, 1000);
     }
 
     function resetBoard() {
         [hasFlippedCard, lockBoard] = [false, false];
         [firstCard, secondCard] = [null, null];
-    }
-
-    function incrementMoves() {
-        moves++; movesDisplay.textContent = moves;
-        if(moves >= LIMITE - 4) movesDisplay.classList.add('warn');
-        if(moves >= LIMITE) {
-            lockBoard = true;
-            cards.forEach(c => c.removeEventListener('click', flipCard));
-            if(timerInterval) clearInterval(timerInterval);
-            saveGameState();
-        }
-    }
-
-    function saveGameState() {
-        let encontrados = [];
-        document.querySelectorAll('.card-game.matched').forEach(c => encontrados.push(parseInt(c.dataset.id)));
-        const formData = new FormData();
-        formData.append('acao', 'atualizar_estado');
-        formData.append('movimentos', moves);
-        formData.append('tempo', seconds);
-        formData.append('pares_encontrados', JSON.stringify(encontrados));
-        fetch('index.php?game=memoria', { method: 'POST', body: formData })
-        .then(r => r.json())
-        .then(data => {
-            if(data.status === 'venceu' || data.status === 'perdeu') setTimeout(() => location.reload(), 500);
-        });
     }
 </script>
 <?php endif; ?>

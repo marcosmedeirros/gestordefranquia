@@ -206,7 +206,10 @@ $dicionario = [
 $dicionario = array_values(array_unique(array_map('strtoupper', $dicionario)));
 } // fim do else (fallback)
 
-$seed = floor(time() / 86400);
+// Semente pela DATA LOCAL (mesma base de data_jogo). Com floor(time()/86400) a palavra trocava
+// à meia-noite UTC (21h em Brasília) enquanto o limite diário virava à meia-noite local — quem
+// jogasse das 21h às 24h repetia a MESMA palavra já descoberta depois da meia-noite.
+$seed = (int)floor(strtotime(date('Y-m-d')) / 86400);
 srand($seed);
 $indice_do_dia = rand(0, count($dicionario) - 1);
 $PALAVRA_DO_DIA = $dicionario[$indice_do_dia];
@@ -313,6 +316,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
     $chute_cru = $_POST['chute'];
     $chute     = removerAcentos($chute_cru);
 
+    // Dicionário sem acento, pra comparar com o chute já normalizado.
+    static $dicionarioSemAcento = null;
+    if ($dicionarioSemAcento === null) {
+        $dicionarioSemAcento = array_flip(array_map('removerAcentos', $dicionario));
+    }
+
     // ── DUETO ──────────────────────────────────────────────────────────────
     if ($modo === 'dueto') {
         if ($dueto_finalizado && !$apenas_validar) {
@@ -321,12 +330,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
         if (strlen($chute) != 5) {
             echo json_encode(['erro' => 'A palavra deve ter 5 letras.']); exit;
         }
+        // Sem isso dava pra gastar as tentativas com sequências ótimas de eliminação que nem
+        // são palavras, o que facilita demais descobrir a resposta.
+        if (!$apenas_validar && !isset($dicionarioSemAcento[$chute])) {
+            echo json_encode(['erro' => 'Palavra não está na lista.']); exit;
+        }
         $c1 = removerAcentos($PALAVRA_D1);
         $c2 = removerAcentos($PALAVRA_D2);
         $cores_1 = calcularCores($chute, $c1);
         $cores_2 = calcularCores($chute, $c2);
 
+        // `validar_somente` existe só pra redesenhar o tabuleiro ao recarregar a página. Por isso
+        // agora só aceita chutes que JÁ ESTÃO no histórico gravado. Antes aceitava qualquer
+        // palavra, sem gastar tentativa e sem registrar nada: dava pra varrer o dicionário em
+        // segundos e descobrir as palavras do dia, garantindo o prêmio todo dia.
         if ($apenas_validar) {
+            if (!in_array($chute, $chutes_dueto, true)) {
+                echo json_encode(['erro' => 'Chute inválido.']); exit;
+            }
             echo json_encode(['cores_1'=>$cores_1,'cores_2'=>$cores_2,'fim_jogo'=>false,'pontos'=>0]); exit;
         }
 
@@ -362,7 +383,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
                     ->execute([':s'=>$novaSD,':u'=>$user_id,':d'=>$hoje]);
             }
             $pdo->commit();
-        } catch (Exception $e) { $pdo->rollBack(); }
+        } catch (Exception $e) {
+            // rollBack() sem transação ativa lança PDOException dentro do catch e a resposta sai
+            // como HTML em vez de JSON — a vitória "sumia" silenciosamente pro jogador.
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[termo] ' . $e->getMessage());
+        }
 
         echo json_encode([
             'cores_1'   => $cores_1,
@@ -389,6 +415,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
         echo json_encode(['erro' => 'A palavra deve ter 5 letras.']);
         exit;
     }
+    if (!$apenas_validar && !isset($dicionarioSemAcento[$chute])) {
+        echo json_encode(['erro' => 'Palavra não está na lista.']);
+        exit;
+    }
 
     // Lógica de Cores
     $resultado = array_fill(0, 5, '');
@@ -413,10 +443,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
         }
     }
 
+    // Só redesenha chutes JÁ GRAVADOS (ver comentário no bloco do dueto) e nunca devolve
+    // `ganhou` — era o que transformava esse endpoint num oráculo da palavra do dia.
     if ($apenas_validar) {
+        if (!in_array($chute, $chutes_realizados, true)) {
+            echo json_encode(['erro' => 'Chute inválido.']);
+            exit;
+        }
         echo json_encode([
             'cores' => $resultado,
-            'ganhou' => ($chute === $correto),
             'fim_jogo' => false,
             'pontos' => 0
         ]);
@@ -451,7 +486,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
             $update_streak();
 
             $pdo->commit();
-        } catch (Exception $e) { $pdo->rollBack(); }
+        } catch (Exception $e) {
+            // rollBack() sem transação ativa lança PDOException dentro do catch e a resposta sai
+            // como HTML em vez de JSON — a vitória "sumia" silenciosamente pro jogador.
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[termo] ' . $e->getMessage());
+        }
     }
 
     $acabou = ($ganhou_rodada || $num_tentativas >= $MAX_TENTATIVAS);
