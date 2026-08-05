@@ -727,10 +727,14 @@ if ($teamId) {
                                 <?php if ($isElite): ?><option value="G-League">G-League</option><?php endif; ?>
                             </select>
                         </div>
-                        <div style="grid-column: span 4; display:flex; align-items:center; gap:10px; padding-top:18px;">
+                        <div style="grid-column: span 4; display:flex; align-items:center; gap:18px; flex-wrap:wrap; padding-top:18px;">
                             <div class="form-check" style="margin:0;">
                                 <input class="form-check-input" type="checkbox" id="available_for_trade" name="available_for_trade" checked>
                                 <label class="form-check-label" for="available_for_trade">Disponível para troca</label>
+                            </div>
+                            <div class="form-check" style="margin:0;">
+                                <input class="form-check-input" type="checkbox" id="field-loyal" name="loyal">
+                                <label class="form-check-label" for="field-loyal" title="Jogador cadastrado direto não passa por draft, então a lealdade não tem como ser calculada automaticamente.">🤝 Leal</label>
                             </div>
                         </div>
                         <div style="grid-column: span 4; align-self: end;">

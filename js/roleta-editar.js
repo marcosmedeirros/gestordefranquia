@@ -435,10 +435,11 @@ function reRenderConfig(data) {
     </div>
     <div style="font-size:11px;color:var(--text-3);margin:10px 0">Tipo: <b style="color:var(--text)">${tipoLabel}</b> (não pode ser trocado depois de criada)</div>
     ${data.tipo === 'personalizado' ? `
-    <div class="mb-2" style="display:flex;gap:8px">
+    <div class="mb-1" style="display:flex;gap:8px">
       <input type="text" id="rlEditNomeLivre" class="form-control" placeholder="Nome do participante">
       <button type="button" class="btn-ghost" id="rlEditAddNomeLivre"><i class="bi bi-plus-lg"></i></button>
-    </div>` : `
+    </div>
+    <small style="color:var(--text-3);font-size:11px;display:block;margin-bottom:8px">Dá pra colar vários nomes de uma vez — um por linha, cada linha vira um participante.</small>` : `
     <div class="mb-2 rl-autocomplete">
       <input type="text" id="rlEditBusca" class="form-control" placeholder="Digite o nome do GM ou do time..." autocomplete="off">
       <div class="rl-autocomplete-results" id="rlEditBuscaResultados"></div>
@@ -458,6 +459,13 @@ function reRenderConfig(data) {
     document.getElementById('rlEditAddNomeLivre').addEventListener('click', reAdicionarNomeLivreEdit);
     document.getElementById('rlEditNomeLivre').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); reAdicionarNomeLivreEdit(); }
+    });
+    document.getElementById('rlEditNomeLivre').addEventListener('paste', (e) => {
+      const texto = (e.clipboardData || window.clipboardData).getData('text');
+      if (texto && texto.includes('\n')) {
+        e.preventDefault();
+        reAdicionarNomesLivreEmLote(texto);
+      }
     });
   } else {
     const buscaInput = document.getElementById('rlEditBusca');
@@ -552,6 +560,13 @@ function reAdicionarNomeLivreEdit() {
   reSelecionadosNovos.push({ nome_display: nome, label: nome });
   input.value = '';
   reRenderChipsNovos();
+}
+
+/** Cola vários nomes de uma vez (um por linha) — cada linha vira um participante. */
+function reAdicionarNomesLivreEmLote(texto) {
+  const linhas = texto.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  linhas.forEach(nome => reSelecionadosNovos.push({ nome_display: nome, label: nome }));
+  if (linhas.length) reRenderChipsNovos();
 }
 
 async function reSalvarTitulo() {

@@ -274,7 +274,11 @@ function performInitDraftPick(PDO $pdo, array $session, int $playerId): void {
             throw new InvalidArgumentException('Jogador indisponível — já foi selecionado por outra requisição.');
         }
 
-        $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, draft_round, draft_pick_position, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, "Banco", 0)')
+        // loyal_override=0 fixo: jogador do Draft Inicial nunca é "Leal", nem por
+        // coincidência de nome com uma entrada de draft_pool de outra temporada
+        // (o próprio nome real de jogador NBA pode repetir entre os dois pools).
+        ensurePlayerRestrictionColumns($pdo);
+        $pdo->prepare('INSERT INTO players (team_id, drafted_by_team_id, draft_round, draft_pick_position, name, position, age, ovr, role, available_for_trade, loyal_override) VALUES (?, ?, ?, ?, ?, ?, ?, ?, "Banco", 0, 0)')
             ->execute([$currentPick['team_id'], $currentPick['team_id'], $sessionRound, $sessionPick, $player['name'], $player['position'], $player['age'], $player['ovr']]);
 
         $nextPick = $sessionPick + 1;

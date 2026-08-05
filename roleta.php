@@ -246,6 +246,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
             <input type="text" id="rlNomeLivre" class="form-control" placeholder="Nome do participante" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text)">
             <button type="button" class="btn-orange" id="btnAddNomeLivre" style="padding:8px 16px"><i class="bi bi-plus-lg"></i></button>
           </div>
+          <small style="color:var(--text-3);font-size:11px">Dá pra colar vários nomes de uma vez — um por linha, cada linha vira um participante.</small>
         </div>
 
         <div class="rl-chips" id="rlChips"></div>

@@ -530,12 +530,13 @@ if ($method === 'GET') {
 
             // Buscar jogadores
             $stmtPlayers = $pdo->prepare("
-                SELECT * FROM players 
-                WHERE team_id = ? 
+                SELECT * FROM players
+                WHERE team_id = ?
                 ORDER BY ovr DESC, role, name
             ");
             $stmtPlayers->execute([$teamId]);
             $team['players'] = $stmtPlayers->fetchAll(PDO::FETCH_ASSOC);
+            markLoyaltyEligibility($pdo, $team['players']); // is_loyal — pro checkbox "Leal" na edição já vir marcado certo
 
             // Buscar picks
             $stmtPicks = $pdo->prepare("
@@ -1252,6 +1253,7 @@ if ($method === 'PUT') {
             $position = $data['position'] ?? null;
             $age      = $data['age'] ?? null;
             $isFranchisePlayer = array_key_exists('is_franchise_player', $data) ? $data['is_franchise_player'] : null;
+            $loyalOverride = array_key_exists('loyal_override', $data) ? $data['loyal_override'] : null;
 
             if (!$playerId) {
                 http_response_code(400);
@@ -1316,6 +1318,11 @@ if ($method === 'PUT') {
                 ensurePlayerRestrictionColumns($pdo);
                 $updates[] = 'is_franchise_player = ?';
                 $params[]  = ($isFranchisePlayer === 1 || $isFranchisePlayer === '1' || $isFranchisePlayer === true) ? 1 : 0;
+            }
+            if ($loyalOverride !== null) {
+                ensurePlayerRestrictionColumns($pdo);
+                $updates[] = 'loyal_override = ?';
+                $params[]  = ($loyalOverride === 1 || $loyalOverride === '1' || $loyalOverride === true) ? 1 : 0;
             }
 
             if (empty($updates)) {
@@ -2163,6 +2170,16 @@ if ($method === 'POST') {
                 $values[] = 0;
             }
 
+            // Jogador cadastrado direto (sem passar por draft nenhum): a lealdade
+            // não tem como ser calculada automaticamente, então depende do check
+            // "Leal" do formulário — padrão é não.
+            ensurePlayerRestrictionColumns($pdo);
+            if (columnExists($pdo, 'players', 'loyal_override')) {
+                $columns[] = 'loyal_override';
+                $loyalOnAdd = $data['loyal_override'] ?? null;
+                $values[] = ($loyalOnAdd === 1 || $loyalOnAdd === '1' || $loyalOnAdd === true) ? 1 : 0;
+            }
+
             $columnList = implode(', ', array_map(static fn($col) => "`{$col}`", $columns));
             $placeholders = implode(', ', array_fill(0, count($columns), '?'));
 
@@ -2174,7 +2191,7 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Erro ao adicionar jogador']);
                 exit;
             }
-            
+
             $newPlayerId = $pdo->lastInsertId();
             echo json_encode(['success' => true, 'player_id' => $newPlayerId]);
             break;
