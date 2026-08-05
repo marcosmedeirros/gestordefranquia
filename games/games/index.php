@@ -94,6 +94,12 @@ $games_disponiveis = [
         'titulo' => '🏗️ Build-A-Player',
         'arquivo' => 'buildplayer.php'
     ],
+    // De propósito sem card em games.php ainda — só quem tem o link direto
+    // (?game=dreamteam) chega aqui, enquanto o jogo tá em teste.
+    'dreamteam' => [
+        'titulo' => '⚔️ Starting5x5',
+        'arquivo' => 'dreamteam.php'
+    ],
 ];
 
 // Valida se o game existe

@@ -50,7 +50,11 @@ function requireAuth() {
     if (($_SESSION['user_league'] ?? '') === 'ROOKIE' && ($_SESSION['user_type'] ?? '') !== 'admin') {
         $currentPage = basename($_SERVER['PHP_SELF']);
         $paginasLiberadas = ['rookie-sorteio.php', 'logout.php', 'pending-approval.php'];
-        if (!in_array($currentPage, $paginasLiberadas, true)) {
+        // games/ é um subsistema à parte (arcade, sem franquia nenhuma) — não
+        // faz sentido travar alguém de jogar Termo/Poker/etc. só porque ainda
+        // não escolheu a marca NBA da liga.
+        $ehPaginaDeGames = str_contains((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/games/');
+        if (!$ehPaginaDeGames && !in_array($currentPage, $paginasLiberadas, true)) {
             if (!function_exists('db')) {
                 require_once __DIR__ . '/db.php';
             }
