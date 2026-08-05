@@ -66,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         $_SESSION['flappy_last_score']  = 0;
         $_SESSION['flappy_revive_used'] = false;
         $_SESSION['flappy_score_saved'] = false;
+        $_SESSION['flappy_coins_pagos'] = 0;
         echo json_encode(['sucesso' => true]);
         exit;
     }
@@ -131,7 +132,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         try {
             $validate_run_score($score);
             $milestones   = intdiv(max(0, $score), 5);
-            $coins_earned = (int)(($milestones * ($milestones + 3) / 2) * $pointsMultiplier);
+            // O prêmio é recalculado do zero a cada morte, mas o score NÃO zera no revive: sem
+            // descontar o que já foi pago, a mesma partida pagava o trecho inicial duas vezes
+            // (dava pra farmar: pontuar, reviver por 10, morrer de propósito e receber tudo de novo).
+            $total_devido = (int)(($milestones * ($milestones + 3) / 2) * $pointsMultiplier);
+            $ja_pago      = (int)($_SESSION['flappy_coins_pagos'] ?? 0);
+            $coins_earned = max(0, $total_devido - $ja_pago);
             $pdo->beginTransaction();
             $pdo->prepare("INSERT INTO flappy_historico (id_usuario, pontuacao) VALUES (:uid, :score)")
                 ->execute([':uid' => $user_id, ':score' => $score]);
@@ -146,6 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $_SESSION['flappy_last_score'] = $score;
             $_SESSION['flappy_run_active'] = false;
             $_SESSION['flappy_score_saved'] = true;
+            $_SESSION['flappy_coins_pagos'] = $ja_pago + $coins_earned;
             echo json_encode(['sucesso' => true, 'coins' => $coins_earned, 'novo_saldo' => $novo_saldo]);
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();

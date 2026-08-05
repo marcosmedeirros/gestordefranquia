@@ -224,11 +224,21 @@ function dtGerarQuartos(int $placarA, int $placarB): array
 {
     // Pesos INDEPENDENTES pra cada lado — usar o mesmo peso pros dois fazia o time com mais
     // pontos no total vencer literalmente todo quarto (nunca dava virada, só diferença de escala).
+    //
+    // A amplitude depende de quão apertado terminou: jogo decidido no detalhe oscila muito e
+    // troca de liderança várias vezes; atropelo tem quartos mais parelhos, o líder abre e
+    // administra. É o que faz a virada acontecer "dependendo da força do time".
+    $margem = abs($placarA - $placarB);
+    if ($margem <= 6)       $amp = 5;  // jogo duro: quartos de 5 a 15 pontos de peso
+    elseif ($margem <= 14)  $amp = 4;
+    elseif ($margem <= 22)  $amp = 3;
+    else                    $amp = 2;  // atropelo: quartos previsíveis
+
     $pesosA = [];
     $pesosB = [];
     for ($q = 1; $q <= 4; $q++) {
-        $pesosA[$q] = random_int(7, 13);
-        $pesosB[$q] = random_int(7, 13);
+        $pesosA[$q] = random_int(10 - $amp, 10 + $amp);
+        $pesosB[$q] = random_int(10 - $amp, 10 + $amp);
     }
     $partesA = dtDistribuirTotal($pesosA, $placarA);
     $partesB = dtDistribuirTotal($pesosB, $placarB);
@@ -245,18 +255,35 @@ function dtCalcularResultado(array $rosterA, array $rosterB): array
     $ovrB = dtSomaRoster($rosterB);
     $diffMedio = ($ovrA - $ovrB) / 5;
 
-    $chanceA = max(8, min(92, 50 + $diffMedio * 3.5));
+    // Time melhor ganha bem mais: com ~6 de OVR médio de vantagem já vence 4 em cada 5. O teto de
+    // 92% (piso de 8%) é o espaço da zebra — mesmo o elenco muito superior perde de vez em quando,
+    // mas raramente. Times parelhos seguem perto do 50/50.
+    $chanceA = max(8, min(92, 50 + $diffMedio * 5.0));
     $aGanha = random_int(1, 1000) <= (int)round($chanceA * 10);
 
-    $baseA = 100 + random_int(-10, 10);
-    $baseB = 100 + random_int(-10, 10);
-    $margem = min(32, random_int(3, 9) + (int)round(abs($diffMedio) * 1.1));
-    $topo = max($baseA, $baseB);
-    $fundo = min($baseA, $baseB);
-    if ($aGanha) { $placarA = $topo + $margem; $placarB = $fundo; }
-    else { $placarB = $topo + $margem; $placarA = $fundo; }
-
     $vencedorLado = $aGanha ? 'a' : 'b';
+    $favorito = $diffMedio >= 0 ? 'a' : 'b';
+    $forca = abs($diffMedio);
+    // Zebra: o azarão venceu um confronto que era claramente pra perder. Só conta quando a
+    // diferença de elenco é real (>= 3 de OVR médio por jogador) — abaixo disso os times estão
+    // equilibrados e qualquer um ganhar é normal, não zebra.
+    $ehZebra = ($vencedorLado !== $favorito) && $forca >= 3;
+
+    // A margem definida aqui é a margem FINAL de verdade: o perdedor parte da base e o vencedor
+    // é a base + margem. Antes o placar saía de duas bases sorteadas separadamente (100±10 cada),
+    // então a diferença entre elas somava até 20 pontos por fora — a zebra "apertada" de 1 a 6
+    // acabava terminando com 10, 20, 26 de diferença.
+    if ($ehZebra) {
+        $margem = random_int(1, 6); // vitória no sufoco, como tem que ser
+    } else {
+        // Quanto maior a superioridade, maior tende a ser o placar — mas com sorte no meio, então
+        // o favorito também vence jogo apertado de vez em quando.
+        $margem = min(34, random_int(2, 10) + (int)round($forca * 1.4));
+    }
+    $baseFundo = 100 + random_int(-12, 12);
+    $placarVencedor = $baseFundo + $margem;
+    if ($aGanha) { $placarA = $placarVencedor; $placarB = $baseFundo; }
+    else { $placarB = $placarVencedor; $placarA = $baseFundo; }
 
     $boxA = dtGerarBoxscore($rosterA, $placarA);
     $boxB = dtGerarBoxscore($rosterB, $placarB);
@@ -274,6 +301,7 @@ function dtCalcularResultado(array $rosterA, array $rosterB): array
     return [
         'ovr_a' => $ovrA, 'ovr_b' => $ovrB, 'chance_a' => round($chanceA, 1),
         'placar_a' => $placarA, 'placar_b' => $placarB, 'vencedor' => $vencedorLado,
+        'zebra' => $ehZebra,
         'quartos' => dtGerarQuartos($placarA, $placarB),
         'boxscore_a' => $boxA, 'boxscore_b' => $boxB,
         'destaques' => $destaques,
@@ -1126,6 +1154,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .dt-resultado-msg.perdeu{background:var(--red-soft);color:var(--red);border:1px solid rgba(252,0,37,.3)}
 
 .dt-quartos-resumo{text-align:center;font-size:11.5px;color:var(--text2);margin-bottom:4px;font-variant-numeric:tabular-nums}
+.dt-zebra-badge{text-align:center;padding:9px;border-radius:10px;margin-bottom:14px;font-size:12.5px;font-weight:800;background:var(--amber-soft);color:var(--amber);border:1px solid color-mix(in srgb, var(--amber) 40%, transparent)}
 .dt-box-table{width:100%;border-collapse:collapse;font-size:12px}
 .dt-box-table th{text-align:center;font-size:9.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;padding:6px 4px;border-bottom:1px solid var(--border)}
 .dt-box-table td{text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
@@ -1133,6 +1162,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .dt-box-table td.dt-box-pos{color:var(--text2);font-weight:700;font-size:10.5px}
 .dt-box-table tr:last-child td{border-bottom:none}
 .dt-simcast-quartos{text-align:center;font-size:12px;color:var(--text2);margin-top:12px;min-height:16px}
+
+/* Tabela de pontuação por quarto (Q1..Q4 + total), usada ao vivo no simcast e no resultado. */
+.dt-qt-tabela{width:100%;border-collapse:collapse;margin-top:14px;font-variant-numeric:tabular-nums}
+.dt-qt-tabela th{font-size:9.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;padding:5px 2px;text-align:center}
+.dt-qt-tabela th:first-child{text-align:left}
+.dt-qt-tabela td{padding:8px 2px;text-align:center;font-size:13px;font-weight:700;color:var(--text2);border-top:1px solid var(--border)}
+.dt-qt-tabela td.dt-qt-time{text-align:left;font-size:11.5px;font-weight:700;color:var(--text);max-width:0;width:42%}
+.dt-qt-time-wrap{display:flex;align-items:center;gap:6px;min-width:0}
+.dt-qt-time-wrap span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dt-qt-tabela td.dt-qt-venceu{color:var(--text);background:color-mix(in srgb, var(--green) 12%, transparent)}
+.dt-qt-tabela td.dt-qt-vazio{color:var(--text3)}
+.dt-qt-tabela td.dt-qt-total{font-size:16px;font-weight:900;color:var(--text)}
+.dt-qt-tabela td.dt-qt-total.liderando{color:var(--green)}
+.dt-qt-tabela th.dt-qt-col-total{color:var(--text)}
 
 .dt-destaque{display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;margin-bottom:6px}
 .dt-destaque-pts{font-size:15px;font-weight:900;color:var(--amber);min-width:34px;text-align:center}
@@ -1353,40 +1396,44 @@ function dtTrocarTab(tab) {
   }
 }
 
+// Executa uma ação de botão com segurança: trava o botão enquanto a requisição está em voo e
+// SEMPRE destrava no final (mesmo se a rede cair no meio). Sem o finally, uma falha de rede
+// deixava o botão disabled pra sempre — o poll não consertava, porque o guard anti-flicker não
+// re-renderiza quando o estado do servidor não mudou. Era a "travada" ao clicar.
+async function dtAcaoBotao(btnId, acao, params = {}) {
+  const btn = document.getElementById(btnId);
+  if (btn && btn.disabled) return;
+  if (btn) btn.disabled = true;
+  try {
+    const r = await dtPost(acao, params);
+    if (!r.ok) { await dtAlerta(r.msg); return; }
+    await atualizar(true);
+  } catch (e) {
+    await dtAlerta('Falha de conexão. Tente de novo.');
+  } finally {
+    const atual = document.getElementById(btnId);
+    if (atual) atual.disabled = false;
+  }
+}
+
 async function dtCriarDuelo() {
-  const btn = document.getElementById('dtBtnCriar');
   const aposta = parseInt(document.getElementById('dtAposta').value, 10);
-  btn.disabled = true;
-  const r = await dtPost('criar', { aposta });
-  if (!r.ok) { await dtAlerta(r.msg); btn.disabled = false; return; }
-  await atualizar();
+  await dtAcaoBotao('dtBtnCriar', 'criar', { aposta });
 }
 
 async function dtEntrarDuelo() {
-  const btn = document.getElementById('dtBtnEntrar');
   const codigo = document.getElementById('dtCodigo').value.trim().toUpperCase();
   if (!codigo) return;
-  btn.disabled = true;
-  const r = await dtPost('entrar', { codigo });
-  if (!r.ok) { await dtAlerta(r.msg); btn.disabled = false; return; }
-  await atualizar();
+  await dtAcaoBotao('dtBtnEntrar', 'entrar', { codigo });
 }
 
 async function dtCriarVsCpu() {
-  const btn = document.getElementById('dtBtnCpu');
   const aposta = parseInt(document.getElementById('dtApostaCpu').value, 10);
-  btn.disabled = true;
-  const r = await dtPost('criar_vs_cpu', { aposta });
-  if (!r.ok) { await dtAlerta(r.msg); btn.disabled = false; return; }
-  await atualizar();
+  await dtAcaoBotao('dtBtnCpu', 'criar_vs_cpu', { aposta });
 }
 
 async function dtJogarAleatorio() {
-  const btn = document.getElementById('dtBtnAleatorio');
-  btn.disabled = true;
-  const r = await dtPost('jogar_aleatorio');
-  if (!r.ok) { await dtAlerta(r.msg); btn.disabled = false; return; }
-  await atualizar();
+  await dtAcaoBotao('dtBtnAleatorio', 'jogar_aleatorio');
 }
 
 // ── Tela: aguardando oponente ────────────────────────────────────────────────
@@ -1454,7 +1501,7 @@ async function dtCancelar() {
   if (!(await dtConfirmar('Cancelar o duelo e receber a aposta de volta?'))) return;
   const r = await dtPost('cancelar');
   if (!r.ok) { await dtAlerta(r.msg); return; }
-  await atualizar();
+  await atualizar(true);
 }
 
 // Contra a máquina continua "Você" (soa mais natural); em PvP usa o nome de verdade
@@ -1515,7 +1562,7 @@ async function dtReposicionar(de, para) {
   try {
     const r = await dtPost('reposicionar_jogador', { de, para });
     if (!r.ok) { await dtAlerta(r.msg); return; }
-    await atualizar();
+    await atualizar(true);
   } catch (e) {
     // silencioso
   } finally {
@@ -1606,19 +1653,11 @@ async function dtEscolherJogador(nome, posicao) {
 }
 
 async function dtGirarDeNovo() {
-  const btn = document.getElementById('dtBtnGirar');
-  btn.disabled = true;
-  const r = await dtPost('girar_de_novo');
-  if (!r.ok) { await dtAlerta(r.msg); }
-  await atualizar();
+  await dtAcaoBotao('dtBtnGirar', 'girar_de_novo');
 }
 
 async function dtSortearTime() {
-  const btn = document.getElementById('dtBtnSortear');
-  if (btn) btn.disabled = true;
-  const r = await dtPost('sortear_time');
-  if (!r.ok) { await dtAlerta(r.msg); if (btn) btn.disabled = false; return; }
-  await atualizar();
+  await dtAcaoBotao('dtBtnSortear', 'sortear_time');
 }
 
 // ── Tela: resultado (simcast por quartos → boxscore final) ──────────────────
@@ -1641,34 +1680,73 @@ async function dtRodarSimcast(duelo) {
         <div class="dt-placar-x">×</div>
         <div class="dt-placar-lado"><div class="dt-placar-nome">${dtLogoImg(dtLogoOponente(duelo))}<span>${nomeOp}</span></div><div class="dt-placar-num" id="dtSimB">0</div></div>
       </div>
-      <div class="dt-simcast-quartos" id="dtSimQuartos"></div>
+      <div class="dt-simcast-quartos" id="dtSimStatus"></div>
+      <div id="dtSimTabela"></div>
     </div>`;
   const numA = document.getElementById('dtSimA');
   const numB = document.getElementById('dtSimB');
-  const quartosEl = document.getElementById('dtSimQuartos');
+  const statusEl = document.getElementById('dtSimStatus');
+  const tabelaEl = document.getElementById('dtSimTabela');
+  tabelaEl.innerHTML = dtTabelaQuartos(duelo, 0);
 
   let cumA = 0, cumB = 0;
-  const linhas = [];
   await new Promise(res => setTimeout(res, 800)); // pausa inicial antes do 1º quarto, dá suspense
   for (let q = 0; q < 4; q++) {
-    quartosEl.textContent = linhas.concat(`Q${q + 1}...`).join('  •  ');
+    statusEl.textContent = `${q + 1}º quarto em andamento...`;
     await new Promise(res => setTimeout(res, 1400));
     const qa = duelo.meu_lado === 'a' ? r.quartos[q].a : r.quartos[q].b;
     const qb = duelo.meu_lado === 'a' ? r.quartos[q].b : r.quartos[q].a;
     cumA += qa; cumB += qb;
     numA.textContent = cumA;
     numB.textContent = cumB;
-    // Destaca em verde quem tá na frente NAQUELE momento — atualiza a cada quarto, então
-    // acompanha virada de placar em vez de só marcar o vencedor no final.
+    // Destaca em verde quem tá na frente NAQUELE momento — já a partir do 1º quarto, e
+    // atualiza a cada quarto, então acompanha virada em vez de só marcar o vencedor no final.
     numA.classList.toggle('vencedor', cumA > cumB);
     numB.classList.toggle('vencedor', cumB > cumA);
-    linhas.push(`Q${q + 1} ${qa}-${qb}`);
-    quartosEl.textContent = linhas.join('  •  ');
+    tabelaEl.innerHTML = dtTabelaQuartos(duelo, q + 1);
+    statusEl.textContent = cumA === cumB
+      ? `Fim do ${q + 1}º quarto — empate!`
+      : `Fim do ${q + 1}º quarto — ${cumA > cumB ? nomeEu : nomeOp} na frente`;
   }
   await new Promise(res => setTimeout(res, 950));
   resultadoFinalId = duelo.id;
   localStorage.setItem('dt_resultado_final_id', String(duelo.id));
   renderResultadoFinal(duelo);
+}
+
+// Tabela Q1..Q4 + total. `revelados` limita quantos quartos aparecem (o simcast vai revelando
+// um por vez); o quarto vencido por cada lado fica destacado, e o total do líder sai em verde.
+function dtTabelaQuartos(duelo, revelados = 4) {
+  const r = duelo.resultado;
+  let totA = 0, totB = 0;
+  const celA = [], celB = [];
+  for (let q = 0; q < 4; q++) {
+    if (q < revelados) {
+      const qa = duelo.meu_lado === 'a' ? r.quartos[q].a : r.quartos[q].b;
+      const qb = duelo.meu_lado === 'a' ? r.quartos[q].b : r.quartos[q].a;
+      totA += qa; totB += qb;
+      celA.push(`<td class="${qa > qb ? 'dt-qt-venceu' : ''}">${qa}</td>`);
+      celB.push(`<td class="${qb > qa ? 'dt-qt-venceu' : ''}">${qb}</td>`);
+    } else {
+      celA.push('<td class="dt-qt-vazio">–</td>');
+      celB.push('<td class="dt-qt-vazio">–</td>');
+    }
+  }
+  return `<table class="dt-qt-tabela">
+    <thead><tr><th>Time</th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th class="dt-qt-col-total">Total</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="dt-qt-time"><span class="dt-qt-time-wrap">${dtLogoImg(dtLogoMeu(duelo))}<span>${esc(dtNomeMeu(duelo))}</span></span></td>
+        ${celA.join('')}
+        <td class="dt-qt-total ${totA > totB ? 'liderando' : ''}">${totA}</td>
+      </tr>
+      <tr>
+        <td class="dt-qt-time"><span class="dt-qt-time-wrap">${dtLogoImg(dtLogoOponente(duelo))}<span>${esc(dtNomeOponente(duelo))}</span></span></td>
+        ${celB.join('')}
+        <td class="dt-qt-total ${totB > totA ? 'liderando' : ''}">${totB}</td>
+      </tr>
+    </tbody>
+  </table>`;
 }
 
 function dtRenderBoxscore(nome, box) {
@@ -1701,17 +1779,13 @@ function renderResultadoFinal(duelo) {
   const oponentePlacar = duelo.meu_lado === 'a' ? r.placar_b : r.placar_a;
   const meuBox = duelo.meu_lado === 'a' ? r.boxscore_a : r.boxscore_b;
   const oponenteBox = duelo.meu_lado === 'a' ? r.boxscore_b : r.boxscore_a;
-  const quartosTxt = r.quartos.map((q, i) => {
-    const qa = duelo.meu_lado === 'a' ? q.a : q.b;
-    const qb = duelo.meu_lado === 'a' ? q.b : q.a;
-    return `Q${i + 1} ${qa}-${qb}`;
-  }).join('  •  ');
 
   let html = `<button class="btn-dt" onclick="dtNovoDuelo(${duelo.id})" style="margin-top:0;margin-bottom:14px"><i class="bi bi-arrow-repeat me-2"></i>Jogar de novo</button>`;
   html += `<div class="dtcard">
     <div class="dt-resultado-msg ${duelo.eu_venci ? 'venceu' : 'perdeu'}">
       ${duelo.eu_venci ? `🏆 Você venceu! +${duelo.aposta * 2} moedas` : `Você perdeu essa. -${duelo.aposta} moedas`}
     </div>
+    ${r.zebra ? `<div class="dt-zebra-badge">🦓 Zebra! O time mais fraco levou essa.</div>` : ''}
     <div class="dt-placar">
       <div class="dt-placar-lado">
         <div class="dt-placar-nome">${dtLogoImg(dtLogoMeu(duelo))}<span>${nomeEu}</span></div>
@@ -1723,8 +1797,8 @@ function renderResultadoFinal(duelo) {
         <div class="dt-placar-num ${!duelo.eu_venci ? 'vencedor' : ''}">${oponentePlacar}</div>
       </div>
     </div>
-    <div class="dt-quartos-resumo">${quartosTxt}</div>
-    <div class="dtcard-title" style="margin-top:14px">Destaques do confronto</div>
+    ${dtTabelaQuartos(duelo)}
+    <div class="dtcard-title" style="margin-top:16px">Destaques do confronto</div>
     ${r.destaques.map(d => {
       const souEu = d.lado === duelo.meu_lado;
       return `<div class="dt-destaque">
@@ -1761,21 +1835,27 @@ function renderTela(duelo) {
 // tela inteira (mesmo parado esperando o oponente), dando aquele flicker/"atualizando toda hora".
 let ultimoEstadoHash = JSON.stringify(ESTADO_INICIAL);
 
-async function atualizar() {
-  if (processando) return;
+// forcar=true ignora o guard de hash: usado logo depois de uma ação do próprio jogador, pra
+// garantir que a tela seja reconstruída mesmo quando o estado do servidor não mudou (ex: o
+// "girar de novo" pode sortear o MESMO time, então o hash fica igual e sem o forcar a tela
+// ficaria congelada com o botão travado, parecendo que o botão não funciona).
+async function atualizar(forcar = false) {
+  if (processando && !forcar) return;
   try {
     const r = await dtPost('estado');
     if (!r.ok) return;
     document.getElementById('chipSaldo').textContent = r.pontos;
     const hash = JSON.stringify(r.duelo);
-    if (hash === ultimoEstadoHash) return;
+    if (hash === ultimoEstadoHash && !forcar) return;
     ultimoEstadoHash = hash;
     renderTela(r.duelo);
   } catch (e) { /* silencioso — próximo poll tenta de novo */ }
 }
 
 renderTela(ESTADO_INICIAL);
-setInterval(atualizar, 3000);
+// Arrow em vez de passar `atualizar` direto: o setInterval não deve empurrar argumento nenhum
+// pro parâmetro `forcar`.
+setInterval(() => atualizar(), 3000);
 </script>
 
 </body>

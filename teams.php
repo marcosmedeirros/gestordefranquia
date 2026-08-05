@@ -1883,7 +1883,9 @@ function getSerasaScore(int $avisos): array {
                 if (positions.includes(p.position) && !startersMap[p.position]) startersMap[p.position] = p;
             });
 
-            const fmt = (age) => (Number.isFinite(age) && age > 0) ? `${age}y` : '-';
+            // Number(age) antes do teste: o PDO devolve numérico como string ("24"), e
+            // Number.isFinite("24") é false — a idade saía como "-" em toda cópia.
+            const fmt = (age) => { const n = Number(age); return (Number.isFinite(n) && n > 0) ? `${n}y` : '-'; };
             const fmtLine = (label, p) => p ? `${label}: ${p.name} - ${p.ovr ?? '-'} | ${fmt(p.age)}` : `${label}: -`;
 
             const bench  = roster.filter(p => p.role === 'Banco');
@@ -2103,11 +2105,15 @@ function getSerasaScore(int $avisos): array {
         const modal = new bootstrap.Modal(modalEl);
         modal.show();
         try {
-            const res = await fetch(`/api/admin.php?action=copy_rosters&league=<?= htmlspecialchars($user['league']) ?>`);
-            const data = await res.json();
+            // api/team.php (endpoint de jogador) em vez de api/admin.php: aquele barra todo
+            // não-admin com 403, e como o código só lia data.text o erro virava silenciosamente
+            // "Nenhum elenco encontrado" — parecia que os elencos estavam vazios.
+            const res = await fetch('/api/team.php?action=copy_rosters');
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.error) throw new Error(data.error || 'Falha ao carregar elencos');
             textarea.value = data.text || 'Nenhum elenco encontrado.';
         } catch (e) {
-            textarea.value = 'Erro ao carregar elencos.';
+            textarea.value = 'Erro ao carregar elencos: ' + e.message;
         }
     }
 

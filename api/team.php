@@ -117,6 +117,82 @@ function syncTeamTradeCounterLocal(PDO $pdo, int $teamId): int {
 
 if ($method === 'GET') {
     $action = $_GET['action'] ?? null;
+
+    /**
+     * Elencos da liga em texto, pro botão "Elencos" de teams.php.
+     * Vivia só em api/admin.php, que barra qualquer não-admin logo no topo do arquivo — então
+     * pro jogador comum a resposta era 403 e a tela mostrava "Nenhum elenco encontrado", como se
+     * não houvesse elenco. Aqui a liga sai SEMPRE da sessão do usuário (ele não escolhe), então
+     * ninguém enxerga liga que já não pudesse ver na própria página de times.
+     */
+    if ($action === 'copy_rosters') {
+        $user = getUserSession();
+        if (!$user) jsonResponse(401, ['error' => 'Sessão expirada ou usuário não autenticado.']);
+
+        $league = strtoupper(trim((string)($user['league'] ?? '')));
+        $isAdmin = hasAdminAccess($pdo, (int)$user['id']);
+        $leagueParam = strtoupper(trim($_GET['league'] ?? ''));
+        if ($leagueParam !== '' && $isAdmin) $league = $leagueParam;
+        if (!in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true)) {
+            jsonResponse(400, ['error' => 'Liga inválida']);
+        }
+
+        $stmtTeams = $pdo->prepare('SELECT t.id, t.city, t.name, u.name AS owner_name FROM teams t LEFT JOIN users u ON t.user_id = u.id WHERE t.league = ? ORDER BY t.city, t.name');
+        $stmtTeams->execute([$league]);
+        $teams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
+        if (!$teams) jsonResponse(200, ['success' => true, 'text' => 'Nenhum time encontrado.']);
+
+        $teamIds = array_map(static fn($row) => (int)$row['id'], $teams);
+        $placeholders = implode(',', array_fill(0, count($teamIds), '?'));
+        $playerOvr = playerOvrColumnForDetails($pdo);
+        $stmtPlayers = $pdo->prepare(
+            'SELECT team_id, name, position, age, role, ' . $playerOvr . ' AS ovr
+             FROM players
+             WHERE team_id IN (' . $placeholders . ')
+             ORDER BY team_id,
+               CASE role
+                 WHEN "Titular" THEN 1
+                 WHEN "Banco" THEN 2
+                 WHEN "Outro" THEN 3
+                 WHEN "G-League" THEN 4
+                 ELSE 5
+               END,
+               ' . $playerOvr . ' DESC,
+               name ASC'
+        );
+        $stmtPlayers->execute($teamIds);
+
+        $playersByTeam = [];
+        foreach ($stmtPlayers->fetchAll(PDO::FETCH_ASSOC) as $player) {
+            $playersByTeam[(int)$player['team_id']][] = $player;
+        }
+
+        $lines = [];
+        foreach ($teams as $team) {
+            $lines[] = '*' . trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')) . '*';
+            $lines[] = 'GM: ' . ($team['owner_name'] ?? '-');
+            $roster = $playersByTeam[(int)$team['id']] ?? [];
+            if (!$roster) {
+                $lines[] = '- Sem jogadores';
+            } else {
+                $main    = array_values(array_filter($roster, fn($p) => ($p['role'] ?? '') !== 'G-League'));
+                $gleague = array_values(array_filter($roster, fn($p) => ($p['role'] ?? '') === 'G-League'));
+                foreach ($main as $p) {
+                    $lines[] = sprintf('- %s | %s | OVR %s | %s anos', $p['position'], $p['name'], $p['ovr'] ?? '-', $p['age'] ?? '-');
+                }
+                if ($gleague) {
+                    $lines[] = '*G-League*';
+                    foreach ($gleague as $p) {
+                        $lines[] = sprintf('- %s | %s | OVR %s | %s anos', $p['position'], $p['name'], $p['ovr'] ?? '-', $p['age'] ?? '-');
+                    }
+                }
+            }
+            $lines[] = '';
+        }
+
+        jsonResponse(200, ['success' => true, 'text' => trim(implode("\n", $lines))]);
+    }
+
     if ($action === 'list_players' || $action === 'search_player') {
         $user = getUserSession();
         if (!$user) {

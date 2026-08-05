@@ -1099,8 +1099,25 @@ if ($teamId) {
     });
 
     /* ── Copiar Time / Copiar Elenco ─── */
-    const _rosterData = <?= json_encode($allPlayersCopy) ?>;
+    // Snapshot do carregamento da página. Mudanças de função (titular/banco) acontecem via AJAX
+    // e só atualizam o estado interno do my-roster-v2.js, então este snapshot envelhece — era por
+    // isso que copiar depois de mexer no elenco trazia a função antiga até dar F5.
+    // _refreshRosterData() rebusca da API antes de cada cópia.
+    let _rosterData   = <?= json_encode($allPlayersCopy) ?>;
     const _picksData  = <?= json_encode($teamPicksCopy) ?>;
+
+    async function _refreshRosterData() {
+        try {
+            const r = await fetch('/api/players.php?team_id=<?= (int)$teamId ?>', { cache: 'no-store' });
+            const d = await r.json();
+            const lista = Array.isArray(d.players) ? d.players : (Array.isArray(d) ? d : null);
+            if (lista) {
+                _rosterData = lista.slice().sort((a, b) =>
+                    (Number(b.ovr) || 0) - (Number(a.ovr) || 0) || String(a.name).localeCompare(String(b.name))
+                );
+            }
+        } catch (e) { /* mantém o snapshot como fallback — melhor copiar algo do que nada */ }
+    }
     const _teamMeta   = {
         name: <?= json_encode(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?>,
         userName: <?= json_encode($user['name']) ?>,
@@ -1138,7 +1155,9 @@ if ($teamId) {
         const positions = ['PG','SG','SF','PF','C'];
         const startersMap = {};
         positions.forEach(p => startersMap[p] = null);
-        const fmt    = age => (Number.isFinite(age) && age > 0) ? `${age}y` : '-';
+        // Number(age) antes do teste: o PDO devolve colunas numéricas como string ("24"), e
+        // Number.isFinite("24") é false — a idade saía como "-" em toda cópia.
+        const fmt    = age => { const n = Number(age); return (Number.isFinite(n) && n > 0) ? `${n}y` : '-'; };
         const fmtTag = p => (p && p.player_tag && Number(p.player_tag_copy) === 1) ? ` - ${p.player_tag}` : '';
         const fmtLine   = (label, p) => p ? `${label}: ${p.name}${fmtTag(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}` : `${label}: -`;
         const fmtPlayer = p => `${p.position}: ${p.name}${fmtTag(p)} - ${p.ovr??'-'} | ${fmt(p.age)}`;
@@ -1175,8 +1194,14 @@ if ($teamId) {
         catch { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); alert(label + ' copiado!'); }
     }
 
-    document.getElementById('btn-copy-team')?.addEventListener('click', () => _doCopy(_buildSummary('team'), 'Time'));
-    document.getElementById('btn-copy-roster')?.addEventListener('click', () => _doCopy(_buildSummary('roster'), 'Elenco'));
+    document.getElementById('btn-copy-team')?.addEventListener('click', async () => {
+        await _refreshRosterData();
+        _doCopy(_buildSummary('team'), 'Time');
+    });
+    document.getElementById('btn-copy-roster')?.addEventListener('click', async () => {
+        await _refreshRosterData();
+        _doCopy(_buildSummary('roster'), 'Elenco');
+    });
 </script>
 <script src="/js/my-roster-v2.js?v=20260729"></script>
 </body>

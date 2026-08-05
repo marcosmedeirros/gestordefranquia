@@ -99,6 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         $_SESSION['pinguim_last_score'] = 0;
         $_SESSION['pinguim_last_milestone'] = 0;
         $_SESSION['pinguim_revive_used'] = false;
+        $_SESSION['pinguim_score_saved'] = false;
         echo json_encode(['sucesso' => true]);
         exit;
     }
@@ -184,18 +185,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     if ($_POST['acao'] == 'gastar_moedas_reviver') {
         $custo = 10;
         try {
-            if (!$run_active) throw new Exception('Sessão de jogo inválida.');
+            // O reviver é clicado DEPOIS da morte, e a morte já chamou salvar_score (que fecha a
+            // run). Por isso a run fechada não invalida o revive — o que vale é ter havido uma run
+            // cujo score acabou de ser salvo. Sem isso o revive era rejeitado 100% das vezes.
+            if (!$run_active && empty($_SESSION['pinguim_score_saved'])) {
+                throw new Exception('Sessão de jogo inválida.');
+            }
             if (!empty($_SESSION['pinguim_revive_used'])) throw new Exception('Revive já utilizado.');
             $pdo->beginTransaction();
             $stmt = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id FOR UPDATE");
             $stmt->execute([':id' => $user_id]);
-            $saldo = $stmt->fetchColumn();
+            $saldo = (int)$stmt->fetchColumn();
             if ($saldo < $custo) throw new Exception("Saldo insuficiente.");
             $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $custo, ':id' => $user_id]);
             $pdo->commit();
             $_SESSION['pinguim_revive_used'] = true;
+            // Reabre a run: sem isso o jogador pagava as 10 moedas e não ganhava mais nenhuma
+            // moeda pelo resto da partida (os milestones dependem da run estar ativa).
+            $_SESSION['pinguim_run_active'] = true;
+            $_SESSION['pinguim_score_saved'] = false;
             echo json_encode(['sucesso' => true, 'novo_saldo' => $saldo - $custo]);
-        } catch (Exception $e) { $pdo->rollBack(); echo json_encode(['erro' => $e->getMessage()]); }
+        } catch (Exception $e) {
+            // Só faz rollback se existir transação: as validações acima estouram ANTES do
+            // beginTransaction, e um rollBack() sem transação vira PDOException dentro do catch,
+            // devolvendo HTML de erro no lugar do JSON (o botão simplesmente não fazia nada).
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            echo json_encode(['erro' => $e->getMessage()]);
+        }
         exit;
     }
 
@@ -206,9 +222,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $validate_run_score($score_final);
             $pdo->prepare("INSERT INTO dino_historico (id_usuario, pontuacao_final, pontos_ganhos) VALUES (:uid, :score, 0)")
                 ->execute([':uid' => $user_id, ':score' => $score_final]);
-        } catch (PDOException $ex) { }
+        } catch (Exception $ex) { /* validação ou insert falhou — não derruba o fim de partida */ }
         $_SESSION['pinguim_last_score'] = $score_final;
         $_SESSION['pinguim_run_active'] = false;
+        $_SESSION['pinguim_score_saved'] = true;
         echo json_encode(['sucesso' => true]);
         exit;
     }
@@ -364,6 +381,9 @@ html, body {
     overflow-y: auto;
 }
 .overlay.hidden { display: none; }
+/* Regra genérica: sem ela, .hidden só funcionava em .overlay/.shop-overlay, então o botão de
+   reviver continuava visível mesmo depois de usado (e sem saldo). */
+.hidden { display: none !important; }
 
 .ov-card {
     background: var(--panel);
@@ -1008,10 +1028,13 @@ function gameOver() {
 }
 
 function doRevive() {
+    if (hasRevived) return;
+    btnRevive.disabled = true;
     const fd = new FormData(); fd.append('acao','gastar_moedas_reviver');
     fetch('index.php?game=pinguim', { method:'POST', body:fd })
         .then(r => r.json())
         .then(d => {
+            btnRevive.disabled = false;
             if (d.sucesso) {
                 updateSaldo(d.novo_saldo);
                 hasRevived    = true;
@@ -1025,7 +1048,13 @@ function doRevive() {
                 overlayGameover.classList.add('hidden');
                 floatText('-10 🪙', dino.x + 20, dino.y - 30);
                 loop();
-            } else { alert(d.erro); }
+            } else { alert(d.erro || 'Não foi possível reviver.'); }
+        })
+        // Sem catch, qualquer falha (rede ou resposta não-JSON) fazia o clique não produzir
+        // absolutamente nada — nem revive, nem mensagem.
+        .catch(() => {
+            btnRevive.disabled = false;
+            alert('Erro ao processar o revive. Tente de novo.');
         });
 }
 
