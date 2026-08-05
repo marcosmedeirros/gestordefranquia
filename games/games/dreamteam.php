@@ -1,27 +1,19 @@
 <?php
 /**
- * dreamteam.php — Dream Team em Duelo (Starting5x5)
+ * dreamteam.php — Starting5x5
  *
- * Dois jogadores montam, cada um, um time de 5 lendas dentro de um teto
- * salarial de OVR combinado (mesma escala/pool do Build-A-Player: notas em
- * build_notas, 69 lendas curadas). Cada um aposta a mesma quantia (definida
- * por quem cria o duelo, até 100 moedas) e, quando os dois confirmam o time,
- * os dois times simulam UM confronto direto — vencedor leva as duas apostas.
+ * Dois jogadores montam, cada um, um time titular (PG/SG/SF/PF/C) girando
+ * uma roleta de escalações históricas reais (games/core/dreamteam_times.php)
+ * — cada giro revela um time de 5, e quem está na vez escolhe UM desses
+ * jogadores pra ocupar uma posição ainda vazia do próprio time (um jogador
+ * pode servir mais de uma posição). Sem gostar do time sorteado, dá pra
+ * girar de novo uma vez por rodada. Os turnos alternam até os dois times
+ * ficarem completos (5 rodadas cada, 10 no total) — dá pra acompanhar o
+ * time do adversário sendo montado em tempo real. No final, os dois times
+ * simulam um confronto direto e o vencedor leva as duas apostas.
  *
- * Não existe motor de "simular um jogo" pronto no Build-A-Player (esse só
- * simula temporada inteira, agregada). Aqui o confronto é novo: diferença de
- * OVR médio vira chance de vitória (mesmo espírito de buildSimularPlayoffs em
- * build_liga.php — força → chance → random_int), e o placar/destaques saem
- * de cima do resultado já decidido, não o contrário.
- *
- * Fluxo (sala com código, não fila global como o Poker):
- *   1. Cria duelo (aposta 1-100 moedas, debita na hora) → recebe um código.
- *   2. Compartilha o código; o adversário entra (debita a mesma aposta).
- *   3. Os dois montam o time (5 lendas, soma de OVR ≤ teto) e confirmam —
- *      pode ser em qualquer ordem, simultâneo ou não.
- *   4. Quando os dois confirmam, simula na hora: quem confirmou por último
- *      dispara o cálculo (trava por FOR UPDATE, ninguém simula 2x).
- *   5. Vencedor recebe as duas apostas. Placar + destaques ficam salvos.
+ * Base própria (dtTimesHistoricos), sem depender do pool do Build-A-Player —
+ * são escalações reais de temporadas específicas, não lendas individuais.
  *
  * De propósito, não está no catálogo de games.php ainda — só quem tem o
  * link direto (games/games/index.php?game=dreamteam) chega aqui.
@@ -29,26 +21,36 @@
  * Incluído por games/games/index.php — $pdo e $_SESSION já disponíveis.
  */
 
-require_once __DIR__ . '/../core/build_notas.php';
-require_once __DIR__ . '/../core/build_lendas.php';
+require_once __DIR__ . '/../core/dreamteam_times.php';
 
 $user_id = (int)$_SESSION['user_id'];
 
-const DT_CAP_OVR = 380;
-const DT_TIME_SIZE = 5;
 const DT_APOSTA_MIN = 1;
 const DT_APOSTA_MAX = 100;
-// Contra a máquina o teto é menor: ela sempre monta o time ótimo (ver
-// dtMontarTimeCpu), então o risco por partida é maior que jogador-vs-jogador.
+// Contra a máquina o teto é menor — ela joga estrategicamente (ver
+// dtCpuJogar), então o risco por partida é maior que jogador-vs-jogador.
 const DT_APOSTA_MAX_CPU = 50;
 const DT_AGUARDANDO_TIMEOUT_H = 24;
-const DT_MONTANDO_TIMEOUT_MIN = 15;
+const DT_DRAFT_TIMEOUT_MIN = 20;
 
 function dtGarantirTabelas(PDO $pdo): void
 {
     static $pronto = false;
     if ($pronto || $pdo->inTransaction()) return;
     $pronto = true;
+
+    // Versão anterior do jogo (cap de OVR) já criou dreamteam_duelos com outro
+    // schema (time_criador/pronto_criador/ovr_criador...). Como o jogo nunca
+    // saiu do link direto de teste, não existe duelo real pra preservar — se a
+    // tabela antiga sobreviveu, derruba e recria já no schema novo.
+    try {
+        $temColunaNova = $pdo->query("SHOW COLUMNS FROM dreamteam_duelos LIKE 'turno'")->fetch();
+        if (!$temColunaNova) {
+            $pdo->exec("DROP TABLE IF EXISTS dreamteam_duelos");
+        }
+    } catch (PDOException $e) {
+        // Tabela ainda não existe — segue pro CREATE abaixo normalmente.
+    }
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS dreamteam_duelos (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -57,12 +59,11 @@ function dtGarantirTabelas(PDO $pdo): void
         id_desafiado INT NULL,
         aposta INT NOT NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'aguardando',
-        time_criador TEXT NULL,
-        time_desafiado TEXT NULL,
-        pronto_criador TINYINT(1) NOT NULL DEFAULT 0,
-        pronto_desafiado TINYINT(1) NOT NULL DEFAULT 0,
-        ovr_criador INT NULL,
-        ovr_desafiado INT NULL,
+        turno VARCHAR(10) NULL,
+        roster_criador TEXT NULL,
+        roster_desafiado TEXT NULL,
+        time_sorteado_id VARCHAR(20) NULL,
+        reroll_disponivel TINYINT(1) NOT NULL DEFAULT 1,
         resultado TEXT NULL,
         id_vencedor INT NULL,
         criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -74,17 +75,10 @@ function dtGarantirTabelas(PDO $pdo): void
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 dtGarantirTabelas($pdo);
-buildGarantirTabelaNotas($pdo);
-// Garante as 69 lendas mesmo se ninguém nunca abriu o Build-A-Player (que é
-// quem normalmente popula isso, só pelo admin). Só roda o seed se a tabela
-// estiver vazia — upsert de 69 linhas em toda requisição seria desperdício.
-if ((int)$pdo->query('SELECT COUNT(*) FROM build_notas')->fetchColumn() === 0) {
-    buildAplicarLendasCuradas($pdo);
-}
 
 function dtGerarCodigo(PDO $pdo): string
 {
-    $chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // sem 0/O/1/I/L — confunde na hora de digitar
+    $chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
     for ($tentativa = 0; $tentativa < 20; $tentativa++) {
         $codigo = '';
         for ($i = 0; $i < 6; $i++) $codigo .= $chars[random_int(0, strlen($chars) - 1)];
@@ -95,219 +89,266 @@ function dtGerarCodigo(PDO $pdo): string
     throw new Exception('Não foi possível gerar um código único. Tente de novo.');
 }
 
-/** Todas as lendas do pool (id, nome, time, grupo, ovr) — pra tela de montar o time. */
-function dtLendas(PDO $pdo): array
+function dtRosterVazio(): array
 {
-    $st = $pdo->query("
-        SELECT n.player_id AS id, n.posicao_grupo AS grupo, n.ovr, p.nome, p.time_atual AS time
-        FROM build_notas n
-        INNER JOIN hoopgrid_players p ON p.id = n.player_id
-        ORDER BY n.ovr DESC, p.nome ASC
-    ");
-    return $st->fetchAll(PDO::FETCH_ASSOC);
+    $r = [];
+    foreach (dtPosicoes() as $p) $r[$p] = null;
+    return $r;
 }
 
-/**
- * Time da máquina: o melhor time matematicamente possível dentro do teto —
- * mochila (0/1 knapsack) de exatamente 5 itens maximizando a soma de OVR sem
- * estourar DT_CAP_OVR. É o adversário mais difícil que dá pra montar sem
- * trapacear o próprio teto salarial. Embaralha antes pra variar quais lendas
- * empatadas em OVR saem, sem perder força nenhuma — o resultado ótimo é o
- * mesmo, só a combinação exata entre empates muda a cada partida.
- */
-function dtMontarTimeCpu(PDO $pdo): array
+function dtVagasAbertas(array $roster): array
 {
-    $lendas = dtLendas($pdo);
-    shuffle($lendas);
-    $n = count($lendas);
+    return array_keys(array_filter($roster, fn($v) => $v === null));
+}
 
-    // dp[k][s] = dá pra montar k lendas somando s OVR (s vai de 0 até o teto).
-    // escolhas[i][k][s] = a lenda i foi usada pra alcançar dp[k][s] — é o que
-    // permite reconstruir QUAIS lendas entram, não só a soma máxima.
-    $dp = array_fill(0, DT_TIME_SIZE + 1, array_fill(0, DT_CAP_OVR + 1, false));
-    $dp[0][0] = true;
-    $escolhas = [];
+function dtRosterCompleto(array $roster): bool
+{
+    return count(dtVagasAbertas($roster)) === 0;
+}
 
-    for ($i = 0; $i < $n; $i++) {
-        $ovr = (int)$lendas[$i]['ovr'];
-        if ($ovr > DT_CAP_OVR) continue;
-        $escolhas[$i] = [];
-        for ($k = DT_TIME_SIZE - 1; $k >= 0; $k--) {
-            for ($s = DT_CAP_OVR - $ovr; $s >= 0; $s--) {
-                if ($dp[$k][$s] && !$dp[$k + 1][$s + $ovr]) {
-                    $dp[$k + 1][$s + $ovr] = true;
-                    $escolhas[$i][($k + 1) . '_' . ($s + $ovr)] = true;
-                }
-            }
+function dtTimePorId(?string $id): ?array
+{
+    if (!$id) return null;
+    foreach (dtTimesHistoricos() as $t) if ($t['id'] === $id) return $t;
+    return null;
+}
+
+/** Nomes que já estão no roster (pra não deixar repetir o mesmo jogador em 2 posições — vários times históricos reaproveitam o mesmo nome, tipo Jordan/Pippen/Rodman em várias temporadas dos Bulls). */
+function dtNomesNoRoster(array $roster): array
+{
+    $nomes = [];
+    foreach ($roster as $p) if ($p) $nomes[$p['nome']] = true;
+    return $nomes;
+}
+
+/** Sorteia um time com pelo menos 1 jogador NOVO (ainda não escolhido) elegível pra alguma vaga aberta — nunca um giro "morto". */
+function dtSortearTimeValido(array $roster): array
+{
+    $vagas = dtVagasAbertas($roster);
+    $jaTenho = dtNomesNoRoster($roster);
+    $todos = dtTimesHistoricos();
+    $candidatos = array_values(array_filter($todos, function ($time) use ($vagas, $jaTenho) {
+        foreach ($time['jogadores'] as $j) {
+            if (isset($jaTenho[$j['nome']])) continue;
+            foreach ($j['pos'] as $p) if (in_array($p, $vagas, true)) return true;
         }
-    }
-
-    $melhorSoma = 0;
-    for ($s = DT_CAP_OVR; $s >= 0; $s--) {
-        if ($dp[DT_TIME_SIZE][$s]) { $melhorSoma = $s; break; }
-    }
-
-    $ids = [];
-    $k = DT_TIME_SIZE;
-    $s = $melhorSoma;
-    for ($i = $n - 1; $i >= 0 && $k > 0; $i--) {
-        if (!empty($escolhas[$i]["{$k}_{$s}"])) {
-            $ids[] = (int)$lendas[$i]['id'];
-            $s -= (int)$lendas[$i]['ovr'];
-            $k--;
-        }
-    }
-    return $ids;
+        return false;
+    }));
+    if (!$candidatos) $candidatos = $todos;
+    return $candidatos[array_rand($candidatos)];
 }
 
-/** Carrega as 5 lendas de um time (com os 10 atributos, pra calcular destaques). */
-function dtCarregarTime(PDO $pdo, array $ids): array
+function dtSomaRoster(array $roster): int
 {
-    if (!$ids) return [];
-    $ph = implode(',', array_fill(0, count($ids), '?'));
-    $st = $pdo->prepare("
-        SELECT n.*, p.nome, p.time_atual
-        FROM build_notas n
-        INNER JOIN hoopgrid_players p ON p.id = n.player_id
-        WHERE n.player_id IN ($ph)
-    ");
-    $st->execute($ids);
-    $porId = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) $porId[(int)$row['player_id']] = $row;
-    $out = [];
-    foreach ($ids as $id) if (isset($porId[$id])) $out[] = $porId[$id];
-    return $out;
+    $s = 0;
+    foreach ($roster as $p) if ($p) $s += (int)$p['ovr'];
+    return $s;
 }
 
-/**
- * Frases de destaque por atributo mais forte do jogador — usadas nos
- * "destaques" do confronto (ver dtGerarDestaques).
- */
-function dtFraseAtributo(string $attr): string
+function dtFrasePosicao(string $pos): string
 {
     $frases = [
-        'jump_shot'   => 'castigando o arco com o arremesso',
-        'finishing'   => 'não perdoando nada perto da cesta',
-        'passing'     => 'abrindo o jogo com passes',
-        'handles'     => 'quebrando a marcação no drible',
-        'perimeter_d' => 'sufocando o adversário na defesa',
-        'speed'       => 'atropelando em transição',
-        'bounce'      => 'voando pra cima em cada jogada',
-        'size'        => 'dominando embaixo da cesta',
-        'iq'          => 'lendo o jogo como ninguém',
-        'clutch'      => 'aparecendo nos momentos decisivos',
+        'PG' => 'orquestrando o ataque no armador',
+        'SG' => 'castigando o arco de fora',
+        'SF' => 'atacando de todos os ângulos',
+        'PF' => 'brigando duro no garrafão',
+        'C'  => 'protegendo o aro e dominando o rebote',
     ];
-    return $frases[$attr] ?? 'brilhando em quadra';
+    return $frases[$pos] ?? 'brilhando em quadra';
 }
 
-/** As 2 estrelas (maior OVR) de cada time, com pontuação e frase de destaque. */
-function dtGerarDestaques(array $timeA, array $timeB, string $vencedorLado): array
+/** Distribui um total inteiro entre chaves conforme pesos, batendo a soma exata (método dos maiores restos). */
+function dtDistribuirTotal(array $pesos, int $total): array
 {
-    $atributos = array_keys(buildAtributos());
-    $destaques = [];
-    foreach ([['time' => $timeA, 'lado' => 'a'], ['time' => $timeB, 'lado' => 'b']] as $grupo) {
-        $ordenado = $grupo['time'];
-        usort($ordenado, fn($x, $y) => (int)$y['ovr'] - (int)$x['ovr']);
-        foreach (array_slice($ordenado, 0, 2) as $jogador) {
-            $melhor = null;
-            $maior = -1;
-            foreach ($atributos as $a) {
-                if ((int)$jogador[$a] > $maior) { $maior = (int)$jogador[$a]; $melhor = $a; }
-            }
-            $ganhouTime = $grupo['lado'] === $vencedorLado;
-            $pontos = (int)round(((int)$jogador['ovr'] - 55) * 0.55) + random_int(6, 14) + ($ganhouTime ? random_int(0, 4) : 0);
-            $destaques[] = [
-                'lado'   => $grupo['lado'],
-                'nome'   => $jogador['nome'],
-                'pontos' => max(8, $pontos),
-                'frase'  => dtFraseAtributo((string)$melhor),
-            ];
-        }
+    $somaPesos = array_sum($pesos);
+    if ($somaPesos <= 0) return array_fill_keys(array_keys($pesos), 0);
+
+    $base = [];
+    $restos = [];
+    $somaBase = 0;
+    foreach ($pesos as $k => $p) {
+        $exato = $total * ($p / $somaPesos);
+        $base[$k] = (int)floor($exato);
+        $restos[$k] = $exato - $base[$k];
+        $somaBase += $base[$k];
     }
-    usort($destaques, fn($x, $y) => $y['pontos'] - $x['pontos']);
-    return $destaques;
+    $falta = $total - $somaBase;
+    arsort($restos);
+    foreach (array_keys($restos) as $k) {
+        if ($falta <= 0) break;
+        $base[$k]++;
+        $falta--;
+    }
+    return $base;
 }
 
-/**
- * O confronto: diferença de OVR médio decide a CHANCE de vitória (não o
- * placar direto) — o placar sai depois, moldado pro vencedor já sorteado
- * ficar coerente com o resultado. Sem isso, dois placares aleatórios
- * independentes podiam contradizer quem "realmente" ganhou.
- */
-function dtCalcularResultado(array $timeA, array $timeB): array
+/** Boxscore de um time: soma de PTS bate exatamente com o placar; REB/AST pesados por posição (armador assiste mais, pivô rebota mais). */
+function dtGerarBoxscore(array $roster, int $placarTime): array
 {
-    $ovrA = array_sum(array_column($timeA, 'ovr'));
-    $ovrB = array_sum(array_column($timeB, 'ovr'));
-    $diffMedio = ($ovrA - $ovrB) / DT_TIME_SIZE;
+    $pesosPts = [];
+    foreach ($roster as $pos => $j) $pesosPts[$pos] = max(1, (int)$j['ovr']);
+    $pts = dtDistribuirTotal($pesosPts, $placarTime);
 
-    $chanceA = 50 + ($diffMedio * 3.5);
-    $chanceA = max(8, min(92, $chanceA));
+    $pesoRebPos = ['PG' => 0.6, 'SG' => 0.7, 'SF' => 0.9, 'PF' => 1.3, 'C' => 1.5];
+    $pesoAstPos = ['PG' => 1.6, 'SG' => 1.1, 'SF' => 0.9, 'PF' => 0.6, 'C' => 0.5];
+    $pesosReb = [];
+    $pesosAst = [];
+    foreach ($roster as $pos => $j) {
+        $pesosReb[$pos] = $pesoRebPos[$pos] * (0.8 + random_int(0, 40) / 100);
+        $pesosAst[$pos] = $pesoAstPos[$pos] * (0.8 + random_int(0, 40) / 100);
+    }
+    $reb = dtDistribuirTotal($pesosReb, random_int(34, 46));
+    $ast = dtDistribuirTotal($pesosAst, random_int(18, 27));
 
+    $box = [];
+    foreach ($roster as $pos => $j) {
+        $box[] = ['pos' => $pos, 'nome' => $j['nome'], 'ovr' => (int)$j['ovr'], 'pts' => $pts[$pos], 'reb' => $reb[$pos], 'ast' => $ast[$pos]];
+    }
+    return $box;
+}
+
+/** 4 parciais que somam exatamente ao placar final de cada lado — o front revela elas indo, tipo simcast. */
+function dtGerarQuartos(int $placarA, int $placarB): array
+{
+    $pesos = [];
+    for ($q = 1; $q <= 4; $q++) $pesos[$q] = random_int(8, 12);
+    $partesA = dtDistribuirTotal($pesos, $placarA);
+    $partesB = dtDistribuirTotal($pesos, $placarB);
+
+    $quartos = [];
+    for ($q = 1; $q <= 4; $q++) $quartos[] = ['a' => $partesA[$q], 'b' => $partesB[$q]];
+    return $quartos;
+}
+
+/** Mesmo espírito de buildSimularPlayoffs (build_liga.php): força → chance → random_int. Placar final já sai pronto pra virar boxscore + quartos. */
+function dtCalcularResultado(array $rosterA, array $rosterB): array
+{
+    $ovrA = dtSomaRoster($rosterA);
+    $ovrB = dtSomaRoster($rosterB);
+    $diffMedio = ($ovrA - $ovrB) / 5;
+
+    $chanceA = max(8, min(92, 50 + $diffMedio * 3.5));
     $aGanha = random_int(1, 1000) <= (int)round($chanceA * 10);
 
     $baseA = 100 + random_int(-10, 10);
     $baseB = 100 + random_int(-10, 10);
     $margem = min(32, random_int(3, 9) + (int)round(abs($diffMedio) * 1.1));
-
     $topo = max($baseA, $baseB);
     $fundo = min($baseA, $baseB);
-    if ($aGanha) {
-        $placarA = $topo + $margem;
-        $placarB = $fundo;
-    } else {
-        $placarB = $topo + $margem;
-        $placarA = $fundo;
-    }
+    if ($aGanha) { $placarA = $topo + $margem; $placarB = $fundo; }
+    else { $placarB = $topo + $margem; $placarA = $fundo; }
 
     $vencedorLado = $aGanha ? 'a' : 'b';
 
+    $boxA = dtGerarBoxscore($rosterA, $placarA);
+    $boxB = dtGerarBoxscore($rosterB, $placarB);
+
+    $destaques = [];
+    foreach ([['box' => $boxA, 'lado' => 'a'], ['box' => $boxB, 'lado' => 'b']] as $grupo) {
+        $itens = $grupo['box'];
+        usort($itens, fn($x, $y) => $y['pts'] - $x['pts']);
+        foreach (array_slice($itens, 0, 2) as $j) {
+            $destaques[] = ['lado' => $grupo['lado'], 'nome' => $j['nome'], 'pontos' => $j['pts'], 'frase' => dtFrasePosicao($j['pos'])];
+        }
+    }
+    usort($destaques, fn($x, $y) => $y['pontos'] - $x['pontos']);
+
     return [
-        'ovr_a'     => $ovrA,
-        'ovr_b'     => $ovrB,
-        'chance_a'  => round($chanceA, 1),
-        'placar_a'  => $placarA,
-        'placar_b'  => $placarB,
-        'vencedor'  => $vencedorLado,
-        'destaques' => dtGerarDestaques($timeA, $timeB, $vencedorLado),
+        'ovr_a' => $ovrA, 'ovr_b' => $ovrB, 'chance_a' => round($chanceA, 1),
+        'placar_a' => $placarA, 'placar_b' => $placarB, 'vencedor' => $vencedorLado,
+        'quartos' => dtGerarQuartos($placarA, $placarB),
+        'boxscore_a' => $boxA, 'boxscore_b' => $boxB,
+        'destaques' => $destaques,
     ];
 }
 
+/** Melhor jogador NOVO do time sorteado pra uma vaga aberta do roster (maior OVR entre os elegíveis, ignora quem já está no time). */
+function dtMelhorEscolha(array $time, array $roster): ?array
+{
+    $vagas = dtVagasAbertas($roster);
+    $jaTenho = dtNomesNoRoster($roster);
+    $melhor = null;
+    foreach ($time['jogadores'] as $j) {
+        if (isset($jaTenho[$j['nome']])) continue;
+        $posDisponiveis = array_values(array_intersect($j['pos'], $vagas));
+        if (!$posDisponiveis) continue;
+        if (!$melhor || $j['ovr'] > $melhor['jogador']['ovr']) {
+            $melhor = ['jogador' => $j, 'pos' => $posDisponiveis[0]];
+        }
+    }
+    return $melhor;
+}
+
 /**
- * O duelo pra MOSTRAR na tela: o em andamento (aguardando/montando), ou —
- * na falta de um — o último concluído, só pra tela de resultado não sumir
- * assim que a simulação termina. NÃO usar pra decidir se pode criar/entrar
- * num duelo novo — pra isso é dtDueloEmAndamento() (abaixo), que exclui
- * 'simulado': senão, uma vez que a pessoa jogasse um duelo ela nunca mais
- * conseguiria abrir outro.
+ * Resolve o turno da CPU inteiro: sorteia, decide se vale a pena girar de
+ * novo (só troca se a segunda opção for mais forte), escolhe, e passa a vez
+ * de volta (ou finaliza + simula, se os dois times ficarem completos). Não
+ * abre transação própria — quem chama já deve estar com a linha travada.
  */
+function dtCpuJogar(PDO $pdo, int $dueloId): void
+{
+    $st = $pdo->prepare('SELECT * FROM dreamteam_duelos WHERE id = ? FOR UPDATE');
+    $st->execute([$dueloId]);
+    $atual = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$atual || $atual['status'] !== 'draft' || $atual['turno'] !== 'desafiado') return;
+
+    $roster = json_decode((string)$atual['roster_desafiado'], true) ?: dtRosterVazio();
+    $time = dtTimePorId((string)$atual['time_sorteado_id']);
+    if (!$time) return;
+
+    $melhor = dtMelhorEscolha($time, $roster);
+    if ((!$melhor || $melhor['jogador']['ovr'] < 82) && (int)$atual['reroll_disponivel'] === 1) {
+        $novoTime = dtSortearTimeValido($roster);
+        $melhorNovo = dtMelhorEscolha($novoTime, $roster);
+        if ($melhorNovo && (!$melhor || $melhorNovo['jogador']['ovr'] > $melhor['jogador']['ovr'])) {
+            $melhor = $melhorNovo;
+        }
+    }
+    if (!$melhor) return; // nunca deveria acontecer — dtSortearTimeValido garante >=1 opção
+
+    $roster[$melhor['pos']] = ['nome' => $melhor['jogador']['nome'], 'ovr' => $melhor['jogador']['ovr'], 'pos' => $melhor['jogador']['pos']];
+    $pdo->prepare('UPDATE dreamteam_duelos SET roster_desafiado = ? WHERE id = ?')->execute([json_encode($roster), $dueloId]);
+
+    $rosterCriador = json_decode((string)$atual['roster_criador'], true) ?: dtRosterVazio();
+    if (dtRosterCompleto($roster) && dtRosterCompleto($rosterCriador)) {
+        $resultado = dtCalcularResultado($rosterCriador, $roster);
+        $vencedorId = $resultado['vencedor'] === 'a' ? (int)$atual['id_criador'] : (int)$atual['id_desafiado'];
+        $premio = (int)$atual['aposta'] * 2;
+        $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')->execute([$premio, $vencedorId]);
+        $pdo->prepare("UPDATE dreamteam_duelos SET status = 'simulado', resultado = ?, id_vencedor = ?, concluido_em = NOW() WHERE id = ?")
+            ->execute([json_encode($resultado), $vencedorId, $dueloId]);
+    } else {
+        $novoTimeCriador = dtSortearTimeValido($rosterCriador);
+        $pdo->prepare("UPDATE dreamteam_duelos SET turno = 'criador', time_sorteado_id = ?, reroll_disponivel = 1 WHERE id = ?")
+            ->execute([$novoTimeCriador['id'], $dueloId]);
+    }
+}
+
 function dtDueloAtivo(PDO $pdo, int $userId): ?array
 {
     $st = $pdo->prepare("
         SELECT * FROM dreamteam_duelos
         WHERE (id_criador = ? OR id_desafiado = ?)
-          AND status IN ('aguardando', 'montando', 'simulado')
-        ORDER BY (status IN ('aguardando', 'montando')) DESC, id DESC
+          AND status IN ('aguardando', 'draft', 'simulado')
+        ORDER BY (status IN ('aguardando', 'draft')) DESC, id DESC
         LIMIT 1
     ");
     $st->execute([$userId, $userId]);
     return $st->fetch(PDO::FETCH_ASSOC) ?: null;
 }
 
-/** Só o que realmente trava criar/entrar num duelo novo — 'simulado' não conta. */
+/** Só o que trava criar/entrar num duelo novo — 'simulado' não conta (senão a pessoa nunca mais jogaria de novo). */
 function dtDueloEmAndamento(PDO $pdo, int $userId): ?array
 {
     $st = $pdo->prepare("
         SELECT * FROM dreamteam_duelos
-        WHERE (id_criador = ? OR id_desafiado = ?)
-          AND status IN ('aguardando', 'montando')
-        ORDER BY id DESC
-        LIMIT 1
+        WHERE (id_criador = ? OR id_desafiado = ?) AND status IN ('aguardando', 'draft')
+        ORDER BY id DESC LIMIT 1
     ");
     $st->execute([$userId, $userId]);
     return $st->fetch(PDO::FETCH_ASSOC) ?: null;
 }
 
-/** Devolve as apostas de duelos abandonados — sem isso a moeda ficava presa pra sempre. */
 function dtExpirarAntigos(PDO $pdo): void
 {
     $st = $pdo->prepare("SELECT id, id_criador, aposta FROM dreamteam_duelos WHERE status = 'aguardando' AND criado_em < DATE_SUB(NOW(), INTERVAL ? HOUR)");
@@ -321,24 +362,27 @@ function dtExpirarAntigos(PDO $pdo): void
         } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); }
     }
 
-    $st = $pdo->prepare("SELECT id, id_criador, id_desafiado, aposta FROM dreamteam_duelos WHERE status = 'montando' AND entrou_em < DATE_SUB(NOW(), INTERVAL ? MINUTE)");
-    $st->execute([DT_MONTANDO_TIMEOUT_MIN]);
+    $st = $pdo->prepare("SELECT id, id_criador, id_desafiado, aposta FROM dreamteam_duelos WHERE status = 'draft' AND entrou_em < DATE_SUB(NOW(), INTERVAL ? MINUTE)");
+    $st->execute([DT_DRAFT_TIMEOUT_MIN]);
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $d) {
         $pdo->beginTransaction();
         try {
             $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')->execute([(int)$d['aposta'], (int)$d['id_criador']]);
-            $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')->execute([(int)$d['aposta'], (int)$d['id_desafiado']]);
+            if ((int)$d['id_desafiado'] > 0) {
+                $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')->execute([(int)$d['aposta'], (int)$d['id_desafiado']]);
+            }
             $pdo->prepare("UPDATE dreamteam_duelos SET status = 'expirado' WHERE id = ?")->execute([$d['id']]);
             $pdo->commit();
         } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); }
     }
 }
 
-/** Monta o JSON de estado que o client usa pra decidir qual tela mostrar. */
 function dtSerializar(PDO $pdo, ?array $duelo, int $userId): ?array
 {
     if (!$duelo) return null;
     $souCriador = (int)$duelo['id_criador'] === $userId;
+    $meuLado = $souCriador ? 'criador' : 'desafiado';
+    $oponenteLado = $souCriador ? 'desafiado' : 'criador';
 
     $oponenteNome = null;
     if ($duelo['id_desafiado'] !== null) {
@@ -353,26 +397,30 @@ function dtSerializar(PDO $pdo, ?array $duelo, int $userId): ?array
     }
 
     $out = [
-        'id'               => (int)$duelo['id'],
-        'codigo'           => $duelo['codigo'],
-        'status'           => $duelo['status'],
-        'aposta'           => (int)$duelo['aposta'],
-        'sou_criador'      => $souCriador,
-        'oponente_nome'    => $oponenteNome,
-        'meu_pronto'       => (bool)($souCriador ? $duelo['pronto_criador'] : $duelo['pronto_desafiado']),
-        'oponente_pronto'  => (bool)($souCriador ? $duelo['pronto_desafiado'] : $duelo['pronto_criador']),
+        'id' => (int)$duelo['id'],
+        'codigo' => $duelo['codigo'],
+        'status' => $duelo['status'],
+        'aposta' => (int)$duelo['aposta'],
+        'sou_criador' => $souCriador,
+        'oponente_nome' => $oponenteNome,
     ];
+
+    if (in_array($duelo['status'], ['draft', 'simulado'], true)) {
+        $out['meu_roster'] = json_decode((string)$duelo[$meuLado === 'criador' ? 'roster_criador' : 'roster_desafiado'], true) ?: dtRosterVazio();
+        $out['oponente_roster'] = json_decode((string)$duelo[$oponenteLado === 'criador' ? 'roster_criador' : 'roster_desafiado'], true) ?: dtRosterVazio();
+    }
+
+    if ($duelo['status'] === 'draft') {
+        $out['minha_vez'] = ($duelo['turno'] === $meuLado);
+        $out['reroll_disponivel'] = (bool)$duelo['reroll_disponivel'];
+        $out['time_sorteado'] = dtTimePorId((string)$duelo['time_sorteado_id']);
+    }
 
     if ($duelo['status'] === 'simulado') {
         $resultado = json_decode((string)$duelo['resultado'], true) ?: [];
-        $meuLado = $souCriador ? 'a' : 'b';
-        $idsMeuTime = json_decode((string)($souCriador ? $duelo['time_criador'] : $duelo['time_desafiado']), true) ?: [];
-        $idsTimeOponente = json_decode((string)($souCriador ? $duelo['time_desafiado'] : $duelo['time_criador']), true) ?: [];
         $out['resultado'] = $resultado;
-        $out['meu_lado'] = $meuLado;
+        $out['meu_lado'] = $meuLado === 'criador' ? 'a' : 'b';
         $out['eu_venci'] = ((int)$duelo['id_vencedor'] === $userId);
-        $out['meu_time'] = dtCarregarTime($pdo, $idsMeuTime);
-        $out['time_oponente'] = dtCarregarTime($pdo, $idsTimeOponente);
     }
 
     return $out;
@@ -420,12 +468,8 @@ if (($_POST['acao'] ?? '') !== '') {
             exit;
         }
 
-        // Contra a máquina: sem sala de espera — o time da CPU (o melhor
-        // possível dentro do teto, ver dtMontarTimeCpu) já nasce pronto, então
-        // o duelo entra direto em 'montando' e o usuário já cai na tela de
-        // montar o próprio time. id_desafiado=0 marca "é a máquina" (nenhum
-        // usuário de verdade tem id 0) — se ela vencer, o pagamento pra id=0
-        // não afeta ninguém (a aposta só some, igual perder pra "a casa").
+        // Contra a máquina: sem sala de espera — sorteia quem começa e, se for
+        // a CPU, ela já joga o primeiro turno dela na mesma requisição.
         if ($acao === 'criar_vs_cpu') {
             if (dtDueloEmAndamento($pdo, $user_id)) {
                 echo json_encode(['ok' => false, 'msg' => 'Você já tem um duelo em andamento.']);
@@ -449,15 +493,20 @@ if (($_POST['acao'] ?? '') !== '') {
                 }
                 $pdo->prepare('UPDATE games_usuarios SET pontos = pontos - ? WHERE id = ?')->execute([$aposta, $user_id]);
 
-                $idsCpu = dtMontarTimeCpu($pdo);
-                $timeCpu = dtCarregarTime($pdo, $idsCpu);
-                $ovrCpu = array_sum(array_column($timeCpu, 'ovr'));
+                $rosterVazio = json_encode(dtRosterVazio());
+                $primeiroTurno = random_int(0, 1) ? 'criador' : 'desafiado';
+                $timeInicial = dtSortearTimeValido(dtRosterVazio());
 
                 $codigo = dtGerarCodigo($pdo);
                 $pdo->prepare("INSERT INTO dreamteam_duelos
-                        (codigo, id_criador, id_desafiado, aposta, status, time_desafiado, ovr_desafiado, pronto_desafiado, entrou_em)
-                        VALUES (?, ?, 0, ?, 'montando', ?, ?, 1, NOW())")
-                    ->execute([$codigo, $user_id, $aposta, json_encode($idsCpu), $ovrCpu]);
+                        (codigo, id_criador, id_desafiado, aposta, status, turno, roster_criador, roster_desafiado, time_sorteado_id, reroll_disponivel, entrou_em)
+                        VALUES (?, ?, 0, ?, 'draft', ?, ?, ?, ?, 1, NOW())")
+                    ->execute([$codigo, $user_id, $aposta, $primeiroTurno, $rosterVazio, $rosterVazio, $timeInicial['id']]);
+                $dueloId = (int)$pdo->lastInsertId();
+
+                if ($primeiroTurno === 'desafiado') {
+                    dtCpuJogar($pdo, $dueloId);
+                }
                 $pdo->commit();
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) $pdo->rollBack();
@@ -483,21 +532,9 @@ if (($_POST['acao'] ?? '') !== '') {
                 $st = $pdo->prepare('SELECT * FROM dreamteam_duelos WHERE codigo = ? FOR UPDATE');
                 $st->execute([$codigo]);
                 $duelo = $st->fetch(PDO::FETCH_ASSOC);
-                if (!$duelo) {
-                    $pdo->rollBack();
-                    echo json_encode(['ok' => false, 'msg' => 'Código não encontrado.']);
-                    exit;
-                }
-                if ($duelo['status'] !== 'aguardando') {
-                    $pdo->rollBack();
-                    echo json_encode(['ok' => false, 'msg' => 'Esse duelo não está mais disponível.']);
-                    exit;
-                }
-                if ((int)$duelo['id_criador'] === $user_id) {
-                    $pdo->rollBack();
-                    echo json_encode(['ok' => false, 'msg' => 'Você não pode entrar no seu próprio duelo.']);
-                    exit;
-                }
+                if (!$duelo) { $pdo->rollBack(); echo json_encode(['ok' => false, 'msg' => 'Código não encontrado.']); exit; }
+                if ($duelo['status'] !== 'aguardando') { $pdo->rollBack(); echo json_encode(['ok' => false, 'msg' => 'Esse duelo não está mais disponível.']); exit; }
+                if ((int)$duelo['id_criador'] === $user_id) { $pdo->rollBack(); echo json_encode(['ok' => false, 'msg' => 'Você não pode entrar no seu próprio duelo.']); exit; }
 
                 $aposta = (int)$duelo['aposta'];
                 $stS = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ? FOR UPDATE');
@@ -508,10 +545,16 @@ if (($_POST['acao'] ?? '') !== '') {
                     echo json_encode(['ok' => false, 'msg' => "Saldo insuficiente pra cobrir a aposta ({$aposta} moedas)."]);
                     exit;
                 }
-
                 $pdo->prepare('UPDATE games_usuarios SET pontos = pontos - ? WHERE id = ?')->execute([$aposta, $user_id]);
-                $pdo->prepare("UPDATE dreamteam_duelos SET id_desafiado = ?, status = 'montando', entrou_em = NOW() WHERE id = ?")
-                    ->execute([$user_id, $duelo['id']]);
+
+                $rosterVazio = json_encode(dtRosterVazio());
+                $primeiroTurno = random_int(0, 1) ? 'criador' : 'desafiado';
+                $timeInicial = dtSortearTimeValido(dtRosterVazio());
+                $pdo->prepare("UPDATE dreamteam_duelos
+                        SET id_desafiado = ?, status = 'draft', turno = ?, roster_criador = ?, roster_desafiado = ?,
+                            time_sorteado_id = ?, reroll_disponivel = 1, entrou_em = NOW()
+                        WHERE id = ?")
+                    ->execute([$user_id, $primeiroTurno, $rosterVazio, $rosterVazio, $timeInicial['id'], $duelo['id']]);
                 $pdo->commit();
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) $pdo->rollBack();
@@ -540,34 +583,50 @@ if (($_POST['acao'] ?? '') !== '') {
             exit;
         }
 
-        if ($acao === 'montar_time') {
+        // Gira de novo o time sorteado — 1 vez por rodada, só de quem está na vez.
+        if ($acao === 'girar_de_novo') {
             $duelo = dtDueloAtivo($pdo, $user_id);
-            if (!$duelo || $duelo['status'] !== 'montando') {
-                echo json_encode(['ok' => false, 'msg' => 'Esse duelo não está na fase de montar time.']);
-                exit;
-            }
+            if (!$duelo || $duelo['status'] !== 'draft') { echo json_encode(['ok' => false, 'msg' => 'Esse duelo não está em draft.']); exit; }
             $lado = ((int)$duelo['id_criador'] === $user_id) ? 'criador' : 'desafiado';
-            $jaPronto = $lado === 'criador' ? $duelo['pronto_criador'] : $duelo['pronto_desafiado'];
-            if ($jaPronto) { echo json_encode(['ok' => false, 'msg' => 'Você já confirmou seu time.']); exit; }
+            if ($duelo['turno'] !== $lado) { echo json_encode(['ok' => false, 'msg' => 'Não é sua vez.']); exit; }
+            if ((int)$duelo['reroll_disponivel'] !== 1) { echo json_encode(['ok' => false, 'msg' => 'Você já girou de novo nessa rodada.']); exit; }
 
-            $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string)($_POST['jogadores'] ?? ''))))));
-            if (count($ids) !== DT_TIME_SIZE) {
-                echo json_encode(['ok' => false, 'msg' => 'Escolha exatamente ' . DT_TIME_SIZE . ' lendas.']);
-                exit;
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare('SELECT * FROM dreamteam_duelos WHERE id = ? FOR UPDATE');
+                $st->execute([$duelo['id']]);
+                $atual = $st->fetch(PDO::FETCH_ASSOC);
+                if (!$atual || $atual['status'] !== 'draft' || $atual['turno'] !== $lado || (int)$atual['reroll_disponivel'] !== 1) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Não deu pra girar de novo.']);
+                    exit;
+                }
+                $roster = json_decode((string)$atual[$lado === 'criador' ? 'roster_criador' : 'roster_desafiado'], true) ?: dtRosterVazio();
+                $novoTime = dtSortearTimeValido($roster);
+                $pdo->prepare('UPDATE dreamteam_duelos SET time_sorteado_id = ?, reroll_disponivel = 0 WHERE id = ?')
+                    ->execute([$novoTime['id'], $atual['id']]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
             }
+            echo json_encode(['ok' => true]);
+            exit;
+        }
 
-            $ph = implode(',', array_fill(0, count($ids), '?'));
-            $st = $pdo->prepare("SELECT player_id, ovr FROM build_notas WHERE player_id IN ($ph)");
-            $st->execute($ids);
-            $achados = [];
-            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) $achados[(int)$row['player_id']] = (int)$row['ovr'];
-            if (count($achados) !== DT_TIME_SIZE) {
-                echo json_encode(['ok' => false, 'msg' => 'Algum jogador escolhido não existe.']);
-                exit;
-            }
-            $somaOvr = array_sum($achados);
-            if ($somaOvr > DT_CAP_OVR) {
-                echo json_encode(['ok' => false, 'msg' => "Time estourou o teto salarial ({$somaOvr}/" . DT_CAP_OVR . ').']);
+        // Move um jogador já escolhido pra outra posição em que ele também é elegível, liberando
+        // a posição antiga — não consome a rodada, é só reorganização (ex: eu tinha um PG/SG no
+        // PG, apareceu um PG melhor, então libero o PG movendo esse jogador pro SG aberto).
+        if ($acao === 'reposicionar_jogador') {
+            $duelo = dtDueloAtivo($pdo, $user_id);
+            if (!$duelo || $duelo['status'] !== 'draft') { echo json_encode(['ok' => false, 'msg' => 'Esse duelo não está em draft.']); exit; }
+            $lado = ((int)$duelo['id_criador'] === $user_id) ? 'criador' : 'desafiado';
+            if ($duelo['turno'] !== $lado) { echo json_encode(['ok' => false, 'msg' => 'Não é sua vez.']); exit; }
+
+            $de = strtoupper(trim((string)($_POST['de'] ?? '')));
+            $para = strtoupper(trim((string)($_POST['para'] ?? '')));
+            if (!in_array($de, dtPosicoes(), true) || !in_array($para, dtPosicoes(), true) || $de === $para) {
+                echo json_encode(['ok' => false, 'msg' => 'Reposicionamento inválido.']);
                 exit;
             }
 
@@ -576,35 +635,118 @@ if (($_POST['acao'] ?? '') !== '') {
                 $st = $pdo->prepare('SELECT * FROM dreamteam_duelos WHERE id = ? FOR UPDATE');
                 $st->execute([$duelo['id']]);
                 $atual = $st->fetch(PDO::FETCH_ASSOC);
-                if (!$atual || $atual['status'] !== 'montando') {
+                if (!$atual || $atual['status'] !== 'draft' || $atual['turno'] !== $lado) {
                     $pdo->rollBack();
-                    echo json_encode(['ok' => false, 'msg' => 'Duelo não está mais disponível.']);
+                    echo json_encode(['ok' => false, 'msg' => 'Esse duelo não está mais disponível.']);
                     exit;
                 }
 
-                $colTime = $lado === 'criador' ? 'time_criador' : 'time_desafiado';
-                $colOvr = $lado === 'criador' ? 'ovr_criador' : 'ovr_desafiado';
-                $colPronto = $lado === 'criador' ? 'pronto_criador' : 'pronto_desafiado';
-                $pdo->prepare("UPDATE dreamteam_duelos SET {$colTime} = ?, {$colOvr} = ?, {$colPronto} = 1 WHERE id = ?")
-                    ->execute([json_encode($ids), $somaOvr, $duelo['id']]);
-
-                $outroPronto = (bool)($lado === 'criador' ? $atual['pronto_desafiado'] : $atual['pronto_criador']);
-                if ($outroPronto) {
-                    $idsCriador = $lado === 'criador' ? $ids : (json_decode((string)$atual['time_criador'], true) ?: []);
-                    $idsDesafiado = $lado === 'desafiado' ? $ids : (json_decode((string)$atual['time_desafiado'], true) ?: []);
-
-                    $timeCriador = dtCarregarTime($pdo, $idsCriador);
-                    $timeDesafiado = dtCarregarTime($pdo, $idsDesafiado);
-                    $resultado = dtCalcularResultado($timeCriador, $timeDesafiado);
-
-                    $vencedorId = $resultado['vencedor'] === 'a' ? (int)$atual['id_criador'] : (int)$atual['id_desafiado'];
-                    $premio = (int)$atual['aposta'] * 2;
-
-                    $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')->execute([$premio, $vencedorId]);
-                    $pdo->prepare("UPDATE dreamteam_duelos SET status = 'simulado', resultado = ?, id_vencedor = ?, concluido_em = NOW() WHERE id = ?")
-                        ->execute([json_encode($resultado), $vencedorId, $duelo['id']]);
+                $colRoster = $lado === 'criador' ? 'roster_criador' : 'roster_desafiado';
+                $roster = json_decode((string)$atual[$colRoster], true) ?: dtRosterVazio();
+                $jogador = $roster[$de] ?? null;
+                if (!$jogador) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Não tem jogador nessa posição.']);
+                    exit;
+                }
+                if ($roster[$para] !== null) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Essa posição já está ocupada.']);
+                    exit;
+                }
+                if (!in_array($para, $jogador['pos'] ?? [], true)) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Esse jogador não joga nessa posição.']);
+                    exit;
                 }
 
+                $roster[$para] = $jogador;
+                $roster[$de] = null;
+                $pdo->prepare("UPDATE dreamteam_duelos SET {$colRoster} = ? WHERE id = ?")->execute([json_encode($roster), $atual['id']]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
+        // Escolhe 1 jogador do time sorteado pra uma posição vazia do próprio time.
+        if ($acao === 'escolher_jogador') {
+            $duelo = dtDueloAtivo($pdo, $user_id);
+            if (!$duelo || $duelo['status'] !== 'draft') { echo json_encode(['ok' => false, 'msg' => 'Esse duelo não está em draft.']); exit; }
+            $lado = ((int)$duelo['id_criador'] === $user_id) ? 'criador' : 'desafiado';
+            if ($duelo['turno'] !== $lado) { echo json_encode(['ok' => false, 'msg' => 'Não é sua vez.']); exit; }
+
+            $nomeJogador = trim((string)($_POST['jogador'] ?? ''));
+            $posEscolhida = strtoupper(trim((string)($_POST['posicao'] ?? '')));
+            if ($nomeJogador === '' || !in_array($posEscolhida, dtPosicoes(), true)) {
+                echo json_encode(['ok' => false, 'msg' => 'Escolha inválida.']);
+                exit;
+            }
+
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare('SELECT * FROM dreamteam_duelos WHERE id = ? FOR UPDATE');
+                $st->execute([$duelo['id']]);
+                $atual = $st->fetch(PDO::FETCH_ASSOC);
+                if (!$atual || $atual['status'] !== 'draft' || $atual['turno'] !== $lado) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Esse duelo não está mais disponível pra escolher.']);
+                    exit;
+                }
+
+                $time = dtTimePorId((string)$atual['time_sorteado_id']);
+                $jogador = null;
+                if ($time) foreach ($time['jogadores'] as $j) if ($j['nome'] === $nomeJogador) { $jogador = $j; break; }
+                if (!$jogador) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Jogador não encontrado no time sorteado.']);
+                    exit;
+                }
+                if (!in_array($posEscolhida, $jogador['pos'], true)) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Esse jogador não joga nessa posição.']);
+                    exit;
+                }
+
+                $colRoster = $lado === 'criador' ? 'roster_criador' : 'roster_desafiado';
+                $roster = json_decode((string)$atual[$colRoster], true) ?: dtRosterVazio();
+                if ($roster[$posEscolhida] !== null) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Essa posição já está preenchida.']);
+                    exit;
+                }
+                if (isset(dtNomesNoRoster($roster)[$jogador['nome']])) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Esse jogador já está no seu time.']);
+                    exit;
+                }
+                $roster[$posEscolhida] = ['nome' => $jogador['nome'], 'ovr' => $jogador['ovr'], 'pos' => $jogador['pos']];
+                $pdo->prepare("UPDATE dreamteam_duelos SET {$colRoster} = ? WHERE id = ?")->execute([json_encode($roster), $atual['id']]);
+
+                $rosterCriador = $lado === 'criador' ? $roster : (json_decode((string)$atual['roster_criador'], true) ?: dtRosterVazio());
+                $rosterDesafiado = $lado === 'desafiado' ? $roster : (json_decode((string)$atual['roster_desafiado'], true) ?: dtRosterVazio());
+
+                if (dtRosterCompleto($rosterCriador) && dtRosterCompleto($rosterDesafiado)) {
+                    $resultado = dtCalcularResultado($rosterCriador, $rosterDesafiado);
+                    $vencedorId = $resultado['vencedor'] === 'a' ? (int)$atual['id_criador'] : (int)$atual['id_desafiado'];
+                    $premio = (int)$atual['aposta'] * 2;
+                    $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')->execute([$premio, $vencedorId]);
+                    $pdo->prepare("UPDATE dreamteam_duelos SET status = 'simulado', resultado = ?, id_vencedor = ?, concluido_em = NOW() WHERE id = ?")
+                        ->execute([json_encode($resultado), $vencedorId, $atual['id']]);
+                } else {
+                    $proximoLado = $lado === 'criador' ? 'desafiado' : 'criador';
+                    $proximoRoster = $proximoLado === 'criador' ? $rosterCriador : $rosterDesafiado;
+                    $novoTime = dtSortearTimeValido($proximoRoster);
+                    $pdo->prepare('UPDATE dreamteam_duelos SET turno = ?, time_sorteado_id = ?, reroll_disponivel = 1 WHERE id = ?')
+                        ->execute([$proximoLado, $novoTime['id'], $atual['id']]);
+
+                    if ($proximoLado === 'desafiado' && (int)$atual['id_desafiado'] === 0) {
+                        dtCpuJogar($pdo, (int)$atual['id']);
+                    }
+                }
                 $pdo->commit();
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) $pdo->rollBack();
@@ -634,7 +776,6 @@ if (($_POST['acao'] ?? '') !== '') {
 dtExpirarAntigos($pdo);
 $duelo = dtDueloAtivo($pdo, $user_id);
 $estadoInicial = dtSerializar($pdo, $duelo, $user_id);
-$lendas = dtLendas($pdo);
 $stPontos = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ?');
 $stPontos->execute([$user_id]);
 $meuSaldo = (int)($stPontos->fetchColumn() ?: 0);
@@ -672,13 +813,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .topbar-right{display:flex;align-items:center;gap:6px}
 .chip{display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:var(--panel2);border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text);white-space:nowrap}
 
-.main{max-width:640px;margin:0 auto;padding:16px 12px 60px}
+.main{max-width:680px;margin:0 auto;padding:16px 12px 60px}
 .dtcard{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px;color:var(--text)}
 .dtcard-title{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:12px}
 .dtcard-sub{font-size:12.5px;color:var(--text2);line-height:1.55;margin-bottom:14px}
 
 .dt-tabs{display:flex;gap:8px;margin-bottom:16px}
-.dt-tab{flex:1;text-align:center;padding:10px;border-radius:10px;background:var(--panel2);border:1.5px solid var(--border);cursor:pointer;font-size:12.5px;font-weight:700;color:var(--text2);transition:.15s}
+.dt-tab{flex:1;text-align:center;padding:10px;border-radius:10px;background:var(--panel2);border:1.5px solid var(--border);cursor:pointer;font-size:12px;font-weight:700;color:var(--text2);transition:.15s}
 .dt-tab.active{border-color:var(--red);background:var(--red-soft);color:var(--red)}
 
 .field label{display:block;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:6px}
@@ -691,6 +832,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .btn-dt:disabled{opacity:.5;cursor:not-allowed}
 .btn-dt-ghost{width:100%;padding:11px;border-radius:11px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--font);font-size:12.5px;font-weight:700;cursor:pointer;margin-top:8px}
 .btn-dt-ghost:hover{border-color:var(--red);color:var(--red)}
+.btn-dt-amber{width:100%;padding:11px;border-radius:11px;border:1.5px solid var(--amber);background:var(--amber-soft);color:var(--amber);font-family:var(--font);font-size:12.5px;font-weight:800;cursor:pointer;margin-top:10px}
+.btn-dt-amber:hover:not(:disabled){background:var(--amber);color:#1a1200}
+.btn-dt-amber:disabled{opacity:.4;cursor:not-allowed}
 
 .dt-codigo-box{text-align:center;padding:22px;background:var(--panel2);border:1.5px dashed var(--border2);border-radius:12px;margin-bottom:14px}
 .dt-codigo-valor{font-size:34px;font-weight:900;letter-spacing:6px;color:var(--red);font-variant-numeric:tabular-nums}
@@ -699,35 +843,40 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .dt-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--red);border-radius:50%;margin:0 auto 14px;animation:dt-spin 1s linear infinite}
 @keyframes dt-spin{to{transform:rotate(360deg)}}
 
-.dt-vs{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:14px}
-.dt-vs-lado{flex:1;text-align:center;padding:14px 10px;border-radius:12px;background:var(--panel2);border:1.5px solid var(--border)}
-.dt-vs-lado.pronto{border-color:var(--green);background:var(--green-soft)}
-.dt-vs-nome{font-size:12.5px;font-weight:700;margin-bottom:4px}
-.dt-vs-status{font-size:10.5px;color:var(--text2)}
-.dt-vs-lado.pronto .dt-vs-status{color:var(--green)}
-.dt-vs-x{font-size:16px;font-weight:900;color:var(--text3)}
+.dt-empty{text-align:center;padding:20px;color:var(--text2);font-size:12.5px}
 
-.dt-cap-bar{display:flex;align-items:center;justify-content:space-between;background:var(--panel2);border:1px solid var(--border);border-radius:11px;padding:12px 14px;margin-bottom:12px;position:sticky;top:56px;z-index:10}
-.dt-cap-label{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text2)}
-.dt-cap-valor{font-size:18px;font-weight:900;font-variant-numeric:tabular-nums}
-.dt-cap-valor.over{color:var(--red)}
-.dt-cap-valor.ok{color:var(--green)}
+/* Roster (PG/SG/SF/PF/C) */
+.dt-roster-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.dt-roster-nome{font-size:12px;font-weight:800}
+.dt-roster-total{font-size:11px;color:var(--amber);font-weight:800}
+.dt-roster-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.dt-roster-slot{background:var(--panel2);border:1.5px dashed var(--border2);border-radius:9px;padding:8px 4px;text-align:center;min-height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.dt-roster-slot.preenchido{border-style:solid;border-color:var(--border2);background:var(--panel3)}
+.dt-roster-slot.movivel{cursor:pointer;border-color:var(--blue)}
+.dt-roster-slot.movivel:hover{background:var(--blue-soft)}
+.dt-roster-slot .dt-rs-pos{font-size:8.5px;font-weight:700;letter-spacing:.5px;color:var(--text3);text-transform:uppercase}
+.dt-roster-slot .dt-rs-nome{font-size:9.5px;font-weight:700;color:var(--text);line-height:1.2;word-break:break-word}
+.dt-roster-slot .dt-rs-ovr{font-size:11px;font-weight:900;color:var(--amber)}
 
-.dt-slots{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
-.dt-slot{flex:1;min-width:56px;height:46px;border-radius:9px;background:var(--panel2);border:1.5px dashed var(--border2);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text3);text-align:center;padding:2px;position:relative;cursor:pointer}
-.dt-slot.filled{border-style:solid;border-color:var(--red);background:var(--red-soft);color:var(--text);font-weight:700;font-size:9.5px;flex-direction:column;gap:1px}
-.dt-slot .dt-slot-x{position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:var(--red);color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center}
+.dt-turno-banner{text-align:center;padding:10px;border-radius:10px;margin-bottom:14px;font-size:12.5px;font-weight:700}
+.dt-turno-banner.minha-vez{background:var(--red-soft);color:var(--red);border:1px solid var(--red-glow)}
+.dt-turno-banner.vez-oponente{background:var(--panel2);color:var(--text2);border:1px solid var(--border)}
 
-.dt-search{width:100%;background:var(--panel2);border:1.5px solid var(--border);border-radius:10px;padding:11px 12px;font-family:var(--font);font-size:13px;color:var(--text);outline:none;margin-bottom:10px}
-.dt-search:focus{border-color:var(--red)}
-.dt-lendas-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:360px;overflow-y:auto}
-.dt-lenda{background:var(--panel2);border:1.5px solid var(--border);border-radius:10px;padding:9px 10px;cursor:pointer;transition:.12s}
-.dt-lenda:hover{border-color:var(--border2)}
-.dt-lenda.selecionada{border-color:var(--red);background:var(--red-soft)}
-.dt-lenda.desabilitada{opacity:.35;cursor:not-allowed}
-.dt-lenda-nome{font-size:12px;font-weight:700;color:var(--text)}
-.dt-lenda-meta{font-size:10px;color:var(--text2);margin-top:2px;display:flex;justify-content:space-between}
-.dt-lenda-ovr{font-weight:800;color:var(--amber)}
+.dt-time-nome{text-align:center;font-size:13px;font-weight:800;margin-bottom:2px}
+.dt-time-ano{text-align:center;font-size:10.5px;color:var(--text2);margin-bottom:12px}
+.dt-jogadores-grid{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
+.dt-jogador-card{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1.5px solid var(--border);border-radius:11px;padding:10px 12px;transition:.12s}
+.dt-jogador-card.clicavel{cursor:pointer}
+.dt-jogador-card.clicavel:hover{border-color:var(--red);background:var(--red-soft)}
+.dt-jogador-card.desabilitado{opacity:.35}
+.dt-jogador-nome{font-size:13px;font-weight:700;flex:1}
+.dt-jogador-pos{display:flex;gap:4px}
+.dt-pos-badge{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:6px;background:var(--panel3);color:var(--text2);border:1px solid var(--border2)}
+.dt-jogador-ovr{font-size:15px;font-weight:900;color:var(--amber);min-width:28px;text-align:right}
+
+.dt-escolha-pos{display:flex;gap:6px;margin-top:8px}
+.dt-escolha-pos button{flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--red);background:var(--red-soft);color:var(--red);font-family:var(--font);font-size:11px;font-weight:800;cursor:pointer}
+.dt-escolha-pos button:hover{background:var(--red);color:#fff}
 
 .dt-placar{display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:16px}
 .dt-placar-lado{flex:1;text-align:center}
@@ -738,16 +887,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 .dt-resultado-msg{text-align:center;padding:14px;border-radius:11px;margin-bottom:16px;font-size:14px;font-weight:800}
 .dt-resultado-msg.venceu{background:var(--green-soft);color:var(--green);border:1px solid rgba(34,197,94,.35)}
-.dt-resultado-msg.perdeu{background:var(--red-soft);color:var(--red);border:1px solid var(--border-red,rgba(252,0,37,.3))}
+.dt-resultado-msg.perdeu{background:var(--red-soft);color:var(--red);border:1px solid rgba(252,0,37,.3)}
+
+.dt-quartos-resumo{text-align:center;font-size:11.5px;color:var(--text2);margin-bottom:4px;font-variant-numeric:tabular-nums}
+.dt-box-table{width:100%;border-collapse:collapse;font-size:12px}
+.dt-box-table th{text-align:center;font-size:9.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;padding:6px 4px;border-bottom:1px solid var(--border)}
+.dt-box-table td{text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+.dt-box-table td.dt-box-nome{text-align:left;font-weight:700;font-variant-numeric:normal}
+.dt-box-table td.dt-box-pos{color:var(--text2);font-weight:700;font-size:10.5px}
+.dt-box-table tr:last-child td{border-bottom:none}
+.dt-simcast-quartos{text-align:center;font-size:12px;color:var(--text2);margin-top:12px;min-height:16px}
 
 .dt-destaque{display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;margin-bottom:6px}
 .dt-destaque-pts{font-size:15px;font-weight:900;color:var(--amber);min-width:34px;text-align:center}
 .dt-destaque-txt{font-size:12px;color:var(--text)}
 .dt-destaque-txt b{color:var(--text)}
 
-.dt-empty{text-align:center;padding:20px;color:var(--text2);font-size:12.5px}
-.dt-lista-espera{display:flex;flex-direction:column;gap:6px;margin-top:10px}
-.dt-lista-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:9px;font-size:12px}
+@media(max-width:420px){
+  .dt-roster-grid{grid-template-columns:repeat(5,1fr);gap:4px}
+  .dt-roster-slot{padding:6px 2px;min-height:50px}
+  .dt-roster-slot .dt-rs-nome{font-size:8.5px}
+}
 </style>
 </head>
 <body>
@@ -767,13 +927,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 </div>
 
 <script>
-const LENDAS = <?= json_encode($lendas, JSON_UNESCAPED_UNICODE) ?>;
-const CAP_OVR = <?= DT_CAP_OVR ?>;
-const TIME_SIZE = <?= DT_TIME_SIZE ?>;
+const POSICOES = ['PG', 'SG', 'SF', 'PF', 'C'];
 const MEU_USER_ID = <?= $user_id ?>;
 let ESTADO_INICIAL = <?= json_encode($estadoInicial) ?>;
-let selecionados = [];
-let travado = false; // trava o poll enquanto o usuário está mexendo na tela de montar time
+let dueloDispensadoId = null;
+let processando = false; // trava o poll enquanto uma ação (escolher/girar/reposicionar) está em voo
+let resultadoEmAnimacaoId = null; // duelo cujo simcast já está rodando — ignora polls repetidos
+let resultadoFinalId = null; // duelo cujo simcast já terminou — renderiza a tela final direto
 
 function esc(s) {
   const d = document.createElement('div');
@@ -787,12 +947,12 @@ async function dtPost(acao, params = {}) {
   return res.json();
 }
 
-// ── Tela: criar ou entrar ───────────────────────────────────────────────────
+// ── Tela: criar / entrar / vs CPU ───────────────────────────────────────────
 function renderCriarEntrar() {
   document.getElementById('dtMain').innerHTML = `
     <div class="dtcard">
-      <div class="dtcard-title"><i class="bi bi-trophy me-1"></i>Dream Team em Duelo</div>
-      <p class="dtcard-sub">Monte um time de 5 lendas dentro do teto salarial de ${CAP_OVR} OVR combinado, aposte moedas e desafie um amigo pra um confronto direto. Vencedor leva as duas apostas.</p>
+      <div class="dtcard-title"><i class="bi bi-trophy me-1"></i>Starting5x5</div>
+      <p class="dtcard-sub">Gire a roleta de escalações históricas e escolha 1 jogador por vez pra montar seu titular (PG/SG/SF/PF/C). Aposte moedas e desafie um amigo — ou a máquina.</p>
       <div class="dt-tabs">
         <div class="dt-tab active" id="dtTabCriar" onclick="dtTrocarTab('criar')">Criar duelo</div>
         <div class="dt-tab" id="dtTabEntrar" onclick="dtTrocarTab('entrar')">Entrar com código</div>
@@ -828,7 +988,7 @@ function dtTrocarTab(tab) {
       <div class="field">
         <label>Aposta (1 a 50 moedas)</label>
         <input type="number" id="dtApostaCpu" min="1" max="50" value="20">
-        <p class="field-hint">A máquina monta o melhor time possível dentro do teto salarial — é para valer, por isso a aposta é menor. Vence e leva o dobro; perde e fica sem nada. Sem sala de espera, o confronto acontece assim que você confirmar seu time.</p>
+        <p class="field-hint">A máquina joga estratégico — escolhe sempre o melhor jogador disponível e usa o reroll dela quando o time sorteado é fraco. Vence, leva o dobro; perde, fica sem nada.</p>
       </div>
       <button class="btn-dt" id="dtBtnCpu" onclick="dtCriarVsCpu()"><i class="bi bi-cpu me-2"></i>Desafiar a máquina</button>`;
   }
@@ -885,143 +1045,224 @@ async function dtCancelar() {
   await atualizar();
 }
 
-// ── Tela: montar time ────────────────────────────────────────────────────────
-function dtSomaOvr() { return selecionados.reduce((s, l) => s + Number(l.ovr), 0); }
-
-function renderMontarTime(duelo) {
-  travado = true;
-  selecionados = [];
-  document.getElementById('dtMain').innerHTML = `
-    <div class="dtcard" style="margin-bottom:8px">
-      <div class="dtcard-title" style="margin-bottom:6px">Vs. ${esc(duelo.oponente_nome)}</div>
-      <p class="dtcard-sub" style="margin-bottom:0">Aposta: <strong>${duelo.aposta} moedas</strong> · Monte seu time dentro do teto salarial.</p>
-    </div>
-    <div class="dt-cap-bar">
-      <div>
-        <div class="dt-cap-label">Teto salarial</div>
-        <div class="dt-cap-valor ok" id="dtCapValor">0 / ${CAP_OVR}</div>
-      </div>
-      <div class="dt-slots" id="dtSlots" style="flex:1;margin-left:16px;margin-bottom:0"></div>
-    </div>
-    <div class="dtcard">
-      <input type="text" class="dt-search" id="dtBusca" placeholder="Buscar lenda por nome..." oninput="renderLendasGrid()">
-      <div class="dt-lendas-grid" id="dtLendasGrid"></div>
-      <button class="btn-dt" id="dtBtnConfirmar" onclick="dtConfirmarTime(${duelo.id})" disabled><i class="bi bi-check-circle me-2"></i>Confirmar time</button>
-    </div>`;
-  renderSlots();
-  renderLendasGrid();
-}
-
-function renderSlots() {
-  const wrap = document.getElementById('dtSlots');
-  const cells = [];
-  for (let i = 0; i < TIME_SIZE; i++) {
-    const l = selecionados[i];
-    cells.push(l
-      ? `<div class="dt-slot filled" onclick="dtRemover(${l.id})"><span>${esc(l.nome.split(' ').slice(-1)[0])}</span><span>${l.ovr}</span><span class="dt-slot-x"><i class="bi bi-x"></i></span></div>`
-      : `<div class="dt-slot">vazio</div>`);
-  }
-  wrap.innerHTML = cells.join('');
-
-  const soma = dtSomaOvr();
-  const capEl = document.getElementById('dtCapValor');
-  capEl.textContent = `${soma} / ${CAP_OVR}`;
-  capEl.className = 'dt-cap-valor ' + (soma > CAP_OVR ? 'over' : 'ok');
-  document.getElementById('dtBtnConfirmar').disabled = selecionados.length !== TIME_SIZE || soma > CAP_OVR;
-}
-
-function renderLendasGrid() {
-  const grid = document.getElementById('dtLendasGrid');
-  const q = (document.getElementById('dtBusca')?.value || '').trim().toLowerCase();
-  const idsSelecionados = new Set(selecionados.map(l => l.id));
-  const lista = LENDAS.filter(l => !q || l.nome.toLowerCase().includes(q));
-  if (!lista.length) { grid.innerHTML = '<div class="dt-empty" style="grid-column:1/-1">Nenhuma lenda encontrada.</div>'; return; }
-  grid.innerHTML = lista.map(l => {
-    const sel = idsSelecionados.has(l.id);
-    const cheio = selecionados.length >= TIME_SIZE && !sel;
-    return `<div class="dt-lenda ${sel ? 'selecionada' : ''} ${cheio ? 'desabilitada' : ''}" onclick="${cheio ? '' : `dtToggleLenda(${l.id})`}">
-      <div class="dt-lenda-nome">${esc(l.nome)}</div>
-      <div class="dt-lenda-meta"><span>${esc(l.time || '')} · ${l.grupo}</span><span class="dt-lenda-ovr">${l.ovr}</span></div>
-    </div>`;
+// ── Tela: draft ao vivo ──────────────────────────────────────────────────────
+// podeReposicionar: só true pro "Seu time" durante sua vez — clicar num jogador com
+// posição dupla e a outra vaga aberta move ele pra lá, liberando a posição atual.
+function dtRenderRoster(nome, roster, total, podeReposicionar = false) {
+  const slots = POSICOES.map(pos => {
+    const j = roster[pos];
+    if (!j) return `<div class="dt-roster-slot"><span class="dt-rs-pos">${pos}</span></div>`;
+    const alvo = (podeReposicionar && Array.isArray(j.pos)) ? j.pos.find(p => p !== pos && !roster[p]) : null;
+    const clique = alvo ? ` onclick="dtReposicionar('${pos}','${alvo}')" title="Mover para ${alvo}"` : '';
+    return `<div class="dt-roster-slot preenchido${alvo ? ' movivel' : ''}"${clique}><span class="dt-rs-pos">${pos}</span><span class="dt-rs-nome">${esc(j.nome.split(' ').slice(-1)[0])}</span><span class="dt-rs-ovr">${j.ovr}</span></div>`;
   }).join('');
+  return `
+    <div class="dtcard" style="margin-bottom:10px">
+      <div class="dt-roster-head">
+        <span class="dt-roster-nome">${esc(nome)}</span>
+        <span class="dt-roster-total">${total} OVR</span>
+      </div>
+      <div class="dt-roster-grid">${slots}</div>
+    </div>`;
 }
 
-function dtToggleLenda(id) {
-  const idx = selecionados.findIndex(l => l.id === id);
-  if (idx >= 0) { selecionados.splice(idx, 1); }
-  else {
-    if (selecionados.length >= TIME_SIZE) return;
-    const l = LENDAS.find(x => x.id === id);
-    if (l) selecionados.push(l);
+async function dtReposicionar(de, para) {
+  if (processando) return;
+  processando = true;
+  try {
+    const r = await dtPost('reposicionar_jogador', { de, para });
+    if (!r.ok) { alert(r.msg); processando = false; return; }
+    processando = false;
+    await atualizar();
+  } catch (e) {
+    processando = false;
   }
-  renderSlots();
-  renderLendasGrid();
 }
-function dtRemover(id) { dtToggleLenda(id); }
 
-async function dtConfirmarTime(dueloId) {
-  const btn = document.getElementById('dtBtnConfirmar');
+function dtSomaRosterJs(roster) {
+  return POSICOES.reduce((s, p) => s + (roster[p] ? Number(roster[p].ovr) : 0), 0);
+}
+
+function renderDraft(duelo) {
+  const meuTotal = dtSomaRosterJs(duelo.meu_roster);
+  const oponenteTotal = dtSomaRosterJs(duelo.oponente_roster);
+
+  let html = dtRenderRoster('Seu time', duelo.meu_roster, meuTotal, duelo.minha_vez);
+  html += dtRenderRoster(esc(duelo.oponente_nome), duelo.oponente_roster, oponenteTotal);
+
+  html += `<div class="dt-turno-banner ${duelo.minha_vez ? 'minha-vez' : 'vez-oponente'}">
+    ${duelo.minha_vez ? '<i class="bi bi-hand-index-thumb"></i> Sua vez — escolha um jogador' : `Vez de ${esc(duelo.oponente_nome)}...`}
+  </div>`;
+
+  if (duelo.time_sorteado) {
+    const t = duelo.time_sorteado;
+    const vagas = POSICOES.filter(p => !duelo.meu_roster[p]);
+    const jaTenho = new Set(Object.values(duelo.meu_roster).filter(Boolean).map(j => j.nome));
+    html += `<div class="dtcard">
+      <div class="dt-time-nome">${esc(t.nome)}</div>
+      <div class="dt-time-ano">Titular sorteado</div>
+      <div class="dt-jogadores-grid" id="dtJogadoresGrid">
+        ${t.jogadores.map((j, i) => {
+          const jaNoTime = jaTenho.has(j.nome);
+          const posDisponiveis = jaNoTime ? [] : j.pos.filter(p => vagas.includes(p));
+          const clicavel = duelo.minha_vez && posDisponiveis.length > 0;
+          return `<div class="dt-jogador-card ${clicavel ? 'clicavel' : 'desabilitado'}" id="dtJog${i}" ${clicavel ? `onclick="dtCliqueJogador(${i})"` : ''}>
+            <span class="dt-jogador-nome">${esc(j.nome)}${jaNoTime ? ' <small style="color:var(--text3)">(já no seu time)</small>' : ''}</span>
+            <span class="dt-jogador-pos">${j.pos.map(p => `<span class="dt-pos-badge">${p}</span>`).join('')}</span>
+            <span class="dt-jogador-ovr">${j.ovr}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <button class="btn-dt-amber" id="dtBtnGirar" onclick="dtGirarDeNovo()" ${(duelo.minha_vez && duelo.reroll_disponivel) ? '' : 'disabled'}>
+        <i class="bi bi-arrow-repeat me-1"></i>${duelo.reroll_disponivel ? 'Girar de novo (1x)' : 'Reroll já usado nessa rodada'}
+      </button>
+    </div>`;
+  }
+
+  document.getElementById('dtMain').innerHTML = html;
+  window.__dtTimeAtual = duelo.time_sorteado;
+  window.__dtVagas = POSICOES.filter(p => !duelo.meu_roster[p]);
+}
+
+function dtCliqueJogador(idx) {
+  const j = window.__dtTimeAtual.jogadores[idx];
+  const posDisponiveis = j.pos.filter(p => window.__dtVagas.includes(p));
+  if (posDisponiveis.length === 1) {
+    dtEscolherJogador(j.nome, posDisponiveis[0]);
+    return;
+  }
+  // Mais de uma posição elegível aberta — pergunta qual preencher.
+  const card = document.getElementById(`dtJog${idx}`);
+  card.innerHTML += `<div class="dt-escolha-pos">${posDisponiveis.map(p => `<button onclick="event.stopPropagation();dtEscolherJogador('${j.nome.replace(/'/g, "\\'")}','${p}')">${p}</button>`).join('')}</div>`;
+}
+
+async function dtEscolherJogador(nome, posicao) {
+  if (processando) return;
+  processando = true;
+  try {
+    const r = await dtPost('escolher_jogador', { jogador: nome, posicao });
+    if (!r.ok) { alert(r.msg); processando = false; return; }
+    processando = false;
+    await atualizar();
+  } catch (e) {
+    processando = false;
+  }
+}
+
+async function dtGirarDeNovo() {
+  const btn = document.getElementById('dtBtnGirar');
   btn.disabled = true;
-  const jogadores = selecionados.map(l => l.id).join(',');
-  const r = await dtPost('montar_time', { jogadores });
-  if (!r.ok) { alert(r.msg); btn.disabled = false; return; }
-  travado = false;
+  const r = await dtPost('girar_de_novo');
+  if (!r.ok) { alert(r.msg); }
   await atualizar();
 }
 
-// ── Tela: aguardando oponente montar o time ─────────────────────────────────
-function renderAguardandoOponenteMontar(duelo) {
-  document.getElementById('dtMain').innerHTML = `
-    <div class="dtcard">
-      <div class="dtcard-title"><i class="bi bi-hourglass-split me-1"></i>Time confirmado</div>
-      <div class="dt-vs">
-        <div class="dt-vs-lado pronto"><div class="dt-vs-nome">Você</div><div class="dt-vs-status"><i class="bi bi-check-circle-fill"></i> Pronto</div></div>
-        <div class="dt-vs-x">VS</div>
-        <div class="dt-vs-lado ${duelo.oponente_pronto ? 'pronto' : ''}"><div class="dt-vs-nome">${esc(duelo.oponente_nome)}</div><div class="dt-vs-status">${duelo.oponente_pronto ? '<i class="bi bi-check-circle-fill"></i> Pronto' : 'Montando o time...'}</div></div>
-      </div>
-      <div class="dt-spinner"></div>
-      <p class="dt-empty">Assim que os dois estiverem prontos, o confronto acontece na hora.</p>
-    </div>`;
+// ── Tela: resultado (simcast por quartos → boxscore final) ──────────────────
+function renderResultado(duelo) {
+  if (duelo.id === resultadoFinalId) { renderResultadoFinal(duelo); return; }
+  if (duelo.id === resultadoEmAnimacaoId) return; // simcast já rodando — ignora poll repetido
+  resultadoEmAnimacaoId = duelo.id;
+  dtRodarSimcast(duelo);
 }
 
-// ── Tela: resultado ──────────────────────────────────────────────────────────
-function renderResultado(duelo) {
+async function dtRodarSimcast(duelo) {
+  const r = duelo.resultado;
+  const nomeOp = esc(duelo.oponente_nome);
+  document.getElementById('dtMain').innerHTML = `
+    <div class="dtcard">
+      <div class="dtcard-title"><i class="bi bi-broadcast me-1"></i>Simulando o confronto...</div>
+      <div class="dt-placar">
+        <div class="dt-placar-lado"><div class="dt-placar-nome">Você</div><div class="dt-placar-num" id="dtSimA">0</div></div>
+        <div class="dt-placar-x">×</div>
+        <div class="dt-placar-lado"><div class="dt-placar-nome">${nomeOp}</div><div class="dt-placar-num" id="dtSimB">0</div></div>
+      </div>
+      <div class="dt-simcast-quartos" id="dtSimQuartos"></div>
+    </div>`;
+  const numA = document.getElementById('dtSimA');
+  const numB = document.getElementById('dtSimB');
+  const quartosEl = document.getElementById('dtSimQuartos');
+
+  let cumA = 0, cumB = 0;
+  const linhas = [];
+  for (let q = 0; q < 4; q++) {
+    await new Promise(res => setTimeout(res, 700));
+    const qa = duelo.meu_lado === 'a' ? r.quartos[q].a : r.quartos[q].b;
+    const qb = duelo.meu_lado === 'a' ? r.quartos[q].b : r.quartos[q].a;
+    cumA += qa; cumB += qb;
+    numA.textContent = cumA;
+    numB.textContent = cumB;
+    linhas.push(`Q${q + 1} ${qa}-${qb}`);
+    quartosEl.textContent = linhas.join('  •  ');
+  }
+  await new Promise(res => setTimeout(res, 450));
+  resultadoFinalId = duelo.id;
+  renderResultadoFinal(duelo);
+}
+
+function dtRenderBoxscore(nome, box) {
+  const linhas = box.map(j => `
+    <tr>
+      <td class="dt-box-pos">${j.pos}</td>
+      <td class="dt-box-nome">${esc(j.nome)}</td>
+      <td>${j.pts}</td>
+      <td>${j.reb}</td>
+      <td>${j.ast}</td>
+    </tr>`).join('');
+  return `<div class="dtcard">
+    <div class="dtcard-title">${esc(nome)}</div>
+    <div style="overflow-x:auto">
+      <table class="dt-box-table">
+        <thead><tr><th></th><th style="text-align:left">Jogador</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead>
+        <tbody>${linhas}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function renderResultadoFinal(duelo) {
   const r = duelo.resultado;
   const meuPlacar = duelo.meu_lado === 'a' ? r.placar_a : r.placar_b;
   const oponentePlacar = duelo.meu_lado === 'a' ? r.placar_b : r.placar_a;
-  document.getElementById('dtMain').innerHTML = `
-    <div class="dtcard">
-      <div class="dt-resultado-msg ${duelo.eu_venci ? 'venceu' : 'perdeu'}">
-        ${duelo.eu_venci ? `🏆 Você venceu! +${duelo.aposta * 2} moedas` : `Você perdeu essa. -${duelo.aposta} moedas`}
-      </div>
-      <div class="dt-placar">
-        <div class="dt-placar-lado">
-          <div class="dt-placar-nome">Você</div>
-          <div class="dt-placar-num ${duelo.eu_venci ? 'vencedor' : ''}">${meuPlacar}</div>
-        </div>
-        <div class="dt-placar-x">×</div>
-        <div class="dt-placar-lado">
-          <div class="dt-placar-nome">${esc(duelo.oponente_nome)}</div>
-          <div class="dt-placar-num ${!duelo.eu_venci ? 'vencedor' : ''}">${oponentePlacar}</div>
-        </div>
-      </div>
-      <div class="dtcard-title">Destaques do confronto</div>
-      ${r.destaques.map(d => {
-        const souEu = d.lado === duelo.meu_lado;
-        return `<div class="dt-destaque">
-          <div class="dt-destaque-pts">${d.pontos}</div>
-          <div class="dt-destaque-txt"><b>${esc(d.nome)}</b> (${souEu ? 'seu time' : esc(duelo.oponente_nome)}) — ${esc(d.frase)}.</div>
-        </div>`;
-      }).join('')}
-    </div>
-    <button class="btn-dt" onclick="dtNovoDuelo(${duelo.id})"><i class="bi bi-arrow-repeat me-2"></i>Jogar de novo</button>`;
-}
+  const meuBox = duelo.meu_lado === 'a' ? r.boxscore_a : r.boxscore_b;
+  const oponenteBox = duelo.meu_lado === 'a' ? r.boxscore_b : r.boxscore_a;
+  const quartosTxt = r.quartos.map((q, i) => {
+    const qa = duelo.meu_lado === 'a' ? q.a : q.b;
+    const qb = duelo.meu_lado === 'a' ? q.b : q.a;
+    return `Q${i + 1} ${qa}-${qb}`;
+  }).join('  •  ');
 
-// Duelo já visto e dispensado pelo "Jogar de novo" — o servidor continua
-// devolvendo ele como "o mais recente" até um duelo de verdade ser criado,
-// então o poll ignora essa mesma id pra não puxar a tela de resultado de
-// volta sozinha alguns segundos depois.
-let dueloDispensadoId = null;
+  let html = `<div class="dtcard">
+    <div class="dt-resultado-msg ${duelo.eu_venci ? 'venceu' : 'perdeu'}">
+      ${duelo.eu_venci ? `🏆 Você venceu! +${duelo.aposta * 2} moedas` : `Você perdeu essa. -${duelo.aposta} moedas`}
+    </div>
+    <div class="dt-placar">
+      <div class="dt-placar-lado">
+        <div class="dt-placar-nome">Você</div>
+        <div class="dt-placar-num ${duelo.eu_venci ? 'vencedor' : ''}">${meuPlacar}</div>
+      </div>
+      <div class="dt-placar-x">×</div>
+      <div class="dt-placar-lado">
+        <div class="dt-placar-nome">${esc(duelo.oponente_nome)}</div>
+        <div class="dt-placar-num ${!duelo.eu_venci ? 'vencedor' : ''}">${oponentePlacar}</div>
+      </div>
+    </div>
+    <div class="dt-quartos-resumo">${quartosTxt}</div>
+    <div class="dtcard-title" style="margin-top:14px">Destaques do confronto</div>
+    ${r.destaques.map(d => {
+      const souEu = d.lado === duelo.meu_lado;
+      return `<div class="dt-destaque">
+        <div class="dt-destaque-pts">${d.pontos}</div>
+        <div class="dt-destaque-txt"><b>${esc(d.nome)}</b> (${souEu ? 'seu time' : esc(duelo.oponente_nome)}) — ${esc(d.frase)}.</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+  html += dtRenderBoxscore('Seu boxscore', meuBox);
+  html += dtRenderBoxscore(`Boxscore — ${esc(duelo.oponente_nome)}`, oponenteBox);
+  html += dtRenderRoster('Seu time', duelo.meu_roster, dtSomaRosterJs(duelo.meu_roster));
+  html += dtRenderRoster(esc(duelo.oponente_nome), duelo.oponente_roster, dtSomaRosterJs(duelo.oponente_roster));
+  html += `<button class="btn-dt" onclick="dtNovoDuelo(${duelo.id})"><i class="bi bi-arrow-repeat me-2"></i>Jogar de novo</button>`;
+  document.getElementById('dtMain').innerHTML = html;
+}
 
 function dtNovoDuelo(dueloId) {
   dueloDispensadoId = dueloId;
@@ -1034,17 +1275,13 @@ function renderTela(duelo) {
   if (!duelo) { renderCriarEntrar(); return; }
   if (duelo.status === 'simulado' && duelo.id === dueloDispensadoId) { renderCriarEntrar(); return; }
   if (duelo.status === 'aguardando') { renderAguardando(duelo); return; }
-  if (duelo.status === 'montando') {
-    if (duelo.meu_pronto) { renderAguardandoOponenteMontar(duelo); return; }
-    renderMontarTime(duelo);
-    return;
-  }
+  if (duelo.status === 'draft') { renderDraft(duelo); return; }
   if (duelo.status === 'simulado') { renderResultado(duelo); return; }
   renderCriarEntrar();
 }
 
 async function atualizar() {
-  if (travado) return;
+  if (processando) return;
   try {
     const r = await dtPost('estado');
     if (!r.ok) return;
@@ -1054,7 +1291,7 @@ async function atualizar() {
 }
 
 renderTela(ESTADO_INICIAL);
-setInterval(atualizar, 4000);
+setInterval(atualizar, 3000);
 </script>
 
 </body>
