@@ -652,7 +652,7 @@ if ($user && isset($user['id'])) {
                     <div class="d-flex align-items-center gap-2">
                         <span style="font-size:11px;color:var(--text-2)" id="poolMeta"></span>
                         <button class="btn-ghost" onclick="baixarPoolCSV()" title="Baixar a lista completa em CSV pra montar sua planilha">
-                            <i class="bi bi-file-earmark-spreadsheet"></i> CSV
+                            <i class="bi bi-file-earmark-spreadsheet"></i> Baixar Jogadores (csv)
                         </button>
                     </div>
                 </div>
