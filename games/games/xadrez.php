@@ -4,6 +4,7 @@ ini_set('display_errors', 1);
 error_reporting(E_ALL);
 // session_start já foi chamado em games/index.php
 require '../core/conexao.php';
+require_once '../core/xadrez_regras.php';   // valida mate/afogamento no servidor
 
 // 1. Segurança e Dados do Usuário
 if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
@@ -123,18 +124,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
         // C. REALIZAR MOVIMENTO
         elseif ($acao == 'mover') {
-            $partida_id = $_POST['id_partida'];
-            $nova_fen = $_POST['fen'];
-            $novo_pgn = $_POST['pgn']; 
-            $game_over = $_POST['game_over'] === 'true';
-            $draw = $_POST['draw'] === 'true';
-            
-            $stmt = $pdo->prepare("SELECT * FROM xadrez_partidas WHERE id = :id");
+            $partida_id = (int)$_POST['id_partida'];
+            $nova_fen = (string)($_POST['fen'] ?? '');
+            $novo_pgn = (string)($_POST['pgn'] ?? '');
+
+            // FEN e PGN entram no banco e depois são impressos dentro de <script> — sem esse
+            // filtro dava pra gravar código e executá-lo no navegador do adversário.
+            if (!preg_match('~^[rnbqkpRNBQKP1-8/]+ [wb] [KQkq-]+ (-|[a-h][1-8])( \d+){0,2}\s*$~', $nova_fen)) {
+                die(json_encode(['erro' => 'Posição inválida.']));
+            }
+            if (strlen($novo_pgn) > 8000 || preg_match('~[<>`\\\\]~', $novo_pgn)) {
+                die(json_encode(['erro' => 'Histórico inválido.']));
+            }
+
+            // A transação abre ANTES da leitura e trava a linha: sem o FOR UPDATE, dois "mover"
+            // simultâneos liam status='andamento' e ambos pagavam o prêmio.
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare("SELECT * FROM xadrez_partidas WHERE id = :id FOR UPDATE");
             $stmt->execute([':id' => $partida_id]);
             $partida = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            if ($partida['vez_de'] != $user_id) die(json_encode(['erro' => 'Não é sua vez!']));
-            if ($partida['status'] != 'andamento') die(json_encode(['erro' => 'Jogo finalizado.']));
+            if (!$partida) { $pdo->rollBack(); die(json_encode(['erro' => 'Partida não encontrada.'])); }
+            if ($partida['vez_de'] != $user_id) { $pdo->rollBack(); die(json_encode(['erro' => 'Não é sua vez!'])); }
+            if ($partida['status'] != 'andamento') { $pdo->rollBack(); die(json_encode(['erro' => 'Jogo finalizado.'])); }
+
+            // O fim de partida é decidido AQUI, analisando a posição resultante. Antes vinha como
+            // `game_over`/`draw` do POST, então qualquer jogador declarava vitória e levava 2x a
+            // aposta do adversário.
+            $analise = xadrezAnalisarFim($nova_fen);
+            $game_over = $analise['fim'];
+            $draw      = $analise['empate'];
 
             // Cálculo do tempo
             $tempo_gasto = $agora - $partida['ultimo_movimento'];
@@ -162,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $proximo_jogador = ($partida['id_desafiante'] == $user_id) ? $partida['id_desafiado'] : $partida['id_desafiante'];
             $novo_status = 'andamento';
 
-            $pdo->beginTransaction();
+            // (a transação já foi aberta acima, junto do SELECT ... FOR UPDATE)
 
             if ($game_over) {
                 if ($draw) {

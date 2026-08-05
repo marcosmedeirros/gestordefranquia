@@ -49,10 +49,18 @@ function proximo_turno($pdo, $sala_id, $pos_atual) {
 }
 
 function checar_fim_de_rodada($pdo, $sala_id, $bet_atual) {
-    $stmt = $pdo->prepare("SELECT COUNT(*) as ativos, SUM(CASE WHEN bet_round = :b THEN 1 ELSE 0 END) as igualados FROM poker_jogadores WHERE id_sala = :s AND aguardando = 0 AND status = 'ativo'");
+    // Quem está all-in (chips = 0) não tem como igualar a aposta. Sem excluí-lo, o bet_round
+    // dele nunca alcançava bet_atual, esta função devolvia false pra sempre, a mão travava e o
+    // pote — moedas reais — ficava órfão.
+    $stmt = $pdo->prepare("SELECT COUNT(*) as ativos, SUM(CASE WHEN bet_round = :b THEN 1 ELSE 0 END) as igualados
+                           FROM poker_jogadores
+                           WHERE id_sala = :s AND aguardando = 0 AND status = 'ativo' AND chips > 0");
     $stmt->execute([':b' => $bet_atual, ':s' => $sala_id]);
     $res = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
+    // Ninguém com fichas pra agir (todos all-in ou fold) → a rodada acabou.
+    if ((int)$res['ativos'] === 0) return true;
+
     // Se todos os ativos igualaram a aposta
     return ($res['ativos'] > 0 && $res['ativos'] == $res['igualados']);
 }
@@ -246,6 +254,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $stmtJogadores->execute([':id' => $sala_id]);
             $jogadores = $stmtJogadores->fetchAll(PDO::FETCH_ASSOC);
 
+            // O baralho NÃO pode sair daqui: poker_salas.deck guarda todas as cartas ainda não
+            // distribuídas, em ordem. Com o SELECT * ele ia inteiro pro cliente a cada poll (2s),
+            // ou seja, qualquer jogador via flop, turn e river antes de apostar.
+            unset($sala['deck']);
             $dados = ['sala' => $sala, 'jogadores' => [], 'meu_lugar' => null, 'ativos' => 0, 'prontos' => 0, 'total_prontos' => 0];
 
             foreach ($jogadores as $j) {
@@ -268,13 +280,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
         // 2. SENTAR/LEVANTAR
         if ($acao == 'sentar') {
-            $pos = (int)$_POST['posicao'];
+            $pos = (int)($_POST['posicao'] ?? 0);
             $buy_in = 100;
-            if ($meu_perfil['pontos'] < $buy_in) throw new Exception("Saldo insuficiente.");
+            // Posição precisa existir na mesa — antes aceitava qualquer número (inclusive 99).
+            if ($pos < 1 || $pos > 6) throw new Exception("Posição inválida.");
 
-            $stmtJa = $pdo->prepare("SELECT id FROM poker_jogadores WHERE id_sala = :sala AND id_usuario = :uid LIMIT 1");
+            // Tudo dentro da transação e com lock: o saldo era lido do perfil carregado no topo
+            // do arquivo (fora de transação), então dois pedidos simultâneos passavam pela
+            // checagem, geravam 2 assentos e deixavam o saldo negativo — e o "levantar" depois
+            // apagava os dois assentos creditando só um, virando débito sem crédito.
+            $pdo->beginTransaction();
+
+            $stSaldo = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = :id FOR UPDATE");
+            $stSaldo->execute([':id' => $user_id]);
+            if ((int)$stSaldo->fetchColumn() < $buy_in) throw new Exception("Saldo insuficiente.");
+
+            $stmtJa = $pdo->prepare("SELECT id FROM poker_jogadores WHERE id_sala = :sala AND id_usuario = :uid FOR UPDATE");
             $stmtJa->execute([':sala' => $sala_id, ':uid' => $user_id]);
             if ($stmtJa->fetch()) throw new Exception("Você já está sentado.");
+
+            // Cadeira ocupada não pode receber outra pessoa: com dois jogadores na mesma posição,
+            // a checagem de turno passava para os dois e ambos agiam no mesmo lance.
+            $stmtPos = $pdo->prepare("SELECT id FROM poker_jogadores WHERE id_sala = :sala AND posicao = :pos FOR UPDATE");
+            $stmtPos->execute([':sala' => $sala_id, ':pos' => $pos]);
+            if ($stmtPos->fetch()) throw new Exception("Essa cadeira já está ocupada.");
 
             $stmtSala = $pdo->prepare("SELECT status FROM poker_salas WHERE id = :id");
             $stmtSala->execute([':id' => $sala_id]);
@@ -282,7 +311,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $aguardando = ($sala && $sala['status'] === 'jogando') ? 1 : 0;
             $pronto_deadline = ($sala && $sala['status'] === 'esperando') ? date('Y-m-d H:i:s', time() + 60) : null;
 
-            $pdo->beginTransaction();
             $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $buy_in, ':id' => $user_id]);
             $pdo->prepare("INSERT INTO poker_jogadores (id_sala, id_usuario, nome, chips, status, posicao, pronto, aguardando, pronto_deadline) VALUES (:sala, :uid, :nome, :chips, 'ativo', :pos, 0, :aguardando, :deadline)")
                 ->execute([':sala' => $sala_id, ':uid' => $user_id, ':nome' => $meu_perfil['nome'], ':chips' => $buy_in, ':pos' => $pos, ':aguardando' => $aguardando, ':deadline' => $pronto_deadline]);
@@ -292,9 +320,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
         if ($acao == 'levantar') {
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("SELECT chips FROM poker_jogadores WHERE id_sala = :sala AND id_usuario = :uid FOR UPDATE");
+            $stmt = $pdo->prepare("SELECT chips, status FROM poker_jogadores WHERE id_sala = :sala AND id_usuario = :uid FOR UPDATE");
             $stmt->execute([':sala' => $sala_id, ':uid' => $user_id]);
             $meuAssento = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // Sair no meio da mão deixava o pote (moedas reais dos outros) preso sem vencedor.
+            // Quem quiser sair durante a mão precisa dar fold primeiro.
+            if ($meuAssento && $meuAssento['status'] !== 'fold' && $meuAssento['status'] !== 'ausente') {
+                $stSala = $pdo->prepare("SELECT status FROM poker_salas WHERE id = :id");
+                $stSala->execute([':id' => $sala_id]);
+                if (($stSala->fetchColumn() ?: '') === 'jogando') {
+                    throw new Exception("Você está numa mão em andamento. Dê fold antes de levantar.");
+                }
+            }
 
             if ($meuAssento) {
                 $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $meuAssento['chips'], ':id' => $user_id]);
@@ -352,8 +390,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
         // 4. AÇÃO POKER (FOLD, CALL, RAISE)
         if ($acao == 'acao_poker') {
-            $tipo = $_POST['tipo'];
+            $tipo = $_POST['tipo'] ?? '';
+            // Whitelist: um `tipo` desconhecido caía fora dos três if, não pagava nada e ainda
+            // assim passava o turno — check de graça sem igualar a aposta.
+            if (!in_array($tipo, ['fold', 'call', 'raise'], true)) {
+                throw new Exception("Ação inválida.");
+            }
             $valor_raise = isset($_POST['valor']) ? (int)$_POST['valor'] : 0;
+            // Raise negativo CRIAVA fichas: total_pagar ficava negativo, a guarda
+            // `chips < total_pagar` passava, e `chips - (-N)` aumentava o saldo. Depois bastava
+            // "levantar" pra converter em moedas reais.
+            if ($tipo === 'raise' && $valor_raise <= 0) {
+                throw new Exception("Valor de aumento inválido.");
+            }
 
             $pdo->beginTransaction();
             
@@ -378,9 +427,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 $pdo->prepare("UPDATE poker_jogadores SET status = 'fold' WHERE id = :id")->execute([':id' => $eu['id']]);
             } 
             else if ($tipo == 'call') {
-                $pagar = $sala['bet_atual'] - $eu['bet_round'];
-                if ($eu['chips'] < $pagar) $pagar = $eu['chips']; // All-in
-                
+                // max(0, ...): se bet_atual ficasse menor que o já apostado, `pagar` negativo
+                // devolveria fichas em vez de cobrar.
+                $pagar = max(0, (int)$sala['bet_atual'] - (int)$eu['bet_round']);
+                if ($eu['chips'] < $pagar) $pagar = (int)$eu['chips']; // All-in
+
                 $pote_add = $pagar;
                 $novo_bet_round += $pagar;
                 
@@ -388,8 +439,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     ->execute([':val' => $pagar, ':br' => $novo_bet_round, ':id' => $eu['id']]);
             }
             else if ($tipo == 'raise') {
-                $total_pagar = ($sala['bet_atual'] - $eu['bet_round']) + $valor_raise;
-                if ($eu['chips'] < $total_pagar) throw new Exception("Fichas insuficientes.");
+                $total_pagar = max(0, (int)$sala['bet_atual'] - (int)$eu['bet_round']) + $valor_raise;
+                if ($total_pagar <= 0 || $eu['chips'] < $total_pagar) throw new Exception("Fichas insuficientes.");
                 
                 $pote_add = $total_pagar;
                 $novo_bet_round += $total_pagar;
@@ -826,7 +877,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
     function abrirRaise() {
         let amt = prompt("Quanto a MAIS você quer apostar?", "50");
-        if (amt && !isNaN(amt)) acaoPoker('raise', amt);
+        if (amt === null) return;
+        const n = parseInt(amt, 10);
+        // Só inteiro positivo: o `!isNaN(amt)` antigo aceitava valores negativos.
+        if (!Number.isFinite(n) || n <= 0) { alert('Informe um valor positivo.'); return; }
+        acaoPoker('raise', n);
     }
 
     function checarOrientacao() {
