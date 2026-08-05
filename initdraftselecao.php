@@ -633,7 +633,13 @@ if ($user && isset($user['id'])) {
                                 <button class="btn-ghost" onclick="adminUndoLastPick()"><i class="bi bi-arrow-counterclockwise"></i> Voltar Pick</button>
                                 <button class="btn-red" onclick="finalizeDraft()"><i class="bi bi-flag"></i> Finalizar draft</button>
                             </div>
-                            <p style="font-size:11px;color:var(--text-2);margin-top:10px">Como admin, você pode registrar a pick de qualquer time pelo botão <strong>Escolher</strong> na tabela do pool.</p>
+                            <p style="font-size:11px;color:var(--text-2);margin-top:10px">O botão <strong>Escolher</strong> do pool é só do GM na vez. Pra escolher no lugar de um time (ex: acabou o relógio no grupo do Whats), use "Escolher pelo time da vez" ao lado.</p>
+                        </div>
+                        <div class="col-12">
+                            <div class="adm-section-title">Escolher pelo time da vez</div>
+                            <p style="font-size:11px;color:var(--text-2);margin-bottom:8px" id="admPickForTeamLabel">Nenhuma pick em aberto.</p>
+                            <input type="text" id="admPickSearch" class="search-input mb-2" placeholder="Buscar jogador disponível…" oninput="renderAdminPickResults()">
+                            <div id="admPickResults" style="max-height:280px;overflow-y:auto"></div>
                         </div>
                     </div>
                 </div>
@@ -1163,7 +1169,9 @@ if ($user && isset($user['id'])) {
                 return;
             }
 
-            const canPick = state.session?.status === 'in_progress' && (IS_ADMIN || (currentPick && USER_TEAM_ID && Number(currentPick.team_id) === Number(USER_TEAM_ID)));
+            // Exclusivo do GM do time na vez — nem admin geral nem de liga vê este
+            // botão (eles escolhem pelo Painel Admin, aba Controle ao vivo).
+            const canPick = state.session?.status === 'in_progress' && !!currentPick && !!USER_TEAM_ID && Number(currentPick.team_id) === Number(USER_TEAM_ID);
             grid.innerHTML = items.map((p, i) => {
                 const drafted = p.draft_status === 'drafted';
                 const sec = (p.secondary_position && POS_LIST.includes(p.secondary_position)) ? `<span class="pos-badge ${posClass(p.secondary_position)}">${p.secondary_position}</span>` : '';
@@ -1418,7 +1426,9 @@ if ($user && isset($user['id'])) {
             if (!p) return;
             const body = document.getElementById('playerDetailBody');
             const currentPick = getCurrentPick();
-            const canPick = state.session?.status === 'in_progress' && (IS_ADMIN || (currentPick && USER_TEAM_ID && Number(currentPick.team_id) === Number(USER_TEAM_ID)));
+            // Exclusivo do GM do time na vez — nem admin geral nem de liga vê este
+            // botão (eles escolhem pelo Painel Admin, aba Controle ao vivo).
+            const canPick = state.session?.status === 'in_progress' && !!currentPick && !!USER_TEAM_ID && Number(currentPick.team_id) === Number(USER_TEAM_ID);
             const drafted = p.draft_status === 'drafted';
             const teamsById = Object.fromEntries(state.teams.map((t) => [t.id, t]));
             const byTeam = drafted && p.drafted_by_team_id ? teamsById[p.drafted_by_team_id] : null;
@@ -1728,10 +1738,71 @@ if ($user && isset($user['id'])) {
                 renderManualOrder();
             }
             updateOrderControls();
+            renderAdminPickPanel();
 
             // O painel é um acordeão e nasce FECHADO — antes ele abria sozinho
             // no setup e tomava a tela toda de quem só queria ver o draft.
             // Quem precisa dele clica no cabeçalho ou no botão do topo.
+        }
+
+        // ── Painel Admin: escolher pelo time da vez ─────
+        function renderAdminPickPanel() {
+            const label = document.getElementById('admPickForTeamLabel');
+            const currentPick = getCurrentPick();
+            const podeEscolher = state.session?.status === 'in_progress' && !!currentPick;
+            if (label) {
+                label.innerHTML = podeEscolher
+                    ? `Na vez: <strong>${teamLabel(currentPick)}</strong> · Rodada ${currentPick.round} · Pick ${currentPick.pick_position}`
+                    : (state.session?.status === 'completed' ? 'Draft concluído — nenhuma pick em aberto.' : 'Nenhuma pick em aberto.');
+            }
+            renderAdminPickResults();
+        }
+
+        function renderAdminPickResults() {
+            const el = document.getElementById('admPickResults');
+            if (!el) return;
+            const searchInput = document.getElementById('admPickSearch');
+            const search = (searchInput?.value || '').trim().toLowerCase();
+            const results = (state.pool || [])
+                .filter((p) => p.draft_status !== 'drafted')
+                .filter((p) => !search || (p.name || '').toLowerCase().includes(search))
+                .sort((a, b) => (Number(b.ovr) || 0) - (Number(a.ovr) || 0))
+                .slice(0, 30);
+            if (!results.length) {
+                el.innerHTML = `<div class="state-empty" style="padding:14px"><p style="font-size:11.5px">${search ? 'Nenhum jogador disponível encontrado.' : 'Digite pra buscar.'}</p></div>`;
+                return;
+            }
+            const currentPick = getCurrentPick();
+            const podeEscolher = state.session?.status === 'in_progress' && !!currentPick;
+            el.innerHTML = results.map((p) => `
+                <div class="mock-search-row">
+                    <span class="msr-name">${esc(p.name)}</span>
+                    <span class="msr-meta">${esc(p.position || '')} · ${p.ovr ?? '—'}</span>
+                    <button type="button" class="msr-add" ${podeEscolher ? '' : 'disabled'} title="Escolher pelo time da vez" onclick="adminPickPlayer(${p.id})"><i class="bi bi-check2"></i></button>
+                </div>`).join('');
+        }
+
+        async function adminPickPlayer(playerId) {
+            const currentPick = getCurrentPick();
+            if (!currentPick) return;
+            const p = (state.pool || []).find((x) => Number(x.id) === playerId);
+            const teamPlain = `${currentPick.team_city || ''} ${currentPick.team_name || ''}`.trim();
+            if (!confirm(`Confirmar ${p ? p.name : 'este jogador'} pro ${teamPlain}?`)) return;
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'admin_make_pick', session_id: state.session?.id, player_id: playerId })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Falha ao registrar a pick');
+                showMessage('Pick registrada pelo admin.');
+                const searchInput = document.getElementById('admPickSearch');
+                if (searchInput) searchInput.value = '';
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
         }
 
         function syncScheduleInputs() {
