@@ -429,7 +429,11 @@ function generateDailyGrid(array $players, array $criteria): array {
     return $fallback;
 }
 
-srand((int)floor(time() / 86400) + 42);
+// Semente pela DATA LOCAL (a mesma de data_jogo). Com floor(time()/86400) a grade trocava à
+// meia-noite UTC (21h em Brasília) e o limite diário à meia-noite local — então das 21h às 24h
+// dava pra resolver a grade, ganhar, e à 00:01 repetir a MESMA grade decorada num novo
+// data_jogo, faturando o prêmio duas vezes por dia.
+srand(crc32(date('Y-m-d') . 'hoopgrid'));
 $grid = generateDailyGrid($PLAYERS, $CRITERIA);
 
 $validMap = [];
@@ -473,37 +477,97 @@ $playerNbaIds   = ['LeBron James'=>2544,'Stephen Curry'=>201939,'Kevin Durant'=>
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     header('Content-Type: application/json');
-    if ($action === 'save') {
-        $res   = json_encode(json_decode($_POST['respostas'] ?? '[]', true) ?: []);
-        $tries = (int)($_POST['tentativas_restantes'] ?? 9);
-        $done  = (int)($_POST['concluido'] ?? 0);
-        $quit  = (int)($_POST['desistiu']  ?? 0);
-        $pts   = (int)($_POST['pontos']    ?? 0);
-        $hoje  = date('Y-m-d');
+    // Palpite: o SERVIDOR é dono do estado — gasta a tentativa, grava a célula e paga, tudo na
+    // mesma transação. Sem isso `guess` seria um oráculo ilimitado (o contador de tentativas
+    // vivia só no navegador) e `save` aceitaria células que nunca foram realmente adivinhadas.
+    if ($action === 'guess') {
+        $key  = (string)($_POST['key'] ?? '');
+        $nome = trim((string)($_POST['player'] ?? ''));
+        if (!isset($validMap[$key]) || $nome === '') {
+            echo json_encode(['ok' => false, 'erro' => 'Palpite inválido.']);
+            exit;
+        }
+        $hoje = date('Y-m-d');
         try {
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare("SELECT id, respostas, concluido, desistiu FROM hoopgrid_historico WHERE id_usuario=? AND data_jogo=? FOR UPDATE");
-            $stmt->execute([$user_id, $hoje]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            $already_done = $row && ((int)($row['concluido']??0)===1 || (int)($row['desistiu']??0)===1);
-            if (!$already_done) {
-                $prev = $row ? (json_decode($row['respostas']??'[]', true) ?: []) : [];
-                $prevKeys = array_flip(array_column($prev, 'key'));
-                $curr = json_decode($res, true) ?: [];
-                $newCells = 0;
-                foreach ($curr as $r) { if (!isset($prevKeys[$r['key'] ?? ''])) $newCells++; }
-                if ($newCells > 0) $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")->execute([$newCells * 25, $user_id]);
+            $st = $pdo->prepare("SELECT id, respostas, tentativas_restantes, concluido, desistiu, pontos_ganhos
+                                 FROM hoopgrid_historico WHERE id_usuario=? AND data_jogo=? FOR UPDATE");
+            $st->execute([$user_id, $hoje]);
+            $row = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                $pdo->prepare("INSERT INTO hoopgrid_historico (id_usuario,data_jogo,respostas,tentativas_restantes,concluido,desistiu,pontos_ganhos) VALUES(?,?,'[]',9,0,0,0)")
+                    ->execute([$user_id, $hoje]);
+                $st->execute([$user_id, $hoje]);
+                $row = $st->fetch(PDO::FETCH_ASSOC);
             }
-            if ($row) {
-                $pdo->prepare("UPDATE hoopgrid_historico SET respostas=?,tentativas_restantes=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")
-                    ->execute([$res, $tries, $done, $quit, $pts, $row['id']]);
+            if ((int)$row['concluido'] === 1 || (int)$row['desistiu'] === 1) {
+                $pdo->rollBack();
+                echo json_encode(['ok' => false, 'erro' => 'Jogo de hoje já encerrado.']);
+                exit;
+            }
+            $tries = (int)$row['tentativas_restantes'];
+            if ($tries <= 0) {
+                $pdo->rollBack();
+                echo json_encode(['ok' => false, 'erro' => 'Sem tentativas restantes.']);
+                exit;
+            }
+
+            $respostas = json_decode((string)$row['respostas'], true) ?: [];
+            $porCelula = [];
+            $nomesUsados = [];
+            foreach ($respostas as $r) {
+                if (!isset($r['key'])) continue;
+                $porCelula[(string)$r['key']] = $r;
+                $nomesUsados[mb_strtolower((string)($r['player'] ?? ''))] = true;
+            }
+            if (isset($porCelula[$key])) {
+                $pdo->rollBack();
+                echo json_encode(['ok' => false, 'erro' => 'Essa célula já foi preenchida.']);
+                exit;
+            }
+
+            $nomeLower = mb_strtolower($nome);
+            $correto = in_array($nomeLower, $validMap[$key]['names'], true) && !isset($nomesUsados[$nomeLower]);
+            $pts = (int)$row['pontos_ganhos'];
+
+            if ($correto) {
+                $porCelula[$key] = ['key' => $key, 'player' => $nome];
+                $mult = max(1, (int)getGamePointsMultiplier($pdo, 'hoopgrid'));
+                $credito = 25 * $mult;
+                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")->execute([$credito, $user_id]);
+                $pts += $credito;
             } else {
-                $pdo->prepare("INSERT INTO hoopgrid_historico (id_usuario,data_jogo,respostas,tentativas_restantes,concluido,desistiu,pontos_ganhos) VALUES(?,?,?,?,?,?,?)")
-                    ->execute([$user_id, $hoje, $res, $tries, $done, $quit, $pts]);
+                $tries = max(0, $tries - 1);
             }
+            $pdo->prepare("UPDATE hoopgrid_historico SET respostas=?, tentativas_restantes=?, pontos_ganhos=? WHERE id=?")
+                ->execute([json_encode(array_values($porCelula)), $tries, $pts, $row['id']]);
             $pdo->commit();
-            echo json_encode(['ok'=>true]);
-        } catch (PDOException $e) { if ($pdo->inTransaction()) $pdo->rollBack(); echo json_encode(['ok'=>false,'err'=>$e->getMessage()]); }
+            echo json_encode(['ok' => true, 'correto' => $correto, 'tentativas_restantes' => $tries, 'acertos' => count($porCelula), 'pontos_ganhos' => $pts]);
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[hoopgrid] guess: ' . $e->getMessage());
+            echo json_encode(['ok' => false, 'erro' => 'Erro interno.']);
+        }
+        exit;
+    }
+
+    // `save` só registra o encerramento — não paga nem grava respostas.
+    if ($action === 'save') {
+        $done = (int)($_POST['concluido'] ?? 0) === 1 ? 1 : 0;
+        $quit = (int)($_POST['desistiu']  ?? 0) === 1 ? 1 : 0;
+        $hoje = date('Y-m-d');
+        if (!$done && !$quit) { echo json_encode(['ok' => true]); exit; }
+        try {
+            $pdo->prepare("INSERT INTO hoopgrid_historico (id_usuario,data_jogo,respostas,tentativas_restantes,concluido,desistiu,pontos_ganhos)
+                           VALUES (?,?, '[]', 9, ?, ?, 0)
+                           ON DUPLICATE KEY UPDATE concluido = GREATEST(concluido, VALUES(concluido)),
+                                                   desistiu  = GREATEST(desistiu,  VALUES(desistiu))")
+                ->execute([$user_id, $hoje, $done, $quit]);
+            echo json_encode(['ok' => true]);
+        } catch (Exception $e) {
+            error_log('[hoopgrid] save: ' . $e->getMessage());
+            echo json_encode(['ok' => false]);
+        }
         exit;
     }
     echo json_encode(['ok'=>false]); exit;
@@ -743,7 +807,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 </div>
 
 <script>
-const VALID_MAP  = <?= json_encode($validMap) ?>;
+// Só a CONTAGEM de respostas possíveis por célula (que é a dica exibida na tela) — a lista de
+// nomes válidos era o gabarito e ficava visível no código-fonte da página. A conferência do
+// palpite agora é no servidor (action=guess).
+const VALID_COUNTS = <?= json_encode(array_map(fn($v) => (int)($v['count'] ?? 0), $validMap)) ?>;
 const ALL_NAMES  = <?= json_encode($allPlayerNames) ?>;
 const GRID_ROWS  = <?= json_encode(array_values($grid['rows'])) ?>;
 const GRID_COLS  = <?= json_encode(array_values($grid['cols'])) ?>;
@@ -800,7 +867,7 @@ function openCell(r, c) {
 
     const rowC = GRID_ROWS[r], colC = GRID_COLS[c];
     const typeLabel = t => ({'team':'Time','nation':'País','award':'Prêmio','era':'Era'})[t] || t;
-    const cnt = (VALID_MAP[key] || {}).count || 0;
+    const cnt = VALID_COUNTS[key] || 0;
     document.getElementById('ctxBadges').innerHTML =
         `<span class="ctx-b">${rowC.icon} ${rowC.label}</span><span style="font-size:12px;color:var(--t3)">×</span><span class="ctx-b">${colC.icon} ${colC.label}</span>`;
     document.getElementById('ctxCount').textContent = cnt ? `${cnt} possíveis` : '';
@@ -852,20 +919,29 @@ document.getElementById('sInput').addEventListener('keydown', e => {
 document.getElementById('sCancel').addEventListener('click', closeSearch);
 document.getElementById('sOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeSearch(); });
 
-function selectPlayer(name) {
+async function selectPlayer(name) {
     if (!activeCell || finished) { closeSearch(); return; }
     const {r, c} = activeCell;
     const key = `${r}_${c}`;
-    const valid = (VALID_MAP[key] || {}).names || [];
-    const isOk  = valid.includes(name.toLowerCase());
+    // Quem decide o acerto — e quem gasta a tentativa — é o servidor.
+    let d = null;
+    try {
+        const fd = new FormData();
+        fd.append('action', 'guess');
+        fd.append('key', key);
+        fd.append('player', name);
+        const resp = await fetch('index.php?game=hoopgrid', { method: 'POST', body: fd });
+        d = await resp.json();
+    } catch (e) { closeSearch(); return; }
+    if (!d || !d.ok) { closeSearch(); return; }
+    if (typeof d.tentativas_restantes === 'number') tries = d.tentativas_restantes;
 
-    if (isOk) {
+    if (d.correto) {
         answers[key] = name;
         closeSearch();
         showToast('+25 moedas! 🪙');
         checkFinish();
     } else {
-        tries = Math.max(0, tries - 1);
         const el = document.getElementById('cell_' + key);
         el.classList.add('wrong');
         setTimeout(() => el.classList.remove('wrong'), 420);
@@ -905,18 +981,14 @@ function showResult(won) {
     document.getElementById('rOverlay').classList.remove('hidden');
 }
 
+// Só registra o encerramento — respostas, tentativas e moedas são gravadas pelo servidor no `guess`.
 function saveState(forceSave=false, concluido=false, desistiu=false) {
-    const correct = Object.values(answers).filter(Boolean).length;
-    const pts = correct * 25;
-    const respostas = Object.entries(answers).filter(([,v])=>v).map(([k,v])=>({key:k,player:v}));
+    if (!concluido && !desistiu) return;
     const fd = new FormData();
     fd.append('action','save');
-    fd.append('respostas', JSON.stringify(respostas));
-    fd.append('tentativas_restantes', tries);
     fd.append('concluido', concluido ? 1 : 0);
     fd.append('desistiu', desistiu ? 1 : 0);
-    fd.append('pontos', pts);
-    fetch('', {method:'POST', body:fd});
+    fetch('index.php?game=hoopgrid', {method:'POST', body:fd});
 }
 
 let _tt = null;

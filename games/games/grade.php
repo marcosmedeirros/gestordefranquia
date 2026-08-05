@@ -20,7 +20,15 @@ try {
         streak_count INT DEFAULT 0,
         UNIQUE KEY uq (id_usuario, data_jogo)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // Início da partida no relógio do servidor — base do bônus de tempo (o cronômetro do
+    // navegador não é confiável).
+    if (!$pdo->query("SHOW COLUMNS FROM grade_historico LIKE 'iniciado_em'")->fetch()) {
+        $pdo->exec("ALTER TABLE grade_historico ADD COLUMN iniciado_em DATETIME NULL");
+    }
 } catch (PDOException $e) {}
+
+const GRADE_SEGUNDOS = 180;      // duração da partida
+const GRADE_TOLERANCIA = 15;     // folga pra latência/carregamento, evita punir conexão lenta
 
 $PLAYERS = [
     ['n'=>'LeBron James',           't'=>['CLE','MIA','LAL'],                         'c'=>'USA','a'=>['MVP','CHAMPION','ALLSTAR','FINALS_MVP']],
@@ -195,7 +203,11 @@ function generateDailyGrid(array $players, array $allCriteria): array {
     ];
 }
 
-srand((int)floor(time() / 86400));
+// Semente pela DATA LOCAL (a mesma usada em data_jogo). Com floor(time()/86400) a grade
+// trocava à meia-noite UTC (21h em Brasília), mas o limite diário vira à meia-noite local —
+// então das 21h às 24h dava pra resolver a grade, ganhar, e à 00:01 repetir a MESMA grade
+// já decorada num novo data_jogo, ganhando o prêmio duas vezes por dia.
+srand(crc32(date('Y-m-d') . 'grade'));
 $grid = generateDailyGrid($PLAYERS, $CRITERIA);
 
 $validMap = [];
@@ -211,28 +223,111 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     header('Content-Type: application/json');
     if ($action === 'save') {
-        $respostas = json_encode(json_decode($_POST['respostas'] ?? '[]', true) ?: []);
-        $concluido = (int)($_POST['concluido'] ?? 0);
-        $desistiu  = (int)($_POST['desistiu'] ?? 0);
-        $pontos    = (int)($_POST['pontos'] ?? 0);
+        // NADA de valor vindo do cliente é usado pra pagar. Antes o POST trazia `pontos` e o
+        // servidor creditava esse número direto — dava saldo arbitrário numa requisição, e como
+        // a única trava era `pontos_ganhos == 0` (coluna que o próprio POST regravava), mandar
+        // pontos=0 zerava a trava e liberava o pagamento de novo, em loop, no mesmo dia.
+        $enviadas  = json_decode($_POST['respostas'] ?? '[]', true) ?: [];
+        $concluido = (int)($_POST['concluido'] ?? 0) === 1 ? 1 : 0;
+        $desistiu  = (int)($_POST['desistiu'] ?? 0) === 1 ? 1 : 0;
         $hoje      = date('Y-m-d');
+
+        // Só entram células que existem na grade E cujo jogador realmente satisfaz os dois
+        // critérios daquela célula (conferido contra $validMap, que é montado no servidor).
+        // Um jogador não pode ocupar duas células.
+        // O cliente envia {cell, player} — mesmo formato que o restore da página lê.
+        $validadas = [];
+        $usados = [];
+        foreach ($enviadas as $r) {
+            $cell = (string)($r['cell'] ?? '');
+            $nome = trim((string)($r['player'] ?? ''));
+            if ($nome === '' || !isset($validMap[$cell])) continue;
+            $nomeLower = mb_strtolower($nome);
+            if (!in_array($nomeLower, $validMap[$cell], true)) continue;
+            if (isset($usados[$nomeLower])) continue;
+            $usados[$nomeLower] = true;
+            $validadas[$cell] = ['cell' => $cell, 'player' => $nome];
+        }
+        $acertos   = count($validadas);          // no máximo 9
+        $respostas = json_encode(array_values($validadas));
+        $venceu    = $acertos === 9;
+
         try {
-            $stmt = $pdo->prepare("SELECT id, pontos_ganhos FROM grade_historico WHERE id_usuario=? AND data_jogo=?");
+            $pdo->beginTransaction();
+            // FOR UPDATE: sem o lock, duas requisições simultâneas liam pontos_ganhos=0 e
+            // ambas creditavam.
+            $stmt = $pdo->prepare("SELECT id, pontos_ganhos, concluido, desistiu, iniciado_em,
+                                          TIMESTAMPDIFF(SECOND, iniciado_em, NOW()) AS decorrido
+                                   FROM grade_historico WHERE id_usuario=? AND data_jogo=? FOR UPDATE");
             $stmt->execute([$user_id, $hoje]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // Jogo do dia já encerrado (ganhou, perdeu ou desistiu): não paga de novo nem regrava.
+            $jaEncerrado = $row && ((int)$row['concluido'] === 1 || (int)$row['desistiu'] === 1 || (int)$row['pontos_ganhos'] > 0);
+            if ($jaEncerrado) {
+                $pdo->commit();
+                echo json_encode(['ok' => true, 'ja_encerrado' => true]);
+                exit;
+            }
+
+            // Prêmio calculado AQUI, a partir do que foi validado — nunca do POST.
+            // O bônus de tempo vem do relógio do servidor (iniciado_em), não do cronômetro do JS.
+            $premio = 0;
+            $bonusTempo = 0;
+            if ($concluido && $venceu) {
+                $decorrido = ($row && $row['iniciado_em'] !== null) ? max(0, (int)$row['decorrido']) : GRADE_SEGUNDOS;
+                $restante  = max(0, GRADE_SEGUNDOS + GRADE_TOLERANCIA - $decorrido);
+                $restante  = min($restante, GRADE_SEGUNDOS); // a tolerância não vira bônus extra
+                $bonusTempo = intdiv($restante, 10) * 5;
+                $premio = $PONTOS_VITORIA + $bonusTempo;
+            }
+
             if ($row) {
                 $pdo->prepare("UPDATE grade_historico SET respostas=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")
-                    ->execute([$respostas,$concluido,$desistiu,$pontos,$row['id']]);
-                if ($concluido && $row['pontos_ganhos'] == 0 && $pontos > 0)
-                    $pdo->prepare("UPDATE games_usuarios SET pontos=pontos+? WHERE id=?")->execute([$pontos,$user_id]);
+                    ->execute([$respostas, $concluido, $desistiu, $premio, $row['id']]);
             } else {
                 $pdo->prepare("INSERT INTO grade_historico (id_usuario,data_jogo,respostas,concluido,desistiu,pontos_ganhos) VALUES(?,?,?,?,?,?)")
-                    ->execute([$user_id,$hoje,$respostas,$concluido,$desistiu,$pontos]);
-                if ($concluido && $pontos > 0)
-                    $pdo->prepare("UPDATE games_usuarios SET pontos=pontos+? WHERE id=?")->execute([$pontos,$user_id]);
+                    ->execute([$user_id, $hoje, $respostas, $concluido, $desistiu, $premio]);
             }
-            echo json_encode(['ok'=>true]);
-        } catch (PDOException $e) { echo json_encode(['ok'=>false]); }
+            if ($premio > 0) {
+                $pdo->prepare("UPDATE games_usuarios SET pontos=pontos+? WHERE id=?")->execute([$premio, $user_id]);
+            }
+            $pdo->commit();
+            echo json_encode(['ok' => true, 'acertos' => $acertos, 'pontos' => $premio, 'bonus_tempo' => $bonusTempo]);
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[grade] save: ' . $e->getMessage());
+            echo json_encode(['ok' => false]);
+        }
+        exit;
+    }
+
+    // Marca o instante em que a partida começou, no relógio do servidor (só a 1ª vez no dia).
+    if ($action === 'start') {
+        $hoje = date('Y-m-d');
+        try {
+            $pdo->prepare("INSERT INTO grade_historico (id_usuario, data_jogo, respostas, iniciado_em)
+                           VALUES (?, ?, '[]', NOW())
+                           ON DUPLICATE KEY UPDATE iniciado_em = COALESCE(iniciado_em, NOW())")
+                ->execute([$user_id, $hoje]);
+            echo json_encode(['ok' => true]);
+        } catch (Exception $e) {
+            error_log('[grade] start: ' . $e->getMessage());
+            echo json_encode(['ok' => false]);
+        }
+        exit;
+    }
+
+    // Confere um palpite no SERVIDOR. Antes o acerto era decidido só no JS (com a lista de
+    // respostas certas embutida na página), então dava pra gabaritar sempre.
+    if ($action === 'guess') {
+        $key  = (string)($_POST['key'] ?? '');
+        $nome = trim((string)($_POST['player'] ?? ''));
+        if (!isset($validMap[$key]) || $nome === '') {
+            echo json_encode(['ok' => false, 'erro' => 'Palpite inválido.']);
+            exit;
+        }
+        echo json_encode(['ok' => true, 'correto' => in_array(mb_strtolower($nome), $validMap[$key], true)]);
         exit;
     }
     echo json_encode(['ok'=>false]); exit;
@@ -559,7 +654,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 </div><!-- /main -->
 
 <script>
-const VALID_MAP   = <?= json_encode($validMap) ?>;
+// VALID_MAP (o gabarito das 9 células) NÃO vai mais pro cliente — estava no código-fonte da
+// página, dava pra gabaritar a grade inteira sem errar. A conferência agora é no servidor
+// (action=guess).
 const PLAYERS_ALL = <?= json_encode(array_map(fn($p)=>['n'=>$p['n'],'c'=>$p['c']],$PLAYERS)) ?>;
 const PONTOS_VITORIA = <?= $PONTOS_VITORIA ?>;
 const TIMER_SECONDS  = 3 * 60;
@@ -588,6 +685,11 @@ updateCount();
 function startGame() {
     document.getElementById('startModal').classList.add('hidden');
     gameStarted = true;
+    // Marca o início NO SERVIDOR: o bônus de tempo é calculado lá a partir desse instante,
+    // porque o cronômetro daqui pode ser pausado/adiantado pelo devtools.
+    const fd = new FormData();
+    fd.append('action', 'start');
+    fetch('index.php?game=grade', { method: 'POST', body: fd }).catch(() => {});
     startTimer();
 }
 
@@ -633,51 +735,76 @@ function cancelSelection() {
 }
 
 // ── AUTOCOMPLETE ──
-document.getElementById('searchInput').addEventListener('input', function() {
-    const q = this.value.trim();
-    const list = document.getElementById('autocompleteList');
-    if (q.length < 2) { list.style.display = 'none'; return; }
-    const matches = PLAYERS_ALL.filter(p => {
-        if (usedPlayers.has(p.n.toLowerCase())) return false;
-        return norm(p.n).includes(norm(q));
-    }).slice(0, 8);
-    if (!matches.length) { list.style.display = 'none'; return; }
-    list.innerHTML = matches.map(p =>
-        `<div class="ac-item" onclick="submitPlayer('${esc(p.n)}')">${NATION_FLAGS[p.c]||''} <span>${esc(p.n)}</span></div>`
-    ).join('');
-    list.style.display = 'block';
-});
+// Só liga os listeners se a área de busca existe: quando o jogo do dia já terminou, o bloco
+// "JOGO ATIVO" não é renderizado e o addEventListener num elemento nulo estourava TypeError,
+// abortando todo o resto do script.
+const _searchInput = document.getElementById('searchInput');
+if (_searchInput) {
+    _searchInput.addEventListener('input', function() {
+        const q = this.value.trim();
+        const list = document.getElementById('autocompleteList');
+        if (q.length < 2) { list.style.display = 'none'; return; }
+        const matches = PLAYERS_ALL.filter(p => {
+            if (usedPlayers.has(p.n.toLowerCase())) return false;
+            return norm(p.n).includes(norm(q));
+        }).slice(0, 8);
+        if (!matches.length) { list.style.display = 'none'; return; }
+        list.innerHTML = matches.map(p =>
+            `<div class="ac-item" onclick="submitPlayer('${esc(p.n)}')">${NATION_FLAGS[p.c]||''} <span>${esc(p.n)}</span></div>`
+        ).join('');
+        list.style.display = 'block';
+    });
 
-document.getElementById('searchInput').addEventListener('keydown', function(e) {
-    const items = document.querySelectorAll('.ac-item');
-    let active = document.querySelector('.ac-item.active');
-    if (e.key==='ArrowDown') { e.preventDefault(); active ? (active.classList.remove('active'),(active.nextElementSibling||items[0]).classList.add('active')) : items[0]?.classList.add('active'); }
-    else if (e.key==='ArrowUp') { e.preventDefault(); active ? (active.classList.remove('active'),(active.previousElementSibling||items[items.length-1]).classList.add('active')) : items[items.length-1]?.classList.add('active'); }
-    else if (e.key==='Enter') { e.preventDefault(); (active||items.length===1?active||items[0]:null)?.click(); }
-    else if (e.key==='Escape') cancelSelection();
-});
+    _searchInput.addEventListener('keydown', function(e) {
+        const items = document.querySelectorAll('.ac-item');
+        let active = document.querySelector('.ac-item.active');
+        if (e.key==='ArrowDown') { e.preventDefault(); active ? (active.classList.remove('active'),(active.nextElementSibling||items[0]).classList.add('active')) : items[0]?.classList.add('active'); }
+        else if (e.key==='ArrowUp') { e.preventDefault(); active ? (active.classList.remove('active'),(active.previousElementSibling||items[items.length-1]).classList.add('active')) : items[items.length-1]?.classList.add('active'); }
+        else if (e.key==='Enter') { e.preventDefault(); (active||items.length===1?active||items[0]:null)?.click(); }
+        else if (e.key==='Escape') cancelSelection();
+    });
 
-document.addEventListener('click', e => {
-    if (!e.target.closest('.search-wrap') && !e.target.closest('.cell'))
-        document.getElementById('autocompleteList').style.display = 'none';
-});
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.search-wrap') && !e.target.closest('.cell')) {
+            const l = document.getElementById('autocompleteList');
+            if (l) l.style.display = 'none';
+        }
+    });
+}
 
 // ── SUBMETER ──
-function submitPlayer(name) {
+// Quem decide se acertou é o SERVIDOR (action=guess) — antes a lista de respostas certas vinha
+// embutida na página e a checagem era só aqui no JS.
+async function submitPlayer(name) {
     if (!selectedCell) return;
-    const valid = VALID_MAP[selectedCell] || [];
     const lower = name.toLowerCase();
-    if (!valid.includes(lower)) {
-        flashCell(selectedCell, 'wrong');
+    if (usedPlayers.has(lower)) { showStatus('⚠️ ' + name + ' já foi usado.', 'error'); return; }
+
+    const celula = selectedCell;
+    let correto = false;
+    try {
+        const fd = new FormData();
+        fd.append('action', 'guess');
+        fd.append('key', celula);
+        fd.append('player', name);
+        const r = await fetch('index.php?game=grade', { method: 'POST', body: fd });
+        const d = await r.json();
+        correto = !!d.correto;
+    } catch (e) {
+        showStatus('⚠️ Falha de conexão. Tente de novo.', 'error');
+        return;
+    }
+
+    if (!correto) {
+        flashCell(celula, 'wrong');
         showStatus('❌ ' + name + ' não atende aos dois critérios desta célula.', 'error');
         document.getElementById('autocompleteList').style.display = 'none';
         document.getElementById('searchInput').value = '';
         return;
     }
-    if (usedPlayers.has(lower)) { showStatus('⚠️ ' + name + ' já foi usado.', 'error'); return; }
-    answers[selectedCell] = name;
+    answers[celula] = name;
     usedPlayers.add(lower);
-    fillCell(selectedCell, name);
+    fillCell(celula, name);
     cancelSelection();
     updateCount();
     saveProgress();
@@ -716,16 +843,19 @@ function showStatus(msg, type) {
 }
 
 // ── FIM ──
-function endGame(won) {
+async function endGame(won) {
     gameOver = true;
     clearInterval(timerInterval);
     document.getElementById('searchArea').style.display = 'none';
     document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected'));
     const filled = Object.keys(answers).length;
-    const timeBonus = won ? Math.floor(secondsLeft / 10) * 5 : 0;
-    const totalPts  = won ? PONTOS_VITORIA + timeBonus : 0;
-    saveProgress(won, !won, totalPts);
+
+    // Mostra o que o SERVIDOR realmente pagou — antes a tela somava um bônus calculado aqui
+    // que o servidor não creditava, então o jogador via mais moedas do que recebia.
+    const resp = await saveProgress(won, !won);
     if (won) {
+        const totalPts  = (resp && typeof resp.pontos === 'number') ? resp.pontos : PONTOS_VITORIA;
+        const timeBonus = (resp && typeof resp.bonus_tempo === 'number') ? resp.bonus_tempo : 0;
         document.getElementById('resultPoints').textContent = '+' + totalPts.toLocaleString('pt-BR');
         document.getElementById('resultSubText').textContent =
             `Tempo restante: ${Math.floor(secondsLeft/60)}:${String(secondsLeft%60).padStart(2,'0')} • Bônus de tempo +${timeBonus}`;
@@ -743,14 +873,18 @@ function giveUp() {
     endGame(false);
 }
 
-function saveProgress(concluido=false, desistiu=false, pontos=0) {
+// `pontos` não é mais enviado: quem calcula o prêmio é o servidor, a partir das respostas
+// que ele mesmo valida.
+async function saveProgress(concluido=false, desistiu=false) {
     const payload = new FormData();
     payload.append('action',    'save');
     payload.append('respostas', JSON.stringify(Object.entries(answers).map(([cell,player])=>({cell,player}))));
     payload.append('concluido', concluido ? 1 : 0);
     payload.append('desistiu',  desistiu ? 1 : 0);
-    payload.append('pontos',    pontos);
-    fetch(location.href, {method:'POST',body:payload}).catch(()=>{});
+    try {
+        const r = await fetch('index.php?game=grade', {method:'POST',body:payload});
+        return await r.json();
+    } catch (e) { return null; }
 }
 
 function norm(s){ return s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(); }

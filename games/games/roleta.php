@@ -36,15 +36,63 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     $acao = $_POST['acao'];
 
     if ($acao == 'girar') {
-        $apostas = json_decode($_POST['apostas'], true); 
-        
-        // 1. Validação de Aposta
-        $totalApostado = 0;
-        foreach ($apostas as $a) $totalApostado += $a['montante'];
+        $apostasBrutas = json_decode($_POST['apostas'] ?? '[]', true);
+        if (!is_array($apostasBrutas)) $apostasBrutas = [];
+
+        // 1. Validação de Aposta — cada aposta é saneada ANTES de qualquer conta.
+        //
+        // Dois furos graves existiam aqui:
+        //  a) `valor` ia cru pro switch e era comparado com `==` (frouxa). Em PHP, `32 == true`
+        //     é verdadeiro, então apostar `valor: true` num número casava com 36 dos 37
+        //     resultados e pagava 36x — moeda infinita.
+        //  b) só a SOMA dos montantes era validada contra o teto. Um montante negativo numa
+        //     aposta impossível de vencer compensava outro gigante: apostar 1.000.000 no número
+        //     7 e -999.900 numa dúzia inválida somava 100 e passava no teto de 250.
         $maxAposta = 250;
-        
+        $apostas = [];
+        $totalApostado = 0;
+        foreach ($apostasBrutas as $a) {
+            if (!is_array($a)) continue;
+            $tipo = (string)($a['tipo'] ?? '');
+            if (!in_array($tipo, ['number', 'color', 'parity', 'dozen', 'half'], true)) {
+                die(json_encode(['erro' => 'Aposta inválida.']));
+            }
+            $montante = filter_var($a['montante'] ?? null, FILTER_VALIDATE_INT);
+            if ($montante === false || $montante <= 0) {
+                die(json_encode(['erro' => 'Valor de aposta inválido.']));
+            }
+
+            $bruto = $a['valor'] ?? null;
+            if (is_bool($bruto) || is_array($bruto)) die(json_encode(['erro' => 'Aposta inválida.']));
+            switch ($tipo) {
+                case 'number':
+                    $alvo = filter_var($bruto, FILTER_VALIDATE_INT);
+                    if ($alvo === false || $alvo < 0 || $alvo > 36) die(json_encode(['erro' => 'Número inválido.']));
+                    break;
+                case 'color':
+                    $alvo = (string)$bruto;
+                    if (!in_array($alvo, ['red', 'black'], true)) die(json_encode(['erro' => 'Cor inválida.']));
+                    break;
+                case 'parity':
+                    $alvo = (string)$bruto;
+                    if (!in_array($alvo, ['even', 'odd'], true)) die(json_encode(['erro' => 'Paridade inválida.']));
+                    break;
+                case 'dozen':
+                    $alvo = filter_var($bruto, FILTER_VALIDATE_INT);
+                    if ($alvo === false || $alvo < 1 || $alvo > 3) die(json_encode(['erro' => 'Dúzia inválida.']));
+                    break;
+                case 'half':
+                    $alvo = filter_var($bruto, FILTER_VALIDATE_INT);
+                    if ($alvo === false || $alvo < 1 || $alvo > 2) die(json_encode(['erro' => 'Metade inválida.']));
+                    break;
+            }
+
+            $apostas[] = ['tipo' => $tipo, 'valor' => $alvo, 'montante' => $montante];
+            $totalApostado += $montante;
+            if ($totalApostado > $maxAposta) die(json_encode(['erro' => 'Aposta máxima permitida: 250 pontos!']));
+        }
+
         if ($totalApostado <= 0) die(json_encode(['erro' => 'Faça uma aposta!']));
-        if ($totalApostado > $maxAposta) die(json_encode(['erro' => 'Aposta máxima permitida: 250 pontos!']));
 
         try {
             $pdo->beginTransaction();
@@ -73,30 +121,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 $ganhou = false;
                 $multiplicador = 0;
 
+                // Comparações ESTRITAS (===): com `==` o PHP converte tipos e `32 == true` vira
+                // verdadeiro, que era exatamente o furo explorável.
                 switch ($tipo) {
                     case 'number':
-                        if ($numeroSorteado == $alvo) { $ganhou = true; $multiplicador = 36; } // Paga 35:1 + aposta = 36x
+                        if ($numeroSorteado === $alvo) { $ganhou = true; $multiplicador = 36; } // Paga 35:1 + aposta = 36x
                         break;
                     case 'color':
-                        if ($corSorteada == $alvo) { $ganhou = true; $multiplicador = 2; }
+                        if ($corSorteada === $alvo) { $ganhou = true; $multiplicador = 2; }
                         break;
                     case 'parity':
-                        if ($numeroSorteado != 0) {
-                            if ($alvo == 'even' && $numeroSorteado % 2 == 0) { $ganhou = true; $multiplicador = 2; }
-                            if ($alvo == 'odd' && $numeroSorteado % 2 != 0) { $ganhou = true; $multiplicador = 2; }
+                        if ($numeroSorteado !== 0) {
+                            if ($alvo === 'even' && $numeroSorteado % 2 === 0) { $ganhou = true; $multiplicador = 2; }
+                            if ($alvo === 'odd' && $numeroSorteado % 2 !== 0) { $ganhou = true; $multiplicador = 2; }
                         }
                         break;
                     case 'dozen':
-                        if ($numeroSorteado != 0) {
-                            if ($alvo == 1 && $numeroSorteado >= 1 && $numeroSorteado <= 12) { $ganhou = true; $multiplicador = 3; }
-                            if ($alvo == 2 && $numeroSorteado >= 13 && $numeroSorteado <= 24) { $ganhou = true; $multiplicador = 3; }
-                            if ($alvo == 3 && $numeroSorteado >= 25 && $numeroSorteado <= 36) { $ganhou = true; $multiplicador = 3; }
+                        if ($numeroSorteado !== 0) {
+                            if ($alvo === 1 && $numeroSorteado >= 1 && $numeroSorteado <= 12) { $ganhou = true; $multiplicador = 3; }
+                            if ($alvo === 2 && $numeroSorteado >= 13 && $numeroSorteado <= 24) { $ganhou = true; $multiplicador = 3; }
+                            if ($alvo === 3 && $numeroSorteado >= 25 && $numeroSorteado <= 36) { $ganhou = true; $multiplicador = 3; }
                         }
                         break;
                     case 'half':
-                        if ($numeroSorteado != 0) {
-                            if ($alvo == 1 && $numeroSorteado <= 18) { $ganhou = true; $multiplicador = 2; }
-                            if ($alvo == 2 && $numeroSorteado >= 19) { $ganhou = true; $multiplicador = 2; }
+                        if ($numeroSorteado !== 0) {
+                            if ($alvo === 1 && $numeroSorteado <= 18) { $ganhou = true; $multiplicador = 2; }
+                            if ($alvo === 2 && $numeroSorteado >= 19) { $ganhou = true; $multiplicador = 2; }
                         }
                         break;
                 }
@@ -122,7 +172,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             ]);
 
         } catch (Exception $e) {
-            $pdo->rollBack();
+            // rollBack() sem transação ativa lança PDOException dentro do próprio catch, e a
+            // resposta sai como HTML em vez de JSON — o botão GIRAR travava sem mensagem.
+            if ($pdo->inTransaction()) $pdo->rollBack();
             echo json_encode(['erro' => $e->getMessage()]);
         }
         exit;
@@ -248,7 +300,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             🎡 ROLETA
             <i class="bi bi-info-circle cursor-pointer text-info" onclick="togglePayouts()" style="font-size: 1.2em; opacity: 0.8;"></i>
         </h1>
-        <p class="text-muted">Apostas (max 50 pts por rodada)</p>
+        <p class="text-muted">Apostas (máx 250 pts por rodada)</p>
     </div>
     
     <!-- Modal de Payouts -->

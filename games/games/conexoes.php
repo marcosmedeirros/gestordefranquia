@@ -371,8 +371,11 @@ if (!empty($customPuzzles)) {
     $PUZZLES = array_merge($PUZZLES, $customPuzzles);
 }
 
-// Seleciona puzzle do dia
-$seed_day  = (int)floor(time() / 86400);
+// Seleciona puzzle do dia pela DATA LOCAL (mesma base de data_jogo). Com floor(time()/86400) o
+// puzzle trocava à meia-noite UTC (21h em Brasília) enquanto o limite diário virava à meia-noite
+// local — quem jogasse das 21h às 24h repetia o MESMO puzzle já resolvido depois da meia-noite
+// e faturava o prêmio duas vezes no mesmo dia.
+$seed_day  = (int)floor(strtotime(date('Y-m-d')) / 86400);
 $puzzle_idx = $seed_day % count($PUZZLES);
 $puzzle     = $PUZZLES[$puzzle_idx];
 
@@ -419,59 +422,113 @@ foreach ($puzzle as $gi => $grupo) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     header('Content-Type: application/json');
-    if ($action === 'save') {
-        $grupos_enc  = json_encode(json_decode($_POST['grupos_encontrados'] ?? '[]', true) ?: []);
-        $vidas       = (int)($_POST['vidas_restantes'] ?? 4);
-        $concluido   = (int)($_POST['concluido'] ?? 0);
-        $desistiu    = (int)($_POST['desistiu'] ?? 0);
-        $pontos      = (int)($_POST['pontos'] ?? 0);
-        $hoje        = date('Y-m-d');
-        try {
-      $pdo->beginTransaction();
-
-      $stmt = $pdo->prepare("SELECT id, grupos_encontrados, concluido, desistiu FROM conexoes_historico WHERE id_usuario=? AND data_jogo=? FOR UPDATE");
-      $stmt->execute([$user_id, $hoje]);
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-      // Moedas: SOMENTE 50 por NOVO grupo encontrado (nada no fim do relógio / autosave / etc.)
-      $already_done = $row && (((int)($row['concluido'] ?? 0) === 1) || ((int)($row['desistiu'] ?? 0) === 1));
-      if (!$already_done) {
-        $prev_groups_raw = $row ? (json_decode((string)($row['grupos_encontrados'] ?? '[]'), true) ?: []) : [];
-        $prev_groups = array_values(array_filter(array_map(static fn($g) => (string)$g, $prev_groups_raw), static fn($g) => $g !== ''));
-        $prev_set = array_flip($prev_groups);
-
-        $curr_groups_raw = json_decode((string)$grupos_enc, true) ?: [];
-        $curr_groups = array_values(array_filter(array_map(static fn($g) => (string)$g, $curr_groups_raw), static fn($g) => $g !== ''));
-
-        $new_groups = 0;
-        foreach ($curr_groups as $g) {
-          if (!isset($prev_set[$g])) {
-            $new_groups++;
-          }
+    // Solução completa — só depois que a partida do dia acabou (de verdade, conferido no banco).
+    if ($action === 'solucao') {
+        $st = $pdo->prepare("SELECT concluido, desistiu, vidas_restantes, grupos_encontrados FROM conexoes_historico WHERE id_usuario=? AND data_jogo=?");
+        $st->execute([$user_id, date('Y-m-d')]);
+        $r = $st->fetch(PDO::FETCH_ASSOC);
+        // Ter achado todos os grupos também encerra — não depende do `save` ter chegado antes,
+        // senão a tela de resultado do vencedor podia não receber a solução por corrida.
+        $achou_todos = $r && count(array_unique(json_decode((string)$r['grupos_encontrados'], true) ?: [])) >= count($puzzle);
+        $acabou = $r && ((int)$r['concluido'] === 1 || (int)$r['desistiu'] === 1 || (int)$r['vidas_restantes'] <= 0 || $achou_todos);
+        if (!$acabou) {
+            echo json_encode(['ok' => false, 'erro' => 'Partida ainda em andamento.']);
+            exit;
         }
-
-        if ($new_groups > 0) {
-          $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")
-            ->execute([$new_groups * 50, $user_id]);
+        $todos = [];
+        foreach ($puzzle as $gi => $g) {
+            $todos[(string)$gi] = ['cor' => $g['cor'], 'label' => $g['label'], 'dica' => $g['dica'], 'jogadores' => $g['jogadores']];
         }
-      }
-
-      if ($row) {
-        $pdo->prepare("UPDATE conexoes_historico SET grupos_encontrados=?,vidas_restantes=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")
-          ->execute([$grupos_enc, $vidas, $concluido, $desistiu, $pontos, $row['id']]);
-      } else {
-        $pdo->prepare("INSERT INTO conexoes_historico (id_usuario,data_jogo,puzzle_idx,grupos_encontrados,vidas_restantes,concluido,desistiu,pontos_ganhos) VALUES(?,?,?,?,?,?,?,?)")
-          ->execute([$user_id, $hoje, $puzzle_idx, $grupos_enc, $vidas, $concluido, $desistiu, $pontos]);
-      }
-
-      $pdo->commit();
-            echo json_encode(['ok'=>true]);
-    } catch (PDOException $e) {
-      if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-      }
-      echo json_encode(['ok'=>false]);
+        echo json_encode(['ok' => true, 'grupos' => $todos]);
+        exit;
     }
+
+    // Palpite de 4 nomes: o SERVIDOR confere, grava o grupo acertado, desconta a vida no erro e
+    // paga — tudo na mesma transação. Só o grupo efetivamente acertado é revelado.
+    if ($action === 'guess') {
+        $nomes = json_decode($_POST['nomes'] ?? '[]', true);
+        if (!is_array($nomes) || count($nomes) !== 4) {
+            echo json_encode(['ok' => false, 'erro' => 'Selecione 4 jogadores.']);
+            exit;
+        }
+        $hoje = date('Y-m-d');
+        try {
+            $pdo->beginTransaction();
+            $st = $pdo->prepare("SELECT id, grupos_encontrados, vidas_restantes, concluido, desistiu, pontos_ganhos
+                                 FROM conexoes_historico WHERE id_usuario=? AND data_jogo=? FOR UPDATE");
+            $st->execute([$user_id, $hoje]);
+            $row = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                $pdo->prepare("INSERT INTO conexoes_historico (id_usuario,data_jogo,puzzle_idx,grupos_encontrados,vidas_restantes,concluido,desistiu,pontos_ganhos) VALUES(?,?,?,'[]',4,0,0,0)")
+                    ->execute([$user_id, $hoje, $puzzle_idx]);
+                $st->execute([$user_id, $hoje]);
+                $row = $st->fetch(PDO::FETCH_ASSOC);
+            }
+            if ((int)$row['concluido'] === 1 || (int)$row['desistiu'] === 1 || (int)$row['vidas_restantes'] <= 0) {
+                $pdo->rollBack();
+                echo json_encode(['ok' => false, 'erro' => 'Jogo de hoje já encerrado.']);
+                exit;
+            }
+
+            $encontrados = array_values(array_unique(array_map('intval', json_decode((string)$row['grupos_encontrados'], true) ?: [])));
+            $vidas = (int)$row['vidas_restantes'];
+            $pts   = (int)$row['pontos_ganhos'];
+
+            $idxs = [];
+            foreach ($nomes as $n) {
+                $k = mb_strtolower(trim((string)$n));
+                if (!isset($answer_map[$k])) { $idxs = []; break; }
+                $idxs[] = $answer_map[$k];
+            }
+            $unicos = array_values(array_unique($idxs));
+            $acertou = (count($idxs) === 4 && count($unicos) === 1 && !in_array((int)$unicos[0], $encontrados, true));
+
+            if ($acertou) {
+                $gi = (int)$unicos[0];
+                $encontrados[] = $gi;
+                $mult = max(1, (int)getGamePointsMultiplier($pdo, 'conexoes'));
+                $credito = 50 * $mult;
+                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")->execute([$credito, $user_id]);
+                $pts += $credito;
+                $resposta = ['ok' => true, 'acertou' => true, 'grupo_idx' => $gi, 'grupo' => $grupo_meta[$gi],
+                             'jogadores' => $puzzle[$gi]['jogadores'], 'vidas_restantes' => $vidas];
+            } else {
+                $vidas = max(0, $vidas - 1);
+                $cont = $idxs ? array_count_values(array_map('strval', $idxs)) : [];
+                $resposta = ['ok' => true, 'acertou' => false, 'vidas_restantes' => $vidas,
+                             'quase' => (count($idxs) === 4 && $cont && max($cont) === 3)];
+            }
+
+            $pdo->prepare("UPDATE conexoes_historico SET grupos_encontrados=?, vidas_restantes=?, pontos_ganhos=? WHERE id=?")
+                ->execute([json_encode(array_map('intval', $encontrados)), $vidas, $pts, $row['id']]);
+            $pdo->commit();
+            echo json_encode($resposta);
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[conexoes] guess: ' . $e->getMessage());
+            echo json_encode(['ok' => false, 'erro' => 'Erro interno.']);
+        }
+        exit;
+    }
+
+    // `save` só registra o encerramento da partida — grupos, vidas e moedas são gravados pelo
+    // servidor no `guess`, única via pela qual um grupo pode ser marcado como encontrado.
+    if ($action === 'save') {
+        $concluido = (int)($_POST['concluido'] ?? 0) === 1 ? 1 : 0;
+        $desistiu  = (int)($_POST['desistiu'] ?? 0) === 1 ? 1 : 0;
+        $hoje      = date('Y-m-d');
+        if (!$concluido && !$desistiu) { echo json_encode(['ok' => true]); exit; }
+        try {
+            $pdo->prepare("INSERT INTO conexoes_historico (id_usuario,data_jogo,puzzle_idx,grupos_encontrados,vidas_restantes,concluido,desistiu,pontos_ganhos)
+                           VALUES (?,?,?,'[]',4,?,?,0)
+                           ON DUPLICATE KEY UPDATE concluido = GREATEST(concluido, VALUES(concluido)),
+                                                   desistiu  = GREATEST(desistiu,  VALUES(desistiu))")
+                ->execute([$user_id, $hoje, $puzzle_idx, $concluido, $desistiu]);
+            echo json_encode(['ok' => true]);
+        } catch (Exception $e) {
+            error_log('[conexoes] save: ' . $e->getMessage());
+            echo json_encode(['ok' => false]);
+        }
         exit;
     }
     echo json_encode(['ok'=>false]); exit;
@@ -645,8 +702,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <script>
 // ── DADOS ────────────────────────────────────────────────────────────────────
-const GRUPOS = <?= json_encode(array_values($puzzle)) ?>;
+// Só os grupos JÁ REVELADOS (os que o jogador acertou, ou todos quando a partida terminou).
+// Antes ia o puzzle inteiro — com label, dica e os 4 nomes de cada grupo — visível no
+// código-fonte, ou seja, o jogo vinha resolvido. A conferência agora é no servidor (action=guess).
+const REVELADOS = <?= json_encode((function() use ($puzzle, $gruposEncontradosIniciais, $jaTerminou) {
+    $out = [];
+    foreach ($puzzle as $gi => $g) {
+        if ($jaTerminou || in_array($gi, array_map('intval', $gruposEncontradosIniciais), true)) {
+            $out[(string)$gi] = ['cor' => $g['cor'], 'label' => $g['label'], 'dica' => $g['dica'], 'jogadores' => $g['jogadores']];
+        }
+    }
+    return $out;
+})(), JSON_FORCE_OBJECT) ?>;
+const TOTAL_GRUPOS = <?= count($puzzle) ?>;
 const ALL_TILES_ORDERED = <?= json_encode(array_map(fn($t) => $t['name'], $all_tiles)) ?>;
+
+// Nomes que pertencem a algum grupo já revelado — substitui as buscas em GRUPOS.
+function nomesRevelados() {
+  const s = new Set();
+  Object.values(REVELADOS).forEach(g => g.jogadores.forEach(j => s.add(j.toLowerCase())));
+  return s;
+}
 const COR_CSS = <?= json_encode($COR_CSS) ?>;
 const PONTOS_BASE = <?= (int)$PONTOS_VITORIA ?>;
 const JA_TERMINOU = <?= $jaTerminou ? 'true' : 'false' ?>;
@@ -663,10 +739,9 @@ function render() {
   const grid = document.getElementById('tileGrid');
   grid.innerHTML = '';
 
+  const revelados = nomesRevelados();
   tiles.forEach(name => {
-    // find group idx for this tile
-    const gi = GRUPOS.findIndex(g => g.jogadores.map(j => j.toLowerCase()).includes(name.toLowerCase()));
-    const isFnd = foundIdxs.has(gi);
+    const isFnd = revelados.has(name.toLowerCase());
     const isSel = selected.has(name);
 
     const div = document.createElement('div');
@@ -686,8 +761,8 @@ function render() {
 function renderFoundGroups() {
   const box = document.getElementById('foundGroups');
   box.innerHTML = '';
-  GRUPOS.forEach((g, gi) => {
-    if (!foundIdxs.has(gi)) return;
+  Object.keys(REVELADOS).sort((a,b)=>a-b).forEach(gi => {
+    const g = REVELADOS[gi];
     const css = COR_CSS[g.cor];
     const div = document.createElement('div');
     div.className = 'found-group';
@@ -736,60 +811,60 @@ function clearSelection() {
 
 function shuffleTiles() {
   // Shuffle only unfound tiles, keep found at end (they're hidden anyway)
-  const unfound = tiles.filter(n => {
-    const gi = GRUPOS.findIndex(g => g.jogadores.map(j => j.toLowerCase()).includes(n.toLowerCase()));
-    return !foundIdxs.has(gi);
-  });
+  const revelados = nomesRevelados();
+  const unfound = tiles.filter(n => !revelados.has(n.toLowerCase()));
   for (let i = unfound.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [unfound[i], unfound[j]] = [unfound[j], unfound[i]];
   }
-  // Rebuild tiles array: unfound first, found at end
-  const found = tiles.filter(n => {
-    const gi = GRUPOS.findIndex(g => g.jogadores.map(j => j.toLowerCase()).includes(n.toLowerCase()));
-    return foundIdxs.has(gi);
-  });
+  const found = tiles.filter(n => revelados.has(n.toLowerCase()));
   tiles = [...unfound, ...found];
   render();
 }
 
-function submitGuess() {
+async function submitGuess() {
   if (selected.size !== 4 || gameOver) return;
 
   const selArr = [...selected];
 
-  // Count how many in each group
-  const counts = new Array(GRUPOS.length).fill(0);
-  selArr.forEach(name => {
-    const gi = GRUPOS.findIndex(g => g.jogadores.map(j => j.toLowerCase()).includes(name.toLowerCase()));
-    if (gi >= 0) counts[gi]++;
-  });
+  // Quem confere o palpite é o SERVIDOR — ele devolve o grupo só quando o jogador acerta.
+  let resp = null;
+  try {
+    const fd = new FormData();
+    fd.append('action', 'guess');
+    fd.append('nomes', JSON.stringify(selArr));
+    const r = await fetch('index.php?game=conexoes', { method: 'POST', body: fd });
+    resp = await r.json();
+  } catch (e) {
+    showToast('Falha de conexão ✗');
+    return;
+  }
+  if (!resp || !resp.ok) { showToast('Falha ao enviar o palpite ✗'); return; }
 
-  // Find if any group has exactly 4
-  const correctGi = counts.findIndex(c => c === 4);
-  if (correctGi >= 0 && !foundIdxs.has(correctGi)) {
+  if (resp.acertou && !foundIdxs.has(Number(resp.grupo_idx))) {
     // Correct!
     selArr.forEach(name => {
       const el = document.querySelector(`.tile[data-name="${CSS.escape(name)}"]`);
       if (el) el.classList.add('bounce');
     });
+    const gi = Number(resp.grupo_idx);
+    REVELADOS[String(gi)] = { ...resp.grupo, jogadores: resp.jogadores };
     setTimeout(() => {
-      foundIdxs.add(correctGi);
+      foundIdxs.add(gi);
       selected.clear();
       render();
       showToast('+50 moedas! 🪙');
 
-      if (foundIdxs.size === 4) {
+      // O progresso já foi gravado pelo servidor no `guess`; aqui só marcamos o fim da partida.
+      if (foundIdxs.size === TOTAL_GRUPOS) {
         gameOver = true;
         setTimeout(() => showResult(true), 500);
         saveState(true, false);
-      } else {
-        saveState();
       }
     }, 350);
   } else {
-    // Wrong
-    lives = Math.max(0, lives - 1);
+    // Wrong — as vidas vêm do servidor (fonte da verdade).
+    lives = (typeof resp.vidas_restantes === 'number') ? resp.vidas_restantes : Math.max(0, lives - 1);
 
     // Shake animation
     selArr.forEach(name => {
@@ -798,15 +873,13 @@ function submitGuess() {
     });
 
     // One-away check
-    const maxCount = Math.max(...counts);
-    if (maxCount === 3) showToast('Quase lá! Um jogador a mais 🔥');
+    if (resp.quase) showToast('Quase lá! Um jogador a mais 🔥');
     else showToast('Combinação incorreta ✗');
 
     renderLives();
     document.getElementById('scoreVal').textContent = calcScore();
     selected.clear();
     updateActionBar();
-    saveState();
 
     if (lives === 0) {
       gameOver = true;
@@ -816,7 +889,7 @@ function submitGuess() {
   }
 }
 
-function showResult(won) {
+async function showResult(won) {
   const found = foundIdxs.size;
   document.getElementById('rIcon').textContent = won ? '🏆' : found >= 3 ? '🏅' : found >= 2 ? '🙁' : '😔';
   document.getElementById('rTitle').textContent = won ? 'Parabéns!' : found >= 3 ? 'Quase!' : 'Fim de jogo';
@@ -824,9 +897,21 @@ function showResult(won) {
     ? `Você encontrou todos os 4 grupos! (${4 - lives} erro${4-lives===1?'':'s'})`
     : `Você encontrou ${found} de 4 grupos.`;
 
+  // Busca a solução completa no servidor — que só entrega depois da partida encerrada.
+  let todos = REVELADOS;
+  try {
+    const fd = new FormData();
+    fd.append('action', 'solucao');
+    const r = await fetch('index.php?game=conexoes', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d && d.ok && d.grupos) todos = d.grupos;
+  } catch (e) { /* mostra o que já foi revelado */ }
+
   // Groups
   let html = '';
-  GRUPOS.forEach((g, gi) => {
+  Object.keys(todos).sort((a,b)=>a-b).forEach(giStr => {
+    const g = todos[giStr];
+    const gi = Number(giStr);
     const css = COR_CSS[g.cor];
     const fnd = foundIdxs.has(gi);
     html += `<div class="result-group-row" style="background:${css.bg}20;border:1px solid ${css.bg}44">
@@ -861,15 +946,14 @@ function showToast(msg) {
 }
 
 // ── SAVE ─────────────────────────────────────────────────────────────────────
+// Só registra o encerramento — grupos, vidas e moedas são gravados pelo servidor no `guess`.
 function saveState(concluido = false, desistiu = false) {
+  if (!concluido && !desistiu) return;
   const body = new FormData();
   body.append('action', 'save');
-  body.append('grupos_encontrados', JSON.stringify([...foundIdxs]));
-  body.append('vidas_restantes', lives);
   body.append('concluido', concluido ? 1 : 0);
   body.append('desistiu', desistiu ? 1 : 0);
-  body.append('pontos', calcScore());
-  fetch('', { method: 'POST', body });
+  fetch('index.php?game=conexoes', { method: 'POST', body });
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────────

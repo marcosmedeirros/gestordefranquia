@@ -165,63 +165,102 @@ $allPlayerNames = array_map(fn($p) => $p['n'], $PLAYERS);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     header('Content-Type: application/json');
-    if ($action === 'save') {
-        $respostas         = json_encode(json_decode($_POST['respostas'] ?? '[]', true) ?: []);
-        $tentativas_rest   = (int)($_POST['tentativas_restantes'] ?? 9);
-        $concluido         = (int)($_POST['concluido'] ?? 0);
-        $desistiu          = (int)($_POST['desistiu'] ?? 0);
-        $pontos            = (int)($_POST['pontos'] ?? 0);
-        $hoje              = date('Y-m-d');
+    // Palpite: o SERVIDOR é dono do estado. Ele gasta a tentativa, grava a célula acertada e
+    // paga — tudo dentro da mesma transação. Sem isso, `guess` seria um oráculo ilimitado:
+    // dava pra varrer todos os jogadores em cada célula até achar os certos, sem gastar
+    // tentativa nenhuma (o contador vivia só no navegador).
+    if ($action === 'guess') {
+        $key  = (string)($_POST['key'] ?? '');
+        $nome = trim((string)($_POST['player'] ?? ''));
+        if (!isset($validMap[$key]) || $nome === '') {
+            echo json_encode(['ok' => false, 'erro' => 'Palpite inválido.']);
+            exit;
+        }
+        $hoje = date('Y-m-d');
         try {
-      $pdo->beginTransaction();
+            $pdo->beginTransaction();
+            $st = $pdo->prepare("SELECT id, respostas, tentativas_restantes, concluido, desistiu, pontos_ganhos
+                                 FROM boxnba_historico WHERE id_usuario=? AND data_jogo=? FOR UPDATE");
+            $st->execute([$user_id, $hoje]);
+            $row = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                $pdo->prepare("INSERT INTO boxnba_historico (id_usuario,data_jogo,respostas,tentativas_restantes,concluido,desistiu,pontos_ganhos) VALUES(?,?,'[]',9,0,0,0)")
+                    ->execute([$user_id, $hoje]);
+                $st->execute([$user_id, $hoje]);
+                $row = $st->fetch(PDO::FETCH_ASSOC);
+            }
+            if ((int)$row['concluido'] === 1 || (int)$row['desistiu'] === 1) {
+                $pdo->rollBack();
+                echo json_encode(['ok' => false, 'erro' => 'Jogo de hoje já encerrado.']);
+                exit;
+            }
+            $tentativas = (int)$row['tentativas_restantes'];
+            if ($tentativas <= 0) {
+                $pdo->rollBack();
+                echo json_encode(['ok' => false, 'erro' => 'Sem tentativas restantes.']);
+                exit;
+            }
 
-      $stmt = $pdo->prepare("SELECT id, respostas, concluido, desistiu FROM boxnba_historico WHERE id_usuario=? AND data_jogo=? FOR UPDATE");
-      $stmt->execute([$user_id, $hoje]);
-      $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            $respostas = json_decode((string)$row['respostas'], true) ?: [];
+            $porCelula = [];
+            $nomesUsados = [];
+            foreach ($respostas as $r) {
+                if (!isset($r['key'])) continue;
+                $porCelula[(string)$r['key']] = $r;
+                $nomesUsados[mb_strtolower((string)($r['player'] ?? ''))] = true;
+            }
+            if (isset($porCelula[$key])) {
+                $pdo->rollBack();
+                echo json_encode(['ok' => false, 'erro' => 'Essa célula já foi preenchida.']);
+                exit;
+            }
 
-      // Moedas: 25 por NOVA célula correta + bônus de 50 ao fechar as 9 (pago uma vez só)
-      $already_done = $row && (((int)($row['concluido'] ?? 0) === 1) || ((int)($row['desistiu'] ?? 0) === 1));
-      if (!$already_done) {
-        $prev_respostas = $row ? (json_decode((string)($row['respostas'] ?? '[]'), true) ?: []) : [];
-        $prev_keys = array_values(array_filter(array_map(static fn($r) => (string)($r['key'] ?? ''), $prev_respostas)));
-        $prev_set = array_flip($prev_keys);
+            $nomeLower = mb_strtolower($nome);
+            $correto = in_array($nomeLower, $validMap[$key], true) && !isset($nomesUsados[$nomeLower]);
+            $pontosGanhos = (int)$row['pontos_ganhos'];
 
-        $curr_respostas = json_decode((string)$respostas, true) ?: [];
-        $curr_keys = array_values(array_filter(array_map(static fn($r) => (string)($r['key'] ?? ''), $curr_respostas)));
-
-        $new_cells = 0;
-        foreach ($curr_keys as $k) {
-          if (!isset($prev_set[$k])) {
-            $new_cells++;
-          }
+            if ($correto) {
+                $porCelula[$key] = ['key' => $key, 'player' => $nome];
+                $acertos = count($porCelula);
+                $mult = max(1, (int)getGamePointsMultiplier($pdo, 'boxnba'));
+                $credito = (25 + ($acertos >= 9 ? 50 : 0)) * $mult;
+                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")->execute([$credito, $user_id]);
+                $pontosGanhos += $credito;
+            } else {
+                $tentativas = max(0, $tentativas - 1);
+                $acertos = count($porCelula);
+            }
+            $pdo->prepare("UPDATE boxnba_historico SET respostas=?, tentativas_restantes=?, pontos_ganhos=? WHERE id=?")
+                ->execute([json_encode(array_values($porCelula)), $tentativas, $pontosGanhos, $row['id']]);
+            $pdo->commit();
+            echo json_encode(['ok' => true, 'correto' => $correto, 'tentativas_restantes' => $tentativas, 'acertos' => $acertos, 'pontos_ganhos' => $pontosGanhos]);
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[boxnba] guess: ' . $e->getMessage());
+            echo json_encode(['ok' => false, 'erro' => 'Erro interno.']);
         }
-
-        // Bônus de 50 ao fechar as 9 células — só na transição (antes tinha
-        // menos de 9, agora tem 9), então não repete em autosave nenhum.
-        $bonus = (count(array_unique($curr_keys)) >= 9 && count(array_unique($prev_keys)) < 9) ? 50 : 0;
-
-        if ($new_cells > 0 || $bonus > 0) {
-          $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")
-            ->execute([$new_cells * 25 + $bonus, $user_id]);
-        }
-      }
-
-      if ($row) {
-        $pdo->prepare("UPDATE boxnba_historico SET respostas=?,tentativas_restantes=?,concluido=?,desistiu=?,pontos_ganhos=? WHERE id=?")
-          ->execute([$respostas, $tentativas_rest, $concluido, $desistiu, $pontos, $row['id']]);
-      } else {
-        $pdo->prepare("INSERT INTO boxnba_historico (id_usuario,data_jogo,respostas,tentativas_restantes,concluido,desistiu,pontos_ganhos) VALUES(?,?,?,?,?,?,?)")
-          ->execute([$user_id, $hoje, $respostas, $tentativas_rest, $concluido, $desistiu, $pontos]);
-      }
-
-      $pdo->commit();
-            echo json_encode(['ok'=>true]);
-    } catch (PDOException $e) {
-      if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-      }
-      echo json_encode(['ok'=>false,'err'=>$e->getMessage()]);
+        exit;
     }
+
+    // `save` NÃO paga mais nada e não grava respostas: quem faz isso é o `guess`, que é a única
+    // via pela qual uma célula pode ser marcada como acertada. Aqui só se registra o
+    // encerramento da partida do dia (fechou as 9 ou desistiu/acabaram as tentativas).
+    if ($action === 'save') {
+        $concluido = (int)($_POST['concluido'] ?? 0) === 1 ? 1 : 0;
+        $desistiu  = (int)($_POST['desistiu'] ?? 0) === 1 ? 1 : 0;
+        $hoje      = date('Y-m-d');
+        if (!$concluido && !$desistiu) { echo json_encode(['ok' => true]); exit; }
+        try {
+            $pdo->prepare("INSERT INTO boxnba_historico (id_usuario,data_jogo,respostas,tentativas_restantes,concluido,desistiu,pontos_ganhos)
+                           VALUES (?,?, '[]', 9, ?, ?, 0)
+                           ON DUPLICATE KEY UPDATE concluido = GREATEST(concluido, VALUES(concluido)),
+                                                   desistiu  = GREATEST(desistiu,  VALUES(desistiu))")
+                ->execute([$user_id, $hoje, $concluido, $desistiu]);
+            echo json_encode(['ok' => true]);
+        } catch (Exception $e) {
+            error_log('[boxnba] save: ' . $e->getMessage());
+            echo json_encode(['ok' => false]);
+        }
         exit;
     }
     echo json_encode(['ok'=>false]); exit;
@@ -464,7 +503,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 </div>
 
 <script>
-const VALID_MAP   = <?= json_encode($validMap) ?>;
+// O gabarito das 9 células NÃO vai mais pro cliente — estava no código-fonte da página, dava
+// pra gabaritar tudo sem errar. A conferência é no servidor (action=guess).
 const ALL_NAMES   = <?= json_encode($allPlayerNames) ?>;
 const GRID_ROWS   = <?= json_encode(array_values($grid['rows'])) ?>;
 const GRID_COLS   = <?= json_encode(array_values($grid['cols'])) ?>;
@@ -612,14 +652,29 @@ document.getElementById('searchInput').addEventListener('keydown', e => {
 document.getElementById('searchCancel').addEventListener('click', closeSearch);
 document.getElementById('searchOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeSearch(); });
 
-function selectPlayer(name) {
+async function selectPlayer(name) {
   if (!activeCell || finished) { closeSearch(); return; }
   const {r, c} = activeCell;
   const key  = `${r}_${c}`;
-  const valid = VALID_MAP[key] || [];
-  const isOk  = valid.includes(name.toLowerCase());
+  // Quem decide o acerto — e quem gasta a tentativa — é o servidor.
+  let d = null;
+  try {
+    const fd = new FormData();
+    fd.append('action', 'guess');
+    fd.append('key', key);
+    fd.append('player', name);
+    const resp = await fetch('index.php?game=boxnba', { method: 'POST', body: fd });
+    d = await resp.json();
+  } catch (e) {
+    closeSearch();
+    return;
+  }
+  if (!d || !d.ok) { closeSearch(); return; }
 
-  if (isOk) {
+  // O contador de tentativas passa a vir do servidor (fonte da verdade).
+  if (typeof d.tentativas_restantes === 'number') tries = d.tentativas_restantes;
+
+  if (d.correto) {
     answers[key] = name;
     const el = document.getElementById(`cell_${r}_${c}`);
     el.classList.add('done','correct');
@@ -629,7 +684,6 @@ function selectPlayer(name) {
     showCoinToast(acertos === 9 ? '+25 moedas e +50 de bônus! 🪙🔥' : '+25 moedas! 🪙');
     checkFinish();
   } else {
-    tries = Math.max(0, tries - 1);
     const el = document.getElementById(`cell_${r}_${c}`);
     el.classList.add('wrong-flash');
     setTimeout(() => el.classList.remove('wrong-flash'), 400);
@@ -637,7 +691,6 @@ function selectPlayer(name) {
     checkFinish();
   }
   updateUI();
-  if (!finished) saveState();
 }
 
 function checkFinish() {
@@ -653,7 +706,9 @@ function checkFinish() {
 function showResult(won) {
   const correct = Object.values(answers).filter(Boolean).length;
   const usedTries = 9 - tries;
-  const pts = won ? calcPoints(correct, tries) : Math.round(calcPoints(correct, tries) * 0.5);
+  // Mostra o que o servidor realmente pagou (25 por célula + 50 ao fechar). Antes, em derrota,
+  // a tela exibia metade disso — o jogador via menos moedas do que recebeu.
+  const pts = calcPoints(correct, tries);
 
   document.getElementById('resultIcon').textContent    = won ? '🏆' : correct >= 5 ? '🏅' : '😔';
   document.getElementById('resultTitle').textContent   = won ? 'Grade Completa!' : correct >= 5 ? 'Bom jogo!' : 'Fim de jogo';
@@ -675,21 +730,15 @@ function showResult(won) {
   document.getElementById('resultOverlay').classList.remove('hidden');
 }
 
+// Só registra o encerramento da partida. Respostas, tentativas e moedas são gravadas pelo
+// servidor no `guess` — o cliente não manda mais nada disso.
 function saveState(forceSave = false, concluido = false, desistiu = false) {
-  const correct = Object.values(answers).filter(Boolean).length;
-  const pts = calcPoints(correct, tries);
-  const respostas = Object.entries(answers)
-    .filter(([,v]) => v)
-    .map(([k,v]) => ({key: k, player: v}));
-
+  if (!concluido && !desistiu) return;
   const body = new FormData();
   body.append('action','save');
-  body.append('respostas', JSON.stringify(respostas));
-  body.append('tentativas_restantes', tries);
   body.append('concluido', concluido ? 1 : 0);
   body.append('desistiu', desistiu ? 1 : 0);
-  body.append('pontos', pts);
-  fetch('', {method:'POST', body});
+  fetch('index.php?game=boxnba', {method:'POST', body});
 }
 
 let _toastTimer = null;
