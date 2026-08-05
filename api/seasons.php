@@ -490,7 +490,17 @@ function recalcTeamsRankingPoints(PDO $pdo, string $league): void {
     ")->execute([$league]);
 }
 
+const PLAYER_SKILL_COLS = ['skill_in','skill_mid','skill_3pt','skill_post_d','skill_per_d',
+                           'skill_play','skill_reb','skill_athl','skill_iq','skill_pot'];
+
 function ensurePlayerSeasonLogTable(PDO $pdo): void {
+    // DDL comita sozinho no meio de uma transação (MySQL/MariaDB) — mesmo um
+    // CREATE/ALTER que não muda nada, só de rodar. snapshotPlayersForSeason()
+    // chama esta função de novo mais abaixo, e ela pode ser invocada de dentro
+    // de uma transação já aberta por quem chamou (create_season, advance_season).
+    // Quem abre a transação já tem que ter garantido o schema antes.
+    if ($pdo->inTransaction()) return;
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS player_season_log (
         id          INT AUTO_INCREMENT PRIMARY KEY,
         player_id   INT NOT NULL,
@@ -508,8 +518,30 @@ function ensurePlayerSeasonLogTable(PDO $pdo): void {
         created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_player_season (player_id, season_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // Pode já existir de uma instalação anterior sem as colunas de skill
+    // (migrations.php cobre isso também — aqui é só reforço idempotente,
+    // pra esta função nunca depender de ordem de execução das migrations).
+    foreach (PLAYER_SKILL_COLS as $col) {
+        $existe = $pdo->query("SHOW COLUMNS FROM player_season_log LIKE '{$col}'")->fetch();
+        if (!$existe) $pdo->exec("ALTER TABLE player_season_log ADD COLUMN {$col} VARCHAR(3) NULL");
+    }
 }
 
+/**
+ * Congela OVR, idade, posição E as letras de skill do elenco na temporada.
+ *
+ * Chamada tanto ao avançar temporada (congela a que terminou) quanto ao criar
+ * uma nova (semeia a que começa com os valores atuais dos jogadores — que já
+ * são os mesmos de antes, porque skill/OVR/idade não têm reset nenhum entre
+ * temporadas). Sem isso, um jogador que não mudou nada ficava sem entrada
+ * nessa temporada na comparação do perfil, até o GM clicar em "Salvar
+ * Atributos" na tela de atualizar elenco.
+ *
+ * As skills ficavam de fora daqui até esta correção — só a versão chamada
+ * pela tela de atualizar elenco (api/player_stats.php, save_snapshot) as
+ * gravava. Toda chamada automática (ex: advance_season) perdia essa parte.
+ */
 function snapshotPlayersForSeason(PDO $pdo, int $seasonId, string $league): void {
     ensurePlayerSeasonLogTable($pdo);
 
@@ -526,8 +558,9 @@ function snapshotPlayersForSeason(PDO $pdo, int $seasonId, string $league): void
     $sprintNumber = (int)($s['sprint_number'] ?? 0);
     $year         = $s['year'] ?? $s['start_year'] ?? null;
 
+    $skillSelect = implode(', ', array_map(fn($c) => "p.{$c}", PLAYER_SKILL_COLS));
     $stmtP = $pdo->prepare("
-        SELECT p.id AS player_id, p.name AS player_name, p.ovr, p.age, p.position,
+        SELECT p.id AS player_id, p.name AS player_name, p.ovr, p.age, p.position, {$skillSelect},
                t.id AS team_id, CONCAT(t.city, ' ', t.name) AS team_name
         FROM players p JOIN teams t ON p.team_id = t.id
         WHERE t.league = ?
@@ -535,21 +568,86 @@ function snapshotPlayersForSeason(PDO $pdo, int $seasonId, string $league): void
     $stmtP->execute([$league]);
     $players = $stmtP->fetchAll(PDO::FETCH_ASSOC);
 
+    $skillCols   = implode(', ', PLAYER_SKILL_COLS);
+    $skillPh     = implode(', ', array_fill(0, count(PLAYER_SKILL_COLS), '?'));
+    $skillUpdate = implode(', ', array_map(fn($c) => "{$c}=VALUES({$c})", PLAYER_SKILL_COLS));
+
     $ins = $pdo->prepare("
         INSERT INTO player_season_log
-            (player_id, player_name, league, season_id, season_number, sprint_number, year, team_id, team_name, ovr, age, position)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (player_id, player_name, league, season_id, season_number, sprint_number, year, team_id, team_name, ovr, age, position, {$skillCols})
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, {$skillPh})
         ON DUPLICATE KEY UPDATE
             team_id=VALUES(team_id), team_name=VALUES(team_name),
-            ovr=VALUES(ovr), age=VALUES(age), position=VALUES(position)
+            ovr=VALUES(ovr), age=VALUES(age), position=VALUES(position), {$skillUpdate}
     ");
     foreach ($players as $p) {
-        $ins->execute([
+        $params = [
             (int)$p['player_id'], $p['player_name'], $league,
             $seasonId, $seasonNumber, $sprintNumber, $year,
-            (int)$p['team_id'], $p['team_name'], (int)($p['ovr'] ?? 0), (int)($p['age'] ?? 0), $p['position'] ?? null
-        ]);
+            (int)$p['team_id'], $p['team_name'], (int)($p['ovr'] ?? 0), (int)($p['age'] ?? 0), $p['position'] ?? null,
+        ];
+        foreach (PLAYER_SKILL_COLS as $col) $params[] = $p[$col] ?? null;
+        $ins->execute($params);
     }
+}
+
+/**
+ * Clona player_season_stats da última temporada com dados pra liga, pra
+ * player_season_stats da temporada nova — só pra quem já tem linha.
+ *
+ * Estatística de jogo (PTS/REB/AST...) não "continua" de uma pra outra como
+ * skill continua — é só um ponto de partida melhor que a tela em branco.
+ * Marcadas como source='clonado' pra a tela de atualizar elenco poder avisar
+ * "isso não foi confirmado ainda nesta temporada".
+ *
+ * Usa o TIME ATUAL do jogador (não o time da temporada antiga), porque uma
+ * troca entre temporadas não deve levar o clone pro time errado.
+ */
+function clonePlayerSeasonStats(PDO $pdo, int $newSeasonId, string $league): int {
+    $stmtPrev = $pdo->prepare("
+        SELECT id FROM seasons
+        WHERE league = ? AND id <> ?
+          AND id IN (SELECT DISTINCT season_id FROM player_season_stats WHERE league = ?)
+        ORDER BY id DESC LIMIT 1
+    ");
+    $stmtPrev->execute([$league, $newSeasonId, $league]);
+    $prevSeasonId = $stmtPrev->fetchColumn();
+    if (!$prevSeasonId) return 0;
+
+    $stmtNewSeason = $pdo->prepare('SELECT season_number FROM seasons WHERE id = ?');
+    $stmtNewSeason->execute([$newSeasonId]);
+    $newSeasonNumber = (int)($stmtNewSeason->fetchColumn() ?: 0);
+
+    $stmtPrevStats = $pdo->prepare('
+        SELECT ps.player_id, ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg, ps.ast_pg, ps.stl_pg, ps.blk_pg,
+               p.team_id AS current_team_id
+        FROM player_season_stats ps
+        INNER JOIN players p ON p.id = ps.player_id
+        WHERE ps.season_id = ?
+    ');
+    $stmtPrevStats->execute([(int)$prevSeasonId]);
+    $linhas = $stmtPrevStats->fetchAll(PDO::FETCH_ASSOC);
+    if (!$linhas) return 0;
+
+    $ins = $pdo->prepare("
+        INSERT INTO player_season_stats
+            (player_id, season_id, season_number, league, team_id, games, min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'clonado')
+        ON DUPLICATE KEY UPDATE player_id = player_id
+    ");
+    // ON DUPLICATE KEY UPDATE vira um no-op de propósito: se já existir uma
+    // linha nesta temporada (alguém rodou isto duas vezes, ou o GM já
+    // salvou algo antes disto rodar), o clone NÃO PODE sobrescrever dado
+    // real com uma cópia velha.
+    $clonados = 0;
+    foreach ($linhas as $l) {
+        $ok = $ins->execute([
+            (int)$l['player_id'], $newSeasonId, $newSeasonNumber, $league, (int)$l['current_team_id'],
+            (int)$l['games'], $l['min_pg'], $l['pts_pg'], $l['reb_pg'], $l['ast_pg'], $l['stl_pg'], $l['blk_pg'],
+        ]);
+        if ($ok && $ins->rowCount() > 0) $clonados++;
+    }
+    return $clonados;
 }
 
 try {
@@ -829,7 +927,15 @@ try {
             if (!$league || !in_array($league, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'])) {
                 throw new Exception('Liga inválida');
             }
-            
+
+            // ensurePlayerSeasonLogTable() faz ALTER TABLE (DDL) se as colunas de
+            // skill ainda não existirem. DDL dentro de transação comita sozinho no
+            // MySQL/MariaDB — rodar isso DEPOIS do beginTransaction() abaixo quebrava
+            // o resto do fluxo com "There is no active transaction" no primeiro
+            // COMMIT/ROLLBACK que aparecesse. Garantir antes evita qualquer DDL
+            // acontecer no meio da transação.
+            ensurePlayerSeasonLogTable($pdo);
+
             $pdo->beginTransaction();
             
             $requestedYear = isset($data['season_year']) ? (int)$data['season_year'] : 0;
@@ -949,7 +1055,20 @@ try {
             ");
             $stmtSeason->execute([$sprintId, $league, $seasonNumber, $year]);
             $seasonId = $pdo->lastInsertId();
-            
+
+            // Semeia a temporada nova com o que já existe: skill/OVR/idade não têm
+            // reset (o snapshot só registra o que já está valendo), e as estatísticas
+            // de jogo vêm clonadas da temporada anterior como ponto de partida — o GM
+            // que não mexer em nada não fica com a tela de atualizar elenco em branco,
+            // e quem não mudou nada não tem retrabalho nenhum.
+            try {
+                snapshotPlayersForSeason($pdo, (int)$seasonId, $league);
+                $statsClonadas = clonePlayerSeasonStats($pdo, (int)$seasonId, $league);
+            } catch (Throwable $e) {
+                $statsClonadas = 0;
+                error_log('[create_season] snapshot/clone de temporada: ' . $e->getMessage());
+            }
+
             $teams = fetchLeagueTeams($pdo, $league);
             $pickStats = !empty($teams)
                 ? syncAutoGeneratedPicks($pdo, $league, $teams, $seasonId, getPickWindowYears($startYear, $seasonNumber, (int)$maxSeasons))
@@ -994,10 +1113,12 @@ try {
 
             $pdo->commit();
             
+            $msgStats = $statsClonadas > 0 ? " Estatísticas: {$statsClonadas} clonadas da temporada anterior." : '';
             echo json_encode([
                 'success' => true,
                 'season_id' => $seasonId,
-                'message' => "Temporada {$seasonNumber} criada! Picks: {$pickStats['created']} novas, {$pickStats['renamed']} ajustadas, {$pickStats['deleted']} removidas."
+                'stats_clonadas' => $statsClonadas,
+                'message' => "Temporada {$seasonNumber} criada! Picks: {$pickStats['created']} novas, {$pickStats['renamed']} ajustadas, {$pickStats['deleted']} removidas.{$msgStats}"
             ]);
             break;
 

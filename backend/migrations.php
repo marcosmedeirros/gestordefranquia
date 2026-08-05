@@ -1137,6 +1137,18 @@ function runMigrations() {
         $errors[] = "ajuste_player_season_log_skills: " . $e->getMessage();
     }
 
+    // 'clonado': a temporada nova nasce com as estatisticas da anterior copiadas,
+    // pra pagina de atualizar elenco nao comecar em branco. Marca essas linhas
+    // como ainda-nao-revisadas nesta temporada, distintas de 'manual'/'foto'.
+    try {
+        $col = $pdo->query("SHOW COLUMNS FROM player_season_stats LIKE 'source'")->fetch(PDO::FETCH_ASSOC);
+        if ($col && strpos((string)$col['Type'], "'clonado'") === false) {
+            $pdo->exec("ALTER TABLE player_season_stats MODIFY source ENUM('foto','manual','clonado') NOT NULL DEFAULT 'manual'");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_player_season_stats_source_clonado: " . $e->getMessage();
+    }
+
     try {
         $hasLeagueSettingsTable = $pdo->query("SHOW TABLES LIKE 'league_settings'")->fetch();
         if ($hasLeagueSettingsTable) {

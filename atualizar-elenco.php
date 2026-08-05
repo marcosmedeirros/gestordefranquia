@@ -42,7 +42,7 @@ $jogadores = $stmtP->fetchAll(PDO::FETCH_ASSOC);
 // Estatísticas já gravadas nesta temporada, para pré-preencher a aba
 $statsAtuais = [];
 if ($season) {
-    $stmtS = $pdo->prepare("SELECT player_id, games, min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg
+    $stmtS = $pdo->prepare("SELECT player_id, games, min_pg, pts_pg, reb_pg, ast_pg, stl_pg, blk_pg, source
                             FROM player_season_stats WHERE season_id = ? AND team_id = ?");
     $stmtS->execute([(int)$season['id'], $teamId]);
     foreach ($stmtS->fetchAll(PDO::FETCH_ASSOC) as $r) $statsAtuais[(int)$r['player_id']] = $r;
@@ -141,6 +141,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .aviso.ok{background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.28);color:var(--green)}
 .aviso.err{background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.3);color:#f87171}
 .cota{font-size:11.5px;color:var(--text-3)}
+.tag-clonado{display:inline-block;margin-left:6px;font-size:9.5px;font-weight:700;letter-spacing:.3px;color:var(--amber);background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:999px;padding:1px 7px;white-space:nowrap;vertical-align:middle}
 .acoes{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
 .scroll-x{overflow-x:auto}
 
@@ -223,6 +224,34 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </div>
     <?php endif; ?>
 
+    <!-- Atualizar via CSV: funciona em QUALQUER liga (a leitura por foto acima
+         é só nas 4 liberadas e usa uma IA paga do próprio site). A ideia aqui é
+         o GM usar uma IA de graça (ChatGPT, Gemini, Claude) por conta própria:
+         baixa o modelo já com o elenco, joga modelo + print numa IA, cola o
+         CSV que ela devolver e sobe aqui. Igual à leitura por foto, só
+         PREENCHE a tabela — quem grava é o "Salvar atributos" de sempre. -->
+    <div class="panel">
+      <div class="section-title"><i class="bi bi-filetype-csv"></i> Atualizar via CSV</div>
+      <div class="aviso info">
+        <i class="bi bi-info-circle"></i>
+        <div>
+          Baixe o modelo com o elenco atual, jogue o modelo <strong>e</strong> o print dos atributos numa IA
+          (ChatGPT, Gemini ou Claude) pedindo pra ela preencher o CSV a partir da imagem, e suba o arquivo que
+          ela devolver aqui embaixo. Os valores entram na tabela abaixo pra você <strong>revisar antes de
+          salvar</strong> — nada é gravado direto do CSV.
+        </div>
+      </div>
+      <div class="acoes">
+        <button type="button" class="btn ghost" id="btnModeloAtributos"><i class="bi bi-download"></i> Baixar modelo CSV</button>
+        <button type="button" class="btn ghost" id="btnPromptAtributos"><i class="bi bi-clipboard"></i> Copiar prompt pra IA</button>
+        <label class="btn ghost" style="margin:0;cursor:pointer">
+          <i class="bi bi-upload"></i> Importar CSV preenchido
+          <input type="file" id="fileImportAtributos" accept=".csv,text/csv" hidden>
+        </label>
+      </div>
+      <div id="msgImportAtributos"></div>
+    </div>
+
     <div class="panel">
       <div class="section-title"><i class="bi bi-pencil-square"></i> Elenco — edição</div>
       <div class="scroll-x">
@@ -291,6 +320,28 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <?php endif; ?>
 
     <div class="panel">
+      <div class="section-title"><i class="bi bi-filetype-csv"></i> Atualizar via CSV</div>
+      <div class="aviso info">
+        <i class="bi bi-info-circle"></i>
+        <div>
+          Baixe o modelo com o elenco atual, jogue o modelo <strong>e</strong> o print das estatísticas
+          (aba <strong>Per Game</strong> do jogo) numa IA (ChatGPT, Gemini ou Claude) pedindo pra ela
+          preencher o CSV a partir da imagem, e suba o arquivo que ela devolver aqui embaixo. Os valores
+          entram na tabela abaixo pra você <strong>revisar antes de salvar</strong>.
+        </div>
+      </div>
+      <div class="acoes">
+        <button type="button" class="btn ghost" id="btnModeloEstatisticas"><i class="bi bi-download"></i> Baixar modelo CSV</button>
+        <button type="button" class="btn ghost" id="btnPromptEstatisticas"><i class="bi bi-clipboard"></i> Copiar prompt pra IA</button>
+        <label class="btn ghost" style="margin:0;cursor:pointer">
+          <i class="bi bi-upload"></i> Importar CSV preenchido
+          <input type="file" id="fileImportEstatisticas" accept=".csv,text/csv" hidden>
+        </label>
+      </div>
+      <div id="msgImportEstatisticas"></div>
+    </div>
+
+    <div class="panel">
       <div class="section-title"><i class="bi bi-bar-chart-fill"></i> Estatísticas da temporada</div>
       <div class="scroll-x">
         <table class="tbl" id="tblStats">
@@ -303,16 +354,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           </thead>
           <tbody>
           <?php foreach ($jogadores as $p):
-            $s = $statsAtuais[(int)$p['id']] ?? null; ?>
+            $s = $statsAtuais[(int)$p['id']] ?? null;
+            $ehClonado = $s && ($s['source'] ?? '') === 'clonado'; ?>
+            <?php $corClonado = $ehClonado ? ' style="border-color:var(--amber)"' : ''; ?>
             <tr data-pid="<?= (int)$p['id'] ?>">
-              <td class="nm"><?= htmlspecialchars($p['name']) ?></td>
-              <td><input class="inp" type="number" min="0" max="200" step="1"   data-f="games"  value="<?= $s ? (int)$s['games'] : '' ?>"></td>
-              <td><input class="inp" type="number" min="0" max="60"  step="0.1" data-f="min_pg" value="<?= $s ? rtrim(rtrim($s['min_pg'],'0'),'.') : '' ?>"></td>
-              <td><input class="inp" type="number" min="0" max="99"  step="0.1" data-f="pts_pg" value="<?= $s ? rtrim(rtrim($s['pts_pg'],'0'),'.') : '' ?>"></td>
-              <td><input class="inp" type="number" min="0" max="50"  step="0.1" data-f="reb_pg" value="<?= $s ? rtrim(rtrim($s['reb_pg'],'0'),'.') : '' ?>"></td>
-              <td><input class="inp" type="number" min="0" max="50"  step="0.1" data-f="ast_pg" value="<?= $s ? rtrim(rtrim($s['ast_pg'],'0'),'.') : '' ?>"></td>
-              <td><input class="inp" type="number" min="0" max="20"  step="0.1" data-f="stl_pg" value="<?= $s ? rtrim(rtrim($s['stl_pg'],'0'),'.') : '' ?>"></td>
-              <td><input class="inp" type="number" min="0" max="20"  step="0.1" data-f="blk_pg" value="<?= $s ? rtrim(rtrim($s['blk_pg'],'0'),'.') : '' ?>"></td>
+              <td class="nm"><?= htmlspecialchars($p['name']) ?><?php if ($ehClonado): ?><span class="tag-clonado" title="Copiado da temporada passada — ainda não confirmado nesta. Confira e salve, ou ajuste o que mudou.">Clonado</span><?php endif; ?></td>
+              <td><input class="inp" type="number" min="0" max="200" step="1"   data-f="games"  value="<?= $s ? (int)$s['games'] : '' ?>"<?= $corClonado ?>></td>
+              <td><input class="inp" type="number" min="0" max="60"  step="0.1" data-f="min_pg" value="<?= $s ? rtrim(rtrim($s['min_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
+              <td><input class="inp" type="number" min="0" max="99"  step="0.1" data-f="pts_pg" value="<?= $s ? rtrim(rtrim($s['pts_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
+              <td><input class="inp" type="number" min="0" max="50"  step="0.1" data-f="reb_pg" value="<?= $s ? rtrim(rtrim($s['reb_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
+              <td><input class="inp" type="number" min="0" max="50"  step="0.1" data-f="ast_pg" value="<?= $s ? rtrim(rtrim($s['ast_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
+              <td><input class="inp" type="number" min="0" max="20"  step="0.1" data-f="stl_pg" value="<?= $s ? rtrim(rtrim($s['stl_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
+              <td><input class="inp" type="number" min="0" max="20"  step="0.1" data-f="blk_pg" value="<?= $s ? rtrim(rtrim($s['blk_pg'],'0'),'.') : '' ?>"<?= $corClonado ?>></td>
             </tr>
           <?php endforeach; ?>
           </tbody>
@@ -347,6 +400,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 const PODE_FOTO = <?= $podeFoto ? 'true' : 'false' ?>;
 const TEM_TEMPORADA = <?= $season ? 'true' : 'false' ?>;
 const ELENCO = <?= json_encode(array_map(fn($p) => ['id' => (int)$p['id'], 'name' => $p['name']], $jogadores)) ?>;
+// {skill_in: 'IN', skill_mid: 'MID', ...} — mesma fonte que monta a tabela de atributos no servidor.
+const SKILL_KEYS_JS = <?= json_encode($SKILL_KEYS) ?>;
+const NOTAS_JS = <?= json_encode(array_values(array_filter($NOTAS, fn($n) => $n !== ''))) ?>;
+const STATS_KEYS_JS = { games: 'Jogos', min_pg: 'MIN', pts_pg: 'PTS', reb_pg: 'REB', ast_pg: 'AST', stl_pg: 'ROU', blk_pg: 'TOC' };
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -355,6 +412,215 @@ function msg(el, tipo, texto) {
   el.innerHTML = `<div class="aviso ${tipo}" style="margin-top:14px"><i class="bi bi-${
     tipo === 'ok' ? 'check-circle-fill' : tipo === 'err' ? 'x-octagon-fill' : 'info-circle'}"></i><div>${texto}</div></div>`;
 }
+
+/* ── CSV: modelo, prompt pra IA e importação ──────────────────────────────
+ * A leitura por foto (acima) usa a IA paga do site e só existe em 4 ligas.
+ * Isto aqui é o caminho de graça, pra QUALQUER liga: o GM baixa o modelo com
+ * o elenco atual, joga modelo + print numa IA de uso geral (por conta dele),
+ * e sobe o CSV que ela devolver. Só PREENCHE a tabela, igual a leitura por
+ * foto — quem grava é o botão "Salvar" de sempre, depois de revisão. */
+function csvEscape(v) {
+  v = String(v ?? '');
+  return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+}
+function baixarCSV(nomeArquivo, linhas) {
+  // BOM na frente: sem ele o Excel no Windows abre acento errado.
+  const csv = '﻿' + linhas.map(l => l.map(csvEscape).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nomeArquivo;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+/** Parser de CSV com suporte a campo entre aspas (nome com vírgula, etc). */
+function parseCSV(texto) {
+  texto = texto.replace(/^﻿/, '');
+  const linhas = [];
+  let linha = [], campo = '', dentroAspas = false;
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i];
+    if (dentroAspas) {
+      if (c === '"') { if (texto[i + 1] === '"') { campo += '"'; i++; } else dentroAspas = false; }
+      else campo += c;
+    } else if (c === '"') dentroAspas = true;
+    else if (c === ',') { linha.push(campo); campo = ''; }
+    else if (c === '\r') { /* ignora, o \n que fecha a linha */ }
+    else if (c === '\n') { linha.push(campo); linhas.push(linha); linha = []; campo = ''; }
+    else campo += c;
+  }
+  if (campo !== '' || linha.length) { linha.push(campo); linhas.push(linha); }
+  return linhas.filter(l => !(l.length === 1 && l[0].trim() === ''));
+}
+async function copiarTexto(texto, btn) {
+  const original = btn.innerHTML;
+  try { await navigator.clipboard.writeText(texto); }
+  catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = texto; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+  }
+  btn.innerHTML = '<i class="bi bi-check-lg"></i> Copiado!';
+  setTimeout(() => { btn.innerHTML = original; }, 1800);
+}
+
+/* Atributos */
+function baixarModeloAtributos() {
+  const labels = Object.values(SKILL_KEYS_JS);
+  const linhas = [['id', 'jogador', 'ovr', 'idade', ...labels]];
+  document.querySelectorAll('#tblSkills tbody tr').forEach(tr => {
+    const nome = (ELENCO.find(p => String(p.id) === tr.dataset.pid) || {}).name || '';
+    const ovr = tr.querySelector('[data-f="ovr"]').value;
+    const idade = tr.querySelector('[data-f="age"]').value;
+    const skills = Object.keys(SKILL_KEYS_JS).map(k => tr.querySelector(`[data-f="${k}"]`).value);
+    linhas.push([tr.dataset.pid, nome, ovr, idade, ...skills]);
+  });
+  baixarCSV('modelo-atributos.csv', linhas);
+}
+function promptAtributos() {
+  return 'Preciso que você preencha um CSV com os atributos de jogadores de basquete a partir de uma imagem que vou anexar.\n\n'
+    + 'O print mostra as skills no formato do jogo: IN, MID, 3PT, POST D, PER D, PLAY, REB, ATHL, IQ, POT — cada uma numa nota de '
+    + 'A+, A, A-, B+, B, B-, C+, C, C-, D+, D, D- ou F.\n\n'
+    + 'Colei abaixo o modelo em CSV, já com as colunas "id" e "jogador" preenchidas — NÃO mude essas duas colunas. '
+    + 'Preencha só ovr, idade e as 10 notas de skill de cada jogador que aparecer na imagem, e devolva o CSV completo — '
+    + 'só o CSV, sem nenhum texto explicando antes ou depois, pra eu poder colar direto num arquivo.\n\n'
+    + '--- MODELO ---\n'
+    + linhasParaCSVTexto(document.querySelectorAll('#tblSkills tbody tr'), 'atributos');
+}
+function linhasParaCSVTexto(trs, tipo) {
+  const labels = tipo === 'atributos' ? Object.values(SKILL_KEYS_JS) : Object.values(STATS_KEYS_JS);
+  const chaves = tipo === 'atributos' ? Object.keys(SKILL_KEYS_JS) : Object.keys(STATS_KEYS_JS);
+  const cabecalho = tipo === 'atributos' ? ['id', 'jogador', 'ovr', 'idade', ...labels] : ['id', 'jogador', ...labels];
+  const linhas = [cabecalho];
+  trs.forEach(tr => {
+    const nome = (ELENCO.find(p => String(p.id) === tr.dataset.pid) || {}).name || '';
+    const valores = chaves.map(k => tr.querySelector(`[data-f="${k}"]`).value);
+    linhas.push(tipo === 'atributos'
+      ? [tr.dataset.pid, nome, tr.querySelector('[data-f="ovr"]').value, tr.querySelector('[data-f="age"]').value, ...valores]
+      : [tr.dataset.pid, nome, ...valores]);
+  });
+  return linhas.map(l => l.map(csvEscape).join(',')).join('\n');
+}
+function importarAtributosCSV(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const linhas = parseCSV(String(e.target.result));
+    if (linhas.length < 2) { msg($('msgImportAtributos'), 'err', 'CSV vazio ou sem linhas de dados.'); return; }
+    const header = linhas[0].map(h => h.trim().toLowerCase());
+    const idxId = header.indexOf('id');
+    if (idxId === -1) { msg($('msgImportAtributos'), 'err', 'O CSV precisa ter uma coluna "id" — baixe o modelo e não apague essa coluna.'); return; }
+    const idxOvr = header.indexOf('ovr');
+    const idxIdade = header.indexOf('idade');
+    const labelParaChave = {};
+    Object.entries(SKILL_KEYS_JS).forEach(([chave, label]) => { labelParaChave[label.toLowerCase()] = chave; });
+
+    let aplicados = 0, semLinha = 0, invalidos = 0;
+    for (let i = 1; i < linhas.length; i++) {
+      const row = linhas[i];
+      if (!row[idxId]) continue;
+      const pid = parseInt(row[idxId], 10);
+      const tr = document.querySelector(`#tblSkills tr[data-pid="${pid}"]`);
+      if (!tr) { semLinha++; continue; }
+      let mudou = false;
+
+      if (idxOvr !== -1 && row[idxOvr]) {
+        const ovr = parseInt(row[idxOvr], 10);
+        if (!isNaN(ovr) && ovr >= 40 && ovr <= 99) {
+          const inp = tr.querySelector('[data-f="ovr"]'); inp.value = ovr; inp.style.borderColor = 'var(--amber)'; mudou = true;
+        }
+      }
+      if (idxIdade !== -1 && row[idxIdade]) {
+        const idade = parseInt(row[idxIdade], 10);
+        if (!isNaN(idade) && idade >= 15 && idade <= 50) {
+          const inp = tr.querySelector('[data-f="age"]'); inp.value = idade; inp.style.borderColor = 'var(--amber)'; mudou = true;
+        }
+      }
+      header.forEach((h, idx) => {
+        const chave = labelParaChave[h];
+        if (!chave) return;
+        const valor = (row[idx] || '').trim().toUpperCase();
+        if (!valor) return;
+        if (!NOTAS_JS.includes(valor)) { invalidos++; return; }
+        const sel = tr.querySelector(`[data-f="${chave}"]`);
+        if (sel) { sel.value = valor; sel.style.borderColor = 'var(--amber)'; mudou = true; }
+      });
+      if (mudou) aplicados++;
+    }
+    let texto = `${aplicados} jogador(es) preenchidos a partir do CSV — confira os campos em amber e clique em <strong>Salvar atributos</strong>.`;
+    if (semLinha) texto += ` ${semLinha} linha(s) com um "id" que não bate com nenhum jogador deste elenco (ignoradas).`;
+    if (invalidos) texto += ` ${invalidos} nota(s) fora da escala A+ até F (ignoradas).`;
+    msg($('msgImportAtributos'), (semLinha || invalidos) && aplicados ? 'warn' : (aplicados ? 'ok' : 'err'), texto);
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+/* Estatísticas */
+function baixarModeloEstatisticas() {
+  const linhas = [['id', 'jogador', ...Object.values(STATS_KEYS_JS)]];
+  document.querySelectorAll('#tblStats tbody tr').forEach(tr => {
+    const nome = (ELENCO.find(p => String(p.id) === tr.dataset.pid) || {}).name || '';
+    const valores = Object.keys(STATS_KEYS_JS).map(k => tr.querySelector(`[data-f="${k}"]`).value);
+    linhas.push([tr.dataset.pid, nome, ...valores]);
+  });
+  baixarCSV('modelo-estatisticas.csv', linhas);
+}
+function promptEstatisticas() {
+  return 'Preciso que você preencha um CSV com estatísticas (médias por jogo) de jogadores de basquete a partir de uma imagem que vou anexar.\n\n'
+    + 'O print mostra a tela "Per Game" de um jogo, com Jogos, MIN (minutos), PTS, REB, AST, ROU (roubadas de bola) e TOC (tocos/bloqueios).\n\n'
+    + 'Colei abaixo o modelo em CSV, já com as colunas "id" e "jogador" preenchidas — NÃO mude essas duas colunas. '
+    + 'Preencha as outras colunas pra cada jogador que aparecer na imagem, e devolva o CSV completo — '
+    + 'só o CSV, sem nenhum texto explicando antes ou depois, pra eu poder colar direto num arquivo.\n\n'
+    + '--- MODELO ---\n'
+    + linhasParaCSVTexto(document.querySelectorAll('#tblStats tbody tr'), 'estatisticas');
+}
+function importarEstatisticasCSV(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const linhas = parseCSV(String(e.target.result));
+    if (linhas.length < 2) { msg($('msgImportEstatisticas'), 'err', 'CSV vazio ou sem linhas de dados.'); return; }
+    const header = linhas[0].map(h => h.trim().toLowerCase());
+    const idxId = header.indexOf('id');
+    if (idxId === -1) { msg($('msgImportEstatisticas'), 'err', 'O CSV precisa ter uma coluna "id" — baixe o modelo e não apague essa coluna.'); return; }
+    const labelParaChave = {};
+    Object.entries(STATS_KEYS_JS).forEach(([chave, label]) => { labelParaChave[label.toLowerCase()] = chave; });
+    const limites = { games: [0, 200], min_pg: [0, 60], pts_pg: [0, 99], reb_pg: [0, 50], ast_pg: [0, 50], stl_pg: [0, 20], blk_pg: [0, 20] };
+
+    let aplicados = 0, semLinha = 0;
+    for (let i = 1; i < linhas.length; i++) {
+      const row = linhas[i];
+      if (!row[idxId]) continue;
+      const pid = parseInt(row[idxId], 10);
+      const tr = document.querySelector(`#tblStats tr[data-pid="${pid}"]`);
+      if (!tr) { semLinha++; continue; }
+      let mudou = false;
+      header.forEach((h, idx) => {
+        const chave = labelParaChave[h];
+        if (!chave) return;
+        const raw = row[idx];
+        if (!raw) return;
+        const num = parseFloat(String(raw).replace(',', '.'));
+        if (isNaN(num)) return;
+        const [min, max] = limites[chave];
+        const val = Math.max(min, Math.min(max, chave === 'games' ? Math.round(num) : num));
+        const inp = tr.querySelector(`[data-f="${chave}"]`);
+        if (inp) { inp.value = val; inp.style.borderColor = 'var(--amber)'; mudou = true; }
+      });
+      if (mudou) aplicados++;
+    }
+    let texto = `${aplicados} jogador(es) preenchidos a partir do CSV — confira os campos em amber e clique em <strong>Salvar estatísticas</strong>.`;
+    if (semLinha) texto += ` ${semLinha} linha(s) com um "id" que não bate com nenhum jogador deste elenco (ignoradas).`;
+    msg($('msgImportEstatisticas'), semLinha && aplicados ? 'warn' : (aplicados ? 'ok' : 'err'), texto);
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+$('btnModeloAtributos')?.addEventListener('click', baixarModeloAtributos);
+$('btnPromptAtributos')?.addEventListener('click', (e) => copiarTexto(promptAtributos(), e.currentTarget));
+$('fileImportAtributos')?.addEventListener('change', (e) => { if (e.target.files[0]) importarAtributosCSV(e.target.files[0]); e.target.value = ''; });
+
+$('btnModeloEstatisticas')?.addEventListener('click', baixarModeloEstatisticas);
+$('btnPromptEstatisticas')?.addEventListener('click', (e) => copiarTexto(promptEstatisticas(), e.currentTarget));
+$('fileImportEstatisticas')?.addEventListener('change', (e) => { if (e.target.files[0]) importarEstatisticasCSV(e.target.files[0]); e.target.value = ''; });
 
 /* ── Abas ── */
 $('tabs').addEventListener('click', e => {
