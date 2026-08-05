@@ -38,6 +38,9 @@ const DT_CAP_OVR = 380;
 const DT_TIME_SIZE = 5;
 const DT_APOSTA_MIN = 1;
 const DT_APOSTA_MAX = 100;
+// Contra a máquina o teto é menor: ela sempre monta o time ótimo (ver
+// dtMontarTimeCpu), então o risco por partida é maior que jogador-vs-jogador.
+const DT_APOSTA_MAX_CPU = 50;
 const DT_AGUARDANDO_TIMEOUT_H = 24;
 const DT_MONTANDO_TIMEOUT_MIN = 15;
 
@@ -102,6 +105,59 @@ function dtLendas(PDO $pdo): array
         ORDER BY n.ovr DESC, p.nome ASC
     ");
     return $st->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Time da máquina: o melhor time matematicamente possível dentro do teto —
+ * mochila (0/1 knapsack) de exatamente 5 itens maximizando a soma de OVR sem
+ * estourar DT_CAP_OVR. É o adversário mais difícil que dá pra montar sem
+ * trapacear o próprio teto salarial. Embaralha antes pra variar quais lendas
+ * empatadas em OVR saem, sem perder força nenhuma — o resultado ótimo é o
+ * mesmo, só a combinação exata entre empates muda a cada partida.
+ */
+function dtMontarTimeCpu(PDO $pdo): array
+{
+    $lendas = dtLendas($pdo);
+    shuffle($lendas);
+    $n = count($lendas);
+
+    // dp[k][s] = dá pra montar k lendas somando s OVR (s vai de 0 até o teto).
+    // escolhas[i][k][s] = a lenda i foi usada pra alcançar dp[k][s] — é o que
+    // permite reconstruir QUAIS lendas entram, não só a soma máxima.
+    $dp = array_fill(0, DT_TIME_SIZE + 1, array_fill(0, DT_CAP_OVR + 1, false));
+    $dp[0][0] = true;
+    $escolhas = [];
+
+    for ($i = 0; $i < $n; $i++) {
+        $ovr = (int)$lendas[$i]['ovr'];
+        if ($ovr > DT_CAP_OVR) continue;
+        $escolhas[$i] = [];
+        for ($k = DT_TIME_SIZE - 1; $k >= 0; $k--) {
+            for ($s = DT_CAP_OVR - $ovr; $s >= 0; $s--) {
+                if ($dp[$k][$s] && !$dp[$k + 1][$s + $ovr]) {
+                    $dp[$k + 1][$s + $ovr] = true;
+                    $escolhas[$i][($k + 1) . '_' . ($s + $ovr)] = true;
+                }
+            }
+        }
+    }
+
+    $melhorSoma = 0;
+    for ($s = DT_CAP_OVR; $s >= 0; $s--) {
+        if ($dp[DT_TIME_SIZE][$s]) { $melhorSoma = $s; break; }
+    }
+
+    $ids = [];
+    $k = DT_TIME_SIZE;
+    $s = $melhorSoma;
+    for ($i = $n - 1; $i >= 0 && $k > 0; $i--) {
+        if (!empty($escolhas[$i]["{$k}_{$s}"])) {
+            $ids[] = (int)$lendas[$i]['id'];
+            $s -= (int)$lendas[$i]['ovr'];
+            $k--;
+        }
+    }
+    return $ids;
 }
 
 /** Carrega as 5 lendas de um time (com os 10 atributos, pra calcular destaques). */
@@ -285,11 +341,15 @@ function dtSerializar(PDO $pdo, ?array $duelo, int $userId): ?array
     $souCriador = (int)$duelo['id_criador'] === $userId;
 
     $oponenteNome = null;
-    if ($duelo['id_desafiado']) {
+    if ($duelo['id_desafiado'] !== null) {
         $oponenteId = $souCriador ? (int)$duelo['id_desafiado'] : (int)$duelo['id_criador'];
-        $st = $pdo->prepare('SELECT nome FROM games_usuarios WHERE id = ?');
-        $st->execute([$oponenteId]);
-        $oponenteNome = $st->fetchColumn() ?: 'Oponente';
+        if ($oponenteId === 0) {
+            $oponenteNome = 'Máquina 🤖';
+        } else {
+            $st = $pdo->prepare('SELECT nome FROM games_usuarios WHERE id = ?');
+            $st->execute([$oponenteId]);
+            $oponenteNome = $st->fetchColumn() ?: 'Oponente';
+        }
     }
 
     $out = [
@@ -351,6 +411,53 @@ if (($_POST['acao'] ?? '') !== '') {
                 $codigo = dtGerarCodigo($pdo);
                 $pdo->prepare("INSERT INTO dreamteam_duelos (codigo, id_criador, aposta, status) VALUES (?, ?, ?, 'aguardando')")
                     ->execute([$codigo, $user_id, $aposta]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
+        // Contra a máquina: sem sala de espera — o time da CPU (o melhor
+        // possível dentro do teto, ver dtMontarTimeCpu) já nasce pronto, então
+        // o duelo entra direto em 'montando' e o usuário já cai na tela de
+        // montar o próprio time. id_desafiado=0 marca "é a máquina" (nenhum
+        // usuário de verdade tem id 0) — se ela vencer, o pagamento pra id=0
+        // não afeta ninguém (a aposta só some, igual perder pra "a casa").
+        if ($acao === 'criar_vs_cpu') {
+            if (dtDueloEmAndamento($pdo, $user_id)) {
+                echo json_encode(['ok' => false, 'msg' => 'Você já tem um duelo em andamento.']);
+                exit;
+            }
+            $aposta = (int)($_POST['aposta'] ?? 0);
+            if ($aposta < DT_APOSTA_MIN || $aposta > DT_APOSTA_MAX_CPU) {
+                echo json_encode(['ok' => false, 'msg' => 'Contra a máquina a aposta deve ser entre ' . DT_APOSTA_MIN . ' e ' . DT_APOSTA_MAX_CPU . ' moedas.']);
+                exit;
+            }
+
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ? FOR UPDATE');
+                $st->execute([$user_id]);
+                $saldo = (int)$st->fetchColumn();
+                if ($saldo < $aposta) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Saldo insuficiente.']);
+                    exit;
+                }
+                $pdo->prepare('UPDATE games_usuarios SET pontos = pontos - ? WHERE id = ?')->execute([$aposta, $user_id]);
+
+                $idsCpu = dtMontarTimeCpu($pdo);
+                $timeCpu = dtCarregarTime($pdo, $idsCpu);
+                $ovrCpu = array_sum(array_column($timeCpu, 'ovr'));
+
+                $codigo = dtGerarCodigo($pdo);
+                $pdo->prepare("INSERT INTO dreamteam_duelos
+                        (codigo, id_criador, id_desafiado, aposta, status, time_desafiado, ovr_desafiado, pronto_desafiado, entrou_em)
+                        VALUES (?, ?, 0, ?, 'montando', ?, ?, 1, NOW())")
+                    ->execute([$codigo, $user_id, $aposta, json_encode($idsCpu), $ovrCpu]);
                 $pdo->commit();
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) $pdo->rollBack();
@@ -689,6 +796,7 @@ function renderCriarEntrar() {
       <div class="dt-tabs">
         <div class="dt-tab active" id="dtTabCriar" onclick="dtTrocarTab('criar')">Criar duelo</div>
         <div class="dt-tab" id="dtTabEntrar" onclick="dtTrocarTab('entrar')">Entrar com código</div>
+        <div class="dt-tab" id="dtTabCpu" onclick="dtTrocarTab('cpu')">Vs. Máquina 🤖</div>
       </div>
       <div id="dtTabConteudo"></div>
     </div>`;
@@ -698,6 +806,7 @@ function renderCriarEntrar() {
 function dtTrocarTab(tab) {
   document.getElementById('dtTabCriar').classList.toggle('active', tab === 'criar');
   document.getElementById('dtTabEntrar').classList.toggle('active', tab === 'entrar');
+  document.getElementById('dtTabCpu').classList.toggle('active', tab === 'cpu');
   const c = document.getElementById('dtTabConteudo');
   if (tab === 'criar') {
     c.innerHTML = `
@@ -707,13 +816,21 @@ function dtTrocarTab(tab) {
         <p class="field-hint">Debitada na hora — devolvida se ninguém entrar em 24h.</p>
       </div>
       <button class="btn-dt" id="dtBtnCriar" onclick="dtCriarDuelo()"><i class="bi bi-plus-circle me-2"></i>Criar duelo</button>`;
-  } else {
+  } else if (tab === 'entrar') {
     c.innerHTML = `
       <div class="field">
         <label>Código do duelo</label>
         <input type="text" id="dtCodigo" maxlength="6" placeholder="Ex: A7K2QX" style="text-transform:uppercase;letter-spacing:3px;text-align:center;font-size:18px">
       </div>
       <button class="btn-dt" id="dtBtnEntrar" onclick="dtEntrarDuelo()"><i class="bi bi-box-arrow-in-right me-2"></i>Entrar no duelo</button>`;
+  } else {
+    c.innerHTML = `
+      <div class="field">
+        <label>Aposta (1 a 50 moedas)</label>
+        <input type="number" id="dtApostaCpu" min="1" max="50" value="20">
+        <p class="field-hint">A máquina monta o melhor time possível dentro do teto salarial — é para valer, por isso a aposta é menor. Vence e leva o dobro; perde e fica sem nada. Sem sala de espera, o confronto acontece assim que você confirmar seu time.</p>
+      </div>
+      <button class="btn-dt" id="dtBtnCpu" onclick="dtCriarVsCpu()"><i class="bi bi-cpu me-2"></i>Desafiar a máquina</button>`;
   }
 }
 
@@ -732,6 +849,15 @@ async function dtEntrarDuelo() {
   if (!codigo) return;
   btn.disabled = true;
   const r = await dtPost('entrar', { codigo });
+  if (!r.ok) { alert(r.msg); btn.disabled = false; return; }
+  await atualizar();
+}
+
+async function dtCriarVsCpu() {
+  const btn = document.getElementById('dtBtnCpu');
+  const aposta = parseInt(document.getElementById('dtApostaCpu').value, 10);
+  btn.disabled = true;
+  const r = await dtPost('criar_vs_cpu', { aposta });
   if (!r.ok) { alert(r.msg); btn.disabled = false; return; }
   await atualizar();
 }
