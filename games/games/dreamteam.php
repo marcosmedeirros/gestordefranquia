@@ -1041,7 +1041,13 @@ function renderCriarEntrar() {
       <div class="dtcard-title"><i class="bi bi-award-fill me-1"></i>Ranking — confronto online</div>
       <div id="dtRankingBody"><p class="dt-empty">Carregando ranking...</p></div>
     </div>`;
-  dtTrocarTab('criar');
+  // Veio de um link de convite (?codigo=XXXXXX)? Já cai direto na aba "Entrar com código" com ele preenchido.
+  const codigoConvite = new URLSearchParams(window.location.search).get('codigo');
+  dtTrocarTab(codigoConvite ? 'entrar' : 'criar');
+  if (codigoConvite) {
+    const input = document.getElementById('dtCodigo');
+    if (input) input.value = codigoConvite.toUpperCase();
+  }
   dtCarregarRanking();
 }
 
@@ -1133,11 +1139,43 @@ function renderAguardando(duelo) {
         <div class="dt-codigo-valor">${esc(duelo.codigo)}</div>
         <div class="dt-codigo-label">Compartilhe esse código</div>
       </div>
+      <button class="btn-dt" id="dtBtnCopiarLink" onclick="dtCopiarLink('${duelo.codigo}')"><i class="bi bi-link-45deg me-2"></i>Copiar link do convite</button>
       <p class="dtcard-sub" style="text-align:center;margin-bottom:4px">Aposta: <strong>${duelo.aposta} moedas</strong></p>
       <div class="dt-spinner"></div>
       <p class="dt-empty">Assim que alguém entrar com o código, a tela avança sozinha.</p>
       <button class="btn-dt-ghost" onclick="dtCancelar()"><i class="bi bi-x-circle me-1"></i>Cancelar e receber a aposta de volta</button>
     </div>`;
+}
+
+function dtLinkConvite(codigo) {
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.searchParams.set('game', 'dreamteam');
+  url.searchParams.set('codigo', codigo);
+  return url.toString();
+}
+
+async function dtCopiarLink(codigo) {
+  const link = dtLinkConvite(codigo);
+  const btn = document.getElementById('dtBtnCopiarLink');
+  try {
+    await navigator.clipboard.writeText(link);
+  } catch (e) {
+    // Sem permissão de clipboard (ex: http sem contexto seguro) — seleciona um campo temporário como fallback.
+    const tmp = document.createElement('textarea');
+    tmp.value = link;
+    tmp.style.position = 'fixed';
+    tmp.style.opacity = '0';
+    document.body.appendChild(tmp);
+    tmp.select();
+    try { document.execCommand('copy'); } catch (e2) { /* ignora — pior caso, usuário copia manualmente */ }
+    document.body.removeChild(tmp);
+  }
+  if (btn) {
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check-lg me-2"></i>Link copiado!';
+    setTimeout(() => { if (btn.isConnected) btn.innerHTML = original; }, 2000);
+  }
 }
 
 async function dtCancelar() {
