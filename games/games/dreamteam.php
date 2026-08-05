@@ -222,10 +222,16 @@ function dtGerarBoxscore(array $roster, int $placarTime): array
 /** 4 parciais que somam exatamente ao placar final de cada lado — o front revela elas indo, tipo simcast. */
 function dtGerarQuartos(int $placarA, int $placarB): array
 {
-    $pesos = [];
-    for ($q = 1; $q <= 4; $q++) $pesos[$q] = random_int(8, 12);
-    $partesA = dtDistribuirTotal($pesos, $placarA);
-    $partesB = dtDistribuirTotal($pesos, $placarB);
+    // Pesos INDEPENDENTES pra cada lado — usar o mesmo peso pros dois fazia o time com mais
+    // pontos no total vencer literalmente todo quarto (nunca dava virada, só diferença de escala).
+    $pesosA = [];
+    $pesosB = [];
+    for ($q = 1; $q <= 4; $q++) {
+        $pesosA[$q] = random_int(7, 13);
+        $pesosB[$q] = random_int(7, 13);
+    }
+    $partesA = dtDistribuirTotal($pesosA, $placarA);
+    $partesB = dtDistribuirTotal($pesosB, $placarB);
 
     $quartos = [];
     for ($q = 1; $q <= 4; $q++) $quartos[] = ['a' => $partesA[$q], 'b' => $partesB[$q]];
@@ -414,6 +420,7 @@ function dtRankingVitorias(PDO $pdo, int $limite = 10): array
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $out[] = [
             'nome' => dtNomeExibicao($pdo, (int)$r['user_id']),
+            'logo' => dtTimeDoUsuario($pdo, (int)$r['user_id'])['logo'],
             'vitorias' => (int)$r['vitorias'],
             'derrotas' => (int)$r['derrotas'],
         ];
@@ -457,8 +464,10 @@ function dtMaioresRivalidades(PDO $pdo, int $limite = 5): array
         $out[] = [
             'total' => (int)$r['total'],
             'nome_a' => dtNomeExibicao($pdo, (int)$r['user_a']),
+            'logo_a' => dtTimeDoUsuario($pdo, (int)$r['user_a'])['logo'],
             'vitorias_a' => $vitoriasA,
             'nome_b' => dtNomeExibicao($pdo, (int)$r['user_b']),
+            'logo_b' => dtTimeDoUsuario($pdo, (int)$r['user_b'])['logo'],
             'vitorias_b' => $vitoriasB,
             'lider' => $vitoriasA > $vitoriasB ? 'a' : ($vitoriasB > $vitoriasA ? 'b' : null),
         ];
@@ -1045,6 +1054,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .dt-tabs{display:flex;gap:8px;margin-bottom:16px}
 .dt-tab{flex:1;text-align:center;padding:10px;border-radius:10px;background:var(--panel2);border:1.5px solid var(--border);cursor:pointer;font-size:12px;font-weight:700;color:var(--text2);transition:.15s}
 .dt-tab.active{border-color:var(--red);background:var(--red-soft);color:var(--red)}
+.dt-tab-destaque{border-color:var(--amber);color:var(--amber);box-shadow:0 0 0 1px color-mix(in srgb, var(--amber) 35%, transparent)}
+.dt-tab-destaque.active{border-color:var(--amber);background:var(--amber-soft);color:var(--amber);box-shadow:0 0 12px color-mix(in srgb, var(--amber) 45%, transparent)}
 
 .field label{display:block;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:6px}
 .field input{width:100%;background:var(--panel2);border:1.5px solid var(--border);border-radius:10px;padding:11px 12px;font-family:var(--font);font-size:14px;font-weight:700;color:var(--text);outline:none;transition:.15s}
@@ -1131,7 +1142,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .dt-ranking-lista{display:flex;flex-direction:column;gap:6px}
 .dt-ranking-item{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--panel2);border:1px solid var(--border);border-radius:10px}
 .dt-ranking-pos{font-size:11px;font-weight:900;color:var(--text2);min-width:22px}
-.dt-ranking-nome{font-size:12.5px;font-weight:700;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dt-ranking-nome{font-size:12.5px;font-weight:700;color:var(--text);flex:1;min-width:0;display:flex;align-items:center;gap:6px}
+.dt-ranking-nome span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dt-ranking-vd{font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
 
 .dt-time-logo{width:20px;height:20px;object-fit:contain;border-radius:5px;flex-shrink:0;background:var(--panel3);vertical-align:middle}
@@ -1142,6 +1154,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   .dt-roster-slot{padding:6px 2px;min-height:50px}
   .dt-roster-slot .dt-rs-nome{font-size:8.5px}
 }
+
+/* Modal próprio do jogo — substitui alert()/confirm() nativos do navegador. */
+.dt-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center;padding:20px}
+.dt-modal-overlay.show{display:flex}
+.dt-modal{background:var(--panel2);border:1px solid var(--border2);border-radius:16px;padding:22px 20px;max-width:340px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.dt-modal-msg{font-size:14px;font-weight:600;color:var(--text);text-align:center;line-height:1.5;margin-bottom:18px;white-space:pre-line}
+.dt-modal-botoes{display:flex;gap:10px}
+.dt-modal-botoes button{flex:1;padding:12px;border-radius:10px;border:none;font-family:var(--font);font-size:13px;font-weight:800;cursor:pointer;transition:.15s}
+.dt-modal-btn-ok{background:var(--red);color:#fff}
+.dt-modal-btn-ok:hover{filter:brightness(1.1)}
+.dt-modal-btn-cancelar{background:var(--panel3);color:var(--text2);border:1px solid var(--border2) !important}
+.dt-modal-btn-cancelar:hover{color:var(--text)}
 </style>
 </head>
 <body>
@@ -1158,6 +1182,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <div class="main" id="dtMain">
   <div class="dtcard"><div class="dt-spinner"></div><p class="dt-empty">Carregando...</p></div>
+</div>
+
+<div class="dt-modal-overlay" id="dtModalOverlay">
+  <div class="dt-modal">
+    <p class="dt-modal-msg" id="dtModalMsg"></p>
+    <div class="dt-modal-botoes" id="dtModalBotoes"></div>
+  </div>
 </div>
 
 <script>
@@ -1179,6 +1210,36 @@ function esc(s) {
   return d.innerHTML;
 }
 
+// Modal próprio do jogo no lugar de alert()/confirm() nativos — mesma cara do resto do app,
+// sem aquela barra "site diz" do navegador.
+function dtAlerta(msg) {
+  return new Promise((resolve) => {
+    document.getElementById('dtModalMsg').textContent = msg;
+    document.getElementById('dtModalBotoes').innerHTML = `<button class="dt-modal-btn-ok" id="dtModalOk">OK</button>`;
+    document.getElementById('dtModalOverlay').classList.add('show');
+    document.getElementById('dtModalOk').onclick = () => {
+      document.getElementById('dtModalOverlay').classList.remove('show');
+      resolve();
+    };
+  });
+}
+
+function dtConfirmar(msg) {
+  return new Promise((resolve) => {
+    document.getElementById('dtModalMsg').textContent = msg;
+    document.getElementById('dtModalBotoes').innerHTML = `
+      <button class="dt-modal-btn-cancelar" id="dtModalCancelar">Cancelar</button>
+      <button class="dt-modal-btn-ok" id="dtModalConfirmar">Confirmar</button>`;
+    document.getElementById('dtModalOverlay').classList.add('show');
+    const fechar = (resultado) => {
+      document.getElementById('dtModalOverlay').classList.remove('show');
+      resolve(resultado);
+    };
+    document.getElementById('dtModalCancelar').onclick = () => fechar(false);
+    document.getElementById('dtModalConfirmar').onclick = () => fechar(true);
+  });
+}
+
 async function dtPost(acao, params = {}) {
   const body = new URLSearchParams({ acao, ...params });
   const res = await fetch(window.location.href, { method: 'POST', body });
@@ -1192,9 +1253,9 @@ function renderCriarEntrar() {
       <div class="dtcard-title"><i class="bi bi-trophy me-1"></i>Starting5x5</div>
       <p class="dtcard-sub">Gire a roleta de escalações históricas e escolha 1 jogador por vez pra montar seu titular (PG/SG/SF/PF/C). Aposte moedas e desafie um amigo — ou a máquina.</p>
       <div class="dt-tabs">
-        <div class="dt-tab active" id="dtTabCriar" onclick="dtTrocarTab('criar')">Amigo</div>
+        <div class="dt-tab dt-tab-destaque active" id="dtTabAleatorio" onclick="dtTrocarTab('aleatorio')">⚡ Aleatório</div>
+        <div class="dt-tab" id="dtTabCriar" onclick="dtTrocarTab('criar')">Amigo</div>
         <div class="dt-tab" id="dtTabEntrar" onclick="dtTrocarTab('entrar')">Código</div>
-        <div class="dt-tab" id="dtTabAleatorio" onclick="dtTrocarTab('aleatorio')">Aleatório</div>
         <div class="dt-tab" id="dtTabCpu" onclick="dtTrocarTab('cpu')">CPU 🤖</div>
       </div>
       <div id="dtTabConteudo"></div>
@@ -1208,8 +1269,9 @@ function renderCriarEntrar() {
       <div id="dtRivalidadesBody"><p class="dt-empty">Carregando...</p></div>
     </div>`;
   // Veio de um link de convite (?codigo=XXXXXX)? Já cai direto na aba "Entrar com código" com ele preenchido.
+  // Sem link, o modo aleatório é o padrão — é o jeito mais rápido de cair num confronto.
   const codigoConvite = new URLSearchParams(window.location.search).get('codigo');
-  dtTrocarTab(codigoConvite ? 'entrar' : 'criar');
+  dtTrocarTab(codigoConvite ? 'entrar' : 'aleatorio');
   if (codigoConvite) {
     const input = document.getElementById('dtCodigo');
     if (input) input.value = codigoConvite.toUpperCase();
@@ -1230,7 +1292,7 @@ async function dtCarregarRanking() {
         body.innerHTML = `<div class="dt-ranking-lista">${r.ranking.map((rk, i) => `
           <div class="dt-ranking-item">
             <span class="dt-ranking-pos">${i + 1}º</span>
-            <span class="dt-ranking-nome">${esc(rk.nome)}</span>
+            <span class="dt-ranking-nome">${dtLogoImg(rk.logo)}<span>${esc(rk.nome)}</span></span>
             <span class="dt-ranking-vd"><b style="color:var(--green)">${rk.vitorias}V</b> <span style="color:var(--text3)">/</span> <b style="color:var(--text2)">${rk.derrotas}D</b></span>
           </div>`).join('')}</div>`;
       }
@@ -1241,9 +1303,9 @@ async function dtCarregarRanking() {
       } else {
         rivBody.innerHTML = `<div class="dt-ranking-lista">${r.rivalidades.map(rv => `
           <div class="dt-ranking-item">
-            <span class="dt-ranking-nome" style="${rv.lider === 'a' ? 'font-weight:900;color:var(--text)' : ''}">${esc(rv.nome_a)}</span>
+            <span class="dt-ranking-nome" style="${rv.lider === 'a' ? 'font-weight:900;color:var(--text)' : ''}">${dtLogoImg(rv.logo_a)}<span>${esc(rv.nome_a)}</span></span>
             <span class="dt-ranking-vd"><b style="${rv.lider === 'a' ? 'color:var(--green)' : ''}">${rv.vitorias_a}</b> × <b style="${rv.lider === 'b' ? 'color:var(--green)' : ''}">${rv.vitorias_b}</b></span>
-            <span class="dt-ranking-nome" style="text-align:right;${rv.lider === 'b' ? 'font-weight:900;color:var(--text)' : ''}">${esc(rv.nome_b)}</span>
+            <span class="dt-ranking-nome" style="justify-content:flex-end;${rv.lider === 'b' ? 'font-weight:900;color:var(--text)' : ''}"><span>${esc(rv.nome_b)}</span>${dtLogoImg(rv.logo_b)}</span>
           </div>`).join('')}</div>`;
       }
     }
@@ -1296,7 +1358,7 @@ async function dtCriarDuelo() {
   const aposta = parseInt(document.getElementById('dtAposta').value, 10);
   btn.disabled = true;
   const r = await dtPost('criar', { aposta });
-  if (!r.ok) { alert(r.msg); btn.disabled = false; return; }
+  if (!r.ok) { await dtAlerta(r.msg); btn.disabled = false; return; }
   await atualizar();
 }
 
@@ -1306,7 +1368,7 @@ async function dtEntrarDuelo() {
   if (!codigo) return;
   btn.disabled = true;
   const r = await dtPost('entrar', { codigo });
-  if (!r.ok) { alert(r.msg); btn.disabled = false; return; }
+  if (!r.ok) { await dtAlerta(r.msg); btn.disabled = false; return; }
   await atualizar();
 }
 
@@ -1315,7 +1377,7 @@ async function dtCriarVsCpu() {
   const aposta = parseInt(document.getElementById('dtApostaCpu').value, 10);
   btn.disabled = true;
   const r = await dtPost('criar_vs_cpu', { aposta });
-  if (!r.ok) { alert(r.msg); btn.disabled = false; return; }
+  if (!r.ok) { await dtAlerta(r.msg); btn.disabled = false; return; }
   await atualizar();
 }
 
@@ -1323,7 +1385,7 @@ async function dtJogarAleatorio() {
   const btn = document.getElementById('dtBtnAleatorio');
   btn.disabled = true;
   const r = await dtPost('jogar_aleatorio');
-  if (!r.ok) { alert(r.msg); btn.disabled = false; return; }
+  if (!r.ok) { await dtAlerta(r.msg); btn.disabled = false; return; }
   await atualizar();
 }
 
@@ -1389,9 +1451,9 @@ async function dtCopiarLink(codigo) {
 }
 
 async function dtCancelar() {
-  if (!confirm('Cancelar o duelo e receber a aposta de volta?')) return;
+  if (!(await dtConfirmar('Cancelar o duelo e receber a aposta de volta?'))) return;
   const r = await dtPost('cancelar');
-  if (!r.ok) { alert(r.msg); return; }
+  if (!r.ok) { await dtAlerta(r.msg); return; }
   await atualizar();
 }
 
@@ -1452,10 +1514,14 @@ async function dtReposicionar(de, para) {
   processando = true;
   try {
     const r = await dtPost('reposicionar_jogador', { de, para });
-    if (!r.ok) { alert(r.msg); processando = false; return; }
-    processando = false;
+    if (!r.ok) { await dtAlerta(r.msg); return; }
     await atualizar();
   } catch (e) {
+    // silencioso
+  } finally {
+    // Só libera DEPOIS que a tela já atualizou — senão um clique durante a janela entre a resposta
+    // chegar e o re-render acontecer podia disparar outra ação numa tela que já tava desatualizada
+    // (ex: clicar de novo bem na hora que o duelo virava "simulado" e o alerta pipocava sem motivo).
     processando = false;
   }
 }
@@ -1530,10 +1596,11 @@ async function dtEscolherJogador(nome, posicao) {
   processando = true;
   try {
     const r = await dtPost('escolher_jogador', { jogador: nome, posicao });
-    if (!r.ok) { alert(r.msg); processando = false; return; }
-    processando = false;
+    if (!r.ok) { await dtAlerta(r.msg); return; }
     await atualizar();
   } catch (e) {
+    // silencioso
+  } finally {
     processando = false;
   }
 }
@@ -1542,7 +1609,7 @@ async function dtGirarDeNovo() {
   const btn = document.getElementById('dtBtnGirar');
   btn.disabled = true;
   const r = await dtPost('girar_de_novo');
-  if (!r.ok) { alert(r.msg); }
+  if (!r.ok) { await dtAlerta(r.msg); }
   await atualizar();
 }
 
@@ -1550,7 +1617,7 @@ async function dtSortearTime() {
   const btn = document.getElementById('dtBtnSortear');
   if (btn) btn.disabled = true;
   const r = await dtPost('sortear_time');
-  if (!r.ok) { alert(r.msg); if (btn) btn.disabled = false; return; }
+  if (!r.ok) { await dtAlerta(r.msg); if (btn) btn.disabled = false; return; }
   await atualizar();
 }
 
@@ -1591,6 +1658,10 @@ async function dtRodarSimcast(duelo) {
     cumA += qa; cumB += qb;
     numA.textContent = cumA;
     numB.textContent = cumB;
+    // Destaca em verde quem tá na frente NAQUELE momento — atualiza a cada quarto, então
+    // acompanha virada de placar em vez de só marcar o vencedor no final.
+    numA.classList.toggle('vencedor', cumA > cumB);
+    numB.classList.toggle('vencedor', cumB > cumA);
     linhas.push(`Q${q + 1} ${qa}-${qb}`);
     quartosEl.textContent = linhas.join('  •  ');
   }

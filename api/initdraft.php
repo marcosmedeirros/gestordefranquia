@@ -712,8 +712,10 @@ if ($method === 'GET') {
                     ]);
                 }
 
-                // BOM no começo: sem ele o Excel no Windows abre nome acentuado errado.
-                $csv = "\xEF\xBB\xBF" . implode("\r\n", $linhas);
+                // BOM no começo: sem ele o Excel no Windows abre nome acentuado errado. "sep=,"
+                // como 1ª linha força o Excel a usar vírgula mesmo em config regional PT-BR (que
+                // usa ";" por padrão) — sem isso ele jogava tudo numa coluna só ao abrir direto.
+                $csv = "\xEF\xBB\xBFsep=,\r\n" . implode("\r\n", $linhas);
                 header('Content-Type: text/csv; charset=utf-8');
                 header('Content-Disposition: attachment; filename="draft-inicial-pool-' . date('Y-m-d') . '.csv"');
                 header('Content-Length: ' . strlen($csv));
@@ -985,6 +987,17 @@ if ($method === 'POST') {
                 $handle = fopen($file['tmp_name'], 'r');
                 if (!$handle) throw new InvalidArgumentException('Não foi possível ler o arquivo');
 
+                // Se o CSV veio do nosso próprio export_csv, a 1ª linha é a diretiva "sep=," (só
+                // serve pro Excel abrir com vírgula em config regional PT-BR) — não é dado nem
+                // cabeçalho, então pula ela antes de detectar o resto.
+                $posDados = 0;
+                $primeiraLinha = fgets($handle);
+                if ($primeiraLinha !== false && trim($primeiraLinha, "\xEF\xBB\xBF\r\n ") === 'sep=,') {
+                    $posDados = ftell($handle);
+                } else {
+                    rewind($handle);
+                }
+
                 // Tenta detectar cabeçalho; aceita colunas: name,position,age,ovr
                 $header = fgetcsv($handle, 1000, ',');
                 $hasHeader = false;
@@ -1000,8 +1013,8 @@ if ($method === 'POST') {
                             'ovr' => array_search('ovr', $lower),
                         ];
                     } else {
-                        // volta para primeira linha como dados
-                        rewind($handle);
+                        // volta para o início dos dados (não do arquivo — se tinha "sep=,", já foi consumida)
+                        fseek($handle, $posDados);
                     }
                 }
 
