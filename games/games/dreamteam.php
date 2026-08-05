@@ -15,9 +15,6 @@
  * Base própria (dtTimesHistoricos), sem depender do pool do Build-A-Player —
  * são escalações reais de temporadas específicas, não lendas individuais.
  *
- * De propósito, não está no catálogo de games.php ainda — só quem tem o
- * link direto (games/games/index.php?game=dreamteam) chega aqui.
- *
  * Incluído por games/games/index.php — $pdo e $_SESSION já disponíveis.
  */
 
@@ -377,6 +374,30 @@ function dtExpirarAntigos(PDO $pdo): void
     }
 }
 
+/** Ranking de mais vitórias — só conta confronto online (id_desafiado > 0, exclui a máquina). */
+function dtRankingVitorias(PDO $pdo, int $limite = 10): array
+{
+    $st = $pdo->prepare("
+        SELECT gu.nome,
+               SUM(CASE WHEN x.venceu = 1 THEN 1 ELSE 0 END) AS vitorias,
+               SUM(CASE WHEN x.venceu = 0 THEN 1 ELSE 0 END) AS derrotas
+        FROM (
+            SELECT id_criador AS user_id, (id_vencedor = id_criador) AS venceu
+            FROM dreamteam_duelos WHERE status = 'simulado' AND id_desafiado > 0
+            UNION ALL
+            SELECT id_desafiado AS user_id, (id_vencedor = id_desafiado) AS venceu
+            FROM dreamteam_duelos WHERE status = 'simulado' AND id_desafiado > 0
+        ) x
+        JOIN games_usuarios gu ON gu.id = x.user_id
+        GROUP BY x.user_id, gu.nome
+        ORDER BY vitorias DESC, derrotas ASC
+        LIMIT ?
+    ");
+    $st->bindValue(1, $limite, PDO::PARAM_INT);
+    $st->execute();
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
 function dtSerializar(PDO $pdo, ?array $duelo, int $userId): ?array
 {
     if (!$duelo) return null;
@@ -384,17 +405,24 @@ function dtSerializar(PDO $pdo, ?array $duelo, int $userId): ?array
     $meuLado = $souCriador ? 'criador' : 'desafiado';
     $oponenteLado = $souCriador ? 'desafiado' : 'criador';
 
+    $ehPvp = false;
     $oponenteNome = null;
     if ($duelo['id_desafiado'] !== null) {
         $oponenteId = $souCriador ? (int)$duelo['id_desafiado'] : (int)$duelo['id_criador'];
         if ($oponenteId === 0) {
             $oponenteNome = 'Máquina 🤖';
         } else {
+            $ehPvp = true;
             $st = $pdo->prepare('SELECT nome FROM games_usuarios WHERE id = ?');
             $st->execute([$oponenteId]);
             $oponenteNome = $st->fetchColumn() ?: 'Oponente';
         }
     }
+    // Nome de verdade de quem está vendo a tela — só usado no lugar de "Você" quando é PvP
+    // (contra a máquina soa mais natural continuar chamando de "Você").
+    $stMeuNome = $pdo->prepare('SELECT nome FROM games_usuarios WHERE id = ?');
+    $stMeuNome->execute([$userId]);
+    $meuNome = $stMeuNome->fetchColumn() ?: 'Você';
 
     $out = [
         'id' => (int)$duelo['id'],
@@ -402,7 +430,9 @@ function dtSerializar(PDO $pdo, ?array $duelo, int $userId): ?array
         'status' => $duelo['status'],
         'aposta' => (int)$duelo['aposta'],
         'sou_criador' => $souCriador,
+        'eh_pvp' => $ehPvp,
         'oponente_nome' => $oponenteNome,
+        'meu_nome' => $meuNome,
     ];
 
     if (in_array($duelo['status'], ['draft', 'simulado'], true)) {
@@ -797,6 +827,11 @@ if (($_POST['acao'] ?? '') !== '') {
             exit;
         }
 
+        if ($acao === 'ranking') {
+            echo json_encode(['ok' => true, 'ranking' => dtRankingVitorias($pdo)]);
+            exit;
+        }
+
         echo json_encode(['ok' => false, 'msg' => 'Ação inválida.']);
     } catch (Throwable $e) {
         error_log('[dreamteam] ' . $e->getMessage());
@@ -936,6 +971,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .dt-destaque-txt{font-size:12px;color:var(--text)}
 .dt-destaque-txt b{color:var(--text)}
 
+.dt-ranking-lista{display:flex;flex-direction:column;gap:6px}
+.dt-ranking-item{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--panel2);border:1px solid var(--border);border-radius:10px}
+.dt-ranking-pos{font-size:11px;font-weight:900;color:var(--text2);min-width:22px}
+.dt-ranking-nome{font-size:12.5px;font-weight:700;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dt-ranking-vd{font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+
 @media(max-width:420px){
   .dt-roster-grid{grid-template-columns:repeat(5,1fr);gap:4px}
   .dt-roster-slot{padding:6px 2px;min-height:50px}
@@ -963,10 +1004,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 const POSICOES = ['PG', 'SG', 'SF', 'PF', 'C'];
 const MEU_USER_ID = <?= $user_id ?>;
 let ESTADO_INICIAL = <?= json_encode($estadoInicial) ?>;
-let dueloDispensadoId = null;
+// dueloDispensadoId/resultadoFinalId guardados no localStorage (não só em memória) — senão um
+// F5 ou sair-e-voltar pra página perdia essas marcações e o simcast rodava de novo do zero, ou
+// a tela de resultado já vista/dispensada reaparecia como se fosse novidade.
+let dueloDispensadoId = parseInt(localStorage.getItem('dt_dispensado_id') || '', 10) || null;
 let processando = false; // trava o poll enquanto uma ação (escolher/girar/reposicionar) está em voo
-let resultadoEmAnimacaoId = null; // duelo cujo simcast já está rodando — ignora polls repetidos
-let resultadoFinalId = null; // duelo cujo simcast já terminou — renderiza a tela final direto
+let resultadoEmAnimacaoId = null; // duelo cujo simcast está rodando NESSA aba agora — só trava polls repetidos, não precisa persistir
+let resultadoFinalId = parseInt(localStorage.getItem('dt_resultado_final_id') || '', 10) || null; // duelo cujo simcast já terminou — renderiza a tela final direto
 
 function esc(s) {
   const d = document.createElement('div');
@@ -992,8 +1036,33 @@ function renderCriarEntrar() {
         <div class="dt-tab" id="dtTabCpu" onclick="dtTrocarTab('cpu')">Vs. Máquina 🤖</div>
       </div>
       <div id="dtTabConteudo"></div>
+    </div>
+    <div class="dtcard" id="dtRankingCard">
+      <div class="dtcard-title"><i class="bi bi-award-fill me-1"></i>Ranking — confronto online</div>
+      <div id="dtRankingBody"><p class="dt-empty">Carregando ranking...</p></div>
     </div>`;
   dtTrocarTab('criar');
+  dtCarregarRanking();
+}
+
+async function dtCarregarRanking() {
+  const body = document.getElementById('dtRankingBody');
+  try {
+    const r = await dtPost('ranking');
+    if (!r.ok || !body) return;
+    if (!r.ranking.length) {
+      body.innerHTML = `<p class="dt-empty">Ninguém disputou um confronto online ainda — seja o primeiro!</p>`;
+      return;
+    }
+    body.innerHTML = `<div class="dt-ranking-lista">${r.ranking.map((rk, i) => `
+      <div class="dt-ranking-item">
+        <span class="dt-ranking-pos">${i + 1}º</span>
+        <span class="dt-ranking-nome">${esc(rk.nome)}</span>
+        <span class="dt-ranking-vd"><b style="color:var(--green)">${rk.vitorias}V</b> <span style="color:var(--text3)">/</span> <b style="color:var(--text2)">${rk.derrotas}D</b></span>
+      </div>`).join('')}</div>`;
+  } catch (e) {
+    if (body) body.innerHTML = `<p class="dt-empty">Não deu pra carregar o ranking agora.</p>`;
+  }
 }
 
 function dtTrocarTab(tab) {
@@ -1078,6 +1147,12 @@ async function dtCancelar() {
   await atualizar();
 }
 
+// Contra a máquina continua "Você" (soa mais natural); em PvP usa o nome de verdade
+// de quem está vendo a tela, pra ficar tipo um confronto real entre os dois GMs.
+function dtNomeMeu(duelo) {
+  return duelo.eh_pvp ? (duelo.meu_nome || 'Você') : 'Você';
+}
+
 // ── Tela: draft ao vivo ──────────────────────────────────────────────────────
 // podeReposicionar: só true pro "Seu time" durante sua vez — clicar num jogador com
 // posição dupla e a outra vaga aberta move ele pra lá, liberando a posição atual.
@@ -1120,8 +1195,8 @@ function renderDraft(duelo) {
   const meuTotal = dtSomaRosterJs(duelo.meu_roster);
   const oponenteTotal = dtSomaRosterJs(duelo.oponente_roster);
 
-  let html = dtRenderRoster('Seu time', duelo.meu_roster, meuTotal, duelo.minha_vez);
-  html += dtRenderRoster(esc(duelo.oponente_nome), duelo.oponente_roster, oponenteTotal);
+  let html = dtRenderRoster(dtNomeMeu(duelo), duelo.meu_roster, meuTotal, duelo.minha_vez);
+  html += dtRenderRoster(duelo.oponente_nome, duelo.oponente_roster, oponenteTotal);
 
   html += `<div class="dt-turno-banner ${duelo.minha_vez ? 'minha-vez' : 'vez-oponente'}">
     ${duelo.minha_vez ? '<i class="bi bi-hand-index-thumb"></i> Sua vez — escolha um jogador' : `Vez de ${esc(duelo.oponente_nome)}...`}
@@ -1216,12 +1291,13 @@ function renderResultado(duelo) {
 
 async function dtRodarSimcast(duelo) {
   const r = duelo.resultado;
+  const nomeEu = esc(dtNomeMeu(duelo));
   const nomeOp = esc(duelo.oponente_nome);
   document.getElementById('dtMain').innerHTML = `
     <div class="dtcard">
       <div class="dtcard-title"><i class="bi bi-broadcast me-1"></i>Simulando o confronto...</div>
       <div class="dt-placar">
-        <div class="dt-placar-lado"><div class="dt-placar-nome">Você</div><div class="dt-placar-num" id="dtSimA">0</div></div>
+        <div class="dt-placar-lado"><div class="dt-placar-nome">${nomeEu}</div><div class="dt-placar-num" id="dtSimA">0</div></div>
         <div class="dt-placar-x">×</div>
         <div class="dt-placar-lado"><div class="dt-placar-nome">${nomeOp}</div><div class="dt-placar-num" id="dtSimB">0</div></div>
       </div>
@@ -1233,10 +1309,10 @@ async function dtRodarSimcast(duelo) {
 
   let cumA = 0, cumB = 0;
   const linhas = [];
-  await new Promise(res => setTimeout(res, 900)); // pausa inicial antes do 1º quarto, dá suspense
+  await new Promise(res => setTimeout(res, 800)); // pausa inicial antes do 1º quarto, dá suspense
   for (let q = 0; q < 4; q++) {
     quartosEl.textContent = linhas.concat(`Q${q + 1}...`).join('  •  ');
-    await new Promise(res => setTimeout(res, 1600));
+    await new Promise(res => setTimeout(res, 1400));
     const qa = duelo.meu_lado === 'a' ? r.quartos[q].a : r.quartos[q].b;
     const qb = duelo.meu_lado === 'a' ? r.quartos[q].b : r.quartos[q].a;
     cumA += qa; cumB += qb;
@@ -1245,8 +1321,9 @@ async function dtRodarSimcast(duelo) {
     linhas.push(`Q${q + 1} ${qa}-${qb}`);
     quartosEl.textContent = linhas.join('  •  ');
   }
-  await new Promise(res => setTimeout(res, 1100));
+  await new Promise(res => setTimeout(res, 950));
   resultadoFinalId = duelo.id;
+  localStorage.setItem('dt_resultado_final_id', String(duelo.id));
   renderResultadoFinal(duelo);
 }
 
@@ -1272,6 +1349,10 @@ function dtRenderBoxscore(nome, box) {
 
 function renderResultadoFinal(duelo) {
   const r = duelo.resultado;
+  const nomeEuRaw = dtNomeMeu(duelo);
+  const nomeOpRaw = duelo.oponente_nome;
+  const nomeEu = esc(nomeEuRaw);
+  const nomeOp = esc(nomeOpRaw);
   const meuPlacar = duelo.meu_lado === 'a' ? r.placar_a : r.placar_b;
   const oponentePlacar = duelo.meu_lado === 'a' ? r.placar_b : r.placar_a;
   const meuBox = duelo.meu_lado === 'a' ? r.boxscore_a : r.boxscore_b;
@@ -1282,18 +1363,19 @@ function renderResultadoFinal(duelo) {
     return `Q${i + 1} ${qa}-${qb}`;
   }).join('  •  ');
 
-  let html = `<div class="dtcard">
+  let html = `<button class="btn-dt" onclick="dtNovoDuelo(${duelo.id})" style="margin-top:0;margin-bottom:14px"><i class="bi bi-arrow-repeat me-2"></i>Jogar de novo</button>`;
+  html += `<div class="dtcard">
     <div class="dt-resultado-msg ${duelo.eu_venci ? 'venceu' : 'perdeu'}">
       ${duelo.eu_venci ? `🏆 Você venceu! +${duelo.aposta * 2} moedas` : `Você perdeu essa. -${duelo.aposta} moedas`}
     </div>
     <div class="dt-placar">
       <div class="dt-placar-lado">
-        <div class="dt-placar-nome">Você</div>
+        <div class="dt-placar-nome">${nomeEu}</div>
         <div class="dt-placar-num ${duelo.eu_venci ? 'vencedor' : ''}">${meuPlacar}</div>
       </div>
       <div class="dt-placar-x">×</div>
       <div class="dt-placar-lado">
-        <div class="dt-placar-nome">${esc(duelo.oponente_nome)}</div>
+        <div class="dt-placar-nome">${nomeOp}</div>
         <div class="dt-placar-num ${!duelo.eu_venci ? 'vencedor' : ''}">${oponentePlacar}</div>
       </div>
     </div>
@@ -1303,20 +1385,20 @@ function renderResultadoFinal(duelo) {
       const souEu = d.lado === duelo.meu_lado;
       return `<div class="dt-destaque">
         <div class="dt-destaque-pts">${d.pontos}</div>
-        <div class="dt-destaque-txt"><b>${esc(d.nome)}</b> (${souEu ? 'seu time' : esc(duelo.oponente_nome)}) — ${esc(d.frase)}.</div>
+        <div class="dt-destaque-txt"><b>${esc(d.nome)}</b> (${souEu ? nomeEu : nomeOp}) — ${esc(d.frase)}.</div>
       </div>`;
     }).join('')}
   </div>`;
-  html += dtRenderBoxscore('Seu boxscore', meuBox);
-  html += dtRenderBoxscore(`Boxscore — ${esc(duelo.oponente_nome)}`, oponenteBox);
-  html += dtRenderRoster('Seu time', duelo.meu_roster, dtSomaRosterJs(duelo.meu_roster));
-  html += dtRenderRoster(esc(duelo.oponente_nome), duelo.oponente_roster, dtSomaRosterJs(duelo.oponente_roster));
-  html += `<button class="btn-dt" onclick="dtNovoDuelo(${duelo.id})"><i class="bi bi-arrow-repeat me-2"></i>Jogar de novo</button>`;
+  html += dtRenderBoxscore(`Boxscore — ${nomeEuRaw}`, meuBox);
+  html += dtRenderBoxscore(`Boxscore — ${nomeOpRaw}`, oponenteBox);
+  html += dtRenderRoster(nomeEuRaw, duelo.meu_roster, dtSomaRosterJs(duelo.meu_roster));
+  html += dtRenderRoster(nomeOpRaw, duelo.oponente_roster, dtSomaRosterJs(duelo.oponente_roster));
   document.getElementById('dtMain').innerHTML = html;
 }
 
 function dtNovoDuelo(dueloId) {
   dueloDispensadoId = dueloId;
+  localStorage.setItem('dt_dispensado_id', String(dueloId));
   ESTADO_INICIAL = null;
   renderCriarEntrar();
 }
