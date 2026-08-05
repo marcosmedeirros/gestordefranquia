@@ -11,14 +11,19 @@ if (!$token) {
 
 $pdo = db();
 $user = getUserSession();
-$isAdmin = ($user && isset($user['id'])) ? hasAdminAccess($pdo, (int)$user['id']) : false;
-$userTeamId = null;
-$team = null;
+// Admin geral mesmo — não hasAdminAccess() (que também conta admin de
+// QUALQUER liga), pois toda ação administrativa do draft na api/initdraft.php
+// já exige user_type==='admin'. Contar admin de outra liga aqui só mostrava
+// o Painel Admin (e o botão Escolher de qualquer time) pra quem não tinha
+// poder nenhum de verdade — o servidor barrava, mas o botão aparecia.
+$isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
+// Todos os times do usuário (pode ter um em cada liga) — a liga certa só é
+// conhecida depois que o estado da sessão carrega no JS.
+$userTeams = [];
 if ($user && isset($user['id'])) {
-    $stmtTeam = $pdo->prepare('SELECT id, city, name, photo_url, league FROM teams WHERE user_id = ? LIMIT 1');
-    $stmtTeam->execute([$user['id']]);
-    $team = $stmtTeam->fetch(PDO::FETCH_ASSOC) ?: null;
-    $userTeamId = $team['id'] ?? null;
+    $stmtTeams = $pdo->prepare('SELECT id, league FROM teams WHERE user_id = ?');
+    $stmtTeams->execute([$user['id']]);
+    $userTeams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
 }
 ?>
 <!DOCTYPE html>
@@ -625,6 +630,7 @@ if ($user && isset($user['id'])) {
                             <div class="adm-section-title">Controle ao vivo</div>
                             <div class="d-flex flex-column gap-2" style="max-width:260px">
                                 <button class="btn-amber" onclick="adminOpenNextRoundNow()"><i class="bi bi-lightning-charge"></i> Abrir rodada agora</button>
+                                <button class="btn-ghost" onclick="adminUndoLastPick()"><i class="bi bi-arrow-counterclockwise"></i> Voltar Pick</button>
                                 <button class="btn-red" onclick="finalizeDraft()"><i class="bi bi-flag"></i> Finalizar draft</button>
                             </div>
                             <p style="font-size:11px;color:var(--text-2);margin-top:10px">Como admin, você pode registrar a pick de qualquer time pelo botão <strong>Escolher</strong> na tabela do pool.</p>
@@ -707,10 +713,11 @@ if ($user && isset($user['id'])) {
         </div>
     </div>
 
-    <?php if ($userTeamId): ?>
-    <!-- Mock automático — só aparece pra quem está logado com um time nesta liga.
-         Escolhe sozinho pelo GM SOMENTE quando "Automático" está ligado; a lista
-         em si não faz nada sozinha. -->
+    <?php if (!empty($userTeams)): ?>
+    <!-- Mock automático — só aparece pra quem está logado com um time nesta liga
+         (o JS esconde de novo em resolveUserTeamId() se o time do usuário for
+         de outra liga que não a deste draft). Escolhe sozinho pelo GM SOMENTE
+         quando "Automático" está ligado; a lista em si não faz nada sozinha. -->
     <div class="panel-card mt-4" id="mockCard">
         <div class="panel-card-head">
             <div class="panel-card-title"><i class="bi bi-robot" style="color:var(--red);margin-right:6px"></i>Seu Mock</div>
@@ -880,7 +887,18 @@ if ($user && isset($user['id'])) {
     <script>
         const TOKEN = '<?php echo htmlspecialchars($token, ENT_QUOTES); ?>';
         const API_URL = 'api/initdraft.php';
-        const USER_TEAM_ID = <?php echo $userTeamId ? (int)$userTeamId : 'null'; ?>;
+        // Times do usuário em TODAS as ligas (pode ter mais de um) — a liga
+        // certa só se sabe depois que o estado da sessão carrega, então
+        // USER_TEAM_ID é resolvido a cada loadState(), não fixo no load da página.
+        const USER_TEAMS = <?php echo json_encode(array_map(fn($t) => ['id' => (int)$t['id'], 'league' => $t['league']], $userTeams)); ?>;
+        let USER_TEAM_ID = null;
+        function resolveUserTeamId() {
+            const league = state.session?.league;
+            const match = league ? USER_TEAMS.find((t) => t.league === league) : null;
+            USER_TEAM_ID = match ? match.id : null;
+            const mockCard = document.getElementById('mockCard');
+            if (mockCard) mockCard.style.display = USER_TEAM_ID ? '' : 'none';
+        }
         const IS_ADMIN = <?php echo $isAdmin ? 'true' : 'false'; ?>;
         // Favoritar não exige time — vale pra qualquer visitante logado.
         const IS_LOGGED_IN = <?php echo ($user && isset($user['id'])) ? 'true' : 'false'; ?>;
@@ -1145,7 +1163,7 @@ if ($user && isset($user['id'])) {
                 return;
             }
 
-            const canPick = state.session?.status === 'in_progress' && (IS_ADMIN || (currentPick && USER_TEAM_ID && currentPick.team_id === USER_TEAM_ID));
+            const canPick = state.session?.status === 'in_progress' && (IS_ADMIN || (currentPick && USER_TEAM_ID && Number(currentPick.team_id) === Number(USER_TEAM_ID)));
             grid.innerHTML = items.map((p, i) => {
                 const drafted = p.draft_status === 'drafted';
                 const sec = (p.secondary_position && POS_LIST.includes(p.secondary_position)) ? `<span class="pos-badge ${posClass(p.secondary_position)}">${p.secondary_position}</span>` : '';
@@ -1400,7 +1418,7 @@ if ($user && isset($user['id'])) {
             if (!p) return;
             const body = document.getElementById('playerDetailBody');
             const currentPick = getCurrentPick();
-            const canPick = state.session?.status === 'in_progress' && (IS_ADMIN || (currentPick && USER_TEAM_ID && currentPick.team_id === USER_TEAM_ID));
+            const canPick = state.session?.status === 'in_progress' && (IS_ADMIN || (currentPick && USER_TEAM_ID && Number(currentPick.team_id) === Number(USER_TEAM_ID)));
             const drafted = p.draft_status === 'drafted';
             const teamsById = Object.fromEntries(state.teams.map((t) => [t.id, t]));
             const byTeam = drafted && p.drafted_by_team_id ? teamsById[p.drafted_by_team_id] : null;
@@ -1474,6 +1492,7 @@ if ($user && isset($user['id'])) {
                 ]);
                 if (!stateRes.success) throw new Error(stateRes.error || 'Erro ao carregar estado');
                 state.session = stateRes.session;
+                resolveUserTeamId();
                 state.order = stateRes.order || [];
                 state.teams = stateRes.teams || [];
                 state.pool = poolRes.success ? poolRes.players : [];
@@ -1966,6 +1985,25 @@ if ($user && isset($user['id'])) {
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Falha ao abrir rodada');
                 showMessage('Rodada aberta.');
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
+        }
+
+        async function adminUndoLastPick() {
+            if (!confirm('Desfazer a última pick? O jogador volta pro pool e o time volta a escolher.')) return;
+            try {
+                const sessionId = state.session?.id;
+                if (!sessionId) throw new Error('Sessão não carregada');
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'admin_undo_last_pick', session_id: sessionId })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Falha ao desfazer a pick');
+                showMessage(`Pick desfeita: ${esc(data.player)} voltou pro pool. ${esc(data.team)} está escolhendo de novo (Rodada ${data.round} · Pick ${data.pick_position}).`);
                 await loadState();
             } catch (error) {
                 showMessage(error.message, 'danger');

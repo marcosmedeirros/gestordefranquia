@@ -323,6 +323,68 @@ function performInitDraftPick(PDO $pdo, array $session, int $playerId): void {
     }
 }
 
+/**
+ * Desfaz a última pick completada: devolve o jogador pro pool, remove do
+ * elenco do time e volta o ponteiro da sessão pra apontar de novo pra
+ * aquele mesmo time/rodada/posição. Usa picked_at (e não round/pick_position)
+ * pra achar "a última", porque é o único carimbo que reflete a ordem real em
+ * que as picks aconteceram de fato.
+ */
+function undoLastInitDraftPick(PDO $pdo, array $session): array {
+    $stmt = $pdo->prepare('
+        SELECT * FROM initdraft_order
+        WHERE initdraft_session_id = ? AND picked_player_id IS NOT NULL
+        ORDER BY picked_at DESC, round DESC, pick_position DESC
+        LIMIT 1
+    ');
+    $stmt->execute([$session['id']]);
+    $pick = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$pick) {
+        throw new InvalidArgumentException('Nenhuma pick foi feita ainda neste draft.');
+    }
+
+    $stmtPlayer = $pdo->prepare('SELECT name FROM initdraft_pool WHERE id = ?');
+    $stmtPlayer->execute([$pick['picked_player_id']]);
+    $playerName = (string)($stmtPlayer->fetchColumn() ?: 'Jogador');
+
+    $stmtTeam = $pdo->prepare('SELECT city, name FROM teams WHERE id = ?');
+    $stmtTeam->execute([$pick['team_id']]);
+    $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
+    $teamLabel = $team ? trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')) : 'Time';
+
+    ensureInitDraftReactionsTable($pdo);
+
+    try {
+        $pdo->beginTransaction();
+
+        $pdo->prepare('DELETE FROM players WHERE team_id = ? AND drafted_by_team_id = ? AND draft_round = ? AND draft_pick_position = ?')
+            ->execute([$pick['team_id'], $pick['team_id'], $pick['round'], $pick['pick_position']]);
+
+        $pdo->prepare('UPDATE initdraft_pool SET draft_status = "available", drafted_by_team_id = NULL, draft_order = NULL WHERE id = ?')
+            ->execute([$pick['picked_player_id']]);
+
+        $pdo->prepare('UPDATE initdraft_order SET picked_player_id = NULL, picked_at = NULL WHERE id = ?')
+            ->execute([$pick['id']]);
+
+        $pdo->prepare('DELETE FROM initdraft_reactions WHERE initdraft_order_id = ?')->execute([$pick['id']]);
+
+        $pdo->prepare("UPDATE initdraft_sessions SET status = 'in_progress', completed_at = NULL, current_round = ?, current_pick = ? WHERE id = ?")
+            ->execute([$pick['round'], $pick['pick_position'], $session['id']]);
+
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+
+    return [
+        'team' => $teamLabel,
+        'player' => $playerName,
+        'round' => (int)$pick['round'],
+        'pick_position' => (int)$pick['pick_position'],
+    ];
+}
+
 function tzNow(): DateTimeImmutable {
     return new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
 }
@@ -1123,18 +1185,55 @@ if ($method === 'POST') {
                 break;
             }
 
-            // TOKEN: fazer pick na posição corrente
+            // TOKEN: fazer pick na posição corrente — só o GM do time na vez
+            // (ou admin geral). O token é compartilhado com toda a liga pra
+            // acompanhar o draft, então NÃO pode ser a única barreira aqui.
             case 'make_pick': {
                 $token = $data['token'] ?? null;
                 $playerId = (int)($data['player_id'] ?? 0);
                 $session = getSessionByToken($pdo, $token);
                 if (!$session) throw new InvalidArgumentException('Sessão inválida');
 
+                if (!$isAdmin) {
+                    $stmtCur = $pdo->prepare('SELECT team_id FROM initdraft_order WHERE initdraft_session_id = ? AND round = ? AND pick_position = ? AND picked_player_id IS NULL');
+                    $stmtCur->execute([$session['id'], (int)($session['current_round'] ?? 1), (int)($session['current_pick'] ?? 1)]);
+                    $currentTeamId = (int)($stmtCur->fetchColumn() ?: 0);
+                    if (!$currentTeamId) {
+                        $stmtCur = $pdo->prepare('SELECT team_id FROM initdraft_order WHERE initdraft_session_id = ? AND picked_player_id IS NULL ORDER BY round ASC, pick_position ASC LIMIT 1');
+                        $stmtCur->execute([$session['id']]);
+                        $currentTeamId = (int)($stmtCur->fetchColumn() ?: 0);
+                    }
+
+                    $myTeamId = 0;
+                    if ($user && isset($user['id'])) {
+                        $stmtMyTeam = $pdo->prepare('SELECT id FROM teams WHERE user_id = ? AND league = ? LIMIT 1');
+                        $stmtMyTeam->execute([$user['id'], $session['league']]);
+                        $myTeamId = (int)($stmtMyTeam->fetchColumn() ?: 0);
+                    }
+
+                    if (!$currentTeamId || !$myTeamId || $myTeamId !== $currentTeamId) {
+                        throw new InvalidArgumentException('Não é a sua vez de escolher.');
+                    }
+                }
+
                 ensureDailyPickWindow($session, tzNow());
 
                 performInitDraftPick($pdo, $session, $playerId);
                 resetClockForNextPick($pdo, (int)$session['id']);
                 echo json_encode(['success' => true, 'message' => 'Pick realizada']);
+                break;
+            }
+
+            // ADMIN: desfaz a última pick — devolve o jogador pro pool e volta
+            // o ponteiro da sessão pro time que escolheu, pra ele escolher de novo.
+            case 'admin_undo_last_pick': {
+                if (!$isAdmin) throw new InvalidArgumentException('Apenas administradores');
+                $sessionId = (int)($data['session_id'] ?? 0);
+                $session = getSessionById($pdo, $sessionId);
+                if (!$session) throw new InvalidArgumentException('Sessão inválida');
+
+                $undone = undoLastInitDraftPick($pdo, $session);
+                echo json_encode(['success' => true] + $undone);
                 break;
             }
 
