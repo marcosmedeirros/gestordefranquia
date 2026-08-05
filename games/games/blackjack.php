@@ -68,7 +68,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         // VALIDAÇÃO DE LIMITE
         if ($valor <= 0) die(json_encode(['erro' => 'Valor inválido']));
         if ($valor > $maxAposta) die(json_encode(['erro' => 'Aposta máxima permitida: 250 pontos!']));
-        
+
+        // Mão em andamento não pode ser sobrescrita: sem isso, recarregar a página no meio da
+        // rodada e apostar de novo destruía a mão anterior — que já tinha sido DEBITADA — sem
+        // nunca resolver, ou seja, moeda perdida pelo jogador.
+        if (isset($_SESSION['bj_game']) && ($_SESSION['bj_game']['status_jogo'] ?? '') !== 'fim') {
+            die(json_encode(['erro' => 'Você já tem uma mão em andamento. Termine-a antes de apostar de novo.']));
+        }
+
         try {
             // TRANSAÇÃO REAL: Desconta aposta inicial
             $pdo->beginTransaction();
@@ -121,8 +128,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     $saldo += $valor;
                     $msg = "Empate! Ambos com Blackjack.";
                 } else {
-                    // Vitória BJ (3:2 = 2.5x aposta total retornada)
-                    $premio = $valor * 2.5;
+                    // Vitória BJ (3:2 = 2.5x aposta total retornada). intdiv arredonda pra baixo
+                    // de forma explícita: a coluna pontos é INT e um valor fracionário (ex.: 12.5
+                    // numa aposta de 5) era arredondado pelo MySQL de forma implícita.
+                    $premio = intdiv($valor * 5, 2);
                     $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $premio, ':id' => $user_id]);
                     $saldo += $premio;
                     $msg = "BLACKJACK! Você venceu!";
@@ -170,10 +179,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             exit; 
         }
 
-        // Cobra aposta adicional para a nova mão
+        // Máximo de 4 mãos (3 splits) — sem limite, o baralho podia esvaziar e o array_shift
+        // devolver null, quebrando o cálculo de pontos.
+        if (count($game['maos']) >= 4) {
+            echo json_encode(['erro' => 'Limite de divisões atingido.']);
+            exit;
+        }
+
+        // Cobra aposta adicional para a nova mão. O teto é o mesmo da aposta (250) — o "15"
+        // aqui era resquício de um limite antigo e impedia dividir qualquer aposta acima de 7,
+        // inclusive as fichas de 10 e 50 que a própria interface oferece.
         $valorSplit = $maoAtiva['aposta'];
-        if (($valorSplit * 2) > 15) {
-            echo json_encode(['erro' => 'Aposta máxima permitida: 50 pontos!']);
+        if (($valorSplit * 2) > 250) {
+            echo json_encode(['erro' => 'Aposta máxima permitida: 250 pontos!']);
             exit;
         }
         try {
@@ -187,7 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $pdo->prepare("UPDATE games_usuarios SET pontos = pontos - :val WHERE id = :id")->execute([':val' => $valorSplit, ':id' => $user_id]);
             $pdo->commit();
         } catch (Exception $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) $pdo->rollBack();
             echo json_encode(['erro' => $e->getMessage()]);
             exit;
         }
@@ -217,18 +235,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     }
 
     // C. PEDIR CARTA (HIT)
+    // try/catch: avancarMao() pode chamar jogarDealer(), que faz o pagamento. Sem isso, uma
+    // falha no UPDATE virava fatal error e a resposta saía como HTML — o front fazia res.json()
+    // e quebrava, sem mensagem nenhuma pro jogador.
     if ($acao == 'hit') {
-        $carta = array_shift($game['deck']);
-        $maoAtiva['cartas'][] = $carta;
-        
-        $pts = calcularPontos($maoAtiva['cartas']);
-        
-        if ($pts > 21) {
-            $maoAtiva['status'] = 'estourou';
-            avancarMao($game);
-        } else if ($pts == 21) {
-            $maoAtiva['status'] = 'stand'; 
-            avancarMao($game);
+        try {
+            if (empty($game['deck'])) throw new Exception('Baralho vazio.');
+            $carta = array_shift($game['deck']);
+            $maoAtiva['cartas'][] = $carta;
+
+            $pts = calcularPontos($maoAtiva['cartas']);
+
+            if ($pts > 21) {
+                $maoAtiva['status'] = 'estourou';
+                avancarMao($game);
+            } else if ($pts == 21) {
+                $maoAtiva['status'] = 'stand';
+                avancarMao($game);
+            }
+        } catch (Exception $e) {
+            error_log('[blackjack] hit: ' . $e->getMessage());
+            echo json_encode(['erro' => 'Não foi possível concluir a jogada. Tente de novo.']);
+            exit;
         }
 
         retornarEstado($game);
@@ -237,8 +265,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
     // D. PARAR (STAND)
     if ($acao == 'stand') {
-        $maoAtiva['status'] = 'stand';
-        avancarMao($game);
+        try {
+            $maoAtiva['status'] = 'stand';
+            avancarMao($game);
+        } catch (Exception $e) {
+            error_log('[blackjack] stand: ' . $e->getMessage());
+            echo json_encode(['erro' => 'Não foi possível concluir a jogada. Tente de novo.']);
+            exit;
+        }
         retornarEstado($game);
         exit;
     }
@@ -295,8 +329,18 @@ function jogarDealer(&$game) {
         }
     }
 
+    // Se o pagamento falhar, a mão NÃO pode ficar marcada como encerrada: hit/stand não têm
+    // try/catch, então a exceção virava fatal error (resposta HTML), o jogador via a tela quebrar
+    // e o prêmio se perdia — com a mão já em 'fim' na sessão, sem chance de reprocessar.
     if ($premioTotal > 0) {
-        $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")->execute([':val' => $premioTotal, ':id' => $user_id]);
+        try {
+            $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :id")
+                ->execute([':val' => $premioTotal, ':id' => $user_id]);
+        } catch (Exception $e) {
+            error_log('[blackjack] pagamento: ' . $e->getMessage());
+            $game['status_jogo'] = 'jogando';   // deixa a mão viva pra nova tentativa
+            throw $e;
+        }
     }
 }
 
@@ -440,6 +484,8 @@ function retornarEstado($game) {
         .chip-5 { background: #d32f2f; }
         .chip-10 { background: #1976d2; }
         .chip-15 { background: #fbc02d; color: black; border-style: solid; border-color: #fff; }
+        /* A interface oferece a ficha de 50, mas só existia CSS até .chip-15 — ela ficava sem cor. */
+        .chip-50 { background: #fbc02d; color: black; border-style: solid; border-color: #fff; }
 
         #msg-overlay {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -480,7 +526,7 @@ function retornarEstado($game) {
 
     <!-- CONTROLES -->
     <div class="controls-area" id="bet-controls">
-        <h5 class="text-white-50 mb-3">FAÇA SUA APOSTA (MÁX 50)</h5>
+        <h5 class="text-white-50 mb-3">FAÇA SUA APOSTA (MÁX 250)</h5>
         <div class="d-flex justify-content-center">
             <div class="chip-btn chip-1" onclick="apostar(1)">1</div>
             <div class="chip-btn chip-5" onclick="apostar(5)">5</div>

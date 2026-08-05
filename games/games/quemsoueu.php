@@ -104,9 +104,19 @@ try {
     $stmt->execute([$user_id, $hoje]);
     $partida = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$partida) {
-        $pdo->prepare("INSERT INTO quemsoueu_partidas (id_usuario, data_jogo, jogador_id, tentativas_json) VALUES (?,?,?,'[]')")
+        // INSERT IGNORE: dois carregamentos simultâneos violavam o UNIQUE e a partida acabava
+        // descartada em memória.
+        $pdo->prepare("INSERT IGNORE INTO quemsoueu_partidas (id_usuario, data_jogo, jogador_id, tentativas_json) VALUES (?,?,?,'[]')")
             ->execute([$user_id, $hoje, $targetPlayer['id']]);
-        $partida = ['tentativas'=>0,'resolvido'=>0,'pontos_ganhos'=>0,'tentativas_json'=>'[]','concluido_em'=>null];
+        $stmt->execute([$user_id, $hoje]);
+        $partida = $stmt->fetch(PDO::FETCH_ASSOC)
+            ?: ['tentativas'=>0,'resolvido'=>0,'pontos_ganhos'=>0,'tentativas_json'=>'[]','concluido_em'=>null,'jogador_id'=>$targetPlayer['id']];
+    }
+    // O alvo é recalculado a cada request a partir da lista de jogadores elegíveis do banco —
+    // qualquer sincronização da NBA mudava count($QSE_ALVOS) e trocava o alvo do dia no meio da
+    // partida, invalidando as tentativas já dadas. jogador_id era gravado mas nunca lido.
+    if (!empty($partida['jogador_id']) && isset($playerById[(int)$partida['jogador_id']])) {
+        $targetPlayer = $playerById[(int)$partida['jogador_id']];
     }
 } catch (PDOException $e) {
     $partida = ['tentativas'=>0,'resolvido'=>0,'pontos_ganhos'=>0,'tentativas_json'=>'[]','concluido_em'=>null];
@@ -157,18 +167,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'palpi
 
     $pontosGanhos = $acertou ? $PONTOS_VITORIA : 0;
 
+    // Transação + FOR UPDATE + a condição `resolvido=0` no UPDATE: sem isso, dois palpites
+    // certos disparados ao mesmo tempo passavam os dois pela checagem de $jogo_fim (avaliada no
+    // topo do arquivo, antes) e creditavam o prêmio duas vezes.
     try {
-        $pdo->prepare("UPDATE quemsoueu_partidas
+        $pdo->beginTransaction();
+        $stLock = $pdo->prepare("SELECT resolvido, pontos_ganhos FROM quemsoueu_partidas WHERE id_usuario=? AND data_jogo=? FOR UPDATE");
+        $stLock->execute([$user_id, $hoje]);
+        $atual = $stLock->fetch(PDO::FETCH_ASSOC);
+        if ($atual && ((int)$atual['resolvido'] === 1 || (int)$atual['pontos_ganhos'] > 0)) {
+            $pdo->rollBack();
+            echo json_encode(['ok'=>false,'msg'=>'Partida já encerrada']);
+            exit;
+        }
+
+        $upd = $pdo->prepare("UPDATE quemsoueu_partidas
             SET tentativas=?, resolvido=?, pontos_ganhos=?, tentativas_json=?,
                 concluido_em=" . ($fim ? 'NOW()' : 'concluido_em') . "
-            WHERE id_usuario=? AND data_jogo=?")
-            ->execute([count($tentativas), $acertou?1:0, $pontosGanhos, json_encode($tentativas), $user_id, $hoje]);
+            WHERE id_usuario=? AND data_jogo=? AND resolvido=0");
+        $upd->execute([count($tentativas), $acertou?1:0, $pontosGanhos, json_encode($tentativas), $user_id, $hoje]);
 
-        if ($pontosGanhos > 0) {
+        if ($pontosGanhos > 0 && $upd->rowCount() === 1) {
             $pdo->prepare("UPDATE games_usuarios SET pontos=pontos+? WHERE id=?")
                 ->execute([$pontosGanhos, $user_id]);
         }
-    } catch (PDOException $e) {}
+        $pdo->commit();
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[quemsoueu] palpite: ' . $e->getMessage());
+        echo json_encode(['ok'=>false,'msg'=>'Erro ao registrar o palpite.']);
+        exit;
+    }
 
     echo json_encode([
         'ok'         => true,

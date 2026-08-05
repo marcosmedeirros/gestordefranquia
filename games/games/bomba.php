@@ -175,23 +175,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             exit;
         }
 
-        $status = 'saiu';
-        $pdo->prepare("UPDATE bomba_historico SET status='saiu', pontos_ganhos=:p WHERE id_usuario=:uid AND data_jogo=:dt")
-            ->execute([':p' => $pontos, ':uid' => $user_id, ':dt' => $hoje]);
-
-        // Revelar tabuleiro completo
+        // Marcar 'saiu' e creditar acontecem na MESMA transação. Antes o status era gravado
+        // primeiro, fora de transação: se o crédito falhasse, o jogo do dia ficava encerrado e o
+        // jogador terminava com zero moedas, sem poder repetir (é diário).
+        //
+        // A condição `status='jogando'` no UPDATE + rowCount() é o que garante pagamento único
+        // mesmo com duas requisições simultâneas da mesma conta (o lock de sessão do PHP não
+        // cobre navegadores diferentes).
         foreach ($tabuleiro as &$q) { $q['aberto'] = true; }
-        $pdo->prepare("UPDATE bomba_historico SET estado_jogo=:tab WHERE id_usuario=:uid AND data_jogo=:dt")
-            ->execute([':tab' => json_encode($tabuleiro), ':uid' => $user_id, ':dt' => $hoje]);
-
-        // Adicionar pontos ao usuário
+        unset($q);
         try {
             $pdo->beginTransaction();
+            $upd = $pdo->prepare("UPDATE bomba_historico SET status='saiu', pontos_ganhos=:p, estado_jogo=:tab
+                                  WHERE id_usuario=:uid AND data_jogo=:dt AND status='jogando'");
+            $upd->execute([':p' => $pontos, ':tab' => json_encode($tabuleiro), ':uid' => $user_id, ':dt' => $hoje]);
+            if ($upd->rowCount() !== 1) {
+                $pdo->rollBack();
+                echo json_encode(['erro' => 'Jogo já finalizado.']);
+                exit;
+            }
             $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :pts WHERE id = :uid")
                 ->execute([':pts' => $pontos, ':uid' => $user_id]);
             $pdo->commit();
+            $status = 'saiu';
         } catch (Exception $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[bomba] sacar: ' . $e->getMessage());
+            echo json_encode(['erro' => 'Não foi possível sacar agora. Tente de novo.']);
+            exit;
         }
 
         try { $update_streak(); } catch (Exception $e) {}
