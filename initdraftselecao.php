@@ -2156,6 +2156,10 @@ if ($user && isset($user['id'])) {
             if (!admElements.poolTable) return;
             const filtered = admFilteredPool();
             const isSetup = state.session?.status === 'setup';
+            // Excluir jogador individual vale durante o draft também — só
+            // "Limpar pool" (abaixo) continua restrito ao setup, por ser
+            // destrutivo demais pra rodar com o draft rolando.
+            const podeExcluirJogador = state.session?.status !== 'completed';
 
             // Limpar pool é só no setup (o servidor barra depois). Botão que
             // sempre dá erro não deve ficar clicável.
@@ -2179,9 +2183,8 @@ if ($user && isset($user['id'])) {
             admElements.poolTable.innerHTML = pageItems
                 .map((player, index) => {
                     const drafted = player.draft_status === 'drafted';
-                    const canManage = isSetup && !drafted;
-                    const editBtn = canManage ? `<button class="btn-sm-icon amber" onclick="openEditPlayer(${player.id})"><i class="bi bi-pencil"></i></button>` : '';
-                    const delBtn = canManage ? `<button class="btn-sm-icon danger" onclick="deleteInitDraftPlayer(${player.id}, '${esc((player.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}')"><i class="bi bi-trash"></i></button>` : '';
+                    const editBtn = (isSetup && !drafted) ? `<button class="btn-sm-icon amber" onclick="openEditPlayer(${player.id})"><i class="bi bi-pencil"></i></button>` : '';
+                    const delBtn = (podeExcluirJogador && !drafted) ? `<button class="btn-sm-icon danger" onclick="deleteInitDraftPlayer(${player.id}, '${esc((player.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}')"><i class="bi bi-trash"></i></button>` : '';
                     const actions = (editBtn || delBtn) ? `<div style="display:flex;gap:4px;justify-content:flex-end">${editBtn} ${delBtn}</div>` : '<span style="color:var(--text-3)">—</span>';
                     return `
                         <tr>
@@ -2371,7 +2374,8 @@ if ($user && isset($user['id'])) {
                 const res = await fetch(API_URL, { method: 'POST', body: formData });
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Erro ao importar CSV');
-                showMessage(`Importação concluída: ${data.imported} jogadores.`);
+                const dupMsg = data.duplicados ? ` (${data.duplicados} duplicado${data.duplicados > 1 ? 's' : ''} ignorado${data.duplicados > 1 ? 's' : ''} — nome já estava na pool)` : '';
+                showMessage(`Importação concluída: ${data.imported} jogadores.${dupMsg}`);
                 form.reset();
                 bootstrap.Modal.getInstance(document.getElementById('importCSVModal'))?.hide();
                 await loadState();

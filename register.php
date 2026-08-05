@@ -249,8 +249,8 @@ $acessoValido = $waitlistRow !== null || $ligaConvite !== null;
 				});
 				const body = await res.json().catch(() => ({}));
 				if (!res.ok) throw body;
-				msgEl.innerHTML = `<div class="alert alert-success">Cadastro concluído! Redirecionando...</div>`;
-				setTimeout(() => { window.location.href = '/login.php'; }, 1500);
+				msgEl.innerHTML = `<div class="alert alert-success">Cadastro concluído! Redirecionando pro sorteio de time...</div>`;
+				setTimeout(() => { window.location.href = '/rookie-sorteio.php'; }, 1200);
 			} catch (err) {
 				msgEl.innerHTML = `<div class="alert alert-danger">${err.error || 'Erro ao cadastrar'}</div>`;
 				if (err.reload) setTimeout(() => window.location.reload(), 1800);

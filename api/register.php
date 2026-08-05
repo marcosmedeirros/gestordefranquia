@@ -117,6 +117,21 @@ try {
 
     sendVerificationEmail($email, $token);
 
+    // Loga direto: sem isso a pessoa caía no login manual só pra, na sequência,
+    // ser mandada pro sorteio de time (requireAuth() já faz essa parte).
+    setUserSession([
+        'id' => $newUserId,
+        'name' => $name,
+        'email' => $email,
+        'user_type' => $userType,
+        'league' => $league,
+        'photo_url' => $photoUrl ?: null,
+        'phone' => $phone,
+        'approved' => 1,
+        'accent_color' => null,
+        'dashboard_shortcuts' => null,
+    ]);
+
     jsonResponse(201, ['message' => 'Cadastro concluído!', 'user_id' => $newUserId]);
 } catch (PDOException $e) {
     error_log('Erro SQL no register.php: ' . $e->getMessage());

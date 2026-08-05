@@ -926,7 +926,10 @@ if ($method === 'POST') {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
                 if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
-                if ($session['status'] !== 'setup') throw new InvalidArgumentException('Só é possível remover jogadores durante setup');
+                // Vale durante setup E com o draft em andamento — o que nunca pode
+                // é sumir com quem já foi escolhido (garantido pelo draft_status
+                // "available" da query abaixo). Só trava depois de finalizado.
+                if ($session['status'] === 'completed') throw new InvalidArgumentException('O draft já foi finalizado.');
 
                 $playerId = (int)($data['player_id'] ?? 0);
                 if (!$playerId) throw new InvalidArgumentException('player_id obrigatório');
@@ -1002,11 +1005,30 @@ if ($method === 'POST') {
                     }
                 }
 
+                // Nome repetido não vira jogador duplicado no pool — nem repetido
+                // dentro do próprio CSV, nem repetindo alguém que já está na pool
+                // (de uma importação anterior). Fica só a primeira ocorrência; as
+                // outras linhas do CSV continuam sendo criadas normalmente.
+                $stmtExistentes = $pdo->prepare('SELECT name FROM initdraft_pool WHERE season_id = ?');
+                $stmtExistentes->execute([$session['season_id']]);
+                $nomesVistos = array_fill_keys(
+                    array_map(fn($n) => mb_strtolower(trim($n)), $stmtExistentes->fetchAll(PDO::FETCH_COLUMN)),
+                    true
+                );
+
                 $stmt = $pdo->prepare('INSERT INTO initdraft_pool (season_id, name, position, age, ovr) VALUES (?, ?, ?, ?, ?)');
                 $inserted = 0;
+                $duplicados = 0;
                 while (($row = fgetcsv($handle, 1000, ',')) !== false) {
                     $name = trim($row[$map['name']] ?? '');
                     if ($name === '') continue;
+                    $chave = mb_strtolower($name);
+                    if (isset($nomesVistos[$chave])) {
+                        $duplicados++;
+                        continue;
+                    }
+                    $nomesVistos[$chave] = true;
+
                     $position = strtoupper(trim($row[$map['position']] ?? 'SF'));
                     if (!in_array($position, ['PG','SG','SF','PF','C'])) $position = 'SF';
                     $age = (int)($row[$map['age']] ?? 20);
@@ -1016,7 +1038,7 @@ if ($method === 'POST') {
                 }
                 fclose($handle);
 
-                echo json_encode(['success' => true, 'imported' => $inserted]);
+                echo json_encode(['success' => true, 'imported' => $inserted, 'duplicados' => $duplicados]);
                 break;
             }
 
