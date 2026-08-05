@@ -25,18 +25,22 @@ async function dcCarregar() {
       else if (d.completo) { label = 'Pronto pra finalizar'; cor = '#3b82f6'; bg = 'rgba(59,130,246,.12)'; }
       else if (resolvidas > 0) { label = 'Em andamento'; cor = '#f59e0b'; bg = 'rgba(245,158,11,.12)'; }
 
+      const marcaNba = d.modo === 'time_nba';
+      // Draft de marca não tem tela de picking própria — cada GM escolhe pelo
+      // rookie-sorteio.php dele. Abrir aqui só mostra o progresso, sem input.
+      const href = marcaNba ? '/drafts-aleatorios.php' : `/draft-aleatorio.php?id=${d.id}`;
       return `
       <div class="dc-card">
-        <div class="dc-card-main" onclick="window.location.href='/draft-aleatorio.php?id=${d.id}'">
+        <div class="dc-card-main" onclick="window.location.href='${href}'">
           <div class="dc-card-icon"><i class="bi bi-shuffle"></i></div>
-          <div class="dc-card-title">${_dcEsc(d.titulo)}</div>
+          <div class="dc-card-title">${_dcEsc(d.titulo)}${marcaNba ? ' <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--red);background:var(--red-soft);border:1px solid var(--border-red);border-radius:999px;padding:2px 8px;margin-left:4px">Marca ROOKIE</span>' : ''}</div>
           <div class="dc-card-sub">${d.league ? _dcEsc(d.league) + ' · ' : ''}${d.feitas}/${d.total} escolhidos${d.puladas ? ` · ${d.puladas} pulada${d.puladas > 1 ? 's' : ''}` : ''}</div>
           <div class="dc-card-progress"><div style="width:${pct}%"></div></div>
           <span class="dc-card-status" style="color:${cor};background:${bg}">${label}</span>
         </div>
         <div class="dc-card-actions">
-          <a class="btn-ghost" href="/draft-aleatorio.php?id=${d.id}"><i class="bi bi-box-arrow-up-right me-1"></i>Abrir</a>
-          <button type="button" class="btn-ghost" onclick="dcCopiarLink(${d.id}, this)" title="Copiar link do draft"><i class="bi bi-link-45deg"></i></button>
+          ${marcaNba ? '' : `<a class="btn-ghost" href="/draft-aleatorio.php?id=${d.id}"><i class="bi bi-box-arrow-up-right me-1"></i>Abrir</a>
+          <button type="button" class="btn-ghost" onclick="dcCopiarLink(${d.id}, this)" title="Copiar link do draft"><i class="bi bi-link-45deg"></i></button>`}
           <button type="button" class="btn-ghost" onclick="dcRenomear(${d.id}, '${_dcEsc(d.titulo).replace(/'/g, "\\'")}')"><i class="bi bi-pencil"></i></button>
           <button type="button" class="btn-ghost dc-btn-del" onclick="dcExcluir(${d.id}, '${_dcEsc(d.titulo).replace(/'/g, "\\'")}')"><i class="bi bi-trash"></i></button>
         </div>
@@ -85,10 +89,14 @@ window.dcFecharModalNovo = dcFecharModalNovo;
 
 async function dcCriarDeRoleta(roletaId) {
   try {
+    const modo = document.getElementById('dcModoTimeNba')?.checked ? 'time_nba' : 'texto_livre';
     const data = await _dcFetch('/api/drafts-aleatorios.php', {
       method: 'POST',
-      body: JSON.stringify({ action: 'criar_de_roleta', roleta_id: roletaId }),
+      body: JSON.stringify({ action: 'criar_de_roleta', roleta_id: roletaId, modo }),
     });
+    // Draft de marca não tem tela de admin própria — o próprio
+    // rookie-sorteio.php de cada GM já mostra a fila e a vez dele.
+    if (modo === 'time_nba') { window.location.href = '/drafts-aleatorios.php'; return; }
     window.location.href = `/draft-aleatorio.php?id=${data.id}`;
   } catch (e) { alert(e.message); }
 }

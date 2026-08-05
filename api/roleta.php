@@ -339,6 +339,38 @@ if ($method === 'GET') {
         exit;
     }
 
+    // ROOKIE sem time ainda (registrados pelo cadastro, aguardando o sorteio de
+    // marca) — não têm linha em teams, então times_da_liga (que faz INNER JOIN)
+    // nunca os alcança. Fonte separada pra montar a roleta do sorteio de marca.
+    if ($action === 'usuarios_sem_time') {
+        if (!$minhasLigasAdmin) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'Apenas administradores']);
+            exit;
+        }
+        $liga = strtoupper(trim((string)($_GET['liga'] ?? '')));
+        if ($liga === '') {
+            echo json_encode(['success' => false, 'error' => 'Liga obrigatória']);
+            exit;
+        }
+        $stmt = $pdo->prepare("
+            SELECT u.id AS user_id, u.name AS gm_label, u.photo_url
+            FROM users u
+            WHERE u.league = ? AND u.user_type != 'admin' AND u.id NOT IN (SELECT user_id FROM teams)
+            ORDER BY u.name ASC
+        ");
+        $stmt->execute([$liga]);
+        $resultados = array_map(fn($r) => [
+            'team_id' => null,
+            'user_id' => (int)$r['user_id'],
+            'gm_label' => $r['gm_label'],
+            'photo_url' => $r['photo_url'],
+        ], $stmt->fetchAll(PDO::FETCH_ASSOC));
+
+        echo json_encode(['success' => true, 'resultados' => $resultados]);
+        exit;
+    }
+
     if ($action === 'buscar_participantes') {
         if (!$minhasLigasAdmin) {
             http_response_code(403);
@@ -427,12 +459,15 @@ if ($method === 'POST') {
                     if ($nome === '') { $ordem--; continue; }
                     $ins->execute([$roletaId, $ordem, null, null, $nome]);
                 } else {
+                    // team_id é opcional aqui de propósito: o sorteio de marca da
+                    // ROOKIE (usuarios_sem_time) monta participantes que ainda não
+                    // têm time nenhum — só user_id importa pra saber quem é quem.
                     $teamId = (int)($p['team_id'] ?? 0);
                     $userId = (int)($p['user_id'] ?? 0);
-                    if (!$teamId || !$userId) { $ordem--; continue; }
+                    if (!$userId) { $ordem--; continue; }
                     $nome = $tipo === 'times' ? (string)($p['time_label'] ?? '') : (string)($p['gm_label'] ?? '');
                     if ($nome === '') { $ordem--; continue; }
-                    $ins->execute([$roletaId, $ordem, $teamId, $userId, $nome]);
+                    $ins->execute([$roletaId, $ordem, $teamId ?: null, $userId, $nome]);
                 }
             }
             if ($ordem < 2) {

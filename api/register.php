@@ -20,7 +20,6 @@ try {
     $userType = 'jogador'; // Sempre jogador por padrão
     $photoUrl = trim($body['photo_url'] ?? '');
     $waitlistToken = trim($body['waitlist_token'] ?? '');
-    $nbaTeamId = (int)($body['nba_team_id'] ?? 0);
 
     // Cadastro só acontece por link do admin: ou o individual da lista de
     // espera (api/waitlist.php), ou o convite reutilizável da liga. Cadastro
@@ -50,19 +49,6 @@ try {
 
     if (!$phone) {
         jsonResponse(422, ['error' => 'Informe um telefone válido (DDD brasileiro ou código do país).']);
-    }
-
-    // Na ROOKIE não existe criação de time fictício — o GM escolhe um time
-    // real da NBA, e cada time só pode ser escolhido uma vez.
-    $nbaTeam = $nbaTeamId ? nbaTeamById($nbaTeamId) : null;
-    if (!$nbaTeam) {
-        jsonResponse(422, ['error' => 'Escolha um time da NBA válido.']);
-    }
-    ensureNbaTeamColumn($pdo);
-    $stmtTaken = $pdo->prepare('SELECT id FROM teams WHERE nba_team_id = ? LIMIT 1');
-    $stmtTaken->execute([$nbaTeamId]);
-    if ($stmtTaken->fetch()) {
-        jsonResponse(409, ['error' => 'Esse time da NBA já foi escolhido por outro GM. Escolha outro.', 'reload' => true]);
     }
 
     $exists = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
@@ -111,13 +97,10 @@ try {
         $stmt->execute([$name, $email, $hash, $userType, $league, $token, $photoUrl ?: null, $phone]);
         $newUserId = (int)$pdo->lastInsertId();
 
-        // Time = o time da NBA escolhido. Sem criação de time fictício pra
-        // ROOKIE — o elenco vem depois pelo Draft Inicial da liga.
-        $stmtTeam = $pdo->prepare('INSERT INTO teams (user_id, league, conference, name, city, mascot, photo_url, nba_team_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-        $stmtTeam->execute([
-            $newUserId, $league, $nbaTeam['conference'], $nbaTeam['name'], $nbaTeam['city'], '',
-            nbaTeamLogoUrl($nbaTeam['id']), $nbaTeam['id'],
-        ]);
+        // Sem time ainda de propósito: o time da NBA é escolhido depois, no
+        // sorteio de ordem + draft de marca da liga (rookie-sorteio.php) — não
+        // mais no próprio cadastro. requireAuth() manda quem não tem time pra
+        // lá em vez de liberar o app.
 
         // Só o link individual "queima" ao ser usado; o convite reutilizável
         // continua valendo pra próxima pessoa.
@@ -129,10 +112,6 @@ try {
         $pdo->commit();
     } catch (PDOException $e) {
         $pdo->rollBack();
-        // Corrida: alguém escolheu o mesmo time da NBA entre a checagem e o insert.
-        if ((int)$e->getCode() === 23000 || str_contains($e->getMessage(), 'uniq_teams_nba_team_id')) {
-            jsonResponse(409, ['error' => 'Esse time da NBA acabou de ser escolhido por outro GM. Escolha outro.', 'reload' => true]);
-        }
         throw $e;
     }
 

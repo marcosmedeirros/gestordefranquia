@@ -41,6 +41,27 @@ function requireAuth() {
             exit;
         }
     }
+
+    // ROOKIE não cria time no cadastro — a marca NBA sai do sorteio de ordem +
+    // draft de marca da liga (rookie-sorteio.php). Sem time ainda, nem entra
+    // no app: o resto do sistema (dashboard, picks, elenco...) já presume que
+    // todo usuário logado tem uma linha em teams. Admin geral nunca é pego
+    // aqui — ele administra a liga sem necessariamente jogar nela.
+    if (($_SESSION['user_league'] ?? '') === 'ROOKIE' && ($_SESSION['user_type'] ?? '') !== 'admin') {
+        $currentPage = basename($_SERVER['PHP_SELF']);
+        $paginasLiberadas = ['rookie-sorteio.php', 'logout.php', 'pending-approval.php'];
+        if (!in_array($currentPage, $paginasLiberadas, true)) {
+            if (!function_exists('db')) {
+                require_once __DIR__ . '/db.php';
+            }
+            $stmt = db()->prepare('SELECT 1 FROM teams WHERE user_id = ? LIMIT 1');
+            $stmt->execute([$_SESSION['user_id']]);
+            if (!$stmt->fetchColumn()) {
+                header('Location: /rookie-sorteio.php');
+                exit;
+            }
+        }
+    }
 }
 
 function getUserSession() {

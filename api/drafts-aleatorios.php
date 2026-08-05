@@ -13,6 +13,7 @@
 require_once __DIR__ . '/../backend/config.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
+require_once __DIR__ . '/../backend/nba_teams.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -68,6 +69,11 @@ function ensureDraftsAleatoriosTables(PDO $pdo): void
     if ($pdo->query("SHOW COLUMNS FROM drafts_aleatorios LIKE 'league'")->rowCount() === 0) {
         $pdo->exec("ALTER TABLE drafts_aleatorios ADD COLUMN league VARCHAR(40) NULL AFTER titulo");
     }
+    // 'texto_livre' (padrão, nome de jogador digitado) ou 'time_nba' (sorteio de
+    // marca da ROOKIE: escolhe de um catálogo fechado, sem repetir).
+    if ($pdo->query("SHOW COLUMNS FROM drafts_aleatorios LIKE 'modo'")->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE drafts_aleatorios ADD COLUMN modo VARCHAR(20) NOT NULL DEFAULT 'texto_livre' AFTER league");
+    }
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS draft_aleatorio_picks (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -84,6 +90,13 @@ function ensureDraftsAleatoriosTables(PDO $pdo): void
         UNIQUE KEY uniq_dap_pick (draft_id, pick_number),
         CONSTRAINT fk_dap_draft FOREIGN KEY (draft_id) REFERENCES drafts_aleatorios(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // Time NBA escolhido nesta pick, quando modo='time_nba' — separado de
+    // player_name (que continua guardando o nome pra exibição, ex: "Los
+    // Angeles Lakers") pra dar pra consultar/validar por id sem parsear texto.
+    if ($pdo->query("SHOW COLUMNS FROM draft_aleatorio_picks LIKE 'nba_team_id'")->rowCount() === 0) {
+        $pdo->exec("ALTER TABLE draft_aleatorio_picks ADD COLUMN nba_team_id INT NULL AFTER player_position");
+    }
 }
 ensureDraftsAleatoriosTables($pdo);
 
@@ -97,14 +110,14 @@ function draftFinalizado(PDO $pdo, int $draftId): bool
 
 function estadoDraftAleatorio(PDO $pdo, int $draftId, int $sessionUserId, bool $isAdmin): ?array
 {
-    $stmt = $pdo->prepare("SELECT id, roleta_id, titulo, league, finalizado_em, created_at FROM drafts_aleatorios WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, roleta_id, titulo, league, modo, finalizado_em, created_at FROM drafts_aleatorios WHERE id = ?");
     $stmt->execute([$draftId]);
     $d = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$d) return null;
 
     $stmtP = $pdo->prepare("
         SELECT dap.id, dap.pick_number, dap.team_id, dap.user_id, dap.nome_display, dap.created_at,
-               dap.player_name, dap.player_position, dap.skipped, dap.picked_at,
+               dap.player_name, dap.player_position, dap.nba_team_id, dap.skipped, dap.picked_at,
                t.photo_url
         FROM draft_aleatorio_picks dap
         LEFT JOIN teams t ON t.id = dap.team_id
@@ -145,6 +158,7 @@ function estadoDraftAleatorio(PDO $pdo, int $draftId, int $sessionUserId, bool $
         'roleta_id'       => $d['roleta_id'] !== null ? (int)$d['roleta_id'] : null,
         'titulo'          => $d['titulo'],
         'league'          => $d['league'],
+        'modo'            => $d['modo'] ?? 'texto_livre',
         'picks'           => $picks,
         'total'           => count($picks),
         'feitas'          => $feitas,
@@ -266,7 +280,7 @@ if ($method === 'GET') {
         }
 
         $stmt = $pdo->prepare("
-            SELECT d.id, d.roleta_id, d.titulo, d.league, d.finalizado_em, d.created_at,
+            SELECT d.id, d.roleta_id, d.titulo, d.league, d.modo, d.finalizado_em, d.created_at,
                    COUNT(dap.id) AS total,
                    SUM(dap.player_name IS NOT NULL) AS feitas,
                    SUM(dap.skipped = 1 AND dap.player_name IS NULL) AS puladas
@@ -286,6 +300,7 @@ if ($method === 'GET') {
                 'roleta_id'  => $r['roleta_id'] !== null ? (int)$r['roleta_id'] : null,
                 'titulo'     => $r['titulo'],
                 'league'     => $r['league'] ? strtoupper((string)$r['league']) : null,
+                'modo'       => $r['modo'] ?? 'texto_livre',
                 'total'      => $total,
                 'feitas'     => $feitas,
                 'puladas'    => $pulad,
@@ -335,6 +350,36 @@ if ($method === 'GET') {
             $roletas = []; // roletas ainda não existe neste banco
         }
         echo json_encode(['success' => true, 'roletas' => $roletas]);
+        exit;
+    }
+
+    // Usado por rookie-sorteio.php: acha sozinho o draft de marca (modo
+    // time_nba) onde o usuário logado tem uma pick pendente, sem precisar
+    // saber o id de antemão. Sem draft ativo, devolve quem mais tá esperando
+    // o sorteio começar — é a lista que a tela de espera mostra.
+    if ($action === 'meu_draft_marca') {
+        $stmt = $pdo->prepare("
+            SELECT da.id FROM draft_aleatorio_picks dap
+            JOIN drafts_aleatorios da ON da.id = dap.draft_id
+            WHERE da.modo = 'time_nba' AND UPPER(da.league) = 'ROOKIE' AND da.finalizado_em IS NULL
+              AND dap.user_id = ?
+            ORDER BY da.id DESC LIMIT 1
+        ");
+        $stmt->execute([$user_id]);
+        $meuDraftId = (int)($stmt->fetchColumn() ?: 0);
+
+        if (!$meuDraftId) {
+            $stmtEsperando = $pdo->prepare("
+                SELECT id, name, photo_url FROM users
+                WHERE league = 'ROOKIE' AND user_type != 'admin' AND id NOT IN (SELECT user_id FROM teams)
+                ORDER BY id ASC
+            ");
+            $stmtEsperando->execute();
+            echo json_encode(['success' => true, 'draft_id' => null, 'esperando' => $stmtEsperando->fetchAll(PDO::FETCH_ASSOC)]);
+            exit;
+        }
+
+        echo json_encode(['success' => true, 'draft_id' => $meuDraftId] + estadoDraftAleatorio($pdo, $meuDraftId, $user_id, $is_admin));
         exit;
     }
 
@@ -406,11 +451,12 @@ if ($method === 'POST') {
 
         $titulo = trim((string)($body['titulo'] ?? '')) ?: (string)$roleta['titulo'];
         $league = detectarLigaDraftAleatorio($pdo, $roletaId, $user_id);
+        $modo = ($body['modo'] ?? '') === 'time_nba' ? 'time_nba' : 'texto_livre';
 
         $pdo->beginTransaction();
         try {
-            $pdo->prepare("INSERT INTO drafts_aleatorios (roleta_id, titulo, league, criado_por) VALUES (?,?,?,?)")
-                ->execute([$roletaId, mb_substr($titulo, 0, 180), $league, $user_id]);
+            $pdo->prepare("INSERT INTO drafts_aleatorios (roleta_id, titulo, league, modo, criado_por) VALUES (?,?,?,?,?)")
+                ->execute([$roletaId, mb_substr($titulo, 0, 180), $league, $modo, $user_id]);
             $draftId = (int)$pdo->lastInsertId();
 
             // pick_number da roleta já é a ordem do draft: quem sobrou por
@@ -456,31 +502,58 @@ if ($method === 'POST') {
     }
 
     if ($action === 'escolher') {
-        $nome = trim((string)($body['player_name'] ?? ''));
-        // Posição saiu do formulário — só o nome é digitado. Continua aceita se
-        // vier (drafts antigos gravaram), mas nunca mais é exigida.
-        $pos  = strtoupper(trim((string)($body['player_position'] ?? '')));
-        if (!in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true)) $pos = null;
-        $pickAlvo = isset($body['pick_number']) ? (int)$body['pick_number'] : null;
-        if ($nome === '') {
-            echo json_encode(['success' => false, 'error' => 'Digite o nome do jogador.']);
-            exit;
-        }
+        $stmtModo = $pdo->prepare("SELECT modo FROM drafts_aleatorios WHERE id = ?");
+        $stmtModo->execute([$draftId]);
+        $modo = $stmtModo->fetchColumn() ?: 'texto_livre';
+
         if (draftFinalizado($pdo, $draftId)) {
             echo json_encode(['success' => false, 'error' => 'Este draft já foi finalizado.']);
             exit;
         }
+
+        if ($modo === 'time_nba') {
+            // Sorteio de marca da ROOKIE: escolhe de um catálogo fechado (30
+            // times reais), não digita nome — e cada time só pode sair uma vez.
+            $nbaTeamId = (int)($body['nba_team_id'] ?? 0);
+            $nbaTeam = $nbaTeamId ? nbaTeamById($nbaTeamId) : null;
+            if (!$nbaTeam) {
+                echo json_encode(['success' => false, 'error' => 'Escolha um time da NBA válido.']);
+                exit;
+            }
+            ensureNbaTeamColumn($pdo);
+            $stmtTaken = $pdo->prepare('SELECT id FROM teams WHERE nba_team_id = ? LIMIT 1');
+            $stmtTaken->execute([$nbaTeamId]);
+            if ($stmtTaken->fetch()) {
+                echo json_encode(['success' => false, 'error' => 'Esse time da NBA já foi escolhido. Escolha outro.']);
+                exit;
+            }
+            $nome = $nbaTeam['city'] . ' ' . $nbaTeam['name'];
+        } else {
+            $nome = trim((string)($body['player_name'] ?? ''));
+            // Posição saiu do formulário — só o nome é digitado. Continua aceita se
+            // vier (drafts antigos gravaram), mas nunca mais é exigida.
+            if ($nome === '') {
+                echo json_encode(['success' => false, 'error' => 'Digite o nome do jogador.']);
+                exit;
+            }
+        }
+        $pos = null;
+        if ($modo !== 'time_nba') {
+            $pos = strtoupper(trim((string)($body['player_position'] ?? '')));
+            if (!in_array($pos, ['PG', 'SG', 'SF', 'PF', 'C'], true)) $pos = null;
+        }
+        $pickAlvo = isset($body['pick_number']) ? (int)$body['pick_number'] : null;
 
         $pdo->beginTransaction();
         try {
             if ($pickAlvo !== null && $pickAlvo > 0) {
                 // Preenchendo uma escolha específica (tipicamente uma pulada) —
                 // não precisa ser a da vez atual.
-                $stmt = $pdo->prepare("SELECT id, nome_display FROM draft_aleatorio_picks
+                $stmt = $pdo->prepare("SELECT id, nome_display, user_id FROM draft_aleatorio_picks
                                        WHERE draft_id = ? AND pick_number = ? AND player_name IS NULL FOR UPDATE");
                 $stmt->execute([$draftId, $pickAlvo]);
             } else {
-                $stmt = $pdo->prepare("SELECT id, nome_display FROM draft_aleatorio_picks
+                $stmt = $pdo->prepare("SELECT id, nome_display, user_id FROM draft_aleatorio_picks
                                        WHERE draft_id = ? AND player_name IS NULL AND skipped = 0
                                        ORDER BY pick_number ASC LIMIT 1 FOR UPDATE");
                 $stmt->execute([$draftId]);
@@ -493,11 +566,31 @@ if ($method === 'POST') {
             }
 
             $pdo->prepare("UPDATE draft_aleatorio_picks
-                           SET player_name = ?, player_position = ?, skipped = 0, picked_at = NOW()
+                           SET player_name = ?, player_position = ?, nba_team_id = ?, skipped = 0, picked_at = NOW()
                            WHERE id = ?")
-                ->execute([$nome, $pos, $atual['id']]);
+                ->execute([$nome, $pos, $modo === 'time_nba' ? $nbaTeamId : null, $atual['id']]);
+
+            // Modo time_nba: a pick É a marca da franquia — cria o time de
+            // verdade pro dono desta pick agora, igual o cadastro fazia antes
+            // de a escolha de marca virar um passo separado.
+            if ($modo === 'time_nba' && $atual['user_id']) {
+                $pdo->prepare('INSERT INTO teams (user_id, league, conference, name, city, mascot, photo_url, nba_team_id) VALUES (?, "ROOKIE", ?, ?, ?, ?, ?, ?)')
+                    ->execute([
+                        (int)$atual['user_id'], $nbaTeam['conference'], $nbaTeam['name'], $nbaTeam['city'], '',
+                        nbaTeamLogoUrl($nbaTeam['id']), $nbaTeam['id'],
+                    ]);
+            }
 
             $pdo->commit();
+        } catch (PDOException $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ((int)$e->getCode() === 23000 || str_contains($e->getMessage(), 'uniq_teams_nba_team_id')) {
+                echo json_encode(['success' => false, 'error' => 'Esse time da NBA acabou de ser escolhido por outro GM. Escolha outro.']);
+                exit;
+            }
+            error_log('drafts-aleatorios escolher: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => 'Erro ao registrar a escolha.']);
+            exit;
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             error_log('drafts-aleatorios escolher: ' . $e->getMessage());
@@ -559,7 +652,7 @@ if ($method === 'POST') {
 
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->prepare("SELECT id, player_name FROM draft_aleatorio_picks WHERE draft_id = ? AND pick_number = ? FOR UPDATE");
+            $stmt = $pdo->prepare("SELECT id, player_name, user_id, nba_team_id FROM draft_aleatorio_picks WHERE draft_id = ? AND pick_number = ? FOR UPDATE");
             $stmt->execute([$draftId, $pickAlvo]);
             $atual = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$atual || $atual['player_name'] === null) {
@@ -567,8 +660,15 @@ if ($method === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Essa escolha ainda não foi feita.']);
                 exit;
             }
+            // Modo time_nba: a pick tinha criado o time de verdade do GM — desfazer
+            // a escolha também apaga esse time, senão ele fica "dono" de uma marca
+            // que a tela diz que ainda não foi escolhida.
+            if ($atual['nba_team_id'] && $atual['user_id']) {
+                $pdo->prepare('DELETE FROM teams WHERE user_id = ? AND nba_team_id = ?')
+                    ->execute([(int)$atual['user_id'], (int)$atual['nba_team_id']]);
+            }
             $pdo->prepare("UPDATE draft_aleatorio_picks
-                           SET player_name = NULL, player_position = NULL, skipped = 1, picked_at = NOW()
+                           SET player_name = NULL, player_position = NULL, nba_team_id = NULL, skipped = 1, picked_at = NOW()
                            WHERE id = ?")
                 ->execute([$atual['id']]);
             $pdo->commit();

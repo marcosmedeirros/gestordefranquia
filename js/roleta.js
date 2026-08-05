@@ -76,6 +76,7 @@ function rlAbrirModalNovaRoleta() {
   document.getElementById('rlPersonalizadoWrap').style.display = 'none';
   rlRenderChips();
   rlAtualizarLabelAddTodos();
+  rlAtualizarVisibilidadeSemTime();
   rlModalNovaRoleta.show();
 }
 
@@ -153,6 +154,34 @@ function rlAtualizarLabelAddTodos() {
   if (label) label.textContent = rlTipoAtual === 'times' ? 'Adicionar todos os times da liga' : 'Adicionar todos os GMs da liga';
 }
 
+/** Só faz sentido pedir "quem tá sem time" quando a liga é ROOKIE e o tipo é GMs. */
+function rlAtualizarVisibilidadeSemTime() {
+  const liga = document.getElementById('rlLiga')?.value || '';
+  const btn = document.getElementById('btnRlAddSemTime');
+  if (btn) btn.style.display = (liga === 'ROOKIE' && rlTipoAtual === 'gms') ? '' : 'none';
+}
+
+async function rlAdicionarSemTimeRookie() {
+  const btn = document.getElementById('btnRlAddSemTime');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/roleta.php?action=usuarios_sem_time&liga=ROOKIE');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Erro ao buscar quem está sem time.');
+    if (!data.resultados.length) { alert('Ninguém cadastrado na ROOKIE está sem time no momento.'); return; }
+
+    data.resultados.forEach(r => {
+      if (rlSelecionados.some(p => p.user_id === r.user_id)) return;
+      rlSelecionados.push({ team_id: null, user_id: r.user_id, gm_label: r.gm_label, label: r.gm_label });
+    });
+    rlRenderChips();
+  } catch (e) {
+    alert(e.message || 'Erro ao adicionar quem está sem time.');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function rlAdicionarTodosDaLiga() {
   const liga = document.getElementById('rlLiga')?.value || '';
   if (!liga) { alert('Escolha a liga primeiro.'); return; }
@@ -225,10 +254,13 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('rlBuscaWrap').style.display = rlTipoAtual === 'personalizado' ? 'none' : '';
       document.getElementById('rlPersonalizadoWrap').style.display = rlTipoAtual === 'personalizado' ? '' : 'none';
       rlAtualizarLabelAddTodos();
+      rlAtualizarVisibilidadeSemTime();
     });
   });
 
   document.getElementById('btnRlAddTodos').addEventListener('click', rlAdicionarTodosDaLiga);
+  document.getElementById('btnRlAddSemTime')?.addEventListener('click', rlAdicionarSemTimeRookie);
+  document.getElementById('rlLiga')?.addEventListener('change', rlAtualizarVisibilidadeSemTime);
 
   const buscaInput = document.getElementById('rlBusca');
   buscaInput.addEventListener('input', () => {

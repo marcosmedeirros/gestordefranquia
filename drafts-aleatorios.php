@@ -193,6 +193,10 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
     <div class="dc-modal">
         <div class="dc-modal-title"><i class="bi bi-shuffle"></i> Criar draft de uma roleta</div>
         <p class="dc-modal-sub">Escolha uma roleta já sorteada por completo. A ordem dela vira a ordem do draft.</p>
+        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-2);margin-bottom:12px;cursor:pointer">
+            <input type="checkbox" id="dcModoTimeNba" style="width:15px;height:15px">
+            Sorteio de marca da ROOKIE — cada um escolhe um time da NBA (sem repetir) em vez de digitar um nome
+        </label>
         <div id="dcRoletasLista"></div>
         <div class="dc-modal-actions">
             <button type="button" class="btn-ghost" onclick="dcFecharModalNovo()">Fechar</button>
