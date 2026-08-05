@@ -355,18 +355,9 @@ if (($_POST['acao'] ?? '') !== '') {
                     (string)($partida['nome_jogador'] ?: 'Seu jogador')
                 );
 
-                // Moeda só no PRIMEIRO build fechado do dia. Sem isso, jogar
-                // sem limite viraria farm: bastava repetir até cair no top 10
-                // e sacar de novo. Os builds seguintes valem pelo ranking e
-                // pela temporada, que é o que o jogo tem de graça.
-                $st = $pdo->prepare("SELECT 1 FROM build_partidas
-                                     WHERE id_usuario=? AND data_jogo=? AND concluido_em IS NOT NULL
-                                       AND id <> ? LIMIT 1");
-                $st->execute([$user_id, $hoje, (int)$partida['id']]);
-                $primeiroDoDia = !$st->fetchColumn();
-
-                $moedas = $primeiroDoDia ? buildMoedasDaPosicaoHistorica($hist) : 0;
-                $season['primeiro_do_dia'] = $primeiroDoDia;
+                // Jogadas são ilimitadas e todo build fechado paga pelo ranking
+                // histórico — não tem mais trava de "só o primeiro do dia".
+                $moedas = buildMoedasDaPosicaoHistorica($hist);
 
                 $pdo->prepare("UPDATE build_partidas SET posicao_rank=?, moedas=?, temporada=? WHERE id=?")
                     ->execute([$hist['no_top'] ? $hist['posicao'] : 0, $moedas, json_encode($season), (int)$partida['id']]);
@@ -397,6 +388,9 @@ if (($_POST['acao'] ?? '') !== '') {
 $partida   = bpPartida($pdo, $user_id);
 $ATRIBUTOS = buildAtributos();
 $temNotas  = (int)$pdo->query("SELECT COUNT(*) FROM build_notas")->fetchColumn();
+$stPontos  = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = ?");
+$stPontos->execute([$user_id]);
+$pontosUsuario = (int)($stPontos->fetchColumn() ?: 0);
 
 // "Montar outro build": o último build está fechado e o jogador pediu a tela
 // inicial de volta. Nada é apagado — aquele build continua no ranking, só sai
@@ -720,7 +714,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <?php if ($partida && !$partida['concluido_em']): ?>
     <div class="chip"><i class="bi bi-grid-3x3-gap"></i><span id="chipSlots"><?= $preenchidos ?>/10</span></div>
     <?php endif; ?>
-    <div class="chip" style="color:var(--amber)"><i class="bi bi-trophy-fill"></i><?= $partida && $partida['ovr'] ? (int)$partida['ovr'] : '—' ?></div>
+    <div class="chip" style="color:var(--amber)"><img src="../moeda.png" style="width:16px;height:16px;object-fit:contain;vertical-align:middle"><?= $pontosUsuario ?></div>
   </div>
 </div>
 
@@ -798,8 +792,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
     <?php if ((int)$partida['moedas'] > 0): ?>
     <div class="fim-moedas"><i class="bi bi-coin"></i>+<?= (int)$partida['moedas'] ?> moedas</div>
-    <?php elseif (isset($temporada['primeiro_do_dia']) && !$temporada['primeiro_do_dia']): ?>
-    <div class="fim-nada">Moedas só no <b>primeiro build do dia</b>. Deste aqui em diante vale o ranking e a temporada — jogue quantas vezes quiser.</div>
     <?php else: ?>
     <div class="fim-nada">Só entrar no <b>top 10 da história</b> paga moedas — e chegar em 1º é quase impossível de propósito.</div>
     <?php endif; ?>

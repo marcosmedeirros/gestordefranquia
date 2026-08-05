@@ -5,6 +5,7 @@
  */
 if (session_status() === PHP_SESSION_NONE) session_start();
 require '../core/conexao.php';
+require_once __DIR__ . '/../core/hoopgrid_sync.php';
 if (!isset($_SESSION['user_id'])) { header("Location: /login.php"); exit; }
 
 $stmt = $pdo->prepare("SELECT is_admin, nome, pontos, fba_points FROM games_usuarios WHERE id = ?");
@@ -351,99 +352,12 @@ if ($action === 'apply_draft_2026') {
 }
 
 // ── SINCRONIZAR STATUS ATIVO + TIME ATUAL (1 chamada, temporada corrente) ────
+// Lógica em games/core/hoopgrid_sync.php — a mesma função roda aqui (botão
+// manual) e no cron agendado (games/cron/sync-hoopgrid-status.php).
 if ($action === 'sync_status') {
     header('Content-Type: application/json');
     set_time_limit(60);
-
-    // Detecta a temporada corrente (NBA vai de out. a jun.: mes<7 => temporada comecou no ano anterior)
-    $y = (int)date('Y');
-    $m = (int)date('n');
-    $seasonStartYear = ($m < 8) ? $y - 1 : $y;
-    $season = sprintf('%d-%02d', $seasonStartYear, ($seasonStartYear + 1) % 100);
-
-    $url = "https://stats.nba.com/stats/commonallplayers?IsOnlyCurrentSeason=1&LeagueID=00&Season={$season}";
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 30,
-        CURLOPT_CONNECTTIMEOUT => 15,
-        CURLOPT_ENCODING       => '',
-        CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS      => 5,
-        CURLOPT_HTTPHEADER     => [
-            'Accept: application/json, text/plain, */*',
-            'Accept-Encoding: gzip, deflate, br',
-            'Accept-Language: en-US,en;q=0.9',
-            'Cache-Control: no-cache',
-            'Connection: keep-alive',
-            'DNT: 1',
-            'Host: stats.nba.com',
-            'Origin: https://www.nba.com',
-            'Pragma: no-cache',
-            'Referer: https://www.nba.com/',
-            'Sec-Fetch-Dest: empty',
-            'Sec-Fetch-Mode: cors',
-            'Sec-Fetch-Site: same-site',
-            'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'x-nba-stats-origin: stats',
-            'x-nba-stats-token: true',
-        ],
-    ]);
-    $raw  = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err  = curl_error($ch);
-    curl_close($ch);
-    if ($err || $code !== 200) { echo json_encode(['ok'=>false,'error'=>"HTTP {$code}: {$err}"]); exit; }
-
-    $data = json_decode($raw, true);
-    $hdrs = $data['resultSets'][0]['headers'] ?? [];
-    $rows = $data['resultSets'][0]['rowSet']   ?? [];
-    if (!$rows) { echo json_encode(['ok'=>false,'error'=>'Nenhum dado retornado (temporada ainda sem elenco?)']); exit; }
-
-    $ix    = array_flip($hdrs);
-    $iPid  = $ix['PERSON_ID']           ?? null;
-    $iTeam = $ix['TEAM_ABBREVIATION']   ?? null;
-    if ($iPid === null) { echo json_encode(['ok'=>false,'error'=>'Campo PERSON_ID não encontrado']); exit; }
-
-    $activeMap = []; // pid => team
-    foreach ($rows as $row) {
-        $pid  = (int)($row[$iPid] ?? 0);
-        if (!$pid) continue;
-        $team = $iTeam !== null ? strtoupper(trim($row[$iTeam] ?? '')) : '';
-        $team = $TEAM_MAP[$team] ?? $team;
-        $activeMap[$pid] = $team ?: null;
-    }
-
-    // Marca como ativo + time atual quem está na lista da temporada corrente
-    $stmtActive = $pdo->prepare("UPDATE hoopgrid_players SET ativo=1, time_atual=? WHERE nba_person_id=?");
-    $ativados = 0;
-    foreach ($activeMap as $pid => $team) {
-        $stmtActive->execute([$team, $pid]);
-        $ativados += $stmtActive->rowCount() > 0 ? 1 : 0;
-    }
-
-    // Marca como inativo (e limpa time_atual) quem tem nba_person_id mas nao apareceu na lista
-    $pids = array_keys($activeMap);
-    if ($pids) {
-        $ph = implode(',', array_fill(0, count($pids), '?'));
-        $stmtInactive = $pdo->prepare("UPDATE hoopgrid_players SET ativo=0, time_atual=NULL WHERE nba_person_id IS NOT NULL AND nba_person_id NOT IN ({$ph})");
-        $stmtInactive->execute($pids);
-        $inativados = $stmtInactive->rowCount();
-    } else {
-        $inativados = 0;
-    }
-
-    // Rede de seguranca: registros legados sem nba_person_id (ex.: importados via awards-static.json)
-    // nunca sao alcancados pela checagem acima e ficam presos no ativo=1 default. Quem nao jogou na
-    // decada 20s certamente nao esta ativo hoje.
-    $stmtLegacyInactive = $pdo->prepare("UPDATE hoopgrid_players SET ativo=0, time_atual=NULL WHERE ativo=1 AND eras NOT LIKE '%\"20s\"%'");
-    $stmtLegacyInactive->execute();
-    $inativados += $stmtLegacyInactive->rowCount();
-
-    echo json_encode(['ok'=>true,'season'=>$season,'encontrados'=>count($activeMap),'ativados'=>$ativados,'inativados'=>$inativados]);
+    echo json_encode(syncHoopgridPlayerStatus($pdo));
     exit;
 }
 

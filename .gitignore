@@ -12,3 +12,4 @@ games/logs/waivers-cron.log
 backend/config.local.php.bak
 games/logs/whatsapp-cron.log
 games/logs/sync-fotos-cron.log
+games/logs/sync-hoopgrid-status.log

@@ -369,6 +369,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <span class="game-title">Box <span>NBA</span><span class="daily-badge"><i class="bi bi-calendar3"></i>Diário</span></span>
   </div>
   <div class="topbar-right">
+    <a href="../admin/dadosjogadores.php" class="chip" title="Achou um jogador com dado errado (time, país, prêmio)? Corrija direto na nossa base."><i class="bi bi-flag"></i></a>
     <div class="chip" id="triesChip"><i class="bi bi-crosshair"></i><span id="triesLabel">9</span></div>
     <div class="chip" id="scoreChip" style="color:var(--amber)"><img src="../moeda.png" style="width:16px;height:16px;object-fit:contain;vertical-align:middle"><span id="scoreLabel">0</span></div>
   </div>
