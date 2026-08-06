@@ -368,6 +368,20 @@ if ($method === 'GET') {
         $stmt->execute([$user_id]);
         $meuDraftId = (int)($stmt->fetchColumn() ?: 0);
 
+        // Admin da ROOKIE não tem pick nenhuma (ele conduz, não participa), então a
+        // consulta acima volta vazia e ele cairia na tela de espera mesmo com o
+        // sorteio rolando. Aqui ele pega o draft de marca em andamento pra
+        // acompanhar a fila — sem pick própria, a tela entra em modo espectador.
+        $souAdminRookie = in_array('ROOKIE', $minhasLigasAdmin, true);
+        if (!$meuDraftId && $souAdminRookie) {
+            $stmtAdm = $pdo->query("
+                SELECT id FROM drafts_aleatorios
+                WHERE modo = 'time_nba' AND UPPER(league) = 'ROOKIE' AND finalizado_em IS NULL
+                ORDER BY id DESC LIMIT 1
+            ");
+            $meuDraftId = (int)($stmtAdm->fetchColumn() ?: 0);
+        }
+
         if (!$meuDraftId) {
             $stmtEsperando = $pdo->prepare("
                 SELECT id, name, photo_url FROM users

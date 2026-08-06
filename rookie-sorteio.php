@@ -22,13 +22,20 @@ requireAuth();
 $pdo = db();
 $user = getUserSession();
 
+// O admin da ROOKIE acompanha o sorteio sem participar dele: ele tem time, então
+// caía no redirect abaixo e não conseguia abrir a página de jeito nenhum.
+$ehAdminRookie = hasAdminAccess($pdo, (int)$user['id'])
+    && in_array('ROOKIE', array_map('strtoupper', getAdminLeagues($pdo, (int)$user['id'])), true);
+
 // Já tem time? Não devia ter caído aqui, mas se caiu (favorito antigo,
 // aba antiga aberta), manda pro dashboard em vez de mostrar sorteio de novo.
-$stmt = $pdo->prepare('SELECT 1 FROM teams WHERE user_id = ? LIMIT 1');
-$stmt->execute([$user['id']]);
-if ($stmt->fetchColumn()) {
-    header('Location: /dashboard.php');
-    exit;
+if (!$ehAdminRookie) {
+    $stmt = $pdo->prepare('SELECT 1 FROM teams WHERE user_id = ? LIMIT 1');
+    $stmt->execute([$user['id']]);
+    if ($stmt->fetchColumn()) {
+        header('Location: /dashboard.php');
+        exit;
+    }
 }
 
 $nbaTeamsList = nbaTeams();
@@ -131,7 +138,9 @@ $nbaTeamsList = nbaTeams();
 	<div class="rs-head">
 		<div class="rs-logo">FBA</div>
 		<h1 class="rs-title">Sorteio da liga ROOKIE</h1>
-		<p class="rs-sub">Olá, <?= htmlspecialchars(explode(' ', $user['name'])[0]) ?>! Falta só escolher seu time.</p>
+		<p class="rs-sub"><?= $ehAdminRookie
+			? 'Acompanhando o sorteio como admin da liga.'
+			: 'Olá, ' . htmlspecialchars(explode(' ', $user['name'])[0]) . '! Falta só escolher seu time.' ?></p>
 	</div>
 
 	<div class="rs-card">
@@ -151,6 +160,10 @@ $nbaTeamsList = nbaTeams();
 	const NBA_LOGO = (id) => `https://cdn.nba.com/logos/nba/${id}/global/L/logo.svg`;
 	const MEU_USER_ID = <?= (int)$user['id'] ?>;
 	const MEU_NOME = <?= json_encode($user['name'], JSON_UNESCAPED_UNICODE) ?>;
+	// Admin da ROOKIE abre a mesma tela, mas não tem pick: vê a fila em modo
+	// espectador. Como ele não está em picks[], a lógica de estado já cai sozinha
+	// no renderFila — o que muda aqui é só o texto, que senão fala do "seu time".
+	const SOU_ADMIN_ROOKIE = <?= $ehAdminRookie ? 'true' : 'false' ?>;
 	let escolhendo = false;
 
 	function avatarUrl(nome, foto) {
@@ -163,20 +176,26 @@ $nbaTeamsList = nbaTeams();
 		document.getElementById('rsHeadTitle').textContent = 'Aguardando o sorteio';
 		const body = document.getElementById('rsBody');
 		const outros = esperando.filter(u => Number(u.id) !== MEU_USER_ID);
+		// O admin não entra na fila (a API já exclui admins da lista de espera),
+		// então ele não aparece como "(você)" no topo — só vê quem está esperando.
+		const total = outros.length + (SOU_ADMIN_ROOKIE ? 0 : 1);
 		body.innerHTML = `
-			<p style="font-size:13px;color:var(--text-2);margin-bottom:4px">O admin da liga ainda não iniciou o sorteio da ordem. Assim que ele girar a roleta, esta tela atualiza sozinha.</p>
+			<p style="font-size:13px;color:var(--text-2);margin-bottom:4px">${SOU_ADMIN_ROOKIE
+				? 'O sorteio da ordem ainda não começou. Gire a roleta da ROOKIE e depois crie o sorteio de times da NBA — esta tela atualiza sozinha.'
+				: 'O admin da liga ainda não iniciou o sorteio da ordem. Assim que ele girar a roleta, esta tela atualiza sozinha.'}</p>
+			${SOU_ADMIN_ROOKIE ? `<p style="font-size:12px;margin-bottom:10px"><a href="/roleta.php" style="color:var(--red)">Ir pras roletas <i class="bi bi-box-arrow-up-right"></i></a></p>` : ''}
 			<div class="rs-lista">
-				<div class="rs-item">
+				${SOU_ADMIN_ROOKIE ? '' : `<div class="rs-item">
 					<img src="${avatarUrl(MEU_NOME, null)}">
 					<span><strong>${escapeHtml(MEU_NOME)}</strong> (você)</span>
-				</div>
+				</div>`}
 				${outros.map(u => `
 					<div class="rs-item">
 						<img src="${avatarUrl(u.name, u.photo_url)}">
 						<span>${escapeHtml(u.name)}</span>
 					</div>`).join('')}
 			</div>
-			<p class="rs-empty" style="margin-top:14px">${1 + outros.length} pessoa${outros.length ? 's' : ''} aguardando.</p>
+			<p class="rs-empty" style="margin-top:14px">${total} pessoa${total === 1 ? '' : 's'} aguardando.</p>
 		`;
 	}
 
@@ -185,7 +204,10 @@ $nbaTeamsList = nbaTeams();
 		document.getElementById('rsHeadTitle').textContent = 'Ordem do sorteio';
 		const body = document.getElementById('rsBody');
 		body.innerHTML = `
-			<p style="font-size:13px;color:var(--text-2);margin-bottom:4px">A ordem já foi sorteada! Aguarde sua vez pra escolher o time.</p>
+			<p style="font-size:13px;color:var(--text-2);margin-bottom:4px">${SOU_ADMIN_ROOKIE
+				? 'Ordem sorteada. Acompanhe a fila aqui — pra registrar a escolha de um GM ausente, use o quadro do draft.'
+				: 'A ordem já foi sorteada! Aguarde sua vez pra escolher o time.'}</p>
+			${SOU_ADMIN_ROOKIE ? `<p style="font-size:12px;margin-bottom:10px"><a href="/draft-aleatorio.php?id=${estado.id}" style="color:var(--red)">Abrir o quadro do draft <i class="bi bi-box-arrow-up-right"></i></a></p>` : ''}
 			<div class="rs-lista">
 				${estado.picks.map(p => {
 					const feito = p.player_name !== null;
