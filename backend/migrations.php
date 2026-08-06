@@ -1084,6 +1084,53 @@ function runMigrations() {
         $errors[] = "initdraft_sem_rookie_scale: " . $e->getMessage();
     }
 
+    // Cap Flex desligado na temporada corrente da ELITE.
+    //
+    // Decisao da liga: nesta temporada o teto e o de 205M puro, sem o acrescimo de
+    // 8M por estrela. Em vez de fixar um numero aqui, a migracao le a temporada
+    // ativa e libera a partir da SEGUINTE — assim vale seja qual for a numeracao
+    // gravada no banco. Depois disso o admin manda no valor pelo painel; por isso o
+    // COALESCE, que so preenche se ainda estiver vazio, e a flag, que garante uma
+    // unica passada (se o admin limpar o campo de proposito, nao voltamos a mexer).
+    try {
+        $jaRodou = false;
+        try {
+            $st = $pdo->prepare("SELECT 1 FROM app_flags WHERE flag = ?");
+            $st->execute(['elite_cap_flex_a_partir_da_proxima']);
+            $jaRodou = (bool)$st->fetchColumn();
+        } catch (PDOException $e) { /* app_flags pode nao existir ainda */ }
+
+        if (!$jaRodou) {
+            if (!$pdo->query("SHOW COLUMNS FROM league_settings LIKE 'cap_flex_a_partir_da_temporada'")->fetch()) {
+                $pdo->exec("ALTER TABLE league_settings ADD COLUMN cap_flex_a_partir_da_temporada INT NULL");
+            }
+
+            $st = $pdo->prepare("SELECT season_number FROM seasons
+                                 WHERE league = 'ELITE' AND (status IS NULL OR status <> 'completed')
+                                 ORDER BY id DESC LIMIT 1");
+            $st->execute();
+            $atual = $st->fetchColumn();
+
+            // Sem temporada aberta nao da pra saber a partir de quando liberar:
+            // deixa pro painel e nao marca a flag, pra tentar de novo depois.
+            if ($atual !== false && $atual !== null) {
+                $liberaEm = (int)$atual + 1;
+                $pdo->prepare("
+                    INSERT INTO league_settings (league, cap_flex_a_partir_da_temporada)
+                    VALUES ('ELITE', ?)
+                    ON DUPLICATE KEY UPDATE cap_flex_a_partir_da_temporada =
+                        COALESCE(cap_flex_a_partir_da_temporada, VALUES(cap_flex_a_partir_da_temporada))
+                ")->execute([$liberaEm]);
+
+                $pdo->prepare("INSERT IGNORE INTO app_flags (flag) VALUES (?)")
+                    ->execute(['elite_cap_flex_a_partir_da_proxima']);
+                error_log("[migracao] ELITE: cap flex liberado a partir da temporada {$liberaEm}");
+            }
+        }
+    } catch (PDOException $e) {
+        $errors[] = "elite_cap_flex_temporada: " . $e->getMessage();
+    }
+
     // Historico do ranking por sprint. Ao fechar a sprint a pontuacao corrente
     // e zerada; sem este congelamento a classificacao daquele ciclo se perdia.
     // Tambem e a base da variacao de posicao mostrada em rankings.php.
