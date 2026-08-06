@@ -130,6 +130,31 @@ $nbaTeamsList = nbaTeams();
 		.btn-rs:disabled { opacity: .55; cursor: not-allowed; }
 
 		.rs-empty { text-align: center; padding: 10px 0; color: var(--text-2); font-size: 13px; }
+
+		/* Card de "já escolheu": aparece acima de tudo assim que o time é confirmado,
+		   com a saída pro app. Antes a página redirecionava sozinha em 1,8s. */
+		.rs-pronto {
+			display: flex; align-items: center; gap: 14px;
+			background: var(--panel); border: 1px solid var(--border);
+			border-left: 3px solid var(--green);
+			border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px;
+		}
+		.rs-pronto-logo { width: 46px; height: 46px; object-fit: contain; flex-shrink: 0; }
+		.rs-pronto-txt { flex: 1; min-width: 0; }
+		.rs-pronto-label { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--green); margin-bottom: 2px; }
+		.rs-pronto-time { font-size: 15px; font-weight: 800; line-height: 1.25; }
+		.rs-pronto-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+		.rs-pronto-btn {
+			background: var(--red); border: 1px solid var(--red); color: #fff;
+			border-radius: var(--radius-sm); font-size: 13px; font-weight: 700;
+			padding: 11px 16px; text-decoration: none; white-space: nowrap; flex-shrink: 0;
+			display: inline-flex; align-items: center; gap: 7px;
+		}
+		.rs-pronto-btn:hover { filter: brightness(1.08); color: #fff; }
+		@media (max-width: 520px) {
+			.rs-pronto { flex-wrap: wrap; }
+			.rs-pronto-btn { width: 100%; justify-content: center; }
+		}
 	</style>
 </head>
 <body>
@@ -142,6 +167,9 @@ $nbaTeamsList = nbaTeams();
 			? 'Acompanhando o sorteio como admin da liga.'
 			: 'Olá, ' . htmlspecialchars(explode(' ', $user['name'])[0]) . '! Falta só escolher seu time.' ?></p>
 	</div>
+
+	<?php /* Preenchido só pra quem já confirmou o time (ver renderFinalizado). */ ?>
+	<div id="rsTopo"></div>
 
 	<div class="rs-card">
 		<div class="rs-card-head">
@@ -165,6 +193,7 @@ $nbaTeamsList = nbaTeams();
 	// no renderFila — o que muda aqui é só o texto, que senão fala do "seu time".
 	const SOU_ADMIN_ROOKIE = <?= $ehAdminRookie ? 'true' : 'false' ?>;
 	let escolhendo = false;
+	let redirecionando = false; // trava a contagem pro app (ver renderFinalizado)
 
 	function avatarUrl(nome, foto) {
 		if (foto) return foto;
@@ -199,14 +228,17 @@ $nbaTeamsList = nbaTeams();
 		`;
 	}
 
-	function renderFila(estado) {
+	function renderFila(estado, jaEscolhi = false) {
 		document.getElementById('rsHeadIcon').className = 'bi bi-list-ol';
 		document.getElementById('rsHeadTitle').textContent = 'Ordem do sorteio';
 		const body = document.getElementById('rsBody');
+		const intro = SOU_ADMIN_ROOKIE
+			? 'Ordem sorteada. Acompanhe a fila aqui — pra registrar a escolha de um GM ausente, use o quadro do draft.'
+			: (jaEscolhi
+				? 'Seu time já está definido. Se quiser, acompanhe por aqui o resto do sorteio.'
+				: 'A ordem já foi sorteada! Aguarde sua vez pra escolher o time.');
 		body.innerHTML = `
-			<p style="font-size:13px;color:var(--text-2);margin-bottom:4px">${SOU_ADMIN_ROOKIE
-				? 'Ordem sorteada. Acompanhe a fila aqui — pra registrar a escolha de um GM ausente, use o quadro do draft.'
-				: 'A ordem já foi sorteada! Aguarde sua vez pra escolher o time.'}</p>
+			<p style="font-size:13px;color:var(--text-2);margin-bottom:4px">${intro}</p>
 			${SOU_ADMIN_ROOKIE ? `<p style="font-size:12px;margin-bottom:10px"><a href="/draft-aleatorio.php?id=${estado.id}" style="color:var(--red)">Abrir o quadro do draft <i class="bi bi-box-arrow-up-right"></i></a></p>` : ''}
 			<div class="rs-lista">
 				${estado.picks.map(p => {
@@ -267,15 +299,45 @@ $nbaTeamsList = nbaTeams();
 		document.getElementById('rsConfirmar').addEventListener('click', () => confirmarTime(estado.id, minhaPickNumber));
 	}
 
-	function renderFinalizado(estado, meuTimeNome) {
-		document.getElementById('rsHeadIcon').className = 'bi bi-check-circle-fill';
-		document.getElementById('rsHeadTitle').textContent = 'Time definido!';
-		const body = document.getElementById('rsBody');
-		body.innerHTML = `
-			<p style="font-size:14px">Você vai representar o <strong>${escapeHtml(meuTimeNome)}</strong> na liga ROOKIE. Redirecionando pro app...</p>
-			<div class="rs-spinner" style="margin-top:16px"></div>
-		`;
-		setTimeout(() => { window.location.href = '/dashboard.php'; }, 1800);
+	/**
+	 * Já escolheu: card no topo confirmando o time, com o botão pro app, e a fila
+	 * do sorteio continuando embaixo.
+	 *
+	 * O redirecionamento automático segue existindo, só que com folga pra dar
+	 * tempo de ler o card (antes eram 1,8s e a tela trocava antes da confirmação
+	 * ser lida). Quem não quiser esperar clica no botão.
+	 */
+	function renderFinalizado(estado, minhaPick) {
+		// A fila continua acompanhando o poll; o card do topo é montado uma vez só.
+		// Sem essa ordem, cada volta de 4s reescrevia o card e apagava a contagem
+		// por um instante, e a trava reiniciaria o cronômetro sem nunca chegar ao fim.
+		renderFila(estado, true);
+		if (redirecionando) return;
+		redirecionando = true;
+
+		const logo = minhaPick.nba_team_id
+			? `<img class="rs-pronto-logo" src="${NBA_LOGO(Number(minhaPick.nba_team_id))}" alt="">`
+			: '';
+		document.getElementById('rsTopo').innerHTML = `
+			<div class="rs-pronto">
+				${logo}
+				<div class="rs-pronto-txt">
+					<div class="rs-pronto-label"><i class="bi bi-check-circle-fill"></i> Time definido</div>
+					<div class="rs-pronto-time">${escapeHtml(minhaPick.player_name)}</div>
+					<div class="rs-pronto-sub" id="rsProntoSub">Sua franquia na ROOKIE já está criada.</div>
+				</div>
+				<a class="rs-pronto-btn" href="/dashboard.php"><i class="bi bi-box-arrow-in-right"></i> Acessar o dashboard</a>
+			</div>`;
+
+		let faltam = 6;
+		const sub = () => document.getElementById('rsProntoSub');
+		const tick = () => {
+			const el = sub();
+			if (el) el.textContent = `Sua franquia na ROOKIE já está criada. Levando você pro app em ${faltam}s...`;
+			if (faltam-- <= 0) { clearInterval(timer); window.location.href = '/dashboard.php'; }
+		};
+		tick();
+		const timer = setInterval(tick, 1000);
 	}
 
 	async function confirmarTime(draftId, pickNumber) {
@@ -325,7 +387,7 @@ $nbaTeamsList = nbaTeams();
 			if (!minhaPick) { renderFila(data); return; }
 
 			if (minhaPick.player_name !== null) {
-				renderFinalizado(data, minhaPick.player_name);
+				renderFinalizado(data, minhaPick);
 				return;
 			}
 
