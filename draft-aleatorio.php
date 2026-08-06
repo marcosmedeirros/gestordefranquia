@@ -2,6 +2,9 @@
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
+// Catálogo dos 30 times da NBA — usado só quando o draft é do modo 'time_nba'
+// (sorteio de marca da ROOKIE), em que a escolha é um time e não um nome digitado.
+require_once __DIR__ . '/backend/nba_teams.php';
 requireAuth();
 
 $user = getUserSession();
@@ -236,8 +239,10 @@ if ($team_id) {
     <div class="da-modal">
         <div class="da-modal-title"><i class="bi bi-person-plus-fill"></i> Escolher jogador</div>
         <p class="da-modal-text" id="daPreencherModalText"></p>
+        <?php /* Um dos dois aparece conforme o modo do draft (ver daAbrirModalPreencher). */ ?>
         <div class="da-form-row" style="margin-top:0">
             <input type="text" id="daPreencherNome" placeholder="Nome do jogador" maxlength="150">
+            <select id="daPreencherTimeNba" style="flex:1;min-width:200px;display:none"></select>
         </div>
         <div class="da-modal-actions" style="margin-top:16px">
             <button type="button" class="btn-ghost" onclick="daFecharModalPreencher()">Cancelar</button>
@@ -271,6 +276,7 @@ if ($team_id) {
     });
     window.SESSION_USER_ID = <?= (int)$user['id'] ?>;
     window.DRAFT_ID = <?= $draftId ?>;
+    window.NBA_TEAMS = <?= json_encode(nbaTeams(), JSON_UNESCAPED_UNICODE) ?>;
 </script>
 <script src="<?= assetUrl('/js/draft-aleatorio.js') ?>"></script>
 <script src="/js/pwa.js"></script>

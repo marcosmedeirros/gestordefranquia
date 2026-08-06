@@ -94,15 +94,21 @@ function daRenderTudo() {
       ${d.is_admin ? `<div style="margin-top:10px"><button type="button" class="btn-ghost" id="btnDaReabrir"><i class="bi bi-arrow-counterclockwise me-1"></i>Reabrir draft</button></div>` : ''}
     </div>`;
   } else if (vez) {
+    // No sorteio de marca a escolha é um time da NBA, não um nome digitado — e o
+    // time escolhido vira a franquia do GM na hora (a API cria o registro em teams).
+    const campo = daEhMarcaNba(d)
+      ? `<select id="daTimeNba" style="flex:1;min-width:200px">${daOpcoesTimes(d)}</select>`
+      : `<input type="text" id="daNomeJogador" placeholder="Nome do jogador" maxlength="150">`;
     html += `
     <div class="da-turno">
       <div class="da-turno-label">Escolha ${vez.pick_number} de ${d.total}</div>
       <div class="da-turno-gm">${_daEsc(vez.nome_display)}${ehMinhaVez ? ' — é a sua vez!' : ''}</div>
       <div class="da-form-row">
-        <input type="text" id="daNomeJogador" placeholder="Nome do jogador" maxlength="150">
+        ${campo}
         <button type="button" class="btn-orange" id="btnDaEscolher">Confirmar escolha</button>
         <button type="button" class="da-btn-pular" id="btnDaPular" data-gm="${_daEsc(vez.nome_display)}"><i class="bi bi-skip-forward-fill"></i> Pular escolha</button>
       </div>
+      ${daEhMarcaNba(d) ? `<div style="font-size:11px;color:var(--text-2);margin-top:8px"><i class="bi bi-info-circle me-1"></i>O time escolhido vira a franquia do GM na ROOKIE imediatamente.</div>` : ''}
     </div>`;
   } else if (d.draft_completo) {
     html += `
@@ -154,6 +160,33 @@ function daRenderTudo() {
   if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter') daEscolher(); });
 }
 
+function daEhMarcaNba(d) {
+  return d && d.modo === 'time_nba';
+}
+
+/** Logo oficial do time da NBA — mesma URL que a API grava no time criado. */
+function daLogoNba(nbaId) {
+  return `https://cdn.nba.com/logos/nba/${nbaId}/global/L/logo.svg`;
+}
+
+/**
+ * Opções do dropdown, sem os times já escolhidos neste draft.
+ *
+ * O servidor confere de novo (consulta teams.nba_team_id e tem índice único), então
+ * isto é só pra não oferecer uma opção que vai dar erro — dois GMs escolhendo o
+ * mesmo time no mesmo segundo continua sendo barrado lá.
+ */
+function daOpcoesTimes(d) {
+  const tomados = new Set((d.picks || []).filter(p => p.nba_team_id).map(p => Number(p.nba_team_id)));
+  const livres = (window.NBA_TEAMS || []).filter(t => !tomados.has(Number(t.id)));
+  if (!livres.length) return `<option value="">Todos os times já foram escolhidos</option>`;
+  const porConf = (conf) => livres.filter(t => t.conference === conf)
+    .map(t => `<option value="${t.id}">${_daEsc(t.city + ' ' + t.name)}</option>`).join('');
+  return `<option value="">Escolha um time da NBA...</option>
+    <optgroup label="Leste">${porConf('LESTE')}</optgroup>
+    <optgroup label="Oeste">${porConf('OESTE')}</optgroup>`;
+}
+
 function daLinhaBoard(p, d) {
   const ehVez = Number(p.pick_number) === Number(d.vez_pick_number);
   const ehMeu = Number(p.user_id) === Number(window.SESSION_USER_ID);
@@ -165,7 +198,11 @@ function daLinhaBoard(p, d) {
 
   let jogador;
   if (p.player_name) {
-    jogador = `<i class="bi bi-check-circle-fill"></i><b>${_daEsc(p.player_name)}</b>`
+    // No sorteio de marca a escolha é um time: mostra o escudo junto do nome.
+    const escudo = p.nba_team_id
+      ? `<img src="${daLogoNba(Number(p.nba_team_id))}" alt="" style="width:20px;height:20px;object-fit:contain;margin-right:6px;vertical-align:middle">`
+      : `<i class="bi bi-check-circle-fill"></i>`;
+    jogador = `${escudo}<b>${_daEsc(p.player_name)}</b>`
       + (!d.finalizado ? `<button type="button" class="da-btn-desfazer" data-pick="${p.pick_number}" data-gm="${gm}" title="Desfazer escolha"><i class="bi bi-arrow-counterclockwise"></i></button>` : '');
   } else if (Number(p.skipped)) {
     jogador = `<span class="da-pulada"><i class="bi bi-skip-forward-fill"></i> Pulada</span>`
@@ -197,14 +234,22 @@ function daLinhaBoard(p, d) {
 }
 
 async function daEscolher() {
-  const nome = document.getElementById('daNomeJogador').value.trim();
-  if (!nome) { alert('Digite o nome do jogador.'); return; }
+  let corpo;
+  if (daEhMarcaNba(daEstado)) {
+    const nbaTeamId = Number(document.getElementById('daTimeNba').value || 0);
+    if (!nbaTeamId) { alert('Escolha um time da NBA.'); return; }
+    corpo = { action: 'escolher', id: window.DRAFT_ID, nba_team_id: nbaTeamId };
+  } else {
+    const nome = document.getElementById('daNomeJogador').value.trim();
+    if (!nome) { alert('Digite o nome do jogador.'); return; }
+    corpo = { action: 'escolher', id: window.DRAFT_ID, player_name: nome };
+  }
   const btn = document.getElementById('btnDaEscolher');
   btn.disabled = true;
   try {
     daEstado = await _daFetch('/api/drafts-aleatorios.php', {
       method: 'POST',
-      body: JSON.stringify({ action: 'escolher', id: window.DRAFT_ID, player_name: nome }),
+      body: JSON.stringify(corpo),
     });
     daRenderTudo();
   } catch (e) {
@@ -244,9 +289,17 @@ function daAbrirModalPreencher(pick, gm) {
   daPickAlvo = pick;
   const t = document.getElementById('daPreencherModalText');
   if (t) t.textContent = `Escolha ${pick} — ${gm}.`;
-  document.getElementById('daPreencherNome').value = '';
+
+  const marca = daEhMarcaNba(daEstado);
+  const campoNome = document.getElementById('daPreencherNome');
+  const campoTime = document.getElementById('daPreencherTimeNba');
+  campoNome.style.display = marca ? 'none' : '';
+  campoTime.style.display = marca ? '' : 'none';
+  campoNome.value = '';
+  if (marca) campoTime.innerHTML = daOpcoesTimes(daEstado);
+
   document.getElementById('daPreencherModalOverlay').classList.add('open');
-  setTimeout(() => document.getElementById('daPreencherNome').focus(), 50);
+  setTimeout(() => (marca ? campoTime : campoNome).focus(), 50);
 }
 function daFecharModalPreencher() {
   daPickAlvo = null;
@@ -255,17 +308,22 @@ function daFecharModalPreencher() {
 window.daFecharModalPreencher = daFecharModalPreencher;
 
 async function daConfirmarPreencher() {
-  const nome = document.getElementById('daPreencherNome').value.trim();
-  if (!nome) { alert('Digite o nome do jogador.'); return; }
+  const corpo = { action: 'escolher', id: window.DRAFT_ID, pick_number: daPickAlvo };
+  if (daEhMarcaNba(daEstado)) {
+    const nbaTeamId = Number(document.getElementById('daPreencherTimeNba').value || 0);
+    if (!nbaTeamId) { alert('Escolha um time da NBA.'); return; }
+    corpo.nba_team_id = nbaTeamId;
+  } else {
+    const nome = document.getElementById('daPreencherNome').value.trim();
+    if (!nome) { alert('Digite o nome do jogador.'); return; }
+    corpo.player_name = nome;
+  }
   const btn = document.getElementById('btnDaConfirmarPreencher');
   btn.disabled = true;
   try {
     daEstado = await _daFetch('/api/drafts-aleatorios.php', {
       method: 'POST',
-      body: JSON.stringify({
-        action: 'escolher', id: window.DRAFT_ID,
-        player_name: nome, pick_number: daPickAlvo,
-      }),
+      body: JSON.stringify(corpo),
     });
     daFecharModalPreencher();
     daRenderTudo();

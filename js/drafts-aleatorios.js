@@ -26,9 +26,11 @@ async function dcCarregar() {
       else if (resolvidas > 0) { label = 'Em andamento'; cor = '#f59e0b'; bg = 'rgba(245,158,11,.12)'; }
 
       const marcaNba = d.modo === 'time_nba';
-      // Draft de marca não tem tela de picking própria — cada GM escolhe pelo
-      // rookie-sorteio.php dele. Abrir aqui só mostra o progresso, sem input.
-      const href = marcaNba ? '/drafts-aleatorios.php' : `/draft-aleatorio.php?id=${d.id}`;
+      // Os dois modos abrem o mesmo quadro; o que muda é a forma de escolher
+      // (dropdown de times da NBA vs nome digitado), resolvida lá dentro. Antes
+      // o draft de marca apontava pra esta própria página, então clicar no card
+      // só recarregava a lista e não dava pra ver o draft.
+      const href = `/draft-aleatorio.php?id=${d.id}`;
       return `
       <div class="dc-card">
         <div class="dc-card-main" onclick="window.location.href='${href}'">
@@ -39,8 +41,8 @@ async function dcCarregar() {
           <span class="dc-card-status" style="color:${cor};background:${bg}">${label}</span>
         </div>
         <div class="dc-card-actions">
-          ${marcaNba ? '' : `<a class="btn-ghost" href="/draft-aleatorio.php?id=${d.id}"><i class="bi bi-box-arrow-up-right me-1"></i>Abrir</a>
-          <button type="button" class="btn-ghost" onclick="dcCopiarLink(${d.id}, this)" title="Copiar link do draft"><i class="bi bi-link-45deg"></i></button>`}
+          <a class="btn-ghost" href="/draft-aleatorio.php?id=${d.id}"><i class="bi bi-box-arrow-up-right me-1"></i>Abrir</a>
+          <button type="button" class="btn-ghost" onclick="dcCopiarLink(${d.id}, this)" title="Copiar link do draft"><i class="bi bi-link-45deg"></i></button>
           <button type="button" class="btn-ghost" onclick="dcRenomear(${d.id}, '${_dcEsc(d.titulo).replace(/'/g, "\\'")}')"><i class="bi bi-pencil"></i></button>
           <button type="button" class="btn-ghost dc-btn-del" onclick="dcExcluir(${d.id}, '${_dcEsc(d.titulo).replace(/'/g, "\\'")}')"><i class="bi bi-trash"></i></button>
         </div>
