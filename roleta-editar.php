@@ -248,6 +248,9 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
             <?php if ($ehAdminAqui): ?>
             <div class="hero-actions">
                 <button class="btn-ghost" id="rtCriarDraft" style="display:none"><i class="bi bi-shuffle"></i> <span>Criar draft dessa ordem</span></button>
+                <?php /* Só na ROOKIE: nesse draft a pick é um time da NBA escolhido num dropdown,
+                         e ele vira a franquia do GM (ver modo 'time_nba' em api/drafts-aleatorios.php). */ ?>
+                <button class="btn-ghost" id="rtCriarDraftNba" style="display:none"><i class="bi bi-award"></i> <span>Criar sorteio de times da NBA</span></button>
                 <button class="btn-ghost" id="rtCopiarLink" onclick="reCopiar(window.location.href, this)"><i class="bi bi-link-45deg"></i> Copiar link</button>
                 <button class="btn-ghost" id="rtDuplicar"><i class="bi bi-copy"></i> Duplicar</button>
                 <button class="btn-ghost" id="rtReiniciar"><i class="bi bi-arrow-counterclockwise"></i> Reiniciar</button>
@@ -301,6 +304,7 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
 
 <script>
     const ROLETA_ID = <?= (int)$roletaId ?>;
+    const ROLETA_LIGA = <?= json_encode($ligaRoleta ?? '') ?>;
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="<?= assetUrl('/js/roleta-editar.js') ?>"></script>

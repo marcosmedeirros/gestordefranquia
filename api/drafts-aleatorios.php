@@ -441,17 +441,36 @@ if ($method === 'POST') {
             exit;
         }
 
-        $stmtJa = $pdo->prepare("SELECT id FROM drafts_aleatorios WHERE roleta_id = ?");
+        $modo = ($body['modo'] ?? '') === 'time_nba' ? 'time_nba' : 'texto_livre';
+
+        // Cada roleta tem no máximo um draft (uniq_da_roleta). Se já existe, o modo
+        // pedido decide o que fazer: igual, devolve o mesmo; diferente, converte —
+        // mas só enquanto ninguém escolheu nada. Sem isso, pedir o sorteio de marca
+        // numa roleta que já gerou draft de texto livre devolvia calado o draft
+        // errado, e não havia jeito nenhum de trocar o modo depois.
+        $stmtJa = $pdo->prepare("SELECT id, modo FROM drafts_aleatorios WHERE roleta_id = ?");
         $stmtJa->execute([$roletaId]);
-        $jaExiste = (int)($stmtJa->fetchColumn() ?: 0);
-        if ($jaExiste) {
-            echo json_encode(['success' => true, 'id' => $jaExiste, 'ja_existia' => true]);
+        $ja = $stmtJa->fetch(PDO::FETCH_ASSOC);
+        if ($ja) {
+            $jaId = (int)$ja['id'];
+            if ((string)$ja['modo'] === $modo) {
+                echo json_encode(['success' => true, 'id' => $jaId, 'ja_existia' => true]);
+                exit;
+            }
+            $stmtUso = $pdo->prepare("SELECT COUNT(*) FROM draft_aleatorio_picks
+                                      WHERE draft_id = ? AND (picked_at IS NOT NULL OR skipped = 1)");
+            $stmtUso->execute([$jaId]);
+            if ((int)$stmtUso->fetchColumn() > 0) {
+                echo json_encode(['success' => false, 'error' => 'Já existe um draft dessa roleta em outro modo, e ele já tem escolhas feitas. Exclua o draft antes de criar de novo.']);
+                exit;
+            }
+            $pdo->prepare("UPDATE drafts_aleatorios SET modo = ? WHERE id = ?")->execute([$modo, $jaId]);
+            echo json_encode(['success' => true, 'id' => $jaId, 'ja_existia' => true, 'modo_ajustado' => true]);
             exit;
         }
 
         $titulo = trim((string)($body['titulo'] ?? '')) ?: (string)$roleta['titulo'];
         $league = detectarLigaDraftAleatorio($pdo, $roletaId, $user_id);
-        $modo = ($body['modo'] ?? '') === 'time_nba' ? 'time_nba' : 'texto_livre';
 
         $pdo->beginTransaction();
         try {

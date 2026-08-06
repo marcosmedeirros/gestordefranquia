@@ -119,26 +119,43 @@ function reRenderTudo(data) {
 /** O draft só faz sentido depois que a ordem está fechada. */
 function reAtualizarBotaoDraft(data) {
   const btn = document.getElementById('rtCriarDraft');
-  if (!btn) return;
-  btn.style.display = data.concluido ? '' : 'none';
+  if (btn) btn.style.display = data.concluido ? '' : 'none';
+  // O sorteio de marca (dropdown de times da NBA) é exclusivo da ROOKIE — nas
+  // outras ligas a pick é o nome de um jogador, então o botão nem aparece.
+  const btnNba = document.getElementById('rtCriarDraftNba');
+  if (btnNba) {
+    const ehRookie = (typeof ROLETA_LIGA === 'string') && ROLETA_LIGA.toUpperCase() === 'ROOKIE';
+    btnNba.style.display = (data.concluido && ehRookie) ? '' : 'none';
+  }
 }
 
-async function reCriarDraft() {
-  const btn = document.getElementById('rtCriarDraft');
+async function reCriarDraftEm(btnId, modo, destino) {
+  const btn = document.getElementById(btnId);
+  if (!btn || btn.disabled) return;
   btn.disabled = true;
   try {
     const res = await fetch('/api/drafts-aleatorios.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'criar_de_roleta', roleta_id: ROLETA_ID }),
+      body: JSON.stringify({ action: 'criar_de_roleta', roleta_id: ROLETA_ID, modo }),
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Erro ao criar o draft');
-    window.location.href = `/draft-aleatorio.php?id=${data.id}`;
+    window.location.href = destino(data.id);
   } catch (e) {
     alert(e.message);
     btn.disabled = false;
   }
+}
+
+async function reCriarDraft() {
+  await reCriarDraftEm('rtCriarDraft', 'texto_livre', (id) => `/draft-aleatorio.php?id=${id}`);
+}
+
+// O draft de marca não tem tela de admin própria: cada GM vê a fila e a vez dele
+// pelo rookie-sorteio.php, então o admin cai na lista de drafts.
+async function reCriarDraftNba() {
+  await reCriarDraftEm('rtCriarDraftNba', 'time_nba', () => '/drafts-aleatorios.php');
 }
 
 function reRenderResumo(data) {
@@ -620,6 +637,7 @@ document.addEventListener('DOMContentLoaded', () => {
   ligar('rtReiniciar', reReiniciar);
   ligar('rlExcluir', reExcluirRoleta);
   ligar('rtCriarDraft', reCriarDraft);
+  ligar('rtCriarDraftNba', reCriarDraftNba);
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.rl-autocomplete')) {
       document.querySelectorAll('.rl-autocomplete-results').forEach(el => el.classList.remove('show'));
