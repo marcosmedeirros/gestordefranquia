@@ -326,10 +326,15 @@ function dtCalcularResultado(array $rosterA, array $rosterB): array
     $ovrB = dtSomaRoster($rosterB);
     $diffMedio = ($ovrA - $ovrB) / 5;
 
-    // Time melhor ganha bem mais: com ~6 de OVR médio de vantagem já vence 4 em cada 5. O teto de
-    // 92% (piso de 8%) é o espaço da zebra — mesmo o elenco muito superior perde de vez em quando,
-    // mas raramente. Times parelhos seguem perto do 50/50.
-    $chanceA = max(8, min(92, 50 + $diffMedio * 5.0));
+    // Peso da diferença de elenco. A curva já foi mais suave (5.0, com piso/teto em
+    // 8/92) e dava zebra demais: com 3 a 5 de vantagem média por jogador o time
+    // pior ainda vencia ~31% das vezes, e mesmo com 5+ de vantagem vencia ~19%.
+    //
+    // Medido em 40 mil confrontos gerados pela própria roleta, esta curva deixa:
+    // 0-1 de diferença ~46% (jogo parelho segue moeda ao ar, como tem que ser),
+    // 2-3 ~33%, 3-5 ~22% e 5+ ~7%. O piso de 5% é o que sobra de zebra — o elenco
+    // muito superior perde de vez em quando, mas vira exceção de verdade.
+    $chanceA = max(5, min(95, 50 + $diffMedio * 7.5));
     $aGanha = random_int(1, 1000) <= (int)round($chanceA * 10);
 
     $vencedorLado = $aGanha ? 'a' : 'b';
@@ -338,6 +343,10 @@ function dtCalcularResultado(array $rosterA, array $rosterB): array
     // Zebra: o azarão venceu um confronto que era claramente pra perder. Só conta quando a
     // diferença de elenco é real (>= 3 de OVR médio por jogador) — abaixo disso os times estão
     // equilibrados e qualquer um ganhar é normal, não zebra.
+    //
+    // Serve só pra apertar a margem (logo abaixo): a tela NÃO mostra que foi zebra.
+    // Havia um selo "🦓 Zebra! O time mais fraco levou essa" no resultado e ele foi
+    // retirado de propósito — não colocar de volta.
     $ehZebra = ($vencedorLado !== $favorito) && $forca >= 3;
 
     // A margem definida aqui é a margem FINAL de verdade: o perdedor parte da base e o vencedor
@@ -605,6 +614,46 @@ function dtMaioresRivalidades(PDO $pdo, int $limite = 5): array
             'logo_b' => dtTimeDoUsuario($pdo, (int)$r['user_b'])['logo'],
             'vitorias_b' => $vitoriasB,
             'lider' => $vitoriasA > $vitoriasB ? 'a' : ($vitoriasB > $vitoriasA ? 'b' : null),
+        ];
+    }
+    return $out;
+}
+
+/**
+ * As rivalidades do próprio usuário: contra quem ele mais jogou, com o placar da
+ * série. Diferente de dtMaioresRivalidades, aqui ele é SEMPRE o lado esquerdo —
+ * é a leitura que interessa ("eu 3 x 5 fulano"), não a do par em abstrato.
+ */
+function dtMinhasRivalidades(PDO $pdo, int $userId, int $limite = 5): array
+{
+    $st = $pdo->prepare("
+        SELECT
+            CASE WHEN id_criador = :eu THEN id_desafiado ELSE id_criador END AS rival,
+            COUNT(*) AS total,
+            SUM(CASE WHEN id_vencedor = :eu2 THEN 1 ELSE 0 END) AS minhas,
+            SUM(CASE WHEN id_vencedor <> :eu3 THEN 1 ELSE 0 END) AS dele
+        FROM dreamteam_duelos
+        WHERE status = 'simulado' AND id_desafiado > 0
+          AND (id_criador = :eu4 OR id_desafiado = :eu5)
+        GROUP BY rival
+        ORDER BY total DESC, minhas DESC
+        LIMIT :lim
+    ");
+    foreach (['eu','eu2','eu3','eu4','eu5'] as $p) $st->bindValue($p, $userId, PDO::PARAM_INT);
+    $st->bindValue('lim', $limite, PDO::PARAM_INT);
+    $st->execute();
+
+    $out = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $minhas = (int)$r['minhas'];
+        $dele = (int)$r['dele'];
+        $out[] = [
+            'total' => (int)$r['total'],
+            'nome_rival' => dtNomeExibicao($pdo, (int)$r['rival']),
+            'logo_rival' => dtTimeDoUsuario($pdo, (int)$r['rival'])['logo'],
+            'minhas' => $minhas,
+            'dele' => $dele,
+            'lider' => $minhas > $dele ? 'eu' : ($dele > $minhas ? 'rival' : null),
         ];
     }
     return $out;
@@ -1910,7 +1959,12 @@ if (($_POST['acao'] ?? '') !== '') {
         }
 
         if ($acao === 'ranking') {
-            echo json_encode(['ok' => true, 'ranking' => dtRankingVitorias($pdo), 'rivalidades' => dtMaioresRivalidades($pdo)]);
+            echo json_encode([
+                'ok' => true,
+                'ranking' => dtRankingVitorias($pdo),
+                'minhas_rivalidades' => dtMinhasRivalidades($pdo, $user_id),
+                'rivalidades' => dtMaioresRivalidades($pdo),
+            ]);
             exit;
         }
 
@@ -2001,8 +2055,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .dt-convite-acoes{display:flex;gap:10px}
 .dt-convite-acoes button{flex:1}
 
-.dt-revanche{margin-top:12px}
-.dt-revanche-status{text-align:center;font-size:12px;font-weight:700;color:var(--amber);padding:11px;border-radius:11px;background:var(--amber-soft);border:1px solid color-mix(in srgb, var(--amber) 35%, transparent);margin-top:12px}
+/* Menu e Revanche dividem a linha no topo do resultado. O Menu fica menor: a
+   ação em destaque é a revanche, que é o que a pessoa costuma querer ali. */
+.dt-acoes-fim{display:flex;gap:8px;margin-bottom:14px}
+/* Os botões herdam width:100% da classe base; sem zerar isso o Menu tomava a
+   linha inteira e espremia a revanche em ~24px. */
+.dt-acoes-fim > *{margin-top:0}
+.dt-acoes-fim > button:first-child{flex:0 0 auto;width:auto;padding-left:20px;padding-right:20px}
+.dt-acoes-fim > *:not(:first-child){flex:1;width:auto;min-width:0}
+.dt-acoes-fim > button:only-child{flex:1;width:auto}
+.dt-revanche-status{display:flex;align-items:center;justify-content:center;text-align:center;font-size:11.5px;font-weight:700;color:var(--amber);padding:11px;border-radius:11px;background:var(--amber-soft);border:1px solid color-mix(in srgb, var(--amber) 35%, transparent)}
 
 /* ── Copa ─────────────────────────────────────────────────────────────── */
 .dt-copa-vagas{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
@@ -2036,7 +2098,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .dt-jogo-lado.perdeu{opacity:.5}
 .dt-jogo-esperando{padding:9px 11px;text-align:center;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3)}
 .dt-jogo-detalhe{border-top:1px solid var(--border);padding:11px;background:var(--panel)}
-.dt-jogo-zebra{display:inline-block;margin-left:6px;font-size:8.5px;font-weight:900;letter-spacing:.5px;padding:2px 5px;border-radius:20px;background:var(--amber-soft);color:var(--amber);vertical-align:middle}
 .dt-ver-mais{width:100%;background:transparent;border:none;border-top:1px solid var(--border);color:var(--text2);font-family:var(--font);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:7px;cursor:pointer;transition:.15s}
 .dt-ver-mais:hover{color:var(--text);background:var(--panel3)}
 
@@ -2122,7 +2183,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .dt-resultado-msg.perdeu{background:var(--red-soft);color:var(--red);border:1px solid rgba(252,0,37,.3)}
 
 .dt-quartos-resumo{text-align:center;font-size:11.5px;color:var(--text2);margin-bottom:4px;font-variant-numeric:tabular-nums}
-.dt-zebra-badge{text-align:center;padding:9px;border-radius:10px;margin-bottom:14px;font-size:12.5px;font-weight:800;background:var(--amber-soft);color:var(--amber);border:1px solid color-mix(in srgb, var(--amber) 40%, transparent)}
 .dt-box-table{width:100%;border-collapse:collapse;font-size:12px}
 .dt-box-table th{text-align:center;font-size:9.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;padding:6px 4px;border-bottom:1px solid var(--border)}
 .dt-box-table td{text-align:center;padding:7px 4px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
@@ -2277,6 +2337,13 @@ function renderCriarEntrar() {
       <div class="dtcard-title"><i class="bi bi-award-fill me-1"></i>Ranking — confronto online</div>
       <div id="dtRankingBody"><p class="dt-empty">Carregando ranking...</p></div>
     </div>
+    <?php /* As rivalidades do próprio GM vêm antes das gerais — é o que ele quer
+             ver primeiro. O card se esconde sozinho enquanto ele não tiver
+             confronto online nenhum (ver dtCarregarRanking). */ ?>
+    <div class="dtcard" id="dtMinhasRivalidadesCard" style="display:none">
+      <div class="dtcard-title"><i class="bi bi-person-fill me-1"></i>Suas rivalidades</div>
+      <div id="dtMinhasRivalidadesBody"></div>
+    </div>
     <div class="dtcard" id="dtRivalidadesCard">
       <div class="dtcard-title"><i class="bi bi-fire me-1"></i>Maiores rivalidades</div>
       <div id="dtRivalidadesBody"><p class="dt-empty">Carregando...</p></div>
@@ -2310,6 +2377,23 @@ async function dtCarregarRanking() {
           </div>`).join('')}</div>`;
       }
     }
+    // Suas rivalidades: só aparece pra quem já tem confronto online. Quem nunca
+    // jogou contra ninguém não precisa de um card vazio ocupando a tela.
+    const minhasCard = document.getElementById('dtMinhasRivalidadesCard');
+    const minhasBody = document.getElementById('dtMinhasRivalidadesBody');
+    if (minhasCard && minhasBody) {
+      const minhas = r.minhas_rivalidades || [];
+      minhasCard.style.display = minhas.length ? '' : 'none';
+      if (minhas.length) {
+        minhasBody.innerHTML = `<div class="dt-ranking-lista">${minhas.map(rv => `
+          <div class="dt-ranking-item">
+            <span class="dt-ranking-nome" style="${rv.lider === 'eu' ? 'font-weight:900;color:var(--text)' : ''}"><span>Você</span></span>
+            <span class="dt-ranking-vd"><b style="${rv.lider === 'eu' ? 'color:var(--green)' : ''}">${rv.minhas}</b> × <b style="${rv.lider === 'rival' ? 'color:var(--green)' : ''}">${rv.dele}</b></span>
+            <span class="dt-ranking-nome" style="justify-content:flex-end;${rv.lider === 'rival' ? 'font-weight:900;color:var(--text)' : ''}"><span>${esc(rv.nome_rival)}</span>${dtLogoImg(rv.logo_rival)}</span>
+          </div>`).join('')}</div>`;
+      }
+    }
+
     if (rivBody) {
       if (!r.rivalidades.length) {
         rivBody.innerHTML = `<p class="dt-empty">Nenhum par de GMs se enfrentou mais de uma vez ainda.</p>`;
@@ -2868,26 +2952,30 @@ function renderResultadoFinal(duelo) {
   const meuBox = duelo.meu_lado === 'a' ? r.boxscore_a : r.boxscore_b;
   const oponenteBox = duelo.meu_lado === 'a' ? r.boxscore_b : r.boxscore_a;
 
-  let html = `<button class="btn-dt" onclick="dtNovoDuelo(${duelo.id})" style="margin-top:0;margin-bottom:14px"><i class="bi bi-arrow-repeat me-2"></i>Jogar de novo</button>`;
-
+  // "Menu" e não "Jogar de novo": o botão volta pra tela inicial, não puxa outra
+  // partida — quem quer jogar de novo contra o mesmo oponente usa a revanche ao lado.
+  //
   // Revanche: mesma dupla, mesma aposta, sem passar pelo lobby. Precisa dos dois,
-  // então enquanto só um clicou a tela mostra que está esperando o outro. Quando
-  // o segundo aceita, o duelo novo nasce e o poll leva os dois direto pro draft.
+  // então enquanto só um clicou o lugar do botão vira o aviso de que está esperando.
+  // Quando o segundo aceita, o duelo novo nasce e o poll leva os dois pro draft.
+  let acaoRevanche = '';
   if (duelo.revanche_disponivel) {
-    html += duelo.revanche_eu
-      ? `<div class="dt-revanche-status"><i class="bi bi-hourglass-split me-1"></i>Revanche pedida — esperando ${nomeOp} aceitar...</div>`
-      : `<button class="btn-dt-amber dt-revanche" id="dtBtnRevanche" onclick="dtRevanche()">
-           <i class="bi bi-fire me-2"></i>${duelo.revanche_oponente
-             ? `${nomeOp} quer revanche — topa? (${duelo.aposta} moedas)`
-             : `Pedir revanche (${duelo.aposta} moedas)`}
+    acaoRevanche = duelo.revanche_eu
+      ? `<div class="dt-revanche-status"><i class="bi bi-hourglass-split me-1"></i>Aguardando ${nomeOp}...</div>`
+      : `<button class="btn-dt-amber" id="dtBtnRevanche" onclick="dtRevanche()" style="margin-top:0">
+           <i class="bi bi-fire me-1"></i>${duelo.revanche_oponente ? 'Aceitar revanche' : 'Revanche'} · ${duelo.aposta}
          </button>`;
   }
+
+  let html = `<div class="dt-acoes-fim">
+    <button class="btn-dt-ghost" onclick="dtNovoDuelo(${duelo.id})" style="margin-top:0"><i class="bi bi-list me-1"></i>Menu</button>
+    ${acaoRevanche}
+  </div>`;
 
   html += `<div class="dtcard">
     <div class="dt-resultado-msg ${duelo.eu_venci ? 'venceu' : 'perdeu'}">
       ${duelo.eu_venci ? `🏆 Você venceu! +${duelo.aposta * 2} moedas` : `Você perdeu essa. -${duelo.aposta} moedas`}
     </div>
-    ${r.zebra ? `<div class="dt-zebra-badge">🦓 Zebra! O time mais fraco levou essa.</div>` : ''}
     <div class="dt-placar">
       <div class="dt-placar-lado">
         <div class="dt-placar-nome">${dtLogoImg(dtLogoMeu(duelo))}<span>${nomeEu}</span></div>
