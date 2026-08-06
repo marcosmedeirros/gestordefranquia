@@ -563,7 +563,7 @@ function dtRankingVitorias(PDO $pdo, int $limite = 10): array
     $out = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $out[] = [
-            'nome' => dtNomeExibicao($pdo, (int)$r['user_id']),
+            'nome' => dtNomeExibicaoCurto($pdo, (int)$r['user_id']),
             'logo' => dtTimeDoUsuario($pdo, (int)$r['user_id'])['logo'],
             'vitorias' => (int)$r['vitorias'],
             'derrotas' => (int)$r['derrotas'],
@@ -580,6 +580,14 @@ function dtNomeExibicao(PDO $pdo, int $userId): string
     $st = $pdo->prepare('SELECT nome FROM games_usuarios WHERE id = ?');
     $st->execute([$userId]);
     return $st->fetchColumn() ?: 'GM';
+}
+
+/** Versão curta (só o nome do time, sem a cidade) — usada onde o espaço é apertado. */
+function dtNomeExibicaoCurto(PDO $pdo, int $userId): string
+{
+    $time = dtTimeDoUsuario($pdo, $userId);
+    if ($time['nome_curto']) return $time['nome_curto'];
+    return dtNomeExibicao($pdo, $userId);
 }
 
 /** Top rivalidades: os pares que mais se enfrentaram em confronto online, com o placar da série (vitórias de cada um no head-to-head). */
@@ -607,10 +615,10 @@ function dtMaioresRivalidades(PDO $pdo, int $limite = 5): array
         $vitoriasB = (int)$r['vitorias_b'];
         $out[] = [
             'total' => (int)$r['total'],
-            'nome_a' => dtNomeExibicao($pdo, (int)$r['user_a']),
+            'nome_a' => dtNomeExibicaoCurto($pdo, (int)$r['user_a']),
             'logo_a' => dtTimeDoUsuario($pdo, (int)$r['user_a'])['logo'],
             'vitorias_a' => $vitoriasA,
-            'nome_b' => dtNomeExibicao($pdo, (int)$r['user_b']),
+            'nome_b' => dtNomeExibicaoCurto($pdo, (int)$r['user_b']),
             'logo_b' => dtTimeDoUsuario($pdo, (int)$r['user_b'])['logo'],
             'vitorias_b' => $vitoriasB,
             'lider' => $vitoriasA > $vitoriasB ? 'a' : ($vitoriasB > $vitoriasA ? 'b' : null),
@@ -649,7 +657,7 @@ function dtMinhasRivalidades(PDO $pdo, int $userId, int $limite = 5): array
         $dele = (int)$r['dele'];
         $out[] = [
             'total' => (int)$r['total'],
-            'nome_rival' => dtNomeExibicao($pdo, (int)$r['rival']),
+            'nome_rival' => dtNomeExibicaoCurto($pdo, (int)$r['rival']),
             'logo_rival' => dtTimeDoUsuario($pdo, (int)$r['rival'])['logo'],
             'minhas' => $minhas,
             'dele' => $dele,
@@ -667,9 +675,16 @@ function dtTimeDoUsuario(PDO $pdo, int $userId): array
     $st = $pdo->prepare('SELECT name, city, photo_url FROM teams WHERE user_id = ? LIMIT 1');
     $st->execute([$userId]);
     $t = $st->fetch(PDO::FETCH_ASSOC);
+    // 'nome' completo (cidade + time) pras telas largas; 'nome_curto' só o time,
+    // pros rankings e rivalidades, onde duas colunas dividem a linha e "Las Vegas
+    // Coyotes" era cortado na metade.
     $out = $t
-        ? ['nome' => trim($t['city'] . ' ' . $t['name']), 'logo' => getTeamPhoto($t['photo_url'] ?? null)]
-        : ['nome' => null, 'logo' => null];
+        ? [
+            'nome' => trim($t['city'] . ' ' . $t['name']),
+            'nome_curto' => trim($t['name']) !== '' ? trim($t['name']) : trim($t['city'] . ' ' . $t['name']),
+            'logo' => getTeamPhoto($t['photo_url'] ?? null),
+          ]
+        : ['nome' => null, 'nome_curto' => null, 'logo' => null];
     $cache[$userId] = $out;
     return $out;
 }
@@ -937,9 +952,17 @@ function dtCopaSerializar(PDO $pdo, ?array $copa, int $userId): ?array
 
     $eu = null;
     $lista = [];
+    $emDraft = $copa['status'] === 'draft';
     foreach ($jogadores as $j) {
         $ident = dtCopaIdentidade($pdo, (int)$j['user_id']);
         $ident['pronto'] = (int)$j['pronto'] === 1;
+        // Durante a montagem todo mundo vê o time de todo mundo se formando —
+        // mesma regra do duelo, onde dá pra acompanhar o adversário escolhendo.
+        if ($emDraft) {
+            $r = json_decode((string)$j['roster'], true) ?: dtRosterVazio();
+            $ident['roster'] = $r;
+            $ident['ovr'] = dtSomaRoster($r);
+        }
         $lista[] = $ident;
         if ((int)$j['user_id'] === $userId) $eu = $j;
     }
@@ -2103,6 +2126,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .dt-copa-timer{font-size:12px;font-weight:800;color:var(--amber);text-align:center;margin-bottom:10px}
 .dt-copa-timer.urgente{color:var(--red)}
 
+/* Adversários com o time deles se formando ao vivo, durante a montagem. */
+.dt-copa-rivais{display:flex;flex-direction:column;gap:8px}
+.dt-copa-rival{background:var(--panel2);border:1px solid var(--border);border-radius:11px;padding:9px 10px}
+.dt-copa-rival-topo{display:flex;align-items:center;gap:8px;margin-bottom:7px;min-width:0}
+.dt-copa-rival-topo img{width:20px;height:20px;border-radius:5px;object-fit:cover;flex-shrink:0}
+.dt-copa-rival-nome{font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.dt-copa-rival-ovr{font-size:11px;font-weight:800;color:var(--text2);font-variant-numeric:tabular-nums;flex-shrink:0}
+.dt-copa-mini{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.dt-copa-mini-slot{border:1px dashed var(--border2);border-radius:7px;padding:5px 2px;text-align:center;min-width:0}
+.dt-copa-mini-slot.cheio{border-style:solid;background:var(--panel3)}
+.dt-copa-mini-pos{display:block;font-size:8px;font-weight:800;letter-spacing:.5px;color:var(--text3)}
+.dt-copa-mini-slot.cheio .dt-copa-mini-pos{color:var(--text2)}
+.dt-copa-mini-nome{display:block;font-size:9.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dt-copa-mini-ovr{display:block;font-size:10px;font-weight:900;font-variant-numeric:tabular-nums}
+
 .dt-chave{display:flex;flex-direction:column;gap:18px}
 .dt-fase-titulo{font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:8px}
 .dt-fase-titulo::after{content:'';flex:1;height:1px;background:var(--border)}
@@ -3157,14 +3195,31 @@ function renderCopaLobby(copa) {
 function renderCopaDraft(copa) {
   dtContexto = 'copa';
   const prontos = copa.participantes.filter(p => p.pronto).length;
+  // Os adversários com o time deles se formando ao vivo. O próprio time fica de
+  // fora daqui — aparece logo abaixo, em tamanho grande e com o reposicionamento.
+  const outros = copa.participantes.filter(p => p.user_id !== MEU_USER_ID);
   let html = `<div class="dtcard" style="margin-bottom:10px">
     <div class="dtcard-title" style="margin-bottom:8px"><i class="bi bi-people me-1"></i>Copa de ${copa.tamanho} — montando os times</div>
     <div class="dt-copa-timer" id="dtCopaTimer"></div>
-    <div class="dt-copa-vagas" style="margin-bottom:0">
-      ${copa.participantes.map(p => `
-        <div class="dt-copa-vaga${p.user_id === MEU_USER_ID ? ' eu' : ''}">
-          ${dtLogoImg(p.logo)}<span class="dt-copa-vaga-nome">${esc(p.nome)}</span>
-          <span class="dt-copa-pronto ${p.pronto ? 'sim' : 'nao'}">${p.pronto ? 'pronto' : 'montando'}</span>
+    <div class="dt-copa-rivais">
+      ${outros.map(p => `
+        <div class="dt-copa-rival">
+          <div class="dt-copa-rival-topo">
+            ${dtLogoImg(p.logo)}
+            <span class="dt-copa-rival-nome">${esc(p.nome)}</span>
+            <span class="dt-copa-rival-ovr">${p.ovr || 0}</span>
+            <span class="dt-copa-pronto ${p.pronto ? 'sim' : 'nao'}">${p.pronto ? 'pronto' : 'montando'}</span>
+          </div>
+          <div class="dt-copa-mini">
+            ${POSICOES.map(pos => {
+              const j = p.roster ? p.roster[pos] : null;
+              return `<div class="dt-copa-mini-slot${j ? ' cheio' : ''}">
+                <span class="dt-copa-mini-pos">${pos}</span>
+                ${j ? `<span class="dt-copa-mini-nome">${esc(j.nome.split(' ').slice(-1)[0])}</span>
+                       <span class="dt-copa-mini-ovr" style="color:${dtCorOvr(j.ovr)}">${j.ovr}</span>` : ''}
+              </div>`;
+            }).join('')}
+          </div>
         </div>`).join('')}
     </div>
     <p class="dt-empty" style="margin-top:10px">${prontos} de ${copa.tamanho} já fecharam o time.</p>
@@ -3337,7 +3392,12 @@ function dtCopaPintarFinal(copa, chave) {
 // acabou. Sem isso a pessoa clicava no link e caía na tela do último jogo dela,
 // parecendo que o link não funcionou. Partida/copa em andamento continua vindo
 // na frente — aí ela realmente precisa terminar antes.
-const DT_VEIO_DE_LINK = !!new URLSearchParams(window.location.search).get('codigo');
+//
+// Vale SÓ na primeira renderização. Quando era permanente, a partida/copa que
+// terminava com a pessoa jogando também caía nessa regra: no fim da copa a tela
+// pulava a chave e mandava todo mundo que tinha entrado pelo link pro menu,
+// sem simulação, sem campeão, sem nada.
+let dtLinkPendente = !!new URLSearchParams(window.location.search).get('codigo');
 function dtEncerrado(status) {
   return status === 'simulado' || status === 'encerrada';
 }
@@ -3348,17 +3408,22 @@ function dtEncerrado(status) {
 function renderTela(estado) {
   const duelo = estado ? estado.duelo : null;
   const copa = estado ? estado.copa : null;
-  if (copa && copa.status === 'encerrada' && (copa.id === copaDispensadaId || DT_VEIO_DE_LINK)) {
-    renderTelaDuelo(duelo);
+  // Consome a marca do link aqui: a partir da segunda renderização o que termina
+  // com a pessoa jogando tem que aparecer normalmente.
+  const veioDeLink = dtLinkPendente;
+  dtLinkPendente = false;
+
+  if (copa && copa.status === 'encerrada' && (copa.id === copaDispensadaId || veioDeLink)) {
+    renderTelaDuelo(duelo, veioDeLink);
     return;
   }
   if (copa) { renderCopa(copa); return; }
-  renderTelaDuelo(duelo);
+  renderTelaDuelo(duelo, veioDeLink);
 }
 
-function renderTelaDuelo(duelo) {
+function renderTelaDuelo(duelo, veioDeLink = false) {
   if (!duelo) { renderCriarEntrar(); return; }
-  if (dtEncerrado(duelo.status) && DT_VEIO_DE_LINK) { renderCriarEntrar(); return; }
+  if (dtEncerrado(duelo.status) && veioDeLink) { renderCriarEntrar(); return; }
   if (duelo.status === 'simulado' && duelo.id === dueloDispensadoId) { renderCriarEntrar(); return; }
   if (duelo.status === 'aguardando') { renderAguardando(duelo); return; }
   if (duelo.status === 'convite') { renderConvite(duelo); return; }
