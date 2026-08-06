@@ -26,9 +26,14 @@ require_once __DIR__ . '/../../backend/push.php';
 $user_id = (int)$_SESSION['user_id'];
 
 const DT_APOSTA_MIN = 1;
-const DT_APOSTA_MAX = 100;
-// Contra a máquina o teto é menor — ela joga estrategicamente (ver
-// dtCpuJogar), então o risco por partida é maior que jogador-vs-jogador.
+// Sem teto de verdade entre jogadores: quem manda no limite é o saldo, conferido
+// na hora de criar/aceitar. O número aqui é só uma barreira de sanidade — o pote
+// (aposta × 8 na copa maior) precisa caber no INT da coluna, e um valor absurdo
+// vindo de um POST forjado não pode virar overflow.
+const DT_APOSTA_MAX = 1000000;
+// Contra a máquina o teto continua baixo — ela joga estrategicamente (ver
+// dtCpuJogar), então o risco por partida é maior que jogador-vs-jogador, e aqui
+// a moeda é criada do nada em vez de mudar de mão.
 const DT_APOSTA_MAX_CPU = 50;
 // Modo aleatório: aposta fixa, sem link — casa automaticamente com quem
 // também estiver esperando um confronto aleatório nesse momento.
@@ -45,7 +50,8 @@ const DT_CONVITE_TIMEOUT_H = 6;
 // esperar 8 pessoas se revezarem em 40 turnos seria insuportável.
 const DT_COPA_TAMANHOS = [4, 8];
 const DT_COPA_APOSTA_MIN = 1;
-const DT_COPA_APOSTA_MAX = 100;
+// Mesma ideia do duelo: o limite real e o saldo de quem entra.
+const DT_COPA_APOSTA_MAX = DT_APOSTA_MAX;
 // Prazo pra montar o time depois que a copa lota. Quem não terminar tem o
 // elenco completado pelo sistema: um ausente não pode travar a copa dos outros.
 const DT_COPA_DRAFT_MIN = 5;
@@ -1035,7 +1041,9 @@ if (($_POST['acao'] ?? '') !== '') {
             }
             $aposta = (int)($_POST['aposta'] ?? 0);
             if ($aposta < DT_APOSTA_MIN || $aposta > DT_APOSTA_MAX) {
-                echo json_encode(['ok' => false, 'msg' => 'A aposta deve ser entre ' . DT_APOSTA_MIN . ' e ' . DT_APOSTA_MAX . ' moedas.']);
+                echo json_encode(['ok' => false, 'msg' => $aposta < DT_APOSTA_MIN
+                    ? 'A aposta mínima é ' . DT_APOSTA_MIN . ' moeda.'
+                    : 'Valor alto demais pra uma partida.']);
                 exit;
             }
 
@@ -1560,7 +1568,9 @@ if (($_POST['acao'] ?? '') !== '') {
             $aposta = (int)($_POST['aposta'] ?? 0);
             if ($alvo <= 0 || $alvo === $user_id) { echo json_encode(['ok' => false, 'msg' => 'Escolha alguém pra desafiar.']); exit; }
             if ($aposta < DT_APOSTA_MIN || $aposta > DT_APOSTA_MAX) {
-                echo json_encode(['ok' => false, 'msg' => 'A aposta deve ser entre ' . DT_APOSTA_MIN . ' e ' . DT_APOSTA_MAX . ' moedas.']);
+                echo json_encode(['ok' => false, 'msg' => $aposta < DT_APOSTA_MIN
+                    ? 'A aposta mínima é ' . DT_APOSTA_MIN . ' moeda.'
+                    : 'Valor alto demais pra uma partida.']);
                 exit;
             }
 
@@ -1773,7 +1783,9 @@ if (($_POST['acao'] ?? '') !== '') {
             $aposta = (int)($_POST['aposta'] ?? 0);
             if (!in_array($tamanho, DT_COPA_TAMANHOS, true)) { echo json_encode(['ok' => false, 'msg' => 'A copa é de 4 ou 8 times.']); exit; }
             if ($aposta < DT_COPA_APOSTA_MIN || $aposta > DT_COPA_APOSTA_MAX) {
-                echo json_encode(['ok' => false, 'msg' => 'A entrada deve ser entre ' . DT_COPA_APOSTA_MIN . ' e ' . DT_COPA_APOSTA_MAX . ' moedas.']);
+                echo json_encode(['ok' => false, 'msg' => $aposta < DT_COPA_APOSTA_MIN
+                    ? 'A entrada mínima é ' . DT_COPA_APOSTA_MIN . ' moeda.'
+                    : 'Valor alto demais pra uma copa.']);
                 exit;
             }
 
@@ -2526,8 +2538,8 @@ function dtTrocarTab(tab) {
         </div>
       </div>
       <div class="field">
-        <label>Entrada por jogador (1 a 100 moedas)</label>
-        <input type="number" id="dtCopaAposta" min="1" max="100" value="${DT_COPA_APOSTA_PADRAO}" oninput="dtCopaAtualizarPote()">
+        <label>Entrada por jogador (moedas)</label>
+        <input type="number" id="dtCopaAposta" min="1" value="${DT_COPA_APOSTA_PADRAO}" oninput="dtCopaAtualizarPote()">
         <p class="field-hint" id="dtCopaHint"></p>
       </div>
       <button class="btn-dt" id="dtBtnCopaCriar" onclick="dtCopaCriar()"><i class="bi bi-trophy me-2"></i>Abrir copa</button>
@@ -2536,8 +2548,8 @@ function dtTrocarTab(tab) {
   } else if (tab === 'criar') {
     c.innerHTML = `
       <div class="field">
-        <label>Aposta (1 a 100 moedas)</label>
-        <input type="number" id="dtAposta" min="1" max="100" value="20">
+        <label>Aposta (moedas)</label>
+        <input type="number" id="dtAposta" min="1" value="20">
         <p class="field-hint">Vale pros dois jeitos abaixo. Debitada na hora e devolvida se ninguém aceitar.</p>
       </div>
 
@@ -2690,6 +2702,8 @@ function renderAguardando(duelo) {
       </div>`;
     return;
   }
+  // Montado antes: crase dentro do onclick fecharia o template literal de fora.
+  const chamada = `PARTIDA NO VALOR DE ${duelo.aposta} MOEDA${duelo.aposta === 1 ? '' : 'S'}`;
   document.getElementById('dtMain').innerHTML = `
     <div class="dtcard">
       <div class="dtcard-title"><i class="bi bi-hourglass-split me-1"></i>Aguardando oponente</div>
@@ -2697,7 +2711,7 @@ function renderAguardando(duelo) {
         <div class="dt-codigo-valor">${esc(duelo.codigo)}</div>
         <div class="dt-codigo-label">Compartilhe esse código</div>
       </div>
-      <button class="btn-dt" id="dtBtnCopiarLink" onclick="dtCopiarLink('${duelo.codigo}', this)"><i class="bi bi-link-45deg me-2"></i>Copiar link do convite</button>
+      <button class="btn-dt" id="dtBtnCopiarLink" onclick="dtCopiarLink('${duelo.codigo}', this, '${chamada}')"><i class="bi bi-link-45deg me-2"></i>Copiar link do convite</button>
       <p class="dtcard-sub" style="text-align:center;margin-bottom:4px">Aposta: <strong>${duelo.aposta} moedas</strong></p>
       <div class="dt-spinner"></div>
       <p class="dt-empty">Assim que alguém entrar com o código, a tela avança sozinha.</p>
@@ -2748,15 +2762,23 @@ function dtLinkConvite(codigo) {
 // duelo e a copa, que têm ids diferentes. Antes o id estava fixo no do duelo:
 // na copa o retorno "Link copiado!" nunca aparecia e, sem sinal nenhum, parecia
 // que o botão não estava funcionando.
-async function dtCopiarLink(codigo, btn = null) {
+/**
+ * Copia o convite já com o valor em cima do link — quem recebe no WhatsApp vê
+ * quanto vale a partida antes de clicar, em vez de uma URL solta.
+ *
+ * `chamada` é o texto da frente (ex: "PARTIDA NO VALOR DE 50 MOEDAS"); sem ela,
+ * copia só o link.
+ */
+async function dtCopiarLink(codigo, btn = null, chamada = '') {
   const link = dtLinkConvite(codigo);
+  const texto = chamada ? `${chamada} - ${link}` : link;
   if (!btn) btn = document.getElementById('dtBtnCopiarLink');
   try {
-    await navigator.clipboard.writeText(link);
+    await navigator.clipboard.writeText(texto);
   } catch (e) {
     // Sem permissão de clipboard (ex: http sem contexto seguro) — seleciona um campo temporário como fallback.
     const tmp = document.createElement('textarea');
-    tmp.value = link;
+    tmp.value = texto;
     tmp.style.position = 'fixed';
     tmp.style.opacity = '0';
     document.body.appendChild(tmp);
@@ -3208,6 +3230,8 @@ function renderCopaLobby(copa) {
     vagas.push(`<div class="dt-copa-vaga livre"><i class="bi bi-hourglass me-1"></i>vaga aberta</div>`);
   }
 
+  // Montado antes: crase dentro do onclick fecharia o template literal de fora.
+  const chamada = `COPA DE ${copa.tamanho} NO VALOR DE ${copa.aposta} MOEDA${copa.aposta === 1 ? '' : 'S'} — ${copa.pote} PRO CAMPEAO`;
   document.getElementById('dtMain').innerHTML = `
     <div class="dtcard">
       <div class="dtcard-title"><i class="bi bi-trophy me-1"></i>Copa de ${copa.tamanho} — sala de espera</div>
@@ -3219,7 +3243,7 @@ function renderCopaLobby(copa) {
         <div class="dt-codigo-valor">${esc(copa.codigo)}</div>
         <div class="dt-codigo-label">Código da copa</div>
       </div>
-      <button class="btn-dt" id="dtBtnCopaLink" onclick="dtCopiarLink('${copa.codigo}', this)"><i class="bi bi-link-45deg me-2"></i>Copiar link do convite</button>
+      <button class="btn-dt" id="dtBtnCopaLink" onclick="dtCopiarLink('${copa.codigo}', this, '${chamada}')"><i class="bi bi-link-45deg me-2"></i>Copiar link do convite</button>
       <div class="dt-spinner"></div>
       <p class="dt-empty">${copa.vagas === 1 ? 'Falta 1 pessoa' : `Faltam ${copa.vagas} pessoas`} pra começar. Assim que encher, todo mundo monta o time ao mesmo tempo.</p>
       <button class="btn-dt-ghost" id="dtBtnCopaSair" onclick="dtCopaSair()">
