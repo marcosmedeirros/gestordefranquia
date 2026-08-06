@@ -370,7 +370,7 @@ if (($_POST['acao'] ?? '') !== '') {
                 // time e a simulação ficassem pro carregamento da tela final,
                 // bastava dar F5 pra jogar de novo até sair campeão.
                 $grupo  = $grupoBuild;
-                $hist   = buildPosicaoHistorica(bpCalcularOvrExato($slots, $grupo), $grupo);
+                $hist   = buildPosicaoHistorica(bpCalcularOvrExato($slots, $grupo), $grupo, $pdo);
                 $time   = buildSortearTime();
                 $season = buildSimularTemporada($slots, (int)$ovr, $time, $grupo);
                 $season['time'] = $time;

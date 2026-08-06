@@ -323,14 +323,150 @@ function buildLendaComPeso(array $lendas, callable $peso): string
 }
 
 /**
+ * Percentil (de cima pra baixo) que cada posição do top 100 deve representar.
+ *
+ * É a régua de raridade do ranking, e é o que a curva por OVR sempre quis dizer:
+ * o 1º lugar é o melhor 0,25% dos builds, o 5º o melhor 1,2%, e por aí. Fixar
+ * ISSO em vez de fixar valores de OVR é o que torna o ranking imune a mudança
+ * na base de lendas.
+ */
+const BUILD_PERCENTIL_POSICAO = [
+    [0.25, 1], [1.2, 5], [2.5, 10], [10.0, 29],
+    [50.0, 68], [90.0, 90], [100.0, 100],
+];
+
+/**
+ * Curva OVR → posição calculada a partir das notas que estão valendo AGORA.
+ *
+ * Por que não uma curva fixa: os níveis de cada lenda saem de um percentil dentro
+ * do hoopgrid_players (ver buildAplicarCurva). Quando a base cresce, os mesmos
+ * craques sobem de nível e o OVR de um build médio sobe junto — foi o que
+ * aconteceu quando o sync automático passou a rodar sobre a base expandida: o
+ * OVR estourou os 88 da régua antiga e TODO build virava "o maior de todos os
+ * tempos". Aqui a régua se recalibra sozinha sempre que as notas mudam.
+ *
+ * O resultado fica em cache: recalcular custa uma simulação de milhares de
+ * builds, e a impressão digital das notas diz quando refazer.
+ */
+function buildCurvaViva(PDO $pdo, string $grupo): array
+{
+    static $memoria = [];
+    if (isset($memoria[$grupo])) return $memoria[$grupo];
+
+    $fallback = buildPerfilDoGrupo($grupo)['curva'];
+    try {
+        $st = $pdo->prepare("SELECT COUNT(*) c, COALESCE(SUM(ovr),0) s, COALESCE(MAX(player_id),0) m
+                             FROM build_notas WHERE posicao_grupo = ?");
+        $st->execute([$grupo]);
+        $f = $st->fetch(PDO::FETCH_ASSOC);
+        // Poucas lendas: a amostra não representa nada, melhor a régua fixa.
+        if (!$f || (int)$f['c'] < 12) return $memoria[$grupo] = $fallback;
+        $digital = md5($grupo . '|' . $f['c'] . '|' . $f['s'] . '|' . $f['m']);
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS build_curva_cache (
+            grupo VARCHAR(10) NOT NULL PRIMARY KEY,
+            digital CHAR(32) NOT NULL,
+            curva TEXT NOT NULL,
+            criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $st = $pdo->prepare("SELECT curva FROM build_curva_cache WHERE grupo = ? AND digital = ?");
+        $st->execute([$grupo, $digital]);
+        $cache = $st->fetchColumn();
+        if ($cache) {
+            $curva = json_decode((string)$cache, true);
+            if (is_array($curva) && count($curva) >= 2) return $memoria[$grupo] = $curva;
+        }
+
+        $curva = buildCalibrarCurva($pdo, $grupo);
+        if (!$curva) return $memoria[$grupo] = $fallback;
+
+        $pdo->prepare("INSERT INTO build_curva_cache (grupo, digital, curva) VALUES (?, ?, ?)
+                       ON DUPLICATE KEY UPDATE digital = VALUES(digital), curva = VALUES(curva), criado_em = NOW()")
+            ->execute([$grupo, $digital, json_encode($curva)]);
+        return $memoria[$grupo] = $curva;
+    } catch (Throwable $e) {
+        error_log('[build] curva viva (' . $grupo . '): ' . $e->getMessage());
+        return $memoria[$grupo] = $fallback;
+    }
+}
+
+/**
+ * Simula milhares de builds com as notas atuais e transforma a distribuição de
+ * OVR na curva OVR → posição, ancorada em BUILD_PERCENTIL_POSICAO.
+ *
+ * A simulação imita o que o jogador faz: a cada lenda sorteada, pega o atributo
+ * que mais soma no OVR dele. Medir com escolha aleatória daria uma régua fácil
+ * demais — ninguém joga jogando fora a melhor nota da tela.
+ */
+function buildCalibrarCurva(PDO $pdo, string $grupo): ?array
+{
+    $st = $pdo->prepare("SELECT * FROM build_notas WHERE posicao_grupo = ?");
+    $st->execute([$grupo]);
+    $lendas = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (count($lendas) < 12) return null;
+
+    $pesos = buildPesosDoGrupo($grupo);
+    $attrs = array_keys($pesos);
+    $somaPesos = array_sum($pesos);
+    if ($somaPesos <= 0) return null;
+
+    $amostras = [];
+    $totalLendas = count($lendas);
+    for ($p = 0; $p < 4000; $p++) {
+        $niveis = array_fill_keys($attrs, 0);
+        $vazios = $attrs;
+        $usados = [];
+        while ($vazios) {
+            // Lenda ainda não usada nesta partida, como bpSortearLenda faz.
+            $tentativas = 0;
+            do {
+                $l = $lendas[random_int(0, $totalLendas - 1)];
+                $tentativas++;
+            } while (isset($usados[(int)$l['player_id']]) && $tentativas < 40);
+            $usados[(int)$l['player_id']] = true;
+
+            $melhor = null;
+            $melhorValor = -1.0;
+            foreach ($vazios as $a) {
+                $v = buildValorDaLetra((int)$l[$a]) * $pesos[$a];
+                if ($v > $melhorValor) { $melhorValor = $v; $melhor = $a; }
+            }
+            if ($melhor === null) break;
+            $niveis[$melhor] = (int)$l[$melhor];
+            $vazios = array_values(array_diff($vazios, [$melhor]));
+        }
+        $num = 0.0;
+        foreach ($attrs as $a) $num += buildValorDaLetra($niveis[$a]) * $pesos[$a];
+        $amostras[] = $num / $somaPesos;
+    }
+
+    rsort($amostras); // melhor primeiro
+    $n = count($amostras);
+    $curva = [];
+    foreach (BUILD_PERCENTIL_POSICAO as [$pct, $posicao]) {
+        $i = (int)round($n * $pct / 100) - 1;
+        $i = max(0, min($n - 1, $i));
+        $curva[] = [round($amostras[$i], 2), $posicao];
+    }
+
+    // A curva é lida do topo pra baixo assumindo OVR estritamente decrescente;
+    // amostra pequena pode empatar dois pontos e travar a interpolação.
+    for ($i = 1; $i < count($curva); $i++) {
+        if ($curva[$i][0] >= $curva[$i - 1][0]) $curva[$i][0] = $curva[$i - 1][0] - 0.1;
+    }
+    return $curva;
+}
+
+/**
  * Posição do build no top 100 histórico da NBA.
  *
  * Recebe o OVR exato (sem arredondar) pra que dois builds próximos não empatem
  * na mesma posição — a interpolação entre os pontos da curva dá o número fino.
  */
-function buildPosicaoHistorica(float $ovrExato, string $grupo): array
+function buildPosicaoHistorica(float $ovrExato, string $grupo, ?PDO $pdo = null): array
 {
-    $curva = buildPerfilDoGrupo($grupo)['curva'];
+    $curva = $pdo ? buildCurvaViva($pdo, $grupo) : buildPerfilDoGrupo($grupo)['curva'];
     $pos = null;
 
     if ($ovrExato >= $curva[0][0]) {
