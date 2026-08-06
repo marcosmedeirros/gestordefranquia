@@ -636,6 +636,10 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						<tr>
 							<th>Jogador</th>
 							<th>OVR</th>
+							<?php /* Só a ELITE tem salary cap — nas outras ligas a coluna nem existe. */ ?>
+							<?php if (strtoupper((string)($user['league'] ?? '')) === 'ELITE'): ?>
+							<th title="Quanto o jogador ocupa no teto salarial da franquia">Salário</th>
+							<?php endif; ?>
 							<th>Idade</th>
 							<th>Posicao</th>
 							<th class="col-stat" title="Pontos por jogo na temporada">PTS</th>
@@ -937,6 +941,20 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		}
 	}
 
+	// Salary cap só existe na ELITE; nas outras ligas a API nem manda o campo.
+	const LIGA_TEM_CAP = <?= strtoupper((string)($user['league'] ?? '')) === 'ELITE' ? 'true' : 'false' ?>;
+
+	/** Salário que o jogador ocupa no teto, em milhões. Calouro leva marca própria. */
+	function capSalarioHtml(p) {
+		if (p.cap_salario === undefined || p.cap_salario === null) return '<span class="text-light-gray">-</span>';
+		const v = Number(p.cap_salario);
+		if (!Number.isFinite(v)) return '<span class="text-light-gray">-</span>';
+		const rookie = p.cap_rookie
+			? ' <span style="font-size:9px;font-weight:800;color:var(--red);vertical-align:middle" title="Rookie scale — contrato de calouro">R</span>'
+			: '';
+		return `<span style="font-weight:700;white-space:nowrap">${v}M</span>${rookie}`;
+	}
+
 	function getOvrClass(ovr) {
 		if (ovr >= 85) return 'ovr-high';
 		if (ovr >= 78) return 'ovr-mid';
@@ -1094,7 +1112,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			<div class="mpl-item">
 				<div class="mpl-main">
 					<div class="mpl-name"><a class="pl-link"${loyalNameStyle(p)} href="player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)}${loyalTagHtml(p)}${tagBadge}${tradeBadge}</div>
-					<div class="mpl-meta">${p.position ?? '-'} · ${p.age ?? '-'}a · Badges ${p.badges_count ?? 0} · ${teamName}</div>
+					<div class="mpl-meta">${p.position ?? '-'} · ${p.age ?? '-'}a · Badges ${p.badges_count ?? 0}${LIGA_TEM_CAP && p.cap_salario != null ? ` · ${p.cap_salario}M` : ''} · ${teamName}</div>
 					${statsLinha(p)}
 				</div>
 				<div class="mpl-right">
@@ -1190,6 +1208,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 							<span class="badge-ovr ${getOvrClass(ovr)}">${p.ovr}</span>
 							${(p.ovr_delta > 0) ? `<span style="font-size:10px;color:#22c55e;font-weight:700;margin-left:4px">+${p.ovr_delta}</span>` : (p.ovr_delta < 0) ? `<span style="font-size:10px;color:#ef4444;font-weight:700;margin-left:4px">${p.ovr_delta}</span>` : ''}
 						</td>
+								${LIGA_TEM_CAP ? `<td>${capSalarioHtml(p)}</td>` : ''}
 								<td>${p.age ?? '-'}</td>
 								<td>${p.position ?? '-'}</td>
 								<td class="col-stat"><b>${pg(p.pts_pg)}</b></td>

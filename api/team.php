@@ -311,6 +311,8 @@ if ($method === 'GET') {
                                     {$badgesSelect}{$tapasSelect},
                   p.role,
                   p.was_traded, p.drafted_by_team_id,
+                  -- usados só pra calcular o salário do cap (ver getPlayerBaseSalary)
+                  p.draft_round, p.draft_pick_position, p.drafted_season_number,
                   COALESCE(p.available_for_trade, 0) as available_for_trade,
                   COALESCE(p.player_tag, NULL) as player_tag,
                   COALESCE(p.player_tag_color, NULL) as player_tag_color,
@@ -345,6 +347,20 @@ if ($method === 'GET') {
         $stmt->execute($params);
         $players = $stmt->fetchAll(PDO::FETCH_ASSOC);
         markLoyaltyEligibility($pdo, $players); // is_loyal / cap_bonus_eligible (tag "Leal" + destaque)
+
+        // Salário que o jogador ocupa no teto. Só a ELITE tem salary cap, então
+        // nas outras ligas o campo nem vai — a coluna some da tela por isso.
+        // A temporada é resolvida uma vez, fora do laço: define quem é calouro.
+        $capLigaTemSalario = strtoupper(trim($league)) === 'ELITE';
+        if ($capLigaTemSalario) {
+            $temporadaCap = temporadaAtivaDaLiga($pdo, $league);
+            $numTemporadaCap = $temporadaCap ? (int)$temporadaCap['season_number'] : null;
+            foreach ($players as &$player) {
+                $player['cap_salario'] = getPlayerBaseSalary($player, $numTemporadaCap);
+                $player['cap_rookie']  = capEhCalouroNaTemporadaAtual($player, $numTemporadaCap);
+            }
+            unset($player);
+        }
 
         foreach ($players as &$player) {
             appendPhoneFields($player);
