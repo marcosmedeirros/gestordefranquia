@@ -2191,7 +2191,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .dt-codigo-valor{font-size:34px;font-weight:900;letter-spacing:6px;color:var(--red);font-variant-numeric:tabular-nums}
 .dt-codigo-label{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-top:6px}
 
-.dt-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--red);border-radius:50%;margin:0 auto 14px;animation:dt-spin 1s linear infinite}
+/* margin-top serve pra não encostar no botão de cima: colado, o spinner virava
+   alvo do toque de quem mirava a borda de baixo do "Copiar link". */
+.dt-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--red);border-radius:50%;margin:18px auto 14px;animation:dt-spin 1s linear infinite}
 @keyframes dt-spin{to{transform:rotate(360deg)}}
 
 .dt-empty{text-align:center;padding:20px;color:var(--text2);font-size:12.5px}
@@ -2664,7 +2666,7 @@ function renderAguardando(duelo) {
         <div class="dt-codigo-valor">${esc(duelo.codigo)}</div>
         <div class="dt-codigo-label">Compartilhe esse código</div>
       </div>
-      <button class="btn-dt" id="dtBtnCopiarLink" onclick="dtCopiarLink('${duelo.codigo}')"><i class="bi bi-link-45deg me-2"></i>Copiar link do convite</button>
+      <button class="btn-dt" id="dtBtnCopiarLink" onclick="dtCopiarLink('${duelo.codigo}', this)"><i class="bi bi-link-45deg me-2"></i>Copiar link do convite</button>
       <p class="dtcard-sub" style="text-align:center;margin-bottom:4px">Aposta: <strong>${duelo.aposta} moedas</strong></p>
       <div class="dt-spinner"></div>
       <p class="dt-empty">Assim que alguém entrar com o código, a tela avança sozinha.</p>
@@ -2711,9 +2713,13 @@ function dtLinkConvite(codigo) {
   return url.toString();
 }
 
-async function dtCopiarLink(codigo) {
+// O botão vem por parâmetro (`this` no onclick) porque a mesma função serve o
+// duelo e a copa, que têm ids diferentes. Antes o id estava fixo no do duelo:
+// na copa o retorno "Link copiado!" nunca aparecia e, sem sinal nenhum, parecia
+// que o botão não estava funcionando.
+async function dtCopiarLink(codigo, btn = null) {
   const link = dtLinkConvite(codigo);
-  const btn = document.getElementById('dtBtnCopiarLink');
+  if (!btn) btn = document.getElementById('dtBtnCopiarLink');
   try {
     await navigator.clipboard.writeText(link);
   } catch (e) {
@@ -3182,7 +3188,7 @@ function renderCopaLobby(copa) {
         <div class="dt-codigo-valor">${esc(copa.codigo)}</div>
         <div class="dt-codigo-label">Código da copa</div>
       </div>
-      <button class="btn-dt" id="dtBtnCopaLink" onclick="dtCopiarLink('${copa.codigo}')"><i class="bi bi-link-45deg me-2"></i>Copiar link do convite</button>
+      <button class="btn-dt" id="dtBtnCopaLink" onclick="dtCopiarLink('${copa.codigo}', this)"><i class="bi bi-link-45deg me-2"></i>Copiar link do convite</button>
       <div class="dt-spinner"></div>
       <p class="dt-empty">${copa.vagas === 1 ? 'Falta 1 pessoa' : `Faltam ${copa.vagas} pessoas`} pra começar. Assim que encher, todo mundo monta o time ao mesmo tempo.</p>
       <button class="btn-dt-ghost" id="dtBtnCopaSair" onclick="dtCopaSair()">
