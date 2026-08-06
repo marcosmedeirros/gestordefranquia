@@ -1065,6 +1065,19 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		return isLoyalPlayer(p) ? '<span style="background:rgba(6,182,212,.15);color:#06b6d4;border:1px solid rgba(6,182,212,.35);border-radius:999px;font-size:10px;font-weight:700;padding:2px 6px;margin-left:4px">Leal</span>' : '';
 	}
 
+	/** Lenda da franquia: nome dourado + tag. Vale 40M no teto (ver getPlayerBaseSalary). */
+	function isLenda(p) { return !!(p && (p.is_lenda == 1 || p.is_lenda === true)); }
+
+	function lendaNameStyle(p) {
+		return isLenda(p) ? ' style="color:#f5c542;font-weight:800"' : '';
+	}
+
+	function lendaTagHtml(p) {
+		return isLenda(p)
+			? '<span style="background:rgba(245,197,66,.15);color:#f5c542;border:1px solid rgba(245,197,66,.45);border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.5px;padding:2px 7px;margin-left:4px">LENDA</span>'
+			: '';
+	}
+
 	function renderPlayerTagBadge(p) {
 		if (!p.player_tag) return '';
 		const color = p.player_tag_color || '#3b82f6';
@@ -1111,7 +1124,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		return `
 			<div class="mpl-item">
 				<div class="mpl-main">
-					<div class="mpl-name"><a class="pl-link"${loyalNameStyle(p)} href="player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)}${loyalTagHtml(p)}${tagBadge}${tradeBadge}</div>
+					<div class="mpl-name"><a class="pl-link"${isLenda(p) ? lendaNameStyle(p) : loyalNameStyle(p)} href="player.php?id=${p.id}">${p.name}</a>${lendaTagHtml(p)}${renderTapaBadge(p)}${loyalTagHtml(p)}${tagBadge}${tradeBadge}</div>
 					<div class="mpl-meta">${p.position ?? '-'} · ${p.age ?? '-'}a · Badges ${p.badges_count ?? 0}${LIGA_TEM_CAP && p.cap_salario != null ? ` · ${p.cap_salario}M` : ''} · ${teamName}</div>
 					${statsLinha(p)}
 				</div>
@@ -1201,7 +1214,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 								<td>
 									<div class="d-flex align-items-center gap-2">
 										<img src="${photoUrl}" alt="${p.name}" style="width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
-										<strong><a class="pl-link"${loyalNameStyle(p)} href="player.php?id=${p.id}">${p.name}</a></strong>${renderTapaBadge(p)}${loyalTagHtml(p)}${tagBadgeRow}${tradeBadgeRow}
+										<strong><a class="pl-link"${isLenda(p) ? lendaNameStyle(p) : loyalNameStyle(p)} href="player.php?id=${p.id}">${p.name}</a></strong>${lendaTagHtml(p)}${renderTapaBadge(p)}${loyalTagHtml(p)}${tagBadgeRow}${tradeBadgeRow}
 									</div>
 								</td>
 								<td>

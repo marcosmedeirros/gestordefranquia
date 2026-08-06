@@ -208,6 +208,9 @@ if ($method === 'GET') {
     }
 
     if ($action === 'list_players') {
+        // A consulta abaixo lê is_lenda direto; sem isso, um banco que ainda não
+        // rodou a migração quebraria com "unknown column" em vez de se adaptar.
+        ensurePlayerRestrictionColumns($pdo);
         $query = trim($_GET['query'] ?? '');
         $position = strtoupper(trim($_GET['position'] ?? ''));
         $teamFilter = isset($_GET['team_id']) ? (int)$_GET['team_id'] : 0;
@@ -313,6 +316,7 @@ if ($method === 'GET') {
                   p.was_traded, p.drafted_by_team_id,
                   -- usados só pra calcular o salário do cap (ver getPlayerBaseSalary)
                   p.draft_round, p.draft_pick_position, p.drafted_season_number,
+                  COALESCE(p.is_lenda, 0) as is_lenda,
                   COALESCE(p.available_for_trade, 0) as available_for_trade,
                   COALESCE(p.player_tag, NULL) as player_tag,
                   COALESCE(p.player_tag_color, NULL) as player_tag_color,
@@ -842,6 +846,61 @@ if ($method === 'GET') {
 
 if ($method === 'POST') {
     $body = readJsonBody();
+
+    /**
+     * ── set_lenda: marca (ou desmarca) a LENDA da franquia ──────────────────
+     *
+     * Um jogador por time. Marcar outro tira o anterior na mesma transação —
+     * senão um duplo clique, ou dois GMs do mesmo time, deixariam dois marcados
+     * e o cap contaria 40M duas vezes.
+     *
+     * Quem pode: o GM no próprio elenco, e o admin em qualquer time das ligas
+     * que ele administra. A tag vale 40M no teto, então não é cosmética.
+     */
+    if (($body['action'] ?? '') === 'set_lenda') {
+        $user = getUserSession();
+        if (!$user) jsonResponse(401, ['error' => 'Sessão expirada.']);
+
+        $playerId = (int)($body['player_id'] ?? 0);
+        $ligar = !empty($body['lenda']);
+        if ($playerId <= 0) jsonResponse(400, ['error' => 'Jogador não informado.']);
+
+        ensurePlayerRestrictionColumns($pdo);
+
+        $st = $pdo->prepare('SELECT p.id, p.name, p.team_id, t.user_id, t.league
+                             FROM players p JOIN teams t ON t.id = p.team_id WHERE p.id = ?');
+        $st->execute([$playerId]);
+        $alvo = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$alvo) jsonResponse(404, ['error' => 'Jogador não encontrado.']);
+
+        $souDono = (int)$alvo['user_id'] === (int)$user['id'];
+        $souAdmin = hasAdminAccess($pdo, (int)$user['id'])
+            && in_array(strtoupper((string)$alvo['league']),
+                        array_map('strtoupper', getAdminLeagues($pdo, (int)$user['id'])), true);
+        if (!$souDono && !$souAdmin) {
+            jsonResponse(403, ['error' => 'Você só pode marcar a lenda do seu próprio elenco.']);
+        }
+
+        try {
+            $pdo->beginTransaction();
+            // Zera o time inteiro antes de marcar: garante o "uma por franquia"
+            // sem depender de o estado anterior estar consistente.
+            $pdo->prepare('UPDATE players SET is_lenda = 0 WHERE team_id = ?')->execute([(int)$alvo['team_id']]);
+            if ($ligar) {
+                $pdo->prepare('UPDATE players SET is_lenda = 1 WHERE id = ?')->execute([$playerId]);
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[set_lenda] ' . $e->getMessage());
+            jsonResponse(500, ['error' => 'Não deu pra salvar a lenda agora.']);
+        }
+
+        jsonResponse(200, [
+            'message' => $ligar ? $alvo['name'] . ' agora é a lenda da franquia.' : 'Tag de lenda removida.',
+            'is_lenda' => $ligar,
+        ]);
+    }
 
     // ── save_ai_tag: IA auto-classifica o time ──────────────────────────────
     if (($body['action'] ?? '') === 'save_ai_tag') {

@@ -5,6 +5,8 @@ require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
 require_once dirname(__DIR__) . '/backend/helpers.php';
 require_once dirname(__DIR__) . '/backend/league_cap.php';
+// Tabela OVR→salário e a regra da lenda, usadas pelo painel de conferência do cap.
+require_once dirname(__DIR__) . '/backend/salary_cap.php';
 require_once dirname(__DIR__) . '/backend/nba_sync.php';
 
 $user = getUserSession();
@@ -96,6 +98,73 @@ ensureTradeInGameColumn($pdo);
 // GET - Listar dados do admin
 if ($method === 'GET') {
     switch ($action) {
+
+        /**
+         * Painel de conferência do cap: a tabela OVR→salário com quantos jogadores
+         * ativos da liga estão em cada faixa, mais as lendas marcadas.
+         *
+         * Serve pra bater o cap "no olho" sem abrir time por time — era isso que
+         * o pedido chamava de "a cola da tabela".
+         */
+        case 'cap_tabela':
+            $ligaCap = strtoupper(trim($_GET['league'] ?? 'ELITE'));
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $ligaCap);
+            ensurePlayerRestrictionColumns($pdo);
+
+            // Quantos jogadores por OVR, só de times da liga.
+            $stCont = $pdo->prepare('SELECT p.ovr, COUNT(*) AS n
+                                     FROM players p JOIN teams t ON t.id = p.team_id
+                                     WHERE t.league = ? GROUP BY p.ovr');
+            $stCont->execute([$ligaCap]);
+            $porOvr = [];
+            foreach ($stCont->fetchAll(PDO::FETCH_ASSOC) as $r) $porOvr[(int)$r['ovr']] = (int)$r['n'];
+
+            // A tabela vai do 99 até "77 ou menos", igual ao regulamento.
+            $linhas = [];
+            for ($ovr = 99; $ovr >= 78; $ovr--) {
+                $linhas[] = [
+                    'ovr' => (string)$ovr,
+                    'salario' => capOvrSalary($ovr),
+                    'jogadores' => $porOvr[$ovr] ?? 0,
+                ];
+            }
+            $abaixo = 0;
+            foreach ($porOvr as $ovr => $n) if ($ovr <= 77) $abaixo += $n;
+            $linhas[] = ['ovr' => '77 ou menos', 'salario' => CAP_VETERAN_MINIMUM_MILLIONS, 'jogadores' => $abaixo];
+
+            // Lendas marcadas, com o que elas custam de fato.
+            $stL = $pdo->prepare("SELECT p.id, p.name, p.ovr, p.age,
+                                         TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time_nome
+                                  FROM players p JOIN teams t ON t.id = p.team_id
+                                  WHERE t.league = ? AND p.is_lenda = 1
+                                  ORDER BY p.ovr DESC, p.name");
+            $stL->execute([$ligaCap]);
+            $lendas = [];
+            foreach ($stL->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $lendas[] = [
+                    'id' => (int)$r['id'],
+                    'name' => $r['name'],
+                    'ovr' => (int)$r['ovr'],
+                    'age' => $r['age'] !== null ? (int)$r['age'] : null,
+                    'time' => $r['time_nome'],
+                    'salario' => getPlayerBaseSalary(['ovr' => (int)$r['ovr'], 'is_lenda' => 1]),
+                    'acima_do_piso' => capOvrSalary((int)$r['ovr']) > CAP_LENDA_MINIMO_MILLIONS,
+                ];
+            }
+
+            $stTimes = $pdo->prepare('SELECT COUNT(*) FROM teams WHERE league = ?');
+            $stTimes->execute([$ligaCap]);
+
+            echo json_encode([
+                'success' => true,
+                'league' => $ligaCap,
+                'linhas' => $linhas,
+                'lendas' => $lendas,
+                'total_jogadores' => array_sum($porOvr),
+                'total_times' => (int)$stTimes->fetchColumn(),
+                'lenda_minimo' => CAP_LENDA_MINIMO_MILLIONS,
+            ]);
+            exit;
 
         case 'maintenance_status':
             if (!$isGlobalAdminApi) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Apenas admin geral']); exit; }

@@ -345,6 +345,15 @@ function ensurePlayerRestrictionColumns(PDO $pdo): void
             $pdo->exec("ALTER TABLE players ADD COLUMN loyal_override TINYINT(1) DEFAULT NULL AFTER is_franchise_player");
         }
 
+        // Tag LENDA: um jogador por franquia. O efeito é no salário do cap —
+        // a lenda vale no mínimo 40M (ver getPlayerBaseSalary), então marcar
+        // alguém é decisão com peso financeiro, não só cosmética.
+        $needsLenda = $pdo->query("SHOW COLUMNS FROM players LIKE 'is_lenda'")->rowCount() === 0;
+        if ($needsLenda) {
+            $pdo->exec("ALTER TABLE players ADD COLUMN is_lenda TINYINT(1) NOT NULL DEFAULT 0 AFTER loyal_override");
+            $pdo->exec("CREATE INDEX idx_players_is_lenda ON players(team_id, is_lenda)");
+        }
+
         $needsDraftSeason = $pdo->query("SHOW COLUMNS FROM players LIKE 'drafted_season_number'")->rowCount() === 0;
         if ($needsDraftSeason) {
             $pdo->exec("ALTER TABLE players ADD COLUMN drafted_season_number INT NULL AFTER drafted_by_team_id");

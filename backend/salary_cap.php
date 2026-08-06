@@ -136,9 +136,20 @@ function capEhCalouroNaTemporadaAtual(array $player, ?int $temporadaAtual): bool
  * Salário base do jogador: rookie scale só na temporada de estreia dele,
  * tabela de OVR em qualquer outro caso.
  */
+/** Piso do contrato de lenda. Vale mais que a tabela por OVR até o 94 (que dá exatamente 40M). */
+const CAP_LENDA_MINIMO_MILLIONS = 40;
+
 function getPlayerBaseSalary(array $player, ?int $temporadaAtual = null): int
 {
     $ovr = (int)($player['ovr'] ?? 0);
+
+    // Lenda da franquia: contrato de no mínimo 40M, acima de qualquer outra
+    // régua — inclusive da rookie scale. Passando de 94 de OVR a tabela normal
+    // já paga mais que isso e volta a valer sozinha (95 = 44M), então um max()
+    // resolve os dois casos sem if de faixa.
+    if (!empty($player['is_lenda'])) {
+        return max(CAP_LENDA_MINIMO_MILLIONS, capOvrSalary($ovr));
+    }
 
     if (capEhCalouroNaTemporadaAtual($player, $temporadaAtual)) {
         $pick = isset($player['draft_pick_position']) ? (int)$player['draft_pick_position'] : null;
@@ -266,6 +277,7 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     $stmtPlayers = $pdo->prepare("
         SELECT id, name, team_id, ovr, seasons_in_league, drafted_by_team_id, drafted_season_number,
                draft_round, draft_pick_position,
+               COALESCE(is_lenda, 0) as is_lenda,
                COALESCE(was_traded, 0) as was_traded
         FROM players WHERE team_id = ? ORDER BY ovr DESC
     ");
@@ -288,7 +300,9 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
             'name' => $p['name'],
             'ovr' => (int)$p['ovr'],
             'base_salary' => $baseSalary,
-            'is_rookie_scale' => $isRookieScale,
+            // A lenda ignora a rookie scale: o piso de 40M vale por cima dela.
+            'is_rookie_scale' => $isRookieScale && empty($p['is_lenda']),
+            'is_lenda' => !empty($p['is_lenda']),
             'award_bonus' => $bonus,
             'total_salary' => $baseSalary + $bonus,
             'cap_flex_eligible' => $flex > 0,

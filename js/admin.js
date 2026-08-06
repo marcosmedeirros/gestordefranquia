@@ -3291,6 +3291,19 @@ async function showConfig() {
              value="${lg.cap_flex_a_partir_da_temporada ?? ''}"
              data-league="${lg.league}" data-field="cap_flex_a_partir_da_temporada" />
     </div>
+  </div>
+  <div style="margin-bottom:24px;background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+      <div style="font-size:12px;font-weight:700;color:var(--text)"><i class="bi bi-table me-1"></i>Controle de Cap</div>
+      <button type="button" class="btn-outline" style="font-size:11px;padding:5px 10px" onclick="carregarCapTabela('${lg.league}')">
+        <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+      </button>
+    </div>
+    <p style="font-size:11px;color:var(--text-3);margin-bottom:12px;line-height:1.5">
+      A tabela de salário por OVR com quantos jogadores da liga estão em cada faixa — pra conferir o cap sem abrir time por time.
+      Abaixo, as lendas marcadas: cada uma custa no mínimo 40M, e só passa disso quando o OVR chega a 95.
+    </p>
+    <div id="capTabelaBox_${lg.league}"><div style="font-size:11px;color:var(--text-3)">Carregando...</div></div>
   </div>` : ''}
   <div style="margin-bottom:24px">
     <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px"><i class="bi bi-webhook me-1"></i>Webhook N8N (trades 80+)</div>
@@ -3364,9 +3377,75 @@ async function showConfig() {
   </div>` : `<div style="font-size:12px;color:var(--text-3);margin-top:8px"><i class="bi bi-info-circle me-1"></i>Nenhum arquivo enviado</div>`}
 
 </div>`).join('');
-    filtered.forEach(lg => loadCapHistory(lg.league));
+    filtered.forEach(lg => {
+      loadCapHistory(lg.league);
+      if (lg.league === 'ELITE') carregarCapTabela(lg.league);
+    });
   } catch (e) {}
 }
+
+/**
+ * Painel de conferência do cap: tabela OVR→salário com a contagem de jogadores
+ * por faixa, e a lista das lendas marcadas.
+ */
+async function carregarCapTabela(league) {
+  const box = document.getElementById(`capTabelaBox_${league}`);
+  if (!box) return;
+  box.innerHTML = '<div style="font-size:11px;color:var(--text-3)">Carregando...</div>';
+  try {
+    const d = await api(`admin.php?action=cap_tabela&league=${league}`);
+    const linhas = d.linhas || [];
+    const lendas = d.lendas || [];
+
+    // Três colunas como no regulamento, pra caber sem rolar.
+    const porColuna = Math.ceil(linhas.length / 3);
+    const colunas = [0, 1, 2].map(i => linhas.slice(i * porColuna, (i + 1) * porColuna));
+    const celula = (l) => `
+      <tr>
+        <td style="padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px">${l.ovr}</td>
+        <td style="padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:#f5c542;text-align:right">${l.salario}M</td>
+        <td style="padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px;text-align:right;${l.jogadores ? 'color:var(--text)' : 'color:var(--text-3)'}">${l.jogadores}</td>
+      </tr>`;
+
+    const tabela = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px">
+        ${colunas.map(col => `
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr>
+              <th style="padding:5px 8px;font-size:10px;text-align:left;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em">OVR</th>
+              <th style="padding:5px 8px;font-size:10px;text-align:right;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em">Salário</th>
+              <th style="padding:5px 8px;font-size:10px;text-align:right;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em" title="Jogadores ativos da liga com esse OVR">Jog.</th>
+            </tr></thead>
+            <tbody>${col.map(celula).join('')}</tbody>
+          </table>`).join('')}
+      </div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:10px">
+        ${d.total_jogadores} jogadores ativos em ${d.total_times} times.
+      </div>`;
+
+    const listaLendas = !lendas.length
+      ? `<div style="font-size:11px;color:var(--text-3)">Nenhuma lenda marcada ainda. Cada franquia pode marcar uma.</div>`
+      : `<div style="display:flex;flex-direction:column;gap:6px">
+          ${lendas.map(l => `
+            <div style="display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:7px 10px;flex-wrap:wrap">
+              <span style="font-size:12px;font-weight:800;color:#f5c542">${escapeHtml(l.name)}</span>
+              <span style="font-size:11px;color:var(--text-3)">${escapeHtml(l.time)}</span>
+              <span style="font-size:11px;color:var(--text-2)">OVR ${l.ovr}${l.age ? ` · ${l.age}a` : ''}</span>
+              <span style="margin-left:auto;font-size:12px;font-weight:800;color:#f5c542">${l.salario}M</span>
+              ${l.acima_do_piso ? `<span style="font-size:9px;font-weight:800;color:var(--text-3)" title="OVR alto o bastante pra tabela pagar mais que o piso de ${d.lenda_minimo}M">TABELA</span>` : `<span style="font-size:9px;font-weight:800;color:var(--text-3)" title="Piso da lenda">PISO</span>`}
+            </div>`).join('')}
+         </div>`;
+
+    box.innerHTML = `${tabela}
+      <div style="font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em;margin:16px 0 8px">
+        <i class="bi bi-star-fill me-1" style="color:#f5c542"></i>Lendas (${lendas.length})
+      </div>
+      ${listaLendas}`;
+  } catch (e) {
+    box.innerHTML = '<div style="font-size:11px;color:var(--text-3)">Não deu pra carregar o controle de cap agora.</div>';
+  }
+}
+window.carregarCapTabela = carregarCapTabela;
 
 async function loadCapHistory(league) {
   const box = document.getElementById(`capHistory_${league}`);
