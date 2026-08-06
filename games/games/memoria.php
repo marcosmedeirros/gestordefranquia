@@ -125,6 +125,62 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     // Antes o cliente mandava `movimentos` e a lista `pares_encontrados` e o servidor acreditava:
     // um único POST com todos os ids marcava "venceu" e pagava o prêmio sem jogar. E o contador
     // de movimentos vindo do cliente tornava o limite de 18 inexistente.
+    /**
+     * Vira a PRIMEIRA carta do par e devolve o emoji dela.
+     *
+     * Existe porque, sem isto, a primeira carta virava e ficava em branco até a
+     * segunda ser clicada — o emoji só chegava na resposta do par. Parecia que o
+     * ícone estava demorando a carregar.
+     *
+     * E não reabre a brecha de varrer o tabuleiro: o servidor guarda UMA carta
+     * pendente. Enquanto ela estiver de pé, virar outra só é possível fechando o
+     * par (virar_cartas), que custa movimento. Recarregar a página não limpa a
+     * pendência — se limpasse, dava pra revelar uma carta, recarregar, revelar
+     * outra, e mapear tudo de graça.
+     */
+    if ($_POST['acao'] == 'virar_primeira') {
+        $a = filter_var($_POST['carta'] ?? null, FILTER_VALIDATE_INT);
+        if ($a === false || !isset($tabuleiro_atual[$a])) { echo json_encode(['erro' => 'Jogada inválida.']); exit; }
+
+        try {
+            $pdo->beginTransaction();
+            $stLock = $pdo->prepare("SELECT id, estado_jogo, status FROM memoria_historico WHERE id = :id FOR UPDATE");
+            $stLock->execute([':id' => $dados_jogo['id']]);
+            $atual = $stLock->fetch(PDO::FETCH_ASSOC);
+            if (!$atual || $atual['status'] !== 'jogando') {
+                $pdo->rollBack();
+                echo json_encode(['erro' => 'Jogo já finalizado.']);
+                exit;
+            }
+
+            $tab = json_decode((string)$atual['estado_jogo'], true);
+            if (!is_array($tab) || !isset($tab[$a]) || !empty($tab[$a]['encontrado'])) {
+                $pdo->rollBack();
+                echo json_encode(['erro' => 'Jogada inválida.']);
+                exit;
+            }
+
+            $pendente = null;
+            foreach ($tab as $i => $c) { if (!empty($c['pendente'])) { $pendente = $i; break; } }
+            if ($pendente !== null && $pendente !== $a) {
+                $pdo->rollBack();
+                echo json_encode(['erro' => 'Feche o par antes de virar outra carta.']);
+                exit;
+            }
+
+            $tab[$a]['pendente'] = true;
+            $pdo->prepare("UPDATE memoria_historico SET estado_jogo = :tab WHERE id = :id")
+                ->execute([':tab' => json_encode($tab), ':id' => $atual['id']]);
+            $pdo->commit();
+            echo json_encode(['emoji' => $tab[$a]['emoji']]);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[memoria] virar_primeira: ' . $e->getMessage());
+            echo json_encode(['erro' => 'Erro ao virar a carta.']);
+        }
+        exit;
+    }
+
     if ($_POST['acao'] == 'virar_cartas') {
         $a = filter_var($_POST['carta_a'] ?? null, FILTER_VALIDATE_INT);
         $b = filter_var($_POST['carta_b'] ?? null, FILTER_VALIDATE_INT);
@@ -160,6 +216,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 echo json_encode(['erro' => 'Carta já encontrada.']);
                 exit;
             }
+
+            // A primeira do par tem que ser a que está pendente (virar_primeira já
+            // entregou o emoji dela). Sem essa checagem dava pra pular o passo e
+            // revelar duas cartas novas por movimento, ou revelar A, pedir o par
+            // B+C e ficar com três emojis conhecidos.
+            $pendente = null;
+            foreach ($tab as $i => $c) { if (!empty($c['pendente'])) { $pendente = $i; break; } }
+            if ($pendente !== null && $pendente !== $a) {
+                $pdo->rollBack();
+                echo json_encode(['erro' => 'Jogada fora de ordem.']);
+                exit;
+            }
+            foreach ($tab as $i => $c) unset($tab[$i]['pendente']);
 
             $movimentos = (int)$atual['movimentos'] + 1;   // contado NO SERVIDOR
             $acertou = ($tab[$a]['emoji'] === $tab[$b]['emoji']);
@@ -327,13 +396,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <?php
       // Só carta JÁ ENCONTRADA mostra o emoji. Antes o tabuleiro inteiro saía no HTML
       // (data-emoji + verso), então "ver código-fonte" entregava o jogo resolvido.
+      //
+      // A pendente também aparece virada: o jogador já viu esse emoji de forma
+      // legítima, e escondê-lo no F5 só faria ele gastar um movimento à toa.
       $revelada = !empty($carta['encontrado']);
+      $pendente = !$revelada && !empty($carta['pendente']);
     ?>
-    <div class="card-game <?= $revelada ? 'flip matched' : '' ?>"
+    <div class="card-game <?= $revelada ? 'flip matched' : ($pendente ? 'flip' : '') ?>"
          data-id="<?= (int)$idx ?>"
+         <?= $pendente ? 'data-pendente="1"' : '' ?>
          <?= $revelada ? 'style="pointer-events:none"' : '' ?>>
       <div class="card-face card-front"><i class="bi bi-cpu-fill"></i></div>
-      <div class="card-face card-back"><?= $revelada ? $carta['emoji'] : '' ?></div>
+      <div class="card-face card-back"><?= ($revelada || $pendente) ? $carta['emoji'] : '' ?></div>
     </div>
     <?php endforeach; ?>
   </div>
@@ -365,13 +439,43 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     }
     if(moves > 0) startTimer();
 
-    // O cliente não conhece mais os emojis: ao virar a segunda carta ele pergunta ao servidor,
-    // que responde se bateu e devolve os dois emojis pra exibir.
+    // Se a página foi recarregada com uma carta pendente, ela já veio virada do
+    // servidor — o estado do cliente precisa saber disso, senão o próximo clique
+    // seria tratado como "primeira carta" e o par sairia errado.
+    const pendenteNoHtml = document.querySelector('.card-game[data-pendente="1"]');
+    if (pendenteNoHtml) { hasFlippedCard = true; firstCard = pendenteNoHtml; }
+
+    // O cliente não conhece os emojis: pergunta ao servidor a cada carta virada.
+    // A primeira devolve só o emoji dela; a segunda fecha o par e diz se bateu.
     async function flipCard() {
         if(lockBoard || this === firstCard) return;
         startTimer();
+
+        if(!hasFlippedCard) {
+            this.classList.add('flip');
+            lockBoard = true;
+            try {
+                const fd = new FormData();
+                fd.append('acao', 'virar_primeira');
+                fd.append('carta', this.dataset.id);
+                const r = await fetch('index.php?game=memoria', { method: 'POST', body: fd });
+                const d = await r.json();
+                if (d && d.emoji) {
+                    this.querySelector('.card-back').textContent = d.emoji;
+                    hasFlippedCard = true;
+                    firstCard = this;
+                } else {
+                    this.classList.remove('flip'); // recusado: carta volta pra baixo
+                }
+            } catch (e) {
+                this.classList.remove('flip');
+            } finally {
+                lockBoard = false;
+            }
+            return;
+        }
+
         this.classList.add('flip');
-        if(!hasFlippedCard) { hasFlippedCard = true; firstCard = this; return; }
         secondCard = this;
         lockBoard = true;
 
@@ -422,8 +526,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
     function unflipCards() {
         setTimeout(() => {
-            if (firstCard)  firstCard.classList.remove('flip');
-            if (secondCard) secondCard.classList.remove('flip');
+            // Limpa o emoji junto: a carta desvirada não deve carregar o valor no
+            // DOM, e assim ela volta ao mesmo estado de quem nunca a tocou.
+            [firstCard, secondCard].forEach(c => {
+                if (!c) return;
+                c.classList.remove('flip');
+                const face = c.querySelector('.card-back');
+                if (face) face.textContent = '';
+            });
             resetBoard();
         }, 1000);
     }
