@@ -807,6 +807,48 @@ if (($_POST['acao'] ?? '') !== '') {
             exit;
         }
 
+        // Encerra um duelo PvP travado porque o oponente sumiu, devolvendo a aposta aos DOIS.
+        //
+        // Só vale enquanto o draft está rolando: depois que os dois times ficam completos o duelo
+        // já foi simulado e pago, não há o que cancelar. E só em PvP — a máquina nunca abandona,
+        // e liberar isso contra ela viraria "desistir da partida que está ficando ruim" de graça.
+        // Como ninguém ganha nem perde moeda (os dois recebem de volta), não há proveito em usar.
+        if ($acao === 'desistir') {
+            $duelo = dtDueloAtivo($pdo, $user_id);
+            if (!$duelo || $duelo['status'] !== 'draft') {
+                echo json_encode(['ok' => false, 'msg' => 'Só dá pra encerrar durante a escolha dos jogadores.']);
+                exit;
+            }
+            if ((int)$duelo['id_desafiado'] <= 0) {
+                echo json_encode(['ok' => false, 'msg' => 'Não dá pra encerrar um duelo contra a máquina.']);
+                exit;
+            }
+
+            $pdo->beginTransaction();
+            try {
+                // Relê com lock: sem isso, dois cliques (ou os dois jogadores juntos) podiam
+                // devolver a aposta duas vezes.
+                $st = $pdo->prepare('SELECT * FROM dreamteam_duelos WHERE id = ? FOR UPDATE');
+                $st->execute([$duelo['id']]);
+                $atual = $st->fetch(PDO::FETCH_ASSOC);
+                if (!$atual || $atual['status'] !== 'draft') {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Esse duelo já foi encerrado.']);
+                    exit;
+                }
+                $aposta = (int)$atual['aposta'];
+                $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')->execute([$aposta, (int)$atual['id_criador']]);
+                $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')->execute([$aposta, (int)$atual['id_desafiado']]);
+                $pdo->prepare("UPDATE dreamteam_duelos SET status = 'cancelado', concluido_em = NOW() WHERE id = ?")->execute([$atual['id']]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
         // Sorteia o time da rodada — ação manual (botão "Sortear Time"), só quando ainda não sorteou nessa vez.
         if ($acao === 'sortear_time') {
             $duelo = dtDueloAtivo($pdo, $user_id);
@@ -1621,6 +1663,14 @@ function renderDraft(duelo) {
     </div>`;
   }
 
+  // Saída pra quando o oponente abandona no meio do draft e o duelo trava. Some na simulação
+  // (aí o duelo já foi resolvido e pago) e não aparece contra a máquina, que nunca abandona.
+  if (duelo.eh_pvp) {
+    html += `<button class="btn-dt-ghost" id="dtBtnDesistir" onclick="dtDesistir()">
+      <i class="bi bi-flag me-1"></i>Oponente sumiu — encerrar e devolver as apostas
+    </button>`;
+  }
+
   document.getElementById('dtMain').innerHTML = html;
   window.__dtTimeAtual = duelo.time_sorteado;
   window.__dtVagas = POSICOES.filter(p => !duelo.meu_roster[p]);
@@ -1658,6 +1708,11 @@ async function dtGirarDeNovo() {
 
 async function dtSortearTime() {
   await dtAcaoBotao('dtBtnSortear', 'sortear_time');
+}
+
+async function dtDesistir() {
+  if (!(await dtConfirmar('Encerrar o duelo? Os dois recebem a aposta de volta.'))) return;
+  await dtAcaoBotao('dtBtnDesistir', 'desistir');
 }
 
 // ── Tela: resultado (simcast por quartos → boxscore final) ──────────────────
