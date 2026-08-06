@@ -104,6 +104,19 @@ function dtGarantirTabelas(PDO $pdo): void
         error_log('[dreamteam] migração modo: ' . $e->getMessage());
     }
 
+    // Reroll: um por jogador no DRAFT INTEIRO, não um por rodada. Precisa de uma
+    // coluna por lado — a antiga reroll_disponivel era única e zerava a cada
+    // turno, o que na prática dava um giro extra em toda rodada.
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM dreamteam_duelos LIKE 'reroll_criador'")->fetch()) {
+            $pdo->exec("ALTER TABLE dreamteam_duelos
+                ADD COLUMN reroll_criador TINYINT(1) NOT NULL DEFAULT 1,
+                ADD COLUMN reroll_desafiado TINYINT(1) NOT NULL DEFAULT 1");
+        }
+    } catch (PDOException $e) {
+        error_log('[dreamteam] migração reroll: ' . $e->getMessage());
+    }
+
     // Revanche: cada lado marca a sua intenção; quando os dois marcam, nasce um
     // duelo novo com a mesma aposta e revanche_duelo_id aponta pra ele (é o que
     // impede a mesma partida de gerar duas revanches).
@@ -423,17 +436,25 @@ function dtCpuJogar(PDO $pdo, int $dueloId): void
     $time = dtSortearTimeValido($roster);
 
     $melhor = dtMelhorEscolha($time, $roster);
-    if (!$melhor || $melhor['jogador']['ovr'] < 82) {
+    // A máquina joga com a MESMA regra do humano: um giro extra no duelo inteiro.
+    // Antes ela regirava toda rodada em que o melhor disponível fosse fraco, o
+    // que virou vantagem depois que o reroll humano passou a ser um só por duelo.
+    $usouReroll = false;
+    if ((int)($atual['reroll_desafiado'] ?? 0) === 1 && (!$melhor || $melhor['jogador']['ovr'] < 82)) {
         $novoTime = dtSortearTimeValido($roster);
         $melhorNovo = dtMelhorEscolha($novoTime, $roster);
         if ($melhorNovo && (!$melhor || $melhorNovo['jogador']['ovr'] > $melhor['jogador']['ovr'])) {
             $melhor = $melhorNovo;
         }
+        $usouReroll = true;
     }
     if (!$melhor) return; // nunca deveria acontecer — dtSortearTimeValido garante >=1 opção
 
     $roster[$melhor['pos']] = ['nome' => $melhor['jogador']['nome'], 'ovr' => $melhor['jogador']['ovr'], 'pos' => $melhor['jogador']['pos']];
     $pdo->prepare('UPDATE dreamteam_duelos SET roster_desafiado = ? WHERE id = ?')->execute([json_encode($roster), $dueloId]);
+    if ($usouReroll) {
+        $pdo->prepare('UPDATE dreamteam_duelos SET reroll_desafiado = 0 WHERE id = ?')->execute([$dueloId]);
+    }
 
     $rosterCriador = json_decode((string)$atual['roster_criador'], true) ?: dtRosterVazio();
     if (dtRosterCompleto($roster) && dtRosterCompleto($rosterCriador)) {
@@ -445,7 +466,7 @@ function dtCpuJogar(PDO $pdo, int $dueloId): void
             ->execute([json_encode($resultado), $vencedorId, $dueloId]);
     } else {
         // Passa a vez pro criador (sempre humano) sem sortear — ele sorteia clicando no botão.
-        $pdo->prepare("UPDATE dreamteam_duelos SET turno = 'criador', time_sorteado_id = NULL, reroll_disponivel = 1 WHERE id = ?")
+        $pdo->prepare("UPDATE dreamteam_duelos SET turno = 'criador', time_sorteado_id = NULL WHERE id = ?")
             ->execute([$dueloId]);
     }
 }
@@ -742,7 +763,8 @@ function dtSerializar(PDO $pdo, ?array $duelo, int $userId): ?array
 
     if ($duelo['status'] === 'draft') {
         $out['minha_vez'] = ($duelo['turno'] === $meuLado);
-        $out['reroll_disponivel'] = (bool)$duelo['reroll_disponivel'];
+        // O giro extra é do jogador e vale pro duelo inteiro — cada lado tem o seu.
+        $out['reroll_disponivel'] = (int)($duelo[$souCriador ? 'reroll_criador' : 'reroll_desafiado'] ?? 1) === 1;
         $out['time_sorteado'] = dtTimePorId((string)$duelo['time_sorteado_id']);
     }
 
@@ -1143,7 +1165,7 @@ if (($_POST['acao'] ?? '') !== '') {
                 // PvP: os dois lados são humanos — ninguém sorteia até clicar em "Sortear Time".
                 $pdo->prepare("UPDATE dreamteam_duelos
                         SET id_desafiado = ?, status = 'draft', turno = ?, roster_criador = ?, roster_desafiado = ?,
-                            time_sorteado_id = NULL, reroll_disponivel = 1, entrou_em = NOW()
+                            time_sorteado_id = NULL, entrou_em = NOW()
                         WHERE id = ?")
                     ->execute([$user_id, $primeiroTurno, $rosterVazio, $rosterVazio, $duelo['id']]);
                 $pdo->commit();
@@ -1196,7 +1218,7 @@ if (($_POST['acao'] ?? '') !== '') {
                     $primeiroTurno = random_int(0, 1) ? 'criador' : 'desafiado';
                     $pdo->prepare("UPDATE dreamteam_duelos
                             SET id_desafiado = ?, status = 'draft', turno = ?, roster_criador = ?, roster_desafiado = ?,
-                                time_sorteado_id = NULL, reroll_disponivel = 1, entrou_em = NOW()
+                                time_sorteado_id = NULL, entrou_em = NOW()
                             WHERE id = ?")
                         ->execute([$user_id, $primeiroTurno, $rosterVazio, $rosterVazio, $duelo['id']]);
                 } else {
@@ -1307,7 +1329,7 @@ if (($_POST['acao'] ?? '') !== '') {
                 }
                 $roster = json_decode((string)$atual[$lado === 'criador' ? 'roster_criador' : 'roster_desafiado'], true) ?: dtRosterVazio();
                 $novoTime = dtSortearTimeValido($roster);
-                $pdo->prepare('UPDATE dreamteam_duelos SET time_sorteado_id = ?, reroll_disponivel = 1 WHERE id = ?')
+                $pdo->prepare('UPDATE dreamteam_duelos SET time_sorteado_id = ? WHERE id = ?')
                     ->execute([$novoTime['id'], $atual['id']]);
                 $pdo->commit();
             } catch (Throwable $e) {
@@ -1318,28 +1340,30 @@ if (($_POST['acao'] ?? '') !== '') {
             exit;
         }
 
-        // Gira de novo o time já sorteado nessa rodada — 1 vez, só de quem está na vez.
+        // Gira de novo o time sorteado — UMA vez no draft inteiro, não uma por
+        // rodada. Cada lado tem o seu (reroll_criador / reroll_desafiado).
         if ($acao === 'girar_de_novo') {
             $duelo = dtDueloAtivo($pdo, $user_id);
             if (!$duelo || $duelo['status'] !== 'draft') { echo json_encode(['ok' => false, 'msg' => 'Esse duelo não está em draft.']); exit; }
             $lado = ((int)$duelo['id_criador'] === $user_id) ? 'criador' : 'desafiado';
+            $colReroll = $lado === 'criador' ? 'reroll_criador' : 'reroll_desafiado';
             if ($duelo['turno'] !== $lado) { echo json_encode(['ok' => false, 'msg' => 'Não é sua vez.']); exit; }
             if ($duelo['time_sorteado_id'] === null) { echo json_encode(['ok' => false, 'msg' => 'Sorteie um time primeiro.']); exit; }
-            if ((int)$duelo['reroll_disponivel'] !== 1) { echo json_encode(['ok' => false, 'msg' => 'Você já girou de novo nessa rodada.']); exit; }
+            if ((int)($duelo[$colReroll] ?? 0) !== 1) { echo json_encode(['ok' => false, 'msg' => 'Você já usou seu giro extra nesse duelo.']); exit; }
 
             $pdo->beginTransaction();
             try {
                 $st = $pdo->prepare('SELECT * FROM dreamteam_duelos WHERE id = ? FOR UPDATE');
                 $st->execute([$duelo['id']]);
                 $atual = $st->fetch(PDO::FETCH_ASSOC);
-                if (!$atual || $atual['status'] !== 'draft' || $atual['turno'] !== $lado || (int)$atual['reroll_disponivel'] !== 1 || $atual['time_sorteado_id'] === null) {
+                if (!$atual || $atual['status'] !== 'draft' || $atual['turno'] !== $lado || (int)($atual[$colReroll] ?? 0) !== 1 || $atual['time_sorteado_id'] === null) {
                     $pdo->rollBack();
                     echo json_encode(['ok' => false, 'msg' => 'Não deu pra girar de novo.']);
                     exit;
                 }
                 $roster = json_decode((string)$atual[$lado === 'criador' ? 'roster_criador' : 'roster_desafiado'], true) ?: dtRosterVazio();
                 $novoTime = dtSortearTimeValido($roster);
-                $pdo->prepare('UPDATE dreamteam_duelos SET time_sorteado_id = ?, reroll_disponivel = 0 WHERE id = ?')
+                $pdo->prepare("UPDATE dreamteam_duelos SET time_sorteado_id = ?, {$colReroll} = 0 WHERE id = ?")
                     ->execute([$novoTime['id'], $atual['id']]);
                 $pdo->commit();
             } catch (Throwable $e) {
@@ -1476,7 +1500,7 @@ if (($_POST['acao'] ?? '') !== '') {
                     $proximoLado = $lado === 'criador' ? 'desafiado' : 'criador';
                     // time_sorteado_id fica vazio pro próximo turno — se for humano, ele sorteia
                     // clicando em "Sortear Time"; se for CPU, ela sorteia sozinha logo abaixo.
-                    $pdo->prepare("UPDATE dreamteam_duelos SET turno = ?, time_sorteado_id = NULL, reroll_disponivel = 1 WHERE id = ?")
+                    $pdo->prepare("UPDATE dreamteam_duelos SET turno = ?, time_sorteado_id = NULL WHERE id = ?")
                         ->execute([$proximoLado, $atual['id']]);
 
                     if ($proximoLado === 'desafiado' && (int)$atual['id_desafiado'] === 0) {
@@ -1892,12 +1916,17 @@ if (($_POST['acao'] ?? '') !== '') {
                     }
                     if ($ehGiro && ($eu['time_sorteado_id'] === null || (int)$eu['reroll_disponivel'] !== 1)) {
                         $pdo->rollBack();
-                        echo json_encode(['ok' => false, 'msg' => 'Você já girou de novo nessa rodada.']);
+                        echo json_encode(['ok' => false, 'msg' => 'Você já usou seu giro extra nessa copa.']);
                         exit;
                     }
+                    // Sortear normal NÃO devolve o giro extra: ele é um por copa.
+                    // Antes o sorteio de cada rodada zerava o contador, e na prática
+                    // dava um giro por rodada.
                     $novoTime = dtSortearTimeValido($roster);
-                    $pdo->prepare('UPDATE dreamteam_copa_jogadores SET time_sorteado_id = ?, reroll_disponivel = ? WHERE id = ?')
-                        ->execute([$novoTime['id'], $ehGiro ? 0 : 1, (int)$eu['id']]);
+                    $sql = $ehGiro
+                        ? 'UPDATE dreamteam_copa_jogadores SET time_sorteado_id = ?, reroll_disponivel = 0 WHERE id = ?'
+                        : 'UPDATE dreamteam_copa_jogadores SET time_sorteado_id = ? WHERE id = ?';
+                    $pdo->prepare($sql)->execute([$novoTime['id'], (int)$eu['id']]);
                     $pdo->commit();
                     echo json_encode(['ok' => true]);
                     exit;
@@ -1956,7 +1985,9 @@ if (($_POST['acao'] ?? '') !== '') {
 
                 $roster[$posEscolhida] = ['nome' => $jogador['nome'], 'ovr' => $jogador['ovr'], 'pos' => $jogador['pos']];
                 $completo = dtRosterCompleto($roster);
-                $pdo->prepare('UPDATE dreamteam_copa_jogadores SET roster = ?, pronto = ?, time_sorteado_id = NULL, reroll_disponivel = 1 WHERE id = ?')
+                // reroll_disponivel NÃO volta pra 1: o giro extra é um por copa,
+                // não um por rodada.
+                $pdo->prepare('UPDATE dreamteam_copa_jogadores SET roster = ?, pronto = ?, time_sorteado_id = NULL WHERE id = ?')
                     ->execute([json_encode($roster), $completo ? 1 : 0, (int)$eu['id']]);
                 $pdo->commit();
             } catch (Throwable $e) {
@@ -2859,7 +2890,7 @@ function dtCardSorteio(meuRoster, timeSorteado, rerollDisponivel, podeAgir) {
       }).join('')}
     </div>
     <button class="btn-dt-amber" id="dtBtnGirar" onclick="dtGirarDeNovo()" ${(podeAgir && rerollDisponivel) ? '' : 'disabled'}>
-      <i class="bi bi-arrow-repeat me-1"></i>${rerollDisponivel ? 'Girar de novo (1x)' : 'Reroll já usado nessa rodada'}
+      <i class="bi bi-arrow-repeat me-1"></i>${rerollDisponivel ? `Girar de novo (1x ${dtContexto === 'copa' ? 'na copa' : 'no duelo'})` : 'Giro extra já usado'}
     </button>
   </div>`;
 }
