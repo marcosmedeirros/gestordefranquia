@@ -63,20 +63,6 @@ function capFlexLiberado(PDO $pdo, string $league, ?int $temporadaAtual): bool
     return $temporadaAtual >= (int)$desde;
 }
 
-/**
- * Ligas em que o Bônus de Lealdade soma no Cap Máximo.
- *
- * A ELITE fica de fora porque o regulamento dela fecha o teto em 221M
- * (205M + 16M de Cap Flex, "com dois jogadores na faixa mais alta, o teto da
- * franquia sobe de 205M para 221M"). Somando lealdade o teto ia a 237M, o que
- * não existe em lugar nenhum do documento. As ligas de onde a regra veio
- * (RISE/NEXT) seguem com ela.
- */
-function capLoyaltyLiberado(string $league): bool
-{
-    return strtoupper(trim($league)) !== 'ELITE';
-}
-
 /** Tabela de salário por OVR (em milhões). OVR 77 ou menos cai no "veteran minimum". */
 function capOvrSalaryTable(): array
 {
@@ -337,20 +323,15 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     // Bônus de Lealdade: até CAP_LOYALTY_MAX_PLAYERS jogadores elegíveis somam
     // CAP_LOYALTY_BONUS_MILLIONS cada no Cap Máximo (desempate pelo OVR).
     //
-    // ATENÇÃO: o regulamento da FBA Elite 15 NÃO tem esse bônus. Ele diz, com todas
-    // as letras, que o teto sai de 205M e chega no máximo a 221M ("com dois jogadores
-    // na faixa mais alta, o teto da franquia sobe de 205M para 221M", e o exemplo do
-    // painel fala em "teto de 221M"). Somando lealdade o teto ia a 237M.
-    // Por isso o bônus fica atrás de uma chave por liga: a ELITE segue o documento,
-    // e as ligas que já usavam a regra (RISE/NEXT, de onde ela veio) não mudam.
-    $loyaltyLiberado = capLoyaltyLiberado($league);
+    // Nota de regra: o deck da FBA Elite 15 fala em teto de 205M indo até 221M (só o
+    // Cap Flex). O Bônus de Lealdade é uma regra da liga adicionada depois do deck e
+    // vale em todas — com ele, o teto de uma franquia com dois leais no elenco chega
+    // a 237M. Ou seja, a divergência com o documento é intencional, não é bug.
     $loyalElegiveis = [];
-    if ($loyaltyLiberado) {
-        foreach ($roster as $i => $r) {
-            if (!empty($r['loyalty_bonus_eligible'])) $loyalElegiveis[$i] = $r;
-        }
-        uasort($loyalElegiveis, fn($a, $b) => $b['ovr'] <=> $a['ovr']);
+    foreach ($roster as $i => $r) {
+        if (!empty($r['loyalty_bonus_eligible'])) $loyalElegiveis[$i] = $r;
     }
+    uasort($loyalElegiveis, fn($a, $b) => $b['ovr'] <=> $a['ovr']);
 
     $capLoyaltyTotal = 0;
     $loyalContados = 0;
