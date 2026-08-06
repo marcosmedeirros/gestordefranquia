@@ -367,13 +367,9 @@ function buildCurvaViva(PDO $pdo, string $grupo): array
         if (!$f || (int)$f['c'] < 12) return $memoria[$grupo] = $fallback;
         $digital = md5($grupo . '|' . $f['c'] . '|' . $f['s'] . '|' . $f['m']);
 
-        $pdo->exec("CREATE TABLE IF NOT EXISTS build_curva_cache (
-            grupo VARCHAR(10) NOT NULL PRIMARY KEY,
-            digital CHAR(32) NOT NULL,
-            curva TEXT NOT NULL,
-            criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
+        // Nada de DDL aqui: esta função roda dentro da transação que fecha o
+        // build, e CREATE TABLE dá commit implícito no MySQL. A tabela é criada
+        // no bootstrap do jogo (bpGarantirTabelas).
         $st = $pdo->prepare("SELECT curva FROM build_curva_cache WHERE grupo = ? AND digital = ?");
         $st->execute([$grupo, $digital]);
         $cache = $st->fetchColumn();

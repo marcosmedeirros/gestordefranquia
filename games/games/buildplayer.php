@@ -34,6 +34,18 @@ function bpGarantirTabelas(PDO $pdo): void
     if ($pronto) return;
     $pronto = true;
 
+    // Cache da régua do top 100 (ver buildCurvaViva). Criada AQUI, e não lá
+    // dentro: buildPosicaoHistorica é chamada no meio da transação que fecha o
+    // build, e no MySQL um CREATE TABLE dá commit implícito — o commit seguinte
+    // então falhava com "no active transaction" e a tela mostrava "Erro interno"
+    // mesmo com o build já gravado (aparecia certo ao recarregar).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS build_curva_cache (
+        grupo VARCHAR(10) NOT NULL PRIMARY KEY,
+        digital CHAR(32) NOT NULL,
+        curva TEXT NOT NULL,
+        criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS build_partidas (
         id INT AUTO_INCREMENT PRIMARY KEY,
         id_usuario INT NOT NULL,
