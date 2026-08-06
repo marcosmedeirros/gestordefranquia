@@ -395,7 +395,10 @@ if ($method === 'GET') {
 
             $result = [];
             foreach ($leagues as $league) {
-                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, cap_mode, max_trades, edital, trades_enabled, fa_enabled, COALESCE(n8n_webhook_url, \'\') as n8n_webhook_url, COALESCE(progression_video_url, \'\') as progression_video_url, COALESCE(sistemas_video_url, \'\') as sistemas_video_url, COALESCE(freeagency_video_url, \'\') as freeagency_video_url, cap_auto_last_season, cap_auto_margin, cap_auto_margin_pct FROM league_settings WHERE league = ?');
+                if (!columnExists($pdo, 'league_settings', 'cap_flex_a_partir_da_temporada')) {
+                    try { $pdo->exec("ALTER TABLE league_settings ADD COLUMN cap_flex_a_partir_da_temporada INT NULL"); } catch (Exception $e) {}
+                }
+                $stmtCfg = $pdo->prepare('SELECT cap_min, cap_max, cap_mode, max_trades, edital, trades_enabled, fa_enabled, COALESCE(n8n_webhook_url, \'\') as n8n_webhook_url, COALESCE(progression_video_url, \'\') as progression_video_url, COALESCE(sistemas_video_url, \'\') as sistemas_video_url, COALESCE(freeagency_video_url, \'\') as freeagency_video_url, cap_auto_last_season, cap_auto_margin, cap_auto_margin_pct, cap_flex_a_partir_da_temporada FROM league_settings WHERE league = ?');
                 $stmtCfg->execute([$league]);
                 $cfg = $stmtCfg->fetch() ?: ['cap_min' => 0, 'cap_max' => 0, 'cap_mode' => 'ovr_sum', 'max_trades' => 3, 'edital' => null, 'trades_enabled' => 1, 'fa_enabled' => 1, 'n8n_webhook_url' => '', 'progression_video_url' => '', 'sistemas_video_url' => '', 'freeagency_video_url' => '', 'cap_auto_last_season' => null, 'cap_auto_margin' => LEAGUE_CAP_DEFAULT_OVR_MARGIN, 'cap_auto_margin_pct' => LEAGUE_CAP_DEFAULT_SALARY_MARGIN];
 
@@ -425,6 +428,8 @@ if ($method === 'GET') {
                     'cap_auto_last_season' => $cfg['cap_auto_last_season'] !== null ? (int)$cfg['cap_auto_last_season'] : null,
                     'cap_auto_margin' => (int)($cfg['cap_auto_margin'] ?? LEAGUE_CAP_DEFAULT_OVR_MARGIN),
                     'cap_auto_margin_pct' => (int)($cfg['cap_auto_margin_pct'] ?? LEAGUE_CAP_DEFAULT_SALARY_MARGIN),
+                    'cap_flex_a_partir_da_temporada' => isset($cfg['cap_flex_a_partir_da_temporada']) && $cfg['cap_flex_a_partir_da_temporada'] !== null
+                        ? (int)$cfg['cap_flex_a_partir_da_temporada'] : null,
                     'team_count' => (int)$teamCount
                 ];
             }
@@ -1056,6 +1061,11 @@ if ($method === 'PUT') {
             $cap_auto_margin = isset($data['cap_auto_margin']) ? (int)$data['cap_auto_margin'] : null;
             $cap_auto_margin_pct = isset($data['cap_auto_margin_pct']) ? (int)$data['cap_auto_margin_pct'] : null;
             $max_seasons = isset($data['max_seasons']) ? (int)$data['max_seasons'] : null;
+            // Temporada a partir da qual o Cap Flex vale. Vazio/0 = sempre ligado.
+            $cap_flex_desde = array_key_exists('cap_flex_a_partir_da_temporada', $data)
+                ? (($data['cap_flex_a_partir_da_temporada'] === '' || $data['cap_flex_a_partir_da_temporada'] === null)
+                    ? 0 : max(0, (int)$data['cap_flex_a_partir_da_temporada']))
+                : null;
 
             if (!$league) {
                 http_response_code(400);
@@ -1140,6 +1150,13 @@ if ($method === 'PUT') {
             if ($cap_auto_margin_pct !== null) {
                 $updates[] = 'cap_auto_margin_pct = ?';
                 $params[] = max(0, $cap_auto_margin_pct);
+            }
+            if ($cap_flex_desde !== null) {
+                if (!columnExists($pdo, 'league_settings', 'cap_flex_a_partir_da_temporada')) {
+                    $pdo->exec("ALTER TABLE league_settings ADD COLUMN cap_flex_a_partir_da_temporada INT NULL");
+                }
+                $updates[] = 'cap_flex_a_partir_da_temporada = ?';
+                $params[] = $cap_flex_desde ?: null;   // 0/vazio grava NULL = sempre ligado
             }
 
             if (empty($updates) && $max_seasons === null) {

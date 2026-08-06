@@ -28,6 +28,55 @@ const CAP_LOYALTY_BONUS_MILLIONS = 8;
 // Numa troca, o time sem espaco no teto so pode receber ate esta % do que envia.
 const CAP_TRADE_MATCH_PCT = 120;
 
+/**
+ * Temporada a partir da qual o Cap Flex passa a valer.
+ *
+ * A primeira temporada da edição começa logo depois do Draft Inicial, quando
+ * ninguém "desenvolveu" ninguém ainda — o Cap Flex existe justamente pra
+ * franquia segurar a estrela que ela mesma formou, então não faz sentido no
+ * ano 1. Como todo jogador do draft inicial fica com drafted_by_team_id igual
+ * ao próprio time, sem essa trava metade da liga ganharia +16M de teto de
+ * graça já na estreia.
+ *
+ * Fica em league_settings pra Administração poder ligar quando quiser, sem
+ * depender de deploy.
+ */
+function capFlexLiberado(PDO $pdo, string $league, ?int $temporadaAtual): bool
+{
+    // columnExists() só existe dentro dos endpoints de api/, não em helpers.php —
+    // por isso a checagem da coluna é feita direto aqui.
+    try {
+        $temColuna = $pdo->query("SHOW COLUMNS FROM league_settings LIKE 'cap_flex_a_partir_da_temporada'")->fetch();
+        if (!$temColuna) {
+            $pdo->exec("ALTER TABLE league_settings ADD COLUMN cap_flex_a_partir_da_temporada INT NULL");
+        }
+        $st = $pdo->prepare("SELECT cap_flex_a_partir_da_temporada FROM league_settings WHERE league = ?");
+        $st->execute([strtoupper(trim($league))]);
+        $desde = $st->fetchColumn();
+    } catch (Throwable $e) {
+        return true; // falha de schema não pode desligar uma regra da liga
+    }
+
+    // Sem configuração: Cap Flex ligado (comportamento histórico das ligas que já rodam).
+    if ($desde === null || $desde === false || $desde === '') return true;
+    if ($temporadaAtual === null) return true;
+    return $temporadaAtual >= (int)$desde;
+}
+
+/**
+ * Ligas em que o Bônus de Lealdade soma no Cap Máximo.
+ *
+ * A ELITE fica de fora porque o regulamento dela fecha o teto em 221M
+ * (205M + 16M de Cap Flex, "com dois jogadores na faixa mais alta, o teto da
+ * franquia sobe de 205M para 221M"). Somando lealdade o teto ia a 237M, o que
+ * não existe em lugar nenhum do documento. As ligas de onde a regra veio
+ * (RISE/NEXT) seguem com ela.
+ */
+function capLoyaltyLiberado(string $league): bool
+{
+    return strtoupper(trim($league)) !== 'ELITE';
+}
+
 /** Tabela de salário por OVR (em milhões). OVR 77 ou menos cai no "veteran minimum". */
 function capOvrSalaryTable(): array
 {
@@ -65,17 +114,56 @@ function capRookieScaleValue(int $draftRound, ?int $draftPickPosition): int
 }
 
 /**
- * Salário base do jogador: rookie scale na temporada de estreia (seasons_in_league
- * = 0 e com draft_round conhecido), tabela de OVR em qualquer outro caso.
+ * O jogador é calouro NESTA temporada? Só nesse caso vale a rookie scale
+ * ("VALE SÓ NO ANO 1" no regulamento).
+ *
+ * DUAS COISAS IMPORTANTES AQUI:
+ *
+ * 1. O gatilho era `seasons_in_league === 0`, mas essa coluna nasce 0 e NUNCA é
+ *    incrementada em lugar nenhum do sistema — nenhuma virada de temporada mexe
+ *    nela. Resultado: todo jogador com draft_round ficava eternamente na rookie
+ *    scale.
+ *
+ * 2. O DRAFT INICIAL NÃO É DRAFT DE CALOURO. Ele é um draft de várias rodadas
+ *    só pra distribuir os elencos no começo da edição, e grava draft_round /
+ *    draft_pick_position em todo mundo (o "Voltar Pick" depende dessas colunas,
+ *    por isso elas continuam sendo gravadas). Juntando com o item 1, qualquer
+ *    jogador pego da 2ª rodada em diante caía no `return 2` do
+ *    capRookieScaleValue — era o "86 aparecendo com 2M". Esses jogadores são
+ *    atletas normais e seguem a tabela por OVR.
+ *
+ * O que separa um do outro é o drafted_season_number: o draft anual
+ * (api/draft.php) sempre grava a temporada do draft, o Draft Inicial nunca.
+ * Sem essa informação, o jogador é tratado como atleta normal — que é a regra
+ * geral do regulamento ("O salário de todo jogador é definido exclusivamente
+ * pelo overall").
  */
-function getPlayerBaseSalary(array $player): int
+function capEhCalouroNaTemporadaAtual(array $player, ?int $temporadaAtual): bool
+{
+    if (($player['draft_round'] ?? null) === null) return false;
+    $draftadoEm = $player['drafted_season_number'] ?? null;
+    if ($draftadoEm === null || $temporadaAtual === null) return false;  // Draft Inicial cai aqui
+    return (int)$draftadoEm === (int)$temporadaAtual;
+}
+
+/**
+ * Salário base do jogador: rookie scale só na temporada de estreia dele,
+ * tabela de OVR em qualquer outro caso.
+ */
+function getPlayerBaseSalary(array $player, ?int $temporadaAtual = null): int
 {
     $ovr = (int)($player['ovr'] ?? 0);
-    $seasonsInLeague = (int)($player['seasons_in_league'] ?? 0);
-    $draftRound = $player['draft_round'] ?? null;
 
-    if ($seasonsInLeague === 0 && $draftRound !== null) {
-        return capRookieScaleValue((int)$draftRound, isset($player['draft_pick_position']) ? (int)$player['draft_pick_position'] : null);
+    if (capEhCalouroNaTemporadaAtual($player, $temporadaAtual)) {
+        $pick = isset($player['draft_pick_position']) ? (int)$player['draft_pick_position'] : null;
+        // Calouro sem posição de pick registrada não vira "mínimo do veterano":
+        // sem essa informação a régua por OVR é mais justa do que fixar 2M num
+        // jogador de 86. O piso da rookie scale (2M) só vale pra 2ª rodada, que
+        // é identificada pelo próprio draft_round.
+        if ($pick === null && (int)$player['draft_round'] < 2) {
+            return capOvrSalary($ovr);
+        }
+        return capRookieScaleValue((int)$player['draft_round'], $pick);
     }
     return capOvrSalary($ovr);
 }
@@ -183,8 +271,15 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
 
     $awardBonuses = getAwardBonusesByPlayerName($pdo, $teamId, $league);
 
+    // Temporada ativa da liga: define quem é calouro (rookie scale) e se o Cap
+    // Flex já vale (ver capFlexLiberado).
+    $temporada = temporadaAtivaDaLiga($pdo, $league);
+    $numTemporada = $temporada ? (int)$temporada['season_number'] : null;
+    $flexLiberado = capFlexLiberado($pdo, $league, $numTemporada);
+
     $stmtPlayers = $pdo->prepare("
-        SELECT id, name, team_id, ovr, seasons_in_league, drafted_by_team_id, draft_round, draft_pick_position,
+        SELECT id, name, team_id, ovr, seasons_in_league, drafted_by_team_id, drafted_season_number,
+               draft_round, draft_pick_position,
                COALESCE(was_traded, 0) as was_traded
         FROM players WHERE team_id = ? ORDER BY ovr DESC
     ");
@@ -195,10 +290,10 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     $payroll = 0;
     $roster = [];
     foreach ($players as $p) {
-        $baseSalary = getPlayerBaseSalary($p);
-        $isRookieScale = (int)($p['seasons_in_league'] ?? 0) === 0 && $p['draft_round'] !== null;
+        $baseSalary = getPlayerBaseSalary($p, $numTemporada);
+        $isRookieScale = capEhCalouroNaTemporadaAtual($p, $numTemporada);
         $bonus = $awardBonuses[mb_strtolower(trim((string)$p['name']))] ?? 0;
-        $flex = getPlayerCapFlex($p);
+        $flex = $flexLiberado ? getPlayerCapFlex($p) : 0;
 
         $payroll += $baseSalary + $bonus;
 
@@ -241,11 +336,21 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
 
     // Bônus de Lealdade: até CAP_LOYALTY_MAX_PLAYERS jogadores elegíveis somam
     // CAP_LOYALTY_BONUS_MILLIONS cada no Cap Máximo (desempate pelo OVR).
+    //
+    // ATENÇÃO: o regulamento da FBA Elite 15 NÃO tem esse bônus. Ele diz, com todas
+    // as letras, que o teto sai de 205M e chega no máximo a 221M ("com dois jogadores
+    // na faixa mais alta, o teto da franquia sobe de 205M para 221M", e o exemplo do
+    // painel fala em "teto de 221M"). Somando lealdade o teto ia a 237M.
+    // Por isso o bônus fica atrás de uma chave por liga: a ELITE segue o documento,
+    // e as ligas que já usavam a regra (RISE/NEXT, de onde ela veio) não mudam.
+    $loyaltyLiberado = capLoyaltyLiberado($league);
     $loyalElegiveis = [];
-    foreach ($roster as $i => $r) {
-        if (!empty($r['loyalty_bonus_eligible'])) $loyalElegiveis[$i] = $r;
+    if ($loyaltyLiberado) {
+        foreach ($roster as $i => $r) {
+            if (!empty($r['loyalty_bonus_eligible'])) $loyalElegiveis[$i] = $r;
+        }
+        uasort($loyalElegiveis, fn($a, $b) => $b['ovr'] <=> $a['ovr']);
     }
-    uasort($loyalElegiveis, fn($a, $b) => $b['ovr'] <=> $a['ovr']);
 
     $capLoyaltyTotal = 0;
     $loyalContados = 0;

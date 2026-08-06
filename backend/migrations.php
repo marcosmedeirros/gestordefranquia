@@ -1020,6 +1020,70 @@ function runMigrations() {
         $errors[] = "criar_app_flags: " . $e->getMessage();
     }
 
+    // Jogadores vindos do DRAFT INICIAL nao sao calouros nem picks de draft: sao
+    // atletas normais, e o salario deles segue a tabela por OVR ("O salario de todo
+    // jogador e definido exclusivamente pelo overall", regulamento FBA Elite 15).
+    //
+    // O Draft Inicial gravava draft_round/draft_pick_position em todo mundo (o
+    // "Voltar Pick" usava essas colunas). Como o motor de cap tratava quem tinha
+    // draft_round como calouro, todo jogador pego da 2a rodada em diante caia na
+    // rookie scale de 2a rodada e virava 2M — um 86 aparecia valendo 2M em vez de 16M.
+    //
+    // Aqui as colunas sao limpas SO para esses jogadores. O draft anual nao e tocado:
+    // ele grava drafted_season_number, e a condicao abaixo exige que esteja vazio.
+    // O "Voltar Pick" continua funcionando porque ja tem fallback por nome.
+    try {
+        $jaRodou = false;
+        try {
+            $st = $pdo->prepare("SELECT 1 FROM app_flags WHERE flag = ?");
+            $st->execute(['initdraft_players_sem_rookie_scale']);
+            $jaRodou = (bool)$st->fetchColumn();
+        } catch (PDOException $e) { /* app_flags pode nao existir ainda */ }
+
+        if (!$jaRodou) {
+            $ajustados = 0;
+
+            // 1) Caminho preciso: casa com a pool do Draft Inicial.
+            if ($pdo->query("SHOW TABLES LIKE 'initdraft_pool'")->fetch()) {
+                $upd = $pdo->prepare("
+                    UPDATE players p
+                    JOIN initdraft_pool ip
+                      ON ip.drafted_by_team_id = p.drafted_by_team_id
+                     AND ip.name = p.name
+                     AND ip.draft_status = 'drafted'
+                    SET p.draft_round = NULL, p.draft_pick_position = NULL
+                    WHERE p.drafted_season_number IS NULL
+                      AND (p.draft_round IS NOT NULL OR p.draft_pick_position IS NOT NULL)
+                ");
+                $upd->execute();
+                $ajustados += $upd->rowCount();
+            }
+
+            // 2) Rede de seguranca: sobrou alguem com rodada de draft mas SEM a temporada do
+            // draft registrada. Isso so acontece fora do draft anual (que sempre grava
+            // drafted_season_number) — tipicamente o Draft Inicial, ou dados antigos cuja pool
+            // ja foi limpa. Em qualquer um dos casos o sistema nao tem como saber se aquele
+            // jogador esta na temporada de estreia dele, entao nao pode aplicar rookie scale:
+            // limpar as colunas so torna explicito o que ja deveria acontecer (tabela por OVR).
+            $upd2 = $pdo->prepare("
+                UPDATE players
+                SET draft_round = NULL, draft_pick_position = NULL
+                WHERE drafted_season_number IS NULL
+                  AND (draft_round IS NOT NULL OR draft_pick_position IS NOT NULL)
+            ");
+            $upd2->execute();
+            $ajustados += $upd2->rowCount();
+
+            $pdo->prepare("INSERT IGNORE INTO app_flags (flag) VALUES (?)")
+                ->execute(['initdraft_players_sem_rookie_scale']);
+            if ($ajustados > 0) {
+                error_log("[migracao] draft inicial: {$ajustados} jogadores passaram a contar pelo OVR");
+            }
+        }
+    } catch (PDOException $e) {
+        $errors[] = "initdraft_sem_rookie_scale: " . $e->getMessage();
+    }
+
     // Historico do ranking por sprint. Ao fechar a sprint a pontuacao corrente
     // e zerada; sem este congelamento a classificacao daquele ciclo se perdia.
     // Tambem e a base da variacao de posicao mostrada em rankings.php.

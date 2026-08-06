@@ -3276,6 +3276,22 @@ async function showConfig() {
     </div>
     <div id="capHistory_${lg.league}" style="margin-top:12px"></div>
   </div>
+  ${lg.league === 'ELITE' ? `
+  <div style="margin-bottom:24px;background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:16px">
+    <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px"><i class="bi bi-arrows-expand me-1"></i>Cap Flex</div>
+    <p style="font-size:11px;color:var(--text-3);margin-bottom:12px;line-height:1.5">
+      O Cap Flex serve pra franquia segurar a estrela que ela mesma desenvolveu (+3M / +5M / +8M por faixa de OVR, no máximo 2 jogadores, teto indo de 205M a 221M).
+      Na primeira temporada da edição ninguém desenvolveu ninguém ainda, e todo jogador do Draft Inicial fica marcado como "draftado pelo próprio time" —
+      então liberar já na estreia daria fôlego de teto de graça pra metade da liga.
+      <b>Deixe vazio pra manter o Cap Flex sempre ligado</b>, ou informe a partir de qual temporada ele passa a valer.
+    </p>
+    <div style="max-width:260px">
+      <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px">Vale a partir da temporada nº</div>
+      <input type="number" class="form-control" min="0" placeholder="sempre ligado"
+             value="${lg.cap_flex_a_partir_da_temporada ?? ''}"
+             data-league="${lg.league}" data-field="cap_flex_a_partir_da_temporada" />
+    </div>
+  </div>` : ''}
   <div style="margin-bottom:24px">
     <div style="font-size:11px;font-weight:600;color:var(--text-2);margin-bottom:6px"><i class="bi bi-webhook me-1"></i>Webhook N8N (trades 80+)</div>
     <input type="text" class="form-control" placeholder="https://n8n.exemplo.com/webhook/..." value="${lg.n8n_webhook_url || ''}" data-league="${lg.league}" data-field="n8n_webhook_url" />
