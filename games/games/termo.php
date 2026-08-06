@@ -316,12 +316,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
     $chute_cru = $_POST['chute'];
     $chute     = removerAcentos($chute_cru);
 
-    // Dicionário sem acento, pra comparar com o chute já normalizado.
-    static $dicionarioSemAcento = null;
-    if ($dicionarioSemAcento === null) {
-        $dicionarioSemAcento = array_flip(array_map('removerAcentos', $dicionario));
-    }
-
     // ── DUETO ──────────────────────────────────────────────────────────────
     if ($modo === 'dueto') {
         if ($dueto_finalizado && !$apenas_validar) {
@@ -330,11 +324,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
         if (strlen($chute) != 5) {
             echo json_encode(['erro' => 'A palavra deve ter 5 letras.']); exit;
         }
-        // Sem isso dava pra gastar as tentativas com sequências ótimas de eliminação que nem
-        // são palavras, o que facilita demais descobrir a resposta.
-        if (!$apenas_validar && !isset($dicionarioSemAcento[$chute])) {
-            echo json_encode(['erro' => 'Palavra não está na lista.']); exit;
-        }
+        // Qualquer sequência de 5 letras é aceita, por decisão do dono da liga: o
+        // dicionário é curto e recusava palavra de verdade, o que irritava mais do
+        // que protegia. As tentativas continuam limitadas, então chutar letra à toa
+        // custa rodada — quem quiser usar isso como estratégia, paga o preço.
         $c1 = removerAcentos($PALAVRA_D1);
         $c2 = removerAcentos($PALAVRA_D2);
         $cores_1 = calcularCores($chute, $c1);
@@ -415,10 +408,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['chute'])) {
         echo json_encode(['erro' => 'A palavra deve ter 5 letras.']);
         exit;
     }
-    if (!$apenas_validar && !isset($dicionarioSemAcento[$chute])) {
-        echo json_encode(['erro' => 'Palavra não está na lista.']);
-        exit;
-    }
+    // Sem checagem de dicionário aqui também (ver o comentário no modo dueto).
 
     // Lógica de Cores
     $resultado = array_fill(0, 5, '');

@@ -1498,16 +1498,24 @@ if (($_POST['acao'] ?? '') !== '') {
 
             // Avisa a pessoa desafiada. O link abre o jogo direto, e como o convite
             // é o estado ativo dela lá dentro, ela cai na tela de aceitar/recusar.
+            //
+            // Só push, sem WhatsApp: é um convite pra jogar, não um aviso de liga —
+            // não justifica mensagem no celular de ninguém. Por isso vai direto no
+            // sendPushRaw em vez do sendPushToUser (que manda pelos dois canais),
+            // com a checagem de preferência feita aqui pra quem desligou "Games".
+            //
             // Fora da transação de propósito: push que falha não pode desfazer o
             // desafio nem devolver erro pra quem desafiou.
             try {
-                $meu = dtTimeDoUsuario($pdo, $user_id);
-                $quem = $meu['nome'] ?: dtNomeExibicao($pdo, $user_id);
-                sendPushToUser($pdo, $alvo, [
-                    'title' => 'Desafio no Starting5x5',
-                    'body'  => $quem . ' te desafiou valendo ' . $aposta . ' moedas. Toque pra aceitar ou recusar.',
-                    'url'   => '/games/games/index.php?game=dreamteam',
-                ], 'games');
+                if (userWantsNotif($pdo, $alvo, 'games')) {
+                    $meu = dtTimeDoUsuario($pdo, $user_id);
+                    $quem = $meu['nome'] ?: dtNomeExibicao($pdo, $user_id);
+                    sendPushRaw($pdo, $alvo, [
+                        'title' => 'Desafio no Starting5x5',
+                        'body'  => $quem . ' te desafiou valendo ' . $aposta . ' moedas. Toque pra aceitar ou recusar.',
+                        'url'   => '/games/games/index.php?game=dreamteam',
+                    ]);
+                }
             } catch (Throwable $e) {
                 error_log('[dreamteam] push desafio: ' . $e->getMessage());
             }
