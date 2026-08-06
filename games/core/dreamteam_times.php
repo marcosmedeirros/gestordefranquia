@@ -364,15 +364,15 @@ function dtTimesHistoricos(): array
             ['nome' => 'McGinnis',      'pos' => ['PF'],       'ovr' => 88],
             ['nome' => 'Mel Daniels',   'pos' => ['C'],        'ovr' => 86],
         ]],
+        // O titular que faltava era o pivô Billy Paultz — Williamson, que veio na
+        // lista, era reserva nessa temporada. OVR dele estimado na escala do jogo
+        // (pivô titular sólido, sem ser estrela), não veio da lista original.
         ['id' => 'nets74', 'nome' => 'Nets 1973-74 (ABA)', 'ano' => 1974, 'jogadores' => [
             ['nome' => 'Melchionni',    'pos' => ['PG'],       'ovr' => 78],
             ['nome' => 'Brian Taylor',  'pos' => ['SG'],       'ovr' => 74],
-            ['nome' => 'Williamson',    'pos' => ['SG', 'SF'], 'ovr' => 77],
-            // Sem pivô: os cinco nomes desta escalação são armadores e alas. Na
-            // roleta isso não atrapalha (cada giro rende UM jogador, e o sorteio
-            // só oferece times que tenham alguém elegível pra uma vaga aberta).
-            ['nome' => 'Larry Kenon',   'pos' => ['PF', 'SF'], 'ovr' => 82],
             ['nome' => 'Julius Erving', 'pos' => ['SF'],       'ovr' => 93],
+            ['nome' => 'Larry Kenon',   'pos' => ['PF', 'SF'], 'ovr' => 82],
+            ['nome' => 'Billy Paultz',  'pos' => ['C'],        'ovr' => 79],
         ]],
         ['id' => 'cavs07', 'nome' => 'Cavaliers 2006-07', 'ano' => 2007, 'jogadores' => [
             ['nome' => 'Eric Snow',     'pos' => ['PG'],       'ovr' => 74],
@@ -500,12 +500,15 @@ function dtTimesHistoricos(): array
             ['nome' => 'Elvin Hayes',   'pos' => ['PF', 'C'],  'ovr' => 87],
             ['nome' => 'Wes Unseld',    'pos' => ['C'],        'ovr' => 86],
         ]],
+        // O ala titular era Mike Sanders; "Hot Rod" Williams, que veio na lista,
+        // saía do banco (foi vice do prêmio de sexto homem nessa temporada). Como
+        // aqui são escalações TITULARES, entra o Sanders — OVR estimado por mim.
         ['id' => 'cavs89', 'nome' => 'Cavaliers 1988-89', 'ano' => 1989, 'jogadores' => [
             ['nome' => 'Mark Price',    'pos' => ['PG'],       'ovr' => 84],
             ['nome' => 'Ron Harper',    'pos' => ['SG', 'SF'], 'ovr' => 82],
+            ['nome' => 'Mike Sanders',  'pos' => ['SF'],       'ovr' => 74],
             ['nome' => 'Larry Nance',   'pos' => ['PF', 'C'],  'ovr' => 84],
             ['nome' => 'Daugherty',     'pos' => ['C'],        'ovr' => 84],
-            ['nome' => 'Hot Rod',       'pos' => ['PF'],       'ovr' => 78],
         ]],
         ['id' => 'pacers00', 'nome' => 'Pacers 1999-00', 'ano' => 2000, 'jogadores' => [
             ['nome' => 'Mark Jackson',  'pos' => ['PG'],       'ovr' => 80],
