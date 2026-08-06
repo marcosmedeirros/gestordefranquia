@@ -19,6 +19,9 @@
  */
 
 require_once __DIR__ . '/../core/dreamteam_times.php';
+// Aviso de desafio direto (push + WhatsApp). O carregador dos games não puxa o
+// backend do site, então o require é local — push.php já traz helpers e whatsapp.
+require_once __DIR__ . '/../../backend/push.php';
 
 $user_id = (int)$_SESSION['user_id'];
 
@@ -32,6 +35,21 @@ const DT_APOSTA_MAX_CPU = 50;
 const DT_APOSTA_ALEATORIA = 30;
 const DT_AGUARDANDO_TIMEOUT_H = 24;
 const DT_DRAFT_TIMEOUT_MIN = 20;
+// Desafio direto a uma pessoa específica: se ela não responder, a aposta volta.
+// Prazo mais curto que o da sala aberta — aqui alguém está segurando moeda
+// esperando resposta de uma pessoa só.
+const DT_CONVITE_TIMEOUT_H = 6;
+
+// Copa: mata-mata de 4 ou 8 jogadores reais, entrada única e o campeão leva o
+// pote inteiro. Diferente do duelo, todo mundo monta o time ao mesmo tempo —
+// esperar 8 pessoas se revezarem em 40 turnos seria insuportável.
+const DT_COPA_TAMANHOS = [4, 8];
+const DT_COPA_APOSTA_MIN = 1;
+const DT_COPA_APOSTA_MAX = 100;
+// Prazo pra montar o time depois que a copa lota. Quem não terminar tem o
+// elenco completado pelo sistema: um ausente não pode travar a copa dos outros.
+const DT_COPA_DRAFT_MIN = 5;
+const DT_COPA_LOBBY_TIMEOUT_H = 6;
 
 function dtGarantirTabelas(PDO $pdo): void
 {
@@ -85,6 +103,56 @@ function dtGarantirTabelas(PDO $pdo): void
     } catch (PDOException $e) {
         error_log('[dreamteam] migração modo: ' . $e->getMessage());
     }
+
+    // Revanche: cada lado marca a sua intenção; quando os dois marcam, nasce um
+    // duelo novo com a mesma aposta e revanche_duelo_id aponta pra ele (é o que
+    // impede a mesma partida de gerar duas revanches).
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM dreamteam_duelos LIKE 'revanche_criador'")->fetch()) {
+            $pdo->exec("ALTER TABLE dreamteam_duelos
+                ADD COLUMN revanche_criador TINYINT(1) NOT NULL DEFAULT 0,
+                ADD COLUMN revanche_desafiado TINYINT(1) NOT NULL DEFAULT 0,
+                ADD COLUMN revanche_duelo_id INT NULL");
+        }
+    } catch (PDOException $e) {
+        error_log('[dreamteam] migração revanche: ' . $e->getMessage());
+    }
+
+    // A chave inteira (todos os confrontos, com quartos e boxscore) é gravada de
+    // uma vez em `chave` quando o draft fecha. Guardar o resultado pronto em vez
+    // de simular sob demanda é o que faz recarregar a página não re-simular nada
+    // e todo mundo enxergar exatamente a mesma copa.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS dreamteam_copas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        codigo VARCHAR(8) NOT NULL,
+        id_criador INT NOT NULL,
+        tamanho TINYINT NOT NULL,
+        aposta INT NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'aguardando',
+        chave MEDIUMTEXT NULL,
+        id_campeao INT NULL,
+        criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        draft_ate DATETIME NULL,
+        concluido_em DATETIME NULL,
+        UNIQUE KEY uk_dtc_codigo (codigo),
+        INDEX idx_dtc_status (status),
+        INDEX idx_dtc_criador (id_criador)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS dreamteam_copa_jogadores (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        copa_id INT NOT NULL,
+        user_id INT NOT NULL,
+        roster TEXT NULL,
+        time_sorteado_id VARCHAR(20) NULL,
+        reroll_disponivel TINYINT(1) NOT NULL DEFAULT 1,
+        pronto TINYINT(1) NOT NULL DEFAULT 0,
+        seed INT NULL,
+        entrou_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_dtcj_copa_user (copa_id, user_id),
+        INDEX idx_dtcj_copa (copa_id),
+        INDEX idx_dtcj_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 dtGarantirTabelas($pdo);
 
@@ -94,8 +162,11 @@ function dtGerarCodigo(PDO $pdo): string
     for ($tentativa = 0; $tentativa < 20; $tentativa++) {
         $codigo = '';
         for ($i = 0; $i < 6; $i++) $codigo .= $chars[random_int(0, strlen($chars) - 1)];
-        $st = $pdo->prepare('SELECT 1 FROM dreamteam_duelos WHERE codigo = ?');
-        $st->execute([$codigo]);
+        // Único entre duelos E copas: o link de convite é o mesmo formato pros dois,
+        // então um código repetido deixaria "entrar" ambíguo.
+        $st = $pdo->prepare('SELECT 1 FROM dreamteam_duelos WHERE codigo = ?
+                             UNION ALL SELECT 1 FROM dreamteam_copas WHERE codigo = ?');
+        $st->execute([$codigo, $codigo]);
         if (!$st->fetchColumn()) return $codigo;
     }
     throw new Exception('Não foi possível gerar um código único. Tente de novo.');
@@ -372,11 +443,14 @@ function dtCpuJogar(PDO $pdo, int $dueloId): void
 
 function dtDueloAtivo(PDO $pdo, int $userId): ?array
 {
+    // A ordem importa: um convite recebido não pode passar na frente de um duelo
+    // que a pessoa já está jogando. Por isso a prioridade é explícita (draft >
+    // aguardando > convite > simulado) em vez de só "não-terminado primeiro".
     $st = $pdo->prepare("
         SELECT * FROM dreamteam_duelos
         WHERE (id_criador = ? OR id_desafiado = ?)
-          AND status IN ('aguardando', 'draft', 'simulado')
-        ORDER BY (status IN ('aguardando', 'draft')) DESC, id DESC
+          AND status IN ('aguardando', 'draft', 'convite', 'simulado')
+        ORDER BY FIELD(status, 'draft', 'aguardando', 'convite', 'simulado'), id DESC
         LIMIT 1
     ");
     $st->execute([$userId, $userId]);
@@ -388,7 +462,7 @@ function dtDueloEmAndamento(PDO $pdo, int $userId): ?array
 {
     $st = $pdo->prepare("
         SELECT * FROM dreamteam_duelos
-        WHERE (id_criador = ? OR id_desafiado = ?) AND status IN ('aguardando', 'draft')
+        WHERE (id_criador = ? OR id_desafiado = ?) AND status IN ('aguardando', 'draft', 'convite')
         ORDER BY id DESC LIMIT 1
     ");
     $st->execute([$userId, $userId]);
@@ -420,6 +494,39 @@ function dtExpirarAntigos(PDO $pdo): void
             $pdo->prepare("UPDATE dreamteam_duelos SET status = 'expirado' WHERE id = ?")->execute([$d['id']]);
             $pdo->commit();
         } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); }
+    }
+
+    // Desafio direto que ninguém respondeu: devolve a aposta de quem desafiou.
+    $st = $pdo->prepare("SELECT id, id_criador, aposta FROM dreamteam_duelos
+                         WHERE status = 'convite' AND criado_em < DATE_SUB(NOW(), INTERVAL ? HOUR)");
+    $st->execute([DT_CONVITE_TIMEOUT_H]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $d) {
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')
+                ->execute([(int)$d['aposta'], (int)$d['id_criador']]);
+            $pdo->prepare("UPDATE dreamteam_duelos SET status = 'expirado' WHERE id = ?")->execute([$d['id']]);
+            $pdo->commit();
+        } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); }
+    }
+
+    // Copa que nunca encheu: devolve a entrada de quem estava esperando.
+    $st = $pdo->prepare("SELECT * FROM dreamteam_copas WHERE status = 'aguardando' AND criado_em < DATE_SUB(NOW(), INTERVAL ? HOUR)");
+    $st->execute([DT_COPA_LOBBY_TIMEOUT_H]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $c) {
+        $pdo->beginTransaction();
+        try {
+            dtCopaReembolsar($pdo, $c, 'expirada');
+            $pdo->commit();
+        } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); }
+    }
+
+    // Copa cujo prazo de montagem venceu. Normalmente quem está jogando dispara isso
+    // pelo polling; esta varredura cobre o caso de todo mundo ter fechado a página —
+    // senão a copa (e as moedas dentro dela) ficaria parada pra sempre.
+    $st = $pdo->query("SELECT id FROM dreamteam_copas WHERE status = 'draft' AND draft_ate IS NOT NULL AND draft_ate <= NOW()");
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $copaId) {
+        dtCopaProcessar($pdo, (int)$copaId);
     }
 }
 
@@ -580,6 +687,237 @@ function dtSerializar(PDO $pdo, ?array $duelo, int $userId): ?array
         $out['resultado'] = $resultado;
         $out['meu_lado'] = $meuLado === 'criador' ? 'a' : 'b';
         $out['eu_venci'] = ((int)$duelo['id_vencedor'] === $userId);
+
+        // Revanche: só entre jogadores, e só enquanto os dois tiverem como bancar.
+        $out['revanche_disponivel'] = $ehPvp && ($duelo['revanche_duelo_id'] ?? null) === null;
+        $out['revanche_eu'] = (int)($duelo[$souCriador ? 'revanche_criador' : 'revanche_desafiado'] ?? 0) === 1;
+        $out['revanche_oponente'] = (int)($duelo[$souCriador ? 'revanche_desafiado' : 'revanche_criador'] ?? 0) === 1;
+    }
+
+    if ($duelo['status'] === 'convite') {
+        $out['sou_desafiante'] = $souCriador;
+    }
+
+    return $out;
+}
+
+// ── COPA (mata-mata) ────────────────────────────────────────────────────────
+
+/** A copa em que o usuário está agora — inclui a encerrada, pra ele ver o resultado ao voltar. */
+function dtCopaAtiva(PDO $pdo, int $userId): ?array
+{
+    $st = $pdo->prepare("
+        SELECT c.* FROM dreamteam_copas c
+        JOIN dreamteam_copa_jogadores j ON j.copa_id = c.id
+        WHERE j.user_id = ? AND c.status IN ('aguardando', 'draft', 'encerrada')
+        ORDER BY (c.status IN ('aguardando', 'draft')) DESC, c.id DESC
+        LIMIT 1
+    ");
+    $st->execute([$userId]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/** Só o que impede começar outra coisa — a encerrada não conta, senão a pessoa nunca mais jogaria. */
+function dtCopaEmAndamento(PDO $pdo, int $userId): ?array
+{
+    $st = $pdo->prepare("
+        SELECT c.* FROM dreamteam_copas c
+        JOIN dreamteam_copa_jogadores j ON j.copa_id = c.id
+        WHERE j.user_id = ? AND c.status IN ('aguardando', 'draft')
+        ORDER BY c.id DESC LIMIT 1
+    ");
+    $st->execute([$userId]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+function dtCopaJogadores(PDO $pdo, int $copaId): array
+{
+    $st = $pdo->prepare('SELECT * FROM dreamteam_copa_jogadores WHERE copa_id = ? ORDER BY COALESCE(seed, 999), id');
+    $st->execute([$copaId]);
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/** Nome de exibição de um participante: o time de franquia manda; sem time, o nome pessoal. */
+function dtCopaIdentidade(PDO $pdo, int $userId): array
+{
+    $time = dtTimeDoUsuario($pdo, $userId);
+    if ($time['nome']) return ['user_id' => $userId, 'nome' => $time['nome'], 'logo' => $time['logo']];
+    $st = $pdo->prepare('SELECT nome FROM games_usuarios WHERE id = ?');
+    $st->execute([$userId]);
+    return ['user_id' => $userId, 'nome' => $st->fetchColumn() ?: 'Jogador', 'logo' => null];
+}
+
+/** Fecha um roster incompleto pegando sempre o melhor elegível disponível. Usado no auto-draft de quem sumiu. */
+function dtCopaFecharRoster(array $roster): array
+{
+    // O teto de voltas é folga pura (5 vagas): protege contra loop infinito caso
+    // um sorteio azarado não ofereça ninguém novo pras vagas que sobraram.
+    for ($volta = 0; $volta < 60 && !dtRosterCompleto($roster); $volta++) {
+        $time = dtSortearTimeValido($roster);
+        $escolha = dtMelhorEscolha($time, $roster);
+        if (!$escolha) continue;
+        $j = $escolha['jogador'];
+        $roster[$escolha['pos']] = ['nome' => $j['nome'], 'ovr' => $j['ovr'], 'pos' => $j['pos']];
+    }
+    return $roster;
+}
+
+/**
+ * Monta a chave e simula a copa inteira de uma vez.
+ *
+ * As duplas da primeira fase saem de um embaralhamento simples: como as seeds
+ * já são sorteadas, parear em sequência dá exatamente a mesma distribuição que
+ * o chaveamento clássico 1x8/4x5/2x7/3x6, sem a complicação.
+ */
+function dtCopaMontarChave(PDO $pdo, array $jogadores, int $aposta): array
+{
+    $slots = [];
+    foreach ($jogadores as $j) {
+        $ident = dtCopaIdentidade($pdo, (int)$j['user_id']);
+        $ident['roster'] = json_decode((string)$j['roster'], true) ?: dtRosterVazio();
+        $ident['ovr'] = dtSomaRoster($ident['roster']);
+        $slots[] = $ident;
+    }
+
+    $nomesFases = [8 => ['Quartas de final', 'Semifinal', 'Final'], 4 => ['Semifinal', 'Final']];
+    $fases = [];
+    $restantes = $slots;
+    $rotulos = $nomesFases[count($slots)] ?? ['Final'];
+
+    foreach ($rotulos as $rotulo) {
+        $partidas = [];
+        $vencedores = [];
+        for ($i = 0; $i < count($restantes); $i += 2) {
+            $a = $restantes[$i];
+            $b = $restantes[$i + 1];
+            $res = dtCalcularResultado($a['roster'], $b['roster']);
+            $vencedores[] = $res['vencedor'] === 'a' ? $a : $b;
+            $partidas[] = [
+                'a' => ['user_id' => $a['user_id'], 'nome' => $a['nome'], 'logo' => $a['logo'], 'ovr' => $a['ovr']],
+                'b' => ['user_id' => $b['user_id'], 'nome' => $b['nome'], 'logo' => $b['logo'], 'ovr' => $b['ovr']],
+                'resultado' => $res,
+            ];
+        }
+        $fases[] = ['nome' => $rotulo, 'partidas' => $partidas];
+        $restantes = $vencedores;
+    }
+
+    $campeao = $restantes[0];
+    return [
+        'fases' => $fases,
+        'campeao' => ['user_id' => $campeao['user_id'], 'nome' => $campeao['nome'], 'logo' => $campeao['logo']],
+        'pote' => $aposta * count($slots),
+        'rosters' => array_map(fn($s) => ['user_id' => $s['user_id'], 'nome' => $s['nome'], 'roster' => $s['roster']], $slots),
+    ];
+}
+
+/**
+ * Fecha o draft quando todo mundo terminou (ou quando o prazo estourou), simula
+ * a chave e paga o campeão.
+ *
+ * Roda dentro de transação com a copa travada porque qualquer requisição de
+ * qualquer participante pode chegar aqui ao mesmo tempo — sem a trava, dois
+ * pollings simultâneos pagariam o pote duas vezes.
+ */
+function dtCopaProcessar(PDO $pdo, int $copaId): void
+{
+    $pdo->beginTransaction();
+    try {
+        $st = $pdo->prepare('SELECT * FROM dreamteam_copas WHERE id = ? FOR UPDATE');
+        $st->execute([$copaId]);
+        $copa = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$copa || $copa['status'] !== 'draft') { $pdo->rollBack(); return; }
+
+        $jogadores = dtCopaJogadores($pdo, $copaId);
+        $faltam = array_filter($jogadores, fn($j) => (int)$j['pronto'] !== 1);
+        $prazoAcabou = $copa['draft_ate'] !== null && strtotime($copa['draft_ate']) <= time();
+        if ($faltam && !$prazoAcabou) { $pdo->rollBack(); return; }
+
+        // Prazo estourou com gente pendurada: completa o time de quem sumiu em vez
+        // de cancelar — os que jogaram direito não perdem a copa por causa de um ausente.
+        foreach ($faltam as $j) {
+            $roster = dtCopaFecharRoster(json_decode((string)$j['roster'], true) ?: dtRosterVazio());
+            $pdo->prepare('UPDATE dreamteam_copa_jogadores SET roster = ?, pronto = 1 WHERE id = ?')
+                ->execute([json_encode($roster), (int)$j['id']]);
+        }
+
+        $jogadores = dtCopaJogadores($pdo, $copaId);
+        shuffle($jogadores);
+        foreach ($jogadores as $i => $j) {
+            $pdo->prepare('UPDATE dreamteam_copa_jogadores SET seed = ? WHERE id = ?')->execute([$i + 1, (int)$j['id']]);
+        }
+
+        $chave = dtCopaMontarChave($pdo, $jogadores, (int)$copa['aposta']);
+        $campeaoId = (int)$chave['campeao']['user_id'];
+
+        $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')
+            ->execute([(int)$chave['pote'], $campeaoId]);
+        $pdo->prepare("UPDATE dreamteam_copas SET status = 'encerrada', chave = ?, id_campeao = ?, concluido_em = NOW() WHERE id = ?")
+            ->execute([json_encode($chave), $campeaoId, $copaId]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[dreamteam] copa processar: ' . $e->getMessage());
+    }
+}
+
+/** Copa que encheu agora: marca o início do draft e dispara o prazo. */
+function dtCopaIniciarDraft(PDO $pdo, int $copaId): void
+{
+    $pdo->prepare("UPDATE dreamteam_copas SET status = 'draft', draft_ate = DATE_ADD(NOW(), INTERVAL ? MINUTE)
+                   WHERE id = ? AND status = 'aguardando'")
+        ->execute([DT_COPA_DRAFT_MIN, $copaId]);
+}
+
+/** Devolve a entrada de todo mundo e encerra a copa. Usado no cancelamento e na expiração do lobby. */
+function dtCopaReembolsar(PDO $pdo, array $copa, string $statusFinal): void
+{
+    foreach (dtCopaJogadores($pdo, (int)$copa['id']) as $j) {
+        $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')
+            ->execute([(int)$copa['aposta'], (int)$j['user_id']]);
+    }
+    $pdo->prepare('UPDATE dreamteam_copas SET status = ?, concluido_em = NOW() WHERE id = ?')
+        ->execute([$statusFinal, (int)$copa['id']]);
+}
+
+function dtCopaSerializar(PDO $pdo, ?array $copa, int $userId): ?array
+{
+    if (!$copa) return null;
+    $copaId = (int)$copa['id'];
+    $jogadores = dtCopaJogadores($pdo, $copaId);
+
+    $eu = null;
+    $lista = [];
+    foreach ($jogadores as $j) {
+        $ident = dtCopaIdentidade($pdo, (int)$j['user_id']);
+        $ident['pronto'] = (int)$j['pronto'] === 1;
+        $lista[] = $ident;
+        if ((int)$j['user_id'] === $userId) $eu = $j;
+    }
+
+    $out = [
+        'id' => $copaId,
+        'codigo' => $copa['codigo'],
+        'status' => $copa['status'],
+        'tamanho' => (int)$copa['tamanho'],
+        'aposta' => (int)$copa['aposta'],
+        'pote' => (int)$copa['aposta'] * (int)$copa['tamanho'],
+        'sou_criador' => (int)$copa['id_criador'] === $userId,
+        'participantes' => $lista,
+        'vagas' => (int)$copa['tamanho'] - count($jogadores),
+    ];
+
+    if ($copa['status'] === 'draft' && $eu) {
+        $out['meu_roster'] = json_decode((string)$eu['roster'], true) ?: dtRosterVazio();
+        $out['estou_pronto'] = (int)$eu['pronto'] === 1;
+        $out['reroll_disponivel'] = (bool)$eu['reroll_disponivel'];
+        $out['time_sorteado'] = dtTimePorId((string)$eu['time_sorteado_id']);
+        $out['segundos_restantes'] = $copa['draft_ate'] ? max(0, strtotime($copa['draft_ate']) - time()) : null;
+    }
+
+    if ($copa['status'] === 'encerrada') {
+        $out['chave'] = json_decode((string)$copa['chave'], true) ?: null;
+        $out['sou_campeao'] = (int)$copa['id_campeao'] === $userId;
     }
 
     return $out;
@@ -593,6 +931,10 @@ if (($_POST['acao'] ?? '') !== '') {
 
     try {
         if ($acao === 'criar') {
+            if (dtCopaEmAndamento($pdo, $user_id)) {
+                echo json_encode(["ok" => false, "msg" => "Você está numa copa — termine ela antes."]);
+                exit;
+            }
             if (dtDueloEmAndamento($pdo, $user_id)) {
                 echo json_encode(['ok' => false, 'msg' => 'Você já tem um duelo em andamento.']);
                 exit;
@@ -630,6 +972,10 @@ if (($_POST['acao'] ?? '') !== '') {
         // Contra a máquina: sem sala de espera — sorteia quem começa e, se for
         // a CPU, ela já joga o primeiro turno dela na mesma requisição.
         if ($acao === 'criar_vs_cpu') {
+            if (dtCopaEmAndamento($pdo, $user_id)) {
+                echo json_encode(["ok" => false, "msg" => "Você está numa copa — termine ela antes."]);
+                exit;
+            }
             if (dtDueloEmAndamento($pdo, $user_id)) {
                 echo json_encode(['ok' => false, 'msg' => 'Você já tem um duelo em andamento.']);
                 exit;
@@ -677,6 +1023,10 @@ if (($_POST['acao'] ?? '') !== '') {
         }
 
         if ($acao === 'entrar') {
+            if (dtCopaEmAndamento($pdo, $user_id)) {
+                echo json_encode(["ok" => false, "msg" => "Você está numa copa — termine ela antes."]);
+                exit;
+            }
             if (dtDueloEmAndamento($pdo, $user_id)) {
                 echo json_encode(['ok' => false, 'msg' => 'Você já tem um duelo em andamento.']);
                 exit;
@@ -736,6 +1086,10 @@ if (($_POST['acao'] ?? '') !== '') {
         // Modo aleatório: sem link, aposta fixa. Casa com quem já estiver esperando (o mais
         // antigo primeiro); se ninguém estiver, cria a sala e fica esperando do mesmo jeito.
         if ($acao === 'jogar_aleatorio') {
+            if (dtCopaEmAndamento($pdo, $user_id)) {
+                echo json_encode(["ok" => false, "msg" => "Você está numa copa — termine ela antes."]);
+                exit;
+            }
             if (dtDueloEmAndamento($pdo, $user_id)) {
                 echo json_encode(['ok' => false, 'msg' => 'Você já tem um duelo em andamento.']);
                 exit;
@@ -792,10 +1146,22 @@ if (($_POST['acao'] ?? '') !== '') {
             $duelo = dtDueloAtivo($pdo, $user_id);
             if (!$duelo) { echo json_encode(['ok' => false, 'msg' => 'Nenhum duelo pra cancelar.']); exit; }
             if ((int)$duelo['id_criador'] !== $user_id) { echo json_encode(['ok' => false, 'msg' => 'Só quem criou pode cancelar.']); exit; }
-            if ($duelo['status'] !== 'aguardando') { echo json_encode(['ok' => false, 'msg' => 'Só dá pra cancelar antes de alguém entrar.']); exit; }
+            // 'convite' entra junto: é o desafio direto que a pessoa mandou e quer
+            // retirar antes do outro responder. Nos dois casos só o criador pagou.
+            if (!in_array($duelo['status'], ['aguardando', 'convite'], true)) {
+                echo json_encode(['ok' => false, 'msg' => 'Só dá pra cancelar antes de alguém entrar.']);
+                exit;
+            }
 
             $pdo->beginTransaction();
             try {
+                $st = $pdo->prepare('SELECT status FROM dreamteam_duelos WHERE id = ? FOR UPDATE');
+                $st->execute([$duelo['id']]);
+                if (!in_array((string)$st->fetchColumn(), ['aguardando', 'convite'], true)) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Esse duelo já saiu da espera.']);
+                    exit;
+                }
                 $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')->execute([(int)$duelo['aposta'], $user_id]);
                 $pdo->prepare("UPDATE dreamteam_duelos SET status = 'cancelado' WHERE id = ?")->execute([$duelo['id']]);
                 $pdo->commit();
@@ -1054,11 +1420,484 @@ if (($_POST['acao'] ?? '') !== '') {
             exit;
         }
 
+        // ── DESAFIO DIRETO ──────────────────────────────────────────────────
+        // Procura gente pelo nome da pessoa OU pelo nome do time de franquia —
+        // na liga quase todo mundo se conhece pelo time, não pelo nome de cadastro.
+        if ($acao === 'buscar_oponentes') {
+            $termo = trim((string)($_POST['termo'] ?? ''));
+            if (mb_strlen($termo) < 2) { echo json_encode(['ok' => true, 'jogadores' => []]); exit; }
+
+            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $termo) . '%';
+            $st = $pdo->prepare("
+                SELECT g.id, g.nome,
+                       TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, ''))) AS time_nome,
+                       t.photo_url
+                FROM games_usuarios g
+                LEFT JOIN teams t ON t.user_id = g.id
+                WHERE g.id <> ?
+                  AND (g.nome LIKE ? OR TRIM(CONCAT(COALESCE(t.city, ''), ' ', COALESCE(t.name, ''))) LIKE ?)
+                ORDER BY g.nome
+                LIMIT 8
+            ");
+            $st->execute([$user_id, $like, $like]);
+
+            $jogadores = [];
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $u) {
+                $ocupado = dtDueloEmAndamento($pdo, (int)$u['id']) || dtCopaEmAndamento($pdo, (int)$u['id']);
+                $jogadores[] = [
+                    'id' => (int)$u['id'],
+                    'nome' => $u['nome'],
+                    'time_nome' => $u['time_nome'] !== '' ? $u['time_nome'] : null,
+                    'time_logo' => $u['photo_url'] ? getTeamPhoto($u['photo_url']) : null,
+                    'ocupado' => (bool)$ocupado,
+                ];
+            }
+            echo json_encode(['ok' => true, 'jogadores' => $jogadores]);
+            exit;
+        }
+
+        if ($acao === 'desafiar') {
+            if (dtCopaEmAndamento($pdo, $user_id)) { echo json_encode(['ok' => false, 'msg' => 'Você está numa copa — termine ela antes.']); exit; }
+            if (dtDueloEmAndamento($pdo, $user_id)) { echo json_encode(['ok' => false, 'msg' => 'Você já tem um duelo em andamento.']); exit; }
+
+            $alvo = (int)($_POST['oponente'] ?? 0);
+            $aposta = (int)($_POST['aposta'] ?? 0);
+            if ($alvo <= 0 || $alvo === $user_id) { echo json_encode(['ok' => false, 'msg' => 'Escolha alguém pra desafiar.']); exit; }
+            if ($aposta < DT_APOSTA_MIN || $aposta > DT_APOSTA_MAX) {
+                echo json_encode(['ok' => false, 'msg' => 'A aposta deve ser entre ' . DT_APOSTA_MIN . ' e ' . DT_APOSTA_MAX . ' moedas.']);
+                exit;
+            }
+
+            $stAlvo = $pdo->prepare('SELECT nome FROM games_usuarios WHERE id = ?');
+            $stAlvo->execute([$alvo]);
+            $nomeAlvo = $stAlvo->fetchColumn();
+            if (!$nomeAlvo) { echo json_encode(['ok' => false, 'msg' => 'Jogador não encontrado.']); exit; }
+            if (dtDueloEmAndamento($pdo, $alvo) || dtCopaEmAndamento($pdo, $alvo)) {
+                echo json_encode(['ok' => false, 'msg' => $nomeAlvo . ' já está em partida agora. Tente daqui a pouco.']);
+                exit;
+            }
+
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ? FOR UPDATE');
+                $st->execute([$user_id]);
+                if ((int)$st->fetchColumn() < $aposta) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Saldo insuficiente.']);
+                    exit;
+                }
+                $pdo->prepare('UPDATE games_usuarios SET pontos = pontos - ? WHERE id = ?')->execute([$aposta, $user_id]);
+                $codigo = dtGerarCodigo($pdo);
+                $pdo->prepare("INSERT INTO dreamteam_duelos (codigo, id_criador, id_desafiado, aposta, status) VALUES (?, ?, ?, ?, 'convite')")
+                    ->execute([$codigo, $user_id, $alvo, $aposta]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+
+            // Avisa a pessoa desafiada. O link abre o jogo direto, e como o convite
+            // é o estado ativo dela lá dentro, ela cai na tela de aceitar/recusar.
+            // Fora da transação de propósito: push que falha não pode desfazer o
+            // desafio nem devolver erro pra quem desafiou.
+            try {
+                $meu = dtTimeDoUsuario($pdo, $user_id);
+                $quem = $meu['nome'] ?: dtNomeExibicao($pdo, $user_id);
+                sendPushToUser($pdo, $alvo, [
+                    'title' => 'Desafio no Starting5x5',
+                    'body'  => $quem . ' te desafiou valendo ' . $aposta . ' moedas. Toque pra aceitar ou recusar.',
+                    'url'   => '/games/games/index.php?game=dreamteam',
+                ], 'games');
+            } catch (Throwable $e) {
+                error_log('[dreamteam] push desafio: ' . $e->getMessage());
+            }
+
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
+        if ($acao === 'responder_desafio') {
+            $aceitar = ($_POST['aceitar'] ?? '') === '1';
+            $duelo = dtDueloAtivo($pdo, $user_id);
+            if (!$duelo || $duelo['status'] !== 'convite' || (int)$duelo['id_desafiado'] !== $user_id) {
+                echo json_encode(['ok' => false, 'msg' => 'Esse desafio não está mais disponível.']);
+                exit;
+            }
+
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare('SELECT * FROM dreamteam_duelos WHERE id = ? FOR UPDATE');
+                $st->execute([$duelo['id']]);
+                $atual = $st->fetch(PDO::FETCH_ASSOC);
+                if (!$atual || $atual['status'] !== 'convite') {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Esse desafio não está mais disponível.']);
+                    exit;
+                }
+                $aposta = (int)$atual['aposta'];
+
+                if (!$aceitar) {
+                    $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')
+                        ->execute([$aposta, (int)$atual['id_criador']]);
+                    $pdo->prepare("UPDATE dreamteam_duelos SET status = 'recusado', concluido_em = NOW() WHERE id = ?")
+                        ->execute([$atual['id']]);
+                    $pdo->commit();
+                    echo json_encode(['ok' => true]);
+                    exit;
+                }
+
+                $stSaldo = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ? FOR UPDATE');
+                $stSaldo->execute([$user_id]);
+                if ((int)$stSaldo->fetchColumn() < $aposta) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Saldo insuficiente pra aceitar esse desafio.']);
+                    exit;
+                }
+                $pdo->prepare('UPDATE games_usuarios SET pontos = pontos - ? WHERE id = ?')->execute([$aposta, $user_id]);
+                $pdo->prepare("UPDATE dreamteam_duelos SET status = 'draft', turno = ?, entrou_em = NOW() WHERE id = ?")
+                    ->execute([random_int(0, 1) === 0 ? 'criador' : 'desafiado', $atual['id']]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
+        // ── REVANCHE ────────────────────────────────────────────────────────
+        // Os dois precisam querer. O primeiro a clicar só marca; o segundo é
+        // quem de fato cria o duelo novo, com a mesma aposta.
+        if ($acao === 'revanche') {
+            $duelo = dtDueloAtivo($pdo, $user_id);
+            if (!$duelo || $duelo['status'] !== 'simulado') { echo json_encode(['ok' => false, 'msg' => 'Não há partida pra revanche.']); exit; }
+            if ((int)$duelo['id_desafiado'] <= 0) { echo json_encode(['ok' => false, 'msg' => 'Revanche só vale em duelo entre jogadores.']); exit; }
+
+            $souCriador = (int)$duelo['id_criador'] === $user_id;
+            $col = $souCriador ? 'revanche_criador' : 'revanche_desafiado';
+
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare('SELECT * FROM dreamteam_duelos WHERE id = ? FOR UPDATE');
+                $st->execute([$duelo['id']]);
+                $atual = $st->fetch(PDO::FETCH_ASSOC);
+                if (!$atual || $atual['status'] !== 'simulado' || $atual['revanche_duelo_id'] !== null) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'A revanche dessa partida já foi criada.']);
+                    exit;
+                }
+
+                $aposta = (int)$atual['aposta'];
+                // Só marca se der pra bancar: melhor recusar agora do que deixar o
+                // outro esperando uma revanche que vai falhar na hora de cobrar.
+                $stSaldo = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ? FOR UPDATE');
+                $stSaldo->execute([$user_id]);
+                if ((int)$stSaldo->fetchColumn() < $aposta) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Saldo insuficiente pra bancar a revanche (' . $aposta . ' moedas).']);
+                    exit;
+                }
+
+                $pdo->prepare("UPDATE dreamteam_duelos SET {$col} = 1 WHERE id = ?")->execute([$atual['id']]);
+                $osDois = ($souCriador ? 1 : (int)$atual['revanche_criador']) === 1
+                       && ($souCriador ? (int)$atual['revanche_desafiado'] : 1) === 1;
+
+                if ($osDois) {
+                    $idA = (int)$atual['id_criador'];
+                    $idB = (int)$atual['id_desafiado'];
+                    // Trava os dois saldos antes de cobrar: entre marcar e criar, o
+                    // outro pode ter gasto as moedas em qualquer outro jogo.
+                    $saldos = [];
+                    foreach ([$idA, $idB] as $uid) {
+                        $s = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ? FOR UPDATE');
+                        $s->execute([$uid]);
+                        $saldos[$uid] = (int)$s->fetchColumn();
+                    }
+                    if ($saldos[$idA] < $aposta || $saldos[$idB] < $aposta) {
+                        $pdo->rollBack();
+                        echo json_encode(['ok' => false, 'msg' => 'Um dos dois ficou sem saldo pra revanche.']);
+                        exit;
+                    }
+                    foreach ([$idA, $idB] as $uid) {
+                        $pdo->prepare('UPDATE games_usuarios SET pontos = pontos - ? WHERE id = ?')->execute([$aposta, $uid]);
+                    }
+                    // Quem perdeu começa escolhendo — pequena compensação pela derrota.
+                    $perdedor = (int)$atual['id_vencedor'] === $idA ? 'desafiado' : 'criador';
+                    $codigo = dtGerarCodigo($pdo);
+                    $pdo->prepare("INSERT INTO dreamteam_duelos (codigo, id_criador, id_desafiado, aposta, modo, status, turno, entrou_em)
+                                   VALUES (?, ?, ?, ?, ?, 'draft', ?, NOW())")
+                        ->execute([$codigo, $idA, $idB, $aposta, $atual['modo'] ?? 'amigo', $perdedor]);
+                    $novoId = (int)$pdo->lastInsertId();
+                    $pdo->prepare('UPDATE dreamteam_duelos SET revanche_duelo_id = ? WHERE id = ?')->execute([$novoId, $atual['id']]);
+                }
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
+        // ── COPA ────────────────────────────────────────────────────────────
+        if ($acao === 'copa_criar') {
+            if (dtCopaEmAndamento($pdo, $user_id)) { echo json_encode(['ok' => false, 'msg' => 'Você já está numa copa.']); exit; }
+            if (dtDueloEmAndamento($pdo, $user_id)) { echo json_encode(['ok' => false, 'msg' => 'Termine seu duelo antes de abrir uma copa.']); exit; }
+
+            $tamanho = (int)($_POST['tamanho'] ?? 0);
+            $aposta = (int)($_POST['aposta'] ?? 0);
+            if (!in_array($tamanho, DT_COPA_TAMANHOS, true)) { echo json_encode(['ok' => false, 'msg' => 'A copa é de 4 ou 8 times.']); exit; }
+            if ($aposta < DT_COPA_APOSTA_MIN || $aposta > DT_COPA_APOSTA_MAX) {
+                echo json_encode(['ok' => false, 'msg' => 'A entrada deve ser entre ' . DT_COPA_APOSTA_MIN . ' e ' . DT_COPA_APOSTA_MAX . ' moedas.']);
+                exit;
+            }
+
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ? FOR UPDATE');
+                $st->execute([$user_id]);
+                if ((int)$st->fetchColumn() < $aposta) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Saldo insuficiente.']);
+                    exit;
+                }
+                $pdo->prepare('UPDATE games_usuarios SET pontos = pontos - ? WHERE id = ?')->execute([$aposta, $user_id]);
+                $codigo = dtGerarCodigo($pdo);
+                $pdo->prepare("INSERT INTO dreamteam_copas (codigo, id_criador, tamanho, aposta, status) VALUES (?, ?, ?, ?, 'aguardando')")
+                    ->execute([$codigo, $user_id, $tamanho, $aposta]);
+                $copaId = (int)$pdo->lastInsertId();
+                $pdo->prepare('INSERT INTO dreamteam_copa_jogadores (copa_id, user_id, roster) VALUES (?, ?, ?)')
+                    ->execute([$copaId, $user_id, json_encode(dtRosterVazio())]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
+        if ($acao === 'copa_entrar') {
+            if (dtCopaEmAndamento($pdo, $user_id)) { echo json_encode(['ok' => false, 'msg' => 'Você já está numa copa.']); exit; }
+            if (dtDueloEmAndamento($pdo, $user_id)) { echo json_encode(['ok' => false, 'msg' => 'Termine seu duelo antes de entrar numa copa.']); exit; }
+
+            $codigo = strtoupper(trim((string)($_POST['codigo'] ?? '')));
+            if ($codigo === '') { echo json_encode(['ok' => false, 'msg' => 'Informe o código da copa.']); exit; }
+
+            $pdo->beginTransaction();
+            try {
+                // Trava a copa antes de contar as vagas: sem isso, duas pessoas entrando
+                // no mesmo instante numa copa com 1 vaga passariam as duas.
+                $st = $pdo->prepare("SELECT * FROM dreamteam_copas WHERE codigo = ? FOR UPDATE");
+                $st->execute([$codigo]);
+                $copa = $st->fetch(PDO::FETCH_ASSOC);
+                if (!$copa) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Copa não encontrada.']);
+                    exit;
+                }
+                if ($copa['status'] !== 'aguardando') {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Essa copa já começou.']);
+                    exit;
+                }
+                $stCount = $pdo->prepare('SELECT COUNT(*) FROM dreamteam_copa_jogadores WHERE copa_id = ?');
+                $stCount->execute([(int)$copa['id']]);
+                $inscritos = (int)$stCount->fetchColumn();
+                if ($inscritos >= (int)$copa['tamanho']) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Copa cheia.']);
+                    exit;
+                }
+
+                $stSaldo = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ? FOR UPDATE');
+                $stSaldo->execute([$user_id]);
+                if ((int)$stSaldo->fetchColumn() < (int)$copa['aposta']) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Saldo insuficiente pra essa entrada.']);
+                    exit;
+                }
+                $pdo->prepare('UPDATE games_usuarios SET pontos = pontos - ? WHERE id = ?')->execute([(int)$copa['aposta'], $user_id]);
+                $pdo->prepare('INSERT INTO dreamteam_copa_jogadores (copa_id, user_id, roster) VALUES (?, ?, ?)')
+                    ->execute([(int)$copa['id'], $user_id, json_encode(dtRosterVazio())]);
+
+                if ($inscritos + 1 >= (int)$copa['tamanho']) dtCopaIniciarDraft($pdo, (int)$copa['id']);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
+        // Sair do lobby (ou cancelar a copa, se for o criador) — só antes de começar.
+        if ($acao === 'copa_sair') {
+            $copa = dtCopaEmAndamento($pdo, $user_id);
+            if (!$copa) { echo json_encode(['ok' => false, 'msg' => 'Você não está numa copa.']); exit; }
+
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare('SELECT * FROM dreamteam_copas WHERE id = ? FOR UPDATE');
+                $st->execute([(int)$copa['id']]);
+                $atual = $st->fetch(PDO::FETCH_ASSOC);
+                if (!$atual || $atual['status'] !== 'aguardando') {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'A copa já começou, não dá mais pra sair.']);
+                    exit;
+                }
+
+                if ((int)$atual['id_criador'] === $user_id) {
+                    // Criador saindo desmonta a copa: quem já tinha entrado recebe de volta.
+                    dtCopaReembolsar($pdo, $atual, 'cancelada');
+                } else {
+                    $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')
+                        ->execute([(int)$atual['aposta'], $user_id]);
+                    $pdo->prepare('DELETE FROM dreamteam_copa_jogadores WHERE copa_id = ? AND user_id = ?')
+                        ->execute([(int)$atual['id'], $user_id]);
+                }
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
+        // Draft da copa: cada um no seu ritmo, sem turno compartilhado.
+        if (in_array($acao, ['copa_sortear', 'copa_girar', 'copa_escolher', 'copa_reposicionar'], true)) {
+            $copa = dtCopaAtiva($pdo, $user_id);
+            if (!$copa || $copa['status'] !== 'draft') { echo json_encode(['ok' => false, 'msg' => 'Essa copa não está em montagem.']); exit; }
+
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare('SELECT * FROM dreamteam_copa_jogadores WHERE copa_id = ? AND user_id = ? FOR UPDATE');
+                $st->execute([(int)$copa['id'], $user_id]);
+                $eu = $st->fetch(PDO::FETCH_ASSOC);
+                if (!$eu || (int)$eu['pronto'] === 1) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Seu time já está fechado.']);
+                    exit;
+                }
+                $roster = json_decode((string)$eu['roster'], true) ?: dtRosterVazio();
+
+                if ($acao === 'copa_sortear' || $acao === 'copa_girar') {
+                    $ehGiro = ($acao === 'copa_girar');
+                    if (!$ehGiro && $eu['time_sorteado_id'] !== null) {
+                        $pdo->rollBack();
+                        echo json_encode(['ok' => false, 'msg' => 'Você já sorteou um time nessa rodada.']);
+                        exit;
+                    }
+                    if ($ehGiro && ($eu['time_sorteado_id'] === null || (int)$eu['reroll_disponivel'] !== 1)) {
+                        $pdo->rollBack();
+                        echo json_encode(['ok' => false, 'msg' => 'Você já girou de novo nessa rodada.']);
+                        exit;
+                    }
+                    $novoTime = dtSortearTimeValido($roster);
+                    $pdo->prepare('UPDATE dreamteam_copa_jogadores SET time_sorteado_id = ?, reroll_disponivel = ? WHERE id = ?')
+                        ->execute([$novoTime['id'], $ehGiro ? 0 : 1, (int)$eu['id']]);
+                    $pdo->commit();
+                    echo json_encode(['ok' => true]);
+                    exit;
+                }
+
+                if ($acao === 'copa_reposicionar') {
+                    $de = strtoupper(trim((string)($_POST['de'] ?? '')));
+                    $para = strtoupper(trim((string)($_POST['para'] ?? '')));
+                    $jogador = $roster[$de] ?? null;
+                    if (!in_array($de, dtPosicoes(), true) || !in_array($para, dtPosicoes(), true) || !$jogador
+                        || ($roster[$para] ?? null) !== null || !in_array($para, $jogador['pos'] ?? [], true)) {
+                        $pdo->rollBack();
+                        echo json_encode(['ok' => false, 'msg' => 'Não dá pra mover esse jogador pra essa posição.']);
+                        exit;
+                    }
+                    $roster[$para] = $jogador;
+                    $roster[$de] = null;
+                    $pdo->prepare('UPDATE dreamteam_copa_jogadores SET roster = ? WHERE id = ?')
+                        ->execute([json_encode($roster), (int)$eu['id']]);
+                    $pdo->commit();
+                    echo json_encode(['ok' => true]);
+                    exit;
+                }
+
+                // copa_escolher
+                $nomeJogador = trim((string)($_POST['jogador'] ?? ''));
+                $posEscolhida = strtoupper(trim((string)($_POST['posicao'] ?? '')));
+                if ($nomeJogador === '' || !in_array($posEscolhida, dtPosicoes(), true)) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Escolha inválida.']);
+                    exit;
+                }
+                $time = dtTimePorId((string)$eu['time_sorteado_id']);
+                $jogador = null;
+                if ($time) foreach ($time['jogadores'] as $j) if ($j['nome'] === $nomeJogador) { $jogador = $j; break; }
+                if (!$jogador) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Jogador não encontrado no time sorteado.']);
+                    exit;
+                }
+                if (!in_array($posEscolhida, $jogador['pos'], true)) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Esse jogador não joga nessa posição.']);
+                    exit;
+                }
+                if ($roster[$posEscolhida] !== null) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Essa posição já está preenchida.']);
+                    exit;
+                }
+                if (isset(dtNomesNoRoster($roster)[$jogador['nome']])) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Esse jogador já está no seu time.']);
+                    exit;
+                }
+
+                $roster[$posEscolhida] = ['nome' => $jogador['nome'], 'ovr' => $jogador['ovr'], 'pos' => $jogador['pos']];
+                $completo = dtRosterCompleto($roster);
+                $pdo->prepare('UPDATE dreamteam_copa_jogadores SET roster = ?, pronto = ?, time_sorteado_id = NULL, reroll_disponivel = 1 WHERE id = ?')
+                    ->execute([json_encode($roster), $completo ? 1 : 0, (int)$eu['id']]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+
+            // Fora da transação acima: dtCopaProcessar abre a sua própria e só age
+            // quando o último time fica pronto (ou quando o prazo estoura).
+            dtCopaProcessar($pdo, (int)$copa['id']);
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
+        // Tira o usuário da copa encerrada pra ele poder entrar em outra.
+        if ($acao === 'copa_sair_encerrada') {
+            $copa = dtCopaAtiva($pdo, $user_id);
+            if ($copa && $copa['status'] === 'encerrada') {
+                $pdo->prepare('DELETE FROM dreamteam_copa_jogadores WHERE copa_id = ? AND user_id = ?')
+                    ->execute([(int)$copa['id'], $user_id]);
+            }
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
         if ($acao === 'estado') {
             $duelo = dtDueloAtivo($pdo, $user_id);
+            // O mesmo poll cuida do duelo e da copa: são telas alternativas, nunca
+            // simultâneas, e um hash só evita duas requisições de 3 em 3 segundos.
+            $copa = dtCopaAtiva($pdo, $user_id);
+            if ($copa && $copa['status'] === 'draft') {
+                dtCopaProcessar($pdo, (int)$copa['id']);
+                $copa = dtCopaAtiva($pdo, $user_id);
+            }
             $st = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ?');
             $st->execute([$user_id]);
-            echo json_encode(['ok' => true, 'duelo' => dtSerializar($pdo, $duelo, $user_id), 'pontos' => (int)($st->fetchColumn() ?: 0)]);
+            echo json_encode([
+                'ok' => true,
+                'duelo' => dtSerializar($pdo, $duelo, $user_id),
+                'copa' => dtCopaSerializar($pdo, $copa, $user_id),
+                'pontos' => (int)($st->fetchColumn() ?: 0),
+            ]);
             exit;
         }
 
@@ -1079,6 +1918,12 @@ if (($_POST['acao'] ?? '') !== '') {
 dtExpirarAntigos($pdo);
 $duelo = dtDueloAtivo($pdo, $user_id);
 $estadoInicial = dtSerializar($pdo, $duelo, $user_id);
+$copaAtual = dtCopaAtiva($pdo, $user_id);
+if ($copaAtual && $copaAtual['status'] === 'draft') {
+    dtCopaProcessar($pdo, (int)$copaAtual['id']);
+    $copaAtual = dtCopaAtiva($pdo, $user_id);
+}
+$copaInicial = dtCopaSerializar($pdo, $copaAtual, $user_id);
 $stPontos = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ?');
 $stPontos->execute([$user_id]);
 $meuSaldo = (int)($stPontos->fetchColumn() ?: 0);
@@ -1126,6 +1971,79 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .dt-tab.active{border-color:var(--red);background:var(--red-soft);color:var(--red)}
 .dt-tab-destaque{border-color:var(--amber);color:var(--amber);box-shadow:0 0 0 1px color-mix(in srgb, var(--amber) 35%, transparent)}
 .dt-tab-destaque.active{border-color:var(--amber);background:var(--amber-soft);color:var(--amber);box-shadow:0 0 12px color-mix(in srgb, var(--amber) 45%, transparent)}
+
+/* ── Desafio direto e revanche ────────────────────────────────────────── */
+.dt-ou{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--text3);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.dt-ou::before,.dt-ou::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.dt-busca-lista{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.dt-busca-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:10px;background:var(--panel2);border:1px solid var(--border);min-width:0}
+.dt-busca-item img{width:26px;height:26px;border-radius:6px;object-fit:cover;flex-shrink:0}
+.dt-busca-txt{flex:1;min-width:0}
+.dt-busca-nome{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dt-busca-sub{font-size:10.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dt-busca-btn{flex-shrink:0;background:var(--red);border:1px solid var(--red);color:#fff;border-radius:8px;font-family:var(--font);font-size:11px;font-weight:700;padding:7px 12px;cursor:pointer;transition:.15s}
+.dt-busca-btn:hover:not(:disabled){filter:brightness(1.1)}
+.dt-busca-btn:disabled{opacity:.4;cursor:not-allowed;background:transparent;color:var(--text2);border-color:var(--border)}
+
+.dt-convite{text-align:center;padding:22px 18px}
+.dt-convite-logo{width:64px;height:64px;border-radius:15px;object-fit:cover;margin:0 auto 12px;display:block}
+.dt-convite-quem{font-size:19px;font-weight:900;line-height:1.2;margin-bottom:6px}
+.dt-convite-txt{font-size:13px;color:var(--text2);margin-bottom:18px}
+.dt-convite-acoes{display:flex;gap:10px}
+.dt-convite-acoes button{flex:1}
+
+.dt-revanche{margin-top:12px}
+.dt-revanche-status{text-align:center;font-size:12px;font-weight:700;color:var(--amber);padding:11px;border-radius:11px;background:var(--amber-soft);border:1px solid color-mix(in srgb, var(--amber) 35%, transparent);margin-top:12px}
+
+/* ── Copa ─────────────────────────────────────────────────────────────── */
+.dt-copa-vagas{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px}
+.dt-copa-vaga{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:11px;background:var(--panel2);border:1.5px solid var(--border);min-width:0}
+.dt-copa-vaga.livre{border-style:dashed;color:var(--text3);justify-content:center;font-size:11px;font-weight:700}
+.dt-copa-vaga.eu{border-color:var(--red);background:var(--red-soft)}
+.dt-copa-vaga img{width:22px;height:22px;border-radius:5px;object-fit:cover;flex-shrink:0}
+.dt-copa-vaga-nome{font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.dt-copa-pronto{margin-left:auto;font-size:9px;font-weight:800;letter-spacing:.5px;padding:2px 6px;border-radius:20px;flex-shrink:0}
+.dt-copa-pronto.sim{background:var(--green-soft);color:var(--green)}
+.dt-copa-pronto.nao{background:var(--amber-soft);color:var(--amber)}
+.dt-copa-pote{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:12px;background:var(--amber-soft);border:1.5px solid color-mix(in srgb, var(--amber) 40%, transparent);margin-bottom:14px}
+.dt-copa-pote strong{font-size:20px;font-weight:900;color:var(--amber)}
+.dt-copa-pote span{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+.dt-copa-timer{font-size:12px;font-weight:800;color:var(--amber);text-align:center;margin-bottom:10px}
+.dt-copa-timer.urgente{color:var(--red)}
+
+.dt-chave{display:flex;flex-direction:column;gap:18px}
+.dt-fase-titulo{font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.dt-fase-titulo::after{content:'';flex:1;height:1px;background:var(--border)}
+.dt-jogo{background:var(--panel2);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px;transition:border-color .2s}
+.dt-jogo.meu{border-color:var(--red)}
+.dt-jogo-lado{display:flex;align-items:center;gap:9px;padding:9px 11px;min-width:0}
+.dt-jogo-lado + .dt-jogo-lado{border-top:1px solid var(--border)}
+.dt-jogo-lado img{width:24px;height:24px;border-radius:6px;object-fit:cover;flex-shrink:0}
+.dt-jogo-nome{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+.dt-jogo-placar{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums;flex-shrink:0;color:var(--text2)}
+.dt-jogo-lado.venceu{background:var(--green-soft)}
+.dt-jogo-lado.venceu .dt-jogo-nome{color:var(--green)}
+.dt-jogo-lado.venceu .dt-jogo-placar{color:var(--green)}
+.dt-jogo-lado.perdeu{opacity:.5}
+.dt-jogo-esperando{padding:9px 11px;text-align:center;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3)}
+.dt-jogo-detalhe{border-top:1px solid var(--border);padding:11px;background:var(--panel)}
+.dt-jogo-zebra{display:inline-block;margin-left:6px;font-size:8.5px;font-weight:900;letter-spacing:.5px;padding:2px 5px;border-radius:20px;background:var(--amber-soft);color:var(--amber);vertical-align:middle}
+.dt-ver-mais{width:100%;background:transparent;border:none;border-top:1px solid var(--border);color:var(--text2);font-family:var(--font);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:7px;cursor:pointer;transition:.15s}
+.dt-ver-mais:hover{color:var(--text);background:var(--panel3)}
+
+.dt-campeao{text-align:center;padding:24px 18px;border-radius:14px;background:linear-gradient(160deg,var(--amber-soft),transparent);border:1.5px solid color-mix(in srgb, var(--amber) 45%, transparent);margin-bottom:14px}
+.dt-campeao-coroa{font-size:38px;line-height:1;margin-bottom:8px}
+.dt-campeao img{width:64px;height:64px;border-radius:14px;object-fit:cover;margin-bottom:10px}
+.dt-campeao-rotulo{font-size:9.5px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--amber);margin-bottom:4px}
+.dt-campeao-nome{font-size:21px;font-weight:900;line-height:1.2;margin-bottom:8px}
+.dt-campeao-premio{font-size:12.5px;font-weight:700;color:var(--text2)}
+.dt-campeao-premio strong{color:var(--amber)}
+
+@media (max-width:400px){
+  .dt-copa-vagas{grid-template-columns:1fr}
+  .dt-campeao-nome{font-size:18px}
+}
 
 .field label{display:block;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:6px}
 .field input{width:100%;background:var(--panel2);border:1.5px solid var(--border);border-radius:10px;padding:11px 12px;font-family:var(--font);font-size:14px;font-weight:700;color:var(--text);outline:none;transition:.15s}
@@ -1338,6 +2256,8 @@ function renderCriarEntrar() {
       <div class="dtcard-title"><i class="bi bi-trophy me-1"></i>Starting5x5</div>
       <p class="dtcard-sub">Gire a roleta de escalações históricas e escolha 1 jogador por vez pra montar seu titular (PG/SG/SF/PF/C). Aposte moedas e desafie um amigo — ou a máquina.</p>
       <div class="dt-tabs">
+        <?php /* A aba da Copa (mata-mata de 4/8) entra quando a tela dela estiver
+                 pronta — o back-end já existe mais acima, mas sem UI ainda. */ ?>
         <div class="dt-tab dt-tab-destaque active" id="dtTabAleatorio" onclick="dtTrocarTab('aleatorio')">⚡ Aleatório</div>
         <div class="dt-tab" id="dtTabCriar" onclick="dtTrocarTab('criar')">Amigo</div>
         <div class="dt-tab" id="dtTabEntrar" onclick="dtTrocarTab('entrar')">Código</div>
@@ -1411,9 +2331,19 @@ function dtTrocarTab(tab) {
       <div class="field">
         <label>Aposta (1 a 100 moedas)</label>
         <input type="number" id="dtAposta" min="1" max="100" value="20">
-        <p class="field-hint">Debitada na hora — devolvida se ninguém entrar em 24h. Depois de criado, dá pra copiar um link de convite.</p>
+        <p class="field-hint">Vale pros dois jeitos abaixo. Debitada na hora e devolvida se ninguém aceitar.</p>
       </div>
-      <button class="btn-dt" id="dtBtnCriar" onclick="dtCriarDuelo()"><i class="bi bi-plus-circle me-2"></i>Criar duelo</button>`;
+
+      <div class="field" style="margin-top:14px">
+        <label>Desafiar alguém direto</label>
+        <input type="text" id="dtBuscaOponente" placeholder="Nome da pessoa ou do time..." autocomplete="off" oninput="dtBuscarOponentes()">
+        <div id="dtBuscaResultado"></div>
+      </div>
+
+      <div class="dt-ou"><span>ou</span></div>
+
+      <button class="btn-dt" id="dtBtnCriar" onclick="dtCriarDuelo()"><i class="bi bi-link-45deg me-2"></i>Criar duelo por link</button>
+      <p class="field-hint" style="margin-top:8px">Abre uma sala e gera um link de convite pra mandar pra quem você quiser.</p>`;
   } else if (tab === 'entrar') {
     c.innerHTML = `
       <div class="field">
@@ -1456,6 +2386,59 @@ async function dtAcaoBotao(btnId, acao, params = {}) {
     const atual = document.getElementById(btnId);
     if (atual) atual.disabled = false;
   }
+}
+
+// ── Desafio direto ──────────────────────────────────────────────────────────
+let dtBuscaTimer = null;
+let dtBuscaSeq = 0; // descarta resposta de busca antiga que chegou fora de ordem
+
+function dtBuscarOponentes() {
+  clearTimeout(dtBuscaTimer);
+  // Espera a pessoa parar de digitar: sem isso é uma requisição por tecla.
+  dtBuscaTimer = setTimeout(dtBuscarOponentesAgora, 300);
+}
+
+async function dtBuscarOponentesAgora() {
+  const termo = (document.getElementById('dtBuscaOponente')?.value || '').trim();
+  const alvo = document.getElementById('dtBuscaResultado');
+  if (!alvo) return;
+  if (termo.length < 2) { alvo.innerHTML = ''; return; }
+
+  const seq = ++dtBuscaSeq;
+  try {
+    const r = await dtPost('buscar_oponentes', { termo });
+    if (seq !== dtBuscaSeq) return;
+    if (!r.ok || !r.jogadores.length) {
+      alvo.innerHTML = `<p class="field-hint" style="margin-top:8px">Ninguém encontrado com esse nome.</p>`;
+      return;
+    }
+    alvo.innerHTML = `<div class="dt-busca-lista">${r.jogadores.map(j => `
+      <div class="dt-busca-item">
+        ${dtLogoImg(j.time_logo)}
+        <div class="dt-busca-txt">
+          <div class="dt-busca-nome">${esc(j.time_nome || j.nome)}</div>
+          <div class="dt-busca-sub">${j.time_nome ? esc(j.nome) : 'sem time'}${j.ocupado ? ' · em partida' : ''}</div>
+        </div>
+        <button class="dt-busca-btn" id="dtDesafio${j.id}" ${j.ocupado ? 'disabled' : `onclick="dtDesafiar(${j.id})"`}>
+          ${j.ocupado ? 'Ocupado' : 'Desafiar'}
+        </button>
+      </div>`).join('')}</div>`;
+  } catch (e) {
+    if (seq === dtBuscaSeq) alvo.innerHTML = `<p class="field-hint" style="margin-top:8px">Falha na busca. Tente de novo.</p>`;
+  }
+}
+
+async function dtDesafiar(oponente) {
+  const aposta = parseInt(document.getElementById('dtAposta').value, 10);
+  await dtAcaoBotao(`dtDesafio${oponente}`, 'desafiar', { oponente, aposta });
+}
+
+async function dtResponderDesafio(aceitar) {
+  await dtAcaoBotao(aceitar ? 'dtBtnAceitar' : 'dtBtnRecusar', 'responder_desafio', { aceitar: aceitar ? '1' : '0' });
+}
+
+async function dtRevanche() {
+  await dtAcaoBotao('dtBtnRevanche', 'revanche');
 }
 
 async function dtCriarDuelo() {
@@ -1505,6 +2488,37 @@ function renderAguardando(duelo) {
       <div class="dt-spinner"></div>
       <p class="dt-empty">Assim que alguém entrar com o código, a tela avança sozinha.</p>
       <button class="btn-dt-ghost" onclick="dtCancelar()"><i class="bi bi-x-circle me-1"></i>Cancelar e receber a aposta de volta</button>
+    </div>`;
+}
+
+// ── Tela: desafio direto (convite a uma pessoa específica) ──────────────────
+function renderConvite(duelo) {
+  const nome = dtNomeOponente(duelo);
+  const logo = dtLogoOponente(duelo);
+  const foto = logo ? `<img class="dt-convite-logo" src="${esc(logo)}" alt="">` : '';
+
+  if (duelo.sou_desafiante) {
+    document.getElementById('dtMain').innerHTML = `
+      <div class="dtcard dt-convite">
+        ${foto}
+        <div class="dt-convite-quem">${esc(nome)}</div>
+        <div class="dt-convite-txt">Desafio enviado. Assim que aceitarem, o draft começa aqui mesmo.</div>
+        <p class="dtcard-sub" style="margin-bottom:4px">Aposta: <strong>${duelo.aposta} moedas</strong></p>
+        <div class="dt-spinner"></div>
+        <button class="btn-dt-ghost" onclick="dtCancelar()"><i class="bi bi-x-circle me-1"></i>Cancelar e receber a aposta de volta</button>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('dtMain').innerHTML = `
+    <div class="dtcard dt-convite">
+      ${foto}
+      <div class="dt-convite-quem">${esc(nome)}</div>
+      <div class="dt-convite-txt">te desafiou pra um Starting5x5 valendo <strong>${duelo.aposta} moedas</strong>. Quem ganhar leva as duas apostas.</div>
+      <div class="dt-convite-acoes">
+        <button class="btn-dt-ghost" id="dtBtnRecusar" onclick="dtResponderDesafio(false)">Recusar</button>
+        <button class="btn-dt" id="dtBtnAceitar" style="margin-top:0" onclick="dtResponderDesafio(true)"><i class="bi bi-check-lg me-1"></i>Aceitar</button>
+      </div>
     </div>`;
 }
 
@@ -1619,6 +2633,50 @@ function dtSomaRosterJs(roster) {
   return POSICOES.reduce((s, p) => s + (roster[p] ? Number(roster[p].ovr) : 0), 0);
 }
 
+// Card do time sorteado + botão de girar. Vale pro duelo e pra copa: muda só qual
+// ação vai pro servidor (ver dtAcao), então o HTML fica num lugar só.
+function dtCardSorteio(meuRoster, timeSorteado, rerollDisponivel, podeAgir) {
+  // Guardados aqui (e não no chamador) porque dtCliqueJogador lê os dois — assim
+  // duelo e copa não precisam repetir a mesma preparação.
+  window.__dtTimeAtual = timeSorteado || null;
+  window.__dtVagas = POSICOES.filter(p => !meuRoster[p]);
+
+  if (!timeSorteado) {
+    if (!podeAgir) return '';
+    return `<div class="dtcard" style="text-align:center">
+      <div class="dtcard-title" style="margin-bottom:2px">Sua vez de montar o time</div>
+      <p class="dtcard-sub" style="margin-bottom:14px">Gire a roleta pra ver qual escalação histórica aparece — daí escolhe 1 jogador dela.</p>
+      <button class="btn-dt" id="dtBtnSortear" onclick="dtSortearTime()"><i class="bi bi-shuffle me-2"></i>Sortear Time</button>
+    </div>`;
+  }
+
+  const t = timeSorteado;
+  const vagas = POSICOES.filter(p => !meuRoster[p]);
+  const jaTenho = new Set(Object.values(meuRoster).filter(Boolean).map(j => j.nome));
+  window.__dtTimeAtual = timeSorteado;
+  window.__dtVagas = vagas;
+
+  return `<div class="dtcard">
+    <div class="dt-time-nome">${esc(t.nome)}</div>
+    <div class="dt-time-ano">Titular sorteado</div>
+    <div class="dt-jogadores-grid" id="dtJogadoresGrid">
+      ${t.jogadores.map((j, i) => {
+        const jaNoTime = jaTenho.has(j.nome);
+        const posDisponiveis = jaNoTime ? [] : j.pos.filter(p => vagas.includes(p));
+        const clicavel = podeAgir && posDisponiveis.length > 0;
+        return `<div class="dt-jogador-card ${clicavel ? 'clicavel' : 'desabilitado'}" id="dtJog${i}" ${clicavel ? `onclick="dtCliqueJogador(${i})"` : ''}>
+          <span class="dt-jogador-nome">${esc(j.nome)}${jaNoTime ? ' <small style="color:var(--text3)">(já no seu time)</small>' : ''}</span>
+          <span class="dt-jogador-pos">${j.pos.map(p => `<span class="dt-pos-badge">${p}</span>`).join('')}</span>
+          <span class="dt-jogador-ovr" style="color:${dtCorOvr(j.ovr)}">${j.ovr}</span>
+        </div>`;
+      }).join('')}
+    </div>
+    <button class="btn-dt-amber" id="dtBtnGirar" onclick="dtGirarDeNovo()" ${(podeAgir && rerollDisponivel) ? '' : 'disabled'}>
+      <i class="bi bi-arrow-repeat me-1"></i>${rerollDisponivel ? 'Girar de novo (1x)' : 'Reroll já usado nessa rodada'}
+    </button>
+  </div>`;
+}
+
 function renderDraft(duelo) {
   const meuTotal = dtSomaRosterJs(duelo.meu_roster);
   const oponenteTotal = dtSomaRosterJs(duelo.oponente_roster);
@@ -1630,38 +2688,7 @@ function renderDraft(duelo) {
     ${duelo.minha_vez ? '<i class="bi bi-hand-index-thumb"></i> Sua vez — escolha um jogador' : `Vez de ${esc(dtNomeOponente(duelo))}...`}
   </div>`;
 
-  if (duelo.minha_vez && !duelo.time_sorteado) {
-    html += `<div class="dtcard" style="text-align:center">
-      <div class="dtcard-title" style="margin-bottom:2px">Sua vez de montar o time</div>
-      <p class="dtcard-sub" style="margin-bottom:14px">Gire a roleta pra ver qual escalação histórica aparece — daí escolhe 1 jogador dela.</p>
-      <button class="btn-dt" id="dtBtnSortear" onclick="dtSortearTime()"><i class="bi bi-shuffle me-2"></i>Sortear Time</button>
-    </div>`;
-  }
-
-  if (duelo.time_sorteado) {
-    const t = duelo.time_sorteado;
-    const vagas = POSICOES.filter(p => !duelo.meu_roster[p]);
-    const jaTenho = new Set(Object.values(duelo.meu_roster).filter(Boolean).map(j => j.nome));
-    html += `<div class="dtcard">
-      <div class="dt-time-nome">${esc(t.nome)}</div>
-      <div class="dt-time-ano">Titular sorteado</div>
-      <div class="dt-jogadores-grid" id="dtJogadoresGrid">
-        ${t.jogadores.map((j, i) => {
-          const jaNoTime = jaTenho.has(j.nome);
-          const posDisponiveis = jaNoTime ? [] : j.pos.filter(p => vagas.includes(p));
-          const clicavel = duelo.minha_vez && posDisponiveis.length > 0;
-          return `<div class="dt-jogador-card ${clicavel ? 'clicavel' : 'desabilitado'}" id="dtJog${i}" ${clicavel ? `onclick="dtCliqueJogador(${i})"` : ''}>
-            <span class="dt-jogador-nome">${esc(j.nome)}${jaNoTime ? ' <small style="color:var(--text3)">(já no seu time)</small>' : ''}</span>
-            <span class="dt-jogador-pos">${j.pos.map(p => `<span class="dt-pos-badge">${p}</span>`).join('')}</span>
-            <span class="dt-jogador-ovr" style="color:${dtCorOvr(j.ovr)}">${j.ovr}</span>
-          </div>`;
-        }).join('')}
-      </div>
-      <button class="btn-dt-amber" id="dtBtnGirar" onclick="dtGirarDeNovo()" ${(duelo.minha_vez && duelo.reroll_disponivel) ? '' : 'disabled'}>
-        <i class="bi bi-arrow-repeat me-1"></i>${duelo.reroll_disponivel ? 'Girar de novo (1x)' : 'Reroll já usado nessa rodada'}
-      </button>
-    </div>`;
-  }
+  html += dtCardSorteio(duelo.meu_roster, duelo.time_sorteado, duelo.reroll_disponivel, duelo.minha_vez);
 
   // Saída pra quando o oponente abandona no meio do draft e o duelo trava. Some na simulação
   // (aí o duelo já foi resolvido e pago) e não aparece contra a máquina, que nunca abandona.
@@ -1672,8 +2699,6 @@ function renderDraft(duelo) {
   }
 
   document.getElementById('dtMain').innerHTML = html;
-  window.__dtTimeAtual = duelo.time_sorteado;
-  window.__dtVagas = POSICOES.filter(p => !duelo.meu_roster[p]);
 }
 
 function dtCliqueJogador(idx) {
@@ -1836,6 +2861,20 @@ function renderResultadoFinal(duelo) {
   const oponenteBox = duelo.meu_lado === 'a' ? r.boxscore_b : r.boxscore_a;
 
   let html = `<button class="btn-dt" onclick="dtNovoDuelo(${duelo.id})" style="margin-top:0;margin-bottom:14px"><i class="bi bi-arrow-repeat me-2"></i>Jogar de novo</button>`;
+
+  // Revanche: mesma dupla, mesma aposta, sem passar pelo lobby. Precisa dos dois,
+  // então enquanto só um clicou a tela mostra que está esperando o outro. Quando
+  // o segundo aceita, o duelo novo nasce e o poll leva os dois direto pro draft.
+  if (duelo.revanche_disponivel) {
+    html += duelo.revanche_eu
+      ? `<div class="dt-revanche-status"><i class="bi bi-hourglass-split me-1"></i>Revanche pedida — esperando ${nomeOp} aceitar...</div>`
+      : `<button class="btn-dt-amber dt-revanche" id="dtBtnRevanche" onclick="dtRevanche()">
+           <i class="bi bi-fire me-2"></i>${duelo.revanche_oponente
+             ? `${nomeOp} quer revanche — topa? (${duelo.aposta} moedas)`
+             : `Pedir revanche (${duelo.aposta} moedas)`}
+         </button>`;
+  }
+
   html += `<div class="dtcard">
     <div class="dt-resultado-msg ${duelo.eu_venci ? 'venceu' : 'perdeu'}">
       ${duelo.eu_venci ? `🏆 Você venceu! +${duelo.aposta * 2} moedas` : `Você perdeu essa. -${duelo.aposta} moedas`}
@@ -1881,6 +2920,7 @@ function renderTela(duelo) {
   if (!duelo) { renderCriarEntrar(); return; }
   if (duelo.status === 'simulado' && duelo.id === dueloDispensadoId) { renderCriarEntrar(); return; }
   if (duelo.status === 'aguardando') { renderAguardando(duelo); return; }
+  if (duelo.status === 'convite') { renderConvite(duelo); return; }
   if (duelo.status === 'draft') { renderDraft(duelo); return; }
   if (duelo.status === 'simulado') { renderResultado(duelo); return; }
   renderCriarEntrar();

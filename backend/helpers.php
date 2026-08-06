@@ -1257,6 +1257,7 @@ function getNotifCatalog(): array {
         'tatica'      => ['label' => 'Tática',            'icon' => 'bi-clipboard2-pulse',    'desc' => 'Aviso quando a janela de edição da tática abre e fecha.'],
         'cap'         => ['label' => 'CAP da liga',       'icon' => 'bi-graph-up-arrow',      'desc' => 'Recálculo do teto salarial da sua liga.'],
         'eventos'     => ['label' => 'Roletas e sorteios','icon' => 'bi-shuffle',             'desc' => 'Roletas, draft de lendas e drafts aleatórios.'],
+        'games'       => ['label' => 'Games',             'icon' => 'bi-controller',          'desc' => 'Desafios recebidos nos games, como o Starting5x5.'],
     ];
 }
 
