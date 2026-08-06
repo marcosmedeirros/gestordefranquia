@@ -2352,8 +2352,8 @@ function renderCriarEntrar() {
       <p class="dtcard-sub">Gire a roleta de escalações históricas e escolha 1 jogador por vez pra montar seu titular (PG/SG/SF/PF/C). Aposte moedas e desafie um amigo — ou a máquina.</p>
       <div class="dt-tabs">
         <div class="dt-tab dt-tab-destaque active" id="dtTabAleatorio" onclick="dtTrocarTab('aleatorio')">⚡ Aleatório</div>
-        <div class="dt-tab" id="dtTabCopa" onclick="dtTrocarTab('copa')">🏆 Copa</div>
         <div class="dt-tab" id="dtTabCriar" onclick="dtTrocarTab('criar')">Amigo</div>
+        <div class="dt-tab" id="dtTabCopa" onclick="dtTrocarTab('copa')">🏆 Copa</div>
         <div class="dt-tab" id="dtTabEntrar" onclick="dtTrocarTab('entrar')">Código</div>
         <div class="dt-tab" id="dtTabCpu" onclick="dtTrocarTab('cpu')">CPU 🤖</div>
       </div>
