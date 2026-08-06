@@ -325,14 +325,18 @@ function buildLendaComPeso(array $lendas, callable $peso): string
 /**
  * Percentil (de cima pra baixo) que cada posição do top 100 deve representar.
  *
- * É a régua de raridade do ranking, e é o que a curva por OVR sempre quis dizer:
- * o 1º lugar é o melhor 0,25% dos builds, o 5º o melhor 1,2%, e por aí. Fixar
- * ISSO em vez de fixar valores de OVR é o que torna o ranking imune a mudança
- * na base de lendas.
+ * É a régua de raridade do ranking. Fixar ISSO, em vez de fixar valores de OVR,
+ * é o que torna o ranking imune a mudança na base de lendas.
+ *
+ * O topo é deliberadamente brutal: o 1º lugar é o melhor 0,02% dos builds, ou
+ * seja 1 a cada 5.000 partidas. É pra ser quase inalcançável mesmo — antes eram
+ * 0,25% (1 em 400) e "o maior de todos os tempos" aparecia direto, o que tirava
+ * o sentido do título. O pódio inteiro ficou raro na mesma proporção; da metade
+ * da tabela pra baixo quase nada muda, porque ali o ranking só serve de régua.
  */
 const BUILD_PERCENTIL_POSICAO = [
-    [0.25, 1], [1.2, 5], [2.5, 10], [10.0, 29],
-    [50.0, 68], [90.0, 90], [100.0, 100],
+    [0.02, 1], [0.05, 3], [0.12, 5], [0.35, 10],
+    [1.5, 20], [4.0, 30], [12.0, 50], [40.0, 75], [100.0, 100],
 ];
 
 /**
@@ -411,9 +415,13 @@ function buildCalibrarCurva(PDO $pdo, string $grupo): ?array
     $somaPesos = array_sum($pesos);
     if ($somaPesos <= 0) return null;
 
+    // 40 mil: o 1º lugar é o melhor 0,02%, então com amostra pequena esse corte
+    // cairia em cima do próprio máximo sorteado e viraria ruído. Aqui ele é a
+    // média dos ~8 melhores. Custa ~0,4s e roda uma vez só (o resultado fica em
+    // cache até as notas mudarem).
     $amostras = [];
     $totalLendas = count($lendas);
-    for ($p = 0; $p < 4000; $p++) {
+    for ($p = 0; $p < 40000; $p++) {
         $niveis = array_fill_keys($attrs, 0);
         $vazios = $attrs;
         $usados = [];
