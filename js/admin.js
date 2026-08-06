@@ -3681,6 +3681,11 @@ ${appState.currentTeam.league === 'RISE' ? `<div class="mb-3 p-3 rounded" style=
 <input class="form-check-input" type="checkbox" role="switch" id="editPlayerLoyal" ${Number(p.is_loyal) === 1 ? 'checked' : ''}>
 <label class="form-check-label" for="editPlayerLoyal" style="color:#3b82f6;font-weight:600">🤝 Leal</label></div>
 <small class="text-light-gray d-block mt-1">Override manual: define se o jogador é "Leal" independente da regra automática (nunca trocado + veio do draft normal do próprio time).</small></div>
+<div class="mb-3 p-3 rounded" style="background:rgba(245,197,66,.08);border:1px solid rgba(245,197,66,.3)">
+<div class="form-check form-switch">
+<input class="form-check-input" type="checkbox" role="switch" id="editPlayerLenda" ${Number(p.is_lenda) === 1 ? 'checked' : ''}>
+<label class="form-check-label" for="editPlayerLenda" style="color:#f5c542;font-weight:700">⭐ Lenda da franquia</label></div>
+<small class="text-light-gray d-block mt-1">Uma por time — marcar aqui tira a marca do jogador anterior. Nome fica dourado com a tag LENDA${appState.currentTeam.league === 'ELITE' ? ', e no cap ele passa a valer no mínimo 40M (de OVR 95 pra cima volta a tabela)' : ''}.</small></div>
 <div class="mb-3"><label class="form-label text-light-gray">Transferir</label>
 <select class="form-select bg-dark text-white border-orange" id="editPlayerTeam"><option value="">Manter no time</option></select></div></div>
 <div class="modal-footer border-orange"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -3724,6 +3729,17 @@ async function savePlayerEdit(playerId) {
 
   try {
     await api('admin.php?action=player', { method: 'PUT', body: JSON.stringify(data) });
+
+    // A lenda vai por ação própria: ela precisa tirar a marca do jogador anterior
+    // do time na mesma transação (só pode haver uma por franquia).
+    const lendaChk = document.getElementById('editPlayerLenda');
+    if (lendaChk) {
+      await api('team.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'set_lenda', player_id: playerId, lenda: lendaChk.checked }),
+      });
+    }
+
     const modalEl = document.querySelector('.modal.show') || document.querySelector('.modal');
     bootstrap.Modal.getInstance(modalEl)?.hide();
     await showTeam(appState.currentTeam.id);

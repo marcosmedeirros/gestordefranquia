@@ -549,12 +549,24 @@ function isFranchiseEligible(player) {
 // elegível ao bônus de cap; senão nome normal. Jogador leal sem cumprir os
 // requisitos do bônus mostra só a tag, sem cor no nome.
 function loyalNameStyle(player) {
+  // Lenda tem prioridade: é a marca mais forte que um jogador pode ter no time.
+  if (isLendaPlayer(player)) return ' style="color:#f5c542;font-weight:800"';
   const color = isFranchiseEligible(player) ? (player?.player_tag_color || '#f59e0b') : 'var(--text)';
   return ` style="color:${color}"`;
 }
 
 function loyalTagHtml(player) {
   return isLoyalPlayer(player) ? '<span class="badge loyal-badge">Leal</span>' : '';
+}
+
+function isLendaPlayer(player) {
+  return !!Number(player?.is_lenda || 0);
+}
+
+function lendaTagHtml(player) {
+  return isLendaPlayer(player)
+    ? '<span style="display:inline-flex;align-items:center;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.5px;border:1px solid rgba(245,197,66,.45);background:rgba(245,197,66,.15);color:#f5c542;margin-left:4px;white-space:nowrap;">LENDA</span>'
+    : '';
 }
 
 function getRestrictedBonus(players) {
@@ -857,7 +869,7 @@ function renderPlayers(players) {
               <h6 class="mb-1 fw-bold" style="font-size: 1.05rem;"><span${loyalNameStyle(p)}>${p.name}</span>${renderTapaBadge(p)}</h6>
               <div class="d-flex justify-content-center gap-2 flex-wrap small">
                 <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
-                ${loyalTagHtml(p)}${tagBadgeStarter}
+                ${lendaTagHtml(p)}${loyalTagHtml(p)}${tagBadgeStarter}
               </div>
             </div>
             <div class="text-center">
@@ -887,7 +899,7 @@ function renderPlayers(players) {
         const li = document.createElement('li');
         li.className = 'list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0';
         li.innerHTML = `
-          <span><span${loyalNameStyle(p)}>${p.name}</span>${renderTapaBadge(p)} ${loyalTagHtml(p)}${tagBadgeBench} <small class="text-light-gray">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
+          <span><span${loyalNameStyle(p)}>${p.name}</span>${renderTapaBadge(p)} ${lendaTagHtml(p)}${loyalTagHtml(p)}${tagBadgeBench} <small class="text-light-gray">(${p.position}${p.secondary_position ? '/' + p.secondary_position : ''})</small></span>
           <span class=\"fw-bold\" style=\"color:${getOvrColor(p.ovr)}\">${p.ovr}</span>`;
         ul.appendChild(li);
       });
@@ -982,7 +994,7 @@ function renderPlayersMobileCards(players) {
                style="width: 44px; height: 44px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div>
-            <div class="fw-bold"><a class="roster-player-link"${loyalNameStyle(p)} href="/player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)} ${loyalTagHtml(p)}${tagBadgeMobile}</div>
+            <div class="fw-bold"><a class="roster-player-link"${loyalNameStyle(p)} href="/player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)} ${lendaTagHtml(p)}${loyalTagHtml(p)}${tagBadgeMobile}</div>
             <div class="text-light-gray small">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''} • ${normalizeRoleKey(p.role)}</div>
           </div>
         </div>
@@ -1022,7 +1034,7 @@ function renderPlayersTable(players) {
                style="width: 36px; height: 36px; object-fit: cover; border-radius: 50%; border: 1px solid var(--fba-orange); background: #1a1a1a;"
                onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
           <div class="d-flex flex-column">
-            <span class="fw-semibold"><a class="roster-player-link"${loyalNameStyle(p)} href="/player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)} ${loyalTagHtml(p)}${tagBadge}</span>
+            <span class="fw-semibold"><a class="roster-player-link"${loyalNameStyle(p)} href="/player.php?id=${p.id}">${p.name}</a>${renderTapaBadge(p)} ${lendaTagHtml(p)}${loyalTagHtml(p)}${tagBadge}</span>
             <small class="text-light-gray">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</small>
           </div>
         </div>
@@ -1351,6 +1363,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-ovr').value = player.ovr;
         document.getElementById('edit-role').value = player.role;
         document.getElementById('edit-available').checked = !!player.available_for_trade;
+        const _lendaChk = document.getElementById('edit-lenda');
+        if (_lendaChk) _lendaChk.checked = !!Number(player.is_lenda || 0);
         const editTagEl = document.getElementById('edit-tag');
         if (editTagEl) editTagEl.value = player.player_tag || '';
         const editTagColorEl = document.getElementById('edit-tag-color');
@@ -1433,6 +1447,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('edit-ovr').value = player.ovr;
         document.getElementById('edit-role').value = player.role;
         document.getElementById('edit-available').checked = !!player.available_for_trade;
+        const _lendaChk = document.getElementById('edit-lenda');
+        if (_lendaChk) _lendaChk.checked = !!Number(player.is_lenda || 0);
         const editTagEl = document.getElementById('edit-tag');
         if (editTagEl) editTagEl.value = player.player_tag || '';
         const editTagColorEl = document.getElementById('edit-tag-color');
@@ -1509,6 +1525,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     try {
       await api('players.php', { method: 'PUT', body: JSON.stringify(data) });
+
+      // A lenda vai por uma ação própria, e não junto do PUT: ela precisa tirar a
+      // marca do jogador anterior do time na mesma transação (só pode haver uma).
+      // Só chama quando o valor mudou, pra não gravar à toa a cada edição.
+      const lendaChk = document.getElementById('edit-lenda');
+      if (lendaChk) {
+        const antes = !!Number(_basePlayer.is_lenda || 0);
+        if (lendaChk.checked !== antes) {
+          await api('team.php', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'set_lenda', player_id: _editPlayerId, lenda: lendaChk.checked }),
+          });
+        }
+      }
+
       bootstrap.Modal.getInstance(document.getElementById('editPlayerModal'))?.hide();
       loadPlayers();
     } catch (err) {

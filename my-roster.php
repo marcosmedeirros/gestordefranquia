@@ -944,6 +944,22 @@ if ($teamId) {
                             <label class="form-check-label" for="edit-available">Disponível para troca</label>
                         </div>
                     </div>
+                    <?php /* Uma lenda por franquia. Marcar outro jogador tira o anterior
+                             automaticamente (o servidor resolve isso, ver set_lenda). */ ?>
+                    <div style="grid-column: span 12; border-top:1px solid var(--border); padding-top:14px; margin-top:4px;">
+                        <div class="form-check" style="margin:0;">
+                            <input class="form-check-input" type="checkbox" id="edit-lenda">
+                            <label class="form-check-label" for="edit-lenda" style="color:#f5c542;font-weight:700;">
+                                <i class="bi bi-star-fill me-1"></i>Lenda da franquia
+                            </label>
+                        </div>
+                        <div style="font-size:11px;color:var(--text-3);margin-top:6px;line-height:1.5;">
+                            Só um jogador por time. O nome fica dourado com a tag LENDA.
+                            <?php if ($isElite ?? false): ?>
+                            <b style="color:var(--text-2)">No cap da ELITE ele passa a valer no mínimo 40M</b> — de OVR 95 pra cima volta a tabela normal.
+                            <?php endif; ?>
+                        </div>
+                    </div>
                     <div style="grid-column: span 12; border-top: 1px solid var(--border); padding-top:14px; margin-top:4px;" id="edit-skill-grades-section">
                         <div style="font-size:11px;color:var(--text-2);letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-bottom:10px;">Notas por Skill</div>
                         <div id="edit-skill-grades-wrap"></div>
