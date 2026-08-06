@@ -172,6 +172,36 @@ function buildPremiosIndividuais(array $notas, int $ovr, int $vitorias, array $p
 }
 
 /**
+ * Peso de cada atributo no OVR, por tipo de build.
+ *
+ * Antes os dez atributos pesavam igual, e isso punia o BIG duas vezes: além de
+ * ele não ter onde buscar nota boa em Handles/Arremesso, essas notas ruins
+ * entravam no OVR com o mesmo peso das boas. Medindo o elenco de lendas, o BIG
+ * fica 28 pontos atrás em Handles, 21 em Jump Shot e 15 em Passe — e 26 à
+ * frente em Tamanho. Um pivô não deveria ser avaliado pelo drible.
+ *
+ * A soma dos pesos é normalizada em bpCalcularOvrExato, então dá pra ajustar um
+ * atributo aqui sem precisar rebalancear os outros.
+ */
+function buildPesosDoGrupo(string $grupo): array
+{
+    if ($grupo === 'BIG') {
+        return [
+            'jump_shot'  => 0.55, 'finishing' => 1.35, 'passing' => 0.70,
+            'handles'    => 0.45, 'perimeter_d' => 1.00, 'speed'  => 0.70,
+            'bounce'     => 1.25, 'size'      => 1.55, 'iq'      => 1.20,
+            'clutch'     => 1.25,
+        ];
+    }
+    return [
+        'jump_shot'  => 1.35, 'finishing' => 1.05, 'passing' => 1.25,
+        'handles'    => 1.35, 'perimeter_d' => 0.95, 'speed'  => 1.20,
+        'bounce'     => 0.80, 'size'      => 0.55, 'iq'      => 1.15,
+        'clutch'     => 1.10,
+    ];
+}
+
+/**
  * Régua de cada tipo de build: OVR mediano e a curva OVR → top 100.
  *
  * Por que uma curva, e não comparar o OVR do build com o das lendas?
@@ -192,21 +222,31 @@ function buildPremiosIndividuais(array $notas, int $ovr, int $vitorias, array $p
  */
 function buildPerfilDoGrupo(string $grupo): array
 {
+    // Curvas recalibradas em 20.000 partidas por grupo, já com os pesos de
+    // buildPesosDoGrupo(). Cada posição sai do MESMO percentil nos dois grupos
+    // (1º = melhor 0,3% dos builds, 5º ≈ 1,2%, 10º ≈ 2,4%), então BIG e GUARD
+    // passam a ter exatamente a mesma chance de pódio.
+    //
+    // Antes não tinham: medindo as curvas antigas, o GUARD chegava ao top 10 em
+    // 1,68% das partidas e o BIG em 0,62% — quase três vezes mais difícil. E o
+    // 1º lugar do BIG exigia OVR 90 sendo que o teto alcançável era ~89,5, ou
+    // seja, as 500 moedas do topo eram literalmente inatingíveis pra ele.
     if ($grupo === 'BIG') {
         return [
-            'mediano' => 81, // mediana medida: 81 (p95 86, teto 90)
+            'mediano' => 81, // mediana medida: 80.8 (teto 92.1)
             'curva'   => [
-                [90.0, 1], [89.0, 3], [88.0, 6], [87.0, 11], [86.0, 18], [85.0, 25],
-                [84.0, 33], [83.0, 42], [82.0, 50], [81.0, 58], [80.0, 70],
-                [79.0, 82], [78.0, 94], [77.0, 100],
+                [88.0, 1], [87.2, 3], [86.5, 6], [85.8, 12],
+                [85.0, 20], [84.1, 30], [83.1, 42], [82.0, 55],
+                [80.8, 68], [79.5, 80], [77.9, 90], [69.7, 100],
             ],
         ];
     }
     return [
-        'mediano' => 88, // mediana medida: 88 (p95 92, teto 96)
+        'mediano' => 85, // mediana medida: 85.3 (teto 94.4)
         'curva'   => [
-            [95.0, 1], [94.0, 3], [93.0, 6], [92.0, 12], [91.0, 20], [90.0, 30],
-            [89.0, 42], [88.0, 55], [87.0, 68], [86.0, 80], [85.0, 90], [84.0, 100],
+            [92.0, 1], [91.4, 3], [90.8, 6], [90.1, 12],
+            [89.3, 20], [88.6, 30], [87.5, 42], [86.5, 55],
+            [85.3, 68], [84.0, 80], [82.3, 90], [74.2, 100],
         ],
     ];
 }

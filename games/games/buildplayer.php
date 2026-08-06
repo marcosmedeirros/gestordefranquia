@@ -172,19 +172,26 @@ function bpLogoDoTime(string $sigla): ?string
  * A versão exata (sem arredondar) alimenta a curva histórica — é o que faz
  * dois builds parecidos não caírem na mesma posição do top 100.
  */
-function bpCalcularOvrExato(array $slots): float
+/**
+ * OVR ponderado pela posição: um pivô não é avaliado pelo drible nem um armador
+ * pelo tamanho (ver buildPesosDoGrupo). A soma dos pesos é normalizada aqui, então
+ * mexer num peso não obriga a rebalancear os outros.
+ */
+function bpCalcularOvrExato(array $slots, string $grupo = 'GUARD'): float
 {
-    $attrs = array_keys(buildAtributos());
-    $soma = 0;
-    foreach ($attrs as $a) {
-        $soma += buildValorDaLetra((int)($slots[$a]['nivel'] ?? 0));
+    $pesos = buildPesosDoGrupo($grupo);
+    $num = 0.0;
+    $den = 0.0;
+    foreach ($pesos as $a => $peso) {
+        $num += buildValorDaLetra((int)($slots[$a]['nivel'] ?? 0)) * $peso;
+        $den += $peso;
     }
-    return $soma / count($attrs);
+    return $den > 0 ? $num / $den : 0.0;
 }
 
-function bpCalcularOvr(array $slots): int
+function bpCalcularOvr(array $slots, string $grupo = 'GUARD'): int
 {
-    return (int)round(bpCalcularOvrExato($slots));
+    return (int)round(bpCalcularOvrExato($slots, $grupo));
 }
 
 /** Nome e camisa como o jogador digitou — limpos, com limite e sem vazio. */
@@ -309,15 +316,32 @@ if (($_POST['acao'] ?? '') !== '') {
         if ($acao === 'escolher') {
             $attr = (string)($_POST['atributo'] ?? '');
             if (!in_array($attr, $attrs, true)) { echo json_encode(['ok' => false, 'msg' => 'Atributo inválido.']); exit; }
-            if (empty($partida['atual_player_id'])) { echo json_encode(['ok' => false, 'msg' => 'Gire primeiro.']); exit; }
-            if ($partida['slots'][$attr] !== null) { echo json_encode(['ok' => false, 'msg' => 'Esse slot já está preenchido.']); exit; }
+
+            // Trava a partida e RELÊ o estado: sem isso, dois cliques simultâneos no último slot
+            // liam os dois "slot vazio", ambos fechavam o build e o prêmio era pago em dobro.
+            $pdo->beginTransaction();
+            $stLock = $pdo->prepare("SELECT * FROM build_partidas WHERE id = ? AND id_usuario = ? FOR UPDATE");
+            $stLock->execute([(int)$partida['id'], $user_id]);
+            $fresca = $stLock->fetch(PDO::FETCH_ASSOC);
+            if (!$fresca || $fresca['concluido_em'] !== null) {
+                $pdo->rollBack();
+                echo json_encode(['ok' => false, 'msg' => 'Esse build já foi finalizado.']);
+                exit;
+            }
+            $partida['slots']           = json_decode((string)$fresca['slots'], true) ?: $partida['slots'];
+            $partida['usados']          = json_decode((string)$fresca['usados'], true) ?: [];
+            $partida['atual_player_id'] = $fresca['atual_player_id'];
+            $partida['grupo']           = $fresca['grupo'];
+
+            if (empty($partida['atual_player_id'])) { $pdo->rollBack(); echo json_encode(['ok' => false, 'msg' => 'Gire primeiro.']); exit; }
+            if ($partida['slots'][$attr] !== null) { $pdo->rollBack(); echo json_encode(['ok' => false, 'msg' => 'Esse slot já está preenchido.']); exit; }
 
             $st = $pdo->prepare("SELECT n.*, p.nome FROM build_notas n
                                  INNER JOIN hoopgrid_players p ON p.id = n.player_id
                                  WHERE n.player_id = ? LIMIT 1");
             $st->execute([(int)$partida['atual_player_id']]);
             $lenda = $st->fetch(PDO::FETCH_ASSOC);
-            if (!$lenda) { echo json_encode(['ok' => false, 'msg' => 'Lenda não encontrada.']); exit; }
+            if (!$lenda) { $pdo->rollBack(); echo json_encode(['ok' => false, 'msg' => 'Lenda não encontrada.']); exit; }
 
             $slots = $partida['slots'];
             $slots[$attr] = [
@@ -331,7 +355,8 @@ if (($_POST['acao'] ?? '') !== '') {
             $faltam = count(array_filter($slots, fn($s) => $s === null));
             $terminou = $faltam === 0;
 
-            $ovr = $terminou ? bpCalcularOvr($slots) : null;
+            $grupoBuild = (string)$partida['grupo'];
+            $ovr = $terminou ? bpCalcularOvr($slots, $grupoBuild) : null;
             $pdo->prepare("UPDATE build_partidas SET slots=?, usados=?, atual_player_id=NULL, ovr=?, concluido_em=? WHERE id=?")
                 ->execute([
                     json_encode($slots), json_encode($usados), $ovr,
@@ -344,8 +369,8 @@ if (($_POST['acao'] ?? '') !== '') {
                 // Fecha a temporada aqui, no servidor, e grava. Se o sorteio do
                 // time e a simulação ficassem pro carregamento da tela final,
                 // bastava dar F5 pra jogar de novo até sair campeão.
-                $grupo  = (string)$partida['grupo'];
-                $hist   = buildPosicaoHistorica(bpCalcularOvrExato($slots), $grupo);
+                $grupo  = $grupoBuild;
+                $hist   = buildPosicaoHistorica(bpCalcularOvrExato($slots, $grupo), $grupo);
                 $time   = buildSortearTime();
                 $season = buildSimularTemporada($slots, (int)$ovr, $time, $grupo);
                 $season['time'] = $time;
@@ -372,12 +397,14 @@ if (($_POST['acao'] ?? '') !== '') {
                 ];
             }
 
+            $pdo->commit();
             echo json_encode($resposta);
             exit;
         }
 
         echo json_encode(['ok' => false, 'msg' => 'Ação desconhecida.']);
     } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('[buildplayer] ' . $e->getMessage());
         echo json_encode(['ok' => false, 'msg' => 'Erro interno. Tente de novo.']);
     }
