@@ -1696,6 +1696,27 @@ if (($_POST['acao'] ?? '') !== '') {
             exit;
         }
 
+        // Um código só, dois destinos possíveis: o campo "Código" e o link de
+        // convite servem tanto pra duelo quanto pra copa, então quem pergunta é o
+        // cliente, que depois chama 'entrar' ou 'copa_entrar'.
+        if ($acao === 'tipo_codigo') {
+            $codigo = strtoupper(trim((string)($_POST['codigo'] ?? '')));
+            $tipo = null;
+            if ($codigo !== '') {
+                $st = $pdo->prepare('SELECT 1 FROM dreamteam_copas WHERE codigo = ?');
+                $st->execute([$codigo]);
+                if ($st->fetchColumn()) {
+                    $tipo = 'copa';
+                } else {
+                    $st = $pdo->prepare('SELECT 1 FROM dreamteam_duelos WHERE codigo = ?');
+                    $st->execute([$codigo]);
+                    if ($st->fetchColumn()) $tipo = 'duelo';
+                }
+            }
+            echo json_encode(['ok' => true, 'tipo' => $tipo]);
+            exit;
+        }
+
         // ── COPA ────────────────────────────────────────────────────────────
         if ($acao === 'copa_criar') {
             if (dtCopaEmAndamento($pdo, $user_id)) { echo json_encode(['ok' => false, 'msg' => 'Você já está numa copa.']); exit; }
@@ -2266,7 +2287,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 const POSICOES = ['PG', 'SG', 'SF', 'PF', 'C'];
 const MEU_USER_ID = <?= $user_id ?>;
 const DT_APOSTA_ALEATORIA = <?= DT_APOSTA_ALEATORIA ?>;
-let ESTADO_INICIAL = <?= json_encode($estadoInicial) ?>;
+let ESTADO_INICIAL = { duelo: <?= json_encode($estadoInicial) ?>, copa: <?= json_encode($copaInicial) ?> };
+const DT_COPA_APOSTA_PADRAO = 30;
+// Copa encerrada que a pessoa já viu e dispensou — mesma ideia do dueloDispensadoId.
+let copaDispensadaId = parseInt(localStorage.getItem('dt_copa_dispensada') || '', 10) || null;
+let copaAnimadaId = parseInt(localStorage.getItem('dt_copa_animada') || '', 10) || null; // chave cuja animação já rodou
+let copaEmAnimacao = false;
+let copaTamanhoSel = 4;
 // dueloDispensadoId/resultadoFinalId guardados no localStorage (não só em memória) — senão um
 // F5 ou sair-e-voltar pra página perdia essas marcações e o simcast rodava de novo do zero, ou
 // a tela de resultado já vista/dispensada reaparecia como se fosse novidade.
@@ -2324,9 +2351,8 @@ function renderCriarEntrar() {
       <div class="dtcard-title"><i class="bi bi-trophy me-1"></i>Starting5x5</div>
       <p class="dtcard-sub">Gire a roleta de escalações históricas e escolha 1 jogador por vez pra montar seu titular (PG/SG/SF/PF/C). Aposte moedas e desafie um amigo — ou a máquina.</p>
       <div class="dt-tabs">
-        <?php /* A aba da Copa (mata-mata de 4/8) entra quando a tela dela estiver
-                 pronta — o back-end já existe mais acima, mas sem UI ainda. */ ?>
         <div class="dt-tab dt-tab-destaque active" id="dtTabAleatorio" onclick="dtTrocarTab('aleatorio')">⚡ Aleatório</div>
+        <div class="dt-tab" id="dtTabCopa" onclick="dtTrocarTab('copa')">🏆 Copa</div>
         <div class="dt-tab" id="dtTabCriar" onclick="dtTrocarTab('criar')">Amigo</div>
         <div class="dt-tab" id="dtTabEntrar" onclick="dtTrocarTab('entrar')">Código</div>
         <div class="dt-tab" id="dtTabCpu" onclick="dtTrocarTab('cpu')">CPU 🤖</div>
@@ -2416,9 +2442,27 @@ function dtTrocarTab(tab) {
   document.getElementById('dtTabCriar').classList.toggle('active', tab === 'criar');
   document.getElementById('dtTabEntrar').classList.toggle('active', tab === 'entrar');
   document.getElementById('dtTabAleatorio').classList.toggle('active', tab === 'aleatorio');
+  document.getElementById('dtTabCopa').classList.toggle('active', tab === 'copa');
   document.getElementById('dtTabCpu').classList.toggle('active', tab === 'cpu');
   const c = document.getElementById('dtTabConteudo');
-  if (tab === 'criar') {
+  if (tab === 'copa') {
+    c.innerHTML = `
+      <div class="field" style="margin-bottom:12px">
+        <label>Tamanho da copa</label>
+        <div class="dt-tabs" style="margin-bottom:0">
+          <div class="dt-tab active" id="dtCopaTam4" onclick="dtCopaTamanho(4)">4 times</div>
+          <div class="dt-tab" id="dtCopaTam8" onclick="dtCopaTamanho(8)">8 times</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Entrada por jogador (1 a 100 moedas)</label>
+        <input type="number" id="dtCopaAposta" min="1" max="100" value="${DT_COPA_APOSTA_PADRAO}" oninput="dtCopaAtualizarPote()">
+        <p class="field-hint" id="dtCopaHint"></p>
+      </div>
+      <button class="btn-dt" id="dtBtnCopaCriar" onclick="dtCopaCriar()"><i class="bi bi-trophy me-2"></i>Abrir copa</button>
+      <p class="field-hint" style="margin-top:10px">Mata-mata de verdade: quando a copa enche, todo mundo monta seu titular ao mesmo tempo, a chave é sorteada e os jogos rolam até sobrar um. O campeão leva o pote inteiro.</p>`;
+    dtCopaTamanho(copaTamanhoSel);
+  } else if (tab === 'criar') {
     c.innerHTML = `
       <div class="field">
         <label>Aposta (1 a 100 moedas)</label>
@@ -2541,7 +2585,14 @@ async function dtCriarDuelo() {
 async function dtEntrarDuelo() {
   const codigo = document.getElementById('dtCodigo').value.trim().toUpperCase();
   if (!codigo) return;
-  await dtAcaoBotao('dtBtnEntrar', 'entrar', { codigo });
+  // O mesmo campo (e o mesmo link de convite) serve pra duelo e pra copa — o
+  // servidor diz qual dos dois é aquele código antes de entrar.
+  let acao = 'entrar';
+  try {
+    const r = await dtPost('tipo_codigo', { codigo });
+    if (r.ok && r.tipo === 'copa') acao = 'copa_entrar';
+  } catch (e) { /* sem resposta, tenta como duelo mesmo */ }
+  await dtAcaoBotao('dtBtnEntrar', acao, { codigo });
 }
 
 async function dtCriarVsCpu() {
@@ -2708,7 +2759,7 @@ async function dtReposicionar(de, para) {
   if (processando) return;
   processando = true;
   try {
-    const r = await dtPost('reposicionar_jogador', { de, para });
+    const r = await dtPost(dtAcao("reposicionar"), { de, para });
     if (!r.ok) { await dtAlerta(r.msg); return; }
     await atualizar(true);
   } catch (e) {
@@ -2770,6 +2821,7 @@ function dtCardSorteio(meuRoster, timeSorteado, rerollDisponivel, podeAgir) {
 }
 
 function renderDraft(duelo) {
+  dtContexto = 'duelo';
   const meuTotal = dtSomaRosterJs(duelo.meu_roster);
   const oponenteTotal = dtSomaRosterJs(duelo.oponente_roster);
 
@@ -2809,7 +2861,7 @@ async function dtEscolherJogador(nome, posicao) {
   if (processando) return;
   processando = true;
   try {
-    const r = await dtPost('escolher_jogador', { jogador: nome, posicao });
+    const r = await dtPost(dtAcao("escolher"), { jogador: nome, posicao });
     if (!r.ok) { await dtAlerta(r.msg); return; }
     await atualizar();
   } catch (e) {
@@ -2819,12 +2871,26 @@ async function dtEscolherJogador(nome, posicao) {
   }
 }
 
+/**
+ * Duelo e copa usam a mesma tela de montagem (dtCardSorteio, dtRenderRoster,
+ * dtCliqueJogador) — o que muda é qual ação vai pro servidor. Em vez de duplicar
+ * o HTML, quem renderiza define o contexto e as funções abaixo despacham.
+ */
+let dtContexto = 'duelo';
+function dtAcao(nome) {
+  const mapa = {
+    duelo: { sortear: 'sortear_time', girar: 'girar_de_novo', escolher: 'escolher_jogador', reposicionar: 'reposicionar_jogador' },
+    copa:  { sortear: 'copa_sortear',  girar: 'copa_girar',    escolher: 'copa_escolher',    reposicionar: 'copa_reposicionar' },
+  };
+  return mapa[dtContexto][nome];
+}
+
 async function dtGirarDeNovo() {
-  await dtAcaoBotao('dtBtnGirar', 'girar_de_novo');
+  await dtAcaoBotao('dtBtnGirar', dtAcao('girar'));
 }
 
 async function dtSortearTime() {
-  await dtAcaoBotao('dtBtnSortear', 'sortear_time');
+  await dtAcaoBotao('dtBtnSortear', dtAcao('sortear'));
 }
 
 async function dtDesistir() {
@@ -3007,13 +3073,292 @@ function renderResultadoFinal(duelo) {
 function dtNovoDuelo(dueloId) {
   dueloDispensadoId = dueloId;
   localStorage.setItem('dt_dispensado_id', String(dueloId));
-  ESTADO_INICIAL = null;
+  ESTADO_INICIAL = { duelo: null, copa: null };
   renderCriarEntrar();
 }
 
+/** Sai da tela da copa encerrada e libera a pessoa pra entrar em outra. */
+async function dtCopaSairEncerrada(copaId) {
+  copaDispensadaId = copaId;
+  localStorage.setItem('dt_copa_dispensada', String(copaId));
+  ESTADO_INICIAL = { duelo: null, copa: null };
+  renderCriarEntrar();
+  try { await dtPost('copa_sair_encerrada'); } catch (e) { /* a tela já saiu; o servidor limpa no próximo acesso */ }
+}
+
+// ── Copa (mata-mata de 4 ou 8) ──────────────────────────────────────────────
+function dtCopaTamanho(n) {
+  copaTamanhoSel = n;
+  document.getElementById('dtCopaTam4')?.classList.toggle('active', n === 4);
+  document.getElementById('dtCopaTam8')?.classList.toggle('active', n === 8);
+  dtCopaAtualizarPote();
+}
+
+function dtCopaAtualizarPote() {
+  const hint = document.getElementById('dtCopaHint');
+  if (!hint) return;
+  const aposta = parseInt(document.getElementById('dtCopaAposta')?.value, 10);
+  if (!Number.isFinite(aposta) || aposta < 1) { hint.textContent = 'Informe a entrada.'; return; }
+  hint.innerHTML = `Debitada ao entrar. Com ${copaTamanhoSel} jogadores o campeão leva <strong>${aposta * copaTamanhoSel} moedas</strong>.`;
+}
+
+async function dtCopaCriar() {
+  const aposta = parseInt(document.getElementById('dtCopaAposta').value, 10);
+  await dtAcaoBotao('dtBtnCopaCriar', 'copa_criar', { tamanho: copaTamanhoSel, aposta });
+}
+
+async function dtCopaSair() {
+  const msg = 'Sair da copa? Sua entrada volta pra você.';
+  if (!(await dtConfirmar(msg))) return;
+  await dtAcaoBotao('dtBtnCopaSair', 'copa_sair');
+}
+
+function renderCopa(copa) {
+  if (copa.status === 'aguardando') { renderCopaLobby(copa); return; }
+  if (copa.status === 'draft') { renderCopaDraft(copa); return; }
+  if (copa.status === 'encerrada') { renderCopaChave(copa); return; }
+  renderCriarEntrar();
+}
+
+/** Sala de espera: quem já entrou, quantas vagas faltam e o link pra chamar gente. */
+function renderCopaLobby(copa) {
+  const vagas = [];
+  copa.participantes.forEach(p => {
+    const eu = p.user_id === MEU_USER_ID;
+    vagas.push(`<div class="dt-copa-vaga${eu ? ' eu' : ''}">
+      ${dtLogoImg(p.logo)}<span class="dt-copa-vaga-nome">${esc(p.nome)}${eu ? ' (você)' : ''}</span>
+    </div>`);
+  });
+  for (let i = 0; i < copa.vagas; i++) {
+    vagas.push(`<div class="dt-copa-vaga livre"><i class="bi bi-hourglass me-1"></i>vaga aberta</div>`);
+  }
+
+  document.getElementById('dtMain').innerHTML = `
+    <div class="dtcard">
+      <div class="dtcard-title"><i class="bi bi-trophy me-1"></i>Copa de ${copa.tamanho} — sala de espera</div>
+      <div class="dt-copa-pote">
+        <strong>${copa.pote}</strong><span>moedas pro campeão</span>
+      </div>
+      <div class="dt-copa-vagas">${vagas.join('')}</div>
+      <div class="dt-codigo-box">
+        <div class="dt-codigo-valor">${esc(copa.codigo)}</div>
+        <div class="dt-codigo-label">Código da copa</div>
+      </div>
+      <button class="btn-dt" id="dtBtnCopaLink" onclick="dtCopiarLink('${copa.codigo}')"><i class="bi bi-link-45deg me-2"></i>Copiar link do convite</button>
+      <div class="dt-spinner"></div>
+      <p class="dt-empty">${copa.vagas === 1 ? 'Falta 1 pessoa' : `Faltam ${copa.vagas} pessoas`} pra começar. Assim que encher, todo mundo monta o time ao mesmo tempo.</p>
+      <button class="btn-dt-ghost" id="dtBtnCopaSair" onclick="dtCopaSair()">
+        <i class="bi bi-x-circle me-1"></i>${copa.sou_criador ? 'Cancelar a copa e devolver as entradas' : 'Sair e receber a entrada de volta'}
+      </button>
+    </div>`;
+}
+
+/** Draft da copa: cada um monta o seu, no próprio ritmo, com prazo comum. */
+function renderCopaDraft(copa) {
+  dtContexto = 'copa';
+  const prontos = copa.participantes.filter(p => p.pronto).length;
+  let html = `<div class="dtcard" style="margin-bottom:10px">
+    <div class="dtcard-title" style="margin-bottom:8px"><i class="bi bi-people me-1"></i>Copa de ${copa.tamanho} — montando os times</div>
+    <div class="dt-copa-timer" id="dtCopaTimer"></div>
+    <div class="dt-copa-vagas" style="margin-bottom:0">
+      ${copa.participantes.map(p => `
+        <div class="dt-copa-vaga${p.user_id === MEU_USER_ID ? ' eu' : ''}">
+          ${dtLogoImg(p.logo)}<span class="dt-copa-vaga-nome">${esc(p.nome)}</span>
+          <span class="dt-copa-pronto ${p.pronto ? 'sim' : 'nao'}">${p.pronto ? 'pronto' : 'montando'}</span>
+        </div>`).join('')}
+    </div>
+    <p class="dt-empty" style="margin-top:10px">${prontos} de ${copa.tamanho} já fecharam o time.</p>
+  </div>`;
+
+  html += dtRenderRoster('Seu time', copa.meu_roster, dtSomaRosterJs(copa.meu_roster), !copa.estou_pronto, copa.participantes.find(p => p.user_id === MEU_USER_ID)?.logo || null);
+
+  if (copa.estou_pronto) {
+    html += `<div class="dtcard" style="text-align:center">
+      <div class="dtcard-title" style="margin-bottom:6px">Time fechado</div>
+      <p class="dtcard-sub" style="margin-bottom:0">Agora é esperar os outros. Quando o último fechar (ou o prazo acabar), a chave é sorteada e os jogos começam.</p>
+      <div class="dt-spinner"></div>
+    </div>`;
+  } else {
+    html += dtCardSorteio(copa.meu_roster, copa.time_sorteado, copa.reroll_disponivel, true);
+  }
+
+  document.getElementById('dtMain').innerHTML = html;
+  dtCopaTicTimer(copa.segundos_restantes);
+}
+
+/**
+ * Conta o prazo do draft no cliente, de 1 em 1 segundo. Fica fora do estado que
+ * o poll compara (ver atualizar) — senão o cronômetro sozinho já mudaria o hash
+ * a cada 3s e a tela seria reconstruída no meio da escolha de alguém.
+ */
+function dtCopaTicTimer(segundos) {
+  clearInterval(window.__dtCopaTimer);
+  if (segundos === null || segundos === undefined) return;
+  let restam = Math.max(0, segundos);
+  const pinta = () => {
+    const el = document.getElementById('dtCopaTimer');
+    if (!el) { clearInterval(window.__dtCopaTimer); return; }
+    const m = Math.floor(restam / 60), s = restam % 60;
+    el.textContent = restam > 0
+      ? `Prazo pra montar: ${m}:${String(s).padStart(2, '0')}`
+      : 'Prazo encerrado — fechando a chave...';
+    el.classList.toggle('urgente', restam <= 60);
+    if (restam-- <= 0) clearInterval(window.__dtCopaTimer);
+  };
+  pinta();
+  window.__dtCopaTimer = setInterval(pinta, 1000);
+}
+
+// ── Chave ───────────────────────────────────────────────────────────────────
+function dtCopaJogoHtml(p, faseIdx, jogoIdx, revelado) {
+  const r = p.resultado;
+  const souEu = p.a.user_id === MEU_USER_ID || p.b.user_id === MEU_USER_ID;
+  const vencA = revelado && r.vencedor === 'a';
+  const vencB = revelado && r.vencedor === 'b';
+  const lado = (t, placar, venceu, perdeu) => `
+    <div class="dt-jogo-lado ${venceu ? 'venceu' : (perdeu ? 'perdeu' : '')}">
+      ${dtLogoImg(t.logo)}
+      <span class="dt-jogo-nome">${esc(t.nome)}</span>
+      <span class="dt-jogo-placar">${revelado ? placar : '–'}</span>
+    </div>`;
+  return `<div class="dt-jogo${souEu ? ' meu' : ''}" id="dtJogo${faseIdx}_${jogoIdx}">
+    ${lado(p.a, r.placar_a, vencA, revelado && !vencA)}
+    ${lado(p.b, r.placar_b, vencB, revelado && !vencB)}
+    ${revelado ? `<button class="dt-ver-mais" onclick="dtCopaVerJogo(${faseIdx},${jogoIdx})">ver o jogo</button>
+      <div class="dt-jogo-detalhe" id="dtDet${faseIdx}_${jogoIdx}" style="display:none"></div>` : ''}
+  </div>`;
+}
+
+function dtCopaVerJogo(faseIdx, jogoIdx) {
+  const box = document.getElementById(`dtDet${faseIdx}_${jogoIdx}`);
+  if (!box) return;
+  if (box.style.display !== 'none') { box.style.display = 'none'; return; }
+  const p = window.__dtChave.fases[faseIdx].partidas[jogoIdx];
+  const r = p.resultado;
+  const qa = r.quartos.map(q => q.a);
+  const qb = r.quartos.map(q => q.b);
+  const linha = (t, meus, outros, total, venceu) => `
+    <tr>
+      <td class="dt-qt-time"><span class="dt-qt-time-wrap">${dtLogoImg(t.logo)}<span>${esc(t.nome)}</span></span></td>
+      ${meus.map((q, i) => `<td class="${q > outros[i] ? 'dt-qt-venceu' : ''}">${q}</td>`).join('')}
+      <td class="dt-qt-total ${venceu ? 'liderando' : ''}">${total}</td>
+    </tr>`;
+  box.innerHTML = `
+    <table class="dt-qt-tabela">
+      <thead><tr><th>Time</th><th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th class="dt-qt-col-total">Total</th></tr></thead>
+      <tbody>
+        ${linha(p.a, qa, qb, r.placar_a, r.vencedor === 'a')}
+        ${linha(p.b, qb, qa, r.placar_b, r.vencedor === 'b')}
+      </tbody>
+    </table>
+    ${dtRenderBoxscore(p.a.nome, r.boxscore_a)}
+    ${dtRenderBoxscore(p.b.nome, r.boxscore_b)}`;
+  box.style.display = '';
+}
+
+function dtCopaChaveHtml(chave, revelados) {
+  return `<div class="dt-chave">${chave.fases.map((f, fi) => {
+    // Fase só aparece depois que a anterior terminou de ser revelada.
+    const jogosRevelados = revelados[fi] ?? 0;
+    if (fi > 0 && jogosRevelados === 0 && (revelados[fi - 1] ?? 0) < chave.fases[fi - 1].partidas.length) return '';
+    return `<div>
+      <div class="dt-fase-titulo">${esc(f.nome)}</div>
+      ${f.partidas.map((p, pi) => dtCopaJogoHtml(p, fi, pi, pi < jogosRevelados)).join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderCopaChave(copa) {
+  const chave = copa.chave;
+  if (!chave) { renderCriarEntrar(); return; }
+  window.__dtChave = chave;
+
+  const jaViu = copa.id === copaAnimadaId;
+  if (jaViu) { dtCopaPintarFinal(copa, chave); return; }
+  if (copaEmAnimacao) return;
+  dtCopaAnimar(copa, chave);
+}
+
+/** Revela a chave jogo a jogo, fase a fase — é o "assistir a copa acontecer". */
+async function dtCopaAnimar(copa, chave) {
+  copaEmAnimacao = true;
+  const revelados = chave.fases.map(() => 0);
+  const pintar = () => {
+    document.getElementById('dtMain').innerHTML = `
+      <div class="dtcard" style="margin-bottom:12px">
+        <div class="dtcard-title" style="margin-bottom:2px"><i class="bi bi-trophy me-1"></i>Copa de ${copa.tamanho}</div>
+        <p class="dtcard-sub" style="margin-bottom:0">${copa.pote} moedas em jogo. Acompanhe a chave.</p>
+      </div>
+      ${dtCopaChaveHtml(chave, revelados)}`;
+  };
+  pintar();
+  await new Promise(r => setTimeout(r, 700));
+
+  for (let fi = 0; fi < chave.fases.length; fi++) {
+    for (let pi = 0; pi < chave.fases[fi].partidas.length; pi++) {
+      revelados[fi] = pi + 1;
+      pintar();
+      const meu = chave.fases[fi].partidas[pi];
+      const souEu = meu.a.user_id === MEU_USER_ID || meu.b.user_id === MEU_USER_ID;
+      document.getElementById(`dtJogo${fi}_${pi}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // O próprio jogo respira um pouco mais — é o que a pessoa quer ver.
+      await new Promise(r => setTimeout(r, souEu ? 1500 : 850));
+    }
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  copaAnimadaId = copa.id;
+  localStorage.setItem('dt_copa_animada', String(copa.id));
+  copaEmAnimacao = false;
+  dtCopaPintarFinal(copa, chave);
+}
+
+function dtCopaPintarFinal(copa, chave) {
+  const revelados = chave.fases.map(f => f.partidas.length);
+  const c = chave.campeao;
+  const logo = c.logo ? `<img src="${esc(c.logo)}" alt="">` : '';
+  document.getElementById('dtMain').innerHTML = `
+    <div class="dt-acoes-fim">
+      <button class="btn-dt-ghost" onclick="dtCopaSairEncerrada(${copa.id})" style="margin-top:0"><i class="bi bi-list me-1"></i>Menu</button>
+    </div>
+    <div class="dt-campeao">
+      <div class="dt-campeao-coroa">🏆</div>
+      ${logo}
+      <div class="dt-campeao-rotulo">${copa.sou_campeao ? 'Você é o campeão' : 'Campeão da copa'}</div>
+      <div class="dt-campeao-nome">${esc(c.nome)}</div>
+      <div class="dt-campeao-premio">${copa.sou_campeao
+        ? `Levou <strong>+${chave.pote} moedas</strong>`
+        : `Levou <strong>${chave.pote} moedas</strong>`}</div>
+    </div>
+    ${dtCopaChaveHtml(chave, revelados)}`;
+}
+
+// Quem chegou por um link de convite quer ENTRAR em algo, não rever o que já
+// acabou. Sem isso a pessoa clicava no link e caía na tela do último jogo dela,
+// parecendo que o link não funcionou. Partida/copa em andamento continua vindo
+// na frente — aí ela realmente precisa terminar antes.
+const DT_VEIO_DE_LINK = !!new URLSearchParams(window.location.search).get('codigo');
+function dtEncerrado(status) {
+  return status === 'simulado' || status === 'encerrada';
+}
+
 // ── Orquestração ─────────────────────────────────────────────────────────────
-function renderTela(duelo) {
+// A copa tem prioridade sobre o duelo: são telas alternativas e o servidor não
+// deixa a pessoa estar nas duas, então quando existe copa ativa é ela que manda.
+function renderTela(estado) {
+  const duelo = estado ? estado.duelo : null;
+  const copa = estado ? estado.copa : null;
+  if (copa && copa.status === 'encerrada' && (copa.id === copaDispensadaId || DT_VEIO_DE_LINK)) {
+    renderTelaDuelo(duelo);
+    return;
+  }
+  if (copa) { renderCopa(copa); return; }
+  renderTelaDuelo(duelo);
+}
+
+function renderTelaDuelo(duelo) {
   if (!duelo) { renderCriarEntrar(); return; }
+  if (dtEncerrado(duelo.status) && DT_VEIO_DE_LINK) { renderCriarEntrar(); return; }
   if (duelo.status === 'simulado' && duelo.id === dueloDispensadoId) { renderCriarEntrar(); return; }
   if (duelo.status === 'aguardando') { renderAguardando(duelo); return; }
   if (duelo.status === 'convite') { renderConvite(duelo); return; }
@@ -3036,10 +3381,13 @@ async function atualizar(forcar = false) {
     const r = await dtPost('estado');
     if (!r.ok) return;
     document.getElementById('chipSaldo').textContent = r.pontos;
-    const hash = JSON.stringify(r.duelo);
+    const estado = { duelo: r.duelo, copa: r.copa };
+    // O cronômetro do draft da copa muda a cada segundo; fora do hash pra não
+    // forçar re-render de 3 em 3 segundos só por causa dele (ver dtCopaTicTimer).
+    const hash = JSON.stringify(estado, (k, v) => k === 'segundos_restantes' ? undefined : v);
     if (hash === ultimoEstadoHash && !forcar) return;
     ultimoEstadoHash = hash;
-    renderTela(r.duelo);
+    renderTela(estado);
   } catch (e) { /* silencioso — próximo poll tenta de novo */ }
 }
 
