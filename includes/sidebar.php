@@ -72,6 +72,7 @@ if (!function_exists('sbActive')) {
         <a href="/my-roster.php"<?= sbActive('my-roster.php', $__sbCurrent) ?>><i class="bi bi-person-fill"></i> Meu Elenco</a>
         <a href="/tatica.php"<?= sbActive('tatica.php', $__sbCurrent) ?>><i class="bi bi-clipboard2-pulse"></i> Tática</a>
         <a href="/players.php"<?= sbActive('players.php', $__sbCurrent) ?>><i class="bi bi-person-lines-fill"></i> Jogadores</a>
+        <a href="/statsjogadores.php"<?= sbActive('statsjogadores.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-line-fill"></i> Stats</a>
         <a href="/picks.php"<?= sbActive('picks.php', $__sbCurrent) ?>><i class="bi bi-calendar-check-fill"></i> Picks</a>
         <a href="/trades.php"<?= sbActive('trades.php', $__sbCurrent) ?>><i class="bi bi-arrow-left-right"></i> Trades</a>
         <a href="/mercado.php"<?= sbActive('mercado.php', $__sbCurrent) ?>><i class="bi bi-shop"></i> Mercado</a>

@@ -779,14 +779,16 @@ if ($teamId) {
                     </select>
                     <div class="toolbar-sep"></div>
                     <?php // A atualizacao (foto e manual) mora em atualizar-elenco.php. ?>
-                    <a href="/atualizar-elenco.php" class="btn-ghost" title="Atualizar OVR, idade, atributos e estatísticas">
+                    <?php // Atualizar leva o destaque: e a acao principal desta tela.
+                          // A Analise IA e acessoria e voltou a ser um botao comum. ?>
+                    <a href="/atualizar-elenco.php" class="btn-ghost-blue" title="Atualizar OVR, idade, atributos e estatísticas">
                         <i class="bi bi-arrow-repeat"></i> Atualizar
                     </a>
                     <a href="/tatica.php" class="btn-ghost" title="Quinteto, minutos e sistema de jogo">
                         <i class="bi bi-clipboard2-pulse"></i> Tática
                     </a>
                     <!-- IA -->
-                    <button id="btn-ai-analysis" class="btn-ghost-blue" type="button">
+                    <button id="btn-ai-analysis" class="btn-ghost" type="button">
                         <i class="bi bi-robot"></i> Análise IA
                     </button>
                     <!-- Refresh -->
