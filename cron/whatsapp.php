@@ -28,7 +28,16 @@ if (!whatsappConfig($pdo)) {
 }
 
 $r = whatsappProcessarFila($pdo, 200);
-$linha = sprintf('[%s] whatsapp enviadas=%d falhas=%d', date('Y-m-d H:i:s'), $r['enviadas'], $r['falhas']);
+
+if (!empty($r['fora_da_janela'])) {
+    // Não é erro: fora do horário combinado a fila fica esperando de propósito.
+    $pend = (int)$pdo->query("SELECT COUNT(*) FROM whatsapp_fila
+                              WHERE enviado_em IS NULL AND tentativas < " . WHATSAPP_MAX_TENTATIVAS)->fetchColumn();
+    $linha = sprintf('[%s] whatsapp fora da janela (%s-%s) — %d na fila esperando',
+        date('Y-m-d H:i:s'), WHATSAPP_JANELA_INICIO, WHATSAPP_JANELA_FIM, $pend);
+} else {
+    $linha = sprintf('[%s] whatsapp enviadas=%d falhas=%d', date('Y-m-d H:i:s'), $r['enviadas'], $r['falhas']);
+}
 
 echo $linha . "\n";
 

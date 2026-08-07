@@ -31,6 +31,29 @@ const WHATSAPP_MAX_TENTATIVAS = 8;
  */
 const WHATSAPP_BACKOFF_MIN = [1, 2, 5, 15, 30, 60, 120, 240];
 
+/**
+ * Janela de envio (horário de Brasília). Fora dela nada sai.
+ *
+ * O grupo é de gente real: aviso de trade às 3 da manhã acorda todo mundo.
+ * A mensagem não se perde — fica na fila e sai na abertura da janela.
+ */
+const WHATSAPP_JANELA_INICIO = '08:45';
+const WHATSAPP_JANELA_FIM    = '18:00';
+
+/**
+ * Estamos dentro da janela de envio?
+ *
+ * Fuso fixo de propósito: o horário combinado é o de Brasília, e o servidor
+ * não necessariamente está nele.
+ */
+function whatsappDentroDaJanela(?DateTimeImmutable $agora = null): bool
+{
+    $tz = new DateTimeZone('America/Sao_Paulo');
+    $agora = $agora ? $agora->setTimezone($tz) : new DateTimeImmutable('now', $tz);
+    $hhmm = $agora->format('H:i');
+    return $hhmm >= WHATSAPP_JANELA_INICIO && $hhmm < WHATSAPP_JANELA_FIM;
+}
+
 function ensureWhatsAppTables(PDO $pdo): void
 {
     static $pronto = false;
@@ -188,9 +211,17 @@ function whatsappPostar(array $cfg, string $destino, string $texto): array
  */
 function whatsappProcessarFila(PDO $pdo, int $limite = 10): array
 {
-    $out = ['enviadas' => 0, 'falhas' => 0];
+    $out = ['enviadas' => 0, 'falhas' => 0, 'fora_da_janela' => false];
     $cfg = whatsappConfig($pdo);
     if (!$cfg) return $out;
+
+    // Único ponto por onde todo envio passa — o imediato (via shutdown) e o do
+    // cron. Barrando aqui, a mensagem gerada de madrugada fica na fila com as
+    // tentativas intactas e sai quando a janela abre, sem queimar o backoff.
+    if (!whatsappDentroDaJanela()) {
+        $out['fora_da_janela'] = true;
+        return $out;
+    }
 
     try {
         $stmt = $pdo->prepare("SELECT id, destino, texto, tentativas FROM whatsapp_fila
