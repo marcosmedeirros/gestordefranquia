@@ -50,6 +50,39 @@ function ensureDeadlineForPick(PDO $pdo, array $pick, DateTimeImmutable $now, in
         ->execute([$deadline->format('Y-m-d H:i:s'), $pick['id']]);
 }
 
+/**
+ * Primeiro da fila do mock do time que ainda esteja disponível.
+ *
+ * O autopick por mock vive em api/initdraft.php (check_autopick), mas quem
+ * dispara aquilo é o poll do navegador — só roda com alguém com a página
+ * aberta. Quando o prazo estoura sem ninguém olhando, quem escolhe é este
+ * cron, e ele ignorava o mock e pegava o melhor OVR. Ou seja: justamente no
+ * cenário pra que o mock existe (o GM ausente), o mock não valia.
+ *
+ * Mesma consulta do check_autopick, pra as duas vias escolherem igual.
+ */
+function pickFromMockQueue(PDO $pdo, int $sessionId, int $teamId): ?int {
+    try {
+        $stmt = $pdo->prepare('SELECT is_active FROM initdraft_mock_settings WHERE team_id = ? AND initdraft_session_id = ?');
+        $stmt->execute([$teamId, $sessionId]);
+        if (empty($stmt->fetchColumn())) return null;
+
+        $stmt = $pdo->prepare("
+            SELECT mq.player_id FROM initdraft_mock_queue mq
+            JOIN initdraft_pool ip ON ip.id = mq.player_id
+            WHERE mq.team_id = ? AND mq.initdraft_session_id = ? AND ip.draft_status = 'available'
+            ORDER BY mq.priority ASC LIMIT 1
+        ");
+        $stmt->execute([$teamId, $sessionId]);
+        $id = $stmt->fetchColumn();
+        return $id ? (int)$id : null;
+    } catch (Throwable $e) {
+        // Tabela de mock ausente numa base antiga não pode travar o cron:
+        // sem mock, segue pro melhor OVR como antes.
+        return null;
+    }
+}
+
 function pickHighestOvrAvailable(PDO $pdo, int $seasonId): ?int {
     $stmt = $pdo->prepare('SELECT id FROM initdraft_pool WHERE season_id = ? AND draft_status = "available" ORDER BY ovr DESC, id ASC LIMIT 1');
     $stmt->execute([$seasonId]);
@@ -180,7 +213,10 @@ foreach ($sessions as $session) {
     $deadline = new DateTimeImmutable($pick['deadline_at'], $now->getTimezone());
     if ($now <= $deadline) continue;
 
-    $playerId = pickHighestOvrAvailable($pdo, (int)$session['season_id']);
+    // Mock do time da vez primeiro; sem mock (ou com a fila toda já draftada),
+    // cai no melhor OVR disponível, como era antes.
+    $playerId = pickFromMockQueue($pdo, (int)$session['id'], (int)$pick['team_id'])
+        ?: pickHighestOvrAvailable($pdo, (int)$session['season_id']);
     if (!$playerId) {
         $pdo->prepare('UPDATE initdraft_sessions SET status = "completed", completed_at = NOW() WHERE id = ?')
             ->execute([$session['id']]);

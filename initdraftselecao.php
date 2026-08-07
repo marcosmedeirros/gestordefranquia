@@ -399,10 +399,11 @@ if ($user && isset($user['id'])) {
         .player-card-wrap { display:flex; flex-direction:column; }
         .pc-rank { position:absolute; top:8px; right:10px; font-size:10px; font-weight:700; color:var(--text-3); }
         .pc-fav { position:absolute; top:6px; left:6px; width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; z-index:2; background:transparent; border:0; color:var(--text-3); transition:all var(--t) var(--ease); }
+        .pc-fav { cursor:pointer; }
         .pc-fav:not(.is-fav):hover { color:var(--red); background:var(--red-soft); }
-        .pc-fav.is-fav { color:var(--red); cursor:default; }
-        .pc-fav.is-fav-removable { cursor:pointer; }
-        .pc-fav.is-fav-removable:hover { color:var(--text); background:rgba(255,255,255,.06); }
+        .pc-fav.is-fav { color:var(--red); }
+        /* Favoritado tambem clica: o hover esmaece pra dizer "clique tira". */
+        .pc-fav.is-fav:hover { color:var(--text-3); background:rgba(255,255,255,.06); }
 
         /* ── Pool: aba Pool x aba Favoritos ── */
         .pool-tabs { display:flex; gap:6px; margin-bottom:12px; border-bottom:1px solid var(--border); }
@@ -669,9 +670,7 @@ if ($user && isset($user['id'])) {
                     </div>
                 </div>
                 <div class="panel-card-body">
-                    <!-- Pool inteiro x só favoritos. O coração aqui no pool é só de
-                         ADICIONAR — tirar dos favoritos só é possível na própria aba,
-                         pra não sumir um favorito sem querer enquanto se navega. -->
+                    <!-- Pool inteiro x só favoritos. O coração alterna nas duas abas. -->
                     <div class="pool-tabs" id="poolTabs">
                         <button type="button" class="pool-tab active" data-tab="all" onclick="setPoolTab('all')">Pool</button>
                         <button type="button" class="pool-tab" data-tab="favorites" onclick="setPoolTab('favorites')"><i class="bi bi-heart-fill"></i> Favoritos <span id="favCount">(0)</span></button>
@@ -1178,12 +1177,12 @@ if ($user && isset($user['id'])) {
                 const pickBtn = (!drafted && canPick) ? `<button class="btn-green pc-pick" onclick="event.stopPropagation();makePick(${p.id}, this)"><i class="bi bi-check2"></i> Escolher</button>` : '';
                 const draftedTag = drafted ? '<span class="badge-drafted">Draftado</span>' : '';
                 const isFav = Number(p.is_favorite) === 1;
-                // Na aba Favoritos o coração remove; no Pool geral ele só adiciona —
-                // já favoritado ali vira um selo fixo, sem ação, pra não sumir um
-                // favorito com um clique acidental enquanto se navega o pool inteiro.
-                const favBtn = !IS_LOGGED_IN ? '' : (uiState.poolTab === 'favorites'
-                    ? `<button type="button" class="pc-fav is-fav is-fav-removable" title="Remover dos favoritos" onclick="event.stopPropagation();toggleFavorite(${p.id})"><i class="bi bi-heart-fill"></i></button>`
-                    : `<button type="button" class="pc-fav ${isFav ? 'is-fav' : ''}" title="${isFav ? 'Favoritado' : 'Favoritar'}" ${isFav ? 'disabled' : `onclick="event.stopPropagation();toggleFavorite(${p.id})"`}><i class="bi bi-heart${isFav ? '-fill' : ''}"></i></button>`);
+                // O coração alterna nas duas abas. Antes, no Pool, o já favoritado
+                // ficava desabilitado (só dava pra remover na aba Favoritos) — a
+                // ideia era evitar remoção acidental, mas na prática todo mundo
+                // clicava de novo esperando desmarcar e nada acontecia.
+                const favBtn = !IS_LOGGED_IN ? '' :
+                    `<button type="button" class="pc-fav ${isFav ? 'is-fav' : ''}${isFav && uiState.poolTab === 'favorites' ? ' is-fav-removable' : ''}" title="${isFav ? 'Remover dos favoritos' : 'Favoritar'}" onclick="event.stopPropagation();toggleFavorite(${p.id})"><i class="bi bi-heart${isFav ? '-fill' : ''}"></i></button>`;
                 return `
                     <div class="player-card-wrap">
                         <div class="player-card ${drafted ? 'is-drafted' : ''}" onclick="openPlayerDetail(${p.id})">
