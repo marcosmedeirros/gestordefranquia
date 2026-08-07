@@ -79,6 +79,17 @@ function ensureWhatsAppTables(PDO $pdo): void
             $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN grupo_principal VARCHAR(80) NULL AFTER api_key");
         }
 
+        // Token do worker local (ver api/whatsapp-bot.php). A Evolution roda na
+        // máquina do Marcos, atrás de IP residencial — a Hostinger não alcança
+        // ela. Então é o worker de lá que puxa a fila daqui, autenticado por
+        // este token. Gerado sozinho na primeira execução.
+        if (!in_array('bot_token', $cols, true)) {
+            $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN bot_token VARCHAR(64) NULL AFTER grupo_principal");
+            $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN bot_visto_em DATETIME NULL AFTER bot_token");
+        }
+        $pdo->exec("UPDATE whatsapp_config SET bot_token = SHA2(CONCAT(RAND(), UUID(), NOW()), 256)
+                    WHERE id = 1 AND (bot_token IS NULL OR bot_token = '')");
+
         // Fila: toda mensagem passa por aqui antes de sair. Assim uma queda da
         // instância vira atraso, não aviso perdido.
         $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_fila (

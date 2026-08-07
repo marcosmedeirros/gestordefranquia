@@ -37,7 +37,7 @@ if ($method === 'GET') {
         exit;
     }
 
-    $cfg = $pdo->query("SELECT base_url, instancia, api_key, ativo FROM whatsapp_config WHERE id = 1")->fetch(PDO::FETCH_ASSOC) ?: [];
+    $cfg = $pdo->query("SELECT base_url, instancia, api_key, ativo, bot_token, bot_visto_em FROM whatsapp_config WHERE id = 1")->fetch(PDO::FETCH_ASSOC) ?: [];
     $grupos = [];
     foreach ($pdo->query("SELECT league, COALESCE(whatsapp_group_id, '') AS grupo FROM league_settings")->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $grupos[strtoupper($r['league'])] = $r['grupo'];
@@ -59,6 +59,11 @@ if ($method === 'GET') {
             // A chave nunca volta em claro — só diz se existe.
             'tem_api_key' => !empty($cfg['api_key']),
             'ativo'     => !empty($cfg['ativo']),
+            // Token do worker local (bot/whatsapp-local.php). Volta em claro
+            // porque é ele que precisa ser copiado pra máquina que roda a
+            // Evolution — e só admin geral chega aqui.
+            'bot_token'    => $ehAdminGeral ? ($cfg['bot_token'] ?? '') : '',
+            'bot_visto_em' => $cfg['bot_visto_em'] ?? null,
         ],
         'grupos'       => $grupos,
         'ligas'        => $LIGAS,

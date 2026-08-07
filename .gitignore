@@ -13,3 +13,7 @@ backend/config.local.php.bak
 games/logs/whatsapp-cron.log
 games/logs/sync-fotos-cron.log
 games/logs/sync-hoopgrid-status.log
+
+# Config do worker local de WhatsApp: token do site + chave da Evolution
+bot/whatsapp-local.config.php
+bot/whatsapp-local.log
