@@ -37,7 +37,7 @@ if ($method === 'GET') {
         exit;
     }
 
-    $cfg = $pdo->query("SELECT base_url, instancia, api_key, ativo, bot_token, bot_visto_em FROM whatsapp_config WHERE id = 1")->fetch(PDO::FETCH_ASSOC) ?: [];
+    $cfg = $pdo->query("SELECT base_url, instancia, api_key, ativo, grupo_principal, bot_token, bot_visto_em FROM whatsapp_config WHERE id = 1")->fetch(PDO::FETCH_ASSOC) ?: [];
     $grupos = [];
     foreach ($pdo->query("SELECT league, COALESCE(whatsapp_group_id, '') AS grupo FROM league_settings")->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $grupos[strtoupper($r['league'])] = $r['grupo'];
