@@ -51,6 +51,8 @@ function updateTradeFilter(nextFilters = {}) {
 
 // ── Gestão de Usuários ────────────────────────────────────────────
 let _gestaoUsers = [];
+let _gestaoTodos = null;      // cache das quatro ligas, pra busca cruzada
+let _gestaoBuscando = false;
 let _gestaoLeague = _leagues[0] || 'ELITE';
 
 // Aba Games do Admin. Depois da fusão as telas de administração do games
@@ -265,6 +267,10 @@ async function showGestao(league) {
   appState.view = 'gestao';
   updateBreadcrumb();
   if (league) _gestaoLeague = league;
+  // Toda entrada/refresh da Gestão invalida o cache das outras ligas: depois de
+  // editar ou apagar alguém, a busca não pode devolver o estado antigo.
+  _gestaoTodos = null;
+  _gestaoBuscando = false;
 
   const container = document.getElementById('mainContainer');
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
@@ -321,9 +327,20 @@ async function showGestao(league) {
       </button>
     </div>
     <div class="action-grid mb-3">${gestaoTiles}</div>
+    <div class="mb-3 d-flex justify-content-center">
+      <div style="position:relative;max-width:420px;width:100%">
+        <i class="bi bi-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:13px"></i>
+        <input type="search" id="gestaoBusca" autocomplete="off"
+          placeholder="Buscar usuário, e-mail ou time — em todas as ligas"
+          style="width:100%;background:var(--panel-2);border:1px solid var(--border-md);border-radius:9px;
+                 padding:9px 12px 9px 34px;color:var(--text);font-size:13px;font-family:var(--font);outline:none">
+      </div>
+    </div>
     <div id="gestaoTableContainer">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
     </div>`;
+
+  document.getElementById('gestaoBusca')?.addEventListener('input', aoBuscarGestao);
 
   try {
     const data = await api(`admin.php?action=get_users&league=${_gestaoLeague}`);
@@ -423,10 +440,60 @@ async function toggleMaintenanceMode(enable) {
   }
 }
 
-function renderGestaoTable(users) {
+// ── Busca da Gestão ───────────────────────────────────────────────
+// A lista da aba é sempre de UMA liga. Buscar só nela obriga a saber de
+// antemão onde a pessoa está, que é justamente o que a busca deveria evitar.
+// Então a busca varre as quatro ligas: carrega as outras uma vez, guarda, e
+// marca a liga de cada resultado. Campo vazio volta pra liga da aba.
+async function carregarTodasAsLigas() {
+  if (_gestaoTodos) return _gestaoTodos;
+  const ligas = (typeof _leagues !== 'undefined' && _leagues.length)
+    ? _leagues : ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+  const partes = await Promise.all(ligas.map(lg =>
+    api(`admin.php?action=get_users&league=${lg}`)
+      .then(d => (d.users || []).map(u => ({ ...u, _liga: lg })))
+      .catch(() => [])));
+  // Um mesmo usuário não deve aparecer duas vezes se figurar em duas listas.
+  const porId = new Map();
+  partes.flat().forEach(u => { if (!porId.has(u.id)) porId.set(u.id, u); });
+  _gestaoTodos = [...porId.values()];
+  return _gestaoTodos;
+}
+
+async function aoBuscarGestao() {
+  const campo = document.getElementById('gestaoBusca');
+  const termo = (campo?.value || '').trim().toLowerCase();
+
+  if (!termo) {
+    _gestaoBuscando = false;
+    renderGestaoTable(_gestaoUsers);
+    return;
+  }
+
+  _gestaoBuscando = true;
+  const container = document.getElementById('gestaoTableContainer');
+  if (!_gestaoTodos) {
+    container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-orange"></div></div>';
+  }
+  const todos = await carregarTodasAsLigas();
+
+  // Se o campo mudou enquanto carregava, quem manda é o valor atual.
+  if ((campo?.value || '').trim().toLowerCase() !== termo) return;
+
+  const bate = u => {
+    const alvo = [u.name, u.email, u.team_city, u.team_name]
+      .filter(Boolean).join(' ').toLowerCase();
+    return alvo.indexOf(termo) >= 0;
+  };
+  renderGestaoTable(todos.filter(bate), termo);
+}
+
+function renderGestaoTable(users, termoBusca) {
   const container = document.getElementById('gestaoTableContainer');
   if (!users.length) {
-    container.innerHTML = '<div class="alert alert-info">Nenhum usuário nesta liga.</div>';
+    container.innerHTML = termoBusca
+      ? `<div class="alert alert-info">Nenhum usuário ou time encontrado para “${escapeHtml(termoBusca)}” em nenhuma liga.</div>`
+      : '<div class="alert alert-info">Nenhum usuário nesta liga.</div>';
     return;
   }
 
@@ -453,7 +520,12 @@ function renderGestaoTable(users) {
       <tr>
         <td data-label="Usuário">
           <div>
-            <div style="font-weight:600">${escapeHtml(u.name)}</div>
+            <div style="font-weight:600">${escapeHtml(u.name)}${
+              // Na busca por todas as ligas, sem isto não dá pra saber de onde
+              // veio cada resultado.
+              (termoBusca && u._liga)
+                ? ` <span style="font-size:9.5px;font-weight:800;letter-spacing:.5px;padding:2px 6px;border-radius:999px;background:var(--panel-3);color:var(--text-2);border:1px solid var(--border);vertical-align:middle">${escapeHtml(u._liga)}</span>`
+                : ''}</div>
             <div style="font-size:11px;color:var(--text-3)">${escapeHtml(u.email)}</div>
           </div>
         </td>
