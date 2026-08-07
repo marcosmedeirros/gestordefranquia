@@ -85,6 +85,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .tag.flex{background:rgba(168,85,247,.12);border-color:rgba(168,85,247,.3);color:var(--purple)}
 .tag.bonus{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.3);color:var(--green)}
 .tag.flex-off{background:var(--panel-3);border-color:var(--border);color:var(--text-3);text-decoration:line-through;text-decoration-thickness:1px}
+.tag.lenda{background:rgba(245,197,66,.14);border-color:rgba(245,197,66,.4);color:#f5c542;font-weight:800;letter-spacing:.4px}
 
 /* ── Simulador de trocas ─────────────────────────── */
 .sim-note{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--green);background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.22);border-radius:10px;padding:9px 12px;margin-bottom:14px}
@@ -423,10 +424,11 @@ async function loadCap(){
 
     document.getElementById('rosterBody').innerHTML = s.roster.map(p => `
       <tr>
-        <td>${esc(p.name)}</td>
+        <td${p.is_lenda ? ' style="color:#f5c542;font-weight:800"' : ''}>${esc(p.name)}</td>
         <td class="num">${p.ovr}</td>
         <td class="num">${p.base_salary}M</td>
         <td>
+          ${p.is_lenda ? '<span class="tag lenda" title="Lenda da franquia: uma por time. Ignora a tabela de OVR e vale no mínimo 40M (acima de 94 OVR a tabela volta a valer). Anula o Bônus de Lealdade — os dois não se somam.">LENDA</span>' : ''}
           ${p.is_rookie_scale ? '<span class="tag rookie" title="Salário definido pela Rookie Scale (posição do pick), não pela tabela de OVR, por ser a temporada de estreia.">Rookie Scale</span>' : ''}
           ${p.cap_flex_eligible ? (p.cap_flex_counted
             ? `<span class="tag flex" title="Ainda está no time que o draftou e o OVR qualifica — adiciona +${p.cap_flex_value}M ao Cap Máximo do time.">Cap Flex +${p.cap_flex_value}M</span>`

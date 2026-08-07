@@ -309,8 +309,11 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
             'cap_flex_value' => $flex,
             'cap_flex_counted' => false,
             'is_on_draft_team' => $p['drafted_by_team_id'] !== null && (int)$p['drafted_by_team_id'] === (int)$p['team_id'],
+            // Leal e Lenda coexistem, mas os benefícios de cap NÃO se somam: com a
+            // tag de lenda o jogador já vale no mínimo 40M, então o +8M da lealdade
+            // é anulado. A tag "Leal" continua aparecendo — só o bônus some.
             'is_loyal' => !empty($p['is_loyal']),
-            'loyalty_bonus_eligible' => !empty($p['cap_bonus_eligible']),
+            'loyalty_bonus_eligible' => !empty($p['cap_bonus_eligible']) && empty($p['is_lenda']),
             'loyalty_bonus_counted' => false,
         ];
     }
