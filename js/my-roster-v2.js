@@ -705,10 +705,24 @@ async function bulkSetTrade(disponivel) {
 
 // Modo salario (ELITE com cap ligado). Fora dele, nada de salario aparece.
 const SALARY_MODE = !!(window.__SALARY_CAP__ && window.__SALARY_CAP__.roster);
-const SALARY_BY_ID = SALARY_MODE
-  ? Object.fromEntries(window.__SALARY_CAP__.roster.map(r => [Number(r.id), Number(r.total_salary)]))
-  : {};
+// Deixa de ser const: marcar a LENDA muda a folha na hora (o jogador passa a
+// valer 40M) e o mapa precisa acompanhar sem depender de recarregar a página.
+let SALARY_BY_ID = {};
+function rebuildSalaryMap() {
+  const sc = window.__SALARY_CAP__;
+  SALARY_BY_ID = (sc && sc.roster)
+    ? Object.fromEntries(sc.roster.map(r => [Number(r.id), Number(r.total_salary)]))
+    : {};
+}
+rebuildSalaryMap();
 function playerSalary(p) { return SALARY_BY_ID[Number(p.id)] ?? 0; }
+
+/** Aplica um cap recalculado vindo do servidor e repinta o que depende dele. */
+function aplicarCapAtualizado(cap) {
+  if (!cap || !window.__SALARY_CAP__) return;
+  window.__SALARY_CAP__ = Object.assign({}, window.__SALARY_CAP__, cap);
+  rebuildSalaryMap();
+}
 
 /**
  * Composição do elenco: quantos por função e por posição.
@@ -1533,10 +1547,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (lendaChk) {
         const antes = !!Number(_basePlayer.is_lenda || 0);
         if (lendaChk.checked !== antes) {
-          await api('team.php', {
+          const resp = await api('team.php', {
             method: 'POST',
             body: JSON.stringify({ action: 'set_lenda', player_id: _editPlayerId, lenda: lendaChk.checked }),
           });
+          // O endpoint devolve a folha já recalculada; sem isto o valor do cap
+          // só mudava depois de recarregar a página.
+          aplicarCapAtualizado(resp && resp.cap);
         }
       }
 

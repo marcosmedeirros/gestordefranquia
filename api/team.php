@@ -896,9 +896,33 @@ if ($method === 'POST') {
             jsonResponse(500, ['error' => 'Não deu pra salvar a lenda agora.']);
         }
 
+        // A folha muda na hora (a lenda passa a valer 40M), então devolvemos o cap
+        // recalculado junto: sem isso a tela só mostrava o valor novo depois de um F5.
+        $cap = null;
+        try {
+            $stmtModo = $pdo->prepare('SELECT cap_mode FROM league_settings WHERE league = ?');
+            $stmtModo->execute([$alvo['league']]);
+            if (($stmtModo->fetchColumn() ?: 'ovr_sum') === 'salary') {
+                $cap = getTeamCapSummary($pdo, (int)$alvo['team_id']);
+            }
+        } catch (Throwable $e) {
+            error_log('[set_lenda/cap] ' . $e->getMessage());
+        }
+
         jsonResponse(200, [
             'message' => $ligar ? $alvo['name'] . ' agora é a lenda da franquia.' : 'Tag de lenda removida.',
             'is_lenda' => $ligar,
+            'cap' => $cap ? [
+                'payroll'   => (int)$cap['payroll'],
+                'cap_max'   => (int)$cap['cap_max'],
+                'cap_floor' => (int)$cap['cap_floor'],
+                'space'     => (int)$cap['space'],
+                'status'    => $cap['status'],
+                'roster'    => array_map(
+                    fn($r) => ['id' => (int)$r['id'], 'total_salary' => (int)$r['total_salary']],
+                    $cap['roster']
+                ),
+            ] : null,
         ]);
     }
 

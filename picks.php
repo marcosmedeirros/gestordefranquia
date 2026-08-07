@@ -35,6 +35,34 @@ try {
 } catch (Exception $e) { $currentSeasonYear = null; }
 $currentSeasonYear = $currentSeasonYear ?: (int)date('Y');
 
+// ── Custo no cap da pick ────────────────────────────────────────────────────
+// Só faz sentido em liga com salary cap (hoje, ELITE). Nas outras o cap é soma
+// de OVR, e uma pick não ocupa nada até virar jogador.
+//
+// A pick ainda não tem posição de draft (a tabela `picks` guarda só ano e
+// rodada), então o valor exato só existe na 2ª rodada, que é 2M sempre. Na 1ª
+// depende de onde ela cair, então mostramos a faixa da rookie scale.
+$salaryCapMode = false;
+try {
+    require_once __DIR__ . '/backend/salary_cap.php';
+    $stmtModo = $pdo->prepare('SELECT cap_mode FROM league_settings WHERE league = ?');
+    $stmtModo->execute([$team['league']]);
+    $salaryCapMode = (($stmtModo->fetchColumn() ?: 'ovr_sum') === 'salary');
+} catch (Exception $e) { $salaryCapMode = false; }
+
+function pickCapLabel(int $round): string
+{
+    return $round >= 2 ? '2M' : '3–18M';
+}
+function pickCapTitle(int $round): string
+{
+    return $round >= 2
+        ? 'Custo no cap: 2M no 1º ano do calouro (rookie scale da 2ª rodada, independe da posição).'
+        : 'Custo no cap no 1º ano do calouro (rookie scale da 1ª rodada): 18M do 1º ao 3º, '
+          . '14M até o 8º, 12M até o 12º, 8M até o 16º, 5M até o 22º e 3M do 23º ao 30º. '
+          . 'A faixa aparece porque a pick ainda não tem posição definida. Vale só no ano 1.';
+}
+
 $stmtPicks = $pdo->prepare('
     SELECT p.*, orig.city AS original_city, orig.name AS original_name,
            last_owner.city AS last_owner_city, last_owner.name AS last_owner_name,
@@ -263,7 +291,16 @@ $tradedAway   = count($picksAway);
         .pick-origin { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .pick-status { flex-shrink: 0; }
-        .pick-value { flex-shrink: 0; font-size: 11px; font-weight: 700; color: var(--text-2); background: var(--panel-3); border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px; min-width: 46px; text-align: center; }
+        /* Os dois selos numéricos da linha. Sem o rótulo embaixo, "28" e "3–18M"
+           não dizem o que são — e no celular não existe hover pra ver o title. */
+        .pick-value, .pick-cap { flex-shrink: 0; display: flex; flex-direction: column; align-items: center;
+            gap: 1px; line-height: 1.05; font-size: 12px; font-weight: 800; color: var(--text-2);
+            background: var(--panel-3); border: 1px solid var(--border); border-radius: 9px;
+            padding: 3px 8px; min-width: 54px; text-align: center; }
+        .pick-value em, .pick-cap em { font-style: normal; font-size: 8px; font-weight: 700;
+            letter-spacing: .4px; text-transform: uppercase; color: var(--text-3); }
+        .pick-cap { color: var(--blue); border-color: rgba(59,130,246,.22); background: rgba(59,130,246,.08); }
+        .pick-cap em { color: var(--text-3); }
         .btn-pick-trade { flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-2); display: flex; align-items: center; justify-content: center; font-size: 13px; text-decoration: none; transition: color var(--t) var(--ease), border-color var(--t) var(--ease); }
         .btn-pick-trade:hover { color: var(--red); border-color: var(--border-red); }
         .year-filter { margin-left: 12px; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); font-size: 11px; font-weight: 600; border-radius: 8px; padding: 5px 10px; cursor: pointer; }
@@ -307,6 +344,16 @@ $tradedAway   = count($picksAway);
             .dash-hero, .info-banner, .stats-strip, .content { padding-left: 16px; padding-right: 16px; }
             .dash-hero { padding-top: 18px; }
             .picks-grid { grid-template-columns: 1fr; }
+        }
+        /* Com os dois selos numéricos a linha não cabe mais em tela estreita —
+           sem isto a coluna do meio ("1ª Rodada · Própria") era espremida até
+           sumir. Aqui ela ocupa a primeira linha inteira e os selos descem. */
+        @media (max-width: 560px) {
+            .pick-row { flex-wrap: wrap; row-gap: 8px; }
+            /* 66px = largura do ano (~46) + o gap de 12, com folga. A base tem que
+               caber junto do ano na 1ª linha; o flex-grow depois preenche o resto. */
+            .pick-mid { flex: 1 1 calc(100% - 66px); }
+            .pick-value { margin-left: 58px; }
         }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
@@ -421,7 +468,10 @@ $tradedAway   = count($picksAway);
                                 <?php endif; ?>
                             </div>
                         </div>
-                        <span class="pick-value" data-round="1" data-year="<?= (int)$pick['season_year'] ?>" title="Valor estimado de troca"></span>
+                        <span class="pick-value" data-round="1" data-year="<?= (int)$pick['season_year'] ?>"><b>—</b><em>troca</em></span>
+                        <?php if ($salaryCapMode): ?>
+                        <span class="pick-cap" title="<?= htmlspecialchars(pickCapTitle(1)) ?>"><b><?= pickCapLabel(1) ?></b><em>cap</em></span>
+                        <?php endif; ?>
                         <div class="pick-status">
                             <?php if ($isOwn): ?>
                                 <span class="tag green"><i class="bi bi-house-fill" style="font-size:9px"></i> Própria</span>
@@ -472,7 +522,10 @@ $tradedAway   = count($picksAway);
                                 <?php endif; ?>
                             </div>
                         </div>
-                        <span class="pick-value" data-round="2" data-year="<?= (int)$pick['season_year'] ?>" title="Valor estimado de troca"></span>
+                        <span class="pick-value" data-round="2" data-year="<?= (int)$pick['season_year'] ?>"><b>—</b><em>troca</em></span>
+                        <?php if ($salaryCapMode): ?>
+                        <span class="pick-cap" title="<?= htmlspecialchars(pickCapTitle(2)) ?>"><b><?= pickCapLabel(2) ?></b><em>cap</em></span>
+                        <?php endif; ?>
                         <div class="pick-status">
                             <?php if ($isOwn): ?>
                                 <span class="tag green"><i class="bi bi-house-fill" style="font-size:9px"></i> Própria</span>
@@ -572,8 +625,11 @@ $tradedAway   = count($picksAway);
     if (window.TradeValue) {
         document.querySelectorAll('.pick-value').forEach(el => {
             const item = { round: Number(el.dataset.round), season_year: Number(el.dataset.year) };
-            el.textContent = Math.round(TradeValue.itemValue(item));
-            el.title = TradeValue.explain(item);
+            // Só o número: o <em> com o rótulo "troca" tem que sobreviver.
+            const num = el.querySelector('b');
+            if (num) num.textContent = Math.round(TradeValue.itemValue(item));
+            el.title = 'Valor estimado de troca — ' + TradeValue.explain(item)
+                + '. É a mesma escala do simulador de trocas, pra comparar picks e jogadores entre si.';
         });
     }
 
