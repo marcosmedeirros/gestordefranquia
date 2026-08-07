@@ -4,6 +4,11 @@
  * Executa a cada minuto e dispara o auto-pick apos 30 min na vez do time.
  */
 
+if (PHP_SAPI !== "cli") {
+    http_response_code(404);
+    exit;
+}
+
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/push.php';
 

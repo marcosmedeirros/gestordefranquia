@@ -23,6 +23,11 @@
  *   * * * * * /usr/bin/php /caminho/cron/initdraft-mock.php >> /dev/null 2>&1
  */
 
+if (PHP_SAPI !== "cli") {
+    http_response_code(404);
+    exit;
+}
+
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/initdraft_pick.php';
 

@@ -5,6 +5,11 @@
 // - 19:30+: relógio (10 min por pick)
 // - Timeout: escolhe maior OVR disponível
 
+if (PHP_SAPI !== "cli") {
+    http_response_code(404);
+    exit;
+}
+
 require_once __DIR__ . '/../backend/db.php';
 // performInitDraftPick vem daqui agora. A cópia que existia neste arquivo era
 // mais fraca que a da API: sem travas atômicas, sem gravar a posição do pick
