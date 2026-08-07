@@ -144,6 +144,27 @@ function whatsappConfig(PDO $pdo): ?array
 }
 
 /**
+ * A integração está ligada?
+ *
+ * Diferente de whatsappConfig(), que exige as credenciais da Evolution: ali é
+ * o que o SITE precisa pra enviar direto. Só que quem envia agora é o worker
+ * da máquina local (bot/whatsapp-local.php) — o site apenas enfileira.
+ * Exigir base_url/api_key aqui faria a fila nem receber a mensagem, e o worker
+ * nunca teria o que buscar.
+ */
+function whatsappAtivo(PDO $pdo): bool
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    ensureWhatsAppTables($pdo);
+    try {
+        return $cache = (bool)$pdo->query("SELECT ativo FROM whatsapp_config WHERE id = 1")->fetchColumn();
+    } catch (Throwable $e) {
+        return $cache = false;
+    }
+}
+
+/**
  * Número no formato que a Evolution espera: só dígitos, com DDI.
  * Retorna null quando o telefone cadastrado não dá pra aproveitar.
  */
@@ -175,7 +196,8 @@ function whatsappNumero(?string $telefone): ?string
 function whatsappEnfileirar(PDO $pdo, string $destino, string $texto, bool $ehGrupo = false, ?string $tipo = null, ?int $userId = null): bool
 {
     if ($destino === '' || trim($texto) === '') return false;
-    if (!whatsappConfig($pdo)) return false;
+    // Só "ligada": quem envia é o worker local, o site apenas enfileira.
+    if (!whatsappAtivo($pdo)) return false;
 
     try {
         $pdo->prepare("INSERT INTO whatsapp_fila (destino, eh_grupo, texto, tipo, user_id) VALUES (?,?,?,?,?)")
@@ -278,7 +300,7 @@ function whatsappProcessarFila(PDO $pdo, int $limite = 10): array
  */
 function whatsappParaUsuario(PDO $pdo, int $userId, string $texto, ?string $tipo = null): void
 {
-    if (!whatsappConfig($pdo)) return;
+    if (!whatsappAtivo($pdo)) return;
     if (!userWantsNotif($pdo, $userId, $tipo)) return;
 
     try {
@@ -303,10 +325,11 @@ function whatsappParaUsuario(PDO $pdo, int $userId, string $texto, ?string $tipo
  */
 function whatsappParaGrupoPrincipal(PDO $pdo, string $texto, ?string $tipo = null): void
 {
-    $cfg = whatsappConfig($pdo);
-    if (!$cfg) return;
+    // whatsappAtivo em vez de whatsappConfig: enfileirar não depende das
+    // credenciais da Evolution, que só o worker local usa.
+    if (!whatsappAtivo($pdo)) return;
 
-    $grupo = trim((string)($cfg['grupo_principal'] ?? ''));
+    $grupo = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
     if ($grupo === '') return;
 
     whatsappEnfileirar($pdo, $grupo, $texto, true, $tipo);
@@ -323,7 +346,7 @@ function whatsappTagDaLiga(?string $league): string
 /** Manda no grupo da liga (nada acontece se a liga não tiver grupo configurado). */
 function whatsappParaGrupo(PDO $pdo, string $league, string $texto, ?string $tipo = null): void
 {
-    if (!whatsappConfig($pdo)) return;
+    if (!whatsappAtivo($pdo)) return;
     try {
         $st = $pdo->prepare("SELECT whatsapp_group_id FROM league_settings WHERE league = ? LIMIT 1");
         $st->execute([strtoupper($league)]);

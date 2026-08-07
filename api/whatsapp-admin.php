@@ -64,6 +64,7 @@ if ($method === 'GET') {
             // Evolution — e só admin geral chega aqui.
             'bot_token'    => $ehAdminGeral ? ($cfg['bot_token'] ?? '') : '',
             'bot_visto_em' => $cfg['bot_visto_em'] ?? null,
+            'grupo_principal' => $cfg['grupo_principal'] ?? '',
         ],
         'grupos'       => $grupos,
         'ligas'        => $LIGAS,
@@ -95,6 +96,13 @@ if ($method === 'POST') {
 
         $sets   = ['base_url = ?', 'instancia = ?', 'ativo = ?'];
         $params = [$baseUrl ?: null, $instancia ?: null, $ativo];
+
+        // Grupo que recebe trades e The Pathetic. Não tinha como definir por
+        // aqui — e sem ele as duas coisas ficavam sem destino.
+        if (array_key_exists('grupo_principal', $body)) {
+            $sets[]   = 'grupo_principal = ?';
+            $params[] = trim((string)$body['grupo_principal']) ?: null;
+        }
         // Chave em branco = manter a atual (ela nunca volta pro front).
         if (array_key_exists('api_key', $body) && trim((string)$body['api_key']) !== '') {
             $sets[]   = 'api_key = ?';
