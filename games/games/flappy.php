@@ -131,11 +131,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         $score = (int)$_POST['score'];
         try {
             $validate_run_score($score);
-            $milestones   = intdiv(max(0, $score), 5);
+            // Mesma curva do Pinguim (ver pinguim.php): 1 moeda por marco, +1 a cada
+            // faixa. As constantes são as de lá divididas por 10 porque a escala de
+            // score aqui é ~10x menor — 300 no Flappy equivale a 3.000 no Pinguim, e
+            // os dois passam a pagar as mesmas 111 moedas por uma boa partida.
+            //
+            // Antes era quadrática (m*(m+3)/2, marco a cada 5 pontos): score 300 pagava
+            // 1.890 moedas e 500 pagava 5.150, num jogo ilimitado. Um minuto rendia mais
+            // que uma semana de jogos diários.
+            $milestones = intdiv(max(0, $score), 10);
+            $total_devido = 0;
+            for ($m = 1; $m <= $milestones; $m++) {
+                $total_devido += 1 + intdiv($m * 10, 50);
+            }
             // O prêmio é recalculado do zero a cada morte, mas o score NÃO zera no revive: sem
             // descontar o que já foi pago, a mesma partida pagava o trecho inicial duas vezes
             // (dava pra farmar: pontuar, reviver por 10, morrer de propósito e receber tudo de novo).
-            $total_devido = (int)(($milestones * ($milestones + 3) / 2) * $pointsMultiplier);
+            $total_devido = (int)($total_devido * $pointsMultiplier);
             $ja_pago      = (int)($_SESSION['flappy_coins_pagos'] ?? 0);
             $coins_earned = max(0, $total_devido - $ja_pago);
             $pdo->beginTransaction();
