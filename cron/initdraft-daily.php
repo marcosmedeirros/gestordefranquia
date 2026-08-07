@@ -6,6 +6,10 @@
 // - Timeout: escolhe maior OVR disponível
 
 require_once __DIR__ . '/../backend/db.php';
+// performInitDraftPick vem daqui agora. A cópia que existia neste arquivo era
+// mais fraca que a da API: sem travas atômicas, sem gravar a posição do pick
+// (que a rookie scale precisa) e sem fixar loyal_override=0.
+require_once __DIR__ . '/../backend/initdraft_pick.php';
 
 $pdo = db();
 
@@ -90,79 +94,6 @@ function pickHighestOvrAvailable(PDO $pdo, int $seasonId): ?int {
     return $id ? (int)$id : null;
 }
 
-function performInitDraftPick(PDO $pdo, array $session, int $playerId): void {
-    // Importa lógica da API de forma focada (sem includes para evitar dependência circular)
-    if (($session['status'] ?? 'setup') !== 'in_progress') return;
-
-    $sessionRound = (int)($session['current_round'] ?? 1);
-    $sessionPick = (int)($session['current_pick'] ?? 1);
-
-    $stmtPick = $pdo->prepare('SELECT * FROM initdraft_order WHERE initdraft_session_id = ? AND round = ? AND pick_position = ? AND picked_player_id IS NULL');
-    $stmtPick->execute([$session['id'], $sessionRound, $sessionPick]);
-    $currentPick = $stmtPick->fetch(PDO::FETCH_ASSOC);
-
-    if (!$currentPick) {
-        $stmtPick = $pdo->prepare('SELECT * FROM initdraft_order WHERE initdraft_session_id = ? AND picked_player_id IS NULL ORDER BY round ASC, pick_position ASC LIMIT 1');
-        $stmtPick->execute([$session['id']]);
-        $currentPick = $stmtPick->fetch(PDO::FETCH_ASSOC);
-        if (!$currentPick) {
-            return;
-        }
-        $sessionRound = (int)$currentPick['round'];
-        $sessionPick = (int)$currentPick['pick_position'];
-        $pdo->prepare('UPDATE initdraft_sessions SET current_round = ?, current_pick = ? WHERE id = ?')
-            ->execute([$sessionRound, $sessionPick, $session['id']]);
-    }
-
-    $stmtP = $pdo->prepare('SELECT * FROM initdraft_pool WHERE id = ? AND draft_status = "available"');
-    $stmtP->execute([$playerId]);
-    $player = $stmtP->fetch(PDO::FETCH_ASSOC);
-    if (!$player) return;
-
-    $pdo->beginTransaction();
-    try {
-        $pdo->prepare('UPDATE initdraft_order SET picked_player_id = ?, picked_at = NOW(), deadline_at = NULL WHERE id = ?')
-            ->execute([$playerId, $currentPick['id']]);
-
-        $stmtRoundSize = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order WHERE initdraft_session_id = ? AND round = ?');
-        $stmtRoundSize->execute([$session['id'], $sessionRound]);
-        $roundSize = max(1, (int)$stmtRoundSize->fetchColumn());
-        $pickNumber = (($sessionRound - 1) * $roundSize) + $sessionPick;
-
-        $pdo->prepare('UPDATE initdraft_pool SET draft_status = "drafted", drafted_by_team_id = ?, draft_order = ? WHERE id = ?')
-            ->execute([$currentPick['team_id'], $pickNumber, $playerId]);
-
-        $pdo->prepare('INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade) VALUES (?, ?, ?, ?, ?, "Banco", 0)')
-            ->execute([$currentPick['team_id'], $player['name'], $player['position'], $player['age'], $player['ovr']]);
-
-        // avança ponteiro
-        $nextPick = $sessionPick + 1;
-        $nextRound = $sessionRound;
-        $stmtCount = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order WHERE initdraft_session_id = ? AND round = ?');
-        $stmtCount->execute([$session['id'], $nextRound]);
-        $totalPicks = (int)$stmtCount->fetchColumn();
-
-        if ($nextPick > $totalPicks) {
-            $nextRound++;
-            $nextPick = 1;
-            if ($nextRound > (int)$session['total_rounds']) {
-                $pdo->prepare('UPDATE initdraft_sessions SET status = "completed", completed_at = NOW(), current_round = ?, current_pick = ? WHERE id = ?')
-                    ->execute([$sessionRound, $sessionPick, $session['id']]);
-            } else {
-                $pdo->prepare('UPDATE initdraft_sessions SET current_round = ?, current_pick = ? WHERE id = ?')
-                    ->execute([$nextRound, $nextPick, $session['id']]);
-            }
-        } else {
-            $pdo->prepare('UPDATE initdraft_sessions SET current_round = ?, current_pick = ? WHERE id = ?')
-                ->execute([$nextRound, $nextPick, $session['id']]);
-        }
-
-        $pdo->commit();
-    } catch (Throwable $e) {
-        $pdo->rollBack();
-        throw $e;
-    }
-}
 
 $now = tzNow();
 $today = $now->format('Y-m-d');
