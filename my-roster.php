@@ -1061,7 +1061,7 @@ if ($teamId) {
      SCRIPTS
 ══════════════════════════════════════ -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 <script>
     window.__BDL_KEY__  = <?= json_encode($bdlApiKey) ?>;
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
@@ -1219,6 +1219,6 @@ if ($teamId) {
         _doCopy(_buildSummary('roster'), 'Elenco');
     });
 </script>
-<script src="/js/my-roster-v2.js?v=20260729"></script>
+<script src="<?= assetUrl('/js/my-roster-v2.js') ?>"></script>
 </body>
 </html>

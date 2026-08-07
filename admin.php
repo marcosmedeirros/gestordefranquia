@@ -992,7 +992,7 @@ const useNewFreeAgency = true;
 <script src="/js/free-agency.js?v=<?= time() ?>"></script>
 <script src="/js/seasons.js?v=<?= time() ?>"></script>
 <script src="/js/punicoes.js?v=<?= time() ?>"></script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 </div><!-- /.app -->
 </body>
 </html>

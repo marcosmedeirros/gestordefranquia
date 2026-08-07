@@ -532,8 +532,8 @@ $tradedAway   = count($picksAway);
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/js/pwa.js"></script>
-<script src="/js/trade-value.js?v=20260716"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
+<script src="<?= assetUrl('/js/trade-value.js') ?>"></script>
 <script>
     window.__CURRENT_SEASON_YEAR__ = <?= (int)$currentSeasonYear ?>;
 </script>

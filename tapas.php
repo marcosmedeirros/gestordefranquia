@@ -263,7 +263,7 @@ $team_id = $team ? (int)$team['id'] : null;
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/js/theme.js"></script>
+<script src="<?= assetUrl('/js/theme.js') ?>"></script>
 <script>
 const teamId   = <?= json_encode($team_id) ?>;
 const myLeague = <?= json_encode($user['league'] ?? 'ELITE') ?>;

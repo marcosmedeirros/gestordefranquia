@@ -2119,6 +2119,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
   loadDraft();
 </script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 </body>
 </html>

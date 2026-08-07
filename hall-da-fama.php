@@ -476,6 +476,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
   loadHallOfFame();
 </script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 </body>
 </html>

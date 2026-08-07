@@ -229,6 +229,6 @@ $user['user_type'] = $user['user_type'] ?? ($_SESSION['user_type'] ?? 'jogador')
     });
 </script>
 <script src="<?= assetUrl('/js/drafts-aleatorios.js') ?>"></script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 </body>
 </html>

@@ -279,6 +279,6 @@ if ($team_id) {
     window.NBA_TEAMS = <?= json_encode(nbaTeams(), JSON_UNESCAPED_UNICODE) ?>;
 </script>
 <script src="<?= assetUrl('/js/draft-aleatorio.js') ?>"></script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 </body>
 </html>

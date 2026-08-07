@@ -288,7 +288,7 @@ window.__USER_LEAGUE__ = '<?= htmlspecialchars($league, ENT_QUOTES) ?>';
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/js/trade-list.js"></script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/trade-list.js') ?>"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 </body>
 </html>

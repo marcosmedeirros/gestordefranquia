@@ -13,6 +13,22 @@ $user_id = $_SESSION['user_id'];
 $hiddenRankingEmailLower = 'medeirros99@gmail.com';
 $pointsMultiplier = getGamePointsMultiplier($pdo, 'pinguim');
 
+/**
+ * Teto de moedas por PARTIDA.
+ *
+ * A checagem por tempo só limita o teto do score — ela não exige que a pessoa
+ * tenha jogado. Dava pra abrir uma run, esperar meia hora parado e mandar um
+ * score de 36.000, que valia mais de 13 mil moedas.
+ *
+ * Este teto fecha a porta sem precisar adivinhar qual score é "possível": não
+ * importa quanto tempo alguém espere, uma partida paga no máximo isto. Uma
+ * partida boa de verdade (score 3.000) paga 111, então quem joga bem não sente o
+ * limite. O RANKING segue com o score real, sem teto.
+ *
+ * Mesmo valor do Flappy, que usa a mesma curva de prêmio.
+ */
+const PINGUIM_TETO_MOEDAS_PARTIDA = 150;
+
 // --- AUTOMATIZAÇÃO DO BANCO DE DADOS PARA SKINS ---
 try {
     // Tabela de compras
@@ -100,13 +116,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         $_SESSION['pinguim_last_milestone'] = 0;
         $_SESSION['pinguim_revive_used'] = false;
         $_SESSION['pinguim_score_saved'] = false;
+        $_SESSION['pinguim_moedas_partida'] = 0; // acumulado da run, pro teto por partida
         echo json_encode(['sucesso' => true]);
         exit;
     }
 
     // A. COMPRAR SKIN
     if ($_POST['acao'] == 'comprar_skin') {
-        $skin = $_POST['skin'];
+        $skin = isset($_POST['skin']) ? (string)$_POST['skin'] : '';
         if (!isset($catalogo_skins[$skin])) die(json_encode(['erro' => 'Skin inválida']));
         $preco = $catalogo_skins[$skin]['preco'];
 
@@ -125,13 +142,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
             $pdo->commit();
             echo json_encode(['sucesso' => true, 'novo_saldo' => ($meu_perfil['pontos'] - $preco)]);
-        } catch (Exception $e) { $pdo->rollBack(); echo json_encode(['erro' => $e->getMessage()]); }
+        } catch (Exception $e) { if ($pdo->inTransaction()) $pdo->rollBack(); echo json_encode(['erro' => $e->getMessage()]); }
         exit;
     }
 
     // B. EQUIPAR SKIN
     if ($_POST['acao'] == 'equipar_skin') {
-        $skin = $_POST['skin'];
+        $skin = isset($_POST['skin']) ? (string)$_POST['skin'] : '';
         $stmtCheck = $pdo->prepare("SELECT id FROM compras_skins WHERE id_usuario = :uid AND skin = :skin");
         $stmtCheck->execute([':uid' => $user_id, ':skin' => $skin]);
 
@@ -162,9 +179,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     $creditado += $coins_per_100;
                 }
 
-                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :uid")
-                    ->execute([':val' => $creditado, ':uid' => $user_id]);
+                // Teto por partida: ver PINGUIM_TETO_MOEDAS_PARTIDA. A conta é sobre o
+                // acumulado da run, não sobre este lote — senão bastava fatiar os
+                // milestones em vários envios pra furar o limite.
+                $jaPagoNaRun = (int)($_SESSION['pinguim_moedas_partida'] ?? 0);
+                $teto = PINGUIM_TETO_MOEDAS_PARTIDA * $pointsMultiplier;
+                $creditado = max(0, min($creditado, $teto - $jaPagoNaRun));
 
+                if ($creditado > 0) {
+                    $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + :val WHERE id = :uid")
+                        ->execute([':val' => $creditado, ':uid' => $user_id]);
+                    $_SESSION['pinguim_moedas_partida'] = $jaPagoNaRun + $creditado;
+                }
+
+                // O milestone avança mesmo quando o teto já foi atingido: senão o
+                // mesmo trecho seria reprocessado a cada envio seguinte.
                 $_SESSION['pinguim_last_milestone'] = $novo_milestone;
             }
 
@@ -217,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
 
     // E. SALVAR SCORE
     if ($_POST['acao'] == 'salvar_score') {
-        $score_final = (int)$_POST['score'];
+        $score_final = isset($_POST['score']) ? (int)$_POST['score'] : 0;
         try {
             $validate_run_score($score_final);
             $pdo->prepare("INSERT INTO dino_historico (id_usuario, pontuacao_final, pontos_ganhos) VALUES (:uid, :score, 0)")

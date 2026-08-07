@@ -336,6 +336,6 @@ function getOvrColor($ovr) {
     searchInput.addEventListener('input', filterPlayers);
     positionFilter.addEventListener('change', filterPlayers);
 </script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 </body>
 </html>

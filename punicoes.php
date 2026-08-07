@@ -426,6 +426,6 @@ try {
         document.querySelectorAll('.sb-nav a').forEach(a => a.addEventListener('click', close));
     })();
 </script>
-<script src="/js/punicoes.js"></script>
+<script src="<?= assetUrl('/js/punicoes.js') ?>"></script>
 </body>
 </html>

@@ -257,7 +257,7 @@ if ($team_id) {
     window.MY_TEAM_ID = <?= (int)($team['id'] ?? 0) ?>;
 </script>
 <script src="<?= assetUrl('/js/timeline.js') ?>"></script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 <script>
     const sidebar = document.getElementById('sidebar');
     const sbOverlay = document.getElementById('sbOverlay');

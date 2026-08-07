@@ -426,7 +426,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     });
   }
 </script>
-<script src="/js/history.js" defer></script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/history.js') ?>" defer></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 </body>
 </html>

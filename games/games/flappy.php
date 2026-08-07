@@ -9,6 +9,25 @@ $user_id = $_SESSION['user_id'];
 $hiddenRankingEmailLower = 'medeirros99@gmail.com';
 $pointsMultiplier = getGamePointsMultiplier($pdo, 'flappy');
 
+/** Ritmo máximo que a física do jogo permite — usado pra rejeitar score inventado. */
+const FLAPPY_PONTOS_POR_SEGUNDO = 5;
+
+/**
+ * Teto de moedas por PARTIDA.
+ *
+ * A checagem por tempo sozinha só limita o teto do score; ela não exige que a
+ * pessoa tenha jogado. Dava pra abrir uma run, ficar 30 minutos parado e mandar
+ * um score de 9.000 — o que, com a curva de prêmio, valia mais de 80 mil moedas.
+ *
+ * O teto por partida fecha essa porta sem depender de adivinhar qual é o score
+ * "possível": não importa quanto tempo alguém espere, uma partida paga no máximo
+ * isto. Uma partida boa de verdade (score 300) paga 111, então quem joga bem não
+ * sente o limite — só quem tentava farmar tempo.
+ *
+ * O RANKING continua com o score real, sem teto: o limite é de moeda, não de mérito.
+ */
+const FLAPPY_TETO_MOEDAS_PARTIDA = 150;
+
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS flappy_historico (id INT AUTO_INCREMENT PRIMARY KEY, id_usuario INT NOT NULL, pontuacao INT NOT NULL, data_jogo DATETIME DEFAULT CURRENT_TIMESTAMP)");
     $pdo->exec("CREATE TABLE IF NOT EXISTS flappy_compras_skins (id INT AUTO_INCREMENT PRIMARY KEY, id_usuario INT NOT NULL, skin VARCHAR(50) NOT NULL, data_compra DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(id_usuario, skin))");
@@ -50,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     $validate_run_score = function($score) use ($run_active, $run_start, $last_score) {
         if (!$run_active || $run_start <= 0) throw new Exception('Sessão de jogo inválida.');
         $elapsed = max(0, microtime(true) - $run_start);
-        $max_score = (int)($elapsed * 5) + 1;
+        $max_score = (int)($elapsed * FLAPPY_PONTOS_POR_SEGUNDO) + 1;
         if ($score < $last_score) throw new Exception('Score inválido.');
         if ($score > $max_score) throw new Exception('Score acima do permitido pela física do jogo.');
     };
@@ -72,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     }
 
     if ($_POST['acao'] == 'comprar_skin') {
-        $skin = $_POST['skin'];
+        $skin = isset($_POST['skin']) ? (string)$_POST['skin'] : '';
         if (!isset($catalogo_skins[$skin])) { echo json_encode(['erro' => 'Skin inválida']); exit; }
         $preco = $catalogo_skins[$skin]['preco'];
         try {
@@ -87,12 +106,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             $pdo->prepare("INSERT INTO flappy_compras_skins (id_usuario, skin) VALUES (:uid, :skin)")->execute([':uid' => $user_id, ':skin' => $skin]);
             $pdo->commit();
             echo json_encode(['sucesso' => true]);
-        } catch (Exception $e) { $pdo->rollBack(); echo json_encode(['erro' => $e->getMessage()]); }
+        } catch (Exception $e) { if ($pdo->inTransaction()) $pdo->rollBack(); echo json_encode(['erro' => $e->getMessage()]); }
         exit;
     }
 
     if ($_POST['acao'] == 'equipar_skin') {
-        $skin = $_POST['skin'];
+        $skin = isset($_POST['skin']) ? (string)$_POST['skin'] : '';
         try {
             if ($skin !== 'default') {
                 $stmtCheck = $pdo->prepare("SELECT id FROM flappy_compras_skins WHERE id_usuario = :uid AND skin = :skin");
@@ -128,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     }
 
     if ($_POST['acao'] == 'salvar_score') {
-        $score = (int)$_POST['score'];
+        $score = isset($_POST['score']) ? (int)$_POST['score'] : 0;
         try {
             $validate_run_score($score);
             // Mesma curva do Pinguim (ver pinguim.php): 1 moeda por marco, +1 a cada
@@ -148,6 +167,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             // descontar o que já foi pago, a mesma partida pagava o trecho inicial duas vezes
             // (dava pra farmar: pontuar, reviver por 10, morrer de propósito e receber tudo de novo).
             $total_devido = (int)($total_devido * $pointsMultiplier);
+            // Teto por partida: ver FLAPPY_TETO_MOEDAS_PARTIDA.
+            $total_devido = min($total_devido, FLAPPY_TETO_MOEDAS_PARTIDA * $pointsMultiplier);
             $ja_pago      = (int)($_SESSION['flappy_coins_pagos'] ?? 0);
             $coins_earned = max(0, $total_devido - $ja_pago);
             $pdo->beginTransaction();

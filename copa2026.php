@@ -807,6 +807,6 @@ document.getElementById('bracketWrap').addEventListener('click', function(e) {
   pick(slot.dataset.gid, slot.dataset.code);
 });
 </script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 </body>
 </html>

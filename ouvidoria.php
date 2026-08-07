@@ -381,7 +381,7 @@ try {
         }
     });
 </script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 <script>
     const themeKey = 'fba-theme';
     const themeToggle = document.getElementById('themeToggle');

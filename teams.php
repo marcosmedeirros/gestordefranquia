@@ -1595,7 +1595,7 @@ function getSerasaScore(int $avisos): array {
 
 <!-- ═══ SCRIPTS ══════════════════════════════════════════════ -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 <script>
     function _avatarColorHex() {
         try {

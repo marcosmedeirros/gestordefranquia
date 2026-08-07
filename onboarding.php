@@ -471,7 +471,7 @@ $user = getUserSession();
         if (origPrev) window.prevStep = (s) => { origPrev(s); syncStepUI(s); };
     });
 </script>
-<script src="/js/onboarding.js"></script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/onboarding.js') ?>"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 </body>
 </html>

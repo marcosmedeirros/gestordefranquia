@@ -285,6 +285,6 @@ if ($team_id) {
     window.LD_PREVIEW_BADGES = <?= $previewBadges ? 'true' : 'false' ?>;
 </script>
 <script src="<?= assetUrl('/js/legends-draft.js') ?>"></script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 </body>
 </html>

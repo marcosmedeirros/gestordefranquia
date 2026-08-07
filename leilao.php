@@ -565,7 +565,7 @@ $minhaLiga = strtoupper(trim((string)($team['league'] ?? $user['league'] ?? ''))
     const currentLeagueId = <?= $league_id ? $league_id : 'null' ?>;
 </script>
 <script src="<?= assetUrl('js/leilao.js') ?>"></script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 <script>
     const sidebar = document.getElementById('sidebar');
     const sbOverlay = document.getElementById('sbOverlay');

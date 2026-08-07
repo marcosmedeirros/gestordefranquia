@@ -1002,7 +1002,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
      SCRIPTS
 ══════════════════════════════════════ -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/js/pwa.js"></script>
+<script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 <script>
     /* ── Variáveis para free-agency.js ─── */
     const isAdmin          = <?= $is_admin ? 'true' : 'false' ?>;
@@ -1079,7 +1079,7 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         });
     });
 </script>
-<script src="js/free-agency.js?v=20260206-1"></script>
-<script src="js/leilao.js"></script>
+<script src="<?= assetUrl('/js/free-agency.js') ?>"></script>
+<script src="<?= assetUrl('/js/leilao.js') ?>"></script>
 </body>
 </html>
