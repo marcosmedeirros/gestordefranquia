@@ -294,6 +294,9 @@ async function showGestao(league) {
     { icon: 'bi-person-bounding-box',   label: 'Sincronizar<br>Fotos NBA',  fn: 'syncFotosNBA()',        color: '#06b6d4', bg: 'rgba(6,182,212,.12)', id: 'btnSyncFotos' },
     { icon: 'bi-person-lines-fill',     label: 'Interessados',              fn: 'showWaitlistModal()',   color: '#22c55e', bg: 'rgba(34,197,94,.12)', badgeId: 'waitlist-badge' },
     { icon: 'bi-book-half',             label: 'Ver guia<br>do usuário',    url: '/guia.php', novaAba: true, color: '#38bdf8', bg: 'rgba(56,189,248,.12)' },
+    // Guia do Admin: entrada única, só aqui. A página em si também barra quem
+    // não tem acesso admin, então o card não é a trava — é só o caminho.
+    { icon: 'bi-journal-code',          label: 'Guia do<br>Admin',          url: '/guia-admin.php', novaAba: true, color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 12%, transparent)' },
     ...(window.IS_GLOBAL_ADMIN ? [
       { icon: 'bi-globe2',              label: 'Site<br>Admin',             url: '/siteadmin.php',       color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
     ] : []),
