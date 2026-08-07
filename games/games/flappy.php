@@ -13,6 +13,23 @@ $pointsMultiplier = getGamePointsMultiplier($pdo, 'flappy');
 const FLAPPY_PONTOS_POR_SEGUNDO = 5;
 
 /**
+ * Folga, em pontos, entre o último progresso reportado e o score final aceito.
+ *
+ * Mesmo buraco do Pinguim (ver PINGUIM_FOLGA_PROGRESSO): o teto de moedas
+ * impede o farm, mas não o RANKING — dava pra abrir a run, esperar sem jogar e
+ * mandar o score direto no salvar_score. A checagem por tempo só diz que o
+ * score cabe no tempo, nunca que houve jogo.
+ *
+ * Aqui era pior que no Pinguim: o Flappy não reportava NADA durante a partida,
+ * só o score final na morte — não havia nem sinal de progresso pra conferir.
+ * Por isso a ação 'progresso' abaixo, que o cliente chama a cada 10 pontos.
+ *
+ * A escala do Flappy é ~10x menor que a do Pinguim (300 aqui ≈ 3.000 lá), então
+ * a folga também é 10x menor.
+ */
+const FLAPPY_FOLGA_PROGRESSO = 50;
+
+/**
  * Teto de moedas por PARTIDA.
  *
  * A checagem por tempo sozinha só limita o teto do score; ela não exige que a
@@ -86,7 +103,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         $_SESSION['flappy_revive_used'] = false;
         $_SESSION['flappy_score_saved'] = false;
         $_SESSION['flappy_coins_pagos'] = 0;
+        $_SESSION['flappy_progresso']   = 0;
         echo json_encode(['sucesso' => true]);
+        exit;
+    }
+
+    // Ping de progresso durante a partida — ver FLAPPY_FOLGA_PROGRESSO. Não paga
+    // nada e não fecha a run: só registra até onde deu pra comprovar que o
+    // jogador chegou, com cada ping validado contra o tempo decorrido.
+    if ($_POST['acao'] == 'progresso') {
+        $score = isset($_POST['score']) ? (int)$_POST['score'] : 0;
+        try {
+            $validate_run_score($score);
+            $_SESSION['flappy_progresso'] = max((int)($_SESSION['flappy_progresso'] ?? 0), $score);
+            echo json_encode(['sucesso' => true]);
+        } catch (Exception $e) {
+            echo json_encode(['erro' => $e->getMessage()]);
+        }
         exit;
     }
 
@@ -150,6 +183,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         $score = isset($_POST['score']) ? (int)$_POST['score'] : 0;
         try {
             $validate_run_score($score);
+            // Amarra o score aos pings de progresso — ver FLAPPY_FOLGA_PROGRESSO.
+            // Vem antes do cálculo do prêmio, então também limita as moedas de
+            // quem tentar pular a partida inteira.
+            $progresso     = (int)($_SESSION['flappy_progresso'] ?? 0);
+            $tetoProgresso = $progresso + FLAPPY_FOLGA_PROGRESSO;
+            if ($score > $tetoProgresso) {
+                error_log("[flappy] score $score limitado a $tetoProgresso (progresso=$progresso, user=$user_id)");
+                $score = $tetoProgresso;
+            }
             // Mesma curva do Pinguim (ver pinguim.php): 1 moeda por marco, +1 a cada
             // faixa. As constantes são as de lá divididas por 10 porque a escala de
             // score aqui é ~10x menor — 300 no Flappy equivale a 3.000 no Pinguim, e
@@ -823,6 +865,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 if (!p.passed && p.x + this.w < bird.x) {
                     p.passed = true; score++;
                     document.getElementById('scoreDisplay').textContent = score;
+                    if (score % 10 === 0) reportarProgresso(score);
 
                     // Troca de cenário
                     if (score % 15 === 0) {
@@ -923,6 +966,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             currentState = 'GAME';
             loop();
         });
+    }
+
+    /** Ping de progresso a cada 10 pontos — o servidor usa isto pra saber que a
+     *  partida foi jogada de verdade (ver FLAPPY_FOLGA_PROGRESSO no PHP).
+     *  Falha de rede aqui não pode atrapalhar o jogo: a folga do servidor cobre
+     *  alguns pings perdidos, e o pior caso é o score ficar limitado. */
+    function reportarProgresso(s) {
+        const fd = new FormData();
+        fd.append('acao', 'progresso'); fd.append('score', s);
+        fetch('index.php?game=flappy', { method: 'POST', body: fd }).catch(() => {});
     }
 
     // ── GAME OVER ──

@@ -29,6 +29,28 @@ $pointsMultiplier = getGamePointsMultiplier($pdo, 'pinguim');
  */
 const PINGUIM_TETO_MOEDAS_PARTIDA = 150;
 
+/**
+ * Folga, em pontos, entre o último marco reportado e o score final aceito.
+ *
+ * O teto de moedas acima resolveu o farm, mas não o RANKING: dava pra abrir a
+ * run, esperar uma hora sem jogar e mandar um score de 72 mil direto no
+ * salvar_score, encabeçando o placar pra sempre. A checagem por tempo não
+ * pega isso — ela só diz que o score cabe no tempo, nunca que houve jogo.
+ *
+ * Durante uma partida de verdade o cliente reporta um marco a cada 100 pontos,
+ * e cada marco é validado contra o tempo decorrido. Então amarrar o score final
+ * aos marcos reportados fecha o buraco: quem não jogou não tem marco nenhum e
+ * fica limitado a esta folga. Quem quiser forjar precisa mandar centenas de
+ * requisições espaçadas no mesmo tempo que um jogador perfeito levaria — que é
+ * o melhor limite possível sem simular o jogo no servidor.
+ *
+ * A folga cobre o trecho entre o último marco e a morte (até 99 pontos) mais
+ * alguma requisição de marco que tenha se perdido ou esteja em voo na hora da
+ * morte. É clamp, não recusa: quem perdeu marcos por rede ruim não leva erro
+ * na cara, só tem o score limitado ao que dá pra comprovar.
+ */
+const PINGUIM_FOLGA_PROGRESSO = 500;
+
 // --- AUTOMATIZAÇÃO DO BANCO DE DADOS PARA SKINS ---
 try {
     // Tabela de compras
@@ -249,6 +271,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         $score_final = isset($_POST['score']) ? (int)$_POST['score'] : 0;
         try {
             $validate_run_score($score_final);
+            // Amarra o score do ranking aos marcos que foram realmente reportados
+            // durante a partida — ver PINGUIM_FOLGA_PROGRESSO.
+            $tetoProgresso = $last_milestone * 100 + PINGUIM_FOLGA_PROGRESSO;
+            if ($score_final > $tetoProgresso) {
+                error_log("[pinguim] score $score_final limitado a $tetoProgresso (marcos=$last_milestone, user=$user_id)");
+                $score_final = $tetoProgresso;
+            }
             $pdo->prepare("INSERT INTO dino_historico (id_usuario, pontuacao_final, pontos_ganhos) VALUES (:uid, :score, 0)")
                 ->execute([':uid' => $user_id, ':score' => $score_final]);
         } catch (Exception $ex) { /* validação ou insert falhou — não derruba o fim de partida */ }
