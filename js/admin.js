@@ -279,6 +279,36 @@ async function showGestao(league) {
     <button class="btn btn-sm ${lg === _gestaoLeague ? 'btn-orange' : 'btn-outline-orange'}"
             onclick="showGestao('${lg}')">${lg}${leagueCounts[lg] !== undefined ? ` <span style="opacity:.75">| ${leagueCounts[lg]}</span>` : ''}</button>`).join('');
 
+  // Mesmos cards (.action-tile) das outras abas do admin — antes isto era uma
+  // fileira de botões-pílula, que destoava do resto e ficava ilegível quando a
+  // lista crescia. `url` vira <a>; `fn` vira <button>.
+  const gestaoAcoes = [
+    { icon: 'bi-person-plus-fill',      label: 'Adicionar<br>GM',           fn: 'openCreateGmModal()',   color: '#22c55e', bg: 'rgba(34,197,94,.12)'  },
+    { icon: 'bi-chat-left-dots-fill',   label: 'Ouvidoria',                 fn: 'showOuvidoriaModal()',  color: '#8b5cf6', bg: 'rgba(139,92,246,.12)' },
+    { icon: 'bi-award-fill',            label: 'Hall da<br>Fama',           fn: 'showHallOfFame()',      color: '#eab308', bg: 'rgba(234,179,8,.12)'  },
+    { icon: 'bi-record-circle',         label: 'Roletas',                   url: '/roleta.php',          color: '#ec4899', bg: 'rgba(236,72,153,.12)' },
+    { icon: 'bi-clipboard-plus',        label: 'Inscrição<br>ROOKIE',       fn: 'showConviteRookie()',   color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
+    { icon: 'bi-shuffle',               label: 'Drafts<br>Aleatórios',      url: '/drafts-aleatorios.php',    color: '#a855f7', bg: 'rgba(168,85,247,.08)' },
+    { icon: 'bi-dice-3-fill',           label: 'Loterias',                  url: '/loterias-aleatorias.php',  color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
+    { icon: 'bi-newspaper',             label: 'The<br>Pathetic',           url: '/thepathetic-edit.php',     color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 12%, transparent)' },
+    { icon: 'bi-person-bounding-box',   label: 'Sincronizar<br>Fotos NBA',  fn: 'syncFotosNBA()',        color: '#06b6d4', bg: 'rgba(6,182,212,.12)', id: 'btnSyncFotos' },
+    { icon: 'bi-person-lines-fill',     label: 'Interessados',              fn: 'showWaitlistModal()',   color: '#22c55e', bg: 'rgba(34,197,94,.12)', badgeId: 'waitlist-badge' },
+    { icon: 'bi-book-half',             label: 'Ver guia<br>do usuário',    url: '/guia.php', novaAba: true, color: '#38bdf8', bg: 'rgba(56,189,248,.12)' },
+    ...(window.IS_GLOBAL_ADMIN ? [
+      { icon: 'bi-globe2',              label: 'Site<br>Admin',             url: '/siteadmin.php',       color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
+    ] : []),
+  ];
+
+  const gestaoTiles = gestaoAcoes.map(a => {
+    const miolo = `
+      <div class="action-tile-icon" style="background:${a.bg};color:${a.color}"><i class="bi ${a.icon}"></i></div>
+      <div class="action-tile-label">${a.label}</div>
+      ${a.badgeId ? `<span class="action-tile-badge" id="${a.badgeId}" style="display:none">0</span>` : ''}`;
+    return a.url
+      ? `<a href="${a.url}"${a.novaAba ? ' target="_blank" rel="noopener"' : ''} class="action-tile" style="text-decoration:none">${miolo}</a>`
+      : `<button class="action-tile"${a.id ? ` id="${a.id}"` : ''} onclick="${a.fn}">${miolo}</button>`;
+  }).join('');
+
   container.innerHTML = `
     <div id="maintenanceBanner" class="mb-3"></div>
     <div class="mb-3 d-flex align-items-center justify-content-center flex-wrap gap-2" style="position:relative">
@@ -287,42 +317,7 @@ async function showGestao(league) {
         <i class="bi bi-arrow-repeat"></i>
       </button>
     </div>
-    <div class="d-flex gap-2 mb-3 flex-wrap justify-content-center">
-      <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="openCreateGmModal()">
-        <i class="bi bi-person-plus-fill" style="color:#22c55e"></i> Adicionar GM
-      </button>
-      <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="showOuvidoriaModal()">
-        <i class="bi bi-chat-left-dots-fill" style="color:#8b5cf6"></i> Ouvidoria
-      </button>
-      <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="showHallOfFame()">
-        <i class="bi bi-award-fill" style="color:#eab308"></i> Hall da Fama
-      </button>
-      <a href="/roleta.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
-        <i class="bi bi-record-circle" style="color:#ec4899"></i> Roletas
-      </a>
-      <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="showConviteRookie()">
-        <i class="bi bi-clipboard-plus" style="color:#a855f7"></i> Link de cadastro ROOKIE
-      </button>
-      <a href="/drafts-aleatorios.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
-        <i class="bi bi-shuffle" style="color:#a855f7"></i> Drafts Aleatórios
-      </a>
-      <a href="/loterias-aleatorias.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
-        <i class="bi bi-dice-3-fill" style="color:#f59e0b"></i> Loterias
-      </a>
-      <a href="/thepathetic-edit.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
-        <i class="bi bi-newspaper" style="color:var(--red)"></i> The Pathetic
-      </a>
-      <button class="btn-ghost" id="btnSyncFotos" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center" onclick="syncFotosNBA()">
-        <i class="bi bi-person-bounding-box" style="color:#06b6d4"></i> Sincronizar Fotos NBA
-      </button>
-      <button class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;position:relative" onclick="showWaitlistModal()">
-        <i class="bi bi-person-lines-fill" style="color:#22c55e"></i> Interessados
-        <span class="action-tile-badge" id="waitlist-badge" style="display:none;position:static">0</span>
-      </button>
-      ${window.IS_GLOBAL_ADMIN ? `<a href="/siteadmin.php" class="btn-ghost" style="padding:8px 16px;gap:8px;display:inline-flex;align-items:center;text-decoration:none">
-        <i class="bi bi-globe2" style="color:#3b82f6"></i> Site Admin
-      </a>` : ''}
-    </div>
+    <div class="action-grid mb-3">${gestaoTiles}</div>
     <div id="gestaoTableContainer">
       <div class="text-center py-5"><div class="spinner-border text-orange"></div></div>
     </div>`;
@@ -2945,8 +2940,16 @@ async function showHallOfFame() {
 
       <!-- Lista -->
       <div class="pun-card">
-        <div class="pun-card-head">
+        <div class="pun-card-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <div class="pun-card-title"><i class="bi bi-list-stars" style="color:var(--amber);margin-right:6px"></i>Lista do Hall da Fama</div>
+          <!-- Filtro só da lista: não mexe na liga do formulário de adicionar -->
+          <select id="hofFiltroLiga" title="Filtrar a lista por liga"
+            style="margin-left:auto;background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;padding:5px 9px;color:var(--text);font-size:12px;font-weight:700;outline:none">
+            <option value="">Todas as ligas</option>
+            ${['ELITE', 'NEXT', 'RISE', 'ROOKIE'].map(lg => `<option value="${lg}">${lg}</option>`).join('')}
+          </select>
+          <input id="hofBusca" type="search" placeholder="Buscar GM ou time…" autocomplete="off"
+            style="background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;padding:5px 9px;color:var(--text);font-size:12px;outline:none;min-width:150px;flex:1 1 150px">
         </div>
         <div id="hofList" style="padding:4px 0">
           <div style="text-align:center;padding:32px"><div class="spinner-border" style="width:24px;height:24px;border-width:3px;border-color:var(--border-md);border-top-color:var(--red)"></div></div>
@@ -2962,6 +2965,8 @@ async function showHallOfFame() {
     loadHallOfFameTeams(hallOfFameLeague);
   });
   document.getElementById('hofAddBtn').addEventListener('click', submitHallOfFameEntry);
+  document.getElementById('hofFiltroLiga')?.addEventListener('change', renderHallOfFameList);
+  document.getElementById('hofBusca')?.addEventListener('input', renderHallOfFameList);
 
   hallOfFameLeague = document.getElementById('hofLeague').value || _hofInitLeague;
   loadHallOfFameTeams(hallOfFameLeague);
@@ -3033,18 +3038,52 @@ async function submitHallOfFameEntry() {
 
 const HOF_LEAGUE_ORDER = { ELITE: 0, NEXT: 1, RISE: 2, ROOKIE: 3 };
 
+// A lista fica em memória depois do primeiro carregamento: filtrar por liga ou
+// buscar por nome é só re-render, sem nova ida ao servidor.
+let _hofGroups = [];
+
 async function loadHallOfFameList() {
   const container = document.getElementById('hofList');
   if (!container) return;
   container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-orange"></div></div>';
   try {
     const data = await api('admin.php?action=hall_of_fame');
-    const groups = data.groups || [];
-    if (!groups.length) {
-      container.innerHTML = '<p class="empty-state" style="padding:32px">Nenhum registro ainda.</p>';
-      return;
-    }
+    _hofGroups = data.groups || [];
+    renderHallOfFameList();
+  } catch (e) {
+    container.innerHTML = '<p class="empty-state" style="padding:32px;color:#ef4444">Erro ao carregar lista.</p>';
+  }
+}
 
+function renderHallOfFameList() {
+  const container = document.getElementById('hofList');
+  if (!container) return;
+
+  const liga = document.getElementById('hofFiltroLiga')?.value || '';
+  const termo = (document.getElementById('hofBusca')?.value || '').trim().toLowerCase();
+
+  if (!_hofGroups.length) {
+    container.innerHTML = '<p class="empty-state" style="padding:32px">Nenhum registro ainda.</p>';
+    return;
+  }
+
+  // Filtra as linhas pela liga e o grupo pelo termo; grupo que ficou sem linha sai.
+  const groups = _hofGroups.map(g => {
+    const rows = (g.rows || []).filter(r => !liga || r.league === liga);
+    return { ...g, rows };
+  }).filter(g => {
+    if (!g.rows.length) return false;
+    if (!termo) return true;
+    const alvo = ((g.gm_name || '') + ' ' + (g.teams || []).join(' ')).toLowerCase();
+    return alvo.includes(termo);
+  });
+
+  if (!groups.length) {
+    container.innerHTML = `<p class="empty-state" style="padding:32px">Nenhum registro${liga ? ' na ' + liga : ''}${termo ? ' para “' + escapeHtml(termo) + '”' : ''}.</p>`;
+    return;
+  }
+
+  {
     container.innerHTML = groups.map(g => {
       const sc = g.is_active ? '#22c55e' : 'var(--text-3)';
       const rows = [...(g.rows || [])].sort((a, b) => (HOF_LEAGUE_ORDER[a.league] ?? 9) - (HOF_LEAGUE_ORDER[b.league] ?? 9));
@@ -3075,8 +3114,6 @@ async function loadHallOfFameList() {
         </div>
       </div>`;
     }).join('');
-  } catch (e) {
-    container.innerHTML = '<p class="empty-state" style="padding:32px;color:#ef4444">Erro ao carregar lista.</p>';
   }
 }
 

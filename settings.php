@@ -183,6 +183,8 @@ try {
             font-family: var(--font); transition: all var(--t) var(--ease);
         }
         .snav-item:hover { background: var(--panel); color: var(--text); }
+        .snav-link { text-decoration: none; margin-top: 6px; padding-top: 15px; border-top: 1px solid var(--border); border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
+        .snav-ext { margin-left: auto; font-size: 11px; opacity: .5; }
         .snav-item.active {
             background: var(--panel); border-color: var(--border-red); color: var(--text);
         }
@@ -418,6 +420,13 @@ try {
                         <span class="snav-ico"><i class="bi bi-shield-lock-fill"></i></span>
                         <span class="snav-txt"><span class="snav-label">Segurança</span><span class="snav-desc">Senha de acesso</span></span>
                     </button>
+                    <!-- Link externo, não é uma seção desta página: fica sem data-sec
+                         de propósito (o JS da nav só liga em .snav-item[data-sec]). -->
+                    <a class="snav-item snav-link" href="/guia.php">
+                        <span class="snav-ico"><i class="bi bi-book-half"></i></span>
+                        <span class="snav-txt"><span class="snav-label">Guia do GM</span><span class="snav-desc">Como a FBA funciona</span></span>
+                        <i class="bi bi-box-arrow-up-right snav-ext"></i>
+                    </a>
                 </nav>
 
                 <div class="settings-panel">
@@ -798,7 +807,8 @@ try {
     // O hash na URL permite link direto, ex: /settings.php#aparencia
     const nav = document.getElementById('settingsNav');
     if (nav) {
-        const items = Array.from(nav.querySelectorAll('.snav-item'));
+        // [data-sec] exclui o link do Guia, que sai da página em vez de trocar de seção
+        const items = Array.from(nav.querySelectorAll('.snav-item[data-sec]'));
         const secoes = Array.from(document.querySelectorAll('.ssec'));
         const mostrar = (chave, atualizarHash) => {
             const alvo = document.getElementById('sec-' + chave);
