@@ -759,7 +759,10 @@ if ($method === 'POST') {
                 $token = $data['token'] ?? null;
                 $session = getSessionByToken($pdo, $token);
                 if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
-                if ($session['status'] !== 'setup') throw new InvalidArgumentException('Só é possível editar jogadores durante setup');
+                // Mesmo escopo do delete_player: setup + draft em andamento, só
+                // trava depois de finalizado (quem já foi draftado nunca edita, já
+                // garantido pela query abaixo).
+                if ($session['status'] === 'completed') throw new InvalidArgumentException('O draft já foi finalizado.');
 
                 $playerId = (int)($data['player_id'] ?? 0);
                 if (!$playerId) throw new InvalidArgumentException('player_id obrigatório');

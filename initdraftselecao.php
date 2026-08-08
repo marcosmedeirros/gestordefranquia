@@ -277,8 +277,8 @@ if ($user && isset($user['id'])) {
         .field-input::placeholder { color: var(--text-3); }
 
         /* ── Data table ───────────────────────────────── */
-        .data-table-wrap { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-        .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .data-table-wrap { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+        .data-table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 13px; }
         .data-table th { font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--text-3); padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; background: var(--panel-2); }
         .data-table th.sortable { cursor: pointer; user-select: none; }
         .data-table th.sortable:hover { color: var(--text-2); }
@@ -329,12 +329,6 @@ if ($user && isset($user['id'])) {
         @media (max-width: 768px) {
             .manual-order-row { grid-template-columns: 1fr; }
             .manual-position-select { width: 100%; }
-        }
-        @media (max-width: 576px) {
-            #poolTableEl thead { display: none; }
-            #poolTableEl tbody tr { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
-            #poolTableEl td { width: 100%; padding: 0; border: 0; }
-            #poolTableEl td:first-child { display: none; }
         }
         input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--red, #fc0025);outline-offset:2px;}
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; } }
@@ -583,7 +577,7 @@ if ($user && isset($user['id'])) {
                     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
                         <div>
                             <div style="font-size:14px;font-weight:700">Pool de jogadores</div>
-                            <div style="font-size:11px;color:var(--text-2);margin-top:2px">Adicionar, editar e remover só é permitido durante a configuração.</div>
+                            <div style="font-size:11px;color:var(--text-2);margin-top:2px">Adicionar, editar e remover vale durante a configuração e com o draft rolando — só quem já foi escolhido não muda mais. "Limpar pool" continua só na configuração.</div>
                         </div>
                         <div class="d-flex flex-wrap gap-2">
                             <button class="btn-ghost" id="admClearPoolBtn" onclick="clearPool()"><i class="bi bi-trash"></i> Limpar pool</button>
@@ -2182,7 +2176,9 @@ if ($user && isset($user['id'])) {
             admElements.poolTable.innerHTML = pageItems
                 .map((player, index) => {
                     const drafted = player.draft_status === 'drafted';
-                    const editBtn = (isSetup && !drafted) ? `<button class="btn-sm-icon amber" onclick="openEditPlayer(${player.id})"><i class="bi bi-pencil"></i></button>` : '';
+                    // Editar vale no mesmo escopo de excluir: setup + draft em
+                    // andamento, contanto que o jogador ainda não tenha sido escolhido.
+                    const editBtn = (podeExcluirJogador && !drafted) ? `<button class="btn-sm-icon amber" onclick="openEditPlayer(${player.id})"><i class="bi bi-pencil"></i></button>` : '';
                     const delBtn = (podeExcluirJogador && !drafted) ? `<button class="btn-sm-icon danger" onclick="deleteInitDraftPlayer(${player.id}, '${esc((player.name || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}')"><i class="bi bi-trash"></i></button>` : '';
                     const actions = (editBtn || delBtn) ? `<div style="display:flex;gap:4px;justify-content:flex-end">${editBtn} ${delBtn}</div>` : '<span style="color:var(--text-3)">—</span>';
                     return `
