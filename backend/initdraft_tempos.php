@@ -104,8 +104,12 @@ function temposDaSessao(PDO $pdo, array $sessao): array
     }
     unset($t);
 
-    // Quem mais demorou primeiro — é o ranking que a página promete.
-    uasort($porTime, fn($a, $b) => $b['media'] <=> $a['media']);
+    // Quem mais demorou primeiro, pelo TOTAL somado de todas as rodadas.
+    // Não pela média: a média empata quem tem 6 picks com quem tem 7, e o que
+    // se quer saber é quanto tempo de draft cada um consumiu no fim das contas.
+    // A média fica na tabela como coluna, que é o número justo quando alguém
+    // trocou picks e escolheu mais vezes que os outros.
+    uasort($porTime, fn($a, $b) => $b['total'] <=> $a['total']);
 
     return ['picks' => $picks, 'times' => array_values($porTime)];
 }

@@ -496,7 +496,10 @@ try {
            davam 2.1–2.5:1. Estes ficam acima de 4.5:1 nos dois temas. */
         .tempos { --t-lento: #f0616d; --t-rapido: #3fb950; --t-lider: #e3b341; }
         :root[data-theme="light"] .tempos { --t-lento: #c02a3a; --t-rapido: #1a7f37; --t-lider: #9a6b00; }
-        .tempos { max-width: 1400px; margin: 34px auto 46px; padding: 0 18px; }
+        /* Sem padding nem max-width próprios: mora dentro do .app-wrap, que já
+           desvia da sidebar. Ter os meus era o que jogava o bloco pra baixo do
+           menu lateral. */
+        .tempos { margin: 26px 0 8px; }
         .tempos-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
         .tempos-titulo { font-size: 17px; font-weight: 800; letter-spacing: -.2px; margin: 0 0 2px; color: var(--text); display: flex; align-items: center; gap: 8px; }
         .tempos-sub { font-size: 12px; color: var(--text-3); margin: 0; }
@@ -523,7 +526,18 @@ try {
         .tempos-det[open] summary::before { content: "▾ "; }
         .tempos-det summary:hover { color: var(--text-2); }
         .tempos-det .tempos-tabela { margin-top: 6px; }
-        @media (max-width: 560px) { .tempos { padding: 0 13px; margin-top: 26px; } }
+        .tempos-tabela .so-estreito { display: none; }
+        /* No celular a tabela inteira não cabe em 375px. Em vez de empurrar o
+           dedo pra rolar de lado, some com o que é acessório e a média desce
+           pra baixo do total — o ranking continua legível sem rolagem. */
+        @media (max-width: 720px) {
+            .tempos { margin-top: 20px; }
+            .tempos-tabela table { min-width: 0; }
+            .tempos-tabela .opcional { display: none; }
+            .tempos-tabela .so-estreito { display: block; }
+            .tempos-cab { flex-direction: column; align-items: stretch; }
+            .tempos-cab .btn-ghost { justify-content: center; }
+        }
     </style>
 </head>
 <body>
@@ -806,6 +820,113 @@ try {
         </div>
     </div>
 
+<?php if ($tempos): $tPicks = $tempos['picks']; $tTimes = $tempos['times'];
+      $usaAgenda = (int)($tempos['sessao']['daily_schedule_enabled'] ?? 0) === 1; ?>
+<section class="tempos">
+    <div class="tempos-cab">
+        <div>
+            <h2 class="tempos-titulo"><i class="bi bi-hourglass-split"></i> Quem mais demorou pra escolher</h2>
+            <p class="tempos-sub">
+                Tempo somado de todas as rodadas · <?= count($tPicks) ?> picks · janela
+                <?= $usaAgenda && !empty($tempos['sessao']['daily_clock_start_time'])
+                    ? 'às ' . htmlspecialchars(substr((string)$tempos['sessao']['daily_clock_start_time'], 0, 5))
+                    : 'não configurada (assumindo ' . substr(TEMPOS_ABERTURA_PADRAO, 0, 5) . ')' ?>
+            </p>
+        </div>
+        <button type="button" class="btn-ghost" id="btnCopiarTempos">
+            <i class="bi bi-whatsapp"></i> Copiar pro WhatsApp
+        </button>
+    </div>
+
+    <div class="tempos-nota">
+        O relógio de cada pick começa no que vier depois: a pick anterior, ou a abertura da janela
+        daquele dia — assim quem pegou a vez de madrugada não aparece com horas de demora só por ter
+        ido dormir. <b>A 1ª escolha da 1ª rodada não entra</b>, porque o tempo dela é o de divulgar o
+        link, não o de decidir. E pick feita por mock é gravada igual a uma feita por pessoa, sem
+        marca nenhuma — então um tempo muito baixo pode ser o bot.
+    </div>
+
+    <div class="tempos-tabela">
+        <table>
+            <thead>
+                <tr>
+                    <th></th><th>GM</th>
+                    <th class="n">Total</th>
+                    <th class="n opcional">Média</th>
+                    <th class="n opcional">Pior</th>
+                    <th class="n opcional">Picks</th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php foreach ($tTimes as $i => $t): ?>
+                <tr>
+                    <td class="pos<?= $i === 0 ? ' lider' : '' ?>"><?= $i + 1 ?></td>
+                    <td class="nome"><?= htmlspecialchars($t['gm']) ?>
+                        <div class="sub"><?= htmlspecialchars($t['time']) ?></div></td>
+                    <td class="n<?= $i === 0 ? ' lento' : ($i === count($tTimes) - 1 ? ' rapido' : '') ?>">
+                        <?= fmtDuracao((int)$t['total']) ?>
+                        <div class="sub so-estreito"><?= fmtDuracao((int)$t['media']) ?> por pick</div></td>
+                    <td class="n opcional"><?= fmtDuracao((int)$t['media']) ?></td>
+                    <td class="n opcional"><?= fmtDuracao((int)$t['pior']) ?>
+                        <?php if ($t['pior_jogador']): ?><div class="sub"><?= htmlspecialchars($t['pior_jogador']) ?></div><?php endif; ?></td>
+                    <td class="n opcional"><?= (int)$t['picks'] ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <details class="tempos-det">
+        <summary>Ver as <?= count($tPicks) ?> picks, uma a uma</summary>
+        <div class="tempos-tabela">
+            <table>
+                <thead><tr><th>Pick</th><th>GM</th><th>Escolheu</th><th class="n">Tempo</th><th class="n">Quando</th></tr></thead>
+                <tbody>
+                <?php foreach ($tPicks as $p): ?>
+                    <tr<?= $p['conta'] ? '' : ' class="fora"' ?>>
+                        <td class="n"><?= $p['round'] ?>.<?= str_pad((string)$p['pick'], 2, '0', STR_PAD_LEFT) ?></td>
+                        <td class="nome"><?= htmlspecialchars($p['gm']) ?></td>
+                        <td><?= htmlspecialchars($p['jogador']) ?></td>
+                        <td class="n"><?= fmtDuracao((int)$p['segundos']) ?><?= $p['conta'] ? '' : ' <span class="sub">não conta</span>' ?></td>
+                        <td class="n"><?= htmlspecialchars(substr($p['quando'], 5, 11)) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </details>
+</section>
+
+<script>
+// Texto pro grupo: só o nome do GM, como pediram — time e jogador ficam de fora.
+const TEMPOS_TEXTO = <?= json_encode(
+    "⏱️ *Quem mais demorou no Draft Inicial* — " . ($tempos['sessao']['league'] ?? '') . "\n\n"
+    . implode("\n", array_map(
+        fn($i, $t) => ($i + 1) . '. ' . $t['gm'] . ' — ' . fmtDuracao((int)$t['total']),
+        array_keys($tTimes), $tTimes))
+    . "\n\n_tempo somado de todas as rodadas; a 1ª escolha da 1ª rodada não conta_",
+    JSON_UNESCAPED_UNICODE) ?>;
+
+document.getElementById('btnCopiarTempos').addEventListener('click', async function () {
+    const btn = this;
+    try {
+        await navigator.clipboard.writeText(TEMPOS_TEXTO);
+    } catch (e) {
+        // clipboard API exige HTTPS e gesto do usuário; em alguns WebViews falha.
+        const ta = document.createElement('textarea');
+        ta.value = TEMPOS_TEXTO;
+        ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy');
+        ta.remove();
+    }
+    const antes = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check2"></i> Copiado';
+    setTimeout(() => { btn.innerHTML = antes; }, 1800);
+});
+</script>
+<?php endif; ?>
+
 </div><!-- .app-wrap -->
 
 </main>
@@ -935,104 +1056,6 @@ try {
 </div>
 <?php endif; ?>
 
-<?php if ($tempos): $tPicks = $tempos['picks']; $tTimes = $tempos['times'];
-      $usaAgenda = (int)($tempos['sessao']['daily_schedule_enabled'] ?? 0) === 1; ?>
-<section class="tempos">
-    <div class="tempos-cab">
-        <div>
-            <h2 class="tempos-titulo"><i class="bi bi-hourglass-split"></i> Quem mais demorou pra escolher</h2>
-            <p class="tempos-sub">
-                <?= count($tPicks) ?> picks · janela
-                <?= $usaAgenda && !empty($tempos['sessao']['daily_clock_start_time'])
-                    ? 'às ' . htmlspecialchars(substr((string)$tempos['sessao']['daily_clock_start_time'], 0, 5))
-                    : 'não configurada (assumindo ' . substr(TEMPOS_ABERTURA_PADRAO, 0, 5) . ')' ?>
-            </p>
-        </div>
-        <button type="button" class="btn-ghost" id="btnCopiarTempos">
-            <i class="bi bi-whatsapp"></i> Copiar pro WhatsApp
-        </button>
-    </div>
-
-    <div class="tempos-nota">
-        O relógio de cada pick começa no que vier depois: a pick anterior, ou a abertura da janela
-        daquele dia — assim quem pegou a vez de madrugada não aparece com horas de demora só por ter
-        ido dormir. <b>A 1ª escolha da 1ª rodada não entra</b>, porque o tempo dela é o de divulgar o
-        link, não o de decidir. E pick feita por mock é gravada igual a uma feita por pessoa, sem
-        marca nenhuma — então um tempo muito baixo pode ser o bot.
-    </div>
-
-    <div class="tempos-tabela">
-        <table>
-            <thead>
-                <tr><th></th><th>GM</th><th class="n">Média</th><th class="n">Pior</th><th class="n">Total</th><th class="n">Picks</th></tr>
-            </thead>
-            <tbody>
-            <?php foreach ($tTimes as $i => $t): ?>
-                <tr>
-                    <td class="pos<?= $i === 0 ? ' lider' : '' ?>"><?= $i + 1 ?></td>
-                    <td class="nome"><?= htmlspecialchars($t['gm']) ?>
-                        <div class="sub"><?= htmlspecialchars($t['time']) ?></div></td>
-                    <td class="n<?= $i === 0 ? ' lento' : ($i === count($tTimes) - 1 ? ' rapido' : '') ?>"><?= fmtDuracao((int)$t['media']) ?></td>
-                    <td class="n"><?= fmtDuracao((int)$t['pior']) ?>
-                        <?php if ($t['pior_jogador']): ?><div class="sub"><?= htmlspecialchars($t['pior_jogador']) ?></div><?php endif; ?></td>
-                    <td class="n"><?= fmtDuracao((int)$t['total']) ?></td>
-                    <td class="n"><?= (int)$t['picks'] ?></td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-
-    <details class="tempos-det">
-        <summary>Ver as <?= count($tPicks) ?> picks, uma a uma</summary>
-        <div class="tempos-tabela">
-            <table>
-                <thead><tr><th>Pick</th><th>GM</th><th>Escolheu</th><th class="n">Tempo</th><th class="n">Quando</th></tr></thead>
-                <tbody>
-                <?php foreach ($tPicks as $p): ?>
-                    <tr<?= $p['conta'] ? '' : ' class="fora"' ?>>
-                        <td class="n"><?= $p['round'] ?>.<?= str_pad((string)$p['pick'], 2, '0', STR_PAD_LEFT) ?></td>
-                        <td class="nome"><?= htmlspecialchars($p['gm']) ?></td>
-                        <td><?= htmlspecialchars($p['jogador']) ?></td>
-                        <td class="n"><?= fmtDuracao((int)$p['segundos']) ?><?= $p['conta'] ? '' : ' <span class="sub">não conta</span>' ?></td>
-                        <td class="n"><?= htmlspecialchars(substr($p['quando'], 5, 11)) ?></td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </details>
-</section>
-
-<script>
-// Texto pro grupo: só o nome do GM, como pediram — time e jogador ficam de fora.
-const TEMPOS_TEXTO = <?= json_encode(
-    "⏱️ *Quem mais demorou no Draft Inicial* — " . ($tempos['sessao']['league'] ?? '') . "\n\n"
-    . implode("\n", array_map(
-        fn($i, $t) => ($i + 1) . '. ' . $t['gm'] . ' — ' . fmtDuracao((int)$t['media']),
-        array_keys($tTimes), $tTimes))
-    . "\n\n_média por pick; a 1ª escolha da 1ª rodada não conta_",
-    JSON_UNESCAPED_UNICODE) ?>;
-
-document.getElementById('btnCopiarTempos').addEventListener('click', async function () {
-    const btn = this;
-    try {
-        await navigator.clipboard.writeText(TEMPOS_TEXTO);
-    } catch (e) {
-        // clipboard API exige HTTPS e gesto do usuário; em alguns WebViews falha.
-        const ta = document.createElement('textarea');
-        ta.value = TEMPOS_TEXTO;
-        ta.style.cssText = 'position:fixed;opacity:0';
-        document.body.appendChild(ta); ta.select();
-        document.execCommand('copy');
-        ta.remove();
-    }
-    const antes = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-check2"></i> Copiado';
-    setTimeout(() => { btn.innerHTML = antes; }, 1800);
-});
-</script>
-<?php endif; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
