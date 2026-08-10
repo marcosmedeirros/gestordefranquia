@@ -28,6 +28,105 @@ function wcNomeDoTime(array $t): string
     return $composto !== '' ? $composto : ($nome !== '' ? $nome : '?');
 }
 
+/**
+ * As dez skills, na ordem em que fazem sentido ler: ataque, defesa, resto.
+ * Rótulo curto de propósito — no WhatsApp cada linha conta.
+ */
+const WC_SKILLS = [
+    'skill_in'     => 'Garrafão',
+    'skill_mid'    => 'Média',
+    'skill_3pt'    => '3 pontos',
+    'skill_post_d' => 'Def. poste',
+    'skill_per_d'  => 'Def. perím.',
+    'skill_play'   => 'Passe',
+    'skill_reb'    => 'Rebote',
+    'skill_athl'   => 'Atletismo',
+    'skill_iq'     => 'QI de jogo',
+    'skill_pot'    => 'Potencial',
+];
+
+/** Nota em número, pra dar pra comparar letra com letra. Mesma escala do site. */
+function wcNotaSkill($v): ?float
+{
+    if ($v === null || $v === '' || $v === '-') return null;
+    if (is_numeric($v)) return (float)$v;
+    $tabela = ['A+'=>95,'A'=>90,'A-'=>85,'B+'=>80,'B'=>75,'B-'=>70,
+               'C+'=>65,'C'=>60,'C-'=>55,'D+'=>50,'D'=>45,'D-'=>40,'F'=>30];
+    return $tabela[strtoupper(trim((string)$v))] ?? null;
+}
+
+/**
+ * Skills do jogador, já resolvidas.
+ *
+ * A coluna skill_* manda; o JSON player_skill_grades é o retrato antigo e só
+ * vale onde a coluna está vazia. Mesma regra do statsjogadores.php e do
+ * player.php — se eu lesse só uma das fontes, jogador cadastrado pelo caminho
+ * antigo apareceria sem skill nenhuma.
+ *
+ * Devolve [rótulo => valor], só com as preenchidas.
+ */
+function wcSkillsDoJogador(array $p): array
+{
+    $json = [];
+    if (!empty($p['player_skill_grades'])) {
+        $d = json_decode((string)$p['player_skill_grades'], true);
+        if (is_array($d)) $json = $d;
+    }
+    // As chaves do JSON não são iguais às das colunas.
+    $doJson = ['skill_in'=>'in','skill_mid'=>'mid','skill_3pt'=>'pt3','skill_post_d'=>'post_d',
+               'skill_per_d'=>'per_d','skill_play'=>'play','skill_reb'=>'reb','skill_athl'=>'athl',
+               'skill_iq'=>'iq','skill_pot'=>'pot'];
+
+    $out = [];
+    foreach (WC_SKILLS as $col => $rotulo) {
+        $v = $p[$col] ?? null;
+        if ($v === null || $v === '' || $v === '-') $v = $json[$doJson[$col]] ?? null;
+        if ($v === null || $v === '' || $v === '-') continue;
+        $out[$rotulo] = $v;
+    }
+    return $out;
+}
+
+/** Trecho do SELECT com as colunas de skill — usado em mais de uma consulta. */
+function wcColunasSkill(string $alias = 'p'): string
+{
+    return $alias . '.player_skill_grades, '
+         . implode(', ', array_map(fn($c) => $alias . '.' . $c, array_keys(WC_SKILLS)));
+}
+
+/**
+ * Números da temporada mais recente em que o jogador teve lançamento.
+ *
+ * Não fixo na temporada "atual" de propósito: quem não jogou ainda apareceria
+ * zerado, e mostrar o último ano que ele tem é mais útil que mostrar nada.
+ * O retorno diz de qual temporada é, pra ninguém confundir.
+ */
+function wcStatsDoJogador(PDO $pdo, int $playerId): ?array
+{
+    try {
+        $st = $pdo->prepare("
+            SELECT ps.season_number, ps.games, ps.min_pg, ps.pts_pg, ps.reb_pg,
+                   ps.ast_pg, ps.stl_pg, ps.blk_pg
+            FROM player_season_stats ps
+            WHERE ps.player_id = ? AND ps.games > 0
+            ORDER BY ps.season_number DESC, ps.id DESC
+            LIMIT 1
+        ");
+        $st->execute([$playerId]);
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Throwable $e) {
+        error_log('[whatsapp-cmd] stats: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/** Número curto pro WhatsApp: 24.1 vira "24,1" e 7.0 vira "7". */
+function wcNum($v): string
+{
+    $n = (float)$v;
+    return $n == floor($n) ? (string)(int)$n : number_format($n, 1, ',', '');
+}
+
 /** Coluna de OVR — o banco antigo usava 'overall'. */
 function wcColunaOvr(PDO $pdo): string
 {
@@ -159,6 +258,7 @@ function wcJogador(PDO $pdo, string $termo): string
     $st = $pdo->prepare("
         SELECT p.id, p.name, p.age, p.position, p.secondary_position, p.{$ovr} AS ovr,
                p.seasons_in_league, p.team_id, COALESCE(p.is_lenda, 0) AS is_lenda,
+               " . wcColunasSkill('p') . ",
                t.city, t.mascot, t.name AS team_name, t.league
         FROM players p JOIN teams t ON t.id = p.team_id
         WHERE p.name LIKE ?
@@ -199,6 +299,24 @@ function wcJogador(PDO $pdo, string $termo): string
             }
         }
     }
+
+    if ($s = wcStatsDoJogador($pdo, (int)$p['id'])) {
+        $txt .= "\n📊 *Temporada {$s['season_number']}*\n"
+              . wcNum($s['pts_pg']) . ' pts · ' . wcNum($s['reb_pg']) . ' reb · ' . wcNum($s['ast_pg']) . " ast\n"
+              . wcNum($s['stl_pg']) . ' rou · ' . wcNum($s['blk_pg']) . ' toc · ' . wcNum($s['min_pg']) . ' min'
+              . ' em ' . (int)$s['games'] . " jogos\n";
+    }
+
+    if ($skills = wcSkillsDoJogador($p)) {
+        $txt .= "\n⭐ *Skills*\n";
+        // Duas por linha: dez linhas soltas viram parede de texto no celular.
+        $pares = array_chunk(array_map(
+            fn($k, $v) => $k . ' *' . $v . '*',
+            array_keys($skills), $skills
+        ), 2);
+        foreach ($pares as $par) $txt .= implode('  ·  ', $par) . "\n";
+    }
+
     return rtrim($txt);
 }
 
@@ -430,6 +548,7 @@ function wcComparar(PDO $pdo, string $termo): string
         $st = $pdo->prepare("
             SELECT p.id, p.name, p.age, p.position, p.{$ovr} AS ovr, p.seasons_in_league,
                    p.team_id, COALESCE(p.is_lenda,0) AS is_lenda,
+                   " . wcColunasSkill('p') . ",
                    t.city, t.name AS team_name, t.league
             FROM players p JOIN teams t ON t.id = p.team_id
             WHERE p.name LIKE ? ORDER BY p.{$ovr} DESC LIMIT 1
@@ -477,6 +596,56 @@ function wcComparar(PDO $pdo, string $termo): string
             ($sa !== null && $sb !== null) ? $m($sb, $sa, false) : '');
     }
 
+    // ── Números da temporada ─────────────────────────────────────────────
+    $ea = wcStatsDoJogador($pdo, (int)$a['id']);
+    $eb = wcStatsDoJogador($pdo, (int)$b['id']);
+    if ($ea || $eb) {
+        // Se cada um tem lançamento de uma temporada diferente, dizer qual —
+        // senão a comparação parece do mesmo ano e não é.
+        $mesmaTemp = $ea && $eb && (int)$ea['season_number'] === (int)$eb['season_number'];
+        $txt .= "\n📊 *" . ($mesmaTemp ? 'Temporada ' . (int)$ea['season_number'] : 'Última temporada de cada um') . "*\n";
+
+        foreach ([['pts_pg','Pontos'], ['reb_pg','Rebotes'], ['ast_pg','Assist.'],
+                  ['stl_pg','Roubos'], ['blk_pg','Tocos'], ['min_pg','Minutos']] as [$campo, $rot]) {
+            $va = $ea ? (float)$ea[$campo] : null;
+            $vb = $eb ? (float)$eb[$campo] : null;
+            if ($va === null && $vb === null) continue;
+            $txt .= $linha($rot,
+                $va !== null ? wcNum($va) : '—',
+                $vb !== null ? wcNum($vb) : '—',
+                ($va !== null && $vb !== null) ? $m($va, $vb) : '',
+                ($va !== null && $vb !== null) ? $m($vb, $va) : '');
+        }
+        if (!$mesmaTemp) {
+            $txt .= '_' . ($ea ? 'T' . (int)$ea['season_number'] : 'sem dados')
+                  . ' · ' . ($eb ? 'T' . (int)$eb['season_number'] : 'sem dados') . "_\n";
+        }
+    }
+
+    // ── Skills ───────────────────────────────────────────────────────────
+    $ska = wcSkillsDoJogador($a);
+    $skb = wcSkillsDoJogador($b);
+    if ($ska && !$skb) {
+        // Dez linhas de "A+ | —" não comparam nada, só ocupam a tela.
+        $txt .= "\n_" . $b['name'] . " ainda não tem skills cadastradas._\n";
+    } elseif ($skb && !$ska) {
+        $txt .= "\n_" . $a['name'] . " ainda não tem skills cadastradas._\n";
+    } elseif ($ska && $skb) {
+        $txt .= "\n⭐ *Skills*\n";
+        foreach (WC_SKILLS as $rotulo) {
+            $va = $ska[$rotulo] ?? null;
+            $vb = $skb[$rotulo] ?? null;
+            if ($va === null && $vb === null) continue;
+            // Compara pela nota numérica: sem isso "A" e "B+" seriam só textos.
+            $na = wcNotaSkill($va);
+            $nb = wcNotaSkill($vb);
+            $podeComparar = $na !== null && $nb !== null;
+            $txt .= $linha($rotulo, $va ?? '—', $vb ?? '—',
+                $podeComparar ? $m($na, $nb) : '',
+                $podeComparar ? $m($nb, $na) : '');
+        }
+    }
+
     $txt .= "\n" . wcNomeDoTime($a) . ' (' . $a['league'] . ')'
           . '  |  ' . wcNomeDoTime($b) . ' (' . $b['league'] . ')';
     return $txt;
@@ -521,6 +690,78 @@ function wcTitulosNaEdicao(PDO $pdo, int $teamId, string $league): array
         // comparação inteira — a linha some e o resto continua.
         error_log('[whatsapp-cmd] titulos: ' . $e->getMessage());
         return ['titulos' => 0, 'edicao' => null];
+    }
+}
+
+/**
+ * Quantas séries de playoff o time venceu, e até onde chegou de melhor.
+ *
+ * O banco guarda só ONDE o time parou (playoff_results.position), não quantas
+ * séries ganhou — mas dá pra derivar: quem perdeu na 1ª rodada ganhou zero
+ * séries, quem caiu na 2ª ganhou uma, e assim por diante até o campeão com
+ * quatro. É a mesma contagem que qualquer um faria de cabeça.
+ */
+function wcPlayoffsNaEdicao(PDO $pdo, int $teamId, ?int $sprintId): array
+{
+    $SERIES = ['first_round' => 0, 'second_round' => 1, 'conference_final' => 2,
+               'runner_up' => 3, 'champion' => 4];
+    $NOME   = ['first_round' => '1ª rodada', 'second_round' => 'semi de conf.',
+               'conference_final' => 'final de conf.', 'runner_up' => 'vice', 'champion' => 'campeão'];
+
+    $out = ['series' => 0, 'melhor' => null, 'aparicoes' => 0];
+    if (!$sprintId) return $out;
+
+    try {
+        $st = $pdo->prepare("
+            SELECT pr.position
+            FROM playoff_results pr
+            JOIN seasons s ON s.id = pr.season_id
+            WHERE pr.team_id = ? AND s.sprint_id = ?
+        ");
+        $st->execute([$teamId, $sprintId]);
+        $melhorValor = -1;
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $pos) {
+            if (!isset($SERIES[$pos])) continue;
+            $out['series'] += $SERIES[$pos];
+            $out['aparicoes']++;
+            if ($SERIES[$pos] > $melhorValor) { $melhorValor = $SERIES[$pos]; $out['melhor'] = $NOME[$pos]; }
+        }
+    } catch (Throwable $e) {
+        error_log('[whatsapp-cmd] playoffs: ' . $e->getMessage());
+    }
+    return $out;
+}
+
+/** Sprint (edição) atual da liga. */
+function wcSprintAtual(PDO $pdo, string $league): ?array
+{
+    try {
+        $st = $pdo->prepare("SELECT id, sprint_number FROM sprints WHERE league = ?
+                             ORDER BY (status = 'active') DESC, sprint_number DESC LIMIT 1");
+        $st->execute([$league]);
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/**
+ * O que só existe ENTRE os dois: trocas que fizeram um com o outro.
+ *
+ * Numa comparação de times isso é o dado mais específico que dá pra dar — e é
+ * o que costuma render discussão no grupo.
+ */
+function wcEntreOsDois(PDO $pdo, int $aId, int $bId): array
+{
+    try {
+        $st = $pdo->prepare("SELECT COUNT(*) FROM trades
+                             WHERE status = 'accepted'
+                               AND ((from_team_id = ? AND to_team_id = ?)
+                                 OR (from_team_id = ? AND to_team_id = ?))");
+        $st->execute([$aId, $bId, $bId, $aId]);
+        return ['trocas' => (int)$st->fetchColumn()];
+    } catch (Throwable $e) {
+        return ['trocas' => 0];
     }
 }
 
@@ -574,6 +815,9 @@ function wcCompararTimes(PDO $pdo, string $termo): string
         $m['picks'] = (int)$st->fetchColumn();
 
         $m += wcTitulosNaEdicao($pdo, (int)$t['id'], (string)$t['league']);
+
+        $sprint = wcSprintAtual($pdo, (string)$t['league']);
+        $m['playoffs'] = wcPlayoffsNaEdicao($pdo, (int)$t['id'], $sprint ? (int)$sprint['id'] : null);
 
         $temp = wcTemporadaAtiva($pdo, (string)$t['league']);
         $m['campanha'] = null;
@@ -631,6 +875,24 @@ function wcCompararTimes(PDO $pdo, string $termo): string
 
     if ($ma['campanha'] || $mb['campanha']) {
         $txt .= $linha('Campanha', $ma['campanha'] ?: '—', $mb['campanha'] ?: '—');
+    }
+
+    // ── Playoffs da edição ───────────────────────────────────────────────
+    $pa = $ma['playoffs']; $pb = $mb['playoffs'];
+    if ($pa['aparicoes'] || $pb['aparicoes']) {
+        $txt .= "\n🏀 *Playoffs na edição*\n"
+              . $linha('Séries vencidas', $pa['series'], $pb['series'],
+                       $marca($pa['series'], $pb['series']), $marca($pb['series'], $pa['series']))
+              . $linha('Melhor campanha', $pa['melhor'] ?: 'não foi', $pb['melhor'] ?: 'não foi')
+              . $linha('Vezes no mata-mata', $pa['aparicoes'], $pb['aparicoes'],
+                       $marca($pa['aparicoes'], $pb['aparicoes']), $marca($pb['aparicoes'], $pa['aparicoes']));
+    }
+
+    // ── O que só existe entre os dois ────────────────────────────────────
+    $entre = wcEntreOsDois($pdo, (int)$a['id'], (int)$b['id']);
+    if ($entre['trocas'] > 0) {
+        $txt .= "\n🔁 Já fizeram *" . $entre['trocas'] . ' troca'
+              . ($entre['trocas'] === 1 ? '' : 's') . "* entre si.\n";
     }
 
     $txt .= "\n*Melhores:*\n"
