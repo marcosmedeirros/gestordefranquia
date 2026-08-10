@@ -60,7 +60,7 @@ function caminhoLegado(array $estado): int
 
     $temporadas = 0;
     foreach ($lista as $x) {
-        if (is_array($x) && empty($x['formacao'])) $temporadas++;
+        if (is_array($x) && empty($x['formacao']) && empty($x['perdida'])) $temporadas++;
     }
     $temporadas = max(0, min(CAMINHO_MAX_TEMPORADAS, $temporadas));
 
@@ -274,7 +274,19 @@ h2{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;co
 input,select{width:100%;background:var(--panel2);border:1.5px solid var(--border);border-radius:10px;
   padding:11px 12px;font-family:var(--font);font-size:14px;font-weight:700;color:var(--text);
   outline:none;transition:.15s}
-input:focus,select:focus{border-color:var(--red);background:var(--red-soft)}
+/* O foco muda so a borda. Antes pintava o fundo com --red-soft, que e
+   translucido: no <select> aberto isso ficava por cima do branco padrao do
+   navegador e virava rosa, com o texto claro sumindo dentro. */
+input:focus{border-color:var(--red);background:var(--red-soft)}
+select:focus{border-color:var(--red);background:var(--panel2)}
+
+/* A lista aberta do <select> e desenhada pelo sistema e nao herda o tema —
+   sem pintar a <option> explicitamente ela nasce branca, e o texto claro
+   fica ilegivel. */
+select option{background:var(--panel2);color:var(--text)}
+/* A opcao marcada se distingue pelo fundo mais escuro e pelo peso, nao
+   pela cor: vermelho sobre o painel da 4,17:1, abaixo do minimo legivel. */
+select option:checked{background:var(--panel3);color:var(--text);font-weight:800}
 input::placeholder{color:var(--text3);font-weight:500}
 
 /* ESCOLHAS — .tipo do padrão */
@@ -319,13 +331,13 @@ input::placeholder{color:var(--text3);font-weight:500}
 .st b{display:block;font-family:var(--num);font-size:22px;font-weight:900;letter-spacing:-1px;
   font-variant-numeric:tabular-nums;line-height:1;color:var(--text)}
 .st span{display:block;font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
-  color:var(--text3);margin-top:5px}
+  color:var(--text);margin-top:5px}
 .linha-mini{display:flex;border-bottom:1px solid var(--border)}
 .mini{flex:1;padding:9px 6px;text-align:center;border-right:1px solid var(--border)}
 .mini:last-child{border-right:none}
 .mini b{font-family:var(--num);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
 .mini span{display:block;font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
-  color:var(--text3);margin-top:2px}
+  color:var(--text);margin-top:2px}
 .campanha{padding:11px 14px;font-size:12.5px;color:var(--text2)}
 .campanha b{color:var(--text);font-family:var(--num);font-variant-numeric:tabular-nums}
 
@@ -345,7 +357,7 @@ input::placeholder{color:var(--text3);font-weight:500}
 .jogos{display:flex;flex-direction:column}
 .jogo{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);font-size:12px}
 .jogo:last-child{border-bottom:none}
-.jogo-n{font-family:var(--num);color:var(--text3);width:50px;flex:none}
+.jogo-n{font-family:var(--num);color:var(--text2);width:50px;flex:none}
 .jogo-r{font-weight:800;letter-spacing:.4px;font-size:10.5px}
 .jogo.v .jogo-r{color:var(--green)} .jogo.d .jogo-r{color:var(--red)}
 .jogo-p{margin-left:auto;font-family:var(--num);color:var(--text2);font-variant-numeric:tabular-nums}
@@ -362,7 +374,7 @@ input::placeholder{color:var(--text3);font-weight:500}
 .sumula{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--panel)}
 table{width:100%;border-collapse:collapse;font-size:11.5px;min-width:420px}
 th{text-align:right;padding:8px 9px;font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
-  color:var(--text3);background:var(--panel2);white-space:nowrap}
+  color:var(--text2);background:var(--panel2);white-space:nowrap}
 th:first-child,td:first-child{text-align:left}
 td{padding:8px 9px;border-top:1px solid var(--border);color:var(--text2);text-align:right;
   font-family:var(--num);font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -380,7 +392,7 @@ tr.tit td{color:var(--red)}
 .barra-topo{height:3px;background:var(--panel3);border-radius:99px;overflow:hidden;margin-bottom:14px}
 .barra-topo i{display:block;height:100%;background:var(--red);transition:width .5s}
 .ovr-linha{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--border);background:var(--panel2)}
-.ovr-rot{font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3)}
+.ovr-rot{font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text)}
 .ovr-val{font-family:var(--num);font-size:24px;font-weight:900;letter-spacing:-1px;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}
 .ovr-delta{font-family:var(--num);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
 .ovr-barra{flex:1;height:6px;background:var(--panel3);border-radius:99px;overflow:hidden}
@@ -584,6 +596,11 @@ function novaCarreira(nome, pos, arq, nac, modo){
     trofeus:{mvp:0,titulo:0,fmvp:0,allstar:0,dpoy:0,mip:0,roy:0,cesta:0,ouro:0},
     ultimo:null, decisaoId:null, aguardando:false, mensagem:null, resultado:null,
     finais:null, mercado:null, ofertaEscolhida:null, ovrAnterior:null, efeitoDecisao:0, decisoesUsadas:[], papel:"titular", ultimoOvr:null, ultimaVit:null,
+    afastado:null,          // {tipo,anos,motivo} enquanto estiver fora
+    // Perder temporada é o preço mais caro do jogo, então nem toda carreira
+    // chega perto dele: o sorteio aqui decide se ESTA vai encarar uma
+    // encruzilhada dessas, e riscoUsado garante que seja no máximo uma.
+    riscoDaCarreira: Math.random() < 0.13, riscoUsado:false,
     encerrada:false,
   };
 }
@@ -673,9 +690,11 @@ const DECISOES = [
   {id:"lesao", quando:s => s.ultimo && s.ultimo.jogos < 66,
    t:()=>`Você desfalcou o ${S.time} em ${82 - S.ultimo.jogos} jogos. O departamento médico quer cautela; o treinador quer você em quadra.`,
    ops:[
-     {l:"Voltar antes da hora", s:"Os fãs vão amar. O corpo, não.",
+     {l:"Voltar antes da hora", s:"Os fãs vão amar. O corpo, talvez não.",
       f:()=>{ S.confianca=clamp(S.confianca+12,0,100); S.hype=clamp(S.hype+8,0,100);
               for(const k in S.A) S.A[k]=clamp(S.A[k]-ri(1,3),25,99);
+              if (ri(0,100) < 22){ afastar("lesao", 1, "recaída por voltar cedo");
+                return "Você voltou antes do prazo e durou onze minutos. A recaída levou a temporada inteira."; }
               return "Você voltou mancando e jogou assim mesmo. O vestiário te respeita — e seu corpo cobrou."; }},
      {l:"Seguir o protocolo", s:"Perde a temporada. Ganha o resto da carreira.",
       f:()=>{ S.confianca=clamp(S.confianca-8,0,100);
@@ -949,6 +968,77 @@ const DECISOES = [
               return "Você pediu calma e foi trabalhar. Evoluiu longe do barulho."; }},
    ]},
 
+  // ── Risco de verdade ─────────────────────────────────────────────────
+  // As únicas decisões que podem custar temporadas inteiras. A condição de
+  // cada uma é estreita de propósito: perder um ano tem que ser o preço de
+  // uma escolha sua, nunca um dado rolado às suas costas. Em todas existe
+  // uma saída segura, e ela está escrita como tal.
+
+  {id:"joelho", risco:true, quando:s => s.fase === "liga" && s.idade >= 24 && s.ultimo && s.ultimo.jogos < 76,
+   t:()=>`O joelho travou de novo, e desta vez a ressonância veio feia. O cirurgião quer operar agora; o departamento médico ainda acha que dá pra tratar.`,
+   ops:[
+     {l:"Operar agora", s:"Uma temporada fora, e acabou.",
+      f:()=>{ afastar("lesao", 1, "cirurgia no joelho");
+              return "Você entrou na sala de cirurgia em outubro. A temporada acabou ali — mas o joelho volta inteiro."; }},
+     {l:"Tratar sem cirurgia", s:"Pode salvar o ano. Pode custar dois.",
+      f:()=>{ if (ri(0,100) < 58){ for (const k in S.A) S.A[k]=clamp(S.A[k]-ri(1,3),25,99);
+                return "Segurou. Você jogou o ano inteiro com dor e quase ninguém percebeu."; }
+              afastar("lesao", 2, "ruptura no joelho");
+              return "Cedeu em dezembro, na frente de todo mundo. Ruptura completa: dois anos fora."; }},
+   ]},
+
+  {id:"tendao", risco:true, quando:s => s.fase === "liga" && s.idade >= 27,
+   t:()=>`Estalou no aquecimento. O tendão de aquiles não é dúvida, é diagnóstico. A pergunta é o que fazer com o tempo que vem.`,
+   ops:[
+     {l:"Reabilitação completa", s:"Dois anos fora. Volta inteiro.",
+      f:()=>{ afastar("lesao", 2, "ruptura do tendão de aquiles");
+              return "Você aceitou o calendário longo dos médicos: dois anos de trabalho invisível, longe de tudo."; }},
+     {l:"Programa acelerado", s:"Talvez um ano só. Se o tendão aguentar.",
+      f:()=>{ if (ri(0,100) < 55){ afastar("lesao", 1, "aquiles · recuperação acelerada");
+                for (const k in S.A) S.A[k]=clamp(S.A[k]-ri(1,3),25,99);
+                return "Deu certo: você voltou em doze meses. Mais lento que antes — mas voltou."; }
+              afastar("lesao", 2, "aquiles · recuperação rompida");
+              return "O tendão não aguentou o atalho. De volta à estaca zero: dois anos."; }},
+   ]},
+  {id:"antidoping", risco:true, quando:s => s.fase === "liga" && s.idade >= 25,
+   t:()=>`Um suplemento que você toma há anos apareceu com substância proibida no exame. A liga quer uma resposta em 72 horas.`,
+   ops:[
+     {l:"Assumir e colaborar", s:"Uma temporada suspenso, e passa.",
+      f:()=>{ afastar("suspensao", 1, "exame antidoping");
+              return "Você admitiu o erro, entregou o fornecedor e aceitou a pena mínima: um ano."; }},
+     {l:"Brigar na justiça", s:"Ou limpa o nome, ou dobra a pena.",
+      f:()=>{ if (ri(0,100) < 45){ S.hype=clamp(S.hype+10,0,100);
+                return "Seus advogados provaram contaminação no lote. Você foi absolvido e a liga engoliu em seco."; }
+              afastar("suspensao", 2, "antidoping · pena agravada");
+              return "Você perdeu, e o tribunal tratou a defesa como má-fé. Dois anos."; }},
+   ]},
+
+  {id:"tunel", risco:true, quando:s => s.fase === "liga" && s.moral < 55,
+   t:()=>`A discussão no túnel virou empurrão, e o empurrão virou vídeo. A liga abriu processo disciplinar.`,
+   ops:[
+     {l:"Pedir desculpas em público", s:"Engole o orgulho e joga.",
+      f:()=>{ S.hype=clamp(S.hype-12,0,100); S.moral=clamp(S.moral+8,0,100);
+              return "Você leu um pedido de desculpas escrito pela assessoria. Foi humilhante — e você jogou a temporada inteira."; }},
+     {l:"Não recuar", s:"O vestiário respeita. A liga, não.",
+      f:()=>{ if (ri(0,100) < 50){ S.moral=clamp(S.moral+18,0,100); S.confianca=clamp(S.confianca+10,0,100);
+                return "Você bancou. Levou multa alta e o vestiário inteiro passou a te seguir."; }
+              afastar("suspensao", 1, "conduta antidesportiva");
+              return "A liga fez de você o exemplo: suspenso por uma temporada."; }},
+   ]},
+
+  {id:"apostas", risco:true, quando:s => s.fase === "liga" && s.idade >= 26,
+   t:()=>`Uma reportagem liga seu nome a apostas em jogos da liga. Você sabe que não apostou — mas seu primo usou seu cadastro.`,
+   ops:[
+     {l:"Entregar tudo à investigação", s:"Coopera e paga o mínimo.",
+      f:()=>{ afastar("suspensao", 1, "investigação de apostas");
+              return "Você abriu tudo. A liga reconheceu a colaboração e aplicou um ano, o mínimo previsto."; }},
+     {l:"Negar e proteger a família", s:"Se cair, cai por dois.",
+      f:()=>{ if (ri(0,100) < 42){ S.moral=clamp(S.moral+12,0,100);
+                return "A investigação não chegou a você. Seu primo sumiu do mapa e o assunto morreu."; }
+              afastar("suspensao", 2, "apostas · omissão");
+              return "Encontraram os registros. Omitir custou o dobro: duas temporadas."; }},
+   ]},
+
   {id:"treino", quando:s => true,
    t:()=>`Entressafra. Você tem um verão inteiro pra escolher o que treinar.`,
    ops:[
@@ -980,7 +1070,13 @@ function decisaoDoAno(){
   if (Math.random() > chanceDeTer) return null;
 
   const recentes = S.decisoesUsadas || [];
-  const cabe = d => { try { return d.quando(S); } catch(e){ return false; } };
+  const cabe = d => {
+    // Decisão de risco só concorre na carreira sorteada pra isso, e some
+    // depois que uma sai. Sem esse corte, três das quatro apareciam em
+    // quase toda carreira e 80% delas perdiam temporada.
+    if (d.risco && (!S.riscoDaCarreira || S.riscoUsado)) return false;
+    try { return d.quando(S); } catch(e){ return false; }
+  };
 
   // Nunca repete o que saiu nas últimas 8 temporadas. Sem essa memória, as
   // mesmas duas ou três decisões voltavam ano após ano — que foi
@@ -996,6 +1092,7 @@ function decisaoDoAno(){
   if (!candidatas.length) return null;
   const escolhida = ineditas.length ? pick(ineditas) : candidatas[0];
 
+  if (escolhida.risco) S.riscoUsado = true;
   S.decisoesUsadas = [escolhida.id, ...recentes].slice(0, 8);
   return escolhida.id;
 }
@@ -1491,7 +1588,67 @@ function placar(st, rotuloAno, time, campanha, premios){
   </div>`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// AFASTAMENTO — lesão grave e suspensão
+// As duas custam o mesmo: a temporada inteira. O que muda é o que cobram.
+// A lesão come o corpo; a suspensão come a reputação, e é ela que faz o
+// mercado te tratar como problema quando você volta.
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Tira o jogador de circulação por `anos` temporadas. Só decisões chamam. */
+function afastar(tipo, anos, motivo){
+  S.afastado = {tipo, anos, motivo};
+}
+
+/**
+ * Uma temporada que não aconteceu: sem jogos, sem prêmios, sem número.
+ *
+ * O ano entra na súmula marcado com `perdida` e fica FORA da conta do
+ * legado — um ano parado não pode pagar a longevidade que um ano jogado
+ * paga. E o contrato não corre aqui: deixá-lo correr jogava um suspenso
+ * no mercado, e nenhum time negocia com quem não pode entrar em quadra.
+ */
+function perderAno(){
+  const af = S.afastado;
+  const lesao = af.tipo === "lesao";
+
+  // Antes de mexer nos atributos, senão o delta de OVR na tela mente.
+  S.ovrAnterior = ovr(S.A, S.pos);
+
+  S.idade++; S.ano++; S.anoFase++;
+  S.dinheiro += lesao ? S.salario : 0;   // suspensão não recebe
+
+  for (const k in S.A) S.A[k] = clamp(S.A[k] - ri(lesao?2:1, lesao?6:4), 25, 99);
+  S.confianca = clamp(S.confianca - (lesao ? 14 : 24), 5, 99);
+  S.hype      = clamp(S.hype      - (lesao ? 10 : 20), 5, 99);
+  S.moral     = clamp(S.moral     - (lesao ?  8 : 16), 0, 100);
+
+  S.temporadas.push({ano:S.ano, idade:S.idade, time:S.time, pts:0, reb:0, ast:0, min:0, jogos:0,
+                     vit:0, premios:[], campeao:false, perdida:af.tipo, motivo:af.motivo});
+
+  S.ultimo = {pts:0, reb:0, ast:0, min:0, jogos:0};
+  S.ultimoOvr = ovr(S.A, S.pos);
+  S.ultimosPremios = [];
+  S.ultimaCampanha = `<b>${lesao ? "Temporada perdida" : "Suspenso"}</b> · ${esc(af.motivo)}`;
+
+  af.anos--;
+  const liberado = af.anos <= 0;
+  if (liberado) S.afastado = null;
+
+  S.mensagem = liberado
+    ? (lesao ? "Você passou o ano na sala de fisioterapia. Está liberado — e agora precisa provar que ainda é você."
+             : "Suspensão cumprida. A liga te devolveu a quadra; o vestiário ainda não decidiu se te devolve o respeito.")
+    : (lesao ? "A recuperação não fechou no prazo. Mais uma temporada fora."
+             : "A punição não acabou. Mais uma temporada assistindo.");
+
+  S.resultado = null; S.efeitoDecisao = 0;
+  S.aguardando = false; S.decisaoId = null;
+  salvar(); telaTemporada();
+}
+
 function jogarAno(){
+  if (S.afastado && S.afastado.anos > 0) return perderAno();
+
   const o = ovr(S.A, S.pos);
   const forca = forcaDoTime();
   const min = minutosDoAno(o);
@@ -1681,7 +1838,13 @@ function decidir(i){
 
 function sumula(){
   if (!S.temporadas.length) return "";
-  const linhas = S.temporadas.slice().reverse().map(t => `
+  const linhas = S.temporadas.slice().reverse().map(t => t.perdida ? `
+    <tr>
+      <td class="txt">${t.ano}</td>
+      <td class="txt" style="font-weight:500;color:var(--text2)">${esc(String(t.time||"").slice(0,16))}</td>
+      <td>—</td><td>—</td><td>—</td>
+      <td class="txt" style="color:var(--text2);font-size:11px">${t.perdida==="lesao"?"Lesão":"Suspensão"} · ${esc(t.motivo||"")}</td>
+    </tr>` : `
     <tr class="${t.campeao?'tit':''}">
       <td class="txt">${t.ano}</td>
       <td class="txt" style="font-weight:500;color:var(--text2)">${esc(String(t.time).slice(0,16))}</td>
@@ -1739,7 +1902,7 @@ const LEGADO_MAXIMO = 230;
 function legadoBruto(){
   const t = S.trofeus || {};
   const n = (k) => Math.max(0, Number(t[k]) || 0);
-  const anos = (S.temporadas || []).filter(x => x && !x.formacao).length;
+  const anos = (S.temporadas || []).filter(x => x && !x.formacao && !x.perdida).length;
   return n('mvp')*22 + n('titulo')*16 + n('fmvp')*10 + n('dpoy')*8 + n('cesta')*6
        + n('allstar')*4 + n('ouro')*5 + n('roy')*3 + Math.round(anos*0.8);
 }
