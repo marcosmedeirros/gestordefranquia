@@ -19,6 +19,7 @@
  */
 
 require '../core/conexao.php';
+require_once __DIR__ . '/../../backend/nba_teams.php';   // nome curto + logo do cdn.nba.com
 
 $idUsuario = (int)($_SESSION['user_id'] ?? 0);
 if ($idUsuario <= 0) { header('Location: /login.php'); exit; }
@@ -165,6 +166,27 @@ $estadoInicial = $ativa ? $ativa['estado'] : 'null';
 $stPontos = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = ?");
 $stPontos->execute([$idUsuario]);
 $pontosUsuario = (int)($stPontos->fetchColumn() ?: 0);
+
+// Times de verdade, com o logo que cada um cadastrou. Lidos AQUI em vez de
+// embutidos no JS: time novo, troca de dono ou logo atualizado aparecem no
+// jogo sem ninguém mexer em código.
+//
+// ROOKIE fica de fora porque lá os times são da NBA — dentro do modo FBA
+// eles confundiriam com o modo NBA.
+$timesFba = [];
+try {
+    $st = $pdo->query("
+        SELECT t.name, COALESCE(t.photo_url, '') AS logo, COALESCE(u.name, '') AS gm
+        FROM teams t LEFT JOIN users u ON u.id = t.user_id
+        WHERE t.league IN ('RISE','NEXT','ELITE')
+        ORDER BY t.league, t.name
+    ");
+    foreach ($st as $r) $timesFba[] = [$r['name'], $r['logo'], $r['gm']];
+} catch (Throwable $e) {
+    error_log('[caminho] times da FBA: ' . $e->getMessage());
+}
+
+$timesNba = array_map(fn($t) => [$t['name'], nbaTeamLogoUrl($t['id'])], nbaTeams());
 
 // Ranking: as melhores carreiras encerradas, uma por GM.
 $ranking = $pdo->query("
@@ -315,6 +337,7 @@ input::placeholder{color:var(--text3);font-weight:500}
 .pr.titulo{color:var(--red);border-color:var(--red-glow);background:var(--red-soft)}
 
 /* MARCA DO TIME */
+.marca-logo{border-radius:7px;object-fit:contain;flex:none;background:var(--panel2);padding:2px}
 .marca-time{display:inline-flex;align-items:center;justify-content:center;border-radius:9px;
   font-weight:900;letter-spacing:-.5px;color:#fff;flex:none;text-shadow:0 1px 2px rgba(0,0,0,.45)}
 
@@ -378,8 +401,10 @@ tr.tit td{color:var(--red)}
 
 <script>
 // Impresso pelo PHP: a primeira tela não espera requisição nenhuma.
-window.__CARREIRA__ = <?= $estadoInicial ?: 'null' ?>;
-window.__RANKING__  = <?= json_encode(array_map(fn($r) => [
+window.__CARREIRA__  = <?= $estadoInicial ?: 'null' ?>;
+window.__TIMES_FBA__ = <?= json_encode($timesFba, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+window.__TIMES_NBA__ = <?= json_encode($timesNba, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+window.__RANKING__   = <?= json_encode(array_map(fn($r) => [
     'gm' => $r['gm'], 'nome' => $r['nome'], 'pos' => $r['posicao'],
     'legado' => (int)$r['legado'], 'temporadas' => (int)$r['temporadas'],
 ], $ranking), JSON_UNESCAPED_UNICODE) ?>;
@@ -398,9 +423,14 @@ const ATLETAS = {"PG":[["Tyrese Haliburton",96],["Russell Westbrook",94],["Kyle 
 "PF":[["Victor Wembanyama",98],["Cooper Flagg",97],["Charles Barkley",96],["Giannis Antetokounmpo",95],["Anthony Davis",94],["Paolo Banchero",93],["Evan Mobley",92],["Julius Randle",91],["Pascal Siakam",91],["Lauri Markkanen",90],["Chet Holmgren",90],["Karl-Anthony Towns",90],["Jaren Jackson Jr.",89],["Draymond Green",89],["John Collins",88],["Jerami Grant",88],["Tobias Harris",87],["Bobby Portis",87],["P.J. Washington",86],["Kris Murray",85],["Grant Williams",85],["Obi Toppin",84],["Santi Aldama",84],["Jalen Johnson",84],["Kevin Love",83],["Zion Williamson",83],["Rui Hachimura",82],["Precious Achiuwa",82],["Jabari Walker",81],["Taylor Hendricks",81],["Marvin Bagley III",80],["Isaiah Jackson",80],["Trayce Jackson-Davis",79],["Jeremy Sochan",79],["Dean Wade",78],["Xavier Tillman",78],["JT Thor",77],["Drew Eubanks",77],["Robert Covington",76],["Marcus Morris",76]],
 "C":[["Nikola Jokic",96],["Joel Embiid",95],["Bam Adebayo",92],["Alperen Sengun",92],["Domantas Sabonis",91],["Rudy Gobert",90],["Jarrett Allen",89],["Deandre Ayton",88],["Myles Turner",88],["Brook Lopez",87],["Clint Capela",86],["Jusuf Nurkic",86],["Onyeka Okongwu",85],["Nic Claxton",85],["Walker Kessler",85],["Ivica Zubac",84],["Daniel Gafford",84],["Jakob Poeltl",83],["Isaiah Hartenstein",83],["Naz Reid",83],["Mark Williams",82],["Jalen Duren",82],["Robert Williams III",82],["Wendell Carter Jr.",81],["Nick Richards",81],["Andre Drummond",81],["Zach Edey",81],["Donovan Clingan",80],["Nikola Vucevic",80],["Yves Missi",80],["Mitchell Robinson",80],["Greg Oden",80],["Steven Adams",79],["Jay Huff",79],["Day'Ron Sharpe",78],["Moritz Wagner",78],["Bismack Biyombo",77],["Thomas Bryant",77],["Kevon Looney",76],["Jericho Sims",76]]};
 
-const FBA_TIMES = [["Anchorage Envood","Caio Fonseca"],["Athens Olympics","Kleberson Costa"],["Boston Panthers","Ian Barbosa"],["Buffalo Blackouts","Pedro Fava"],["Calgary Mooses","Pedro Cardoso"],["Chicago Dope","Thales Gonzalez"],["Colorado Frostborn","Matheus Muniz"],["Dallas Blues","Mateus Maia"],["El Paso Guerreros","Remerson Barboza"],["Hawaii Heatwave","Guilherme Faleiro"],["Houston Parfums","Kenderson Freitas"],["Kansas City Swifties","Caio Gomes"],["Kentucky Cavalinhos","Leonardo Cardoso"],["Los Angeles Celestials","Lázaro Resende"],["Los Angeles Souks","Henrick Taufner"],["Louisville Shuffle","Gabriel Matos"],["México City Catrinas","Jose Cortez"],["Miami Sunsets","Caio Motta"],["Milwaukee Beezz","Vinicius Rocha"],["New Jersey Reapers","Lucas Rodrigues"],["New York Mafia","Murilo Toledo"],["Oakland Blue Foxes","Bruno Coelho"],["Oklahoma Gunslingers","Lucas Monteiro"],["Oregon Puddles","Daniel Dias"],["Orlando Black Lions","Anderson Silva"],["Philadelphia Devils","Matheus Sampaio"],["Pittsburgh Phantoms","Ágata Máximo"],["San Antonio Vultures","Kevyn Martins"],["San Francisco JoyBoys","Yan Simão"],["San Jose Carpinteros","Lennon Herman"],["St. Louis Archers","Eduardo Antunes"],["Washington Peacemakers","Victor Simoes"]];
+// Reserva: no site, caminho.php injeta os times de verdade com o logo
+// que cada um cadastrou. [nome curto, logo, GM]
+const FBA_TIMES = [["Envood","","Caio Fonseca"],["Olympics","","Kleberson Costa"],["Panthers","","Ian Barbosa"],["Blackouts","","Pedro Fava"],["Mooses","","Pedro Cardoso"],["Dope","","Thales Gonzalez"],["Frostborn","","Matheus Muniz"],["Blues","","Mateus Maia"],["Guerreros","","Remerson Barboza"],["Heatwave","","Guilherme Faleiro"],["Parfums","","Kenderson Freitas"],["Swifties","","Caio Gomes"],["Cavalinhos","","Leonardo Cardoso"],["Celestials","","Lázaro Resende"],["Souks","","Henrick Taufner"],["Shuffle","","Gabriel Matos"],["Catrinas","","Jose Cortez"],["Sunsets","","Caio Motta"],["Beezz","","Vinicius Rocha"],["Reapers","","Lucas Rodrigues"],["Mafia","","Murilo Toledo"],["Blue Foxes","","Bruno Coelho"],["Gunslingers","","Lucas Monteiro"],["Puddles","","Daniel Dias"],["Black Lions","","Anderson Silva"],["Devils","","Matheus Sampaio"],["Phantoms","","Ágata Máximo"],["Vultures","","Kevyn Martins"],["JoyBoys","","Yan Simão"],["Carpinteros","","Lennon Herman"],["Archers","","Eduardo Antunes"],["Peacemakers","","Victor Simoes"]];
 
-const NBA = ["Atlanta Hawks","Boston Celtics","Brooklyn Nets","Charlotte Hornets","Chicago Bulls","Cleveland Cavaliers","Dallas Mavericks","Denver Nuggets","Detroit Pistons","Golden State Warriors","Houston Rockets","Indiana Pacers","LA Clippers","Los Angeles Lakers","Memphis Grizzlies","Miami Heat","Milwaukee Bucks","Minnesota Timberwolves","New Orleans Pelicans","New York Knicks","Oklahoma City Thunder","Orlando Magic","Philadelphia 76ers","Phoenix Suns","Portland Trail Blazers","Sacramento Kings","San Antonio Spurs","Toronto Raptors","Utah Jazz","Washington Wizards"];
+// Os 30 times, com o nome curto que todo mundo usa ("Lakers", não
+// "Los Angeles Lakers") e o logo direto do cdn.nba.com — mesma fonte
+// que o resto do site já usa, sem hospedar imagem nenhuma.
+const NBA = [["Celtics","https://cdn.nba.com/logos/nba/1610612738/global/L/logo.svg"],["Nets","https://cdn.nba.com/logos/nba/1610612751/global/L/logo.svg"],["Knicks","https://cdn.nba.com/logos/nba/1610612752/global/L/logo.svg"],["76ers","https://cdn.nba.com/logos/nba/1610612755/global/L/logo.svg"],["Raptors","https://cdn.nba.com/logos/nba/1610612761/global/L/logo.svg"],["Bulls","https://cdn.nba.com/logos/nba/1610612741/global/L/logo.svg"],["Cavaliers","https://cdn.nba.com/logos/nba/1610612739/global/L/logo.svg"],["Pistons","https://cdn.nba.com/logos/nba/1610612765/global/L/logo.svg"],["Pacers","https://cdn.nba.com/logos/nba/1610612754/global/L/logo.svg"],["Bucks","https://cdn.nba.com/logos/nba/1610612749/global/L/logo.svg"],["Hawks","https://cdn.nba.com/logos/nba/1610612737/global/L/logo.svg"],["Hornets","https://cdn.nba.com/logos/nba/1610612766/global/L/logo.svg"],["Heat","https://cdn.nba.com/logos/nba/1610612748/global/L/logo.svg"],["Magic","https://cdn.nba.com/logos/nba/1610612753/global/L/logo.svg"],["Wizards","https://cdn.nba.com/logos/nba/1610612764/global/L/logo.svg"],["Nuggets","https://cdn.nba.com/logos/nba/1610612743/global/L/logo.svg"],["Timberwolves","https://cdn.nba.com/logos/nba/1610612750/global/L/logo.svg"],["Thunder","https://cdn.nba.com/logos/nba/1610612760/global/L/logo.svg"],["Trail Blazers","https://cdn.nba.com/logos/nba/1610612757/global/L/logo.svg"],["Jazz","https://cdn.nba.com/logos/nba/1610612762/global/L/logo.svg"],["Warriors","https://cdn.nba.com/logos/nba/1610612744/global/L/logo.svg"],["Clippers","https://cdn.nba.com/logos/nba/1610612746/global/L/logo.svg"],["Lakers","https://cdn.nba.com/logos/nba/1610612747/global/L/logo.svg"],["Suns","https://cdn.nba.com/logos/nba/1610612756/global/L/logo.svg"],["Kings","https://cdn.nba.com/logos/nba/1610612758/global/L/logo.svg"],["Mavericks","https://cdn.nba.com/logos/nba/1610612742/global/L/logo.svg"],["Rockets","https://cdn.nba.com/logos/nba/1610612745/global/L/logo.svg"],["Grizzlies","https://cdn.nba.com/logos/nba/1610612763/global/L/logo.svg"],["Pelicans","https://cdn.nba.com/logos/nba/1610612740/global/L/logo.svg"],["Spurs","https://cdn.nba.com/logos/nba/1610612759/global/L/logo.svg"]];
 
 // Colleges reais, cada um com uma promessa diferente — a escolha é
 // "minutos agora ou vitrine depois?", não uma lista de nomes bonitos.
@@ -457,10 +487,10 @@ const TIERS = [
   [25,  "Jogador de rotação"],
   [55,  "Titular respeitado"],
   [90,  "Astro da liga"],
-  [130, "Um dos melhores da sua posição"],
-  [165, "Lenda"],
-  [190, "Top 10 de todos os tempos"],
-  [210, "Conversa de GOAT"],
+  [120, "Um dos melhores da sua posição"],
+  [155, "Lenda"],
+  [180, "Top 10 de todos os tempos"],
+  [205, "Conversa de GOAT"],
 ];
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -475,8 +505,7 @@ let salvando = false, pendente = false;
 //
 // Só uma requisição por vez, mas nunca perde a última: se pedirem save
 // enquanto outro está no ar, marca pendente e reenvia ao terminar. Sem
-// isso, uma resposta lenta engoliria a jogada seguinte — e o estado no
-// banco ficaria atrás do que a pessoa está vendo.
+// isso, uma resposta lenta engoliria a jogada seguinte.
 function salvar(){
   if (!S) return;
   if (salvando){ pendente = true; return; }
@@ -534,10 +563,13 @@ function novaCarreira(nome, pos, arq, nac, modo){
   return {
     v:1, modo, nome, pos, arq, nac,
     idade:16, ano:2026,
-    // Potencial com cauda pra baixo: sem bust, toda carreira vira boa.
-    // Metade fica entre 74 e 88, e uma parte real nunca passa de 75.
+    // Potencial: a maioria chega a ser gente boa de liga, mas o bust
+    // continua existindo. Antes 22% eram bust e só 20% passavam de 88 —
+    // dava carreira medíocre demais. Agora o bust é 1 em 8 e a estrela é
+    // quase 1 em 3: a CARREIRA fica boa com frequência, e o que continua
+    // difícil é o LEGADO, que é onde a raridade deve morar.
     A, pot: (()=>{ const r = Math.random();
-                   return r < 0.22 ? ri(62,74) : r < 0.80 ? ri(75,88) : ri(89,97); })(),
+                   return r < 0.12 ? ri(64,75) : r < 0.68 ? ri(76,89) : ri(90,98); })(),
     fase:"base",            // base · college · fora · draft · liga · fim
     anoFase:0,
     college:null, ligaFora:null,
@@ -551,7 +583,7 @@ function novaCarreira(nome, pos, arq, nac, modo){
     temporadas:[],
     trofeus:{mvp:0,titulo:0,fmvp:0,allstar:0,dpoy:0,mip:0,roy:0,cesta:0,ouro:0},
     ultimo:null, decisaoId:null, aguardando:false, mensagem:null, resultado:null,
-    finais:null, mercado:null, ofertaEscolhida:null, ovrAnterior:null, efeitoDecisao:0, papel:"titular", ultimoOvr:null, ultimaVit:null,
+    finais:null, mercado:null, ofertaEscolhida:null, ovrAnterior:null, efeitoDecisao:0, decisoesUsadas:[], papel:"titular", ultimoOvr:null, ultimaVit:null,
     encerrada:false,
   };
 }
@@ -796,6 +828,127 @@ const DECISOES = [
               return "Você recusou. O treinador soube — e passou a te olhar diferente."; }},
    ]},
 
+  {id:"tecnico", quando:s => s.fase === "liga" && s.anoFase >= 1,
+   t:()=>`O ${esc(S.time)} trocou de treinador. O novo quer conversar sobre o seu papel.`,
+   ops:[
+     {l:"Pedir mais bola", s:"Números maiores, time menos equilibrado.",
+      f:()=>{ S.confianca=clamp(S.confianca+14,0,100); S.forcaBase=clamp(S.forcaBase-ri(2,6),20,95);
+              return "Ele topou te dar a bola. Você joga mais — o time depende mais de você."; }},
+     {l:"Perguntar como ajudar", s:"Ele vai lembrar disso.",
+      f:()=>{ S.forcaBase=clamp(S.forcaBase+ri(3,9),20,95); S.confianca=clamp(S.confianca+6,0,100);
+              return "Você perguntou o que o time precisava. Virou o jogador preferido dele."; }},
+   ]},
+
+  {id:"allstarfds", quando:s => s.fase === "liga" && ovr(s.A,s.pos) >= 84,
+   t:()=>`Você foi convidado pro fim de semana do All-Star. Tem o jogo — e tem os torneios.`,
+   ops:[
+     {l:"Entrar no torneio de 3 pontos", s:"Vitrine pura.",
+      f:()=>{ if (ri(0,100) < 25 + S.A.tres*0.4){ S.hype=clamp(S.hype+16,0,100); S.A.tres=clamp(S.A.tres+ri(2,4),25,99);
+                return "Você ganhou o torneio de 3. A liga inteira viu."; }
+              S.hype=clamp(S.hype+5,0,100);
+              return "Caiu na primeira rodada do torneio de 3. Pelo menos apareceu."; }},
+     {l:"Só o jogo, e descansar", s:"O corpo agradece em abril.",
+      f:()=>{ for (const k in S.A) S.A[k]=clamp(S.A[k]+1,25,99);
+              return "Você jogou o All-Star e sumiu pro resto do fim de semana. Voltou inteiro."; }},
+   ]},
+
+  {id:"polemica", quando:s => s.fase === "liga" && s.hype >= 55,
+   t:()=>`Um post seu de anos atrás voltou a circular e virou assunto.`,
+   ops:[
+     {l:"Pedir desculpa e seguir", s:"Passa rápido.",
+      f:()=>{ S.hype=clamp(S.hype-6,0,100); S.confianca=clamp(S.confianca+4,0,100);
+              return "Você resolveu em duas frases e ninguém falou mais no assunto."; }},
+     {l:"Ignorar", s:"Pode morrer sozinho. Ou crescer.",
+      f:()=>{ if (ri(0,100) < 55){ return "Morreu sozinho em três dias."; }
+              S.hype=clamp(S.hype-16,0,100); S.confianca=clamp(S.confianca-8,0,100);
+              return "Cresceu. A imprensa passou a semana em cima e o time teve que dar nota."; }},
+   ]},
+
+  {id:"superstime", quando:s => s.fase === "liga" && s.idade >= 27 && s.trofeus.titulo === 0 && ovr(s.A,s.pos) >= 84,
+   t:()=>`Dois astros da liga estão montando um time e te chamaram. Você seria o terceiro nome.`,
+   ops:[
+     {l:"Ir atrás do anel", s:"Ganha muito. Divide o crédito.",
+      f:()=>{ trocarDeTime(true); S.forcaBase=clamp(S.forcaBase+ri(6,14),20,95);
+              S.confianca=clamp(S.confianca-8,0,100); S.hype=clamp(S.hype-6,0,100);
+              return `Você foi pro ${S.time} jogar com eles. Metade da liga chamou de atalho.`; }},
+     {l:"Ganhar do meu jeito", s:"Mais difícil. Só seu.",
+      f:()=>{ S.confianca=clamp(S.confianca+16,0,100); S.hype=clamp(S.hype+12,0,100);
+              return "Você recusou em público. Virou o cara que quis fazer sozinho."; }},
+   ]},
+
+  {id:"lesaograve", quando:s => s.fase === "liga" && s.idade >= 26 && s.ultimo && s.ultimo.min >= 30,
+   t:()=>`Estalo no joelho no meio da temporada. O exame não é bom.`,
+   ops:[
+     {l:"Operar agora", s:"Perde tempo. Salva o resto.",
+      f:()=>{ S.pot = clamp(S.pot - ri(1,3), 55, 99);
+              for (const k in S.A) S.A[k]=clamp(S.A[k]-ri(1,3),25,99);
+              return "Cirurgia feita cedo. Você perdeu meia temporada e voltou quase o mesmo."; }},
+     {l:"Tratar sem operar", s:"Joga já. Cobra depois.",
+      f:()=>{ S.confianca=clamp(S.confianca+10,0,100);
+              S.pot = clamp(S.pot - ri(3,7), 50, 99);
+              for (const k in S.A) S.A[k]=clamp(S.A[k]-ri(0,2),25,99);
+              return "Você segurou o joelho com fisioterapia e jogou. O teto do seu corpo baixou."; }},
+   ]},
+
+  {id:"posicao", quando:s => s.fase === "liga" && s.idade >= 29 && s.idade <= 34,
+   t:()=>`O treinador quer te mover de posição pra aproveitar melhor o que sobrou do seu físico.`,
+   ops:[
+     {l:"Aceitar mudar", s:"Reinventar custa um ano.",
+      f:()=>{ const ordem = ["PG","SG","SF","PF","C"];
+              const i = ordem.indexOf(S.pos);
+              const nova = ordem[clamp(i + (S.A.fis > 70 ? 1 : -1), 0, 4)];
+              if (nova !== S.pos){ S.pos = nova; S.confianca=clamp(S.confianca+10,0,100);
+                return `Você virou ${POSICOES[nova].n.toLowerCase()}. Levou um ano pra pegar o jeito.`; }
+              return "No fim ele desistiu e te deixou onde estava."; }},
+     {l:"Recusar", s:"Você sabe o que faz.",
+      f:()=>{ S.confianca=clamp(S.confianca-6,0,100);
+              return "Você recusou. O treinador respeitou, mas achou que você perdeu uma chance."; }},
+   ]},
+
+  {id:"camisa", quando:s => s.fase === "liga" && s.anoFase >= 6,
+   t:()=>`Você completou ${S.anoFase} temporadas no mesmo time. A diretoria fala em aposentar sua camisa um dia.`,
+   ops:[
+     {l:"Prometer terminar aqui", s:"Vira ídolo. E fica preso.",
+      f:()=>{ S.hype=clamp(S.hype+14,0,100); S.confianca=clamp(S.confianca+12,0,100);
+              return "Você disse em coletiva que se aposenta com essa camisa. A cidade te adotou de vez."; }},
+     {l:"Não prometer nada", s:"Mantém as portas abertas.",
+      f:()=>{ return "Você desconversou. A diretoria entendeu o recado."; }},
+   ]},
+
+  {id:"investir", quando:s => s.dinheiro >= 25,
+   t:()=>`Você juntou $${S.dinheiro}M. Um amigo te chama pra entrar num negócio.`,
+   ops:[
+     {l:"Investir pesado", s:"Pode dobrar. Pode sumir.",
+      f:()=>{ const v = Math.round(S.dinheiro * 0.4);
+              if (ri(0,100) < 45){ S.dinheiro += v; return `Deu certo: +$${v}M no bolso.`; }
+              S.dinheiro -= v; S.moral=clamp(S.moral-10,0,100);
+              return `Foi por água abaixo. -$${v}M e uma amizade a menos.`; }},
+     {l:"Deixar o dinheiro quieto", s:"Sem emoção, sem susto.",
+      f:()=>{ S.moral=clamp(S.moral+5,0,100); return "Você agradeceu e não entrou. Dormiu bem."; }},
+   ]},
+
+  {id:"familia", quando:s => s.idade >= 25 && s.fase === "liga",
+   t:()=>`Nasceu seu primeiro filho no meio da temporada.`,
+   ops:[
+     {l:"Tirar um tempo", s:"Perde jogos. Ganha o resto.",
+      f:()=>{ S.moral=clamp(S.moral+20,0,100); S.confianca=clamp(S.confianca-5,0,100);
+              return "Você tirou duas semanas. Voltou outro — e jogando melhor."; }},
+     {l:"Não perder um jogo", s:"O time vem primeiro.",
+      f:()=>{ S.confianca=clamp(S.confianca+12,0,100); S.moral=clamp(S.moral-8,0,100);
+              return "Você não faltou. O vestiário notou; sua casa também."; }},
+   ]},
+
+  {id:"jovemastro", quando:s => s.fase === "liga" && s.idade <= 25 && ovr(s.A,s.pos) >= 82,
+   t:()=>`Você virou a cara da franquia antes dos 26. A liga quer te vender como o próximo grande nome.`,
+   ops:[
+     {l:"Abraçar o papel", s:"Holofote total, cobrança total.",
+      f:()=>{ S.hype=clamp(S.hype+22,0,100); S.confianca=clamp(S.confianca-6,0,100);
+              return "Você virou o rosto da liga. Toda derrota agora é sua."; }},
+     {l:"Baixar a bola", s:"Cresce no seu tempo.",
+      f:()=>{ for (const k in S.A) S.A[k]=clamp(S.A[k]+ri(0,2),25,99);
+              return "Você pediu calma e foi trabalhar. Evoluiu longe do barulho."; }},
+   ]},
+
   {id:"treino", quando:s => true,
    t:()=>`Entressafra. Você tem um verão inteiro pra escolher o que treinar.`,
    ops:[
@@ -815,28 +968,51 @@ const DECISOES = [
 
 // Guardo só o ID da decisão, nunca o objeto: ele tem funções dentro, e
 // JSON.stringify as descarta calado. Salvo com o objeto, a carreira
-// voltava do localStorage com uma decisão sem opções e quebrava na hora
-// de desenhar — só apareceria pra quem fechasse a aba no meio do ano.
+// voltava do save com uma decisão sem opções e quebrava ao desenhar.
+//
+// Retorna null quando o ano não tem decisão — e isso é de propósito.
+// Toda temporada trazer uma escolha transformava a decisão em formulário;
+// um ano que passa só com os números faz o ano seguinte pesar mais.
 function decisaoDoAno(){
-  const aplicaveis = DECISOES.filter(d => { try { return d.quando(S); } catch(e){ return false; } });
-  const especificas = aplicaveis.filter(d => d.id !== "treino");
-  // "treino" é a rede: sempre aplicável, então nunca fica sem decisão.
-  const escolhida = (especificas.length && Math.random() < 0.75)
-    ? pick(especificas)
-    : aplicaveis.find(d => d.id === "treino");
-  return escolhida ? escolhida.id : "treino";
+  // Nem todo ano tem. Menos frequente no começo, quando cada escolha ainda
+  // está montando o jogador, e mais comum depois que a carreira se define.
+  const chanceDeTer = S.anoFase <= 2 ? 0.85 : 0.62;
+  if (Math.random() > chanceDeTer) return null;
+
+  const recentes = S.decisoesUsadas || [];
+  const cabe = d => { try { return d.quando(S); } catch(e){ return false; } };
+
+  // Nunca repete o que saiu nas últimas 8 temporadas. Sem essa memória, as
+  // mesmas duas ou três decisões voltavam ano após ano — que foi
+  // exatamente o que apareceu jogando.
+  const aplicaveis = DECISOES.filter(cabe);
+  const ineditas = aplicaveis.filter(d => !recentes.includes(d.id));
+
+  // Se tudo já saiu recentemente, prefere o que saiu há mais tempo em vez
+  // de sortear entre repetidas.
+  const candidatas = ineditas.length ? ineditas
+    : aplicaveis.slice().sort((a,b) => recentes.indexOf(a.id) - recentes.indexOf(b.id));
+
+  if (!candidatas.length) return null;
+  const escolhida = ineditas.length ? pick(ineditas) : candidatas[0];
+
+  S.decisoesUsadas = [escolhida.id, ...recentes].slice(0, 8);
+  return escolhida.id;
 }
 
 function decisaoAtual(){
-  return DECISOES.find(d => d.id === S.decisaoId) || DECISOES.find(d => d.id === "treino");
+  // Sem id, o ano nao tem decisao. Cair no "treino" aqui era o que fazia
+  // a mesma escolha aparecer temporada apos temporada.
+  if (!S.decisaoId) return null;
+  return DECISOES.find(d => d.id === S.decisaoId) || null;
 }
 
 function trocarDeTime(melhor){
-  const lista = S.modo === "fba" ? FBA_TIMES.map(t=>t[0]) : NBA;
+  const lista = timesDaLiga();
   let novo = S.time;
   while (novo === S.time) novo = pick(lista);
   S.time = novo;
-  if (S.modo === "fba"){ const t = FBA_TIMES.find(x=>x[0]===novo); S.gm = t ? t[1] : null; }
+  if (S.modo === "fba"){ S.gm = gmDoTime(novo); }
   S.forcaBase = melhor ? ri(62, 88) : ri(40, 80);
   S.confianca = 50;
 }
@@ -894,7 +1070,7 @@ function clubesDoPais(nac){
  */
 function gerarOfertas(){
   const v = valorDeMercado();
-  const lista = (S.modo === "fba" ? FBA_TIMES.map(t=>t[0]) : NBA).filter(t => t !== S.time);
+  const lista = timesDaLiga().filter(t => t !== S.time);
   const ofertas = [];
   const timeAleatorio = () => pick(lista);
 
@@ -946,7 +1122,7 @@ function gerarOfertas(){
 function assinar(oferta, anos){
   const antigo = S.time;
   S.time = oferta.time;
-  if (S.modo === "fba"){ const t = FBA_TIMES.find(x=>x[0]===oferta.time); S.gm = t ? t[1] : null; }
+  if (S.modo === "fba"){ S.gm = gmDoTime(oferta.time); }
   if (oferta.tipo !== "renovar"){ S.forcaBase = oferta.forca; S.confianca = oferta.papel === "reserva" ? 34 : 52; }
   // Contrato longo paga um pouco menos por ano: segurança tem preço, e é
   // o que torna a escolha de prazo uma decisão de verdade.
@@ -974,13 +1150,55 @@ function iniciais(nome){
   if (p.length === 1) return p[0].slice(0,2).toUpperCase();
   return (p[p.length-2][0] + p[p.length-1][0]).toUpperCase();
 }
+/**
+ * A lista de times da liga escolhida. No site, caminho.php injeta os da
+ * FBA direto do banco — com os nomes e logos atuais, sem cópia congelada.
+ */
+function timesDaLiga(){
+  const l = S.modo === "fba" ? (window.__TIMES_FBA__ || FBA_TIMES) : (window.__TIMES_NBA__ || NBA);
+  return l.map(t => t[0]);
+}
+function gmDoTime(nome){
+  const l = window.__TIMES_FBA__ || FBA_TIMES;
+  const t = l.find(x => x[0] === nome);
+  return (t && t[2]) ? t[2] : null;
+}
+
+/** Logo do time, se houver. Mapa montado uma vez a partir das duas listas. */
+let LOGOS = null;
+function logoDoTime(nome){
+  if (!LOGOS){
+    LOGOS = {};
+    (window.__TIMES_FBA__ || FBA_TIMES).forEach(t => { if (t[1]) LOGOS[t[0]] = t[1]; });
+    (window.__TIMES_NBA__ || NBA).forEach(t => { if (t[1]) LOGOS[t[0]] = t[1]; });
+  }
+  return LOGOS[nome] || null;
+}
+
+/**
+ * A marca do time: logo de verdade quando existe, monograma quando não.
+ *
+ * O onerror é o que faz isso funcionar nos dois lugares. No site o logo
+ * carrega normalmente; no protótipo hospedado a CSP bloqueia imagem
+ * externa, e sem o fallback ficaria um ícone quebrado em toda tela. Assim
+ * a mesma linha serve pros dois, e time sem logo cadastrado também.
+ */
 function marca(nome, tam){
+  const t = tam || 34;
   const h = hashNome(nome||"?");
   const mat = h % 360, comp = (mat + 150 + (h % 60)) % 360;
-  const t = tam || 34;
-  return `<span class="marca-time" style="width:${t}px;height:${t}px;font-size:${Math.round(t*0.36)}px;
-    background:linear-gradient(140deg,hsl(${mat} 62% 42%),hsl(${comp} 58% 28%));
-    box-shadow:inset 0 0 0 1px hsl(${mat} 62% 58% / .5)">${esc(iniciais(nome))}</span>`;
+  const fundo = `background:linear-gradient(140deg,hsl(${mat} 62% 42%),hsl(${comp} 58% 28%));
+    box-shadow:inset 0 0 0 1px hsl(${mat} 62% 58% / .5)`;
+  const monograma = `<span class="marca-time" style="width:${t}px;height:${t}px;
+    font-size:${Math.round(t*0.36)}px;${fundo}">${esc(iniciais(nome))}</span>`;
+
+  const url = logoDoTime(nome);
+  if (!url) return monograma;
+
+  return `<img class="marca-logo" src="${esc(url)}" alt="${esc(nome)}"
+    style="width:${t}px;height:${t}px"
+    onerror="this.outerHTML=this.dataset.reserva"
+    data-reserva="${esc(monograma)}">`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1204,9 +1422,9 @@ function telaDraft(){
     // noite do draft nunca é totalmente previsível.
     const base = 61 - Math.round(S.hype * 0.62);
     S.pickDraft = clamp(base + ri(-7, 9), 1, 61);
-    const lista = S.modo === "fba" ? FBA_TIMES.map(t=>t[0]) : NBA;
+    const lista = timesDaLiga();
     S.time = pick(lista);
-    if (S.modo === "fba"){ const t = FBA_TIMES.find(x=>x[0]===S.time); S.gm = t ? t[1] : null; }
+    if (S.modo === "fba"){ S.gm = gmDoTime(S.time); }
     S.liga = S.modo === "fba" ? "RISE" : "NBA";
     S.fase = "liga"; S.anoFase = 0;
     S.forcaBase = ri(30, 85);
@@ -1294,7 +1512,7 @@ function jogarAno(){
   // toda série mataria o ritmo que o jogo depende.
   const chegaFinal = playoff && ri(0,100) < clamp((vit-46)*2.2 + (o-84)*1.4, 3, 32);
   if (chegaFinal){
-    S.finais = {v:0, d:0, jogos:[], adversario: pick((S.modo==="fba" ? FBA_TIMES.map(t=>t[0]) : NBA).filter(t=>t!==S.time))};
+    S.finais = {v:0, d:0, jogos:[], adversario: pick(timesDaLiga().filter(t=>t!==S.time))};
     salvar(); return telaFinais();
   }
 
@@ -1323,7 +1541,7 @@ function fecharAno(campeao, vit, o, st){
   }
 
   S.decisaoId = decisaoDoAno();
-  S.aguardando = true;
+  S.aguardando = S.decisaoId !== null;
   salvar(); telaTemporada();
 }
 
@@ -1424,7 +1642,7 @@ function fecharContrato(anos){
     : `Você renovou com o ${of.time} por ${anos} anos.`;
   S.mercado = null; S.ofertaEscolhida = null;
   S.decisaoId = decisaoDoAno();
-  S.aguardando = true;
+  S.aguardando = S.decisaoId !== null;
   salvar(); telaTemporada();
 }
 
@@ -1478,8 +1696,7 @@ function sumula(){
 
 
 // ── Ranking entre os GMs ───────────────────────────────────────────────
-// O legado vira moeda, então o placar é o próprio pagamento exposto: dá
-// pra ver quanto cada um levou e por qual carreira.
+// O legado vira moeda, então o placar é o próprio pagamento exposto.
 function ranking(titulo){
   const r = window.__RANKING__ || [];
   if (!r.length) return "";
@@ -1502,7 +1719,7 @@ function encerrar(){
     method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"},
     body:"acao=encerrar&estado=" + encodeURIComponent(JSON.stringify(S)),
   }).then(r=>r.json()).then(d=>{
-    if (d && d.ok){ S.moedasGanhas = d.moedas; S.legadoServidor = d.legado; }
+    if (d && d.ok){ S.moedasGanhas = d.moedas; }
     telaFim();
   }).catch(()=>telaFim());
   telaFim();
