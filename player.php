@@ -245,7 +245,7 @@ $avatarFallback = 'https://ui-avatars.com/api/?name=' . rawurlencode($playerName
                 . '&background=121212&color=fc0025&rounded=true&bold=true';
 
 $nbaPhoto = (!$isRetired && !empty($P['nba_player_id']))
-    ? 'https://cdn.nba.com/headshots/nba/latest/1040x760/' . rawurlencode((string)$P['nba_player_id']) . '.png'
+    ? 'https://cdn.nba.com/headshots/nba/latest/260x190/' . rawurlencode((string)$P['nba_player_id']) . '.png'
     : '';
 
 $custom = $isRetired ? '' : trim((string)($P['foto_adicional'] ?? ''));

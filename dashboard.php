@@ -1828,7 +1828,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                                 $cp = trim((string)($player['foto_adicional'] ?? ''));
                                 if ($cp && !preg_match('#^https?://#i', $cp)) $cp = '/' . ltrim($cp, '/');
                                 $nbId = $player['nba_player_id'] ?? null;
-                                $photo = $cp ?: ($nbId ? "https://cdn.nba.com/headshots/nba/latest/1040x760/{$nbId}.png" : "https://ui-avatars.com/api/?name=" . rawurlencode($pn) . "&background=1c1c21&color=" . accentColorHex($user['accent_color'] ?? null) . "&rounded=true&bold=true");
+                                $photo = $cp ?: ($nbId ? "https://cdn.nba.com/headshots/nba/latest/260x190/{$nbId}.png" : "https://ui-avatars.com/api/?name=" . rawurlencode($pn) . "&background=1c1c21&color=" . accentColorHex($user['accent_color'] ?? null) . "&rounded=true&bold=true");
                             ?>
                             <div class="starter-chip" style="animation-delay:<?= .28 + $i * .04 ?>s">
                                 <img class="starter-photo" src="<?= htmlspecialchars($photo) ?>"
@@ -1863,7 +1863,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                             $wPhoto = trim((string)($w['foto_adicional'] ?? ''));
                             if ($wPhoto && !preg_match('#^https?://#i', $wPhoto)) $wPhoto = '/' . ltrim($wPhoto, '/');
                             if (!$wPhoto) $wPhoto = $w['nba_player_id']
-                                ? "https://cdn.nba.com/headshots/nba/latest/1040x760/{$w['nba_player_id']}.png"
+                                ? "https://cdn.nba.com/headshots/nba/latest/260x190/{$w['nba_player_id']}.png"
                                 : "https://ui-avatars.com/api/?name=" . rawurlencode($w['name']) . "&background=1c1c21&color=" . accentColorHex($user['accent_color'] ?? null) . "&rounded=true&bold=true";
                             $wOvr = (int)($w['ovr'] ?? 0);
                         ?>

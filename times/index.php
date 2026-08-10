@@ -538,7 +538,7 @@ function ovrColor(int $ovr): string {
                 $nbId = $p['nba_player_id'] ?? null;
                 $cp   = trim((string)($p['foto_adicional'] ?? ''));
                 if ($cp && !preg_match('#^https?://#i',$cp)) $cp='/'.ltrim($cp,'/');
-                $photo    = $cp ?: ($nbId ? "https://cdn.nba.com/headshots/nba/latest/1040x760/{$nbId}.png" : '');
+                $photo    = $cp ?: ($nbId ? "https://cdn.nba.com/headshots/nba/latest/260x190/{$nbId}.png" : '');
                 $fallback = 'https://ui-avatars.com/api/?name='.rawurlencode($pn).'&background=1c1c21&color=fc0025&rounded=true&bold=true';
             ?>
             <div class="starter-chip">

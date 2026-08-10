@@ -195,7 +195,7 @@ try {
                 $acImgMap[$r['name']] = '/' . ltrim($fa, '/');
             }
         } elseif (!empty($r['nba_player_id'])) {
-            $acImgMap[$r['name']] = "https://cdn.nba.com/headshots/nba/latest/1040x760/{$r['nba_player_id']}.png";
+            $acImgMap[$r['name']] = "https://cdn.nba.com/headshots/nba/latest/260x190/{$r['nba_player_id']}.png";
         }
     }
 } catch (Exception $e) { /* se o banco principal não estiver acessível, sugestões ficam vazias */ }

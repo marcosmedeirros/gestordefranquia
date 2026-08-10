@@ -11,7 +11,7 @@ $user_id        = (int)$_SESSION['user_id'];
 $hoje           = date('Y-m-d');
 $MAX_TENTATIVAS = 8;
 
-// n=nome, nba_id=ID NBA.com para foto (cdn.nba.com/headshots/nba/latest/1040x760/{id}.png)
+// n=nome, nba_id=ID NBA.com para foto (cdn.nba.com/headshots/nba/latest/260x190/{id}.png)
 // t=time(sigla), conf=EAST|WEST, pos=PG|SG|SF|PF|C, age=idade, ppg=média pontos carreira
 $QSB_PLAYERS = [
     // ── Ativos ──────────────────────────────────────────────────────────────────
@@ -333,7 +333,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <div class="qsb-card" id="qsbCard">
   <div class="qsb-photo-wrap" id="qsbPhotoWrap">
     <img id="qsbPhoto"
-         src="https://cdn.nba.com/headshots/nba/latest/1040x760/<?= (int)$targetPlayer['nba_id'] ?>.png"
+         src="https://cdn.nba.com/headshots/nba/latest/260x190/<?= (int)$targetPlayer['nba_id'] ?>.png"
          class="qsb-photo"
          onerror="this.style.display='none';document.getElementById('qsbPhotoFb').style.display='flex'">
     <div id="qsbPhotoFb" class="qsb-photo-fb">🏀</div>

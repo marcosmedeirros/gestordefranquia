@@ -417,7 +417,7 @@ try {
     function getPhotoUrl(p) {
         if ((p.foto_adicional || '').trim()) return p.foto_adicional.trim();
         return p.nba_player_id
-            ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png`
+            ? `https://cdn.nba.com/headshots/nba/latest/260x190/${p.nba_player_id}.png`
             : `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true`;
     }
 

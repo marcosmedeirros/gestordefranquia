@@ -768,7 +768,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			return customPhoto;
 		}
 		return player.nba_player_id
-			? `https://cdn.nba.com/headshots/nba/latest/1040x760/${player.nba_player_id}.png`
+			? `https://cdn.nba.com/headshots/nba/latest/260x190/${player.nba_player_id}.png`
 			: `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true`;
 	}
 

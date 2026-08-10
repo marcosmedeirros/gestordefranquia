@@ -17,6 +17,33 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS push_subscriptions (
     UNIQUE KEY uniq_endpoint (endpoint(512))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+/**
+ * O índice único acima só vale pra quem criou a tabela DEPOIS que ele entrou no
+ * código: CREATE TABLE IF NOT EXISTS não altera tabela existente. Onde a tabela
+ * é antiga, o ON DUPLICATE KEY do INSERT abaixo nunca dispara e cada inscrição
+ * vira uma LINHA NOVA com o mesmo endpoint.
+ *
+ * O efeito disso é o celular travando: com 6 duplicatas, uma trade sozinha
+ * manda 6 pushes pro mesmo aparelho. E elas nunca são limpas pelo
+ * isSubscriptionExpired, porque o endpoint continua válido.
+ *
+ * Aqui a tabela é reparada: apaga as duplicatas (mantendo a mais recente de
+ * cada endpoint) e cria o índice que faltava.
+ */
+try {
+    $temIndice = $pdo->query("SHOW INDEX FROM push_subscriptions WHERE Key_name = 'uniq_endpoint'")->rowCount() > 0;
+    if (!$temIndice) {
+        // Precisa deduplicar ANTES: com duplicata na tabela, o ALTER falha.
+        $pdo->exec("DELETE p1 FROM push_subscriptions p1
+                    JOIN push_subscriptions p2
+                      ON p1.endpoint = p2.endpoint AND p1.id < p2.id");
+        $pdo->exec("ALTER TABLE push_subscriptions ADD UNIQUE KEY uniq_endpoint (endpoint(512))");
+        error_log('[push] tabela reparada: duplicatas removidas e uniq_endpoint criado');
+    }
+} catch (Throwable $e) {
+    error_log('[push] reparo do uniq_endpoint: ' . $e->getMessage());
+}
+
 $method = $_SERVER['REQUEST_METHOD'];
 
 // GET — retorna a chave pública VAPID para o front-end

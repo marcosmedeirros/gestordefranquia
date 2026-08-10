@@ -34,8 +34,12 @@ function getPlayerPhotoUrl(player) {
     }
     return `/${customPhoto.replace(/^\/+/, '')}`;
   }
+  // 260x190, não 1040x760: a maior exibição do app é 120px (o Quem Sou Eu), e
+  // a lista mostra em ~40px. Cada headshot grande pesava 209 KB e ~3 MB de RAM
+  // depois de decodificado — uma lista de 50 jogadores estourava a memória do
+  // celular no app instalado. Nesta versão são 16 KB e ~0,2 MB.
   return player.nba_player_id
-    ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${player.nba_player_id}.png`
+    ? `https://cdn.nba.com/headshots/nba/latest/260x190/${player.nba_player_id}.png`
     : `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=121212&color=f17507&rounded=true&bold=true`;
 }
 

@@ -1970,7 +1970,7 @@ function getSerasaScore(int $avisos): array {
 
             const getPlayerPhoto = (p) => {
                 if (p.foto_adicional && p.foto_adicional.trim()) return p.foto_adicional.trim();
-                if (p.nba_player_id) return `https://cdn.nba.com/headshots/nba/latest/1040x760/${p.nba_player_id}.png`;
+                if (p.nba_player_id) return `https://cdn.nba.com/headshots/nba/latest/260x190/${p.nba_player_id}.png`;
                 return `https://ui-avatars.com/api/?name=${encodeURIComponent(p.name||'?')}&background=1f1f23&color=${_avatarColorHex()}&rounded=true&bold=true&size=64`;
             };
             const posOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
