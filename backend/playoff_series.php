@@ -101,16 +101,23 @@ function salvarPlayoffSeries(PDO $pdo, int $seasonId, string $league, array $ser
         $validas[] = [$seasonId, $league, $fase, in_array($conf, ['LESTE','OESTE'], true) ? $conf : null, $a, $b, $w, $j];
     }
 
-    $pdo->beginTransaction();
+    // Quem chama pode já estar numa transação — os dois pontos que gravam
+    // (save_history e register_pontuacao) abrem uma antes de chegar aqui, e o
+    // PDO recusa transação aninhada. Só abro a minha quando sou o primeiro; do
+    // contrário entro na de fora, que é o comportamento certo mesmo: se o
+    // registro da temporada falhar depois, as séries voltam atrás junto.
+    $minhaTransacao = !$pdo->inTransaction();
+    if ($minhaTransacao) $pdo->beginTransaction();
+
     try {
         $pdo->prepare("DELETE FROM playoff_series WHERE season_id = ?")->execute([$seasonId]);
         $ins = $pdo->prepare("INSERT INTO playoff_series
             (season_id, league, fase, conferencia, team_a_id, team_b_id, winner_team_id, jogos)
             VALUES (?,?,?,?,?,?,?,?)");
         foreach ($validas as $v) $ins->execute($v);
-        $pdo->commit();
+        if ($minhaTransacao) $pdo->commit();
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        if ($minhaTransacao) $pdo->rollBack();
         throw $e;
     }
 

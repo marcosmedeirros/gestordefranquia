@@ -1582,6 +1582,11 @@ try {
                 }
             } catch (Exception $ignored) {}
 
+            // A tabela de series precisa existir ANTES da transacao: CREATE TABLE
+            // faz commit implicito no MySQL, e o ensure sai calado se ja houver
+            // transacao aberta — na primeira gravacao o INSERT nao acharia a tabela.
+            ensurePlayoffSeriesTable($pdo);
+
             $pdo->beginTransaction();
             
             // 1. Buscar informações da Liga (necessário para a tabela team_ranking_points)
@@ -1895,6 +1900,11 @@ try {
                     $pdo->exec("ALTER TABLE season_standings ADD COLUMN conference VARCHAR(20) NULL AFTER position");
                 }
             } catch (Exception $ignored) {}
+
+            // A tabela de series precisa existir ANTES da transacao: CREATE TABLE
+            // faz commit implicito no MySQL, e o ensure sai calado se ja houver
+            // transacao aberta — na primeira gravacao o INSERT nao acharia a tabela.
+            ensurePlayoffSeriesTable($pdo);
 
             $pdo->beginTransaction();
             $stmtSeason2 = $pdo->prepare("SELECT s.league, s.season_number, s.year, COALESCE(sp.sprint_number, 1) AS sprint_number FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.id = ?");
