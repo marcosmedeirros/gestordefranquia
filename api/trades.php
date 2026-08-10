@@ -2667,12 +2667,38 @@ if ($method === 'POST') {
         $resumoMeu   = getTeamCapSummary($pdo, (int)$teamId);
         $resumoOutro = getTeamCapSummary($pdo, (int)$toTeamId);
 
-        $envia  = $salarioDosJogadores($offerPlayers, $resumoMeu)     + $salarioDasPicks($offerPicks);
-        $recebe = $salarioDosJogadores($requestPlayers, $resumoOutro) + $salarioDasPicks($requestPicks);
+        // ── Pick conta como salário só pra quem ENVIA ──────────────────────
+        //
+        // Pick não ocupa cap nenhum: ela só vira salário no ano seguinte,
+        // quando vira jogador (aí entra a rookie scale). Contá-la como salário
+        // ENTRANDO não protegia de nada — o time que recebe picks vê a folha
+        // dele CAIR, não subir — e travava justamente a troca mais natural de
+        // reconstrução: picks por um jovem barato.
+        //
+        // Com a regra simétrica antiga, quem entregava o jovem era o barrado:
+        // enviava 4M (um 79 OVR) e "recebia" 10M em picks, estourando o limite
+        // dele de 4,8M. Na prática, 2 picks de 1ª só compravam alguém de 83+.
+        //
+        // O abuso que a regra existe pra impedir continua impedido: quem manda
+        // um contrato de 20M e pede picks segue barrado, porque aí entra
+        // salário de verdade na folha de quem recebe o jogador.
+        $meusJogadores   = $salarioDosJogadores($offerPlayers, $resumoMeu);
+        $minhasPicks     = $salarioDasPicks($offerPicks);
+        $jogadoresDele   = $salarioDosJogadores($requestPlayers, $resumoOutro);
+        $picksDele       = $salarioDasPicks($requestPicks);
+
+        $envia  = $meusJogadores + $minhasPicks;
+        $recebe = $jogadoresDele + $picksDele;
 
         if ($envia > 0 || $recebe > 0) {
             $capMax = (int)($cfgLiga['cap_max'] ?? 0);
-            foreach ([[$envia, $recebe, 'Você'], [$recebe, $envia, 'O outro time']] as [$e, $r, $quem]) {
+            // Cada lado: manda jogadores + as próprias picks, mas recebe só os
+            // jogadores do outro — as picks que chegam valem 0.
+            $lados = [
+                [$meusJogadores + $minhasPicks, $jogadoresDele, 'Você'],
+                [$jogadoresDele + $picksDele,   $meusJogadores, 'O outro time'],
+            ];
+            foreach ($lados as [$e, $r, $quem]) {
                 $chk = checkTradeSalaryMatch(0, $capMax, $e, $r);
                 if (empty($chk['ok'])) {
                     http_response_code(400);

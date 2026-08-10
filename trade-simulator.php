@@ -1017,11 +1017,13 @@ function matching120(key) {
     });
   });
 
-  // Jogadores e picks que este time recebe.
+  // Jogadores que este time recebe. Pick que CHEGA vale 0 — ela nao ocupa cap
+  // nenhum, so vira salario no ano seguinte, quando vira jogador. Conta-la como
+  // entrada travava justamente a troca de picks por jovem barato. Mesma regra
+  // de api/trades.php e js/trades.js.
   let recebido = 0;
   (receives[key] || []).forEach(i => {
     if (i.type === 'player') recebido += (+(i.salary || 0));
-    else if (i.type === 'pick') recebido += pickSalary(i.round);
   });
   if (enviado === 0 && recebido === 0) return null;
 

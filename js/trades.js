@@ -202,9 +202,15 @@ const somaPicks = (lista = []) => lista.reduce((s, p) => s + pickSalary(p.round)
 function checarMatch120() {
   if (!capSalaryMode) return [];
   // offer = o que eu envio; request = o que eu recebo.
-  const meuEnvia   = somaSalarios(playerState.offer.selected || [])   + somaPicks(pickState.offer.selected || []);
-  const meuRecebe  = somaSalarios(playerState.request.selected || []) + somaPicks(pickState.request.selected || []);
-  if (meuEnvia === 0 && meuRecebe === 0) return [];
+  // Pick conta como salário só pra quem ENVIA — ver o bloco equivalente em
+  // api/trades.php. Recebendo, ela vale 0: não ocupa cap nenhum, e contá-la
+  // como entrada travava justamente picks por jovem barato.
+  const meusJogadores = somaSalarios(playerState.offer.selected || []);
+  const minhasPicks   = somaPicks(pickState.offer.selected || []);
+  const jogadoresDele = somaSalarios(playerState.request.selected || []);
+  const picksDele     = somaPicks(pickState.request.selected || []);
+
+  if (meusJogadores + minhasPicks === 0 && jogadoresDele + picksDele === 0) return [];
 
   const nomeAlvo = (() => {
     const sel = document.getElementById('targetTeam');
@@ -212,8 +218,8 @@ function checarMatch120() {
   })();
 
   const lados = [
-    { nome: 'Você', envia: meuEnvia,  recebe: meuRecebe },
-    { nome: nomeAlvo, envia: meuRecebe, recebe: meuEnvia },
+    { nome: 'Você',   envia: meusJogadores + minhasPicks, recebe: jogadoresDele },
+    { nome: nomeAlvo, envia: jogadoresDele + picksDele,   recebe: meusJogadores },
   ];
 
   return lados.reduce((out, l) => {
