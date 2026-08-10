@@ -230,6 +230,19 @@ function _setBracketWinner(conf, round, idx, winId) {
     _saveBracketCache(seasonsState.currentLeague, seasonsState.currentSeasonId);
 }
 
+/** Em quantos jogos a série foi (4 a 7). Vazio = ainda não informado. */
+function _setBracketJogos(conf, round, idx, valor) {
+    const b = _bracket;
+    if (!b) return;
+    const m = round === 'final' ? b.final : (round === 'cf' ? b[conf]?.cf : b[conf]?.[round]?.[idx]);
+    if (!m) return;
+    const n = Number(valor);
+    m.g = (n >= 4 && n <= 7) ? n : null;
+    // Sem re-render: o <select> já mostra o que foi escolhido, e redesenhar
+    // roubaria o foco de quem está preenchendo a coluna toda.
+    _saveBracketCache(seasonsState.currentLeague, seasonsState.currentSeasonId);
+}
+
 function _rebuildConf(conf) {
     const c = _bracket[conf], t = seasonsState.teamsById;
     const wOf = (arr, i) => { const m = arr[i]; return m?.w ? t[m.w] : null; };
@@ -258,7 +271,7 @@ function _ensureBracketStyles() {
     if (document.getElementById('bk-styles')) return;
     const s = document.createElement('style');
     s.id = 'bk-styles';
-    s.textContent = `.bk-wrap{display:flex;align-items:stretch;overflow-x:auto;padding-bottom:4px;gap:4px}.bk-col{display:flex;flex-direction:column;min-width:148px;flex-shrink:0}.bk-col-mid{display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:148px;flex-shrink:0;padding:0 4px}.bk-col-label{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:0 0 5px}.bk-matchup{border:1px solid #272727;border-radius:8px;overflow:hidden;background:#141414;margin:1px 0}.bk-empty{height:54px;display:flex;align-items:center;justify-content:center;color:#2a2a2a;font-size:18px;margin:1px 0}.bk-team{display:flex;align-items:center;padding:5px 7px;font-size:12px;cursor:pointer;border-bottom:1px solid #1c1c1c;transition:background .1s;user-select:none;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bk-team:last-child{border-bottom:none}.bk-team:hover:not(.bk-loss):not(.bk-tbd){background:rgba(255,107,0,.12)}.bk-win{background:rgba(255,107,0,.2)!important;color:#ff6b00;font-weight:700}.bk-loss{opacity:.28;cursor:default}.bk-tbd{color:#383838;cursor:default;font-style:italic}.bk-seed{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:3px;background:#202020;color:#777;font-size:9px;font-weight:700;margin-right:5px;flex-shrink:0}.bk-win .bk-seed{background:rgba(255,107,0,.3);color:#ff6b00}.bk-sp{flex:1}.bk-champ{margin-top:8px;padding:7px 10px;background:rgba(255,107,0,.12);border:1px solid rgba(255,107,0,.5);border-radius:9px;text-align:center}`;
+    s.textContent = `.bk-wrap{display:flex;align-items:stretch;overflow-x:auto;padding-bottom:4px;gap:4px}.bk-col{display:flex;flex-direction:column;min-width:148px;flex-shrink:0}.bk-col-mid{display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:148px;flex-shrink:0;padding:0 4px}.bk-col-label{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:0 0 5px}.bk-matchup{border:1px solid #272727;border-radius:8px;overflow:hidden;background:#141414;margin:1px 0}.bk-empty{height:54px;display:flex;align-items:center;justify-content:center;color:#2a2a2a;font-size:18px;margin:1px 0}.bk-team{display:flex;align-items:center;padding:5px 7px;font-size:12px;cursor:pointer;border-bottom:1px solid #1c1c1c;transition:background .1s;user-select:none;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bk-team:last-child{border-bottom:none}.bk-team:hover:not(.bk-loss):not(.bk-tbd){background:rgba(255,107,0,.12)}.bk-win{background:rgba(255,107,0,.2)!important;color:#ff6b00;font-weight:700}.bk-loss{opacity:.28;cursor:default}.bk-tbd{color:#383838;cursor:default;font-style:italic}.bk-seed{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:3px;background:#202020;color:#777;font-size:9px;font-weight:700;margin-right:5px;flex-shrink:0}.bk-win .bk-seed{background:rgba(255,107,0,.3);color:#ff6b00}.bk-sp{flex:1}.bk-jogos{border-top:1px solid #1c1c1c;padding:3px 5px;background:#111}.bk-jogos select{width:100%;background:#1a1a1a;color:#aaa;border:1px solid #2a2a2a;border-radius:4px;font-size:10px;padding:2px 4px;cursor:pointer}.bk-jogos select:focus{outline:none;border-color:#ff6b00;color:#ff6b00}.bk-champ{margin-top:8px;padding:7px 10px;background:rgba(255,107,0,.12);border:1px solid rgba(255,107,0,.5);border-radius:9px;text-align:center}`;
     document.head.appendChild(s);
 }
 
@@ -285,7 +298,25 @@ function _renderBracket(league) {
             const sdg = seed ? `<span class="bk-seed">${seed}</span>` : `<span class="bk-seed" style="visibility:hidden">0</span>`;
             return `<div class="${cls}" onclick="_setBracketWinner(${clickArg})">${sdg}${tn(team)}</div>`;
         };
-        return `<div class="bk-matchup">${btn(t1, s1)}${btn(t2, s2)}</div>`;
+
+        // Em quantos jogos a série foi. Só aparece depois de escolher o
+        // vencedor — antes disso não há série, e um seletor solto convidaria a
+        // preencher pela metade. O placar não é digitado: numa melhor de 7 o
+        // vencedor sempre faz 4, então o número de jogos já diz 4-2, 4-1 etc.
+        let jogos = '';
+        if (w && t1 && t2) {
+            const gArg = round === 'final' ? `null,'final',0`
+                       : round === 'cf'   ? `'${conf}','cf',0`
+                       : `'${conf}','${round}',${idx}`;
+            const opcoes = [4, 5, 6, 7].map((n) =>
+                `<option value="${n}"${Number(m.g) === n ? ' selected' : ''}>4-${n - 4} (${n}j)</option>`).join('');
+            jogos = `<div class="bk-jogos">
+                <select onchange="_setBracketJogos(${gArg}, this.value)">
+                    <option value="">jogos…</option>${opcoes}
+                </select>
+            </div>`;
+        }
+        return `<div class="bk-matchup">${btn(t1, s1)}${btn(t2, s2)}${jogos}</div>`;
     };
 
     const lc = (conf) => ({
@@ -362,12 +393,35 @@ function _collectBracketPayload() {
         if (!m?.w || !m.t1 || !m.t2) return null;
         return String(m.t1.id) === m.w ? String(m.t2.id) : String(m.t1.id);
     };
+    // Cada confronto vira uma série: os dois times, quem passou e em quantos
+    // jogos. Série sem o número de jogos é descartada — meia série gravada
+    // viraria "4-0" na leitura, que é diferente de "não informado".
+    const series = [];
+    const addSerie = (m, fase, conferencia) => {
+        if (!m?.w || !m.t1 || !m.t2 || !m.g) return;
+        series.push({
+            fase,
+            conferencia: conferencia ? conferencia.toUpperCase() : null,
+            team_a_id: Number(m.t1.id),
+            team_b_id: Number(m.t2.id),
+            winner_team_id: Number(m.w),
+            jogos: Number(m.g),
+        });
+    };
+    ['leste', 'oeste'].forEach((conf) => {
+        (b[conf]?.r1 || []).forEach((m) => addSerie(m, 'r1', conf));
+        (b[conf]?.r2 || []).forEach((m) => addSerie(m, 'r2', conf));
+        addSerie(b[conf]?.cf, 'cf', conf);
+    });
+    addSerie(b.final, 'final', null);
+
     return {
         champion: b.final.w,
         runner_up: loser(b.final),
         first_round_losses: [...b.leste.r1, ...b.oeste.r1].map(loser).filter(Boolean),
         second_round_losses: [...(b.leste.r2||[]), ...(b.oeste.r2||[])].map(loser).filter(Boolean),
         conference_final_losses: [loser(b.leste.cf), loser(b.oeste.cf)].filter(Boolean),
+        series,
     };
 }
 
@@ -1103,6 +1157,7 @@ async function saveRegistroPontuacao(event, seasonId, league) {
         first_round_losses: playoff.first_round_losses,
         second_round_losses: playoff.second_round_losses,
         conference_final_losses: playoff.conference_final_losses,
+        series: playoff.series,
         standings_leste: getRankList('leste'),
         standings_oeste: getRankList('oeste'),
         mvp: fv('mvp_player_name'),
@@ -1150,6 +1205,7 @@ async function saveAndAdvanceSeason(event, seasonId, league) {
         first_round_losses: playoff.first_round_losses,
         second_round_losses: playoff.second_round_losses,
         conference_final_losses: playoff.conference_final_losses,
+        series: playoff.series,
         standings_leste: getRankList('leste'),
         standings_oeste: getRankList('oeste'),
         mvp: form.mvp_player_name.value || null,

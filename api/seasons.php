@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
 require_once dirname(__DIR__) . '/backend/helpers.php'; // congelarRankingDaSprint()
 require_once dirname(__DIR__) . '/backend/checklist_temporada.php';
+require_once dirname(__DIR__) . '/backend/playoff_series.php';   // salvarPlayoffSeries()
 
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
@@ -1612,6 +1613,12 @@ try {
             foreach ($firstRound as $tid) $stmtPlayoff->execute([$seasonId, $tid, 'first_round']);
             foreach ($secondRound as $tid) $stmtPlayoff->execute([$seasonId, $tid, 'second_round']);
             foreach ($confFinal as $tid) $stmtPlayoff->execute([$seasonId, $tid, 'conference_final']);
+
+            // Ver o comentario do outro ponto de gravacao: a serie guarda
+            // o confronto, nao so a posicao final.
+            if (!empty($input['series']) && is_array($input['series'])) {
+                salvarPlayoffSeries($pdo, (int)$seasonId, (string)$league, $input['series']);
+            }
             
             // Inserir prêmios na tabela auxiliar
             $stmtAward = $pdo->prepare("INSERT INTO season_awards (season_id, team_id, award_type, player_name) VALUES (?, ?, ?, ?)");
@@ -1910,6 +1917,13 @@ try {
             foreach ($firstRound  as $tid) $stmtPO2->execute([$seasonId, $tid, 'first_round']);
             foreach ($secondRound as $tid) $stmtPO2->execute([$seasonId, $tid, 'second_round']);
             foreach ($confFinal   as $tid) $stmtPO2->execute([$seasonId, $tid, 'conference_final']);
+
+            // Alem de ONDE cada time parou, guarda a serie inteira: quem
+            // enfrentou quem, quem passou e em quantos jogos. E o que
+            // permite responder "o X ja passou pelo Y?".
+            if (!empty($input['series']) && is_array($input['series'])) {
+                salvarPlayoffSeries($pdo, (int)$seasonId, (string)$league2, $input['series']);
+            }
 
             $stmtAw2 = $pdo->prepare("INSERT INTO season_awards (season_id, team_id, award_type, player_name) VALUES (?, ?, ?, ?)");
             $awardsMap2 = [];

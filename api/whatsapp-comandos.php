@@ -13,6 +13,7 @@
 
 require_once __DIR__ . '/../backend/salary_cap.php';
 require_once __DIR__ . '/../backend/helpers.php';   // CAP_TOP_N
+require_once __DIR__ . '/../backend/playoff_series.php';
 
 /**
  * Nome de exibição do time: "Cidade Nome", como o resto do app monta.
@@ -1068,6 +1069,21 @@ function wcConfronto(PDO $pdo, string $termo): string
           . $linha('Séries de playoff', $pA['series'], $pB['series'], $marca($pA['series'], $pB['series']), $marca($pB['series'], $pA['series']))
           . $linha('Melhor campanha', $pA['melhor'] ?: 'não foi', $pB['melhor'] ?: 'não foi');
 
+    // ── Confronto de verdade: séries de playoff entre os dois ────────────
+    $duelo = playoffSeriesEntre($pdo, (int)$a['id'], (int)$b['id']);
+    if ($duelo['series']) {
+        $txt .= "\n🥊 *Já se enfrentaram no playoff*\n"
+              . "*{$duelo['a']} x {$duelo['b']}* em séries\n\n";
+        $fases = playoffFases();
+        foreach (array_slice($duelo['series'], 0, 6) as $s) {
+            $venceu = (int)$s['winner_team_id'] === (int)$a['id'] ? $nomeA : $nomeB;
+            $placar = playoffPlacarPorJogos((int)$s['jogos']);
+            $txt .= '• T' . (int)$s['season_number'] . ' · ' . ($fases[$s['fase']] ?? $s['fase'])
+                  . ': *' . $venceu . '* ' . ($placar ? $placar[0] . '-' . $placar[1] : '') . "\n";
+        }
+        if (count($duelo['series']) > 6) $txt .= '_+' . (count($duelo['series']) - 6) . " séries antigas_\n";
+    }
+
     // ── O núcleo: o que houve entre os dois ──────────────────────────────
     $txt .= "\n🔁 *Negócios entre eles*\n";
     if (!$h['trocas']) {
@@ -1096,7 +1112,9 @@ function wcConfronto(PDO $pdo, string $termo): string
         if ($h['picks_b_com_a']) $txt .= "{$nomeA} tem *{$h['picks_b_com_a']}* pick(s) do {$nomeB}\n";
     }
 
-    $txt .= "\n_Confronto direto jogo a jogo o app não guarda — só campanha e playoff._"
+    $txt .= "\n_" . ($duelo['series']
+            ? 'O placar de cada jogo o app não guarda — só o total da série.'
+            : 'Ainda não se cruzaram no playoff, ou a série não foi registrada.') . "_"
           . "\nElenco lado a lado: /comparartime " . mb_strtolower($a['name']) . ' x ' . mb_strtolower($b['name']);
 
     return $txt;
