@@ -78,13 +78,19 @@ if ($acao === 'pendentes') {
     $filtroTipo = $naJanela ? '' : " AND tipo = 'comando'";
 
     $limite = max(1, min(200, (int)($_GET['limite'] ?? 50)));
-    $st = $pdo->prepare("SELECT id, destino, texto FROM whatsapp_fila
+    $st = $pdo->prepare("SELECT id, destino, texto, mencoes FROM whatsapp_fila
                          WHERE enviado_em IS NULL
                            AND tentativas < " . WHATSAPP_MAX_TENTATIVAS . "
                            AND (proxima_tentativa IS NULL OR proxima_tentativa <= NOW())
                            {$filtroTipo}
                          ORDER BY id ASC LIMIT $limite");
     $st->execute();
+    $pendentes = $st->fetchAll(PDO::FETCH_ASSOC);
+    // Guardado como JSON no banco; o worker recebe já como lista.
+    foreach ($pendentes as &$p) {
+        $p['mencoes'] = $p['mencoes'] ? (json_decode((string)$p['mencoes'], true) ?: []) : [];
+    }
+    unset($p);
 
     botResponder(200, [
         'janela' => $naJanela,
@@ -94,7 +100,7 @@ if ($acao === 'pendentes') {
         // rápido — é quando alguém digita comando e fica olhando pro celular.
         // De madrugada, devagar: comando ainda é respondido, só sem pressa.
         'intervalo' => $naJanela ? 5 : 20,
-        'mensagens' => $st->fetchAll(PDO::FETCH_ASSOC),
+        'mensagens' => $pendentes,
     ]);
 }
 

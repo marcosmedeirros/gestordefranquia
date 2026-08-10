@@ -134,7 +134,12 @@ function processarLote(array $msgs, string $urlEnvio, array $hdrEvo, string $sit
         // 15s: envio bom responde em menos de 1s. O que estoura esse tempo é
         // Evolution travada ou destino inválido — e com o agendador rodando de
         // minuto em minuto, esperar 30s por mensagem empilharia execuções.
-        [$s, $r, $e] = req($urlEnvio, ['number' => $m['destino'], 'text' => $m['texto']], $hdrEvo, 15);
+        $corpo = ['number' => $m['destino'], 'text' => $m['texto']];
+        // Menção: o número tem que estar no texto como @numero E nesta lista.
+        // Só um dos dois não marca ninguém.
+        if (!empty($m['mencoes']) && is_array($m['mencoes'])) $corpo['mentioned'] = $m['mencoes'];
+
+        [$s, $r, $e] = req($urlEnvio, $corpo, $hdrEvo, 15);
         $deuCerto = !$e && $s >= 200 && $s < 300;
         if ($deuCerto) { $ok++; } else { $falhou++; }
         $resultados[] = [

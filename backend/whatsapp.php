@@ -116,6 +116,7 @@ function ensureWhatsAppTables(PDO $pdo): void
             texto TEXT NOT NULL,
             tipo VARCHAR(30) NULL,
             user_id INT NULL,
+            mencoes TEXT NULL,
             tentativas INT NOT NULL DEFAULT 0,
             proxima_tentativa DATETIME NULL,
             enviado_em DATETIME NULL,
@@ -123,6 +124,11 @@ function ensureWhatsAppTables(PDO $pdo): void
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_wf_pendente (enviado_em, tentativas, proxima_tentativa)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        // CREATE TABLE IF NOT EXISTS não altera tabela que já existe — quem já
+        // tem a fila criada precisa do ALTER.
+        if ($pdo->query("SHOW COLUMNS FROM whatsapp_fila LIKE 'mencoes'")->rowCount() === 0) {
+            $pdo->exec("ALTER TABLE whatsapp_fila ADD COLUMN mencoes TEXT NULL AFTER user_id");
+        }
         if ($pdo->query("SHOW COLUMNS FROM whatsapp_fila LIKE 'proxima_tentativa'")->rowCount() === 0) {
             $pdo->exec("ALTER TABLE whatsapp_fila ADD COLUMN proxima_tentativa DATETIME NULL AFTER tentativas");
         }
@@ -239,15 +245,20 @@ function whatsappGruposDeComando(PDO $pdo): array
     return $out;
 }
 
-function whatsappEnfileirar(PDO $pdo, string $destino, string $texto, bool $ehGrupo = false, ?string $tipo = null, ?int $userId = null): bool
+function whatsappEnfileirar(PDO $pdo, string $destino, string $texto, bool $ehGrupo = false, ?string $tipo = null, ?int $userId = null, ?array $mencoes = null): bool
 {
     if ($destino === '' || trim($texto) === '') return false;
     // Só "ligada": quem envia é o worker local, o site apenas enfileira.
     if (!whatsappAtivo($pdo)) return false;
 
+    // Menção só marca de verdade se o número TAMBÉM aparecer como @numero no
+    // texto — é assim que o WhatsApp resolve a etiqueta. Guardo os dois juntos
+    // pra não existir mensagem com um sem o outro.
+    $json = $mencoes ? json_encode(array_values(array_filter($mencoes))) : null;
+
     try {
-        $pdo->prepare("INSERT INTO whatsapp_fila (destino, eh_grupo, texto, tipo, user_id) VALUES (?,?,?,?,?)")
-            ->execute([$destino, $ehGrupo ? 1 : 0, $texto, $tipo, $userId]);
+        $pdo->prepare("INSERT INTO whatsapp_fila (destino, eh_grupo, texto, tipo, user_id, mencoes) VALUES (?,?,?,?,?,?)")
+            ->execute([$destino, $ehGrupo ? 1 : 0, $texto, $tipo, $userId, $json]);
         return true;
     } catch (Throwable $e) {
         error_log('[whatsapp] enfileirar: ' . $e->getMessage());
