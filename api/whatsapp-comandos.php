@@ -237,6 +237,7 @@ function wcAjuda(): string
         . "/jogador _nome_ — time, idade, OVR e salário\n"
         . "/comparar _um_ x _outro_ — jogadores lado a lado\n"
         . "/comparartime _um_ x _outro_ — times lado a lado\n"
+        . "/confronto _um_ x _outro_ — o histórico entre dois times\n"
         . "/time _nome_ — elenco, folha e campanha\n"
         . "/cap _time_ — folha e espaço no cap\n"
         . "/picks _time_ — picks que o time tem\n\n"
@@ -320,6 +321,78 @@ function wcJogador(PDO $pdo, string $termo): string
     return rtrim($txt);
 }
 
+/**
+ * O quinteto titular, na ordem PG, SG, SF, PF, C.
+ *
+ * Não é "os 5 melhores": um time com três alas e nenhum pivô não joga com três
+ * alas. Pra cada vaga eu procuro, nesta ordem — titular da posição, titular que
+ * joga ali de segunda, qualquer um da posição, qualquer um que jogue ali de
+ * segunda. Dentro de cada faixa vale o maior OVR, e ninguém ocupa duas vagas.
+ *
+ * Vaga sem candidato fica vazia em vez de ser preenchida com quem sobrou:
+ * mostrar um armador de pivô esconderia justamente o buraco do elenco.
+ *
+ * Devolve [posição => jogador|null].
+ */
+function wcQuintetoTitular(array $elenco): array
+{
+    $vagas = ['PG' => null, 'SG' => null, 'SF' => null, 'PF' => null, 'C' => null];
+    $usados = [];
+
+    $pos = fn($p, $campo) => strtoupper(trim((string)($p[$campo] ?? '')));
+    $ehTitular = fn($p) => ($p['role'] ?? '') === 'Titular';
+
+    // Da preferência mais forte pra mais fraca. Só desce de faixa depois de
+    // esgotar a anterior em TODAS as vagas seria pior: uma vaga sem titular
+    // roubaria o titular de outra. Resolvo vaga a vaga, faixa a faixa.
+    foreach (array_keys($vagas) as $vaga) {
+        foreach ([
+            fn($p) => $ehTitular($p) && $pos($p, 'position') === $vaga,
+            fn($p) => $ehTitular($p) && $pos($p, 'secondary_position') === $vaga,
+            fn($p) => $pos($p, 'position') === $vaga,
+            fn($p) => $pos($p, 'secondary_position') === $vaga,
+        ] as $criterio) {
+            $candidatos = array_filter($elenco, fn($p) => !in_array($p['name'], $usados, true) && $criterio($p));
+            if (!$candidatos) continue;
+            // O elenco já vem por OVR desc, então o primeiro é o melhor.
+            $escolhido = reset($candidatos);
+            $vagas[$vaga] = $escolhido;
+            $usados[] = $escolhido['name'];
+            break;
+        }
+    }
+
+    // Passe de ajuste: a busca acima é gulosa, então pode deixar uma vaga vazia
+    // com jogador sobrando no elenco. É o caso do time com dois SF, um deles
+    // capaz de jogar PF: o melhor pega SF, o PF fica vazio e o outro SF não
+    // entra. Aqui eu tento a troca — quem está numa vaga que ele cobre de
+    // segunda desce pra vaga vazia, e o que sobrou assume a dele.
+    foreach ($vagas as $vaga => $ocupante) {
+        if ($ocupante !== null) continue;
+
+        foreach ($vagas as $outraVaga => $outro) {
+            if ($outro === null || $pos($outro, 'secondary_position') !== $vaga) continue;
+
+            $substituto = null;
+            foreach ($elenco as $p) {
+                if (in_array($p['name'], $usados, true)) continue;
+                if ($pos($p, 'position') === $outraVaga || $pos($p, 'secondary_position') === $outraVaga) {
+                    $substituto = $p;
+                    break;   // elenco já vem por OVR desc
+                }
+            }
+            if (!$substituto) continue;
+
+            $vagas[$vaga] = $outro;
+            $vagas[$outraVaga] = $substituto;
+            $usados[] = $substituto['name'];
+            break;
+        }
+    }
+
+    return $vagas;
+}
+
 function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null): string
 {
     if ($jaResolvido) {
@@ -331,8 +404,8 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null): string
     }
 
     $ovr = wcColunaOvr($pdo);
-    $st = $pdo->prepare("SELECT name, position, age, {$ovr} AS ovr FROM players
-                         WHERE team_id = ? ORDER BY {$ovr} DESC");
+    $st = $pdo->prepare("SELECT name, position, secondary_position, role, age, {$ovr} AS ovr
+                         FROM players WHERE team_id = ? ORDER BY {$ovr} DESC");
     $st->execute([(int)$t['id']]);
     $elenco = $st->fetchAll(PDO::FETCH_ASSOC);
 
@@ -361,9 +434,11 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null): string
     }
 
     if ($elenco) {
-        $txt .= "\n*Melhores:*\n";
-        foreach (array_slice($elenco, 0, 5) as $p) {
-            $txt .= "• {$p['name']} — {$p['ovr']} OVR, {$p['position']}, {$p['age']} anos\n";
+        $txt .= "\n*Quinteto titular:*\n";
+        foreach (wcQuintetoTitular($elenco) as $vaga => $p) {
+            $txt .= $p
+                ? str_pad($vaga, 2) . " — {$p['name']} ({$p['ovr']}), {$p['age']} anos\n"
+                : str_pad($vaga, 2) . " — _sem jogador na posição_\n";
         }
     }
     return rtrim($txt);
@@ -902,6 +977,131 @@ function wcCompararTimes(PDO $pdo, string $termo): string
     return $txt;
 }
 
+/**
+ * O histórico que existe SÓ entre dois times.
+ *
+ * Não há placar jogo a jogo no banco — o app guarda campanha (vitórias e
+ * derrotas da temporada) e resultado de playoff, não o resultado de cada
+ * partida. Então "confronto direto" aqui é o que os dois construíram um contra
+ * o outro fora de quadra: trocas, quem ficou com pick de quem, e quais
+ * jogadores mudaram de lado.
+ */
+function wcHistoricoEntre(PDO $pdo, array $a, array $b): array
+{
+    $aId = (int)$a['id']; $bId = (int)$b['id'];
+    $out = ['trocas' => [], 'picks_a_com_b' => 0, 'picks_b_com_a' => 0, 'foram' => [], 'vieram' => []];
+
+    try {
+        $st = $pdo->prepare("
+            SELECT id, from_team_id, updated_at
+            FROM trades
+            WHERE status = 'accepted'
+              AND ((from_team_id = ? AND to_team_id = ?) OR (from_team_id = ? AND to_team_id = ?))
+            ORDER BY updated_at DESC, id DESC
+        ");
+        $st->execute([$aId, $bId, $bId, $aId]);
+        $out['trocas'] = $st->fetchAll(PDO::FETCH_ASSOC);
+
+        // Quem mudou de lado. O item guarda o nome copiado na hora da troca,
+        // então continua certo mesmo que o jogador já tenha saído dos dois.
+        $stItens = $pdo->prepare("SELECT from_team, player_name, player_ovr FROM trade_items
+                                  WHERE trade_id = ? AND player_name IS NOT NULL");
+        foreach ($out['trocas'] as $t) {
+            $stItens->execute([(int)$t['id']]);
+            foreach ($stItens->fetchAll(PDO::FETCH_ASSOC) as $i) {
+                // from_team=1 é quem PROPÔS a troca. Se o proponente foi o time
+                // A, o item saiu de A; senão saiu de B.
+                $saiuDeA = ((int)$t['from_team_id'] === $aId) === (bool)$i['from_team'];
+                $rot = $i['player_name'] . ($i['player_ovr'] ? ' (' . $i['player_ovr'] . ')' : '');
+                if ($saiuDeA) $out['foram'][] = $rot; else $out['vieram'][] = $rot;
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('[whatsapp-cmd] confronto trocas: ' . $e->getMessage());
+    }
+
+    try {
+        // Pick que nasceu de um e hoje está com o outro.
+        $st = $pdo->prepare("SELECT COUNT(*) FROM picks WHERE original_team_id = ? AND team_id = ?");
+        $st->execute([$aId, $bId]);
+        $out['picks_a_com_b'] = (int)$st->fetchColumn();
+        $st->execute([$bId, $aId]);
+        $out['picks_b_com_a'] = (int)$st->fetchColumn();
+    } catch (Throwable $e) {
+        error_log('[whatsapp-cmd] confronto picks: ' . $e->getMessage());
+    }
+
+    return $out;
+}
+
+function wcConfronto(PDO $pdo, string $termo): string
+{
+    $partes = preg_split('/\s+(?:x|vs\.?|versus)\s+/iu', $termo, 2);
+    if (count($partes) < 2 || trim($partes[0]) === '' || trim($partes[1]) === '') {
+        return "Use assim: /confronto lakers x celtics";
+    }
+
+    [$a, $erroA] = wcResolverTime($pdo, trim($partes[0]));
+    if ($erroA) return $erroA;
+    [$b, $erroB] = wcResolverTime($pdo, trim($partes[1]));
+    if ($erroB) return $erroB;
+    if ((int)$a['id'] === (int)$b['id']) return 'Os dois nomes acharam o mesmo time (' . wcNomeDoTime($a) . ').';
+
+    $nomeA = wcNomeDoTime($a); $nomeB = wcNomeDoTime($b);
+    $h = wcHistoricoEntre($pdo, $a, $b);
+
+    $txt = "⚔️ *{$nomeA}*\n_contra_\n*{$nomeB}*\n";
+
+    // ── Campanha e playoffs, lado a lado ─────────────────────────────────
+    $marca = fn($x, $y) => $x === $y ? '' : ($x > $y ? ' ✅' : '');
+    $linha = fn(string $r, $va, $vb, string $sa = '', string $sb = '') => "{$r}: {$va}{$sa}  |  {$vb}{$sb}\n";
+
+    $tA = wcTitulosNaEdicao($pdo, (int)$a['id'], (string)$a['league']);
+    $tB = wcTitulosNaEdicao($pdo, (int)$b['id'], (string)$b['league']);
+    $spA = wcSprintAtual($pdo, (string)$a['league']);
+    $spB = wcSprintAtual($pdo, (string)$b['league']);
+    $pA = wcPlayoffsNaEdicao($pdo, (int)$a['id'], $spA ? (int)$spA['id'] : null);
+    $pB = wcPlayoffsNaEdicao($pdo, (int)$b['id'], $spB ? (int)$spB['id'] : null);
+
+    $txt .= "\n🏆 *Na edição atual*\n"
+          . $linha('Títulos', $tA['titulos'], $tB['titulos'], $marca($tA['titulos'], $tB['titulos']), $marca($tB['titulos'], $tA['titulos']))
+          . $linha('Séries de playoff', $pA['series'], $pB['series'], $marca($pA['series'], $pB['series']), $marca($pB['series'], $pA['series']))
+          . $linha('Melhor campanha', $pA['melhor'] ?: 'não foi', $pB['melhor'] ?: 'não foi');
+
+    // ── O núcleo: o que houve entre os dois ──────────────────────────────
+    $txt .= "\n🔁 *Negócios entre eles*\n";
+    if (!$h['trocas']) {
+        $txt .= "_Nunca trocaram nada._\n";
+    } else {
+        $n = count($h['trocas']);
+        $txt .= $n . ' troca' . ($n === 1 ? '' : 's') . " fechada" . ($n === 1 ? '' : 's');
+        if (!empty($h['trocas'][0]['updated_at'])) {
+            $txt .= ' · última em ' . date('d/m/Y', strtotime((string)$h['trocas'][0]['updated_at']));
+        }
+        $txt .= "\n";
+
+        // Quem mandou quem. Corta em 5 porque no grupo ninguém lê 20 nomes.
+        $lista = function (array $nomes): string {
+            $mostra = array_slice($nomes, 0, 5);
+            $resto = count($nomes) - count($mostra);
+            return implode(', ', $mostra) . ($resto > 0 ? " _+{$resto}_" : '');
+        };
+        if ($h['foram'])  $txt .= "→ {$nomeA} mandou: " . $lista($h['foram']) . "\n";
+        if ($h['vieram']) $txt .= "← {$nomeB} mandou: " . $lista($h['vieram']) . "\n";
+    }
+
+    if ($h['picks_a_com_b'] || $h['picks_b_com_a']) {
+        $txt .= "\n🎯 *Picks na mão do outro*\n";
+        if ($h['picks_a_com_b']) $txt .= "{$nomeB} tem *{$h['picks_a_com_b']}* pick(s) do {$nomeA}\n";
+        if ($h['picks_b_com_a']) $txt .= "{$nomeA} tem *{$h['picks_b_com_a']}* pick(s) do {$nomeB}\n";
+    }
+
+    $txt .= "\n_Confronto direto jogo a jogo o app não guarda — só campanha e playoff._"
+          . "\nElenco lado a lado: /comparartime " . mb_strtolower($a['name']) . ' x ' . mb_strtolower($b['name']);
+
+    return $txt;
+}
+
 function wcLendas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 {
     $liga = $termo !== '' ? wcNormalizarLiga($termo) : $ligaDoGrupo;
@@ -1109,6 +1309,10 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'classificação':
             case 'tabela':
                 return wcClassificacao($pdo, $arg, $ligaDoGrupo);
+
+            case 'confronto':
+            case 'duelo':
+                return wcConfronto($pdo, $arg);
 
             case 'comparartime':
             case 'comparartimes':

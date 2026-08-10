@@ -457,6 +457,7 @@ html{scroll-behavior:smooth}
             <tr><td><code>/jogador lebron</code></td><td>Time, OVR, salário, números da temporada e as 10 skills</td></tr>
             <tr><td><code>/comparar lebron x tatum</code></td><td>Dois jogadores lado a lado, com stats e skills</td></tr>
             <tr><td><code>/comparartime lakers x celtics</code></td><td>Dois times lado a lado, com títulos e playoffs da edição</td></tr>
+            <tr><td><code>/confronto lakers x celtics</code></td><td>O histórico entre dois times: trocas, quem mandou quem e picks cruzadas</td></tr>
             <tr><td><code>/time lakers</code></td><td>Elenco, folha, campanha e os melhores</td></tr>
             <tr><td><code>/cap lakers</code></td><td>Folha detalhada, espaço no CAP e maiores salários</td></tr>
             <tr><td><code>/picks lakers</code></td><td>Todas as picks do time, por ano</td></tr>
