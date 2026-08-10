@@ -180,7 +180,7 @@ function runMigrations() {
                 ('ELITE', 25),
                 ('NEXT', 20),
                 ('RISE', 15),
-                ('ROOKIE', 10);"
+                ('ROOKIE', 15);"
         ],
         'insert_leagues' => [
             'condition' => "SELECT COUNT(*) as cnt FROM leagues",
@@ -1402,7 +1402,7 @@ function runMigrations() {
         if (!$st3->fetchColumn()) {
             $pdo->exec("
                 INSERT INTO league_sprint_config (league, max_seasons) VALUES
-                ('ELITE', 25), ('NEXT', 20), ('RISE', 15), ('ROOKIE', 10)
+                ('ELITE', 25), ('NEXT', 20), ('RISE', 15), ('ROOKIE', 15)
                 ON DUPLICATE KEY UPDATE max_seasons = VALUES(max_seasons)
             ");
             $ins3 = $pdo->prepare("INSERT INTO app_flags (flag) VALUES (?)");
@@ -1410,6 +1410,22 @@ function runMigrations() {
         }
     } catch (PDOException $e) {
         $errors[] = "ajuste_league_sprint_config_fix: " . $e->getMessage();
+    }
+
+    try {
+        // Pedido do Marcos em 10/08/2026: a ROOKIE passa de 10 para 15
+        // temporadas por sprint, igualando a RISE. Roda uma vez só (app_flags),
+        // então uma edição posterior em Admin não é desfeita por isto.
+        $stR = $pdo->prepare("SELECT 1 FROM app_flags WHERE flag = ?");
+        $stR->execute(['rookie_15_temporadas_2026_08']);
+        if (!$stR->fetchColumn()) {
+            $pdo->exec("INSERT INTO league_sprint_config (league, max_seasons) VALUES ('ROOKIE', 15)
+                        ON DUPLICATE KEY UPDATE max_seasons = 15");
+            $insR = $pdo->prepare("INSERT INTO app_flags (flag) VALUES (?)");
+            $insR->execute(['rookie_15_temporadas_2026_08']);
+        }
+    } catch (PDOException $e) {
+        $errors[] = "rookie_15_temporadas: " . $e->getMessage();
     }
 
     try {

@@ -164,7 +164,7 @@ function ensureLeagueSprintDefaults(PDO $pdo): void
             ('ELITE', 25),
             ('NEXT', 20),
             ('RISE', 15),
-            ('ROOKIE', 10)
+            ('ROOKIE', 15)
         ");
     } catch (Exception $e) {
         error_log('Erro ao garantir league_sprint_config: ' . $e->getMessage());

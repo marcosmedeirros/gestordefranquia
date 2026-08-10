@@ -469,9 +469,20 @@ $leagueData  = [];
 $capStmt = null;
 try { $capStmt = $pdo->prepare('SELECT COALESCE(SUM(ovr),0) FROM (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8) top8'); } catch (Exception $e) {}
 
+// Total de temporadas por liga: a fonte é league_sprint_config, a mesma tabela
+// que o Admin edita. Isto aqui era uma cópia fixa no código, que só por sorte
+// não estava divergindo — e divergiria na hora que alguém mudasse pelo Admin.
+// O mapa abaixo fica como reserva pra base que ainda não tem a tabela.
+$leagueMaxSeasons = ['ELITE' => 25, 'NEXT' => 20, 'RISE' => 15, 'ROOKIE' => 15];
+try {
+    foreach ($pdo->query("SELECT league, max_seasons FROM league_sprint_config") as $r) {
+        $lg = strtoupper((string)$r['league']);
+        if ((int)$r['max_seasons'] > 0) $leagueMaxSeasons[$lg] = (int)$r['max_seasons'];
+    }
+} catch (Exception $e) { /* sem a tabela, vale o mapa acima */ }
+
 foreach ($leagueOrder as $league) {
     // Temporada atual e total de temporadas da liga
-    $leagueMaxSeasons = ['ELITE' => 20, 'NEXT' => 20, 'RISE' => 15, 'ROOKIE' => 10];
     $currentSeasonNum = null;
     $activeSeasonYear = null; // ano da temporada ATIVA (em andamento), quando houver
     $totalSeasons = $leagueMaxSeasons[$league] ?? null;
