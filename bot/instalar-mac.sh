@@ -80,27 +80,42 @@ else
     exit 1
 fi
 
+# ── Impedir o Mac de dormir ────────────────────────────────────────────
+# Dorme = bot parado. É a causa número um de "o bot sumiu", então vale
+# pedir a senha por isto em vez de deixar como lição de casa.
+echo
+echo "O Mac precisa NUNCA dormir, senão o bot para junto."
+read -r -p "Desligar a suspensão agora? (precisa da sua senha) [S/n] " RESP
+if [[ ! "${RESP:-S}" =~ ^[Nn] ]]; then
+    # sleep 0        → nunca suspende o sistema
+    # disablesleep 1 → num MacBook, segue rodando de tampa fechada
+    # displaysleep   → a TELA pode apagar à vontade; isso não para nada
+    if sudo pmset -a sleep 0 disablesleep 1 displaysleep 10 2>/dev/null; then
+        echo "✓ suspensão desligada (a tela ainda apaga, o que não afeta o bot)"
+    else
+        echo "⚠ não consegui aplicar — faça em Ajustes → Energia"
+    fi
+else
+    echo "⚠ pulado. Enquanto o Mac dormir, o bot fica parado."
+fi
+
 cat <<'FIM'
 
 ───────────────────────────────────────────────────────────────
-FALTAM TRÊS COISAS QUE ESTE SCRIPT NÃO PODE FAZER SOZINHO
+FALTAM DUAS COISAS QUE ESTE SCRIPT NÃO PODE FAZER SOZINHO
 ───────────────────────────────────────────────────────────────
 
-1. IMPEDIR O MAC DE DORMIR
-   Ajustes → Energia → ligar "Impedir a suspensão automática quando o
-   monitor estiver desligado". Num MacBook, isso só vale com a tampa
-   ABERTA ou com o Mac ligado na tomada e num monitor externo.
-
-   Mac dormindo = bot parado. É a causa número um de "o bot sumiu".
-
-2. LIGAR O LOGIN AUTOMÁTICO
+1. LIGAR O LOGIN AUTOMÁTICO
    Ajustes → Usuários e Grupos → Iniciar sessão automaticamente.
 
-   Sem isso, depois de uma queda de energia o Mac liga na tela de senha,
-   e nem o LaunchAgent nem o Docker sobem — porque os dois dependem de
-   uma sessão de usuário aberta.
+   Isto é o que faz o bot voltar sozinho depois de uma queda de energia.
+   Sem isso o Mac liga e PARA na tela de senha — e ali nem o LaunchAgent
+   nem o colima rodam, porque os dois dependem de uma sessão aberta.
 
-3. SUBIR A EVOLUTION E PAREAR O WHATSAPP
+   Tela BLOQUEADA é diferente de tela de LOGIN: com a sessão aberta e a
+   tela travada, tudo continua rodando normalmente.
+
+2. SUBIR A EVOLUTION E PAREAR O WHATSAPP
 
    Use COLIMA, não o Docker Desktop. Os dois rodam o mesmo container, mas
    o Desktop instala um aplicativo com ícone no Dock e uma baleia fixa na
