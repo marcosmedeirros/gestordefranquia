@@ -490,6 +490,23 @@ try {
         @media (max-width: 560px) { .pool-grid { grid-template-columns:1fr; } .pd-offcanvas { width:100%; } }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
 
+        /* ── Aba Controle ─────────────────────────────── */
+        .ctl-trava { display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+            background: var(--panel-2); border: 1px solid var(--border-md); border-radius: 10px;
+            padding: 12px 14px; margin-bottom: 14px; max-width: 560px; transition: all var(--t) var(--ease); }
+        .ctl-trava:hover { border-color: var(--border-red); }
+        .ctl-trava input { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--red); cursor: pointer; flex: none; }
+        .ctl-trava strong { display: block; font-size: 13px; font-weight: 700; color: var(--text); }
+        .ctl-trava em { display: block; font-size: 11.5px; font-style: normal; color: var(--text-2); margin-top: 2px; line-height: 1.5; }
+        /* Pausado é estado perigoso: tem que dar na vista sem ler o texto. */
+        .ctl-trava.pausado { background: var(--red-soft); border-color: var(--border-red); }
+        .ctl-trava.pausado strong { color: var(--red-2); }
+        .ctl-botoes { display: flex; flex-wrap: wrap; gap: 8px; }
+        @media (max-width: 560px) {
+            .ctl-botoes { flex-direction: column; align-items: stretch; }
+            .ctl-botoes button { justify-content: center; }
+        }
+
         /* ── Rodapé: quanto cada GM demorou ───────────── */
         /* Cores próprias porque --green/--amber/--red-2 do resto da sala são
            feitos pra badge com fundo, não pra texto sobre painel: medidos aqui,
@@ -605,7 +622,7 @@ try {
                     <button class="nav-link" data-bs-toggle="tab" data-bs-target="#adm-players" type="button" role="tab">Jogadores</button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#adm-live" type="button" role="tab">Agendamento &amp; Controle</button>
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#adm-live" type="button" role="tab">Controle</button>
                 </li>
             </ul>
 
@@ -668,10 +685,16 @@ try {
                     <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2 pag-wrap" id="admPoolPagination"></div>
                 </div>
 
-                <!-- Tab: Agendamento & Controle -->
+                <!-- Tab: Controle -->
                 <div class="tab-pane fade" id="adm-live" role="tabpanel">
                     <div class="row g-4">
-                        <div class="col-md-7">
+                        <!-- Agendamento (1 rodada por dia) — ESCONDIDO, não removido.
+                             O relógio diário nunca chegou a ser usado (o cron que
+                             preenche os prazos não está agendado), então a tela só
+                             confundia. Os campos continuam aqui, e os endpoints
+                             set_daily_schedule / abrir rodada continuam de pé: pra
+                             voltar, é só tirar o d-none. -->
+                        <div class="col-md-7 d-none" id="admAgendamentoBloco">
                             <div class="adm-section-title">Agendamento (1 rodada por dia)</div>
                             <p style="font-size:12px;color:var(--text-2);margin-bottom:12px">00:01 (Brasília) libera a rodada do dia. Sem relógio: as picks avançam quando alguém escolhe.</p>
                             <div class="row g-3">
@@ -685,17 +708,29 @@ try {
                                 </div>
                                 <div class="col-12">
                                     <button class="btn-amber" onclick="saveDailySchedule()"><i class="bi bi-calendar-check"></i> Salvar agendamento</button>
+                                    <button class="btn-amber" onclick="adminOpenNextRoundNow()"><i class="bi bi-lightning-charge"></i> Abrir rodada agora</button>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-5">
-                            <div class="adm-section-title">Controle ao vivo</div>
-                            <div class="d-flex flex-column gap-2" style="max-width:260px">
-                                <button class="btn-amber" onclick="adminOpenNextRoundNow()"><i class="bi bi-lightning-charge"></i> Abrir rodada agora</button>
-                                <button class="btn-ghost" onclick="adminUndoLastPick()"><i class="bi bi-arrow-counterclockwise"></i> Voltar Pick</button>
+
+                        <div class="col-12">
+                            <div class="adm-section-title">Controle</div>
+
+                            <label class="ctl-trava" id="admTravaWrap">
+                                <input type="checkbox" id="admPausado" onchange="togglePausaDraft(this.checked)">
+                                <span>
+                                    <strong id="admTravaTitulo">Draft liberado</strong>
+                                    <em id="admTravaTexto">Marque pra travar: ninguém escolhe enquanto estiver pausado, nem por autopick.</em>
+                                </span>
+                            </label>
+
+                            <div class="ctl-botoes">
+                                <button class="btn-ghost" onclick="adminUndoLastPick()"><i class="bi bi-arrow-counterclockwise"></i> Voltar pick</button>
+                                <button class="btn-ghost" onclick="adminAddRound()"><i class="bi bi-plus-circle"></i> <span id="admAddRoundLabel">Adicionar rodada</span></button>
                                 <button class="btn-red" onclick="finalizeDraft()"><i class="bi bi-flag"></i> Finalizar draft</button>
                             </div>
-                            <p style="font-size:11px;color:var(--text-2);margin-top:10px">O botão <strong>Escolher</strong> do pool é só do GM na vez. Pra escolher no lugar de um time (ex: acabou o relógio no grupo do Whats), use "Escolher pelo time da vez" ao lado.</p>
+
+                            <p style="font-size:11px;color:var(--text-2);margin-top:10px">O botão <strong>Escolher</strong> do pool é só do GM na vez. Pra escolher no lugar de um time (ex: acabou o relógio no grupo do Whats), use "Escolher pelo time da vez" abaixo.</p>
                         </div>
                         <div class="col-12">
                             <div class="adm-section-title">Escolher pelo time da vez</div>
@@ -1900,6 +1935,7 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
             renderStartArea();
             renderAdmPool();
             syncScheduleInputs();
+            syncControleInputs();
             // Não sobrescrever a ordem em edição durante um refresh automático
             if (!adminState.orderDirty) {
                 adminState.manualOrder = getRoundOneOrder();
@@ -2224,6 +2260,69 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Falha ao abrir rodada');
                 showMessage('Rodada aberta.');
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+            }
+        }
+
+        // ── Controle: travar e adicionar rodada ─────────
+        function syncControleInputs() {
+            const s = state.session;
+            const check = document.getElementById('admPausado');
+            if (!s || !check) return;
+
+            const pausado = Number(s.pausado ?? 0) === 1;
+            check.checked = pausado;
+            document.getElementById('admTravaWrap')?.classList.toggle('pausado', pausado);
+            document.getElementById('admTravaTitulo').textContent = pausado ? 'Draft PAUSADO' : 'Draft liberado';
+            document.getElementById('admTravaTexto').textContent = pausado
+                ? 'Ninguém consegue escolher, nem por autopick. Desmarque pra liberar.'
+                : 'Marque pra travar: ninguém escolhe enquanto estiver pausado, nem por autopick.';
+
+            // Dizer pra quanto vai é mais útil que "adicionar rodada": o admin
+            // vê o resultado antes de clicar.
+            const atual = Number(s.total_rounds ?? 0);
+            const label = document.getElementById('admAddRoundLabel');
+            if (label) {
+                label.textContent = atual ? `Adicionar rodada (${atual} → ${atual + 1})` : 'Adicionar rodada';
+            }
+        }
+
+        async function togglePausaDraft(pausado) {
+            try {
+                const sessionId = state.session?.id;
+                if (!sessionId) throw new Error('Sessão não carregada');
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'toggle_pausa', session_id: sessionId, pausado: pausado ? 1 : 0 })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Falha ao mudar a trava');
+                showMessage(data.pausado ? 'Draft pausado. Ninguém escolhe até liberar.' : 'Draft liberado.');
+                await loadState();
+            } catch (error) {
+                showMessage(error.message, 'danger');
+                // O check já virou na tela; devolve pro estado real do servidor.
+                syncControleInputs();
+            }
+        }
+
+        async function adminAddRound() {
+            const atual = Number(state.session?.total_rounds ?? 0);
+            if (!confirm(`Adicionar mais uma rodada? O draft passa de ${atual} para ${atual + 1} rodadas.`)) return;
+            try {
+                const sessionId = state.session?.id;
+                if (!sessionId) throw new Error('Sessão não carregada');
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'admin_add_round', session_id: sessionId })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Falha ao adicionar rodada');
+                showMessage(`Agora são ${data.total_rounds} rodadas (${data.picks_criadas} picks novas).`);
                 await loadState();
             } catch (error) {
                 showMessage(error.message, 'danger');

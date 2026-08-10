@@ -60,6 +60,13 @@ function performInitDraftPick(PDO $pdo, array $session, int $playerId): void {
     if ($session['status'] !== 'in_progress') {
         throw new InvalidArgumentException('Draft não está em andamento');
     }
+    // A trava do admin mora aqui, e não em make_pick, porque esta função é o
+    // ÚNICO caminho que grava pick: o site, o autopick do navegador e o cron do
+    // mock passam todos por ela. Barrar em cada um deles deixaria brecha na
+    // primeira via nova que alguém escrevesse.
+    if (!empty($session['pausado'])) {
+        throw new InvalidArgumentException('O draft está pausado pelo admin');
+    }
     if ($playerId <= 0) {
         throw new InvalidArgumentException('player_id obrigatório');
     }
