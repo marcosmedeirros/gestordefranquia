@@ -456,6 +456,7 @@ html{scroll-behavior:smooth}
             <tr><td><code>/minhaspicks</code></td><td>Suas picks</td></tr>
             <tr><td><code>/jogador lebron</code></td><td>Time, posição, idade, OVR e salário</td></tr>
             <tr><td><code>/comparar lebron x tatum</code></td><td>Dois jogadores lado a lado</td></tr>
+            <tr><td><code>/comparartime lakers x celtics</code></td><td>Dois times lado a lado</td></tr>
             <tr><td><code>/time lakers</code></td><td>Elenco, folha, campanha e os melhores</td></tr>
             <tr><td><code>/cap lakers</code></td><td>Folha detalhada, espaço no CAP e maiores salários</td></tr>
             <tr><td><code>/picks lakers</code></td><td>Todas as picks do time, por ano</td></tr>

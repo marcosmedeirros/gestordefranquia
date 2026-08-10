@@ -135,7 +135,8 @@ function wcAjuda(): string
         . "/meuelenco · /meucap · /minhaspicks\n\n"
         . "*Consulta*\n"
         . "/jogador _nome_ — time, idade, OVR e salário\n"
-        . "/comparar _um_ x _outro_ — lado a lado\n"
+        . "/comparar _um_ x _outro_ — jogadores lado a lado\n"
+        . "/comparartime _um_ x _outro_ — times lado a lado\n"
         . "/time _nome_ — elenco, folha e campanha\n"
         . "/cap _time_ — folha e espaço no cap\n"
         . "/picks _time_ — picks que o time tem\n\n"
@@ -480,6 +481,107 @@ function wcComparar(PDO $pdo, string $termo): string
     return $txt;
 }
 
+function wcCompararTimes(PDO $pdo, string $termo): string
+{
+    // Só x/vs/versus aqui. O /comparar de jogador também aceita "e", mas nome
+    // de time tem muito mais chance de conter " e " no meio e ser partido no
+    // lugar errado.
+    $partes = preg_split('/\s+(?:x|vs\.?|versus)\s+/iu', $termo, 2);
+    if (count($partes) < 2 || trim($partes[0]) === '' || trim($partes[1]) === '') {
+        return "Use assim: /comparartime lakers x celtics";
+    }
+
+    [$a, $erroA] = wcResolverTime($pdo, trim($partes[0]));
+    if ($erroA) return $erroA;
+    [$b, $erroB] = wcResolverTime($pdo, trim($partes[1]));
+    if ($erroB) return $erroB;
+    if ((int)$a['id'] === (int)$b['id']) return 'Os dois nomes acharam o mesmo time (' . wcNomeDoTime($a) . ').';
+
+    $ovr = wcColunaOvr($pdo);
+    $stElenco = $pdo->prepare("SELECT name, {$ovr} AS ovr, age, COALESCE(is_lenda,0) AS is_lenda
+                               FROM players WHERE team_id = ? ORDER BY {$ovr} DESC");
+
+    $medir = function (array $t) use ($pdo, $stElenco) {
+        $stElenco->execute([(int)$t['id']]);
+        $elenco = $stElenco->fetchAll(PDO::FETCH_ASSOC);
+        $ovrs = array_map(fn($p) => (int)$p['ovr'], $elenco);
+        $idades = array_map(fn($p) => (int)$p['age'], $elenco);
+
+        $m = [
+            'elenco'  => count($elenco),
+            'melhor'  => $ovrs ? max($ovrs) : 0,
+            // Soma dos 8 melhores é o que vale de CAP fora da ELITE — comparar
+            // por aí diz mais que a média do elenco inteiro, que afunda com
+            // quem tem banco grande.
+            'top8'    => array_sum(array_slice($ovrs, 0, 8)),
+            'idade'   => $idades ? round(array_sum($idades) / count($idades), 1) : 0,
+            'lendas'  => count(array_filter($elenco, fn($p) => !empty($p['is_lenda']))),
+            'nomes'   => array_slice(array_map(fn($p) => $p['name'] . ' (' . $p['ovr'] . ')', $elenco), 0, 3),
+            'folha'   => null,
+        ];
+
+        if (wcLigaEmSalario($pdo, (string)$t['league'])) {
+            $cap = getTeamCapSummary($pdo, (int)$t['id']);
+            $m['folha'] = (int)$cap['payroll'];
+            $m['espaco'] = (int)$cap['space'];
+        }
+
+        $st = $pdo->prepare("SELECT COUNT(*) FROM picks WHERE team_id = ?");
+        $st->execute([(int)$t['id']]);
+        $m['picks'] = (int)$st->fetchColumn();
+
+        $temp = wcTemporadaAtiva($pdo, (string)$t['league']);
+        $m['campanha'] = null;
+        if ($temp) {
+            $st = $pdo->prepare("SELECT wins, losses FROM season_standings WHERE season_id = ? AND team_id = ?");
+            $st->execute([(int)$temp['id'], (int)$t['id']]);
+            if ($c = $st->fetch(PDO::FETCH_ASSOC)) $m['campanha'] = $c['wins'] . '-' . $c['losses'];
+        }
+        return $m;
+    };
+
+    $ma = $medir($a);
+    $mb = $medir($b);
+
+    $marca = fn($x, $y, bool $maiorGanha = true) => $x === $y ? '' : (($maiorGanha ? $x > $y : $x < $y) ? ' ✅' : '');
+    $linha = fn(string $r, $va, $vb, string $sa = '', string $sb = '') => "{$r}: {$va}{$sa}  |  {$vb}{$sb}\n";
+
+    $txt = '*' . wcNomeDoTime($a) . '*' . "\n_vs_\n" . '*' . wcNomeDoTime($b) . "*\n";
+    if ($a['league'] !== $b['league']) $txt .= "_{$a['league']} · {$b['league']}_\n";
+    $txt .= "\n"
+        . $linha('Melhor jogador', $ma['melhor'], $mb['melhor'], $marca($ma['melhor'], $mb['melhor']), $marca($mb['melhor'], $ma['melhor']))
+        . $linha('Soma top 8', $ma['top8'], $mb['top8'], $marca($ma['top8'], $mb['top8']), $marca($mb['top8'], $ma['top8']))
+        . $linha('Elenco', $ma['elenco'], $mb['elenco'])
+        // Elenco mais novo é vantagem: compara ao contrário.
+        . $linha('Idade média', $ma['idade'], $mb['idade'], $marca($ma['idade'], $mb['idade'], false), $marca($mb['idade'], $ma['idade'], false))
+        . $linha('Picks', $ma['picks'], $mb['picks'], $marca($ma['picks'], $mb['picks']), $marca($mb['picks'], $ma['picks']));
+
+    if ($ma['lendas'] || $mb['lendas']) {
+        $txt .= $linha('Lendas 👑', $ma['lendas'], $mb['lendas'], $marca($ma['lendas'], $mb['lendas']), $marca($mb['lendas'], $ma['lendas']));
+    }
+
+    // Folha só compara quando as DUAS ligas cobram em dinheiro — 44M contra
+    // "soma de OVR" não é comparação, é confusão.
+    if ($ma['folha'] !== null && $mb['folha'] !== null) {
+        // Folha vai sem ✅ de propósito: folha alta não é defeito, é elenco
+        // caro. Quem diz quem está melhor de dinheiro é o espaço — e marcar os
+        // dois seria a mesma informação repetida ao contrário.
+        $txt .= $linha('Folha', $ma['folha'] . 'M', $mb['folha'] . 'M')
+              . $linha('Espaço no cap', $ma['espaco'] . 'M', $mb['espaco'] . 'M',
+                       $marca($ma['espaco'], $mb['espaco']), $marca($mb['espaco'], $ma['espaco']));
+    }
+
+    if ($ma['campanha'] || $mb['campanha']) {
+        $txt .= $linha('Campanha', $ma['campanha'] ?: '—', $mb['campanha'] ?: '—');
+    }
+
+    $txt .= "\n*Melhores:*\n"
+          . '• ' . implode(', ', $ma['nomes'] ?: ['elenco vazio']) . "\n"
+          . '• ' . implode(', ', $mb['nomes'] ?: ['elenco vazio']);
+
+    return $txt;
+}
+
 function wcLendas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 {
     $liga = $termo !== '' ? wcNormalizarLiga($termo) : $ligaDoGrupo;
@@ -687,6 +789,11 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'classificação':
             case 'tabela':
                 return wcClassificacao($pdo, $arg, $ligaDoGrupo);
+
+            case 'comparartime':
+            case 'comparartimes':
+            case 'compararelenco':
+                return wcCompararTimes($pdo, $arg);
 
             case 'comparar':
             case 'compara':
