@@ -15,8 +15,10 @@
  *
  * Configurar na Evolution (uma vez):
  *   POST /webhook/set/fba
- *   { "url": "https://fbabrasil.com.br/api/whatsapp-webhook.php?token=<bot_token>",
- *     "events": ["MESSAGES_UPSERT"] }
+ *   { "webhook": { "enabled": true,
+ *                  "url": "https://fbabrasil.com.br/api/whatsapp-webhook.php",
+ *                  "headers": { "x-fba-token": "<bot_token>" },
+ *                  "events": ["MESSAGES_UPSERT"] } }
  */
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/whatsapp.php';
@@ -28,7 +30,13 @@ $pdo = db();
 ensureWhatsAppTables($pdo);
 
 // ── Autenticação: mesmo token do worker ─────────────────────────────────
-$enviado = (string)($_GET['token'] ?? '');
+// Preferência pelo header: token na query fica gravado no banco da Evolution e
+// em qualquer log de acesso pelo caminho. Aceito na URL só como alternativa,
+// pra não depender de o webhook da Evolution suportar headers.
+$auth = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+$enviado = stripos($auth, 'Bearer ') === 0
+    ? trim(substr($auth, 7))
+    : (string)($_SERVER['HTTP_X_FBA_TOKEN'] ?? $_GET['token'] ?? '');
 $esperado = (string)($pdo->query("SELECT bot_token FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: '');
 if ($esperado === '' || $enviado === '' || !hash_equals($esperado, $enviado)) {
     http_response_code(401);
