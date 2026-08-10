@@ -72,7 +72,9 @@ function temposDaSessao(PDO $pdo, array $sessao): array
         // sumir sem explicação, só não conta.
         $conta = !((int)$l['round'] === 1 && (int)$l['pick_position'] === 1);
 
-        $nome = trim(trim((string)$l['city']) . ' ' . trim((string)$l['mascot'])) ?: (string)$l['team_name'];
+        // Cidade + name, como o resto do app monta. O mascot é outro campo e
+        // dá nome errado quando os dois divergem.
+        $nome = trim(trim((string)$l['city']) . ' ' . trim((string)$l['team_name'])) ?: (string)$l['team_name'];
         $picks[] = [
             'round' => (int)$l['round'], 'pick' => (int)$l['pick_position'],
             'time' => $nome, 'gm' => $l['gm'] ?: 'sem dono',

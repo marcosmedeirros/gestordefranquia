@@ -13,11 +13,18 @@
 
 require_once __DIR__ . '/../backend/salary_cap.php';
 
-/** Nome de exibição do time: "Cidade Mascote", com fallback pro name. */
+/**
+ * Nome de exibição do time: "Cidade Nome", como o resto do app monta.
+ *
+ * Não é cidade + mascot: são campos diferentes e, quando divergem, o mascot
+ * dá o nome errado. Aceita team_name pra quando a consulta precisou apelidar
+ * a coluna (JOIN com players, que também tem `name`).
+ */
 function wcNomeDoTime(array $t): string
 {
-    $composto = trim(trim((string)($t['city'] ?? '')) . ' ' . trim((string)($t['mascot'] ?? '')));
-    return $composto !== '' ? $composto : trim((string)($t['name'] ?? '?'));
+    $nome = trim((string)($t['team_name'] ?? $t['name'] ?? ''));
+    $composto = trim(trim((string)($t['city'] ?? '')) . ' ' . $nome);
+    return $composto !== '' ? $composto : ($nome !== '' ? $nome : '?');
 }
 
 /** Coluna de OVR — o banco antigo usava 'overall'. */
@@ -41,8 +48,10 @@ function wcLigaEmSalario(PDO $pdo, string $league): bool
 
 /**
  * Acha o time pelo que a pessoa digitou. Ela vai escrever "Lakers", não
- * "Los Angeles Lakers" — então procuro em cidade, mascote, nome e no
- * "cidade mascote" concatenado, e aceito o pedaço no meio da palavra.
+ * "Los Angeles Lakers" — então aceito o pedaço no meio da palavra.
+ *
+ * Procuro no nome completo ("Cidade Nome", que é como o time aparece) e também
+ * no mascot: ele não é usado pra exibir, mas alguém pode digitar por ele.
  */
 function wcAcharTimes(PDO $pdo, string $termo): array
 {
@@ -52,7 +61,7 @@ function wcAcharTimes(PDO $pdo, string $termo): array
         FROM teams t
         LEFT JOIN users u ON u.id = t.user_id
         WHERE t.name LIKE ? OR t.city LIKE ? OR t.mascot LIKE ?
-           OR CONCAT(t.city, ' ', t.mascot) LIKE ?
+           OR CONCAT(t.city, ' ', t.name) LIKE ?
         ORDER BY t.league, t.city
         LIMIT 6
     ");
@@ -279,7 +288,7 @@ function wcPicks(PDO $pdo, string $termo): string
     if ($erro) return $erro;
 
     $st = $pdo->prepare("
-        SELECT p.season_year, p.round, p.original_team_id, o.city AS o_city, o.mascot AS o_mascot, o.name AS o_name
+        SELECT p.season_year, p.round, p.original_team_id, o.city AS o_city, o.name AS o_name
         FROM picks p
         LEFT JOIN teams o ON o.id = p.original_team_id
         WHERE p.team_id = ?
@@ -295,7 +304,7 @@ function wcPicks(PDO $pdo, string $termo): string
         $rot = $p['round'] . 'ª';
         // Pick que veio de outro time: dizer de quem é o que importa numa troca.
         if ((int)$p['original_team_id'] !== (int)$t['id']) {
-            $rot .= ' (do ' . wcNomeDoTime(['city' => $p['o_city'], 'mascot' => $p['o_mascot'], 'name' => $p['o_name']]) . ')';
+            $rot .= ' (do ' . wcNomeDoTime(['city' => $p['o_city'], 'name' => $p['o_name']]) . ')';
         }
         $porAno[(int)$p['season_year']][] = $rot;
     }
