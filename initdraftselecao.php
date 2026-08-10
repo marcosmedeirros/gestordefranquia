@@ -501,6 +501,9 @@ try {
         /* Pausado é estado perigoso: tem que dar na vista sem ler o texto. */
         .ctl-trava.pausado { background: var(--red-soft); border-color: var(--border-red); }
         .ctl-trava.pausado strong { color: var(--red-2); }
+        .ctl-aviso { background: var(--red-soft); border: 1px solid var(--border-red); border-radius: 8px;
+            padding: 10px 13px; margin-bottom: 12px; font-size: 12.5px; line-height: 1.6; color: var(--text-2); max-width: 560px; }
+        .ctl-aviso strong { color: var(--text); }
         .ctl-botoes { display: flex; flex-wrap: wrap; gap: 8px; }
         @media (max-width: 560px) {
             .ctl-botoes { flex-direction: column; align-items: stretch; }
@@ -723,6 +726,8 @@ try {
                                     <em id="admTravaTexto">Marque pra travar: ninguém escolhe enquanto estiver pausado, nem por autopick.</em>
                                 </span>
                             </label>
+
+                            <div class="ctl-aviso" id="admRodadasAviso" style="display:none"></div>
 
                             <div class="ctl-botoes">
                                 <button class="btn-ghost" onclick="adminUndoLastPick()"><i class="bi bi-arrow-counterclockwise"></i> Voltar pick</button>
@@ -2280,12 +2285,34 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
                 ? 'Ninguém consegue escolher, nem por autopick. Desmarque pra liberar.'
                 : 'Marque pra travar: ninguém escolhe enquanto estiver pausado, nem por autopick.';
 
-            // Dizer pra quanto vai é mais útil que "adicionar rodada": o admin
-            // vê o resultado antes de clicar.
-            const atual = Number(s.total_rounds ?? 0);
+            // O número que vale é a maior rodada que EXISTE na tabela de picks,
+            // não o total_rounds da sessão: os dois podem discordar, porque o
+            // "definir rodadas" antigo mexia só no contador. Mostrar o contador
+            // fazia a tela dizer "8 rodadas" com 5 sorteadas.
+            const real = state.order?.length
+                ? Math.max(...state.order.map((p) => Number(p.round) || 0))
+                : 0;
+            const configurado = Number(s.total_rounds ?? 0);
+
             const label = document.getElementById('admAddRoundLabel');
             if (label) {
-                label.textContent = atual ? `Adicionar rodada (${atual} → ${atual + 1})` : 'Adicionar rodada';
+                if (configurado > real) {
+                    label.textContent = `Completar rodadas (${real} → ${configurado})`;
+                } else {
+                    label.textContent = real ? `Adicionar rodada (${real} → ${real + 1})` : 'Adicionar rodada';
+                }
+            }
+
+            // Aviso explícito do descompasso: sem isto o admin só descobre que
+            // faltam rodadas quando o draft acaba antes da hora.
+            const aviso = document.getElementById('admRodadasAviso');
+            if (aviso) {
+                if (configurado > real && real > 0) {
+                    aviso.style.display = '';
+                    aviso.innerHTML = `A sessão está configurada para <strong>${configurado} rodadas</strong>, mas só <strong>${real}</strong> foram sorteadas — o draft acabaria na ${real}ª. Clique em <strong>Completar rodadas</strong> pra criar as que faltam.`;
+                } else {
+                    aviso.style.display = 'none';
+                }
             }
         }
 
@@ -2310,8 +2337,16 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
         }
 
         async function adminAddRound() {
-            const atual = Number(state.session?.total_rounds ?? 0);
-            if (!confirm(`Adicionar mais uma rodada? O draft passa de ${atual} para ${atual + 1} rodadas.`)) return;
+            const real = state.order?.length
+                ? Math.max(...state.order.map((p) => Number(p.round) || 0))
+                : 0;
+            const configurado = Number(state.session?.total_rounds ?? 0);
+            const alvo = configurado > real ? configurado : real + 1;
+
+            const pergunta = configurado > real
+                ? `Criar as rodadas que faltam? O draft vai da ${real}ª até a ${alvo}ª.`
+                : `Adicionar mais uma rodada? O draft passa de ${real} para ${alvo} rodadas.`;
+            if (!confirm(pergunta)) return;
             try {
                 const sessionId = state.session?.id;
                 if (!sessionId) throw new Error('Sessão não carregada');
@@ -2322,7 +2357,9 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
                 });
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Falha ao adicionar rodada');
-                showMessage(`Agora são ${data.total_rounds} rodadas (${data.picks_criadas} picks novas).`);
+                showMessage(data.completou_buraco
+                    ? `Faltavam ${data.rodadas_criadas} rodadas — criadas agora (${data.picks_criadas} picks). O draft vai até a ${data.total_rounds}ª.`
+                    : `Agora são ${data.total_rounds} rodadas (${data.picks_criadas} picks novas).`);
                 await loadState();
             } catch (error) {
                 showMessage(error.message, 'danger');

@@ -1021,7 +1021,48 @@ if ($method === 'POST') {
                 // Atualizar session array para retornar valor atualizado
                 $session['total_rounds'] = $totalRounds;
 
-                echo json_encode(['success' => true, 'total_rounds' => $totalRounds]);
+                // Se a ordem JÁ tinha sido sorteada, acertar a tabela de picks.
+                // Antes isto só trocava o contador: a sessão passava a dizer "8
+                // rodadas" enquanto a tabela continuava com 5, e o draft acabava
+                // cedo sem ninguém entender.
+                //
+                // Acrescento ou removo rodadas no fim, em vez de chamar
+                // persistDraftOrder: aquela função apaga tudo e recria com
+                // team_id = original_team_id, o que apagaria qualquer pick que
+                // já tivesse sido trocada. Pick trocada antes do draft começar é
+                // caso real, e ninguém ia perceber a perda até a vez chegar no
+                // time errado.
+                $stmtReal = $pdo->prepare('SELECT COALESCE(MAX(round), 0) FROM initdraft_order WHERE initdraft_session_id = ?');
+                $stmtReal->execute([(int)$session['id']]);
+                $real = (int)$stmtReal->fetchColumn();
+                $ajuste = 'nenhum';
+
+                if ($real > 0 && $totalRounds !== $real) {
+                    $stmtBase = $pdo->prepare('SELECT original_team_id FROM initdraft_order
+                                               WHERE initdraft_session_id = ? AND round = 1
+                                               ORDER BY pick_position ASC');
+                    $stmtBase->execute([(int)$session['id']]);
+                    $base = array_map('intval', $stmtBase->fetchAll(PDO::FETCH_COLUMN));
+
+                    if ($totalRounds > $real && $base) {
+                        $ins = $pdo->prepare('INSERT INTO initdraft_order
+                            (initdraft_session_id, team_id, original_team_id, pick_position, round)
+                            VALUES (?, ?, ?, ?, ?)');
+                        for ($r = $real + 1; $r <= $totalRounds; $r++) {
+                            $ordem = ($r % 2 === 1) ? $base : array_reverse($base);
+                            foreach ($ordem as $i => $teamId) {
+                                $ins->execute([(int)$session['id'], $teamId, $teamId, $i + 1, $r]);
+                            }
+                        }
+                        $ajuste = 'rodadas_criadas';
+                    } elseif ($totalRounds < $real) {
+                        $pdo->prepare('DELETE FROM initdraft_order WHERE initdraft_session_id = ? AND round > ?')
+                            ->execute([(int)$session['id'], $totalRounds]);
+                        $ajuste = 'rodadas_removidas';
+                    }
+                }
+
+                echo json_encode(['success' => true, 'total_rounds' => $totalRounds, 'ajuste' => $ajuste]);
                 break;
             }
 
@@ -1216,12 +1257,24 @@ if ($method === 'POST') {
                 if (!$session) throw new InvalidArgumentException('Sessão inválida');
                 if (($session['status'] ?? '') === 'completed') throw new InvalidArgumentException('Draft já finalizado');
 
-                $atual = (int)($session['total_rounds'] ?? 0);
-                if ($atual >= 10) throw new InvalidArgumentException('Máximo de 10 rodadas');
+                // O que vale é a rodada que EXISTE na tabela de picks, não o
+                // total_rounds da sessão — os dois podem discordar (o
+                // set_total_rounds antigo mexia só no contador). Quando o
+                // contador está à frente, este botão preenche o que falta em vez
+                // de criar uma rodada solta lá na frente.
+                $stmtReal = $pdo->prepare('SELECT COALESCE(MAX(round), 0) FROM initdraft_order WHERE initdraft_session_id = ?');
+                $stmtReal->execute([$sessionId]);
+                $real = (int)$stmtReal->fetchColumn();
+                $configurado = (int)($session['total_rounds'] ?? 0);
 
-                // A ordem base é a da 1ª rodada, pelo original_team_id: a nova
-                // rodada é de picks que ninguém trocou ainda, então ela pertence
-                // ao dono original, não a quem ficou com a pick de outro ano.
+                if ($real >= 10) throw new InvalidArgumentException('Máximo de 10 rodadas');
+
+                // Contador à frente = tem buraco pra tapar; senão, mais uma.
+                $alvo = $configurado > $real ? min($configurado, 10) : $real + 1;
+
+                // A ordem base é a da 1ª rodada, pelo original_team_id: a rodada
+                // nova é de picks que ninguém trocou ainda, então ela pertence ao
+                // dono original, não a quem ficou com a pick de outro ano.
                 $stmtBase = $pdo->prepare('SELECT original_team_id FROM initdraft_order
                                            WHERE initdraft_session_id = ? AND round = 1
                                            ORDER BY pick_position ASC');
@@ -1229,27 +1282,35 @@ if ($method === 'POST') {
                 $base = array_map('intval', $stmtBase->fetchAll(PDO::FETCH_COLUMN));
                 if (!$base) throw new InvalidArgumentException('A ordem do draft ainda não foi sorteada');
 
-                $nova = $atual + 1;
-                // Mesmo chaveamento do resto: rodada ímpar na ordem, par invertida.
-                $ordem = ($nova % 2 === 1) ? $base : array_reverse($base);
-
+                $criadas = 0;
                 $pdo->beginTransaction();
                 try {
                     $ins = $pdo->prepare('INSERT INTO initdraft_order
                         (initdraft_session_id, team_id, original_team_id, pick_position, round)
                         VALUES (?, ?, ?, ?, ?)');
-                    foreach ($ordem as $i => $teamId) {
-                        $ins->execute([$sessionId, $teamId, $teamId, $i + 1, $nova]);
+                    for ($r = $real + 1; $r <= $alvo; $r++) {
+                        // Mesmo chaveamento do resto: ímpar na ordem, par invertida.
+                        $ordem = ($r % 2 === 1) ? $base : array_reverse($base);
+                        foreach ($ordem as $i => $teamId) {
+                            $ins->execute([$sessionId, $teamId, $teamId, $i + 1, $r]);
+                            $criadas++;
+                        }
                     }
                     $pdo->prepare('UPDATE initdraft_sessions SET total_rounds = ? WHERE id = ?')
-                        ->execute([$nova, $sessionId]);
+                        ->execute([$alvo, $sessionId]);
                     $pdo->commit();
                 } catch (Throwable $e) {
                     $pdo->rollBack();
                     throw $e;
                 }
 
-                echo json_encode(['success' => true, 'total_rounds' => $nova, 'picks_criadas' => count($ordem)]);
+                echo json_encode([
+                    'success' => true,
+                    'total_rounds' => $alvo,
+                    'rodadas_criadas' => $alvo - $real,
+                    'picks_criadas' => $criadas,
+                    'completou_buraco' => $configurado > $real,
+                ]);
                 break;
             }
 
