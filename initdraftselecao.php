@@ -25,6 +25,24 @@ if ($user && isset($user['id'])) {
     $stmtTeams->execute([$user['id']]);
     $userTeams = $stmtTeams->fetchAll(PDO::FETCH_ASSOC);
 }
+
+// ── Quanto cada GM demorou pra escolher ─────────────────────────────────
+// Fica no rodapé da sala, depois do draft. A conta está em
+// backend/initdraft_tempos.php — inclusive o porquê da 1ª pick não contar.
+require_once __DIR__ . '/backend/initdraft_tempos.php';
+$tempos = null;
+try {
+    $stmtSess = $pdo->prepare('SELECT * FROM initdraft_sessions WHERE access_token = ? LIMIT 1');
+    $stmtSess->execute([$token]);
+    if ($sessaoTempos = $stmtSess->fetch(PDO::FETCH_ASSOC)) {
+        $r = temposDaSessao($pdo, $sessaoTempos);
+        // Com menos de duas picks válidas não há ranking, só uma linha solta.
+        if (count($r['times']) >= 2) $tempos = ['sessao' => $sessaoTempos] + $r;
+    }
+} catch (Throwable $e) {
+    // Rodapé opcional: se der errado, a sala do draft continua funcionando.
+    error_log('[initdraft-tempos] ' . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -471,6 +489,41 @@ if ($user && isset($user['id'])) {
         }
         @media (max-width: 560px) { .pool-grid { grid-template-columns:1fr; } .pd-offcanvas { width:100%; } }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
+
+        /* ── Rodapé: quanto cada GM demorou ───────────── */
+        /* Cores próprias porque --green/--amber/--red-2 do resto da sala são
+           feitos pra badge com fundo, não pra texto sobre painel: medidos aqui,
+           davam 2.1–2.5:1. Estes ficam acima de 4.5:1 nos dois temas. */
+        .tempos { --t-lento: #f0616d; --t-rapido: #3fb950; --t-lider: #e3b341; }
+        :root[data-theme="light"] .tempos { --t-lento: #c02a3a; --t-rapido: #1a7f37; --t-lider: #9a6b00; }
+        .tempos { max-width: 1400px; margin: 34px auto 46px; padding: 0 18px; }
+        .tempos-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+        .tempos-titulo { font-size: 17px; font-weight: 800; letter-spacing: -.2px; margin: 0 0 2px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+        .tempos-sub { font-size: 12px; color: var(--text-3); margin: 0; }
+        .tempos-nota { background: var(--panel); border: 1px solid var(--border); border-left: 2px solid var(--t-lider);
+            border-radius: 0 8px 8px 0; padding: 11px 14px; font-size: 12.5px; line-height: 1.65; color: var(--text-2); margin-bottom: 14px; }
+        .tempos-nota b { color: var(--text); }
+        .tempos-tabela { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+        .tempos-tabela table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 520px; }
+        .tempos-tabela th { text-align: left; padding: 9px 13px; font-size: 9.5px; font-weight: 800; letter-spacing: .8px;
+            text-transform: uppercase; color: var(--text-3); background: var(--panel-2); white-space: nowrap; }
+        .tempos-tabela td { padding: 9px 13px; border-top: 1px solid var(--border); color: var(--text-2); vertical-align: top; }
+        .tempos-tabela td.nome { color: var(--text); font-weight: 600; }
+        .tempos-tabela .sub { font-size: 11px; color: var(--text-3); font-weight: 400; margin-top: 1px; }
+        .tempos-tabela .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .tempos-tabela .pos { color: var(--text-3); font-variant-numeric: tabular-nums; width: 1%; padding-right: 0; }
+        .tempos-tabela .pos.lider { color: var(--t-lider); font-weight: 800; }
+        .tempos-tabela .lento { color: var(--t-lento); font-weight: 700; }
+        .tempos-tabela .rapido { color: var(--t-rapido); font-weight: 700; }
+        .tempos-tabela tr.fora td { opacity: .5; }
+        .tempos-det { margin-top: 12px; }
+        .tempos-det summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--text-3); padding: 7px 0; list-style: none; user-select: none; }
+        .tempos-det summary::-webkit-details-marker { display: none; }
+        .tempos-det summary::before { content: "▸ "; }
+        .tempos-det[open] summary::before { content: "▾ "; }
+        .tempos-det summary:hover { color: var(--text-2); }
+        .tempos-det .tempos-tabela { margin-top: 6px; }
+        @media (max-width: 560px) { .tempos { padding: 0 13px; margin-top: 26px; } }
     </style>
 </head>
 <body>
@@ -880,6 +933,105 @@ if ($user && isset($user['id'])) {
         </div>
     </div>
 </div>
+<?php endif; ?>
+
+<?php if ($tempos): $tPicks = $tempos['picks']; $tTimes = $tempos['times'];
+      $usaAgenda = (int)($tempos['sessao']['daily_schedule_enabled'] ?? 0) === 1; ?>
+<section class="tempos">
+    <div class="tempos-cab">
+        <div>
+            <h2 class="tempos-titulo"><i class="bi bi-hourglass-split"></i> Quem mais demorou pra escolher</h2>
+            <p class="tempos-sub">
+                <?= count($tPicks) ?> picks · janela
+                <?= $usaAgenda && !empty($tempos['sessao']['daily_clock_start_time'])
+                    ? 'às ' . htmlspecialchars(substr((string)$tempos['sessao']['daily_clock_start_time'], 0, 5))
+                    : 'não configurada (assumindo ' . substr(TEMPOS_ABERTURA_PADRAO, 0, 5) . ')' ?>
+            </p>
+        </div>
+        <button type="button" class="btn-ghost" id="btnCopiarTempos">
+            <i class="bi bi-whatsapp"></i> Copiar pro WhatsApp
+        </button>
+    </div>
+
+    <div class="tempos-nota">
+        O relógio de cada pick começa no que vier depois: a pick anterior, ou a abertura da janela
+        daquele dia — assim quem pegou a vez de madrugada não aparece com horas de demora só por ter
+        ido dormir. <b>A 1ª escolha da 1ª rodada não entra</b>, porque o tempo dela é o de divulgar o
+        link, não o de decidir. E pick feita por mock é gravada igual a uma feita por pessoa, sem
+        marca nenhuma — então um tempo muito baixo pode ser o bot.
+    </div>
+
+    <div class="tempos-tabela">
+        <table>
+            <thead>
+                <tr><th></th><th>GM</th><th class="n">Média</th><th class="n">Pior</th><th class="n">Total</th><th class="n">Picks</th></tr>
+            </thead>
+            <tbody>
+            <?php foreach ($tTimes as $i => $t): ?>
+                <tr>
+                    <td class="pos<?= $i === 0 ? ' lider' : '' ?>"><?= $i + 1 ?></td>
+                    <td class="nome"><?= htmlspecialchars($t['gm']) ?>
+                        <div class="sub"><?= htmlspecialchars($t['time']) ?></div></td>
+                    <td class="n<?= $i === 0 ? ' lento' : ($i === count($tTimes) - 1 ? ' rapido' : '') ?>"><?= fmtDuracao((int)$t['media']) ?></td>
+                    <td class="n"><?= fmtDuracao((int)$t['pior']) ?>
+                        <?php if ($t['pior_jogador']): ?><div class="sub"><?= htmlspecialchars($t['pior_jogador']) ?></div><?php endif; ?></td>
+                    <td class="n"><?= fmtDuracao((int)$t['total']) ?></td>
+                    <td class="n"><?= (int)$t['picks'] ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <details class="tempos-det">
+        <summary>Ver as <?= count($tPicks) ?> picks, uma a uma</summary>
+        <div class="tempos-tabela">
+            <table>
+                <thead><tr><th>Pick</th><th>GM</th><th>Escolheu</th><th class="n">Tempo</th><th class="n">Quando</th></tr></thead>
+                <tbody>
+                <?php foreach ($tPicks as $p): ?>
+                    <tr<?= $p['conta'] ? '' : ' class="fora"' ?>>
+                        <td class="n"><?= $p['round'] ?>.<?= str_pad((string)$p['pick'], 2, '0', STR_PAD_LEFT) ?></td>
+                        <td class="nome"><?= htmlspecialchars($p['gm']) ?></td>
+                        <td><?= htmlspecialchars($p['jogador']) ?></td>
+                        <td class="n"><?= fmtDuracao((int)$p['segundos']) ?><?= $p['conta'] ? '' : ' <span class="sub">não conta</span>' ?></td>
+                        <td class="n"><?= htmlspecialchars(substr($p['quando'], 5, 11)) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </details>
+</section>
+
+<script>
+// Texto pro grupo: só o nome do GM, como pediram — time e jogador ficam de fora.
+const TEMPOS_TEXTO = <?= json_encode(
+    "⏱️ *Quem mais demorou no Draft Inicial* — " . ($tempos['sessao']['league'] ?? '') . "\n\n"
+    . implode("\n", array_map(
+        fn($i, $t) => ($i + 1) . '. ' . $t['gm'] . ' — ' . fmtDuracao((int)$t['media']),
+        array_keys($tTimes), $tTimes))
+    . "\n\n_média por pick; a 1ª escolha da 1ª rodada não conta_",
+    JSON_UNESCAPED_UNICODE) ?>;
+
+document.getElementById('btnCopiarTempos').addEventListener('click', async function () {
+    const btn = this;
+    try {
+        await navigator.clipboard.writeText(TEMPOS_TEXTO);
+    } catch (e) {
+        // clipboard API exige HTTPS e gesto do usuário; em alguns WebViews falha.
+        const ta = document.createElement('textarea');
+        ta.value = TEMPOS_TEXTO;
+        ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy');
+        ta.remove();
+    }
+    const antes = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check2"></i> Copiado';
+    setTimeout(() => { btn.innerHTML = antes; }, 1800);
+});
+</script>
 <?php endif; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
