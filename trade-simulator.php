@@ -984,7 +984,7 @@ function simTop8(key) {
     return all.reduce((s, p) => s + (+(p.salary || 0)), 0);
   }
   all.sort((a, b) => b.ovr - a.ovr);
-  return all.slice(0, 8).reduce((s, p) => s + (+p.ovr), 0);
+  return all.slice(0, <?= CAP_TOP_N ?>).reduce((s, p) => s + (+p.ovr), 0);
 }
 
 /**

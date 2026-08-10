@@ -304,14 +304,38 @@ Equipe FBA Manager
     return $params ? mail($email, $subject, $message, $headers, $params) : mail($email, $subject, $message, $headers);
 }
 
-function topEightCap(PDO $pdo, int $teamId): int
+/**
+ * Quantos jogadores entram na soma de OVR que forma o CAP das ligas NEXT, RISE
+ * e ROOKIE. Era 8, virou 10 em agosto de 2026.
+ *
+ * Este número estava repetido em nove lugares — quatro consultas soltas, dois
+ * helpers e três arquivos de JS — e mudar de 8 pra 10 exigia achar todos. É por
+ * isso que agora existe uma constante: a próxima mudança é de um dígito só.
+ *
+ * A ELITE não usa isto: lá o CAP é folha salarial (ver backend/salary_cap.php).
+ */
+const CAP_TOP_N = 10;
+
+/**
+ * Soma de OVR dos CAP_TOP_N melhores do elenco — o CAP fora da ELITE.
+ *
+ * O nome não é topEightCap desde que o número deixou de ser oito: função que
+ * diz "eight" e devolve dez é o tipo de coisa que engana quem lê depois.
+ */
+function topOvrCap(PDO $pdo, int $teamId): int
 {
     $stmt = $pdo->prepare('SELECT SUM(ovr) as cap FROM (
-        SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8
+        SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT ' . CAP_TOP_N . '
     ) as ranked');
     $stmt->execute([$teamId]);
     $row = $stmt->fetch();
     return (int) ($row['cap'] ?? 0);
+}
+
+/** Nome antigo, mantido pra não quebrar chamada que tenha escapado. */
+function topEightCap(PDO $pdo, int $teamId): int
+{
+    return topOvrCap($pdo, $teamId);
 }
 
 function ensurePlayerRestrictionColumns(PDO $pdo): void
@@ -527,12 +551,12 @@ function capMaxWithRestrictedBonus(PDO $pdo, int $teamId, int $capMax): int
 
 function capWithCandidate(PDO $pdo, int $teamId, int $candidateOvr): int
 {
-    $stmt = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8');
+    $stmt = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT ' . CAP_TOP_N);
     $stmt->execute([$teamId]);
     $ovrs = $stmt->fetchAll(PDO::FETCH_COLUMN);
     $ovrs[] = $candidateOvr;
     rsort($ovrs, SORT_NUMERIC);
-    $slice = array_slice($ovrs, 0, 8);
+    $slice = array_slice($ovrs, 0, CAP_TOP_N);
     return array_sum($slice);
 }
 

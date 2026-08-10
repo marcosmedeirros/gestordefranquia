@@ -467,7 +467,7 @@ $leagueMeta  = [
 $leagueData  = [];
 
 $capStmt = null;
-try { $capStmt = $pdo->prepare('SELECT COALESCE(SUM(ovr),0) FROM (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8) top8'); } catch (Exception $e) {}
+try { $capStmt = $pdo->prepare('SELECT COALESCE(SUM(ovr),0) FROM (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT ' . CAP_TOP_N . ') topn'); } catch (Exception $e) {}
 
 // Total de temporadas por liga: a fonte é league_sprint_config, a mesma tabela
 // que o Admin edita. Isto aqui era uma cópia fixa no código, que só por sorte

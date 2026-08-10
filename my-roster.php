@@ -127,7 +127,7 @@ if ($teamId) {
         $lsr = $ls->fetch(); if ($lsr) $maxTradesCopy = (int)$lsr['max_trades'];
     } catch(Exception $e) {}
     try {
-        $cap8 = $pdo->prepare("SELECT COALESCE(SUM(ovr),0) AS cap FROM (SELECT ovr FROM players WHERE team_id=? ORDER BY ovr DESC LIMIT 8) t");
+        $cap8 = $pdo->prepare("SELECT COALESCE(SUM(ovr),0) AS cap FROM (SELECT ovr FROM players WHERE team_id=? ORDER BY ovr DESC LIMIT " . CAP_TOP_N . ") t");
         $cap8->execute([$teamId]);
         $teamCapCopy = (int)($cap8->fetchColumn());
     } catch(Exception $e) {}
@@ -138,6 +138,7 @@ if ($teamId) {
 <head>
     <meta charset="UTF-8">
     <script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
+<script>window.__CAP_TOP_N__ = <?= CAP_TOP_N ?>;</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <?php include __DIR__ . '/includes/head-pwa.php'; ?>
     <title>Meu Elenco - FBA Manager</title>
@@ -1007,7 +1008,7 @@ if ($teamId) {
             <div class="modal-body">
                 <p style="font-size:14px;color:var(--text-2);margin-bottom:10px;">
                     Se você dispensar <strong style="color:var(--text);" id="waive-player-name">jogador</strong>,
-                    seu CAP Top 8 vai ser <strong style="color:var(--red);" id="waive-player-cap">0</strong>.
+                    seu CAP vai ser <strong style="color:var(--red);" id="waive-player-cap">0</strong>.
                 </p>
                 <p style="font-size:13px;color:var(--text-2);margin:0;" id="waive-cap-status">Você vai ficar dentro do cap.</p>
             </div>
@@ -1147,7 +1148,7 @@ if ($teamId) {
         customHeader: <?= json_encode($team['custom_header'] ?? '') ?>,
         useCustomHeader: <?= !empty($team['use_custom_header']) ? 'true' : 'false' ?>,
         league: <?= json_encode($team['league'] ?? '') ?>,
-        // Liga no salary cap (ELITE) copia a folha, não a soma de OVR do Top 8.
+        // Liga no salary cap (ELITE) copia a folha, não a soma de OVR do topo.
         salary: <?= ($salaryCapMode && $salCap) ? json_encode([
             'payroll'   => (int)$salCap['payroll'],
             'cap_max'   => (int)$salCap['cap_max'],
@@ -1157,7 +1158,7 @@ if ($teamId) {
         ]) : 'null' ?>
     };
 
-    /** Linha do CAP no texto copiado — salary cap na ELITE, Top 8 nas demais. */
+    /** Linha do CAP no texto copiado — salary cap na ELITE, soma de OVR nas demais. */
     function _linhaCap(meta) {
         if (!meta.salary) return `_CAP_: ${meta.capMin} / *${meta.cap}* / ${meta.capMax}`;
         const s = meta.salary;

@@ -6,7 +6,7 @@ require_once __DIR__ . '/../backend/salary_cap.php';
 
 /**
  * Resumo da folha pro "Copiar Time" — só nas ligas em salary cap.
- * Retorna null nas ligas de Top 8 (aí o copiar segue com cap_top8) e também
+ * Retorna null nas ligas de soma de OVR (aí o copiar segue com cap_top8) e também
  * quando algo falha: notícia de cap não pode derrubar a listagem de times.
  */
 function teamSalarySummaryForCopy(PDO $pdo, int $teamId, string $league): ?array
@@ -706,7 +706,7 @@ if ($method === 'GET') {
             $roster[$role][] = $p;
         }
 
-        $cap = topEightCap($pdo, $tid);
+        $cap = topOvrCap($pdo, $tid);
         $capBonus = restrictedCapBonus($pdo, $tid);
 
         $stmtTCount = $pdo->prepare("SELECT COUNT(*) FROM trades WHERE status = 'accepted' AND (from_team_id = ? OR to_team_id = ?)");
@@ -823,9 +823,9 @@ if ($method === 'GET') {
     $teams = $stmt->fetchAll();
 
     foreach ($teams as &$team) {
-        $team['cap_top8'] = topEightCap($pdo, (int) $team['id']);
+        $team['cap_top8'] = topOvrCap($pdo, (int) $team['id']);
         // Ligas no salary cap (ELITE) precisam da folha pro "Copiar Time" —
-        // sem isso ele mostraria a soma de OVR do Top 8, que lá não vale nada.
+        // sem isso ele mostraria a soma de OVR do topo, que lá não vale nada.
         $team['salary'] = teamSalarySummaryForCopy($pdo, (int) $team['id'], (string)($team['league'] ?? ''));
         $rawPhone = $team['owner_phone'] ?? '';
         $normalizedPhone = $rawPhone !== '' ? normalizeBrazilianPhone($rawPhone) : null;

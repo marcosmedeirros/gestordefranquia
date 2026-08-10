@@ -2633,7 +2633,7 @@ async function showTeam(teamId) {
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
     <div class="pun-card" style="flex:1;min-width:110px;padding:12px 16px;text-align:center">
       <div style="font-size:20px;font-weight:700;color:var(--red)">${t.cap_top8}${t.restricted_bonus > 0 ? ` <small style="color:#f59e0b;font-size:.65em">+${t.restricted_bonus}</small>` : ''}</div>
-      <div style="font-size:11px;color:var(--text-3)">CAP Top 8${t.restricted_bonus > 0 ? ` · ${t.restricted_eligible} Franquia${t.restricted_eligible > 1 ? 's' : ''}` : ''}</div>
+      <div style="font-size:11px;color:var(--text-3)">CAP Top ${window.__CAP_TOP_N__ || 10}${t.restricted_bonus > 0 ? ` · ${t.restricted_eligible} Franquia${t.restricted_eligible > 1 ? 's' : ''}` : ''}</div>
     </div>
     <div class="pun-card" style="flex:1;min-width:110px;padding:12px 16px;text-align:center;cursor:pointer" onclick="editTeamCounter(${t.id}, 'trades_used', ${parseInt(t.trades_used || 0)})">
       <div style="font-size:20px;font-weight:700;color:#38bdf8" id="tradesUsedDisplay">${parseInt(t.trades_used || 0)}</div>
@@ -3406,7 +3406,7 @@ async function showConfig() {
   <div style="margin-bottom:24px;background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:16px">
     <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px"><i class="bi bi-calculator me-1"></i>Recálculo automático do CAP</div>
     <p style="font-size:11px;color:var(--text-3);margin-bottom:12px;line-height:1.5">
-      A cada 2 temporadas (1, 3, 5...), assim que <b>todos</b> os times da liga atualizarem o elenco, o CAP é recalculado sozinho: soma o CAP de todos os times (${lg.cap_mode === 'salary' ? 'folha salarial' : 'OVR top-8'}), tira a média, e aplica a margem abaixo pra cima e pra baixo.
+      A cada 2 temporadas (1, 3, 5...), assim que <b>todos</b> os times da liga atualizarem o elenco, o CAP é recalculado sozinho: soma o CAP de todos os times (${lg.cap_mode === 'salary' ? 'folha salarial' : `OVR top-${window.__CAP_TOP_N__ || 10}`}), tira a média, e aplica a margem abaixo pra cima e pra baixo.
       ${lg.cap_auto_last_season ? `Última vez: temporada ${lg.cap_auto_last_season}.` : 'Ainda não recalculou automaticamente nesta liga.'}
     </p>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">

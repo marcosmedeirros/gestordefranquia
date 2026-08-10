@@ -12,6 +12,7 @@
  */
 
 require_once __DIR__ . '/../backend/salary_cap.php';
+require_once __DIR__ . '/../backend/helpers.php';   // CAP_TOP_N
 
 /**
  * Nome de exibição do time: "Cidade Nome", como o resto do app monta.
@@ -552,10 +553,10 @@ function wcCompararTimes(PDO $pdo, string $termo): string
         $m = [
             'elenco'  => count($elenco),
             'melhor'  => $ovrs ? max($ovrs) : 0,
-            // Soma dos 8 melhores é o que vale de CAP fora da ELITE — comparar
+            // Soma dos CAP_TOP_N melhores é o que vale de CAP fora da ELITE — comparar
             // por aí diz mais que a média do elenco inteiro, que afunda com
             // quem tem banco grande.
-            'top8'    => array_sum(array_slice($ovrs, 0, 8)),
+            'topn'    => array_sum(array_slice($ovrs, 0, CAP_TOP_N)),
             'idade'   => $idades ? round(array_sum($idades) / count($idades), 1) : 0,
             'lendas'  => count(array_filter($elenco, fn($p) => !empty($p['is_lenda']))),
             'nomes'   => array_slice(array_map(fn($p) => $p['name'] . ' (' . $p['ovr'] . ')', $elenco), 0, 3),
@@ -607,7 +608,7 @@ function wcCompararTimes(PDO $pdo, string $termo): string
     }
 
     $txt .= $linha('Melhor jogador', $ma['melhor'], $mb['melhor'], $marca($ma['melhor'], $mb['melhor']), $marca($mb['melhor'], $ma['melhor']))
-        . $linha('Soma top 8', $ma['top8'], $mb['top8'], $marca($ma['top8'], $mb['top8']), $marca($mb['top8'], $ma['top8']))
+        . $linha('Soma top ' . CAP_TOP_N, $ma['topn'], $mb['topn'], $marca($ma['topn'], $mb['topn']), $marca($mb['topn'], $ma['topn']))
         . $linha('Elenco', $ma['elenco'], $mb['elenco'])
         // Elenco mais novo é vantagem: compara ao contrário.
         . $linha('Idade média', $ma['idade'], $mb['idade'], $marca($ma['idade'], $mb['idade'], false), $marca($mb['idade'], $ma['idade'], false))

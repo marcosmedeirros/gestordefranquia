@@ -527,11 +527,16 @@ function updateFreeAgencyCounters() {
   }
 }
 
+// Quantos entram na soma: injetado pela página a partir de CAP_TOP_N (PHP).
+// O 10 aqui é só rede — se a página esquecer de injetar, o número certo hoje
+// continua saindo, em vez de o cap silenciosamente encolher.
+const CAP_TOP_N = () => Number(window.__CAP_TOP_N__) || 10;
+
 function calculateCapTop8(players) {
   return players
     .slice()
     .sort((a, b) => Number(b.ovr) - Number(a.ovr))
-    .slice(0, 8)
+    .slice(0, CAP_TOP_N())
     .reduce((sum, p) => sum + Number(p.ovr), 0);
 }
 
@@ -612,7 +617,7 @@ function openWaiveModal(player) {
   if (nameEl) nameEl.textContent = player.name || 'jogador';
 
   if (SALARY_MODE && window.__SALARY_CAP__) {
-    // Liga em modo Salary Cap (ELITE): mostra a folha em milhões, não o Top 8 por OVR.
+    // Liga em modo Salary Cap (ELITE): mostra a folha em milhões, não a soma de OVR.
     const sc = window.__SALARY_CAP__;
     const newPayroll = Math.max(0, Number(sc.payroll) - playerSalary(player));
     if (capEl) capEl.textContent = `${newPayroll}M`;
@@ -1127,7 +1132,7 @@ function updateRosterStats() {
       capEl.style.fontSize = '18px';
       const cor = topEight > capMaxAdjusted ? '#ef4444' : (topEight < capMin ? 'var(--amber)' : 'var(--green)');
       capEl.innerHTML = `<span style="color:${cor};font-weight:700"
-        title="Soma de OVR do seu Top 8. Mínimo ${capMin}, máximo ${capMaxAdjusted}.">${topEight}</span>`;
+        title="Soma de OVR do seu Top ${CAP_TOP_N()}. Mínimo ${capMin}, máximo ${capMaxAdjusted}.">${topEight}</span>`;
       updateCapGauge(capMin, topEight, capMaxAdjusted, '');
     } else {
       capEl.style.fontSize = '';

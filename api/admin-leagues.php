@@ -36,7 +36,7 @@ if ($method === 'GET') {
                 'id' => (int)$t['id'],
                 'city' => $t['city'],
                 'name' => $t['name'],
-                'cap_top8' => topEightCap($pdo, (int)$t['id']),
+                'cap_top8' => topOvrCap($pdo, (int)$t['id']),
                 'total_players' => (int)($pdo->query("SELECT COUNT(*) FROM players WHERE team_id = " . (int)$t['id'])->fetchColumn())
             ];
         }

@@ -164,7 +164,7 @@ $stmtTitulares->execute([$team['id']]);
 $titulares = $stmtTitulares->fetchAll();
 
 $teamCap = 0;
-$stmtCap = $pdo->prepare('SELECT SUM(ovr) as cap FROM (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8) as top_eight');
+$stmtCap = $pdo->prepare('SELECT SUM(ovr) as cap FROM (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT ' . CAP_TOP_N . ') as top_n');
 $stmtCap->execute([$team['id']]);
 $capData = $stmtCap->fetch();
 $teamCap = $capData['cap'] ?? 0;
@@ -1608,7 +1608,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                      style="--accent:<?= $capOk ? 'var(--green)' : '#ef4444' ?>; animation-delay:.1s">
                     <div class="stat-c-top">
                         <div>
-                            <div class="stat-c-label">CAP Top 8</div>
+                            <div class="stat-c-label">CAP Top <?= CAP_TOP_N ?></div>
                             <div class="stat-c-val" style="color:<?= $capOk ? 'var(--green)' : '#ef4444' ?>"><?= $teamCap ?></div>
                         </div>
                         <div class="stat-c-icon" style="background:<?= $capOk ? 'rgba(34,197,94,.10)' : 'rgba(239,68,68,.10)' ?>">
@@ -2183,7 +2183,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         customHeader: <?= json_encode($team['custom_header'] ?? '') ?>,
         useCustomHeader: <?= !empty($team['use_custom_header']) ? 'true' : 'false' ?>,
         league: <?= json_encode($team['league'] ?? '') ?>,
-        // Liga no salary cap (ELITE) copia a folha, não a soma de OVR do Top 8.
+        // Liga no salary cap (ELITE) copia a folha, não a soma de OVR do topo.
         salary: <?= ($salaryCapMode && $salCap) ? json_encode([
             'payroll'   => (int)$salCap['payroll'],
             'cap_max'   => (int)$salCap['cap_max'],
@@ -2193,7 +2193,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         ]) : 'null' ?>
     };
 
-    /** Linha do CAP no texto copiado — salary cap na ELITE, Top 8 nas demais. */
+    /** Linha do CAP no texto copiado — salary cap na ELITE, soma de OVR nas demais. */
     function linhaCap(meta) {
         if (!meta.salary) return `_CAP_: ${meta.capMin} / *${meta.cap}* / ${meta.capMax}`;
         const s = meta.salary;

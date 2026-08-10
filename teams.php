@@ -124,7 +124,7 @@ foreach ($teams as &$t) {
     $playerStmt->execute([$t['id']]);
     $t['total_players'] = (int)$playerStmt->fetch()['cnt'];
 
-    $capStmt = $pdo->prepare('SELECT SUM(ovr) as cap FROM (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT 8) as top8');
+    $capStmt = $pdo->prepare('SELECT SUM(ovr) as cap FROM (SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT ' . CAP_TOP_N . ') as topn');
     $capStmt->execute([$t['id']]);
     $capResult = $capStmt->fetch();
     $t['cap_top8'] = (int)($capResult['cap'] ?? 0);
@@ -1849,7 +1849,7 @@ function getSerasaScore(int $avisos): array {
     }
 
     /* ── Copiar Time ────────────────────────────────── */
-    /** Linha do CAP no texto copiado — salary cap na ELITE, Top 8 nas demais. */
+    /** Linha do CAP no texto copiado — salary cap na ELITE, soma de OVR nas demais. */
     function linhaCapCopiar(teamInfo) {
         const s = teamInfo.salary;
         if (!s) return `_CAP_: ${leagueCapMin} / *${teamInfo.cap_top8??0}* / ${leagueCapMax}`;

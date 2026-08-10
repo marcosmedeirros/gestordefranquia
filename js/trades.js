@@ -174,7 +174,7 @@ const calcTop8Cap = (players = []) => {
     return players.reduce((sum, p) => sum + (Number(p.salary) || 0), 0);
   }
   const sorted = [...players].sort((a, b) => (Number(b.ovr) || 0) - (Number(a.ovr) || 0));
-  return sorted.slice(0, 8).reduce((sum, p) => sum + (Number(p.ovr) || 0), 0);
+  return sorted.slice(0, window.__CAP_TOP_N__ || 10).reduce((sum, p) => sum + (Number(p.ovr) || 0), 0);
 };
 
 const computeCapProjection = (basePlayers = [], outgoing = [], incoming = []) => {

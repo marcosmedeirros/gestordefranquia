@@ -96,7 +96,7 @@ const renderRosterCard = (team) => {
                     <div class="muted">GM: ${team.user_name || 'N/D'}</div>
                 </div>
             </div>
-            <div class="cap">CAP top 8: ${team.cap_top8}</div>
+            <div class="cap">CAP: ${team.cap_top8}</div>
         </div>
         <div class="muted">Divisão: ${team.division_name || 'N/D'} · Picks: ${pickList}</div>
         <div class="player-list">${playerList}</div>

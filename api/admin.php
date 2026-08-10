@@ -594,7 +594,7 @@ if ($method === 'GET') {
 
             $teams = [];
             while ($team = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $capTop8 = topEightCap($pdo, $team['id']);
+                $capTop8 = topOvrCap($pdo, $team['id']);
                 $team['cap_top8'] = $capTop8;
                 $team['restricted_eligible'] = restrictedEligibleCount($pdo, (int)$team['id']);
                 $team['restricted_bonus'] = restrictedCapBonus($pdo, (int)$team['id']);
@@ -682,7 +682,7 @@ if ($method === 'GET') {
             $stmtPicks->execute([$teamId]);
             $team['picks'] = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
 
-            $team['cap_top8'] = topEightCap($pdo, $teamId);
+            $team['cap_top8'] = topOvrCap($pdo, $teamId);
             $team['restricted_eligible'] = restrictedEligibleCount($pdo, (int)$teamId);
             $team['restricted_bonus'] = $team['restricted_eligible'] * 2;
 

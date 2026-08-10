@@ -141,6 +141,7 @@ try {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <script>document.documentElement.dataset.theme = localStorage.getItem('fba-theme') || 'dark';</script>
+<script>window.__CAP_TOP_N__ = <?= CAP_TOP_N ?>;</script>
   <?php include __DIR__ . '/includes/head-pwa.php'; ?>
   <title>Trades - FBA Manager</title>
   <meta name="theme-color" content="#fc0025">

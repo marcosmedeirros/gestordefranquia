@@ -359,8 +359,8 @@ html{scroll-behavior:smooth}
     <p class="sub">Todo time tem um teto — e um piso. É o que impede alguém de juntar todas as estrelas num elenco só. O jeito de calcular muda conforme a liga.</p>
 
     <h3>Nas ligas NEXT, RISE e ROOKIE <span class="selo selo-todas">Soma de OVR</span></h3>
-    <p>Aqui o CAP é simples: soma-se o <strong>OVR dos seus 8 melhores jogadores</strong>. Esse número precisa ficar entre um mínimo e um máximo definidos pela liga — os dois valores aparecem na sua tela.</p>
-    <p>Repare que só os 8 melhores contam. Os jogadores do fim do elenco não pesam no CAP, o que dá liberdade pra manter profundidade sem penalidade.</p>
+    <p>Aqui o CAP é simples: soma-se o <strong>OVR dos seus 10 melhores jogadores</strong>. Esse número precisa ficar entre um mínimo e um máximo definidos pela liga — os dois valores aparecem na sua tela.</p>
+    <p>Repare que só os 10 melhores contam. Os jogadores do fim do elenco não pesam no CAP, o que dá liberdade pra manter profundidade sem penalidade.</p>
     <p>Existe um <strong>bônus de lealdade</strong> que aumenta o seu teto: manter jogadores formados na casa, que nunca foram trocados, libera alguns pontos a mais de CAP. É o sistema recompensando quem constrói em vez de só negociar.</p>
 
     <h3>Na liga ELITE <span class="selo selo-elite">Salary cap</span></h3>
@@ -481,7 +481,7 @@ html{scroll-behavior:smooth}
     <dl>
       <dt>GM</dt><dd>General Manager. Você. O dono da franquia, responsável por elenco, trocas e draft.</dd>
       <dt>OVR</dt><dd>Overall. A nota geral do jogador. Manda no salário, no CAP e em quase tudo.</dd>
-      <dt>CAP</dt><dd>O limite do elenco. Soma de OVR dos 8 melhores nas ligas NEXT, RISE e ROOKIE; folha salarial em milhões na ELITE.</dd>
+      <dt>CAP</dt><dd>O limite do elenco. Soma de OVR dos 10 melhores nas ligas NEXT, RISE e ROOKIE; folha salarial em milhões na ELITE.</dd>
       <dt>Piso salarial</dt><dd>O mínimo que a folha precisa alcançar. Ficar abaixo dele também é problema — não só estourar o teto.</dd>
       <dt>Pick</dt><dd>Uma escolha de draft. Identificada pelo ano e pela rodada, e negociável como qualquer ativo.</dd>
       <dt>Mock</dt><dd>Sua lista de preferências no draft. Com ela ativa, o sistema escolhe por você se não estiver online na sua vez.</dd>

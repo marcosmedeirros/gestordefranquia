@@ -1,6 +1,6 @@
 <?php
 /**
- * Recálculo automático do CAP de liga (soma de OVR top-8, ou folha salarial
+ * Recálculo automático do CAP de liga (soma dos CAP_TOP_N maiores OVR, ou folha salarial
  * pra ligas em modo 'salary' como a ELITE hoje).
  *
  * Regra: a cada 2 temporadas (temporadas 1, 3, 5, ...), assim que o último
@@ -77,7 +77,7 @@ function leagueRosterUpdateStatus(PDO $pdo, string $league, int $seasonId): arra
 
 /**
  * Calcula e grava o novo cap_min/cap_max da liga com base na média do CAP
- * de todos os times (soma de OVR top-8, ou folha salarial em modo 'salary').
+ * de todos os times (soma dos CAP_TOP_N maiores OVR, ou folha salarial em modo 'salary').
  * Sempre roda de fato (não checa "é hora de recalcular" — isso é feito por
  * quem chama, ver maybeAutoRecalcularCapDaLiga). Retorna o resumo do
  * cálculo, ou null se não havia times/dados suficientes.

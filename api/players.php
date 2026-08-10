@@ -499,7 +499,7 @@ if ($method === 'POST') {
     $stmt = $pdo->prepare('INSERT INTO players (team_id, name, age, position, role, ovr, available_for_trade, loyal_override) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([$teamId, $name, $age, $position, $role, $ovr, $availableForTrade, $loyalOverrideOnAdd]);
 
-    $newCap = topEightCap($pdo, $teamId);
+    $newCap = topOvrCap($pdo, $teamId);
     $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, $teamId, (int)$config['app']['cap_max']);
     if ($newCap < $config['app']['cap_min']) {
         $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $config['app']['cap_min'] . ').';
@@ -743,7 +743,7 @@ if ($method === 'PUT') {
         $pdo->prepare("UPDATE teams SET roster_updated_at = NOW() WHERE id = ?")->execute([(int)$player['team_id']]);
     } catch (Exception $e) {}
 
-    $newCap = topEightCap($pdo, (int)$player['team_id']);
+    $newCap = topOvrCap($pdo, (int)$player['team_id']);
     $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, (int)$player['team_id'], (int)$config['app']['cap_max']);
     if ($newCap < $config['app']['cap_min']) {
         $warnings[] = 'CAP abaixo do mínimo recomendado (' . $newCap . ' / ' . $config['app']['cap_min'] . ').';
@@ -816,7 +816,7 @@ if ($method === 'DELETE') {
 
             $pdo->commit();
 
-            $newCap = topEightCap($pdo, (int)$row['team_id']);
+            $newCap = topOvrCap($pdo, (int)$row['team_id']);
 
             jsonResponse(200, [
                 'message' => $row['name'] . ' se aposentou após uma grande carreira!',
@@ -911,7 +911,7 @@ if ($method === 'DELETE') {
         jsonResponse(500, ['error' => 'Erro ao dispensar jogador']);
     }
 
-    $newCap = topEightCap($pdo, (int)$row['team_id']);
+    $newCap = topOvrCap($pdo, (int)$row['team_id']);
     $waiversRemaining = max(0, $MAX_WAIVERS - ($row['waivers_used'] + 1));
 
     jsonResponse(200, [
