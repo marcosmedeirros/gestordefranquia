@@ -102,6 +102,33 @@ if (random_int(1, 50) === 1) {
     $pdo->exec("DELETE FROM whatsapp_msgs_vistas WHERE criado_em < NOW() - INTERVAL 2 DAY");
 }
 
+/**
+ * Telefone de quem mandou a mensagem, em dígitos.
+ *
+ * Em grupo, o remetente vem em key.participant — o remoteJid é o grupo, não a
+ * pessoa. Costuma ser "5511999999999@s.whatsapp.net", às vezes com sufixo de
+ * aparelho (":12"), que não faz parte do número.
+ *
+ * O WhatsApp vem migrando pra identificadores @lid, que NÃO são telefone. Nesse
+ * caso a Evolution manda o número de verdade num campo à parte; se não vier,
+ * devolvo null e quem chamou avisa a pessoa em vez de adivinhar.
+ */
+function wcTelefoneDeQuemMandou(array $m): ?string
+{
+    foreach ([
+        $m['key']['participantPn'] ?? null,   // Evolution >= 2.3 quando o jid é @lid
+        $m['participantPn'] ?? null,
+        $m['key']['participant'] ?? null,
+        $m['participant'] ?? null,
+    ] as $jid) {
+        if (!is_string($jid) || $jid === '') continue;
+        if (!str_contains($jid, '@s.whatsapp.net')) continue;   // @lid não é telefone
+        $numero = preg_replace('/\D+/', '', explode(':', explode('@', $jid)[0])[0]);
+        if (strlen($numero) >= 8) return $numero;
+    }
+    return null;
+}
+
 $dados = $evento['data'] ?? [];
 // A Evolution manda ora um objeto, ora uma lista de mensagens.
 $mensagens = isset($dados['key']) ? [$dados] : (is_array($dados) ? $dados : []);
@@ -139,7 +166,13 @@ foreach ($mensagens as $m) {
 
     // A liga do grupo vira contexto: no Chat Off da NEXT, /classificacao sem
     // argumento responde a NEXT em vez de assumir ELITE.
-    $resposta = wcResponderComando($pdo, $texto, $gruposPermitidos[$de]['liga'] ?? null);
+    // E o telefone de quem mandou permite /meucap e companhia.
+    $resposta = wcResponderComando(
+        $pdo,
+        $texto,
+        $gruposPermitidos[$de]['liga'] ?? null,
+        wcTelefoneDeQuemMandou($m)
+    );
     if ($resposta === null) continue;   // comando desconhecido: silêncio
 
     whatsappEnfileirar($pdo, $de, $resposta, true, 'comando');

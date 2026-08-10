@@ -131,13 +131,22 @@ function wcNormalizarLiga(string $termo): ?string
 function wcAjuda(): string
 {
     return "*Comandos da FBA*\n\n"
+        . "*Seu time* (pelo seu telefone)\n"
+        . "/meuelenco · /meucap · /minhaspicks\n\n"
+        . "*Consulta*\n"
         . "/jogador _nome_ — time, idade, OVR e salário\n"
+        . "/comparar _um_ x _outro_ — lado a lado\n"
         . "/time _nome_ — elenco, folha e campanha\n"
-        . "/cap _time_ — folha detalhada e espaço no cap\n"
-        . "/picks _time_ — picks que o time tem\n"
-        . "/classificacao _liga_ — tabela da liga\n"
+        . "/cap _time_ — folha e espaço no cap\n"
+        . "/picks _time_ — picks que o time tem\n\n"
+        . "*Liga*\n"
+        . "/classificacao _liga_ — a tabela\n"
+        . "/trocas — as últimas trocas aprovadas\n"
+        . "/lendas — os marcados como LENDA\n"
+        . "/hall — o Hall da Fama\n"
+        . "/premios — os prêmios da temporada\n"
         . "/guia — o guia do GM\n\n"
-        . "Ex.: /jogador lebron  •  /cap lakers  •  /classificacao elite";
+        . "Ex.: /comparar lebron x tatum  •  /meucap  •  /trocas";
 }
 
 function wcJogador(PDO $pdo, string $termo): string
@@ -191,12 +200,15 @@ function wcJogador(PDO $pdo, string $termo): string
     return rtrim($txt);
 }
 
-function wcTime(PDO $pdo, string $termo): string
+function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null): string
 {
-    if ($termo === '') return "Use assim: /time lakers";
-
-    [$t, $erro] = wcResolverTime($pdo, $termo);
-    if ($erro) return $erro;
+    if ($jaResolvido) {
+        $t = $jaResolvido;
+    } else {
+        if ($termo === '') return "Use assim: /time lakers";
+        [$t, $erro] = wcResolverTime($pdo, $termo);
+        if ($erro) return $erro;
+    }
 
     $ovr = wcColunaOvr($pdo);
     $st = $pdo->prepare("SELECT name, position, age, {$ovr} AS ovr FROM players
@@ -237,12 +249,15 @@ function wcTime(PDO $pdo, string $termo): string
     return rtrim($txt);
 }
 
-function wcCap(PDO $pdo, string $termo): string
+function wcCap(PDO $pdo, string $termo, ?array $jaResolvido = null): string
 {
-    if ($termo === '') return "Use assim: /cap lakers";
-
-    [$t, $erro] = wcResolverTime($pdo, $termo);
-    if ($erro) return $erro;
+    if ($jaResolvido) {
+        $t = $jaResolvido;
+    } else {
+        if ($termo === '') return "Use assim: /cap lakers";
+        [$t, $erro] = wcResolverTime($pdo, $termo);
+        if ($erro) return $erro;
+    }
 
     if (!wcLigaEmSalario($pdo, (string)$t['league'])) {
         return wcNomeDoTime($t) . " está na {$t['league']}, que não usa folha em dinheiro — o limite lá é por soma de OVR.";
@@ -280,12 +295,15 @@ function wcCap(PDO $pdo, string $termo): string
     return rtrim($txt);
 }
 
-function wcPicks(PDO $pdo, string $termo): string
+function wcPicks(PDO $pdo, string $termo, ?array $jaResolvido = null): string
 {
-    if ($termo === '') return "Use assim: /picks lakers";
-
-    [$t, $erro] = wcResolverTime($pdo, $termo);
-    if ($erro) return $erro;
+    if ($jaResolvido) {
+        $t = $jaResolvido;
+    } else {
+        if ($termo === '') return "Use assim: /picks lakers";
+        [$t, $erro] = wcResolverTime($pdo, $termo);
+        if ($erro) return $erro;
+    }
 
     $st = $pdo->prepare("
         SELECT p.season_year, p.round, p.original_team_id, o.city AS o_city, o.name AS o_name
@@ -349,6 +367,277 @@ function wcClassificacao(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
     return rtrim($txt);
 }
 
+function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
+{
+    $liga = $termo !== '' ? wcNormalizarLiga($termo) : $ligaDoGrupo;
+    $filtro = $liga ? ' AND t.league = ?' : '';
+    $params = $liga ? [$liga] : [];
+
+    $st = $pdo->prepare("
+        SELECT t.id, t.league, t.updated_at,
+               de.city AS de_city, de.name AS de_name,
+               pra.city AS pra_city, pra.name AS pra_name
+        FROM trades t
+        JOIN teams de  ON de.id  = t.from_team_id
+        JOIN teams pra ON pra.id = t.to_team_id
+        WHERE t.status = 'accepted' {$filtro}
+        ORDER BY t.updated_at DESC, t.id DESC
+        LIMIT 5
+    ");
+    $st->execute($params);
+    $trocas = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$trocas) return 'Nenhuma troca aprovada' . ($liga ? " na {$liga}" : '') . ' ainda.';
+
+    // Os itens guardam nome/OVR copiados na hora da troca — então continuam
+    // certos mesmo depois de o jogador rodar por mais times.
+    $stItens = $pdo->prepare("SELECT from_team, player_name, player_ovr, pick_id FROM trade_items WHERE trade_id = ? ORDER BY id");
+
+    $txt = '*Últimas trocas' . ($liga ? " — {$liga}" : '') . "*\n";
+    foreach ($trocas as $t) {
+        $stItens->execute([(int)$t['id']]);
+        $vai = []; $vem = [];
+        foreach ($stItens->fetchAll(PDO::FETCH_ASSOC) as $i) {
+            $rot = $i['player_name']
+                ? $i['player_name'] . ($i['player_ovr'] ? ' (' . $i['player_ovr'] . ')' : '')
+                : ($i['pick_id'] ? 'uma pick' : '?');
+            if (!empty($i['from_team'])) $vai[] = $rot; else $vem[] = $rot;
+        }
+        $deNome  = wcNomeDoTime(['city' => $t['de_city'],  'name' => $t['de_name']]);
+        $praNome = wcNomeDoTime(['city' => $t['pra_city'], 'name' => $t['pra_name']]);
+
+        $txt .= "\n*{$deNome}* ⇄ *{$praNome}*"
+              . ($liga ? '' : ' _' . $t['league'] . '_') . "\n"
+              . '→ ' . ($vai ? implode(', ', $vai) : 'nada') . "\n"
+              . '← ' . ($vem ? implode(', ', $vem) : 'nada') . "\n";
+    }
+    return rtrim($txt);
+}
+
+function wcComparar(PDO $pdo, string $termo): string
+{
+    // Aceita "x", "vs", "versus" ou "e" como separador — o pessoal digita
+    // qualquer um dos quatro.
+    $partes = preg_split('/\s+(?:x|vs\.?|versus|e)\s+/iu', $termo, 2);
+    if (count($partes) < 2 || trim($partes[0]) === '' || trim($partes[1]) === '') {
+        return "Use assim: /comparar lebron x tatum";
+    }
+
+    $ovr = wcColunaOvr($pdo);
+    $achar = function (string $nome) use ($pdo, $ovr) {
+        $st = $pdo->prepare("
+            SELECT p.id, p.name, p.age, p.position, p.{$ovr} AS ovr, p.seasons_in_league,
+                   p.team_id, COALESCE(p.is_lenda,0) AS is_lenda,
+                   t.city, t.name AS team_name, t.league
+            FROM players p JOIN teams t ON t.id = p.team_id
+            WHERE p.name LIKE ? ORDER BY p.{$ovr} DESC LIMIT 1
+        ");
+        $st->execute(['%' . trim($nome) . '%']);
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    };
+
+    $a = $achar($partes[0]);
+    $b = $achar($partes[1]);
+    if (!$a) return 'Não achei jogador com "' . trim($partes[0]) . '".';
+    if (!$b) return 'Não achei jogador com "' . trim($partes[1]) . '".';
+    if ((int)$a['id'] === (int)$b['id']) return 'Os dois nomes acharam o mesmo jogador (' . $a['name'] . ').';
+
+    $salario = function (array $p) use ($pdo): ?int {
+        if (!wcLigaEmSalario($pdo, (string)$p['league'])) return null;
+        foreach ((getTeamCapSummary($pdo, (int)$p['team_id'])['roster'] ?? []) as $r) {
+            if ((int)$r['id'] === (int)$p['id']) return (int)$r['total_salary'];
+        }
+        return null;
+    };
+    $sa = $salario($a); $sb = $salario($b);
+
+    // Marca quem leva em cada quesito — é o que a pessoa quer ver de relance.
+    $m = fn($x, $y, bool $maiorGanha = true) => $x === $y ? '' : (($maiorGanha ? $x > $y : $x < $y) ? ' ✅' : '');
+
+    $linha = function (string $rotulo, $va, $vb, string $sufA = '', string $sufB = '') {
+        return "{$rotulo}: {$va}{$sufA}  |  {$vb}{$sufB}\n";
+    };
+
+    $txt = '*' . $a['name'] . '*' . (!empty($a['is_lenda']) ? ' 👑' : '')
+         . "\n_vs_\n"
+         . '*' . $b['name'] . '*' . (!empty($b['is_lenda']) ? ' 👑' : '') . "\n\n"
+         . $linha('OVR', $a['ovr'], $b['ovr'], $m((int)$a['ovr'], (int)$b['ovr']), $m((int)$b['ovr'], (int)$a['ovr']))
+         // Mais novo é vantagem: por isso este compara ao contrário.
+         . $linha('Idade', $a['age'] . ' anos', $b['age'] . ' anos',
+                  $m((int)$a['age'], (int)$b['age'], false), $m((int)$b['age'], (int)$a['age'], false))
+         . $linha('Posição', $a['position'], $b['position'])
+         . $linha('Temporadas', (int)$a['seasons_in_league'], (int)$b['seasons_in_league']);
+
+    if ($sa !== null || $sb !== null) {
+        // Salário menor é vantagem, mas só compara quando os dois têm.
+        $txt .= $linha('Salário', $sa !== null ? $sa . 'M' : '—', $sb !== null ? $sb . 'M' : '—',
+            ($sa !== null && $sb !== null) ? $m($sa, $sb, false) : '',
+            ($sa !== null && $sb !== null) ? $m($sb, $sa, false) : '');
+    }
+
+    $txt .= "\n" . wcNomeDoTime($a) . ' (' . $a['league'] . ')'
+          . '  |  ' . wcNomeDoTime($b) . ' (' . $b['league'] . ')';
+    return $txt;
+}
+
+function wcLendas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
+{
+    $liga = $termo !== '' ? wcNormalizarLiga($termo) : $ligaDoGrupo;
+    $ovr = wcColunaOvr($pdo);
+    $filtro = $liga ? ' AND t.league = ?' : '';
+
+    $st = $pdo->prepare("
+        SELECT p.name, p.age, p.position, p.{$ovr} AS ovr, t.city, t.name AS team_name, t.league
+        FROM players p JOIN teams t ON t.id = p.team_id
+        WHERE COALESCE(p.is_lenda,0) = 1 {$filtro}
+        ORDER BY p.{$ovr} DESC LIMIT 25
+    ");
+    $st->execute($liga ? [$liga] : []);
+    $lendas = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$lendas) return 'Nenhuma LENDA marcada' . ($liga ? " na {$liga}" : '') . ' ainda.';
+
+    $txt = '👑 *Lendas' . ($liga ? " — {$liga}" : '') . '* (' . count($lendas) . ")\n\n";
+    foreach ($lendas as $l) {
+        $txt .= "• *{$l['name']}* — {$l['ovr']} OVR, {$l['age']} anos — " . wcNomeDoTime($l)
+              . ($liga ? '' : ' _' . $l['league'] . '_') . "\n";
+    }
+    return rtrim($txt);
+}
+
+function wcHall(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
+{
+    $liga = $termo !== '' ? wcNormalizarLiga($termo) : $ligaDoGrupo;
+    $filtro = $liga ? ' AND league = ?' : '';
+
+    $st = $pdo->prepare("
+        SELECT team_name, gm_name, titles, league FROM hall_of_fame
+        WHERE is_active = 1 {$filtro}
+        ORDER BY titles DESC, team_name ASC LIMIT 25
+    ");
+    $st->execute($liga ? [$liga] : []);
+    $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$linhas) return 'O Hall da Fama' . ($liga ? " da {$liga}" : '') . ' está vazio.';
+
+    $txt = '🏛️ *Hall da Fama' . ($liga ? " — {$liga}" : '') . "*\n\n";
+    foreach ($linhas as $i => $l) {
+        $txt .= ($i + 1) . '. *' . $l['team_name'] . '*'
+              . ($l['gm_name'] ? ' — ' . $l['gm_name'] : '')
+              . ' — ' . (int)$l['titles'] . ' título' . ((int)$l['titles'] === 1 ? '' : 's')
+              . ($liga ? '' : ' _' . $l['league'] . '_') . "\n";
+    }
+    return rtrim($txt);
+}
+
+function wcPremios(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
+{
+    // O termo pode ser a liga ou um ano ("/premios 2027").
+    $ano = preg_match('/^\d{4}$/', trim($termo)) ? (int)trim($termo) : null;
+    $liga = $ano ? $ligaDoGrupo : ($termo !== '' ? wcNormalizarLiga($termo) : $ligaDoGrupo);
+    if (!$liga) $liga = 'ELITE';
+
+    if (!$ano) {
+        $st = $pdo->prepare("SELECT MAX(season_year) FROM awards WHERE league = ?");
+        $st->execute([$liga]);
+        $ano = (int)($st->fetchColumn() ?: 0);
+    }
+    if (!$ano) return "A {$liga} ainda não tem prêmios cadastrados.";
+
+    $st = $pdo->prepare("
+        SELECT a.award_name, a.player_name, a.points, t.city, t.name AS team_name
+        FROM awards a LEFT JOIN teams t ON t.id = a.team_id
+        WHERE a.league = ? AND a.season_year = ?
+        ORDER BY a.id
+    ");
+    $st->execute([$liga, $ano]);
+    $premios = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$premios) return "Nada premiado na {$liga} em {$ano}.";
+
+    $txt = "🏆 *Prêmios {$liga} — {$ano}*\n\n";
+    foreach ($premios as $p) {
+        $quem = $p['player_name'] ?: ($p['team_name'] ? wcNomeDoTime($p) : '—');
+        $txt .= '*' . $p['award_name'] . ':* ' . $quem
+              . ($p['player_name'] && $p['team_name'] ? ' (' . wcNomeDoTime($p) . ')' : '') . "\n";
+    }
+    return rtrim($txt);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Comandos que sabem quem perguntou
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Acha o time de quem mandou a mensagem, pelo telefone.
+ *
+ * O users.phone é gravado normalizado (normalizeBrazilianPhone), e o
+ * identificador que a Evolution manda é do mesmo formato — 5511999999999. Mas
+ * comparar inteiro é frágil: o WhatsApp de números antigos às vezes vem sem o
+ * 9 do celular, e alguns cadastros estão sem o 55. Então comparo pelos últimos
+ * 8 dígitos, que é a parte que nunca muda.
+ *
+ * Se 8 dígitos baterem com mais de uma pessoa, não adivinha — devolve erro.
+ * Retorna [time|null, mensagemDeErro|null].
+ */
+function wcTimeDeQuemPerguntou(PDO $pdo, ?string $telefone, ?string $ligaDoGrupo): array
+{
+    $digitos = preg_replace('/\D+/', '', (string)$telefone);
+    if (strlen($digitos) < 8) {
+        return [null, 'Não consegui identificar seu número por aqui. Use o comando com o nome do time, tipo /cap lakers.'];
+    }
+    $fim = substr($digitos, -8);
+
+    // A comparação é em PHP, não em SQL: REGEXP_REPLACE só existe do MySQL 8
+    // pra cima e eu não controlo a versão da hospedagem. São poucas dezenas de
+    // linhas (uma por GM com time), então filtrar aqui não custa nada.
+    $todos = $pdo->query("
+        SELECT t.id, t.name, t.city, t.mascot, t.league, t.conference,
+               u.name AS gm, u.id AS user_id, u.phone
+        FROM users u JOIN teams t ON t.user_id = u.id
+        WHERE u.phone IS NOT NULL AND u.phone <> ''
+        ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE')
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $times = array_values(array_filter($todos, function ($t) use ($fim) {
+        $d = preg_replace('/\D+/', '', (string)$t['phone']);
+        return strlen($d) >= 8 && substr($d, -8) === $fim;
+    }));
+
+    if (!$times) {
+        return [null, "Não achei seu cadastro pelo telefone. Confere se o número está no seu perfil no site — ou use o comando com o nome do time."];
+    }
+
+    // Um GM pode ter time em mais de uma liga. No Chat Off de uma liga, é o
+    // dela que interessa.
+    if (count($times) > 1 && $ligaDoGrupo) {
+        foreach ($times as $t) if ($t['league'] === $ligaDoGrupo) return [$t, null];
+    }
+    if (count($times) > 1) {
+        $lista = implode(', ', array_map(fn($t) => $t['league'], $times));
+        return [null, "Você tem time em mais de uma liga ({$lista}). Use o comando com o nome do time."];
+    }
+    return [$times[0], null];
+}
+
+function wcMeuElenco(PDO $pdo, ?string $telefone, ?string $ligaDoGrupo): string
+{
+    [$t, $erro] = wcTimeDeQuemPerguntou($pdo, $telefone, $ligaDoGrupo);
+    return $erro ?: wcTime($pdo, '', $t);
+}
+
+function wcMeuCap(PDO $pdo, ?string $telefone, ?string $ligaDoGrupo): string
+{
+    [$t, $erro] = wcTimeDeQuemPerguntou($pdo, $telefone, $ligaDoGrupo);
+    return $erro ?: wcCap($pdo, '', $t);
+}
+
+function wcMinhasPicks(PDO $pdo, ?string $telefone, ?string $ligaDoGrupo): string
+{
+    [$t, $erro] = wcTimeDeQuemPerguntou($pdo, $telefone, $ligaDoGrupo);
+    return $erro ?: wcPicks($pdo, '', $t);
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
@@ -358,7 +647,7 @@ function wcClassificacao(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
  * $ligaDoGrupo é a liga do grupo de onde veio a mensagem, quando ele é de uma
  * liga só. Serve pros comandos que dá pra responder sem argumento.
  */
-function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null): ?string
+function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null, ?string $telefone = null): ?string
 {
     $texto = trim($texto);
     if ($texto === '' || $texto[0] !== '/') return null;
@@ -398,6 +687,41 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'classificação':
             case 'tabela':
                 return wcClassificacao($pdo, $arg, $ligaDoGrupo);
+
+            case 'comparar':
+            case 'compara':
+            case 'vs':
+                return wcComparar($pdo, $arg);
+
+            case 'trocas':
+            case 'troca':
+                return wcTrocas($pdo, $arg, $ligaDoGrupo);
+
+            case 'lendas':
+            case 'lenda':
+                return wcLendas($pdo, $arg, $ligaDoGrupo);
+
+            case 'hall':
+            case 'halldafama':
+                return wcHall($pdo, $arg, $ligaDoGrupo);
+
+            case 'premios':
+            case 'prêmios':
+            case 'premio':
+                return wcPremios($pdo, $arg, $ligaDoGrupo);
+
+            // ── Quem perguntou ──────────────────────────────────────────
+            case 'meuelenco':
+            case 'meutime':
+                return wcMeuElenco($pdo, $telefone, $ligaDoGrupo);
+
+            case 'meucap':
+            case 'minhafolha':
+                return wcMeuCap($pdo, $telefone, $ligaDoGrupo);
+
+            case 'minhaspicks':
+            case 'meuspicks':
+                return wcMinhasPicks($pdo, $telefone, $ligaDoGrupo);
 
             case 'guia':
                 return "*Guia do GM:* https://fbabrasil.com.br/guia.php";

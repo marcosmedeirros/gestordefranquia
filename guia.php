@@ -451,16 +451,25 @@ html{scroll-behavior:smooth}
         <table>
           <thead><tr><th>Comando</th><th>O que responde</th></tr></thead>
           <tbody>
+            <tr><td><code>/meucap</code></td><td>Sua folha, sem digitar o time</td></tr>
+            <tr><td><code>/meuelenco</code></td><td>Seu elenco</td></tr>
+            <tr><td><code>/minhaspicks</code></td><td>Suas picks</td></tr>
             <tr><td><code>/jogador lebron</code></td><td>Time, posição, idade, OVR e salário</td></tr>
+            <tr><td><code>/comparar lebron x tatum</code></td><td>Dois jogadores lado a lado</td></tr>
             <tr><td><code>/time lakers</code></td><td>Elenco, folha, campanha e os melhores</td></tr>
             <tr><td><code>/cap lakers</code></td><td>Folha detalhada, espaço no CAP e maiores salários</td></tr>
             <tr><td><code>/picks lakers</code></td><td>Todas as picks do time, por ano</td></tr>
             <tr><td><code>/classificacao elite</code></td><td>A tabela da liga</td></tr>
+            <tr><td><code>/trocas</code></td><td>As últimas trocas aprovadas</td></tr>
+            <tr><td><code>/lendas</code></td><td>Quem está marcado como LENDA</td></tr>
+            <tr><td><code>/hall</code></td><td>O Hall da Fama</td></tr>
+            <tr><td><code>/premios</code></td><td>Os prêmios da temporada</td></tr>
             <tr><td><code>/ajuda</code></td><td>A lista completa</td></tr>
           </tbody>
         </table>
       </div>
       <p>Não precisa escrever o nome inteiro: <code>/cap lakers</code> basta. Se o pedaço servir pra mais de um time, ele lista as opções em vez de chutar. E no Chat Off de uma liga, <code>/classificacao</code> sozinho já responde a tabela daquela liga.</p>
+      <p>Os comandos que começam com <strong>meu</strong> reconhecem você pelo telefone do seu perfil — não precisa digitar o time. Se ainda não cadastrou o número no site, o bot avisa.</p>
     </div>
   </section>
 
