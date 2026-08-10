@@ -446,7 +446,7 @@ html{scroll-behavior:smooth}
 
     <div class="aba">
       <div class="aba-cab"><span class="aba-ico"><i class="bi bi-whatsapp"></i></span><span class="aba-nome">O bot do grupo</span></div>
-      <p>No grupo do WhatsApp dá pra consultar a liga sem abrir o site. Escreva o comando começando com barra e ele responde ali mesmo:</p>
+      <p>Nos grupos do WhatsApp da FBA — o principal e os Chat Off de cada liga — dá pra consultar tudo sem abrir o site. Escreva o comando começando com barra e ele responde ali mesmo:</p>
       <div class="tabela-wrap">
         <table>
           <thead><tr><th>Comando</th><th>O que responde</th></tr></thead>
@@ -460,7 +460,7 @@ html{scroll-behavior:smooth}
           </tbody>
         </table>
       </div>
-      <p>Não precisa escrever o nome inteiro: <code>/cap lakers</code> basta. Se o pedaço servir pra mais de um time, ele lista as opções em vez de chutar.</p>
+      <p>Não precisa escrever o nome inteiro: <code>/cap lakers</code> basta. Se o pedaço servir pra mais de um time, ele lista as opções em vez de chutar. E no Chat Off de uma liga, <code>/classificacao</code> sozinho já responde a tabela daquela liga.</p>
     </div>
   </section>
 

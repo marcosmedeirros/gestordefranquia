@@ -98,6 +98,54 @@ if ($acao === 'pendentes') {
     ]);
 }
 
+// ── Grupos onde o bot aceita comando ────────────────────────────────────
+//   GET  ?action=grupos                 → a lista
+//   POST  action=grupos { grupos: [{jid, nome, liga, ativo}] }  → substitui
+//
+// Fica aqui, atrás do bot_token, e não no whatsapp-admin.php, porque não há
+// tela de admin pra WhatsApp: o admin.php nunca chegou a chamar aquele
+// endpoint. Assim dá pra cadastrar grupo sem subir código — que é o ponto,
+// já que id de grupo privado não deve entrar no repositório.
+if ($acao === 'grupos') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $corpo = json_decode(file_get_contents('php://input'), true);
+        $grupos = $corpo['grupos'] ?? null;
+        if (!is_array($grupos)) botResponder(400, ['erro' => 'grupos inválido']);
+
+        $LIGAS = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+        $limpos = [];
+        foreach ($grupos as $g) {
+            $jid = trim((string)($g['jid'] ?? ''));
+            // Só grupo: @g.us. Número individual aqui abriria o bot pra DM.
+            if ($jid === '' || !str_ends_with($jid, '@g.us')) continue;
+            $liga = strtoupper(trim((string)($g['liga'] ?? '')));
+            $limpos[$jid] = [
+                'jid'   => $jid,
+                'nome'  => mb_substr(trim((string)($g['nome'] ?? '')), 0, 120) ?: null,
+                'liga'  => in_array($liga, $LIGAS, true) ? $liga : null,
+                'ativo' => array_key_exists('ativo', (array)$g) ? (int)!empty($g['ativo']) : 1,
+            ];
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $pdo->exec("DELETE FROM whatsapp_grupos_comando");
+            $ins = $pdo->prepare("INSERT INTO whatsapp_grupos_comando (jid, nome, liga, ativo) VALUES (?,?,?,?)");
+            foreach ($limpos as $g) $ins->execute([$g['jid'], $g['nome'], $g['liga'], $g['ativo']]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            botResponder(500, ['erro' => 'Falha ao salvar: ' . $e->getMessage()]);
+        }
+        botResponder(200, ['salvos' => count($limpos)]);
+    }
+
+    botResponder(200, [
+        'grupos' => $pdo->query("SELECT jid, nome, liga, ativo FROM whatsapp_grupos_comando ORDER BY nome")
+                        ->fetchAll(PDO::FETCH_ASSOC),
+    ]);
+}
+
 // ── Diagnóstico ─────────────────────────────────────────────────────────
 // A corrente tem cinco elos (flag ligada, grupo definido, webhook apontado,
 // worker vivo, fila escoando) e quando o bot "não responde" o sintoma é o
@@ -125,6 +173,7 @@ if ($acao === 'diagnostico') {
         // identificador do grupo numa resposta HTTP.
         'grupo_fim'      => $grupo === '' ? null : '…' . mb_substr($grupo, -12),
         'bot_visto_em'   => $cfg['bot_visto_em'] ?? null,
+        'grupos_de_comando' => count(whatsappGruposDeComando($pdo)),
         'dentro_da_janela' => whatsappDentroDaJanela(),
         'fila'           => array_map('intval', $fila ?: []),
         'ultimo_erro'    => $ultimoErro ?: null,

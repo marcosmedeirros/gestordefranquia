@@ -106,7 +106,7 @@ $dados = $evento['data'] ?? [];
 // A Evolution manda ora um objeto, ora uma lista de mensagens.
 $mensagens = isset($dados['key']) ? [$dados] : (is_array($dados) ? $dados : []);
 
-$grupoOficial = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
+$gruposPermitidos = whatsappGruposDeComando($pdo);
 $respondidas = 0;
 
 foreach ($mensagens as $m) {
@@ -116,9 +116,9 @@ foreach ($mensagens as $m) {
     if (!empty($m['key']['fromMe'])) continue;
 
     $de = (string)($m['key']['remoteJid'] ?? '');
-    // Só o grupo configurado. Sem isso, qualquer conversa privada que chegasse
-    // na instância viraria consulta ao banco da liga.
-    if ($grupoOficial === '' || $de !== $grupoOficial) continue;
+    // Só os grupos cadastrados. Sem isso, qualquer conversa privada que
+    // chegasse na instância viraria consulta ao banco da liga.
+    if (!isset($gruposPermitidos[$de])) continue;
 
     $texto = wcTextoDaMensagem($m['message'] ?? []);
     if ($texto === '' || $texto[0] !== '/') continue;
@@ -137,7 +137,9 @@ foreach ($mensagens as $m) {
         break;
     }
 
-    $resposta = wcResponderComando($pdo, $texto);
+    // A liga do grupo vira contexto: no Chat Off da NEXT, /classificacao sem
+    // argumento responde a NEXT em vez de assumir ELITE.
+    $resposta = wcResponderComando($pdo, $texto, $gruposPermitidos[$de]['liga'] ?? null);
     if ($resposta === null) continue;   // comando desconhecido: silêncio
 
     whatsappEnfileirar($pdo, $de, $resposta, true, 'comando');

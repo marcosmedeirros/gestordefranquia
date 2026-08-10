@@ -90,6 +90,23 @@ function ensureWhatsAppTables(PDO $pdo): void
         $pdo->exec("UPDATE whatsapp_config SET bot_token = SHA2(CONCAT(RAND(), UUID(), NOW()), 256)
                     WHERE id = 1 AND (bot_token IS NULL OR bot_token = '')");
 
+        // Onde o bot aceita /comando. Separado do grupo_principal de propósito:
+        // "receber aviso automático" e "poder consultar" são coisas diferentes.
+        // Os Chat Off de cada liga consultam, mas não recebem notificação.
+        //
+        // A liga é opcional e serve de contexto: no Chat Off da NEXT, um
+        // /classificacao sem argumento já responde a NEXT.
+        //
+        // Os ids ficam só aqui, nunca no código — são identificadores de grupos
+        // privados e este repositório não é o lugar deles.
+        $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_grupos_comando (
+            jid VARCHAR(80) NOT NULL PRIMARY KEY,
+            nome VARCHAR(120) NULL,
+            liga ENUM('ELITE','NEXT','RISE','ROOKIE') NULL,
+            ativo TINYINT(1) NOT NULL DEFAULT 1,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
         // Fila: toda mensagem passa por aqui antes de sair. Assim uma queda da
         // instância vira atraso, não aviso perdido.
         $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_fila (
@@ -193,6 +210,35 @@ function whatsappNumero(?string $telefone): ?string
  * Coloca uma mensagem na fila. Não envia aqui — quem envia é o
  * whatsappProcessarFila(), chamado logo em seguida e pelo cron.
  */
+/**
+ * Grupos onde o bot aceita /comando, indexados pelo jid.
+ *
+ * O grupo_principal entra sempre: ele já recebe os avisos automáticos, seria
+ * esquisito não responder a uma pergunta ali. Os demais vêm da tabela.
+ *
+ * Retorna [jid => ['nome' => ..., 'liga' => ...|null]].
+ */
+function whatsappGruposDeComando(PDO $pdo): array
+{
+    $out = [];
+    try {
+        $principal = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
+        if ($principal !== '') {
+            $out[$principal] = ['nome' => 'Principal', 'liga' => null];
+        }
+        foreach ($pdo->query("SELECT jid, nome, liga FROM whatsapp_grupos_comando WHERE ativo = 1") as $r) {
+            $jid = trim((string)$r['jid']);
+            if ($jid === '') continue;
+            // A tabela ganha do padrão: se alguém cadastrou o principal aqui
+            // com uma liga, é essa liga que vale.
+            $out[$jid] = ['nome' => $r['nome'] ?: $jid, 'liga' => $r['liga'] ?: null];
+        }
+    } catch (Throwable $e) {
+        error_log('[whatsapp] grupos de comando: ' . $e->getMessage());
+    }
+    return $out;
+}
+
 function whatsappEnfileirar(PDO $pdo, string $destino, string $texto, bool $ehGrupo = false, ?string $tipo = null, ?int $userId = null): bool
 {
     if ($destino === '' || trim($texto) === '') return false;

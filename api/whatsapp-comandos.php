@@ -307,9 +307,12 @@ function wcPicks(PDO $pdo, string $termo): string
     return rtrim($txt);
 }
 
-function wcClassificacao(PDO $pdo, string $termo): string
+function wcClassificacao(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
-    $liga = wcNormalizarLiga($termo !== '' ? $termo : 'ELITE');
+    // Sem argumento, vale a liga do grupo: quem digita /classificacao no Chat
+    // Off da RISE quer a RISE, não a ELITE. Só cai no padrão quando o grupo não
+    // é de liga nenhuma (o principal, o Geral).
+    $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
     if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
 
     $temp = wcTemporadaAtiva($pdo, $liga);
@@ -342,8 +345,11 @@ function wcClassificacao(PDO $pdo, string $termo): string
 /**
  * Roteia o texto pro comando. Retorna null quando não é comando conhecido —
  * o webhook trata null como "não responder".
+ *
+ * $ligaDoGrupo é a liga do grupo de onde veio a mensagem, quando ele é de uma
+ * liga só. Serve pros comandos que dá pra responder sem argumento.
  */
-function wcResponderComando(PDO $pdo, string $texto): ?string
+function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null): ?string
 {
     $texto = trim($texto);
     if ($texto === '' || $texto[0] !== '/') return null;
@@ -382,7 +388,7 @@ function wcResponderComando(PDO $pdo, string $texto): ?string
             case 'classificacao':
             case 'classificação':
             case 'tabela':
-                return wcClassificacao($pdo, $arg);
+                return wcClassificacao($pdo, $arg, $ligaDoGrupo);
 
             case 'guia':
                 return "*Guia do GM:* https://fbabrasil.com.br/guia.php";
