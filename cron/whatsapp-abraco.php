@@ -2,12 +2,24 @@
 /**
  * O abraço do dia: às 15h, um GM sorteado leva um abraço no grupo principal.
  *
- * Agendar na Hostinger uma vez por dia, às 15:00:
- *   0 15 * * *  /usr/bin/php /home/USUARIO/domains/fbabrasil.com.br/public_html/cron/whatsapp-abraco.php
+ * Agendar de HORA EM HORA, não às 15h:
+ *   0 * * * *  /usr/bin/php <caminho>/cron/whatsapp-abraco.php
+ *
+ * Parece errado, mas é de propósito. O crontab dispara pelo relógio do
+ * servidor, e servidor de hospedagem costuma estar em UTC — "0 15" viraria meio-
+ * dia em Brasília. Em vez de depender de como a máquina está configurada, quem
+ * decide a hora é este script, com fuso explícito. Mesma ideia da janela do
+ * WhatsApp: o horário mora no código, não no agendador.
+ *
+ * De quebra, isso dá tolerância a falha: se a execução das 15h não acontecer
+ * (servidor ocupado, cron perdido), a das 16h manda. Antes, o dia passaria em
+ * branco.
  *
  * Se o cron rodar mais de uma vez no mesmo dia (retentativa, agendamento
  * duplicado, execução manual), o segundo disparo não faz nada: a marca do dia
  * fica em app_flags. Ninguém leva dois abraços.
+ *
+ * Pra testar fora de hora: php cron/whatsapp-abraco.php --agora
  *
  * Quem entra no sorteio: GM com time. Vale todas as ligas — o grupo principal é
  * de todo mundo, não de uma liga só.
@@ -28,7 +40,18 @@ require_once __DIR__ . '/../backend/whatsapp.php';
 $pdo = db();
 ensureWhatsAppTables($pdo);
 
-$hoje = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
+const ABRACO_HORA = 15;   // horário de Brasília
+
+$agora = new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo'));
+$forcar = in_array('--agora', $argv ?? [], true);
+
+// Antes das 15h em Brasília não faz nada — mesmo que o relógio do servidor
+// diga outra coisa. Depois das 15h manda, o que cobre a execução perdida.
+if (!$forcar && (int)$agora->format('G') < ABRACO_HORA) {
+    exit(0);   // silencioso: rodando de hora em hora, logar isso só enche o log
+}
+
+$hoje = $agora->format('Y-m-d');
 $marca = 'abraco_do_dia_' . $hoje;
 
 // A marca é gravada ANTES de enfileirar: se duas execuções entrarem juntas, a

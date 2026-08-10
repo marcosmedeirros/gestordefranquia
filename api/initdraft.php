@@ -51,6 +51,9 @@ function ensureDailyScheduleColumns(PDO $pdo): void {
         'daily_pick_minutes' => 'INT NOT NULL DEFAULT 10',
         'daily_last_opened_date' => 'DATE NULL',
         'daily_override_enabled' => 'TINYINT(1) NOT NULL DEFAULT 0',
+        // Trava manual do admin: ninguém escolhe enquanto estiver ligada, nem
+        // pelo site, nem por autopick, nem pelo cron do mock.
+        'pausado' => 'TINYINT(1) NOT NULL DEFAULT 0',
     ];
     foreach ($columns as $name => $definition) {
         $stmt = $pdo->prepare('SHOW COLUMNS FROM ' . $table . ' LIKE ?');
@@ -1180,6 +1183,73 @@ if ($method === 'POST') {
                 performInitDraftPick($pdo, $session, $playerId);
                 resetClockForNextPick($pdo, (int)$session['id']);
                 echo json_encode(['success' => true, 'message' => 'Pick realizada']);
+                break;
+            }
+
+            // ADMIN: trava o draft. Ninguém escolhe enquanto estiver pausado —
+            // nem pelo site, nem por autopick, nem pelo cron do mock. Serve pra
+            // quando aparece confusão de ordem ou troca no meio do draft.
+            case 'toggle_pausa': {
+                if (!$isAdmin) throw new InvalidArgumentException('Apenas administradores');
+                $sessionId = (int)($data['session_id'] ?? 0);
+                $session = getSessionById($pdo, $sessionId);
+                if (!$session) throw new InvalidArgumentException('Sessão inválida');
+
+                $novo = array_key_exists('pausado', $data)
+                    ? (int)!empty($data['pausado'])
+                    : (int)empty($session['pausado']);   // sem valor: alterna
+
+                $pdo->prepare('UPDATE initdraft_sessions SET pausado = ? WHERE id = ?')
+                    ->execute([$novo, $sessionId]);
+
+                echo json_encode(['success' => true, 'pausado' => (bool)$novo]);
+                break;
+            }
+
+            // ADMIN: acrescenta UMA rodada ao fim do draft, já com o chaveamento
+            // certo. Diferente de set_total_rounds, que só vale antes da
+            // primeira pick — este existe pra usar com o draft rolando.
+            case 'admin_add_round': {
+                if (!$isAdmin) throw new InvalidArgumentException('Apenas administradores');
+                $sessionId = (int)($data['session_id'] ?? 0);
+                $session = getSessionById($pdo, $sessionId);
+                if (!$session) throw new InvalidArgumentException('Sessão inválida');
+                if (($session['status'] ?? '') === 'completed') throw new InvalidArgumentException('Draft já finalizado');
+
+                $atual = (int)($session['total_rounds'] ?? 0);
+                if ($atual >= 10) throw new InvalidArgumentException('Máximo de 10 rodadas');
+
+                // A ordem base é a da 1ª rodada, pelo original_team_id: a nova
+                // rodada é de picks que ninguém trocou ainda, então ela pertence
+                // ao dono original, não a quem ficou com a pick de outro ano.
+                $stmtBase = $pdo->prepare('SELECT original_team_id FROM initdraft_order
+                                           WHERE initdraft_session_id = ? AND round = 1
+                                           ORDER BY pick_position ASC');
+                $stmtBase->execute([$sessionId]);
+                $base = array_map('intval', $stmtBase->fetchAll(PDO::FETCH_COLUMN));
+                if (!$base) throw new InvalidArgumentException('A ordem do draft ainda não foi sorteada');
+
+                $nova = $atual + 1;
+                // Mesmo chaveamento do resto: rodada ímpar na ordem, par invertida.
+                $ordem = ($nova % 2 === 1) ? $base : array_reverse($base);
+
+                $pdo->beginTransaction();
+                try {
+                    $ins = $pdo->prepare('INSERT INTO initdraft_order
+                        (initdraft_session_id, team_id, original_team_id, pick_position, round)
+                        VALUES (?, ?, ?, ?, ?)');
+                    foreach ($ordem as $i => $teamId) {
+                        $ins->execute([$sessionId, $teamId, $teamId, $i + 1, $nova]);
+                    }
+                    $pdo->prepare('UPDATE initdraft_sessions SET total_rounds = ? WHERE id = ?')
+                        ->execute([$nova, $sessionId]);
+                    $pdo->commit();
+                } catch (Throwable $e) {
+                    $pdo->rollBack();
+                    throw $e;
+                }
+
+                echo json_encode(['success' => true, 'total_rounds' => $nova, 'picks_criadas' => count($ordem)]);
                 break;
             }
 
