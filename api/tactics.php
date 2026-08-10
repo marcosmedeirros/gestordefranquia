@@ -539,6 +539,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $janela = getEditWindow($pdo, $league);
 
+        // Virou a janela (abriu OU fechou) → zera o "Feito no jogo" de todos os
+        // times da liga. Cada ciclo de janela é uma rodada nova de aplicar as
+        // táticas dentro do jogo, então o que estava marcado no ciclo anterior
+        // não vale mais. Mexer só no horário de corte não zera nada.
+        if ($janela['open'] !== $estadoAntes) {
+            $pdo->prepare("
+                UPDATE team_tactics tt
+                JOIN teams t ON t.id = tt.team_id
+                SET tt.feito_no_jogo = 0
+                WHERE t.league = ? AND tt.feito_no_jogo = 1
+            ")->execute([$league]);
+        }
+
         // Só avisa quando a janela realmente virou — mexer no horário de corte
         // sem mudar o estado não gera push.
         if ($janela['open'] !== $estadoAntes) {

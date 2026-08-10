@@ -2115,8 +2115,16 @@ async function _carregarControlesExtras(league) {
       <div style="${caixa}">
         <i class="bi bi-clipboard2-pulse" style="color:#14b8a6;font-size:13px;flex-shrink:0"></i>
         <span style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">Tática</span>
-        <span style="${selo(aberta)}">${aberta ? 'Aberta' : 'Fechada'}</span>
+        <span id="tatBadge_${league}" style="${selo(aberta)}">${aberta ? 'Aberta' : 'Fechada'}</span>
         ${tw.daily_cutoff_time ? `<span style="font-size:10.5px;color:var(--text-3);white-space:nowrap">até ${escapeHtml(String(tw.daily_cutoff_time))}</span>` : ''}
+        <div style="display:flex;gap:4px;margin-left:4px">
+          <button class="btn btn-sm ${aberta ? 'btn-success' : 'btn-outline-success'}"
+            style="font-size:11px;padding:4px 10px"
+            onclick="toggleTatica('${league}', 1)" id="tatOnBtn_${league}">Aberta</button>
+          <button class="btn btn-sm ${!aberta ? 'btn-danger' : 'btn-outline-danger'}"
+            style="font-size:11px;padding:4px 10px"
+            onclick="toggleTatica('${league}', 0)" id="tatOffBtn_${league}">Fechada</button>
+        </div>
       </div>
       ${d.draft_concluido ? `
       <div style="${caixa}">
@@ -4362,7 +4370,7 @@ function renderTaticaAdmin(league, win, teams) {
           <div class="tac-head" style="cursor:default">
             <i class="bi bi-dash-circle" style="color:var(--text-3)"></i>
             <span class="tac-nome">${escapeHtml(t.team.name)}</span>
-            <span class="tac-vazio">Sem tática enviada</span>
+            <span class="tac-vazio">Nenhuma tática ativa</span>
           </div>
         </div>`;
     }
@@ -5558,6 +5566,44 @@ async function toggleTrades(league, enabled) {
     showAlert('success', `Trocas ${on ? 'ativadas' : 'desativadas'} para a liga ${league}!`);
   } catch (e) {
     showAlert('danger', 'Erro ao atualizar status de trades');
+  }
+}
+
+/**
+ * Abre ou fecha a janela de tática da liga, no mesmo lugar de Trades e FA.
+ *
+ * Abrir usa open_for_hours em vez de só limpar o manual_closed: sem isso, com o
+ * corte diário já passado (ex: 17h), "abrir" não abriria nada — a janela cairia
+ * na regra do horário e continuaria fechada. 24h cobre o resto do dia; no dia
+ * seguinte o corte diário volta a mandar sozinho.
+ *
+ * Os dois lados zeram o "Feito no jogo" de todos os times: cada ciclo de janela
+ * é uma rodada nova de aplicar tática dentro do jogo.
+ */
+async function toggleTatica(league, abrir) {
+  const on = abrir == 1;
+  try {
+    await api('tactics.php', {
+      method: 'POST',
+      body: JSON.stringify(on
+        ? { action: 'admin_window', league, manual_closed: false, open_for_hours: 24 }
+        : { action: 'admin_window', league, manual_closed: true, clear_manual_open: true }),
+    });
+
+    const onBtn  = document.getElementById(`tatOnBtn_${league}`);
+    const offBtn = document.getElementById(`tatOffBtn_${league}`);
+    const badge  = document.getElementById(`tatBadge_${league}`);
+    if (onBtn)  onBtn.className  = `btn btn-sm ${on ? 'btn-success' : 'btn-outline-success'}`;
+    if (offBtn) offBtn.className = `btn btn-sm ${!on ? 'btn-danger' : 'btn-outline-danger'}`;
+    if (badge) {
+      badge.textContent = on ? 'Aberta' : 'Fechada';
+      badge.style.cssText = `font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;${on
+        ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
+        : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)'}`;
+    }
+    showAlert('success', `Tática ${on ? 'aberta' : 'fechada'} para a liga ${league} — "Feito no jogo" zerado.`);
+  } catch (e) {
+    showAlert('danger', 'Erro ao atualizar a janela de tática');
   }
 }
 

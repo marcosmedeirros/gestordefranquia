@@ -301,7 +301,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <div class="savebar">
       <button class="btn" id="btnSalvar"><i class="bi bi-save2"></i> Salvar agora</button>
       <button class="btn success" id="btnAtivar"><i class="bi bi-check-circle"></i> Ativar esta tática</button>
-      <button class="btn ghost" id="btnCopiar"><i class="bi bi-files"></i> Copiar de outra tática</button>
+      <button class="btn ghost" id="btnCopiar"><i class="bi bi-clipboard-check"></i> Copiar tática</button>
       <span class="st" id="statusSalvar"><i class="bi bi-cloud-check"></i> Salva automaticamente</span>
     </div>
     <div id="msgSalvar"></div>
@@ -326,6 +326,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
 const POSICOES = ['PG','SG','SF','PF','C'];
 const SLOT_LABELS = <?= json_encode($SLOT_LABELS, JSON_UNESCAPED_UNICODE) ?>;
+const TIME_NOME   = <?= json_encode(trim($team['city'] . ' ' . $team['name']), JSON_UNESCAPED_UNICODE) ?>;
 const IS_ELITE = <?= $isElite ? 'true' : 'false' ?>;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -350,7 +351,8 @@ function renderJanela() {
 function aplicarBloqueioEdicao() {
   const bloqueado = !EDIT_WINDOW.open;
   document.querySelectorAll('#conteudo select, #conteudo input, #conteudo textarea').forEach(el => { el.disabled = bloqueado; });
-  ['btnSugQuinteto','btnLimparQuinteto','btnSalvar','btnAtivar','btnCopiar'].forEach(id => { const el = $(id); if (el) el.disabled = bloqueado; });
+  // btnCopiar fica de fora: copiar nao altera nada, entao vale com a janela fechada.
+  ['btnSugQuinteto','btnLimparQuinteto','btnSalvar','btnAtivar'].forEach(id => { const el = $(id); if (el) el.disabled = bloqueado; });
 }
 
 /* ── Quinteto ── */
@@ -543,20 +545,103 @@ $('btnLimparQuinteto').addEventListener('click', () => {
   document.querySelectorAll('#court select').forEach(s => { s.value = ''; });
   atualizarQuinteto(); atualizarPreviewMinutos();
 });
-$('btnCopiar').addEventListener('click', () => {
-  const outros = Object.keys(SLOT_LABELS).filter(k => k !== SLOT && TATICAS[k]?.saved);
-  if (!outros.length) { msg('info', 'Nenhuma outra tática salva para copiar.'); return; }
-  const escolha = prompt('Copiar de qual tática?\n' + outros.map(k => `${k} = ${SLOT_LABELS[k]}`).join('\n'), outros[0]);
-  if (!escolha || !outros.includes(escolha)) return;
-  const origem = TATICAS[escolha]?.data || {};
-  document.querySelectorAll('[data-f]').forEach(el => {
-    const f = el.dataset.f;
-    el.value = (origem[f] !== null && origem[f] !== undefined) ? origem[f] : '';
+/* ── Copiar a tática como texto ──
+ * Copia o que está na tela num formato que se cola direto no WhatsApp: sem
+ * markdown, sem tabela, só rótulo e valor. O botão antes copiava DE outra
+ * tática, o que ninguém usava — o que se quer é levar a tática pra fora. */
+const ROTULOS_SISTEMA = {
+  technical_model: 'Modelo técnico', game_style: 'Estilo de jogo',
+  offense_style: 'Foco ofensivo', pace: 'Ritmo',
+  offensive_rebound: 'Rebote ofensivo', defensive_rebound: 'Rebote defensivo',
+  offensive_aggression: 'Agressividade defensiva', defensive_focus: 'Foco defensivo',
+};
+
+function nomeDoJogador(id) {
+  const p = ELENCO.find(x => String(x.id) === String(id));
+  return p ? p.name : null;
+}
+
+function montarTextoDaTatica() {
+  const linhas = [];
+  const timeNome = TIME_NOME;
+  linhas.push(`*${timeNome || 'Tática'}* — ${SLOT_LABELS[SLOT] || 'Tática'}`);
+
+  // Quinteto na ordem em que está na quadra (PG → C).
+  const titulares = [];
+  for (let i = 1; i <= 5; i++) {
+    const s = document.querySelector(`#court select[data-f="starter_${i}_id"]`);
+    const nome = s && s.value ? nomeDoJogador(s.value) : null;
+    if (nome) titulares.push(nome);
+  }
+  if (titulares.length) {
+    linhas.push('');
+    linhas.push('*Quinteto*');
+    titulares.forEach((n, i) => linhas.push(`${i + 1}. ${n}`));
+  }
+
+  const gl = [];
+  ['gleague_1_id', 'gleague_2_id'].forEach(f => {
+    const el = document.querySelector(`[data-f="${f}"]`);
+    const nome = el && el.value ? nomeDoJogador(el.value) : null;
+    if (nome) gl.push(nome);
   });
-  atualizarQuinteto();
-  atualizarPreviewMinutos();
-  agendarAutosave();
-  msg('info', `Copiado de <strong>${esc(SLOT_LABELS[escolha])}</strong>. Revise e salve.`);
+  if (gl.length) {
+    linhas.push('');
+    linhas.push('*G-League*');
+    gl.forEach(n => linhas.push(`• ${n}`));
+  }
+
+  const sistema = [];
+  Object.entries(ROTULOS_SISTEMA).forEach(([campo, rotulo]) => {
+    const el = document.querySelector(`[data-f="${campo}"]`);
+    if (!el || !el.value) return;
+    // O texto da opção, não o código interno — é o que a pessoa lê no jogo.
+    const txt = el.options ? (el.options[el.selectedIndex]?.text || el.value) : el.value;
+    sistema.push(`${rotulo}: ${txt}`);
+  });
+  const rot = document.querySelector('[data-f="rotation_players"]');
+  if (rot && rot.value) sistema.push(`Jogadores na rotação: ${rot.value}`);
+  const vet = document.querySelector('[data-f="veteran_focus"]');
+  if (vet && vet.value !== '') sistema.push(`Foco em veteranos: ${vet.value}`);
+  if (sistema.length) {
+    linhas.push('');
+    linhas.push('*Sistema de jogo*');
+    sistema.forEach(l => linhas.push(l));
+  }
+
+  ['playbook', 'notes'].forEach(campo => {
+    const el = document.querySelector(`[data-f="${campo}"]`);
+    if (!el || !el.value.trim()) return;
+    linhas.push('');
+    linhas.push(campo === 'playbook' ? '*Playbook*' : '*Observações*');
+    linhas.push(el.value.trim());
+  });
+
+  return linhas.join('\n');
+}
+
+$('btnCopiar').addEventListener('click', async () => {
+  const texto = montarTextoDaTatica();
+  const btn = $('btnCopiar');
+  const original = btn.innerHTML;
+  try {
+    await navigator.clipboard.writeText(texto);
+  } catch (e) {
+    // clipboard bloqueado (http, permissão): cai no método antigo, que ainda
+    // funciona em praticamente todo navegador.
+    const ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e2) {
+      msg('erro', 'Não consegui copiar. Selecione e copie manualmente.');
+      document.body.removeChild(ta);
+      return;
+    }
+    document.body.removeChild(ta);
+  }
+  btn.innerHTML = '<i class="bi bi-check2"></i> Copiado!';
+  setTimeout(() => { btn.innerHTML = original; }, 1800);
 });
 
 /* ── Salvar / ativar ── */
