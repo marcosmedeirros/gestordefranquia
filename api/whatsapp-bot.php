@@ -49,14 +49,22 @@ if ($esperado === '' || $enviado === '' || !hash_equals($esperado, $enviado)) {
     botResponder(401, ['erro' => 'Token inválido']);
 }
 
-// Marca que o worker deu sinal de vida — serve pra saber se o PC está de pé.
-// Só de minuto em minuto: agora o worker bate aqui de poucos em poucos
-// segundos e não faz sentido gastar um UPDATE em cada batida.
-$pdo->prepare("UPDATE whatsapp_config SET bot_visto_em = NOW()
-               WHERE id = 1 AND (bot_visto_em IS NULL OR bot_visto_em < NOW() - INTERVAL 1 MINUTE)")
-    ->execute();
-
 $acao = $_GET['action'] ?? $_POST['action'] ?? '';
+
+// Marca que o worker deu sinal de vida — serve pra saber se o PC está de pé.
+//
+// Só em 'pendentes', que é o que apenas o worker chama. Marcar em toda
+// requisição autenticada fazia o próprio 'diagnostico' carimbar a hora e
+// responder que o worker estava vivo — inclusive quando ele estava parado.
+// Um medidor que mente quando você olha pra ele não serve pra nada.
+//
+// E só de minuto em minuto: o worker bate aqui de poucos em poucos segundos,
+// não faz sentido gastar um UPDATE em cada batida.
+if ($acao === 'pendentes') {
+    $pdo->prepare("UPDATE whatsapp_config SET bot_visto_em = NOW()
+                   WHERE id = 1 AND (bot_visto_em IS NULL OR bot_visto_em < NOW() - INTERVAL 1 MINUTE)")
+        ->execute();
+}
 
 // ── Pendentes ───────────────────────────────────────────────────────────
 if ($acao === 'pendentes') {
