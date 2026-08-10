@@ -1903,7 +1903,7 @@ async function showLeague(league) {
       { icon: 'bi-arrow-left-right',  label: 'Trades',               fn: 'showTrades()',            color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
       { icon: 'bi-people-fill',       label: 'Free Agency',          fn: 'showFAAdmin()',           color: '#22c55e', bg: 'rgba(34,197,94,.12)'  },
       { icon: 'bi-bar-chart-steps',         label: 'Pontuação<br>por Time',      fn: 'showPointsManagement()',    color: '#06b6d4', bg: 'rgba(6,182,212,.12)'   },
-      { icon: 'bi-clipboard-data-fill',     label: 'Pontuação da<br>Temporada',  fn: `showRegistroPontuacao('${league}')`,   color: '#10b981', bg: 'rgba(16,185,129,.12)'  },
+      { icon: 'bi-clipboard-data-fill',     label: 'Pontuação',               fn: `showRegistroPontuacao('${league}')`,   color: '#10b981', bg: 'rgba(16,185,129,.12)'  },
       { icon: 'bi-star-half',               label: 'Prêmios<br>Estendidos',      fn: `showExtendedAwards('${league}')`,      color: '#eab308', bg: 'rgba(234,179,8,.12)'   },
       { icon: 'bi-alarm',                   label: 'Agendador<br>de Fases',      fn: `showScheduler('${league}')`,           color: '#3b82f6', bg: 'rgba(59,130,246,.12)'  },
       { icon: 'bi-shield-check',            label: 'FBA SERASA',                fn: 'showSerasaAdmin()',         color: '#8b5cf6', bg: 'rgba(139,92,246,.12)'  },
@@ -6541,7 +6541,7 @@ async function showRegistroPontuacao(league) {
   container.innerHTML = `
     <div class="mb-4">
       <button class="btn btn-back me-2" onclick="${back}"><i class="bi bi-arrow-left"></i> Voltar</button>
-      <span class="text-light-gray" style="font-size:14px;font-weight:600">Pontuação da Temporada — ${league}</span>
+      <span class="text-light-gray" style="font-size:14px;font-weight:600">Pontuação — ${league}</span>
     </div>
     <div id="regPtsContent"><div class="text-center py-5"><div class="spinner-border text-orange"></div></div></div>`;
 

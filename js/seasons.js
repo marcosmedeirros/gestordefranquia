@@ -1531,7 +1531,16 @@ function _updateStandingsUnique(conf) {
         const myVal = slot.value;
         slot.querySelectorAll('option').forEach(opt => {
             if (!opt.value) return;
-            opt.disabled = selected.has(opt.value) && opt.value !== myVal;
+            // Time já colocado noutra vaga some da lista em vez de ficar
+            // cinza: numa liga de 15 times, rolar por uma lista cheia de
+            // opções mortas pra achar as 3 que sobraram é trabalho à toa.
+            //
+            // O disabled continua junto de propósito — é o que garante que
+            // ninguém selecione duas vezes mesmo num navegador que ignore o
+            // hidden em <option>.
+            const jaUsado = selected.has(opt.value) && opt.value !== myVal;
+            opt.disabled = jaUsado;
+            opt.hidden = jaUsado;
         });
     });
 }
