@@ -360,6 +360,8 @@ html{scroll-behavior:smooth}
         <div class="txt"><div class="nome">Ver guia do usuário</div><div class="desc">Abre o <a href="/guia.php">Guia do GM</a> numa aba nova — a mesma página pública que você manda para quem chega.</div></div></div>
       <div class="card-a"><div class="ico" style="background:rgba(59,130,246,.12);color:#3b82f6"><i class="bi bi-globe2"></i></div>
         <div class="txt"><div class="nome">Site Admin <span class="selo selo-geral">Admin geral</span></div><div class="desc">Configurações do site, fora do escopo das ligas.</div></div></div>
+      <div class="card-a"><div class="ico" style="background:rgba(34,197,94,.12);color:#22c55e"><i class="bi bi-emoji-smile-fill"></i></div>
+        <div class="txt"><div class="nome">Disparar abraço <span class="selo selo-geral">Admin geral</span></div><div class="desc">Sorteia um GM e manda o abraço no grupo do WhatsApp na hora. O abraço já sai sozinho todo dia às 15h — este botão é pra quando você quer mandar fora de hora, e ele posta mesmo que o de hoje já tenha saído. A pessoa é marcada de verdade quando tem telefone no perfil.</div></div></div>
     </div>
   </section>
 

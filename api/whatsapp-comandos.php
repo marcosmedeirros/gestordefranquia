@@ -481,6 +481,48 @@ function wcComparar(PDO $pdo, string $termo): string
     return $txt;
 }
 
+/**
+ * Títulos do time na edição (sprint) atual da liga dele.
+ *
+ * O campeão de uma temporada é gravado em DOIS lugares — playoff_results
+ * (position='champion') e season_history (champion_team_id) — e nem sempre nos
+ * dois. Conto das duas fontes deduplicando por temporada: assim funciona seja
+ * qual for a que o admin usou, e uma temporada registrada nas duas não vira
+ * dois títulos.
+ *
+ * Retorna ['titulos' => int, 'edicao' => int|null].
+ */
+function wcTitulosNaEdicao(PDO $pdo, int $teamId, string $league): array
+{
+    try {
+        $st = $pdo->prepare("SELECT id, sprint_number FROM sprints
+                             WHERE league = ?
+                             ORDER BY (status = 'active') DESC, sprint_number DESC
+                             LIMIT 1");
+        $st->execute([$league]);
+        $sprint = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$sprint) return ['titulos' => 0, 'edicao' => null];
+
+        $st = $pdo->prepare("
+            SELECT COUNT(DISTINCT s.id)
+            FROM seasons s
+            WHERE s.sprint_id = ?
+              AND (EXISTS (SELECT 1 FROM playoff_results pr
+                           WHERE pr.season_id = s.id AND pr.team_id = ? AND pr.position = 'champion')
+                OR EXISTS (SELECT 1 FROM season_history sh
+                           WHERE sh.season_id = s.id AND sh.champion_team_id = ?))
+        ");
+        $st->execute([(int)$sprint['id'], $teamId, $teamId]);
+
+        return ['titulos' => (int)$st->fetchColumn(), 'edicao' => (int)$sprint['sprint_number']];
+    } catch (Throwable $e) {
+        // Tabela de playoffs ausente num banco antigo não pode derrubar a
+        // comparação inteira — a linha some e o resto continua.
+        error_log('[whatsapp-cmd] titulos: ' . $e->getMessage());
+        return ['titulos' => 0, 'edicao' => null];
+    }
+}
+
 function wcCompararTimes(PDO $pdo, string $termo): string
 {
     // Só x/vs/versus aqui. O /comparar de jogador também aceita "e", mas nome
@@ -530,6 +572,8 @@ function wcCompararTimes(PDO $pdo, string $termo): string
         $st->execute([(int)$t['id']]);
         $m['picks'] = (int)$st->fetchColumn();
 
+        $m += wcTitulosNaEdicao($pdo, (int)$t['id'], (string)$t['league']);
+
         $temp = wcTemporadaAtiva($pdo, (string)$t['league']);
         $m['campanha'] = null;
         if ($temp) {
@@ -548,8 +592,21 @@ function wcCompararTimes(PDO $pdo, string $termo): string
 
     $txt = '*' . wcNomeDoTime($a) . '*' . "\n_vs_\n" . '*' . wcNomeDoTime($b) . "*\n";
     if ($a['league'] !== $b['league']) $txt .= "_{$a['league']} · {$b['league']}_\n";
-    $txt .= "\n"
-        . $linha('Melhor jogador', $ma['melhor'], $mb['melhor'], $marca($ma['melhor'], $mb['melhor']), $marca($mb['melhor'], $ma['melhor']))
+    $txt .= "\n";
+
+    // Título vem primeiro: é o que decide discussão. O rótulo diz de qual
+    // edição, senão "2 títulos" parece ser de sempre — e quando os times são de
+    // ligas diferentes, cada um está numa edição com número próprio.
+    if ($ma['edicao'] !== null || $mb['edicao'] !== null) {
+        $ed = ($ma['edicao'] !== null && $ma['edicao'] === $mb['edicao'])
+            ? 'Títulos (edição ' . $ma['edicao'] . ')'
+            : 'Títulos na edição';
+        $txt .= $linha($ed, $ma['titulos'] . ($ma['edicao'] !== null && $ma['edicao'] !== $mb['edicao'] ? ' (ed. ' . $ma['edicao'] . ')' : ''),
+                            $mb['titulos'] . ($mb['edicao'] !== null && $ma['edicao'] !== $mb['edicao'] ? ' (ed. ' . $mb['edicao'] . ')' : ''),
+                       $marca($ma['titulos'], $mb['titulos']), $marca($mb['titulos'], $ma['titulos']));
+    }
+
+    $txt .= $linha('Melhor jogador', $ma['melhor'], $mb['melhor'], $marca($ma['melhor'], $mb['melhor']), $marca($mb['melhor'], $ma['melhor']))
         . $linha('Soma top 8', $ma['top8'], $mb['top8'], $marca($ma['top8'], $mb['top8']), $marca($mb['top8'], $ma['top8']))
         . $linha('Elenco', $ma['elenco'], $mb['elenco'])
         // Elenco mais novo é vantagem: compara ao contrário.

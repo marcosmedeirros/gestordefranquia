@@ -305,6 +305,8 @@ async function showGestao(league) {
     { icon: 'bi-journal-code',          label: 'Guia do<br>Admin',          url: '/guia-admin.php', novaAba: true, color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 12%, transparent)' },
     ...(window.IS_GLOBAL_ADMIN ? [
       { icon: 'bi-globe2',              label: 'Site<br>Admin',             url: '/siteadmin.php',       color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
+      // O abraço já sai sozinho às 15h; isto é pra mandar na hora.
+      { icon: 'bi-emoji-smile-fill',    label: 'Disparar<br>abraço',        fn: 'dispararAbraco()',      color: '#22c55e', bg: 'rgba(34,197,94,.12)', id: 'btnAbraco' },
     ] : []),
   ];
 
@@ -360,6 +362,29 @@ async function showGestao(league) {
 }
 
 /** Preenche nba_player_id de quem ainda não tem — é isso que faz a foto aparecer. */
+// Manda o abraço do dia agora, sem esperar as 15h. Confirma antes porque isto
+// posta no grupo — e o grupo tem gente de verdade.
+async function dispararAbraco() {
+  if (!confirm('Sortear um GM e mandar o abraço no grupo agora?\n\nIsso posta no The Pathetic, mesmo que o abraço de hoje já tenha saído.')) return;
+  const btn = document.getElementById('btnAbraco');
+  const original = btn ? btn.innerHTML : null;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  }
+  try {
+    const r = await api('admin.php?action=disparar_abraco');
+    showAlert('success',
+      `Abraço sorteado: ${r.nome} (${r.time}).` +
+      (r.com_mencao ? '' : ' Sem telefone cadastrado, então foi o nome puro, sem marcar.') +
+      ' A mensagem está na fila — o bot entrega em alguns segundos.');
+  } catch (e) {
+    showAlert('danger', e.message || 'Falha ao disparar o abraço.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = original; }
+  }
+}
+
 async function syncFotosNBA() {
   const btn = document.getElementById('btnSyncFotos');
   if (!btn) return;

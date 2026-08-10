@@ -434,6 +434,37 @@ if ($method === 'GET') {
         // direto). Roda todo dia sozinho pelo cron; isto aqui é o botão em
         // Gestão pra rodar na hora, sem esperar. Não é por liga — toca o
         // cadastro inteiro — então só admin global mesmo.
+        // Manda o abraço do dia na hora, sem esperar as 15h. Mesma função do
+        // cron, com forçar=true: ignora o horário e a marca do dia, porque quem
+        // clicou quer agora, mesmo que já tenha saído hoje.
+        case 'disparar_abraco': {
+            if (!$isGlobalAdminApi) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Apenas administradores globais.']);
+                break;
+            }
+            require_once __DIR__ . '/../backend/whatsapp_abraco.php';
+            $r = enviarAbracoDoDia($pdo, true);
+
+            if (!$r['enviado']) {
+                $motivos = [
+                    'sem_grupo'      => 'O grupo principal do WhatsApp não está configurado.',
+                    'sem_candidatos' => 'Nenhum GM com time pra sortear.',
+                    'bot_desligado'  => 'O bot do WhatsApp está desligado — a mensagem não entrou na fila.',
+                ];
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $motivos[$r['motivo']] ?? $r['motivo']]);
+                break;
+            }
+            echo json_encode([
+                'success' => true,
+                'nome' => $r['nome'],
+                'time' => $r['time'],
+                'com_mencao' => $r['com_mencao'],
+            ]);
+            break;
+        }
+
         case 'sync_fotos':
             if (!$isGlobalAdminApi) {
                 http_response_code(403);
