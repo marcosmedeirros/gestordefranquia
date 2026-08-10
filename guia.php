@@ -166,6 +166,11 @@ td{padding:10px 14px;border-top:1px solid var(--border);color:var(--text-2)}
 td:first-child{color:var(--text);font-weight:600}
 .num{text-align:right;font-variant-numeric:tabular-nums}
 
+/* comandos do bot */
+code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:13px;
+  padding:2px 7px;border-radius:6px;background:var(--panel-2);border:1px solid var(--border);
+  color:var(--text);white-space:nowrap}
+
 /* glossario */
 dl{display:grid;gap:0}
 dt{font-weight:800;font-size:14.5px;margin-top:14px;color:var(--text)}
@@ -437,6 +442,25 @@ html{scroll-behavior:smooth}
     <div class="aba">
       <div class="aba-cab"><span class="aba-ico"><i class="bi bi-controller"></i></span><span class="aba-nome">Games</span></div>
       <p>Os joguinhos da FBA. Jogando você acumula moedas e <strong>FBA Points</strong>, que são trocados por itens dentro dos jogos.</p>
+    </div>
+
+    <div class="aba">
+      <div class="aba-cab"><span class="aba-ico"><i class="bi bi-whatsapp"></i></span><span class="aba-nome">O bot do grupo</span></div>
+      <p>No grupo do WhatsApp dá pra consultar a liga sem abrir o site. Escreva o comando começando com barra e ele responde ali mesmo:</p>
+      <div class="tabela-wrap">
+        <table>
+          <thead><tr><th>Comando</th><th>O que responde</th></tr></thead>
+          <tbody>
+            <tr><td><code>/jogador lebron</code></td><td>Time, posição, idade, OVR e salário</td></tr>
+            <tr><td><code>/time lakers</code></td><td>Elenco, folha, campanha e os melhores</td></tr>
+            <tr><td><code>/cap lakers</code></td><td>Folha detalhada, espaço no CAP e maiores salários</td></tr>
+            <tr><td><code>/picks lakers</code></td><td>Todas as picks do time, por ano</td></tr>
+            <tr><td><code>/classificacao elite</code></td><td>A tabela da liga</td></tr>
+            <tr><td><code>/ajuda</code></td><td>A lista completa</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Não precisa escrever o nome inteiro: <code>/cap lakers</code> basta. Se o pedaço servir pra mais de um time, ele lista as opções em vez de chutar.</p>
     </div>
   </section>
 

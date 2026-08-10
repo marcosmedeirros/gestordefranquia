@@ -251,16 +251,20 @@ function whatsappProcessarFila(PDO $pdo, int $limite = 10): array
     // Único ponto por onde todo envio passa — o imediato (via shutdown) e o do
     // cron. Barrando aqui, a mensagem gerada de madrugada fica na fila com as
     // tentativas intactas e sai quando a janela abre, sem queimar o backoff.
-    if (!whatsappDentroDaJanela()) {
-        $out['fora_da_janela'] = true;
-        return $out;
-    }
+    //
+    // A exceção é 'comando': alguém digitou /cap no grupo e está olhando pro
+    // celular esperando. A janela existe pra não despejar aviso no grupo fora
+    // de hora, não pra ignorar quem perguntou.
+    $foraDaJanela = !whatsappDentroDaJanela();
+    if ($foraDaJanela) $out['fora_da_janela'] = true;
+    $filtroTipo = $foraDaJanela ? " AND tipo = 'comando'" : '';
 
     try {
         $stmt = $pdo->prepare("SELECT id, destino, texto, tentativas FROM whatsapp_fila
                                WHERE enviado_em IS NULL
                                  AND tentativas < " . WHATSAPP_MAX_TENTATIVAS . "
                                  AND (proxima_tentativa IS NULL OR proxima_tentativa <= NOW())
+                                 {$filtroTipo}
                                ORDER BY id ASC LIMIT " . max(1, (int)$limite));
         $stmt->execute();
         $pendentes = $stmt->fetchAll(PDO::FETCH_ASSOC);

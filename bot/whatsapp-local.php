@@ -7,14 +7,19 @@
  * máquina (IP residencial, atrás de NAT), então o sentido é invertido: este
  * script puxa a fila do site, envia pela Evolution local e devolve o resultado.
  *
- * Ciclo, a cada execução:
+ * Ciclo, repetido até fechar o minuto:
  *   1. GET  /api/whatsapp-bot.php?action=pendentes
  *   2. POST na Evolution local, uma mensagem por vez
  *   3. POST /api/whatsapp-bot.php action=resultado
  *
- * A janela de horário (08:45–18:00) é decidida no SERVIDOR: fora dela o passo 1
- * volta vazio e este script não faz nada. Mudar o expediente não exige tocar
- * aqui.
+ * Ele não faz uma passada só e sai: o Agendador do Windows não desce de 1
+ * minuto, e o bot responde /comando no grupo — esperar um minuto por isso seria
+ * inaceitável. Então cada execução fica viva ~55s e bate no site de poucos em
+ * poucos segundos, com o intervalo ditado pelo servidor.
+ *
+ * A janela de horário (08:45–18:00) é decidida no SERVIDOR e só vale pro aviso
+ * automático; RESPOSTA A COMANDO sai a qualquer hora, porque tem alguém do
+ * outro lado esperando. Mudar o expediente não exige tocar aqui.
  *
  * PC dormindo ou desligado não quebra nada: ninguém vem buscar, a fila espera,
  * e nenhuma das 8 tentativas é gasta à toa.
@@ -78,64 +83,89 @@ $site  = rtrim($cfg['site_url'], '/');
 $token = $cfg['bot_token'];
 $hdrAuth = ['Authorization: Bearer ' . $token];
 
-// ── 1. Puxa a fila ──────────────────────────────────────────────────────
-[$st, $resp, $erroRede] = req($site . '/api/whatsapp-bot.php?action=pendentes&limite=50', null, $hdrAuth);
-
-if ($erroRede)  { logar("sem conexao com o site: $erroRede"); exit(1); }
-if ($st === 401) { logar('token recusado pelo site — confira bot_token'); exit(1); }
-if ($st !== 200) { logar("site respondeu HTTP $st"); exit(1); }
-
-if (empty($resp['janela'])) {
-    // Silencioso de propósito: rodando de minuto em minuto, logar isso encheria
-    // o arquivo de linhas inúteis a noite inteira.
-    exit(0);
-}
-
-$msgs = $resp['mensagens'] ?? [];
-if (!$msgs) exit(0);
-
-// ── 2. Envia pela Evolution local ───────────────────────────────────────
 $urlEnvio = rtrim($cfg['evolution_url'], '/') . '/message/sendText/' . rawurlencode($cfg['evolution_instancia']);
 $hdrEvo = ['apikey: ' . $cfg['evolution_api_key']];
 
-$resultados = [];
-$ok = 0; $falhou = 0;
-$seguidasDeRede = 0;
+// O agendador do Windows não desce de 1 minuto, e esperar até 1 minuto por uma
+// resposta de /cap no grupo é ruim demais — quem perguntou desiste antes. Então
+// cada execução fica viva quase o minuto inteiro, batendo no site de poucos em
+// poucos segundos. O intervalo quem dita é o servidor (rápido no expediente,
+// devagar de madrugada), pelo mesmo motivo da janela morar lá.
+$FIM_DA_RODADA = time() + 55;
+$totalOk = 0; $totalFalhou = 0;
 
-foreach ($msgs as $m) {
-    // 15s: envio bom responde em menos de 1s. O que estoura esse tempo é
-    // Evolution travada ou destino inválido — e com o agendador rodando de
-    // minuto em minuto, esperar 30s por mensagem empilharia execuções.
-    [$s, $r, $e] = req($urlEnvio, ['number' => $m['destino'], 'text' => $m['texto']], $hdrEvo, 15);
-    $deuCerto = !$e && $s >= 200 && $s < 300;
-    if ($deuCerto) { $ok++; } else { $falhou++; }
-    $resultados[] = [
-        'id'  => (int)$m['id'],
-        'ok'  => $deuCerto,
-        'erro'=> $deuCerto ? null : ($e ?: ('evolution HTTP ' . $s . ' ' . mb_substr(json_encode($r, JSON_UNESCAPED_UNICODE), 0, 120))),
-    ];
+while (true) {
+    // ── 1. Puxa a fila ──────────────────────────────────────────────────
+    [$st, $resp, $erroRede] = req($site . '/api/whatsapp-bot.php?action=pendentes&limite=50', null, $hdrAuth);
 
-    // Erro de REDE seguido é Evolution fora do ar: insistir no lote inteiro só
-    // queima uma tentativa de cada mensagem à toa. O resto fica pra próxima
-    // rodada, intacto.
-    $seguidasDeRede = $e ? $seguidasDeRede + 1 : 0;
-    if ($seguidasDeRede >= 3) {
-        logar('evolution nao respondeu 3x seguidas — parando o lote');
-        break;
+    if ($erroRede)   { logar("sem conexao com o site: $erroRede"); exit(1); }
+    if ($st === 401) { logar('token recusado pelo site — confira bot_token'); exit(1); }
+    if ($st !== 200) { logar("site respondeu HTTP $st"); exit(1); }
+
+    $intervalo = max(3, min(60, (int)($resp['intervalo'] ?? 5)));
+    $msgs = $resp['mensagens'] ?? [];
+
+    if (!$msgs) {
+        // Nada a fazer. Dorme e tenta de novo, se ainda couber no minuto.
+        // Silencioso de propósito: logar cada batida encheria o arquivo de
+        // linhas inúteis a noite inteira.
+        if (time() + $intervalo >= $FIM_DA_RODADA) break;
+        sleep($intervalo);
+        continue;
     }
 
-    // Respiro entre mensagens: disparar em rajada num número pareado é o tipo
-    // de padrão que a Meta usa pra identificar automação.
-    if (count($msgs) > 1) usleep(1200000);
+    processarLote($msgs, $urlEnvio, $hdrEvo, $site, $hdrAuth, $totalOk, $totalFalhou);
+
+    if (time() >= $FIM_DA_RODADA) break;
+    sleep(1);   // acabou de enviar: volta logo, pode ter vindo mais coisa
 }
 
-// ── 3. Devolve o resultado ──────────────────────────────────────────────
-[$st2, $r2, $e2] = req($site . '/api/whatsapp-bot.php?action=resultado', ['resultados' => $resultados], $hdrAuth);
-if ($e2 || $st2 !== 200) {
-    // As mensagens foram enviadas mas o site não soube: elas continuam
-    // pendentes e sairiam de novo. Registrar isso é o que permite perceber.
-    logar("AVISO: enviadas $ok mas o site nao confirmou (HTTP $st2 $e2) — podem repetir");
-    exit(1);
-}
+if ($totalOk || $totalFalhou) logar("enviadas=$totalOk falhas=$totalFalhou");
+exit(0);
 
-logar("enviadas=$ok falhas=$falhou");
+/** Envia um lote pela Evolution e devolve o resultado pro site. */
+function processarLote(array $msgs, string $urlEnvio, array $hdrEvo, string $site, array $hdrAuth, int &$totalOk, int &$totalFalhou): void
+{
+    $resultados = [];
+    $ok = 0; $falhou = 0;
+    $seguidasDeRede = 0;
+
+    foreach ($msgs as $m) {
+        // 15s: envio bom responde em menos de 1s. O que estoura esse tempo é
+        // Evolution travada ou destino inválido — e com o agendador rodando de
+        // minuto em minuto, esperar 30s por mensagem empilharia execuções.
+        [$s, $r, $e] = req($urlEnvio, ['number' => $m['destino'], 'text' => $m['texto']], $hdrEvo, 15);
+        $deuCerto = !$e && $s >= 200 && $s < 300;
+        if ($deuCerto) { $ok++; } else { $falhou++; }
+        $resultados[] = [
+            'id'  => (int)$m['id'],
+            'ok'  => $deuCerto,
+            'erro'=> $deuCerto ? null : ($e ?: ('evolution HTTP ' . $s . ' ' . mb_substr(json_encode($r, JSON_UNESCAPED_UNICODE), 0, 120))),
+        ];
+
+        // Erro de REDE seguido é Evolution fora do ar: insistir no lote inteiro só
+        // queima uma tentativa de cada mensagem à toa. O resto fica pra próxima
+        // rodada, intacto.
+        $seguidasDeRede = $e ? $seguidasDeRede + 1 : 0;
+        if ($seguidasDeRede >= 3) {
+            logar('evolution nao respondeu 3x seguidas — parando o lote');
+            break;
+        }
+
+        // Respiro entre mensagens: disparar em rajada num número pareado é o tipo
+        // de padrão que a Meta usa pra identificar automação.
+        if (count($msgs) > 1) usleep(1200000);
+    }
+
+    // ── 3. Devolve o resultado ──────────────────────────────────────────
+    [$st2, $r2, $e2] = req($site . '/api/whatsapp-bot.php?action=resultado', ['resultados' => $resultados], $hdrAuth);
+    if ($e2 || $st2 !== 200) {
+        // As mensagens foram enviadas mas o site não soube: elas continuam
+        // pendentes e sairiam de novo. Registrar isso é o que permite perceber.
+        logar("AVISO: enviadas $ok mas o site nao confirmou (HTTP $st2 $e2) — podem repetir");
+        exit(1);
+    }
+
+    $totalOk += $ok;
+    $totalFalhou += $falhou;
+}

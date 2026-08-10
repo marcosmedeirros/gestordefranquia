@@ -50,7 +50,11 @@ if ($esperado === '' || $enviado === '' || !hash_equals($esperado, $enviado)) {
 }
 
 // Marca que o worker deu sinal de vida — serve pra saber se o PC está de pé.
-$pdo->prepare("UPDATE whatsapp_config SET bot_visto_em = NOW() WHERE id = 1")->execute();
+// Só de minuto em minuto: agora o worker bate aqui de poucos em poucos
+// segundos e não faz sentido gastar um UPDATE em cada batida.
+$pdo->prepare("UPDATE whatsapp_config SET bot_visto_em = NOW()
+               WHERE id = 1 AND (bot_visto_em IS NULL OR bot_visto_em < NOW() - INTERVAL 1 MINUTE)")
+    ->execute();
 
 $acao = $_GET['action'] ?? $_POST['action'] ?? '';
 
@@ -58,25 +62,30 @@ $acao = $_GET['action'] ?? $_POST['action'] ?? '';
 if ($acao === 'pendentes') {
     // A janela de horário mora aqui, no servidor: o worker não precisa saber
     // de horário nenhum, e mudar o expediente não exige tocar na máquina dele.
-    if (!whatsappDentroDaJanela()) {
-        botResponder(200, [
-            'janela' => false,
-            'inicio' => WHATSAPP_JANELA_INICIO,
-            'fim'    => WHATSAPP_JANELA_FIM,
-            'mensagens' => [],
-        ]);
-    }
+    //
+    // Fora da janela só sai 'comando': alguém digitou /cap no grupo e está
+    // esperando resposta. A janela existe pra não despejar aviso automático de
+    // madrugada, não pra deixar quem perguntou no vácuo.
+    $naJanela = whatsappDentroDaJanela();
+    $filtroTipo = $naJanela ? '' : " AND tipo = 'comando'";
 
     $limite = max(1, min(200, (int)($_GET['limite'] ?? 50)));
     $st = $pdo->prepare("SELECT id, destino, texto FROM whatsapp_fila
                          WHERE enviado_em IS NULL
                            AND tentativas < " . WHATSAPP_MAX_TENTATIVAS . "
                            AND (proxima_tentativa IS NULL OR proxima_tentativa <= NOW())
+                           {$filtroTipo}
                          ORDER BY id ASC LIMIT $limite");
     $st->execute();
 
     botResponder(200, [
-        'janela' => true,
+        'janela' => $naJanela,
+        'inicio' => WHATSAPP_JANELA_INICIO,
+        'fim'    => WHATSAPP_JANELA_FIM,
+        // De quantos em quantos segundos o worker deve voltar. No expediente,
+        // rápido — é quando alguém digita comando e fica olhando pro celular.
+        // De madrugada, devagar: comando ainda é respondido, só sem pressa.
+        'intervalo' => $naJanela ? 5 : 20,
         'mensagens' => $st->fetchAll(PDO::FETCH_ASSOC),
     ]);
 }
