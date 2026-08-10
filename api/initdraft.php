@@ -20,7 +20,27 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 // Usuário (pode não estar logado; token controla acesso)
 $user = getUserSession();
-$isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
+$isAdminGeral = ($user['user_type'] ?? 'jogador') === 'admin';
+
+// Admin de liga manda no draft DA LIGA DELE. Antes só o admin geral
+// passava por aqui, e o admin de liga não conseguia nem abrir o painel do
+// draft da própria liga — tinha que chamar alguém.
+//
+// $isAdmin fica sem liga porque as ações genéricas (criar sessão, listar)
+// não têm sessão pra consultar; quem é admin SÓ de liga é barrado nelas e
+// liberado nas que tocam uma sessão, via ehAdminDaSessao().
+$minhasLigasAdmin = ($user && isset($user['id']))
+    ? array_map('strtoupper', getAdminLeagues($pdo, (int)$user['id']))
+    : [];
+$isAdmin = $isAdminGeral || !empty($minhasLigasAdmin);
+
+/** Admin geral, ou admin da liga desta sessão de draft. */
+function ehAdminDaSessao(?array $session): bool {
+    global $isAdminGeral, $minhasLigasAdmin;
+    if ($isAdminGeral) return true;
+    if (!$session) return false;
+    return in_array(strtoupper((string)($session['league'] ?? '')), $minhasLigasAdmin, true);
+}
 
 function randomToken($len = 32) {
     return bin2hex(random_bytes(max(8, (int)($len/2))));
@@ -38,7 +58,7 @@ function ensureAdminOrToken($session, $token) {
     // inválido e o código seguinte acessava $session['id'] num false, soltando
     // warning do PHP no meio do JSON em vez de um erro limpo.
     if (!$session) return false;
-    if ($isAdmin) return true;
+    if (ehAdminDaSessao($session)) return true;
     return hash_equals($session['access_token'], (string)$token);
 }
 
@@ -723,6 +743,11 @@ if ($method === 'POST') {
                 $season = $stmtS->fetch(PDO::FETCH_ASSOC);
                 if (!$season) throw new InvalidArgumentException('Temporada não encontrada');
 
+                // A liga vem da temporada, não da sessão (que ainda não existe).
+                // Sem isto, agora que admin de liga passa no $isAdmin, ele
+                // poderia criar o draft de qualquer liga.
+                if (!ehAdminDaSessao($season)) throw new InvalidArgumentException('Apenas administradores desta liga');
+
                 // Verifica se já existe
                 $stmtChk = $pdo->prepare('SELECT id FROM initdraft_sessions WHERE season_id = ?');
                 $stmtChk->execute([$seasonId]);
@@ -1231,10 +1256,12 @@ if ($method === 'POST') {
             // nem pelo site, nem por autopick, nem pelo cron do mock. Serve pra
             // quando aparece confusão de ordem ou troca no meio do draft.
             case 'toggle_pausa': {
-                if (!$isAdmin) throw new InvalidArgumentException('Apenas administradores');
                 $sessionId = (int)($data['session_id'] ?? 0);
                 $session = getSessionById($pdo, $sessionId);
                 if (!$session) throw new InvalidArgumentException('Sessão inválida');
+                // Depois de carregar a sessão, não antes: é ela que diz de qual
+                // liga é o draft, e admin de liga só manda no dele.
+                if (!ehAdminDaSessao($session)) throw new InvalidArgumentException('Apenas administradores desta liga');
 
                 $novo = array_key_exists('pausado', $data)
                     ? (int)!empty($data['pausado'])
@@ -1251,10 +1278,12 @@ if ($method === 'POST') {
             // certo. Diferente de set_total_rounds, que só vale antes da
             // primeira pick — este existe pra usar com o draft rolando.
             case 'admin_add_round': {
-                if (!$isAdmin) throw new InvalidArgumentException('Apenas administradores');
                 $sessionId = (int)($data['session_id'] ?? 0);
                 $session = getSessionById($pdo, $sessionId);
                 if (!$session) throw new InvalidArgumentException('Sessão inválida');
+                // Depois de carregar a sessão, não antes: é ela que diz de qual
+                // liga é o draft, e admin de liga só manda no dele.
+                if (!ehAdminDaSessao($session)) throw new InvalidArgumentException('Apenas administradores desta liga');
                 if (($session['status'] ?? '') === 'completed') throw new InvalidArgumentException('Draft já finalizado');
 
                 // O que vale é a rodada que EXISTE na tabela de picks, não o
@@ -1317,10 +1346,12 @@ if ($method === 'POST') {
             // ADMIN: desfaz a última pick — devolve o jogador pro pool e volta
             // o ponteiro da sessão pro time que escolheu, pra ele escolher de novo.
             case 'admin_undo_last_pick': {
-                if (!$isAdmin) throw new InvalidArgumentException('Apenas administradores');
                 $sessionId = (int)($data['session_id'] ?? 0);
                 $session = getSessionById($pdo, $sessionId);
                 if (!$session) throw new InvalidArgumentException('Sessão inválida');
+                // Depois de carregar a sessão, não antes: é ela que diz de qual
+                // liga é o draft, e admin de liga só manda no dele.
+                if (!ehAdminDaSessao($session)) throw new InvalidArgumentException('Apenas administradores desta liga');
 
                 $undone = undoLastInitDraftPick($pdo, $session);
                 echo json_encode(['success' => true] + $undone);
@@ -1328,11 +1359,13 @@ if ($method === 'POST') {
             }
 
             case 'admin_make_pick': {
-                if (!$isAdmin) throw new InvalidArgumentException('Apenas administradores');
                 $sessionId = (int)($data['session_id'] ?? 0);
                 $playerId = (int)($data['player_id'] ?? 0);
                 $session = getSessionById($pdo, $sessionId);
                 if (!$session) throw new InvalidArgumentException('Sessão inválida');
+                // Depois de carregar a sessão, não antes: é ela que diz de qual
+                // liga é o draft, e admin de liga só manda no dele.
+                if (!ehAdminDaSessao($session)) throw new InvalidArgumentException('Apenas administradores desta liga');
 
                 ensureDailyPickWindow($session, tzNow());
 
@@ -1344,10 +1377,12 @@ if ($method === 'POST') {
 
             // ADMIN: abrir rodada imediatamente (sem aguardar virada do dia)
             case 'admin_open_next_round_now': {
-                if (!$isAdmin) throw new InvalidArgumentException('Apenas administradores');
                 $sessionId = (int)($data['session_id'] ?? 0);
                 $session = getSessionById($pdo, $sessionId);
                 if (!$session) throw new InvalidArgumentException('Sessão inválida');
+                // Depois de carregar a sessão, não antes: é ela que diz de qual
+                // liga é o draft, e admin de liga só manda no dele.
+                if (!ehAdminDaSessao($session)) throw new InvalidArgumentException('Apenas administradores desta liga');
 
                 ensureDailyScheduleColumns($pdo);
 

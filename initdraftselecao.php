@@ -11,12 +11,29 @@ if (!$token) {
 
 $pdo = db();
 $user = getUserSession();
-// Admin geral mesmo — não hasAdminAccess() (que também conta admin de
-// QUALQUER liga), pois toda ação administrativa do draft na api/initdraft.php
-// já exige user_type==='admin'. Contar admin de outra liga aqui só mostrava
-// o Painel Admin (e o botão Escolher de qualquer time) pra quem não tinha
-// poder nenhum de verdade — o servidor barrava, mas o botão aparecia.
-$isAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
+// Admin geral, OU admin da liga deste draft.
+//
+// Antes era só o admin geral, com um motivo bom: a api/initdraft.php exigia
+// user_type==='admin' em toda ação, então mostrar o painel pro admin de liga
+// exibiria botões que o servidor recusa. Agora a API checa por liga
+// (ehAdminDaSessao), então dá pra abrir a tela — e o admin de liga
+// finalmente consegue tocar o draft da própria liga sem chamar alguém.
+//
+// A liga sai do token, não da sessão do usuário: é o token que identifica
+// QUAL draft está aberto na tela.
+$isAdminGeral = ($user['user_type'] ?? 'jogador') === 'admin';
+$isAdmin = $isAdminGeral;
+if (!$isAdmin && $user && isset($user['id'])) {
+    try {
+        $stmtLiga = $pdo->prepare('SELECT league FROM initdraft_sessions WHERE access_token = ? LIMIT 1');
+        $stmtLiga->execute([$token]);
+        $ligaDoDraft = strtoupper((string)($stmtLiga->fetchColumn() ?: ''));
+        $isAdmin = $ligaDoDraft !== '' &&
+                   in_array($ligaDoDraft, array_map('strtoupper', getAdminLeagues($pdo, (int)$user['id'])), true);
+    } catch (Throwable $e) {
+        $isAdmin = false;
+    }
+}
 // Todos os times do usuário (pode ter um em cada liga) — a liga certa só é
 // conhecida depois que o estado da sessão carrega no JS.
 $userTeams = [];
