@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LaunchAgent do worker de WhatsApp — o equivalente macOS da tarefa agendada
+  do Windows, e mais simples que ela.
+
+  No Windows precisou de um .vbs só pra o PHP não piscar uma janela de CMD
+  a cada minuto. Aqui isso não existe: o launchd roda sem console nenhum.
+
+  KeepAlive faz o que o Agendador não fazia — se o worker morrer por
+  qualquer motivo, o launchd sobe outro na hora. E como o worker fica vivo
+  ~55s por execução, na prática ele nunca para.
+
+  RunAtLoad + o agente estar em ~/Library/LaunchAgents faz voltar sozinho
+  depois de reiniciar (assumindo login automático, ver instalar-mac.sh).
+
+  ThrottleInterval segura o caso ruim: se o site estiver fora e o worker
+  sair com erro na hora, sem isso o launchd tentaria em looping apertado.
+
+  NÃO editar à mão — o instalar-mac.sh preenche os caminhos e instala.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.fba.whatsapp</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__PHP__</string>
+        <string>__WORKER__</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__DIR__</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>__DIR__/whatsapp-local.log</string>
+    <key>StandardErrorPath</key>
+    <string>__DIR__/whatsapp-local.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- Sem isto o worker herda um PATH mínimo e não acha o php nem o curl. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>

@@ -1,0 +1,74 @@
+# Evolution API — o que segura a conexão do WhatsApp da FBA.
+#
+# Roda na MÁQUINA de quem hospeda o bot, não na Hostinger: o número está
+# pareado com um celular de verdade e a Evolution nunca fica exposta na
+# internet. Quem puxa a fila do site é bot/whatsapp-local.php.
+#
+# Porta 8081 porque a 8080 já é do container web do gestordefranquia.
+# O Postgres daqui é só da Evolution — não encosta no MariaDB do projeto.
+#
+# Subir:   EVO_API_KEY=<chave> docker compose up -d
+# Parear:  abrir http://localhost:8081/manager e ler o QR code
+#
+# A sessão pareada vive no volume evolution_instances. Levar o bot pra
+# outra máquina sem copiar esse volume significa parear de novo — o que
+# costuma ser mais simples que migrar o volume.
+
+services:
+  evolution:
+    image: evoapicloud/evolution-api:latest
+    container_name: fba-evolution
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      SERVER_URL: http://localhost:8081
+      AUTHENTICATION_API_KEY: ${EVO_API_KEY}
+
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evo:evo@evolution-db:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: fba
+
+      # Guardar só o que a instância precisa pra reconectar. Histórico de
+      # conversa, contatos e chats não interessam — a FBA só manda mensagem,
+      # nunca lê. Menos dado guardado, menos coisa pra vazar.
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_LABELS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+
+      LOG_LEVEL: ERROR,WARN,INFO
+      LOG_COLOR: "true"
+      DEL_INSTANCE: "false"
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      evolution-db:
+        condition: service_healthy
+
+  evolution-db:
+    image: postgres:16-alpine
+    container_name: fba-evolution-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: evo
+      POSTGRES_PASSWORD: evo
+      POSTGRES_DB: evolution
+    volumes:
+      - evolution_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evo -d evolution"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  evolution_instances:
+  evolution_pg:
