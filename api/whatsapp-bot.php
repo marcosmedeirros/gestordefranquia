@@ -90,6 +90,39 @@ if ($acao === 'pendentes') {
     ]);
 }
 
+// ── Diagnóstico ─────────────────────────────────────────────────────────
+// A corrente tem cinco elos (flag ligada, grupo definido, webhook apontado,
+// worker vivo, fila escoando) e quando o bot "não responde" o sintoma é o
+// mesmo para qualquer um deles. Isto diz qual elo está frouxo sem precisar
+// abrir o banco.
+if ($acao === 'diagnostico') {
+    $cfg = $pdo->query("SELECT grupo_principal, ativo, bot_visto_em FROM whatsapp_config WHERE id = 1")
+               ->fetch(PDO::FETCH_ASSOC) ?: [];
+    $grupo = trim((string)($cfg['grupo_principal'] ?? ''));
+
+    $fila = $pdo->query("SELECT
+            COUNT(*) total,
+            SUM(enviado_em IS NULL) pendentes,
+            SUM(enviado_em IS NOT NULL) enviadas,
+            SUM(tipo = 'comando') comandos
+        FROM whatsapp_fila")->fetch(PDO::FETCH_ASSOC);
+
+    $ultimoErro = $pdo->query("SELECT ultimo_erro FROM whatsapp_fila
+                               WHERE ultimo_erro IS NOT NULL ORDER BY id DESC LIMIT 1")->fetchColumn();
+
+    botResponder(200, [
+        'ativo'          => (bool)($cfg['ativo'] ?? 0),
+        'grupo_definido' => $grupo !== '',
+        // Só o final do JID: o suficiente pra conferir, sem despejar o
+        // identificador do grupo numa resposta HTTP.
+        'grupo_fim'      => $grupo === '' ? null : '…' . mb_substr($grupo, -12),
+        'bot_visto_em'   => $cfg['bot_visto_em'] ?? null,
+        'dentro_da_janela' => whatsappDentroDaJanela(),
+        'fila'           => array_map('intval', $fila ?: []),
+        'ultimo_erro'    => $ultimoErro ?: null,
+    ]);
+}
+
 // ── Resultado ───────────────────────────────────────────────────────────
 if ($acao === 'resultado') {
     $corpo = json_decode(file_get_contents('php://input'), true);
