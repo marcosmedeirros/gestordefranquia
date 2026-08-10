@@ -15,11 +15,17 @@
 $ErrorActionPreference = 'Stop'
 
 $nomeTarefa = 'FBA WhatsApp Worker'
-$php        = 'C:\xampp\php\php.exe'
-$script     = Join-Path (Split-Path -Parent $PSScriptRoot) 'bot\whatsapp-local.php'
 
-if (-not (Test-Path $php))    { throw "PHP nao encontrado em $php" }
-if (-not (Test-Path $script)) { throw "Worker nao encontrado em $script" }
+# wscript + .vbs em vez de chamar o php.exe direto. O php e um programa de
+# console: o Windows abria uma janela de CMD por um instante a cada minuto, o
+# dia inteiro. O -Hidden das opcoes da tarefa NAO resolve isso — aquilo esconde
+# a tarefa na lista do Agendador, nao a janela do processo. O wscript nao tem
+# console proprio e o .vbs inicia o php ja oculto.
+$php        = 'C:\Windows\System32\wscript.exe'
+$script     = Join-Path (Split-Path -Parent $PSScriptRoot) 'bot\whatsapp-local.vbs'
+
+if (-not (Test-Path $php))    { throw "wscript nao encontrado em $php" }
+if (-not (Test-Path $script)) { throw "Wrapper nao encontrado em $script" }
 
 $config = Join-Path (Split-Path -Parent $PSScriptRoot) 'bot\whatsapp-local.config.php'
 if (-not (Test-Path $config)) {
