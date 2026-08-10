@@ -230,16 +230,18 @@ function _setBracketWinner(conf, round, idx, winId) {
     _saveBracketCache(seasonsState.currentLeague, seasonsState.currentSeasonId);
 }
 
-/** Em quantos jogos a série foi (4 a 7). Vazio = ainda não informado. */
+/**
+ * Em quantos jogos a série foi (4 a 7). Clicar na bolinha já marcada limpa —
+ * é como desmarcar o vencedor, e evita ficar preso num número errado.
+ */
 function _setBracketJogos(conf, round, idx, valor) {
     const b = _bracket;
     if (!b) return;
     const m = round === 'final' ? b.final : (round === 'cf' ? b[conf]?.cf : b[conf]?.[round]?.[idx]);
     if (!m) return;
     const n = Number(valor);
-    m.g = (n >= 4 && n <= 7) ? n : null;
-    // Sem re-render: o <select> já mostra o que foi escolhido, e redesenhar
-    // roubaria o foco de quem está preenchendo a coluna toda.
+    m.g = (n >= 4 && n <= 7 && m.g !== n) ? n : null;
+    _renderBracket(seasonsState.currentLeague);
     _saveBracketCache(seasonsState.currentLeague, seasonsState.currentSeasonId);
 }
 
@@ -271,7 +273,7 @@ function _ensureBracketStyles() {
     if (document.getElementById('bk-styles')) return;
     const s = document.createElement('style');
     s.id = 'bk-styles';
-    s.textContent = `.bk-wrap{display:flex;align-items:stretch;overflow-x:auto;padding-bottom:4px;gap:4px}.bk-col{display:flex;flex-direction:column;min-width:148px;flex-shrink:0}.bk-col-mid{display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:148px;flex-shrink:0;padding:0 4px}.bk-col-label{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:0 0 5px}.bk-matchup{border:1px solid #272727;border-radius:8px;overflow:hidden;background:#141414;margin:1px 0}.bk-empty{height:54px;display:flex;align-items:center;justify-content:center;color:#2a2a2a;font-size:18px;margin:1px 0}.bk-team{display:flex;align-items:center;padding:5px 7px;font-size:12px;cursor:pointer;border-bottom:1px solid #1c1c1c;transition:background .1s;user-select:none;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bk-team:last-child{border-bottom:none}.bk-team:hover:not(.bk-loss):not(.bk-tbd){background:rgba(255,107,0,.12)}.bk-win{background:rgba(255,107,0,.2)!important;color:#ff6b00;font-weight:700}.bk-loss{opacity:.28;cursor:default}.bk-tbd{color:#383838;cursor:default;font-style:italic}.bk-seed{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:3px;background:#202020;color:#777;font-size:9px;font-weight:700;margin-right:5px;flex-shrink:0}.bk-win .bk-seed{background:rgba(255,107,0,.3);color:#ff6b00}.bk-sp{flex:1}.bk-jogos{border-top:1px solid #1c1c1c;padding:3px 5px;background:#111}.bk-jogos select{width:100%;background:#1a1a1a;color:#aaa;border:1px solid #2a2a2a;border-radius:4px;font-size:10px;padding:2px 4px;cursor:pointer}.bk-jogos select:focus{outline:none;border-color:#ff6b00;color:#ff6b00}.bk-champ{margin-top:8px;padding:7px 10px;background:rgba(255,107,0,.12);border:1px solid rgba(255,107,0,.5);border-radius:9px;text-align:center}`;
+    s.textContent = `.bk-wrap{display:flex;align-items:stretch;overflow-x:auto;padding-bottom:4px;gap:4px}.bk-col{display:flex;flex-direction:column;min-width:148px;flex-shrink:0}.bk-col-mid{display:flex;flex-direction:column;justify-content:center;align-items:center;min-width:148px;flex-shrink:0;padding:0 4px}.bk-col-label{font-size:10px;color:#777;text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:0 0 5px}.bk-matchup{border:1px solid #272727;border-radius:8px;overflow:hidden;background:#141414;margin:1px 0}.bk-empty{height:54px;display:flex;align-items:center;justify-content:center;color:#2a2a2a;font-size:18px;margin:1px 0}.bk-team{display:flex;align-items:center;padding:5px 7px;font-size:12px;cursor:pointer;border-bottom:1px solid #1c1c1c;transition:background .1s;user-select:none;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bk-team:last-child{border-bottom:none}.bk-team:hover:not(.bk-loss):not(.bk-tbd){background:rgba(255,107,0,.12)}.bk-win{background:rgba(255,107,0,.2)!important;color:#ff6b00;font-weight:700}.bk-loss{opacity:.28;cursor:default}.bk-tbd{color:#383838;cursor:default;font-style:italic}.bk-seed{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:3px;background:#202020;color:#777;font-size:9px;font-weight:700;margin-right:5px;flex-shrink:0}.bk-win .bk-seed{background:rgba(255,107,0,.3);color:#ff6b00}.bk-sp{flex:1}.bk-jogos{border-top:1px solid #1c1c1c;padding:4px 5px;background:#111;display:flex;gap:4px;justify-content:center}.bk-bola{width:20px;height:20px;border-radius:50%;border:1px solid #2e2e2e;background:#1a1a1a;color:#666;font-size:10px;font-weight:700;line-height:1;padding:0;cursor:pointer;transition:all .12s;font-family:inherit}.bk-bola:hover{border-color:#ff6b00;color:#ff6b00}.bk-bola.on{background:#ff6b00;border-color:#ff6b00;color:#fff}.bk-champ{margin-top:8px;padding:7px 10px;background:rgba(255,107,0,.12);border:1px solid rgba(255,107,0,.5);border-radius:9px;text-align:center}`;
     document.head.appendChild(s);
 }
 
@@ -299,22 +301,21 @@ function _renderBracket(league) {
             return `<div class="${cls}" onclick="_setBracketWinner(${clickArg})">${sdg}${tn(team)}</div>`;
         };
 
-        // Em quantos jogos a série foi. Só aparece depois de escolher o
-        // vencedor — antes disso não há série, e um seletor solto convidaria a
-        // preencher pela metade. O placar não é digitado: numa melhor de 7 o
-        // vencedor sempre faz 4, então o número de jogos já diz 4-2, 4-1 etc.
+        // Em quantos jogos a série foi, em bolinhas. O placar não é digitado:
+        // numa melhor de 7 o vencedor sempre faz 4, então marcar 6 já diz 4-2.
+        // Aparecem assim que o confronto existe, mesmo antes de escolher o
+        // vencedor — quem está preenchendo já sabe o placar e não precisa
+        // fazer em duas passadas.
         let jogos = '';
-        if (w && t1 && t2) {
+        if (t1 && t2) {
             const gArg = round === 'final' ? `null,'final',0`
                        : round === 'cf'   ? `'${conf}','cf',0`
                        : `'${conf}','${round}',${idx}`;
-            const opcoes = [4, 5, 6, 7].map((n) =>
-                `<option value="${n}"${Number(m.g) === n ? ' selected' : ''}>4-${n - 4} (${n}j)</option>`).join('');
-            jogos = `<div class="bk-jogos">
-                <select onchange="_setBracketJogos(${gArg}, this.value)">
-                    <option value="">jogos…</option>${opcoes}
-                </select>
-            </div>`;
+            const bolas = [4, 5, 6, 7].map((n) =>
+                `<button type="button" class="bk-bola${Number(m.g) === n ? ' on' : ''}"
+                         title="4-${n - 4} em ${n} jogos"
+                         onclick="_setBracketJogos(${gArg}, ${n})">${n}</button>`).join('');
+            jogos = `<div class="bk-jogos">${bolas}</div>`;
         }
         return `<div class="bk-matchup">${btn(t1, s1)}${btn(t2, s2)}${jogos}</div>`;
     };
