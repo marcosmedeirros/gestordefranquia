@@ -7,9 +7,9 @@ $isLoggedIn = (bool) getUserSession();
 // Times por divisão, priorizando o logo mapeado em _partials/team-logos.php,
 // com fallback pra foto cadastrada no app e por último o logo padrão.
 $teamLogos = require __DIR__ . '/_partials/team-logos.php';
-$teamsByLeague = ['ELITE' => [], 'NEXT' => [], 'RISE' => []];
+$teamsByLeague = ['ELITE' => [], 'NEXT' => [], 'RISE' => [], 'ROOKIE' => []];
 try {
-    $stmt = $pdo->query("SELECT city, name, league, photo_url, conference FROM teams WHERE league IN ('ELITE','NEXT','RISE') ORDER BY league, city ASC, name ASC");
+    $stmt = $pdo->query("SELECT city, name, league, photo_url, conference FROM teams WHERE league IN ('ELITE','NEXT','RISE','ROOKIE') ORDER BY league, city ASC, name ASC");
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $t) {
         $teamName = trim($t['city'] . ' ' . $t['name']);
         $teamsByLeague[$t['league']][] = [
@@ -964,14 +964,15 @@ const DIVISIONS = [
     name: "Rookie",
     color: "#E8862E",
     logo: "/img/logo-rookie.png",
-    tag: "Liga de estreantes · Primeira temporada em breve",
-    desc: "Liga voltada para jogadores iniciantes no competitivo de 2K. Mentoria de jogadores das divisões superiores e ambiente acolhedor para novatos.",
+    tag: "Divisão de entrada · Franquias da NBA",
+    desc: "Por onde todo mundo começa. Na Rookie você comanda uma franquia da NBA e aprende o ofício por dentro: draft, trocas, folha e elenco. No fim da temporada os 4 primeiros sobem para a Rise — e quem sobe cria a própria franquia, com nome, cidade e escudo.",
     stats: [
-      { v: "3", l: "Times" },
-      { v: "Em breve", l: "Estreia" },
-      { v: "Fila", l: "de espera" },
+      // Vem do banco. O número escrito à mão que estava aqui ("3 Times")
+      // envelheceu junto com a liga e passou a mentir na página inicial.
+      { v: String(window.__SITE_DATA__?.leagueStats?.ROOKIE?.teams ?? 0), l: "Times" },
+      { v: "15", l: "Temporadas" },
+      { v: "4 sobem", l: "pra Rise" },
     ],
-    waitlist: true,
   },
 ];
 
@@ -979,6 +980,7 @@ const LEAGUE_STATUS = [
   { id: "ELITE", abbr: "ELT", name: "Elite", color: "#E63946" },
   { id: "NEXT", abbr: "NXT", name: "Next", color: "#2EA85B" },
   { id: "RISE", abbr: "RSE", name: "Rise", color: "#2A6FDB" },
+  { id: "ROOKIE", abbr: "RKE", name: "Rookie", color: "#E8862E" },
 ];
 
 const STEPS = [
@@ -1065,7 +1067,7 @@ function Hero({ onOpenWaitlist }) {
           <div className="marquee-track">
             {[...Array(2)].map((_, k) => (
               <span className="marquee-item" key={k}>
-                Elite <span className="dot">●</span> Next <span className="dot">●</span> Rise <span className="dot">●</span> Rookie: lista de espera <span className="dot">●</span> Pro-Am <span className="dot">●</span> NBA 2K <span className="dot">●</span> Brasil <span className="dot">●</span>&nbsp;
+                Elite <span className="dot">●</span> Next <span className="dot">●</span> Rise <span className="dot">●</span> Rookie <span className="dot">●</span> Pro-Am <span className="dot">●</span> NBA 2K <span className="dot">●</span> Brasil <span className="dot">●</span>&nbsp;
               </span>
             ))}
           </div>
@@ -1269,6 +1271,7 @@ function TeamsByDivision() {
     { id: "ELITE", label: "Elite", color: "#E63946" },
     { id: "NEXT", label: "Next", color: "#2EA85B" },
     { id: "RISE", label: "Rise", color: "#2A6FDB" },
+    { id: "ROOKIE", label: "Rookie", color: "#E8862E" },
   ];
   const [active, setActive] = React.useState("ELITE");
   const teams = teamsByLeague[active] || [];
