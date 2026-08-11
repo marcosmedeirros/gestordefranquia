@@ -1390,6 +1390,7 @@ if ($method === 'PUT') {
             // Atualizar jogador ou transferir para outro time
             $playerId = $data['player_id'] ?? null;
             $teamId   = array_key_exists('team_id', $data) ? $data['team_id'] : null;
+            $nome     = array_key_exists('name', $data) ? trim((string)$data['name']) : null;
             $ovr      = $data['ovr'] ?? null;
             $role     = $data['role'] ?? null;
             $position = $data['position'] ?? null;
@@ -1434,6 +1435,18 @@ if ($method === 'PUT') {
                 requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $destTeamLeague);
                 $updates[] = 'team_id = ?';
                 $params[]  = $newTeamId;
+            }
+            if ($nome !== null) {
+                // Nome vazio apagaria a identidade do jogador em toda a base
+                // (o histórico de trocas guarda o nome, não o id). E a coluna
+                // é varchar(120): cortar aqui evita o erro cru do MySQL.
+                if ($nome === '') {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'O nome não pode ficar vazio.']);
+                    exit;
+                }
+                $updates[] = 'name = ?';
+                $params[]  = mb_substr($nome, 0, 120);
             }
             if ($ovr !== null) {
                 $updates[] = 'ovr = ?';
@@ -1481,8 +1494,18 @@ if ($method === 'PUT') {
                 $stmt->execute($params);
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => 'Erro ao atualizar jogador']);
+                // players tem UNIQUE (team_id, name): renomear pra um nome que
+                // ja existe no time cai aqui. Sem esta mensagem o admin via
+                // "Erro ao atualizar jogador" e nao fazia ideia do motivo.
+                if ($e instanceof PDOException && ($e->errorInfo[1] ?? 0) === 1062) {
+                    http_response_code(409);
+                    echo json_encode(['success' => false,
+                        'error' => 'Ja existe um jogador com esse nome neste time.']);
+                } else {
+                    error_log('[admin update player] ' . $e->getMessage());
+                    http_response_code(500);
+                    echo json_encode(['success' => false, 'error' => 'Erro ao atualizar jogador']);
+                }
             }
             break;
 

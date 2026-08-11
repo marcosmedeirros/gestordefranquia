@@ -3793,7 +3793,9 @@ function editPlayer(playerId) {
   modal.className = 'modal fade';
   modal.innerHTML = `<div class="modal-dialog"><div class="modal-content bg-dark-panel"><div class="modal-header border-orange">
 <h5 class="modal-title text-white">Editar ${p.name}</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-<div class="modal-body"><div class="mb-3"><label class="form-label text-light-gray">Posição</label>
+<div class="modal-body"><div class="mb-3"><label class="form-label text-light-gray">Nome</label>
+<input type="text" class="form-control bg-dark text-white border-orange" id="editPlayerName" value="${escapeHtml(p.name || '')}" maxlength="120"></div>
+<div class="mb-3"><label class="form-label text-light-gray">Posição</label>
 <input type="text" class="form-control bg-dark text-white border-orange" id="editPlayerPosition" value="${p.position}"></div>
 <div class="row">
 <div class="col-md-6 mb-3"><label class="form-label text-light-gray">Pos. Secundária</label>
@@ -3856,6 +3858,12 @@ ${appState.currentTeam.league === 'RISE' ? `<div class="mb-3 p-3 rounded" style=
 
 async function savePlayerEdit(playerId) {
   const secondaryPos = document.getElementById('editPlayerSecondaryPosition')?.value;
+  // Nome só vai se mudou de verdade: mandar sempre faria toda edição de OVR
+  // passar pelo UNIQUE (team_id, name) sem necessidade.
+  const nomeAtual = (appState.teamDetails.players.find(x => x.id == playerId)?.name || '').trim();
+  const nomeNovo = (document.getElementById('editPlayerName')?.value || '').trim();
+  if (nomeNovo === '') { showAlert('danger', 'O nome não pode ficar vazio.'); return; }
+
   const data = {
     player_id: playerId,
     position: document.getElementById('editPlayerPosition').value,
@@ -3865,6 +3873,8 @@ async function savePlayerEdit(playerId) {
     is_franchise_player: document.getElementById('editPlayerFranchise')?.checked ? 1 : 0,
     loyal_override: document.getElementById('editPlayerLoyal')?.checked ? 1 : 0
   };
+  if (nomeNovo !== nomeAtual) data.name = nomeNovo;
+
   const ageVal = parseInt(document.getElementById('editPlayerAge')?.value || '', 10);
   if (!Number.isNaN(ageVal)) data.age = ageVal;
   if (data.secondary_position === undefined) delete data.secondary_position;
