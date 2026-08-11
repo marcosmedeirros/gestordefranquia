@@ -919,6 +919,19 @@ window.__SITE_DATA__ = {
 </script>
 <script type="text/babel">
 /* ============ Data ============ */
+/**
+ * Times e temporadas de uma divisão, direto do que o PHP contou no banco.
+ *
+ * Estes números estavam escritos à mão em cada card enquanto o ticker logo
+ * abaixo mostrava o valor real — duas fontes pra mesma coisa na mesma
+ * página. A da Rookie já tinha envelhecido; era questão de tempo pras
+ * outras. O traço no lugar do zero é de propósito: divisão sem dado é
+ * diferente de divisão com zero time.
+ */
+const statLiga = (id) => window.__SITE_DATA__?.leagueStats?.[id] || {};
+const nTimes  = (id) => { const n = statLiga(id).teams;  return n ? String(n) : "—"; };
+const nTemps  = (id) => { const n = statLiga(id).season; return n ? String(n) : "—"; };
+
 const DIVISIONS = [
   {
     id: "elite",
@@ -928,8 +941,8 @@ const DIVISIONS = [
     tag: "Liga principal · Top tier",
     desc: "A divisão de elite da FBA. Os melhores times do Brasil disputam o título nacional em uma temporada regular seguida de playoffs eliminatórios. O campeão leva premiação em dinheiro e muito mais.",
     stats: [
-      { v: "32", l: "Times" },
-      { v: "20", l: "Temporadas" },
+      { v: nTimes("ELITE"), l: "Times" },
+      { v: nTemps("ELITE"), l: "Temporadas" },
       { v: "Top", l: "Nível" },
     ],
   },
@@ -941,8 +954,8 @@ const DIVISIONS = [
     tag: "Segunda divisão · Acesso à Elite",
     desc: "A porta de entrada para a Elite. Times que se destacam na Next conquistam vaga na divisão principal pela classificação direta.",
     stats: [
-      { v: "30", l: "Times" },
-      { v: "20", l: "Temporadas" },
+      { v: nTimes("NEXT"), l: "Times" },
+      { v: nTemps("NEXT"), l: "Temporadas" },
       { v: "Acesso", l: "à Elite" },
     ],
   },
@@ -954,8 +967,8 @@ const DIVISIONS = [
     tag: "Terceira divisão · Em ascensão",
     desc: "Para equipes em formação que querem competir em alto nível. Foco em desenvolver entrosamento e talento.",
     stats: [
-      { v: "30", l: "Times" },
-      { v: "15", l: "Temporadas" },
+      { v: nTimes("RISE"), l: "Times" },
+      { v: nTemps("RISE"), l: "Temporadas" },
       { v: "Acesso", l: "à Next" },
     ],
   },
@@ -967,10 +980,8 @@ const DIVISIONS = [
     tag: "Divisão de entrada · Franquias da NBA",
     desc: "Por onde todo mundo começa. Na Rookie você comanda uma franquia da NBA e aprende o ofício por dentro: draft, trocas, folha e elenco. No fim da temporada os 4 primeiros sobem para a Rise — e quem sobe cria a própria franquia, com nome, cidade e escudo.",
     stats: [
-      // Vem do banco. O número escrito à mão que estava aqui ("3 Times")
-      // envelheceu junto com a liga e passou a mentir na página inicial.
-      { v: String(window.__SITE_DATA__?.leagueStats?.ROOKIE?.teams ?? 0), l: "Times" },
-      { v: "15", l: "Temporadas" },
+      { v: nTimes("ROOKIE"), l: "Times" },
+      { v: nTemps("ROOKIE"), l: "Temporadas" },
       { v: "4 sobem", l: "pra Rise" },
     ],
   },

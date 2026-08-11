@@ -103,13 +103,18 @@ function enviarAbracoDoDia(PDO $pdo, bool $forcar = false): array
     // A etiqueta do WhatsApp só aparece se o @numero estiver NO TEXTO e o número
     // também for na lista de menções. Sem telefone cadastrado, vai o nome puro —
     // menos legal, mas melhor que não mandar.
+    //
+    // O nome vem NA FRENTE da menção porque a etiqueta sozinha não diz de quem
+    // é o abraço: o WhatsApp mostra ali o nome que QUEM LÊ tem salvo, e quem
+    // não tem o contato salvo via só um número.
     $telefone = preg_replace('/\D+/', '', (string)($sorteado['phone'] ?? ''));
-    $mencoes = null;
+    $nomeGm   = trim((string)$sorteado['name']);
+    $mencoes  = null;
     if (strlen($telefone) >= 10) {
-        $alvo = '@' . $telefone;
+        $alvo = $nomeGm . ' (@' . $telefone . ')';
         $mencoes = [$telefone];
     } else {
-        $alvo = $sorteado['name'];
+        $alvo = $nomeGm;
     }
 
     $texto = sprintf($modelo, $alvo) . "\n_" . $time . ' · ' . ($timeDele['league'] ?? '') . '_';
