@@ -148,6 +148,60 @@ function wcLigaEmSalario(PDO $pdo, string $league): bool
 }
 
 /**
+ * CAP das ligas que não usam dinheiro (RISE, NEXT, ROOKIE): a soma dos
+ * CAP_TOP_N maiores OVR do elenco contra a faixa da liga.
+ *
+ * O cálculo é o de backend/helpers.php, o mesmo que o dashboard mostra — não
+ * uma segunda versão da regra aqui. O teto leva o bônus de jogador restrito,
+ * senão o bot acusaria estouro num time que o app diz estar em dia.
+ */
+function wcCapPorOvr(PDO $pdo, array $t): array
+{
+    $soma = topOvrCap($pdo, (int)$t['id']);
+
+    $min = 0; $maxBase = 0;
+    try {
+        $st = $pdo->prepare('SELECT cap_min, cap_max FROM league_settings WHERE league = ?');
+        $st->execute([(string)$t['league']]);
+        if ($linha = $st->fetch(PDO::FETCH_ASSOC)) {
+            $min = (int)($linha['cap_min'] ?? 0);
+            $maxBase = (int)($linha['cap_max'] ?? 0);
+        }
+    } catch (Throwable $e) {
+        error_log('[wcCapPorOvr] ' . $e->getMessage());
+    }
+
+    $bonus = $maxBase > 0 ? restrictedCapBonus($pdo, (int)$t['id']) : 0;
+    $max   = $maxBase + $bonus;
+
+    // Liga sem faixa configurada: mostra a soma e cala sobre limite nenhum.
+    if ($maxBase <= 0) $estado = 'sem_faixa';
+    elseif ($soma > $max)  $estado = 'estourou';
+    elseif ($soma < $min)  $estado = 'abaixo';
+    else                   $estado = 'ok';
+
+    return ['soma' => $soma, 'min' => $min, 'max' => $max,
+            'max_base' => $maxBase, 'bonus' => $bonus, 'estado' => $estado];
+}
+
+/** A linha de CAP por OVR, do jeito que entra no /time. */
+function wcLinhaCapOvr(array $c): string
+{
+    if ($c['estado'] === 'sem_faixa') {
+        return 'CAP top ' . CAP_TOP_N . ": *{$c['soma']}*\n";
+    }
+    $veredito = [
+        'ok'       => '🟢',
+        'estourou' => '🔴 estourou ' . ($c['soma'] - $c['max']),
+        'abaixo'   => '🟡 faltam ' . ($c['min'] - $c['soma']) . ' pro piso',
+    ][$c['estado']];
+
+    return 'CAP top ' . CAP_TOP_N . ": *{$c['soma']}* · faixa {$c['min']}–{$c['max']}"
+        . ($c['bonus'] > 0 ? " (teto {$c['max_base']} +{$c['bonus']} de restrito)" : '')
+        . " {$veredito}\n";
+}
+
+/**
  * Acha o time pelo que a pessoa digitou. Ela vai escrever "Lakers", não
  * "Los Angeles Lakers" — então aceito o pedaço no meio da palavra.
  *
@@ -238,7 +292,7 @@ function wcAjuda(): string
         . "/comparartime _um_ x _outro_ — times lado a lado\n"
         . "/confronto _um_ x _outro_ — o duelo entre dois times, com palpite\n"
         . "/time _nome_ — quinteto, banco, folha e campanha\n"
-        . "/cap _time_ — folha e espaço no cap\n"
+        . "/cap _time_ — cap do time (folha na ELITE, soma de OVR nas outras)\n"
         . "/picks _time_ — picks que o time tem\n\n"
         . "*Liga*\n"
         . "/classificacao _liga_ — a tabela\n"
@@ -418,6 +472,10 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null): string
         $espaco = (int)$cap['space'];
         $txt .= "Folha: *{$cap['payroll']}M* de {$cap['cap_max']}M"
              . ' (' . ($espaco >= 0 ? "sobra {$espaco}M" : 'estourou ' . abs($espaco) . 'M') . ")\n";
+    } else {
+        // RISE, NEXT e ROOKIE não têm folha em dinheiro — o CAP delas é a soma
+        // de OVR, e era a única linha do /time que só a ELITE via.
+        $txt .= wcLinhaCapOvr(wcCapPorOvr($pdo, $t));
     }
 
     // Campanha da temporada corrente, se já houver jogo registrado.
@@ -482,8 +540,37 @@ function wcCap(PDO $pdo, string $termo, ?array $jaResolvido = null): string
         if ($erro) return $erro;
     }
 
+    // Fora da ELITE o CAP existe, só não é em dinheiro. Antes o comando parava
+    // aqui dizendo isso e não mostrava o número nenhum — quem jogava RISE,
+    // NEXT ou ROOKIE não tinha como ver o próprio cap pelo bot.
     if (!wcLigaEmSalario($pdo, (string)$t['league'])) {
-        return wcNomeDoTime($t) . " está na {$t['league']}, que não usa folha em dinheiro — o limite lá é por soma de OVR.";
+        $c = wcCapPorOvr($pdo, $t);
+        $rotulo = [
+            'estourou'  => '🔴 acima do teto',
+            'abaixo'    => '🟡 abaixo do piso',
+            'ok'        => '🟢 dentro da faixa',
+            'sem_faixa' => 'faixa ainda não configurada na liga',
+        ][$c['estado']];
+
+        $txt = '*Cap — ' . wcNomeDoTime($t) . "*\n{$t['league']} · soma de OVR\n{$rotulo}\n\n"
+             . 'CAP top ' . CAP_TOP_N . ": *{$c['soma']}*\n";
+        if ($c['estado'] !== 'sem_faixa') {
+            $txt .= "Teto: {$c['max']}" . ($c['bonus'] > 0 ? " ({$c['max_base']} +{$c['bonus']} de restrito)" : '') . "\n"
+                  . "Piso: {$c['min']}\n"
+                  . ($c['soma'] > $c['max']
+                        ? 'Estouro: *' . ($c['soma'] - $c['max']) . "*\n"
+                        : 'Espaço: *' . ($c['max'] - $c['soma']) . "*\n");
+        }
+
+        $ovrCol = wcColunaOvr($pdo);
+        $st = $pdo->prepare("SELECT name, {$ovrCol} AS ovr FROM players WHERE team_id = ?
+                             ORDER BY {$ovrCol} DESC LIMIT " . CAP_TOP_N);
+        $st->execute([(int)$t['id']]);
+        if ($top = $st->fetchAll(PDO::FETCH_ASSOC)) {
+            $txt .= "\n*Os " . count($top) . " que contam:*\n";
+            foreach ($top as $p) $txt .= "• {$p['name']} — {$p['ovr']}\n";
+        }
+        return rtrim($txt);
     }
 
     $cap = getTeamCapSummary($pdo, (int)$t['id']);
