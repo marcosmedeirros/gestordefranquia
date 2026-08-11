@@ -98,6 +98,10 @@ $games_disponiveis = [
         'titulo' => '⚔️ Starting5x5',
         'arquivo' => 'dreamteam.php'
     ],
+    'quizdodia' => [
+        'titulo' => '💬 Quiz do Dia',
+        'arquivo' => 'quizdodia.php'
+    ],
 ];
 
 // Valida se o game existe
