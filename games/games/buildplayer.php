@@ -897,6 +897,9 @@ $dueloFim = $duelo ? null : bpDueloConcluido($pdo, $user_id);
 $dueloRes = $dueloFim && $dueloFim['resultado'] ? json_decode((string)$dueloFim['resultado'], true) : null;
 $souCriador = $duelo ? ((int)$duelo['id_criador'] === $user_id) : ($dueloFim ? ((int)$dueloFim['id_criador'] === $user_id) : false);
 
+// Sala de espera e resultado do confronto falam só do duelo.
+$telaDeDuelo = (bool)$dueloRes || ($duelo && $duelo['status'] === 'aguardando');
+
 // Lenda que já foi sorteada e está esperando escolha.
 //
 // Sem isto, recarregar a página no meio de um giro deixava o jogador TRAVADO:
@@ -1189,7 +1192,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .duelo-linha input:focus{border-color:var(--red)}
 .duelo-linha .bp-btn2{width:auto;flex:none;padding:11px 16px}
 .duelo-codigo{font-family:var(--num);font-size:34px;font-weight:900;letter-spacing:6px;color:var(--red);margin:6px 0 14px}
-.duelo-espera{font-size:15px;font-weight:700;color:var(--text2);margin:10px 0 14px}
+.bp-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--red);border-radius:50%;margin:18px auto 14px;animation:bp-spin 1s linear infinite}
+@keyframes bp-spin{to{transform:rotate(360deg)}}
 .duelo-aposta{font-size:12px;color:var(--text2);margin:12px 0}
 
 .duelo-placar{display:flex;align-items:center;gap:10px}
@@ -1333,11 +1337,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <?php if ($duelo['modo'] !== 'aleatorio'): ?>
       <div class="bpcard-title">Código do confronto</div>
       <div class="duelo-codigo" id="bpCodigo"><?= htmlspecialchars($duelo['codigo']) ?></div>
-      <button class="bp-btn2" onclick="bpCopiarCodigo(this)">Copiar código</button>
-    <?php else: ?>
-      <div class="duelo-espera">Na fila…</div>
+      <?php // A chamada vai junto do link: quem recebe no WhatsApp vê quanto
+            // vale a partida antes de clicar, em vez de uma URL solta.
+            $chamada = 'CONFRONTO DE BUILD NO VALOR DE ' . (int)$duelo['aposta']
+                     . ' MOEDA' . ((int)$duelo['aposta'] === 1 ? '' : 'S'); ?>
+      <button class="bp-btn" id="bpBtnLink"
+              onclick="bpCopiarLink('<?= htmlspecialchars($duelo['codigo']) ?>', this, '<?= htmlspecialchars($chamada) ?>')">Copiar link do convite</button>
+      <button class="bp-btn2" style="margin-top:8px" onclick="bpCopiarCodigo(this)">Copiar só o código</button>
     <?php endif; ?>
     <p class="duelo-aposta">Aposta: <b><?= (int)$duelo['aposta'] ?></b> moedas · quem vencer leva <b><?= (int)$duelo['aposta'] * 2 ?></b></p>
+    <div class="bp-spinner"></div>
+    <p class="duelo-aposta"><?= $duelo['modo'] === 'aleatorio'
+        ? 'Assim que outra pessoa entrar no modo aleatório, a tela avança sozinha.'
+        : 'Assim que alguém entrar com o código, a tela avança sozinha.' ?></p>
     <button class="bp-btn2" onclick="bpCancelarDuelo()">Cancelar e receber de volta</button>
   </div>
 <?php elseif (!$partida): ?>
@@ -1519,7 +1531,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <div class="progresso"><div id="barra" style="width:<?= $preenchidos * 10 ?>%"></div></div>
 <?php endif; ?>
 
-<?php if ($temNotas && $partida && !$partida['concluido_em']): ?>
+<?php if ($temNotas && $partida && !$partida['concluido_em'] && !$telaDeDuelo): ?>
 <div class="colunas">
   <div>
     <div class="bpcard">
@@ -1558,7 +1570,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <div>
 <?php endif; ?>
 
-<?php if ($temNotas && $partida): ?>
+<?php if ($temNotas && $partida && !$telaDeDuelo): ?>
   <div class="bpcard">
     <div class="bpcard-title"><span>Seu build</span><span id="faltam" style="color:var(--red)"></span></div>
     <div class="slots">
@@ -1587,7 +1599,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
 <?php endif; ?>
 
-<?php if ($temNotas): ?>
+<?php if ($temNotas && !$telaDeDuelo): ?>
   <div class="bpcard">
     <div class="bpcard-title"><span><i class="bi bi-trophy-fill"></i> Melhores builds da liga</span><span style="color:var(--text3);font-weight:500;letter-spacing:0;text-transform:none">só vitrine</span></div>
     <?php if (!$topGeral): ?>
@@ -1606,7 +1618,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   </div>
 <?php endif; ?>
 
-<?php if ($temNotas && $partida && !$partida['concluido_em']): ?>
+<?php if ($temNotas && $partida && !$partida['concluido_em'] && !$telaDeDuelo): ?>
   </div>
 </div>
 <?php endif; ?>
@@ -1898,6 +1910,50 @@ async function bpSairResultado() {
   await bpPost({ acao: 'duelo_sair_resultado' });
   window.location.href = '?game=buildplayer';
 }
+
+/** Link do convite: mesma forma do 5x5 (?game=...&codigo=XXXX). */
+function bpLinkConvite(codigo) {
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.searchParams.set('game', 'buildplayer');
+  url.searchParams.set('codigo', codigo);
+  return url.toString();
+}
+
+/**
+ * Copia o convite com a chamada em cima do link. O clipboard falha em
+ * contexto não-seguro (http), então cai num campo temporário em vez de
+ * deixar o clique sem efeito nenhum.
+ */
+async function bpCopiarLink(codigo, botao, chamada) {
+  const texto = (chamada ? chamada + ' - ' : '') + bpLinkConvite(codigo);
+  try {
+    await navigator.clipboard.writeText(texto);
+  } catch (e) {
+    const tmp = document.createElement('textarea');
+    tmp.value = texto;
+    tmp.style.position = 'fixed';
+    tmp.style.opacity = '0';
+    document.body.appendChild(tmp);
+    tmp.select();
+    try { document.execCommand('copy'); } catch (e2) { /* pior caso, copia na mão */ }
+    document.body.removeChild(tmp);
+  }
+  const antes = botao.textContent;
+  botao.textContent = 'Link copiado!';
+  setTimeout(() => { if (botao.isConnected) botao.textContent = antes; }, 2000);
+}
+
+// Veio de um link de convite? Preenche o código e leva o olho até lá. Não
+// entra sozinho — entrar debita a aposta, e isso é decisão de quem clicou.
+(function () {
+  const codigo = new URLSearchParams(location.search).get('codigo');
+  const campo = document.getElementById('bpCodigoEntrar');
+  if (!codigo || !campo) return;
+  campo.value = codigo.toUpperCase();
+  campo.scrollIntoView({ block: 'center' });
+  campo.focus();
+})();
 
 function bpCopiarCodigo(botao) {
   const codigo = document.getElementById('bpCodigo')?.textContent.trim() || '';
