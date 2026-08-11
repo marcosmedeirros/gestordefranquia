@@ -444,15 +444,24 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null): string
                 : "{$vaga}: _sem jogador na posição_\n";
         }
 
-        // O banco é quem sobrou do quinteto, na ordem de OVR em que o elenco
-        // já veio. Comparo por NOME porque é o que o quinteto guarda — e é
-        // também o que ele usa pra não repetir jogador entre as vagas.
-        $titulares = [];
+        // O banco é quem o GM marcou como banco, e só. Era "todo mundo que
+        // não coube no quinteto", o que misturava reserva de verdade com
+        // titular que perdeu a vaga pra um companheiro de mesma posição —
+        // duas coisas diferentes na mesma lista.
+        //
+        // Sem ordem de posição aqui: vale o OVR, na ordem em que o elenco
+        // já vem do SELECT.
+        //
+        // Quem está marcado como Banco mas subiu ao quinteto (acontece quando
+        // a posição não tem titular) sai daqui: o quinteto já mostrou ele, e
+        // repetir o mesmo nome duas vezes na mensagem parece defeito.
+        $noQuinteto = [];
         foreach ($quinteto as $p) {
-            if ($p) $titulares[] = $p['name'];
+            if ($p) $noQuinteto[] = $p['name'];
         }
         $banco = array_values(array_filter($elenco,
-            fn($p) => !in_array($p['name'], $titulares, true)));
+            fn($p) => strcasecmp(trim((string)($p['role'] ?? '')), 'Banco') === 0
+                   && !in_array($p['name'], $noQuinteto, true)));
 
         if ($banco) {
             $txt .= "\n*Banco:* (" . count($banco) . ")\n";
