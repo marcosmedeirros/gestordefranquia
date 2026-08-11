@@ -875,7 +875,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 			const cellHead = (p, r) => {
 				const photo = getPlayerPhotoUrl(p);
 				return `<div style="flex:1;text-align:center;padding:16px 10px">
-					<img src="${photo}" alt="${p.name || ''}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--border-red);background:var(--panel-3)" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name || 'P')}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
+					<img src="${photo}" alt="${p.name || ''}" style="display:block;margin:0 auto;width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--border-red);background:var(--panel-3)" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name || 'P')}&background=121212&color=${_avatarColorHex()}&rounded=true&bold=true'">
 					<div style="font-size:15px;font-weight:800;margin-top:8px;line-height:1.15">${p.name || '-'}</div>
 					<div style="font-size:12px;color:var(--text-2)">${p.team_name || '-'}</div>
 					<div style="font-size:28px;font-weight:900;color:var(--red);margin-top:4px">${p.ovr ?? '-'}</div>

@@ -615,6 +615,12 @@ if ($method === 'GET') {
                 'ovr' => $player[$ovrColumn] ?? ($player['ovr'] ?? null),
                 'team_id' => (int)$player['team_id'],
                 'team_name' => trim(($player['city'] ?? '') . ' ' . ($player['team_name'] ?? '')),
+                // Sem estes dois a foto nunca chegava: o SELECT traz p.*, mas
+                // esta lista é branca e eles ficavam de fora, então quem
+                // consome caía sempre no avatar de iniciais.
+                'nba_player_id' => $player['nba_player_id'] ?? null,
+                'foto_adicional' => $player['foto_adicional'] ?? null,
+                'badges_count' => $player['badges_count'] ?? null,
                 'league' => $player['league'] ?? null,
                 'owner_name' => $player['owner_name'] ?? null,
                 'owner_phone' => $player['owner_phone_whatsapp'] ?? null,
