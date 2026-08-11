@@ -34,9 +34,21 @@ try {
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
         if (isset($leagueStats[$r['league']])) $leagueStats[$r['league']]['teams'] = (int)$r['c'];
     }
+    // A FBA rodou anos antes deste sistema existir. A tabela `seasons` só
+    // conta o que foi registrado AQUI DENTRO (ELITE 11, NEXT 8, RISE 5,
+    // ROOKIE 0), e era por isso que os números apareciam escritos à mão na
+    // página — o banco sozinho contava só metade da história.
+    //
+    // Somar a bagagem de cada liga resolve os dois lados: bate com a
+    // história real hoje (25 · 20 · 15 · 15) e continua certo sozinho
+    // quando a próxima temporada for registrada, em vez de virar mais um
+    // número fixo esperando envelhecer.
+    foreach (['ELITE' => 14, 'NEXT' => 12, 'RISE' => 10, 'ROOKIE' => 15] as $lg => $antesDoApp) {
+        $leagueStats[$lg]['season'] = $antesDoApp;
+    }
     $stmt = $pdo->query("SELECT league, MAX(season_number) sn FROM seasons GROUP BY league");
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        if (isset($leagueStats[$r['league']])) $leagueStats[$r['league']]['season'] = (int)$r['sn'];
+        if (isset($leagueStats[$r['league']])) $leagueStats[$r['league']]['season'] += (int)$r['sn'];
     }
 } catch (Exception $e) {}
 $totalTeams = array_sum(array_column($leagueStats, 'teams'));
