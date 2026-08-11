@@ -1017,7 +1017,8 @@ function wcCompararTimes(PDO $pdo, string $termo): string
 function wcHistoricoEntre(PDO $pdo, array $a, array $b): array
 {
     $aId = (int)$a['id']; $bId = (int)$b['id'];
-    $out = ['trocas' => [], 'picks_a_com_b' => 0, 'picks_b_com_a' => 0, 'foram' => [], 'vieram' => []];
+    $out = ['trocas' => [], 'picks_a_com_b' => 0, 'picks_b_com_a' => 0,
+            'foram' => [], 'vieram' => [], 'picks_foram' => 0, 'picks_vieram' => 0];
 
     try {
         $st = $pdo->prepare("
@@ -1032,18 +1033,34 @@ function wcHistoricoEntre(PDO $pdo, array $a, array $b): array
 
         // Quem mudou de lado. O item guarda o nome copiado na hora da troca,
         // então continua certo mesmo que o jogador já tenha saído dos dois.
-        $stItens = $pdo->prepare("SELECT from_team, player_name, player_ovr FROM trade_items
-                                  WHERE trade_id = ? AND player_name IS NOT NULL");
+        $stItens = $pdo->prepare("SELECT from_team, player_name, player_ovr, player_age, pick_id
+                                  FROM trade_items WHERE trade_id = ?");
         foreach ($out['trocas'] as $t) {
             $stItens->execute([(int)$t['id']]);
             foreach ($stItens->fetchAll(PDO::FETCH_ASSOC) as $i) {
                 // from_team=1 é quem PROPÔS a troca. Se o proponente foi o time
                 // A, o item saiu de A; senão saiu de B.
                 $saiuDeA = ((int)$t['from_team_id'] === $aId) === (bool)$i['from_team'];
-                $rot = $i['player_name'] . ($i['player_ovr'] ? ' (' . $i['player_ovr'] . ')' : '');
-                if ($saiuDeA) $out['foram'][] = $rot; else $out['vieram'][] = $rot;
+
+                if ($i['pick_id'] !== null) {
+                    // Pick vai só na contagem: o /confronto quer o tamanho do
+                    // negócio, não o inventário de cada escolha.
+                    if ($saiuDeA) $out['picks_foram']++; else $out['picks_vieram']++;
+                    continue;
+                }
+                if ($i['player_name'] === null) continue;
+
+                $j = ['nome' => (string)$i['player_name'],
+                      'ovr'  => (int)$i['player_ovr'],
+                      'idade'=> (int)$i['player_age']];
+                if ($saiuDeA) $out['foram'][] = $j; else $out['vieram'][] = $j;
             }
         }
+
+        // Maior OVR primeiro: é quem conta a história da troca.
+        $porOvr = fn($x, $y) => $y['ovr'] <=> $x['ovr'];
+        usort($out['foram'], $porOvr);
+        usort($out['vieram'], $porOvr);
     } catch (Throwable $e) {
         error_log('[whatsapp-cmd] confronto trocas: ' . $e->getMessage());
     }
@@ -1062,6 +1079,36 @@ function wcHistoricoEntre(PDO $pdo, array $a, array $b): array
     return $out;
 }
 
+/** Sigla de três letras pro time. Sai do mascote, que é a parte curta. */
+function wcSigla(array $t): string
+{
+    $base = trim((string)($t['mascot'] ?? '')) ?: trim((string)($t['name'] ?? ''));
+    $letras = preg_replace('/[^A-Za-zÀ-ÿ]/u', '', $base);
+    return mb_strtoupper(mb_substr($letras, 0, 3)) ?: '???';
+}
+
+/** "LeBron James" vira "L. James". Nome de uma palavra só fica inteiro. */
+function wcNomeCurto(string $nome): string
+{
+    $p = preg_split('/\s+/u', trim($nome), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    if (count($p) < 2) return $nome;
+    return mb_strtoupper(mb_substr($p[0], 0, 1)) . '. ' . end($p);
+}
+
+/**
+ * O placar que o palpite arrisca.
+ *
+ * A diferença de força vira diferença de pontos, e o resto é uma partida de
+ * basquete comum. Sem sorteio: o mesmo confronto tem que dar sempre o mesmo
+ * placar, senão a mesma pergunta feita duas vezes no grupo se contradiz.
+ */
+function wcPlacarPrevisto(float $distancia, bool $aFavorito): array
+{
+    $margem = max(1, min(26, (int)round($distancia * 0.45)));
+    $maior = 110 + intdiv($margem + 1, 2);
+    $menor = 110 - intdiv($margem, 2);
+    return $aFavorito ? [$maior, $menor] : [$menor, $maior];
+}
 /** O cara do time: maior OVR do elenco, com posição e idade. */
 function wcMelhorJogador(PDO $pdo, int $teamId): ?array
 {
@@ -1113,18 +1160,23 @@ function wcForcaDoTime(array $elenco): float
  */
 function wcPalpite(string $nomeA, string $nomeB, float $fA, float $fB, array $duelo, array $h): string
 {
-    $dif      = $fA - $fB;
-    $favorito = $dif >= 0 ? $nomeA : $nomeB;
-    $azarao   = $dif >= 0 ? $nomeB : $nomeA;
-    $margem   = abs($dif);
+    // Palpite sem escolher lado nao e palpite: nunca sai empate. Quando a
+    // forca da igual, quem ja passou pelo outro no playoff leva o voto; se nem
+    // isso desempata, fica com o time perguntado primeiro.
+    $margem = abs($fA - $fB);
+    $aFavorito = $fA > $fB
+        || ($fA === $fB && (int)$duelo['a'] >= (int)$duelo['b']);
+
+    $favorito = $aFavorito ? $nomeA : $nomeB;
+    $azarao   = $aFavorito ? $nomeB : $nomeA;
 
     // Retrospecto do ponto de vista do favorito.
-    $vitFav = $dif >= 0 ? (int)$duelo['a'] : (int)$duelo['b'];
-    $vitAza = $dif >= 0 ? (int)$duelo['b'] : (int)$duelo['a'];
+    $vitFav = $aFavorito ? (int)$duelo['a'] : (int)$duelo['b'];
+    $vitAza = $aFavorito ? (int)$duelo['b'] : (int)$duelo['a'];
     $temHistorico = ($vitFav + $vitAza) > 0;
 
     if ($margem < 2.5) {
-        $veredito = 'Moeda no ar: não dá pra separar os dois no papel';
+        $veredito = "Dá pra jogar cara ou coroa, mas eu fico com o *{$favorito}*";
     } elseif ($margem < 6) {
         $veredito = "*{$favorito}* leva, mas apertado";
     } elseif ($margem < 12) {
@@ -1133,7 +1185,11 @@ function wcPalpite(string $nomeA, string $nomeB, float $fA, float $fB, array $du
         $veredito = "*{$favorito}* ganha sem sustos";
     }
 
-    $linhas = [$veredito . ' _(força ' . $fA . ' x ' . $fB . ')_.'];
+    // Placar sempre na ordem A x B, igual ao cabeçalho da mensagem: com
+    // "moeda no ar" não existe favorito nomeado, e favorito-primeiro deixaria
+    // o leitor sem saber de quem é cada número.
+    [$ptsA, $ptsB] = wcPlacarPrevisto($margem, $aFavorito);
+    $linhas = [$veredito . " _({$ptsA} x {$ptsB})_."];
 
     if (!$temHistorico) {
         // Sem retrospecto sobra o que passou entre eles fora de quadra —
@@ -1228,14 +1284,25 @@ function wcConfronto(PDO $pdo, string $termo): string
         }
         $txt .= "\n";
 
-        // Quem mandou quem. Corta em 5 porque no grupo ninguém lê 20 nomes.
-        $lista = function (array $nomes): string {
-            $mostra = array_slice($nomes, 0, 5);
-            $resto = count($nomes) - count($mostra);
-            return implode(', ', $mostra) . ($resto > 0 ? " _+{$resto}_" : '');
+        // Três nomes por lado. Quem foi trocado em peso já está no topo da
+        // lista, e mais que isso vira parede de texto no grupo.
+        $lado = function (array $jogadores, int $picks): string {
+            $partes = [];
+            foreach (array_slice($jogadores, 0, 3) as $j) {
+                $partes[] = wcNomeCurto($j['nome'])
+                          . ($j['ovr'] ? ' ' . $j['ovr'] : '')
+                          . ($j['idade'] ? '|' . $j['idade'] . 'y' : '');
+            }
+            $resto = count($jogadores) - min(3, count($jogadores));
+            // "mais 2" e nao "+2": as partes ja sao unidas por " + ",
+            // e o resultado saia "+ +2".
+            if ($resto > 0) $partes[] = "mais {$resto}";
+            if ($picks > 0)  $partes[] = $picks . ' pick' . ($picks === 1 ? '' : 's');
+            return $partes ? implode(' + ', $partes) : 'nada';
         };
-        if ($h['foram'])  $txt .= "→ {$nomeA} mandou: " . $lista($h['foram']) . "\n";
-        if ($h['vieram']) $txt .= "← {$nomeB} mandou: " . $lista($h['vieram']) . "\n";
+
+        $txt .= wcSigla($a) . ' -> ' . $lado($h['foram'], (int)$h['picks_foram'])
+              . '  |  ' . wcSigla($b) . ' -> ' . $lado($h['vieram'], (int)$h['picks_vieram']) . "\n";
     }
 
     if ($h['picks_a_com_b'] || $h['picks_b_com_a']) {
