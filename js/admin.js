@@ -2086,9 +2086,16 @@ async function showLeague(league) {
       <div class="panel">
         <div class="panel-header">
           <div class="panel-title" style="margin-bottom:0"><i class="bi bi-people-fill"></i> Times</div>
-          <span style="font-size:12px;color:var(--text-3)">${teams.length} cadastrados</span>
+          <div class="d-flex align-items-center gap-2">
+            <input type="search" id="buscaTime" placeholder="Buscar time ou GM"
+                   autocomplete="off" oninput="filtrarTimes(this.value)"
+                   style="background:var(--panel-2);border:1px solid var(--border-md);border-radius:8px;
+                          padding:5px 10px;color:var(--text);font-size:12px;width:190px;outline:none">
+            <span id="buscaTimeConta" style="font-size:12px;color:var(--text-3);white-space:nowrap">${teams.length} cadastrados</span>
+          </div>
         </div>
-        <div class="row g-2 mt-1">${teamCards || '<div class="col-12"><p class="empty-state">Nenhum time cadastrado.</p></div>'}</div>
+        <div class="row g-2 mt-1" id="gradeTimes">${teamCards || '<div class="col-12"><p class="empty-state">Nenhum time cadastrado.</p></div>'}</div>
+        <p class="empty-state" id="buscaTimeVazio" style="display:none">Nenhum time com esse nome.</p>
       </div>
     `;
 
@@ -2599,6 +2606,39 @@ async function _applySrchSwap(pickId, isAway, swapType) {
     const teamId = document.getElementById('srchPickTeam')?.value;
     if (teamId) runLeaguePickSearch(teamId);
   } catch (e) { alert('Erro: ' + (e.error || 'Desconhecido')); }
+}
+
+/**
+ * Filtra os cards de time da aba da liga.
+ *
+ * Casa contra o TEXTO do card inteiro — cidade, nome e GM já estão lá —
+ * em vez de exigir atributos data-* em cada um. Assim procurar pelo dono
+ * funciona igual a procurar pelo time, sem markup extra.
+ *
+ * Esconde por CSS em vez de remontar a lista: os cards têm botões de aviso
+ * com estado próprio, e recriá-los a cada tecla perderia o foco e piscaria.
+ */
+function filtrarTimes(termo) {
+  const grade = document.getElementById('gradeTimes');
+  if (!grade) return;
+  const alvo = (termo || '').trim().toLowerCase();
+  let visiveis = 0;
+
+  grade.querySelectorAll('.team-card').forEach(card => {
+    const coluna = card.parentElement;
+    const casa = !alvo || card.textContent.toLowerCase().includes(alvo);
+    coluna.style.display = casa ? '' : 'none';
+    if (casa) visiveis++;
+  });
+
+  const vazio = document.getElementById('buscaTimeVazio');
+  if (vazio) vazio.style.display = visiveis === 0 ? '' : 'none';
+
+  const conta = document.getElementById('buscaTimeConta');
+  if (conta) {
+    const total = grade.querySelectorAll('.team-card').length;
+    conta.textContent = alvo ? `${visiveis} de ${total}` : `${total} cadastrados`;
+  }
 }
 
 async function showTeam(teamId) {
