@@ -176,12 +176,12 @@ $pontosUsuario = (int)($stPontos->fetchColumn() ?: 0);
 $timesFba = [];
 try {
     $st = $pdo->query("
-        SELECT t.name, COALESCE(t.photo_url, '') AS logo, COALESCE(u.name, '') AS gm
+        SELECT t.name, COALESCE(t.photo_url, '') AS logo, COALESCE(u.name, '') AS gm, t.league
         FROM teams t LEFT JOIN users u ON u.id = t.user_id
         WHERE t.league IN ('RISE','NEXT','ELITE')
         ORDER BY t.league, t.name
     ");
-    foreach ($st as $r) $timesFba[] = [$r['name'], $r['logo'], $r['gm']];
+    foreach ($st as $r) $timesFba[] = [$r['name'], $r['logo'], $r['gm'], $r['league']];
 } catch (Throwable $e) {
     error_log('[caminho] times da FBA: ' . $e->getMessage());
 }
@@ -404,6 +404,24 @@ tr.tit td{color:var(--red)}
 .ovr-delta{font-family:var(--num);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
 .ovr-barra{flex:1;height:7px;background:var(--panel3);border-radius:99px;overflow:hidden}
 .ovr-barra i{display:block;height:100%;background:var(--cor);border-radius:99px;transition:width .5s}
+/* VOCÊ × ELE — duas colunas espelhadas, o rótulo no meio. */
+.rv-topo{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding-bottom:9px;margin-bottom:7px;border-bottom:1px solid var(--border)}
+.rv-lado{font-family:var(--num);font-size:24px;font-weight:900;letter-spacing:-1px;
+  font-variant-numeric:tabular-nums;flex:none;width:44px}
+.rv-lado:last-child{text-align:right}
+.rv-linha{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:3px 0}
+.rv-n{font-family:var(--num);font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums;
+  color:var(--text);flex:none;width:44px}
+.rv-linha .rv-n:last-child{text-align:right}
+.rv-rot{flex:1;text-align:center;font-size:9px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;color:var(--text2)}
+
+/* Dinheiro e prazo juntos: é o pacote que se compara, não cada metade. */
+.proposta{display:inline-block;font-family:var(--num);font-size:12.5px;font-weight:800;
+  color:var(--red);background:var(--red-soft);border:1px solid var(--red-glow);
+  border-radius:20px;padding:1px 9px;margin-left:6px;white-space:nowrap}
+
 /* A etiqueta de probabilidade quer ser lida como número, não como frase. */
 .op small.odds{font-family:var(--num);font-size:10.5px;font-weight:700;letter-spacing:.2px;color:var(--text2)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
@@ -592,6 +610,7 @@ function novaCarreira(nome, pos, arq, nac, modo){
     // 3%: o fenômeno geracional. Só aparece na noite do draft.
     prodigio: Math.random() < 0.03,
     destaque: null, comparacao: null,
+    rival: null, marcasBatidas: [], anosDivisao: 0,
     A, pot: (()=>{ const r = Math.random();
                    return r < 0.12 ? ri(64,75) : r < 0.68 ? ri(76,89) : ri(90,98); })(),
     fase:"base",            // base · college · fora · draft · liga · fim
@@ -1197,33 +1216,54 @@ function clubesDoPais(nac){
  * quem foi mal recebe menos propostas, e às vezes só a de banco. É isso
  * que faz "ir bem" ter consequência.
  */
+/**
+ * Contrato longo paga menos por ano. É o que faz o prazo ser uma escolha
+ * e não um detalhe: segurança tem preço.
+ */
+function descontoDoPrazo(anos){
+  return anos >= 5 ? 0.88 : anos >= 4 ? 0.94 : anos <= 2 ? 1.10 : 1;
+}
+
 function gerarOfertas(){
   const v = valorDeMercado();
   const lista = timesDaLiga().filter(t => t !== S.time);
   const ofertas = [];
   const timeAleatorio = () => pick(lista);
 
+  // O prazo vem DENTRO da proposta, junto do time e do salário. Antes era
+  // uma segunda tela ("por quantos anos?"), o que picava uma decisão só em
+  // duas e escondia o que estava sendo comparado: o pacote inteiro.
+  const anosPor = {renovar:[3,4], grana:[4,5], contender:[2,3], banco:[1,2], exterior:[2,3], provar:[1,1]};
+
   // Renovar onde está: sempre existe, mas o valor depende da confiança.
   const fator = 0.8 + (S.confianca/100) * 0.5;
-  ofertas.push({tipo:"renovar", time:S.time, anos:0, salario:Math.max(1,Math.round(v*fator)),
+  ofertas.push({tipo:"renovar", time:S.time, salario:Math.max(1,Math.round(v*fator)),
                 forca:S.forcaBase, papel:"titular",
                 nota:"O time que te conhece. Sem mudança, sem surpresa."});
 
+  // A aposta em si mesmo: um ano, pagando mais, pra voltar ao mercado
+  // valendo o que você provar. É o contrapeso curto das ofertas longas.
+  if (v >= 6){
+    ofertas.push({tipo:"provar", time:S.time, salario:Math.max(2,Math.round(v*1.18)),
+                  forca:S.forcaBase, papel:"titular",
+                  nota:"Um ano só, pagando bem. Você aposta que vale mais no ano que vem."});
+  }
+
   if (v >= 12){
     const t = timeAleatorio();
-    ofertas.push({tipo:"grana", time:t, anos:0, salario:Math.round(v*1.35),
+    ofertas.push({tipo:"grana", time:t, salario:Math.round(v*1.35),
                   forca:ri(28,58), papel:"titular",
                   nota:"Paga mais que todo mundo. Só que o time é ruim e vai continuar ruim."});
   }
   if (v >= 8){
     const t = timeAleatorio();
-    ofertas.push({tipo:"contender", time:t, anos:0, salario:Math.max(1,Math.round(v*0.62)),
+    ofertas.push({tipo:"contender", time:t, salario:Math.max(1,Math.round(v*0.62)),
                   forca:ri(66,90), papel: v >= 26 ? "titular" : "rotação",
                   nota:"Briga por título agora. Você ganha menos e divide a bola."});
   }
   if (v < 10 || S.idade >= 34){
     const t = timeAleatorio();
-    ofertas.push({tipo:"banco", time:t, anos:0, salario:Math.max(1,Math.round(v*0.55)+1),
+    ofertas.push({tipo:"banco", time:t, salario:Math.max(1,Math.round(v*0.55)+1),
                   forca:ri(45,80), papel:"reserva",
                   nota:"Saindo do banco. É o que apareceu."});
   }
@@ -1233,7 +1273,7 @@ function gerarOfertas(){
   if (v <= 14 || S.idade >= 32){
     const c = pick(clubesDoPais(S.nac));
     const generoso = 1.4 + (S.hype/100) * 0.9;   // nome conhecido vale mais lá fora
-    ofertas.push({tipo:"exterior", time:c[0], liga:c[1], anos:0,
+    ofertas.push({tipo:"exterior", time:c[0], liga:c[1],
                   salario:Math.max(3, Math.round(Math.max(v,4) * generoso)),
                   forca:ri(55,85), papel:"estrela",
                   nota:`${c[1]}. Paga bem e você é o cara — mas some do radar da liga.`});
@@ -1245,19 +1285,29 @@ function gerarOfertas(){
     const fora = ofertas.filter(o => o.tipo === "exterior");
     ofertas.splice(1, ofertas.length, ...fora);
   }
+
+  // Cada tipo tem um prazo natural, e o salário já sai com o desconto do
+  // prazo aplicado — o número na tela é o que vai ser pago.
+  ofertas.forEach(o => {
+    const faixa = anosPor[o.tipo] || [2,3];
+    o.anos = ri(faixa[0], faixa[1]);
+    o.salario = Math.max(1, Math.round(o.salario * descontoDoPrazo(o.anos)));
+  });
   return ofertas;
 }
 
-function assinar(oferta, anos){
+function assinar(oferta){
   const antigo = S.time;
   S.time = oferta.time;
   if (S.modo === "fba"){ S.gm = gmDoTime(oferta.time); }
-  if (oferta.tipo !== "renovar"){ S.forcaBase = oferta.forca; S.confianca = oferta.papel === "reserva" ? 34 : 52; }
-  // Contrato longo paga um pouco menos por ano: segurança tem preço, e é
-  // o que torna a escolha de prazo uma decisão de verdade.
-  const desconto = anos >= 5 ? 0.88 : anos >= 4 ? 0.94 : anos <= 2 ? 1.10 : 1;
-  S.salario = Math.max(1, Math.round(oferta.salario * desconto));
-  S.contrato = anos;
+  if (oferta.tipo !== "renovar" && oferta.tipo !== "provar"){
+    S.forcaBase = oferta.forca;
+    S.confianca = oferta.papel === "reserva" ? 34 : 52;
+  }
+  // O desconto do prazo já entrou no salário quando a oferta foi gerada:
+  // aplicar de novo aqui cobraria a mesma conta duas vezes.
+  S.salario = Math.max(1, oferta.salario);
+  S.contrato = oferta.anos;
   S.papel = oferta.papel;
   return antigo !== S.time;
 }
@@ -1283,9 +1333,59 @@ function iniciais(nome){
  * A lista de times da liga escolhida. No site, caminho.php injeta os da
  * FBA direto do banco — com os nomes e logos atuais, sem cópia congelada.
  */
-function timesDaLiga(){
-  const l = S.modo === "fba" ? (window.__TIMES_FBA__ || FBA_TIMES) : (window.__TIMES_NBA__ || NBA);
-  return l.map(t => t[0]);
+const ESCADA_FBA = ["RISE", "NEXT", "ELITE"];
+
+/**
+ * Times disponíveis na divisão em que você está.
+ *
+ * Antes devolvia a FBA inteira misturada, e por isso subir de divisão não
+ * significava nada: os mesmos times apareciam na RISE e na ELITE. Time sem
+ * liga cadastrada entra em qualquer divisão — melhor um time a mais que
+ * uma divisão vazia.
+ */
+function timesDaLiga(liga){
+  if (S.modo !== "fba") return (window.__TIMES_NBA__ || NBA).map(t => t[0]);
+  const l = window.__TIMES_FBA__ || FBA_TIMES;
+  const alvo = String(liga || S.liga || "RISE").toUpperCase();
+  const doNivel = l.filter(t => !t[3] || String(t[3]).toUpperCase() === alvo);
+  return (doNivel.length ? doNivel : l).map(t => t[0]);
+}
+
+/**
+ * Sobe uma divisão depois de uma temporada de destaque.
+ *
+ * O draft joga todo mundo na RISE e a carreira morria lá — a escada que o
+ * modo FBA promete nunca acontecia. A promoção é por mérito INDIVIDUAL, e
+ * não do time, porque o que o jogador controla é o próprio desempenho.
+ * A régua sobe junto com a divisão: destacar na NEXT é mais difícil.
+ */
+function tentarSubirDivisao(o, st, premios){
+  if (S.modo !== "fba") return null;
+  const i = ESCADA_FBA.indexOf(String(S.liga || "").toUpperCase());
+  if (i < 0 || i >= ESCADA_FBA.length - 1) return null;
+
+  // Medido: com a regua frouxa, 58% das carreiras terminavam na ELITE —
+  // isso e escada rolante, nao escada. Tres freios: nivel mais alto, um
+  // sorteio bem menor, e um minimo de duas temporadas na divisao antes de
+  // poder subir (subir todo ano tirava o peso de ter subido).
+  S.anosDivisao = (S.anosDivisao || 0) + 1;
+  if (S.anosDivisao < 2) return null;
+
+  const nivelOvr = i === 0 ? 78 : 87;
+  const nivelPts = i === 0 ? 16 : 20;
+  if (o < nivelOvr || st.pts < nivelPts) return null;
+  if (ri(0, 100) >= (premios.length ? 34 : 18)) return null;
+
+  const nova = ESCADA_FBA[i + 1];
+  S.liga = nova;
+  S.anosDivisao = 0;
+  S.time = pick(timesDaLiga(nova));
+  S.gm = gmDoTime(S.time);
+  S.forcaBase = ri(45, 82);
+  S.confianca = 58;
+  S.contrato = Math.max(S.contrato, 2);
+  S.salario = Math.max(1, Math.round(S.salario * 1.7));
+  return nova;
 }
 function gmDoTime(nome){
   const l = window.__TIMES_FBA__ || FBA_TIMES;
@@ -1583,6 +1683,7 @@ function telaDraft(){
     S.confianca = Math.round(clamp(70 - S.pickDraft*0.6, 25, 85));
     S.salario = Math.max(1, Math.round(Math.pow((62 - S.pickDraft)/61, 2) * 26) + 1);
     S.contrato = 4;
+    criarRival();
 
     // Quem chega assim chega PRONTO — é o ponto de ter uma entrada rara.
     // O prodígio já desembarca em nível de titular; o campeão europeu não
@@ -1626,6 +1727,112 @@ function telaDraft(){
 function barra(){
   const p = clamp(((S.idade - 16) / 22) * 100, 0, 100);
   return `<div class="barra-topo"><i style="width:${p}%"></i></div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// O RIVAL
+//
+// Um jogador da sua posição, draftado no mesmo ano, cuja temporada aparece
+// do lado da sua todo ano. É o que dá espinha a uma carreira: sem ele os
+// anos são uma lista de números soltos; com ele existe alguém pra passar.
+//
+// Ele não é simulado em detalhe — tem OVR, potencial e uma linha por ano.
+// Simular o rival como um segundo jogador completo custaria caro e não
+// mudaria nada do que aparece na tela.
+// ═══════════════════════════════════════════════════════════════════════
+
+function criarRival(){
+  const pool = (ATLETAS[S.pos] || ATLETAS.SF).filter(p => p[0] !== S.nome);
+  const p = pick(pool);
+  const meu = ovr(S.A, S.pos);
+  S.rival = {
+    nome: p[0],
+    // Nasce coladinho em você: a graça é a disputa, não a goleada.
+    ovr: clamp(meu + ri(-3, 4), 40, 92),
+    pot: clamp(S.pot + ri(-7, 7), 62, 99),
+    trofeus: {titulo:0, mvp:0, allstar:0},
+    ult: null, totalPts: 0, anos: 0,
+  };
+}
+
+/** A linha do rival no ano. Mesmos pesos de posição, sem os atributos. */
+function statsDoRival(o, min){
+  const p = POSICOES[S.pos].w, f = min / 32, uso = clamp((o - 60) / 40, 0, 1);
+  const n1 = x => Math.round(x * 10) / 10;
+  return {
+    pts: n1(clamp((4.5 + uso*16 + (p.tres+p.fin)*11) * f + ri(-2,2), 1.5, 34)),
+    reb: n1(clamp((1.5 + (p.fis+p.def)*13) * f + ri(-1,1), 0.5, 17)),
+    ast: n1(clamp((0.8 + p.pas*22) * f + ri(-1,1), 0.2, 13)),
+    jogos: ri(0,100) < 12 ? ri(38,64) : ri(68,82),
+  };
+}
+
+/** Um ano na vida dele. Cresce e envelhece pela mesma régua que você. */
+function anoDoRival(){
+  const r = S.rival;
+  if (!r) return;
+  const falta = r.pot - r.ovr;
+  const d = S.idade <= 23 ? (falta > 0 ? ri(0,2) + Math.round(falta*0.26) : 0)
+          : S.idade <= 27 ? (falta > 0 ? ri(0,1) + Math.round(falta*0.16) : 0)
+          : S.idade <= 31 ? (falta > 2 ? Math.round(falta*0.07) : -ri(0,1))
+          : -ri(2, 2 + Math.floor((S.idade-31)*0.9));
+  r.ovr = clamp(r.ovr + d, 35, 99);
+
+  const min = clamp((r.ovr - 55) * 0.62 + 22, 12, 38);
+  r.ult = statsDoRival(r.ovr, min);
+  r.totalPts += Math.round(r.ult.pts * r.ult.jogos);
+  r.anos++;
+
+  if (r.ovr >= 82 && ri(0,100) < 32) r.trofeus.allstar++;
+  if (r.ovr >= 91 && ri(0,100) < 13) r.trofeus.mvp++;
+  if (ri(0,100) < 7 + Math.max(0, r.ovr - 86)) r.trofeus.titulo++;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// TOTAIS E MARCAS
+//
+// Média por jogo diz como você jogava; total diz quanto tempo você durou.
+// São as duas metades de uma carreira longa, e só a primeira existia.
+// ═══════════════════════════════════════════════════════════════════════
+
+function totaisDeCarreira(){
+  return S.temporadas.filter(t => !t.formacao && !t.perdida).reduce((a, t) => ({
+    pts:   a.pts   + Math.round((t.pts||0) * (t.jogos||0)),
+    reb:   a.reb   + Math.round((t.reb||0) * (t.jogos||0)),
+    ast:   a.ast   + Math.round((t.ast||0) * (t.jogos||0)),
+    jogos: a.jogos + (t.jogos||0),
+  }), {pts:0, reb:0, ast:0, jogos:0});
+}
+
+const MARCAS = [
+  ["pts",  5000, "5 mil pontos na carreira"],
+  ["pts", 10000, "10 mil pontos — você virou nome de tabela"],
+  ["pts", 15000, "15 mil pontos"],
+  ["pts", 20000, "20 mil pontos. Esse é o clube dos imortais"],
+  ["pts", 25000, "25 mil pontos"],
+  ["pts", 30000, "30 mil pontos. Um punhado de gente chegou aqui, e agora você"],
+  ["reb",  3000, "3 mil rebotes"],
+  ["reb",  6000, "6 mil rebotes"],
+  ["reb", 10000, "10 mil rebotes — território de pivô lendário"],
+  ["ast",  2500, "2.500 assistências"],
+  ["ast",  5000, "5 mil assistências"],
+  ["ast",  8000, "8 mil assistências — top 10 da história"],
+  ["jogos", 500, "500 jogos"],
+  ["jogos",1000, "1.000 jogos. Durar também é talento"],
+  ["jogos",1300, "1.300 jogos. Quase ninguém aguenta tanto"],
+];
+
+/** Marcas cruzadas nesta temporada, na ordem em que caem. */
+function marcasNovas(){
+  const t = totaisDeCarreira();
+  const ja = S.marcasBatidas || (S.marcasBatidas = []);
+  const novas = [];
+  MARCAS.forEach(([campo, alvo, texto], i) => {
+    if (ja.includes(i) || t[campo] < alvo) return;
+    ja.push(i);
+    novas.push(texto);
+  });
+  return novas;
 }
 
 /**
@@ -1806,6 +2013,18 @@ function fecharAno(campeao, vit, o, st){
   const estouro = evoluir();
   S.mensagem = estouro ? "Você estourou. De uma temporada pra outra, virou outro jogador." : null;
 
+  const subiu = tentarSubirDivisao(o, st, premios);
+  if (subiu){
+    S.mensagem = `A ${subiu} veio buscar você. O ${S.time} pagou pra tirar você da divisão de baixo.`;
+  }
+
+  anoDoRival();
+
+  // Marca histórica come a mensagem do ano: passar dos 20 mil pontos é
+  // mais importante que qualquer outro recado que estivesse ali.
+  const marcas = marcasNovas();
+  if (marcas.length) S.mensagem = marcas[marcas.length - 1] + ".";
+
   // Contrato acabando manda pro mercado ANTES da decisão do ano: é a
   // decisão mais pesada que existe, não faz sentido dividir espaço.
   if (S.contrato <= 0){
@@ -1877,19 +2096,34 @@ function telaMercado(){
     <h1>Seu contrato acabou.</h1>
     <p class="lead">${ofertas.length === 1
       ? "Só apareceu uma proposta. O mercado não é gentil com quem não produz."
-      : `${ofertas.length} times na mesa. Escolha o time — depois o prazo.`}</p>
+      : `${ofertas.length} propostas na mesa. Cada uma vem com o prazo dela.`}</p>
     ${ofertas.map((of,i)=>`
       <button class="op" onclick="escolherOferta(${i})" style="display:flex;gap:12px;align-items:flex-start">
         ${marca(of.time, 38)}
         <span style="flex:1;min-width:0">
-          ${esc(of.time)} <span style="color:var(--red);font-family:var(--num)">$${of.salario}M/ano</span>
-          <small>${esc(of.nota)}<br>Papel: ${esc(of.papel)} · elenco ${of.forca >= 70 ? "forte" : of.forca >= 50 ? "mediano" : "fraco"}</small>
+          ${esc(of.time)}
+          <span class="proposta">$${of.salario}M/ano · ${of.anos} ${of.anos === 1 ? "ano" : "anos"}</span>
+          <small>${esc(of.nota)}<br>Papel: ${esc(of.papel)} · elenco ${of.forca >= 70 ? "forte" : of.forca >= 50 ? "mediano" : "fraco"}
+          · total $${of.salario * of.anos}M</small>
         </span>
       </button>`).join("")}
     <p class="nota-txt">Seu valor de mercado hoje: <b style="color:var(--text)">${v}</b>. Ele sobe com produção e desce com a idade.</p>`;
 }
 
 function escolherOferta(i){
+  const of = S.mercado[i];
+  const mudou = assinar(of);
+  S.resultado = mudou
+    ? `Você assinou com o ${of.time} por ${of.anos} ${of.anos === 1 ? "ano" : "anos"}, $${of.salario}M por ano. Malas prontas.`
+    : `Você renovou com o ${of.time}: ${of.anos} ${of.anos === 1 ? "ano" : "anos"}, $${of.salario}M por ano.`;
+  S.mercado = null; S.ofertaEscolhida = null;
+  S.decisaoId = decisaoDoAno();
+  S.aguardando = S.decisaoId !== null;
+  salvar(); telaTemporada();
+}
+
+// A tela de prazo separada saiu: o prazo agora vem dentro da proposta.
+function escolherOfertaAntigo(i){
   S.ofertaEscolhida = i;
   const of = S.mercado[i];
   app().innerHTML = topo() + `
@@ -1928,6 +2162,7 @@ function telaTemporada(){
 
   app().innerHTML = topo() + barra() +
     placar(st, String(S.ano), S.time + (S.gm ? ` · ${S.gm}` : ""), S.ultimaCampanha, S.ultimosPremios || []) +
+    cardRival() +
     (S.mensagem ? `<div class="bpcard"><p class="dec-txt" style="margin:0">${S.mensagem}</p></div>` : "") +
     (S.resultado ? `<div class="bpcard"><div class="bpcard-title">O que aconteceu${S.efeitoDecisao ? `<span style="color:${S.efeitoDecisao>0?"var(--green)":"var(--red)"}">${S.efeitoDecisao>0?"+":""}${S.efeitoDecisao} OVR</span>` : ""}</div><p class="dec-txt" style="margin:0">${S.resultado}</p></div>` : "") +
     (S.aguardando && d ? `
@@ -1940,6 +2175,32 @@ function telaTemporada(){
                   : `<button class="btn" onclick="jogarAno()">Próxima temporada</button>`}
       ${!aposentar && S.idade >= 33 ? `<button class="btn btn2" style="margin-top:8px" onclick="encerrar()">Ou parar por aqui</button>` : ""}`) +
     sumula();
+}
+
+/** Você × ele, a linha do ano. Só aparece depois que os dois jogaram. */
+function cardRival(){
+  const r = S.rival;
+  if (!r || !r.ult || !S.ultimo) return "";
+  const meu = S.ultimo, eleF = faixaOvr(r.ovr), meuF = faixaOvr(ovr(S.A, S.pos));
+  const linha = (rot, a, b) => {
+    const cor = a > b ? "var(--green)" : a < b ? "var(--red)" : "var(--text2)";
+    return `<div class="rv-linha">
+      <span class="rv-n" style="color:${cor};font-weight:900">${a}</span>
+      <span class="rv-rot">${rot}</span>
+      <span class="rv-n">${b}</span></div>`;
+  };
+  return `<div class="bpcard">
+    <div class="bpcard-title">Você × ${esc(r.nome)}</div>
+    <div class="rv-topo">
+      <span class="rv-lado" style="color:${meuF[1]}">${ovr(S.A,S.pos)}</span>
+      <span class="rv-rot">overall</span>
+      <span class="rv-lado" style="color:${eleF[1]}">${r.ovr}</span>
+    </div>
+    ${linha("pontos", meu.pts, r.ult.pts)}
+    ${linha("rebotes", meu.reb, r.ult.reb)}
+    ${linha("assist.", meu.ast, r.ult.ast)}
+    ${linha("títulos", S.trofeus.titulo, r.trofeus.titulo)}
+  </div>`;
 }
 
 function decidir(i){
@@ -2008,6 +2269,32 @@ function encerrar(){
   telaFim();
 }
 
+/** O placar da rivalidade, contado como se conta briga de vestiário. */
+function dueloFinal(){
+  const r = S.rival;
+  if (!r || !r.anos) return "";
+  const meu = S.trofeus, dele = r.trofeus;
+  const frase = meu.titulo > dele.titulo
+      ? `Você levou a melhor: ${meu.titulo} a ${dele.titulo} em títulos.`
+    : meu.titulo < dele.titulo
+      ? `Ele levou a melhor: ${dele.titulo} a ${meu.titulo} em títulos.`
+    : meu.mvp !== dele.mvp
+      ? `Empatados em títulos (${meu.titulo}). O desempate foi no MVP: ${meu.mvp} a ${dele.mvp}.`
+      : "Empatados em tudo. Vinte anos de discussão e ninguém ganhou.";
+  const tot = totaisDeCarreira();
+  const l = (rot, a, b) => `<div class="rv-linha">
+      <span class="rv-n" style="color:${a>b?"var(--green)":a<b?"var(--red)":"var(--text2)"};font-weight:900">${a}</span>
+      <span class="rv-rot">${rot}</span><span class="rv-n">${b}</span></div>`;
+  return `<div class="bpcard">
+    <div class="bpcard-title">A rivalidade · ${esc(r.nome)}</div>
+    <p class="dec-txt">${frase}</p>
+    ${l("títulos", meu.titulo, dele.titulo)}
+    ${l("MVP", meu.mvp, dele.mvp)}
+    ${l("All-Star", meu.allstar, dele.allstar)}
+    ${l("pontos", tot.pts.toLocaleString("pt-BR"), r.totalPts.toLocaleString("pt-BR"))}
+  </div>`;
+}
+
 const LEGADO_MAXIMO = 230;
 
 /**
@@ -2043,6 +2330,7 @@ function pontuacaoLegado(){
 
 function telaFim(){
   const pts = pontuacaoLegado();
+  const tot = totaisDeCarreira();
   let tier = TIERS[0][1];
   TIERS.forEach(([min,nome]) => { if (pts >= min) tier = nome; });
   const anos = S.temporadas.filter(x=>!x.formacao);
@@ -2073,6 +2361,11 @@ function telaFim(){
         <div class="st"><b>${med(somas.r)}</b><span>rebotes</span></div>
         <div class="st"><b>${med(somas.s)}</b><span>assist.</span></div>
       </div>
+      <div class="linha-mini">
+        <div class="mini"><b>${tot.pts.toLocaleString("pt-BR")}</b><span>pontos totais</span></div>
+        <div class="mini"><b>${tot.reb.toLocaleString("pt-BR")}</b><span>rebotes</span></div>
+        <div class="mini"><b>${tot.jogos.toLocaleString("pt-BR")}</b><span>jogos</span></div>
+      </div>
       ${tro.length ? `<div class="premios" style="padding:13px 15px">
         ${tro.map(([n,nome])=>`<span class="pr ${nome==='Títulos'?'titulo':'ouro'}">${n}× ${esc(nome)}</span>`).join("")}
       </div>` : `<div class="campanha">Sem troféus. Nem todo mundo levanta taça.</div>`}
@@ -2083,6 +2376,7 @@ function telaFim(){
       <div class="grande" style="color:var(--amber)">+${S.moedasGanhas}</div>
       <p style="margin:0;font-size:11.5px;color:var(--text2)">creditadas na sua conta</p>
     </div>` : ""}
+    ${dueloFinal()}
     <button class="btn" onclick="copiar(this)">Copiar pra mandar no grupo</button>
     <button class="btn btn2" style="margin-top:8px" onclick="apagar();S=null;render()">Nova carreira</button>
     ${sumula()}${ranking("Como você ficou entre os GMs")}`;
