@@ -284,6 +284,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         // Campos de configuração que o admin precisa ver pra reproduzir a
         // tática dentro do jogo. Minutos por jogador ficaram de fora: não são
         // mais usados. A ordem aqui é a ordem que aparece na tela.
+        $OPCOES_TATICA = require __DIR__ . '/../backend/tatica_opcoes.php';
+
         $camposConfig = [
             'game_style'           => 'Estilo de Jogo',
             'offense_style'        => 'Estilo Ofensivo',
@@ -351,7 +353,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                     $config[] = [
                         'campo'   => $campo,
                         'rotulo'  => $rotulo,
-                        'valor'   => ($valor === null || $valor === '') ? null : (string)$valor,
+                        // O rótulo, não o valor cru: o admin mostrava
+                        // "pace_space" onde o jogo escreve "Pace & Space".
+                        // Opção sem tradução cai no valor original em vez de
+                        // sumir — melhor mostrar feio que esconder.
+                        'valor'   => ($valor === null || $valor === '')
+                            ? null
+                            : (string)($OPCOES_TATICA[$campo][(string)$valor] ?? $valor),
                         // Só marca como alterado quando existe snapshot: sem ele
                         // não dá pra saber o que mudou, e pintar tudo de vermelho
                         // seria pior que não pintar nada.
