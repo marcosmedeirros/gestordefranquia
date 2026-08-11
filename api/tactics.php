@@ -326,10 +326,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 LEFT JOIN players b3 ON b3.id = tt.bench_3_id
                 LEFT JOIN players g1 ON g1.id = tt.gleague_1_id
                 LEFT JOIN players g2 ON g2.id = tt.gleague_2_id
-                WHERE tt.team_id = ? AND tt.is_active = 1 LIMIT 1
+                WHERE tt.team_id = ? AND tt.is_active = ?
             ");
-            $stmtA->execute([(int)$t['id']]);
+            $stmtA->execute([(int)$t['id'], 1]);
             $ativa = $stmtA->fetch(PDO::FETCH_ASSOC) ?: null;
+
+            // Nenhuma marcada: cai no 'regular', que é exatamente o que a tela
+            // do GM faz. Sem isto o admin dizia "nenhuma tática ativa" pro time
+            // que o proprio dono ve como ativa — as duas telas liam a mesma
+            // tabela e respondiam coisas diferentes.
+            if (!$ativa) {
+                $stmtA->execute([(int)$t['id'], 0]);
+                foreach ($stmtA->fetchAll(PDO::FETCH_ASSOC) as $linha) {
+                    if ($linha['slot'] === 'regular') { $ativa = $linha; break; }
+                }
+            }
 
             $tatica = null;
             if ($ativa) {
@@ -634,6 +645,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             http_response_code(500);
             echo json_encode(['success' => false, 'error' => 'Erro ao salvar a tática.']);
             exit;
+        }
+
+        // Time sem nenhuma tática marcada fica com esta. Antes o is_active só
+        // era gravado por "ativar" explícito, entao quem salvou e nunca clicou
+        // ali ficava com tudo em 0 — e o admin nao via tatica nenhuma.
+        $stmtNenhuma = $pdo->prepare('SELECT COUNT(*) FROM team_tactics WHERE team_id = ? AND is_active = 1');
+        $stmtNenhuma->execute([$teamId]);
+        if ((int)$stmtNenhuma->fetchColumn() === 0) {
+            $pdo->prepare('UPDATE team_tactics SET is_active = 1 WHERE team_id = ? AND slot = ?')
+                ->execute([$teamId, $slot]);
         }
 
         // Se essa é a tática ativa, o que mudou já é oficial — atualiza o espelho.
