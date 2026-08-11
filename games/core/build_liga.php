@@ -524,3 +524,76 @@ function buildMoedasDaPosicaoHistorica(array $hist): int
     if ($pos <= 10) return 50;
     return 0;
 }
+
+/**
+ * Um jogo entre dois builds, cada um no time que sorteou.
+ *
+ * A conta é a mesma da temporada — força do elenco mais a DIFERENÇA do build
+ * pro mediano do tipo dele — só que aqui as duas forças se enfrentam em vez de
+ * virarem vitórias num calendário de 82 jogos.
+ *
+ * Por que a diferença e não o OVR direto: um GUARD sai com OVR ~88 e um BIG
+ * com ~81 sem que nenhum dos dois tenha jogado melhor. Medir cada um contra os
+ * seus é o que permite BIG contra GUARD num duelo justo.
+ *
+ * Nunca sai empate: se o placar der igual, vai pra prorrogação até desempatar.
+ */
+function buildSimularConfronto(array $ladoA, array $ladoB): array
+{
+    $forcaDe = function (array $l): float {
+        $mediano = buildPerfilDoGrupo((string)$l['grupo'])['mediano'];
+        return $l['time']['forca'] + ((((int)$l['ovr']) - $mediano) * 1.2);
+    };
+    $fA = $forcaDe($ladoA);
+    $fB = $forcaDe($ladoB);
+
+    // Base 108 pontos, e cada ponto de força vale ~0,55 ponto no placar. O
+    // ruído é grande de propósito: build melhor ganha na maioria das vezes,
+    // não sempre — senão o duelo é só comparar dois números.
+    $ptsDe = fn(float $forca, float $adv) => (int)round(
+        108 + (($forca - $adv) * 0.55) + (random_int(-900, 900) / 100)
+    );
+    $pA = max(78, min(148, $ptsDe($fA, $fB)));
+    $pB = max(78, min(148, $ptsDe($fB, $fA)));
+
+    // Prorrogação: quem tem mais força leva a vantagem, mas não a decisão.
+    $prorrogacoes = 0;
+    while ($pA === $pB && $prorrogacoes < 4) {
+        $prorrogacoes++;
+        $pA += random_int(8, 16) + ($fA > $fB ? 1 : 0);
+        $pB += random_int(8, 16) + ($fB > $fA ? 1 : 0);
+    }
+    if ($pA === $pB) $pA++;   // rede de segurança: empate não pode sair daqui
+
+    return [
+        'pontos_a'      => $pA,
+        'pontos_b'      => $pB,
+        'forca_a'       => round($fA, 1),
+        'forca_b'       => round($fB, 1),
+        'prorrogacoes'  => $prorrogacoes,
+        'vencedor'      => $pA > $pB ? 'a' : 'b',
+    ];
+}
+
+/**
+ * A linha de cada build no jogo: pontos, rebotes e assistências.
+ *
+ * Não é simulação de posse — é uma repartição do placar do time coerente com o
+ * perfil do build. Serve pra dar cara de súmula ao resultado; quem decide o
+ * duelo é o placar, não estes números.
+ */
+function buildLinhaDoJogo(array $notas, int $ovr, string $grupo, int $pontosDoTime): array
+{
+    $n = fn(string $k) => (int)($notas[$k]['nivel'] ?? 5);
+    $ataque = ($n('jump_shot') + $n('finishing') + $n('handles')) / 3;
+    $garrafao = ($n('size') + $n('bounce')) / 2;
+    $visao = $n('passing');
+
+    $fatia = 0.16 + (($ovr - 70) / 100) * 0.22 + (($ataque - 6) / 10) * 0.06;
+    $pts = (int)round($pontosDoTime * max(0.10, min(0.42, $fatia)) + random_int(-3, 3));
+
+    $reb = (int)round(($grupo === 'BIG' ? 6.5 : 2.8) + ($garrafao - 5) * 0.9 + random_int(-2, 2));
+    $ast = (int)round(($grupo === 'BIG' ? 1.8 : 4.2) + ($visao - 5) * 0.8 + random_int(-1, 2));
+
+    return ['pts' => max(2, $pts), 'reb' => max(0, $reb), 'ast' => max(0, $ast)];
+}

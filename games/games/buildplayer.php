@@ -71,6 +71,9 @@ function bpGarantirTabelas(PDO $pdo): void
         'camisa'       => "ADD COLUMN camisa VARCHAR(3) NULL AFTER nome_jogador",
         'rerolls'      => "ADD COLUMN rerolls TINYINT NOT NULL DEFAULT 0 AFTER atual_player_id",
         'temporada'    => "ADD COLUMN temporada TEXT NULL AFTER moedas",
+        // Build que nasce dentro de um confronto. NULL = build solo, que é
+        // como todo build existente fica — o modo antigo não muda em nada.
+        'duelo_id'     => "ADD COLUMN duelo_id INT NULL AFTER id_usuario, ADD INDEX idx_bp_duelo (duelo_id)",
     ];
     foreach ($add as $col => $sql) {
         if (!in_array($col, $cols, true)) $pdo->exec("ALTER TABLE build_partidas {$sql}");
@@ -84,8 +87,146 @@ function bpGarantirTabelas(PDO $pdo): void
 
     $temIdx = $pdo->query("SHOW INDEX FROM build_partidas WHERE Key_name = 'idx_bp_usuario'")->fetch();
     if (!$temIdx) $pdo->exec("ALTER TABLE build_partidas ADD INDEX idx_bp_usuario (id_usuario, id)");
+    // ── Confronto ──────────────────────────────────────────────────────────
+    // Os dois montam ao mesmo tempo, cada um vendo o outro preencher. Quando
+    // os dois fecham, cada build sorteia um time e os times se enfrentam.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS build_duelos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        codigo VARCHAR(8) NOT NULL,
+        id_criador INT NOT NULL,
+        id_desafiado INT NULL,
+        aposta INT NOT NULL,
+        modo VARCHAR(10) NOT NULL DEFAULT 'amigo',
+        status VARCHAR(20) NOT NULL DEFAULT 'aguardando',
+        partida_criador INT NULL,
+        partida_desafiado INT NULL,
+        resultado TEXT NULL,
+        id_vencedor INT NULL,
+        criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        entrou_em DATETIME NULL,
+        concluido_em DATETIME NULL,
+        UNIQUE KEY uk_bd_codigo (codigo),
+        INDEX idx_bd_criador (id_criador),
+        INDEX idx_bd_desafiado (id_desafiado),
+        INDEX idx_bd_modo_status (modo, status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // Revanche: cada lado marca a sua, e revanche_duelo_id aponta pro
+    // confronto que nasceu — é o que impede a mesma partida de gerar duas.
+    $colsD = $pdo->query("SHOW COLUMNS FROM build_duelos")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('revanche_criador', $colsD, true)) {
+        $pdo->exec("ALTER TABLE build_duelos
+            ADD COLUMN revanche_criador TINYINT(1) NOT NULL DEFAULT 0,
+            ADD COLUMN revanche_desafiado TINYINT(1) NOT NULL DEFAULT 0,
+            ADD COLUMN revanche_duelo_id INT NULL");
+    }
 }
 bpGarantirTabelas($pdo);
+
+/** Aposta que o confronto aceita, e a fixa do modo aleatório. */
+const BP_APOSTA_MIN = 5;
+const BP_APOSTA_MAX = 500;
+const BP_APOSTA_ALEATORIA = 25;
+
+/** Código curto e legível pra mandar no grupo. Sem 0/O e 1/I. */
+function bpGerarCodigo(PDO $pdo): string
+{
+    $alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for ($tentativa = 0; $tentativa < 30; $tentativa++) {
+        $c = '';
+        for ($i = 0; $i < 5; $i++) $c .= $alfabeto[random_int(0, strlen($alfabeto) - 1)];
+        $st = $pdo->prepare("SELECT 1 FROM build_duelos WHERE codigo = ? LIMIT 1");
+        $st->execute([$c]);
+        if (!$st->fetchColumn()) return $c;
+    }
+    throw new RuntimeException('não consegui gerar código de duelo');
+}
+
+/** O duelo aberto da pessoa, se houver. Um por vez, dos dois lados. */
+function bpDueloAtivo(PDO $pdo, int $userId): ?array
+{
+    $st = $pdo->prepare("SELECT * FROM build_duelos
+                         WHERE (id_criador = ? OR id_desafiado = ?)
+                           AND status IN ('aguardando','montando')
+                         ORDER BY id DESC LIMIT 1");
+    $st->execute([$userId, $userId]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/** O último duelo concluído, pra tela de resultado não sumir no F5. */
+function bpDueloConcluido(PDO $pdo, int $userId): ?array
+{
+    $st = $pdo->prepare("SELECT * FROM build_duelos
+                         WHERE (id_criador = ? OR id_desafiado = ?) AND status = 'concluido'
+                         ORDER BY id DESC LIMIT 1");
+    $st->execute([$userId, $userId]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/** Devolve o build de um lado do duelo, já decodificado. */
+function bpPartidaDoDuelo(PDO $pdo, ?int $partidaId): ?array
+{
+    if (!$partidaId) return null;
+    $st = $pdo->prepare("SELECT * FROM build_partidas WHERE id = ?");
+    $st->execute([$partidaId]);
+    $p = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($p) {
+        $p['slots']  = json_decode((string)$p['slots'], true) ?: [];
+        $p['usados'] = json_decode((string)$p['usados'], true) ?: [];
+    }
+    return $p;
+}
+
+/**
+ * Fecha o duelo: cada lado sorteia um time e os dois se enfrentam.
+ *
+ * Roda uma vez só — o WHERE status='montando' é o que garante isso. Dois
+ * cliques simultâneos no último slot faziam os dois lados tentar fechar, e
+ * sem essa trava o prêmio saía duas vezes.
+ *
+ * Precisa ser chamada DENTRO da transação de quem fechou o último slot.
+ */
+function bpFecharDuelo(PDO $pdo, array $duelo): ?array
+{
+    $pc = bpPartidaDoDuelo($pdo, (int)$duelo['partida_criador']);
+    $pd = bpPartidaDoDuelo($pdo, (int)$duelo['partida_desafiado']);
+    if (!$pc || !$pd || !$pc['concluido_em'] || !$pd['concluido_em']) return null;
+
+    $lado = function (array $p): array {
+        return [
+            'partida_id' => (int)$p['id'],
+            'usuario_id' => (int)$p['id_usuario'],
+            'nome'       => (string)($p['nome_jogador'] ?: 'Jogador'),
+            'camisa'     => (string)($p['camisa'] ?? ''),
+            'grupo'      => (string)$p['grupo'],
+            'ovr'        => (int)$p['ovr'],
+            'slots'      => $p['slots'],
+            'time'       => buildSortearTime(),
+        ];
+    };
+    $a = $lado($pc);
+    $b = $lado($pd);
+
+    $jogo = buildSimularConfronto($a, $b);
+    $a['linha'] = buildLinhaDoJogo($a['slots'], $a['ovr'], $a['grupo'], $jogo['pontos_a']);
+    $b['linha'] = buildLinhaDoJogo($b['slots'], $b['ovr'], $b['grupo'], $jogo['pontos_b']);
+
+    $vencedorId = $jogo['vencedor'] === 'a' ? $a['usuario_id'] : $b['usuario_id'];
+    $premio = (int)$duelo['aposta'] * 2;
+
+    $resultado = ['jogo' => $jogo, 'a' => $a, 'b' => $b, 'premio' => $premio];
+
+    $st = $pdo->prepare("UPDATE build_duelos
+                         SET status='concluido', resultado=?, id_vencedor=?, concluido_em=NOW()
+                         WHERE id = ? AND status = 'montando'");
+    $st->execute([json_encode($resultado, JSON_UNESCAPED_UNICODE), $vencedorId, (int)$duelo['id']]);
+    if ($st->rowCount() === 0) return null;   // outro request já fechou
+
+    $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")
+        ->execute([$premio, $vencedorId]);
+
+    return $resultado;
+}
 
 /** Cor da letra pelo nível: vermelho no fundo da escala, roxo no S. */
 function bpCor(int $nivel): string
@@ -226,6 +367,253 @@ if (($_POST['acao'] ?? '') !== '') {
     $attrs = array_keys(buildAtributos());
 
     try {
+        // ── CONFRONTO ──────────────────────────────────────────────────────
+        // Ficam antes das ações de build porque nenhuma delas depende de haver
+        // partida aberta: criar sala, entrar e espiar o outro acontecem fora
+        // do build.
+
+        /** Debita a aposta com trava. Devolve mensagem de erro ou null. */
+        $cobrarAposta = function (int $valor) use ($pdo, $user_id): ?string {
+            $st = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ? FOR UPDATE');
+            $st->execute([$user_id]);
+            if ((int)$st->fetchColumn() < $valor) return 'Saldo insuficiente.';
+            $pdo->prepare('UPDATE games_usuarios SET pontos = pontos - ? WHERE id = ?')
+                ->execute([$valor, $user_id]);
+            return null;
+        };
+
+        if ($acao === 'duelo_criar' || $acao === 'duelo_aleatorio') {
+            if (bpDueloAtivo($pdo, $user_id)) {
+                echo json_encode(['ok' => false, 'msg' => 'Você já está num confronto.']); exit;
+            }
+            $aleatorio = $acao === 'duelo_aleatorio';
+            $aposta = $aleatorio ? BP_APOSTA_ALEATORIA : (int)($_POST['aposta'] ?? 0);
+            if ($aposta < BP_APOSTA_MIN || $aposta > BP_APOSTA_MAX) {
+                echo json_encode(['ok' => false, 'msg' => 'A aposta vai de ' . BP_APOSTA_MIN
+                    . ' a ' . BP_APOSTA_MAX . ' moedas.']); exit;
+            }
+
+            $pdo->beginTransaction();
+            try {
+                // No aleatório, procura alguém já esperando ANTES de cobrar: o
+                // FOR UPDATE é o que impede uma terceira pessoa de entrar na
+                // mesma sala enquanto esta transação decide.
+                $sala = null;
+                if ($aleatorio) {
+                    $st = $pdo->prepare("SELECT * FROM build_duelos
+                                         WHERE status='aguardando' AND modo='aleatorio' AND id_criador <> ?
+                                         ORDER BY criado_em ASC LIMIT 1 FOR UPDATE");
+                    $st->execute([$user_id]);
+                    $sala = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+                    if ($sala) $aposta = (int)$sala['aposta'];
+                }
+
+                if ($erro = $cobrarAposta($aposta)) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => $erro]); exit;
+                }
+
+                if ($sala) {
+                    $pdo->prepare("UPDATE build_duelos SET id_desafiado=?, status='montando', entrou_em=NOW()
+                                   WHERE id=? AND status='aguardando'")
+                        ->execute([$user_id, (int)$sala['id']]);
+                    $codigo = $sala['codigo'];
+                } else {
+                    $codigo = bpGerarCodigo($pdo);
+                    $pdo->prepare("INSERT INTO build_duelos (codigo, id_criador, aposta, modo, status)
+                                   VALUES (?,?,?,?, 'aguardando')")
+                        ->execute([$codigo, $user_id, $aposta, $aleatorio ? 'aleatorio' : 'amigo']);
+                }
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            echo json_encode(['ok' => true, 'codigo' => $codigo]);
+            exit;
+        }
+
+        if ($acao === 'duelo_entrar') {
+            if (bpDueloAtivo($pdo, $user_id)) {
+                echo json_encode(['ok' => false, 'msg' => 'Você já está num confronto.']); exit;
+            }
+            $codigo = strtoupper(preg_replace('/[^A-Z0-9]/i', '', (string)($_POST['codigo'] ?? '')));
+            if ($codigo === '') { echo json_encode(['ok' => false, 'msg' => 'Informe o código.']); exit; }
+
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare("SELECT * FROM build_duelos WHERE codigo=? AND status='aguardando' FOR UPDATE");
+                $st->execute([$codigo]);
+                $d = $st->fetch(PDO::FETCH_ASSOC);
+                if (!$d) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Código não encontrado ou o confronto já começou.']); exit;
+                }
+                if ((int)$d['id_criador'] === $user_id) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Esse confronto é seu.']); exit;
+                }
+                if ($erro = $cobrarAposta((int)$d['aposta'])) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => $erro]); exit;
+                }
+                $pdo->prepare("UPDATE build_duelos SET id_desafiado=?, status='montando', entrou_em=NOW() WHERE id=?")
+                    ->execute([$user_id, (int)$d['id']]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
+        if ($acao === 'duelo_cancelar') {
+            $d = bpDueloAtivo($pdo, $user_id);
+            if (!$d) { echo json_encode(['ok' => false, 'msg' => 'Nenhum confronto aberto.']); exit; }
+            if ($d['status'] !== 'aguardando' || (int)$d['id_criador'] !== $user_id) {
+                echo json_encode(['ok' => false, 'msg' => 'Só dá pra cancelar enquanto ninguém entrou.']); exit;
+            }
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare("UPDATE build_duelos SET status='cancelado' WHERE id=? AND status='aguardando'");
+                $st->execute([(int)$d['id']]);
+                // Devolve a aposta só se a linha realmente mudou: sem isso, um
+                // duplo clique devolveria duas vezes.
+                if ($st->rowCount() > 0) {
+                    $pdo->prepare('UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?')
+                        ->execute([(int)$d['aposta'], $user_id]);
+                }
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
+        // O que o outro lado está fazendo. É daqui que sai o "o outro vai
+        // vendo": devolve os slots já preenchidos do adversário.
+        if ($acao === 'duelo_estado') {
+            $d = bpDueloAtivo($pdo, $user_id) ?: bpDueloConcluido($pdo, $user_id);
+            if (!$d) { echo json_encode(['ok' => true, 'duelo' => null]); exit; }
+
+            $souCriador = (int)$d['id_criador'] === $user_id;
+            $meuP   = bpPartidaDoDuelo($pdo, (int)($souCriador ? $d['partida_criador'] : $d['partida_desafiado']));
+            $delaP  = bpPartidaDoDuelo($pdo, (int)($souCriador ? $d['partida_desafiado'] : $d['partida_criador']));
+
+            $resumo = function (?array $p): array {
+                if (!$p) return ['comecou' => false, 'preenchidos' => 0, 'slots' => [], 'fechou' => false];
+                $slots = array_filter($p['slots'], fn($x) => $x !== null);
+                return [
+                    'comecou'     => true,
+                    'nome'        => (string)($p['nome_jogador'] ?: 'Jogador'),
+                    'grupo'       => (string)$p['grupo'],
+                    'preenchidos' => count($slots),
+                    'slots'       => $slots,
+                    'fechou'      => $p['concluido_em'] !== null,
+                ];
+            };
+
+            $outroId = $souCriador ? $d['id_desafiado'] : $d['id_criador'];
+            $nomeOutro = null;
+            if ($outroId) {
+                $st = $pdo->prepare("SELECT nome FROM games_usuarios WHERE id = ?");
+                $st->execute([(int)$outroId]);
+                $nomeOutro = $st->fetchColumn() ?: null;
+            }
+
+            echo json_encode(['ok' => true, 'duelo' => [
+                'codigo'    => $d['codigo'],
+                'status'    => $d['status'],
+                'aposta'    => (int)$d['aposta'],
+                'modo'      => $d['modo'],
+                'sou_criador' => $souCriador,
+                'adversario'  => $nomeOutro,
+                'eu'          => $resumo($meuP),
+                'ele'         => $resumo($delaP),
+                'resultado'   => $d['resultado'] ? json_decode((string)$d['resultado'], true) : null,
+                'venci'       => $d['id_vencedor'] ? ((int)$d['id_vencedor'] === $user_id) : null,
+                'pedi_revanche'  => (int)($souCriador ? ($d['revanche_criador'] ?? 0) : ($d['revanche_desafiado'] ?? 0)) === 1,
+                'ele_quer_revanche' => (int)($souCriador ? ($d['revanche_desafiado'] ?? 0) : ($d['revanche_criador'] ?? 0)) === 1,
+            ]]);
+            exit;
+        }
+
+        if ($acao === 'duelo_revanche') {
+            $pdo->beginTransaction();
+            try {
+                $st = $pdo->prepare("SELECT * FROM build_duelos
+                                     WHERE status='concluido' AND (id_criador=? OR id_desafiado=?)
+                                     ORDER BY id DESC LIMIT 1 FOR UPDATE");
+                $st->execute([$user_id, $user_id]);
+                $d = $st->fetch(PDO::FETCH_ASSOC);
+                if (!$d) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => false, 'msg' => 'Nenhum confronto pra revanche.']); exit;
+                }
+                if (!empty($d['revanche_duelo_id'])) {
+                    $pdo->rollBack();
+                    echo json_encode(['ok' => true, 'ja_nasceu' => true]); exit;
+                }
+
+                $souCriador = (int)$d['id_criador'] === $user_id;
+                $col = $souCriador ? 'revanche_criador' : 'revanche_desafiado';
+                $pdo->prepare("UPDATE build_duelos SET {$col} = 1 WHERE id = ?")->execute([(int)$d['id']]);
+
+                $outroQuer = (int)($souCriador ? $d['revanche_desafiado'] : $d['revanche_criador']) === 1;
+                if (!$outroQuer) {
+                    $pdo->commit();
+                    echo json_encode(['ok' => true, 'esperando' => true]);
+                    exit;
+                }
+
+                // Os dois querem. Cobra os dois AGORA — marcar intenção é de
+                // graça justamente pra ninguém ficar com moeda presa esperando
+                // uma resposta que talvez não venha.
+                $aposta = (int)$d['aposta'];
+                foreach ([(int)$d['id_criador'], (int)$d['id_desafiado']] as $uid) {
+                    $stS = $pdo->prepare('SELECT pontos FROM games_usuarios WHERE id = ? FOR UPDATE');
+                    $stS->execute([$uid]);
+                    if ((int)$stS->fetchColumn() < $aposta) {
+                        $pdo->rollBack();
+                        echo json_encode(['ok' => false,
+                            'msg' => 'Um dos dois não tem saldo pra repetir a aposta.']); exit;
+                    }
+                }
+                $pdo->prepare('UPDATE games_usuarios SET pontos = pontos - ? WHERE id IN (?, ?)')
+                    ->execute([$aposta, (int)$d['id_criador'], (int)$d['id_desafiado']]);
+
+                // Nasce já em 'montando': os dois lados são conhecidos, não há
+                // sala de espera nenhuma pra atravessar.
+                $codigo = bpGerarCodigo($pdo);
+                $pdo->prepare("INSERT INTO build_duelos (codigo, id_criador, id_desafiado, aposta, modo, status, entrou_em)
+                               VALUES (?,?,?,?,?, 'montando', NOW())")
+                    ->execute([$codigo, (int)$d['id_criador'], (int)$d['id_desafiado'], $aposta, $d['modo']]);
+                $novoId = (int)$pdo->lastInsertId();
+
+                // O antigo sai da tela de resultado e aponta pro novo.
+                $pdo->prepare("UPDATE build_duelos SET status='arquivado', revanche_duelo_id=? WHERE id=?")
+                    ->execute([$novoId, (int)$d['id']]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            echo json_encode(['ok' => true, 'comecou' => true]);
+            exit;
+        }
+
+        if ($acao === 'duelo_sair_resultado') {
+            // Some da tela, mas o duelo continua no histórico.
+            $pdo->prepare("UPDATE build_duelos SET status='arquivado'
+                           WHERE status='concluido' AND (id_criador=? OR id_desafiado=?)")
+                ->execute([$user_id, $user_id]);
+            echo json_encode(['ok' => true]);
+            exit;
+        }
+
         if ($acao === 'comecar') {
             $grupo = ($_POST['grupo'] ?? '') === 'BIG' ? 'BIG' : 'GUARD';
             // Só barra se já existe uma partida ABERTA — dá pra montar quantos
@@ -249,10 +637,31 @@ if (($_POST['acao'] ?? '') !== '') {
             $vazios = [];
             foreach ($attrs as $a) $vazios[$a] = null;
 
+            // Se a pessoa está num confronto em montagem, este build é o dela
+            // no duelo. O motor de girar/escolher é o mesmo — muda só quem
+            // paga no fim.
+            $duelo = bpDueloAtivo($pdo, $user_id);
+            $emDuelo = $duelo && $duelo['status'] === 'montando';
+            $souCriador = $emDuelo && (int)$duelo['id_criador'] === $user_id;
+            if ($emDuelo) {
+                $jaTem = $souCriador ? $duelo['partida_criador'] : $duelo['partida_desafiado'];
+                if ($jaTem) {
+                    echo json_encode(['ok' => false, 'msg' => 'Você já montou seu build neste confronto.']);
+                    exit;
+                }
+            }
+
             $pdo->prepare("INSERT INTO build_partidas
-                           (id_usuario, data_jogo, grupo, nome_jogador, camisa, slots, usados)
-                           VALUES (?,?,?,?,?,?,?)")
-                ->execute([$user_id, $hoje, $grupo, $nome, $camisa, json_encode($vazios), json_encode([])]);
+                           (id_usuario, duelo_id, data_jogo, grupo, nome_jogador, camisa, slots, usados)
+                           VALUES (?,?,?,?,?,?,?,?)")
+                ->execute([$user_id, $emDuelo ? (int)$duelo['id'] : null, $hoje, $grupo,
+                           $nome, $camisa, json_encode($vazios), json_encode([])]);
+
+            if ($emDuelo) {
+                $col = $souCriador ? 'partida_criador' : 'partida_desafiado';
+                $pdo->prepare("UPDATE build_duelos SET {$col} = ? WHERE id = ?")
+                    ->execute([(int)$pdo->lastInsertId(), (int)$duelo['id']]);
+            }
 
             echo json_encode(['ok' => true]);
             exit;
@@ -377,6 +786,24 @@ if (($_POST['acao'] ?? '') !== '') {
 
             $resposta = ['ok' => true, 'slots' => $slots, 'faltam' => $faltam, 'terminou' => $terminou];
 
+            // Build de confronto tem outro desfecho: não simula temporada nem
+            // paga pelo ranking histórico. Quem paga é o pote, e só quando os
+            // DOIS fecharem — senão o primeiro a terminar levava sozinho.
+            if ($terminou && !empty($fresca['duelo_id'])) {
+                $stD = $pdo->prepare("SELECT * FROM build_duelos WHERE id = ? FOR UPDATE");
+                $stD->execute([(int)$fresca['duelo_id']]);
+                $duelo = $stD->fetch(PDO::FETCH_ASSOC);
+
+                $resultado = $duelo ? bpFecharDuelo($pdo, $duelo) : null;
+                $pdo->commit();
+                echo json_encode($resposta + [
+                    'ovr' => $ovr,
+                    'duelo' => true,
+                    'esperando' => $resultado === null,
+                ]);
+                exit;
+            }
+
             if ($terminou) {
                 // Fecha a temporada aqui, no servidor, e grava. Se o sorteio do
                 // time e a simulação ficassem pro carregamento da tela final,
@@ -461,6 +888,14 @@ if ($partida) {
     foreach ($ATRIBUTOS as $c => $_) if (!empty($partida['slots'][$c])) $preenchidos++;
 }
 $trocasRestantes = $partida ? max(0, BP_MAX_REROLLS - (int)$partida['rerolls']) : BP_MAX_REROLLS;
+
+// Confronto: o aberto manda na tela; sem ele, um concluído ainda não visto
+// vira a tela de resultado. Os dois são NULL na esmagadora maioria das
+// visitas — o modo solo nem sabe que isto existe.
+$duelo    = bpDueloAtivo($pdo, $user_id);
+$dueloFim = $duelo ? null : bpDueloConcluido($pdo, $user_id);
+$dueloRes = $dueloFim && $dueloFim['resultado'] ? json_decode((string)$dueloFim['resultado'], true) : null;
+$souCriador = $duelo ? ((int)$duelo['id_criador'] === $user_id) : ($dueloFim ? ((int)$dueloFim['id_criador'] === $user_id) : false);
 
 // Lenda que já foi sorteada e está esperando escolha.
 //
@@ -740,9 +1175,54 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   .jersey-num{width:62px;height:62px;font-size:26px}
   .jersey-nome{font-size:18px}
 }
+
+/* ── CONFRONTO ─────────────────────────────────────────────────────────
+   Mesma linguagem do resto: painel, vermelho da marca, número em mono. */
+.bp-btn{width:100%;background:var(--red);color:#fff;border:0;border-radius:12px;padding:15px;font-family:var(--font);font-size:15px;font-weight:800;letter-spacing:.3px;cursor:pointer;transition:.15s}
+.bp-btn:hover{filter:brightness(1.12)}
+.bp-btn2{width:100%;background:transparent;border:1.5px solid var(--border2);color:var(--text2);border-radius:11px;padding:11px;font-family:var(--font);font-size:12.5px;font-weight:700;cursor:pointer;transition:.15s}
+.bp-btn2:hover{border-color:var(--red);color:var(--red)}
+.duelo-exp{font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:12px}
+.duelo-ops{display:flex;flex-direction:column;gap:8px}
+.duelo-linha{display:flex;gap:8px}
+.duelo-linha input{flex:1;min-width:0;background:var(--panel2);border:1.5px solid var(--border);border-radius:11px;padding:11px 12px;font-family:var(--font);font-size:13px;font-weight:700;color:var(--text);outline:none}
+.duelo-linha input:focus{border-color:var(--red)}
+.duelo-linha .bp-btn2{width:auto;flex:none;padding:11px 16px}
+.duelo-codigo{font-family:var(--num);font-size:34px;font-weight:900;letter-spacing:6px;color:var(--red);margin:6px 0 14px}
+.duelo-espera{font-size:15px;font-weight:700;color:var(--text2);margin:10px 0 14px}
+.duelo-aposta{font-size:12px;color:var(--text2);margin:12px 0}
+
+.duelo-placar{display:flex;align-items:center;gap:10px}
+.dp-lado{flex:1;text-align:center;padding:12px 6px;border-radius:12px;border:1.5px solid var(--border);background:var(--panel2)}
+.dp-lado.venceu{border-color:var(--green);background:color-mix(in srgb,var(--green) 10%,var(--panel2))}
+.dp-lado img{width:40px;height:40px;object-fit:contain;display:block;margin:0 auto 6px}
+.dp-lado b{display:block;font-family:var(--num);font-size:30px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+.dp-lado span{display:block;font-size:10px;font-weight:800;letter-spacing:1px;color:var(--text2);margin-top:5px}
+.dp-vs{flex:none;font-size:11px;font-weight:800;color:var(--text3);letter-spacing:1px;text-align:center;width:64px}
+.dp-ot{color:var(--amber);font-size:9.5px;line-height:1.3;display:block}
+
+.duelo-build{padding:11px 0;border-top:1px solid var(--border)}
+.duelo-build:first-of-type{border-top:none}
+.db-cab{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.db-rot{font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--text3)}
+.db-nome{font-size:14px;font-weight:800;color:var(--text)}
+.db-tag{font-size:9px;font-weight:800;letter-spacing:.6px;padding:2px 7px;border-radius:20px;background:var(--panel3);color:var(--text2)}
+.db-ovr{margin-left:auto;font-family:var(--num);font-size:20px;font-weight:900;color:var(--red)}
+.db-linha{display:flex;gap:12px;align-items:baseline;margin-top:5px;font-size:11.5px;color:var(--text2)}
+.db-linha b{font-family:var(--num);font-size:14px;font-weight:800;color:var(--text)}
+.db-time{margin-left:auto;font-size:10.5px;color:var(--text3)}
+
+/* Painel do adversário durante a montagem */
+.adv{display:flex;align-items:center;gap:10px;padding:11px 13px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;margin-bottom:12px}
+.adv-txt{flex:1;min-width:0;font-size:12px;color:var(--text2);line-height:1.35}
+.adv-txt b{color:var(--text);font-weight:800}
+.adv-prog{flex:none;font-family:var(--num);font-size:16px;font-weight:900;color:var(--red);font-variant-numeric:tabular-nums}
+.adv-barra{height:4px;background:var(--panel3);border-radius:99px;overflow:hidden;margin-top:6px}
+.adv-barra i{display:block;height:100%;background:var(--red);border-radius:99px;transition:width .4s}
 </style>
 </head>
-<body>
+<body<?= $duelo ? ' data-duelo-status="' . htmlspecialchars($duelo['status']) . '" data-duelo-esperando="1"'
+        : ($dueloRes ? ' data-duelo-status="concluido" data-duelo-esperando="1"' : '') ?>>
 
 <div class="topbar">
   <div class="topbar-left">
@@ -759,12 +1239,107 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 <div class="main">
 
+<?php if ($duelo && $duelo['status'] === 'montando'): ?>
+  <!-- "O outro vai vendo": o JS atualiza este bloco a cada 4s. O conteúdo
+       inicial é um placeholder de propósito — quem preenche é a primeira
+       espiada, pra não existir o mesmo texto renderizado em dois lugares. -->
+  <div class="adv" id="bpAdversario">
+    <div class="adv-txt">Carregando o adversário…</div>
+    <div class="adv-prog">0/10</div>
+  </div>
+<?php endif; ?>
+
 <?php if (!$temNotas): ?>
   <div class="aviso">
     <b>Nenhuma lenda cadastrada ainda.</b><br>
     Aplique o elenco em <a href="/games/admin/build-lendas.php">Lendas do Build-A-Player</a> pra liberar o jogo.
   </div>
 
+<?php elseif ($dueloRes): ?>
+  <?php
+    // O resultado é sempre mostrado do SEU ponto de vista: você à esquerda,
+    // independentemente de quem criou a sala.
+    $meu   = $souCriador ? $dueloRes['a'] : $dueloRes['b'];
+    $dele  = $souCriador ? $dueloRes['b'] : $dueloRes['a'];
+    $meuPts  = $souCriador ? $dueloRes['jogo']['pontos_a'] : $dueloRes['jogo']['pontos_b'];
+    $delePts = $souCriador ? $dueloRes['jogo']['pontos_b'] : $dueloRes['jogo']['pontos_a'];
+    $venci = (int)$dueloFim['id_vencedor'] === $user_id;
+  ?>
+  <div class="intro">
+    <h1><?= $venci ? '🏆 Você venceu' : 'Você perdeu' ?></h1>
+    <p><?= $venci
+        ? 'O pote inteiro é seu: <b>+' . (int)$dueloRes['premio'] . ' moedas</b>.'
+        : 'Ficou com o outro dessa vez. Foram ' . (int)$dueloFim['aposta'] . ' moedas.' ?></p>
+  </div>
+
+  <div class="bpcard">
+    <div class="bpcard-title">O jogo</div>
+    <div class="duelo-placar">
+      <div class="dp-lado<?= $venci ? ' venceu' : '' ?>">
+        <img src="<?= htmlspecialchars($meu['time']['logo']) ?>" alt="" onerror="this.style.display='none'">
+        <b><?= (int)$meuPts ?></b>
+        <span><?= htmlspecialchars($meu['time']['abbr']) ?></span>
+      </div>
+      <div class="dp-vs">
+        <?= $dueloRes['jogo']['prorrogacoes'] > 0
+            ? '<span class="dp-ot">' . (int)$dueloRes['jogo']['prorrogacoes'] . 'ª prorrogação</span>'
+            : 'VS' ?>
+      </div>
+      <div class="dp-lado<?= $venci ? '' : ' venceu' ?>">
+        <img src="<?= htmlspecialchars($dele['time']['logo']) ?>" alt="" onerror="this.style.display='none'">
+        <b><?= (int)$delePts ?></b>
+        <span><?= htmlspecialchars($dele['time']['abbr']) ?></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="bpcard">
+    <div class="bpcard-title">As duas builds</div>
+    <?php foreach ([[$meu, $meuPts, 'Seu build'], [$dele, $delePts, 'O dele']] as [$b, $pts, $rot]): ?>
+      <div class="duelo-build">
+        <div class="db-cab">
+          <span class="db-rot"><?= $rot ?></span>
+          <span class="db-nome"><?= htmlspecialchars($b['nome']) ?></span>
+          <span class="db-tag"><?= htmlspecialchars($b['grupo']) ?></span>
+          <span class="db-ovr"><?= (int)$b['ovr'] ?></span>
+        </div>
+        <div class="db-linha">
+          <span><b><?= (int)$b['linha']['pts'] ?></b> pts</span>
+          <span><b><?= (int)$b['linha']['reb'] ?></b> reb</span>
+          <span><b><?= (int)$b['linha']['ast'] ?></b> ast</span>
+          <span class="db-time"><?= htmlspecialchars($b['time']['nome']) ?></span>
+        </div>
+      </div>
+    <?php endforeach; ?>
+  </div>
+
+  <?php
+    $pediRevanche = (int)($souCriador ? $dueloFim['revanche_criador'] : $dueloFim['revanche_desafiado']) === 1;
+    $eleQuer      = (int)($souCriador ? $dueloFim['revanche_desafiado'] : $dueloFim['revanche_criador']) === 1;
+  ?>
+  <button class="bp-btn" onclick="bpRevanche()" <?= $pediRevanche ? 'disabled' : '' ?>>
+    <?= $pediRevanche ? 'Revanche pedida — esperando ele' : ($eleQuer ? 'Ele quer revanche. Topa?' : 'Pedir revanche') ?>
+  </button>
+  <button class="bp-btn2" style="margin-top:8px" onclick="bpSairResultado()">Fechar</button>
+
+<?php elseif ($duelo && $duelo['status'] === 'aguardando'): ?>
+  <div class="intro">
+    <h1>Esperando alguém</h1>
+    <p><?= $duelo['modo'] === 'aleatorio'
+        ? 'Procurando adversário. Assim que alguém entrar, os dois começam a montar.'
+        : 'Mande o código pra quem você quer desafiar.' ?></p>
+  </div>
+  <div class="bpcard centro">
+    <?php if ($duelo['modo'] !== 'aleatorio'): ?>
+      <div class="bpcard-title">Código do confronto</div>
+      <div class="duelo-codigo" id="bpCodigo"><?= htmlspecialchars($duelo['codigo']) ?></div>
+      <button class="bp-btn2" onclick="bpCopiarCodigo(this)">Copiar código</button>
+    <?php else: ?>
+      <div class="duelo-espera">Na fila…</div>
+    <?php endif; ?>
+    <p class="duelo-aposta">Aposta: <b><?= (int)$duelo['aposta'] ?></b> moedas · quem vencer leva <b><?= (int)$duelo['aposta'] * 2 ?></b></p>
+    <button class="bp-btn2" onclick="bpCancelarDuelo()">Cancelar e receber de volta</button>
+  </div>
 <?php elseif (!$partida): ?>
   <div class="intro">
     <h1>🏗️ Monte sua lenda</h1>
@@ -794,8 +1369,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
         <i class="bi bi-shield-fill"></i>
         <b>BIG</b><span>PF · C</span>
       </div>
+    </div>  </div>
+
+  <?php if (!$duelo): ?>
+  <div class="bpcard">
+    <div class="bpcard-title">Ou desafie alguém</div>
+    <p class="duelo-exp">Os dois montam ao mesmo tempo, cada um vendo o outro preencher. No fim cada build sorteia um time e os dois se enfrentam — quem ganhar leva o pote.</p>
+    <div class="duelo-ops">
+      <button class="bp-btn2" onclick="bpDueloAleatorio()">Adversário aleatório · <?= BP_APOSTA_ALEATORIA ?> moedas</button>
+      <div class="duelo-linha">
+        <input type="number" id="bpAposta" min="<?= BP_APOSTA_MIN ?>" max="<?= BP_APOSTA_MAX ?>"
+               placeholder="<?= BP_APOSTA_MIN ?>–<?= BP_APOSTA_MAX ?>" inputmode="numeric">
+        <button class="bp-btn2" onclick="bpCriarDuelo()">Criar com link</button>
+      </div>
+      <div class="duelo-linha">
+        <input type="text" id="bpCodigoEntrar" maxlength="8" placeholder="Código do amigo"
+               autocomplete="off" style="text-transform:uppercase">
+        <button class="bp-btn2" onclick="bpEntrarDuelo()">Entrar</button>
+      </div>
     </div>
   </div>
+  <?php endif; ?>
 
 <?php elseif ($partida['concluido_em']): ?>
   <?php
@@ -1246,6 +1840,115 @@ document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('faltam');
   if (el) el.textContent = vazios ? `faltam ${vazios}` : '';
 });
+
+// ── CONFRONTO ──────────────────────────────────────────────────────────
+// Todas as ações recarregam a página em vez de remontar a tela por JS: o
+// estado do duelo mora no servidor e a tela inteira depende dele, então
+// recarregar é mais barato e não tem como divergir.
+
+async function bpCriarDuelo() {
+  if (bpTravado) return;
+  const aposta = parseInt(document.getElementById('bpAposta')?.value || '0', 10);
+  if (!aposta) { alert('Diga quanto quer apostar.'); return; }
+  bpTravado = true;
+  const r = await bpPost({ acao: 'duelo_criar', aposta });
+  if (!r.ok) { alert(r.msg); bpTravado = false; return; }
+  window.location.href = '?game=buildplayer';
+}
+
+async function bpDueloAleatorio() {
+  if (bpTravado) return;
+  bpTravado = true;
+  const r = await bpPost({ acao: 'duelo_aleatorio' });
+  if (!r.ok) { alert(r.msg); bpTravado = false; return; }
+  window.location.href = '?game=buildplayer';
+}
+
+async function bpEntrarDuelo() {
+  if (bpTravado) return;
+  const codigo = (document.getElementById('bpCodigoEntrar')?.value || '').trim();
+  if (!codigo) { alert('Digite o código.'); return; }
+  bpTravado = true;
+  const r = await bpPost({ acao: 'duelo_entrar', codigo });
+  if (!r.ok) { alert(r.msg); bpTravado = false; return; }
+  window.location.href = '?game=buildplayer';
+}
+
+async function bpCancelarDuelo() {
+  if (bpTravado) return;
+  if (!confirm('Cancelar o confronto? A aposta volta pra sua conta.')) return;
+  bpTravado = true;
+  const r = await bpPost({ acao: 'duelo_cancelar' });
+  if (!r.ok) { alert(r.msg); bpTravado = false; return; }
+  window.location.href = '?game=buildplayer';
+}
+
+async function bpRevanche() {
+  if (bpTravado) return;
+  bpTravado = true;
+  const r = await bpPost({ acao: 'duelo_revanche' });
+  if (!r.ok) { alert(r.msg); bpTravado = false; return; }
+  if (r.esperando) alert('Revanche pedida. Assim que ele topar, o confronto começa.');
+  window.location.href = '?game=buildplayer';
+}
+
+async function bpSairResultado() {
+  if (bpTravado) return;
+  bpTravado = true;
+  await bpPost({ acao: 'duelo_sair_resultado' });
+  window.location.href = '?game=buildplayer';
+}
+
+function bpCopiarCodigo(botao) {
+  const codigo = document.getElementById('bpCodigo')?.textContent.trim() || '';
+  navigator.clipboard.writeText(codigo).then(() => {
+    const antes = botao.textContent;
+    botao.textContent = 'Copiado!';
+    setTimeout(() => { botao.textContent = antes; }, 1600);
+  }).catch(() => alert(codigo));
+}
+
+// ── O outro vai vendo ──────────────────────────────────────────────────
+// Enquanto o confronto está aberto, pergunta ao servidor o que o adversário
+// já preencheu. Recarrega sozinho quando o estado muda de fase (alguém
+// entrou na sala, ou o duelo fechou) — é o que faz a tela virar sem
+// ninguém apertar nada.
+(function () {
+  const painel = document.getElementById('bpAdversario');
+  const esperando = document.body.dataset.dueloEsperando === '1';
+  if (!painel && !esperando) return;
+
+  let faseAnterior = document.body.dataset.dueloStatus || '';
+
+  async function espiar() {
+    let d;
+    try {
+      const r = await bpPost({ acao: 'duelo_estado' });
+      d = r && r.duelo;
+    } catch (e) { return; }
+    if (!d) return;
+
+    // Mudou de fase: a tela inteira é outra, então recarrega.
+    if (d.status !== faseAnterior) { window.location.href = '?game=buildplayer'; return; }
+
+    if (painel) {
+      const ele = d.ele || {};
+      const n = ele.preenchidos || 0;
+      painel.querySelector('.adv-prog').textContent = n + '/10';
+      painel.querySelector('.adv-barra i').style.width = (n * 10) + '%';
+      const nome = ele.nome ? ele.nome : (d.adversario || 'O adversário');
+      painel.querySelector('.adv-txt').innerHTML = ele.fechou
+        ? '<b>' + nome + '</b> já fechou o build. Falta você.'
+        : (ele.comecou
+            ? '<b>' + nome + '</b> está montando — ' + n + ' de 10 slots.'
+            : '<b>' + (d.adversario || 'O adversário') + '</b> ainda não começou.')
+        + '<div class="adv-barra"><i style="width:' + (n * 10) + '%"></i></div>';
+    }
+  }
+
+  espiar();
+  setInterval(espiar, 4000);
+})();
 </script>
 </body>
 </html>
