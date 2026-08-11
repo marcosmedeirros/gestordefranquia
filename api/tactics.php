@@ -552,21 +552,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ")->execute([$league]);
         }
 
-        // Só avisa quando a janela realmente virou — mexer no horário de corte
-        // sem mudar o estado não gera push.
-        if ($janela['open'] !== $estadoAntes) {
-            require_once __DIR__ . '/../backend/push.php';
-            $aviso = $janela['open']
-                ? ['title' => '📋 Tática liberada na ' . $league,
-                   'body'  => 'A edição da tática está aberta. Vale até o admin fechar.',
-                   'url'   => '/tatica.php']
-                : ['title' => '🔒 Tática fechada na ' . $league,
-                   'body'  => 'A janela de edição da tática foi fechada. O que estava salvo é o que vale.',
-                   'url'   => '/tatica.php'];
-            sendPushToLeague($pdo, $league, $aviso, 'tatica');
-        }
+        // Só avisa quando a janela realmente virou.
+        $virou = $janela['open'] !== $estadoAntes;
+        require_once __DIR__ . '/../backend/push.php';
 
-        echo json_encode(['success' => true, 'window' => $janela]);
+        // A resposta sai primeiro; o push vira trabalho de bastidor. Era este
+        // envio que fazia o botão de tática demorar enquanto os de trade e FA
+        // respondiam na hora.
+        responderEDepoisNotificar(
+            ['success' => true, 'window' => $janela],
+            function () use ($pdo, $league, $janela, $virou) {
+                if (!$virou) return;
+                sendPushToLeague($pdo, $league, $janela['open']
+                    ? ['title' => '📋 Tática liberada na ' . $league,
+                       'body'  => 'A edição da tática está aberta. Vale até o admin fechar.',
+                       'url'   => '/tatica.php']
+                    : ['title' => '🔒 Tática fechada na ' . $league,
+                       'body'  => 'A edição da tática foi fechada. O que estava salvo é o que vale.',
+                       'url'   => '/tatica.php'],
+                    'tatica');
+            }
+        );
         exit;
     }
 

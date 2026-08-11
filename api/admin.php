@@ -1154,6 +1154,18 @@ if ($method === 'PUT') {
             $edital = $data['edital'] ?? null;
             $trades_enabled = isset($data['trades_enabled']) ? (int)$data['trades_enabled'] : null;
             $fa_enabled = isset($data['fa_enabled']) ? (int)$data['fa_enabled'] : null;
+
+            // Estado ANTES de gravar: sem isto não dá pra saber se o toggle
+            // realmente virou, e o admin salvando outra coisa qualquer da
+            // tela dispararia notificação sem nada ter mudado.
+            $antesToggles = ['trades_enabled' => null, 'fa_enabled' => null];
+            if ($trades_enabled !== null || $fa_enabled !== null) {
+                $stAntes = $pdo->prepare('SELECT trades_enabled, fa_enabled FROM league_settings WHERE league = ?');
+                $stAntes->execute([$league]);
+                $linhaAntes = $stAntes->fetch(PDO::FETCH_ASSOC) ?: [];
+                $antesToggles['trades_enabled'] = isset($linhaAntes['trades_enabled']) ? (int)$linhaAntes['trades_enabled'] : null;
+                $antesToggles['fa_enabled']     = isset($linhaAntes['fa_enabled'])     ? (int)$linhaAntes['fa_enabled']     : null;
+            }
             $n8n_webhook_url = array_key_exists('n8n_webhook_url', $data) ? trim((string)$data['n8n_webhook_url']) : null;
             $progression_video_url = array_key_exists('progression_video_url', $data) ? trim((string)$data['progression_video_url']) : null;
             $sistemas_video_url = array_key_exists('sistemas_video_url', $data) ? trim((string)$data['sistemas_video_url']) : null;
@@ -1312,8 +1324,33 @@ if ($method === 'PUT') {
                 }
             }
 
-            echo json_encode(['success' => true]);
-            break;
+            require_once __DIR__ . '/../backend/push.php';
+            responderEDepoisNotificar(
+                ['success' => true],
+                function () use ($pdo, $league, $trades_enabled, $fa_enabled, $antesToggles) {
+                    if ($trades_enabled !== null && $antesToggles['trades_enabled'] !== $trades_enabled) {
+                        sendPushToLeague($pdo, $league, $trades_enabled === 1
+                            ? ['title' => '🔄 Trades abertas na ' . $league,
+                               'body'  => 'A janela de trocas está no ar. Bora negociar.',
+                               'url'   => '/trades.php']
+                            : ['title' => '🔒 Trades fechadas na ' . $league,
+                               'body'  => 'A janela de trocas foi encerrada. As pendentes foram canceladas.',
+                               'url'   => '/trades.php'],
+                            'trades');
+                    }
+                    if ($fa_enabled !== null && $antesToggles['fa_enabled'] !== $fa_enabled) {
+                        sendPushToLeague($pdo, $league, $fa_enabled === 1
+                            ? ['title' => '💰 Free Agency aberta na ' . $league,
+                               'body'  => 'A janela de propostas está no ar. Corra pros free agents!',
+                               'url'   => '/free-agency.php']
+                            : ['title' => '🔒 Free Agency fechada na ' . $league,
+                               'body'  => 'A janela de propostas foi encerrada.',
+                               'url'   => '/free-agency.php'],
+                            'free_agency');
+                    }
+                }
+            );
+            exit;
 
         case 'team':
             // Atualizar informações do time

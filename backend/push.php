@@ -149,3 +149,39 @@ function sendPushToTeam(PDO $pdo, int $teamId, array $data, ?string $tipo = null
         error_log('[push-time] team_id=' . $teamId . ' ' . $e->getMessage());
     }
 }
+
+/**
+ * Entrega a resposta ao navegador e SÓ DEPOIS manda as notificações.
+ *
+ * Enviar push é uma chamada de rede por inscrito. Numa liga com trinta GMs,
+ * o botão do admin ficava segurando o clique até a última terminar — foi
+ * por isso que o toggle de tática parecia travado enquanto os de trade e
+ * free agency, que não notificavam nada, respondiam na hora.
+ *
+ * Com PHP-FPM o fastcgi_finish_request devolve a conexão e o processo segue
+ * trabalhando. Sem ele não dá pra devolver a conexão, então o melhor que
+ * existe é empurrar o buffer e seguir mesmo se o navegador desistir — o
+ * clique continua parecendo lento, mas nada se perde.
+ *
+ * Falha de push nunca vira erro de API: a ação do admin já foi gravada e já
+ * foi confirmada na tela. Só vai pro log.
+ */
+function responderEDepoisNotificar(array $resposta, callable $notificar): void
+{
+    if (!headers_sent()) header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($resposta);
+
+    ignore_user_abort(true);
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } else {
+        while (ob_get_level() > 0) { @ob_end_flush(); }
+        @flush();
+    }
+
+    try {
+        $notificar();
+    } catch (Throwable $e) {
+        error_log('[push] notificacao em segundo plano: ' . $e->getMessage());
+    }
+}
