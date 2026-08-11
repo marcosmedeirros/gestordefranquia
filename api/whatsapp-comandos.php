@@ -438,8 +438,8 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null): string
         $txt .= "\n*Quinteto titular:*\n";
         foreach (wcQuintetoTitular($elenco) as $vaga => $p) {
             $txt .= $p
-                ? str_pad($vaga, 2) . " — {$p['name']} ({$p['ovr']}), {$p['age']} anos\n"
-                : str_pad($vaga, 2) . " — _sem jogador na posição_\n";
+                ? "{$vaga}: {$p['name']} {$p['ovr']} | {$p['age']}y\n"
+                : "{$vaga}: _sem jogador na posição_\n";
         }
     }
     return rtrim($txt);
