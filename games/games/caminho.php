@@ -69,8 +69,8 @@ function caminhoLegado(array $estado): int
     $n = fn(string $k) => max(0, min($temporadas, (int)($t[$k] ?? 0)));
 
     $bruto = $n('mvp')*22 + $n('titulo')*16 + $n('fmvp')*10 + $n('dpoy')*8
-           + $n('cesta')*6 + $n('allstar')*4 + $n('ouro')*5 + $n('roy')*3
-           + (int)round($temporadas * 0.8);
+           + $n('euro')*7 + $n('cesta')*6 + $n('allstar')*4 + $n('ouro')*5
+           + $n('roy')*3 + (int)round($temporadas * 0.8);
 
     return (int)min(CAMINHO_LEGADO_MAX, round(pow(max(0,$bruto), 0.78) * 1.8));
 }
@@ -391,12 +391,21 @@ tr.tit td{color:var(--red)}
 .dec-txt b{color:var(--text)}
 .barra-topo{height:3px;background:var(--panel3);border-radius:99px;overflow:hidden;margin-bottom:14px}
 .barra-topo i{display:block;height:100%;background:var(--red);transition:width .5s}
-.ovr-linha{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--border);background:var(--panel2)}
-.ovr-rot{font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text)}
-.ovr-val{font-family:var(--num);font-size:24px;font-weight:900;letter-spacing:-1px;line-height:1;color:var(--text);font-variant-numeric:tabular-nums}
+/* CARD DO OVR — a cor É a informação. O número sozinho não dizia se 74
+   era bom ou ruim; a faixa de cor responde isso antes de você ler. */
+.ovr-linha{display:flex;align-items:center;gap:11px;padding:13px 14px;border-bottom:1px solid var(--border);
+  background:linear-gradient(90deg,color-mix(in srgb,var(--cor) 16%,var(--panel2)),var(--panel2) 70%);
+  border-left:3px solid var(--cor)}
+.ovr-esq{display:flex;flex-direction:column;gap:2px;flex:none}
+.ovr-rot{font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--text2)}
+.ovr-faixa{font-size:9.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--cor)}
+.ovr-val{font-family:var(--num);font-size:30px;font-weight:900;letter-spacing:-1.5px;line-height:1;
+  color:var(--cor);font-variant-numeric:tabular-nums}
 .ovr-delta{font-family:var(--num);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
-.ovr-barra{flex:1;height:6px;background:var(--panel3);border-radius:99px;overflow:hidden}
-.ovr-barra i{display:block;height:100%;background:var(--red);border-radius:99px;transition:width .5s}
+.ovr-barra{flex:1;height:7px;background:var(--panel3);border-radius:99px;overflow:hidden}
+.ovr-barra i{display:block;height:100%;background:var(--cor);border-radius:99px;transition:width .5s}
+/* A etiqueta de probabilidade quer ser lida como número, não como frase. */
+.op small.odds{font-family:var(--num);font-size:10.5px;font-weight:700;letter-spacing:.2px;color:var(--text2)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 /* RANKING — só existe na versão do site */
 .rk{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:12.5px}
@@ -580,6 +589,9 @@ function novaCarreira(nome, pos, arq, nac, modo){
     // dava carreira medíocre demais. Agora o bust é 1 em 8 e a estrela é
     // quase 1 em 3: a CARREIRA fica boa com frequência, e o que continua
     // difícil é o LEGADO, que é onde a raridade deve morar.
+    // 3%: o fenômeno geracional. Só aparece na noite do draft.
+    prodigio: Math.random() < 0.03,
+    destaque: null, comparacao: null,
     A, pot: (()=>{ const r = Math.random();
                    return r < 0.12 ? ri(64,75) : r < 0.68 ? ri(76,89) : ri(90,98); })(),
     fase:"base",            // base · college · fora · draft · liga · fim
@@ -589,18 +601,16 @@ function novaCarreira(nome, pos, arq, nac, modo){
     pickDraft:null,
     hype:50,                // o quanto os olheiros te enxergam
     confianca:50,           // confiança do treinador → minutos
-    moral:60,
     dinheiro:0, salario:0, contrato:0,
-    rival:null, rivalNome:null,
     temporadas:[],
-    trofeus:{mvp:0,titulo:0,fmvp:0,allstar:0,dpoy:0,mip:0,roy:0,cesta:0,ouro:0},
+    trofeus:{mvp:0,titulo:0,fmvp:0,allstar:0,dpoy:0,mip:0,roy:0,cesta:0,ouro:0,euro:0},
     ultimo:null, decisaoId:null, aguardando:false, mensagem:null, resultado:null,
     finais:null, mercado:null, ofertaEscolhida:null, ovrAnterior:null, efeitoDecisao:0, decisoesUsadas:[], papel:"titular", ultimoOvr:null, ultimaVit:null,
     afastado:null,          // {tipo,anos,motivo} enquanto estiver fora
     // Perder temporada é o preço mais caro do jogo, então nem toda carreira
     // chega perto dele: o sorteio aqui decide se ESTA vai encarar uma
     // encruzilhada dessas, e riscoUsado garante que seja no máximo uma.
-    riscoDaCarreira: Math.random() < 0.13, riscoUsado:false,
+    riscoDaCarreira: Math.random() < 0.16, riscoUsado:false,
     encerrada:false,
   };
 }
@@ -683,376 +693,396 @@ function evoluir(){
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// DECISÕES — 30 escritas à mão, com condição. São elas que dão voz ao
-// jogo; as genéricas de contrato entram quando nenhuma se aplica.
+// DECISÕES — cada opção é uma APOSTA DECLARADA
+//
+// Antes cada opção mexia em confiança, moral e hype: números que a pessoa
+// não vê e não entende, então a escolha não parecia ter consequência
+// nenhuma. Agora só existem três moedas de troca, todas visíveis:
+//
+//   ovr:  +N / -N no nível do jogador
+//   time: "melhor" ou "pior" — muda de time
+//   fora: temporada(s) perdida(s) por lesão ou suspensão
+//
+// E a aposta é escrita no dado, não no texto:
+//
+//   {l:"rótulo", chance:70, bom:{ovr:+2,txt:"deu certo"}, ruim:{ovr:-2,txt:"não deu"}}
+//
+// A etiqueta "70% +2 OVR · 30% −2 OVR" que aparece embaixo do botão é
+// GERADA a partir desses mesmos números. É de propósito: escrever a
+// probabilidade à mão em algum momento ia divergir do que o código faz.
+//
+// Sem `chance`, a opção é certeza. Sem `ruim`, o lado ruim é não acontecer
+// nada além do texto.
 // ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Move o OVR em exatamente `d` pontos.
+ *
+ * Os pesos de cada posição somam 1, então somar d em TODOS os atributos
+ * move a média em d — é o que permite prometer "+3" na tela e cumprir. O
+ * laço depois existe pro caso de algum atributo bater no teto ou no piso:
+ * aí a média não anda tudo o que devia, e eu completo pelo que ainda cabe.
+ */
+function mexerOvr(d){
+  if (!d) return 0;
+  const antes = ovr(S.A, S.pos);
+
+  // Pra CIMA o potencial vale, com três pontos de folga. Sem esse teto as
+  // decisões furavam o limite que o evoluir() respeita, e 30% das
+  // carreiras terminavam em 95+ — a faixa "lendário" virava lugar-comum.
+  // A folga de um ponto existe pra que decidir bem renda um pouco mais do que
+  // os olheiros projetaram; ela é o prêmio de acertar as apostas.
+  // Pra BAIXO não há piso nenhum: decidir mal tem que doer sempre.
+  const teto = d > 0 ? Math.min(99, Math.max(antes, S.pot + 1)) : 99;
+  const alvo = clamp(antes + d, 25, teto);
+  for (const k in S.A) S.A[k] = clamp(S.A[k] + d, 25, 99);
+
+  const chave = ARQUETIPOS[S.arq].cresce;
+  for (let volta = 0; volta < 60 && ovr(S.A, S.pos) !== alvo; volta++){
+    const passo = alvo > ovr(S.A, S.pos) ? 1 : -1;
+    const cabem = Object.keys(S.A).filter(k => passo > 0 ? S.A[k] < 99 : S.A[k] > 25);
+    if (!cabem.length) break;
+    // Sobe primeiro pelo que o arquétipo já faz bem; desce pelo resto,
+    // pra que ganhar nível reforce a identidade e perder não a apague.
+    const k = (passo > 0 && cabem.includes(chave)) ? chave : cabem[0];
+    S.A[k] = clamp(S.A[k] + passo, 25, 99);
+  }
+  return ovr(S.A, S.pos) - antes;
+}
+
+/** Aplica um efeito de decisão e devolve quanto o OVR andou. */
+function aplicarEfeito(ef){
+  const d = ef.ovr ? mexerOvr(ef.ovr) : 0;
+  if (ef.time) trocarDeTime(ef.time === "melhor");
+  if (ef.fora) afastar(ef.fora[0], ef.fora[1], ef.fora[2]);
+  return d;
+}
+
+/** Descreve um efeito em duas ou três palavras, pra etiqueta do botão. */
+function dizEfeito(ef){
+  const p = [];
+  if (ef.ovr) p.push((ef.ovr > 0 ? "+" : "−") + Math.abs(ef.ovr) + " OVR");
+  if (ef.time) p.push(ef.time === "melhor" ? "troca por time melhor" : "troca por time pior");
+  if (ef.fora) p.push(ef.fora[1] + (ef.fora[1] > 1 ? " temporadas fora" : " temporada fora"));
+  return p.join(" e ") || "nada muda";
+}
+
+/** A aposta inteira, do jeito que aparece embaixo do botão. */
+function etiquetaAposta(op){
+  const c = op.chance ?? 100;
+  if (c >= 100) return dizEfeito(op.bom);
+  return `${c}% ${dizEfeito(op.bom)} · ${100 - c}% ${dizEfeito(op.ruim || {})}`;
+}
+
 const DECISOES = [
-  {id:"lesao", quando:s => s.ultimo && s.ultimo.jogos < 66,
+  // ── Corpo e saúde ────────────────────────────────────────────────────
+  {id:"lesao", quando:s => s.fase === "liga" && s.ultimo && s.ultimo.jogos < 66,
    t:()=>`Você desfalcou o ${S.time} em ${82 - S.ultimo.jogos} jogos. O departamento médico quer cautela; o treinador quer você em quadra.`,
    ops:[
-     {l:"Voltar antes da hora", s:"Os fãs vão amar. O corpo, talvez não.",
-      f:()=>{ S.confianca=clamp(S.confianca+12,0,100); S.hype=clamp(S.hype+8,0,100);
-              for(const k in S.A) S.A[k]=clamp(S.A[k]-ri(1,3),25,99);
-              if (ri(0,100) < 22){ afastar("lesao", 1, "recaída por voltar cedo");
-                return "Você voltou antes do prazo e durou onze minutos. A recaída levou a temporada inteira."; }
-              return "Você voltou mancando e jogou assim mesmo. O vestiário te respeita — e seu corpo cobrou."; }},
-     {l:"Seguir o protocolo", s:"Perde a temporada. Ganha o resto da carreira.",
-      f:()=>{ S.confianca=clamp(S.confianca-8,0,100);
-              return "Você ficou fora até estar 100%. O treinador reclamou nos bastidores, mas você voltou inteiro."; }},
+     {l:"Voltar antes da hora", chance:78,
+      bom:{ovr:-1, txt:"Você voltou mancando e jogou assim mesmo. O vestiário te respeita — e o corpo cobrou um pedaço."},
+      ruim:{fora:["lesao",1,"recaída por voltar cedo"], txt:"Você voltou antes do prazo e durou onze minutos. A recaída levou a temporada inteira."}},
+     {l:"Seguir o protocolo", chance:60,
+      bom:{ovr:+2, txt:"Você ficou fora até estar 100%. O treinador reclamou nos bastidores, mas você voltou inteiro — e melhor."},
+      ruim:{ovr:-1, txt:"Você respeitou cada prazo e mesmo assim voltou diferente. Nem tudo o protocolo resolve."}},
    ]},
 
-  {id:"banco", quando:s => s.confianca < 35 && s.fase === "liga",
-   t:()=>`O treinador te tirou do quinteto. A imprensa quer saber se você pediu pra sair.`,
+  {id:"carga", quando:s => s.fase === "liga" && s.idade >= 29,
+   t:()=>`Trinta e poucos anos e um calendário de 82 jogos. A comissão propõe poupar você em back-to-backs.`,
    ops:[
-     {l:"Aceitar e trabalhar calado", s:"Confiança volta devagar.",
-      f:()=>{ S.confianca=clamp(S.confianca+18,0,100); S.moral=clamp(S.moral-6,0,100);
-              return "Você engoliu e treinou. Em três meses o treinador te devolveu a vaga."; }},
-     {l:"Cobrar publicamente", s:"Pode dar certo. Pode te queimar.",
-      f:()=>{ if (ri(0,100)<45){ S.confianca=clamp(S.confianca+25,0,100); S.hype=clamp(S.hype+10,0,100);
-                return "Deu certo: a torcida comprou sua briga e o treinador cedeu."; }
-              S.confianca=clamp(S.confianca-15,0,100); S.moral=clamp(S.moral-12,0,100);
-              return "Saiu pela culatra. Você virou 'problema de vestiário' na imprensa."; }},
+     {l:"Poupar nos back-to-backs", chance:65,
+      bom:{ovr:+2, txt:"Você chegou aos playoffs inteiro pela primeira vez em anos."},
+      ruim:{ovr:-2, txt:"Você poupou, perdeu ritmo, e chegou aos playoffs descansado e frio."}},
+     {l:"Jogar tudo", chance:45,
+      bom:{ovr:+3, txt:"Oitenta e dois jogos, todos eles. O corpo aguentou e o rendimento explodiu."},
+      ruim:{ovr:-3, txt:"O corpo cobrou em março. Você terminou a temporada arrastando a perna."}},
    ]},
-
-  {id:"troca", quando:s => s.fase === "liga" && s.anoFase >= 2 && s.forcaBase < 50,
-   t:()=>`O ${S.time} vai mal e não tem plano. Seu empresário diz que dá pra forçar uma troca pra um candidato ao título.`,
-   ops:[
-     {l:"Pedir troca", s:"Time melhor, mas você vira o cara que pediu pra sair.",
-      f:()=>{ S.hype=clamp(S.hype-8,0,100); trocarDeTime(true);
-              return `Você forçou a saída e foi parar no ${S.time}. Metade da liga achou certo; a outra metade anotou.`; }},
-     {l:"Ficar e puxar o time", s:"Difícil. Mas se der certo, é sua cidade pra sempre.",
-      f:()=>{ S.forcaBase=clamp(S.forcaBase+ri(4,12),20,95); S.moral=clamp(S.moral+10,0,100); S.hype=clamp(S.hype+6,0,100);
-              return "Você ficou. O time reagiu, a diretoria trouxe reforço, e a cidade te adotou."; }},
-   ]},
-
-  {id:"rival", quando:s => s.fase === "liga" && s.anoFase >= 1 && !s.rival,
-   t:()=>{ const r = sorteiaCompanheiro(S.pos); S.rivalNome = r[0];
-           return `A liga inteira está comparando você com <b>${esc(r[0])}</b>. Toda entrevista vira sobre ele.`; },
-   ops:[
-     {l:"Comprar a rivalidade", s:"Alimenta a narrativa. E a pressão.",
-      f:()=>{ S.rival=true; S.hype=clamp(S.hype+16,0,100);
-              return `Você respondeu à altura. A liga ganhou a rivalidade que queria — e você, os holofotes.`; }},
-     {l:"Ignorar e jogar", s:"Menos barulho, mais foco.",
-      f:()=>{ S.rival=true; S.confianca=clamp(S.confianca+10,0,100);
-              return "Você desconversou em toda coletiva e foi trabalhar. O treinador adorou."; }},
-   ]},
-
-  {id:"selecao", quando:s => s.fase === "liga" && ovr(s.A, s.pos) >= 82 && s.idade <= 33 && s.ano % 2 === 0,
-   t:()=>`A seleção do ${esc(NACOES.find(n=>n[0]===S.nac)[1])} te convocou pro torneio de verão.`,
-   ops:[
-     {l:"Ir defender o país", s:"Desgaste, mas é a seleção.",
-      f:()=>{ const o = ovr(S.A,S.pos);
-              if (o >= 88 && ri(0,100)<40){ S.trofeus.ouro++; S.hype=clamp(S.hype+20,0,100);
-                return "OURO. Você voltou campeão e virou ídolo nacional."; }
-              S.hype=clamp(S.hype+8,0,100); S.confianca=clamp(S.confianca-5,0,100);
-              return "Campanha digna, sem título. Você voltou cansado pra pré-temporada."; }},
-     {l:"Ficar e descansar", s:"Chega inteiro na temporada.",
-      f:()=>{ S.confianca=clamp(S.confianca+8,0,100); S.hype=clamp(S.hype-10,0,100);
-              return "Você tirou o verão pra recuperar o corpo. A imprensa do seu país não perdoou."; }},
-   ]},
-
-  {id:"patrocinio", quando:s => s.hype >= 60 && s.fase === "liga",
-   t:()=>`Uma marca grande quer seu nome numa linha de tênis.`,
-   ops:[
-     {l:"Assinar", s:"Dinheiro e fama.",
-      f:()=>{ const v = ri(4,18); S.dinheiro += v; S.hype=clamp(S.hype+12,0,100);
-              return `Contrato de $${v}M fechado. Seu rosto está em outdoor.`; }},
-     {l:"Recusar e focar", s:"Menos ruído fora de quadra.",
-      f:()=>{ S.confianca=clamp(S.confianca+10,0,100);
-              return "Você recusou. O treinador citou isso como exemplo pro elenco."; }},
-   ]},
-
-  {id:"lider", quando:s => s.fase === "liga" && s.anoFase >= 3 && ovr(s.A,s.pos) >= 85,
-   t:()=>`O vestiário está rachado. A diretoria quer que você assuma a capitania.`,
-   ops:[
-     {l:"Assumir", s:"Peso nas costas, time nas mãos.",
-      f:()=>{ S.forcaBase=clamp(S.forcaBase+ri(3,9),20,95); S.confianca=clamp(S.confianca+15,0,100);
-              return "Você chamou a responsabilidade. O grupo respondeu."; }},
-     {l:"Deixar com os veteranos", s:"Você só quer jogar.",
-      f:()=>{ S.moral=clamp(S.moral+8,0,100);
-              return "Você preferiu não carregar isso. O time seguiu sem líder claro."; }},
-   ]},
-
-  {id:"veterano", quando:s => s.idade >= 33 && s.fase === "liga",
-   t:()=>`Seu corpo não responde mais igual. Um time forte oferece um papel menor, saindo do banco.`,
-   ops:[
-     {l:"Aceitar o papel de reserva", s:"Menos minutos, chance de anel.",
-      f:()=>{ S.forcaBase=clamp(S.forcaBase+ri(10,20),20,95); S.confianca=clamp(S.confianca-10,0,100);
-              trocarDeTime(false);
-              return `Você foi pro ${S.time} pra sair do banco e caçar o anel.`; }},
-     {l:"Continuar titular onde está", s:"Orgulho custa caro.",
-      f:()=>{ S.confianca=clamp(S.confianca+8,0,100);
-              return "Você recusou virar reserva. Vai jogar até o fim como titular."; }},
-   ]},
-
-  {id:"jovem", quando:s => s.idade >= 30 && s.fase === "liga",
-   t:()=>`O time draftou um garoto na sua posição. Ele quer aprender com você.`,
-   ops:[
-     {l:"Ensinar tudo", s:"Ele cresce. Você perde minutos.",
-      f:()=>{ S.forcaBase=clamp(S.forcaBase+ri(5,12),20,95); S.confianca=clamp(S.confianca-6,0,100); S.hype=clamp(S.hype+6,0,100);
-              return "Você virou o mentor dele. O time melhorou — e sua vaga encolheu."; }},
-     {l:"Manter distância", s:"A vaga é sua.",
-      f:()=>{ S.confianca=clamp(S.confianca+8,0,100);
-              return "Você não abriu o jogo com ele. Seus minutos seguem intactos."; }},
-   ]},
-
-  {id:"ultimaposse", quando:s => s.fase === "liga" && ovr(s.A,s.pos) >= 74,
-   t:()=>`Jogo decisivo, 6 segundos, um ponto atrás. O treinador desenha a última jogada — e olha pra você.`,
-   ops:[
-     {l:"Pedir a bola", s:"Herói ou vilão. Não tem meio termo.",
-      f:()=>{ const chance = 28 + S.A.cl*0.45 + S.A.tres*0.12;
-              if (ri(0,100) < chance){ S.hype=clamp(S.hype+18,0,100); S.confianca=clamp(S.confianca+14,0,100); S.A.cl=clamp(S.A.cl+ri(2,5),25,99);
-                return "Você pediu, recebeu e mandou pra dentro na cara do marcador. Isso vai passar em looping."; }
-              S.hype=clamp(S.hype-6,0,100); S.confianca=clamp(S.confianca-8,0,100);
-              return "Você forçou o arremesso e errou feio. A internet não perdoou."; }},
-     {l:"Passar pro veterano", s:"Sem holofote, sem risco.",
-      f:()=>{ if (ri(0,100) < 52){ S.confianca=clamp(S.confianca+10,0,100);
-                return "Você achou o veterano livre e ele resolveu. O treinador elogiou sua leitura."; }
-              return "Você passou, ele errou, e ninguém falou do seu passe."; }},
-   ]},
-
-  {id:"imprensa", quando:s => s.fase === "liga" && s.hype >= 45,
-   t:()=>`Um repórter pergunta, ao vivo, se o ${esc(S.time)} tem elenco pra ganhar alguma coisa.`,
-   ops:[
-     {l:"Falar a verdade", s:"Honesto. E incômodo.",
-      f:()=>{ S.hype=clamp(S.hype+12,0,100); S.confianca=clamp(S.confianca-10,0,100);
-              return "Você disse que o elenco não dá. Virou manchete — e a diretoria não gostou."; }},
-     {l:"Defender o grupo", s:"O vestiário vai lembrar.",
-      f:()=>{ S.confianca=clamp(S.confianca+12,0,100); S.forcaBase=clamp(S.forcaBase+ri(1,5),20,95);
-              return "Você comprou a briga do elenco em rede nacional. O vestiário fechou com você."; }},
-   ]},
-
-  {id:"carga", quando:s => s.idade >= 29 && s.fase === "liga",
-   t:()=>`A comissão sugere poupar você em jogos seguidos pra chegar inteiro nos playoffs.`,
-   ops:[
-     {l:"Poupar", s:"Menos jogos, mais chance lá na frente.",
-      f:()=>{ S.forcaBase=clamp(S.forcaBase+ri(2,7),20,95);
-              for (const k in S.A) S.A[k]=clamp(S.A[k]+1,25,99);
-              return "Você jogou menos e chegou inteiro. O time agradeceu em abril."; }},
-     {l:"Jogar tudo", s:"Números maiores, corpo mais gasto.",
-      f:()=>{ S.confianca=clamp(S.confianca+12,0,100); S.hype=clamp(S.hype+8,0,100);
-              for (const k in S.A) S.A[k]=clamp(S.A[k]-ri(0,2),25,99);
-              return "Você não perdeu um jogo sequer. Os números subiram; o corpo cobrou."; }},
-   ]},
-
-  {id:"amistoso", quando:s => s.fase === "liga" && s.anoFase >= 1 && s.confianca < 55,
-   t:()=>`Seu empresário liga: um time do exterior oferece o dobro do que você ganha pra jogar uma temporada lá.`,
-   ops:[
-     {l:"Aceitar e sumir por um ano", s:"Dinheiro alto, radar frio.",
-      f:()=>{ S.dinheiro += ri(10,26); S.hype=clamp(S.hype-18,0,100);
-              for (let i=0;i<2;i++) evoluir();
-              return "Você passou um ano fora, encheu o bolso e voltou. Metade da liga esqueceu você."; }},
-     {l:"Recusar", s:"Você quer é jogar aqui.",
-      f:()=>{ S.confianca=clamp(S.confianca+8,0,100);
-              return "Você recusou. O treinador soube — e passou a te olhar diferente."; }},
-   ]},
-
-  {id:"tecnico", quando:s => s.fase === "liga" && s.anoFase >= 1,
-   t:()=>`O ${esc(S.time)} trocou de treinador. O novo quer conversar sobre o seu papel.`,
-   ops:[
-     {l:"Pedir mais bola", s:"Números maiores, time menos equilibrado.",
-      f:()=>{ S.confianca=clamp(S.confianca+14,0,100); S.forcaBase=clamp(S.forcaBase-ri(2,6),20,95);
-              return "Ele topou te dar a bola. Você joga mais — o time depende mais de você."; }},
-     {l:"Perguntar como ajudar", s:"Ele vai lembrar disso.",
-      f:()=>{ S.forcaBase=clamp(S.forcaBase+ri(3,9),20,95); S.confianca=clamp(S.confianca+6,0,100);
-              return "Você perguntou o que o time precisava. Virou o jogador preferido dele."; }},
-   ]},
-
-  {id:"allstarfds", quando:s => s.fase === "liga" && ovr(s.A,s.pos) >= 84,
-   t:()=>`Você foi convidado pro fim de semana do All-Star. Tem o jogo — e tem os torneios.`,
-   ops:[
-     {l:"Entrar no torneio de 3 pontos", s:"Vitrine pura.",
-      f:()=>{ if (ri(0,100) < 25 + S.A.tres*0.4){ S.hype=clamp(S.hype+16,0,100); S.A.tres=clamp(S.A.tres+ri(2,4),25,99);
-                return "Você ganhou o torneio de 3. A liga inteira viu."; }
-              S.hype=clamp(S.hype+5,0,100);
-              return "Caiu na primeira rodada do torneio de 3. Pelo menos apareceu."; }},
-     {l:"Só o jogo, e descansar", s:"O corpo agradece em abril.",
-      f:()=>{ for (const k in S.A) S.A[k]=clamp(S.A[k]+1,25,99);
-              return "Você jogou o All-Star e sumiu pro resto do fim de semana. Voltou inteiro."; }},
-   ]},
-
-  {id:"polemica", quando:s => s.fase === "liga" && s.hype >= 55,
-   t:()=>`Um post seu de anos atrás voltou a circular e virou assunto.`,
-   ops:[
-     {l:"Pedir desculpa e seguir", s:"Passa rápido.",
-      f:()=>{ S.hype=clamp(S.hype-6,0,100); S.confianca=clamp(S.confianca+4,0,100);
-              return "Você resolveu em duas frases e ninguém falou mais no assunto."; }},
-     {l:"Ignorar", s:"Pode morrer sozinho. Ou crescer.",
-      f:()=>{ if (ri(0,100) < 55){ return "Morreu sozinho em três dias."; }
-              S.hype=clamp(S.hype-16,0,100); S.confianca=clamp(S.confianca-8,0,100);
-              return "Cresceu. A imprensa passou a semana em cima e o time teve que dar nota."; }},
-   ]},
-
-  {id:"superstime", quando:s => s.fase === "liga" && s.idade >= 27 && s.trofeus.titulo === 0 && ovr(s.A,s.pos) >= 84,
-   t:()=>`Dois astros da liga estão montando um time e te chamaram. Você seria o terceiro nome.`,
-   ops:[
-     {l:"Ir atrás do anel", s:"Ganha muito. Divide o crédito.",
-      f:()=>{ trocarDeTime(true); S.forcaBase=clamp(S.forcaBase+ri(6,14),20,95);
-              S.confianca=clamp(S.confianca-8,0,100); S.hype=clamp(S.hype-6,0,100);
-              return `Você foi pro ${S.time} jogar com eles. Metade da liga chamou de atalho.`; }},
-     {l:"Ganhar do meu jeito", s:"Mais difícil. Só seu.",
-      f:()=>{ S.confianca=clamp(S.confianca+16,0,100); S.hype=clamp(S.hype+12,0,100);
-              return "Você recusou em público. Virou o cara que quis fazer sozinho."; }},
-   ]},
-
-  {id:"lesaograve", quando:s => s.fase === "liga" && s.idade >= 26 && s.ultimo && s.ultimo.min >= 30,
-   t:()=>`Estalo no joelho no meio da temporada. O exame não é bom.`,
-   ops:[
-     {l:"Operar agora", s:"Perde tempo. Salva o resto.",
-      f:()=>{ S.pot = clamp(S.pot - ri(1,3), 55, 99);
-              for (const k in S.A) S.A[k]=clamp(S.A[k]-ri(1,3),25,99);
-              return "Cirurgia feita cedo. Você perdeu meia temporada e voltou quase o mesmo."; }},
-     {l:"Tratar sem operar", s:"Joga já. Cobra depois.",
-      f:()=>{ S.confianca=clamp(S.confianca+10,0,100);
-              S.pot = clamp(S.pot - ri(3,7), 50, 99);
-              for (const k in S.A) S.A[k]=clamp(S.A[k]-ri(0,2),25,99);
-              return "Você segurou o joelho com fisioterapia e jogou. O teto do seu corpo baixou."; }},
-   ]},
-
-  {id:"posicao", quando:s => s.fase === "liga" && s.idade >= 29 && s.idade <= 34,
-   t:()=>`O treinador quer te mover de posição pra aproveitar melhor o que sobrou do seu físico.`,
-   ops:[
-     {l:"Aceitar mudar", s:"Reinventar custa um ano.",
-      f:()=>{ const ordem = ["PG","SG","SF","PF","C"];
-              const i = ordem.indexOf(S.pos);
-              const nova = ordem[clamp(i + (S.A.fis > 70 ? 1 : -1), 0, 4)];
-              if (nova !== S.pos){ S.pos = nova; S.confianca=clamp(S.confianca+10,0,100);
-                return `Você virou ${POSICOES[nova].n.toLowerCase()}. Levou um ano pra pegar o jeito.`; }
-              return "No fim ele desistiu e te deixou onde estava."; }},
-     {l:"Recusar", s:"Você sabe o que faz.",
-      f:()=>{ S.confianca=clamp(S.confianca-6,0,100);
-              return "Você recusou. O treinador respeitou, mas achou que você perdeu uma chance."; }},
-   ]},
-
-  {id:"camisa", quando:s => s.fase === "liga" && s.anoFase >= 6,
-   t:()=>`Você completou ${S.anoFase} temporadas no mesmo time. A diretoria fala em aposentar sua camisa um dia.`,
-   ops:[
-     {l:"Prometer terminar aqui", s:"Vira ídolo. E fica preso.",
-      f:()=>{ S.hype=clamp(S.hype+14,0,100); S.confianca=clamp(S.confianca+12,0,100);
-              return "Você disse em coletiva que se aposenta com essa camisa. A cidade te adotou de vez."; }},
-     {l:"Não prometer nada", s:"Mantém as portas abertas.",
-      f:()=>{ return "Você desconversou. A diretoria entendeu o recado."; }},
-   ]},
-
-  {id:"investir", quando:s => s.dinheiro >= 25,
-   t:()=>`Você juntou $${S.dinheiro}M. Um amigo te chama pra entrar num negócio.`,
-   ops:[
-     {l:"Investir pesado", s:"Pode dobrar. Pode sumir.",
-      f:()=>{ const v = Math.round(S.dinheiro * 0.4);
-              if (ri(0,100) < 45){ S.dinheiro += v; return `Deu certo: +$${v}M no bolso.`; }
-              S.dinheiro -= v; S.moral=clamp(S.moral-10,0,100);
-              return `Foi por água abaixo. -$${v}M e uma amizade a menos.`; }},
-     {l:"Deixar o dinheiro quieto", s:"Sem emoção, sem susto.",
-      f:()=>{ S.moral=clamp(S.moral+5,0,100); return "Você agradeceu e não entrou. Dormiu bem."; }},
-   ]},
-
-  {id:"familia", quando:s => s.idade >= 25 && s.fase === "liga",
-   t:()=>`Nasceu seu primeiro filho no meio da temporada.`,
-   ops:[
-     {l:"Tirar um tempo", s:"Perde jogos. Ganha o resto.",
-      f:()=>{ S.moral=clamp(S.moral+20,0,100); S.confianca=clamp(S.confianca-5,0,100);
-              return "Você tirou duas semanas. Voltou outro — e jogando melhor."; }},
-     {l:"Não perder um jogo", s:"O time vem primeiro.",
-      f:()=>{ S.confianca=clamp(S.confianca+12,0,100); S.moral=clamp(S.moral-8,0,100);
-              return "Você não faltou. O vestiário notou; sua casa também."; }},
-   ]},
-
-  {id:"jovemastro", quando:s => s.fase === "liga" && s.idade <= 25 && ovr(s.A,s.pos) >= 82,
-   t:()=>`Você virou a cara da franquia antes dos 26. A liga quer te vender como o próximo grande nome.`,
-   ops:[
-     {l:"Abraçar o papel", s:"Holofote total, cobrança total.",
-      f:()=>{ S.hype=clamp(S.hype+22,0,100); S.confianca=clamp(S.confianca-6,0,100);
-              return "Você virou o rosto da liga. Toda derrota agora é sua."; }},
-     {l:"Baixar a bola", s:"Cresce no seu tempo.",
-      f:()=>{ for (const k in S.A) S.A[k]=clamp(S.A[k]+ri(0,2),25,99);
-              return "Você pediu calma e foi trabalhar. Evoluiu longe do barulho."; }},
-   ]},
-
-  // ── Risco de verdade ─────────────────────────────────────────────────
-  // As únicas decisões que podem custar temporadas inteiras. A condição de
-  // cada uma é estreita de propósito: perder um ano tem que ser o preço de
-  // uma escolha sua, nunca um dado rolado às suas costas. Em todas existe
-  // uma saída segura, e ela está escrita como tal.
 
   {id:"joelho", risco:true, quando:s => s.fase === "liga" && s.idade >= 24 && s.ultimo && s.ultimo.jogos < 76,
    t:()=>`O joelho travou de novo, e desta vez a ressonância veio feia. O cirurgião quer operar agora; o departamento médico ainda acha que dá pra tratar.`,
    ops:[
-     {l:"Operar agora", s:"Uma temporada fora, e acabou.",
-      f:()=>{ afastar("lesao", 1, "cirurgia no joelho");
-              return "Você entrou na sala de cirurgia em outubro. A temporada acabou ali — mas o joelho volta inteiro."; }},
-     {l:"Tratar sem cirurgia", s:"Pode salvar o ano. Pode custar dois.",
-      f:()=>{ if (ri(0,100) < 58){ for (const k in S.A) S.A[k]=clamp(S.A[k]-ri(1,3),25,99);
-                return "Segurou. Você jogou o ano inteiro com dor e quase ninguém percebeu."; }
-              afastar("lesao", 2, "ruptura no joelho");
-              return "Cedeu em dezembro, na frente de todo mundo. Ruptura completa: dois anos fora."; }},
+     {l:"Operar agora", chance:100,
+      bom:{fora:["lesao",1,"cirurgia no joelho"], txt:"Você entrou na sala de cirurgia em outubro. A temporada acabou ali — mas o joelho volta inteiro."}},
+     {l:"Tratar sem cirurgia", chance:58,
+      bom:{ovr:-2, txt:"Segurou. Você jogou o ano inteiro com dor e quase ninguém percebeu."},
+      ruim:{fora:["lesao",2,"ruptura no joelho"], txt:"Cedeu em dezembro, na frente de todo mundo. Ruptura completa: dois anos fora."}},
    ]},
 
   {id:"tendao", risco:true, quando:s => s.fase === "liga" && s.idade >= 27,
    t:()=>`Estalou no aquecimento. O tendão de aquiles não é dúvida, é diagnóstico. A pergunta é o que fazer com o tempo que vem.`,
    ops:[
-     {l:"Reabilitação completa", s:"Dois anos fora. Volta inteiro.",
-      f:()=>{ afastar("lesao", 2, "ruptura do tendão de aquiles");
-              return "Você aceitou o calendário longo dos médicos: dois anos de trabalho invisível, longe de tudo."; }},
-     {l:"Programa acelerado", s:"Talvez um ano só. Se o tendão aguentar.",
-      f:()=>{ if (ri(0,100) < 55){ afastar("lesao", 1, "aquiles · recuperação acelerada");
-                for (const k in S.A) S.A[k]=clamp(S.A[k]-ri(1,3),25,99);
-                return "Deu certo: você voltou em doze meses. Mais lento que antes — mas voltou."; }
-              afastar("lesao", 2, "aquiles · recuperação rompida");
-              return "O tendão não aguentou o atalho. De volta à estaca zero: dois anos."; }},
+     {l:"Reabilitação completa", chance:100,
+      bom:{fora:["lesao",2,"ruptura do tendão de aquiles"], txt:"Você aceitou o calendário longo dos médicos: dois anos de trabalho invisível, longe de tudo."}},
+     {l:"Programa acelerado", chance:55,
+      bom:{fora:["lesao",1,"aquiles · recuperação acelerada"], txt:"Deu certo: você voltou em doze meses. Mais lento que antes — mas voltou."},
+      ruim:{fora:["lesao",2,"aquiles · recuperação rompida"], txt:"O tendão não aguentou o atalho. De volta à estaca zero: dois anos."}},
    ]},
+
+  // ── Disciplina ───────────────────────────────────────────────────────
   {id:"antidoping", risco:true, quando:s => s.fase === "liga" && s.idade >= 25,
    t:()=>`Um suplemento que você toma há anos apareceu com substância proibida no exame. A liga quer uma resposta em 72 horas.`,
    ops:[
-     {l:"Assumir e colaborar", s:"Uma temporada suspenso, e passa.",
-      f:()=>{ afastar("suspensao", 1, "exame antidoping");
-              return "Você admitiu o erro, entregou o fornecedor e aceitou a pena mínima: um ano."; }},
-     {l:"Brigar na justiça", s:"Ou limpa o nome, ou dobra a pena.",
-      f:()=>{ if (ri(0,100) < 45){ S.hype=clamp(S.hype+10,0,100);
-                return "Seus advogados provaram contaminação no lote. Você foi absolvido e a liga engoliu em seco."; }
-              afastar("suspensao", 2, "antidoping · pena agravada");
-              return "Você perdeu, e o tribunal tratou a defesa como má-fé. Dois anos."; }},
+     {l:"Assumir e colaborar", chance:100,
+      bom:{fora:["suspensao",1,"exame antidoping"], txt:"Você admitiu o erro, entregou o fornecedor e aceitou a pena mínima: um ano."}},
+     {l:"Brigar na justiça", chance:45,
+      bom:{txt:"Seus advogados provaram contaminação no lote. Você foi absolvido e a liga engoliu em seco."},
+      ruim:{fora:["suspensao",2,"antidoping · pena agravada"], txt:"Você perdeu, e o tribunal tratou a defesa como má-fé. Dois anos."}},
    ]},
 
-  {id:"tunel", risco:true, quando:s => s.fase === "liga" && s.moral < 55,
+  {id:"tunel", risco:true, quando:s => s.fase === "liga" && s.confianca < 55,
    t:()=>`A discussão no túnel virou empurrão, e o empurrão virou vídeo. A liga abriu processo disciplinar.`,
    ops:[
-     {l:"Pedir desculpas em público", s:"Engole o orgulho e joga.",
-      f:()=>{ S.hype=clamp(S.hype-12,0,100); S.moral=clamp(S.moral+8,0,100);
-              return "Você leu um pedido de desculpas escrito pela assessoria. Foi humilhante — e você jogou a temporada inteira."; }},
-     {l:"Não recuar", s:"O vestiário respeita. A liga, não.",
-      f:()=>{ if (ri(0,100) < 50){ S.moral=clamp(S.moral+18,0,100); S.confianca=clamp(S.confianca+10,0,100);
-                return "Você bancou. Levou multa alta e o vestiário inteiro passou a te seguir."; }
-              afastar("suspensao", 1, "conduta antidesportiva");
-              return "A liga fez de você o exemplo: suspenso por uma temporada."; }},
+     {l:"Pedir desculpas em público", chance:100,
+      bom:{ovr:-1, txt:"Você leu um pedido de desculpas escrito pela assessoria. Foi humilhante, e jogou o ano inteiro com aquilo nas costas."}},
+     {l:"Não recuar", chance:50,
+      bom:{ovr:+2, txt:"Você bancou. Levou multa alta, e o vestiário inteiro passou a te seguir."},
+      ruim:{fora:["suspensao",1,"conduta antidesportiva"], txt:"A liga fez de você o exemplo: suspenso por uma temporada."}},
    ]},
 
   {id:"apostas", risco:true, quando:s => s.fase === "liga" && s.idade >= 26,
    t:()=>`Uma reportagem liga seu nome a apostas em jogos da liga. Você sabe que não apostou — mas seu primo usou seu cadastro.`,
    ops:[
-     {l:"Entregar tudo à investigação", s:"Coopera e paga o mínimo.",
-      f:()=>{ afastar("suspensao", 1, "investigação de apostas");
-              return "Você abriu tudo. A liga reconheceu a colaboração e aplicou um ano, o mínimo previsto."; }},
-     {l:"Negar e proteger a família", s:"Se cair, cai por dois.",
-      f:()=>{ if (ri(0,100) < 42){ S.moral=clamp(S.moral+12,0,100);
-                return "A investigação não chegou a você. Seu primo sumiu do mapa e o assunto morreu."; }
-              afastar("suspensao", 2, "apostas · omissão");
-              return "Encontraram os registros. Omitir custou o dobro: duas temporadas."; }},
+     {l:"Entregar tudo à investigação", chance:100,
+      bom:{fora:["suspensao",1,"investigação de apostas"], txt:"Você abriu tudo. A liga reconheceu a colaboração e aplicou um ano, o mínimo previsto."}},
+     {l:"Negar e proteger a família", chance:42,
+      bom:{txt:"A investigação não chegou a você. Seu primo sumiu do mapa e o assunto morreu."},
+      ruim:{fora:["suspensao",2,"apostas · omissão"], txt:"Encontraram os registros. Omitir custou o dobro: duas temporadas."}},
    ]},
 
-  {id:"treino", quando:s => true,
-   t:()=>`Entressafra. Você tem um verão inteiro pra escolher o que treinar.`,
+  // ── Time ─────────────────────────────────────────────────────────────
+  {id:"troca", quando:s => s.fase === "liga" && s.anoFase >= 2 && s.forcaBase < 52,
+   t:()=>`O ${S.time} vai mal e não tem plano. Seu empresário diz que dá pra forçar uma troca pra um candidato ao título.`,
    ops:[
-     {l:"Focar no seu ponto forte", s:"Vira arma de elite.",
-      f:()=>{ const k = ARQUETIPOS[S.arq].cresce; S.A[k]=clamp(S.A[k]+ri(4,8),25,99);
-              return `Você passou o verão em ${ATRIBUTOS[k].toLowerCase()}. Virou referência nisso.`; }},
-     {l:"Corrigir o ponto fraco", s:"Menos buraco pra explorarem.",
-      f:()=>{ let pior = null;
-              for (const k in S.A) if (!pior || S.A[k] < S.A[pior]) pior = k;
-              S.A[pior]=clamp(S.A[pior]+ri(5,10),25,99);
-              return `Você atacou seu maior buraco: ${ATRIBUTOS[pior].toLowerCase()}. Ninguém mais explora isso.`; }},
-     {l:"Descansar de verdade", s:"Corpo novo aos 30.",
-      f:()=>{ S.confianca=clamp(S.confianca+12,0,100); S.moral=clamp(S.moral+12,0,100);
-              return "Você sumiu do mapa por três meses. Voltou leve."; }},
+     {l:"Pedir troca", chance:70,
+      bom:{time:"melhor", txt:"Saiu na semana do prazo. Você desembarcou num vestiário que joga por alguma coisa."},
+      ruim:{time:"pior", ovr:-1, txt:"Forçaram sua saída pro primeiro time que aceitou pagar. Foi pior que o anterior."}},
+     {l:"Ficar e puxar o time", chance:55,
+      bom:{ovr:+3, txt:"Você virou a referência de uma reconstrução. Cresceu carregando gente nas costas."},
+      ruim:{ovr:-3, txt:"Você ficou, o time seguiu ruim, e mais um ano seu foi embora sem nada."}},
+   ]},
+
+  {id:"superstime", quando:s => s.fase === "liga" && s.anoFase >= 3 && ovr(s.A, s.pos) >= 82,
+   t:()=>`Um candidato ao título quer você — mas como terceira opção, não como o cara. Menos bola, mais chance de anel.`,
+   ops:[
+     {l:"Ir pro superteam", chance:100,
+      bom:{time:"melhor", ovr:-2, txt:"Você trocou volume por chance de anel. Seus números caíram na hora."}},
+     {l:"Ficar sendo o cara", chance:55,
+      bom:{ovr:+3, txt:"Você ficou, assumiu tudo e provou que o time era seu."},
+      ruim:{ovr:-3, txt:"Você ficou e afundou junto. A janela passou e ninguém voltou a ligar."}},
+   ]},
+
+  {id:"tecnico", quando:s => s.fase === "liga" && s.anoFase >= 2,
+   t:()=>`Treinador novo, sistema novo. Ele quer você fazendo o que não é o seu forte.`,
+   ops:[
+     {l:"Aprender o sistema dele", chance:58,
+      bom:{ovr:+3, txt:"Você virou outro jogador dentro do sistema. Ninguém mais te chama de unidimensional."},
+      ruim:{ovr:-3, txt:"Você nunca se achou naquilo. Um ano jogando errado é um ano perdido."}},
+     {l:"Jogar do seu jeito", chance:50,
+      bom:{ovr:+2, txt:"Você bateu o pé, produziu, e o treinador reescreveu o sistema em volta de você."},
+      ruim:{time:"pior", txt:"O treinador ganhou o braço de ferro e pediu sua cabeça na diretoria. Você foi negociado."}},
+   ]},
+
+  {id:"banco", quando:s => s.fase === "liga" && s.confianca < 35,
+   t:()=>`O treinador te tirou do quinteto. A imprensa quer saber se você pediu pra sair.`,
+   ops:[
+     {l:"Aceitar e trabalhar calado", chance:60,
+      bom:{ovr:+2, txt:"Você engoliu e treinou. Em três meses o treinador te devolveu a vaga — e você voltou melhor."},
+      ruim:{ovr:-2, txt:"Você engoliu, treinou, e o ano inteiro passou no banco — enferrujando."}},
+     {l:"Cobrar publicamente", chance:45,
+      bom:{ovr:+2, txt:"Deu certo: a torcida comprou sua briga e o treinador cedeu."},
+      ruim:{time:"pior", txt:"Saiu pela culatra. Você virou 'problema de vestiário' e foi despachado pro primeiro time que aceitou."}},
+   ]},
+
+  {id:"lider", quando:s => s.fase === "liga" && s.anoFase >= 3 && ovr(s.A, s.pos) >= 76,
+   t:()=>`O capitão saiu. O vestiário está olhando pra você.`,
+   ops:[
+     {l:"Assumir a braçadeira", chance:70,
+      bom:{ovr:+2, txt:"Você virou a voz do vestiário e cresceu no papel."},
+      ruim:{ovr:-2, txt:"O peso pesou. Liderar drenou o que você tinha de melhor em quadra."}},
+     {l:"Liderar sem o título", chance:60,
+      bom:{ovr:+2, txt:"Você preferiu o exemplo ao discurso. Funcionou, à sua maneira."},
+      ruim:{ovr:-1, txt:"Sem a braçadeira, sua palavra não pesou. O vestiário seguiu outro."}},
+   ]},
+
+  // ── Desenvolvimento ──────────────────────────────────────────────────
+  {id:"treino", quando:s => true,
+   t:()=>`Entressafra. Você tem um verão inteiro pra escolher o que fazer com ele.`,
+   ops:[
+     {l:"Treinar pesado o verão inteiro", chance:62,
+      bom:{ovr:+3, txt:"Três meses de academia às seis da manhã. Você voltou outro jogador."},
+      ruim:{ovr:-3, txt:"Você exagerou na carga e chegou à pré-temporada gasto."}},
+     {l:"Trabalho técnico com especialista", chance:70,
+      bom:{ovr:+2, txt:"Você contratou um treinador só seu e refinou o que já sabia fazer."},
+      ruim:{ovr:-2, txt:"O especialista mexeu no que não estava quebrado. Você passou o ano desaprendendo."}},
+     {l:"Descansar de verdade", chance:40,
+      bom:{ovr:+2, txt:"Você sumiu do mapa por três meses e voltou leve, inteiro e faminto."},
+      ruim:{ovr:-1, txt:"Você voltou descansado e enferrujado. Levou meia temporada pra achar o ritmo."}},
+   ]},
+
+  {id:"posicao", quando:s => s.fase === "liga" && s.anoFase >= 2 && s.anoFase <= 8,
+   t:()=>`A comissão acha que seu corpo pede outra posição. Mudar agora é reaprender o jogo.`,
+   ops:[
+     {l:"Mudar de posição", chance:55,
+      bom:{ovr:+4, txt:"Deu certo demais. Você achou o lugar onde sempre devia ter jogado."},
+      ruim:{ovr:-3, txt:"Não era pra ser. Você passou o ano parecendo um estranho em quadra."}},
+     {l:"Continuar onde está", chance:55,
+      bom:{ovr:+2, txt:"Você recusou e dobrou a aposta no que já fazia bem."},
+      ruim:{ovr:-1, txt:"Você recusou, e a liga seguiu andando pro lado que você não quis ir."}},
+   ]},
+
+  {id:"veterano", quando:s => s.fase === "liga" && s.anoFase <= 4,
+   t:()=>`Um veterano de 36 anos, dois anéis, se ofereceu pra te ensinar. Custa suas manhãs de folga.`,
+   ops:[
+     {l:"Aceitar a mentoria", chance:60,
+      bom:{ovr:+3, txt:"Ele te ensinou o que nenhum treinador ensina. Você pulou dois anos de aprendizado."},
+      ruim:{ovr:-3, txt:"Ele quis te transformar nele. Você passou um ano jogando um basquete que não era o seu."}},
+     {l:"Seguir sozinho", chance:45,
+      bom:{ovr:+2, txt:"Você aprendeu apanhando, do seu jeito — e o que ficou, ficou pra sempre."},
+      ruim:{ovr:-1, txt:"Você repetiu os mesmos erros o ano inteiro sem ninguém pra apontar."}},
+   ]},
+
+  {id:"jovem", quando:s => s.fase === "liga" && s.idade >= 30,
+   t:()=>`O time draftou um garoto na sua posição. Ele te procura pra aprender.`,
+   ops:[
+     {l:"Ensinar tudo que sabe", chance:55,
+      bom:{ovr:+2, txt:"Você ensinou. Ele virou titular em dois anos, e disse seu nome em toda entrevista."},
+      ruim:{ovr:-1, txt:"Você ensinou bem demais. Ele tomou sua vaga em uma temporada."}},
+     {l:"Segurar a vaga", chance:55,
+      bom:{ovr:+2, txt:"Você não deu um palmo. Jogou o melhor basquete em anos só pra provar um ponto."},
+      ruim:{ovr:-2, txt:"A briga pela vaga consumiu você. O garoto passou por cima mesmo assim."}},
+   ]},
+
+  {id:"investir", quando:s => s.fase === "liga" && s.anoFase >= 4,
+   t:()=>`Seu preparador quer redesenhar seu jogo do zero na entressafra. Um ano de desconforto por algo novo.`,
+   ops:[
+     {l:"Reconstruir o jogo", chance:45,
+      bom:{ovr:+5, txt:"Você apagou o que era e desenhou de novo. Deu MUITO certo."},
+      ruim:{ovr:-3, txt:"Você virou um híbrido que não fazia bem nem o novo nem o velho."}},
+     {l:"Afinar o que já funciona", chance:70,
+      bom:{ovr:+2, txt:"Nada de revolução: você lixou as arestas do que já era bom."},
+      ruim:{ovr:-2, txt:"Um verão inteiro de retoque e você saiu pior do que entrou."}},
+   ]},
+
+  // ── Fora de quadra ───────────────────────────────────────────────────
+  {id:"patrocinio", quando:s => s.fase === "liga" && s.anoFase >= 2,
+   t:()=>`Uma marca grande quer você. O contrato pede quinze dias de agenda na pré-temporada.`,
+   ops:[
+     {l:"Assinar", chance:40,
+      bom:{ovr:+1, txt:"Deu pra conciliar. Você virou rosto de campanha sem perder um treino."},
+      ruim:{ovr:-2, txt:"A agenda comeu sua pré-temporada. Você começou o ano atrás de todo mundo."}},
+     {l:"Recusar e focar", chance:60,
+      bom:{ovr:+2, txt:"Você recusou o dinheiro e passou a pré-temporada inteira em quadra."},
+      ruim:{ovr:-1, txt:"Você recusou, treinou sozinho e não evoluiu nada. Só perdeu o cheque."}},
+   ]},
+
+  {id:"imprensa", quando:s => s.fase === "liga" && s.anoFase >= 2,
+   t:()=>`Um jornalista publicou que você é superestimado. O microfone está na sua frente.`,
+   ops:[
+     {l:"Responder na quadra", chance:65,
+      bom:{ovr:+2, txt:"Você não disse uma palavra e jogou o melhor basquete da vida por dois meses."},
+      ruim:{ovr:-2, txt:"Você calou e engoliu. A pauta continuou lá, e você jogou com ela na cabeça."}},
+     {l:"Responder no microfone", chance:35,
+      bom:{ovr:+2, txt:"A resposta viralizou e virou combustível. Você jogou com raiva o ano inteiro."},
+      ruim:{ovr:-2, txt:"Virou novela. Cada erro seu passou a ser manchete e você jogou travado."}},
+   ]},
+
+  {id:"familia", quando:s => s.fase === "liga" && s.idade >= 26,
+   t:()=>`Nasceu seu primeiro filho na semana da viagem mais longa da temporada.`,
+   ops:[
+     {l:"Ficar em casa alguns jogos", chance:60,
+      bom:{ovr:+2, txt:"Você perdeu quatro jogos e ganhou algo que não cabe em estatística. Voltou leve."},
+      ruim:{ovr:-1, txt:"Você ficou, e voltou fora de ritmo. Levou o resto do ano pra recuperar a forma."}},
+     {l:"Viajar com o time", chance:45,
+      bom:{ovr:+2, txt:"Você jogou por dois. Foi a melhor sequência da sua carreira."},
+      ruim:{ovr:-2, txt:"Você estava em quadra e a cabeça em casa. Passou o mês inteiro assim."}},
+   ]},
+
+  {id:"camisa", quando:s => s.fase === "liga" && s.anoFase >= 5 && ovr(s.A, s.pos) >= 80,
+   t:()=>`O clube quer estender seu contrato e transformar você em símbolo da franquia — mesmo sem chance de título.`,
+   ops:[
+     {l:"Virar símbolo da casa", chance:55,
+      bom:{ovr:+2, txt:"Você abriu mão de perseguir anel pra ser o cara de um lugar só. A cidade te adotou."},
+      ruim:{ovr:-1, txt:"Você ficou por amor e o time não retribuiu. Sua carreira parou junto com o projeto."}},
+     {l:"Buscar título em outro lugar", chance:100,
+      bom:{time:"melhor", ovr:-1, txt:"Você saiu atrás do anel. A torcida queimou sua camisa — e você foi disputar alguma coisa."}},
+   ]},
+
+  {id:"polemica", quando:s => s.fase === "liga" && s.anoFase >= 3,
+   t:()=>`Uma declaração sua de três anos atrás voltou a circular, fora de contexto.`,
+   ops:[
+     {l:"Explicar publicamente", chance:65,
+      bom:{txt:"Você explicou com calma e o assunto morreu em dois dias."},
+      ruim:{ovr:-2, txt:"Explicar deu combustível. Rendeu duas semanas e te tirou do sério."}},
+     {l:"Ignorar", chance:55,
+      bom:{ovr:+1, txt:"Você não deu bola e ninguém mais deu. Seguiu jogando."},
+      ruim:{ovr:-2, txt:"O silêncio virou culpa aos olhos de todo mundo. Você jogou sob vaia o ano inteiro."}},
+   ]},
+
+  // ── Momentos grandes ─────────────────────────────────────────────────
+  {id:"selecao", quando:s => s.fase === "liga" && s.anoFase >= 2 && ovr(s.A, s.pos) >= 78,
+   t:()=>`A seleção te convocou pro verão. É orgulho e é desgaste — e é o verão inteiro.`,
+   ops:[
+     {l:"Vestir a camisa", chance:55,
+      bom:{ovr:+3, txt:"Jogar contra os melhores do mundo por um verão te fez subir de patamar."},
+      ruim:{ovr:-2, txt:"Você voltou da seleção sem pernas e começou a temporada atrás."}},
+     {l:"Passar esse verão", chance:65,
+      bom:{ovr:+2, txt:"Você recusou a convocação e passou o verão trabalhando o seu jogo."},
+      ruim:{ovr:-2, txt:"O verão livre virou verão perdido. Você voltou igual, ou pior."}},
+   ]},
+
+  {id:"ultimaposse", quando:s => s.fase === "liga" && s.anoFase >= 1,
+   t:()=>`Jogo decisivo, dois pontos atrás, quatro segundos. A jogada é sua ou dele.`,
+   ops:[
+     {l:"A bola é minha", chance:50,
+      bom:{ovr:+3, txt:"Você pegou a bola, subiu em cima de dois e afundou o arremesso. A arena veio abaixo."},
+      ruim:{ovr:-2, txt:"Você forçou, errou feio, e o clipe rodou o mundo até junho."}},
+     {l:"Passar pro melhor posicionado", chance:70,
+      bom:{ovr:+1, txt:"Você achou o companheiro livre e ele converteu. Jogada certa, crédito dividido."},
+      ruim:{ovr:-1, txt:"Você passou, ele errou, e a imprensa perguntou por que você não arriscou."}},
+   ]},
+
+  {id:"allstarfds", quando:s => s.fase === "liga" && ovr(s.A, s.pos) >= 80,
+   t:()=>`Fim de semana de All-Star. Te chamaram pro torneio de três pontos e pro jogo das estrelas.`,
+   ops:[
+     {l:"Entrar em tudo", chance:55,
+      bom:{ovr:+2, txt:"Você brilhou no fim de semana inteiro e voltou embalado."},
+      ruim:{ovr:-2, txt:"Você torceu o tornozelo numa exibição. Numa EXIBIÇÃO."}},
+     {l:"Só o jogo das estrelas", chance:85,
+      bom:{ovr:+1, txt:"Você fez o mínimo, apareceu, e descansou os quatro dias."},
+      ruim:{txt:"Fim de semana morno. Passou sem deixar marca."}},
+   ]},
+
+  {id:"amistoso", quando:s => s.fase === "liga" && s.anoFase >= 1,
+   t:()=>`Pré-temporada na Ásia: dez dias de avião e três amistosos. O clube deixa você escolher.`,
+   ops:[
+     {l:"Viajar com o time", chance:60,
+      bom:{ovr:+2, txt:"Dez dias grudado no elenco valeram por dois meses de entrosamento."},
+      ruim:{ovr:-1, txt:"Você voltou com o fuso destruído e levou três semanas pra normalizar."}},
+     {l:"Ficar treinando", chance:60,
+      bom:{ovr:+2, txt:"Você ficou, treinou sozinho no ginásio vazio e chegou pronto."},
+      ruim:{ovr:-1, txt:"Você ficou e o time voltou entrosado sem você. Levou meses pra encaixar."}},
+   ]},
+
+  {id:"rival", quando:s => s.fase === "liga" && s.anoFase >= 2,
+   t:()=>`Um jogador da sua posição, draftado no mesmo ano, virou o assunto. Toda entrevista compara vocês dois.`,
+   ops:[
+     {l:"Comprar a rivalidade", chance:55,
+      bom:{ovr:+3, txt:"A rivalidade virou o motor da sua carreira. Você jogava diferente contra ele — e melhor contra todo mundo."},
+      ruim:{ovr:-3, txt:"Você se obcecou por ele. Jogou pensando na comparação e esqueceu do seu jogo."}},
+     {l:"Ignorar a comparação", chance:55,
+      bom:{ovr:+2, txt:"Você não entrou na dança e seguiu no seu ritmo."},
+      ruim:{ovr:-1, txt:"Você ignorou, e ele passou por cima de você em silêncio."}},
+   ]},
+
+  {id:"jovemastro", quando:s => s.fase === "liga" && s.anoFase <= 2 && ovr(s.A, s.pos) >= 78,
+   t:()=>`Dois anos de liga e já te chamam de futuro da posição. A pressão veio junto.`,
+   ops:[
+     {l:"Abraçar o rótulo", chance:55,
+      bom:{ovr:+3, txt:"Você virou o rosto da liga e correspondeu a cada palavra."},
+      ruim:{ovr:-3, txt:"O rótulo virou peso. Cada jogo ruim virou 'decepção' e você encolheu."}},
+     {l:"Baixar a bola", chance:65,
+      bom:{ovr:+2, txt:"Você pediu calma e foi trabalhar longe do barulho. Evoluiu em silêncio."},
+      ruim:{ovr:-2, txt:"Você sumiu do radar e ninguém foi te procurar. O ano passou por cima."}},
    ]},
 ];
 
@@ -1136,6 +1166,8 @@ function valorDeMercado(){
 // Times de fora, por país. Quem não vinga na NBA ou envelhece recebe
 // proposta daqui — e pra quem não é americano, é também o caminho de
 // começar em casa em vez de encarar o draft.
+const LIGAS_EUROPEIAS = ["ACB", "LNB", "Lega", "BBL", "Euroliga", "Espanha", "França", "Itália", "Alemanha", "Grécia", "Sérvia", "Turquia"];
+
 const CLUBES_FORA = {
   BRA:[["Flamengo","NBB · Brasil"],["Franca","NBB · Brasil"],["Minas","NBB · Brasil"],["São Paulo","NBB · Brasil"]],
   ESP:[["Real Madrid","ACB · Espanha"],["Barcelona","ACB · Espanha"],["Baskonia","ACB · Espanha"]],
@@ -1482,10 +1514,27 @@ function avancarFormacao(){
   // Desempenho move o hype: é assim que o draft deixa de ser sorteio.
   const desempenho = (st.pts*1.6 + st.reb*0.9 + st.ast*1.1) + (o-60);
   S.hype = clamp(S.hype + Math.round((desempenho - 34) * 0.7), 5, 99);
+
+  // O fenômeno é notado antes de jogar bem: é o que ele É, não o que ele
+  // fez. Sem este empurrão o portão do draft (hype 72) quase nunca abria
+  // e o prodígio aparecia em 0,3% das carreiras — raro demais pra existir.
+  if (S.prodigio) S.hype = clamp(S.hype + ri(9, 16), 5, 99);
   for (let i=0;i<(S.bonusDev||1);i++) evoluir();
   if (S.paga) S.dinheiro += S.paga;
 
-  S.temporadas.push({ano:S.ano, idade:S.idade, time:S.time, ...st, premios:[], campanha:null, formacao:true});
+  // Título europeu: raro, e só pra quem foi jogar lá e jogou bem. É a
+  // porta de entrada "cheguei com nome" — quem vem por aqui desembarca
+  // na NBA valendo mais do que a posição de draft diria.
+  const premios = [];
+  if (S.fase === "fora" && LIGAS_EUROPEIAS.some(x => String(S.ligaFora||"").includes(x))
+      && ovr(S.A, S.pos) >= 74 && ri(0,100) < 16){
+    S.trofeus.euro++; S.destaque = "euroliga";
+    S.hype = clamp(S.hype + 14, 5, 99);
+    premios.push("Campeão da Euroliga");
+    S.mensagem = "Você levantou a Euroliga. Os olheiros da NBA pararam de te tratar como aposta.";
+  }
+
+  S.temporadas.push({ano:S.ano, idade:S.idade, time:S.time, ...st, premios, campanha:null, formacao:true});
   salvar(); telaFormacao();
 }
 
@@ -1515,10 +1564,16 @@ function irAoDraft(){ S.fase = "draft"; salvar(); telaDraft(); }
 
 function telaDraft(){
   if (!S.pickDraft){
+    // Prodígio só vira prodígio se a formação confirmou: fenômeno sorteado
+    // que jogou mal a universidade inteira não pode entrar como top 3.
+    if (S.prodigio && S.hype >= 72) S.destaque = "prodigio";
+
     // A posição sai do hype com ruído: você colhe o que plantou, mas a
     // noite do draft nunca é totalmente previsível.
     const base = 61 - Math.round(S.hype * 0.62);
-    S.pickDraft = clamp(base + ri(-7, 9), 1, 61);
+    S.pickDraft = S.destaque === "prodigio" ? ri(1, 3)
+                : S.destaque === "euroliga" ? clamp(base + ri(-9, 2), 1, 40)
+                : clamp(base + ri(-7, 9), 1, 61);
     const lista = timesDaLiga();
     S.time = pick(lista);
     if (S.modo === "fba"){ S.gm = gmDoTime(S.time); }
@@ -1528,11 +1583,26 @@ function telaDraft(){
     S.confianca = Math.round(clamp(70 - S.pickDraft*0.6, 25, 85));
     S.salario = Math.max(1, Math.round(Math.pow((62 - S.pickDraft)/61, 2) * 26) + 1);
     S.contrato = 4;
+
+    // Quem chega assim chega PRONTO — é o ponto de ter uma entrada rara.
+    // O prodígio já desembarca em nível de titular; o campeão europeu não
+    // vem tão forte, mas vem com a confiança e o contrato de quem já
+    // ganhou alguma coisa na vida adulta.
+    if (S.destaque === "prodigio"){
+      mexerOvr(Math.max(0, ri(6, 10)));
+      S.confianca = 92; S.forcaBase = ri(45, 80); S.salario += 6;
+    } else if (S.destaque === "euroliga"){
+      mexerOvr(Math.max(0, ri(2, 5)));
+      S.confianca = clamp(S.confianca + 15, 25, 95); S.salario += 3;
+    }
     salvar();
   }
   const naoDraftado = S.pickDraft > 60;
+  const manchete = S.destaque === "prodigio" ? "Chamaram seu nome primeiro."
+                 : S.destaque === "euroliga" ? "Você chegou com currículo."
+                 : naoDraftado ? "Ninguém chamou seu nome." : "Noite do draft.";
   app().innerHTML = topo() + `
-    <h1>${naoDraftado ? "Ninguém chamou seu nome." : "Noite do draft."}</h1>
+    <h1>${manchete}</h1>
     <div class="bpcard centro">
       ${naoDraftado ? `<p>Você não foi draftado. Um time te ofereceu contrato de teste — é isso ou o exterior.</p>`
         : `<div class="bpcard-title">Escolha nº</div>
@@ -1542,12 +1612,59 @@ function telaDraft(){
            ${S.gm ? `<br><span style="font-size:12px;color:var(--text2)">GM: ${esc(S.gm)}</span>` : ""}
            ${S.liga ? `<br><span style="font-size:12px;color:var(--text2)">${esc(S.liga)} · $${S.salario}M por ano</span>` : ""}</p>`}
     </div>
+    ${naoDraftado ? "" : `
+    <div class="bpcard">
+      <div class="bpcard-title">Ficha dos olheiros</div>
+      <p class="dec-txt" style="margin:0">Comparam você a <b style="color:var(--red)">${esc(comparacaoDeDraft())}</b>.
+      ${S.destaque === "prodigio" ? "A liga inteira já sabia seu nome antes do primeiro jogo."
+        : S.destaque === "euroliga" ? "Um título europeu no currículo vale mais que qualquer treino fechado."
+        : "É a promessa. Cumprir é com você."}</p>
+    </div>`}
     <button class="btn" onclick="jogarAno()">Primeira temporada</button>`;
 }
 
 function barra(){
   const p = clamp(((S.idade - 16) / 22) * 100, 0, 100);
   return `<div class="barra-topo"><i style="width:${p}%"></i></div>`;
+}
+
+/**
+ * Faixas de OVR: vermelho embaixo, verde subindo, roxo no topo.
+ *
+ * A cor existe porque o número sozinho não informa. "74" não diz se a
+ * carreira vai bem; "74 titular" em amarelo diz na hora, sem ler nada.
+ * Da maior pra menor, que é como o find() abaixo depende.
+ */
+const FAIXAS_OVR = [
+  [95, "#a855f7", "lendário"],
+  [88, "#22c55e", "elite"],
+  [80, "#4ade80", "estrela"],
+  [72, "#eab308", "titular"],
+  [64, "#f97316", "rotação"],
+  [ 0, "#ef4444", "reserva"],
+];
+function faixaOvr(o){ return FAIXAS_OVR.find(([min]) => o >= min) || FAIXAS_OVR[5]; }
+
+/**
+ * Com quem os olheiros te comparam na noite do draft.
+ *
+ * É o único momento em que o jogo diz, em uma frase, que tipo de jogador
+ * ele acha que você é — e o teto de cada comparação é uma promessa que a
+ * carreira pode ou não cumprir.
+ */
+const COMPARACOES = {
+  PG:{alto:["Magic Johnson","Luka Dončić","Stephen Curry"], medio:["Jrue Holiday","Mike Conley","Darius Garland"], baixo:["T.J. McConnell","José Alvarado","Tyus Jones"]},
+  SG:{alto:["Michael Jordan","Dwyane Wade","Devin Booker"],  medio:["Bradley Beal","Jaylen Brown","Anfernee Simons"], baixo:["Gary Harris","Alec Burks","Malik Beasley"]},
+  SF:{alto:["LeBron James","Kevin Durant","Kawhi Leonard"],  medio:["Mikal Bridges","OG Anunoby","Michael Porter Jr."], baixo:["Torrey Craig","Josh Green","Kelly Oubre"]},
+  PF:{alto:["Tim Duncan","Giannis Antetokounmpo","Dirk Nowitzki"], medio:["Julius Randle","Tobias Harris","John Collins"], baixo:["Jalen McDaniels","Grant Williams","Precious Achiuwa"]},
+  C: {alto:["Nikola Jokić","Hakeem Olajuwon","Joel Embiid"], medio:["Jarrett Allen","Myles Turner","Nic Claxton"],  baixo:["Mason Plumlee","Daniel Gafford","Isaiah Hartenstein"]},
+};
+function comparacaoDeDraft(){
+  if (S.comparacao) return S.comparacao;
+  const t = COMPARACOES[S.pos] || COMPARACOES.SF;
+  const faixa = S.pot >= 92 ? t.alto : S.pot >= 80 ? t.medio : t.baixo;
+  S.comparacao = pick(faixa);
+  return S.comparacao;
 }
 
 /** Variação de OVR desde o ano anterior, com sinal. */
@@ -1559,6 +1676,7 @@ function deltaOvr(){
 
 function placar(st, rotuloAno, time, campanha, premios){
   const {o, d} = deltaOvr();
+  const faixa = faixaOvr(o);
   const cor = d > 0 ? "var(--green)" : d < 0 ? "var(--red)" : "var(--text3)";
   const sinal = d > 0 ? `+${d}` : d < 0 ? `${d}` : "=";
   return `<div class="placar">
@@ -1567,8 +1685,8 @@ function placar(st, rotuloAno, time, campanha, premios){
       <span class="ano">${esc(rotuloAno)}</span>
       <span class="placar-time">${esc(time)}<small>${S.idade} anos</small></span>
     </div>
-    <div class="ovr-linha">
-      <span class="ovr-rot">OVR</span>
+    <div class="ovr-linha" style="--cor:${faixa[1]}">
+      <span class="ovr-esq"><span class="ovr-rot">Overall</span><span class="ovr-faixa">${faixa[2]}</span></span>
       <span class="ovr-val">${o}</span>
       <span class="ovr-delta" style="color:${cor}">${sinal}</span>
       <span class="ovr-barra"><i style="width:${clamp(o,0,99)}%"></i></span>
@@ -1621,7 +1739,6 @@ function perderAno(){
   for (const k in S.A) S.A[k] = clamp(S.A[k] - ri(lesao?2:1, lesao?6:4), 25, 99);
   S.confianca = clamp(S.confianca - (lesao ? 14 : 24), 5, 99);
   S.hype      = clamp(S.hype      - (lesao ? 10 : 20), 5, 99);
-  S.moral     = clamp(S.moral     - (lesao ?  8 : 16), 0, 100);
 
   S.temporadas.push({ano:S.ano, idade:S.idade, time:S.time, pts:0, reb:0, ast:0, min:0, jogos:0,
                      vit:0, premios:[], campeao:false, perdida:af.tipo, motivo:af.motivo});
@@ -1817,7 +1934,7 @@ function telaTemporada(){
       <div class="bpcard">
         <div class="bpcard-title">Sua decisão</div>
         <p class="dec-txt">${d.t()}</p>
-        ${d.ops.map((o,i)=>`<button class="op" onclick="decidir(${i})">${esc(o.l)}<small>${esc(o.s)}</small></button>`).join("")}
+        ${d.ops.map((o,i)=>`<button class="op" onclick="decidir(${i})">${esc(o.l)}<small class="odds">${esc(etiquetaAposta(o))}</small></button>`).join("")}
       </div>` : `
       ${aposentar ? `<button class="btn" onclick="encerrar()">Pendurar as chuteiras</button>`
                   : `<button class="btn" onclick="jogarAno()">Próxima temporada</button>`}
@@ -1827,11 +1944,14 @@ function telaTemporada(){
 
 function decidir(i){
   const d = decisaoAtual();
-  const antesOvr = ovr(S.A, S.pos);
-  S.resultado = d.ops[i].f();
-  // Efeito da escolha no nível, dito na hora: é o que faz a decisão ter
-  // peso em vez de ser só um parágrafo bonito.
-  S.efeitoDecisao = ovr(S.A, S.pos) - antesOvr;
+  const op = d.ops[i];
+  // O sorteio usa a MESMA chance que a etiqueta mostrou embaixo do botão.
+  // É por isso que a etiqueta é gerada do dado em vez de escrita à mão:
+  // texto e código escritos separados divergem na primeira alteração.
+  const deuCerto = ri(1, 100) <= (op.chance ?? 100);
+  const ef = deuCerto ? op.bom : (op.ruim || {txt:"No fim não deu em nada."});
+  S.efeitoDecisao = aplicarEfeito(ef);
+  S.resultado = ef.txt;
   S.aguardando = false; S.decisaoId = null; S.mensagem = null;
   salvar(); telaTemporada();
 }
@@ -1903,8 +2023,8 @@ function legadoBruto(){
   const t = S.trofeus || {};
   const n = (k) => Math.max(0, Number(t[k]) || 0);
   const anos = (S.temporadas || []).filter(x => x && !x.formacao && !x.perdida).length;
-  return n('mvp')*22 + n('titulo')*16 + n('fmvp')*10 + n('dpoy')*8 + n('cesta')*6
-       + n('allstar')*4 + n('ouro')*5 + n('roy')*3 + Math.round(anos*0.8);
+  return n('mvp')*22 + n('titulo')*16 + n('fmvp')*10 + n('dpoy')*8 + n('euro')*7
+       + n('cesta')*6 + n('allstar')*4 + n('ouro')*5 + n('roy')*3 + Math.round(anos*0.8);
 }
 
 /**
