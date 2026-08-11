@@ -348,26 +348,6 @@ if (!$ultimoPost && $ligaDoTime !== '') {
     }
 }
 
-// Tática não tem mais prazo de envio — só avisa aqui quando o admin fechou a
-// edição (corte diário ou toggle manual), pra o GM saber que não é hoje.
-$tacticEditClosed = false; $tacticEditReopensAt = null;
-try {
-    $stmtWindow = $pdo->prepare('SELECT * FROM tactic_edit_windows WHERE league = ?');
-    $stmtWindow->execute([$team['league']]);
-    $windowRow = $stmtWindow->fetch(PDO::FETCH_ASSOC);
-    if ($windowRow) {
-        $agora = date('Y-m-d H:i:s');
-        $manualOpenUntil = $windowRow['manual_open_until'] ?? null;
-        if ($manualOpenUntil && $manualOpenUntil > $agora) {
-            $tacticEditClosed = false;
-        } elseif (!empty($windowRow['manual_closed'])) {
-            $tacticEditClosed = true;
-        } else {
-            $tacticEditClosed = date('H:i:s') >= $windowRow['daily_cutoff_time'];
-        }
-        $tacticEditReopensAt = substr($windowRow['daily_cutoff_time'], 0, 5);
-    }
-} catch (Exception $e) { error_log('dashboard tactic_edit_window: ' . $e->getMessage()); }
 
 $currentSeason = null;
 try {
@@ -1442,21 +1422,6 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             </div>
         </div>
 
-        <!-- Aviso de janela de tática fechada -->
-        <?php if ($tacticEditClosed): ?>
-        <a href="/tatica.php" class="deadline-banner text-decoration-none">
-            <div class="deadline-left">
-                <div class="deadline-icon"><i class="bi bi-lock-fill"></i></div>
-                <div>
-                    <div class="deadline-title">Edição de tática fechada</div>
-                    <div class="deadline-sub">
-                        Reabre às <strong><?= htmlspecialchars($tacticEditReopensAt ?? '') ?></strong> ou quando o admin liberar.
-                    </div>
-                </div>
-            </div>
-            <div class="deadline-btn"><i class="bi bi-eye"></i> Ver tática</div>
-        </a>
-        <?php endif; ?>
 
         <!-- Draft live banner -->
         <?php if ($activeDraft && $currentDraftPick): ?>

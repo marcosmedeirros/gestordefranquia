@@ -156,28 +156,13 @@ function sugerirMinutos(array $jogadores, array $quinteto, int $rotationPlayers 
 }
 
 /** Estado da janela de edição de uma liga, já resolvido (aberta ou não, e por quê). */
+require_once __DIR__ . '/../backend/tatica_janela.php';
+
+/** Fachada fina: a regra mora em backend/tatica_janela.php, usada também
+ *  pelo painel de controle do admin. */
 function getEditWindow(PDO $pdo, string $league): array {
-    $stmt = $pdo->prepare('SELECT * FROM tactic_edit_windows WHERE league = ?');
-    $stmt->execute([$league]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$row) {
-        $pdo->prepare('INSERT IGNORE INTO tactic_edit_windows (league) VALUES (?)')->execute([$league]);
-        $row = ['manual_closed' => 0];   // liga nova nasce aberta
-    }
-
-    // Liga/desliga e mais nada, igual à Free Agency. Antes isto combinava
-    // corte diário às 17h, "aberta por N horas" e "fechada manualmente" — três
-    // regras que podiam se contradizer e que ninguém conseguia responder de
-    // cabeça ("está aberta agora?").
-    //
-    // As colunas antigas continuam na tabela e paradas: derrubá-las exigiria
-    // migração, e elas não custam nada onde estão.
-    $open = empty($row['manual_closed']);
-
-    return [
-        'open'   => $open,
-        'reason' => $open ? null : 'fechada pelo admin',
-    ];
+    taticaGarantirTabelaJanela($pdo);
+    return taticaJanela($pdo, $league);
 }
 
 /** Cria (uma vez, por liga) um prazo perene que só existe para ancorar o espelho nas tabelas antigas. */
