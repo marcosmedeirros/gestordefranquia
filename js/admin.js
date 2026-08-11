@@ -2141,7 +2141,7 @@ async function _carregarControlesExtras(league) {
         <i class="bi bi-clipboard2-pulse" style="color:#14b8a6;font-size:13px;flex-shrink:0"></i>
         <span style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">Tática</span>
         <span id="tatBadge_${league}" style="${selo(aberta)}">${aberta ? 'Aberta' : 'Fechada'}</span>
-        ${tw.daily_cutoff_time ? `<span style="font-size:10.5px;color:var(--text-3);white-space:nowrap">até ${escapeHtml(String(tw.daily_cutoff_time))}</span>` : ''}
+
         <div style="display:flex;gap:4px;margin-left:4px">
           <button class="btn btn-sm ${aberta ? 'btn-success' : 'btn-outline-success'}"
             style="font-size:11px;padding:4px 10px"
@@ -4388,9 +4388,6 @@ async function showTaticaAdmin() {
 
 function renderTaticaAdmin(league, win, teams) {
   const container = document.getElementById('mainContainer');
-  const statusBadge = win.open
-    ? '<span class="pun-badge" style="background:#22c55e20;color:#22c55e;border-color:#22c55e40">Aberta</span>'
-    : `<span class="pun-badge" style="background:var(--text-3)20;color:var(--text-3);border-color:var(--text-3)40">Fechada${win.reason ? ' — ' + escapeHtml(win.reason) : ''}</span>`;
 
   // Acordeão: um time por linha, abre e mostra a tática exata dele. O que o
   // time mexeu desde a virada da temporada sai em vermelho — por isso o
@@ -4466,24 +4463,6 @@ function renderTaticaAdmin(league, win, teams) {
       <button class="btn btn-back" onclick="${_dirBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
     </div>
 
-    <div class="panel mb-3">
-      <div class="panel-header">
-        <div class="panel-title"><i class="bi bi-clipboard2-pulse"></i> Janela de edição — ${escapeHtml(league)}</div>
-      </div>
-      <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
-        <div>${statusBadge}</div>
-        <div class="text-light-gray" style="font-size:12px">Corte diário: <strong>${escapeHtml(win.daily_cutoff_time)}</strong></div>
-      </div>
-      <div class="d-flex align-items-center gap-2 flex-wrap">
-        <input type="time" id="taticaCutoffInput" class="form-control form-control-sm bg-dark text-white border-orange" style="width:120px" value="${escapeHtml(win.daily_cutoff_time)}">
-        <button class="btn-ghost" style="padding:6px 12px;font-size:12px" onclick="saveTaticaCutoff('${league}')">Salvar corte</button>
-        <span class="mx-1 text-light-gray">|</span>
-        <button class="btn-ghost" style="padding:6px 12px;font-size:12px;color:#22c55e" onclick="openTaticaWindow('${league}', 3)">Abrir por 3h</button>
-        <button class="btn-ghost" style="padding:6px 12px;font-size:12px;color:#22c55e" onclick="openTaticaWindow('${league}', 24)">Abrir por 24h</button>
-        <button class="btn-ghost" style="padding:6px 12px;font-size:12px;color:#ef4444" onclick="closeTaticaWindow('${league}')">Fechar agora</button>
-      </div>
-    </div>
-
     <div class="panel">
       <div class="panel-header">
         <div class="panel-title"><i class="bi bi-broadcast"></i> Tática de cada time</div>
@@ -4551,28 +4530,6 @@ async function _tacFeito(teamId, feito, el) {
   }
 }
 
-async function saveTaticaCutoff(league) {
-  const val = document.getElementById('taticaCutoffInput')?.value;
-  if (!val) return;
-  try {
-    await api('tactics.php', { method: 'POST', body: JSON.stringify({ action: 'admin_window', league, daily_cutoff_time: val }) });
-    showTaticaAdmin();
-  } catch (e) { alert(e.error || 'Erro ao salvar corte'); }
-}
-
-async function openTaticaWindow(league, hours) {
-  try {
-    await api('tactics.php', { method: 'POST', body: JSON.stringify({ action: 'admin_window', league, open_for_hours: hours }) });
-    showTaticaAdmin();
-  } catch (e) { alert(e.error || 'Erro ao abrir janela'); }
-}
-
-async function closeTaticaWindow(league) {
-  try {
-    await api('tactics.php', { method: 'POST', body: JSON.stringify({ action: 'admin_window', league, manual_closed: true, clear_manual_open: true }) });
-    showTaticaAdmin();
-  } catch (e) { alert(e.error || 'Erro ao fechar janela'); }
-}
 
 // ========== FREE AGENCY ADMIN ==========
 
@@ -5605,42 +5562,33 @@ async function toggleTrades(league, enabled) {
 }
 
 /**
- * Abre ou fecha a janela de tática da liga, no mesmo lugar de Trades e FA.
+ * Abre ou fecha a edição de tática da liga, no mesmo lugar de Trades e FA.
  *
- * Abrir usa open_for_hours em vez de só limpar o manual_closed: sem isso, com o
- * corte diário já passado (ex: 17h), "abrir" não abriria nada — a janela cairia
- * na regra do horário e continuaria fechada. 24h cobre o resto do dia; no dia
- * seguinte o corte diário volta a mandar sozinho.
+ * Liga/desliga e mais nada: aberta = dá pra editar, fechada = não dá.
  *
- * Os dois lados zeram o "Feito no jogo" de todos os times: cada ciclo de janela
- * é uma rodada nova de aplicar tática dentro do jogo.
+ * Depois de mudar, RECARREGA a barra do servidor em vez de remendar as
+ * classes dos botões na mão. O remendo dava a impressão de ter funcionado
+ * mesmo quando a gravação falhava, e qualquer campo que ele esquecesse de
+ * atualizar só aparecia certo depois de um F5.
+ *
+ * Os dois lados zeram o "Feito no jogo" de todos os times: cada vez que a
+ * janela vira é uma rodada nova de aplicar tática dentro do jogo.
  */
 async function toggleTatica(league, abrir) {
   const on = abrir == 1;
   try {
     await api('tactics.php', {
       method: 'POST',
-      body: JSON.stringify(on
-        ? { action: 'admin_window', league, manual_closed: false, open_for_hours: 24 }
-        : { action: 'admin_window', league, manual_closed: true, clear_manual_open: true }),
+      body: JSON.stringify({ action: 'admin_window', league, aberta: on }),
     });
-
-    const onBtn  = document.getElementById(`tatOnBtn_${league}`);
-    const offBtn = document.getElementById(`tatOffBtn_${league}`);
-    const badge  = document.getElementById(`tatBadge_${league}`);
-    if (onBtn)  onBtn.className  = `btn btn-sm ${on ? 'btn-success' : 'btn-outline-success'}`;
-    if (offBtn) offBtn.className = `btn btn-sm ${!on ? 'btn-danger' : 'btn-outline-danger'}`;
-    if (badge) {
-      badge.textContent = on ? 'Aberta' : 'Fechada';
-      badge.style.cssText = `font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;${on
-        ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
-        : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)'}`;
-    }
-    showAlert('success', `Tática ${on ? 'aberta' : 'fechada'} para a liga ${league} — "Feito no jogo" zerado.`);
+    showAlert('success', on ? 'Edição de tática aberta.' : 'Edição de tática fechada.');
+    if (typeof carregarBarraTatica === 'function') await carregarBarraTatica(league);
+    else if (typeof showConfig === 'function') await showConfig();
   } catch (e) {
-    showAlert('danger', 'Erro ao atualizar a janela de tática');
+    showAlert('danger', e.error || 'Erro ao mudar a janela de tática');
   }
 }
+
 
 async function toggleFA(league, enabled) {
   try {
@@ -6296,11 +6244,10 @@ async function loadControlPanel() {
                 ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
                 : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)'}">${tw.open ? 'Aberta' : 'Fechada'}</span>
             </div>
-            <div style="font-size:11px;color:var(--text-3);margin-bottom:8px">${tw.reason ? escapeHtml(tw.reason) : `corte diário às ${tw.daily_cutoff_time}`}</div>
+            <div style="font-size:11px;color:var(--text-3);margin-bottom:8px">${tw.reason ? escapeHtml(tw.reason) : 'aberta — os times podem editar'}</div>
             <div class="d-flex gap-1 flex-wrap">
-              <button class="btn btn-sm btn-outline-success" onclick="panelOpenTacticWindow(3)">Abrir 3h</button>
-              <button class="btn btn-sm btn-outline-success" onclick="panelOpenTacticWindow(24)">Abrir 24h</button>
-              <button class="btn btn-sm btn-outline-danger" onclick="panelCloseTacticWindow()">Fechar agora</button>
+              <button class="btn btn-sm btn-outline-success" onclick="panelToggleTatica(true)">Abrir</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="panelToggleTatica(false)">Fechar</button>
             </div>
           </div>
         </div>
@@ -6332,20 +6279,15 @@ async function loadControlPanel() {
   }
 }
 
-async function panelOpenTacticWindow(hours) {
+async function panelToggleTatica(abrir) {
   try {
-    await api('tactics.php', { method: 'POST', body: JSON.stringify({ action: 'admin_window', league: _panelLeague, open_for_hours: hours }) });
-    showAlert('success', `Edição de táticas aberta por ${hours}h.`);
+    await api('tactics.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'admin_window', league: _panelLeague, aberta: !!abrir }),
+    });
+    showAlert('success', abrir ? 'Edição de táticas aberta.' : 'Edição de táticas fechada.');
     loadControlPanel();
-  } catch (e) { showAlert('danger', e.error || 'Erro ao abrir janela'); }
-}
-
-async function panelCloseTacticWindow() {
-  try {
-    await api('tactics.php', { method: 'POST', body: JSON.stringify({ action: 'admin_window', league: _panelLeague, manual_closed: true, clear_manual_open: true }) });
-    showAlert('success', 'Edição de táticas fechada.');
-    loadControlPanel();
-  } catch (e) { showAlert('danger', e.error || 'Erro ao fechar janela'); }
+  } catch (e) { showAlert('danger', e.error || 'Erro ao mudar a janela'); }
 }
 
 // ══════════════════════════════════════════════

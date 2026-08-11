@@ -162,29 +162,21 @@ function getEditWindow(PDO $pdo, string $league): array {
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
         $pdo->prepare('INSERT IGNORE INTO tactic_edit_windows (league) VALUES (?)')->execute([$league]);
-        $row = ['daily_cutoff_time' => '17:00:00', 'manual_open_until' => null, 'manual_closed' => 0];
+        $row = ['manual_closed' => 0];   // liga nova nasce aberta
     }
 
-    $agora = date('Y-m-d H:i:s');
-    $manualOpenUntil = $row['manual_open_until'] ?? null;
-    if ($manualOpenUntil && $manualOpenUntil > $agora) {
-        $open = true;
-        $reason = 'aberta manualmente pelo admin';
-    } elseif (!empty($row['manual_closed'])) {
-        $open = false;
-        $reason = 'fechada manualmente pelo admin';
-    } else {
-        $nowTime = date('H:i:s');
-        $open = $nowTime < $row['daily_cutoff_time'];
-        $reason = $open ? null : ('fechada após ' . substr($row['daily_cutoff_time'], 0, 5));
-    }
+    // Liga/desliga e mais nada, igual à Free Agency. Antes isto combinava
+    // corte diário às 17h, "aberta por N horas" e "fechada manualmente" — três
+    // regras que podiam se contradizer e que ninguém conseguia responder de
+    // cabeça ("está aberta agora?").
+    //
+    // As colunas antigas continuam na tabela e paradas: derrubá-las exigiria
+    // migração, e elas não custam nada onde estão.
+    $open = empty($row['manual_closed']);
 
     return [
-        'open' => $open,
-        'reason' => $reason,
-        'daily_cutoff_time' => substr($row['daily_cutoff_time'], 0, 5),
-        'manual_open_until' => $manualOpenUntil,
-        'manual_closed' => (bool)($row['manual_closed'] ?? false),
+        'open'   => $open,
+        'reason' => $open ? null : 'fechada pelo admin',
     ];
 }
 
@@ -526,28 +518,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $estadoAntes = getEditWindow($pdo, $league)['open'];
 
-        $sets = []; $params = [];
-        if (isset($body['daily_cutoff_time'])) {
-            $t = (string)$body['daily_cutoff_time'];
-            if (preg_match('/^\d{2}:\d{2}$/', $t)) $t .= ':00';
-            if (preg_match('/^\d{2}:\d{2}:\d{2}$/', $t)) { $sets[] = 'daily_cutoff_time = ?'; $params[] = $t; }
+        // Um botão só: aberta = true ou false. Qualquer outro campo é ignorado.
+        if (!array_key_exists('aberta', $body)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Informe aberta: true ou false.']);
+            exit;
         }
-        if (array_key_exists('manual_closed', $body)) {
-            $sets[] = 'manual_closed = ?';
-            $params[] = !empty($body['manual_closed']) ? 1 : 0;
-        }
-        if (isset($body['open_for_hours'])) {
-            $horas = max(0, min(72, (float)$body['open_for_hours']));
-            $sets[] = 'manual_open_until = ?';
-            $params[] = $horas > 0 ? date('Y-m-d H:i:s', strtotime("+{$horas} hours")) : null;
-            $sets[] = 'manual_closed = 0';
-        } elseif (!empty($body['clear_manual_open'])) {
-            $sets[] = 'manual_open_until = NULL';
-        }
-        if ($sets) {
-            $params[] = $league;
-            $pdo->prepare('UPDATE tactic_edit_windows SET ' . implode(', ', $sets) . ' WHERE league = ?')->execute($params);
-        }
+        $fechada = empty($body['aberta']) ? 1 : 0;
+        // manual_open_until zerado junto: se sobrasse preenchido de antes,
+        // continuaria sem efeito, mas ficaria lixo confuso na tabela.
+        $pdo->prepare('UPDATE tactic_edit_windows SET manual_closed = ?, manual_open_until = NULL WHERE league = ?')
+            ->execute([$fechada, $league]);
         $janela = getEditWindow($pdo, $league);
 
         // Virou a janela (abriu OU fechou) → zera o "Feito no jogo" de todos os
@@ -569,10 +550,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             require_once __DIR__ . '/../backend/push.php';
             $aviso = $janela['open']
                 ? ['title' => '📋 Tática liberada na ' . $league,
-                   'body'  => 'A janela de edição da tática está aberta' .
-                              (!empty($janela['manual_open_until'])
-                                  ? ' até ' . date('d/m H:i', strtotime($janela['manual_open_until'])) . '.'
-                                  : ' até ' . $janela['daily_cutoff_time'] . '.'),
+                   'body'  => 'A edição da tática está aberta. Vale até o admin fechar.',
                    'url'   => '/tatica.php']
                 : ['title' => '🔒 Tática fechada na ' . $league,
                    'body'  => 'A janela de edição da tática foi fechada. O que estava salvo é o que vale.',

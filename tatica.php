@@ -344,8 +344,8 @@ function msg(tipo, texto) {
 function renderJanela() {
   const box = $('avisoJanela');
   if (EDIT_WINDOW.open) { box.innerHTML = ''; return; }
-  box.innerHTML = `<div class="aviso warn"><i class="bi bi-lock-fill"></i><div>Edição fechada no momento${
-    EDIT_WINDOW.reason ? ' — ' + esc(EDIT_WINDOW.reason) : ''}. Reabre às <strong>${esc((EDIT_WINDOW.daily_cutoff_time || '').slice(0,5))}</strong> ou quando o admin liberar.</div></div>`;
+  box.innerHTML = `<div class="aviso warn"><i class="bi bi-lock-fill"></i><div>Edição fechada${
+    EDIT_WINDOW.reason ? ' — ' + esc(EDIT_WINDOW.reason) : ''}. Reabre quando o admin liberar.</div></div>`;
 }
 
 function aplicarBloqueioEdicao() {
