@@ -163,6 +163,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $ativa = caminhoCarreiraAtiva($pdo, $idUsuario);
 $estadoInicial = $ativa ? $ativa['estado'] : 'null';
 
+// Último nome usado por esta conta, pra já vir preenchido na criação.
+$stNome = $pdo->prepare("SELECT nome FROM caminho_carreiras
+                        WHERE id_usuario = ? AND nome IS NOT NULL AND nome <> ''
+                        ORDER BY id DESC LIMIT 1");
+$stNome->execute([$idUsuario]);
+$ultimoNome = (string)($stNome->fetchColumn() ?: '');
+
 $stPontos = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = ?");
 $stPontos->execute([$idUsuario]);
 $pontosUsuario = (int)($stPontos->fetchColumn() ?: 0);
@@ -254,6 +261,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .chip b{font-family:var(--num);font-variant-numeric:tabular-nums;font-weight:700}
 
 .main{max-width:620px;margin:0 auto;padding:16px 12px 60px}
+
+/* DUAS COLUNAS — só a partir de 940px.
+   Abaixo disso o grid vira uma coluna e tudo empilha na ordem do HTML, que
+   já é a ordem certa de leitura: o que importa primeiro vem primeiro. Por
+   isso o lado principal vem antes no markup, e não porque está à esquerda. */
+.colunas{display:grid;gap:14px}
+@media (min-width:940px){
+  .main{max-width:1040px;padding:16px 20px 60px}
+  .colunas{grid-template-columns:minmax(0,1fr) 350px;align-items:start;gap:18px}
+  /* A lateral acompanha a rolagem: numa temporada longa a súmula fica
+     comprida, e sem isto o ranking sumia lá em cima. */
+  .col-lado{position:sticky;top:76px}
+  .intro,.intro p{max-width:none}
+  h1{font-size:26px}
+}
+/* Numa coluna só, o respiro entre os dois blocos já vem do gap. */
+.col-lado h2:first-child{margin-top:0}
 
 /* CARD — .bpcard do padrão (nunca .card, que o Bootstrap sequestra) */
 .bpcard{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
@@ -405,11 +429,6 @@ tr.tit td{color:var(--red)}
 .ovr-barra{flex:1;height:7px;background:var(--panel3);border-radius:99px;overflow:hidden}
 .ovr-barra i{display:block;height:100%;background:var(--cor);border-radius:99px;transition:width .5s}
 /* VOCÊ × ELE — duas colunas espelhadas, o rótulo no meio. */
-.rv-topo{display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding-bottom:9px;margin-bottom:7px;border-bottom:1px solid var(--border)}
-.rv-lado{font-family:var(--num);font-size:24px;font-weight:900;letter-spacing:-1px;
-  font-variant-numeric:tabular-nums;flex:none;width:44px}
-.rv-lado:last-child{text-align:right}
 .rv-linha{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:3px 0}
 .rv-n{font-family:var(--num);font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums;
   color:var(--text);flex:none;width:44px}
@@ -448,6 +467,7 @@ window.__RANKING__   = <?= json_encode(array_map(fn($r) => [
     'legado' => (int)$r['legado'], 'temporadas' => (int)$r['temporadas'],
 ], $ranking), JSON_UNESCAPED_UNICODE) ?>;
 window.__EU__     = <?= json_encode($_SESSION['user_name'] ?? '', JSON_UNESCAPED_UNICODE) ?>;
+window.__ULTIMO_NOME__ = <?= json_encode($ultimoNome, JSON_UNESCAPED_UNICODE) ?>;
 window.__MOEDAS__ = <?= $pontosUsuario ?>;
 </script>
 <script>
@@ -1467,9 +1487,22 @@ function render(){
   return telaTemporada();
 }
 
+/**
+ * Duas colunas no desktop, uma no celular.
+ *
+ * `principal` é o que a pessoa veio fazer; `lado` é o contexto — ranking,
+ * histórico. No celular o lado cai embaixo, que é onde ele deve estar: o
+ * grid não reordena nada, só muda de uma pra duas colunas.
+ */
+function colunas(principal, lado){
+  if (!lado) return principal;
+  return `<div class="colunas"><div class="col-principal">${principal}</div>
+    <div class="col-lado">${lado}</div></div>`;
+}
+
 function telaInicio(){
   const salvo = carregar();
-  app().innerHTML = topo() + `
+  const principal = `
     <h1>Uma carreira inteira,<br>em alguns minutos.</h1>
     <p class="lead">Você escolhe a posição e o jeito de jogar. O resto é decisão, ano a ano — e sorte, como na vida real.</p>
     ${salvo && !salvo.encerrada ? `
@@ -1480,10 +1513,15 @@ function telaInicio(){
         <button class="btn btn2" style="margin-top:8px" onclick="if(confirm('Abandonar a carreira atual? Ela não volta.')){apagar();render()}">Começar outra</button>
       </div>` : `
       <button class="btn" onclick="iniciar()">Começar</button>`}
-    ` + ranking() + `</div>`;
+    `;
+  app().innerHTML = topo() + colunas(principal, ranking()) + `</div>`;
 }
 
-let rascunho = {nome:"", pos:"SG", arq:"atirador", nac:"BRA", modo:"nba"};
+// O nome vem da última carreira desta conta, impresso pelo PHP. Vem do
+// BANCO e não do localStorage de propósito: quem joga do celular e do
+// computador é a mesma pessoa, e digitar o nome de novo a cada carreira é
+// atrito sem motivo.
+let rascunho = {nome: window.__ULTIMO_NOME__ || "", pos:"SG", arq:"atirador", nac:"BRA", modo:"nba"};
 
 function iniciar(){ S = null; apagar(); telaCriar(true); }
 function continuar(){ S = carregar(); render(); }
@@ -2160,9 +2198,8 @@ function telaTemporada(){
   const d = S.aguardando ? decisaoAtual() : null;
   const aposentar = S.idade >= 39 || (S.idade >= 33 && ovr(S.A,S.pos) < 68);
 
-  app().innerHTML = topo() + barra() +
+  const principal = barra() +
     placar(st, String(S.ano), S.time + (S.gm ? ` · ${S.gm}` : ""), S.ultimaCampanha, S.ultimosPremios || []) +
-    cardRival() +
     (S.mensagem ? `<div class="bpcard"><p class="dec-txt" style="margin:0">${S.mensagem}</p></div>` : "") +
     (S.resultado ? `<div class="bpcard"><div class="bpcard-title">O que aconteceu${S.efeitoDecisao ? `<span style="color:${S.efeitoDecisao>0?"var(--green)":"var(--red)"}">${S.efeitoDecisao>0?"+":""}${S.efeitoDecisao} OVR</span>` : ""}</div><p class="dec-txt" style="margin:0">${S.resultado}</p></div>` : "") +
     (S.aguardando && d ? `
@@ -2173,34 +2210,11 @@ function telaTemporada(){
       </div>` : `
       ${aposentar ? `<button class="btn" onclick="encerrar()">Pendurar as chuteiras</button>`
                   : `<button class="btn" onclick="jogarAno()">Próxima temporada</button>`}
-      ${!aposentar && S.idade >= 33 ? `<button class="btn btn2" style="margin-top:8px" onclick="encerrar()">Ou parar por aqui</button>` : ""}`) +
-    sumula();
-}
+      ${!aposentar && S.idade >= 33 ? `<button class="btn btn2" style="margin-top:8px" onclick="encerrar()">Ou parar por aqui</button>` : ""}`);
 
-/** Você × ele, a linha do ano. Só aparece depois que os dois jogaram. */
-function cardRival(){
-  const r = S.rival;
-  if (!r || !r.ult || !S.ultimo) return "";
-  const meu = S.ultimo, eleF = faixaOvr(r.ovr), meuF = faixaOvr(ovr(S.A, S.pos));
-  const linha = (rot, a, b) => {
-    const cor = a > b ? "var(--green)" : a < b ? "var(--red)" : "var(--text2)";
-    return `<div class="rv-linha">
-      <span class="rv-n" style="color:${cor};font-weight:900">${a}</span>
-      <span class="rv-rot">${rot}</span>
-      <span class="rv-n">${b}</span></div>`;
-  };
-  return `<div class="bpcard">
-    <div class="bpcard-title">Você × ${esc(r.nome)}</div>
-    <div class="rv-topo">
-      <span class="rv-lado" style="color:${meuF[1]}">${ovr(S.A,S.pos)}</span>
-      <span class="rv-rot">overall</span>
-      <span class="rv-lado" style="color:${eleF[1]}">${r.ovr}</span>
-    </div>
-    ${linha("pontos", meu.pts, r.ult.pts)}
-    ${linha("rebotes", meu.reb, r.ult.reb)}
-    ${linha("assist.", meu.ast, r.ult.ast)}
-    ${linha("títulos", S.trofeus.titulo, r.trofeus.titulo)}
-  </div>`;
+  // A súmula vai pro lado: ela cresce a cada temporada e, embaixo do botão
+  // de avançar, empurrava a decisão pra fora da tela no desktop.
+  app().innerHTML = topo() + colunas(principal, sumula());
 }
 
 function decidir(i){
