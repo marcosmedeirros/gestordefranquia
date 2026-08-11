@@ -1731,6 +1731,38 @@ function runMigrations() {
         $errors[] = "criar_tactic_edit_windows: " . $e->getMessage();
     }
 
+    // Tatica salva sem nenhuma marcada como ativa.
+    //
+    // O is_active so era gravado pelo botao "ativar" explicito, entao quem
+    // salvou e nunca clicou ali ficou com tudo em 0. A tela do GM disfarcava
+    // (cai no slot 'regular' quando nao acha nenhuma), mas todo o resto do
+    // sistema lia is_active=1 de verdade: o admin dizia "nenhuma tatica
+    // ativa", as pendencias avisavam "voce nao tem tatica ativa", e o espelho
+    // em team_directives nunca era atualizado.
+    //
+    // Corrigir cada leitor era enxugar gelo. Aqui o dado passa a dizer a
+    // verdade: quem tem tatica salva ganha uma ativa. Prefere o 'regular';
+    // sem ele, a mais recente. Roda uma vez — na segunda ja nao acha ninguem.
+    try {
+        $semAtiva = $pdo->query("
+            SELECT tt.team_id, MAX(tt.slot = 'regular') AS tem_regular
+            FROM team_tactics tt
+            GROUP BY tt.team_id
+            HAVING SUM(tt.is_active = 1) = 0
+        ")->fetchAll(PDO::FETCH_ASSOC);
+
+        $marcarRegular = $pdo->prepare("UPDATE team_tactics SET is_active = 1
+                                        WHERE team_id = ? AND slot = 'regular'");
+        $marcarUltima  = $pdo->prepare("UPDATE team_tactics SET is_active = 1
+                                        WHERE team_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1");
+        foreach ($semAtiva as $linha) {
+            if ((int)$linha['tem_regular'] === 1) $marcarRegular->execute([(int)$linha['team_id']]);
+            else                                  $marcarUltima->execute([(int)$linha['team_id']]);
+        }
+    } catch (PDOException $e) {
+        $errors[] = "tatica_ativa_backfill: " . $e->getMessage();
+    }
+
     // Views do ranking do Admin > Temporadas. api/seasons.php sempre leu delas,
     // mas elas nunca existiram no banco — as tres acoes (ranking por liga,
     // ranking geral e historico de campeoes) morriam em "Erro interno do
