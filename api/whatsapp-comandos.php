@@ -232,14 +232,12 @@ function wcNormalizarLiga(string $termo): ?string
 function wcAjuda(): string
 {
     return "*Comandos da FBA*\n\n"
-        . "*Seu time* (pelo seu telefone)\n"
-        . "/meuelenco · /meucap · /minhaspicks\n\n"
         . "*Consulta*\n"
         . "/jogador _nome_ — time, idade, OVR e salário\n"
         . "/comparar _um_ x _outro_ — jogadores lado a lado\n"
         . "/comparartime _um_ x _outro_ — times lado a lado\n"
-        . "/confronto _um_ x _outro_ — o histórico entre dois times\n"
-        . "/time _nome_ — elenco, folha e campanha\n"
+        . "/confronto _um_ x _outro_ — o duelo entre dois times, com palpite\n"
+        . "/time _nome_ — quinteto, banco, folha e campanha\n"
         . "/cap _time_ — folha e espaço no cap\n"
         . "/picks _time_ — picks que o time tem\n\n"
         . "*Liga*\n"
@@ -249,7 +247,7 @@ function wcAjuda(): string
         . "/hall — o Hall da Fama\n"
         . "/premios — os prêmios da temporada\n"
         . "/guia — o guia do GM\n\n"
-        . "Ex.: /comparar lebron x tatum  •  /meucap  •  /trocas";
+        . "Ex.: /comparar lebron x tatum  •  /cap coyotes  •  /trocas";
 }
 
 function wcJogador(PDO $pdo, string $termo): string
@@ -1064,6 +1062,100 @@ function wcHistoricoEntre(PDO $pdo, array $a, array $b): array
     return $out;
 }
 
+/** O cara do time: maior OVR do elenco, com posição e idade. */
+function wcMelhorJogador(PDO $pdo, int $teamId): ?array
+{
+    $ovr = wcColunaOvr($pdo);
+    $st = $pdo->prepare("SELECT name, position, age, {$ovr} AS ovr FROM players
+                         WHERE team_id = ? ORDER BY {$ovr} DESC LIMIT 1");
+    $st->execute([$teamId]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/**
+ * Força do time pela mesma conta do power ranking do Mundo FBA: média e teto
+ * de OVR do quinteto, com bônus de juventude e castigo de idade.
+ *
+ * Refiz a fórmula aqui em vez de importar o mundo-fba.php porque lá ela mora
+ * dentro da página, junto de meia dúzia de consultas que o bot não precisa.
+ * Se a de lá mudar, esta tem que mudar junto — é o preço de não ter a conta
+ * num lugar só.
+ */
+function wcForcaDoTime(array $elenco): float
+{
+    $cinco = array_values(array_filter(wcQuintetoTitular($elenco)));
+    if (!$cinco) return 0.0;
+
+    $ovrs   = array_map(fn($p) => (int)$p['ovr'], $cinco);
+    $idades = array_filter(array_map(fn($p) => (int)$p['age'], $cinco));
+
+    $mediaOvr   = array_sum($ovrs) / count($ovrs);
+    $tetoOvr    = max($ovrs);
+    $mediaIdade = $idades ? array_sum($idades) / count($idades) : 0;
+
+    $juventude = $mediaIdade > 0 ? max(0, 30 - $mediaIdade) : 0;
+    $castigo   = $mediaIdade > 32 ? ($mediaIdade - 32) * 1.8 : 0;
+
+    $score = ($mediaOvr * 1.6) + ($tetoOvr * 0.6) + ($juventude * 0.8) - $castigo;
+    if ($tetoOvr >= 89) $score += 2.0;                        // tem franquia
+    if (count($cinco) < 5) $score -= (5 - count($cinco)) * 1.2;
+
+    return round($score, 1);
+}
+
+/**
+ * O palpite. Não existe adivinhação aqui: é regra sobre número.
+ *
+ * A força do elenco diz quem entra favorito; o retrospecto de playoff diz se
+ * a história concorda. Quando os dois discordam é onde mora a zebra, e é esse
+ * caso que ganha a frase mais interessante — time melhor no papel que já
+ * apanhou do outro no mata-mata é a melhor história que estes dados contam.
+ */
+function wcPalpite(string $nomeA, string $nomeB, float $fA, float $fB, array $duelo, array $h): string
+{
+    $dif      = $fA - $fB;
+    $favorito = $dif >= 0 ? $nomeA : $nomeB;
+    $azarao   = $dif >= 0 ? $nomeB : $nomeA;
+    $margem   = abs($dif);
+
+    // Retrospecto do ponto de vista do favorito.
+    $vitFav = $dif >= 0 ? (int)$duelo['a'] : (int)$duelo['b'];
+    $vitAza = $dif >= 0 ? (int)$duelo['b'] : (int)$duelo['a'];
+    $temHistorico = ($vitFav + $vitAza) > 0;
+
+    if ($margem < 2.5) {
+        $veredito = 'Moeda no ar: não dá pra separar os dois no papel';
+    } elseif ($margem < 6) {
+        $veredito = "*{$favorito}* leva, mas apertado";
+    } elseif ($margem < 12) {
+        $veredito = "*{$favorito}* entra favorito";
+    } else {
+        $veredito = "*{$favorito}* ganha sem sustos";
+    }
+
+    $linhas = [$veredito . ' _(força ' . $fA . ' x ' . $fB . ')_.'];
+
+    if (!$temHistorico) {
+        // Sem retrospecto sobra o que passou entre eles fora de quadra —
+        // melhor que encerrar com "não sei".
+        $linhas[] = $h['trocas']
+            ? 'Nunca se cruzaram no mata-mata, mas já negociaram: tem conhecido dos dois lados.'
+            : 'Nunca se cruzaram no mata-mata nem trocaram nada. Papel em branco.';
+    } elseif ($vitAza > $vitFav) {
+        $linhas[] = $margem < 6
+            ? "E o retrospecto é do *{$azarao}*: {$vitAza}-{$vitFav} em séries. Num jogo desses, a memória vale ponto."
+            : "Só que quem passa é o *{$azarao}*: {$vitAza}-{$vitFav} em séries. Favoritismo no papel nunca ganhou série.";
+    } elseif ($vitFav > $vitAza) {
+        $linhas[] = ($vitAza === 0 && $vitFav >= 2)
+            ? "E tem paternidade: {$vitFav}-0 em séries. Isso pesa antes da bola subir."
+            : "E o retrospecto ajuda: {$vitFav}-{$vitAza} em séries.";
+    } else {
+        $linhas[] = "Retrospecto empatado em {$vitFav}-{$vitAza}. Não ajuda ninguém.";
+    }
+
+    return "\n🔮 *Palpite*\n" . implode("\n", $linhas);
+}
+
 function wcConfronto(PDO $pdo, string $termo): string
 {
     $partes = preg_split('/\s+(?:x|vs\.?|versus)\s+/iu', $termo, 2);
@@ -1097,6 +1189,17 @@ function wcConfronto(PDO $pdo, string $termo): string
           . $linha('Títulos', $tA['titulos'], $tB['titulos'], $marca($tA['titulos'], $tB['titulos']), $marca($tB['titulos'], $tA['titulos']))
           . $linha('Séries de playoff', $pA['series'], $pB['series'], $marca($pA['series'], $pB['series']), $marca($pB['series'], $pA['series']))
           . $linha('Melhor campanha', $pA['melhor'] ?: 'não foi', $pB['melhor'] ?: 'não foi');
+
+    // Uma linha por time: o formato do jogador já usa "|", e enfiar isso no
+    // lado a lado daria "94 | 25y  |  99 | 30y" — ilegível.
+    $craque = function (?array $p): string {
+        if (!$p) return '_sem elenco_';
+        $pos = strtoupper(trim((string)($p['position'] ?? ''))) ?: '--';
+        return "{$pos} {$p['name']} {$p['ovr']} | {$p['age']}y";
+    };
+    $txt .= "\n⭐ *Melhor jogador*\n"
+          . "{$nomeA}: " . $craque(wcMelhorJogador($pdo, (int)$a['id'])) . "\n"
+          . "{$nomeB}: " . $craque(wcMelhorJogador($pdo, (int)$b['id'])) . "\n";
 
     // ── Confronto de verdade: séries de playoff entre os dois ────────────
     $duelo = playoffSeriesEntre($pdo, (int)$a['id'], (int)$b['id']);
@@ -1141,10 +1244,19 @@ function wcConfronto(PDO $pdo, string $termo): string
         if ($h['picks_b_com_a']) $txt .= "{$nomeA} tem *{$h['picks_b_com_a']}* pick(s) do {$nomeB}\n";
     }
 
-    $txt .= "\n_" . ($duelo['series']
-            ? 'O placar de cada jogo o app não guarda — só o total da série.'
-            : 'Ainda não se cruzaram no playoff, ou a série não foi registrada.') . "_"
-          . "\nElenco lado a lado: /comparartime " . mb_strtolower($a['name']) . ' x ' . mb_strtolower($b['name']);
+    // O palpite fecha a mensagem. É o motivo de alguém pedir /confronto: o
+    // resto é consulta, isto é conversa.
+    $ovrCol = wcColunaOvr($pdo);
+    $elencoDe = function (int $id) use ($pdo, $ovrCol): array {
+        $st = $pdo->prepare("SELECT name, position, secondary_position, role, age, {$ovrCol} AS ovr
+                             FROM players WHERE team_id = ? ORDER BY {$ovrCol} DESC");
+        $st->execute([$id]);
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    };
+    $txt .= wcPalpite($nomeA, $nomeB,
+                      wcForcaDoTime($elencoDe((int)$a['id'])),
+                      wcForcaDoTime($elencoDe((int)$b['id'])),
+                      $duelo, $h);
 
     return $txt;
 }
@@ -1237,75 +1349,6 @@ function wcPremios(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 // Comandos que sabem quem perguntou
 // ─────────────────────────────────────────────────────────────────────────
 
-/**
- * Acha o time de quem mandou a mensagem, pelo telefone.
- *
- * O users.phone é gravado normalizado (normalizeBrazilianPhone), e o
- * identificador que a Evolution manda é do mesmo formato — 5511999999999. Mas
- * comparar inteiro é frágil: o WhatsApp de números antigos às vezes vem sem o
- * 9 do celular, e alguns cadastros estão sem o 55. Então comparo pelos últimos
- * 8 dígitos, que é a parte que nunca muda.
- *
- * Se 8 dígitos baterem com mais de uma pessoa, não adivinha — devolve erro.
- * Retorna [time|null, mensagemDeErro|null].
- */
-function wcTimeDeQuemPerguntou(PDO $pdo, ?string $telefone, ?string $ligaDoGrupo): array
-{
-    $digitos = preg_replace('/\D+/', '', (string)$telefone);
-    if (strlen($digitos) < 8) {
-        return [null, 'Não consegui identificar seu número por aqui. Use o comando com o nome do time, tipo /cap lakers.'];
-    }
-    $fim = substr($digitos, -8);
-
-    // A comparação é em PHP, não em SQL: REGEXP_REPLACE só existe do MySQL 8
-    // pra cima e eu não controlo a versão da hospedagem. São poucas dezenas de
-    // linhas (uma por GM com time), então filtrar aqui não custa nada.
-    $todos = $pdo->query("
-        SELECT t.id, t.name, t.city, t.mascot, t.league, t.conference,
-               u.name AS gm, u.id AS user_id, u.phone
-        FROM users u JOIN teams t ON t.user_id = u.id
-        WHERE u.phone IS NOT NULL AND u.phone <> ''
-        ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE')
-    ")->fetchAll(PDO::FETCH_ASSOC);
-
-    $times = array_values(array_filter($todos, function ($t) use ($fim) {
-        $d = preg_replace('/\D+/', '', (string)$t['phone']);
-        return strlen($d) >= 8 && substr($d, -8) === $fim;
-    }));
-
-    if (!$times) {
-        return [null, "Não achei seu cadastro pelo telefone. Confere se o número está no seu perfil no site — ou use o comando com o nome do time."];
-    }
-
-    // Um GM pode ter time em mais de uma liga. No Chat Off de uma liga, é o
-    // dela que interessa.
-    if (count($times) > 1 && $ligaDoGrupo) {
-        foreach ($times as $t) if ($t['league'] === $ligaDoGrupo) return [$t, null];
-    }
-    if (count($times) > 1) {
-        $lista = implode(', ', array_map(fn($t) => $t['league'], $times));
-        return [null, "Você tem time em mais de uma liga ({$lista}). Use o comando com o nome do time."];
-    }
-    return [$times[0], null];
-}
-
-function wcMeuElenco(PDO $pdo, ?string $telefone, ?string $ligaDoGrupo): string
-{
-    [$t, $erro] = wcTimeDeQuemPerguntou($pdo, $telefone, $ligaDoGrupo);
-    return $erro ?: wcTime($pdo, '', $t);
-}
-
-function wcMeuCap(PDO $pdo, ?string $telefone, ?string $ligaDoGrupo): string
-{
-    [$t, $erro] = wcTimeDeQuemPerguntou($pdo, $telefone, $ligaDoGrupo);
-    return $erro ?: wcCap($pdo, '', $t);
-}
-
-function wcMinhasPicks(PDO $pdo, ?string $telefone, ?string $ligaDoGrupo): string
-{
-    [$t, $erro] = wcTimeDeQuemPerguntou($pdo, $telefone, $ligaDoGrupo);
-    return $erro ?: wcPicks($pdo, '', $t);
-}
 
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -1316,7 +1359,7 @@ function wcMinhasPicks(PDO $pdo, ?string $telefone, ?string $ligaDoGrupo): strin
  * $ligaDoGrupo é a liga do grupo de onde veio a mensagem, quando ele é de uma
  * liga só. Serve pros comandos que dá pra responder sem argumento.
  */
-function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null, ?string $telefone = null): ?string
+function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null): ?string
 {
     $texto = trim($texto);
     if ($texto === '' || $texto[0] !== '/') return null;
@@ -1387,19 +1430,6 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'prêmios':
             case 'premio':
                 return wcPremios($pdo, $arg, $ligaDoGrupo);
-
-            // ── Quem perguntou ──────────────────────────────────────────
-            case 'meuelenco':
-            case 'meutime':
-                return wcMeuElenco($pdo, $telefone, $ligaDoGrupo);
-
-            case 'meucap':
-            case 'minhafolha':
-                return wcMeuCap($pdo, $telefone, $ligaDoGrupo);
-
-            case 'minhaspicks':
-            case 'meuspicks':
-                return wcMinhasPicks($pdo, $telefone, $ligaDoGrupo);
 
             case 'guia':
                 return "*Guia do GM:* https://fbabrasil.com.br/guia.php";

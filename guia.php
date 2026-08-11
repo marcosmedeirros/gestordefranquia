@@ -451,14 +451,11 @@ html{scroll-behavior:smooth}
         <table>
           <thead><tr><th>Comando</th><th>O que responde</th></tr></thead>
           <tbody>
-            <tr><td><code>/meucap</code></td><td>Sua folha, sem digitar o time</td></tr>
-            <tr><td><code>/meuelenco</code></td><td>Seu elenco</td></tr>
-            <tr><td><code>/minhaspicks</code></td><td>Suas picks</td></tr>
             <tr><td><code>/jogador lebron</code></td><td>Time, OVR, salário, números da temporada e as 10 skills</td></tr>
             <tr><td><code>/comparar lebron x tatum</code></td><td>Dois jogadores lado a lado, com stats e skills</td></tr>
             <tr><td><code>/comparartime lakers x celtics</code></td><td>Dois times lado a lado, com títulos e playoffs da edição</td></tr>
-            <tr><td><code>/confronto lakers x celtics</code></td><td>O histórico entre dois times: trocas, quem mandou quem e picks cruzadas</td></tr>
-            <tr><td><code>/time lakers</code></td><td>Elenco, folha, campanha e os melhores</td></tr>
+            <tr><td><code>/confronto lakers x celtics</code></td><td>O duelo entre dois times: séries de playoff, trocas, picks cruzadas e um palpite de quem levaria</td></tr>
+            <tr><td><code>/time lakers</code></td><td>Quinteto titular, banco, folha e campanha</td></tr>
             <tr><td><code>/cap lakers</code></td><td>Folha detalhada, espaço no CAP e maiores salários</td></tr>
             <tr><td><code>/picks lakers</code></td><td>Todas as picks do time, por ano</td></tr>
             <tr><td><code>/classificacao elite</code></td><td>A tabela da liga</td></tr>
