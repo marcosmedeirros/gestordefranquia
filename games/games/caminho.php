@@ -469,6 +469,15 @@ tr.tit td{color:var(--red)}
 /* A etiqueta de probabilidade quer ser lida como número, não como frase. */
 .op small.odds{font-family:var(--num);font-size:10.5px;font-weight:700;letter-spacing:.2px;color:var(--text2)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+/* Os troféus da carreira, acima da lista ano a ano. */
+.trofeus-resumo{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+
+/* Os dois fecham a carreira juntos: copiar pro grupo e recomeçar são
+   irmãos, não um acima do outro. No celular voltam a empilhar. */
+.acoes-fim{display:flex;gap:9px;margin-top:4px}
+.acoes-fim .btn{margin-top:0;flex:1}
+@media (max-width:520px){ .acoes-fim{flex-direction:column;gap:8px} }
+
 /* RANKING — só existe na versão do site */
 .rk{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:12.5px}
 .rk:last-child{border-bottom:none}
@@ -641,7 +650,7 @@ function faixaPotencial(p){
 
 function novaCarreira(nome, pos, arq, nac, modo){
   const A = {};
-  for (const k in ATRIBUTOS) A[k] = ri(38, 52);
+  for (const k in ATRIBUTOS) A[k] = ri(30, 42);
   ARQUETIPOS[arq].forte.forEach(k => A[k] = clamp(A[k] + ri(10, 18), 0, 99));
 
   return {
@@ -713,16 +722,16 @@ function statsDoAno(o, min, forca){
 
 function premiosDoAno(o, st, vit, campeao){
   const out = [];
-  const estrela = o >= 93;
+  const estrela = o >= 89;
   // MVP exige nível ALTO e time vencedor. É o corte que torna "ser bom em
   // time ruim" uma tragédia jogável, em vez de só um número menor.
-  if (o >= 97 && vit >= 55 && ri(0,100) < 38){ out.push({t:"MVP", k:"ouro"}); S.trofeus.mvp++; }
-  if (estrela && ri(0,100) < 70){ out.push({t:"All-Star", k:"normal"}); S.trofeus.allstar++; }
-  if (S.A.def >= 93 && ri(0,100) < 26){ out.push({t:"Defensor do Ano", k:"ouro"}); S.trofeus.dpoy++; }
+  if (o >= 94 && vit >= 55 && ri(0,100) < 42){ out.push({t:"MVP", k:"ouro"}); S.trofeus.mvp++; }
+  if (estrela && ri(0,100) < 75){ out.push({t:"All-Star", k:"normal"}); S.trofeus.allstar++; }
+  if (S.A.def >= 89 && ri(0,100) < 28){ out.push({t:"Defensor do Ano", k:"ouro"}); S.trofeus.dpoy++; }
   if (st.pts >= 26 && ri(0,100) < 26){ out.push({t:"Cestinha da liga", k:"ouro"}); S.trofeus.cesta++; }
   if (campeao){
     out.push({t:"CAMPEÃO", k:"titulo"}); S.trofeus.titulo++;
-    if (o >= 95 && ri(0,100) < 50){ out.push({t:"MVP das Finais", k:"titulo"}); S.trofeus.fmvp++; }
+    if (o >= 91 && ri(0,100) < 52){ out.push({t:"MVP das Finais", k:"titulo"}); S.trofeus.fmvp++; }
   }
   return out;
 }
@@ -738,8 +747,11 @@ function evoluir(){
   // Antes eu somava ri(2,6) sempre — então o jogador continuava subindo
   // depois de estourar o próprio teto, e toda carreira virava GOAT. O
   // potencial só significa alguma coisa se ele efetivamente frear.
-  if (S.idade <= 23)      d = falta > 0 ? ri(1,3) + Math.round(falta*0.30) : 0;
-  else if (S.idade <= 27) d = falta > 0 ? ri(0,2) + Math.round(falta*0.20) : 0;
+  // Jovem sobe DEVAGAR: e o que segura o OVR do draft na faixa dos 70.
+  // O ganho de verdade vem dos 24 aos 27, que e onde a carreira paga o
+  // potencial alto — "vai ganhando com o tempo" em vez de chegar pronto.
+  if (S.idade <= 23)      d = falta > 0 ? ri(0,1) + Math.round(falta*0.10) : 0;
+  else if (S.idade <= 27) d = falta > 0 ? ri(0,2) + Math.round(falta*0.24) : 0;
   else if (S.idade <= 31) d = falta > 2 ? Math.round(falta*0.07) : ri(-1,0);
   else                    d = -ri(2, 2 + Math.floor((S.idade-31)*0.9));
 
@@ -1941,10 +1953,10 @@ function chipsDaAposta(op, caiu){
  * Da maior pra menor, que é como o find() abaixo depende.
  */
 const FAIXAS_OVR = [
-  [97, "#a855f7", "lendário"],
-  [92, "#22c55e", "elite"],
-  [86, "#4ade80", "estrela"],
-  [78, "#eab308", "titular"],
+  [96, "#a855f7", "lendário"],
+  [90, "#22c55e", "elite"],
+  [84, "#4ade80", "estrela"],
+  [76, "#eab308", "titular"],
   [60, "#f97316", "rotação"],
   [ 0, "#ef4444", "reserva"],
 ];
@@ -2308,6 +2320,36 @@ function decidir(i){
   salvar(); telaTemporada();
 }
 
+/**
+ * O que a carreira rendeu, em cima da lista ano a ano.
+ *
+ * A súmula conta a história linha a linha; isto é o placar dela. Sem esse
+ * resumo, saber quantos MVPs você tem exigia varrer a coluna de prêmios
+ * temporada por temporada.
+ */
+function resumoDeTrofeus(){
+  const t = S.trofeus || {};
+  const ordem = [
+    ["titulo","Título","Títulos","titulo"],
+    ["mvp","MVP","MVPs","ouro"],
+    ["fmvp","MVP das Finais","MVPs das Finais","titulo"],
+    ["euro","Euroliga","Euroligas","ouro"],
+    ["dpoy","Defensor do Ano","Defensores do Ano","ouro"],
+    ["cesta","Cestinha","Cestinhas","ouro"],
+    ["ouro","Ouro olímpico","Ouros olímpicos","ouro"],
+    ["roy","Calouro do Ano","Calouro do Ano","ouro"],
+    ["allstar","All-Star","All-Stars","normal"],
+  ];
+  const chips = ordem
+    .map(([k, um, varios, cor]) => {
+      const n = Math.max(0, Number(t[k]) || 0);
+      return n ? `<span class="pr ${cor}">${n}× ${esc(n === 1 ? um : varios)}</span>` : "";
+    })
+    .filter(Boolean);
+  if (!chips.length) return "";
+  return `<div class="trofeus-resumo">${chips.join("")}</div>`;
+}
+
 function sumula(){
   if (!S.temporadas.length) return "";
   const linhas = S.temporadas.slice().reverse().map(t => t.perdida ? `
@@ -2323,7 +2365,7 @@ function sumula(){
       <td>${t.pts}</td><td>${t.reb}</td><td>${t.ast}</td>
       <td class="txt" style="color:var(--red);font-size:11px">${(t.premios||[]).length ? esc(t.premios.join(" · ")) : ""}</td>
     </tr>`).join("");
-  return `<h2>Súmula da carreira</h2>
+  return `<h2>Súmula da carreira</h2>` + resumoDeTrofeus() + `
     <div class="sumula"><table>
       <thead><tr><th>Ano</th><th>Time</th><th>PTS</th><th>REB</th><th>AST</th><th>Prêmios</th></tr></thead>
       <tbody>${linhas}</tbody></table></div>`;
@@ -2358,32 +2400,6 @@ function encerrar(){
     telaFim();
   }).catch(()=>telaFim());
   telaFim();
-}
-
-/** O placar da rivalidade, contado como se conta briga de vestiário. */
-function dueloFinal(){
-  const r = S.rival;
-  if (!r || !r.anos) return "";
-  const meu = S.trofeus, dele = r.trofeus;
-  const frase = meu.titulo > dele.titulo
-      ? `Você levou a melhor: ${meu.titulo} a ${dele.titulo} em títulos.`
-    : meu.titulo < dele.titulo
-      ? `Ele levou a melhor: ${dele.titulo} a ${meu.titulo} em títulos.`
-    : meu.mvp !== dele.mvp
-      ? `Empatados em títulos (${meu.titulo}). O desempate foi no MVP: ${meu.mvp} a ${dele.mvp}.`
-      : "Empatados em tudo. Vinte anos de discussão e ninguém ganhou.";
-  const tot = totaisDeCarreira();
-  const l = (rot, a, b) => `<div class="rv-linha">
-      <span class="rv-n" style="color:${a>b?"var(--green)":a<b?"var(--red)":"var(--text2)"};font-weight:900">${a}</span>
-      <span class="rv-rot">${rot}</span><span class="rv-n">${b}</span></div>`;
-  return `<div class="bpcard">
-    <div class="bpcard-title">A rivalidade · ${esc(r.nome)}</div>
-    <p class="dec-txt">${frase}</p>
-    ${l("títulos", meu.titulo, dele.titulo)}
-    ${l("MVP", meu.mvp, dele.mvp)}
-    ${l("All-Star", meu.allstar, dele.allstar)}
-    ${l("pontos", tot.pts.toLocaleString("pt-BR"), r.totalPts.toLocaleString("pt-BR"))}
-  </div>`;
 }
 
 const LEGADO_MAXIMO = 230;
@@ -2467,9 +2483,10 @@ function telaFim(){
       <div class="grande" style="color:var(--amber)">+${S.moedasGanhas}</div>
       <p style="margin:0;font-size:11.5px;color:var(--text2)">creditadas na sua conta</p>
     </div>` : ""}
-    ${dueloFinal()}
-    <button class="btn" onclick="copiar(this)">Copiar pra mandar no grupo</button>
-    <button class="btn btn2" style="margin-top:8px" onclick="apagar();S=null;render()">Nova carreira</button>
+    <div class="acoes-fim">
+      <button class="btn" onclick="copiar(this)">Copiar pra mandar no grupo</button>
+      <button class="btn btn2" onclick="apagar();S=null;render()">Nova carreira</button>
+    </div>
     ${sumula()}${ranking("Como você ficou entre os GMs")}`;
 }
 
