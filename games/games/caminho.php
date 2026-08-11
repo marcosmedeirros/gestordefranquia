@@ -654,7 +654,7 @@ function novaCarreira(nome, pos, arq, nac, modo){
     destaque: null, comparacao: null,
     rival: null, marcasBatidas: [], anosDivisao: 0, ultimaAposta: null,
     A, pot: (()=>{ const r = Math.random();
-                   return r < 0.12 ? ri(64,75) : r < 0.68 ? ri(76,89) : ri(90,98); })(),
+                   return r < 0.06 ? ri(72,81) : r < 0.55 ? ri(82,92) : ri(93,99); })(),
     fase:"base",            // base · college · fora · draft · liga · fim
     anoFase:0,
     college:null, ligaFora:null,
@@ -710,16 +710,16 @@ function statsDoAno(o, min, forca){
 
 function premiosDoAno(o, st, vit, campeao){
   const out = [];
-  const estrela = o >= 88;
+  const estrela = o >= 93;
   // MVP exige nível ALTO e time vencedor. É o corte que torna "ser bom em
   // time ruim" uma tragédia jogável, em vez de só um número menor.
-  if (o >= 93 && vit >= 55 && ri(0,100) < 45){ out.push({t:"MVP", k:"ouro"}); S.trofeus.mvp++; }
-  if (estrela && ri(0,100) < 80){ out.push({t:"All-Star", k:"normal"}); S.trofeus.allstar++; }
-  if (S.A.def >= 88 && ri(0,100) < 30){ out.push({t:"Defensor do Ano", k:"ouro"}); S.trofeus.dpoy++; }
+  if (o >= 97 && vit >= 55 && ri(0,100) < 38){ out.push({t:"MVP", k:"ouro"}); S.trofeus.mvp++; }
+  if (estrela && ri(0,100) < 70){ out.push({t:"All-Star", k:"normal"}); S.trofeus.allstar++; }
+  if (S.A.def >= 93 && ri(0,100) < 26){ out.push({t:"Defensor do Ano", k:"ouro"}); S.trofeus.dpoy++; }
   if (st.pts >= 26 && ri(0,100) < 26){ out.push({t:"Cestinha da liga", k:"ouro"}); S.trofeus.cesta++; }
   if (campeao){
     out.push({t:"CAMPEÃO", k:"titulo"}); S.trofeus.titulo++;
-    if (o >= 90 && ri(0,100) < 55){ out.push({t:"MVP das Finais", k:"titulo"}); S.trofeus.fmvp++; }
+    if (o >= 95 && ri(0,100) < 50){ out.push({t:"MVP das Finais", k:"titulo"}); S.trofeus.fmvp++; }
   }
   return out;
 }
@@ -735,8 +735,8 @@ function evoluir(){
   // Antes eu somava ri(2,6) sempre — então o jogador continuava subindo
   // depois de estourar o próprio teto, e toda carreira virava GOAT. O
   // potencial só significa alguma coisa se ele efetivamente frear.
-  if (S.idade <= 23)      d = falta > 0 ? ri(0,2) + Math.round(falta*0.26) : 0;
-  else if (S.idade <= 27) d = falta > 0 ? ri(0,1) + Math.round(falta*0.16) : 0;
+  if (S.idade <= 23)      d = falta > 0 ? ri(1,3) + Math.round(falta*0.30) : 0;
+  else if (S.idade <= 27) d = falta > 0 ? ri(0,2) + Math.round(falta*0.20) : 0;
   else if (S.idade <= 31) d = falta > 2 ? Math.round(falta*0.07) : ri(-1,0);
   else                    d = -ri(2, 2 + Math.floor((S.idade-31)*0.9));
 
@@ -794,7 +794,7 @@ function mexerOvr(d){
   // A folga de um ponto existe pra que decidir bem renda um pouco mais do que
   // os olheiros projetaram; ela é o prêmio de acertar as apostas.
   // Pra BAIXO não há piso nenhum: decidir mal tem que doer sempre.
-  const teto = d > 0 ? Math.min(99, Math.max(antes, S.pot + 1)) : 99;
+  const teto = d > 0 ? Math.min(99, Math.max(antes, S.pot + 2)) : 99;
   const alvo = clamp(antes + d, 25, teto);
   for (const k in S.A) S.A[k] = clamp(S.A[k] + d, 25, 99);
 
@@ -1938,11 +1938,11 @@ function chipsDaAposta(op, caiu){
  * Da maior pra menor, que é como o find() abaixo depende.
  */
 const FAIXAS_OVR = [
-  [95, "#a855f7", "lendário"],
-  [88, "#22c55e", "elite"],
-  [80, "#4ade80", "estrela"],
-  [72, "#eab308", "titular"],
-  [64, "#f97316", "rotação"],
+  [97, "#a855f7", "lendário"],
+  [92, "#22c55e", "elite"],
+  [86, "#4ade80", "estrela"],
+  [78, "#eab308", "titular"],
+  [60, "#f97316", "rotação"],
   [ 0, "#ef4444", "reserva"],
 ];
 function faixaOvr(o){ return FAIXAS_OVR.find(([min]) => o >= min) || FAIXAS_OVR[5]; }
