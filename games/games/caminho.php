@@ -268,7 +268,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
    isso o lado principal vem antes no markup, e não porque está à esquerda. */
 .colunas{display:grid;gap:14px}
 @media (min-width:940px){
-  .main{max-width:1040px;padding:16px 20px 60px}
+  .main{max-width:1040px;padding:14px 20px 24px}
   .colunas{grid-template-columns:minmax(0,1fr) 350px;align-items:start;gap:18px}
   /* A lateral acompanha a rolagem: numa temporada longa a súmula fica
      comprida, e sem isto o ranking sumia lá em cima. */
@@ -281,7 +281,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 /* CARD — .bpcard do padrão (nunca .card, que o Bootstrap sequestra) */
 .bpcard{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
-  padding:16px;margin-bottom:14px;color:var(--text)}
+  padding:13px 14px;margin-bottom:11px;color:var(--text)}
 .bpcard-title{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
   color:var(--text2);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 
@@ -336,23 +336,26 @@ input::placeholder{color:var(--text3);font-weight:500}
 /* OPÇÃO DE DECISÃO — mesma linguagem do .nota do build */
 /* OPÇÃO — o botão É a decisão, então carrega o peso visual da tela. */
 .op{display:block;width:100%;text-align:left;background:var(--panel2);color:var(--text);
-  border:1.5px solid var(--border2);border-radius:12px;padding:13px 14px;margin-bottom:10px;
+  border:1.5px solid var(--border2);border-radius:12px;padding:10px 13px;margin-bottom:7px;
   font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;line-height:1.4}
 .op:hover{border-color:var(--red);background:var(--red-soft);transform:translateY(-1px);
   box-shadow:0 4px 14px rgba(0,0,0,.28)}
 .op:active{transform:translateY(0)}
-.op-titulo{display:block;font-size:14.5px;font-weight:800;letter-spacing:-.1px;color:var(--text)}
+.op-titulo{display:block;font-size:13.5px;font-weight:800;letter-spacing:-.1px;color:var(--text)}
 
 /* As duas pontas, lado a lado. A cor diz se AQUELE desfecho ajuda ou
    atrapalha — não qual é o "lado bom" da aposta: operar o joelho é o lado
    seguro e mesmo assim custa uma temporada. */
-.op-chips{display:flex;gap:8px;margin-top:10px}
-.chip-ap{flex:1;min-width:0;border-radius:10px;padding:7px 9px;border:1px solid;
-  background:var(--panel3);transition:.15s}
-.chip-ap b{display:block;font-family:var(--num);font-size:14px;font-weight:900;
-  line-height:1;font-variant-numeric:tabular-nums}
-.chip-ap i{display:block;font-style:normal;font-size:10px;font-weight:700;margin-top:4px;
-  color:var(--text2);line-height:1.25}
+.op-chips{display:flex;gap:6px;margin-top:7px}
+/* Porcentagem e efeito na MESMA linha. Empilhados, os três botões de
+   decisão empurravam a última opção pra fora de uma tela de 720px — a
+   informação é a mesma, ocupando metade da altura. */
+.chip-ap{flex:1;min-width:0;border-radius:9px;padding:5px 8px;border:1px solid;
+  background:var(--panel3);transition:.15s;display:flex;align-items:baseline;gap:6px}
+.chip-ap b{font-family:var(--num);font-size:13px;font-weight:900;line-height:1.2;
+  font-variant-numeric:tabular-nums;flex:none}
+.chip-ap i{font-style:normal;font-size:10px;font-weight:700;color:var(--text2);
+  line-height:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip-bom{color:var(--green);border-color:rgba(34,197,94,.35);background:var(--green-soft)}
 .chip-ruim{color:var(--red);border-color:var(--red-glow);background:var(--red-soft)}
 .chip-neutro{color:var(--text2);border-color:var(--border)}
@@ -372,22 +375,22 @@ input::placeholder{color:var(--text3);font-weight:500}
 .placar-time small{display:block;font-size:9.5px;font-weight:600;color:var(--text2);letter-spacing:.3px}
 
 .linha-stats{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)}
-.st{padding:13px 8px;text-align:center;border-right:1px solid var(--border)}
+.st{padding:10px 8px;text-align:center;border-right:1px solid var(--border)}
 .st:last-child{border-right:none}
 .st b{display:block;font-family:var(--num);font-size:22px;font-weight:900;letter-spacing:-1px;
   font-variant-numeric:tabular-nums;line-height:1;color:var(--text)}
 .st span{display:block;font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
   color:var(--text);margin-top:5px}
 .linha-mini{display:flex;border-bottom:1px solid var(--border)}
-.mini{flex:1;padding:9px 6px;text-align:center;border-right:1px solid var(--border)}
+.mini{flex:1;padding:7px 6px;text-align:center;border-right:1px solid var(--border)}
 .mini:last-child{border-right:none}
 .mini b{font-family:var(--num);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
 .mini span{display:block;font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
   color:var(--text);margin-top:2px}
-.campanha{padding:11px 14px;font-size:12.5px;color:var(--text2)}
+.campanha{padding:8px 14px;font-size:12.5px;color:var(--text2)}
 .campanha b{color:var(--text);font-family:var(--num);font-variant-numeric:tabular-nums}
 
-.premios{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 13px}
+.premios{display:flex;flex-wrap:wrap;gap:5px;padding:0 14px 10px}
 .pr{font-size:10px;font-weight:800;letter-spacing:.4px;padding:4px 9px;border-radius:999px;
   border:1px solid;white-space:nowrap}
 .pr.ouro{color:var(--amber);border-color:rgba(245,158,11,.35);background:var(--amber-soft)}
