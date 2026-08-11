@@ -334,11 +334,33 @@ input::placeholder{color:var(--text3);font-weight:500}
 .btn2:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-soft);filter:none}
 
 /* OPÇÃO DE DECISÃO — mesma linguagem do .nota do build */
+/* OPÇÃO — o botão É a decisão, então carrega o peso visual da tela. */
 .op{display:block;width:100%;text-align:left;background:var(--panel2);color:var(--text);
-  border:1px solid var(--border);border-radius:10px;padding:12px 13px;margin-bottom:8px;
+  border:1.5px solid var(--border2);border-radius:12px;padding:13px 14px;margin-bottom:10px;
   font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;line-height:1.4}
-.op:hover{border-color:var(--red);background:var(--red-soft);transform:translateY(-1px)}
-.op small{display:block;font-size:11px;font-weight:500;color:var(--text2);margin-top:3px;line-height:1.45}
+.op:hover{border-color:var(--red);background:var(--red-soft);transform:translateY(-1px);
+  box-shadow:0 4px 14px rgba(0,0,0,.28)}
+.op:active{transform:translateY(0)}
+.op-titulo{display:block;font-size:14.5px;font-weight:800;letter-spacing:-.1px;color:var(--text)}
+
+/* As duas pontas, lado a lado. A cor diz se AQUELE desfecho ajuda ou
+   atrapalha — não qual é o "lado bom" da aposta: operar o joelho é o lado
+   seguro e mesmo assim custa uma temporada. */
+.op-chips{display:flex;gap:8px;margin-top:10px}
+.chip-ap{flex:1;min-width:0;border-radius:10px;padding:7px 9px;border:1px solid;
+  background:var(--panel3);transition:.15s}
+.chip-ap b{display:block;font-family:var(--num);font-size:14px;font-weight:900;
+  line-height:1;font-variant-numeric:tabular-nums}
+.chip-ap i{display:block;font-style:normal;font-size:10px;font-weight:700;margin-top:4px;
+  color:var(--text2);line-height:1.25}
+.chip-bom{color:var(--green);border-color:rgba(34,197,94,.35);background:var(--green-soft)}
+.chip-ruim{color:var(--red);border-color:var(--red-glow);background:var(--red-soft)}
+.chip-neutro{color:var(--text2);border-color:var(--border)}
+
+/* Depois do sorteio: o que saiu fica aceso, o que não saiu apaga. */
+.chip-ap.caiu{box-shadow:0 0 0 2px currentColor inset}
+.chip-ap.caiu i{color:currentColor}
+.chip-ap.apagado{opacity:.32;filter:grayscale(.7)}
 
 /* PLACAR DA TEMPORADA */
 .placar{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
@@ -630,7 +652,7 @@ function novaCarreira(nome, pos, arq, nac, modo){
     // 3%: o fenômeno geracional. Só aparece na noite do draft.
     prodigio: Math.random() < 0.03,
     destaque: null, comparacao: null,
-    rival: null, marcasBatidas: [], anosDivisao: 0,
+    rival: null, marcasBatidas: [], anosDivisao: 0, ultimaAposta: null,
     A, pot: (()=>{ const r = Math.random();
                    return r < 0.12 ? ri(64,75) : r < 0.68 ? ri(76,89) : ri(90,98); })(),
     fase:"base",            // base · college · fora · draft · liga · fim
@@ -1874,6 +1896,41 @@ function marcasNovas(){
 }
 
 /**
+ * Um desfecho ajuda, atrapalha, ou nenhum dos dois?
+ *
+ * A cor sai DAQUI e não de "é o lado bom da aposta": em joelho, o lado
+ * seguro é operar, e operar custa uma temporada. Pintar de verde porque é
+ * a opção cautelosa mentiria sobre o que vai acontecer.
+ */
+function corDoEfeito(ef){
+  if (!ef) return "neutro";
+  if (ef.fora) return "ruim";
+  if (ef.time === "melhor") return "bom";
+  if (ef.time === "pior") return "ruim";
+  if ((ef.ovr || 0) > 0) return "bom";
+  if ((ef.ovr || 0) < 0) return "ruim";
+  return "neutro";
+}
+
+/**
+ * As duas pontas da aposta, cada uma no seu cartão.
+ *
+ * `caiu` é "bom" ou "ruim" depois do sorteio, e null antes dele: enquanto
+ * a pessoa não escolheu, os dois cartões valem o mesmo.
+ */
+function chipsDaAposta(op, caiu){
+  const c = op.chance ?? 100;
+  const cartao = (ef, pct, lado) => {
+    if (!ef) return "";
+    const marca = caiu == null ? "" : (caiu === lado ? " caiu" : " apagado");
+    return `<span class="chip-ap chip-${corDoEfeito(ef)}${marca}">
+      <b>${pct}%</b><i>${esc(dizEfeito(ef))}</i></span>`;
+  };
+  return `<span class="op-chips">${cartao(op.bom, c, "bom")}`
+       + (c >= 100 ? "" : cartao(op.ruim, 100 - c, "ruim")) + `</span>`;
+}
+
+/**
  * Faixas de OVR: vermelho embaixo, verde subindo, roxo no topo.
  *
  * A cor existe porque o número sozinho não informa. "74" não diz se a
@@ -2048,6 +2105,7 @@ function fecharAno(campeao, vit, o, st){
                      premios:premios.map(p=>p.t), campeao});
 
   S.efeitoDecisao = 0;
+  S.ultimaAposta = null;   // a aposta pertence ao ano que passou
   const estouro = evoluir();
   S.mensagem = estouro ? "Você estourou. De uma temporada pra outra, virou outro jogador." : null;
 
@@ -2201,12 +2259,18 @@ function telaTemporada(){
   const principal = barra() +
     placar(st, String(S.ano), S.time + (S.gm ? ` · ${S.gm}` : ""), S.ultimaCampanha, S.ultimosPremios || []) +
     (S.mensagem ? `<div class="bpcard"><p class="dec-txt" style="margin:0">${S.mensagem}</p></div>` : "") +
-    (S.resultado ? `<div class="bpcard"><div class="bpcard-title">O que aconteceu${S.efeitoDecisao ? `<span style="color:${S.efeitoDecisao>0?"var(--green)":"var(--red)"}">${S.efeitoDecisao>0?"+":""}${S.efeitoDecisao} OVR</span>` : ""}</div><p class="dec-txt" style="margin:0">${S.resultado}</p></div>` : "") +
+    (S.resultado ? `<div class="bpcard">
+      <div class="bpcard-title">O que aconteceu${S.efeitoDecisao ? `<span style="color:${S.efeitoDecisao>0?"var(--green)":"var(--red)"}">${S.efeitoDecisao>0?"+":""}${S.efeitoDecisao} OVR</span>` : ""}</div>
+      ${S.ultimaAposta ? `<div class="op" style="cursor:default;margin-bottom:11px" onclick="return false">
+        <span class="op-titulo">${esc(S.ultimaAposta.l)}</span>
+        ${chipsDaAposta(S.ultimaAposta, S.ultimaAposta.caiu)}
+      </div>` : ""}
+      <p class="dec-txt" style="margin:0">${S.resultado}</p></div>` : "") +
     (S.aguardando && d ? `
       <div class="bpcard">
         <div class="bpcard-title">Sua decisão</div>
         <p class="dec-txt">${d.t()}</p>
-        ${d.ops.map((o,i)=>`<button class="op" onclick="decidir(${i})">${esc(o.l)}<small class="odds">${esc(etiquetaAposta(o))}</small></button>`).join("")}
+        ${d.ops.map((o,i)=>`<button class="op" onclick="decidir(${i})"><span class="op-titulo">${esc(o.l)}</span>${chipsDaAposta(o, null)}</button>`).join("")}
       </div>` : `
       ${aposentar ? `<button class="btn" onclick="encerrar()">Pendurar as chuteiras</button>`
                   : `<button class="btn" onclick="jogarAno()">Próxima temporada</button>`}
@@ -2227,6 +2291,16 @@ function decidir(i){
   const ef = deuCerto ? op.bom : (op.ruim || {txt:"No fim não deu em nada."});
   S.efeitoDecisao = aplicarEfeito(ef);
   S.resultado = ef.txt;
+
+  // Só DADO, nunca o objeto da opção: ele tem função dentro e o
+  // JSON.stringify do save as descarta calado, o que traria a carreira de
+  // volta com uma aposta sem desfecho nenhum.
+  const soDado = (e) => e ? {ovr: e.ovr || 0, time: e.time || null, fora: e.fora || null} : null;
+  S.ultimaAposta = {
+    l: op.l, chance: op.chance ?? 100,
+    bom: soDado(op.bom), ruim: soDado(op.ruim),
+    caiu: deuCerto ? "bom" : "ruim",
+  };
   S.aguardando = false; S.decisaoId = null; S.mensagem = null;
   salvar(); telaTemporada();
 }
