@@ -435,11 +435,31 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null): string
     }
 
     if ($elenco) {
+        $quinteto = wcQuintetoTitular($elenco);
+
         $txt .= "\n*Quinteto titular:*\n";
-        foreach (wcQuintetoTitular($elenco) as $vaga => $p) {
+        foreach ($quinteto as $vaga => $p) {
             $txt .= $p
                 ? "{$vaga}: {$p['name']} {$p['ovr']} | {$p['age']}y\n"
                 : "{$vaga}: _sem jogador na posição_\n";
+        }
+
+        // O banco é quem sobrou do quinteto, na ordem de OVR em que o elenco
+        // já veio. Comparo por NOME porque é o que o quinteto guarda — e é
+        // também o que ele usa pra não repetir jogador entre as vagas.
+        $titulares = [];
+        foreach ($quinteto as $p) {
+            if ($p) $titulares[] = $p['name'];
+        }
+        $banco = array_values(array_filter($elenco,
+            fn($p) => !in_array($p['name'], $titulares, true)));
+
+        if ($banco) {
+            $txt .= "\n*Banco:* (" . count($banco) . ")\n";
+            foreach ($banco as $p) {
+                $pos = strtoupper(trim((string)($p['position'] ?? ''))) ?: '--';
+                $txt .= "{$pos}: {$p['name']} {$p['ovr']} | {$p['age']}y\n";
+            }
         }
     }
     return rtrim($txt);
