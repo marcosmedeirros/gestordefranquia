@@ -860,7 +860,8 @@ function itemHtml(item, toKey) {
     </div>`;
   } else {
     const pair = findSwapPair(toKey, item);
-    const swapSel = !SWAP_ALLOWED ? '' : `<select class="sim-swap-select" onchange="setSimSwapRole('${toKey}',${item.id},this.value)" title="${pair ? 'Swap' : 'Swap (adicione uma pick da mesma rodada, ano diferente, do outro lado para parear)'}">
+    // O seletor só aparece em pick de 1ª rodada: é a única que tem swap.
+    const swapSel = (!SWAP_ALLOWED || String(item.round) !== '1') ? '' : `<select class="sim-swap-select" onchange="setSimSwapRole('${toKey}',${item.id},this.value)" title="${pair ? 'Swap' : 'Swap (adicione uma pick de 1ª rodada do MESMO ano, do outro lado, para parear)'}">
            <option value="" ${!item.swapRole ? 'selected' : ''}>—</option>
            <option value="SB" ${item.swapRole === 'SB' ? 'selected' : ''}>SB</option>
            <option value="SW" ${item.swapRole === 'SW' ? 'selected' : ''}>SW</option>
@@ -1390,16 +1391,29 @@ function resetAll() {
 }
 
 // ── Swap helpers ──────────────────────────────────────────────────────────────
+/**
+ * A pick "par" de um swap: a que vem do outro lado e disputa o mesmo slot.
+ *
+ * A regra é a de normalizeSwapPairs() em api/trades.php, que é quem recusa de
+ * verdade no envio: 1ª rodada, MESMO ano, uma pick de cada lado.
+ *
+ * Esta função exigia ano DIFERENTE — o oposto. Com isso a tela só oferecia o
+ * seletor SB/SW no caso que o servidor rejeita, e escondia justamente o caso
+ * válido. Quem montasse um swap aqui levava "picks de swap precisam ser do
+ * mesmo ano" na cara ao enviar, sem entender de onde vinha. A trades.php já
+ * usava a regra certa; era esta terceira cópia que estava invertida.
+ */
 function findSwapPair(toKey, item) {
   if (!SWAP_ALLOWED) return null;
+  if (String(item.round) !== '1') return null;   // só 1ª rodada tem swap
   for (const otherToKey of activeSlots) {
     if (otherToKey === toKey) continue;
     for (const other of (receives[otherToKey] || [])) {
       if (other.type !== 'pick') continue;
       if (other.fromKey !== toKey) continue;       // vem deste time
       if (item.fromKey !== otherToKey) continue;   // vai para o outro time
-      if (String(other.round) !== String(item.round)) continue;
-      if (String(other.season_year) === String(item.season_year)) continue;
+      if (String(other.round) !== '1') continue;
+      if (String(other.season_year) !== String(item.season_year)) continue;
       return { toKey: otherToKey, item: other };
     }
   }

@@ -1372,6 +1372,11 @@ function normalizeSwapPairs(PDO $pdo, array $offerPicks, array $requestPicks, ar
         if ((string)$offerPick['round'] !== (string)$requestPick['round']) {
             throw new Exception('Swap inválido: picks precisam ser da mesma rodada.');
         }
+        // Só 1ª rodada tem swap. Faltava aqui: duas picks de 2ª rodada do mesmo
+        // ano passavam por todas as checagens e viravam swap.
+        if ((int)$offerPick['round'] !== 1) {
+            throw new Exception('Swap inválido: só existe swap em pick de 1ª rodada.');
+        }
         // Permite troca de picks swap normalmente, mas não permite swap de swap
         if (!empty($offerPick['swap_locked'])) {
             throw new Exception('Swap inválido: pick já está travada para swap.');

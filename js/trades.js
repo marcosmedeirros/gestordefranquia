@@ -730,8 +730,12 @@ const getSwapCandidateMap = () => {
   const map = {};
   const usedRequest = new Set();
 
-  // Swap = mesma rodada, mesmo ano, times originais diferentes
+  // Swap = 1ª rodada, mesmo ano, times originais diferentes.
+  // A restrição de 1ª rodada espelha normalizeSwapPairs() em api/trades.php,
+  // que é quem recusa de verdade — aqui é só pra não oferecer o que o
+  // servidor vai negar.
   offerPicks.forEach(op => {
+    if (String(op.round) !== '1') return;
     const match = requestPicks.find(rp =>
       !usedRequest.has(Number(rp.id)) &&
       String(rp.round) === String(op.round) &&
