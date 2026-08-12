@@ -54,6 +54,26 @@ function whatsappDentroDaJanela(?DateTimeImmutable $agora = null): bool
     return $hhmm >= WHATSAPP_JANELA_INICIO && $hhmm < WHATSAPP_JANELA_FIM;
 }
 
+/**
+ * O que sai mesmo fora do expediente.
+ *
+ * A janela existe pra não despejar aviso AUTOMÁTICO no grupo de madrugada.
+ * Ela nunca foi pra segurar mensagem que uma pessoa pediu agora e está
+ * esperando:
+ *
+ *   'comando' — alguém digitou /cap no grupo e está olhando pro celular.
+ *   'manual'  — o admin clicou "enviar agora" numa tela. Mesmo caso: pedido
+ *               deliberado, feito no instante, com alguém aguardando.
+ *
+ * Vive aqui sozinho porque a regra é lida em dois lugares — o
+ * whatsappProcessarFila logo abaixo e o ?action=pendentes que o worker
+ * consulta. Escrita duas vezes, uma das duas ia ficar pra trás.
+ */
+function whatsappFiltroForaDaJanela(): string
+{
+    return " AND tipo IN ('comando', 'manual')";
+}
+
 function ensureWhatsAppTables(PDO $pdo): void
 {
     static $pronto = false;
@@ -355,12 +375,11 @@ function whatsappProcessarFila(PDO $pdo, int $limite = 10): array
     // cron. Barrando aqui, a mensagem gerada de madrugada fica na fila com as
     // tentativas intactas e sai quando a janela abre, sem queimar o backoff.
     //
-    // A exceção é 'comando': alguém digitou /cap no grupo e está olhando pro
-    // celular esperando. A janela existe pra não despejar aviso no grupo fora
-    // de hora, não pra ignorar quem perguntou.
+    // As exceções estão em whatsappFiltroForaDaJanela(): o que uma pessoa
+    // pediu agora e está esperando não fica preso até amanhã.
     $foraDaJanela = !whatsappDentroDaJanela();
     if ($foraDaJanela) $out['fora_da_janela'] = true;
-    $filtroTipo = $foraDaJanela ? " AND tipo = 'comando'" : '';
+    $filtroTipo = $foraDaJanela ? whatsappFiltroForaDaJanela() : '';
 
     try {
         $stmt = $pdo->prepare("SELECT id, destino, texto, tentativas FROM whatsapp_fila

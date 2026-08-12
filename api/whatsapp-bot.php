@@ -71,11 +71,10 @@ if ($acao === 'pendentes') {
     // A janela de horário mora aqui, no servidor: o worker não precisa saber
     // de horário nenhum, e mudar o expediente não exige tocar na máquina dele.
     //
-    // Fora da janela só sai 'comando': alguém digitou /cap no grupo e está
-    // esperando resposta. A janela existe pra não despejar aviso automático de
-    // madrugada, não pra deixar quem perguntou no vácuo.
+    // Fora da janela só sai o que uma pessoa pediu agora — a lista está em
+    // whatsappFiltroForaDaJanela(), junto da regra do outro leitor da fila.
     $naJanela = whatsappDentroDaJanela();
-    $filtroTipo = $naJanela ? '' : " AND tipo = 'comando'";
+    $filtroTipo = $naJanela ? '' : whatsappFiltroForaDaJanela();
 
     $limite = max(1, min(200, (int)($_GET['limite'] ?? 50)));
     $st = $pdo->prepare("SELECT id, destino, texto, mencoes FROM whatsapp_fila

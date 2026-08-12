@@ -445,9 +445,10 @@ function _quizRender(e, perguntas) {
       if (!e2.ligado) return `<div class="alert alert-danger py-2 px-3" style="font-size:12.5px">
         <b>O bot está desligado.</b> Nada sai do site enquanto ele estiver assim.</div>`;
       if (!e2.na_janela) return `<div class="alert alert-warning py-2 px-3" style="font-size:12.5px">
-        <b>Fora do horário de envio</b> (${escapeHtml(e2.inicio)} às ${escapeHtml(e2.fim)}).
-        O bot não entrega agora${e2.pendentes ? ` — ${e2.pendentes} mensagem(ns) do quiz esperando na fila` : ''}.
-        Enviar uma pergunta a esta hora está bloqueado: ela venceria antes de alguém ver.</div>`;
+        <b>Fora do horário do bot</b> (${escapeHtml(e2.inicio)} às ${escapeHtml(e2.fim)}).
+        O que você mandar daqui <b>sai na hora</b> — o horário só segura o que é automático,
+        pra não cair aviso no grupo de madrugada.
+        ${e2.pendentes ? `<br>${e2.pendentes} mensagem(ns) do quiz aguardando na fila desde antes.` : ''}</div>`;
       return e2.pendentes ? `<div class="alert alert-info py-2 px-3" style="font-size:12.5px">
         ${e2.pendentes} mensagem(ns) do quiz na fila, aguardando o worker.</div>` : '';
     })()}
