@@ -84,13 +84,32 @@ h1 i{color:var(--red)}
 .roleta.caiu{border-style:solid;border-color:color-mix(in srgb,var(--green) 45%,transparent);background:color-mix(in srgb,var(--green) 7%,var(--panel-2))}
 .roleta.caiu .roleta-nome{color:var(--green)}
 
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 20px;border-radius:11px;border:0;background:var(--red);color:#fff;font-family:var(--font);font-size:13.5px;font-weight:700;cursor:pointer;transition:filter .15s}
+/* A borda transparente existe pro botão ter a mesma caixa do input ao lado —
+   sem ela ficavam 2px mais baixos, e a linha inteira parecia torta. */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 20px;border-radius:11px;border:1.5px solid transparent;background:var(--red);color:#fff;font-family:var(--font);font-size:13.5px;font-weight:700;cursor:pointer;transition:filter .15s}
 .btn:hover:not(:disabled){filter:brightness(1.12)}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .btn.ghost{background:transparent;border:1.5px solid var(--border-md);color:var(--text-2)}
 .btn.ghost:hover:not(:disabled){border-color:var(--red);color:var(--red)}
 .btn.sm{padding:7px 13px;font-size:12px}
 .acoes{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center}
+
+/* Sem isto o input cai no padrão do navegador: caixa branca em cima de uma
+   página preta. Herda a fonte da página — input não herda por conta própria. */
+input[type=text]{
+  flex:1;min-width:220px;background:var(--panel-2);border:1.5px solid var(--border-md);
+  color:var(--text);border-radius:11px;padding:11px 14px;
+  font-family:var(--font);font-size:13.5px;font-weight:600;outline:none;
+  transition:border-color .15s,background .15s;
+}
+input[type=text]::placeholder{color:var(--text-3);font-weight:500}
+input[type=text]:hover{border-color:color-mix(in srgb,var(--red) 40%,var(--border-md))}
+/* Anel além da borda: tirei o outline do navegador, então o foco precisa de
+   um sinal que não dependa de reparar numa borda de 1,5px. */
+input[type=text]:focus{
+  border-color:var(--red);background:var(--panel-3);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--red) 18%,transparent);
+}
 
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;padding:8px 10px;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);border-bottom:1px solid var(--border)}
@@ -325,7 +344,7 @@ function renderClasses() {
         : `<div class="vazio">Nenhuma classe nesta liga ainda.</div>`}
       <div class="acoes">
         <input type="text" id="novaClasse" placeholder="Nome da nova classe (ex: Draft 2040)"
-               maxlength="120" style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter')criarClasse()">
+               maxlength="120" autocomplete="off" onkeydown="if(event.key==='Enter')criarClasse()">
         <button class="btn" onclick="criarClasse()"><i class="bi bi-plus-lg"></i>Criar vazia</button>
       </div>
       <div class="sub" style="margin-top:8px">
