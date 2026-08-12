@@ -343,6 +343,11 @@ body{overflow-x:hidden}
 .picker-ovr{width:32px;height:32px;border-radius:7px;background:var(--red-soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--red);flex-shrink:0}
 .picker-name{font-size:13px;font-weight:600;color:var(--text)}
 .picker-meta{font-size:11px;color:var(--text-2)}
+/* Quanto o jogador pesa na folha — alinhado à direita, fonte tabular, pra dar
+   pra somar de olho a coluna inteira sem abrir calculadora. */
+.picker-sal{margin-left:auto;padding-right:10px;font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;color:var(--amber);font-variant-numeric:tabular-nums;white-space:nowrap}
+.sim-item-sal{font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;color:var(--amber);font-variant-numeric:tabular-nums;white-space:nowrap;margin-left:auto;padding-left:6px}
+.sim-item-sal.zero{color:var(--text-3);font-weight:600}
 .picker-check{margin-left:auto;color:var(--green);font-size:16px;display:none}
 .picker-row.selected .picker-check{display:block}
 .from-team-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
@@ -606,6 +611,16 @@ const MAX_TEAMS  = 7;
 // RISE e ROOKIE não têm swap de picks
 const MY_LEAGUE  = '<?= htmlspecialchars(strtoupper(trim((string)($user['league'] ?? ''))), ENT_QUOTES) ?>';
 const SWAP_ALLOWED = !['RISE', 'ROOKIE'].includes(MY_LEAGUE);
+// Liga de folha em dinheiro (ELITE hoje). Só nela faz sentido mostrar quanto
+// cada jogador pesa: nas outras o CAP é soma de OVR, e o OVR já está na tela.
+const SALARY_MODE = <?= $__salaryMode ? 'true' : 'false' ?>;
+
+/** Salário em M, ou '' quando a liga não usa dinheiro. */
+function salarioDe(p) {
+  if (!SALARY_MODE) return '';
+  const v = Number(p && p.salary);
+  return Number.isFinite(v) && v > 0 ? `${v}M` : '';
+}
 
 const SLOT_KEYS = ['A','B','C','D','E','F','G'];
 
@@ -797,6 +812,7 @@ function renderPanel(key) {
 function itemHtml(item, toKey) {
   const fromName = teams[item.fromKey]?.name ?? '?';
   if (item.type === 'player') {
+    const sal = salarioDe(item);
     return `<div class="sim-item">
       <div class="sim-item-ovr">${item.ovr}</div>
       <div class="sim-item-info">
@@ -804,6 +820,7 @@ function itemHtml(item, toKey) {
         <div class="sim-item-meta">${item.pos} · ${item.age}a · OVR ${item.ovr}</div>
         <div class="sim-item-from">← ${escH(fromName)}</div>
       </div>
+      ${sal ? `<div class="sim-item-sal" title="Entra na folha deste time">${sal}</div>` : ''}
       <button class="sim-item-del" onclick="removeItem('${toKey}',${item.id},'player','${item.fromKey}')" title="Remover"><i class="bi bi-x-lg"></i></button>
     </div>`;
   } else {
@@ -820,6 +837,7 @@ function itemHtml(item, toKey) {
         <div class="sim-item-meta">${escH(item.orig)}</div>
         <div class="sim-item-from">← ${escH(fromName)}</div>
       </div>
+      ${SALARY_MODE ? `<div class="sim-item-sal zero" title="Pick não tem salário: só entra na folha no ano em que virar jogador. Por isso ela não ajuda no casamento salarial dos ${TRADE_MATCH_PCT}%.">0M</div>` : ''}
       ${swapSel}
       <button class="sim-item-del" onclick="removeItem('${toKey}',${item.id},'pick','${item.fromKey}')" title="Remover"><i class="bi bi-x-lg"></i></button>
     </div>`;
@@ -880,15 +898,18 @@ function renderPickerList() {
     // Mostra só jogadores disponíveis (não enviados a outro time)
     const available = src.players.filter(p => !tradedOut.has(p.id) || alreadyIn.has(p.id));
     document.getElementById('pickerList').innerHTML = available.length
-      ? available.map(p => `
+      ? available.map(p => {
+          const sal = salarioDe(p);
+          return `
           <div class="picker-row${alreadyIn.has(p.id) ? ' selected' : ''}" data-id="${p.id}" onclick="togglePick(this)">
             <div class="picker-ovr">${p.ovr}</div>
             <div>
               <div class="picker-name">${escH(p.name)}</div>
               <div class="picker-meta">${p.position} · ${p.age} anos · OVR ${p.ovr}</div>
             </div>
+            ${sal ? `<div class="picker-sal" title="Peso deste jogador na folha">${sal}</div>` : ''}
             <i class="bi bi-check2-circle picker-check"></i>
-          </div>`).join('')
+          </div>`; }).join('')
       : '<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">Sem jogadores disponíveis</div>';
   } else {
     const currentYear = new Date().getFullYear();

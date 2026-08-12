@@ -87,46 +87,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .tag.flex-off{background:var(--panel-3);border-color:var(--border);color:var(--text-3);text-decoration:line-through;text-decoration-thickness:1px}
 .tag.lenda{background:rgba(245,197,66,.14);border-color:rgba(245,197,66,.4);color:#f5c542;font-weight:800;letter-spacing:.4px}
 
-/* ── Simulador de trocas ─────────────────────────── */
-.sim-note{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--green);background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.22);border-radius:10px;padding:9px 12px;margin-bottom:14px}
-.sim-teams{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.sim-side label{display:block;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px}
-.sim-side select{width:100%;background:var(--panel-2);border:1px solid var(--border-md);color:var(--text);border-radius:10px;padding:9px 11px;font-family:inherit;font-size:13px}
-.sim-list{margin-top:10px;max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:var(--panel-2)}
-.sim-row{display:flex;align-items:center;gap:9px;padding:7px 11px;border-bottom:1px solid var(--border);font-size:12.5px;cursor:pointer}
-.sim-row:last-child{border-bottom:none}
-.sim-row:hover{background:var(--panel-3)}
-.sim-row input{accent-color:var(--red);flex-shrink:0;cursor:pointer}
-.sim-row .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sim-row .ov{font-family:'Oswald',sans-serif;font-weight:700;color:var(--text-2);font-size:12px}
-.sim-row .sal{font-family:'Oswald',sans-serif;font-weight:700;color:var(--red);width:46px;text-align:right}
+/* Botão que leva pra Trade Machine (o simulador daqui virou de lá). */
 .btn-sim{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:10px;background:var(--red);border:1px solid var(--red);color:#fff;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:filter var(--t) var(--ease)}
 .btn-sim:hover:not(:disabled){filter:brightness(1.1)}
 .btn-sim:disabled{opacity:.6;cursor:not-allowed}
 .btn-sim.ghost{background:var(--panel-2);border-color:var(--border-md);color:var(--text-2)}
 .btn-sim.ghost:hover{border-color:var(--red);color:var(--red)}
-.sim-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.sim-card{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
-.sim-card h4{font-family:'Oswald',sans-serif;font-size:14px;font-weight:700;margin-bottom:10px}
-.sim-line{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0;font-size:12.5px;border-bottom:1px solid var(--border)}
-.sim-line:last-child{border-bottom:none}
-.sim-line .lbl{color:var(--text-2)}
-.sim-line .val{font-family:'Oswald',sans-serif;font-weight:700}
-.delta{font-size:11px;font-weight:700;margin-left:6px}
-.delta.up{color:#ef4444}.delta.down{color:var(--green)}.delta.same{color:var(--text-3)}
-.sim-status{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;margin-top:10px}
-.sim-status.ok{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--green)}
-.sim-status.bad{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444}
-.sim-status.warn{background:var(--amber-soft);border:1px solid var(--border-amber);color:var(--amber)}
-.sim-verdict{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:11px;font-size:12.5px;line-height:1.55}
-.sim-verdict i{font-size:16px;flex-shrink:0;margin-top:1px}
-.sim-verdict.ok{background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.28);color:var(--green)}
-.sim-verdict.bad{background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.30);color:#f87171}
-.sim-verdict li{margin-bottom:4px}
-@media (max-width: 760px){
-  .sim-teams{grid-template-columns:1fr}
-  .sim-cards{grid-template-columns:1fr}
-}
+
 .rules-panel details{margin-bottom:8px}
 .rules-panel summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--text);padding:6px 0}
 .rules-panel summary:hover{color:var(--amber)}
@@ -256,35 +223,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </div>
   </div>
 
-  <div class="section-title"><i class="bi bi-arrow-left-right"></i> Simulador de Trocas
-    <i class="bi bi-question-circle info-hint" title="Monta uma troca hipotética entre dois times da ELITE e mostra o cap dos dois lados antes e depois. Nada é gravado — serve só para testar."></i>
-  </div>
-  <div class="panel">
-    <div class="sim-note">
-      <i class="bi bi-shield-check"></i>
-      Simulação pura: o resultado é calculado e descartado. Nenhum jogador muda de time e nenhuma troca é registrada.
+  <?php // O simulador de dois times que morava aqui foi absorvido pela Trade
+        // Machine: lá dá pra montar com até 7 times, incluir picks, ver o
+        // casamento salarial dos 120% e ainda enviar a proposta. Manter as
+        // duas telas significava duas contas de cap pra conferir. ?>
+  <div class="section-title"><i class="bi bi-arrow-left-right"></i> Simular uma troca</div>
+  <div class="panel" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:space-between">
+    <div style="font-size:13px;color:var(--text-2);line-height:1.55;max-width:56ch">
+      A simulação agora é toda na <strong>Trade Machine</strong>: ela mostra o salário de cada
+      jogador na hora de escolher, a folha dos dois lados antes e depois, e se a troca
+      passa no casamento salarial. Nada é gravado enquanto você não enviar.
     </div>
-
-    <div class="sim-teams">
-      <div class="sim-side">
-        <label>Time A</label>
-        <select id="simTeamA"></select>
-        <div class="sim-list" id="simListA"><div class="empty">Escolha um time</div></div>
-      </div>
-      <div class="sim-side">
-        <label>Time B</label>
-        <select id="simTeamB"></select>
-        <div class="sim-list" id="simListB"><div class="empty">Escolha um time</div></div>
-      </div>
-    </div>
-
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px">
-      <button class="btn-sim" id="btnSimular"><i class="bi bi-calculator"></i> Simular troca</button>
-      <button class="btn-sim ghost" id="btnSimLimpar"><i class="bi bi-eraser"></i> Limpar seleção</button>
-      <span style="font-size:11.5px;color:var(--text-3)">Marque os jogadores que <strong>cada time envia</strong>.</span>
-    </div>
-
-    <div id="simResult" style="display:none;margin-top:18px"></div>
+    <a href="/trade-simulator.php" class="btn-sim" style="text-decoration:none">
+      <i class="bi bi-sliders"></i> Abrir a Trade Machine
+    </a>
   </div>
 
   <div class="section-title"><i class="bi bi-journal-text"></i> Como funciona</div>
@@ -448,180 +400,6 @@ async function loadCap(){
 }
 loadCap();
 
-/* ── Simulador de trocas ─────────────────────────────
-   Cada lado carrega o elenco pelo proprio endpoint de summary, entao os
-   salarios mostrados aqui sao os mesmos da tabela acima. */
-const simRosters = { a: [], b: [] };
-
-async function simCarregarTimes() {
-  const r = await fetch('/api/cap.php?action=teams');
-  const d = await r.json();
-  // Falhar calado aqui deixava os dois selects vazios sem explicação nenhuma —
-  // a tela parecia quebrada e não havia como saber que a API tinha recusado.
-  if (!d.success) {
-    const aviso = `<option value="">${esc(d.error || 'Não deu pra carregar os times')}</option>`;
-    document.getElementById('simTeamA').innerHTML = aviso;
-    document.getElementById('simTeamB').innerHTML = aviso;
-    return;
-  }
-  const opts = '<option value="">Selecione…</option>' +
-    d.teams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
-  document.getElementById('simTeamA').innerHTML = opts;
-  document.getElementById('simTeamB').innerHTML = opts;
-  // Ja abre com o time do usuario de um lado, que e o caso mais comum.
-  document.getElementById('simTeamA').value = String(TEAM_ID);
-  simCarregarElenco('a');
-}
-
-async function simCarregarElenco(lado) {
-  const sel = document.getElementById(lado === 'a' ? 'simTeamA' : 'simTeamB');
-  const box = document.getElementById(lado === 'a' ? 'simListA' : 'simListB');
-  const teamId = parseInt(sel.value, 10);
-  simRosters[lado] = [];
-  if (!teamId) { box.innerHTML = '<div class="empty">Escolha um time</div>'; return; }
-
-  box.innerHTML = '<div class="skeleton" style="height:120px;margin:8px"></div>';
-  try {
-    const r = await fetch(`/api/cap.php?action=summary&team_id=${teamId}`);
-    const d = await r.json();
-    if (!d.success) { box.innerHTML = '<div class="empty">Erro ao carregar o elenco</div>'; return; }
-    simRosters[lado] = d.summary.roster || [];
-    if (!simRosters[lado].length) { box.innerHTML = '<div class="empty">Elenco vazio</div>'; return; }
-    box.innerHTML = simRosters[lado].map(p => `
-      <label class="sim-row">
-        <input type="checkbox" data-lado="${lado}" value="${p.id}">
-        <span class="nm">${esc(p.name)}</span>
-        <span class="ov">${p.ovr}</span>
-        <span class="sal">${p.total_salary}M</span>
-      </label>`).join('');
-  } catch (e) {
-    box.innerHTML = '<div class="empty">Erro ao carregar o elenco</div>';
-  }
-}
-
-function simSelecionados(lado) {
-  return [...document.querySelectorAll(`.sim-list input[data-lado="${lado}"]:checked`)].map(i => parseInt(i.value, 10));
-}
-
-function simDelta(antes, depois) {
-  const d = depois - antes;
-  if (d === 0) return '<span class="delta same">=</span>';
-  return `<span class="delta ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}M</span>`;
-}
-
-// Veredito da regra dos 120%: é o que decide se a troca pode sair.
-function vereditoHtml(d, nomeA, nomeB) {
-  if (d.valida) {
-    return `<div class="sim-verdict ok">
-      <i class="bi bi-check-circle-fill"></i>
-      <div><strong>Troca permitida.</strong>
-      Os dois lados respeitam o limite de ${d.matching.a.pct}% no casamento salarial.</div>
-    </div>`;
-  }
-  const problemas = [];
-  [['a', nomeA], ['b', nomeB]].forEach(([k, nome]) => {
-    const m = d.matching[k];
-    if (m.ok) return;
-    problemas.push(`<li><strong>${esc(nome)}</strong> receberia
-      <strong>${m.recebido}M</strong> enviando <strong>${m.enviado}M</strong>.
-      O limite é ${m.limite_receber}M (${m.pct}% de ${m.enviado}M) — passou <strong>${m.excesso}M</strong>.
-      Para valer, precisaria enviar pelo menos ${m.envio_minimo}M
-      (mais ${m.falta_enviar}M) ou receber ${m.excesso}M a menos.</li>`);
-  });
-  return `<div class="sim-verdict bad">
-    <i class="bi bi-x-octagon-fill"></i>
-    <div><strong>Troca barrada pela regra dos ${d.matching.a.pct}%.</strong>
-      <ul style="margin:6px 0 0 16px;padding:0">${problemas.join('')}</ul></div>
-  </div>`;
-}
-
-function simCard(titulo, antes, depois, m) {
-  const st = depois.status === 'over_the_cap'
-    ? { cls: 'bad', txt: 'Acima do teto' }
-    : depois.status === 'abaixo_do_piso'
-      ? { cls: 'warn', txt: 'Abaixo do piso' }
-      : { cls: 'ok', txt: 'Dentro do cap' };
-  const linha = (lbl, a, b, sufixo = 'M') =>
-    `<div class="sim-line"><span class="lbl">${lbl}</span>
-       <span class="val">${a}${sufixo} → ${b}${sufixo} ${simDelta(a, b)}</span></div>`;
-
-  let match = '';
-  if (m) {
-    match = `<div class="sim-line"><span class="lbl">Envia / recebe</span>
-       <span class="val">${m.enviado}M / ${m.recebido}M
-       <span class="delta ${m.ok ? 'down' : 'up'}">limite ${m.limite_receber}M</span></span></div>`;
-  }
-
-  return `
-    <div class="sim-card">
-      <h4>${esc(titulo)}</h4>
-      ${linha('Folha salarial', antes.payroll, depois.payroll)}
-      ${linha('Cap flex', antes.cap_flex_total, depois.cap_flex_total)}
-      ${linha('Cap máximo', antes.cap_max, depois.cap_max)}
-      ${linha('Espaço', antes.space, depois.space)}
-      ${match}
-      <span class="sim-status ${st.cls}"><i class="bi bi-circle-fill" style="font-size:6px"></i> ${st.txt}</span>
-      ${m && !m.ok ? '<span class="sim-status bad" style="margin-left:6px"><i class="bi bi-x-octagon-fill" style="font-size:9px"></i> Estoura os ' + m.pct + '%</span>' : ''}
-    </div>`;
-}
-
-async function simular() {
-  const a = parseInt(document.getElementById('simTeamA').value, 10);
-  const b = parseInt(document.getElementById('simTeamB').value, 10);
-  const btn = document.getElementById('btnSimular');
-  const out = document.getElementById('simResult');
-
-  if (!a || !b) { alert('Escolha os dois times.'); return; }
-  if (a === b) { alert('Escolha dois times diferentes.'); return; }
-  const sendA = simSelecionados('a');
-  const sendB = simSelecionados('b');
-  if (!sendA.length && !sendB.length) { alert('Marque ao menos um jogador para trocar.'); return; }
-
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Simulando…';
-  try {
-    const r = await fetch('/api/cap.php?action=simulate_trade', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ team_a: a, team_b: b, send_a: sendA, send_b: sendB })
-    });
-    const d = await r.json();
-    if (!d.success) { alert(d.error || 'Erro ao simular.'); return; }
-
-    const nomeA = document.getElementById('simTeamA').selectedOptions[0].textContent;
-    const nomeB = document.getElementById('simTeamB').selectedOptions[0].textContent;
-    const nomes = (ids, lado) => ids.length
-      ? ids.map(id => (simRosters[lado].find(p => p.id === id) || {}).name).filter(Boolean).join(', ')
-      : 'nada';
-
-    out.style.display = 'block';
-    out.innerHTML = `
-      ${vereditoHtml(d, nomeA, nomeB)}
-      <div style="font-size:12px;color:var(--text-2);margin:12px 0;line-height:1.6">
-        <strong>${esc(nomeA)}</strong> envia: ${esc(nomes(sendA, 'a'))}<br>
-        <strong>${esc(nomeB)}</strong> envia: ${esc(nomes(sendB, 'b'))}
-      </div>
-      <div class="sim-cards">
-        ${simCard(nomeA, d.antes.a, d.depois.a, d.matching.a)}
-        ${simCard(nomeB, d.antes.b, d.depois.b, d.matching.b)}
-      </div>`;
-    out.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  } catch (e) {
-    alert('Erro ao simular a troca.');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-calculator"></i> Simular troca';
-  }
-}
-
-document.getElementById('simTeamA').addEventListener('change', () => simCarregarElenco('a'));
-document.getElementById('simTeamB').addEventListener('change', () => simCarregarElenco('b'));
-document.getElementById('btnSimular').addEventListener('click', simular);
-document.getElementById('btnSimLimpar').addEventListener('click', () => {
-  document.querySelectorAll('.sim-list input:checked').forEach(i => { i.checked = false; });
-  document.getElementById('simResult').style.display = 'none';
-});
-simCarregarTimes();
 <?php endif; ?>
 </script>
 </body>
