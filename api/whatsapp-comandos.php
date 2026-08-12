@@ -292,7 +292,7 @@ function wcAjuda(): string
         . "/comparartime _um_ x _outro_ — times lado a lado\n"
         . "/confronto _um_ x _outro_ — o duelo entre dois times, com palpite\n"
         . "/time _nome_ — quinteto, banco, folha e campanha\n"
-        . "/cap _time_ — cap do time (folha na ELITE, soma de OVR nas outras)\n"
+        . "/cap _time_ — folha e espaço no cap\n"
         . "/picks _time_ — picks que o time tem\n\n"
         . "*Liga*\n"
         . "/classificacao _liga_ — a tabela\n"
@@ -540,37 +540,8 @@ function wcCap(PDO $pdo, string $termo, ?array $jaResolvido = null): string
         if ($erro) return $erro;
     }
 
-    // Fora da ELITE o CAP existe, só não é em dinheiro. Antes o comando parava
-    // aqui dizendo isso e não mostrava o número nenhum — quem jogava RISE,
-    // NEXT ou ROOKIE não tinha como ver o próprio cap pelo bot.
     if (!wcLigaEmSalario($pdo, (string)$t['league'])) {
-        $c = wcCapPorOvr($pdo, $t);
-        $rotulo = [
-            'estourou'  => '🔴 acima do teto',
-            'abaixo'    => '🟡 abaixo do piso',
-            'ok'        => '🟢 dentro da faixa',
-            'sem_faixa' => 'faixa ainda não configurada na liga',
-        ][$c['estado']];
-
-        $txt = '*Cap — ' . wcNomeDoTime($t) . "*\n{$t['league']} · soma de OVR\n{$rotulo}\n\n"
-             . 'CAP top ' . CAP_TOP_N . ": *{$c['soma']}*\n";
-        if ($c['estado'] !== 'sem_faixa') {
-            $txt .= "Teto: {$c['max']}" . ($c['bonus'] > 0 ? " ({$c['max_base']} +{$c['bonus']} de restrito)" : '') . "\n"
-                  . "Piso: {$c['min']}\n"
-                  . ($c['soma'] > $c['max']
-                        ? 'Estouro: *' . ($c['soma'] - $c['max']) . "*\n"
-                        : 'Espaço: *' . ($c['max'] - $c['soma']) . "*\n");
-        }
-
-        $ovrCol = wcColunaOvr($pdo);
-        $st = $pdo->prepare("SELECT name, {$ovrCol} AS ovr FROM players WHERE team_id = ?
-                             ORDER BY {$ovrCol} DESC LIMIT " . CAP_TOP_N);
-        $st->execute([(int)$t['id']]);
-        if ($top = $st->fetchAll(PDO::FETCH_ASSOC)) {
-            $txt .= "\n*Os " . count($top) . " que contam:*\n";
-            foreach ($top as $p) $txt .= "• {$p['name']} — {$p['ovr']}\n";
-        }
-        return rtrim($txt);
+        return wcNomeDoTime($t) . " está na {$t['league']}, que não usa folha em dinheiro — o limite lá é por soma de OVR.";
     }
 
     $cap = getTeamCapSummary($pdo, (int)$t['id']);
