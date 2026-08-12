@@ -227,7 +227,7 @@ if ($method === 'GET') {
             }
 
             $stmt = $pdo->prepare("
-                SELECT u.id, u.name, u.email, u.user_type, u.photo_url, u.league,
+                SELECT u.id, u.name, u.email, u.user_type, u.photo_url, u.league, u.phone,
                        t.id AS team_id, t.name AS team_name, t.city AS team_city,
                        t.photo_url AS team_photo, t.league AS team_league
                 FROM users u
@@ -242,6 +242,9 @@ if ($method === 'GET') {
                 $stmtAL = $pdo->prepare("SELECT league FROM league_admins WHERE user_id = ?");
                 $stmtAL->execute([$row['id']]);
                 $row['admin_leagues'] = $stmtAL->fetchAll(PDO::FETCH_COLUMN);
+                // O número é guardado só em dígitos (5511987654321) porque é
+                // assim que o bot casa a menção. Na tela ele vai formatado.
+                $row['phone_formatado'] = formatBrazilianPhone($row['phone'] ?? null);
             }
             unset($row);
 
@@ -2807,6 +2810,25 @@ if ($method === 'POST') {
             $email = trim((string)($data['email'] ?? ''));
             if ($name)  $pdo->prepare("UPDATE users SET name = ? WHERE id = ?")->execute([$name, $targetId]);
             if ($email) $pdo->prepare("UPDATE users SET email = ? WHERE id = ?")->execute([$email, $targetId]);
+
+            // Telefone: guarda só dígitos com DDI, que é a forma que o bot usa
+            // pra marcar a pessoa no grupo. Campo vazio limpa o cadastro — é a
+            // única forma de tirar um número errado, então não pode ser
+            // confundido com "não veio no payload".
+            if (array_key_exists('phone', $data)) {
+                $bruto = trim((string)$data['phone']);
+                if ($bruto === '') {
+                    $pdo->prepare("UPDATE users SET phone = NULL WHERE id = ?")->execute([$targetId]);
+                } else {
+                    $normalizado = normalizeBrazilianPhone($bruto);
+                    if ($normalizado === null) {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'error' => 'Telefone inválido. Use DDD + número, ex: (11) 98765-4321.']);
+                        exit;
+                    }
+                    $pdo->prepare("UPDATE users SET phone = ? WHERE id = ?")->execute([$normalizado, $targetId]);
+                }
+            }
 
             // Liga do usuário e liga do time são campos independentes no modal de
             // Gestão (podem divergir por bug de dados antigo) — cada um só é

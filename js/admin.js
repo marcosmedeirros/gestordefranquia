@@ -506,9 +506,14 @@ async function aoBuscarGestao() {
   if ((campo?.value || '').trim().toLowerCase() !== termo) return;
 
   const bate = u => {
-    const alvo = [u.name, u.email, u.team_city, u.team_name]
+    const alvo = [u.name, u.email, u.team_city, u.team_name, u.phone, u.phone_formatado]
       .filter(Boolean).join(' ').toLowerCase();
-    return alvo.indexOf(termo) >= 0;
+    // Achar pelo telefone tem que funcionar do jeito que a pessoa digita: com
+    // parênteses e traço, ou só os dígitos. Por isso os dois formatos entram,
+    // e o termo também é comparado sem pontuação.
+    const soDigitos = termo.replace(/\D+/g, '');
+    return alvo.indexOf(termo) >= 0
+        || (soDigitos.length >= 4 && alvo.replace(/\D+/g, '').indexOf(soDigitos) >= 0);
   };
   renderGestaoTable(todos.filter(bate), termo);
 }
@@ -552,6 +557,10 @@ function renderGestaoTable(users, termoBusca) {
                 ? ` <span style="font-size:9.5px;font-weight:800;letter-spacing:.5px;padding:2px 6px;border-radius:999px;background:var(--panel-3);color:var(--text-2);border:1px solid var(--border);vertical-align:middle">${escapeHtml(u._liga)}</span>`
                 : ''}</div>
             <div style="font-size:11px;color:var(--text-3)">${escapeHtml(u.email)}</div>
+            <div style="font-size:11px;color:var(--text-3)">${
+              u.phone_formatado
+                ? `<i class="bi bi-whatsapp" style="color:#25d366"></i> ${escapeHtml(u.phone_formatado)}`
+                : '<span style="opacity:.6"><i class="bi bi-whatsapp"></i> sem número</span>'}</div>
           </div>
         </td>
         <td data-label="Time">
@@ -683,9 +692,19 @@ function openGestaoEdit(userId) {
               <label class="form-label text-light-gray">Nome</label>
               <input type="text" id="gedit-name" class="form-control" value="${escapeHtml(u.name)}">
             </div>
-            <div class="mb-3">
-              <label class="form-label text-light-gray">E-mail</label>
-              <input type="email" id="gedit-email" class="form-control" value="${escapeHtml(u.email)}">
+            <div class="row g-2 mb-3">
+              <div class="col-12 col-sm-7">
+                <label class="form-label text-light-gray">E-mail</label>
+                <input type="email" id="gedit-email" class="form-control" value="${escapeHtml(u.email)}">
+              </div>
+              <div class="col-12 col-sm-5">
+                <label class="form-label text-light-gray">Telefone</label>
+                <input type="tel" id="gedit-phone" class="form-control" placeholder="(11) 98765-4321"
+                       value="${escapeHtml(u.phone_formatado || '')}">
+                <div style="font-size:11px;color:var(--text-3);margin-top:4px">
+                  ${u.phone ? 'É por aqui que o bot marca a pessoa no grupo.' : 'Sem número: o bot cita o nome sem marcar.'}
+                </div>
+              </div>
             </div>
             <div class="mb-3">
               <label class="form-label text-light-gray">Logo do Time</label>
@@ -754,6 +773,7 @@ async function saveGestaoUser() {
   const teamId   = parseInt(document.getElementById('gedit-team-id').value) || null;
   const name     = document.getElementById('gedit-name').value.trim();
   const email    = document.getElementById('gedit-email').value.trim();
+  const phone    = document.getElementById('gedit-phone').value.trim();
   const teamPhoto = document.getElementById('gedit-team-photo').value.trim();
   const teamNameEl = document.getElementById('gedit-team-name');
   const teamName = teamNameEl ? teamNameEl.value.trim() : '';
@@ -768,7 +788,7 @@ async function saveGestaoUser() {
   try {
     await api('admin.php?action=update_user', {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId, team_id: teamId, name, email, team_photo: teamPhoto, team_name: teamName, team_city: teamCity, user_league: userLeague, team_league: teamLeague })
+      body: JSON.stringify({ user_id: userId, team_id: teamId, name, email, phone, team_photo: teamPhoto, team_name: teamName, team_city: teamCity, user_league: userLeague, team_league: teamLeague })
     });
 
     if (window.IS_GLOBAL_ADMIN) {
