@@ -1373,14 +1373,15 @@ function wcConfronto(PDO $pdo, string $termo): string
             if ($oa > $ob) $vitA++;
             elseif ($ob > $oa) $vitB++;
         }
-        $okA = ($oa !== null && $ob !== null && $oa > $ob) ? ' ✅' : '';
-        $okB = ($oa !== null && $ob !== null && $ob > $oa) ? '✅ ' : '';
+        // Quem leva a vaga sai em negrito. Empate não marca ninguém.
+        $ladoA = $pa ? wcNomeCurto((string)$pa['name']) . " {$oa}" : '_vazio_';
+        $ladoB = $pb ? "{$ob} " . wcNomeCurto((string)$pb['name']) : '_vazio_';
+        if ($oa !== null && $ob !== null) {
+            if ($oa > $ob)      $ladoA = "*{$ladoA}*";
+            elseif ($ob > $oa)  $ladoB = "*{$ladoB}*";
+        }
 
-        $txt .= "{$vaga}: "
-             . ($pa ? wcNomeCurto((string)$pa['name']) . " {$oa}{$okA}" : '_vazio_')
-             . '  |  '
-             . ($pb ? "{$okB}{$ob} " . wcNomeCurto((string)$pb['name']) : '_vazio_')
-             . "\n";
+        $txt .= "{$vaga}: {$ladoA}  |  {$ladoB}\n";
     }
     if ($vitA || $vitB) {
         $txt .= $vitA === $vitB
