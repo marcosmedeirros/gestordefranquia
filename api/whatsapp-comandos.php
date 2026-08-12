@@ -279,8 +279,8 @@ function wcAjuda(): string
         . "/cap _time_ — folha e espaço no cap\n"
         . "/picks _time_ — picks que o time tem\n\n"
         . "*Liga*\n"
-        . "/classificacao _liga_ — a tabela\n"
-        . "/powerranking — os 10 mais fortes da liga\n"
+        . "/ranking _liga_ — a tabela da liga\n"
+        . "/power — os 10 mais fortes da liga\n"
         . "/trocas — as últimas trocas aprovadas\n"
         . "/lendas — os marcados como LENDA\n"
         . "/hall — o Hall da Fama\n"
@@ -1567,14 +1567,14 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'pick':
                 return wcPicks($pdo, $arg);
 
+            case 'ranking':
             case 'classificacao':
             case 'classificação':
             case 'tabela':
                 return wcClassificacao($pdo, $arg, $ligaDoGrupo);
 
-            case 'powerranking':
             case 'power':
-            case 'ranking':
+            case 'powerranking':
                 return wcPowerRanking($pdo, $arg, $ligaDoGrupo);
 
             case 'confronto':
