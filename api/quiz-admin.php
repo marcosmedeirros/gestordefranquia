@@ -421,15 +421,44 @@ try {
         exit;
     }
 
-    /** Fecha a rodada aberta na hora, sem esperar o prazo. */
-    if ($acao === 'apurar_agora') {
-        $st = $pdo->query("SELECT id, grupo_jid FROM bot_quiz_rodadas WHERE fechada_em IS NULL ORDER BY id DESC LIMIT 1");
+    /**
+     * Finaliza a rodada na hora: conta os votos, credita e posta o resultado.
+     *
+     * É a rede de segurança do cron. Ele fecha sozinho às 11:00, mas se a
+     * execução se perder — servidor fora do ar, agendamento removido sem
+     * querer — a rodada ficaria aberta e o grupo esperando resposta que nunca
+     * vem. Daí o botão.
+     *
+     * 'apurar_agora' continua valendo como nome: navegador com o admin.js
+     * antigo em cache ainda manda o velho, e receber 400 justo no botão que
+     * existe pra salvar o dia seria a pior hora pra descobrir isso.
+     */
+    if ($acao === 'finalizar' || $acao === 'apurar_agora') {
+        // O id vem da tela quando ela sabe qual está no ar. Sem ele, a última
+        // aberta — que é a mesma que a tela mostra.
+        $id = (int)(qaCorpo()['id'] ?? 0);
+        if ($id > 0) {
+            $st = $pdo->prepare("SELECT id, grupo_jid FROM bot_quiz_rodadas WHERE id = ? AND fechada_em IS NULL");
+            $st->execute([$id]);
+        } else {
+            $st = $pdo->query("SELECT id, grupo_jid FROM bot_quiz_rodadas WHERE fechada_em IS NULL ORDER BY id DESC LIMIT 1");
+        }
         $r = $st->fetch(PDO::FETCH_ASSOC);
-        if (!$r) qaErro(409, 'Não há rodada aberta.');
+        if (!$r) qaErro(409, 'Não há rodada aberta — essa já foi finalizada.');
+
         $txt = quizFechar($pdo, (int)$r['id']);
-        if ($txt === null) qaErro(409, 'Não deu pra apurar.');
-        whatsappEnfileirar($pdo, $r['grupo_jid'], $txt, true, 'manual');
-        echo json_encode(['success' => true, 'message' => 'Apurado e postado no grupo.']);
+        if ($txt === null) qaErro(409, 'Não deu pra finalizar.');
+
+        // O resultado vai como 'manual' de propósito: foi pedido agora, e fica
+        // esquisito a apuração sair só no dia seguinte por causa do expediente.
+        $enfileirou = whatsappEnfileirar($pdo, $r['grupo_jid'], $txt, true, 'manual');
+
+        // A rodada JÁ está fechada e as moedas JÁ foram creditadas aqui. Se a
+        // fila recusou, dizer "postado no grupo" seria mentira — e mentira que
+        // só apareceria quando alguém reclamasse de não ter visto o resultado.
+        echo json_encode(['success' => true, 'message' => $enfileirou
+            ? 'Quiz finalizado, moedas creditadas e resultado a caminho do grupo.'
+            : 'Quiz finalizado e moedas creditadas, mas a fila do bot recusou a mensagem — o resultado NÃO foi pro grupo.']);
         exit;
     }
 

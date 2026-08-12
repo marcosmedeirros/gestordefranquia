@@ -455,13 +455,18 @@ function _quizRender(e, perguntas) {
     ${ab ? `
       <div class="alert alert-info py-2 px-3" style="font-size:13px">
         <b>No ar agora:</b> ${escapeHtml(ab.texto)}<br>
-        <span style="font-size:12px;opacity:.85">${ab.votos} voto(s) · fecha ${escapeHtml(String(ab.fecha_em).slice(0,16).replace('T',' '))}</span>
+        <span style="font-size:12px;opacity:.85">${ab.votos} voto(s) · fecha ${escapeHtml(String(ab.fecha_em).slice(11,16))}</span>
       </div>
-      <button class="btn-ghost" onclick="_quizAcao('apurar_agora','Apurar agora e postar o resultado no grupo?')">
-        <i class="bi bi-flag-fill me-1"></i>Apurar agora</button>
+      <button class="btn-ghost" style="color:#22c55e"
+              onclick="_quizAcao('finalizar','Finalizar o quiz agora?\\n\\nConta os ${ab.votos} voto(s), credita as moedas de quem acertou e posta o resultado no grupo.',{id:${ab.id}})">
+        <i class="bi bi-flag-fill me-1"></i>Finalizar e enviar resultado</button>
       <button class="btn-ghost" style="color:#ef4444"
-              onclick="_quizAcao('cancelar_rodada','Cancelar esta rodada? A pergunta volta pro sorteio e os votos são descartados.')">
-        <i class="bi bi-x-circle me-1"></i>Cancelar rodada</button>`
+              onclick="_quizAcao('cancelar_rodada','Cancelar esta rodada?\\n\\nA pergunta volta pro sorteio, os ${ab.votos} voto(s) são descartados e NINGUÉM recebe moeda. Não é o mesmo que finalizar.')">
+        <i class="bi bi-x-circle me-1"></i>Cancelar sem apurar</button>
+      <div style="font-size:11px;color:var(--text-3);margin-top:8px;line-height:1.5">
+        O cron das 11:00 finaliza sozinho. Estes botões são a garantia pra quando ele falhar
+        — ou pra encerrar antes da hora.
+      </div>`
     : `<button class="btn-ghost" style="color:#a855f7" onclick="_quizAcao('abrir_agora','Postar a pergunta do dia no grupo agora?')">
          <i class="bi bi-send-fill me-1"></i>Mandar uma pergunta agora</button>`}
     ${!Number(n.total) ? `
