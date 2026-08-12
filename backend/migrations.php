@@ -1803,6 +1803,44 @@ function runMigrations() {
         $errors[] = "telefone_com_ddi: " . $e->getMessage();
     }
 
+    // Circuito de draft: cada liga tem suas classes e sua roleta.
+    //
+    // As classes nasceram sem liga (eram uma lista so, usada na mao). Agora
+    // cada uma pertence a uma liga, e a roleta daquela liga so sorteia as
+    // dela. As 9 que ja existem ficam com league NULL de proposito: adivinhar
+    // pelo nome ("Elite - Draft Class 2011" e ELITE, mas "1994" e o que?)
+    // colocaria classe no bolo errado, e classe sorteada nao volta atras.
+    // Elas aparecem em "sem liga" na tela pra alguem atribuir.
+    try {
+        if (!$pdo->query("SHOW TABLES LIKE 'draft_class_templates'")->fetch()) {
+            // A tabela e criada sob demanda por api/admin.php; se ainda nao
+            // existe, nao ha o que migrar.
+        } else {
+            if (!$pdo->query("SHOW COLUMNS FROM draft_class_templates LIKE 'league'")->fetch()) {
+                $pdo->exec("ALTER TABLE draft_class_templates
+                            ADD COLUMN league ENUM('ELITE','NEXT','RISE','ROOKIE') NULL AFTER name");
+            }
+            $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_sorteios (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
+                template_id INT NOT NULL,
+                season_id INT NULL,
+                season_year INT NULL,
+                sorteado_por INT NULL,
+                sorteado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                pool_aplicado_em DATETIME NULL,
+                -- Classe sai uma vez so. O banco garante, nao a tela: sorteio
+                -- que repete classe e sorteio que nao vale nada.
+                UNIQUE KEY uk_dcs_template (template_id),
+                INDEX idx_dcs_liga (league),
+                CONSTRAINT fk_dcs_tpl FOREIGN KEY (template_id)
+                    REFERENCES draft_class_templates(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        }
+    } catch (Throwable $e) {
+        $errors[] = "draft_class_por_liga: " . $e->getMessage();
+    }
+
     // Views do ranking do Admin > Temporadas. api/seasons.php sempre leu delas,
     // mas elas nunca existiram no banco — as tres acoes (ranking por liga,
     // ranking geral e historico de campeoes) morriam em "Erro interno do
