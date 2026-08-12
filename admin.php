@@ -850,11 +850,6 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
             <i class="bi bi-controller"></i> Games
         </button>
         <?php endif; ?>
-        <?php if ($isGlobalAdmin || !empty($adminLeagues)): ?>
-        <a class="admin-qnav-btn" href="/controledrafts.php" style="text-decoration:none">
-            <i class="bi bi-shuffle"></i> Drafts
-        </a>
-        <?php endif; ?>
     </nav>
 
     <div class="page-top">
