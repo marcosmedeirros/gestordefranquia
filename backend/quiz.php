@@ -99,8 +99,10 @@ function quizGarantirTabelas(PDO $pdo): void
         user_id INT NULL,
         opcao TINYINT NOT NULL,
         votado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        -- Um voto por pessoa por rodada. Votar de novo TROCA o voto, e o
-        -- UNIQUE e quem garante isso sem precisar de SELECT antes.
+        -- Um voto por pessoa por rodada, e o primeiro é o que vale. Este
+        -- UNIQUE nao e so um indice: e ele que RECUSA o segundo voto, sem
+        -- precisar de SELECT antes — e sem SELECT nao ha brecha entre ler e
+        -- gravar, que num grupo e o tempo de mandar /1 e /2 seguidos.
         UNIQUE KEY uk_qv (rodada_id, telefone),
         CONSTRAINT fk_qv_rodada FOREIGN KEY (rodada_id) REFERENCES bot_quiz_rodadas(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
@@ -187,8 +189,15 @@ function quizRodadaAberta(PDO $pdo, string $grupoJid): ?array
 /**
  * Registra o voto. Devolve true se entrou.
  *
+ * Um voto por pessoa, e o primeiro é o que vale — votar de novo não troca
+ * nada. Trocar parecia gentileza, mas num grupo em que todo mundo vê o que os
+ * outros mandam, ela vira estratégia: dá pra esperar a discussão virar e
+ * corrigir o voto em cima do prazo, e aí o prêmio para de ser de quem sabia e
+ * passa a ser de quem esperou.
+ *
  * Não responde nada a quem votou — quem chama é o webhook, e a resposta vazia
- * é o que mantém o quiz dentro do freio de comandos.
+ * é o que mantém o quiz dentro do freio de comandos. Quem votar duas vezes não
+ * ouve nada; a regra sai escrita na mensagem que abre a rodada.
  */
 function quizVotar(PDO $pdo, string $grupoJid, string $deQuem, int $opcao): bool
 {
@@ -210,11 +219,19 @@ function quizVotar(PDO $pdo, string $grupoJid, string $deQuem, int $opcao): bool
         $userId = $st->fetchColumn() ?: null;
     } catch (Throwable $e) { /* sem phone cadastrado: segue sem user */ }
 
-    $pdo->prepare("INSERT INTO bot_quiz_votos (rodada_id, telefone, user_id, opcao)
-                   VALUES (?,?,?,?)
-                   ON DUPLICATE KEY UPDATE opcao = VALUES(opcao), user_id = VALUES(user_id)")
-        ->execute([(int)$rodada['id'], $telefone, $userId, $opcao]);
-    return true;
+    // INSERT seco: quem garante o voto único é a UNIQUE (rodada_id, telefone).
+    // Conferir com um SELECT antes deixaria brecha entre a leitura e a
+    // gravação — e num grupo dá pra mandar /1 e /2 no mesmo segundo.
+    try {
+        $pdo->prepare("INSERT INTO bot_quiz_votos (rodada_id, telefone, user_id, opcao)
+                       VALUES (?,?,?,?)")
+            ->execute([(int)$rodada['id'], $telefone, $userId, $opcao]);
+        return true;
+    } catch (PDOException $e) {
+        // 23000 é a UNIQUE estourando: a pessoa já votou, e o primeiro vale.
+        if ($e->getCode() === '23000') return false;
+        throw $e;
+    }
 }
 
 /**
@@ -387,8 +404,10 @@ function quizAbrirPergunta(PDO $pdo, int $perguntaId, string $grupoPadrao): ?arr
            . "{$regra}\n"
            // A hora do fechamento, não "em 30 min": quem lê a mensagem às
            // 10:47 quer saber que tem 13 minutos, e a conta é do texto fazer.
-           . '_Vale ' . $premio . ' moedas no FBA Games · dá pra trocar o voto até fechar · '
-           . 'resultado às ' . date('H:i', strtotime($fecha)) . '._';
+           // E a regra do voto único vai junto: ela precisa ser lida ANTES de
+           // alguém votar, porque quem votar duas vezes não recebe aviso.
+           . '_Vale ' . $premio . ' moedas no FBA Games · um voto por pessoa, '
+           . 'o primeiro é o que conta · resultado às ' . date('H:i', strtotime($fecha)) . '._';
 
     // Devolve o grupo junto: quem chama não sabia pra onde ia, porque quem
     // decide isso é a pergunta.
