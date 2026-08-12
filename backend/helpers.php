@@ -1231,10 +1231,20 @@ function whatsappNumeroUsavel(?string $phone): array
                 'sugestao' => $valida['ok'] && !$valida['motivo'] ? $tentativa : null];
     }
 
-    // Fora do Brasil, o app não tem como validar DDD nem tamanho de linha —
-    // aceita e não inventa regra que não conhece.
+    // Fora do Brasil, o app não tem como validar numeração nacional — aceita
+    // e não inventa regra que não conhece. O que dá pra checar é o que o envio
+    // checa: cabe no E.164 e não começa com zero (código de país nenhum
+    // começa com 0; quem escreve assim digitou o zero do DDD antigo).
     if (!str_starts_with($d, '55')) {
-        return ['ok' => true, 'motivo' => 'Número internacional (+' . substr($d, 0, 2) . ').', 'sugestao' => null];
+        if ($d[0] === '0') {
+            return ['ok' => false, 'motivo' => 'Começa com zero — código de país não tem zero na frente.', 'sugestao' => null];
+        }
+        if (strlen($d) > 15) {
+            return ['ok' => false, 'motivo' => 'Tem ' . strlen($d) . ' dígitos; o máximo internacional é 15.', 'sugestao' => null];
+        }
+        // Sem motivo = verde. O bot manda esse número como está, e é assim que
+        // ele tem que ir: quem resolve o DDI estrangeiro é o WhatsApp.
+        return ['ok' => true, 'motivo' => null, 'sugestao' => null];
     }
 
     $local = substr($d, 2);                       // sem o DDI

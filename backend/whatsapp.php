@@ -196,20 +196,18 @@ function whatsappNumero(?string $telefone): ?string
     $normalizado = normalizeBrazilianPhone((string)$telefone);
     if (!$normalizado) return null;
     $digitos = preg_replace('/\D+/', '', $normalizado);
-    if (strlen($digitos) < 10) return null;
-    // normalizeBrazilianPhone já devolve com 55 na frente nos casos comuns;
-    // se vier sem, assume Brasil (é o público da liga inteira).
-    if (!str_starts_with($digitos, '55')) $digitos = '55' . $digitos;
 
-    // Com o 55 na frente, número brasileiro tem 12 dígitos (fixo/antigo) ou
-    // 13 (celular com o nono). Fora disso é lixo de digitação — quem escreve
-    // "011 51 99420-0231" cai em 16 dígitos. Barrar aqui evita enfileirar uma
-    // mensagem que não tem como ser entregue e ainda gastar as oito
-    // tentativas dela ao longo de dez horas.
-    $tam = strlen($digitos);
-    if ($tam < 12 || $tam > 13) return null;
-
-    return $digitos;
+    // Quem decide é whatsappNumeroUsavel(), a MESMA função que pinta o selo na
+    // Gestão. Antes esta função tinha regra própria — só conferia tamanho — e
+    // as duas discordavam: o admin via vermelho ("o WhatsApp não reconhece") e
+    // a mensagem era enfileirada assim mesmo, pra falhar calada oito vezes ao
+    // longo de dez horas.
+    //
+    // A regra antiga também grudava um 55 em tudo que não começasse com 55:
+    // um português (351916047829) virava 55351916047829, quatorze dígitos, e
+    // era descartado. GM de Portugal nunca recebia mensagem, e a tela de
+    // ajustes dizia que ele não tinha telefone válido.
+    return whatsappNumeroUsavel($digitos)['ok'] ? $digitos : null;
 }
 
 /**
