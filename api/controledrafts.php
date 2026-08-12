@@ -301,6 +301,24 @@ try {
         exit;
     }
 
+    /**
+     * Traz TODAS as classes sem liga pro bolo desta liga.
+     *
+     * Quem cadastrou 25 classes de uma vez não vai clicar 25 vezes. O WHERE
+     * exige league IS NULL, então classe que já é de alguém não vem junto nem
+     * por engano.
+     */
+    if ($acao === 'atribuir_liga_todas') {
+        cdGarantirSchema($pdo);
+        $liga = cdLiga($minhasLigas);
+        $st = $pdo->prepare("UPDATE draft_class_templates SET league = ? WHERE league IS NULL");
+        $st->execute([$liga]);
+        $n = $st->rowCount();
+        echo json_encode(['success' => true, 'movidas' => $n,
+            'message' => $n > 0 ? $n . ' classe(s) agora são da ' . $liga . '.' : 'Não havia classe sem liga.']);
+        exit;
+    }
+
     /** Cria uma classe vazia já no bolo da liga. */
     if ($acao === 'criar_classe') {
         cdGarantirSchema($pdo);

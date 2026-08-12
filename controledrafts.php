@@ -336,9 +336,18 @@ function renderClasses() {
     ...e.classes_usadas.map(c => linha(c, 'usada')),
   ];
 
+  const semJog = e.classes_disponiveis.filter(c => c.jogadores === 0).length;
+  const contagem = [
+    `<b class="num">${e.classes_disponiveis.length + e.classes_usadas.length}</b> no total`,
+    `<b class="num">${e.classes_sorteaveis}</b> no bolo`,
+    semJog ? `<b class="num">${semJog}</b> sem jogadores` : '',
+    e.classes_usadas.length ? `<b class="num">${e.classes_usadas.length}</b> já usada(s)` : '',
+  ].filter(Boolean).join(' · ');
+
   return `
     <div class="card">
       <div class="card-tit"><i class="bi bi-collection-fill"></i>Classes da ${esc(e.league)}</div>
+      <div class="sub" style="margin:-6px 0 12px">${contagem}</div>
       ${todas.length ? `<table><thead><tr><th>Classe</th><th>Jogadores</th><th>Estado</th><th></th></tr></thead>
         <tbody>${todas.join('')}</tbody></table>`
         : `<div class="vazio">Nenhuma classe nesta liga ainda.</div>`}
@@ -354,10 +363,16 @@ function renderClasses() {
 
     ${e.classes_sem_liga.length ? `
       <div class="card">
-        <div class="card-tit"><i class="bi bi-question-circle-fill"></i>Classes sem liga</div>
+        <div class="card-tit"><i class="bi bi-question-circle-fill"></i>Classes sem liga (${e.classes_sem_liga.length})</div>
         <div class="sub" style="margin-bottom:12px">
-          Foram criadas antes de as classes terem dono. O app não adivinha de qual liga é
-          “1994” — escolha a liga de cada uma. Depois de entrar num bolo, ela não sai.
+          Classes que ficaram sem dono — ou porque foram criadas antes de as classes terem
+          liga, ou porque saíram por um caminho do admin que não mandava a liga junto.
+          Elas não entram na roleta de ninguém até serem atribuídas, e depois não saem mais.
+        </div>
+        <div class="acoes" style="margin:0 0 12px">
+          <button class="btn" onclick="acao('atribuir_liga_todas',{},'Trazer TODAS as ${e.classes_sem_liga.length} classes sem liga pro bolo da ${e.league}?\\n\\nDepois disso elas não mudam mais de liga.')">
+            <i class="bi bi-box-arrow-in-down"></i>Trazer todas pra ${e.league}
+          </button>
         </div>
         <table><thead><tr><th>Classe</th><th>Jogadores</th><th>Estado</th><th></th></tr></thead>
           <tbody>${e.classes_sem_liga.map(c => linha(c, 'orfa')).join('')}</tbody></table>

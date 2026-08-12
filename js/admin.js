@@ -8371,7 +8371,14 @@ async function _dcImportConfirm() {
   if (!name) { showAlert('warning','Digite o nome da classe'); return; }
   if (!_dcImportRows.length) { showAlert('warning','Nenhum jogador'); return; }
   try {
-    const res = await api('admin.php?action=draft_class_bank', { method:'POST', body: JSON.stringify({ sub:'save', name, players: _dcImportRows }) });
+    // A liga tem que ir junto aqui também. Esta é a TERCEIRA rota que cria
+    // classe (as outras duas são "Criar vazia" e "Criar com esses jogadores"),
+    // e era a única que ainda mandava sem liga — quem criasse a classe por
+    // aqui via ela sumir do bolo da liga e reaparecer em "Classes sem liga".
+    const res = await api('admin.php?action=draft_class_bank', {
+      method:'POST',
+      body: JSON.stringify({ sub:'save', name, league: appState.currentLeague || null, players: _dcImportRows })
+    });
     document.getElementById('_dcImportModal').remove();
     showAlert('success', res.message || 'Classe salva!');
     showDraftClassBank();
