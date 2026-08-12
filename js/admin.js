@@ -433,7 +433,7 @@ function _quizRender(e, perguntas) {
       <b>${n.total || 0}</b> perguntas · <b>${n.certas || 0}</b> com resposta certa ·
       <b>${n.votos || 0}</b> de mais votada · <b>${n['inéditas'] || 0}</b> nunca usadas
       ${Number(n.inativas) ? ` · <b>${n.inativas}</b> fora do sorteio` : ''}
-      <br>Sai <b>1 por dia às 10:30</b>, vale <b>${e.premio ?? 100}</b> moedas para cada acerto, apura sozinha depois.
+      <br>Sai <b>1 por dia às 10:30</b> e fecha <b>11:00</b>, valendo <b>${e.premio ?? 100}</b> moedas para cada acerto.
     </div>
     ${ab ? `
       <div class="alert alert-info py-2 px-3" style="font-size:13px">

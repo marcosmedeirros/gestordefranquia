@@ -26,8 +26,14 @@ require_once __DIR__ . '/whatsapp.php';
 /** Quanto vale acertar, em moedas do FBA Games. */
 const BOT_QUIZ_PREMIO = 100;
 
-/** Quanto tempo a rodada fica aberta. */
-const BOT_QUIZ_MINUTOS = 180;
+/**
+ * Quanto tempo a rodada fica aberta.
+ *
+ * Trinta minutos: abre 10:30, fecha 11:00. O segundo cron do dia tem que vir
+ * DEPOIS disso — mexer aqui sem mexer lá deixa a rodada esperando a execução
+ * do dia seguinte pra ser apurada.
+ */
+const BOT_QUIZ_MINUTOS = 30;
 
 function quizGarantirTabelas(PDO $pdo): void
 {
@@ -363,8 +369,10 @@ function quizAbrir(PDO $pdo, string $grupoPadrao): ?array
     $texto = "{$cabeca}\n\n{$p['texto']}\n\n"
            . "*1.* {$p['op1']}\n*2.* {$p['op2']}\n*3.* {$p['op3']}\n*4.* {$p['op4']}\n\n"
            . "{$regra}\n"
+           // A hora do fechamento, não "em 30 min": quem lê a mensagem às
+           // 10:47 quer saber que tem 13 minutos, e a conta é do texto fazer.
            . '_Vale ' . $premio . ' moedas no FBA Games · dá pra trocar o voto até fechar · '
-           . 'resultado em ' . intdiv(BOT_QUIZ_MINUTOS, 60) . "h._";
+           . 'resultado às ' . date('H:i', strtotime($fecha)) . '._';
 
     // Devolve o grupo junto: quem chama não sabia pra onde ia, porque quem
     // decide isso é a pergunta.

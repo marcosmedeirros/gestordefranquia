@@ -5,15 +5,17 @@
  * Agendar na Hostinger DUAS entradas, do mesmo jeito do abraço:
  *
  *   30 13 * * *   /usr/bin/php <caminho>/cron/quiz.php     abre a pergunta
- *   35 16 * * *   /usr/bin/php <caminho>/cron/quiz.php     apura e paga
+ *   5 14 * * *    /usr/bin/php <caminho>/cron/quiz.php     apura e paga
  *
  * As horas são UTC, que é o fuso do servidor da Hostinger: 13:30 lá são 10:30
- * em Brasília, e 16:35 são 13:35 — cinco minutos depois de a rodada vencer,
- * porque ela fica aberta três horas (BOT_QUIZ_MINUTOS).
+ * em Brasília, e 14:05 são 11:05 — cinco minutos depois de a rodada vencer,
+ * porque ela fica aberta meia hora (BOT_QUIZ_MINUTOS).
  *
- * São duas porque este mesmo script faz as duas coisas: abre de manhã e, três
- * horas depois, fecha a rodada e distribui as moedas. Uma execução só por dia
+ * São duas porque este mesmo script faz as duas coisas: abre às 10:30 e, meia
+ * hora depois, fecha a rodada e distribui as moedas. Uma execução só por dia
  * deixaria o resultado sair na manhã seguinte, junto com a pergunta nova.
+ *
+ * Mexeu em BOT_QUIZ_MINUTOS? A segunda entrada tem que andar junto.
  *
  * A ordem interna resolve as duas com o mesmo comando: ele primeiro apura o
  * que venceu, depois abre a do dia se ainda não abriu. Quem faz o quê é o
