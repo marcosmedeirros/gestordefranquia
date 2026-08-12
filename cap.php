@@ -456,7 +456,14 @@ const simRosters = { a: [], b: [] };
 async function simCarregarTimes() {
   const r = await fetch('/api/cap.php?action=teams');
   const d = await r.json();
-  if (!d.success) return;
+  // Falhar calado aqui deixava os dois selects vazios sem explicação nenhuma —
+  // a tela parecia quebrada e não havia como saber que a API tinha recusado.
+  if (!d.success) {
+    const aviso = `<option value="">${esc(d.error || 'Não deu pra carregar os times')}</option>`;
+    document.getElementById('simTeamA').innerHTML = aviso;
+    document.getElementById('simTeamB').innerHTML = aviso;
+    return;
+  }
   const opts = '<option value="">Selecione…</option>' +
     d.teams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
   document.getElementById('simTeamA').innerHTML = opts;

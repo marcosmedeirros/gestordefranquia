@@ -140,6 +140,31 @@ if ($myTeam) {
 }
 $isAdmin = hasAdminAccess($pdo, (int)$user['id']);
 
+// Simular é sempre liberado — montar e ver o impacto no cap não move jogador
+// nenhum. O que a janela fechada (ou o limite de trades gasto) barra é o
+// ENVIO, e api/trades.php já recusa no servidor. Aqui a informação aparece
+// antes de a pessoa montar a troca inteira: descobrir só no clique do envio,
+// depois de escolher jogador por jogador, é o pior lugar pra dar a notícia.
+$__tradesAbertas = true;
+$__maxTrades = 10;
+if ($myTeam) {
+    try {
+        $s = $pdo->prepare('SELECT max_trades, trades_enabled FROM league_settings WHERE league = ?');
+        $s->execute([$myTeam['league'] ?? '']);
+        if ($ls = $s->fetch(PDO::FETCH_ASSOC)) {
+            $__maxTrades = (int)($ls['max_trades'] ?? 10);
+            $__tradesAbertas = ((int)($ls['trades_enabled'] ?? 1)) === 1;
+        }
+    } catch (Exception $e) {}
+}
+// Mesma fonte que a trades.php lê (teams.trades_used). Contar as linhas da
+// tabela trades daria outro número e as duas telas se contradiriam.
+$__tradesFeitas = (int)($myTeam['trades_used'] ?? 0);
+$__podeEnviar = $__tradesAbertas && $__tradesFeitas < $__maxTrades;
+$__motivoBloqueio = $__tradesAbertas
+    ? ($__podeEnviar ? '' : "Você já fez {$__tradesFeitas} de {$__maxTrades} trocas da temporada. Dá pra simular à vontade, mas não dá mais pra enviar.")
+    : 'As trocas estão fechadas pela comissão. Dá pra simular à vontade — o envio volta quando reabrirem.';
+
 $pageTitle = 'Trade Machine';
 $pageSub   = $__salaryMode
     ? 'Monte a troca com até 7 times e veja o impacto na folha e no casamento salarial antes de enviar.'
@@ -297,6 +322,8 @@ body{overflow-x:hidden}
 
 /* Bottom bar */
 .sim-bottom{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;padding:14px 16px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm)}
+.aviso-envio{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px;padding:12px 14px;border-radius:var(--radius-sm);font-size:13px;line-height:1.5;color:var(--text);background:color-mix(in srgb, var(--amber) 10%, transparent);border:1px solid color-mix(in srgb, var(--amber) 25%, transparent)}
+.aviso-envio i{color:var(--amber);font-size:15px;line-height:1.4;flex:none}
 .validity-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .validity-badge.valid{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--green)}
 .validity-badge.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--amber)}
@@ -486,6 +513,13 @@ body{overflow-x:hidden}
 
   <div class="content">
 
+    <?php if (!$__podeEnviar): ?>
+    <div class="aviso-envio">
+      <i class="bi bi-info-circle-fill"></i>
+      <div><b>Simulação liberada, envio não.</b> <?= htmlspecialchars($__motivoBloqueio) ?></div>
+    </div>
+    <?php endif; ?>
+
     <!-- Panels -->
     <div class="sim-panels-wrap" id="panelsWrap"></div>
 
@@ -509,9 +543,15 @@ body{overflow-x:hidden}
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <a href="/trades.php" class="btn-r secondary sm" style="text-decoration:none"><i class="bi bi-arrow-left"></i>Voltar</a>
         <button class="btn-r secondary sm" id="copyTradeBtn" onclick="copyTrade()"><i class="bi bi-clipboard"></i>Copiar</button>
+        <?php if ($__podeEnviar): ?>
         <button class="btn-r primary lg" id="submitBtn" onclick="submitTrade()" disabled>
           <i class="bi bi-send-fill"></i>Enviar Proposta
         </button>
+        <?php else: ?>
+        <button class="btn-r primary lg" disabled title="<?= htmlspecialchars($__motivoBloqueio) ?>">
+          <i class="bi bi-lock-fill"></i>Envio fechado
+        </button>
+        <?php endif; ?>
       </div>
     </div>
 

@@ -57,12 +57,23 @@ if ($action === 'summary') {
     exit;
 }
 
-// As acoes de simulacao existem so dentro do preview do Salary Cap, que ainda
-// esta em avaliacao e escondido de toda a navegacao.
-if (in_array($action, ['teams', 'simulate_trade'], true) && !previewActive('cap')) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Indisponível']);
-    exit;
+// O simulador saiu do preview junto com a pagina — cap.php esta no menu da
+// ELITE e desenha o simulador para quem estiver em liga de salario. Este
+// portao ficou pra tras exigindo o token: a tela aparecia com os dois selects
+// vazios, porque action=teams respondia 403 e o JS so fazia `return`.
+//
+// Agora vale a mesma regra da pagina: liga em modo salario (ou preview).
+if (in_array($action, ['teams', 'simulate_trade'], true)) {
+    $stModo = $pdo->prepare("SELECT ls.cap_mode FROM teams t
+                             LEFT JOIN league_settings ls ON ls.league = t.league
+                             WHERE t.user_id = ? LIMIT 1");
+    $stModo->execute([$user['id']]);
+    $modoDoUsuario = $stModo->fetchColumn() ?: 'ovr_sum';
+    if ($modoDoUsuario !== 'salary' && !previewActive('cap')) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'O simulador vale só para ligas com Salary Cap.']);
+        exit;
+    }
 }
 
 // Times da ELITE, para escolher os dois lados da simulação de troca.

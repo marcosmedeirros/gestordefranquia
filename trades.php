@@ -460,23 +460,31 @@ try {
           // RISE não têm o novo cap, então mantêm as duas portas.
           $__showQuickTrade = in_array($team['league'] ?? '', ['NEXT', 'RISE'], true);
           ?>
-          <?php if ($tradesEnabled == 0): ?>
-            <button class="btn-r secondary" disabled><i class="bi bi-lock-fill"></i>Bloqueadas</button>
-          <?php elseif ($tradeCount >= $maxTrades): ?>
-            <?php if ($__showQuickTrade): ?>
-            <button class="btn-r secondary" disabled><i class="bi bi-lightning-fill"></i>Trade Rápida</button>
-            <?php endif; ?>
-            <button class="btn-r primary" disabled><i class="bi bi-sliders"></i>Trade Machine</button>
-          <?php else: ?>
-            <?php if ($__showQuickTrade): ?>
+          <?php
+          // A Trade Machine nunca fica bloqueada aqui. Montar e ver o impacto
+          // no cap é simulação — não move jogador nenhum. Quem barra é o envio,
+          // e isso o servidor já faz em api/trades.php (areTradesEnabled e o
+          // limite de trades), com mensagem explicando o motivo.
+          //
+          // O botão desabilitado só escondia a ferramenta de quem digitasse a
+          // URL: a página abria igual. A Trade Rápida continua bloqueada porque
+          // ela é um envio direto, sem tela de simulação no meio.
+          $__podeEnviar = $tradesEnabled != 0 && $tradeCount < $maxTrades;
+          ?>
+          <?php if ($__showQuickTrade): ?>
+            <?php if ($__podeEnviar): ?>
             <button class="btn-r secondary" data-bs-toggle="modal" data-bs-target="#proposeTradeModal">
               <i class="bi bi-lightning-fill"></i>Trade Rápida
             </button>
+            <?php else: ?>
+            <button class="btn-r secondary" disabled>
+              <i class="bi bi-lock-fill"></i><?= $tradesEnabled == 0 ? 'Bloqueadas' : 'Sem trades' ?>
+            </button>
             <?php endif; ?>
-            <a href="/trade-simulator.php" class="btn-r primary" style="text-decoration:none">
-              <i class="bi bi-sliders"></i>Trade Machine
-            </a>
           <?php endif; ?>
+          <a href="/trade-simulator.php" class="btn-r primary" style="text-decoration:none">
+            <i class="bi bi-sliders"></i>Trade Machine<?= $__podeEnviar ? '' : ' (simular)' ?>
+          </a>
         </div>
       </div>
 
