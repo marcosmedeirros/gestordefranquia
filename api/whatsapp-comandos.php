@@ -1214,16 +1214,6 @@ function wcPlacarPrevisto(float $distancia, bool $aFavorito): array
     $menor = 110 - intdiv($margem, 2);
     return $aFavorito ? [$maior, $menor] : [$menor, $maior];
 }
-/** O cara do time: maior OVR do elenco, com posição e idade. */
-function wcMelhorJogador(PDO $pdo, int $teamId): ?array
-{
-    $ovr = wcColunaOvr($pdo);
-    $st = $pdo->prepare("SELECT name, position, age, {$ovr} AS ovr FROM players
-                         WHERE team_id = ? ORDER BY {$ovr} DESC LIMIT 1");
-    $st->execute([$teamId]);
-    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
-}
-
 /**
  * Força do time pela mesma conta do power ranking do Mundo FBA: média e teto
  * de OVR do quinteto, com bônus de juventude e castigo de idade.
@@ -1351,16 +1341,53 @@ function wcConfronto(PDO $pdo, string $termo): string
           . $linha('Séries de playoff', $pA['series'], $pB['series'], $marca($pA['series'], $pB['series']), $marca($pB['series'], $pA['series']))
           . $linha('Melhor campanha', $pA['melhor'] ?: 'não foi', $pB['melhor'] ?: 'não foi');
 
-    // Uma linha por time: o formato do jogador já usa "|", e enfiar isso no
-    // lado a lado daria "94 | 25y  |  99 | 30y" — ilegível.
-    $craque = function (?array $p): string {
-        if (!$p) return '_sem elenco_';
-        $pos = strtoupper(trim((string)($p['position'] ?? ''))) ?: '--';
-        return "{$pos} {$p['name']} {$p['ovr']} | {$p['age']}y";
+    // ── Mano a mano: vaga por vaga do quinteto ──────────────────────────
+    //
+    // O quinteto é o mesmo que o /time mostra (wcQuintetoTitular), então o
+    // bot não inventa uma escalação diferente da que o GM vê no comando dele.
+    //
+    // Os OVRs ficam colados no separador — lado A com o número depois do
+    // nome, lado B com o número antes — porque a comparação é entre eles, e
+    // ler dois números grudados é mais rápido que caçá-los nas pontas.
+    $ovrCol = wcColunaOvr($pdo);
+    $elencoDe = function (int $id) use ($pdo, $ovrCol): array {
+        $st = $pdo->prepare("SELECT name, position, secondary_position, role, age, {$ovrCol} AS ovr
+                             FROM players WHERE team_id = ? ORDER BY {$ovrCol} DESC");
+        $st->execute([$id]);
+        return $st->fetchAll(PDO::FETCH_ASSOC);
     };
-    $txt .= "\n⭐ *Melhor jogador*\n"
-          . "{$nomeA}: " . $craque(wcMelhorJogador($pdo, (int)$a['id'])) . "\n"
-          . "{$nomeB}: " . $craque(wcMelhorJogador($pdo, (int)$b['id'])) . "\n";
+    $elencoA = $elencoDe((int)$a['id']);
+    $elencoB = $elencoDe((int)$b['id']);
+    $qA = wcQuintetoTitular($elencoA);
+    $qB = wcQuintetoTitular($elencoB);
+
+    $txt .= "\n🆚 *Mano a mano*\n";
+    $vitA = 0; $vitB = 0;
+    foreach ($qA as $vaga => $pa) {
+        $pb = $qB[$vaga] ?? null;
+        if (!$pa && !$pb) continue;
+
+        $oa = $pa ? (int)$pa['ovr'] : null;
+        $ob = $pb ? (int)$pb['ovr'] : null;
+        if ($oa !== null && $ob !== null) {
+            if ($oa > $ob) $vitA++;
+            elseif ($ob > $oa) $vitB++;
+        }
+        $okA = ($oa !== null && $ob !== null && $oa > $ob) ? ' ✅' : '';
+        $okB = ($oa !== null && $ob !== null && $ob > $oa) ? '✅ ' : '';
+
+        $txt .= "{$vaga}: "
+             . ($pa ? wcNomeCurto((string)$pa['name']) . " {$oa}{$okA}" : '_vazio_')
+             . '  |  '
+             . ($pb ? "{$okB}{$ob} " . wcNomeCurto((string)$pb['name']) : '_vazio_')
+             . "\n";
+    }
+    if ($vitA || $vitB) {
+        $txt .= $vitA === $vitB
+            ? "_Empate no quinteto: {$vitA} a {$vitB}._\n"
+            : '_Quinteto: ' . max($vitA, $vitB) . ' a ' . min($vitA, $vitB)
+              . ' pro ' . ($vitA > $vitB ? $nomeA : $nomeB) . "._\n";
+    }
 
     // ── Confronto de verdade: séries de playoff entre os dois ────────────
     $duelo = playoffSeriesEntre($pdo, (int)$a['id'], (int)$b['id']);
@@ -1417,17 +1444,11 @@ function wcConfronto(PDO $pdo, string $termo): string
     }
 
     // O palpite fecha a mensagem. É o motivo de alguém pedir /confronto: o
-    // resto é consulta, isto é conversa.
-    $ovrCol = wcColunaOvr($pdo);
-    $elencoDe = function (int $id) use ($pdo, $ovrCol): array {
-        $st = $pdo->prepare("SELECT name, position, secondary_position, role, age, {$ovrCol} AS ovr
-                             FROM players WHERE team_id = ? ORDER BY {$ovrCol} DESC");
-        $st->execute([$id]);
-        return $st->fetchAll(PDO::FETCH_ASSOC);
-    };
+    // resto é consulta, isto é conversa. Os elencos já vieram pro mano a
+    // mano — buscar de novo seriam duas consultas iguais na mesma resposta.
     $txt .= wcPalpite($nomeA, $nomeB,
-                      wcForcaDoTime($elencoDe((int)$a['id'])),
-                      wcForcaDoTime($elencoDe((int)$b['id'])),
+                      wcForcaDoTime($elencoA),
+                      wcForcaDoTime($elencoB),
                       $duelo, $h);
 
     return $txt;
