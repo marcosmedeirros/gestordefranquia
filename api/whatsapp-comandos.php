@@ -1480,27 +1480,68 @@ function wcLendas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
     return rtrim($txt);
 }
 
+/**
+ * O Hall da Fama é de GM, não de time — e por isso vinha faltando gente.
+ *
+ * A consulta daqui filtrava is_active = 1, que na hall_of_fame não quer dizer
+ * "registro válido": separa a linha do time atual do GM (com liga e nome de
+ * time) das linhas históricas dele (sem liga e sem time, só nome e títulos).
+ * Com o filtro, os 24 campeões históricos sumiam — inclusive quem tem mais
+ * títulos na FBA inteira. Filtrar por liga junto piorava: linha histórica tem
+ * liga nula e nunca casaria.
+ *
+ * Agora usa getHallOfFameGrouped() de backend/helpers.php, o mesmo que o
+ * admin já usa: junta as linhas do mesmo GM e soma os títulos. Uma conta só
+ * pra todo o sistema, em vez de duas que discordam.
+ *
+ * Sem argumento mostra a FBA inteira, mesmo em grupo de liga: título histórico
+ * não tem liga, e limitar pela liga do grupo traria de volta o problema exato
+ * que este comando estava tendo.
+ */
 function wcHall(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 {
-    $liga = $termo !== '' ? wcNormalizarLiga($termo) : $ligaDoGrupo;
-    $filtro = $liga ? ' AND league = ?' : '';
+    $liga = $termo !== '' ? wcNormalizarLiga($termo) : null;
+    if ($termo !== '' && !$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
 
-    $st = $pdo->prepare("
-        SELECT team_name, gm_name, titles, league FROM hall_of_fame
-        WHERE is_active = 1 {$filtro}
-        ORDER BY titles DESC, team_name ASC LIMIT 25
-    ");
-    $st->execute($liga ? [$liga] : []);
-    $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
+    // getHallOfFameGrouped lê hof.user_id, coluna que a migração pode não ter
+    // criado ainda (ela tem throttle). O admin chama isto antes pelo mesmo
+    // motivo — sem a chamada, o comando morre com "Unknown column".
+    ensureHallOfFameTable($pdo);
+    $grupos = getHallOfFameGrouped($pdo);
 
-    if (!$linhas) return 'O Hall da Fama' . ($liga ? " da {$liga}" : '') . ' está vazio.';
+    if ($liga) {
+        // Filtrando por liga, valem só os títulos ganhos nela.
+        $grupos = array_values(array_filter(array_map(function (array $g) use ($liga): ?array {
+            $n = (int)($g['leagues'][$liga] ?? 0);
+            if ($n <= 0) return null;
+            $g['total_titles'] = $n;
+            return $g;
+        }, $grupos)));
+    }
+
+    // Reordena por título, e não pelo weighted_score que vem de lá.
+    //
+    // O peso serve pro admin, que compara título da ELITE com título da
+    // ROOKIE. Aqui ele atrapalha duas vezes: a lista sai fora de ordem pro
+    // leitor (10 títulos aparecendo antes de 12) e, pior, título histórico
+    // tem liga nula, peso 0 — os campeões antigos afundavam pro fim da lista
+    // e não entravam no corte. Era o mesmo sumiço, por outro caminho.
+    usort($grupos, function (array $a, array $b): int {
+        return (int)$b['total_titles'] <=> (int)$a['total_titles']
+            ?: strcasecmp((string)$a['gm_name'], (string)$b['gm_name']);
+    });
+    $grupos = array_slice($grupos, 0, 25);
+
+    if (!$grupos) return 'O Hall da Fama' . ($liga ? " da {$liga}" : '') . ' está vazio.';
 
     $txt = '🏛️ *Hall da Fama' . ($liga ? " — {$liga}" : '') . "*\n\n";
-    foreach ($linhas as $i => $l) {
-        $txt .= ($i + 1) . '. *' . $l['team_name'] . '*'
-              . ($l['gm_name'] ? ' — ' . $l['gm_name'] : '')
-              . ' — ' . (int)$l['titles'] . ' título' . ((int)$l['titles'] === 1 ? '' : 's')
-              . ($liga ? '' : ' _' . $l['league'] . '_') . "\n";
+    foreach ($grupos as $i => $g) {
+        $n = (int)$g['total_titles'];
+        $nome = trim((string)$g['gm_name']) ?: (string)($g['teams'][0] ?? 'GM sem nome');
+        // O time só entra quando o GM ainda está em atividade; nas linhas
+        // históricas ele não existe, e inventar um confundiria.
+        $time = $g['is_active'] && !empty($g['teams']) ? ' (' . end($g['teams']) . ')' : '';
+        $txt .= ($i + 1) . ". *{$nome}*{$time} — {$n} título" . ($n === 1 ? '' : 's') . "\n";
     }
     return rtrim($txt);
 }
