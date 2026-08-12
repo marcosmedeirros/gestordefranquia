@@ -1763,6 +1763,46 @@ function runMigrations() {
         $errors[] = "tatica_ativa_backfill: " . $e->getMessage();
     }
 
+    // Telefone sem o codigo do pais.
+    //
+    // O bot marca a pessoa no grupo mandando o numero pro WhatsApp. Se faltar o
+    // DDI, o WhatsApp le os digitos errado e nao acha ninguem — a mencao vira
+    // texto solto. Era o caso de quem tinha 11 digitos comecando em 55: o
+    // normalizeBrazilianPhone via o "55" e achava que ja era o pais, mas 55
+    // tambem e o DDD de Santa Maria/RS, e 11 digitos no Brasil sao sempre
+    // DDD + celular. A regra ja foi corrigida em backend/helpers.php; isto aqui
+    // conserta o que ja estava gravado.
+    //
+    // So mexe onde a correcao e certa: acrescenta o 55 e confere se o resultado
+    // passa em whatsappNumeroUsavel(). Numero que continua invalido depois
+    // disso esta quebrado de outro jeito (DDD que nao existe, digito a mais,
+    // celular sem o 9) e nao da pra adivinhar — fica como esta, marcado em
+    // vermelho na Gestao pra alguem corrigir na mao. Chutar digito num numero
+    // de telefone e pior que deixar quebrado: manda mensagem pra estranho.
+    try {
+        $temColuna = $pdo->query("SHOW COLUMNS FROM users LIKE 'phone'")->fetch();
+        if ($temColuna) {
+            $st = $pdo->query("SELECT id, phone FROM users WHERE phone IS NOT NULL AND phone <> ''");
+            $upd = $pdo->prepare("UPDATE users SET phone = ? WHERE id = ?");
+            $corrigidos = 0;
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $u) {
+                $atual = preg_replace('/\D+/', '', (string)$u['phone']);
+                if ($atual === '' || strlen($atual) > 11) continue;   // ja tem pais
+                if (whatsappNumeroUsavel($atual)['ok']) continue;      // ja serve
+
+                $tentativa = '55' . $atual;
+                $v = whatsappNumeroUsavel($tentativa);
+                if ($v['ok'] && empty($v['motivo'])) {
+                    $upd->execute([$tentativa, (int)$u['id']]);
+                    $corrigidos++;
+                }
+            }
+            if ($corrigidos > 0) error_log("[migracao] telefone_com_ddi: $corrigidos corrigido(s)");
+        }
+    } catch (Throwable $e) {
+        $errors[] = "telefone_com_ddi: " . $e->getMessage();
+    }
+
     // Views do ranking do Admin > Temporadas. api/seasons.php sempre leu delas,
     // mas elas nunca existiram no banco — as tres acoes (ranking por liga,
     // ranking geral e historico de campeoes) morriam em "Erro interno do

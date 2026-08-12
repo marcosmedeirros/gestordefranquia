@@ -243,8 +243,12 @@ if ($method === 'GET') {
                 $stmtAL->execute([$row['id']]);
                 $row['admin_leagues'] = $stmtAL->fetchAll(PDO::FETCH_COLUMN);
                 // O número é guardado só em dígitos (5511987654321) porque é
-                // assim que o bot casa a menção. Na tela ele vai formatado.
+                // assim que o bot casa a menção. Na tela ele vai formatado,
+                // com o veredito de se o WhatsApp consegue reconhecer.
                 $row['phone_formatado'] = formatBrazilianPhone($row['phone'] ?? null);
+                $row['phone_check'] = !empty($row['phone'])
+                    ? whatsappNumeroUsavel($row['phone'])
+                    : null;
             }
             unset($row);
 

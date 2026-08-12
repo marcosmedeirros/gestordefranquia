@@ -1180,7 +1180,13 @@ function normalizeBrazilianPhone(?string $input): ?string
         return null;
     }
 
-    $hasCountryCode = str_starts_with($digits, '55') || strlen($digits) > 11;
+    // Só é código de país se o TAMANHO comportar. "55" na frente sozinho não
+    // basta: 55 também é o DDD de Santa Maria/RS, e um número de 11 dígitos no
+    // Brasil é sempre DDD (2) + celular (9) — nunca DDI + local, que precisaria
+    // de 12 ou 13. Era por isso que 55997164253 ficava sem o DDI e o WhatsApp
+    // não reconhecia: ele lia 55 + 997164253, nove dígitos, número que não
+    // existe. O certo é 5555997164253.
+    $hasCountryCode = strlen($digits) > 11 || (str_starts_with($digits, '55') && strlen($digits) >= 12);
 
     if (!$hasCountryCode) {
         $digits = '55' . $digits;
@@ -1190,6 +1196,76 @@ function normalizeBrazilianPhone(?string $input): ?string
     }
 
     return $digits;
+}
+
+/**
+ * O bot consegue marcar essa pessoa no grupo?
+ *
+ * O WhatsApp só reconhece o número no formato completo (DDI + DDD + linha).
+ * Quando falta pedaço, a menção sai como texto solto e ninguém é etiquetado —
+ * foi o que aconteceu com um GM cujo número tinha 11 dígitos começando em 55:
+ * o WhatsApp leu como DDI 55 + 997164253 e não achou ninguém.
+ *
+ * Isto é conferência de FORMA, não de existência: só quem sabe se a conta
+ * existe é o WhatsApp. Mas número mal formado nunca funciona, e é o que
+ * explica todos os casos que apareceram até agora.
+ *
+ * Devolve ['ok' => bool, 'motivo' => ?string, 'sugestao' => ?string].
+ */
+function whatsappNumeroUsavel(?string $phone): array
+{
+    $d = preg_replace('/\D+/', '', (string)$phone);
+    if ($d === '') return ['ok' => false, 'motivo' => 'Sem número cadastrado.', 'sugestao' => null];
+
+    // Tamanho vem ANTES do prefixo. Um número com 10 ou 11 dígitos é local
+    // brasileiro (DDD + linha) e está sem o país — vale tanto pro 55997164253
+    // quanto pro 11992017031. Testar o prefixo primeiro fazia o segundo virar
+    // "internacional +11", país que não existe, e ele passava batido.
+    if (strlen($d) <= 11) {
+        // Só sugere o conserto se o conserto der um número válido. Palpite que
+        // continua quebrado é pior que nenhum: quem clica confia.
+        $tentativa = '55' . $d;
+        $valida = whatsappNumeroUsavel($tentativa);
+        return ['ok' => false,
+                'motivo' => 'Falta o código do país. Estes ' . strlen($d) . ' dígitos são DDD + linha.',
+                'sugestao' => $valida['ok'] && !$valida['motivo'] ? $tentativa : null];
+    }
+
+    // Fora do Brasil, o app não tem como validar DDD nem tamanho de linha —
+    // aceita e não inventa regra que não conhece.
+    if (!str_starts_with($d, '55')) {
+        return ['ok' => true, 'motivo' => 'Número internacional (+' . substr($d, 0, 2) . ').', 'sugestao' => null];
+    }
+
+    $local = substr($d, 2);                       // sem o DDI
+    $ddd   = (int)substr($local, 0, 2);
+    $linha = substr($local, 2);
+
+    // A lista de verdade, não "entre 11 e 99": vários números aqui têm DDD 40 e
+    // 58, que não existem, e sem a lista o aviso saía culpando o dígito errado.
+    static $DDDS = [
+        11,12,13,14,15,16,17,18,19,          21,22,24,  27,28,
+        31,32,33,34,35,37,38,                41,42,43,44,45,46,47,48,49,
+        51,53,54,55,                         61,62,63,64,65,66,67,68,69,
+        71,73,74,75,77,79,                   81,82,83,84,85,86,87,88,89,
+        91,92,93,94,95,96,97,98,99,
+    ];
+    if (!in_array($ddd, $DDDS, true)) {
+        return ['ok' => false, 'motivo' => "DDD {$ddd} não existe no Brasil.", 'sugestao' => null];
+    }
+    if (strlen($linha) === 9) {
+        return $linha[0] === '9'
+            ? ['ok' => true, 'motivo' => null, 'sugestao' => null]
+            : ['ok' => false, 'motivo' => 'Celular de 9 dígitos tem que começar com 9.', 'sugestao' => null];
+    }
+    if (strlen($linha) === 8) {
+        // Fixo funciona no WhatsApp Business; celular antigo de 8 dígitos não
+        // existe mais desde o nono dígito, então vale avisar.
+        return ['ok' => true, 'motivo' => 'Número de 8 dígitos (fixo). Se for celular, falta o 9.', 'sugestao' => null];
+    }
+    return ['ok' => false,
+            'motivo' => 'Tem ' . strlen($d) . ' dígitos — o esperado é 13 (55 + DDD + 9 dígitos).',
+            'sugestao' => null];
 }
 
 function formatBrazilianPhone(?string $phone): ?string

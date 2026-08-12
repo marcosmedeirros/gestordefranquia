@@ -518,6 +518,34 @@ async function aoBuscarGestao() {
   renderGestaoTable(todos.filter(bate), termo);
 }
 
+/**
+ * O selo de WhatsApp na linha do GM: verde quando o bot consegue marcar a
+ * pessoa, vermelho quando não.
+ *
+ * O veredito vem do servidor (whatsappNumeroUsavel), não daqui — é a mesma
+ * regra que decide se a menção sai etiquetada ou vira texto solto no grupo.
+ * É conferência de FORMA: só o WhatsApp sabe se a conta existe, mas número
+ * mal formado nunca funciona, e foi o que explicou todos os casos até agora.
+ */
+function selo(u) {
+  if (!u.phone_formatado) {
+    return '<span style="opacity:.55"><i class="bi bi-whatsapp"></i> sem número</span>';
+  }
+  const c = u.phone_check || {};
+  const num = escapeHtml(u.phone_formatado);
+  if (c.ok && !c.motivo) {
+    return `<i class="bi bi-whatsapp" style="color:#25d366"></i> ${num}
+      <i class="bi bi-check-circle-fill" style="color:#25d366;margin-left:3px" title="O bot consegue marcar esta pessoa no grupo."></i>`;
+  }
+  const cor = c.ok ? 'var(--amber, #f59e0b)' : '#ef4444';
+  const icone = c.ok ? 'exclamation-triangle-fill' : 'x-circle-fill';
+  const dica = escapeHtml((c.motivo || 'Número que o WhatsApp não reconhece.')
+    + (c.sugestao ? ` O correto provavelmente é ${c.sugestao}.` : ''));
+  return `<i class="bi bi-whatsapp" style="color:${cor}"></i>
+    <span style="color:${cor}">${num}</span>
+    <i class="bi bi-${icone}" style="color:${cor};margin-left:3px" title="${dica}"></i>`;
+}
+
 function renderGestaoTable(users, termoBusca) {
   const container = document.getElementById('gestaoTableContainer');
   if (!users.length) {
@@ -557,10 +585,7 @@ function renderGestaoTable(users, termoBusca) {
                 ? ` <span style="font-size:9.5px;font-weight:800;letter-spacing:.5px;padding:2px 6px;border-radius:999px;background:var(--panel-3);color:var(--text-2);border:1px solid var(--border);vertical-align:middle">${escapeHtml(u._liga)}</span>`
                 : ''}</div>
             <div style="font-size:11px;color:var(--text-3)">${escapeHtml(u.email)}</div>
-            <div style="font-size:11px;color:var(--text-3)">${
-              u.phone_formatado
-                ? `<i class="bi bi-whatsapp" style="color:#25d366"></i> ${escapeHtml(u.phone_formatado)}`
-                : '<span style="opacity:.6"><i class="bi bi-whatsapp"></i> sem número</span>'}</div>
+            <div style="font-size:11px;color:var(--text-3)">${selo(u)}</div>
           </div>
         </td>
         <td data-label="Time">
@@ -701,9 +726,18 @@ function openGestaoEdit(userId) {
                 <label class="form-label text-light-gray">Telefone</label>
                 <input type="tel" id="gedit-phone" class="form-control" placeholder="(11) 98765-4321"
                        value="${escapeHtml(u.phone_formatado || '')}">
-                <div style="font-size:11px;color:var(--text-3);margin-top:4px">
-                  ${u.phone ? 'É por aqui que o bot marca a pessoa no grupo.' : 'Sem número: o bot cita o nome sem marcar.'}
-                </div>
+                <div style="font-size:11px;margin-top:4px" id="gedit-phone-aviso">${(() => {
+                  if (!u.phone) return '<span style="color:var(--text-3)">Sem número: o bot cita o nome sem marcar.</span>';
+                  const c = u.phone_check || {};
+                  if (c.ok && !c.motivo) return '<span style="color:#25d366"><i class="bi bi-check-circle-fill"></i> O bot consegue marcar no grupo.</span>';
+                  const cor = c.ok ? 'var(--amber, #f59e0b)' : '#ef4444';
+                  // O botão de aplicar só aparece quando o servidor tem certeza
+                  // do conserto — palpite que continua quebrado é pior que nada.
+                  const fix = c.sugestao
+                    ? ` <a href="#" onclick="aplicarSugestaoFone('${c.sugestao}');return false" style="color:${cor};text-decoration:underline">usar ${escapeHtml(c.sugestao)}</a>`
+                    : '';
+                  return `<span style="color:${cor}"><i class="bi bi-exclamation-triangle-fill"></i> ${escapeHtml(c.motivo || '')}</span>${fix}`;
+                })()}</div>
               </div>
             </div>
             <div class="mb-3">
@@ -749,6 +783,16 @@ function openGestaoEdit(userId) {
   const modal = new bootstrap.Modal(document.getElementById('gestaoEditModal'));
   modal.show();
   document.getElementById('gestaoEditModal').addEventListener('hidden.bs.modal', function() { this.remove(); });
+}
+
+/** Joga o número sugerido no campo. Só salva quando o admin clicar em Salvar. */
+function aplicarSugestaoFone(numero) {
+  const campo = document.getElementById('gedit-phone');
+  if (!campo) return;
+  campo.value = numero;
+  campo.focus();
+  const aviso = document.getElementById('gedit-phone-aviso');
+  if (aviso) aviso.innerHTML = '<span style="color:var(--text-3)">Clique em Salvar para gravar.</span>';
 }
 
 function onGestaoPhotoChange(input) {
