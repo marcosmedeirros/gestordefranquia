@@ -1161,14 +1161,23 @@ function normalizeBrazilianPhone(?string $input): ?string
         return null;
     }
 
+    // O "+" é a única coisa que diz, sem ambiguidade, "este número já tem o
+    // código do país". Sem olhar pra ele, +40 754 944 065 (Romênia) tem onze
+    // dígitos e é indistinguível de um celular brasileiro sem DDI — e virava
+    // 5540754944065, que não existe. Aconteceu com três GMs: um romeno, um
+    // americano e um português, todos com 55 grudado na frente pelo sistema.
+    $internacionalExplicito = str_starts_with(ltrim((string)$input), '+');
+
     $digits = preg_replace('/\D+/', '', $input);
     if ($digits === '') {
         return null;
     }
 
-    // Remove prefix "00" usado em discagem internacional
+    // Remove prefix "00" usado em discagem internacional — mesma intenção do
+    // "+", só que na forma que se disca do telefone.
     if (str_starts_with($digits, '00')) {
         $digits = substr($digits, 2);
+        $internacionalExplicito = true;
     }
 
     $maxLength = 15; // E.164
@@ -1186,7 +1195,14 @@ function normalizeBrazilianPhone(?string $input): ?string
     // de 12 ou 13. Era por isso que 55997164253 ficava sem o DDI e o WhatsApp
     // não reconhecia: ele lia 55 + 997164253, nove dígitos, número que não
     // existe. O certo é 5555997164253.
-    $hasCountryCode = strlen($digits) > 11 || (str_starts_with($digits, '55') && strlen($digits) >= 12);
+    // Acrescenta o 55 SÓ quando o que veio lê como número brasileiro sem país.
+    // Antes bastava ter 10 ou 11 dígitos, e por isso +40 754 944 065 (Romênia)
+    // e +1 216 983-9569 (EUA) viraram 5540754944065 e 5512169839569 — números
+    // que não existem, de GMs que nunca receberam nada do bot.
+    $hasCountryCode = $internacionalExplicito
+        || strlen($digits) > 11
+        || (str_starts_with($digits, '55') && strlen($digits) >= 12)
+        || !telefoneEhLocalBrasileiro($digits);
 
     if (!$hasCountryCode) {
         $digits = '55' . $digits;
@@ -1196,6 +1212,45 @@ function normalizeBrazilianPhone(?string $input): ?string
     }
 
     return $digits;
+}
+
+/** Os DDDs que existem de verdade. Não é "entre 11 e 99": 40, 58 e outros não existem. */
+function telefoneDDDs(): array
+{
+    return [
+        11,12,13,14,15,16,17,18,19,          21,22,24,  27,28,
+        31,32,33,34,35,37,38,                41,42,43,44,45,46,47,48,49,
+        51,53,54,55,                         61,62,63,64,65,66,67,68,69,
+        71,73,74,75,77,79,                   81,82,83,84,85,86,87,88,89,
+        91,92,93,94,95,96,97,98,99,
+    ];
+}
+
+/**
+ * Estes 10 ou 11 dígitos são um número brasileiro sem o código do país?
+ *
+ * A pergunta parece boba mas é o coração do problema. "11 dígitos = brasileiro
+ * sem DDI" era a regra antiga, e ela quebrou três GMs de uma vez: +40 754 944
+ * 065 (Romênia) e +1 216 983-9569 (EUA) também têm 11 dígitos, e ganharam um 55
+ * na frente que os destruiu.
+ *
+ * O critério que funciona é ler como brasileiro e ver se faz sentido: DDD que
+ * existe e linha no formato certo. O romeno começa com 40, que não é DDD. O
+ * americano começa com 12, que é DDD válido, mas aí a linha seria 169839569 —
+ * celular tem que começar com 9. Os dois caem fora, e é o que se quer.
+ */
+function telefoneEhLocalBrasileiro(string $digitos): bool
+{
+    $n = strlen($digitos);
+    if ($n !== 10 && $n !== 11) return false;
+    if (!in_array((int)substr($digitos, 0, 2), telefoneDDDs(), true)) return false;
+
+    $linha = substr($digitos, 2);
+    // Celular tem 9 dígitos e começa com 9. Fixo tem 8 e começa com 2 a 5 —
+    // 8 dígitos começando em 6-9 é celular velho, que também é local daqui.
+    return strlen($linha) === 9
+        ? $linha[0] === '9'
+        : in_array($linha[0], ['2','3','4','5','6','7','8','9'], true);
 }
 
 /**
@@ -1217,11 +1272,9 @@ function whatsappNumeroUsavel(?string $phone): array
     $d = preg_replace('/\D+/', '', (string)$phone);
     if ($d === '') return ['ok' => false, 'motivo' => 'Sem número cadastrado.', 'sugestao' => null];
 
-    // Tamanho vem ANTES do prefixo. Um número com 10 ou 11 dígitos é local
-    // brasileiro (DDD + linha) e está sem o país — vale tanto pro 55997164253
-    // quanto pro 11992017031. Testar o prefixo primeiro fazia o segundo virar
-    // "internacional +11", país que não existe, e ele passava batido.
-    if (strlen($d) <= 11) {
+    // Curto E lendo como brasileiro: falta o país. Se não lê como brasileiro,
+    // é estrangeiro com código de país curto (+1, +40) e está completo.
+    if (strlen($d) <= 11 && telefoneEhLocalBrasileiro($d)) {
         // Só sugere o conserto se o conserto der um número válido. Palpite que
         // continua quebrado é pior que nenhum: quem clica confia.
         $tentativa = '55' . $d;
@@ -1251,16 +1304,7 @@ function whatsappNumeroUsavel(?string $phone): array
     $ddd   = (int)substr($local, 0, 2);
     $linha = substr($local, 2);
 
-    // A lista de verdade, não "entre 11 e 99": vários números aqui têm DDD 40 e
-    // 58, que não existem, e sem a lista o aviso saía culpando o dígito errado.
-    static $DDDS = [
-        11,12,13,14,15,16,17,18,19,          21,22,24,  27,28,
-        31,32,33,34,35,37,38,                41,42,43,44,45,46,47,48,49,
-        51,53,54,55,                         61,62,63,64,65,66,67,68,69,
-        71,73,74,75,77,79,                   81,82,83,84,85,86,87,88,89,
-        91,92,93,94,95,96,97,98,99,
-    ];
-    if (!in_array($ddd, $DDDS, true)) {
+    if (!in_array($ddd, telefoneDDDs(), true)) {
         return ['ok' => false, 'motivo' => "DDD {$ddd} não existe no Brasil.", 'sugestao' => null];
     }
     if (strlen($linha) === 9) {
@@ -1281,7 +1325,9 @@ function whatsappNumeroUsavel(?string $phone): array
                     'motivo' => 'Celular sem o 9º dígito (formato antigo).',
                     'sugestao' => $valida['ok'] && !$valida['motivo'] ? $comNono : null];
         }
-        return ['ok' => true, 'motivo' => 'Número fixo de 8 dígitos.', 'sugestao' => null];
+        // Fixo válido não tem o que consertar — verde. Avisar "isto é um fixo"
+        // toda vez seria âmbar eterno sem ação possível, ou seja, ruído.
+        return ['ok' => true, 'motivo' => null, 'sugestao' => null];
     }
     return ['ok' => false,
             'motivo' => 'Tem ' . strlen($d) . ' dígitos — o esperado é 13 (55 + DDD + 9 dígitos).',
