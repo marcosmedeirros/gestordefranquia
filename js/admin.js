@@ -486,7 +486,19 @@ ${(e.ultimas || []).length ? `
               <div style="font-weight:600">${escapeHtml(p.texto)}</div>
               <div style="font-size:11px;color:var(--text-3)">${[1,2,3,4].map(i =>
                 `${Number(p.correta)===i?'<b style="color:#22c55e">':''}${i}. ${escapeHtml(p['op'+i])}${Number(p.correta)===i?'</b>':''}`).join(' · ')}</div>
-              ${p.usada_em ? `<div style="font-size:10.5px;color:var(--text-3);margin-top:2px">já foi ao ar em ${escapeHtml(String(p.usada_em).slice(0,10).split('-').reverse().join('/'))}</div>` : ''}
+              ${(() => {
+                // Só marca o que FOGE do padrão — repetir "grupo principal ·
+                // 100 moedas" em 188 linhas viraria ruído.
+                const marcas = [];
+                if (p.grupo_jid) {
+                  const g = (window._quizGrupos || []).find(x => x.jid === p.grupo_jid);
+                  marcas.push('<i class="bi bi-people-fill"></i> ' + escapeHtml(g ? g.nome : p.grupo_jid));
+                }
+                if (p.premio) marcas.push('<i class="bi bi-coin"></i> ' + p.premio);
+                if (p.usada_em) marcas.push('foi ao ar em ' + escapeHtml(String(p.usada_em).slice(0,10).split('-').reverse().join('/')));
+                return marcas.length
+                  ? `<div style="font-size:10.5px;color:var(--text-3);margin-top:3px">${marcas.join(' · ')}</div>` : '';
+              })()}
             </td>
             <td style="font-size:11.5px;color:var(--text-2)">${escapeHtml(p.categoria || '—')}</td>
             <td style="text-align:right;white-space:nowrap">
@@ -501,8 +513,10 @@ ${(e.ultimas || []).length ? `
   </div>
 </div>`;
 
-  // Guarda as perguntas pro modal de edição não precisar buscar de novo.
+  // Guarda o que o modal precisa, pra ele não ter que buscar de novo.
   window._quizCache = perguntas;
+  window._quizGrupos = e.grupos || [];
+  window._quizPremioPadrao = e.premio;
 }
 
 async function _quizAcao(acao, confirmar, corpo) {
@@ -569,6 +583,26 @@ function _quizEditar(id) {
             <input type="text" id="_qExp" class="form-control form-control-sm" maxlength="300" value="${escapeHtml(p?.explicacao || '')}" placeholder="Opcional">
           </div>
         </div>
+
+        <div class="row g-2 mt-2">
+          <div class="col-7">
+            <label class="form-label text-light-gray">Grupo</label>
+            <select id="_qGrupo" class="form-select form-select-sm">
+              <option value="">Padrão — grupo principal</option>
+              ${(window._quizGrupos || []).map(g =>
+                `<option value="${escapeHtml(g.jid)}" ${p?.grupo_jid === g.jid ? 'selected' : ''}>
+                   ${escapeHtml(g.nome)}${g.liga ? ' · ' + escapeHtml(g.liga) : ''}</option>`).join('')}
+            </select>
+          </div>
+          <div class="col-5">
+            <label class="form-label text-light-gray">Moedas</label>
+            <input type="number" id="_qPremio" class="form-control form-control-sm" min="0" max="100000"
+                   value="${p?.premio || ''}" placeholder="Padrão: ${window._quizPremioPadrao || 100}">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:6px">
+          Deixar em branco usa o padrão. Assim, mudando o padrão um dia, estas perguntas acompanham.
+        </div>
       </div>
       <div class="d-flex gap-2 justify-content-end" style="padding:0 18px 18px">
         <button class="btn-ghost" onclick="document.getElementById('_quizModal').remove()">Cancelar</button>
@@ -597,6 +631,8 @@ async function _quizSalvar() {
     opcoes: [1,2,3,4].map(i => document.getElementById('_qOp'+i).value.trim()),
     categoria: document.getElementById('_qCat').value.trim(),
     explicacao: document.getElementById('_qExp').value.trim(),
+    grupo_jid: document.getElementById('_qGrupo').value,
+    premio: Number(document.getElementById('_qPremio').value) || 0,
     correta: tipo === 'certa' ? Number(document.querySelector('input[name="_qCorreta"]:checked')?.value || 0) : null,
   };
   try {

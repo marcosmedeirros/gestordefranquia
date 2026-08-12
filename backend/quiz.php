@@ -40,12 +40,25 @@ function quizGarantirTabelas(PDO $pdo): void
         -- 1 a 4 nas de resposta certa; NULL nas de voto.
         correta TINYINT NULL,
         explicacao VARCHAR(300) NULL,
+        -- Vazios = o padrão (grupo principal, QUIZ_PREMIO). Guardar NULL em vez
+        -- de copiar o padrão faz a pergunta acompanhar quando o padrão mudar,
+        -- em vez de ficar presa ao valor do dia em que foi escrita.
+        grupo_jid VARCHAR(120) NULL,
+        premio INT NULL,
         criada_por INT NULL,
         ativa TINYINT(1) NOT NULL DEFAULT 1,
         usada_em DATETIME NULL,
         criada_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_qp_uso (ativa, usada_em)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // Colunas que nasceram depois: a tabela pode já existir sem elas.
+    foreach (['grupo_jid' => "VARCHAR(120) NULL AFTER explicacao",
+              'premio'    => "INT NULL AFTER grupo_jid"] as $col => $tipo) {
+        if (!$pdo->query("SHOW COLUMNS FROM quiz_perguntas LIKE '$col'")->fetch()) {
+            $pdo->exec("ALTER TABLE quiz_perguntas ADD COLUMN $col $tipo");
+        }
+    }
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS quiz_rodadas (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -55,6 +68,9 @@ function quizGarantirTabelas(PDO $pdo): void
         fecha_em DATETIME NOT NULL,
         fechada_em DATETIME NULL,
         vencedora TINYINT NULL,
+        -- Congelado na abertura: se alguém mudar o prêmio da pergunta no meio
+        -- da rodada, paga o que foi anunciado no grupo, não o novo.
+        premio INT NOT NULL DEFAULT 100,
         -- Uma rodada aberta por grupo. O UNIQUE nao serve aqui (fechada_em
         -- NULL repete), entao quem garante e a consulta de abertura.
         INDEX idx_qr_aberta (grupo_jid, fechada_em),
@@ -149,6 +165,9 @@ function quizFechar(PDO $pdo, int $rodadaId): ?string
     $r = $st->fetch(PDO::FETCH_ASSOC);
     if (!$r) return null;
 
+    // O premio e o da RODADA, congelado na abertura.
+    $premio = (int)($r['premio'] ?? 0) ?: QUIZ_PREMIO;
+
     $st = $pdo->prepare("SELECT opcao, COUNT(*) n FROM quiz_votos WHERE rodada_id = ? GROUP BY opcao");
     $st->execute([$rodadaId]);
     $contagem = [1 => 0, 2 => 0, 3 => 0, 4 => 0];
@@ -176,7 +195,7 @@ function quizFechar(PDO $pdo, int $rodadaId): ?string
     foreach ($ganhadores as $g) {
         if (empty($g['user_id'])) continue;
         try {
-            $credita->execute([QUIZ_PREMIO, (int)$g['user_id']]);
+            $credita->execute([$premio, (int)$g['user_id']]);
             $nomeDe->execute([(int)$g['user_id']]);
             $n = $nomeDe->fetchColumn();
             if ($n) $nomes[] = $n;
@@ -213,8 +232,8 @@ function quizFechar(PDO $pdo, int $rodadaId): ?string
     $txt .= "\n";
     if ($nomes) {
         $txt .= count($nomes) === 1
-            ? '*' . $nomes[0] . '* levou *' . QUIZ_PREMIO . "* moedas."
-            : '*' . count($nomes) . '* acertaram e levaram *' . QUIZ_PREMIO . "* moedas cada:\n"
+            ? '*' . $nomes[0] . '* levou *' . $premio . "* moedas."
+            : '*' . count($nomes) . '* acertaram e levaram *' . $premio . "* moedas cada:\n"
               . implode(' · ', $nomes);
     } else {
         $txt .= $r['tipo'] === 'certa'
@@ -244,26 +263,34 @@ function quizFecharVencidas(PDO $pdo): array
  * Sorteia entre as que nunca foram usadas. Quando acabarem, volta a usar as
  * mais antigas — melhor repetir de vez em quando do que o quiz parar.
  */
-function quizAbrir(PDO $pdo, string $grupoJid): ?string
+function quizAbrir(PDO $pdo, string $grupoPadrao): ?array
 {
     quizGarantirTabelas($pdo);
-
-    // Já tem rodada aberta neste grupo? Não empilha.
-    if (quizRodadaAberta($pdo, $grupoJid)) return null;
 
     $st = $pdo->query("SELECT * FROM quiz_perguntas WHERE ativa = 1 AND usada_em IS NULL
                        ORDER BY RAND() LIMIT 1");
     $p = $st->fetch(PDO::FETCH_ASSOC);
     if (!$p) {
+        // Acabaram as inéditas: volta pras mais antigas. Melhor repetir de vez
+        // em quando do que o quiz parar de sair.
         $st = $pdo->query("SELECT * FROM quiz_perguntas WHERE ativa = 1
                            ORDER BY usada_em ASC LIMIT 1");
         $p = $st->fetch(PDO::FETCH_ASSOC);
     }
     if (!$p) return null;
 
+    // A pergunta escolhe o grupo; sem escolha, vai pro padrão.
+    $grupoJid = trim((string)($p['grupo_jid'] ?? '')) ?: $grupoPadrao;
+    if ($grupoJid === '') return null;
+
+    // Já tem rodada aberta NESSE grupo? Não empilha — mas a pergunta não é
+    // marcada como usada, então ela continua na fila pra amanhã.
+    if (quizRodadaAberta($pdo, $grupoJid)) return null;
+
+    $premio = (int)($p['premio'] ?? 0) ?: QUIZ_PREMIO;
     $fecha = date('Y-m-d H:i:s', time() + QUIZ_MINUTOS * 60);
-    $pdo->prepare("INSERT INTO quiz_rodadas (pergunta_id, grupo_jid, fecha_em) VALUES (?,?,?)")
-        ->execute([(int)$p['id'], $grupoJid, $fecha]);
+    $pdo->prepare("INSERT INTO quiz_rodadas (pergunta_id, grupo_jid, fecha_em, premio) VALUES (?,?,?,?)")
+        ->execute([(int)$p['id'], $grupoJid, $fecha, $premio]);
     $pdo->prepare("UPDATE quiz_perguntas SET usada_em = NOW() WHERE id = ?")->execute([(int)$p['id']]);
 
     $cabeca = $p['tipo'] === 'certa'
@@ -273,9 +300,13 @@ function quizAbrir(PDO $pdo, string $grupoJid): ?string
         ? 'Responda com */1*, */2*, */3* ou */4*.'
         : 'Responda com */1* a */4*. Vence a mais votada — quem votar nela leva as moedas.';
 
-    return "{$cabeca}\n\n{$p['texto']}\n\n"
-         . "*1.* {$p['op1']}\n*2.* {$p['op2']}\n*3.* {$p['op3']}\n*4.* {$p['op4']}\n\n"
-         . "{$regra}\n"
-         . '_Vale ' . QUIZ_PREMIO . ' moedas no FBA Games · dá pra trocar o voto até fechar · '
-         . 'resultado em ' . intdiv(QUIZ_MINUTOS, 60) . "h._";
+    $texto = "{$cabeca}\n\n{$p['texto']}\n\n"
+           . "*1.* {$p['op1']}\n*2.* {$p['op2']}\n*3.* {$p['op3']}\n*4.* {$p['op4']}\n\n"
+           . "{$regra}\n"
+           . '_Vale ' . $premio . ' moedas no FBA Games · dá pra trocar o voto até fechar · '
+           . 'resultado em ' . intdiv(QUIZ_MINUTOS, 60) . "h._";
+
+    // Devolve o grupo junto: quem chama não sabia pra onde ia, porque quem
+    // decide isso é a pergunta.
+    return ['grupo' => $grupoJid, 'texto' => $texto];
 }

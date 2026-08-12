@@ -53,15 +53,23 @@ try {
                                 WHERE r.fechada_em IS NOT NULL
                                 ORDER BY r.fechada_em DESC LIMIT 8")->fetchAll(PDO::FETCH_ASSOC);
 
+        // Os grupos onde o bot fala, pro seletor da pergunta.
+        require_once dirname(__DIR__) . '/backend/whatsapp.php';
+        $grupos = [];
+        foreach (whatsappGruposDeComando($pdo) as $jid => $g) {
+            $grupos[] = ['jid' => $jid, 'nome' => $g['nome'], 'liga' => $g['liga']];
+        }
+
         echo json_encode(['success' => true, 'contagem' => $tot, 'aberta' => $aberta,
-                          'ultimas' => $ultimas, 'premio' => QUIZ_PREMIO]);
+                          'ultimas' => $ultimas, 'premio' => QUIZ_PREMIO, 'grupos' => $grupos]);
         exit;
     }
 
     if ($acao === 'listar') {
         $tipo = $_GET['tipo'] ?? '';
         $busca = trim((string)($_GET['q'] ?? ''));
-        $sql = "SELECT id, tipo, categoria, texto, op1, op2, op3, op4, correta, explicacao, ativa, usada_em
+        $sql = "SELECT id, tipo, categoria, texto, op1, op2, op3, op4, correta, explicacao,
+                       grupo_jid, premio, ativa, usada_em
                 FROM quiz_perguntas WHERE 1";
         $args = [];
         if (in_array($tipo, ['certa','votos'], true)) { $sql .= " AND tipo = ?"; $args[] = $tipo; }
@@ -96,15 +104,28 @@ try {
             if ($correta < 1 || $correta > 4) qaErro(400, 'Marque qual das quatro é a resposta certa.');
         }
 
+        // Grupo e prêmio ficam NULL quando não escolhidos — aí a pergunta usa
+        // o padrão do dia em que for sorteada, em vez de congelar o de hoje.
+        require_once dirname(__DIR__) . '/backend/whatsapp.php';
+        $grupo = trim((string)($c['grupo_jid'] ?? ''));
+        if ($grupo !== '' && !isset(whatsappGruposDeComando($pdo)[$grupo])) {
+            qaErro(400, 'Esse grupo não está cadastrado — o bot não fala nele.');
+        }
+        $grupo = $grupo !== '' ? $grupo : null;
+
+        $premio = (int)($c['premio'] ?? 0);
+        if ($premio < 0 || $premio > 100000) qaErro(400, 'Prêmio fora da faixa (0 a 100.000).');
+        $premio = $premio > 0 ? $premio : null;
+
         if ($id > 0) {
             $pdo->prepare("UPDATE quiz_perguntas SET tipo=?, categoria=?, texto=?,
-                           op1=?, op2=?, op3=?, op4=?, correta=?, explicacao=? WHERE id=?")
-                ->execute([$tipo, $cat, $texto, $ops[0], $ops[1], $ops[2], $ops[3], $correta, $exp, $id]);
+                           op1=?, op2=?, op3=?, op4=?, correta=?, explicacao=?, grupo_jid=?, premio=? WHERE id=?")
+                ->execute([$tipo, $cat, $texto, $ops[0], $ops[1], $ops[2], $ops[3], $correta, $exp, $grupo, $premio, $id]);
             echo json_encode(['success' => true, 'id' => $id, 'message' => 'Pergunta atualizada.']);
         } else {
-            $pdo->prepare("INSERT INTO quiz_perguntas (tipo, categoria, texto, op1, op2, op3, op4, correta, explicacao, criada_por)
-                           VALUES (?,?,?,?,?,?,?,?,?,?)")
-                ->execute([$tipo, $cat, $texto, $ops[0], $ops[1], $ops[2], $ops[3], $correta, $exp, (int)$user['id']]);
+            $pdo->prepare("INSERT INTO quiz_perguntas (tipo, categoria, texto, op1, op2, op3, op4, correta, explicacao, grupo_jid, premio, criada_por)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
+                ->execute([$tipo, $cat, $texto, $ops[0], $ops[1], $ops[2], $ops[3], $correta, $exp, $grupo, $premio, (int)$user['id']]);
             echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId(), 'message' => 'Pergunta criada.']);
         }
         exit;
@@ -172,9 +193,9 @@ try {
     if ($acao === 'abrir_agora') {
         $grupo = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
         if ($grupo === '') qaErro(409, 'Sem grupo principal configurado.');
-        $txt = quizAbrir($pdo, $grupo);
-        if ($txt === null) qaErro(409, 'Já há rodada aberta, ou o banco de perguntas está vazio.');
-        if (!whatsappEnfileirar($pdo, $grupo, $txt, true, 'quiz')) qaErro(409, 'O bot está desligado.');
+        $aberta = quizAbrir($pdo, $grupo);
+        if ($aberta === null) qaErro(409, 'Já há rodada aberta nesse grupo, ou o banco de perguntas está vazio.');
+        if (!whatsappEnfileirar($pdo, $aberta['grupo'], $aberta['texto'], true, 'quiz')) qaErro(409, 'O bot está desligado.');
         echo json_encode(['success' => true, 'message' => 'Pergunta postada no grupo.']);
         exit;
     }

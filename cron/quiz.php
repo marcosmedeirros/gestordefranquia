@@ -83,11 +83,15 @@ try {
     fwrite(STDERR, "app_flags: " . $e->getMessage() . "\n");
 }
 
-$texto = quizAbrir($pdo, $grupo);
-if ($texto === null) {
+// O grupo do config é só o PADRÃO: a pergunta pode ter escolhido outro, e
+// quem sabe pra onde vai é quizAbrir().
+$aberta = quizAbrir($pdo, $grupo);
+if ($aberta === null) {
     echo "nada a abrir (rodada em aberto ou banco de perguntas vazio)\n";
     exit(0);
 }
+$grupo = $aberta['grupo'];
+$texto = $aberta['texto'];
 
 if (!whatsappEnfileirar($pdo, $grupo, $texto, true, 'quiz')) {
     fwrite(STDERR, "não deu pra enfileirar — o bot está desligado?\n");
