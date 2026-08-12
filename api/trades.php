@@ -1767,6 +1767,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'force_
         echo json_encode(['success' => true, 'trade_id' => $forceTradeId]);
     } catch (Exception $e) {
         $pdo->rollBack();
+        // Genérico pra quem lê (pode ser erro de SQL), mas registrado: sem
+        // isto, uma trade que falha ao ser forçada some sem deixar rastro e
+        // não há por onde começar a investigar.
+        error_log('[trades/forcar] ' . $e->getMessage());
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
     }
@@ -2554,8 +2558,15 @@ if ($method === 'POST') {
     try {
         $swapMap = normalizeSwapPairs($pdo, $offerPicks, $requestPicks, $swapPairs);
     } catch (Exception $e) {
+        // A mensagem vai inteira pra tela. normalizeSwapPairs() foi escrita
+        // pra explicar o motivo exato — "picks de swap precisam ser do mesmo
+        // ano", "só existe swap em pick de 1ª rodada", "pick já está travada"
+        // — e tudo isso era jogado fora aqui, virando "Erro interno do
+        // servidor". Quem montava um swap errado via uma mensagem de falha do
+        // sistema, sem nenhuma pista do que corrigir; e como não parecia culpa
+        // da trade, tentava de novo igual.
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         exit;
     }
 
@@ -3025,6 +3036,7 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'edit_multi_trade') {
         echo json_encode(['success' => true]);
     } catch (Exception $e) {
         $pdo->rollBack();
+        error_log('[trades/editar_multipla] ' . $e->getMessage());
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
     }

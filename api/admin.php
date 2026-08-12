@@ -1663,9 +1663,28 @@ if ($method === 'PUT') {
                 exit;
             }
             requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $clearPickLeague);
+
+            // Swap é par: limpar só um lado deixava a outra pick apontando pra
+            // uma que não é mais swap. Ela seguia travada (swap_locked = 1) e
+            // com swap_pair_pick_id pendurado, aparecendo como "SB · Melhor"
+            // contra ninguém — e o próximo swap dela era recusado com "pick já
+            // está travada", sem que houvesse swap algum.
+            $stmtPar = $pdo->prepare('SELECT swap_pair_pick_id FROM picks WHERE id = ?');
+            $stmtPar->execute([(int)$pickId]);
+            $parId = (int)($stmtPar->fetchColumn() ?: 0);
+
             $stmtClear = $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
             $stmtClear->execute([(int)$pickId]);
-            echo json_encode(['success' => true, 'message' => 'Campos de swap da pick limpos com sucesso']);
+            // Só limpa o par se ele realmente apontava de volta — pick que
+            // está em outro swap não pode ser desfeita de carona.
+            if ($parId > 0) {
+                $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL
+                               WHERE id = ? AND swap_pair_pick_id = ?')->execute([$parId, (int)$pickId]);
+            }
+            echo json_encode(['success' => true,
+                'message' => $parId > 0
+                    ? 'Swap desfeito nas duas picks do par.'
+                    : 'Campos de swap da pick limpos com sucesso']);
             break;
 
         case 'revert_trade':
