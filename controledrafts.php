@@ -126,6 +126,9 @@ tr:last-child td{border-bottom:none}
   <div id="conteudo"><div class="vazio">Carregando…</div></div>
 </div>
 
+<?php // Fora do #conteudo: ele é reescrito a cada recarga e levaria o input junto. ?>
+<input type="file" id="arquivoCSV" accept=".csv,.txt,text/csv" style="display:none" onchange="aoEscolherCSV(this)">
+
 <script>
 const LIGAS = <?= json_encode(array_values($minhasLigas)) ?>;
 let ligaAtual = <?= json_encode($ligaInicial) ?>;
@@ -297,11 +300,16 @@ function renderClasses() {
       // Sem jogador ela não entra na roleta — dizer "no bolo" seria mentira.
       : c.jogadores === 0 ? `<span class="pill orfa">sem jogadores</span>`
       : `<span class="pill livre">no bolo</span>`}</td>
-      <td style="text-align:right">${
+      <td style="text-align:right;white-space:nowrap">${
         tipo === 'orfa'
           ? `<button class="btn ghost sm" onclick="acao('atribuir_liga',{template_id:${c.id}},'Colocar “${esc(c.name).replace(/'/g,'')}” no bolo da ${e.league}?')">
                <i class="bi bi-box-arrow-in-down"></i>Trazer pra ${e.league}</button>`
-          : ''}</td>
+      : tipo === 'usada'
+          // Classe sorteada é registro do que aconteceu: nem importa nem apaga.
+          ? `<button class="btn ghost sm" onclick="verJogadores(${c.id},'${esc(c.name).replace(/'/g,'')}')"><i class="bi bi-list-ul"></i>Ver</button>`
+          : `<button class="btn ghost sm" onclick="verJogadores(${c.id},'${esc(c.name).replace(/'/g,'')}')"><i class="bi bi-list-ul"></i>Ver</button>
+             <button class="btn ghost sm" onclick="abrirImport(${c.id},'${esc(c.name).replace(/'/g,'')}')"><i class="bi bi-upload"></i>Importar</button>
+             <button class="btn ghost sm" onclick="acao('excluir_classe',{template_id:${c.id}},'Apagar a classe “${esc(c.name).replace(/'/g,'')}” e os jogadores dela?')"><i class="bi bi-trash"></i></button>`}</td>
     </tr>`;
 
   const todas = [
@@ -316,9 +324,12 @@ function renderClasses() {
         <tbody>${todas.join('')}</tbody></table>`
         : `<div class="vazio">Nenhuma classe nesta liga ainda.</div>`}
       <div class="acoes">
-        <a class="btn ghost" href="/admin.php#draft-classes" style="text-decoration:none">
-          <i class="bi bi-pencil-square"></i>Cadastrar jogadores das classes
-        </a>
+        <input type="text" id="novaClasse" placeholder="Nome da nova classe (ex: Draft 2040)"
+               maxlength="120" style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter')criarClasse()">
+        <button class="btn" onclick="criarClasse()"><i class="bi bi-plus-lg"></i>Criar vazia</button>
+      </div>
+      <div class="sub" style="margin-top:8px">
+        Cria a classe vazia nesta liga. Depois use <b>Importar</b> na linha dela pra trazer os jogadores.
       </div>
     </div>
 
@@ -332,6 +343,103 @@ function renderClasses() {
         <table><thead><tr><th>Classe</th><th>Jogadores</th><th>Estado</th><th></th></tr></thead>
           <tbody>${e.classes_sem_liga.map(c => linha(c, 'orfa')).join('')}</tbody></table>
       </div>` : ''}`;
+}
+
+async function criarClasse() {
+  const campo = document.getElementById('novaClasse');
+  const nome = (campo?.value || '').trim();
+  if (!nome) { mostrarAviso('alerta', 'Dê um nome à classe.'); campo?.focus(); return; }
+  await acao('criar_classe', { name: nome });
+}
+
+/**
+ * Lê o CSV das classes: name, position, ovr, age e, opcional, pick_hint.
+ *
+ * Aceita vírgula ou ponto-e-vírgula (planilha em português salva com ";") e
+ * campo entre aspas com vírgula dentro. Sem cabeçalho reconhecível, assume a
+ * ordem das colunas — que é como a maioria das listas vem colada de planilha.
+ */
+function lerCSV(texto) {
+  const linhas = texto.replace(/\r/g, '').split('\n').filter(l => l.trim() !== '');
+  if (!linhas.length) return [];
+
+  const sep = (linhas[0].match(/;/g) || []).length > (linhas[0].match(/,/g) || []).length ? ';' : ',';
+  const partir = linha => {
+    const saida = []; let atual = ''; let entreAspas = false;
+    for (const ch of linha) {
+      if (ch === '"') { entreAspas = !entreAspas; continue; }
+      if (ch === sep && !entreAspas) { saida.push(atual.trim()); atual = ''; continue; }
+      atual += ch;
+    }
+    saida.push(atual.trim());
+    return saida;
+  };
+
+  const primeira = partir(linhas[0]).map(c => c.toLowerCase());
+  const temCabecalho = primeira.some(c => ['name','nome','position','pos','posicao','posição','ovr','age','idade'].includes(c));
+  const col = {
+    name: 0, position: 1, ovr: 2, age: 3, pick_hint: 4,
+  };
+  if (temCabecalho) {
+    const achar = (...nomes) => { const i = primeira.findIndex(c => nomes.includes(c)); return i >= 0 ? i : null; };
+    col.name      = achar('name','nome') ?? 0;
+    col.position  = achar('position','pos','posicao','posição') ?? 1;
+    col.ovr       = achar('ovr','overall') ?? 2;
+    col.age       = achar('age','idade') ?? 3;
+    col.pick_hint = achar('pick_hint','ordem','pick');
+  }
+
+  return linhas.slice(temCabecalho ? 1 : 0).map(l => {
+    const p = partir(l);
+    return {
+      name: p[col.name] ?? '',
+      position: p[col.position] ?? '',
+      ovr: p[col.ovr] ?? '',
+      age: p[col.age] ?? '',
+      pick_hint: col.pick_hint !== null && col.pick_hint !== undefined ? (p[col.pick_hint] ?? '') : '',
+    };
+  }).filter(j => (j.name || '').trim() !== '');
+}
+
+let _importTpl = null;
+
+function abrirImport(tplId, nome) {
+  _importTpl = tplId;
+  const inp = document.getElementById('arquivoCSV');
+  inp.value = '';
+  inp.dataset.nome = nome;
+  inp.click();
+}
+
+async function aoEscolherCSV(input) {
+  const arq = input.files?.[0];
+  if (!arq || !_importTpl) return;
+  const texto = await arq.text();
+  const jogadores = lerCSV(texto);
+  if (!jogadores.length) {
+    mostrarAviso('alerta', 'Não achei nenhuma linha com nome nesse arquivo.');
+    return;
+  }
+  if (!confirm(`Importar ${jogadores.length} jogador(es) para “${input.dataset.nome}”?\n\n`
+             + `Isso substitui a lista atual da classe.\n\n`
+             + `Primeiro: ${jogadores[0].name} · ${jogadores[0].position} · OVR ${jogadores[0].ovr}`)) return;
+  await acao('importar_jogadores', { template_id: _importTpl, players: jogadores });
+}
+
+/** Mostra os jogadores da classe, só pra conferir. */
+async function verJogadores(tplId, nome) {
+  try {
+    const r = await fetch('/api/controledrafts.php?action=jogadores_da_classe&league='
+      + encodeURIComponent(ligaAtual) + '&template_id=' + tplId);
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error);
+    const j = d.players || [];
+    if (!j.length) { mostrarAviso('alerta', `“${nome}” ainda não tem jogadores.`); return; }
+    const linhas = j.map((p, i) => `${String(p.pick_hint ?? (i + 1)).padStart(2)}. ${p.name} · ${p.position} · OVR ${p.ovr} · ${p.age}a`);
+    alert(`${nome} — ${j.length} jogadores\n\n` + linhas.join('\n'));
+  } catch (e) {
+    mostrarAviso('alerta', e.message || 'Não deu pra carregar.');
+  }
 }
 
 /**

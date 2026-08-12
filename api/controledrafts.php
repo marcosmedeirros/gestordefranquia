@@ -301,6 +301,113 @@ try {
         exit;
     }
 
+    /** Cria uma classe vazia já no bolo da liga. */
+    if ($acao === 'criar_classe') {
+        cdGarantirSchema($pdo);
+        $liga = cdLiga($minhasLigas);
+        $nome = trim((string)(cdCorpo()['name'] ?? ''));
+        if ($nome === '') cdErro(400, 'Dê um nome à classe.');
+        if (mb_strlen($nome) > 120) cdErro(400, 'Nome longo demais (máximo 120).');
+
+        $st = $pdo->prepare("INSERT INTO draft_class_templates (name, league, created_by) VALUES (?,?,?)");
+        $st->execute([$nome, $liga, (int)$user['id']]);
+        echo json_encode(['success' => true, 'template_id' => (int)$pdo->lastInsertId(),
+            'message' => 'Classe criada. Agora importe os jogadores.']);
+        exit;
+    }
+
+    /** Troca a lista de jogadores de uma classe pela que veio. */
+    if ($acao === 'importar_jogadores') {
+        cdGarantirSchema($pdo);
+        $liga = cdLiga($minhasLigas);
+        $corpo = cdCorpo();
+        $tplId = (int)($corpo['template_id'] ?? 0);
+        $jogadores = is_array($corpo['players'] ?? null) ? $corpo['players'] : [];
+        if (!$tplId) cdErro(400, 'Classe não informada.');
+        if (!$jogadores) cdErro(400, 'Nenhum jogador no arquivo.');
+
+        $st = $pdo->prepare("SELECT t.league, s.id AS sorteio_id
+                             FROM draft_class_templates t
+                             LEFT JOIN draft_class_sorteios s ON s.template_id = t.id
+                             WHERE t.id = ?");
+        $st->execute([$tplId]);
+        $classe = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$classe) cdErro(404, 'Classe não encontrada.');
+        if (($classe['league'] ?? null) !== $liga) cdErro(403, 'Essa classe não é da ' . $liga . '.');
+        // Classe já sorteada é história. Trocar os jogadores dela agora faria a
+        // lista não bater mais com o draft que saiu dela.
+        if (!empty($classe['sorteio_id'])) cdErro(409, 'Essa classe já foi sorteada — a lista dela não muda mais.');
+
+        $limpos = [];
+        foreach ($jogadores as $j) {
+            $nome = trim((string)($j['name'] ?? ''));
+            if ($nome === '') continue;
+            $pos = strtoupper(trim((string)($j['position'] ?? '')));
+            if (!in_array($pos, ['PG','SG','SF','PF','C'], true)) $pos = 'PG';
+            $ovr = (int)($j['ovr'] ?? 0);
+            $idade = (int)($j['age'] ?? 0);
+            $ordem = ($j['pick_hint'] ?? '') !== '' ? (int)$j['pick_hint'] : null;
+            $limpos[] = [mb_substr($nome, 0, 120), $pos,
+                         max(1, min(99, $ovr)), max(15, min(50, $idade ?: 19)), $ordem];
+        }
+        if (!$limpos) cdErro(400, 'Nenhuma linha aproveitável — confira se o arquivo tem a coluna de nome.');
+
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare("DELETE FROM draft_class_template_players WHERE template_id = ?")->execute([$tplId]);
+            $ins = $pdo->prepare("INSERT INTO draft_class_template_players
+                                  (template_id, name, position, ovr, age, pick_hint) VALUES (?,?,?,?,?,?)");
+            foreach ($limpos as $j) $ins->execute([$tplId, $j[0], $j[1], $j[2], $j[3], $j[4]]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
+        echo json_encode(['success' => true, 'inseridos' => count($limpos),
+            'message' => count($limpos) . ' jogador(es) na classe.']);
+        exit;
+    }
+
+    /** Apaga uma classe que ainda não foi sorteada. */
+    if ($acao === 'excluir_classe') {
+        cdGarantirSchema($pdo);
+        $liga = cdLiga($minhasLigas);
+        $tplId = (int)(cdCorpo()['template_id'] ?? 0);
+        if (!$tplId) cdErro(400, 'Classe não informada.');
+
+        $st = $pdo->prepare("SELECT t.league, s.id AS sorteio_id
+                             FROM draft_class_templates t
+                             LEFT JOIN draft_class_sorteios s ON s.template_id = t.id
+                             WHERE t.id = ?");
+        $st->execute([$tplId]);
+        $classe = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$classe) cdErro(404, 'Classe não encontrada.');
+        if (($classe['league'] ?? null) !== $liga) cdErro(403, 'Essa classe não é da ' . $liga . '.');
+        if (!empty($classe['sorteio_id'])) cdErro(409, 'Classe já sorteada não pode ser apagada — é o registro do que aconteceu.');
+
+        $pdo->prepare("DELETE FROM draft_class_templates WHERE id = ?")->execute([$tplId]);
+        echo json_encode(['success' => true, 'message' => 'Classe apagada.']);
+        exit;
+    }
+
+    /** Os jogadores de uma classe, pra conferir na tela. */
+    if ($acao === 'jogadores_da_classe') {
+        cdGarantirSchema($pdo);
+        $liga = cdLiga($minhasLigas);
+        $tplId = (int)($_GET['template_id'] ?? 0);
+        if (!$tplId) cdErro(400, 'Classe não informada.');
+        $st = $pdo->prepare("SELECT league FROM draft_class_templates WHERE id = ?");
+        $st->execute([$tplId]);
+        if ($st->fetchColumn() !== $liga) cdErro(403, 'Essa classe não é da ' . $liga . '.');
+
+        $st = $pdo->prepare("SELECT name, position, ovr, age, pick_hint
+                             FROM draft_class_template_players WHERE template_id = ?
+                             ORDER BY COALESCE(pick_hint, 999999), ovr DESC");
+        $st->execute([$tplId]);
+        echo json_encode(['success' => true, 'players' => $st->fetchAll(PDO::FETCH_ASSOC)]);
+        exit;
+    }
+
     /**
      * Gira a roleta. O resultado sai daqui, não do navegador.
      */
