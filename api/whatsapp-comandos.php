@@ -280,7 +280,7 @@ function wcAjuda(): string
         . "/picks _time_ — picks que o time tem\n\n"
         . "*Liga*\n"
         . "/classificacao _liga_ — a tabela\n"
-        . "/powerranking — os 10 mais fortes da liga, com recado\n"
+        . "/powerranking — os 10 mais fortes da liga\n"
         . "/trocas — as últimas trocas aprovadas\n"
         . "/lendas — os marcados como LENDA\n"
         . "/hall — o Hall da Fama\n"
@@ -634,126 +634,7 @@ function wcClassificacao(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
 }
 
 /**
- * Os recados que cabem num time, do mais gritante pro mais genérico.
- *
- * Devolve um mapa chave => frase, não uma frase só. Quem chama escolhe a
- * primeira chave ainda pouco usada no ranking, e é isso que impede a lista
- * inteira de virar a mesma observação dez vezes: na ELITE os dez primeiros
- * cabem em 3,7 pontos de força, então a regra de "empate técnico" sozinha
- * valeria pra metade da tabela. Calibrar limiar por liga não resolveria —
- * a liga aperta e afrouxa a cada temporada.
- *
- * Frase sorteada de um saco não vale nada: colar "time perigoso" num elenco
- * de 34 anos é o bot falando sozinho. Toda frase aqui nasce de um número que
- * o time realmente tem.
- *
- * A variante sai do nome do time, não da posição. Pela posição, times em 2º,
- * 4º e 6º na mesma regra de duas frases pegavam as três a mesma — índice
- * ímpar % 2 dá sempre 1. Pelo nome espalha, e o mesmo time recebe sempre a
- * mesma frase enquanto os números não mudarem.
- *
- * Os cortes saem da distribuição real das ligas: "teto >= 90" seria bonito e
- * inútil, porque todo top 10 tem alguém de 90.
- */
-function wcRecadosDoRanking(array $f): array
-{
-    $semente  = abs(crc32((string)$f['nome']));
-    $escolher = fn(array $op) => $op[$semente % count($op)];
-    $craque   = wcNomeCurto((string)$f['craque']);
-    $idade    = (int)round($f['idade']);
-    $r        = [];
-
-    if ($f['posto'] === 1) {
-        $r['lider'] = $escolher([
-            "Ninguém discute. {$craque} e mais quatro dispostos a ajudar.",
-            "O time a ser batido. Boa sorte.",
-            "Primeiro lugar sem pedir licença.",
-        ]);
-    }
-
-    // Papel e tabela discordando: a melhor história que estes dados contam,
-    // e por isso a primeira da fila depois do líder.
-    $descompasso = $f['tabela'] ? $f['tabela'] - $f['posto'] : 0;
-    if ($descompasso >= 5) {
-        $r['abaixo_do_papel'] = $escolher([
-            "{$f['posto']}º no papel, {$f['tabela']}º na tabela. Alguém explica.",
-            "Elenco de {$f['posto']}º jogando como {$f['tabela']}º. Tem coisa errada.",
-            "No papel assusta. Na quadra, {$f['tabela']}º lugar.",
-        ]);
-    } elseif ($descompasso <= -5) {
-        $r['acima_do_papel'] = $escolher([
-            "{$f['tabela']}º na tabela com elenco de {$f['posto']}º. Vence feio, mas vence.",
-            "Ninguém entende como, mas está em {$f['tabela']}º.",
-            "Zoam do elenco e ele está {$f['tabela']}º. Segue o jogo.",
-        ]);
-    }
-
-    if ($f['teto'] >= $f['teto_da_liga'] && $f['teto'] > 0) {
-        $r['melhor_da_liga'] = $escolher([
-            "{$craque} ({$f['teto']}) é o melhor da liga. O resto é detalhe.",
-            "Ninguém tem ninguém melhor que {$craque}. Ponto.",
-            "Tem o {$f['teto']} da liga na mão. Já começa na frente.",
-        ]);
-    }
-
-    if ($f['gap'] >= 12) {
-        $r['um_homem_so'] = $escolher([
-            "{$craque} carrega, os outros quatro assistem.",
-            "Time do {$craque}. Os demais estão no contrato.",
-            "Se {$craque} espirra, a temporada acaba.",
-        ]);
-    }
-
-    if ($f['idade'] >= 31) {
-        $r['veterano'] = $escolher([
-            "Quinteto de {$idade} anos. A janela não fecha: já está fechando.",
-            "Média {$idade}. É esse ano ou é reconstrução.",
-            "Veterano é bom até a série de sete jogos. {$idade} de média.",
-        ]);
-    } elseif ($f['idade'] <= 24 && $f['idade'] > 0) {
-        $r['moleque'] = $escolher([
-            "Média de {$idade} anos. Ainda vão bater em muita gente.",
-            "Moleque demais pra ser tão bom. {$idade} de média.",
-            "{$idade} anos de média e já incomodando.",
-        ]);
-    }
-
-    if ($f['amplitude'] <= 7) {
-        $r['equilibrio'] = $escolher([
-            "Cinco no mesmo nível. Não tem onde apertar.",
-            "Sem estrela e sem buraco. Time chato de enfrentar.",
-            "Equilíbrio de quinteto inteiro — dá trabalho.",
-        ]);
-    }
-
-    if ($f['teto'] >= 96) {
-        $r['craque'] = $escolher([
-            "{$craque} ({$f['teto']}) é dos melhores da liga.",
-            "Com {$craque} em quadra, ninguém entra tranquilo.",
-        ]);
-    }
-
-    if ($f['dif_acima'] !== null && $f['dif_acima'] <= 1.0) {
-        $r['empate_tecnico'] = $escolher([
-            "Cola no {$f['apelido_acima']}. Diferença de " . wcNum($f['dif_acima']) . ".",
-            "Separado do {$f['apelido_acima']} por " . wcNum($f['dif_acima']) . ". Isso não é distância.",
-        ]);
-    }
-
-    // Sempre presente: é a rede de segurança quando as outras já saíram duas
-    // vezes cada. Ainda fala de número — a distância pro líder.
-    $atras = wcNum($f['dif_lider']);
-    $r['distancia'] = $escolher([
-        "{$atras} atrás do líder. Briga, mas de longe.",
-        "{$craque} segura o time no papel. Faltam {$atras} pro topo.",
-        "Ganha de quem está abaixo e perde de quem está acima.",
-    ]);
-
-    return $r;
-}
-
-/**
- * /powerranking — os mais fortes da liga do grupo, com recado ao lado.
+ * /powerranking — os mais fortes da liga do grupo.
  *
  * A força é a mesma do /confronto (wcForcaDoTime), pra o bot não dar duas
  * opiniões diferentes sobre o mesmo time em dois comandos.
@@ -779,83 +660,37 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
     $porTime = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $porTime[(int)$p['team_id']][] = $p;
 
-    // Posição na tabela, quando a temporada já tem jogo registrado.
-    $tabela = [];
+    // Campanha, quando a temporada já tem jogo registrado.
+    $campanha = [];
     if ($temp = wcTemporadaAtiva($pdo, $liga)) {
-        $st = $pdo->prepare("SELECT team_id, wins, losses FROM season_standings
-                             WHERE season_id = ? ORDER BY wins DESC, losses ASC");
+        $st = $pdo->prepare("SELECT team_id, wins, losses FROM season_standings WHERE season_id = ?");
         $st->execute([(int)$temp['id']]);
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $n => $l) {
-            $tabela[(int)$l['team_id']] = ['pos' => $n + 1, 'v' => (int)$l['wins'], 'd' => (int)$l['losses']];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l) {
+            $campanha[(int)$l['team_id']] = (int)$l['wins'] . '-' . (int)$l['losses'];
         }
     }
 
     $fichas = [];
     foreach ($times as $t) {
-        $elenco = $porTime[(int)$t['id']] ?? [];
-        $forca  = wcForcaDoTime($elenco);
+        $forca = wcForcaDoTime($porTime[(int)$t['id']] ?? []);
         if ($forca <= 0) continue;                       // sem quinteto montado
-
-        $cinco = array_values(array_filter(wcQuintetoTitular($elenco)));
-        $ovrs  = array_map(fn($p) => (int)$p['ovr'], $cinco);
-        $idades = array_filter(array_map(fn($p) => (int)$p['age'], $cinco));
-        rsort($ovrs);
-        $teto   = $ovrs[0] ?? 0;
-        $resto  = array_slice($ovrs, 1);
-
         $fichas[] = [
-            'nome'      => wcNomeDoTime($t),
-            // Pra citar o vizinho de posição basta o nome sem a cidade: "Cola
-            // no Washington Peacemakers" é longo demais no meio da frase. E é
-            // o `name`, não o `mascot` — mascote aqui é apelido de brincadeira
-            // ("Pato Fiadaputa", "Cebolao"), que não identifica time nenhum.
-            'apelido'   => trim((string)($t['name'] ?? '')) ?: wcNomeDoTime($t),
-            'forca'     => $forca,
-            'teto'      => $teto,
-            'craque'    => $cinco ? $cinco[0]['name'] : '',
-            'idade'     => $idades ? array_sum($idades) / count($idades) : 0,
-            'gap'       => $resto ? $teto - (array_sum($resto) / count($resto)) : 0,
-            'amplitude' => $ovrs ? $teto - min($ovrs) : 0,
-            'tabela'    => $tabela[(int)$t['id']]['pos'] ?? null,
-            'campanha'  => isset($tabela[(int)$t['id']])
-                ? $tabela[(int)$t['id']]['v'] . '-' . $tabela[(int)$t['id']]['d'] : null,
+            'nome'     => wcNomeDoTime($t),
+            'forca'    => $forca,
+            'campanha' => $campanha[(int)$t['id']] ?? null,
         ];
     }
     if (!$fichas) return "Os times da {$liga} ainda não têm quinteto montado.";
 
     usort($fichas, fn($a, $b) => $b['forca'] <=> $a['forca']);
-
-    // O maior OVR sai da liga inteira, não do top 10: "melhor da liga" tem que
-    // ser verdade mesmo quando o dono dele está em 14º.
-    $tetoDaLiga = max(array_column($fichas, 'teto'));
     $fichas = array_slice($fichas, 0, 10);
 
     $txt = "*Power Ranking {$liga}*\n_o que a régua diz, não o que o grupo acha_\n\n";
-    $usos = [];
     foreach ($fichas as $i => $f) {
-        $f['posto']         = $i + 1;
-        $f['teto_da_liga']  = $tetoDaLiga;
-        $f['dif_lider']     = round($fichas[0]['forca'] - $f['forca'], 1);
-        $f['apelido_acima'] = $i > 0 ? $fichas[$i - 1]['apelido'] : null;
-        $f['dif_acima']     = $i > 0 ? round($fichas[$i - 1]['forca'] - $f['forca'], 1) : null;
-
-        // Pega o recado mais forte que ainda não apareceu duas vezes. Sem este
-        // teto, a regra que a liga favorece toma a lista inteira. A 'distancia'
-        // é a rede de segurança e tem teto folgado — sem isso, um time no fim
-        // da lista ficava sem recado nenhum.
-        $recado = null;
-        foreach (wcRecadosDoRanking($f) as $chave => $frase) {
-            if (($usos[$chave] ?? 0) >= ($chave === 'distancia' ? 4 : 2)) continue;
-            $usos[$chave] = ($usos[$chave] ?? 0) + 1;
-            $recado = $frase;
-            break;
-        }
-        if ($recado === null) $recado = 'No top ' . count($fichas) . " e sem drama nenhum.";
-
-        $medalha = [1 => '🥇', 2 => '🥈', 3 => '🥉'][$f['posto']] ?? ($f['posto'] . '.');
+        $posto = $i + 1;
+        $medalha = [1 => '🥇', 2 => '🥈', 3 => '🥉'][$posto] ?? ($posto . '.');
         $txt .= "{$medalha} *{$f['nome']}*"
-             . ($f['campanha'] ? " ({$f['campanha']})" : '') . "\n"
-             . "_{$recado}_\n\n";
+             . ($f['campanha'] ? " ({$f['campanha']})" : '') . "\n";
     }
     return rtrim($txt);
 }
