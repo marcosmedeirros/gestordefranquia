@@ -2,22 +2,29 @@
 /**
  * O quiz do dia: às 10:30 abre a pergunta no grupo, e depois apura sozinho.
  *
- * Agendar na Hostinger de meia em meia hora — no cron, "a cada 30 minutos"
- * (o padrão com barra; escrito por extenso aqui porque a sequência fecharia
- * este bloco de comentário):
- *   /usr/bin/php <caminho>/cron/quiz.php
+ * Agendar na Hostinger DUAS entradas, do mesmo jeito do abraço:
  *
- * Uma execução só por dia não serviria: ela abre às 10:30, mas quem FECHA a
- * rodada e distribui as moedas também é este script, três horas depois. Rodando
- * de meia em meia hora, ele faz as duas coisas e ainda sobrevive a uma execução
- * perdida — a seguinte cobre.
+ *   30 13 * * *   /usr/bin/php <caminho>/cron/quiz.php     abre a pergunta
+ *   35 16 * * *   /usr/bin/php <caminho>/cron/quiz.php     apura e paga
  *
- * O horário é conferido em Brasília por conta própria, e não no fuso da
- * máquina: a Hostinger roda em UTC, e depender disso é dar de presente ao
- * futuro um quiz saindo às 7h da manhã.
+ * As horas são UTC, que é o fuso do servidor da Hostinger: 13:30 lá são 10:30
+ * em Brasília, e 16:35 são 13:35 — cinco minutos depois de a rodada vencer,
+ * porque ela fica aberta três horas (BOT_QUIZ_MINUTOS).
  *
- * Rodar duas vezes no mesmo dia não abre duas rodadas — quizAbrir() desiste se
- * já houver uma aberta no grupo.
+ * São duas porque este mesmo script faz as duas coisas: abre de manhã e, três
+ * horas depois, fecha a rodada e distribui as moedas. Uma execução só por dia
+ * deixaria o resultado sair na manhã seguinte, junto com a pergunta nova.
+ *
+ * A ordem interna resolve as duas com o mesmo comando: ele primeiro apura o
+ * que venceu, depois abre a do dia se ainda não abriu. Quem faz o quê é o
+ * relógio, não o parâmetro.
+ *
+ * O script NÃO depende do fuso da máquina: ele confere o horário de Brasília
+ * por conta própria e sai calado antes das 10:30. Se um dia a hospedagem
+ * mudar o fuso, o pior que acontece é a pergunta sair mais tarde.
+ *
+ * Rodar duas vezes no mesmo dia não abre duas rodadas: a marca do dia em
+ * app_flags barra a segunda, e quizAbrir() desiste se já houver rodada aberta.
  *
  * Pra testar fora de hora: php cron/quiz.php --agora
  */
@@ -65,28 +72,43 @@ if ($grupo === '') {
     exit(1);
 }
 
-// A marca do dia impede que a execução das 11h abra a segunda pergunta depois
-// de a das 10:30 já ter aberto e a rodada ter sido fechada no meio do dia.
-$marca = 'quiz_aberto_em';
-try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS app_flags (
-        nome VARCHAR(60) PRIMARY KEY, valor VARCHAR(60) NULL,
-        atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-    $st = $pdo->prepare("SELECT valor FROM app_flags WHERE nome = ?");
-    $st->execute([$marca]);
-    if (!$agora && $st->fetchColumn() === $hoje) {
+// A marca do dia impede que a execução da tarde abra uma segunda pergunta
+// depois de a da manhã já ter aberto e a rodada ter sido apurada.
+//
+// Do mesmo jeito do abraço, e pela mesma razão: a marca é gravada ANTES de
+// enfileirar, e quem detecta o "já foi hoje" é a chave primária estourando.
+// Conferir com SELECT antes deixaria brecha pra duas execuções simultâneas
+// mandarem as duas.
+//
+// app_flags é (flag, applied_at) e já existe desde as migrações — daí a marca
+// carregar a data no nome, em vez de ser uma linha só com o valor mudando.
+// Bot desligado: sai antes de queimar a pergunta. quizAbrir() marca a pergunta
+// como usada e cria a rodada; descobrir só na hora de enfileirar deixaria uma
+// rodada de pé que ninguém viu no grupo e que ia ser "apurada" três horas
+// depois, anunciando o resultado de uma pergunta que nunca saiu.
+if (!whatsappAtivo($pdo)) {
+    fwrite(STDERR, "o bot está desligado — nada foi aberto\n");
+    exit(1);
+}
+
+$marca = 'quiz_do_dia_' . $hoje;
+if (!$agora) {
+    try {
+        $pdo->prepare("INSERT INTO app_flags (flag, applied_at) VALUES (?, NOW())")->execute([$marca]);
+    } catch (Throwable $e) {
         echo "o quiz de hoje já foi aberto\n";
         exit(0);
     }
-} catch (Throwable $e) {
-    fwrite(STDERR, "app_flags: " . $e->getMessage() . "\n");
 }
 
 // O grupo do config é só o PADRÃO: a pergunta pode ter escolhido outro, e
 // quem sabe pra onde vai é quizAbrir().
 $aberta = quizAbrir($pdo, $grupo);
 if ($aberta === null) {
+    // Nada foi ao ar, então a marca do dia não pode ficar de pé: senão um
+    // banco de perguntas vazio às 10:30 cala o quiz até amanhã, mesmo depois
+    // de alguém cadastrar pergunta no meio da manhã.
+    if (!$agora) $pdo->prepare("DELETE FROM app_flags WHERE flag = ?")->execute([$marca]);
     echo "nada a abrir (rodada em aberto ou banco de perguntas vazio)\n";
     exit(0);
 }
@@ -94,12 +116,10 @@ $grupo = $aberta['grupo'];
 $texto = $aberta['texto'];
 
 if (!whatsappEnfileirar($pdo, $grupo, $texto, true, 'quiz')) {
+    if (!$agora) $pdo->prepare("DELETE FROM app_flags WHERE flag = ?")->execute([$marca]);
     fwrite(STDERR, "não deu pra enfileirar — o bot está desligado?\n");
     exit(1);
 }
-
-$pdo->prepare("INSERT INTO app_flags (nome, valor) VALUES (?,?)
-               ON DUPLICATE KEY UPDATE valor = VALUES(valor)")->execute([$marca, $hoje]);
 
 echo "quiz do dia aberto no grupo principal\n";
 exit(0);
