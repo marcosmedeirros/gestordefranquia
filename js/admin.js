@@ -8054,8 +8054,13 @@ function _draftClassOpenEditModal(templateId, name, players = []) {
           </div>
         </div>
         <div style="border-top:1px solid var(--border);padding-top:14px">
-          <div style="font-size:11px;color:var(--text-2);margin-bottom:8px">Substituir todos via CSV:</div>
-          <button class="btn-ghost" onclick="_draftClassReplaceCSVModal(${templateId})"><i class="bi bi-upload me-1"></i>Importar CSV (substituir tudo)</button>
+          <div style="font-size:11px;color:var(--text-2);margin-bottom:8px">${
+            // Numa classe vazia, "substituir tudo" descreve mal o que o botão
+            // faz — e é o caminho de quem criou primeiro pra importar depois.
+            players.length ? 'Substituir todos via CSV:' : 'Importe os jogadores desta classe:'}</div>
+          <button class="btn-ghost" style="${players.length ? '' : 'color:#a855f7'}" onclick="_draftClassReplaceCSVModal(${templateId})">
+            <i class="bi bi-upload me-1"></i>${players.length ? 'Importar CSV (substituir tudo)' : 'Importar jogadores por CSV'}
+          </button>
         </div>`}
       </div>
     </div>`;
@@ -8191,9 +8196,15 @@ async function _dcSaveNewClass() {
   const name = document.getElementById('_dcNameInput')?.value.trim();
   if (!name) { showAlert('warning', 'Digite um nome'); return; }
   try {
-    const res = await api('admin.php?action=draft_class_bank', { method: 'POST', body: JSON.stringify({ sub: 'save', name, players: [] }) });
+    // A liga vai junto aqui também. Sem ela, a classe criada vazia caía no
+    // "sem liga" e não entrava na roleta de ninguém até alguém atribuir na
+    // mão — logo no caminho de quem quer criar primeiro e importar depois.
+    const res = await api('admin.php?action=draft_class_bank', {
+      method: 'POST',
+      body: JSON.stringify({ sub: 'save', name, league: appState.currentLeague || null, players: [] })
+    });
     document.getElementById('_dcEditModal').remove();
-    showAlert('success', 'Classe criada! Edite para adicionar jogadores.');
+    showAlert('success', 'Classe criada. Abra ela para importar os jogadores.');
     showDraftClassBank();
   } catch(e) { showAlert('danger', e.error || 'Erro'); }
 }
