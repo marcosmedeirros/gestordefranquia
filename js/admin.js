@@ -438,13 +438,29 @@ function _quizRender(e, perguntas) {
       ${Number(n.inativas) ? ` · <b>${n.inativas}</b> fora do sorteio` : ''}
       <br>Sai <b>1 por dia às 10:30</b> e fecha <b>11:00</b>, valendo <b>${e.premio ?? 100}</b> moedas para cada acerto.
     </div>
+    ${(() => {
+      // O site só enfileira; quem entrega é o worker, e ele só trabalha dentro
+      // da janela. Sem dizer isso aqui, "mandei e não chegou" vira caça ao erro.
+      const e2 = e.envio || {};
+      if (!e2.ligado) return `<div class="alert alert-danger py-2 px-3" style="font-size:12.5px">
+        <b>O bot está desligado.</b> Nada sai do site enquanto ele estiver assim.</div>`;
+      if (!e2.na_janela) return `<div class="alert alert-warning py-2 px-3" style="font-size:12.5px">
+        <b>Fora do horário de envio</b> (${escapeHtml(e2.inicio)} às ${escapeHtml(e2.fim)}).
+        O bot não entrega agora${e2.pendentes ? ` — ${e2.pendentes} mensagem(ns) do quiz esperando na fila` : ''}.
+        Enviar uma pergunta a esta hora está bloqueado: ela venceria antes de alguém ver.</div>`;
+      return e2.pendentes ? `<div class="alert alert-info py-2 px-3" style="font-size:12.5px">
+        ${e2.pendentes} mensagem(ns) do quiz na fila, aguardando o worker.</div>` : '';
+    })()}
     ${ab ? `
       <div class="alert alert-info py-2 px-3" style="font-size:13px">
         <b>No ar agora:</b> ${escapeHtml(ab.texto)}<br>
         <span style="font-size:12px;opacity:.85">${ab.votos} voto(s) · fecha ${escapeHtml(String(ab.fecha_em).slice(0,16).replace('T',' '))}</span>
       </div>
       <button class="btn-ghost" onclick="_quizAcao('apurar_agora','Apurar agora e postar o resultado no grupo?')">
-        <i class="bi bi-flag-fill me-1"></i>Apurar agora</button>`
+        <i class="bi bi-flag-fill me-1"></i>Apurar agora</button>
+      <button class="btn-ghost" style="color:#ef4444"
+              onclick="_quizAcao('cancelar_rodada','Cancelar esta rodada? A pergunta volta pro sorteio e os votos são descartados.')">
+        <i class="bi bi-x-circle me-1"></i>Cancelar rodada</button>`
     : `<button class="btn-ghost" style="color:#a855f7" onclick="_quizAcao('abrir_agora','Postar a pergunta do dia no grupo agora?')">
          <i class="bi bi-send-fill me-1"></i>Mandar uma pergunta agora</button>`}
     ${!Number(n.total) ? `

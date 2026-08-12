@@ -28,6 +28,23 @@ function qaErro(int $http, string $msg): void {
 }
 function qaCorpo(): array { return json_decode(file_get_contents('php://input'), true) ?: []; }
 
+/**
+ * Barra quem manda pergunta fora do horário em que o bot entrega.
+ *
+ * O site só enfileira; quem entrega é o worker na máquina do Marcos, e ele
+ * respeita uma janela (08:45–18:00). Sem esta trava, "enviar agora" às 18:18
+ * respondia "enviada" e criava uma rodada que fecha em 30 minutos, mas cuja
+ * pergunta só ia chegar no grupo às 08:45 do dia seguinte — vencida antes de
+ * ser lida, e com resultado apurado sobre zero votos.
+ */
+function qaExigirJanela(): void
+{
+    if (whatsappDentroDaJanela()) return;
+    qaErro(409, 'Fora do horário de envio do bot (' . WHATSAPP_JANELA_INICIO . ' às '
+              . WHATSAPP_JANELA_FIM . '). A pergunta ficaria parada na fila até amanhã e '
+              . 'venceria antes de alguém ver. Use "Salvar na fila" — ela sai no sorteio das 10:30.');
+}
+
 $acao = $_GET['action'] ?? qaCorpo()['action'] ?? 'estado';
 
 try {
@@ -63,8 +80,24 @@ try {
                          'principal' => ($jid === $principal)];
         }
 
+        // O site só enfileira; quem entrega é o worker na máquina do Marcos,
+        // dentro de uma janela de horário. "Mandei e não chegou no grupo" é
+        // quase sempre isto, e sem mostrar aqui só se descobre olhando a fila.
+        $pendentes = 0;
+        try {
+            $pendentes = (int)$pdo->query("SELECT COUNT(*) FROM whatsapp_fila
+                                           WHERE tipo = 'quiz' AND enviado_em IS NULL")->fetchColumn();
+        } catch (Throwable $e) { /* fila pode não existir ainda */ }
+
         echo json_encode(['success' => true, 'contagem' => $tot, 'aberta' => $aberta,
-                          'ultimas' => $ultimas, 'premio' => BOT_QUIZ_PREMIO, 'grupos' => $grupos]);
+                          'ultimas' => $ultimas, 'premio' => BOT_QUIZ_PREMIO, 'grupos' => $grupos,
+                          'envio' => [
+                              'ligado'    => whatsappAtivo($pdo),
+                              'na_janela' => whatsappDentroDaJanela(),
+                              'inicio'    => WHATSAPP_JANELA_INICIO,
+                              'fim'       => WHATSAPP_JANELA_FIM,
+                              'pendentes' => $pendentes,
+                          ]]);
         exit;
     }
 
@@ -255,6 +288,7 @@ try {
             $destino = $grupo ?: trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
             if ($destino === '') qaErro(409, 'Não há grupo principal configurado, e a pergunta não escolheu um.');
             if (!whatsappAtivo($pdo)) qaErro(409, 'O bot está desligado — ligue antes de enviar.');
+            qaExigirJanela();
             if (quizRodadaAberta($pdo, $destino)) {
                 qaErro(409, 'Já tem uma pergunta no ar nesse grupo. Espere fechar, ou use "Apurar agora".');
             }
@@ -357,6 +391,41 @@ try {
         exit;
     }
 
+    /**
+     * Desfaz a rodada aberta: some do ar e a pergunta volta pra fila.
+     *
+     * Não é o mesmo que apurar. Apurar encerra e paga; isto é pra quando a
+     * pergunta não devia ter saído — mandada fora do horário e presa na fila,
+     * ou com erro de digitação percebido tarde demais. Os votos vão junto pelo
+     * ON DELETE CASCADE, e a pergunta perde o `usada_em` pra voltar ao sorteio.
+     */
+    if ($acao === 'cancelar_rodada') {
+        $r = $pdo->query("SELECT id, pergunta_id, grupo_jid, aberta_em FROM bot_quiz_rodadas
+                          WHERE fechada_em IS NULL ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        if (!$r) qaErro(409, 'Não há rodada aberta pra cancelar.');
+
+        // A mensagem só some se ainda NÃO saiu. Depois de entregue, apagar a
+        // linha da fila não desfaz nada no grupo — e sumir com o registro
+        // deixaria o admin achando que ninguém viu a pergunta.
+        $del = $pdo->prepare("DELETE FROM whatsapp_fila
+                              WHERE destino = ? AND tipo = 'quiz' AND enviado_em IS NULL
+                                AND created_at >= ?");
+        $del->execute([$r['grupo_jid'], $r['aberta_em']]);
+        $retirada = $del->rowCount();
+
+        $votos = (int)$pdo->query("SELECT COUNT(*) FROM bot_quiz_votos WHERE rodada_id = " . (int)$r['id'])->fetchColumn();
+
+        $pdo->prepare("UPDATE bot_quiz_perguntas SET usada_em = NULL WHERE id = ?")->execute([(int)$r['pergunta_id']]);
+        $pdo->prepare("DELETE FROM bot_quiz_rodadas WHERE id = ?")->execute([(int)$r['id']]);
+
+        echo json_encode(['success' => true, 'message' =>
+            $retirada
+                ? 'Cancelada antes de sair — a mensagem foi tirada da fila e a pergunta voltou pro sorteio.'
+                : 'Cancelada, e a pergunta voltou pro sorteio. Mas a mensagem JÁ tinha ido pro grupo'
+                  . ($votos ? " ({$votos} voto(s) descartado(s))" : '') . ' — avise por lá.']);
+        exit;
+    }
+
     /** Fecha a rodada aberta na hora, sem esperar o prazo. */
     if ($acao === 'apurar_agora') {
         $st = $pdo->query("SELECT id, grupo_jid FROM bot_quiz_rodadas WHERE fechada_em IS NULL ORDER BY id DESC LIMIT 1");
@@ -373,6 +442,7 @@ try {
     if ($acao === 'abrir_agora') {
         $grupo = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
         if ($grupo === '') qaErro(409, 'Sem grupo principal configurado.');
+        qaExigirJanela();
         $aberta = quizAbrir($pdo, $grupo);
         if ($aberta === null) {
             // Sem reciclagem, "acabaram as inéditas" virou um fim de linha
