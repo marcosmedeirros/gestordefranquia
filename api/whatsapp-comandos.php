@@ -152,8 +152,7 @@ function wcLigaEmSalario(PDO $pdo, string $league): bool
  * CAP_TOP_N maiores OVR do elenco contra a faixa da liga.
  *
  * O cálculo é o de backend/helpers.php, o mesmo que o dashboard mostra — não
- * uma segunda versão da regra aqui. O teto leva o bônus de jogador restrito,
- * senão o bot acusaria estouro num time que o app diz estar em dia.
+ * uma segunda versão da regra aqui.
  */
 function wcCapPorOvr(PDO $pdo, array $t): array
 {
@@ -171,34 +170,19 @@ function wcCapPorOvr(PDO $pdo, array $t): array
         error_log('[wcCapPorOvr] ' . $e->getMessage());
     }
 
-    $bonus = $maxBase > 0 ? restrictedCapBonus($pdo, (int)$t['id']) : 0;
-    $max   = $maxBase + $bonus;
+    // O teto que vale é o da liga mais o bônus de jogador restrito — é o que
+    // o app mostra, e faixa diferente entre bot e app é briga na certa.
+    $max = $maxBase > 0 ? $maxBase + restrictedCapBonus($pdo, (int)$t['id']) : 0;
 
-    // Liga sem faixa configurada: mostra a soma e cala sobre limite nenhum.
-    if ($maxBase <= 0) $estado = 'sem_faixa';
-    elseif ($soma > $max)  $estado = 'estourou';
-    elseif ($soma < $min)  $estado = 'abaixo';
-    else                   $estado = 'ok';
-
-    return ['soma' => $soma, 'min' => $min, 'max' => $max,
-            'max_base' => $maxBase, 'bonus' => $bonus, 'estado' => $estado];
+    return ['soma' => $soma, 'min' => $min, 'max' => $max];
 }
 
 /** A linha de CAP por OVR, do jeito que entra no /time. */
 function wcLinhaCapOvr(array $c): string
 {
-    if ($c['estado'] === 'sem_faixa') {
-        return 'CAP top ' . CAP_TOP_N . ": *{$c['soma']}*\n";
-    }
-    $veredito = [
-        'ok'       => '🟢',
-        'estourou' => '🔴 estourou ' . ($c['soma'] - $c['max']),
-        'abaixo'   => '🟡 faltam ' . ($c['min'] - $c['soma']) . ' pro piso',
-    ][$c['estado']];
-
-    return 'CAP top ' . CAP_TOP_N . ": *{$c['soma']}* · faixa {$c['min']}–{$c['max']}"
-        . ($c['bonus'] > 0 ? " (teto {$c['max_base']} +{$c['bonus']} de restrito)" : '')
-        . " {$veredito}\n";
+    // Sem faixa configurada na liga, mostra só a soma.
+    return "CAP: *{$c['soma']}*"
+        . ($c['max'] > 0 ? " ({$c['min']}–{$c['max']})" : '') . "\n";
 }
 
 /**
