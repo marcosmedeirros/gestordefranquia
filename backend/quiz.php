@@ -12,15 +12,22 @@
  * O voto entra CALADO. Doze pessoas votando são doze comandos, e o bot tem um
  * freio de 12 por minuto por grupo — se cada voto tivesse resposta, o quiz
  * derrubaria o próprio bot. O bot fala duas vezes: ao abrir e ao apurar.
+ *
+ * Tudo aqui é prefixado com bot_ porque o FBA Games já tem o Quiz do Dia dele
+ * (games/games/quizdodia.php), no MESMO banco, com tabelas chamadas
+ * quiz_perguntas e quiz_votos. São jogos diferentes — cinco opções e só
+ * opinião lá, quatro opções e resposta certa aqui — e disputar o nome fez o
+ * CREATE TABLE IF NOT EXISTS virar silenciosamente um no-op: as tabelas já
+ * existiam, com as colunas do outro jogo. Nada do quiz do bot gravava.
  */
 
 require_once __DIR__ . '/whatsapp.php';
 
 /** Quanto vale acertar, em moedas do FBA Games. */
-const QUIZ_PREMIO = 100;
+const BOT_QUIZ_PREMIO = 100;
 
 /** Quanto tempo a rodada fica aberta. */
-const QUIZ_MINUTOS = 180;
+const BOT_QUIZ_MINUTOS = 180;
 
 function quizGarantirTabelas(PDO $pdo): void
 {
@@ -28,7 +35,9 @@ function quizGarantirTabelas(PDO $pdo): void
     if ($pronto) return;
     $pronto = true;
 
-    $pdo->exec("CREATE TABLE IF NOT EXISTS quiz_perguntas (
+    quizDesfazerColisao($pdo);
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bot_quiz_perguntas (
         id INT AUTO_INCREMENT PRIMARY KEY,
         tipo ENUM('certa','votos') NOT NULL DEFAULT 'certa',
         categoria VARCHAR(40) NULL,
@@ -40,7 +49,7 @@ function quizGarantirTabelas(PDO $pdo): void
         -- 1 a 4 nas de resposta certa; NULL nas de voto.
         correta TINYINT NULL,
         explicacao VARCHAR(300) NULL,
-        -- Vazios = o padrão (grupo principal, QUIZ_PREMIO). Guardar NULL em vez
+        -- Vazios = o padrão (grupo principal, BOT_QUIZ_PREMIO). Guardar NULL em vez
         -- de copiar o padrão faz a pergunta acompanhar quando o padrão mudar,
         -- em vez de ficar presa ao valor do dia em que foi escrita.
         grupo_jid VARCHAR(120) NULL,
@@ -55,12 +64,12 @@ function quizGarantirTabelas(PDO $pdo): void
     // Colunas que nasceram depois: a tabela pode já existir sem elas.
     foreach (['grupo_jid' => "VARCHAR(120) NULL AFTER explicacao",
               'premio'    => "INT NULL AFTER grupo_jid"] as $col => $tipo) {
-        if (!$pdo->query("SHOW COLUMNS FROM quiz_perguntas LIKE '$col'")->fetch()) {
-            $pdo->exec("ALTER TABLE quiz_perguntas ADD COLUMN $col $tipo");
+        if (!$pdo->query("SHOW COLUMNS FROM bot_quiz_perguntas LIKE '$col'")->fetch()) {
+            $pdo->exec("ALTER TABLE bot_quiz_perguntas ADD COLUMN $col $tipo");
         }
     }
 
-    $pdo->exec("CREATE TABLE IF NOT EXISTS quiz_rodadas (
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bot_quiz_rodadas (
         id INT AUTO_INCREMENT PRIMARY KEY,
         pergunta_id INT NOT NULL,
         grupo_jid VARCHAR(120) NOT NULL,
@@ -74,10 +83,10 @@ function quizGarantirTabelas(PDO $pdo): void
         -- Uma rodada aberta por grupo. O UNIQUE nao serve aqui (fechada_em
         -- NULL repete), entao quem garante e a consulta de abertura.
         INDEX idx_qr_aberta (grupo_jid, fechada_em),
-        CONSTRAINT fk_qr_pergunta FOREIGN KEY (pergunta_id) REFERENCES quiz_perguntas(id) ON DELETE CASCADE
+        CONSTRAINT fk_qr_pergunta FOREIGN KEY (pergunta_id) REFERENCES bot_quiz_perguntas(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-    $pdo->exec("CREATE TABLE IF NOT EXISTS quiz_votos (
+    $pdo->exec("CREATE TABLE IF NOT EXISTS bot_quiz_votos (
         id INT AUTO_INCREMENT PRIMARY KEY,
         rodada_id INT NOT NULL,
         telefone VARCHAR(20) NOT NULL,
@@ -87,8 +96,59 @@ function quizGarantirTabelas(PDO $pdo): void
         -- Um voto por pessoa por rodada. Votar de novo TROCA o voto, e o
         -- UNIQUE e quem garante isso sem precisar de SELECT antes.
         UNIQUE KEY uk_qv (rodada_id, telefone),
-        CONSTRAINT fk_qv_rodada FOREIGN KEY (rodada_id) REFERENCES quiz_rodadas(id) ON DELETE CASCADE
+        CONSTRAINT fk_qv_rodada FOREIGN KEY (rodada_id) REFERENCES bot_quiz_rodadas(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+/**
+ * Apaga o rastro da versão que disputava o nome com o Quiz do Dia do games.
+ *
+ * Duas sujeiras diferentes, e a segunda é a que machuca:
+ *
+ *   1. quiz_perguntas ganhou duas colunas minhas (grupo_jid, premio) por um
+ *      ALTER que rodou achando que a tabela era minha. São nulas e o games
+ *      insere com lista de colunas explícita, então não quebraram nada — mas
+ *      ficam lá confundindo quem for ler a tabela depois.
+ *
+ *   2. quiz_rodadas nasceu com uma FOREIGN KEY apontando pra quiz_perguntas.
+ *      Essa É um problema de verdade: com ON DELETE CASCADE, apagar uma
+ *      pergunta do Quiz do Dia levaria junto rodadas do bot, e enquanto a FK
+ *      existir o InnoDB também trava um DROP da tabela do games.
+ *
+ * Só mexe no que dá pra provar que é meu: a tabela do games tem a coluna
+ * `pergunta`, a minha tem `op1`. Sem essa prova, não encosta.
+ */
+function quizDesfazerColisao(PDO $pdo): void
+{
+    $existe = fn(string $t) => (bool)$pdo->query("SHOW TABLES LIKE '$t'")->fetch();
+    $temCol = fn(string $t, string $c) => (bool)$pdo->query("SHOW COLUMNS FROM `$t` LIKE '$c'")->fetch();
+
+    try {
+        // quiz_rodadas é só minha — o Quiz do Dia não tem tabela com esse nome.
+        // Se ela existe, é resto da versão errada, e nunca chegou a rodar (as
+        // consultas que a alimentavam batiam na tabela do outro jogo).
+        if ($existe('quiz_rodadas')) {
+            $pdo->exec("DROP TABLE IF EXISTS quiz_rodadas");
+            error_log('[quiz] quiz_rodadas removida — era resto da colisão de nome');
+        }
+
+        // quiz_perguntas: só limpa se for a do games (tem `pergunta`) e as
+        // colunas forem as minhas. Se tiver `op1`, a tabela é a minha e quem
+        // está sem tabela é o games — aí deixa quieto, não é hora de decidir
+        // isso dentro de um garantir-tabelas.
+        if ($existe('quiz_perguntas') && $temCol('quiz_perguntas', 'pergunta')) {
+            foreach (['grupo_jid', 'premio'] as $col) {
+                if ($temCol('quiz_perguntas', $col)) {
+                    $pdo->exec("ALTER TABLE quiz_perguntas DROP COLUMN `$col`");
+                    error_log("[quiz] coluna $col removida de quiz_perguntas (era do quiz do bot)");
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        // Limpeza não pode derrubar o quiz. Se falhar, o pior caso é uma
+        // coluna sobrando numa tabela que não é minha.
+        error_log('[quiz] limpeza da colisão: ' . $e->getMessage());
+    }
 }
 
 /** O telefone só em dígitos, do jeito que users.phone guarda. */
@@ -111,7 +171,7 @@ function quizRodadaAberta(PDO $pdo, string $grupoJid): ?array
     quizGarantirTabelas($pdo);
     $st = $pdo->prepare("SELECT r.*, p.tipo, p.texto, p.op1, p.op2, p.op3, p.op4, p.correta, p.explicacao,
                                 (r.fecha_em <= NOW()) AS vencida
-                         FROM quiz_rodadas r JOIN quiz_perguntas p ON p.id = r.pergunta_id
+                         FROM bot_quiz_rodadas r JOIN bot_quiz_perguntas p ON p.id = r.pergunta_id
                          WHERE r.grupo_jid = ? AND r.fechada_em IS NULL
                          ORDER BY r.id DESC LIMIT 1");
     $st->execute([$grupoJid]);
@@ -144,7 +204,7 @@ function quizVotar(PDO $pdo, string $grupoJid, string $deQuem, int $opcao): bool
         $userId = $st->fetchColumn() ?: null;
     } catch (Throwable $e) { /* sem phone cadastrado: segue sem user */ }
 
-    $pdo->prepare("INSERT INTO quiz_votos (rodada_id, telefone, user_id, opcao)
+    $pdo->prepare("INSERT INTO bot_quiz_votos (rodada_id, telefone, user_id, opcao)
                    VALUES (?,?,?,?)
                    ON DUPLICATE KEY UPDATE opcao = VALUES(opcao), user_id = VALUES(user_id)")
         ->execute([(int)$rodada['id'], $telefone, $userId, $opcao]);
@@ -159,16 +219,16 @@ function quizFechar(PDO $pdo, int $rodadaId): ?string
 {
     quizGarantirTabelas($pdo);
     $st = $pdo->prepare("SELECT r.*, p.tipo, p.texto, p.op1, p.op2, p.op3, p.op4, p.correta, p.explicacao
-                         FROM quiz_rodadas r JOIN quiz_perguntas p ON p.id = r.pergunta_id
+                         FROM bot_quiz_rodadas r JOIN bot_quiz_perguntas p ON p.id = r.pergunta_id
                          WHERE r.id = ? AND r.fechada_em IS NULL");
     $st->execute([$rodadaId]);
     $r = $st->fetch(PDO::FETCH_ASSOC);
     if (!$r) return null;
 
     // O premio e o da RODADA, congelado na abertura.
-    $premio = (int)($r['premio'] ?? 0) ?: QUIZ_PREMIO;
+    $premio = (int)($r['premio'] ?? 0) ?: BOT_QUIZ_PREMIO;
 
-    $st = $pdo->prepare("SELECT opcao, COUNT(*) n FROM quiz_votos WHERE rodada_id = ? GROUP BY opcao");
+    $st = $pdo->prepare("SELECT opcao, COUNT(*) n FROM bot_quiz_votos WHERE rodada_id = ? GROUP BY opcao");
     $st->execute([$rodadaId]);
     $contagem = [1 => 0, 2 => 0, 3 => 0, 4 => 0];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $v) $contagem[(int)$v['opcao']] = (int)$v['n'];
@@ -185,7 +245,7 @@ function quizFechar(PDO $pdo, int $rodadaId): ?string
 
     // Credita quem acertou. Voto sem GM identificado conta na apuração mas não
     // rende moeda — não há conta pra creditar.
-    $st = $pdo->prepare("SELECT user_id, telefone FROM quiz_votos WHERE rodada_id = ? AND opcao = ?");
+    $st = $pdo->prepare("SELECT user_id, telefone FROM bot_quiz_votos WHERE rodada_id = ? AND opcao = ?");
     $st->execute([$rodadaId, $vencedora]);
     $ganhadores = $st->fetchAll(PDO::FETCH_ASSOC);
 
@@ -204,7 +264,7 @@ function quizFechar(PDO $pdo, int $rodadaId): ?string
         }
     }
 
-    $pdo->prepare("UPDATE quiz_rodadas SET fechada_em = NOW(), vencedora = ? WHERE id = ?")
+    $pdo->prepare("UPDATE bot_quiz_rodadas SET fechada_em = NOW(), vencedora = ? WHERE id = ?")
         ->execute([$vencedora, $rodadaId]);
 
     // ── O texto do resultado ─────────────────────────────────────────────
@@ -247,7 +307,7 @@ function quizFechar(PDO $pdo, int $rodadaId): ?string
 function quizFecharVencidas(PDO $pdo): array
 {
     quizGarantirTabelas($pdo);
-    $st = $pdo->query("SELECT id, grupo_jid FROM quiz_rodadas
+    $st = $pdo->query("SELECT id, grupo_jid FROM bot_quiz_rodadas
                        WHERE fechada_em IS NULL AND fecha_em <= NOW()");
     $saida = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -267,13 +327,13 @@ function quizAbrir(PDO $pdo, string $grupoPadrao): ?array
 {
     quizGarantirTabelas($pdo);
 
-    $st = $pdo->query("SELECT * FROM quiz_perguntas WHERE ativa = 1 AND usada_em IS NULL
+    $st = $pdo->query("SELECT * FROM bot_quiz_perguntas WHERE ativa = 1 AND usada_em IS NULL
                        ORDER BY RAND() LIMIT 1");
     $p = $st->fetch(PDO::FETCH_ASSOC);
     if (!$p) {
         // Acabaram as inéditas: volta pras mais antigas. Melhor repetir de vez
         // em quando do que o quiz parar de sair.
-        $st = $pdo->query("SELECT * FROM quiz_perguntas WHERE ativa = 1
+        $st = $pdo->query("SELECT * FROM bot_quiz_perguntas WHERE ativa = 1
                            ORDER BY usada_em ASC LIMIT 1");
         $p = $st->fetch(PDO::FETCH_ASSOC);
     }
@@ -287,11 +347,11 @@ function quizAbrir(PDO $pdo, string $grupoPadrao): ?array
     // marcada como usada, então ela continua na fila pra amanhã.
     if (quizRodadaAberta($pdo, $grupoJid)) return null;
 
-    $premio = (int)($p['premio'] ?? 0) ?: QUIZ_PREMIO;
-    $fecha = date('Y-m-d H:i:s', time() + QUIZ_MINUTOS * 60);
-    $pdo->prepare("INSERT INTO quiz_rodadas (pergunta_id, grupo_jid, fecha_em, premio) VALUES (?,?,?,?)")
+    $premio = (int)($p['premio'] ?? 0) ?: BOT_QUIZ_PREMIO;
+    $fecha = date('Y-m-d H:i:s', time() + BOT_QUIZ_MINUTOS * 60);
+    $pdo->prepare("INSERT INTO bot_quiz_rodadas (pergunta_id, grupo_jid, fecha_em, premio) VALUES (?,?,?,?)")
         ->execute([(int)$p['id'], $grupoJid, $fecha, $premio]);
-    $pdo->prepare("UPDATE quiz_perguntas SET usada_em = NOW() WHERE id = ?")->execute([(int)$p['id']]);
+    $pdo->prepare("UPDATE bot_quiz_perguntas SET usada_em = NOW() WHERE id = ?")->execute([(int)$p['id']]);
 
     $cabeca = $p['tipo'] === 'certa'
         ? "🧠 *QUIZ DO DIA*"
@@ -304,7 +364,7 @@ function quizAbrir(PDO $pdo, string $grupoPadrao): ?array
            . "*1.* {$p['op1']}\n*2.* {$p['op2']}\n*3.* {$p['op3']}\n*4.* {$p['op4']}\n\n"
            . "{$regra}\n"
            . '_Vale ' . $premio . ' moedas no FBA Games · dá pra trocar o voto até fechar · '
-           . 'resultado em ' . intdiv(QUIZ_MINUTOS, 60) . "h._";
+           . 'resultado em ' . intdiv(BOT_QUIZ_MINUTOS, 60) . "h._";
 
     // Devolve o grupo junto: quem chama não sabia pra onde ia, porque quem
     // decide isso é a pergunta.

@@ -116,6 +116,13 @@ foreach ($mensagens as $m) {
     if (!empty($m['key']['fromMe'])) continue;
 
     $de = (string)($m['key']['remoteJid'] ?? '');
+
+    // Anota o grupo antes de decidir se atende. O id de grupo do WhatsApp é
+    // um número de 18 dígitos que ninguém tem como digitar de cabeça, e é
+    // justamente ele que o cadastro pede — sem essa anotação, habilitar um
+    // grupo novo virava caça ao JID no log da Evolution.
+    whatsappAnotarGrupoVisto($pdo, $de, $m);
+
     // Só os grupos cadastrados. Sem isso, qualquer conversa privada que
     // chegasse na instância viraria consulta ao banco da liga.
     if (!isset($gruposPermitidos[$de])) continue;

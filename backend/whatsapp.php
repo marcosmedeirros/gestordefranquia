@@ -243,6 +243,54 @@ function whatsappGruposDeComando(PDO $pdo): array
     return $out;
 }
 
+/**
+ * Anota todo grupo de onde chega mensagem, mesmo os que o bot não atende.
+ *
+ * Serve pra uma coisa só: cadastrar grupo sem ter que descobrir o JID. O
+ * identificador é um número de 18 dígitos que não aparece em lugar nenhum da
+ * interface do WhatsApp, então "cadastre o Chat Off da NEXT" sem isto exige
+ * ler log da Evolution. Com isto, basta alguém falar no grupo uma vez e ele
+ * aparece na tela pra ser habilitado com um clique.
+ *
+ * Guarda também quem falou e o começo da mensagem — o JID sozinho não diz
+ * qual grupo é, e o "Victor: e aí, tem jogo hoje?" diz na hora.
+ *
+ * Nada aqui pode derrubar o webhook: é anotação, não é o trabalho dele.
+ */
+function whatsappAnotarGrupoVisto(PDO $pdo, string $jid, array $mensagem = []): void
+{
+    if (!str_ends_with($jid, '@g.us')) return;   // conversa privada não entra
+
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_grupos_vistos (
+            jid VARCHAR(120) PRIMARY KEY,
+            ultimo_autor VARCHAR(120) NULL,
+            ultima_mensagem VARCHAR(160) NULL,
+            mensagens INT NOT NULL DEFAULT 0,
+            visto_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            primeiro_em TIMESTAMP NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $autor = trim((string)($mensagem['pushName'] ?? ''));
+        // wcTextoDaMensagem é declarada dentro do próprio webhook, que é quem
+        // chama isto aqui. Chamado de outro lugar, o resumo só não vem.
+        $texto = function_exists('wcTextoDaMensagem')
+            ? trim((string)wcTextoDaMensagem($mensagem['message'] ?? []))
+            : '';
+
+        $pdo->prepare("INSERT INTO whatsapp_grupos_vistos
+                         (jid, ultimo_autor, ultima_mensagem, mensagens, primeiro_em)
+                       VALUES (?,?,?,1,NOW())
+                       ON DUPLICATE KEY UPDATE
+                         ultimo_autor = VALUES(ultimo_autor),
+                         ultima_mensagem = VALUES(ultima_mensagem),
+                         mensagens = mensagens + 1")
+            ->execute([$jid, mb_substr($autor, 0, 120) ?: null, mb_substr($texto, 0, 160) ?: null]);
+    } catch (Throwable $e) {
+        error_log('[whatsapp] anotar grupo visto: ' . $e->getMessage());
+    }
+}
+
 function whatsappEnfileirar(PDO $pdo, string $destino, string $texto, bool $ehGrupo = false, ?string $tipo = null, ?int $userId = null, ?array $mencoes = null): bool
 {
     if ($destino === '' || trim($texto) === '') return false;

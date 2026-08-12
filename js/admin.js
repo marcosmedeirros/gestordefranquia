@@ -414,6 +414,12 @@ function _quizRender(e, perguntas) {
   const ab = e.aberta;
   const back = 'showGestao()';
 
+  // Antes de montar a tela, não depois: o HTML abaixo já lê _quizGrupos pra
+  // trocar o JID pelo nome do grupo na lista de perguntas.
+  window._quizCache = perguntas;
+  window._quizGrupos = e.grupos || [];
+  window._quizPremioPadrao = e.premio;
+
   document.getElementById('mainContainer').innerHTML = `
 <div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
   <button class="btn btn-back" onclick="${back}"><i class="bi bi-arrow-left"></i> Voltar</button>
@@ -427,7 +433,7 @@ function _quizRender(e, perguntas) {
       <b>${n.total || 0}</b> perguntas · <b>${n.certas || 0}</b> com resposta certa ·
       <b>${n.votos || 0}</b> de mais votada · <b>${n['inéditas'] || 0}</b> nunca usadas
       ${Number(n.inativas) ? ` · <b>${n.inativas}</b> fora do sorteio` : ''}
-      <br>Sai <b>1 por dia às 10:30</b>, vale <b>${e.premio}</b> moedas, apura sozinha depois.
+      <br>Sai <b>1 por dia às 10:30</b>, vale <b>${e.premio ?? 100}</b> moedas para cada acerto, apura sozinha depois.
     </div>
     ${ab ? `
       <div class="alert alert-info py-2 px-3" style="font-size:13px">
@@ -443,6 +449,8 @@ function _quizRender(e, perguntas) {
         <i class="bi bi-download me-1"></i>Popular banco inicial</button>` : `
       <button class="btn-ghost" onclick="_quizAcao('popular','Carregar de novo o banco inicial? As que já existem são puladas.')">
         <i class="bi bi-arrow-repeat me-1"></i>Recarregar banco inicial</button>`}
+    <button class="btn-ghost" onclick="_quizGruposTela()"><i class="bi bi-people-fill me-1"></i>Grupos do bot (${(e.grupos || []).length})</button>
+    <button class="btn-ghost" onclick="_quizDiagnostico()"><i class="bi bi-clipboard-pulse me-1"></i>Diagnóstico</button>
   </div>
 </div>
 
@@ -513,10 +521,129 @@ ${(e.ultimas || []).length ? `
   </div>
 </div>`;
 
-  // Guarda o que o modal precisa, pra ele não ter que buscar de novo.
-  window._quizCache = perguntas;
-  window._quizGrupos = e.grupos || [];
-  window._quizPremioPadrao = e.premio;
+}
+
+/** Mostra o que está de fato no servidor, quando algo não funciona. */
+async function _quizDiagnostico() {
+  try {
+    const r = await api('quiz-admin.php?action=diagnostico');
+    const linhas = Object.entries(r.diagnostico || {})
+      .map(([k, v]) => `${k.padEnd(26)} ${v}`).join('\n');
+    alert('DIAGNÓSTICO DO QUIZ\n\n' + linhas);
+  } catch (e) {
+    alert('O diagnóstico também falhou:\n\n' + (e.error || 'sem detalhe') +
+          '\n\nIsso normalmente quer dizer que os arquivos novos não subiram pro servidor.');
+  }
+}
+
+/**
+ * Cadastro dos grupos onde o bot fala.
+ *
+ * Não é config do quiz, é do bot inteiro — mas é aqui que a falta dela
+ * aparece, quando o seletor de grupo da pergunta só oferece o principal.
+ */
+async function _quizGruposTela() {
+  const grupos = window._quizGrupos || [];
+  // Os grupos de onde o bot já ouviu alguma coisa mas que ninguém cadastrou.
+  let vistos = [];
+  try { vistos = (await api('quiz-admin.php?action=grupos_vistos')).vistos || []; } catch (e) { /* tela funciona sem */ }
+  document.getElementById('_quizGruposModal')?.remove();
+  const modal = document.createElement('div');
+  modal.id = '_quizGruposModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:2000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px';
+  modal.innerHTML = `
+    <div class="panel" style="width:100%;max-width:620px;padding:0;margin-top:20px">
+      <div class="panel-header" style="padding:16px 18px 0">
+        <div class="panel-title"><i class="bi bi-people-fill" style="color:#25d366"></i> Grupos do bot</div>
+        <button class="btn-ghost" style="padding:4px 8px" onclick="document.getElementById('_quizGruposModal').remove()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div style="padding:14px 18px">
+        <p style="font-size:12.5px;color:var(--text-2);line-height:1.55">
+          Onde o bot aceita <code>/comando</code> e pode postar o quiz. A liga do grupo vira
+          contexto: no Chat Off da NEXT, <code>/classificacao</code> sem argumento responde a NEXT.
+          <br><b>O JID</b> é o identificador do grupo no WhatsApp, terminado em <code>@g.us</code>.
+        </p>
+
+        ${grupos.length ? `
+          <table class="table table-dark" style="font-size:12.5px">
+            <thead><tr><th>Grupo</th><th style="width:80px">Liga</th><th style="width:50px"></th></tr></thead>
+            <tbody>${grupos.map(g => `
+              <tr>
+                <td><div style="font-weight:600">${escapeHtml(g.nome)}${g.principal ? ' <span class="badge" style="background:rgba(37,211,102,.15);color:#25d366;font-size:9.5px">PRINCIPAL</span>' : ''}</div>
+                    <div style="font-size:10.5px;color:var(--text-3)">${escapeHtml(g.jid)}</div></td>
+                <td>${escapeHtml(g.liga || '—')}</td>
+                <td style="text-align:right">${g.principal ? '' :
+                  `<button class="btn-ghost btn-sm" style="color:#ef4444" onclick="_quizGrupoRemover('${escapeHtml(g.jid)}')"><i class="bi bi-trash"></i></button>`}</td>
+              </tr>`).join('')}</tbody>
+          </table>` : '<div class="empty-state" style="padding:16px">Só o grupo principal está configurado.</div>'}
+
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:6px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:8px">
+            Grupos que o bot já ouviu</div>
+          ${vistos.length ? `
+            <div style="font-size:11.5px;color:var(--text-3);margin-bottom:8px">
+              Clique pra preencher o formulário abaixo — o JID vem junto.
+            </div>
+            ${vistos.map(v => `
+              <button class="btn-ghost w-100 mb-1" style="text-align:left;padding:8px 10px"
+                      onclick="_quizGrupoDoVisto('${escapeHtml(v.jid)}')">
+                <div style="font-size:11.5px;color:var(--text-2)">
+                  ${escapeHtml(v.ultimo_autor || 'alguém')}: ${escapeHtml(v.ultima_mensagem || '—')}</div>
+                <div style="font-size:10.5px;color:var(--text-3)">${escapeHtml(v.jid)} · ${v.mensagens} mensagem(ns)</div>
+              </button>`).join('')}`
+          : `<div style="font-size:11.5px;color:var(--text-3);line-height:1.55">
+               Nenhum ainda. <b>Mande qualquer mensagem no grupo</b> que você quer cadastrar —
+               o bot anota o identificador dele sozinho e ele aparece aqui.
+               Só funciona com o bot ligado e o webhook apontado.
+             </div>`}
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:12px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:8px">Adicionar grupo</div>
+          <div class="d-flex gap-2 flex-wrap">
+            <input type="text" id="_qgNome" class="form-control form-control-sm" style="flex:2;min-width:150px" placeholder="Nome (ex: Chat Off - NEXT)">
+            <select id="_qgLiga" class="form-select form-select-sm" style="width:110px">
+              <option value="">Sem liga</option>
+              ${['ELITE','NEXT','RISE','ROOKIE'].map(l => `<option>${l}</option>`).join('')}
+            </select>
+          </div>
+          <input type="text" id="_qgJid" class="form-control form-control-sm mt-2" placeholder="JID do grupo — termina em @g.us">
+          <button class="btn-ghost mt-2" style="color:#25d366" onclick="_quizGrupoSalvar()"><i class="bi bi-plus-lg me-1"></i>Adicionar</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+/** Leva o JID do grupo ouvido pro formulário, que é o campo impossível de digitar. */
+function _quizGrupoDoVisto(jid) {
+  const campo = document.getElementById('_qgJid');
+  campo.value = jid;
+  document.getElementById('_qgNome').focus();
+}
+
+async function _quizGrupoSalvar() {
+  const corpo = {
+    jid: document.getElementById('_qgJid').value.trim(),
+    nome: document.getElementById('_qgNome').value.trim(),
+    liga: document.getElementById('_qgLiga').value,
+  };
+  try {
+    const r = await api('quiz-admin.php?action=grupos_salvar', { method: 'POST', body: JSON.stringify(corpo) });
+    document.getElementById('_quizGruposModal')?.remove();
+    showAlert('success', r.message);
+    showQuizAdmin();
+  } catch (e) { showAlert('danger', e.error || 'Erro'); }
+}
+
+async function _quizGrupoRemover(jid) {
+  if (!confirm('Tirar esse grupo? O bot para de atender comando nele.')) return;
+  try {
+    const r = await api('quiz-admin.php?action=grupos_remover', { method: 'POST', body: JSON.stringify({ jid }) });
+    document.getElementById('_quizGruposModal')?.remove();
+    showAlert('success', r.message);
+    showQuizAdmin();
+  } catch (e) { showAlert('danger', e.error || 'Erro'); }
 }
 
 async function _quizAcao(acao, confirmar, corpo) {

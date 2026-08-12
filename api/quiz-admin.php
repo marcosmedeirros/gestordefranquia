@@ -38,30 +38,146 @@ try {
             SUM(tipo='votos') votos,
             SUM(usada_em IS NULL AND ativa=1) inéditas,
             SUM(ativa=0) inativas
-            FROM quiz_perguntas")->fetch(PDO::FETCH_ASSOC);
+            FROM bot_quiz_perguntas")->fetch(PDO::FETCH_ASSOC);
 
         $st = $pdo->query("SELECT r.id, r.aberta_em, r.fecha_em, r.grupo_jid,
                                   p.texto, p.tipo, p.op1, p.op2, p.op3, p.op4,
-                                  (SELECT COUNT(*) FROM quiz_votos v WHERE v.rodada_id = r.id) votos
-                           FROM quiz_rodadas r JOIN quiz_perguntas p ON p.id = r.pergunta_id
+                                  (SELECT COUNT(*) FROM bot_quiz_votos v WHERE v.rodada_id = r.id) votos
+                           FROM bot_quiz_rodadas r JOIN bot_quiz_perguntas p ON p.id = r.pergunta_id
                            WHERE r.fechada_em IS NULL ORDER BY r.id DESC LIMIT 1");
         $aberta = $st->fetch(PDO::FETCH_ASSOC) ?: null;
 
         $ultimas = $pdo->query("SELECT r.id, r.fechada_em, r.vencedora, p.texto, p.tipo,
-                                       (SELECT COUNT(*) FROM quiz_votos v WHERE v.rodada_id = r.id) votos
-                                FROM quiz_rodadas r JOIN quiz_perguntas p ON p.id = r.pergunta_id
+                                       (SELECT COUNT(*) FROM bot_quiz_votos v WHERE v.rodada_id = r.id) votos
+                                FROM bot_quiz_rodadas r JOIN bot_quiz_perguntas p ON p.id = r.pergunta_id
                                 WHERE r.fechada_em IS NOT NULL
                                 ORDER BY r.fechada_em DESC LIMIT 8")->fetchAll(PDO::FETCH_ASSOC);
 
         // Os grupos onde o bot fala, pro seletor da pergunta.
         require_once dirname(__DIR__) . '/backend/whatsapp.php';
+        $principal = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id=1")->fetchColumn() ?: ''));
         $grupos = [];
         foreach (whatsappGruposDeComando($pdo) as $jid => $g) {
-            $grupos[] = ['jid' => $jid, 'nome' => $g['nome'], 'liga' => $g['liga']];
+            $grupos[] = ['jid' => $jid, 'nome' => $g['nome'], 'liga' => $g['liga'],
+                         'principal' => ($jid === $principal)];
         }
 
         echo json_encode(['success' => true, 'contagem' => $tot, 'aberta' => $aberta,
-                          'ultimas' => $ultimas, 'premio' => QUIZ_PREMIO, 'grupos' => $grupos]);
+                          'ultimas' => $ultimas, 'premio' => BOT_QUIZ_PREMIO, 'grupos' => $grupos]);
+        exit;
+    }
+
+    /**
+     * O que está de fato no servidor. Existe porque "não funcionou" sem mais
+     * nada obriga a adivinhar: arquivo que não subiu, tabela que não criou e
+     * constante que sumiu dão todos o mesmo sintoma na tela.
+     */
+    if ($acao === 'diagnostico') {
+        $semente = dirname(__DIR__) . '/backend/seeds/quiz_perguntas.php';
+        $linhas = [];
+        $linhas['php'] = PHP_VERSION;
+        $linhas['quiz.php'] = is_file(dirname(__DIR__) . '/backend/quiz.php') ? 'existe' : 'NÃO EXISTE';
+        $linhas['BOT_QUIZ_PREMIO'] = defined('BOT_QUIZ_PREMIO') ? (string)BOT_QUIZ_PREMIO : 'NÃO DEFINIDA';
+        $linhas['arquivo de perguntas'] = is_file($semente)
+            ? 'existe (' . number_format(filesize($semente) / 1024, 1) . ' KB)'
+            : 'NÃO EXISTE em ' . $semente;
+        if (is_file($semente)) {
+            $s = @require $semente;
+            $linhas['perguntas no arquivo'] = is_array($s) ? count($s) . '' : 'formato inesperado';
+        }
+        foreach (['bot_quiz_perguntas', 'bot_quiz_rodadas', 'bot_quiz_votos'] as $t) {
+            try {
+                $linhas['tabela ' . $t] = $pdo->query("SHOW TABLES LIKE '$t'")->fetch()
+                    ? $pdo->query("SELECT COUNT(*) FROM `$t`")->fetchColumn() . ' linha(s)'
+                    : 'NÃO EXISTE';
+            } catch (Throwable $e) { $linhas['tabela ' . $t] = 'erro: ' . $e->getMessage(); }
+        }
+        try {
+            $pdo->query("SELECT grupo_jid, premio FROM bot_quiz_perguntas LIMIT 0");
+            $linhas['colunas grupo_jid/premio'] = 'existem';
+        } catch (Throwable $e) { $linhas['colunas grupo_jid/premio'] = 'FALTAM'; }
+        $linhas['grupo principal'] = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id=1")->fetchColumn() ?: '')) ?: 'NÃO CONFIGURADO';
+
+        // O Quiz do Dia do FBA Games mora no mesmo banco e disputava esses
+        // nomes. Se ele reaparecer aqui como "tabela do bot", a colisão voltou.
+        $linhas['quiz_perguntas (do FBA Games)'] = $pdo->query("SHOW TABLES LIKE 'quiz_perguntas'")->fetch()
+            ? ($pdo->query("SHOW COLUMNS FROM quiz_perguntas LIKE 'pergunta'")->fetch()
+                ? 'é a do Quiz do Dia, como deve ser' : 'ATENÇÃO: tem cara de tabela do bot')
+            : 'não existe';
+
+        echo json_encode(['success' => true, 'diagnostico' => $linhas]);
+        exit;
+    }
+
+    /**
+     * Os grupos onde o bot fala.
+     *
+     * Não é config do quiz: é do bot inteiro — é essa tabela que decide onde
+     * ele aceita /comando e de qual liga o grupo é. O endpoint que grava isso
+     * existia em api/whatsapp-bot.php desde sempre, mas ninguém nunca chamou:
+     * nem tela, nem script. Resultado, a tabela ficou vazia e o bot só
+     * atendia no grupo principal.
+     */
+    if ($acao === 'grupos_salvar') {
+        $c = qaCorpo();
+        $jid  = trim((string)($c['jid'] ?? ''));
+        $nome = trim((string)($c['nome'] ?? ''));
+        $liga = strtoupper(trim((string)($c['liga'] ?? '')));
+
+        // Só grupo. Um número individual aqui abriria o bot pra conversa
+        // privada, e aí qualquer um consulta o banco da liga no PV.
+        if (!str_ends_with($jid, '@g.us')) {
+            qaErro(400, 'O JID precisa terminar em @g.us — é o identificador do grupo, não de pessoa.');
+        }
+        if ($nome === '') qaErro(400, 'Dê um nome ao grupo.');
+        if ($liga !== '' && !in_array($liga, ['ELITE','NEXT','RISE','ROOKIE'], true)) {
+            qaErro(400, 'Liga inválida.');
+        }
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_grupos_comando (
+            jid VARCHAR(120) PRIMARY KEY,
+            nome VARCHAR(120) NULL,
+            liga ENUM('ELITE','NEXT','RISE','ROOKIE') NULL,
+            ativo TINYINT(1) NOT NULL DEFAULT 1,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->prepare("INSERT INTO whatsapp_grupos_comando (jid, nome, liga, ativo) VALUES (?,?,?,1)
+                       ON DUPLICATE KEY UPDATE nome=VALUES(nome), liga=VALUES(liga), ativo=1")
+            ->execute([$jid, mb_substr($nome, 0, 120), $liga !== '' ? $liga : null]);
+
+        echo json_encode(['success' => true, 'message' => 'Grupo salvo. O bot passa a atender nele.']);
+        exit;
+    }
+
+    /**
+     * Grupos de onde já chegou mensagem, mas que não estão cadastrados.
+     *
+     * É a resposta pro "de onde eu tiro o JID": ninguém digita um id de 18
+     * dígitos, e ele não aparece na interface do WhatsApp. Basta alguém falar
+     * no grupo uma vez que ele cai aqui, com autor e trecho da última
+     * mensagem pra dar pra reconhecer qual é.
+     */
+    if ($acao === 'grupos_vistos') {
+        require_once dirname(__DIR__) . '/backend/whatsapp.php';
+        $jaTem = array_keys(whatsappGruposDeComando($pdo));
+        try {
+            $vistos = $pdo->query("SELECT jid, ultimo_autor, ultima_mensagem, mensagens, visto_em
+                                   FROM whatsapp_grupos_vistos ORDER BY visto_em DESC LIMIT 40")->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            // A tabela só nasce quando o webhook recebe a primeira mensagem.
+            $vistos = [];
+        }
+        $novos = array_values(array_filter($vistos, fn($v) => !in_array($v['jid'], $jaTem, true)));
+        echo json_encode(['success' => true, 'vistos' => $novos]);
+        exit;
+    }
+
+    if ($acao === 'grupos_remover') {
+        $jid = trim((string)(qaCorpo()['jid'] ?? ''));
+        if ($jid === '') qaErro(400, 'jid obrigatório');
+        $pdo->prepare("DELETE FROM whatsapp_grupos_comando WHERE jid = ?")->execute([$jid]);
+        echo json_encode(['success' => true, 'message' => 'Grupo removido.']);
         exit;
     }
 
@@ -70,7 +186,7 @@ try {
         $busca = trim((string)($_GET['q'] ?? ''));
         $sql = "SELECT id, tipo, categoria, texto, op1, op2, op3, op4, correta, explicacao,
                        grupo_jid, premio, ativa, usada_em
-                FROM quiz_perguntas WHERE 1";
+                FROM bot_quiz_perguntas WHERE 1";
         $args = [];
         if (in_array($tipo, ['certa','votos'], true)) { $sql .= " AND tipo = ?"; $args[] = $tipo; }
         if ($busca !== '') { $sql .= " AND texto LIKE ?"; $args[] = '%' . $busca . '%'; }
@@ -118,12 +234,12 @@ try {
         $premio = $premio > 0 ? $premio : null;
 
         if ($id > 0) {
-            $pdo->prepare("UPDATE quiz_perguntas SET tipo=?, categoria=?, texto=?,
+            $pdo->prepare("UPDATE bot_quiz_perguntas SET tipo=?, categoria=?, texto=?,
                            op1=?, op2=?, op3=?, op4=?, correta=?, explicacao=?, grupo_jid=?, premio=? WHERE id=?")
                 ->execute([$tipo, $cat, $texto, $ops[0], $ops[1], $ops[2], $ops[3], $correta, $exp, $grupo, $premio, $id]);
             echo json_encode(['success' => true, 'id' => $id, 'message' => 'Pergunta atualizada.']);
         } else {
-            $pdo->prepare("INSERT INTO quiz_perguntas (tipo, categoria, texto, op1, op2, op3, op4, correta, explicacao, grupo_jid, premio, criada_por)
+            $pdo->prepare("INSERT INTO bot_quiz_perguntas (tipo, categoria, texto, op1, op2, op3, op4, correta, explicacao, grupo_jid, premio, criada_por)
                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
                 ->execute([$tipo, $cat, $texto, $ops[0], $ops[1], $ops[2], $ops[3], $correta, $exp, $grupo, $premio, (int)$user['id']]);
             echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId(), 'message' => 'Pergunta criada.']);
@@ -134,8 +250,8 @@ try {
     if ($acao === 'alternar') {
         $id = (int)(qaCorpo()['id'] ?? 0);
         if (!$id) qaErro(400, 'id obrigatório');
-        $pdo->prepare("UPDATE quiz_perguntas SET ativa = 1 - ativa WHERE id = ?")->execute([$id]);
-        $st = $pdo->prepare("SELECT ativa FROM quiz_perguntas WHERE id = ?");
+        $pdo->prepare("UPDATE bot_quiz_perguntas SET ativa = 1 - ativa WHERE id = ?")->execute([$id]);
+        $st = $pdo->prepare("SELECT ativa FROM bot_quiz_perguntas WHERE id = ?");
         $st->execute([$id]);
         $ativa = (int)$st->fetchColumn();
         echo json_encode(['success' => true, 'ativa' => $ativa,
@@ -147,21 +263,38 @@ try {
         $id = (int)(qaCorpo()['id'] ?? 0);
         if (!$id) qaErro(400, 'id obrigatório');
         // Rodada guarda o resultado do dia; apagar a pergunta levaria junto.
-        $st = $pdo->prepare("SELECT COUNT(*) FROM quiz_rodadas WHERE pergunta_id = ?");
+        $st = $pdo->prepare("SELECT COUNT(*) FROM bot_quiz_rodadas WHERE pergunta_id = ?");
         $st->execute([$id]);
         if ((int)$st->fetchColumn() > 0) {
             qaErro(409, 'Essa pergunta já foi ao ar — desative em vez de apagar, senão o resultado daquele dia some junto.');
         }
-        $pdo->prepare("DELETE FROM quiz_perguntas WHERE id = ?")->execute([$id]);
+        $pdo->prepare("DELETE FROM bot_quiz_perguntas WHERE id = ?")->execute([$id]);
         echo json_encode(['success' => true, 'message' => 'Pergunta apagada.']);
         exit;
     }
 
     /** Carrega o banco inicial. Rodar de novo não duplica. */
     if ($acao === 'popular') {
-        $sementes = require dirname(__DIR__) . '/backend/seeds/quiz_perguntas.php';
-        $existe = $pdo->prepare("SELECT COUNT(*) FROM quiz_perguntas WHERE texto = ?");
-        $ins = $pdo->prepare("INSERT INTO quiz_perguntas (tipo, categoria, texto, op1, op2, op3, op4, correta, explicacao)
+        // Cada tropeço daqui vira uma mensagem que diz o que fazer. Antes tudo
+        // caía no "Erro interno" genérico do catch lá embaixo, e não havia como
+        // saber se o arquivo não subiu, se veio vazio ou se o banco recusou.
+        $caminho = dirname(__DIR__) . '/backend/seeds/quiz_perguntas.php';
+        if (!is_file($caminho)) {
+            qaErro(500, 'O arquivo de perguntas não está no servidor (backend/seeds/quiz_perguntas.php). '
+                      . 'Provavelmente o deploy não subiu a pasta nova — confira se ela existe na Hostinger.');
+        }
+        if (!is_readable($caminho)) {
+            qaErro(500, 'O arquivo de perguntas existe mas não dá pra ler — é permissão de arquivo.');
+        }
+
+        $sementes = require $caminho;
+        if (!is_array($sementes) || !$sementes) {
+            qaErro(500, 'O arquivo de perguntas veio vazio ou em formato inesperado. '
+                      . 'Se ele subiu truncado, refaça o deploy do backend/seeds/quiz_perguntas.php.');
+        }
+
+        $existe = $pdo->prepare("SELECT COUNT(*) FROM bot_quiz_perguntas WHERE texto = ?");
+        $ins = $pdo->prepare("INSERT INTO bot_quiz_perguntas (tipo, categoria, texto, op1, op2, op3, op4, correta, explicacao)
                               VALUES (?,?,?,?,?,?,?,?,?)");
         $novas = 0; $puladas = 0;
         foreach ($sementes as $s) {
@@ -179,7 +312,7 @@ try {
 
     /** Fecha a rodada aberta na hora, sem esperar o prazo. */
     if ($acao === 'apurar_agora') {
-        $st = $pdo->query("SELECT id, grupo_jid FROM quiz_rodadas WHERE fechada_em IS NULL ORDER BY id DESC LIMIT 1");
+        $st = $pdo->query("SELECT id, grupo_jid FROM bot_quiz_rodadas WHERE fechada_em IS NULL ORDER BY id DESC LIMIT 1");
         $r = $st->fetch(PDO::FETCH_ASSOC);
         if (!$r) qaErro(409, 'Não há rodada aberta.');
         $txt = quizFechar($pdo, (int)$r['id']);
@@ -204,5 +337,9 @@ try {
 } catch (Throwable $e) {
     error_log('[quiz-admin] ' . $acao . ': ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Erro interno. O admin foi avisado no log.']);
+    // A mensagem real vai junto. Esta tela é só do admin geral, e "erro
+    // interno" sozinho obriga a ir catar log no servidor pra descobrir se
+    // faltou uma coluna, uma tabela ou permissão.
+    echo json_encode(['success' => false,
+        'error' => 'Erro interno: ' . $e->getMessage()]);
 }
