@@ -1304,7 +1304,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         ${isCompleted ? `
           <div class="pick-result">
             <div class="pick-result-name">${esc(pick.player_name)}</div>
-            <div class="pick-result-meta">${esc(pick.player_position)} · OVR ${pick.player_ovr}</div>
+            <div class="pick-result-meta">${esc(pick.player_position)}</div>
           </div>
         ` : `
           <div class="pick-waiting">
@@ -1419,11 +1419,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       <div class="player-chip${drafted ? ' drafted' : ''}" ${clickable ? `onclick="makePick(${p.id}, '${esc(p.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')"` : ''} style="${clickable ? 'cursor:pointer' : ''}">
         ${p.pick_hint ? `<span class="player-chip-order">${p.pick_hint}</span>` : ''}
         <div class="player-chip-name">${esc(p.name)}</div>
-        <div>
-          <span class="player-chip-pos">${esc(p.position)}</span>
-          <span class="player-chip-ovr">OVR ${p.ovr}</span>
-        </div>
-        <div class="player-chip-age">${p.age} anos</div>
+        <div><span class="player-chip-pos">${esc(p.position)}</span></div>
         ${drafted ? `<div class="player-chip-drafted-tag">Draftado</div>` : ''}
       </div>
     `;
@@ -1560,8 +1556,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     container.innerHTML = players.map(p => `
       <div class="player-chip" style="cursor:pointer" onclick="chooseRound2Mock(${p.id})">
         <div class="player-chip-name">${esc(p.name)}</div>
-        <div><span class="player-chip-pos">${esc(p.position)}</span> <span class="player-chip-ovr">OVR ${p.ovr}</span></div>
-        <div class="player-chip-age">${p.age} anos</div>
+        <div><span class="player-chip-pos">${esc(p.position)}</span></div>
       </div>
     `).join('');
   }
@@ -1816,7 +1811,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         ${isCompleted ? `
           <div class="pick-result">
             <div class="pick-result-name">${esc(pick.player_name || 'Jogador Desconhecido')}</div>
-            ${pick.player_position ? `<div class="pick-result-meta">${esc(pick.player_position)}${pick.player_ovr ? ' · OVR ' + pick.player_ovr : ''}</div>` : ''}
+            ${pick.player_position ? `<div class="pick-result-meta">${esc(pick.player_position)}</div>` : ''}
           </div>
         ` : `
           <div class="pick-waiting">
@@ -1861,8 +1856,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     container.innerHTML = players.map(p => `
       <div class="player-chip" onclick="fillPastPick(${p.id}, '${esc((p.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')" style="cursor:pointer">
         <div class="player-chip-name">${esc(p.name || 'Sem nome')}</div>
-        <div><span class="player-chip-pos">${esc(p.position || 'N/A')}</span> <span class="player-chip-ovr">OVR ${p.ovr || '0'}</span></div>
-        <div class="player-chip-age">${p.age || '?'} anos</div>
+        <div><span class="player-chip-pos">${esc(p.position || 'N/A')}</span></div>
       </div>
     `).join('');
   }
@@ -1998,7 +1992,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       <div class="mock-queue-item">
         <span class="mock-queue-num">${idx + 1}</span>
         <span class="mock-queue-name">${esc(item.player_name)}</span>
-        <span class="mock-queue-meta">${esc(item.player_position)} · OVR ${item.player_ovr}</span>
+        <span class="mock-queue-meta">${esc(item.player_position)}</span>
         <button class="mock-queue-del" onclick="removeFromMockQueue(${item.player_id})" title="Remover"><i class="bi bi-x-lg"></i></button>
       </div>`).join('');
   }
@@ -2014,8 +2008,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     container.innerHTML = players.map(p => `
       <div class="player-chip" onclick="addPlayerToMockQueue(${p.id}, '${esc(p.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}', '${esc(p.position.replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}', ${p.ovr})" style="cursor:pointer">
         <div class="player-chip-name">${esc(p.name)}</div>
-        <div><span class="player-chip-pos">${esc(p.position)}</span><span class="player-chip-ovr">OVR ${p.ovr}</span></div>
-        <div class="player-chip-age">${p.age} anos</div>
+        <div><span class="player-chip-pos">${esc(p.position)}</span></div>
       </div>`).join('');
   }
 
@@ -2102,7 +2095,6 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
                   <span style="font-size:11px;font-weight:700;color:var(--text-3);width:18px;text-align:center">${i + 1}</span>
                   <span style="font-size:12px;font-weight:600;color:var(--text);flex:1">${esc(q.player_name)}</span>
                   <span style="font-size:11px;color:var(--text-2)">${esc(q.position)}</span>
-                  <span style="font-size:11px;font-weight:700;color:var(--red)">OVR ${q.ovr}</span>
                   ${q.draft_status === 'drafted' ? '<span style="font-size:10px;color:var(--text-3)">Já draftado</span>' : ''}
                 </div>`).join('')}
             </div>` : `<div style="padding:12px 14px;font-size:12px;color:var(--text-3)">Fila vazia</div>`}

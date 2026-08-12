@@ -41,6 +41,20 @@ if (!$ehAdminGlobal && empty($minhasLigas)) {
 
 const CD_LIGAS = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
 
+/**
+ * OVR e idade de calouro entrando no draft.
+ *
+ * Quem define o que o jogador é de verdade é o 2K — aqui o draft só precisa
+ * do nome, da posição e da ordem. Todo mundo entra igual, e a tela do draft
+ * nem mostra esses dois números.
+ *
+ * Eles existem porque a pick vira uma linha em `players`, que tem as colunas.
+ * Um dia isso pode virar configuração de liga; hoje é constante, e mudar aqui
+ * muda em todo lugar.
+ */
+const CD_OVR_CALOURO   = 60;
+const CD_IDADE_CALOURO = 18;
+
 function cdErro(int $http, string $msg): void {
     http_response_code($http);
     echo json_encode(['success' => false, 'error' => $msg]);
@@ -362,11 +376,12 @@ try {
             if ($nome === '') continue;
             $pos = strtoupper(trim((string)($j['position'] ?? '')));
             if (!in_array($pos, ['PG','SG','SF','PF','C'], true)) $pos = 'PG';
-            $ovr = (int)($j['ovr'] ?? 0);
-            $idade = (int)($j['age'] ?? 0);
             $ordem = ($j['pick_hint'] ?? '') !== '' ? (int)$j['pick_hint'] : null;
-            $limpos[] = [mb_substr($nome, 0, 120), $pos,
-                         max(1, min(99, $ovr)), max(15, min(50, $idade ?: 19)), $ordem];
+            // OVR e idade não vêm do arquivo: são o 2K que define, e aqui todo
+            // calouro é igual. Se o CSV trouxer essas colunas, elas são
+            // ignoradas — guardar um número que nunca vai ser usado só criaria
+            // a dúvida de por que a tela mostra um e o jogo outro.
+            $limpos[] = [mb_substr($nome, 0, 120), $pos, CD_OVR_CALOURO, CD_IDADE_CALOURO, $ordem];
         }
         if (!$limpos) cdErro(400, 'Nenhuma linha aproveitável — confira se o arquivo tem a coluna de nome.');
 
@@ -518,8 +533,11 @@ try {
             $ins = $pdo->prepare("INSERT INTO draft_pool (season_id, name, position, age, ovr, pick_hint, draft_status)
                                   VALUES (?,?,?,?,?,?,'available')");
             foreach ($jogadores as $j) {
+                // Todo calouro entra igual: 60 de OVR e 18 anos. O que ele é de
+                // verdade fica por conta do 2K, e a tela do draft nem mostra
+                // esses números — o que importa aqui é nome, posição e ordem.
                 $ins->execute([(int)$temp['id'], $j['name'], strtoupper((string)$j['position']),
-                               (int)$j['age'], (int)$j['ovr'],
+                               CD_IDADE_CALOURO, CD_OVR_CALOURO,
                                $j['pick_hint'] !== null ? (int)$j['pick_hint'] : null]);
             }
             $pdo->prepare("UPDATE draft_class_sorteios SET pool_aplicado_em = NOW() WHERE id = ?")

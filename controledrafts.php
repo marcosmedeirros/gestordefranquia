@@ -511,7 +511,9 @@ async function verJogadores(tplId, nome) {
     if (!d.success) throw new Error(d.error);
     const j = d.players || [];
     if (!j.length) { mostrarAviso('alerta', `“${nome}” ainda não tem jogadores.`); return; }
-    const linhas = j.map((p, i) => `${String(p.pick_hint ?? (i + 1)).padStart(2)}. ${p.name} · ${p.position} · OVR ${p.ovr} · ${p.age}a`);
+    // Nome, posição e ordem. OVR e idade são iguais pra todo mundo e ficam
+    // por conta do 2K — mostrá-los aqui seria repetir 60/18 sessenta vezes.
+    const linhas = j.map((p, i) => `${String(p.pick_hint ?? (i + 1)).padStart(2)}. ${p.name} · ${p.position}`);
     alert(`${nome} — ${j.length} jogadores\n\n` + linhas.join('\n'));
   } catch (e) {
     mostrarAviso('alerta', e.message || 'Não deu pra carregar.');
