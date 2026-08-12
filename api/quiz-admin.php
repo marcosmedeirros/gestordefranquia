@@ -37,6 +37,7 @@ try {
             SUM(tipo='certa') certas,
             SUM(tipo='votos') votos,
             SUM(usada_em IS NULL AND ativa=1) inéditas,
+            SUM(usada_em IS NOT NULL) usadas,
             SUM(ativa=0) inativas
             FROM bot_quiz_perguntas")->fetch(PDO::FETCH_ASSOC);
 
@@ -190,14 +191,28 @@ try {
         $args = [];
         if (in_array($tipo, ['certa','votos'], true)) { $sql .= " AND tipo = ?"; $args[] = $tipo; }
         if ($busca !== '') { $sql .= " AND texto LIKE ?"; $args[] = '%' . $busca . '%'; }
-        $sql .= " ORDER BY id DESC LIMIT 300";
+
+        // A lista é a FILA do que ainda vai sair, então o padrão esconde o que
+        // já foi ao ar. Pergunta usada não volta ao sorteio; ela vira histórico,
+        // e histórico misturado com fila deixa 188 linhas onde importam 12.
+        $estado = $_GET['estado'] ?? 'disponiveis';
+        if ($estado === 'usadas')          $sql .= " AND usada_em IS NOT NULL";
+        elseif ($estado !== 'todas')       $sql .= " AND usada_em IS NULL";
+
+        // As já usadas ordenam pela ida ao ar, da mais recente — na fila o id
+        // decrescente serve, mas no histórico a data é o que se procura.
+        $sql .= $estado === 'usadas' ? " ORDER BY usada_em DESC LIMIT 300" : " ORDER BY id DESC LIMIT 300";
         $st = $pdo->prepare($sql);
         $st->execute($args);
         echo json_encode(['success' => true, 'perguntas' => $st->fetchAll(PDO::FETCH_ASSOC)]);
         exit;
     }
 
-    if ($acao === 'salvar') {
+    // 'salvar_e_enviar' é o mesmo caminho do 'salvar', e de propósito: uma
+    // validação separada pra pergunta que vai ao ar na hora seria justamente a
+    // que ninguém lembraria de atualizar.
+    if ($acao === 'salvar' || $acao === 'salvar_e_enviar') {
+        $enviarAgora = ($acao === 'salvar_e_enviar');
         $c = qaCorpo();
         $id    = (int)($c['id'] ?? 0);
         $tipo  = in_array($c['tipo'] ?? '', ['certa','votos'], true) ? $c['tipo'] : 'certa';
@@ -233,17 +248,49 @@ try {
         if ($premio < 0 || $premio > 100000) qaErro(400, 'Prêmio fora da faixa (0 a 100.000).');
         $premio = $premio > 0 ? $premio : null;
 
+        // Enviar na hora: as travas vêm ANTES de gravar. Deixar a pergunta
+        // nascer e só então descobrir que o bot está desligado deixaria ela no
+        // banco parecendo que foi ao ar.
+        if ($enviarAgora) {
+            $destino = $grupo ?: trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
+            if ($destino === '') qaErro(409, 'Não há grupo principal configurado, e a pergunta não escolheu um.');
+            if (!whatsappAtivo($pdo)) qaErro(409, 'O bot está desligado — ligue antes de enviar.');
+            if (quizRodadaAberta($pdo, $destino)) {
+                qaErro(409, 'Já tem uma pergunta no ar nesse grupo. Espere fechar, ou use "Apurar agora".');
+            }
+        }
+
         if ($id > 0) {
             $pdo->prepare("UPDATE bot_quiz_perguntas SET tipo=?, categoria=?, texto=?,
                            op1=?, op2=?, op3=?, op4=?, correta=?, explicacao=?, grupo_jid=?, premio=? WHERE id=?")
                 ->execute([$tipo, $cat, $texto, $ops[0], $ops[1], $ops[2], $ops[3], $correta, $exp, $grupo, $premio, $id]);
-            echo json_encode(['success' => true, 'id' => $id, 'message' => 'Pergunta atualizada.']);
+            $salvaId = $id;
+            $recado  = 'Pergunta atualizada.';
         } else {
             $pdo->prepare("INSERT INTO bot_quiz_perguntas (tipo, categoria, texto, op1, op2, op3, op4, correta, explicacao, grupo_jid, premio, criada_por)
                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
                 ->execute([$tipo, $cat, $texto, $ops[0], $ops[1], $ops[2], $ops[3], $correta, $exp, $grupo, $premio, (int)$user['id']]);
-            echo json_encode(['success' => true, 'id' => (int)$pdo->lastInsertId(), 'message' => 'Pergunta criada.']);
+            $salvaId = (int)$pdo->lastInsertId();
+            $recado  = 'Pergunta criada.';
         }
+
+        if ($enviarAgora) {
+            // Reeditar e reenviar uma que já foi ao ar é decisão do admin, mas
+            // o sorteio não pode encostar nela de novo: quem já respondeu sabe
+            // a resposta.
+            $aberta = quizAbrirPergunta($pdo, $salvaId, $destino);
+            if ($aberta === null) qaErro(500, 'A pergunta foi salva, mas não deu pra abrir a rodada.');
+            if (!whatsappEnfileirar($pdo, $aberta['grupo'], $aberta['texto'], true, 'quiz')) {
+                qaErro(500, 'A pergunta foi salva e a rodada aberta, mas a fila do bot recusou a mensagem.');
+            }
+            $nome = whatsappGruposDeComando($pdo)[$aberta['grupo']]['nome'] ?? 'grupo principal';
+            echo json_encode(['success' => true, 'id' => $salvaId,
+                'message' => 'Pergunta enviada para ' . $nome . '. Fecha em '
+                           . BOT_QUIZ_MINUTOS . ' minutos.']);
+            exit;
+        }
+
+        echo json_encode(['success' => true, 'id' => $salvaId, 'message' => $recado]);
         exit;
     }
 
@@ -327,7 +374,16 @@ try {
         $grupo = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
         if ($grupo === '') qaErro(409, 'Sem grupo principal configurado.');
         $aberta = quizAbrir($pdo, $grupo);
-        if ($aberta === null) qaErro(409, 'Já há rodada aberta nesse grupo, ou o banco de perguntas está vazio.');
+        if ($aberta === null) {
+            // Sem reciclagem, "acabaram as inéditas" virou um fim de linha
+            // normal — e dizer só "não deu" mandaria procurar defeito onde não
+            // tem. A contagem separa os dois casos.
+            $restam = (int)$pdo->query("SELECT COUNT(*) FROM bot_quiz_perguntas
+                                        WHERE ativa = 1 AND usada_em IS NULL")->fetchColumn();
+            qaErro(409, $restam === 0
+                ? 'Acabaram as perguntas que ainda não foram ao ar. Cadastre novas — as já usadas não voltam.'
+                : 'Já há uma pergunta no ar nesse grupo.');
+        }
         if (!whatsappEnfileirar($pdo, $aberta['grupo'], $aberta['texto'], true, 'quiz')) qaErro(409, 'O bot está desligado.');
         echo json_encode(['success' => true, 'message' => 'Pergunta postada no grupo.']);
         exit;

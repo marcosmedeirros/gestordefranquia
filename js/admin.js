@@ -389,7 +389,9 @@ async function dispararAbraco() {
 // ══════════════════════════════════════════════════════════════════
 // QUIZ DO GRUPO — banco de perguntas, rodada aberta e apuração
 // ══════════════════════════════════════════════════════════════════
-let _quizFiltro = { tipo: '', q: '' };
+// O padrão é a FILA — o que ainda vai sair. Pergunta que já foi ao ar não
+// volta ao sorteio, então ela só atrapalharia quem veio ver o que falta.
+let _quizFiltro = { tipo: '', q: '', estado: 'disponiveis' };
 
 async function showQuizAdmin() {
   appState.view = 'quiz';
@@ -401,7 +403,8 @@ async function showQuizAdmin() {
       api('quiz-admin.php?action=estado'),
       api('quiz-admin.php?action=listar'
           + (_quizFiltro.tipo ? '&tipo=' + _quizFiltro.tipo : '')
-          + (_quizFiltro.q ? '&q=' + encodeURIComponent(_quizFiltro.q) : '')),
+          + (_quizFiltro.q ? '&q=' + encodeURIComponent(_quizFiltro.q) : '')
+          + '&estado=' + _quizFiltro.estado),
     ]);
     _quizRender(e, l.perguntas || []);
   } catch (err) {
@@ -469,7 +472,8 @@ ${(e.ultimas || []).length ? `
 
 <div class="panel">
   <div class="panel-header">
-    <div class="panel-title"><i class="bi bi-list-ul"></i> Perguntas</div>
+    <div class="panel-title"><i class="bi bi-list-ul"></i>
+      ${_quizFiltro.estado === 'usadas' ? 'Já foram ao ar' : 'Perguntas na fila'}</div>
     <button class="btn-ghost" style="color:#a855f7" onclick="_quizEditar(null)"><i class="bi bi-plus-lg me-1"></i>Nova</button>
   </div>
   <div style="padding:12px 18px">
@@ -477,6 +481,11 @@ ${(e.ultimas || []).length ? `
       <input type="text" id="_quizBusca" class="form-control form-control-sm" style="flex:1;min-width:180px"
              placeholder="Buscar no texto..." value="${escapeHtml(_quizFiltro.q)}"
              onkeydown="if(event.key==='Enter'){_quizFiltro.q=this.value.trim();showQuizAdmin()}">
+      <select class="form-select form-select-sm" style="width:auto" onchange="_quizFiltro.estado=this.value;showQuizAdmin()">
+        <option value="disponiveis" ${_quizFiltro.estado==='disponiveis'?'selected':''}>Ainda vão sair (${n['inéditas'] || 0})</option>
+        <option value="usadas" ${_quizFiltro.estado==='usadas'?'selected':''}>Já foram ao ar (${n.usadas || 0})</option>
+        <option value="todas" ${_quizFiltro.estado==='todas'?'selected':''}>Todas (${n.total || 0})</option>
+      </select>
       <select class="form-select form-select-sm" style="width:auto" onchange="_quizFiltro.tipo=this.value;showQuizAdmin()">
         <option value="">Todos os tipos</option>
         <option value="certa" ${_quizFiltro.tipo==='certa'?'selected':''}>Resposta certa</option>
@@ -487,9 +496,10 @@ ${(e.ultimas || []).length ? `
       <table class="table table-dark table-hover" style="font-size:12.5px">
         <thead><tr><th style="width:70px">Tipo</th><th>Pergunta</th><th style="width:110px">Categoria</th><th style="width:130px"></th></tr></thead>
         <tbody>${perguntas.map(p => `
-          <tr style="${Number(p.ativa) ? '' : 'opacity:.45'}">
+          <tr style="${Number(p.ativa) && !p.usada_em ? '' : 'opacity:.45'}">
             <td><span class="badge" style="background:${p.tipo==='certa'?'rgba(34,197,94,.15);color:#22c55e':'rgba(168,85,247,.15);color:#a855f7'};font-size:10px">
-              ${p.tipo==='certa'?'CERTA':'VOTOS'}</span></td>
+              ${p.tipo==='certa'?'CERTA':'VOTOS'}</span>
+              ${p.usada_em ? `<div><span class="badge" style="background:rgba(148,163,184,.15);color:var(--text-3);font-size:9px;margin-top:3px">RESPONDIDA</span></div>` : ''}</td>
             <td>
               <div style="font-weight:600">${escapeHtml(p.texto)}</div>
               <div style="font-size:11px;color:var(--text-3)">${[1,2,3,4].map(i =>
@@ -511,8 +521,9 @@ ${(e.ultimas || []).length ? `
             <td style="font-size:11.5px;color:var(--text-2)">${escapeHtml(p.categoria || '—')}</td>
             <td style="text-align:right;white-space:nowrap">
               <button class="btn-ghost btn-sm" onclick="_quizEditar(${p.id})" title="Editar"><i class="bi bi-pencil"></i></button>
-              <button class="btn-ghost btn-sm" onclick="_quizAcao('alternar',null,{id:${p.id}})" title="${Number(p.ativa)?'Tirar do sorteio':'Voltar pro sorteio'}">
-                <i class="bi bi-${Number(p.ativa)?'eye-slash':'eye'}"></i></button>
+              ${p.usada_em ? '' : `
+                <button class="btn-ghost btn-sm" onclick="_quizAcao('alternar',null,{id:${p.id}})" title="${Number(p.ativa)?'Tirar do sorteio':'Voltar pro sorteio'}">
+                  <i class="bi bi-${Number(p.ativa)?'eye-slash':'eye'}"></i></button>`}
               <button class="btn-ghost btn-sm" style="color:#ef4444" onclick="_quizAcao('excluir','Apagar esta pergunta?',{id:${p.id}})" title="Apagar"><i class="bi bi-trash"></i></button>
             </td>
           </tr>`).join('')}</tbody>
@@ -731,9 +742,12 @@ function _quizEditar(id) {
           Deixar em branco usa o padrão. Assim, mudando o padrão um dia, estas perguntas acompanham.
         </div>
       </div>
-      <div class="d-flex gap-2 justify-content-end" style="padding:0 18px 18px">
+      <div class="d-flex gap-2 justify-content-end align-items-center flex-wrap" style="padding:0 18px 18px">
         <button class="btn-ghost" onclick="document.getElementById('_quizModal').remove()">Cancelar</button>
-        <button class="btn-ghost" style="color:#a855f7" onclick="_quizSalvar()"><i class="bi bi-check-lg me-1"></i>Salvar</button>
+        <button class="btn-ghost" style="color:#25d366" onclick="_quizSalvar(true)"
+                title="Posta no grupo agora, sem esperar as 10:30">
+          <i class="bi bi-send-fill me-1"></i>Salvar e enviar agora</button>
+        <button class="btn-ghost" style="color:#a855f7" onclick="_quizSalvar()"><i class="bi bi-check-lg me-1"></i>Salvar na fila</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
@@ -749,7 +763,7 @@ function _quizTrocaTipo() {
   if (dica) dica.textContent = certa ? '— marque a bolinha da resposta certa' : '— vence a mais votada, não há certa';
 }
 
-async function _quizSalvar() {
+async function _quizSalvar(enviarAgora) {
   const tipo = document.querySelector('input[name="_qTipo"]:checked')?.value || 'certa';
   const corpo = {
     id: Number(document.getElementById('_qId').value) || 0,
@@ -762,8 +776,16 @@ async function _quizSalvar() {
     premio: Number(document.getElementById('_qPremio').value) || 0,
     correta: tipo === 'certa' ? Number(document.querySelector('input[name="_qCorreta"]:checked')?.value || 0) : null,
   };
+  // Ir pro grupo é irreversível: sai pra todo mundo na hora. Confirmar aqui
+  // custa um clique e evita mandar a pergunta ainda pela metade.
+  if (enviarAgora) {
+    const onde = document.getElementById('_qGrupo').selectedOptions[0]?.textContent.trim() || 'grupo principal';
+    if (!confirm(`Postar esta pergunta agora em "${onde}"?\n\nEla fecha 30 minutos depois e não volta a sair no sorteio.`)) return;
+  }
+
+  const acao = enviarAgora ? 'salvar_e_enviar' : 'salvar';
   try {
-    const r = await api('quiz-admin.php?action=salvar', { method: 'POST', body: JSON.stringify(corpo) });
+    const r = await api('quiz-admin.php?action=' + acao, { method: 'POST', body: JSON.stringify(corpo) });
     document.getElementById('_quizModal')?.remove();
     showAlert('success', r.message || 'Salvo.');
     showQuizAdmin();

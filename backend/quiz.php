@@ -324,25 +324,41 @@ function quizFecharVencidas(PDO $pdo): array
 }
 
 /**
- * Abre a pergunta do dia num grupo. Devolve o texto a postar, ou null.
+ * Sorteia a pergunta do dia e abre a rodada. Devolve o texto a postar, ou null.
  *
- * Sorteia entre as que nunca foram usadas. Quando acabarem, volta a usar as
- * mais antigas — melhor repetir de vez em quando do que o quiz parar.
+ * Pergunta que já foi ao ar NÃO volta. Antes havia um plano B que reciclava as
+ * mais antigas quando as inéditas acabassem, pra o quiz nunca parar — mas
+ * repetir uma pergunta é pior do que ficar um dia sem: quem já respondeu sabe
+ * a resposta, e o prêmio vira sorteio pra quem tem memória boa. Acabou o
+ * banco, o quiz cala e o admin cadastra mais.
  */
 function quizAbrir(PDO $pdo, string $grupoPadrao): ?array
 {
     quizGarantirTabelas($pdo);
 
-    $st = $pdo->query("SELECT * FROM bot_quiz_perguntas WHERE ativa = 1 AND usada_em IS NULL
-                       ORDER BY RAND() LIMIT 1");
+    $id = (int)$pdo->query("SELECT id FROM bot_quiz_perguntas
+                            WHERE ativa = 1 AND usada_em IS NULL
+                            ORDER BY RAND() LIMIT 1")->fetchColumn();
+    if (!$id) return null;
+
+    return quizAbrirPergunta($pdo, $id, $grupoPadrao);
+}
+
+/**
+ * Abre a rodada de UMA pergunta escolhida a dedo.
+ *
+ * É por aqui que passa tanto o sorteio do dia quanto o "criar e enviar agora"
+ * da tela do admin — a montagem do texto e a marcação de usada ficam num lugar
+ * só, senão a pergunta enviada à mão sairia com outra cara e, pior, poderia
+ * escapar de ser marcada e voltar no sorteio de amanhã.
+ */
+function quizAbrirPergunta(PDO $pdo, int $perguntaId, string $grupoPadrao): ?array
+{
+    quizGarantirTabelas($pdo);
+
+    $st = $pdo->prepare("SELECT * FROM bot_quiz_perguntas WHERE id = ?");
+    $st->execute([$perguntaId]);
     $p = $st->fetch(PDO::FETCH_ASSOC);
-    if (!$p) {
-        // Acabaram as inéditas: volta pras mais antigas. Melhor repetir de vez
-        // em quando do que o quiz parar de sair.
-        $st = $pdo->query("SELECT * FROM bot_quiz_perguntas WHERE ativa = 1
-                           ORDER BY usada_em ASC LIMIT 1");
-        $p = $st->fetch(PDO::FETCH_ASSOC);
-    }
     if (!$p) return null;
 
     // A pergunta escolhe o grupo; sem escolha, vai pro padrão.
