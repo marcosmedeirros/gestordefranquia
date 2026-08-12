@@ -84,6 +84,21 @@ h1 i{color:var(--red)}
 .roleta.caiu{border-style:solid;border-color:color-mix(in srgb,var(--green) 45%,transparent);background:color-mix(in srgb,var(--green) 7%,var(--panel-2))}
 .roleta.caiu .roleta-nome{color:var(--green)}
 
+/* As classes que estão concorrendo, visíveis dentro da roleta. */
+.bolo{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:16px;
+  max-height:132px;overflow-y:auto;padding:2px}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+  background:var(--panel-3);border:1px solid var(--border-md);color:var(--text-2);
+  font-size:11.5px;font-weight:600;white-space:nowrap}
+.chip b{font-family:var(--num);font-size:11px;color:var(--red)}
+.roleta.girando .chip{opacity:.35}
+.fora{display:flex;gap:9px;align-items:flex-start;margin-top:12px;padding:11px 13px;border-radius:11px;
+  font-size:12px;line-height:1.5;color:var(--text-2);
+  background:color-mix(in srgb,var(--amber) 8%,transparent);
+  border:1px solid color-mix(in srgb,var(--amber) 24%,transparent)}
+.fora i{color:var(--amber);flex:none;margin-top:1px}
+.fora b{color:var(--text)}
+
 /* A borda transparente existe pro botão ter a mesma caixa do input ao lado —
    sem ela ficavam 2px mais baixos, e a linha inteira parecia torta. */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 20px;border-radius:11px;border:1.5px solid transparent;background:var(--red);color:#fff;font-family:var(--font);font-size:13.5px;font-weight:700;cursor:pointer;transition:filter .15s}
@@ -257,15 +272,42 @@ function renderRoleta(passos) {
   const e = estado;
   const jaSorteou = !!e.sorteio;
   const podeSortear = !jaSorteou && !passos.classe.bloqueio && e.temporada;
+
+  // A roleta mostra o que tem dentro. Antes era um traço e um número — não
+  // dava pra ver que a classe recém-cadastrada tinha entrado, nem por que
+  // uma classe que existe não estava concorrendo.
+  const noBolo = e.classes_disponiveis.filter(c => c.sorteavel);
+  const deFora = e.classes_disponiveis.filter(c => !c.sorteavel);
+
+  const chips = noBolo.length
+    ? `<div class="bolo">${noBolo.map(c =>
+        `<span class="chip" title="${c.jogadores} jogadores">${esc(c.name)}<b>${c.jogadores}</b></span>`).join('')}</div>`
+    : '';
+
+  const avisoDeFora = deFora.length
+    ? `<div class="fora"><i class="bi bi-exclamation-triangle-fill"></i>
+         ${deFora.length === 1 ? '1 classe está' : deFora.length + ' classes estão'} de fora por não ter
+         jogador cadastrado: ${deFora.map(c => esc(c.name)).join(', ')}. Use <b>Importar</b> na linha
+         ${deFora.length === 1 ? 'dela' : 'de cada uma'}, abaixo.</div>`
+    : '';
+
+  const avisoOrfas = (!noBolo.length && e.classes_sem_liga.length)
+    ? `<div class="fora"><i class="bi bi-exclamation-triangle-fill"></i>
+         Há <b>${e.classes_sem_liga.length}</b> classe(s) sem liga lá embaixo. Enquanto não forem
+         trazidas pra ${esc(e.league)}, elas não concorrem nesta roleta.</div>`
+    : '';
+
   return `
     <div class="card">
       <div class="card-tit"><i class="bi bi-dice-3-fill"></i>Roleta da ${esc(e.league)}</div>
       <div class="roleta ${jaSorteou ? 'caiu' : ''}" id="roleta">
-        <div class="roleta-nome" id="roletaNome">${jaSorteou ? esc(e.sorteio.classe_nome) : '—'}</div>
+        <div class="roleta-nome" id="roletaNome">${jaSorteou ? esc(e.sorteio.classe_nome) : (noBolo.length ? '?' : '—')}</div>
         <div class="roleta-sub" id="roletaSub">${
           jaSorteou ? `${e.sorteio.jogadores} jogadores · sorteada em ${String(e.sorteio.sorteado_em).slice(0,10).split('-').reverse().join('/')}`
-                    : `${e.classes_sorteaveis} classe(s) no bolo`}</div>
+                    : `${e.classes_sorteaveis} classe(s) concorrendo`}</div>
+        ${jaSorteou ? '' : chips}
       </div>
+      ${avisoDeFora}${avisoOrfas}
       <div class="acoes">
         <button class="btn" onclick="girar()" ${podeSortear ? '' : 'disabled'}>
           <i class="bi bi-dice-5-fill"></i>${jaSorteou ? 'Já sorteada' : 'Girar a roleta'}
