@@ -111,7 +111,12 @@ if ($action === 'roster') {
     }
 
     echo json_encode(['ok' => true, 'team' => $team, 'players' => $players, 'picks' => $picks,
-        'cap' => $cap, 'salaryMode' => $salaryMode, 'capMaxSalary' => $capMaxSalary, 'capMinSalary' => $capMinSalary]);
+        'cap' => $cap, 'salaryMode' => $salaryMode, 'capMaxSalary' => $capMaxSalary, 'capMinSalary' => $capMinSalary,
+        // A temporada corrente sai junto porque o valor de uma pick cai
+        // conforme ela se distancia. O ano já foi calculado aqui em cima pro
+        // filtro do picker — mandar o mesmo evita uma segunda conta que
+        // poderia divergir dela.
+        'anoAtual' => $currentYear ?? (int)date('Y')]);
     exit;
 }
 
@@ -348,6 +353,12 @@ body{overflow-x:hidden}
 .picker-sal{margin-left:auto;padding-right:10px;font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;color:var(--amber);font-variant-numeric:tabular-nums;white-space:nowrap}
 .sim-item-sal{font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;color:var(--amber);font-variant-numeric:tabular-nums;white-space:nowrap;margin-left:auto;padding-left:6px}
 .sim-item-sal.zero{color:var(--text-3);font-weight:600}
+/* Valor de troca da pick. Azul, não âmbar: âmbar é dinheiro na folha, e pick
+   não é dinheiro — misturar a cor faria parecer a mesma unidade. */
+.picker-valor,.sim-item-valor{margin-left:auto;font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;color:var(--blue);font-variant-numeric:tabular-nums;white-space:nowrap}
+.picker-valor{padding-right:10px}
+.sim-item-valor{padding-left:6px}
+.sim-item-valor .zero{color:var(--text-3);font-weight:600;font-size:11px}
 .picker-check{margin-left:auto;color:var(--green);font-size:16px;display:none}
 .picker-row.selected .picker-check{display:block}
 .from-team-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
@@ -622,6 +633,24 @@ function salarioDe(p) {
   return Number.isFinite(v) && v > 0 ? `${v}M` : '';
 }
 
+/**
+ * Quanto uma pick vale como ativo de troca.
+ *
+ * Sai do mesmo js/trade-value.js que a página de trades usa — 1ª rodada vale
+ * bem mais que 2ª, e o valor cai conforme a pick se distancia no tempo. Não é
+ * folha salarial: pick não pesa um centavo no cap. São duas perguntas
+ * diferentes sobre o mesmo item, e por isso aparecem separadas.
+ *
+ * O veredito da troca inteira (justa/roubo) continua escondido, como pedido —
+ * isto aqui é o preço de etiqueta de um item, não julgamento do negócio.
+ */
+function valorDaPick(pk) {
+  if (!window.TradeValue) return 0;
+  return Math.round(window.TradeValue.itemValue({
+    round: pk.round, season_year: pk.season_year,
+  }));
+}
+
 const SLOT_KEYS = ['A','B','C','D','E','F','G'];
 
 // State
@@ -702,6 +731,12 @@ async function loadTeam(key, teamId) {
   const r = await fetch(`/trade-simulator.php?action=roster&team_id=${teamId}`);
   const d = await r.json();
   if (!d.ok) return;
+
+  // js/trade-value.js desconta o valor da pick conforme ela se distancia, e lê
+  // o ano deste global. A trades.php define; aqui nunca definia, então uma
+  // pick de 2031 valia o mesmo que uma de 2026 — o desconto existia no modelo
+  // e nunca chegava a rodar nesta tela.
+  if (d.anoAtual) window.__CURRENT_SEASON_YEAR__ = +d.anoAtual;
 
   teams[key] = {
     id: +teamId,
@@ -837,7 +872,9 @@ function itemHtml(item, toKey) {
         <div class="sim-item-meta">${escH(item.orig)}</div>
         <div class="sim-item-from">← ${escH(fromName)}</div>
       </div>
-      ${SALARY_MODE ? `<div class="sim-item-sal zero" title="Pick não tem salário: só entra na folha no ano em que virar jogador. Por isso ela não ajuda no casamento salarial dos ${TRADE_MATCH_PCT}%.">0M</div>` : ''}
+      <div class="sim-item-valor" title="Valor de troca desta pick. Não é folha: pick não pesa no cap${SALARY_MODE ? `, e por isso não ajuda no casamento salarial dos ${TRADE_MATCH_PCT}%` : ''}.">
+        ${valorDaPick(item)}${SALARY_MODE ? '<span class="zero"> · 0M</span>' : ''}
+      </div>
       ${swapSel}
       <button class="sim-item-del" onclick="removeItem('${toKey}',${item.id},'pick','${item.fromKey}')" title="Remover"><i class="bi bi-x-lg"></i></button>
     </div>`;
@@ -933,6 +970,7 @@ function renderPickerList() {
               <div class="picker-name">${escH(label)}</div>
               <div class="picker-meta">${(p.orig_city ?? '') + ' ' + (p.orig_name ?? '')}</div>
             </div>
+            <div class="picker-valor" title="Valor de troca desta pick">${valorDaPick(p)}</div>
             <i class="bi bi-check2-circle picker-check"></i>
           </div>`;
         }).join('')
