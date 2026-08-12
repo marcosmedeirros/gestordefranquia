@@ -1594,7 +1594,8 @@ function wcPremios(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
  * $ligaDoGrupo é a liga do grupo de onde veio a mensagem, quando ele é de uma
  * liga só. Serve pros comandos que dá pra responder sem argumento.
  */
-function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null): ?string
+function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null,
+                            string $deQuem = '', string $grupoJid = ''): ?string
 {
     $texto = trim($texto);
     if ($texto === '' || $texto[0] !== '/') return null;
@@ -1608,6 +1609,18 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
     $arg = trim(preg_replace('/@\d+/', '', $arg));
 
     try {
+        // Voto do quiz: /1 a /4. Vem antes do switch porque o comando é o
+        // próprio número, e devolve string VAZIA — atendido sem resposta.
+        //
+        // O silêncio não é economia de texto: são doze pessoas votando contra
+        // um freio de doze comandos por minuto. Se cada voto tivesse resposta,
+        // o quiz derrubaria o bot no meio da própria rodada.
+        if (preg_match('/^[1-4]$/', $cmd) && $grupoJid !== '' && $deQuem !== '') {
+            require_once __DIR__ . '/../backend/quiz.php';
+            quizVotar($pdo, $grupoJid, $deQuem, (int)$cmd);
+            return '';
+        }
+
         switch ($cmd) {
             case 'ajuda':
             case 'comandos':

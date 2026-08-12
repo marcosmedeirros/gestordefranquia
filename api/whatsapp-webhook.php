@@ -123,24 +123,38 @@ foreach ($mensagens as $m) {
     $texto = wcTextoDaMensagem($m['message'] ?? []);
     if ($texto === '' || $texto[0] !== '/') continue;
 
-    // Só depois de saber que é comando: não vale poluir a tabela com toda
-    // conversa do grupo.
-    if (!wcMensagemInedita($pdo, (string)($m['key']['id'] ?? ''))) continue;
-
     // Freio contra enxurrada — alguém segurando o comando, ou a Evolution
     // despejando um backlog inteiro depois de ficar fora do ar.
-    $recentes = (int)$pdo->query("SELECT COUNT(*) FROM whatsapp_fila
-                                  WHERE tipo = 'comando' AND created_at > NOW() - INTERVAL 1 MINUTE")
-                         ->fetchColumn();
-    if ($recentes >= 12) {
-        error_log('[whatsapp] limite de comandos por minuto atingido');
-        break;
+    //
+    // Conta só ESTE grupo. Era global, e doze comandos num grupo calavam o bot
+    // em todos os outros.
+    //
+    // E vem ANTES de marcar a mensagem como vista. Na ordem antiga o comando
+    // barrado já tinha sido registrado, então um reenvio da Evolution o
+    // ignorava por "já visto": quem digitou /time lakers não era respondido
+    // naquele momento nem nunca, e o único rastro era uma linha no log.
+    $stFreio = $pdo->prepare("SELECT COUNT(*) FROM whatsapp_fila
+                              WHERE tipo = 'comando' AND destino = ?
+                                AND created_at > NOW() - INTERVAL 1 MINUTE");
+    $stFreio->execute([$de]);
+    if ((int)$stFreio->fetchColumn() >= 12) {
+        error_log('[whatsapp] limite de comandos por minuto atingido no grupo ' . $de);
+        continue;   // outros grupos seguem atendidos
     }
+
+    // Só depois de saber que é comando E que passou do freio: não vale poluir
+    // a tabela com toda conversa do grupo, nem queimar o id de quem foi barrado.
+    if (!wcMensagemInedita($pdo, (string)($m['key']['id'] ?? ''))) continue;
+
+    // Quem falou. Em grupo, o remoteJid é o grupo e a pessoa vem no
+    // participant. Sem isso não existe placar — só resposta solta.
+    $deQuem = (string)($m['key']['participant'] ?? $m['participant'] ?? '');
 
     // A liga do grupo vira contexto: no Chat Off da NEXT, /classificacao sem
     // argumento responde a NEXT em vez de assumir ELITE.
-    $resposta = wcResponderComando($pdo, $texto, $gruposPermitidos[$de]['liga'] ?? null);
+    $resposta = wcResponderComando($pdo, $texto, $gruposPermitidos[$de]['liga'] ?? null, $deQuem, $de);
     if ($resposta === null) continue;   // comando desconhecido: silêncio
+    if ($resposta === '') continue;     // atendido em silêncio (voto de quiz)
 
     whatsappEnfileirar($pdo, $de, $resposta, true, 'comando');
     $respondidas++;

@@ -307,6 +307,7 @@ async function showGestao(league) {
       { icon: 'bi-globe2',              label: 'Site<br>Admin',             url: '/siteadmin.php',       color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
       // O abraço já sai sozinho às 15h; isto é pra mandar na hora.
       { icon: 'bi-emoji-smile-fill',    label: 'Disparar<br>abraço',        fn: 'dispararAbraco()',      color: '#22c55e', bg: 'rgba(34,197,94,.12)', id: 'btnAbraco' },
+      { icon: 'bi-patch-question-fill', label: 'Quiz do<br>grupo',          fn: 'showQuizAdmin()',       color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
     ] : []),
   ];
 
@@ -382,6 +383,229 @@ async function dispararAbraco() {
     showAlert('danger', e.message || 'Falha ao disparar o abraço.');
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = original; }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// QUIZ DO GRUPO — banco de perguntas, rodada aberta e apuração
+// ══════════════════════════════════════════════════════════════════
+let _quizFiltro = { tipo: '', q: '' };
+
+async function showQuizAdmin() {
+  appState.view = 'quiz';
+  updateBreadcrumb();
+  const c = document.getElementById('mainContainer');
+  c.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
+  try {
+    const [e, l] = await Promise.all([
+      api('quiz-admin.php?action=estado'),
+      api('quiz-admin.php?action=listar'
+          + (_quizFiltro.tipo ? '&tipo=' + _quizFiltro.tipo : '')
+          + (_quizFiltro.q ? '&q=' + encodeURIComponent(_quizFiltro.q) : '')),
+    ]);
+    _quizRender(e, l.perguntas || []);
+  } catch (err) {
+    c.innerHTML = `<div class="alert alert-danger">Erro: ${escapeHtml(err.error || 'Desconhecido')}</div>`;
+  }
+}
+
+function _quizRender(e, perguntas) {
+  const n = e.contagem || {};
+  const ab = e.aberta;
+  const back = 'showGestao()';
+
+  document.getElementById('mainContainer').innerHTML = `
+<div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
+  <button class="btn btn-back" onclick="${back}"><i class="bi bi-arrow-left"></i> Voltar</button>
+  <h5 class="mb-0" style="color:#a855f7"><i class="bi bi-patch-question-fill me-2"></i>Quiz do grupo</h5>
+</div>
+
+<div class="panel mb-3">
+  <div class="panel-header"><div class="panel-title"><i class="bi bi-broadcast"></i> Situação</div></div>
+  <div style="padding:14px 18px">
+    <div style="font-size:13px;color:var(--text-2);margin-bottom:12px">
+      <b>${n.total || 0}</b> perguntas · <b>${n.certas || 0}</b> com resposta certa ·
+      <b>${n.votos || 0}</b> de mais votada · <b>${n['inéditas'] || 0}</b> nunca usadas
+      ${Number(n.inativas) ? ` · <b>${n.inativas}</b> fora do sorteio` : ''}
+      <br>Sai <b>1 por dia às 10:30</b>, vale <b>${e.premio}</b> moedas, apura sozinha depois.
+    </div>
+    ${ab ? `
+      <div class="alert alert-info py-2 px-3" style="font-size:13px">
+        <b>No ar agora:</b> ${escapeHtml(ab.texto)}<br>
+        <span style="font-size:12px;opacity:.85">${ab.votos} voto(s) · fecha ${escapeHtml(String(ab.fecha_em).slice(0,16).replace('T',' '))}</span>
+      </div>
+      <button class="btn-ghost" onclick="_quizAcao('apurar_agora','Apurar agora e postar o resultado no grupo?')">
+        <i class="bi bi-flag-fill me-1"></i>Apurar agora</button>`
+    : `<button class="btn-ghost" style="color:#a855f7" onclick="_quizAcao('abrir_agora','Postar a pergunta do dia no grupo agora?')">
+         <i class="bi bi-send-fill me-1"></i>Mandar uma pergunta agora</button>`}
+    ${!Number(n.total) ? `
+      <button class="btn-ghost" style="color:#22c55e" onclick="_quizAcao('popular','Carregar o banco inicial de perguntas?')">
+        <i class="bi bi-download me-1"></i>Popular banco inicial</button>` : `
+      <button class="btn-ghost" onclick="_quizAcao('popular','Carregar de novo o banco inicial? As que já existem são puladas.')">
+        <i class="bi bi-arrow-repeat me-1"></i>Recarregar banco inicial</button>`}
+  </div>
+</div>
+
+${(e.ultimas || []).length ? `
+<div class="panel mb-3">
+  <div class="panel-header"><div class="panel-title"><i class="bi bi-clock-history"></i> Últimas rodadas</div></div>
+  <div style="padding:8px 18px 14px">
+    ${e.ultimas.map(r => `
+      <div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12.5px">
+        <span style="opacity:.6;white-space:nowrap">${escapeHtml(String(r.fechada_em).slice(0,10).split('-').reverse().join('/'))}</span>
+        <span style="flex:1">${escapeHtml(r.texto)}</span>
+        <span style="opacity:.7;white-space:nowrap">venceu a ${r.vencedora} · ${r.votos} voto(s)</span>
+      </div>`).join('')}
+  </div>
+</div>` : ''}
+
+<div class="panel">
+  <div class="panel-header">
+    <div class="panel-title"><i class="bi bi-list-ul"></i> Perguntas</div>
+    <button class="btn-ghost" style="color:#a855f7" onclick="_quizEditar(null)"><i class="bi bi-plus-lg me-1"></i>Nova</button>
+  </div>
+  <div style="padding:12px 18px">
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+      <input type="text" id="_quizBusca" class="form-control form-control-sm" style="flex:1;min-width:180px"
+             placeholder="Buscar no texto..." value="${escapeHtml(_quizFiltro.q)}"
+             onkeydown="if(event.key==='Enter'){_quizFiltro.q=this.value.trim();showQuizAdmin()}">
+      <select class="form-select form-select-sm" style="width:auto" onchange="_quizFiltro.tipo=this.value;showQuizAdmin()">
+        <option value="">Todos os tipos</option>
+        <option value="certa" ${_quizFiltro.tipo==='certa'?'selected':''}>Resposta certa</option>
+        <option value="votos" ${_quizFiltro.tipo==='votos'?'selected':''}>Mais votada</option>
+      </select>
+    </div>
+    ${perguntas.length ? `
+      <table class="table table-dark table-hover" style="font-size:12.5px">
+        <thead><tr><th style="width:70px">Tipo</th><th>Pergunta</th><th style="width:110px">Categoria</th><th style="width:130px"></th></tr></thead>
+        <tbody>${perguntas.map(p => `
+          <tr style="${Number(p.ativa) ? '' : 'opacity:.45'}">
+            <td><span class="badge" style="background:${p.tipo==='certa'?'rgba(34,197,94,.15);color:#22c55e':'rgba(168,85,247,.15);color:#a855f7'};font-size:10px">
+              ${p.tipo==='certa'?'CERTA':'VOTOS'}</span></td>
+            <td>
+              <div style="font-weight:600">${escapeHtml(p.texto)}</div>
+              <div style="font-size:11px;color:var(--text-3)">${[1,2,3,4].map(i =>
+                `${Number(p.correta)===i?'<b style="color:#22c55e">':''}${i}. ${escapeHtml(p['op'+i])}${Number(p.correta)===i?'</b>':''}`).join(' · ')}</div>
+              ${p.usada_em ? `<div style="font-size:10.5px;color:var(--text-3);margin-top:2px">já foi ao ar em ${escapeHtml(String(p.usada_em).slice(0,10).split('-').reverse().join('/'))}</div>` : ''}
+            </td>
+            <td style="font-size:11.5px;color:var(--text-2)">${escapeHtml(p.categoria || '—')}</td>
+            <td style="text-align:right;white-space:nowrap">
+              <button class="btn-ghost btn-sm" onclick="_quizEditar(${p.id})" title="Editar"><i class="bi bi-pencil"></i></button>
+              <button class="btn-ghost btn-sm" onclick="_quizAcao('alternar',null,{id:${p.id}})" title="${Number(p.ativa)?'Tirar do sorteio':'Voltar pro sorteio'}">
+                <i class="bi bi-${Number(p.ativa)?'eye-slash':'eye'}"></i></button>
+              <button class="btn-ghost btn-sm" style="color:#ef4444" onclick="_quizAcao('excluir','Apagar esta pergunta?',{id:${p.id}})" title="Apagar"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>`).join('')}</tbody>
+      </table>`
+    : '<div class="empty-state" style="padding:24px">Nenhuma pergunta. Use "Popular banco inicial" pra começar com 188.</div>'}
+  </div>
+</div>`;
+
+  // Guarda as perguntas pro modal de edição não precisar buscar de novo.
+  window._quizCache = perguntas;
+}
+
+async function _quizAcao(acao, confirmar, corpo) {
+  if (confirmar && !confirm(confirmar)) return;
+  try {
+    const r = await api('quiz-admin.php?action=' + acao, {
+      method: 'POST', body: JSON.stringify(corpo || {})
+    });
+    showAlert('success', r.message || 'Feito.');
+    showQuizAdmin();
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro');
+  }
+}
+
+function _quizEditar(id) {
+  const p = id ? (window._quizCache || []).find(x => Number(x.id) === Number(id)) : null;
+  const tipo = p?.tipo || 'certa';
+  document.getElementById('_quizModal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id = '_quizModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:2000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px';
+  modal.innerHTML = `
+    <div class="panel" style="width:100%;max-width:640px;padding:0;margin-top:20px">
+      <div class="panel-header" style="padding:16px 18px 0">
+        <div class="panel-title"><i class="bi bi-patch-question-fill" style="color:#a855f7"></i> ${p ? 'Editar' : 'Nova'} pergunta</div>
+        <button class="btn-ghost" style="padding:4px 8px" onclick="document.getElementById('_quizModal').remove()"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div style="padding:16px 18px">
+        <input type="hidden" id="_qId" value="${p?.id || ''}">
+
+        <label class="form-label text-light-gray">Tipo</label>
+        <div class="d-flex gap-2 mb-3">
+          <label class="btn-ghost" style="flex:1;cursor:pointer;text-align:center">
+            <input type="radio" name="_qTipo" value="certa" ${tipo==='certa'?'checked':''} onchange="_quizTrocaTipo()"> Resposta certa
+          </label>
+          <label class="btn-ghost" style="flex:1;cursor:pointer;text-align:center">
+            <input type="radio" name="_qTipo" value="votos" ${tipo==='votos'?'checked':''} onchange="_quizTrocaTipo()"> Mais votada
+          </label>
+        </div>
+
+        <label class="form-label text-light-gray">Pergunta</label>
+        <input type="text" id="_qTexto" class="form-control mb-3" maxlength="400"
+               value="${escapeHtml(p?.texto || '')}" placeholder="Ex: Quem era o armador do Lakers em 2010?">
+
+        <label class="form-label text-light-gray">Opções <span id="_qDica" style="font-size:11px;color:var(--text-3)"></span></label>
+        ${[1,2,3,4].map(i => `
+          <div class="d-flex gap-2 align-items-center mb-2">
+            <label class="_qMarca" style="width:30px;text-align:center;cursor:pointer" title="Marcar como certa">
+              <input type="radio" name="_qCorreta" value="${i}" ${Number(p?.correta)===i?'checked':''}>
+            </label>
+            <input type="text" id="_qOp${i}" class="form-control form-control-sm" maxlength="120"
+                   value="${escapeHtml(p?.['op'+i] || '')}" placeholder="Opção ${i}">
+          </div>`).join('')}
+
+        <div class="row g-2 mt-2">
+          <div class="col-5">
+            <label class="form-label text-light-gray">Categoria</label>
+            <input type="text" id="_qCat" class="form-control form-control-sm" maxlength="40" value="${escapeHtml(p?.categoria || '')}" placeholder="Ex: Draft">
+          </div>
+          <div class="col-7">
+            <label class="form-label text-light-gray">Explicação <span style="font-size:11px;color:var(--text-3)">(sai no resultado)</span></label>
+            <input type="text" id="_qExp" class="form-control form-control-sm" maxlength="300" value="${escapeHtml(p?.explicacao || '')}" placeholder="Opcional">
+          </div>
+        </div>
+      </div>
+      <div class="d-flex gap-2 justify-content-end" style="padding:0 18px 18px">
+        <button class="btn-ghost" onclick="document.getElementById('_quizModal').remove()">Cancelar</button>
+        <button class="btn-ghost" style="color:#a855f7" onclick="_quizSalvar()"><i class="bi bi-check-lg me-1"></i>Salvar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  _quizTrocaTipo();
+}
+
+/** Nas de mais votada não existe resposta certa — os marcadores somem. */
+function _quizTrocaTipo() {
+  const tipo = document.querySelector('input[name="_qTipo"]:checked')?.value || 'certa';
+  const certa = tipo === 'certa';
+  document.querySelectorAll('._qMarca').forEach(m => { m.style.visibility = certa ? '' : 'hidden'; });
+  const dica = document.getElementById('_qDica');
+  if (dica) dica.textContent = certa ? '— marque a bolinha da resposta certa' : '— vence a mais votada, não há certa';
+}
+
+async function _quizSalvar() {
+  const tipo = document.querySelector('input[name="_qTipo"]:checked')?.value || 'certa';
+  const corpo = {
+    id: Number(document.getElementById('_qId').value) || 0,
+    tipo,
+    texto: document.getElementById('_qTexto').value.trim(),
+    opcoes: [1,2,3,4].map(i => document.getElementById('_qOp'+i).value.trim()),
+    categoria: document.getElementById('_qCat').value.trim(),
+    explicacao: document.getElementById('_qExp').value.trim(),
+    correta: tipo === 'certa' ? Number(document.querySelector('input[name="_qCorreta"]:checked')?.value || 0) : null,
+  };
+  try {
+    const r = await api('quiz-admin.php?action=salvar', { method: 'POST', body: JSON.stringify(corpo) });
+    document.getElementById('_quizModal')?.remove();
+    showAlert('success', r.message || 'Salvo.');
+    showQuizAdmin();
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro');
   }
 }
 
@@ -1127,6 +1351,7 @@ function updateBreadcrumb() {
       scheduler:    () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Agendador</li>'; return 'Agendador de Fases'; },
       controlpanel: () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Painel de Controle</li>'; return 'Painel de Controle'; },
       gestao:       () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Gestão</li>'; return 'Gestão de Usuários'; },
+      quiz:         () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Quiz</li>'; return 'Quiz do Grupo'; },
       games:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Games</li>'; return 'Games e Apostas'; },
       draft:        () => { breadcrumb.innerHTML += '<li class="breadcrumb-item active">Draft</li>'; return `Draft — ${appState.currentLeague || ''}`; },
     };
