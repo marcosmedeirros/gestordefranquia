@@ -1259,9 +1259,19 @@ function whatsappNumeroUsavel(?string $phone): array
             : ['ok' => false, 'motivo' => 'Celular de 9 dígitos tem que começar com 9.', 'sugestao' => null];
     }
     if (strlen($linha) === 8) {
-        // Fixo funciona no WhatsApp Business; celular antigo de 8 dígitos não
-        // existe mais desde o nono dígito, então vale avisar.
-        return ['ok' => true, 'motivo' => 'Número de 8 dígitos (fixo). Se for celular, falta o 9.', 'sugestao' => null];
+        // Fixo começa com 2 a 5; celular sempre começou com 6 a 9. Então linha
+        // de 8 dígitos começando em 6-9 é celular anterior ao nono dígito, e o
+        // conserto é a regra da Anatel: enfia um 9 na frente. Não é chute — é
+        // a conversão oficial, e ainda passa pela validação antes de virar
+        // sugestão. Fixo de verdade fica como está: funciona no WhatsApp.
+        if (in_array($linha[0], ['6', '7', '8', '9'], true)) {
+            $comNono = substr($d, 0, 4) . '9' . $linha;
+            $valida = whatsappNumeroUsavel($comNono);
+            return ['ok' => false,
+                    'motivo' => 'Celular sem o 9º dígito (formato antigo).',
+                    'sugestao' => $valida['ok'] && !$valida['motivo'] ? $comNono : null];
+        }
+        return ['ok' => true, 'motivo' => 'Número fixo de 8 dígitos.', 'sugestao' => null];
     }
     return ['ok' => false,
             'motivo' => 'Tem ' . strlen($d) . ' dígitos — o esperado é 13 (55 + DDD + 9 dígitos).',
