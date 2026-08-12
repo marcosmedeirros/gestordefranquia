@@ -4,6 +4,8 @@ header('Content-Type: application/json');
 require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
 require_once dirname(__DIR__) . '/backend/helpers.php';
+// Quem escolhe em cada vaga do draft (dono da pick + swap).
+require_once dirname(__DIR__) . '/backend/draft_swaps.php';
 
 /**
  * OVR mínimo pra uma trade aceita virar aviso no grupo do WhatsApp e no n8n.
@@ -3479,6 +3481,16 @@ if ($method === 'PUT') {
                         $updateSwap->execute([$roleB, $pickId, $pairId]);
                         $processed[$pickId] = true;
                         $processed[$pairId] = true;
+                    }
+
+                    // Se a ordem do draft já existe, o swap combinado agora
+                    // precisa valer nela também — senão só passaria a valer na
+                    // próxima vez que alguém regerasse a ordem.
+                    try {
+                        $ds = findActiveDraftSession($pdo, $tradeLeague, null, null);
+                        if ($ds) draftSincronizarOrdem($pdo, (int)$ds['id']);
+                    } catch (Throwable $e) {
+                        error_log('[trades/swap_na_ordem] ' . $e->getMessage());
                     }
                 }
             }

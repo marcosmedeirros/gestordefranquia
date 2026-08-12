@@ -962,9 +962,28 @@ if ($method === 'GET') {
             if ($method === 'GET') {
                 $subAction = $_GET['sub'] ?? 'list';
                 if ($subAction === 'list') {
-                    $rows = $pdo->query("SELECT id, name, created_at,
-                        (SELECT COUNT(*) FROM draft_class_template_players WHERE template_id=dct.id) AS player_count
-                        FROM draft_class_templates dct ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+                    // O banco é por liga: classe cadastrada na ELITE é da
+                    // ELITE. Sem o filtro, a aba de cada liga mostrava o bolo
+                    // de todo mundo — e a roleta de uma liga podia oferecer
+                    // classe que outra já tinha reservado.
+                    //
+                    // As que ainda não têm liga (existiam antes disso) entram
+                    // junto, marcadas, pra alguém atribuir sem precisar caçá-las.
+                    $ligaClasses = strtoupper(trim((string)($_GET['league'] ?? '')));
+                    if ($ligaClasses !== '' && in_array($ligaClasses, $validLeagues, true)) {
+                        requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $ligaClasses);
+                        $stmtCls = $pdo->prepare("SELECT id, name, league, created_at,
+                            (SELECT COUNT(*) FROM draft_class_template_players WHERE template_id=dct.id) AS player_count
+                            FROM draft_class_templates dct
+                            WHERE dct.league = ? OR dct.league IS NULL
+                            ORDER BY dct.league IS NULL, created_at DESC");
+                        $stmtCls->execute([$ligaClasses]);
+                        $rows = $stmtCls->fetchAll(PDO::FETCH_ASSOC);
+                    } else {
+                        $rows = $pdo->query("SELECT id, name, league, created_at,
+                            (SELECT COUNT(*) FROM draft_class_template_players WHERE template_id=dct.id) AS player_count
+                            FROM draft_class_templates dct ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
+                    }
                     echo json_encode(['success' => true, 'templates' => $rows]);
                 } elseif ($subAction === 'players') {
                     $tplId = (int)($_GET['template_id'] ?? 0);
@@ -2192,10 +2211,19 @@ if ($method === 'POST') {
                 $tplName = trim($body['name'] ?? '');
                 $players = $body['players'] ?? [];
                 if (!$tplName) { echo json_encode(['success' => false, 'error' => 'Nome obrigatório']); break; }
+                // A classe nasce dona de uma liga. Sem isto ela cai no limbo do
+                // "sem liga" e ninguém consegue sortear com ela até alguém
+                // atribuir na mão, no controle de drafts.
+                $ligaNova = strtoupper(trim((string)($body['league'] ?? $_GET['league'] ?? '')));
+                if ($ligaNova !== '' && !in_array($ligaNova, $validLeagues, true)) {
+                    echo json_encode(['success' => false, 'error' => 'Liga inválida.']); break;
+                }
+                if ($ligaNova !== '') requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $ligaNova);
+
                 $pdo->beginTransaction();
                 try {
-                    $s = $pdo->prepare("INSERT INTO draft_class_templates (name, created_by) VALUES (?, ?)");
-                    $s->execute([$tplName, (int)$user['id']]);
+                    $s = $pdo->prepare("INSERT INTO draft_class_templates (name, league, created_by) VALUES (?, ?, ?)");
+                    $s->execute([$tplName, $ligaNova !== '' ? $ligaNova : null, (int)$user['id']]);
                     $tplId = (int)$pdo->lastInsertId();
                     $sp = $pdo->prepare("INSERT INTO draft_class_template_players (template_id, name, position, ovr, age, pick_hint) VALUES (?,?,?,?,?,?)");
                     foreach ($players as $p) { $sp->execute([$tplId, trim($p['name']), strtoupper(trim($p['position'])), (int)$p['ovr'], (int)$p['age'], $readPickHint($p)]); }

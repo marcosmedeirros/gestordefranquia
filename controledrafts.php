@@ -23,7 +23,10 @@ if (!$ehAdminGlobal && empty($minhasLigas)) {
     header('Location: /dashboard.php');
     exit;
 }
-$ligaInicial = $minhasLigas[0];
+// ?league=ELITE abre direto na aba da liga — é assim que o card do admin
+// chega aqui. Liga que a pessoa não administra cai na primeira dela.
+$pedida = strtoupper(trim((string)($_GET['league'] ?? '')));
+$ligaInicial = in_array($pedida, $minhasLigas, true) ? $pedida : $minhasLigas[0];
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">

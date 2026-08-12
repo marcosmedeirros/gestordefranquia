@@ -8,6 +8,8 @@ require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/push.php';
+// Quem escolhe em cada vaga: dono da pick + swap. Ver backend/draft_swaps.php.
+require_once __DIR__ . '/../backend/draft_swaps.php';
 
 header('Content-Type: application/json');
 
@@ -1125,9 +1127,18 @@ if ($method === 'POST') {
 
                 $pdo->commit();
                 recalculateOrderPositions($pdo, (int)$draftSessionId);
-                echo json_encode(['success' => true, 'message' => 'Ordem definida com sucesso']);
+
+                // A ordem acabou de ser gravada com team_id = time de origem,
+                // ou seja, ignorando quem comprou pick numa troca. Aqui ela
+                // passa a dizer quem escolhe de verdade — dono atual da pick,
+                // e depois o swap trocando as vagas entre os dois donos.
+                $sinc = draftSincronizarOrdem($pdo, (int)$draftSessionId);
+
+                echo json_encode(['success' => true, 'message' => 'Ordem definida com sucesso',
+                                  'ajustes' => $sinc]);
             } catch (Exception $e) {
                 $pdo->rollBack();
+                error_log('[draft/apply_order] ' . $e->getMessage());
                 echo json_encode(['success' => false, 'error' => 'Erro ao definir ordem']);
             }
             break;

@@ -21,6 +21,7 @@ header('Content-Type: application/json; charset=utf-8');
 require_once dirname(__DIR__) . '/backend/auth.php';
 require_once dirname(__DIR__) . '/backend/db.php';
 require_once dirname(__DIR__) . '/backend/helpers.php';
+require_once dirname(__DIR__) . '/backend/draft_swaps.php';
 
 $user = getUserSession();
 if (!$user) {
@@ -454,9 +455,19 @@ try {
         $st->execute([(int)$temp['id']]);
         if ((int)$st->fetchColumn() === 0) cdErro(409, 'O draft não tem jogadores. Aplique a classe antes.');
 
+        // Última conferência antes de alguém escolher: dono de pick trocada e
+        // swap valendo na ordem. Se nada mudou desde a geração, não mexe em
+        // nada — mas é o último momento em que dá pra corrigir sem atrapalhar
+        // quem já está escolhendo.
+        $ajustes = draftSincronizarOrdem($pdo, (int)$sessao['id']);
+
         $pdo->prepare("UPDATE draft_sessions SET status = 'in_progress', started_at = COALESCE(started_at, NOW()),
                        current_pick_started_at = NOW() WHERE id = ?")->execute([(int)$sessao['id']]);
-        echo json_encode(['success' => true, 'message' => 'Draft aberto.']);
+
+        $extra = '';
+        if ($ajustes['donos'] > 0) $extra .= ' ' . $ajustes['donos'] . ' vaga(s) ajustada(s) por troca de pick.';
+        if ($ajustes['swaps'] > 0) $extra .= ' ' . $ajustes['swaps'] . ' vaga(s) trocada(s) por swap.';
+        echo json_encode(['success' => true, 'message' => 'Draft aberto.' . $extra]);
         exit;
     }
 

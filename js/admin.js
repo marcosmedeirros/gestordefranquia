@@ -1969,7 +1969,9 @@ async function showLeague(league) {
       { icon: 'bi-bar-chart-steps',         label: 'Pontuação<br>por Time',      fn: 'showPointsManagement()',    color: '#06b6d4', bg: 'rgba(6,182,212,.12)'   },
       { icon: 'bi-clipboard-data-fill',     label: 'Pontuação',               fn: `showRegistroPontuacao('${league}')`,   color: '#10b981', bg: 'rgba(16,185,129,.12)'  },
       { icon: 'bi-star-half',               label: 'Prêmios<br>Estendidos',      fn: `showExtendedAwards('${league}')`,      color: '#eab308', bg: 'rgba(234,179,8,.12)'   },
-      { icon: 'bi-alarm',                   label: 'Agendador<br>de Fases',      fn: `showScheduler('${league}')`,           color: '#3b82f6', bg: 'rgba(59,130,246,.12)'  },
+      // O Agendador de Fases saiu daqui a pedido. A tela e a função continuam
+      // existindo (showScheduler), só não têm mais atalho no card.
+      { icon: 'bi-shuffle',                 label: 'Controle<br>Drafts',         fn: `abrirControleDrafts('${league}')`,     color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
       { icon: 'bi-shield-check',            label: 'FBA SERASA',                fn: 'showSerasaAdmin()',         color: '#8b5cf6', bg: 'rgba(139,92,246,.12)'  },
       { icon: 'bi-person-dash-fill',        label: 'Dispensas',                 fn: 'showDispensas()',           color: '#ef4444', bg: 'rgba(239,68,68,.12)'   },
       // Tapas escondido na fusão — a tela e a função continuam existindo.
@@ -6374,7 +6376,7 @@ async function loadControlPanel() {
       </div>
 
       <div class="d-flex gap-2 mt-3 flex-wrap">
-        <button class="btn-ghost" onclick="showScheduler('${league}')"><i class="bi bi-alarm me-1"></i>Agendador de Fases</button>
+        <button class="btn-ghost" onclick="abrirControleDrafts('${league}')"><i class="bi bi-shuffle me-1"></i>Controle Drafts</button>
         <button class="btn-ghost" onclick="showConfig()"><i class="bi bi-gear me-1"></i>Configurações da Liga</button>
         <button class="btn-ghost" onclick="showTaticaAdmin()"><i class="bi bi-clipboard-data me-1"></i>Tática por Time</button>
       </div>`;
@@ -6395,6 +6397,11 @@ async function panelToggleTatica(abrir) {
 }
 
 // ══════════════════════════════════════════════
+/** Abre o controle de drafts já na aba da liga de onde saiu o clique. */
+function abrirControleDrafts(league) {
+  window.location.href = '/controledrafts.php?league=' + encodeURIComponent(league);
+}
+
 // AGENDADOR DE FASES (fechar/abrir trades, fechar FA)
 // ══════════════════════════════════════════════
 let _schedLeague = 'ELITE';
@@ -7258,7 +7265,7 @@ async function showAdminDraft(league) {
     // Carrega banco de classes no select da pool (só se há sessão de draft)
     if (draft) {
       const _sid = draft.id;
-      api('admin.php?action=draft_class_bank&sub=list').then(d => {
+      api('admin.php?action=draft_class_bank&sub=list' + _ligaClasses()).then(d => {
         const sel = document.getElementById(`draftClassBankSelect_${_sid}`);
         if (!sel) return;
         const tpls = d.templates || [];
@@ -7697,7 +7704,7 @@ function _adminDraftImportModal(draftSessionId, seasonId, league) {
   document.body.appendChild(modal);
 
   // Carregar banco de classes no select
-  api('admin.php?action=draft_class_bank&sub=list').then(d => {
+  api('admin.php?action=draft_class_bank&sub=list' + _ligaClasses()).then(d => {
     const sel = document.getElementById('draftImportBankSelect');
     if (!sel) return;
     const templates = d.templates || [];
@@ -7897,6 +7904,17 @@ async function _adminDraftUseClassBank(draftSid, seasonId, league) {
 //  BANCO DE CLASSES DE DRAFT
 // ══════════════════════════════════════════════════════════════════
 
+/**
+ * O sufixo de liga das chamadas ao banco de classes.
+ *
+ * Classe cadastrada na ELITE é da ELITE. Sem isto, a aba de cada liga
+ * mostrava o bolo de todo mundo — e a roleta de uma liga podia oferecer
+ * classe que outra já tinha reservado.
+ */
+function _ligaClasses() {
+  return appState.currentLeague ? '&league=' + encodeURIComponent(appState.currentLeague) : '';
+}
+
 async function showDraftClassBank() {
   appState.view = 'draft_class_bank';
   updateBreadcrumb();
@@ -7904,7 +7922,7 @@ async function showDraftClassBank() {
   container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-orange"></div></div>';
 
   try {
-    const data = await api('admin.php?action=draft_class_bank&sub=list');
+    const data = await api('admin.php?action=draft_class_bank&sub=list' + _ligaClasses());
     const templates = data.templates || [];
     const _back = appState.currentLeague ? `showLeague('${appState.currentLeague}')` : 'showHome()';
 
@@ -8067,7 +8085,7 @@ async function _dcSaveNewClassWithCSV() {
   if (!name) { showAlert('warning','Digite o nome da classe'); return; }
   if (!_dcNewClassRows.length) { showAlert('warning','Nenhum jogador no CSV'); return; }
   try {
-    const res = await api('admin.php?action=draft_class_bank', { method:'POST', body: JSON.stringify({ sub:'save', name, players: _dcNewClassRows }) });
+    const res = await api('admin.php?action=draft_class_bank', { method:'POST', body: JSON.stringify({ sub:'save', name, league: appState.currentLeague || null, players: _dcNewClassRows }) });
     document.getElementById('_dcEditModal').remove();
     showAlert('success', res.message || 'Classe criada!');
     _dcNewClassRows = [];
