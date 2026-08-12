@@ -280,7 +280,7 @@ function wcAjuda(): string
         . "/picks _time_ — picks que o time tem\n\n"
         . "*Liga*\n"
         . "/ranking _liga_ — a tabela da liga\n"
-        . "/power — os 10 mais fortes da liga\n"
+        . "/power — o power ranking da liga inteira\n"
         . "/trocas — as últimas trocas aprovadas\n"
         . "/lendas — os marcados como LENDA\n"
         . "/hall — o Hall da Fama\n"
@@ -683,8 +683,8 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
     if (!$fichas) return "Os times da {$liga} ainda não têm quinteto montado.";
 
     usort($fichas, fn($a, $b) => $b['forca'] <=> $a['forca']);
-    $fichas = array_slice($fichas, 0, 10);
-
+    // A liga inteira, não um top 10: quem está em 24º também quer se achar
+    // na lista, e é justamente quem mais procura.
     $txt = "*Power Ranking {$liga}*\n_o que a régua diz, não o que o grupo acha_\n\n";
     foreach ($fichas as $i => $f) {
         $posto = $i + 1;
