@@ -416,12 +416,15 @@ function _quizRender(e, perguntas) {
   const n = e.contagem || {};
   const ab = e.aberta;
   const back = 'showGestao()';
+  // Horários vindos do servidor — a tela não tem opinião sobre eles.
+  const h = e.horario || { abre: '10:30', fecha: '10:40', minutos: 10 };
 
   // Antes de montar a tela, não depois: o HTML abaixo já lê _quizGrupos pra
   // trocar o JID pelo nome do grupo na lista de perguntas.
   window._quizCache = perguntas;
   window._quizGrupos = e.grupos || [];
   window._quizPremioPadrao = e.premio;
+  window._quizMinutos = h.minutos;
 
   document.getElementById('mainContainer').innerHTML = `
 <div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
@@ -436,7 +439,7 @@ function _quizRender(e, perguntas) {
       <b>${n.total || 0}</b> perguntas · <b>${n.certas || 0}</b> com resposta certa ·
       <b>${n.votos || 0}</b> de mais votada · <b>${n['inéditas'] || 0}</b> nunca usadas
       ${Number(n.inativas) ? ` · <b>${n.inativas}</b> fora do sorteio` : ''}
-      <br>Sai <b>1 por dia às 10:30</b> e fecha <b>11:00</b>, valendo <b>${e.premio ?? 100}</b> moedas para cada acerto.
+      <br>Sai <b>1 por dia às ${escapeHtml(h.abre)}</b> e fecha <b>${escapeHtml(h.fecha)}</b>, valendo <b>${e.premio ?? 100}</b> moedas para cada acerto.
     </div>
     ${(() => {
       // O site só enfileira; quem entrega é o worker, e ele só trabalha dentro
@@ -464,7 +467,7 @@ function _quizRender(e, perguntas) {
               onclick="_quizAcao('cancelar_rodada','Cancelar esta rodada?\\n\\nA pergunta volta pro sorteio, os ${ab.votos} voto(s) são descartados e NINGUÉM recebe moeda. Não é o mesmo que finalizar.')">
         <i class="bi bi-x-circle me-1"></i>Cancelar sem apurar</button>
       <div style="font-size:11px;color:var(--text-3);margin-top:8px;line-height:1.5">
-        O cron das 11:00 finaliza sozinho. Estes botões são a garantia pra quando ele falhar
+        O cron das ${escapeHtml(h.fecha)} finaliza sozinho. Estes botões são a garantia pra quando ele falhar
         — ou pra encerrar antes da hora.
       </div>`
     : `<button class="btn-ghost" style="color:#a855f7" onclick="_quizAcao('abrir_agora','Postar a pergunta do dia no grupo agora?')">
@@ -767,7 +770,7 @@ function _quizEditar(id) {
       <div class="d-flex gap-2 justify-content-end align-items-center flex-wrap" style="padding:0 18px 18px">
         <button class="btn-ghost" onclick="document.getElementById('_quizModal').remove()">Cancelar</button>
         <button class="btn-ghost" style="color:#25d366" onclick="_quizSalvar(true)"
-                title="Posta no grupo agora, sem esperar as 10:30">
+                title="Posta no grupo agora, sem esperar o horário do sorteio">
           <i class="bi bi-send-fill me-1"></i>Salvar e enviar agora</button>
         <button class="btn-ghost" style="color:#a855f7" onclick="_quizSalvar()"><i class="bi bi-check-lg me-1"></i>Salvar na fila</button>
       </div>
@@ -802,7 +805,7 @@ async function _quizSalvar(enviarAgora) {
   // custa um clique e evita mandar a pergunta ainda pela metade.
   if (enviarAgora) {
     const onde = document.getElementById('_qGrupo').selectedOptions[0]?.textContent.trim() || 'grupo principal';
-    if (!confirm(`Postar esta pergunta agora em "${onde}"?\n\nEla fecha 30 minutos depois e não volta a sair no sorteio.`)) return;
+    if (!confirm(`Postar esta pergunta agora em "${onde}"?\n\nEla fecha ${window._quizMinutos || 10} minutos depois e não volta a sair no sorteio.`)) return;
   }
 
   const acao = enviarAgora ? 'salvar_e_enviar' : 'salvar';

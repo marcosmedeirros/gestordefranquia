@@ -4,18 +4,26 @@
  *
  * Agendar na Hostinger DUAS entradas, do mesmo jeito do abraço:
  *
- *   30 13 * * *   /usr/bin/php <caminho>/cron/quiz.php     abre a pergunta
- *   5 14 * * *    /usr/bin/php <caminho>/cron/quiz.php     apura e paga
+ *   30 13 * * *    /usr/bin/php <caminho>/cron/quiz.php    abre a pergunta
+ *   (barra)5 13 *  /usr/bin/php <caminho>/cron/quiz.php    apura e paga
+ *
+ * A segunda é "a cada 5 minutos, na hora 13" — escrita por extenso porque a
+ * barra seguida de asterisco fecharia este bloco de comentário.
  *
  * As horas são UTC, que é o fuso do servidor da Hostinger: 13:30 lá são 10:30
- * em Brasília, e 14:05 são 11:05 — cinco minutos depois de a rodada vencer,
- * porque ela fica aberta meia hora (BOT_QUIZ_MINUTOS).
+ * em Brasília. A rodada fica aberta dez minutos (BOT_QUIZ_MINUTOS), então
+ * fecha 10:40 — e a execução das 13:40 UTC é quem apura.
  *
- * São duas porque este mesmo script faz as duas coisas: abre às 10:30 e, meia
- * hora depois, fecha a rodada e distribui as moedas. Uma execução só por dia
+ * São duas porque este mesmo script faz as duas coisas: abre e, dez minutos
+ * depois, fecha a rodada e distribui as moedas. Uma execução só por dia
  * deixaria o resultado sair na manhã seguinte, junto com a pergunta nova.
  *
- * Mexeu em BOT_QUIZ_MINUTOS? A segunda entrada tem que andar junto.
+ * A segunda ser de 5 em 5 minutos, e não num horário fixo, é proteção: o prazo
+ * é gravado a partir do instante em que a ABERTURA roda, então um atraso dela
+ * empurra o fechamento junto, e aí qualquer execução da hora pega.
+ *
+ * Mexeu em BOT_QUIZ_HORA ou BOT_QUIZ_MINUTOS (backend/quiz.php)? As entradas
+ * têm que andar junto — a de apuração precisa cobrir o horário do fechamento.
  *
  * A ordem interna resolve as duas com o mesmo comando: ele primeiro apura o
  * que venceu, depois abre a do dia se ainda não abriu. Quem faz o quê é o
@@ -42,8 +50,9 @@ require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/quiz.php';
 require_once __DIR__ . '/../backend/whatsapp.php';
 
-/** A partir de que hora o quiz do dia pode abrir. */
-const QUIZ_HORA = '10:30';
+// O horário e a duração moram no backend/quiz.php, junto de quem grava o
+// prazo da rodada e de quem anuncia no grupo. Uma cópia aqui já teria
+// virado mentira na primeira vez que o horário mudasse.
 
 $agora  = in_array('--agora', $argv ?? [], true);
 $pdo    = db();
@@ -60,8 +69,8 @@ foreach (quizFecharVencidas($pdo) as [$grupo, $texto]) {
 }
 
 // ── 2. Abre a do dia ─────────────────────────────────────────────────────
-if (!$agora && date('H:i') < QUIZ_HORA) {
-    echo "ainda não são " . QUIZ_HORA . " em Brasília (agora: " . date('H:i') . ")"
+if (!$agora && date('H:i') < BOT_QUIZ_HORA) {
+    echo "ainda não são " . BOT_QUIZ_HORA . " em Brasília (agora: " . date('H:i') . ")"
        . ($fechadas ? " — {$fechadas} rodada(s) apurada(s)" : '') . "\n";
     exit(0);
 }
@@ -74,25 +83,26 @@ if ($grupo === '') {
     exit(1);
 }
 
-// A marca do dia impede que a execução da tarde abra uma segunda pergunta
-// depois de a da manhã já ter aberto e a rodada ter sido apurada.
-//
-// Do mesmo jeito do abraço, e pela mesma razão: a marca é gravada ANTES de
-// enfileirar, e quem detecta o "já foi hoje" é a chave primária estourando.
-// Conferir com SELECT antes deixaria brecha pra duas execuções simultâneas
-// mandarem as duas.
-//
-// app_flags é (flag, applied_at) e já existe desde as migrações — daí a marca
-// carregar a data no nome, em vez de ser uma linha só com o valor mudando.
 // Bot desligado: sai antes de queimar a pergunta. quizAbrir() marca a pergunta
 // como usada e cria a rodada; descobrir só na hora de enfileirar deixaria uma
-// rodada de pé que ninguém viu no grupo e que ia ser "apurada" três horas
+// rodada de pé que ninguém viu no grupo e que seria "apurada" dez minutos
 // depois, anunciando o resultado de uma pergunta que nunca saiu.
 if (!whatsappAtivo($pdo)) {
     fwrite(STDERR, "o bot está desligado — nada foi aberto\n");
     exit(1);
 }
 
+// A marca do dia impede que a execução seguinte abra uma segunda pergunta
+// depois de a primeira já ter aberto e a rodada ter sido apurada.
+//
+// Do mesmo jeito do abraço, e pela mesma razão: a marca é gravada ANTES de
+// enfileirar, e quem detecta o "já foi hoje" é a chave primária estourando.
+// Conferir com SELECT antes deixaria brecha pra duas execuções simultâneas
+// mandarem as duas — e elas existem, porque as entradas do agendador se
+// sobrepõem no minuto da abertura.
+//
+// app_flags é (flag, applied_at) e já existe desde as migrações — daí a marca
+// carregar a data no nome, em vez de ser uma linha só com o valor mudando.
 $marca = 'quiz_do_dia_' . $hoje;
 if (!$agora) {
     try {

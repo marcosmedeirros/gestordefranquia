@@ -27,13 +27,27 @@ require_once __DIR__ . '/whatsapp.php';
 const BOT_QUIZ_PREMIO = 100;
 
 /**
- * Quanto tempo a rodada fica aberta.
+ * A que horas de Brasília a pergunta do dia sai, e por quanto tempo fica em pé.
  *
- * Trinta minutos: abre 10:30, fecha 11:00. O segundo cron do dia tem que vir
- * DEPOIS disso — mexer aqui sem mexer lá deixa a rodada esperando a execução
- * do dia seguinte pra ser apurada.
+ * Os dois moram aqui porque quatro lugares precisam deles: o cron, que decide
+ * se já é hora; a rodada, que grava o prazo; a tela do admin, que promete o
+ * horário; e a mensagem do grupo, que anuncia. Escritos à mão em cada um, uma
+ * mudança de horário deixaria três versões da verdade circulando.
+ *
+ * Hoje: abre 10:30, fecha 10:40.
+ *
+ * Mexeu aqui? O agendamento na Hostinger tem que andar junto — são duas
+ * entradas, e a de apuração precisa cair DEPOIS do fechamento. Ver o
+ * cabeçalho do cron/quiz.php.
  */
-const BOT_QUIZ_MINUTOS = 30;
+const BOT_QUIZ_HORA    = '10:30';
+const BOT_QUIZ_MINUTOS = 10;
+
+/** A que horas a rodada aberta hoje fecha, em HH:MM. */
+function quizHoraDoFechamento(): string
+{
+    return date('H:i', strtotime('today ' . BOT_QUIZ_HORA) + BOT_QUIZ_MINUTOS * 60);
+}
 
 function quizGarantirTabelas(PDO $pdo): void
 {

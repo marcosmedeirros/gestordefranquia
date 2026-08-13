@@ -87,6 +87,13 @@ try {
 
         echo json_encode(['success' => true, 'contagem' => $tot, 'aberta' => $aberta,
                           'ultimas' => $ultimas, 'premio' => BOT_QUIZ_PREMIO, 'grupos' => $grupos,
+                          // A tela não repete os horários: eles vêm daqui, de
+                          // onde a rodada tira o prazo de verdade.
+                          'horario' => [
+                              'abre'    => BOT_QUIZ_HORA,
+                              'fecha'   => quizHoraDoFechamento(),
+                              'minutos' => BOT_QUIZ_MINUTOS,
+                          ],
                           'envio' => [
                               'ligado'    => whatsappAtivo($pdo),
                               'na_janela' => whatsappDentroDaJanela(),
