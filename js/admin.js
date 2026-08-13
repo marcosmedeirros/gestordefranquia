@@ -4313,6 +4313,70 @@ async function showControleCap(league) {
   </div>
 </div>
 
+${(() => {
+  const cal = d.calouros || [];
+  if (!cal.length) return `
+<div class="panel mb-3">
+  <div class="panel-header"><div class="panel-title"><i class="bi bi-person-badge"></i> Rookie scale</div></div>
+  <div style="padding:14px 16px">
+    <p class="nota-txt" style="margin:0;font-size:12px;color:var(--text-3);line-height:1.6">
+      Nenhum calouro na rookie scale nesta temporada. Ela só vale no ano de estreia de quem foi
+      draftado na 1ª ou 2ª rodada do draft anual — passado esse ano, todo mundo volta pra tabela por OVR.
+    </p>
+  </div>
+</div>`;
+
+  const economizando = cal.filter(p => p.economia > 0);
+  const pagandoCaro  = cal.filter(p => p.economia < 0);
+  const saldo = cal.reduce((a, p) => a + p.economia, 0);
+
+  return `
+<div class="panel mb-3">
+  <div class="panel-header">
+    <div class="panel-title"><i class="bi bi-person-badge"></i> Rookie scale — ${cal.length} calouro(s)</div>
+    <span style="font-size:11px;color:${saldo >= 0 ? '#22c55e' : '#ef4444'}">
+      saldo da liga: ${saldo > 0 ? '+' : ''}${saldo}M</span>
+  </div>
+  <div style="padding:10px 16px 16px">
+    <p style="font-size:11.5px;color:var(--text-3);line-height:1.55;margin-bottom:12px">
+      No ano de estreia o calouro paga pela POSIÇÃO em que foi escolhido, não pelo OVR dele.
+      A coluna da direita é a diferença: <b style="color:#22c55e">verde</b> é o quanto a escala está
+      saindo mais barata que o OVR dele valeria; <b style="color:#ef4444">vermelho</b> é o quanto o time
+      está pagando a mais por uma escolha que não rendeu. Ano que vem todos voltam pra tabela por OVR.
+    </p>
+    <div style="overflow-x:auto">
+      <table class="table table-dark table-hover" style="font-size:12.5px;margin:0">
+        <thead><tr>
+          <th>Jogador</th><th>Time</th>
+          <th style="text-align:right">OVR</th>
+          <th style="text-align:right">Escolha</th>
+          <th style="text-align:right">Paga</th>
+          <th style="text-align:right" title="O que ele custaria pela tabela de OVR">Valeria</th>
+          <th style="text-align:right">Diferença</th>
+        </tr></thead>
+        <tbody>${cal.map(p => `
+          <tr>
+            <td style="font-weight:600">${escapeHtml(p.name)}</td>
+            <td style="color:var(--text-2)">${escapeHtml(p.time)}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${p.ovr}</td>
+            <td style="text-align:right;color:var(--text-2);white-space:nowrap">${
+              p.round >= 2 ? '2ª rodada' : (p.pick ? `#${p.pick}` : '1ª rodada')}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:#f5c542">${p.paga}M</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-3)">${p.pela_tabela}M</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:${
+              p.economia > 0 ? '#22c55e' : (p.economia < 0 ? '#ef4444' : 'var(--text-3)')}">${
+              p.economia > 0 ? '+' : ''}${p.economia}M</td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:var(--text-3);margin:10px 0 0">
+      ${economizando.length} escolha(s) rendendo mais do que custam${
+        pagandoCaro.length ? ` · ${pagandoCaro.length} custando mais do que rendem` : ''}.
+    </p>
+  </div>
+</div>`;
+})()}
+
 <div class="panel">
   <div class="panel-header"><div class="panel-title"><i class="bi bi-table"></i> Jogadores por OVR</div></div>
   <div style="padding:12px 14px 16px">

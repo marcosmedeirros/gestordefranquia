@@ -163,13 +163,19 @@ if ($method === 'GET') {
             // Só quando pedido (?times=1): getTeamCapSummary faz várias
             // consultas por time, e a tabela por OVR sozinha é bem mais barata.
             $times = [];
+            $calouros = [];
             if (!empty($_GET['times'])) {
                 $stT = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome
                                       FROM teams WHERE league = ? ORDER BY city, name");
                 $stT->execute([$ligaCap]);
+                // A pick de cada calouro — o número que explica o salário dele.
+                $stPick = $pdo->prepare("SELECT draft_round, draft_pick_position FROM players WHERE id = ?");
+
                 foreach ($stT->fetchAll(PDO::FETCH_ASSOC) as $t) {
                     try {
                         $s = getTeamCapSummary($pdo, (int)$t['id']);
+                        $naEscala = array_values(array_filter($s['roster'] ?? [], fn($p) => !empty($p['is_rookie_scale'])));
+
                         $times[] = [
                             'id'         => (int)$t['id'],
                             'nome'       => $t['nome'],
@@ -178,12 +184,38 @@ if ($method === 'GET') {
                             'cap_max'    => (int)($s['cap_max'] ?? 0),
                             'espaco'     => (int)($s['space'] ?? 0),
                             'status'     => $s['status'] ?? null,
-                            'calouros'   => count(array_filter($s['roster'] ?? [], fn($p) => !empty($p['is_rookie_scale']))),
+                            'calouros'   => count($naEscala),
                         ];
+
+                        // Quanto a rookie scale está custando ou economizando.
+                        // O número existe no sistema desde sempre, mas em
+                        // lugar nenhum ele é MOSTRADO: dá pra ver o salário do
+                        // calouro e dá pra ver a tabela por OVR, mas ninguém
+                        // faz a subtração — que é justamente a que diz se a
+                        // pick foi boa.
+                        foreach ($naEscala as $p) {
+                            $stPick->execute([(int)$p['id']]);
+                            $pk = $stPick->fetch(PDO::FETCH_ASSOC) ?: [];
+                            $pelaTabela = capOvrSalary((int)$p['ovr']);
+                            $calouros[] = [
+                                'id'          => (int)$p['id'],
+                                'name'        => $p['name'],
+                                'time'        => $t['nome'],
+                                'ovr'         => (int)$p['ovr'],
+                                'round'       => $pk['draft_round'] !== null ? (int)$pk['draft_round'] : null,
+                                'pick'        => $pk['draft_pick_position'] !== null ? (int)$pk['draft_pick_position'] : null,
+                                'paga'        => (int)$p['base_salary'],
+                                'pela_tabela' => $pelaTabela,
+                                // Positivo = a escala está saindo mais barata
+                                // que o OVR dele. Negativo = pagando caro.
+                                'economia'    => $pelaTabela - (int)$p['base_salary'],
+                            ];
+                        }
                     } catch (Throwable $e) {
                         error_log('[cap_tabela] time ' . $t['id'] . ': ' . $e->getMessage());
                     }
                 }
+                usort($calouros, fn($a, $b) => $b['economia'] <=> $a['economia']);
             }
 
             echo json_encode([
@@ -192,6 +224,7 @@ if ($method === 'GET') {
                 'linhas' => $linhas,
                 'lendas' => $lendas,
                 'times' => $times,
+                'calouros' => $calouros,
                 'total_jogadores' => array_sum($porOvr),
                 'total_times' => (int)$stTimes->fetchColumn(),
                 'lenda_minimo' => CAP_LENDA_MINIMO_MILLIONS,
