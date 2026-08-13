@@ -2351,6 +2351,36 @@ async function copyLeaguePicks() {
   }
 }
 
+/**
+ * Muda o total de rodadas do draft inicial, do próprio painel.
+ *
+ * Existia só dentro do initdraftselecao.php — o admin que queria tirar uma
+ * rodada tinha que sair da Gestão, abrir a outra tela e achar a aba. O
+ * endpoint é o mesmo; muda só de onde é chamado.
+ *
+ * Diminuir é o caso que dá errado, então confirma. Aumentar não apaga nada e
+ * vai direto.
+ */
+async function _initDraftRodadas(total, token, atual, league) {
+  if (total < atual && !confirm(
+      `Passar de ${atual} para ${total} rodada(s)?\n\n`
+    + `A última rodada sai da ordem. Se já houver escolha nela, o servidor recusa e nada muda.`)) return;
+
+  try {
+    const r = await api('initdraft.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'set_total_rounds', token: decodeURIComponent(token), total_rounds: total }),
+    });
+    showAlert('success', {
+      rodadas_criadas:   `Agora são ${r.total_rounds} rodadas. As novas já entraram na ordem.`,
+      rodadas_removidas: `Agora são ${r.total_rounds} rodadas. As de cima saíram da ordem.`,
+    }[r.ajuste] || `Agora são ${r.total_rounds} rodadas.`);
+    showLeague(league);
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro');
+  }
+}
+
 async function copyLeagueRosters() {
   const league = appState.currentLeague || document.getElementById('copyRosterLeague')?.value || 'ELITE';
   ensureCopyRosterModal();
@@ -2509,6 +2539,22 @@ async function showLeague(league) {
             </a>
           </div>
         </div>
+        ${(() => {
+          const n = Number(initDraftSession.total_rounds) || 0;
+          return `
+        <div style="padding:0 18px 14px;display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+          <span style="font-size:12.5px;color:var(--text-2)">Total de rodadas:</span>
+          <button class="btn-ghost btn-sm" title="Tirar uma rodada" ${n <= 1 ? 'disabled' : ''}
+                  onclick="_initDraftRodadas(${n - 1}, '${token}', ${n}, '${league}')">
+            <i class="bi bi-dash-lg"></i></button>
+          <b style="font-size:17px;min-width:22px;text-align:center;font-variant-numeric:tabular-nums">${n || '?'}</b>
+          <button class="btn-ghost btn-sm" title="Acrescentar uma rodada" ${n >= 10 ? 'disabled' : ''}
+                  onclick="_initDraftRodadas(${n + 1}, '${token}', ${n}, '${league}')">
+            <i class="bi bi-plus-lg"></i></button>
+          <span style="font-size:11px;color:var(--text-3)">
+            Tirar só vale enquanto a última rodada não tiver nenhuma escolha feita.</span>
+        </div>`;
+        })()}
       </div>`;
     })() : '';
 
