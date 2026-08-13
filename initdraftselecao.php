@@ -652,9 +652,18 @@ try {
                     <div class="row g-4">
                         <div class="col-md-5">
                             <div class="adm-section-title">Total de rodadas</div>
-                            <div class="d-flex gap-2 align-items-center mb-4">
-                                <input type="number" id="admTotalRounds" class="field-input" min="1" max="10" style="max-width:100px">
+                            <div class="d-flex gap-2 align-items-center mb-1">
+                                <button class="btn-ghost" id="admRodadaMenos" onclick="passoRodadas(-1)" title="Tirar uma rodada">
+                                    <i class="bi bi-dash-lg"></i></button>
+                                <input type="number" id="admTotalRounds" class="field-input" min="1" max="10"
+                                       style="max-width:78px;text-align:center">
+                                <button class="btn-ghost" id="admRodadaMais" onclick="passoRodadas(1)" title="Acrescentar uma rodada">
+                                    <i class="bi bi-plus-lg"></i></button>
                                 <button class="btn-ghost" onclick="saveTotalRounds()"><i class="bi bi-check2"></i> Salvar</button>
+                            </div>
+                            <div class="mb-4" style="font-size:11px;color:var(--text-3);line-height:1.5">
+                                O menos e o mais já salvam. Tirar só vale enquanto a última rodada
+                                não tiver nenhuma escolha feita.
                             </div>
                             <div class="adm-section-title">Iniciar</div>
                             <div id="admStartArea"></div>
@@ -2217,9 +2226,38 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
             }
         }
 
+        /**
+         * Um passo pra cima ou pra baixo, salvando na hora.
+         *
+         * O campo de digitar continua ali pra quem quer pular de 3 pra 8, mas
+         * o caso comum é tirar UMA rodada que ainda não começou — e pra esse,
+         * digitar e clicar em Salvar são dois passos a mais do que precisa.
+         */
+        function passoRodadas(passo) {
+            const campo = admElements.totalRounds;
+            if (!campo) return;
+            const atual = parseInt(campo.value, 10) || 1;
+            const novo = Math.min(10, Math.max(1, atual + passo));
+            if (novo === atual) return;
+            campo.value = novo;
+            saveTotalRounds();
+        }
+
         async function saveTotalRounds() {
             const value = parseInt(admElements.totalRounds?.value, 10);
             if (Number.isNaN(value) || value < 1 || value > 10) { showMessage('Informe um número de rodadas entre 1 e 10.', 'warning'); return; }
+
+            // Diminuir é o único que pode dar errado — o servidor recusa se a
+            // rodada que sumiria já tiver escolha. Avisar antes evita o susto
+            // de ver uma mensagem vermelha sem ter pedido nada arriscado.
+            const antes = parseInt(state.session?.total_rounds, 10) || 0;
+            if (antes && value < antes && !confirm(
+                `Passar de ${antes} para ${value} rodada(s)?\n\n`
+              + `As rodadas de cima saem da ordem. Se já houver escolha em alguma delas, `
+              + `o servidor recusa e nada muda.`)) {
+                admElements.totalRounds.value = antes;
+                return;
+            }
             try {
                 const res = await fetch(API_URL, {
                     method: 'POST',
