@@ -442,16 +442,23 @@ function _quizRender(e, perguntas) {
       <br>Sai <b>1 por dia às ${escapeHtml(h.abre)}</b> e fecha <b>${escapeHtml(h.fecha)}</b>, valendo <b>${e.premio ?? 100}</b> moedas para cada acerto.
     </div>
 
-    <div class="d-flex align-items-center gap-2 flex-wrap mb-3" style="font-size:12.5px">
-      <span style="color:var(--text-2)"><i class="bi bi-broadcast-pin me-1"></i>O quiz sai em:</span>
-      <select class="form-select form-select-sm" style="width:auto" onchange="_quizGrupoDoQuiz(this.value)">
-        <option value="">Grupo principal (padrão)</option>
-        ${(e.grupos || []).filter(g => !g.principal).map(g =>
-          `<option value="${escapeHtml(g.jid)}" ${g.do_quiz ? 'selected' : ''}>
-             ${escapeHtml(g.nome)}${g.liga ? ' · ' + escapeHtml(g.liga) : ''}</option>`).join('')}
-      </select>
-      ${e.grupo_quiz && !e.grupo_quiz.nome && e.grupo_quiz.jid ? `
-        <span style="color:#f59e0b">o grupo salvo não está mais cadastrado</span>` : ''}
+    <div class="mb-3" style="font-size:12.5px">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span style="color:var(--text-2)"><i class="bi bi-broadcast-pin me-1"></i>O quiz sai em:</span>
+        <select class="form-select form-select-sm" style="width:auto;max-width:100%" onchange="_quizGrupoDoQuiz(this)">
+          <option value="">Grupo principal (padrão)</option>
+          ${(e.grupos || []).filter(g => !g.principal).map(g =>
+            `<option value="${escapeHtml(g.jid)}" ${g.do_quiz ? 'selected' : ''}>
+               ${escapeHtml(g.nome)}${g.liga ? ' · ' + escapeHtml(g.liga) : ''}</option>`).join('')}
+          ${(e.vistos || []).length ? `<optgroup label="Grupos que o bot ouviu (ainda não cadastrados)">
+            ${e.vistos.map(v => `<option value="${escapeHtml(v.jid)}">${escapeHtml(v.pista || v.jid).slice(0, 52)}</option>`).join('')}
+          </optgroup>` : ''}
+        </select>
+      </div>
+      <div style="color:var(--text-3);font-size:11px;margin-top:5px">
+        Está saindo em <b style="color:var(--text-2)">${escapeHtml((e.grupo_quiz && e.grupo_quiz.nome) || 'grupo principal')}</b>.
+        ${(e.vistos || []).length ? 'Se o grupo certo não estiver na lista de cima, ele está na de baixo — identificado pela última mensagem que o bot ouviu lá.' : ''}
+      </div>
     </div>
     ${(() => {
       // O site só enfileira; quem entrega é o worker, e ele só trabalha dentro
@@ -571,11 +578,25 @@ ${(e.ultimas || []).length ? `
 
 }
 
-/** Escolhe em qual grupo cadastrado o quiz do dia sai. */
-async function _quizGrupoDoQuiz(jid) {
+/**
+ * Escolhe em qual grupo o quiz do dia sai.
+ *
+ * Aceita tanto grupo cadastrado quanto grupo que o bot só ouviu — nesse caso
+ * o servidor cadastra na hora. Exigir cadastrar antes era o que fazia o
+ * seletor abrir com uma opção só e o quiz continuar saindo no lugar errado.
+ */
+async function _quizGrupoDoQuiz(sel) {
+  const jid = sel.value;
+  // Da lista de ouvidos vem a pista ("Victor: e aí"), não um nome de grupo —
+  // vale mais perguntar como chamar do que gravar isso como nome pra sempre.
+  let nome = '';
+  if (jid && sel.selectedOptions[0]?.parentElement?.tagName === 'OPTGROUP') {
+    nome = prompt('Como esse grupo se chama? (ex: Chat Off - Geral)', 'Chat Off - Geral') || '';
+    if (!nome.trim()) { showQuizAdmin(); return; }
+  }
   try {
     const r = await api('quiz-admin.php?action=grupo_quiz_salvar', {
-      method: 'POST', body: JSON.stringify({ jid }),
+      method: 'POST', body: JSON.stringify({ jid, nome }),
     });
     showAlert('success', r.message);
     showQuizAdmin();

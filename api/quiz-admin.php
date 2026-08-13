@@ -87,6 +87,21 @@ try {
         $grupoQuizNome = null;
         foreach ($grupos as $g) if ($g['do_quiz']) $grupoQuizNome = $g['nome'];
 
+        // Os grupos que o bot já ouviu mas ninguém cadastrou entram no seletor
+        // junto dos cadastrados. Sem isso, quem nunca passou pelo cadastro
+        // abria a lista, via só "grupo principal" e não tinha o que escolher —
+        // e o quiz continuava saindo no lugar errado sem nenhum aviso.
+        $jaTem = array_column($grupos, 'jid');
+        $vistos = [];
+        try {
+            foreach ($pdo->query("SELECT jid, ultimo_autor, ultima_mensagem
+                                  FROM whatsapp_grupos_vistos ORDER BY visto_em DESC LIMIT 20") as $v) {
+                if (in_array($v['jid'], $jaTem, true)) continue;
+                $vistos[] = ['jid' => $v['jid'],
+                             'pista' => trim(($v['ultimo_autor'] ?? '') . ': ' . ($v['ultima_mensagem'] ?? ''), ': ')];
+            }
+        } catch (Throwable $e) { /* a tabela nasce no primeiro webhook */ }
+
         // O site só enfileira; quem entrega é o worker na máquina do Marcos,
         // dentro de uma janela de horário. "Mandei e não chegou no grupo" é
         // quase sempre isto, e sem mostrar aqui só se descobre olhando a fila.
@@ -102,6 +117,7 @@ try {
                               'minutos' => BOT_QUIZ_MINUTOS,
                           ],
                           'grupo_quiz' => ['jid' => $doQuiz, 'nome' => $grupoQuizNome],
+                          'vistos' => $vistos,
                           'envio' => [
                               'ligado'    => whatsappAtivo($pdo),
                               'na_janela' => whatsappDentroDaJanela(),
@@ -229,20 +245,45 @@ try {
      */
     if ($acao === 'grupo_quiz_salvar') {
         require_once dirname(__DIR__) . '/backend/whatsapp.php';
-        $jid = trim((string)(qaCorpo()['jid'] ?? ''));
+        $c = qaCorpo();
+        $jid = trim((string)($c['jid'] ?? ''));
 
-        // Vazio volta ao padrão (o principal). Qualquer outro valor tem que ser
-        // um grupo onde o bot fala — mandar pergunta pra onde ele não entra
-        // seria escrever no vazio e ninguém descobriria por dias.
-        if ($jid !== '' && !isset(whatsappGruposDeComando($pdo)[$jid])) {
-            qaErro(400, 'Esse grupo não está cadastrado em "Grupos do bot".');
+        // Vazio volta ao padrão (o principal).
+        if ($jid !== '') {
+            if (!str_ends_with($jid, '@g.us')) {
+                qaErro(400, 'Isso não é um grupo — o identificador precisa terminar em @g.us.');
+            }
+            // Grupo que o bot só ouviu, mas ninguém cadastrou: cadastra na
+            // hora. Exigir passar antes por "Grupos do bot" era o que fazia o
+            // seletor abrir vazio e o quiz continuar saindo no lugar errado.
+            if (!isset(whatsappGruposDeComando($pdo)[$jid])) {
+                $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_grupos_comando (
+                    jid VARCHAR(120) PRIMARY KEY,
+                    nome VARCHAR(120) NULL,
+                    liga ENUM('ELITE','NEXT','RISE','ROOKIE') NULL,
+                    ativo TINYINT(1) NOT NULL DEFAULT 1,
+                    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                $nomeNovo = trim((string)($c['nome'] ?? '')) ?: 'Grupo do quiz';
+                $pdo->prepare("INSERT INTO whatsapp_grupos_comando (jid, nome, ativo) VALUES (?,?,1)
+                               ON DUPLICATE KEY UPDATE ativo = 1")
+                    ->execute([$jid, mb_substr($nomeNovo, 0, 120)]);
+            }
         }
 
         $pdo->prepare("UPDATE whatsapp_config SET quiz_grupo = ? WHERE id = 1")
             ->execute([$jid !== '' ? $jid : null]);
 
+        // Confere no banco em vez de confiar no que acabou de gravar: se a
+        // coluna não existisse, o UPDATE teria falhado calado e a tela diria
+        // que mudou sem ter mudado.
+        $agora = quizGrupoDoQuiz($pdo);
+        if ($jid !== '' && $agora !== $jid) {
+            qaErro(500, 'A troca não pegou no banco. Clique em Diagnóstico e me mande o que aparecer.');
+        }
+
         $nome = $jid !== '' ? (whatsappGruposDeComando($pdo)[$jid]['nome'] ?? $jid) : 'grupo principal';
-        echo json_encode(['success' => true, 'message' => 'O quiz passa a sair em ' . $nome . '.']);
+        echo json_encode(['success' => true, 'message' => 'Confirmado: o quiz passa a sair em ' . $nome . '.']);
         exit;
     }
 
