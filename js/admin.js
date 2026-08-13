@@ -4183,21 +4183,24 @@ async function carregarCapTabela(league) {
     // Três colunas como no regulamento, pra caber sem rolar.
     const porColuna = Math.ceil(linhas.length / 3);
     const colunas = [0, 1, 2].map(i => linhas.slice(i * porColuna, (i + 1) * porColuna));
+    // A contagem vem colada no OVR, e o salário fecha a linha. Com o salário
+    // no meio, ler "quantos tenho de 88" obrigava a pular por cima de um
+    // número que não era o procurado.
     const celula = (l) => `
       <tr>
         <td style="padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px">${l.ovr}</td>
-        <td style="padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:#f5c542;text-align:right">${l.salario}M</td>
-        <td style="padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px;text-align:right;${l.jogadores ? 'color:var(--text)' : 'color:var(--text-3)'}">${l.jogadores}</td>
+        <td style="padding:4px 4px 4px 0;border-bottom:1px solid var(--border);font-size:11px;text-align:right;font-variant-numeric:tabular-nums;${l.jogadores ? 'color:var(--text);font-weight:700' : 'color:var(--text-3)'}">${l.jogadores}</td>
+        <td style="padding:4px 8px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:#f5c542;text-align:right;font-variant-numeric:tabular-nums">${l.salario}M</td>
       </tr>`;
 
     const tabela = `
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px 34px">
         ${colunas.map(col => `
           <table style="width:100%;border-collapse:collapse">
             <thead><tr>
               <th style="padding:5px 8px;font-size:10px;text-align:left;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em">OVR</th>
+              <th style="padding:5px 4px 5px 0;font-size:10px;text-align:right;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em" title="Jogadores ativos da liga com esse OVR">Jog.</th>
               <th style="padding:5px 8px;font-size:10px;text-align:right;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em">Salário</th>
-              <th style="padding:5px 8px;font-size:10px;text-align:right;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em" title="Jogadores ativos da liga com esse OVR">Jog.</th>
             </tr></thead>
             <tbody>${col.map(celula).join('')}</tbody>
           </table>`).join('')}
