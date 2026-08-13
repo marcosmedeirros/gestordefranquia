@@ -290,7 +290,8 @@ function wcAjuda(): string
         . "/lendas — os marcados como LENDA\n"
         . "/hall — o Hall da Fama\n"
         . "/premios — os prêmios da temporada\n"
-        . "/guia — o guia do GM\n\n"
+        . "/guia — o guia do GM\n"
+        . "/quizaqui — _(admin)_ manda o quiz do dia sair neste grupo\n\n"
         . "Ex.: /comparar lebron x tatum  •  /meucap  •  /minhastrades";
 }
 
@@ -698,6 +699,68 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
              . ($f['campanha'] ? " ({$f['campanha']})" : '') . "\n";
     }
     return rtrim($txt);
+}
+
+/**
+ * Manda o quiz do dia passar a sair NESTE grupo.
+ *
+ * Existe porque o caminho pela tela tem um passo a mais que ninguém adivinha:
+ * o grupo precisa estar cadastrado pra aparecer no seletor, e o identificador
+ * dele é um número de 18 dígitos que não aparece em lugar nenhum do WhatsApp.
+ * Digitar /quizaqui dentro do grupo certo resolve os dois de uma vez — o
+ * próprio comando carrega o identificador.
+ *
+ * Só admin. Sem isso, qualquer um puxaria o quiz pro grupo dele.
+ */
+function wcQuizAqui(PDO $pdo, string $deQuem, string $grupoJid): string
+{
+    if ($grupoJid === '' || !str_ends_with($grupoJid, '@g.us')) {
+        return "Esse comando só funciona dentro do grupo que vai receber o quiz.";
+    }
+
+    $digitos = preg_replace('/\D+/', '', explode('@', $deQuem)[0] ?? '');
+    if (str_contains($deQuem, '@lid') || strlen($digitos) < 8) {
+        return "Não consigo confirmar quem é você neste grupo — o WhatsApp não está me passando seu número. "
+             . "Dá pra escolher o grupo pela tela: Gestão › Quiz.";
+    }
+
+    // Admin pelo cadastro, casando o telefone. Mesma tolerância dos comandos
+    // "meus": número inteiro primeiro, depois os últimos 8 dígitos.
+    $eh = false;
+    try {
+        $st = $pdo->query("SELECT phone, user_type FROM users WHERE phone IS NOT NULL AND phone <> ''");
+        $fim = substr($digitos, -8);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $u) {
+            $d = preg_replace('/\D+/', '', (string)$u['phone']);
+            if (($d === $digitos || (strlen($d) >= 8 && substr($d, -8) === $fim))
+                && ($u['user_type'] ?? '') === 'admin') { $eh = true; break; }
+        }
+    } catch (Throwable $e) { /* sem cadastro legível: cai no não-admin */ }
+
+    if (!$eh) return "Só o admin pode mudar onde o quiz sai.";
+
+    require_once dirname(__DIR__) . '/backend/quiz.php';
+    quizGarantirTabelas($pdo);
+
+    // Cadastra o grupo (é o que faz o bot atender aqui) e aponta o quiz.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_grupos_comando (
+        jid VARCHAR(120) PRIMARY KEY,
+        nome VARCHAR(120) NULL,
+        liga ENUM('ELITE','NEXT','RISE','ROOKIE') NULL,
+        ativo TINYINT(1) NOT NULL DEFAULT 1,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pdo->prepare("INSERT INTO whatsapp_grupos_comando (jid, nome, ativo) VALUES (?,?,1)
+                   ON DUPLICATE KEY UPDATE ativo = 1")
+        ->execute([$grupoJid, 'Grupo do quiz']);
+    $pdo->prepare("UPDATE whatsapp_config SET quiz_grupo = ? WHERE id = 1")->execute([$grupoJid]);
+
+    // Relê antes de confirmar: dizer "pronto" sem ter gravado é o pior
+    // desfecho possível justo no comando que existe pra consertar isso.
+    if (quizGrupoDoQuiz($pdo) !== $grupoJid) {
+        return "Não consegui gravar. Tente por Gestão › Quiz e me avise.";
+    }
+    return "✅ Fechado. O quiz das " . BOT_QUIZ_HORA . " passa a sair *neste grupo*, a partir de amanhã.";
 }
 
 /**
@@ -1876,6 +1939,10 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
 
             case 'guia':
                 return "*Guia do GM:* https://fbabrasil.com.br/guia.php";
+
+            // Só admin, e só dentro do grupo que vai receber o quiz.
+            case 'quizaqui':
+                return wcQuizAqui($pdo, $deQuem, $grupoJid);
 
             default:
                 return null;

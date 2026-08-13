@@ -164,12 +164,18 @@ foreach ($mensagens as $m) {
     // grupo novo virava caça ao JID no log da Evolution.
     whatsappAnotarGrupoVisto($pdo, $de, $m);
 
-    // Só os grupos cadastrados. Sem isso, qualquer conversa privada que
-    // chegasse na instância viraria consulta ao banco da liga.
-    if (!isset($gruposPermitidos[$de])) continue;
-
     $texto = wcTextoDaMensagem($m['message'] ?? []);
     if ($texto === '' || $texto[0] !== '/') continue;
+
+    // Só os grupos cadastrados. Sem isso, qualquer conversa privada que
+    // chegasse na instância viraria consulta ao banco da liga.
+    //
+    // A exceção é /quizaqui, e ela existe por necessidade: o comando serve pra
+    // CADASTRAR o grupo, então exigir que ele já esteja cadastrado seria pedir
+    // a chave que está trancada dentro. Ele não lê nada do banco da liga — só
+    // confere se quem digitou é admin e grava o destino do quiz.
+    $ehQuizAqui = strtolower(ltrim(explode(' ', trim($texto))[0], '/')) === 'quizaqui';
+    if (!isset($gruposPermitidos[$de]) && !$ehQuizAqui) continue;
 
     // Freio contra enxurrada — alguém segurando o comando, ou a Evolution
     // despejando um backlog inteiro depois de ficar fora do ar.
