@@ -202,6 +202,38 @@ function quizDesfazerColisao(PDO $pdo): void
     }
 }
 
+/**
+ * O GM dono de um telefone, ou 0.
+ *
+ * Número inteiro primeiro; só depois os últimos 8 dígitos, que é a rede pra
+ * cadastro antigo sem o 9 ou sem o DDI. Nessa ordem porque 8 dígitos batem
+ * entre países diferentes — começar pelo sufixo pagaria a moeda pra outra
+ * pessoa. Mesma regra dos comandos "meus".
+ */
+function quizUserIdDoTelefone(PDO $pdo, string $telefone): int
+{
+    $d = preg_replace('/\D+/', '', $telefone);
+    if (strlen($d) < 8) return 0;
+
+    try {
+        $st = $pdo->prepare("SELECT id FROM users WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone,'+',''),'-',''),' ',''),'(','') LIKE ? LIMIT 1");
+        $st->execute([$d]);
+        $id = (int)($st->fetchColumn() ?: 0);
+        if ($id) return $id;
+
+        // O sufixo, comparado em PHP: REGEXP_REPLACE só existe do MySQL 8 pra
+        // cima e a hospedagem não é minha pra escolher.
+        $fim = substr($d, -8);
+        foreach ($pdo->query("SELECT id, phone FROM users WHERE phone IS NOT NULL AND phone <> ''") as $u) {
+            $p = preg_replace('/\D+/', '', (string)$u['phone']);
+            if (strlen($p) >= 8 && substr($p, -8) === $fim) return (int)$u['id'];
+        }
+    } catch (Throwable $e) {
+        error_log('[quiz] achar GM por telefone: ' . $e->getMessage());
+    }
+    return 0;
+}
+
 /** O telefone só em dígitos, do jeito que users.phone guarda. */
 function quizTelefoneDoJid(string $jid): string
 {
@@ -316,17 +348,33 @@ function quizFechar(PDO $pdo, int $rodadaId): ?string
     $ganhadores = $st->fetchAll(PDO::FETCH_ASSOC);
 
     $nomes = [];
+    // A conta do FBA Games nasce quando a pessoa ABRE o games pela primeira
+    // vez. Quem nunca abriu não tem linha em games_usuarios, e o UPDATE
+    // acertava zero linhas: o voto contava na apuração, o nome não saía no
+    // resultado e a moeda não caía — tudo isso sem erro nenhum. Foi o que fez
+    // oito votarem na certa e só quatro serem pagos.
+    $abrirConta = $pdo->prepare("INSERT IGNORE INTO games_usuarios (id, nome, email, league)
+                                 SELECT id, name, email, COALESCE(league,'ROOKIE') FROM users WHERE id = ?");
     $credita = $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?");
     $nomeDe  = $pdo->prepare("SELECT name FROM users WHERE id = ?");
+
+    $semDono = 0;
     foreach ($ganhadores as $g) {
-        if (empty($g['user_id'])) continue;
+        // Voto que entrou sem GM identificado: tenta de novo agora. Entre o
+        // voto e a apuração alguém pode ter arrumado o telefone no cadastro, e
+        // é barato dar a segunda chance.
+        $uid = (int)($g['user_id'] ?? 0);
+        if (!$uid) $uid = quizUserIdDoTelefone($pdo, (string)$g['telefone']);
+        if (!$uid) { $semDono++; continue; }
+
         try {
-            $credita->execute([$premio, (int)$g['user_id']]);
-            $nomeDe->execute([(int)$g['user_id']]);
+            $abrirConta->execute([$uid]);
+            $credita->execute([$premio, $uid]);
+            $nomeDe->execute([$uid]);
             $n = $nomeDe->fetchColumn();
             if ($n) $nomes[] = $n;
         } catch (Throwable $e) {
-            error_log('[quiz] creditar ' . $g['user_id'] . ': ' . $e->getMessage());
+            error_log('[quiz] creditar ' . $uid . ': ' . $e->getMessage());
         }
     }
 
@@ -365,6 +413,15 @@ function quizFechar(PDO $pdo, int $rodadaId): ?string
         $txt .= $r['tipo'] === 'certa'
             ? 'Ninguém acertou desta vez.'
             : 'Ninguém votou na vencedora.';
+    }
+
+    // Quem acertou mas o bot não reconheceu aparece na conta. Antes esses
+    // sumiam sem deixar rastro, e a única pista era o número de ganhadores
+    // não bater com o de votos na opção certa.
+    if ($semDono) {
+        $txt .= "\n\n_" . $semDono . ($semDono === 1
+            ? ' pessoa acertou mas não tem o número cadastrado no site, então não recebeu.'
+            : ' pessoas acertaram mas não têm o número cadastrado no site, então não receberam.') . '_';
     }
     return $txt;
 }

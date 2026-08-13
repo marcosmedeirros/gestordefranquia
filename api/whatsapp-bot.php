@@ -61,9 +61,35 @@ $acao = $_GET['action'] ?? $_POST['action'] ?? '';
 // E só de minuto em minuto: o worker bate aqui de poucos em poucos segundos,
 // não faz sentido gastar um UPDATE em cada batida.
 if ($acao === 'pendentes') {
-    $pdo->prepare("UPDATE whatsapp_config SET bot_visto_em = NOW()
-                   WHERE id = 1 AND (bot_visto_em IS NULL OR bot_visto_em < NOW() - INTERVAL 1 MINUTE)")
-        ->execute();
+    $marcou = $pdo->prepare("UPDATE whatsapp_config SET bot_visto_em = NOW()
+                             WHERE id = 1 AND (bot_visto_em IS NULL OR bot_visto_em < NOW() - INTERVAL 1 MINUTE)");
+    $marcou->execute();
+
+    /**
+     * Fecha rodada de quiz que já venceu, de carona no batimento do worker.
+     *
+     * O cron do quiz roda numa janela estreita — a hora da pergunta do dia.
+     * Quiz mandado à mão fora dela abria, esperava os dez minutos e ficava
+     * aberto pra sempre: o resultado só sairia na execução da manhã seguinte,
+     * junto com a pergunta nova. Foi o que aconteceu no primeiro teste real.
+     *
+     * O worker bate aqui de poucos em poucos segundos, então ele é o relógio
+     * que já existe. Só que uma vez por minuto: o UPDATE acima já usa essa
+     * cadência pela mesma razão, e varrer a tabela a cada 5s não muda nada
+     * pra quem espera o resultado.
+     */
+    if ($marcou->rowCount() > 0) {
+        try {
+            require_once dirname(__DIR__) . '/backend/quiz.php';
+            foreach (quizFecharVencidas($pdo) as [$grupo, $texto]) {
+                whatsappEnfileirar($pdo, $grupo, $texto, true, 'manual');
+                error_log('[quiz] rodada apurada pelo batimento do worker, grupo ' . $grupo);
+            }
+        } catch (Throwable $e) {
+            // Apurar é carona: se falhar, a fila do bot segue normal.
+            error_log('[quiz] apurar no batimento: ' . $e->getMessage());
+        }
+    }
 }
 
 // ── Pendentes ───────────────────────────────────────────────────────────
