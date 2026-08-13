@@ -4411,9 +4411,8 @@ ${(() => {
           <th style="text-align:right">Custa</th>
         </tr></thead>
         <tbody>${j.map(p => `
-          <tr${p.no_elenco ? '' : ' style="opacity:.5"'}>
-            <td style="font-weight:600">${escapeHtml(p.name)}${
-              p.no_elenco ? '' : ' <span style="font-size:9px;color:var(--text-3)">FORA DO ELENCO</span>'}</td>
+          <tr>
+            <td style="font-weight:600">${escapeHtml(p.name)}</td>
             <td style="color:var(--text-2)">${escapeHtml(p.time)}</td>
             <td style="text-align:right;font-variant-numeric:tabular-nums">${p.idade}</td>
             <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700">${p.ovr}</td>

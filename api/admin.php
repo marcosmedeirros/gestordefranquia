@@ -253,22 +253,25 @@ if ($method === 'GET') {
                         [JOVENS_IDADE_MIN, JOVENS_IDADE_MAX, JOVENS_OVR_MIN, JOVENS_RODADAS],
                         "
                         SELECT * FROM (
-                            SELECT ip.name, io.round, io.pick_position,
-                                   COALESCE(p.age, ip.age) AS idade,
-                                   COALESCE(p.ovr, ip.ovr) AS ovr,
-                                   (p.id IS NOT NULL) AS no_elenco,
-                                   TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time
+                            SELECT p.id, ip.name, io.round, io.pick_position,
+                                   p.age AS idade, p.ovr AS ovr,
+                                   TRIM(CONCAT(COALESCE(tp.city,''),' ',COALESCE(tp.name,''))) AS time
                             FROM initdraft_order io
                             JOIN initdraft_sessions s ON s.id = io.initdraft_session_id
                             JOIN initdraft_pool ip     ON ip.id = io.picked_player_id
-                            JOIN teams t               ON t.id = io.team_id
-                            LEFT JOIN players p        ON p.name = ip.name AND p.team_id = io.team_id
+                            -- Casa com quem está na LIGA hoje, não com o elenco
+                            -- de quem draftou: jogador trocado continua sendo da
+                            -- liga, e é a liga que a lista descreve. De quebra
+                            -- ele aparece com o time e os números de agora.
+                            JOIN players p             ON p.name = ip.name
+                            JOIN teams tp              ON tp.id = p.team_id AND tp.league = s.league
                             WHERE s.league = ? AND io.round <= {RODADAS} AND io.picked_player_id IS NOT NULL
                         ) q
                         WHERE q.idade BETWEEN {IDADE_MIN} AND {IDADE_MAX} AND q.ovr >= {OVR_MIN}
                         ORDER BY q.ovr DESC, q.idade ASC
                     "));
                     $stJ->execute([$ligaCap]);
+                    $vistos = [];
                     foreach ($stJ->fetchAll(PDO::FETCH_ASSOC) as $r) {
                         // Confere de novo em PHP, com as MESMAS constantes. O
                         // critério é o que a tela promete em texto; se o banco
@@ -279,6 +282,13 @@ if ($method === 'GET') {
                         if ($idade < JOVENS_IDADE_MIN || $idade > JOVENS_IDADE_MAX
                             || $ovrAtual < JOVENS_OVR_MIN) continue;
 
+                        // Dois jogadores de mesmo nome na liga dariam a mesma
+                        // linha duas vezes — o casamento é por nome, é o que
+                        // existe depois que a migração limpou as colunas de
+                        // draft desses jogadores.
+                        if (isset($vistos[(int)$r['id']])) continue;
+                        $vistos[(int)$r['id']] = true;
+
                         $jovens[] = [
                             'name'      => $r['name'],
                             'time'      => $r['time'],
@@ -287,7 +297,6 @@ if ($method === 'GET') {
                             'idade'     => (int)$r['idade'],
                             'ovr'       => (int)$r['ovr'],
                             'salario'   => capOvrSalary((int)$r['ovr']),
-                            'no_elenco' => (bool)$r['no_elenco'],
                         ];
                     }
                 } catch (Throwable $e) {
