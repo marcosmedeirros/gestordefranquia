@@ -710,18 +710,34 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
  * Digitar /quizaqui dentro do grupo certo resolve os dois de uma vez — o
  * próprio comando carrega o identificador.
  *
- * Só admin. Sem isso, qualquer um puxaria o quiz pro grupo dele.
+ * NÃO responde no grupo. É configuração, não conversa: o grupo inteiro veria
+ * um recado que interessa a uma pessoa só. A confirmação vai no privado de
+ * quem digitou, que é quem precisa saber se pegou.
+ *
+ * Só admin. Sem isso, qualquer um puxaria o quiz pro grupo dele — e o silêncio
+ * no grupo vale pra recusa também: quem não podia não descobre que existe.
+ *
+ * Devolve sempre string vazia, que é como o webhook entende "atendido, sem
+ * resposta".
  */
 function wcQuizAqui(PDO $pdo, string $deQuem, string $grupoJid): string
 {
-    if ($grupoJid === '' || !str_ends_with($grupoJid, '@g.us')) {
-        return "Esse comando só funciona dentro do grupo que vai receber o quiz.";
-    }
-
     $digitos = preg_replace('/\D+/', '', explode('@', $deQuem)[0] ?? '');
-    if (str_contains($deQuem, '@lid') || strlen($digitos) < 8) {
-        return "Não consigo confirmar quem é você neste grupo — o WhatsApp não está me passando seu número. "
-             . "Dá pra escolher o grupo pela tela: Gestão › Quiz.";
+    $privado = strlen($digitos) >= 8 && !str_contains($deQuem, '@lid')
+             ? $digitos . '@s.whatsapp.net' : null;
+
+    /** Responde no PV, se der pra saber quem é. */
+    $avisar = function (string $txt) use ($pdo, $privado) {
+        if ($privado) whatsappEnfileirar($pdo, $privado, $txt, false, 'comando');
+        return '';
+    };
+
+    if ($grupoJid === '' || !str_ends_with($grupoJid, '@g.us')) {
+        return $avisar("O /quizaqui só funciona dentro do grupo que vai receber o quiz.");
+    }
+    if (!$privado) {
+        // Sem telefone não dá nem pra confirmar quem é, nem pra avisar no PV.
+        return '';
     }
 
     // Admin pelo cadastro, casando o telefone. Mesma tolerância dos comandos
@@ -737,7 +753,7 @@ function wcQuizAqui(PDO $pdo, string $deQuem, string $grupoJid): string
         }
     } catch (Throwable $e) { /* sem cadastro legível: cai no não-admin */ }
 
-    if (!$eh) return "Só o admin pode mudar onde o quiz sai.";
+    if (!$eh) return '';   // não é admin: silêncio total, nem no PV
 
     require_once dirname(__DIR__) . '/backend/quiz.php';
     quizGarantirTabelas($pdo);
@@ -758,9 +774,14 @@ function wcQuizAqui(PDO $pdo, string $deQuem, string $grupoJid): string
     // Relê antes de confirmar: dizer "pronto" sem ter gravado é o pior
     // desfecho possível justo no comando que existe pra consertar isso.
     if (quizGrupoDoQuiz($pdo) !== $grupoJid) {
-        return "Não consegui gravar. Tente por Gestão › Quiz e me avise.";
+        return $avisar("Não consegui gravar o grupo do quiz. Tente por Gestão › Quiz.");
     }
-    return "✅ Fechado. O quiz das " . BOT_QUIZ_HORA . " passa a sair *neste grupo*, a partir de amanhã.";
+    // Vale JÁ pro que for mandado à mão, e amanhã pro automático — as duas
+    // coisas passam por quizGrupoDoQuiz(). Dizer só "a partir de amanhã"
+    // faria o admin achar que precisa esperar pra testar.
+    return $avisar("✅ Fechado. O quiz passa a sair no grupo onde você digitou /quizaqui.\n\n"
+                 . "Vale agora pro que você mandar pela tela, e às " . BOT_QUIZ_HORA
+                 . " de amanhã pro automático.");
 }
 
 /**
