@@ -72,6 +72,47 @@ function wcTextoDaMensagem(array $msg): string
 }
 
 /**
+ * Quem mandou a mensagem, com o número de telefone quando ele existir.
+ *
+ * Em grupo o remoteJid é o grupo e a pessoa vem no participant. O problema é
+ * que o WhatsApp migrou para LID: em vez de 5511999999999@s.whatsapp.net, o
+ * participant passa a vir como 123456789012345@lid, um identificador interno
+ * que NÃO é o telefone. Quem lê só o participant acha que tem o número, faz a
+ * busca no cadastro e não encontra ninguém — que foi exatamente o que
+ * aconteceu com o /meuelenco.
+ *
+ * O número de verdade, quando o LID está em uso, vem num campo paralelo. O
+ * nome dele mudou entre versões do Baileys e da Evolution, então tento todos
+ * os conhecidos e fico com o primeiro que for um JID de telefone.
+ *
+ * Devolve o JID escolhido, ou o LID se não houver telefone nenhum — melhor um
+ * identificador estável do que string vazia, porque o voto do quiz precisa
+ * distinguir uma pessoa da outra mesmo sem saber quem é.
+ */
+function wcRemetenteDaMensagem(array $m): string
+{
+    $candidatos = [
+        $m['key']['participantPn']  ?? null,
+        $m['key']['participantAlt'] ?? null,
+        $m['key']['senderPn']       ?? null,
+        $m['participantPn']         ?? null,
+        $m['participantAlt']        ?? null,
+        $m['key']['participant']    ?? null,
+        $m['participant']           ?? null,
+    ];
+
+    $reserva = '';
+    foreach ($candidatos as $c) {
+        $c = trim((string)$c);
+        if ($c === '') continue;
+        // @s.whatsapp.net é telefone; @lid é o id interno.
+        if (str_contains($c, '@s.whatsapp.net') || !str_contains($c, '@')) return $c;
+        if ($reserva === '') $reserva = $c;
+    }
+    return $reserva;
+}
+
+/**
  * A Evolution reentrega o evento quando o webhook demora ou devolve erro — e
  * também manda messages.upsert mais de uma vez em alguns casos. Sem trava, o
  * mesmo /cap seria respondido duas, três vezes. Guardo o id da mensagem: quem
@@ -153,9 +194,18 @@ foreach ($mensagens as $m) {
     // a tabela com toda conversa do grupo, nem queimar o id de quem foi barrado.
     if (!wcMensagemInedita($pdo, (string)($m['key']['id'] ?? ''))) continue;
 
-    // Quem falou. Em grupo, o remoteJid é o grupo e a pessoa vem no
-    // participant. Sem isso não existe placar — só resposta solta.
-    $deQuem = (string)($m['key']['participant'] ?? $m['participant'] ?? '');
+    // Quem falou. Sem isso não existe placar — só resposta solta.
+    $deQuem = wcRemetenteDaMensagem($m);
+
+    // Quando só vem LID, nenhum comando que depende de saber quem é a pessoa
+    // vai funcionar, e o sintoma ("não achei seu cadastro") aponta pro lugar
+    // errado — o dono do número vai conferir o cadastro dele, que está certo.
+    // Uma linha no log é o que separa "o telefone está errado" de "a Evolution
+    // parou de mandar o telefone".
+    if (str_contains($deQuem, '@lid')) {
+        error_log('[whatsapp] remetente veio só como LID (' . $deQuem . ') no grupo ' . $de
+                . ' — sem telefone, os comandos "meus" não acham o cadastro');
+    }
 
     // A liga do grupo vira contexto: no Chat Off da NEXT, /classificacao sem
     // argumento responde a NEXT em vez de assumir ELITE.

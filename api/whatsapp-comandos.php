@@ -723,6 +723,15 @@ function wcTimeDeQuemPerguntou(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): 
         return [null, 'Não consegui identificar seu número por aqui. Use o comando com o nome do time, tipo /cap lakers.'];
     }
 
+    // LID é o identificador interno que o WhatsApp manda no lugar do telefone
+    // em alguns grupos. Os dígitos existem, mas não são número de ninguém —
+    // procurar no cadastro daria "não achei", e o GM iria conferir um telefone
+    // que está certo. Melhor dizer que o problema não é dele.
+    if (str_contains($deQuem, '@lid')) {
+        return [null, "O WhatsApp não está me passando seu número neste grupo (manda um id interno no lugar), "
+                    . "então não tenho como saber qual é o seu time. Use o comando com o nome, tipo /cap lakers."];
+    }
+
     // A comparação é em PHP, não em SQL: REGEXP_REPLACE só existe do MySQL 8
     // pra cima e eu não controlo a versão da hospedagem. São poucas dezenas de
     // linhas (uma por GM com time), então filtrar aqui não custa nada.
@@ -745,7 +754,12 @@ function wcTimeDeQuemPerguntou(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): 
     }
 
     if (!$times) {
-        return [null, "Não achei seu cadastro pelo telefone. Confere se o número está no seu perfil no site — ou use o comando com o nome do time."];
+        // Os últimos 4 dígitos vão junto de propósito: sem eles, "confere seu
+        // número" manda o GM olhar um cadastro que pode estar certo, sem saber
+        // que o WhatsApp mandou outro número. Com eles, ele compara na hora.
+        return [null, "Não achei seu cadastro pelo telefone (o WhatsApp me mandou um número terminado em "
+                    . substr($digitos, -4) . "). Confere se ESSE número está no seu perfil no site — "
+                    . "ou use o comando com o nome do time."];
     }
 
     // Um GM pode ter time em mais de uma liga. No Chat Off de uma liga, é o
