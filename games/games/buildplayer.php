@@ -19,6 +19,7 @@
 
 require_once __DIR__ . '/../core/build_notas.php';
 require_once __DIR__ . '/../core/build_liga.php';
+require_once __DIR__ . '/../core/cartao.php';   // o cartao em imagem, compartilhado com o caminho e o 5x5
 
 $user_id = (int)$_SESSION['user_id'];
 $hoje    = date('Y-m-d');
@@ -503,6 +504,44 @@ $topGeral = $pdo->query("SELECT b.ovr, b.grupo, b.nome_jogador, u.nome
                          WHERE b.concluido_em IS NOT NULL
                          ORDER BY b.ovr DESC, b.id ASC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
 
+/**
+ * O cartão do build em imagem.
+ *
+ * Montado aqui e não no JS pelo mesmo motivo do texto: a tela já leu os slots
+ * e a temporada, e refazer essa leitura no navegador daria duas versões da
+ * mesma coisa pra divergirem.
+ *
+ * A grade mostra as quatro melhores notas do build — o interessante é de
+ * QUEM veio cada uma, e são elas que contam a história do sorteio.
+ */
+$cartaoDoBuild = null;
+if ($partida && $partida['concluido_em']) {
+    [$c1, $c2] = cartaoCoresDoNome((string)($partida['nome_jogador'] ?: 'build'));
+    $h = $temporada['historico'] ?? null;
+
+    $notas = [];
+    foreach ($ATRIBUTOS as $chave => $info) {
+        $s = $partida['slots'][$chave] ?? null;
+        if ($s) $notas[] = ['nivel' => (int)$s['nivel'], 'letra' => $s['letra'], 'rot' => $info['label']];
+    }
+    usort($notas, fn($a, $b) => $b['nivel'] <=> $a['nivel']);
+
+    $direita = [$partida['grupo'], '#' . ($partida['camisa'] ?: '0')];
+    if ($temporada) $direita[] = (string)($temporada['time']['nome'] ?? '');
+
+    $cartaoDoBuild = [
+        'c1' => $c1, 'c2' => $c2,
+        'numero' => (int)$partida['ovr'], 'rotulo' => 'overall do build',
+        'direita' => $direita,
+        'titulo' => $h ? ($h['no_top'] ? '#' . (int)$h['posicao'] . ' na história' : $h['tier'])
+                       : 'Build fechado',
+        'sub' => $h && $h['no_top'] ? $h['tier'] : ($h ? 'fora do top 100' : ''),
+        'nums' => array_map(fn($n) => [$n['letra'], $n['rot']], array_slice($notas, 0, 4)),
+        'nome' => (string)($partida['nome_jogador'] ?: 'Sem Nome'),
+        'jogo' => 'Build-A-Player',
+    ];
+}
+
 // Texto do "copiar build" — montado no PHP pra sair igualzinho ao que está
 // na tela, inclusive a temporada.
 $textoCopiar = '';
@@ -836,6 +875,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
     <?php endif; ?>
 
     <div class="acoes-fim">
+      <button type="button" class="copiar-btn" onclick="bpCompartilhar(this)"><i class="bi bi-image"></i> Compartilhar imagem</button>
       <button type="button" class="copiar-btn" onclick="bpCopiar(this)"><i class="bi bi-clipboard"></i> Copiar build</button>
       <a href="?game=buildplayer&amp;novo=1" class="novo-btn"><i class="bi bi-arrow-repeat"></i> Jogar novamente</a>
     </div>
@@ -1024,6 +1064,7 @@ const BP_LABELS = <?= json_encode(array_map(fn($a) => $a['label'], $ATRIBUTOS)) 
 // Cor por nível: vermelho no fundo da escala, roxo no S.
 const BP_CORES = ['#ef4444','#ef4444','#f97316','#f59e0b','#f59e0b','#eab308','#84cc16','#22c55e','#22c55e','#06b6d4','#3b82f6','#a855f7'];
 const BP_TEXTO = <?= json_encode($textoCopiar) ?>;
+const BP_CARTAO = <?= json_encode($cartaoDoBuild, JSON_UNESCAPED_UNICODE) ?>;
 let bpTravado = false;
 
 async function bpPost(dados) {
@@ -1100,6 +1141,17 @@ function bpRevelarTemporada() {
 }
 
 /** Copia o build inteiro — atributos, temporada e prêmios — como texto. */
+/**
+ * O build como imagem, pro grupo.
+ *
+ * Os dados vêm do PHP prontos (BP_CARTAO): montar aqui exigiria repetir no JS
+ * a leitura dos slots e da temporada que a tela já fez — e as duas versões
+ * discordariam no primeiro ajuste.
+ */
+function bpCompartilhar(btn) {
+  fbaCompartilhar(BP_CARTAO, btn);
+}
+
 async function bpCopiar(btn) {
   const original = btn.innerHTML;
   try {
@@ -1248,5 +1300,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 </script>
+<?= cartaoScript() ?>
 </body>
 </html>

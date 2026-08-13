@@ -20,6 +20,7 @@
 
 require '../core/conexao.php';
 require_once __DIR__ . '/../../backend/nba_teams.php';   // nome curto + logo do cdn.nba.com
+require_once __DIR__ . '/../core/cartao.php';              // o cartao em imagem, compartilhado com o build e o 5x5
 
 $idUsuario = (int)($_SESSION['user_id'] ?? 0);
 if ($idUsuario <= 0) { header('Location: /login.php'); exit; }
@@ -2723,118 +2724,21 @@ function cartaoDeCarreira(pts, tier, tot, anos){
   </div>`;
 }
 
-/**
- * O mesmo cartão, pintado num canvas 1080×1350.
- *
- * Não é print da tela: é uma imagem desenhada pro formato que o WhatsApp e o
- * story usam. Print de celular sai com a barra de status, o tamanho do
- * aparelho de quem mandou e o texto pequeno — aqui todo mundo manda a mesma
- * imagem, do mesmo tamanho, legível na miniatura da conversa.
- */
-function imagemDoCartao(d){
-  const L = 1080, A = 1350, P = 84;
-  const cv = document.createElement("canvas");
-  cv.width = L; cv.height = A;
-  const c = cv.getContext("2d");
+/** Manda a carreira como imagem. O desenho é o de games/core/cartao.php. */
+function compartilharCartao(botao){
+  const pts = pontuacaoLegado();
+  let tier = TIERS[0][1];
+  TIERS.forEach(([min, nome]) => { if (pts >= min) tier = nome; });
+  const anos = S.temporadas.filter(x => !x.formacao);
+  const d = dadosDoCartao(pts, tier, totaisDeCarreira(), anos);
 
-  const g = c.createLinearGradient(0, 0, L * 0.6, A);
-  g.addColorStop(0, d.c1); g.addColorStop(1, d.c2);
-  c.fillStyle = g; c.fillRect(0, 0, L, A);
-
-  // As listras do cartão da tela, no mesmo ângulo.
-  c.save();
-  c.globalAlpha = 0.035; c.strokeStyle = "#fff"; c.lineWidth = 18;
-  for (let x = -A; x < L + A; x += 46){ c.beginPath(); c.moveTo(x, 0); c.lineTo(x + A, A); c.stroke(); }
-  c.restore();
-
-  const fonte = (px, peso) => `${peso} ${px}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
-  const sans  = (px, peso) => `${peso} ${px}px Poppins, system-ui, sans-serif`;
-
-  c.textBaseline = "alphabetic";
-  c.fillStyle = "rgba(255,255,255,.62)";
-  c.font = sans(26, 700);
-  c.fillText("PICO DE OVERALL", P, 200);
-
-  c.fillStyle = "#fff";
-  c.font = fonte(190, 900);
-  c.fillText(String(d.ovr || "—"), P - 8, 370);
-
-  // Coluna da direita: posição, time e temporadas.
-  c.textAlign = "right";
-  c.font = sans(34, 700);
-  c.fillStyle = "rgba(255,255,255,.92)";
-  [d.pos, d.time, `${d.temporadas} temporadas`].forEach((linha, i) => {
-    c.fillText(linha, L - P, 200 + i * 48);
-  });
-  c.textAlign = "left";
-
-  c.fillStyle = "#fff";
-  c.font = sans(62, 800);
-  c.fillText(d.tier, P, 500);
-  c.fillStyle = "rgba(255,255,255,.7)";
-  c.font = sans(30, 600);
-  c.fillText(`${d.pts} pontos de legado`, P, 552);
-
-  // A grade de números: até quatro por linha, centrados na própria coluna.
-  const porLinha = 4, larg = (L - P * 2) / porLinha;
-  d.nums.forEach(([valor, rot], i) => {
-    const cx = P + larg * (i % porLinha) + larg / 2;
-    const cy = 700 + Math.floor(i / porLinha) * 190;
-    c.textAlign = "center";
-    c.fillStyle = "#fff"; c.font = fonte(76, 900);
-    c.fillText(valor, cx, cy);
-    c.fillStyle = "rgba(255,255,255,.6)"; c.font = sans(23, 700);
-    c.fillText(rot.toUpperCase(), cx, cy + 44);
-  });
-
-  c.textAlign = "left";
-  c.fillStyle = "#fff";
-  c.font = sans(46, 800);
-  c.fillText(d.nome, P, A - 140);
-  c.fillStyle = "rgba(255,255,255,.45)";
-  c.font = fonte(24, 400);
-  c.fillText("FBA GAMES · CAMINHO ATÉ A NBA", P, A - 92);
-
-  return cv;
-}
-
-/**
- * Manda o cartão como imagem.
- *
- * No celular abre a folha de compartilhamento do sistema, que é o caminho de
- * um toque até o grupo. No desktop não existe essa folha pra arquivo, então
- * baixa — e o texto ainda está no outro botão, pra quem só quer colar.
- */
-async function compartilharCartao(botao){
-  const antes = botao.textContent;
-  botao.textContent = "Gerando…";
-  try {
-    const pts = pontuacaoLegado();
-    let tier = TIERS[0][1];
-    TIERS.forEach(([min, nome]) => { if (pts >= min) tier = nome; });
-    const anos = S.temporadas.filter(x => !x.formacao);
-    const cv = imagemDoCartao(dadosDoCartao(pts, tier, totaisDeCarreira(), anos));
-
-    const blob = await new Promise(r => cv.toBlob(r, "image/png"));
-    const arquivo = new File([blob], "carreira.png", {type: "image/png"});
-
-    if (navigator.canShare && navigator.canShare({files: [arquivo]})){
-      await navigator.share({files: [arquivo], title: S.nome, text: `${S.nome} — ${tier}`});
-      botao.textContent = antes;
-      return;
-    }
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${String(S.nome || "carreira").replace(/[^\w-]+/g, "-")}.png`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    botao.textContent = "Baixado ✓";
-  } catch (e) {
-    // Cancelar o compartilhamento chega aqui como erro; não é falha.
-    botao.textContent = antes;
-    return;
-  }
-  setTimeout(() => { botao.textContent = antes; }, 1800);
+  fbaCompartilhar({
+    c1: d.c1, c2: d.c2,
+    numero: d.ovr || "—", rotulo: "pico de overall",
+    direita: [d.pos, d.time, `${d.temporadas} temporadas`],
+    titulo: d.tier, sub: `${d.pts} pontos de legado`,
+    nums: d.nums, nome: d.nome, jogo: "Caminho até a NBA",
+  }, botao);
 }
 
 /**
@@ -2963,5 +2867,6 @@ function trocarTema(){
 S = carregar();
 render();
 </script>
+<?= cartaoScript() ?>
 </body>
 </html>

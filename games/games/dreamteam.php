@@ -19,6 +19,7 @@
  */
 
 require_once __DIR__ . '/../core/dreamteam_times.php';
+require_once __DIR__ . '/../core/cartao.php';   // o cartao em imagem, compartilhado com o caminho e o build
 // Aviso de desafio direto (push + WhatsApp). O carregador dos games não puxa o
 // backend do site, então o require é local — push.php já traz helpers e whatsapp.
 require_once __DIR__ . '/../../backend/push.php';
@@ -3051,6 +3052,42 @@ async function dtRodarSimcast(duelo) {
 
 // Tabela Q1..Q4 + total. `revelados` limita quantos quartos aparecem (o simcast vai revelando
 // um por vez); o quarto vencido por cada lado fica destacado, e o total do líder sai em verde.
+/**
+ * Os dados do cartão do confronto. O desenho é o de games/core/cartao.php.
+ *
+ * O número grande é o PLACAR, não quem ganhou: quem recebe a imagem quer ver
+ * o jogo antes de saber o resultado, e "112 × 108" conta a história melhor
+ * que "você venceu".
+ *
+ * A cor sai do nome de quem mandou — assim o cartão de cada um é sempre o
+ * mesmo, e dá pra reconhecer de quem é antes de ler.
+ */
+function dtCartaoDoDuelo(duelo, r, nomeEu, nomeOp, meuPlacar, oponentePlacar) {
+  // hash do nome → matiz, a mesma conta do PHP em cartaoCoresDoNome().
+  let h = 0;
+  for (const ch of String(nomeEu || '?')) h = (h * 31 + ch.codePointAt(0)) % 4294967296;
+  const mat = h % 360, comp = (mat + 150 + (h % 60)) % 360;
+
+  // Os destaques são o que se comenta depois: quem fez quantos.
+  const nums = (r.destaques || []).slice(0, 4).map(d => [
+    String(d.pontos),
+    String(d.nome || '').split(' ').slice(-1)[0],
+  ]);
+
+  return {
+    c1: `hsl(${mat} 55% 26%)`, c2: `hsl(${comp} 45% 12%)`,
+    numero: `${meuPlacar}×${oponentePlacar}`,
+    rotulo: duelo.eu_venci ? 'vitória' : 'derrota',
+    direita: [nomeOp, `aposta ${duelo.aposta}`,
+              duelo.eu_venci ? `+${duelo.aposta * 2} moedas` : `−${duelo.aposta} moedas`],
+    titulo: duelo.eu_venci ? 'Levei essa' : 'Ficou pra próxima',
+    sub: 'Starting5x5 · dream team em duelo',
+    nums,
+    nome: nomeEu,
+    jogo: 'Starting5x5',
+  };
+}
+
 function dtTabelaQuartos(duelo, revelados = 4) {
   const r = duelo.resultado;
   let totA = 0, totB = 0;
@@ -3130,10 +3167,18 @@ function renderResultadoFinal(duelo) {
          </button>`;
   }
 
+  // O cartão do confronto, pro grupo. Guardado num global porque o botão está
+  // dentro de uma string de HTML — passar o objeto inteiro pelo onclick viraria
+  // JSON escapado dentro de atributo, que quebra no primeiro apóstrofo de nome.
+  window.__DT_CARTAO__ = dtCartaoDoDuelo(duelo, r, nomeEuRaw, nomeOpRaw, meuPlacar, oponentePlacar);
+
   let html = `<div class="dt-acoes-fim">
     <button class="btn-dt-ghost" onclick="dtNovoDuelo(${duelo.id})" style="margin-top:0"><i class="bi bi-list me-1"></i>Menu</button>
     ${acaoRevanche}
-  </div>`;
+  </div>
+  <button class="btn-dt-ghost" onclick="fbaCompartilhar(window.__DT_CARTAO__, this)">
+    <i class="bi bi-image me-1"></i>Compartilhar o resultado
+  </button>`;
 
   html += `<div class="dtcard">
     <div class="dt-resultado-msg ${duelo.eu_venci ? 'venceu' : 'perdeu'}">
@@ -3523,5 +3568,6 @@ renderTela(ESTADO_INICIAL);
 setInterval(() => atualizar(), 3000);
 </script>
 
+<?= cartaoScript() ?>
 </body>
 </html>
