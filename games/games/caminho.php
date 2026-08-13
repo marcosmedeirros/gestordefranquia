@@ -436,6 +436,66 @@ tr.tit td{color:var(--red)}
 .tier{font-size:16px;font-weight:900;letter-spacing:-.3px;margin-bottom:4px;color:var(--red)}
 .nota-txt{font-size:11.5px;color:var(--text2);line-height:1.55;margin-top:10px}
 .centro{text-align:center}
+
+/* ── FIM DE CARREIRA ───────────────────────────────────────────────────
+   O cartão, a escada e as grades existem pra uma coisa só: a tela final é
+   a que o pessoal manda no grupo. Ela precisa caber num print e dizer a
+   carreira inteira sem rolagem. */
+
+/* A cor sai do nome do time, mesma conta do monograma — assim o cartão de
+   quem jogou no Envood é sempre o mesmo verde, print após print. */
+.cartao{position:relative;overflow:hidden;border-radius:16px;padding:20px 18px;margin-bottom:14px;
+  background:linear-gradient(155deg,var(--c1,#2a2a31),var(--c2,#131317));
+  border:1px solid rgba(255,255,255,.14)}
+.cartao::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(135deg,rgba(255,255,255,.035) 0 9px,transparent 9px 18px)}
+.cartao > *{position:relative;z-index:1}
+.ct-topo{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.ct-ovr{font-family:var(--num);font-size:46px;font-weight:900;line-height:.9;letter-spacing:-3px;
+  color:#fff;font-variant-numeric:tabular-nums}
+.ct-rot{font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
+  color:rgba(255,255,255,.65);margin-top:5px}
+.ct-dir{text-align:right;font-size:12px;font-weight:700;color:rgba(255,255,255,.9);line-height:1.5}
+.ct-tier{font-size:19px;font-weight:900;letter-spacing:-.4px;color:#fff;margin:14px 0 2px}
+.ct-legado{font-size:11.5px;color:rgba(255,255,255,.68)}
+.ct-nums{display:flex;flex-wrap:wrap;gap:14px 18px;margin-top:15px}
+.ct-nums div{text-align:center;min-width:44px}
+.ct-nums b{display:block;font-family:var(--num);font-size:21px;font-weight:900;line-height:1;
+  color:#fff;font-variant-numeric:tabular-nums}
+.ct-nums span{display:block;font-size:8.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
+  color:rgba(255,255,255,.6);margin-top:4px}
+.ct-pe{font-family:var(--num);font-size:9.5px;color:rgba(255,255,255,.42);margin-top:16px;letter-spacing:.3px}
+
+/* Grade densa: números da carreira e prêmios cabem sem virar lista longa. */
+.grade-num{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.gn{background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:10px 4px;text-align:center}
+.gn b{display:block;font-family:var(--num);font-size:19px;font-weight:900;line-height:1;
+  color:var(--text);font-variant-numeric:tabular-nums}
+.gn span{display:block;font-size:8.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  color:var(--text2);margin-top:5px}
+.gn.zero b{color:var(--text3)}
+
+/* A escada: o tier sozinho não diz se faltou pouco ou muito pro degrau de
+   cima. Ver os oito de uma vez transforma "Lenda" em posição, não rótulo. */
+.escada{display:flex;flex-direction:column-reverse;gap:2px}
+.deg{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:7px;
+  font-size:12px;color:var(--text2)}
+.deg .n{font-family:var(--num);font-size:10px;width:14px;color:var(--text3);flex:none}
+.deg .req{margin-left:auto;font-family:var(--num);font-size:10px;color:var(--text3)}
+.deg.voce{background:var(--red-soft);color:var(--text);font-weight:700}
+.deg.voce .n,.deg.voce .req{color:var(--red)}
+.deg.passou{color:var(--text2)}
+
+/* Trajetória: um time por bloco, com os anos e quantas temporadas. */
+.traj{display:flex;flex-direction:column;gap:7px}
+.tj{display:flex;align-items:center;gap:11px;padding:9px 11px;background:var(--panel2);
+  border:1px solid var(--border);border-radius:10px;position:relative}
+.tj:not(:last-child)::after{content:"";position:absolute;left:29px;bottom:-8px;width:2px;height:7px;
+  background:var(--border2)}
+.tj-info{flex:1;min-width:0}
+.tj-time{font-size:13.5px;font-weight:800;color:var(--text);line-height:1.2}
+.tj-anos{font-family:var(--num);font-size:10.5px;color:var(--text2);margin-top:2px}
+.tj-qtd{flex:none;font-family:var(--num);font-size:10.5px;color:var(--red);text-align:right;white-space:nowrap}
 .dec-txt{font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.55}
 .dec-txt b{color:var(--text)}
 .barra-topo{height:3px;background:var(--panel3);border-radius:99px;overflow:hidden;margin-bottom:14px}
@@ -678,7 +738,7 @@ function novaCarreira(nome, pos, arq, nac, modo){
     temporadas:[],
     trofeus:{mvp:0,titulo:0,fmvp:0,allstar:0,dpoy:0,mip:0,roy:0,cesta:0,ouro:0,euro:0},
     ultimo:null, decisaoId:null, aguardando:false, mensagem:null, resultado:null,
-    finais:null, mercado:null, ofertaEscolhida:null, ovrAnterior:null, efeitoDecisao:0, decisoesUsadas:[], papel:"titular", ultimoOvr:null, ultimaVit:null,
+    finais:null, mercado:null, ofertaEscolhida:null, ovrAnterior:null, efeitoDecisao:0, decisoesUsadas:[], papel:"titular", ultimoOvr:null, picoOvr:null, ultimaVit:null,
     afastado:null,          // {tipo,anos,motivo} enquanto estiver fora
     // Perder temporada é o preço mais caro do jogo, então nem toda carreira
     // chega perto dele: o sorteio aqui decide se ESTA vai encarar uma
@@ -2062,6 +2122,7 @@ function perderAno(){
 
   S.ultimo = {pts:0, reb:0, ast:0, min:0, jogos:0};
   S.ultimoOvr = ovr(S.A, S.pos);
+  S.picoOvr = Math.max(S.picoOvr || 0, S.ultimoOvr);
   S.ultimosPremios = [];
   S.ultimaCampanha = `<b>${lesao ? "Temporada perdida" : "Suspenso"}</b> · ${esc(af.motivo)}`;
 
@@ -2094,6 +2155,9 @@ function jogarAno(){
   const playoff = vit >= 41;
 
   S.ultimo = st; S.ultimoOvr = o; S.ultimaVit = vit;
+  // O pico e o numero do cartao final: o OVR do ultimo ano nao conta a
+  // historia de quem foi 92 aos 27 e se aposentou aos 38 com 74.
+  S.picoOvr = Math.max(S.picoOvr || 0, o || 0);
   S.dinheiro += S.salario;
   S.idade++; S.ano++; S.anoFase++; S.contrato--;
   S.confianca = clamp(S.confianca + (st.pts > 14 ? 6 : -4), 5, 99);
@@ -2453,41 +2517,157 @@ function telaFim(){
     <h1>${esc(S.nome)}</h1>
     <p class="lead">${marca(S.time,24)} ${anos.length} temporadas · ${esc(S.pos)} · aposentado aos ${S.idade}</p>
 
-    <div class="bpcard centro">
-      <div class="bpcard-title">Legado</div>
-      <div class="tier">${esc(tier)}</div>
-      <div class="grande">${pts}</div>
-      <p style="margin:0;font-size:12px;color:var(--text2)">pontos de legado</p>
-    </div>
-
-    <div class="placar">
-      <div class="placar-topo"><span class="ano">CARREIRA</span>
-        <span class="placar-time">médias<small>por jogo</small></span></div>
-      <div class="linha-stats">
-        <div class="st"><b>${med(somas.p)}</b><span>pontos</span></div>
-        <div class="st"><b>${med(somas.r)}</b><span>rebotes</span></div>
-        <div class="st"><b>${med(somas.s)}</b><span>assist.</span></div>
-      </div>
-      <div class="linha-mini">
-        <div class="mini"><b>${tot.pts.toLocaleString("pt-BR")}</b><span>pontos totais</span></div>
-        <div class="mini"><b>${tot.reb.toLocaleString("pt-BR")}</b><span>rebotes</span></div>
-        <div class="mini"><b>${tot.jogos.toLocaleString("pt-BR")}</b><span>jogos</span></div>
-      </div>
-      ${tro.length ? `<div class="premios" style="padding:13px 15px">
-        ${tro.map(([n,nome])=>`<span class="pr ${nome==='Títulos'?'titulo':'ouro'}">${n}× ${esc(nome)}</span>`).join("")}
-      </div>` : `<div class="campanha">Sem troféus. Nem todo mundo levanta taça.</div>`}
-    </div>
+    ${cartaoDeCarreira(pts, tier, tot, anos)}
 
     ${S.moedasGanhas != null ? `<div class="bpcard centro" style="border-color:var(--amber)">
       <div class="bpcard-title">Moedas ganhas</div>
       <div class="grande" style="color:var(--amber)">+${S.moedasGanhas}</div>
       <p style="margin:0;font-size:11.5px;color:var(--text2)">creditadas na sua conta</p>
     </div>` : ""}
+
     <div class="acoes-fim">
       <button class="btn" onclick="copiar(this)">Copiar pra mandar no grupo</button>
       <button class="btn btn2" onclick="apagar();S=null;render()">Nova carreira</button>
     </div>
+
+    <h2>Números da carreira</h2>
+    <div class="bpcard">
+      <div class="grade-num">
+        ${caixa(med(somas.p), "pts por jogo")}
+        ${caixa(med(somas.r), "reb por jogo")}
+        ${caixa(med(somas.s), "ast por jogo")}
+        ${caixa(tot.pts.toLocaleString("pt-BR"), "pontos")}
+        ${caixa(tot.reb.toLocaleString("pt-BR"), "rebotes")}
+        ${caixa(tot.ast.toLocaleString("pt-BR"), "assistências")}
+        ${caixa(tot.jogos.toLocaleString("pt-BR"), "jogos")}
+        ${caixa(anos.length, "temporadas")}
+        ${caixa(S.picoOvr || S.ultimoOvr || 0, "pico de OVR")}
+      </div>
+    </div>
+
+    <h2>Prêmios da carreira</h2>
+    <div class="bpcard">
+      <div class="grade-num">${gradeDeTrofeus()}</div>
+      ${tro.length ? "" : `<p class="nota-txt">Sem troféus. Nem todo mundo levanta taça.</p>`}
+    </div>
+
+    ${trajetoria()}
+
+    <h2>Onde você fica na história</h2>
+    <div class="bpcard">
+      ${escadaDeTiers(pts)}
+      <p class="nota-txt">${degrauSeguinte(pts)}</p>
+    </div>
+
     ${sumula()}${ranking("Como você ficou entre os GMs")}`;
+}
+
+/**
+ * O cartão que vai virar print no grupo.
+ *
+ * Tudo que importa numa tela só: pico de OVR, tier, e os números que as
+ * pessoas de fato comparam. O resto da página é pra quem quer detalhe — este
+ * bloco é pra quem vai receber a imagem e entender a carreira em dois
+ * segundos.
+ *
+ * A cor sai do nome do time, pela mesma conta do monograma: assim o cartão de
+ * quem jogou no Envood é sempre o mesmo verde, e dá pra reconhecer o time
+ * antes de ler.
+ */
+function cartaoDeCarreira(pts, tier, tot, anos){
+  const h = hashNome(S.time || "?");
+  const mat = h % 360, comp = (mat + 150 + (h % 60)) % 360;
+  const t = S.trofeus || {};
+  const ovrPico = S.picoOvr || S.ultimoOvr || 0;
+
+  // Só o que tem valor não-zero, e no máximo seis: cartão com "0× MVP" é
+  // ruído, e mais de seis números quebram a linha no celular.
+  const nums = [
+    [t.titulo, "Títulos"], [t.mvp, "MVP"], [t.fmvp, "MVP Finais"],
+    [t.allstar, "All-Star"], [t.dpoy, "DPOY"], [t.cesta, "Cestinha"],
+    [t.ouro, "Ouro"], [t.roy, "Calouro"],
+  ].filter(x => x[0] > 0).slice(0, 6);
+
+  return `<div class="cartao" style="--c1:hsl(${mat} 55% 26%);--c2:hsl(${comp} 45% 12%)">
+    <div class="ct-topo">
+      <div>
+        <div class="ct-ovr">${ovrPico || "—"}</div>
+        <div class="ct-rot">pico de overall</div>
+      </div>
+      <div class="ct-dir">${esc(S.pos)}<br>${esc(String(S.time||"").slice(0,18))}<br>${anos.length} temporadas</div>
+    </div>
+    <div class="ct-tier">${esc(tier)}</div>
+    <div class="ct-legado">${pts} pontos de legado</div>
+    <div class="ct-nums">
+      ${nums.map(([n,rot])=>`<div><b>${n}</b><span>${esc(rot)}</span></div>`).join("")}
+      <div><b>${tot.pts.toLocaleString("pt-BR")}</b><span>pontos</span></div>
+    </div>
+    <div class="ct-pe">FBA Games · Caminho até a NBA · ${esc(S.nome)}</div>
+  </div>`;
+}
+
+/** Uma casinha da grade. Zerada fica apagada em vez de sumir — a ausência
+ *  também é informação: dá pra ver o que faltou. */
+function caixa(valor, rotulo){
+  const zero = !valor || valor === "0";
+  return `<div class="gn${zero ? " zero" : ""}"><b>${valor || 0}</b><span>${esc(rotulo)}</span></div>`;
+}
+
+function gradeDeTrofeus(){
+  const t = S.trofeus || {};
+  return [
+    ["titulo","Títulos"], ["mvp","MVP"], ["fmvp","MVP Finais"],
+    ["allstar","All-Star"], ["dpoy","Defensor"], ["cesta","Cestinha"],
+    ["roy","Calouro"], ["ouro","Ouro olímpico"], ["euro","Euroliga"],
+  ].map(([k, rot]) => caixa(Math.max(0, Number(t[k]) || 0), rot)).join("");
+}
+
+/**
+ * Por quais times passou, com os anos e quantas temporadas em cada.
+ *
+ * Agrupa passagens SEGUIDAS: quem saiu e voltou aparece duas vezes, porque
+ * foram duas passagens diferentes e juntar as duas apagaria a saída.
+ */
+function trajetoria(){
+  const anos = S.temporadas.filter(t => !t.formacao);
+  if (!anos.length) return "";
+
+  const passagens = [];
+  anos.forEach(t => {
+    const ult = passagens[passagens.length - 1];
+    if (ult && ult.time === t.time) { ult.fim = t.ano; ult.n++; }
+    else passagens.push({time: t.time, ini: t.ano, fim: t.ano, n: 1});
+  });
+
+  return `<h2>Trajetória na liga</h2>
+    <div class="traj">${passagens.map(p => `
+      <div class="tj">
+        ${marca(p.time, 38)}
+        <div class="tj-info">
+          <div class="tj-time">${esc(String(p.time||"").slice(0,22))}</div>
+          <div class="tj-anos">${p.ini}${p.fim !== p.ini ? "–" + p.fim : ""}</div>
+        </div>
+        <div class="tj-qtd">${p.n} ${p.n === 1 ? "temp." : "temps."}</div>
+      </div>`).join("")}</div>`;
+}
+
+/** Os oito degraus, com o seu aceso. Vira posição em vez de rótulo solto. */
+function escadaDeTiers(pts){
+  return `<div class="escada">${TIERS.map(([min, nome], i) => {
+    const proximo = TIERS[i + 1];
+    const meu = pts >= min && (!proximo || pts < proximo[0]);
+    return `<div class="deg ${meu ? "voce" : (pts >= min ? "passou" : "")}">
+      <span class="n">${i + 1}</span><span>${esc(nome)}</span>
+      <span class="req">${min}</span>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+/** Quanto faltou pro degrau de cima — o número que dá vontade de jogar de novo. */
+function degrauSeguinte(pts){
+  const acima = TIERS.find(([min]) => pts < min);
+  if (!acima) return "Não existe degrau acima deste. Você chegou no topo da escada.";
+  return `Faltaram <b>${acima[0] - pts}</b> pontos de legado pra chegar em “${esc(acima[1])}”.`;
 }
 
 function copiar(botao){
