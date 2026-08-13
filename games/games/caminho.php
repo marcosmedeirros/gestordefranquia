@@ -736,7 +736,9 @@ function novaCarreira(nome, pos, arq, nac, modo){
     confianca:50,           // confiança do treinador → minutos
     dinheiro:0, salario:0, contrato:0,
     temporadas:[],
-    trofeus:{mvp:0,titulo:0,fmvp:0,allstar:0,dpoy:0,mip:0,roy:0,cesta:0,ouro:0,euro:0},
+    trofeus:{mvp:0,titulo:0,fmvp:0,allstar:0,dpoy:0,mip:0,roy:0,cesta:0,euro:0,
+             ouro:0, prata:0, bronze:0, ouroCopa:0, prataCopa:0, bronzeCopa:0},
+    convocacoes:0,
     ultimo:null, decisaoId:null, aguardando:false, mensagem:null, resultado:null,
     finais:null, mercado:null, ofertaEscolhida:null, ovrAnterior:null, efeitoDecisao:0, decisoesUsadas:[], papel:"titular", ultimoOvr:null, picoOvr:null, ultimaVit:null,
     afastado:null,          // {tipo,anos,motivo} enquanto estiver fora
@@ -2175,9 +2177,90 @@ function jogarAno(){
   fecharAno(false, vit, o, st);
 }
 
+// ── SELEÇÃO NACIONAL ───────────────────────────────────────────────────
+// Uma trilha de legado que corre em paralelo à liga, e que não depende do
+// time em que você caiu no draft. Quem passou a carreira num time ruim tem
+// aqui a chance de ter uma história — e é justamente por isso que ela vale
+// menos que título: se pagasse igual, o caminho fácil seria não se importar
+// com a liga.
+
+/** Força do elenco em volta na seleção. Decide quanto o time te ajuda. */
+const SELECOES = {
+  USA:94, ESP:82, SRB:80, FRA:78, CAN:77, AUS:74, GER:74, GRE:71,
+  LTU:70, ARG:68, BRA:65, NGR:57,
+};
+
+/**
+ * Que torneio cai neste ano.
+ *
+ * Olimpíada de 4 em 4, Copa do Mundo no meio do ciclo — o calendário real.
+ * Nos outros dois anos não há convocação, e é isso que faz a medalha ser
+ * rara sem precisar de sorteio baixo: só existem duas chances por ciclo.
+ */
+function torneioDoAno(ano){
+  if (ano % 4 === 0) return {k:"oly",  nome:"Olimpíada",     peso:1.0};
+  if (ano % 4 === 2) return {k:"copa", nome:"Copa do Mundo", peso:0.8};
+  return null;
+}
+
+/**
+ * A seleção te chama?
+ *
+ * O corte é relativo à força do país: os Estados Unidos só olham pra quem é
+ * estrela, e uma seleção fraca chama quem for o melhor que ela tem. Isso faz
+ * a mesma carreira ter destinos diferentes conforme a bandeira — que é o
+ * ponto de a nacionalidade existir.
+ */
+function convocado(o){
+  const forca = SELECOES[S.nac] ?? 65;
+  const corte = 62 + Math.round((forca - 57) * 0.62);   // NGR ~62, USA ~85
+  return o >= corte;
+}
+
+/**
+ * Joga o torneio e devolve a medalha, ou null.
+ *
+ * Sua contribuição pesa menos que o elenco em volta, de propósito: um
+ * jogador não ganha Olimpíada sozinho, e fingir que ganha tiraria o sentido
+ * de escolher a bandeira lá no começo.
+ */
+function jogarTorneio(o, t){
+  const forca = SELECOES[S.nac] ?? 65;
+  const nota = forca * 0.72 + (o - 72) * 1.1 + ri(-14, 14);
+
+  if (nota >= 78) return {m:"ouro",   rot:`Ouro na ${t.nome}`,   k:"titulo"};
+  if (nota >= 70) return {m:"prata",  rot:`Prata na ${t.nome}`,  k:"ouro"};
+  if (nota >= 63) return {m:"bronze", rot:`Bronze na ${t.nome}`, k:"ouro"};
+  return null;
+}
+
+/** Guarda a medalha em trofeus e devolve o prêmio pra linha do ano. */
+function anoDeSelecao(o){
+  const t = torneioDoAno(S.ano);
+  if (!t || !convocado(o)) return null;
+
+  S.convocacoes = (S.convocacoes || 0) + 1;
+  const r = jogarTorneio(o, t);
+  if (!r){
+    // Convocação sem medalha ainda é linha na súmula: some do resumo, mas
+    // conta a história de quem foi seis vezes e nunca subiu no pódio.
+    return {t:`${t.nome} — sem medalha`, k:"normal"};
+  }
+
+  // Olimpíada e Copa contam separado: ouro olímpico não pode valer o mesmo
+  // que ouro de Copa, e somar os dois num campo só apagaria a diferença.
+  const campo = t.k === "oly" ? r.m : r.m + "Copa";
+  S.trofeus[campo] = (S.trofeus[campo] || 0) + 1;
+  return {t: r.rot, k: r.k};
+}
+
 function fecharAno(campeao, vit, o, st){
   const premios = premiosDoAno(o, st, vit, campeao);
   if (S.anoFase === 1 && o >= 78 && ri(0,100) < 40){ premios.push({t:"Calouro do Ano", k:"ouro"}); S.trofeus.roy++; }
+
+  const sel = anoDeSelecao(o);
+  if (sel) premios.push(sel);
+
   S.ultimosPremios = premios;
 
   S.temporadas.push({ano:S.ano, idade:S.idade, time:S.time, ...st, vit,
@@ -2401,6 +2484,11 @@ function resumoDeTrofeus(){
     ["dpoy","Defensor do Ano","Defensores do Ano","ouro"],
     ["cesta","Cestinha","Cestinhas","ouro"],
     ["ouro","Ouro olímpico","Ouros olímpicos","ouro"],
+    ["ouroCopa","Ouro na Copa","Ouros na Copa","ouro"],
+    ["prata","Prata olímpica","Pratas olímpicas","normal"],
+    ["prataCopa","Prata na Copa","Pratas na Copa","normal"],
+    ["bronze","Bronze olímpico","Bronzes olímpicos","normal"],
+    ["bronzeCopa","Bronze na Copa","Bronzes na Copa","normal"],
     ["roy","Calouro do Ano","Calouro do Ano","ouro"],
     ["allstar","All-Star","All-Stars","normal"],
   ];
@@ -2481,8 +2569,13 @@ function legadoBruto(){
   const t = S.trofeus || {};
   const n = (k) => Math.max(0, Number(t[k]) || 0);
   const anos = (S.temporadas || []).filter(x => x && !x.formacao && !x.perdida).length;
+  // O pódio internacional pesa menos que título de liga de propósito: ele
+  // existe pra dar história a quem caiu num time ruim, não pra ser o
+  // caminho mais barato até o topo da escada.
+  const selecao = n('ouro')*5 + n('prata')*3 + n('bronze')*2
+                + n('ouroCopa')*4 + n('prataCopa')*2 + n('bronzeCopa')*1;
   return n('mvp')*22 + n('titulo')*16 + n('fmvp')*10 + n('dpoy')*8 + n('euro')*7
-       + n('cesta')*6 + n('allstar')*4 + n('ouro')*5 + n('roy')*3 + Math.round(anos*0.8);
+       + n('cesta')*6 + n('allstar')*4 + n('roy')*3 + selecao + Math.round(anos*0.8);
 }
 
 /**
@@ -2526,7 +2619,10 @@ function telaFim(){
     </div>` : ""}
 
     <div class="acoes-fim">
-      <button class="btn" onclick="copiar(this)">Copiar pra mandar no grupo</button>
+      <button class="btn" onclick="compartilharCartao(this)">Compartilhar o cartão</button>
+      <button class="btn btn2" onclick="copiar(this)">Copiar como texto</button>
+    </div>
+    <div class="acoes-fim" style="margin-top:9px">
       <button class="btn btn2" onclick="apagar();S=null;render()">Nova carreira</button>
     </div>
 
@@ -2551,6 +2647,8 @@ function telaFim(){
       ${tro.length ? "" : `<p class="nota-txt">Sem troféus. Nem todo mundo levanta taça.</p>`}
     </div>
 
+    ${legadoInternacional()}
+
     ${trajetoria()}
 
     <h2>Onde você fica na história</h2>
@@ -2574,36 +2672,196 @@ function telaFim(){
  * quem jogou no Envood é sempre o mesmo verde, e dá pra reconhecer o time
  * antes de ler.
  */
-function cartaoDeCarreira(pts, tier, tot, anos){
+/**
+ * Os dados do cartão, num lugar só.
+ *
+ * O cartão existe em duas formas — o HTML da tela e o PNG que vai pro grupo —
+ * e as duas precisam dizer exatamente a mesma coisa. Separando os NÚMEROS do
+ * DESENHO, sobra só o desenho pra ser feito duas vezes; um ajuste de conteúdo
+ * cai nas duas de uma vez.
+ */
+function dadosDoCartao(pts, tier, tot, anos){
   const h = hashNome(S.time || "?");
   const mat = h % 360, comp = (mat + 150 + (h % 60)) % 360;
   const t = S.trofeus || {};
-  const ovrPico = S.picoOvr || S.ultimoOvr || 0;
 
   // Só o que tem valor não-zero, e no máximo seis: cartão com "0× MVP" é
   // ruído, e mais de seis números quebram a linha no celular.
   const nums = [
     [t.titulo, "Títulos"], [t.mvp, "MVP"], [t.fmvp, "MVP Finais"],
     [t.allstar, "All-Star"], [t.dpoy, "DPOY"], [t.cesta, "Cestinha"],
-    [t.ouro, "Ouro"], [t.roy, "Calouro"],
-  ].filter(x => x[0] > 0).slice(0, 6);
+    [t.ouro, "Ouro Oly"], [t.roy, "Calouro"],
+  ].filter(x => x[0] > 0).slice(0, 6)
+   .map(([n, rot]) => [String(n), rot]);
+  nums.push([tot.pts.toLocaleString("pt-BR"), "Pontos"]);
 
-  return `<div class="cartao" style="--c1:hsl(${mat} 55% 26%);--c2:hsl(${comp} 45% 12%)">
+  return {
+    c1: `hsl(${mat} 55% 26%)`, c2: `hsl(${comp} 45% 12%)`,
+    ovr: S.picoOvr || S.ultimoOvr || 0,
+    tier, pts, nums,
+    pos: S.pos, time: String(S.time || "").slice(0, 18),
+    temporadas: anos.length, nome: S.nome,
+  };
+}
+
+function cartaoDeCarreira(pts, tier, tot, anos){
+  const d = dadosDoCartao(pts, tier, tot, anos);
+  return `<div class="cartao" style="--c1:${d.c1};--c2:${d.c2}">
     <div class="ct-topo">
       <div>
-        <div class="ct-ovr">${ovrPico || "—"}</div>
+        <div class="ct-ovr">${d.ovr || "—"}</div>
         <div class="ct-rot">pico de overall</div>
       </div>
-      <div class="ct-dir">${esc(S.pos)}<br>${esc(String(S.time||"").slice(0,18))}<br>${anos.length} temporadas</div>
+      <div class="ct-dir">${esc(d.pos)}<br>${esc(d.time)}<br>${d.temporadas} temporadas</div>
     </div>
-    <div class="ct-tier">${esc(tier)}</div>
-    <div class="ct-legado">${pts} pontos de legado</div>
+    <div class="ct-tier">${esc(d.tier)}</div>
+    <div class="ct-legado">${d.pts} pontos de legado</div>
     <div class="ct-nums">
-      ${nums.map(([n,rot])=>`<div><b>${n}</b><span>${esc(rot)}</span></div>`).join("")}
-      <div><b>${tot.pts.toLocaleString("pt-BR")}</b><span>pontos</span></div>
+      ${d.nums.map(([n,rot])=>`<div><b>${n}</b><span>${esc(rot)}</span></div>`).join("")}
     </div>
-    <div class="ct-pe">FBA Games · Caminho até a NBA · ${esc(S.nome)}</div>
+    <div class="ct-pe">FBA Games · Caminho até a NBA · ${esc(d.nome)}</div>
   </div>`;
+}
+
+/**
+ * O mesmo cartão, pintado num canvas 1080×1350.
+ *
+ * Não é print da tela: é uma imagem desenhada pro formato que o WhatsApp e o
+ * story usam. Print de celular sai com a barra de status, o tamanho do
+ * aparelho de quem mandou e o texto pequeno — aqui todo mundo manda a mesma
+ * imagem, do mesmo tamanho, legível na miniatura da conversa.
+ */
+function imagemDoCartao(d){
+  const L = 1080, A = 1350, P = 84;
+  const cv = document.createElement("canvas");
+  cv.width = L; cv.height = A;
+  const c = cv.getContext("2d");
+
+  const g = c.createLinearGradient(0, 0, L * 0.6, A);
+  g.addColorStop(0, d.c1); g.addColorStop(1, d.c2);
+  c.fillStyle = g; c.fillRect(0, 0, L, A);
+
+  // As listras do cartão da tela, no mesmo ângulo.
+  c.save();
+  c.globalAlpha = 0.035; c.strokeStyle = "#fff"; c.lineWidth = 18;
+  for (let x = -A; x < L + A; x += 46){ c.beginPath(); c.moveTo(x, 0); c.lineTo(x + A, A); c.stroke(); }
+  c.restore();
+
+  const fonte = (px, peso) => `${peso} ${px}px ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+  const sans  = (px, peso) => `${peso} ${px}px Poppins, system-ui, sans-serif`;
+
+  c.textBaseline = "alphabetic";
+  c.fillStyle = "rgba(255,255,255,.62)";
+  c.font = sans(26, 700);
+  c.fillText("PICO DE OVERALL", P, 200);
+
+  c.fillStyle = "#fff";
+  c.font = fonte(190, 900);
+  c.fillText(String(d.ovr || "—"), P - 8, 370);
+
+  // Coluna da direita: posição, time e temporadas.
+  c.textAlign = "right";
+  c.font = sans(34, 700);
+  c.fillStyle = "rgba(255,255,255,.92)";
+  [d.pos, d.time, `${d.temporadas} temporadas`].forEach((linha, i) => {
+    c.fillText(linha, L - P, 200 + i * 48);
+  });
+  c.textAlign = "left";
+
+  c.fillStyle = "#fff";
+  c.font = sans(62, 800);
+  c.fillText(d.tier, P, 500);
+  c.fillStyle = "rgba(255,255,255,.7)";
+  c.font = sans(30, 600);
+  c.fillText(`${d.pts} pontos de legado`, P, 552);
+
+  // A grade de números: até quatro por linha, centrados na própria coluna.
+  const porLinha = 4, larg = (L - P * 2) / porLinha;
+  d.nums.forEach(([valor, rot], i) => {
+    const cx = P + larg * (i % porLinha) + larg / 2;
+    const cy = 700 + Math.floor(i / porLinha) * 190;
+    c.textAlign = "center";
+    c.fillStyle = "#fff"; c.font = fonte(76, 900);
+    c.fillText(valor, cx, cy);
+    c.fillStyle = "rgba(255,255,255,.6)"; c.font = sans(23, 700);
+    c.fillText(rot.toUpperCase(), cx, cy + 44);
+  });
+
+  c.textAlign = "left";
+  c.fillStyle = "#fff";
+  c.font = sans(46, 800);
+  c.fillText(d.nome, P, A - 140);
+  c.fillStyle = "rgba(255,255,255,.45)";
+  c.font = fonte(24, 400);
+  c.fillText("FBA GAMES · CAMINHO ATÉ A NBA", P, A - 92);
+
+  return cv;
+}
+
+/**
+ * Manda o cartão como imagem.
+ *
+ * No celular abre a folha de compartilhamento do sistema, que é o caminho de
+ * um toque até o grupo. No desktop não existe essa folha pra arquivo, então
+ * baixa — e o texto ainda está no outro botão, pra quem só quer colar.
+ */
+async function compartilharCartao(botao){
+  const antes = botao.textContent;
+  botao.textContent = "Gerando…";
+  try {
+    const pts = pontuacaoLegado();
+    let tier = TIERS[0][1];
+    TIERS.forEach(([min, nome]) => { if (pts >= min) tier = nome; });
+    const anos = S.temporadas.filter(x => !x.formacao);
+    const cv = imagemDoCartao(dadosDoCartao(pts, tier, totaisDeCarreira(), anos));
+
+    const blob = await new Promise(r => cv.toBlob(r, "image/png"));
+    const arquivo = new File([blob], "carreira.png", {type: "image/png"});
+
+    if (navigator.canShare && navigator.canShare({files: [arquivo]})){
+      await navigator.share({files: [arquivo], title: S.nome, text: `${S.nome} — ${tier}`});
+      botao.textContent = antes;
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${String(S.nome || "carreira").replace(/[^\w-]+/g, "-")}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    botao.textContent = "Baixado ✓";
+  } catch (e) {
+    // Cancelar o compartilhamento chega aqui como erro; não é falha.
+    botao.textContent = antes;
+    return;
+  }
+  setTimeout(() => { botao.textContent = antes; }, 1800);
+}
+
+/**
+ * O que a carreira rendeu de seleção.
+ *
+ * Só aparece pra quem foi convocado alguma vez — numa carreira que nunca
+ * vestiu a camisa do país, seis caixas zeradas seriam só uma pergunta sem
+ * resposta na tela.
+ */
+function legadoInternacional(){
+  const t = S.trofeus || {};
+  const campos = [
+    ["ouro","Ouro Oly"], ["prata","Prata Oly"], ["bronze","Bronze Oly"],
+    ["ouroCopa","Ouro Copa"], ["prataCopa","Prata Copa"], ["bronzeCopa","Bronze Copa"],
+  ];
+  const total = campos.reduce((a,[k]) => a + (Number(t[k]) || 0), 0);
+  if (!total && !S.convocacoes) return "";
+
+  const pais = (NACOES.find(n => n[0] === S.nac) || [null, S.nac])[1];
+  return `<h2>Seleção ${esc(pais)}</h2>
+    <div class="bpcard">
+      <div class="grade-num">
+        ${campos.map(([k, rot]) => caixa(Math.max(0, Number(t[k]) || 0), rot)).join("")}
+      </div>
+      <p class="nota-txt">${S.convocacoes || 0} convocação(ões) · ${total} medalha(s).
+      ${total ? "" : "Foi chamado, mas o pódio não veio."}</p>
+    </div>`;
 }
 
 /** Uma casinha da grade. Zerada fica apagada em vez de sumir — a ausência
