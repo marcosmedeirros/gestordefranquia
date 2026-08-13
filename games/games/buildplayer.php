@@ -511,8 +511,9 @@ $topGeral = $pdo->query("SELECT b.ovr, b.grupo, b.nome_jogador, u.nome
  * e a temporada, e refazer essa leitura no navegador daria duas versões da
  * mesma coisa pra divergirem.
  *
- * A grade mostra as quatro melhores notas do build — o interessante é de
- * QUEM veio cada uma, e são elas que contam a história do sorteio.
+ * A grade leva TODAS as notas, na ordem dos slots — o build é justamente o
+ * conjunto das dez, e mostrar só as melhores esconderia onde ele é fraco, que
+ * é metade do que se comenta quando o cartão cai no grupo.
  */
 $cartaoDoBuild = null;
 if ($partida && $partida['concluido_em']) {
@@ -522,9 +523,8 @@ if ($partida && $partida['concluido_em']) {
     $notas = [];
     foreach ($ATRIBUTOS as $chave => $info) {
         $s = $partida['slots'][$chave] ?? null;
-        if ($s) $notas[] = ['nivel' => (int)$s['nivel'], 'letra' => $s['letra'], 'rot' => $info['label']];
+        $notas[] = [$s['letra'] ?? '-', $info['label']];
     }
-    usort($notas, fn($a, $b) => $b['nivel'] <=> $a['nivel']);
 
     $direita = [$partida['grupo'], '#' . ($partida['camisa'] ?: '0')];
     if ($temporada) $direita[] = (string)($temporada['time']['nome'] ?? '');
@@ -536,7 +536,7 @@ if ($partida && $partida['concluido_em']) {
         'titulo' => $h ? ($h['no_top'] ? '#' . (int)$h['posicao'] . ' na história' : $h['tier'])
                        : 'Build fechado',
         'sub' => $h && $h['no_top'] ? $h['tier'] : ($h ? 'fora do top 100' : ''),
-        'nums' => array_map(fn($n) => [$n['letra'], $n['rot']], array_slice($notas, 0, 4)),
+        'nums' => $notas,
         'nome' => (string)($partida['nome_jogador'] ?: 'Sem Nome'),
         'jogo' => 'Build-A-Player',
     ];

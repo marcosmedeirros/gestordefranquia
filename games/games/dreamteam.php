@@ -3056,11 +3056,15 @@ async function dtRodarSimcast(duelo) {
  * Os dados do cartão do confronto. O desenho é o de games/core/cartao.php.
  *
  * O número grande é o PLACAR, não quem ganhou: quem recebe a imagem quer ver
- * o jogo antes de saber o resultado, e "112 × 108" conta a história melhor
- * que "você venceu".
+ * o jogo antes de saber o resultado, e "112×108" conta a história melhor que
+ * "você venceu".
  *
- * A cor sai do nome de quem mandou — assim o cartão de cada um é sempre o
- * mesmo, e dá pra reconhecer de quem é antes de ler.
+ * O miolo são os dois QUINTETOS, um de cada lado. É o que o jogo é — quem
+ * montou o quê — e é sobre isso que a discussão no grupo acontece. Números
+ * soltos de destaque diriam quem pontuou, mas não diriam quem foi escalado.
+ *
+ * A cor sai do nome de quem mandou, então o cartão de cada um é sempre o
+ * mesmo e dá pra reconhecer de quem é antes de ler.
  */
 function dtCartaoDoDuelo(duelo, r, nomeEu, nomeOp, meuPlacar, oponentePlacar) {
   // hash do nome → matiz, a mesma conta do PHP em cartaoCoresDoNome().
@@ -3068,11 +3072,12 @@ function dtCartaoDoDuelo(duelo, r, nomeEu, nomeOp, meuPlacar, oponentePlacar) {
   for (const ch of String(nomeEu || '?')) h = (h * 31 + ch.codePointAt(0)) % 4294967296;
   const mat = h % 360, comp = (mat + 150 + (h % 60)) % 360;
 
-  // Os destaques são o que se comenta depois: quem fez quantos.
-  const nums = (r.destaques || []).slice(0, 4).map(d => [
-    String(d.pontos),
-    String(d.nome || '').split(' ').slice(-1)[0],
-  ]);
+  // Só o sobrenome, com a posição na frente: "PG Curry" cabe na coluna e
+  // ainda diz onde ele jogou, que é o que faz a escalação ser escalação.
+  const quinteto = (roster) => POSICOES.map(pos => {
+    const j = roster && roster[pos];
+    return `${pos} ${j ? String(j.nome || '').split(' ').slice(-1)[0] : '—'}`;
+  });
 
   return {
     c1: `hsl(${mat} 55% 26%)`, c2: `hsl(${comp} 45% 12%)`,
@@ -3082,7 +3087,10 @@ function dtCartaoDoDuelo(duelo, r, nomeEu, nomeOp, meuPlacar, oponentePlacar) {
               duelo.eu_venci ? `+${duelo.aposta * 2} moedas` : `−${duelo.aposta} moedas`],
     titulo: duelo.eu_venci ? 'Levei essa' : 'Ficou pra próxima',
     sub: 'Starting5x5 · dream team em duelo',
-    nums,
+    listas: [
+      {titulo: nomeEu, itens: quinteto(duelo.meu_roster)},
+      {titulo: nomeOp, itens: quinteto(duelo.oponente_roster)},
+    ],
     nome: nomeEu,
     jogo: 'Starting5x5',
   };

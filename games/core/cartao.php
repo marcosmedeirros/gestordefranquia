@@ -23,9 +23,15 @@
  *     numero:'94', rotulo:'pico de overall',          // o número grande
  *     direita:['PG','Envood','14 temporadas'],        // até 3 linhas
  *     titulo:'Lenda', sub:'163 pontos de legado',
- *     nums:[['3','Títulos'],['2','MVP']],             // até 8
+ *     nums:[['3','Títulos'],['2','MVP']],             // até 12, 4 por linha
  *     nome:'Marcos Silva', jogo:'CAMINHO ATÉ A NBA',
  *   }, botao);
+ *
+ * No lugar de `nums` dá pra mandar `listas` — duas colunas de texto, até 6
+ * linhas cada, que é o formato dos quintetos do 5x5:
+ *
+ *     listas:[{titulo:'Meu time', itens:['Jordan','Pippen',…]},
+ *             {titulo:'Oponente', itens:[…]}]
  */
 
 /** A cor do cartão sai de um nome — mesmo nome, mesma cor, print após print. */
@@ -100,18 +106,39 @@ function cartaoScript(): string
       c.fillText(cabe(c, d.sub, L - P * 2), P, 552);
     }
 
-    // A grade: quatro por linha, cada um centrado na sua coluna.
-    const nums = (d.nums || []).slice(0, 8);
-    const porLinha = 4, larg = (L - P * 2) / porLinha;
-    nums.forEach(([valor, rot], i) => {
-      const cx = P + larg * (i % porLinha) + larg / 2;
-      const cy = 700 + Math.floor(i / porLinha) * 190;
-      c.textAlign = 'center';
-      c.fillStyle = '#fff'; c.font = mono(String(valor).length > 6 ? 48 : 76, 900);
-      c.fillText(String(valor), cx, cy);
-      c.fillStyle = 'rgba(255,255,255,.6)'; c.font = sans(23, 700);
-      c.fillText(cabe(c, String(rot).toUpperCase(), larg - 10), cx, cy + 44);
-    });
+    // Duas listas lado a lado — os quintetos do 5x5. Quando existem, elas
+    // ocupam o miolo no lugar da grade: dez nomes e uma grade de números na
+    // mesma altura não caberiam sem encolher os dois a ponto de não se ler.
+    const listas = (d.listas || []).slice(0, 2);
+    if (listas.length){
+      const meia = (L - P * 2) / 2;
+      listas.forEach((col, li) => {
+        const x = P + meia * li;
+        c.textAlign = 'left';
+        c.fillStyle = 'rgba(255,255,255,.6)'; c.font = sans(24, 700);
+        c.fillText(cabe(c, String(col.titulo || '').toUpperCase(), meia - 20), x, 680);
+        (col.itens || []).slice(0, 6).forEach((item, i) => {
+          c.fillStyle = '#fff'; c.font = sans(37, 700);
+          c.fillText(cabe(c, item, meia - 20), x, 748 + i * 56);
+        });
+      });
+    } else {
+      // A grade: quatro por linha, cada um centrado na sua coluna. Doze cabem
+      // em três linhas antes do nome lá embaixo.
+      const nums = (d.nums || []).slice(0, 12);
+      const porLinha = 4, larg = (L - P * 2) / porLinha;
+      // Com mais de oito, as linhas se aproximam pra três caberem.
+      const passo = nums.length > 8 ? 158 : 190;
+      nums.forEach(([valor, rot], i) => {
+        const cx = P + larg * (i % porLinha) + larg / 2;
+        const cy = 690 + Math.floor(i / porLinha) * passo;
+        c.textAlign = 'center';
+        c.fillStyle = '#fff'; c.font = mono(String(valor).length > 6 ? 48 : 76, 900);
+        c.fillText(String(valor), cx, cy);
+        c.fillStyle = 'rgba(255,255,255,.6)'; c.font = sans(nums.length > 8 ? 20 : 23, 700);
+        c.fillText(cabe(c, String(rot).toUpperCase(), larg - 8), cx, cy + 40);
+      });
+    }
 
     c.textAlign = 'left';
     c.fillStyle = '#fff'; c.font = sans(46, 800);
