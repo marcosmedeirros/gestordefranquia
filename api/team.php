@@ -359,6 +359,10 @@ if ($method === 'GET') {
         if ($capLigaTemSalario) {
             $temporadaCap = temporadaAtivaDaLiga($pdo, $league);
             $numTemporadaCap = $temporadaCap ? (int)$temporadaCap['season_number'] : null;
+            // Marca de que rodada do Draft Inicial cada um veio — é o que
+            // habilita o piso dentro do getPlayerBaseSalary. Sem esta linha o
+            // elenco mostraria um salário e a tela de cap outro.
+            capMarcarDraftInicial($pdo, $players, $league);
             foreach ($players as &$player) {
                 $player['cap_salario'] = getPlayerBaseSalary($player, $numTemporadaCap);
                 $player['cap_rookie']  = capEhCalouroNaTemporadaAtual($player, $numTemporadaCap);

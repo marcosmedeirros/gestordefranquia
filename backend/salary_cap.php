@@ -100,6 +100,92 @@ function capRookieScaleValue(int $draftRound, ?int $draftPickPosition): int
 }
 
 /**
+ * Piso de salário do jovem vindo do Draft Inicial.
+ *
+ * O draft inicial não tem rookie scale — ele distribuiu elencos, não calouros,
+ * e por isso esses jogadores sempre pagaram pela tabela de OVR. Só que a
+ * tabela cobra pouco de quem ainda está subindo: um 80 de 21 anos custa 5M, e
+ * o time fica com um ativo valioso ocupando quase nada do teto.
+ *
+ * Este piso corrige isso pelas primeiras rodadas — quanto mais cedo o time
+ * escolheu, mais o jovem pesa. É PISO, não preço: quem já custa mais que ele
+ * pela tabela continua no valor da tabela. Um 88 de 22 anos vale 20M e segue
+ * valendo 20M.
+ */
+const CAP_PISO_DRAFT_INICIAL = [1 => 14, 2 => 10, 3 => 6];
+
+/** Idade máxima e OVR mínimo pra o piso valer. */
+const CAP_PISO_IDADE_MAX = 23;
+const CAP_PISO_OVR_MIN   = 78;
+
+/**
+ * Quanto o piso cobra deste jogador, ou 0 se ele não se encaixa.
+ *
+ * Depende de `initdraft_round`, que NÃO existe na tabela players — a migração
+ * que tirou esses jogadores da rookie scale apagou as colunas de draft deles.
+ * Quem preenche é capMarcarDraftInicial(), chamada em lote antes do cálculo.
+ * Sem a marca, devolve 0: o pior caso é o comportamento de antes, não um
+ * salário errado.
+ */
+function capPisoDraftInicial(array $player): int
+{
+    $round = $player['initdraft_round'] ?? null;
+    if ($round === null) return 0;
+
+    $piso = CAP_PISO_DRAFT_INICIAL[(int)$round] ?? 0;
+    if ($piso === 0) return 0;
+
+    $idade = $player['age'] ?? null;
+    if ($idade === null || (int)$idade > CAP_PISO_IDADE_MAX) return 0;
+    if ((int)($player['ovr'] ?? 0) < CAP_PISO_OVR_MIN) return 0;
+
+    return $piso;
+}
+
+/**
+ * Marca, em lote, de que rodada do Draft Inicial cada jogador veio.
+ *
+ * Em lote e não um a um porque isto roda pra elenco inteiro em toda tela de
+ * cap — uma consulta por jogador seria quinze por time.
+ *
+ * O casamento é por NOME dentro da liga: é o que sobrou depois que a migração
+ * limpou draft_round/draft_pick_position desses jogadores. Jogador renomeado
+ * depois do draft escapa, e aí ele simplesmente não recebe o piso.
+ */
+function capMarcarDraftInicial(PDO $pdo, array &$players, string $league): void
+{
+    foreach ($players as &$p) $p['initdraft_round'] = null;
+    unset($p);
+    if (!$players) return;
+
+    try {
+        $st = $pdo->prepare("
+            SELECT ip.name, MIN(io.round) AS round
+            FROM initdraft_order io
+            JOIN initdraft_sessions s ON s.id = io.initdraft_session_id
+            JOIN initdraft_pool ip     ON ip.id = io.picked_player_id
+            WHERE s.league = ? AND io.picked_player_id IS NOT NULL
+            GROUP BY ip.name
+        ");
+        $st->execute([strtoupper(trim($league))]);
+        $porNome = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $porNome[mb_strtolower(trim((string)$r['name']))] = (int)$r['round'];
+        }
+        if (!$porNome) return;
+
+        foreach ($players as &$p) {
+            $chave = mb_strtolower(trim((string)($p['name'] ?? '')));
+            if (isset($porNome[$chave])) $p['initdraft_round'] = $porNome[$chave];
+        }
+        unset($p);
+    } catch (Throwable $e) {
+        // Liga sem draft inicial não tem as tabelas. Segue sem piso.
+        error_log('[cap] marcar draft inicial: ' . $e->getMessage());
+    }
+}
+
+/**
  * O jogador é calouro NESTA temporada? Só nesse caso vale a rookie scale
  * ("VALE SÓ NO ANO 1" no regulamento).
  *
@@ -162,7 +248,10 @@ function getPlayerBaseSalary(array $player, ?int $temporadaAtual = null): int
         }
         return capRookieScaleValue((int)$player['draft_round'], $pick);
     }
-    return capOvrSalary($ovr);
+
+    // O piso do Draft Inicial entra por último, como max(): ele levanta quem a
+    // tabela cobraria pouco e não encosta em quem já custa mais.
+    return max(capOvrSalary($ovr), capPisoDraftInicial($player));
 }
 
 /**
@@ -275,7 +364,7 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     $flexLiberado = capFlexLiberado($pdo, $league, $numTemporada);
 
     $stmtPlayers = $pdo->prepare("
-        SELECT id, name, team_id, ovr, seasons_in_league, drafted_by_team_id, drafted_season_number,
+        SELECT id, name, team_id, ovr, age, seasons_in_league, drafted_by_team_id, drafted_season_number,
                draft_round, draft_pick_position,
                COALESCE(is_lenda, 0) as is_lenda,
                COALESCE(was_traded, 0) as was_traded
@@ -284,6 +373,7 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     $stmtPlayers->execute([$teamId]);
     $players = $stmtPlayers->fetchAll(PDO::FETCH_ASSOC);
     markLoyaltyEligibility($pdo, $players); // preenche is_loyal / cap_bonus_eligible
+    capMarcarDraftInicial($pdo, $players, (string)$league); // preenche initdraft_round
 
     $payroll = 0;
     $roster = [];
