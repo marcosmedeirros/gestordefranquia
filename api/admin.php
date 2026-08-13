@@ -164,6 +164,7 @@ if ($method === 'GET') {
             // consultas por time, e a tabela por OVR sozinha é bem mais barata.
             $times = [];
             $calouros = [];
+            $jovens = [];
             if (!empty($_GET['times'])) {
                 $stT = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome
                                       FROM teams WHERE league = ? ORDER BY city, name");
@@ -216,6 +217,57 @@ if ($method === 'GET') {
                     }
                 }
                 usort($calouros, fn($a, $b) => $b['economia'] <=> $a['economia']);
+
+                /**
+                 * Os jovens que vieram das 4 primeiras rodadas do Draft Inicial.
+                 *
+                 * Eles NÃO estão na rookie scale — o draft inicial não é draft de
+                 * calouro, e o sistema limpa a rodada deles justamente por isso.
+                 * Mas são a mesma pergunta: qual é o time jovem que a liga tem, e
+                 * quanto ele custa. Sem isto, a única safra visível é a do draft
+                 * anual, que numa liga nova é pequena ou nem existe.
+                 *
+                 * A rodada sai do initdraft_order, que aponta pro pool pelo id —
+                 * casar por nome (o único caminho pela tabela players) erraria com
+                 * jogador renomeado depois.
+                 *
+                 * Idade e OVR são os de HOJE quando dá pra achar o jogador no
+                 * elenco; do pool quando não dá. O filtro é sobre o valor de hoje:
+                 * a pergunta é quem é jovem AGORA, não quem era na estreia.
+                 */
+                try {
+                    $stJ = $pdo->prepare("
+                        SELECT ip.name, io.round, io.pick_position,
+                               COALESCE(p.age, ip.age) AS idade,
+                               COALESCE(p.ovr, ip.ovr) AS ovr,
+                               (p.id IS NOT NULL) AS no_elenco,
+                               TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time
+                        FROM initdraft_order io
+                        JOIN initdraft_sessions s ON s.id = io.initdraft_session_id
+                        JOIN initdraft_pool ip     ON ip.id = io.picked_player_id
+                        JOIN teams t               ON t.id = io.team_id
+                        LEFT JOIN players p        ON p.name = ip.name AND p.team_id = io.team_id
+                        WHERE s.league = ? AND io.round <= 4 AND io.picked_player_id IS NOT NULL
+                        HAVING idade BETWEEN 19 AND 23 AND ovr >= 78
+                        ORDER BY ovr DESC, idade ASC
+                    ");
+                    $stJ->execute([$ligaCap]);
+                    foreach ($stJ->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                        $jovens[] = [
+                            'name'      => $r['name'],
+                            'time'      => $r['time'],
+                            'round'     => (int)$r['round'],
+                            'pick'      => (int)$r['pick_position'],
+                            'idade'     => (int)$r['idade'],
+                            'ovr'       => (int)$r['ovr'],
+                            'salario'   => capOvrSalary((int)$r['ovr']),
+                            'no_elenco' => (bool)$r['no_elenco'],
+                        ];
+                    }
+                } catch (Throwable $e) {
+                    // Liga que nunca teve draft inicial não tem as tabelas.
+                    error_log('[cap_tabela] jovens do draft inicial: ' . $e->getMessage());
+                }
             }
 
             echo json_encode([
@@ -225,6 +277,7 @@ if ($method === 'GET') {
                 'lendas' => $lendas,
                 'times' => $times,
                 'calouros' => $calouros,
+                'jovens' => $jovens,
                 'total_jogadores' => array_sum($porOvr),
                 'total_times' => (int)$stTimes->fetchColumn(),
                 'lenda_minimo' => CAP_LENDA_MINIMO_MILLIONS,

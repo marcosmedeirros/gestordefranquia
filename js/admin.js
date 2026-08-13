@@ -4377,6 +4377,50 @@ ${(() => {
 </div>`;
 })()}
 
+${(() => {
+  const j = d.jovens || [];
+  if (!j.length) return '';
+  const folha = j.reduce((a, p) => a + p.salario, 0);
+  const porRodada = [1, 2, 3, 4].map(r => j.filter(p => p.round === r).length);
+
+  return `
+<div class="panel mb-3">
+  <div class="panel-header">
+    <div class="panel-title"><i class="bi bi-people"></i> Jovens do draft inicial — ${j.length}</div>
+    <span style="font-size:11px;color:var(--text-3)">custam ${folha}M somados</span>
+  </div>
+  <div style="padding:10px 16px 16px">
+    <p style="font-size:11.5px;color:var(--text-3);line-height:1.55;margin-bottom:12px">
+      Escolhidos nas <b>4 primeiras rodadas</b> do draft inicial, com <b>19 a 23 anos</b> e <b>OVR 78+</b> hoje.
+      Eles não estão na rookie scale — o draft inicial não é draft de calouro, então cada um já paga
+      pela tabela de OVR. É a safra jovem que a liga tem fora do draft anual.
+      <br>Por rodada: ${porRodada.map((n, i) => `${i + 1}ª <b style="color:var(--text-2)">${n}</b>`).join(' · ')}
+    </p>
+    <div style="overflow-x:auto">
+      <table class="table table-dark table-hover" style="font-size:12.5px;margin:0">
+        <thead><tr>
+          <th>Jogador</th><th>Time</th>
+          <th style="text-align:right">Idade</th>
+          <th style="text-align:right">OVR</th>
+          <th style="text-align:right">Escolha</th>
+          <th style="text-align:right">Custa</th>
+        </tr></thead>
+        <tbody>${j.map(p => `
+          <tr${p.no_elenco ? '' : ' style="opacity:.5"'}>
+            <td style="font-weight:600">${escapeHtml(p.name)}${
+              p.no_elenco ? '' : ' <span style="font-size:9px;color:var(--text-3)">FORA DO ELENCO</span>'}</td>
+            <td style="color:var(--text-2)">${escapeHtml(p.time)}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">${p.idade}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700">${p.ovr}</td>
+            <td style="text-align:right;color:var(--text-2);white-space:nowrap">${p.round}ª · #${p.pick}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:#f5c542">${p.salario}M</td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>
+  </div>
+</div>`;
+})()}
+
 <div class="panel">
   <div class="panel-header"><div class="panel-title"><i class="bi bi-table"></i> Jogadores por OVR</div></div>
   <div style="padding:12px 14px 16px">
