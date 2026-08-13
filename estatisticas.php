@@ -103,9 +103,20 @@ foreach ($youngMap as $lg => $arr) {
 }
 
 // ── 14. Mais jogadores draftados ─────────────────────────────────
+// Conta pelo draft_pool, não pela tabela players.
+//
+// O draft inicial — aquele que montou os elencos quando a liga nasceu — também
+// grava players.drafted_by_team_id, então contar por ali somava 12 ou 15
+// jogadores de uma vez pra todo mundo e afogava o draft de verdade. E não dá
+// pra separar os dois na players: ela não guarda de qual draft o jogador veio.
+//
+// O draft_pool é só do draft padrão (o inicial tem o initdraft_pool dele), o
+// que torna a separação estrutural em vez de um filtro que alguém pode
+// esquecer de repetir na próxima consulta.
 $draftedMap = queryByLeague($pdo, "
-    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(p.id) AS count
-    FROM teams t LEFT JOIN players p ON p.drafted_by_team_id=t.id
+    SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(dp.id) AS count
+    FROM teams t
+    LEFT JOIN draft_pool dp ON dp.drafted_by_team_id = t.id
     GROUP BY t.id, t.league, t.city, t.name ORDER BY count DESC
 ");
 sortLeagueData($draftedMap);
@@ -272,12 +283,19 @@ try {
 } catch (Exception) {}
 
 // ── Aproveitamento do draft (OVR médio dos jogadores draftados) ───
+// Mesma troca do "mais draftados": pelo draft_pool, senão o OVR médio é
+// puxado pelos jogadores do draft inicial, que ninguém escolheu.
+//
+// Aqui a diferença pesa ainda mais que na contagem: o inicial distribuiu
+// elencos inteiros, então a média virava a do elenco de origem do time e não
+// dizia nada sobre quem acerta a mão no draft.
 $draftOvrMap = [];
 try {
     $doRaw = $pdo->query("
         SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
-               ROUND(AVG(p.ovr), 1) AS count
-        FROM teams t LEFT JOIN players p ON p.drafted_by_team_id=t.id AND p.ovr > 0
+               ROUND(AVG(dp.ovr), 1) AS count
+        FROM teams t
+        LEFT JOIN draft_pool dp ON dp.drafted_by_team_id = t.id AND dp.ovr > 0
         GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($doRaw as $r) $draftOvrMap[$r['league']][] = ['name'=>$r['name'],'count'=>(float)$r['count']];

@@ -295,8 +295,12 @@ $leagueStats = [];
 $teamLeague = $team['league'] ?? null;
 if ($teamLeague) {
     $metricQueries = [
-        'drafted' => "SELECT t.id, COUNT(p.id) AS val FROM teams t
-                      LEFT JOIN players p ON p.drafted_by_team_id = t.id
+        // Pelo draft_pool, que é só do draft padrão. Contar pela players
+        // somaria o draft inicial junto — ele grava o mesmo campo, e a players
+        // não guarda de qual draft o jogador veio. Mesma regra do
+        // estatisticas.php, que mostra este número lado a lado.
+        'drafted' => "SELECT t.id, COUNT(dp.id) AS val FROM teams t
+                      LEFT JOIN draft_pool dp ON dp.drafted_by_team_id = t.id
                       WHERE t.league = ? GROUP BY t.id",
         'turnover' => "SELECT t.id, COUNT(DISTINCT psl.player_id) AS val FROM teams t
                        LEFT JOIN player_season_log psl ON psl.team_id = t.id
@@ -346,15 +350,23 @@ if (!empty($champSeasons)) {
 }
 
 // ── 10. Draftados pelo time ──────────────────────────────────────
+// Do draft_pool, pelo mesmo motivo da métrica lá em cima: a players mistura os
+// jogadores do draft inicial, que não são escolha de ninguém — vieram com o
+// time pronto quando a liga nasceu.
+//
+// O OVR aqui é o do dia do draft, não o de hoje, e é o número certo pra esta
+// lista: ela conta o que o time escolheu, e quanto o jogador evoluiu depois é
+// outra história. A temporada sai do season_number, que é o mesmo que a
+// players guardava em drafted_season_number.
 $draftedPlayers = [];
 try {
     $sD = $pdo->prepare("
-        SELECT p.name, p.position, p.age,
-               COALESCE(p.ovr_current, p.ovr, 0) AS ovr,
-               p.drafted_season_number
-        FROM players p
-        WHERE p.drafted_by_team_id = ?
-        ORDER BY p.drafted_season_number DESC, ovr DESC
+        SELECT dp.name, dp.position, dp.age, dp.ovr,
+               s.season_number AS drafted_season_number
+        FROM draft_pool dp
+        LEFT JOIN seasons s ON s.id = dp.season_id
+        WHERE dp.drafted_by_team_id = ?
+        ORDER BY drafted_season_number DESC, dp.ovr DESC
     ");
     $sD->execute([$teamId]);
     $draftedPlayers = $sD->fetchAll(PDO::FETCH_ASSOC);
