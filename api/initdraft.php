@@ -1031,12 +1031,28 @@ if ($method === 'POST') {
                 if (!ensureAdminOrToken($session, $token)) throw new InvalidArgumentException('Não autorizado');
                 if (($session['status'] ?? 'setup') === 'completed') throw new InvalidArgumentException('Draft já finalizado');
 
-                $hasPicks = hasAnyPickMade($pdo, (int)$session['id']);
-                if ($hasPicks) throw new InvalidArgumentException('Não é possível alterar rodadas após a primeira pick');
-
                 $totalRounds = (int)($data['total_rounds'] ?? 0);
                 if ($totalRounds < 1 || $totalRounds > 10) {
                     throw new InvalidArgumentException('Informe um número de rodadas entre 1 e 10');
+                }
+
+                // A trava era "nenhuma pick feita", e isso impedia o caso que
+                // mais aparece: draft andando, a última rodada ainda intocada e
+                // o admin querendo tirá-la. O que não pode é apagar pick — e
+                // isso depende de ONDE as picks estão, não de existirem.
+                //
+                // Só as rodadas que vão sumir importam. Aumentar nunca apaga
+                // nada; diminuir só é problema se já escolheram lá em cima.
+                $stmtAcima = $pdo->prepare('SELECT COUNT(*) FROM initdraft_order
+                                            WHERE initdraft_session_id = ? AND round > ? AND picked_player_id IS NOT NULL');
+                $stmtAcima->execute([(int)$session['id'], $totalRounds]);
+                $picksQueSumiriam = (int)$stmtAcima->fetchColumn();
+
+                if ($picksQueSumiriam > 0) {
+                    throw new InvalidArgumentException(
+                        'Não dá: já foram feitas ' . $picksQueSumiriam . ' escolha(s) '
+                        . ($totalRounds === 1 ? 'depois da 1ª rodada' : 'a partir da ' . ($totalRounds + 1) . 'ª rodada')
+                        . '. Reduzir apagaria essas escolhas.');
                 }
 
                 // Atualizar total_rounds na sessão

@@ -2228,7 +2228,15 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
                 });
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Erro ao atualizar rodadas');
-                showMessage('Total de rodadas atualizado. Salve a ordem novamente para reconstruir as rodadas.', 'info');
+                // O endpoint já acerta a tabela de picks sozinho — o recado
+                // antigo mandava salvar a ordem de novo, e salvar a ordem
+                // depois do draft começar é justamente o que apaga pick
+                // trocada.
+                const recado = {
+                    rodadas_criadas:  `Agora são ${value} rodadas. As novas já entraram na ordem.`,
+                    rodadas_removidas: `Agora são ${value} rodadas. As de cima foram tiradas da ordem.`,
+                }[data.ajuste] || `Agora são ${value} rodadas.`;
+                showMessage(recado, 'success');
                 await loadState();
             } catch (error) {
                 showMessage(error.message, 'danger');
