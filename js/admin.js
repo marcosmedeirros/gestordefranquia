@@ -4380,8 +4380,11 @@ ${(() => {
 ${(() => {
   const j = d.jovens || [];
   if (!j.length) return '';
+  // O critério vem do servidor — é o mesmo que filtrou a lista, então o texto
+  // não tem como prometer uma coisa e a tabela mostrar outra.
+  const cr = d.jovens_criterio || { idade_min: 19, idade_max: 23, ovr_min: 78, rodadas: 4 };
   const folha = j.reduce((a, p) => a + p.salario, 0);
-  const porRodada = [1, 2, 3, 4].map(r => j.filter(p => p.round === r).length);
+  const porRodada = Array.from({ length: cr.rodadas }, (_, i) => j.filter(p => p.round === i + 1).length);
 
   return `
 <div class="panel mb-3">
@@ -4391,7 +4394,9 @@ ${(() => {
   </div>
   <div style="padding:10px 16px 16px">
     <p style="font-size:11.5px;color:var(--text-3);line-height:1.55;margin-bottom:12px">
-      Escolhidos nas <b>4 primeiras rodadas</b> do draft inicial, com <b>19 a 23 anos</b> e <b>OVR 78+</b> hoje.
+      Escolhidos nas <b>${cr.rodadas} primeiras rodadas</b> do draft inicial, com
+      <b>${cr.idade_min} a ${cr.idade_max} anos</b> e <b>OVR ${cr.ovr_min}+</b> hoje.
+      Quem não bate nos três não aparece aqui.
       Eles não estão na rookie scale — o draft inicial não é draft de calouro, então cada um já paga
       pela tabela de OVR. É a safra jovem que a liga tem fora do draft anual.
       <br>Por rodada: ${porRodada.map((n, i) => `${i + 1}ª <b style="color:var(--text-2)">${n}</b>`).join(' · ')}

@@ -106,7 +106,15 @@ if ($method === 'GET') {
          * Serve pra bater o cap "no olho" sem abrir time por time — era isso que
          * o pedido chamava de "a cola da tabela".
          */
+        // Quem conta como "jovem do draft inicial". Os três números vivem aqui
+        // porque aparecem em três lugares — a consulta, a conferência em PHP e
+        // o texto da tela — e três cópias divergem no primeiro ajuste.
         case 'cap_tabela':
+            define('JOVENS_IDADE_MIN', 19);
+            define('JOVENS_IDADE_MAX', 23);
+            define('JOVENS_OVR_MIN', 78);
+            define('JOVENS_RODADAS', 4);
+
             $ligaCap = strtoupper(trim($_GET['league'] ?? 'ELITE'));
             requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $ligaCap);
             ensurePlayerRestrictionColumns($pdo);
@@ -236,23 +244,41 @@ if ($method === 'GET') {
                  * a pergunta é quem é jovem AGORA, não quem era na estreia.
                  */
                 try {
-                    $stJ = $pdo->prepare("
-                        SELECT ip.name, io.round, io.pick_position,
-                               COALESCE(p.age, ip.age) AS idade,
-                               COALESCE(p.ovr, ip.ovr) AS ovr,
-                               (p.id IS NOT NULL) AS no_elenco,
-                               TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time
-                        FROM initdraft_order io
-                        JOIN initdraft_sessions s ON s.id = io.initdraft_session_id
-                        JOIN initdraft_pool ip     ON ip.id = io.picked_player_id
-                        JOIN teams t               ON t.id = io.team_id
-                        LEFT JOIN players p        ON p.name = ip.name AND p.team_id = io.team_id
-                        WHERE s.league = ? AND io.round <= 4 AND io.picked_player_id IS NOT NULL
-                        HAVING idade BETWEEN 19 AND 23 AND ovr >= 78
-                        ORDER BY ovr DESC, idade ASC
-                    ");
+                    // Subconsulta com WHERE por fora, não HAVING: sem GROUP BY,
+                    // o HAVING depende do modo do servidor, e o daqui (MariaDB)
+                    // não é o da hospedagem (MySQL). Filtrando na consulta de
+                    // fora, o resultado é o mesmo nos dois.
+                    $stJ = $pdo->prepare(str_replace(
+                        ['{IDADE_MIN}', '{IDADE_MAX}', '{OVR_MIN}', '{RODADAS}'],
+                        [JOVENS_IDADE_MIN, JOVENS_IDADE_MAX, JOVENS_OVR_MIN, JOVENS_RODADAS],
+                        "
+                        SELECT * FROM (
+                            SELECT ip.name, io.round, io.pick_position,
+                                   COALESCE(p.age, ip.age) AS idade,
+                                   COALESCE(p.ovr, ip.ovr) AS ovr,
+                                   (p.id IS NOT NULL) AS no_elenco,
+                                   TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time
+                            FROM initdraft_order io
+                            JOIN initdraft_sessions s ON s.id = io.initdraft_session_id
+                            JOIN initdraft_pool ip     ON ip.id = io.picked_player_id
+                            JOIN teams t               ON t.id = io.team_id
+                            LEFT JOIN players p        ON p.name = ip.name AND p.team_id = io.team_id
+                            WHERE s.league = ? AND io.round <= {RODADAS} AND io.picked_player_id IS NOT NULL
+                        ) q
+                        WHERE q.idade BETWEEN {IDADE_MIN} AND {IDADE_MAX} AND q.ovr >= {OVR_MIN}
+                        ORDER BY q.ovr DESC, q.idade ASC
+                    "));
                     $stJ->execute([$ligaCap]);
                     foreach ($stJ->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                        // Confere de novo em PHP, com as MESMAS constantes. O
+                        // critério é o que a tela promete em texto; se o banco
+                        // deixar passar algo, quem aparece ainda bate com o que
+                        // está escrito.
+                        $idade = (int)$r['idade'];
+                        $ovrAtual = (int)$r['ovr'];
+                        if ($idade < JOVENS_IDADE_MIN || $idade > JOVENS_IDADE_MAX
+                            || $ovrAtual < JOVENS_OVR_MIN) continue;
+
                         $jovens[] = [
                             'name'      => $r['name'],
                             'time'      => $r['time'],
@@ -278,6 +304,13 @@ if ($method === 'GET') {
                 'times' => $times,
                 'calouros' => $calouros,
                 'jovens' => $jovens,
+                // A tela escreve o critério em texto; que ele venha daqui.
+                'jovens_criterio' => [
+                    'idade_min' => JOVENS_IDADE_MIN,
+                    'idade_max' => JOVENS_IDADE_MAX,
+                    'ovr_min'   => JOVENS_OVR_MIN,
+                    'rodadas'   => JOVENS_RODADAS,
+                ],
                 'total_jogadores' => array_sum($porOvr),
                 'total_times' => (int)$stTimes->fetchColumn(),
                 'lenda_minimo' => CAP_LENDA_MINIMO_MILLIONS,
