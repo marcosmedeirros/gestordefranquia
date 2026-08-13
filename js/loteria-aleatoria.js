@@ -188,7 +188,7 @@ function laRenderConfig() {
         <i class="bi bi-lock-fill"></i>
         <span>A ordem já foi sorteada no primeiro clique — daqui pra frente é só revelar. Título, participantes e chances não mudam mais; pra refazer o sorteio, use <b>Reiniciar</b>.</span>
       </div>
-      <p style="font-size:12px;color:var(--text-3);margin:12px 0 0">Tipo: <b style="color:var(--text)">${tipoLabel}</b> · Notificação: <b style="color:var(--text)">${d.notificar_saida ? 'ativada' : 'desativada'}</b></p>`;
+      <p style="font-size:12px;color:var(--text-3);margin:12px 0 0">Tipo: <b style="color:var(--text)">${tipoLabel}</b> · Notificação: <b style="color:var(--text)">${d.notificar_saida ? 'ativada' : 'desativada'}</b> · Revelação: <b style="color:var(--text)">${d.ordem_revelacao === 'asc' ? 'da 1 em diante' : 'da última até a 1'}</b></p>`;
     laLigarBotaoLiga();
     return;
   }
@@ -200,6 +200,18 @@ function laRenderConfig() {
       <input type="text" id="ltEditTitulo" value="${_laEsc(d.titulo)}" aria-label="Título da loteria">
       <button type="button" class="btn-ghost" id="ltSalvarTitulo">Salvar</button>
     </div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px">Sentido da revelação</div>
+    <div class="lot-cfg-row" style="margin-bottom:4px">
+      <select id="ltOrdemRevelacao" aria-label="Sentido da revelação">
+        <option value="desc"${d.ordem_revelacao !== 'asc' ? ' selected' : ''}>Da última escolha até a 1 (suspense no fim)</option>
+        <option value="asc"${d.ordem_revelacao === 'asc' ? ' selected' : ''}>Da escolha 1 em diante</option>
+      </select>
+    </div>
+    <p style="font-size:11px;color:var(--text-3);margin:0 0 14px">
+      Muda só a ORDEM em que as escolhas aparecem — o sorteio é o mesmo, decidido
+      de uma vez no primeiro clique. Depois que a revelação começa, isto trava.
+    </p>
+
     <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:6px">Chance de cada participante</div>
     <div class="lot-chance-edit" id="ltChancesEdit">
       ${(d.na_urna || []).map(p => `
@@ -216,6 +228,23 @@ function laRenderConfig() {
   laLigarBotaoLiga();
   document.getElementById('ltSalvarTitulo').addEventListener('click', laSalvarTitulo);
   document.getElementById('ltSalvarChances').addEventListener('click', laSalvarChances);
+
+  // Salva ao trocar, sem botão: é uma escolha entre duas, e um "Salvar" ao
+  // lado só criaria a chance de mudar no seletor e esquecer de aplicar.
+  document.getElementById('ltOrdemRevelacao').addEventListener('change', async (ev) => {
+    const sel = ev.target;
+    sel.disabled = true;
+    try {
+      laEstado = await _laFetch('/api/loteria-aleatoria.php', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'ordem_revelacao', id: window.LOTERIA_ID, ordem: sel.value }),
+      });
+      laRenderTudo();
+    } catch (e) {
+      alert(e.message);
+      laCarregar();   // devolve o seletor ao que está gravado
+    }
+  });
   document.querySelectorAll('#ltChancesEdit input').forEach(inp => {
     inp.addEventListener('input', () => {
       const total = [...document.querySelectorAll('#ltChancesEdit input')]

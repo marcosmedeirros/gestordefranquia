@@ -38,9 +38,26 @@ function ensureLoteriasTables(PDO $pdo): void
         league VARCHAR(20) NULL,
         notificar_saida TINYINT(1) NOT NULL DEFAULT 1,
         revelados INT NOT NULL DEFAULT 0,
+        -- Em que sentido as escolhas vão sendo reveladas.
+        --   'desc' revela da última pra primeira (a da NBA: o suspense é quem
+        --          leva a 1, e ela sai por último);
+        --   'asc'  revela da 1 em diante, pra quando o que interessa é saber
+        --          logo quem ficou na frente.
+        -- Nasce 'desc' porque era o único jeito que existia.
+        ordem_revelacao ENUM('desc','asc') NOT NULL DEFAULT 'desc',
         criado_por INT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // Coluna que nasceu depois: a tabela pode já existir sem ela.
+    try {
+        if ($pdo->query("SHOW COLUMNS FROM loterias LIKE 'ordem_revelacao'")->rowCount() === 0) {
+            $pdo->exec("ALTER TABLE loterias ADD COLUMN ordem_revelacao ENUM('desc','asc')
+                        NOT NULL DEFAULT 'desc' AFTER revelados");
+        }
+    } catch (Throwable $e) {
+        error_log('[ensureLoteriasTables] ordem_revelacao: ' . $e->getMessage());
+    }
 
     // Loterias criadas antes da revelação de trás pra frente existir: naquela
     // versão o pick era atribuído um a um e já saía revelado, então tudo que
@@ -142,10 +159,12 @@ function loteriaBloqueada(PDO $pdo, int $id): bool
  */
 function estadoLoteria(PDO $pdo, int $id): ?array
 {
-    $stmt = $pdo->prepare("SELECT id, titulo, tipo, league, notificar_saida, revelados FROM loterias WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, titulo, tipo, league, notificar_saida, revelados, ordem_revelacao
+                           FROM loterias WHERE id = ?");
     $stmt->execute([$id]);
     $r = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$r) return null;
+    $crescente = ($r['ordem_revelacao'] ?? 'desc') === 'asc';
 
     $stmtP = $pdo->prepare("
         SELECT lp.id, lp.ordem, lp.team_id, lp.user_id, lp.nome_display, lp.chance,
@@ -160,9 +179,12 @@ function estadoLoteria(PDO $pdo, int $id): ?array
 
     $total     = count($linhas);
     $revelados = max(0, min($total, (int)$r['revelados']));
-    // Revela de baixo pra cima: com R revelados, aparecem os picks maiores que
-    // (total - R). R=1 mostra só a última escolha; R=total mostra tudo.
-    $corte = $total - $revelados;
+    // Quem já apareceu depende do sentido:
+    //   decrescente — os picks MAIORES que (total - R). R=1 mostra a última.
+    //   crescente   — os picks MENORES ou iguais a R. R=1 mostra a escolha 1.
+    $jaSaiu = $crescente
+        ? fn(int $pick) => $pick <= $revelados
+        : fn(int $pick) => $pick > $total - $revelados;
 
     $naUrna = [];
     $sorteados = [];
@@ -173,7 +195,7 @@ function estadoLoteria(PDO $pdo, int $id): ?array
         $l['pick_number'] = $l['pick_number'] !== null ? (int)$l['pick_number'] : null;
         if ($l['pick_number'] !== null) $sorteioFeito = true;
 
-        if ($l['pick_number'] !== null && $l['pick_number'] > $corte) {
+        if ($l['pick_number'] !== null && $jaSaiu((int)$l['pick_number'])) {
             $sorteados[] = $l;
         } else {
             // Ainda escondido — o pick não vai junto, senão a tela entregaria
@@ -203,8 +225,11 @@ function estadoLoteria(PDO $pdo, int $id): ?array
         'league'          => $r['league'] ? strtoupper((string)$r['league']) : null,
         'notificar_saida' => (int)$r['notificar_saida'] === 1,
         'revelados'       => $revelados,
+        'ordem_revelacao' => $crescente ? 'asc' : 'desc',
         'sorteio_feito'   => $sorteioFeito,
-        'proxima_pick'    => $revelados < $total ? $total - $revelados : null,
+        'proxima_pick'    => $revelados < $total
+                                ? ($crescente ? $revelados + 1 : $total - $revelados)
+                                : null,
         'na_urna'         => $naUrna,
         'sorteados'       => $sorteados,
         'total'           => $total,
@@ -548,6 +573,38 @@ if ($method === 'POST') {
         exit;
     }
 
+    /**
+     * Troca o sentido da revelação — crescente ou decrescente.
+     *
+     * Só antes do primeiro clique. Depois que a revelação começou, virar o
+     * sentido esconderia quem já apareceu e mostraria de uma vez quem não
+     * devia: com R=3 no decrescente estão à mostra as escolhas do fim, e o
+     * mesmo R=3 no crescente mostraria as três primeiras.
+     */
+    if ($action === 'ordem_revelacao') {
+        $id = (int)($body['id'] ?? 0);
+        $ordem = ($body['ordem'] ?? '') === 'asc' ? 'asc' : 'desc';
+        if (!$id) { echo json_encode(['success' => false, 'error' => 'id obrigatório']); exit; }
+        exigirAdminDaLoteria($pdo, $minhasLigasAdmin, ligaDaLoteria($pdo, $id));
+
+        $estado = estadoLoteria($pdo, $id);
+        if (!$estado) { echo json_encode(['success' => false, 'error' => 'Loteria não encontrada.']); exit; }
+        if (!empty($estado['sorteio_feito'])) {
+            echo json_encode(['success' => false,
+                'error' => 'A loteria já começou. Pra trocar o sentido, use "Reiniciar" antes.']);
+            exit;
+        }
+
+        $pdo->prepare("UPDATE loterias SET ordem_revelacao = ? WHERE id = ?")->execute([$ordem, $id]);
+
+        echo json_encode(['success' => true,
+            'message' => $ordem === 'asc'
+                ? 'A revelação vai da escolha 1 em diante.'
+                : 'A revelação vai da última escolha até a 1.',
+        ] + estadoLoteria($pdo, $id));
+        exit;
+    }
+
     if ($action === 'sortear') {
         $id = (int)($body['id'] ?? 0);
         if (!$id) {
@@ -573,9 +630,11 @@ if ($method === 'POST') {
             }
             $total = count($todos);
 
-            $stmtRev = $pdo->prepare("SELECT revelados FROM loterias WHERE id = ? FOR UPDATE");
+            $stmtRev = $pdo->prepare("SELECT revelados, ordem_revelacao FROM loterias WHERE id = ? FOR UPDATE");
             $stmtRev->execute([$id]);
-            $revelados = (int)$stmtRev->fetchColumn();
+            $cfg = $stmtRev->fetch(PDO::FETCH_ASSOC) ?: ['revelados' => 0, 'ordem_revelacao' => 'desc'];
+            $revelados = (int)$cfg['revelados'];
+            $crescente = ($cfg['ordem_revelacao'] ?? 'desc') === 'asc';
 
             if ($revelados >= $total) {
                 $pdo->rollBack();
@@ -601,10 +660,15 @@ if ($method === 'POST') {
                 }
             }
 
-            // Revela de trás pra frente: a escolha revelada agora é a
-            // (total - revelados). Primeiro clique mostra a última; o último
-            // clique mostra a escolha 1.
-            $pickRevelada = $total - $revelados;
+            // Qual escolha sai neste clique. No decrescente, de trás pra
+            // frente (o primeiro clique mostra a última, o último mostra a
+            // escolha 1); no crescente, a 1 primeiro e assim por diante.
+            //
+            // O SORTEIO em si não muda: a ordem inteira já foi decidida acima,
+            // com peso. O sentido é só de revelação — mudar isso depois do
+            // primeiro clique bagunçaria quem já apareceu, e é por isso que a
+            // troca só é aceita antes de começar.
+            $pickRevelada = $crescente ? $revelados + 1 : $total - $revelados;
             $pdo->prepare("UPDATE loterias SET revelados = revelados + 1 WHERE id = ?")->execute([$id]);
 
             $stmtQuem = $pdo->prepare("SELECT id, nome_display FROM loteria_participantes WHERE loteria_id = ? AND pick_number = ? LIMIT 1");
