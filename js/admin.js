@@ -2484,6 +2484,10 @@ async function showLeague(league) {
       // O Agendador de Fases saiu daqui a pedido. A tela e a função continuam
       // existindo (showScheduler), só não têm mais atalho no card.
       { icon: 'bi-shuffle',                 label: 'Controle<br>Drafts',         fn: `abrirControleDrafts('${league}')`,     color: '#a855f7', bg: 'rgba(168,85,247,.12)'  },
+      // A tabela de cap existia dentro de Configurações, embaixo dos campos de
+      // edição da liga. Quem só queria conferir passava por uma tela de mexer
+      // pra chegar numa de olhar.
+      { icon: 'bi-cash-coin',               label: 'Controle<br>CAP / Jogadores', fn: `showControleCap('${league}')`,        color: '#f5c542', bg: 'rgba(245,197,66,.12)'  },
       { icon: 'bi-shield-check',            label: 'FBA SERASA',                fn: 'showSerasaAdmin()',         color: '#8b5cf6', bg: 'rgba(139,92,246,.12)'  },
       { icon: 'bi-person-dash-fill',        label: 'Dispensas',                 fn: 'showDispensas()',           color: '#ef4444', bg: 'rgba(239,68,68,.12)'   },
       // Tapas escondido na fusão — a tela e a função continuam existindo.
@@ -4225,6 +4229,101 @@ async function carregarCapTabela(league) {
   }
 }
 window.carregarCapTabela = carregarCapTabela;
+
+/**
+ * Tela cheia do controle de cap e jogadores.
+ *
+ * A mesma tabela existia dentro de Configurações, embaixo dos campos de cada
+ * liga — quem queria conferir o cap tinha que passar por uma tela de edição
+ * pra chegar numa de leitura. Aqui ela tem lugar próprio, com a folha de cada
+ * time junto: a pergunta que traz alguém até aqui quase nunca para na
+ * distribuição por OVR, é "quem está estourando".
+ */
+async function showControleCap(league) {
+  const c = document.getElementById('mainContainer');
+  c.innerHTML = `<div class="text-center py-5"><div class="spinner-border" style="color:var(--red)"></div></div>`;
+
+  let d;
+  try {
+    d = await api(`admin.php?action=cap_tabela&league=${league}&times=1`);
+  } catch (e) {
+    c.innerHTML = `<div class="alert alert-danger">Erro: ${escapeHtml(e.error || 'Desconhecido')}</div>`;
+    return;
+  }
+
+  const times = d.times || [];
+  const acima = times.filter(t => t.espaco < 0);
+  const abaixoDoPiso = times.filter(t => t.folha < (d.cap_piso || 0));
+  const folhaTotal = times.reduce((a, t) => a + t.folha, 0);
+
+  const cor = (t) => t.espaco < 0 ? '#ef4444' : (t.folha < (d.cap_piso || 0) ? '#f59e0b' : '#22c55e');
+
+  c.innerHTML = `
+<div class="mb-4 d-flex align-items-center gap-2 flex-wrap">
+  <button class="btn btn-back" onclick="showLeague('${league}')"><i class="bi bi-arrow-left"></i> Voltar</button>
+  <h5 class="mb-0" style="color:#f5c542"><i class="bi bi-cash-coin me-2"></i>Controle CAP / Jogadores — ${escapeHtml(league)}</h5>
+  <button class="btn-ghost ms-auto" onclick="showControleCap('${league}')"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+</div>
+
+<div class="row g-2 mb-3">
+  ${[
+    ['Jogadores', d.total_jogadores, 'var(--text)'],
+    ['Times', d.total_times, 'var(--text)'],
+    ['Folha somada', folhaTotal + 'M', '#f5c542'],
+    ['Acima do cap', acima.length, acima.length ? '#ef4444' : 'var(--text-3)'],
+    ['Abaixo do piso', abaixoDoPiso.length, abaixoDoPiso.length ? '#f59e0b' : 'var(--text-3)'],
+  ].map(([rot, val, cr]) => `
+    <div class="col-6 col-md">
+      <div class="panel" style="padding:12px 14px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:${cr};font-variant-numeric:tabular-nums">${val}</div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);margin-top:3px">${rot}</div>
+      </div>
+    </div>`).join('')}
+</div>
+
+<div class="panel mb-3">
+  <div class="panel-header">
+    <div class="panel-title"><i class="bi bi-people-fill"></i> Folha por time</div>
+    <span style="font-size:11px;color:var(--text-3)">cap base ${d.cap_base}M · piso ${d.cap_piso}M</span>
+  </div>
+  <div style="padding:8px 14px 14px;overflow-x:auto">
+    ${times.length ? `
+    <table class="table table-dark table-hover" style="font-size:12.5px;margin:0">
+      <thead><tr>
+        <th>Time</th>
+        <th style="text-align:right">Jog.</th>
+        <th style="text-align:right" title="Calouros na rookie scale nesta temporada">Cal.</th>
+        <th style="text-align:right">Folha</th>
+        <th style="text-align:right">Cap máx</th>
+        <th style="text-align:right">Espaço</th>
+      </tr></thead>
+      <tbody>${times.slice().sort((a, b) => b.folha - a.folha).map(t => `
+        <tr>
+          <td style="font-weight:600">${escapeHtml(t.nome)}</td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums">${t.jogadores}</td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums;color:${t.calouros ? 'var(--text-2)' : 'var(--text-3)'}">${t.calouros}</td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:${cor(t)}">${t.folha}M</td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--text-3)">${t.cap_max}M</td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums;color:${cor(t)}">${t.espaco > 0 ? '+' : ''}${t.espaco}M</td>
+        </tr>`).join('')}</tbody>
+    </table>` : '<div class="empty-state" style="padding:20px">Nenhum time nesta liga.</div>'}
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-header"><div class="panel-title"><i class="bi bi-table"></i> Jogadores por OVR</div></div>
+  <div style="padding:12px 14px 16px">
+    <p style="font-size:11.5px;color:var(--text-3);line-height:1.5;margin-bottom:12px">
+      Quanto cada OVR custa e quantos jogadores da liga estão em cada faixa. Calouro de 1ª rodada foge
+      desta tabela no ano de estreia — aí vale a rookie scale, pela posição da pick.
+    </p>
+    <div id="capTabelaBox_${league}"><div style="font-size:11px;color:var(--text-3)">Carregando...</div></div>
+  </div>
+</div>`;
+
+  carregarCapTabela(league);
+}
+window.showControleCap = showControleCap;
 
 async function loadCapHistory(league) {
   const box = document.getElementById(`capHistory_${league}`);

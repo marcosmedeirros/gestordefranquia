@@ -155,14 +155,48 @@ if ($method === 'GET') {
             $stTimes = $pdo->prepare('SELECT COUNT(*) FROM teams WHERE league = ?');
             $stTimes->execute([$ligaCap]);
 
+            // A folha de cada time. Vem junto porque a pergunta que leva alguém
+            // a abrir esta tela quase nunca para na distribuição por OVR: é
+            // "quem está estourando o cap", e sem isso a resposta exigia abrir
+            // time por time.
+            //
+            // Só quando pedido (?times=1): getTeamCapSummary faz várias
+            // consultas por time, e a tabela por OVR sozinha é bem mais barata.
+            $times = [];
+            if (!empty($_GET['times'])) {
+                $stT = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome
+                                      FROM teams WHERE league = ? ORDER BY city, name");
+                $stT->execute([$ligaCap]);
+                foreach ($stT->fetchAll(PDO::FETCH_ASSOC) as $t) {
+                    try {
+                        $s = getTeamCapSummary($pdo, (int)$t['id']);
+                        $times[] = [
+                            'id'         => (int)$t['id'],
+                            'nome'       => $t['nome'],
+                            'jogadores'  => count($s['roster'] ?? []),
+                            'folha'      => (int)($s['payroll'] ?? 0),
+                            'cap_max'    => (int)($s['cap_max'] ?? 0),
+                            'espaco'     => (int)($s['space'] ?? 0),
+                            'status'     => $s['status'] ?? null,
+                            'calouros'   => count(array_filter($s['roster'] ?? [], fn($p) => !empty($p['is_rookie_scale']))),
+                        ];
+                    } catch (Throwable $e) {
+                        error_log('[cap_tabela] time ' . $t['id'] . ': ' . $e->getMessage());
+                    }
+                }
+            }
+
             echo json_encode([
                 'success' => true,
                 'league' => $ligaCap,
                 'linhas' => $linhas,
                 'lendas' => $lendas,
+                'times' => $times,
                 'total_jogadores' => array_sum($porOvr),
                 'total_times' => (int)$stTimes->fetchColumn(),
                 'lenda_minimo' => CAP_LENDA_MINIMO_MILLIONS,
+                'cap_base' => CAP_BASE_MILLIONS,
+                'cap_piso' => CAP_FLOOR_MILLIONS,
             ]);
             exit;
 
