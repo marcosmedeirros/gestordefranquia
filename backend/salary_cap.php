@@ -111,15 +111,22 @@ function capRookieScaleValue(int $draftRound, ?int $draftPickPosition): int
  * escolheu, mais o jovem pesa. É PISO, não preço: quem já custa mais que ele
  * pela tabela continua no valor da tabela. Um 88 de 22 anos vale 20M e segue
  * valendo 20M.
+ *
+ * As faixas se sobrepõem de propósito: a 2ª rodada está nas duas primeiras
+ * linhas, e é isso que dá o degrau dentro dela — 78+ leva 16M, 76 e 77 levam
+ * 10M. Quando mais de uma faixa serve, vale a maior.
+ *
+ * A 4ª rodada é a única que vai até os 24 anos. Nas outras o corte é 23.
  */
-const CAP_PISO_DRAFT_INICIAL = [1 => 14, 2 => 10, 3 => 6];
-
-/** Idade máxima e OVR mínimo pra o piso valer. */
-const CAP_PISO_IDADE_MAX = 23;
-const CAP_PISO_OVR_MIN   = 78;
+const CAP_PISO_DRAFT_INICIAL = [
+    ['rodadas' => [1, 2], 'ovr_min' => 78, 'idade_max' => 23, 'valor' => 16],
+    ['rodadas' => [2, 3], 'ovr_min' => 76, 'idade_max' => 23, 'valor' => 10],
+    ['rodadas' => [4],    'ovr_min' => 76, 'idade_max' => 24, 'valor' => 6],
+];
 
 /**
- * Quanto o piso cobra deste jogador, ou 0 se ele não se encaixa.
+ * Quanto o piso cobra deste jogador, ou 0 se ele não se encaixa em faixa
+ * nenhuma.
  *
  * Depende de `initdraft_round`, que NÃO existe na tabela players — a migração
  * que tirou esses jogadores da rookie scale apagou as colunas de draft deles.
@@ -130,15 +137,19 @@ const CAP_PISO_OVR_MIN   = 78;
 function capPisoDraftInicial(array $player): int
 {
     $round = $player['initdraft_round'] ?? null;
-    if ($round === null) return 0;
-
-    $piso = CAP_PISO_DRAFT_INICIAL[(int)$round] ?? 0;
-    if ($piso === 0) return 0;
-
     $idade = $player['age'] ?? null;
-    if ($idade === null || (int)$idade > CAP_PISO_IDADE_MAX) return 0;
-    if ((int)($player['ovr'] ?? 0) < CAP_PISO_OVR_MIN) return 0;
+    if ($round === null || $idade === null) return 0;
 
+    $round = (int)$round;
+    $idade = (int)$idade;
+    $ovr   = (int)($player['ovr'] ?? 0);
+
+    $piso = 0;
+    foreach (CAP_PISO_DRAFT_INICIAL as $faixa) {
+        if (!in_array($round, $faixa['rodadas'], true)) continue;
+        if ($ovr < $faixa['ovr_min'] || $idade > $faixa['idade_max']) continue;
+        $piso = max($piso, $faixa['valor']);
+    }
     return $piso;
 }
 
