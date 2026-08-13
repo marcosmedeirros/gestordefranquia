@@ -75,11 +75,11 @@ if (!$agora && date('H:i') < BOT_QUIZ_HORA) {
     exit(0);
 }
 
-// O grupo do quiz é o principal — o mesmo do abraço. Manter num lugar só
-// evita a pergunta cair em três grupos e virar três placares diferentes.
-$grupo = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
+// O grupo do quiz é escolhido na tela; sem escolha, cai no principal. Manter
+// num lugar só evita a pergunta cair em três grupos e virar três placares.
+$grupo = quizGrupoDoQuiz($pdo);
 if ($grupo === '') {
-    fwrite(STDERR, "sem grupo principal configurado\n");
+    fwrite(STDERR, "sem grupo configurado pro quiz nem grupo principal\n");
     exit(1);
 }
 

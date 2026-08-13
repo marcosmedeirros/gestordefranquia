@@ -74,11 +74,18 @@ try {
         // Os grupos onde o bot fala, pro seletor da pergunta.
         require_once dirname(__DIR__) . '/backend/whatsapp.php';
         $principal = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id=1")->fetchColumn() ?: ''));
+        $doQuiz = quizGrupoDoQuiz($pdo);
         $grupos = [];
         foreach (whatsappGruposDeComando($pdo) as $jid => $g) {
             $grupos[] = ['jid' => $jid, 'nome' => $g['nome'], 'liga' => $g['liga'],
-                         'principal' => ($jid === $principal)];
+                         'principal' => ($jid === $principal),
+                         'do_quiz'   => ($jid === $doQuiz)];
         }
+        // Se o grupo do quiz não está entre os cadastrados, a tela precisa
+        // saber — senão o seletor mostraria outro selecionado e o admin ia
+        // achar que está tudo certo.
+        $grupoQuizNome = null;
+        foreach ($grupos as $g) if ($g['do_quiz']) $grupoQuizNome = $g['nome'];
 
         // O site só enfileira; quem entrega é o worker na máquina do Marcos,
         // dentro de uma janela de horário. "Mandei e não chegou no grupo" é
@@ -94,6 +101,7 @@ try {
                               'fecha'   => quizHoraDoFechamento(),
                               'minutos' => BOT_QUIZ_MINUTOS,
                           ],
+                          'grupo_quiz' => ['jid' => $doQuiz, 'nome' => $grupoQuizNome],
                           'envio' => [
                               'ligado'    => whatsappAtivo($pdo),
                               'na_janela' => whatsappDentroDaJanela(),
@@ -134,6 +142,7 @@ try {
             $linhas['colunas grupo_jid/premio'] = 'existem';
         } catch (Throwable $e) { $linhas['colunas grupo_jid/premio'] = 'FALTAM'; }
         $linhas['grupo principal'] = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id=1")->fetchColumn() ?: '')) ?: 'NÃO CONFIGURADO';
+        $linhas['grupo do quiz'] = quizGrupoDoQuiz($pdo) ?: 'NÃO CONFIGURADO';
 
         // O Quiz do Dia do FBA Games mora no mesmo banco e disputava esses
         // nomes. Se ele reaparecer aqui como "tabela do bot", a colisão voltou.
@@ -207,6 +216,33 @@ try {
         }
         $novos = array_values(array_filter($vistos, fn($v) => !in_array($v['jid'], $jaTem, true)));
         echo json_encode(['success' => true, 'vistos' => $novos]);
+        exit;
+    }
+
+    /**
+     * Escolhe em qual grupo o quiz sai.
+     *
+     * Guardado separado do grupo_principal porque os dois querem coisas
+     * diferentes: o principal recebe o abraço e os avisos de trade e é o grupo
+     * "sério" da liga; o quiz é brincadeira e vive no chat off. Mudar o
+     * principal pra levar o quiz pro chat off levaria o resto junto.
+     */
+    if ($acao === 'grupo_quiz_salvar') {
+        require_once dirname(__DIR__) . '/backend/whatsapp.php';
+        $jid = trim((string)(qaCorpo()['jid'] ?? ''));
+
+        // Vazio volta ao padrão (o principal). Qualquer outro valor tem que ser
+        // um grupo onde o bot fala — mandar pergunta pra onde ele não entra
+        // seria escrever no vazio e ninguém descobriria por dias.
+        if ($jid !== '' && !isset(whatsappGruposDeComando($pdo)[$jid])) {
+            qaErro(400, 'Esse grupo não está cadastrado em "Grupos do bot".');
+        }
+
+        $pdo->prepare("UPDATE whatsapp_config SET quiz_grupo = ? WHERE id = 1")
+            ->execute([$jid !== '' ? $jid : null]);
+
+        $nome = $jid !== '' ? (whatsappGruposDeComando($pdo)[$jid]['nome'] ?? $jid) : 'grupo principal';
+        echo json_encode(['success' => true, 'message' => 'O quiz passa a sair em ' . $nome . '.']);
         exit;
     }
 
@@ -288,8 +324,8 @@ try {
         // nascer e só então descobrir que o bot está desligado deixaria ela no
         // banco parecendo que foi ao ar.
         if ($enviarAgora) {
-            $destino = $grupo ?: trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
-            if ($destino === '') qaErro(409, 'Não há grupo principal configurado, e a pergunta não escolheu um.');
+            $destino = $grupo ?: quizGrupoDoQuiz($pdo);
+            if ($destino === '') qaErro(409, 'Nenhum grupo configurado pro quiz, e a pergunta não escolheu um.');
             if (!whatsappAtivo($pdo)) qaErro(409, 'O bot está desligado — ligue antes de enviar.');
             if (quizRodadaAberta($pdo, $destino)) {
                 qaErro(409, 'Já tem uma pergunta no ar nesse grupo. Espere fechar, ou use "Apurar agora".');
@@ -471,8 +507,8 @@ try {
 
     /** Manda a pergunta do dia agora, fora do horário. */
     if ($acao === 'abrir_agora') {
-        $grupo = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
-        if ($grupo === '') qaErro(409, 'Sem grupo principal configurado.');
+        $grupo = quizGrupoDoQuiz($pdo);
+        if ($grupo === '') qaErro(409, 'Nenhum grupo configurado pro quiz.');
         $aberta = quizAbrir($pdo, $grupo);
         if ($aberta === null) {
             // Sem reciclagem, "acabaram as inéditas" virou um fim de linha

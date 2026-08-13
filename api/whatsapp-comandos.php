@@ -278,6 +278,11 @@ function wcAjuda(): string
         . "/time _nome_ — quinteto, banco, folha e campanha\n"
         . "/cap _time_ — folha e espaço no cap\n"
         . "/picks _time_ — picks que o time tem\n\n"
+        . "*Seu time* _(pelo seu número, sem digitar o nome)_\n"
+        . "/meutime — seu elenco\n"
+        . "/meucap — sua folha e o espaço no cap\n"
+        . "/minhaspicks — as picks que você tem\n"
+        . "/minhastrades — suas 3 últimas trocas\n\n"
         . "*Liga*\n"
         . "/ranking _liga_ — a tabela da liga\n"
         . "/power — o power ranking da liga inteira\n"
@@ -286,7 +291,7 @@ function wcAjuda(): string
         . "/hall — o Hall da Fama\n"
         . "/premios — os prêmios da temporada\n"
         . "/guia — o guia do GM\n\n"
-        . "Ex.: /comparar lebron x tatum  •  /cap coyotes  •  /trocas";
+        . "Ex.: /comparar lebron x tatum  •  /meucap  •  /minhastrades";
 }
 
 function wcJogador(PDO $pdo, string $termo): string
@@ -695,6 +700,167 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
     return rtrim($txt);
 }
 
+/**
+ * Acha o time de quem mandou a mensagem, pelo número do WhatsApp.
+ *
+ * Voltou depois de os telefones serem padronizados: antes metade dos cadastros
+ * estava sem o 55, e um comando que erra a pessoa é pior que comando nenhum.
+ *
+ * Compara o número inteiro primeiro. Só se não achar ninguém é que cai nos
+ * últimos 8 dígitos — a rede de segurança pra cadastro antigo, sem o 9 do
+ * celular ou sem o DDI. Nessa ordem, e não direto no sufixo, porque 8 dígitos
+ * batem entre países diferentes: um +1 e um +55 podem terminar igual, e aí o
+ * comando responderia com o time de outra pessoa.
+ *
+ * Se sobrar mais de um, não adivinha.
+ * Retorna [time|null, mensagemDeErro|null].
+ */
+function wcTimeDeQuemPerguntou(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): array
+{
+    // Vem como 5511999999999@s.whatsapp.net; interessa só o número.
+    $digitos = preg_replace('/\D+/', '', explode('@', $deQuem)[0] ?? '');
+    if (strlen($digitos) < 8) {
+        return [null, 'Não consegui identificar seu número por aqui. Use o comando com o nome do time, tipo /cap lakers.'];
+    }
+
+    // A comparação é em PHP, não em SQL: REGEXP_REPLACE só existe do MySQL 8
+    // pra cima e eu não controlo a versão da hospedagem. São poucas dezenas de
+    // linhas (uma por GM com time), então filtrar aqui não custa nada.
+    $todos = $pdo->query("
+        SELECT t.id, t.name, t.city, t.mascot, t.league, t.conference,
+               u.name AS gm, u.id AS user_id, u.phone
+        FROM users u JOIN teams t ON t.user_id = u.id
+        WHERE u.phone IS NOT NULL AND u.phone <> ''
+        ORDER BY FIELD(t.league,'ELITE','NEXT','RISE','ROOKIE')
+    ")->fetchAll(PDO::FETCH_ASSOC);
+
+    $so = fn($t) => preg_replace('/\D+/', '', (string)$t['phone']);
+    $times = array_values(array_filter($todos, fn($t) => $so($t) === $digitos));
+    if (!$times) {
+        $fim = substr($digitos, -8);
+        $times = array_values(array_filter($todos, function ($t) use ($so, $fim) {
+            $d = $so($t);
+            return strlen($d) >= 8 && substr($d, -8) === $fim;
+        }));
+    }
+
+    if (!$times) {
+        return [null, "Não achei seu cadastro pelo telefone. Confere se o número está no seu perfil no site — ou use o comando com o nome do time."];
+    }
+
+    // Um GM pode ter time em mais de uma liga. No Chat Off de uma liga, é o
+    // dela que interessa.
+    if (count($times) > 1 && $ligaDoGrupo) {
+        foreach ($times as $t) if ($t['league'] === $ligaDoGrupo) return [$t, null];
+    }
+    if (count($times) > 1) {
+        $lista = implode(', ', array_map(fn($t) => $t['league'], $times));
+        return [null, "Você tem time em mais de uma liga ({$lista}). Use o comando com o nome do time."];
+    }
+    return [$times[0], null];
+}
+
+function wcMeuElenco(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): string
+{
+    [$t, $erro] = wcTimeDeQuemPerguntou($pdo, $deQuem, $ligaDoGrupo);
+    return $erro ?: wcTime($pdo, '', $t);
+}
+
+function wcMeuCap(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): string
+{
+    [$t, $erro] = wcTimeDeQuemPerguntou($pdo, $deQuem, $ligaDoGrupo);
+    return $erro ?: wcCap($pdo, '', $t);
+}
+
+function wcMinhasPicks(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): string
+{
+    [$t, $erro] = wcTimeDeQuemPerguntou($pdo, $deQuem, $ligaDoGrupo);
+    return $erro ?: wcPicks($pdo, '', $t);
+}
+
+/**
+ * As três últimas trocas do time de quem perguntou.
+ *
+ * Diferente do /trocas em duas coisas: filtra pelo time (dos dois lados, que
+ * quem propôs e quem recebeu trocaram igual) e conta do ponto de vista de
+ * quem pergunta — "saiu" e "chegou", não "→" e "←". Na lista geral o leitor é
+ * plateia; aqui ele é uma das partes, e ler a própria troca invertida é o tipo
+ * de detalhe que faz duvidar do bot.
+ */
+function wcMinhasTrades(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): string
+{
+    [$meu, $erro] = wcTimeDeQuemPerguntou($pdo, $deQuem, $ligaDoGrupo);
+    if ($erro) return $erro;
+
+    $st = $pdo->prepare("
+        SELECT t.id, t.from_team_id, t.updated_at,
+               de.city AS de_city, de.name AS de_name,
+               pra.city AS pra_city, pra.name AS pra_name
+        FROM trades t
+        JOIN teams de  ON de.id  = t.from_team_id
+        JOIN teams pra ON pra.id = t.to_team_id
+        WHERE t.status = 'accepted' AND (t.from_team_id = ? OR t.to_team_id = ?)
+        ORDER BY t.updated_at DESC, t.id DESC
+        LIMIT 3
+    ");
+    $st->execute([(int)$meu['id'], (int)$meu['id']]);
+    $trocas = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    $euSou = wcNomeDoTime($meu);
+    if (!$trocas) return "*{$euSou}* ainda não fez nenhuma troca.";
+
+    $txt = "*Suas últimas trocas* — {$euSou}\n";
+    foreach ($trocas as $t) {
+        [$doDe, $doPara] = wcItensDaTroca($pdo, (int)$t['id']);
+
+        // Quem propôs entrega os itens marcados com from_team; quem recebeu,
+        // os outros. Sem essa inversão, metade das trocas sairia trocada.
+        $euPropus = (int)$t['from_team_id'] === (int)$meu['id'];
+        $saiu   = $euPropus ? $doDe   : $doPara;
+        $chegou = $euPropus ? $doPara : $doDe;
+
+        $outro = $euPropus
+            ? wcNomeDoTime(['city' => $t['pra_city'], 'name' => $t['pra_name']])
+            : wcNomeDoTime(['city' => $t['de_city'],  'name' => $t['de_name']]);
+
+        $quando = $t['updated_at'] ? date('d/m/Y', strtotime((string)$t['updated_at'])) : '';
+
+        $txt .= "\n*com {$outro}*" . ($quando ? " _{$quando}_" : '') . "\n"
+              . 'saiu: '   . ($saiu   ? implode(', ', $saiu)   : 'nada') . "\n"
+              . 'chegou: ' . ($chegou ? implode(', ', $chegou) : 'nada') . "\n";
+    }
+    return rtrim($txt);
+}
+
+/**
+ * O que cada lado entregou numa troca, já formatado.
+ *
+ * Devolve [do time "de", do time "para"]. Os itens guardam nome e OVR copiados
+ * na hora da troca, então continuam certos mesmo depois de o jogador rodar por
+ * mais times.
+ *
+ * Separado porque o /trocas e o /minhastrades leem a mesma tabela e precisam
+ * do mesmo rótulo; duas cópias divergiriam no primeiro ajuste de formato.
+ */
+function wcItensDaTroca(PDO $pdo, int $tradeId): array
+{
+    static $st = null;
+    if ($st === null) {
+        $st = $pdo->prepare("SELECT from_team, player_name, player_ovr, pick_id
+                             FROM trade_items WHERE trade_id = ? ORDER BY id");
+    }
+    $st->execute([$tradeId]);
+
+    $doDe = []; $doPara = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $i) {
+        $rot = $i['player_name']
+            ? $i['player_name'] . ($i['player_ovr'] ? ' (' . $i['player_ovr'] . ')' : '')
+            : ($i['pick_id'] ? 'uma pick' : '?');
+        if (!empty($i['from_team'])) $doDe[] = $rot; else $doPara[] = $rot;
+    }
+    return [$doDe, $doPara];
+}
+
 function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 {
     $liga = $termo !== '' ? wcNormalizarLiga($termo) : $ligaDoGrupo;
@@ -717,20 +883,9 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 
     if (!$trocas) return 'Nenhuma troca aprovada' . ($liga ? " na {$liga}" : '') . ' ainda.';
 
-    // Os itens guardam nome/OVR copiados na hora da troca — então continuam
-    // certos mesmo depois de o jogador rodar por mais times.
-    $stItens = $pdo->prepare("SELECT from_team, player_name, player_ovr, pick_id FROM trade_items WHERE trade_id = ? ORDER BY id");
-
     $txt = '*Últimas trocas' . ($liga ? " — {$liga}" : '') . "*\n";
     foreach ($trocas as $t) {
-        $stItens->execute([(int)$t['id']]);
-        $vai = []; $vem = [];
-        foreach ($stItens->fetchAll(PDO::FETCH_ASSOC) as $i) {
-            $rot = $i['player_name']
-                ? $i['player_name'] . ($i['player_ovr'] ? ' (' . $i['player_ovr'] . ')' : '')
-                : ($i['pick_id'] ? 'uma pick' : '?');
-            if (!empty($i['from_team'])) $vai[] = $rot; else $vem[] = $rot;
-        }
+        [$vai, $vem] = wcItensDaTroca($pdo, (int)$t['id']);
         $deNome  = wcNomeDoTime(['city' => $t['de_city'],  'name' => $t['de_name']]);
         $praNome = wcNomeDoTime(['city' => $t['pra_city'], 'name' => $t['pra_name']]);
 
@@ -1670,6 +1825,27 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'trocas':
             case 'troca':
                 return wcTrocas($pdo, $arg, $ligaDoGrupo);
+
+            // Os "meus": respondem sobre o time de quem digitou, sem precisar
+            // dizer o nome. Dependem do telefone estar certo no cadastro — foi
+            // por isso que saíram do ar em agosto e voltaram só depois de os
+            // números serem padronizados.
+            case 'meutime':
+            case 'meuelenco':
+                return wcMeuElenco($pdo, $deQuem, $ligaDoGrupo);
+
+            case 'meucap':
+            case 'minhafolha':
+                return wcMeuCap($pdo, $deQuem, $ligaDoGrupo);
+
+            case 'minhaspicks':
+            case 'meuspicks':
+                return wcMinhasPicks($pdo, $deQuem, $ligaDoGrupo);
+
+            case 'minhastrades':
+            case 'minhastrocas':
+            case 'meustrades':
+                return wcMinhasTrades($pdo, $deQuem, $ligaDoGrupo);
 
             case 'lendas':
             case 'lenda':

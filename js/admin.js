@@ -441,6 +441,18 @@ function _quizRender(e, perguntas) {
       ${Number(n.inativas) ? ` · <b>${n.inativas}</b> fora do sorteio` : ''}
       <br>Sai <b>1 por dia às ${escapeHtml(h.abre)}</b> e fecha <b>${escapeHtml(h.fecha)}</b>, valendo <b>${e.premio ?? 100}</b> moedas para cada acerto.
     </div>
+
+    <div class="d-flex align-items-center gap-2 flex-wrap mb-3" style="font-size:12.5px">
+      <span style="color:var(--text-2)"><i class="bi bi-broadcast-pin me-1"></i>O quiz sai em:</span>
+      <select class="form-select form-select-sm" style="width:auto" onchange="_quizGrupoDoQuiz(this.value)">
+        <option value="">Grupo principal (padrão)</option>
+        ${(e.grupos || []).filter(g => !g.principal).map(g =>
+          `<option value="${escapeHtml(g.jid)}" ${g.do_quiz ? 'selected' : ''}>
+             ${escapeHtml(g.nome)}${g.liga ? ' · ' + escapeHtml(g.liga) : ''}</option>`).join('')}
+      </select>
+      ${e.grupo_quiz && !e.grupo_quiz.nome && e.grupo_quiz.jid ? `
+        <span style="color:#f59e0b">o grupo salvo não está mais cadastrado</span>` : ''}
+    </div>
     ${(() => {
       // O site só enfileira; quem entrega é o worker, e ele só trabalha dentro
       // da janela. Sem dizer isso aqui, "mandei e não chegou" vira caça ao erro.
@@ -557,6 +569,20 @@ ${(e.ultimas || []).length ? `
   </div>
 </div>`;
 
+}
+
+/** Escolhe em qual grupo cadastrado o quiz do dia sai. */
+async function _quizGrupoDoQuiz(jid) {
+  try {
+    const r = await api('quiz-admin.php?action=grupo_quiz_salvar', {
+      method: 'POST', body: JSON.stringify({ jid }),
+    });
+    showAlert('success', r.message);
+    showQuizAdmin();
+  } catch (e) {
+    showAlert('danger', e.error || 'Erro');
+    showQuizAdmin();   // volta o seletor pro que está salvo de verdade
+  }
 }
 
 /** Mostra o que está de fato no servidor, quando algo não funciona. */

@@ -49,6 +49,24 @@ function quizHoraDoFechamento(): string
     return date('H:i', strtotime('today ' . BOT_QUIZ_HORA) + BOT_QUIZ_MINUTOS * 60);
 }
 
+/**
+ * Em que grupo o quiz do dia sai.
+ *
+ * Tem escolha própria, separada do grupo_principal, porque os dois querem
+ * coisas diferentes: o principal recebe o abraço e os avisos de trade e é o
+ * grupo "oficial" da liga; o quiz é brincadeira e vive melhor no chat off. Sem
+ * essa separação, apontar o quiz pro chat off levava o resto junto.
+ *
+ * Vazio = usa o principal, que é o comportamento de quem nunca configurou.
+ */
+function quizGrupoDoQuiz(PDO $pdo): string
+{
+    quizGarantirTabelas($pdo);
+    $c = $pdo->query("SELECT quiz_grupo, grupo_principal FROM whatsapp_config WHERE id = 1")
+             ->fetch(PDO::FETCH_ASSOC) ?: [];
+    return trim((string)($c['quiz_grupo'] ?? '')) ?: trim((string)($c['grupo_principal'] ?? ''));
+}
+
 function quizGarantirTabelas(PDO $pdo): void
 {
     static $pronto = false;
@@ -56,6 +74,17 @@ function quizGarantirTabelas(PDO $pdo): void
     $pronto = true;
 
     quizDesfazerColisao($pdo);
+
+    // Onde o quiz sai, separado do grupo_principal. A tabela é do WhatsApp e
+    // não do quiz, mas a coluna nasce aqui porque é aqui que ela é usada — e
+    // porque o ensureWhatsAppTables não roda em toda página que abre o quiz.
+    try {
+        if (!$pdo->query("SHOW COLUMNS FROM whatsapp_config LIKE 'quiz_grupo'")->fetch()) {
+            $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN quiz_grupo VARCHAR(120) NULL AFTER grupo_principal");
+        }
+    } catch (Throwable $e) {
+        error_log('[quiz] coluna quiz_grupo: ' . $e->getMessage());
+    }
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS bot_quiz_perguntas (
         id INT AUTO_INCREMENT PRIMARY KEY,
