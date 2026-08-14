@@ -438,6 +438,80 @@ tr.tit td{color:var(--red)}
 .nota-txt{font-size:11.5px;color:var(--text2);line-height:1.55;margin-top:10px}
 .centro{text-align:center}
 
+/* ── IDENTIDADE ────────────────────────────────────────────────────────
+   Três colunas: quem você é, de onde vem, onde joga. A camisa e a quadra
+   existem porque escolher posição num <select> é preencher formulário —
+   e a primeira tela do jogo é a que decide se a pessoa continua. */
+.id-grade{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.1fr) minmax(0,1fr);
+  gap:22px;margin-bottom:18px}
+@media(max-width:860px){.id-grade{grid-template-columns:1fr;gap:26px}}
+.id-col-tit{font-size:12px;font-weight:800;letter-spacing:.4px;text-align:center;
+  color:var(--text);margin-bottom:14px}
+
+/* A camisa: o nome e o número aparecem nela enquanto se digita. */
+.camisa{position:relative;width:172px;margin:0 auto 16px;aspect-ratio:1/1.06}
+.camisa svg{width:100%;height:100%;display:block;filter:drop-shadow(0 10px 24px rgba(0,0,0,.45))}
+.camisa-nome{position:absolute;top:30%;left:0;right:0;text-align:center;font-size:13px;
+  font-weight:800;letter-spacing:1px;color:#fff;text-transform:uppercase;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 34px}
+.camisa-num{position:absolute;top:39%;left:0;right:0;text-align:center;font-family:var(--num);
+  font-size:52px;font-weight:900;line-height:1;color:#fff;letter-spacing:-2px}
+.id-campos{display:grid;grid-template-columns:1fr 84px;gap:9px}
+.id-campo label{display:block;font-size:9.5px;font-weight:800;letter-spacing:.8px;
+  text-transform:uppercase;color:var(--text2);margin-bottom:5px;text-align:center}
+.id-campo input{width:100%;background:var(--panel2);border:1.5px solid var(--border);
+  border-radius:10px;padding:11px 12px;font-family:var(--font);font-size:14px;font-weight:700;
+  color:var(--text);outline:none;text-align:center}
+.id-campo input:focus{border-color:var(--red)}
+.id-duo{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:11px;
+  background:var(--panel2);border:1.5px solid var(--border);border-radius:10px;overflow:hidden}
+.id-duo button{background:transparent;border:0;padding:11px 6px;font-family:var(--font);
+  font-size:13px;font-weight:700;color:var(--text2);cursor:pointer;transition:.15s}
+.id-duo button.on{background:var(--text);color:var(--bg)}
+
+/* País: busca em cima, lista rolável embaixo, duas colunas. */
+.nac-busca{position:relative;margin-bottom:11px}
+.nac-busca input{width:100%;background:var(--panel2);border:1.5px solid var(--border);
+  border-radius:10px;padding:11px 12px 11px 34px;font-family:var(--font);font-size:13px;
+  color:var(--text);outline:none}
+.nac-busca input:focus{border-color:var(--red)}
+.nac-busca i{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px}
+.nac-lista{display:grid;grid-template-columns:1fr 1fr;gap:4px;max-height:264px;overflow-y:auto;
+  background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:8px}
+@media(max-width:520px){.nac-lista{grid-template-columns:1fr}}
+.nac-item{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;
+  background:transparent;border:0;cursor:pointer;text-align:left;transition:.12s;width:100%}
+.nac-item:hover{background:var(--panel3)}
+.nac-item.on{background:var(--red-soft);outline:1px solid var(--red)}
+.nac-flag{font-size:19px;line-height:1;flex:none}
+.nac-nome{font-size:12.5px;font-weight:700;color:var(--text2);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.nac-item.on .nac-nome{color:var(--text)}
+.nac-vazio{grid-column:1/-1;text-align:center;font-size:12px;color:var(--text3);padding:18px 0}
+
+/* Quadra: cada posição no lugar onde ela joga. */
+.quadra{position:relative;aspect-ratio:1/1.18;border-radius:12px;overflow:hidden;
+  background:linear-gradient(170deg,#1d2a1f,#141c16);border:2px solid rgba(255,255,255,.14)}
+.quadra i.linha{position:absolute;border:2px solid rgba(255,255,255,.16);display:block}
+.q-garrafao{left:33%;right:33%;bottom:0;height:34%;border-bottom:0}
+.q-circulo{left:38%;right:38%;bottom:28%;aspect-ratio:1;border-radius:50%}
+.q-arco{left:8%;right:8%;bottom:0;height:56%;border-radius:50% 50% 0 0/100% 100% 0 0;border-bottom:0}
+.q-meio{left:0;right:0;top:0;height:0;border-width:0 0 2px 0}
+.pos-chip{position:absolute;transform:translate(-50%,-50%);background:rgba(10,14,11,.82);
+  border:1.5px solid rgba(255,255,255,.18);color:#e7ece8;border-radius:999px;
+  padding:7px 13px;font-family:var(--font);font-size:12px;font-weight:800;letter-spacing:.4px;
+  cursor:pointer;transition:.15s;white-space:nowrap}
+.pos-chip:hover{border-color:#fff}
+.pos-chip.on{background:#fff;color:#12160f;border-color:#fff;transform:translate(-50%,-50%) scale(1.14);
+  box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.pos-desc{font-size:11.5px;color:var(--text3);line-height:1.5;text-align:center;margin-top:11px;min-height:34px}
+.pos-desc b{color:var(--text2)}
+
+/* Rodapé fixo da tela, como o do jogo do print. */
+.id-rodape{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  border-top:1px solid var(--border);padding-top:16px;margin-top:4px}
+.id-rodape .btn{width:auto;margin:0;padding:13px 26px}
+
 /* ── FIM DE CARREIRA ───────────────────────────────────────────────────
    O cartão, a escada e as grades existem pra uma coisa só: a tela final é
    a que o pessoal manda no grupo. Ela precisa caber num print e dizer a
@@ -716,6 +790,9 @@ function novaCarreira(nome, pos, arq, nac, modo){
 
   return {
     v:1, modo, nome, pos, arq, nac,
+    // Só identidade: aparecem na camisa e no cartão do fim, não entram em
+    // conta nenhuma. Quem preenche é o criar(), depois desta função.
+    numero:null, mao:"D",
     idade:16, ano:2026,
     // Potencial: a maioria chega a ser gente boa de liga, mas o bust
     // continua existindo. Antes 22% eram bust e só 20% passavam de 88 —
@@ -1621,54 +1698,174 @@ function telaInicio(){
 // BANCO e não do localStorage de propósito: quem joga do celular e do
 // computador é a mesma pessoa, e digitar o nome de novo a cada carreira é
 // atrito sem motivo.
-let rascunho = {nome: window.__ULTIMO_NOME__ || "", pos:"SG", arq:"atirador", nac:"BRA", modo:"nba"};
+let rascunho = {nome: window.__ULTIMO_NOME__ || "", numero: "", mao: "D",
+                pos:"SG", arq:"atirador", nac:"BRA", modo:"nba", busca:""};
+
+/** Código de 3 letras → bandeira. O emoji sai das duas letras do país. */
+const PAIS_ISO = {BRA:"BR", USA:"US", CAN:"CA", ESP:"ES", FRA:"FR", SRB:"RS",
+                  ARG:"AR", GER:"DE", AUS:"AU", NGR:"NG", LTU:"LT", GRE:"GR"};
+function bandeira(codigo){
+  const iso = PAIS_ISO[codigo];
+  if (!iso) return "🏳️";
+  return String.fromCodePoint(...[...iso].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+}
+
+/** Onde cada posição fica na quadra, em % da caixa. */
+const POS_NA_QUADRA = {PG:[50,14], SG:[16,34], SF:[84,34], PF:[26,66], C:[50,80]};
 
 function iniciar(){ S = null; apagar(); telaCriar(true); }
 function continuar(){ S = carregar(); render(); }
 
+/**
+ * A tela de identidade: camisa, país e quadra, lado a lado.
+ *
+ * O redesenho veio de um pedido com referência — a ideia é que a primeira
+ * tela pareça o começo de uma carreira, não um cadastro. Por isso o nome e o
+ * número aparecem na camisa enquanto se digita, e a posição é escolhida no
+ * lugar da quadra onde ela joga, e não numa lista.
+ *
+ * O sobrenome na camisa é a última palavra do nome, como no uniforme de
+ * verdade: quem digita "Marcos Silva" vê SILVA nas costas.
+ */
 function telaCriar(){
-  const cartoes = (obj, campo, chaves) => chaves.map(k => {
-    const o = obj[k];
-    return `<button class="tipo ${rascunho[campo]===k?'on':''}" onclick="rascunho.${campo}='${k}';telaCriar()">
-      <b>${esc(o.n)}</b><span>${esc(o.d)}</span></button>`;
-  }).join("");
+  const nome = (rascunho.nome || "").trim();
+  const sobrenome = nome ? nome.split(/\s+/).slice(-1)[0].toUpperCase() : "SEU NOME";
+  const busca = (rascunho.busca || "").trim().toLowerCase();
+  const paises = NACOES.filter(n => !busca || n[1].toLowerCase().includes(busca));
+  const p = POSICOES[rascunho.pos];
 
   app().innerHTML = topo() + `
-    <h1>Quem é você?</h1>
+    <h1>Defina sua identidade</h1>
     <p class="lead">Isso define seu ponto de partida — não o seu teto.</p>
 
-    <label>Nome</label>
-    <input id="nm" value="${esc(rascunho.nome)}" placeholder="Seu nome de jogador" maxlength="26"
-           oninput="rascunho.nome=this.value">
+    <div class="id-grade">
 
-    <label>Nacionalidade</label>
-    <select onchange="rascunho.nac=this.value">
-      ${NACOES.map(n=>`<option value="${n[0]}" ${rascunho.nac===n[0]?"selected":""}>${esc(n[1])}</option>`).join("")}
-    </select>
+      <div>
+        <div class="id-col-tit">Identidade</div>
+        <div class="camisa">
+          <svg viewBox="0 0 100 106" aria-hidden="true">
+            <path d="M32 6 L20 12 L8 26 L18 38 L26 32 L26 100 L74 100 L74 32 L82 38 L92 26 L80 12 L68 6
+                     C64 14 56 17 50 17 C44 17 36 14 32 6 Z"
+                  fill="var(--red)" stroke="rgba(255,255,255,.28)" stroke-width="1.5"/>
+            <path d="M32 6 C36 14 44 17 50 17 C56 17 64 14 68 6"
+                  fill="none" stroke="rgba(255,255,255,.5)" stroke-width="2"/>
+          </svg>
+          <div class="camisa-nome">${esc(sobrenome)}</div>
+          <div class="camisa-num">${esc((rascunho.numero || "0").slice(0, 2))}</div>
+        </div>
 
-    <label>Posição</label>
-    <div class="grade">${cartoes(POSICOES,"pos",Object.keys(POSICOES))}</div>
+        <div class="id-campos">
+          <div class="id-campo">
+            <label for="idNome">Nome</label>
+            <input type="text" id="idNome" maxlength="26" placeholder="Marcos Silva"
+                   value="${esc(rascunho.nome)}">
+          </div>
+          <div class="id-campo">
+            <label for="idNum">Número</label>
+            <input type="text" id="idNum" maxlength="2" inputmode="numeric" placeholder="10"
+                   value="${esc(rascunho.numero)}">
+          </div>
+        </div>
 
-    <label>Jeito de jogar</label>
-    <div class="grade">${cartoes(ARQUETIPOS,"arq",Object.keys(ARQUETIPOS))}</div>
+        <div class="id-campo" style="margin-top:11px">
+          <label>Mão dominante</label>
+          <div class="id-duo">
+            <button class="${rascunho.mao === 'E' ? 'on' : ''}" onclick="rascunho.mao='E';telaCriar()">Esquerda</button>
+            <button class="${rascunho.mao === 'D' ? 'on' : ''}" onclick="rascunho.mao='D';telaCriar()">Direita</button>
+          </div>
+        </div>
+      </div>
 
-    <label>Onde você quer chegar</label>
+      <div>
+        <div class="id-col-tit">Nacionalidade</div>
+        <div class="nac-busca">
+          <i class="bi bi-search"></i>
+          <input type="text" id="idBusca" placeholder="Buscar país" value="${esc(rascunho.busca)}">
+        </div>
+        <div class="nac-lista">
+          ${paises.length ? paises.map(n => `
+            <button class="nac-item ${rascunho.nac === n[0] ? 'on' : ''}" onclick="rascunho.nac='${n[0]}';telaCriar()">
+              <span class="nac-flag">${bandeira(n[0])}</span>
+              <span class="nac-nome">${esc(n[1])}</span>
+            </button>`).join("")
+            : `<div class="nac-vazio">Nenhum país com esse nome.</div>`}
+        </div>
+      </div>
+
+      <div>
+        <div class="id-col-tit">Posição</div>
+        <div class="quadra">
+          <i class="linha q-arco"></i>
+          <i class="linha q-garrafao"></i>
+          <i class="linha q-circulo"></i>
+          ${Object.keys(POSICOES).map(k => {
+            const [x, y] = POS_NA_QUADRA[k];
+            return `<button class="pos-chip ${rascunho.pos === k ? 'on' : ''}"
+                            style="left:${x}%;top:${y}%"
+                            onclick="rascunho.pos='${k}';telaCriar()">${k}</button>`;
+          }).join("")}
+        </div>
+        <div class="pos-desc"><b>${esc(p.n)}</b> — ${esc(p.d)}</div>
+      </div>
+
+    </div>
+
+    <h2>Jeito de jogar</h2>
     <div class="grade">
-      <button class="tipo ${rascunho.modo==='nba'?'on':''}" onclick="rascunho.modo='nba';telaCriar()">
+      ${Object.keys(ARQUETIPOS).map(k => {
+        const o = ARQUETIPOS[k];
+        return `<button class="tipo ${rascunho.arq === k ? 'on' : ''}" onclick="rascunho.arq='${k}';telaCriar()">
+          <b>${esc(o.n)}</b><span>${esc(o.d)}</span></button>`;
+      }).join("")}
+    </div>
+
+    <h2>Onde você quer chegar</h2>
+    <div class="grade">
+      <button class="tipo ${rascunho.modo === 'nba' ? 'on' : ''}" onclick="rascunho.modo='nba';telaCriar()">
         <b>NBA</b><span>O caminho clássico. Times reais.</span></button>
-      <button class="tipo ${rascunho.modo==='fba'?'on':''}" onclick="rascunho.modo='fba';telaCriar()">
+      <button class="tipo ${rascunho.modo === 'fba' ? 'on' : ''}" onclick="rascunho.modo='fba';telaCriar()">
         <b>FBA</b><span>RISE → NEXT → ELITE. Times e GMs da liga de verdade.</span></button>
     </div>
 
-    <button class="btn" style="margin-top:18px" onclick="criar()">Começar aos 16 anos</button>`;
+    <div class="id-rodape">
+      <button class="btn btn2" onclick="render()">Voltar</button>
+      <button class="btn" onclick="criar()">Confirmar identidade</button>
+    </div>`;
 
-  const i = document.getElementById("nm");
-  if (i) i.oninput = e => rascunho.nome = e.target.value;
+  // Os campos de texto guardam o valor a cada tecla, mas NÃO redesenham a
+  // tela: redesenhar tira o foco do input e o cursor volta pro começo. Quem
+  // atualiza a camisa é este mesmo laço, direto no elemento.
+  const nomeEl = document.getElementById("idNome");
+  const numEl  = document.getElementById("idNum");
+  const buscaEl = document.getElementById("idBusca");
+
+  nomeEl.oninput = () => {
+    rascunho.nome = nomeEl.value;
+    const t = nomeEl.value.trim();
+    document.querySelector(".camisa-nome").textContent =
+      t ? t.split(/\s+/).slice(-1)[0].toUpperCase() : "SEU NOME";
+  };
+  numEl.oninput = () => {
+    numEl.value = numEl.value.replace(/\D/g, "").slice(0, 2);
+    rascunho.numero = numEl.value;
+    document.querySelector(".camisa-num").textContent = numEl.value || "0";
+  };
+  // A busca precisa redesenhar (a lista muda), então devolve o foco e o
+  // cursor pro fim depois.
+  buscaEl.oninput = () => {
+    rascunho.busca = buscaEl.value;
+    telaCriar();
+    const novo = document.getElementById("idBusca");
+    novo.focus();
+    novo.setSelectionRange(novo.value.length, novo.value.length);
+  };
 }
 
 function criar(){
   const nome = (rascunho.nome || "").trim() || "Jogador Sem Nome";
   S = novaCarreira(nome, rascunho.pos, rascunho.arq, rascunho.nac, rascunho.modo);
+  S.numero = rascunho.numero || String(ri(0, 99));
+  S.mao = rascunho.mao;
   S.fase = "escolha";
   salvar(); render();
 }
@@ -2701,7 +2898,10 @@ function dadosDoCartao(pts, tier, tot, anos){
     ovr: S.picoOvr || S.ultimoOvr || 0,
     tier, pts, nums,
     pos: S.pos, time: String(S.time || "").slice(0, 18),
-    temporadas: anos.length, nome: S.nome,
+    // O número entra no nome do cartão: é o que amarra a imagem final à
+    // camisa que a pessoa montou na primeira tela.
+    temporadas: anos.length,
+    nome: S.numero ? `#${S.numero} ${S.nome}` : S.nome,
   };
 }
 
