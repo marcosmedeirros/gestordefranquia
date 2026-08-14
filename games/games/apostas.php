@@ -146,12 +146,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['opcao_id'])) {
         $pdo->commit();
 
         // Volta para o painel com mensagem
-    header("Location: ../index.php?msg=" . urlencode($palpiteExistente ? "Palpite atualizado com sucesso!" : "Palpite realizado com sucesso!"));
+    header("Location: /games.php?msg=" . urlencode($palpiteExistente ? "Palpite atualizado com sucesso!" : "Palpite realizado com sucesso!"));
         exit;
 
     } catch (Exception $e) {
         $pdo->rollBack();
-        header("Location: ../index.php?erro=" . urlencode($e->getMessage()));
+        header("Location: /games.php?erro=" . urlencode($e->getMessage()));
         exit;
     }
 }

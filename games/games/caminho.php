@@ -407,6 +407,26 @@ input::placeholder{color:var(--text3);font-weight:500}
 .chip-ap.caiu i{color:currentColor}
 .chip-ap.apagado{opacity:.32;filter:grayscale(.7)}
 
+/* DURANTE o sorteio: a luz pula de um lado pro outro. É o que transforma
+   "62%" numa sensação em vez de um número — o desfecho já está decidido,
+   mas ainda não foi visto.
+   Tudo escopado em .sorteio: na tela de decisão os dois chips são
+   informação, e apagá-los ali deixaria a escolha ilegível. */
+.sorteio .chip-ap{opacity:.42;transition:opacity .1s,transform .1s,box-shadow .1s}
+.sorteio .chip-ap.piscando{opacity:1;box-shadow:0 0 0 2px currentColor inset;transform:scale(1.04)}
+.sorteio .chip-ap.caiu{opacity:1;transform:scale(1.04)}
+.sorteio .chip-ap.apagado{opacity:.3}
+.sorteio #sorteioChips{margin-top:2px}
+.sorteio-nota{margin:11px 0 0;font-size:12px;font-weight:700;color:var(--text2);
+  letter-spacing:.3px}
+
+/* DESISTIR — existe, mas não disputa atenção com o botão de avançar.
+   Quem procura, acha; quem não procura, não esbarra sem querer. */
+.btn-desistir{display:block;width:100%;margin-top:18px;background:none;border:none;
+  font-family:var(--font);font-size:11.5px;font-weight:700;color:var(--text3);
+  letter-spacing:.3px;cursor:pointer;padding:8px;border-radius:9px;transition:.15s}
+.btn-desistir:hover{color:var(--red);background:var(--red-soft)}
+
 /* PLACAR DA TEMPORADA */
 .placar{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
   overflow:hidden;margin-bottom:14px}
@@ -580,6 +600,14 @@ tr.tit td{color:var(--red)}
   color:#fff;font-variant-numeric:tabular-nums}
 .ct-nums span{display:block;font-size:8.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
   color:rgba(255,255,255,.6);margin-top:4px}
+/* Clubes e médias, no mesmo formato do cartão em imagem — o que aparece na
+   tela é o que sai no print, sem surpresa na hora de compartilhar. */
+.ct-listas{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;margin-top:16px}
+.ct-col{min-width:0;display:flex;flex-direction:column;gap:3px}
+.ct-col-tit{font-size:8.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;
+  color:rgba(255,255,255,.55);margin-bottom:2px}
+.ct-col-item{font-size:12.5px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
 .ct-pe{font-family:var(--num);font-size:9.5px;color:rgba(255,255,255,.42);margin-top:16px;letter-spacing:.3px}
 
 /* Grade densa: números da carreira e prêmios cabem sem virar lista longa. */
@@ -769,26 +797,45 @@ tr.tit td{color:var(--red)}
 .oferta-num{font-family:var(--num);font-size:19px;font-weight:900;color:var(--red);letter-spacing:-.5px;
   display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:2px}
 .oferta-num small{font-family:var(--font);font-size:9.5px;font-weight:700;color:var(--text2);letter-spacing:.3px}
+.oferta-papel{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.3px;text-transform:uppercase}
 .oferta-nota{font-size:11px;font-weight:500;line-height:1.45;color:var(--text2);margin-top:2px}
 
-/* ═══ RITMO DA CARREIRA ══════════════════════════════════════════════
-   Dois botões pequenos embaixo do botão grande: quem não quiser mexer
-   nem repara, e quem quiser acelerar acha na hora em que sentiu vontade. */
-.ritmo{display:flex;align-items:stretch;gap:6px;margin-top:9px}
-.ritmo-rot{flex:none;align-self:center;font-size:8.5px;font-weight:800;letter-spacing:1.2px;
-  text-transform:uppercase;color:var(--text3);padding-right:2px}
-.ritmo-op{flex:1;min-width:0;background:var(--panel2);border:1.5px solid var(--border2);
-  border-radius:10px;padding:7px 9px;text-align:left;cursor:pointer;font-family:var(--font);
-  color:var(--text2);transition:.15s;display:flex;flex-direction:column;gap:1px}
-.ritmo-op b{font-size:12px;font-weight:800;color:var(--text2)}
-.ritmo-op small{font-size:9.5px;font-weight:600;color:var(--text3);line-height:1.3}
-.ritmo-op:hover{border-color:var(--border2);background:var(--panel3)}
-.ritmo-op.ativo{border-color:var(--red);background:var(--red-soft)}
-.ritmo-op.ativo b{color:var(--red)}
-.ritmo-op.ativo small{color:var(--text2)}
-@media(max-width:400px){
-  .ritmo{flex-wrap:wrap}
-  .ritmo-rot{width:100%;padding-bottom:2px}
+/* ═══ DECISÃO EM CARTAS ══════════════════════════════════════════════
+   Cartas do mesmo tamanho, uma por opção, com os desfechos listados
+   embaixo. Antes eram botões de texto empilhados e a única diferença
+   visível entre duas escolhas era a frase. */
+.dec-tit{margin:2px 0 4px}
+.dec-sub{margin-bottom:12px}
+.dec-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:11px}
+.dec-card{display:flex;flex-direction:column;gap:9px;background:var(--panel2);
+  border:1.5px solid var(--border2);border-radius:15px;padding:14px 13px 13px;cursor:pointer;
+  font-family:var(--font);color:var(--text);text-align:center;transition:.15s}
+.dec-card:hover{border-color:var(--red);background:var(--red-soft);transform:translateY(-2px);
+  box-shadow:0 6px 18px rgba(0,0,0,.32)}
+.dec-card:active{transform:translateY(0)}
+/* Altura de duas linhas mesmo quando o título tem uma: sem isso, a carta
+   com o nome curto sobe a arte e as duas ficam desencontradas. */
+.dec-card-tit{font-size:14.5px;font-weight:800;letter-spacing:-.2px;line-height:1.25;
+  min-height:2.5em;display:flex;align-items:center;justify-content:center}
+.dec-card-arte{height:78px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  font-size:34px;line-height:1;
+  background:linear-gradient(145deg,hsl(var(--m) 42% 26%),hsl(var(--m) 34% 14%));
+  box-shadow:inset 0 0 0 1px hsl(var(--m) 45% 40% / .35)}
+.dec-card-res{display:flex;flex-direction:column;gap:5px}
+.dec-res{display:flex;align-items:center;gap:6px;border-radius:9px;padding:6px 9px;
+  border:1px solid;background:var(--panel3);text-align:left}
+.dec-res i{font-style:normal;font-size:11px;font-weight:900;flex:none}
+/* Quebra em vez de reticências: "rotação baixa" cortado no meio não diz
+   nada, e uma segunda linha custa 14px. */
+.dec-res em{flex:1;min-width:0;font-style:normal;font-size:11px;font-weight:700;line-height:1.25}
+.dec-res b{flex:none;font-family:var(--num);font-size:11.5px;font-weight:900;
+  font-variant-numeric:tabular-nums}
+.dec-bom{color:var(--green);border-color:rgba(34,197,94,.3);background:var(--green-soft)}
+.dec-ruim{color:var(--red);border-color:var(--red-glow);background:var(--red-soft)}
+.dec-neutro{color:var(--text2);border-color:var(--border)}
+@media(max-width:380px){
+  .dec-grade{grid-template-columns:1fr}
+  .dec-card-arte{height:56px;font-size:28px}
 }
 
 /* ═══ CONQUISTAS ═════════════════════════════════════════════════════ */
@@ -1044,7 +1091,7 @@ function novaCarreira(nome, pos, arq, nac, modo){
     // 3%: o fenômeno geracional. Só aparece na noite do draft.
     prodigio: Math.random() < 0.03,
     destaque: null, comparacao: null,
-    rival: null, marcasBatidas: [], anosDivisao: 0, ultimaAposta: null,
+    rival: null, marcasBatidas: [], anosDivisao: 0, desfecho: null, anosNoClube: 0,
     A, pot: (()=>{ const r = Math.random();
                    return r < 0.06 ? ri(72,81) : r < 0.55 ? ri(82,92) : ri(93,99); })(),
     fase:"base",            // base · college · fora · draft · liga · fim
@@ -1213,6 +1260,10 @@ function aplicarEfeito(ef){
   const d = ef.ovr ? mexerOvr(ef.ovr) : 0;
   if (ef.time) trocarDeTime(ef.time === "melhor");
   if (ef.fora) afastar(ef.fora[0], ef.fora[1], ef.fora[2]);
+  // Confiança: alguns desfechos mexem no crédito com o treinador sem mexer
+  // no OVR. É o que faz "ficar" e "pedir troca" terem consequência mesmo
+  // quando nenhum atributo muda.
+  if (ef.conf) S.confianca = clamp((S.confianca || 50) + ef.conf, 5, 99);
   return d;
 }
 
@@ -1220,7 +1271,12 @@ function aplicarEfeito(ef){
 function dizEfeito(ef){
   const p = [];
   if (ef.ovr) p.push((ef.ovr > 0 ? "+" : "−") + Math.abs(ef.ovr) + " OVR");
-  if (ef.time) p.push(ef.time === "melhor" ? "troca por time melhor" : "troca por time pior");
+  // Curto de propósito: isto cabe numa carta de 160px de largura, e
+  // "troca por time melhor" virava reticências antes de dizer o que era.
+  if (ef.time) p.push(ef.time === "melhor" ? "time melhor"
+                    : ef.time === "pior"   ? "time pior"
+                    : "muda de time");
+  if (ef.conf) p.push((ef.conf > 0 ? "+" : "−") + Math.abs(ef.conf) + " confiança");
   if (ef.fora) p.push(ef.fora[1] + (ef.fora[1] > 1 ? " temporadas fora" : " temporada fora"));
   return p.join(" e ") || "nada muda";
 }
@@ -1233,6 +1289,29 @@ function etiquetaAposta(op){
 }
 
 const DECISOES = [
+  // ── O clube: ficar ou pedir pra sair ─────────────────────────────────
+  //
+  // A decisão mais frequente da carreira, e a que separa este jogo de uma
+  // lista de eventos: todo o resto acontece COM você, esta você provoca.
+  // Aparece em anos alternados (ver decisaoDoAno), pra não virar rotina.
+  //
+  // Pedir troca não é gratuito nem é castigo garantido: o time novo pode
+  // ser melhor ou pior, e a confiança sempre cai um pouco — pedir pra sair
+  // custa o crédito que se tinha no vestiário.
+  {id:"clube", quando:s => s.fase === "liga" && (s.contrato || 0) >= 1 && (s.anosNoClube || 0) >= 1,
+   t:()=>`Você está no ${S.time} há ${S.anosNoClube || 1} ${(S.anosNoClube || 1) === 1 ? "temporada" : "temporadas"}. ${
+        (S.forcaBase || 50) >= 70 ? "O elenco é forte e o projeto é claro."
+      : (S.forcaBase || 50) >= 50 ? "O time é mediano e o projeto, mais ou menos."
+      : "O elenco é fraco e não há sinal de reforço."} Seu empresário pergunta o que você quer.`,
+   ops:[
+     {l:"Ficar e brigar por aqui", chance:74,
+      bom:{txt:"Você bateu o pé e ficou. O clube leu como lealdade — e a torcida, como identidade.", conf:+10},
+      ruim:{txt:"Você ficou e o ano foi igual ao anterior. Ninguém reclamou; ninguém evoluiu.", conf:-6}},
+     {l:"Pedir troca", chance:58,
+      bom:{time:"melhor", txt:"O pedido vazou, o mercado se mexeu e você caiu num time melhor do que o que deixou.", conf:-8},
+      ruim:{time:"qualquer", txt:"Você forçou a saída e foi parar onde deu. O vestiário novo te recebeu de braços cruzados.", conf:-14}},
+   ]},
+
   // ── Corpo e saúde ────────────────────────────────────────────────────
   {id:"lesao", quando:s => s.fase === "liga" && s.ultimo && s.ultimo.jogos < 66,
    t:()=>`Você desfalcou o ${S.time} em ${82 - S.ultimo.jogos} jogos. O departamento médico quer cautela; o treinador quer você em quadra.`,
@@ -1552,13 +1631,29 @@ const DECISOES = [
 // Toda temporada trazer uma escolha transformava a decisão em formulário;
 // um ano que passa só com os números faz o ano seguinte pesar mais.
 function decisaoDoAno(){
-  // Nem todo ano tem. Menos frequente no começo, quando cada escolha ainda
-  // está montando o jogador, e mais comum depois que a carreira se define.
-  const chanceDeTer = S.anoFase <= 2 ? 0.85 : 0.62;
+  // Nem todo ano tem. Era 85% no começo e 62% depois — quase toda temporada
+  // virava uma pergunta, e a carreira parecia um formulário. Com metade dos
+  // anos livres, a temporada volta a ser sobre jogar e a decisão que aparece
+  // pesa mais.
+  const chanceDeTer = S.anoFase <= 2 ? 0.6 : 0.45;
   if (Math.random() > chanceDeTer) return null;
 
   const recentes = S.decisoesUsadas || [];
+
+  // A do clube ("fica ou pede troca") entra por fora do sorteio comum e
+  // divide o espaço com as outras: numas temporadas o jogo pergunta onde
+  // você quer estar, noutras o que você quer fazer. Nunca duas seguidas —
+  // perguntar isso todo ano transformaria a escolha em ritual.
+  const clube = DECISOES.find(d => d.id === "clube");
+  const clubeCabe = clube && !recentes.slice(0, 2).includes("clube")
+                 && (() => { try { return clube.quando(S); } catch(e){ return false; } })();
+  if (clubeCabe && Math.random() < 0.45){
+    S.decisoesUsadas = ["clube", ...recentes].slice(0, 8);
+    return "clube";
+  }
+
   const cabe = d => {
+    if (d.id === "clube") return false;   // já teve a vez dela acima
     // Decisão de risco só concorre na carreira sorteada pra isso, e some
     // depois que uma sai. Sem esse corte, três das quatro apareciam em
     // quase toda carreira e 80% delas perdiam temporada.
@@ -1600,6 +1695,7 @@ function trocarDeTime(melhor){
   if (S.modo === "fba"){ S.gm = gmDoTime(novo); }
   S.forcaBase = melhor ? ri(62, 88) : ri(40, 80);
   S.confianca = 50;
+  S.anosNoClube = 0;   // chegou agora; o relógio de casa recomeça
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1700,6 +1796,7 @@ function assinarSemDraft(i){
   const of = (S.semDraft || [])[i];
   if (!of) return;
   S.time = of.time;
+  S.anosNoClube = 0;
   S.liga = of.liga;
   S.foraDaLiga = true;
   S.perto = !!of.perto;            // G League: a liga está do lado, não do outro lado do mundo
@@ -1734,6 +1831,7 @@ function chamadoDaLiga(o, st){
   S.liga = S.modo === "fba" ? "RISE" : "NBA";
   S.anosDivisao = 0;
   S.time = pick(timesDaLiga(S.liga));
+  S.anosNoClube = 0;
   S.gm = S.modo === "fba" ? gmDoTime(S.time) : null;
   S.forcaBase = ri(35, 75);
   S.confianca = 60;
@@ -1853,6 +1951,7 @@ function gerarOfertas(){
 function assinar(oferta){
   const antigo = S.time;
   S.time = oferta.time;
+  if (antigo !== oferta.time) S.anosNoClube = 0;
   // Assinar com um clube de fora te tira da liga; o chamado te devolve.
   if (oferta.tipo === "chamado"){
     S.foraDaLiga = false; S.perto = false; S.liga = oferta.liga; S.anosDivisao = 0;
@@ -1942,6 +2041,7 @@ function tentarSubirDivisao(o, st, premios){
   S.liga = nova;
   S.anosDivisao = 0;
   S.time = pick(timesDaLiga(nova));
+  S.anosNoClube = 0;
   S.gm = gmDoTime(S.time);
   S.forcaBase = ri(45, 82);
   S.confianca = 58;
@@ -2028,7 +2128,7 @@ function topo(){
   }
   return `<div class="topbar">
     <div class="topbar-left">
-      <a href="../index.php" class="back-btn" title="Voltar">${SETA}</a>
+      <a href="/games.php" class="back-btn" title="Voltar">${SETA}</a>
       <span class="game-title">O <span>Caminho</span><span class="daily-badge">carreira</span></span>
     </div>
     <div class="topbar-right">${chips.join("")}
@@ -2045,6 +2145,7 @@ function render(){
   if (S.fase === "escolha")return telaCaminho();
   if (S.fase === "college" || S.fase === "fora") return telaFormacao();
   if (S.finais)            return telaFinais();
+  if (S.desfecho)          return telaSorteio(S.desfecho, S.desfecho.caiu === "bom", true);
   if (S.mercado)           return telaMercado();
   if (S.fase === "draft")  return telaDraft();
   if (S.fase === "semdraft") return telaSemDraft();
@@ -2086,7 +2187,7 @@ function telaInicio(){
 // computador é a mesma pessoa, e digitar o nome de novo a cada carreira é
 // atrito sem motivo.
 let rascunho = {nome: window.__ULTIMO_NOME__ || "", numero: "", mao: "D",
-                pos:"SG", arq:"atirador", nac:"BRA", modo:"nba", busca:""};
+                pos:"SG", arq:"atirador", nac:"BRA", modo:"nba", ritmo:"normal", busca:""};
 
 /** Código de 3 letras → bandeira. O emoji sai das duas letras do país. */
 const PAIS_ISO = {BRA:"BR", USA:"US", CAN:"CA", ESP:"ES", FRA:"FR", SRB:"RS",
@@ -2214,6 +2315,16 @@ function telaCriar(){
         <b>FBA</b><span>RISE → NEXT → ELITE. Times e GMs da liga de verdade.</span></button>
     </div>
 
+    <h2>Ritmo da carreira</h2>
+    <div class="grade">
+      <button class="tipo ${rascunho.ritmo !== 'rapido' ? 'on' : ''}" onclick="rascunho.ritmo='normal';telaCriar()">
+        <b>Ano a ano</b><span>Uma temporada por vez, com decisão em todas.</span></button>
+      <button class="tipo ${rascunho.ritmo === 'rapido' ? 'on' : ''}" onclick="rascunho.ritmo='rapido';telaCriar()">
+        <b>De 2 em 2</b><span>Duas temporadas por vez. Carreira inteira em metade do tempo.</span></button>
+    </div>
+    <p class="nota-txt" style="margin-top:-2px">O ritmo não muda nenhuma conta: a mesma carreira vale o
+    mesmo legado nos dois. Mercado, finais e lesão sempre param, seja qual for.</p>
+
     <div class="id-rodape">
       <button class="btn btn2" onclick="render()">Voltar</button>
       <button class="btn" onclick="criar()">Confirmar identidade</button>
@@ -2253,6 +2364,7 @@ function criar(){
   S = novaCarreira(nome, rascunho.pos, rascunho.arq, rascunho.nac, rascunho.modo);
   S.numero = rascunho.numero || String(ri(0, 99));
   S.mao = rascunho.mao;
+  S.ritmo = rascunho.ritmo === "rapido" ? "rapido" : "normal";
   S.fase = "escolha";
   salvar(); render();
 }
@@ -2747,6 +2859,11 @@ function corDoEfeito(ef){
   if (ef.time === "pior") return "ruim";
   if ((ef.ovr || 0) > 0) return "bom";
   if ((ef.ovr || 0) < 0) return "ruim";
+  // Confiança é o último critério: ela sozinha não muda o jogador, mas muda
+  // os minutos — e um desfecho que só mexe nela precisa de cor, senão a
+  // decisão de ficar ou pedir troca sai cinza dos dois lados.
+  if ((ef.conf || 0) > 0) return "bom";
+  if ((ef.conf || 0) < 0) return "ruim";
   return "neutro";
 }
 
@@ -2919,7 +3036,7 @@ function perderAno(){
     : (lesao ? "A recuperação não fechou no prazo. Mais uma temporada fora."
              : "A punição não acabou. Mais uma temporada assistindo.");
 
-  S.resultado = null; S.efeitoDecisao = 0;
+  S.desfecho = null; S.efeitoDecisao = 0;
   S.aguardando = false; S.decisaoId = null;
   // Ano perdido corta o par do modo rápido: ficar fora é a notícia da
   // temporada e merece a tela inteira, não meio clique.
@@ -3058,7 +3175,8 @@ function fecharAno(campeao, vit, o, st){
                      premios:premios.map(p=>p.t), campeao});
 
   S.efeitoDecisao = 0;
-  S.ultimaAposta = null;   // a aposta pertence ao ano que passou
+  S.desfecho = null;       // o desfecho pertence ao ano que passou
+  S.anosNoClube = (S.anosNoClube || 0) + 1;
   const estouro = evoluir();
   S.mensagem = estouro ? "Você estourou. De uma temporada pra outra, virou outro jogador." : null;
 
@@ -3178,23 +3296,25 @@ function telaMercado(){
     <p class="lead">${ofertas.length === 1
       ? "Só apareceu uma proposta. O mercado não é gentil com quem não produz."
       : `${ofertas.length} propostas na mesa. Cada uma vem com o prazo dela.`}</p>
-    ${ofertas.map((of,i)=>`
-      <button class="op" onclick="escolherOferta(${i})" style="display:flex;gap:12px;align-items:flex-start">
-        ${marca(of.time, 38)}
-        <span style="flex:1;min-width:0">
-          ${esc(of.time)}
-          <span class="proposta">$${of.salario}M/ano · ${of.anos} ${of.anos === 1 ? "ano" : "anos"}</span>
-          <small>${esc(of.nota)}<br>Papel: ${esc(of.papel)} · elenco ${of.forca >= 70 ? "forte" : of.forca >= 50 ? "mediano" : "fraco"}
-          · total $${of.salario * of.anos}M</small>
-        </span>
-      </button>`).join("")}
+    <div class="ofertas-grade">
+      ${ofertas.map((of,i)=>`
+        <button class="oferta-card" onclick="escolherOferta(${i})">
+          <span class="oferta-topo">${of.tipo === "renovar" || of.tipo === "provar" ? "Ficar no" : "Assinar com"}</span>
+          <span class="oferta-time">${esc(of.time)}</span>
+          <span class="oferta-marca">${marca(of.time, 54)}</span>
+          <span class="oferta-liga">${esc(of.liga || S.liga || "")}</span>
+          <span class="oferta-num">$${of.salario}M<small>por ano · ${of.anos} ${of.anos === 1 ? "ano" : "anos"}</small></span>
+          <span class="oferta-papel">${esc(of.papel)} · elenco ${of.forca >= 70 ? "forte" : of.forca >= 50 ? "mediano" : "fraco"}</span>
+          <span class="oferta-nota">${esc(of.nota)}</span>
+        </button>`).join("")}
+    </div>
     <p class="nota-txt">Seu valor de mercado hoje: <b style="color:var(--text)">${v}</b>. Ele sobe com produção e desce com a idade.</p>`;
 }
 
 function escolherOferta(i){
   const of = S.mercado[i];
   const mudou = assinar(of);
-  S.resultado = mudou
+  S.mensagem = mudou
     ? `Você assinou com o ${of.time} por ${of.anos} ${of.anos === 1 ? "ano" : "anos"}, $${of.salario}M por ano. Malas prontas.`
     : `Você renovou com o ${of.time}: ${of.anos} ${of.anos === 1 ? "ano" : "anos"}, $${of.salario}M por ano.`;
   S.mercado = null; S.ofertaEscolhida = null;
@@ -3226,7 +3346,7 @@ function escolherOfertaAntigo(i){
 function fecharContrato(anos){
   const of = S.mercado[S.ofertaEscolhida];
   const mudou = assinar(of, anos);
-  S.resultado = mudou
+  S.mensagem = mudou
     ? `Você assinou por ${anos} anos com o ${of.time}. Malas prontas.`
     : `Você renovou com o ${of.time} por ${anos} anos.`;
   S.mercado = null; S.ofertaEscolhida = null;
@@ -3235,28 +3355,81 @@ function fecharContrato(anos){
   salvar(); telaTemporada();
 }
 
-/**
- * O seletor de ritmo, embaixo do botão de avançar.
- *
- * Fica aqui e não só na criação porque a vontade muda no meio: os
- * primeiros anos são os interessantes, e a partir dos 30 quase todo mundo
- * quer chegar logo ao fim da carreira. Trocar não custa nada e não altera
- * nenhuma conta — o ranking não sabe em que ritmo a carreira foi jogada.
- */
-function controleDeRitmo(){
-  const op = (valor, rotulo, nota) => `<button class="ritmo-op ${S.ritmo === valor ? "ativo" : ""}"
-      onclick="trocarRitmo('${valor}')"><b>${rotulo}</b><small>${nota}</small></button>`;
-  return `<div class="ritmo">
-    <span class="ritmo-rot">Ritmo</span>
-    ${op("normal", "Ano a ano", "uma temporada por vez")}
-    ${op("rapido", "De 2 em 2", "duas de uma vez, sem parar no meio")}
-  </div>`;
+// ═══════════════════════════════════════════════════════════════════════
+// A DECISÃO EM CARTAS
+//
+// Cada opção vira uma carta do tamanho das outras, com os dois desfechos
+// listados embaixo e a chance de cada um à direita. É o formato dos jogos
+// de carreira que a pessoa já conhece — e resolve o problema do formato
+// antigo, em que as opções eram três botões de texto empilhados e a única
+// diferença visível entre "descansar" e "operar o joelho" era a frase.
+//
+// Sem foto: um jogo que abre no celular não carrega três imagens por
+// decisão, e não existe banco de fotos de basquete que a gente possa usar
+// sem se preocupar com direito de imagem. O bloco colorido com o ícone faz
+// o mesmo trabalho de dar peso e diferenciar as cartas, a custo zero.
+// ═══════════════════════════════════════════════════════════════════════
+const ICONES_OPCAO = [
+  [/trein|academia|prepar|carga/i, "🏋️"], [/descans|férias|folga|poupar/i, "🌴"],
+  [/oper|cirurg|médic|protocolo/i, "🏥"], [/ficar|renov|permanec/i, "🏠"],
+  [/troca|sair|pedir|transfer/i,   "🔁"], [/joga|quadra|minutos|titular/i, "🏀"],
+  [/estud|faculdade|escola/i,      "📚"], [/festa|noite|balada/i, "🌃"],
+  [/contrato|salári|dinheiro|grana/i, "💵"], [/seleção|país|olimp/i, "🏅"],
+  [/imprensa|entrevista|falar/i,   "🎙️"], [/líder|vestiário|elenco/i, "🤝"],
+];
+function iconeDaOpcao(rotulo){
+  const achado = ICONES_OPCAO.find(([re]) => re.test(rotulo || ""));
+  return achado ? achado[1] : "🏀";
 }
 
-function trocarRitmo(valor){
-  S.ritmo = valor === "rapido" ? "rapido" : "normal";
-  S.parDoRitmo = 0;
-  salvar(); telaTemporada();
+/** Um desfecho da carta: seta, o que muda, e a chance. */
+function linhaDeDesfecho(ef, pct, tipo){
+  if (!ef) return "";
+  const cor = corDoEfeito(ef);
+  const seta = cor === "bom" ? "↗" : cor === "ruim" ? "↘" : "→";
+  return `<span class="dec-res dec-${cor}">
+    <i>${seta}</i><em>${esc(dizEfeito(ef))}</em><b>${pct}%</b></span>`;
+}
+
+/**
+ * O título da decisão, curto, acima do texto.
+ *
+ * Num mapa em vez de um campo em cada entrada: são trinta decisões, e
+ * espalhar o título por todas elas seria trinta edições pra ganhar a mesma
+ * coisa. Quem não estiver aqui cai no genérico, que continua honesto.
+ */
+const TITULOS_DECISAO = {
+  clube:"Ficar ou pedir troca", lesao:"Volta da lesão", carga:"Gestão de carga",
+  joelho:"O joelho", tendao:"O tendão", antidoping:"Exame antidoping",
+  tunel:"Confusão no túnel", apostas:"Convite suspeito", troca:"Pedido de troca",
+  superstime:"Superequipe", tecnico:"Atrito com o técnico", banco:"Vaga no quinteto",
+  lider:"Liderança do vestiário", treino:"Concentração extra", posicao:"Mudança de posição",
+  veterano:"O veterano do elenco", jovem:"O calouro da vaga", investir:"O que fazer com a grana",
+  patrocinio:"Proposta de patrocínio", imprensa:"A imprensa quer resposta",
+  familia:"Assunto de família", camisa:"O número da camisa", polemica:"Polêmica nas redes",
+  selecao:"Convocação", ultimaposse:"A última posse", allstarfds:"Fim de semana do All-Star",
+  amistoso:"Amistoso de pré-temporada", rival:"O rival de sempre", jovemastro:"O garoto do momento",
+};
+
+function cartasDaDecisao(d){
+  const h = (r) => hashNome(r) % 360;
+  const titulo = TITULOS_DECISAO[d.id] || "Sua decisão";
+  return `<h1 class="dec-tit">${esc(titulo)}</h1>
+    <p class="lead dec-sub">${d.t()}</p>
+    <div class="dec-grade">
+      ${d.ops.map((o, i) => {
+        const c = (o.chance ?? 100);
+        const mat = h(o.l);
+        return `<button class="dec-card" onclick="decidir(${i})">
+          <span class="dec-card-tit">${esc(o.l)}</span>
+          <span class="dec-card-arte" style="--m:${mat}deg">${iconeDaOpcao(o.l)}</span>
+          <span class="dec-card-res">
+            ${linhaDeDesfecho(o.bom, c, "bom")}
+            ${c >= 100 ? "" : linhaDeDesfecho(o.ruim, 100 - c, "ruim")}
+          </span>
+        </button>`;
+      }).join("")}
+    </div>`;
 }
 
 function telaTemporada(){
@@ -3273,24 +3446,17 @@ function telaTemporada(){
       ${S.desafiosDoAno.map(d => `<div class="conquista-linha"><span>${d.i}</span><b>${esc(d.n)}</b></div>`).join("")}
       <button class="btn btn2" style="margin-top:10px" onclick="telaDesafios()">Ver todas</button>
     </div>` : "") +
-    (S.resultado ? `<div class="bpcard">
-      <div class="bpcard-title">O que aconteceu${S.efeitoDecisao ? `<span style="color:${S.efeitoDecisao>0?"var(--green)":"var(--red)"}">${S.efeitoDecisao>0?"+":""}${S.efeitoDecisao} OVR</span>` : ""}</div>
-      ${S.ultimaAposta ? `<div class="op" style="cursor:default;margin-bottom:11px" onclick="return false">
-        <span class="op-titulo">${esc(S.ultimaAposta.l)}</span>
-        ${chipsDaAposta(S.ultimaAposta, S.ultimaAposta.caiu)}
-      </div>` : ""}
-      <p class="dec-txt" style="margin:0">${S.resultado}</p></div>` : "") +
-    (S.aguardando && d ? `
-      <div class="bpcard">
-        <div class="bpcard-title">Sua decisão</div>
-        <p class="dec-txt">${d.t()}</p>
-        ${d.ops.map((o,i)=>`<button class="op" onclick="decidir(${i})"><span class="op-titulo">${esc(o.l)}</span>${chipsDaAposta(o, null)}</button>`).join("")}
-      </div>` : `
+    // O bloco "O que aconteceu" saiu daqui: ele nascia acima da decisão do
+    // ano e empurrava a pergunta pra baixo da dobra, justamente na tela em
+    // que a pergunta é a única coisa que importa. O desfecho passou a ter
+    // tela própria, logo depois do sorteio, onde ninguém disputa espaço.
+    ""  +
+    (S.aguardando && d ? cartasDaDecisao(d) : `
       ${aposentar ? `<button class="btn" onclick="encerrar()">Pendurar as chuteiras</button>`
                   : `<button class="btn" onclick="jogarAno()">${
-                        S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>
-                     ${controleDeRitmo()}`}
-      ${!aposentar && S.idade >= 33 ? `<button class="btn btn2" style="margin-top:8px" onclick="encerrar()">Ou parar por aqui</button>` : ""}`);
+                        S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>`}
+      ${!aposentar && S.idade >= 33 ? `<button class="btn btn2" style="margin-top:8px" onclick="encerrar()">Ou parar por aqui</button>` : ""}`)
+    + `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>`;
 
   // A súmula vai pro lado: ela cresce a cada temporada e, embaixo do botão
   // de avançar, empurrava a decisão pra fora da tela no desktop.
@@ -3306,19 +3472,113 @@ function decidir(i){
   const deuCerto = ri(1, 100) <= (op.chance ?? 100);
   const ef = deuCerto ? op.bom : (op.ruim || {txt:"No fim não deu em nada."});
   S.efeitoDecisao = aplicarEfeito(ef);
-  S.resultado = ef.txt;
 
   // Só DADO, nunca o objeto da opção: ele tem função dentro e o
   // JSON.stringify do save as descarta calado, o que traria a carreira de
   // volta com uma aposta sem desfecho nenhum.
   const soDado = (e) => e ? {ovr: e.ovr || 0, time: e.time || null, fora: e.fora || null} : null;
-  S.ultimaAposta = {
+  S.desfecho = {
     l: op.l, chance: op.chance ?? 100,
     bom: soDado(op.bom), ruim: soDado(op.ruim),
     caiu: deuCerto ? "bom" : "ruim",
+    txt: ef.txt, ovr: S.efeitoDecisao,
   };
   S.aguardando = false; S.decisaoId = null; S.mensagem = null;
+
+  // Salva ANTES da animação, não depois. O resultado já está decidido; se a
+  // pessoa recarregar no meio do sorteio, ela cai na tela do desfecho que
+  // realmente saiu — em vez de voltar pra decisão e sortear de novo.
+  salvar();
+
+  // Aposta de 100% não tem dois lados pra alternar, e quem pediu menos
+  // movimento no sistema não quer isto piscando na tela: nesses casos o
+  // desfecho aparece parado, já revelado.
+  const doisLados = (op.chance ?? 100) < 100 && op.ruim;
+  telaSorteio(op, deuCerto, !doisLados || matchMedia("(prefers-reduced-motion: reduce)").matches);
+}
+
+/** Fecha o desfecho e devolve a pessoa pra temporada. */
+function seguir(){
+  S.desfecho = null; S.efeitoDecisao = 0;
   salvar(); telaTemporada();
+}
+
+/**
+ * O sorteio, em vez do resultado aparecendo pronto.
+ *
+ * A chance já foi sorteada e já está salva — isto aqui é encenação, e é
+ * de propósito: ver a luz pular entre os dois lados por um segundo é o que
+ * faz "62%" virar uma sensação em vez de um número. A alternância vai
+ * desacelerando, como roleta parando.
+ */
+function telaSorteio(op, deuCerto, semAnimacao){
+  const df = S.desfecho || {};
+  const revelado = (extra) => `
+    <h1>${deuCerto ? "Deu certo." : "Não foi dessa vez."}</h1>
+    <div class="bpcard sorteio">
+      <div class="bpcard-title">${esc(op.l)}${df.ovr ? `<span style="color:${
+        df.ovr > 0 ? "var(--green)" : "var(--red)"}">${df.ovr > 0 ? "+" : ""}${df.ovr} OVR</span>` : ""}</div>
+      <div id="sorteioChips">${chipsDaAposta(op, extra ? null : (deuCerto ? "bom" : "ruim"))}</div>
+      <p class="sorteio-nota" id="sorteioNota">${extra || esc(df.txt || "")}</p>
+    </div>
+    <button class="btn" id="sorteioSeguir" onclick="seguir()">Seguir em frente</button>`;
+
+  // Sem animação: o desfecho já entra revelado, com o texto e o botão.
+  if (semAnimacao){
+    app().innerHTML = topo() + barra() + revelado(null);
+    return;
+  }
+
+  app().innerHTML = topo() + barra() + `
+    <h1>Vai que vai…</h1>
+    <div class="bpcard sorteio">
+      <div class="bpcard-title">${esc(op.l)}</div>
+      <div id="sorteioChips">${chipsDaAposta(op, null)}</div>
+      <p class="sorteio-nota" id="sorteioNota">Sorteando…</p>
+    </div>`;
+
+  const chips = [...document.querySelectorAll("#sorteioChips .chip-ap")];
+  if (chips.length < 2){ app().innerHTML = topo() + barra() + revelado(null); return; }
+
+  const alvo = deuCerto ? 0 : 1;
+  let n = 0, aceso = 0;
+  const passo = () => {
+    // Se a tela mudou embaixo do sorteio (voltar, recarregar), some daqui
+    // em vez de escrever num nó que não existe mais.
+    if (!document.getElementById("sorteioChips")) return;
+
+    chips.forEach((c, k) => c.classList.toggle("piscando", k === aceso));
+    n++;
+
+    if (n >= 13 && aceso === alvo){
+      chips.forEach((c, k) => {
+        c.classList.remove("piscando");
+        c.classList.add(k === alvo ? "caiu" : "apagado");
+      });
+      // O desfecho aparece AQUI, na mesma tela, e não num card lá na
+      // temporada seguinte: quem acabou de apostar quer ler agora.
+      return setTimeout(() => {
+        if (document.getElementById("sorteioChips")) app().innerHTML = topo() + barra() + revelado(null);
+      }, 520);
+    }
+
+    aceso = 1 - aceso;
+    setTimeout(passo, 70 + Math.max(0, n - 6) * 42);   // vai freando
+  };
+  passo();
+}
+
+/**
+ * Desistir: apaga a carreira e volta pro começo.
+ *
+ * Diferente de se aposentar — aposentar paga o legado em moeda, desistir
+ * não paga nada. O aviso diz isso antes, porque não dá pra desfazer.
+ */
+function desistir(){
+  if (!confirm("Desistir desta carreira? Ela não volta, e o legado dela não vira moeda.")) return;
+  apagar();
+  S = null;
+  telaInicio();
 }
 
 /**
@@ -3622,6 +3882,36 @@ function telaFim(){
  * DESENHO, sobra só o desenho pra ser feito duas vezes; um ajuste de conteúdo
  * cai nas duas de uma vez.
  */
+/**
+ * Todos os clubes por onde a carreira passou, na ordem em que passou.
+ *
+ * Sem repetir: voltar pro mesmo time depois de dois anos fora não vira
+ * duas linhas. A universidade entra — ela também foi um lugar onde se
+ * jogou, e é ela que explica o primeiro salto de OVR da lista.
+ */
+function clubesDaCarreira(){
+  const vistos = [];
+  (S.temporadas || []).forEach(t => {
+    const n = String(t.time || "").trim();
+    if (n && !vistos.includes(n)) vistos.push(n);
+  });
+  return vistos;
+}
+
+/**
+ * As médias da carreira inteira, ponderadas por jogo.
+ *
+ * Média de médias mentiria: uma temporada de 12 jogos com 30 pontos pesaria
+ * o mesmo que uma de 80 com 18. Aqui é total dividido por jogos, que é a
+ * conta que qualquer almanaque faz.
+ */
+function mediasDaCarreira(){
+  const tot = totaisDeCarreira();
+  if (!tot.jogos) return null;
+  const um = (v) => (v / tot.jogos).toFixed(1).replace(".", ",");
+  return {pts: um(tot.pts), reb: um(tot.reb), ast: um(tot.ast), jogos: tot.jogos};
+}
+
 function dadosDoCartao(pts, tier, tot, anos){
   const h = hashNome(S.time || "?");
   const mat = h % 360, comp = (mat + 150 + (h % 60)) % 360;
@@ -3633,14 +3923,30 @@ function dadosDoCartao(pts, tier, tot, anos){
     [t.titulo, "Títulos"], [t.mvp, "MVP"], [t.fmvp, "MVP Finais"],
     [t.allstar, "All-Star"], [t.dpoy, "DPOY"], [t.cesta, "Cestinha"],
     [t.ouro, "Ouro Oly"], [t.roy, "Calouro"],
-  ].filter(x => x[0] > 0).slice(0, 6)
+  ].filter(x => x[0] > 0).slice(0, 3)
    .map(([n, rot]) => [String(n), rot]);
   nums.push([tot.pts.toLocaleString("pt-BR"), "Pontos"]);
+
+  // Clubes e médias entram como as duas colunas do cartão. Os troféus
+  // encolheram pra três + pontos justamente pra caberem os dois juntos:
+  // um cartão de fim de carreira sem dizer onde se jogou e quanto se
+  // produziu é um placar sem jogo.
+  const md = mediasDaCarreira();
+  const clubes = clubesDaCarreira();
+  const listaClubes = clubes.slice(0, 5);
+  if (clubes.length > 5) listaClubes[4] = `+${clubes.length - 4} outros`;
+
+  const listas = [];
+  if (listaClubes.length) listas.push({titulo: `Clubes (${clubes.length})`, itens: listaClubes});
+  if (md) listas.push({titulo: "Médias", itens: [
+    `${md.pts} pontos`, `${md.reb} rebotes`, `${md.ast} assist.`,
+    `${md.jogos.toLocaleString("pt-BR")} jogos`,
+  ]});
 
   return {
     c1: `hsl(${mat} 55% 26%)`, c2: `hsl(${comp} 45% 12%)`,
     ovr: S.picoOvr || S.ultimoOvr || 0,
-    tier, pts, nums,
+    tier, pts, nums, listas, clubes, medias: md,
     pos: S.pos, time: String(S.time || "").slice(0, 18),
     // O número entra no nome do cartão: é o que amarra a imagem final à
     // camisa que a pessoa montou na primeira tela.
@@ -3664,6 +3970,12 @@ function cartaoDeCarreira(pts, tier, tot, anos){
     <div class="ct-nums">
       ${d.nums.map(([n,rot])=>`<div><b>${n}</b><span>${esc(rot)}</span></div>`).join("")}
     </div>
+    ${d.listas.length ? `<div class="ct-listas">
+      ${d.listas.map(col => `<div class="ct-col">
+        <span class="ct-col-tit">${esc(col.titulo)}</span>
+        ${col.itens.map(i => `<span class="ct-col-item">${esc(i)}</span>`).join("")}
+      </div>`).join("")}
+    </div>` : ""}
     <div class="ct-pe">FBA Games · Caminho até a NBA · ${esc(d.nome)}</div>
   </div>`;
 }
@@ -3681,7 +3993,7 @@ function compartilharCartao(botao){
     numero: d.ovr || "—", rotulo: "pico de overall",
     direita: [d.pos, d.time, `${d.temporadas} temporadas`],
     titulo: d.tier, sub: `${d.pts} pontos de legado`,
-    nums: d.nums, nome: d.nome, jogo: "Caminho até a NBA",
+    nums: d.nums, listas: d.listas, nome: d.nome, jogo: "Caminho até a NBA",
   }, botao);
 }
 

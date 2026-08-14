@@ -32,6 +32,11 @@
  *
  *     listas:[{titulo:'Meu time', itens:['Jordan','Pippen',…]},
  *             {titulo:'Oponente', itens:[…]}]
+ *
+ * Mandando os DOIS, o cartão fica com uma fileira compacta de números em
+ * cima e as duas colunas embaixo — é o formato do fim de carreira, onde os
+ * troféus e a lista de clubes contam a mesma história e nenhuma das duas
+ * pode sumir. Nesse modo cabem 4 números e 5 linhas por coluna.
  */
 
 /** A cor do cartão sai de um nome — mesmo nome, mesma cor, print após print. */
@@ -110,16 +115,37 @@ function cartaoScript(): string
     // ocupam o miolo no lugar da grade: dez nomes e uma grade de números na
     // mesma altura não caberiam sem encolher os dois a ponto de não se ler.
     const listas = (d.listas || []).slice(0, 2);
+    const juntos = listas.length && (d.nums || []).length;   // números + colunas
+
+    // Com os dois, a fileira de números vem primeiro, compacta, e empurra as
+    // colunas pra baixo. Sem ela, as colunas começam onde sempre começaram.
+    if (juntos){
+      const nums = (d.nums || []).slice(0, 4);
+      const larg = (L - P * 2) / 4;
+      nums.forEach(([valor, rot], i) => {
+        const cx = P + larg * i + larg / 2;
+        c.textAlign = 'center';
+        c.fillStyle = '#fff'; c.font = mono(String(valor).length > 6 ? 40 : 60, 900);
+        c.fillText(String(valor), cx, 668);
+        c.fillStyle = 'rgba(255,255,255,.6)'; c.font = sans(20, 700);
+        c.fillText(cabe(c, String(rot).toUpperCase(), larg - 8), cx, 704);
+      });
+    }
+
     if (listas.length){
       const meia = (L - P * 2) / 2;
+      const yTitulo = juntos ? 792 : 680;
+      const yItem   = juntos ? 850 : 748;
+      const passo   = juntos ? 52 : 56;
+      const maximo  = juntos ? 5 : 6;
       listas.forEach((col, li) => {
         const x = P + meia * li;
         c.textAlign = 'left';
         c.fillStyle = 'rgba(255,255,255,.6)'; c.font = sans(24, 700);
-        c.fillText(cabe(c, String(col.titulo || '').toUpperCase(), meia - 20), x, 680);
-        (col.itens || []).slice(0, 6).forEach((item, i) => {
-          c.fillStyle = '#fff'; c.font = sans(37, 700);
-          c.fillText(cabe(c, item, meia - 20), x, 748 + i * 56);
+        c.fillText(cabe(c, String(col.titulo || '').toUpperCase(), meia - 20), x, yTitulo);
+        (col.itens || []).slice(0, maximo).forEach((item, i) => {
+          c.fillStyle = '#fff'; c.font = sans(juntos ? 34 : 37, 700);
+          c.fillText(cabe(c, item, meia - 20), x, yItem + i * passo);
         });
       });
     } else {
