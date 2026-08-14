@@ -59,6 +59,55 @@ const CAMINHO_MAX_TEMPORADAS = 26;
 const CAMINHO_MAX_DESAFIOS_POR_VEZ = 12;
 
 /**
+ * Quanto cada nível de desafio paga em moeda.
+ *
+ * Mora AQUI, no servidor, e não no JavaScript: o pagamento é a única parte
+ * do jogo que vira dinheiro de verdade na conta, e um número que o cliente
+ * manda é um número que o cliente escolhe. O JS recebe esta tabela só pra
+ * mostrar na tela.
+ */
+const CAMINHO_NIVEIS = ['facil' => 50, 'medio' => 100, 'dificil' => 150, 'impossivel' => 500];
+
+/**
+ * O catálogo: id do desafio => nível.
+ *
+ * Id que não estiver aqui não é gravado nem pago. É o que garante que
+ * inventar um nome no cliente não vira moeda.
+ */
+const CAMINHO_DESAFIOS = [
+  // Fáceis — acontecem numa carreira comum.
+  'roy'         => 'facil',
+  'chamado'     => 'facil',
+  'ringless'    => 'facil',
+  // Médios — exigem uma carreira boa.
+  'anel'        => 'medio',
+  'mvp'         => 'medio',
+  'fmvp'        => 'medio',
+  'dpoy'        => 'medio',
+  'allstar5'    => 'medio',
+  'estreia'     => 'medio',
+  'euroliga'    => 'medio',
+  'selecao'     => 'medio',
+  'nomade'      => 'medio',
+  'lenda_clube' => 'medio',
+  'de_pe'       => 'medio',
+  // Difíceis — carreira longa e muito acima da média.
+  'tricampeao'  => 'dificil',
+  'mvp3'        => 'dificil',
+  'pts20k'      => 'dificil',
+  'duplo10k'    => 'dificil',
+  'ovr99'       => 'dificil',
+  'ferro'       => 'dificil',
+  'completo'    => 'dificil',
+  // Impossíveis — precisam de várias coisas raras na MESMA carreira.
+  'porta_fundos'   => 'impossivel',
+  'imortal'        => 'impossivel',
+  'goat'           => 'impossivel',
+  'dinastia_solo'  => 'impossivel',
+  'pico_e_anel'    => 'impossivel',
+];
+
+/**
  * Legado recalculado AQUI, a partir dos troféus — o número que o cliente
  * mandar é ignorado. Mesma fórmula do JS; se uma mudar, a outra tem que
  * mudar junto.
@@ -111,15 +160,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acao === 'desafios') {
         $ids = json_decode((string)($_POST['ids'] ?? ''), true);
         if (!is_array($ids)) { echo json_encode(['ok' => false, 'erro' => 'lista inválida']); exit; }
+        // Só id que existe no catálogo entra. Nome inventado no cliente não
+        // vira linha no banco nem moeda na conta.
         $ids = array_slice(array_values(array_unique(array_filter(
-            array_map(fn($x) => preg_replace('/[^a-z0-9_]/', '', mb_substr((string)$x, 0, 40)), $ids)
+            array_map(fn($x) => preg_replace('/[^a-z0-9_]/', '', mb_substr((string)$x, 0, 40)), $ids),
+            fn($id) => isset(CAMINHO_DESAFIOS[$id])
         ))), 0, CAMINHO_MAX_DESAFIOS_POR_VEZ);
-        if (!$ids) { echo json_encode(['ok' => true, 'gravados' => 0]); exit; }
+        if (!$ids) { echo json_encode(['ok' => true, 'gravados' => 0, 'moedas' => 0]); exit; }
 
+        // O prêmio sai do rowCount, não da lista: só paga a linha que ENTROU
+        // agora. Reenviar a mesma conquista dez vezes grava zero e paga zero.
         $st = $pdo->prepare("INSERT IGNORE INTO caminho_desafios (id_usuario, desafio, conquistado_em) VALUES (?,?,NOW())");
-        $gravados = 0;
-        foreach ($ids as $id) { $st->execute([$idUsuario, $id]); $gravados += $st->rowCount(); }
-        echo json_encode(['ok' => true, 'gravados' => $gravados]);
+        $gravados = 0; $moedas = 0;
+        foreach ($ids as $id) {
+            $st->execute([$idUsuario, $id]);
+            if ($st->rowCount() > 0) {
+                $gravados++;
+                $moedas += CAMINHO_NIVEIS[CAMINHO_DESAFIOS[$id]] ?? 0;
+            }
+        }
+        if ($moedas > 0) {
+            try {
+                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")
+                    ->execute([$moedas, $idUsuario]);
+            } catch (Throwable $e) {
+                error_log('[caminho] pagar desafios: ' . $e->getMessage());
+                $moedas = 0;
+            }
+        }
+        echo json_encode(['ok' => true, 'gravados' => $gravados, 'moedas' => $moedas]);
         exit;
     }
 
@@ -406,19 +475,6 @@ input::placeholder{color:var(--text3);font-weight:500}
 .chip-ap.caiu{box-shadow:0 0 0 2px currentColor inset}
 .chip-ap.caiu i{color:currentColor}
 .chip-ap.apagado{opacity:.32;filter:grayscale(.7)}
-
-/* DURANTE o sorteio: a luz pula de um lado pro outro. É o que transforma
-   "62%" numa sensação em vez de um número — o desfecho já está decidido,
-   mas ainda não foi visto.
-   Tudo escopado em .sorteio: na tela de decisão os dois chips são
-   informação, e apagá-los ali deixaria a escolha ilegível. */
-.sorteio .chip-ap{opacity:.42;transition:opacity .1s,transform .1s,box-shadow .1s}
-.sorteio .chip-ap.piscando{opacity:1;box-shadow:0 0 0 2px currentColor inset;transform:scale(1.04)}
-.sorteio .chip-ap.caiu{opacity:1;transform:scale(1.04)}
-.sorteio .chip-ap.apagado{opacity:.3}
-.sorteio #sorteioChips{margin-top:2px}
-.sorteio-nota{margin:11px 0 0;font-size:12px;font-weight:700;color:var(--text2);
-  letter-spacing:.3px}
 
 /* DESISTIR — existe, mas não disputa atenção com o botão de avançar.
    Quem procura, acha; quem não procura, não esbarra sem querer. */
@@ -816,7 +872,7 @@ tr.tit td{color:var(--red)}
 /* Altura de duas linhas mesmo quando o título tem uma: sem isso, a carta
    com o nome curto sobe a arte e as duas ficam desencontradas. */
 .dec-card-tit{font-size:14.5px;font-weight:800;letter-spacing:-.2px;line-height:1.25;
-  min-height:2.5em;display:flex;align-items:center;justify-content:center}
+  min-height:2.5em;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .dec-card-arte{height:78px;border-radius:11px;display:flex;align-items:center;justify-content:center;
   font-size:34px;line-height:1;
   background:linear-gradient(145deg,hsl(var(--m) 42% 26%),hsl(var(--m) 34% 14%));
@@ -833,6 +889,25 @@ tr.tit td{color:var(--red)}
 .dec-bom{color:var(--green);border-color:rgba(34,197,94,.3);background:var(--green-soft)}
 .dec-ruim{color:var(--red);border-color:var(--red-glow);background:var(--red-soft)}
 .dec-neutro{color:var(--text2);border-color:var(--border)}
+
+/* O SORTEIO, NA PRÓPRIA CARTA
+   A luz pula entre os dois desfechos da carta escolhida enquanto as outras
+   saem de cena. Sem trocar de tela: o sorteio dura menos de um segundo, e
+   duas navegações pra mostrar um segundo de animação tiravam a pessoa de
+   onde ela estava olhando. */
+.dec-fora{opacity:.25;filter:grayscale(.8);pointer-events:none;transition:.2s}
+.dec-sorteando{border-color:var(--red)}
+.dec-sorteando .dec-res{opacity:.4;transition:opacity .08s,transform .08s,box-shadow .08s}
+.dec-res.piscando{opacity:1;box-shadow:0 0 0 2px currentColor inset;transform:scale(1.03)}
+.dec-res.caiu{opacity:1;box-shadow:0 0 0 2px currentColor inset;transform:scale(1.03)}
+.dec-res.apagado{opacity:.3;filter:grayscale(.6)}
+
+/* O desfecho: uma carta só, a que foi escolhida, e o texto embaixo. */
+.dec-grade-um{grid-template-columns:minmax(0,232px)}
+.dec-card.dec-sorteando{cursor:default}
+.dec-delta{display:block;font-family:var(--num);font-size:11.5px;font-weight:900;margin-top:3px;
+  font-variant-numeric:tabular-nums}
+.dec-desfecho-txt{margin:12px 0 4px;font-size:13.5px;line-height:1.55;color:var(--text2)}
 @media(max-width:380px){
   .dec-grade{grid-template-columns:1fr}
   .dec-card-arte{height:56px;font-size:28px}
@@ -863,6 +938,28 @@ tr.tit td{color:var(--red)}
 .desafio.feito .desafio-txt small{color:var(--text2)}
 .desafio-data{position:absolute;top:7px;right:9px;font-size:9px;font-weight:700;letter-spacing:.3px;
   color:var(--text3);background:var(--panel3);border-radius:99px;padding:2px 7px;font-family:var(--num)}
+
+/* Nível e prêmio no pé do card. A cor do nível é a mesma escada dos
+   troféus: verde é o que dá pra buscar hoje, roxo é o que talvez nunca. */
+.desafio-pe{display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap}
+.desafio-nivel{font-style:normal;font-size:8.5px;font-weight:800;letter-spacing:.8px;
+  text-transform:uppercase;border-radius:99px;padding:2px 7px;border:1px solid}
+.desafio-moeda{font-style:normal;font-family:var(--num);font-size:10px;font-weight:800;
+  color:var(--amber);font-variant-numeric:tabular-nums}
+.nv-facil      .desafio-nivel{color:#22c55e;border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.1)}
+.nv-medio      .desafio-nivel{color:#3b82f6;border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.1)}
+.nv-dificil    .desafio-nivel{color:var(--amber);border-color:rgba(245,158,11,.32);background:var(--amber-soft)}
+.nv-impossivel .desafio-nivel{color:#a855f7;border-color:rgba(168,85,247,.35);background:rgba(168,85,247,.12)}
+.nv-impossivel.feito .desafio-icone{background:linear-gradient(150deg,#a855f7,#4c1d95)}
+
+.desafios-saldo{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.desafios-saldo span{flex:1;min-width:120px;background:var(--panel);border:1px solid var(--border);
+  border-radius:11px;padding:9px 12px;font-size:9px;font-weight:800;letter-spacing:.9px;
+  text-transform:uppercase;color:var(--text3);display:flex;flex-direction:column;gap:2px}
+.desafios-saldo b{font-family:var(--num);font-size:19px;font-weight:900;color:var(--amber);
+  letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.conquista-moeda{margin-left:auto;font-style:normal;font-family:var(--num);font-size:12px;
+  font-weight:900;color:var(--amber)}
 .conquista-aviso{border-color:rgba(245,158,11,.4)!important;background:var(--amber-soft)!important}
 .conquista-linha{display:flex;align-items:center;gap:9px;padding:3px 0;font-size:13px}
 .conquista-linha span{font-size:18px;line-height:1}
@@ -922,6 +1019,10 @@ window.__EU__     = <?= json_encode($_SESSION['user_name'] ?? '', JSON_UNESCAPED
 window.__ULTIMO_NOME__ = <?= json_encode($ultimoNome, JSON_UNESCAPED_UNICODE) ?>;
 window.__MOEDAS__ = <?= $pontosUsuario ?>;
 window.__DESAFIOS__ = <?= json_encode($desafiosFeitos, JSON_UNESCAPED_UNICODE) ?: '{}' ?>;
+// Nível e prêmio vêm do servidor: é lá que a moeda é creditada, e a tela
+// não pode prometer um número diferente do que vai ser pago.
+window.__NIVEL_DO_DESAFIO__ = <?= json_encode(CAMINHO_DESAFIOS) ?>;
+window.__MOEDA_DO_NIVEL__   = <?= json_encode(CAMINHO_NIVEIS) ?>;
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
@@ -2145,7 +2246,7 @@ function render(){
   if (S.fase === "escolha")return telaCaminho();
   if (S.fase === "college" || S.fase === "fora") return telaFormacao();
   if (S.finais)            return telaFinais();
-  if (S.desfecho)          return telaSorteio(S.desfecho, S.desfecho.caiu === "bom", true);
+
   if (S.mercado)           return telaMercado();
   if (S.fase === "draft")  return telaDraft();
   if (S.fase === "semdraft") return telaSemDraft();
@@ -2740,7 +2841,17 @@ const DESAFIOS = [
   {id:"completo",    i:"🧩", n:"O ano completo",     d:"Média de 20 pontos, 8 rebotes e 8 assistências numa temporada."},
   {id:"ringless",    i:"🕳️", n:"Ringless",           d:"Encerre uma carreira de dez temporadas sem nenhum título."},
   {id:"imortal",     i:"🗿", n:"Imortal",            d:"Encerre uma carreira com 200 de legado ou mais."},
+  // Os impossíveis exigem várias coisas raras na MESMA carreira — é isso
+  // que os separa dos difíceis, que pedem uma coisa rara só.
+  {id:"goat",          i:"🐐", n:"O maior de todos",  d:"Na mesma carreira: 4 títulos, 3 MVPs, 25 mil pontos e um ouro pela seleção."},
+  {id:"dinastia_solo", i:"🏛️", n:"Dono da franquia",  d:"Quinze temporadas num clube só, com 3 títulos por ele."},
+  {id:"pico_e_anel",   i:"👑", n:"Teto com anel",     d:"Chegue a 99 de overall e ganhe um título na mesma carreira."},
 ];
+
+/** Nível e prêmio de um desafio, direto do catálogo do servidor. */
+function nivelDoDesafio(id){ return (window.__NIVEL_DO_DESAFIO__ || {})[id] || "medio"; }
+function moedaDoDesafio(id){ return (window.__MOEDA_DO_NIVEL__ || {})[nivelDoDesafio(id)] || 0; }
+const ROTULO_NIVEL = {facil:"Fácil", medio:"Médio", dificil:"Difícil", impossivel:"Impossível"};
 
 /** Só temporadas de verdade — formação e ano perdido não contam. */
 function temporadasJogadas(){
@@ -2778,6 +2889,17 @@ function testarDesafio(id, fim){
       const porClube = {};
       jogadas.forEach(x => { if (x.time) porClube[x.time] = (porClube[x.time]||0) + 1; });
       return Object.values(porClube).some(n => n >= 10);
+    }
+    case "pico_e_anel": return (S.picoOvr || 0) >= 99 && (t.titulo||0) >= 1;
+    case "goat":        return (t.titulo||0) >= 4 && (t.mvp||0) >= 3 && tot.pts >= 25000
+                            && ((t.ouro||0) >= 1 || (t.ouroCopa||0) >= 1);
+    case "dinastia_solo": {
+      const porClube = {};
+      jogadas.forEach(x => { if (x.time) porClube[x.time] = (porClube[x.time]||0) + 1; });
+      // O título tem que ser POR ele: quinze anos de casa e três anéis na
+      // carreira, sem ter saído pra ganhar em outro lugar.
+      return Object.values(porClube).some(n => n >= 15) && (t.titulo||0) >= 3
+          && Object.keys(porClube).length <= 2;
     }
     // Os dois de encerramento só valem no fim: no meio da carreira ainda dá
     // tempo de ganhar o título que falta.
@@ -2822,21 +2944,41 @@ function telaDesafios(){
   const feitos = window.__DESAFIOS__ || {};
   const total = DESAFIOS.length;
   const n = DESAFIOS.filter(d => feitos[d.id]).length;
+  const ganho = DESAFIOS.filter(d => feitos[d.id]).reduce((a, d) => a + moedaDoDesafio(d.id), 0);
+  const aGanhar = DESAFIOS.filter(d => !feitos[d.id]).reduce((a, d) => a + moedaDoDesafio(d.id), 0);
+
+  // Do mais fácil pro mais difícil: quem abre a tela quer saber o que dá
+  // pra buscar agora, não o que talvez nunca aconteça.
+  const ordem = {facil:0, medio:1, dificil:2, impossivel:3};
+  const lista = DESAFIOS.slice().sort((a, b) =>
+    (ordem[nivelDoDesafio(a.id)] - ordem[nivelDoDesafio(b.id)])
+    || (!!feitos[b.id] - !!feitos[a.id]));
+
   app().innerHTML = topo() + `
     <div class="desafios-topo">
       <h1 style="margin:0">Conquistas da carreira</h1>
       <span class="desafios-conta">${n} de ${total}</span>
     </div>
     <div class="desafios-barra"><i style="width:${Math.round(n/total*100)}%"></i></div>
-    <p class="lead">Elas são suas, não da carreira: ficam guardadas depois que você pendura as chuteiras.</p>
+    <p class="lead">Elas são suas, não da carreira: ficam guardadas depois que você pendura as chuteiras.
+    Cada uma paga moeda uma vez só, na primeira vez que cai.</p>
+    <div class="desafios-saldo">
+      <span><b>${ganho}</b>moedas ganhas</span>
+      <span><b>${aGanhar}</b>ainda na mesa</span>
+    </div>
     <div class="desafios-grade">
-      ${DESAFIOS.map(d => {
+      ${lista.map(d => {
         const q = feitos[d.id];
-        return `<div class="desafio ${q ? "feito" : ""}">
+        const nivel = nivelDoDesafio(d.id);
+        return `<div class="desafio ${q ? "feito" : ""} nv-${nivel}">
           <span class="desafio-icone" data-id="${d.id}">${d.i}</span>
           <span class="desafio-txt">
             <b>${esc(d.n)}</b>
             <small>${esc(d.d)}</small>
+            <span class="desafio-pe">
+              <em class="desafio-nivel">${ROTULO_NIVEL[nivel] || nivel}</em>
+              <em class="desafio-moeda">${moedaDoDesafio(d.id)} moedas</em>
+            </span>
           </span>
           ${q ? `<span class="desafio-data">${esc(q)}</span>` : ""}
         </div>`;
@@ -3202,7 +3344,7 @@ function fecharAno(campeao, vit, o, st){
 
   // Desafios do ano: ficam guardados no estado só pra aparecer na tela da
   // temporada. Quem manda no que está conquistado é o banco.
-  S.desafiosDoAno = checarDesafios(false).map(d => ({i:d.i, n:d.n}));
+  S.desafiosDoAno = checarDesafios(false).map(d => ({id:d.id, i:d.i, n:d.n}));
 
   // Contrato acabando manda pro mercado ANTES da decisão do ano: é a
   // decisão mais pesada que existe, não faz sentido dividir espaço.
@@ -3382,12 +3524,18 @@ function iconeDaOpcao(rotulo){
   return achado ? achado[1] : "🏀";
 }
 
-/** Um desfecho da carta: seta, o que muda, e a chance. */
-function linhaDeDesfecho(ef, pct, tipo){
+/**
+ * Um desfecho da carta: seta, o que muda, e a chance.
+ *
+ * `marca` fica vazia enquanto ninguém escolheu; depois do sorteio vira
+ * "caiu" ou "apagado" — os mesmos estados que a animação usa, pra que a
+ * tela redesenhada continue exatamente como o sorteio parou.
+ */
+function linhaDeDesfecho(ef, pct, marca){
   if (!ef) return "";
   const cor = corDoEfeito(ef);
   const seta = cor === "bom" ? "↗" : cor === "ruim" ? "↘" : "→";
-  return `<span class="dec-res dec-${cor}">
+  return `<span class="dec-res dec-${cor}${marca ? " " + marca : ""}">
     <i>${seta}</i><em>${esc(dizEfeito(ef))}</em><b>${pct}%</b></span>`;
 }
 
@@ -3424,8 +3572,8 @@ function cartasDaDecisao(d){
           <span class="dec-card-tit">${esc(o.l)}</span>
           <span class="dec-card-arte" style="--m:${mat}deg">${iconeDaOpcao(o.l)}</span>
           <span class="dec-card-res">
-            ${linhaDeDesfecho(o.bom, c, "bom")}
-            ${c >= 100 ? "" : linhaDeDesfecho(o.ruim, 100 - c, "ruim")}
+            ${linhaDeDesfecho(o.bom, c, "")}
+            ${c >= 100 ? "" : linhaDeDesfecho(o.ruim, 100 - c, "")}
           </span>
         </button>`;
       }).join("")}
@@ -3443,15 +3591,16 @@ function telaTemporada(){
     (S.mensagem ? `<div class="bpcard"><p class="dec-txt" style="margin:0">${S.mensagem}</p></div>` : "") +
     ((S.desafiosDoAno || []).length ? `<div class="bpcard conquista-aviso">
       <div class="bpcard-title">Conquista${S.desafiosDoAno.length > 1 ? "s" : ""} desbloqueada${S.desafiosDoAno.length > 1 ? "s" : ""}</div>
-      ${S.desafiosDoAno.map(d => `<div class="conquista-linha"><span>${d.i}</span><b>${esc(d.n)}</b></div>`).join("")}
+      ${S.desafiosDoAno.map(d => `<div class="conquista-linha"><span>${d.i}</span><b>${esc(d.n)}</b>
+        <em class="conquista-moeda">+${moedaDoDesafio(d.id)}</em></div>`).join("")}
       <button class="btn btn2" style="margin-top:10px" onclick="telaDesafios()">Ver todas</button>
     </div>` : "") +
-    // O bloco "O que aconteceu" saiu daqui: ele nascia acima da decisão do
-    // ano e empurrava a pergunta pra baixo da dobra, justamente na tela em
-    // que a pergunta é a única coisa que importa. O desfecho passou a ter
-    // tela própria, logo depois do sorteio, onde ninguém disputa espaço.
-    ""  +
-    (S.aguardando && d ? cartasDaDecisao(d) : `
+    // O desfecho aparece NO LUGAR da decisão, não acima dela: enquanto ele
+    // está na tela, a decisão do ano já foi tomada e não há o que escolher.
+    // Era isso que o bloco "O que aconteceu" fazia errado — ficava por cima
+    // da pergunta seguinte e empurrava ela pra fora da dobra.
+    (S.desfecho ? cartaDoDesfecho(S.desfecho) : "") +
+    (S.aguardando && d ? cartasDaDecisao(d) : S.desfecho ? "" : `
       ${aposentar ? `<button class="btn" onclick="encerrar()">Pendurar as chuteiras</button>`
                   : `<button class="btn" onclick="jogarAno()">${
                         S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>`}
@@ -3476,7 +3625,11 @@ function decidir(i){
   // Só DADO, nunca o objeto da opção: ele tem função dentro e o
   // JSON.stringify do save as descarta calado, o que traria a carreira de
   // volta com uma aposta sem desfecho nenhum.
-  const soDado = (e) => e ? {ovr: e.ovr || 0, time: e.time || null, fora: e.fora || null} : null;
+  // `conf` entra aqui junto com o resto: sem ela, o desfecho redesenhado
+  // perdia a cor e o rótulo das decisões que só mexem em confiança — a de
+  // ficar ou pedir troca saía cinza e escrita "nada muda".
+  const soDado = (e) => e ? {ovr: e.ovr || 0, time: e.time || null,
+                             fora: e.fora || null, conf: e.conf || 0} : null;
   S.desfecho = {
     l: op.l, chance: op.chance ?? 100,
     bom: soDado(op.bom), ruim: soDado(op.ruim),
@@ -3486,15 +3639,59 @@ function decidir(i){
   S.aguardando = false; S.decisaoId = null; S.mensagem = null;
 
   // Salva ANTES da animação, não depois. O resultado já está decidido; se a
-  // pessoa recarregar no meio do sorteio, ela cai na tela do desfecho que
-  // realmente saiu — em vez de voltar pra decisão e sortear de novo.
+  // pessoa recarregar no meio do sorteio, ela cai no desfecho que realmente
+  // saiu — em vez de voltar pra decisão e sortear de novo.
   salvar();
 
   // Aposta de 100% não tem dois lados pra alternar, e quem pediu menos
-  // movimento no sistema não quer isto piscando na tela: nesses casos o
-  // desfecho aparece parado, já revelado.
+  // movimento no sistema não quer nada piscando: nesses casos o desfecho
+  // aparece direto.
   const doisLados = (op.chance ?? 100) < 100 && op.ruim;
-  telaSorteio(op, deuCerto, !doisLados || matchMedia("(prefers-reduced-motion: reduce)").matches);
+  if (!doisLados || matchMedia("(prefers-reduced-motion: reduce)").matches) return telaTemporada();
+  sortearNaCarta(i, deuCerto);
+}
+
+/**
+ * O sorteio acontece na carta clicada, sem trocar de tela.
+ *
+ * Tela própria pro sorteio custava duas navegações pra mostrar um segundo
+ * de animação — e tirava a pessoa de onde ela estava olhando. Aqui a luz
+ * pula entre os dois desfechos da própria carta, rápido, e quando para a
+ * tela se redesenha já com o resultado.
+ */
+function sortearNaCarta(i, deuCerto){
+  const cartas = [...document.querySelectorAll(".dec-card")];
+  const carta = cartas[i];
+  const linhas = carta ? [...carta.querySelectorAll(".dec-res")] : [];
+  if (linhas.length < 2) return telaTemporada();
+
+  // As outras cartas saem de cena: a decisão já foi tomada, e piscar ao
+  // lado de opções ainda acesas confunde o que está sendo sorteado.
+  cartas.forEach((c, k) => { if (k !== i) c.classList.add("dec-fora"); });
+  carta.classList.add("dec-sorteando");
+
+  const alvo = deuCerto ? 0 : 1;
+  let n = 0, aceso = 0;
+  const passo = () => {
+    // Se a tela mudou embaixo do sorteio, some daqui em vez de escrever
+    // num nó que não está mais na página.
+    if (!carta.isConnected) return;
+
+    linhas.forEach((l, k) => l.classList.toggle("piscando", k === aceso));
+    n++;
+
+    if (n >= 9 && aceso === alvo){
+      linhas.forEach((l, k) => {
+        l.classList.remove("piscando");
+        l.classList.add(k === alvo ? "caiu" : "apagado");
+      });
+      return setTimeout(() => { if (carta.isConnected) telaTemporada(); }, 420);
+    }
+
+    aceso = 1 - aceso;
+    setTimeout(passo, 55 + Math.max(0, n - 4) * 26);   // rápido, freando no fim
+  };
+  passo();
 }
 
 /** Fecha o desfecho e devolve a pessoa pra temporada. */
@@ -3504,69 +3701,31 @@ function seguir(){
 }
 
 /**
- * O sorteio, em vez do resultado aparecendo pronto.
+ * O desfecho, no mesmo lugar onde a decisão estava.
  *
- * A chance já foi sorteada e já está salva — isto aqui é encenação, e é
- * de propósito: ver a luz pular entre os dois lados por um segundo é o que
- * faz "62%" virar uma sensação em vez de um número. A alternância vai
- * desacelerando, como roleta parando.
+ * Mesma carta, mesmos dois desfechos, agora com um aceso e o outro
+ * apagado — a pessoa vê onde a luz parou sem precisar traduzir nada. O
+ * texto embaixo conta o que aconteceu.
  */
-function telaSorteio(op, deuCerto, semAnimacao){
-  const df = S.desfecho || {};
-  const revelado = (extra) => `
-    <h1>${deuCerto ? "Deu certo." : "Não foi dessa vez."}</h1>
-    <div class="bpcard sorteio">
-      <div class="bpcard-title">${esc(op.l)}${df.ovr ? `<span style="color:${
-        df.ovr > 0 ? "var(--green)" : "var(--red)"}">${df.ovr > 0 ? "+" : ""}${df.ovr} OVR</span>` : ""}</div>
-      <div id="sorteioChips">${chipsDaAposta(op, extra ? null : (deuCerto ? "bom" : "ruim"))}</div>
-      <p class="sorteio-nota" id="sorteioNota">${extra || esc(df.txt || "")}</p>
+function cartaDoDesfecho(df){
+  const caiuBom = df.caiu === "bom";
+  const ef = caiuBom ? df.bom : df.ruim;
+  return `<h1 class="dec-tit">${caiuBom ? "Deu certo." : "Não foi dessa vez."}</h1>
+    <div class="dec-grade dec-grade-um">
+      <div class="dec-card dec-sorteando">
+        <span class="dec-card-tit">${esc(df.l)}${df.ovr ? `<b class="dec-delta" style="color:${
+          df.ovr > 0 ? "var(--green)" : "var(--red)"}">${df.ovr > 0 ? "+" : ""}${df.ovr} OVR</b>` : ""}</span>
+        <span class="dec-card-arte" style="--m:${hashNome(df.l) % 360}deg">${iconeDaOpcao(df.l)}</span>
+        <span class="dec-card-res">
+          ${linhaDeDesfecho(df.bom, df.chance, caiuBom ? "caiu" : "apagado")}
+          ${df.chance >= 100 ? "" : linhaDeDesfecho(df.ruim, 100 - df.chance, caiuBom ? "apagado" : "caiu")}
+        </span>
+      </div>
     </div>
-    <button class="btn" id="sorteioSeguir" onclick="seguir()">Seguir em frente</button>`;
-
-  // Sem animação: o desfecho já entra revelado, com o texto e o botão.
-  if (semAnimacao){
-    app().innerHTML = topo() + barra() + revelado(null);
-    return;
-  }
-
-  app().innerHTML = topo() + barra() + `
-    <h1>Vai que vai…</h1>
-    <div class="bpcard sorteio">
-      <div class="bpcard-title">${esc(op.l)}</div>
-      <div id="sorteioChips">${chipsDaAposta(op, null)}</div>
-      <p class="sorteio-nota" id="sorteioNota">Sorteando…</p>
-    </div>`;
-
-  const chips = [...document.querySelectorAll("#sorteioChips .chip-ap")];
-  if (chips.length < 2){ app().innerHTML = topo() + barra() + revelado(null); return; }
-
-  const alvo = deuCerto ? 0 : 1;
-  let n = 0, aceso = 0;
-  const passo = () => {
-    // Se a tela mudou embaixo do sorteio (voltar, recarregar), some daqui
-    // em vez de escrever num nó que não existe mais.
-    if (!document.getElementById("sorteioChips")) return;
-
-    chips.forEach((c, k) => c.classList.toggle("piscando", k === aceso));
-    n++;
-
-    if (n >= 13 && aceso === alvo){
-      chips.forEach((c, k) => {
-        c.classList.remove("piscando");
-        c.classList.add(k === alvo ? "caiu" : "apagado");
-      });
-      // O desfecho aparece AQUI, na mesma tela, e não num card lá na
-      // temporada seguinte: quem acabou de apostar quer ler agora.
-      return setTimeout(() => {
-        if (document.getElementById("sorteioChips")) app().innerHTML = topo() + barra() + revelado(null);
-      }, 520);
-    }
-
-    aceso = 1 - aceso;
-    setTimeout(passo, 70 + Math.max(0, n - 6) * 42);   // vai freando
-  };
-  passo();
+    <p class="dec-desfecho-txt">${esc(df.txt || "")}</p>
+    <button class="btn" onclick="seguir()">Seguir em frente</button>`;
 }
+
 
 /**
  * Desistir: apaga a carreira e volta pro começo.
@@ -3667,8 +3826,11 @@ function trajetoPorIdade(){
     <span class="tj-n forte">${t.pts}</span><span class="tj-n">${t.reb}</span><span class="tj-n">${t.ast}</span>`;
   const vazios = `<span class="tj-n"></span><span class="tj-n"></span><span class="tj-n"></span><span class="tj-n"></span>`;
 
+  // De cima pra baixo, do mais novo pro mais velho: o ano que acabou de
+  // acontecer é o que interessa, e ele ficava no fim de uma lista de vinte
+  // linhas. O cabeçalho continua no topo.
   const linhas = [];
-  for (let i = inicio; i <= Math.min(fim, 41); i++){
+  for (let i = Math.min(fim, 41); i >= inicio; i--){
     const t = porIdade[i];
     const agora = i === S.idade && !S.encerrada;
 
@@ -3743,7 +3905,7 @@ function encerrar(){
   S.encerrada = true;
   // Última chamada dos desafios: dois deles (Ringless, Imortal) só podem ser
   // julgados com a carreira fechada.
-  S.desafiosDoAno = checarDesafios(true).map(d => ({i:d.i, n:d.n}));
+  S.desafiosDoAno = checarDesafios(true).map(d => ({id:d.id, i:d.i, n:d.n}));
   // Fecha no SERVIDOR: é lá que o legado é recalculado e as moedas
   // creditadas. O cliente só avisa que acabou.
   fetch(location.pathname, {
