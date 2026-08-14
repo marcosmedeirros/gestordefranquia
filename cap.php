@@ -267,7 +267,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     </details>
     <details>
       <summary><i class="bi bi-shield-check"></i> Status do time</summary>
-      <div class="rules-body">Cap Máximo = 205M + soma do Cap Flex do elenco. Cap Mínimo = 170M — fica abaixo do piso
+      <!-- Os dois números vêm do resumo, não do texto: a base e o piso são
+           configurados pelo admin (Central da Liga), e um texto fixo aqui
+           passaria a mentir no dia em que a liga mudasse o teto. -->
+      <div class="rules-body">Cap Máximo = <b id="regraCapBase">—</b> + Cap Flex + Bônus de Lealdade do elenco.
+      Cap Mínimo = <b id="regraCapPiso">—</b> — ficar abaixo do piso
       só é um problema de verdade depois da Trade Deadline (a validação automática disso ainda não existe, é só um
       aviso informativo por enquanto).</div>
     </details>
@@ -344,8 +348,14 @@ async function loadCap(){
     badge.className = `status-badge ${st.cls}`;
     badge.style.display = 'inline-flex';
 
+    // O texto da regra acompanha o que a liga configurou.
+    const regraBase = document.getElementById('regraCapBase');
+    const regraPiso = document.getElementById('regraCapPiso');
+    if (regraBase) regraBase.textContent = s.cap_base + 'M';
+    if (regraPiso) regraPiso.textContent = s.cap_floor + 'M';
+
     document.getElementById('statsGrid').innerHTML = [
-      statCard('Cap Base', s.cap_base + 'M', '', '', 'Piso fixo de toda franquia ELITE, antes de qualquer Cap Flex.'),
+      statCard('Cap Base', s.cap_base + 'M', '', '', 'O teto que a liga definiu, igual pra toda franquia — antes de Cap Flex e Bônus de Lealdade.'),
       statCard('Cap Flex', '+' + s.cap_flex_total + 'M',
         `${s.cap_flex_used_slots}/${s.cap_flex_max_players} vagas` + (s.cap_flex_eligible_count > s.cap_flex_max_players ? ` · ${s.cap_flex_eligible_count} elegíveis` : ''),
         '', `O Cap Flex vale para no máximo ${s.cap_flex_max_players} jogadores. Havendo mais elegíveis, contam os de maior valor.`),

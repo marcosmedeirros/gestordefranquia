@@ -466,9 +466,14 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
     // CAP_LOYALTY_BONUS_MILLIONS cada no Cap Máximo (desempate pelo OVR).
     //
     // Nota de regra: o deck da FBA Elite 15 fala em teto de 205M indo até 221M (só o
-    // Cap Flex). O Bônus de Lealdade é uma regra da liga adicionada depois do deck e
-    // vale em todas — com ele, o teto de uma franquia com dois leais no elenco chega
-    // a 237M. Ou seja, a divergência com o documento é intencional, não é bug.
+    // Cap Flex). Dois motivos pra o número de hoje não bater com o do documento, e
+    // nenhum é bug:
+    //
+    //   1. A base deixou de ser fixa — vem do "CAP Máximo" que o admin configura
+    //      na Central da Liga (capBaseEFloorDaLiga). O deck virou o padrão de quem
+    //      nunca preencheu o campo.
+    //   2. O Bônus de Lealdade é regra da liga, acrescentada depois do deck: com
+    //      dois leais no elenco, o teto sobe mais 16M por cima de tudo.
     $loyalElegiveis = [];
     foreach ($roster as $i => $r) {
         if (!empty($r['loyalty_bonus_eligible'])) $loyalElegiveis[$i] = $r;

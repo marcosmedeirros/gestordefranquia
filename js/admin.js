@@ -4063,7 +4063,9 @@ async function showConfig() {
   <div style="margin-bottom:24px;background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:16px">
     <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px"><i class="bi bi-arrows-expand me-1"></i>Cap Flex</div>
     <p style="font-size:11px;color:var(--text-3);margin-bottom:12px;line-height:1.5">
-      O Cap Flex serve pra franquia segurar a estrela que ela mesma desenvolveu (+3M / +5M / +8M por faixa de OVR, no máximo 2 jogadores, teto indo de 205M a 221M).
+      O Cap Flex serve pra franquia segurar a estrela que ela mesma desenvolveu (+3M / +5M / +8M por faixa de OVR, no máximo 2 jogadores).
+      Ele soma por cima do <b>CAP Máximo</b> configurado logo acima${Number(lg.cap_max) > 0
+        ? ` — hoje ${Number(lg.cap_max)}M, indo até ${Number(lg.cap_max) + 16}M com as duas vagas cheias` : ''}.
       Na primeira temporada da edição ninguém desenvolveu ninguém ainda, e todo jogador do Draft Inicial fica marcado como "draftado pelo próprio time" —
       então liberar já na estreia daria fôlego de teto de graça pra metade da liga.
       <b>Deixe vazio pra manter o Cap Flex sempre ligado</b>, ou informe a partir de qual temporada ele passa a valer.
