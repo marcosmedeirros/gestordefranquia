@@ -182,6 +182,33 @@ if ($acao === 'grupos') {
 // worker vivo, fila escoando) e quando o bot "não responde" o sintoma é o
 // mesmo para qualquer um deles. Isto diz qual elo está frouxo sem precisar
 // abrir o banco.
+// ── Nomes dos grupos ────────────────────────────────────────────────────
+//   POST  action=nomes { grupos: [{jid, nome}] }
+//
+// O worker lê os nomes na Evolution (que a Hostinger não alcança) e manda
+// pra cá. Separado do action=grupos de propósito: aquele SUBSTITUI a lista
+// de grupos que aceitam comando, e usar ele pra nome cadastraria todo grupo
+// do celular como grupo de comando — o oposto do que a lista serve.
+//
+// Aqui só o nome é gravado, e só em quem o bot já viu falar.
+if ($acao === 'nomes') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') botResponder(405, ['erro' => 'use POST']);
+    $corpo = json_decode(file_get_contents('php://input'), true);
+    $grupos = $corpo['grupos'] ?? null;
+    if (!is_array($grupos)) botResponder(400, ['erro' => 'grupos inválido']);
+
+    $st = $pdo->prepare("UPDATE whatsapp_grupos_vistos SET nome = ? WHERE jid = ?");
+    $gravados = 0;
+    foreach (array_slice($grupos, 0, 300) as $g) {
+        $jid  = trim((string)($g['jid'] ?? ''));
+        $nome = mb_substr(trim((string)($g['nome'] ?? '')), 0, 120);
+        if ($jid === '' || !str_ends_with($jid, '@g.us') || $nome === '') continue;
+        $st->execute([$nome, $jid]);
+        $gravados += $st->rowCount();
+    }
+    botResponder(200, ['ok' => true, 'atualizados' => $gravados]);
+}
+
 if ($acao === 'diagnostico') {
     $cfg = $pdo->query("SELECT grupo_principal, ativo, bot_visto_em FROM whatsapp_config WHERE id = 1")
                ->fetch(PDO::FETCH_ASSOC) ?: [];

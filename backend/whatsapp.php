@@ -108,6 +108,15 @@ function ensureWhatsAppTables(PDO $pdo): void
             $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN bot_visto_em DATETIME NULL AFTER bot_token");
         }
 
+        // O nome do grupo, sincronizado da Evolution pelo worker. Sem ele o
+        // painel só tinha o último autor como reserva — e num grupo isso é o
+        // nome de uma PESSOA, não do grupo.
+        try {
+            if ($pdo->query("SHOW COLUMNS FROM whatsapp_grupos_vistos LIKE 'nome'")->rowCount() === 0) {
+                $pdo->exec("ALTER TABLE whatsapp_grupos_vistos ADD COLUMN nome VARCHAR(120) NULL AFTER jid");
+            }
+        } catch (Throwable $e) { /* tabela nasce com a coluna; aqui é só o legado */ }
+
         // O que o Painel do Bot arquiva: tudo | grupos | pv | off.
         if (!in_array('captura', $cols, true)) {
             $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN captura VARCHAR(10) NOT NULL DEFAULT 'off'");
@@ -397,6 +406,7 @@ function whatsappAnotarGrupoVisto(PDO $pdo, string $jid, array $mensagem = []): 
     try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_grupos_vistos (
             jid VARCHAR(120) PRIMARY KEY,
+            nome VARCHAR(120) NULL,
             ultimo_autor VARCHAR(120) NULL,
             ultima_mensagem VARCHAR(160) NULL,
             mensagens INT NOT NULL DEFAULT 0,

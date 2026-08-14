@@ -7,8 +7,17 @@
 # Porta 8081 porque a 8080 já é do container web do gestordefranquia.
 # O Postgres daqui é só da Evolution — não encosta no MariaDB do projeto.
 #
-# Subir:   EVO_API_KEY=<chave> docker compose up -d
+# Subir:   docker compose up -d
 # Parear:  abrir http://localhost:8081/manager e ler o QR code
+#
+# A chave vem do .env desta pasta, que o Compose lê sozinho. Ela ficava só
+# na linha de comando (EVO_API_KEY=<chave> docker compose up -d) e isso já
+# derrubou o bot uma vez: um `up -d` sem a variável recria o container com a
+# chave VAZIA, a Evolution passa a responder 401 em tudo, e o sintoma que
+# aparece é "o bot parou de mandar mensagem" — longe da causa.
+#
+# O .env está fora do git e precisa ter a MESMA chave de
+# bot/whatsapp-local.config.php.
 #
 # A sessão pareada vive no volume evolution_instances. Levar o bot pra
 # outra máquina sem copiar esse volume significa parear de novo — o que

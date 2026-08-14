@@ -94,6 +94,17 @@ $hdrEvo = ['apikey: ' . $cfg['evolution_api_key']];
 $FIM_DA_RODADA = time() + 55;
 $totalOk = 0; $totalFalhou = 0;
 
+// ── Nomes dos grupos, uma vez por rodada ────────────────────────────────
+//
+// A Hostinger não alcança a Evolution, então o nome do grupo só chega ao
+// site por aqui. Sem isso o Painel do Bot mostrava o último autor no lugar
+// do nome — e num grupo o último autor é uma pessoa: "The Pathetic"
+// aparecia como "Lucas Xavier".
+//
+// Uma vez por execução (a cada minuto, portanto) é de sobra: nome de grupo
+// muda de mês em mês, e a chamada varre todos os grupos do aparelho.
+sincronizarNomes($cfg, $site, $hdrAuth, $hdrEvo);
+
 while (true) {
     // ── 1. Puxa a fila ──────────────────────────────────────────────────
     [$st, $resp, $erroRede] = req($site . '/api/whatsapp-bot.php?action=pendentes&limite=50', null, $hdrAuth);
@@ -122,6 +133,36 @@ while (true) {
 
 if ($totalOk || $totalFalhou) logar("enviadas=$totalOk falhas=$totalFalhou");
 exit(0);
+
+/**
+ * Busca o nome de cada grupo na Evolution e manda pro site.
+ *
+ * Silenciosa quando dá errado: nome de grupo é conforto, não função. Se a
+ * Evolution não responder, o painel mostra "Grupo ···1234" e o envio de
+ * mensagem — que é o trabalho de verdade deste worker — segue igual.
+ */
+function sincronizarNomes(array $cfg, string $site, array $hdrAuth, array $hdrEvo): void
+{
+    $url = rtrim($cfg['evolution_url'], '/') . '/group/fetchAllGroups/'
+         . rawurlencode($cfg['evolution_instancia']) . '?getParticipants=false';
+    [$st, $resp, $erro] = req($url, null, $hdrEvo);
+    if ($erro || $st !== 200) return;
+
+    // A Evolution já devolveu tanto uma lista crua quanto {groups:[...]}
+    // dependendo da versão. Aceita as duas em vez de depender de uma.
+    $lista = is_array($resp['groups'] ?? null) ? $resp['groups'] : (is_array($resp) ? $resp : []);
+    $grupos = [];
+    foreach ($lista as $g) {
+        if (!is_array($g)) continue;
+        $jid  = trim((string)($g['id'] ?? $g['jid'] ?? ''));
+        $nome = trim((string)($g['subject'] ?? $g['name'] ?? ''));
+        if ($jid !== '' && $nome !== '') $grupos[] = ['jid' => $jid, 'nome' => $nome];
+    }
+    if (!$grupos) return;
+
+    [$st2, , ] = req($site . '/api/whatsapp-bot.php?action=nomes', ['grupos' => $grupos], $hdrAuth);
+    if ($st2 === 200) logar('nomes de grupo sincronizados: ' . count($grupos));
+}
 
 /** Envia um lote pela Evolution e devolve o resultado pro site. */
 function processarLote(array $msgs, string $urlEnvio, array $hdrEvo, string $site, array $hdrAuth, int &$totalOk, int &$totalFalhou): void

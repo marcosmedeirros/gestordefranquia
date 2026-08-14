@@ -17,3 +17,6 @@ games/logs/sync-hoopgrid-status.log
 # Config do worker local de WhatsApp: token do site + chave da Evolution
 bot/whatsapp-local.config.php
 bot/whatsapp-local.log
+
+# Chave da Evolution — o compose lê ela daqui automaticamente.
+bot/evolution/.env

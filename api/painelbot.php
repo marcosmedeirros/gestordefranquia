@@ -36,7 +36,18 @@ if (($user['user_type'] ?? 'jogador') !== 'admin') {
 ensureWhatsAppTables($pdo);
 $acao = $_GET['acao'] ?? $_POST['acao'] ?? 'chats';
 
-/** Nome legível de um chat, na melhor fonte que existir. */
+/**
+ * Nome legível de um chat, na melhor fonte que existir.
+ *
+ * A ordem importa e já errou uma vez: o fallback pro `ultimo_autor` valia
+ * pra qualquer chat, e num grupo o último autor é uma PESSOA — o The
+ * Pathetic aparecia com o nome de quem tinha falado por último. Agora esse
+ * fallback só vale em conversa privada, onde o último autor é mesmo o dono
+ * do número.
+ *
+ * Pra grupo só entram nomes de grupo: o cadastro de comandos e o que o
+ * worker sincroniza da Evolution.
+ */
 function pbNomes(PDO $pdo): array
 {
     $nomes = [];
@@ -45,13 +56,25 @@ function pbNomes(PDO $pdo): array
             $nomes[$r['jid']] = $r['nome'];
         }
     } catch (Throwable $e) {}
-    // Quem falou por último dá nome ao PV quando não há cadastro nenhum.
+
     try {
-        foreach ($pdo->query("SELECT jid, ultimo_autor FROM whatsapp_grupos_vistos WHERE ultimo_autor <> ''") as $r) {
-            if (!isset($nomes[$r['jid']])) $nomes[$r['jid']] = $r['ultimo_autor'];
+        foreach ($pdo->query("SELECT jid, nome, ultimo_autor FROM whatsapp_grupos_vistos") as $r) {
+            if (isset($nomes[$r['jid']])) continue;
+            $ehGrupo = str_ends_with($r['jid'], '@g.us');
+            // Nome de grupo veio da Evolution (worker). Pra grupo, é a única
+            // fonte aceita além do cadastro.
+            if (!empty($r['nome']))            { $nomes[$r['jid']] = $r['nome']; continue; }
+            if (!$ehGrupo && $r['ultimo_autor']) $nomes[$r['jid']] = $r['ultimo_autor'];
         }
     } catch (Throwable $e) {}
     return $nomes;
+}
+
+/** Rótulo de grupo sem nome conhecido: honesto, e nunca o nome de alguém. */
+function pbRotuloGrupo(string $jid): string
+{
+    $n = explode('@', $jid)[0];
+    return 'Grupo ···' . substr($n, -4);
 }
 
 /** JID → telefone legível, quando for conversa privada. */
@@ -92,7 +115,7 @@ if ($acao === 'chats') {
         $chats[] = [
             'jid'      => $jid,
             'grupo'    => (int)$r['eh_grupo'] === 1,
-            'nome'     => $nomes[$jid] ?? (pbTelefone($jid) ?: $jid),
+            'nome'     => $nomes[$jid] ?? (str_ends_with($jid, '@g.us') ? pbRotuloGrupo($jid) : (pbTelefone($jid) ?: $jid)),
             'ultima'   => mb_substr((string)$r['ultima'], 0, 90),
             'direcao'  => $r['ultima_direcao'],
             'quando'   => $r['quando'],
@@ -129,7 +152,7 @@ if ($acao === 'mensagens') {
     echo json_encode([
         'ok' => true,
         'jid' => $jid,
-        'nome' => $nomes[$jid] ?? (pbTelefone($jid) ?: $jid),
+        'nome' => $nomes[$jid] ?? (str_ends_with($jid, '@g.us') ? pbRotuloGrupo($jid) : (pbTelefone($jid) ?: $jid)),
         'grupo' => str_ends_with($jid, '@g.us'),
         'mensagens' => array_map(fn($m) => [
             'quando'   => $m['quando'],
