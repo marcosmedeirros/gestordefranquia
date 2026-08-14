@@ -2488,6 +2488,16 @@ async function showLeague(league) {
       // edição da liga. Quem só queria conferir passava por uma tela de mexer
       // pra chegar numa de olhar.
       { icon: 'bi-cash-coin',               label: 'Controle<br>CAP / Jogadores', fn: `showControleCap('${league}')`,        color: '#f5c542', bg: 'rgba(245,197,66,.12)'  },
+      // Página própria, não tela do admin: ela recarrega sozinha a cada
+      // poucos segundos e vive aberta num canto, como um WhatsApp Web.
+      //
+      // Só admin geral: a página mostra conversa de grupo inteiro, e a
+      // própria painelbot.php recusa quem não é. Sem este filtro o card
+      // apareceria pra admin de liga e levaria a um redirect — botão que
+      // não faz nada é pior que botão que não existe.
+      ...(window.IS_GLOBAL_ADMIN ? [
+        { icon: 'bi-whatsapp',              label: 'Painel<br>do Bot',          fn: `location.href='/painelbot.php'`, color: '#25d366', bg: 'rgba(37,211,102,.12)' },
+      ] : []),
       { icon: 'bi-shield-check',            label: 'FBA SERASA',                fn: 'showSerasaAdmin()',         color: '#8b5cf6', bg: 'rgba(139,92,246,.12)'  },
       { icon: 'bi-person-dash-fill',        label: 'Dispensas',                 fn: 'showDispensas()',           color: '#ef4444', bg: 'rgba(239,68,68,.12)'   },
       // Tapas escondido na fusão — a tela e a função continuam existindo.

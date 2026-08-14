@@ -107,6 +107,15 @@ function ensureWhatsAppTables(PDO $pdo): void
             $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN bot_token VARCHAR(64) NULL AFTER grupo_principal");
             $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN bot_visto_em DATETIME NULL AFTER bot_token");
         }
+
+        // O que o Painel do Bot arquiva: tudo | grupos | pv | off.
+        if (!in_array('captura', $cols, true)) {
+            $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN captura VARCHAR(10) NOT NULL DEFAULT 'off'");
+        }
+        // Lista de jids separada por vírgula — só vale quando captura = 'grupos'.
+        if (!in_array('captura_jids', $cols, true)) {
+            $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN captura_jids TEXT NULL");
+        }
         $pdo->exec("UPDATE whatsapp_config SET bot_token = SHA2(CONCAT(RAND(), UUID(), NOW()), 256)
                     WHERE id = 1 AND (bot_token IS NULL OR bot_token = '')");
 
@@ -125,6 +134,30 @@ function ensureWhatsAppTables(PDO $pdo): void
             liga ENUM('ELITE','NEXT','RISE','ROOKIE') NULL,
             ativo TINYINT(1) NOT NULL DEFAULT 1,
             criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        // ── Arquivo de conversas (Painel do Bot) ──────────────────────
+        //
+        // Só o que ENTRA. O que sai já está inteiro na whatsapp_fila desde
+        // sempre, e duplicar ali criaria duas versões da mesma mensagem pra
+        // manter em sincronia. O painel junta as duas na hora de mostrar.
+        //
+        // Nasce DESLIGADA: whatsapp_config.captura começa em 'off'. Guardar
+        // conversa de grupo é decisão consciente, tomada na tela por quem
+        // responde por ela — não efeito colateral de um deploy.
+        $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_conversas (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            jid VARCHAR(120) NOT NULL,
+            eh_grupo TINYINT(1) NOT NULL DEFAULT 0,
+            autor_jid VARCHAR(120) NULL,
+            autor_nome VARCHAR(120) NULL,
+            texto TEXT NULL,
+            tipo_midia VARCHAR(24) NULL,
+            msg_id VARCHAR(96) NULL,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_msg (msg_id),
+            INDEX idx_conv (jid, id),
+            INDEX idx_quando (criado_em)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
         // Fila: toda mensagem passa por aqui antes de sair. Assim uma queda da
@@ -277,6 +310,86 @@ function whatsappGruposDeComando(PDO $pdo): array
  *
  * Nada aqui pode derrubar o webhook: é anotação, não é o trabalho dele.
  */
+/**
+ * O que o Painel do Bot arquiva, lido da config uma vez por requisição.
+ *
+ * Devolve ['modo' => tudo|grupos|pv|off, 'jids' => [...]].
+ */
+function whatsappCaptura(PDO $pdo): array
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = ['modo' => 'off', 'jids' => []];
+    try {
+        $r = $pdo->query("SELECT captura, captura_jids FROM whatsapp_config WHERE id = 1")
+                 ->fetch(PDO::FETCH_ASSOC) ?: [];
+        $modo = strtolower(trim((string)($r['captura'] ?? 'off')));
+        if (!in_array($modo, ['tudo', 'grupos', 'pv', 'off'], true)) $modo = 'off';
+        $jids = array_values(array_filter(array_map('trim',
+            explode(',', (string)($r['captura_jids'] ?? '')))));
+        $cache = ['modo' => $modo, 'jids' => $jids];
+    } catch (Throwable $e) {
+        // Coluna ainda não existe (deploy no meio): não grava nada. Falhar
+        // pro lado de não arquivar é o único lado seguro aqui.
+        error_log('[whatsapp] captura: ' . $e->getMessage());
+    }
+    return $cache;
+}
+
+/**
+ * Arquiva uma mensagem RECEBIDA, se a captura estiver ligada pra ela.
+ *
+ * Chamada pelo webhook antes de qualquer filtro de comando: o painel mostra
+ * a conversa inteira, não só o que virou `/comando`.
+ *
+ * O msg_id é UNIQUE e o INSERT é IGNORE — a Evolution reenvia evento quando
+ * volta de uma queda, e sem isso o painel mostraria a mesma fala duas vezes.
+ */
+function whatsappGravarConversa(PDO $pdo, string $jid, array $mensagem, string $autorJid = ''): void
+{
+    if ($jid === '') return;
+    $cap = whatsappCaptura($pdo);
+    if ($cap['modo'] === 'off') return;
+
+    $ehGrupo = str_ends_with($jid, '@g.us');
+    if ($cap['modo'] === 'pv' && $ehGrupo) return;
+    if ($cap['modo'] === 'grupos' && !in_array($jid, $cap['jids'], true)) return;
+
+    try {
+        $texto = function_exists('wcTextoDaMensagem')
+            ? trim((string)wcTextoDaMensagem($mensagem['message'] ?? []))
+            : '';
+
+        // Sem texto normalmente é mídia. Guarda o TIPO, nunca o arquivo: o
+        // painel diz "mandou uma foto" e pronto — baixar e guardar imagem de
+        // conversa alheia é outra ordem de grandeza de rastro.
+        $tipo = null;
+        if ($texto === '') {
+            foreach (['imageMessage'=>'imagem', 'videoMessage'=>'vídeo', 'audioMessage'=>'áudio',
+                      'documentMessage'=>'documento', 'stickerMessage'=>'figurinha',
+                      'locationMessage'=>'localização', 'contactMessage'=>'contato'] as $k => $rot) {
+                if (isset($mensagem['message'][$k])) { $tipo = $rot; break; }
+            }
+            if ($tipo === null) return;   // evento sem conteúdo nenhum: ignora
+        }
+
+        $pdo->prepare("INSERT IGNORE INTO whatsapp_conversas
+                         (jid, eh_grupo, autor_jid, autor_nome, texto, tipo_midia, msg_id)
+                       VALUES (?,?,?,?,?,?,?)")
+            ->execute([
+                mb_substr($jid, 0, 120),
+                $ehGrupo ? 1 : 0,
+                mb_substr($autorJid, 0, 120) ?: null,
+                mb_substr(trim((string)($mensagem['pushName'] ?? '')), 0, 120) ?: null,
+                $texto !== '' ? $texto : null,
+                $tipo,
+                mb_substr((string)($mensagem['key']['id'] ?? ''), 0, 96) ?: null,
+            ]);
+    } catch (Throwable $e) {
+        error_log('[whatsapp] gravar conversa: ' . $e->getMessage());
+    }
+}
+
 function whatsappAnotarGrupoVisto(PDO $pdo, string $jid, array $mensagem = []): void
 {
     if (!str_ends_with($jid, '@g.us')) return;   // conversa privada não entra

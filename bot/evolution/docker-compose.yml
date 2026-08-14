@@ -30,14 +30,19 @@ services:
       DATABASE_CONNECTION_URI: postgresql://evo:evo@evolution-db:5432/evolution?schema=public
       DATABASE_CONNECTION_CLIENT_NAME: fba
 
-      # Guardar só o que a instância precisa pra reconectar. Histórico de
-      # conversa, contatos e chats não interessam — a FBA só manda mensagem,
-      # nunca lê. Menos dado guardado, menos coisa pra vazar.
+      # Contatos e chats ligados por causa do Painel do Bot (painelbot.php):
+      # é deles que sai o NOME do grupo e da pessoa. Sem isso a lista de
+      # conversas seria uma coluna de JIDs de 18 dígitos.
+      #
+      # Mensagem NÃO é guardada aqui de propósito. Quem arquiva o texto é o
+      # site, na tabela whatsapp_conversas, onde existe seletor do que gravar
+      # e onde dá pra apagar. Guardar nos dois lugares seria dobrar o rastro
+      # e ter que apagar em dois.
       DATABASE_SAVE_DATA_INSTANCE: "true"
       DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
       DATABASE_SAVE_MESSAGE_UPDATE: "false"
-      DATABASE_SAVE_DATA_CONTACTS: "false"
-      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
       DATABASE_SAVE_DATA_LABELS: "false"
       DATABASE_SAVE_DATA_HISTORIC: "false"
 

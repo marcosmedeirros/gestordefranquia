@@ -164,6 +164,11 @@ foreach ($mensagens as $m) {
     // grupo novo virava caça ao JID no log da Evolution.
     whatsappAnotarGrupoVisto($pdo, $de, $m);
 
+    // Arquiva pro Painel do Bot ANTES do filtro de comando: o painel mostra
+    // a conversa, não só o que virou `/comando`. Não grava nada enquanto a
+    // captura estiver desligada, que é como ela nasce.
+    whatsappGravarConversa($pdo, $de, $m, wcRemetenteDaMensagem($m));
+
     $texto = wcTextoDaMensagem($m['message'] ?? []);
     if ($texto === '' || $texto[0] !== '/') continue;
 
