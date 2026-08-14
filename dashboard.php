@@ -1967,8 +1967,14 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                             <?php endif; ?>
                             <div class="league-stat">
                                 <?php if ($salaryCapMode && $salCap): ?>
-                                <div class="league-stat-label">Teto Salarial</div>
-                                <div class="league-stat-val" style="font-size:12px"><?= (int)$salCap['cap_max'] ?>M</div>
+                                <!-- Painel da LIGA: aqui vai a base que vale pra todo
+                                     mundo (o CAP Máximo da Central da Liga), não o teto
+                                     do seu time. O seu já aparece no card Salary Cap lá
+                                     em cima, e ele inclui Cap Flex e Lealdade — dois
+                                     números diferentes com o mesmo rótulo davam a
+                                     impressão de que um dos dois estava errado. -->
+                                <div class="league-stat-label">Teto da Liga</div>
+                                <div class="league-stat-val" style="font-size:12px"><?= (int)$salCap['cap_base'] ?>M</div>
                                 <?php else: ?>
                                 <div class="league-stat-label">CAP Faixa</div>
                                 <div class="league-stat-val" style="font-size:12px"><?= $capMin ?>–<?= $capMax ?></div>
