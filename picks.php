@@ -35,13 +35,14 @@ try {
 } catch (Exception $e) { $currentSeasonYear = null; }
 $currentSeasonYear = $currentSeasonYear ?: (int)date('Y');
 
-// ── Custo no cap da pick ────────────────────────────────────────────────────
+// ── Peso da pick no cap (troca) ──────────────────────────────────────────────
 // Só faz sentido em liga com salary cap (hoje, ELITE). Nas outras o cap é soma
 // de OVR, e uma pick não ocupa nada até virar jogador.
 //
-// A pick ainda não tem posição de draft (a tabela `picks` guarda só ano e
-// rodada), então o valor exato só existe na 2ª rodada, que é 2M sempre. Na 1ª
-// depende de onde ela cair, então mostramos a faixa da rookie scale.
+// Mesmo valor fixo que trade-simulator.php e trades.js usam pro casamento
+// salarial de uma troca (CAP_PICK_TRADE_VALUE) — não é a rookie scale (o que
+// o calouro escolhido custaria no ano 1), é só o peso da pick como ativo de
+// troca, e por isso não varia com a posição do pick dentro da rodada.
 $salaryCapMode = false;
 try {
     require_once __DIR__ . '/backend/salary_cap.php';
@@ -52,15 +53,11 @@ try {
 
 function pickCapLabel(int $round): string
 {
-    return $round >= 2 ? '2M' : '3–18M';
+    return (CAP_PICK_TRADE_VALUE[$round] ?? 0) . 'M';
 }
 function pickCapTitle(int $round): string
 {
-    return $round >= 2
-        ? 'Custo no cap: 2M no 1º ano do calouro (rookie scale da 2ª rodada, independe da posição).'
-        : 'Custo no cap no 1º ano do calouro (rookie scale da 1ª rodada): 18M do 1º ao 3º, '
-          . '14M até o 8º, 12M até o 12º, 8M até o 16º, 5M até o 22º e 3M do 23º ao 30º. '
-          . 'A faixa aparece porque a pick ainda não tem posição definida. Vale só no ano 1.';
+    return 'Peso desta pick no casamento salarial de uma troca (' . (CAP_PICK_TRADE_VALUE[$round] ?? 0) . 'M) — não é folha, pick não pesa no cap do elenco.';
 }
 
 $stmtPicks = $pdo->prepare('
