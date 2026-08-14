@@ -676,36 +676,82 @@ tr.tit td{color:var(--red)}
    Lista, não tabela: no celular uma tabela de 6 colunas ou rola de lado
    ou espreme tudo. Aqui as três informações que importam cabem em uma
    linha em qualquer largura. */
-.trajeto{border:1px solid var(--border);border-radius:12px;background:var(--panel);overflow:hidden}
-.tj{display:flex;align-items:center;gap:10px;padding:7px 11px;border-bottom:1px solid var(--border);
+/* container-type: quem aperta a linha é a LARGURA DA CAIXA, não a da tela.
+   No desktop a trajetória vive numa coluna de 350px — media query de
+   viewport não enxerga isso e deixava "Los Angeles Lakers" em 80px. */
+.trajeto{border:1px solid var(--border);border-radius:12px;background:var(--panel);overflow:hidden;
+  container-type:inline-size}
+.tj{display:flex;align-items:center;gap:7px;padding:5px 10px;border-bottom:1px solid var(--border);
   font-size:12px}
 .tj:last-child{border-bottom:none}
-.tj-cab{background:var(--panel2);font-size:8.5px;font-weight:800;letter-spacing:1.1px;
-  text-transform:uppercase;color:var(--text2)}
-.tj-cab .tj-nums b,.tj-cab .tj-nums i{font-family:var(--font);font-size:8.5px;font-weight:800;
-  color:var(--text2);font-style:normal}
-/* 32px e não 26: o cabeçalho escreve "Idade", e a caixa de 26 cortava a
-   palavra em qualquer largura de tela. */
-.tj-idade{flex:none;width:32px;font-family:var(--num);font-weight:800;font-variant-numeric:tabular-nums;
-  color:var(--text2);text-align:center;overflow:hidden}
-.tj-cab .tj-idade{letter-spacing:.2px}
-.tj-clube{flex:1;min-width:0;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis}
-.tj-clube small{display:block;font-size:9.5px;font-weight:600;color:var(--red);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tj-nums{flex:none;display:flex;gap:9px;align-items:baseline;font-family:var(--num);
-  font-variant-numeric:tabular-nums}
-.tj-nums b{font-size:13px;font-weight:800;color:var(--text);min-width:26px;text-align:right}
-.tj-nums i{font-size:11px;font-style:normal;font-weight:600;color:var(--text2);min-width:20px;text-align:right}
-.tj-vazia{opacity:.4}
-.tj-vazia .tj-clube{color:var(--text3)}
-.tj-perdida .tj-clube{color:var(--text2)}
-.tj-perdida .tj-clube small{color:var(--text2)}
+.tj-cab{background:var(--panel2);font-size:8.5px;font-weight:800;letter-spacing:1px;
+  text-transform:uppercase;color:var(--text3);padding-top:7px;padding-bottom:7px}
+/* O .forte vem depois e tem a mesma especificidade, então precisa ser
+   citado aqui — senão o "Pts" do cabeçalho sai em tamanho de número. */
+.tj-cab .tj-idade,.tj-cab .tj-ovr,.tj-cab .tj-n,.tj-cab .tj-n.forte{background:none;border:none;
+  color:var(--text3);font-family:var(--font);font-size:8.5px;font-weight:800;box-shadow:none;padding:0}
+/* "Idade" é a palavra mais longa do cabeçalho e a coluna é a mais estreita:
+   sem apertar a letra, o "e" ficava do lado de fora da caixa de 26px. */
+.tj-cab .tj-idade{font-size:8px;letter-spacing:0}
+
+/* A idade é um selo, não um número solto: verde quando a temporada
+   aconteceu, vermelho no ano do título, apagado no que ainda não veio.
+   A cor responde "o que rolou nesse ano?" antes da linha ser lida. */
+.tj-idade{flex:none;width:26px;height:20px;display:flex;align-items:center;justify-content:center;
+  border-radius:6px;font-family:var(--num);font-size:11.5px;font-weight:800;
+  font-variant-numeric:tabular-nums;background:var(--panel3);color:var(--text2)}
+.sel-jogada{background:#16a34a;color:#fff}
+.sel-titulo{background:var(--red);color:#fff}
+.sel-formacao{background:var(--panel3);color:var(--text2)}
+.sel-perdida{background:#3f3f46;color:var(--text2)}
+/* text2 e não text3: a linha vazia já leva opacity, e as duas coisas
+   juntas sumiam com o número — os anos que faltam precisam ser lidos. */
+.sel-vazio{background:transparent;color:var(--text2);font-weight:700}
+.sel-agora{background:transparent;color:var(--red);box-shadow:inset 0 0 0 1.5px var(--red)}
+
+.tj-clube{flex:1;min-width:0;display:flex;align-items:center;gap:6px;font-weight:700;color:var(--text)}
+.tj-clube b{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tj-clube em{font-style:normal;font-size:10px;font-weight:600;color:var(--text3);flex:none}
+.tj-clube .marca-time,.tj-clube .marca-logo{flex:none}
+.tj-escudo{flex:none;width:18px;height:18px;border-radius:5px;background:var(--panel3);
+  display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text3);font-weight:800}
+.tj-trofeus{flex:none;display:flex;gap:2px;font-size:11px;line-height:1}
+.tj-trofeus i{font-style:normal;cursor:help}
+
+/* O OVR do ano, na cor da faixa dele — a curva do jogador aparece na
+   coluna inteira sem precisar de gráfico nenhum. */
+.tj-ovr{flex:none;width:30px;height:19px;display:flex;align-items:center;justify-content:center;
+  border-radius:5px;font-family:var(--num);font-size:11.5px;font-weight:800;
+  font-variant-numeric:tabular-nums;background:var(--cor);color:#fff}
+.tj-ovr-vazio{background:transparent;color:var(--text3);font-weight:700}
+
+.tj-n{flex:none;width:26px;text-align:right;font-family:var(--num);font-size:11px;font-weight:600;
+  font-variant-numeric:tabular-nums;color:var(--text2)}
+.tj-n.forte{font-size:12.5px;font-weight:800;color:var(--text)}
+.tj-vazia{opacity:.62}
+.tj-perdida .tj-clube b{color:var(--text2)}
 .tj-titulo{background:var(--red-soft)}
-.tj-titulo .tj-idade{color:var(--red)}
-.tj-agora{background:var(--panel2);box-shadow:inset 3px 0 0 var(--red)}
-.tj-agora .tj-idade{color:var(--red)}
-.tj-agora .tj-clube{color:var(--text2);font-style:italic;font-weight:500}
+.tj-agora{background:var(--panel2)}
+.tj-agora .tj-clube em{color:var(--text2)}
+
+/* Abaixo de 380px o Reb sai: quatro colunas de número espremiam o nome do
+   clube até virar reticências, e o clube é o que dá sentido à linha. */
+/* nth-of-type conta TODOS os spans da linha, não só os .tj-n: idade,
+   clube e ovr vêm antes, então Reb é o 6º. Some quando a caixa aperta —
+   o nome do clube é o que dá sentido à linha, quatro colunas de número
+   não são. */
+@container (max-width:370px){
+  .tj > .tj-n:nth-of-type(6){display:none}
+  .tj{gap:5px;padding-left:8px;padding-right:8px}
+}
+/* Navegador sem container query: pelo menos o celular estreito continua
+   legível. */
+@supports not (container-type:inline-size){
+  @media(max-width:379px){
+    .tj > .tj-n:nth-of-type(6){display:none}
+    .tj{gap:5px;padding-left:8px;padding-right:8px}
+  }
+}
 
 /* ═══ JANELA DE TRANSFERÊNCIAS ═══════════════════════════════════════
    Cartões lado a lado, do mesmo tamanho: nenhuma proposta é "a certa", e
@@ -724,6 +770,26 @@ tr.tit td{color:var(--red)}
   display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:2px}
 .oferta-num small{font-family:var(--font);font-size:9.5px;font-weight:700;color:var(--text2);letter-spacing:.3px}
 .oferta-nota{font-size:11px;font-weight:500;line-height:1.45;color:var(--text2);margin-top:2px}
+
+/* ═══ RITMO DA CARREIRA ══════════════════════════════════════════════
+   Dois botões pequenos embaixo do botão grande: quem não quiser mexer
+   nem repara, e quem quiser acelerar acha na hora em que sentiu vontade. */
+.ritmo{display:flex;align-items:stretch;gap:6px;margin-top:9px}
+.ritmo-rot{flex:none;align-self:center;font-size:8.5px;font-weight:800;letter-spacing:1.2px;
+  text-transform:uppercase;color:var(--text3);padding-right:2px}
+.ritmo-op{flex:1;min-width:0;background:var(--panel2);border:1.5px solid var(--border2);
+  border-radius:10px;padding:7px 9px;text-align:left;cursor:pointer;font-family:var(--font);
+  color:var(--text2);transition:.15s;display:flex;flex-direction:column;gap:1px}
+.ritmo-op b{font-size:12px;font-weight:800;color:var(--text2)}
+.ritmo-op small{font-size:9.5px;font-weight:600;color:var(--text3);line-height:1.3}
+.ritmo-op:hover{border-color:var(--border2);background:var(--panel3)}
+.ritmo-op.ativo{border-color:var(--red);background:var(--red-soft)}
+.ritmo-op.ativo b{color:var(--red)}
+.ritmo-op.ativo small{color:var(--text2)}
+@media(max-width:400px){
+  .ritmo{flex-wrap:wrap}
+  .ritmo-rot{width:100%;padding-bottom:2px}
+}
 
 /* ═══ CONQUISTAS ═════════════════════════════════════════════════════ */
 .chip-btn{border:none;cursor:pointer;font-family:var(--font);transition:.15s}
@@ -961,6 +1027,11 @@ function novaCarreira(nome, pos, arq, nac, modo){
 
   return {
     v:1, modo, nome, pos, arq, nac,
+    // Ritmo da carreira: "normal" para uma temporada por clique, "rapido"
+    // para duas. Muda quantas vezes o ano roda antes de parar — não muda a
+    // simulação em si, então uma carreira rápida vale exatamente o mesmo
+    // no ranking. Dá pra trocar no meio, a qualquer momento.
+    ritmo:"normal",
     // Só identidade: aparecem na camisa e no cartão do fim, não entram em
     // conta nenhuma. Quem preenche é o criar(), depois desta função.
     numero:null, mao:"D",
@@ -1886,11 +1957,29 @@ function gmDoTime(nome){
 
 /** Logo do time, se houver. Mapa montado uma vez a partir das duas listas. */
 let LOGOS = null;
+/**
+ * Escudo das universidades, do CDN da ESPN.
+ *
+ * Os dez ids foram conferidos um a um contra a imagem que devolvem — id
+ * errado aqui não dá erro, dá o brasão de outra faculdade, que é pior.
+ *
+ * Clube de fora e time da G League continuam no monograma: não existe
+ * fonte única e estável pros escudos deles, e uma URL chutada devolveria
+ * 404 ou, pior, o escudo errado. O monograma nunca erra e nunca some.
+ */
+const LOGOS_COLLEGE = {
+  "Duke":150, "Kentucky":96, "Kansas":2305, "Gonzaga":2250, "UConn":41,
+  "Baylor":239, "Michigan State":127, "Arizona":12, "UCLA":26, "Villanova":222,
+};
+
 function logoDoTime(nome){
   if (!LOGOS){
     LOGOS = {};
     (window.__TIMES_FBA__ || FBA_TIMES).forEach(t => { if (t[1]) LOGOS[t[0]] = t[1]; });
     (window.__TIMES_NBA__ || NBA).forEach(t => { if (t[1]) LOGOS[t[0]] = t[1]; });
+    Object.entries(LOGOS_COLLEGE).forEach(([n, id]) => {
+      LOGOS[n] = `https://a.espncdn.com/i/teamlogos/ncaa/500/${id}.png`;
+    });
   }
   return LOGOS[nome] || null;
 }
@@ -2811,7 +2900,8 @@ function perderAno(){
   S.hype      = clamp(S.hype      - (lesao ? 10 : 20), 5, 99);
 
   S.temporadas.push({ano:S.ano, idade:S.idade, time:S.time, pts:0, reb:0, ast:0, min:0, jogos:0,
-                     vit:0, premios:[], campeao:false, perdida:af.tipo, motivo:af.motivo});
+                     vit:0, ovr:ovr(S.A, S.pos), premios:[], campeao:false,
+                     perdida:af.tipo, motivo:af.motivo});
 
   S.ultimo = {pts:0, reb:0, ast:0, min:0, jogos:0};
   S.ultimoOvr = ovr(S.A, S.pos);
@@ -2831,6 +2921,9 @@ function perderAno(){
 
   S.resultado = null; S.efeitoDecisao = 0;
   S.aguardando = false; S.decisaoId = null;
+  // Ano perdido corta o par do modo rápido: ficar fora é a notícia da
+  // temporada e merece a tela inteira, não meio clique.
+  S.parDoRitmo = 0;
   salvar(); telaTemporada();
 }
 
@@ -2959,7 +3052,9 @@ function fecharAno(campeao, vit, o, st){
   const anterior = S.temporadas[S.temporadas.length - 1];
   if (anterior && anterior.perdida && premios.length) S.voltouComPremio = true;
 
-  S.temporadas.push({ano:S.ano, idade:S.idade, time:S.time, ...st, vit,
+  // O OVR do ano vai junto: a trajetória mostra a curva do jogador, e sem
+  // guardar aqui só sobraria o OVR de hoje, igual em todas as linhas.
+  S.temporadas.push({ano:S.ano, idade:S.idade, time:S.time, ...st, vit, ovr:o,
                      premios:premios.map(p=>p.t), campeao});
 
   S.efeitoDecisao = 0;
@@ -2994,10 +3089,30 @@ function fecharAno(campeao, vit, o, st){
   // Contrato acabando manda pro mercado ANTES da decisão do ano: é a
   // decisão mais pesada que existe, não faz sentido dividir espaço.
   if (S.contrato <= 0){
+    S.parDoRitmo = 0;
     S.mercado = gerarOfertas();
     S.aguardando = false; S.decisaoId = null;
     salvar(); return telaMercado();
   }
+
+  // ── Modo rápido: duas temporadas por clique ────────────────────────
+  //
+  // A segunda roda direto, sem decisão no meio — é isso que faz o modo ser
+  // rápido de verdade. Guardando a metade do caminho em S.parDoRitmo em vez
+  // de num laço, o encadeamento sobrevive ao salvar/carregar: fechar o
+  // navegador entre as duas não deixa a carreira num estado impossível.
+  //
+  // Mercado, finais e aposentadoria sempre cortam o par: são momentos em
+  // que a pessoa precisa decidir, e passar por cima deles seria jogar no
+  // lugar dela.
+  const podeAposentar = S.idade >= 39 || (S.idade >= 33 && ovr(S.A, S.pos) < 68);
+  if (S.ritmo === "rapido" && !S.parDoRitmo && !S.encerrada && !podeAposentar && !S.afastado){
+    S.parDoRitmo = 1;
+    S.decisaoId = null; S.aguardando = false;
+    salvar();
+    return jogarAno();
+  }
+  S.parDoRitmo = 0;
 
   S.decisaoId = decisaoDoAno();
   S.aguardando = S.decisaoId !== null;
@@ -3120,6 +3235,30 @@ function fecharContrato(anos){
   salvar(); telaTemporada();
 }
 
+/**
+ * O seletor de ritmo, embaixo do botão de avançar.
+ *
+ * Fica aqui e não só na criação porque a vontade muda no meio: os
+ * primeiros anos são os interessantes, e a partir dos 30 quase todo mundo
+ * quer chegar logo ao fim da carreira. Trocar não custa nada e não altera
+ * nenhuma conta — o ranking não sabe em que ritmo a carreira foi jogada.
+ */
+function controleDeRitmo(){
+  const op = (valor, rotulo, nota) => `<button class="ritmo-op ${S.ritmo === valor ? "ativo" : ""}"
+      onclick="trocarRitmo('${valor}')"><b>${rotulo}</b><small>${nota}</small></button>`;
+  return `<div class="ritmo">
+    <span class="ritmo-rot">Ritmo</span>
+    ${op("normal", "Ano a ano", "uma temporada por vez")}
+    ${op("rapido", "De 2 em 2", "duas de uma vez, sem parar no meio")}
+  </div>`;
+}
+
+function trocarRitmo(valor){
+  S.ritmo = valor === "rapido" ? "rapido" : "normal";
+  S.parDoRitmo = 0;
+  salvar(); telaTemporada();
+}
+
 function telaTemporada(){
   const st = S.ultimo;
   if (!st) return telaDraft();
@@ -3148,7 +3287,9 @@ function telaTemporada(){
         ${d.ops.map((o,i)=>`<button class="op" onclick="decidir(${i})"><span class="op-titulo">${esc(o.l)}</span>${chipsDaAposta(o, null)}</button>`).join("")}
       </div>` : `
       ${aposentar ? `<button class="btn" onclick="encerrar()">Pendurar as chuteiras</button>`
-                  : `<button class="btn" onclick="jogarAno()">Próxima temporada</button>`}
+                  : `<button class="btn" onclick="jogarAno()">${
+                        S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>
+                     ${controleDeRitmo()}`}
       ${!aposentar && S.idade >= 33 ? `<button class="btn btn2" style="margin-top:8px" onclick="encerrar()">Ou parar por aqui</button>` : ""}`);
 
   // A súmula vai pro lado: ela cresce a cada temporada e, embaixo do botão
@@ -3216,6 +3357,32 @@ function resumoDeTrofeus(){
 }
 
 /**
+ * Um ícone por conquista da temporada, em vez da lista de nomes.
+ *
+ * A linha antiga escrevia "All-Star · MVP das Finais" embaixo do clube e
+ * empurrava a altura da linha pra o dobro. O ícone cabe na mesma linha do
+ * nome e o `title` continua dizendo o que é — a informação não some, só
+ * para de ocupar espaço que a lista de idades precisa.
+ */
+const ICONE_TROFEU = [
+  [/final/i,      "💍"], [/mvp/i,       "⭐"], [/defensor|dpoy/i, "🛡️"],
+  [/calouro|roy/i,"🌱"], [/cestinha/i,  "🎯"], [/all[- ]?star/i,  "🎪"],
+  [/euroliga/i,   "🌍"], [/ouro/i,      "🥇"], [/prata/i,         "🥈"],
+  [/bronze/i,     "🥉"], [/evolu|mip/i, "📈"],
+];
+function trofeusDaTemporada(t){
+  const itens = [];
+  if (t.campeao) itens.push(["🏆", "Campeão"]);
+  (t.premios || []).forEach(p => {
+    const achado = ICONE_TROFEU.find(([re]) => re.test(p));
+    itens.push([achado ? achado[1] : "🎖️", p]);
+  });
+  if (!itens.length) return "";
+  return `<span class="tj-trofeus">${itens.map(([ic, nome]) =>
+    `<i title="${esc(nome)}">${ic}</i>`).join("")}</span>`;
+}
+
+/**
  * A carreira por IDADE, não por ano.
  *
  * A tabela antiga era um extrato: linha por temporada jogada, e só. Por
@@ -3231,40 +3398,61 @@ function trajetoPorIdade(){
   const porIdade = {};
   jogadas.forEach(t => { porIdade[t.idade] = t; });
 
+  const selo = (i, estado) => `<span class="tj-idade ${estado}">${i}</span>`;
+  const ovrSelo = (o) => {
+    if (!o) return `<span class="tj-ovr tj-ovr-vazio">—</span>`;
+    return `<span class="tj-ovr" style="--cor:${faixaOvr(o)[1]}">${o}</span>`;
+  };
+  const nums = (t) => `<span class="tj-n">${t.jogos}</span>
+    <span class="tj-n forte">${t.pts}</span><span class="tj-n">${t.reb}</span><span class="tj-n">${t.ast}</span>`;
+  const vazios = `<span class="tj-n"></span><span class="tj-n"></span><span class="tj-n"></span><span class="tj-n"></span>`;
+
   const linhas = [];
   for (let i = inicio; i <= Math.min(fim, 41); i++){
     const t = porIdade[i];
     const agora = i === S.idade && !S.encerrada;
+
     if (!t){
       linhas.push(`<div class="tj ${agora ? "tj-agora" : "tj-vazia"}">
-        <span class="tj-idade">${i}</span>
-        <span class="tj-clube">${agora ? "Temporada em andamento…" : ""}</span>
-        <span class="tj-nums"></span></div>`);
+        ${selo(i, agora ? "sel-agora" : "sel-vazio")}
+        <span class="tj-clube">${agora ? `<span class="tj-escudo">?</span><em>Escolhendo clube…</em>` : ""}</span>
+        <span class="tj-ovr tj-ovr-vazio">${agora ? ovr(S.A, S.pos) : ""}</span>${vazios}</div>`);
       continue;
     }
+
     if (t.formacao){
       linhas.push(`<div class="tj">
-        <span class="tj-idade">${i}</span>
-        <span class="tj-clube">${esc(String(t.time||"Formação").slice(0,22))}<small>formação</small></span>
-        <span class="tj-nums"></span></div>`);
+        ${selo(i, "sel-formacao")}
+        <span class="tj-clube">${marca(String(t.time||"Formação"), 18)}
+          <b>${esc(String(t.time||"Formação"))}</b><em>formação</em></span>
+        ${ovrSelo(t.ovr)}${vazios}</div>`);
       continue;
     }
+
     if (t.perdida){
       linhas.push(`<div class="tj tj-perdida">
-        <span class="tj-idade">${i}</span>
-        <span class="tj-clube">${esc(String(t.time||"").slice(0,22))}<small>${t.perdida === "lesao" ? "Lesão" : "Suspensão"}</small></span>
-        <span class="tj-nums">—</span></div>`);
+        ${selo(i, "sel-perdida")}
+        <span class="tj-clube">${marca(String(t.time||"?"), 18)}
+          <b>${esc(String(t.time||""))}</b><em>${t.perdida === "lesao" ? "Lesão" : "Suspensão"}</em></span>
+        ${ovrSelo(t.ovr)}${vazios}</div>`);
       continue;
     }
+
     linhas.push(`<div class="tj ${t.campeao ? "tj-titulo" : ""}">
-      <span class="tj-idade">${i}</span>
-      <span class="tj-clube">${esc(String(t.time||"").slice(0,22))}
-        ${(t.premios||[]).length ? `<small>${esc(t.premios.join(" · "))}</small>` : ""}</span>
-      <span class="tj-nums"><b>${t.pts}</b><i>${t.reb}</i><i>${t.ast}</i></span></div>`);
+      ${selo(i, t.campeao ? "sel-titulo" : "sel-jogada")}
+      <span class="tj-clube">${marca(String(t.time||"?"), 18)}
+        <b>${esc(String(t.time||""))}</b>${trofeusDaTemporada(t)}</span>
+      ${ovrSelo(t.ovr)}${nums(t)}</div>`);
   }
+
   return `<div class="trajeto">
-    <div class="tj tj-cab"><span class="tj-idade">Idade</span><span class="tj-clube">Clube</span>
-      <span class="tj-nums"><b>PTS</b><i>REB</i><i>AST</i></span></div>
+    <div class="tj tj-cab">
+      <span class="tj-idade">Idade</span>
+      <span class="tj-clube">Clube</span>
+      <span class="tj-ovr">OVR</span>
+      <span class="tj-n">Jg</span><span class="tj-n forte">Pts</span>
+      <span class="tj-n">Reb</span><span class="tj-n">Ast</span>
+    </div>
     ${linhas.join("")}
   </div>`;
 }
