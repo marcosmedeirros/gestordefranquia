@@ -922,6 +922,13 @@ tr.tit td{color:var(--red)}
 /* ═══ CONQUISTAS ═════════════════════════════════════════════════════ */
 .chip-btn{border:none;cursor:pointer;font-family:var(--font);transition:.15s}
 .chip-btn:hover{background:var(--panel3);color:var(--amber)}
+/* O botão de conquistas da tela de entrada: rótulo à esquerda, placar à
+   direita. O número fica visível sem abrir — é ele que dá vontade de abrir. */
+.btn-conquistas{display:flex;align-items:center;gap:9px;text-align:left}
+.btn-conquistas b{margin-left:auto;font-family:var(--num);font-size:13px;font-weight:900;
+  color:var(--amber);font-variant-numeric:tabular-nums}
+.btn-conquistas small{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.3px}
+
 .desafios-topo{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px}
 .desafios-conta{font-family:var(--num);font-size:13px;font-weight:800;color:var(--amber);
   font-variant-numeric:tabular-nums}
@@ -2337,6 +2344,21 @@ function telaInicio(){
         <button class="btn btn2" style="margin-top:8px" onclick="if(confirm('Abandonar a carreira atual? Ela não volta.')){apagar();render()}">Começar outra</button>
       </div>` : `
       <button class="btn" onclick="iniciar()">Começar</button>`}
+
+    ${(() => {
+      // As conquistas na tela de entrada, com o placar à vista: elas são do
+      // jogador e não da carreira, então o lugar delas é aqui — antes de
+      // escolher se começa outra. O troféu da barra de cima continua
+      // levando pro mesmo lugar; este é o caminho que se acha sem procurar.
+      const feitos = window.__DESAFIOS__ || {};
+      const n = DESAFIOS.filter(d => feitos[d.id]).length;
+      const falta = DESAFIOS.length - n;
+      return `<button class="btn btn2 btn-conquistas" style="margin-top:10px" onclick="telaDesafios()">
+        <span>🏆 Conquistas</span>
+        <b>${n} de ${DESAFIOS.length}</b>
+        <small>${falta ? `faltam ${falta}` : "todas"}</small>
+      </button>`;
+    })()}
     `;
   app().innerHTML = topo() + colunas(principal, ranking()) + `</div>`;
 }
