@@ -1812,7 +1812,14 @@ if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
         $params[] = $teamId;
         $params[] = $teamId;
     }
-    
+
+    // Só a sprint atual: sem isso, trade de sprint passada nunca some da tela.
+    $sprintAtualTrades = sprintAtualDaLiga($pdo, (string)($user['league'] ?? ''));
+    if ($sprintAtualTrades && !empty($sprintAtualTrades['start_date'])) {
+        $conditions[] = 't.created_at >= ?';
+        $params[] = $sprintAtualTrades['start_date'];
+    }
+
     $whereClause = implode(' AND ', $conditions);
     
     $query = "
@@ -1959,9 +1966,16 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'multi_trades') {
         $params[] = $teamId;
     }
 
+    // Só a sprint atual: mesma regra da listagem de trades simples acima.
+    $sprintAtualMulti = sprintAtualDaLiga($pdo, (string)($user['league'] ?? ''));
+    if ($sprintAtualMulti && !empty($sprintAtualMulti['start_date'])) {
+        $conditions[] = 'mt.created_at >= ?';
+        $params[] = $sprintAtualMulti['start_date'];
+    }
+
     $whereClause = implode(' AND ', $conditions);
     $query = "
-        SELECT mt.*, 
+        SELECT mt.*,
                (SELECT COUNT(*) FROM multi_trade_teams WHERE trade_id = mt.id) AS teams_total,
                (SELECT COUNT(*) FROM multi_trade_teams WHERE trade_id = mt.id AND accepted_at IS NOT NULL) AS teams_accepted
         FROM multi_trades mt
