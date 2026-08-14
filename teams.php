@@ -21,7 +21,9 @@ $maxTrades = (int)($leagueSettings['max_trades'] ?? 3);
 // Novo Salary Cap (folha em dinheiro) — só quando a liga está em modo 'salary' (hoje, ELITE).
 $salaryCapMode = (($leagueSettings['cap_mode'] ?? 'ovr_sum') === 'salary');
 // Base do Cap Máximo desse modo: os mesmos campos CAP Mínimo/CAP Máximo da liga.
-$eliteCapBase = capBaseEFloorDaLiga($pdo, $user['league'])['base'];
+$eliteCapLimites = capBaseEFloorDaLiga($pdo, $user['league']);
+$eliteCapBase = $eliteCapLimites['base'];
+$elitCapPiso  = $eliteCapLimites['floor'];
 
 $currentSeasonYear = null;
 $currentSprintNumber = null;
@@ -1488,7 +1490,11 @@ function getSerasaScore(int $avisos): array {
             <?php if ($salaryCapMode): ?>
             <div class="footer-stat"><strong>Folha Total:</strong> <?= number_format($totalPayroll, 0, ',', '.') ?>M</div>
             <div class="footer-stat"><strong>Média por time:</strong> <?= number_format($averagePayroll, 1, ',', '.') ?>M</div>
+            <!-- Os dois vêm da Central da Liga (CAP Mínimo / CAP Máximo). O piso
+                 aparece junto porque é ele que explica o âmbar nos cards: sem o
+                 número à vista, um time laranja parecia estar acima do teto. -->
             <div class="footer-stat"><strong>Base do Cap:</strong> <?= $eliteCapBase ?>M</div>
+            <div class="footer-stat"><strong>Piso:</strong> <?= $elitCapPiso ?>M</div>
             <?php else: ?>
             <div class="footer-stat"><strong>CAP Total:</strong> <?= number_format($totalCapTop8, 0, ',', '.') ?></div>
             <div class="footer-stat"><strong>Média por time:</strong> <?= number_format($averageCapTop8, 1, ',', '.') ?></div>

@@ -136,16 +136,20 @@ function capRookieScaleValue(int $draftRound, ?int $draftPickPosition): int
  * pela tabela continua no valor da tabela. Um 88 de 22 anos vale 20M e segue
  * valendo 20M.
  *
- * As faixas se sobrepõem de propósito: a 2ª rodada está nas duas primeiras
- * linhas, e é isso que dá o degrau dentro dela — 78+ leva 16M, 76 e 77 levam
- * 10M. Quando mais de uma faixa serve, vale a maior.
+ * A 2ª rodada tem degrau: 78–85 leva 16M, 76 e 77 levam 10M.
+ *
+ * O teto de 85 na primeira faixa não muda conta nenhuma — de 86 pra cima a
+ * tabela por OVR já paga 16M ou mais, então o piso nunca ia pegar ali. Está
+ * escrito assim porque foi assim que a regra foi definida, e um limite
+ * explícito é melhor que um que existe por coincidência da tabela.
  *
  * A 4ª rodada é a única que vai até os 24 anos. Nas outras o corte é 23.
  */
 const CAP_PISO_DRAFT_INICIAL = [
-    ['rodadas' => [1, 2], 'ovr_min' => 78, 'idade_max' => 23, 'valor' => 16],
-    ['rodadas' => [2, 3], 'ovr_min' => 76, 'idade_max' => 23, 'valor' => 10],
-    ['rodadas' => [4],    'ovr_min' => 76, 'idade_max' => 24, 'valor' => 6],
+    ['rodadas' => [1, 2], 'ovr_min' => 78, 'ovr_max' => 85, 'idade_max' => 23, 'valor' => 16],
+    ['rodadas' => [2],    'ovr_min' => 76, 'ovr_max' => 77, 'idade_max' => 23, 'valor' => 10],
+    ['rodadas' => [3],    'ovr_min' => 76, 'ovr_max' => 99, 'idade_max' => 23, 'valor' => 10],
+    ['rodadas' => [4],    'ovr_min' => 76, 'ovr_max' => 99, 'idade_max' => 24, 'valor' => 6],
 ];
 
 /**
@@ -171,7 +175,8 @@ function capPisoDraftInicial(array $player): int
     $piso = 0;
     foreach (CAP_PISO_DRAFT_INICIAL as $faixa) {
         if (!in_array($round, $faixa['rodadas'], true)) continue;
-        if ($ovr < $faixa['ovr_min'] || $idade > $faixa['idade_max']) continue;
+        if ($ovr < $faixa['ovr_min'] || $ovr > $faixa['ovr_max']) continue;
+        if ($idade > $faixa['idade_max']) continue;
         $piso = max($piso, $faixa['valor']);
     }
     return $piso;
@@ -192,6 +197,12 @@ function capMarcarDraftInicial(PDO $pdo, array &$players, string $league): void
     foreach ($players as &$p) $p['initdraft_round'] = null;
     unset($p);
     if (!$players) return;
+
+    // Só ELITE. O salary cap inteiro é dela — nas outras ligas o teto é soma
+    // de OVR, e um piso em milhões ali não significaria nada. Sem esta linha,
+    // marcar a rodada numa liga de OVR seria trabalho jogado fora no melhor
+    // caso, e número errado se algum dia alguém ligasse o modo salary lá.
+    if (strtoupper(trim($league)) !== 'ELITE') return;
 
     try {
         $st = $pdo->prepare("
