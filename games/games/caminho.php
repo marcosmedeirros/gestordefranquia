@@ -43,8 +43,20 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS caminho_carreiras (
     INDEX idx_cc_ranking (encerrada, legado)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+// Os desafios são do JOGADOR, não da carreira: uma tabela própria, fora do
+// estado, pra que a conquista continue lá depois da aposentadoria.
+$pdo->exec("CREATE TABLE IF NOT EXISTS caminho_desafios (
+    id_usuario INT NOT NULL,
+    desafio VARCHAR(40) NOT NULL,
+    conquistado_em DATETIME NOT NULL,
+    PRIMARY KEY (id_usuario, desafio)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
 const CAMINHO_LEGADO_MAX = 230;
 const CAMINHO_MAX_TEMPORADAS = 26;
+// Teto de gravação por requisição: o cliente diz quais caíram, e uma lista
+// absurda é sinal de estado forjado, não de carreira boa.
+const CAMINHO_MAX_DESAFIOS_POR_VEZ = 12;
 
 /**
  * Legado recalculado AQUI, a partir dos troféus — o número que o cliente
@@ -91,6 +103,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acao === 'abandonar') {
         $pdo->prepare("DELETE FROM caminho_carreiras WHERE id_usuario = ? AND encerrada = 0")->execute([$idUsuario]);
         echo json_encode(['ok' => true]);
+        exit;
+    }
+
+    // Desafios conquistados. INSERT IGNORE: reconquistar não reescreve a data
+    // — a primeira vez é a que conta, e é ela que aparece no cartão.
+    if ($acao === 'desafios') {
+        $ids = json_decode((string)($_POST['ids'] ?? ''), true);
+        if (!is_array($ids)) { echo json_encode(['ok' => false, 'erro' => 'lista inválida']); exit; }
+        $ids = array_slice(array_values(array_unique(array_filter(
+            array_map(fn($x) => preg_replace('/[^a-z0-9_]/', '', mb_substr((string)$x, 0, 40)), $ids)
+        ))), 0, CAMINHO_MAX_DESAFIOS_POR_VEZ);
+        if (!$ids) { echo json_encode(['ok' => true, 'gravados' => 0]); exit; }
+
+        $st = $pdo->prepare("INSERT IGNORE INTO caminho_desafios (id_usuario, desafio, conquistado_em) VALUES (?,?,NOW())");
+        $gravados = 0;
+        foreach ($ids as $id) { $st->execute([$idUsuario, $id]); $gravados += $st->rowCount(); }
+        echo json_encode(['ok' => true, 'gravados' => $gravados]);
         exit;
     }
 
@@ -174,6 +203,18 @@ $ultimoNome = (string)($stNome->fetchColumn() ?: '');
 $stPontos = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = ?");
 $stPontos->execute([$idUsuario]);
 $pontosUsuario = (int)($stPontos->fetchColumn() ?: 0);
+
+// Desafios já conquistados por esta conta, com a data — é ela que aparece no
+// canto do card, igual à noite em que a coisa aconteceu.
+$desafiosFeitos = [];
+try {
+    $st = $pdo->prepare("SELECT desafio, DATE_FORMAT(conquistado_em, '%d/%m %H:%i') AS quando
+                         FROM caminho_desafios WHERE id_usuario = ?");
+    $st->execute([$idUsuario]);
+    foreach ($st as $r) $desafiosFeitos[$r['desafio']] = $r['quando'];
+} catch (Throwable $e) {
+    error_log('[caminho] desafios: ' . $e->getMessage());
+}
 
 // Times de verdade, com o logo que cada um cadastrou. Lidos AQUI em vez de
 // embutidos no JS: time novo, troca de dono ou logo atualizado aparecem no
@@ -588,6 +629,135 @@ tr.tit td{color:var(--red)}
 .ovr-delta{font-family:var(--num);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
 .ovr-barra{flex:1;height:7px;background:var(--panel3);border-radius:99px;overflow:hidden}
 .ovr-barra i{display:block;height:100%;background:var(--cor);border-radius:99px;transition:width .5s}
+
+/* ═══ FICHA DO JOGADOR ═══════════════════════════════════════════════
+   O OVR sai da linha fina e vira bloco: ele é a primeira coisa que a
+   pessoa procura ao abrir a tela, e procurar num texto de 12px é
+   trabalho. O resto (país, camisa, clube, valor) fica ao lado, na ordem
+   em que se lê uma ficha de verdade. */
+.ficha{display:flex;align-items:stretch;gap:0;background:var(--panel2);
+  border-bottom:1px solid var(--border)}
+.ficha-ovr{flex:none;width:88px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:1px;padding:12px 6px;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--cor) 88%,#000),color-mix(in srgb,var(--cor) 55%,#000));
+  color:#fff}
+.ficha-ovr-rot{font-size:8.5px;font-weight:800;letter-spacing:1.4px;opacity:.85}
+.ficha-ovr b{font-family:var(--num);font-size:38px;font-weight:900;letter-spacing:-2px;line-height:.95;
+  font-variant-numeric:tabular-nums}
+.ficha-ovr-delta{font-family:var(--num);font-size:11px;font-weight:800;
+  background:rgba(0,0,0,.28);border-radius:99px;padding:1px 8px;font-variant-numeric:tabular-nums}
+.ficha-clube{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;
+  gap:7px;padding:11px 14px}
+.ficha-linha1{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:10px;font-weight:800;
+  letter-spacing:.4px}
+.ficha-pais{color:var(--text2)}
+.ficha-num{color:var(--text);background:var(--panel3);border-radius:6px;padding:1px 6px;font-family:var(--num)}
+.ficha-pos{color:var(--red);background:var(--red-soft);border:1px solid var(--red-glow);
+  border-radius:6px;padding:1px 6px}
+.ficha-ano{margin-left:auto;font-family:var(--num);color:var(--text2);letter-spacing:.6px}
+.ficha-linha2{display:flex;align-items:center;gap:9px;min-width:0}
+.ficha-linha2 b{font-size:16px;font-weight:800;letter-spacing:-.2px;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ficha-linha3{display:flex;gap:16px;flex-wrap:wrap}
+.ficha-linha3 span{font-size:8.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  color:var(--text2);display:flex;flex-direction:column;gap:1px}
+.ficha-linha3 b{font-family:var(--num);font-size:14px;font-weight:800;letter-spacing:-.3px;
+  color:var(--text);font-variant-numeric:tabular-nums}
+.ficha-liga{padding:6px 14px;font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
+  color:var(--text2);background:var(--panel);border-bottom:1px solid var(--border)}
+@media(max-width:420px){
+  .ficha-ovr{width:70px;padding:10px 4px}
+  .ficha-ovr b{font-size:30px}
+  .ficha-clube{padding:10px}
+  .ficha-linha3{gap:11px}
+}
+
+/* ═══ TRAJETÓRIA POR IDADE ═══════════════════════════════════════════
+   Lista, não tabela: no celular uma tabela de 6 colunas ou rola de lado
+   ou espreme tudo. Aqui as três informações que importam cabem em uma
+   linha em qualquer largura. */
+.trajeto{border:1px solid var(--border);border-radius:12px;background:var(--panel);overflow:hidden}
+.tj{display:flex;align-items:center;gap:10px;padding:7px 11px;border-bottom:1px solid var(--border);
+  font-size:12px}
+.tj:last-child{border-bottom:none}
+.tj-cab{background:var(--panel2);font-size:8.5px;font-weight:800;letter-spacing:1.1px;
+  text-transform:uppercase;color:var(--text2)}
+.tj-cab .tj-nums b,.tj-cab .tj-nums i{font-family:var(--font);font-size:8.5px;font-weight:800;
+  color:var(--text2);font-style:normal}
+/* 32px e não 26: o cabeçalho escreve "Idade", e a caixa de 26 cortava a
+   palavra em qualquer largura de tela. */
+.tj-idade{flex:none;width:32px;font-family:var(--num);font-weight:800;font-variant-numeric:tabular-nums;
+  color:var(--text2);text-align:center;overflow:hidden}
+.tj-cab .tj-idade{letter-spacing:.2px}
+.tj-clube{flex:1;min-width:0;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.tj-clube small{display:block;font-size:9.5px;font-weight:600;color:var(--red);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tj-nums{flex:none;display:flex;gap:9px;align-items:baseline;font-family:var(--num);
+  font-variant-numeric:tabular-nums}
+.tj-nums b{font-size:13px;font-weight:800;color:var(--text);min-width:26px;text-align:right}
+.tj-nums i{font-size:11px;font-style:normal;font-weight:600;color:var(--text2);min-width:20px;text-align:right}
+.tj-vazia{opacity:.4}
+.tj-vazia .tj-clube{color:var(--text3)}
+.tj-perdida .tj-clube{color:var(--text2)}
+.tj-perdida .tj-clube small{color:var(--text2)}
+.tj-titulo{background:var(--red-soft)}
+.tj-titulo .tj-idade{color:var(--red)}
+.tj-agora{background:var(--panel2);box-shadow:inset 3px 0 0 var(--red)}
+.tj-agora .tj-idade{color:var(--red)}
+.tj-agora .tj-clube{color:var(--text2);font-style:italic;font-weight:500}
+
+/* ═══ JANELA DE TRANSFERÊNCIAS ═══════════════════════════════════════
+   Cartões lado a lado, do mesmo tamanho: nenhuma proposta é "a certa", e
+   dar destaque visual a uma delas já seria escolher pela pessoa. */
+.ofertas-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:11px;margin-top:4px}
+.oferta-card{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
+  background:var(--panel2);border:1.5px solid var(--border2);border-radius:14px;padding:16px 13px;
+  color:var(--text);font-family:var(--font);cursor:pointer;transition:.15s}
+.oferta-card:hover{border-color:var(--red);background:var(--red-soft);transform:translateY(-2px);
+  box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.oferta-topo{font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3)}
+.oferta-time{font-size:15px;font-weight:800;letter-spacing:-.2px;line-height:1.2}
+.oferta-marca{margin:4px 0}
+.oferta-liga{font-size:10px;font-weight:700;color:var(--text2);letter-spacing:.3px}
+.oferta-num{font-family:var(--num);font-size:19px;font-weight:900;color:var(--red);letter-spacing:-.5px;
+  display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:2px}
+.oferta-num small{font-family:var(--font);font-size:9.5px;font-weight:700;color:var(--text2);letter-spacing:.3px}
+.oferta-nota{font-size:11px;font-weight:500;line-height:1.45;color:var(--text2);margin-top:2px}
+
+/* ═══ CONQUISTAS ═════════════════════════════════════════════════════ */
+.chip-btn{border:none;cursor:pointer;font-family:var(--font);transition:.15s}
+.chip-btn:hover{background:var(--panel3);color:var(--amber)}
+.desafios-topo{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.desafios-conta{font-family:var(--num);font-size:13px;font-weight:800;color:var(--amber);
+  font-variant-numeric:tabular-nums}
+.desafios-barra{height:5px;background:var(--panel3);border-radius:99px;overflow:hidden;margin-bottom:10px}
+.desafios-barra i{display:block;height:100%;background:var(--amber);border-radius:99px;transition:width .5s}
+.desafios-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:9px}
+.desafio{display:flex;align-items:center;gap:11px;background:var(--panel);border:1px solid var(--border);
+  border-radius:12px;padding:11px 12px;position:relative;min-width:0}
+.desafio-icone{flex:none;width:44px;height:44px;border-radius:11px;display:flex;align-items:center;
+  justify-content:center;font-size:20px;background:var(--panel3);filter:grayscale(1);opacity:.45}
+.desafio-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.desafio-txt b{font-size:13.5px;font-weight:800;letter-spacing:-.1px;color:var(--text2)}
+.desafio-txt small{font-size:11px;font-weight:500;line-height:1.4;color:var(--text3)}
+.desafio.feito{border-color:var(--border2);background:var(--panel2)}
+.desafio.feito .desafio-icone{filter:none;opacity:1;
+  background:linear-gradient(150deg,var(--amber),var(--red))}
+/* A data fica no canto: o título precisa parar antes dela, senão passa por
+   baixo do selo em card estreito. */
+.desafio.feito .desafio-txt b{color:var(--text);padding-right:62px}
+.desafio.feito .desafio-txt small{color:var(--text2)}
+.desafio-data{position:absolute;top:7px;right:9px;font-size:9px;font-weight:700;letter-spacing:.3px;
+  color:var(--text3);background:var(--panel3);border-radius:99px;padding:2px 7px;font-family:var(--num)}
+.conquista-aviso{border-color:rgba(245,158,11,.4)!important;background:var(--amber-soft)!important}
+.conquista-linha{display:flex;align-items:center;gap:9px;padding:3px 0;font-size:13px}
+.conquista-linha span{font-size:18px;line-height:1}
+.conquista-linha b{font-weight:800;color:var(--text)}
+@media(max-width:520px){
+  .desafios-grade{grid-template-columns:1fr}
+  .desafio-data{position:static;align-self:flex-start;margin-left:auto}
+}
 /* VOCÊ × ELE — duas colunas espelhadas, o rótulo no meio. */
 .rv-linha{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:3px 0}
 .rv-n{font-family:var(--num);font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums;
@@ -638,6 +808,7 @@ window.__RANKING__   = <?= json_encode(array_map(fn($r) => [
 window.__EU__     = <?= json_encode($_SESSION['user_name'] ?? '', JSON_UNESCAPED_UNICODE) ?>;
 window.__ULTIMO_NOME__ = <?= json_encode($ultimoNome, JSON_UNESCAPED_UNICODE) ?>;
 window.__MOEDAS__ = <?= $pontosUsuario ?>;
+window.__DESAFIOS__ = <?= json_encode($desafiosFeitos, JSON_UNESCAPED_UNICODE) ?: '{}' ?>;
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
@@ -1404,8 +1575,100 @@ const CLUBES_GLOBAIS = [
   ["Shanghai Sharks","CBA · China"],["Guangdong","CBA · China"],["Al Riyadi","Líbano"],
 ];
 
+// A porta dos fundos: quem não foi draftado começa aqui, não na liga.
+const G_LEAGUE = [
+  ["Santa Cruz Warriors","G League"],["Rio Grande Valley Vipers","G League"],
+  ["Long Island Nets","G League"],["Sioux Falls Skyforce","G League"],
+  ["Austin Spurs","G League"],["Delaware Blue Coats","G League"],
+  ["Maine Celtics","G League"],["Stockton Kings","G League"],
+];
+
 function clubesDoPais(nac){
   return (CLUBES_FORA[nac] || []).concat(CLUBES_GLOBAIS);
+}
+
+/**
+ * As propostas de quem não foi draftado.
+ *
+ * Antes o não-draftado caía num time da liga do mesmo jeito — o texto dizia
+ * "é isso ou o exterior" e não existia exterior nenhum. Não ser chamado no
+ * draft passou a ter consequência de verdade: a liga não te quer AINDA, e o
+ * caminho de volta é jogar em outro lugar até ela querer.
+ *
+ * Três portas, cada uma com um preço: perto do sonho e ganhando mal, longe e
+ * ganhando bem, ou o meio do caminho com a torcida do seu país.
+ */
+function ofertasSemDraft(){
+  const base = Math.max(1, Math.round(ovr(S.A, S.pos) / 12));
+  const doPais = (CLUBES_FORA[S.nac] || []).slice();
+  const g = pick(G_LEAGUE);
+
+  const ofertas = [{
+    tipo:"gleague", time:g[0], liga:g[1], salario:Math.max(1, base - 1), anos:1,
+    forca:ri(40, 62), papel:"rotação", perto:true,
+    nota:"Vitrine da liga. Paga pouco, mas os olheiros vêm aqui toda semana.",
+  }];
+
+  if (doPais.length){
+    const c = pick(doPais);
+    ofertas.push({tipo:"casa", time:c[0], liga:c[1], salario:base + 2, anos:2,
+                  forca:ri(48, 76), papel:"titular",
+                  nota:"Em casa, jogando todo dia, com a sua torcida vendo."});
+  }
+
+  const f = pick(CLUBES_GLOBAIS);
+  ofertas.push({tipo:"exterior", time:f[0], liga:f[1], salario:base + 5, anos:2,
+                forca:ri(55, 85), papel:"titular",
+                nota:"Paga o dobro e você joga alto nível. Longe de todo mundo que te conhece."});
+
+  return ofertas;
+}
+
+/** Assina a primeira casa de quem não foi draftado e começa a carreira. */
+function assinarSemDraft(i){
+  const of = (S.semDraft || [])[i];
+  if (!of) return;
+  S.time = of.time;
+  S.liga = of.liga;
+  S.foraDaLiga = true;
+  S.perto = !!of.perto;            // G League: a liga está do lado, não do outro lado do mundo
+  S.forcaBase = of.forca;
+  S.confianca = of.perto ? 40 : 55;
+  S.salario = of.salario;
+  S.contrato = of.anos;
+  S.papel = of.papel;
+  S.gm = null;
+  S.semDraft = null;
+  S.fase = "liga"; S.anoFase = 0;
+  criarRival();
+  salvar();
+  jogarAno();
+}
+
+/**
+ * A liga te chama de volta? Só com número na mão.
+ *
+ * Quem está na G League tem a porta mais perto — mas nenhuma das duas abre
+ * de graça, senão o draft não teria servido pra nada.
+ */
+function chamadoDaLiga(o, st){
+  if (!S.foraDaLiga) return null;
+  const nivelOvr = S.perto ? 74 : 79;
+  const nivelPts = S.perto ? 15 : 19;
+  if (o < nivelOvr || st.pts < nivelPts) return null;
+  if (ri(0, 100) >= (S.perto ? 55 : 34)) return null;
+
+  S.foraDaLiga = false; S.perto = false;
+  S.jaFoiChamado = true;
+  S.liga = S.modo === "fba" ? "RISE" : "NBA";
+  S.anosDivisao = 0;
+  S.time = pick(timesDaLiga(S.liga));
+  S.gm = S.modo === "fba" ? gmDoTime(S.time) : null;
+  S.forcaBase = ri(35, 75);
+  S.confianca = 60;
+  S.contrato = Math.max(S.contrato, 2);
+  S.salario = Math.max(2, Math.round(S.salario * 1.6));
+  return S.liga;
 }
 
 /**
@@ -1426,6 +1689,29 @@ function gerarOfertas(){
   const lista = timesDaLiga().filter(t => t !== S.time);
   const ofertas = [];
   const timeAleatorio = () => pick(lista);
+
+  // Quem está fora da liga não recebe proposta dela como se nada tivesse
+  // acontecido: o mercado de lá é outro. Ou renova, ou troca de clube no
+  // exterior — e só entra na liga se o número justificar.
+  if (S.foraDaLiga){
+    ofertas.push({tipo:"renovar", time:S.time, liga:S.liga, salario:Math.max(1,Math.round(v*0.9)),
+                  forca:S.forcaBase, papel:S.papel || "titular",
+                  nota:"Ficar onde você já é titular."});
+    const c = pick(S.perto ? G_LEAGUE : clubesDoPais(S.nac));
+    ofertas.push({tipo:"exterior", time:c[0], liga:c[1],
+                  salario:Math.max(2, Math.round(Math.max(v,3) * 1.3)),
+                  forca:ri(50,84), papel:"estrela",
+                  nota:`${c[1]}. Outro clube, mais dinheiro, mesma distância da liga.`});
+    if (v >= 9){
+      const t = timeAleatorio();
+      ofertas.push({tipo:"chamado", time:t, liga:S.modo === "fba" ? "RISE" : "NBA",
+                    salario:Math.max(2, Math.round(v*0.8)), forca:ri(35,78), papel:"rotação",
+                    nota:"A liga te viu. Ganha menos que lá fora e briga por minutos — mas é a liga."});
+    }
+    ofertas.forEach(o => { o.anos = o.tipo === "chamado" ? 2 : ri(1,3);
+                           o.salario = Math.max(1, Math.round(o.salario * descontoDoPrazo(o.anos))); });
+    return ofertas;
+  }
 
   // O prazo vem DENTRO da proposta, junto do time e do salário. Antes era
   // uma segunda tela ("por quantos anos?"), o que picava uma decisão só em
@@ -1496,7 +1782,15 @@ function gerarOfertas(){
 function assinar(oferta){
   const antigo = S.time;
   S.time = oferta.time;
-  if (S.modo === "fba"){ S.gm = gmDoTime(oferta.time); }
+  // Assinar com um clube de fora te tira da liga; o chamado te devolve.
+  if (oferta.tipo === "chamado"){
+    S.foraDaLiga = false; S.perto = false; S.liga = oferta.liga; S.anosDivisao = 0;
+  } else if (oferta.tipo === "exterior" || oferta.tipo === "gleague"){
+    S.foraDaLiga = true; S.perto = oferta.tipo === "gleague" || oferta.liga === "G League";
+    S.liga = oferta.liga || S.liga;
+  }
+  if (S.modo === "fba" && !S.foraDaLiga){ S.gm = gmDoTime(oferta.time); }
+  else if (S.foraDaLiga) { S.gm = null; }
   if (oferta.tipo !== "renovar" && oferta.tipo !== "provar"){
     S.forcaBase = oferta.forca;
     S.confianca = oferta.papel === "reserva" ? 34 : 52;
@@ -1648,7 +1942,10 @@ function topo(){
       <a href="../index.php" class="back-btn" title="Voltar">${SETA}</a>
       <span class="game-title">O <span>Caminho</span><span class="daily-badge">carreira</span></span>
     </div>
-    <div class="topbar-right">${chips.join("")}<div class="chip" style="color:var(--amber)">${window.__MOEDAS__ ?? 0}</div></div>
+    <div class="topbar-right">${chips.join("")}
+      <button class="chip chip-btn" onclick="telaDesafios()" title="Conquistas da carreira">🏆 <b>${
+        DESAFIOS.filter(d => (window.__DESAFIOS__||{})[d.id]).length}</b></button>
+      <div class="chip" style="color:var(--amber)">${window.__MOEDAS__ ?? 0}</div></div>
   </div><div class="main">`;
 }
 
@@ -1661,6 +1958,7 @@ function render(){
   if (S.finais)            return telaFinais();
   if (S.mercado)           return telaMercado();
   if (S.fase === "draft")  return telaDraft();
+  if (S.fase === "semdraft") return telaSemDraft();
   return telaTemporada();
 }
 
@@ -2009,6 +2307,15 @@ function telaDraft(){
     S.pickDraft = S.destaque === "prodigio" ? ri(1, 3)
                 : S.destaque === "euroliga" ? clamp(base + ri(-9, 2), 1, 40)
                 : clamp(base + ri(-7, 9), 1, 61);
+    // Não-draftado não recebe time da liga: a liga não o chamou. Ele escolhe
+    // onde vai jogar entre as portas que existem fora dela.
+    if (S.pickDraft > 60){
+      S.semDraft = ofertasSemDraft();
+      S.fase = "semdraft";
+      salvar();
+      return telaSemDraft();
+    }
+
     const lista = timesDaLiga();
     S.time = pick(lista);
     if (S.modo === "fba"){ S.gm = gmDoTime(S.time); }
@@ -2033,30 +2340,58 @@ function telaDraft(){
     }
     salvar();
   }
-  const naoDraftado = S.pickDraft > 60;
+  if (S.pickDraft > 60) return telaSemDraft();
   const manchete = S.destaque === "prodigio" ? "Chamaram seu nome primeiro."
                  : S.destaque === "euroliga" ? "Você chegou com currículo."
-                 : naoDraftado ? "Ninguém chamou seu nome." : "Noite do draft.";
+                 : "Noite do draft.";
   app().innerHTML = topo() + `
     <h1>${manchete}</h1>
     <div class="bpcard centro">
-      ${naoDraftado ? `<p>Você não foi draftado. Um time te ofereceu contrato de teste — é isso ou o exterior.</p>`
-        : `<div class="bpcard-title">Escolha nº</div>
-           <div class="grande">${S.pickDraft}</div>
-           <div style="margin:10px 0 4px">${marca(S.time, 46)}</div>
-           <p style="margin:8px 0 0"><b style="color:var(--text);font-size:16px">${esc(S.time)}</b>
-           ${S.gm ? `<br><span style="font-size:12px;color:var(--text2)">GM: ${esc(S.gm)}</span>` : ""}
-           ${S.liga ? `<br><span style="font-size:12px;color:var(--text2)">${esc(S.liga)} · $${S.salario}M por ano</span>` : ""}</p>`}
+      <div class="bpcard-title">Escolha nº</div>
+      <div class="grande">${S.pickDraft}</div>
+      <div style="margin:10px 0 4px">${marca(S.time, 46)}</div>
+      <p style="margin:8px 0 0"><b style="color:var(--text);font-size:16px">${esc(S.time)}</b>
+      ${S.gm ? `<br><span style="font-size:12px;color:var(--text2)">GM: ${esc(S.gm)}</span>` : ""}
+      ${S.liga ? `<br><span style="font-size:12px;color:var(--text2)">${esc(S.liga)} · $${S.salario}M por ano</span>` : ""}</p>
     </div>
-    ${naoDraftado ? "" : `
     <div class="bpcard">
       <div class="bpcard-title">Ficha dos olheiros</div>
       <p class="dec-txt" style="margin:0">Comparam você a <b style="color:var(--red)">${esc(comparacaoDeDraft())}</b>.
       ${S.destaque === "prodigio" ? "A liga inteira já sabia seu nome antes do primeiro jogo."
         : S.destaque === "euroliga" ? "Um título europeu no currículo vale mais que qualquer treino fechado."
         : "É a promessa. Cumprir é com você."}</p>
-    </div>`}
+    </div>
     <button class="btn" onclick="jogarAno()">Primeira temporada</button>`;
+}
+
+/**
+ * A janela de quem ficou de fora: três clubes, um cartão cada, sem hierarquia
+ * visual entre eles — a escolha é de verdade e nenhuma opção é "a certa".
+ */
+function telaSemDraft(){
+  if (!S.semDraft) { S.semDraft = ofertasSemDraft(); salvar(); }
+  const ofertas = S.semDraft;
+  app().innerHTML = topo() + `
+    <h1>Ninguém chamou seu nome.</h1>
+    <p class="lead">As 60 escolhas passaram e você continuou sentado. A liga não te quis agora —
+    isso não quer dizer que não vá querer. Escolha onde jogar até ela olhar de novo.</p>
+    <div class="bpcard">
+      <div class="bpcard-title">Janela de transferências</div>
+      <p class="dec-txt" style="margin:0 0 4px">Chegaram propostas de fora da liga. Você aceita uma delas.</p>
+    </div>
+    <div class="ofertas-grade">
+      ${ofertas.map((of,i)=>`
+        <button class="oferta-card" onclick="assinarSemDraft(${i})">
+          <span class="oferta-topo">Assinar com</span>
+          <span class="oferta-time">${esc(of.time)}</span>
+          <span class="oferta-marca">${marca(of.time, 54)}</span>
+          <span class="oferta-liga">${esc(of.liga)}</span>
+          <span class="oferta-num">$${of.salario}M<small>por ano · ${of.anos} ${of.anos === 1 ? "ano" : "anos"}</small></span>
+          <span class="oferta-nota">${esc(of.nota)}</span>
+        </button>`).join("")}
+    </div>
+    <p class="nota-txt">Jogando bem lá fora, a liga chama. Da G League o caminho é mais curto —
+    e o salário, menor.</p>`;
 }
 
 function barra(){
@@ -2170,6 +2505,145 @@ function marcasNovas(){
   return novas;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// DESAFIOS
+//
+// Diferente das MARCAS: marca é um número que cai no meio da temporada e
+// vira recado; desafio é do JOGADOR e fica guardado no banco, atravessando
+// carreiras. É o que dá motivo pra começar a próxima.
+//
+// Cada um testa o estado inteiro (S) e devolve true/false. Sem efeito
+// colateral nenhum dentro do teste: eles rodam várias vezes por partida.
+// ═══════════════════════════════════════════════════════════════════════
+const DESAFIOS = [
+  {id:"anel",        i:"🏆", n:"Anel no dedo",       d:"Ganhe um título."},
+  {id:"tricampeao",  i:"👑", n:"Dinastia",           d:"Ganhe três títulos na mesma carreira."},
+  {id:"mvp",         i:"⭐", n:"O melhor do mundo",  d:"Ganhe um MVP da temporada."},
+  {id:"mvp3",        i:"🔥", n:"Reinado",            d:"Ganhe três MVPs."},
+  {id:"fmvp",        i:"💍", n:"Dono das finais",    d:"Ganhe o MVP das Finais."},
+  {id:"dpoy",        i:"🛡️", n:"Muralha",            d:"Ganhe o Defensor do Ano."},
+  {id:"roy",         i:"🌱", n:"Chegou pronto",      d:"Ganhe o Calouro do Ano."},
+  {id:"allstar5",    i:"🎪", n:"Presença garantida", d:"Seja All-Star cinco vezes."},
+  {id:"pts20k",      i:"🎯", n:"Vinte mil",          d:"Marque 20 mil pontos na carreira."},
+  {id:"duplo10k",    i:"📊", n:"Números redondos",   d:"10 mil pontos e 5 mil rebotes na mesma carreira."},
+  {id:"ovr99",       i:"💯", n:"Teto",               d:"Chegue a 99 de overall."},
+  {id:"porta_fundos",i:"🚪", n:"Pela porta dos fundos", d:"Ganhe um título sem ter sido draftado."},
+  {id:"chamado",     i:"📞", n:"A liga ligou",       d:"Seja chamado pela liga vindo de fora dela."},
+  {id:"lenda_clube", i:"♾️", n:"Lenda do clube",     d:"Jogue dez temporadas ou mais em um clube só."},
+  {id:"nomade",      i:"🧳", n:"Nômade",             d:"Jogue por seis clubes diferentes."},
+  {id:"selecao",     i:"🏅", n:"Herói nacional",     d:"Ganhe um ouro pela seleção."},
+  {id:"euroliga",    i:"🌍", n:"Rei da Europa",      d:"Ganhe uma Euroliga."},
+  {id:"ferro",       i:"🦾", n:"Ferro",              d:"Jogue dezoito temporadas."},
+  {id:"de_pe",       i:"🩹", n:"De pé",              d:"Perca uma temporada inteira e volte a ganhar prêmio."},
+  {id:"estreia",     i:"🚀", n:"Chegou chegando",    d:"Média de 20 pontos na temporada de estreia."},
+  {id:"completo",    i:"🧩", n:"O ano completo",     d:"Média de 20 pontos, 8 rebotes e 8 assistências numa temporada."},
+  {id:"ringless",    i:"🕳️", n:"Ringless",           d:"Encerre uma carreira de dez temporadas sem nenhum título."},
+  {id:"imortal",     i:"🗿", n:"Imortal",            d:"Encerre uma carreira com 200 de legado ou mais."},
+];
+
+/** Só temporadas de verdade — formação e ano perdido não contam. */
+function temporadasJogadas(){
+  return (S.temporadas || []).filter(t => !t.formacao && !t.perdida);
+}
+
+function testarDesafio(id, fim){
+  const t = S.trofeus || {};
+  const tot = totaisDeCarreira();
+  const jogadas = temporadasJogadas();
+  const clubes = new Set(jogadas.map(x => x.time).filter(Boolean));
+
+  switch (id){
+    case "anel":        return (t.titulo||0) >= 1;
+    case "tricampeao":  return (t.titulo||0) >= 3;
+    case "mvp":         return (t.mvp||0) >= 1;
+    case "mvp3":        return (t.mvp||0) >= 3;
+    case "fmvp":        return (t.fmvp||0) >= 1;
+    case "dpoy":        return (t.dpoy||0) >= 1;
+    case "roy":         return (t.roy||0) >= 1;
+    case "allstar5":    return (t.allstar||0) >= 5;
+    case "pts20k":      return tot.pts >= 20000;
+    case "duplo10k":    return tot.pts >= 10000 && tot.reb >= 5000;
+    case "ovr99":       return ovr(S.A, S.pos) >= 99;
+    case "porta_fundos":return (S.pickDraft||0) > 60 && (t.titulo||0) >= 1;
+    case "chamado":     return !!S.jaFoiChamado;
+    case "nomade":      return clubes.size >= 6;
+    case "selecao":     return (t.ouro||0) >= 1 || (t.ouroCopa||0) >= 1;
+    case "euroliga":    return (t.euro||0) >= 1;
+    case "ferro":       return jogadas.length >= 18;
+    case "de_pe":       return !!S.voltouComPremio;
+    case "estreia":     return jogadas.length >= 1 && (jogadas[0].pts||0) >= 20;
+    case "completo":    return jogadas.some(x => (x.pts||0) >= 20 && (x.reb||0) >= 8 && (x.ast||0) >= 8);
+    case "lenda_clube": {
+      const porClube = {};
+      jogadas.forEach(x => { if (x.time) porClube[x.time] = (porClube[x.time]||0) + 1; });
+      return Object.values(porClube).some(n => n >= 10);
+    }
+    // Os dois de encerramento só valem no fim: no meio da carreira ainda dá
+    // tempo de ganhar o título que falta.
+    case "ringless":    return fim && jogadas.length >= 10 && (t.titulo||0) === 0;
+    case "imortal":     return fim && pontuacaoLegado() >= 200;
+  }
+  return false;
+}
+
+/**
+ * Roda a lista, guarda o que caiu e avisa o servidor.
+ *
+ * O mapa de conquistados vive em window.__DESAFIOS__ (veio do banco) e é
+ * atualizado aqui na hora — a tela mostra a conquista antes do POST voltar,
+ * e se o POST falhar a próxima temporada tenta de novo.
+ */
+function checarDesafios(fim){
+  const feitos = window.__DESAFIOS__ || (window.__DESAFIOS__ = {});
+  const novos = [];
+  DESAFIOS.forEach(d => {
+    if (feitos[d.id]) return;
+    let caiu = false;
+    try { caiu = testarDesafio(d.id, !!fim); } catch (e) { caiu = false; }
+    if (!caiu) return;
+    const agora = new Date();
+    feitos[d.id] = `${String(agora.getDate()).padStart(2,"0")}/${String(agora.getMonth()+1).padStart(2,"0")} ` +
+                   `${String(agora.getHours()).padStart(2,"0")}:${String(agora.getMinutes()).padStart(2,"0")}`;
+    novos.push(d);
+  });
+  if (!novos.length) return [];
+
+  const corpo = new URLSearchParams();
+  corpo.set("acao", "desafios");
+  corpo.set("ids", JSON.stringify(novos.map(d => d.id)));
+  fetch(location.pathname, {method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"}, body:corpo})
+    .catch(() => {});
+  return novos;
+}
+
+/** Grade de conquistas — as suas e as que faltam, na mesma lista. */
+function telaDesafios(){
+  const feitos = window.__DESAFIOS__ || {};
+  const total = DESAFIOS.length;
+  const n = DESAFIOS.filter(d => feitos[d.id]).length;
+  app().innerHTML = topo() + `
+    <div class="desafios-topo">
+      <h1 style="margin:0">Conquistas da carreira</h1>
+      <span class="desafios-conta">${n} de ${total}</span>
+    </div>
+    <div class="desafios-barra"><i style="width:${Math.round(n/total*100)}%"></i></div>
+    <p class="lead">Elas são suas, não da carreira: ficam guardadas depois que você pendura as chuteiras.</p>
+    <div class="desafios-grade">
+      ${DESAFIOS.map(d => {
+        const q = feitos[d.id];
+        return `<div class="desafio ${q ? "feito" : ""}">
+          <span class="desafio-icone" data-id="${d.id}">${d.i}</span>
+          <span class="desafio-txt">
+            <b>${esc(d.n)}</b>
+            <small>${esc(d.d)}</small>
+          </span>
+          ${q ? `<span class="desafio-data">${esc(q)}</span>` : ""}
+        </div>`;
+      }).join("")}
+    </div>
+    <button class="btn btn2" style="margin-top:16px" onclick="render()">Voltar</button>`;
+}
+
 /**
  * Um desfecho ajuda, atrapalha, ou nenhum dos dois?
  *
@@ -2256,16 +2730,35 @@ function placar(st, rotuloAno, time, campanha, premios){
   const faixa = faixaOvr(o);
   const cor = d > 0 ? "var(--green)" : d < 0 ? "var(--red)" : "var(--text3)";
   const sinal = d > 0 ? `+${d}` : d < 0 ? `${d}` : "=";
+  const clube = time.split(" · ")[0];
   return `<div class="placar">
-    <div class="placar-topo">
-      ${marca(time.split(" · ")[0], 30)}
-      <span class="ano">${esc(rotuloAno)}</span>
-      <span class="placar-time">${esc(time)}<small>${S.idade} anos</small></span>
+    <div class="ficha" style="--cor:${faixa[1]}">
+      <div class="ficha-ovr">
+        <span class="ficha-ovr-rot">OVR</span>
+        <b>${o}</b>
+        <span class="ficha-ovr-delta" style="color:${cor}">${sinal}</span>
+      </div>
+      <div class="ficha-clube">
+        <div class="ficha-linha1">
+          <span class="ficha-pais">${bandeira(S.nac)} ${esc(S.nac)}</span>
+          ${S.numero ? `<span class="ficha-num">#${esc(S.numero)}</span>` : ""}
+          <span class="ficha-pos">${esc(S.pos)}</span>
+          <span class="ficha-ano">${esc(rotuloAno)}</span>
+        </div>
+        <div class="ficha-linha2">
+          ${marca(clube, 28)}
+          <b>${esc(clube)}</b>
+        </div>
+        <div class="ficha-linha3">
+          <span>Idade<b>${S.idade}</b></span>
+          <span>Valor<b>$${valorDeMercado()}M</b></span>
+          <span>Salário<b>$${S.salario}M</b></span>
+        </div>
+      </div>
     </div>
+    ${S.liga ? `<div class="ficha-liga">${esc(S.liga)}${S.foraDaLiga ? " · fora da liga" : ""}${S.gm ? ` · GM ${esc(S.gm)}` : ""}</div>` : ""}
     <div class="ovr-linha" style="--cor:${faixa[1]}">
-      <span class="ovr-esq"><span class="ovr-rot">Overall</span><span class="ovr-faixa">${faixa[2]}</span></span>
-      <span class="ovr-val">${o}</span>
-      <span class="ovr-delta" style="color:${cor}">${sinal}</span>
+      <span class="ovr-esq"><span class="ovr-rot">Nível</span><span class="ovr-faixa">${faixa[2]}</span></span>
       <span class="ovr-barra"><i style="width:${clamp(o,0,99)}%"></i></span>
     </div>
     <div class="linha-stats">
@@ -2461,6 +2954,11 @@ function fecharAno(campeao, vit, o, st){
 
   S.ultimosPremios = premios;
 
+  // Voltar de uma temporada perdida e ganhar prêmio é uma história por si só —
+  // marcada aqui, enquanto ainda dá pra ver que o ano anterior não aconteceu.
+  const anterior = S.temporadas[S.temporadas.length - 1];
+  if (anterior && anterior.perdida && premios.length) S.voltouComPremio = true;
+
   S.temporadas.push({ano:S.ano, idade:S.idade, time:S.time, ...st, vit,
                      premios:premios.map(p=>p.t), campeao});
 
@@ -2469,9 +2967,17 @@ function fecharAno(campeao, vit, o, st){
   const estouro = evoluir();
   S.mensagem = estouro ? "Você estourou. De uma temporada pra outra, virou outro jogador." : null;
 
-  const subiu = tentarSubirDivisao(o, st, premios);
-  if (subiu){
-    S.mensagem = `A ${subiu} veio buscar você. O ${S.time} pagou pra tirar você da divisão de baixo.`;
+  // Quem está fora da liga tenta o chamado; quem já está dentro tenta subir
+  // de divisão. Nunca os dois no mesmo ano — são o mesmo degrau, um antes do
+  // outro.
+  const chamou = chamadoDaLiga(o, st);
+  if (chamou){
+    S.mensagem = `O ${S.time} te chamou. Você entrou na ${chamou} pela porta dos fundos — mas entrou.`;
+  } else {
+    const subiu = tentarSubirDivisao(o, st, premios);
+    if (subiu){
+      S.mensagem = `A ${subiu} veio buscar você. O ${S.time} pagou pra tirar você da divisão de baixo.`;
+    }
   }
 
   anoDoRival();
@@ -2480,6 +2986,10 @@ function fecharAno(campeao, vit, o, st){
   // mais importante que qualquer outro recado que estivesse ali.
   const marcas = marcasNovas();
   if (marcas.length) S.mensagem = marcas[marcas.length - 1] + ".";
+
+  // Desafios do ano: ficam guardados no estado só pra aparecer na tela da
+  // temporada. Quem manda no que está conquistado é o banco.
+  S.desafiosDoAno = checarDesafios(false).map(d => ({i:d.i, n:d.n}));
 
   // Contrato acabando manda pro mercado ANTES da decisão do ano: é a
   // decisão mais pesada que existe, não faz sentido dividir espaço.
@@ -2619,6 +3129,11 @@ function telaTemporada(){
   const principal = barra() +
     placar(st, String(S.ano), S.time + (S.gm ? ` · ${S.gm}` : ""), S.ultimaCampanha, S.ultimosPremios || []) +
     (S.mensagem ? `<div class="bpcard"><p class="dec-txt" style="margin:0">${S.mensagem}</p></div>` : "") +
+    ((S.desafiosDoAno || []).length ? `<div class="bpcard conquista-aviso">
+      <div class="bpcard-title">Conquista${S.desafiosDoAno.length > 1 ? "s" : ""} desbloqueada${S.desafiosDoAno.length > 1 ? "s" : ""}</div>
+      ${S.desafiosDoAno.map(d => `<div class="conquista-linha"><span>${d.i}</span><b>${esc(d.n)}</b></div>`).join("")}
+      <button class="btn btn2" style="margin-top:10px" onclick="telaDesafios()">Ver todas</button>
+    </div>` : "") +
     (S.resultado ? `<div class="bpcard">
       <div class="bpcard-title">O que aconteceu${S.efeitoDecisao ? `<span style="color:${S.efeitoDecisao>0?"var(--green)":"var(--red)"}">${S.efeitoDecisao>0?"+":""}${S.efeitoDecisao} OVR</span>` : ""}</div>
       ${S.ultimaAposta ? `<div class="op" style="cursor:default;margin-bottom:11px" onclick="return false">
@@ -2700,25 +3215,63 @@ function resumoDeTrofeus(){
   return `<div class="trofeus-resumo">${chips.join("")}</div>`;
 }
 
+/**
+ * A carreira por IDADE, não por ano.
+ *
+ * A tabela antiga era um extrato: linha por temporada jogada, e só. Por
+ * idade a lista vira uma régua — dá pra ver de relance quantos anos ainda
+ * existem pela frente, e é isso que faz uma decisão aos 29 pesar diferente
+ * de uma aos 22. As idades vazias ficam ali de propósito.
+ */
+function trajetoPorIdade(){
+  const jogadas = S.temporadas || [];
+  if (!jogadas.length) return "";
+  const inicio = Math.min(...jogadas.map(t => t.idade || S.idade));
+  const fim = Math.max(S.idade + 1, ...jogadas.map(t => t.idade || 0), 34);
+  const porIdade = {};
+  jogadas.forEach(t => { porIdade[t.idade] = t; });
+
+  const linhas = [];
+  for (let i = inicio; i <= Math.min(fim, 41); i++){
+    const t = porIdade[i];
+    const agora = i === S.idade && !S.encerrada;
+    if (!t){
+      linhas.push(`<div class="tj ${agora ? "tj-agora" : "tj-vazia"}">
+        <span class="tj-idade">${i}</span>
+        <span class="tj-clube">${agora ? "Temporada em andamento…" : ""}</span>
+        <span class="tj-nums"></span></div>`);
+      continue;
+    }
+    if (t.formacao){
+      linhas.push(`<div class="tj">
+        <span class="tj-idade">${i}</span>
+        <span class="tj-clube">${esc(String(t.time||"Formação").slice(0,22))}<small>formação</small></span>
+        <span class="tj-nums"></span></div>`);
+      continue;
+    }
+    if (t.perdida){
+      linhas.push(`<div class="tj tj-perdida">
+        <span class="tj-idade">${i}</span>
+        <span class="tj-clube">${esc(String(t.time||"").slice(0,22))}<small>${t.perdida === "lesao" ? "Lesão" : "Suspensão"}</small></span>
+        <span class="tj-nums">—</span></div>`);
+      continue;
+    }
+    linhas.push(`<div class="tj ${t.campeao ? "tj-titulo" : ""}">
+      <span class="tj-idade">${i}</span>
+      <span class="tj-clube">${esc(String(t.time||"").slice(0,22))}
+        ${(t.premios||[]).length ? `<small>${esc(t.premios.join(" · "))}</small>` : ""}</span>
+      <span class="tj-nums"><b>${t.pts}</b><i>${t.reb}</i><i>${t.ast}</i></span></div>`);
+  }
+  return `<div class="trajeto">
+    <div class="tj tj-cab"><span class="tj-idade">Idade</span><span class="tj-clube">Clube</span>
+      <span class="tj-nums"><b>PTS</b><i>REB</i><i>AST</i></span></div>
+    ${linhas.join("")}
+  </div>`;
+}
+
 function sumula(){
   if (!S.temporadas.length) return "";
-  const linhas = S.temporadas.slice().reverse().map(t => t.perdida ? `
-    <tr>
-      <td class="txt">${t.ano}</td>
-      <td class="txt" style="font-weight:500;color:var(--text2)">${esc(String(t.time||"").slice(0,16))}</td>
-      <td>—</td><td>—</td><td>—</td>
-      <td class="txt" style="color:var(--text2);font-size:11px">${t.perdida==="lesao"?"Lesão":"Suspensão"} · ${esc(t.motivo||"")}</td>
-    </tr>` : `
-    <tr class="${t.campeao?'tit':''}">
-      <td class="txt">${t.ano}</td>
-      <td class="txt" style="font-weight:500;color:var(--text2)">${esc(String(t.time).slice(0,16))}</td>
-      <td>${t.pts}</td><td>${t.reb}</td><td>${t.ast}</td>
-      <td class="txt" style="color:var(--red);font-size:11px">${(t.premios||[]).length ? esc(t.premios.join(" · ")) : ""}</td>
-    </tr>`).join("");
-  return `<h2>Súmula da carreira</h2>` + resumoDeTrofeus() + `
-    <div class="sumula"><table>
-      <thead><tr><th>Ano</th><th>Time</th><th>PTS</th><th>REB</th><th>AST</th><th>Prêmios</th></tr></thead>
-      <tbody>${linhas}</tbody></table></div>`;
+  return `<h2>Trajetória</h2>` + resumoDeTrofeus() + trajetoPorIdade();
 }
 
 
@@ -2740,6 +3293,9 @@ function ranking(titulo){
 }
 function encerrar(){
   S.encerrada = true;
+  // Última chamada dos desafios: dois deles (Ringless, Imortal) só podem ser
+  // julgados com a carreira fechada.
+  S.desafiosDoAno = checarDesafios(true).map(d => ({i:d.i, n:d.n}));
   // Fecha no SERVIDOR: é lá que o legado é recalculado e as moedas
   // creditadas. O cliente só avisa que acabou.
   fetch(location.pathname, {
