@@ -29,6 +29,30 @@ const CAP_LOYALTY_BONUS_MILLIONS = 8;
 const CAP_TRADE_MATCH_PCT = 120;
 
 /**
+ * Base (Cap Máximo antes de Cap Flex/Bônus de Lealdade) e Piso da folha
+ * salarial, configurados pelo admin em Central da Liga (campos "CAP Mínimo"
+ * e "CAP Máximo" — os mesmos que as outras ligas usam pro modo ovr_sum).
+ * Sem nada configurado (0 ou ausente), cai nos valores padrão do documento
+ * FBA Elite 15 — mantém o comportamento de sempre pra quem nunca mexeu.
+ */
+function capBaseEFloorDaLiga(PDO $pdo, string $league): array
+{
+    try {
+        $stmt = $pdo->prepare('SELECT cap_min, cap_max FROM league_settings WHERE league = ?');
+        $stmt->execute([strtoupper(trim($league))]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $base  = (int)($row['cap_max'] ?? 0);
+        $floor = (int)($row['cap_min'] ?? 0);
+        return [
+            'base'  => $base > 0 ? $base : CAP_BASE_MILLIONS,
+            'floor' => $floor > 0 ? $floor : CAP_FLOOR_MILLIONS,
+        ];
+    } catch (Throwable $e) {
+        return ['base' => CAP_BASE_MILLIONS, 'floor' => CAP_FLOOR_MILLIONS];
+    }
+}
+
+/**
  * Temporada a partir da qual o Cap Flex passa a valer.
  *
  * A primeira temporada da edição começa logo depois do Draft Inicial, quando
@@ -460,20 +484,21 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
         $loyalContados++;
     }
 
-    $capMax = CAP_BASE_MILLIONS + $capFlexTotal + $capLoyaltyTotal;
+    $baseFloor = capBaseEFloorDaLiga($pdo, (string)$league);
+    $capMax = $baseFloor['base'] + $capFlexTotal + $capLoyaltyTotal;
     $space = $capMax - $payroll;
     $status = 'dentro_do_cap';
     if ($payroll > $capMax) {
         $status = 'over_the_cap';
-    } elseif ($payroll < CAP_FLOOR_MILLIONS) {
+    } elseif ($payroll < $baseFloor['floor']) {
         $status = 'abaixo_do_piso';
     }
 
     return [
         'team_id' => $teamId,
         'league' => $league,
-        'cap_base' => CAP_BASE_MILLIONS,
-        'cap_floor' => CAP_FLOOR_MILLIONS,
+        'cap_base' => $baseFloor['base'],
+        'cap_floor' => $baseFloor['floor'],
         'cap_flex_total' => $capFlexTotal,
         'cap_flex_max_players' => CAP_FLEX_MAX_PLAYERS,
         'cap_flex_used_slots' => $contados,

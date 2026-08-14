@@ -20,6 +20,8 @@ $capMax = (int)($leagueSettings['cap_max'] ?? 0);
 $maxTrades = (int)($leagueSettings['max_trades'] ?? 3);
 // Novo Salary Cap (folha em dinheiro) — só quando a liga está em modo 'salary' (hoje, ELITE).
 $salaryCapMode = (($leagueSettings['cap_mode'] ?? 'ovr_sum') === 'salary');
+// Base do Cap Máximo desse modo: os mesmos campos CAP Mínimo/CAP Máximo da liga.
+$eliteCapBase = capBaseEFloorDaLiga($pdo, $user['league'])['base'];
 
 $currentSeasonYear = null;
 $currentSprintNumber = null;
@@ -1316,7 +1318,7 @@ function getSerasaScore(int $avisos): array {
                     <?php if ($salaryCapMode): ?>
                     <div class="cap-bar-wrap">
                         <div class="cap-bar-header">
-                            <span class="cap-label">Folha — <?= $salPayroll ?>M / <?= $salCapMax ?>M<?php if ($t['salary_cap_max'] - CAP_BASE_MILLIONS > 0): ?> <span style="color:#f59e0b" title="Cap Flex">⚡+<?= $salCapMax - CAP_BASE_MILLIONS ?></span><?php endif; ?></span>
+                            <span class="cap-label">Folha — <?= $salPayroll ?>M / <?= $salCapMax ?>M<?php if ($t['salary_cap_max'] - $eliteCapBase > 0): ?> <span style="color:#f59e0b" title="Cap Flex">⚡+<?= $salCapMax - $eliteCapBase ?></span><?php endif; ?></span>
                             <span class="cap-value" style="color:<?= $salColor ?>"><?= $salPct ?>%</span>
                         </div>
                         <div class="cap-track">
@@ -1486,7 +1488,7 @@ function getSerasaScore(int $avisos): array {
             <?php if ($salaryCapMode): ?>
             <div class="footer-stat"><strong>Folha Total:</strong> <?= number_format($totalPayroll, 0, ',', '.') ?>M</div>
             <div class="footer-stat"><strong>Média por time:</strong> <?= number_format($averagePayroll, 1, ',', '.') ?>M</div>
-            <div class="footer-stat"><strong>Base do Cap:</strong> <?= CAP_BASE_MILLIONS ?>M</div>
+            <div class="footer-stat"><strong>Base do Cap:</strong> <?= $eliteCapBase ?>M</div>
             <?php else: ?>
             <div class="footer-stat"><strong>CAP Total:</strong> <?= number_format($totalCapTop8, 0, ',', '.') ?></div>
             <div class="footer-stat"><strong>Média por time:</strong> <?= number_format($averageCapTop8, 1, ',', '.') ?></div>

@@ -118,6 +118,7 @@ if ($method === 'GET') {
             $ligaCap = strtoupper(trim($_GET['league'] ?? 'ELITE'));
             requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $ligaCap);
             ensurePlayerRestrictionColumns($pdo);
+            $capBaseFloorAdmin = capBaseEFloorDaLiga($pdo, $ligaCap);
 
             // Quantos jogadores por OVR, só de times da liga.
             $stCont = $pdo->prepare('SELECT p.ovr, COUNT(*) AS n
@@ -337,8 +338,8 @@ if ($method === 'GET') {
                 'total_jogadores' => array_sum($porOvr),
                 'total_times' => (int)$stTimes->fetchColumn(),
                 'lenda_minimo' => CAP_LENDA_MINIMO_MILLIONS,
-                'cap_base' => CAP_BASE_MILLIONS,
-                'cap_piso' => CAP_FLOOR_MILLIONS,
+                'cap_base' => $capBaseFloorAdmin['base'],
+                'cap_piso' => $capBaseFloorAdmin['floor'],
             ]);
             exit;
 
