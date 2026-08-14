@@ -4417,7 +4417,8 @@ ${(() => {
             <td style="text-align:right;font-variant-numeric:tabular-nums">${p.idade}</td>
             <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700">${p.ovr}</td>
             <td style="text-align:right;color:var(--text-2);white-space:nowrap">${p.round}ª · #${p.pick}</td>
-            <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:#f5c542">${p.salario}M</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:#f5c542">${p.salario}M${
+              p.piso ? ' <span style="font-size:9px;font-weight:800;color:var(--text-3)" title="Piso do draft inicial — pela tabela de OVR ele custaria menos">PISO</span>' : ''}</td>
           </tr>`).join('')}</tbody>
       </table>
     </div>
