@@ -358,7 +358,6 @@ body{overflow-x:hidden}
 .picker-valor,.sim-item-valor{margin-left:auto;font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;color:var(--blue);font-variant-numeric:tabular-nums;white-space:nowrap}
 .picker-valor{padding-right:10px}
 .sim-item-valor{padding-left:6px}
-.sim-item-valor .zero{color:var(--text-3);font-weight:600;font-size:11px}
 .picker-check{margin-left:auto;color:var(--green);font-size:16px;display:none}
 .picker-row.selected .picker-check{display:block}
 .from-team-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
@@ -873,8 +872,8 @@ function itemHtml(item, toKey) {
         <div class="sim-item-meta">${escH(item.orig)}</div>
         <div class="sim-item-from">← ${escH(fromName)}</div>
       </div>
-      <div class="sim-item-valor" title="Valor de troca desta pick. Não é folha: pick não pesa no cap${SALARY_MODE ? `, e por isso não ajuda no casamento salarial dos ${TRADE_MATCH_PCT}%` : ''}.">
-        ${valorDaPick(item)}${SALARY_MODE ? '<span class="zero"> · 0M</span>' : ''}
+      <div class="sim-item-valor" title="${SALARY_MODE ? 'Peso desta pick no casamento salarial da troca — não é folha, pick não pesa no cap.' : 'Valor de troca desta pick.'}">
+        ${SALARY_MODE ? `${pickSalary(item.round)}M` : valorDaPick(item)}
       </div>
       ${swapSel}
       <button class="sim-item-del" onclick="removeItem('${toKey}',${item.id},'pick','${item.fromKey}')" title="Remover"><i class="bi bi-x-lg"></i></button>
@@ -971,7 +970,7 @@ function renderPickerList() {
               <div class="picker-name">${escH(label)}</div>
               <div class="picker-meta">${(p.orig_city ?? '') + ' ' + (p.orig_name ?? '')}</div>
             </div>
-            <div class="picker-valor" title="Valor de troca desta pick">${valorDaPick(p)}</div>
+            <div class="picker-valor" title="${SALARY_MODE ? 'Peso desta pick no casamento salarial da troca' : 'Valor de troca desta pick'}">${SALARY_MODE ? `${pickSalary(p.round)}M` : valorDaPick(p)}</div>
             <i class="bi bi-check2-circle picker-check"></i>
           </div>`;
         }).join('')
