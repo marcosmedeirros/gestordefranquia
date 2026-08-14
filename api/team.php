@@ -710,10 +710,41 @@ if ($method === 'GET') {
         // + draftado pelo draft da própria temporada) — mesma régua em toda liga.
         markLoyaltyEligibility($pdo, $teamPlayers);
 
+        // Salário por jogador (só onde o modo salarial está ligado). Vem do mesmo
+        // getTeamCapSummary que soma a folha do time — assim o que aparece ao lado
+        // de cada nome fecha com a barra "Folha" do card, sem cálculo paralelo.
+        $salarioPorJogador = [];
+        $resumoSalarial = null;
+        try {
+            $stmtModo = $pdo->prepare('SELECT cap_mode FROM league_settings WHERE league = ?');
+            $stmtModo->execute([$teamRow['league']]);
+            if (($stmtModo->fetchColumn() ?: 'ovr_sum') === 'salary') {
+                $s = getTeamCapSummary($pdo, $tid);
+                foreach ($s['roster'] as $r) {
+                    $salarioPorJogador[(int)$r['id']] = [
+                        'salary'          => (int)$r['total_salary'],
+                        'award_bonus'     => (int)$r['award_bonus'],
+                        'is_rookie_scale' => (bool)$r['is_rookie_scale'],
+                        'is_lenda'        => (bool)$r['is_lenda'],
+                    ];
+                }
+                $resumoSalarial = [
+                    'payroll'   => (int)$s['payroll'],
+                    'cap_max'   => (int)$s['cap_max'],
+                    'cap_base'  => (int)$s['cap_base'],
+                    'cap_floor' => (int)$s['cap_floor'],
+                    'space'     => (int)$s['space'],
+                    'status'    => $s['status'],
+                ];
+            }
+        } catch (Throwable $e) {
+            error_log('[team_info/cap] ' . $e->getMessage());
+        }
+
         $roster = ['Titular' => [], 'Banco' => [], 'G-League' => [], 'Outro' => []];
         foreach ($teamPlayers as $p) {
             $role = isset($roster[$p['role']]) ? $p['role'] : 'Outro';
-            $roster[$role][] = $p;
+            $roster[$role][] = array_merge($p, $salarioPorJogador[(int)$p['id']] ?? []);
         }
 
         $cap = topOvrCap($pdo, $tid);
@@ -772,6 +803,7 @@ if ($method === 'GET') {
                 'conference' => $teamRow['conference'] ?? null,
             ],
             'cap'          => $cap,
+            'salary_cap'   => $resumoSalarial,
             'restricted_bonus' => $capBonus,
             'trades_count' => $tradesCount,
             'last_trades'  => $lastTrades,

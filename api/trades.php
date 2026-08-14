@@ -2646,8 +2646,8 @@ if ($method === 'POST') {
     // ── Casamento salarial (120%) ────────────────────────────────────────────
     // A regra existia só no navegador (js/trades.js desabilita o botão). Quem
     // chamasse a API direto — ou com a página desatualizada — passava uma troca
-    // ilegal sem resistência nenhuma. Espelha checarMatch120() do front:
-    // vale só no modo salário, pick de 1ª rodada conta 5M e a de 2ª não conta.
+    // ilegal sem resistência nenhuma. Espelha checarMatch120() do front: vale só
+    // no modo salário, e as picks pesam pelos valores de CAP_PICK_TRADE_VALUE.
     require_once dirname(__DIR__) . '/backend/salary_cap.php';
     try {
         $stmtModo = $pdo->prepare('SELECT cap_mode, cap_max FROM league_settings WHERE league = ?');
@@ -2677,7 +2677,7 @@ if ($method === 'POST') {
             $st->execute($ids);
             $total = 0;
             foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $round) {
-                if ((int)$round === 1) $total += 5;
+                $total += capValorDaPickNaTroca((int)$round);
             }
             return $total;
         };
@@ -2685,21 +2685,20 @@ if ($method === 'POST') {
         $resumoMeu   = getTeamCapSummary($pdo, (int)$teamId);
         $resumoOutro = getTeamCapSummary($pdo, (int)$toTeamId);
 
-        // ── Pick conta como salário só pra quem ENVIA ──────────────────────
+        // ── Pick conta pros DOIS lados ─────────────────────────────────────
         //
-        // Pick não ocupa cap nenhum: ela só vira salário no ano seguinte,
-        // quando vira jogador (aí entra a rookie scale). Contá-la como salário
-        // ENTRANDO não protegia de nada — o time que recebe picks vê a folha
-        // dele CAIR, não subir — e travava justamente a troca mais natural de
-        // reconstrução: picks por um jovem barato.
+        // Regra da liga de 14/08/2026: 1ª rodada vale 5M e 2ª vale 2M, no envia
+        // E no recebe. Antes a pick só contava pra quem enviava, o que a
+        // transformava em moeda de graça: dava pra receber quatro picks de 1ª
+        // sem que nada disso pesasse no limite de quem recebia.
         //
-        // Com a regra simétrica antiga, quem entregava o jovem era o barrado:
-        // enviava 4M (um 79 OVR) e "recebia" 10M em picks, estourando o limite
-        // dele de 4,8M. Na prática, 2 picks de 1ª só compravam alguém de 83+.
+        // Efeito colateral aceito: reconstrução via picks ficou mais apertada.
+        // Quem entrega um jovem de 4M e recebe 2 picks de 1ª (10M) agora estoura
+        // o limite de 4,8M — precisa somar mais salário do lado dele.
         //
-        // O abuso que a regra existe pra impedir continua impedido: quem manda
-        // um contrato de 20M e pede picks segue barrado, porque aí entra
-        // salário de verdade na folha de quem recebe o jogador.
+        // Exceção: troca SÓ de picks não passa pela regra. Sem jogador nenhum,
+        // nenhuma folha muda, e a regra dos 120% só barraria coisa legítima —
+        // 2 picks de 1ª por 1 de 1ª, ou mandar pick sem pedir nada em troca.
         $meusJogadores   = $salarioDosJogadores($offerPlayers, $resumoMeu);
         $minhasPicks     = $salarioDasPicks($offerPicks);
         $jogadoresDele   = $salarioDosJogadores($requestPlayers, $resumoOutro);
@@ -2708,13 +2707,14 @@ if ($method === 'POST') {
         $envia  = $meusJogadores + $minhasPicks;
         $recebe = $jogadoresDele + $picksDele;
 
-        if ($envia > 0 || $recebe > 0) {
+        $temJogador = ($meusJogadores + $jogadoresDele) > 0;
+
+        if ($temJogador && ($envia > 0 || $recebe > 0)) {
             $capMax = (int)($cfgLiga['cap_max'] ?? 0);
-            // Cada lado: manda jogadores + as próprias picks, mas recebe só os
-            // jogadores do outro — as picks que chegam valem 0.
+            // Cada lado manda jogadores + picks e recebe jogadores + picks.
             $lados = [
-                [$meusJogadores + $minhasPicks, $jogadoresDele, 'Você'],
-                [$jogadoresDele + $picksDele,   $meusJogadores, 'O outro time'],
+                [$envia,  $recebe, 'Você'],
+                [$recebe, $envia,  'O outro time'],
             ];
             foreach ($lados as [$e, $r, $quem]) {
                 $chk = checkTradeSalaryMatch(0, $capMax, $e, $r);

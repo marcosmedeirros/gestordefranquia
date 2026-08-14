@@ -2,6 +2,7 @@
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/preview_gate.php';
+require_once __DIR__ . '/backend/salary_cap.php'; // capValorDaPickNaTroca() no card de regras
 requireAuth();
 $user = getUserSession();
 $pdo  = db();
@@ -264,6 +265,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
       temporada registrada mais recente fica com o salário mais caro <b>só na temporada seguinte</b> — depois disso o
       bônus some automaticamente. Prêmios de Finals MVP, All-NBA e All-Defensivo ainda não têm cadastro no sistema,
       então não geram bônus por enquanto.</div>
+    </details>
+    <details>
+      <summary><i class="bi bi-calendar-event"></i> Picks na troca</summary>
+      <!-- Os valores saem de CAP_PICK_TRADE_VALUE, a mesma constante que a API e
+           o simulador usam — texto fixo aqui viraria mentira na primeira mudança. -->
+      <div class="rules-body">No casamento salarial dos 120%, cada pick pesa
+      <b><?= capValorDaPickNaTroca(1) ?>M</b> (1ª rodada) ou <b><?= capValorDaPickNaTroca(2) ?>M</b> (2ª rodada), e vale
+      para <b>os dois lados</b>: conta pra quem envia e pra quem recebe. A pick não entra na folha do elenco — ela só
+      vira salário no ano seguinte, quando o calouro assina. Troca que envolve <b>só picks</b>, sem jogador nenhum,
+      não passa pela regra dos 120%.</div>
     </details>
     <details>
       <summary><i class="bi bi-shield-check"></i> Status do time</summary>

@@ -1099,13 +1099,19 @@ function simTop8(key) {
  */
 const TRADE_MATCH_PCT = 120;
 
-// Valor de pick no casamento salarial: 1ª rodada vale 5M, 2ª rodada nada.
-// A pick nao entra na folha do elenco (nao e jogador), so no envia/recebe.
-function pickSalary(round) { return Number(round) === 1 ? 5 : 0; }
+// Peso da pick no casamento salarial, vindo de CAP_PICK_TRADE_VALUE (regra da
+// liga). A pick nao entra na folha do elenco (nao e jogador), so no envia/recebe.
+const PICK_TRADE_VALUES = <?= json_encode(CAP_PICK_TRADE_VALUE) ?>;
+function pickSalary(round) { return Number(PICK_TRADE_VALUES[Number(round)] || 0); }
 
 function matching120(key) {
   const t = teams[key];
   if (!t || !t.salaryMode) return null;
+
+  // Troca so de picks nao passa pela regra: nenhuma folha muda, e os 120% so
+  // barrariam coisa legitima (2 picks de 1a por 1, ou pick sem contrapartida).
+  const temJogador = activeSlots.some(s => (receives[s] || []).some(i => i.type === 'player'));
+  if (!temJogador) return null;
 
   // Jogadores que saem + picks que saem deste time (estao em receives de
   // outros slots, marcadas com fromKey === key).
@@ -1117,13 +1123,11 @@ function matching120(key) {
     });
   });
 
-  // Jogadores que este time recebe. Pick que CHEGA vale 0 — ela nao ocupa cap
-  // nenhum, so vira salario no ano seguinte, quando vira jogador. Conta-la como
-  // entrada travava justamente a troca de picks por jovem barato. Mesma regra
-  // de api/trades.php e js/trades.js.
+  // O que este time recebe: jogadores pelo salario e picks pelo peso da regra —
+  // a pick conta nos dois lados. Mesma regra de api/trades.php e js/trades.js.
   let recebido = 0;
   (receives[key] || []).forEach(i => {
-    if (i.type === 'player') recebido += (+(i.salary || 0));
+    recebido += i.type === 'pick' ? pickSalary(i.round) : (+(i.salary || 0));
   });
   if (enviado === 0 && recebido === 0) return null;
 

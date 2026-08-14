@@ -333,7 +333,11 @@ if ($method === 'GET') {
             }
         } catch (Exception $e) { $salaryMode = false; }
 
-        echo json_encode(['success' => true, 'players' => $players, 'count' => count($players), 'team_id' => $teamId, 'salary_mode' => $salaryMode]);
+        // pick_trade_values: o front das trocas (js/trades.js) precisa do peso da
+        // pick no casamento salarial, e ele é regra da liga — vem daqui em vez de
+        // ficar escrito de novo no JavaScript.
+        echo json_encode(['success' => true, 'players' => $players, 'count' => count($players), 'team_id' => $teamId, 'salary_mode' => $salaryMode,
+                          'pick_trade_values' => defined('CAP_PICK_TRADE_VALUE') ? CAP_PICK_TRADE_VALUE : null]);
         exit;
     } catch (Exception $e) {
         http_response_code(500);

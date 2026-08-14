@@ -1320,7 +1320,10 @@ function getSerasaScore(int $avisos): array {
                     <?php if ($salaryCapMode): ?>
                     <div class="cap-bar-wrap">
                         <div class="cap-bar-header">
-                            <span class="cap-label">Folha — <?= $salPayroll ?>M / <?= $salCapMax ?>M<?php if ($t['salary_cap_max'] - $eliteCapBase > 0): ?> <span style="color:#f59e0b" title="Cap Flex">⚡+<?= $salCapMax - $eliteCapBase ?></span><?php endif; ?></span>
+                            <span class="cap-label">Folha — <?= $salPayroll ?>M / <?= $salCapMax ?>M<?php if ($t['salary_cap_max'] - $eliteCapBase > 0): ?> <span style="color:#f59e0b" title="Cap Flex">⚡+<?= $salCapMax - $eliteCapBase ?></span><?php endif; ?><?php
+                                // O âmbar quer dizer "abaixo do piso", mas 88M/150M em 59% parece
+                                // folgado: sem dizer qual é o piso, a cor vira um alarme sem causa.
+                                if ($salStatus === 'abaixo_do_piso'): ?> <span style="color:#f59e0b" title="Piso salarial da liga">· <?= $elitCapPiso - $salPayroll ?>M abaixo do piso (<?= $elitCapPiso ?>M)</span><?php endif; ?></span>
                             <span class="cap-value" style="color:<?= $salColor ?>"><?= $salPct ?>%</span>
                         </div>
                         <div class="cap-track">
@@ -1436,7 +1439,12 @@ function getSerasaScore(int $avisos): array {
                     </div>
                     <div class="list-cell" style="text-align:center">
                         <?php if ($salaryCapMode): ?>
-                        <span class="badge-pill" style="color:<?= $salColorL ?>;border-color:<?= $salColorL ?>44;background:<?= $salColorL ?>18"><?= $salPayrollL ?>M</span>
+                        <?php
+                            $tituloL = $salStatusL === 'over_the_cap'   ? 'Acima do teto de ' . (int)($t['salary_cap_max'] ?? 0) . 'M'
+                                     : ($salStatusL === 'abaixo_do_piso' ? 'Abaixo do piso de ' . $elitCapPiso . 'M'
+                                     : 'Dentro do cap');
+                        ?>
+                        <span class="badge-pill" title="<?= $tituloL ?>" style="color:<?= $salColorL ?>;border-color:<?= $salColorL ?>44;background:<?= $salColorL ?>18"><?= $salPayrollL ?>M</span>
                         <?php else: ?>
                         <span class="badge-pill red"><?= (int)$t['cap_top8'] ?><?= $listBonus > 0 ? '<span style="font-size:.75em;color:#f59e0b;margin-left:3px">+' . $listBonus . '</span>' : '' ?></span>
                         <?php endif; ?>
@@ -1998,10 +2006,28 @@ function getSerasaScore(int $avisos): array {
                 });
             }
 
+            // Salário por jogador: só existe no modo salarial (a API manda p.salary
+            // apenas nesse caso). O verde marca a rookie scale e o âmbar a lenda —
+            // são os dois casos em que o número não sai da tabela por OVR.
+            const temSalario = players => players.some(p => p.salary !== undefined && p.salary !== null);
+            const chipSalario = (p) => {
+                if (p.salary === undefined || p.salary === null) return '';
+                const cor = p.is_lenda ? '#f59e0b' : (p.is_rookie_scale ? '#22c55e' : 'var(--text-2)');
+                const fundo = p.is_lenda ? 'rgba(245,158,11,.12)' : (p.is_rookie_scale ? 'rgba(34,197,94,.12)' : 'var(--panel-3)');
+                const borda = p.is_lenda ? 'rgba(245,158,11,.3)' : (p.is_rookie_scale ? 'rgba(34,197,94,.25)' : 'var(--border)');
+                const motivo = p.is_lenda ? 'Lenda da franquia — mínimo de 40M'
+                             : p.is_rookie_scale ? 'Rookie scale' : 'Tabela por OVR';
+                const premio = Number(p.award_bonus || 0) > 0 ? ` · inclui +${p.award_bonus}M de prêmios` : '';
+                return `<span title="${motivo}${premio}" style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;background:${fundo};color:${cor};border:1px solid ${borda};font-variant-numeric:tabular-nums;flex-shrink:0">${p.salary}M</span>`;
+            };
+
             const renderSection = (title, players) => {
                 if (!players || !players.length) return '';
+                const subtotal = temSalario(players)
+                    ? ` · <span style="color:var(--text-2)">${players.reduce((s,p) => s + Number(p.salary||0), 0)}M</span>`
+                    : '';
                 return `<div style="margin-bottom:14px">
-                    <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">${title} (${players.length})</div>
+                    <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">${title} (${players.length})${subtotal}</div>
                     ${players.map(p => {
                         const photoUrl = getPlayerPhoto(p);
                         const isCapBonus = Number(p.cap_bonus_eligible) === 1;
@@ -2021,7 +2047,10 @@ function getSerasaScore(int $avisos): array {
                                 <div style="font-size:11px;color:var(--text-2)">${p.position}${p.secondary_position ? ' / '+p.secondary_position : ''} · ${p.age??'-'}a</div>
                             </div>
                         </div>
-                        <span style="font-weight:800;color:var(--red);font-size:14px;flex-shrink:0;margin-left:8px">${p.ovr??'-'}</span>
+                        <div style="display:flex;align-items:center;gap:9px;flex-shrink:0;margin-left:8px">
+                            ${chipSalario(p)}
+                            <span style="font-weight:800;color:var(--red);font-size:14px">${p.ovr??'-'}</span>
+                        </div>
                     </div>`;
                     }).join('')}
                 </div>`;
@@ -2070,6 +2099,17 @@ function getSerasaScore(int $avisos): array {
                 ? `${d.cap} <span style="font-size:12px;color:#22c55e;font-weight:800;margin-left:4px">+${capBonus}</span>`
                 : `${d.cap}`;
 
+            // No modo salarial o número do topo é a folha, não a soma de OVR — é o
+            // mesmo par payroll/cap_max da barra do card, pra não haver dois "CAP"
+            // querendo dizer coisas diferentes na mesma tela.
+            const sc = d.salary_cap || null;
+            const scCor = !sc ? '' : (sc.status === 'over_the_cap' ? '#ef4444'
+                        : sc.status === 'abaixo_do_piso' ? '#f59e0b' : '#22c55e');
+            const statCapLabel = sc ? 'Folha' : 'CAP';
+            const statCapHtml  = sc
+                ? `<span style="color:${scCor}">${sc.payroll}M</span><span style="font-size:11px;color:var(--text-3)">/${sc.cap_max}M</span>`
+                : capHtml;
+
             content.innerHTML = `
                 <div style="padding:18px 20px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
                     <img src="${logoSrc}" alt="logo" onerror="this.src='/img/default-team.png'"
@@ -2082,7 +2122,7 @@ function getSerasaScore(int $avisos): array {
                     </div>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--border)">
-                    ${[['CAP',capHtml],['Jogadores',totalPlayers],['Trades',d.trades_count],['Títulos',titlesFmt]].map(([l,v],i) =>
+                    ${[[statCapLabel,statCapHtml],['Jogadores',totalPlayers],['Trades',d.trades_count],['Títulos',titlesFmt]].map(([l,v],i) =>
                         `<div style="padding:12px 8px;text-align:center${i<3?';border-right:1px solid var(--border)':''}">
                             <div style="font-size:16px;font-weight:800;color:var(--red)">${v}</div>
                             <div style="font-size:10px;color:var(--text-2);text-transform:uppercase;font-weight:600;letter-spacing:.6px">${l}</div>

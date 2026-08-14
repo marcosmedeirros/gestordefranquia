@@ -28,6 +28,23 @@ const CAP_LOYALTY_BONUS_MILLIONS = 8;
 // Numa troca, o time sem espaco no teto so pode receber ate esta % do que envia.
 const CAP_TRADE_MATCH_PCT = 120;
 
+// Quanto uma pick pesa no casamento salarial da troca. Vale pros DOIS lados:
+// quem manda a pick conta como enviado, quem recebe conta como recebido.
+//
+// A pick nao entra na folha do elenco — ela nao e jogador, so vira salario no
+// ano seguinte, quando o calouro assina. Este numero existe so pra troca, pra
+// que picks tenham peso no envia/recebe em vez de serem moeda de graca.
+//
+// Regra da liga (definida em 14/08/2026). O simulador (trade-simulator.php) e
+// o front das trocas (js/trades.js) leem esses valores daqui — nao repita o
+// numero em lugar nenhum.
+const CAP_PICK_TRADE_VALUE = [1 => 5, 2 => 2];
+
+function capValorDaPickNaTroca(int $round): int
+{
+    return CAP_PICK_TRADE_VALUE[$round] ?? 0;
+}
+
 /**
  * Base (Cap Máximo antes de Cap Flex/Bônus de Lealdade) e Piso da folha
  * salarial, configurados pelo admin em Central da Liga (campos "CAP Mínimo"

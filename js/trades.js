@@ -194,32 +194,37 @@ const TRADE_MATCH_PCT = 120;
 
 const somaSalarios = (lista = []) => lista.reduce((s, p) => s + (Number(p.salary) || 0), 0);
 
-// Valor de pick no casamento: 1ª rodada 5M, 2ª rodada nada. A pick não entra
-// na folha do elenco, só no envia/recebe da troca.
-const pickSalary = (round) => Number(round) === 1 ? 5 : 0;
+// Peso da pick no casamento salarial. Os valores vêm da API (regra da liga, em
+// CAP_PICK_TRADE_VALUE); o objeto abaixo é só o fallback de quando a resposta
+// vem velha. A pick não entra na folha do elenco, só no envia/recebe da troca.
+let pickTradeValues = { 1: 5, 2: 2 };
+const pickSalary = (round) => Number(pickTradeValues[Number(round)] || 0);
 const somaPicks = (lista = []) => lista.reduce((s, p) => s + pickSalary(p.round), 0);
 
 function checarMatch120() {
   if (!capSalaryMode) return [];
   // offer = o que eu envio; request = o que eu recebo.
-  // Pick conta como salário só pra quem ENVIA — ver o bloco equivalente em
-  // api/trades.php. Recebendo, ela vale 0: não ocupa cap nenhum, e contá-la
-  // como entrada travava justamente picks por jovem barato.
+  // A pick pesa nos DOIS lados — ver o bloco equivalente em api/trades.php.
   const meusJogadores = somaSalarios(playerState.offer.selected || []);
   const minhasPicks   = somaPicks(pickState.offer.selected || []);
   const jogadoresDele = somaSalarios(playerState.request.selected || []);
   const picksDele     = somaPicks(pickState.request.selected || []);
 
   if (meusJogadores + minhasPicks === 0 && jogadoresDele + picksDele === 0) return [];
+  // Troca só de picks não passa pela regra: nenhuma folha muda, e os 120% só
+  // barrariam coisa legítima (2 picks de 1ª por 1, ou pick sem contrapartida).
+  if (meusJogadores + jogadoresDele === 0) return [];
 
   const nomeAlvo = (() => {
     const sel = document.getElementById('targetTeam');
     return sel?.selectedOptions?.[0]?.textContent?.trim() || 'O outro time';
   })();
 
+  const envia  = meusJogadores + minhasPicks;
+  const recebe = jogadoresDele + picksDele;
   const lados = [
-    { nome: 'Você',   envia: meusJogadores + minhasPicks, recebe: jogadoresDele },
-    { nome: nomeAlvo, envia: jogadoresDele + picksDele,   recebe: meusJogadores },
+    { nome: 'Você',   envia,          recebe },
+    { nome: nomeAlvo, envia: recebe,  recebe: envia },
   ];
 
   return lados.reduce((out, l) => {
@@ -1499,6 +1504,7 @@ async function loadMyAssets() {
     const playersData = await api(`players.php?team_id=${myTeamId}`);
   myPlayers = playersData.players || [];
   capSalaryMode = !!playersData.salary_mode;
+  if (playersData.pick_trade_values) pickTradeValues = playersData.pick_trade_values;
 
   console.log('Meus jogadores carregados:', myPlayers.length);
     
