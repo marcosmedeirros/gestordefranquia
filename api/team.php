@@ -146,7 +146,7 @@ if ($method === 'GET') {
         $placeholders = implode(',', array_fill(0, count($teamIds), '?'));
         $playerOvr = playerOvrColumnForDetails($pdo);
         $stmtPlayers = $pdo->prepare(
-            'SELECT team_id, name, position, age, role, ' . $playerOvr . ' AS ovr
+            'SELECT id, team_id, name, position, age, role, ' . $playerOvr . ' AS ovr
              FROM players
              WHERE team_id IN (' . $placeholders . ')
              ORDER BY team_id,
@@ -167,6 +167,14 @@ if ($method === 'GET') {
             $playersByTeam[(int)$player['team_id']][] = $player;
         }
 
+        // Salário por jogador (só ELITE). O mapa vem vazio nas outras ligas, e aí
+        // a linha sai igual sempre saiu.
+        $linhaJogador = function (array $p, array $salarios): string {
+            $base = sprintf('- %s | %s | OVR %s | %s anos', $p['position'], $p['name'], $p['ovr'] ?? '-', $p['age'] ?? '-');
+            $sal = $salarios[(int)($p['id'] ?? 0)] ?? null;
+            return $sal === null ? $base : $base . ' | ' . $sal . 'M';
+        };
+
         $lines = [];
         foreach ($teams as $team) {
             $lines[] = '*' . trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')) . '*';
@@ -175,16 +183,20 @@ if ($method === 'GET') {
             if (!$roster) {
                 $lines[] = '- Sem jogadores';
             } else {
+                $salarios = capSalariosDoTime($pdo, (int)$team['id'], $league);
                 $main    = array_values(array_filter($roster, fn($p) => ($p['role'] ?? '') !== 'G-League'));
                 $gleague = array_values(array_filter($roster, fn($p) => ($p['role'] ?? '') === 'G-League'));
                 foreach ($main as $p) {
-                    $lines[] = sprintf('- %s | %s | OVR %s | %s anos', $p['position'], $p['name'], $p['ovr'] ?? '-', $p['age'] ?? '-');
+                    $lines[] = $linhaJogador($p, $salarios);
                 }
                 if ($gleague) {
                     $lines[] = '*G-League*';
                     foreach ($gleague as $p) {
-                        $lines[] = sprintf('- %s | %s | OVR %s | %s anos', $p['position'], $p['name'], $p['ovr'] ?? '-', $p['age'] ?? '-');
+                        $lines[] = $linhaJogador($p, $salarios);
                     }
+                }
+                if ($salarios) {
+                    $lines[] = 'Folha: ' . array_sum($salarios) . 'M';
                 }
             }
             $lines[] = '';

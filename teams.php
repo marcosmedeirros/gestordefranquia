@@ -1645,6 +1645,8 @@ function getSerasaScore(int $avisos): array {
     const leagueCapMax    = <?= (int)$capMax ?>;
     const leagueMaxTrades = <?= (int)$maxTrades ?>;
     const currentSeasonYear = <?= $currentSeasonYear ? (int)$currentSeasonYear : 'null' ?>;
+    // Peso da pick no casamento salarial, direto de CAP_PICK_TRADE_VALUE.
+    const PICK_TRADE_VALUES = <?= json_encode(CAP_PICK_TRADE_VALUE) ?>;
 
     /* ── Sidebar mobile ─────────────────────────────── */
     const sidebar  = document.getElementById('sidebar');
@@ -1902,27 +1904,30 @@ function getSerasaScore(int $avisos): array {
             // Number(age) antes do teste: o PDO devolve numérico como string ("24"), e
             // Number.isFinite("24") é false — a idade saía como "-" em toda cópia.
             const fmt = (age) => { const n = Number(age); return (Number.isFinite(n) && n > 0) ? `${n}y` : '-'; };
-            const fmtLine = (label, p) => p ? `${label}: ${p.name} - ${p.ovr ?? '-'} | ${fmt(p.age)}` : `${label}: -`;
+            // Salário só existe na ELITE — a API manda p.salary só lá.
+            const fmtSal = (p) => (p && p.salary !== undefined && p.salary !== null) ? ` | ${p.salary}M` : '';
+            const fmtLine = (label, p) => p ? `${label}: ${p.name} - ${p.ovr ?? '-'} | ${fmt(p.age)}${fmtSal(p)}` : `${label}: -`;
 
             const bench  = roster.filter(p => p.role === 'Banco');
             const others = roster.filter(p => p.role === 'Outro');
             const gleague = roster.filter(p => (p.role||'').toLowerCase() === 'g-league');
 
-            const r1 = picks.filter(pk => pk.round == 1).map(pk => {
+            // Peso da pick no casamento salarial, só na ELITE (mesmo sinal do elenco).
+            const temSal = roster.some(p => p.salary !== undefined && p.salary !== null);
+            const pesoPick = (round) => temSal ? ` — ${PICK_TRADE_VALUES[Number(round)] || 0}M` : '';
+            const linhaPick = (pk) => {
                 const via = `${pk.original_team_city} ${pk.original_team_name}`;
-                return `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${via})` : ''} `;
-            });
-            const r2 = picks.filter(pk => pk.round == 2).map(pk => {
-                const via = `${pk.original_team_city} ${pk.original_team_name}`;
-                return `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${via})` : ''} `;
-            });
+                return `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${via})` : ''}${pesoPick(pk.round)} `;
+            };
+            const r1 = picks.filter(pk => pk.round == 1).map(linhaPick);
+            const r2 = picks.filter(pk => pk.round == 2).map(linhaPick);
 
             const lines = [
                 `*${teamName}*`, teamInfo.owner_name || '-', '',
                 '_Starters_', ...positions.map(pos => fmtLine(pos, startersMap[pos])), '',
-                '_Bench_', ...(bench.length ? bench.map(p => `${p.position}: ${p.name} - ${p.ovr??'-'} | ${fmt(p.age)}`) : ['-']), '',
-                '_Others_', ...(others.length ? others.map(p => `${p.position}: ${p.name} - ${p.ovr??'-'} | ${fmt(p.age)}`) : ['-']), '',
-                '_G-League_', ...(gleague.length ? gleague.map(p => `${p.position}: ${p.name} - ${p.ovr??'-'} | ${fmt(p.age)}`) : ['-']), '',
+                '_Bench_', ...(bench.length ? bench.map(p => `${p.position}: ${p.name} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`) : ['-']), '',
+                '_Others_', ...(others.length ? others.map(p => `${p.position}: ${p.name} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`) : ['-']), '',
+                '_G-League_', ...(gleague.length ? gleague.map(p => `${p.position}: ${p.name} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`) : ['-']), '',
                 '_Picks 1° round_:', ...(r1.length ? r1 : ['-']), '',
                 '_Picks 2° round_:', ...(r2.length ? r2 : ['-']), '',
                 linhaCapCopiar(teamInfo),

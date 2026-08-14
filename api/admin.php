@@ -455,7 +455,7 @@ if ($method === 'GET') {
             $placeholders = implode(',', array_fill(0, count($teamIds), '?'));
             $playerOvr = playerOvrColumn($pdo);
             $stmtPlayers = $pdo->prepare(
-                'SELECT team_id, name, position, age, role, ' . $playerOvr . ' AS ovr
+                'SELECT id, team_id, name, position, age, role, ' . $playerOvr . ' AS ovr
                  FROM players
                  WHERE team_id IN (' . $placeholders . ')
                  ORDER BY team_id,
@@ -487,20 +487,27 @@ if ($method === 'GET') {
                 if (!$roster) {
                     $lines[] = '- Sem jogadores';
                 } else {
+                    // Salário por jogador (só ELITE): fora dela o mapa vem vazio.
+                    $salarios = capSalariosDoTime($pdo, (int)$team['id'], $league);
+                    $linha = function (array $player) use ($salarios): string {
+                        $base = sprintf('- %s | %s | OVR %s | %s anos', $player['position'], $player['name'],
+                                        $player['ovr'] ?? '-', $player['age'] ?? '-');
+                        $sal = $salarios[(int)($player['id'] ?? 0)] ?? null;
+                        return $sal === null ? $base : $base . ' | ' . $sal . 'M';
+                    };
                     $main    = array_values(array_filter($roster, fn($p) => ($p['role'] ?? '') !== 'G-League'));
                     $gleague = array_values(array_filter($roster, fn($p) => ($p['role'] ?? '') === 'G-League'));
                     foreach ($main as $player) {
-                        $ovr = $player['ovr'] ?? '-';
-                        $age = $player['age'] ?? '-';
-                        $lines[] = sprintf('- %s | %s | OVR %s | %s anos', $player['position'], $player['name'], $ovr, $age);
+                        $lines[] = $linha($player);
                     }
                     if ($gleague) {
                         $lines[] = '*G-League*';
                         foreach ($gleague as $player) {
-                            $ovr = $player['ovr'] ?? '-';
-                            $age = $player['age'] ?? '-';
-                            $lines[] = sprintf('- %s | %s | OVR %s | %s anos', $player['position'], $player['name'], $ovr, $age);
+                            $lines[] = $linha($player);
                         }
+                    }
+                    if ($salarios) {
+                        $lines[] = 'Folha: ' . array_sum($salarios) . 'M';
                     }
                 }
                 $lines[] = '';
@@ -570,10 +577,17 @@ if ($method === 'GET') {
                 if (!$teamPicks) {
                     $lines[] = '- Sem picks de 1ª rodada';
                 } else {
+                    // Só picks de 1ª entram nesta lista, então o peso é o mesmo em
+                    // todas as linhas: vai no total, não repetido em cada uma.
+                    $peso = strtoupper($league) === 'ELITE' && capLigaUsaSalario($pdo, $league)
+                          ? capValorDaPickNaTroca(1) : 0;
                     foreach ($teamPicks as $pk) {
                         $traded = (int)$pk['original_team_id'] !== (int)$team['id'];
                         $orig = $traded ? trim(($pk['orig_city'] ?? '') . ' ' . ($pk['orig_name'] ?? '')) : '';
                         $lines[] = '- ' . $pk['season_year'] . ($traded ? ' (de ' . $orig . ')' : '');
+                    }
+                    if ($peso > 0) {
+                        $lines[] = 'Peso na troca: ' . ($peso * count($teamPicks)) . 'M (' . $peso . 'M por pick de 1ª)';
                     }
                 }
                 $lines[] = '';

@@ -56,7 +56,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         unset($p);
         markLoyaltyEligibility($pdo, $players);
 
-        echo json_encode(['success' => true, 'players' => $players]);
+        // Salário por jogador (só ELITE) — quem copia o time precisa dele na
+        // linha. Fora da ELITE o mapa vem vazio e nada muda na resposta.
+        require_once dirname(__DIR__) . '/backend/salary_cap.php';
+        $ligaSt = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+        $ligaSt->execute([$teamId]);
+        $salarios = capSalariosDoTime($pdo, (int)$teamId, (string)($ligaSt->fetchColumn() ?: ''));
+        if ($salarios) {
+            foreach ($players as &$p) { $p['salary'] = $salarios[(int)$p['id']] ?? null; }
+            unset($p);
+        }
+
+        echo json_encode(['success' => true, 'players' => $players, 'salary_mode' => (bool)$salarios]);
     } catch (PDOException $e) {
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Erro ao carregar jogadores']);

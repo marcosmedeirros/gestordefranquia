@@ -448,10 +448,15 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null): string
     }
 
     $ovr = wcColunaOvr($pdo);
-    $st = $pdo->prepare("SELECT name, position, secondary_position, role, age, {$ovr} AS ovr
+    $st = $pdo->prepare("SELECT id, name, position, secondary_position, role, age, {$ovr} AS ovr
                          FROM players WHERE team_id = ? ORDER BY {$ovr} DESC");
     $st->execute([(int)$t['id']]);
     $elenco = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    // Salário por jogador (só ELITE). Fora dela o mapa vem vazio e as linhas
+    // saem como sempre saíram, sem 0M pendurado.
+    $salarios = capSalariosDoTime($pdo, (int)$t['id'], (string)$t['league']);
+    $sal = fn($p) => isset($salarios[(int)($p['id'] ?? 0)]) ? ' | ' . $salarios[(int)$p['id']] . 'M' : '';
 
     $txt = '*' . wcNomeDoTime($t) . "*\n"
         . $t['league'] . ($t['conference'] ? ' — ' . $t['conference'] : '') . "\n"
@@ -487,7 +492,7 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null): string
         $txt .= "\n*Quinteto titular:*\n";
         foreach ($quinteto as $vaga => $p) {
             $txt .= $p
-                ? "{$vaga}: {$p['name']} {$p['ovr']} | {$p['age']}y\n"
+                ? "{$vaga}: {$p['name']} {$p['ovr']} | {$p['age']}y" . $sal($p) . "\n"
                 : "{$vaga}: _sem jogador na posição_\n";
         }
 
@@ -514,7 +519,7 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null): string
             $txt .= "\n*Banco:* (" . count($banco) . ")\n";
             foreach ($banco as $p) {
                 $pos = strtoupper(trim((string)($p['position'] ?? ''))) ?: '--';
-                $txt .= "{$pos}: {$p['name']} {$p['ovr']} | {$p['age']}y\n";
+                $txt .= "{$pos}: {$p['name']} {$p['ovr']} | {$p['age']}y" . $sal($p) . "\n";
             }
         }
     }
@@ -589,9 +594,20 @@ function wcPicks(PDO $pdo, string $termo, ?array $jaResolvido = null): string
 
     if (!$picks) return wcNomeDoTime($t) . ' não tem nenhuma pick.';
 
+    // Peso da pick no casamento salarial (só ELITE): quem lê /picks está quase
+    // sempre montando troca, e sem o valor a pick não dá pra somar com nada.
+    $comSalario = strtoupper(trim((string)$t['league'])) === 'ELITE'
+               && wcLigaEmSalario($pdo, (string)$t['league']);
+
     $porAno = [];
+    $pesoTotal = 0;
     foreach ($picks as $p) {
         $rot = $p['round'] . 'ª';
+        if ($comSalario) {
+            $peso = capValorDaPickNaTroca((int)$p['round']);
+            $pesoTotal += $peso;
+            $rot .= " ({$peso}M)";
+        }
         // Pick que veio de outro time: dizer de quem é o que importa numa troca.
         if ((int)$p['original_team_id'] !== (int)$t['id']) {
             $rot .= ' (do ' . wcNomeDoTime(['city' => $p['o_city'], 'name' => $p['o_name']]) . ')';
@@ -602,6 +618,10 @@ function wcPicks(PDO $pdo, string $termo, ?array $jaResolvido = null): string
     $txt = '*Picks — ' . wcNomeDoTime($t) . "*\n" . count($picks) . " no total\n\n";
     foreach ($porAno as $ano => $lista) {
         $txt .= "*{$ano}:* " . implode(', ', $lista) . "\n";
+    }
+    if ($comSalario) {
+        $txt .= "\n_Peso na troca: *{$pesoTotal}M* no total (1ª = "
+             . capValorDaPickNaTroca(1) . 'M, 2ª = ' . capValorDaPickNaTroca(2) . "M). Pick não entra na folha._\n";
     }
     return rtrim($txt);
 }
@@ -909,7 +929,7 @@ function wcMinhasTrades(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): string
 
     $txt = "*Suas últimas trocas* — {$euSou}\n";
     foreach ($trocas as $t) {
-        [$doDe, $doPara] = wcItensDaTroca($pdo, (int)$t['id']);
+        [$doDe, $doPara] = wcItensDaTroca($pdo, (int)$t['id'], (string)($meu['league'] ?? ''));
 
         // Quem propôs entrega os itens marcados com from_team; quem recebeu,
         // os outros. Sem essa inversão, metade das trocas sairia trocada.
@@ -940,20 +960,38 @@ function wcMinhasTrades(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): string
  * Separado porque o /trocas e o /minhastrades leem a mesma tabela e precisam
  * do mesmo rótulo; duas cópias divergiriam no primeiro ajuste de formato.
  */
-function wcItensDaTroca(PDO $pdo, int $tradeId): array
+function wcItensDaTroca(PDO $pdo, int $tradeId, ?string $league = null): array
 {
+    // JOIN com picks pra dizer QUAL pick foi — "uma pick" não deixava ninguém
+    // avaliar a troca. O ano e a rodada estão lá; era só ir buscar.
     static $st = null;
     if ($st === null) {
-        $st = $pdo->prepare("SELECT from_team, player_name, player_ovr, pick_id
-                             FROM trade_items WHERE trade_id = ? ORDER BY id");
+        $st = $pdo->prepare("SELECT ti.from_team, ti.player_name, ti.player_ovr, ti.pick_id,
+                                    pk.round, pk.season_year
+                             FROM trade_items ti
+                             LEFT JOIN picks pk ON pk.id = ti.pick_id
+                             WHERE ti.trade_id = ? ORDER BY ti.id");
     }
     $st->execute([$tradeId]);
 
+    $comSalario = strtoupper(trim((string)$league)) === 'ELITE'
+               && wcLigaEmSalario($pdo, (string)$league);
+
+    // Só o peso da pick aparece aqui. Salário de jogador, não: trade_items é
+    // uma foto do dia da troca (guarda nome e OVR), e escrever o salário de
+    // hoje ao lado de uma troca de duas temporadas atrás seria inventar.
     $doDe = []; $doPara = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $i) {
-        $rot = $i['player_name']
-            ? $i['player_name'] . ($i['player_ovr'] ? ' (' . $i['player_ovr'] . ')' : '')
-            : ($i['pick_id'] ? 'uma pick' : '?');
+        if ($i['player_name']) {
+            $rot = $i['player_name'] . ($i['player_ovr'] ? ' (' . $i['player_ovr'] . ')' : '');
+        } elseif ($i['pick_id']) {
+            $rot = $i['round']
+                ? trim(($i['season_year'] ? $i['season_year'] . ' ' : '') . $i['round'] . 'ª')
+                    . ($comSalario ? ' (' . capValorDaPickNaTroca((int)$i['round']) . 'M)' : '')
+                : 'uma pick';
+        } else {
+            $rot = '?';
+        }
         if (!empty($i['from_team'])) $doDe[] = $rot; else $doPara[] = $rot;
     }
     return [$doDe, $doPara];
@@ -983,7 +1021,7 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 
     $txt = '*Últimas trocas' . ($liga ? " — {$liga}" : '') . "*\n";
     foreach ($trocas as $t) {
-        [$vai, $vem] = wcItensDaTroca($pdo, (int)$t['id']);
+        [$vai, $vem] = wcItensDaTroca($pdo, (int)$t['id'], (string)($t['league'] ?? $liga ?? ''));
         $deNome  = wcNomeDoTime(['city' => $t['de_city'],  'name' => $t['de_name']]);
         $praNome = wcNomeDoTime(['city' => $t['pra_city'], 'name' => $t['pra_name']]);
 

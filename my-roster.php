@@ -64,8 +64,10 @@ if ($team && !empty($team['league'])) {
 // Novo Salary Cap (folha) — só para ligas em modo 'salary' (hoje, ELITE).
 $salaryCapMode = false;
 $salCap = null;
+// Fora do try: o resto da página (capSalariosDoTime no bloco de cópia) conta com
+// essas funções, e um catch aqui deixaria elas indefinidas mais adiante.
+require_once __DIR__ . '/backend/salary_cap.php';
 try {
-    require_once __DIR__ . '/backend/salary_cap.php';
     $stmtSalMode = $pdo->prepare("SELECT cap_mode FROM league_settings WHERE league = ?");
     $stmtSalMode->execute([$team['league']]);
     $salaryCapMode = (($stmtSalMode->fetchColumn() ?: 'ovr_sum') === 'salary');
@@ -108,6 +110,13 @@ if ($teamId) {
         $s = $pdo->prepare("SELECT id,name,position,role,ovr,age FROM players WHERE team_id=? ORDER BY ovr DESC,name ASC");
         $s->execute([$teamId]);
         $allPlayersCopy = $s->fetchAll(PDO::FETCH_ASSOC);
+    }
+    // Salário por jogador (só ELITE) no snapshot de cópia. O _refreshRosterData
+    // depois busca de api/players.php, que já manda salary — os dois batem.
+    $salariosCopy = capSalariosDoTime($pdo, (int)$teamId, (string)($team['league'] ?? ''));
+    if ($salariosCopy) {
+        foreach ($allPlayersCopy as &$_p) { $_p['salary'] = $salariosCopy[(int)$_p['id']] ?? null; }
+        unset($_p);
     }
     try {
         $s = $pdo->prepare("SELECT p.season_year,p.round,orig.city,orig.name AS team_name,p.original_team_id,p.team_id FROM picks p JOIN teams orig ON p.original_team_id=orig.id WHERE p.team_id=? ORDER BY p.season_year ASC,p.round ASC");
@@ -1124,6 +1133,7 @@ if ($teamId) {
     // _refreshRosterData() rebusca da API antes de cada cópia.
     let _rosterData   = <?= json_encode($allPlayersCopy) ?>;
     const _picksData  = <?= json_encode($teamPicksCopy) ?>;
+    const PICK_TRADE_VALUES = <?= json_encode(CAP_PICK_TRADE_VALUE) ?>;
 
     async function _refreshRosterData() {
         try {
@@ -1178,8 +1188,10 @@ if ($teamId) {
         // Number.isFinite("24") é false — a idade saía como "-" em toda cópia.
         const fmt    = age => { const n = Number(age); return (Number.isFinite(n) && n > 0) ? `${n}y` : '-'; };
         const fmtTag = p => (p && p.player_tag && Number(p.player_tag_copy) === 1) ? ` - ${p.player_tag}` : '';
-        const fmtLine   = (label, p) => p ? `${label}: ${p.name}${fmtTag(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}` : `${label}: -`;
-        const fmtPlayer = p => `${p.position}: ${p.name}${fmtTag(p)} - ${p.ovr??'-'} | ${fmt(p.age)}`;
+        // Salário só existe na ELITE — p.salary só vem preenchido lá.
+        const fmtSal = p => (p && p.salary !== undefined && p.salary !== null) ? ` | ${p.salary}M` : '';
+        const fmtLine   = (label, p) => p ? `${label}: ${p.name}${fmtTag(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}${fmtSal(p)}` : `${label}: -`;
+        const fmtPlayer = p => `${p.position}: ${p.name}${fmtTag(p)} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`;
         const isElite   = (_teamMeta.league||'').toUpperCase() === 'ELITE';
 
         _rosterData.filter(p => p.role === 'Titular').forEach(p => {
@@ -1198,8 +1210,12 @@ if ($teamId) {
         if (mode === 'team') {
             lines.push('_Others_', ...(others.length ? others.map(fmtPlayer) : ['-']), '');
             if (isElite) lines.push('_G-League_', ...(gleague.length ? gleague.map(fmtPlayer) : ['-']), '');
-            const r1 = _picksData.filter(pk => pk.round == 1).map(pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''} `);
-            const r2 = _picksData.filter(pk => pk.round == 2).map(pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''} `);
+            // Peso da pick na troca, mesmo sinal do elenco: só sai na ELITE.
+            const temSal = _rosterData.some(p => p.salary !== undefined && p.salary !== null);
+            const pesoPick = round => temSal ? ` — ${PICK_TRADE_VALUES[Number(round)] || 0}M` : '';
+            const linhaPick = pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''}${pesoPick(pk.round)} `;
+            const r1 = _picksData.filter(pk => pk.round == 1).map(linhaPick);
+            const r2 = _picksData.filter(pk => pk.round == 2).map(linhaPick);
             lines.push('_Picks 1º round_:', ...(r1.length ? r1 : ['-']), '', '_Picks 2º round_:', ...(r2.length ? r2 : ['-']), '');
             lines.push(_linhaCap(_teamMeta), `_Trades_: ${_teamMeta.trades} / ${_teamMeta.maxTrades}`);
         } else {

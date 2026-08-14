@@ -373,6 +373,13 @@ try {
     $allPlayers = $stmtAllPlayers->fetchAll(PDO::FETCH_ASSOC);
 }
 
+// Salário por jogador (só ELITE), pra copiar time. Vazio nas outras ligas.
+$salariosDoElenco = capSalariosDoTime($pdo, (int)$team['id'], (string)($team['league'] ?? ''));
+if ($salariosDoElenco) {
+    foreach ($allPlayers as &$_p) { $_p['salary'] = $salariosDoElenco[(int)$_p['id']] ?? null; }
+    unset($_p);
+}
+
 $stmtPicks = $pdo->prepare("SELECT p.season_year, p.round, orig.city, orig.name AS team_name, p.original_team_id, p.team_id FROM picks p JOIN teams orig ON p.original_team_id = orig.id WHERE p.team_id = ? ORDER BY p.season_year ASC, p.round ASC");
 $stmtPicks->execute([$team['id']]);
 $teamPicks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
@@ -2143,6 +2150,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
     /* ── Copy team ───────────────────────────────── */
     const rosterData = <?= json_encode($allPlayers) ?>;
     const picksData  = <?= json_encode($teamPicksForCopy) ?>;
+    const PICK_TRADE_VALUES = <?= json_encode(CAP_PICK_TRADE_VALUE) ?>;
     const teamMeta   = {
         name: <?= json_encode($team['city'] . ' ' . $team['name']) ?>,
         userName: <?= json_encode($user['name']) ?>,
@@ -2181,16 +2189,22 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         positions.forEach(p => startersMap[p] = null);
         const fmt = age => (Number.isFinite(age) && age > 0) ? `${age}y` : '-';
         const fmtTag = p => (p && p.player_tag && Number(p.player_tag_copy) === 1) ? ` - ${p.player_tag}` : '';
-        const fmtLine = (label, p) => p ? `${label}: ${p.name}${fmtTag(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}` : `${label}: -`;
-        const fmtPlayer = p => `${p.position}: ${p.name}${fmtTag(p)} - ${p.ovr??'-'} | ${fmt(p.age)}`;
+        // Salário só existe na ELITE — o PHP só preenche p.salary lá.
+        const fmtSal = p => (p && p.salary !== undefined && p.salary !== null) ? ` | ${p.salary}M` : '';
+        const fmtLine = (label, p) => p ? `${label}: ${p.name}${fmtTag(p)} - ${p.ovr ?? '-'} | ${fmt(p.age)}${fmtSal(p)}` : `${label}: -`;
+        const fmtPlayer = p => `${p.position}: ${p.name}${fmtTag(p)} - ${p.ovr??'-'} | ${fmt(p.age)}${fmtSal(p)}`;
 
         rosterData.filter(p => p.role === 'Titular').forEach(p => { if (positions.includes(p.position) && !startersMap[p.position]) startersMap[p.position] = p; });
         const bench   = rosterData.filter(p => p.role === 'Banco');
         const others  = rosterData.filter(p => p.role === 'Outro');
         const gleague = rosterData.filter(p => (p.role||'').toLowerCase() === 'g-league');
         const isElite = (teamMeta.league||'').toUpperCase() === 'ELITE';
-        const r1 = picksData.filter(pk => pk.round == 1).map(pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''} `);
-        const r2 = picksData.filter(pk => pk.round == 2).map(pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''} `);
+        // Peso da pick na troca, mesmo sinal do elenco: só sai na ELITE.
+        const temSal = rosterData.some(p => p.salary !== undefined && p.salary !== null);
+        const pesoPick = round => temSal ? ` — ${PICK_TRADE_VALUES[Number(round)] || 0}M` : '';
+        const linhaPick = pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''}${pesoPick(pk.round)} `;
+        const r1 = picksData.filter(pk => pk.round == 1).map(linhaPick);
+        const r2 = picksData.filter(pk => pk.round == 2).map(linhaPick);
 
         const headerLines = (teamMeta.useCustomHeader && teamMeta.customHeader.trim())
             ? teamMeta.customHeader.trim().split('\n')

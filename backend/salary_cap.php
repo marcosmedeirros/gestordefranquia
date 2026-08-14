@@ -46,6 +46,53 @@ function capValorDaPickNaTroca(int $round): int
 }
 
 /**
+ * A liga usa folha em dinheiro? Consulta uma vez por liga por request — as
+ * telas que montam texto de elenco perguntam isso a cada time.
+ */
+function capLigaUsaSalario(PDO $pdo, string $league): bool
+{
+    static $cache = [];
+    $league = strtoupper(trim($league));
+    if ($league === '') return false;
+    if (!array_key_exists($league, $cache)) {
+        try {
+            $st = $pdo->prepare('SELECT cap_mode FROM league_settings WHERE league = ?');
+            $st->execute([$league]);
+            $cache[$league] = ($st->fetchColumn() ?: 'ovr_sum') === 'salary';
+        } catch (Throwable $e) {
+            $cache[$league] = false;
+        }
+    }
+    return $cache[$league];
+}
+
+/**
+ * Mapa [id do jogador => salário] pra quem monta lista de elenco: /time no bot,
+ * copiar time, copiar elencos da liga. Fora do modo salário devolve [] — aí
+ * quem chama simplesmente não escreve salário nenhum, em vez de escrever 0M.
+ *
+ * Passa pelo getTeamCapSummary de propósito: é o mesmo número da folha do card
+ * e do modal, incluindo rookie scale, lenda e bônus de prêmio.
+ */
+function capSalariosDoTime(PDO $pdo, int $teamId, string $league): array
+{
+    // Só ELITE, igual capMarcarDraftInicial(). Nas outras o limite é soma de OVR
+    // e não existe salário nenhum pra mostrar — nem 0M, que seria mentira.
+    if (strtoupper(trim($league)) !== 'ELITE') return [];
+    if (!capLigaUsaSalario($pdo, $league)) return [];
+    try {
+        $mapa = [];
+        foreach (getTeamCapSummary($pdo, $teamId)['roster'] as $r) {
+            $mapa[(int)$r['id']] = (int)$r['total_salary'];
+        }
+        return $mapa;
+    } catch (Throwable $e) {
+        error_log('[capSalariosDoTime] ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
  * Base (Cap Máximo antes de Cap Flex/Bônus de Lealdade) e Piso da folha
  * salarial, configurados pelo admin em Central da Liga (campos "CAP Mínimo"
  * e "CAP Máximo" — os mesmos que as outras ligas usam pro modo ovr_sum).
