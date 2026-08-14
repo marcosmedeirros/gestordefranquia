@@ -869,14 +869,10 @@ tr.tit td{color:var(--red)}
 .dec-card:hover{border-color:var(--red);background:var(--red-soft);transform:translateY(-2px);
   box-shadow:0 6px 18px rgba(0,0,0,.32)}
 .dec-card:active{transform:translateY(0)}
-/* Altura de duas linhas mesmo quando o título tem uma: sem isso, a carta
-   com o nome curto sobe a arte e as duas ficam desencontradas. */
+/* Altura de duas linhas mesmo com título de uma: sem isso, cartas de nome
+   curto e longo ficam de alturas diferentes lado a lado. */
 .dec-card-tit{font-size:14.5px;font-weight:800;letter-spacing:-.2px;line-height:1.25;
   min-height:2.5em;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.dec-card-arte{height:78px;border-radius:11px;display:flex;align-items:center;justify-content:center;
-  font-size:34px;line-height:1;
-  background:linear-gradient(145deg,hsl(var(--m) 42% 26%),hsl(var(--m) 34% 14%));
-  box-shadow:inset 0 0 0 1px hsl(var(--m) 45% 40% / .35)}
 .dec-card-res{display:flex;flex-direction:column;gap:5px}
 .dec-res{display:flex;align-items:center;gap:6px;border-radius:9px;padding:6px 9px;
   border:1px solid;background:var(--panel3);text-align:left}
@@ -908,9 +904,19 @@ tr.tit td{color:var(--red)}
 .dec-delta{display:block;font-family:var(--num);font-size:11.5px;font-weight:900;margin-top:3px;
   font-variant-numeric:tabular-nums}
 .dec-desfecho-txt{margin:12px 0 4px;font-size:13.5px;line-height:1.55;color:var(--text2)}
+
+/* Avançar e parar lado a lado, a partir dos 33. Empilhados, "parar por aqui"
+   ficava logo abaixo do botão grande e vermelho — perto demais de um clique
+   que não tem volta. Lado a lado, avançar continua sendo o maior. */
+.acoes-ano{display:flex;gap:8px;align-items:stretch}
+.acoes-ano .btn{flex:2;margin-top:4px}
+.acoes-ano .btn2{flex:1;margin-top:4px;white-space:nowrap}
+@media(max-width:420px){
+  .acoes-ano{flex-direction:column;gap:6px}
+  .acoes-ano .btn,.acoes-ano .btn2{flex:none}
+}
 @media(max-width:380px){
   .dec-grade{grid-template-columns:1fr}
-  .dec-card-arte{height:56px;font-size:28px}
 }
 
 /* ═══ CONQUISTAS ═════════════════════════════════════════════════════ */
@@ -2159,6 +2165,57 @@ function gmDoTime(nome){
 /** Logo do time, se houver. Mapa montado uma vez a partir das duas listas. */
 let LOGOS = null;
 /**
+ * Escudo dos clubes de fora da NBA, do TheSportsDB.
+ *
+ * Cada um foi resolvido pelo nome e conferido: as 34 URLs sao distintas
+ * (nenhum clube herdou o escudo de outro), todas devolvem imagem 512x512,
+ * e o nome que a base devolveu bate com o do jogo.
+ *
+ * Cinco continuam no monograma porque nao existem na base: Minas,
+ * Instituto, Rivers Hoopers, Fenerbahce e Rytas. Monograma nao erra e nao
+ * some — melhor que apontar pra um escudo que talvez seja de outro time.
+ *
+ * Se algum vier errado, apagar a linha resolve: marca() cai no monograma
+ * sozinha, e o onerror do <img> ja cobre link que morrer no futuro.
+ */
+const LOGOS_CLUBE = {
+  "APR": "https://r2.thesportsdb.com/images/media/team/badge/fye4pf1757058873.png",
+  "ASVEL": "https://r2.thesportsdb.com/images/media/team/badge/qbaoia1602706639.png",
+  "Al Riyadi": "https://r2.thesportsdb.com/images/media/team/badge/bomga61694262650.png",
+  "Alba Berlim": "https://r2.thesportsdb.com/images/media/team/badge/58osvu1545866407.png",
+  "Austin Spurs": "https://r2.thesportsdb.com/images/media/team/badge/uprptt1423351492.png",
+  "Barcelona": "https://r2.thesportsdb.com/images/media/team/badge/0tz26j1729097443.png",
+  "Baskonia": "https://r2.thesportsdb.com/images/media/team/badge/p4x3o61767366090.png",
+  "Bayern Munique": "https://r2.thesportsdb.com/images/media/team/badge/z2r3eh1678017187.png",
+  "Boca Juniors": "https://r2.thesportsdb.com/images/media/team/badge/f3ckve1769678204.png",
+  "Delaware Blue Coats": "https://r2.thesportsdb.com/images/media/team/badge/z0zioq1642560326.png",
+  "Estrela Vermelha": "https://r2.thesportsdb.com/images/media/team/badge/5tlez31767366440.png",
+  "Flamengo": "https://r2.thesportsdb.com/images/media/team/badge/japu7e1593945465.png",
+  "Franca": "https://r2.thesportsdb.com/images/media/team/badge/x5fe471645367586.png",
+  "Guangdong": "https://r2.thesportsdb.com/images/media/team/badge/he2jgc1524997963.png",
+  "Long Island Nets": "https://r2.thesportsdb.com/images/media/team/badge/04a62j1487267932.png",
+  "Maccabi Tel Aviv": "https://r2.thesportsdb.com/images/media/team/badge/io01a91521148756.png",
+  "Maine Celtics": "https://r2.thesportsdb.com/images/media/team/badge/a9ak9v1629981849.png",
+  "Melbourne United": "https://r2.thesportsdb.com/images/media/team/badge/adpuke1755702629.png",
+  "Monaco": "https://r2.thesportsdb.com/images/media/team/badge/fl2ti01649168915.png",
+  "Niagara River Lions": "https://r2.thesportsdb.com/images/media/team/badge/6mi8zs1648907391.png",
+  "Olympiacos": "https://r2.thesportsdb.com/images/media/team/badge/4s5lug1676581220.png",
+  "Panathinaikos": "https://r2.thesportsdb.com/images/media/team/badge/7cdjwz1767366987.png",
+  "Paris Basketball": "https://r2.thesportsdb.com/images/media/team/badge/9q0d6x1726681476.png",
+  "Partizan": "https://r2.thesportsdb.com/images/media/team/badge/us0e1z1767366567.png",
+  "Real Madrid": "https://r2.thesportsdb.com/images/media/team/badge/g4ev2c1522175902.png",
+  "Rio Grande Valley Vipers": "https://r2.thesportsdb.com/images/media/team/badge/xxwsyp1425590343.png",
+  "Santa Cruz Warriors": "https://r2.thesportsdb.com/images/media/team/badge/8lwky91574003946.png",
+  "Scarborough Shooting Stars": "https://r2.thesportsdb.com/images/media/team/badge/h55jf71648907414.png",
+  "Shanghai Sharks": "https://r2.thesportsdb.com/images/media/team/badge/urfigb1700048926.png",
+  "Sioux Falls Skyforce": "https://r2.thesportsdb.com/images/media/team/badge/arsbhp1677250166.png",
+  "Stockton Kings": "https://r2.thesportsdb.com/images/media/team/badge/1u81ny1586422867.png",
+  "Sydney Kings": "https://r2.thesportsdb.com/images/media/team/badge/gsfe5x1550073324.png",
+  "São Paulo": "https://r2.thesportsdb.com/images/media/team/badge/youecm1649793339.png",
+  "Zalgiris": "https://r2.thesportsdb.com/images/media/team/badge/dn7ouv1703960565.png",
+};
+
+/**
  * Escudo das universidades, do CDN da ESPN.
  *
  * Os dez ids foram conferidos um a um contra a imagem que devolvem — id
@@ -2178,6 +2235,7 @@ function logoDoTime(nome){
     LOGOS = {};
     (window.__TIMES_FBA__ || FBA_TIMES).forEach(t => { if (t[1]) LOGOS[t[0]] = t[1]; });
     (window.__TIMES_NBA__ || NBA).forEach(t => { if (t[1]) LOGOS[t[0]] = t[1]; });
+    Object.entries(LOGOS_CLUBE).forEach(([n, url]) => { LOGOS[n] = url; });
     Object.entries(LOGOS_COLLEGE).forEach(([n, id]) => {
       LOGOS[n] = `https://a.espncdn.com/i/teamlogos/ncaa/500/${id}.png`;
     });
@@ -3506,23 +3564,12 @@ function fecharContrato(anos){
 // antigo, em que as opções eram três botões de texto empilhados e a única
 // diferença visível entre "descansar" e "operar o joelho" era a frase.
 //
-// Sem foto: um jogo que abre no celular não carrega três imagens por
-// decisão, e não existe banco de fotos de basquete que a gente possa usar
-// sem se preocupar com direito de imagem. O bloco colorido com o ícone faz
-// o mesmo trabalho de dar peso e diferenciar as cartas, a custo zero.
+// Sem ilustração: teve um bloco colorido com emoji por carta, e ele caiu.
+// O emoji vinha de palavra-chave no rótulo, e a maioria das opções não bate
+// com nenhuma — "Assumir a braçadeira" e "Liderar sem o título" saíam as
+// duas com a mesma bola. Setenta e oito pixels de altura por carta pra não
+// dizer nada, e empurrando o desfecho pra fora da tela.
 // ═══════════════════════════════════════════════════════════════════════
-const ICONES_OPCAO = [
-  [/trein|academia|prepar|carga/i, "🏋️"], [/descans|férias|folga|poupar/i, "🌴"],
-  [/oper|cirurg|médic|protocolo/i, "🏥"], [/ficar|renov|permanec/i, "🏠"],
-  [/troca|sair|pedir|transfer/i,   "🔁"], [/joga|quadra|minutos|titular/i, "🏀"],
-  [/estud|faculdade|escola/i,      "📚"], [/festa|noite|balada/i, "🌃"],
-  [/contrato|salári|dinheiro|grana/i, "💵"], [/seleção|país|olimp/i, "🏅"],
-  [/imprensa|entrevista|falar/i,   "🎙️"], [/líder|vestiário|elenco/i, "🤝"],
-];
-function iconeDaOpcao(rotulo){
-  const achado = ICONES_OPCAO.find(([re]) => re.test(rotulo || ""));
-  return achado ? achado[1] : "🏀";
-}
 
 /**
  * Um desfecho da carta: seta, o que muda, e a chance.
@@ -3567,10 +3614,8 @@ function cartasDaDecisao(d){
     <div class="dec-grade">
       ${d.ops.map((o, i) => {
         const c = (o.chance ?? 100);
-        const mat = h(o.l);
         return `<button class="dec-card" onclick="decidir(${i})">
           <span class="dec-card-tit">${esc(o.l)}</span>
-          <span class="dec-card-arte" style="--m:${mat}deg">${iconeDaOpcao(o.l)}</span>
           <span class="dec-card-res">
             ${linhaDeDesfecho(o.bom, c, "")}
             ${c >= 100 ? "" : linhaDeDesfecho(o.ruim, 100 - c, "")}
@@ -3602,9 +3647,14 @@ function telaTemporada(){
     (S.desfecho ? cartaDoDesfecho(S.desfecho) : "") +
     (S.aguardando && d ? cartasDaDecisao(d) : S.desfecho ? "" : `
       ${aposentar ? `<button class="btn" onclick="encerrar()">Pendurar as chuteiras</button>`
-                  : `<button class="btn" onclick="jogarAno()">${
-                        S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>`}
-      ${!aposentar && S.idade >= 33 ? `<button class="btn btn2" style="margin-top:8px" onclick="encerrar()">Ou parar por aqui</button>` : ""}`)
+        : S.idade >= 33 ? `
+          <div class="acoes-ano">
+            <button class="btn" onclick="jogarAno()">${
+              S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>
+            <button class="btn btn2" onclick="encerrar()">Parar por aqui</button>
+          </div>`
+        : `<button class="btn" onclick="jogarAno()">${
+            S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>`}`)
     + `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>`;
 
   // A súmula vai pro lado: ela cresce a cada temporada e, embaixo do botão
@@ -3715,7 +3765,6 @@ function cartaDoDesfecho(df){
       <div class="dec-card dec-sorteando">
         <span class="dec-card-tit">${esc(df.l)}${df.ovr ? `<b class="dec-delta" style="color:${
           df.ovr > 0 ? "var(--green)" : "var(--red)"}">${df.ovr > 0 ? "+" : ""}${df.ovr} OVR</b>` : ""}</span>
-        <span class="dec-card-arte" style="--m:${hashNome(df.l) % 360}deg">${iconeDaOpcao(df.l)}</span>
         <span class="dec-card-res">
           ${linhaDeDesfecho(df.bom, df.chance, caiuBom ? "caiu" : "apagado")}
           ${df.chance >= 100 ? "" : linhaDeDesfecho(df.ruim, 100 - df.chance, caiuBom ? "apagado" : "caiu")}
