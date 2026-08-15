@@ -594,6 +594,27 @@ function whatsappUltimaEntrada(PDO $pdo): ?string
     }
 }
 
+/**
+ * Há quantos segundos foi a última entrada (null = nunca).
+ *
+ * A conta é feita AQUI, não em quem lê: o carimbo sai daqui em horário de
+ * Brasília e quem consome roda em outra máquina — o PHP de linha de comando
+ * do Windows, por exemplo, assume Europe/Berlin quando ninguém manda nada, e
+ * a diferença de 5 horas fazia "há 2 minutos" virar "há 302". Num vigia que
+ * reconecta baseado nesse número, o erro não é cosmético: ele reconectaria
+ * sem parar, o dia inteiro.
+ */
+function whatsappUltimaEntradaSeg(PDO $pdo): ?int
+{
+    try {
+        $v = $pdo->query("SELECT TIMESTAMPDIFF(SECOND, MAX(visto_em), NOW())
+                          FROM whatsapp_grupos_vistos")->fetchColumn();
+        return $v === null || $v === false ? null : max(0, (int)$v);
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
 function whatsappAnotarGrupoVisto(PDO $pdo, string $jid, array $mensagem = []): void
 {
     if (!str_ends_with($jid, '@g.us')) return;   // conversa privada não entra

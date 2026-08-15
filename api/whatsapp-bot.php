@@ -124,6 +124,7 @@ if ($acao === 'pendentes') {
         // porque quem consegue consertar a recepção é o worker: a Evolution
         // roda na máquina dele. Ver o vigia em bot/whatsapp-local.php.
         'ultima_entrada' => whatsappUltimaEntrada($pdo),
+        'ultima_entrada_seg' => whatsappUltimaEntradaSeg($pdo),
         'mensagens' => $pendentes,
     ]);
 }
@@ -240,6 +241,7 @@ if ($acao === 'diagnostico') {
         'dentro_da_janela' => whatsappDentroDaJanela(null, $pdo),
         'plantao'        => whatsappPlantao($pdo),
         'ultima_entrada' => $ultimaEntrada,
+        'ultima_entrada_seg' => whatsappUltimaEntradaSeg($pdo),
         'fila'           => array_map('intval', $fila ?: []),
         'ultimo_erro'    => $ultimoErro ?: null,
     ]);

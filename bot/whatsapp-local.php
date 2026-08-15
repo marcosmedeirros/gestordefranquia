@@ -118,7 +118,10 @@ while (true) {
 
     $intervalo = max(3, min(60, (int)($resp['intervalo'] ?? 5)));
     $msgs = $resp['mensagens'] ?? [];
-    $ultimaEntrada = $resp['ultima_entrada'] ?? null;
+    // Em segundos e calculado no servidor: comparar o carimbo com o relógio
+    // desta máquina depende do fuso dela estar certo, e isso já deu 5 horas
+    // de diferença num PHP que assumiu Europe/Berlin.
+    $entradaSeg = $resp['ultima_entrada_seg'] ?? null;
 
     if (!$msgs) {
         // Nada a fazer. Dorme e tenta de novo, se ainda couber no minuto.
@@ -137,7 +140,7 @@ while (true) {
 
 if ($totalOk || $totalFalhou) logar("enviadas=$totalOk falhas=$totalFalhou");
 
-vigiarRecepcao($cfg, $ultimaEntrada ?? null);
+vigiarRecepcao($cfg, $entradaSeg ?? null);
 
 // Depois do laço, com a rodada já cumprida: se demorar, atrasa só a si mesma.
 if ($sincronizarNomesAgora) {
@@ -163,18 +166,18 @@ exit(0);
  * reconexões — que é justamente o tipo de coisa que faz o WhatsApp desconfiar
  * do número.
  */
-function vigiarRecepcao(array $cfg, ?string $ultimaEntrada): void
+function vigiarRecepcao(array $cfg, ?int $entradaSeg): void
 {
     $SILENCIO_MIN = 25;   // silêncio que conta como recepção morta
     $CARENCIA_MIN = 25;   // entre uma reconexão e a próxima
     $HORA_INICIO  = 7;    // de madrugada o silêncio é esperado
     $HORA_FIM     = 23;
 
-    if ($ultimaEntrada === null) return;          // site antigo ou nunca chegou nada
+    if ($entradaSeg === null) return;             // site antigo ou nunca chegou nada
     $hora = (int)date('G');
     if ($hora < $HORA_INICIO || $hora > $HORA_FIM) return;
 
-    $quieto = (time() - strtotime($ultimaEntrada)) / 60;
+    $quieto = $entradaSeg / 60;
     if ($quieto < $SILENCIO_MIN) return;
 
     $marcador = __DIR__ . '/.ultima-reconexao';

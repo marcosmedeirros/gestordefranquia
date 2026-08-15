@@ -89,13 +89,17 @@ echo "fila      : " . (int)($fila['pendentes'] ?? 0) . " pendente(s)\n";
 
 // A recepção é o lado que quebra calado: a Evolution já reportou 'open' com o
 // socket de entrada morto, e nada no site denunciava.
+// A idade vem pronta do servidor: comparar o carimbo com o relógio local
+// depende do fuso desta máquina, e o PHP de linha de comando do Windows
+// assume Europe/Berlin quando ninguém manda nada — 5 horas de erro.
 $entrada = $diag['ultima_entrada'] ?? null;
-if ($entrada === null) {
+$seg = $diag['ultima_entrada_seg'] ?? null;
+if ($seg === null) {
     echo "entrada   : nunca chegou mensagem de grupo\n";
 } else {
-    $min = (int)round((time() - strtotime($entrada)) / 60);
+    $min = (int)round($seg / 60);
     echo "entrada   : última mensagem recebida há {$min} min ({$entrada})"
-       . ($min > 60 ? "  <<< suspeito, veja se a Evolution ainda recebe" : "") . "\n";
+       . ($min >= 25 ? "  <<< o vigia vai reconectar a Evolution" : "") . "\n";
 }
 
 // ── O que realmente faz o bot funcionar: esta máquina ────────────────
