@@ -1047,15 +1047,22 @@ function isPickLastYearOfSprint(PDO $pdo, int $pickId): bool
         $pick = $stmtPick->fetch(PDO::FETCH_ASSOC);
         if (!$pick) return false;
 
-        // Último ano do sprint = maior season_year entre todas as picks da liga
-        $stmtMax = $pdo->prepare(
-            "SELECT MAX(p.season_year) FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE t.league = ?"
-        );
-        $stmtMax->execute([$pick['league']]);
-        $maxYear = (int)($stmtMax->fetchColumn() ?: 0);
-        if ($maxYear <= 0) return false;
+        // Último ano DE VERDADE do sprint: início da sprint + total de temporadas
+        // dela (league_sprint_config.max_seasons). NÃO é o maior season_year que
+        // já existe em `picks` — esse número é só o fim da janela rolante de
+        // geração (5 anos à frente do calendário), então bate praticamente
+        // sempre com a pick mais distante gerada, mesmo no começo da sprint, e
+        // travava trade de pick que não tinha nada de especial.
+        $sprint = sprintAtualDaLiga($pdo, (string)$pick['league']);
+        if (!$sprint || empty($sprint['start_year'])) return false;
 
-        return (int)$pick['season_year'] >= $maxYear;
+        $stmtConfig = $pdo->prepare('SELECT max_seasons FROM league_sprint_config WHERE league = ?');
+        $stmtConfig->execute([$pick['league']]);
+        $maxSeasons = (int)($stmtConfig->fetchColumn() ?: 0);
+        if ($maxSeasons <= 0) return false;
+
+        $lastYear = (int)$sprint['start_year'] + $maxSeasons - 1;
+        return (int)$pick['season_year'] >= $lastYear;
     } catch (Exception $e) {
         return false;
     }
