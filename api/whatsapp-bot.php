@@ -99,7 +99,7 @@ if ($acao === 'pendentes') {
     //
     // Fora da janela só sai o que uma pessoa pediu agora — a lista está em
     // whatsappFiltroForaDaJanela(), junto da regra do outro leitor da fila.
-    $naJanela = whatsappDentroDaJanela();
+    $naJanela = whatsappDentroDaJanela(null, $pdo);
     $filtroTipo = $naJanela ? '' : whatsappFiltroForaDaJanela();
 
     $limite = max(1, min(200, (int)($_GET['limite'] ?? 50)));
@@ -232,7 +232,7 @@ if ($acao === 'diagnostico') {
         'grupo_fim'      => $grupo === '' ? null : '…' . mb_substr($grupo, -12),
         'bot_visto_em'   => $cfg['bot_visto_em'] ?? null,
         'grupos_de_comando' => count(whatsappGruposDeComando($pdo)),
-        'dentro_da_janela' => whatsappDentroDaJanela(),
+        'dentro_da_janela' => whatsappDentroDaJanela(null, $pdo),
         'fila'           => array_map('intval', $fila ?: []),
         'ultimo_erro'    => $ultimoErro ?: null,
     ]);

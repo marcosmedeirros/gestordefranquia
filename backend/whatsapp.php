@@ -46,12 +46,42 @@ const WHATSAPP_JANELA_FIM    = '18:00';
  * Fuso fixo de propósito: o horário combinado é o de Brasília, e o servidor
  * não necessariamente está nele.
  */
-function whatsappDentroDaJanela(?DateTimeImmutable $agora = null): bool
+function whatsappDentroDaJanela(?DateTimeImmutable $agora = null, ?PDO $pdo = null): bool
 {
     $tz = new DateTimeZone('America/Sao_Paulo');
     $agora = $agora ? $agora->setTimezone($tz) : new DateTimeImmutable('now', $tz);
+
+    // Plantão: liberação temporária, marcada com hora pra acabar. É o que
+    // permite ligar o bot num sábado à noite sem mexer em horário nenhum —
+    // e é temporário de propósito, porque "liguei e esqueci" acaba virando
+    // aviso automático caindo no grupo às três da manhã.
+    if ($pdo && whatsappPlantaoAtivo($pdo, $agora)) return true;
+
     $hhmm = $agora->format('H:i');
     return $hhmm >= WHATSAPP_JANELA_INICIO && $hhmm < WHATSAPP_JANELA_FIM;
+}
+
+/** Até quando o plantão vale (null = sem plantão). Uma consulta por request. */
+function whatsappPlantaoAte(PDO $pdo): ?string
+{
+    static $cache = false;
+    if ($cache !== false) return $cache;
+    $cache = null;
+    try {
+        $v = $pdo->query("SELECT plantao_ate FROM whatsapp_config WHERE id = 1")->fetchColumn();
+        $cache = $v ?: null;
+    } catch (Throwable $e) { /* coluna ainda não existe: sem plantão */ }
+    return $cache;
+}
+
+function whatsappPlantaoAtivo(PDO $pdo, ?DateTimeImmutable $agora = null): bool
+{
+    $ate = whatsappPlantaoAte($pdo);
+    if (!$ate) return false;
+    $tz = new DateTimeZone('America/Sao_Paulo');
+    $agora = $agora ? $agora->setTimezone($tz) : new DateTimeImmutable('now', $tz);
+    try { return new DateTimeImmutable($ate, $tz) > $agora; }
+    catch (Throwable $e) { return false; }
 }
 
 /**
@@ -124,6 +154,11 @@ function ensureWhatsAppTables(PDO $pdo): void
         // Lista de jids separada por vírgula — só vale quando captura = 'grupos'.
         if (!in_array('captura_jids', $cols, true)) {
             $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN captura_jids TEXT NULL");
+        }
+        // Plantão: até quando a janela de envio fica liberada. NULL = sem
+        // plantão, que é o normal. Tem hora pra acabar de propósito.
+        if (!in_array('plantao_ate', $cols, true)) {
+            $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN plantao_ate DATETIME NULL");
         }
         $pdo->exec("UPDATE whatsapp_config SET bot_token = SHA2(CONCAT(RAND(), UUID(), NOW()), 256)
                     WHERE id = 1 AND (bot_token IS NULL OR bot_token = '')");
@@ -500,7 +535,7 @@ function whatsappProcessarFila(PDO $pdo, int $limite = 10): array
     //
     // As exceções estão em whatsappFiltroForaDaJanela(): o que uma pessoa
     // pediu agora e está esperando não fica preso até amanhã.
-    $foraDaJanela = !whatsappDentroDaJanela();
+    $foraDaJanela = !whatsappDentroDaJanela(null, $pdo);
     if ($foraDaJanela) $out['fora_da_janela'] = true;
     $filtroTipo = $foraDaJanela ? whatsappFiltroForaDaJanela() : '';
 

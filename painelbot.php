@@ -36,7 +36,8 @@ if (($user['user_type'] ?? 'jogador') !== 'admin') {
 ensureWhatsAppTables($pdo);
 $captura = whatsappCaptura($pdo);
 $botLigado = whatsappAtivo($pdo);
-$janela = whatsappDentroDaJanela();
+$janela = whatsappDentroDaJanela(null, $pdo);
+$plantaoAte = whatsappPlantaoAtivo($pdo) ? whatsappPlantaoAte($pdo) : null;
 
 // Grupos conhecidos, pra oferecer no seletor do modo "grupos escolhidos".
 $gruposVistos = [];
@@ -201,7 +202,15 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
     <?php if (!$botLigado): ?>
       <span class="pino off" title="Ligue em Central da Liga">Bot desligado</span>
     <?php elseif (!$janela): ?>
-      <span class="pino alerta" title="Fora de 08:45–18:00 só sai comando e mensagem manual — o que você escrever aqui sai.">Fora da janela</span>
+      <button class="pino alerta pino-btn" onclick="plantao(4)"
+              title="Fora de 08:45–18:00 só sai comando e mensagem manual. Clique pra liberar tudo por 4 horas.">
+        Fora da janela · liberar
+      </button>
+    <?php elseif ($plantaoAte): ?>
+      <button class="pino on pino-btn" onclick="plantao(0)"
+              title="Plantão ligado: a janela está liberada. Clique pra voltar ao normal.">
+        Plantão até <?= htmlspecialchars(date('H:i', strtotime($plantaoAte))) ?>
+      </button>
     <?php else: ?>
       <span class="pino on">Bot ativo</span>
     <?php endif; ?>
@@ -392,6 +401,19 @@ async function apagarArquivo(){
     const d = await api('apagar', {jid: jidAberto});
     alert(`${d.apagadas} mensagem(ns) apagada(s).`);
     carregarFio(true); carregarChats();
+  } catch (e) { alert(e.message); }
+}
+
+/* ── Plantão ────────────────────────────────────────────────────── */
+async function plantao(horas){
+  const msg = horas
+    ? `Liberar a janela de envio por ${horas} horas?\n\nTudo que estiver na fila (aviso de trade, quiz) passa a sair agora, inclusive fora do horário.`
+    : 'Voltar ao horário normal? Fora de 08:45–18:00 só sairá comando e mensagem manual.';
+  if (!confirm(msg)) return;
+  try {
+    const d = await api('plantao', {horas: String(horas)});
+    alert(d.ate ? `Liberado até ${d.ate.slice(11, 16)}.` : 'De volta ao horário normal.');
+    location.reload();
   } catch (e) { alert(e.message); }
 }
 

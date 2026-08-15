@@ -120,7 +120,7 @@ try {
                           'vistos' => $vistos,
                           'envio' => [
                               'ligado'    => whatsappAtivo($pdo),
-                              'na_janela' => whatsappDentroDaJanela(),
+                              'na_janela' => whatsappDentroDaJanela(null, $pdo),
                               'inicio'    => WHATSAPP_JANELA_INICIO,
                               'fim'       => WHATSAPP_JANELA_FIM,
                               'pendentes' => $pendentes,
