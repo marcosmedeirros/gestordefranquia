@@ -225,14 +225,14 @@ if ($acao === 'diagnostico') {
     // morreu e o site nem ficou sabendo. Já aconteceu de a Evolution reportar
     // 'open' com o socket de recepção morto, e nada aqui denunciava.
     //
-    // Só vale com o arquivo do painel ligado; desligado, devolve null em vez
-    // de mentir dizendo que faz tempo que não chega nada.
+    // A fonte é whatsapp_grupos_vistos: o webhook carimba visto_em a cada
+    // mensagem de grupo, com ou sem o arquivo do painel ligado. Só a hora e o
+    // grupo — não depende de gravar conteúdo de conversa pra responder
+    // "quando foi a última vez que entrou alguma coisa aqui".
     $ultimaEntrada = null;
-    if (whatsappCaptura($pdo)['modo'] !== 'off') {
-        try {
-            $ultimaEntrada = $pdo->query("SELECT MAX(criado_em) FROM whatsapp_conversas")->fetchColumn() ?: null;
-        } catch (Throwable $e) { /* tabela ainda não existe */ }
-    }
+    try {
+        $ultimaEntrada = $pdo->query("SELECT MAX(visto_em) FROM whatsapp_grupos_vistos")->fetchColumn() ?: null;
+    } catch (Throwable $e) { /* tabela ainda não existe */ }
 
     botResponder(200, [
         'ativo'          => (bool)($cfg['ativo'] ?? 0),

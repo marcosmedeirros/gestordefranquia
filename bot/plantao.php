@@ -91,7 +91,7 @@ echo "fila      : " . (int)($fila['pendentes'] ?? 0) . " pendente(s)\n";
 // socket de entrada morto, e nada no site denunciava.
 $entrada = $diag['ultima_entrada'] ?? null;
 if ($entrada === null) {
-    echo "entrada   : arquivo do painel desligado, não dá pra saber\n";
+    echo "entrada   : nunca chegou mensagem de grupo\n";
 } else {
     $min = (int)round((time() - strtotime($entrada)) / 60);
     echo "entrada   : última mensagem recebida há {$min} min ({$entrada})"
