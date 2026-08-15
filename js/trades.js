@@ -258,12 +258,21 @@ function checarMatch120() {
     { nome: nomeAlvo, envia: recebe,  recebe: envia },
   ];
 
+  // A faixa de envio que fecha OS DOIS lados de uma vez, dado o que se pede.
+  // Espelha tradeFaixaDeEnvio() do backend. É o único número que não empurra o
+  // problema pro outro lado: satisfaz recebe <= 1,2·envia e envia <= 1,2·recebe
+  // ao mesmo tempo.
+  const faixa = recebe > 0
+    ? { min: Math.ceil(recebe / (TRADE_MATCH_PCT / 100)), max: Math.floor(recebe * TRADE_MATCH_PCT / 100) }
+    : { min: 0, max: 0 };
+
   return lados.reduce((out, l) => {
     const limite = Math.floor(l.envia * TRADE_MATCH_PCT / 100);
     if (l.recebe > limite) {
       const envioMinimo = Math.ceil(l.recebe / (TRADE_MATCH_PCT / 100));
       out.push({ ...l, limite, excesso: l.recebe - limite,
-                 faltaEnviar: Math.max(0, envioMinimo - l.envia) });
+                 faltaEnviar: Math.max(0, envioMinimo - l.envia),
+                 faixa, totalEnvia: envia, totalRecebe: recebe });
     }
     return out;
   }, []);
@@ -285,8 +294,17 @@ function aplicarTrava120() {
     if (!viol.length) box.style.display = 'none';
     else {
       box.style.display = 'block';
+      // O que resolve é UMA frase, sempre na mesma moeda: quanto este GM
+      // precisa enviar. Listar qual lado estourou e por quanto levava a
+      // corrigir pro lado errado — engordar o próprio lado passa a violação
+      // pro outro time, porque o limite dele é sobre o que ESTE aqui envia.
+      const f = viol[0].faixa;
       box.innerHTML = `<strong>Troca barrada pela regra dos ${TRADE_MATCH_PCT}%.</strong><br>`
-        + viol.map(v => `${v.nome} receberia ${v.recebe}M enviando ${v.envia}M — limite ${v.limite}M, passou ${v.excesso}M.`).join('<br>');
+        + `Pedindo <b>${viol[0].totalRecebe}M</b>, você precisa enviar entre <b>${f.min}M</b> e <b>${f.max}M</b>`
+        + ` — está enviando <b>${viol[0].totalEnvia}M</b>.<br>`
+        + `<span style="opacity:.75;font-size:.92em">`
+        + viol.map(v => `${v.nome} receberia ${v.recebe}M enviando ${v.envia}M (limite ${v.limite}M).`).join(' ')
+        + `</span>`;
     }
   }
 

@@ -660,6 +660,35 @@ function getCapSuggestions(array $summary): array
  * @param int $enviado      soma dos salários que saem
  * @param int $recebido     soma dos salários que entram
  */
+/**
+ * A faixa de envio que fecha os DOIS lados de uma vez, dado o que se recebe.
+ *
+ * Existe porque a mensagem de erro dizia só qual lado estourou e por quanto —
+ * e isso levava a piorar a troca. O caso real (15/08/2026): o GM enviava 17M
+ * pra receber 21M, faltava 1M, e a tela dizia "o limite é 20M", que é sobre o
+ * que ele RECEBE. Ele então engordou o próprio lado até 21M e a violação
+ * pulou pro outro time, porque o limite do outro é sobre o que ELE envia.
+ * Ficou preso entre duas mensagens que se contradiziam.
+ *
+ * A faixa resolve porque satisfaz as duas restrições ao mesmo tempo:
+ *
+ *     recebido <= 1,2 x enviado     e     enviado <= 1,2 x recebido
+ *
+ * Um número só, que não tem como empurrar o problema pro outro lado.
+ *
+ * Devolve ['min' => int, 'max' => int]. Com recebido 0 a faixa é [0, 0]: dar
+ * jogador de graça não passa na regra, e isso é de propósito.
+ */
+function tradeFaixaDeEnvio(int $recebido): array
+{
+    if ($recebido <= 0) return ['min' => 0, 'max' => 0];
+    $pct = CAP_TRADE_MATCH_PCT / 100;
+    return [
+        'min' => (int)ceil($recebido / $pct),
+        'max' => (int)floor($recebido * $pct),
+    ];
+}
+
 function checkTradeSalaryMatch(int $payrollAtual, int $capMax, int $enviado, int $recebido): array
 {
     $folhaDepois = $payrollAtual - $enviado + $recebido;

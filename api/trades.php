@@ -2751,9 +2751,14 @@ if ($method === 'POST') {
             foreach ($lados as [$e, $r, $quem]) {
                 $chk = checkTradeSalaryMatch(0, $capMax, $e, $r);
                 if (empty($chk['ok'])) {
+                    // A saída vem SEMPRE na mesma moeda: quanto ESTE GM precisa
+                    // enviar. Dizer só qual lado estourou fazia ele corrigir pro
+                    // lado errado e a violação pular pro outro time.
+                    $faixa = tradeFaixaDeEnvio($recebe);
                     http_response_code(400);
                     echo json_encode(['success' => false, 'error' =>
-                        "Troca barrada pela regra dos " . CAP_TRADE_MATCH_PCT . "%: {$quem} receberia {$r}M enviando {$e}M — o limite é {$chk['limite_receber']}M."]);
+                        "Troca barrada pela regra dos " . CAP_TRADE_MATCH_PCT . "%: {$quem} receberia {$r}M enviando {$e}M. "
+                        . "Pra fechar, pedindo {$recebe}M você precisa enviar entre {$faixa['min']}M e {$faixa['max']}M — está enviando {$envia}M."]);
                     exit;
                 }
             }

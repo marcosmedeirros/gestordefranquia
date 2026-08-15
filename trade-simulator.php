@@ -1171,6 +1171,13 @@ function matching120(key) {
     ok: false, enviado, recebido, limite,
     excesso: recebido - limite,
     faltaEnviar: Math.max(0, envioMinimo - enviado),
+    // A faixa de envio que fecha os dois lados deste time de uma vez. Dizer só
+    // "passou 3M" fazia o GM corrigir pro lado errado: engordar o próprio lado
+    // empurra a violação pro outro time, porque o limite do outro é sobre o
+    // que ESTE envia. Um intervalo não tem esse problema.
+    faixa: recebido > 0
+      ? { min: envioMinimo, max: Math.floor(recebido * TRADE_MATCH_PCT / 100) }
+      : { min: 0, max: 0 },
   };
 }
 
@@ -1298,8 +1305,8 @@ function mostrarAviso120(viol) {
   if (!viol.length) { box.style.display = 'none'; return; }
   box.style.display = 'block';
   box.innerHTML = `<strong>Troca barrada pela regra dos ${TRADE_MATCH_PCT}%.</strong><ul style="margin:6px 0 0 16px;padding:0">`
-    + viol.map(v => `<li><strong>${escH(v.nome)}</strong> receberia ${v.recebido}M enviando ${v.enviado}M.
-        O limite é ${v.limite}M — passou ${v.excesso}M. Envie mais ${v.faltaEnviar}M ou receba ${v.excesso}M a menos.</li>`).join('')
+    + viol.map(v => `<li><strong>${escH(v.nome)}</strong> recebe ${v.recebido}M e envia ${v.enviado}M.
+        Recebendo ${v.recebido}M, esse time precisa enviar entre <b>${v.faixa.min}M</b> e <b>${v.faixa.max}M</b>.</li>`).join('')
     + '</ul>';
 }
 
@@ -1330,7 +1337,7 @@ async function submitTrade() {
   const viol = violacoes120();
   if (viol.length) {
     alert(`Troca barrada pela regra dos ${TRADE_MATCH_PCT}%:\n\n`
-      + viol.map(v => `${v.nome} receberia ${v.recebido}M enviando ${v.enviado}M (limite ${v.limite}M).`).join('\n'));
+      + viol.map(v => `${v.nome} recebe ${v.recebido}M e envia ${v.enviado}M — precisa enviar entre ${v.faixa.min}M e ${v.faixa.max}M.`).join('\n'));
     return;
   }
   if (!canSubmit()) { alert('Complete a trade antes de enviar.'); return; }
