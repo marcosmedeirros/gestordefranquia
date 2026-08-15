@@ -230,6 +230,10 @@ async function carregarTimes(){
       <b>${esc(t.nome)}</b>
       <small>${esc(t.dono)} · ${t.jogadores} jogadores</small>
       ${t.travado ? '<span class="chip travado">já atualizado</span>'
+        : (t.faltam || []).length === 1
+          // Metade feita: dizer O QUE falta evita mandar o CSV errado e
+          // descobrir depois que aquele lado não valia mais nada.
+          ? `<span class="chip falta">falta ${t.faltam[0] === 'skills' ? 'skills' : 'estatísticas'}</span>`
         : t.sem_skills > 0 ? `<span class="chip falta">${t.sem_skills} sem skills</span>`
         : '<span class="chip ok">skills completas</span>'}
     </button>`).join('');
@@ -436,11 +440,20 @@ $('btnSalvar').addEventListener('click', async () => {
     const d = await r.json();
     if (!r.ok || !d.ok){ msg($('msgSalvar'), 'err', esc(d.erro || 'Erro ao salvar.')); return; }
 
+    // O que sobrou e o que foi ignorado precisam ser ditos: receber 80 no
+    // lugar de 180 sem explicação vira reclamação, e "não aceita mais nada"
+    // dito de um time que ainda pode receber stats é mentira.
+    const nome = t => t === 'skills' ? 'skills' : 'estatísticas';
+    const ignorados = d.ignorados || [], faltam = d.faltam || [];
     msg($('msgSalvar'), 'ok',
       `Pronto — <b>${d.moedas} moedas</b> creditadas.` +
       (d.skills ? ` ${d.skills} jogador(es) com skills.` : '') +
       (d.stats ? ` ${d.stats} com estatísticas.` : '') +
-      ' Este time não aceita mais atualização de terceiro.');
+      (ignorados.length
+        ? ` Ignorei ${ignorados.map(nome).join(' e ')}: outra pessoa já tinha feito.` : '') +
+      (faltam.length
+        ? ` Ainda falta ${faltam.map(nome).join(' e ')} — qualquer um da liga pode completar.`
+        : ' Este time não aceita mais atualização de terceiro.'));
     btn.classList.add('oculto');
     $('painelCSV').classList.add('oculto');
     setTimeout(() => {

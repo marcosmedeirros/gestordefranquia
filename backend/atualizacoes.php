@@ -88,10 +88,66 @@ function ensureAtualizacaoTables(PDO $pdo): void
 }
 
 /**
+ * O que este time já recebeu de terceiros: ['skills' => bool, 'stats' => bool].
+ *
+ * A trava é POR TIPO, não por time. Quem preenche as skills e não tem as
+ * estatísticas em mãos deixava o time trancado pela metade — e ninguém mais
+ * podia completar. Envio revertido não conta: reverter existe pra liberar.
+ *
+ * Ponto único de quem responde "já foi feito?", pra tela, API e regra não
+ * divergirem.
+ */
+function atualizacaoTiposFeitos(PDO $pdo, int $teamId): array
+{
+    $feito = ['skills' => false, 'stats' => false];
+    try {
+        $st = $pdo->prepare("SELECT DISTINCT tipo FROM atualizacoes_terceiros
+                             WHERE team_id = ? AND revertido_em IS NULL");
+        $st->execute([$teamId]);
+        foreach ($st as $r) {
+            if (isset($feito[$r['tipo']])) $feito[$r['tipo']] = true;
+        }
+    } catch (Throwable $e) {
+        error_log('[atualizacoes] tipos feitos: ' . $e->getMessage());
+    }
+    return $feito;
+}
+
+/** Os tipos que ainda faltam num time. Vazio = não há mais o que fazer. */
+function atualizacaoTiposQueFaltam(PDO $pdo, int $teamId): array
+{
+    return array_keys(array_filter(atualizacaoTiposFeitos($pdo, $teamId), fn($f) => !$f));
+}
+
+/**
+ * O mesmo pra uma liga inteira, numa consulta só: [team_id => ['skills'=>bool,
+ * 'stats'=>bool]]. Existe pra lista de times e pra tela de times não fazerem
+ * uma ida ao banco por linha.
+ */
+function atualizacaoTiposFeitosDaLiga(PDO $pdo, string $liga): array
+{
+    $mapa = [];
+    try {
+        $st = $pdo->prepare("SELECT DISTINCT team_id, tipo FROM atualizacoes_terceiros
+                             WHERE league = ? AND revertido_em IS NULL");
+        $st->execute([strtoupper($liga)]);
+        foreach ($st as $r) {
+            $id = (int)$r['team_id'];
+            if (!isset($mapa[$id])) $mapa[$id] = ['skills' => false, 'stats' => false];
+            if (isset($mapa[$id][$r['tipo']])) $mapa[$id][$r['tipo']] = true;
+        }
+    } catch (Throwable $e) {
+        error_log('[atualizacoes] tipos da liga: ' . $e->getMessage());
+    }
+    return $mapa;
+}
+
+/**
  * Este usuário pode atualizar este time?
  *
- * Devolve ['pode' => bool, 'motivo' => string, 'time' => array|null]. O
- * motivo é texto de tela: quem não pode merece saber por quê.
+ * Devolve ['pode' => bool, 'motivo' => string, 'time' => array|null,
+ * 'faltam' => string[]]. O motivo é texto de tela: quem não pode merece
+ * saber por quê.
  */
 function atualizacaoPodeAtualizar(PDO $pdo, int $userId, int $teamId, string $ligaDoUsuario): array
 {
@@ -110,10 +166,12 @@ function atualizacaoPodeAtualizar(PDO $pdo, int $userId, int $teamId, string $li
     if ((int)$t['user_id'] === $userId) {
         return ['pode' => false, 'motivo' => 'Esse time é seu — use "Atualizar elenco" no seu painel.', 'time' => $t];
     }
-    if (!empty($t['atualizado_terceiro_em'])) {
-        return ['pode' => false, 'motivo' => 'Este time já foi atualizado por outra pessoa.', 'time' => $t];
+    $faltam = atualizacaoTiposQueFaltam($pdo, $teamId);
+    if (!$faltam) {
+        return ['pode' => false, 'motivo' => 'Este time já teve skills e estatísticas atualizadas.',
+                'time' => $t, 'faltam' => []];
     }
-    return ['pode' => true, 'motivo' => '', 'time' => $t];
+    return ['pode' => true, 'motivo' => '', 'time' => $t, 'faltam' => $faltam];
 }
 
 /**

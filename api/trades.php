@@ -274,13 +274,26 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
     }
 }
 
+/**
+ * Como o jogador aparece no grupo: "Trevelin Queen (70/21y SG)".
+ *
+ * Ponto único porque a trade de dois times e a multi-trade montavam o mesmo
+ * rótulo cada uma do seu jeito — e foi assim que a idade sumiu de um lado só.
+ * OVR sem idade não diz muita coisa numa troca: 70 aos 21 e 70 aos 33 são
+ * negócios opostos.
+ */
+function rotuloJogadorTradeWhats(array $p): string
+{
+    $dentro = (string)(int)($p['ovr'] ?? 0);
+    if (!empty($p['age'])) $dentro .= '/' . (int)$p['age'] . 'y';
+    if (!empty($p['position'])) $dentro .= ' ' . $p['position'];
+    return ($p['name'] ?? 'Jogador') . ' (' . $dentro . ')';
+}
+
 /** Lista de itens de um lado da trade: jogadores com OVR e picks. */
 function listaItensTradeWhats(array $players, array $picks): array
 {
-    $itens = array_map(
-        fn($p) => '• ' . $p['name'] . ' (' . (int)($p['ovr'] ?? 0) . (!empty($p['position']) ? ' ' . $p['position'] : '') . ')',
-        $players
-    );
+    $itens = array_map(fn($p) => '• ' . rotuloJogadorTradeWhats($p), $players);
     foreach ($picks as $pk) {
         $ano   = $pk['season_year'] ?? $pk['year'] ?? '?';
         $round = $pk['round'] ?? '?';
@@ -324,9 +337,7 @@ function montarTextoMultiTradeWhats(array $teams, array $items, ?string $league 
         $de = (int)($it['from_team_id'] ?? 0);
         if (!$de) continue;
         if (!empty($it['player'])) {
-            $p = $it['player'];
-            $enviaPorTime[$de][] = '• ' . $p['name'] . ' (' . (int)($p['ovr'] ?? 0)
-                                 . (!empty($p['position']) ? ' ' . $p['position'] : '') . ')';
+            $enviaPorTime[$de][] = '• ' . rotuloJogadorTradeWhats($it['player']);
         } elseif (!empty($it['pick'])) {
             $pk = $it['pick'];
             $enviaPorTime[$de][] = '• Pick ' . ($pk['season_year'] ?? $pk['year'] ?? '?')

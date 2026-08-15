@@ -50,6 +50,10 @@ $souAdmin = ($user['user_type'] ?? 'jogador') === 'admin';
 if ($acao === 'elegiveis') {
     if ($minhaLiga === '') { echo json_encode(['ok' => true, 'times' => []]); exit; }
 
+    // O que cada time da liga já recebeu, numa consulta só: perguntar time a
+    // time seria uma ida ao banco por linha da lista.
+    $feitos = atualizacaoTiposFeitosDaLiga($pdo, $minhaLiga);
+
     $st = $pdo->prepare("
         SELECT t.id, t.city, t.name, u.name AS dono,
                t.atualizado_terceiro_em,
@@ -63,13 +67,18 @@ if ($acao === 'elegiveis') {
 
     $times = [];
     foreach ($st as $t) {
+        $feito  = $feitos[(int)$t['id']] ?? ['skills' => false, 'stats' => false];
+        $faltam = array_keys(array_filter($feito, fn($f) => !$f));
         $times[] = [
             'id'         => (int)$t['id'],
             'nome'       => trim(($t['city'] ?? '') . ' ' . ($t['name'] ?? '')),
             'dono'       => $t['dono'] ?: 'sem dono',
             'jogadores'  => (int)$t['jogadores'],
             'sem_skills' => (int)$t['sem_skills'],
-            'travado'    => !empty($t['atualizado_terceiro_em']),
+            // Travado só quando não falta nada: skills feitas e stats não é
+            // time trancado, é time pela metade.
+            'travado'    => $faltam === [],
+            'faltam'     => $faltam,
         ];
     }
     echo json_encode(['ok' => true, 'liga' => $minhaLiga, 'times' => $times,
@@ -150,6 +159,20 @@ if ($acao === 'salvar') {
     }
     if (!$okSkills && !$okStats) {
         http_response_code(400); echo json_encode(['erro' => 'Nenhuma linha válida no CSV.']); exit;
+    }
+
+    // O que já foi feito neste time sai fora — a trava é por tipo. Quem manda
+    // um CSV com os dois num time que já tem skills recebe só pelas stats, em
+    // vez de levar um "já foi atualizado" e não conseguir completar nada.
+    $faltam = $check['faltam'] ?? ['skills', 'stats'];
+    $jaTinhaSkills = $okSkills && !in_array('skills', $faltam, true);
+    $jaTinhaStats  = $okStats  && !in_array('stats',  $faltam, true);
+    if ($jaTinhaSkills) $okSkills = [];
+    if ($jaTinhaStats)  $okStats  = [];
+    if (!$okSkills && !$okStats) {
+        http_response_code(409);
+        echo json_encode(['erro' => 'Isso já foi atualizado por outra pessoa neste time.']);
+        exit;
     }
 
     $temporada = null;
@@ -261,8 +284,16 @@ if ($acao === 'salvar') {
         exit;
     }
 
+    // Diz o que foi ignorado: recebeu 80 em vez de 180 e não saber por quê é
+    // o tipo de silêncio que vira reclamação.
+    $ignorados = [];
+    if ($jaTinhaSkills) $ignorados[] = 'skills';
+    if ($jaTinhaStats)  $ignorados[] = 'stats';
+
     echo json_encode(['ok' => true, 'moedas' => $moedasTotal,
-        'skills' => count($okSkills), 'stats' => count($okStats)]);
+        'skills' => count($okSkills), 'stats' => count($okStats),
+        'ignorados' => $ignorados,
+        'faltam' => atualizacaoTiposQueFaltam($pdo, $teamId)]);
     exit;
 }
 

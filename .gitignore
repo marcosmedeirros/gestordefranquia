@@ -21,3 +21,5 @@ bot/whatsapp-local.log
 # Chave da Evolution — o compose lê ela daqui automaticamente.
 bot/evolution/.env
 bot/.nomes-sincronizados
+# Carência do vigia de recepção — estado da máquina, não do projeto.
+bot/.ultima-reconexao

@@ -108,6 +108,10 @@ $stmt = $pdo->prepare('
 $stmt->execute([$user['league']]);
 $teams = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+// O que cada time já recebeu de terceiros (skills, stats), numa consulta só —
+// é o que decide se o ícone de atualizar aparece.
+$atualizacoesFeitas = atualizacaoTiposFeitosDaLiga($pdo, (string)$user['league']);
+
 // A ponte com o antigo banco do games saiu na fusão — nada de sincronizar
 // tapas a cada carregamento da lista de times.
 
@@ -1357,13 +1361,22 @@ function getSerasaScore(int $avisos): array {
                         </button>
                         <?php
                             // Atualizar o elenco de outro GM. Só aparece pra time que
-                            // não é seu e que ainda não recebeu atualização de terceiro
-                            // — botão que leva a um "não pode" é ruído.
-                            $podeAtualizar = !$isMyTeam && empty($t['atualizado_terceiro_em']);
+                            // não é seu e onde ainda falta alguma coisa — botão que
+                            // leva a um "não pode" é ruído.
+                            //
+                            // A conta é por TIPO: quem preencheu as skills e não tinha
+                            // as estatísticas em mãos sumia com o ícone e ninguém mais
+                            // podia completar o time.
+                            $faltamNoTime = array_keys(array_filter(
+                                $atualizacoesFeitas[(int)$t['id']] ?? ['skills' => false, 'stats' => false],
+                                fn($f) => !$f
+                            ));
+                            $podeAtualizar = !$isMyTeam && $faltamNoTime !== [];
                         ?>
                         <?php if ($podeAtualizar): ?>
                         <a class="btn-action info" href="/atualizar-time.php?time=<?= (int)$t['id'] ?>"
-                           title="Preencher skills e estatísticas deste time e ganhar moedas">
+                           title="Preencher <?= htmlspecialchars(implode(' e ', array_map(
+                               fn($f) => $f === 'skills' ? 'skills' : 'estatísticas', $faltamNoTime))) ?> deste time e ganhar moedas">
                             <i class="bi bi-pencil-square"></i>
                         </a>
                         <?php endif; ?>
