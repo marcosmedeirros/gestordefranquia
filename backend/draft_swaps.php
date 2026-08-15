@@ -108,6 +108,7 @@ function draftSincronizarOrdem(PDO $pdo, int $draftSessionId): array
     }
 
     $feitos = [];
+    $pares = [];
     foreach ($porOrigem[1] ?? [] as $origemId => $pick) {
         if (strtoupper(trim((string)($pick['swap_type'] ?? ''))) !== 'SB') continue;
         $parId = (int)($pick['swap_pair_pick_id'] ?? 0);
@@ -136,6 +137,18 @@ function draftSincronizarOrdem(PDO $pdo, int $draftSessionId): array
         $porSwap[(int)$melhor['id']] = true;
         $porSwap[(int)$pior['id']] = true;
 
+        // Guarda o desfecho: quem é o dono do SB fica com a vaga melhor. É a
+        // única hora em que dá pra saber isso — antes da loteria o swap é uma
+        // aposta, e quem lê a ordem depois só vê o resultado sem a explicação.
+        $pares[] = [
+            'pos_melhor'  => (int)$melhor['pick_position'],
+            'pos_pior'    => (int)$pior['pick_position'],
+            'time_melhor' => (int)$pick['team_id'],
+            'time_pior'   => (int)$par['team_id'],
+            'vaga_melhor_de' => (int)$melhor['original_team_id'],
+            'vaga_pior_de'   => (int)$pior['original_team_id'],
+        ];
+
         $feitos[(int)$pick['id']] = true;
         $feitos[$parId] = true;
     }
@@ -151,5 +164,22 @@ function draftSincronizarOrdem(PDO $pdo, int $draftSessionId): array
         if (!empty($porSwap[(int)$v['id']])) $mexidasSwap++; else $mexidasDono++;
     }
 
-    return ['donos' => $mexidasDono, 'swaps' => $mexidasSwap];
+    return ['donos' => $mexidasDono, 'swaps' => $mexidasSwap, 'pares' => $pares];
+}
+
+/**
+ * Nome dos times de uma lista de ids, pra montar texto de tela.
+ * [id => "Cidade Nome"].
+ */
+function draftNomesDosTimes(PDO $pdo, array $ids): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (!$ids) return [];
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $st = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',name)) AS nome
+                         FROM teams WHERE id IN ($ph)");
+    $st->execute($ids);
+    $mapa = [];
+    foreach ($st as $r) $mapa[(int)$r['id']] = $r['nome'];
+    return $mapa;
 }

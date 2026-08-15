@@ -229,6 +229,17 @@ body.broadcast .lottery-ball img{width:38px;height:38px}
 .balls-table td.num,.balls-table th.num{text-align:right;font-family:'Oswald',sans-serif;font-weight:700}
 .conf-chip{font-size:9px;font-weight:800;padding:1px 6px;border-radius:999px;background:var(--panel-3);border:1px solid var(--border-md);color:var(--text-3);margin-left:6px}
 .adjustments{display:flex;flex-direction:column;gap:8px}
+/* Acordos resolvidos pela ordem: proteção e swap. Verde quando a pick passou
+   pro credor, âmbar quando a proteção segurou, azul pro swap — o admin lê a
+   lista de relance e o que importa é distinguir "mudou de dono" de "ficou". */
+.ev{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border-radius:8px;
+  border:1px solid var(--border);background:var(--panel-3);margin-bottom:7px}
+.ev-tag{flex-shrink:0;font-size:9px;font-weight:800;letter-spacing:.04em;padding:2px 7px;
+  border-radius:999px;background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.35)}
+.ev.barrado .ev-tag{background:rgba(245,158,11,.15);color:#f59e0b;border-color:rgba(245,158,11,.35)}
+.ev.swap .ev-tag{background:rgba(96,165,250,.15);color:#60a5fa;border-color:rgba(96,165,250,.35)}
+.ev-txt{font-size:12.5px;line-height:1.45;color:var(--text)}
+.ev-extra{font-size:11.5px;color:var(--text-2);margin-top:3px}
 .adjustment-item{display:flex;gap:8px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text-2)}
 .adjustment-item i{color:var(--amber);flex-shrink:0}
 .rules-panel details{margin-bottom:8px}
@@ -510,6 +521,18 @@ body.broadcast .btn-broadcast-exit{display:inline-flex;position:fixed;top:14px;r
         <button class="btn-red" id="btnConfirm"><i class="bi bi-check-lg"></i> Confirmar e aplicar ao draft</button>
         <button class="btn-ghost2" id="btnRedo"><i class="bi bi-arrow-repeat"></i> Sortear de novo</button>
         <span style="font-size:11px;color:var(--text-3)">Aplica esta ordem nas duas rodadas do draft (a 2ª reaproveita a mesma ordem).</span>
+      </div>
+    </div>
+
+    <!-- O que a ordem decidiu além das posições: proteção que passou ou não,
+         e onde cada swap parou. Só aparece quando houve algum caso. -->
+    <div class="panel" id="painelEventos" style="display:none">
+      <div style="font-weight:800;font-size:13px;margin-bottom:10px">
+        <i class="bi bi-shield-check"></i> Acordos resolvidos por esta ordem
+      </div>
+      <div id="eventosCorpo"></div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:10px">
+        Proteção e swap só se resolvem quando a ordem sai — as picks já foram movidas.
       </div>
     </div>
   </div>
@@ -965,13 +988,48 @@ async function confirmOrder(){
     });
     const data = await res.json();
     if (!data.success) { alert(data.error || 'Erro ao aplicar a ordem.'); return; }
-    alert('Ordem aplicada com sucesso ao draft!');
+    mostrarEventos(data.eventos || []);
   } catch (e) {
     alert('Erro ao aplicar a ordem.');
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-check-lg"></i> Confirmar e aplicar ao draft';
   }
+}
+
+/**
+ * O que a loteria decidiu além da ordem.
+ *
+ * Proteção e swap só se resolvem QUANDO a ordem sai — antes disso são
+ * apostas. Se isso não for mostrado agora, ninguém mais vai saber que
+ * houve acordo: a ordem final mostra o resultado sem a explicação, e a
+ * pergunta "por que o Coyotes escolhe na vaga do Kings?" fica sem resposta.
+ *
+ * Sem nada a dizer, volta o alerta simples de sempre.
+ */
+function mostrarEventos(eventos) {
+  if (!eventos.length) { alert('Ordem aplicada com sucesso ao draft!'); return; }
+
+  const cx = document.getElementById('painelEventos');
+  const corpo = document.getElementById('eventosCorpo');
+  if (!cx || !corpo) {
+    alert('Ordem aplicada!\n\n' + eventos.map(e => '• ' + e.texto + (e.extra ? '\n  ' + e.extra : '')).join('\n'));
+    return;
+  }
+
+  const escE = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  corpo.innerHTML = eventos.map((e) => `
+    <div class="ev ${e.tipo}${e.passou ? '' : ' barrado'}">
+      <div class="ev-tag">${e.tipo === 'swap' ? 'SWAP' : (e.passou ? 'PASSOU' : 'PROTEGIDA')}</div>
+      <div>
+        <div class="ev-txt">${escE(e.texto)}</div>
+        ${e.extra ? `<div class="ev-extra">${escE(e.extra)}</div>` : ''}
+      </div>
+    </div>`).join('');
+  cx.style.display = 'block';
+  cx.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 // Quem não administra loteria nenhuma não tem esses controles na página

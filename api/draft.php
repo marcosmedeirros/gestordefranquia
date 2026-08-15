@@ -1144,8 +1144,57 @@ if ($method === 'POST') {
                 // e depois o swap trocando as vagas entre os dois donos.
                 $sinc = draftSincronizarOrdem($pdo, (int)$draftSessionId);
 
+                // O resumo do que a loteria decidiu além da ordem: as picks
+                // protegidas que passaram ou não, e onde cada swap parou.
+                // Vai com NOME de time, não id: quem lê é uma pessoa, e é a
+                // única hora em que o desfecho faz sentido — depois, a ordem
+                // só mostra o resultado, sem dizer que houve um acordo.
+                $ids = [];
+                foreach ($protecoes as $p) { $ids[] = $p['de']; $ids[] = $p['para']; }
+                foreach ($sinc['pares'] ?? [] as $p) {
+                    $ids[] = $p['time_melhor']; $ids[] = $p['time_pior'];
+                    $ids[] = $p['vaga_melhor_de']; $ids[] = $p['vaga_pior_de'];
+                }
+                $nomes = draftNomesDosTimes($pdo, $ids);
+                $nome = fn($id) => $nomes[(int)$id] ?? ('Time ' . (int)$id);
+
+                $eventos = [];
+                foreach ($protecoes as $p) {
+                    $passou = $p['resultado'] === 'passou';
+                    $eventos[] = [
+                        'tipo' => 'protecao',
+                        'passou' => $passou,
+                        'texto' => sprintf(
+                            $passou
+                                ? 'Pick %d do %s caiu em %dº — fora da proteção %s, vai pro %s.'
+                                : 'Pick %d do %s caiu em %dº — dentro da proteção %s, NÃO passa: fica com o %s.',
+                            $p['ano'], $nome($p['de']), $p['posicao'],
+                            protecaoRotulo($p['protecao']),
+                            $passou ? $nome($p['para']) : $nome($p['de'])),
+                        'extra' => (!$passou && $p['lastro'])
+                            ? sprintf('O %s leva a pick de %d do %s no lugar.',
+                                      $nome($p['para']), $p['ano'] + 1, $nome($p['de']))
+                            : ((!$passou && !$p['lastro'])
+                                ? 'ATENÇÃO: o time não tem a pick do ano seguinte — a dívida ficou sem pagamento.'
+                                : ''),
+                    ];
+                }
+                foreach ($sinc['pares'] ?? [] as $p) {
+                    $eventos[] = [
+                        'tipo' => 'swap',
+                        'passou' => true,
+                        'texto' => sprintf('Swap entre %s (%dº) e %s (%dº): o %s escolhe em %dº e o %s em %dº.',
+                            $nome($p['vaga_melhor_de']), $p['pos_melhor'],
+                            $nome($p['vaga_pior_de']), $p['pos_pior'],
+                            $nome($p['time_melhor']), $p['pos_melhor'],
+                            $nome($p['time_pior']), $p['pos_pior']),
+                        'extra' => '',
+                    ];
+                }
+
                 echo json_encode(['success' => true, 'message' => 'Ordem definida com sucesso',
-                                  'ajustes' => $sinc, 'protecoes' => $protecoes]);
+                                  'ajustes' => $sinc, 'protecoes' => $protecoes,
+                                  'eventos' => $eventos]);
             } catch (Exception $e) {
                 $pdo->rollBack();
                 error_log('[draft/apply_order] ' . $e->getMessage());
