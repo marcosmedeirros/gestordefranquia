@@ -102,15 +102,10 @@ if ($acao === 'pendentes') {
     $naJanela = whatsappDentroDaJanela(null, $pdo);
     $filtroTipo = $naJanela ? '' : whatsappFiltroForaDaJanela();
 
+    // Reserva em vez de SELECT solto: dois workers sobrepostos pegavam a
+    // mesma linha e a mensagem saía duas vezes. Agora só um leva.
     $limite = max(1, min(200, (int)($_GET['limite'] ?? 50)));
-    $st = $pdo->prepare("SELECT id, destino, texto, mencoes FROM whatsapp_fila
-                         WHERE enviado_em IS NULL
-                           AND tentativas < " . WHATSAPP_MAX_TENTATIVAS . "
-                           AND (proxima_tentativa IS NULL OR proxima_tentativa <= NOW())
-                           {$filtroTipo}
-                         ORDER BY id ASC LIMIT $limite");
-    $st->execute();
-    $pendentes = $st->fetchAll(PDO::FETCH_ASSOC);
+    $pendentes = whatsappReservar($pdo, $limite, $filtroTipo);
     // Guardado como JSON no banco; o worker recebe já como lista.
     foreach ($pendentes as &$p) {
         $p['mencoes'] = $p['mencoes'] ? (json_decode((string)$p['mencoes'], true) ?: []) : [];
@@ -245,13 +240,15 @@ if ($acao === 'resultado') {
     if (!is_array($resultados)) botResponder(400, ['erro' => 'resultados inválido']);
 
     $okStmt = $pdo->prepare("UPDATE whatsapp_fila
-                             SET enviado_em = NOW(), tentativas = tentativas + 1, ultimo_erro = NULL
+                             SET enviado_em = NOW(), tentativas = tentativas + 1, ultimo_erro = NULL,
+                                 reservado_por = NULL, reservado_ate = NULL
                              WHERE id = ? AND enviado_em IS NULL");
     // Mesmo backoff do envio direto: falha não vira retentativa imediata.
     $falhaStmt = $pdo->prepare("UPDATE whatsapp_fila
                                 SET tentativas = tentativas + 1,
                                     proxima_tentativa = DATE_ADD(NOW(), INTERVAL ? MINUTE),
-                                    ultimo_erro = ?
+                                    ultimo_erro = ?,
+                                    reservado_por = NULL, reservado_ate = NULL
                                 WHERE id = ? AND enviado_em IS NULL");
 
     $enviadas = 0; $falhas = 0;

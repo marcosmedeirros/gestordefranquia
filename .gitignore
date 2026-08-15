@@ -20,3 +20,4 @@ bot/whatsapp-local.log
 
 # Chave da Evolution — o compose lê ela daqui automaticamente.
 bot/evolution/.env
+bot/.nomes-sincronizados

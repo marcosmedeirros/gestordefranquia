@@ -104,6 +104,49 @@ function whatsappFiltroForaDaJanela(): string
     return " AND tipo IN ('comando', 'manual')";
 }
 
+/** Quanto tempo uma linha reservada fica fora do alcance dos outros. */
+const WHATSAPP_RESERVA_SEG = 180;
+
+/**
+ * Reserva as próximas mensagens da fila e devolve só as que ficaram suas.
+ *
+ * O UPDATE é o que garante a exclusividade: dois leitores simultâneos
+ * disputam a MESMA linha e só um ganha, porque a condição
+ * `reservado_ate IS NULL OR reservado_ate <= NOW()` deixa de valer assim
+ * que o primeiro grava. Antes disto a leitura era um SELECT solto — quem
+ * chegasse levava, os dois mandavam, e a mensagem saía duas vezes.
+ *
+ * A reserva vence em WHATSAPP_RESERVA_SEG: worker que cair no meio não
+ * deixa mensagem presa, ela volta pra fila sozinha.
+ */
+function whatsappReservar(PDO $pdo, int $limite, string $filtroTipo = ''): array
+{
+    $token = bin2hex(random_bytes(12));
+    $limite = max(1, min(200, $limite));
+
+    try {
+        $pdo->prepare("UPDATE whatsapp_fila
+                          SET reservado_por = ?, reservado_ate = NOW() + INTERVAL " . WHATSAPP_RESERVA_SEG . " SECOND
+                        WHERE enviado_em IS NULL
+                          AND tentativas < " . WHATSAPP_MAX_TENTATIVAS . "
+                          AND (proxima_tentativa IS NULL OR proxima_tentativa <= NOW())
+                          AND (reservado_ate IS NULL OR reservado_ate <= NOW())
+                          {$filtroTipo}
+                        ORDER BY id ASC
+                        LIMIT {$limite}")->execute([$token]);
+
+        // `tentativas` vai junto porque o backoff de quem falha sai dela —
+        // sem esse campo toda falha voltaria pro primeiro degrau da espera.
+        $st = $pdo->prepare("SELECT id, destino, texto, mencoes, tentativas FROM whatsapp_fila
+                             WHERE reservado_por = ? ORDER BY id ASC");
+        $st->execute([$token]);
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        error_log('[whatsapp] reservar: ' . $e->getMessage());
+        return [];
+    }
+}
+
 function ensureWhatsAppTables(PDO $pdo): void
 {
     static $pronto = false;
@@ -160,6 +203,7 @@ function ensureWhatsAppTables(PDO $pdo): void
         if (!in_array('plantao_ate', $cols, true)) {
             $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN plantao_ate DATETIME NULL");
         }
+
         $pdo->exec("UPDATE whatsapp_config SET bot_token = SHA2(CONCAT(RAND(), UUID(), NOW()), 256)
                     WHERE id = 1 AND (bot_token IS NULL OR bot_token = '')");
 
@@ -219,7 +263,10 @@ function ensureWhatsAppTables(PDO $pdo): void
             enviado_em DATETIME NULL,
             ultimo_erro VARCHAR(255) NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_wf_pendente (enviado_em, tentativas, proxima_tentativa)
+            reservado_por VARCHAR(40) NULL,
+            reservado_ate DATETIME NULL,
+            INDEX idx_wf_pendente (enviado_em, tentativas, proxima_tentativa),
+            INDEX idx_wf_reserva (reservado_por)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         // CREATE TABLE IF NOT EXISTS não altera tabela que já existe — quem já
         // tem a fila criada precisa do ALTER.
@@ -228,6 +275,14 @@ function ensureWhatsAppTables(PDO $pdo): void
         }
         if ($pdo->query("SHOW COLUMNS FROM whatsapp_fila LIKE 'proxima_tentativa'")->rowCount() === 0) {
             $pdo->exec("ALTER TABLE whatsapp_fila ADD COLUMN proxima_tentativa DATETIME NULL AFTER tentativas");
+        }
+        // Reserva da fila. Sem ela, dois leitores simultâneos pegam a MESMA
+        // linha e a mesma mensagem sai duas vezes — foi o que aconteceu
+        // quando duas execuções do worker passaram a se sobrepor.
+        if ($pdo->query("SHOW COLUMNS FROM whatsapp_fila LIKE 'reservado_por'")->rowCount() === 0) {
+            $pdo->exec("ALTER TABLE whatsapp_fila ADD COLUMN reservado_por VARCHAR(40) NULL");
+            $pdo->exec("ALTER TABLE whatsapp_fila ADD COLUMN reservado_ate DATETIME NULL");
+            $pdo->exec("CREATE INDEX idx_wf_reserva ON whatsapp_fila (reservado_por)");
         }
 
         if ($pdo->query("SHOW COLUMNS FROM league_settings LIKE 'whatsapp_group_id'")->rowCount() === 0) {
@@ -539,25 +594,16 @@ function whatsappProcessarFila(PDO $pdo, int $limite = 10): array
     if ($foraDaJanela) $out['fora_da_janela'] = true;
     $filtroTipo = $foraDaJanela ? whatsappFiltroForaDaJanela() : '';
 
-    try {
-        $stmt = $pdo->prepare("SELECT id, destino, texto, tentativas FROM whatsapp_fila
-                               WHERE enviado_em IS NULL
-                                 AND tentativas < " . WHATSAPP_MAX_TENTATIVAS . "
-                                 AND (proxima_tentativa IS NULL OR proxima_tentativa <= NOW())
-                                 {$filtroTipo}
-                               ORDER BY id ASC LIMIT " . max(1, (int)$limite));
-        $stmt->execute();
-        $pendentes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Throwable $e) {
-        error_log('[whatsapp] ler fila: ' . $e->getMessage());
-        return $out;
-    }
+    // Mesma reserva do worker: este leitor e aquele nunca podem pegar a
+    // mesma linha, senão a mensagem sai por dois caminhos.
+    $pendentes = whatsappReservar($pdo, max(1, (int)$limite), $filtroTipo);
 
     foreach ($pendentes as $m) {
         [$ok, $erro] = whatsappPostar($cfg, (string)$m['destino'], (string)$m['texto']);
         try {
             if ($ok) {
-                $pdo->prepare("UPDATE whatsapp_fila SET enviado_em = NOW(), tentativas = tentativas + 1, ultimo_erro = NULL WHERE id = ?")
+                $pdo->prepare("UPDATE whatsapp_fila SET enviado_em = NOW(), tentativas = tentativas + 1, ultimo_erro = NULL,
+                                   reservado_por = NULL, reservado_ate = NULL WHERE id = ?")
                     ->execute([(int)$m['id']]);
                 $out['enviadas']++;
             } else {
@@ -565,7 +611,8 @@ function whatsappProcessarFila(PDO $pdo, int $limite = 10): array
                 $pdo->prepare("UPDATE whatsapp_fila
                                SET tentativas = tentativas + 1,
                                    proxima_tentativa = DATE_ADD(NOW(), INTERVAL ? MINUTE),
-                                   ultimo_erro = ?
+                                   ultimo_erro = ?,
+                                   reservado_por = NULL, reservado_ate = NULL
                                WHERE id = ?")
                     ->execute([$espera, mb_substr((string)$erro, 0, 255), (int)$m['id']]);
                 $out['falhas']++;

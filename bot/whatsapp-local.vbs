@@ -8,8 +8,19 @@
 ' O wscript.exe não tem console próprio, e o terceiro argumento do Run (0) diz
 ' pro processo filho nascer com a janela oculta. Resultado: nada pisca na tela.
 '
-' O segundo argumento (False) faz o script não esperar o worker terminar, então
-' o Agendador registra a execução na hora em vez de ficar preso.
+' O segundo argumento é True: o script ESPERA o worker terminar.
+'
+' Era False, e isso duplicava mensagem. O Agendador dava a tarefa por
+' concluída no instante em que o vbs saía, e um minuto depois disparava de
+' novo — com o PHP anterior ainda vivo, porque a rodada dura ~55s. Dois
+' workers puxando a mesma fila mandam a mesma mensagem duas vezes.
+'
+' O "IgnoreNew" da tarefa não protegia nada nesse arranjo: ele impede uma
+' segunda instância da TAREFA, e a tarefa já tinha terminado — quem seguia
+' vivo era o processo neto, que o Agendador nem enxerga.
+'
+' Esperando, a tarefa só termina quando o worker termina, e aí o IgnoreNew
+' passa a valer de verdade. A janela continua oculta (terceiro argumento 0).
 
 Dim shell, fso, aqui, php, worker
 
@@ -29,4 +40,4 @@ End If
 
 If Not fso.FileExists(worker) Then WScript.Quit 1
 
-shell.Run """" & php & """ """ & worker & """", 0, False
+shell.Run """" & php & """ """ & worker & """", 0, True

@@ -94,16 +94,19 @@ $hdrEvo = ['apikey: ' . $cfg['evolution_api_key']];
 $FIM_DA_RODADA = time() + 55;
 $totalOk = 0; $totalFalhou = 0;
 
-// ── Nomes dos grupos, uma vez por rodada ────────────────────────────────
+// ── Nomes dos grupos ────────────────────────────────────────────────────
 //
 // A Hostinger não alcança a Evolution, então o nome do grupo só chega ao
 // site por aqui. Sem isso o Painel do Bot mostrava o último autor no lugar
 // do nome — e num grupo o último autor é uma pessoa: "The Pathetic"
 // aparecia como "Lucas Xavier".
 //
-// Uma vez por execução (a cada minuto, portanto) é de sobra: nome de grupo
-// muda de mês em mês, e a chamada varre todos os grupos do aparelho.
-sincronizarNomes($cfg, $site, $hdrAuth, $hdrEvo);
+// Uma vez a cada 6 horas, e NO FIM da rodada. Rodava a cada minuto e no
+// começo: a chamada varre todos os grupos do aparelho e empurrava o fim da
+// rodada pra além dos 55s, fazendo duas execuções se sobreporem. Nome de
+// grupo muda de mês em mês; de hora em hora já seria exagero.
+$marcador = __DIR__ . '/.nomes-sincronizados';
+$sincronizarNomesAgora = !file_exists($marcador) || (time() - filemtime($marcador)) > 6 * 3600;
 
 while (true) {
     // ── 1. Puxa a fila ──────────────────────────────────────────────────
@@ -132,6 +135,12 @@ while (true) {
 }
 
 if ($totalOk || $totalFalhou) logar("enviadas=$totalOk falhas=$totalFalhou");
+
+// Depois do laço, com a rodada já cumprida: se demorar, atrasa só a si mesma.
+if ($sincronizarNomesAgora) {
+    sincronizarNomes($cfg, $site, $hdrAuth, $hdrEvo);
+    @touch($marcador);
+}
 exit(0);
 
 /**
