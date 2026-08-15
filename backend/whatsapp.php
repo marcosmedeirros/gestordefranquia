@@ -574,6 +574,26 @@ function whatsappGravarConversa(PDO $pdo, string $jid, array $mensagem, string $
     }
 }
 
+/**
+ * Quando chegou a última mensagem de fora (null = nunca).
+ *
+ * É o único sinal que separa "ninguém falou nada" de "a recepção morreu": a
+ * Evolution já ficou uma hora reportando 'open', com o socket respondendo
+ * consulta e envio saindo normal, enquanto nada entrava. Fila zerada e sem
+ * erro tem essas duas causas opostas, e nada aqui as distinguia.
+ *
+ * A fonte é whatsapp_grupos_vistos, carimbada pelo webhook a cada mensagem de
+ * grupo — com ou sem o arquivo do painel ligado.
+ */
+function whatsappUltimaEntrada(PDO $pdo): ?string
+{
+    try {
+        return $pdo->query("SELECT MAX(visto_em) FROM whatsapp_grupos_vistos")->fetchColumn() ?: null;
+    } catch (Throwable $e) {
+        return null;   // tabela ainda não existe: nunca chegou nada
+    }
+}
+
 function whatsappAnotarGrupoVisto(PDO $pdo, string $jid, array $mensagem = []): void
 {
     if (!str_ends_with($jid, '@g.us')) return;   // conversa privada não entra

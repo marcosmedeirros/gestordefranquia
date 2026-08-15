@@ -120,6 +120,10 @@ if ($acao === 'pendentes') {
         // rápido — é quando alguém digita comando e fica olhando pro celular.
         // De madrugada, devagar: comando ainda é respondido, só sem pressa.
         'intervalo' => $naJanela ? 5 : 20,
+        // Quando o webhook trouxe mensagem pela última vez. Vai junto da fila
+        // porque quem consegue consertar a recepção é o worker: a Evolution
+        // roda na máquina dele. Ver o vigia em bot/whatsapp-local.php.
+        'ultima_entrada' => whatsappUltimaEntrada($pdo),
         'mensagens' => $pendentes,
     ]);
 }
@@ -225,14 +229,7 @@ if ($acao === 'diagnostico') {
     // morreu e o site nem ficou sabendo. Já aconteceu de a Evolution reportar
     // 'open' com o socket de recepção morto, e nada aqui denunciava.
     //
-    // A fonte é whatsapp_grupos_vistos: o webhook carimba visto_em a cada
-    // mensagem de grupo, com ou sem o arquivo do painel ligado. Só a hora e o
-    // grupo — não depende de gravar conteúdo de conversa pra responder
-    // "quando foi a última vez que entrou alguma coisa aqui".
-    $ultimaEntrada = null;
-    try {
-        $ultimaEntrada = $pdo->query("SELECT MAX(visto_em) FROM whatsapp_grupos_vistos")->fetchColumn() ?: null;
-    } catch (Throwable $e) { /* tabela ainda não existe */ }
+    $ultimaEntrada = whatsappUltimaEntrada($pdo);
 
     botResponder(200, [
         'ativo'          => (bool)($cfg['ativo'] ?? 0),

@@ -118,6 +118,7 @@ while (true) {
 
     $intervalo = max(3, min(60, (int)($resp['intervalo'] ?? 5)));
     $msgs = $resp['mensagens'] ?? [];
+    $ultimaEntrada = $resp['ultima_entrada'] ?? null;
 
     if (!$msgs) {
         // Nada a fazer. Dorme e tenta de novo, se ainda couber no minuto.
@@ -136,12 +137,56 @@ while (true) {
 
 if ($totalOk || $totalFalhou) logar("enviadas=$totalOk falhas=$totalFalhou");
 
+vigiarRecepcao($cfg, $ultimaEntrada ?? null);
+
 // Depois do laço, com a rodada já cumprida: se demorar, atrasa só a si mesma.
 if ($sincronizarNomesAgora) {
     sincronizarNomes($cfg, $site, $hdrAuth, $hdrEvo);
     @touch($marcador);
 }
 exit(0);
+
+/**
+ * Reconecta a Evolution quando ela para de RECEBER.
+ *
+ * A falha que isto cobre não dá sinal nenhum: a instância segue 'open', o
+ * socket responde consulta em 0,3s, envio sai normal — e mensagem nenhuma
+ * entra. Aconteceu duas vezes em 15/08, e só apareceu porque os comandos da
+ * liga pararam de ser respondidos. Reiniciar a instância resolve na hora:
+ * o WhatsApp entrega o acumulado assim que ela reconecta.
+ *
+ * Quem faz isso é o worker porque a Evolution roda nesta máquina — o site não
+ * alcança ela.
+ *
+ * O gatilho é silêncio LONGO, não ausência de mensagem: grupo quieto é normal.
+ * Com carência entre tentativas, senão uma madrugada calada vira uma fila de
+ * reconexões — que é justamente o tipo de coisa que faz o WhatsApp desconfiar
+ * do número.
+ */
+function vigiarRecepcao(array $cfg, ?string $ultimaEntrada): void
+{
+    $SILENCIO_MIN = 25;   // silêncio que conta como recepção morta
+    $CARENCIA_MIN = 25;   // entre uma reconexão e a próxima
+    $HORA_INICIO  = 7;    // de madrugada o silêncio é esperado
+    $HORA_FIM     = 23;
+
+    if ($ultimaEntrada === null) return;          // site antigo ou nunca chegou nada
+    $hora = (int)date('G');
+    if ($hora < $HORA_INICIO || $hora > $HORA_FIM) return;
+
+    $quieto = (time() - strtotime($ultimaEntrada)) / 60;
+    if ($quieto < $SILENCIO_MIN) return;
+
+    $marcador = __DIR__ . '/.ultima-reconexao';
+    if (file_exists($marcador) && (time() - filemtime($marcador)) < $CARENCIA_MIN * 60) return;
+    @touch($marcador);
+
+    $url = rtrim($cfg['evolution_url'], '/') . '/instance/restart/'
+         . rawurlencode($cfg['evolution_instancia']);
+    [$st, , $erro] = req($url, [], ['apikey: ' . $cfg['evolution_api_key']]);
+    logar(sprintf('recepcao parada ha %d min — reconectando a Evolution: %s',
+        (int)$quieto, $erro ? "falhou ($erro)" : "HTTP $st"));
+}
 
 /**
  * Busca o nome de cada grupo na Evolution e manda pro site.
