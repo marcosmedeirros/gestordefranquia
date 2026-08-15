@@ -27,7 +27,16 @@ $pdo = db();
 ensureAtualizacaoTables($pdo);
 
 $uid = (int)$user['id'];
-$acao = $_GET['acao'] ?? $_POST['acao'] ?? '';
+
+// A ação pode vir de três lugares, e o corpo JSON é um deles: a página manda
+// `salvar` com Content-Type: application/json, e nesse caso o PHP não
+// preenche $_POST — ler só dele fazia todo salvamento cair em "ação
+// desconhecida". O corpo é lido uma vez e reaproveitado embaixo.
+$corpoBruto = file_get_contents('php://input');
+$corpoJson  = ($corpoBruto !== '' && str_starts_with(ltrim($corpoBruto), '{'))
+            ? (json_decode($corpoBruto, true) ?: [])
+            : [];
+$acao = $_GET['acao'] ?? $_POST['acao'] ?? ($corpoJson['acao'] ?? '');
 
 // A liga do usuário sai do TIME dele, não da sessão: é o time que define
 // em qual liga ele joga, e é essa a liga que ele pode atualizar.
@@ -105,7 +114,7 @@ if ($acao === 'ranking') {
 
 // ── Gravar ───────────────────────────────────────────────────────────
 if ($acao === 'salvar') {
-    $corpo = json_decode(file_get_contents('php://input'), true) ?: [];
+    $corpo = $corpoJson;
     $teamId = (int)($corpo['time'] ?? 0);
     $skills = is_array($corpo['skills'] ?? null) ? $corpo['skills'] : [];
     $stats  = is_array($corpo['stats']  ?? null) ? $corpo['stats']  : [];
@@ -161,6 +170,13 @@ if ($acao === 'salvar') {
     $registros = [];
     $moedasTotal = 0;
 
+    // ANTES da transação, sempre: as tabelas do Games nascem no primeiro
+    // acesso a uma página de jogo e ninguém garante que isso já aconteceu.
+    // E DDL dentro de transação faz commit implícito no MySQL — se rodasse lá
+    // dentro, um erro depois já teria gravado metade e o rollBack estouraria
+    // com "no active transaction". Aqui fora, o rollback continua valendo.
+    ensureGamesSchema($pdo);
+
     $pdo->beginTransaction();
     try {
         if ($okSkills) {
@@ -189,10 +205,15 @@ if ($acao === 'salvar') {
             // Mesmas colunas do insert que o dono usa em api/player_stats.php,
             // `league` inclusive — sem ela a linha nasce sem liga e some das
             // consultas que filtram por liga.
+            //
+            // source é ENUM('foto','manual','clonado'): 'manual' é o valor
+            // certo — é número real digitado, igual ao caminho do dono. Quem
+            // fez e quando fica em atualizacoes_terceiros, que é onde a tela
+            // de reverter procura.
             $cols = array_keys(ATUALIZACAO_STATS);
             $ins = $pdo->prepare("INSERT INTO player_season_stats
                 (player_id, season_id, season_number, league, team_id, " . implode(', ', $cols) . ", source)
-                VALUES (:pid, :sid, :snum, :liga, :tid, :" . implode(', :', $cols) . ", 'terceiro')
+                VALUES (:pid, :sid, :snum, :liga, :tid, :" . implode(', :', $cols) . ", 'manual')
                 ON DUPLICATE KEY UPDATE " .
                 implode(', ', array_map(fn($c) => "{$c} = VALUES({$c})", $cols)) .
                 ", source = VALUES(source), team_id = VALUES(team_id)");
@@ -230,7 +251,10 @@ if ($acao === 'salvar') {
 
         $pdo->commit();
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        // inTransaction() antes de desfazer: se algum DDL tiver feito commit
+        // implícito, rollBack() estoura e o cliente recebe um fatal em vez do
+        // JSON de erro. Melhor logar o problema real.
+        if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('[atualizacoes] salvar: ' . $e->getMessage());
         http_response_code(500);
         echo json_encode(['erro' => 'Não deu pra salvar. Nada foi gravado.']);
@@ -268,6 +292,8 @@ if ($acao === 'reverter') {
     if (!empty($reg['revertido_em'])) { http_response_code(409); echo json_encode(['erro' => 'Esse envio já foi revertido.']); exit; }
 
     $foto = json_decode((string)$reg['antes'], true) ?: [];
+
+    ensureGamesSchema($pdo);   // fora da transação — ver o comentário no salvar
     $pdo->beginTransaction();
     try {
         // Devolve os valores que estavam lá antes.
@@ -326,7 +352,7 @@ if ($acao === 'reverter') {
 
         $pdo->commit();
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('[atualizacoes] reverter: ' . $e->getMessage());
         http_response_code(500);
         echo json_encode(['erro' => 'Não deu pra reverter.']);

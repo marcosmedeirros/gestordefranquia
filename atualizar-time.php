@@ -163,6 +163,9 @@ td.nm{font-weight:700}
     <div class="rolar"><table id="tabela"></table></div>
     <div class="acoes" style="margin-top:14px">
       <button class="btn" id="btnSalvar"><i class="bi bi-save2"></i> Salvar e receber</button>
+      <button class="btn ghost" id="btnLimpar" title="Descarta o que foi lido e volta pro envio">
+        <i class="bi bi-eraser"></i> Limpar
+      </button>
       <span class="lead" style="margin:0" id="resumoPremio"></span>
     </div>
     <div id="msgSalvar"></div>
@@ -400,6 +403,20 @@ function desenharRevisao(){
   $('painelRevisao').classList.remove('oculto');
   $('painelRevisao').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
+
+/* ── Limpar ──────────────────────────────────────────────────────────
+   Mandou o CSV errado, ou o do time errado, e percebeu na conferência: sem
+   isto o jeito de recomeçar era sair e entrar de novo na página. Nada foi
+   gravado ainda, então limpar é só esquecer o que foi lido. */
+$('btnLimpar').addEventListener('click', () => {
+  novosSkills = {}; novosStats = {};
+  csvBruto = {skills: '', stats: ''};
+  $('tabela').innerHTML = '';
+  $('painelRevisao').classList.add('oculto');
+  $('msgSalvar').innerHTML = '';
+  msg($('msgImport'), 'info', 'Limpo. Envie o CSV de novo quando quiser.');
+  $('painelCSV').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+});
 
 /* ── Salvar ──────────────────────────────────────────────────────── */
 $('btnSalvar').addEventListener('click', async () => {
