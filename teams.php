@@ -1362,7 +1362,7 @@ function getSerasaScore(int $avisos): array {
                             $podeAtualizar = !$isMyTeam && empty($t['atualizado_terceiro_em']);
                         ?>
                         <?php if ($podeAtualizar): ?>
-                        <a class="btn-action" href="/atualizar-time.php?time=<?= (int)$t['id'] ?>"
+                        <a class="btn-action info" href="/atualizar-time.php?time=<?= (int)$t['id'] ?>"
                            title="Preencher skills e estatísticas deste time e ganhar moedas">
                             <i class="bi bi-pencil-square"></i>
                         </a>
