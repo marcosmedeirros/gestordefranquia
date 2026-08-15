@@ -3,10 +3,12 @@ require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/salary_cap.php';
+require_once __DIR__ . '/backend/atualizacoes.php';   // trava de atualizacao por terceiro
 requireAuth();
 
 $user = getUserSession();
 $pdo = db();
+ensureAtualizacaoTables($pdo);   // cria a coluna que a consulta abaixo lê
 
 // A liga vem do time no banco, não da sessão gravada no login: quando o admin
 // move o time de liga, esta página tem que passar a listar a liga nova na hora.
@@ -91,7 +93,7 @@ function computeAiTagPHP(?float $avgOvr, ?float $maxOvr, ?float $avgAge): ?strin
 
 $stmt = $pdo->prepare('
     SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.tapas, t.roster_updated_at, t.team_tag,
-             t.trades_used, t.public_enabled, t.public_slug, t.conference,
+             t.trades_used, t.public_enabled, t.public_slug, t.conference, t.atualizado_terceiro_em,
              u.name AS owner_name, u.email AS owner_email, u.phone AS owner_phone, u.photo_url AS owner_photo,
              (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL AND tp.type <> \'AVISO_TRADE\') as punicoes_count,
              (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.type = \'AVISO_TRADE\' AND tp.reverted_at IS NULL) as avisos_count,
@@ -1353,6 +1355,18 @@ function getSerasaScore(int $avisos): array {
                         <button class="btn-action" onclick="copiarTime(<?= $t['id'] ?>, '<?= htmlspecialchars(addslashes($t['city'] . ' ' . $t['name'])) ?>')">
                             <i class="bi bi-clipboard-check"></i>
                         </button>
+                        <?php
+                            // Atualizar o elenco de outro GM. Só aparece pra time que
+                            // não é seu e que ainda não recebeu atualização de terceiro
+                            // — botão que leva a um "não pode" é ruído.
+                            $podeAtualizar = !$isMyTeam && empty($t['atualizado_terceiro_em']);
+                        ?>
+                        <?php if ($podeAtualizar): ?>
+                        <a class="btn-action" href="/atualizar-time.php?time=<?= (int)$t['id'] ?>"
+                           title="Preencher skills e estatísticas deste time e ganhar moedas">
+                            <i class="bi bi-pencil-square"></i>
+                        </a>
+                        <?php endif; ?>
                         <?php if ($hasContact): ?>
                         <a class="btn-action green" href="<?= htmlspecialchars($waLink) ?>" target="_blank" rel="noopener">
                             <i class="bi bi-whatsapp"></i>

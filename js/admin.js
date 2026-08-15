@@ -110,9 +110,82 @@ async function showGamesAdmin() {
       <div id="gamesUsersWrap" class="text-center py-4">
         <div class="spinner-border text-orange"></div>
       </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <span><i class="bi bi-pencil-square" style="color:#22c55e"></i> Elencos atualizados por terceiros</span>
+        <button class="btn btn-sm btn-outline-orange" onclick="_carregarAtualizacoes()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+        </button>
+      </div>
+      <div class="small text-secondary mb-2">
+        Reverter devolve os valores que estavam lá antes, tira as moedas de quem enviou
+        e libera o time pra receber outra atualização.
+      </div>
+      <div id="atualizacoesWrap" class="text-center py-4">
+        <div class="spinner-border text-orange"></div>
+      </div>
     </div>`;
 
   _carregarGamesUsers();
+  _carregarAtualizacoes();
+}
+
+/* ── Atualizações de elenco feitas por terceiros ────────────────────────
+   Existe porque o pagamento é automático: alguém pode subir um CSV com
+   número inventado só pra faturar. Reverter desfaz tudo de uma vez — o
+   valor antigo volta, a moeda sai, e o time destrava. */
+async function _carregarAtualizacoes() {
+  const wrap = document.getElementById('atualizacoesWrap');
+  if (!wrap) return;
+  try {
+    const r = await fetch('/api/atualizar-time.php?acao=historico');
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.erro || 'falhou');
+    if (!d.itens.length) {
+      wrap.innerHTML = '<div class="text-secondary small py-3">Nenhuma atualização de terceiro ainda.</div>';
+      return;
+    }
+    wrap.className = 'table-responsive';
+    wrap.innerHTML = `
+      <table class="table table-dark table-sm align-middle mb-0">
+        <thead><tr>
+          <th>Quando</th><th>Time</th><th>Quem</th><th>O quê</th>
+          <th class="text-end">Jog.</th><th class="text-end">Moedas</th><th></th>
+        </tr></thead>
+        <tbody>${d.itens.map(i => `
+          <tr class="${i.revertido_em ? 'opacity-50' : ''}">
+            <td class="small text-secondary">${new Date(String(i.criado_em).replace(' ', 'T')).toLocaleString('pt-BR')}</td>
+            <td>${escapeHtml(i.time || '—')} <span class="small text-secondary">${escapeHtml(i.league || '')}</span></td>
+            <td>${escapeHtml(i.gm || '—')}</td>
+            <td><span class="badge bg-secondary">${i.tipo === 'skills' ? 'skills' : 'estatísticas'}</span></td>
+            <td class="text-end">${i.jogadores}</td>
+            <td class="text-end" style="color:#f59e0b">${i.moedas}</td>
+            <td class="text-end">${i.revertido_em
+              ? '<span class="small text-secondary">revertido</span>'
+              : `<button class="btn btn-sm btn-outline-danger" onclick="_reverterAtualizacao(${i.id})">Reverter</button>`}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch (e) {
+    wrap.innerHTML = `<div class="text-danger small py-3">Erro ao carregar: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function _reverterAtualizacao(id) {
+  if (!confirm('Reverter esta atualização?\n\nOs valores antigos voltam, as moedas saem de quem enviou e o time fica livre pra receber outra.')) return;
+  try {
+    const body = new URLSearchParams({acao: 'reverter', id: String(id)});
+    const r = await fetch('/api/atualizar-time.php', {method: 'POST', body});
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.erro || 'falhou');
+    showAlert('success', `Revertido. ${d.moedas_estornadas} moedas estornadas.`);
+    _carregarAtualizacoes();
+    _carregarGamesUsers();
+  } catch (e) {
+    showAlert('danger', e.message);
+  }
 }
 
 let _gamesUsersCache = [];

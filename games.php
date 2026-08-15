@@ -10,6 +10,7 @@
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
+require_once __DIR__ . '/backend/atualizacoes.php';   // ranking de quem atualiza elenco alheio
 requireAuth();
 
 $user = getUserSession();
@@ -730,6 +731,40 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
                 </div>
             </div>
             <?php endforeach; ?>
+
+            <?php
+                // Quem mais ajudou a manter os elencos em dia. Fica no fim do
+                // ranking, e não numa aba própria, porque é o mesmo assunto:
+                // placar de gente. Só a liga de quem está olhando — o ranking
+                // de atualização é da comunidade dela.
+                $ligaRk = strtoupper((string)($team['league'] ?? ''));
+                $rkAtualiza = $ligaRk ? atualizacaoRanking($pdo, $ligaRk, 12) : [];
+            ?>
+            <?php if ($rkAtualiza): ?>
+            <div class="card" style="margin-top:16px">
+                <div class="card-head">
+                    <div class="card-head-left">
+                        <i class="bi bi-pencil-square" style="color:#22c55e"></i>
+                        Quem mais atualizou elencos · <?= htmlspecialchars($ligaRk) ?>
+                    </div>
+                </div>
+                <div class="card-body" style="padding:8px 10px 12px">
+                    <?php foreach ($rkAtualiza as $i => $r): ?>
+                    <div class="rk-linha <?= (int)$r['user_id'] === (int)$userId ? 'eu' : '' ?>">
+                        <div class="rk-pos"><?= $i + 1 ?></div>
+                        <div class="rk-nome"><?= htmlspecialchars($r['gm']) ?></div>
+                        <div class="rk-val" style="color:#22c55e">
+                            <?= (int)$r['times'] ?> time<?= (int)$r['times'] === 1 ? '' : 's' ?>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                    <p style="font-size:11.5px;color:var(--text-3,#8a8a99);margin:10px 4px 0;line-height:1.5">
+                        Time parado sem skills ou estatísticas pode ser preenchido por qualquer GM da liga,
+                        uma vez cada, em <a href="/teams.php" style="color:inherit;text-decoration:underline">Times</a>.
+                    </p>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
 
     </div>
