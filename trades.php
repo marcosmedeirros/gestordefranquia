@@ -2,6 +2,10 @@
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
+// Proteção de pick: a página usa protecaoLigaUsa()/PICK_PROTECOES pra mandar
+// os rótulos ao navegador. Sem este require dá fatal NO MEIO do <script>, e
+// aí nada de JS depois disso roda — as abas de trade param de funcionar.
+require_once __DIR__ . '/backend/pick_protection.php';
 requireAuth();
 
 $user = getUserSession();
