@@ -2220,3 +2220,32 @@ a:focus-visible,
 	}
 }
 
+
+/* ── Condição de uma pick: proteção e swap ────────────────────────────
+   Uma pick pode ir numa troca com condição: protegida (só ELITE) ou em
+   swap. Isso aparece em picks.php, teams.php, my-roster, trades, o
+   simulador e os cards de troca — o selo mora aqui pra ser o mesmo em
+   todos, e não seis marcações parecidas que divergem na primeira mudança.
+
+   Âmbar pra proteção e cinza-azulado pra swap: cores distintas de
+   propósito, são condições diferentes e o GM lê a lista de relance. */
+.pick-cond {
+	display: inline-block; margin-left: 6px; padding: 1px 7px;
+	border-radius: 999px; font-size: 10px; font-weight: 700;
+	letter-spacing: .02em; white-space: nowrap; vertical-align: middle;
+	line-height: 1.5;
+}
+.pick-cond.prot {
+	background: rgba(245, 158, 11, .15); color: #f59e0b;
+	border: 1px solid rgba(245, 158, 11, .35);
+}
+.pick-cond.swap {
+	background: rgba(96, 165, 250, .15); color: #60a5fa;
+	border: 1px solid rgba(96, 165, 250, .35);
+}
+/* Pendurada: a pick que paga uma protegida se ela não passar. Não é uma
+   condição da pick em si, é um aviso de que ela não pode ser negociada. */
+.pick-cond.lastro {
+	background: rgba(148, 163, 184, .15); color: #94a3b8;
+	border: 1px dashed rgba(148, 163, 184, .45);
+}

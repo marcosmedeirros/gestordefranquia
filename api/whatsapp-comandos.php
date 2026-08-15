@@ -13,6 +13,7 @@
 
 require_once __DIR__ . '/../backend/salary_cap.php';
 require_once __DIR__ . '/../backend/helpers.php';   // CAP_TOP_N
+require_once __DIR__ . '/../backend/pick_protection.php';   // condicao da pick
 require_once __DIR__ . '/../backend/playoff_series.php';
 
 /**
@@ -582,8 +583,13 @@ function wcPicks(PDO $pdo, string $termo, ?array $jaResolvido = null): string
         if ($erro) return $erro;
     }
 
+    // swap_type e protection entram porque uma pick com condição não vale o
+    // mesmo que uma limpa — e é justamente numa troca que /picks é usado.
+    ensurePickProtectionSchema($pdo);
     $st = $pdo->prepare("
-        SELECT p.season_year, p.round, p.original_team_id, o.city AS o_city, o.name AS o_name
+        SELECT p.season_year, p.round, p.original_team_id, p.swap_type,
+               p.protection, p.protection_resultado,
+               o.city AS o_city, o.name AS o_name
         FROM picks p
         LEFT JOIN teams o ON o.id = p.original_team_id
         WHERE p.team_id = ?
@@ -611,6 +617,15 @@ function wcPicks(PDO $pdo, string $termo, ?array $jaResolvido = null): string
         // Pick que veio de outro time: dizer de quem é o que importa numa troca.
         if ((int)$p['original_team_id'] !== (int)$t['id']) {
             $rot .= ' (do ' . wcNomeDoTime(['city' => $p['o_city'], 'name' => $p['o_name']]) . ')';
+        }
+        // Condição da pick: protegida ou em swap.
+        $swap = strtoupper(trim((string)($p['swap_type'] ?? '')));
+        if ($swap === 'SB' || $swap === 'SW') $rot .= ' [swap ' . $swap . ']';
+        if (protecaoValida($p['protection'] ?? null)) {
+            $res = $p['protection_resultado'] ?? null;
+            $rot .= $res === 'passou' ? ' [passou, era ' . protecaoRotulo($p['protection']) . ']'
+                  : ($res === 'rolou' ? ' [não passou, ' . protecaoRotulo($p['protection']) . ']'
+                  : ' [protegida ' . protecaoRotulo($p['protection']) . ']');
         }
         $porAno[(int)$p['season_year']][] = $rot;
     }

@@ -73,10 +73,34 @@ const tradeEmojiList = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-// Proteção de pick (só ELITE). Os rótulos chegam de api/picks.php junto com a
-// lista — quem manda no que existe é o backend, aqui é só exibição. O objeto
-// nasce vazio e é preenchido no carregamento das picks.
-let PROTECAO_ROTULOS = {};
+// Proteção de pick (só ELITE). Os rótulos vêm do backend — quem manda no que
+// existe é PICK_PROTECOES, aqui é só exibição. Já chegam na página (os cards
+// de troca são desenhados antes de carregar as picks) e api/picks.php
+// reconfirma depois.
+let PROTECAO_ROTULOS = window.__PICK_PROTECOES__ || {};
+
+/** O selo de proteção de uma pick, ou '' se não tiver. */
+const protSelo = (pick) => {
+  const p = pick && pick.protection;
+  if (!p || !PROTECAO_ROTULOS[p]) return '';
+  const res = pick.protection_resultado;
+  // Depois do draft o selo diz o que aconteceu: "Protegida Top 5" numa pick
+  // já resolvida faria pensar que a condição ainda vale.
+  const txt = res === 'passou' ? `Passou (era ${PROTECAO_ROTULOS[p]})`
+            : res === 'rolou'  ? `Não passou (${PROTECAO_ROTULOS[p]})`
+            : `Protegida ${PROTECAO_ROTULOS[p]}`;
+  return ` <span class="pick-cond prot">${esc(txt)}</span>`;
+};
+
+/** O mesmo, em texto puro (WhatsApp, cópia de time). */
+const protTexto = (pick) => {
+  const p = pick && pick.protection;
+  if (!p || !PROTECAO_ROTULOS[p]) return '';
+  const res = pick.protection_resultado;
+  return res === 'passou' ? ` (passou, era ${PROTECAO_ROTULOS[p]})`
+       : res === 'rolou'  ? ` (não passou, ${PROTECAO_ROTULOS[p]})`
+       : ` (protegida ${PROTECAO_ROTULOS[p]})`;
+};
 
 function _fmtTradeDate(createdAt, status) {
   // MySQL retorna "YYYY-MM-DD HH:MM:SS"; Safari exige "T" como separador
@@ -148,6 +172,7 @@ const formatTradePickDisplay = (pick) => {
   if (swapTag) {
     display += ` <span class="badge bg-secondary ms-1">${esc(swapTag)}</span>`;
   }
+  display += protSelo(pick);
 
   return display;
 };
@@ -170,6 +195,7 @@ const formatTradePickPlain = (pick) => {
   // nenhuma pra quem estava decidindo se aceitava o swap ou não.
   const swapTag = pick.swap_type || pick.pending_swap_role || (['SB','SW'].includes(pick.protection) ? pick.protection : null);
   if (swapTag) display += ` ${swapTag}`;
+  display += protTexto(pick);
   return display;
 };
 

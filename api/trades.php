@@ -123,7 +123,7 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
     if ($pickIds) {
         $pickIds = array_values(array_unique($pickIds));
         $placeholders = implode(',', array_fill(0, count($pickIds), '?'));
-        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, p.swap_type, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
+        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, p.swap_type, p.protection, p.protection_resultado, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
         $stmtPicks->execute($pickIds);
         foreach ($stmtPicks->fetchAll(PDO::FETCH_ASSOC) as $pick) {
             $pickMap[(int)$pick['id']] = $pick;
@@ -179,7 +179,12 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
                 'round' => $pick['round'] ?? null,
                 'swap_type' => $pick['swap_type'] ?? null,
                 'original_team' => $pick ? trim(($pick['city'] ?? '') . ' ' . ($pick['team_name'] ?? '')) : null,
-                'protection' => $item['pick_protection'] ?? null,
+                // A da PICK ganha da do item: depois do aceite é ela que vale,
+                // e o item é só o que foi combinado. Antes do aceite a pick
+                // ainda não tem nada e cai no item, que é o que o outro GM
+                // precisa ver pra decidir.
+                'protection' => ($pick['protection'] ?? null) ?: ($item['pick_protection'] ?? null),
+                'protection_resultado' => $pick['protection_resultado'] ?? null,
             ];
 
             if ($isFrom) {
@@ -574,7 +579,7 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
     if ($pickIds) {
         $pickIds = array_values(array_unique($pickIds));
         $placeholders = implode(',', array_fill(0, count($pickIds), '?'));
-        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, p.swap_type, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
+        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, p.swap_type, p.protection, p.protection_resultado, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
         $stmtPicks->execute($pickIds);
         foreach ($stmtPicks->fetchAll(PDO::FETCH_ASSOC) as $pick) {
             $pickMap[(int)$pick['id']] = $pick;
@@ -620,7 +625,12 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
                 'season_year' => $pickRow['season_year'] ?? null,
                 'round' => $pickRow['round'] ?? null,
                 'original_team' => $pickRow ? trim(($pickRow['city'] ?? '') . ' ' . ($pickRow['team_name'] ?? '')) : null,
-                'protection' => $item['pick_protection'] ?? null,
+                // A da PICK ganha da do item: depois do aceite é ela que vale,
+                // e o item é só o que foi combinado. Antes do aceite a pick
+                // ainda não tem nada e cai no item, que é o que o outro GM
+                // precisa ver pra decidir.
+                'protection' => ($pick['protection'] ?? null) ?: ($item['pick_protection'] ?? null),
+                'protection_resultado' => $pick['protection_resultado'] ?? null,
             ];
         }
 

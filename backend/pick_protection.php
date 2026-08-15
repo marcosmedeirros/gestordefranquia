@@ -62,6 +62,54 @@ function protecaoAte(?string $cod): int
     return protecaoValida($cod) ? (int)PICK_PROTECOES[$cod]['ate'] : 0;
 }
 
+/**
+ * O selo da condição de uma pick, pronto pra imprimir.
+ *
+ * Uma pick pode carregar proteção (só ELITE), swap, ou ser o lastro de uma
+ * protegida. As três coisas aparecem em seis telas diferentes; o HTML mora
+ * aqui pra não virar seis marcações parecidas que divergem na primeira
+ * mudança — foi assim que o rótulo do jogador na trade perdeu a idade de um
+ * lado só.
+ *
+ * A classe .pick-cond está em css/styles.css.
+ *
+ * $comSwap = false pras telas que já desenham o swap do seu jeito, com o nome
+ * do parceiro junto — ali só falta a proteção.
+ *
+ * Espera a pick com: protection, swap_type e (opcional) protecao_travada.
+ */
+function protecaoSelos(array $pick, bool $comSwap = true): string
+{
+    $out = '';
+
+    $prot = $pick['protection'] ?? null;
+    if (protecaoValida($prot)) {
+        $resolvido = $pick['protection_resultado'] ?? null;
+        // Depois do draft o selo diz o que aconteceu — "Protegida Top 5" numa
+        // pick já resolvida faria pensar que ainda vale.
+        $txt = $resolvido === 'passou' ? 'Passou (era ' . protecaoRotulo($prot) . ')'
+             : ($resolvido === 'rolou' ? 'Não passou (' . protecaoRotulo($prot) . ')'
+             : 'Protegida ' . protecaoRotulo($prot));
+        $out .= '<span class="pick-cond prot" title="Se cair na faixa protegida, a pick não passa e quem receberia leva a do ano seguinte.">'
+              . htmlspecialchars($txt) . '</span>';
+    }
+
+    $swap = $comSwap ? strtoupper(trim((string)($pick['swap_type'] ?? ''))) : '';
+    if ($swap === 'SB' || $swap === 'SW') {
+        $out .= '<span class="pick-cond swap" title="'
+              . ($swap === 'SB' ? 'Swap: fica com a MELHOR das duas vagas.' : 'Swap: fica com a PIOR das duas vagas.')
+              . '">Swap ' . $swap . '</span>';
+    }
+
+    $travada = trim((string)($pick['protecao_travada'] ?? ''));
+    if ($travada !== '') {
+        $out .= '<span class="pick-cond lastro" title="' . htmlspecialchars($travada)
+              . '">Pendurada</span>';
+    }
+
+    return $out;
+}
+
 function ensurePickProtectionSchema(PDO $pdo): void
 {
     static $ok = false;
@@ -239,6 +287,55 @@ function protecaoPodeProteger(PDO $pdo, array $pick, ?string $cod, ?string $liga
     }
 
     return ['pode' => true, 'motivo' => ''];
+}
+
+/**
+ * Anota uma lista de picks DE UM TIME com o que a tela precisa saber:
+ * `protecao_travada` (motivo, ou '') e `pode_proteger` (bool).
+ *
+ * Trabalha em memória a partir da própria lista — uma consulta só, a do mapa
+ * de travas. Perguntar pick a pick custaria três idas ao banco por linha, e a
+ * lista tem dezenas.
+ *
+ * Existe pra tela de troca e o simulador não terem cada um a sua versão da
+ * regra: as duas chamam isto.
+ *
+ * Espera em cada pick: id, round, team_id, original_team_id, season_year.
+ */
+function protecaoAnotarPicks(PDO $pdo, array $picks, ?string $liga): array
+{
+    if (!protecaoLigaUsa($liga)) {
+        foreach ($picks as &$p) { $p['protecao_travada'] = ''; $p['pode_proteger'] = false; }
+        unset($p);
+        return $picks;
+    }
+    ensurePickProtectionSchema($pdo);
+    $travadas = protecaoTravadasDaLiga($pdo, (string)$liga);
+
+    // As picks próprias de 1ª rodada que o time tem, por ano — é entre elas
+    // que se procura o lastro.
+    $propriasPorAno = [];
+    foreach ($picks as $p) {
+        if ((string)($p['round'] ?? '') !== '1') continue;
+        if ((int)($p['team_id'] ?? 0) !== (int)($p['original_team_id'] ?? -1)) continue;
+        $propriasPorAno[(int)$p['season_year']] = (int)$p['id'];
+    }
+
+    foreach ($picks as &$p) {
+        $id = (int)($p['id'] ?? 0);
+        $p['protecao_travada'] = $travadas[$id] ?? '';
+
+        $ehPropriaPrimeira = (string)($p['round'] ?? '') === '1'
+            && (int)($p['team_id'] ?? 0) === (int)($p['original_team_id'] ?? -1);
+        $lastroId = $propriasPorAno[(int)($p['season_year'] ?? 0) + 1] ?? 0;
+
+        $p['pode_proteger'] = $ehPropriaPrimeira
+            && $lastroId > 0                       // tem a do ano seguinte
+            && $p['protecao_travada'] === ''       // e ela mesma não é lastro
+            && !isset($travadas[$lastroId]);       // nem o lastro está comprometido
+    }
+    unset($p);
+    return $picks;
 }
 
 /**

@@ -3,6 +3,8 @@ require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/salary_cap.php';
+// Proteção de pick (só ELITE): trava do ano seguinte e quem pode proteger.
+require_once __DIR__ . '/backend/pick_protection.php';
 requireAuth();
 
 $user = getUserSession();
@@ -80,8 +82,14 @@ if ($action === 'roster') {
             }
             if ($y > 0) $currentYear = $y;
         }
+        // team_id/original_team_id/protection entram porque a proteção de pick
+        // precisa deles: só a pick PRÓPRIA de 1ª rodada pode ser protegida.
+        // A coluna pode não existir ainda neste banco — garante antes de
+        // pedir por ela, senão a consulta inteira morre.
+        ensurePickProtectionSchema($pdo);
         $stmtPk = $pdo->prepare('
-            SELECT pk.id, pk.season_year, pk.round,
+            SELECT pk.id, pk.season_year, pk.round, pk.team_id, pk.original_team_id,
+                   pk.protection,
                    ot.city AS orig_city, ot.name AS orig_name
             FROM picks pk
             LEFT JOIN teams ot ON pk.original_team_id = ot.id
@@ -89,7 +97,7 @@ if ($action === 'roster') {
             ORDER BY pk.round ASC, pk.season_year ASC
         ');
         $stmtPk->execute([$tid, $currentYear]);
-        $picks = $stmtPk->fetchAll(PDO::FETCH_ASSOC);
+        $picks = protecaoAnotarPicks($pdo, $stmtPk->fetchAll(PDO::FETCH_ASSOC), (string)$league);
     } catch (Exception $e) {}
 
     $cap = topEightCap($pdo, $tid);
@@ -287,6 +295,8 @@ body{overflow-x:hidden}
 .sim-item-del:hover{color:var(--red)}
 .sim-swap-select{background:var(--panel-2);border:1px solid var(--border-red);border-radius:5px;color:var(--red);font-size:10px;font-weight:700;padding:2px 6px;cursor:pointer;font-family:var(--font);flex-shrink:0}
 .sim-swap-select:focus{outline:none}
+.sim-prot{display:inline-block;margin-left:5px;padding:0 5px;border-radius:999px;font-size:9px;font-weight:700;
+  background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.35)}
 
 /* Add buttons */
 .sim-add-bar{padding:6px 10px 10px;display:flex;gap:6px;flex-wrap:wrap}
@@ -621,6 +631,9 @@ const MAX_TEAMS  = 7;
 // RISE e ROOKIE não têm swap de picks
 const MY_LEAGUE  = '<?= htmlspecialchars(strtoupper(trim((string)($user['league'] ?? ''))), ENT_QUOTES) ?>';
 const SWAP_ALLOWED = !['RISE', 'ROOKIE'].includes(MY_LEAGUE);
+// Proteção de pick: só ELITE. Vem do backend pra não haver uma segunda lista
+// de proteções aqui — quem manda no que existe é PICK_PROTECOES.
+const PROTECOES = <?= json_encode(protecaoLigaUsa($user['league'] ?? '') ? PICK_PROTECOES : new stdClass(), JSON_UNESCAPED_UNICODE) ?>;
 // Liga de folha em dinheiro (ELITE hoje). Só nela faz sentido mostrar quanto
 // cada jogador pesa: nas outras o CAP é soma de OVR, e o OVR já está na tela.
 const SALARY_MODE = <?= $__salaryMode ? 'true' : 'false' ?>;
@@ -859,16 +872,35 @@ function itemHtml(item, toKey) {
     </div>`;
   } else {
     const pair = findSwapPair(toKey, item);
-    // O seletor só aparece em pick de 1ª rodada: é a única que tem swap.
-    const swapSel = (!SWAP_ALLOWED || String(item.round) !== '1') ? '' : `<select class="sim-swap-select" onchange="setSimSwapRole('${toKey}',${item.id},this.value)" title="${pair ? 'Swap' : 'Swap (adicione uma pick de 1ª rodada do MESMO ano, do outro lado, para parear)'}">
-           <option value="" ${!item.swapRole ? 'selected' : ''}>—</option>
-           <option value="SB" ${item.swapRole === 'SB' ? 'selected' : ''}>SB</option>
-           <option value="SW" ${item.swapRole === 'SW' ? 'selected' : ''}>SW</option>
+
+    // Um seletor só, com o que faz sentido PARA ESTA pick:
+    //
+    //   swap        só quando existe uma pick de 1ª rodada do MESMO ano do
+    //               outro lado — sem par, swap não é acordo nenhum;
+    //   proteções   só na ELITE e só na pick própria com lastro (quem decide
+    //               isso é o backend, em pode_proteger);
+    //   —           sempre, que é escolher nada.
+    //
+    // Antes eram só SB/SW, e apareciam mesmo sem par: o GM escolhia um swap
+    // que a API depois descartava calada.
+    const ehPrimeira = String(item.round) === '1';
+    const opcoesSwap = (SWAP_ALLOWED && ehPrimeira && pair) ? `
+           <option value="SB" ${item.swapRole === 'SB' ? 'selected' : ''}>Swap SB</option>
+           <option value="SW" ${item.swapRole === 'SW' ? 'selected' : ''}>Swap SW</option>` : '';
+    const opcoesProt = (item.podeProteger && Object.keys(PROTECOES).length) ?
+        Object.entries(PROTECOES).map(([k, v]) =>
+           `<option value="prot:${k}" ${item.protection === k ? 'selected' : ''}>Protegida ${escH(v.rotulo)}</option>`).join('') : '';
+
+    const nada = !item.swapRole && !item.protection;
+    const swapSel = (!opcoesSwap && !opcoesProt) ? '' : `<select class="sim-swap-select" onchange="setSimPickAcordo('${toKey}',${item.id},this.value)" title="${
+        opcoesSwap ? 'Swap ou proteção desta pick' : 'Proteção desta pick (swap precisa de uma pick de 1ª rodada do MESMO ano do outro lado)'}">
+           <option value="" ${nada ? 'selected' : ''}>—</option>${opcoesSwap}${opcoesProt}
          </select>`;
     return `<div class="sim-item">
       <div class="sim-item-pick-icon"><i class="bi bi-calendar-event"></i></div>
       <div class="sim-item-info">
-        <div class="sim-item-name">${escH(item.label)}${item.swapRole ? ` <span style="color:var(--red);font-size:9px;font-weight:700">${item.swapRole}</span>` : ''}</div>
+        <div class="sim-item-name">${escH(item.label)}${item.swapRole ? ` <span style="color:var(--red);font-size:9px;font-weight:700">${item.swapRole}</span>` : ''}${
+          item.protection ? ` <span class="sim-prot">Prot. ${escH(PROTECOES[item.protection]?.rotulo || item.protection)}</span>` : ''}</div>
         <div class="sim-item-meta">${escH(item.orig)}</div>
         <div class="sim-item-from">← ${escH(fromName)}</div>
       </div>
@@ -1010,7 +1042,8 @@ function confirmPicker() {
     } else {
       const pk = src.picks.find(pk => pk.id === id);
       if (!pk) return;
-      receives[pickerToSlot].push({ id, type: 'pick', fromKey: pickerFromSlot, label: pickLabel(pk), orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round, season_year: pk.season_year, swapRole: null });
+      receives[pickerToSlot].push({ id, type: 'pick', fromKey: pickerFromSlot, label: pickLabel(pk), orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round, season_year: pk.season_year, swapRole: null,
+        podeProteger: !!pk.pode_proteger, protection: pk.protection || null });
     }
   });
 
@@ -1329,6 +1362,13 @@ async function submitSingleTrade(notes) {
   const requestPlayers = receives[kA].filter(i => i.type === 'player').map(i => i.id);
   const requestPicks   = receives[kA].filter(i => i.type === 'pick').map(i => ({ id: i.id }));
 
+  // A proteção escolhida vai junto — sem isto o seletor seria enfeite, que é
+  // exatamente o que acontecia na tela de trocas antes.
+  const comProtecao = (lista, origem) => lista.map((p) => {
+    const item = origem.find(i => i.type === 'pick' && i.id === p.id);
+    return item && item.protection ? { ...p, protection: item.protection } : p;
+  });
+
   // Monta swap_pairs: uma pick de cada lado, 1ª rodada, MESMO ano (é o que
   // normalizeSwapPairs() em api/trades.php exige no recebimento).
   const swapPairs = [];
@@ -1350,9 +1390,9 @@ async function submitSingleTrade(notes) {
   const payload = {
     to_team_id: tB.id,
     offer_players: offerPlayers,
-    offer_picks: offerPicks,
+    offer_picks: comProtecao(offerPicks, receives[kB]),
     request_players: requestPlayers,
-    request_picks: requestPicks,
+    request_picks: comProtecao(requestPicks, receives[kA]),
     swap_pairs: swapPairs,
     notes,
   };
@@ -1449,6 +1489,25 @@ function findSwapPair(toKey, item) {
     }
   }
   return null;
+}
+
+/**
+ * O seletor único da pick: '' | 'SB' | 'SW' | 'prot:<codigo>'.
+ *
+ * Swap e proteção são exclusivos — a pick vai numa condição só. Escolher um
+ * limpa o outro, senão dava pra montar "swap SB e protegida top 5", que não
+ * significa nada e a API teria que desempatar.
+ */
+function setSimPickAcordo(toKey, itemId, valor) {
+  const item = (receives[toKey] || []).find(i => i.id === itemId && i.type === 'pick');
+  if (!item) return;
+  if (String(valor).startsWith('prot:')) {
+    item.protection = String(valor).slice(5) || null;
+    setSimSwapRole(toKey, itemId, '');   // some com o swap, e re-renderiza
+    return;
+  }
+  item.protection = null;
+  setSimSwapRole(toKey, itemId, valor);
 }
 
 function setSimSwapRole(toKey, itemId, role) {

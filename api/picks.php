@@ -242,13 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // pick está travada por servir de lastro, e se pode receber proteção. A
     // regra fica no backend; aqui só é entregue pronta pra não haver uma
     // segunda versão dela no navegador.
-    $travadas = protecaoTravadasDaLiga($pdo, (string)$league);
-    foreach ($picks as &$pk) {
-        $pk['protecao_travada'] = $travadas[(int)$pk['id']] ?? '';
-        $pk['pode_proteger'] = protecaoLigaUsa($league)
-            && protecaoPodeProteger($pdo, $pk, 'top5', $league)['pode'];
-    }
-    unset($pk);
+    $picks = protecaoAnotarPicks($pdo, $picks, (string)$league);
 
     $payload = ['success' => true, 'picks' => $picks,
                 'protecoes' => protecaoLigaUsa($league) ? PICK_PROTECOES : []];

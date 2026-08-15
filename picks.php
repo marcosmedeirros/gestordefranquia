@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
+// Selo de proteção/swap/lastro nas picks (só ELITE tem proteção).
+require_once __DIR__ . '/backend/pick_protection.php';
 requireAuth();
 
 $user = getUserSession();
@@ -88,6 +90,9 @@ $stmtPicksAway = $pdo->prepare('
 ');
 $stmtPicksAway->execute([$team['id'], $team['id'], $currentSeasonYear]);
 $picksAway = $stmtPicksAway->fetchAll();
+
+// Marca quais picks estão penduradas por servirem de lastro a uma protegida.
+$picks = protecaoAnotarPicks($pdo, $picks, (string)($team['league'] ?? ''));
 
 $picksByRound = ['1' => [], '2' => [], 'other' => []];
 foreach ($picks as $pick) {
@@ -463,6 +468,7 @@ $tradedAway   = count($picksAway);
                                     <?php $swapPartner = trim(($pick['swap_partner_city'] ?? '') . ' ' . ($pick['swap_partner_name'] ?? '')); $isOwnSwap = !empty($pick['swap_partner_team_id']) && (int)$pick['swap_partner_team_id'] === (int)$team['id']; ?>
                                     <?php if ($swapPartner): ?><span style="font-size:11px;color:var(--text-2);margin-left:4px"><?= $isOwnSwap ? 'c/ própria' : 'c/ ' . htmlspecialchars($swapPartner) ?></span><?php endif; ?>
                                 <?php endif; ?>
+                                <?= protecaoSelos($pick, false) ?>
                             </div>
                         </div>
                         <span class="pick-value" data-round="1" data-year="<?= (int)$pick['season_year'] ?>"><b>—</b><em>troca</em></span>
@@ -517,6 +523,7 @@ $tradedAway   = count($picksAway);
                                     <?php $swapPartner = trim(($pick['swap_partner_city'] ?? '') . ' ' . ($pick['swap_partner_name'] ?? '')); $isOwnSwap = !empty($pick['swap_partner_team_id']) && (int)$pick['swap_partner_team_id'] === (int)$team['id']; ?>
                                     <?php if ($swapPartner): ?><span style="font-size:11px;color:var(--text-2);margin-left:4px"><?= $isOwnSwap ? 'c/ própria' : 'c/ ' . htmlspecialchars($swapPartner) ?></span><?php endif; ?>
                                 <?php endif; ?>
+                                <?= protecaoSelos($pick, false) ?>
                             </div>
                         </div>
                         <span class="pick-value" data-round="2" data-year="<?= (int)$pick['season_year'] ?>"><b>—</b><em>troca</em></span>
@@ -569,6 +576,7 @@ $tradedAway   = count($picksAway);
                                 <?php $swapPartner = trim(($pick['swap_partner_city'] ?? '') . ' ' . ($pick['swap_partner_name'] ?? '')); ?>
                                 <?php if ($swapPartner): ?><span style="font-size:11px;color:var(--text-2);margin-left:4px">c/ <?= htmlspecialchars($swapPartner) ?></span><?php endif; ?>
                             <?php endif; ?>
+                            <?= protecaoSelos($pick, false) ?>
                         </div>
                     </div>
                     <span class="tag amber"><i class="bi bi-arrow-up-circle" style="font-size:9px"></i> Cedida</span>

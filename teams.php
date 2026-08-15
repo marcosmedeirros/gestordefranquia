@@ -4,6 +4,7 @@ require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/salary_cap.php';
 require_once __DIR__ . '/backend/atualizacoes.php';   // trava de atualizacao por terceiro
+require_once __DIR__ . '/backend/pick_protection.php'; // selo de protecao nas picks
 requireAuth();
 
 $user = getUserSession();
@@ -1640,6 +1641,13 @@ function getSerasaScore(int $avisos): array {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 <script>
+    // Rótulos das proteções de pick, do backend — só ELITE tem. Vazio nas
+    // outras ligas, e aí o selo simplesmente não aparece.
+    const PICK_PROT_ROTULOS = <?= json_encode(
+        protecaoLigaUsa($user['league'] ?? '')
+            ? array_map(fn($p) => $p['rotulo'], PICK_PROTECOES)
+            : new stdClass(), JSON_UNESCAPED_UNICODE) ?>;
+
     function _avatarColorHex() {
         try {
             const m = getComputedStyle(document.documentElement).getPropertyValue('--red').trim().match(/#([0-9a-fA-F]{6})/);
@@ -1837,9 +1845,21 @@ function getSerasaScore(int $avisos): array {
                 return tags.map(tag => `<span class="badge-pill gray" style="margin-left:6px">${tag}</span>`).join('') + partnerHtml;
             };
 
+            // Proteção da pick (só ELITE). Vem do backend em pk.protection; o
+            // rótulo é o mesmo selo do resto do app.
+            const getProtTag = (pick) => {
+                const p = pick?.protection;
+                if (!p || !PICK_PROT_ROTULOS[p]) return '';
+                const res = pick?.protection_resultado;
+                const txt = res === 'passou' ? `Passou (era ${PICK_PROT_ROTULOS[p]})`
+                          : res === 'rolou'  ? `Não passou (${PICK_PROT_ROTULOS[p]})`
+                          : `Protegida ${PICK_PROT_ROTULOS[p]}`;
+                return `<span class="pick-cond prot">${txt}</span>`;
+            };
+
             const renderPickWithTeam = (pk) => {
                 const isOwn = Number(pk.team_id) === Number(pk.original_team_id);
-                const swapTags = getSwapTags(pk);
+                const swapTags = getSwapTags(pk) + getProtTag(pk);
                 if (isOwn) {
                     return `<div class="mb-1"><span class="badge-pill" style="background:rgba(22,163,74,.12);color:#4ade80">Própria</span>${swapTags}</div>`;
                 }

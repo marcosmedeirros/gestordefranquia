@@ -739,6 +739,13 @@ try {
   <script>
     window.__TEAM_ID__ = <?= $teamId ? (int)$teamId : 'null' ?>;
     window.__USER_LEAGUE__ = '<?= htmlspecialchars($user['league'], ENT_QUOTES) ?>';
+    // Proteções de pick, do backend: só ELITE tem. Vai daqui em vez de esperar
+    // o carregamento das picks porque os CARDS de troca aparecem antes disso —
+    // sem o rótulo, uma pick protegida apareceria sem selo na lista de trocas.
+    window.__PICK_PROTECOES__ = <?= json_encode(
+        protecaoLigaUsa($user['league'] ?? '')
+            ? array_map(fn($p) => $p['rotulo'], PICK_PROTECOES)
+            : new stdClass(), JSON_UNESCAPED_UNICODE) ?>;
     window.__CURRENT_SEASON_YEAR__ = <?= (int)$currentSeasonYear ?>;
     window.__TEAM_NAME__ = '<?= htmlspecialchars(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')), ENT_QUOTES) ?>';
   </script>
