@@ -75,6 +75,11 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);-we
 .btn:disabled{background:var(--panel3);color:var(--text3);cursor:not-allowed}
 .btn.ghost{background:transparent;border:1.5px solid var(--border2);color:var(--text2)}
 .btn.ghost:hover{border-color:var(--red);color:var(--red);background:var(--red-soft)}
+/* O botão principal: azul, sozinho na linha e maior que os outros. */
+.btn.azul{background:#2563eb}
+.btn.azul:hover{background:#1d4ed8;filter:none}
+.btn.largo{display:flex;width:100%;justify-content:center;margin-top:12px;padding:14px 18px;
+  font-size:14px;cursor:pointer}
 .acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .grade-times{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
 .time-card{background:var(--panel2);border:1.5px solid var(--border);border-radius:12px;padding:12px;
@@ -140,12 +145,16 @@ td.nm{font-weight:700}
       <button class="btn ghost" id="btnModeloSkills"><i class="bi bi-download"></i> Modelo de skills</button>
       <button class="btn ghost" id="btnModeloStats"><i class="bi bi-download"></i> Modelo de estatísticas</button>
       <button class="btn ghost" id="btnPrompt"><i class="bi bi-clipboard"></i> Copiar prompt pra IA</button>
-      <label class="btn ghost" style="margin:0;cursor:pointer">
-        <i class="bi bi-upload"></i> Subir CSV preenchido
-        <input type="file" id="arquivo" accept=".csv,text/csv" hidden>
-      </label>
       <button class="btn ghost" id="btnTrocar"><i class="bi bi-arrow-left-right"></i> Trocar de time</button>
     </div>
+
+    <!-- Sozinho na linha e em azul: é o passo principal da página. Junto dos
+         outros, o botão que faz a coisa acontecer ficava com o mesmo peso do
+         que baixa um modelo. -->
+    <label class="btn azul largo" id="rotuloEnviar">
+      <i class="bi bi-upload"></i> Enviar atualização
+      <input type="file" id="arquivo" accept=".csv,text/csv" hidden>
+    </label>
     <div id="msgImport"></div>
   </div>
 
@@ -263,10 +272,16 @@ $('btnModeloSkills').addEventListener('click', () => baixarCSV('skills.csv', lin
 $('btnModeloStats').addEventListener('click', () => baixarCSV('estatisticas.csv', linhasStats()));
 
 $('btnPrompt').addEventListener('click', async (ev) => {
+  // Pede ARQUIVO, não texto na tela. Copiar CSV do chat e colar num editor é
+  // onde a coisa quebra: o chat mete markdown, quebra linha errado e o acento
+  // vem sem BOM. Pedindo o .csv pronto, o caminho vira baixar e subir.
   const texto =
     'Preencha este CSV com os dados dos jogadores de basquete a partir da imagem que vou anexar.\n\n' +
     'As notas de skill são: ' + NOTAS.join(', ') + '.\n' +
-    'NÃO altere as colunas "id" e "jogador". Devolva só o CSV, sem texto antes nem depois.\n\n' +
+    'NÃO altere as colunas "id" e "jogador" — elas ligam cada linha ao jogador certo.\n\n' +
+    'IMPORTANTE: me devolva o resultado como um ARQUIVO .csv pronto pra baixar, ' +
+    'codificado em UTF-8, separado por vírgula, com o mesmo cabeçalho do modelo. ' +
+    'Não escreva o CSV no meio da conversa e não explique nada — só gere o arquivo.\n\n' +
     '--- MODELO ---\n' +
     linhasSkills().map(l => l.map(csvEscape).join(',')).join('\n');
   try { await navigator.clipboard.writeText(texto); } catch (e) {
