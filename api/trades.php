@@ -6,6 +6,8 @@ require_once dirname(__DIR__) . '/backend/db.php';
 require_once dirname(__DIR__) . '/backend/helpers.php';
 // Quem escolhe em cada vaga do draft (dono da pick + swap).
 require_once dirname(__DIR__) . '/backend/draft_swaps.php';
+// Proteção de pick (só ELITE, só 1ª rodada) — regra e trava do ano seguinte.
+require_once dirname(__DIR__) . '/backend/pick_protection.php';
 
 /**
  * OVR mínimo pra uma trade aceita virar aviso no grupo do WhatsApp e no n8n.
@@ -2619,57 +2621,45 @@ if ($method === 'POST') {
         exit;
     }
 
-    // Validar posse das picks oferecidas
-    if (!empty($offerPicks)) {
-        $stmtPickOwner = $pdo->prepare('SELECT team_id, swap_locked, swap_type FROM picks WHERE id = ? AND team_id = ?');
-        foreach ($offerPicks as $pickEntry) {
+    // Validar posse das picks dos dois lados.
+    //
+    // Os dois blocos eram cópias que só mudavam a mensagem; a proteção de
+    // pick entrou como terceira regra e seria a terceira duplicata. Agora é
+    // um laço só, com o rótulo do lado no texto.
+    $ligaDaTroca = (string)($user['league'] ?? '');
+    $stmtPickOwner = $pdo->prepare('SELECT id, team_id, original_team_id, season_year, round,
+                                           swap_locked, swap_type, protection
+                                    FROM picks WHERE id = ? AND team_id = ?');
+    foreach ([['oferecer', $offerPicks, (int)$teamId, 'oferecidas'],
+              ['pedir',    $requestPicks, (int)$toTeamId, 'solicitadas']] as [$verbo, $lista, $donoEsperado, $adj]) {
+        foreach ($lista as $pickEntry) {
             $pickId = (int)($pickEntry['id'] ?? 0);
-            if ($pickId <= 0) {
-                continue;
-            }
-            $stmtPickOwner->execute([$pickId, $teamId]);
-            $pickRow = $stmtPickOwner->fetch(PDO::FETCH_ASSOC);
-            if (!$pickRow) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'error' => 'Você só pode oferecer picks que pertencem ao seu time']);
-                exit;
-            }
-            if (!empty($pickRow['swap_locked']) && empty($pickRow['swap_type'])) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'error' => 'Uma das picks oferecidas está travada para swap e não pode ser negociada']);
-                exit;
-            }
-            if (isPickLastYearOfSprint($pdo, $pickId)) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'error' => 'A pick do último ano do sprint não pode ser negociada.']);
-                exit;
-            }
-        }
-    }
+            if ($pickId <= 0) continue;
 
-    // Validar posse das picks solicitadas
-    if (!empty($requestPicks)) {
-        $stmtPickOwner = $pdo->prepare('SELECT team_id, swap_locked, swap_type FROM picks WHERE id = ? AND team_id = ?');
-        foreach ($requestPicks as $pickEntry) {
-            $pickId = (int)($pickEntry['id'] ?? 0);
-            if ($pickId <= 0) {
-                continue;
-            }
-            $stmtPickOwner->execute([$pickId, $toTeamId]);
+            $stmtPickOwner->execute([$pickId, $donoEsperado]);
             $pickRow = $stmtPickOwner->fetch(PDO::FETCH_ASSOC);
             if (!$pickRow) {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'error' => 'Só é possível pedir picks que pertencem ao time alvo']);
+                echo json_encode(['success' => false, 'error' => $verbo === 'oferecer'
+                    ? 'Você só pode oferecer picks que pertencem ao seu time'
+                    : 'Só é possível pedir picks que pertencem ao time alvo']);
                 exit;
             }
             if (!empty($pickRow['swap_locked']) && empty($pickRow['swap_type'])) {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'error' => 'Uma das picks solicitadas está travada para swap e não pode ser negociada']);
+                echo json_encode(['success' => false,
+                    'error' => "Uma das picks {$adj} está travada para swap e não pode ser negociada"]);
                 exit;
             }
             if (isPickLastYearOfSprint($pdo, $pickId)) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'A pick do último ano do sprint não pode ser negociada.']);
+                exit;
+            }
+            $erroProt = protecaoValidarNaTroca($pdo, $pickRow, $pickEntry['protection'] ?? null, $ligaDaTroca);
+            if ($erroProt !== '') {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $erroProt]);
                 exit;
             }
         }
@@ -3458,6 +3448,16 @@ if ($method === 'PUT') {
                             throw new Exception('Pick ID ' . $item['pick_id'] . ' não está mais disponível para transferência');
                         }
                         syncDraftOrderPickOwner($pdo, (int)$item['pick_id'], (int)$expectedOwner, (int)$newTeamId, $tradeLeague);
+                    }
+
+                    // A proteção combinada na troca passa a viver NA PICK. No
+                    // item da troca ela seria só histórico: quem precisa saber
+                    // que a pick é protegida é o draft, meses depois, e a
+                    // trava do ano seguinte, o tempo todo.
+                    $protItem = $item['pick_protection'] ?? null;
+                    if (protecaoValida($protItem) && protecaoLigaUsa($tradeLeague)) {
+                        $pdo->prepare('UPDATE picks SET protection = ? WHERE id = ?')
+                            ->execute([$protItem, (int)$item['pick_id']]);
                     }
                 }
             }

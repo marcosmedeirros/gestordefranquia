@@ -73,6 +73,11 @@ const tradeEmojiList = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+// Proteção de pick (só ELITE). Os rótulos chegam de api/picks.php junto com a
+// lista — quem manda no que existe é o backend, aqui é só exibição. O objeto
+// nasce vazio e é preenchido no carregamento das picks.
+let PROTECAO_ROTULOS = {};
+
 function _fmtTradeDate(createdAt, status) {
   // MySQL retorna "YYYY-MM-DD HH:MM:SS"; Safari exige "T" como separador
   const d = new Date((createdAt || '').replace(' ', 'T'));
@@ -872,6 +877,17 @@ function setupPickSelectorHandlers() {
           renderSelectedPicks('request');
         }
       });
+
+      // A proteção é um <select>: 'change', não 'click'.
+      selectedEl.addEventListener('change', (event) => {
+        const sel = event.target.closest('[data-action="set-protection"]');
+        if (!sel) return;
+        const id = Number(sel.dataset.pickId);
+        ['offer', 'request'].forEach((s) => {
+          pickState[s].selected = pickState[s].selected.map((p) =>
+            Number(p.id) === id ? { ...p, protection: sel.value || null } : p);
+        });
+      });
     }
   });
 
@@ -961,7 +977,9 @@ function syncSelectedPickMetadata(side) {
   pickState[side].selected = pickState[side].selected.map((selected) => {
     const updated = pickState[side].available.find((p) => Number(p.id) === Number(selected.id));
     if (updated) {
-      return { ...updated, protection: selected.protection || 'none' };
+      // null e não 'none': 'none' não é proteção válida e só sobrevivia
+      // porque a API descartava tudo que não estava na lista.
+      return { ...updated, protection: selected.protection || null };
     }
     return selected;
   });
@@ -986,16 +1004,22 @@ function renderPickOptions(side) {
   container.innerHTML = picks.map((pick) => {
     const summary = buildPickSummary(pick);
     const isSelected = selectedIds.includes(Number(pick.id));
-    const disabledAttr = isSelected ? 'disabled' : '';
-    const selectedClass = isSelected ? 'is-selected' : '';
+    // Pick travada aparece, mas não entra: some da lista faria o GM procurar
+    // uma pick que ele tem e não acha. O motivo vai escrito.
+    const travada = pick.protecao_travada || '';
+    const disabledAttr = (isSelected || travada) ? 'disabled' : '';
+    const selectedClass = isSelected ? 'is-selected' : (travada ? 'is-locked' : '');
+    const protegida = pick.protection ? PROTECAO_ROTULOS[pick.protection] : '';
     return `
       <div class="pick-option-card ${selectedClass}">
         <div>
-          <div class="pick-title">${summary.title}</div>
+          <div class="pick-title">${summary.title}${
+            protegida ? ` <span class="pick-prot">Protegida ${protegida}</span>` : ''}</div>
           <div class="pick-meta">${[summary.meta, summary.origin, summary.via].filter(Boolean).join(' • ')}</div>
+          ${travada ? `<div class="pick-meta pick-travada">${esc(travada)}</div>` : ''}
         </div>
         <button type="button" class="btn btn-sm ${isSelected ? 'btn-outline-secondary' : 'btn-outline-orange'}" data-action="add-pick" data-pick-id="${pick.id}" ${disabledAttr}>
-          ${isSelected ? 'Selecionada' : 'Adicionar'}
+          ${isSelected ? 'Selecionada' : travada ? 'Travada' : 'Adicionar'}
         </button>
       </div>
     `;
@@ -1030,6 +1054,19 @@ function renderSelectedPicks(side) {
             style="padding:4px 7px;border-radius:6px;font-size:11px;cursor:pointer;min-height:30px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:rgba(255,255,255,0.4)"><i class="bi bi-x-lg"></i></button>` : ''}
         </div>
       ` : '';
+
+    // Proteção: só na pick própria de 1ª rodada de quem tem lastro. Quem pode
+    // é o backend que diz (pode_proteger) — a regra é dele, não daqui.
+    const opcoesProt = Object.keys(PROTECAO_ROTULOS);
+    const protControls = (pick.pode_proteger && opcoesProt.length) ? `
+        <select class="pick-prot-sel" data-action="set-protection" data-pick-id="${pick.id}"
+                title="Se a pick cair nessa faixa ela não passa, e quem receberia leva a sua do ano seguinte">
+          <option value="">Sem proteção</option>
+          ${opcoesProt.map((k) => `<option value="${k}"${
+            pick.protection === k ? ' selected' : ''}>Protegida ${esc(PROTECAO_ROTULOS[k])}</option>`).join('')}
+        </select>
+      ` : '';
+
     return `
       <div class="selected-pick-card" data-pick-id="${pick.id}">
         <div class="selected-pick-info">
@@ -1037,6 +1074,7 @@ function renderSelectedPicks(side) {
           <div class="pick-meta">${[summary.meta, summary.origin, summary.via].filter(Boolean).join(' • ')}</div>
         </div>
         <div class="selected-pick-actions">
+          ${protControls}
           ${swapControls}
           <button type="button" class="btn btn-outline-light btn-sm" data-action="remove-pick" data-pick-id="${pick.id}">
             <i class="bi bi-x-lg"></i>
@@ -1199,9 +1237,13 @@ function resetPickSelection(side) {
 
 function getPickPayload(side) {
   if (!pickState[side]) return [];
-  return pickState[side].selected.map((pick) => ({
-    id: Number(pick.id)
-  }));
+  // A proteção vai junto: sem ela aqui, escolher "Protegida Top 5" na tela não
+  // chegava na API e o acordo virava enfeite.
+  return pickState[side].selected.map((pick) => {
+    const item = { id: Number(pick.id) };
+    if (pick.protection) item.protection = pick.protection;
+    return item;
+  });
 }
 
 function prefillPickSelections(side, picksFromTrade) {
@@ -1513,6 +1555,10 @@ async function loadMyAssets() {
     // Minhas picks
     const picksData = await api(`picks.php?team_id=${myTeamId}`);
     myPicks = picksData.picks || [];
+    if (picksData.protecoes) {
+      PROTECAO_ROTULOS = Object.fromEntries(
+        Object.entries(picksData.protecoes).map(([k, v]) => [k, v.rotulo]));
+    }
     
     console.log('Minhas picks:', myPicks.length);
     setAvailablePicks('offer', myPicks);

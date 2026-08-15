@@ -10,6 +10,8 @@ require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/push.php';
 // Quem escolhe em cada vaga: dono da pick + swap. Ver backend/draft_swaps.php.
 require_once __DIR__ . '/../backend/draft_swaps.php';
+// Proteção de pick: quem caiu na faixa protegida não passa (só ELITE).
+require_once __DIR__ . '/../backend/pick_protection.php';
 
 header('Content-Type: application/json');
 
@@ -1128,6 +1130,14 @@ if ($method === 'POST') {
                 $pdo->commit();
                 recalculateOrderPositions($pdo, (int)$draftSessionId);
 
+                // As picks protegidas se resolvem AQUI, antes de dizer quem
+                // escolhe: agora as posições existem, então dá pra saber se
+                // cada protegida caiu na faixa. Quem não passou muda de dono
+                // nesta hora, e é esse dono novo que a sincronização abaixo
+                // tem que enxergar — na ordem inversa, a ordem sairia com o
+                // dono errado até alguém reaplicar.
+                $protecoes = protecaoResolverNoDraft($pdo, (int)$draftSessionId);
+
                 // A ordem acabou de ser gravada com team_id = time de origem,
                 // ou seja, ignorando quem comprou pick numa troca. Aqui ela
                 // passa a dizer quem escolhe de verdade — dono atual da pick,
@@ -1135,7 +1145,7 @@ if ($method === 'POST') {
                 $sinc = draftSincronizarOrdem($pdo, (int)$draftSessionId);
 
                 echo json_encode(['success' => true, 'message' => 'Ordem definida com sucesso',
-                                  'ajustes' => $sinc]);
+                                  'ajustes' => $sinc, 'protecoes' => $protecoes]);
             } catch (Exception $e) {
                 $pdo->rollBack();
                 error_log('[draft/apply_order] ' . $e->getMessage());

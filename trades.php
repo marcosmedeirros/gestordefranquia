@@ -320,8 +320,22 @@ try {
     }
     .pick-option-card:hover { border-color: var(--red); }
     .pick-option-card.is-selected { opacity: .5; }
+    /* Travada aparece na lista, apagada: sumir faria o GM procurar uma pick
+       que ele tem e não acha. O motivo vem escrito embaixo. */
+    .pick-option-card.is-locked { opacity: .55; border-style: dashed; }
     .pick-title { color: var(--text); font-weight: 600; font-size: 13px; margin-bottom: 2px; }
     .pick-meta { font-size: 12px; color: var(--text-2); }
+    .pick-travada { color: var(--amber, #f59e0b); margin-top: 3px; }
+    .pick-prot {
+      display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+      font-size: 10px; font-weight: 700; letter-spacing: .02em;
+      background: rgba(245,158,11,.15); color: var(--amber, #f59e0b);
+      border: 1px solid rgba(245,158,11,.35);
+    }
+    .pick-prot-sel {
+      background: var(--panel-3); color: var(--text); border: 1px solid var(--border);
+      border-radius: 6px; font-size: 11px; padding: 4px 6px; min-height: 30px; flex-shrink: 0;
+    }
     .selected-picks { display: flex; flex-direction: column; gap: 8px; }
     .selected-pick-card {
       display: flex; flex-wrap: wrap; gap: 8px;
