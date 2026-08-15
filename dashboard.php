@@ -1103,6 +1103,27 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             background: #000; cursor: pointer;
         }
         .yt-capa.on { display: flex; }
+
+        /* PAUSADO é diferente de PARADO. Quem pausa quer VER o quadro — é
+           pra isso que se pausa um vídeo de progressão: olhar o jogador. A
+           capa preta cobria tudo e deixava a tela no escuro.
+
+           Aqui ela fica transparente e só mascara a FAIXA DE CIMA, que é
+           onde o YouTube desenha o título e o "assistir no YouTube". O resto
+           do quadro fica à mostra. No fim do vídeo a capa volta a ser preta
+           inteira: ali aparece a grade de vídeos relacionados, que ocupa a
+           tela toda e não tem como mascarar por pedaço. */
+        .yt-capa.pausa { background: transparent; }
+        .yt-capa.pausa::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 78px;
+            background: linear-gradient(to bottom, #000 34%, rgba(0,0,0,.72) 62%, rgba(0,0,0,0));
+            pointer-events: none;
+        }
+        .yt-capa.pausa .yt-play-grande {
+            background: rgba(0,0,0,.55); box-shadow: 0 6px 22px rgba(0,0,0,.45);
+            backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+        }
+        .yt-capa.pausa:hover .yt-play-grande { background: var(--red); }
         .yt-play-grande {
             width: 62px; height: 62px; border-radius: 50%; cursor: pointer;
             background: var(--red); border: 0; color: #fff; font-size: 28px;
@@ -1150,15 +1171,27 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         .prog-video-wrap.vid-pop {
             position: fixed; z-index: 901;
             top: 50%; left: 50%; transform: translate(-50%, -50%);
-            /* A largura já respeita a altura disponível (78vh × 16/9), então a
-               caixa fica exatamente 16:9 — com max-height a altura era cortada
-               e sobrava tarja preta dos lados. */
-            width: min(94vw, 1280px, calc(78vh * 16 / 9)); aspect-ratio: 16/9;
+            /* A largura já respeita a altura disponível, então a caixa fica
+               exatamente 16:9 — com max-height a altura era cortada e sobrava
+               tarja preta dos lados.
+
+               O `100vh - 150px` é o que garante lugar pra barra de Fechar
+               embaixo. Só com 78vh, numa tela baixa (celular deitado, janela
+               curta) a folga virava ~35px e a pílula caía em cima da barra de
+               tempo do próprio vídeo. Agora sobram no mínimo 75px de cada
+               lado, que é mais que a altura da pílula. */
+            width: min(94vw, 1280px, calc(78vh * 16 / 9), calc((100vh - 150px) * 16 / 9));
+            aspect-ratio: 16/9;
             border-radius: 12px; box-shadow: 0 30px 90px rgba(0,0,0,.65);
         }
         .vid-pop-barra {
             position: fixed; z-index: 902; left: 50%; transform: translateX(-50%);
-            bottom: max(18px, calc(11vh - 46px));
+            /* Fica ABAIXO do vídeo, com folga. A conta é a mesma altura que a
+               caixa acima usa: sobra (100vh − altura)/2 embaixo, e a pílula
+               ocupa ~46px. Antes era `11vh − 46px`, que assumia sempre 78vh e
+               deixava zero de respiro — daí a colisão com a barra de tempo. */
+            bottom: max(14px, calc(
+                (100vh - min(78vh, 100vh - 150px, 94vw * 9 / 16)) / 2 - 72px));
             display: none; align-items: center; gap: 10px;
             background: var(--panel); border: 1px solid var(--border-md);
             border-radius: 999px; padding: 8px 10px; box-shadow: 0 12px 30px rgba(0,0,0,.5);
@@ -2413,6 +2446,11 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     // Capa só sai quando está de fato tocando: no BUFFERING o
                     // YouTube desenha o spinner e o título dele por baixo.
                     capa.classList.toggle('on', !tocando);
+                    // Pausado ganha a capa transparente (dá pra ver o quadro);
+                    // parado, buffering e fim continuam com a capa cheia. O
+                    // BUFFERING fica de fora de propósito: é lá que o spinner
+                    // e o título deles aparecem.
+                    capa.classList.toggle('pausa', e.data === YT.PlayerState.PAUSED);
                     btn.innerHTML = tocando ? '<i class="bi bi-pause-fill"></i>' : '<i class="bi bi-play-fill"></i>';
                     btn.setAttribute('aria-label', tocando ? 'Pausar' : 'Reproduzir');
                     if (e.data === YT.PlayerState.ENDED) { preenche.style.width = '100%'; }
