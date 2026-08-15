@@ -61,27 +61,105 @@ function whatsappDentroDaJanela(?DateTimeImmutable $agora = null, ?PDO $pdo = nu
     return $hhmm >= WHATSAPP_JANELA_INICIO && $hhmm < WHATSAPP_JANELA_FIM;
 }
 
-/** Até quando o plantão vale (null = sem plantão). Uma consulta por request. */
+/**
+ * Como está o plantão: ['sempre' => bool, 'ate' => ?string].
+ * Uma consulta por request — quem chama são as duas funções abaixo.
+ */
+function whatsappPlantao(PDO $pdo): array
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = ['sempre' => false, 'ate' => null];
+    try {
+        $r = $pdo->query("SELECT plantao_ate, plantao_sempre FROM whatsapp_config WHERE id = 1")
+                 ->fetch(PDO::FETCH_ASSOC);
+        $cache = ['sempre' => !empty($r['plantao_sempre']), 'ate' => $r['plantao_ate'] ?: null];
+    } catch (Throwable $e) {
+        // Coluna ainda não existe neste banco: sem plantão, e a versão só com
+        // plantao_ate continua funcionando.
+        try {
+            $v = $pdo->query("SELECT plantao_ate FROM whatsapp_config WHERE id = 1")->fetchColumn();
+            $cache['ate'] = $v ?: null;
+        } catch (Throwable $e2) { /* nem isso: sem plantão */ }
+    }
+    return $cache;
+}
+
+/** Até quando o plantão vale (null = sem prazo marcado ou sem plantão). */
 function whatsappPlantaoAte(PDO $pdo): ?string
 {
-    static $cache = false;
-    if ($cache !== false) return $cache;
-    $cache = null;
-    try {
-        $v = $pdo->query("SELECT plantao_ate FROM whatsapp_config WHERE id = 1")->fetchColumn();
-        $cache = $v ?: null;
-    } catch (Throwable $e) { /* coluna ainda não existe: sem plantão */ }
-    return $cache;
+    return whatsappPlantao($pdo)['ate'];
+}
+
+/** Plantão sem prazo: vale enquanto não desligarem. */
+function whatsappPlantaoSempre(PDO $pdo): bool
+{
+    return whatsappPlantao($pdo)['sempre'];
 }
 
 function whatsappPlantaoAtivo(PDO $pdo, ?DateTimeImmutable $agora = null): bool
 {
-    $ate = whatsappPlantaoAte($pdo);
-    if (!$ate) return false;
+    $p = whatsappPlantao($pdo);
+    if ($p['sempre']) return true;
+    if (!$p['ate']) return false;
     $tz = new DateTimeZone('America/Sao_Paulo');
     $agora = $agora ? $agora->setTimezone($tz) : new DateTimeImmutable('now', $tz);
-    try { return new DateTimeImmutable($ate, $tz) > $agora; }
+    try { return new DateTimeImmutable($p['ate'], $tz) > $agora; }
     catch (Throwable $e) { return false; }
+}
+
+/**
+ * Liga, desliga ou reprograma o plantão. Ponto único: o painel e o comando
+ * do terminal passam os dois por aqui, senão as duas telas divergem na
+ * primeira mudança de regra.
+ *
+ *   'sempre'  → sem prazo, vale até desligarem
+ *   'off'     → volta pra janela 08:45–18:00
+ *   1..12     → tantas horas a partir de agora
+ *
+ * Devolve o estado novo, no mesmo formato de whatsappPlantao().
+ */
+function whatsappDefinirPlantao(PDO $pdo, $modo): array
+{
+    $tem = function (string $col) use ($pdo): bool {
+        try {
+            return (bool)$pdo->query("SHOW COLUMNS FROM whatsapp_config LIKE '{$col}'")->fetch();
+        } catch (Throwable $e) { return false; }
+    };
+    $temSempre = $tem('plantao_sempre');
+
+    if ($modo === 'sempre') {
+        if (!$temSempre) {
+            // Banco que ainda não migrou: 12 horas é o que dá pra prometer
+            // sem a coluna. Melhor um plantão curto de verdade que um
+            // "sempre" que não vale nada.
+            $pdo->prepare("UPDATE whatsapp_config SET plantao_ate = ? WHERE id = 1")
+                ->execute([(new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))
+                            ->modify('+12 hours')->format('Y-m-d H:i:s')]);
+        } else {
+            $pdo->exec("UPDATE whatsapp_config SET plantao_sempre = 1, plantao_ate = NULL WHERE id = 1");
+        }
+    } elseif ($modo === 'off' || (int)$modo === 0) {
+        $pdo->exec("UPDATE whatsapp_config SET plantao_ate = NULL"
+                 . ($temSempre ? ", plantao_sempre = 0" : "") . " WHERE id = 1");
+    } else {
+        $horas = max(1, min(12, (int)$modo));
+        $ate = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))
+                 ->modify("+{$horas} hours")->format('Y-m-d H:i:s');
+        $pdo->prepare("UPDATE whatsapp_config SET plantao_ate = ?"
+                    . ($temSempre ? ", plantao_sempre = 0" : "") . " WHERE id = 1")
+            ->execute([$ate]);
+    }
+
+    // O cache estático de whatsappPlantao() é por request; aqui a leitura tem
+    // que ser a nova, então vai direto no banco.
+    try {
+        $r = $pdo->query("SELECT plantao_ate" . ($temSempre ? ", plantao_sempre" : "")
+                       . " FROM whatsapp_config WHERE id = 1")->fetch(PDO::FETCH_ASSOC);
+        return ['sempre' => !empty($r['plantao_sempre']), 'ate' => $r['plantao_ate'] ?: null];
+    } catch (Throwable $e) {
+        return ['sempre' => false, 'ate' => null];
+    }
 }
 
 /**
@@ -199,9 +277,16 @@ function ensureWhatsAppTables(PDO $pdo): void
             $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN captura_jids TEXT NULL");
         }
         // Plantão: até quando a janela de envio fica liberada. NULL = sem
-        // plantão, que é o normal. Tem hora pra acabar de propósito.
+        // plantão, que é o normal.
         if (!in_array('plantao_ate', $cols, true)) {
             $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN plantao_ate DATETIME NULL");
+        }
+        // Plantão sem prazo. Existe porque o limitador de verdade do bot não é
+        // o relógio, é o PC: a Evolution roda na máquina do Marcos, então PC
+        // dormindo já é bot parado. Com isso ligado, quem manda no expediente
+        // é a máquina, e a janela some.
+        if (!in_array('plantao_sempre', $cols, true)) {
+            $pdo->exec("ALTER TABLE whatsapp_config ADD COLUMN plantao_sempre TINYINT(1) NOT NULL DEFAULT 0");
         }
 
         $pdo->exec("UPDATE whatsapp_config SET bot_token = SHA2(CONCAT(RAND(), UUID(), NOW()), 256)

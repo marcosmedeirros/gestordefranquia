@@ -205,25 +205,19 @@ if ($acao === 'captura') {
     exit;
 }
 
-// ── Plantão: liberar a janela de envio por algumas horas ─────────────
+// ── Plantão: liberar a janela de envio ───────────────────────────────
 //
 // Fora de 08:45–18:00 só sai comando e mensagem manual. O plantão libera
-// tudo — aviso de trade, quiz, o que estiver na fila — por um prazo com
-// hora pra acabar. Não existe "ligado pra sempre" de propósito: a janela
-// existe pra não acordar o grupo às três da manhã, e um plantão esquecido
-// desfaz exatamente isso.
+// tudo — aviso de trade, quiz, o que estiver na fila.
+//
+// Aceita um prazo (1..12 horas) ou 'sempre'. O 'sempre' existe porque o
+// limitador de verdade não é o relógio: a Evolution roda num PC de casa, e PC
+// dormindo já é bot parado. Quem prefere a janela é só não usar.
 if ($acao === 'plantao') {
-    $horas = (int)($_POST['horas'] ?? 0);
-    if ($horas === 0) {
-        $pdo->prepare("UPDATE whatsapp_config SET plantao_ate = NULL WHERE id = 1")->execute();
-        echo json_encode(['ok' => true, 'ate' => null]);
-        exit;
-    }
-    $horas = max(1, min(12, $horas));
-    $ate = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))
-             ->modify("+{$horas} hours")->format('Y-m-d H:i:s');
-    $pdo->prepare("UPDATE whatsapp_config SET plantao_ate = ? WHERE id = 1")->execute([$ate]);
-    echo json_encode(['ok' => true, 'ate' => $ate, 'horas' => $horas]);
+    $modo = $_POST['modo'] ?? null;
+    if ($modo === null) $modo = (int)($_POST['horas'] ?? 0);   // formato antigo
+    $p = whatsappDefinirPlantao($pdo, $modo);
+    echo json_encode(['ok' => true] + $p);
     exit;
 }
 

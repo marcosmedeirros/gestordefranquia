@@ -219,18 +219,51 @@ if ($acao === 'diagnostico') {
     $ultimoErro = $pdo->query("SELECT ultimo_erro FROM whatsapp_fila
                                WHERE ultimo_erro IS NOT NULL ORDER BY id DESC LIMIT 1")->fetchColumn();
 
+    // Quando chegou a última mensagem DE FORA. É o único jeito de saber, do
+    // terminal, se o webhook da Evolution está chegando aqui: fila parada e
+    // sem erro tem duas causas opostas — ninguém falou nada, ou a recepção
+    // morreu e o site nem ficou sabendo. Já aconteceu de a Evolution reportar
+    // 'open' com o socket de recepção morto, e nada aqui denunciava.
+    //
+    // Só vale com o arquivo do painel ligado; desligado, devolve null em vez
+    // de mentir dizendo que faz tempo que não chega nada.
+    $ultimaEntrada = null;
+    if (whatsappCaptura($pdo)['modo'] !== 'off') {
+        try {
+            $ultimaEntrada = $pdo->query("SELECT MAX(criado_em) FROM whatsapp_conversas")->fetchColumn() ?: null;
+        } catch (Throwable $e) { /* tabela ainda não existe */ }
+    }
+
     botResponder(200, [
         'ativo'          => (bool)($cfg['ativo'] ?? 0),
         'grupo_definido' => $grupo !== '',
-        // Só o final do JID: o suficiente pra conferir, sem despejar o
-        // identificador do grupo numa resposta HTTP.
         'grupo_fim'      => $grupo === '' ? null : '…' . mb_substr($grupo, -12),
         'bot_visto_em'   => $cfg['bot_visto_em'] ?? null,
         'grupos_de_comando' => count(whatsappGruposDeComando($pdo)),
         'dentro_da_janela' => whatsappDentroDaJanela(null, $pdo),
+        'plantao'        => whatsappPlantao($pdo),
+        'ultima_entrada' => $ultimaEntrada,
         'fila'           => array_map('intval', $fila ?: []),
         'ultimo_erro'    => $ultimoErro ?: null,
     ]);
+}
+
+// ── Plantão ─────────────────────────────────────────────────────────────
+//
+// Mesmo liga/desliga do painel, só que autenticado por token em vez de
+// sessão. Existe porque o painel exige navegador logado, e ligar o bot é
+// justamente o tipo de coisa que se quer fazer do terminal — inclusive de uma
+// máquina cujo IP não está liberado no MySQL remoto da Hostinger.
+//
+// O token já dá acesso à fila inteira; mandar no plantão não amplia o
+// estrago de um vazamento.
+if ($acao === 'plantao') {
+    $modo = $_GET['modo'] ?? $_POST['modo'] ?? '';
+    if (!in_array((string)$modo, ['sempre', 'off'], true) && (int)$modo <= 0) {
+        botResponder(422, ['erro' => "modo deve ser 'sempre', 'off' ou um número de horas (1..12)"]);
+    }
+    $p = whatsappDefinirPlantao($pdo, is_numeric($modo) ? (int)$modo : (string)$modo);
+    botResponder(200, ['ok' => true] + $p + ['dentro_da_janela' => whatsappDentroDaJanela(null, $pdo)]);
 }
 
 // ── Resultado ───────────────────────────────────────────────────────────

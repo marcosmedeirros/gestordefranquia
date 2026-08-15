@@ -37,7 +37,8 @@ ensureWhatsAppTables($pdo);
 $captura = whatsappCaptura($pdo);
 $botLigado = whatsappAtivo($pdo);
 $janela = whatsappDentroDaJanela(null, $pdo);
-$plantaoAte = whatsappPlantaoAtivo($pdo) ? whatsappPlantaoAte($pdo) : null;
+$plantaoSempre = whatsappPlantaoSempre($pdo);
+$plantaoAte = (!$plantaoSempre && whatsappPlantaoAtivo($pdo)) ? whatsappPlantaoAte($pdo) : null;
 
 // Grupos conhecidos, pra oferecer no seletor do modo "grupos escolhidos".
 $gruposVistos = [];
@@ -201,6 +202,11 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
   <div class="selo">
     <?php if (!$botLigado): ?>
       <span class="pino off" title="Ligue em Central da Liga">Bot desligado</span>
+    <?php elseif ($plantaoSempre): ?>
+      <button class="pino on pino-btn" onclick="plantao('off')"
+              title="Plantão sem prazo: a janela de horário não vale, o bot manda enquanto o PC estiver ligado. Clique pra voltar ao horário normal.">
+        Sempre ativo
+      </button>
     <?php elseif (!$janela): ?>
       <button class="pino alerta pino-btn" onclick="plantao(4)"
               title="Fora de 08:45–18:00 só sai comando e mensagem manual. Clique pra liberar tudo por 4 horas.">
@@ -213,6 +219,12 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
       </button>
     <?php else: ?>
       <span class="pino on">Bot ativo</span>
+    <?php endif; ?>
+    <?php if ($botLigado && !$plantaoSempre): ?>
+      <button class="pino pino-btn" onclick="plantao('sempre')"
+              title="Ignorar a janela de horário de vez: o bot passa a mandar sempre que o PC da Evolution estiver ligado.">
+        <i class="bi bi-infinity"></i> Sempre
+      </button>
     <?php endif; ?>
     <button class="pino pino-btn <?= $captura['modo'] === 'off' ? 'off' : 'on' ?>" id="pinoCaptura"
             onclick="document.getElementById('painelCaptura').classList.toggle('aberto')"
@@ -405,14 +417,18 @@ async function apagarArquivo(){
 }
 
 /* ── Plantão ────────────────────────────────────────────────────── */
-async function plantao(horas){
-  const msg = horas
-    ? `Liberar a janela de envio por ${horas} horas?\n\nTudo que estiver na fila (aviso de trade, quiz) passa a sair agora, inclusive fora do horário.`
-    : 'Voltar ao horário normal? Fora de 08:45–18:00 só sairá comando e mensagem manual.';
+async function plantao(modo){
+  const msg = modo === 'sempre'
+    ? 'Deixar o bot sempre ativo?\n\nA janela de horário deixa de valer: o bot manda enquanto o PC da Evolution estiver ligado, de madrugada inclusive.'
+    : (modo === 'off' || modo === 0)
+      ? 'Voltar ao horário normal? Fora de 08:45–18:00 só sairá comando e mensagem manual.'
+      : `Liberar a janela de envio por ${modo} horas?\n\nTudo que estiver na fila (aviso de trade, quiz) passa a sair agora, inclusive fora do horário.`;
   if (!confirm(msg)) return;
   try {
-    const d = await api('plantao', {horas: String(horas)});
-    alert(d.ate ? `Liberado até ${d.ate.slice(11, 16)}.` : 'De volta ao horário normal.');
+    const d = await api('plantao', {modo: String(modo)});
+    alert(d.sempre ? 'Bot sempre ativo.'
+        : d.ate    ? `Liberado até ${d.ate.slice(11, 16)}.`
+                   : 'De volta ao horário normal.');
     location.reload();
   } catch (e) { alert(e.message); }
 }
