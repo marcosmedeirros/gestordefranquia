@@ -668,7 +668,8 @@ if ($teamId) {
                 <?php /* Imagem em vez de texto: colar elenco no grupo sai como
                          parede de linhas e ilegível na miniatura. O cartão é o
                          mesmo formato dos games — 1080×1350. */ ?>
-                <button id="btn-foto-elenco" class="btn-ghost" type="button"><i class="bi bi-image"></i> Foto do Elenco</button>
+                <button id="btn-foto-baixar" class="btn-ghost" type="button"><i class="bi bi-download"></i> Baixar Foto</button>
+                <button id="btn-foto-copiar" class="btn-ghost" type="button"><i class="bi bi-clipboard-plus"></i> Copiar Foto</button>
             </div>
             <?php endif; ?>
         </div>
@@ -679,8 +680,11 @@ if ($teamId) {
         </div>
         <?php else: ?>
 
-        <!-- Selo da franquia (Contending/Buying/Selling/Rebuilding) -->
-        <div id="franchise-tag-bar" style="display:none;margin-bottom:16px"></div>
+        <?php /* O selo da franquia (Contending/Buying/Selling/Rebuilding) saiu
+                 do topo desta página a pedido do Marcos: ocupava a faixa acima
+                 dos cards com uma leitura automática que ninguém consultava ali.
+                 A etiqueta continua sendo calculada e gravada em teams.team_tag
+                 — quem usa ela é o resto do app, não este cabeçalho. */ ?>
 
         <!-- Stats strip -->
         <div class="stats-strip">
@@ -1195,6 +1199,23 @@ if ($teamId) {
     // ninguém escolher cor nenhuma.
     const FOTO_CORES = <?= json_encode(cartaoCoresDoNome(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')))) ?>;
 
+    /**
+     * A cor de detalhe do cartão quando o time não escolheu nenhuma.
+     *
+     * Derivada do nome, em hex: o canvas concatena alfa no fim ("#rrggbb30"),
+     * e isso não funciona com hsl(). Mesmo time, mesma cor, sempre.
+     */
+    const FOTO_CORES_HEX = (() => {
+        const nome = <?= json_encode(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?> || '?';
+        let h = 0;
+        for (const ch of nome) h = (h * 31 + ch.codePointAt(0)) % 4294967296;
+        // HSL→hex à mão: saturação e luminosidade fixas, só o matiz varia.
+        const mat = h % 360, s = 0.62, l = 0.52;
+        const k = n => (n + mat / 30) % 12;
+        const f = n => Math.round(255 * (l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))));
+        return '#' + [f(0), f(8), f(4)].map(v => v.toString(16).padStart(2, '0')).join('');
+    })();
+
     const _teamMeta   = {
         name: <?= json_encode(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?>,
         userName: <?= json_encode($user['name']) ?>,
@@ -1203,9 +1224,14 @@ if ($teamId) {
         capMax: <?= (int)$capMax ?>,
         trades: <?= (int)$tradesCountCopy ?>,
         maxTrades: <?= (int)$maxTradesCopy ?>,
+        logo: <?= json_encode($team['photo_url'] ?? '') ?>,
         customHeader: <?= json_encode($team['custom_header'] ?? '') ?>,
         useCustomHeader: <?= !empty($team['use_custom_header']) ? 'true' : 'false' ?>,
         league: <?= json_encode($team['league'] ?? '') ?>,
+        // As cores que o GM escolheu na página pública do time. Sem elas, o
+        // cartão cai no par derivado do nome — nunca fica sem identidade.
+        cor1: <?= json_encode($team['public_primary_color'] ?? null) ?>,
+        cor2: <?= json_encode($team['public_secondary_color'] ?? null) ?>,
         // Liga no salary cap (ELITE) copia a folha, não a soma de OVR do topo.
         salary: <?= ($salaryCapMode && $salCap) ? json_encode([
             'payroll'   => (int)$salCap['payroll'],
@@ -1297,49 +1323,312 @@ if ($teamId) {
      * um lado e os 5 melhores do banco do outro; elenco inteiro não caberia
      * legível, e a graça é ser lido na miniatura da conversa.
      */
-    document.getElementById('btn-foto-elenco')?.addEventListener('click', async (ev) => {
-        const botao = ev.currentTarget;
+    /**
+     * A foto do elenco: 1080×1350, fundo preto, cor do time nos detalhes.
+     *
+     * Desenho próprio e não o games/core/cartao.php: aquele existe pra manter
+     * os TRÊS JOGOS com a mesma cara, e o pedido aqui — preto, cor do clube só
+     * no detalhe, foto dos titulares e escudo — é outro desenho. Forçar os
+     * dois no mesmo arquivo faria cada ajuste de um mexer no outro.
+     *
+     * Imagem que não carrega vira círculo com as iniciais. Foto de jogador vem
+     * do CDN da NBA, e sem CORS ela CONTAMINA o canvas: o desenho apareceria e
+     * o download quebraria com SecurityError. Por isso cada imagem é testada
+     * antes, e o que não passa é substituído.
+     */
+    function _imgSegura(url) {
+        // Devolve a imagem só se ela puder ser desenhada sem contaminar.
+        return new Promise(resolve => {
+            if (!url) return resolve(null);
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                try {
+                    const t = document.createElement('canvas');
+                    t.width = t.height = 2;
+                    t.getContext('2d').drawImage(img, 0, 0, 2, 2);
+                    t.getContext('2d').getImageData(0, 0, 1, 1);   // estoura se contaminou
+                    resolve(img);
+                } catch (e) { resolve(null); }
+            };
+            img.onerror = () => resolve(null);
+            img.src = url;
+        });
+    }
+
+    async function _fotoElenco() {
         await _refreshRosterData();
 
         const posOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
         const titulares = _rosterData.filter(p => p.role === 'Titular')
-            .sort((a, b) => (posOrder[a.position] ?? 9) - (posOrder[b.position] ?? 9));
+            .sort((a, b) => (posOrder[a.position] ?? 9) - (posOrder[b.position] ?? 9)).slice(0, 5);
         const banco = _rosterData.filter(p => p.role === 'Banco')
             .sort((a, b) => Number(b.ovr) - Number(a.ovr));
 
-        const linha = p => `${p.position} ${p.name} · ${p.ovr ?? '-'}`;
+        // A cor do clube entra só no detalhe; o fundo é preto e o texto branco.
+        const cor = (_teamMeta.cor1 && /^#[0-9a-f]{3,6}$/i.test(_teamMeta.cor1))
+                  ? _teamMeta.cor1 : (FOTO_CORES_HEX || '#fc0025');
+        const cor2 = (_teamMeta.cor2 && /^#[0-9a-f]{3,6}$/i.test(_teamMeta.cor2)) ? _teamMeta.cor2 : cor;
+
+        // A altura acompanha o tamanho do banco: com tres reservas sobrava
+        // um terco do cartao em preto, e miniatura de conversa corta o que
+        // sobra sem dizer nada. Minimo de 1080 pra nao virar uma faixa.
+        const linhasBanco = Math.ceil(Math.min(banco.length, 8) / 2);
+        const W = 1080, H = Math.max(1080, 940 + linhasBanco * 52 + 110);
+        const cv = document.createElement('canvas');
+        cv.width = W; cv.height = H;
+        const c = cv.getContext('2d');
+
+        // Fundo preto com um respiro da cor do time no topo — sem isso o
+        // cartão fica um retângulo preto sem dono.
+        c.fillStyle = '#08080a'; c.fillRect(0, 0, W, H);
+        const g = c.createLinearGradient(0, 0, W, 420);
+        g.addColorStop(0, cor + '30'); g.addColorStop(1, '#08080a00');
+        c.fillStyle = g; c.fillRect(0, 0, W, 420);
+        c.fillStyle = cor; c.fillRect(0, 0, W, 8);
+
+        const corta = (txt, max, px, peso = '700') => {
+            c.font = `${peso} ${px}px Montserrat, Arial, sans-serif`;
+            let t = String(txt ?? '');
+            while (t.length > 3 && c.measureText(t).width > max) t = t.slice(0, -1);
+            return t.length < String(txt ?? '').length ? t.trimEnd() + '…' : t;
+        };
+
+        // ── Cabeçalho: escudo + nome + liga ──────────────────────────
+        const logo = await _imgSegura(_teamMeta.logo);
+        let x = 64;
+        if (logo) {
+            const s = 118;
+            c.save();
+            c.beginPath(); c.arc(x + s / 2, 108 + s / 2, s / 2, 0, Math.PI * 2); c.closePath(); c.clip();
+            c.fillStyle = '#141418'; c.fillRect(x, 108, s, s);
+            c.drawImage(logo, x, 108, s, s);
+            c.restore();
+            c.strokeStyle = cor; c.lineWidth = 3;
+            c.beginPath(); c.arc(x + s / 2, 108 + s / 2, s / 2, 0, Math.PI * 2); c.stroke();
+            x += s + 26;
+        }
+        c.textBaseline = 'alphabetic';
+        c.fillStyle = '#fff';
+        c.font = '800 46px Montserrat, Arial, sans-serif';
+        c.fillText(corta(_teamMeta.name, W - x - 64, 46, '800'), x, 168);
+        c.fillStyle = cor;
+        c.font = '800 22px Montserrat, Arial, sans-serif';
+        c.fillText(String(_teamMeta.league || '').toUpperCase(), x, 205);
+        c.fillStyle = 'rgba(255,255,255,.62)';
+        c.font = '600 22px Montserrat, Arial, sans-serif';
+        c.fillText(corta(_teamMeta.userName, W - x - 64, 22, '600'), x + c.measureText(String(_teamMeta.league || '').toUpperCase()).width + 18, 205);
+
+        // ── Quinteto: foto, nome e OVR ───────────────────────────────
+        c.fillStyle = cor;
+        c.font = '800 20px Montserrat, Arial, sans-serif';
+        c.fillText('QUINTETO TITULAR', 64, 292);
+        c.fillStyle = 'rgba(255,255,255,.10)';
+        c.fillRect(64, 306, W - 128, 2);
+
+        // Headshot da NBA passa pelo proxy: vindo direto do cdn.nba.com ele
+        // contamina o canvas e o download quebra. Foto enviada pelo GM já é
+        // do nosso domínio e vai direto.
+        const urlPraCanvas = (p) => p.nba_player_id && !String(p.foto_adicional || '').trim()
+            ? `/api/foto-proxy.php?id=${encodeURIComponent(p.nba_player_id)}`
+            : getPlayerPhotoUrl(p);
+        const fotos = await Promise.all(titulares.map(p => _imgSegura(urlPraCanvas(p))));
+        const larg = (W - 128) / 5, foto = 130, topo = 340;
+
+        titulares.forEach((p, i) => {
+            const cx = 64 + larg * i + larg / 2;
+            const cy = topo + foto / 2;
+
+            c.save();
+            c.beginPath(); c.arc(cx, cy, foto / 2, 0, Math.PI * 2); c.closePath(); c.clip();
+            c.fillStyle = '#16161c'; c.fillRect(cx - foto / 2, topo, foto, foto);
+            if (fotos[i]) {
+                // O headshot é 260×190: encaixa pela altura pra não achatar.
+                const r = Math.max(foto / fotos[i].width, foto / fotos[i].height);
+                const w = fotos[i].width * r, h = fotos[i].height * r;
+                c.drawImage(fotos[i], cx - w / 2, cy - h / 2, w, h);
+            } else {
+                c.fillStyle = 'rgba(255,255,255,.30)';
+                c.font = '800 44px Montserrat, Arial, sans-serif';
+                c.textAlign = 'center';
+                c.fillText(String(p.name || '?').trim().slice(0, 1).toUpperCase(), cx, cy + 16);
+            }
+            c.restore();
+
+            c.strokeStyle = cor; c.lineWidth = 3;
+            c.beginPath(); c.arc(cx, cy, foto / 2, 0, Math.PI * 2); c.stroke();
+
+            c.textAlign = 'center';
+            // A posição numa pílula da cor do time: é o que separa um do outro
+            // de relance, e o quinteto é lido pela posição, não pelo nome.
+            const pw = 62, ph = 26, py = topo + foto - 4;
+            c.fillStyle = cor;
+            c.beginPath(); c.roundRect(cx - pw / 2, py, pw, ph, 13); c.fill();
+            c.fillStyle = '#fff';
+            c.font = '800 15px Montserrat, Arial, sans-serif';
+            c.fillText(p.position || '-', cx, py + 18);
+
+            c.fillStyle = '#fff';
+            c.font = '700 19px Montserrat, Arial, sans-serif';
+            const nome = String(p.name || '').split(' ');
+            const ult = nome.length > 1 ? nome[nome.length - 1] : nome[0];
+            c.fillText(corta(ult, larg - 10, 19), cx, py + 62);
+
+            c.fillStyle = cor;
+            c.font = '800 36px Oswald, Montserrat, Arial, sans-serif';
+            c.fillText(String(p.ovr ?? '-'), cx, py + 106);
+            c.textAlign = 'left';
+        });
+
+        // ── Números ──────────────────────────────────────────────────
         const ovrs = _rosterData.map(p => Number(p.ovr)).filter(n => Number.isFinite(n) && n > 0);
         const media = ovrs.length ? Math.round(ovrs.reduce((s, n) => s + n, 0) / ovrs.length) : 0;
-        // O OVR do quinteto é o número que a pessoa quer mostrar; a média do
-        // elenco inteiro dilui com quem não joga.
         const ovrT = titulares.map(p => Number(p.ovr)).filter(n => Number.isFinite(n) && n > 0);
         const mediaT = ovrT.length ? Math.round(ovrT.reduce((s, n) => s + n, 0) / ovrT.length) : media;
 
-        const nums = [
-            [String(_rosterData.length), 'jogadores'],
-            [String(media || '-'), 'OVR médio'],
-        ];
-        // Folha em dinheiro só existe na ELITE; nas outras o "cap" é soma de
-        // OVR do topo, e mostrar como "folha" seria mentira.
+        const caixas = [[String(mediaT || '-'), 'OVR QUINTETO'], [String(media || '-'), 'OVR ELENCO'],
+                        [String(_rosterData.length), 'JOGADORES']];
         if (_teamMeta.salary && _teamMeta.salary.payroll !== undefined) {
-            nums.push([`${_teamMeta.salary.payroll}M`, 'folha']);
+            caixas.push([`${_teamMeta.salary.payroll}M`, 'FOLHA']);
+        } else {
+            caixas.push([`${_teamMeta.trades}/${_teamMeta.maxTrades}`, 'TRADES']);
         }
-        nums.push([`${_teamMeta.trades}/${_teamMeta.maxTrades}`, 'trades']);
 
-        fbaCompartilhar({
-            c1: FOTO_CORES[0], c2: FOTO_CORES[1],
-            numero: String(mediaT || '-'), rotulo: 'OVR do quinteto',
-            direita: [_teamMeta.league || '', _teamMeta.userName || '', `${_rosterData.length} jogadores`],
-            titulo: _teamMeta.name || 'Meu elenco',
-            sub: `${titulares.length} titulares · ${banco.length} no banco`,
-            nums,
-            listas: [
-                { titulo: 'Quinteto', itens: titulares.length ? titulares.map(linha) : ['—'] },
-                { titulo: 'Banco',    itens: banco.length ? banco.slice(0, 5).map(linha) : ['—'] },
-            ],
-            nome: _teamMeta.name || 'Elenco',
-            jogo: 'FBA MANAGER',
-        }, botao);
+        const cy0 = 660, cw = (W - 128 - 3 * 14) / 4;
+        caixas.forEach((n, i) => {
+            const bx = 64 + (cw + 14) * i;
+            c.fillStyle = '#101015';
+            c.beginPath(); c.roundRect(bx, cy0, cw, 110, 14); c.fill();
+            c.strokeStyle = 'rgba(255,255,255,.07)'; c.lineWidth = 1;
+            c.beginPath(); c.roundRect(bx, cy0, cw, 110, 14); c.stroke();
+            c.textAlign = 'center';
+            c.fillStyle = '#fff';
+            c.font = '700 42px Oswald, Montserrat, Arial, sans-serif';
+            c.fillText(n[0], bx + cw / 2, cy0 + 60);
+            c.fillStyle = 'rgba(255,255,255,.45)';
+            c.font = '700 13px Montserrat, Arial, sans-serif';
+            c.fillText(n[1], bx + cw / 2, cy0 + 88);
+            c.textAlign = 'left';
+        });
+
+        // ── Banco ────────────────────────────────────────────────────
+        c.fillStyle = cor2;
+        c.font = '800 20px Montserrat, Arial, sans-serif';
+        c.fillText('BANCO', 64, 838);
+        c.fillStyle = 'rgba(255,255,255,.10)';
+        c.fillRect(64, 852, W - 128, 2);
+
+        const doBanco = banco.slice(0, 8);
+        if (!doBanco.length) {
+            c.fillStyle = 'rgba(255,255,255,.35)';
+            c.font = '600 22px Montserrat, Arial, sans-serif';
+            c.fillText('Ninguém no banco.', 64, 900);
+        }
+        doBanco.forEach((p, i) => {
+            const col = i % 2, lin = Math.floor(i / 2);
+            const bx = 64 + col * ((W - 128) / 2), by = 890 + lin * 52;
+            c.fillStyle = cor2;
+            c.font = '800 16px Montserrat, Arial, sans-serif';
+            c.fillText(p.position || '-', bx, by);
+            c.fillStyle = '#fff';
+            c.font = '600 21px Montserrat, Arial, sans-serif';
+            c.fillText(corta(p.name, (W - 128) / 2 - 130, 21, '600'), bx + 46, by);
+            c.fillStyle = 'rgba(255,255,255,.75)';
+            c.font = '700 21px Oswald, Montserrat, Arial, sans-serif';
+            c.textAlign = 'right';
+            c.fillText(String(p.ovr ?? '-'), bx + (W - 128) / 2 - 34, by);
+            c.textAlign = 'left';
+        });
+        if (banco.length > 8) {
+            c.fillStyle = 'rgba(255,255,255,.40)';
+            c.font = '600 17px Montserrat, Arial, sans-serif';
+            c.fillText(`+${banco.length - 8} no banco`, 64, 890 + Math.ceil(doBanco.length / 2) * 52);
+        }
+
+        // ── Rodapé ───────────────────────────────────────────────────
+        c.fillStyle = cor; c.fillRect(0, H - 6, W, 6);
+        c.fillStyle = 'rgba(255,255,255,.34)';
+        c.font = '700 17px Montserrat, Arial, sans-serif';
+        c.fillText('FBA MANAGER', 64, H - 40);
+        c.textAlign = 'right';
+        c.fillText(new Date().toLocaleDateString('pt-BR'), W - 64, H - 40);
+        c.textAlign = 'left';
+
+        return cv;
+    }
+    /** Muda o texto do botão por um instante, pra confirmar o que aconteceu. */
+    function _avisoBotao(botao, texto, ms = 1800) {
+        const antes = botao.innerHTML;
+        botao.innerHTML = texto;
+        setTimeout(() => { botao.innerHTML = antes; }, ms);
+    }
+
+    document.getElementById('btn-foto-baixar')?.addEventListener('click', async (ev) => {
+        const botao = ev.currentTarget;
+        botao.disabled = true;
+        const antes = botao.innerHTML;
+        botao.innerHTML = 'Gerando…';
+        try {
+            const cv = await _fotoElenco();
+            const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = String(_teamMeta.name || 'elenco').replace(/[^\w-]+/g, '-') + '.png';
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+            botao.innerHTML = antes;
+            _avisoBotao(botao, '<i class="bi bi-check-lg"></i> Baixado');
+        } catch (e) {
+            botao.innerHTML = antes;
+            alert('Não deu pra gerar a foto.');
+        } finally { botao.disabled = false; }
+    });
+
+    document.getElementById('btn-foto-copiar')?.addEventListener('click', async (ev) => {
+        const botao = ev.currentTarget;
+        botao.disabled = true;
+        const antes = botao.innerHTML;
+        botao.innerHTML = 'Gerando…';
+        try {
+            const cv = await _fotoElenco();
+            const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+
+            // Colar imagem exige a API de clipboard com ClipboardItem, que não
+            // existe em todo navegador (Firefox só recente, e nada em http://
+            // sem ser localhost). Sem ela, baixar é a saída honesta — melhor
+            // que um "copiado!" que não colou nada.
+            if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = String(_teamMeta.name || 'elenco').replace(/[^\w-]+/g, '-') + '.png';
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+                botao.innerHTML = antes;
+                alert('Seu navegador não deixa copiar imagem — baixei o arquivo.');
+                return;
+            }
+
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            botao.innerHTML = antes;
+            _avisoBotao(botao, '<i class="bi bi-check-lg"></i> Copiada');
+        } catch (e) {
+            // Copiar imagem exige clique de verdade e permissão; quando o
+            // navegador recusa, baixar é melhor que mandar a pessoa clicar em
+            // outro botão pra tentar de novo.
+            botao.innerHTML = antes;
+            try {
+                const cv = await _fotoElenco();
+                const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = String(_teamMeta.name || 'elenco').replace(/[^\w-]+/g, '-') + '.png';
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+                _avisoBotao(botao, '<i class="bi bi-download"></i> Baixada');
+            } catch (e2) {
+                alert('Não deu pra gerar a foto.');
+            }
+        } finally { botao.disabled = false; }
     });
 </script>
 <script src="<?= assetUrl('/js/my-roster-v2.js') ?>"></script>

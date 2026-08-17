@@ -291,8 +291,10 @@ function wcAjuda(): string
         . "/lendas — os marcados como LENDA\n"
         . "/hall — o Hall da Fama\n"
         . "/premios — os prêmios da temporada\n"
-        . "/guia — o guia do GM\n"
-        . "/quizaqui — _(admin)_ manda o quiz do dia sair neste grupo\n\n"
+        . "/guia — o guia do GM\n\n"
+        // /quizaqui existe e continua funcionando, mas fica FORA desta lista:
+        // é comando de organização, usado uma vez pra apontar onde o quiz sai.
+        // Numa ajuda que a liga inteira lê, ele só gera "o que é isso?".
         . "Ex.: /comparar lebron x tatum  •  /meucap  •  /minhastrades";
 }
 
