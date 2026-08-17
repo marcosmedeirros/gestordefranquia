@@ -3,6 +3,8 @@ require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
 $_cfg = require __DIR__ . '/backend/config.php';
+// O cartão compartilhável 1080×1350 — o mesmo dos games, pra foto do elenco.
+require_once __DIR__ . '/games/core/cartao.php';
 $bdlApiKey = $_cfg['app']['bdl_api_key'] ?? '';
 requireAuth();
 
@@ -450,6 +452,43 @@ if ($teamId) {
         }
         .roster-divider { width: min(320px,80%); margin: 0 auto; border-color: var(--border); opacity: .5; }
 
+        /* ── Quinteto titular ─────────────────────────────
+           Cinco cartões numa fileira, na ordem PG→C, com a posição em cima
+           como etiqueta. Antes era uma grade de 3 colunas com cartões iguais
+           aos do banco: o quinteto é a informação mais consultada da página e
+           não tinha nenhum destaque — dava trabalho descobrir quem era o
+           armador. */
+        .q5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+        .q5-card {
+            position: relative; background: var(--panel-2); border: 1px solid var(--border);
+            border-top: 3px solid var(--pos-c, var(--red));
+            border-radius: var(--radius-sm); padding: 16px 10px 14px;
+            display: flex; flex-direction: column; align-items: center; gap: 9px;
+            transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease), border-color var(--t);
+        }
+        .q5-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px var(--red-glow); }
+        .q5-pos {
+            position: absolute; top: -1px; left: 50%; transform: translate(-50%, -50%);
+            background: var(--pos-c, var(--red)); color: #fff; font-size: 10px; font-weight: 800;
+            letter-spacing: .08em; padding: 2px 10px; border-radius: 999px; line-height: 1.5;
+        }
+        .q5-foto {
+            width: 76px; height: 76px; border-radius: 50%; object-fit: cover;
+            border: 2px solid var(--pos-c, var(--red)); background: var(--panel-3);
+        }
+        .q5-nome {
+            font-size: 13px; font-weight: 700; color: var(--text); text-align: center;
+            line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden; min-height: 2.5em;
+        }
+        .q5-ovr { font-family: 'Oswald', sans-serif; font-size: 30px; font-weight: 700; line-height: 1; }
+        .q5-meta { font-size: 11px; color: var(--text-3); text-align: center; }
+        .q5-tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+        /* Abaixo de 5 colunas os cartões ficam com 60px e o nome some. Duas
+           linhas de tamanho decente lê melhor que cinco espremidas. */
+        @media (max-width: 900px) { .q5 { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 560px) { .q5 { grid-template-columns: repeat(2, 1fr); gap: 8px; } }
+
         /* ── Roster card (JS quinteto) ─────────────────── */
         .roster-card {
             background: var(--panel-2) !important;
@@ -626,6 +665,10 @@ if ($teamId) {
             <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <button id="btn-copy-team" class="btn-ghost" type="button"><i class="bi bi-clipboard-check"></i> Copiar Time</button>
                 <button id="btn-copy-roster" class="btn-ghost" type="button"><i class="bi bi-clipboard"></i> Copiar Elenco</button>
+                <?php /* Imagem em vez de texto: colar elenco no grupo sai como
+                         parede de linhas e ilegível na miniatura. O cartão é o
+                         mesmo formato dos games — 1080×1350. */ ?>
+                <button id="btn-foto-elenco" class="btn-ghost" type="button"><i class="bi bi-image"></i> Foto do Elenco</button>
             </div>
             <?php endif; ?>
         </div>
@@ -1147,6 +1190,11 @@ if ($teamId) {
             }
         } catch (e) { /* mantém o snapshot como fallback — melhor copiar algo do que nada */ }
     }
+    // As duas cores de fundo do cartão, derivadas do nome do time: o mesmo
+    // time gera sempre o mesmo par, então a foto do elenco tem identidade sem
+    // ninguém escolher cor nenhuma.
+    const FOTO_CORES = <?= json_encode(cartaoCoresDoNome(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')))) ?>;
+
     const _teamMeta   = {
         name: <?= json_encode(trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? ''))) ?>,
         userName: <?= json_encode($user['name']) ?>,
@@ -1237,7 +1285,64 @@ if ($teamId) {
         await _refreshRosterData();
         _doCopy(_buildSummary('roster'), 'Elenco');
     });
+
+    /**
+     * A foto do elenco: o mesmo cartão 1080×1350 dos games.
+     *
+     * Reaproveitado em vez de escrever outro canvas — três telas desenhando o
+     * próprio cartão viram três cartões com cara diferente no primeiro ajuste,
+     * que é exatamente o que o games/core/cartao.php existe pra evitar.
+     *
+     * O cartão comporta 4 números e 2 colunas de 5 linhas. Dá pro quinteto de
+     * um lado e os 5 melhores do banco do outro; elenco inteiro não caberia
+     * legível, e a graça é ser lido na miniatura da conversa.
+     */
+    document.getElementById('btn-foto-elenco')?.addEventListener('click', async (ev) => {
+        const botao = ev.currentTarget;
+        await _refreshRosterData();
+
+        const posOrder = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
+        const titulares = _rosterData.filter(p => p.role === 'Titular')
+            .sort((a, b) => (posOrder[a.position] ?? 9) - (posOrder[b.position] ?? 9));
+        const banco = _rosterData.filter(p => p.role === 'Banco')
+            .sort((a, b) => Number(b.ovr) - Number(a.ovr));
+
+        const linha = p => `${p.position} ${p.name} · ${p.ovr ?? '-'}`;
+        const ovrs = _rosterData.map(p => Number(p.ovr)).filter(n => Number.isFinite(n) && n > 0);
+        const media = ovrs.length ? Math.round(ovrs.reduce((s, n) => s + n, 0) / ovrs.length) : 0;
+        // O OVR do quinteto é o número que a pessoa quer mostrar; a média do
+        // elenco inteiro dilui com quem não joga.
+        const ovrT = titulares.map(p => Number(p.ovr)).filter(n => Number.isFinite(n) && n > 0);
+        const mediaT = ovrT.length ? Math.round(ovrT.reduce((s, n) => s + n, 0) / ovrT.length) : media;
+
+        const nums = [
+            [String(_rosterData.length), 'jogadores'],
+            [String(media || '-'), 'OVR médio'],
+        ];
+        // Folha em dinheiro só existe na ELITE; nas outras o "cap" é soma de
+        // OVR do topo, e mostrar como "folha" seria mentira.
+        if (_teamMeta.salary && _teamMeta.salary.payroll !== undefined) {
+            nums.push([`${_teamMeta.salary.payroll}M`, 'folha']);
+        }
+        nums.push([`${_teamMeta.trades}/${_teamMeta.maxTrades}`, 'trades']);
+
+        fbaCompartilhar({
+            c1: FOTO_CORES[0], c2: FOTO_CORES[1],
+            numero: String(mediaT || '-'), rotulo: 'OVR do quinteto',
+            direita: [_teamMeta.league || '', _teamMeta.userName || '', `${_rosterData.length} jogadores`],
+            titulo: _teamMeta.name || 'Meu elenco',
+            sub: `${titulares.length} titulares · ${banco.length} no banco`,
+            nums,
+            listas: [
+                { titulo: 'Quinteto', itens: titulares.length ? titulares.map(linha) : ['—'] },
+                { titulo: 'Banco',    itens: banco.length ? banco.slice(0, 5).map(linha) : ['—'] },
+            ],
+            nome: _teamMeta.name || 'Elenco',
+            jogo: 'FBA MANAGER',
+        }, botao);
+    });
 </script>
 <script src="<?= assetUrl('/js/my-roster-v2.js') ?>"></script>
+<?= cartaoScript() ?>
 </body>
 </html>

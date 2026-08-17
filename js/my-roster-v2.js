@@ -868,47 +868,44 @@ function renderPlayers(players) {
     row.className = 'row g-3';
 
     const colLeft = document.createElement('div');
-    colLeft.className = 'col-12 col-lg-8';
+    // Largura total: sao cinco cartoes lado a lado, e em 8/12 cada um
+    // ficava com ~96px — foto de 76px mais nome nao cabe nisso. O banco desce
+    // pra baixo, que e a ordem em que a pagina e lida mesmo.
+    colLeft.className = 'col-12';
     const startersSection = document.createElement('div');
     startersSection.className = 'roster-section';
     startersSection.innerHTML = '<h5>Quinteto Titular</h5>';
     if (starters.length === 0) {
       startersSection.innerHTML += '<div class="empty-state"><i class="bi bi-person-x"></i><p>Sem jogadores marcados como Titular.</p></div>';
     } else {
+      // Uma cor por posição: o quinteto é lido de relance, e a cor faz o
+      // armador saltar sem precisar procurar a etiqueta.
+      const CORES_POS = { PG:'#3b82f6', SG:'#06b6d4', SF:'#22c55e', PF:'#f59e0b', C:'#ef4444' };
       const list = document.createElement('div');
-      list.className = 'row g-3';
+      list.className = 'q5';
+      // A ordem é a da quadra (PG→C), não a de OVR: quem abre a página está
+      // conferindo escalação, e escalação tem ordem fixa.
       starters.forEach(p => {
-        const ovrColor = getOvrColor(p.ovr);
-        const photoUrl = getPlayerPhotoUrl(p);
-        const tagBadgeStarter = renderPlayerTagBadge(p);
-        const col = document.createElement('div');
-        col.className = 'col-12 col-sm-6 col-md-4';
+        const cor = CORES_POS[p.position] || 'var(--red)';
         const card = document.createElement('div');
-        card.className = 'card border-orange h-100 roster-card text-center';
+        card.className = 'q5-card';
+        card.style.setProperty('--pos-c', cor);
         card.innerHTML = `
-          <div class="card-body p-3 d-flex flex-column gap-3 align-items-center">
-            <img src="${photoUrl}" alt="${p.name}" style="width: 72px; height: 72px; object-fit: cover; border-radius: 50%; border: 2px solid var(--fba-orange); background: #1a1a1a;" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
-            <div class="text-center">
-              <h6 class="mb-1 fw-bold" style="font-size: 1.05rem;"><span${loyalNameStyle(p)}>${p.name}</span>${renderTapaBadge(p)}</h6>
-              <div class="d-flex justify-content-center gap-2 flex-wrap small">
-                <span class="badge bg-secondary">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
-                ${lendaTagHtml(p)}${loyalTagHtml(p)}${tagBadgeStarter}
-              </div>
-            </div>
-            <div class="text-center">
-              <div class="fw-bold" style="font-size: 1.8rem; line-height: 1; color: ${ovrColor};">${p.ovr}</div>
-              <small class="text-light-gray">${p.age} anos${SALARY_MODE ? ` · <span style="color:var(--red);font-weight:700">${playerSalary(p)}M</span>` : ""}</small>
-            </div>
-          </div>`;
-        col.appendChild(card);
-        list.appendChild(col);
+          <span class="q5-pos">${p.position}${p.secondary_position ? '/' + p.secondary_position : ''}</span>
+          <img class="q5-foto" src="${getPlayerPhotoUrl(p)}" alt="${p.name}"
+               onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(p.name)}&background=121212&color=f17507&rounded=true&bold=true'">
+          <div class="q5-nome"><span${loyalNameStyle(p)}>${p.name}</span>${renderTapaBadge(p)}</div>
+          <div class="q5-ovr" style="color:${getOvrColor(p.ovr)}">${p.ovr}</div>
+          <div class="q5-meta">${p.age} anos${SALARY_MODE ? ` · <span style="color:var(--red);font-weight:700">${playerSalary(p)}M</span>` : ''}</div>
+          <div class="q5-tags">${lendaTagHtml(p)}${loyalTagHtml(p)}${renderPlayerTagBadge(p)}</div>`;
+        list.appendChild(card);
       });
       startersSection.appendChild(list);
     }
     colLeft.appendChild(startersSection);
 
     const colRight = document.createElement('div');
-    colRight.className = 'col-12 col-lg-4';
+    colRight.className = 'col-12';
     const benchSection = document.createElement('div');
     benchSection.className = 'roster-section';
     benchSection.innerHTML = '<h5>Banco</h5>';
