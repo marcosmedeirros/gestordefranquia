@@ -141,7 +141,7 @@ $tradedAway   = count($picksAway);
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/styles.css">
 
     <style>
@@ -332,6 +332,38 @@ $tradedAway   = count($picksAway);
         .empty-r i { font-size: 26px; display: block; margin-bottom: 8px; }
         .empty-r p { font-size: 12px; }
 
+        /* ── Cards de pick ────────────────────────────────────────────
+           Era uma lista de linhas: o ano ficava espremido na esquerda e
+           todas as picks tinham o mesmo peso visual. Vira grade de cards,
+           com o ANO em destaque — a pergunta que se faz olhando esta tela
+           e "o que eu tenho em 2031?", nao "qual e a decima linha". */
+        /* Uma rodada por linha: com os dois paineis lado a lado os cards
+           ficavam com 213px e o ano competia com o resto. Empilhados, cabem
+           quatro ou cinco por linha e o ano respira. */
+        .picks-grid { grid-template-columns: 1fr; }
+        .round-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            gap: 10px; padding: 14px; }
+        .pick-row {
+            display: flex; flex-direction: column; align-items: flex-start; gap: 7px;
+            padding: 14px; border: 1px solid var(--border); border-bottom: 1px solid var(--border);
+            border-radius: 12px; background: var(--panel-2);
+            position: relative; overflow: hidden;
+            transition: transform var(--t) var(--ease), border-color var(--t), box-shadow var(--t);
+        }
+        /* Faixa da cor da rodada na lateral: separa 1a de 2a sem ler texto. */
+        .pick-row::before { content: ; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+            background: var(--red); opacity: .85; }
+        .round-panel:nth-child(2) .pick-row::before { background: var(--blue); }
+        .pick-row:hover { transform: translateY(-2px); border-color: var(--border-md);
+            box-shadow: 0 10px 24px rgba(0,0,0,.28); background: var(--panel-2); }
+
+        .pick-year { font-size: 30px; font-weight: 800; line-height: .95; letter-spacing: -.02em;
+            min-width: 0; font-family: Oswald, Montserrat, sans-serif; }
+        .pick-mid { flex: none; width: 100%; }
+        .pick-origin { font-size: 11.5px; white-space: normal; }
+        /* Os selos descem pro rodape do card e dividem a largura. */
+        .pick-value, .pick-cap { flex: 1; }
+        .pick-status { width: 100%; }
         /* ── Animations ──────────────────────────── */
         @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .round-panel, .away-panel { animation: fadeUp .35s var(--ease) both; }
@@ -446,6 +478,7 @@ $tradedAway   = count($picksAway);
                         <p>Nenhuma pick de 1ª rodada</p>
                     </div>
                     <?php else: ?>
+                    <div class="round-body">
                     <?php foreach ($picksByRound['1'] as $pick):
                         $isOwn = (int)$pick['original_team_id'] === (int)$team['id'];
                         $st = $pick['swap_type'] ?? null;
@@ -485,6 +518,7 @@ $tradedAway   = count($picksAway);
                         <a class="btn-pick-trade" href="/trades.php?offer_pick=<?= (int)$pick['id'] ?>" title="Propor troca com esta pick"><i class="bi bi-arrow-left-right"></i></a>
                     </div>
                     <?php endforeach; ?>
+                    </div>
                     <?php endif; ?>
                 </div>
 
@@ -501,6 +535,7 @@ $tradedAway   = count($picksAway);
                         <p>Nenhuma pick de 2ª rodada</p>
                     </div>
                     <?php else: ?>
+                    <div class="round-body">
                     <?php foreach ($picksByRound['2'] as $pick):
                         $isOwn = (int)$pick['original_team_id'] === (int)$team['id'];
                         $st = $pick['swap_type'] ?? null;
@@ -540,6 +575,7 @@ $tradedAway   = count($picksAway);
                         <a class="btn-pick-trade" href="/trades.php?offer_pick=<?= (int)$pick['id'] ?>" title="Propor troca com esta pick"><i class="bi bi-arrow-left-right"></i></a>
                     </div>
                     <?php endforeach; ?>
+                    </div>
                     <?php endif; ?>
                 </div>
 
