@@ -1111,9 +1111,20 @@ function simTop8(key) {
   const keep = t.players.filter(p => !tradedOut.has(p.id));
   const incoming = receives[key].filter(i => i.type === 'player');
   const all = [...keep, ...incoming];
-  // ELITE (salaryMode): a "folha" é a soma dos salários de todo o elenco resultante.
+  // ELITE (salaryMode): folha DEPOIS = folha de hoje - o que sai + o que entra.
+  //
+  // Antes isto re-somava o elenco inteiro, e o total tinha que bater com t.cap,
+  // que vem pronto do servidor. Bastava UM jogador com salario diferente entre
+  // as duas contas pra troca VAZIA ja mostrar folha alterada - foi o que o
+  // Kleberson viu: 90M virando 86M com a mesa vazia.
+  //
+  // Pelo delta, troca vazia devolve exatamente a folha atual, sempre, e a conta
+  // so depende dos jogadores que de fato se movem.
   if (t.salaryMode) {
-    return all.reduce((s, p) => s + (+(p.salary || 0)), 0);
+    const sai   = t.players.filter(p => tradedOut.has(p.id))
+                           .reduce((s, p) => s + (+(p.salary || 0)), 0);
+    const entra = incoming.reduce((s, p) => s + (+(p.salary || 0)), 0);
+    return (+t.cap || 0) - sai + entra;
   }
   all.sort((a, b) => b.ovr - a.ovr);
   return all.slice(0, <?= CAP_TOP_N ?>).reduce((s, p) => s + (+p.ovr), 0);

@@ -343,6 +343,15 @@ function rotuloPickTradeWhats(array $pk, int $donoId = 0): string
     if ($apelido !== '' && $origemId > 0 && $donoId > 0 && $origemId !== $donoId) {
         $rot .= ' (' . $apelido . ')';
     }
+
+    // Protecao e swap entram entre colchetes, do lado. Sem isso uma pick
+    // protegida Top 5 aparecia no grupo identica a uma pick limpa, e a
+    // condicao — que e justamente o que muda o valor dela — so existia pra
+    // quem abrisse o site. Os selos sao os MESMOS das telas.
+    require_once __DIR__ . '/../backend/pick_protection.php';
+    $selos = protecaoSelosTexto($pk);
+    if ($selos !== '') $rot .= ' [' . $selos . ']';
+
     return $rot;
 }
 
@@ -683,8 +692,9 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
                 // e o item é só o que foi combinado. Antes do aceite a pick
                 // ainda não tem nada e cai no item, que é o que o outro GM
                 // precisa ver pra decidir.
-                'protection' => ($pick['protection'] ?? null) ?: ($item['pick_protection'] ?? null),
-                'protection_resultado' => $pick['protection_resultado'] ?? null,
+                'swap_type' => $pickRow['swap_type'] ?? null,
+                'protection' => ($pickRow['protection'] ?? null) ?: ($item['pick_protection'] ?? null),
+                'protection_resultado' => $pickRow['protection_resultado'] ?? null,
             ];
         }
 

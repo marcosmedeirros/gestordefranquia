@@ -78,9 +78,9 @@ function protecaoAte(?string $cod): int
  *
  * Espera a pick com: protection, swap_type e (opcional) protecao_travada.
  */
-function protecaoSelos(array $pick, bool $comSwap = true): string
+function protecaoSelosLista(array $pick, bool $comSwap = true): array
 {
-    $out = '';
+    $out = [];
 
     $prot = $pick['protection'] ?? null;
     if (protecaoValida($prot)) {
@@ -90,26 +90,61 @@ function protecaoSelos(array $pick, bool $comSwap = true): string
         $txt = $resolvido === 'passou' ? 'Passou (era ' . protecaoRotulo($prot) . ')'
              : ($resolvido === 'rolou' ? 'Não passou (' . protecaoRotulo($prot) . ')'
              : 'Protegida ' . protecaoRotulo($prot));
-        $out .= '<span class="pick-cond prot" title="Se cair na faixa protegida, a pick não passa e quem receberia leva a do ano seguinte.">'
-              . htmlspecialchars($txt) . '</span>';
+        $out[] = [
+            'texto'  => $txt,
+            'classe' => 'prot',
+            'titulo' => 'Se cair na faixa protegida, a pick não passa e quem receberia leva a do ano seguinte.',
+        ];
     }
 
     $swap = $comSwap ? strtoupper(trim((string)($pick['swap_type'] ?? ''))) : '';
     if ($swap === 'SB' || $swap === 'SW') {
-        $out .= '<span class="pick-cond swap" title="'
-              . ($swap === 'SB' ? 'Swap: fica com a MELHOR das duas vagas.' : 'Swap: fica com a PIOR das duas vagas.')
-              . '">Swap ' . $swap . '</span>';
+        $out[] = [
+            'texto'  => 'Swap ' . $swap,
+            'classe' => 'swap',
+            'titulo' => $swap === 'SB' ? 'Swap: fica com a MELHOR das duas vagas.'
+                                       : 'Swap: fica com a PIOR das duas vagas.',
+        ];
     }
 
     $travada = trim((string)($pick['protecao_travada'] ?? ''));
     if ($travada !== '') {
-        $out .= '<span class="pick-cond lastro" title="' . htmlspecialchars($travada)
-              . '">Pendurada</span>';
+        $out[] = ['texto' => 'Pendurada', 'classe' => 'lastro', 'titulo' => $travada];
     }
 
     return $out;
 }
 
+/**
+ * Os mesmos selos em HTML, pras telas.
+ *
+ * Renderiza a lista acima em vez de repetir as regras: quando a condição de
+ * um selo mudava, ela mudava só num dos lugares e as telas passavam a
+ * discordar entre si — foi assim que a proteção sumiu da trade card.
+ */
+function protecaoSelos(array $pick, bool $comSwap = true): string
+{
+    $out = '';
+    foreach (protecaoSelosLista($pick, $comSwap) as $selo) {
+        $out .= '<span class="pick-cond ' . $selo['classe'] . '" title="'
+              . htmlspecialchars($selo['titulo']) . '">'
+              . htmlspecialchars($selo['texto']) . '</span>';
+    }
+    return $out;
+}
+
+/**
+ * Os mesmos selos em texto puro — é o que vai pro WhatsApp.
+ *
+ * Sem isto o aviso do grupo mostrava "R1 2031" pra uma pick protegida
+ * exatamente igual a uma pick limpa, e a condição só aparecia pra quem
+ * abrisse o site.
+ */
+function protecaoSelosTexto(array $pick, bool $comSwap = true): string
+{
+    $txt = array_column(protecaoSelosLista($pick, $comSwap), 'texto');
+    return $txt ? implode(' · ', $txt) : '';
+}
 function ensurePickProtectionSchema(PDO $pdo): void
 {
     static $ok = false;
