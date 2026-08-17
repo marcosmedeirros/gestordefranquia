@@ -230,6 +230,13 @@ if ($method === 'GET') {
     $ovrMax = isset($_GET['ovr_max']) ? (int)$_GET['ovr_max'] : null;
     $ageMin = isset($_GET['age_min']) ? (int)$_GET['age_min'] : null;
     $ageMax = isset($_GET['age_max']) ? (int)$_GET['age_max'] : null;
+    $capMin = isset($_GET['cap_min']) ? (int)$_GET['cap_min'] : null;
+    $capMax = isset($_GET['cap_max']) ? (int)$_GET['cap_max'] : null;
+    // Salário não é coluna do banco — sai de getPlayerBaseSalary(), calculado
+    // linha a linha (depende de draft_round/pick/temporada). Só a ELITE tem
+    // salary cap, então o filtro só vale lá.
+    $capLigaTemSalario = strtoupper(trim($league)) === 'ELITE';
+    $capFilterActive = $capLigaTemSalario && (($capMin !== null && $capMin > 0) || ($capMax !== null && $capMax > 0));
         $availableForTrade = isset($_GET['available_for_trade']) && $_GET['available_for_trade'] === '1';
         // Função no elenco. Lista fechada: o valor vai direto para a comparação
         // com a coluna ENUM, então não aceita nada fora dela.
@@ -315,6 +322,12 @@ if ($method === 'GET') {
         $countStmt->execute($params);
         $total = (int)$countStmt->fetchColumn();
 
+                // Com filtro de CAP a paginação sai do SQL: o salário só existe depois
+                // de calculado em memória (ver abaixo), então busca todo mundo que bate
+                // com os outros filtros e pagina depois de filtrar por salário. O
+                // elenco de uma liga cabe tranquilo em memória.
+                $limitClause = $capFilterActive ? '' : "LIMIT {$perPage} OFFSET {$offset}";
+
                 $hasBadgesCount = playersColumnExists($pdo, 'badges_count');
                 $badgesSelect = $hasBadgesCount ? ', p.badges_count' : ', NULL as badges_count';
                 $hasTapaCount = playersColumnExists($pdo, 'tapa_count');
@@ -342,7 +355,7 @@ if ($method === 'GET') {
                 {$joinStats}
                 WHERE {$where}
                 ORDER BY {$orderBy}
-                LIMIT {$perPage} OFFSET {$offset}
+                {$limitClause}
             ");
         } catch (Exception $e) {
             $stmt = $pdo->prepare("
@@ -357,7 +370,7 @@ if ($method === 'GET') {
                 JOIN users u ON t.user_id = u.id
                 WHERE {$where}
                 ORDER BY p.ovr DESC, p.name ASC
-                LIMIT {$perPage} OFFSET {$offset}
+                {$limitClause}
             ");
         }
         $stmt->execute($params);
@@ -367,7 +380,6 @@ if ($method === 'GET') {
         // Salário que o jogador ocupa no teto. Só a ELITE tem salary cap, então
         // nas outras ligas o campo nem vai — a coluna some da tela por isso.
         // A temporada é resolvida uma vez, fora do laço: define quem é calouro.
-        $capLigaTemSalario = strtoupper(trim($league)) === 'ELITE';
         if ($capLigaTemSalario) {
             $temporadaCap = temporadaAtivaDaLiga($pdo, $league);
             $numTemporadaCap = $temporadaCap ? (int)$temporadaCap['season_number'] : null;
@@ -380,6 +392,21 @@ if ($method === 'GET') {
                 $player['cap_rookie']  = capEhCalouroNaTemporadaAtual($player, $numTemporadaCap);
             }
             unset($player);
+        }
+
+        // Filtra por CAP e pagina em memória (ver $limitClause acima: sem
+        // filtro de CAP o SQL já entregou a página certa e $total já veio do
+        // COUNT(*); com o filtro, $players tem todo mundo e precisa ser
+        // recortado aqui).
+        if ($capFilterActive) {
+            $players = array_values(array_filter($players, function ($p) use ($capMin, $capMax) {
+                $v = (int)($p['cap_salario'] ?? 0);
+                if ($capMin !== null && $capMin > 0 && $v < $capMin) return false;
+                if ($capMax !== null && $capMax > 0 && $v > $capMax) return false;
+                return true;
+            }));
+            $total = count($players);
+            $players = array_slice($players, $offset, $perPage);
         }
 
         foreach ($players as &$player) {

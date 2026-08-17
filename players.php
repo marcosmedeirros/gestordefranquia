@@ -611,6 +611,17 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 					<label for="playersAgeMax">Idade max.</label>
 					<input type="number" id="playersAgeMax" placeholder="40" min="0" max="99">
 				</div>
+				<?php // Salary cap so existe na ELITE; nas outras ligas o filtro nem apareceria com o que filtrar. ?>
+				<?php if (($user['league'] ?? '') === 'ELITE'): ?>
+				<div class="field field-half" style="grid-column: span 2;">
+					<label for="playersCapMin">CAP min. (M)</label>
+					<input type="number" id="playersCapMin" placeholder="2" min="0">
+				</div>
+				<div class="field field-half" style="grid-column: span 2;">
+					<label for="playersCapMax">CAP max. (M)</label>
+					<input type="number" id="playersCapMax" placeholder="40" min="0">
+				</div>
+				<?php endif; ?>
 				<div class="field field-full" style="grid-column: span 2; align-self: end;">
 					<button class="btn-action" id="playersSearchBtn"><i class="bi bi-search me-1"></i>Buscar</button>
 				</div>
@@ -746,6 +757,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	const ovrMaxInput = document.getElementById('playersOvrMax');
 	const ageMinInput = document.getElementById('playersAgeMin');
 	const ageMaxInput = document.getElementById('playersAgeMax');
+	const capMinInput = document.getElementById('playersCapMin');
+	const capMaxInput = document.getElementById('playersCapMax');
 	const teamFilter = document.getElementById('playersTeamFilter');
 	const searchBtn = document.getElementById('playersSearchBtn');
 	const loading = document.getElementById('playersLoading');
@@ -1154,6 +1167,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		const ovrMax = ovrMaxInput.value;
 		const ageMin = ageMinInput.value;
 		const ageMax = ageMaxInput.value;
+		const capMin = capMinInput ? capMinInput.value : '';
+		const capMax = capMaxInput ? capMaxInput.value : '';
 		const teamId = teamFilter.value;
 
 		loading.style.display = 'block';
@@ -1174,6 +1189,8 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 		if (ovrMax) params.set('ovr_max', ovrMax);
 		if (ageMin) params.set('age_min', ageMin);
 		if (ageMax) params.set('age_max', ageMax);
+		if (capMin) params.set('cap_min', capMin);
+		if (capMax) params.set('cap_max', capMax);
 		if (teamId) params.set('team_id', teamId);
 		params.set('page', onlyFavorites ? 1 : currentPage);
 		params.set('per_page', onlyFavorites ? 3000 : perPage);
