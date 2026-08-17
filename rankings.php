@@ -638,7 +638,16 @@ $seasonDisplayYear = (string)$currentSeasonYear;
               <td class="hide-mobile" style="text-align:center;color:var(--text-3)">${l.pts_premios}</td>
               <td style="text-align:center;font-weight:800;font-size:15px">${l.pontos}</td>
             </tr>`).join('')
-          : `<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:26px">Nenhuma pontuação lançada neste ciclo ainda.</td></tr>`;
+          // Vazio aqui quase sempre significa a mesma coisa, e vale dizer qual:
+          // o ranking normal usa um total acumulado (teams.ranking_points),
+          // enquanto o ciclo precisa de pontuação POR TEMPORADA. Sem dizer
+          // isso, a aba parece quebrada quando na verdade falta lançar.
+          : `<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:26px;line-height:1.6">
+               Nenhuma pontuação lançada neste ciclo ainda.<br>
+               <span style="font-size:11.5px">O ciclo soma a pontuação <strong>de cada temporada</strong>.
+               O total da aba ELITE é um acumulado e não dá pra fatiar —
+               as temporadas precisam ser lançadas em <em>Editar Ranking → pontuação da temporada</em>.</span>
+             </td></tr>`;
 
         // Só os ciclos fechados COM pontuação são campeões; do mais recente
         // pro mais antigo. O ciclo em andamento já aparece nos cards de cima.

@@ -28,18 +28,29 @@ function cicloTemporadasDaSprint(PDO $pdo): array
     if ($cache !== null) return $cache;
     $cache = [];
     try {
-        // A sprint atual é a da temporada mais recente da liga.
-        $st = $pdo->prepare("SELECT sprint_id FROM seasons WHERE league = ?
-                             ORDER BY season_number DESC LIMIT 1");
-        $st->execute([CICLO_LIGA]);
-        $sprint = $st->fetchColumn();
-        if ($sprint === false || $sprint === null) return $cache;
+        // Quem sabe qual é a sprint atual é sprintAtualDaLiga(), em
+        // backend/helpers.php: ela olha sprints.status='active' da liga.
+        // Eu tinha escrito a minha versão — "a sprint da temporada de maior
+        // número" — e ela erra sempre que a numeração não acompanha a sprint.
+        require_once __DIR__ . '/helpers.php';
+        $sprint = sprintAtualDaLiga($pdo, CICLO_LIGA);
 
-        $st = $pdo->prepare("SELECT season_number, status FROM seasons
-                             WHERE league = ? AND sprint_id = ?
-                             ORDER BY season_number ASC");
-        $st->execute([CICLO_LIGA, $sprint]);
-        $cache = $st->fetchAll(PDO::FETCH_ASSOC);
+        if ($sprint) {
+            $st = $pdo->prepare("SELECT season_number, status FROM seasons
+                                 WHERE sprint_id = ? ORDER BY season_number ASC");
+            $st->execute([(int)$sprint['id']]);
+            $cache = $st->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        // Sem sprint ativa — ou com uma sprint que não tem temporada
+        // amarrada —, cai pras temporadas da liga. Melhor um ranking com a
+        // faixa toda que uma tela zerada sem explicação.
+        if (!$cache) {
+            $st = $pdo->prepare("SELECT season_number, status FROM seasons
+                                 WHERE league = ? ORDER BY season_number ASC");
+            $st->execute([CICLO_LIGA]);
+            $cache = $st->fetchAll(PDO::FETCH_ASSOC);
+        }
     } catch (Throwable $e) {
         error_log('[ciclos] temporadas da sprint: ' . $e->getMessage());
     }
