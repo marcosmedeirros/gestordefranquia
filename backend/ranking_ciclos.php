@@ -102,14 +102,12 @@ function cicloAtual(PDO $pdo): int
  */
 function cicloTemporadaAtual(PDO $pdo): int
 {
-    try {
-        $st = $pdo->prepare("SELECT MAX(season_number) FROM seasons WHERE league = ?");
-        $st->execute([CICLO_LIGA]);
-        return (int)($st->fetchColumn() ?: 0);
-    } catch (Throwable $e) {
-        error_log('[ciclos] temporada atual: ' . $e->getMessage());
-        return 0;
-    }
+    // Da sprint ATIVA, não da liga inteira: a numeração reinicia a cada
+    // sprint, e o MAX de todas devolvia a maior temporada de uma sprint
+    // antiga. A tela dizia "temporada 20" com a liga na 1.
+    $temps = cicloTemporadasDaSprint($pdo);
+    if (!$temps) return 0;
+    return (int)end($temps)['season_number'];
 }
 
 /**
@@ -123,15 +121,15 @@ function cicloTemporadaAtual(PDO $pdo): int
 function cicloFechado(PDO $pdo, int $ciclo): bool
 {
     [, $ate] = cicloIntervalo($pdo, $ciclo);
-    try {
-        $st = $pdo->prepare("SELECT status FROM seasons WHERE league = ? AND season_number = ? LIMIT 1");
-        $st->execute([CICLO_LIGA, $ate]);
-        $status = $st->fetchColumn();
-        return $status !== false && strtolower((string)$status) === 'completed';
-    } catch (Throwable $e) {
-        error_log('[ciclos] fechado: ' . $e->getMessage());
-        return false;
+    // Procura a temporada DENTRO da sprint atual — pelo mesmo motivo: com a
+    // numeração reiniciando, "temporada 5" existe em toda sprint, e pegar a
+    // de outra daria por fechado um ciclo que nem começou.
+    foreach (cicloTemporadasDaSprint($pdo) as $t) {
+        if ((int)$t['season_number'] === $ate) {
+            return strtolower((string)($t['status'] ?? '')) === 'completed';
+        }
     }
+    return false;
 }
 
 /**
