@@ -212,12 +212,15 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
         'from_team' => $fromTeam ? [
             'id' => (int)$fromTeam['id'],
             'name' => trim(($fromTeam['city'] ?? '') . ' ' . ($fromTeam['name'] ?? '')),
+            // Só o nome, sem a cidade: e o que vai do lado de cada item no aviso.
+            'apelido' => trim((string)($fromTeam['name'] ?? '')),
             'league' => $fromTeam['league'] ?? null,
             'owner_name' => $fromTeam['owner_name'] ?? null,
         ] : null,
         'to_team' => $toTeam ? [
             'id' => (int)$toTeam['id'],
             'name' => trim(($toTeam['city'] ?? '') . ' ' . ($toTeam['name'] ?? '')),
+            'apelido' => trim((string)($toTeam['name'] ?? '')),
             'league' => $toTeam['league'] ?? null,
             'owner_name' => $toTeam['owner_name'] ?? null,
             'owner_phone' => $toTeam['owner_phone'] ?? null,
@@ -301,64 +304,83 @@ function rotuloJogadorTradeWhats(array $p): string
     return ($p['name'] ?? 'Jogador') . ' (' . $dentro . ')';
 }
 
-/** Lista de itens de um lado da trade: jogadores com OVR e picks. */
-function listaItensTradeWhats(array $players, array $picks): array
+/**
+ * Os itens que um time recebe, cada um com o apelido de quem mandou.
+ *
+ * "Voodoos -> Tyson Chandler (84/28y C)". Sem o apelido, numa troca de três
+ * times a lista não diz de onde cada peça veio.
+ */
+function listaItensTradeWhats(array $players, array $picks, string $deQuem = ''): array
 {
-    $itens = array_map(fn($p) => '• ' . rotuloJogadorTradeWhats($p), $players);
+    $pre = $deQuem !== '' ? $deQuem . ' -> ' : '';
+    $itens = array_map(fn($p) => $pre . rotuloJogadorTradeWhats($p), $players);
     foreach ($picks as $pk) {
         $ano   = $pk['season_year'] ?? $pk['year'] ?? '?';
         $round = $pk['round'] ?? '?';
-        $itens[] = '• Pick ' . $ano . ' (' . $round . 'ª rodada)';
+        $itens[] = $pre . 'Pick ' . $ano . ' (' . $round . 'ª rodada)';
     }
-    return $itens ?: ['• —'];
+    return $itens ?: ['—'];
 }
 
 /**
- * Formata a trade pro grupo: a tag da liga, e o que cada time ENVIA.
+ * Formata a trade pro grupo: a tag da liga, e o que cada time RECEBE.
  *
- * "Envia" e não "recebe" porque no grupo o que se lê primeiro é o nome do
- * time e o que saiu dele — é assim que a galera comenta trade.
+ * Era por quem ENVIA, e com três times ninguém conseguia responder "o que
+ * sobrou pro meu time?" sem cruzar os blocos na cabeça. Agora cada bloco é um
+ * time e o que entrou nele, com o apelido de quem mandou do lado de cada
+ * item — a pergunta que o grupo faz é essa.
  */
 function montarTextoTradeWhats(array $payload, array $fromPlayers, array $toPlayers, array $fromPicks, array $toPicks, ?string $league = null): string
 {
     $nomeFrom = $payload['from_team']['name'] ?? 'Time A';
     $nomeTo   = $payload['to_team']['name']   ?? 'Time B';
+    // Sem apelido cadastrado, o nome completo serve — melhor repetido que vazio.
+    $apeFrom  = $payload['from_team']['apelido'] ?: $nomeFrom;
+    $apeTo    = $payload['to_team']['apelido']   ?: $nomeTo;
 
+    // Quem envia é o outro lado: o de cima recebe o que o de baixo mandou.
     return implode("\n", array_merge(
         [whatsappTagDaLiga($league) . ' 🔄 *TRADE FECHADA*', ''],
-        ['*' . $nomeFrom . '* envia:'],
-        listaItensTradeWhats($fromPlayers, $fromPicks),
+        ['*' . $nomeFrom . '* recebe:'],
+        listaItensTradeWhats($toPlayers, $toPicks, $apeTo),
         [''],
-        ['*' . $nomeTo . '* envia:'],
-        listaItensTradeWhats($toPlayers, $toPicks)
+        ['*' . $nomeTo . '* recebe:'],
+        listaItensTradeWhats($fromPlayers, $fromPicks, $apeFrom)
     ));
 }
 
 /** Mesma coisa pra multi-trade: um bloco "envia" por time envolvido. */
 function montarTextoMultiTradeWhats(array $teams, array $items, ?string $league = null): string
 {
-    $nomePorId = [];
+    $nomePorId = $apelidoPorId = [];
     foreach ($teams as $t) {
-        $nomePorId[(int)($t['id'] ?? 0)] = $t['name'] ?? ('Time ' . ($t['id'] ?? '?'));
+        $id = (int)($t['id'] ?? 0);
+        $nomePorId[$id] = $t['name'] ?? ('Time ' . ($t['id'] ?? '?'));
+        $apelidoPorId[$id] = ($t['apelido'] ?? '') ?: $nomePorId[$id];
     }
 
-    // Agrupa o que cada time está mandando embora.
-    $enviaPorTime = [];
+    // Agrupa pelo time que RECEBE, com o apelido de quem mandou em cada linha.
+    // Agrupado por quem envia, uma troca de três times obrigava a cruzar os
+    // blocos pra saber o que sobrou pra cada um.
+    $recebePorTime = [];
     foreach ($items as $it) {
-        $de = (int)($it['from_team_id'] ?? 0);
-        if (!$de) continue;
+        $para = (int)($it['to_team_id'] ?? 0);
+        $de   = (int)($it['from_team_id'] ?? 0);
+        if (!$para) continue;
+        $pre = ($apelidoPorId[$de] ?? '') !== '' ? $apelidoPorId[$de] . ' -> ' : '';
+
         if (!empty($it['player'])) {
-            $enviaPorTime[$de][] = '• ' . rotuloJogadorTradeWhats($it['player']);
+            $recebePorTime[$para][] = $pre . rotuloJogadorTradeWhats($it['player']);
         } elseif (!empty($it['pick'])) {
             $pk = $it['pick'];
-            $enviaPorTime[$de][] = '• Pick ' . ($pk['season_year'] ?? $pk['year'] ?? '?')
-                                 . ' (' . ($pk['round'] ?? '?') . 'ª rodada)';
+            $recebePorTime[$para][] = $pre . 'Pick ' . ($pk['season_year'] ?? $pk['year'] ?? '?')
+                                    . ' (' . ($pk['round'] ?? '?') . 'ª rodada)';
         }
     }
 
-    $linhas = [whatsappTagDaLiga($league) . ' 🔄 *TRADE FECHADA* (' . count($enviaPorTime) . ' times)', ''];
-    foreach ($enviaPorTime as $timeId => $itens) {
-        $linhas[] = '*' . ($nomePorId[$timeId] ?? ('Time ' . $timeId)) . '* envia:';
+    $linhas = [whatsappTagDaLiga($league) . ' 🔄 *TRADE FECHADA* (' . count($recebePorTime) . ' times)', ''];
+    foreach ($recebePorTime as $timeId => $itens) {
+        $linhas[] = '*' . ($nomePorId[$timeId] ?? ('Time ' . $timeId)) . '* recebe:';
         $linhas = array_merge($linhas, $itens, ['']);
     }
     return rtrim(implode("\n", $linhas));
@@ -651,6 +673,7 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
         $payloadTeams[] = [
             'id' => (int)$team['id'],
             'name' => trim(($team['city'] ?? '') . ' ' . ($team['name'] ?? '')),
+            'apelido' => trim((string)($team['name'] ?? '')),
             'league' => $team['league'] ?? null,
             'owner_name' => $team['owner_name'] ?? null,
             'owner_phone' => $team['owner_phone'] ?? null,
