@@ -102,14 +102,32 @@ if ($seg === null) {
        . ($min >= 25 ? "  <<< o vigia vai reconectar a Evolution" : "") . "\n";
 }
 
-// ── O que realmente faz o bot funcionar: esta máquina ────────────────
-$worker = 'não deu pra checar';
-if (stripos(PHP_OS_FAMILY, 'Windows') !== false) {
-    $saida = @shell_exec('powershell -NoProfile -Command "(Get-ScheduledTask -TaskName \'FBA WhatsApp Worker\' -ErrorAction SilentlyContinue).State" 2>&1');
-    $s = trim((string)$saida);
-    $worker = $s === '' ? 'tarefa não encontrada' : $s;
+// ── O worker está de pé? ─────────────────────────────────────────────
+//
+// A pergunta certa é "o site viu o worker agora há pouco?", não "a tarefa
+// desta máquina está rodando?". Desde 17/08 o bot vive numa VPS Oracle, e a
+// versão antiga deste script gritava que estava tudo parado só porque olhava
+// o Windows daqui — enquanto o bot mandava mensagem normalmente de lá.
+//
+// bot_visto_em é carimbado a cada consulta à fila, então recente = vivo,
+// rode ele onde rodar.
+$visto = $diag['bot_visto_em'] ?? null;
+$vistoSeg = $diag['bot_visto_seg'] ?? null;
+if ($vistoSeg === null && $visto) {
+    // Site antigo: cai no relógio local, que pode estar em outro fuso. Só
+    // serve pra dizer "faz muito tempo", não pra medir com precisão.
+    $vistoSeg = max(0, time() - strtotime($visto . ' America/Sao_Paulo'));
 }
+$workerVivo = $vistoSeg !== null && $vistoSeg < 180;
+$worker = $vistoSeg === null
+    ? 'nunca deu sinal'
+    : ($workerVivo ? "de pé (sinal há {$vistoSeg}s)" : "SEM SINAL há " . (int)round($vistoSeg / 60) . " min");
 echo "worker    : {$worker}\n";
+
+// A Evolution roda na MESMA máquina do worker. Se o worker está vivo e não é
+// esta máquina, não faz sentido cobrar um container local que nem deveria
+// existir aqui.
+$evoRemota = $workerVivo;
 
 $evoUrl = rtrim((string)($cfg['evolution_url'] ?? ''), '/');
 $evo = 'sem evolution_url';
@@ -123,12 +141,20 @@ if ($evoUrl !== '') {
     $j = json_decode((string)$b, true);
     $estadoEvo = $j['instance']['state'] ?? ($j['state'] ?? null);
     $evo = $c === 200 ? ($estadoEvo ?: 'respondeu, estado desconhecido')
-                      : ($c === 0 ? 'não respondeu (container parado?)' : "HTTP {$c}");
+                      : ($c === 0
+                          ? ($evoRemota
+                              ? 'roda junto com o worker, em outra máquina'
+                              : 'não respondeu (container parado?)')
+                          : "HTTP {$c}");
 }
 echo "evolution : {$evo}\n";
 
-$pronto = !empty($diag['ativo']) && !empty($diag['dentro_da_janela'])
-       && stripos($worker, 'Running') !== false && $evo === 'open';
+// A recepção é a prova de que a Evolution está viva onde quer que esteja: se
+// mensagem entrou agora há pouco, o socket dela está de pé.
+$recepcaoOk = $seg !== null && $seg < 25 * 60;
+$evoOk = $evo === 'open' || ($evoRemota && $recepcaoOk);
+
+$pronto = !empty($diag['ativo']) && !empty($diag['dentro_da_janela']) && $workerVivo && $evoOk;
 echo "\n" . ($pronto ? "Tudo de pé — o que entrar na fila sai."
                      : "Atenção: algo acima não está de pé; a fila pode ficar parada.") . "\n";
-exit($pronto ? 0 : 0);
+exit(0);

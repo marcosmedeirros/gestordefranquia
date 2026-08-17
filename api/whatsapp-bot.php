@@ -237,6 +237,16 @@ if ($acao === 'diagnostico') {
         'grupo_definido' => $grupo !== '',
         'grupo_fim'      => $grupo === '' ? null : '…' . mb_substr($grupo, -12),
         'bot_visto_em'   => $cfg['bot_visto_em'] ?? null,
+        // Em segundos e medido aqui, pelo mesmo motivo de ultima_entrada_seg:
+        // quem lê roda em outra máquina, e comparar carimbo com relógio alheio
+        // já deu 5 horas de erro.
+        'bot_visto_seg'  => (function () use ($pdo) {
+            try {
+                $v = $pdo->query("SELECT TIMESTAMPDIFF(SECOND, bot_visto_em, NOW())
+                                  FROM whatsapp_config WHERE id = 1")->fetchColumn();
+                return ($v === null || $v === false) ? null : max(0, (int)$v);
+            } catch (Throwable $e) { return null; }
+        })(),
         'grupos_de_comando' => count(whatsappGruposDeComando($pdo)),
         'dentro_da_janela' => whatsappDentroDaJanela(null, $pdo),
         'plantao'        => whatsappPlantao($pdo),
