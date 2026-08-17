@@ -244,6 +244,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // segunda versão dela no navegador.
     $picks = protecaoAnotarPicks($pdo, $picks, (string)$league);
 
+    // O parenteses da linha de "copiar time" tambem sai pronto daqui:
+    // e a MESMA funcao que o dashboard e o my-roster usam, e as tres
+    // telas tinham cada uma a sua copia dessa linha.
+    foreach ($picks as &$__pk) { $__pk['copia'] = pickCopiaParenteses($__pk); }
+    unset($__pk);
+
     $payload = ['success' => true, 'picks' => $picks,
                 'protecoes' => protecaoLigaUsa($league) ? PICK_PROTECOES : []];
 

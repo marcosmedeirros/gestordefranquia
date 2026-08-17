@@ -1962,10 +1962,10 @@ function getSerasaScore(int $avisos): array {
             // Peso da pick no casamento salarial, só na ELITE (mesmo sinal do elenco).
             const temSal = roster.some(p => p.salary !== undefined && p.salary !== null);
             const pesoPick = (round) => temSal ? ` — ${PICK_TRADE_VALUES[Number(round)] || 0}M` : '';
-            const linhaPick = (pk) => {
-                const via = `${pk.original_team_city} ${pk.original_team_name}`;
-                return `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${via})` : ''}${pesoPick(pk.round)} `;
-            };
+            // O parenteses (origem, swap, protecao) vem pronto da API, de
+            // pickCopiaParenteses() — a mesma funcao do dashboard e do
+            // my-roster, que antes tinham cada um a sua copia desta linha.
+            const linhaPick = (pk) => `-${pk.season_year}${pk.copia ?? ''}${pesoPick(pk.round)} `;
             const r1 = picks.filter(pk => pk.round == 1).map(linhaPick);
             const r2 = picks.filter(pk => pk.round == 2).map(linhaPick);
 

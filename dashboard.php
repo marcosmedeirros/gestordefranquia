@@ -380,9 +380,14 @@ if ($salariosDoElenco) {
     unset($_p);
 }
 
-$stmtPicks = $pdo->prepare("SELECT p.season_year, p.round, orig.city, orig.name AS team_name, p.original_team_id, p.team_id FROM picks p JOIN teams orig ON p.original_team_id = orig.id WHERE p.team_id = ? ORDER BY p.season_year ASC, p.round ASC");
+require_once __DIR__ . '/backend/pick_protection.php';
+ensurePickProtectionSchema($pdo);
+$stmtPicks = $pdo->prepare("SELECT p.season_year, p.round, orig.city, orig.name AS team_name, p.original_team_id, p.team_id, p.swap_type, p.protection FROM picks p JOIN teams orig ON p.original_team_id = orig.id WHERE p.team_id = ? ORDER BY p.season_year ASC, p.round ASC");
 $stmtPicks->execute([$team['id']]);
 $teamPicks = $stmtPicks->fetchAll(PDO::FETCH_ASSOC);
+// O parenteses da linha de copia sai do PHP: e a MESMA funcao das outras
+// telas, entao swap e protecao nao podem aparecer numa e sumir na outra.
+foreach ($teamPicks as &$__pk) { $__pk['copia'] = pickCopiaParenteses($__pk); } unset($__pk);
 $copySeasonYear = !empty($seasonDisplayYear) ? (int)$seasonDisplayYear : (int)date('Y');
 $teamPicksForCopy = array_values(array_filter($teamPicks, fn($p) => (int)($p['season_year'] ?? 0) >= $copySeasonYear));
 $firstRoundPicksCount = count(array_filter($teamPicks, fn($p) => (int)($p['round'] ?? 0) === 1 && (int)($p['season_year'] ?? 0) >= $copySeasonYear));
@@ -2235,7 +2240,8 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         // Peso da pick na troca, mesmo sinal do elenco: só sai na ELITE.
         const temSal = rosterData.some(p => p.salary !== undefined && p.salary !== null);
         const pesoPick = round => temSal ? ` — ${PICK_TRADE_VALUES[Number(round)] || 0}M` : '';
-        const linhaPick = pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''}${pesoPick(pk.round)} `;
+        // O parenteses (time de origem, swap, protecao) vem pronto do PHP.
+        const linhaPick = pk => `-${pk.season_year}${pk.copia ?? ''}${pesoPick(pk.round)} `;
         const r1 = picksData.filter(pk => pk.round == 1).map(linhaPick);
         const r2 = picksData.filter(pk => pk.round == 2).map(linhaPick);
 

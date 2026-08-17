@@ -495,3 +495,49 @@ function protecaoResolverNoDraft(PDO $pdo, int $draftSessionId): array
 
     return $feitos;
 }
+
+/**
+ * O que vai entre parenteses na linha de "copiar time".
+ *
+ *   " (Voodoos)"            pick de outro time, sem condicao
+ *   " (Voodoos SW)"         com swap
+ *   " (Voodoos - 🛡 Top 3)" com protecao
+ *   " (SW)" / " (🛡 Top 3)" pick propria, so a condicao
+ *   ""                      pick propria e limpa
+ *
+ * Fica no PHP, e nao no JS de cada tela, porque a linha da pick estava
+ * escrita tres vezes — teams.php, dashboard.php e my-roster.php — com o
+ * mesmo texto copiado. Toda vez que a regra mudava, mudava em uma so.
+ *
+ * Usa o apelido (nome sem cidade), como o resto do que a liga le em texto.
+ */
+function pickCopiaParenteses(array $pk): string
+{
+    $de   = (int)($pk['original_team_id'] ?? 0);
+    $para = (int)($pk['team_id'] ?? 0);
+
+    $partes = [];
+    if ($de > 0 && $para > 0 && $de !== $para) {
+        $apelido = '';
+        foreach (['original_apelido', 'original_team_name', 'team_name', 'name'] as $c) {
+            $apelido = trim((string)($pk[$c] ?? ''));
+            if ($apelido !== '') break;
+        }
+        if ($apelido !== '') $partes[] = $apelido;
+    }
+
+    $swap = strtoupper(trim((string)($pk['swap_type'] ?? '')));
+    if ($swap === 'SB' || $swap === 'SW') $partes[] = $swap;
+
+    $txt = implode(' ', $partes);
+
+    // A protecao vem depois de um travessao: ela e uma condicao sobre a pick,
+    // nao um qualificador do nome do time, e colada ficava "Voodoos Top 3".
+    $prot = $pk['protection'] ?? null;
+    if (protecaoValida($prot)) {
+        $selo = '🛡 ' . protecaoRotulo($prot);
+        $txt  = $txt === '' ? $selo : $txt . ' - ' . $selo;
+    }
+
+    return $txt === '' ? '' : ' (' . $txt . ')';
+}

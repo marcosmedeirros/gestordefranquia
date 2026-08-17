@@ -121,9 +121,13 @@ if ($teamId) {
         unset($_p);
     }
     try {
-        $s = $pdo->prepare("SELECT p.season_year,p.round,orig.city,orig.name AS team_name,p.original_team_id,p.team_id FROM picks p JOIN teams orig ON p.original_team_id=orig.id WHERE p.team_id=? ORDER BY p.season_year ASC,p.round ASC");
+        require_once __DIR__ . '/backend/pick_protection.php';
+        ensurePickProtectionSchema($pdo);
+        $s = $pdo->prepare("SELECT p.season_year,p.round,orig.city,orig.name AS team_name,p.original_team_id,p.team_id,p.swap_type,p.protection FROM picks p JOIN teams orig ON p.original_team_id=orig.id WHERE p.team_id=? ORDER BY p.season_year ASC,p.round ASC");
         $s->execute([$teamId]);
         $allPicksCopy = $s->fetchAll(PDO::FETCH_ASSOC);
+        // Mesma funcao das outras telas — ver pickCopiaParenteses().
+        foreach ($allPicksCopy as &$__pk) { $__pk['copia'] = pickCopiaParenteses($__pk); } unset($__pk);
         $teamPicksCopy = array_values(array_filter($allPicksCopy, fn($p) => (int)($p['season_year']??0) > (int)$currentSeasonYear));
     } catch(Exception $e) {}
     try {
@@ -1287,7 +1291,8 @@ if ($teamId) {
             // Peso da pick na troca, mesmo sinal do elenco: só sai na ELITE.
             const temSal = _rosterData.some(p => p.salary !== undefined && p.salary !== null);
             const pesoPick = round => temSal ? ` — ${PICK_TRADE_VALUES[Number(round)] || 0}M` : '';
-            const linhaPick = pk => `-${pk.season_year}${pk.original_team_id != pk.team_id ? ` (via ${pk.city} ${pk.team_name})` : ''}${pesoPick(pk.round)} `;
+            // O parenteses (origem, swap, protecao) vem pronto do PHP.
+            const linhaPick = pk => `-${pk.season_year}${pk.copia ?? ''}${pesoPick(pk.round)} `;
             const r1 = _picksData.filter(pk => pk.round == 1).map(linhaPick);
             const r2 = _picksData.filter(pk => pk.round == 2).map(linhaPick);
             lines.push('_Picks 1º round_:', ...(r1.length ? r1 : ['-']), '', '_Picks 2º round_:', ...(r2.length ? r2 : ['-']), '');
