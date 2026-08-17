@@ -116,16 +116,19 @@ if ($acao === 'salvar') {
                 exit;
             }
             $pdo->prepare("UPDATE calendario_eventos
-                           SET league=?, tipo=?, titulo=?, inicio=?, fim=?, dia_inteiro=?, link=?, descricao=?
+                           SET league=?, tipo=?, titulo=?, inicio=?, fim=?, dia_inteiro=?, link=?, descricao=?,
+                               repete=?, repete_ate=?
                            WHERE id=?")
                 ->execute([$dados['league'], $dados['tipo'], $dados['titulo'], $dados['inicio'],
-                           $dados['fim'], $dados['dia_inteiro'], $dados['link'], $dados['descricao'], $id]);
+                           $dados['fim'], $dados['dia_inteiro'], $dados['link'], $dados['descricao'],
+                           $dados['repete'], $dados['repete_ate'], $id]);
         } else {
             $pdo->prepare("INSERT INTO calendario_eventos
-                           (league, tipo, titulo, inicio, fim, dia_inteiro, link, descricao, criado_por)
-                           VALUES (?,?,?,?,?,?,?,?,?)")
+                           (league, tipo, titulo, inicio, fim, dia_inteiro, link, descricao, repete, repete_ate, criado_por)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?)")
                 ->execute([$dados['league'], $dados['tipo'], $dados['titulo'], $dados['inicio'],
-                           $dados['fim'], $dados['dia_inteiro'], $dados['link'], $dados['descricao'], $uid]);
+                           $dados['fim'], $dados['dia_inteiro'], $dados['link'], $dados['descricao'],
+                           $dados['repete'], $dados['repete_ate'], $uid]);
             $id = (int)$pdo->lastInsertId();
         }
     } catch (Throwable $e) {

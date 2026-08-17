@@ -266,6 +266,7 @@ const MINHA_LIGA  = <?= json_encode($minhaLiga) ?>;
 const LIGAS       = <?= json_encode(CALENDARIO_LIGAS) ?>;
 const CORES       = <?= json_encode(CALENDARIO_CORES, JSON_UNESCAPED_UNICODE) ?>;
 const TIPOS       = <?= json_encode(CALENDARIO_TIPOS, JSON_UNESCAPED_UNICODE) ?>;
+const REPETE      = <?= json_encode(CALENDARIO_REPETE, JSON_UNESCAPED_UNICODE) ?>;
 // As ligas que ESTE usuário administra. Quem não administra nada nunca vê
 // botão de marcar — a regra também é conferida na API, isto é só a tela.
 const LIGAS_ADMIN = <?= json_encode($ligasAdmin) ?>;
@@ -500,6 +501,14 @@ function abrirForm(e) {
         Dia inteiro (ignora a hora)
       </label>
     </div>
+    <div class="cal-linha">
+      <div class="cal-campo"><label>Repete</label>
+        <select id="fRepete">${Object.entries(REPETE).map(([k, v]) =>
+          `<option value="${k}"${(e.repete || 'nao') === k ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
+      <div class="cal-campo" id="boxRepeteAte" style="${(e.repete && e.repete !== 'nao') ? '' : 'display:none'}">
+        <label>Repete até <span style="text-transform:none;font-weight:600">(vazio = sempre)</span></label>
+        <input type="date" id="fRepeteAte" value="${esc(e.repete_ate || '')}"></div>
+    </div>
     <div class="cal-campo"><label>Link <span style="text-transform:none;font-weight:600">(opcional)</span></label>
       <input id="fLink" placeholder="youtube.com/..." value="${esc(e.link || '')}"></div>
     <div class="cal-campo"><label>Descrição <span style="text-transform:none;font-weight:600">(opcional)</span></label>
@@ -513,6 +522,12 @@ function abrirForm(e) {
   document.getElementById('bCancelar').onclick = fecharModal;
   document.getElementById('bSalvar').onclick = () => salvar(e.id || 0);
   if (!novo) document.getElementById('bApagar').onclick = () => apagar(e.id);
+
+  // "Repete até" só faz sentido com repetição ligada.
+  const selRep = document.getElementById('fRepete');
+  selRep.onchange = () => {
+    document.getElementById('boxRepeteAte').style.display = selRep.value === 'nao' ? 'none' : '';
+  };
 
   modal.classList.add('aberto');
   setTimeout(() => document.getElementById('fTitulo').focus(), 50);
@@ -534,6 +549,8 @@ async function salvar(id) {
     dia_inteiro: document.getElementById('fDiaInteiro').checked,
     link: document.getElementById('fLink').value.trim(),
     descricao: document.getElementById('fDesc').value.trim(),
+    repete: document.getElementById('fRepete').value,
+    repete_ate: document.getElementById('fRepeteAte').value,
   };
   if (!corpo.titulo) return erroModal('O evento precisa de um título.');
   if (!corpo.inicio) return erroModal('O evento precisa de uma data.');
