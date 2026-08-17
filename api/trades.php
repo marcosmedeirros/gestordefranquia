@@ -127,7 +127,7 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
     if ($pickIds) {
         $pickIds = array_values(array_unique($pickIds));
         $placeholders = implode(',', array_fill(0, count($pickIds), '?'));
-        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, p.swap_type, p.protection, p.protection_resultado, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
+        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, p.swap_type, p.protection, p.protection_resultado, p.original_team_id, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
         $stmtPicks->execute($pickIds);
         foreach ($stmtPicks->fetchAll(PDO::FETCH_ASSOC) as $pick) {
             $pickMap[(int)$pick['id']] = $pick;
@@ -183,6 +183,10 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
                 'round' => $pick['round'] ?? null,
                 'swap_type' => $pick['swap_type'] ?? null,
                 'original_team' => $pick ? trim(($pick['city'] ?? '') . ' ' . ($pick['team_name'] ?? '')) : null,
+                // So o nome, sem cidade: e o que vai entre parenteses quando a
+                // pick e de outro time.
+                'original_apelido' => $pick['team_name'] ?? null,
+                'original_team_id' => $pick ? (int)($pick['original_team_id'] ?? 0) : 0,
                 // A da PICK ganha da do item: depois do aceite é ela que vale,
                 // e o item é só o que foi combinado. Antes do aceite a pick
                 // ainda não tem nada e cai no item, que é o que o outro GM
@@ -310,16 +314,36 @@ function rotuloJogadorTradeWhats(array $p): string
  * "Voodoos -> Tyson Chandler (84/28y C)". Sem o apelido, numa troca de três
  * times a lista não diz de onde cada peça veio.
  */
-function listaItensTradeWhats(array $players, array $picks, string $deQuem = ''): array
+function listaItensTradeWhats(array $players, array $picks, string $deQuem = '', int $donoId = 0): array
 {
     $pre = $deQuem !== '' ? $deQuem . ' -> ' : '';
     $itens = array_map(fn($p) => $pre . rotuloJogadorTradeWhats($p), $players);
     foreach ($picks as $pk) {
-        $ano   = $pk['season_year'] ?? $pk['year'] ?? '?';
-        $round = $pk['round'] ?? '?';
-        $itens[] = $pre . 'Pick ' . $ano . ' (' . $round . 'ª rodada)';
+        $itens[] = $pre . rotuloPickTradeWhats($pk, $donoId);
     }
     return $itens ?: ['—'];
+}
+
+/**
+ * Como a pick aparece: "R1 2031", ou "R1 2031 (Voodoos)" quando ela é de
+ * outro time.
+ *
+ * Só cita a origem quando ela NÃO é de quem está mandando — pick própria com
+ * o nome do próprio dono ao lado é ruído em toda linha. Nome sem cidade, como
+ * o resto do aviso.
+ */
+function rotuloPickTradeWhats(array $pk, int $donoId = 0): string
+{
+    $ano   = $pk['season_year'] ?? $pk['year'] ?? '?';
+    $round = $pk['round'] ?? '?';
+    $rot   = 'R' . $round . ' ' . $ano;
+
+    $origemId = (int)($pk['original_team_id'] ?? 0);
+    $apelido  = trim((string)($pk['original_apelido'] ?? ''));
+    if ($apelido !== '' && $origemId > 0 && $donoId > 0 && $origemId !== $donoId) {
+        $rot .= ' (' . $apelido . ')';
+    }
+    return $rot;
 }
 
 /**
@@ -334,18 +358,19 @@ function montarTextoTradeWhats(array $payload, array $fromPlayers, array $toPlay
 {
     $nomeFrom = $payload['from_team']['name'] ?? 'Time A';
     $nomeTo   = $payload['to_team']['name']   ?? 'Time B';
-    // Sem apelido cadastrado, o nome completo serve — melhor repetido que vazio.
-    $apeFrom  = $payload['from_team']['apelido'] ?: $nomeFrom;
-    $apeTo    = $payload['to_team']['apelido']   ?: $nomeTo;
+    $idFrom   = (int)($payload['from_team']['id'] ?? 0);
+    $idTo     = (int)($payload['to_team']['id'] ?? 0);
 
-    // Quem envia é o outro lado: o de cima recebe o que o de baixo mandou.
+    // Com DOIS times, "envia" basta: só existe um remetente possível por
+    // bloco, e escrever o nome dele em cada linha seria repetir o que o
+    // cabeçalho acabou de dizer. O prefixo é coisa de multi-trade.
     return implode("\n", array_merge(
         [whatsappTagDaLiga($league) . ' 🔄 *TRADE FECHADA*', ''],
-        ['*' . $nomeFrom . '* recebe:'],
-        listaItensTradeWhats($toPlayers, $toPicks, $apeTo),
+        ['*' . $nomeFrom . '* envia:'],
+        listaItensTradeWhats($fromPlayers, $fromPicks, '', $idFrom),
         [''],
-        ['*' . $nomeTo . '* recebe:'],
-        listaItensTradeWhats($fromPlayers, $fromPicks, $apeFrom)
+        ['*' . $nomeTo . '* envia:'],
+        listaItensTradeWhats($toPlayers, $toPicks, '', $idTo)
     ));
 }
 
@@ -372,9 +397,10 @@ function montarTextoMultiTradeWhats(array $teams, array $items, ?string $league 
         if (!empty($it['player'])) {
             $recebePorTime[$para][] = $pre . rotuloJogadorTradeWhats($it['player']);
         } elseif (!empty($it['pick'])) {
-            $pk = $it['pick'];
-            $recebePorTime[$para][] = $pre . 'Pick ' . ($pk['season_year'] ?? $pk['year'] ?? '?')
-                                    . ' (' . ($pk['round'] ?? '?') . 'ª rodada)';
+            // A origem da pick é comparada com QUEM ENVIA: numa multi-trade o
+            // interessante é "essa pick nem era dele", e quem manda é a
+            // referência pra isso.
+            $recebePorTime[$para][] = $pre . rotuloPickTradeWhats($it['pick'], $de);
         }
     }
 
@@ -605,7 +631,7 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
     if ($pickIds) {
         $pickIds = array_values(array_unique($pickIds));
         $placeholders = implode(',', array_fill(0, count($pickIds), '?'));
-        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, p.swap_type, p.protection, p.protection_resultado, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
+        $stmtPicks = $pdo->prepare("SELECT p.id, p.season_year, p.round, p.swap_type, p.protection, p.protection_resultado, p.original_team_id, t.city, t.name AS team_name FROM picks p JOIN teams t ON t.id = p.original_team_id WHERE p.id IN ($placeholders)");
         $stmtPicks->execute($pickIds);
         foreach ($stmtPicks->fetchAll(PDO::FETCH_ASSOC) as $pick) {
             $pickMap[(int)$pick['id']] = $pick;
@@ -651,6 +677,8 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
                 'season_year' => $pickRow['season_year'] ?? null,
                 'round' => $pickRow['round'] ?? null,
                 'original_team' => $pickRow ? trim(($pickRow['city'] ?? '') . ' ' . ($pickRow['team_name'] ?? '')) : null,
+                'original_apelido' => $pickRow['team_name'] ?? null,
+                'original_team_id' => $pickRow ? (int)($pickRow['original_team_id'] ?? 0) : 0,
                 // A da PICK ganha da do item: depois do aceite é ela que vale,
                 // e o item é só o que foi combinado. Antes do aceite a pick
                 // ainda não tem nada e cai no item, que é o que o outro GM
