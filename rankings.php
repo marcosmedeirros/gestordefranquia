@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
+// Ranking por ciclo de 5 temporadas (aba ELITE 5T).
+require_once __DIR__ . '/backend/ranking_ciclos.php';
 requireAuth();
 
 $user = getUserSession();
@@ -51,7 +53,9 @@ $seasonDisplayYear = (string)$currentSeasonYear;
     <!-- Fonts & Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <?php /* Oswald entra pelos números da aba ELITE 5T. Sem ela o navegador
+             cai no fallback e os pontos ficam com outra cara. */ ?>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
     
     <style>
         /* ── Tokens Universais ───────────────────────── */
@@ -171,6 +175,44 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         }
 
         /* ── Minimal Table ───────────────────────────── */
+        /* ── Aba ELITE 5T ───────────────────────────────────────────── */
+        .ct-topo { display:flex; align-items:flex-end; justify-content:space-between; gap:14px; margin-bottom:14px; flex-wrap:wrap; }
+        .ct-ciclo { font-size:22px; font-weight:800; color:var(--text); line-height:1.1; }
+        .ct-sub { font-size:12px; color:var(--text-3); margin-top:3px; }
+        .ct-agora { font-family:'Oswald',sans-serif; font-size:30px; font-weight:700; color:var(--red); line-height:1; }
+
+        /* As cinco temporadas numa linha só, sempre as cinco: a faixa é o que
+           dá forma ao ciclo, e esconder as vazias faria "faltam duas" virar
+           conta de cabeça. */
+        .ct-slots { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+        .ct-slot {
+            background:var(--panel); border:1px solid var(--border); border-radius:12px;
+            padding:12px 10px; display:flex; flex-direction:column; align-items:center; gap:7px; min-height:132px;
+        }
+        .ct-slot.vazio { border-style:dashed; opacity:.55; }
+        .ct-slot-t { font-size:10px; font-weight:800; letter-spacing:.08em; color:var(--text-3); }
+        .ct-slot-vazio { width:26px; height:26px; border-radius:6px; border:1px dashed var(--border-md); }
+        .ct-slot-nome {
+            font-size:11.5px; font-weight:700; color:var(--text); text-align:center; line-height:1.25;
+            display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+        }
+        .ct-slot.vazio .ct-slot-nome { color:var(--text-3); font-weight:600; }
+        .ct-slot-pts { font-family:'Oswald',sans-serif; font-size:16px; font-weight:700; color:var(--amber); margin-top:auto; }
+        .ct-slot.vazio .ct-slot-pts { color:var(--text-3); }
+        @media (max-width:640px){ .ct-slots{ grid-template-columns:repeat(3,1fr); } }
+
+        .ct-camps { display:flex; flex-direction:column; gap:8px; }
+        .ct-camp {
+            display:flex; align-items:center; gap:12px; padding:12px 14px;
+            background:var(--panel); border:1px solid var(--border);
+            border-left:3px solid var(--amber); border-radius:10px;
+        }
+        .ct-camp-ciclo { font-size:11px; font-weight:800; color:var(--text-3); min-width:64px; letter-spacing:.04em; }
+        .ct-camp-nome { font-size:14px; font-weight:700; color:var(--text); }
+        .ct-camp-vice { font-size:11px; color:var(--text-3); margin-top:1px; }
+        .ct-camp-pts { font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; color:var(--amber); margin-left:auto; }
+        .ct-camp-pts small { font-size:10px; color:var(--text-3); margin-left:3px; font-family:var(--font); }
+
         .table-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; animation: fadeUp 0.4s var(--ease); }
         .m-table { width: 100%; border-collapse: collapse; text-align: left; }
         .m-table th { padding: 14px 18px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--border); background: var(--panel-2); }
@@ -363,6 +405,10 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 <button type="button" class="filter-btn" data-league="NEXT" onclick="loadRanking('NEXT')">NEXT</button>
                 <button type="button" class="filter-btn" data-league="RISE" onclick="loadRanking('RISE')">RISE</button>
                 <button type="button" class="filter-btn" data-league="ROOKIE" onclick="loadRanking('ROOKIE')">ROOKIE</button>
+                <?php /* Ciclo de 5 temporadas, só ELITE. Fica junto das ligas
+                         porque é outra forma de ver a ELITE, não outra liga. */ ?>
+                <button type="button" class="filter-btn" data-league="ELITE5T" onclick="loadCiclo()"
+                        title="Soma das últimas 5 temporadas da ELITE — zera a cada ciclo">ELITE 5T</button>
                 <button type="button" class="wpp-btn" id="btnCopyWpp" onclick="copyRankingWpp()" title="Copia o ranking desta liga em texto, pronto para colar no WhatsApp">
                     <i class="bi bi-whatsapp"></i> <span>Copiar p/ WhatsApp</span>
                 </button>
@@ -454,6 +500,19 @@ $seasonDisplayYear = (string)$currentSeasonYear;
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    /* ── Ciclo de 5 temporadas (ELITE) ────────────────────────────────
+       Vem pronto do servidor: são poucas linhas e não muda enquanto a
+       página está aberta — uma chamada de API só pra isso seria latência
+       sem ganho. */
+    const CICLO = <?= json_encode([
+        'temporada_atual' => cicloTemporadaAtual($pdo),
+        'ciclo_atual'     => cicloDaTemporada(cicloTemporadaAtual($pdo)),
+        'tamanho'         => CICLO_TEMPORADAS,
+        'temporadas'      => cicloTemporadas($pdo, cicloDaTemporada(cicloTemporadaAtual($pdo))),
+        'tabela'          => cicloClassificacao($pdo, cicloDaTemporada(cicloTemporadaAtual($pdo))),
+        'campeoes'        => cicloCampeoes($pdo),
+    ], JSON_UNESCAPED_UNICODE) ?>;
+
     /* ── Lógica Visual Sidebar / Tema ── */
     const themeToggle = document.getElementById('themeToggle');
     const themeKey = 'fba-theme';
@@ -514,6 +573,101 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.league === activeLeague);
         });
+    }
+
+    /**
+     * A aba ELITE 5T: as cinco temporadas do ciclo, a soma até aqui e os
+     * campeões dos ciclos fechados.
+     *
+     * Não passa por loadRanking porque não é uma liga — é outra janela de
+     * tempo sobre a ELITE, com colunas próprias.
+     */
+    function loadCiclo() {
+        // Cancela uma busca de ranking em voo: sem isto, a resposta dela
+        // chegaria depois e sobrescreveria esta tela.
+        ++_rankingRequestSeq;
+        currentLeague = 'ELITE5T';
+        updateActiveButton('ELITE5T');
+        document.getElementById('wppManual').style.display = 'none';
+
+        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
+            ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const escudo = (u, nome) => u
+            ? `<img src="${esc(u)}" alt="" style="width:26px;height:26px;border-radius:6px;object-fit:cover;flex-shrink:0">`
+            : `<span style="width:26px;height:26px;border-radius:6px;background:var(--panel-3);display:grid;place-items:center;font-size:11px;font-weight:800;color:var(--text-3);flex-shrink:0">${esc((nome||'?').trim()[0]||'?')}</span>`;
+
+        const [de, ate] = [CICLO.ciclo_atual * CICLO.tamanho - (CICLO.tamanho - 1), CICLO.ciclo_atual * CICLO.tamanho];
+
+        // ── As cinco vagas do ciclo, sempre as cinco ─────────────────
+        const slots = CICLO.temporadas.map(t => {
+            const vazio = !t.tem_dados;
+            const rotulo = t.tem_dados ? esc(t.lider)
+                        : (t.existe ? 'sem pontuação' : 'por vir');
+            return `
+              <div class="ct-slot ${vazio ? 'vazio' : ''}">
+                <div class="ct-slot-t">T${t.temporada}</div>
+                ${t.tem_dados ? escudo(t.photo_url, t.lider) : '<div class="ct-slot-vazio"></div>'}
+                <div class="ct-slot-nome">${rotulo}</div>
+                <div class="ct-slot-pts">${t.tem_dados ? t.pontos + ' pts' : '—'}</div>
+              </div>`;
+        }).join('');
+
+        const linhas = CICLO.tabela.length ? CICLO.tabela.map(l => `
+            <tr>
+              <td style="text-align:center;font-weight:800;color:${l.pos<=3?'var(--amber)':'var(--text-3)'}">${l.pos}</td>
+              <td><div style="display:flex;align-items:center;gap:10px">${escudo(l.photo_url, l.time)}<span>${esc(l.time)}</span></div></td>
+              <td class="hide-mobile" style="text-align:center;color:var(--text-3)">${l.temporadas}</td>
+              <td class="hide-mobile" style="text-align:center;color:var(--text-3)">${l.pts_regular}</td>
+              <td class="hide-mobile" style="text-align:center;color:var(--text-3)">${l.pts_playoffs}</td>
+              <td class="hide-mobile" style="text-align:center;color:var(--text-3)">${l.pts_premios}</td>
+              <td style="text-align:center;font-weight:800;font-size:15px">${l.pontos}</td>
+            </tr>`).join('')
+          : `<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:26px">Nenhuma pontuação lançada neste ciclo ainda.</td></tr>`;
+
+        const campeoes = CICLO.campeoes.length ? CICLO.campeoes.slice().reverse().map(c => `
+            <div class="ct-camp">
+              <div class="ct-camp-ciclo">T${c.de}–${c.ate}</div>
+              <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
+                ${escudo(c.photo_url, c.campeao)}
+                <div style="min-width:0">
+                  <div class="ct-camp-nome">${esc(c.campeao)}</div>
+                  ${c.vice ? `<div class="ct-camp-vice">vice: ${esc(c.vice)} · ${c.vice_pontos} pts</div>` : ''}
+                </div>
+              </div>
+              <div class="ct-camp-pts">${c.pontos}<small>pts</small></div>
+            </div>`).join('')
+          : '<div style="color:var(--text-3);font-size:13px;padding:8px 2px">Nenhum ciclo fechado ainda. O primeiro campeão sai no fim da 5ª temporada.</div>';
+
+        document.getElementById('rankingContainer').innerHTML = `
+            <div class="ct-topo">
+              <div>
+                <div class="ct-ciclo">Ciclo ${CICLO.ciclo_atual}</div>
+                <div class="ct-sub">Temporadas ${de} a ${ate} · zera no fim do ciclo</div>
+              </div>
+              <div class="ct-agora">T${CICLO.temporada_atual}</div>
+            </div>
+
+            <div class="ct-slots">${slots}</div>
+
+            <div class="table-card" style="margin-top:18px">
+              <div class="table-responsive">
+                <table class="m-table">
+                  <thead><tr>
+                    <th style="width:60px;text-align:center">Pos</th>
+                    <th>Franquia</th>
+                    <th class="hide-mobile" style="width:70px;text-align:center">Temps</th>
+                    <th class="hide-mobile" style="width:80px;text-align:center">Regular</th>
+                    <th class="hide-mobile" style="width:80px;text-align:center">Playoffs</th>
+                    <th class="hide-mobile" style="width:80px;text-align:center">Prêmios</th>
+                    <th style="width:90px;text-align:center"><i class="bi bi-star-fill" style="color:var(--amber)"></i> Total</th>
+                  </tr></thead>
+                  <tbody>${linhas}</tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="section-label" style="margin-top:26px"><i class="bi bi-trophy-fill"></i> Campeões dos ciclos</div>
+            <div class="ct-camps">${campeoes}</div>`;
     }
 
     async function loadRanking(league = userLeague) {
