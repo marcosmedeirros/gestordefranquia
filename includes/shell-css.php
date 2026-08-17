@@ -90,6 +90,7 @@ a { color: inherit; text-decoration: none; }
     .sidebar.open { transform: translateX(0); }
     .main { margin-left: 0; width: 100%; padding-top: 54px; }
     .topbar { display: flex; }
-    .dash-hero { padding-left: 16px; padding-right: 16px; padding-top: 18px; }
+    .dash-hero, .content { padding-left: 16px; padding-right: 16px; }
+    .dash-hero { padding-top: 18px; }
 }
 </style>

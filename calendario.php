@@ -220,6 +220,10 @@ $ligasAdmin = array_values(array_intersect(
         </div>
     </div>
 
+    <?php /* .content é o que dá o respiro lateral nas outras telas (32px).
+             Sem ele o conteúdo encostava na barra lateral e na borda direita. */ ?>
+    <div class="content">
+
     <div class="cal-filtros" id="calFiltros"></div>
 
     <div class="panel" style="padding:14px">
@@ -243,6 +247,8 @@ $ligasAdmin = array_values(array_intersect(
     <div class="panel" style="padding:14px">
         <div class="cal-lista" id="calProximos"></div>
     </div>
+
+    </div><!-- /.content -->
 </main>
 
 <!-- Modal: ver/editar evento -->
