@@ -17,6 +17,16 @@
 
 require_once __DIR__ . '/helpers.php';
 
+/**
+ * OVR mínimo pra um movimento virar aviso no grupo principal.
+ *
+ * Vale pra trade e pra dispensa: o grupo é pra movimento que muda alguma
+ * coisa, não pra jogador de banco entrando e saindo. Morava só em
+ * api/trades.php e agora dois lugares decidem a mesma coisa — se o número
+ * mudar, muda aqui e vale nos dois.
+ */
+const WHATSAPP_OVR_MIN_ANUNCIO = 82;
+
 /** Quantas tentativas antes de desistir de uma mensagem na fila. */
 const WHATSAPP_MAX_TENTATIVAS = 8;
 

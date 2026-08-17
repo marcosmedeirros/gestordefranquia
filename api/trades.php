@@ -13,8 +13,12 @@ require_once dirname(__DIR__) . '/backend/pick_protection.php';
  * OVR mínimo pra uma trade aceita virar aviso no grupo do WhatsApp e no n8n.
  * Abaixo disso a negociação acontece normal, só não é anunciada — o grupo é
  * pra trade que muda alguma coisa, não pra troca de banco.
+ *
+ * O número mora em backend/whatsapp.php: a dispensa usa o mesmo corte, e dois
+ * lugares decidindo a mesma coisa divergem na primeira mudança.
  */
-const TRADE_WHATS_OVR_MIN = 82;
+require_once dirname(__DIR__) . '/backend/whatsapp.php';
+const TRADE_WHATS_OVR_MIN = WHATSAPP_OVR_MIN_ANUNCIO;
 
 $user = getUserSession();
 if (!$user) {

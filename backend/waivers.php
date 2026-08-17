@@ -112,8 +112,53 @@ function notificarEntradaNoWaiver(PDO $pdo, array $p, string $league): void
             'body'  => trim($p['name'] . ($ficha !== '' ? " ({$ficha})" : '')) . ' está disponível por ' . WAIVER_HOURS . 'h. Dê seu lance!',
             'url'   => '/free-agency.php',
         ], 'waiver', $donoAntigo ? [$donoAntigo] : []);
+
+        anunciarWaiverNoGrupo($pdo, $p, $league, $ficha);
     } catch (Throwable $e) {
         error_log('notificarEntradaNoWaiver: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Dispensa de jogador grande vira aviso no grupo principal do WhatsApp.
+ *
+ * Mesmo corte da trade (82+): o grupo é pra movimento que muda alguma coisa.
+ * Dispensa de reserva acontece toda semana e encheria o grupo.
+ *
+ * Diz o time que dispensou e até quando dá pra dar lance — quem lê está
+ * decidindo se corre atrás, e a janela de 12h é a informação que falta.
+ *
+ * Falha em silêncio de propósito: aviso no grupo é conforto, e uma exceção
+ * aqui não pode desfazer a dispensa, que já aconteceu.
+ */
+function anunciarWaiverNoGrupo(PDO $pdo, array $p, string $league, string $ficha = ''): void
+{
+    try {
+        require_once __DIR__ . '/whatsapp.php';
+
+        // Só ELITE. Hoje isso já é verdade por construção — enterWaiver só é
+        // chamado pra ELITE em api/players.php — mas a checagem fica explícita
+        // porque esta função é chamável de fora e a regra é da liga, não do
+        // caminho de código que por acaso leva até aqui.
+        if (strtoupper(trim($league)) !== 'ELITE') return;
+        if ((int)($p['ovr'] ?? 0) < WHATSAPP_OVR_MIN_ANUNCIO) return;
+
+        $st = $pdo->prepare("SELECT TRIM(CONCAT(COALESCE(city,''),' ',name)) AS nome
+                             FROM teams WHERE id = ? LIMIT 1");
+        $st->execute([(int)($p['team_id'] ?? 0)]);
+        $time = trim((string)($st->fetchColumn() ?: ''));
+
+        $ate = (new DateTimeImmutable('now', new DateTimeZone('America/Sao_Paulo')))
+                 ->modify('+' . WAIVER_HOURS . ' hours');
+
+        $txt = whatsappTagDaLiga($league) . " 📤 *DISPENSADO*\n\n"
+             . '*' . trim((string)$p['name']) . '*' . ($ficha !== '' ? " ({$ficha})" : '') . "\n"
+             . ($time !== '' ? "Dispensado pelo {$time}\n" : '')
+             . "\nNo waiver até " . $ate->format('d/m H:i') . ' — depois disso vai pro free agency.';
+
+        whatsappParaGrupoPrincipal($pdo, $txt, 'waiver');
+    } catch (Throwable $e) {
+        error_log('anunciarWaiverNoGrupo: ' . $e->getMessage());
     }
 }
 
