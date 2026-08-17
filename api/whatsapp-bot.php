@@ -224,6 +224,21 @@ if ($acao === 'diagnostico') {
     $ultimoErro = $pdo->query("SELECT ultimo_erro FROM whatsapp_fila
                                WHERE ultimo_erro IS NOT NULL ORDER BY id DESC LIMIT 1")->fetchColumn();
 
+    // Quanto de cada tipo já saiu, e quando foi o último. "O bot mandou a
+    // trade no grupo?" era uma pergunta que o diagnóstico não respondia: dava
+    // o total da fila e quantos eram comando, e o resto virava adivinhação.
+    $porTipo = [];
+    try {
+        $st = $pdo->query("SELECT COALESCE(tipo,'(sem tipo)') tipo, COUNT(*) n,
+                                  SUM(enviado_em IS NOT NULL) enviadas,
+                                  MAX(enviado_em) ultimo
+                           FROM whatsapp_fila GROUP BY tipo ORDER BY n DESC");
+        foreach ($st as $r) {
+            $porTipo[] = ['tipo' => $r['tipo'], 'total' => (int)$r['n'],
+                          'enviadas' => (int)$r['enviadas'], 'ultimo' => $r['ultimo']];
+        }
+    } catch (Throwable $e) { /* segue sem a quebra */ }
+
     // Quando chegou a última mensagem DE FORA. É o único jeito de saber, do
     // terminal, se o webhook da Evolution está chegando aqui: fila parada e
     // sem erro tem duas causas opostas — ninguém falou nada, ou a recepção
@@ -253,6 +268,7 @@ if ($acao === 'diagnostico') {
         'ultima_entrada' => $ultimaEntrada,
         'ultima_entrada_seg' => whatsappUltimaEntradaSeg($pdo),
         'fila'           => array_map('intval', $fila ?: []),
+        'fila_por_tipo'  => $porTipo,
         'ultimo_erro'    => $ultimoErro ?: null,
     ]);
 }
