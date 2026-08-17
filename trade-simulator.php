@@ -1430,7 +1430,12 @@ async function submitMultiTrade(notes) {
       if (!fromTeam || !toTeam) return;
       const entry = { from_team_id: fromTeam.id, to_team_id: toTeam.id };
       if (item.type === 'player') entry.player_id = item.id;
-      else entry.pick_id = item.id;
+      else {
+        entry.pick_id = item.id;
+        // A proteção vai junto aqui também: eu tinha posto só no envio de dois
+        // times, e numa troca de 3+ o acordo sumia calado.
+        if (item.protection) entry.pick_protection = item.protection;
+      }
       items.push(entry);
     });
   });

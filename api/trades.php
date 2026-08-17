@@ -2430,11 +2430,33 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
             $sendCounts[$fromTeam]++;
             $receiveCounts[$toTeam]++;
 
+            // Proteção de pick também na multi-trade. Ela caía aqui: o item
+            // chegava com pick_protection e este bloco montava o registro sem
+            // ela, então numa troca de 3+ times o acordo sumia calado.
+            $protMulti = null;
+            if ($pickId) {
+                $stPk = $pdo->prepare("SELECT id, team_id, original_team_id, season_year, round, protection
+                                       FROM picks WHERE id = ?");
+                $stPk->execute([$pickId]);
+                $pkRow = $stPk->fetch(PDO::FETCH_ASSOC);
+                if ($pkRow) {
+                    $pedida = $item['pick_protection'] ?? null;
+                    $erroProt = protecaoValidarNaTroca($pdo, $pkRow, $pedida, (string)($user['league'] ?? ''));
+                    if ($erroProt !== '') {
+                        http_response_code(400);
+                        echo json_encode(['success' => false, 'error' => $erroProt]);
+                        exit;
+                    }
+                    if (protecaoValida($pedida)) $protMulti = $pedida;
+                }
+            }
+
             $validatedItems[] = [
                 'from_team_id' => $fromTeam,
                 'to_team_id' => $toTeam,
                 'player_id' => $playerId,
-                'pick_id' => $pickId
+                'pick_id' => $pickId,
+                'pick_protection' => $protMulti,
             ];
         }
 
@@ -2562,7 +2584,11 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
                     } catch (Exception $e) { $multiItemValue = null; }
                 }
             }
-            $execParams = [$tradeId, $fromTeam, $toTeam, $playerId, $pickId, $hasPickProtectionCol ? null : null, $playerName, $playerPosition, $playerAge, $playerOvr];
+            // A proteção combinada, e não null fixo: o `? null : null` de antes
+            // era a coluna sendo preenchida com nada, sempre.
+            $execParams = [$tradeId, $fromTeam, $toTeam, $playerId, $pickId,
+                           $hasPickProtectionCol ? ($item['pick_protection'] ?? null) : null,
+                           $playerName, $playerPosition, $playerAge, $playerOvr];
             if ($hasMultiPickSwapCols) {
                 $swapInfo = $pickId ? ($swapMapMulti[$pickId] ?? null) : null;
                 $execParams[] = $swapInfo['role'] ?? null;
@@ -3369,6 +3395,15 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                             } else {
                                 $stmtTransferPick->execute([(int)$item['to_team_id'], (int)$item['from_team_id'], (int)$item['pick_id']]);
                                 syncDraftOrderPickOwner($pdo, (int)$item['pick_id'], (int)$item['from_team_id'], (int)$item['to_team_id'], $league);
+                            }
+
+                            // A proteção combinada passa a viver na pick, igual
+                            // ao aceite de dois times. Sem isto o draft nunca
+                            // ficaria sabendo que a pick era protegida.
+                            $protItem = $item['pick_protection'] ?? null;
+                            if (protecaoValida($protItem) && protecaoLigaUsa($league)) {
+                                $pdo->prepare('UPDATE picks SET protection = ? WHERE id = ?')
+                                    ->execute([$protItem, (int)$item['pick_id']]);
                             }
                         }
                     }
