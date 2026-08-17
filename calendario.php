@@ -42,20 +42,45 @@ $ligasAdmin = array_values(array_intersect(
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <?php /* Oswald entra por causa do .section-title, que usa ela nas outras telas. */ ?>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/styles.css">
 
     <style>
+    /* Os mesmos tokens das outras telas. A lista precisa ficar COMPLETA: o
+       shell usa --sidebar-w, --ease e --radius-sm, e sem eles a barra lateral
+       perde a largura e vira uma faixa ocupando a tela toda. */
     :root{
-      --red:#fc0025; --bg:#07070a; --panel:#101013; --panel-2:#16161a; --panel-3:#1c1c21;
+      --red:#fc0025;
+      --red-2:color-mix(in srgb, var(--red) 85%, white);
+      --red-soft:color-mix(in srgb, var(--red) 10%, transparent);
+      --red-glow:color-mix(in srgb, var(--red) 18%, transparent);
+      --bg:#07070a; --panel:#101013; --panel-2:#16161a; --panel-3:#1c1c21;
       --border:rgba(255,255,255,.06); --border-md:rgba(255,255,255,.10);
+      --border-red:color-mix(in srgb, var(--red) 22%, transparent);
       --text:#f0f0f3; --text-2:#868690; --text-3:#7d7d85;
-      --font:'Montserrat',sans-serif; --radius:14px; --t:180ms;
+      --green:#22c55e; --amber:#f59e0b; --blue:#3b82f6;
+      --sidebar-w:260px;
+      --font:'Montserrat',sans-serif;
+      --radius:14px; --radius-sm:10px; --radius-xs:6px;
+      --ease:cubic-bezier(.2,.8,.2,1); --t:200ms;
     }
     :root[data-theme="light"]{
       --bg:#f6f7fb; --panel:#fff; --panel-2:#f2f4f8; --panel-3:#e9edf4;
       --border:#e3e6ee; --border-md:#d7dbe6; --text:#12141a; --text-2:#5b6172; --text-3:#6b7080;
     }
+    </style>
+
+    <?php /* Barra lateral, topbar, main e hero — o mesmo shell das outras telas. */ ?>
+    <?php include __DIR__ . '/includes/shell-css.php'; ?>
+
+    <style>
+
+    /* Caixa e título de seção, iguais aos de cap.php e das demais telas. */
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px}
+    .section-title{font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;
+      letter-spacing:.8px;color:var(--text-2);margin:22px 0 12px;display:flex;align-items:center;gap:8px}
+    @media (max-width:992px){ .panel{padding:16px 14px} }
 
     /* ── Filtro de ligas ──────────────────────────────────────────── */
     .cal-filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
