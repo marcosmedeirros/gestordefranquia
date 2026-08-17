@@ -13,17 +13,67 @@
 const CICLO_TEMPORADAS = 5;
 const CICLO_LIGA = 'ELITE';
 
-/** O ciclo de uma temporada: 1..5 → 1, 6..10 → 2, e assim por diante. */
-function cicloDaTemporada(int $seasonNumber): int
+/**
+ * As temporadas da sprint atual da liga, em ordem.
+ *
+ * O ciclo conta DENTRO da sprint, não a partir da temporada 1 absoluta:
+ * sprint nova recomeça a contagem, senão um ciclo ficaria com metade das
+ * temporadas de uma sprint e metade da outra.
+ *
+ * Devolve [['season_number'=>n, 'status'=>s], ...] ordenado.
+ */
+function cicloTemporadasDaSprint(PDO $pdo): array
 {
-    return (int)max(1, ceil($seasonNumber / CICLO_TEMPORADAS));
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = [];
+    try {
+        // A sprint atual é a da temporada mais recente da liga.
+        $st = $pdo->prepare("SELECT sprint_id FROM seasons WHERE league = ?
+                             ORDER BY season_number DESC LIMIT 1");
+        $st->execute([CICLO_LIGA]);
+        $sprint = $st->fetchColumn();
+        if ($sprint === false || $sprint === null) return $cache;
+
+        $st = $pdo->prepare("SELECT season_number, status FROM seasons
+                             WHERE league = ? AND sprint_id = ?
+                             ORDER BY season_number ASC");
+        $st->execute([CICLO_LIGA, $sprint]);
+        $cache = $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        error_log('[ciclos] temporadas da sprint: ' . $e->getMessage());
+    }
+    return $cache;
 }
 
-/** As temporadas que um ciclo cobre: [primeira, ultima]. */
-function cicloIntervalo(int $ciclo): array
+/** Quantos ciclos a sprint tem (contando o que está em andamento). */
+function cicloQuantos(PDO $pdo): int
 {
+    $n = count(cicloTemporadasDaSprint($pdo));
+    return $n ? (int)ceil($n / CICLO_TEMPORADAS) : 0;
+}
+
+/**
+ * As temporadas que um ciclo cobre: [primeira, ultima] em season_number.
+ *
+ * Sai da posição dentro da sprint — o 1º ciclo são as 5 primeiras temporadas
+ * DELA, quaisquer que sejam os números.
+ */
+function cicloIntervalo(PDO $pdo, int $ciclo): array
+{
+    $temps = cicloTemporadasDaSprint($pdo);
+    if (!$temps) return [0, 0];
     $ciclo = max(1, $ciclo);
-    return [($ciclo - 1) * CICLO_TEMPORADAS + 1, $ciclo * CICLO_TEMPORADAS];
+    $ini = ($ciclo - 1) * CICLO_TEMPORADAS;
+    $fatia = array_slice($temps, $ini, CICLO_TEMPORADAS);
+    if (!$fatia) return [0, 0];
+    return [(int)$fatia[0]['season_number'], (int)$fatia[count($fatia) - 1]['season_number']];
+}
+
+/** O ciclo em que a liga está agora. */
+function cicloAtual(PDO $pdo): int
+{
+    return max(1, cicloQuantos($pdo));
 }
 
 /**
@@ -55,7 +105,7 @@ function cicloTemporadaAtual(PDO $pdo): int
  */
 function cicloFechado(PDO $pdo, int $ciclo): bool
 {
-    [, $ate] = cicloIntervalo($ciclo);
+    [, $ate] = cicloIntervalo($pdo, $ciclo);
     try {
         $st = $pdo->prepare("SELECT status FROM seasons WHERE league = ? AND season_number = ? LIMIT 1");
         $st->execute([CICLO_LIGA, $ate]);
@@ -77,7 +127,7 @@ function cicloFechado(PDO $pdo, int $ciclo): bool
  */
 function cicloClassificacao(PDO $pdo, int $ciclo): array
 {
-    [$de, $ate] = cicloIntervalo($ciclo);
+    [$de, $ate] = cicloIntervalo($pdo, $ciclo);
     try {
         $st = $pdo->prepare("
             SELECT tsp.team_id,
@@ -110,103 +160,54 @@ function cicloClassificacao(PDO $pdo, int $ciclo): array
     return $linhas;
 }
 
+
 /**
- * As 5 temporadas de um ciclo, uma por uma — inclusive as que ainda não
- * aconteceram.
+ * Um resumo por CICLO da sprint — é o que vira os cards do topo.
  *
- * Devolve sempre CINCO entradas: a faixa de temporadas é o que dá forma ao
- * ciclo, e esconder as vazias faria "faltam duas" virar uma conta de cabeça.
- * Cada entrada diz se tem pontuação e quem liderou aquela temporada.
+ * Cada card mostra o campeão da SOMA das 5 temporadas, não o líder de uma
+ * temporada isolada: o ciclo é a unidade, e mostrar vencedor por temporada
+ * responderia uma pergunta que ninguém fez.
+ *
+ * Vêm todos os ciclos da sprint, inclusive o que está rolando (marcado como
+ * em andamento) e os que ainda não têm pontuação — a sequência é o que deixa
+ * claro em que ponto da sprint a liga está.
  */
-function cicloTemporadas(PDO $pdo, int $ciclo): array
+function cicloResumos(PDO $pdo): array
 {
-    [$de, $ate] = cicloIntervalo($ciclo);
-
-    $porTemporada = [];
-    try {
-        $st = $pdo->prepare("
-            SELECT tsp.season_number,
-                   TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time,
-                   t.photo_url, tsp.points
-            FROM team_season_points tsp
-            LEFT JOIN teams t ON t.id = tsp.team_id
-            WHERE tsp.league = ? AND tsp.season_number BETWEEN ? AND ?
-            ORDER BY tsp.season_number ASC, tsp.points DESC");
-        $st->execute([CICLO_LIGA, $de, $ate]);
-        foreach ($st as $r) {
-            $n = (int)$r['season_number'];
-            // A consulta já vem ordenada por pontos: a primeira de cada
-            // temporada é a líder.
-            if (!isset($porTemporada[$n])) {
-                $porTemporada[$n] = ['lider' => $r['time'], 'photo_url' => $r['photo_url'],
-                                     'pontos' => (int)$r['points'], 'times' => 0];
-            }
-            $porTemporada[$n]['times']++;
-        }
-    } catch (Throwable $e) {
-        error_log('[ciclos] temporadas: ' . $e->getMessage());
-    }
-
-    // Status de cada temporada, pra distinguir "ainda não rolou" de "rolou e
-    // ninguém lançou pontuação" — são coisas diferentes pra quem administra.
-    $status = [];
-    try {
-        $st = $pdo->prepare("SELECT season_number, status FROM seasons
-                             WHERE league = ? AND season_number BETWEEN ? AND ?");
-        $st->execute([CICLO_LIGA, $de, $ate]);
-        foreach ($st as $r) $status[(int)$r['season_number']] = (string)$r['status'];
-    } catch (Throwable $e) { /* sem status: tudo vira "por vir" */ }
+    $quantos = cicloQuantos($pdo);
+    if (!$quantos) return [];
 
     $out = [];
-    for ($n = $de; $n <= $ate; $n++) {
-        $tem = isset($porTemporada[$n]);
+    for ($c = 1; $c <= $quantos; $c++) {
+        [$de, $ate] = cicloIntervalo($pdo, $c);
+        $tab = cicloClassificacao($pdo, $c);
+        $fechado = cicloFechado($pdo, $c);
+        $tem = $tab && $tab[0]['pontos'] > 0;
+
         $out[] = [
-            'temporada' => $n,
-            'tem_dados' => $tem,
-            'status'    => $status[$n] ?? null,
-            'existe'    => isset($status[$n]),
-            'lider'     => $tem ? $porTemporada[$n]['lider'] : null,
-            'photo_url' => $tem ? $porTemporada[$n]['photo_url'] : null,
-            'pontos'    => $tem ? $porTemporada[$n]['pontos'] : null,
-            'times'     => $tem ? $porTemporada[$n]['times'] : 0,
+            'ciclo'       => $c,
+            'de'          => $de,
+            'ate'         => $ate,
+            'fechado'     => $fechado,
+            'tem_dados'   => $tem,
+            // Fechado com pontuação = campeão. Em andamento = quem lidera
+            // agora, e a tela diz que é parcial: anunciar "campeão" de um
+            // ciclo que ainda corre seria dar título que pode mudar de dono.
+            'campeao'     => $tem ? ($tab[0]['time'] ?: 'Time #' . $tab[0]['team_id']) : null,
+            'team_id'     => $tem ? $tab[0]['team_id'] : null,
+            'photo_url'   => $tem ? $tab[0]['photo_url'] : null,
+            'pontos'      => $tem ? $tab[0]['pontos'] : null,
+            'vice'        => $tem && isset($tab[1]) ? $tab[1]['time'] : null,
+            'vice_pontos' => $tem && isset($tab[1]) ? $tab[1]['pontos'] : null,
+            'times'       => $tab ? count($tab) : 0,
         ];
     }
     return $out;
 }
 
-/**
- * Os campeões dos ciclos JÁ FECHADOS.
- *
- * Um ciclo só entra na lista depois da 5ª temporada dele ter pontuação — o
- * líder de um ciclo em andamento não é campeão de nada, e mostrá-lo como tal
- * seria anunciar um título que ainda pode mudar de dono.
- */
+/** Só os ciclos fechados COM pontuação — os campeões de verdade. */
 function cicloCampeoes(PDO $pdo): array
 {
-    $atual = cicloTemporadaAtual($pdo);
-    if ($atual < CICLO_TEMPORADAS) return [];
-
-    $out = [];
-    for ($c = 1; $c <= cicloDaTemporada($atual); $c++) {
-        if (!cicloFechado($pdo, $c)) continue;
-        $tab = cicloClassificacao($pdo, $c);
-        // Ciclo fechado sem pontuação lançada não tem campeão — a ELITE tem
-        // ciclos assim, de antes de a pontuação por temporada existir. Melhor
-        // ausente que um campeão de zero ponto.
-        if (!$tab || $tab[0]['pontos'] <= 0) continue;
-        [$de, $ate] = cicloIntervalo($c);
-        $out[] = [
-            'ciclo'      => $c,
-            'de'         => $de,
-            'ate'        => $ate,
-            'campeao'    => $tab[0]['time'] ?: 'Time #' . $tab[0]['team_id'],
-            'team_id'    => $tab[0]['team_id'],
-            'photo_url'  => $tab[0]['photo_url'] ?? null,
-            'pontos'     => $tab[0]['pontos'],
-            // O vice serve de medida: "campeão com 62" não diz nada sozinho.
-            'vice'       => $tab[1]['time'] ?? null,
-            'vice_pontos'=> isset($tab[1]) ? $tab[1]['pontos'] : null,
-        ];
-    }
-    return $out;
+    return array_values(array_filter(cicloResumos($pdo),
+        fn($r) => $r['fechado'] && $r['tem_dados']));
 }

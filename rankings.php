@@ -184,12 +184,20 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         /* As cinco temporadas numa linha só, sempre as cinco: a faixa é o que
            dá forma ao ciclo, e esconder as vazias faria "faltam duas" virar
            conta de cabeça. */
-        .ct-slots { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+        /* auto-fit: a sprint tem 3 ciclos hoje e tera mais depois — coluna
+           fixa deixaria tres cards espremidos num terco da largura. */
+        .ct-slots { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
         .ct-slot {
             background:var(--panel); border:1px solid var(--border); border-radius:12px;
             padding:12px 10px; display:flex; flex-direction:column; align-items:center; gap:7px; min-height:132px;
         }
         .ct-slot.vazio { border-style:dashed; opacity:.55; }
+        /* O ciclo em andamento e o que a pessoa esta vivendo: fica marcado. */
+        .ct-slot.agora { border-color:var(--red); }
+        .ct-slot-tag { font-size:9px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+            color:var(--text-3); margin-top:2px; }
+        .ct-slot.agora .ct-slot-tag { color:var(--red); }
+        .ct-slot:not(.vazio):not(.agora) .ct-slot-tag { color:var(--amber); }
         .ct-slot-t { font-size:10px; font-weight:800; letter-spacing:.08em; color:var(--text-3); }
         .ct-slot-vazio { width:26px; height:26px; border-radius:6px; border:1px dashed var(--border-md); }
         .ct-slot-nome {
@@ -506,11 +514,11 @@ $seasonDisplayYear = (string)$currentSeasonYear;
        sem ganho. */
     const CICLO = <?= json_encode([
         'temporada_atual' => cicloTemporadaAtual($pdo),
-        'ciclo_atual'     => cicloDaTemporada(cicloTemporadaAtual($pdo)),
+        'ciclo_atual'     => cicloAtual($pdo),
         'tamanho'         => CICLO_TEMPORADAS,
-        'temporadas'      => cicloTemporadas($pdo, cicloDaTemporada(cicloTemporadaAtual($pdo))),
-        'tabela'          => cicloClassificacao($pdo, cicloDaTemporada(cicloTemporadaAtual($pdo))),
-        'campeoes'        => cicloCampeoes($pdo),
+        // Um resumo por ciclo da sprint — é o que vira os cards do topo.
+        'ciclos'          => cicloResumos($pdo),
+        'tabela'          => cicloClassificacao($pdo, cicloAtual($pdo)),
     ], JSON_UNESCAPED_UNICODE) ?>;
 
     /* ── Lógica Visual Sidebar / Tema ── */
@@ -596,19 +604,27 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             ? `<img src="${esc(u)}" alt="" style="width:26px;height:26px;border-radius:6px;object-fit:cover;flex-shrink:0">`
             : `<span style="width:26px;height:26px;border-radius:6px;background:var(--panel-3);display:grid;place-items:center;font-size:11px;font-weight:800;color:var(--text-3);flex-shrink:0">${esc((nome||'?').trim()[0]||'?')}</span>`;
 
-        const [de, ate] = [CICLO.ciclo_atual * CICLO.tamanho - (CICLO.tamanho - 1), CICLO.ciclo_atual * CICLO.tamanho];
+        // A faixa vem do próprio ciclo, não de conta com o número dele: o
+        // ciclo em andamento pode ter menos de 5 temporadas ainda, e a conta
+        // anunciava "11 a 15" quando só a 11 existia.
+        const cicloAgora = CICLO.ciclos.find(c => c.ciclo === CICLO.ciclo_atual) || {de:0, ate:0};
+        const de = cicloAgora.de, ate = cicloAgora.ate;
+        const faltam = CICLO.tamanho - (ate - de + 1);
 
-        // ── As cinco vagas do ciclo, sempre as cinco ─────────────────
-        const slots = CICLO.temporadas.map(t => {
-            const vazio = !t.tem_dados;
-            const rotulo = t.tem_dados ? esc(t.lider)
-                        : (t.existe ? 'sem pontuação' : 'por vir');
+        // ── Um card por CICLO, com o campeão da SOMA das 5 temporadas ─
+        // Não é um card por temporada: o ciclo é a unidade, e vencedor de
+        // temporada isolada responderia uma pergunta que ninguém fez.
+        const slots = CICLO.ciclos.map(c => {
+            const emAndamento = !c.fechado;
+            const vazio = !c.tem_dados;
+            const faixa = c.de === c.ate ? `T${c.de}` : `T${c.de}–${c.ate}`;
             return `
-              <div class="ct-slot ${vazio ? 'vazio' : ''}">
-                <div class="ct-slot-t">T${t.temporada}</div>
-                ${t.tem_dados ? escudo(t.photo_url, t.lider) : '<div class="ct-slot-vazio"></div>'}
-                <div class="ct-slot-nome">${rotulo}</div>
-                <div class="ct-slot-pts">${t.tem_dados ? t.pontos + ' pts' : '—'}</div>
+              <div class="ct-slot ${vazio ? 'vazio' : ''} ${emAndamento ? 'agora' : ''}">
+                <div class="ct-slot-t">Ciclo ${c.ciclo} · ${faixa}</div>
+                ${c.tem_dados ? escudo(c.photo_url, c.campeao) : '<div class="ct-slot-vazio"></div>'}
+                <div class="ct-slot-nome">${c.tem_dados ? esc(c.campeao) : 'sem pontuação'}</div>
+                <div class="ct-slot-pts">${c.tem_dados ? c.pontos + ' pts' : '—'}</div>
+                <div class="ct-slot-tag">${emAndamento ? 'em andamento' : (c.tem_dados ? 'campeão' : 'encerrado')}</div>
               </div>`;
         }).join('');
 
@@ -624,7 +640,10 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             </tr>`).join('')
           : `<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:26px">Nenhuma pontuação lançada neste ciclo ainda.</td></tr>`;
 
-        const campeoes = CICLO.campeoes.length ? CICLO.campeoes.slice().reverse().map(c => `
+        // Só os ciclos fechados COM pontuação são campeões; do mais recente
+        // pro mais antigo. O ciclo em andamento já aparece nos cards de cima.
+        const fechados = CICLO.ciclos.filter(c => c.fechado && c.tem_dados);
+        const campeoes = fechados.length ? fechados.slice().reverse().map(c => `
             <div class="ct-camp">
               <div class="ct-camp-ciclo">T${c.de}–${c.ate}</div>
               <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
@@ -642,7 +661,8 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             <div class="ct-topo">
               <div>
                 <div class="ct-ciclo">Ciclo ${CICLO.ciclo_atual}</div>
-                <div class="ct-sub">Temporadas ${de} a ${ate} · zera no fim do ciclo</div>
+                <div class="ct-sub">${de === ate ? `Temporada ${de}` : `Temporadas ${de} a ${ate}`}${
+                    faltam > 0 ? ` · faltam ${faltam} pra fechar` : ''} · zera no fim do ciclo</div>
               </div>
               <div class="ct-agora">T${CICLO.temporada_atual}</div>
             </div>
