@@ -364,6 +364,41 @@ $tradedAway   = count($picksAway);
         /* Os selos descem pro rodape do card e dividem a largura. */
         .pick-value, .pick-cap { flex: 1; }
         .pick-status { width: 100%; }
+
+        /* No celular o card empilhado vira uma caixa de 260px pra UMA pick —
+           onze delas eram 3000px de rolagem quase vazia. Abaixo de 640px
+           volta a ser linha compacta, que e o formato que cabe. */
+        @media (max-width: 640px) {
+            .round-body { grid-template-columns: 1fr; gap: 0; padding: 0; }
+            .pick-row {
+                flex-direction: row; align-items: center; gap: 10px;
+                border: none; border-bottom: 1px solid var(--border); border-radius: 0;
+                background: transparent; padding: 11px 14px 11px 17px;
+            }
+            .pick-row:last-child { border-bottom: none; }
+            .pick-row:hover { transform: none; box-shadow: none; background: var(--panel-2); }
+            .pick-year { font-size: 19px; min-width: 42px; flex-shrink: 0; }
+            .pick-mid { flex: 1; min-width: 0; width: auto; }
+            .pick-origin { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            /* O selo de status repete o que o texto do meio ja diz
+               ("Propria"/"via Fulano") e era o que empurrava a linha pra
+               quebrar. Some no celular; o cap tambem, que so interessa
+               montando troca — e troca ninguem monta no celular. */
+            .pick-status, .pick-cap { display: none; }
+            .pick-value { flex: none; }
+            /* nowrap: os filhos somavam 390px em 347 disponiveis e a linha
+               quebrava em duas, dobrando a altura. Com o meio encolhendo
+               (min-width:0) cabe tudo numa linha so. */
+            .pick-row { padding: 7px 10px 7px 13px; gap: 8px; flex-wrap: nowrap; }
+            /* A rodada e a origem cabem na MESMA linha: eram duas, e cada
+               pick ocupava o dobro da altura que precisa. */
+            .pick-mid { display: flex; align-items: baseline; gap: 7px; }
+            .pick-round-tag { margin-bottom: 0; flex-shrink: 0; font-size: 9px; padding: 1px 6px; }
+            .pick-origin { font-size: 11px; }
+            .pick-year { font-size: 17px; min-width: 38px; }
+            .pick-value { transform: scale(.9); }
+            .pick-round-tag { margin-bottom: 2px; }
+        }
         /* ── Animations ──────────────────────────── */
         @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .round-panel, .away-panel { animation: fadeUp .35s var(--ease) both; }
@@ -382,13 +417,10 @@ $tradedAway   = count($picksAway);
         /* Com os dois selos numéricos a linha não cabe mais em tela estreita —
            sem isto a coluna do meio ("1ª Rodada · Própria") era espremida até
            sumir. Aqui ela ocupa a primeira linha inteira e os selos descem. */
-        @media (max-width: 560px) {
-            .pick-row { flex-wrap: wrap; row-gap: 8px; }
-            /* 66px = largura do ano (~46) + o gap de 12, com folga. A base tem que
-               caber junto do ano na 1ª linha; o flex-grow depois preenche o resto. */
-            .pick-mid { flex: 1 1 calc(100% - 66px); }
-            .pick-value { margin-left: 58px; }
-        }
+        /* Havia aqui um bloco de 560px que FORCAVA a quebra da linha, porque
+           ela nao cabia com os dois selos numericos. No celular esses selos
+           agora somem (bloco de 640px acima), entao forcar wrap so dobrava a
+           altura de cada pick sem motivo. */
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>

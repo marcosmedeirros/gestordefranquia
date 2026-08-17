@@ -221,6 +221,31 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         .ct-camp-pts { font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; color:var(--amber); margin-left:auto; }
         .ct-camp-pts small { font-size:10px; color:var(--text-3); margin-left:3px; font-family:var(--font); }
 
+
+        /* ── ELITE 5T no celular ──────────────────────────────────────
+           Os cards de ciclo em auto-fit de 150px cabiam dois por linha e
+           ficavam ilegiveis; a tabela tem 7 colunas e so as escondidas
+           somem, deixando o total espremido. */
+        @media (max-width: 640px) {
+            /* As abas somavam 435px em 343 e rolavam de lado sem nenhum
+               indicativo — a ELITE 5T, que e a ultima, ficava escondida.
+               Quebrando linha, todas aparecem. */
+            .filter-nav { flex-wrap: wrap; overflow-x: visible; }
+            .ct-slots { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .ct-slot { min-height: 118px; padding: 10px 8px; }
+            .ct-slot-t { font-size: 9px; }
+            .ct-slot-nome { font-size: 11px; }
+            .ct-topo { align-items: flex-start; }
+            .ct-ciclo { font-size: 18px; }
+            .ct-agora { font-size: 24px; }
+            .m-table th, .m-table td { padding: 10px 8px; font-size: 12px; }
+        }
+        @media (max-width: 380px) {
+            .ct-slots { grid-template-columns: 1fr; }
+            .ct-slot { min-height: 0; flex-direction: row; align-items: center; gap: 10px; }
+            .ct-slot-nome { text-align: left; flex: 1; -webkit-line-clamp: 1; }
+            .ct-slot-pts, .ct-slot-tag { margin-top: 0; }
+        }
         .table-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; animation: fadeUp 0.4s var(--ease); }
         .m-table { width: 100%; border-collapse: collapse; text-align: left; }
         .m-table th { padding: 14px 18px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--border); background: var(--panel-2); }
