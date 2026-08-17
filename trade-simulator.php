@@ -1435,10 +1435,31 @@ async function submitMultiTrade(notes) {
     });
   });
 
+  // Monta swap_pairs: duas picks de 1ª rodada do MESMO ano, cada uma vindo de
+  // um time do acordo — é o que normalizeSwapPairsMulti() em api/trades.php
+  // exige no recebimento.
+  const swapPairs = [];
+  const usedSwap = new Set();
+  activeSlots.forEach(toKey => {
+    (receives[toKey] || []).forEach(item => {
+      if (item.type !== 'pick' || !item.swapRole || usedSwap.has(item.id)) return;
+      const pair = findSwapPair(toKey, item);
+      if (!pair || !pair.item.swapRole) return;
+      swapPairs.push({
+        pick_id_a: item.id,
+        pick_id_b: pair.item.id,
+        role_a: item.swapRole,
+        role_b: pair.item.swapRole,
+      });
+      usedSwap.add(item.id);
+      usedSwap.add(pair.item.id);
+    });
+  });
+
   const r = await fetch('/api/trades.php?action=multi_trades', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ teams: teamIds, items, notes }),
+    body: JSON.stringify({ teams: teamIds, items, notes, swap_pairs: swapPairs }),
   });
   const d = await r.json();
   if (!r.ok || d.success === false) throw d;
@@ -1479,11 +1500,10 @@ function resetAll() {
 function findSwapPair(toKey, item) {
   if (!SWAP_ALLOWED) return null;
   if (String(item.round) !== '1') return null;   // só 1ª rodada tem swap
-  // Swap é coisa de troca entre dois times. O endpoint de trade múltipla
-  // (api/trades.php?action=multi_trades) não lê swap_pairs — com três times a
-  // tela deixava marcar SB/SW, mostrava na lista e o envio jogava fora sem
-  // avisar. Some silenciosa é pior que recusa.
-  if (activeSlots.filter(k => teams[k]).length !== 2) return null;
+  // O par pode estar em QUALQUER outro time do acordo, não só quando são
+  // exatamente 2 — api/trades.php?action=multi_trades já processa swap_pairs
+  // (normalizeSwapPairsMulti), então uma troca de 3+ times com um swap entre
+  // duas pontas específicas funciona normal.
   for (const otherToKey of activeSlots) {
     if (otherToKey === toKey) continue;
     for (const other of (receives[otherToKey] || [])) {

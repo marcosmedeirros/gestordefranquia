@@ -973,6 +973,27 @@ function ensureMultiTradeTables(PDO $pdo): void
 
 ensureMultiTradeTables($pdo);
 
+// Swap (SB/SW) na troca de 3+ times: mesmas colunas de trade_items, só que
+// aqui a pick não tem "lado" (oferta/pedido) fixo — quem liga as duas é
+// pick_swap_pair_id, igual na de 2 times.
+function ensureMultiTradeItemPickSwapColumns(PDO $pdo): void {
+    if (!tableExists($pdo, 'multi_trade_items')) {
+        return;
+    }
+    try {
+        if (!columnExists($pdo, 'multi_trade_items', 'pick_swap_role')) {
+            $pdo->exec("ALTER TABLE multi_trade_items ADD COLUMN pick_swap_role VARCHAR(2) NULL AFTER pick_id");
+        }
+        if (!columnExists($pdo, 'multi_trade_items', 'pick_swap_pair_id')) {
+            $pdo->exec("ALTER TABLE multi_trade_items ADD COLUMN pick_swap_pair_id INT NULL AFTER pick_swap_role");
+        }
+    } catch (Exception $e) {
+        // ignora caso não seja possível alterar em runtime
+    }
+}
+
+ensureMultiTradeItemPickSwapColumns($pdo);
+
 // Garante coluna 'cycle' para controle de limite por ciclo de temporadas
 function ensureTradeCycleColumn(PDO $pdo): void
 {
@@ -1429,6 +1450,93 @@ function normalizeSwapPairs(PDO $pdo, array $offerPicks, array $requestPicks, ar
         $swapMap[$requestPickId] = ['role' => $requestRole, 'pair_id' => $offerPickId];
         $used[$offerPickId] = true;
         $used[$requestPickId] = true;
+    }
+
+    return $swapMap;
+}
+
+/**
+ * A mesma validação de normalizeSwapPairs(), pra troca de 3+ times.
+ *
+ * Ali existe "oferta" e "pedido" porque só tem dois lados. Aqui não: os itens
+ * são uma lista solta de {from_team_id, to_team_id, pick_id}, então o par de
+ * swap chega como {pick_id_a, pick_id_b, role_a, role_b} e quem garante que
+ * as duas picks são de times DIFERENTES dentro do acordo é esta função — na
+ * de 2 times isso já vinha de graça (oferta é sempre de um time, pedido do
+ * outro).
+ *
+ * Espera $items no formato de $validatedItems do handler de multi_trades
+ * (from_team_id, pick_id).
+ */
+function normalizeSwapPairsMulti(PDO $pdo, array $items, array $swapPairs): array
+{
+    if (empty($swapPairs) || !is_array($swapPairs)) {
+        return [];
+    }
+
+    // pick_id -> time que está mandando ela NESTA troca, só entre as picks
+    // que realmente fazem parte do acordo.
+    $fromTeamOfPick = [];
+    foreach ($items as $item) {
+        if (!empty($item['pick_id'])) {
+            $fromTeamOfPick[(int)$item['pick_id']] = (int)$item['from_team_id'];
+        }
+    }
+
+    $swapMap = [];
+    $used = [];
+
+    foreach ($swapPairs as $pair) {
+        $pickIdA = (int)($pair['pick_id_a'] ?? 0);
+        $pickIdB = (int)($pair['pick_id_b'] ?? 0);
+        $roleA = strtoupper(trim((string)($pair['role_a'] ?? '')));
+        $roleB = strtoupper(trim((string)($pair['role_b'] ?? '')));
+
+        if (!$pickIdA || !$pickIdB) {
+            throw new Exception('Swap inválido: picks não informadas.');
+        }
+        if (!isset($fromTeamOfPick[$pickIdA]) || !isset($fromTeamOfPick[$pickIdB])) {
+            throw new Exception('Swap inválido: picks precisam estar na troca.');
+        }
+        if ($roleA === $roleB || !in_array($roleA, ['SB','SW'], true) || !in_array($roleB, ['SB','SW'], true)) {
+            throw new Exception('Swap inválido: defina SB e SW corretamente.');
+        }
+        if (!empty($used[$pickIdA]) || !empty($used[$pickIdB])) {
+            throw new Exception('Swap inválido: pick duplicada em swaps.');
+        }
+        if ($fromTeamOfPick[$pickIdA] === $fromTeamOfPick[$pickIdB]) {
+            throw new Exception('Swap inválido: as duas picks precisam vir de times diferentes.');
+        }
+
+        $pickA = fetchPickSwapInfo($pdo, $pickIdA);
+        $pickB = fetchPickSwapInfo($pdo, $pickIdB);
+
+        if ((int)$pickA['season_year'] !== (int)$pickB['season_year']) {
+            throw new Exception('Swap inválido: picks de swap precisam ser do mesmo ano.');
+        }
+        if ((string)$pickA['round'] !== (string)$pickB['round']) {
+            throw new Exception('Swap inválido: picks precisam ser da mesma rodada.');
+        }
+        if ((int)$pickA['round'] !== 1) {
+            throw new Exception('Swap inválido: só existe swap em pick de 1ª rodada.');
+        }
+        if (!empty($pickA['swap_locked'])) {
+            throw new Exception('Swap inválido: pick já está travada para swap.');
+        }
+        if (!empty($pickB['swap_locked'])) {
+            throw new Exception('Swap inválido: pick já está travada para swap.');
+        }
+        if ($roleA === 'SW' && !empty($pickA['swap_type'])) {
+            throw new Exception('Swap inválido: não é permitido swap de swap.');
+        }
+        if ($roleB === 'SW' && !empty($pickB['swap_type'])) {
+            throw new Exception('Swap inválido: não é permitido swap de swap.');
+        }
+
+        $swapMap[$pickIdA] = ['role' => $roleA, 'pair_id' => $pickIdB];
+        $swapMap[$pickIdB] = ['role' => $roleB, 'pair_id' => $pickIdA];
+        $used[$pickIdA] = true;
+        $used[$pickIdB] = true;
     }
 
     return $swapMap;
@@ -2078,6 +2186,12 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'multi_trades') {
                 $item['last_owner_team_id'] = $pick['last_owner_team_id'] ?? null;
                 $item['last_owner_city'] = $pick['last_owner_city'] ?? null;
                 $item['last_owner_name'] = $pick['last_owner_name'] ?? null;
+                // swap_type só existe na pick depois do ACEITE; enquanto pendente,
+                // quem diz que a pick é SB/SW é o próprio item da troca — mesmo
+                // fallback que a listagem de trade de 2 times usa.
+                $item['swap_type'] = $pick['swap_type'] ?? null;
+                $item['pending_swap_role'] = $item['pick_swap_role'] ?? null;
+                $item['pending_swap_pair_id'] = $item['pick_swap_pair_id'] ?? null;
                 if ($draftSession && !empty($draftMap)) {
                     $pickWithDraft = applyDraftContextToPick($pick, $draftSession, $draftMap, $sessionSeasonId, $sessionYear);
                     if (!empty($pickWithDraft['draft_pick_number'])) {
@@ -2207,6 +2321,7 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
     $teams = $data['teams'] ?? [];
     $items = $data['items'] ?? [];
     $notes = trim($data['notes'] ?? '');
+    $swapPairsInput = $data['swap_pairs'] ?? [];
 
     if (!is_array($teams) || count($teams) < 2) {
         http_response_code(400);
@@ -2240,10 +2355,18 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
         exit;
     }
     // RISE e ROOKIE não têm swap: não deixar combinar por escrito na observação
-    if (!leagueAllowsSwap($league) && noteMentionsSwap($notes)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => swapNotAllowedNoteMessage($league)]);
-        exit;
+    // nem mandar swap_pairs direto pela API.
+    if (!leagueAllowsSwap($league)) {
+        if (!empty($swapPairsInput)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Swap de picks não é permitido na liga ' . $league . '.']);
+            exit;
+        }
+        if (noteMentionsSwap($notes)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => swapNotAllowedNoteMessage($league)]);
+            exit;
+        }
     }
     try {
         $placeholders = implode(',', array_fill(0, count($teams), '?'));
@@ -2323,6 +2446,14 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
             }
         }
 
+        try {
+            $swapMapMulti = normalizeSwapPairsMulti($pdo, $validatedItems, $swapPairsInput);
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+
         if (!areTradesEnabled($pdo, $league)) {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => TRADES_LOCKED_MSG]);
@@ -2353,12 +2484,22 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
 
         $hasPickProtectionCol = columnExists($pdo, 'multi_trade_items', 'pick_protection');
         $hasMultiItemValueCol = columnExists($pdo, 'multi_trade_items', 'item_value');
+        $hasMultiPickSwapCols = columnExists($pdo, 'multi_trade_items', 'pick_swap_role') && columnExists($pdo, 'multi_trade_items', 'pick_swap_pair_id');
         $ovrCol = playerOvrColumn($pdo);
-        if ($hasMultiItemValueCol) {
-            $stmtItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id, pick_protection, player_name, player_position, player_age, player_ovr, item_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        } else {
-            $stmtItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id, pick_protection, player_name, player_position, player_age, player_ovr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+
+        $itemColumns = ['trade_id', 'from_team_id', 'to_team_id', 'player_id', 'pick_id', 'pick_protection', 'player_name', 'player_position', 'player_age', 'player_ovr'];
+        $itemPlaceholders = array_fill(0, count($itemColumns), '?');
+        if ($hasMultiPickSwapCols) {
+            $itemColumns[] = 'pick_swap_role';
+            $itemColumns[] = 'pick_swap_pair_id';
+            $itemPlaceholders[] = '?';
+            $itemPlaceholders[] = '?';
         }
+        if ($hasMultiItemValueCol) {
+            $itemColumns[] = 'item_value';
+            $itemPlaceholders[] = '?';
+        }
+        $stmtItem = $pdo->prepare('INSERT INTO multi_trade_items (' . implode(', ', $itemColumns) . ') VALUES (' . implode(', ', $itemPlaceholders) . ')');
 
         foreach ($validatedItems as $item) {
             $fromTeam = (int)$item['from_team_id'];
@@ -2422,6 +2563,11 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'multi_trades') {
                 }
             }
             $execParams = [$tradeId, $fromTeam, $toTeam, $playerId, $pickId, $hasPickProtectionCol ? null : null, $playerName, $playerPosition, $playerAge, $playerOvr];
+            if ($hasMultiPickSwapCols) {
+                $swapInfo = $pickId ? ($swapMapMulti[$pickId] ?? null) : null;
+                $execParams[] = $swapInfo['role'] ?? null;
+                $execParams[] = $swapInfo['pair_id'] ?? null;
+            }
             if ($hasMultiItemValueCol) $execParams[] = $multiItemValue;
             $stmtItem->execute($execParams);
         }
@@ -3168,13 +3314,23 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                 $stmtItems->execute([$tradeId]);
                 $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
+                $hasMultiPickSwapCols = columnExists($pdo, 'multi_trade_items', 'pick_swap_role') && columnExists($pdo, 'multi_trade_items', 'pick_swap_pair_id');
+
                 $stmtUpdateMultiPick = $pdo->prepare('UPDATE multi_trade_items SET pick_id = ? WHERE id = ?');
+                $stmtUpdateMultiPickPair = $hasMultiPickSwapCols ? $pdo->prepare('UPDATE multi_trade_items SET pick_swap_pair_id = ? WHERE id = ?') : null;
                 foreach ($items as &$item) {
                     if (!empty($item['pick_id'])) {
                         $normalizedId = normalizePickId($pdo, (int)$item['pick_id']);
                         if ($normalizedId !== (int)$item['pick_id']) {
                             $stmtUpdateMultiPick->execute([$normalizedId, $item['id']]);
                             $item['pick_id'] = $normalizedId;
+                        }
+                    }
+                    if ($hasMultiPickSwapCols && !empty($item['pick_swap_pair_id'])) {
+                        $normalizedPair = normalizePickId($pdo, (int)$item['pick_swap_pair_id']);
+                        if ($normalizedPair !== (int)$item['pick_swap_pair_id']) {
+                            $stmtUpdateMultiPickPair->execute([$normalizedPair, $item['id']]);
+                            $item['pick_swap_pair_id'] = $normalizedPair;
                         }
                     }
                 }
@@ -3214,6 +3370,70 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                                 $stmtTransferPick->execute([(int)$item['to_team_id'], (int)$item['from_team_id'], (int)$item['pick_id']]);
                                 syncDraftOrderPickOwner($pdo, (int)$item['pick_id'], (int)$item['from_team_id'], (int)$item['to_team_id'], $league);
                             }
+                        }
+                    }
+                }
+
+                if ($hasMultiPickSwapCols && !empty($items)) {
+                    $swapMap = [];
+                    foreach ($items as $item) {
+                        if (empty($item['pick_id']) || empty($item['pick_swap_pair_id'])) {
+                            continue;
+                        }
+                        // Escolhas do draft atual não participam de swap
+                        if (isPickCurrentDraft($pdo, (int)$item['pick_id'], $league)) {
+                            continue;
+                        }
+                        $role = strtoupper(trim((string)($item['pick_swap_role'] ?? '')));
+                        if (!in_array($role, ['SB','SW'], true)) {
+                            continue;
+                        }
+                        $swapMap[(int)$item['pick_id']] = [
+                            'pair_id' => (int)$item['pick_swap_pair_id'],
+                            'role' => $role
+                        ];
+                    }
+
+                    if (!empty($swapMap)) {
+                        $updateSwap = $pdo->prepare('UPDATE picks SET swap_type = ?, swap_pair_pick_id = ?, swap_locked = 1 WHERE id = ?');
+                        $checkSwap = $pdo->prepare('SELECT swap_locked, swap_type FROM picks WHERE id = ?');
+                        $processed = [];
+
+                        foreach ($swapMap as $pickId => $info) {
+                            $pairId = (int)$info['pair_id'];
+                            if ($pickId === $pairId || isset($processed[$pickId])) {
+                                continue;
+                            }
+                            if (empty($swapMap[$pairId])) {
+                                throw new Exception('Swap incompleto: pares não encontrados.');
+                            }
+                            $roleA = $info['role'];
+                            $roleB = $swapMap[$pairId]['role'];
+                            if ($roleA === $roleB) {
+                                throw new Exception('Swap inválido: SB e SW precisam ser diferentes.');
+                            }
+
+                            foreach ([$pickId, $pairId] as $pid) {
+                                $checkSwap->execute([(int)$pid]);
+                                $row = $checkSwap->fetch(PDO::FETCH_ASSOC) ?: [];
+                                if (!empty($row['swap_locked']) || !empty($row['swap_type'])) {
+                                    throw new Exception('Swap inválido: pick já está travada para swap.');
+                                }
+                            }
+
+                            $updateSwap->execute([$roleA, $pairId, $pickId]);
+                            $updateSwap->execute([$roleB, $pickId, $pairId]);
+                            $processed[$pickId] = true;
+                            $processed[$pairId] = true;
+                        }
+
+                        // Se a ordem do draft já existe, o swap combinado agora
+                        // precisa valer nela também — mesma lógica da troca de 2 times.
+                        try {
+                            $ds = findActiveDraftSession($pdo, $league, null, null);
+                            if ($ds) draftSincronizarOrdem($pdo, (int)$ds['id']);
+                        } catch (Throwable $e) {
+                            error_log('[multi-trades/swap_na_ordem] ' . $e->getMessage());
                         }
                     }
                 }
