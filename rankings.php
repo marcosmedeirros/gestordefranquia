@@ -615,7 +615,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
         // Não é um card por temporada: o ciclo é a unidade, e vencedor de
         // temporada isolada responderia uma pergunta que ninguém fez.
         const slots = CICLO.ciclos.map(c => {
-            const emAndamento = !c.fechado;
+            const emAndamento = !!c.atual;
             const vazio = !c.tem_dados;
             const faixa = c.de === c.ate ? `T${c.de}` : `T${c.de}–${c.ate}`;
             return `
@@ -624,7 +624,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                 ${c.tem_dados ? escudo(c.photo_url, c.campeao) : '<div class="ct-slot-vazio"></div>'}
                 <div class="ct-slot-nome">${c.tem_dados ? esc(c.campeao) : 'sem pontuação'}</div>
                 <div class="ct-slot-pts">${c.tem_dados ? c.pontos + ' pts' : '—'}</div>
-                <div class="ct-slot-tag">${emAndamento ? 'em andamento' : (c.tem_dados ? 'campeão' : 'encerrado')}</div>
+                <div class="ct-slot-tag">${c.futuro ? 'por vir' : (c.atual ? 'em andamento' : (c.tem_dados ? 'campeão' : 'encerrado'))}</div>
               </div>`;
         }).join('');
 
@@ -649,22 +649,6 @@ $seasonDisplayYear = (string)$currentSeasonYear;
                as temporadas precisam ser lançadas em <em>Editar Ranking → pontuação da temporada</em>.</span>
              </td></tr>`;
 
-        // Só os ciclos fechados COM pontuação são campeões; do mais recente
-        // pro mais antigo. O ciclo em andamento já aparece nos cards de cima.
-        const fechados = CICLO.ciclos.filter(c => c.fechado && c.tem_dados);
-        const campeoes = fechados.length ? fechados.slice().reverse().map(c => `
-            <div class="ct-camp">
-              <div class="ct-camp-ciclo">T${c.de}–${c.ate}</div>
-              <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
-                ${escudo(c.photo_url, c.campeao)}
-                <div style="min-width:0">
-                  <div class="ct-camp-nome">${esc(c.campeao)}</div>
-                  ${c.vice ? `<div class="ct-camp-vice">vice: ${esc(c.vice)} · ${c.vice_pontos} pts</div>` : ''}
-                </div>
-              </div>
-              <div class="ct-camp-pts">${c.pontos}<small>pts</small></div>
-            </div>`).join('')
-          : '<div style="color:var(--text-3);font-size:13px;padding:8px 2px">Nenhum ciclo fechado ainda. O primeiro campeão sai no fim da 5ª temporada.</div>';
 
         document.getElementById('rankingContainer').innerHTML = `
             <div class="ct-topo">
@@ -696,7 +680,7 @@ $seasonDisplayYear = (string)$currentSeasonYear;
             </div>
 
             <div class="section-label" style="margin-top:26px"><i class="bi bi-trophy-fill"></i> Campeões dos ciclos</div>
-            <div class="ct-camps">${campeoes}</div>`;
+            `;
     }
 
     async function loadRanking(league = userLeague) {

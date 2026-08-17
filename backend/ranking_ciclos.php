@@ -13,6 +13,9 @@
 const CICLO_TEMPORADAS = 5;
 const CICLO_LIGA = 'ELITE';
 
+/** Quantos blocos de 5 a tela mostra: 1-5, 6-10, 11-15, 16-20, 21-25. */
+const CICLO_BLOCOS = 5;
+
 /**
  * As temporadas da sprint atual da liga, em ordem.
  *
@@ -57,34 +60,37 @@ function cicloTemporadasDaSprint(PDO $pdo): array
     return $cache;
 }
 
-/** Quantos ciclos a sprint tem (contando o que está em andamento). */
+/**
+ * Quantos ciclos a tela mostra: sempre os cinco blocos, 1-5 até 21-25.
+ *
+ * Fixo de propósito. Derivar de quantas temporadas já existem fazia a tela
+ * mostrar 3 cards hoje e 4 no mês que vem, e o bloco em andamento aparecia
+ * com faixa encurtada ("T11–11"). A grade é a mesma sempre; o que muda é o
+ * que está preenchido dentro dela.
+ */
 function cicloQuantos(PDO $pdo): int
 {
-    $n = count(cicloTemporadasDaSprint($pdo));
-    return $n ? (int)ceil($n / CICLO_TEMPORADAS) : 0;
+    return CICLO_BLOCOS;
 }
 
 /**
- * As temporadas que um ciclo cobre: [primeira, ultima] em season_number.
+ * As temporadas que um ciclo cobre: blocos fixos de 5.
  *
- * Sai da posição dentro da sprint — o 1º ciclo são as 5 primeiras temporadas
- * DELA, quaisquer que sejam os números.
+ * Ciclo 1 = 1..5, ciclo 2 = 6..10, e assim ate 21..25. Fixo de proposito:
+ * a faixa e a mesma sempre, e derivar da sprint fazia o bloco mudar de
+ * tamanho conforme quantas temporadas ja existiam.
  */
 function cicloIntervalo(PDO $pdo, int $ciclo): array
 {
-    $temps = cicloTemporadasDaSprint($pdo);
-    if (!$temps) return [0, 0];
     $ciclo = max(1, $ciclo);
-    $ini = ($ciclo - 1) * CICLO_TEMPORADAS;
-    $fatia = array_slice($temps, $ini, CICLO_TEMPORADAS);
-    if (!$fatia) return [0, 0];
-    return [(int)$fatia[0]['season_number'], (int)$fatia[count($fatia) - 1]['season_number']];
+    return [($ciclo - 1) * CICLO_TEMPORADAS + 1, $ciclo * CICLO_TEMPORADAS];
 }
 
-/** O ciclo em que a liga está agora. */
+/** O ciclo em que a liga está agora — o bloco que contém a temporada atual. */
 function cicloAtual(PDO $pdo): int
 {
-    return max(1, cicloQuantos($pdo));
+    $t = cicloTemporadaAtual($pdo);
+    return $t > 0 ? min(CICLO_BLOCOS, (int)ceil($t / CICLO_TEMPORADAS)) : 1;
 }
 
 /**
@@ -140,21 +146,34 @@ function cicloClassificacao(PDO $pdo, int $ciclo): array
 {
     [$de, $ate] = cicloIntervalo($pdo, $ciclo);
     try {
+        // MESMO recorte da aba ELITE (get_points_history em
+        // api/history-points.php): temporadas da sprint ATIVA, ligadas por
+        // season_id. Eu filtrava por tsp.season_number, que é uma cópia
+        // guardada na linha de pontos — quando ela não bate com
+        // seasons.season_number, a janela pega temporadas diferentes das que
+        // a aba ELITE soma, e os dois números divergem sem explicação.
+        //
+        // A única diferença pra ela é o BETWEEN: aqui só as 5 do ciclo.
         $st = $pdo->prepare("
             SELECT tsp.team_id,
                    TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS time,
                    t.photo_url,
-                   SUM(tsp.points)          AS pontos,
-                   SUM(tsp.points_regular)  AS pts_regular,
-                   SUM(tsp.points_playoffs) AS pts_playoffs,
-                   SUM(tsp.points_prizes)   AS pts_premios,
-                   COUNT(DISTINCT tsp.season_number) AS temporadas
+                   SUM(tsp.points)                    AS pontos,
+                   SUM(COALESCE(tsp.points_regular,0))  AS pts_regular,
+                   SUM(COALESCE(tsp.points_playoffs,0)) AS pts_playoffs,
+                   SUM(COALESCE(tsp.points_prizes,0))   AS pts_premios,
+                   COUNT(DISTINCT s.season_number)      AS temporadas
             FROM team_season_points tsp
+            JOIN seasons s ON s.id = tsp.season_id
             LEFT JOIN teams t ON t.id = tsp.team_id
-            WHERE tsp.league = ? AND tsp.season_number BETWEEN ? AND ?
+            WHERE tsp.league = ?
+              AND s.season_number BETWEEN ? AND ?
+              AND s.sprint_id = (SELECT id FROM sprints
+                                 WHERE league = ? AND status = 'active'
+                                 ORDER BY id DESC LIMIT 1)
             GROUP BY tsp.team_id, time, t.photo_url
             ORDER BY pontos DESC, temporadas DESC, time ASC");
-        $st->execute([CICLO_LIGA, $de, $ate]);
+        $st->execute([CICLO_LIGA, $de, $ate, CICLO_LIGA]);
         $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         error_log('[ciclos] classificacao: ' . $e->getMessage());
@@ -200,6 +219,10 @@ function cicloResumos(PDO $pdo): array
             'de'          => $de,
             'ate'         => $ate,
             'fechado'     => $fechado,
+            // Distingue o ciclo que esta rolando dos que nem comecaram: os dois
+            // apareciam como "em andamento", e o ciclo 5 nao comecou nada.
+            'atual'       => ($c === cicloAtual($pdo)),
+            'futuro'      => ($c > cicloAtual($pdo)),
             'tem_dados'   => $tem,
             // Fechado com pontuação = campeão. Em andamento = quem lidera
             // agora, e a tela diz que é parcial: anunciar "campeão" de um
