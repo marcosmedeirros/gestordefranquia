@@ -366,6 +366,10 @@ async function showGestao(league) {
     { icon: 'bi-chat-left-dots-fill',   label: 'Ouvidoria',                 fn: 'showOuvidoriaModal()',  color: '#8b5cf6', bg: 'rgba(139,92,246,.12)' },
     { icon: 'bi-award-fill',            label: 'Hall da<br>Fama',           fn: 'showHallOfFame()',      color: '#eab308', bg: 'rgba(234,179,8,.12)'  },
     { icon: 'bi-record-circle',         label: 'Roletas',                   url: '/roleta.php',          color: '#ec4899', bg: 'rgba(236,72,153,.12)' },
+    // O controle do calendário é a própria página: marcar evento é clicar no
+    // dia. Uma tela de administração separada seria uma segunda versão do
+    // calendário pra manter, mostrando a mesma coisa.
+    { icon: 'bi-calendar3',             label: 'Calendário<br>das ligas',   url: '/calendario.php',      color: '#38bdf8', bg: 'rgba(56,189,248,.12)' },
     { icon: 'bi-clipboard-plus',        label: 'Inscrição<br>ROOKIE',       fn: 'showConviteRookie()',   color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
     { icon: 'bi-shuffle',               label: 'Drafts<br>Aleatórios',      url: '/drafts-aleatorios.php',    color: '#a855f7', bg: 'rgba(168,85,247,.08)' },
     { icon: 'bi-dice-3-fill',           label: 'Loterias',                  url: '/loterias-aleatorias.php',  color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
