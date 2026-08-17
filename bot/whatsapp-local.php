@@ -168,14 +168,21 @@ exit(0);
  */
 function vigiarRecepcao(array $cfg, ?int $entradaSeg): void
 {
-    $SILENCIO_MIN = 25;   // silêncio que conta como recepção morta
     $CARENCIA_MIN = 25;   // entre uma reconexão e a próxima
-    $HORA_INICIO  = 7;    // de madrugada o silêncio é esperado
-    $HORA_FIM     = 23;
+
+    // Vigia as 24 horas — desde 17/08 o bot mora numa VPS que não desliga, e
+    // comando digitado de madrugada merece resposta igual.
+    //
+    // O limite muda com a hora porque o SINAL muda: de dia, 25 minutos sem
+    // ninguém falar num grupo ativo é sintoma; às 4 da manhã é só gente
+    // dormindo. Usar 25 minutos à noite encheria a madrugada de reconexões
+    // desnecessárias, e fila de reconexão é o que faz o WhatsApp desconfiar
+    // do número.
+    $hora = (int)date('G');
+    $deDia = $hora >= 7 && $hora <= 22;
+    $SILENCIO_MIN = $deDia ? 25 : 90;
 
     if ($entradaSeg === null) return;             // site antigo ou nunca chegou nada
-    $hora = (int)date('G');
-    if ($hora < $HORA_INICIO || $hora > $HORA_FIM) return;
 
     $quieto = $entradaSeg / 60;
     if ($quieto < $SILENCIO_MIN) return;
