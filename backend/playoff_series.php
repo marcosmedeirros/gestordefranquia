@@ -48,9 +48,70 @@ function ensurePlayoffSeriesTable(PDO $pdo): void
             INDEX idx_ps_b (team_b_id),
             INDEX idx_ps_win (winner_team_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        // CREATE TABLE IF NOT EXISTS não altera tabela que já existe, e existia
+        // uma OUTRA playoff_series: api/history-points.php criava
+        // (season_id, team_id, round, games) — um registro por TIME, sem
+        // adversário e sem vencedor. Quem rodasse primeiro fixava o formato, e
+        // o outro lado quebrava calado ao gravar:
+        //
+        //   Unknown column 'ps.fase' in 'field list'
+        //
+        // O sintoma era pior que o erro: /confronto, campanha de playoff e as
+        // estatísticas de série liam uma tabela que nunca ia encher.
+        $cols = [];
+        try {
+            foreach ($pdo->query("SHOW COLUMNS FROM playoff_series") as $c) $cols[] = $c['Field'];
+        } catch (Throwable $e) { return; }
+        if (!$cols || in_array('fase', $cols, true)) return;   // já é o formato novo
+
+        $linhas = (int)$pdo->query("SELECT COUNT(*) FROM playoff_series")->fetchColumn();
+
+        // Vazia: refaço do zero, que é o único jeito de trocar as colunas
+        // obrigatórias sem inventar valor pra elas.
+        if ($linhas === 0) {
+            $pdo->exec("DROP TABLE playoff_series");
+            ensurePlayoffSeriesTableCriar($pdo);
+            error_log('[playoff_series] tabela antiga vazia trocada pelo formato novo');
+            return;
+        }
+
+        // Com dados eu NÃO apago nada: o formato antigo não tem adversário nem
+        // vencedor, então não há de onde tirar os campos novos. Renomeio e crio
+        // a nova ao lado — o histórico fica recuperável à mão, e a partir de
+        // agora as séries entram completas.
+        $reserva = 'playoff_series_antiga';
+        try {
+            $pdo->exec("RENAME TABLE playoff_series TO {$reserva}");
+            ensurePlayoffSeriesTableCriar($pdo);
+            error_log("[playoff_series] {$linhas} linha(s) no formato antigo movidas para {$reserva}; "
+                    . 'elas não têm adversário nem vencedor e não podem ser convertidas');
+        } catch (Throwable $e) {
+            error_log('[playoff_series] migrar: ' . $e->getMessage());
+        }
     } catch (Throwable $e) {
         error_log('[playoff_series] criar tabela: ' . $e->getMessage());
     }
+}
+
+/** O CREATE da tabela nova, isolado porque a migração precisa dele de novo. */
+function ensurePlayoffSeriesTableCriar(PDO $pdo): void
+{
+    $pdo->exec("CREATE TABLE IF NOT EXISTS playoff_series (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        season_id INT NOT NULL,
+        league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
+        fase ENUM('r1','r2','cf','final') NOT NULL,
+        conferencia ENUM('LESTE','OESTE') NULL,
+        team_a_id INT NOT NULL,
+        team_b_id INT NOT NULL,
+        winner_team_id INT NOT NULL,
+        jogos TINYINT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_ps_season (season_id),
+        INDEX idx_ps_a (team_a_id),
+        INDEX idx_ps_b (team_b_id),
+        INDEX idx_ps_win (winner_team_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
 /**
