@@ -623,7 +623,13 @@ tr.tit td{color:var(--red)}
   background:transparent;border:0;cursor:pointer;text-align:left;transition:.12s;width:100%}
 .nac-item:hover{background:var(--panel3)}
 .nac-item.on{background:var(--red-soft);outline:1px solid var(--red)}
-.nac-flag{font-size:19px;line-height:1;flex:none}
+.nac-flag{line-height:1;flex:none;display:inline-flex;align-items:center}
+/* 3:2 é a proporção da maioria das bandeiras; as que não são ficam com a
+   altura fixa e a largura que couber, sem esticar. */
+.band{height:14px;width:21px;border-radius:2px;display:block;flex:none;
+      box-shadow:0 0 0 1px rgba(255,255,255,.16)}
+.band-sem{font-size:10px;font-weight:700;letter-spacing:.04em;color:var(--text3)}
+.ficha-pais .band{display:inline-block;vertical-align:-2px;margin-right:3px}
 .nac-nome{font-size:12.5px;font-weight:700;color:var(--text2);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
 .nac-item.on .nac-nome{color:var(--text)}
@@ -2401,10 +2407,90 @@ let rascunho = {nome: window.__ULTIMO_NOME__ || "", numero: "", mao: "D",
 /** Código de 3 letras → bandeira. O emoji sai das duas letras do país. */
 const PAIS_ISO = {BRA:"BR", USA:"US", CAN:"CA", ESP:"ES", FRA:"FR", SRB:"RS",
                   ARG:"AR", GER:"DE", AUS:"AU", NGR:"NG", LTU:"LT", GRE:"GR"};
+/**
+ * As doze bandeiras, desenhadas aqui dentro.
+ *
+ * Era emoji (🇧🇷, montado com os regional indicators do ISO). Emoji de
+ * bandeira só aparece onde a fonte do sistema tem: no Android e no iPhone
+ * sim, no Chrome do Windows não — e lá o 🇧🇷 vira o par de letras "BR". Era
+ * isso que a tela de nacionalidade mostrava: uma coluna de siglas.
+ *
+ * Desenhadas em SVG e não puxadas de um CDN de bandeiras porque assim elas
+ * aparecem igual em todo aparelho, sem rede e sem terceiro no meio. São doze
+ * — não vale uma dependência.
+ *
+ * A 14px de altura, detalhe não se lê: brasão de Espanha e Sérvia, as 50
+ * estrelas dos EUA e a Union Jack da Austrália viram mancha. Ficaram as
+ * formas que identificam cada uma de longe.
+ */
+const BANDEIRAS = {
+  BR: `<rect width="30" height="20" fill="#009b3a"/>
+       <path d="M15 2.4 27.6 10 15 17.6 2.4 10Z" fill="#fedf00"/>
+       <circle cx="15" cy="10" r="4.3" fill="#002776"/>
+       <path d="M10.9 8.6a12 12 0 0 1 8.4 2.9" stroke="#fff" stroke-width="1.1" fill="none"/>`,
+
+  // Sete listras, não treze: a 14px de altura, treze dão 1px cada e a
+  // bandeira vira uma mancha rosa. Sete se leem, e continua sendo ela.
+  US: `<rect width="30" height="20" fill="#b22234"/>
+       ${[1,3,5].map(i => `<rect y="${i*20/7}" width="30" height="${20/7}" fill="#fff"/>`).join('')}
+       <rect width="12.6" height="${20*4/7}" fill="#3c3b6e"/>
+       ${[0,1,2].map(c => [0,1].map(l =>
+         `<circle cx="${2.6+c*3.7}" cy="${3.2+l*4}" r=".8" fill="#fff"/>`).join('')).join('')}`,
+
+  CA: `<rect width="30" height="20" fill="#fff"/>
+       <rect width="7.5" height="20" fill="#d52b1e"/><rect x="22.5" width="7.5" height="20" fill="#d52b1e"/>
+       <path fill="#d52b1e" d="M15 3.4l.9 2.6 2.1-1-.7 2.9 2.4-.4-1.7 2.1 1.1.6-3.3 2.5.5 1.4-2-.3.1 3h-.8l.1-3-2 .3.5-1.4-3.3-2.5 1.1-.6L8.3 7.5l2.4.4-.7-2.9 2.1 1z"/>`,
+
+  ES: `<rect width="30" height="20" fill="#c60b1e"/><rect y="5" width="30" height="10" fill="#ffc400"/>`,
+
+  FR: `<rect width="30" height="20" fill="#fff"/>
+       <rect width="10" height="20" fill="#002395"/><rect x="20" width="10" height="20" fill="#ed2939"/>`,
+
+  RS: `<rect width="30" height="20" fill="#c6363c"/>
+       <rect y="6.67" width="30" height="6.67" fill="#0c4076"/>
+       <rect y="13.33" width="30" height="6.67" fill="#fff"/>`,
+
+  AR: `<rect width="30" height="20" fill="#74acdf"/>
+       <rect y="6.67" width="30" height="6.67" fill="#fff"/>
+       <circle cx="15" cy="10" r="2.5" fill="#f6b40e"/>`,
+
+  DE: `<rect width="30" height="20" fill="#000"/>
+       <rect y="6.67" width="30" height="6.67" fill="#dd0000"/>
+       <rect y="13.33" width="30" height="6.67" fill="#ffce00"/>`,
+
+  AU: `<rect width="30" height="20" fill="#012169"/>
+       <rect width="15" height="10" fill="#012169"/>
+       <path d="M0 0l15 10M15 0L0 10" stroke="#fff" stroke-width="1.7"/>
+       <path d="M7.5 0v10M0 5h15" stroke="#fff" stroke-width="2.8"/>
+       <path d="M7.5 0v10M0 5h15" stroke="#e4002b" stroke-width="1.5"/>
+       <circle cx="7.5" cy="15.5" r="1.3" fill="#fff"/>
+       ${[[21,4.5],[25,8],[21.5,12],[26,14],[23,7.5]].map(([x,y]) =>
+         `<circle cx="${x}" cy="${y}" r=".95" fill="#fff"/>`).join('')}`,
+
+  NG: `<rect width="30" height="20" fill="#fff"/>
+       <rect width="10" height="20" fill="#008751"/><rect x="20" width="10" height="20" fill="#008751"/>`,
+
+  LT: `<rect width="30" height="20" fill="#fdb913"/>
+       <rect y="6.67" width="30" height="6.67" fill="#006a44"/>
+       <rect y="13.33" width="30" height="6.67" fill="#c1272d"/>`,
+
+  GR: `<rect width="30" height="20" fill="#fff"/>
+       ${[0,2,4,6,8].map(i => `<rect y="${i*20/9}" width="30" height="${20/9}" fill="#0d5eaf"/>`).join('')}
+       <rect width="${20*5/9}" height="${20*5/9}" fill="#0d5eaf"/>
+       <path d="M0 ${20*2.5/9}h${20*5/9}M${20*2.5/9} 0v${20*5/9}" stroke="#fff" stroke-width="2.1"/>`,
+};
+
+/**
+ * A bandeira do país, pronta pra colar no HTML.
+ *
+ * País sem desenho cai na sigla, que é o que a tela mostrava antes — o pior
+ * caso é o que já existia.
+ */
 function bandeira(codigo){
   const iso = PAIS_ISO[codigo];
-  if (!iso) return "🏳️";
-  return String.fromCodePoint(...[...iso].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+  const svg = iso && BANDEIRAS[iso];
+  if (!svg) return `<span class="band-sem">${esc(iso || codigo || "—")}</span>`;
+  return `<svg class="band" viewBox="0 0 30 20" role="img" aria-label="${esc(iso)}">${svg}</svg>`;
 }
 
 /** Onde cada posição fica na quadra, em % da caixa. */
