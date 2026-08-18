@@ -66,7 +66,7 @@ const CAMINHO_MAX_DESAFIOS_POR_VEZ = 12;
  * manda é um número que o cliente escolhe. O JS recebe esta tabela só pra
  * mostrar na tela.
  */
-const CAMINHO_NIVEIS = ['facil' => 50, 'medio' => 100, 'dificil' => 150, 'impossivel' => 500];
+const CAMINHO_NIVEIS = ['facil' => 50, 'medio' => 100, 'dificil' => 150, 'impossivel' => 200];
 
 /**
  * O catálogo: id do desafio => nível.
