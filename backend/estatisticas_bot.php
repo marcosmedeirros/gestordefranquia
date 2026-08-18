@@ -55,18 +55,6 @@ function ebCatalogo(): array
                       WHERE t.league = :liga
                       GROUP BY t.id, t.city, t.name HAVING valor IS NOT NULL",
         ],
-        // $rotMap
-        'rotatividade' => [
-            'titulo' => 'Rotatividade de Elenco', 'sub' => 'jogadores diferentes que passaram pelo clube',
-            'alto' => '🔁 Mais rotativos', 'baixo' => '🏠 Mais estáveis', 'ordem' => 'desc',
-            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome, COUNT(DISTINCT psl.player_id) AS valor
-                      FROM teams t
-                      LEFT JOIN player_season_log psl ON psl.team_id=t.id
-                           AND psl.league COLLATE utf8mb4_unicode_ci = t.league COLLATE utf8mb4_unicode_ci
-                           AND psl.season_id IN {$T}
-                      WHERE t.league = :liga
-                      GROUP BY t.id, t.city, t.name",
-        ],
         // $faMap
         'freeagency' => [
             'titulo' => 'Free Agency', 'sub' => 'contratações fechadas na FA',
@@ -405,7 +393,7 @@ function ebListar(?string $ligaDoGrupo): string
     $liga = wcLigaPreferida($ligaDoGrupo);
 
     $grupos = [
-        'Elenco e draft' => ['elencojovem', 'elencovelho', 'rotatividade', 'freeagency', 'top5'],
+        'Elenco e draft' => ['elencojovem', 'elencovelho', 'freeagency', 'top5'],
         'Playoff'        => ['playoffs', 'sequencia', 'jejum', 'vice', '4a0', '0a4', 'jogo7'],
         'Confrontos'     => ['rivalidades', 'dominio', 'duplas', 'unidirecionais'],
         'Trades'         => ['parceiros', 'ofertasenviadas', 'tradesaceitas', 'tradesrecusadas'],

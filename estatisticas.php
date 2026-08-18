@@ -174,7 +174,13 @@ try {
           AND ds.season_id IN $TEMPORADAS_DA_SPRINT
         GROUP BY ds.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($tp5Raw as $r) $top5PicksMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    // Quem nunca escolheu no top 5 fica de fora: a lista é de quem chegou
+    // lá, e uma fila de zeros embaixo só empurra os que interessam pra cima
+    // da tela sem dizer nada.
+    foreach ($tp5Raw as $r) {
+        if ((int)$r['count'] <= 0) continue;
+        $top5PicksMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
+    }
     applyCoyotesMusketeersFix($top5PicksMap);
     sortLeagueData($top5PicksMap);
 } catch (Exception) {}
@@ -551,6 +557,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .pair-row.my-team .pair-a{color:#fff;font-weight:700}
 .pair-row.my-team .rn{color:var(--red)}
 
+/* Faixa de tópico: separa os assuntos da página. */
+.topico{display:flex;align-items:center;gap:14px;margin:44px 0 18px;padding:16px 18px;
+  border-radius:14px;background:var(--panel);border:1px solid var(--border-md)}
+.topico:first-of-type{margin-top:8px}
+.topico-emoji{font-size:26px;line-height:1;flex:none}
+.topico-tit{margin:0;font-size:19px;font-weight:800;letter-spacing:-.3px;color:var(--text)}
+.topico-sub{margin:3px 0 0;font-size:12.5px;color:var(--text-2)}
+@media (max-width:720px){
+  /* No celular a faixa encolhe: ela orienta, não é o conteúdo. */
+  .topico{margin:30px 0 14px;padding:13px 14px;gap:11px}
+  .topico-emoji{font-size:21px}
+  .topico-tit{font-size:16px}
+  .topico-sub{font-size:11.5px}
+}
 .empty-state{padding:16px 14px;color:var(--text-3);text-align:center}
 .empty-state i{font-size:22px;display:block;margin-bottom:6px}
 .empty-state p{font-size:11px;margin:0}
@@ -808,6 +828,20 @@ if ($serieOk) {
         ORDER BY ps.league, count ASC, name");
 }
 
+/**
+ * Uma faixa separando os assuntos.
+ *
+ * Sem ela são vinte e tantas seções em fila, e o leitor perde a noção de onde
+ * está — rolar da idade média até as trades sem nenhuma marca no caminho.
+ */
+function topico(string $emoji, string $titulo, string $sub): void
+{
+    echo '<div class="topico">'
+       . '<span class="topico-emoji">' . $emoji . '</span>'
+       . '<div><h2 class="topico-tit">' . htmlspecialchars($titulo) . '</h2>'
+       . '<p class="topico-sub">' . htmlspecialchars($sub) . '</p></div>'
+       . '</div>';
+}
 function renderSection(string $id, string $icon, string $icon_bg, string $title, string $subtitle,
                        array $data, array $leagues, array $opts = [], string $myTeam = ''): void {
     $label_hi     = $opts['label_hi']     ?? '🔥 Mais';
@@ -995,6 +1029,8 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
 echo '<div class="stats-flow" id="statsFlow">';
 echo '<div class="stats-flow-break"></div>';
 
+topico('🏀', 'Playoff', 'Quem chega lá, quem fica de fora, e o que acontece dentro');
+
 renderSection('playoffs', '🎯', 'color-mix(in srgb, var(--red) 12%, transparent)', 'Aparições no Playoff',
     'Times que mais chegaram ao playoff',
     $playoffMap, $leagues, [
@@ -1002,6 +1038,122 @@ renderSection('playoffs', '🎯', 'color-mix(in srgb, var(--red) 12%, transparen
         'color_hi' => 'hi', 'color_lo' => 'lo',
         'copy_hi' => 'Mais playoffs', 'copy_lo' => 'Menos playoffs',
     ], $myTeamName);
+
+
+renderSection('streak', '🔥', 'rgba(251,191,36,.10)', 'Maior Sequência de Playoffs',
+    'Máximo de temporadas consecutivas classificadas ao playoff',
+    $streakMap, $leagues, [
+        'label_hi' => '🔥 Maior sequência', 'label_lo' => '📦 Menor sequência',
+        'color_hi' => 'gold', 'color_lo' => 'lo',
+        'copy_hi' => 'Maior sequência de playoffs', 'copy_lo' => 'Menor sequência',
+        'suffix' => ' temp',
+    ], $myTeamName);
+
+renderSection('jejum', '😴', 'rgba(148,163,184,.10)', 'Maior Jejum de Playoffs',
+    'Maior sequência de temporadas consecutivas sem chegar ao playoff',
+    $jejumMap, $leagues, [
+        'label_hi' => '😴 Maior jejum', 'label_lo' => '✅ Menor jejum',
+        'color_hi' => 'lo', 'color_lo' => 'green',
+        'copy_hi' => 'Maior jejum de playoffs', 'copy_lo' => 'Menor jejum',
+        'suffix' => ' temp',
+    ], $myTeamName);
+
+
+renderSection('titulos', '🏆', 'rgba(251,191,36,.12)', 'Ranking de Títulos',
+    'Quem mais foi campeão na sprint atual',
+    $titulosMap, $leagues, [
+        'label_hi' => '🏆 Mais títulos', 'show_lo' => false, 'color_hi' => 'gold',
+        'suffix' => '', 'copy_hi' => 'Ranking de títulos',
+    ], $myTeamName);
+
+renderSection('dinastia', '🔥', 'color-mix(in srgb, var(--red) 12%, transparent)', 'Maior Dinastia',
+    'Maior sequência de títulos em temporadas seguidas',
+    $dinastiaMap, $leagues, [
+        'label_hi' => '🔥 Maior sequência', 'show_lo' => false, 'color_hi' => 'hi',
+        'copy_hi' => 'Maior dinastia',
+    ], $myTeamName);
+
+renderSection('eterno-vice', '🥈', 'rgba(148,163,184,.10)', 'Eterno Vice',
+    'Times com vice-campeonatos e nenhum título',
+    $eternoViceMap, $leagues, [
+        'label_hi' => '🥈 Mais vices sem taça', 'show_lo' => false, 'color_hi' => 'lo',
+        'copy_hi' => 'Eterno vice',
+    ], $myTeamName);
+
+renderSection('seed-medio', '🌡️', 'rgba(96,165,250,.10)', 'Seed Médio no Playoff',
+    'Posição média com que o time entra no playoff — quanto menor, mais favorito',
+    $seedMap, $leagues, [
+        'label_hi' => '🌡️ Melhor seed médio', 'label_lo' => '📉 Pior seed médio',
+        'color_hi' => 'blue', 'color_lo' => 'lo',
+        'copy_hi' => 'Melhor seed médio', 'copy_lo' => 'Pior seed médio',
+    ], $myTeamName);
+
+renderSection('margem-finais', '🎖️', 'rgba(251,191,36,.10)', 'Margem nas Finais',
+    'Jogos que o campeão precisou na série decisiva — menos jogos, mais atropelo',
+    $margemMap, $leagues, [
+        'label_hi' => '🎖️ Mais dominante', 'label_lo' => '😅 Mais sofrido',
+        'color_hi' => 'gold', 'color_lo' => 'lo',
+        'copy_hi' => 'Finais mais dominantes', 'copy_lo' => 'Finais mais sofridas',
+    ], $myTeamName);
+
+renderSection('sweeps-dados', '🧹', 'rgba(34,197,94,.10)', 'Sweeps Aplicados (4-0)',
+    'Séries vencidas sem perder um jogo',
+    $sweepsDadosMap, $leagues, [
+        'label_hi' => '🧹 Mais sweeps', 'show_lo' => false, 'color_hi' => 'green',
+        'copy_hi' => 'Sweeps aplicados',
+    ], $myTeamName);
+
+renderSection('sweeps-sofridos', '🧹', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Sweeps Sofridos (0-4)',
+    'Séries perdidas sem vencer um jogo',
+    $sweepsSofridosMap, $leagues, [
+        'label_hi' => '🧹 Mais sweeps sofridos', 'show_lo' => false, 'color_hi' => 'hi',
+        'copy_hi' => 'Sweeps sofridos',
+    ], $myTeamName);
+
+renderSection('jogo7', '🎬', 'rgba(251,191,36,.10)', 'Guerreiros do Jogo 7',
+    'Séries que foram até o jogo decisivo (4-3) — vale pros dois lados',
+    $jogo7Map, $leagues, [
+        'label_hi' => '🎬 Mais jogos 7', 'show_lo' => false, 'color_hi' => 'gold',
+        'copy_hi' => 'Guerreiros do jogo 7',
+    ], $myTeamName);
+
+
+topico('⚔️', 'Confrontos', 'Duplas que se cruzam demais — no playoff e na mesa de troca');
+
+renderSection('rivais', '⚔️', 'rgba(96,165,250,.12)', 'Maiores Rivalidades',
+    'Duplas que mais se enfrentaram no playoff',
+    $rivaisMap, $leagues, [
+        'label_hi' => '⚔️ Mais confrontos', 'show_lo' => false, 'color_hi' => 'blue',
+        'pair_mode' => true, 'copy_hi' => 'Maiores rivalidades',
+    ], $myTeamName);
+
+renderSection('dominio', '💀', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Domínio Total',
+    'Duplas em que um time venceu TODOS os confrontos do playoff',
+    $dominioMap, $leagues, [
+        'label_hi' => '💀 Freguesia', 'show_lo' => false, 'color_hi' => 'hi',
+        'pair_mode' => true, 'pair_sep' => 'sobre', 'copy_hi' => 'Domínio total',
+    ], $myTeamName);
+
+renderSection('trade-pairs', '🔄', 'rgba(96,165,250,.12)', 'Duplas que Mais Trocaram',
+    'Pares de times com maior número de trades aceitas entre si',
+    $pairsMap, $leagues, [
+        'label_hi' => '🔄 Maiores parceiros', 'label_lo' => '🥶 Menos trocas',
+        'color_hi' => 'blue', 'color_lo' => 'lo',
+        'copy_hi' => 'Duplas que mais trocaram', 'copy_lo' => 'Duplas que menos trocaram',
+        'pair_mode' => true, 'pair_sep' => '×',
+    ], $myTeamName);
+
+renderSection('trade-dir', '➡️', 'rgba(96,165,250,.10)', 'Trades Unidirecionais',
+    'Pares onde um time enviou mais propostas para o outro (de → para)',
+    $direcionalMap, $leagues, [
+        'label_hi' => '📤 Mais unidirecionais', 'label_lo' => '📭 Menos',
+        'color_hi' => 'blue', 'color_lo' => 'lo',
+        'copy_hi' => 'Mais trades em uma direção', 'copy_lo' => 'Menos',
+        'pair_mode' => true, 'pair_sep' => '→',
+    ], $myTeamName);
+
+
+topico('👥', 'Elenco e draft', 'Idade, draft e como cada time se monta');
 
 renderSection('jovem', '🌱', 'rgba(168,85,247,.10)', 'Elenco Mais Jovem',
     'Idade média dos jogadores em contrato',
@@ -1029,13 +1181,15 @@ renderSection('draftados', '🎓', 'rgba(168,85,247,.10)', 'Jogadores Draftados'
         'copy_hi' => 'Mais jogadores draftados', 'copy_lo' => 'Menos jogadores draftados',
     ], $myTeamName);
 
-renderSection('rotatividade', '🔁', 'rgba(34,197,94,.08)', 'Rotatividade de Elenco',
-    'Quantidade de jogadores diferentes que passaram pelo clube',
-    $rotMap, $leagues, [
-        'label_hi' => '🔁 Mais rotatividade', 'label_lo' => '🏠 Menos rotatividade',
-        'color_hi' => 'green', 'color_lo' => 'lo',
-        'copy_hi' => 'Mais rotatividade', 'copy_lo' => 'Menos rotatividade',
+renderSection('draft-ovr', '📈', 'rgba(168,85,247,.10)', 'Aproveitamento do Draft',
+    'OVR médio dos jogadores draftados pelo time',
+    $draftOvrMap, $leagues, [
+        'label_hi' => '📈 Melhor aproveitamento', 'label_lo' => '📉 Menor aproveitamento',
+        'color_hi' => 'purple', 'color_lo' => 'lo',
+        'copy_hi' => 'Melhor aproveitamento do draft', 'copy_lo' => 'Menor aproveitamento do draft',
     ], $myTeamName);
+
+
 
 
 renderSection('fa', '🖊️', 'rgba(34,197,94,.10)', 'Free Agency',
@@ -1048,52 +1202,6 @@ renderSection('fa', '🖊️', 'rgba(34,197,94,.10)', 'Free Agency',
 
 
 // ─── Novas seções ─────────────────────────────────────────────────
-
-
-renderSection('streak', '🔥', 'rgba(251,191,36,.10)', 'Maior Sequência de Playoffs',
-    'Máximo de temporadas consecutivas classificadas ao playoff',
-    $streakMap, $leagues, [
-        'label_hi' => '🔥 Maior sequência', 'label_lo' => '📦 Menor sequência',
-        'color_hi' => 'gold', 'color_lo' => 'lo',
-        'copy_hi' => 'Maior sequência de playoffs', 'copy_lo' => 'Menor sequência',
-        'suffix' => ' temp',
-    ], $myTeamName);
-
-renderSection('player-teams', '🌍', 'rgba(96,165,250,.10)', 'Jogadores mais Itinerantes',
-    'Jogadores que passaram por mais times diferentes',
-    $playerTeamsMap, $leagues, [
-        'label_hi' => '✈️ Mais times', 'show_lo' => false,
-        'color_hi' => 'blue',
-        'copy_hi' => 'Jogadores mais itinerantes',
-        'suffix' => ' times',
-    ], $myTeamShortName);
-
-renderSection('retencao', '🏠', 'rgba(34,197,94,.10)', 'Retenção de Elenco',
-    'Média de temporadas que cada jogador (78+ OVR) fica no mesmo time',
-    $retencaoMap, $leagues, [
-        'label_hi' => '🏠 Mais fiéis', 'label_lo' => '📤 Mais rotativos',
-        'color_hi' => 'green', 'color_lo' => 'lo',
-        'copy_hi' => 'Maior retenção', 'copy_lo' => 'Menor retenção',
-        'suffix' => ' temp',
-    ], $myTeamName);
-
-renderSection('draft-ovr', '📈', 'rgba(168,85,247,.10)', 'Aproveitamento do Draft',
-    'OVR médio dos jogadores draftados pelo time',
-    $draftOvrMap, $leagues, [
-        'label_hi' => '📈 Melhor aproveitamento', 'label_lo' => '📉 Menor aproveitamento',
-        'color_hi' => 'purple', 'color_lo' => 'lo',
-        'copy_hi' => 'Melhor aproveitamento do draft', 'copy_lo' => 'Menor aproveitamento do draft',
-    ], $myTeamName);
-
-
-
-renderSection('punicoes', '⚠️', 'color-mix(in srgb, var(--red) 12%, transparent)', 'Punições Recebidas',
-    'Times que mais receberam punições ativas na liga',
-    $punicoesMap, $leagues, [
-        'label_hi' => '⚠️ Mais punições', 'label_lo' => '✅ Menos punições',
-        'color_hi' => 'hi', 'color_lo' => 'green',
-        'copy_hi' => 'Mais punições', 'copy_lo' => 'Menos punições',
-    ], $myTeamName);
 
 renderSection('orig-top5', '🎯', 'rgba(251,191,36,.12)', 'Pick Origem no Top 5',
     'Times cuja pick original foi usada no top 5 do draft',
@@ -1139,33 +1247,7 @@ if (!empty(array_filter($neverTop5Map))) {
 }
 
 
-
-renderSection('jejum', '😴', 'rgba(148,163,184,.10)', 'Maior Jejum de Playoffs',
-    'Maior sequência de temporadas consecutivas sem chegar ao playoff',
-    $jejumMap, $leagues, [
-        'label_hi' => '😴 Maior jejum', 'label_lo' => '✅ Menor jejum',
-        'color_hi' => 'lo', 'color_lo' => 'green',
-        'copy_hi' => 'Maior jejum de playoffs', 'copy_lo' => 'Menor jejum',
-        'suffix' => ' temp',
-    ], $myTeamName);
-
-renderSection('trade-pairs', '🔄', 'rgba(96,165,250,.12)', 'Duplas que Mais Trocaram',
-    'Pares de times com maior número de trades aceitas entre si',
-    $pairsMap, $leagues, [
-        'label_hi' => '🔄 Maiores parceiros', 'label_lo' => '🥶 Menos trocas',
-        'color_hi' => 'blue', 'color_lo' => 'lo',
-        'copy_hi' => 'Duplas que mais trocaram', 'copy_lo' => 'Duplas que menos trocaram',
-        'pair_mode' => true, 'pair_sep' => '×',
-    ], $myTeamName);
-
-renderSection('trade-dir', '➡️', 'rgba(96,165,250,.10)', 'Trades Unidirecionais',
-    'Pares onde um time enviou mais propostas para o outro (de → para)',
-    $direcionalMap, $leagues, [
-        'label_hi' => '📤 Mais unidirecionais', 'label_lo' => '📭 Menos',
-        'color_hi' => 'blue', 'color_lo' => 'lo',
-        'copy_hi' => 'Mais trades em uma direção', 'copy_lo' => 'Menos',
-        'pair_mode' => true, 'pair_sep' => '→',
-    ], $myTeamName);
+topico('🔄', 'Trades', 'Quem negocia, com quantos, e no que dá');
 
 renderSection('parceiros', '🌐', 'rgba(168,85,247,.10)', 'Diversidade de Parceiros de Trade',
     'Times que negociaram com mais (ou menos) franquias diferentes (só aceitas)',
@@ -1196,77 +1278,6 @@ renderSection('trades-aceitas', '🤝', 'rgba(34,197,94,.10)', 'Trades Aceitas',
 //
 // "Mais Aparições em Playoff — Histórico" saiu: é a mesma coisa que a seção
 // "Aparições no Playoff" lá em cima, que já vale pra todas as ligas.
-renderSection('titulos', '🏆', 'rgba(251,191,36,.12)', 'Ranking de Títulos',
-    'Quem mais foi campeão na sprint atual',
-    $titulosMap, $leagues, [
-        'label_hi' => '🏆 Mais títulos', 'show_lo' => false, 'color_hi' => 'gold',
-        'suffix' => '', 'copy_hi' => 'Ranking de títulos',
-    ], $myTeamName);
-
-renderSection('dinastia', '🔥', 'color-mix(in srgb, var(--red) 12%, transparent)', 'Maior Dinastia',
-    'Maior sequência de títulos em temporadas seguidas',
-    $dinastiaMap, $leagues, [
-        'label_hi' => '🔥 Maior sequência', 'show_lo' => false, 'color_hi' => 'hi',
-        'copy_hi' => 'Maior dinastia',
-    ], $myTeamName);
-
-renderSection('eterno-vice', '🥈', 'rgba(148,163,184,.10)', 'Eterno Vice',
-    'Times com vice-campeonatos e nenhum título',
-    $eternoViceMap, $leagues, [
-        'label_hi' => '🥈 Mais vices sem taça', 'show_lo' => false, 'color_hi' => 'lo',
-        'copy_hi' => 'Eterno vice',
-    ], $myTeamName);
-
-renderSection('rivais', '⚔️', 'rgba(96,165,250,.12)', 'Maiores Rivalidades',
-    'Duplas que mais se enfrentaram no playoff',
-    $rivaisMap, $leagues, [
-        'label_hi' => '⚔️ Mais confrontos', 'show_lo' => false, 'color_hi' => 'blue',
-        'pair_mode' => true, 'copy_hi' => 'Maiores rivalidades',
-    ], $myTeamName);
-
-renderSection('dominio', '💀', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Domínio Total',
-    'Duplas em que um time venceu TODOS os confrontos do playoff',
-    $dominioMap, $leagues, [
-        'label_hi' => '💀 Freguesia', 'show_lo' => false, 'color_hi' => 'hi',
-        'pair_mode' => true, 'pair_sep' => 'sobre', 'copy_hi' => 'Domínio total',
-    ], $myTeamName);
-
-renderSection('seed-medio', '🌡️', 'rgba(96,165,250,.10)', 'Seed Médio no Playoff',
-    'Posição média com que o time entra no playoff — quanto menor, mais favorito',
-    $seedMap, $leagues, [
-        'label_hi' => '🌡️ Melhor seed médio', 'label_lo' => '📉 Pior seed médio',
-        'color_hi' => 'blue', 'color_lo' => 'lo',
-        'copy_hi' => 'Melhor seed médio', 'copy_lo' => 'Pior seed médio',
-    ], $myTeamName);
-
-renderSection('sweeps-dados', '🧹', 'rgba(34,197,94,.10)', 'Sweeps Aplicados (4-0)',
-    'Séries vencidas sem perder um jogo',
-    $sweepsDadosMap, $leagues, [
-        'label_hi' => '🧹 Mais sweeps', 'show_lo' => false, 'color_hi' => 'green',
-        'copy_hi' => 'Sweeps aplicados',
-    ], $myTeamName);
-
-renderSection('sweeps-sofridos', '🧹', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Sweeps Sofridos (0-4)',
-    'Séries perdidas sem vencer um jogo',
-    $sweepsSofridosMap, $leagues, [
-        'label_hi' => '🧹 Mais sweeps sofridos', 'show_lo' => false, 'color_hi' => 'hi',
-        'copy_hi' => 'Sweeps sofridos',
-    ], $myTeamName);
-
-renderSection('jogo7', '🎬', 'rgba(251,191,36,.10)', 'Guerreiros do Jogo 7',
-    'Séries que foram até o jogo decisivo (4-3) — vale pros dois lados',
-    $jogo7Map, $leagues, [
-        'label_hi' => '🎬 Mais jogos 7', 'show_lo' => false, 'color_hi' => 'gold',
-        'copy_hi' => 'Guerreiros do jogo 7',
-    ], $myTeamName);
-
-renderSection('margem-finais', '🎖️', 'rgba(251,191,36,.10)', 'Margem nas Finais',
-    'Jogos que o campeão precisou na série decisiva — menos jogos, mais atropelo',
-    $margemMap, $leagues, [
-        'label_hi' => '🎖️ Mais dominante', 'label_lo' => '😅 Mais sofrido',
-        'color_hi' => 'gold', 'color_lo' => 'lo',
-        'copy_hi' => 'Finais mais dominantes', 'copy_lo' => 'Finais mais sofridas',
-    ], $myTeamName);
 
 renderSection('trades-recusadas', '❌', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Trades Recusadas',
     'Times envolvidos no maior número de trades rejeitadas',
@@ -1279,7 +1290,24 @@ renderSection('trades-recusadas', '❌', 'color-mix(in srgb, var(--red) 10%, tra
 echo '</div>'; // .stats-flow
 
 
+topico('📌', 'Outros', 'O que não cabia em nenhuma prateleira');
 
+renderSection('punicoes', '⚠️', 'color-mix(in srgb, var(--red) 12%, transparent)', 'Punições Recebidas',
+    'Times que mais receberam punições ativas na liga',
+    $punicoesMap, $leagues, [
+        'label_hi' => '⚠️ Mais punições', 'label_lo' => '✅ Menos punições',
+        'color_hi' => 'hi', 'color_lo' => 'green',
+        'copy_hi' => 'Mais punições', 'copy_lo' => 'Menos punições',
+    ], $myTeamName);
+
+renderSection('player-teams', '🌍', 'rgba(96,165,250,.10)', 'Jogadores mais Itinerantes',
+    'Jogadores que passaram por mais times diferentes',
+    $playerTeamsMap, $leagues, [
+        'label_hi' => '✈️ Mais times', 'show_lo' => false,
+        'color_hi' => 'blue',
+        'copy_hi' => 'Jogadores mais itinerantes',
+        'suffix' => ' times',
+    ], $myTeamShortName);
 
 
 ?>
