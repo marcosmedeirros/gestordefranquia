@@ -1,13 +1,11 @@
 <?php
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
-require_once __DIR__ . '/backend/rise_history.php';
 requireAuth();
 $user = getUserSession();
 $pdo = db();
 
 $leagues = ['ELITE','NEXT','RISE','ROOKIE'];
-$riseHistory = loadRiseHistoryStats();
 
 // Time e dados do usuário logado
 $myTeamName = '';
@@ -586,6 +584,230 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 // Helper: renders a 4-league grid with top5/bot5 rank rows
 // $data = ['ELITE'=>[['name'=>...,'count'=>...], ...], ...]
 // $opts = [ label_hi, label_lo, color_hi, label_copy_hi, label_copy_lo, suffix, reverse_bot ]
+
+// ═══════════════════════════════════════════════════════════════════════
+// PLAYOFF — as estatísticas que antes existiam só pra RISE, e como um
+// bloco à parte alimentado à mão a partir de vídeos de simulação.
+//
+// Agora saem do banco, iguais pras quatro ligas, de três fontes:
+//
+//   playoff_brackets   seed e até onde cada time chegou (status)
+//   playoff_matches    quem enfrentou quem em cada fase, e quem passou
+//   playoff_series     o mesmo, MAIS em quantos jogos — é a única que sabe
+//                      dizer 4-0 ou 4-3, e por isso as de sweep, jogo 7 e
+//                      margem nas finais dependem dela.
+//
+// As que dependem de `jogos` nascem vazias até a série ser lançada com o
+// adversário; as outras já têm dado desde a primeira temporada registrada.
+// ═══════════════════════════════════════════════════════════════════════
+
+// Título = campeão da temporada. Sai do bracket, não de playoff_results:
+// aquela tabela é esparsa (34 linhas contra 304), e um ranking de títulos
+// com metade das temporadas faltando é pior que nenhum.
+$titulosMap = queryByLeague($pdo, "
+    SELECT s.league, t.id AS team_id, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS name,
+           COUNT(*) AS count
+    FROM playoff_brackets pb
+    JOIN seasons s ON s.id = pb.season_id
+    JOIN teams t ON t.id = pb.team_id
+    WHERE pb.status = 'champion' AND pb.season_id IN {$TEMPORADAS_DA_SPRINT}
+    GROUP BY s.league, t.id, name
+    ORDER BY s.league, count DESC, name");
+
+// Vice sem nunca ter sido campeão. O HAVING é o que separa "perdeu finais"
+// de "eterno vice": quem levantou a taça uma vez não é vice de nada.
+$eternoViceMap = queryByLeague($pdo, "
+    SELECT s.league, t.id AS team_id, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS name,
+           SUM(pb.status = 'runner_up') AS count
+    FROM playoff_brackets pb
+    JOIN seasons s ON s.id = pb.season_id
+    JOIN teams t ON t.id = pb.team_id
+    WHERE pb.season_id IN {$TEMPORADAS_DA_SPRINT}
+    GROUP BY s.league, t.id, name
+    HAVING count > 0 AND SUM(pb.status = 'champion') = 0
+    ORDER BY s.league, count DESC, name");
+
+// Seed médio no playoff. Quanto MENOR, mais favorito o time costuma entrar —
+// por isso o label diz isso em vez de deixar o leitor adivinhar.
+$seedMap = queryByLeague($pdo, "
+    SELECT s.league, t.id AS team_id, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS name,
+           ROUND(AVG(pb.seed), 1) AS count
+    FROM playoff_brackets pb
+    JOIN seasons s ON s.id = pb.season_id
+    JOIN teams t ON t.id = pb.team_id
+    WHERE pb.seed > 0 AND pb.season_id IN {$TEMPORADAS_DA_SPRINT}
+    GROUP BY s.league, t.id, name
+    HAVING COUNT(*) >= 2
+    ORDER BY s.league, count ASC, name");
+
+// Dinastia: maior sequência de títulos em temporadas seguidas. Em PHP e não
+// em SQL porque "seguidas" depende da ordem das temporadas, e window function
+// não está garantida na versão do banco.
+$dinastiaMap = [];
+try {
+    $campeoes = $pdo->query("
+        SELECT s.league, s.season_number, pb.team_id,
+               TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS name
+        FROM playoff_brackets pb
+        JOIN seasons s ON s.id = pb.season_id
+        JOIN teams t ON t.id = pb.team_id
+        WHERE pb.status = 'champion' AND pb.season_id IN {$TEMPORADAS_DA_SPRINT}
+        ORDER BY s.league, s.season_number")->fetchAll(PDO::FETCH_ASSOC);
+
+    $porLiga = [];
+    foreach ($campeoes as $c) $porLiga[$c['league']][] = $c;
+
+    foreach ($porLiga as $lg => $lista) {
+        $melhor = [];   // team_id => maior sequência
+        $atualId = null; $atual = 0; $ultimaTemp = null;
+        foreach ($lista as $c) {
+            $tid = (int)$c['team_id'];
+            $temp = (int)$c['season_number'];
+            // Só conta como sequência se a temporada for a seguinte: campeão em
+            // 3 e 5 não é bicampeão seguido.
+            $emSequencia = ($tid === $atualId && $ultimaTemp !== null && $temp === $ultimaTemp + 1);
+            $atual = $emSequencia ? $atual + 1 : 1;
+            $atualId = $tid; $ultimaTemp = $temp;
+            if (!isset($melhor[$tid]) || $atual > $melhor[$tid]['count']) {
+                $melhor[$tid] = ['team_id' => $tid, 'name' => $c['name'], 'count' => $atual];
+            }
+        }
+        $linhas = array_values(array_filter($melhor, fn($m) => $m['count'] >= 2));
+        usort($linhas, fn($a, $b) => $b['count'] <=> $a['count'] ?: strcasecmp($a['name'], $b['name']));
+        if ($linhas) $dinastiaMap[$lg] = $linhas;
+    }
+} catch (Exception) {}
+
+// ── Confrontos diretos ───────────────────────────────────────────────
+//
+// playoff_matches guarda os dois times e o vencedor, então o par sai daqui.
+// LEAST/GREATEST normaliza a dupla: sem isso "Blues × Heat" e "Heat × Blues"
+// virariam duas linhas e nenhuma delas com o total certo.
+$rivaisMap = queryByLeague($pdo, "
+    SELECT s.league,
+           TRIM(CONCAT(COALESCE(a.city,''),' ',COALESCE(a.name,''))) AS a_long, a.name AS a,
+           TRIM(CONCAT(COALESCE(b.city,''),' ',COALESCE(b.name,''))) AS b_long, b.name AS b,
+           COUNT(*) AS count
+    FROM playoff_matches pm
+    JOIN seasons s ON s.id = pm.season_id
+    JOIN teams a ON a.id = LEAST(pm.team1_id, pm.team2_id)
+    JOIN teams b ON b.id = GREATEST(pm.team1_id, pm.team2_id)
+    WHERE pm.team1_id > 0 AND pm.team2_id > 0 AND pm.season_id IN {$TEMPORADAS_DA_SPRINT}
+    GROUP BY s.league, a.id, b.id, a_long, a, b_long, b
+    HAVING count >= 2
+    ORDER BY s.league, count DESC, a_long");
+foreach ($rivaisMap as &$__lg) foreach ($__lg as &$__r) $__r['name'] = $__r['a_long'] . ' × ' . $__r['b_long'];
+unset($__lg, $__r);
+
+// Domínio: maior saldo num confronto direto. O par é o mesmo do de cima; o
+// que muda é contar quem passou. Só entra quem venceu TODAS — saldo positivo
+// com uma derrota no meio não é domínio, é vantagem.
+$dominioMap = [];
+try {
+    $duelos = $pdo->query("
+        SELECT s.league, pm.team1_id, pm.team2_id, pm.winner_id,
+               TRIM(CONCAT(COALESCE(t1.city,''),' ',COALESCE(t1.name,''))) AS n1,
+               TRIM(CONCAT(COALESCE(t2.city,''),' ',COALESCE(t2.name,''))) AS n2
+        FROM playoff_matches pm
+        JOIN seasons s ON s.id = pm.season_id
+        JOIN teams t1 ON t1.id = pm.team1_id
+        JOIN teams t2 ON t2.id = pm.team2_id
+        WHERE pm.winner_id > 0 AND pm.team1_id > 0 AND pm.team2_id > 0
+          AND pm.season_id IN {$TEMPORADAS_DA_SPRINT}")->fetchAll(PDO::FETCH_ASSOC);
+
+    $pares = [];
+    foreach ($duelos as $d) {
+        $a = min((int)$d['team1_id'], (int)$d['team2_id']);
+        $b = max((int)$d['team1_id'], (int)$d['team2_id']);
+        $k = $d['league'] . '|' . $a . '|' . $b;
+        if (!isset($pares[$k])) {
+            $pares[$k] = ['league' => $d['league'], 'nomes' => [], 'vit' => [$a => 0, $b => 0]];
+            $pares[$k]['nomes'][(int)$d['team1_id']] = $d['n1'];
+            $pares[$k]['nomes'][(int)$d['team2_id']] = $d['n2'];
+        }
+        $pares[$k]['nomes'][(int)$d['team1_id']] = $d['n1'];
+        $pares[$k]['nomes'][(int)$d['team2_id']] = $d['n2'];
+        $w = (int)$d['winner_id'];
+        if (isset($pares[$k]['vit'][$w])) $pares[$k]['vit'][$w]++;
+    }
+    foreach ($pares as $p) {
+        $ids = array_keys($p['vit']);
+        [$x, $y] = [$p['vit'][$ids[0]], $p['vit'][$ids[1]]];
+        $total = $x + $y;
+        if ($total < 2) continue;                 // um duelo só não é domínio
+        if ($x > 0 && $y > 0) continue;           // levou uma: não é domínio
+        $dono = $x > $y ? $ids[0] : $ids[1];
+        $outro = $dono === $ids[0] ? $ids[1] : $ids[0];
+        $dominioMap[$p['league']][] = [
+            'a_long' => $p['nomes'][$dono]  ?? '?',
+            'b_long' => $p['nomes'][$outro] ?? '?',
+            'name'   => ($p['nomes'][$dono] ?? '?') . ' sobre ' . ($p['nomes'][$outro] ?? '?'),
+            'count'       => $total,
+        ];
+    }
+    foreach ($dominioMap as $lg => &$l) {
+        usort($l, fn($a, $b) => $b['count'] <=> $a['count'] ?: strcasecmp($a['name'], $b['name']));
+    }
+    unset($l);
+} catch (Exception) {}
+
+// ── As que dependem do número de jogos da série ──────────────────────
+//
+// Só playoff_series sabe isso. Enquanto a série não for lançada com o
+// adversário, estas quatro aparecem vazias — de propósito: melhor uma
+// seção sem dado que um número que não é verdade.
+$serieOk = false;
+try {
+    foreach ($pdo->query("SHOW COLUMNS FROM playoff_series") as $c) {
+        if ($c['Field'] === 'jogos') { $serieOk = true; break; }
+    }
+} catch (Exception) {}
+
+$sweepsDadosMap = $sweepsSofridosMap = $jogo7Map = $margemMap = [];
+if ($serieOk) {
+    // Sweep aplicado: ganhou a série em 4 jogos.
+    $sweepsDadosMap = queryByLeague($pdo, "
+        SELECT ps.league, t.id AS team_id, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS name,
+               COUNT(*) AS count
+        FROM playoff_series ps
+        JOIN teams t ON t.id = ps.winner_team_id
+        WHERE ps.jogos = 4 AND ps.season_id IN {$TEMPORADAS_DA_SPRINT}
+        GROUP BY ps.league, t.id, name
+        ORDER BY ps.league, count DESC, name");
+
+    // Sweep sofrido: a série acabou em 4 e o time não é o vencedor.
+    $sweepsSofridosMap = queryByLeague($pdo, "
+        SELECT ps.league, t.id AS team_id, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS name,
+               COUNT(*) AS count
+        FROM playoff_series ps
+        JOIN teams t ON t.id = IF(ps.winner_team_id = ps.team_a_id, ps.team_b_id, ps.team_a_id)
+        WHERE ps.jogos = 4 AND ps.season_id IN {$TEMPORADAS_DA_SPRINT}
+        GROUP BY ps.league, t.id, name
+        ORDER BY ps.league, count DESC, name");
+
+    // Jogo 7: a série foi aos sete, para os DOIS lados — estar num jogo 7 é
+    // o feito, ganhar ou perder.
+    $jogo7Map = queryByLeague($pdo, "
+        SELECT ps.league, t.id AS team_id, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS name,
+               COUNT(*) AS count
+        FROM playoff_series ps
+        JOIN teams t ON t.id IN (ps.team_a_id, ps.team_b_id)
+        WHERE ps.jogos = 7 AND ps.season_id IN {$TEMPORADAS_DA_SPRINT}
+        GROUP BY ps.league, t.id, name
+        ORDER BY ps.league, count DESC, name");
+
+    // Margem nas finais: jogos da série decisiva. Menos jogos = atropelo.
+    // Fica no campeão, que é de quem é o feito.
+    $margemMap = queryByLeague($pdo, "
+        SELECT ps.league, t.id AS team_id, TRIM(CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,''))) AS name,
+               ROUND(AVG(ps.jogos), 1) AS count
+        FROM playoff_series ps
+        JOIN teams t ON t.id = ps.winner_team_id
+        WHERE ps.fase = 'final' AND ps.season_id IN {$TEMPORADAS_DA_SPRINT}
+        GROUP BY ps.league, t.id, name
+        ORDER BY ps.league, count ASC, name");
+}
+
 function renderSection(string $id, string $icon, string $icon_bg, string $title, string $subtitle,
                        array $data, array $leagues, array $opts = [], string $myTeam = ''): void {
     $label_hi     = $opts['label_hi']     ?? '🔥 Mais';
@@ -970,108 +1192,80 @@ renderSection('trades-aceitas', '🤝', 'rgba(34,197,94,.10)', 'Trades Aceitas',
         'copy_hi' => 'Mais trades aceitas', 'copy_lo' => 'Menos trades aceitas',
     ], $myTeamName);
 
-// ─── Histórico RISE (11 temporadas, extraído de vídeos de simulação) ─
-renderSection('rise-titulos', '🏆', 'rgba(251,191,36,.12)', 'Ranking de Títulos — Histórico RISE',
-    '11 temporadas de histórico: quem mais foi campeão',
-    ['RISE' => $riseHistory['titulos']], ['RISE'], [
-        'label_hi' => '🏆 Mais títulos', 'show_lo' => false,
-        'color_hi' => 'gold',
-        'copy_hi' => 'Mais títulos — histórico RISE',
-        'only_league' => 'RISE',
+// ─── Playoff: as dez que antes existiam só pra RISE, agora nas quatro ligas ─
+//
+// "Mais Aparições em Playoff — Histórico" saiu: é a mesma coisa que a seção
+// "Aparições no Playoff" lá em cima, que já vale pra todas as ligas.
+renderSection('titulos', '🏆', 'rgba(251,191,36,.12)', 'Ranking de Títulos',
+    'Quem mais foi campeão na sprint atual',
+    $titulosMap, $leagues, [
+        'label_hi' => '🏆 Mais títulos', 'show_lo' => false, 'color_hi' => 'gold',
+        'suffix' => '', 'copy_hi' => 'Ranking de títulos',
     ], $myTeamName);
 
-renderSection('rise-dinastia', '🔥', 'color-mix(in srgb, var(--red) 12%, transparent)', 'Maior Dinastia — Títulos Seguidos',
-    'Maior sequência de títulos consecutivos na história da RISE',
-    ['RISE' => $riseHistory['dinastia']], ['RISE'], [
-        'label_hi' => '🔥 Maior sequência', 'show_lo' => false,
-        'color_hi' => 'hi', 'suffix' => 'x seguido(s)',
-        'copy_hi' => 'Maior dinastia — títulos seguidos',
-        'only_league' => 'RISE',
+renderSection('dinastia', '🔥', 'color-mix(in srgb, var(--red) 12%, transparent)', 'Maior Dinastia',
+    'Maior sequência de títulos em temporadas seguidas',
+    $dinastiaMap, $leagues, [
+        'label_hi' => '🔥 Maior sequência', 'show_lo' => false, 'color_hi' => 'hi',
+        'copy_hi' => 'Maior dinastia',
     ], $myTeamName);
 
-renderSection('rise-rivalidades', '⚔️', 'rgba(96,165,250,.12)', 'Maiores Rivalidades — Histórico',
-    'Confrontos com mais jogos disputados entre si (qualquer round)',
-    ['RISE' => $riseHistory['rivalidades']], ['RISE'], [
-        'label_hi' => '⚔️ Mais confrontos', 'show_lo' => false,
-        'color_hi' => 'blue', 'suffix' => ' jogos',
-        'copy_hi' => 'Maiores rivalidades — histórico RISE',
-        'pair_mode' => true, 'pair_sep' => '×',
-        'only_league' => 'RISE',
+renderSection('eterno-vice', '🥈', 'rgba(148,163,184,.10)', 'Eterno Vice',
+    'Times com vice-campeonatos e nenhum título',
+    $eternoViceMap, $leagues, [
+        'label_hi' => '🥈 Mais vices sem taça', 'show_lo' => false, 'color_hi' => 'lo',
+        'copy_hi' => 'Eterno vice',
     ], $myTeamName);
 
-renderSection('rise-dominio', '💀', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Domínio Total — Rivalidade Mais Desequilibrada',
-    'Maior saldo de vitórias em confrontos diretos (mínimo 3 jogos)',
-    ['RISE' => $riseHistory['dominio']], ['RISE'], [
-        'label_hi' => '💀 Maior domínio', 'show_lo' => false,
-        'color_hi' => 'hi', 'suffix' => ' de saldo',
-        'copy_hi' => 'Domínio total — histórico RISE',
-        'pair_mode' => true, 'pair_sep' => 'sobre',
-        'only_league' => 'RISE',
+renderSection('rivais', '⚔️', 'rgba(96,165,250,.12)', 'Maiores Rivalidades',
+    'Duplas que mais se enfrentaram no playoff',
+    $rivaisMap, $leagues, [
+        'label_hi' => '⚔️ Mais confrontos', 'show_lo' => false, 'color_hi' => 'blue',
+        'pair_mode' => true, 'copy_hi' => 'Maiores rivalidades',
     ], $myTeamName);
 
-renderSection('rise-aparicoes', '📊', 'rgba(168,85,247,.10)', 'Mais Aparições em Playoff — Histórico',
-    'Quantas vezes cada time chegou ao playoff nas 11 temporadas',
-    ['RISE' => $riseHistory['aparicoes']], ['RISE'], [
-        'label_hi' => '📊 Mais aparições', 'show_lo' => false,
-        'color_hi' => 'purple', 'suffix' => 'x',
-        'copy_hi' => 'Mais aparições em playoff — histórico RISE',
-        'only_league' => 'RISE',
+renderSection('dominio', '💀', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Domínio Total',
+    'Duplas em que um time venceu TODOS os confrontos do playoff',
+    $dominioMap, $leagues, [
+        'label_hi' => '💀 Freguesia', 'show_lo' => false, 'color_hi' => 'hi',
+        'pair_mode' => true, 'pair_sep' => 'sobre', 'copy_hi' => 'Domínio total',
     ], $myTeamName);
 
-renderSection('rise-eterno-vice', '🥈', 'rgba(148,163,184,.10)', 'Eterno Vice — Sem Título',
-    'Times com mais vice-campeonatos sem nunca vencer o título',
-    ['RISE' => $riseHistory['eterno_vice']], ['RISE'], [
-        'label_hi' => '🥈 Mais vices sem título', 'show_lo' => false,
-        'color_hi' => 'lo', 'suffix' => 'x',
-        'copy_hi' => 'Eterno vice — histórico RISE',
-        'only_league' => 'RISE',
-    ], $myTeamName);
-
-renderSection('rise-finais-margem', '🎖️', 'rgba(251,191,36,.10)', 'Margem nas Finais — Histórico',
-    'Diferença de vitórias na NBA Finals: maiores atropelos x finais mais equilibradas',
-    ['RISE' => $riseHistory['finais_margem']], ['RISE'], [
-        'label_hi' => '🎖️ Maior atropelo', 'label_lo' => '⚖️ Mais equilibrada',
-        'color_hi' => 'gold', 'color_lo' => 'lo', 'suffix' => ' de saldo',
-        'copy_hi' => 'Finais mais dominantes', 'copy_lo' => 'Finais mais equilibradas',
-        'pair_mode' => true, 'pair_sep' => 'x', 'show_lo' => true,
-        'only_league' => 'RISE',
-    ], $myTeamName);
-
-renderSection('rise-seed-medio', '🌡️', 'rgba(96,165,250,.10)', 'Seed Médio Histórico',
-    'Seed médio no round 1 (quanto menor, mais favorito o time costuma ser)',
-    ['RISE' => $riseHistory['seed_medio']], ['RISE'], [
-        'label_hi' => '🥇 Favoritos históricos (seed baixo)', 'label_lo' => '🎲 Zebras históricas (seed alto)',
+renderSection('seed-medio', '🌡️', 'rgba(96,165,250,.10)', 'Seed Médio no Playoff',
+    'Posição média com que o time entra no playoff — quanto menor, mais favorito',
+    $seedMap, $leagues, [
+        'label_hi' => '🌡️ Melhor seed médio', 'label_lo' => '📉 Pior seed médio',
         'color_hi' => 'blue', 'color_lo' => 'lo',
-        'copy_hi' => 'Favoritos históricos — seed médio mais baixo', 'copy_lo' => 'Zebras históricas — seed médio mais alto',
-        'show_lo' => true,
-        'only_league' => 'RISE',
+        'copy_hi' => 'Melhor seed médio', 'copy_lo' => 'Pior seed médio',
     ], $myTeamName);
 
-renderSection('rise-sweeps-dados', '🧹', 'rgba(34,197,94,.10)', 'Sweeps Aplicados (4-0)',
-    'Séries vencidas sem perder um jogo sequer',
-    ['RISE' => $riseHistory['sweeps_dados']], ['RISE'], [
-        'label_hi' => '🧹 Mais sweeps dados', 'show_lo' => false,
-        'color_hi' => 'green', 'suffix' => 'x',
-        'copy_hi' => 'Mais sweeps aplicados — histórico RISE',
-        'only_league' => 'RISE',
+renderSection('sweeps-dados', '🧹', 'rgba(34,197,94,.10)', 'Sweeps Aplicados (4-0)',
+    'Séries vencidas sem perder um jogo',
+    $sweepsDadosMap, $leagues, [
+        'label_hi' => '🧹 Mais sweeps', 'show_lo' => false, 'color_hi' => 'green',
+        'copy_hi' => 'Sweeps aplicados',
     ], $myTeamName);
 
-renderSection('rise-sweeps-sofridos', '🧹', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Sweeps Sofridos (0-4)',
-    'Séries perdidas sem vencer um jogo sequer',
-    ['RISE' => $riseHistory['sweeps_sofridos']], ['RISE'], [
-        'label_hi' => '🧹 Mais sweeps sofridos', 'show_lo' => false,
-        'color_hi' => 'hi', 'suffix' => 'x',
-        'copy_hi' => 'Mais sweeps sofridos — histórico RISE',
-        'only_league' => 'RISE',
+renderSection('sweeps-sofridos', '🧹', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Sweeps Sofridos (0-4)',
+    'Séries perdidas sem vencer um jogo',
+    $sweepsSofridosMap, $leagues, [
+        'label_hi' => '🧹 Mais sweeps sofridos', 'show_lo' => false, 'color_hi' => 'hi',
+        'copy_hi' => 'Sweeps sofridos',
     ], $myTeamName);
 
-renderSection('rise-jogo7', '🎬', 'rgba(251,191,36,.10)', 'Guerreiros do Jogo 7',
-    'Times envolvidos em mais séries decididas no jogo decisivo (4-3)',
-    ['RISE' => $riseHistory['jogo7']], ['RISE'], [
-        'label_hi' => '🎬 Mais jogos 7', 'show_lo' => false,
-        'color_hi' => 'gold', 'suffix' => 'x',
-        'copy_hi' => 'Mais séries decididas no jogo 7 — histórico RISE',
-        'only_league' => 'RISE',
+renderSection('jogo7', '🎬', 'rgba(251,191,36,.10)', 'Guerreiros do Jogo 7',
+    'Séries que foram até o jogo decisivo (4-3) — vale pros dois lados',
+    $jogo7Map, $leagues, [
+        'label_hi' => '🎬 Mais jogos 7', 'show_lo' => false, 'color_hi' => 'gold',
+        'copy_hi' => 'Guerreiros do jogo 7',
+    ], $myTeamName);
+
+renderSection('margem-finais', '🎖️', 'rgba(251,191,36,.10)', 'Margem nas Finais',
+    'Jogos que o campeão precisou na série decisiva — menos jogos, mais atropelo',
+    $margemMap, $leagues, [
+        'label_hi' => '🎖️ Mais dominante', 'label_lo' => '😅 Mais sofrido',
+        'color_hi' => 'gold', 'color_lo' => 'lo',
+        'copy_hi' => 'Finais mais dominantes', 'copy_lo' => 'Finais mais sofridas',
     ], $myTeamName);
 
 renderSection('trades-recusadas', '❌', 'color-mix(in srgb, var(--red) 10%, transparent)', 'Trades Recusadas',
