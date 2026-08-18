@@ -1208,6 +1208,11 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
         const POS_LIST = ['PG','SG','SF','PF','C'];
         function posClass(p) { return POS_LIST.includes(p) ? `pos-${p}` : 'pos-SF'; }
         function ovrClass(v) { v = Number(v) || 0; return v >= 85 ? 'ovr-elite' : v >= 78 ? 'ovr-good' : v >= 68 ? 'ovr-mid' : 'ovr-low'; }
+        // Degradê verde/amarelo/vermelho só pra lista de quem já saiu por rodada
+        // (snakePickRowHtml) — o ovrClass() acima é a escala dos chips (pool,
+        // relógio, admin), com mais degraus e outra paleta; não dá pra reusar
+        // sem mudar a cara das outras telas.
+        function ovrTierColor(v) { v = Number(v) || 0; return v >= 80 ? 'var(--green)' : v >= 70 ? 'var(--amber)' : '#ef4444'; }
         function roundSize() { return state.order.filter(p => Number(p.round) === 1).length || state.teams.length || 0; }
         function globalPickNo(pick) { const rs = roundSize() || 1; return (Number(pick.round) - 1) * rs + Number(pick.pick_position); }
         function reactionChips(pick) {
@@ -1312,7 +1317,7 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
             if (picked) {
                 body = `
                     <div class="snake-team">${teamLabel(pick)}</div>
-                    <div class="snake-player"><span class="pos-badge ${posClass(pick.player_position)}">${esc(pick.player_position || '')}</span> ${esc(pick.player_name)} <span style="color:var(--text-3);font-weight:600">${pick.player_ovr ?? ''}</span></div>
+                    <div class="snake-player"><span class="pos-badge ${posClass(pick.player_position)}">${esc(pick.player_position || '')}</span> ${esc(pick.player_name)} <span style="color:${ovrTierColor(pick.player_ovr)};font-weight:700">${pick.player_ovr ?? ''}${pick.player_age ? `/${pick.player_age}` : ''}</span></div>
                     <div class="snake-react">${reactionChips(pick)}</div>`;
             } else if (isCurrent) {
                 body = `<div class="snake-team">${teamLabel(pick)}</div><div class="snake-onclock"><span class="dot"></span> Escolhendo agora…</div>`;
