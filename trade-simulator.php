@@ -1657,8 +1657,17 @@ function copyTrade() {
       if (item.type === 'player') {
         lines.push(`  • ${prefix}${item.name} (${item.pos}, OVR ${item.ovr}/${item.age}a)`);
       } else {
-        const swap = item.swapRole ? ` [${item.swapRole}]` : '';
-        lines.push(`  • ${prefix}${item.label} (${item.orig})${swap}`);
+        // Swap E proteção, no mesmo formato do aviso do grupo e do copiar
+        // time: "2031 · 1ª Round (Voodoos) [Protegida Top 5 · Swap SB]".
+        // Antes só o swap saía, e mesmo ele só quando o par já estava na
+        // mesa — quem colava a troca no grupo perdia a condição da pick,
+        // que é justamente o que muda o valor dela.
+        const selos = [];
+        if (item.protection) selos.push(`Protegida ${PROTECOES[item.protection]?.rotulo || item.protection}`);
+        else if (item.protecaoOriginal) selos.push(`Protegida ${PROTECOES[item.protecaoOriginal]?.rotulo || item.protecaoOriginal}`);
+        if (item.swapRole) selos.push(`Swap ${item.swapRole}`);
+        const cond = selos.length ? ` [${selos.join(' · ')}]` : '';
+        lines.push(`  • ${prefix}${item.label} (${item.orig})${cond}`);
       }
     });
     lines.push('');
