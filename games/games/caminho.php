@@ -105,7 +105,24 @@ const CAMINHO_DESAFIOS = [
   'goat'           => 'impossivel',
   'dinastia_solo'  => 'impossivel',
   'pico_e_anel'    => 'impossivel',
+  // Lendários — a carreira de um jogador específico, refeita inteira. Não
+  // pagam moeda: pagam FBA points, que valem no site e não só nos games.
+  'proj_jordan'    => 'lendario',
+  'proj_russell'   => 'lendario',
+  'proj_lebron'    => 'lendario',
+  'proj_duncan'    => 'lendario',
+  'proj_curry'     => 'lendario',
+  'proj_kobe'      => 'lendario',
 ];
+
+/**
+ * Quanto cada nível paga em FBA points.
+ *
+ * Separado de CAMINHO_NIVEIS porque são moedas diferentes: moeda de games
+ * (games_usuarios.pontos) circula só nos jogos, FBA point circula no site.
+ * Nível que não estiver aqui paga zero — é o caso de todos os outros.
+ */
+const CAMINHO_FBA = ['lendario' => 50];
 
 /**
  * Legado recalculado AQUI, a partir dos troféus — o número que o cliente
@@ -166,29 +183,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             array_map(fn($x) => preg_replace('/[^a-z0-9_]/', '', mb_substr((string)$x, 0, 40)), $ids),
             fn($id) => isset(CAMINHO_DESAFIOS[$id])
         ))), 0, CAMINHO_MAX_DESAFIOS_POR_VEZ);
-        if (!$ids) { echo json_encode(['ok' => true, 'gravados' => 0, 'moedas' => 0]); exit; }
+        if (!$ids) { echo json_encode(['ok' => true, 'gravados' => 0, 'moedas' => 0, 'fba' => 0]); exit; }
 
         // O prêmio sai do rowCount, não da lista: só paga a linha que ENTROU
         // agora. Reenviar a mesma conquista dez vezes grava zero e paga zero.
         $st = $pdo->prepare("INSERT IGNORE INTO caminho_desafios (id_usuario, desafio, conquistado_em) VALUES (?,?,NOW())");
-        $gravados = 0; $moedas = 0;
+        $gravados = 0; $moedas = 0; $fba = 0;
         foreach ($ids as $id) {
             $st->execute([$idUsuario, $id]);
             if ($st->rowCount() > 0) {
                 $gravados++;
-                $moedas += CAMINHO_NIVEIS[CAMINHO_DESAFIOS[$id]] ?? 0;
+                $nivel   = CAMINHO_DESAFIOS[$id];
+                $moedas += CAMINHO_NIVEIS[$nivel] ?? 0;
+                $fba    += CAMINHO_FBA[$nivel]    ?? 0;
             }
         }
-        if ($moedas > 0) {
+        // As duas moedas num UPDATE só: se o pagamento falhar, falha
+        // inteiro, e nao sobra conquista paga pela metade.
+        if ($moedas > 0 || $fba > 0) {
             try {
-                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")
-                    ->execute([$moedas, $idUsuario]);
+                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ?, fba_points = fba_points + ? WHERE id = ?")
+                    ->execute([$moedas, $fba, $idUsuario]);
             } catch (Throwable $e) {
                 error_log('[caminho] pagar desafios: ' . $e->getMessage());
-                $moedas = 0;
+                $moedas = 0; $fba = 0;
             }
         }
-        echo json_encode(['ok' => true, 'gravados' => $gravados, 'moedas' => $moedas]);
+        echo json_encode(['ok' => true, 'gravados' => $gravados, 'moedas' => $moedas, 'fba' => $fba]);
         exit;
     }
 
@@ -964,6 +985,10 @@ tr.tit td{color:var(--red)}
 .nv-dificil    .desafio-nivel{color:var(--amber);border-color:rgba(245,158,11,.32);background:var(--amber-soft)}
 .nv-impossivel .desafio-nivel{color:#a855f7;border-color:rgba(168,85,247,.35);background:rgba(168,85,247,.12)}
 .nv-impossivel.feito .desafio-icone{background:linear-gradient(150deg,#a855f7,#4c1d95)}
+.nv-lendario .desafio-nivel{color:#e0b341;border-color:rgba(224,179,65,.4);background:rgba(224,179,65,.12)}
+.nv-lendario .desafio-moeda{color:#e0b341}
+.nv-lendario.feito .desafio-icone{background:linear-gradient(150deg,#e0b341,#7a5a10)}
+.saldo-fba{color:#e0b341}
 
 .desafios-saldo{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
 .desafios-saldo span{flex:1;min-width:120px;background:var(--panel);border:1px solid var(--border);
@@ -1035,6 +1060,7 @@ window.__DESAFIOS__ = <?= json_encode($desafiosFeitos, JSON_UNESCAPED_UNICODE) ?
 // Nível e prêmio vêm do servidor: é lá que a moeda é creditada, e a tela
 // não pode prometer um número diferente do que vai ser pago.
 window.__NIVEL_DO_DESAFIO__ = <?= json_encode(CAMINHO_DESAFIOS) ?>;
+window.__FBA_DO_NIVEL__   = <?= json_encode(CAMINHO_FBA) ?>;
 window.__MOEDA_DO_NIVEL__   = <?= json_encode(CAMINHO_NIVEIS) ?>;
 </script>
 <script>
@@ -1221,7 +1247,7 @@ function novaCarreira(nome, pos, arq, nac, modo){
              ouro:0, prata:0, bronze:0, ouroCopa:0, prataCopa:0, bronzeCopa:0},
     convocacoes:0,
     ultimo:null, decisaoId:null, aguardando:false, mensagem:null, resultado:null,
-    finais:null, mercado:null, ofertaEscolhida:null, ovrAnterior:null, efeitoDecisao:0, decisoesUsadas:[], papel:"titular", ultimoOvr:null, picoOvr:null, ultimaVit:null,
+    finais:null, mercado:null, ofertaEscolhida:null, ovrAnterior:null, efeitoDecisao:0, decisoesUsadas:[], papel:"titular", ultimoOvr:null, picoOvr:null, picoTres:0, ultimaVit:null,
     afastado:null,          // {tipo,anos,motivo} enquanto estiver fora
     // Perder temporada é o preço mais caro do jogo, então nem toda carreira
     // chega perto dele: o sorteio aqui decide se ESTA vai encarar uma
@@ -2926,16 +2952,45 @@ const DESAFIOS = [
   {id:"goat",          i:"🐐", n:"O maior de todos",  d:"Na mesma carreira: 4 títulos, 3 MVPs, 25 mil pontos e um ouro pela seleção."},
   {id:"dinastia_solo", i:"🏛️", n:"Dono da franquia",  d:"Quinze temporadas num clube só, com 3 títulos por ele."},
   {id:"pico_e_anel",   i:"👑", n:"Teto com anel",     d:"Chegue a 99 de overall e ganhe um título na mesma carreira."},
+  // Lendários — refazer a carreira de um nome específico, inteira. São os
+  // únicos que pagam FBA points em vez de moeda de games.
+  {id:"proj_jordan",  i:"🔱", n:"Projeto Jordan",  d:"6 títulos, 6 MVPs das Finais e 5 MVPs na mesma carreira."},
+  {id:"proj_russell", i:"🎖️", n:"Projeto Russell", d:"Encerre a carreira com 11 títulos."},
+  {id:"proj_lebron",  i:"🧭", n:"Projeto LeBron",  d:"Seja campeão por três franquias diferentes."},
+  {id:"proj_duncan",  i:"🧱", n:"Projeto Duncan",  d:"Cinco títulos por uma franquia só."},
+  {id:"proj_curry",   i:"🏹", n:"Projeto Curry",   d:"4 títulos e o arremesso de 3 no teto (99)."},
+  {id:"proj_kobe",    i:"🐍", n:"Projeto Kobe",    d:"5 títulos e 20 temporadas na mesma franquia."},
 ];
 
 /** Nível e prêmio de um desafio, direto do catálogo do servidor. */
 function nivelDoDesafio(id){ return (window.__NIVEL_DO_DESAFIO__ || {})[id] || "medio"; }
 function moedaDoDesafio(id){ return (window.__MOEDA_DO_NIVEL__ || {})[nivelDoDesafio(id)] || 0; }
-const ROTULO_NIVEL = {facil:"Fácil", medio:"Médio", dificil:"Difícil", impossivel:"Impossível"};
+function fbaDoDesafio(id){   return (window.__FBA_DO_NIVEL__   || {})[nivelDoDesafio(id)] || 0; }
+/** O prêmio escrito: FBA point onde houver, moeda no resto. */
+function premioDoDesafio(id){
+  const fba = fbaDoDesafio(id);
+  return fba ? `${fba} FBA points` : `${moedaDoDesafio(id)} moedas`;
+}
+const ROTULO_NIVEL = {facil:"Fácil", medio:"Médio", dificil:"Difícil", impossivel:"Impossível", lendario:"Lendário"};
 
 /** Só temporadas de verdade — formação e ano perdido não contam. */
 function temporadasJogadas(){
   return (S.temporadas || []).filter(t => !t.formacao && !t.perdida);
+}
+
+/**
+ * Quantos títulos a carreira ganhou POR clube.
+ *
+ * O contador de troféus só guarda o total; quem ganhou por quem está
+ * nas temporadas, em campeao + time. Sem isto não dá pra separar
+ * "5 títulos" de "5 títulos pelo mesmo time".
+ */
+function titulosPorClube(){
+  const out = {};
+  temporadasJogadas().forEach(x => {
+    if (x.campeao && x.time) out[x.time] = (out[x.time] || 0) + 1;
+  });
+  return out;
 }
 
 function testarDesafio(id, fim){
@@ -2985,6 +3040,23 @@ function testarDesafio(id, fim){
     // tempo de ganhar o título que falta.
     case "ringless":    return fim && jogadas.length >= 10 && (t.titulo||0) === 0;
     case "imortal":     return fim && pontuacaoLegado() >= 200;
+    // ── Lendários ──────────────────────────────────────────────────────
+    // Todos olham título POR FRANQUIA, que sai de temporadas[].campeao +
+    // temporadas[].time — o contador t.titulo só sabe o total da carreira.
+    case "proj_jordan":  return (t.titulo||0) >= 6 && (t.fmvp||0) >= 6 && (t.mvp||0) >= 5;
+    // Só no fim: no meio da carreira ainda dá tempo de chegar aos 11.
+    case "proj_russell": return fim && (t.titulo||0) >= 11;
+    case "proj_lebron":  return Object.keys(titulosPorClube()).length >= 3;
+    case "proj_duncan":  return Object.values(titulosPorClube()).some(n => n >= 5);
+    // A carreira não conta bolas de 3 convertidas — o que existe é o
+    // atributo. "Recorde histórico" vira o teto do atributo: 99 de arremesso
+    // de 3 em algum momento, que é o máximo que a régua do jogo alcança.
+    case "proj_curry":   return (t.titulo||0) >= 4 && (S.picoTres || 0) >= 99;
+    case "proj_kobe": {
+      const porClube = {};
+      jogadas.forEach(x => { if (x.time) porClube[x.time] = (porClube[x.time]||0) + 1; });
+      return (t.titulo||0) >= 5 && Object.values(porClube).some(n => n >= 20);
+    }
   }
   return false;
 }
@@ -3026,10 +3098,14 @@ function telaDesafios(){
   const n = DESAFIOS.filter(d => feitos[d.id]).length;
   const ganho = DESAFIOS.filter(d => feitos[d.id]).reduce((a, d) => a + moedaDoDesafio(d.id), 0);
   const aGanhar = DESAFIOS.filter(d => !feitos[d.id]).reduce((a, d) => a + moedaDoDesafio(d.id), 0);
+  // FBA point é outra moeda: circula no site, não nos games. Somar com as
+  // moedas num total só daria um número que não existe em lugar nenhum.
+  const fbaGanho   = DESAFIOS.filter(d =>  feitos[d.id]).reduce((a, d) => a + fbaDoDesafio(d.id), 0);
+  const fbaNaMesa  = DESAFIOS.filter(d => !feitos[d.id]).reduce((a, d) => a + fbaDoDesafio(d.id), 0);
 
   // Do mais fácil pro mais difícil: quem abre a tela quer saber o que dá
   // pra buscar agora, não o que talvez nunca aconteça.
-  const ordem = {facil:0, medio:1, dificil:2, impossivel:3};
+  const ordem = {facil:0, medio:1, dificil:2, impossivel:3, lendario:4};
   const lista = DESAFIOS.slice().sort((a, b) =>
     (ordem[nivelDoDesafio(a.id)] - ordem[nivelDoDesafio(b.id)])
     || (!!feitos[b.id] - !!feitos[a.id]));
@@ -3045,6 +3121,7 @@ function telaDesafios(){
     <div class="desafios-saldo">
       <span><b>${ganho}</b>moedas ganhas</span>
       <span><b>${aGanhar}</b>ainda na mesa</span>
+      ${fbaGanho || fbaNaMesa ? `<span class="saldo-fba"><b>${fbaGanho}</b>FBA points · ${fbaNaMesa} na mesa</span>` : ""}
     </div>
     <div class="desafios-grade">
       ${lista.map(d => {
@@ -3057,7 +3134,7 @@ function telaDesafios(){
             <small>${esc(d.d)}</small>
             <span class="desafio-pe">
               <em class="desafio-nivel">${ROTULO_NIVEL[nivel] || nivel}</em>
-              <em class="desafio-moeda">${moedaDoDesafio(d.id)} moedas</em>
+              <em class="desafio-moeda">${premioDoDesafio(d.id)}</em>
             </span>
           </span>
           ${q ? `<span class="desafio-data">${esc(q)}</span>` : ""}
@@ -3244,7 +3321,11 @@ function perderAno(){
 
   S.ultimo = {pts:0, reb:0, ast:0, min:0, jogos:0};
   S.ultimoOvr = ovr(S.A, S.pos);
+  // O pico do arremesso de 3 anda junto com o do OVR: o atributo cai com
+  // a idade, e o Projeto Curry pergunta pelo teto que a carreira alcançou,
+  // não pelo que sobrou no fim dela.
   S.picoOvr = Math.max(S.picoOvr || 0, S.ultimoOvr);
+  S.picoTres = Math.max(S.picoTres || 0, (S.A && S.A.tres) || 0);
   S.ultimosPremios = [];
   S.ultimaCampanha = `<b>${lesao ? "Temporada perdida" : "Suspenso"}</b> · ${esc(af.motivo)}`;
 
@@ -3283,6 +3364,7 @@ function jogarAno(){
   // O pico e o numero do cartao final: o OVR do ultimo ano nao conta a
   // historia de quem foi 92 aos 27 e se aposentou aos 38 com 74.
   S.picoOvr = Math.max(S.picoOvr || 0, o || 0);
+  S.picoTres = Math.max(S.picoTres || 0, (S.A && S.A.tres) || 0);
   S.dinheiro += S.salario;
   S.idade++; S.ano++; S.anoFase++; S.contrato--;
   S.confianca = clamp(S.confianca + (st.pts > 14 ? 6 : -4), 5, 99);
@@ -3659,7 +3741,7 @@ function telaTemporada(){
     ((S.desafiosDoAno || []).length ? `<div class="bpcard conquista-aviso">
       <div class="bpcard-title">Conquista${S.desafiosDoAno.length > 1 ? "s" : ""} desbloqueada${S.desafiosDoAno.length > 1 ? "s" : ""}</div>
       ${S.desafiosDoAno.map(d => `<div class="conquista-linha"><span>${d.i}</span><b>${esc(d.n)}</b>
-        <em class="conquista-moeda">+${moedaDoDesafio(d.id)}</em></div>`).join("")}
+        <em class="conquista-moeda">+${fbaDoDesafio(d.id) || moedaDoDesafio(d.id)}${fbaDoDesafio(d.id) ? " FBA" : ""}</em></div>`).join("")}
       <button class="btn btn2" style="margin-top:10px" onclick="telaDesafios()">Ver todas</button>
     </div>` : "") +
     // O desfecho aparece NO LUGAR da decisão, não acima dela: enquanto ele
