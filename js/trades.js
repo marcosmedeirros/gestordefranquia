@@ -79,9 +79,22 @@ const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 // reconfirma depois.
 let PROTECAO_ROTULOS = window.__PICK_PROTECOES__ || {};
 
+/**
+ * Qual proteção mostrar numa pick.
+ *
+ * pick.protection só existe depois que a trade é ACEITA — é quando o
+ * servidor grava a condição na tabela picks. Enquanto pendente, a proteção
+ * PROPOSTA vive em trade_items e chega como pick_protection. Sem esse
+ * fallback, quem estava decidindo se aceitava via a pick sem condição
+ * nenhuma, que é exatamente o que ele precisa saber pra decidir.
+ *
+ * Mesma ideia do pending_swap_role logo abaixo, no swap.
+ */
+const protecaoDaPick = (pick) => (pick && (pick.protection || pick.pick_protection)) || null;
+
 /** O selo de proteção de uma pick, ou '' se não tiver. */
 const protSelo = (pick) => {
-  const p = pick && pick.protection;
+  const p = protecaoDaPick(pick);
   if (!p || !PROTECAO_ROTULOS[p]) return '';
   const res = pick.protection_resultado;
   // Depois do draft o selo diz o que aconteceu: "Protegida Top 5" numa pick
@@ -94,7 +107,7 @@ const protSelo = (pick) => {
 
 /** O mesmo, em texto puro (WhatsApp, cópia de time). */
 const protTexto = (pick) => {
-  const p = pick && pick.protection;
+  const p = protecaoDaPick(pick);
   if (!p || !PROTECAO_ROTULOS[p]) return '';
   const res = pick.protection_resultado;
   return res === 'passou' ? ` (passou, era ${PROTECAO_ROTULOS[p]})`
@@ -168,7 +181,7 @@ const formatTradePickDisplay = (pick) => {
   // grava o vínculo na tabela picks). Enquanto pendente, o SB/SW proposto vem
   // em pending_swap_role — sem esse fallback a pick aparecia sem etiqueta
   // nenhuma pra quem estava decidindo se aceitava o swap ou não.
-  const swapTag = pick.swap_type || pick.pending_swap_role || (['SB','SW'].includes(pick.protection) ? pick.protection : null);
+  const swapTag = pick.swap_type || pick.pending_swap_role || (['SB','SW'].includes(protecaoDaPick(pick)) ? protecaoDaPick(pick) : null);
   if (swapTag) {
     display += ` <span class="badge bg-secondary ms-1">${esc(swapTag)}</span>`;
   }
@@ -193,7 +206,7 @@ const formatTradePickPlain = (pick) => {
   // grava o vínculo na tabela picks). Enquanto pendente, o SB/SW proposto vem
   // em pending_swap_role — sem esse fallback a pick aparecia sem etiqueta
   // nenhuma pra quem estava decidindo se aceitava o swap ou não.
-  const swapTag = pick.swap_type || pick.pending_swap_role || (['SB','SW'].includes(pick.protection) ? pick.protection : null);
+  const swapTag = pick.swap_type || pick.pending_swap_role || (['SB','SW'].includes(protecaoDaPick(pick)) ? protecaoDaPick(pick) : null);
   if (swapTag) display += ` ${swapTag}`;
   display += protTexto(pick);
   return display;
