@@ -265,6 +265,83 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       .page-hero, .content { padding-left: 16px; padding-right: 16px; }
       .page-hero { padding-top: 18px; }
     }
+
+    /* ── Editor aberto do Hall ───────────────────── */
+    .hof-ed { margin-top: 34px; border-top: 1px solid var(--border-md); padding-top: 20px; }
+    .hof-ed-open {
+      display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+      background: transparent; color: var(--text-2); border: 1px solid var(--border-md);
+      border-radius: 9px; padding: 9px 15px; font-size: 12.5px; font-weight: 600;
+      font-family: inherit; transition: border-color .15s, color .15s;
+    }
+    .hof-ed-open:hover { border-color: var(--red); color: var(--text); }
+    .hof-ed-hint { font-size: 11.5px; color: var(--text-3); margin: 8px 0 0; }
+
+    .hof-ed-body { display: none; margin-top: 18px; }
+    .hof-ed.aberto .hof-ed-body { display: block; }
+
+    .hof-ed-grid { display: flex; flex-direction: column; gap: 8px; }
+    .hof-ed-row {
+      display: grid; grid-template-columns: 1fr 1fr 110px 74px auto;
+      gap: 8px; align-items: center;
+      background: var(--panel); border: 1px solid var(--border-sm);
+      border-radius: 10px; padding: 9px 10px;
+    }
+    .hof-ed-row.novo { border-color: color-mix(in srgb, var(--red) 40%, transparent); }
+    .hof-ed-row.sujo { border-color: #d1a237; }
+
+    .hof-ed-row input, .hof-ed-row select {
+      width: 100%; min-width: 0; background: var(--panel-2); color: var(--text);
+      border: 1px solid var(--border-sm); border-radius: 7px;
+      padding: 7px 9px; font-size: 12.5px; font-family: inherit;
+    }
+    .hof-ed-row input:focus, .hof-ed-row select:focus { outline: none; border-color: var(--red); }
+    .hof-ed-acoes { display: flex; gap: 5px; }
+    .hof-ed-btn {
+      background: var(--panel-2); color: var(--text-2); border: 1px solid var(--border-sm);
+      border-radius: 7px; width: 32px; height: 32px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; font-size: 13px;
+    }
+    .hof-ed-btn:hover { color: var(--text); border-color: var(--border-md); }
+    .hof-ed-btn.salvar:hover { color: #4ade80; border-color: #4ade80; }
+    .hof-ed-btn.apagar:hover { color: #ef4444; border-color: #ef4444; }
+    .hof-ed-btn[disabled] { opacity: .35; cursor: default; }
+
+    .hof-ed-rotulo {
+      display: grid; grid-template-columns: 1fr 1fr 110px 74px 69px; gap: 8px;
+      padding: 0 10px 4px; font-size: 10.5px; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--text-3);
+    }
+    .hof-ed-busca {
+      width: 100%; background: var(--panel-2); color: var(--text);
+      border: 1px solid var(--border-sm); border-radius: 9px;
+      padding: 9px 12px; font-size: 13px; font-family: inherit; margin-bottom: 12px;
+    }
+    .hof-ed-busca:focus { outline: none; border-color: var(--red); }
+    .hof-ed-corte { font-size: 11.5px; color: var(--text-3); padding: 8px 2px 0; }
+    .hof-ed-msg { font-size: 12px; margin-top: 10px; min-height: 16px; }
+    .hof-ed-msg.erro { color: #ef4444; }
+    .hof-ed-msg.ok { color: #4ade80; }
+
+    .hof-ed-log { margin-top: 22px; }
+    .hof-ed-log h4 {
+      font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+      color: var(--text-3); margin: 0 0 8px;
+    }
+    .hof-ed-log ul { margin: 0; padding: 0; }
+    .hof-ed-log li {
+      list-style: none; font-size: 12px; color: var(--text-2);
+      padding: 5px 0; border-bottom: 1px solid var(--border-sm);
+    }
+    .hof-ed-log .quando { color: var(--text-3); font-size: 11px; }
+
+    @media (max-width: 720px) {
+      /* Empilhado: cinco colunas em 375px dão 40px cada, e nenhum nome cabe. */
+      .hof-ed-rotulo { display: none; }
+      .hof-ed-row { grid-template-columns: 1fr 1fr; gap: 7px; padding: 10px; }
+      .hof-ed-row .campo-gm { grid-column: 1 / -1; }
+      .hof-ed-acoes { grid-column: 1 / -1; justify-content: flex-end; }
+    }
   <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
@@ -322,6 +399,29 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
           <p>Carregando Hall da Fama…</p>
         </div>
       </div>
+
+      <!-- ══════════════════════════════════════════════
+           EDITOR DO HALL — aberto a qualquer GM logado.
+           Fica no fim da página de propósito: quem vem aqui vem ver o Hall;
+           editar é a exceção, e exceção não abre a tela.
+           ══════════════════════════════════════════════ -->
+      <section class="hof-ed" id="hofEd">
+        <button class="hof-ed-open" type="button" id="hofEdOpen">
+          <i class="bi bi-pencil-square"></i> Editar Hall
+        </button>
+        <p class="hof-ed-hint">Qualquer GM pode corrigir e incluir. Toda alteração fica registrada com o nome de quem fez.</p>
+
+        <div class="hof-ed-body">
+          <input class="hof-ed-busca" id="hofEdBusca" type="search" placeholder="Buscar GM ou time…" autocomplete="off">
+          <div class="hof-ed-rotulo">
+            <span>GM</span><span>Time</span><span>Liga</span><span>Títulos</span><span></span>
+          </div>
+          <div class="hof-ed-grid" id="hofEdGrid"></div>
+          <div class="hof-ed-msg" id="hofEdMsg"></div>
+
+          <div class="hof-ed-log" id="hofEdLog"></div>
+        </div>
+      </section>
 
     </div>
   </main>
@@ -475,6 +575,195 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   }
 
   loadHallOfFame();
+
+  // ── Editor do Hall ────────────────────────────────
+  //
+  // Aberto a qualquer GM logado, a pedido. O que segura a mão é o registro:
+  // api/hall-editar.php grava quem mexeu e o que havia antes, e as últimas
+  // alterações aparecem aqui embaixo. Quem apagar sem querer não perde nada —
+  // o conteúdo antigo está no log.
+  const LIGAS_HOF = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+
+  const hofEd     = document.getElementById('hofEd');
+  const hofEdGrid = document.getElementById('hofEdGrid');
+  const hofEdMsg  = document.getElementById('hofEdMsg');
+  const hofEdLog  = document.getElementById('hofEdLog');
+  let hofEdCarregado = false;
+
+  document.getElementById('hofEdOpen').addEventListener('click', () => {
+    hofEd.classList.toggle('aberto');
+    // Só busca quando abre de verdade: quem nunca clica não paga a consulta.
+    if (hofEd.classList.contains('aberto') && !hofEdCarregado) carregarEditor();
+  });
+
+  function hofMsg(texto, tipo = '') {
+    hofEdMsg.textContent = texto;
+    hofEdMsg.className = 'hof-ed-msg ' + tipo;
+  }
+
+  function linhaEditor(l) {
+    const novo = !l.id;
+    const div = document.createElement('div');
+    div.className = 'hof-ed-row' + (novo ? ' novo' : '');
+    div.dataset.id = l.id || '';
+    div.innerHTML = `
+      <input class="campo-gm" data-c="gm_name" value="${escHtml(l.gm_name || '')}" placeholder="Nome do GM" maxlength="255">
+      <input data-c="team_name" value="${escHtml(l.team_name || '')}" placeholder="Time (opcional)" maxlength="255">
+      <select data-c="league">
+        <option value="">— sem liga —</option>
+        ${LIGAS_HOF.map(lg => `<option value="${lg}"${l.league === lg ? ' selected' : ''}>${lg}</option>`).join('')}
+      </select>
+      <input data-c="titles" type="number" min="1" max="99" value="${Number(l.titles) || 1}">
+      <div class="hof-ed-acoes">
+        <button class="hof-ed-btn salvar" type="button" title="${novo ? 'Incluir' : 'Salvar'}">
+          <i class="bi bi-${novo ? 'plus-lg' : 'check-lg'}"></i>
+        </button>
+        ${novo ? '' : '<button class="hof-ed-btn apagar" type="button" title="Apagar"><i class="bi bi-trash3"></i></button>'}
+      </div>
+    `;
+
+    // Marca a linha como mexida: sem isso não dá pra saber, olhando, quais
+    // ainda faltam salvar — e o editor tem uma linha por registro.
+    div.querySelectorAll('[data-c]').forEach(el => {
+      el.addEventListener('input',  () => { if (!novo) div.classList.add('sujo'); });
+      el.addEventListener('change', () => { if (!novo) div.classList.add('sujo'); });
+    });
+
+    div.querySelector('.salvar').addEventListener('click', () => salvarLinha(div, novo));
+    div.querySelector('.apagar')?.addEventListener('click', () => apagarLinha(div, l));
+    return div;
+  }
+
+  function valoresDaLinha(div) {
+    const v = {};
+    div.querySelectorAll('[data-c]').forEach(el => { v[el.dataset.c] = el.value; });
+    return v;
+  }
+
+  function travarLinha(div, travado) {
+    div.querySelectorAll('button, input, select').forEach(el => { el.disabled = travado; });
+  }
+
+  async function enviar(metodo, corpo) {
+    const r = await fetch('/api/hall-editar.php', {
+      method: metodo,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.success) throw new Error(d.error || 'Não deu pra salvar.');
+    return d;
+  }
+
+  async function salvarLinha(div, novo) {
+    const v = valoresDaLinha(div);
+    if (!v.gm_name.trim()) { hofMsg('O nome do GM é obrigatório.', 'erro'); return; }
+
+    travarLinha(div, true);
+    try {
+      if (novo) await enviar('POST', v);
+      else      await enviar('PUT', { id: Number(div.dataset.id), ...v });
+      await carregarEditor();
+      hofMsg(novo ? 'Incluído.' : 'Salvo.', 'ok');
+      // O pódio lá em cima muda junto — deixar a lista velha na tela faria
+      // parecer que a edição não pegou.
+      loadHallOfFame();
+    } catch (e) {
+      hofMsg(e.message, 'erro');
+      travarLinha(div, false);
+    }
+  }
+
+  async function apagarLinha(div, l) {
+    const quem = l.gm_name || 'esse registro';
+    if (!confirm(`Apagar ${quem} — ${l.titles} título(s)${l.league ? ' da ' + l.league : ''}?`)) return;
+
+    travarLinha(div, true);
+    try {
+      await enviar('DELETE', { id: Number(div.dataset.id) });
+      await carregarEditor();
+      hofMsg('Apagado. Ficou registrado no histórico abaixo.', 'ok');
+      loadHallOfFame();
+    } catch (e) {
+      hofMsg(e.message, 'erro');
+      travarLinha(div, false);
+    }
+  }
+
+  function quandoLegivel(iso) {
+    const d = new Date(String(iso || '').replace(' ', 'T'));
+    if (isNaN(d)) return '';
+    return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function renderLog(historico) {
+    if (!historico || !historico.length) { hofEdLog.innerHTML = ''; return; }
+    const nome = j => { try { return (JSON.parse(j) || {}).gm_name || ''; } catch { return ''; } };
+    hofEdLog.innerHTML = `
+      <h4>Últimas alterações</h4>
+      <ul>${historico.map(h => `
+        <li>
+          <strong>${escHtml(h.user_nome || 'alguém')}</strong>
+          ${escHtml(h.acao)} <em>${escHtml(nome(h.depois) || nome(h.antes) || 'um registro')}</em>
+          <span class="quando">· ${escHtml(quandoLegivel(h.criado_em))}</span>
+        </li>`).join('')}</ul>
+    `;
+  }
+
+  // Sem busca a lista para nas primeiras: são 68 registros hoje, e mostrar
+  // todos empilhados dá quase 12 mil pixels de rolagem no celular pra uma
+  // tela em que quase sempre se vem mexer numa linha só.
+  const HOF_ED_SEM_BUSCA = 12;
+  let hofEdLinhas = [];
+
+  document.getElementById('hofEdBusca').addEventListener('input', renderLinhasEditor);
+
+  function renderLinhasEditor() {
+    const busca = document.getElementById('hofEdBusca').value.trim().toLowerCase();
+    const bate = l => !busca
+      || String(l.gm_name || '').toLowerCase().includes(busca)
+      || String(l.team_name || '').toLowerCase().includes(busca);
+
+    const achados = hofEdLinhas.filter(bate);
+    const mostrar = busca ? achados : achados.slice(0, HOF_ED_SEM_BUSCA);
+
+    hofEdGrid.innerHTML = '';
+    // A linha em branco vem PRIMEIRO: incluir é o que traz a maioria aqui, e
+    // no fim da lista ela ficava a milhares de pixels de distância.
+    hofEdGrid.appendChild(linhaEditor({}));
+    mostrar.forEach(l => hofEdGrid.appendChild(linhaEditor(l)));
+
+    if (!busca && achados.length > mostrar.length) {
+      const corte = document.createElement('div');
+      corte.className = 'hof-ed-corte';
+      corte.textContent = `Mostrando ${mostrar.length} de ${achados.length}. Busque pelo nome pra achar os outros.`;
+      hofEdGrid.appendChild(corte);
+    }
+    if (busca && !achados.length) {
+      const nada = document.createElement('div');
+      nada.className = 'hof-ed-corte';
+      nada.textContent = 'Ninguém com esse nome. A linha de cima inclui um novo.';
+      hofEdGrid.appendChild(nada);
+    }
+  }
+
+  async function carregarEditor() {
+    hofEdGrid.innerHTML = '<div class="state-empty" style="padding:20px"><div class="spinner"></div></div>';
+    try {
+      const r = await fetch('/api/hall-editar.php');
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error || 'Falha ao carregar');
+
+      hofEdCarregado = true;
+      hofEdLinhas = d.linhas || [];
+      renderLinhasEditor();
+      renderLog(d.historico);
+      hofMsg('');
+    } catch (e) {
+      hofEdGrid.innerHTML = '';
+      hofMsg('Erro ao carregar o editor.', 'erro');
+    }
+  }
 </script>
 <script src="<?= assetUrl('/js/pwa.js') ?>"></script>
 </body>
