@@ -96,7 +96,9 @@ if (!function_exists('sbActive')) {
         <a href="/tabela.php"<?= sbActive('tabela.php', $__sbCurrent) ?>><i class="bi bi-table"></i> Tabela</a>
         <a href="/rankings.php"<?= sbActive('rankings.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-fill"></i> Rankings</a>
         <a href="/timeline.php"<?= sbActive('timeline.php', $__sbCurrent) ?>><i class="bi bi-collection-play-fill"></i> Timeline</a>
-        <a href="/calendario.php"<?= sbActive('calendario.php', $__sbCurrent) ?>><i class="bi bi-calendar3"></i> Calendário</a>
+        <?php /* Calendário: fora do menu por enquanto, a pedido. A página
+           continua no ar em /calendario.php — pra voltar, é só reativar esta linha:
+           <a href="/calendario.php"<?= sbActive("calendario.php", $__sbCurrent) ?>><i class="bi bi-calendar3"></i> Calendário</a> */ ?>
         <a href="/games.php"<?= sbActive('games.php', $__sbCurrent) ?>><i class="bi bi-controller"></i> Games</a>
         <a href="/history.php"<?= sbActive('history.php', $__sbCurrent) ?>><i class="bi bi-trophy-fill"></i> Prêmios</a>
         <a href="/hall-da-fama.php"<?= sbActive('hall-da-fama.php', $__sbCurrent) ?>><i class="bi bi-award-fill"></i> Hall da Fama</a>
