@@ -75,19 +75,21 @@ const CAMINHO_NIVEIS = ['facil' => 50, 'medio' => 100, 'dificil' => 150, 'imposs
  * inventar um nome no cliente não vira moeda.
  */
 const CAMINHO_DESAFIOS = [
-  // Fáceis — acontecem numa carreira comum.
+  // Fáceis — o primeiro de cada coisa. Ganhar UM título, UM MVP, UM DPOY ou
+  // UM ouro é o marco de entrada de cada prêmio; o que exige carreira boa é
+  // repetir (três MVPs, três títulos), e isso já está nos difíceis.
   'roy'         => 'facil',
   'chamado'     => 'facil',
   'ringless'    => 'facil',
+  'anel'        => 'facil',
+  'mvp'         => 'facil',
+  'dpoy'        => 'facil',
+  'selecao'     => 'facil',
   // Médios — exigem uma carreira boa.
-  'anel'        => 'medio',
-  'mvp'         => 'medio',
   'fmvp'        => 'medio',
-  'dpoy'        => 'medio',
   'allstar5'    => 'medio',
   'estreia'     => 'medio',
   'euroliga'    => 'medio',
-  'selecao'     => 'medio',
   'nomade'      => 'medio',
   'lenda_clube' => 'medio',
   'de_pe'       => 'medio',
