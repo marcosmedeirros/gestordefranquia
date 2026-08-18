@@ -153,7 +153,11 @@ function caminhoLegado(array $estado): int
            + $n('euro')*7 + $n('cesta')*6 + $n('allstar')*4 + $n('ouro')*5
            + $n('roy')*3 + (int)round($temporadas * 0.8);
 
-    return (int)min(CAMINHO_LEGADO_MAX, round(pow(max(0,$bruto), 0.78) * 1.8));
+    // 2.3 e nao 1.8: com 1.8, a carreira do Jordan (6 titulos, 6 MVPs das
+    // Finais, 5 MVPs) dava 161 e o teto de 230 pedia um bruto que nao cabe
+    // em 26 temporadas. Os degraus de cima existiam sem ninguem alcancar.
+    // Se este numero mudar, o do JS muda junto — sao a mesma formula.
+    return (int)min(CAMINHO_LEGADO_MAX, round(pow(max(0,$bruto), 0.78) * 2.3));
 }
 
 function caminhoCarreiraAtiva(PDO $pdo, int $uid): ?array
@@ -688,6 +692,13 @@ tr.tit td{color:var(--red)}
 /* Clubes e médias, no mesmo formato do cartão em imagem — o que aparece na
    tela é o que sai no print, sem surpresa na hora de compartilhar. */
 .ct-listas{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;margin-top:16px}
+/* Os clubes viraram escudo: cinco nomes empilhados eram a metade do cartão
+   escrita em letra miúda, e o escudo diz a mesma coisa de relance. */
+.ct-clubes{margin-top:16px}
+.ct-escudos{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:6px}
+.ct-escudos .marca-logo,.ct-escudos .marca-time{border-radius:6px;background:rgba(255,255,255,.07)}
+.ct-mais{font-size:11px;font-weight:800;color:rgba(255,255,255,.55)}
+.ct-medias{margin-top:14px;gap:12px 16px}
 .ct-col{min-width:0;display:flex;flex-direction:column;gap:3px}
 .ct-col-tit{font-size:8.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;
   color:rgba(255,255,255,.55);margin-bottom:2px}
@@ -704,16 +715,6 @@ tr.tit td{color:var(--red)}
   color:var(--text2);margin-top:5px}
 .gn.zero b{color:var(--text3)}
 
-/* A escada: o tier sozinho não diz se faltou pouco ou muito pro degrau de
-   cima. Ver os oito de uma vez transforma "Lenda" em posição, não rótulo. */
-.escada{display:flex;flex-direction:column-reverse;gap:2px}
-.deg{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:7px;
-  font-size:12px;color:var(--text2)}
-.deg .n{font-family:var(--num);font-size:10px;width:14px;color:var(--text3);flex:none}
-.deg .req{margin-left:auto;font-family:var(--num);font-size:10px;color:var(--text3)}
-.deg.voce{background:var(--red-soft);color:var(--text);font-weight:700}
-.deg.voce .n,.deg.voce .req{color:var(--red)}
-.deg.passou{color:var(--text2)}
 
 /* Trajetória: um time por bloco, com os anos e quantas temporadas. */
 .traj{display:flex;flex-direction:column;gap:7px}
@@ -1142,16 +1143,6 @@ const ATRIBUTOS = {tres:"3 pontos",fin:"Finalização",pas:"Passe",dri:"Drible",
 // Cortes na escala de 0 a 230, tirados dos percentis de 2500 carreiras.
 // O topo é pra ser lenda urbana: 230 exige mais troféus do que apareceu em
 // duas mil e quinhentas simulações.
-const TIERS = [
-  [0,   "Passou pelo basquete"],
-  [25,  "Jogador de rotação"],
-  [55,  "Titular respeitado"],
-  [90,  "Astro da liga"],
-  [120, "Um dos melhores da sua posição"],
-  [155, "Lenda"],
-  [180, "Top 10 de todos os tempos"],
-  [205, "Conversa de GOAT"],
-];
 
 // ═══════════════════════════════════════════════════════════════════════
 // ESTADO
@@ -4194,14 +4185,13 @@ function legadoBruto(){
  * primeiros 150 — que é o que faz "passar de 200" valer alguma coisa.
  */
 function pontuacaoLegado(){
-  return Math.min(LEGADO_MAXIMO, Math.round(Math.pow(legadoBruto(), 0.78) * 1.8));
+  // Mesmo 2.3 do servidor (caminhoLegado, no topo do arquivo).
+  return Math.min(LEGADO_MAXIMO, Math.round(Math.pow(legadoBruto(), 0.78) * 2.3));
 }
 
 function telaFim(){
   const pts = pontuacaoLegado();
   const tot = totaisDeCarreira();
-  let tier = TIERS[0][1];
-  TIERS.forEach(([min,nome]) => { if (pts >= min) tier = nome; });
   const anos = S.temporadas.filter(x=>!x.formacao);
   const somas = anos.reduce((a,t)=>({p:a.p+t.pts, r:a.r+t.reb, s:a.s+t.ast}), {p:0,r:0,s:0});
   const med = (v) => anos.length ? (Math.round(v/anos.length*10)/10) : 0;
@@ -4215,7 +4205,7 @@ function telaFim(){
     <h1>${esc(S.nome)}</h1>
     <p class="lead">${marca(S.time,24)} ${anos.length} temporadas · ${esc(S.pos)} · aposentado aos ${S.idade}</p>
 
-    ${cartaoDeCarreira(pts, tier, tot, anos)}
+    ${cartaoDeCarreira(pts, tot, anos)}
 
     ${S.moedasGanhas != null ? `<div class="bpcard centro" style="border-color:var(--amber)">
       <div class="bpcard-title">Moedas ganhas</div>
@@ -4255,12 +4245,6 @@ function telaFim(){
     ${legadoInternacional()}
 
     ${trajetoria()}
-
-    <h2>Onde você fica na história</h2>
-    <div class="bpcard">
-      ${escadaDeTiers(pts)}
-      <p class="nota-txt">${degrauSeguinte(pts)}</p>
-    </div>
 
     ${sumula()}${ranking("Como você ficou entre os GMs")}`;
 }
@@ -4315,9 +4299,7 @@ function mediasDaCarreira(){
   return {pts: um(tot.pts), reb: um(tot.reb), ast: um(tot.ast), jogos: tot.jogos};
 }
 
-function dadosDoCartao(pts, tier, tot, anos){
-  const h = hashNome(S.time || "?");
-  const mat = h % 360, comp = (mat + 150 + (h % 60)) % 360;
+function dadosDoCartao(pts, tot, anos){
   const t = S.trofeus || {};
 
   // Só o que tem valor não-zero, e no máximo seis: cartão com "0× MVP" é
@@ -4347,9 +4329,13 @@ function dadosDoCartao(pts, tier, tot, anos){
   ]});
 
   return {
-    c1: `hsl(${mat} 55% 26%)`, c2: `hsl(${comp} 45% 12%)`,
+    // A cor saía de um hash do nome do time: dava um par de matizes
+    // sorteado, que não é a cor de time nenhum nem a do jogo — um cartão
+    // rosa-e-verde no fim de uma carreira. Agora é a paleta da casa:
+    // grafite com o vermelho da FBA, igual ao resto do site.
+    c1: "#1a1216", c2: "#0a0a0d",
     ovr: S.picoOvr || S.ultimoOvr || 0,
-    tier, pts, nums, listas, clubes, medias: md,
+    pts, nums, listas, clubes, medias: md,
     pos: S.pos, time: String(S.time || "").slice(0, 18),
     // O número entra no nome do cartão: é o que amarra a imagem final à
     // camisa que a pessoa montou na primeira tela.
@@ -4358,8 +4344,8 @@ function dadosDoCartao(pts, tier, tot, anos){
   };
 }
 
-function cartaoDeCarreira(pts, tier, tot, anos){
-  const d = dadosDoCartao(pts, tier, tot, anos);
+function cartaoDeCarreira(pts, tot, anos){
+  const d = dadosDoCartao(pts, tot, anos);
   return `<div class="cartao" style="--c1:${d.c1};--c2:${d.c2}">
     <div class="ct-topo">
       <div>
@@ -4368,16 +4354,20 @@ function cartaoDeCarreira(pts, tier, tot, anos){
       </div>
       <div class="ct-dir">${esc(d.pos)}<br>${esc(d.time)}<br>${d.temporadas} temporadas</div>
     </div>
-    <div class="ct-tier">${esc(d.tier)}</div>
-    <div class="ct-legado">${d.pts} pontos de legado</div>
+    <div class="ct-tier">${d.pts} <span>de legado</span></div>
     <div class="ct-nums">
       ${d.nums.map(([n,rot])=>`<div><b>${n}</b><span>${esc(rot)}</span></div>`).join("")}
     </div>
-    ${d.listas.length ? `<div class="ct-listas">
-      ${d.listas.map(col => `<div class="ct-col">
-        <span class="ct-col-tit">${esc(col.titulo)}</span>
-        ${col.itens.map(i => `<span class="ct-col-item">${esc(i)}</span>`).join("")}
-      </div>`).join("")}
+    ${d.clubes.length ? `<div class="ct-clubes">
+      <span class="ct-col-tit">Onde jogou (${d.clubes.length})</span>
+      <div class="ct-escudos">${d.clubes.slice(0, 8).map(c => marca(c, 26)).join("")}
+        ${d.clubes.length > 8 ? `<span class="ct-mais">+${d.clubes.length - 8}</span>` : ""}</div>
+    </div>` : ""}
+    ${d.medias ? `<div class="ct-nums ct-medias">
+      <div><b>${d.medias.pts}</b><span>pts/jogo</span></div>
+      <div><b>${d.medias.reb}</b><span>reb/jogo</span></div>
+      <div><b>${d.medias.ast}</b><span>ast/jogo</span></div>
+      <div><b>${d.medias.jogos.toLocaleString("pt-BR")}</b><span>jogos</span></div>
     </div>` : ""}
     <div class="ct-pe">FBA Games · Caminho até a NBA · ${esc(d.nome)}</div>
   </div>`;
@@ -4386,16 +4376,16 @@ function cartaoDeCarreira(pts, tier, tot, anos){
 /** Manda a carreira como imagem. O desenho é o de games/core/cartao.php. */
 function compartilharCartao(botao){
   const pts = pontuacaoLegado();
-  let tier = TIERS[0][1];
-  TIERS.forEach(([min, nome]) => { if (pts >= min) tier = nome; });
   const anos = S.temporadas.filter(x => !x.formacao);
-  const d = dadosDoCartao(pts, tier, totaisDeCarreira(), anos);
+  const d = dadosDoCartao(pts, totaisDeCarreira(), anos);
 
   fbaCompartilhar({
     c1: d.c1, c2: d.c2,
     numero: d.ovr || "—", rotulo: "pico de overall",
     direita: [d.pos, d.time, `${d.temporadas} temporadas`],
-    titulo: d.tier, sub: `${d.pts} pontos de legado`,
+    titulo: `${d.pts} pontos de legado`, sub: `${d.temporadas} temporadas · pico ${d.ovr}`,
+    // No PNG os clubes vão por nome: aquele cartão é desenhado no canvas,
+    // e escudo de outro domínio suja o canvas e impede de salvar a imagem.
     nums: d.nums, listas: d.listas, nome: d.nome, jogo: "Caminho até a NBA",
   }, botao);
 }
@@ -4472,29 +4462,8 @@ function trajetoria(){
       </div>`).join("")}</div>`;
 }
 
-/** Os oito degraus, com o seu aceso. Vira posição em vez de rótulo solto. */
-function escadaDeTiers(pts){
-  return `<div class="escada">${TIERS.map(([min, nome], i) => {
-    const proximo = TIERS[i + 1];
-    const meu = pts >= min && (!proximo || pts < proximo[0]);
-    return `<div class="deg ${meu ? "voce" : (pts >= min ? "passou" : "")}">
-      <span class="n">${i + 1}</span><span>${esc(nome)}</span>
-      <span class="req">${min}</span>
-    </div>`;
-  }).join("")}</div>`;
-}
-
-/** Quanto faltou pro degrau de cima — o número que dá vontade de jogar de novo. */
-function degrauSeguinte(pts){
-  const acima = TIERS.find(([min]) => pts < min);
-  if (!acima) return "Não existe degrau acima deste. Você chegou no topo da escada.";
-  return `Faltaram <b>${acima[0] - pts}</b> pontos de legado pra chegar em “${esc(acima[1])}”.`;
-}
-
 function copiar(botao){
   const pts = pontuacaoLegado();
-  let tier = TIERS[0][1];
-  TIERS.forEach(([min,nome]) => { if (pts >= min) tier = nome; });
   const anos = S.temporadas.filter(x=>!x.formacao);
   const somas = anos.reduce((a,t)=>({p:a.p+t.pts,r:a.r+t.reb,s:a.s+t.ast}),{p:0,r:0,s:0});
   const med = v => anos.length ? Math.round(v/anos.length*10)/10 : 0;
