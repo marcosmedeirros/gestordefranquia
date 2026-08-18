@@ -1043,7 +1043,11 @@ function confirmPicker() {
       const pk = src.picks.find(pk => pk.id === id);
       if (!pk) return;
       receives[pickerToSlot].push({ id, type: 'pick', fromKey: pickerFromSlot, label: pickLabel(pk), orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round, season_year: pk.season_year, swapRole: null,
-        podeProteger: !!pk.pode_proteger, protection: pk.protection || null });
+        podeProteger: !!pk.pode_proteger, protection: pk.protection || null,
+        // A que a pick JÁ trazia. Sem separar as duas, uma pick protegida
+        // por OUTRO time era reenviada como pedido novo de proteção, e a
+        // API respondia "só dá pra proteger a sua própria pick".
+        protecaoOriginal: pk.protection || null });
     }
   });
 
@@ -1382,9 +1386,14 @@ async function submitSingleTrade(notes) {
 
   // A proteção escolhida vai junto — sem isto o seletor seria enfeite, que é
   // exatamente o que acontecia na tela de trocas antes.
+  // Só vai proteção que MUDOU nesta troca. A que a pick já tinha continua
+  // valendo sozinha — reenviar era pedir de novo o que já está feito, e aí
+  // pick protegida por OUTRO time voltava barrada com "só dá pra proteger
+  // a sua própria pick".
   const comProtecao = (lista, origem) => lista.map((p) => {
     const item = origem.find(i => i.type === 'pick' && i.id === p.id);
-    return item && item.protection ? { ...p, protection: item.protection } : p;
+    if (!item || item.protection === (item.protecaoOriginal || null)) return p;
+    return { ...p, protection: item.protection };
   });
 
   // Monta swap_pairs: uma pick de cada lado, 1ª rodada, MESMO ano (é o que
@@ -1445,7 +1454,10 @@ async function submitMultiTrade(notes) {
         entry.pick_id = item.id;
         // A proteção vai junto aqui também: eu tinha posto só no envio de dois
         // times, e numa troca de 3+ o acordo sumia calado.
-        if (item.protection) entry.pick_protection = item.protection;
+        // Mesma regra do envio de dois times: só o que mudou agora.
+        if (item.protection && item.protection !== (item.protecaoOriginal || null)) {
+          entry.pick_protection = item.protection;
+        }
       }
       items.push(entry);
     });

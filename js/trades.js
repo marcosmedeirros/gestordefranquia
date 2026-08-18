@@ -1023,7 +1023,9 @@ function syncSelectedPickMetadata(side) {
     if (updated) {
       // null e não 'none': 'none' não é proteção válida e só sobrevivia
       // porque a API descartava tudo que não estava na lista.
-      return { ...updated, protection: selected.protection || null };
+      return { ...updated, protection: selected.protection || null,
+               // A que a pick já tinha, pra separar do que foi escolhido agora.
+               protecaoOriginal: updated.protection || null };
     }
     return selected;
   });
@@ -1285,7 +1287,13 @@ function getPickPayload(side) {
   // chegava na API e o acordo virava enfeite.
   return pickState[side].selected.map((pick) => {
     const item = { id: Number(pick.id) };
-    if (pick.protection) item.protection = pick.protection;
+    // Só o que MUDOU nesta troca. A proteção que a pick já trazia continua
+    // valendo sozinha — reenviar era pedir de novo o que já está feito, e
+    // pick protegida por OUTRO time voltava barrada com "só dá pra proteger
+    // a sua própria pick".
+    if (pick.protection && pick.protection !== (pick.protecaoOriginal || null)) {
+      item.protection = pick.protection;
+    }
     return item;
   });
 }
