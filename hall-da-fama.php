@@ -318,6 +318,14 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       padding: 9px 12px; font-size: 13px; font-family: inherit; margin-bottom: 12px;
     }
     .hof-ed-busca:focus { outline: none; border-color: var(--red); }
+    .hof-ed-filtros { display: grid; grid-template-columns: 1fr 160px 200px; gap: 8px; }
+    .hof-ed-filtros .hof-ed-busca { margin-bottom: 12px; }
+    @media (max-width: 720px) {
+      /* Empilhado: três controles em 375px dão 110px cada, e o nome do
+         time não cabe em nenhum deles. */
+      .hof-ed-filtros { grid-template-columns: 1fr; gap: 0; }
+      .hof-ed-filtros .hof-ed-busca { margin-bottom: 8px; }
+    }
     .hof-ed-corte { font-size: 11.5px; color: var(--text-3); padding: 8px 2px 0; }
     .hof-ed-msg { font-size: 12px; margin-top: 10px; min-height: 16px; }
     .hof-ed-msg.erro { color: #ef4444; }
@@ -412,7 +420,20 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
         <p class="hof-ed-hint">Qualquer GM pode corrigir e incluir. Toda alteração fica registrada com o nome de quem fez.</p>
 
         <div class="hof-ed-body">
-          <input class="hof-ed-busca" id="hofEdBusca" type="search" placeholder="Buscar GM ou time…" autocomplete="off">
+          <div class="hof-ed-filtros">
+            <input class="hof-ed-busca" id="hofEdBusca" type="search" placeholder="Buscar GM ou time…" autocomplete="off">
+            <select class="hof-ed-busca" id="hofEdLiga">
+              <option value="">Todas as ligas</option>
+              <option value="ELITE">ELITE</option>
+              <option value="NEXT">NEXT</option>
+              <option value="RISE">RISE</option>
+              <option value="ROOKIE">ROOKIE</option>
+              <option value="__SEM__">Sem liga (histórico)</option>
+            </select>
+            <select class="hof-ed-busca" id="hofEdTime">
+              <option value="">Todos os times</option>
+            </select>
+          </div>
           <div class="hof-ed-rotulo">
             <span>GM</span><span>Time</span><span>Liga</span><span>Títulos</span><span></span>
           </div>
@@ -710,22 +731,57 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     `;
   }
 
-  // Sem busca a lista para nas primeiras: são 68 registros hoje, e mostrar
-  // todos empilhados dá quase 12 mil pixels de rolagem no celular pra uma
-  // tela em que quase sempre se vem mexer numa linha só.
-  const HOF_ED_SEM_BUSCA = 12;
+  // Sem nenhum filtro a lista para nas primeiras: são 67 registros hoje, e
+  // mostrar todos empilhados dá quase 12 mil pixels de rolagem no celular pra
+  // uma tela em que quase sempre se vem mexer numa linha só. Filtrando o teto
+  // sobe — quem filtrou já disse o que quer ver.
+  const HOF_ED_SEM_FILTRO = 12;
+  const HOF_ED_FILTRADO   = 25;
   let hofEdLinhas = [];
 
-  document.getElementById('hofEdBusca').addEventListener('input', renderLinhasEditor);
+  ['hofEdBusca', 'hofEdLiga', 'hofEdTime'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('input',  renderLinhasEditor);
+    el.addEventListener('change', renderLinhasEditor);
+  });
+
+  /**
+   * Enche o filtro de time com os times que EXISTEM no Hall.
+   *
+   * Não é a lista de times da liga: metade dos registros é histórica, com
+   * nome de time que não existe mais. Um seletor com os times de hoje não
+   * acharia justamente as linhas antigas, que são as que precisam de conserto.
+   */
+  function encherFiltroTimes() {
+    const sel = document.getElementById('hofEdTime');
+    const atual = sel.value;
+    const times = [...new Set(hofEdLinhas.map(l => (l.team_name || '').trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    sel.innerHTML = '<option value="">Todos os times</option>'
+      + times.map(t => `<option value="${escHtml(t)}">${escHtml(t)}</option>`).join('');
+    if (times.includes(atual)) sel.value = atual;
+  }
 
   function renderLinhasEditor() {
     const busca = document.getElementById('hofEdBusca').value.trim().toLowerCase();
-    const bate = l => !busca
-      || String(l.gm_name || '').toLowerCase().includes(busca)
-      || String(l.team_name || '').toLowerCase().includes(busca);
+    const liga  = document.getElementById('hofEdLiga').value;
+    const time  = document.getElementById('hofEdTime').value;
+    const filtrando = !!(busca || liga || time);
 
-    const achados = hofEdLinhas.filter(bate);
-    const mostrar = busca ? achados : achados.slice(0, HOF_ED_SEM_BUSCA);
+    const achados = hofEdLinhas.filter(l => {
+      if (busca
+          && !String(l.gm_name   || '').toLowerCase().includes(busca)
+          && !String(l.team_name || '').toLowerCase().includes(busca)) return false;
+      // "Sem liga" é um filtro de verdade: são os títulos de antes das
+      // divisões, e é justamente neles que falta informação.
+      if (liga === '__SEM__' && l.league) return false;
+      if (liga && liga !== '__SEM__' && l.league !== liga) return false;
+      if (time && (l.team_name || '').trim() !== time) return false;
+      return true;
+    });
+
+    const teto    = filtrando ? HOF_ED_FILTRADO : HOF_ED_SEM_FILTRO;
+    const mostrar = achados.slice(0, teto);
 
     hofEdGrid.innerHTML = '';
     // A linha em branco vem PRIMEIRO: incluir é o que traz a maioria aqui, e
@@ -733,17 +789,17 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     hofEdGrid.appendChild(linhaEditor({}));
     mostrar.forEach(l => hofEdGrid.appendChild(linhaEditor(l)));
 
-    if (!busca && achados.length > mostrar.length) {
-      const corte = document.createElement('div');
-      corte.className = 'hof-ed-corte';
-      corte.textContent = `Mostrando ${mostrar.length} de ${achados.length}. Busque pelo nome pra achar os outros.`;
-      hofEdGrid.appendChild(corte);
-    }
-    if (busca && !achados.length) {
-      const nada = document.createElement('div');
-      nada.className = 'hof-ed-corte';
-      nada.textContent = 'Ninguém com esse nome. A linha de cima inclui um novo.';
-      hofEdGrid.appendChild(nada);
+    const aviso = txt => {
+      const d = document.createElement('div');
+      d.className = 'hof-ed-corte';
+      d.textContent = txt;
+      hofEdGrid.appendChild(d);
+    };
+
+    if (achados.length > mostrar.length) {
+      aviso(`Mostrando ${mostrar.length} de ${achados.length}. Filtre mais pra achar os outros.`);
+    } else if (!achados.length) {
+      aviso('Nada com esses filtros. A linha de cima inclui um novo.');
     }
   }
 
@@ -756,6 +812,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
       hofEdCarregado = true;
       hofEdLinhas = d.linhas || [];
+      encherFiltroTimes();
       renderLinhasEditor();
       renderLog(d.historico);
       hofMsg('');
