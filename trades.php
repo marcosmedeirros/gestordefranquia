@@ -159,6 +159,14 @@ try {
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/styles.css">
   <style>
+    /* Filtro do histórico */
+    .hist-filtro{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+    .hist-pill{background:var(--panel-2,#16161a);color:var(--text-2,#9aa);border:1px solid var(--border-md,#2a2a31);
+      border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit}
+    .hist-pill:hover{color:var(--text,#fff)}
+    .hist-pill.on{background:var(--red,#fc0025);border-color:var(--red,#fc0025);color:#fff}
+    @media (max-width:520px){.hist-pill{padding:6px 11px;font-size:12px}}
+
     :root {
       --red:        #fc0025;
       --red-2:      color-mix(in srgb, var(--red) 85%, white);
@@ -549,6 +557,15 @@ try {
 
           <!-- Histórico -->
           <div class="tab-pane fade" id="history" role="tabpanel">
+            <!-- Filtro do histórico: no meio de dezenas de trocas antigas,
+                 "o que eu aceitei" e "o que recusei" são perguntas
+                 diferentes, e sem filtro as duas exigem rolar tudo. -->
+            <div class="hist-filtro" id="histFiltro">
+              <button class="hist-pill on" data-status="">Todas</button>
+              <button class="hist-pill" data-status="accepted">Aceitas</button>
+              <button class="hist-pill" data-status="rejected">Recusadas</button>
+              <button class="hist-pill" data-status="cancelled">Canceladas</button>
+            </div>
             <div id="historyTradesList"></div>
           </div>
 

@@ -1788,6 +1788,43 @@ function filterLeagueTrades(searchTerm) {
   badge.textContent = `${filtered.length} ${filtered.length === 1 ? 'trade' : 'trocas'}`;
 }
 
+// O histórico inteiro, pra filtrar sem ir na API de novo.
+let historicoCompleto = [];
+let historicoStatus = '';
+
+/**
+ * Desenha o histórico com o filtro atual.
+ *
+ * O filtro é por status porque é assim que a pergunta aparece: "o que eu
+ * fechei" e "o que recusei" são duas listas diferentes, e sem separar as
+ * duas exigem rolar dezenas de trocas antigas.
+ */
+function renderHistorico() {
+  const container = document.getElementById('historyTradesList');
+  if (!container) return;
+  const lista = historicoStatus
+    ? historicoCompleto.filter((t) => t.status === historicoStatus)
+    : historicoCompleto;
+
+  if (!lista.length) {
+    const rotulo = {accepted: 'aceita', rejected: 'recusada', cancelled: 'cancelada'}[historicoStatus];
+    container.innerHTML = '<div class="empty"><i class="bi bi-arrow-left-right"></i><p>'
+      + (rotulo ? `Nenhuma trade ${rotulo}.` : 'Nenhuma trade encontrada') + '</p></div>';
+    return;
+  }
+  container.innerHTML = '';
+  lista.forEach((trade) => container.appendChild(createTradeCard(trade, 'history')));
+}
+
+document.addEventListener('click', (e) => {
+  const pill = e.target.closest('#histFiltro .hist-pill');
+  if (!pill) return;
+  document.querySelectorAll('#histFiltro .hist-pill').forEach((p) => p.classList.remove('on'));
+  pill.classList.add('on');
+  historicoStatus = pill.dataset.status || '';
+  renderHistorico();
+});
+
 async function loadTrades(type) {
   const container = document.getElementById(`${type}TradesList`);
   container.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-orange"></div></div>';
@@ -1813,6 +1850,14 @@ async function loadTrades(type) {
     if (type === 'league') {
       const searchInput = document.getElementById('leagueTradesSearch');
       filterLeagueTrades(searchInput ? searchInput.value : '');
+      return;
+    }
+
+    // O histórico guarda o que foi filtrado pra não precisar ir na API de
+    // novo a cada clique — a lista já está toda aqui.
+    if (type === 'history') {
+      historicoCompleto = combined;
+      renderHistorico();
       return;
     }
 
