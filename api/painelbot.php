@@ -234,5 +234,78 @@ if ($acao === 'apagar') {
     exit;
 }
 
+// ── Grupos onde o bot aceita /comando ────────────────────────────────
+//
+// Isto morava dentro do painel do QUIZ, e ninguém achava: cadastro de
+// grupo do bot não tem nada a ver com pergunta do dia, e quem entrava lá
+// pra ligar o bot num grupo achava que estava ligando o quiz junto.
+//
+// São coisas separadas de verdade: esta tabela decide onde o bot RESPONDE
+// comando; o quiz sai num grupo só, guardado à parte em whatsapp_config.
+// Cadastrar aqui não põe quiz em lugar nenhum.
+if ($acao === 'grupos') {
+    $cadastrados = [];
+    foreach (whatsappGruposDeComando($pdo) as $jid => $g) {
+        $cadastrados[] = ['jid' => $jid, 'nome' => $g['nome'] ?? '', 'liga' => $g['liga'] ?? null];
+    }
+    $jaTem = array_column($cadastrados, 'jid');
+
+    // Os grupos de onde o bot já ouviu alguma coisa mas ninguém cadastrou.
+    // É o que evita ter de caçar o JID de 18 dígitos no log da Evolution.
+    $vistos = [];
+    try {
+        foreach ($pdo->query("SELECT jid, nome, ultimo_autor, ultima_mensagem, mensagens, visto_em
+                              FROM whatsapp_grupos_vistos ORDER BY visto_em DESC LIMIT 40") as $v) {
+            if (!in_array($v['jid'], $jaTem, true)) $vistos[] = $v;
+        }
+    } catch (Throwable $e) {
+        // A tabela só nasce quando o webhook recebe a primeira mensagem.
+    }
+
+    echo json_encode(['ok' => true, 'grupos' => $cadastrados, 'vistos' => $vistos], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($acao === 'grupo_salvar') {
+    $jid  = trim((string)($_POST['jid'] ?? ''));
+    $nome = trim((string)($_POST['nome'] ?? ''));
+    $liga = strtoupper(trim((string)($_POST['liga'] ?? '')));
+
+    // Só grupo. Um número individual aqui abriria o bot pra conversa
+    // privada, e aí qualquer um consulta o banco da liga no PV.
+    if (!str_ends_with($jid, '@g.us')) {
+        http_response_code(400);
+        echo json_encode(['erro' => 'O identificador precisa terminar em @g.us — é grupo, não pessoa.']);
+        exit;
+    }
+    if ($nome === '') { http_response_code(400); echo json_encode(['erro' => 'Dê um nome ao grupo.']); exit; }
+    if ($liga !== '' && !in_array($liga, ['ELITE','NEXT','RISE','ROOKIE'], true)) {
+        http_response_code(400); echo json_encode(['erro' => 'Liga inválida.']); exit;
+    }
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_grupos_comando (
+        jid VARCHAR(120) PRIMARY KEY,
+        nome VARCHAR(120) NULL,
+        liga ENUM('ELITE','NEXT','RISE','ROOKIE') NULL,
+        ativo TINYINT(1) NOT NULL DEFAULT 1,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    $pdo->prepare("INSERT INTO whatsapp_grupos_comando (jid, nome, liga, ativo) VALUES (?,?,?,1)
+                   ON DUPLICATE KEY UPDATE nome=VALUES(nome), liga=VALUES(liga), ativo=1")
+        ->execute([$jid, mb_substr($nome, 0, 120), $liga !== '' ? $liga : null]);
+
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
+if ($acao === 'grupo_remover') {
+    $jid = trim((string)($_POST['jid'] ?? ''));
+    if ($jid === '') { http_response_code(400); echo json_encode(['erro' => 'jid obrigatório']); exit; }
+    $pdo->prepare("DELETE FROM whatsapp_grupos_comando WHERE jid = ?")->execute([$jid]);
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
 http_response_code(400);
 echo json_encode(['erro' => 'ação desconhecida']);

@@ -385,6 +385,10 @@ async function showGestao(league) {
       // O abraço já sai sozinho às 15h; isto é pra mandar na hora.
       { icon: 'bi-emoji-smile-fill',    label: 'Disparar<br>abraço',        fn: 'dispararAbraco()',      color: '#22c55e', bg: 'rgba(34,197,94,.12)', id: 'btnAbraco' },
       { icon: 'bi-patch-question-fill', label: 'Quiz do<br>grupo',          fn: 'showQuizAdmin()',       color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
+      // O bot tem tela própria: grupos de comando, plantão, arquivo de
+      // conversa. Isso morava dentro do card do quiz, e ninguém achava —
+      // cadastro de grupo do bot não tem nada a ver com pergunta do dia.
+      { icon: 'bi-robot',               label: 'Painel do<br>Bot',          url: '/painelbot.php',        color: '#25d366', bg: 'rgba(37,211,102,.12)' },
     ] : []),
   ];
 
@@ -573,8 +577,9 @@ function _quizRender(e, perguntas) {
         <i class="bi bi-download me-1"></i>Popular banco inicial</button>` : `
       <button class="btn-ghost" onclick="_quizAcao('popular','Carregar de novo o banco inicial? As que já existem são puladas.')">
         <i class="bi bi-arrow-repeat me-1"></i>Recarregar banco inicial</button>`}
-    <button class="btn-ghost" onclick="_quizGruposTela()"><i class="bi bi-people-fill me-1"></i>Grupos do bot (${(e.grupos || []).length})</button>
-    <button class="btn-ghost" onclick="_quizDiagnostico()"><i class="bi bi-clipboard-pulse me-1"></i>Diagnóstico</button>
+    <!-- "Grupos do bot" e "Diagnóstico" saíram daqui: são do bot inteiro,
+         não do quiz, e agora moram no Painel do Bot. -->
+    <a class="btn-ghost" href="/painelbot.php" style="color:#25d366"><i class="bi bi-robot me-1"></i>Painel do Bot</a>
   </div>
 </div>
 

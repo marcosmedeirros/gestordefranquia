@@ -192,6 +192,46 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
 .gsel{font-size:11px;font-weight:700;padding:5px 10px;border-radius:99px;cursor:pointer;
   border:1px solid var(--border);background:var(--panel2);color:var(--text2);font-family:var(--font)}
 .gsel.on{border-color:var(--green);color:var(--green);background:var(--green-soft)}
+/* Grupos de comando: painel que abre pelo pino "Grupos", igual ao de
+   arquivo — a tela principal continua sendo a conversa. */
+.cmd{display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--panel)}
+.cmd.aberto{display:block}
+.cmd-tit{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:800}
+.cmd-fecha{background:none;border:0;color:var(--text3);cursor:pointer;padding:2px 4px}
+.cmd-nota{font-size:11.5px;color:var(--text3);line-height:1.55;margin:6px 0 12px}
+.cmd-nota code{color:var(--text2)}
+.cmd-lista{display:flex;flex-direction:column;gap:6px}
+.cmd-item{display:grid;grid-template-columns:1fr 118px 32px;gap:8px;align-items:center;
+  background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:7px 9px}
+.cmd-nome{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmd-item select,.cmd-form select,.cmd-form input{background:var(--panel3);color:var(--text);
+  border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:12px;font-family:inherit;width:100%}
+.cmd-x{background:none;border:1px solid var(--border);border-radius:7px;color:var(--text3);
+  cursor:pointer;height:30px}
+.cmd-x:hover{color:#ef4444;border-color:#ef4444}
+.cmd-vazio{font-size:12px;color:var(--text3)}
+.cmd-sub{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text3);margin:14px 0 6px}
+.cmd-visto{display:block;width:100%;text-align:left;background:var(--panel2);cursor:pointer;
+  border:1px dashed var(--border2);border-radius:9px;padding:7px 9px;margin-bottom:6px;color:var(--text)}
+.cmd-visto:hover{border-color:var(--red);border-style:solid}
+.cmd-visto b{display:block;font-size:12.5px}
+.cmd-visto small{display:block;font-size:11px;color:var(--text3);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.cmd-manual{margin-top:14px;font-size:12px;color:var(--text3)}
+.cmd-manual summary{cursor:pointer}
+.cmd-form{display:grid;grid-template-columns:1fr 1fr 118px auto;gap:7px;margin-top:8px}
+.cmd-form button{background:var(--red);border:0;border-radius:7px;color:#fff;font-weight:700;
+  padding:0 14px;cursor:pointer;font-size:12px}
+.cmd-msg{font-size:12px;margin-top:9px;min-height:15px}
+.cmd-msg.erro{color:#ef4444}.cmd-msg.ok{color:#4ade80}
+@media(max-width:640px){
+  /* Empilhado: três colunas em 375px deixam o nome do grupo com 90px. */
+  .cmd-item{grid-template-columns:1fr 32px;gap:6px}
+  .cmd-item select{grid-column:1/-1}
+  .cmd-form{grid-template-columns:1fr}
+  .cmd-form button{padding:9px}
+}
 </style>
 </head>
 <body>
@@ -226,7 +266,11 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
         <i class="bi bi-infinity"></i> Sempre
       </button>
     <?php endif; ?>
-    <button class="pino pino-btn <?= $captura['modo'] === 'off' ? 'off' : 'on' ?>" id="pinoCaptura"
+    <button class="pino pino-btn" onclick="cmdAbrir()"
+          title="Os grupos onde o bot responde /comando">
+    <i class="bi bi-people-fill"></i> Grupos
+  </button>
+  <button class="pino pino-btn <?= $captura['modo'] === 'off' ? 'off' : 'on' ?>" id="pinoCaptura"
             onclick="document.getElementById('painelCaptura').classList.toggle('aberto')"
             title="O que este painel arquiva">
       Arquivo: <?= htmlspecialchars($captura['modo']) ?>
@@ -250,6 +294,42 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
   <p class="captura-nota">Enquanto estiver em <b>Nada</b>, o bot lê e esquece, como sempre fez — a lista abaixo
   mostra só o que ele <b>enviou</b>. Ligar faz o site guardar o texto das mensagens recebidas, e conversa de grupo
   inclui muita coisa que não é da liga. O histórico começa no momento em que você liga; o que passou não volta.</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     GRUPOS DE COMANDO — onde o bot responde /comando.
+     Veio do painel do quiz, que era o lugar errado: cadastro de grupo
+     do bot não tem nada a ver com pergunta do dia. O quiz continua
+     saindo num grupo só, definido à parte.
+     ══════════════════════════════════════════════════════════════ -->
+<div class="cmd" id="painelCmd">
+  <div class="cmd-tit">
+    <span>Onde o bot responde comando</span>
+    <button class="cmd-fecha" onclick="document.getElementById('painelCmd').classList.remove('aberto')"
+            title="Fechar"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <p class="cmd-nota">Só nos grupos desta lista o bot atende <code>/time</code>, <code>/meucap</code> e
+  os demais. A <b>liga</b> é o que faz ele responder da divisão certa quando o mesmo nome existe em duas —
+  sem ela, todo grupo responde ELITE. Isto não liga quiz em lugar nenhum.</p>
+
+  <div id="cmdLista" class="cmd-lista"><span class="cmd-vazio">Carregando…</span></div>
+
+  <div class="cmd-novos" id="cmdNovos"></div>
+
+  <details class="cmd-manual">
+    <summary>Cadastrar pelo identificador</summary>
+    <div class="cmd-form">
+      <input id="cmdJid"  placeholder="1203...@g.us">
+      <input id="cmdNome" placeholder="Nome do grupo">
+      <select id="cmdLiga">
+        <option value="">— sem liga —</option>
+        <option value="ELITE">ELITE</option><option value="NEXT">NEXT</option>
+        <option value="RISE">RISE</option><option value="ROOKIE">ROOKIE</option>
+      </select>
+      <button onclick="cmdSalvar()">Salvar</button>
+    </div>
+  </details>
+  <div class="cmd-msg" id="cmdMsg"></div>
 </div>
 
 <div class="wrap" id="wrap">
@@ -298,6 +378,110 @@ async function api(acao, dados){
   const d = await r.json().catch(() => ({erro:'resposta inválida'}));
   if (!r.ok || d.erro) throw new Error(d.erro || 'falhou');
   return d;
+}
+
+// ── Grupos de comando ─────────────────────────────────────────────
+//
+// Onde o bot responde /comando. Nada a ver com o quiz, que sai num
+// grupo só definido à parte — foi por morarem na mesma tela que os
+// dois pareciam a mesma coisa.
+let _cmdCarregado = false;
+
+function cmdAbrir(){
+  document.getElementById('painelCmd').classList.toggle('aberto');
+  if (document.getElementById('painelCmd').classList.contains('aberto') && !_cmdCarregado) cmdCarregar();
+}
+
+function cmdMsg(txt, tipo){
+  const el = document.getElementById('cmdMsg');
+  el.textContent = txt || '';
+  el.className = 'cmd-msg ' + (tipo || '');
+}
+
+const LIGAS_CMD = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+
+function cmdSelLiga(jid, atual){
+  return `<select onchange="cmdMudarLiga('${jid}', this.value)">
+    <option value=""${!atual ? ' selected' : ''}>— sem liga —</option>
+    ${LIGAS_CMD.map(l => `<option value="${l}"${atual === l ? ' selected' : ''}>${l}</option>`).join('')}
+  </select>`;
+}
+
+async function cmdCarregar(){
+  const lista = document.getElementById('cmdLista');
+  const novos = document.getElementById('cmdNovos');
+  lista.innerHTML = '<span class="cmd-vazio">Carregando…</span>';
+  try {
+    const d = await api('grupos');
+    _cmdCarregado = true;
+    window._cmdGrupos = d.grupos || [];
+
+    lista.innerHTML = d.grupos.length
+      ? d.grupos.map(g => `<div class="cmd-item" data-jid="${esc(g.jid)}">
+          <span class="cmd-nome">${esc(g.nome || g.jid)}</span>
+          ${cmdSelLiga(g.jid, g.liga)}
+          <button class="cmd-x" onclick="cmdRemover('${g.jid}', '${esc(g.nome || '')}')"
+                  title="Tirar da lista"><i class="bi bi-trash3"></i></button>
+        </div>`).join('')
+      : '<span class="cmd-vazio">Nenhum grupo cadastrado — o bot não responde comando em lugar nenhum.</span>';
+
+    // Os que o bot ouviu mas ninguém cadastrou. É daqui que sai o
+    // cadastro de um grupo novo: o JID já vem preenchido.
+    novos.innerHTML = (d.vistos || []).length ? `
+      <div class="cmd-sub">O bot ouviu falar nestes — clique pra ativar</div>
+      ${d.vistos.map(v => `<button class="cmd-visto" onclick="cmdAtivar(this)"
+          data-jid="${esc(v.jid)}" data-nome="${esc(v.nome || '')}">
+        <b>${esc(v.nome || v.jid.replace('@g.us',''))}</b>
+        <small>${esc(v.ultimo_autor || 'alguém')}: ${esc(v.ultima_mensagem || '—')}</small>
+      </button>`).join('')}` : '';
+    cmdMsg('');
+  } catch (e) {
+    lista.innerHTML = '';
+    cmdMsg(e.message || 'Erro ao carregar os grupos.', 'erro');
+  }
+}
+
+/** Ativa um grupo que o bot já ouviu: pede o nome e a liga na hora. */
+async function cmdAtivar(botao){
+  const jid = botao.dataset.jid;
+  const nome = prompt('Nome do grupo:', botao.dataset.nome || '');
+  if (nome === null || !nome.trim()) return;
+  const liga = (prompt('Liga do grupo (ELITE, NEXT, RISE, ROOKIE) — vazio pra nenhuma:', '') || '')
+                 .trim().toUpperCase();
+  if (liga && !LIGAS_CMD.includes(liga)) { cmdMsg('Liga inválida.', 'erro'); return; }
+  await cmdGravar(jid, nome.trim(), liga);
+}
+
+async function cmdSalvar(){
+  const jid  = document.getElementById('cmdJid').value.trim();
+  const nome = document.getElementById('cmdNome').value.trim();
+  const liga = document.getElementById('cmdLiga').value;
+  if (!jid || !nome) { cmdMsg('Identificador e nome são obrigatórios.', 'erro'); return; }
+  await cmdGravar(jid, nome, liga);
+  document.getElementById('cmdJid').value = '';
+  document.getElementById('cmdNome').value = '';
+}
+
+async function cmdMudarLiga(jid, liga){
+  const g = (window._cmdGrupos || []).find(x => x.jid === jid);
+  await cmdGravar(jid, (g && g.nome) || jid, liga, 'Liga atualizada.');
+}
+
+async function cmdGravar(jid, nome, liga, ok){
+  try {
+    await api('grupo_salvar', {jid, nome, liga: liga || ''});
+    await cmdCarregar();
+    cmdMsg(ok || 'Pronto — o bot já atende nesse grupo.', 'ok');
+  } catch (e) { cmdMsg(e.message || 'Não deu pra salvar.', 'erro'); }
+}
+
+async function cmdRemover(jid, nome){
+  if (!confirm(`Tirar ${nome || jid} da lista?\n\nO bot para de responder comando lá.`)) return;
+  try {
+    await api('grupo_remover', {jid});
+    await cmdCarregar();
+    cmdMsg('Removido.', 'ok');
+  } catch (e) { cmdMsg(e.message || 'Não deu pra remover.', 'erro'); }
 }
 
 /* ── Lista ──────────────────────────────────────────────────────── */
