@@ -358,6 +358,8 @@ function wcAjuda(): string
         . "/lendas — os marcados como LENDA\n"
         . "/hall — o Hall da Fama\n"
         . "/premios — os prêmios da temporada\n"
+        . "/estatisticas — recordes e curiosidades da liga
+"
         . "/guia — o guia do GM\n\n"
         // /quizaqui existe e continua funcionando, mas fica FORA desta lista:
         // é comando de organização, usado uma vez pra apontar onde o quiz sai.
@@ -2045,6 +2047,15 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'help':
                 return wcAjuda();
 
+            // As estatísticas da liga. O catálogo mora em
+            // backend/estatisticas_bot.php, e é ele que diz quais comandos
+            // existem — não uma segunda lista aqui.
+            case 'estatisticas':
+            case 'estatísticas':
+            case 'stats':
+                require_once __DIR__ . '/../backend/estatisticas_bot.php';
+                return ebListar($ligaDoGrupo);
+
             case 'jogador':
             case 'player':
                 return wcJogador($pdo, $arg, $ligaDoGrupo);
@@ -2131,6 +2142,14 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
                 return wcQuizAqui($pdo, $deQuem, $grupoJid);
 
             default:
+                // Um comando por estatística (/playoffs, /4a0, /rivalidades…).
+                // Não estão listados um por um de propósito: quem sabe quais
+                // existem é o catálogo em backend/estatisticas_bot.php, e
+                // repetir os nomes aqui seria uma segunda lista pra manter.
+                require_once __DIR__ . '/../backend/estatisticas_bot.php';
+                $est = ebResponder($pdo, $cmd, $ligaDoGrupo);
+                if ($est !== null) return $est;
+
                 return null;
         }
     } catch (Throwable $e) {
