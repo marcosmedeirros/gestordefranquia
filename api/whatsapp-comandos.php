@@ -193,16 +193,17 @@ function wcLinhaCapOvr(array $c): string
  * Procuro no nome completo ("Cidade Nome", que é como o time aparece) e também
  * no mascot: ele não é usado pra exibir, mas alguém pode digitar por ele.
  */
-function wcAcharTimes(PDO $pdo, string $termo): array
+function wcAcharTimes(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): array
 {
     $like = '%' . $termo . '%';
+    $ordem = wcOrdemLiga($ligaDoGrupo);
     $st = $pdo->prepare("
         SELECT t.id, t.name, t.city, t.mascot, t.league, t.conference, u.name AS gm
         FROM teams t
         LEFT JOIN users u ON u.id = t.user_id
         WHERE t.name LIKE ? OR t.city LIKE ? OR t.mascot LIKE ?
            OR CONCAT(t.city, ' ', t.name) LIKE ?
-        ORDER BY t.league, t.city
+        ORDER BY {$ordem}, t.city
         LIMIT 6
     ");
     $st->execute([$like, $like, $like, $like]);
@@ -214,12 +215,16 @@ function wcAcharTimes(PDO $pdo, string $termo): array
  * escolher em vez de chutar o primeiro — chutar é pior que perguntar.
  * Retorna [time|null, mensagemDeErro|null].
  */
-function wcResolverTime(PDO $pdo, string $termo): array
+function wcResolverTime(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): array
 {
-    $times = wcAcharTimes($pdo, $termo);
+    $times = wcAcharTimes($pdo, $termo, $ligaDoGrupo);
     if (!$times) {
         return [null, "Não achei time com \"{$termo}\"."];
     }
+
+    // Mesmo apelido em duas divisões não é ambiguidade de verdade: no Chat Off
+    // Geral vale a ELITE, no grupo de uma liga vale a liga dele.
+    $times = wcSoDaLiga($times, $ligaDoGrupo);
     if (count($times) > 1) {
         // Match exato desempata: quem digitou "Heat" quer o Heat, mesmo que
         // exista um "Heaters" na lista.
@@ -255,6 +260,67 @@ function wcTemporadaAtiva(PDO $pdo, string $league): ?array
 }
 
 /** Normaliza o nome da liga que a pessoa digitou. */
+/** As ligas na ordem das divisões: ELITE é a 1ª, ROOKIE é a 4ª. */
+const WC_DIVISOES = ['ELITE', 'NEXT', 'RISE', 'ROOKIE'];
+
+/**
+ * A liga que desempata quando o mesmo nome existe em mais de uma.
+ *
+ * O grupo de cada liga já traz a sua. O Chat Off Geral não tem liga amarrada,
+ * e a ROOKIE reaproveita os mesmos jogadores da ELITE — então "/jogador
+ * lebron" lá respondia "Achei 2 com lebron" toda vez, e a resposta útil nunca
+ * chegava. Sem liga do grupo, vale a ELITE: é a primeira divisão.
+ */
+function wcLigaPreferida(?string $ligaDoGrupo): string
+{
+    $l = strtoupper(trim((string)$ligaDoGrupo));
+    return in_array($l, WC_DIVISOES, true) ? $l : 'ELITE';
+}
+
+/** ORDER BY que põe a liga preferida na frente, depois a ordem das divisões. */
+function wcOrdemLiga(?string $ligaDoGrupo, string $alias = 't'): string
+{
+    $pref  = wcLigaPreferida($ligaDoGrupo);
+    $ordem = array_merge([$pref], array_values(array_diff(WC_DIVISOES, [$pref])));
+    return "FIELD({$alias}.league,'" . implode("','", $ordem) . "')";
+}
+
+/**
+ * Fica só com os achados da divisão mais alta em que o nome aparece.
+ *
+ * A ordem é: a liga do grupo primeiro, depois ELITE, NEXT, RISE e ROOKIE —
+ * que é a ordem das divisões. Então no Chat Off Geral um nome que existe na
+ * ELITE e na ROOKIE resolve pra ELITE; um que existe só na NEXT e na RISE
+ * resolve pra NEXT; e a ROOKIE só ganha quando é a única que tem.
+ *
+ * Nada é escondido de propósito: se a divisão escolhida não tem ninguém, a
+ * busca continua descendo. Quem chama avisa em uma linha o que ficou de fora.
+ */
+function wcSoDaLiga(array $linhas, ?string $ligaDoGrupo): array
+{
+    $pref  = wcLigaPreferida($ligaDoGrupo);
+    $ordem = array_merge([$pref], array_values(array_diff(WC_DIVISOES, [$pref])));
+
+    foreach ($ordem as $div) {
+        $daLiga = array_values(array_filter($linhas, fn($l) => ($l['league'] ?? '') === $div));
+        if ($daLiga) return $daLiga;
+    }
+    // Nenhuma divisão conhecida: devolve como veio em vez de zerar a busca.
+    return $linhas;
+}
+/**
+ * "_também existe na ROOKIE_" — uma linha dizendo o que ficou de fora.
+ *
+ * Sem isto o desempate seria mudo, e quem procurava justamente o xará da
+ * outra divisão acharia que o bot está errado.
+ */
+function wcNotaOutrasLigas(array $todos, array $usados): string
+{
+    $fora = array_values(array_unique(array_diff(
+        array_column($todos, 'league'), array_column($usados, 'league'))));
+    return $fora ? "\n\n_também existe na " . implode(', ', $fora) . "_" : '';
+}
+
 function wcNormalizarLiga(string $termo): ?string
 {
     $t = mb_strtoupper(trim($termo));
@@ -274,7 +340,8 @@ function wcAjuda(): string
         . "*Consulta*\n"
         . "/jogador _nome_ — time, idade, OVR e salário\n"
         . "/comparar _um_ x _outro_ — jogadores lado a lado\n"
-        . "/comparartime _um_ x _outro_ — times lado a lado\n"
+        // /comparartime continua funcionando, mas fica FORA da lista: e de
+        // nicho, e cada linha a mais aqui custa atencao de quem so quer o basico.
         . "/confronto _um_ x _outro_ — o duelo entre dois times, com palpite\n"
         . "/time _nome_ — quinteto, banco, folha e campanha\n"
         . "/cap _time_ — folha e espaço no cap\n"
@@ -298,11 +365,12 @@ function wcAjuda(): string
         . "Ex.: /comparar lebron x tatum  •  /meucap  •  /minhastrades";
 }
 
-function wcJogador(PDO $pdo, string $termo): string
+function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
     if ($termo === '') return "Use assim: /jogador lebron";
 
     $ovr = wcColunaOvr($pdo);
+    $ordem = wcOrdemLiga($ligaDoGrupo);
     $st = $pdo->prepare("
         SELECT p.id, p.name, p.age, p.position, p.secondary_position, p.{$ovr} AS ovr,
                p.seasons_in_league, p.team_id, COALESCE(p.is_lenda, 0) AS is_lenda,
@@ -310,13 +378,19 @@ function wcJogador(PDO $pdo, string $termo): string
                t.city, t.mascot, t.name AS team_name, t.league
         FROM players p JOIN teams t ON t.id = p.team_id
         WHERE p.name LIKE ?
-        ORDER BY p.{$ovr} DESC
+        ORDER BY {$ordem}, p.{$ovr} DESC
         LIMIT 8
     ");
     $st->execute(['%' . $termo . '%']);
     $achados = $st->fetchAll(PDO::FETCH_ASSOC);
 
     if (!$achados) return "Não achei jogador com \"{$termo}\".";
+
+    // O mesmo jogador existe na ELITE e na ROOKIE — sem desempate, toda
+    // busca no Chat Off Geral virava "Achei 2 com lebron".
+    $todos    = $achados;
+    $achados  = wcSoDaLiga($achados, $ligaDoGrupo);
+    $notaLiga = wcNotaOutrasLigas($todos, $achados);
 
     // Vários: lista enxuta, senão a mensagem vira parede de texto no grupo.
     if (count($achados) > 1) {
@@ -325,7 +399,7 @@ function wcJogador(PDO $pdo, string $termo): string
                 . $p['position'] . ', ' . $p['age'] . ' anos — '
                 . wcNomeDoTime($p) . ' (' . $p['league'] . ')';
         }, $achados);
-        return "Achei " . count($achados) . " com \"{$termo}\":\n" . implode("\n", $linhas);
+        return "Achei " . count($achados) . " com \"{$termo}\":\n" . implode("\n", $linhas) . $notaLiga;
     }
 
     $p = $achados[0];
@@ -365,7 +439,7 @@ function wcJogador(PDO $pdo, string $termo): string
         foreach ($pares as $par) $txt .= implode('  ·  ', $par) . "\n";
     }
 
-    return rtrim($txt);
+    return rtrim($txt) . $notaLiga;
 }
 
 /**
@@ -440,13 +514,13 @@ function wcQuintetoTitular(array $elenco): array
     return $vagas;
 }
 
-function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null): string
+function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $ligaDoGrupo = null): string
 {
     if ($jaResolvido) {
         $t = $jaResolvido;
     } else {
         if ($termo === '') return "Use assim: /time lakers";
-        [$t, $erro] = wcResolverTime($pdo, $termo);
+        [$t, $erro] = wcResolverTime($pdo, $termo, $ligaDoGrupo);
         if ($erro) return $erro;
     }
 
@@ -529,13 +603,13 @@ function wcTime(PDO $pdo, string $termo, ?array $jaResolvido = null): string
     return rtrim($txt);
 }
 
-function wcCap(PDO $pdo, string $termo, ?array $jaResolvido = null): string
+function wcCap(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $ligaDoGrupo = null): string
 {
     if ($jaResolvido) {
         $t = $jaResolvido;
     } else {
         if ($termo === '') return "Use assim: /cap lakers";
-        [$t, $erro] = wcResolverTime($pdo, $termo);
+        [$t, $erro] = wcResolverTime($pdo, $termo, $ligaDoGrupo);
         if ($erro) return $erro;
     }
 
@@ -575,13 +649,13 @@ function wcCap(PDO $pdo, string $termo, ?array $jaResolvido = null): string
     return rtrim($txt);
 }
 
-function wcPicks(PDO $pdo, string $termo, ?array $jaResolvido = null): string
+function wcPicks(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $ligaDoGrupo = null): string
 {
     if ($jaResolvido) {
         $t = $jaResolvido;
     } else {
         if ($termo === '') return "Use assim: /picks lakers";
-        [$t, $erro] = wcResolverTime($pdo, $termo);
+        [$t, $erro] = wcResolverTime($pdo, $termo, $ligaDoGrupo);
         if ($erro) return $erro;
     }
 
@@ -1050,7 +1124,7 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
     return rtrim($txt);
 }
 
-function wcComparar(PDO $pdo, string $termo): string
+function wcComparar(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
     // Aceita "x", "vs", "versus" ou "e" como separador — o pessoal digita
     // qualquer um dos quatro.
@@ -1060,14 +1134,15 @@ function wcComparar(PDO $pdo, string $termo): string
     }
 
     $ovr = wcColunaOvr($pdo);
-    $achar = function (string $nome) use ($pdo, $ovr) {
+    $ordem = wcOrdemLiga($ligaDoGrupo);
+    $achar = function (string $nome) use ($pdo, $ovr, $ordem) {
         $st = $pdo->prepare("
             SELECT p.id, p.name, p.age, p.position, p.{$ovr} AS ovr, p.seasons_in_league,
                    p.team_id, COALESCE(p.is_lenda,0) AS is_lenda,
                    " . wcColunasSkill('p') . ",
                    t.city, t.name AS team_name, t.league
             FROM players p JOIN teams t ON t.id = p.team_id
-            WHERE p.name LIKE ? ORDER BY p.{$ovr} DESC LIMIT 1
+            WHERE p.name LIKE ? ORDER BY {$ordem}, p.{$ovr} DESC LIMIT 1
         ");
         $st->execute(['%' . trim($nome) . '%']);
         return $st->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -1281,7 +1356,7 @@ function wcEntreOsDois(PDO $pdo, int $aId, int $bId): array
     }
 }
 
-function wcCompararTimes(PDO $pdo, string $termo): string
+function wcCompararTimes(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
     // Só x/vs/versus aqui. O /comparar de jogador também aceita "e", mas nome
     // de time tem muito mais chance de conter " e " no meio e ser partido no
@@ -1291,9 +1366,9 @@ function wcCompararTimes(PDO $pdo, string $termo): string
         return "Use assim: /comparartime lakers x celtics";
     }
 
-    [$a, $erroA] = wcResolverTime($pdo, trim($partes[0]));
+    [$a, $erroA] = wcResolverTime($pdo, trim($partes[0]), $ligaDoGrupo);
     if ($erroA) return $erroA;
-    [$b, $erroB] = wcResolverTime($pdo, trim($partes[1]));
+    [$b, $erroB] = wcResolverTime($pdo, trim($partes[1]), $ligaDoGrupo);
     if ($erroB) return $erroB;
     if ((int)$a['id'] === (int)$b['id']) return 'Os dois nomes acharam o mesmo time (' . wcNomeDoTime($a) . ').';
 
@@ -1615,16 +1690,16 @@ function wcPalpite(string $nomeA, string $nomeB, float $fA, float $fB, array $du
     return "\n🔮 *Palpite*\n" . implode("\n", $linhas);
 }
 
-function wcConfronto(PDO $pdo, string $termo): string
+function wcConfronto(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
     $partes = preg_split('/\s+(?:x|vs\.?|versus)\s+/iu', $termo, 2);
     if (count($partes) < 2 || trim($partes[0]) === '' || trim($partes[1]) === '') {
         return "Use assim: /confronto lakers x celtics";
     }
 
-    [$a, $erroA] = wcResolverTime($pdo, trim($partes[0]));
+    [$a, $erroA] = wcResolverTime($pdo, trim($partes[0]), $ligaDoGrupo);
     if ($erroA) return $erroA;
-    [$b, $erroB] = wcResolverTime($pdo, trim($partes[1]));
+    [$b, $erroB] = wcResolverTime($pdo, trim($partes[1]), $ligaDoGrupo);
     if ($erroB) return $erroB;
     if ((int)$a['id'] === (int)$b['id']) return 'Os dois nomes acharam o mesmo time (' . wcNomeDoTime($a) . ').';
 
@@ -1806,6 +1881,50 @@ function wcLendas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
  * não tem liga, e limitar pela liga do grupo traria de volta o problema exato
  * que este comando estava tendo.
  */
+/**
+ * Uma linha do Hall: "1. Nome (Time) — 3 títulos".
+ */
+function wcLinhaHall(int $pos, array $g, int $titulos): string
+{
+    $nome = trim((string)$g['gm_name']) ?: (string)($g['teams'][0] ?? 'GM sem nome');
+    // O time só entra quando o GM ainda está em atividade; nas linhas
+    // históricas ele não existe, e inventar um confundiria.
+    $time = $g['is_active'] && !empty($g['teams']) ? ' (' . end($g['teams']) . ')' : '';
+    return "{$pos}. *{$nome}*{$time} — {$titulos} título" . ($titulos === 1 ? '' : 's') . "\n";
+}
+
+/**
+ * O Hall de UMA divisão, já ordenado e cortado.
+ *
+ * Ordena por título, e não pelo weighted_score que vem de getHallOfFameGrouped.
+ *
+ * O peso serve pro admin, que compara título da ELITE com título da ROOKIE.
+ * Aqui ele atrapalha duas vezes: a lista sai fora de ordem pro leitor (10
+ * títulos aparecendo antes de 12) e, pior, título histórico tem liga nula,
+ * peso 0 — os campeões antigos afundavam pro fim da lista e não entravam no
+ * corte. Era o mesmo sumiço, por outro caminho.
+ */
+function wcHallDaDivisao(array $grupos, string $chave, int $limite): array
+{
+    $lista = [];
+    foreach ($grupos as $g) {
+        $n = (int)($g['leagues'][$chave] ?? 0);
+        if ($n > 0) $lista[] = [$g, $n];
+    }
+    usort($lista, fn(array $a, array $b): int =>
+        $b[1] <=> $a[1] ?: strcasecmp((string)$a[0]['gm_name'], (string)$b[0]['gm_name']));
+
+    $total = count($lista);
+    $txt = '';
+    foreach (array_slice($lista, 0, $limite) as $i => [$g, $n]) {
+        $txt .= wcLinhaHall($i + 1, $g, $n);
+    }
+    // Diz quantos ficaram de fora em vez de cortar calado: sem isso a lista
+    // parece completa, e quem está no 11º lugar some sem explicação.
+    if ($total > $limite) $txt .= '_+' . ($total - $limite) . " fora da lista_\n";
+    return [$txt, $total];
+}
+
 function wcHall(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 {
     $liga = $termo !== '' ? wcNormalizarLiga($termo) : null;
@@ -1817,43 +1936,34 @@ function wcHall(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
     ensureHallOfFameTable($pdo);
     $grupos = getHallOfFameGrouped($pdo);
 
+    // Uma liga só: a lista dela, mais longa, sem cabeçalho de seção.
     if ($liga) {
-        // Filtrando por liga, valem só os títulos ganhos nela.
-        $grupos = array_values(array_filter(array_map(function (array $g) use ($liga): ?array {
-            $n = (int)($g['leagues'][$liga] ?? 0);
-            if ($n <= 0) return null;
-            $g['total_titles'] = $n;
-            return $g;
-        }, $grupos)));
+        [$corpo] = wcHallDaDivisao($grupos, $liga, 25);
+        if ($corpo === '') return "O Hall da Fama da {$liga} está vazio.";
+        return rtrim("🏛️ *Hall da Fama — {$liga}*\n\n" . $corpo);
     }
 
-    // Reordena por título, e não pelo weighted_score que vem de lá.
+    // Sem argumento: uma seção por divisão, na ordem delas.
     //
-    // O peso serve pro admin, que compara título da ELITE com título da
-    // ROOKIE. Aqui ele atrapalha duas vezes: a lista sai fora de ordem pro
-    // leitor (10 títulos aparecendo antes de 12) e, pior, título histórico
-    // tem liga nula, peso 0 — os campeões antigos afundavam pro fim da lista
-    // e não entravam no corte. Era o mesmo sumiço, por outro caminho.
-    usort($grupos, function (array $a, array $b): int {
-        return (int)$b['total_titles'] <=> (int)$a['total_titles']
-            ?: strcasecmp((string)$a['gm_name'], (string)$b['gm_name']);
-    });
-    $grupos = array_slice($grupos, 0, 25);
-
-    if (!$grupos) return 'O Hall da Fama' . ($liga ? " da {$liga}" : '') . ' está vazio.';
-
-    $txt = '🏛️ *Hall da Fama' . ($liga ? " — {$liga}" : '') . "*\n\n";
-    foreach ($grupos as $i => $g) {
-        $n = (int)$g['total_titles'];
-        $nome = trim((string)$g['gm_name']) ?: (string)($g['teams'][0] ?? 'GM sem nome');
-        // O time só entra quando o GM ainda está em atividade; nas linhas
-        // históricas ele não existe, e inventar um confundiria.
-        $time = $g['is_active'] && !empty($g['teams']) ? ' (' . end($g['teams']) . ')' : '';
-        $txt .= ($i + 1) . ". *{$nome}*{$time} — {$n} título" . ($n === 1 ? '' : 's') . "\n";
+    // Era uma lista só, somando os títulos das quatro ligas na mesma linha.
+    // Nela um GM com 3 títulos da ROOKIE aparecia à frente de um campeão da
+    // ELITE, e não dava pra ler quem manda em cada divisão — que é a pergunta
+    // que o grupo faz.
+    $secoes = [];
+    foreach (WC_DIVISOES as $div) {
+        [$corpo] = wcHallDaDivisao($grupos, $div, 10);
+        if ($corpo !== '') $secoes[] = "*{$div}*\n" . $corpo;
     }
-    return rtrim($txt);
-}
 
+    // Títulos antigos entraram sem liga (league nulo vira 'N/A' no
+    // agrupamento). Sem esta seção eles sumiriam da tela ao dividir por
+    // divisão — e são justamente os campeões mais antigos da liga.
+    [$hist] = wcHallDaDivisao($grupos, 'N/A', 10);
+    if ($hist !== '') $secoes[] = "*Histórico* _(antes das divisões)_\n" . $hist;
+
+    if (!$secoes) return 'O Hall da Fama está vazio.';
+    return rtrim("🏛️ *Hall da Fama*\n\n" . implode("\n", $secoes));
+}
 function wcPremios(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 {
     // O termo pode ser a liga ou um ano ("/premios 2027").
@@ -1937,19 +2047,19 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
 
             case 'jogador':
             case 'player':
-                return wcJogador($pdo, $arg);
+                return wcJogador($pdo, $arg, $ligaDoGrupo);
 
             case 'time':
             case 'elenco':
-                return wcTime($pdo, $arg);
+                return wcTime($pdo, $arg, null, $ligaDoGrupo);
 
             case 'cap':
             case 'folha':
-                return wcCap($pdo, $arg);
+                return wcCap($pdo, $arg, null, $ligaDoGrupo);
 
             case 'picks':
             case 'pick':
-                return wcPicks($pdo, $arg);
+                return wcPicks($pdo, $arg, null, $ligaDoGrupo);
 
             case 'ranking':
             case 'classificacao':
@@ -1963,17 +2073,17 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
 
             case 'confronto':
             case 'duelo':
-                return wcConfronto($pdo, $arg);
+                return wcConfronto($pdo, $arg, $ligaDoGrupo);
 
             case 'comparartime':
             case 'comparartimes':
             case 'compararelenco':
-                return wcCompararTimes($pdo, $arg);
+                return wcCompararTimes($pdo, $arg, $ligaDoGrupo);
 
             case 'comparar':
             case 'compara':
             case 'vs':
-                return wcComparar($pdo, $arg);
+                return wcComparar($pdo, $arg, $ligaDoGrupo);
 
             case 'trocas':
             case 'troca':
