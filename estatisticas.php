@@ -185,24 +185,6 @@ try {
     sortLeagueData($top5PicksMap);
 } catch (Exception) {}
 
-// ── Times que nunca escolheram no top5 do draft ──────────────────
-$neverTop5Map = [];
-try {
-    $nt5Raw = $pdo->query("
-        SELECT t.league, CONCAT(t.city,' ',t.name) AS name
-        FROM teams t
-        WHERE t.id NOT IN (
-            SELECT DISTINCT do_.team_id
-            FROM draft_order do_
-            JOIN draft_sessions ds ON ds.id=do_.draft_session_id
-            WHERE do_.pick_position <= 5 AND do_.round = 1 AND do_.picked_player_id IS NOT NULL
-              AND ds.season_id IN $TEMPORADAS_DA_SPRINT
-        )
-        ORDER BY t.league, t.city, t.name
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($nt5Raw as $r) $neverTop5Map[$r['league']][] = $r['name'];
-} catch (Exception) {}
-
 
 
 // ── Mais playoff consecutivos (streak) + Maior jejum (sem playoff) ───
@@ -1218,34 +1200,6 @@ renderSection('top5picks', '⭐', 'rgba(96,165,250,.12)', 'Mais Escolhas no Top 
         'color_hi' => 'blue',
         'copy_hi' => 'Mais escolhas no top 5 do draft',
     ], $myTeamName);
-
-if (!empty(array_filter($neverTop5Map))) {
-    echo '<div class="section-block" id="never-top5" data-size="short">';
-    echo '<div class="section-head"><div class="section-icon" style="background:rgba(148,163,184,.10)">🚫</div>';
-    echo '<div><h2>Nunca Escolheram no Top 5</h2><div class="section-sub">Times sem nenhuma escolha nas 5 primeiras posições do draft</div></div></div>';
-    echo '<div class="leagues-grid">';
-    foreach ($leagues as $lg) {
-        $arr = $neverTop5Map[$lg] ?? [];
-        $cp = "🚫 *Nunca escolheram no top 5 — {$lg}*\n";
-        foreach ($arr as $nm) $cp .= "• {$nm}\n";
-        $cpEsc = htmlspecialchars($cp, ENT_QUOTES);
-        echo '<div class="league-card" data-league="'.htmlspecialchars($lg).'">';
-        echo '<div class="league-header"><span class="league-badge badge-'.htmlspecialchars($lg).'">'.htmlspecialchars($lg).'</span>';
-        echo '<span style="font-size:11px;color:var(--text-3);flex:1">'.count($arr).' time(s)</span>';
-        echo '<button class="copy-btn" data-text="'.$cpEsc.'"><i class="bi bi-clipboard"></i> Copiar</button></div>';
-        if (empty($arr)) {
-            echo '<div class="empty-state"><i class="bi bi-check2-circle"></i><p>Todos já escolheram no top 5</p></div>';
-        } else {
-            foreach ($arr as $nm) {
-                $isMe = ($lg === $myTeamLeague) && ($nm === $myTeamName);
-                echo '<div class="rank-row'.($isMe ? ' my-team' : '').'"><span class="rname">'.htmlspecialchars($nm).'</span></div>';
-            }
-        }
-        echo '</div>';
-    }
-    echo '</div></div>';
-}
-
 
 topico('🔄', 'Trades', 'Quem negocia, com quantos, e no que dá');
 
