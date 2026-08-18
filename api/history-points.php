@@ -585,17 +585,13 @@ try {
 
             ensureSeasonPointsLogTable($pdo);
             ensureSeasonPointsBreakdownColumns($pdo);
-            // Séries de playoff: quantos jogos (4 a 7) foi cada série do time.
+            // Séries de playoff. O schema — e a migração da tabela antiga —
+            // mora em backend/playoff_series.php. Aqui havia uma SEGUNDA
+            // criação, com colunas diferentes, e duas criações concorrentes
+            // foi o que fez uma das versões nunca encher.
             // DDL fora da transação (CREATE TABLE causa commit implícito no MySQL).
-            $pdo->exec("CREATE TABLE IF NOT EXISTS playoff_series (
-                id         INT AUTO_INCREMENT PRIMARY KEY,
-                season_id  INT NOT NULL,
-                team_id    INT NOT NULL,
-                round      VARCHAR(20) NOT NULL,
-                games      TINYINT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY uq_series (season_id, team_id, round)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            require_once dirname(__DIR__) . '/backend/playoff_series.php';
+            ensurePlayoffSeriesTable($pdo);
 
             $pdo->beginTransaction();
 
@@ -679,19 +675,56 @@ try {
                 // Séries de playoff (opcional): quantos jogos foi cada série de cada time.
                 $series = $data['series'] ?? [];
                 if (is_array($series)) {
-                    $validRounds = ['r1', 'r2', 'cf', 'fin'];
-                    $pdo->prepare("DELETE FROM playoff_series WHERE season_id = ?")->execute([$seasonId]);
-                    $insSeries = $pdo->prepare("INSERT INTO playoff_series (season_id, team_id, round, games)
-                        VALUES (?, ?, ?, ?)
-                        ON DUPLICATE KEY UPDATE games = VALUES(games)");
-                    foreach ($series as $s) {
-                        $tid   = (int)($s['team_id'] ?? 0);
-                        $round = (string)($s['round'] ?? '');
-                        $games = (int)($s['games'] ?? 0);
-                        if ($tid > 0 && in_array($round, $validRounds, true) && $games >= 4 && $games <= 7) {
-                            $insSeries->execute([$seasonId, $tid, $round, $games]);
+                    // A tela marca o VENCEDOR e em quantos jogos. O perdedor é o
+                    // time que ficou sem marca — e quem sabe quem é ele já está
+                    // no banco: playoff_matches guarda os dois lados de cada
+                    // confronto. Um time joga UMA série por fase, então
+                    // (temporada, time, fase) identifica o confronto sem
+                    // ambiguidade: 556 combinações nos dados, zero repetidas.
+                    //
+                    // Antes isto gravava (season_id, team_id, round, games) — um
+                    // registro por time, sem adversário e sem vencedor. Com ele
+                    // não dava pra dizer 4-0 de quem, nem quem enfrentou quem, e
+                    // era o que deixava as estatísticas de série sem dado.
+                    $faseSql = ['r1' => 'first_round', 'r2' => 'semifinals',
+                                'cf' => 'conference_finals', 'fin' => 'finals'];
+                    $stConfronto = $pdo->prepare("
+                        SELECT team1_id, team2_id, conference
+                        FROM playoff_matches
+                        WHERE season_id = ? AND round = ? AND ? IN (team1_id, team2_id)
+                        LIMIT 1");
+
+                    $paraSalvar = [];
+                    foreach ($series as $sr) {
+                        $tid   = (int)($sr['team_id'] ?? 0);
+                        $round = (string)($sr['round'] ?? '');
+                        $games = (int)($sr['games'] ?? 0);
+                        if ($tid <= 0 || !isset($faseSql[$round])) continue;
+                        if ($games < 4 || $games > 7) continue;
+
+                        $stConfronto->execute([$seasonId, $faseSql[$round], $tid]);
+                        $m = $stConfronto->fetch(PDO::FETCH_ASSOC);
+                        if (!$m) {
+                            // Playoff ainda não montado nessa fase. Ignoro com
+                            // rastro: inventar adversário é pior que faltar.
+                            error_log("[series] sem confronto pra time {$tid} na fase {$round} da temporada {$seasonId}");
+                            continue;
                         }
+                        $adversario = (int)$m['team1_id'] === $tid ? (int)$m['team2_id'] : (int)$m['team1_id'];
+
+                        // As chaves são as que salvarPlayoffSeries() lê; 'fin' na
+                        // tela é 'final' na tabela.
+                        $paraSalvar[] = [
+                            'fase'           => $round === 'fin' ? 'final' : $round,
+                            'conferencia'    => $m['conference'] ?? null,
+                            'team_a_id'      => $tid,
+                            'team_b_id'      => $adversario,
+                            'winner_team_id' => $tid,
+                            'jogos'          => $games,
+                        ];
                     }
+
+                    if ($paraSalvar) salvarPlayoffSeries($pdo, (int)$seasonId, (string)$league, $paraSalvar);
                 }
 
                 $pdo->commit();
