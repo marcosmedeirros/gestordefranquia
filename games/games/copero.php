@@ -223,9 +223,12 @@ button{font-family:inherit}
 .campo{position:relative;background:linear-gradient(180deg,#14532d,#166534 55%,#14532d);
   border:1px solid var(--borda2);border-radius:12px;aspect-ratio:3/4;overflow:hidden}
 .campo .risco{position:absolute;background:rgba(255,255,255,.16)}
+/* min-height de 32px: com o padding sozinho o botão saía com 25px de altura,
+   que no celular é alvo pequeno demais pro dedo. */
 .pos{position:absolute;transform:translate(-50%,-50%);background:rgba(0,0,0,.55);color:#fff;
   border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:5px 11px;font-size:11.5px;
-  font-weight:800;cursor:pointer;white-space:nowrap}
+  font-weight:800;cursor:pointer;white-space:nowrap;min-height:32px;
+  display:inline-flex;align-items:center;justify-content:center}
 .pos:hover{background:rgba(0,0,0,.75)}
 .pos.on{background:#fff;color:#111;border-color:#fff}
 
@@ -1446,7 +1449,7 @@ function linhaDoTempo(){
       html += `<div class="ano atual">
         <span class="ano-idade" style="background:${corDoOvr(S.ovr)}">${i}</span>
         <span class="ano-clube" style="color:var(--txt3)"><i class="bi bi-question-circle"></i>
-          <span>${S.fase==='fim_ciclo'?'Decisão de carreira…':'Escolhendo clube…'}</span></span>
+          <span>${S.fase==='fim_ciclo'?'Decidindo…':'Escolhendo…'}</span></span>
         <span class="ano-ovr" style="background:${corDoOvr(S.ovr)}">${S.ovr}</span>
         <span></span><span></span><span></span></div>`;
     } else {
