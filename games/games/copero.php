@@ -1344,6 +1344,11 @@ function movimentoDoClube(clube, ganhouALiga){
     return acima ? 'sobe' : null;   // campeão nunca cai
   }
 
+  // Quem acabou de mudar de divisão tem uma temporada de adaptação. Sem ela o
+  // clube pequeno subia e caía no ano seguinte, todas as vezes — quatro
+  // sobe-desce numa carreira só, o que não é ioiô de futebol, é pisca-pisca.
+  if (clube.movidoAos != null && (S.idade - clube.movidoAos) < 2) return null;
+
   // As chances são baixas de propósito: rebaixamento todo ano viraria ruído.
   if (dif >= 6 && ligaVizinha(clube.liga, 'sobe')) {
     if (Math.random() * 100 < Math.min(35, (dif - 5) * 4)) return 'sobe';
@@ -1573,6 +1578,7 @@ async function jogarAnos(){
         S.clube = Object.assign({}, S.clube, {
           liga: nova,
           forca: Math.max(45, Math.min(99, S.clube.forca + ajuste)),
+          movidoAos: S.idade,
         });
       }
     }
