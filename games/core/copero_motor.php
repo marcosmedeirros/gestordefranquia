@@ -202,13 +202,40 @@ const COPERO_COMPETICOES = [
  * uma seleção que não ganha nada há décadas. Derivar um do outro apagaria
  * justamente o que torna a escolha de nacionalidade interessante.
  */
+/**
+ * `país => [força, continente]`.
+ *
+ * A lista vai MUITO além dos países jogáveis, e precisa ir: sem Gana,
+ * Camarões, Argélia e Tunísia, o Marrocos levava 82% das Copas Africanas; e
+ * com a Oceania tendo só a Austrália, o australiano era campeão continental
+ * em 99% das carreiras. Estas seleções não são escolhíveis — elas existem
+ * para DISPUTAR, que é o que faz o título valer.
+ *
+ * A Austrália joga na Ásia, como na vida real desde 2006.
+ */
 const COPERO_SELECOES = [
-    'ARG' => 95, 'FRA' => 94, 'ESP' => 93, 'ENG' => 91, 'BRA' => 91,
-    'POR' => 89, 'NED' => 88, 'GER' => 87, 'BEL' => 86, 'ITA' => 86,
-    'CRO' => 84, 'URU' => 83, 'COL' => 82, 'MAR' => 82, 'JPN' => 79,
-    'USA' => 78, 'MEX' => 78, 'SEN' => 78, 'NGA' => 76, 'KOR' => 76,
-    'TUR' => 76, 'CIV' => 75, 'EGY' => 75, 'CHI' => 74, 'AUS' => 73,
-    'RUS' => 72, 'GRE' => 72, 'SCO' => 72, 'RSA' => 71, 'KSA' => 70,
+    // Europa
+    'FRA' => [94,'EUR'], 'ESP' => [93,'EUR'], 'ENG' => [91,'EUR'], 'POR' => [89,'EUR'],
+    'NED' => [88,'EUR'], 'GER' => [87,'EUR'], 'BEL' => [86,'EUR'], 'ITA' => [86,'EUR'],
+    'CRO' => [84,'EUR'], 'DEN' => [81,'EUR'], 'SUI' => [80,'EUR'], 'AUT' => [80,'EUR'],
+    'UKR' => [78,'EUR'], 'SRB' => [78,'EUR'], 'TUR' => [76,'EUR'], 'POL' => [76,'EUR'],
+    'SWE' => [75,'EUR'], 'NOR' => [75,'EUR'], 'CZE' => [74,'EUR'], 'RUS' => [72,'EUR'],
+    'GRE' => [72,'EUR'], 'SCO' => [72,'EUR'], 'WAL' => [72,'EUR'], 'IRL' => [71,'EUR'],
+    // América do Sul
+    'ARG' => [95,'SAM'], 'BRA' => [91,'SAM'], 'URU' => [83,'SAM'], 'COL' => [82,'SAM'],
+    'ECU' => [76,'SAM'], 'PER' => [74,'SAM'], 'CHI' => [74,'SAM'], 'PAR' => [72,'SAM'],
+    'VEN' => [70,'SAM'], 'BOL' => [66,'SAM'],
+    // África
+    'MAR' => [82,'AFR'], 'SEN' => [78,'AFR'], 'NGA' => [76,'AFR'], 'EGY' => [75,'AFR'],
+    'CIV' => [75,'AFR'], 'ALG' => [75,'AFR'], 'CMR' => [74,'AFR'], 'TUN' => [73,'AFR'],
+    'GHA' => [73,'AFR'], 'MLI' => [72,'AFR'], 'RSA' => [71,'AFR'], 'COD' => [70,'AFR'],
+    // Ásia e Oceania — a Austrália disputa a Copa da Ásia.
+    'JPN' => [79,'ASI'], 'IRN' => [77,'ASI'], 'KOR' => [76,'ASI'], 'AUS' => [73,'ASI'],
+    'KSA' => [70,'ASI'], 'QAT' => [70,'ASI'], 'IRQ' => [68,'ASI'], 'UZB' => [68,'ASI'],
+    'CHN' => [63,'ASI'],
+    // América do Norte e Central
+    'USA' => [78,'NAM'], 'MEX' => [78,'NAM'], 'CAN' => [75,'NAM'], 'CRC' => [71,'NAM'],
+    'PAN' => [70,'NAM'], 'JAM' => [69,'NAM'], 'HON' => [66,'NAM'],
 ];
 
 /**
@@ -221,7 +248,7 @@ const COPERO_SELECOES = [
 const COPERO_SELECAO_CONT = [
     'SAM' => 'Copa América',        'EUR' => 'Eurocopa',
     'AFR' => 'Copa Africana',       'ASI' => 'Copa da Ásia',
-    'NAM' => 'Copa Ouro',           'OCE' => 'Copa das Nações da OFC',
+    'NAM' => 'Copa Ouro',
 ];
 
 /**

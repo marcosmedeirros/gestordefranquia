@@ -801,12 +801,10 @@ function adversarios(clube, comp){
  * O continente do seu país — a seleção joga pelo país, não pelo clube onde
  * você está. Um brasileiro no Bayern disputa a Copa América, não a Eurocopa.
  */
-function contDoPais(pais){
-  const l = Object.values(LIGAS).find(x => x[0] === pais);
-  if (l) return l[1];
-  // Quem não tem liga no catálogo: Senegal e Costa do Marfim são da África.
-  return {SEN:'AFR', CIV:'AFR', NGA:'AFR'}[pais] || 'EUR';
-}
+/** A força da seleção do país, ou 0 se ele não tem seleção no jogo. */
+const forcaSelecao = pais => (SELECOES[pais] || [0])[0];
+/** O continente que a SELEÇÃO disputa — a Austrália joga na Ásia. */
+const contDoPais   = pais => (SELECOES[pais] || [0,'EUR'])[1];
 
 /**
  * Você foi convocado?
@@ -817,9 +815,8 @@ function contDoPais(pais){
  * escolha com dois lados — mais chance de título, mais dificuldade de entrar.
  */
 function convocado(ovr, pais){
-  const f = SELECOES[pais];
-  if (!f) return false;
-  return ovr >= f - 13;
+  const f = forcaSelecao(pais);
+  return f > 0 && ovr >= f - 10;
 }
 
 /**
@@ -830,7 +827,7 @@ function convocado(ovr, pais){
  * sorte de verdade, e não mais um sorteio anual.
  */
 function titulosDaSelecao(ovr, ano){
-  const pais = S.pais, f = SELECOES[pais];
+  const pais = S.pais, f = forcaSelecao(pais);
   if (!f || !convocado(ovr, pais)) return [];
 
   const cont = contDoPais(pais);
@@ -840,15 +837,17 @@ function titulosDaSelecao(ovr, ano){
   // O jogador pesa MAIS na seleção do que no clube: são só onze, e um
   // craque muda uma seleção de um jeito que não muda um elenco inteiro.
   const meu = peso(f) * (1 + Math.max(0, ovr - f + 8) * 0.05);
+  const todas = Object.values(SELECOES);
 
   if (ano % 4 === 2) {                        // Copa do Mundo
-    const soma = Object.values(SELECOES).reduce((s, x) => s + peso(x), 0);
-    const n = Object.keys(SELECOES).length;
-    if (Math.random() < Math.min(0.5, 0.78 * (meu / soma) + 0.22 / n)) ganhos.push('copa_mundo');
+    const soma = todas.reduce((s, [x]) => s + peso(x), 0);
+    if (Math.random() < Math.min(0.5, 0.80 * (meu / soma) + 0.20 / todas.length)) {
+      ganhos.push('copa_mundo');
+    }
   } else if (ano % 4 === 0) {                 // o continental de seleções
-    const doCont = Object.entries(SELECOES).filter(([p]) => contDoPais(p) === cont);
-    const soma = doCont.reduce((s, [, x]) => s + peso(x), 0);
-    if (soma > 0 && Math.random() < Math.min(0.62, 0.80 * (meu / soma) + 0.20 / doCont.length)) {
+    const doCont = todas.filter(([, c]) => c === cont);
+    const soma = doCont.reduce((s, [x]) => s + peso(x), 0);
+    if (soma > 0 && Math.random() < Math.min(0.6, 0.82 * (meu / soma) + 0.18 / doCont.length)) {
       ganhos.push('selecao_cont');
     }
   }
