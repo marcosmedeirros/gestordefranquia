@@ -330,48 +330,6 @@ button{font-family:inherit}
 .ano-ovr{display:inline-flex;align-items:center;justify-content:center;border-radius:6px;padding:2px 0;
   font-size:11.5px;font-weight:800;color:#0a0a0c}
 .ano-n{text-align:right;font-size:12px;color:var(--txt2);font-variant-numeric:tabular-nums}
-
-/**
- * Manda a carreira como imagem, no mesmo cartão dos outros jogos.
- *
- * Os clubes e os títulos vão como as duas colunas: são as duas coisas que
- * contam a história de uma carreira, e nenhuma delas pode sumir do cartão.
- */
-function compartilharCarreira(botao){
-  const t = S.temporadas || [];
-  const tot = t.reduce((a,x)=>({jogos:a.jogos+x.jogos, gols:a.gols+x.gols, ast:a.ast+x.ast}),
-                       {jogos:0,gols:0,ast:0});
-
-  // Clubes na ordem em que passou, com os jogos de cada um.
-  const porClube = {};
-  t.forEach(x => { porClube[x.clube] = (porClube[x.clube] || 0) + x.jogos; });
-  const clubes = Object.entries(porClube)
-    .sort((a,b) => b[1] - a[1])
-    .map(([nome, jogos]) => `${nome} (${jogos})`);
-
-  const conta = {};
-  t.forEach(x => (x.titulos || []).forEach(id => { conta[id] = (conta[id]||0)+1; }));
-  const ligaAlguma = (t.find(x => x.liga) || {}).liga;
-  const titulos = Object.entries(conta)
-    .sort((a,b) => b[1] - a[1])
-    .map(([id, n]) => `${nomeDaTaca(id, ligaAlguma)} ×${n}`);
-
-  const cor = corDoOvr(S.picoOvr);
-  fbaCompartilhar({
-    c1: cor, c2: '#0a0a0c',
-    numero: S.picoOvr, rotulo: 'pico de overall',
-    direita: [S.posicao, `#${S.numero}`, `${t.length} temporadas`],
-    titulo: S.nome, sub: `${moeda(S.picoValor)} de valor de mercado`,
-    nums: [[tot.jogos, 'Jogos'], [tot.gols, 'Gols'], [tot.ast, 'Assist.'],
-           [Object.keys(porClube).length, 'Clubes']],
-    listas: [
-      {titulo: 'Trajetória', itens: clubes.slice(0, 5)},
-      {titulo: 'Títulos',    itens: titulos.length ? titulos.slice(0, 5) : ['Sem títulos']},
-    ],
-    nome: S.nome, jogo: 'COPERO',
-  }, botao);
-}
-
 /* ── Fim ────────────────────────────────────────────── */
 .fim{text-align:center;padding:34px 20px}
 .fim h2{font-size:26px;font-weight:900;margin-bottom:16px}
@@ -1043,7 +1001,13 @@ function ofertas(quantos, exceto, soDeCasa){
     if (l.pais !== atual.pais) {
       if (!podeSair) return false;
       if (l.media < pres && !veterano && !declinio) return false;
-      if (l.cont !== atual.cont && S.ovr < 72 && !veterano) return false;
+
+      // Mudar de CONTINENTE, na idade boa, é só pra ir ao topo do mundo.
+      // É o que separa o sonho europeu de um passo lateral: um brasileiro do
+      // Brasileirão vai pra Premier, mas um inglês do Championship não vai
+      // pro Brasileirão — e era isso que estava acontecendo, porque a régua
+      // só olhava prestígio e o Brasileirão vale mais que a segunda inglesa.
+      if (l.cont !== atual.cont && !veterano && !declinio && l.media < 88) return false;
     }
     return true;
   };
@@ -1499,36 +1463,61 @@ function linhaDoTempo(){
  * Os clubes e os títulos vão como as duas colunas: são as duas coisas que
  * contam a história de uma carreira, e nenhuma delas pode sumir do cartão.
  */
+/**
+ * SVG que já está na tela, virado imagem pro canvas.
+ *
+ * Bandeira e taça são desenhadas em SVG inline. Como data URI elas contam
+ * como mesma origem e NÃO contaminam o canvas — é por isso que o escudo, que
+ * vem de CDN, precisa do proxy, e estas não precisam de nada.
+ */
+const svgImagem = (svg) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+
 function compartilharCarreira(botao){
   const t = S.temporadas || [];
   const tot = t.reduce((a,x)=>({jogos:a.jogos+x.jogos, gols:a.gols+x.gols, ast:a.ast+x.ast}),
                        {jogos:0,gols:0,ast:0});
 
-  // Clubes na ordem em que passou, com os jogos de cada um.
+  // Os clubes ordenados por quantos jogos você fez em cada um: a trajetória
+  // por onde a carreira aconteceu de verdade, não por onde passou de raspão.
   const porClube = {};
   t.forEach(x => { porClube[x.clube] = (porClube[x.clube] || 0) + x.jogos; });
-  const clubes = Object.entries(porClube)
-    .sort((a,b) => b[1] - a[1])
-    .map(([nome, jogos]) => `${nome} (${jogos})`);
+  const clubes = Object.entries(porClube).sort((a,b) => b[1] - a[1]).slice(0, 6)
+    .map(([nome]) => {
+      const c = acharClube(nome);
+      return c && c.escudo ? {img: c.escudo} : {texto: (nome.split(/\s+/)[0] || '?').slice(0, 4)};
+    });
 
   const conta = {};
   t.forEach(x => (x.titulos || []).forEach(id => { conta[id] = (conta[id]||0)+1; }));
-  const ligaAlguma = (t.find(x => x.liga) || {}).liga;
-  const titulos = Object.entries(conta)
-    .sort((a,b) => b[1] - a[1])
-    .map(([id, n]) => `${nomeDaTaca(id, ligaAlguma)} ×${n}`);
+  const titulos = Object.entries(conta).sort((a,b) => b[1] - a[1]).slice(0, 6)
+    .map(([id, n]) => {
+      const d = TACAS[id];
+      return {
+        img: d ? svgImagem(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 60"
+                width="140" height="132" style="color:${d[0]}">${d[1]}</svg>`) : '',
+        contagem: n,
+      };
+    });
 
-  const cor = corDoOvr(S.picoOvr);
+  const band = BAND[S.pais]
+    ? svgImagem(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 20"
+                 width="120" height="80">${BAND[S.pais]}</svg>`)
+    : '';
+
   fbaCompartilhar({
-    c1: cor, c2: '#0a0a0c',
-    numero: S.picoOvr, rotulo: 'pico de overall',
-    direita: [S.posicao, `#${S.numero}`, `${t.length} temporadas`],
-    titulo: S.nome, sub: `${moeda(S.picoValor)} de valor de mercado`,
-    nums: [[tot.jogos, 'Jogos'], [tot.gols, 'Gols'], [tot.ast, 'Assist.'],
-           [Object.keys(porClube).length, 'Clubes']],
-    listas: [
-      {titulo: 'Trajetória', itens: clubes.slice(0, 5)},
-      {titulo: 'Títulos',    itens: titulos.length ? titulos.slice(0, 5) : ['Sem títulos']},
+    c1: corDoOvr(S.picoOvr), c2: '#0a0a0c',
+    numero: S.picoOvr, rotulo: 'OVR',
+    pilulas: [
+      band ? {img: band} : {texto: S.pais},
+      {rotulo: 'Valor', texto: moeda(S.picoValor)},
+      {texto: `#${S.numero}`},
+      {texto: S.posicao},
+    ],
+    stats: [[tot.jogos, 'Jogos'], [tot.gols, 'Gols'], [tot.ast, 'Assist.'],
+            [t.length, 'Temporadas']],
+    faixas: [
+      {titulo: 'Trajetória', itens: clubes},
+      {titulo: 'Títulos',    itens: titulos.length ? titulos : [{texto: '—', legenda: 'sem títulos'}]},
     ],
     nome: S.nome, jogo: 'COPERO',
   }, botao);
