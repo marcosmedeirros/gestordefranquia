@@ -256,7 +256,12 @@ button{font-family:inherit}
 .ficha-tags{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:14px}
 .tag{display:inline-flex;align-items:center;gap:5px;background:var(--panel3);border-radius:6px;
   padding:4px 9px;font-size:11px;font-weight:800;white-space:nowrap}
-.tag.pos{background:#7f1d3a;color:#fff}
+/* `.pos` é o botão de posição no campo, e ele é `position:absolute` com
+   `translate(-50%,-50%)`. Qualquer elemento que use as duas classes juntas
+   herda isso e sai FLUTUANDO por cima do resto — era daí que vinha a pílula
+   de posição pousada em cima do nome da liga. Se uma tag de posição voltar,
+   ela precisa desfazer o posicionamento, e não só trocar a cor. */
+.tag.pos{background:#7f1d3a;color:#fff;position:static;transform:none;min-height:0}
 .tag svg{width:17px;height:11px;border-radius:2px;flex:none;display:block}
 /* Os `min-width:0` não são enfeite: sem eles o nome comprido não encolhe,
    empurra o bloco de idade/valor pra fora e a página inteira ganha barra de
@@ -1311,8 +1316,7 @@ function render(){
           </div>
           <div class="ficha-tags">
             <span class="tag">${bandeira(S.pais,17)} ${esc(S.pais)}</span>
-            <span class="tag pos">#${esc(S.numero)} ${esc(S.posicao)}</span>
-            <span class="tag">${esc(POSICOES[S.posicao] ? POSICOES[S.posicao][0] : '')}</span>
+            <span class="tag">${esc(POSICOES[S.posicao] ? POSICOES[S.posicao][0] : S.posicao)}</span>
           </div>
           ${vitrine()}
           <div class="ficha-stats">
