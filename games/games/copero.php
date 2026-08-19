@@ -1301,8 +1301,10 @@ function evoluir(){
 
   let d;
   if (S.idade < pico) {
-    // Subindo, e mais rápido quanto mais longe do auge.
-    d = (ri(0,3) + Math.min(3, (pico - S.idade) * 0.6) + amb) * min * tal;
+    // Subindo, e mais rápido quanto mais longe do auge. Os números são
+    // apertados de propósito: quem cresce até os 31 tem quinze temporadas
+    // de ganho, e com a mão pesada TODO MUNDO terminava acima de 90.
+    d = (ri(-1,2) + Math.min(3, (pico - S.idade) * 0.45) + amb) * min * tal;
     // O ESTIRÃO: aquele ano em que o garoto encaixa tudo e some da divisão
     // de baixo. Raro, e mais provável em quem tem talento.
     if (S.idade <= 23 && Math.random() < 0.11 * tal) d += ri(3,7);
@@ -1310,14 +1312,15 @@ function evoluir(){
     d = ri(-1,2) + amb * 0.4;               // o platô do auge
   } else {
     // Caindo. A durabilidade decide se é ladeira ou tobogã — é o que separa
-    // quem joga bem até os 38 de quem acaba aos 32.
-    d = -(ri(1,3) + (S.idade - pico - 2) * 0.7) / dur;
+    // quem joga bem até os 38 de quem acaba aos 32. Suave: com a queda
+    // acelerada de antes, todo jogador terminava a carreira no piso.
+    d = -(ri(0,2) * 0.6 + (S.idade - pico - 2) * 0.3) / dur;
   }
 
   // O ano ruim: lesão feia, fase ruim, treinador que não quis. Pode pegar
   // qualquer um em qualquer idade, e é o que faz uma promessa às vezes
   // simplesmente não virar.
-  if (Math.random() < 0.07) d -= ri(2,6);
+  if (Math.random() < 0.07) d -= ri(2,5);
 
   if (S.ovr >= 88) d = Math.min(d, ri(0,2));
   if (S.ovr >= 93) d = Math.min(d, ri(0,1));
