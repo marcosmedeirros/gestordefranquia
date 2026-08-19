@@ -79,6 +79,83 @@ function coperoGarantirTabela(PDO $pdo): void
 }
 
 /**
+ * A tabela que registra quais conquistas cada pessoa já levou.
+ *
+ * A UNIQUE é o coração disso: é ela que garante que uma conquista pague uma
+ * vez só. Sem ela, repetir carreiras fáceis viraria fábrica de moeda.
+ */
+function coperoGarantirConquistas(PDO $pdo): void
+{
+    static $ok = false;
+    if ($ok) return;
+    $ok = true;
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS copero_conquistas (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            id_usuario INT NOT NULL,
+            conquista VARCHAR(32) NOT NULL,
+            nivel VARCHAR(12) NOT NULL,
+            moedas SMALLINT NOT NULL DEFAULT 0,
+            fba_points SMALLINT NOT NULL DEFAULT 0,
+            ganha_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_copero_conq (id_usuario, conquista)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $e) {
+        error_log('[copero] tabela conquistas: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Registra as conquistas novas e paga por elas.
+ *
+ * A UNIQUE decide o que é novo: o INSERT que colidir não afeta linha nenhuma,
+ * e é por `rowCount()` que sabemos se a pessoa já tinha aquilo. Fazer a
+ * pergunta com SELECT antes abriria a janela pra duas abas pagarem duas vezes.
+ *
+ * Devolve o que foi pago e quais ids são inéditos.
+ */
+function coperoPagarConquistas(PDO $pdo, int $idUsuario, array $ganhas): array
+{
+    $premio = ['moedas' => 0, 'fba_points' => 0, 'novas' => []];
+    if ($idUsuario <= 0 || !$ganhas) return $premio;
+
+    try {
+        coperoGarantirConquistas($pdo);
+        // A conta do FBA Games nasce quando a pessoa abre o games. Quem nunca
+        // abriu não tem linha, e o UPDATE acertaria zero — o mesmo buraco que
+        // já deixou gente sem receber no quiz.
+        $pdo->prepare("INSERT IGNORE INTO games_usuarios (id, nome, email, league)
+                       SELECT id, name, email, COALESCE(league,'ROOKIE') FROM users WHERE id = ?")
+            ->execute([$idUsuario]);
+
+        $ins = $pdo->prepare("INSERT IGNORE INTO copero_conquistas
+                              (id_usuario, conquista, nivel, moedas, fba_points)
+                              VALUES (?,?,?,?,?)");
+        foreach ($ganhas as $g) {
+            $p = COPERO_PREMIO[$g['nivel']] ?? [];
+            $m = (int)($p['moedas'] ?? 0);
+            $f = (int)($p['fba_points'] ?? 0);
+            $ins->execute([$idUsuario, $g['id'], $g['nivel'], $m, $f]);
+            if ($ins->rowCount() > 0) {
+                $premio['moedas'] += $m;
+                $premio['fba_points'] += $f;
+                $premio['novas'][] = $g['id'];
+            }
+        }
+
+        if ($premio['moedas'] > 0 || $premio['fba_points'] > 0) {
+            $pdo->prepare("UPDATE games_usuarios
+                           SET pontos = pontos + ?, fba_points = COALESCE(fba_points,0) + ?
+                           WHERE id = ?")
+                ->execute([$premio['moedas'], $premio['fba_points'], $idUsuario]);
+        }
+    } catch (Throwable $e) {
+        error_log('[copero] pagar: ' . $e->getMessage());
+    }
+    return $premio;
+}
+
+/**
  * A pontuação que ordena o hall da fama.
  *
  * Precisa premiar carreira COMPLETA, e não um número só: quem faz 500 gols
@@ -151,6 +228,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $primeiroClube = null; $primeiroNivel = 0; $subiuComOMesmo = false;
     $paisesCampeao = [];                 // em quantos países foi campeão nacional
     $cleanSheets = 0; $golsSofridos = 0; // o boletim do goleiro
+    $trocasRival = 0;                    // quantas vezes trocou pelo rival
     $seqClube = null; $seq = 0; $maiorSeq = 0;   // temporadas SEGUIDAS no mesmo clube
 
     foreach ($temporadas as $i => $t) {
@@ -161,6 +239,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($ovr > $picoOvr) { $picoOvr = $ovr; $idadePico = (int)($t['idade'] ?? 0); }
         $picoValor = max($picoValor, (int)($t['valor'] ?? 0));
         if (!empty($t['lesao'])) $lesoes++;
+        if (!empty($t['rival'])) $trocasRival++;
         $cleanSheets  += max(0, (int)($t['cs'] ?? 0));
         $golsSofridos += max(0, (int)($t['gs'] ?? 0));
 
@@ -229,6 +308,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'subiuComOMesmo' => $subiuComOMesmo,
         'lesoes' => $lesoes, 'idadePico' => $idadePico,
         'maiorSequencia' => $maiorSeq, 'paisesCampeao' => count($paisesCampeao),
+        'trocasRival' => $trocasRival,
         'cleanSheets' => $cleanSheets, 'golsSofridos' => $golsSofridos,
         'posicao' => (string)($c['posicao'] ?? ''),
         'pais' => (string)($c['pais'] ?? ''),
@@ -276,9 +356,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $peso = ['impossivel' => 0, 'dificil' => 1, 'media' => 2, 'facil' => 3];
     usort($ganhas, fn($a, $b) => ($peso[$a['nivel']] ?? 9) <=> ($peso[$b['nivel']] ?? 9));
 
+    // Paga o que ainda não foi pago. Quem não está logado vê as conquistas do
+    // mesmo jeito — só não leva prêmio, porque não há a quem creditar.
+    $premio = coperoPagarConquistas($pdo, $idUsuario, $ganhas);
+    $novas = array_flip($premio['novas']);
+    foreach ($ganhas as &$g) { $g['nova'] = isset($novas[$g['id']]); }
+    unset($g);
+
     echo json_encode(['ok' => true, 'totais' => $tot, 'conquistas' => $ganhas,
                       'totalConquistas' => count(coperoConquistas()),
-                      'pontuacao' => $registro['pontuacao']], JSON_UNESCAPED_UNICODE);
+                      'pontuacao' => $registro['pontuacao'],
+                      'premio' => ['moedas' => $premio['moedas'],
+                                   'fba_points' => $premio['fba_points'],
+                                   'logado' => $idUsuario > 0]], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -427,6 +517,9 @@ button{font-family:inherit}
 .tag.pos{background:#7f1d3a;color:#fff;position:static;transform:none;min-height:0}
 .tag.sel{background:#78350f;color:#fde68a}
 .tag.idolo{background:#1e3a5f;color:#bfdbfe}
+/* A carta do rival tem que gritar: é a única escolha do mercado que custa. */
+.carta.rival{border-color:#7f1d3a}
+.av-rival{font-style:normal;color:#f472b6;font-weight:800}
 .tag svg{width:17px;height:11px;border-radius:2px;flex:none;display:block}
 /* Os `min-width:0` não são enfeite: sem eles o nome comprido não encolhe,
    empurra o bloco de idade/valor pra fora e a página inteira ganha barra de
@@ -500,6 +593,7 @@ button{font-family:inherit}
 .selo{font-style:normal;font-size:9.5px;flex:none;line-height:1;font-weight:900}
 .selo.sel{color:#fbbf24}
 .selo.les{color:#f87171}
+.selo.riv{color:#c084fc}
 .mov{font-style:normal;font-size:10px;flex:none;line-height:1}
 .mov.sobe{color:#4ade80}
 .mov.cai{color:#f87171}
@@ -608,6 +702,17 @@ button{font-family:inherit}
 .d-tit{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;
   color:var(--n);border:1px solid var(--n);border-radius:6px;padding:3px 9px}
 .d-nivel small{color:var(--txt3);font-size:11px;font-weight:700}
+.d-vale{margin-left:auto;color:var(--n);opacity:.85}
+
+/* O prêmio da carreira, no alto das conquistas. */
+.premio-fx{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:var(--panel);
+  border:1px solid var(--borda);border-left:3px solid #eab308;border-radius:12px;
+  padding:13px 16px;margin-bottom:14px}
+.premio-fx b{font-size:13.5px;font-weight:800}
+.premio-fx small{width:100%;color:var(--txt3);font-size:11px;font-weight:600}
+.premio-tag{font-size:12.5px;font-weight:900;border-radius:7px;padding:4px 10px}
+.premio-tag.moeda{background:#78350f;color:#fde68a}
+.premio-tag.fba{background:#3b0764;color:#e9d5ff}
 
 .rodape{margin-top:26px;font-size:10.5px;color:var(--txt3);text-align:center;line-height:1.6}
 
@@ -841,6 +946,19 @@ const nomeCurto = n => APELIDO[n] || n;
  * mede em gols sofridos e jogos sem sofrer. Como as três telas e o cartão
  * mostram as mesmas colunas, elas saem daqui e não de cada lugar.
  */
+/**
+ * Aquele clube é rival do seu?
+ *
+ * O índice é montado uma vez: são quarenta e poucos pares, e a pergunta é
+ * feita em toda carta de oferta.
+ */
+const _rivaisDe = {};
+RIVAIS.forEach(([a, b]) => {
+  (_rivaisDe[a] = _rivaisDe[a] || []).push(b);
+  (_rivaisDe[b] = _rivaisDe[b] || []).push(a);
+});
+const ehRival = (a, b) => !!(a && b && (_rivaisDe[a] || []).includes(b));
+
 const ehGoleiro = () => S && S.posicao === 'GOL';
 const COLUNAS_GOL   = [['GS','gs'], ['CS','cs']];
 const COLUNAS_LINHA = [['Gols','gols'], ['Ast','ast']];
@@ -957,6 +1075,12 @@ const CONT2       = <?= json_encode(COPERO_CONTINENTAL2, JSON_UNESCAPED_UNICODE)
 const CONT3       = <?= json_encode(COPERO_CONTINENTAL3, JSON_UNESCAPED_UNICODE) ?>;
 const SUPERNAC    = <?= json_encode(COPERO_SUPERNAC, JSON_UNESCAPED_UNICODE) ?>;
 const SUPERCONT   = <?= json_encode(COPERO_SUPERCONT, JSON_UNESCAPED_UNICODE) ?>;
+const RIVAIS      = <?= json_encode(COPERO_RIVAIS, JSON_UNESCAPED_UNICODE) ?>;
+/* O que cada nível paga, já em texto — a régua sai do servidor, e não de um
+   número escrito à mão na tela que um dia diverge do que é pago de verdade. */
+const PREMIO = <?= json_encode(array_map(
+    fn($p) => isset($p['fba_points']) ? $p['fba_points'] . ' FBA Points' : $p['moedas'] . ' moedas',
+    COPERO_PREMIO), JSON_UNESCAPED_UNICODE) ?>;
 const COPAS       = <?= json_encode(COPERO_COPAS, JSON_UNESCAPED_UNICODE) ?>;
 const SELECOES    = <?= json_encode(COPERO_SELECOES, JSON_UNESCAPED_UNICODE) ?>;
 /* A lista INTEIRA das conquistas, e não só as ganhas: é o que deixa a tela
@@ -1377,6 +1501,7 @@ function abrirDesafios(){
           <div class="d-nivel">
             <span class="d-tit n-${n}">${rotulo[n]}</span>
             <small>${porNivel[n].filter(([id]) => feitas.has(id)).length} de ${porNivel[n].length}</small>
+            <small class="d-vale">${PREMIO[n] || ''}</small>
           </div>
           <div class="conq-grade">
             ${porNivel[n].map(([id,c]) => `
@@ -1652,6 +1777,9 @@ const LIGAS_TARDIAS = new Set(['SA1', 'US1', 'JP1', 'KR1', 'AU1']);
  */
 function ofertas(quantos, exceto, soDeCasa){
   const fora  = new Set(exceto || []);
+  // Quem você trocou pelo rival não te quer de volta. É a outra metade do
+  // preço do clássico: a porta fecha atrás de você.
+  if (S.marcadoPor) fora.add(S.marcadoPor);
   const atual = S.clube ? dadosLiga(S.clube.liga) : null;
   const pres  = atual ? atual.media : 0;
   const veterano = S.idade >= 30;
@@ -1821,6 +1949,15 @@ async function assinarOpcao(i){
 }
 
 async function assinar(clube){
+  // TROCAR PELO RIVAL COBRA. A primeira temporada é sob vaia: você joga
+  // menos, e o clube que você deixou não te procura mais. É o que faz a
+  // decisão do clássico ser uma decisão, e não mais uma linha na tabela.
+  if (S.clube && clube && S.clube.nome !== clube.nome && ehRival(S.clube.nome, clube.nome)) {
+    S.trocouPeloRival = (S.trocouPeloRival || 0) + 1;
+    S.marcadoPor = S.clube.nome;      // o antigo não te contrata de volta
+    S.pressaoRival = true;            // pesa na temporada que vem
+  }
+
   S.clube = clube;
   if (!S.temporadas.length) {
     const l = dadosLiga(clube.liga);
@@ -1887,6 +2024,11 @@ function temporada(){
   const lesionado = Math.random() < risco;
   if (lesionado) jogos = Math.max(2, Math.round(jogos * (ri(25,50) / 100)));
 
+  // A conta da traição: a temporada seguinte à troca pelo rival é sob
+  // pressão, e ela custa um quarto dos jogos.
+  const sobPressao = !!S.pressaoRival;
+  if (sobPressao) { jogos = Math.max(4, Math.round(jogos * 0.75)); S.pressaoRival = false; }
+
   // A qualidade cresce mais que linear: é o que separa o artilheiro de elite
   // do bom atacante. Com a régua reta de antes, um 94 marcava 30 por ano e o
   // milésimo gol era inalcançável — e o milésimo é o número mítico do
@@ -1914,6 +2056,7 @@ function temporada(){
     t.gols = 0; t.ast = 0;
   }
   if (lesionado) t.lesao = true;
+  if (sobPressao) t.rival = true;
   t.titulos = titulosDaTemporada(S.clube, S.ovr, t);
 
   // A seleção joga por fora do clube: convocação e torneio dependem do país
@@ -2172,10 +2315,13 @@ function blocoDecisao(){
 function cartasDeClube(lista, comFicar, comAposentar){
   const cartas = (lista || []).map((c,i) => {
     const l = dadosLiga(c.liga);
-    return `<button class="carta" onclick="assinarOpcao(${i})">
+    // O aviso de clássico é o que transforma a oferta em decisão. Escondê-lo
+    // seria pegadinha: quem vai pro rival tem que saber que está indo.
+    const rival = S.clube && ehRival(S.clube.nome, c.nome);
+    return `<button class="carta${rival ? ' rival' : ''}" onclick="assinarOpcao(${i})">
       <div class="clube-op">${escudo(c, 34)}
         <span class="txt"><b>${esc(c.nome)}</b>
-        <small>${l ? esc(l.nome) : ''}</small></span>
+        <small>${l ? esc(l.nome) : ''}${rival ? ` · <i class="av-rival">rival do ${esc(S.clube.nome)}</i>` : ''}</small></span>
       </div></button>`;
   });
   if (comFicar && S.clube) {
@@ -2212,6 +2358,7 @@ function selosDoAno(t){
   let s = '';
   if (t.selecao) s += `<i class="selo sel" title="Convocado para a seleção">★</i>`;
   if (t.lesao)   s += `<i class="selo les" title="Lesão na temporada">✚</i>`;
+  if (t.rival)   s += `<i class="selo riv" title="Primeira temporada depois de trocar pelo rival">⚡</i>`;
   return s;
 }
 
@@ -2452,14 +2599,26 @@ async function telaFim(){
     });
     const d = await r.json();
     if (d.ok && d.conquistas && d.conquistas.length) {
-      // Guarda pra sempre: é o que faz a lista da tela inicial encher ao
-      // longo das carreiras em vez de zerar a cada uma.
-      const novas = d.conquistas.filter(c => !conquistasFeitas().includes(c.id));
+      // O que é NOVO vem do servidor pra quem está logado: lá está o registro
+      // de verdade do que a pessoa já levou. Sem sessão, o localStorage é o
+      // que dá pra usar.
+      const novas = d.premio && d.premio.logado
+        ? d.conquistas.filter(c => c.nova)
+        : d.conquistas.filter(c => !conquistasFeitas().includes(c.id));
       guardarConquistas(d.conquistas.map(c => c.id));
+
+      const pr = d.premio || {};
+      const ganhou = (pr.moedas || 0) + (pr.fba_points || 0) > 0;
       const rotulo = {facil:'Fácil', media:'Média', dificil:'Difícil', impossivel:'Impossível'};
       document.getElementById('conquistas').innerHTML =
         `<h2 style="font-size:17px;margin:26px 0 10px">Conquistas da carreira
            <span class="conq-conta">${d.conquistas.length} de ${d.totalConquistas || '?'}</span></h2>
+         ${ganhou ? `<div class="premio-fx">
+           <b>Você ganhou</b>
+           ${pr.moedas ? `<span class="premio-tag moeda">+${pr.moedas} moedas</span>` : ''}
+           ${pr.fba_points ? `<span class="premio-tag fba">+${pr.fba_points} FBA Points</span>` : ''}
+           <small>pelas conquistas inéditas — cada uma paga uma vez só</small>
+         </div>` : ''}
          <div class="conq-grade">${d.conquistas.map(c => `
            <div class="conq n-${esc(c.nivel || 'facil')}${novas.some(n => n.id === c.id) ? ' nova' : ''}">
              <span class="ic">${c.icone}</span>

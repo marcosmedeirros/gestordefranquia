@@ -286,6 +286,37 @@ const COPERO_SELECAO_CONT = [
  * Ligue 1). Faltava a copa, que é outro torneio e merece o nome dela —
  * ganhar a DFB-Pokal não é ganhar a Bundesliga.
  */
+/**
+ * Os clássicos. Cada linha é um par de rivais.
+ *
+ * Serve pra uma coisa só, e ela é a que importa: trocar de clube pelo RIVAL
+ * tem que doer. Sem isso o mercado era só uma tabela de força, e sair do
+ * Palmeiras pro Corinthians era igual a sair do Palmeiras pro Bahia.
+ */
+const COPERO_RIVAIS = [
+    ['Palmeiras', 'Corinthians'],   ['Flamengo', 'Fluminense'],
+    ['Flamengo', 'Vasco da Gama'],  ['Botafogo', 'Flamengo'],
+    ['São Paulo', 'Corinthians'],   ['São Paulo', 'Palmeiras'],
+    ['Grêmio', 'Internacional'],    ['Atlético-MG', 'Cruzeiro'],
+    ['Santos', 'Corinthians'],      ['Bahia', 'Sport Recife'],
+    ['River Plate', 'Boca Juniors'],['Racing', 'Independiente'],
+    ['Peñarol', 'Nacional'],        ['Colo-Colo', 'Universidad de Chile'],
+    ['Real Madrid', 'Barcelona'],   ['Real Madrid', 'Atlético de Madrid'],
+    ['Sevilla', 'Real Betis'],      ['Manchester United', 'Manchester City'],
+    ['Manchester United', 'Liverpool'], ['Liverpool', 'Everton'],
+    ['Arsenal', 'Tottenham'],       ['Arsenal', 'Chelsea'],
+    ['Inter de Milão', 'AC Milan'], ['Juventus', 'Inter de Milão'],
+    ['Roma', 'Lazio'],              ['Napoli', 'Juventus'],
+    ['Bayern de Munique', 'Borussia Dortmund'],
+    ['PSG', 'Marseille'],           ['Lyon', 'Saint-Étienne'],
+    ['Benfica', 'Porto'],           ['Benfica', 'Sporting CP'],
+    ['Ajax', 'Feyenoord'],          ['Celtic', 'Rangers'],
+    ['Galatasaray', 'Fenerbahçe'],  ['Olympiacos', 'Panathinaikos'],
+    ['CSKA Moscou', 'Spartak Moscou'], ['Al Hilal', 'Al Nassr'],
+    ['Al Ahly', 'Zamalek'],         ['Club América', 'Chivas'],
+    ['Wydad', 'Raja Casablanca'],   ['Boca Juniors', 'Racing'],
+];
+
 const COPERO_COPAS = [
     'BRA' => 'Copa do Brasil',        'ARG' => 'Copa Argentina',
     'URU' => 'Copa Uruguay',          'CHI' => 'Copa Chile',
@@ -597,6 +628,20 @@ function coperoSortearEfeito(array $carta): array
  * O teste recebe os totais RECALCULADOS no servidor a partir das temporadas,
  * nunca o resumo que o cliente desenhou. `$c['t']` é a contagem por troféu.
  */
+/**
+ * O que cada nível de conquista paga, e em quê.
+ *
+ * Paga UMA VEZ POR CONQUISTA, nunca por carreira: sem isso bastaria repetir
+ * carreiras curtas e fáceis pra imprimir moeda. Os impossíveis pagam em FBA
+ * Points porque são a única moeda que não se ganha jogando qualquer coisa.
+ */
+const COPERO_PREMIO = [
+    'facil'      => ['moedas' => 50],
+    'media'      => ['moedas' => 100],
+    'dificil'    => ['moedas' => 150],
+    'impossivel' => ['fba_points' => 50],
+];
+
 function coperoConquistas(): array
 {
     $t = fn(array $c, string $id) => (int)($c['t'][$id] ?? 0);
@@ -670,6 +715,10 @@ function coperoConquistas(): array
                           'dificil', fn($c) => $c['coletivos'] === 0 && $c['temporadas'] >= 15],
         'poliglota'   => ['🗺️', 'Poliglota',         'Seja campeão nacional em três países diferentes.',
                           'dificil', fn($c) => $c['paisesCampeao'] >= 3],
+        'traidor'     => ['⚡', 'Do outro lado',     'Troque de clube pelo maior rival dele.',
+                          'media', fn($c) => ($c['trocasRival'] ?? 0) >= 1],
+        'mercenario'  => ['🎭', 'Mercenário',        'Troque pelo rival duas vezes na mesma carreira.',
+                          'dificil', fn($c) => ($c['trocasRival'] ?? 0) >= 2],
         'muralha'     => ['🧤', 'Muralha',           'Como goleiro, termine com 200 jogos sem sofrer gol.',
                           'dificil', fn($c) => $c['posicao'] === 'GOL' && $c['cleanSheets'] >= 200],
 
