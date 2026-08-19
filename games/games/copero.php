@@ -701,8 +701,14 @@ const pesoClube = f => Math.pow(Math.max(35, f) / 100, COPERO_EXPOENTE);
  * catalogado — sem eles a liga pareceria ter três times e o título ficaria
  * fácil demais.
  */
+const _cacheAdv = {};
 function adversarios(clube, escopo){
   const l = dadosLiga(clube.liga);
+  // O resultado só depende da liga e do escopo, e o catálogo não muda no
+  // meio da partida. Sem o cache isto varria os 202 clubes quatro vezes por
+  // temporada — quase cem varreduras numa carreira.
+  const chave = clube.liga + '|' + escopo + (escopo === 'mundial' ? '|' + clube.nome : '');
+  if (_cacheAdv[chave] !== undefined) return _cacheAdv[chave];
   let lista;
 
   if (escopo === 'liga') {
@@ -733,6 +739,7 @@ function adversarios(clube, escopo){
     const faltam = Math.max(0, (escopo === 'liga' ? 18 : 40) - lista.length);
     soma += faltam * pesoClube(menor - 4);
   }
+  _cacheAdv[chave] = soma;
   return soma;
 }
 
