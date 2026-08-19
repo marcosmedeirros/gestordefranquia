@@ -850,6 +850,8 @@ const COMPETICOES = <?= json_encode(COPERO_COMPETICOES, JSON_UNESCAPED_UNICODE) 
 const CONTINENTAL = <?= json_encode(COPERO_CONTINENTAL, JSON_UNESCAPED_UNICODE) ?>;
 const CONT2       = <?= json_encode(COPERO_CONTINENTAL2, JSON_UNESCAPED_UNICODE) ?>;
 const CONT3       = <?= json_encode(COPERO_CONTINENTAL3, JSON_UNESCAPED_UNICODE) ?>;
+const SUPERNAC    = <?= json_encode(COPERO_SUPERNAC, JSON_UNESCAPED_UNICODE) ?>;
+const SUPERCONT   = <?= json_encode(COPERO_SUPERCONT, JSON_UNESCAPED_UNICODE) ?>;
 const COPAS       = <?= json_encode(COPERO_COPAS, JSON_UNESCAPED_UNICODE) ?>;
 const SELECOES    = <?= json_encode(COPERO_SELECOES, JSON_UNESCAPED_UNICODE) ?>;
 /* A lista INTEIRA das conquistas, e não só as ganhas: é o que deixa a tela
@@ -885,6 +887,8 @@ function nomeDaTaca(id, ligaId){
   if (id === 'cont')  return (l && CONTINENTAL[l.cont]) || 'Torneio Continental';
   if (id === 'cont2') return (l && CONT2[l.cont]) || 'Segunda Continental';
   if (id === 'cont3') return (l && CONT3[l.cont]) || 'Terceira Continental';
+  if (id === 'supernac')  return (l && SUPERNAC[l.pais]) || 'Supercopa Nacional';
+  if (id === 'supercont') return (l && SUPERCONT[l.cont]) || 'Supercopa Continental';
   if (id === 'liga')  return (l && l.nome) || 'Campeonato Nacional';
   if (id === 'copa')  return (l && COPAS[l.pais]) || 'Copa Nacional';
   if (COMPETICOES[id]) return COMPETICOES[id][0];
@@ -1115,6 +1119,20 @@ function titulosDaTemporada(clube, ovr, stats){
   // Mundial só pra quem ganhou o continente — é assim que ele funciona.
   if (ganhos.includes('cont') && Math.random() * 100 < chance('mundial')) {
     ganhos.push('mundial');
+  }
+
+  // AS SUPERCOPAS. Jogo único no começo da temporada seguinte, entre quem
+  // ganhou o campeonato e quem ganhou a copa. Não têm disputa própria: quem
+  // levantou taça no ano passado entra, e é jogo só — por isso a chance é
+  // alta e quase não depende de força. É o título que engorda a galeria de
+  // quem já ganha tudo, e o teto de títulos sobe com elas.
+  const anoPassado = S.temporadas[S.temporadas.length - 1];
+  const ganhouAntes = (anoPassado && anoPassado.titulos) || [];
+  if (ganhouAntes.includes('liga') || ganhouAntes.includes('copa')) {
+    if (SUPERNAC[l.pais] && Math.random() < 0.5) ganhos.push('supernac');
+  }
+  if (ganhouAntes.includes('cont') || ganhouAntes.includes('cont2')) {
+    if (SUPERCONT[l.cont] && Math.random() < 0.5) ganhos.push('supercont');
   }
 
   // Prêmios individuais: dependem do jogador, não do clube — e sobem em
@@ -1715,7 +1733,11 @@ function temporada(){
   const lesionado = Math.random() < risco;
   if (lesionado) jogos = Math.max(2, Math.round(jogos * (ri(25,50) / 100)));
 
-  const q = Math.max(0.2, (S.ovr - 45) / 45);
+  // A qualidade cresce mais que linear: é o que separa o artilheiro de elite
+  // do bom atacante. Com a régua reta de antes, um 94 marcava 30 por ano e o
+  // milésimo gol era inalcançável — e o milésimo é o número mítico do
+  // futebol, tem que caber numa carreira perfeita.
+  const q = Math.max(0.2, Math.pow(Math.max(0, S.ovr - 42) / 48, 1.9) * 1.62);
   const t = {
     idade: S.idade, clube: S.clube.nome, liga: S.clube.liga, ovr: S.ovr,
     jogos,

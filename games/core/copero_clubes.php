@@ -84,11 +84,17 @@ const COPERO_LIGAS = [
     'SA1'  => ['KSA', 'ASI', 'Saudi Pro League',    1, 82],
     'JP1'  => ['JPN', 'ASI', 'J1 League',           1, 74],
     'KR1'  => ['KOR', 'ASI', 'K League 1',          1, 72],
+    'IR1'  => ['IRN', 'ASI', 'Persian Gulf Pro League', 1, 70],
+    'QA1'  => ['QAT', 'ASI', 'Qatar Stars League',  1, 70],
 
     // ── África ────────────────────────────────────────────────────────
     'EG1'  => ['EGY', 'AFR', 'Premier League',      1, 70],
     'MA1'  => ['MAR', 'AFR', 'Botola Pro',          1, 68],
     'ZA1'  => ['RSA', 'AFR', 'Premiership',         1, 66],
+    'DZ1'  => ['ALG', 'AFR', 'Ligue 1',             1, 68],
+    'TN1'  => ['TUN', 'AFR', 'Ligue 1',             1, 68],
+    'NG1'  => ['NGA', 'AFR', 'NPFL',                1, 62],
+    'CD1'  => ['COD', 'AFR', 'Linafoot',            1, 64],
 
     // A Austrália joga na Ásia, como na vida real desde 2007: com só quatro
     // clubes, a Oceania virava uma Champions que se ganha em nove de cada dez anos.
@@ -355,6 +361,18 @@ const COPERO_CLUBES = [
     ['Ulsan HD', 'KR1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/0wooic1706533767.png'],
     ['Jeonbuk', 'KR1', 73, 'https://r2.thesportsdb.com/images/media/team/badge/8jif3b1747853225.png'],
     ['FC Seoul', 'KR1', 71, 'https://r2.thesportsdb.com/images/media/team/badge/31z1zf1579473186.png'],
+    ['Pohang Steelers', 'KR1', 70, ''],
+
+    // Persian Gulf Pro League
+    ['Persepolis', 'IR1', 74, ''],
+    ['Esteghlal', 'IR1', 72, ''],
+    ['Sepahan', 'IR1', 70, ''],
+    ['Tractor', 'IR1', 68, ''],
+
+    // Qatar Stars League
+    ['Al Sadd', 'QA1', 74, ''],
+    ['Al Duhail', 'QA1', 72, ''],
+    ['Al Rayyan', 'QA1', 69, ''],
 
     // Premier League
     ['Al Ahly', 'EG1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/x8753q1751421890.png'],
@@ -370,6 +388,29 @@ const COPERO_CLUBES = [
     ['Mamelodi Sundowns', 'ZA1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/u3md311784744590.png'],
     ['Orlando Pirates', 'ZA1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/y6dbv61583616330.png'],
     ['Kaizer Chiefs', 'ZA1', 69, 'https://r2.thesportsdb.com/images/media/team/badge/akwtlr1583614121.png'],
+    ['SuperSport United', 'ZA1', 65, ''],
+
+    // Ligue 1 (Argélia)
+    ['CR Belouizdad', 'DZ1', 72, ''],
+    ['USM Alger', 'DZ1', 70, ''],
+    ['JS Kabylie', 'DZ1', 68, ''],
+    ['MC Alger', 'DZ1', 67, ''],
+
+    // Ligue 1 (Tunísia)
+    ['Espérance', 'TN1', 73, ''],
+    ['Étoile du Sahel', 'TN1', 69, ''],
+    ['Club Africain', 'TN1', 67, ''],
+    ['CS Sfaxien', 'TN1', 66, ''],
+
+    // NPFL
+    ['Enyimba', 'NG1', 66, ''],
+    ['Rivers United', 'NG1', 63, ''],
+    ['Rangers International', 'NG1', 61, ''],
+
+    // Linafoot
+    ['TP Mazembe', 'CD1', 72, ''],
+    ['AS Vita Club', 'CD1', 65, ''],
+    ['Maniema Union', 'CD1', 61, ''],
 
     // A-League
     ['Melbourne City', 'AU1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/rkeqme1603301840.png'],

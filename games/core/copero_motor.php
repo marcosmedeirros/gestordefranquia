@@ -57,6 +57,8 @@ const COPERO_PAISES = [
     'JPN' => 'Japão',      'KOR' => 'Coreia do Sul', 'EGY' => 'Egito',
     'MAR' => 'Marrocos',   'RSA' => 'África do Sul', 'AUS' => 'Austrália',
     'NGA' => 'Nigéria',    'SEN' => 'Senegal',    'CIV' => 'Costa do Marfim',
+    'ALG' => 'Argélia',    'TUN' => 'Tunísia',    'COD' => 'Congo',
+    'IRN' => 'Irã',        'QAT' => 'Catar',
 ];
 
 /**
@@ -197,6 +199,27 @@ const COPERO_COMPETICOES = [
     'cont2'   => ['Segunda Continental',    'continental',  0.30],
     'cont3'   => ['Terceira Continental',   'continental',  0.34],
     'mundial' => ['Mundial de Clubes',      'mundial',      0.16],
+    // As supercopas não têm disputa própria: são jogo único entre quem já
+    // ganhou outra coisa. Por isso a chance delas não sai de `adversarios`,
+    // e sim de quem você é no ano — ver `titulosDaTemporada`.
+    'supernac' => ['Supercopa Nacional',    'nacional',     0.00],
+    'supercont'=> ['Supercopa Continental', 'continental',  0.00],
+];
+
+/** O nome da supercopa nacional de cada país. */
+const COPERO_SUPERNAC = [
+    'BRA' => 'Supercopa do Brasil',   'ARG' => 'Supercopa Argentina',
+    'ENG' => 'Community Shield',      'ESP' => 'Supercopa de España',
+    'ITA' => 'Supercoppa Italiana',   'GER' => 'DFL-Supercup',
+    'FRA' => 'Trophée des Champions', 'POR' => 'Supertaça',
+    'NED' => 'Johan Cruijff Schaal',  'TUR' => 'Süper Kupa',
+];
+
+/** E a supercopa continental: quem ganhou a principal contra quem ganhou a segunda. */
+const COPERO_SUPERCONT = [
+    'EUR' => 'Supercopa da Europa',
+    'SAM' => 'Recopa Sul-Americana',
+    'AFR' => 'Supercopa da CAF',
 ];
 
 /**
@@ -408,6 +431,17 @@ const COPERO_TACAS = [
       . 'stroke="currentColor" stroke-width="2.2" fill="none"/>'
       . '<rect x="30.5" y="35" width="3" height="9" fill="currentColor"/>'
       . '<rect x="24" y="44" width="16" height="5.5" rx="2" fill="currentColor"/>'],
+    // Supercopa nacional: o prato raso de jogo único, sem alças.
+    'supernac' => ['#94a3b8',
+        '<path d="M18 16h28v6c0 8-6 13-14 15-8-2-14-7-14-15z" fill="currentColor"/>'
+      . '<rect x="30" y="37" width="4" height="8" fill="currentColor"/>'
+      . '<rect x="21" y="45" width="22" height="6" rx="2" fill="currentColor"/>'],
+    // Supercopa continental: o mesmo prato, dourado e com a faixa.
+    'supercont' => ['#d4af37',
+        '<path d="M17 15h30v7c0 8-6.5 13.5-15 15.5-8.5-2-15-7.5-15-15.5z" fill="currentColor"/>'
+      . '<path d="M17 22h30" stroke="#78350f" stroke-width="1.6" opacity=".5"/>'
+      . '<rect x="30" y="38" width="4" height="7" fill="currentColor"/>'
+      . '<rect x="20" y="45" width="24" height="6.5" rx="2" fill="currentColor"/>'],
     // Luva de Ouro: o prêmio de quem defende, para o goleiro não ficar sem
     // nenhum — os outros três individuais todos dependem de gol.
     'luva_ouro' => ['#e0e7ff',
@@ -649,8 +683,14 @@ function coperoConquistas(): array
                                                   && $t($c,'liga') >= 1 && $t($c,'copa') >= 1 && $t($c,'cont') >= 1],
         'colecionador'=> ['🗄️', 'O mais vencedor da história', 'Ganhe 28 títulos coletivos.',
                           'impossivel', fn($c) => $c['coletivos'] >= 28],
-        'so_o_pele'   => ['👑', 'Só o Pelé',         'Ganhe duas Copas do Mundo e faça 400 gols.',
-                          'impossivel', fn($c) => $t($c,'copa_mundo') >= 2 && $c['gols'] >= 400],
+        'so_o_pele'   => ['👑', 'Só o Pelé',         'Faça 1.000 gols e ganhe três Copas do Mundo.',
+                          'impossivel', fn($c) => $t($c,'copa_mundo') >= 3 && $c['gols'] >= 1000],
+        'mil_gols'    => ['⚽', 'O milésimo',        'Marque 1.000 gols na carreira.',
+                          'impossivel', fn($c) => $c['gols'] >= 1000],
+        'messi'       => ['🐐', 'O mais condecorado', 'Ganhe 47 títulos numa carreira.',
+                          'impossivel', fn($c) => $c['coletivos'] >= 47],
+        'maestro'     => ['🎼', 'Maestro',           'Dê 400 assistências na carreira.',
+                          'dificil', fn($c) => $c['ast'] >= 400],
         'goat'        => ['🐐', 'GOAT',              'Copa do Mundo, dois continentais de seleção, três Bolas de Ouro '
                                                    . 'e três torneios continentais de clubes.',
                           'impossivel', fn($c) => $t($c,'copa_mundo') >= 1 && $t($c,'selecao_cont') >= 2
