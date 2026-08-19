@@ -236,8 +236,9 @@ button{font-family:inherit}
   justify-content:center;flex:none;color:#0a0a0c}
 .ovr-caixa small{font-size:9px;font-weight:800;letter-spacing:1px;opacity:.7}
 .ovr-caixa b{font-size:33px;font-weight:900;line-height:1;letter-spacing:-1.5px}
-.ficha-info{flex:1 1 150px;min-width:0}
-.ficha-tags{display:flex;align-items:center;gap:7px;margin-bottom:7px;flex-wrap:wrap;min-height:22px}
+.ficha-info{flex:1 1 150px;min-width:0;align-self:stretch;display:flex;
+  flex-direction:column;justify-content:center;gap:4px}
+.ficha-tags{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-height:22px}
 .tag{display:inline-flex;align-items:center;gap:5px;background:var(--panel3);border-radius:6px;
   padding:3px 8px;font-size:11px;font-weight:800}
 .tag.pos{background:#7f1d3a;color:#fff}
@@ -358,19 +359,33 @@ button{font-family:inherit}
 .ovr-delta.menos{color:#f87171}
 .ovr-caixa{position:relative}
 
-/* Enquanto sorteia, os efeitos piscam; o que sai para de piscar e cresce. */
-.efeito.sorteando{animation:sorteando .5s ease-in-out infinite}
-.efeito.sorteado{animation:revelado .45s ease}
+/* Enquanto sorteia, UMA opção fica acesa por vez e as outras recuam — é o
+   giro que faz a coisa parecer sorteio. No fim a sorteada fica acesa e a
+   outra apaga de vez. */
+.carta.sorteando-agora{border-color:#fff}
+.carta.sorteando-agora .efeito{opacity:.28;transition:opacity .12s}
+.carta.sorteando-agora .efeito.aceso{opacity:1;transform:scale(1.04)}
+.efeito.apagado{opacity:.25;filter:grayscale(1)}
+.efeito.sorteado{animation:revelado .45s ease;outline:1px solid currentColor}
+
+.taca-fila{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:center;
+  gap:22px 30px;max-width:min(92vw,780px);padding:0 16px}
+.taca-item{display:flex;flex-direction:column;align-items:center;gap:9px;
+  opacity:0;animation:tacaEntra .8s cubic-bezier(.2,1.5,.4,1) forwards}
+.taca-item b{font-size:14px;font-weight:800;text-align:center;max-width:150px;line-height:1.25}
+@media (max-width:520px){
+  .taca-fila{gap:16px 20px}
+  .taca-item b{font-size:12px;max-width:110px}
+}
 
 .taca-nova{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:14px;background:rgba(6,6,9,.86);z-index:60;
   backdrop-filter:blur(3px)}
-.taca-nova .taca{animation:tacaEntra 1.1s cubic-bezier(.2,1.5,.4,1) forwards}
 .taca-nova b{font-size:22px;font-weight:900;letter-spacing:-.5px;text-align:center;padding:0 20px}
 .taca-nova small{color:var(--txt2);font-size:12.5px}
 @media (prefers-reduced-motion:reduce){
   /* Quem pediu menos movimento vê o resultado, não a viagem até ele. */
-  .ovr-caixa.animando,.ovr-delta,.efeito.sorteando,.efeito.sorteado,.taca-nova .taca{animation:none}
+  .ovr-caixa.animando,.ovr-delta,.efeito.sorteado,.taca-item{animation:none;opacity:1}
   .ovr-delta{opacity:1}
 }
 
@@ -520,34 +535,52 @@ async function animarOvr(de, para){
  * Sem isso o resultado aparecia pronto, e a aposta que a pessoa acabou de
  * fazer não tinha momento nenhum — o número já estava lá antes de ela olhar.
  */
-async function animarSorteio(cartaEl, indiceSorteado){
+async function animarSorteio(cartaEl, efeitoSorteado){
   const efeitos = [...cartaEl.querySelectorAll('.efeito')];
   if (efeitos.length < 2 || semAnimacao()) return;
-  efeitos.forEach(e => e.classList.add('sorteando'));
-  // Desacelera até parar: é o gesto que faz parecer sorteio e não conta.
-  for (let i = 0, espera = 110; i < 11; i++, espera += 55) {
-    efeitos.forEach((e, k) => e.classList.toggle('sorteando', k !== (i % efeitos.length)));
+
+  // Uma opção acesa por vez, girando entre elas e desacelerando — é o que
+  // faz parecer sorteio. Todas piscando juntas não escolhe nada.
+  cartaEl.classList.add('sorteando-agora');
+  for (let i = 0, espera = 110; i < 13; i++, espera += 50) {
+    efeitos.forEach((e, k) => e.classList.toggle('aceso', k === (i % efeitos.length)));
     await dormir(espera);
   }
-  efeitos.forEach(e => e.classList.remove('sorteando'));
+
+  // Para no que saiu: ele fica aceso, os outros apagam de vez.
+  const alvo = efeitos.find(e => e.textContent.includes(efeitoSorteado.texto));
+  efeitos.forEach(e => { e.classList.toggle('aceso', e === alvo); e.classList.toggle('apagado', e !== alvo); });
+  if (alvo) alvo.classList.add('sorteado');
+  await dormir(750);
+  cartaEl.classList.remove('sorteando-agora');
 }
 
-/** A taça ganha ocupa a tela por um instante — é a hora dela. */
-async function mostrarTaca(id, ligaId){
+/**
+ * As taças do ano, TODAS na mesma tela.
+ *
+ * Uma de cada vez com clique entre elas transformava um ano bom em quatro
+ * interrupções — e ganhar tudo virava castigo. Aparecem juntas, entram
+ * escalonadas pra dar o efeito de coleção, e somem sozinhas.
+ */
+async function mostrarTacas(t){
+  const ids = t.titulos || [];
+  if (!ids.length) return;
+
   const tela = document.createElement('div');
   tela.className = 'taca-nova';
-  tela.innerHTML = `${taca(id, 120)}<b>${esc(nomeDaTaca(id, ligaId))}</b><small>toque para seguir</small>`;
+  tela.innerHTML = `<div class="taca-fila">${ids.map((id, k) => `
+      <span class="taca-item" style="animation-delay:${k * 220}ms">
+        ${taca(id, ids.length > 2 ? 84 : 116)}
+        <b>${esc(nomeDaTaca(id, t.liga))}</b>
+      </span>`).join('')}</div>`;
   document.body.appendChild(tela);
+
+  // Some sozinha; o clique só serve pra quem quiser pular.
   await new Promise(r => {
     const fim = () => { tela.remove(); r(); };
     tela.addEventListener('click', fim, {once:true});
-    setTimeout(fim, semAnimacao() ? 900 : 3200);
+    setTimeout(fim, semAnimacao() ? 900 : 1600 + ids.length * 700);
   });
-}
-
-/** Todas as taças de uma temporada, uma de cada vez. */
-async function mostrarTacas(t){
-  for (const id of (t.titulos || [])) await mostrarTaca(id, t.liga);
 }
 
 /* ── Títulos ────────────────────────────────────────────
@@ -808,30 +841,46 @@ function paisesDeInicio(pais){
 }
 
 /**
- * Ofertas de clube compatíveis com o OVR atual.
+ * Quem te procura, e de onde.
  *
- * `soDeCasa` restringe aos países de origem da nacionalidade — é o que usa a
- * oferta de base, porque ninguém de 16 anos sai do Brasil direto pro Nice.
- * Depois disso o mundo abre: quem é bom vai pra onde quiser, e é justamente
- * isso que faz a carreira ter trajetória.
+ * A carreira sobe por DEGRAU, não por sorteio. As regras:
+ *
+ *   · o clube tem que ser do seu tamanho — um OVR 60 não vai pro Real Madrid,
+ *     vai pra um clube de força parecida com a dele;
+ *   · você sobe no máximo UMA divisão por vez: da Série C se olha a B e, se
+ *     estiver muito bem, uma da A; da B se olha a A;
+ *   · sair do continente só da PRIMEIRA divisão. Ninguém sai da Série C
+ *     brasileira direto pra Ligue 1 — primeiro você aparece no seu país.
+ *
+ * Sem isso o jogo sorteava clube na faixa de OVR e a carreira não tinha
+ * trajetória: dava pra pular de Ypiranga pro Milan num ano.
  */
 function ofertas(quantos, exceto, soDeCasa){
-  const teto = S.ovr + 8, piso = Math.max(40, S.ovr - 25);
   const fora = new Set(exceto || []);
-  let elegiveis = CLUBES.filter(c => c.forca <= teto && c.forca >= piso && !fora.has(c.nome));
+  const atual = S.clube ? dadosLiga(S.clube.liga) : null;
+  const nivelAtual = atual ? atual.nivel : 3;   // sem clube = começa de baixo
 
-  // Sorteia de uma lista, tirando o que já saiu.
-  const sortear = (lista, n, jaTem) => {
-    const copia = lista.filter(c => !jaTem.has(c.nome));
-    const out = [];
-    while (out.length < n && copia.length) {
-      out.push(copia.splice(Math.floor(Math.random()*copia.length), 1)[0]);
-    }
-    return out;
+  // A faixa de força: o clube tem que caber em você. Acima de +6 é time que
+  // não te chamaria; abaixo de -18 é passo pra trás que ninguém propõe.
+  const teto = S.ovr + 6, piso = Math.max(38, S.ovr - 18);
+
+  const cabe = (c) => {
+    if (fora.has(c.nome) || c.forca > teto || c.forca < piso) return false;
+    const l = dadosLiga(c.liga);
+    if (!l) return false;
+
+    // Um degrau por vez: da 3ª só a 2ª (e a 1ª se você estiver forte pra ela),
+    // da 2ª a 1ª. Descer é sempre possível — carreira também desanda.
+    if (l.nivel < nivelAtual - 1) return false;
+
+    // Sair do continente exige estar na primeira divisão. É a regra que
+    // transforma "ir pra Europa" em conquista em vez de sorteio.
+    if (atual && l.cont !== atual.cont && nivelAtual > 1) return false;
+
+    return true;
   };
 
-  const sorteados = [];
-  const jaTem = new Set();
+  let elegiveis = CLUBES.filter(cabe);
 
   if (soDeCasa) {
     const paises = paisesDeInicio(S.pais);
@@ -840,15 +889,25 @@ function ofertas(quantos, exceto, soDeCasa){
         const l = dadosLiga(c.liga);
         return l && paises.includes(l.pais);
       });
-      // Pega o que houver da origem e COMPLETA com o resto do mundo. Antes
-      // eu descartava a origem inteira quando ela não tinha 3 clubes na
-      // faixa — e aí o marroquino começava na Inglaterra e o senegalês no
-      // Brasil, que é o oposto do que a nacionalidade deveria fazer.
-      sortear(daCasa, quantos, jaTem).forEach(c => { sorteados.push(c); jaTem.add(c.nome); });
+      if (daCasa.length) elegiveis = daCasa.concat(elegiveis.filter(c => !daCasa.includes(c)));
     }
   }
 
-  sortear(elegiveis, quantos - sorteados.length, jaTem).forEach(c => sorteados.push(c));
+  // Sem ninguém na faixa (país pequeno, OVR muito alto ou muito baixo), abre
+  // só o degrau — nunca o mundo inteiro, senão a regra não vale nada.
+  if (!elegiveis.length) {
+    elegiveis = CLUBES.filter(c => {
+      const l = dadosLiga(c.liga);
+      return !fora.has(c.nome) && l && Math.abs(c.forca - S.ovr) <= 14
+             && (!atual || l.cont === atual.cont || nivelAtual === 1);
+    });
+  }
+
+  const sorteados = [];
+  const copia = elegiveis.slice();
+  while (sorteados.length < quantos && copia.length) {
+    sorteados.push(copia.splice(Math.floor(Math.random()*copia.length), 1)[0]);
+  }
   return sorteados;
 }
 
@@ -990,16 +1049,19 @@ async function escolherCarta(i){
   let acc = 0, ef = carta.efeitos[carta.efeitos.length - 1];
   for (const e of carta.efeitos) { acc += e.chance; if (r <= acc) { ef = e; break; } }
 
+  // A ANIMAÇÃO VEM ANTES do resultado entrar no estado. Antes eu gravava
+  // S.resultado e chamava render(): a tela já nascia com a escolhida
+  // destacada e o efeito marcado, e a animação virava um pisca inútil
+  // por cima de algo já decidido.
+  const cartaEl = document.querySelectorAll('.cartas .carta')[i];
+  if (cartaEl) await animarSorteio(cartaEl, ef);
+
   S.resultado = {carta: i, efeito: ef};
   const antes = S.ovr;
   S.ovr = Math.max(35, Math.min(99, S.ovr + (ef.ovr || 0)));
   S.jogosBonus = ef.jogos || 0;
   salvar(); render();
 
-  // Pisca os efeitos e para no que saiu; só então o OVR anda. A ordem é o
-  // que faz a aposta ter desfecho em vez de já vir resolvida.
-  const cartaEl = document.querySelectorAll('.cartas .carta')[i];
-  if (cartaEl) await animarSorteio(cartaEl, i);
   await animarOvr(antes, S.ovr);
   await dormir(900);
   S.evento = null; S.resultado = null;
