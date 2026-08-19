@@ -1062,6 +1062,42 @@ tr.tit td{color:var(--red)}
 .modal-mercado{width:min(680px,100%)}
 .modal-mercado .ofertas-grade{grid-template-columns:repeat(auto-fit,minmax(178px,1fr))}
 
+/* ── RESUMO DE FIM — o molde do Copero ───────────────────────────────── */
+.fim-topo{text-align:center}
+.fim-topo .acoes-fim{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.fim-topo .btn{width:auto;flex:1 1 168px;margin-top:0;padding:12px 18px;font-size:13.5px}
+.resumo-topo{display:grid;grid-template-columns:1.55fr 1fr;gap:11px}
+.fim-ident{display:flex;align-items:center;gap:13px;margin-bottom:13px}
+.fim-nome{flex:1;min-width:0}
+.fim-nome b{display:block;font-size:24px;font-weight:900;letter-spacing:-.8px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fim-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.tagx{display:inline-flex;align-items:center;gap:4px;background:var(--panel3);border-radius:6px;
+  padding:3px 8px;font-size:10.5px;font-weight:800;color:var(--text2)}
+.tagx.pos{background:var(--red-soft);color:var(--red)}
+.fim-ovr{width:66px;height:66px;border-radius:14px;background:var(--cor);color:#0a0a0c;flex:none;
+  display:flex;flex-direction:column;align-items:center;justify-content:center}
+.fim-ovr small{font-size:8px;font-weight:800;letter-spacing:1px;opacity:.7}
+.fim-ovr b{font-size:27px;font-weight:900;line-height:1;letter-spacing:-1.5px;font-family:var(--num)}
+.fim-nums{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--border);padding-top:11px}
+.fim-nums div{text-align:center}
+.fim-nums span{display:block;font-size:8.5px;font-weight:800;letter-spacing:.6px;
+  text-transform:uppercase;color:var(--text3)}
+.fim-nums b{font-size:19px;font-weight:900;font-family:var(--num)}
+.fim-legado{font-size:38px;font-weight:900;letter-spacing:-2px;line-height:1;margin:6px 0 8px;
+  font-family:var(--num);color:var(--red)}
+.fim-moedas{margin-top:10px;display:inline-block;background:var(--amber-soft);color:var(--amber);
+  border-radius:8px;padding:4px 11px;font-size:12px;font-weight:800}
+.clubes-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;margin:12px 0}
+.clube-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:13px 11px;
+  display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center}
+.clube-card b{font-size:12.5px;font-weight:800;line-height:1.25}
+.clube-card .cc-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;font-size:11.5px;
+  width:100%;font-family:var(--num)}
+.clube-card .cc-nums span{display:block;font-size:8px;color:var(--text3);font-weight:800;
+  letter-spacing:.5px;text-transform:uppercase;font-family:var(--font)}
+@media (max-width:640px){ .resumo-topo{grid-template-columns:1fr} }
+
 /* ── SALA DE TROFÉUS — a mesma do Copero ─────────────────────────────── */
 .sala{padding:15px 16px}
 .sala-cab{display:flex;align-items:center;gap:9px;font-size:9.5px;font-weight:800;letter-spacing:1px;
@@ -4405,51 +4441,89 @@ function telaFim(){
     [t.dpoy,"Defensor do Ano"],[t.cesta,"Cestinha"],[t.roy,"Calouro do Ano"],[t.ouro,"Ouro com a seleção"],
   ].filter(x=>x[0]>0);
 
+  // O resumo segue o molde do Copero: primeiro o encerramento e as duas
+  // saídas da imagem, depois a identidade com o pico, a sala de troféus, os
+  // clubes e só então o detalhe. A versão anterior abria com uma lista de
+  // nove blocos e enterrava o que a pessoa queria ver — quem ela virou.
+  const porTime = {};
+  anos.forEach(t => {
+    if (!porTime[t.time]) porTime[t.time] = {jogos:0, pts:0, reb:0, ast:0, temporadas:0};
+    const x = porTime[t.time];
+    x.jogos += (t.jogos||0); x.pts += (t.pts||0)*(t.jogos||0);
+    x.reb += (t.reb||0)*(t.jogos||0); x.ast += (t.ast||0)*(t.jogos||0); x.temporadas++;
+  });
+  const m1 = (v, j) => j ? (Math.round(v/j*10)/10) : 0;
+  const faixa = faixaOvr(S.picoOvr || S.ultimoOvr || 0);
+
   app().innerHTML = topo() + `
-    <h1>${esc(S.nome)}</h1>
-    <p class="lead">${marca(S.time,24)} ${anos.length} temporadas · ${esc(S.pos)} · aposentado aos ${S.idade}</p>
-
-    ${cartaoDeCarreira(pts, tot, anos)}
-
-    ${S.moedasGanhas != null ? `<div class="bpcard centro" style="border-color:var(--amber)">
-      <div class="bpcard-title">Moedas ganhas</div>
-      <div class="grande" style="color:var(--amber)">+${S.moedasGanhas}</div>
-      <p style="margin:0;font-size:11.5px;color:var(--text2)">creditadas na sua conta</p>
-    </div>` : ""}
-
-    <div class="acoes-fim">
-      <button class="btn" onclick="compartilharCartao(this)">Compartilhar o cartão</button>
-      <button class="btn btn2" onclick="copiar(this)">Copiar como texto</button>
+    <div class="bpcard fim-topo">
+      <h2 style="margin:0 0 4px">Sua carreira chegou ao fim</h2>
+      <p class="nota-txt" style="margin:0 0 14px">${anos.length} temporadas · aposentado aos ${S.idade}</p>
+      <div class="acoes-fim">
+        <button class="btn" onclick="compartilharCartao(this,'baixar')">
+          <i class="bi bi-download"></i> Baixar imagem</button>
+        <button class="btn" onclick="compartilharCartao(this,'copiar')">
+          <i class="bi bi-clipboard"></i> Copiar imagem</button>
+        <button class="btn btn2" onclick="copiar(this)">Copiar como texto</button>
+        <button class="btn btn2" onclick="apagar();S=null;render()">Nova carreira</button>
+      </div>
     </div>
-    <div class="acoes-fim" style="margin-top:9px">
-      <button class="btn btn2" onclick="apagar();S=null;render()">Nova carreira</button>
+
+    <div class="resumo-topo">
+      <div class="bpcard">
+        <div class="bpcard-title">Carreira encerrada</div>
+        <div class="fim-ident">
+          <div class="fim-nome">
+            <b>${esc(S.nome)}</b>
+            <div class="fim-tags">
+              ${S.numero ? `<span class="tagx">#${esc(S.numero)}</span>` : ""}
+              <span class="tagx pos">${esc(S.pos)}</span>
+              <span class="tagx">${bandeira(S.nac)} ${esc(S.nac)}</span>
+            </div>
+          </div>
+          <div class="fim-ovr" style="--cor:${faixa[1]}">
+            <small>PICO</small><b>${S.picoOvr || S.ultimoOvr || 0}</b>
+          </div>
+        </div>
+        <div class="fim-nums">
+          <div><span>Pts/jogo</span><b>${med(somas.p)}</b></div>
+          <div><span>Reb/jogo</span><b>${med(somas.r)}</b></div>
+          <div><span>Ast/jogo</span><b>${med(somas.s)}</b></div>
+        </div>
+      </div>
+      <div class="bpcard centro">
+        <div class="bpcard-title" style="justify-content:center">Legado</div>
+        <div class="fim-legado">${pts}</div>
+        <p class="nota-txt" style="margin:0">${tot.jogos.toLocaleString("pt-BR")} jogos ·
+          ${Object.keys(porTime).length} ${Object.keys(porTime).length === 1 ? "clube" : "clubes"}</p>
+        ${S.moedasGanhas != null ? `<div class="fim-moedas">+${S.moedasGanhas} moedas</div>` : ""}
+      </div>
+    </div>
+
+    ${resumoDeTrofeus()}
+
+    <div class="clubes-grade">
+      ${Object.entries(porTime).map(([nome, x]) => `
+        <div class="clube-card">${marca(nome, 44)}<b>${esc(nome)}</b>
+          <div class="cc-nums">
+            <div><span>Jogos</span>${x.jogos}</div>
+            <div><span>Pts</span>${m1(x.pts, x.jogos)}</div>
+            <div><span>Reb</span>${m1(x.reb, x.jogos)}</div>
+          </div></div>`).join("")}
     </div>
 
     <h2>Números da carreira</h2>
     <div class="bpcard">
       <div class="grade-num">
-        ${caixa(med(somas.p), "pts por jogo")}
-        ${caixa(med(somas.r), "reb por jogo")}
-        ${caixa(med(somas.s), "ast por jogo")}
         ${caixa(tot.pts.toLocaleString("pt-BR"), "pontos")}
         ${caixa(tot.reb.toLocaleString("pt-BR"), "rebotes")}
         ${caixa(tot.ast.toLocaleString("pt-BR"), "assistências")}
         ${caixa(tot.jogos.toLocaleString("pt-BR"), "jogos")}
-        ${caixa(anos.length, "temporadas")}
-        ${caixa(S.picoOvr || S.ultimoOvr || 0, "pico de OVR")}
       </div>
     </div>
 
-    <h2>Prêmios da carreira</h2>
-    <div class="bpcard">
-      <div class="grade-num">${gradeDeTrofeus()}</div>
-      ${tro.length ? "" : `<p class="nota-txt">Sem troféus. Nem todo mundo levanta taça.</p>`}
-    </div>
-
     ${legadoInternacional()}
-
     ${trajetoria()}
-
     ${sumula()}${ranking("Como você ficou entre os GMs")}`;
 }
 
@@ -4578,7 +4652,7 @@ function cartaoDeCarreira(pts, tot, anos){
 }
 
 /** Manda a carreira como imagem. O desenho é o de games/core/cartao.php. */
-function compartilharCartao(botao){
+function compartilharCartao(botao, modo){
   const pts = pontuacaoLegado();
   const anos = S.temporadas.filter(x => !x.formacao);
   const d = dadosDoCartao(pts, totaisDeCarreira(), anos);
@@ -4588,7 +4662,10 @@ function compartilharCartao(botao){
   // /api/foto-proxy.php e chegam como mesma origem. Logo que não carregar
   // cai nas iniciais sozinho, então o cartão nunca fica com buraco.
   const md = d.medias;
-  fbaCompartilhar({
+  // Duas saídas, como no Copero: baixar o arquivo ou copiar pra colar na
+  // conversa. A folha do sistema ficava de fora porque no computador ela nem
+  // existe pra arquivo, e o botão se comportava diferente em cada aparelho.
+  (modo === 'copiar' ? fbaCopiar : fbaBaixar)({
     c1: d.c1, c2: d.c2,
     numero: d.ovr || "—", rotulo: "OVR",
     pilulas: [
