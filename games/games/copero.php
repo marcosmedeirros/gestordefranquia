@@ -939,9 +939,13 @@ function comecarCarreira(){
     nome: rascunho.nome, numero: rascunho.numero, perna: rascunho.perna,
     pais: rascunho.pais, posicao: rascunho.posicao, modo: MODO,
     idade: IDADE_INI, ovr: 50, clube: null, temporadas: [],
-    // O talento é sorteado aqui e nunca aparece na tela: é o que faz a mesma
-    // escolha dar carreiras diferentes, e o que dá motivo pra jogar de novo.
+    // Os três dados escondidos da carreira, sorteados aqui e nunca mostrados.
+    // São eles que fazem a mesma escolha dar carreiras diferentes: um cresce
+    // até os 31, outro estaciona aos 24; um joga bem até os 38, outro
+    // desmonta aos 32.
     talento: (70 + Math.floor(Math.random() * 55)) / 100,
+    pico: 24 + Math.floor(Math.random() * 8),
+    durabilidade: (75 + Math.floor(Math.random() * 60)) / 100,
     picoOvr: 50, picoValor: 0, maiorForcaClube: 0, comecouAbaixo: false,
     fase: 'oferta_base', evento: null, fim: false, resultado: null,
   };
@@ -1292,15 +1296,29 @@ function evoluir(){
   const min = t ? Math.max(0.45, Math.min(1.1, t.jogos / 28)) : 1;
   const amb = Math.max(-1.5, Math.min(2.2, (S.clube.forca - S.ovr) / 10));
   const tal = S.talento || 1;
+  const pico = S.pico || 27;
+  const dur  = S.durabilidade || 1;
 
   let d;
-  if      (S.idade <= 21) d = ri(1,6) + amb;
-  else if (S.idade <= 25) d = ri(0,4) + amb * 0.8;
-  else if (S.idade <= 29) d = ri(-1,2) + amb * 0.5;
-  else if (S.idade <= 33) d = ri(-3,1);
-  else                    d = ri(-5,-1);
+  if (S.idade < pico) {
+    // Subindo, e mais rápido quanto mais longe do auge.
+    d = (ri(0,3) + Math.min(3, (pico - S.idade) * 0.6) + amb) * min * tal;
+    // O ESTIRÃO: aquele ano em que o garoto encaixa tudo e some da divisão
+    // de baixo. Raro, e mais provável em quem tem talento.
+    if (S.idade <= 23 && Math.random() < 0.11 * tal) d += ri(3,7);
+  } else if (S.idade <= pico + 2) {
+    d = ri(-1,2) + amb * 0.4;               // o platô do auge
+  } else {
+    // Caindo. A durabilidade decide se é ladeira ou tobogã — é o que separa
+    // quem joga bem até os 38 de quem acaba aos 32.
+    d = -(ri(1,3) + (S.idade - pico - 2) * 0.7) / dur;
+  }
 
-  if (d > 0) d *= min * tal;
+  // O ano ruim: lesão feia, fase ruim, treinador que não quis. Pode pegar
+  // qualquer um em qualquer idade, e é o que faz uma promessa às vezes
+  // simplesmente não virar.
+  if (Math.random() < 0.07) d -= ri(2,6);
+
   if (S.ovr >= 88) d = Math.min(d, ri(0,2));
   if (S.ovr >= 93) d = Math.min(d, ri(0,1));
   if (S.ovr >= 96) d = Math.min(d, 0);
