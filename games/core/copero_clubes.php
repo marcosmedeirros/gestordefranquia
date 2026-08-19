@@ -141,7 +141,7 @@ const COPERO_CLUBES = [
     ['River Plate', 'AR1', 88, 'https://r2.thesportsdb.com/images/media/team/badge/03dmi31645539717.png'],
     ['Boca Juniors', 'AR1', 87, 'https://r2.thesportsdb.com/images/media/team/badge/bm7krb1775741582.png'],
     ['Racing', 'AR1', 82, 'https://r2.thesportsdb.com/images/media/team/badge/vi4mu41695734959.png'],
-    ['San Lorenzo', 'AR1', 79, ''],
+    ['San Lorenzo', 'AR1', 79, '/games/img/escudos/sanlorenzo.png'],
     ['Independiente', 'AR1', 79, 'https://r2.thesportsdb.com/images/media/team/badge/eki4nd1580842605.png'],
     ['Estudiantes', 'AR1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/pf08dq1760634366.png'],
     ['Vélez Sarsfield', 'AR1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/jo98m71517769587.png'],
@@ -263,7 +263,7 @@ const COPERO_CLUBES = [
     ['Kaiserslautern', 'DE2', 62, 'https://r2.thesportsdb.com/images/media/team/badge/jghax31740165513.png'],
 
     // Ligue 1
-    ['PSG', 'FR1', 96, ''],
+    ['PSG', 'FR1', 96, '/games/img/escudos/psg.png'],
     ['Monaco', 'FR1', 88, 'https://r2.thesportsdb.com/images/media/team/badge/exjf5l1678808044.png'],
     ['Marseille', 'FR1', 87, 'https://r2.thesportsdb.com/images/media/team/badge/c6bazh1779212287.png'],
     ['Lyon', 'FR1', 85, 'https://r2.thesportsdb.com/images/media/team/badge/blk9771656932845.png'],
@@ -307,7 +307,7 @@ const COPERO_CLUBES = [
     ['Trabzonspor', 'TR1', 77, 'https://r2.thesportsdb.com/images/media/team/badge/96s34o1776827629.png'],
 
     // Premier Liga
-    ['Zenit', 'RU1', 80, ''],
+    ['Zenit', 'RU1', 80, '/games/img/escudos/zenit.png'],
     ['CSKA Moscou', 'RU1', 77, 'https://r2.thesportsdb.com/images/media/team/badge/1hf19s1681319986.png'],
     ['Spartak Moscou', 'RU1', 77, 'https://r2.thesportsdb.com/images/media/team/badge/zpj2el1754674286.png'],
     ['Rubin Kazan', 'RU1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/hp9kw81579347672.png'],
