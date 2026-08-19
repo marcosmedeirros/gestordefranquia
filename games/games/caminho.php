@@ -1044,6 +1044,36 @@ tr.tit td{color:var(--red)}
 /* Os troféus da carreira, acima da lista ano a ano. */
 .trofeus-resumo{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
 
+/* ── POPUP DAS FINAIS ────────────────────────────────────────────────── */
+.modal-fundo{position:fixed;inset:0;background:rgba(6,6,9,.82);backdrop-filter:blur(3px);
+  z-index:80;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal-cx{background:var(--panel);border:1px solid var(--border);border-radius:16px;
+  width:min(440px,100%);max-height:88vh;overflow-y:auto;padding:18px}
+.fin-cab{text-align:center;margin-bottom:14px}
+.fin-tit{display:block;font-size:19px;font-weight:900;letter-spacing:-.5px}
+.fin-cab small{color:var(--text2);font-size:11.5px;font-weight:600}
+.fin-placar{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:14px}
+.fin-placar b{font-family:var(--num);font-size:32px;font-weight:900;color:var(--text3);
+  font-variant-numeric:tabular-nums;line-height:1}
+.fin-placar b.na-frente{color:var(--text)}
+.fin-placar span{color:var(--text3);font-size:17px}
+.fin-vazio{text-align:center;color:var(--text2);font-size:12.5px;margin:14px 0}
+
+/* ── SALA DE TROFÉUS — a mesma do Copero ─────────────────────────────── */
+.sala{padding:15px 16px}
+.sala-cab{display:flex;align-items:center;gap:9px;font-size:9.5px;font-weight:800;letter-spacing:1px;
+  color:var(--text3);text-transform:uppercase;margin-bottom:13px}
+.sala-cab b{background:var(--panel3);color:var(--text);border-radius:6px;padding:2px 8px;font-size:12px;
+  font-family:var(--num);font-variant-numeric:tabular-nums}
+.sala-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:14px 8px}
+.sala-item{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;min-width:0}
+.sala-item span{font-size:10px;font-weight:700;color:var(--text2);line-height:1.25}
+.sala-taca{position:relative;display:inline-flex}
+.sala-taca i{position:absolute;right:-7px;bottom:-2px;background:var(--panel3);border-radius:6px;
+  padding:1px 5px;font-size:9.5px;font-weight:900;font-style:normal;color:var(--text);
+  font-family:var(--num)}
+.taca-nba{filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
+
 /* Os dois fecham a carreira juntos: copiar pro grupo e recomeçar são
    irmãos, não um acima do outro. No celular voltam a empilhar. */
 .acoes-fim{display:flex;gap:9px;margin-top:4px}
@@ -1253,7 +1283,7 @@ function novaCarreira(nome, pos, arq, nac, modo){
     dinheiro:0, salario:0, contrato:0,
     temporadas:[],
     trofeus:{mvp:0,titulo:0,fmvp:0,allstar:0,dpoy:0,mip:0,roy:0,cesta:0,euro:0,
-             ouro:0, prata:0, bronze:0, ouroCopa:0, prataCopa:0, bronzeCopa:0},
+             copaNBA:0, ouro:0, prata:0, bronze:0, ouroCopa:0, prataCopa:0, bronzeCopa:0},
     convocacoes:0,
     ultimo:null, decisaoId:null, aguardando:false, mensagem:null, resultado:null,
     finais:null, mercado:null, ofertaEscolhida:null, ovrAnterior:null, efeitoDecisao:0, decisoesUsadas:[], papel:"titular", ultimoOvr:null, picoOvr:null, picoTres:0, ultimaVit:null,
@@ -1307,6 +1337,12 @@ function premiosDoAno(o, st, vit, campeao){
   if (estrela && ri(0,100) < 75){ out.push({t:"All-Star", k:"normal"}); S.trofeus.allstar++; }
   if (S.A.def >= 89 && ri(0,100) < 28){ out.push({t:"Defensor do Ano", k:"ouro"}); S.trofeus.dpoy++; }
   if (st.pts >= 26 && ri(0,100) < 26){ out.push({t:"Cestinha da liga", k:"ouro"}); S.trofeus.cesta++; }
+  // A COPA NBA é disputada no meio da temporada e não depende de chegar às
+  // finais: dá título a time bom que não foi campeão, que é justamente o
+  // buraco que ela preenche no calendário de verdade.
+  if (vit >= 44 && ri(0,100) < 14 + Math.max(0, o - 84)){
+    out.push({t:"Copa NBA", k:"ouro"}); S.trofeus.copaNBA = (S.trofeus.copaNBA || 0) + 1;
+  }
   if (campeao){
     out.push({t:"CAMPEÃO", k:"titulo"}); S.trofeus.titulo++;
     if (o >= 91 && ri(0,100) < 52){ out.push({t:"MVP das Finais", k:"titulo"}); S.trofeus.fmvp++; }
@@ -2345,7 +2381,11 @@ function render(){
   if (S.fase === "base")   return telaCriar();
   if (S.fase === "escolha")return telaCaminho();
   if (S.fase === "college" || S.fase === "fora") return telaFormacao();
-  if (S.finais)            return telaFinais();
+
+  // As finais são um POPUP por cima da temporada, e não uma tela própria:
+  // são até sete jogos, e cada um redesenhava a tela inteira — a pessoa saía
+  // do contexto do ano sete vezes pra ver um placar mudar de 2-1 pra 3-1.
+  if (S.finais) { telaTemporada(); return abrirFinais(); }
 
   if (S.mercado)           return telaMercado();
   if (S.fase === "draft")  return telaDraft();
@@ -3464,7 +3504,7 @@ function jogarAno(){
   const chegaFinal = playoff && ri(0,100) < clamp((vit-46)*2.2 + (o-84)*1.4, 3, 32);
   if (chegaFinal){
     S.finais = {v:0, d:0, jogos:[], adversario: pick(timesDaLiga().filter(t=>t!==S.time))};
-    salvar(); return telaFinais();
+    salvar(); telaTemporada(); return abrirFinais();
   }
 
   S.ultimaCampanha = `<b>${vit}-${82-vit}</b> · ${playoff ? "caiu nos playoffs" : "fora dos playoffs"}`;
@@ -3642,8 +3682,12 @@ function simularJogoFinal(){
   if (venceu) f.v++; else f.d++;
   f.jogos.push({n:f.jogos.length+1, venceu, meus, deles});
   salvar();
-  if (f.v === 4 || f.d === 4) return encerrarFinais();
-  telaFinais();
+  // O popup se redesenha sozinho: só o placar muda, e redesenhar a tela
+  // inteira a cada jogo era o que tirava a pessoa do contexto do ano.
+  desenharFinais();
+  if (f.v === 4 || f.d === 4) {
+    setTimeout(() => { document.querySelector('.modal-fundo')?.remove(); encerrarFinais(); }, 1100);
+  }
 }
 
 function encerrarFinais(){
@@ -3656,8 +3700,25 @@ function encerrarFinais(){
   fecharAno(campeao, S.ultimaVit, o, st);
 }
 
-function telaFinais(){
-  const f = S.finais;
+/**
+ * As finais, num popup por cima da temporada.
+ *
+ * Sem tela própria e sem botão de fechar: a série começou, e ela termina em
+ * quatro vitórias de alguém. Sair no meio deixaria o ano pendurado.
+ */
+function abrirFinais(){
+  document.querySelector('.modal-fundo')?.remove();
+  const cx = document.createElement('div');
+  cx.className = 'modal-fundo';
+  cx.innerHTML = `<div class="modal-cx modal-finais"><div id="finaisCorpo"></div></div>`;
+  document.body.appendChild(cx);
+  desenharFinais();
+}
+
+function desenharFinais(){
+  const f = S.finais, alvo = document.getElementById('finaisCorpo');
+  if (!f || !alvo) return;
+  const decidido = f.v === 4 || f.d === 4;
   const linhas = f.jogos.map(j => `
     <div class="jogo ${j.venceu?'v':'d'}">
       <span class="jogo-n">Jogo ${j.n}</span>
@@ -3665,19 +3726,20 @@ function telaFinais(){
       <span class="jogo-p">${j.meus} pts seus</span>
     </div>`).join("");
 
-  app().innerHTML = topo() + barra() + `
-    <h1>Finais.</h1>
-    <p class="lead">${esc(S.time)} contra ${esc(f.adversario)}. Quem chegar a 4 primeiro leva.</p>
-    <div class="placar">
-      <div class="placar-topo">
-        ${marca(S.time, 30)}
-        <span class="ano" style="font-size:19px">${f.v} <span style="color:var(--text2)">×</span> ${f.d}</span>
-        ${marca(f.adversario, 30)}
-        <span class="placar-time">série<small>melhor de 7</small></span>
-      </div>
-      ${linhas ? `<div class="jogos">${linhas}</div>` : ""}
+  alvo.innerHTML = `
+    <div class="fin-cab">
+      <span class="fin-tit">Finais</span>
+      <small>melhor de sete · ${esc(S.time)} × ${esc(f.adversario)}</small>
     </div>
-    <button class="btn" onclick="simularJogoFinal()">Jogar o jogo ${f.jogos.length+1}</button>`;
+    <div class="fin-placar">
+      ${marca(S.time, 34)}
+      <b class="${f.v > f.d ? 'na-frente' : ''}">${f.v}</b>
+      <span>×</span>
+      <b class="${f.d > f.v ? 'na-frente' : ''}">${f.d}</b>
+      ${marca(f.adversario, 34)}
+    </div>
+    ${linhas ? `<div class="jogos">${linhas}</div>` : `<p class="fin-vazio">A série começa agora.</p>`}
+    ${decidido ? '' : `<button class="btn" onclick="simularJogoFinal()">Jogar o jogo ${f.jogos.length+1}</button>`}`;
 }
 
 // ── Mercado ────────────────────────────────────────────────────────────
@@ -3989,12 +4051,110 @@ function desistir(){
  * resumo, saber quantos MVPs você tem exigia varrer a coluna de prêmios
  * temporada por temporada.
  */
+/**
+ * As taças, desenhadas em SVG.
+ *
+ * Foto de troféu de verdade é marca de terceiro e o projeto não hospeda isso
+ * — e desenho vetorial aparece igual em qualquer aparelho, sem depender de
+ * rede, como já vale para as bandeiras e para as taças do Copero.
+ *
+ * Cada uma tem que se distinguir de RELANCE, sem ler a legenda: o Larry
+ * O'Brien é a bola sobre a haste, a Copa NBA é a taça de alças, o MVP é a
+ * figura, as medalhas são o disco na fita. `id => [cor, desenho]`.
+ */
+const TACAS_NBA = {
+  // Larry O'Brien: a bola em cima da rede, sobre a base cilíndrica.
+  titulo: ['#e5b45c',
+    '<circle cx="32" cy="15" r="9" fill="currentColor"/>'
+  + '<path d="M23 15h18M32 6v18M25 9.5c4 3.5 10 3.5 14 0M25 20.5c4-3.5 10-3.5 14 0" '
+  + 'stroke="#5b3d12" stroke-width="1.1" fill="none" opacity=".55"/>'
+  + '<path d="M26 24h12l-2 12H28z" fill="currentColor"/>'
+  + '<rect x="27" y="36" width="10" height="5" fill="currentColor" opacity=".85"/>'
+  + '<rect x="21" y="41" width="22" height="8" rx="2" fill="currentColor"/>'],
+  // Copa NBA: taça de alças abertas, prateada — a do meio de temporada.
+  copaNBA: ['#c7ccd4',
+    '<path d="M23 9h18v13c0 6.5-3.5 10.5-9 12.5-5.5-2-9-6-9-12.5z" fill="currentColor"/>'
+  + '<path d="M23 12h-6v5c0 4.5 2.5 7.5 6 8.5M41 12h6v5c0 4.5-2.5 7.5-6 8.5" '
+  + 'stroke="currentColor" stroke-width="2.4" fill="none"/>'
+  + '<rect x="29.5" y="34" width="5" height="8" fill="currentColor"/>'
+  + '<path d="M22 42h20l2 7H20z" fill="currentColor"/>'],
+  // MVP: a figura recortada, que é como o troféu de verdade se reconhece.
+  mvp: ['#eab308',
+    '<circle cx="32" cy="12" r="5" fill="currentColor"/>'
+  + '<path d="M32 18c-6 0-9 4-9 10v8h18v-8c0-6-3-10-9-10z" fill="currentColor"/>'
+  + '<path d="M23 24l-5 6M41 24l5 6" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>'
+  + '<rect x="28" y="38" width="8" height="5" fill="currentColor"/>'
+  + '<rect x="20" y="43" width="24" height="7" rx="2" fill="currentColor"/>'],
+  // MVP das Finais: a bola sobre o pedestal alto.
+  fmvp: ['#d4af37',
+    '<circle cx="32" cy="17" r="10" fill="currentColor"/>'
+  + '<path d="M22 17h20M32 7v20" stroke="#5b3d12" stroke-width="1.2" opacity=".5"/>'
+  + '<rect x="29" y="29" width="6" height="12" fill="currentColor"/>'
+  + '<path d="M23 41h18l3 8H20z" fill="currentColor"/>'],
+  // Defensor do ano: o escudo.
+  dpoy: ['#60a5fa',
+    '<path d="M32 8l16 5v13c0 10-7 17-16 20-9-3-16-10-16-20V13z" fill="currentColor"/>'
+  + '<path d="M25 27l5 5 10-11" stroke="#0a1a30" stroke-width="3" fill="none" '
+  + 'stroke-linecap="round" stroke-linejoin="round"/>'],
+  // Cestinha: a bola entrando na rede.
+  cesta: ['#f97316',
+    '<rect x="14" y="10" width="36" height="4" rx="1.5" fill="currentColor"/>'
+  + '<path d="M18 14l3 11h22l3-11" stroke="currentColor" stroke-width="2.4" fill="none"/>'
+  + '<path d="M21 25l4 9h14l4-9" stroke="currentColor" stroke-width="1.8" fill="none" opacity=".6"/>'
+  + '<circle cx="32" cy="43" r="8" fill="currentColor"/>'
+  + '<path d="M24 43h16M32 35v16" stroke="#7c2d12" stroke-width="1.2" opacity=".7"/>'],
+  // Calouro do ano: a estrela nascendo.
+  roy: ['#34d399',
+    '<path d="M32 10l4.5 9.5L47 21l-7.5 7.3 1.8 10.4L32 33.8l-9.3 4.9 1.8-10.4L17 21l10.5-1.5z" '
+  + 'fill="currentColor"/>'
+  + '<path d="M18 46h28" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".55"/>'],
+  // All-Star: a estrela cheia.
+  allstar: ['#a78bfa',
+    '<path d="M32 8l6 12.5L52 22l-10 9.7 2.4 13.8L32 39l-12.4 6.5L22 31.7 12 22l14-1.5z" '
+  + 'fill="currentColor"/>'],
+  // Euroliga: a taça continental.
+  euro: ['#38bdf8',
+    '<path d="M24 10h16v12c0 6-3 10-8 12-5-2-8-6-8-12z" fill="currentColor"/>'
+  + '<path d="M24 13h-6v5c0 5 3 8 6 9M40 13h6v5c0 5-3 8-6 9" '
+  + 'stroke="currentColor" stroke-width="2.4" fill="none"/>'
+  + '<rect x="30" y="34" width="4" height="9" fill="currentColor"/>'
+  + '<path d="M23 43h18l2 7H21z" fill="currentColor"/>'],
+  // As medalhas: mesma forma, cor diferente — é assim que pódio funciona.
+  ouro:   ['#fbbf24', MEDALHA_SVG()],
+  prata:  ['#cbd5e1', MEDALHA_SVG()],
+  bronze: ['#c2825a', MEDALHA_SVG()],
+};
+// Copa do Mundo usa a mesma medalha do pódio olímpico.
+TACAS_NBA.ouroCopa   = ['#fbbf24', MEDALHA_SVG(true)];
+TACAS_NBA.prataCopa  = ['#cbd5e1', MEDALHA_SVG(true)];
+TACAS_NBA.bronzeCopa = ['#c2825a', MEDALHA_SVG(true)];
+
+/** O disco na fita. `comBola` marca as da Copa, pra não confundir com o pódio. */
+function MEDALHA_SVG(comBola){
+  return '<path d="M22 6l7 18M42 6l-7 18" stroke="currentColor" stroke-width="4" '
+       + 'stroke-linecap="round" opacity=".55"/>'
+       + '<circle cx="32" cy="36" r="14" fill="currentColor"/>'
+       + (comBola
+          ? '<circle cx="32" cy="36" r="7.5" fill="none" stroke="#3b2a08" stroke-width="1.6" opacity=".6"/>'
+          + '<path d="M24.5 36h15M32 28.5v15" stroke="#3b2a08" stroke-width="1.4" opacity=".6"/>'
+          : '<circle cx="32" cy="36" r="8.5" fill="none" stroke="#3b2a08" stroke-width="1.8" opacity=".45"/>');
+}
+
+/** A taça desenhada, do tamanho pedido. Id desconhecido não desenha nada. */
+function tacaNBA(id, tam){
+  const t = TACAS_NBA[id];
+  if (!t) return '';
+  return `<svg class="taca-nba" viewBox="0 0 64 56" width="${tam}" height="${tam}"
+    style="color:${t[0]}" role="img" aria-label="${esc(id)}">${t[1]}</svg>`;
+}
+
 function resumoDeTrofeus(){
   const t = S.trofeus || {};
   const ordem = [
     ["titulo","Título","Títulos","titulo"],
     ["mvp","MVP","MVPs","ouro"],
     ["fmvp","MVP das Finais","MVPs das Finais","titulo"],
+    ["copaNBA","Copa NBA","Copas NBA","ouro"],
     ["euro","Euroliga","Euroligas","ouro"],
     ["dpoy","Defensor do Ano","Defensores do Ano","ouro"],
     ["cesta","Cestinha","Cestinhas","ouro"],
@@ -4007,14 +4167,27 @@ function resumoDeTrofeus(){
     ["roy","Calouro do Ano","Calouro do Ano","ouro"],
     ["allstar","All-Star","All-Stars","normal"],
   ];
-  const chips = ordem
-    .map(([k, um, varios, cor]) => {
+  // A galeria mostra a TAÇA, não o nome dela. Quinze linhas de "3× MVP" é
+  // uma lista; quinze taças desenhadas é uma sala de troféus, e é ela que
+  // faz a carreira parecer uma carreira.
+  const itens = ordem
+    .map(([k, um, varios]) => {
       const n = Math.max(0, Number(t[k]) || 0);
-      return n ? `<span class="pr ${cor}">${n}× ${esc(n === 1 ? um : varios)}</span>` : "";
+      if (!n) return "";
+      const svg = tacaNBA(k, 44);
+      if (!svg) return `<span class="pr">${n}× ${esc(n === 1 ? um : varios)}</span>`;
+      return `<div class="sala-item" title="${esc(n + '× ' + (n === 1 ? um : varios))}">
+        <div class="sala-taca">${svg}${n > 1 ? `<i>×${n}</i>` : ""}</div>
+        <span>${esc(n === 1 ? um : varios)}</span>
+      </div>`;
     })
     .filter(Boolean);
-  if (!chips.length) return "";
-  return `<div class="trofeus-resumo">${chips.join("")}</div>`;
+  if (!itens.length) return "";
+  const total = ordem.reduce((s, [k]) => s + Math.max(0, Number(t[k]) || 0), 0);
+  return `<div class="bpcard sala">
+    <div class="sala-cab">Sala de troféus<b>${total}</b></div>
+    <div class="sala-grade">${itens.join("")}</div>
+  </div>`;
 }
 
 /**
