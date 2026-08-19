@@ -1129,10 +1129,10 @@ function titulosDaTemporada(clube, ovr, stats){
   const anoPassado = S.temporadas[S.temporadas.length - 1];
   const ganhouAntes = (anoPassado && anoPassado.titulos) || [];
   if (ganhouAntes.includes('liga') || ganhouAntes.includes('copa')) {
-    if (SUPERNAC[l.pais] && Math.random() < 0.5) ganhos.push('supernac');
+    if (SUPERNAC[l.pais] && Math.random() < 0.62) ganhos.push('supernac');
   }
   if (ganhouAntes.includes('cont') || ganhouAntes.includes('cont2')) {
-    if (SUPERCONT[l.cont] && Math.random() < 0.5) ganhos.push('supercont');
+    if (SUPERCONT[l.cont] && Math.random() < 0.62) ganhos.push('supercont');
   }
 
   // Prêmios individuais: dependem do jogador, não do clube — e sobem em
@@ -1737,7 +1737,7 @@ function temporada(){
   // do bom atacante. Com a régua reta de antes, um 94 marcava 30 por ano e o
   // milésimo gol era inalcançável — e o milésimo é o número mítico do
   // futebol, tem que caber numa carreira perfeita.
-  const q = Math.max(0.2, Math.pow(Math.max(0, S.ovr - 42) / 48, 1.9) * 1.62);
+  const q = Math.max(0.18, Math.pow(Math.max(0, S.ovr - 42) / 48, 2.3) * 1.95);
   const t = {
     idade: S.idade, clube: S.clube.nome, liga: S.clube.liga, ovr: S.ovr,
     jogos,
