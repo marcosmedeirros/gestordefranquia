@@ -1665,6 +1665,15 @@ function wcPlacarPrevisto(float $distancia, bool $aFavorito): array
  */
 function wcForcaDoTime(array $elenco): float
 {
+    // Só Titular e Banco. "Outro" e G-League são reserva de contrato, não
+    // rotação — deixar eles contarem premiava quem tem elenco inchado, e
+    // um time com quinteto igual perdia pra outro por causa de gente que
+    // não entra em quadra.
+    $elenco = array_values(array_filter($elenco, function ($p) {
+        $r = trim((string)($p['role'] ?? ''));
+        return $r === 'Titular' || $r === 'Banco';
+    }));
+
     $cinco = array_values(array_filter(wcQuintetoTitular($elenco)));
     if (!$cinco) return 0.0;
 
