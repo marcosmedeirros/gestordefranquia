@@ -79,6 +79,8 @@ const CAMINHO_DESAFIOS = [
   // UM ouro é o marco de entrada de cada prêmio; o que exige carreira boa é
   // repetir (três MVPs, três títulos), e isso já está nos difíceis.
   'roy'         => 'dificil',
+  'top5'        => 'medio',
+  'pick1'       => 'dificil',
   'chamado'     => 'facil',
   'ringless'    => 'facil',
   'anel'        => 'facil',
@@ -3183,8 +3185,13 @@ function avancarFormacao(){
   // escolhas. Dividir pela escala do ano deixa um ano bom valendo o mesmo
   // (+10 de hype) seja ele o primeiro ou o último.
   const desempenho = (st.pts*1.6 + st.reb*0.9 + st.ast*1.1) + (o-60);
-  const esperado = -12 + 10.5 * (S.anoFase - 1);
-  const escala   =  8 +  9   * (S.anoFase - 1);
+  // Remedido depois que a curva de minutos mudou: a produção mediana da
+  // formação virou -5,7 / +2,1 / +8,7 / +16,7 do primeiro ao quarto ano
+  // (antes era -2,7 / +9,2 / +19,1 / +28,4). Com a régua velha, todo mundo
+  // ficava abaixo do esperado e o hype voltava a cair ano após ano — o que
+  // apagava as escolhas de topo do draft.
+  const esperado = -12 + 6.5 * (S.anoFase - 1);
+  const escala   =  8 +  10  * (S.anoFase - 1);
   S.hype = clamp(S.hype + Math.round((desempenho - esperado) / escala * 11), 5, 99);
 
   // O fenômeno é notado antes de jogar bem: é o que ele É, não o que ele
@@ -3570,6 +3577,8 @@ const DESAFIOS = [
   {id:"fmvp",        i:"💍", n:"Dono das finais",    d:"Ganhe o MVP das Finais."},
   {id:"dpoy",        i:"🛡️", n:"Muralha",            d:"Ganhe o Defensor do Ano."},
   {id:"roy",         i:"🌱", n:"Chegou pronto",      d:"Ganhe o Calouro do Ano."},
+  {id:"top5",        i:"🎖️", n:"Top 5 do draft",     d:"Seja escolhido entre os cinco primeiros."},
+  {id:"pick1",       i:"🥇", n:"Primeira escolha",   d:"Seja a escolha número 1 do draft."},
   {id:"allstar5",    i:"🎪", n:"Presença garantida", d:"Seja All-Star cinco vezes."},
   {id:"pts30k",      i:"🎯", n:"Vinte e dois mil",   d:"Marque 22 mil pontos na carreira."},
   {id:"duplo20k",    i:"📊", n:"Números redondos",   d:"15 mil pontos e 7 mil rebotes na mesma carreira."},
@@ -3656,6 +3665,8 @@ function testarDesafio(id, fim){
     case "fmvp":        return (t.fmvp||0) >= 1;
     case "dpoy":        return (t.dpoy||0) >= 1;
     case "roy":         return (t.roy||0) >= 1;
+    case "top5":        return (S.pickDraft||99) <= 5;
+    case "pick1":       return (S.pickDraft||99) === 1;
     case "allstar5":    return (t.allstar||0) >= 5;
     // Os alvos saem de 1.320 carreiras completas simuladas, e não do olho.
     // Os antigos (20 mil pontos, 10 mil + 5 mil) caíam em 90% e 94% das
