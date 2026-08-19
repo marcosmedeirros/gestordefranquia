@@ -465,6 +465,9 @@ button{font-family:inherit}
   border-radius:4px 0 0 4px;background:var(--n,#3f3f46)}
 .conq em{font-style:normal;position:absolute;right:10px;top:9px;font-size:9px;font-weight:800;
   letter-spacing:.8px;text-transform:uppercase;color:var(--n,#71717a);opacity:.9}
+/* O nome cede a largura do rótulo. Sem isto o "IMPOSSÍVEL" caía POR CIMA
+   dele — o rótulo é absoluto e o nome ocupava a linha inteira. */
+.conq b{padding-right:74px}
 .conq.n-facil{--n:#4ade80}
 .conq.n-media{--n:#60a5fa}
 .conq.n-dificil{--n:#c084fc}
