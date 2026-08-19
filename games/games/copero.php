@@ -1129,10 +1129,10 @@ function titulosDaTemporada(clube, ovr, stats){
   const anoPassado = S.temporadas[S.temporadas.length - 1];
   const ganhouAntes = (anoPassado && anoPassado.titulos) || [];
   if (ganhouAntes.includes('liga') || ganhouAntes.includes('copa')) {
-    if (SUPERNAC[l.pais] && Math.random() < 0.62) ganhos.push('supernac');
+    if (SUPERNAC[l.pais] && Math.random() < 0.72) ganhos.push('supernac');
   }
   if (ganhouAntes.includes('cont') || ganhouAntes.includes('cont2')) {
-    if (SUPERCONT[l.cont] && Math.random() < 0.62) ganhos.push('supercont');
+    if (SUPERCONT[l.cont] && Math.random() < 0.72) ganhos.push('supercont');
   }
 
   // Prêmios individuais: dependem do jogador, não do clube — e sobem em
