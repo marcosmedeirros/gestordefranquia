@@ -190,6 +190,11 @@ if ($action === 'save_stats') {
         exit;
     }
 
+    // Salvar as estatísticas TAMBÉM conta como atualizar o elenco. Antes só o
+    // botão de atributos marcava, e quem preenchia a temporada inteira de
+    // números continuava aparecendo como pendente no painel do admin.
+    marcarElencoAtualizado($pdo, $teamId);
+
     echo json_encode(['success' => true, 'saved' => $ok, 'skipped' => $ignorados,
                       'season_number' => (int)$season['season_number']]);
     exit;

@@ -53,23 +53,33 @@ function ensureLeagueCapAutoTables(PDO $pdo): void
 }
 
 /**
- * Quantos times da liga já registraram o elenco (player_season_log) nesta
- * temporada — mesma query usada em backend/checklist_temporada.php pro item
- * "Times atualizados".
+ * Quantos times da liga já mexeram no elenco nesta temporada.
+ *
+ * ESTE é o único lugar que conta — o checklist do admin chama daqui. A regra
+ * já esteve escrita duas vezes, aqui e lá, e regra repetida é regra que
+ * diverge no dia em que uma das duas muda.
+ *
+ * Conta QUALQUER mexida: o carimbo `roster_touched_season`, gravado por
+ * qualquer edição de elenco, ou uma linha em player_season_log, que é o que
+ * o botão "Salvar atributos" grava. Os dois somam porque o carimbo é novo, e
+ * sem o segundo os times que já tinham atualizado voltariam a aparecer como
+ * pendentes no dia em que isto subisse.
  */
 function leagueRosterUpdateStatus(PDO $pdo, string $league, int $seasonId): array
 {
+    ensureRosterTouchColumn($pdo);
+
     $stmtTotal = $pdo->prepare("SELECT COUNT(*) FROM teams WHERE league = ?");
     $stmtTotal->execute([$league]);
     $total = (int)$stmtTotal->fetchColumn();
 
     $stmtDone = $pdo->prepare("
-        SELECT COUNT(DISTINCT psl.team_id)
-        FROM player_season_log psl
-        JOIN teams t ON t.id = psl.team_id
-        WHERE psl.season_id = ? AND t.league = ?
+        SELECT COUNT(DISTINCT t.id)
+        FROM teams t
+        LEFT JOIN player_season_log psl ON psl.team_id = t.id AND psl.season_id = ?
+        WHERE t.league = ? AND (t.roster_touched_season = ? OR psl.player_id IS NOT NULL)
     ");
-    $stmtDone->execute([$seasonId, $league]);
+    $stmtDone->execute([$seasonId, $league, $seasonId]);
     $done = (int)$stmtDone->fetchColumn();
 
     return ['total' => $total, 'done' => $done, 'complete' => $total > 0 && $done >= $total];

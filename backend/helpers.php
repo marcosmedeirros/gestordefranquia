@@ -1667,19 +1667,85 @@ function seasonIdsDaSprintAtual(PDO $pdo, string $league): array
 }
 
 /**
+ * As duas colunas de "mexeu no elenco": QUANDO e em que TEMPORADA.
+ *
+ * `roster_updated_at` já existia e alimenta o "atualizado há X" na lista de
+ * times. `roster_touched_season` é o que o painel usa, e guarda o id em vez
+ * da data porque comparar com o início da temporada é conta que pode dar
+ * errado; o id não tem como.
+ */
+function ensureRosterTouchColumn(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    try {
+        if ($pdo->query("SHOW COLUMNS FROM teams LIKE 'roster_touched_season'")->rowCount() === 0) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN roster_touched_season INT NULL");
+        }
+        if ($pdo->query("SHOW COLUMNS FROM teams LIKE 'roster_updated_at'")->rowCount() === 0) {
+            $pdo->exec("ALTER TABLE teams ADD COLUMN roster_updated_at TIMESTAMP NULL DEFAULT NULL");
+        }
+        $feito = true;
+    } catch (Throwable $e) {
+        $feito = true;   // base antiga: segue sem o carimbo, o log ainda vale
+    }
+}
+
+/**
+ * Carimba que este time mexeu no elenco na temporada ativa.
+ *
+ * Chamado por QUALQUER edição de elenco: salvar atributos, salvar
+ * estatísticas, editar um jogador, contratar, dispensar. Antes só o botão
+ * "Salvar atributos" contava, e quem preenchia a temporada inteira de
+ * estatísticas continuava aparecendo como pendente no painel.
+ *
+ * Falha em silêncio de propósito: isto é contabilidade do admin, e não pode
+ * derrubar a edição do elenco de ninguém.
+ */
+function marcarElencoAtualizado(PDO $pdo, ?int $teamId): void
+{
+    if (!$teamId) return;
+    try {
+        ensureRosterTouchColumn($pdo);
+        $st = $pdo->prepare("SELECT league FROM teams WHERE id = ? LIMIT 1");
+        $st->execute([$teamId]);
+        $league = (string)$st->fetchColumn();
+        if ($league === '') return;
+
+        $st = $pdo->prepare("SELECT id FROM seasons
+                             WHERE league = ? AND (status IS NULL OR status <> 'completed')
+                             ORDER BY id DESC LIMIT 1");
+        $st->execute([$league]);
+        $seasonId = (int)$st->fetchColumn();
+        if ($seasonId <= 0) return;
+
+        $pdo->prepare("UPDATE teams SET roster_touched_season = ?, roster_updated_at = NOW() WHERE id = ?")
+            ->execute([$seasonId, $teamId]);
+    } catch (Throwable $e) {
+        error_log('[roster-touch] ' . $e->getMessage());
+    }
+}
+
+/**
  * O time já fez a atualização de elenco da temporada ativa?
  *
- * O sinal é a existência de linhas em player_season_log para (time, temporada
- * ativa) — é o que atualizar-elenco.php grava ao confirmar (save_snapshot em
- * api/player_stats.php). Não confunde com o snapshot automático de
- * api/seasons.php: aquele roda para a temporada que está sendo ENCERRADA, e
- * aqui só olhamos a que está em andamento.
+ * Vale QUALQUER mexida no elenco, e não só o botão "Salvar atributos": ou o
+ * carimbo `roster_touched_season`, ou uma linha em player_season_log daquela
+ * temporada. Os dois sinais somam porque o carimbo é novo — sem o segundo, os
+ * times que já tinham atualizado voltariam a aparecer como pendentes no dia
+ * em que isto subisse.
  *
  * Sem temporada ativa não há o que cobrar — devolve true para não travar nada.
  */
 function elencoAtualizadoNaTemporada(PDO $pdo, ?int $teamId, ?int $seasonId): bool
 {
     if (!$teamId || !$seasonId) return true;
+    try {
+        ensureRosterTouchColumn($pdo);
+        $st = $pdo->prepare("SELECT 1 FROM teams WHERE id = ? AND roster_touched_season = ? LIMIT 1");
+        $st->execute([$teamId, $seasonId]);
+        if ($st->fetchColumn()) return true;
+    } catch (Throwable $e) { /* sem a coluna, sobra o log */ }
     try {
         $st = $pdo->prepare("SELECT 1 FROM player_season_log
                              WHERE team_id = ? AND season_id = ? LIMIT 1");

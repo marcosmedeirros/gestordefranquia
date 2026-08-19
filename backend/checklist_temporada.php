@@ -27,25 +27,18 @@ function checklistDaTemporada(PDO $pdo, string $league, array $season): array
     };
 
     // ── Times atualizados ───────────────────────────────────────────────────
-    // Cada time precisa ter registrado o elenco da temporada (player_season_log).
+    // A contagem mora em backend/league_cap.php e é chamada daqui: a regra já
+    // esteve escrita nos dois arquivos, e regra repetida diverge.
     try {
-        $st = $pdo->prepare("SELECT COUNT(*) FROM teams WHERE league = ?");
-        $st->execute([$league]);
-        $totalTimes = (int)$st->fetchColumn();
-
-        $st = $pdo->prepare("
-            SELECT COUNT(DISTINCT psl.team_id)
-            FROM player_season_log psl
-            JOIN teams t ON t.id = psl.team_id
-            WHERE psl.season_id = ? AND t.league = ?
-        ");
-        $st->execute([$seasonId, $league]);
-        $atualizados = (int)$st->fetchColumn();
+        require_once __DIR__ . '/league_cap.php';
+        $st = leagueRosterUpdateStatus($pdo, $league, $seasonId);
+        $totalTimes = $st['total'];
+        $atualizados = $st['done'];
 
         $add(
             'times',
             'Times atualizados',
-            $totalTimes > 0 && $atualizados >= $totalTimes,
+            $st['complete'],
             "{$atualizados} de {$totalTimes} times"
         );
     } catch (Throwable $e) {

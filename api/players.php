@@ -431,6 +431,7 @@ if ($method === 'POST') {
                 'matched' => $matched,
             ];
         }
+        marcarElencoAtualizado($pdo, $teamId);
         jsonResponse(200, [
             'updated' => $updated,
             'total' => count($updates),
@@ -512,6 +513,7 @@ if ($method === 'POST') {
         $warnings[] = 'CAP acima do limite recomendado (' . $newCap . ' / ' . $capMaxAdjusted . ').';
     }
 
+    marcarElencoAtualizado($pdo, $teamId);
     jsonResponse(201, [
         'message' => 'Jogador adicionado.',
         'player_id' => $pdo->lastInsertId(),
@@ -738,14 +740,9 @@ if ($method === 'PUT') {
     $values[] = $playerId;
     $upd->execute($values);
 
-    // Registrar que o time atualizou o elenco nesta temporada
-    try {
-        $chkRUA = $pdo->query("SHOW COLUMNS FROM teams LIKE 'roster_updated_at'");
-        if ($chkRUA->rowCount() === 0) {
-            $pdo->exec("ALTER TABLE teams ADD COLUMN roster_updated_at TIMESTAMP NULL DEFAULT NULL");
-        }
-        $pdo->prepare("UPDATE teams SET roster_updated_at = NOW() WHERE id = ?")->execute([(int)$player['team_id']]);
-    } catch (Exception $e) {}
+    // Registrar que o time mexeu no elenco nesta temporada. Isto é o que faz o
+    // painel do admin contar o time como atualizado.
+    marcarElencoAtualizado($pdo, (int)$player['team_id']);
 
     $newCap = topOvrCap($pdo, (int)$player['team_id']);
     $capMaxAdjusted = capMaxWithRestrictedBonus($pdo, (int)$player['team_id'], (int)$config['app']['cap_max']);
@@ -822,6 +819,7 @@ if ($method === 'DELETE') {
 
             $newCap = topOvrCap($pdo, (int)$row['team_id']);
 
+            marcarElencoAtualizado($pdo, (int)$row['team_id']);
             jsonResponse(200, [
                 'message' => $row['name'] . ' se aposentou após uma grande carreira!',
                 'cap_top8' => $newCap,
@@ -915,6 +913,7 @@ if ($method === 'DELETE') {
         jsonResponse(500, ['error' => 'Erro ao dispensar jogador']);
     }
 
+    marcarElencoAtualizado($pdo, (int)$row['team_id']);
     $newCap = topOvrCap($pdo, (int)$row['team_id']);
     $waiversRemaining = max(0, $MAX_WAIVERS - ($row['waivers_used'] + 1));
 
