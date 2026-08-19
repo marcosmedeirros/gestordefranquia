@@ -82,7 +82,7 @@ const CAMINHO_DESAFIOS = [
   'chamado'     => 'facil',
   'ringless'    => 'facil',
   'anel'        => 'facil',
-  'mvp'         => 'facil',
+  'mvp'         => 'medio',
   'dpoy'        => 'facil',
   'selecao'     => 'facil',
   // Médios — exigem uma carreira boa.
@@ -91,15 +91,15 @@ const CAMINHO_DESAFIOS = [
   'estreia'     => 'medio',
   'euroliga'    => 'dificil',
   'nomade'      => 'medio',
-  'lenda_clube' => 'medio',
+  'lenda_clube' => 'facil',
   'de_pe'       => 'medio',
   // Difíceis — carreira longa e muito acima da média.
-  'tricampeao'  => 'medio',
+  'tricampeao'  => 'dificil',
   'mvp3'        => 'dificil',
-  'pts30k'      => 'dificil',
-  'duplo20k'    => 'dificil',
+  'pts30k'      => 'medio',
+  'duplo20k'    => 'medio',
   'ovr99'       => 'dificil',
-  'ferro'       => 'medio',
+  'ferro'       => 'facil',
   'ano_perfeito'=> 'dificil',
   // Impossíveis — precisam de várias coisas raras na MESMA carreira.
   // A régua: nada aqui passou de 2% em 1.320 carreiras completas simuladas,
@@ -1134,6 +1134,8 @@ tr.tit td{color:var(--red)}
   color:var(--red);font-variant-numeric:tabular-nums;line-height:1.1}
 .ol-num small{display:block;font-size:10px;font-weight:700;color:var(--text3);margin-top:3px;
   font-variant-numeric:normal}
+.op-parar{margin-top:10px;border-style:dashed;color:var(--text2)}
+.op-parar:hover{border-color:var(--red);color:var(--text)}
 
 /* ── CONVITES (pra onde ir) ──────────────────────────────────────────── */
 .conv-lista{display:flex;flex-direction:column;gap:8px}
@@ -1498,8 +1500,15 @@ function forcaDoTime(){
 function minutosDoAno(o){
   // Minutos saem da confiança do treinador, não só do talento — é o que
   // faz "pedir troca" e "furar o protocolo médico" doerem de verdade.
-  const base = (o - 55) * 0.62 + (S.confianca - 50) * 0.30 + 20;
-  return clamp(Math.round(base + ri(-3, 3)), 6, 38);
+  //
+  // A curva antiga dava 29 minutos a um jogador de 70 de overall — que numa
+  // rotação de verdade é o nono ou décimo homem, de 12 a 15 minutos. Como
+  // todo mundo jogava muito, todo mundo produzia, e por isso ninguém era
+  // dispensado: a carreira de quem nunca ganhou espaço não existia no jogo.
+  // Agora a reta é mais inclinada: 65 senta, 75 é rotação, 85 é titular de
+  // 33 minutos.
+  const base = (o - 60) * 1.15 + (S.confianca - 50) * 0.28 + 4;
+  return clamp(Math.round(base + ri(-3, 3)), 3, 38);
 }
 
 function statsDoAno(o, min, forca){
@@ -2233,11 +2242,86 @@ function descontoDoPrazo(anos){
   return anos >= 5 ? 0.88 : anos >= 4 ? 0.94 : anos <= 2 ? 1.10 : 1;
 }
 
+/**
+ * A liga ainda te quer?
+ *
+ * Esta é a pergunta que faltava no jogo. Antes toda carreira durava as 22
+ * temporadas até a aposentadoria por idade, porque a proposta de renovar
+ * SEMPRE existia — inclusive pra quem tinha 34 anos e 68 de overall. Numa
+ * liga de verdade o telefone simplesmente para de tocar, e a decisão vira
+ * outra: insistir lá fora ou pendurar.
+ *
+ * Os três casos são os três jeitos de acabar: o nível caiu abaixo do que a
+ * liga usa, a idade chegou sem o nível pra compensar, ou ninguém paga nada
+ * por você.
+ */
+function ligaAindaQuer(){
+  if (S.foraDaLiga) return false;      // já está fora; quem decide é o chamado
+  const o = ovr(S.A, S.pos);
+  const v = valorDeMercado();
+  // O piso de nível que a liga aceita SOBE com a idade. Aos 22 ela ainda
+  // está pagando pra ver o que você vira; aos 30 ela quer o que você entrega
+  // hoje; aos 34 só fica quem ainda é titular de verdade. É essa escada que
+  // faz a carreira mediana durar o que ela dura na vida real, em vez de
+  // esticar até os 39 como se todo mundo fosse titular pra sempre.
+  const piso = S.idade <= 24 ? 62
+             : S.idade <= 28 ? 70
+             : S.idade <= 32 ? 75
+             : S.idade <= 35 ? 79
+                             : 83;
+  if (o < piso) return false;
+
+  // Não basta o nível: a liga renova quem JOGA. Quem passou a temporada no
+  // fim do banco depois dos 25 não recebe proposta, tenha o overall que
+  // tiver — é assim que a carreira de quem nunca ganhou minutos acaba no
+  // meio, e não aos 38.
+  const ptsAno = (S.ultimo && S.ultimo.pts) || 0;
+  if (S.idade >= 25 && ptsAno < 6.5 && o < 80) return false;
+
+  // E mesmo dentro do piso o lugar não é garantido: todo time drafta gente
+  // nova todo ano, e o nono homem é o primeiro a ser cortado. Depois dos 25,
+  // quem está abaixo da média da liga tem uma chance real de não receber
+  // proposta nenhuma — é o que faz existir a carreira de sete anos, entre a
+  // que não vingou e a que durou até os 38.
+  if (S.idade >= 25 && o < 78 && ri(0, 100) < 32) return false;
+
+  if (v <= 2) return false;                        // ninguém paga nada
+  return true;
+}
+
 function gerarOfertas(){
   const v = valorDeMercado();
   const lista = timesDaLiga().filter(t => t !== S.time);
   const ofertas = [];
   const timeAleatorio = () => pick(lista);
+
+  // Dispensado: a liga não faz proposta nenhuma. Sobram as portas de fora —
+  // e a de pendurar as chuteiras, que a tela do mercado sempre oferece
+  // quando é este o caso.
+  if (!ligaAindaQuer()){
+    S.dispensado = true;
+    // Fim de linha de verdade: com essa idade e esse nível não existe mais
+    // clube nenhum, nem na G League. A tela do mercado vira a despedida.
+    const oAtual = ovr(S.A, S.pos);
+    if ((S.idade >= 36 && oAtual < 72) || (S.idade >= 39) || oAtual < 58) return [];
+    const g = pick(G_LEAGUE);
+    const fora = [{tipo:"gleague", time:g[0], liga:g[1], anos:1,
+                   salario:Math.max(1, Math.round(v*0.5) + 1), forca:ri(38,62), papel:"rotação",
+                   nota:"A vitrine. Paga pouco e os olheiros passam por aqui."}];
+    const doPais = CLUBES_FORA[S.nac] || [];
+    if (doPais.length){
+      const c = pick(doPais);
+      fora.push({tipo:"exterior", time:c[0], liga:c[1], anos:2,
+                 salario:Math.max(2, Math.round(Math.max(v,3) * 1.3)), forca:ri(45,78), papel:"titular",
+                 nota:"Em casa, jogando todo dia, com a sua torcida vendo."});
+    }
+    const f = pick(CLUBES_GLOBAIS);
+    fora.push({tipo:"exterior", time:f[0], liga:f[1], anos:2,
+               salario:Math.max(2, Math.round(Math.max(v,3) * 1.6)), forca:ri(50,84), papel:"titular",
+               nota:"Longe de tudo, pagando bem, e você volta a ser o cara do time."});
+    return fora;
+  }
+  S.dispensado = false;
 
   // Quem está fora da liga não recebe proposta dela como se nada tivesse
   // acontecido: o mercado de lá é outro. Ou renova, ou troca de clube no
@@ -3474,8 +3558,8 @@ const DESAFIOS = [
   {id:"dpoy",        i:"🛡️", n:"Muralha",            d:"Ganhe o Defensor do Ano."},
   {id:"roy",         i:"🌱", n:"Chegou pronto",      d:"Ganhe o Calouro do Ano."},
   {id:"allstar5",    i:"🎪", n:"Presença garantida", d:"Seja All-Star cinco vezes."},
-  {id:"pts30k",      i:"🎯", n:"Vinte e oito mil",   d:"Marque 28 mil pontos na carreira."},
-  {id:"duplo20k",    i:"📊", n:"Números redondos",   d:"20 mil pontos e 9 mil rebotes na mesma carreira."},
+  {id:"pts30k",      i:"🎯", n:"Vinte e dois mil",   d:"Marque 22 mil pontos na carreira."},
+  {id:"duplo20k",    i:"📊", n:"Números redondos",   d:"15 mil pontos e 7 mil rebotes na mesma carreira."},
   {id:"ovr99",       i:"💯", n:"Teto",               d:"Chegue a 97 de overall."},
   {id:"porta_fundos",i:"🚪", n:"Pela porta dos fundos", d:"Ganhe um título sem ter sido draftado — saia no primeiro ano pra ficar fora das 60."},
   {id:"chamado",     i:"📞", n:"A liga ligou",       d:"Seja chamado pela liga vindo de fora dela."},
@@ -3483,26 +3567,26 @@ const DESAFIOS = [
   {id:"nomade",      i:"🧳", n:"Nômade",             d:"Jogue por seis clubes diferentes."},
   {id:"selecao",     i:"🏅", n:"Herói nacional",     d:"Ganhe um ouro pela seleção."},
   {id:"euroliga",    i:"🌍", n:"Rei da Europa",      d:"Ganhe uma Euroliga."},
-  {id:"ferro",       i:"🦾", n:"Ferro",              d:"Jogue vinte e quatro temporadas — a carreira inteira."},
+  {id:"ferro",       i:"🦾", n:"Ferro",              d:"Jogue vinte temporadas."},
   {id:"de_pe",       i:"🩹", n:"De pé",              d:"Perca uma temporada inteira e volte a ganhar prêmio."},
   {id:"estreia",     i:"🚀", n:"Chegou chegando",    d:"Média de 20 pontos na temporada de estreia."},
-  {id:"trinta_no_ano",i:"🔥", n:"Trinta por noite",  d:"Média de 28 pontos numa temporada."},
+  {id:"trinta_no_ano",i:"🔥", n:"Trinta por noite",  d:"Média de 27 pontos numa temporada."},
   {id:"ano_perfeito",i:"✨", n:"O ano perfeito",     d:"Seja MVP e campeão na mesma temporada."},
   {id:"ringless",    i:"🕳️", n:"Ringless",           d:"Encerre uma carreira de dez temporadas sem nenhum título."},
-  {id:"imortal",     i:"🗿", n:"Imortal",            d:"Encerre uma carreira com 145 de legado ou mais."},
+  {id:"imortal",     i:"🗿", n:"Imortal",            d:"Encerre uma carreira com 120 de legado ou mais."},
   // Os impossíveis exigem várias coisas raras na MESMA carreira — é isso
   // que os separa dos difíceis, que pedem uma coisa rara só.
-  {id:"goat",          i:"🐐", n:"O maior de todos",  d:"Na mesma carreira: 4 títulos, 2 MVPs, 25 mil pontos e um ouro pela seleção."},
-  {id:"quarenta_mil",  i:"🏹", n:"Trinta e quatro mil", d:"Marque 34 mil pontos na carreira."},
-  {id:"duplo_completo",i:"🧮", n:"Números completos", d:"20 mil pontos, 10 mil rebotes e 5 mil assistências na mesma carreira."},
-  {id:"so_uma_camisa", i:"👕", n:"Uma camisa só",     d:"Vinte temporadas no mesmo clube."},
+  {id:"goat",          i:"🐐", n:"O maior de todos",  d:"Na mesma carreira: 4 títulos, 2 MVPs, 20 mil pontos e um ouro pela seleção."},
+  {id:"quarenta_mil",  i:"🏹", n:"Trinta mil",         d:"Marque 30 mil pontos na carreira."},
+  {id:"duplo_completo",i:"🧮", n:"Números completos", d:"18 mil pontos, 8 mil rebotes e 4 mil assistências na mesma carreira."},
+  {id:"so_uma_camisa", i:"👕", n:"Uma camisa só",     d:"Catorze temporadas no mesmo clube."},
   {id:"campeao_4",     i:"🧿", n:"Campeão por toda parte", d:"Quatro títulos, por três franquias diferentes."},
-  {id:"mala_pronta",   i:"✈️", n:"Mala sempre pronta", d:"Jogue por onze clubes diferentes."},
-  {id:"dono_defesa",   i:"🚧", n:"Dono da defesa",    d:"Ganhe cinco vezes o Defensor do Ano."},
+  {id:"mala_pronta",   i:"✈️", n:"Mala sempre pronta", d:"Jogue por dez clubes diferentes."},
+  {id:"dono_defesa",   i:"🚧", n:"Dono da defesa",    d:"Ganhe quatro vezes o Defensor do Ano."},
   {id:"presenca12",    i:"🎟️", n:"Cadeira cativa",    d:"Seja All-Star dez vezes."},
-  {id:"patria",        i:"🇧🇷", n:"Pela pátria",       d:"Ganhe quatro ouros olímpicos pela seleção."},
-  {id:"lenda_viva",    i:"🏛️", n:"Lenda viva",        d:"Encerre uma carreira com 170 de legado — o teto é 230."},
-  {id:"dinastia_solo", i:"🏛️", n:"Dono da franquia",  d:"Quinze temporadas num clube só, com 3 títulos por ele."},
+  {id:"patria",        i:"🇧🇷", n:"Pela pátria",       d:"Ganhe três ouros olímpicos pela seleção."},
+  {id:"lenda_viva",    i:"🏛️", n:"Lenda viva",        d:"Encerre uma carreira com 160 de legado — o teto é 230."},
+  {id:"dinastia_solo", i:"🏛️", n:"Dono da franquia",  d:"Doze temporadas num clube só, com 3 títulos por ele."},
   {id:"pico_e_anel",   i:"👑", n:"Teto com anel",     d:"Chegue a 97 de overall e ganhe um título na mesma carreira."},
   // Lendários — refazer a carreira de um nome específico, inteira. São os
   // únicos que pagam FBA points em vez de moeda de games.
@@ -3511,7 +3595,7 @@ const DESAFIOS = [
   {id:"proj_lebron",  i:"🧭", n:"Projeto LeBron",  d:"Campeão por três franquias diferentes, com um MVP no currículo."},
   {id:"proj_duncan",  i:"🧱", n:"Projeto Duncan",  d:"Quatro títulos por uma franquia só."},
   {id:"proj_curry",   i:"🏹", n:"Projeto Curry",   d:"3 títulos, o arremesso de 3 no teto (97) e dois prêmios de cestinha."},
-  {id:"proj_kobe",    i:"🐍", n:"Projeto Kobe",    d:"4 títulos e 18 temporadas na mesma franquia."},
+  {id:"proj_kobe",    i:"🐍", n:"Projeto Kobe",    d:"3 títulos e 13 temporadas na mesma franquia."},
 ];
 
 /** Nível e prêmio de um desafio, direto do catálogo do servidor. */
@@ -3563,29 +3647,29 @@ function testarDesafio(id, fim){
     // Os alvos saem de 1.320 carreiras completas simuladas, e não do olho.
     // Os antigos (20 mil pontos, 10 mil + 5 mil) caíam em 90% e 94% das
     // carreiras: não eram desafio, eram o caminho.
-    case "pts30k":      return tot.pts >= 28000;
-    case "duplo20k":    return tot.pts >= 20000 && tot.reb >= 9000;
-    case "quarenta_mil":return tot.pts >= 34000;
+    case "pts30k":      return tot.pts >= 22000;
+    case "duplo20k":    return tot.pts >= 15000 && tot.reb >= 7000;
+    case "quarenta_mil":return tot.pts >= 30000;
     case "ovr99":       return ovr(S.A, S.pos) >= 97;
     case "porta_fundos":return (S.pickDraft||0) > 60 && (t.titulo||0) >= 1;
     case "chamado":     return !!S.jaFoiChamado;
     case "nomade":      return clubes.size >= 6;
     case "selecao":     return (t.ouro||0) >= 1 || (t.ouroCopa||0) >= 1;
     case "euroliga":    return (t.euro||0) >= 1;
-    case "ferro":       return jogadas.length >= 24;
+    case "ferro":       return jogadas.length >= 20;
     case "de_pe":       return !!S.voltouComPremio;
     case "estreia":     return jogadas.length >= 1 && (jogadas[0].pts||0) >= 20;
     // O 20/8/8 numa temporada não existia neste motor: o teto medido de
     // assistências por ano é 9,3, e só pra armador. Virou o que o jogo de
     // fato permite e ainda é raro — média de 30 pontos num ano (1,3%).
-    case "trinta_no_ano": return jogadas.some(x => (x.pts||0) >= 28);
-    case "duplo_completo":return tot.pts >= 20000 && tot.reb >= 10000 && tot.ast >= 5000;
+    case "trinta_no_ano": return jogadas.some(x => (x.pts||0) >= 27);
+    case "duplo_completo":return tot.pts >= 18000 && tot.reb >= 8000 && tot.ast >= 4000;
     case "ano_perfeito":  return jogadas.some(x => x.campeao &&
                             (x.premios||[]).some(q => String(q && q.t ? q.t : q) === "MVP"));
-    case "dono_defesa":   return (t.dpoy||0) >= 5;
+    case "dono_defesa":   return (t.dpoy||0) >= 4;
     case "presenca12":    return (t.allstar||0) >= 10;
-    case "patria":        return (t.ouro||0) >= 4;
-    case "mala_pronta":   return clubes.size >= 11;
+    case "patria":        return (t.ouro||0) >= 3;
+    case "mala_pronta":   return clubes.size >= 10;
     case "campeao_4":     return Object.keys(titulosPorClube()).length >= 3 && (t.titulo||0) >= 4;
     case "lenda_clube": {
       const porClube = {};
@@ -3593,21 +3677,21 @@ function testarDesafio(id, fim){
       return Object.values(porClube).some(n => n >= 10);
     }
     case "pico_e_anel": return (S.picoOvr || 0) >= 97 && (t.titulo||0) >= 1;
-    case "goat":        return (t.titulo||0) >= 4 && (t.mvp||0) >= 2 && tot.pts >= 25000
+    case "goat":        return (t.titulo||0) >= 4 && (t.mvp||0) >= 2 && tot.pts >= 20000
                             && ((t.ouro||0) >= 1 || (t.ouroCopa||0) >= 1);
     case "dinastia_solo": {
       const porClube = {};
       jogadas.forEach(x => { if (x.time) porClube[x.time] = (porClube[x.time]||0) + 1; });
       // O título tem que ser POR ele: quinze anos de casa e três anéis na
       // carreira, sem ter saído pra ganhar em outro lugar.
-      return Object.values(porClube).some(n => n >= 15) && (t.titulo||0) >= 3
+      return Object.values(porClube).some(n => n >= 12) && (t.titulo||0) >= 3
           && Object.keys(porClube).length <= 2;
     }
     // Os dois de encerramento só valem no fim: no meio da carreira ainda dá
     // tempo de ganhar o título que falta.
     case "ringless":    return fim && jogadas.length >= 10 && (t.titulo||0) === 0;
-    case "imortal":     return fim && pontuacaoLegado() >= 145;
-    case "lenda_viva":  return fim && pontuacaoLegado() >= 170;
+    case "imortal":     return fim && pontuacaoLegado() >= 120;
+    case "lenda_viva":  return fim && pontuacaoLegado() >= 160;
     // ── Lendários ──────────────────────────────────────────────────────
     // Todos olham título POR FRANQUIA, que sai de temporadas[].campeao +
     // temporadas[].time — o contador t.titulo só sabe o total da carreira.
@@ -3626,12 +3710,12 @@ function testarDesafio(id, fim){
     case "proj_kobe": {
       const porClube = {};
       jogadas.forEach(x => { if (x.time) porClube[x.time] = (porClube[x.time]||0) + 1; });
-      return (t.titulo||0) >= 4 && Object.values(porClube).some(n => n >= 18);
+      return (t.titulo||0) >= 3 && Object.values(porClube).some(n => n >= 13);
     }
     case "so_uma_camisa": {
       const porClube = {};
       jogadas.forEach(x => { if (x.time) porClube[x.time] = (porClube[x.time]||0) + 1; });
-      return Object.values(porClube).some(n => n >= 20);
+      return Object.values(porClube).some(n => n >= 14);
     }
   }
   return false;
@@ -3965,6 +4049,42 @@ function jogarAno(){
 // menos que título: se pagasse igual, o caminho fácil seria não se importar
 // com a liga.
 
+/**
+ * Ser trocado sem ter pedido.
+ *
+ * Só com contrato em vigor (sem contrato, quem decide é o mercado) e depois
+ * de pelo menos uma temporada na casa. A chance sai do que de fato move uma
+ * troca na liga: time que está perdendo e vai reconstruir, salário grande
+ * demais pro que você entrega, e idade — veterano caro é o primeiro nome na
+ * mesa. Fica em torno de 9% ao ano, que é a taxa da liga de verdade.
+ *
+ * Não é uma decisão: é um aviso. É esse o ponto.
+ */
+function tentarTroca(o){
+  if (S.foraDaLiga || S.contrato <= 0) return null;
+  if ((S.anosNoClube || 0) < 1) return null;
+  if (S.temporadas.filter(x => !x.formacao).length < 2) return null;
+
+  let ch = 4;
+  if (S.forcaBase < 45) ch += 6;                       // time em reconstrução
+  if (S.salario >= 22 && o < 86) ch += 5;              // contrato pesado demais
+  if (S.idade >= 32) ch += 4;                          // veterano vira moeda
+  if (S.confianca < 40) ch += 4;                       // relação desgastada
+  if (o >= 90) ch -= 6;                                // ninguém troca o astro
+  if (ri(0, 100) >= clamp(ch, 1, 30)) return null;
+
+  const antigo = S.time;
+  const novo = pick(timesDaLiga().filter(x => x !== S.time));
+  if (!novo) return null;
+  S.time = novo;
+  S.anosNoClube = 0;
+  S.forcaBase = ri(28, 88);
+  S.confianca = clamp(S.confianca - 8, 5, 99);
+  if (S.modo === "fba") S.gm = gmDoTime(novo);
+  S.trocasSofridas = (S.trocasSofridas || 0) + 1;
+  return `Você foi trocado. O ${antigo} te mandou pro ${novo} e ninguém te perguntou nada.`;
+}
+
 /** Força do elenco em volta na seleção. Decide quanto o time te ajuda. */
 const SELECOES = {
   USA:94, ESP:82, SRB:80, FRA:78, CAN:77, AUS:74, GER:74, GRE:71,
@@ -4072,6 +4192,13 @@ function fecharAno(campeao, vit, o, st){
       S.mensagem = `A ${subiu} veio buscar você. O ${S.time} pagou pra tirar você da divisão de baixo.`;
     }
   }
+
+  // A troca chega por telefone, e contrato em dia não protege ninguém. É a
+  // coisa mais comum da liga que o jogo não tinha: até aqui, você só saía
+  // de um clube se QUISESSE sair. Agora o time reconstrói, o contrato pesa,
+  // o veterano vira moeda de troca — e você fica sabendo pela TV.
+  const trocado = tentarTroca(o);
+  if (trocado) S.mensagem = trocado;
 
   anoDoRival();
 
@@ -4211,11 +4338,24 @@ function desenharFinais(){
 function mercadoHTML(){
   const v = valorDeMercado();
   const ofertas = S.mercado || [];
+  // Pendurar as chuteiras é uma OPÇÃO do mercado, e não só um botão que
+  // aparece aos 39 anos. É aqui que a pessoa decide se insiste — e insistir
+  // custa: a G League paga mal e o exterior tira você do radar.
+  const podeParar = S.dispensado || S.foraDaLiga || S.idade >= 30 || !ofertas.length;
   return `
-    <h1 class="dec-tit">Janela de transferências</h1>
-    <p class="lead dec-sub">${ofertas.length === 1
+    <h1 class="dec-tit">${!ofertas.length ? "Acabou" : S.dispensado ? "A liga não ligou" : "Janela de transferências"}</h1>
+    <p class="lead dec-sub">${!ofertas.length
+      ? "Nenhuma proposta, de lugar nenhum."
+      : S.dispensado
+      ? `Seu contrato acabou e nenhum time da ${esc(S.modo === "fba" ? "FBA" : "NBA")} fez proposta.
+         O que existe é o que está aqui — ou parar por aqui.`
+      : ofertas.length === 1
       ? "Só apareceu uma proposta. O mercado não é gentil com quem não produz."
       : "Seu contrato acabou. Você pode aceitar uma delas ou ficar no clube."}</p>
+    ${!ofertas.length ? `<div class="bpcard">
+      <p class="dec-txt" style="margin:0">Você ligou pros empresários e ninguém retornou. Não existe
+      mais clube atrás de você — nem aqui, nem lá fora. É isso.</p>
+    </div>` : ""}
     <div class="ofertas-lista">
       ${ofertas.map((of,i)=>`
         <button class="oferta-linha" onclick="escolherOferta(${i})">
@@ -4228,8 +4368,18 @@ function mercadoHTML(){
           <span class="ol-num">$${of.salario}M<small>${of.anos} anos</small></span>
         </button>`).join("")}
     </div>
+    ${podeParar ? `<button class="op op-parar" onclick="pendurar()">Pendurar as chuteiras
+      <small>Encerra a carreira agora, com ${temporadasJogadas().length} temporadas e o que você já ganhou.</small>
+    </button>` : ""}
     <p class="nota-txt">Seu valor de mercado hoje: <b style="color:var(--text)">${v}</b>.
       Ele sobe com produção e desce com a idade.</p>`;
+}
+
+/** Encerrar de dentro do mercado, com confirmação — não tem volta. */
+function pendurar(){
+  if (!confirm("Encerrar a carreira agora? Não tem volta.")) return;
+  S.mercado = null; S.ofertaEscolhida = null;
+  salvar(); encerrar();
 }
 
 function escolherOferta(i){
