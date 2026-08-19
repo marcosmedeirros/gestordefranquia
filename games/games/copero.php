@@ -65,19 +65,58 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $clubes = [];
     $picoOvr = 0; $picoValor = 0;
     $porClube = []; $continentes = [];
-    foreach ($temporadas as $t) {
+
+    // O que as conquistas precisam saber, tudo tirado das temporadas: quais
+    // troféus, onde, com que clube e em que ano. O resumo que o cliente
+    // manda continua não valendo como prova de nada.
+    $forcaDoClube = [];
+    foreach (COPERO_CLUBES as [$n, , $f, ]) $forcaDoClube[$n] = $f;
+
+    $tit = [];              // id do troféu => quantas vezes
+    $ligasVencidas = [];    // em que ligas foi campeão nacional
+    $paises = [];           // países onde jogou
+    $tripla = false;        // liga + copa + continental na MESMA temporada
+    $menorCampeaoCont = 99; // o clube mais fraco com que ganhou o continental
+    $lesoes = 0; $idadePico = 0;
+    $primeiroClube = null; $primeiroNivel = 0; $subiuComOMesmo = false;
+
+    foreach ($temporadas as $i => $t) {
         $tot['jogos'] += max(0, (int)($t['jogos'] ?? 0));
         $tot['gols']  += max(0, (int)($t['gols']  ?? 0));
         $tot['ast']   += max(0, (int)($t['ast']   ?? 0));
-        $picoOvr   = max($picoOvr,   (int)($t['ovr']   ?? 0));
+        $ovr = (int)($t['ovr'] ?? 0);
+        if ($ovr > $picoOvr) { $picoOvr = $ovr; $idadePico = (int)($t['idade'] ?? 0); }
         $picoValor = max($picoValor, (int)($t['valor'] ?? 0));
+        if (!empty($t['lesao'])) $lesoes++;
+
         $nome = (string)($t['clube'] ?? '');
-        if ($nome !== '') {
-            $clubes[$nome] = 1;
-            $porClube[$nome] = ($porClube[$nome] ?? 0) + max(0, (int)($t['jogos'] ?? 0));
-            $liga = coperoLigaDoClube((string)($t['liga'] ?? ''));
-            $continentes[$liga['continente']] = 1;
+        $ligaId = (string)($t['liga'] ?? '');
+        if ($nome === '') continue;
+
+        $clubes[$nome] = 1;
+        $porClube[$nome] = ($porClube[$nome] ?? 0) + max(0, (int)($t['jogos'] ?? 0));
+        $liga = coperoLigaDoClube($ligaId);
+        $continentes[$liga['continente']] = 1;
+        $paises[$liga['pais']] = 1;
+
+        // "De baixo": começar na terceira divisão e ganhar a primeira com o
+        // MESMO clube. É o clube que sobe junto com você.
+        if ($primeiroClube === null) { $primeiroClube = $nome; $primeiroNivel = (int)$liga['nivel']; }
+
+        $daTemporada = is_array($t['titulos'] ?? null) ? $t['titulos'] : [];
+        foreach ($daTemporada as $id) {
+            $id = (string)$id;
+            $tit[$id] = ($tit[$id] ?? 0) + 1;
+            if ($id === 'liga') {
+                $ligasVencidas[$ligaId] = 1;
+                if ($nome === $primeiroClube && $primeiroNivel >= 3 && (int)$liga['nivel'] === 1) {
+                    $subiuComOMesmo = true;
+                }
+            }
+            if ($id === 'cont') $menorCampeaoCont = min($menorCampeaoCont, $forcaDoClube[$nome] ?? 99);
         }
+        if (in_array('liga', $daTemporada, true) && in_array('copa', $daTemporada, true)
+            && in_array('cont', $daTemporada, true)) $tripla = true;
     }
     $picoOvr = min(99, $picoOvr);
 
@@ -100,6 +139,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     // Conquistas: testadas no servidor, com os totais recalculados.
+    // As cinco grandes ligas europeias, pra "Dono da Europa".
+    $grandes = ['EN1','ES1','IT1','DE1','FR1'];
+    $grandesVencidas = count(array_intersect($grandes, array_keys($ligasVencidas)));
+    $coletivos = ($tit['liga'] ?? 0) + ($tit['copa'] ?? 0) + ($tit['cont'] ?? 0)
+               + ($tit['mundial'] ?? 0) + ($tit['copa_mundo'] ?? 0) + ($tit['selecao_cont'] ?? 0);
+
     $ctx = [
         'jogos' => $tot['jogos'], 'gols' => $tot['gols'], 'ast' => $tot['ast'],
         'picoOvr' => $picoOvr, 'picoValor' => $picoValor,
@@ -109,13 +154,30 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'idadeFinal' => (int)($c['idadeFinal'] ?? 0),
         'comecouAbaixo' => !empty($c['comecouAbaixo']),
         'maiorForcaClube' => (int)($c['maiorForcaClube'] ?? 0),
+        // Novos
+        't' => $tit, 'coletivos' => $coletivos,
+        'paises' => count($paises), 'paisesSA' => count(array_intersect(
+            ['BRA','ARG','URU','CHI','COL'], array_keys($paises))),
+        'grandesEuropeias' => $grandesVencidas,
+        'tripla' => $tripla, 'menorCampeaoCont' => $menorCampeaoCont,
+        'subiuComOMesmo' => $subiuComOMesmo,
+        'lesoes' => $lesoes, 'idadePico' => $idadePico,
+        'posicao' => (string)($c['posicao'] ?? ''),
+        'pais' => (string)($c['pais'] ?? ''),
     ];
     $ganhas = [];
-    foreach (coperoConquistas() as $id => [$icone, $nome, $desc, $teste]) {
-        if ($teste($ctx)) $ganhas[] = ['id' => $id, 'icone' => $icone, 'nome' => $nome, 'desc' => $desc];
+    foreach (coperoConquistas() as $id => [$icone, $nome, $desc, $nivel, $teste]) {
+        if ($teste($ctx)) {
+            $ganhas[] = ['id' => $id, 'icone' => $icone, 'nome' => $nome,
+                         'desc' => $desc, 'nivel' => $nivel];
+        }
     }
+    // As mais difíceis primeiro: é o que a pessoa quer ver no topo.
+    $peso = ['impossivel' => 0, 'dificil' => 1, 'media' => 2, 'facil' => 3];
+    usort($ganhas, fn($a, $b) => ($peso[$a['nivel']] ?? 9) <=> ($peso[$b['nivel']] ?? 9));
 
-    echo json_encode(['ok' => true, 'totais' => $tot, 'conquistas' => $ganhas], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => true, 'totais' => $tot, 'conquistas' => $ganhas,
+                      'totalConquistas' => count(coperoConquistas())], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -381,6 +443,19 @@ button{font-family:inherit}
 .conq .ic{font-size:24px;line-height:1;flex:none}
 .conq b{display:block;font-size:13.5px;font-weight:800;margin-bottom:2px}
 .conq small{color:var(--txt2);font-size:11.5px;line-height:1.45}
+/* A cor do nível diz de longe o que foi difícil de conseguir — sem ela, uma
+   conquista impossível some no meio de seis fáceis. */
+.conq{position:relative;padding-left:14px}
+.conq::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+  border-radius:4px 0 0 4px;background:var(--n,#3f3f46)}
+.conq em{font-style:normal;position:absolute;right:10px;top:9px;font-size:9px;font-weight:800;
+  letter-spacing:.8px;text-transform:uppercase;color:var(--n,#71717a);opacity:.9}
+.conq.n-facil{--n:#4ade80}
+.conq.n-media{--n:#60a5fa}
+.conq.n-dificil{--n:#c084fc}
+.conq.n-impossivel{--n:#fbbf24}
+.conq-conta{font-size:11px;font-weight:800;color:var(--txt3);background:var(--panel3);
+  border-radius:6px;padding:3px 8px;margin-left:8px;vertical-align:middle}
 
 .rodape{margin-top:26px;font-size:10.5px;color:var(--txt3);text-align:center;line-height:1.6}
 
@@ -1925,11 +2000,14 @@ async function telaFim(){
     });
     const d = await r.json();
     if (d.ok && d.conquistas && d.conquistas.length) {
+      const rotulo = {facil:'Fácil', media:'Média', dificil:'Difícil', impossivel:'Impossível'};
       document.getElementById('conquistas').innerHTML =
-        `<h2 style="font-size:17px;margin:26px 0 10px">Conquistas da carreira</h2>
+        `<h2 style="font-size:17px;margin:26px 0 10px">Conquistas da carreira
+           <span class="conq-conta">${d.conquistas.length} de ${d.totalConquistas || '?'}</span></h2>
          <div class="conq-grade">${d.conquistas.map(c => `
-           <div class="conq"><span class="ic">${c.icone}</span>
-             <div><b>${esc(c.nome)}</b><small>${esc(c.desc)}</small></div></div>`).join('')}</div>`;
+           <div class="conq n-${esc(c.nivel || 'facil')}"><span class="ic">${c.icone}</span>
+             <div><b>${esc(c.nome)}</b><small>${esc(c.desc)}</small></div>
+             <em>${esc(rotulo[c.nivel] || '')}</em></div>`).join('')}</div>`;
     }
   } catch (e) { /* sem rede, a carreira ainda aparece inteira */ }
 

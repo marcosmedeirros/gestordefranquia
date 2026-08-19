@@ -503,34 +503,114 @@ function coperoSortearEfeito(array $carta): array
  * O teste recebe o estado FINAL da carreira. Só cai no fim de propósito —
  * conquista de carreira é sobre o conjunto, não sobre o ano bom.
  */
+/**
+ * As conquistas da carreira: `[ícone, nome, descrição, nível, teste]`.
+ *
+ * Os quatro níveis existem pra dar régua: `facil` sai quase toda carreira que
+ * vai até o fim, `media` pede uma carreira boa, `dificil` pede uma carreira
+ * excepcional, e `impossivel` é pra ser perseguido por muitas partidas — não
+ * pra cair no colo. Uma lista onde tudo é alcançável não vale nada, e uma
+ * onde nada é alcançável também não.
+ *
+ * O teste recebe os totais RECALCULADOS no servidor a partir das temporadas,
+ * nunca o resumo que o cliente desenhou. `$c['t']` é a contagem por troféu.
+ */
 function coperoConquistas(): array
 {
+    $t = fn(array $c, string $id) => (int)($c['t'][$id] ?? 0);
+
     return [
+        // ── Tranquilas: quem termina uma carreira leva a maioria ──────
         'estreante'   => ['🌱', 'Primeiro contrato', 'Termine a carreira com pelo menos 100 jogos.',
-                          fn($c) => $c['jogos'] >= 100],
+                          'facil', fn($c) => $c['jogos'] >= 100],
         'centenario'  => ['💯', 'Centenário',        'Marque 100 gols na carreira.',
-                          fn($c) => $c['gols'] >= 100],
-        'artilheiro'  => ['⚽', 'Artilheiro eterno', 'Marque 250 gols na carreira.',
-                          fn($c) => $c['gols'] >= 250],
+                          'facil', fn($c) => $c['gols'] >= 100],
         'garcom'      => ['🎩', 'Garçom',            'Dê 100 assistências na carreira.',
-                          fn($c) => $c['ast'] >= 100],
-        'teto'        => ['🟣', 'Fora da curva',     'Chegue a 96 de OVR.',
-                          fn($c) => $c['picoOvr'] >= 96],
-        'elite'       => ['⭐', 'Nome da elite',     'Chegue a 90 de OVR.',
-                          fn($c) => $c['picoOvr'] >= 90],
-        'nomade'      => ['🧳', 'Nômade',            'Jogue por oito clubes diferentes.',
-                          fn($c) => $c['clubes'] >= 8],
-        'lenda_clube' => ['♾️', 'Lenda do clube',    'Faça 200 jogos por um mesmo clube.',
-                          fn($c) => $c['maiorNoClube'] >= 200],
-        'continentes' => ['🌍', 'Passaporte carimbado', 'Jogue em quatro continentes diferentes.',
-                          fn($c) => $c['continentes'] >= 4],
-        'de_baixo'    => ['📈', 'De baixo',          'Comece na 2ª divisão ou abaixo e chegue a um clube de 90+.',
-                          fn($c) => $c['comecouAbaixo'] && $c['maiorForcaClube'] >= 90],
-        'milionario'  => ['💶', 'Cifra de craque',   'Valer 100 milhões de euros.',
-                          fn($c) => $c['picoValor'] >= 100000000],
+                          'facil', fn($c) => $c['ast'] >= 100],
+        'primeiro_tit'=> ['🏆', 'O primeiro de muitos', 'Ganhe seu primeiro título.',
+                          'facil', fn($c) => $c['coletivos'] >= 1],
+        'convocado'   => ['👕', 'Vestiu a amarelinha', 'Seja convocado para a seleção.',
+                          'facil', fn($c) => $t($c,'copa_mundo') + $t($c,'selecao_cont') > 0
+                                             || $c['picoOvr'] >= 75],
         'longevo'     => ['🦾', 'Longevo',           'Jogue até os 38 anos ou mais.',
-                          fn($c) => $c['idadeFinal'] >= 38],
+                          'facil', fn($c) => $c['idadeFinal'] >= 38],
+
+        // ── Medianas: pedem uma carreira boa ──────────────────────────
+        'elite'       => ['⭐', 'Nome da elite',     'Chegue a 90 de overall.',
+                          'media', fn($c) => $c['picoOvr'] >= 90],
+        'artilheiro'  => ['⚽', 'Artilheiro eterno', 'Marque 250 gols na carreira.',
+                          'media', fn($c) => $c['gols'] >= 250],
+        'milionario'  => ['💶', 'Cifra de craque',   'Valer 100 milhões de euros.',
+                          'media', fn($c) => $c['picoValor'] >= 100000000],
+        'continentes' => ['🌍', 'Passaporte carimbado', 'Jogue em três continentes diferentes.',
+                          'media', fn($c) => $c['continentes'] >= 3],
+        'lenda_clube' => ['♾️', 'Lenda do clube',    'Faça 200 jogos por um mesmo clube.',
+                          'media', fn($c) => $c['maiorNoClube'] >= 200],
+        'de_baixo'    => ['📈', 'De baixo',          'Comece na 2ª divisão ou abaixo e chegue a um clube de 90+.',
+                          'media', fn($c) => $c['comecouAbaixo'] && $c['maiorForcaClube'] >= 90],
+        'europeu'     => ['🇪🇺', 'Sonho europeu',    'Seja campeão de uma das cinco grandes ligas da Europa.',
+                          'media', fn($c) => $c['grandesEuropeias'] >= 1],
+        'orelhuda'    => ['🥇', 'Orelhuda',          'Ganhe um torneio continental de clubes.',
+                          'media', fn($c) => $t($c,'cont') >= 1],
+        'menino_ouro' => ['✨', 'Menino de ouro',    'Chegue a 88 de overall antes dos 24 anos.',
+                          'media', fn($c) => $c['picoOvr'] >= 88 && $c['idadePico'] > 0 && $c['idadePico'] <= 23],
+        'resiliente'  => ['🩹', 'Osso duro',         'Sofra três lesões e ainda assim passe de 88 de overall.',
+                          'media', fn($c) => $c['lesoes'] >= 3 && $c['picoOvr'] >= 88],
+
+        // ── Difíceis: pedem uma carreira excepcional ──────────────────
+        'teto'        => ['🟣', 'Fora da curva',     'Chegue a 96 de overall.',
+                          'dificil', fn($c) => $c['picoOvr'] >= 96],
+        'heroi'       => ['🏅', 'Herói nacional',    'Ganhe a Copa do Mundo.',
+                          'dificil', fn($c) => $t($c,'copa_mundo') >= 1],
+        'mundo_seu'   => ['🌐', 'O mundo é seu',     'Ganhe a Copa do Mundo e o Mundial de Clubes.',
+                          'dificil', fn($c) => $t($c,'copa_mundo') >= 1 && $t($c,'mundial') >= 1],
+        'triplice'    => ['👑', 'A tríplice coroa',  'Ganhe liga, copa e torneio continental na mesma temporada.',
+                          'dificil', fn($c) => !empty($c['tripla'])],
+        'rei_america' => ['🌎', 'Rei da América',    'Ganhe a Copa América e a Libertadores na mesma carreira.',
+                          'dificil', fn($c) => $t($c,'selecao_cont') >= 1 && $t($c,'cont') >= 1
+                                               && in_array($c['pais'], ['BRA','ARG','URU','CHI','COL'], true)],
+        'matagigante' => ['🗡️', 'Matagigantes',      'Ganhe um torneio continental com um clube de força abaixo de 85.',
+                          'dificil', fn($c) => $c['menorCampeaoCont'] < 85],
+        'baldosero'   => ['🧳', 'Baldosero',         'Jogue por dez clubes diferentes numa mesma carreira.',
+                          'dificil', fn($c) => $c['clubes'] >= 10],
         'um_clube_so' => ['🏠', 'Um clube só',       'Faça a carreira inteira em no máximo dois clubes.',
-                          fn($c) => $c['clubes'] <= 2 && $c['temporadas'] >= 12],
+                          'dificil', fn($c) => $c['clubes'] <= 2 && $c['temporadas'] >= 12],
+        'terror'      => ['👟', 'Terror das redes',  'Ganhe quatro Chuteiras de Ouro.',
+                          'dificil', fn($c) => $t($c,'chuteira') >= 4],
+        'periferia'   => ['🧭', 'Da periferia',      'Ganhe uma Bola de Ouro sendo de fora da Europa e da América do Sul.',
+                          'dificil', fn($c) => $t($c,'bola_ouro') >= 1
+                                               && !in_array($c['pais'],
+                                                  ['ENG','ESP','ITA','GER','FRA','POR','NED','BEL','CRO','TUR',
+                                                   'RUS','SCO','GRE','BRA','ARG','URU','CHI','COL'], true)],
+        'ringless'    => ['🕳️', 'Ringless',          'Termine uma carreira de 15 temporadas sem nenhum título.',
+                          'dificil', fn($c) => $c['coletivos'] === 0 && $c['temporadas'] >= 15],
+        'ushuaia'     => ['🗺️', 'De Ushuaia a Darién', 'Jogue nas ligas dos cinco países da América do Sul.',
+                          'dificil', fn($c) => $c['paisesSA'] >= 5],
+        'nomade'      => ['🛫', 'Nômade',            'Jogue em clubes de quatro continentes diferentes.',
+                          'dificil', fn($c) => $c['continentes'] >= 4],
+
+        // ── Impossíveis: pra perseguir por muitas carreiras ───────────
+        'mr_champions'=> ['🏛️', 'Mr. Champions',     'Ganhe cinco torneios continentais de clubes.',
+                          'impossivel', fn($c) => $t($c,'cont') >= 5],
+        'dono_europa' => ['🐐', 'Dono da Europa',    'Seja campeão das cinco grandes ligas europeias numa carreira.',
+                          'impossivel', fn($c) => $c['grandesEuropeias'] >= 5],
+        'lenda_maxima'=> ['💫', 'Lenda absoluta',    'Passe a carreira inteira num só clube e ganhe liga, copa e continental.',
+                          'impossivel', fn($c) => $c['clubes'] === 1 && $c['temporadas'] >= 15
+                                                  && $t($c,'liga') >= 1 && $t($c,'copa') >= 1 && $t($c,'cont') >= 1],
+        'colecionador'=> ['🗄️', 'O mais vencedor da história', 'Ganhe 30 títulos coletivos.',
+                          'impossivel', fn($c) => $c['coletivos'] >= 30],
+        'so_o_pele'   => ['👑', 'Só o Pelé',         'Ganhe duas Copas do Mundo e faça 500 gols.',
+                          'impossivel', fn($c) => $t($c,'copa_mundo') >= 2 && $c['gols'] >= 500],
+        'goat'        => ['🐐', 'GOAT',              'Copa do Mundo, dois continentais de seleção, quatro Bolas de Ouro '
+                                                   . 'e quatro torneios continentais de clubes.',
+                          'impossivel', fn($c) => $t($c,'copa_mundo') >= 1 && $t($c,'selecao_cont') >= 2
+                                                  && $t($c,'bola_ouro') >= 4 && $t($c,'cont') >= 4],
+        'de_baixo_max'=> ['⛰️', 'Do fundo ao topo',  'Comece na terceira divisão e ganhe a primeira com o mesmo clube.',
+                          'impossivel', fn($c) => !empty($c['subiuComOMesmo'])],
+        'completar'   => ['✅', 'Completar o futebol', 'Ganhe liga, copa, continental, Mundial de Clubes, '
+                                                     . 'Copa do Mundo e um continental de seleções.',
+                          'impossivel', fn($c) => $t($c,'liga') >= 1 && $t($c,'copa') >= 1 && $t($c,'cont') >= 1
+                                                  && $t($c,'mundial') >= 1 && $t($c,'copa_mundo') >= 1
+                                                  && $t($c,'selecao_cont') >= 1],
     ];
 }
