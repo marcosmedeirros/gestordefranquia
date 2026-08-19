@@ -2318,10 +2318,22 @@ async function toggleTradeReaction(tradeId, tradeType, encodedEmoji) {
   }
 }
 
-// Abrir modal de contraproposta
+// Abrir contraproposta
 async function openCounterProposal(originalTradeId) {
   const originalTrade = tradesById.get(Number(originalTradeId));
   if (!originalTrade) { alert('Dados da trade não encontrados. Recarregue a página.'); return; }
+
+  // Na ELITE a contraproposta vai pra Trade Machine, não pro modal: lá a
+  // troca passa pela folha salarial e pela regra dos 120%, e o modal não
+  // mostra nada disso — dava pra montar uma contraproposta que a própria
+  // API ia recusar no envio. Nas outras ligas o CAP é soma de OVR e o
+  // modal continua dando conta.
+  if (String(myLeague || '').trim().toUpperCase() === 'ELITE') {
+    window.location.href = '/trade-simulator.php?team_id=' + Number(originalTrade.from_team_id)
+      + '&contraproposta=' + Number(originalTradeId);
+    return;
+  }
+
   
   // Preencher o modal com dados invertidos
   const targetSelect = document.getElementById('targetTeam');

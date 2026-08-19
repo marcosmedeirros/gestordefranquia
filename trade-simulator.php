@@ -269,6 +269,11 @@ body{overflow-x:hidden}
 .sim-panels-wrap::-webkit-scrollbar-thumb{background:var(--border-md);border-radius:2px}
 
 /* Each panel */
+/* Faixa de contraproposta: quem chega aqui pela resposta a uma troca
+   precisa ver que é resposta, senão manda uma proposta solta. */
+.contra-aviso{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:10px 13px;
+  border-radius:10px;font-size:12.5px;background:rgba(59,130,246,.10);
+  border:1px solid rgba(59,130,246,.32);color:#93c5fd}
 .sim-panel{display:flex;flex-direction:column;min-width:260px;flex:1;border-right:1px solid var(--border)}
 .sim-panel:last-child{border-right:none}
 .sim-panel-header{padding:14px 16px;border-bottom:1px solid var(--border);background:var(--panel-2);position:relative}
@@ -393,7 +398,12 @@ body{overflow-x:hidden}
   .topbar{display:flex}
   .page-hero{padding:14px 16px 0}
   .content{padding:14px 16px 100px}
-  .sim-panel{min-width:220px}
+  /* Faixa de contraproposta: quem chega aqui pela resposta a uma troca
+   precisa ver que é resposta, senão manda uma proposta solta. */
+.contra-aviso{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:10px 13px;
+  border-radius:10px;font-size:12.5px;background:rgba(59,130,246,.10);
+  border:1px solid rgba(59,130,246,.32);color:#93c5fd}
+.sim-panel{min-width:220px}
   .sim-team-select{font-size:15px;padding:9px 10px}
 }
 
@@ -419,7 +429,12 @@ body{overflow-x:hidden}
   }
 
   /* Cada painel: largura 100% */
-  .sim-panel{
+  /* Faixa de contraproposta: quem chega aqui pela resposta a uma troca
+   precisa ver que é resposta, senão manda uma proposta solta. */
+.contra-aviso{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:10px 13px;
+  border-radius:10px;font-size:12.5px;background:rgba(59,130,246,.10);
+  border:1px solid rgba(59,130,246,.32);color:#93c5fd}
+.sim-panel{
     min-width:100%;
     border-right:none;
     border-bottom:1px solid var(--border);
@@ -664,6 +679,8 @@ function valorDaPick(pk) {
 }
 
 const SLOT_KEYS = ['A','B','C','D','E','F','G'];
+// A troca que esta contraproposta responde, quando vier da tela de trocas.
+let CONTRA_TRADE = null;
 
 // State
 const teams   = {}; // key → { id, name, photo_url, players, picks, cap, tradedOut }
@@ -704,6 +721,20 @@ async function boot() {
       selB.value = String(alvo);
       loadTeam(activeSlots[1], alvo);
     }
+  }
+
+  // Contraproposta vinda da tela de trocas: a original precisa ser cancelada
+  // quando esta for enviada, e quem está montando precisa saber que é
+  // resposta a alguma coisa — senão vira uma proposta solta e as duas ficam
+  // de pé ao mesmo tempo.
+  CONTRA_TRADE = parseInt(new URLSearchParams(window.location.search).get('contraproposta') || '0', 10) || null;
+  if (CONTRA_TRADE) {
+    const aviso = document.createElement('div');
+    aviso.className = 'contra-aviso';
+    aviso.innerHTML = `<i class="bi bi-arrow-left-right"></i> Contraproposta à troca <b>#${CONTRA_TRADE}</b> — `
+      + `ao enviar, a original é cancelada.`;
+    const bar = document.getElementById('capBar');
+    if (bar && bar.parentNode) bar.parentNode.insertBefore(aviso, bar);
   }
 }
 
@@ -1422,6 +1453,8 @@ async function submitSingleTrade(notes) {
     request_picks: comProtecao(requestPicks, receives[kA]),
     swap_pairs: swapPairs,
     notes,
+    // Sem isto a original ficaria pendente ao lado da resposta.
+    ...(CONTRA_TRADE ? { counter_to_trade_id: CONTRA_TRADE } : {}),
   };
 
   const r = await fetch('/api/trades.php', {
