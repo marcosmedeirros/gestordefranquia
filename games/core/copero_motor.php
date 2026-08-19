@@ -598,6 +598,8 @@ function coperoConquistas(): array
                           'dificil', fn($c) => $c['coletivos'] === 0 && $c['temporadas'] >= 15],
         'poliglota'   => ['🗺️', 'Poliglota',         'Seja campeão nacional em três países diferentes.',
                           'dificil', fn($c) => $c['paisesCampeao'] >= 3],
+        'muralha'     => ['🧤', 'Muralha',           'Como goleiro, termine com 150 jogos sem sofrer gol.',
+                          'dificil', fn($c) => $c['posicao'] === 'GOL' && $c['cleanSheets'] >= 150],
 
         // ── Impossíveis: pra perseguir por muitas carreiras ───────────
         'mr_champions'=> ['🏛️', 'Mr. Champions',     'Ganhe seis torneios continentais de clubes.',
@@ -618,6 +620,11 @@ function coperoConquistas(): array
         'de_baixo_max'=> ['⛰️', 'Do fundo ao topo',  'Comece fora da primeira divisão e seja campeão nacional '
                                                    . 'com esse mesmo clube.',
                           'impossivel', fn($c) => !empty($c['subiuComOMesmo'])],
+        'yashin'      => ['🥅', 'O Yashin',          'Ganhe uma Bola de Ouro sendo goleiro. '
+                                                   . 'Aconteceu uma vez na história do futebol.',
+                          'impossivel', fn($c) => $c['posicao'] === 'GOL' && $t($c,'bola_ouro') >= 1],
+        'seis_conts'  => ['🧭', 'O mundo inteiro',   'Jogue por clubes de cinco continentes diferentes.',
+                          'impossivel', fn($c) => $c['continentes'] >= 5],
         'completar'   => ['✅', 'Completar o futebol', 'Ganhe liga, copa, continental, Mundial de Clubes, '
                                                      . 'Copa do Mundo e um continental de seleções.',
                           'impossivel', fn($c) => $t($c,'liga') >= 1 && $t($c,'copa') >= 1 && $t($c,'cont') >= 1

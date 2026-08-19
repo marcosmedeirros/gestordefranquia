@@ -82,6 +82,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $lesoes = 0; $idadePico = 0;
     $primeiroClube = null; $primeiroNivel = 0; $subiuComOMesmo = false;
     $paisesCampeao = [];                 // em quantos países foi campeão nacional
+    $cleanSheets = 0; $golsSofridos = 0; // o boletim do goleiro
     $seqClube = null; $seq = 0; $maiorSeq = 0;   // temporadas SEGUIDAS no mesmo clube
 
     foreach ($temporadas as $i => $t) {
@@ -92,6 +93,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($ovr > $picoOvr) { $picoOvr = $ovr; $idadePico = (int)($t['idade'] ?? 0); }
         $picoValor = max($picoValor, (int)($t['valor'] ?? 0));
         if (!empty($t['lesao'])) $lesoes++;
+        $cleanSheets  += max(0, (int)($t['cs'] ?? 0));
+        $golsSofridos += max(0, (int)($t['gs'] ?? 0));
 
         $nome = (string)($t['clube'] ?? '');
         $ligaId = (string)($t['liga'] ?? '');
@@ -177,6 +180,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'subiuComOMesmo' => $subiuComOMesmo,
         'lesoes' => $lesoes, 'idadePico' => $idadePico,
         'maiorSequencia' => $maiorSeq, 'paisesCampeao' => count($paisesCampeao),
+        'cleanSheets' => $cleanSheets, 'golsSofridos' => $golsSofridos,
         'posicao' => (string)($c['posicao'] ?? ''),
         'pais' => (string)($c['pais'] ?? ''),
     ];
