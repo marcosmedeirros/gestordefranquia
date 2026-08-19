@@ -77,6 +77,34 @@ function coperoBuscar(string $url): ?array
  * a comparação é sem acento, sem pontuação e sem as palavras que todo clube
  * tem — sem isso "Athletic Club" casaria com meio mundo.
  */
+/**
+ * O nome que a API usa, quando é diferente do nosso.
+ *
+ * O catálogo guarda o nome em português, que é o que aparece na tela. A
+ * busca precisa do nome que a thesportsdb usa. Traduzir aqui evita
+ * estragar o catálogo pra agradar a API.
+ */
+const COPERO_NOME_API = [
+    'Atlético-MG'       => 'Atletico Mineiro',
+    'Athletico-PR'      => 'Athletico Paranaense',
+    'San Lorenzo'       => 'San Lorenzo de Almagro',
+    'Estudiantes'       => 'Estudiantes de La Plata',
+    'Nacional'          => 'Club Nacional de Football',
+    'Colo-Colo'         => 'Colo Colo',
+    'Junior'            => 'Atletico Junior',
+    'Inter de Milão'    => 'Inter Milan',
+    'Bayern de Munique' => 'Bayern Munich',
+    'Hertha Berlim'     => 'Hertha Berlin',
+    'PSG'               => 'Paris Saint-Germain',
+    'Saint-Étienne'     => 'St Etienne',
+    'Zenit'             => 'Zenit St Petersburg',
+    'CSKA Moscou'       => 'CSKA Moscow',
+    'Spartak Moscou'    => 'Spartak Moscow',
+    'AEK Atenas'        => 'AEK Athens',
+    'Al Ittihad'        => 'Al-Ittihad',
+    'Urawa Reds'        => 'Urawa Red Diamonds',
+];
+
 function coperoChave(string $nome): string
 {
     $s = mb_strtolower(trim($nome));
@@ -87,37 +115,9 @@ function coperoChave(string $nome): string
     return $s;
 }
 
-echo "Buscando escudos por liga...\n\n";
-
-$achados = [];   // chave normalizada => URL
-$porLiga = [];
-
-foreach (COPERO_LIGA_API as $id => $nomeApi) {
-    $d = coperoBuscar('https://www.thesportsdb.com/api/v1/json/3/search_all_teams.php?l='
-                      . rawurlencode($nomeApi));
-    $times = $d['teams'] ?? null;
-    if (!is_array($times)) {
-        printf("  %-5s %-38s sem resposta\n", $id, $nomeApi);
-        sleep(2);
-        continue;
-    }
-    $n = 0;
-    foreach ($times as $t) {
-        $badge = trim((string)($t['strBadge'] ?? ''));
-        $nome  = trim((string)($t['strTeam'] ?? ''));
-        if ($badge === '' || $nome === '') continue;
-        $achados[coperoChave($nome)] = $badge;
-        // O alternativo ajuda com "Atletico Mineiro" x "Atlético-MG".
-        foreach (explode(',', (string)($t['strTeamAlternate'] ?? '')) as $alt) {
-            $alt = trim($alt);
-            if ($alt !== '') $achados[coperoChave($alt)] = $badge;
-        }
-        $n++;
-    }
-    $porLiga[$id] = $n;
-    printf("  %-5s %-38s %d times\n", $id, $nomeApi, $n);
-    sleep(2);
-}
+// A varredura por liga já rodou e encheu 187 dos 206. Sobrou só o que a
+// API escreve com outro nome, e isso o passo clube a clube resolve.
+$achados = [];
 
 // A busca por liga vem cortada em 10 times pela chave gratuita, e algumas
 // ligas nem respondem. Quem sobrou vai por NOME, um a um: é mais lento, mas
@@ -126,8 +126,9 @@ echo "\nCompletando clube a clube...\n";
 $tentados = 0;
 foreach (COPERO_CLUBES as [$nome, $liga, , $escudo]) {
     if ($escudo !== '' || isset($achados[coperoChave($nome)])) continue;
+    $busca = COPERO_NOME_API[$nome] ?? $nome;
     $d = coperoBuscar('https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t='
-                      . rawurlencode($nome));
+                      . rawurlencode($busca));
     $tentados++;
     sleep(2);   // ritmo que a chave gratuita aguenta
     foreach (($d['teams'] ?? []) as $t) {
@@ -136,6 +137,18 @@ foreach (COPERO_CLUBES as [$nome, $liga, , $escudo]) {
         if (($t['strSport'] ?? '') !== 'Soccer') continue;
         $badge = trim((string)($t['strBadge'] ?? ''));
         if ($badge === '') continue;
+
+        // O nome devolvido tem que ser o que pedimos.
+        $devolvido = coperoChave((string)($t['strTeam'] ?? ''));
+        $serve = false;
+        foreach ([coperoChave($busca), coperoChave($nome)] as $pedido) {
+            if ($devolvido === $pedido
+                || str_contains($devolvido, $pedido) || str_contains($pedido, $devolvido)) {
+                $serve = true; break;
+            }
+        }
+        if (!$serve) continue;
+
         $achados[coperoChave($nome)] = $badge;
         break;
     }

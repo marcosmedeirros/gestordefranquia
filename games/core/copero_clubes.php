@@ -108,7 +108,7 @@ const COPERO_CLUBES = [
     // Brasileirão Série A
     ['Palmeiras', 'BR1', 92, 'https://r2.thesportsdb.com/images/media/team/badge/vsqwqp1473538105.png'],
     ['Flamengo', 'BR1', 92, 'https://r2.thesportsdb.com/images/media/team/badge/syptwx1473538074.png'],
-    ['Atlético-MG', 'BR1', 86, ''],
+    ['Atlético-MG', 'BR1', 86, 'https://r2.thesportsdb.com/images/media/team/badge/x5lixs1743742872.png'],
     ['Fluminense', 'BR1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/stvvwp1473538082.png'],
     ['São Paulo', 'BR1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/sxpupx1473538135.png'],
     ['Internacional', 'BR1', 83, 'https://r2.thesportsdb.com/images/media/team/badge/yprvxx1473538097.png'],
@@ -116,7 +116,7 @@ const COPERO_CLUBES = [
     ['Corinthians', 'BR1', 82, 'https://r2.thesportsdb.com/images/media/team/badge/vvuvps1473538042.png'],
     ['Botafogo', 'BR1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/bs5mbw1733004596.png'],
     ['Cruzeiro', 'BR1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/upsvvu1473538059.png'],
-    ['Athletico-PR', 'BR1', 80, ''],
+    ['Athletico-PR', 'BR1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/irzu1u1554237406.png'],
     ['Fortaleza', 'BR1', 79, 'https://r2.thesportsdb.com/images/media/team/badge/tosmdr1532853458.png'],
     ['RB Bragantino', 'BR1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/sqwrcu1646600551.png'],
     ['Bahia', 'BR1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/xuvtsv1473539308.png'],
@@ -143,7 +143,7 @@ const COPERO_CLUBES = [
     ['Racing', 'AR1', 82, 'https://r2.thesportsdb.com/images/media/team/badge/vi4mu41695734959.png'],
     ['San Lorenzo', 'AR1', 79, ''],
     ['Independiente', 'AR1', 79, 'https://r2.thesportsdb.com/images/media/team/badge/eki4nd1580842605.png'],
-    ['Estudiantes', 'AR1', 80, ''],
+    ['Estudiantes', 'AR1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/pf08dq1760634366.png'],
     ['Vélez Sarsfield', 'AR1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/jo98m71517769587.png'],
     ['Talleres', 'AR1', 79, 'https://r2.thesportsdb.com/images/media/team/badge/7hum2t1769310938.png'],
     ['Rosario Central', 'AR1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/y6q1ds1769660256.png'],
@@ -161,18 +161,18 @@ const COPERO_CLUBES = [
 
     // Primera División
     ['Peñarol', 'UY1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/uuwpux1473541171.png'],
-    ['Nacional', 'UY1', 72, ''],
+    ['Nacional', 'UY1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/yxi2wi1736387630.png'],
     ['Defensor', 'UY1', 64, 'https://r2.thesportsdb.com/images/media/team/badge/dx13rd1703003044.png'],
 
     // Primera División
-    ['Colo-Colo', 'CL1', 72, ''],
+    ['Colo-Colo', 'CL1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/2xvoy41754042820.png'],
     ['Universidad de Chile', 'CL1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/po0o3c1578347873.png'],
     ['Cobresal', 'CL1', 62, 'https://r2.thesportsdb.com/images/media/team/badge/36tqoo1602187477.png'],
 
     // Categoría Primera A
     ['Atlético Nacional', 'CO1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/efl4o41576157720.png'],
     ['Millonarios', 'CO1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/mc73ix1629122587.png'],
-    ['Junior', 'CO1', 70, ''],
+    ['Junior', 'CO1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/zzarls1576161686.png'],
 
     // Premier League
     ['Manchester City', 'EN1', 99, 'https://r2.thesportsdb.com/images/media/team/badge/vwpvry1467462651.png'],
@@ -225,7 +225,7 @@ const COPERO_CLUBES = [
     ['Eibar', 'ES2', 64, 'https://r2.thesportsdb.com/images/media/team/badge/hccive1680933599.png'],
 
     // Serie A
-    ['Inter de Milão', 'IT1', 95, ''],
+    ['Inter de Milão', 'IT1', 95, 'https://r2.thesportsdb.com/images/media/team/badge/ryhu6d1617113103.png'],
     ['Juventus', 'IT1', 93, 'https://r2.thesportsdb.com/images/media/team/badge/uxf0gr1742983727.png'],
     ['AC Milan', 'IT1', 92, 'https://r2.thesportsdb.com/images/media/team/badge/wvspur1448806617.png'],
     ['Napoli', 'IT1', 91, 'https://r2.thesportsdb.com/images/media/team/badge/l8qyxv1742982541.png'],
@@ -245,7 +245,7 @@ const COPERO_CLUBES = [
     ['Avellino', 'IT2', 58, 'https://r2.thesportsdb.com/images/media/team/badge/swsu5p1579724964.png'],
 
     // Bundesliga
-    ['Bayern de Munique', 'DE1', 98, ''],
+    ['Bayern de Munique', 'DE1', 98, 'https://r2.thesportsdb.com/images/media/team/badge/01ogkh1716960412.png'],
     ['Bayer Leverkusen', 'DE1', 93, 'https://r2.thesportsdb.com/images/media/team/badge/3x9k851726760113.png'],
     ['Borussia Dortmund', 'DE1', 91, 'https://r2.thesportsdb.com/images/media/team/badge/tqo8ge1716960353.png'],
     ['RB Leipzig', 'DE1', 90, 'https://r2.thesportsdb.com/images/media/team/badge/zjgapo1594244951.png'],
@@ -259,7 +259,7 @@ const COPERO_CLUBES = [
     // 2. Bundesliga
     ['Hamburgo', 'DE2', 68, 'https://r2.thesportsdb.com/images/media/team/badge/1pcg031679387881.png'],
     ['Schalke 04', 'DE2', 68, 'https://r2.thesportsdb.com/images/media/team/badge/hnci291621593978.png'],
-    ['Hertha Berlim', 'DE2', 67, ''],
+    ['Hertha Berlim', 'DE2', 67, 'https://r2.thesportsdb.com/images/media/team/badge/aszcmz1782623817.png'],
     ['Kaiserslautern', 'DE2', 62, 'https://r2.thesportsdb.com/images/media/team/badge/jghax31740165513.png'],
 
     // Ligue 1
@@ -275,11 +275,7 @@ const COPERO_CLUBES = [
     ['Strasbourg', 'FR1', 77, 'https://r2.thesportsdb.com/images/media/team/badge/b8k77w1766625501.png'],
 
     // Ligue 2
-    ['Saint-Étienne', 'FR2', 66, ''],
-    ['Bordeaux', 'FR2', 65, 'https://r2.thesportsdb.com/images/media/team/badge/u45vc51627132724.png'],
-    ['Metz', 'FR2', 62, 'https://r2.thesportsdb.com/images/media/team/badge/1iuew61688452857.png'],
-    ['Caen', 'FR2', 58, 'https://r2.thesportsdb.com/images/media/team/badge/416kon1784484564.png'],
-    ['Saint-Étienne', 'FR2', 66, ''],
+    ['Saint-Étienne', 'FR2', 66, 'https://r2.thesportsdb.com/images/media/team/badge/m4ej831656423694.png'],
     ['Bordeaux', 'FR2', 65, 'https://r2.thesportsdb.com/images/media/team/badge/u45vc51627132724.png'],
     ['Metz', 'FR2', 62, 'https://r2.thesportsdb.com/images/media/team/badge/1iuew61688452857.png'],
     ['Caen', 'FR2', 58, 'https://r2.thesportsdb.com/images/media/team/badge/416kon1784484564.png'],
@@ -312,8 +308,8 @@ const COPERO_CLUBES = [
 
     // Premier Liga
     ['Zenit', 'RU1', 80, ''],
-    ['CSKA Moscou', 'RU1', 77, ''],
-    ['Spartak Moscou', 'RU1', 77, ''],
+    ['CSKA Moscou', 'RU1', 77, 'https://r2.thesportsdb.com/images/media/team/badge/1hf19s1681319986.png'],
+    ['Spartak Moscou', 'RU1', 77, 'https://r2.thesportsdb.com/images/media/team/badge/zpj2el1754674286.png'],
     ['Rubin Kazan', 'RU1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/hp9kw81579347672.png'],
 
     // Premiership
@@ -324,7 +320,7 @@ const COPERO_CLUBES = [
     // Super League
     ['Olympiacos', 'GR1', 76, 'https://r2.thesportsdb.com/images/media/team/badge/xckasq1721291508.png'],
     ['PAOK', 'GR1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/m15zsh1602774126.png'],
-    ['AEK Atenas', 'GR1', 73, ''],
+    ['AEK Atenas', 'GR1', 73, 'https://r2.thesportsdb.com/images/media/team/badge/4nogst1602773624.png'],
     ['Panathinaikos', 'GR1', 73, 'https://r2.thesportsdb.com/images/media/team/badge/vtpwwt1448208397.png'],
 
     // MLS
@@ -346,12 +342,12 @@ const COPERO_CLUBES = [
     ['Al Hilal', 'SA1', 88, 'https://r2.thesportsdb.com/images/media/team/badge/5trzvq1660439102.png'],
     ['Al Nassr', 'SA1', 86, 'https://r2.thesportsdb.com/images/media/team/badge/84yvqi1748524565.png'],
     ['Al Ahli', 'SA1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/5jxyip1687165392.png'],
-    ['Al Ittihad', 'SA1', 84, ''],
+    ['Al Ittihad', 'SA1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/1z3n911666899419.png'],
     ['Al Shabab', 'SA1', 76, 'https://r2.thesportsdb.com/images/media/team/badge/x9pqf01618586414.png'],
 
     // J1 League
     ['Kawasaki Frontale', 'JP1', 76, 'https://r2.thesportsdb.com/images/media/team/badge/c6pot51578239112.png'],
-    ['Urawa Reds', 'JP1', 74, ''],
+    ['Urawa Reds', 'JP1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/ce3lhk1578239741.png'],
     ['Vissel Kobe', 'JP1', 75, 'https://r2.thesportsdb.com/images/media/team/badge/2axjch1578239819.png'],
     ['Machida Zelvia', 'JP1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/99zl6k1590070905.png'],
 
