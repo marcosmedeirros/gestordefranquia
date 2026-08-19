@@ -1144,6 +1144,10 @@ function continuar(){ S = carregar(); if (S) render(); }
 let rascunho = {nome:ultimoNome(), numero:10, perna:'Direita', pais:'', posicao:'', busca:''};
 
 function telaIdentidade(){
+  // Aqui e não só na criação do rascunho: assim o nome da última carreira
+  // aparece mesmo quando a pessoa joga de novo sem recarregar a página.
+  if (!rascunho.nome) rascunho.nome = ultimoNome();
+
   const lista = Object.entries(PAISES)
     .filter(([iso,nome]) => !rascunho.busca || nome.toLowerCase().includes(rascunho.busca.toLowerCase()))
     .sort((a,b) => a[1].localeCompare(b[1],'pt-BR'));
