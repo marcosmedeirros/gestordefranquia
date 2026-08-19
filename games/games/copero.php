@@ -181,11 +181,11 @@ button{font-family:inherit}
 
 .camisa{position:relative;width:190px;margin:0 auto 16px;aspect-ratio:1/1.06}
 .camisa svg{width:100%;height:100%;display:block}
-.camisa-nome{position:absolute;top:41%;line-height:1;left:14%;right:14%;text-align:center;font-size:12.5px;font-weight:800;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  letter-spacing:1px;color:#fff;text-transform:uppercase}
-.camisa-num{position:absolute;top:50%;left:0;right:0;text-align:center;font-size:44px;font-weight:900;
-  color:#fff;line-height:1;letter-spacing:-2px}
+.camisa-txt{position:absolute;inset:34% 12% 20%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:2px;pointer-events:none}
+.camisa-nome{max-width:100%;font-size:12.5px;font-weight:800;letter-spacing:1px;color:#fff;
+  text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
+.camisa-num{font-size:44px;font-weight:900;color:#fff;line-height:1;letter-spacing:-2px}
 
 .campo-rot{font-size:9.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);
   margin-bottom:5px;text-align:center}
@@ -679,8 +679,10 @@ function telaIdentidade(){
           <div class="camisa">
             <svg viewBox="0 0 100 106"><path d="M50 6c-7 0-12 3-18 4L14 18l-8 16 14 8 4-6v62h72V36l4 6 14-8-8-16-18-8c-6-1-11-4-18-4z"
               fill="#166534" stroke="#22c55e" stroke-width="1.5" stroke-linejoin="round"/></svg>
-            <div class="camisa-nome">${esc(rascunho.nome || '—')}</div>
-            <div class="camisa-num">${esc(rascunho.numero || '10')}</div>
+            <div class="camisa-txt">
+              <div class="camisa-nome">${esc(rascunho.nome || '—')}</div>
+              <div class="camisa-num">${esc(rascunho.numero || '10')}</div>
+            </div>
           </div>
           <div class="campo-linha">
             <div><div class="campo-rot">Sobrenome</div>
