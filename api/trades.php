@@ -1735,6 +1735,49 @@ function getSeasonDisplayYearById(PDO $pdo, int $seasonId): ?int
     return null;
 }
 
+/**
+ * Cancela as trocas pendentes que ficaram impossíveis.
+ *
+ * Você propõe pelo LeBron, depois negocia o LeBron: a proposta continua lá,
+ * pendente, oferecendo alguém que não é mais seu. Quem recebeu não tem como
+ * saber, e aceitar só falha no meio da execução — com uma mensagem sobre
+ * "jogador não pertence ao time de origem" que não explica nada.
+ *
+ * A regra é uma frase: o jogador tem que ainda pertencer ao lado que o está
+ * colocando na mesa. Se não pertence, a troca não existe mais.
+ *
+ * É varredura e não gatilho de propósito. Jogador sai do elenco por troca,
+ * dispensa, free agency e ajuste do admin — pendurar um gatilho em cada um
+ * desses caminhos é garantir que o próximo caminho novo vai esquecer de
+ * chamar. Aqui basta a foto do momento: quem está fora, está fora.
+ *
+ * Devolve quantas foram canceladas.
+ */
+function cancelarTrocasImpossiveis(PDO $pdo, ?int $tradeIdIgnorar = null): int
+{
+    try {
+        // ti.from_team diz de que lado o item entrou: TRUE = do proponente,
+        // FALSE = do time que recebeu a proposta.
+        $sql = "UPDATE trades t
+                JOIN trade_items ti ON ti.trade_id = t.id AND ti.player_id IS NOT NULL
+                JOIN players p ON p.id = ti.player_id
+                   SET t.status = 'cancelled'
+                 WHERE t.status = 'pending'
+                   AND p.team_id <> IF(ti.from_team, t.from_team_id, t.to_team_id)";
+        $params = [];
+        if ($tradeIdIgnorar) { $sql .= " AND t.id <> ?"; $params[] = $tradeIdIgnorar; }
+
+        $st = $pdo->prepare($sql);
+        $st->execute($params);
+        $n = $st->rowCount();
+        if ($n > 0) error_log("[trades] {$n} troca(s) pendente(s) cancelada(s): jogador não é mais do time que oferecia");
+        return $n;
+    } catch (Throwable $e) {
+        error_log('[trades] cancelar impossíveis: ' . $e->getMessage());
+        return 0;
+    }
+}
+
 function enrichPickListWithDraftContext(PDO $pdo, array $picks, ?string $league): array
 {
     if (empty($picks)) {
@@ -1994,6 +2037,10 @@ $method = $_SERVER['REQUEST_METHOD'];
 if ($method === 'GET' && ($_GET['action'] ?? '') !== 'multi_trades') {
     $type = $_GET['type'] ?? 'received'; // received, sent, history
     
+    // Antes de listar: troca que ficou impossível não pode aparecer como
+    // pendente esperando uma resposta que vai falhar no aceite.
+    cancelarTrocasImpossiveis($pdo);
+
     $conditions = [];
     $params = [];
     
