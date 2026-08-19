@@ -737,7 +737,7 @@ function adversarios(clube, comp){
   if (comp === 'liga' || comp === 'copa') {
     const menor = lista.reduce((m, c) => Math.min(m, c.forca), 99);
     const faltam = Math.max(0, (comp === 'liga' ? 18 : 40) - lista.length);
-    soma += faltam * pesoClube(menor - 4);
+    soma += faltam * pesoClube(menor - 6);
   }
   _cacheAdv[chave] = soma;
   return soma;
