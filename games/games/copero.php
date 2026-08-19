@@ -952,12 +952,21 @@ const nomeCurto = n => APELIDO[n] || n;
  * O índice é montado uma vez: são quarenta e poucos pares, e a pergunta é
  * feita em toda carta de oferta.
  */
-const _rivaisDe = {};
-RIVAIS.forEach(([a, b]) => {
-  (_rivaisDe[a] = _rivaisDe[a] || []).push(b);
-  (_rivaisDe[b] = _rivaisDe[b] || []).push(a);
-});
-const ehRival = (a, b) => !!(a && b && (_rivaisDe[a] || []).includes(b));
+// O índice é montado na PRIMEIRA pergunta, e não no carregamento: `RIVAIS` é
+// declarado bem mais abaixo, e um `const` lido antes da própria declaração
+// estoura em ReferenceError — o que derrubava o script inteiro, não só isto.
+let _rivaisDe = null;
+function ehRival(a, b){
+  if (!a || !b) return false;
+  if (!_rivaisDe) {
+    _rivaisDe = {};
+    RIVAIS.forEach(([x, y]) => {
+      (_rivaisDe[x] = _rivaisDe[x] || []).push(y);
+      (_rivaisDe[y] = _rivaisDe[y] || []).push(x);
+    });
+  }
+  return (_rivaisDe[a] || []).includes(b);
+}
 
 const ehGoleiro = () => S && S.posicao === 'GOL';
 const COLUNAS_GOL   = [['GS','gs'], ['CS','cs']];
