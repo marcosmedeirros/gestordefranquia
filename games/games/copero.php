@@ -1809,7 +1809,12 @@ function compartilharCarreira(botao, modo){
  * repetido na frente.
  */
 function salaDeTrofeus(){
-  const ordem = ['mundial','cont','liga','copa','bola_ouro','chuteira','rei_america','artilheiro'];
+  // Seleção primeiro, que é o teto de uma carreira; depois clube, do maior
+  // pro menor; prêmios individuais por último. Explícito de propósito: o que
+  // não está na lista cai no fim, e não no começo por acidente.
+  const ordem = ['copa_mundo','selecao_cont','mundial','cont','liga','copa',
+                 'bola_ouro','chuteira','rei_america','artilheiro'];
+  const posOrdem = id => { const i = ordem.indexOf(id); return i < 0 ? 99 : i; };
   const grupos = {};
   (S.temporadas || []).forEach(t => (t.titulos || []).forEach(id => {
     const nome = nomeDaTaca(id, t.liga);
@@ -1819,7 +1824,7 @@ function salaDeTrofeus(){
   }));
 
   const lista = Object.values(grupos).sort((a, b) =>
-    (ordem.indexOf(a.id) - ordem.indexOf(b.id)) || (b.n - a.n));
+    (posOrdem(a.id) - posOrdem(b.id)) || (b.n - a.n));
 
   if (!lista.length) {
     return `<div class="caixa sala vazia">Nenhum título na carreira</div>`;
