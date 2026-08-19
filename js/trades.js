@@ -2364,6 +2364,15 @@ async function openModifyTrade(tradeId) {
   const trade = tradesById.get(Number(tradeId));
   if (!trade) { alert('Dados da trade não encontrados. Recarregue a página.'); return; }
 
+  // Mesma regra da contraproposta: na ELITE vai pra Trade Machine, porque é
+  // lá que a folha salarial e os 120% aparecem. Modificar sem ver isso era
+  // refazer a proposta pra ela ser recusada de novo no envio.
+  if (String(myLeague || '').trim().toUpperCase() === 'ELITE') {
+    window.location.href = '/trade-simulator.php?team_id=' + Number(trade.to_team_id)
+      + '&modificar=' + Number(tradeId);
+    return;
+  }
+
   // A proposta original só é cancelada no envio (submitTrade), na mesma
   // transação da nova — fechar o modal sem enviar não perde a original.
   document.getElementById('targetTeam').value = trade.to_team_id;

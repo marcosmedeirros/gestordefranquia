@@ -681,6 +681,8 @@ function valorDaPick(pk) {
 const SLOT_KEYS = ['A','B','C','D','E','F','G'];
 // A troca que esta contraproposta responde, quando vier da tela de trocas.
 let CONTRA_TRADE = null;
+// A troca que esta proposta MODIFICA, quando vier do botão Modificar.
+let MODIFICAR = null;
 
 // State
 const teams   = {}; // key → { id, name, photo_url, players, picks, cap, tradedOut }
@@ -727,84 +729,23 @@ async function boot() {
   // quando esta for enviada, e quem está montando precisa saber que é
   // resposta a alguma coisa — senão vira uma proposta solta e as duas ficam
   // de pé ao mesmo tempo.
-  CONTRA_TRADE = parseInt(new URLSearchParams(window.location.search).get('contraproposta') || '0', 10) || null;
-  if (CONTRA_TRADE) {
+  const par = new URLSearchParams(window.location.search);
+  CONTRA_TRADE = parseInt(par.get('contraproposta') || '0', 10) || null;
+  MODIFICAR    = parseInt(par.get('modificar')      || '0', 10) || null;
+
+  if (CONTRA_TRADE || MODIFICAR) {
+    const id = CONTRA_TRADE || MODIFICAR;
     const aviso = document.createElement('div');
     aviso.className = 'contra-aviso';
-    aviso.innerHTML = `<i class="bi bi-arrow-left-right"></i> Contraproposta à troca <b>#${CONTRA_TRADE}</b> — `
-      + `ao enviar, a original é cancelada.`;
+    aviso.innerHTML = CONTRA_TRADE
+      ? `<i class="bi bi-arrow-left-right"></i> Contraproposta à troca <b>#${id}</b> — ao enviar, a original é cancelada.`
+      : `<i class="bi bi-pencil-square"></i> Modificando a troca <b>#${id}</b> — ao enviar, a anterior é cancelada.`;
     const bar = document.getElementById('capBar');
     if (bar && bar.parentNode) bar.parentNode.insertBefore(aviso, bar);
-    await preencherContraproposta(CONTRA_TRADE);
+    // Contraproposta INVERTE os lados (é resposta); modificar NÃO (a proposta
+    // é sua, você só está mexendo nela).
+    await preencherDaTroca(id, !!CONTRA_TRADE);
   }
-}
-
-/**
- * Monta a mesa com o INVERSO da proposta original.
- *
- * Contraproposta é uma resposta, não uma proposta nova: quem abre quer ver o
- * que estava na mesa e mexer a partir dali. Vindo vazia, a pessoa tinha que
- * remontar tudo de cabeça só pra depois mudar uma peça.
- *
- * A inversão é a mesma que o modal faz: o que ELES ofereciam vira o que EU
- * peço, e o que eles pediam vira o que eu ofereço.
- *
- * Item que não estiver mais no elenco é ignorado — jogador negociado depois
- * da proposta não pode voltar pra mesa só porque estava num papel antigo.
- */
-async function preencherContraproposta(tradeId) {
-  const [kA, kB] = activeSlots;
-  if (!teams[kA] || !teams[kB]) return;
-
-  let orig = null;
-  try {
-    // A contraproposta responde algo que EU recebi; 'sent' fica de reserva
-    // pra quando a tela mudar de lugar e o mesmo botão for reaproveitado.
-    for (const tipo of ['received', 'sent']) {
-      const r = await fetch(`/api/trades.php?type=${tipo}`);
-      const d = await r.json();
-      orig = (d.trades || []).find(t => Number(t.id) === Number(tradeId));
-      if (orig) break;
-    }
-  } catch (e) { /* sem a original, a mesa fica vazia — e a faixa já avisa */ }
-  if (!orig) return;
-
-  // Acha o item no elenco carregado. Sem isso não dá pra montar a linha:
-  // salário, OVR e idade vivem lá, não no papel da proposta.
-  const acharJogador = (key, id) => (teams[key].players || []).find(p => Number(p.id) === Number(id));
-  const acharPick    = (key, id) => (teams[key].picks   || []).find(p => Number(p.id) === Number(id));
-
-  const porJogador = (destino, origem, id) => {
-    const p = acharJogador(origem, id);
-    if (!p) return;
-    receives[destino].push({ id: p.id, type: 'player', fromKey: origem, name: p.name,
-      pos: p.position, age: p.age, ovr: p.ovr, salary: p.salary });
-    teams[origem].tradedOut.add(p.id);
-  };
-
-  const porPick = (destino, origem, id) => {
-    const pk = acharPick(origem, id);
-    if (!pk) return;
-    receives[destino].push({ id: pk.id, type: 'pick', fromKey: origem, label: pickLabel(pk),
-      orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round,
-      season_year: pk.season_year, swapRole: null,
-      podeProteger: !!pk.pode_proteger, protection: pk.protection || null,
-      protecaoOriginal: pk.protection || null });
-  };
-
-  // O que ELES ofereciam: eu passo a pedir. Sai do elenco deles (kB) pro meu.
-  (orig.offer_players || []).forEach(p => porJogador(kA, kB, p.id ?? p.player_id));
-  (orig.offer_picks   || []).forEach(p => porPick(kA, kB, p.id ?? p.pick_id));
-  // O que eles pediam: eu passo a oferecer.
-  (orig.request_players || []).forEach(p => porJogador(kB, kA, p.id ?? p.player_id));
-  (orig.request_picks   || []).forEach(p => porPick(kB, kA, p.id ?? p.pick_id));
-
-  activeSlots.forEach(k => {
-    renderPanel(k);
-    if (window._allTeams) populateTeamSelect(k, window._allTeams);
-    if (teams[k]) { const sel = document.getElementById(`sel_${k}`); if (sel) sel.value = teams[k].id; }
-  });
-  recalc();
 }
 
 /**
@@ -820,7 +761,7 @@ async function preencherContraproposta(tradeId) {
  * Item que não está mais no elenco é ignorado — jogador negociado depois da
  * proposta não pode voltar pra mesa só porque estava num papel antigo.
  */
-async function preencherContraproposta(tradeId) {
+async function preencherDaTroca(tradeId, inverter) {
   const [kA, kB] = activeSlots;
   if (!teams[kA] || !teams[kB]) return;
 
@@ -828,7 +769,9 @@ async function preencherContraproposta(tradeId) {
   try {
     // A contraproposta responde algo que EU recebi; 'sent' fica de reserva
     // pra caso o mesmo botão seja reaproveitado noutra tela.
-    for (const tipo of ['received', 'sent']) {
+    // Contraproposta responde algo RECEBIDO; modificar mexe em algo
+    // ENVIADO. Procurar nos dois cobre os dois casos.
+    for (const tipo of (inverter ? ['received', 'sent'] : ['sent', 'received'])) {
       const r = await fetch(`/api/trades.php?type=${tipo}`);
       const d = await r.json();
       orig = (d.trades || []).find(t => Number(t.id) === Number(tradeId));
@@ -860,12 +803,16 @@ async function preencherContraproposta(tradeId) {
       protecaoOriginal: pk.protection || null });
   };
 
-  // O que ELES ofereciam, eu passo a pedir: sai do elenco deles pro meu.
-  (orig.offer_players || []).forEach(p => porJogador(kA, kB, p.id ?? p.player_id));
-  (orig.offer_picks   || []).forEach(p => porPick(kA, kB, p.id ?? p.pick_id));
-  // O que eles pediam, eu passo a oferecer.
-  (orig.request_players || []).forEach(p => porJogador(kB, kA, p.id ?? p.player_id));
-  (orig.request_picks   || []).forEach(p => porPick(kB, kA, p.id ?? p.pick_id));
+  // CONTRAPROPOSTA inverte: o que eles ofereciam vira o que eu peço.
+  // MODIFICAR não: a proposta é minha, offer continua sendo o que EU dou.
+  // Sem essa distinção, modificar devolvia a troca de cabeça pra baixo.
+  const [recebeOffer, recebeRequest] = inverter ? [kA, kB] : [kB, kA];
+  const [saiOffer,    saiRequest]    = inverter ? [kB, kA] : [kA, kB];
+
+  (orig.offer_players   || []).forEach(p => porJogador(recebeOffer,   saiOffer,   p.id ?? p.player_id));
+  (orig.offer_picks     || []).forEach(p => porPick(recebeOffer,      saiOffer,   p.id ?? p.pick_id));
+  (orig.request_players || []).forEach(p => porJogador(recebeRequest, saiRequest, p.id ?? p.player_id));
+  (orig.request_picks   || []).forEach(p => porPick(recebeRequest,    saiRequest, p.id ?? p.pick_id));
 
   activeSlots.forEach(k => {
     renderPanel(k);
@@ -1592,6 +1539,9 @@ async function submitSingleTrade(notes) {
     notes,
     // Sem isto a original ficaria pendente ao lado da resposta.
     ...(CONTRA_TRADE ? { counter_to_trade_id: CONTRA_TRADE } : {}),
+    // Modificar cancela a anterior pelo mesmo caminho: a API já sabe
+    // desfazer a original quando recebe este campo.
+    ...(MODIFICAR ? { counter_to_trade_id: MODIFICAR } : {}),
   };
 
   const r = await fetch('/api/trades.php', {

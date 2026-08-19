@@ -104,140 +104,282 @@ const COPERO_LIGAS = [
  * `escudo` vazio vira monograma. Preencher é manutenção, não pré-requisito.
  */
 const COPERO_CLUBES = [
-    // ── Brasil ────────────────────────────────────────────────────────
-    ['Palmeiras',        'BR1', 92, ''], ['Flamengo',        'BR1', 92, ''],
-    ['Atlético-MG',      'BR1', 86, ''], ['Fluminense',      'BR1', 84, ''],
-    ['São Paulo',        'BR1', 84, ''], ['Internacional',   'BR1', 83, ''],
-    ['Grêmio',           'BR1', 83, ''], ['Corinthians',     'BR1', 82, ''],
-    ['Botafogo',         'BR1', 84, ''], ['Cruzeiro',        'BR1', 80, ''],
-    ['Athletico-PR',     'BR1', 80, ''], ['Fortaleza',       'BR1', 79, ''],
-    ['RB Bragantino',    'BR1', 78, ''], ['Bahia',           'BR1', 78, ''],
-    ['Vasco da Gama',    'BR1', 77, ''], ['Cuiabá',          'BR1', 72, ''],
-    ['Santos',           'BR2', 74, ''], ['Sport Recife',    'BR2', 70, ''],
-    ['Ceará',            'BR2', 68, ''], ['Goiás',           'BR2', 67, ''],
-    ['Coritiba',         'BR2', 66, ''], ['Avaí',            'BR2', 62, ''],
-    ['Paysandu',         'BR3', 56, ''], ['Remo',            'BR3', 55, ''],
-    ['Volta Redonda',    'BR3', 52, ''], ['Ypiranga',        'BR3', 50, ''],
 
-    // ── Argentina ─────────────────────────────────────────────────────
-    ['River Plate',      'AR1', 88, ''], ['Boca Juniors',    'AR1', 87, ''],
-    ['Racing',           'AR1', 82, ''], ['San Lorenzo',     'AR1', 79, ''],
-    ['Independiente',    'AR1', 79, ''], ['Estudiantes',     'AR1', 80, ''],
-    ['Vélez Sarsfield',  'AR1', 78, ''], ['Talleres',        'AR1', 79, ''],
-    ['Rosario Central',  'AR1', 78, ''], ['Newell\'s',       'AR1', 77, ''],
-    ['Belgrano',         'AR1', 74, ''], ['Godoy Cruz',      'AR1', 73, ''],
-    ['Lanús',            'AR1', 75, ''], ['Barracas Central','AR1', 70, ''],
-    ['Gimnasia (M)',     'AR2', 62, ''], ['Colón',           'AR2', 64, ''],
-    ['Temperley',        'AR2', 58, ''], ['Almirante Brown', 'AR2', 57, ''],
+    // Brasileirão Série A
+    ['Palmeiras', 'BR1', 92, 'https://r2.thesportsdb.com/images/media/team/badge/vsqwqp1473538105.png'],
+    ['Flamengo', 'BR1', 92, 'https://r2.thesportsdb.com/images/media/team/badge/syptwx1473538074.png'],
+    ['Atlético-MG', 'BR1', 86, ''],
+    ['Fluminense', 'BR1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/stvvwp1473538082.png'],
+    ['São Paulo', 'BR1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/sxpupx1473538135.png'],
+    ['Internacional', 'BR1', 83, 'https://r2.thesportsdb.com/images/media/team/badge/yprvxx1473538097.png'],
+    ['Grêmio', 'BR1', 83, 'https://r2.thesportsdb.com/images/media/team/badge/uvpwyt1473538089.png'],
+    ['Corinthians', 'BR1', 82, 'https://r2.thesportsdb.com/images/media/team/badge/vvuvps1473538042.png'],
+    ['Botafogo', 'BR1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/bs5mbw1733004596.png'],
+    ['Cruzeiro', 'BR1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/upsvvu1473538059.png'],
+    ['Athletico-PR', 'BR1', 80, ''],
+    ['Fortaleza', 'BR1', 79, 'https://r2.thesportsdb.com/images/media/team/badge/tosmdr1532853458.png'],
+    ['RB Bragantino', 'BR1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/sqwrcu1646600551.png'],
+    ['Bahia', 'BR1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/xuvtsv1473539308.png'],
+    ['Vasco da Gama', 'BR1', 77, 'https://r2.thesportsdb.com/images/media/team/badge/ynqlxo1630521109.png'],
+    ['Cuiabá', 'BR1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/ykbxfa1766506334.png'],
 
-    // ── Resto da América do Sul ───────────────────────────────────────
-    ['Peñarol',          'UY1', 72, ''], ['Nacional',        'UY1', 72, ''],
-    ['Defensor',         'UY1', 64, ''],
-    ['Colo-Colo',        'CL1', 72, ''], ['Universidad de Chile', 'CL1', 70, ''],
-    ['Cobresal',         'CL1', 62, ''],
-    ['Atlético Nacional','CO1', 74, ''], ['Millonarios',     'CO1', 72, ''],
-    ['Junior',           'CO1', 70, ''],
+    // Brasileirão Série B
+    ['Santos', 'BR2', 74, 'https://r2.thesportsdb.com/images/media/team/badge/j8xk9g1679447486.png'],
+    ['Sport Recife', 'BR2', 70, 'https://r2.thesportsdb.com/images/media/team/badge/tyrbls1545421563.png'],
+    ['Ceará', 'BR2', 68, 'https://r2.thesportsdb.com/images/media/team/badge/rxxvyp1464886685.png'],
+    ['Goiás', 'BR2', 67, 'https://r2.thesportsdb.com/images/media/team/badge/qhfhdp1635869930.png'],
+    ['Coritiba', 'BR2', 66, 'https://r2.thesportsdb.com/images/media/team/badge/ywwsyu1473538050.png'],
+    ['Avaí', 'BR2', 62, 'https://r2.thesportsdb.com/images/media/team/badge/bblkat1766506007.png'],
 
-    // ── Inglaterra ────────────────────────────────────────────────────
-    ['Manchester City',  'EN1', 99, ''], ['Liverpool',       'EN1', 97, ''],
-    ['Arsenal',          'EN1', 96, ''], ['Manchester United','EN1', 92, ''],
-    ['Chelsea',          'EN1', 92, ''], ['Tottenham',       'EN1', 90, ''],
-    ['Newcastle',        'EN1', 89, ''], ['Aston Villa',     'EN1', 88, ''],
-    ['Brighton',         'EN1', 85, ''], ['West Ham',        'EN1', 84, ''],
-    ['Everton',          'EN1', 82, ''], ['Fulham',          'EN1', 82, ''],
-    ['Crystal Palace',   'EN1', 81, ''], ['Wolves',          'EN1', 80, ''],
-    ['Leeds United',     'EN2', 76, ''], ['Southampton',     'EN2', 75, ''],
-    ['Norwich City',     'EN2', 72, ''], ['Sunderland',      'EN2', 72, ''],
-    ['Sheffield United', 'EN2', 71, ''], ['Watford',         'EN2', 70, ''],
-    ['Bolton',           'EN3', 58, ''], ['Charlton',        'EN3', 57, ''],
-    ['Barnsley',         'EN3', 55, ''], ['Wigan',           'EN3', 55, ''],
+    // Brasileirão Série C
+    ['Paysandu', 'BR3', 56, 'https://r2.thesportsdb.com/images/media/team/badge/9rrdrn1740851540.png'],
+    ['Remo', 'BR3', 55, 'https://r2.thesportsdb.com/images/media/team/badge/u36jfy1579341655.png'],
+    ['Volta Redonda', 'BR3', 52, 'https://r2.thesportsdb.com/images/media/team/badge/phc5fs1736379773.png'],
+    ['Ypiranga', 'BR3', 50, 'https://r2.thesportsdb.com/images/media/team/badge/ryok221688146977.png'],
 
-    // ── Espanha ───────────────────────────────────────────────────────
-    ['Real Madrid',      'ES1', 99, ''], ['Barcelona',       'ES1', 97, ''],
-    ['Atlético de Madrid','ES1', 93, ''], ['Athletic Club',  'ES1', 88, ''],
-    ['Real Sociedad',    'ES1', 87, ''], ['Villarreal',      'ES1', 86, ''],
-    ['Real Betis',       'ES1', 85, ''], ['Sevilla',         'ES1', 85, ''],
-    ['Valencia',         'ES1', 83, ''], ['Celta de Vigo',   'ES1', 80, ''],
-    ['Getafe',           'ES1', 79, ''], ['Osasuna',         'ES1', 79, ''],
-    ['Real Zaragoza',    'ES2', 66, ''], ['Sporting Gijón',  'ES2', 65, ''],
-    ['Racing Santander', 'ES2', 64, ''], ['Eibar',           'ES2', 64, ''],
+    // Liga Profesional
+    ['River Plate', 'AR1', 88, 'https://r2.thesportsdb.com/images/media/team/badge/03dmi31645539717.png'],
+    ['Boca Juniors', 'AR1', 87, 'https://r2.thesportsdb.com/images/media/team/badge/bm7krb1775741582.png'],
+    ['Racing', 'AR1', 82, 'https://r2.thesportsdb.com/images/media/team/badge/vi4mu41695734959.png'],
+    ['San Lorenzo', 'AR1', 79, ''],
+    ['Independiente', 'AR1', 79, 'https://r2.thesportsdb.com/images/media/team/badge/eki4nd1580842605.png'],
+    ['Estudiantes', 'AR1', 80, ''],
+    ['Vélez Sarsfield', 'AR1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/jo98m71517769587.png'],
+    ['Talleres', 'AR1', 79, 'https://r2.thesportsdb.com/images/media/team/badge/7hum2t1769310938.png'],
+    ['Rosario Central', 'AR1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/y6q1ds1769660256.png'],
+    ['Newell\'s', 'AR1', 77, 'https://r2.thesportsdb.com/images/media/team/badge/23aftf1580842633.png'],
+    ['Belgrano', 'AR1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/0twgzi1517768087.png'],
+    ['Godoy Cruz', 'AR1', 73, 'https://r2.thesportsdb.com/images/media/team/badge/d3c0ds1517768584.png'],
+    ['Lanús', 'AR1', 75, 'https://r2.thesportsdb.com/images/media/team/badge/ddty0w1769146364.png'],
+    ['Barracas Central', 'AR1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/rbkjba1707458543.png'],
 
-    // ── Itália ────────────────────────────────────────────────────────
-    ['Inter de Milão',   'IT1', 95, ''], ['Juventus',        'IT1', 93, ''],
-    ['AC Milan',         'IT1', 92, ''], ['Napoli',          'IT1', 91, ''],
-    ['Roma',             'IT1', 88, ''], ['Atalanta',        'IT1', 88, ''],
-    ['Lazio',            'IT1', 86, ''], ['Fiorentina',      'IT1', 85, ''],
-    ['Bologna',          'IT1', 83, ''], ['Torino',          'IT1', 80, ''],
-    ['Udinese',          'IT1', 78, ''], ['Venezia',         'IT1', 74, ''],
-    ['Sampdoria',        'IT2', 66, ''], ['Palermo',         'IT2', 65, ''],
-    ['Bari',             'IT2', 62, ''], ['Avellino',        'IT2', 58, ''],
+    // Primera Nacional
+    ['Gimnasia (M)', 'AR2', 62, 'https://r2.thesportsdb.com/images/media/team/badge/epmttr1678849271.png'],
+    ['Colón', 'AR2', 64, 'https://r2.thesportsdb.com/images/media/team/badge/l72gz21712750680.png'],
+    ['Temperley', 'AR2', 58, 'https://r2.thesportsdb.com/images/media/team/badge/48yf6p1517769378.png'],
+    ['Almirante Brown', 'AR2', 57, 'https://r2.thesportsdb.com/images/media/team/badge/81i8mf1615822788.png'],
 
-    // ── Alemanha ──────────────────────────────────────────────────────
-    ['Bayern de Munique','DE1', 98, ''], ['Bayer Leverkusen','DE1', 93, ''],
-    ['Borussia Dortmund','DE1', 91, ''], ['RB Leipzig',      'DE1', 90, ''],
-    ['Stuttgart',        'DE1', 85, ''], ['Eintracht Frankfurt','DE1', 85, ''],
-    ['Wolfsburg',        'DE1', 82, ''], ['Werder Bremen',   'DE1', 80, ''],
-    ['Borussia M\'gladbach','DE1', 80, ''], ['Union Berlin',  'DE1', 79, ''],
-    ['Hamburgo',         'DE2', 68, ''], ['Schalke 04',      'DE2', 68, ''],
-    ['Hertha Berlim',    'DE2', 67, ''], ['Kaiserslautern',  'DE2', 62, ''],
+    // Primera División
+    ['Peñarol', 'UY1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/uuwpux1473541171.png'],
+    ['Nacional', 'UY1', 72, ''],
+    ['Defensor', 'UY1', 64, 'https://r2.thesportsdb.com/images/media/team/badge/dx13rd1703003044.png'],
 
-    // ── França ────────────────────────────────────────────────────────
-    ['PSG',              'FR1', 96, ''], ['Monaco',          'FR1', 88, ''],
-    ['Marseille',        'FR1', 87, ''], ['Lyon',            'FR1', 85, ''],
-    ['Lille',            'FR1', 85, ''], ['Nice',            'FR1', 83, ''],
-    ['Rennes',           'FR1', 83, ''], ['Lens',            'FR1', 82, ''],
-    ['Nantes',           'FR1', 78, ''], ['Strasbourg',      'FR1', 77, ''],
-    ['Saint-Étienne',    'FR2', 66, ''], ['Bordeaux',        'FR2', 65, ''],
-    ['Metz',             'FR2', 62, ''], ['Caen',            'FR2', 58, ''],
-    ['Saint-Étienne',    'FR2', 66, ''], ['Bordeaux',        'FR2', 65, ''],
-    ['Metz',             'FR2', 62, ''], ['Caen',            'FR2', 58, ''],
+    // Primera División
+    ['Colo-Colo', 'CL1', 72, ''],
+    ['Universidad de Chile', 'CL1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/po0o3c1578347873.png'],
+    ['Cobresal', 'CL1', 62, 'https://r2.thesportsdb.com/images/media/team/badge/36tqoo1602187477.png'],
 
-    // ── Resto da Europa ───────────────────────────────────────────────
-    ['Benfica',          'PT1', 87, ''], ['Porto',           'PT1', 86, ''],
-    ['Sporting CP',      'PT1', 87, ''], ['Braga',           'PT1', 80, ''],
-    ['Vitória de Guimarães','PT1', 74, ''],
-    ['Ajax',             'NL1', 84, ''], ['PSV',             'NL1', 85, ''],
-    ['Feyenoord',        'NL1', 84, ''], ['AZ Alkmaar',      'NL1', 78, ''],
-    ['Twente',           'NL1', 75, ''],
-    ['Club Brugge',      'BE1', 80, ''], ['Anderlecht',      'BE1', 77, ''],
-    ['Genk',             'BE1', 76, ''], ['Standard Liège',  'BE1', 72, ''],
-    ['Galatasaray',      'TR1', 84, ''], ['Fenerbahçe',      'TR1', 83, ''],
-    ['Beşiktaş',         'TR1', 80, ''], ['Trabzonspor',     'TR1', 77, ''],
-    ['Zenit',            'RU1', 80, ''], ['CSKA Moscou',     'RU1', 77, ''],
-    ['Spartak Moscou',   'RU1', 77, ''], ['Rubin Kazan',     'RU1', 72, ''],
-    ['Celtic',           'SC1', 78, ''], ['Rangers',         'SC1', 77, ''],
-    ['Hearts',           'SC1', 66, ''],
-    ['Olympiacos',       'GR1', 76, ''], ['PAOK',            'GR1', 74, ''],
-    ['AEK Atenas',       'GR1', 73, ''], ['Panathinaikos',   'GR1', 73, ''],
+    // Categoría Primera A
+    ['Atlético Nacional', 'CO1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/efl4o41576157720.png'],
+    ['Millonarios', 'CO1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/mc73ix1629122587.png'],
+    ['Junior', 'CO1', 70, ''],
 
-    // ── América do Norte ──────────────────────────────────────────────
-    ['Inter Miami',      'US1', 80, ''], ['LAFC',            'US1', 78, ''],
-    ['LA Galaxy',        'US1', 77, ''], ['Seattle Sounders','US1', 76, ''],
-    ['Atlanta United',   'US1', 74, ''],
-    ['Club América',     'MX1', 82, ''], ['Chivas',          'MX1', 78, ''],
-    ['Monterrey',        'MX1', 80, ''], ['Tigres',          'MX1', 80, ''],
-    ['Cruz Azul',        'MX1', 78, ''], ['Necaxa',          'MX1', 70, ''],
+    // Premier League
+    ['Manchester City', 'EN1', 99, 'https://r2.thesportsdb.com/images/media/team/badge/vwpvry1467462651.png'],
+    ['Liverpool', 'EN1', 97, 'https://r2.thesportsdb.com/images/media/team/badge/kfaher1737969724.png'],
+    ['Arsenal', 'EN1', 96, 'https://r2.thesportsdb.com/images/media/team/badge/uyhbfe1612467038.png'],
+    ['Manchester United', 'EN1', 92, 'https://r2.thesportsdb.com/images/media/team/badge/xzqdr11517660252.png'],
+    ['Chelsea', 'EN1', 92, 'https://r2.thesportsdb.com/images/media/team/badge/pbf4ul1782638263.png'],
+    ['Tottenham', 'EN1', 90, 'https://r2.thesportsdb.com/images/media/team/badge/3dhd0j1605371995.png'],
+    ['Newcastle', 'EN1', 89, 'https://r2.thesportsdb.com/images/media/team/badge/5jevk91653487832.png'],
+    ['Aston Villa', 'EN1', 88, 'https://r2.thesportsdb.com/images/media/team/badge/cgvxt61785930389.png'],
+    ['Brighton', 'EN1', 85, 'https://r2.thesportsdb.com/images/media/team/badge/ywypts1448810904.png'],
+    ['West Ham', 'EN1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/hfum4l1599931799.png'],
+    ['Everton', 'EN1', 82, 'https://r2.thesportsdb.com/images/media/team/badge/eqayrf1523184794.png'],
+    ['Fulham', 'EN1', 82, 'https://r2.thesportsdb.com/images/media/team/badge/xwwvyt1448811086.png'],
+    ['Crystal Palace', 'EN1', 81, 'https://r2.thesportsdb.com/images/media/team/badge/ia6i3m1656014992.png'],
+    ['Wolves', 'EN1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/16posu1727839976.png'],
 
-    // ── Ásia ──────────────────────────────────────────────────────────
-    ['Al Hilal',         'SA1', 88, ''], ['Al Nassr',        'SA1', 86, ''],
-    ['Al Ahli',          'SA1', 84, ''], ['Al Ittihad',      'SA1', 84, ''],
-    ['Al Shabab',        'SA1', 76, ''],
-    ['Kawasaki Frontale','JP1', 76, ''], ['Urawa Reds',      'JP1', 74, ''],
-    ['Vissel Kobe',      'JP1', 75, ''], ['Machida Zelvia',  'JP1', 70, ''],
-    ['Ulsan HD',         'KR1', 74, ''], ['Jeonbuk',         'KR1', 73, ''],
-    ['FC Seoul',         'KR1', 71, ''],
+    // Championship
+    ['Leeds United', 'EN2', 76, 'https://r2.thesportsdb.com/images/media/team/badge/jcgrml1756649030.png'],
+    ['Southampton', 'EN2', 75, 'https://r2.thesportsdb.com/images/media/team/badge/ggqtd01621593274.png'],
+    ['Norwich City', 'EN2', 72, 'https://r2.thesportsdb.com/images/media/team/badge/pabczm1679951464.png'],
+    ['Sunderland', 'EN2', 72, 'https://r2.thesportsdb.com/images/media/team/badge/tprtus1448813498.png'],
+    ['Sheffield United', 'EN2', 71, 'https://r2.thesportsdb.com/images/media/team/badge/w7f8pj1672950689.png'],
+    ['Watford', 'EN2', 70, 'https://r2.thesportsdb.com/images/media/team/badge/rsuswy1448813519.png'],
 
-    // ── África ────────────────────────────────────────────────────────
-    ['Al Ahly',          'EG1', 78, ''], ['Zamalek',         'EG1', 75, ''],
-    ['Pyramids',         'EG1', 72, ''],
-    ['Wydad',            'MA1', 74, ''], ['Raja Casablanca', 'MA1', 73, ''],
-    ['RS Berkane',       'MA1', 70, ''],
-    ['Mamelodi Sundowns','ZA1', 74, ''], ['Orlando Pirates', 'ZA1', 70, ''],
-    ['Kaizer Chiefs',    'ZA1', 69, ''],
+    // League One
+    ['Bolton', 'EN3', 58, 'https://r2.thesportsdb.com/images/media/team/badge/yvxxrv1448808301.png'],
+    ['Charlton', 'EN3', 57, 'https://r2.thesportsdb.com/images/media/team/badge/o08wvi1635872307.png'],
+    ['Barnsley', 'EN3', 55, 'https://r2.thesportsdb.com/images/media/team/badge/glbmdm1781719675.png'],
+    ['Wigan', 'EN3', 55, 'https://r2.thesportsdb.com/images/media/team/badge/wtxwyw1448759640.png'],
 
-    // ── Oceania ───────────────────────────────────────────────────────
-    ['Melbourne City',   'AU1', 70, ''], ['Sydney FC',       'AU1', 69, ''],
-    ['Melbourne Victory','AU1', 68, ''], ['Auckland FC',     'AU1', 64, ''],
+    // LaLiga
+    ['Real Madrid', 'ES1', 99, 'https://r2.thesportsdb.com/images/media/team/badge/vwvwrw1473502969.png'],
+    ['Barcelona', 'ES1', 97, 'https://r2.thesportsdb.com/images/media/team/badge/wq9sir1639406443.png'],
+    ['Atlético de Madrid', 'ES1', 93, 'https://r2.thesportsdb.com/images/media/team/badge/0ulh3q1719984315.png'],
+    ['Athletic Club', 'ES1', 88, 'https://r2.thesportsdb.com/images/media/team/badge/68w7fe1639408210.png'],
+    ['Real Sociedad', 'ES1', 87, 'https://r2.thesportsdb.com/images/media/team/badge/vptvpr1473502986.png'],
+    ['Villarreal', 'ES1', 86, 'https://r2.thesportsdb.com/images/media/team/badge/vrypqy1473503073.png'],
+    ['Real Betis', 'ES1', 85, 'https://r2.thesportsdb.com/images/media/team/badge/2oqulv1663245386.png'],
+    ['Sevilla', 'ES1', 85, 'https://r2.thesportsdb.com/images/media/team/badge/vpsqqx1473502977.png'],
+    ['Valencia', 'ES1', 83, 'https://r2.thesportsdb.com/images/media/team/badge/dm8l6o1655594864.png'],
+    ['Celta de Vigo', 'ES1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/xfjtku1690436219.png'],
+    ['Getafe', 'ES1', 79, 'https://r2.thesportsdb.com/images/media/team/badge/eyh2891655594452.png'],
+    ['Osasuna', 'ES1', 79, 'https://r2.thesportsdb.com/images/media/team/badge/rvspvt1473502960.png'],
+
+    // LaLiga 2
+    ['Real Zaragoza', 'ES2', 66, 'https://r2.thesportsdb.com/images/media/team/badge/sxpwxs1473503702.png'],
+    ['Sporting Gijón', 'ES2', 65, 'https://r2.thesportsdb.com/images/media/team/badge/oom09m1578831384.png'],
+    ['Racing Santander', 'ES2', 64, 'https://r2.thesportsdb.com/images/media/team/badge/97kkiq1536575158.png'],
+    ['Eibar', 'ES2', 64, 'https://r2.thesportsdb.com/images/media/team/badge/hccive1680933599.png'],
+
+    // Serie A
+    ['Inter de Milão', 'IT1', 95, ''],
+    ['Juventus', 'IT1', 93, 'https://r2.thesportsdb.com/images/media/team/badge/uxf0gr1742983727.png'],
+    ['AC Milan', 'IT1', 92, 'https://r2.thesportsdb.com/images/media/team/badge/wvspur1448806617.png'],
+    ['Napoli', 'IT1', 91, 'https://r2.thesportsdb.com/images/media/team/badge/l8qyxv1742982541.png'],
+    ['Roma', 'IT1', 88, 'https://r2.thesportsdb.com/images/media/team/badge/jwro2s1760820674.png'],
+    ['Atalanta', 'IT1', 88, 'https://r2.thesportsdb.com/images/media/team/badge/qix5ku1780561327.png'],
+    ['Lazio', 'IT1', 86, 'https://r2.thesportsdb.com/images/media/team/badge/rwqyvs1448806608.png'],
+    ['Fiorentina', 'IT1', 85, 'https://r2.thesportsdb.com/images/media/team/badge/hc8nhu1656098030.png'],
+    ['Bologna', 'IT1', 83, 'https://r2.thesportsdb.com/images/media/team/badge/2qi1u31655592366.png'],
+    ['Torino', 'IT1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/xxprty1448806802.png'],
+    ['Udinese', 'IT1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/vwvstr1448806811.png'],
+    ['Venezia', 'IT1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/vbiget1781026964.png'],
+
+    // Serie B
+    ['Sampdoria', 'IT2', 66, 'https://r2.thesportsdb.com/images/media/team/badge/pr6co21655592769.png'],
+    ['Palermo', 'IT2', 65, 'https://r2.thesportsdb.com/images/media/team/badge/zi1tb01579708939.png'],
+    ['Bari', 'IT2', 62, 'https://r2.thesportsdb.com/images/media/team/badge/isfrtg1579724972.png'],
+    ['Avellino', 'IT2', 58, 'https://r2.thesportsdb.com/images/media/team/badge/swsu5p1579724964.png'],
+
+    // Bundesliga
+    ['Bayern de Munique', 'DE1', 98, ''],
+    ['Bayer Leverkusen', 'DE1', 93, 'https://r2.thesportsdb.com/images/media/team/badge/3x9k851726760113.png'],
+    ['Borussia Dortmund', 'DE1', 91, 'https://r2.thesportsdb.com/images/media/team/badge/tqo8ge1716960353.png'],
+    ['RB Leipzig', 'DE1', 90, 'https://r2.thesportsdb.com/images/media/team/badge/zjgapo1594244951.png'],
+    ['Stuttgart', 'DE1', 85, 'https://r2.thesportsdb.com/images/media/team/badge/yppyux1473454085.png'],
+    ['Eintracht Frankfurt', 'DE1', 85, 'https://r2.thesportsdb.com/images/media/team/badge/rurwpy1473453269.png'],
+    ['Wolfsburg', 'DE1', 82, 'https://r2.thesportsdb.com/images/media/team/badge/ci9trv1778399557.png'],
+    ['Werder Bremen', 'DE1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/tkvqan1716960454.png'],
+    ['Borussia M\'gladbach', 'DE1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/rn6vsx1580141896.png'],
+    ['Union Berlin', 'DE1', 79, 'https://r2.thesportsdb.com/images/media/team/badge/q0o5001599679795.png'],
+
+    // 2. Bundesliga
+    ['Hamburgo', 'DE2', 68, 'https://r2.thesportsdb.com/images/media/team/badge/1pcg031679387881.png'],
+    ['Schalke 04', 'DE2', 68, 'https://r2.thesportsdb.com/images/media/team/badge/hnci291621593978.png'],
+    ['Hertha Berlim', 'DE2', 67, ''],
+    ['Kaiserslautern', 'DE2', 62, 'https://r2.thesportsdb.com/images/media/team/badge/jghax31740165513.png'],
+
+    // Ligue 1
+    ['PSG', 'FR1', 96, ''],
+    ['Monaco', 'FR1', 88, 'https://r2.thesportsdb.com/images/media/team/badge/exjf5l1678808044.png'],
+    ['Marseille', 'FR1', 87, 'https://r2.thesportsdb.com/images/media/team/badge/c6bazh1779212287.png'],
+    ['Lyon', 'FR1', 85, 'https://r2.thesportsdb.com/images/media/team/badge/blk9771656932845.png'],
+    ['Lille', 'FR1', 85, 'https://r2.thesportsdb.com/images/media/team/badge/2giize1534005340.png'],
+    ['Nice', 'FR1', 83, 'https://r2.thesportsdb.com/images/media/team/badge/msy7ly1621593859.png'],
+    ['Rennes', 'FR1', 83, 'https://r2.thesportsdb.com/images/media/team/badge/ypturx1473504818.png'],
+    ['Lens', 'FR1', 82, 'https://r2.thesportsdb.com/images/media/team/badge/3pxoum1598797195.png'],
+    ['Nantes', 'FR1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/mla9x61678808018.png'],
+    ['Strasbourg', 'FR1', 77, 'https://r2.thesportsdb.com/images/media/team/badge/b8k77w1766625501.png'],
+
+    // Ligue 2
+    ['Saint-Étienne', 'FR2', 66, ''],
+    ['Bordeaux', 'FR2', 65, 'https://r2.thesportsdb.com/images/media/team/badge/u45vc51627132724.png'],
+    ['Metz', 'FR2', 62, 'https://r2.thesportsdb.com/images/media/team/badge/1iuew61688452857.png'],
+    ['Caen', 'FR2', 58, 'https://r2.thesportsdb.com/images/media/team/badge/416kon1784484564.png'],
+    ['Saint-Étienne', 'FR2', 66, ''],
+    ['Bordeaux', 'FR2', 65, 'https://r2.thesportsdb.com/images/media/team/badge/u45vc51627132724.png'],
+    ['Metz', 'FR2', 62, 'https://r2.thesportsdb.com/images/media/team/badge/1iuew61688452857.png'],
+    ['Caen', 'FR2', 58, 'https://r2.thesportsdb.com/images/media/team/badge/416kon1784484564.png'],
+
+    // Primeira Liga
+    ['Benfica', 'PT1', 87, 'https://r2.thesportsdb.com/images/media/team/badge/hj4kyc1781152436.png'],
+    ['Porto', 'PT1', 86, 'https://r2.thesportsdb.com/images/media/team/badge/xu47rb1628855600.png'],
+    ['Sporting CP', 'PT1', 87, 'https://r2.thesportsdb.com/images/media/team/badge/5hiuk71783137875.png'],
+    ['Braga', 'PT1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/skbiwo1785775946.png'],
+    ['Vitória de Guimarães', 'PT1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/af52z61628855707.png'],
+
+    // Eredivisie
+    ['Ajax', 'NL1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/zg9tii1755495289.png'],
+    ['PSV', 'NL1', 85, 'https://r2.thesportsdb.com/images/media/team/badge/xfsz6i1721297428.png'],
+    ['Feyenoord', 'NL1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/uturtx1473534803.png'],
+    ['AZ Alkmaar', 'NL1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/wtqwvv1473534757.png'],
+    ['Twente', 'NL1', 75, 'https://r2.thesportsdb.com/images/media/team/badge/rsrxrt1473534783.png'],
+
+    // Pro League
+    ['Club Brugge', 'BE1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/mz8y0q1771129880.png'],
+    ['Anderlecht', 'BE1', 77, 'https://r2.thesportsdb.com/images/media/team/badge/auindn1771129464.png'],
+    ['Genk', 'BE1', 76, 'https://r2.thesportsdb.com/images/media/team/badge/tp06te1534875918.png'],
+    ['Standard Liège', 'BE1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/0ynlvb1771130035.png'],
+
+    // Süper Lig
+    ['Galatasaray', 'TR1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/io7jk21767941298.png'],
+    ['Fenerbahçe', 'TR1', 83, 'https://r2.thesportsdb.com/images/media/team/badge/twxxvs1448199691.png'],
+    ['Beşiktaş', 'TR1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/svo05k1776827439.png'],
+    ['Trabzonspor', 'TR1', 77, 'https://r2.thesportsdb.com/images/media/team/badge/96s34o1776827629.png'],
+
+    // Premier Liga
+    ['Zenit', 'RU1', 80, ''],
+    ['CSKA Moscou', 'RU1', 77, ''],
+    ['Spartak Moscou', 'RU1', 77, ''],
+    ['Rubin Kazan', 'RU1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/hp9kw81579347672.png'],
+
+    // Premiership
+    ['Celtic', 'SC1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/3uv1641758780002.png'],
+    ['Rangers', 'SC1', 77, 'https://r2.thesportsdb.com/images/media/team/badge/ti24j61614290048.png'],
+    ['Hearts', 'SC1', 66, 'https://r2.thesportsdb.com/images/media/team/badge/twqvyt1447597939.png'],
+
+    // Super League
+    ['Olympiacos', 'GR1', 76, 'https://r2.thesportsdb.com/images/media/team/badge/xckasq1721291508.png'],
+    ['PAOK', 'GR1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/m15zsh1602774126.png'],
+    ['AEK Atenas', 'GR1', 73, ''],
+    ['Panathinaikos', 'GR1', 73, 'https://r2.thesportsdb.com/images/media/team/badge/vtpwwt1448208397.png'],
+
+    // MLS
+    ['Inter Miami', 'US1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/m4it3e1602103647.png'],
+    ['LAFC', 'US1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/7nbj2a1602103638.png'],
+    ['LA Galaxy', 'US1', 77, 'https://r2.thesportsdb.com/images/media/team/badge/ysyysr1420227188.png'],
+    ['Seattle Sounders', 'US1', 76, 'https://r2.thesportsdb.com/images/media/team/badge/2dy5cx1706711036.png'],
+    ['Atlanta United', 'US1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/ej091x1602103070.png'],
+
+    // Liga MX
+    ['Club América', 'MX1', 82, 'https://r2.thesportsdb.com/images/media/team/badge/amy1xs1581857392.png'],
+    ['Chivas', 'MX1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/mp1box1593452087.png'],
+    ['Monterrey', 'MX1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/yglj911721542561.png'],
+    ['Tigres', 'MX1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/x6mzk41615832215.png'],
+    ['Cruz Azul', 'MX1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/wcd2yi1781543370.png'],
+    ['Necaxa', 'MX1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/tqdk9e1779772432.png'],
+
+    // Saudi Pro League
+    ['Al Hilal', 'SA1', 88, 'https://r2.thesportsdb.com/images/media/team/badge/5trzvq1660439102.png'],
+    ['Al Nassr', 'SA1', 86, 'https://r2.thesportsdb.com/images/media/team/badge/84yvqi1748524565.png'],
+    ['Al Ahli', 'SA1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/5jxyip1687165392.png'],
+    ['Al Ittihad', 'SA1', 84, ''],
+    ['Al Shabab', 'SA1', 76, 'https://r2.thesportsdb.com/images/media/team/badge/x9pqf01618586414.png'],
+
+    // J1 League
+    ['Kawasaki Frontale', 'JP1', 76, 'https://r2.thesportsdb.com/images/media/team/badge/c6pot51578239112.png'],
+    ['Urawa Reds', 'JP1', 74, ''],
+    ['Vissel Kobe', 'JP1', 75, 'https://r2.thesportsdb.com/images/media/team/badge/2axjch1578239819.png'],
+    ['Machida Zelvia', 'JP1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/99zl6k1590070905.png'],
+
+    // K League 1
+    ['Ulsan HD', 'KR1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/0wooic1706533767.png'],
+    ['Jeonbuk', 'KR1', 73, 'https://r2.thesportsdb.com/images/media/team/badge/8jif3b1747853225.png'],
+    ['FC Seoul', 'KR1', 71, 'https://r2.thesportsdb.com/images/media/team/badge/31z1zf1579473186.png'],
+
+    // Premier League
+    ['Al Ahly', 'EG1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/x8753q1751421890.png'],
+    ['Zamalek', 'EG1', 75, 'https://r2.thesportsdb.com/images/media/team/badge/tgekj81580930027.png'],
+    ['Pyramids', 'EG1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/8liy611607352549.png'],
+
+    // Botola Pro
+    ['Wydad', 'MA1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/t2xqqm1674614389.png'],
+    ['Raja Casablanca', 'MA1', 73, 'https://r2.thesportsdb.com/images/media/team/badge/1cg64m1551428003.png'],
+    ['RS Berkane', 'MA1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/f296p91743053568.png'],
+
+    // Premiership
+    ['Mamelodi Sundowns', 'ZA1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/u3md311784744590.png'],
+    ['Orlando Pirates', 'ZA1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/y6dbv61583616330.png'],
+    ['Kaizer Chiefs', 'ZA1', 69, 'https://r2.thesportsdb.com/images/media/team/badge/akwtlr1583614121.png'],
+
+    // A-League
+    ['Melbourne City', 'AU1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/rkeqme1603301840.png'],
+    ['Sydney FC', 'AU1', 69, 'https://r2.thesportsdb.com/images/media/team/badge/utgq8z1546110747.png'],
+    ['Melbourne Victory', 'AU1', 68, 'https://r2.thesportsdb.com/images/media/team/badge/wwvsqx1473454564.png'],
+    ['Auckland FC', 'AU1', 64, 'https://r2.thesportsdb.com/images/media/team/badge/f36lst1730017502.png'],
 ];
 
 /** Os clubes de uma liga. */
