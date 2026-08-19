@@ -23,6 +23,18 @@ require_once __DIR__ . '/../core/cartao.php';   // o cartão em imagem, igual ao
 $idUsuario = (int)($_SESSION['user_id'] ?? 0);
 $pdo = db();
 
+// Moedas da conta, pra barra de cima. O jogo roda sem login — quem não está
+// logado vê a barra sem a ficha de moeda, e não um zero que não é dele.
+$moedasUsuario = null;
+if ($idUsuario > 0) {
+    try {
+        $st = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = ?");
+        $st->execute([$idUsuario]);
+        $v = $st->fetchColumn();
+        if ($v !== false) $moedasUsuario = (int)$v;
+    } catch (Throwable $e) { /* sem moeda na barra é melhor que sem jogo */ }
+}
+
 /** Guarda a carreira encerrada, pro ranking e pro histórico. */
 function coperoGarantirTabela(PDO $pdo): void
 {
@@ -402,10 +414,25 @@ h1,h2,h3{margin:0;letter-spacing:-.4px}
 button{font-family:inherit}
 
 /* ── Topo ───────────────────────────────────────────── */
-.topo{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.topo{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
 .topo .marca{display:flex;align-items:center;gap:9px;font-weight:900;font-size:18px;letter-spacing:-.6px}
 .topo .marca i{color:var(--verde-claro)}
 .topo .espaco{flex:1}
+.topo .voltar{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;
+  border:1px solid var(--borda);background:transparent;color:var(--txt2);text-decoration:none;
+  flex-shrink:0;transition:.2s}
+.topo .voltar:hover{border-color:var(--verde);color:var(--verde-claro);background:rgba(34,197,94,.08)}
+.ficha{display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;background:var(--panel2);
+  border:1px solid var(--borda);font-size:12px;font-weight:700;color:var(--txt);white-space:nowrap}
+.ficha b{font-variant-numeric:tabular-nums;font-weight:800}
+.ficha-btn{cursor:pointer;font-family:inherit;transition:.15s}
+.ficha-btn:hover{border-color:var(--verde);color:var(--verde-claro)}
+.ficha-moeda{color:#eab308}
+@media (max-width:520px){
+  .topo{gap:7px}
+  .topo .marca{font-size:15px}
+  .ficha{padding:4px 9px;font-size:11px}
+}
 .btn-topo{background:var(--panel2);border:1px solid var(--borda);color:var(--txt2);border-radius:9px;
   padding:8px 13px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .btn-topo:hover{color:var(--txt);border-color:var(--borda2)}
@@ -1077,6 +1104,7 @@ async function mostrarTacas(t){
    Quem ganha o quê depende da força do clube contra a liga em que ele joga,
    e o jogador entra como tempero: um craque num time bom empurra o título,
    mas ninguém ganha Champions sozinho jogando na segunda divisão. */
+window.__MOEDAS__ = <?= $moedasUsuario === null ? 'null' : $moedasUsuario ?>;
 const TACAS = <?= json_encode(COPERO_TACAS, JSON_UNESCAPED_UNICODE) ?>;
 const COMPETICOES = <?= json_encode(COPERO_COMPETICOES, JSON_UNESCAPED_UNICODE) ?>;
 const CONTINENTAL = <?= json_encode(COPERO_CONTINENTAL, JSON_UNESCAPED_UNICODE) ?>;
@@ -1099,6 +1127,31 @@ const CONQUISTAS  = <?= json_encode(array_map(
     fn($x) => ['icone' => $x[0], 'nome' => $x[1], 'desc' => $x[2], 'nivel' => $x[3]],
     coperoConquistas()), JSON_UNESCAPED_UNICODE) ?>;
 const SEL_CONT    = <?= json_encode(COPERO_SELECAO_CONT, JSON_UNESCAPED_UNICODE) ?>;
+
+/**
+ * A barra de cima, igual em todas as telas.
+ *
+ * Existe por dois motivos práticos: sair do jogo sem o botão do navegador, e
+ * ver as moedas da conta sem sair. Quem não está logado não vê a ficha de
+ * moeda — mostrar zero pra quem não tem conta seria mentira.
+ *
+ * `extra` é o que cada tela quer no canto direito antes das fichas (o
+ * "Abandonar" da carreira em andamento, por exemplo).
+ */
+function barraTopo(extra){
+  const feitas = conquistasFeitas().length;
+  return `<div class="topo">
+    <a href="/games.php" class="voltar" title="Voltar aos jogos">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M8.5 3.5 4 8l4.5 4.5.9-.9L6.3 8.6H12v-1.2H6.3l3.1-3z"/></svg></a>
+    <div class="marca"><i class="bi bi-trophy-fill"></i> Copero</div>
+    <div class="espaco"></div>
+    ${extra || ''}
+    <button class="ficha ficha-btn" onclick="abrirDesafios()" title="Desafios">
+      🏆 <b>${feitas}</b></button>
+    ${window.__MOEDAS__ === null || window.__MOEDAS__ === undefined ? ''
+      : `<div class="ficha ficha-moeda" title="Suas moedas">🪙 <b>${window.__MOEDAS__}</b></div>`}
+  </div>`;
+}
 
 /** A taça desenhada, do tamanho pedido. */
 function taca(id, tam){
@@ -1409,6 +1462,7 @@ function titulosDaTemporada(clube, ovr, stats){
 /* ── Tela 1: modo ───────────────────────────────────── */
 function telaInicio(){
   app().innerHTML = `
+    ${barraTopo()}
     <div class="inicio">
       <h1>Copero</h1>
       <p class="lead">Você tem 16 anos e nenhum clube. O que vem depois é com você.</p>
@@ -1551,9 +1605,7 @@ function telaIdentidade(){
   };
 
   app().innerHTML = `
-    <div class="topo">
-      <div class="marca"><i class="bi bi-trophy-fill"></i> Copero</div>
-    </div>
+    ${barraTopo()}
     <div class="caixa">
       <div class="ident-cab">
         <span>Defina sua identidade</span>
@@ -2210,12 +2262,7 @@ function render(){
   const l = S.clube ? dadosLiga(S.clube.liga) : null;
 
   app().innerHTML = `
-    <div class="topo">
-      <div class="marca"><i class="bi bi-trophy-fill"></i> Copero</div>
-      <div class="espaco"></div>
-      <button class="btn-topo" onclick="if(confirm('Abandonar esta carreira?')){apagar();S=null;telaInicio();}">
-        <i class="bi bi-x-lg"></i> Abandonar</button>
-    </div>
+    ${barraTopo(`<button class="btn-topo" onclick="if(confirm('Abandonar esta carreira?')){apagar();S=null;telaInicio();}"><i class="bi bi-x-lg"></i> Abandonar</button>`)}
     <div class="carreira">
       <div>
         <div class="caixa ficha">
@@ -2540,7 +2587,7 @@ async function telaFim(){
 
   const cor = corDoOvr(S.picoOvr);
   app().innerHTML = `
-    <div class="topo"><div class="marca"><i class="bi bi-trophy-fill"></i> Copero</div></div>
+    ${barraTopo()}
     <div class="caixa fim">
       <h2>Sua carreira chegou ao fim</h2>
       <div class="acoes-fim">

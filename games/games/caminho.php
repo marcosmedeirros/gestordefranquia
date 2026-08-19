@@ -255,21 +255,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             if ($ativa) {
                 $pdo->prepare("UPDATE caminho_carreiras SET estado=?, nome=?, posicao=?, legado=?, temporadas=?,
-                               encerrada=1, encerrado_em=NOW(), moedas_pagas=? WHERE id=? AND encerrada=0")
-                    ->execute([$json, $nome, $pos, $legado, $temporadas, $legado, $ativa['id']]);
+                               encerrada=1, encerrado_em=NOW(), moedas_pagas=0 WHERE id=? AND encerrada=0")
+                    ->execute([$json, $nome, $pos, $legado, $temporadas, $ativa['id']]);
                 $mexeu = true;
             } else {
                 $pdo->prepare("INSERT INTO caminho_carreiras (id_usuario, nome, posicao, estado, legado, temporadas, encerrada, encerrado_em, moedas_pagas)
-                               VALUES (?,?,?,?,?,?,1,NOW(),?)")
-                    ->execute([$idUsuario, $nome, $pos, $json, $legado, $temporadas, $legado]);
+                               VALUES (?,?,?,?,?,?,1,NOW(),0)")
+                    ->execute([$idUsuario, $nome, $pos, $json, $legado, $temporadas]);
                 $mexeu = true;
             }
-            // Moedas = legado, creditadas uma vez só. O WHERE encerrada=0 acima
-            // é o que garante isso: um segundo POST não acha linha pra fechar.
-            if ($mexeu && $legado > 0) {
-                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ? WHERE id = ?")
-                    ->execute([$legado, $idUsuario]);
-            }
+            // A carreira encerrada NÃO paga moeda. Ela vale o ranking e a
+            // vitrine; moeda sai só de desafio, que é onde a conquista é de
+            // fato uma conquista e não o resultado de ter jogado bastante.
+            // ($mexeu segue marcado pra manter o registro coerente.)
             $pdo->commit();
         } catch (Throwable $e) {
             $pdo->rollBack();
@@ -277,7 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(['ok' => false, 'erro' => 'falha ao encerrar']);
             exit;
         }
-        echo json_encode(['ok' => true, 'legado' => $legado, 'moedas' => $legado]);
+        echo json_encode(['ok' => true, 'legado' => $legado, 'moedas' => 0]);
         exit;
     }
 
@@ -402,10 +400,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .daily-badge{display:inline-flex;align-items:center;gap:4px;font-size:8px;font-weight:700;letter-spacing:.8px;
   text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--red-soft);
   border:1px solid var(--red-glow);color:var(--red);margin-left:6px}
-.topbar-right{display:flex;align-items:center;gap:6px}
+.topbar-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .chip{display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;background:var(--panel2);
   border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text);white-space:nowrap}
 .chip b{font-family:var(--num);font-variant-numeric:tabular-nums;font-weight:700}
+/* No celular a barra tem cinco fichas (OVR, idade, dinheiro, troféu, moeda)
+   e o nome do jogo do outro lado: 281px de fichas em 375px de tela furavam
+   a página inteira pra direita. O selo "carreira" some, as fichas encolhem
+   e o que sobra pode quebrar linha em vez de empurrar. */
+@media (max-width:520px){
+  .topbar{gap:8px;padding:9px 10px}
+  .daily-badge{display:none}
+  .game-title{font-size:13.5px}
+  .chip{padding:3px 8px;font-size:10.5px;gap:3px}
+  .topbar-right{gap:4px}
+}
 
 .main{max-width:620px;margin:0 auto;padding:16px 12px 60px}
 
@@ -468,6 +477,31 @@ input::placeholder{color:var(--text3);font-weight:500}
 .tipo.on{border-color:var(--red);background:var(--red-soft)}
 .tipo b{display:block;font-size:14px;font-weight:900;letter-spacing:.2px;color:var(--text);margin-bottom:3px}
 .tipo span{font-size:10.5px;color:var(--text2);line-height:1.45;display:block}
+
+/* ── ENTRADA ─────────────────────────────────────────────────────────── */
+/* Uma coluna centrada, como no Copero: o título grande, a decisão, e o
+   ranking dos outros só depois de tudo que a pessoa veio fazer. */
+.inicio{max-width:640px;margin:5vh auto 0;text-align:center}
+.inicio h1{font-size:36px;line-height:1.1;margin-bottom:10px}
+.inicio p.lead{font-size:15px;margin:0 0 24px}
+.inicio h2{text-align:left;margin-top:30px}
+.inicio .bpcard,.inicio .nota-txt{text-align:left}
+@media (max-width:560px){.inicio{margin-top:2vh}.inicio h1{font-size:28px}}
+
+/* ── ESCOLHAS DA ENTRADA ─────────────────────────────────────────────── */
+/* Liga e ritmo saíram da tela de identidade e vieram pra cá, como no
+   Copero: são decisões sobre a PARTIDA, não sobre o jogador. */
+.pre-escolhas{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:2px 0 14px}
+.pre-rot{display:block;font-size:9.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
+  color:var(--text3);margin-bottom:7px}
+.pre-duo{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.pre-duo button{background:var(--panel2);border:1px solid var(--border);border-radius:12px;
+  padding:11px 9px;text-align:left;cursor:pointer;color:var(--text);font-family:var(--font);transition:.16s}
+.pre-duo button:hover{border-color:var(--border2);background:var(--panel3)}
+.pre-duo button.on{border-color:var(--red);background:var(--red-soft)}
+.pre-duo button b{display:block;font-size:13px;font-weight:900;letter-spacing:.2px}
+.pre-duo button small{display:block;font-size:9.5px;color:var(--text2);line-height:1.35;margin-top:2px}
+@media (max-width:560px){.pre-escolhas{grid-template-columns:1fr}}
 
 /* BOTÕES — .spin-btn e .reroll-btn do padrão */
 .btn{width:100%;background:var(--red);color:#fff;border:0;border-radius:12px;padding:15px;
@@ -668,6 +702,7 @@ tr.tit td{color:var(--red)}
   box-shadow:0 6px 18px rgba(0,0,0,.5)}
 .pos-desc{font-size:11.5px;color:var(--text3);line-height:1.5;text-align:center;margin-top:11px;min-height:34px}
 .pos-desc b{color:var(--text2)}
+.pos-tende{display:block;margin-top:5px;font-size:10.5px;color:var(--text3);opacity:.85}
 
 /* Rodapé fixo da tela, como o do jogo do print. */
 .id-rodape{display:flex;align-items:center;justify-content:space-between;gap:12px;
@@ -1062,6 +1097,42 @@ tr.tit td{color:var(--red)}
 .modal-mercado{width:min(680px,100%)}
 .modal-mercado .ofertas-grade{grid-template-columns:repeat(auto-fit,minmax(178px,1fr))}
 
+/* ── POPUP DOS CONVITES (pra onde ir) ────────────────────────────────── */
+.modal-convites{width:min(560px,100%)}
+.conv-lista{display:flex;flex-direction:column;gap:8px}
+.conv{display:flex;align-items:flex-start;gap:11px;width:100%;background:var(--panel2);
+  border:1px solid var(--border);border-radius:13px;padding:12px 13px;text-align:left;
+  cursor:pointer;color:var(--text);font-family:var(--font);transition:.16s}
+.conv:hover{border-color:var(--red);background:var(--panel3)}
+.conv-ico{flex:none;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
+  background:var(--panel3);color:var(--text2);font-size:15px}
+.conv.univ .conv-ico{background:var(--blue-soft);color:var(--blue)}
+.conv.pro .conv-ico{background:var(--amber-soft);color:var(--amber)}
+.conv.casa .conv-ico{background:var(--green-soft);color:var(--green)}
+.conv-txt{flex:1;min-width:0}
+.conv-txt b{display:block;font-size:14px;font-weight:900;letter-spacing:-.1px}
+.conv-tag{display:inline-block;font-size:8.5px;font-weight:800;letter-spacing:.7px;
+  text-transform:uppercase;color:var(--text3);margin:2px 0 3px}
+.conv.casa .conv-tag{color:var(--green)}
+.conv-txt small{display:block;font-size:10.5px;color:var(--text2);line-height:1.45}
+
+/* ── POPUP DO DRAFT ──────────────────────────────────────────────────── */
+/* overflow-x contido: o número crava com um scale(1.28) que, num celular,
+   passaria da borda da tela e criaria rolagem lateral por meio segundo. */
+.modal-draft{width:min(400px,100%);text-align:center;overflow-x:clip}
+.dr-eyebrow{font-size:9.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--text3)}
+.dr-num{font-family:var(--num);font-size:74px;font-weight:900;line-height:1;letter-spacing:-4px;
+  font-variant-numeric:tabular-nums;margin:6px 0 2px}
+.dr-num.rolando{color:var(--text3)}
+.dr-num.parou{color:var(--red);animation:drCravou .5s ease-out}
+@keyframes drCravou{0%{transform:scale(1.28);filter:blur(5px)}60%{transform:scale(.97);filter:blur(0)}100%{transform:scale(1)}}
+.dr-time{opacity:0;animation:drEntra .45s ease-out .12s forwards}
+@keyframes drEntra{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+.dr-time b{display:block;font-size:19px;font-weight:900;letter-spacing:-.5px;margin-top:8px}
+.dr-time span{display:block;font-size:11.5px;color:var(--text2);margin-top:3px}
+.dr-espera{font-size:12.5px;color:var(--text2);min-height:18px;margin-top:4px}
+@media (max-width:520px){.dr-num{font-size:60px;letter-spacing:-3px}.dr-time b{font-size:17px}}
+
 /* ── RESUMO DE FIM — o molde do Copero ───────────────────────────────── */
 .fim-topo{text-align:center}
 .fim-topo .acoes-fim{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
@@ -1213,6 +1284,32 @@ const ARQUETIPOS = {
   marcador:{n:"Lockdown",     d:"Anula o melhor do outro time. Todo jogo.",   forte:["def","fis"],    cresce:"def"},
   garrafao:{n:"Glass Cleaner",d:"Domina o rebote e protege o aro.",           forte:["fis","def"],    cresce:"fis"},
 };
+
+/**
+ * O jeito de jogar SAI da posição — não é mais uma escolha.
+ *
+ * Escolher os dois separadamente permitia um pivô Sharpshooter e um armador
+ * Glass Cleaner, e transformava a criação num formulário de duas perguntas
+ * que na prática eram uma. A posição já diz quase tudo; o que sobra de
+ * incerteza vira sorteio com peso, então dois armadores não nascem iguais e
+ * ninguém precisa decidir nada sobre isso.
+ *
+ * Os pesos somam 100 em cada posição só pra facilitar a leitura.
+ */
+const ARQ_DA_POSICAO = {
+  PG:[["armador",55],["atirador",25],["marcador",12],["penetra",8]],
+  SG:[["atirador",45],["penetra",25],["marcador",18],["armador",12]],
+  SF:[["penetra",32],["atirador",26],["marcador",26],["armador",8],["garrafao",8]],
+  PF:[["garrafao",38],["marcador",28],["penetra",22],["atirador",12]],
+  C: [["garrafao",50],["marcador",32],["penetra",18]],
+};
+
+function sortearArquetipo(pos){
+  const tab = ARQ_DA_POSICAO[pos] || ARQ_DA_POSICAO.SF;
+  let r = Math.random() * tab.reduce((s,x) => s + x[1], 0);
+  for (const [id, peso] of tab){ if ((r -= peso) <= 0) return id; }
+  return tab[0][0];
+}
 
 const ATRIBUTOS = {tres:"3 pontos",fin:"Finalização",pas:"Passe",dri:"Drible",def:"Defesa",fis:"Físico",iq:"QI de jogo",cl:"Clutch"};
 
@@ -2445,6 +2542,14 @@ function colunas(principal, lado){
     <div class="col-lado">${lado}</div></div>`;
 }
 
+/**
+ * A entrada, no molde do Copero: uma coluna centrada, título grande, as
+ * decisões da partida e os botões um embaixo do outro.
+ *
+ * Era duas colunas com o ranking do lado, e no celular isso empurrava o
+ * botão de começar pra baixo do ranking de outra gente. Aqui o ranking vem
+ * DEPOIS de tudo que a pessoa veio fazer, que é onde ele pertence.
+ */
 function telaInicio(){
   const salvo = carregar();
   const principal = `
@@ -2457,7 +2562,27 @@ function telaInicio(){
         <button class="btn" onclick="continuar()">Continuar</button>
         <button class="btn btn2" style="margin-top:8px" onclick="if(confirm('Abandonar a carreira atual? Ela não volta.')){apagar();render()}">Começar outra</button>
       </div>` : `
-      <button class="btn" onclick="iniciar()">Começar</button>`}
+      <div class="pre-escolhas">
+        <div>
+          <span class="pre-rot">Onde você quer chegar</span>
+          <div class="pre-duo">
+            <button class="${rascunho.modo !== 'fba' ? 'on' : ''}" onclick="rascunho.modo='nba';telaInicio()">
+              <b>NBA</b><small>O caminho clássico. Times reais.</small></button>
+            <button class="${rascunho.modo === 'fba' ? 'on' : ''}" onclick="rascunho.modo='fba';telaInicio()">
+              <b>FBA</b><small>RISE → NEXT → ELITE, com os GMs da liga.</small></button>
+          </div>
+        </div>
+        <div>
+          <span class="pre-rot">Ritmo da carreira</span>
+          <div class="pre-duo">
+            <button class="${rascunho.ritmo !== 'rapido' ? 'on' : ''}" onclick="rascunho.ritmo='normal';telaInicio()">
+              <b>Clássico</b><small>Ano a ano, cada decisão conta.</small></button>
+            <button class="${rascunho.ritmo === 'rapido' ? 'on' : ''}" onclick="rascunho.ritmo='rapido';telaInicio()">
+              <b>Rápido</b><small>De dois em dois, carreira em metade do tempo.</small></button>
+          </div>
+        </div>
+      </div>
+      <button class="btn" onclick="iniciar()">Começar carreira</button>`}
 
     ${(() => {
       // As conquistas na tela de entrada, com o placar à vista: elas são do
@@ -2474,7 +2599,7 @@ function telaInicio(){
       </button>`;
     })()}
     `;
-  app().innerHTML = topo() + colunas(principal, ranking()) + `</div>`;
+  app().innerHTML = topo() + `<div class="inicio">${principal}${ranking()}</div></div>`;
 }
 
 // O nome vem da última carreira desta conta, impresso pelo PHP. Vem do
@@ -2668,37 +2793,18 @@ function telaCriar(){
                             onclick="rascunho.pos='${k}';telaCriar()">${k}</button>`;
           }).join("")}
         </div>
-        <div class="pos-desc"><b>${esc(p.n)}</b> — ${esc(p.d)}</div>
+        <div class="pos-desc"><b>${esc(p.n)}</b> — ${esc(p.d)}
+          <span class="pos-tende">Costuma virar ${(ARQ_DA_POSICAO[rascunho.pos] || [])
+            .slice(0, 2).map(a => esc(ARQUETIPOS[a[0]].n)).join(" ou ")} — mas quem decide é o sorteio.</span>
+        </div>
       </div>
 
     </div>
 
-    <h2>Jeito de jogar</h2>
-    <div class="grade">
-      ${Object.keys(ARQUETIPOS).map(k => {
-        const o = ARQUETIPOS[k];
-        return `<button class="tipo ${rascunho.arq === k ? 'on' : ''}" onclick="rascunho.arq='${k}';telaCriar()">
-          <b>${esc(o.n)}</b><span>${esc(o.d)}</span></button>`;
-      }).join("")}
-    </div>
-
-    <h2>Onde você quer chegar</h2>
-    <div class="grade">
-      <button class="tipo ${rascunho.modo === 'nba' ? 'on' : ''}" onclick="rascunho.modo='nba';telaCriar()">
-        <b>NBA</b><span>O caminho clássico. Times reais.</span></button>
-      <button class="tipo ${rascunho.modo === 'fba' ? 'on' : ''}" onclick="rascunho.modo='fba';telaCriar()">
-        <b>FBA</b><span>RISE → NEXT → ELITE. Times e GMs da liga de verdade.</span></button>
-    </div>
-
-    <h2>Ritmo da carreira</h2>
-    <div class="grade">
-      <button class="tipo ${rascunho.ritmo !== 'rapido' ? 'on' : ''}" onclick="rascunho.ritmo='normal';telaCriar()">
-        <b>Ano a ano</b><span>Uma temporada por vez, com decisão em todas.</span></button>
-      <button class="tipo ${rascunho.ritmo === 'rapido' ? 'on' : ''}" onclick="rascunho.ritmo='rapido';telaCriar()">
-        <b>De 2 em 2</b><span>Duas temporadas por vez. Carreira inteira em metade do tempo.</span></button>
-    </div>
-    <p class="nota-txt" style="margin-top:-2px">O ritmo não muda nenhuma conta: a mesma carreira vale o
-    mesmo legado nos dois. Mercado, finais e lesão sempre param, seja qual for.</p>
+    <p class="nota-txt" style="margin-top:12px">Você vai jogar
+    <b style="color:var(--text)">${rascunho.modo === 'fba' ? 'na FBA' : 'na NBA'}</b>, no ritmo
+    <b style="color:var(--text)">${rascunho.ritmo === 'rapido' ? 'rápido (de dois em dois anos)' : 'clássico (ano a ano)'}</b>.
+    Dá pra trocar voltando à tela anterior.</p>
 
     <div class="id-rodape">
       <button class="btn btn2" onclick="render()">Voltar</button>
@@ -2736,7 +2842,7 @@ function telaCriar(){
 
 function criar(){
   const nome = (rascunho.nome || "").trim() || "Jogador Sem Nome";
-  S = novaCarreira(nome, rascunho.pos, rascunho.arq, rascunho.nac, rascunho.modo);
+  S = novaCarreira(nome, rascunho.pos, sortearArquetipo(rascunho.pos), rascunho.nac, rascunho.modo);
   S.numero = rascunho.numero || String(ri(0, 99));
   S.mao = rascunho.mao;
   S.ritmo = rascunho.ritmo === "rapido" ? "rapido" : "normal";
@@ -2744,24 +2850,102 @@ function criar(){
   salvar(); render();
 }
 
+/**
+ * Os 18 anos: a tela é só o retrato, a decisão é um popup.
+ *
+ * Antes esta tela despejava as dez universidades e as cinco ligas de uma
+ * vez — quinze cartões, e a escolha virava um catálogo. Agora chegam CINCO
+ * convites, sorteados, e o resto do mundo não chegou pra você. É a mesma
+ * decisão com a informação que um garoto de 18 anos realmente tem: quem
+ * ligou.
+ *
+ * O sorteio não é cego. Vitrine grande (Duke, Kentucky, UCLA) só liga pra
+ * quem tem nome; quem ninguém viu recebe convite de programa que precisa de
+ * gente pra jogar. E a liga de casa, pra quem não é americano, quase sempre
+ * está na lista — ela é a porta que ninguém fecha.
+ */
+function sortearConvites(){
+  const o = ovr(S.A, S.pos);
+  const aval = o + (S.pot - o) * 0.35;
+  // A avaliação aos 18 vive entre 50 e 63 (medido em 4 mil carreiras), com a
+  // mediana em 58 -- por isso o centro é 58 e a régua é curta: dividir por 9
+  // deixava todo mundo no meio e o sorteio virava uniforme.
+  const t = clamp((aval - 58) / 3.5, -1.6, 1.6);
+
+  const univ = COLLEGES.map((c, i) => ({
+    tipo:"univ", i, n:c.n, f:c.f, d:c.d,
+    peso: Math.max(0.06, 1 + t * c.hype * 0.6),
+  }));
+
+  const pros = caminhosProfissionais().map((l, i) => ({
+    tipo: l.casa ? "casa" : "pro", i, n:l.n, f: l.casa ? "Em casa" : "Profissional", d:l.d,
+    peso: l.casa ? 5 : 1,
+  }));
+
+  S.convites = sortearPesado(univ, 3).concat(sortearPesado(pros, 2));
+  salvar();
+}
+
+// Sorteio ponderado sem repetição: tira um, remove da urna, repete.
+function sortearPesado(urna, n){
+  const resto = urna.slice(), saiu = [];
+  while (saiu.length < n && resto.length){
+    const total = resto.reduce((s, x) => s + x.peso, 0);
+    let r = Math.random() * total, k = 0;
+    while (k < resto.length - 1 && (r -= resto[k].peso) > 0) k++;
+    saiu.push(resto.splice(k, 1)[0]);
+  }
+  return saiu;
+}
+
 function telaCaminho(){
   const o = ovr(S.A, S.pos);
+  if (!S.convites || !S.convites.length) sortearConvites();
   app().innerHTML = topo() + `
     <h1>18 anos.<br>Pra onde agora?</h1>
     <p class="lead">Você é <b style="color:var(--text)">${o} de nível</b> e os olheiros te veem como <b style="color:var(--red)">${faixaPotencial(S.pot).toLowerCase()}</b>. O caminho muda o que você vira.</p>
 
-    <h2>Universidade nos Estados Unidos</h2>
-    <div class="grade">
-      ${COLLEGES.map((c,i)=>`<button class="tipo" onclick="escolherCollege(${i})">
-        <b>${esc(c.n)}</b><span><b style="color:var(--red);font-size:9.5px;letter-spacing:.6px">${esc(c.f.toUpperCase())}</b><br>${esc(c.d)}</span></button>`).join("")}
+    <div class="bpcard centro">
+      <div class="bpcard-title">Quem ligou pra você</div>
+      <div class="grande">${S.convites.length}</div>
+      <p style="margin:6px 0 0;font-size:12.5px;color:var(--text2)">
+        ${S.convites.filter(c => c.tipo === "univ").length} universidades e
+        ${S.convites.filter(c => c.tipo !== "univ").length} portas do basquete profissional.
+        Nem todo mundo te viu — estes viram.</p>
     </div>
+    <button class="btn" onclick="abrirConvites()">Ver os convites</button>
+    <p class="nota-txt">Em qualquer caminho você decide, ano a ano, quando entrar no draft — até o quarto ano, quando a decisão deixa de ser sua.</p>`;
+}
 
-    <h2>${S.nac !== "USA" ? "Ou virar profissional agora" : "Ou pular a faculdade"}</h2>
-    <div class="grade">
-      ${caminhosProfissionais().map((l,i)=>`<button class="tipo" onclick="escolherFora(${i})">
-        <b>${esc(l.n)}</b><span>${l.casa ? `<b style="color:var(--green);font-size:9.5px;letter-spacing:.6px">EM CASA</b><br>` : ""}${esc(l.d)}</span></button>`).join("")}
+function abrirConvites(){
+  document.querySelector('.modal-fundo')?.remove();
+  const cx = document.createElement('div');
+  cx.className = 'modal-fundo';
+  cx.innerHTML = `<div class="modal-cx modal-convites">
+    <div class="fin-cab">
+      <span class="fin-tit">Pra onde agora?</span>
+      <small>cinco convites na mesa · escolha um</small>
     </div>
-    <p class="nota-txt">Em qualquer caminho você decide, ano a ano, quando entrar no draft.${S.nac !== "USA" ? " Ou não entrar nunca — dá pra fazer a carreira inteira fora." : ""}</p>`;
+    <div class="conv-lista">
+      ${S.convites.map((c, k) => `
+        <button class="conv ${c.tipo}" onclick="escolherConvite(${k})">
+          <span class="conv-ico"><i class="bi bi-${c.tipo === "univ" ? "mortarboard-fill" : c.tipo === "casa" ? "house-heart-fill" : "globe-americas"}"></i></span>
+          <span class="conv-txt">
+            <b>${esc(c.n)}</b>
+            <span class="conv-tag">${esc(c.f)}</span>
+            <small>${esc(c.d)}</small>
+          </span>
+        </button>`).join("")}
+    </div>
+  </div>`;
+  document.body.appendChild(cx);
+}
+
+function escolherConvite(k){
+  const c = S.convites[k];
+  if (!c) return;
+  document.querySelector('.modal-fundo')?.remove();
+  if (c.tipo === "univ") escolherCollege(c.i); else escolherFora(c.i);
 }
 
 /**
@@ -2821,8 +3005,19 @@ function avancarFormacao(){
   S.anoFase++; S.idade++; S.ano++;
 
   // Desempenho move o hype: é assim que o draft deixa de ser sorteio.
+  //
+  // A régua é MÓVEL porque o esperado muda: em 900 carreiras medidas, a
+  // produção mediana da formação vai de -2,7 no primeiro ano a +28,4 no
+  // quarto, e a dispersão quadruplica junto. O baseline fixo de 34 que
+  // estava aqui cobrava do calouro o que só o veterano entrega — a mediana
+  // perdia 25 de hype POR ANO, todo mundo chegava ao draft no piso 5, a
+  // posição virava sorteio puro e 30% dos jogadores ficavam fora das 60
+  // escolhas. Dividir pela escala do ano deixa um ano bom valendo o mesmo
+  // (+10 de hype) seja ele o primeiro ou o último.
   const desempenho = (st.pts*1.6 + st.reb*0.9 + st.ast*1.1) + (o-60);
-  S.hype = clamp(S.hype + Math.round((desempenho - 34) * 0.7), 5, 99);
+  const esperado = -12 + 10.5 * (S.anoFase - 1);
+  const escala   =  8 +  9   * (S.anoFase - 1);
+  S.hype = clamp(S.hype + Math.round((desempenho - esperado) / escala * 11), 5, 99);
 
   // O fenômeno é notado antes de jogar bem: é o que ele É, não o que ele
   // fez. Sem este empurrão o portão do draft (hype 72) quase nunca abria
@@ -2857,19 +3052,21 @@ function telaFormacao(){
     ${barra()}
     ${placar(st, `${S.anoFase}º ano`, S.time, null, [])}
     <div class="bpcard">
-      <div class="bpcard-title">Projeção de draft</div>
+      <div class="bpcard-title">Projeção de draft · ${S.anoFase}º ano de 4</div>
       <p class="dec-txt">Os olheiros hoje te colocam como <b style="color:var(--red)">${projecao}</b>.
-      ${ultimoAno ? "Acabou seu tempo de universidade — é hora." : "Mais um ano pode te valorizar. Ou te machucar."}</p>
+      ${ultimoAno
+        ? `Acabou o seu tempo ${S.fase === "college" ? "de universidade" : "de formação"} — é hora.`
+        : `Sair agora é levar o que está na mesa. Ficar são mais ${4 - S.anoFase} ${4 - S.anoFase === 1 ? "ano possível" : "anos possíveis"} pra crescer — e pra dar errado.`}</p>
       ${ultimoAno ? `
         <button class="btn" onclick="irAoDraft()">Entrar no draft</button>` : `
         <button class="op" onclick="irAoDraft()">Sair para o draft agora
           <small>Pega o que estiver na mesa. ${S.hype >= 70 ? "E está bom." : "E pode não ser muito."}</small></button>
         <button class="op" onclick="avancarFormacao()">Ficar mais um ano
-          <small>Mais tempo pra crescer — e pra dar errado.</small></button>`}
+          <small>Vai pro ${S.anoFase + 1}º ano. Mais tempo pra crescer — e pra dar errado.</small></button>`}
     </div>`;
 }
 
-function irAoDraft(){ S.fase = "draft"; salvar(); telaDraft(); }
+function irAoDraft(){ S.fase = "draft"; S.draftRevelado = false; salvar(); telaDraft(); }
 
 function telaDraft(){
   if (!S.pickDraft){
@@ -2877,46 +3074,68 @@ function telaDraft(){
     // que jogou mal a universidade inteira não pode entrar como top 3.
     if (S.prodigio && S.hype >= 72) S.destaque = "prodigio";
 
-    // A posição sai do hype com ruído: você colhe o que plantou, mas a
-    // noite do draft nunca é totalmente previsível.
-    const base = 61 - Math.round(S.hype * 0.62);
+    // A posição sai do hype E do nível, com ruído: você colhe o que plantou,
+    // mas a noite do draft nunca é totalmente previsível.
+    //
+    // Os dois pesam porque medem coisas diferentes (correlação de 0,56 em
+    // 1.500 carreiras): o hype é o que falaram de você, o nível é o que você
+    // é. Só com hype, o calouro que não evoluiu saía na mesma faixa do
+    // veterano pronto; só com nível, quem estourou num ano não subia.
+    const nivel = clamp(ovr(S.A, S.pos) - 54, -12, 26);
+    const base = 61 - Math.round(S.hype * 0.45) - Math.round(nivel * 0.85);
     S.pickDraft = S.destaque === "prodigio" ? ri(1, 3)
                 : S.destaque === "euroliga" ? clamp(base + ri(-9, 2), 1, 40)
                 : clamp(base + ri(-7, 9), 1, 61);
     // Não-draftado não recebe time da liga: a liga não o chamou. Ele escolhe
-    // onde vai jogar entre as portas que existem fora dela.
+    // onde vai jogar entre as portas que existem fora dela. A fase só muda
+    // depois da revelação — até lá a noite do draft ainda está acontecendo.
     if (S.pickDraft > 60){
       S.semDraft = ofertasSemDraft();
-      S.fase = "semdraft";
-      salvar();
-      return telaSemDraft();
-    }
+    } else {
+      const lista = timesDaLiga();
+      S.time = pick(lista);
+      if (S.modo === "fba"){ S.gm = gmDoTime(S.time); }
+      S.liga = S.modo === "fba" ? "RISE" : "NBA";
+      // A fase só vira "liga" depois da revelação: recarregar a página no
+      // meio do popup tem que devolver a noite do draft, não a temporada.
+      S.anoFase = 0;
+      S.forcaBase = ri(30, 85);
+      S.confianca = Math.round(clamp(70 - S.pickDraft*0.6, 25, 85));
+      S.salario = Math.max(1, Math.round(Math.pow((62 - S.pickDraft)/61, 2) * 26) + 1);
+      S.contrato = 4;
+      criarRival();
 
-    const lista = timesDaLiga();
-    S.time = pick(lista);
-    if (S.modo === "fba"){ S.gm = gmDoTime(S.time); }
-    S.liga = S.modo === "fba" ? "RISE" : "NBA";
-    S.fase = "liga"; S.anoFase = 0;
-    S.forcaBase = ri(30, 85);
-    S.confianca = Math.round(clamp(70 - S.pickDraft*0.6, 25, 85));
-    S.salario = Math.max(1, Math.round(Math.pow((62 - S.pickDraft)/61, 2) * 26) + 1);
-    S.contrato = 4;
-    criarRival();
-
-    // Quem chega assim chega PRONTO — é o ponto de ter uma entrada rara.
-    // O prodígio já desembarca em nível de titular; o campeão europeu não
-    // vem tão forte, mas vem com a confiança e o contrato de quem já
-    // ganhou alguma coisa na vida adulta.
-    if (S.destaque === "prodigio"){
-      mexerOvr(Math.max(0, ri(6, 10)));
-      S.confianca = 92; S.forcaBase = ri(45, 80); S.salario += 6;
-    } else if (S.destaque === "euroliga"){
-      mexerOvr(Math.max(0, ri(2, 5)));
-      S.confianca = clamp(S.confianca + 15, 25, 95); S.salario += 3;
+      // Quem chega assim chega PRONTO — é o ponto de ter uma entrada rara.
+      // O prodígio já desembarca em nível de titular; o campeão europeu não
+      // vem tão forte, mas vem com a confiança e o contrato de quem já
+      // ganhou alguma coisa na vida adulta.
+      if (S.destaque === "prodigio"){
+        mexerOvr(Math.max(0, ri(6, 10)));
+        S.confianca = 92; S.forcaBase = ri(45, 80); S.salario += 6;
+      } else if (S.destaque === "euroliga"){
+        mexerOvr(Math.max(0, ri(2, 5)));
+        S.confianca = clamp(S.confianca + 15, 25, 95); S.salario += 3;
+      }
     }
+    S.draftRevelado = false;
     salvar();
   }
-  if (S.pickDraft > 60) return telaSemDraft();
+
+  // Antes da revelação a tela de fundo é só a sala de espera — o resultado
+  // fica no popup, e ninguém lê o desfecho por cima do vidro fosco.
+  if (!S.draftRevelado){
+    app().innerHTML = topo() + `
+      <h1>Noite do draft.</h1>
+      <p class="lead">Seu nome está na lista. Agora é sentar e ouvir.</p>
+      <div class="bpcard">
+        <div class="bpcard-title">Ficha dos olheiros</div>
+        <p class="dec-txt" style="margin:0">Comparam você a <b style="color:var(--red)">${esc(comparacaoDeDraft())}</b>.</p>
+      </div>`;
+    return abrirDraft();
+  }
+
+  if (S.pickDraft > 60){ S.fase = "semdraft"; salvar(); return telaSemDraft(); }
+  S.fase = "liga"; salvar();
   const manchete = S.destaque === "prodigio" ? "Chamaram seu nome primeiro."
                  : S.destaque === "euroliga" ? "Você chegou com currículo."
                  : "Noite do draft.";
@@ -2938,6 +3157,76 @@ function telaDraft(){
         : "É a promessa. Cumprir é com você."}</p>
     </div>
     <button class="btn" onclick="jogarAno()">Primeira temporada</button>`;
+}
+
+/**
+ * A revelação do draft, num popup com o número rolando.
+ *
+ * A posição já está decidida quando este popup abre — a rolagem é teatro, e
+ * é de propósito: o que faz a noite do draft valer alguma coisa é o segundo
+ * antes de ouvir o número, não o número. Quem não quiser esperar clica no
+ * número e ele crava na hora.
+ *
+ * O timer é curto e o botão de continuar aparece junto com o resultado, sem
+ * depender de um segundo temporizador: aba em segundo plano estrangula
+ * setTimeout pra um por segundo, e uma animação que não termina vira um jogo
+ * travado.
+ */
+function abrirDraft(){
+  document.querySelector('.modal-fundo')?.remove();
+  const cx = document.createElement('div');
+  cx.className = 'modal-fundo';
+  cx.innerHTML = `<div class="modal-cx modal-draft">
+    <div class="dr-eyebrow">Escolha nº</div>
+    <div class="dr-num rolando" id="drNum">--</div>
+    <p class="dr-espera" id="drEspera">O comissário está com o cartão na mão.</p>
+    <div id="drCorpo"></div>
+  </div>`;
+  document.body.appendChild(cx);
+
+  const num = document.getElementById('drNum');
+  const semAnimacao = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let giros = 0, timer = null;
+
+  const cravar = () => {
+    if (timer){ clearInterval(timer); timer = null; }
+    num.onclick = null;
+    num.textContent = S.pickDraft > 60 ? "--" : S.pickDraft;
+    num.className = 'dr-num parou';
+    document.getElementById('drEspera').textContent =
+      S.pickDraft > 60 ? "As 60 escolhas passaram."
+      : S.destaque === "prodigio" ? "A liga inteira já sabia seu nome."
+      : S.destaque === "euroliga" ? "Um título europeu no currículo pesou."
+      : "Chamaram seu nome.";
+    document.getElementById('drCorpo').innerHTML = S.pickDraft > 60 ? `
+      <div class="dr-time">
+        <b>Ninguém chamou seu nome.</b>
+        <span>Isso não quer dizer que não vão chamar.</span>
+      </div>
+      <button class="btn" onclick="fecharDraft()">Ver as propostas</button>` : `
+      <div class="dr-time">
+        ${marca(S.time, 54)}
+        <b>${esc(S.time)}</b>
+        <span>${S.gm ? `GM: ${esc(S.gm)} · ` : ""}${esc(S.liga || "")} · $${S.salario}M por ano</span>
+      </div>
+      <button class="btn" onclick="fecharDraft()">Continuar</button>`;
+  };
+
+  if (semAnimacao) return cravar();
+  num.style.cursor = 'pointer';
+  num.title = 'Clique pra pular';
+  num.onclick = cravar;
+  timer = setInterval(() => {
+    num.textContent = ri(1, 60);
+    if (++giros >= 22) cravar();
+  }, 65);
+}
+
+function fecharDraft(){
+  document.querySelector('.modal-fundo')?.remove();
+  S.draftRevelado = true;
+  salvar();
+  telaDraft();
 }
 
 /**
@@ -4095,7 +4384,7 @@ function cartaDoDesfecho(df){
  * não paga nada. O aviso diz isso antes, porque não dá pra desfazer.
  */
 function desistir(){
-  if (!confirm("Desistir desta carreira? Ela não volta, e o legado dela não vira moeda.")) return;
+  if (!confirm("Desistir desta carreira? Ela não volta, e não entra no ranking.")) return;
   apagar();
   S = null;
   telaInicio();
@@ -4358,7 +4647,8 @@ function sumula(){
 
 
 // ── Ranking entre os GMs ───────────────────────────────────────────────
-// O legado vira moeda, então o placar é o próprio pagamento exposto.
+// O legado é o placar do ranking — não paga moeda, e é justamente isso
+// que o deixa ser um placar honesto: ninguém joga por ele, joga com ele.
 function ranking(titulo){
   const r = window.__RANKING__ || [];
   if (!r.length) return "";
@@ -4371,7 +4661,7 @@ function ranking(titulo){
         <span class="rk-pts">${x.legado}</span>
       </div>`).join("")}
     </div>
-    <p class="nota-txt">O legado da carreira encerrada vira moeda, na mesma quantidade. Uma carreira ativa por vez — ao se aposentar, começa outra.</p>`;
+    <p class="nota-txt">O legado é a nota da carreira encerrada e vale o lugar no ranking. Moeda sai dos desafios. Uma carreira ativa por vez — ao se aposentar, começa outra.</p>`;
 }
 function encerrar(){
   S.encerrada = true;
@@ -4384,7 +4674,7 @@ function encerrar(){
     method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"},
     body:"acao=encerrar&estado=" + encodeURIComponent(JSON.stringify(S)),
   }).then(r=>r.json()).then(d=>{
-    if (d && d.ok){ S.moedasGanhas = d.moedas; }
+    if (d && d.ok){ S.legadoFinal = d.legado; }
     telaFim();
   }).catch(()=>telaFim());
   telaFim();
@@ -4496,7 +4786,7 @@ function telaFim(){
         <div class="fim-legado">${pts}</div>
         <p class="nota-txt" style="margin:0">${tot.jogos.toLocaleString("pt-BR")} jogos ·
           ${Object.keys(porTime).length} ${Object.keys(porTime).length === 1 ? "clube" : "clubes"}</p>
-        ${S.moedasGanhas != null ? `<div class="fim-moedas">+${S.moedasGanhas} moedas</div>` : ""}
+        ${S.legadoFinal != null ? `<div class="fim-moedas">${S.legadoFinal} de legado no ranking</div>` : ""}
       </div>
     </div>
 
