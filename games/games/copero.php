@@ -702,22 +702,22 @@ const pesoClube = f => Math.pow(Math.max(35, f) / 100, COPERO_EXPOENTE);
  * fácil demais.
  */
 const _cacheAdv = {};
-function adversarios(clube, escopo){
+function adversarios(clube, comp){
   const l = dadosLiga(clube.liga);
-  // O resultado só depende da liga e do escopo, e o catálogo não muda no
+  // O resultado só depende da liga e do torneio, e o catálogo não muda no
   // meio da partida. Sem o cache isto varria os 202 clubes quatro vezes por
   // temporada — quase cem varreduras numa carreira.
-  const chave = clube.liga + '|' + escopo + (escopo === 'mundial' ? '|' + clube.nome : '');
+  const chave = clube.liga + '|' + comp + (comp === 'mundial' ? '|' + clube.nome : '');
   if (_cacheAdv[chave] !== undefined) return _cacheAdv[chave];
   let lista;
 
-  if (escopo === 'liga') {
+  if (comp === 'liga') {
     lista = CLUBES.filter(c => c.liga === clube.liga);
-  } else if (escopo === 'copa') {
+  } else if (comp === 'copa') {
     // A copa é do PAÍS inteiro: entra gente de todas as divisões, e é por
     // isso que time pequeno às vezes leva.
     lista = CLUBES.filter(c => { const d = dadosLiga(c.liga); return d && d.pais === l.pais; });
-  } else if (escopo === 'continental') {
+  } else if (comp === 'cont') {
     // Só primeira divisão, do continente todo. É o que faz a Libertadores
     // ser briga de brasileiro com argentino: os outros nem chegam perto.
     lista = CLUBES.filter(c => { const d = dadosLiga(c.liga); return d && d.cont === l.cont && d.nivel === 1; });
@@ -734,9 +734,9 @@ function adversarios(clube, escopo){
   let soma = lista.reduce((s, c) => s + pesoClube(c.forca), 0);
 
   // Os times que o catálogo não tem, só pra liga e pra copa.
-  if (escopo === 'liga' || escopo === 'copa') {
+  if (comp === 'liga' || comp === 'copa') {
     const menor = lista.reduce((m, c) => Math.min(m, c.forca), 99);
-    const faltam = Math.max(0, (escopo === 'liga' ? 18 : 40) - lista.length);
+    const faltam = Math.max(0, (comp === 'liga' ? 18 : 40) - lista.length);
     soma += faltam * pesoClube(menor - 4);
   }
   _cacheAdv[chave] = soma;
@@ -763,10 +763,10 @@ function titulosDaTemporada(clube, ovr, stats){
    * sozinha, sem ninguém escrever regra nenhuma sobre ela.
    */
   const chance = (id) => {
-    const [, escopo, zebra] = COMPETICOES[id];
-    const soma = adversarios(clube, escopo);
+    const zebra = COMPETICOES[id][2];
+    const soma = adversarios(clube, id);
     if (soma <= 0) return 0;
-    const n = Math.max(2, escopo === 'liga' ? 18 : escopo === 'copa' ? 40 : 24);
+    const n = id === 'liga' ? 18 : id === 'copa' ? 40 : id === 'cont' ? 24 : 6;
     const justo = pesoClube(clube.forca) * empurrao / soma;
     // A zebra é a fatia que ignora força: é ela que deixa o pequeno sonhar,
     // e é maior na copa, que é mata-mata.
