@@ -645,6 +645,7 @@ async function mostrarTacas(t){
 const TACAS = <?= json_encode(COPERO_TACAS, JSON_UNESCAPED_UNICODE) ?>;
 const COMPETICOES = <?= json_encode(COPERO_COMPETICOES, JSON_UNESCAPED_UNICODE) ?>;
 const CONTINENTAL = <?= json_encode(COPERO_CONTINENTAL, JSON_UNESCAPED_UNICODE) ?>;
+const COPAS       = <?= json_encode(COPERO_COPAS, JSON_UNESCAPED_UNICODE) ?>;
 
 /** A taça desenhada, do tamanho pedido. */
 function taca(id, tam){
@@ -655,11 +656,18 @@ function taca(id, tam){
 }
 
 /** O nome que a taça leva na tela, já com o continente certo. */
+/**
+ * O nome do troféu, com o nome de verdade do torneio quando ele existe.
+ *
+ * "Campeonato Nacional" não diz nada; Bundesliga, LaLiga e DFB-Pokal dizem.
+ * O campeonato pega o nome da própria liga — que já traz a divisão junto,
+ * então quem foi campeão da Série B vê Série B — e a copa vem do país.
+ */
 function nomeDaTaca(id, ligaId){
-  if (id === 'cont') {
-    const l = dadosLiga(ligaId);
-    return (l && CONTINENTAL[l.cont]) || 'Torneio Continental';
-  }
+  const l = dadosLiga(ligaId);
+  if (id === 'cont')  return (l && CONTINENTAL[l.cont]) || 'Torneio Continental';
+  if (id === 'liga')  return (l && l.nome) || 'Campeonato Nacional';
+  if (id === 'copa')  return (l && COPAS[l.pais]) || 'Copa Nacional';
   if (COMPETICOES[id]) return COMPETICOES[id][0];
   const premio = { artilheiro: 'Artilheiro da Liga', chuteira: 'Chuteira de Ouro',
                    bola_ouro: 'Bola de Ouro', rei_america: 'Rei da América' };
@@ -675,39 +683,98 @@ function nomeDaTaca(id, ligaId){
  * continental. Sem esse encadeamento o jogador colecionaria mundiais jogando
  * na Série C.
  */
+/**
+ * O peso de um clube numa disputa.
+ *
+ * O expoente é o que transforma diferença de força em diferença de título.
+ * Com ele alto, Peñarol e Nacional levam quase tudo no Uruguai e o quarto
+ * colocado quase nunca aparece — que é como o futebol funciona de verdade.
+ */
+const COPERO_EXPOENTE = 25;
+const pesoClube = f => Math.pow(Math.max(35, f) / 100, COPERO_EXPOENTE);
+
+/**
+ * Os adversários de verdade em cada torneio.
+ *
+ * O catálogo tem só os principais clubes de cada liga, então o resto do
+ * campeonato entra como times VIRTUAIS, um pouco mais fracos que o pior
+ * catalogado — sem eles a liga pareceria ter três times e o título ficaria
+ * fácil demais.
+ */
+function adversarios(clube, escopo){
+  const l = dadosLiga(clube.liga);
+  let lista;
+
+  if (escopo === 'liga') {
+    lista = CLUBES.filter(c => c.liga === clube.liga);
+  } else if (escopo === 'copa') {
+    // A copa é do PAÍS inteiro: entra gente de todas as divisões, e é por
+    // isso que time pequeno às vezes leva.
+    lista = CLUBES.filter(c => { const d = dadosLiga(c.liga); return d && d.pais === l.pais; });
+  } else if (escopo === 'continental') {
+    // Só primeira divisão, do continente todo. É o que faz a Libertadores
+    // ser briga de brasileiro com argentino: os outros nem chegam perto.
+    lista = CLUBES.filter(c => { const d = dadosLiga(c.liga); return d && d.cont === l.cont && d.nivel === 1; });
+  } else {
+    // Mundial: um campeão por continente, o mais forte de cada um. O
+    // sul-americano entra, mas encara o gigante europeu.
+    const porCont = {};
+    CLUBES.forEach(c => { const d = dadosLiga(c.liga);
+      if (d && d.nivel === 1 && (!porCont[d.cont] || porCont[d.cont].forca < c.forca)) porCont[d.cont] = c; });
+    lista = Object.values(porCont);
+    if (!lista.some(c => c.nome === clube.nome)) lista = lista.concat([clube]);
+  }
+
+  let soma = lista.reduce((s, c) => s + pesoClube(c.forca), 0);
+
+  // Os times que o catálogo não tem, só pra liga e pra copa.
+  if (escopo === 'liga' || escopo === 'copa') {
+    const menor = lista.reduce((m, c) => Math.min(m, c.forca), 99);
+    const faltam = Math.max(0, (escopo === 'liga' ? 18 : 40) - lista.length);
+    soma += faltam * pesoClube(menor - 4);
+  }
+  return soma;
+}
+
 function titulosDaTemporada(clube, ovr, stats){
   const l = dadosLiga(clube.liga);
   if (!l) return [];
   const ganhos = [];
 
-  // O clube precisa estar acima da média da própria liga pra brigar. O
-  // jogador soma pouco: futebol é coletivo, e um 90 num time ruim não ganha.
-  const acimaDaLiga = clube.forca - (LIGAS[clube.liga] ? LIGAS[clube.liga][4] : 70);
-  const empurrao = Math.max(0, (ovr - clube.forca) / 3);
+  // O jogador empurra, mas pouco: futebol é coletivo, e um 90 num time
+  // ruim não ganha campeonato sozinho.
+  const empurrao = 1 + Math.max(0, (ovr - clube.forca)) * 0.03;
 
-  // A calibragem importa: com os números da primeira versão, um clube
-  // grande levava a liga em 70% das temporadas — campeão quase todo ano,
-  // e aí o título deixa de significar alguma coisa. Agora o melhor time
-  // do mundo ganha a própria liga em torno de 40% dos anos.
-  //
-  // O nível da divisão pesa: time da Série C não disputa a copa nacional
-  // de igual pra igual com os de cima.
-  const castigoNivel = (l.nivel - 1) * 14;
-  const chance = (dificuldade, bonus) => {
-    const base = (clube.forca - dificuldade) * 1.35 + acimaDaLiga * 1.1
-               + empurrao - castigoNivel + (bonus || 0);
-    return Math.max(0, Math.min(42, base));
+  /**
+   * A chance de levar o torneio: o peso do clube dividido pelo peso de
+   * todo mundo que disputa.
+   *
+   * Antes isso era `forca - dificuldade`, uma régua fixa que não sabia
+   * contra QUEM o clube jogava — o Peñarol tinha a mesma dificuldade de
+   * ganhar o Uruguai que o Villarreal de ganhar a Espanha. Agora quem
+   * decide são os adversários, e a hierarquia de cada país aparece
+   * sozinha, sem ninguém escrever regra nenhuma sobre ela.
+   */
+  const chance = (id) => {
+    const [, escopo, zebra] = COMPETICOES[id];
+    const soma = adversarios(clube, escopo);
+    if (soma <= 0) return 0;
+    const n = Math.max(2, escopo === 'liga' ? 18 : escopo === 'copa' ? 40 : 24);
+    const justo = pesoClube(clube.forca) * empurrao / soma;
+    // A zebra é a fatia que ignora força: é ela que deixa o pequeno sonhar,
+    // e é maior na copa, que é mata-mata.
+    return Math.min(0.92, (1 - zebra) * justo + zebra / n) * 100;
   };
 
   // Divisão de baixo não tem torneio continental nem mundial: quem está na
   // Série C disputa a Série C.
   const principal = l.nivel === 1;
 
-  if (Math.random() * 100 < chance(COMPETICOES.liga[2])) ganhos.push('liga');
-  if (Math.random() * 100 < chance(COMPETICOES.copa[2])) ganhos.push('copa');
-  if (principal && Math.random() * 100 < chance(COMPETICOES.cont[2])) ganhos.push('cont');
+  if (Math.random() * 100 < chance('liga')) ganhos.push('liga');
+  if (Math.random() * 100 < chance('copa')) ganhos.push('copa');
+  if (principal && Math.random() * 100 < chance('cont')) ganhos.push('cont');
   // Mundial só pra quem ganhou o continente — é assim que ele funciona.
-  if (ganhos.includes('cont') && Math.random() * 100 < chance(COMPETICOES.mundial[2], 18)) {
+  if (ganhos.includes('cont') && Math.random() * 100 < chance('mundial')) {
     ganhos.push('mundial');
   }
 

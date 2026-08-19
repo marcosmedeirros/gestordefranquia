@@ -178,12 +178,43 @@ function coperoTemporada(string $posicao, int $ovr, int $forcaClube): array
  * terceiro e o projeto não hospeda isso — e taça em SVG aparece igual em todo
  * aparelho, sem depender de rede, como já foi feito com as bandeiras.
  */
+/**
+ * As competições, e o quanto cada uma aceita zebra.
+ *
+ * A `zebra` é a fatia do resultado que ignora quem é mais forte. Liga é
+ * campeonato longo e quase sempre premia o melhor; copa é mata-mata e
+ * derruba favorito o tempo todo. Sem essa diferença, ganhar a copa seria
+ * só uma liga mais fácil, e as duas contariam a mesma história.
+ */
 const COPERO_COMPETICOES = [
-    // id            nome                     escopo      dificuldade
-    'liga'    => ['Liga Nacional',          'nacional',      55],
-    'copa'    => ['Copa Nacional',          'nacional',      48],
-    'cont'    => ['Torneio Continental',    'continental',   82],
-    'mundial' => ['Mundial de Clubes',      'mundial',       92],
+    // id            nome genérico            escopo        zebra
+    'liga'    => ['Campeonato Nacional',    'nacional',     0.10],
+    'copa'    => ['Copa Nacional',          'nacional',     0.42],
+    'cont'    => ['Torneio Continental',    'continental',  0.22],
+    'mundial' => ['Mundial de Clubes',      'mundial',      0.16],
+];
+
+/**
+ * O nome da copa nacional de cada país.
+ *
+ * O campeonato já tem nome próprio em COPERO_LIGAS (Bundesliga, LaLiga,
+ * Ligue 1). Faltava a copa, que é outro torneio e merece o nome dela —
+ * ganhar a DFB-Pokal não é ganhar a Bundesliga.
+ */
+const COPERO_COPAS = [
+    'BRA' => 'Copa do Brasil',        'ARG' => 'Copa Argentina',
+    'URU' => 'Copa Uruguay',          'CHI' => 'Copa Chile',
+    'COL' => 'Copa Colombia',         'ENG' => 'FA Cup',
+    'ESP' => 'Copa del Rey',          'ITA' => 'Coppa Italia',
+    'GER' => 'DFB-Pokal',             'FRA' => 'Coupe de France',
+    'POR' => 'Taça de Portugal',      'NED' => 'KNVB Beker',
+    'BEL' => 'Beker van België',      'TUR' => 'Türkiye Kupası',
+    'RUS' => 'Copa da Rússia',        'SCO' => 'Scottish Cup',
+    'GRE' => 'Copa da Grécia',        'USA' => 'US Open Cup',
+    'MEX' => 'Copa MX',               'KSA' => "King's Cup",
+    'JPN' => 'Copa do Imperador',     'KOR' => 'Copa da Coreia',
+    'EGY' => 'Copa do Egito',         'MAR' => 'Taça do Trono',
+    'RSA' => 'Nedbank Cup',           'AUS' => 'Australia Cup',
 ];
 
 /** O nome do torneio continental de cada continente. */
