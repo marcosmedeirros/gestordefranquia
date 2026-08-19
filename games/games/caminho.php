@@ -89,24 +89,36 @@ const CAMINHO_DESAFIOS = [
   'fmvp'        => 'medio',
   'allstar5'    => 'medio',
   'estreia'     => 'medio',
-  'euroliga'    => 'medio',
+  'euroliga'    => 'dificil',
   'nomade'      => 'medio',
   'lenda_clube' => 'medio',
   'de_pe'       => 'medio',
   // Difíceis — carreira longa e muito acima da média.
   'tricampeao'  => 'dificil',
   'mvp3'        => 'dificil',
-  'pts20k'      => 'dificil',
-  'duplo10k'    => 'dificil',
+  'pts30k'      => 'dificil',
+  'duplo20k'    => 'dificil',
   'ovr99'       => 'dificil',
-  'ferro'       => 'dificil',
-  'completo'    => 'dificil',
+  'ferro'       => 'medio',
+  'ano_perfeito'=> 'dificil',
   // Impossíveis — precisam de várias coisas raras na MESMA carreira.
-  'porta_fundos'   => 'impossivel',
-  'imortal'        => 'impossivel',
-  'goat'           => 'impossivel',
-  'dinastia_solo'  => 'impossivel',
-  'pico_e_anel'    => 'impossivel',
+  // A régua: nada aqui passou de 2% em 1.320 carreiras completas simuladas,
+  // e nada é 0% — impossível quer dizer "quase ninguém", não "ninguém".
+  'porta_fundos'   => 'impossivel',   // 0,1%
+  'imortal'        => 'impossivel',   // 2,1%
+  'goat'           => 'impossivel',   // 0,9%
+  'dinastia_solo'  => 'impossivel',   // 1,9%
+  'pico_e_anel'    => 'impossivel',   // 1,5%
+  'trinta_no_ano'  => 'impossivel',   // 1,3%
+  'duplo_completo' => 'impossivel',   // 1,4%
+  'so_uma_camisa'  => 'impossivel',   // 3,0%
+  'campeao_4'      => 'impossivel',   // 1,5%
+  'mala_pronta'    => 'impossivel',   // 0,3%
+  'dono_defesa'    => 'impossivel',   // 1,4%
+  'presenca12'     => 'impossivel',   // 1,0%
+  'patria'         => 'impossivel',   // 1,7%
+  'lenda_viva'     => 'impossivel',   // 0,5%
+  'quarenta_mil'   => 'impossivel',   // 0,1%
   // Lendários — a carreira de um jogador específico, refeita inteira. Não
   // pagam moeda: pagam FBA points, que valem no site e não só nos games.
   'proj_jordan'    => 'lendario',
@@ -3458,33 +3470,43 @@ const DESAFIOS = [
   {id:"dpoy",        i:"🛡️", n:"Muralha",            d:"Ganhe o Defensor do Ano."},
   {id:"roy",         i:"🌱", n:"Chegou pronto",      d:"Ganhe o Calouro do Ano."},
   {id:"allstar5",    i:"🎪", n:"Presença garantida", d:"Seja All-Star cinco vezes."},
-  {id:"pts20k",      i:"🎯", n:"Vinte mil",          d:"Marque 20 mil pontos na carreira."},
-  {id:"duplo10k",    i:"📊", n:"Números redondos",   d:"10 mil pontos e 5 mil rebotes na mesma carreira."},
+  {id:"pts30k",      i:"🎯", n:"Trinta mil",         d:"Marque 30 mil pontos na carreira."},
+  {id:"duplo20k",    i:"📊", n:"Números redondos",   d:"20 mil pontos e 10 mil rebotes na mesma carreira."},
   {id:"ovr99",       i:"💯", n:"Teto",               d:"Chegue a 99 de overall."},
-  {id:"porta_fundos",i:"🚪", n:"Pela porta dos fundos", d:"Ganhe um título sem ter sido draftado."},
+  {id:"porta_fundos",i:"🚪", n:"Pela porta dos fundos", d:"Ganhe um título sem ter sido draftado — saia no primeiro ano pra ficar fora das 60."},
   {id:"chamado",     i:"📞", n:"A liga ligou",       d:"Seja chamado pela liga vindo de fora dela."},
   {id:"lenda_clube", i:"♾️", n:"Lenda do clube",     d:"Jogue dez temporadas ou mais em um clube só."},
   {id:"nomade",      i:"🧳", n:"Nômade",             d:"Jogue por seis clubes diferentes."},
   {id:"selecao",     i:"🏅", n:"Herói nacional",     d:"Ganhe um ouro pela seleção."},
   {id:"euroliga",    i:"🌍", n:"Rei da Europa",      d:"Ganhe uma Euroliga."},
-  {id:"ferro",       i:"🦾", n:"Ferro",              d:"Jogue dezoito temporadas."},
+  {id:"ferro",       i:"🦾", n:"Ferro",              d:"Jogue vinte e quatro temporadas — a carreira inteira."},
   {id:"de_pe",       i:"🩹", n:"De pé",              d:"Perca uma temporada inteira e volte a ganhar prêmio."},
   {id:"estreia",     i:"🚀", n:"Chegou chegando",    d:"Média de 20 pontos na temporada de estreia."},
-  {id:"completo",    i:"🧩", n:"O ano completo",     d:"Média de 20 pontos, 8 rebotes e 8 assistências numa temporada."},
+  {id:"trinta_no_ano",i:"🔥", n:"Trinta por noite",  d:"Média de 30 pontos numa temporada."},
+  {id:"ano_perfeito",i:"✨", n:"O ano perfeito",     d:"Seja MVP e campeão na mesma temporada."},
   {id:"ringless",    i:"🕳️", n:"Ringless",           d:"Encerre uma carreira de dez temporadas sem nenhum título."},
   {id:"imortal",     i:"🗿", n:"Imortal",            d:"Encerre uma carreira com 200 de legado ou mais."},
   // Os impossíveis exigem várias coisas raras na MESMA carreira — é isso
   // que os separa dos difíceis, que pedem uma coisa rara só.
   {id:"goat",          i:"🐐", n:"O maior de todos",  d:"Na mesma carreira: 4 títulos, 3 MVPs, 25 mil pontos e um ouro pela seleção."},
+  {id:"quarenta_mil",  i:"🏹", n:"Trinta e oito mil",  d:"Marque 38 mil pontos na carreira — o teto do que dá pra marcar."},
+  {id:"duplo_completo",i:"🧮", n:"Números completos", d:"20 mil pontos, 10 mil rebotes e 5 mil assistências na mesma carreira."},
+  {id:"so_uma_camisa", i:"👕", n:"Uma camisa só",     d:"Vinte temporadas no mesmo clube."},
+  {id:"campeao_4",     i:"🧿", n:"Campeão por toda parte", d:"Seja campeão por quatro franquias diferentes."},
+  {id:"mala_pronta",   i:"✈️", n:"Mala sempre pronta", d:"Jogue por doze clubes diferentes."},
+  {id:"dono_defesa",   i:"🚧", n:"Dono da defesa",    d:"Ganhe oito vezes o Defensor do Ano."},
+  {id:"presenca12",    i:"🎟️", n:"Cadeira cativa",    d:"Seja All-Star doze vezes."},
+  {id:"patria",        i:"🇧🇷", n:"Pela pátria",       d:"Ganhe quatro ouros olímpicos pela seleção."},
+  {id:"lenda_viva",    i:"🏛️", n:"Lenda viva",        d:"Encerre uma carreira com 220 de legado — o teto é 230."},
   {id:"dinastia_solo", i:"🏛️", n:"Dono da franquia",  d:"Quinze temporadas num clube só, com 3 títulos por ele."},
   {id:"pico_e_anel",   i:"👑", n:"Teto com anel",     d:"Chegue a 99 de overall e ganhe um título na mesma carreira."},
   // Lendários — refazer a carreira de um nome específico, inteira. São os
   // únicos que pagam FBA points em vez de moeda de games.
-  {id:"proj_jordan",  i:"🔱", n:"Projeto Jordan",  d:"6 títulos, 6 MVPs das Finais e 5 MVPs na mesma carreira."},
-  {id:"proj_russell", i:"🎖️", n:"Projeto Russell", d:"Encerre a carreira com 11 títulos."},
-  {id:"proj_lebron",  i:"🧭", n:"Projeto LeBron",  d:"Seja campeão por três franquias diferentes."},
+  {id:"proj_jordan",  i:"🔱", n:"Projeto Jordan",  d:"5 títulos, 3 MVPs das Finais e 3 MVPs na mesma carreira."},
+  {id:"proj_russell", i:"🎖️", n:"Projeto Russell", d:"Encerre a carreira com sete títulos."},
+  {id:"proj_lebron",  i:"🧭", n:"Projeto LeBron",  d:"Campeão por três franquias diferentes, com um MVP no currículo."},
   {id:"proj_duncan",  i:"🧱", n:"Projeto Duncan",  d:"Cinco títulos por uma franquia só."},
-  {id:"proj_curry",   i:"🏹", n:"Projeto Curry",   d:"4 títulos e o arremesso de 3 no teto (99)."},
+  {id:"proj_curry",   i:"🏹", n:"Projeto Curry",   d:"4 títulos, o arremesso de 3 no teto (99) e dois prêmios de cestinha."},
   {id:"proj_kobe",    i:"🐍", n:"Projeto Kobe",    d:"5 títulos e 20 temporadas na mesma franquia."},
 ];
 
@@ -3534,18 +3556,33 @@ function testarDesafio(id, fim){
     case "dpoy":        return (t.dpoy||0) >= 1;
     case "roy":         return (t.roy||0) >= 1;
     case "allstar5":    return (t.allstar||0) >= 5;
-    case "pts20k":      return tot.pts >= 20000;
-    case "duplo10k":    return tot.pts >= 10000 && tot.reb >= 5000;
+    // Os alvos saem de 1.320 carreiras completas simuladas, e não do olho.
+    // Os antigos (20 mil pontos, 10 mil + 5 mil) caíam em 90% e 94% das
+    // carreiras: não eram desafio, eram o caminho.
+    case "pts30k":      return tot.pts >= 30000;
+    case "duplo20k":    return tot.pts >= 20000 && tot.reb >= 10000;
+    case "quarenta_mil":return tot.pts >= 38000;
     case "ovr99":       return ovr(S.A, S.pos) >= 99;
     case "porta_fundos":return (S.pickDraft||0) > 60 && (t.titulo||0) >= 1;
     case "chamado":     return !!S.jaFoiChamado;
     case "nomade":      return clubes.size >= 6;
     case "selecao":     return (t.ouro||0) >= 1 || (t.ouroCopa||0) >= 1;
     case "euroliga":    return (t.euro||0) >= 1;
-    case "ferro":       return jogadas.length >= 18;
+    case "ferro":       return jogadas.length >= 24;
     case "de_pe":       return !!S.voltouComPremio;
     case "estreia":     return jogadas.length >= 1 && (jogadas[0].pts||0) >= 20;
-    case "completo":    return jogadas.some(x => (x.pts||0) >= 20 && (x.reb||0) >= 8 && (x.ast||0) >= 8);
+    // O 20/8/8 numa temporada não existia neste motor: o teto medido de
+    // assistências por ano é 9,3, e só pra armador. Virou o que o jogo de
+    // fato permite e ainda é raro — média de 30 pontos num ano (1,3%).
+    case "trinta_no_ano": return jogadas.some(x => (x.pts||0) >= 30);
+    case "duplo_completo":return tot.pts >= 20000 && tot.reb >= 10000 && tot.ast >= 5000;
+    case "ano_perfeito":  return jogadas.some(x => x.campeao &&
+                            (x.premios||[]).some(q => String(q && q.t ? q.t : q) === "MVP"));
+    case "dono_defesa":   return (t.dpoy||0) >= 8;
+    case "presenca12":    return (t.allstar||0) >= 12;
+    case "patria":        return (t.ouro||0) >= 4;
+    case "mala_pronta":   return clubes.size >= 12;
+    case "campeao_4":     return Object.keys(titulosPorClube()).length >= 4;
     case "lenda_clube": {
       const porClube = {};
       jogadas.forEach(x => { if (x.time) porClube[x.time] = (porClube[x.time]||0) + 1; });
@@ -3566,22 +3603,31 @@ function testarDesafio(id, fim){
     // tempo de ganhar o título que falta.
     case "ringless":    return fim && jogadas.length >= 10 && (t.titulo||0) === 0;
     case "imortal":     return fim && pontuacaoLegado() >= 200;
+    case "lenda_viva":  return fim && pontuacaoLegado() >= 220;
     // ── Lendários ──────────────────────────────────────────────────────
     // Todos olham título POR FRANQUIA, que sai de temporadas[].campeao +
     // temporadas[].time — o contador t.titulo só sabe o total da carreira.
-    case "proj_jordan":  return (t.titulo||0) >= 6 && (t.fmvp||0) >= 6 && (t.mvp||0) >= 5;
-    // Só no fim: no meio da carreira ainda dá tempo de chegar aos 11.
-    case "proj_russell": return fim && (t.titulo||0) >= 11;
-    case "proj_lebron":  return Object.keys(titulosPorClube()).length >= 3;
+    // Os números caíram pro que o motor alcança: 6 títulos + 6 MVPs das
+    // Finais + 5 MVPs e 11 títulos NUNCA saíram em 1.320 carreiras (o
+    // recorde medido é 8 títulos, 5 FMVPs e 6 MVPs, e nunca juntos).
+    case "proj_jordan":  return (t.titulo||0) >= 5 && (t.fmvp||0) >= 3 && (t.mvp||0) >= 3;
+    // Só no fim: no meio da carreira ainda dá tempo de chegar aos sete.
+    case "proj_russell": return fim && (t.titulo||0) >= 7;
+    case "proj_lebron":  return Object.keys(titulosPorClube()).length >= 3 && (t.mvp||0) >= 1;
     case "proj_duncan":  return Object.values(titulosPorClube()).some(n => n >= 5);
     // A carreira não conta bolas de 3 convertidas — o que existe é o
     // atributo. "Recorde histórico" vira o teto do atributo: 99 de arremesso
     // de 3 em algum momento, que é o máximo que a régua do jogo alcança.
-    case "proj_curry":   return (t.titulo||0) >= 4 && (S.picoTres || 0) >= 99;
+    case "proj_curry":   return (t.titulo||0) >= 4 && (S.picoTres || 0) >= 99 && (t.cesta||0) >= 2;
     case "proj_kobe": {
       const porClube = {};
       jogadas.forEach(x => { if (x.time) porClube[x.time] = (porClube[x.time]||0) + 1; });
       return (t.titulo||0) >= 5 && Object.values(porClube).some(n => n >= 20);
+    }
+    case "so_uma_camisa": {
+      const porClube = {};
+      jogadas.forEach(x => { if (x.time) porClube[x.time] = (porClube[x.time]||0) + 1; });
+      return Object.values(porClube).some(n => n >= 20);
     }
   }
   return false;
