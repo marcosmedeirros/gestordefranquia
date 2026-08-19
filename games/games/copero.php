@@ -181,8 +181,8 @@ button{font-family:inherit}
 
 .camisa{position:relative;width:190px;margin:0 auto 16px;aspect-ratio:1/1.06}
 .camisa svg{width:100%;height:100%;display:block}
-.camisa-txt{position:absolute;inset:34% 12% 20%;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:2px;pointer-events:none}
+.camisa-txt{position:absolute;inset:30% 12% 18%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:9px;pointer-events:none}
 .camisa-nome{max-width:100%;font-size:12.5px;font-weight:800;letter-spacing:1px;color:#fff;
   text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
 .camisa-num{font-size:44px;font-weight:900;color:#fff;line-height:1;letter-spacing:-2px}
