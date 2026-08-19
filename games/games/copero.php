@@ -1565,7 +1565,15 @@ async function jogarAnos(){
       const nova = ligaVizinha(S.clube.liga, mov);
       if (nova) {
         t.movimento = mov;
-        S.clube = Object.assign({}, S.clube, {liga: nova});
+        // Quem sobe se REFORÇA e quem cai encolhe. Sem isso o clube virava
+        // ioiô: subia, era fraco demais pra divisão de cima, caía no ano
+        // seguinte, ganhava a de baixo de novo — cinco títulos da Série B
+        // numa carreira só. Agora ele converge pra divisão onde cabe.
+        const ajuste = mov === 'sobe' ? 4 : -4;
+        S.clube = Object.assign({}, S.clube, {
+          liga: nova,
+          forca: Math.max(45, Math.min(99, S.clube.forca + ajuste)),
+        });
       }
     }
     // A taça vem ANTES do OVR: primeiro o que aconteceu no ano, depois o
