@@ -201,8 +201,13 @@ const COPERO_CONTINENTAL = [
  * separa "meu time ganhou" de "eu fui o melhor".
  */
 const COPERO_PREMIOS = [
-    'artilheiro' => ['Artilheiro da Liga', 'gols'],
-    'bola_ouro'  => ['Bola de Ouro',       'ovr'],
+    'artilheiro'  => ['Artilheiro da Liga', 'gols'],
+    // A Chuteira é acima da artilharia: não basta ser o melhor do seu país,
+    // tem que ser um número que se destaca em qualquer lugar.
+    'chuteira'    => ['Chuteira de Ouro',   'gols'],
+    'bola_ouro'   => ['Bola de Ouro',       'ovr'],
+    // Só pra quem joga na América do Sul — é o prêmio do continente.
+    'rei_america' => ['Rei da América',     'ovr'],
 ];
 
 /**
@@ -231,6 +236,16 @@ const COPERO_TACAS = [
         '<circle cx="32" cy="20" r="13" fill="currentColor"/>'
       . '<path d="M24 31c-2 6-2 12 0 18h16c2-6 2-12 0-18z" fill="currentColor"/>'
       . '<rect x="18" y="49" width="28" height="7" rx="2" fill="currentColor"/>'],
+    // A chuteira é a própria chuteira, dourada; o Rei da América é a coroa.
+    'chuteira' => ['#fcd34d',
+        '<path d="M8 38c5-9 14-15 26-15 9 0 16 3 18 9-3 9-14 15-26 15-9 0-15-3-18-9z" fill="currentColor"/>'
+      . '<path d="M10 43h36l-2 8H14z" fill="currentColor" opacity=".65"/>'
+      . '<path d="M20 28l3 5M27 25l3 5M34 24l3 5" stroke="#78350f" stroke-width="2"/>'],
+    'rei_america' => ['#34d399',
+        '<path d="M12 40l-4-20 11 8 9-14 9 14 11-8-4 20z" fill="currentColor"/>'
+      . '<rect x="12" y="42" width="40" height="7" rx="2" fill="currentColor"/>'
+      . '<circle cx="20" cy="29" r="2.4" fill="#065f46"/><circle cx="32" cy="26" r="2.4" fill="#065f46"/>'
+      . '<circle cx="44" cy="29" r="2.4" fill="#065f46"/>'],
     'artilheiro' => ['#f97316',
         '<path d="M10 40c6-10 16-16 28-16 8 0 14 3 16 8-4 8-14 14-26 14-8 0-15-2-18-6z" fill="currentColor"/>'
       . '<path d="M12 44h34l-2 8H16z" fill="currentColor"/>'],

@@ -563,8 +563,9 @@ function nomeDaTaca(id, ligaId){
     return (l && CONTINENTAL[l.cont]) || 'Torneio Continental';
   }
   if (COMPETICOES[id]) return COMPETICOES[id][0];
-  if (id === 'artilheiro') return 'Artilheiro da Liga';
-  if (id === 'bola_ouro')  return 'Bola de Ouro';
+  const premio = { artilheiro: 'Artilheiro da Liga', chuteira: 'Chuteira de Ouro',
+                   bola_ouro: 'Bola de Ouro', rei_america: 'Rei da América' };
+  if (premio[id]) return premio[id];
   return id;
 }
 
@@ -612,9 +613,19 @@ function titulosDaTemporada(clube, ovr, stats){
     ganhos.push('mundial');
   }
 
-  // Prêmios individuais: dependem do jogador, não do clube.
+  // Prêmios individuais: dependem do jogador, não do clube — e sobem em
+  // degrau. Artilheiro é ser o melhor do seu país; a Chuteira é um número
+  // que se destaca em qualquer lugar; a Bola de Ouro exige as duas coisas
+  // mais o time ganhando.
   if (stats.gols >= 22 && Math.random() < 0.45) ganhos.push('artilheiro');
+  if (stats.gols >= 30 && ovr >= 84 && Math.random() < 0.40) ganhos.push('chuteira');
   if (ovr >= 88 && ganhos.length >= 2 && Math.random() < 0.35) ganhos.push('bola_ouro');
+
+  // Rei da América é do continente: só conta jogando na América do Sul, e
+  // é o que dá um prêmio de peso pra quem faz carreira sem sair de casa.
+  if (l.cont === 'SAM' && ovr >= 82 && ganhos.length >= 1 && Math.random() < 0.30) {
+    ganhos.push('rei_america');
+  }
 
   return ganhos;
 }
@@ -1051,7 +1062,8 @@ function vitrine(){
   if (!ids.length) {
     return `<div class="vitrine vazia">${taca('copa', 26)}<span>Vitrine vazia</span></div>`;
   }
-  const ordem = ['mundial','cont','liga','copa','bola_ouro','artilheiro'];
+  const ordem = ['mundial','cont','liga','copa',
+                 'bola_ouro','rei_america','chuteira','artilheiro'];
   ids.sort((a,b) => ordem.indexOf(a) - ordem.indexOf(b));
   return `<div class="vitrine">${ids.map(id => `
     <span class="tacao" title="${esc(nomeDaTaca(id, ligaDe[id]))}">
