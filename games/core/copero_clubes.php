@@ -35,7 +35,6 @@ const COPERO_CONTINENTES = [
     'NAM' => 'América do Norte',
     'ASI' => 'Ásia',
     'AFR' => 'África',
-    'OCE' => 'Oceania',
 ];
 
 /**
@@ -91,8 +90,9 @@ const COPERO_LIGAS = [
     'MA1'  => ['MAR', 'AFR', 'Botola Pro',          1, 68],
     'ZA1'  => ['RSA', 'AFR', 'Premiership',         1, 66],
 
-    // ── Oceania ───────────────────────────────────────────────────────
-    'AU1'  => ['AUS', 'OCE', 'A-League',            1, 68],
+    // A Austrália joga na Ásia, como na vida real desde 2007: com só quatro
+    // clubes, a Oceania virava uma Champions que se ganha em nove de cada dez anos.
+    'AU1'  => ['AUS', 'ASI', 'A-League',            1, 68],
 ];
 
 /**

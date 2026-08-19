@@ -286,7 +286,6 @@ const COPERO_CONTINENTAL = [
     'NAM' => 'Concacaf Champions Cup',
     'ASI' => 'AFC Champions League',
     'AFR' => 'CAF Champions League',
-    'OCE' => 'OFC Champions League',
 ];
 
 /**
@@ -662,7 +661,7 @@ function coperoConquistas(): array
         'yashin'      => ['🥅', 'O Yashin',          'Ganhe uma Bola de Ouro sendo goleiro. '
                                                    . 'Aconteceu uma vez na história do futebol.',
                           'impossivel', fn($c) => $c['posicao'] === 'GOL' && $t($c,'bola_ouro') >= 1],
-        'seis_conts'  => ['🧭', 'O mundo inteiro',   'Jogue por clubes de cinco continentes diferentes.',
+        'seis_conts'  => ['🧭', 'O mundo inteiro',   'Jogue por clubes dos cinco continentes: todos os que o jogo tem.',
                           'impossivel', fn($c) => $c['continentes'] >= 5],
         'completar'   => ['✅', 'Completar o futebol', 'Ganhe liga, copa, continental, Mundial de Clubes, '
                                                      . 'Copa do Mundo e um continental de seleções.',
