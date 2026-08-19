@@ -901,7 +901,7 @@ function nomeDaTaca(id, ligaId){
  * Com ele alto, Peñarol e Nacional levam quase tudo no Uruguai e o quarto
  * colocado quase nunca aparece — que é como o futebol funciona de verdade.
  */
-const COPERO_EXPOENTE = 25;
+const COPERO_EXPOENTE = 31;
 const pesoClube = f => Math.pow(Math.max(35, f) / 100, COPERO_EXPOENTE);
 
 /**
@@ -1509,23 +1509,6 @@ function ofertas(quantos, exceto, soDeCasa){
     });
   }
 
-  // O CONVITE DE FORA. Uma vez a cada tantas janelas, aparece uma proposta de
-  // um continente onde você nunca jogou, furando a régua de prestígio. É a
-  // única porta para uma carreira de cinco continentes, e ela é estreita de
-  // propósito: sem isso o teto era dois, e com ela solta a escada perdia o
-  // sentido. Precisa de nome feito, e o clube tem que caber em você.
-  if (atual && S.ovr >= 80 && Math.random() < 0.06) {
-    const visitados = new Set((S.temporadas || []).map(x => {
-      const d = dadosLiga(x.liga); return d && d.cont;
-    }));
-    const novos = CLUBES.filter(c => {
-      const l = dadosLiga(c.liga);
-      return l && l.nivel === 1 && !visitados.has(l.cont)
-             && !fora.has(c.nome) && Math.abs(c.forca - S.ovr) <= 14;
-    });
-    if (novos.length) elegiveis = elegiveis.concat([novos[Math.floor(Math.random() * novos.length)]]);
-  }
-
   // Em degraus: uma de cada patamar da lista, do mais forte pro mais fraco.
   const ordem = elegiveis.slice().sort((a, b) => b.forca - a.forca);
   const n = ordem.length, saida = [];
@@ -1538,6 +1521,27 @@ function ofertas(quantos, exceto, soDeCasa){
   while (saida.length < quantos && saida.length < n) {
     const c = ordem[Math.floor(Math.random() * n)];
     if (!saida.includes(c)) saida.push(c);
+  }
+
+  // O CONVITE DE FORA, e ele entra na saída FINAL — não na lista de
+  // elegíveis. Jogado no balaio junto com os outros duzentos, ele quase nunca
+  // era sorteado: aparecia em 1% das janelas, o que na prática é nunca.
+  //
+  // É a única porta para uma carreira de cinco continentes, e é estreita de
+  // propósito: exige nome feito, um clube do seu tamanho, e mesmo assim só
+  // aparece de vez em quando. Aceitar custa caro — quase sempre é trocar a
+  // Europa por uma liga menor — e é isso que faz dos cinco continentes a
+  // coisa mais rara do jogo.
+  if (atual && S.ovr >= 78 && Math.random() < 0.16) {
+    const visitados = new Set((S.temporadas || []).map(x => {
+      const d = dadosLiga(x.liga); return d && d.cont;
+    }));
+    const novos = CLUBES.filter(c => {
+      const l = dadosLiga(c.liga);
+      return l && l.nivel === 1 && !visitados.has(l.cont)
+             && !fora.has(c.nome) && c.forca >= S.ovr - 18 && c.forca <= S.ovr + 8;
+    });
+    if (novos.length) saida[saida.length - 1] = novos[Math.floor(Math.random() * novos.length)];
   }
   return saida;
 }
