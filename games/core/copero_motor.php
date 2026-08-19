@@ -681,13 +681,13 @@ function coperoConquistas(): array
         'lenda_maxima'=> ['💫', 'Lenda absoluta',    'Passe a carreira inteira num só clube e ganhe liga, copa e continental.',
                           'impossivel', fn($c) => $c['clubes'] === 1 && $c['temporadas'] >= 15
                                                   && $t($c,'liga') >= 1 && $t($c,'copa') >= 1 && $t($c,'cont') >= 1],
-        'colecionador'=> ['🗄️', 'O mais vencedor da história', 'Ganhe 28 títulos coletivos.',
-                          'impossivel', fn($c) => $c['coletivos'] >= 28],
-        'so_o_pele'   => ['👑', 'Só o Pelé',         'Faça 1.000 gols e ganhe três Copas do Mundo.',
+        'colecionador'=> ['🗄️', 'O mais vencedor da história', 'Ganhe 35 títulos coletivos.',
+                          'impossivel', fn($c) => $c['coletivos'] >= 35],
+        'so_o_pele'   => ['👑👑', 'Só o Pelé',         'Faça 1.000 gols e ganhe três Copas do Mundo.',
                           'impossivel', fn($c) => $t($c,'copa_mundo') >= 3 && $c['gols'] >= 1000],
-        'mil_gols'    => ['⚽', 'O milésimo',        'Marque 1.000 gols na carreira.',
+        'mil_gols'    => ['🎯', 'O milésimo',        'Marque 1.000 gols na carreira.',
                           'impossivel', fn($c) => $c['gols'] >= 1000],
-        'messi'       => ['🐐', 'O mais condecorado', 'Ganhe 47 títulos numa carreira.',
+        'messi'       => ['🎖️', 'O mais condecorado', 'Ganhe 47 títulos numa carreira.',
                           'impossivel', fn($c) => $c['coletivos'] >= 47],
         'maestro'     => ['🎼', 'Maestro',           'Dê 400 assistências na carreira.',
                           'dificil', fn($c) => $c['ast'] >= 400],
@@ -701,7 +701,7 @@ function coperoConquistas(): array
         'yashin'      => ['🥅', 'O Yashin',          'Ganhe uma Bola de Ouro sendo goleiro. '
                                                    . 'Aconteceu uma vez na história do futebol.',
                           'impossivel', fn($c) => $c['posicao'] === 'GOL' && $t($c,'bola_ouro') >= 1],
-        'seis_conts'  => ['🧭', 'O mundo inteiro',   'Jogue por clubes dos cinco continentes: todos os que o jogo tem.',
+        'seis_conts'  => ['🌏', 'O mundo inteiro',   'Jogue por clubes dos cinco continentes: todos os que o jogo tem.',
                           'impossivel', fn($c) => $c['continentes'] >= 5],
         'completar'   => ['✅', 'Completar o futebol', 'Ganhe liga, copa, continental, Mundial de Clubes, '
                                                      . 'Copa do Mundo e um continental de seleções.',

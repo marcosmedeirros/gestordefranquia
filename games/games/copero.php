@@ -45,9 +45,65 @@ function coperoGarantirTabela(PDO $pdo): void
             encerrada_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_copero_pico (pico_ovr)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        // Colunas que vieram depois. `CREATE TABLE IF NOT EXISTS` não altera
+        // tabela que já existe — quem já jogou tem a tabela velha, e sem isto
+        // o hall da fama não teria de onde tirar título nem pontuação.
+        foreach ([
+            'titulos'   => 'SMALLINT NOT NULL DEFAULT 0',
+            'pontuacao' => 'INT NOT NULL DEFAULT 0',
+        ] as $col => $tipo) {
+            if ($pdo->query("SHOW COLUMNS FROM copero_carreiras LIKE '{$col}'")->rowCount() === 0) {
+                $pdo->exec("ALTER TABLE copero_carreiras ADD COLUMN {$col} {$tipo}");
+            }
+        }
+        $pdo->exec("CREATE INDEX idx_copero_pontuacao ON copero_carreiras (pontuacao)");
     } catch (Throwable $e) {
-        error_log('[copero] tabela: ' . $e->getMessage());
+        // O índice duplicado cai aqui na segunda vez, e tudo bem.
+        if (!str_contains($e->getMessage(), 'Duplicate key name')) {
+            error_log('[copero] tabela: ' . $e->getMessage());
+        }
     }
+}
+
+/**
+ * A pontuação que ordena o hall da fama.
+ *
+ * Precisa premiar carreira COMPLETA, e não um número só: quem faz 500 gols
+ * sem ganhar nada não passa na frente de quem ganhou tudo. Os títulos pesam
+ * mais que qualquer estatística, o overall entra como teto do que a pessoa
+ * chegou a ser, e gols e assistências entram somados porque o goleiro não
+ * tem nenhum dos dois e não pode ser punido por isso.
+ */
+function coperoPontuacao(array $c): int
+{
+    return (int)round(
+        ($c['titulos'] ?? 0) * 120
+      + max(0, ($c['pico_ovr'] ?? 0) - 60) * 34
+      + (($c['gols'] ?? 0) + ($c['ast'] ?? 0)) * 1.6
+      + ($c['jogos'] ?? 0) * 0.4
+      + ($c['pico_valor'] ?? 0) / 1000000 * 2
+    );
+}
+
+// ── O hall da fama: as melhores carreiras de todo mundo ───────────────
+//
+// Público de propósito: é a única parte do jogo em que uma carreira sua é
+// vista por outra pessoa, e é o que dá motivo pra caçar os desafios difíceis.
+if (($_GET['acao'] ?? '') === 'hall') {
+    header('Content-Type: application/json; charset=utf-8');
+    $lista = [];
+    try {
+        coperoGarantirTabela($pdo);
+        $st = $pdo->query("SELECT nome, posicao, pais, pico_ovr, gols, ast, jogos,
+                                  clubes, temporadas, titulos, pontuacao, encerrada_em
+                           FROM copero_carreiras ORDER BY pontuacao DESC, pico_ovr DESC LIMIT 5");
+        $lista = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        error_log('[copero] hall: ' . $e->getMessage());
+    }
+    echo json_encode(['ok' => true, 'hall' => $lista], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 // ── Encerramento: grava a carreira e devolve as conquistas ────────────
@@ -135,26 +191,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
     $picoOvr = min(99, $picoOvr);
 
-    if ($idUsuario > 0) {
-    coperoGarantirTabela($pdo);
-    try {
-        $pdo->prepare("INSERT INTO copero_carreiras
-            (id_usuario, nome, numero, posicao, pais, pico_ovr, pico_valor, jogos, gols, ast, clubes, temporadas)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")->execute([
-            $idUsuario,
-            mb_substr(trim((string)($c['nome'] ?? '')), 0, 40) ?: 'Sem nome',
-            max(1, min(99, (int)($c['numero'] ?? 10))),
-            mb_substr((string)($c['posicao'] ?? 'MC'), 0, 4),
-            mb_substr((string)($c['pais'] ?? ''), 0, 4),
-            $picoOvr, $picoValor,
-            $tot['jogos'], $tot['gols'], $tot['ast'],
-            count($clubes), count($temporadas),
-        ]);
-    } catch (Throwable $e) {
-        error_log('[copero] gravar: ' . $e->getMessage());
-    }
-    }
-
     // Conquistas: testadas no servidor, com os totais recalculados.
     // As cinco grandes ligas europeias, pra "Dono da Europa".
     $grandes = ['EN1','ES1','IT1','DE1','FR1'];
@@ -185,6 +221,38 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'posicao' => (string)($c['posicao'] ?? ''),
         'pais' => (string)($c['pais'] ?? ''),
     ];
+    // A carreira vai pro banco DEPOIS dos totais, porque o hall da fama
+    // precisa dos títulos e da pontuação — e os dois só existem aqui.
+    $registro = [
+        'nome'     => mb_substr(trim((string)($c['nome'] ?? '')), 0, 40) ?: 'Sem nome',
+        'numero'   => max(1, min(99, (int)($c['numero'] ?? 10))),
+        'posicao'  => mb_substr((string)($c['posicao'] ?? 'MC'), 0, 4),
+        'pais'     => mb_substr((string)($c['pais'] ?? ''), 0, 4),
+        'pico_ovr' => $picoOvr, 'pico_valor' => $picoValor,
+        'jogos'    => $tot['jogos'], 'gols' => $tot['gols'], 'ast' => $tot['ast'],
+        'clubes'   => count($clubes), 'temporadas' => count($temporadas),
+        'titulos'  => $coletivos,
+    ];
+    $registro['pontuacao'] = coperoPontuacao($registro);
+
+    if ($idUsuario > 0) {
+        coperoGarantirTabela($pdo);
+        try {
+            $pdo->prepare("INSERT INTO copero_carreiras
+                (id_usuario, nome, numero, posicao, pais, pico_ovr, pico_valor,
+                 jogos, gols, ast, clubes, temporadas, titulos, pontuacao)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")->execute([
+                $idUsuario, $registro['nome'], $registro['numero'], $registro['posicao'],
+                $registro['pais'], $registro['pico_ovr'], $registro['pico_valor'],
+                $registro['jogos'], $registro['gols'], $registro['ast'],
+                $registro['clubes'], $registro['temporadas'],
+                $registro['titulos'], $registro['pontuacao'],
+            ]);
+        } catch (Throwable $e) {
+            error_log('[copero] gravar: ' . $e->getMessage());
+        }
+    }
+
     $ganhas = [];
     foreach (coperoConquistas() as $id => [$icone, $nome, $desc, $nivel, $teste]) {
         if ($teste($ctx)) {
@@ -197,7 +265,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     usort($ganhas, fn($a, $b) => ($peso[$a['nivel']] ?? 9) <=> ($peso[$b['nivel']] ?? 9));
 
     echo json_encode(['ok' => true, 'totais' => $tot, 'conquistas' => $ganhas,
-                      'totalConquistas' => count(coperoConquistas())], JSON_UNESCAPED_UNICODE);
+                      'totalConquistas' => count(coperoConquistas()),
+                      'pontuacao' => $registro['pontuacao']], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -485,6 +554,30 @@ button{font-family:inherit}
 .conq.travada .ic{filter:grayscale(1)}
 .conq.nova{box-shadow:0 0 0 1px var(--n,#fff) inset}
 .conq.nova em{color:var(--n);opacity:1}
+
+/* ── Hall da fama ───────────────────────────────────── */
+.hall{margin-top:18px;border:1px solid var(--borda);border-radius:14px;overflow:hidden;text-align:left}
+.hall-cab{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--txt3);padding:11px 14px 0}
+.hall-topo{display:flex;align-items:center;gap:11px;padding:8px 14px 12px}
+.hall-medalha{width:22px;height:22px;border-radius:50%;background:#eab308;color:#0a0a0c;flex:none;
+  display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:900}
+.hall-nome{flex:1;min-width:0}
+.hall-nome b{display:block;font-size:16px;font-weight:900;letter-spacing:-.3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hall-nome small{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txt3);font-weight:700}
+.hall-nums{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--borda);
+  background:var(--panel3)}
+.hall-nums div{padding:8px 4px;text-align:center}
+.hall-nums span{display:block;font-size:8.5px;font-weight:800;letter-spacing:.5px;
+  text-transform:uppercase;color:var(--txt3)}
+.hall-nums b{font-size:15px;font-weight:900}
+.hall-lista{border-top:1px solid var(--borda)}
+.hall-linha{display:flex;align-items:center;gap:9px;padding:7px 14px;font-size:12px}
+.hall-linha + .hall-linha{border-top:1px solid var(--borda)}
+.hall-pos{width:16px;color:var(--txt3);font-weight:800;font-size:11px;flex:none}
+.hall-quem{font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hall-det{display:flex;align-items:center;gap:5px;color:var(--txt3);font-size:11px;flex:none}
 
 /* ── Modal dos desafios ─────────────────────────────── */
 .modal-fundo{position:fixed;inset:0;background:rgba(6,6,9,.78);backdrop-filter:blur(3px);
@@ -1186,7 +1279,56 @@ function telaInicio(){
         <i class="bi bi-trophy"></i> Desafios
         <span class="conq-conta">${conquistasFeitas().length} de ${Object.keys(CONQUISTAS).length}</span>
       </button>
+      <div id="hall"></div>
     </div>`;
+  carregarHall();
+}
+
+/**
+ * As cinco melhores carreiras de todo mundo, do banco.
+ *
+ * Carrega DEPOIS da tela: se a rede falhar ou não houver ninguém ainda, o
+ * bloco simplesmente não aparece e o jogo começa do mesmo jeito.
+ */
+async function carregarHall(){
+  const alvo = document.getElementById('hall');
+  if (!alvo) return;
+  try {
+    const r = await fetch(location.pathname + '?acao=hall');
+    const d = await r.json();
+    const h = (d && d.hall) || [];
+    if (!h.length) return;
+    const primeiro = h[0];
+    alvo.innerHTML = `
+      <div class="hall">
+        <div class="hall-cab">Hall da fama</div>
+        <div class="hall-topo">
+          <span class="hall-medalha">1</span>
+          <div class="hall-nome">
+            <b>${esc(primeiro.nome)}</b>
+            <small>${esc(POSICOES[primeiro.posicao] ? POSICOES[primeiro.posicao][0] : primeiro.posicao)}
+              · ${bandeira(primeiro.pais, 15)} ${esc(PAISES[primeiro.pais] || primeiro.pais)}</small>
+          </div>
+          <div class="ovr-caixa" style="background:${corDoOvr(primeiro.pico_ovr)};width:52px;height:52px">
+            <small style="font-size:7px">PICO</small><b style="font-size:21px">${primeiro.pico_ovr}</b>
+          </div>
+        </div>
+        <div class="hall-nums">
+          <div><span>Títulos</span><b>${primeiro.titulos}</b></div>
+          <div><span>Gols</span><b>${primeiro.gols}</b></div>
+          <div><span>Assist.</span><b>${primeiro.ast}</b></div>
+          <div><span>Clubes</span><b>${primeiro.clubes}</b></div>
+        </div>
+        ${h.length > 1 ? `<div class="hall-lista">
+          ${h.slice(1).map((x, i) => `
+            <div class="hall-linha">
+              <span class="hall-pos">${i + 2}</span>
+              <span class="hall-quem">${esc(x.nome)}</span>
+              <span class="hall-det">${bandeira(x.pais, 14)} ${x.pico_ovr} OVR · ${x.titulos} títulos</span>
+            </div>`).join('')}
+        </div>` : ''}
+      </div>`;
+  } catch (e) { /* sem rede, a tela inicial fica como estava */ }
 }
 
 /**
