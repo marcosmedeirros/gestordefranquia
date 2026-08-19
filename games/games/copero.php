@@ -474,6 +474,30 @@ button{font-family:inherit}
 .conq.n-impossivel{--n:#fbbf24}
 .conq-conta{font-size:11px;font-weight:800;color:var(--txt3);background:var(--panel3);
   border-radius:6px;padding:3px 8px;margin-left:8px;vertical-align:middle}
+/* Desafio não feito continua legível: escondê-lo não cria mistério, cria
+   uma lista de cadeados que não diz o que fazer. */
+.conq.travada{opacity:.5}
+.conq.travada .ic{filter:grayscale(1)}
+.conq.nova{box-shadow:0 0 0 1px var(--n,#fff) inset}
+.conq.nova em{color:var(--n);opacity:1}
+
+/* ── Modal dos desafios ─────────────────────────────── */
+.modal-fundo{position:fixed;inset:0;background:rgba(6,6,9,.78);backdrop-filter:blur(3px);
+  z-index:70;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal-cx{background:var(--panel);border:1px solid var(--borda);border-radius:16px;
+  width:min(880px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-cab{display:flex;align-items:center;gap:10px;padding:15px 18px;
+  border-bottom:1px solid var(--borda);flex:none}
+.modal-cab b{font-size:17px;font-weight:900}
+.modal-x{margin-left:auto;background:none;border:none;color:var(--txt3);cursor:pointer;
+  font-size:15px;padding:6px 8px;border-radius:8px}
+.modal-x:hover{color:var(--txt);background:var(--panel3)}
+.modal-corpo{overflow-y:auto;padding:16px 18px 20px}
+.d-nivel{display:flex;align-items:center;gap:9px;margin:18px 0 9px}
+.d-nivel:first-child{margin-top:2px}
+.d-tit{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;
+  color:var(--n);border:1px solid var(--n);border-radius:6px;padding:3px 9px}
+.d-nivel small{color:var(--txt3);font-size:11px;font-weight:700}
 
 .rodape{margin-top:26px;font-size:10.5px;color:var(--txt3);text-align:center;line-height:1.6}
 
@@ -598,6 +622,28 @@ const CHAVE = 'copero:carreira';
 const salvar  = () => { try { localStorage.setItem(CHAVE, JSON.stringify(S)); } catch(e){} };
 const carregar= () => { try { return JSON.parse(localStorage.getItem(CHAVE)||'null'); } catch(e){ return null; } };
 const apagar  = () => { try { localStorage.removeItem(CHAVE); } catch(e){} };
+
+/* ── O que sobrevive à carreira ──────────────────────────────────────
+   A carreira acaba, mas as conquistas e o nome ficam. É o que dá motivo pra
+   começar a próxima: a lista de desafios é de LONGO prazo, atravessa
+   partidas, e sem isso as conquistas apareciam uma vez na tela final e
+   sumiam pra sempre. */
+const CHAVE_CONQ = 'copero:conquistas';
+const CHAVE_NOME = 'copero:nome';
+
+const conquistasFeitas = () => {
+  try { const v = JSON.parse(localStorage.getItem(CHAVE_CONQ) || '[]'); return Array.isArray(v) ? v : []; }
+  catch(e){ return []; }
+};
+const guardarConquistas = (ids) => {
+  try {
+    const tudo = new Set(conquistasFeitas());
+    (ids || []).forEach(id => tudo.add(id));
+    localStorage.setItem(CHAVE_CONQ, JSON.stringify([...tudo]));
+  } catch(e){}
+};
+const ultimoNome = () => { try { return localStorage.getItem(CHAVE_NOME) || ''; } catch(e){ return ''; } };
+const guardarNome = (n) => { try { if (n) localStorage.setItem(CHAVE_NOME, n); } catch(e){} };
 
 /* ── Bandeiras ──────────────────────────────────────────
    Desenhadas aqui, e não em emoji: emoji de bandeira só aparece onde a
@@ -786,6 +832,12 @@ const COMPETICOES = <?= json_encode(COPERO_COMPETICOES, JSON_UNESCAPED_UNICODE) 
 const CONTINENTAL = <?= json_encode(COPERO_CONTINENTAL, JSON_UNESCAPED_UNICODE) ?>;
 const COPAS       = <?= json_encode(COPERO_COPAS, JSON_UNESCAPED_UNICODE) ?>;
 const SELECOES    = <?= json_encode(COPERO_SELECOES, JSON_UNESCAPED_UNICODE) ?>;
+/* A lista INTEIRA das conquistas, e não só as ganhas: é o que deixa a tela
+   inicial mostrar o que ainda falta. O teste continua rodando só no servidor —
+   daqui vai apenas o texto. */
+const CONQUISTAS  = <?= json_encode(array_map(
+    fn($x) => ['icone' => $x[0], 'nome' => $x[1], 'desc' => $x[2], 'nivel' => $x[3]],
+    coperoConquistas()), JSON_UNESCAPED_UNICODE) ?>;
 const SEL_CONT    = <?= json_encode(COPERO_SELECAO_CONT, JSON_UNESCAPED_UNICODE) ?>;
 
 /** A taça desenhada, do tamanho pedido. */
@@ -1026,7 +1078,58 @@ function telaInicio(){
       </div>
       <button class="btn" style="width:100%" onclick="telaIdentidade()">Começar carreira</button>
       ${carregar() ? `<button class="btn btn2" style="width:100%;margin-top:9px" onclick="continuar()">Continuar a carreira salva</button>` : ''}
+      <button class="btn btn2" style="width:100%;margin-top:9px" onclick="abrirDesafios()">
+        <i class="bi bi-trophy"></i> Desafios
+        <span class="conq-conta">${conquistasFeitas().length} de ${Object.keys(CONQUISTAS).length}</span>
+      </button>
     </div>`;
+}
+
+/**
+ * A lista de desafios, com o que já foi feito e o que falta.
+ *
+ * Fica na tela inicial porque é objetivo de LONGO prazo: atravessa carreiras,
+ * e é o que responde "por que eu jogaria de novo?". O que ainda não saiu
+ * aparece apagado mas com a descrição visível — desafio escondido não é
+ * desafio, é surpresa.
+ */
+function abrirDesafios(){
+  const feitas = new Set(conquistasFeitas());
+  const rotulo = {facil:'Fácil', media:'Média', dificil:'Difícil', impossivel:'Impossível'};
+  const ordem  = ['facil','media','dificil','impossivel'];
+  const itens  = Object.entries(CONQUISTAS)
+    .sort((a,b) => ordem.indexOf(a[1].nivel) - ordem.indexOf(b[1].nivel));
+
+  const porNivel = {};
+  itens.forEach(([id,c]) => { (porNivel[c.nivel] = porNivel[c.nivel] || []).push([id,c]); });
+
+  const cx = document.createElement('div');
+  cx.className = 'modal-fundo';
+  cx.onclick = (e) => { if (e.target === cx) cx.remove(); };
+  cx.innerHTML = `
+    <div class="modal-cx">
+      <div class="modal-cab">
+        <b>Desafios</b>
+        <span class="conq-conta">${feitas.size} de ${itens.length}</span>
+        <button class="modal-x" onclick="this.closest('.modal-fundo').remove()" aria-label="Fechar">
+          <i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="modal-corpo">
+        ${ordem.filter(n => porNivel[n]).map(n => `
+          <div class="d-nivel">
+            <span class="d-tit n-${n}">${rotulo[n]}</span>
+            <small>${porNivel[n].filter(([id]) => feitas.has(id)).length} de ${porNivel[n].length}</small>
+          </div>
+          <div class="conq-grade">
+            ${porNivel[n].map(([id,c]) => `
+              <div class="conq n-${n}${feitas.has(id) ? '' : ' travada'}">
+                <span class="ic">${feitas.has(id) ? c.icone : '🔒'}</span>
+                <div><b>${esc(c.nome)}</b><small>${esc(c.desc)}</small></div>
+              </div>`).join('')}
+          </div>`).join('')}
+      </div>
+    </div>`;
+  document.body.appendChild(cx);
 }
 let MODO = 'classico';
 function escolherModo(id){
@@ -1036,7 +1139,9 @@ function escolherModo(id){
 function continuar(){ S = carregar(); if (S) render(); }
 
 /* ── Tela 2: identidade ─────────────────────────────── */
-let rascunho = {nome:'', numero:10, perna:'Direita', pais:'', posicao:'', busca:''};
+// O nome vem preenchido com o da última carreira: quem joga de novo costuma
+// ser a mesma pessoa, e digitar o próprio nome toda vez é atrito à toa.
+let rascunho = {nome:ultimoNome(), numero:10, perna:'Direita', pais:'', posicao:'', busca:''};
 
 function telaIdentidade(){
   const lista = Object.entries(PAISES)
@@ -1139,6 +1244,7 @@ function telaIdentidade(){
 
 /* ── Começo ─────────────────────────────────────────── */
 function comecarCarreira(){
+  guardarNome(rascunho.nome);
   S = {
     nome: rascunho.nome, numero: rascunho.numero, perna: rascunho.perna,
     pais: rascunho.pais, posicao: rascunho.posicao, modo: MODO,
@@ -2018,14 +2124,19 @@ async function telaFim(){
     });
     const d = await r.json();
     if (d.ok && d.conquistas && d.conquistas.length) {
+      // Guarda pra sempre: é o que faz a lista da tela inicial encher ao
+      // longo das carreiras em vez de zerar a cada uma.
+      const novas = d.conquistas.filter(c => !conquistasFeitas().includes(c.id));
+      guardarConquistas(d.conquistas.map(c => c.id));
       const rotulo = {facil:'Fácil', media:'Média', dificil:'Difícil', impossivel:'Impossível'};
       document.getElementById('conquistas').innerHTML =
         `<h2 style="font-size:17px;margin:26px 0 10px">Conquistas da carreira
            <span class="conq-conta">${d.conquistas.length} de ${d.totalConquistas || '?'}</span></h2>
          <div class="conq-grade">${d.conquistas.map(c => `
-           <div class="conq n-${esc(c.nivel || 'facil')}"><span class="ic">${c.icone}</span>
+           <div class="conq n-${esc(c.nivel || 'facil')}${novas.some(n => n.id === c.id) ? ' nova' : ''}">
+             <span class="ic">${c.icone}</span>
              <div><b>${esc(c.nome)}</b><small>${esc(c.desc)}</small></div>
-             <em>${esc(rotulo[c.nivel] || '')}</em></div>`).join('')}</div>`;
+             <em>${novas.some(n => n.id === c.id) ? 'NOVA' : esc(rotulo[c.nivel] || '')}</em></div>`).join('')}</div>`;
     }
   } catch (e) { /* sem rede, a carreira ainda aparece inteira */ }
 
