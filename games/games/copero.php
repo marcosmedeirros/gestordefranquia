@@ -256,7 +256,18 @@ button{font-family:inherit}
 /* ── Evento ─────────────────────────────────────────── */
 .evento h3{font-size:19px;font-weight:900;margin-bottom:4px}
 .evento p{color:var(--txt2);font-size:12.5px;margin:0 0 14px;line-height:1.5}
-.cartas{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:11px}
+.cartas{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px}
+/* Oferta de clube é lista, não grade: o que se compara é o nome e a liga,
+   e três cartões grandes em coluna estreita empurravam a linha do tempo
+   pra fora da tela. */
+.cartas.clubes{grid-template-columns:1fr;gap:7px}
+.cartas.clubes .carta{display:flex;align-items:center;gap:11px;text-align:left;padding:9px 11px}
+.cartas.clubes .clube-op{flex-direction:row;align-items:center;gap:11px;width:100%}
+.cartas.clubes .clube-op .escudo,.cartas.clubes .clube-op .mono{width:34px;height:34px;flex:none}
+.cartas.clubes .clube-op .txt{flex:1;min-width:0}
+.cartas.clubes .clube-op b{margin:0;font-size:14px;display:block;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.cartas.clubes .clube-op small{display:block;font-size:10.5px}
 .carta{background:var(--panel2);border:1px solid var(--borda);border-radius:13px;padding:13px;cursor:pointer;
   text-align:center;color:var(--txt);transition:border-color .12s,opacity .12s}
 .carta:hover{border-color:var(--borda2)}
@@ -281,13 +292,13 @@ button{font-family:inherit}
   font-weight:900;color:#fff;letter-spacing:-.5px}
 
 /* ── Linha do tempo ─────────────────────────────────── */
-.linha{padding:14px 16px;max-height:78vh;overflow-y:auto}
+.linha{padding:12px 14px}
 .linha-cab,.ano{display:grid;grid-template-columns:44px minmax(0,1fr) 46px 56px 52px 52px;gap:8px;
   align-items:center}
 .linha-cab{font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--txt3);
   padding:0 8px 7px}
-.ano{padding:6px 8px;border-radius:9px;font-size:13px}
-.ano + .ano{margin-top:2px}
+.ano{padding:4px 8px;border-radius:8px;font-size:12.5px}
+.ano + .ano{margin-top:1px}
 .ano.vazio{color:var(--txt3)}
 .ano.atual{background:var(--panel3)}
 .ano-idade{display:inline-flex;align-items:center;justify-content:center;width:28px;height:22px;
@@ -331,30 +342,30 @@ button{font-family:inherit}
 
 /* ── Animações ──────────────────────────────────────── */
 @keyframes ovrPulso{0%{transform:scale(1)}45%{transform:scale(1.13)}100%{transform:scale(1)}}
-@keyframes subiu{0%{opacity:0;transform:translateY(6px)}25%{opacity:1;transform:translateY(-2px)}
-  100%{opacity:0;transform:translateY(-22px)}}
+@keyframes subiu{0%{opacity:0;transform:translateY(6px)}18%{opacity:1;transform:translateY(-2px)}
+  70%{opacity:1;transform:translateY(-14px)}100%{opacity:0;transform:translateY(-26px)}}
 @keyframes tacaEntra{0%{opacity:0;transform:scale(.3) rotate(-14deg)}
   60%{opacity:1;transform:scale(1.18) rotate(4deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
 @keyframes sorteando{0%,100%{opacity:.35}50%{opacity:1}}
 @keyframes revelado{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
 
-.ovr-caixa.animando{animation:ovrPulso .5s ease}
+.ovr-caixa.animando{animation:ovrPulso .8s ease}
 /* O delta sobe e some ao lado do OVR: quem estava olhando a carta vê quanto
    mudou sem precisar comparar dois números de cabeça. */
 .ovr-delta{position:absolute;left:50%;transform:translateX(-50%);top:-6px;
-  font-size:15px;font-weight:900;pointer-events:none;animation:subiu 1.5s ease forwards}
+  font-size:16px;font-weight:900;pointer-events:none;animation:subiu 2.2s ease forwards}
 .ovr-delta.mais{color:#4ade80}
 .ovr-delta.menos{color:#f87171}
 .ovr-caixa{position:relative}
 
 /* Enquanto sorteia, os efeitos piscam; o que sai para de piscar e cresce. */
-.efeito.sorteando{animation:sorteando .28s ease-in-out infinite}
+.efeito.sorteando{animation:sorteando .5s ease-in-out infinite}
 .efeito.sorteado{animation:revelado .45s ease}
 
 .taca-nova{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:14px;background:rgba(6,6,9,.86);z-index:60;
   backdrop-filter:blur(3px)}
-.taca-nova .taca{animation:tacaEntra .7s cubic-bezier(.2,1.5,.4,1) forwards}
+.taca-nova .taca{animation:tacaEntra 1.1s cubic-bezier(.2,1.5,.4,1) forwards}
 .taca-nova b{font-size:22px;font-weight:900;letter-spacing:-.5px;text-align:center;padding:0 20px}
 .taca-nova small{color:var(--txt2);font-size:12.5px}
 @media (prefers-reduced-motion:reduce){
@@ -369,7 +380,6 @@ button{font-family:inherit}
   .carreira{grid-template-columns:1fr}
   .ident{grid-template-columns:1fr}
   .ident-col + .ident-col{border-left:none;border-top:1px solid var(--borda)}
-  .linha{max-height:none}
   .linha-cab,.ano{grid-template-columns:38px minmax(0,1fr) 42px 44px 44px 44px;gap:6px}
   .modos{grid-template-columns:1fr}
   .resumo-topo{grid-template-columns:1fr}
@@ -496,12 +506,12 @@ async function animarOvr(de, para){
     for (let i = 1; i <= passos; i++) {
       num.textContent = Math.round(de + (d * i / passos));
       caixa.style.background = corDoOvr(Number(num.textContent));
-      await dormir(45);
+      await dormir(85);
     }
     num.textContent = para;
   }
   caixa.style.background = corDoOvr(para);
-  setTimeout(() => { delta.remove(); caixa.classList.remove('animando'); }, 1500);
+  setTimeout(() => { delta.remove(); caixa.classList.remove('animando'); }, 2200);
 }
 
 /**
@@ -515,7 +525,7 @@ async function animarSorteio(cartaEl, indiceSorteado){
   if (efeitos.length < 2 || semAnimacao()) return;
   efeitos.forEach(e => e.classList.add('sorteando'));
   // Desacelera até parar: é o gesto que faz parecer sorteio e não conta.
-  for (let i = 0, espera = 70; i < 9; i++, espera += 32) {
+  for (let i = 0, espera = 110; i < 11; i++, espera += 55) {
     efeitos.forEach((e, k) => e.classList.toggle('sorteando', k !== (i % efeitos.length)));
     await dormir(espera);
   }
@@ -531,7 +541,7 @@ async function mostrarTaca(id, ligaId){
   await new Promise(r => {
     const fim = () => { tela.remove(); r(); };
     tela.addEventListener('click', fim, {once:true});
-    setTimeout(fim, semAnimacao() ? 700 : 2000);
+    setTimeout(fim, semAnimacao() ? 900 : 3200);
   });
 }
 
@@ -991,7 +1001,7 @@ async function escolherCarta(i){
   const cartaEl = document.querySelectorAll('.cartas .carta')[i];
   if (cartaEl) await animarSorteio(cartaEl, i);
   await animarOvr(antes, S.ovr);
-  await dormir(500);
+  await dormir(900);
   S.evento = null; S.resultado = null;
   await jogarAnos();
 }
@@ -1117,24 +1127,26 @@ function cartasDeClube(lista, comFicar, comAposentar){
   const cartas = (lista || []).map((c,i) => {
     const l = dadosLiga(c.liga);
     return `<button class="carta" onclick="assinarOpcao(${i})">
-      <div class="clube-op">
-        <small>Assinar com</small><b style="margin:0">${esc(c.nome)}</b>
-        ${escudo(c, 52)}
-        <small>${l ? esc(l.nome) : ''}</small>
+      <div class="clube-op">${escudo(c, 34)}
+        <span class="txt"><b>${esc(c.nome)}</b>
+        <small>${l ? esc(l.nome) : ''}</small></span>
       </div></button>`;
   });
   if (comFicar && S.clube) {
     cartas.push(`<button class="carta" onclick="assinar(S.clube)">
-      <div class="clube-op"><small>Ficar no</small><b style="margin:0">${esc(S.clube.nome)}</b>
-      ${escudo(S.clube, 52)}<small>${esc((dadosLiga(S.clube.liga)||{}).nome || '')}</small></div></button>`);
+      <div class="clube-op">${escudo(S.clube, 34)}
+        <span class="txt"><b>Ficar no ${esc(S.clube.nome)}</b>
+        <small>${esc((dadosLiga(S.clube.liga)||{}).nome || '')}</small></span>
+      </div></button>`);
   }
   if (comAposentar) {
     cartas.push(`<button class="carta" onclick="aposentar()">
-      <div class="clube-op"><b style="margin:0">Aposentar-se</b>
-      <span style="font-size:34px;line-height:1">🥾</span>
-      <small>Encerrar sua carreira profissional</small></div></button>`);
+      <div class="clube-op"><span style="font-size:28px;line-height:1;width:34px;text-align:center">🥾</span>
+        <span class="txt"><b>Aposentar-se</b>
+        <small>Encerrar sua carreira profissional</small></span>
+      </div></button>`);
   }
-  return `<div class="cartas">${cartas.join('')}</div>`;
+  return `<div class="cartas clubes">${cartas.join('')}</div>`;
 }
 
 function linhaDoTempo(){
