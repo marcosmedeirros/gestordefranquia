@@ -554,6 +554,26 @@ function escudo(clube, tam){
      onerror="this.outerHTML=this.dataset.reserva" data-reserva="${esc(monograma(clube.nome,t))}">`;
 }
 
+/**
+ * O apelido do clube, pra onde a coluna é estreita.
+ *
+ * Só os dezessete nomes que não cabem na linha do tempo do celular. É o que
+ * qualquer app de futebol faz: na tabela é "Dortmund", no cabeçalho é
+ * "Borussia Dortmund". Nome que não está aqui aparece inteiro.
+ */
+const APELIDO = {
+  'Bayern de Munique':'Bayern',        'Borussia Dortmund':'Dortmund',
+  "Borussia M'gladbach":'M’gladbach', 'Eintracht Frankfurt':'Eintracht',
+  'Manchester United':'Man. United',   'Manchester City':'Man. City',
+  'Atlético de Madrid':'Atl. Madrid',  'Atlético Nacional':'Atl. Nacional',
+  'Universidad de Chile':'U. de Chile','Vitória de Guimarães':'V. Guimarães',
+  'Bayer Leverkusen':'Leverkusen',     'Sheffield United':'Sheffield Utd',
+  'Racing Santander':'Racing Sant.',   'Barracas Central':'Barracas',
+  'Kawasaki Frontale':'Kawasaki',      'Mamelodi Sundowns':'Sundowns',
+  'Melbourne Victory':'Melbourne',     'Seattle Sounders':'Seattle',
+};
+const nomeCurto = n => APELIDO[n] || n;
+
 const corDoOvr = o => (FAIXAS.find(([min]) => o >= min) || FAIXAS[FAIXAS.length-1])[2];
 const acharClube = nome => CLUBES.find(c => c.nome === nome);
 const dadosLiga  = id => LIGAS[id]
@@ -1570,7 +1590,7 @@ function linhaDoTempo(){
       const cor = corDoOvr(t.ovr);
       html += `<div class="ano">
         <span class="ano-idade" style="background:${cor}">${i}</span>
-        <span class="ano-clube">${escudo(c, 20)}<span>${esc(t.clube)}</span>${setaMov(t.movimento)}</span>
+        <span class="ano-clube" title="${esc(t.clube)}">${escudo(c, 20)}<span>${esc(nomeCurto(t.clube))}</span>${setaMov(t.movimento)}</span>
         <span class="ano-ovr" style="background:${cor}">${t.ovr}</span>
         <span class="ano-n">${t.jogos}</span><span class="ano-n">${t.gols}</span><span class="ano-n">${t.ast}</span>
       </div>`;
