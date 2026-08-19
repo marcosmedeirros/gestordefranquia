@@ -621,6 +621,7 @@ button{font-family:inherit}
 .selo.sel{color:#fbbf24}
 .selo.les{color:#f87171}
 .selo.riv{color:#c084fc}
+.selo.emp{color:#60a5fa}
 .mov{font-style:normal;font-size:10px;flex:none;line-height:1}
 .mov.sobe{color:#4ade80}
 .mov.cai{color:#f87171}
@@ -1904,6 +1905,25 @@ function ofertas(quantos, exceto, soDeCasa){
       }
       if (daCasa.length >= quantos)  elegiveis = daCasa;
       else if (daCasa.length)        elegiveis = daCasa.concat(elegiveis.filter(c => !daCasa.includes(c)));
+
+      // UM GRANDE NA MESA, de vez em quando.
+      //
+      // A lista de casa pega os dez clubes mais FRACOS do país, então a base
+      // sempre começava num clube pequeno — e o garoto revelado no Flamengo,
+      // que é de onde sai metade dos jogadores de verdade, não existia. Uma
+      // em cada quatro carreiras agora tem um clube de primeira divisão na
+      // oferta inicial. Escolher é outra coisa: lá dentro não vai ter espaço
+      // no começo, e é aí que o empréstimo entra.
+      if (Math.random() < 0.26) {
+        const grandes = CLUBES.filter(c => {
+          const l = dadosLiga(c.liga);
+          return l && l.nivel === 1 && paises.includes(l.pais) && c.forca >= 72 && !fora.has(c.nome);
+        });
+        if (grandes.length) {
+          const g = grandes[Math.floor(Math.random() * grandes.length)];
+          elegiveis = [g].concat(elegiveis.filter(c => c.nome !== g.nome));
+        }
+      }
     }
   }
 
@@ -1961,6 +1981,98 @@ function ofertas(quantos, exceto, soDeCasa){
     if (novos.length) saida[saida.length - 1] = novos[Math.floor(Math.random() * novos.length)];
   }
   return saida;
+}
+
+/* ── EMPRÉSTIMO ─────────────────────────────────────────
+ *
+ * O caminho de quem foi revelado num clube grande: lá dentro não tem espaço
+ * (o encaixe derruba os jogos pra 35%), e o clube manda o garoto rodar num
+ * menor pra jogar de verdade. É o que acontece com quase todo jovem de
+ * primeira divisão, e é uma decisão de carreira: aceitar significa jogar e
+ * evoluir agora, ficar significa apostar que você fura a fila.
+ *
+ * Não é uma fase obrigatória — é um evento, e só aparece quando faz sentido:
+ * nos primeiros quatro anos, e só se o clube for grande demais pro seu nível.
+ * Quem já alcançou o time não é emprestado: tem espaço, e fica.
+ */
+function cabeEmprestimo(){
+  if (S.emprestadoDe) return false;              // já está emprestado
+  if (!S.clube) return false;
+  if ((S.temporadas || []).length > 4) return false;   // só nos primeiros anos
+  return S.clube.forca - S.ovr >= 10;            // não tem espaço no elenco
+}
+
+/**
+ * Os clubes que topam receber o garoto emprestado.
+ *
+ * Menores que o dono e do tamanho de quem vai jogar — o ponto do empréstimo
+ * é ter minutos, então um clube ainda maior não serve. Preferência pro mesmo
+ * país; o mundo entra só se o país não tiver ninguém do tamanho.
+ */
+function ofertasDeEmprestimo(quantos){
+  const dono = S.emprestadoDe || S.clube;
+  const l = dadosLiga(dono.liga);
+  const pais = l ? l.pais : null;
+  const cabe = (c) => {
+    if (c.nome === dono.nome) return false;
+    if (S.clube && c.nome === S.clube.nome) return false;
+    const d = dadosLiga(c.liga);
+    if (!d) return false;
+    if (c.forca > dono.forca - 6) return false;        // menor que o dono
+    return c.forca >= S.ovr - 12 && c.forca <= S.ovr + 10;
+  };
+  let lista = CLUBES.filter(c => cabe(c) && (dadosLiga(c.liga) || {}).pais === pais);
+  if (lista.length < quantos) lista = lista.concat(CLUBES.filter(c => cabe(c) && !lista.includes(c)));
+  // Um de cada patamar, do mais forte pro mais fraco — mesma ideia do mercado.
+  const ordem = lista.sort((a, b) => b.forca - a.forca), n = ordem.length, saida = [];
+  for (let i = 0; i < quantos && saida.length < n; i++) {
+    const ini = Math.floor(n * i / quantos), fim = Math.max(ini + 1, Math.floor(n * (i + 1) / quantos));
+    const bloco = ordem.slice(ini, fim).filter(c => !saida.includes(c));
+    if (bloco.length) saida.push(bloco[Math.floor(Math.random() * bloco.length)]);
+  }
+  return saida;
+}
+
+/** Vai emprestado: guarda o dono e joga o ano no clube novo. */
+async function aceitarEmprestimo(i){
+  const c = (S.opcoes || [])[i];
+  if (!c) return;
+  // O dono é sempre o ORIGINAL: rodar por três clubes emprestado não muda
+  // de quem você é.
+  if (!S.emprestadoDe) S.emprestadoDe = S.clube;
+  S.clube = c;
+  S.emprestimos = (S.emprestimos || 0) + 1;
+  await jogarAnos();
+}
+
+/** Recusa: fica no clube grande e briga por espaço. */
+async function recusarEmprestimo(){
+  S.recusouEmprestimo = true;
+  await jogarAnos();
+}
+
+/** Volta pro dono ao fim do empréstimo. */
+async function voltarDoEmprestimo(){
+  S.clube = S.emprestadoDe;
+  S.emprestadoDe = null;
+  await jogarAnos();
+}
+
+/** Fica de vez no clube onde jogou emprestado. */
+async function ficarNoEmprestimo(){
+  S.emprestadoDe = null;
+  S.maiorForcaClube = Math.max(S.maiorForcaClube, S.clube.forca);
+  await jogarAnos();
+}
+
+/**
+ * O clube que te recebeu quer comprar?
+ *
+ * Só se você jogou no nível dele — quem passou o ano no banco lá também
+ * volta pro dono sem proposta nenhuma.
+ */
+function emprestimoVirouCompra(){
+  return !!S.emprestadoDe && S.ovr >= S.clube.forca - 4;
 }
 
 /** Um evento que caiba no momento da carreira. */
@@ -2097,6 +2209,7 @@ function temporada(){
   const q = Math.max(0.18, Math.pow(Math.max(0, S.ovr - 42) / 48, 2.3) * 1.95);
   const t = {
     idade: S.idade, clube: S.clube.nome, liga: S.clube.liga, ovr: S.ovr,
+    emprestado: !!S.emprestadoDe,
     jogos,
     gols: Math.max(0, Math.round(jogos * pesoGol * q * (ri(75,130)/100))),
     ast:  Math.max(0, Math.round(jogos * pesoAst * q * (ri(70,135)/100))),
@@ -2201,6 +2314,24 @@ function ehIdolo(){ return anosNoClube() >= 5; }
 
 function proximaFase(){
   if (S.idade >= IDADE_FIM) { S.fase = 'fim'; S.fim = true; salvar(); render(); return; }
+
+  // Empréstimo acabou: a decisão de voltar, ficar ou rodar de novo vem antes
+  // de qualquer outra coisa — o jogador está pendurado entre dois clubes e
+  // isso precisa ser resolvido.
+  if (S.emprestadoDe) {
+    S.fase = 'fim_emprestimo';
+    S.opcoes = (S.temporadas.length <= 5) ? ofertasDeEmprestimo(2) : [];
+    salvar(); render(); return;
+  }
+
+  // E o empréstimo em si é um evento como os outros: só aparece quando cabe
+  // (jovem, em clube grande demais pro seu nível) e nem sempre.
+  if (cabeEmprestimo() && !S.recusouEmprestimo && Math.random() < 0.62) {
+    S.fase = 'emprestimo';
+    S.opcoes = ofertasDeEmprestimo(3);
+    if (S.opcoes.length) { salvar(); render(); return; }
+  }
+  S.recusouEmprestimo = false;
 
   // Depois dos 33 o clube pode não renovar — é o que traz a aposentadoria
   // como decisão, e não como parede de idade. Ídolo da casa não é dispensado:
@@ -2340,6 +2471,56 @@ function blocoDecisao(){
       <p>Chegaram ofertas depois do seu último trecho de carreira. Você pode aceitar uma ou ficar no clube.</p>
       ${cartasDeClube(S.opcoes, true)}</div>`;
   }
+  if (S.fase === 'emprestimo') {
+    const dono = S.clube;
+    return `<div class="evento"><h3>Sem espaço no elenco</h3>
+      <p>Você é jovem demais pro time principal do ${esc(dono.nome)} e o clube quer te
+      emprestar pra jogar. Rodar significa minutos e evolução agora; ficar é apostar
+      que você fura a fila aqui dentro.</p>
+      <div class="cartas clubes">
+        ${(S.opcoes || []).map((c, i) => {
+          const l = dadosLiga(c.liga);
+          return `<button class="carta" onclick="aceitarEmprestimo(${i})">
+            <div class="clube-op">${escudo(c, 34)}
+              <span class="txt"><b>Emprestado ao ${esc(c.nome)}</b>
+              <small>${l ? esc(l.nome) : ''} · força ${c.forca}</small></span>
+            </div></button>`;
+        }).join('')}
+        <button class="carta" onclick="recusarEmprestimo()">
+          <div class="clube-op">${escudo(dono, 34)}
+            <span class="txt"><b>Ficar no ${esc(dono.nome)}</b>
+            <small>Brigar por espaço no elenco principal</small></span>
+          </div></button>
+      </div></div>`;
+  }
+  if (S.fase === 'fim_emprestimo') {
+    const dono = S.emprestadoDe, aqui = S.clube;
+    const compra = emprestimoVirouCompra();
+    return `<div class="evento"><h3>Fim do empréstimo</h3>
+      <p>Seu vínculo com o ${esc(aqui.nome)} acabou.${compra
+        ? ` O clube gostou do que viu e quer te comprar.`
+        : ` O ${esc(dono.nome)} espera você de volta.`}</p>
+      <div class="cartas clubes">
+        <button class="carta" onclick="voltarDoEmprestimo()">
+          <div class="clube-op">${escudo(dono, 34)}
+            <span class="txt"><b>Voltar ao ${esc(dono.nome)}</b>
+            <small>${esc((dadosLiga(dono.liga)||{}).nome || '')} · força ${dono.forca}</small></span>
+          </div></button>
+        ${compra ? `<button class="carta" onclick="ficarNoEmprestimo()">
+          <div class="clube-op">${escudo(aqui, 34)}
+            <span class="txt"><b>Ficar no ${esc(aqui.nome)}</b>
+            <small>Contrato de vez, onde você já joga</small></span>
+          </div></button>` : ''}
+        ${(S.opcoes || []).map((c, i) => {
+          const l = dadosLiga(c.liga);
+          return `<button class="carta" onclick="aceitarEmprestimo(${i})">
+            <div class="clube-op">${escudo(c, 34)}
+              <span class="txt"><b>Novo empréstimo: ${esc(c.nome)}</b>
+              <small>${l ? esc(l.nome) : ''} · força ${c.forca}</small></span>
+            </div></button>`;
+        }).join('')}
+      </div></div>`;
+  }
   if (S.fase === 'fim_ciclo') {
     return `<div class="evento"><h3>Fim de ciclo</h3>
       <p>Seu clube decidiu não renovar. Escolha o próximo passo da sua carreira.</p>
@@ -2415,6 +2596,7 @@ function selosDoAno(t){
   if (t.selecao) s += `<i class="selo sel" title="Convocado para a seleção">★</i>`;
   if (t.lesao)   s += `<i class="selo les" title="Lesão na temporada">✚</i>`;
   if (t.rival)   s += `<i class="selo riv" title="Primeira temporada depois de trocar pelo rival">⚡</i>`;
+  if (t.emprestado) s += `<i class="selo emp" title="Temporada por empréstimo">⇄</i>`;
   return s;
 }
 
