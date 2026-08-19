@@ -255,9 +255,12 @@ button{font-family:inherit}
   padding:4px 9px;font-size:11px;font-weight:800;white-space:nowrap}
 .tag.pos{background:#7f1d3a;color:#fff}
 .tag svg{width:17px;height:11px;border-radius:2px;flex:none;display:block}
+/* Os `min-width:0` não são enfeite: sem eles o nome comprido não encolhe,
+   empurra o bloco de idade/valor pra fora e a página inteira ganha barra de
+   rolagem lateral no celular. */
 .ficha-clube{display:flex;align-items:center;gap:9px;font-size:20px;font-weight:900;letter-spacing:-.5px;
-  white-space:nowrap;overflow:hidden}
-.ficha-clube span{overflow:hidden;text-overflow:ellipsis}
+  white-space:nowrap;overflow:hidden;min-width:0}
+.ficha-clube span{overflow:hidden;text-overflow:ellipsis;min-width:0}
 .ficha-num{flex:none;display:flex;gap:16px;text-align:right;font-size:10px;color:var(--txt3);
   font-weight:700;letter-spacing:.5px}
 .ficha-num b{display:block;font-size:18px;color:var(--txt);letter-spacing:-.5px}
@@ -455,11 +458,22 @@ function compartilharCarreira(botao){
 
 @media (max-width:980px){
   /* Empilhado: a linha do tempo é referência, a ficha é onde se joga —
-     então a ficha vem primeiro e a linha desce. */
-  .carreira{grid-template-columns:1fr}
+     então a ficha vem primeiro e a linha desce.
+
+     `minmax(0,1fr)` e não `1fr`: em grid, `1fr` é `minmax(auto,1fr)`, e esse
+     `auto` é o min-content — a coluna se recusava a encolher e a ficha com
+     nome comprido ("Universidad de Chile") esticava a página pra 491px numa
+     tela de 375. Era daí que vinha a rolagem lateral no celular. */
+  .carreira{grid-template-columns:minmax(0,1fr)}
   .ident{grid-template-columns:1fr}
   .ident-col + .ident-col{border-left:none;border-top:1px solid var(--borda)}
   .linha-cab,.ano{grid-template-columns:38px minmax(0,1fr) 42px 44px 44px 44px;gap:6px}
+}
+@media (max-width:440px){
+  /* Em tela estreita idade e valor empilham: lado a lado eles comiam 100px
+     e sobrava quase nada pro nome do clube. */
+  .ficha-num{flex-direction:column;gap:2px}
+  .ficha-num b{font-size:16px}
   .modos{grid-template-columns:1fr}
   .resumo-topo{grid-template-columns:1fr}
   #app{padding:12px 11px 40px}
