@@ -165,7 +165,7 @@ const COPERO_CLUBES = [
     ['Defensor', 'UY1', 64, 'https://r2.thesportsdb.com/images/media/team/badge/dx13rd1703003044.png'],
 
     // Primera División
-    ['Colo-Colo', 'CL1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/2xvoy41754042820.png'],
+    ['Colo-Colo', 'CL1', 72, '/games/img/escudos/colocolo.png'],
     ['Universidad de Chile', 'CL1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/po0o3c1578347873.png'],
     ['Cobresal', 'CL1', 62, 'https://r2.thesportsdb.com/images/media/team/badge/36tqoo1602187477.png'],
 
