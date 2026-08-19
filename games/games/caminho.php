@@ -353,28 +353,37 @@ $ranking = $pdo->query("
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
 <title>O Caminho — FBA Games</title>
 <meta name="robots" content="noindex, nofollow">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
 /* ── Padrão visual dos jogos da FBA (base: buildplayer.php) ───────────
    Mesmos tokens, mesma topbar, mesmo card, mesmo vermelho. Dark-only,
    como o resto de games/.
 
-   Uma diferença forçada: Poppins e Bootstrap Icons vêm de CDN, e a CSP
+   Uma diferença forçada: a fonte e os Bootstrap Icons vêm de CDN, e a CSP
    do artifact bloqueia. Aqui uso a pilha do sistema e SVG inline; ao
    entrar no site, é só voltar a var(--font) do padrão e os <i class="bi">.
    ─────────────────────────────────────────────────────────────────── */
+/* A escala é a mesma do Copero, e de propósito: os dois são jogos de
+   carreira do mesmo site, e antes um parecia mais escuro e apagado que o
+   outro sem que nada justificasse. O que NÃO segue o Copero é o acento —
+   ali é verde porque é futebol, aqui é o vermelho da FBA, que é a marca.
+
+   Duas mudanças fazem quase toda a diferença de leitura: as bordas viram
+   sólidas (em rgba elas somem sobre painel escuro) e o texto terciário
+   clareia de #3c3c44 pra #71717a, que é o mínimo pra rótulo pequeno ser
+   legível em cima do fundo. */
 :root{
-  --bg:#07070a;--panel:#101013;--panel2:#16161a;--panel3:#1c1c21;
-  --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.14);
+  --bg:#0a0a0c;--panel:#131316;--panel2:#1a1a1f;--panel3:#212127;
+  --border:#26262d;--border2:#33333c;
   --red:#fc0025;--red-soft:rgba(252,0,37,.12);--red-glow:rgba(252,0,37,.25);
-  --text:#f0f0f3;--text2:#868690;--text3:#3c3c44;
+  --text:#f4f4f5;--text2:#a1a1aa;--text3:#71717a;
   --green:#22c55e;--green-soft:rgba(34,197,94,.12);
   --amber:#f59e0b;--amber-soft:rgba(245,158,11,.12);
   --blue:#3b82f6;--blue-soft:rgba(59,130,246,.12);
-  --radius:14px;
-  --font:'Poppins',sans-serif;
-  --num:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --radius:16px;
+  --font:'Inter',system-ui,-apple-system,sans-serif;
+  --num:'Inter',system-ui,sans-serif;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;
@@ -433,7 +442,7 @@ h2{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;co
 
 .campo label,label{display:block;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
   color:var(--text2);margin:12px 0 5px}
-input,select{width:100%;background:var(--panel2);border:1.5px solid var(--border);border-radius:10px;
+input,select{width:100%;background:var(--panel2);border:1px solid var(--border);border-radius:10px;
   padding:11px 12px;font-family:var(--font);font-size:14px;font-weight:700;color:var(--text);
   outline:none;transition:.15s}
 /* O foco muda so a borda. Antes pintava o fundo com --red-soft, que e
@@ -453,9 +462,9 @@ input::placeholder{color:var(--text3);font-weight:500}
 
 /* ESCOLHAS — .tipo do padrão */
 .grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:6px}
-.tipo{background:var(--panel2);border:1.5px solid var(--border);border-radius:var(--radius);
+.tipo{background:var(--panel2);border:1px solid var(--border);border-radius:var(--radius);
   padding:14px 12px;text-align:left;cursor:pointer;transition:.2s;color:var(--text);font-family:var(--font)}
-.tipo:hover{border-color:var(--red);background:var(--red-soft);transform:translateY(-2px)}
+.tipo:hover{border-color:var(--border2);background:var(--panel3)}
 .tipo.on{border-color:var(--red);background:var(--red-soft)}
 .tipo b{display:block;font-size:14px;font-weight:900;letter-spacing:.2px;color:var(--text);margin-bottom:3px}
 .tipo span{font-size:10.5px;color:var(--text2);line-height:1.45;display:block}
@@ -467,18 +476,21 @@ input::placeholder{color:var(--text3);font-weight:500}
 .btn:hover:not(:disabled){filter:brightness(1.12)}
 .btn:active:not(:disabled){transform:scale(.985)}
 .btn:disabled{background:var(--panel3);color:var(--text3);cursor:not-allowed}
-.btn2{background:transparent;border:1.5px solid var(--border2);color:var(--text2);border-radius:11px;
+.btn2{background:transparent;border:1px solid var(--border2);color:var(--text2);border-radius:11px;
   padding:11px;font-size:12.5px;font-weight:700;margin-top:9px}
 .btn2:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-soft);filter:none}
 
 /* OPÇÃO DE DECISÃO — mesma linguagem do .nota do build */
 /* OPÇÃO — o botão É a decisão, então carrega o peso visual da tela. */
+/* Borda de 1px e hover que só acende a borda: com 1.5px e o card subindo
+   com sombra a cada passada de mouse, a tela toda tremia. A decisão fica
+   igualmente clara, e a atenção sobra pro texto da escolha. */
 .op{display:block;width:100%;text-align:left;background:var(--panel2);color:var(--text);
-  border:1.5px solid var(--border2);border-radius:12px;padding:10px 13px;margin-bottom:7px;
-  font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;line-height:1.4}
-.op:hover{border-color:var(--red);background:var(--red-soft);transform:translateY(-1px);
-  box-shadow:0 4px 14px rgba(0,0,0,.28)}
-.op:active{transform:translateY(0)}
+  border:1px solid var(--border);border-radius:13px;padding:11px 14px;margin-bottom:8px;
+  font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;
+  transition:border-color .12s,background .12s;line-height:1.45}
+.op:hover{border-color:var(--border2);background:var(--panel3)}
+.op:active{border-color:var(--red)}
 .op-titulo{display:block;font-size:13.5px;font-weight:800;letter-spacing:-.1px;color:var(--text)}
 
 /* As duas pontas, lado a lado. A cor diz se AQUELE desfecho ajuda ou
@@ -603,19 +615,19 @@ tr.tit td{color:var(--red)}
 .id-campos{display:grid;grid-template-columns:1fr 84px;gap:9px}
 .id-campo label{display:block;font-size:9.5px;font-weight:800;letter-spacing:.8px;
   text-transform:uppercase;color:var(--text2);margin-bottom:5px;text-align:center}
-.id-campo input{width:100%;background:var(--panel2);border:1.5px solid var(--border);
+.id-campo input{width:100%;background:var(--panel2);border:1px solid var(--border);
   border-radius:10px;padding:11px 12px;font-family:var(--font);font-size:14px;font-weight:700;
   color:var(--text);outline:none;text-align:center}
 .id-campo input:focus{border-color:var(--red)}
 .id-duo{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:11px;
-  background:var(--panel2);border:1.5px solid var(--border);border-radius:10px;overflow:hidden}
+  background:var(--panel2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .id-duo button{background:transparent;border:0;padding:11px 6px;font-family:var(--font);
   font-size:13px;font-weight:700;color:var(--text2);cursor:pointer;transition:.15s}
 .id-duo button.on{background:var(--text);color:var(--bg)}
 
 /* País: busca em cima, lista rolável embaixo, duas colunas. */
 .nac-busca{position:relative;margin-bottom:11px}
-.nac-busca input{width:100%;background:var(--panel2);border:1.5px solid var(--border);
+.nac-busca input{width:100%;background:var(--panel2);border:1px solid var(--border);
   border-radius:10px;padding:11px 12px 11px 34px;font-family:var(--font);font-size:13px;
   color:var(--text);outline:none}
 .nac-busca input:focus{border-color:var(--red)}
@@ -872,10 +884,9 @@ tr.tit td{color:var(--red)}
    dar destaque visual a uma delas já seria escolher pela pessoa. */
 .ofertas-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:11px;margin-top:4px}
 .oferta-card{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
-  background:var(--panel2);border:1.5px solid var(--border2);border-radius:14px;padding:16px 13px;
+  background:var(--panel2);border:1px solid var(--border2);border-radius:14px;padding:16px 13px;
   color:var(--text);font-family:var(--font);cursor:pointer;transition:.15s}
-.oferta-card:hover{border-color:var(--red);background:var(--red-soft);transform:translateY(-2px);
-  box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.oferta-card:hover{border-color:var(--border2);background:var(--panel3)}
 .oferta-topo{font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3)}
 .oferta-time{font-size:15px;font-weight:800;letter-spacing:-.2px;line-height:1.2}
 .oferta-marca{margin:4px 0}
@@ -894,10 +905,9 @@ tr.tit td{color:var(--red)}
 .dec-sub{margin-bottom:12px}
 .dec-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:11px}
 .dec-card{display:flex;flex-direction:column;gap:9px;background:var(--panel2);
-  border:1.5px solid var(--border2);border-radius:15px;padding:14px 13px 13px;cursor:pointer;
+  border:1px solid var(--border2);border-radius:15px;padding:14px 13px 13px;cursor:pointer;
   font-family:var(--font);color:var(--text);text-align:center;transition:.15s}
-.dec-card:hover{border-color:var(--red);background:var(--red-soft);transform:translateY(-2px);
-  box-shadow:0 6px 18px rgba(0,0,0,.32)}
+.dec-card:hover{border-color:var(--border2);background:var(--panel3)}
 .dec-card:active{transform:translateY(0)}
 /* Altura de duas linhas mesmo com título de uma: sem isso, cartas de nome
    curto e longo ficam de alturas diferentes lado a lado. */
