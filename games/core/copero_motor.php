@@ -191,6 +191,11 @@ const COPERO_COMPETICOES = [
     'liga'    => ['Campeonato Nacional',    'nacional',     0.06],
     'copa'    => ['Copa Nacional',          'nacional',     0.26],
     'cont'    => ['Torneio Continental',    'continental',  0.22],
+    // Os torneios continentais de baixo. Existem porque o clube médio também
+    // tem o que disputar na Europa: sem eles, quem não briga por Champions
+    // não tinha nenhuma noite europeia na carreira inteira.
+    'cont2'   => ['Segunda Continental',    'continental',  0.30],
+    'cont3'   => ['Terceira Continental',   'continental',  0.34],
     'mundial' => ['Mundial de Clubes',      'mundial',      0.16],
 ];
 
@@ -285,6 +290,25 @@ const COPERO_CONTINENTAL = [
 ];
 
 /**
+ * O segundo torneio continental, para quem não briga pelo primeiro.
+ *
+ * É o que dá noite europeia ao clube médio: sem isso, quem nunca chegou à
+ * Champions terminava a carreira sem nenhuma competição continental.
+ */
+const COPERO_CONTINENTAL2 = [
+    'SAM' => 'Sul-Americana',
+    'EUR' => 'Europa League',
+    'NAM' => 'Copa Centroamericana',
+    'ASI' => 'AFC Champions League Two',
+    'AFR' => 'CAF Confederation Cup',
+];
+
+/** E o terceiro, que só a Europa tem. */
+const COPERO_CONTINENTAL3 = [
+    'EUR' => 'Conference League',
+];
+
+/**
  * Os prêmios individuais. Dependem do jogador, não do clube — é o que
  * separa "meu time ganhou" de "eu fui o melhor".
  */
@@ -370,6 +394,21 @@ const COPERO_TACAS = [
       . '<path d="M24 26c-2 6-1 11 3 15h10c4-4 5-9 3-15z" fill="currentColor"/>'
       . '<path d="M28 41h8v6h-8z" fill="currentColor"/>'
       . '<rect x="19" y="47" width="26" height="7" rx="3" fill="currentColor"/>'],
+    // Segunda continental: a mesma silhueta da orelhuda, menor e em bronze —
+    // a taça diz sozinha que vale menos, sem precisar de legenda.
+    'cont2' => ['#cd7f32',
+        '<path d="M24 12h16v12c0 6-3 10-8 12-5-2-8-6-8-12z" fill="currentColor"/>'
+      . '<path d="M24 15h-6v5c0 5 3 8 6 9M40 15h6v5c0 5-3 8-6 9" '
+      . 'stroke="currentColor" stroke-width="2.4" fill="none"/>'
+      . '<rect x="30" y="36" width="4" height="9" fill="currentColor"/>'
+      . '<rect x="22" y="45" width="20" height="6" rx="2" fill="currentColor"/>'],
+    // Terceira: menor ainda, e esverdeada como a Conference de verdade.
+    'cont3' => ['#4ade80',
+        '<path d="M26 15h12v10c0 5-2.5 8-6 9.5-3.5-1.5-6-4.5-6-9.5z" fill="currentColor"/>'
+      . '<path d="M26 18h-5v4c0 4 2.5 6.5 5 7.5M38 18h5v4c0 4-2.5 6.5-5 7.5" '
+      . 'stroke="currentColor" stroke-width="2.2" fill="none"/>'
+      . '<rect x="30.5" y="35" width="3" height="9" fill="currentColor"/>'
+      . '<rect x="24" y="44" width="16" height="5.5" rx="2" fill="currentColor"/>'],
     // Luva de Ouro: o prêmio de quem defende, para o goleiro não ficar sem
     // nenhum — os outros três individuais todos dependem de gol.
     'luva_ouro' => ['#e0e7ff',

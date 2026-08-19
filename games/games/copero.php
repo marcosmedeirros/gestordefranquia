@@ -160,6 +160,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $grandes = ['EN1','ES1','IT1','DE1','FR1'];
     $grandesVencidas = count(array_intersect($grandes, array_keys($ligasVencidas)));
     $coletivos = ($tit['liga'] ?? 0) + ($tit['copa'] ?? 0) + ($tit['cont'] ?? 0)
+               + ($tit['cont2'] ?? 0) + ($tit['cont3'] ?? 0)
                + ($tit['mundial'] ?? 0) + ($tit['copa_mundo'] ?? 0) + ($tit['selecao_cont'] ?? 0);
 
     $ctx = [
@@ -847,6 +848,8 @@ async function mostrarTacas(t){
 const TACAS = <?= json_encode(COPERO_TACAS, JSON_UNESCAPED_UNICODE) ?>;
 const COMPETICOES = <?= json_encode(COPERO_COMPETICOES, JSON_UNESCAPED_UNICODE) ?>;
 const CONTINENTAL = <?= json_encode(COPERO_CONTINENTAL, JSON_UNESCAPED_UNICODE) ?>;
+const CONT2       = <?= json_encode(COPERO_CONTINENTAL2, JSON_UNESCAPED_UNICODE) ?>;
+const CONT3       = <?= json_encode(COPERO_CONTINENTAL3, JSON_UNESCAPED_UNICODE) ?>;
 const COPAS       = <?= json_encode(COPERO_COPAS, JSON_UNESCAPED_UNICODE) ?>;
 const SELECOES    = <?= json_encode(COPERO_SELECOES, JSON_UNESCAPED_UNICODE) ?>;
 /* A lista INTEIRA das conquistas, e não só as ganhas: é o que deixa a tela
@@ -880,6 +883,8 @@ function nomeDaTaca(id, ligaId){
   if (id === 'copa_mundo')   return 'Copa do Mundo';
   if (id === 'selecao_cont') return SEL_CONT[contDoPais(S ? S.pais : 'BRA')] || 'Torneio de Seleções';
   if (id === 'cont')  return (l && CONTINENTAL[l.cont]) || 'Torneio Continental';
+  if (id === 'cont2') return (l && CONT2[l.cont]) || 'Segunda Continental';
+  if (id === 'cont3') return (l && CONT3[l.cont]) || 'Terceira Continental';
   if (id === 'liga')  return (l && l.nome) || 'Campeonato Nacional';
   if (id === 'copa')  return (l && COPAS[l.pais]) || 'Copa Nacional';
   if (COMPETICOES[id]) return COMPETICOES[id][0];
@@ -932,10 +937,19 @@ function adversarios(clube, comp){
     // A copa é do PAÍS inteiro: entra gente de todas as divisões, e é por
     // isso que time pequeno às vezes leva.
     lista = CLUBES.filter(c => { const d = dadosLiga(c.liga); return d && d.pais === l.pais; });
-  } else if (comp === 'cont') {
-    // Só primeira divisão, do continente todo. É o que faz a Libertadores
-    // ser briga de brasileiro com argentino: os outros nem chegam perto.
-    lista = CLUBES.filter(c => { const d = dadosLiga(c.liga); return d && d.cont === l.cont && d.nivel === 1; });
+  } else if (comp === 'cont' || comp === 'cont2' || comp === 'cont3') {
+    // Os três torneios continentais partem do mesmo conjunto — primeira
+    // divisão do continente — mas cada um pega uma FATIA dele. É assim que
+    // funciona de verdade: os grandes na Champions, os do meio na Europa
+    // League, os de baixo na Conference. Um clube só disputa a sua.
+    const doCont = CLUBES
+      .filter(c => { const d = dadosLiga(c.liga); return d && d.cont === l.cont && d.nivel === 1; })
+      .sort((a, b) => b.forca - a.forca);
+    const n1 = Math.max(1, Math.round(doCont.length * 0.30));
+    const n2 = Math.max(1, Math.round(doCont.length * 0.62));
+    lista = comp === 'cont'  ? doCont.slice(0, n1)
+          : comp === 'cont2' ? doCont.slice(n1, n2)
+          : doCont.slice(n2);
   } else {
     // Mundial: um campeão por continente, o mais forte de cada um. O
     // sul-americano entra, mas encara o gigante europeu.
@@ -1024,6 +1038,33 @@ function titulosDaSelecao(ovr, ano){
   return ganhos;
 }
 
+/**
+ * Qual continental ESTE clube disputa este ano.
+ *
+ * A fatia é a mesma de `adversarios`: os 30% mais fortes do continente vão à
+ * principal, a faixa do meio à segunda, o resto à terceira — e a terceira só
+ * existe na Europa, como na vida real. Devolve null pra quem não se
+ * classificou pra nada.
+ */
+const _cacheFatia = {};
+function torneioContinental(clube){
+  const l = dadosLiga(clube.liga);
+  if (!l || l.nivel !== 1) return null;
+  if (!_cacheFatia[l.cont]) {
+    const doCont = CLUBES
+      .filter(c => { const d = dadosLiga(c.liga); return d && d.cont === l.cont && d.nivel === 1; })
+      .sort((a, b) => b.forca - a.forca);
+    _cacheFatia[l.cont] = {
+      n1: doCont[Math.max(0, Math.round(doCont.length * 0.30) - 1)],
+      n2: doCont[Math.max(0, Math.round(doCont.length * 0.62) - 1)],
+    };
+  }
+  const {n1, n2} = _cacheFatia[l.cont];
+  if (n1 && clube.forca >= n1.forca) return 'cont';
+  if (n2 && clube.forca >= n2.forca) return CONT2[l.cont] ? 'cont2' : null;
+  return CONT3[l.cont] ? 'cont3' : null;
+}
+
 function titulosDaTemporada(clube, ovr, stats){
   const l = dadosLiga(clube.liga);
   if (!l) return [];
@@ -1059,7 +1100,14 @@ function titulosDaTemporada(clube, ovr, stats){
 
   if (Math.random() * 100 < chance('liga')) ganhos.push('liga');
   if (Math.random() * 100 < chance('copa')) ganhos.push('copa');
-  if (principal && Math.random() * 100 < chance('cont')) ganhos.push('cont');
+
+  // Você disputa UMA continental por ano: a do seu tamanho. É o que dá noite
+  // europeia ao clube médio sem misturar quem briga por Champions com quem
+  // briga por Conference.
+  if (principal) {
+    const qual = torneioContinental(clube);
+    if (qual && Math.random() * 100 < chance(qual)) ganhos.push(qual);
+  }
   // Mundial só pra quem ganhou o continente — é assim que ele funciona.
   if (ganhos.includes('cont') && Math.random() * 100 < chance('mundial')) {
     ganhos.push('mundial');
@@ -2114,7 +2162,7 @@ function salaDeTrofeus(){
   // Seleção primeiro, que é o teto de uma carreira; depois clube, do maior
   // pro menor; prêmios individuais por último. Explícito de propósito: o que
   // não está na lista cai no fim, e não no começo por acidente.
-  const ordem = ['copa_mundo','selecao_cont','mundial','cont','liga','copa',
+  const ordem = ['copa_mundo','selecao_cont','mundial','cont','cont2','cont3','liga','copa',
                  'bola_ouro','chuteira','rei_america','luva_ouro','artilheiro'];
   const posOrdem = id => { const i = ordem.indexOf(id); return i < 0 ? 99 : i; };
   const grupos = {};
