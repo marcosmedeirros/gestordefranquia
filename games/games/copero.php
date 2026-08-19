@@ -723,6 +723,19 @@ const APELIDO = {
 };
 const nomeCurto = n => APELIDO[n] || n;
 
+/**
+ * O boletim da posição: `[rótulo, chave]` das duas colunas que acompanham os
+ * jogos.
+ *
+ * Gol e assistência não dizem nada sobre um goleiro — a temporada dele se
+ * mede em gols sofridos e jogos sem sofrer. Como as três telas e o cartão
+ * mostram as mesmas colunas, elas saem daqui e não de cada lugar.
+ */
+const ehGoleiro = () => S && S.posicao === 'GOL';
+const COLUNAS_GOL   = [['GS','gs'], ['CS','cs']];
+const COLUNAS_LINHA = [['Gols','gols'], ['Ast','ast']];
+const colunasDoBoletim = () => ehGoleiro() ? COLUNAS_GOL : COLUNAS_LINHA;
+
 const corDoOvr = o => (FAIXAS.find(([min]) => o >= min) || FAIXAS[FAIXAS.length-1])[2];
 const acharClube = nome => CLUBES.find(c => c.nome === nome);
 const dadosLiga  = id => LIGAS[id]
@@ -867,7 +880,8 @@ function nomeDaTaca(id, ligaId){
   if (id === 'copa')  return (l && COPAS[l.pais]) || 'Copa Nacional';
   if (COMPETICOES[id]) return COMPETICOES[id][0];
   const premio = { artilheiro: 'Artilheiro da Liga', chuteira: 'Chuteira de Ouro',
-                   bola_ouro: 'Bola de Ouro', rei_america: 'Rei da América' };
+                   bola_ouro: 'Bola de Ouro', rei_america: 'Rei da América',
+                   luva_ouro: 'Luva de Ouro' };
   if (premio[id]) return premio[id];
   return id;
 }
@@ -1053,7 +1067,23 @@ function titulosDaTemporada(clube, ovr, stats){
   // mais o time ganhando.
   if (stats.gols >= 22 && Math.random() < 0.45) ganhos.push('artilheiro');
   if (stats.gols >= 30 && ovr >= 84 && Math.random() < 0.40) ganhos.push('chuteira');
-  if (ovr >= 88 && ganhos.length >= 2 && Math.random() < 0.35) ganhos.push('bola_ouro');
+  // A Luva é o prêmio de quem não marca gol: sem ela o goleiro passava a
+  // carreira inteira sem NENHUM prêmio individual, porque os outros três
+  // dependem de artilharia.
+  if (S.posicao === 'GOL' && stats.cs >= 14 && ovr >= 82 && Math.random() < 0.42) {
+    ganhos.push('luva_ouro');
+  }
+  // A Bola de Ouro de GOLEIRO é o prêmio mais raro do jogo, e é raro de
+  // propósito: na vida real aconteceu uma vez, com o Yashin em 63. Exige uma
+  // temporada perfeita — quase 90 de overall, a Luva no mesmo ano, o time
+  // ganhando — e ainda assim quase nunca sai.
+  if (ehGoleiro()) {
+    if (ovr >= 92 && ganhos.includes('luva_ouro') && ganhos.length >= 3 && Math.random() < 0.07) {
+      ganhos.push('bola_ouro');
+    }
+  } else if (ovr >= 88 && ganhos.length >= 2 && Math.random() < 0.35) {
+    ganhos.push('bola_ouro');
+  }
 
   // Rei da América é do continente: só conta jogando na América do Sul, e
   // é o que dá um prêmio de peso pra quem faz carreira sem sair de casa.
@@ -1479,6 +1509,23 @@ function ofertas(quantos, exceto, soDeCasa){
     });
   }
 
+  // O CONVITE DE FORA. Uma vez a cada tantas janelas, aparece uma proposta de
+  // um continente onde você nunca jogou, furando a régua de prestígio. É a
+  // única porta para uma carreira de cinco continentes, e ela é estreita de
+  // propósito: sem isso o teto era dois, e com ela solta a escada perdia o
+  // sentido. Precisa de nome feito, e o clube tem que caber em você.
+  if (atual && S.ovr >= 80 && Math.random() < 0.06) {
+    const visitados = new Set((S.temporadas || []).map(x => {
+      const d = dadosLiga(x.liga); return d && d.cont;
+    }));
+    const novos = CLUBES.filter(c => {
+      const l = dadosLiga(c.liga);
+      return l && l.nivel === 1 && !visitados.has(l.cont)
+             && !fora.has(c.nome) && Math.abs(c.forca - S.ovr) <= 14;
+    });
+    if (novos.length) elegiveis = elegiveis.concat([novos[Math.floor(Math.random() * novos.length)]]);
+  }
+
   // Em degraus: uma de cada patamar da lista, do mais forte pro mais fraco.
   const ordem = elegiveis.slice().sort((a, b) => b.forca - a.forca);
   const n = ordem.length, saida = [];
@@ -1616,6 +1663,20 @@ function temporada(){
     ast:  Math.max(0, Math.round(jogos * pesoAst * q * (ri(70,135)/100))),
     valor: valorAtual(),
   };
+
+  // GOLEIRO tem outro boletim. Gol e assistência não dizem nada sobre ele —
+  // a temporada de um goleiro se mede em gols sofridos e jogos sem sofrer.
+  // Quem defende bem num time bom leva menos; os dois pesam.
+  if (S.posicao === 'GOL') {
+    const porJogo = Math.max(0.55, Math.min(2.1,
+      1.85 - (f - 70) / 42 - (S.ovr - 70) / 55)) * (ri(85,118) / 100);
+    t.gs = Math.max(0, Math.round(jogos * porJogo));
+    // A chance de zerar cai junto com os gols sofridos, e nunca chega a zero:
+    // até goleiro de time ruim segura um jogo de vez em quando.
+    const chanceCs = Math.max(0.08, Math.min(0.5, 0.47 - (porJogo - 0.7) * 0.26));
+    t.cs = Math.max(0, Math.round(jogos * chanceCs * (ri(80,120) / 100)));
+    t.gols = 0; t.ast = 0;
+  }
   if (lesionado) t.lesao = true;
   t.titulos = titulosDaTemporada(S.clube, S.ovr, t);
 
@@ -1793,8 +1854,8 @@ function render(){
           </div>
           ${vitrine()}
           <div class="ficha-stats">
-            ${[['Jogos','jogos'],['Gols','gols'],['Ast','ast']].map(([r,k]) =>
-              `<div><span>${r}</span><b>${S.temporadas.reduce((a,t)=>a+t[k],0)}</b></div>`).join('')}
+            ${[['Jogos','jogos'], ...colunasDoBoletim()].map(([r,k]) =>
+              `<div><span>${r}</span><b>${S.temporadas.reduce((a,t)=>a+(t[k]||0),0)}</b></div>`).join('')}
           </div>
           ${blocoDecisao()}
         </div>
@@ -1824,7 +1885,7 @@ function vitrine(){
     return `<div class="vitrine vazia">${taca('copa', 26)}<span>Vitrine vazia</span></div>`;
   }
   const ordem = ['mundial','cont','liga','copa',
-                 'bola_ouro','rei_america','chuteira','artilheiro'];
+                 'bola_ouro','rei_america','chuteira','luva_ouro','artilheiro'];
   ids.sort((a,b) => ordem.indexOf(a) - ordem.indexOf(b));
   return `<div class="vitrine">${ids.map(id => `
     <span class="tacao" title="${esc(nomeDaTaca(id, ligaDe[id]))}">
@@ -1929,8 +1990,8 @@ function linhaDoTempo(){
   S.temporadas.forEach(t => { porIdade[t.idade] = t; });
 
   let html = `<div class="linha-cab"><span>Idade</span><span>Clube</span><span>OVR</span>
-    <span style="text-align:right">Jogos</span><span style="text-align:right">Gols</span>
-    <span style="text-align:right">Ast</span></div>`;
+    <span style="text-align:right">Jogos</span>
+    ${colunasDoBoletim().map(([r]) => `<span style="text-align:right">${r}</span>`).join('')}</div>`;
 
   for (let i = IDADE_INI; i < IDADE_FIM; i++) {
     const t = porIdade[i];
@@ -1942,7 +2003,7 @@ function linhaDoTempo(){
         <span class="ano-idade" style="background:${cor}">${i}</span>
         <span class="ano-clube" title="${esc(t.clube)}">${escudo(c, 20)}<span>${esc(nomeCurto(t.clube))}</span>${setaMov(t.movimento)}${selosDoAno(t)}</span>
         <span class="ano-ovr" style="background:${cor}">${t.ovr}</span>
-        <span class="ano-n">${t.jogos}</span><span class="ano-n">${t.gols}</span><span class="ano-n">${t.ast}</span>
+        <span class="ano-n">${t.jogos}</span>${colunasDoBoletim().map(([,k]) => `<span class="ano-n">${t[k] || 0}</span>`).join('')}
       </div>`;
     } else if (atual) {
       html += `<div class="ano atual">
@@ -1976,8 +2037,9 @@ const svgImagem = (svg) => 'data:image/svg+xml;charset=utf-8,' + encodeURICompon
 
 function compartilharCarreira(botao, modo){
   const t = S.temporadas || [];
-  const tot = t.reduce((a,x)=>({jogos:a.jogos+x.jogos, gols:a.gols+x.gols, ast:a.ast+x.ast}),
-                       {jogos:0,gols:0,ast:0});
+  const tot = t.reduce((a,x)=>({jogos:a.jogos+x.jogos, gols:a.gols+x.gols, ast:a.ast+x.ast,
+                                gs:a.gs+(x.gs||0), cs:a.cs+(x.cs||0)}),
+                       {jogos:0,gols:0,ast:0,gs:0,cs:0});
 
   // Os clubes ordenados por quantos jogos você fez em cada um: a trajetória
   // por onde a carreira aconteceu de verdade, não por onde passou de raspão.
@@ -2019,8 +2081,9 @@ function compartilharCarreira(botao, modo){
       {texto: `#${S.numero}`},
       {texto: S.posicao},
     ],
-    stats: [[tot.jogos, 'Jogos'], [tot.gols, 'Gols'], [tot.ast, 'Assist.'],
-            [t.length, 'Temporadas']],
+    stats: ehGoleiro()
+      ? [[tot.jogos, 'Jogos'], [tot.gs, 'Gols sofr.'], [tot.cs, 'Clean sheets'], [t.length, 'Temporadas']]
+      : [[tot.jogos, 'Jogos'], [tot.gols, 'Gols'], [tot.ast, 'Assist.'], [t.length, 'Temporadas']],
     faixas: [
       {titulo: 'Trajetória', itens: clubes},
       {titulo: 'Títulos',    itens: titulos.length ? titulos : [{texto: '—', legenda: 'sem títulos'}]},
@@ -2044,7 +2107,7 @@ function salaDeTrofeus(){
   // pro menor; prêmios individuais por último. Explícito de propósito: o que
   // não está na lista cai no fim, e não no começo por acidente.
   const ordem = ['copa_mundo','selecao_cont','mundial','cont','liga','copa',
-                 'bola_ouro','chuteira','rei_america','artilheiro'];
+                 'bola_ouro','chuteira','rei_america','luva_ouro','artilheiro'];
   const posOrdem = id => { const i = ordem.indexOf(id); return i < 0 ? 99 : i; };
   const grupos = {};
   (S.temporadas || []).forEach(t => (t.titulos || []).forEach(id => {
@@ -2073,12 +2136,14 @@ function salaDeTrofeus(){
 }
 
 async function telaFim(){
-  const tot = S.temporadas.reduce((a,t)=>({jogos:a.jogos+t.jogos, gols:a.gols+t.gols, ast:a.ast+t.ast}),
-                                  {jogos:0,gols:0,ast:0});
+  const tot = S.temporadas.reduce((a,t)=>({jogos:a.jogos+t.jogos, gols:a.gols+t.gols,
+                                           ast:a.ast+t.ast, gs:a.gs+(t.gs||0), cs:a.cs+(t.cs||0)}),
+                                  {jogos:0,gols:0,ast:0,gs:0,cs:0});
   const porClube = {};
   S.temporadas.forEach(t => {
-    if (!porClube[t.clube]) porClube[t.clube] = {jogos:0,gols:0,ast:0};
+    if (!porClube[t.clube]) porClube[t.clube] = {jogos:0,gols:0,ast:0,gs:0,cs:0};
     porClube[t.clube].jogos += t.jogos; porClube[t.clube].gols += t.gols; porClube[t.clube].ast += t.ast;
+    porClube[t.clube].gs += (t.gs || 0);  porClube[t.clube].cs += (t.cs || 0);
   });
 
   const cor = corDoOvr(S.picoOvr);
@@ -2111,8 +2176,7 @@ async function telaFim(){
         </div>
         <div class="ficha-stats" style="border-bottom:none;padding-bottom:0">
           <div><span>Jogos</span><b>${tot.jogos}</b></div>
-          <div><span>Gols</span><b>${tot.gols}</b></div>
-          <div><span>Ast</span><b>${tot.ast}</b></div>
+          ${colunasDoBoletim().map(([r,k]) => `<div><span>${r}</span><b>${tot[k] || 0}</b></div>`).join('')}
         </div>
       </div>
       <div class="caixa" style="padding:18px;text-align:center">
@@ -2128,7 +2192,8 @@ async function telaFim(){
       ${Object.entries(porClube).map(([nome,n]) => `
         <div class="clube-card">${escudo(acharClube(nome), 44)}<b>${esc(nome)}</b>
           <div class="cc-nums">
-            <div><span>Jogos</span>${n.jogos}</div><div><span>Gols</span>${n.gols}</div><div><span>Ast</span>${n.ast}</div>
+            <div><span>Jogos</span>${n.jogos}</div>
+            ${colunasDoBoletim().map(([r,k]) => `<div><span>${r}</span>${n[k] || 0}</div>`).join('')}
           </div></div>`).join('')}
     </div>
 

@@ -188,8 +188,8 @@ function coperoTemporada(string $posicao, int $ovr, int $forcaClube): array
  */
 const COPERO_COMPETICOES = [
     // id            nome genérico            escopo        zebra
-    'liga'    => ['Campeonato Nacional',    'nacional',     0.10],
-    'copa'    => ['Copa Nacional',          'nacional',     0.42],
+    'liga'    => ['Campeonato Nacional',    'nacional',     0.06],
+    'copa'    => ['Copa Nacional',          'nacional',     0.26],
     'cont'    => ['Torneio Continental',    'continental',  0.22],
     'mundial' => ['Mundial de Clubes',      'mundial',      0.16],
 ];
@@ -370,6 +370,16 @@ const COPERO_TACAS = [
       . '<path d="M24 26c-2 6-1 11 3 15h10c4-4 5-9 3-15z" fill="currentColor"/>'
       . '<path d="M28 41h8v6h-8z" fill="currentColor"/>'
       . '<rect x="19" y="47" width="26" height="7" rx="3" fill="currentColor"/>'],
+    // Luva de Ouro: o prêmio de quem defende, para o goleiro não ficar sem
+    // nenhum — os outros três individuais todos dependem de gol.
+    'luva_ouro' => ['#e0e7ff',
+        '<path d="M20 20c0-3 2-5 4-5s4 2 4 5v6M28 22c0-4 2-6 4.5-6s4.5 2 4.5 6v4" '
+      . 'stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round"/>'
+      . '<path d="M37 24c0-3.5 2-5.5 4-5.5s3.5 2 3.5 5.5v6" '
+      . 'stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round"/>'
+      . '<path d="M18 27c-2.5 0-4 2-3 4.5l4 9c2 4.5 6 7.5 11 7.5h5c7 0 11-4.5 11-11V25" '
+      . 'stroke="currentColor" stroke-width="2.6" fill="none" stroke-linejoin="round"/>'
+      . '<rect x="19" y="48" width="26" height="6" rx="2" fill="currentColor"/>'],
     // Torneio continental de seleções: taça de alças abertas.
     'selecao_cont' => ['#38bdf8',
         '<path d="M22 8h20v14c0 7-4 12-10 14-6-2-10-7-10-14z" fill="currentColor"/>'
