@@ -1006,7 +1006,11 @@ function ofertas(quantos, exceto, soDeCasa){
 
   // A faixa de prestígio. Liga grande demais não te chama; liga pequena
   // demais só aparece quando a carreira já está de descida.
-  const tetoLiga = S.ovr + 12;
+  //
+  // O teto nunca pode ficar abaixo da liga onde você JÁ joga — senão o garoto
+  // de 51 na Série B não cabia na própria Série B, a lista saía vazia e a
+  // rede de segurança o mandava pra Ligue 2 aos 17 anos.
+  const tetoLiga = Math.max(pres + 6, S.ovr + 12);
   const pisoLiga = (veterano || declinio) ? pres - 26 : pres - 8;
   const podeSair = !atual || atual.nivel === 1 || S.ovr >= 76;
 
@@ -1050,17 +1054,23 @@ function ofertas(quantos, exceto, soDeCasa){
     }
   }
 
-  // Rede de segurança em dois passos. Nunca abre o mundo inteiro de uma vez:
-  // se a regra cede na primeira dificuldade, ela não vale nada.
+  // Rede de segurança em dois passos, e ela RESPEITA a regra de sair do país.
+  // Uma rede frouxa não salva o jogo, esconde o defeito: era ela que estava
+  // mandando o garoto pra França, e o furo só apareceu jogando.
   if (!elegiveis.length) {
     elegiveis = CLUBES.filter(c => {
       const l = dadosLiga(c.liga);
-      return !fora.has(c.nome) && l && Math.abs(c.forca - S.ovr) <= 12
-             && (!atual || l.pais === atual.pais || l.media >= pres - 6);
+      if (!l || fora.has(c.nome) || Math.abs(c.forca - S.ovr) > 12) return false;
+      if (!atual) return true;
+      return l.pais === atual.pais || (podeSair && l.media >= pres);
     });
   }
   if (!elegiveis.length) {
-    elegiveis = CLUBES.filter(c => !fora.has(c.nome) && Math.abs(c.forca - S.ovr) <= 16);
+    elegiveis = CLUBES.filter(c => {
+      const l = dadosLiga(c.liga);
+      if (!l || fora.has(c.nome) || Math.abs(c.forca - S.ovr) > 18) return false;
+      return !atual || podeSair || l.pais === atual.pais;
+    });
   }
 
   // Em degraus: uma de cada patamar da lista, do mais forte pro mais fraco.
