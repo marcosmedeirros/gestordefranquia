@@ -469,9 +469,11 @@ button{font-family:inherit}
      e sobrava quase nada pro nome do clube. */
   .ficha-num{flex-direction:column;gap:2px}
   .ficha-num b{font-size:16px}
-  /* 18px e não 20: com o apelido, é o que faz até "V. Guimarães" caber
-     inteiro nos 122px que sobram pro nome numa tela de 375. */
-  .ficha-clube{font-size:18px}
+  /* 17px e não 20, mais o respiro apertado: junto com o apelido, é o que faz
+     190 dos 202 clubes do catálogo caberem inteiros numa tela de 375. */
+  .ficha-clube{font-size:17px;gap:7px}
+  .ficha-topo{gap:10px}
+  .ficha{padding:16px 14px}
   .modos{grid-template-columns:1fr}
   .resumo-topo{grid-template-columns:1fr}
   #app{padding:12px 11px 40px}
