@@ -1061,8 +1061,12 @@ function torneioContinental(clube){
   }
   const {n1, n2} = _cacheFatia[l.cont];
   if (n1 && clube.forca >= n1.forca) return 'cont';
-  if (n2 && clube.forca >= n2.forca) return CONT2[l.cont] ? 'cont2' : null;
-  return CONT3[l.cont] ? 'cont3' : null;
+  if (n2 && clube.forca >= n2.forca) return CONT2[l.cont] ? 'cont2' : 'cont';
+  // Só a Europa tem três torneios. Onde não há terceiro, quem ficaria de fora
+  // desce pro segundo em vez de não disputar NADA — deixar catorze clubes
+  // sul-americanos sem competição continental seria pior que não ter dividido.
+  if (CONT3[l.cont]) return 'cont3';
+  return CONT2[l.cont] ? 'cont2' : 'cont';
 }
 
 function titulosDaTemporada(clube, ovr, stats){
