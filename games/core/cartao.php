@@ -108,6 +108,36 @@ function cartaoScript(): string
     c.drawImage(img, x + (lado - w) / 2, y + (lado - h) / 2, w, h);
   }
 
+  /**
+   * A imagem é escura demais pro fundo escuro do cartão?
+   *
+   * Escudo azul-marinho e logo preto existem aos montes, e sobre um fundo
+   * quase preto eles somem — o cartão saía com um buraco onde devia estar o
+   * clube. Quem for escuro ganha uma base clara atrás; quem já brilha, como
+   * as taças douradas, fica como está.
+   *
+   * Só os pixels OPACOS contam: PNG de escudo é quase todo transparente, e
+   * incluir o vazio faria toda imagem parecer escura.
+   */
+  function ehEscura(img){
+    try {
+      const n = 40, aux = document.createElement('canvas');
+      aux.width = n; aux.height = n;
+      const g = aux.getContext('2d', {willReadFrequently:true});
+      g.drawImage(img, 0, 0, n, n);
+      const d = g.getImageData(0, 0, n, n).data;
+      let soma = 0, conta = 0;
+      for (let i = 0; i < d.length; i += 4){
+        if (d[i+3] < 128) continue;
+        soma += (d[i] + d[i+1] + d[i+2]) / 3;
+        conta++;
+      }
+      return conta > 20 && soma / conta < 82;
+    } catch (e) {
+      return false;   // imagem que não deixa ler fica sem base, e não sem cartão
+    }
+  }
+
   window.fbaCartaoImagem = async function (d){
     const cv = document.createElement('canvas');
     cv.width = L; cv.height = A;
@@ -260,7 +290,14 @@ function cartaoScript(): string
 
         const img = imgsFaixa[fi][i];
         if (img){
-          desenharContido(c, img, x, y, lado);
+          if (ehEscura(img)){
+            c.fillStyle = 'rgba(255,255,255,.93)';
+            retanguloRedondo(c, x, y, lado, lado, lado * .2); c.fill();
+            const folga = lado * .13;
+            desenharContido(c, img, x + folga, y + folga, lado - folga * 2);
+          } else {
+            desenharContido(c, img, x, y, lado);
+          }
         } else if (item.texto != null){
           c.fillStyle = 'rgba(255,255,255,.06)';
           retanguloRedondo(c, x, y, lado, lado, 24); c.fill();
