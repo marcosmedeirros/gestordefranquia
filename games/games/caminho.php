@@ -705,7 +705,20 @@ tr.tit td{color:var(--red)}
 .pos-tende{display:block;margin-top:5px;font-size:10.5px;color:var(--text3);opacity:.85}
 
 /* Rodapé fixo da tela, como o do jogo do print. */
-.id-rodape{display:flex;align-items:center;justify-content:space-between;gap:12px;
+.id-cab{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  margin-bottom:4px}
+.id-cab-txt{min-width:0;flex:1 1 260px}
+.id-cab-txt h1{margin-bottom:6px}
+.id-cab-txt .lead{margin:0}
+.id-cab-acoes{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+.id-cab-acoes .btn{width:auto;margin:0;padding:12px 22px;font-size:14px}
+@media (max-width:640px){
+  .id-cab{flex-direction:column;align-items:stretch;gap:12px}
+  .id-cab-acoes{flex-direction:row-reverse}
+  .id-cab-acoes .btn{flex:1;padding:12px 14px}
+  .id-cab-acoes .btn2{flex:0 0 92px}
+}
+.id-rodape{display:flex;align-items:center;justify-content:flex-end;gap:12px;
   border-top:1px solid var(--border);padding-top:16px;margin-top:4px}
 .id-rodape .btn{width:auto;margin:0;padding:13px 26px}
 
@@ -1094,11 +1107,23 @@ tr.tit td{color:var(--red)}
 .fin-placar span{color:var(--text3);font-size:17px}
 .fin-vazio{text-align:center;color:var(--text2);font-size:12.5px;margin:14px 0}
 /* O mercado cabe mais gente que as finais: até três propostas lado a lado. */
-.modal-mercado{width:min(680px,100%)}
-.modal-mercado .ofertas-grade{grid-template-columns:repeat(auto-fit,minmax(178px,1fr))}
+/* ── JANELA DE TRANSFERÊNCIAS ────────────────────────────────────────── */
+.ofertas-lista{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.oferta-linha{display:flex;align-items:center;gap:11px;width:100%;background:var(--panel2);
+  border:1px solid var(--border);border-radius:13px;padding:11px 13px;text-align:left;
+  cursor:pointer;color:var(--text);font-family:var(--font);transition:.16s}
+.oferta-linha:hover{border-color:var(--red);background:var(--panel3)}
+.ol-marca{flex:none;display:flex}
+.ol-txt{flex:1;min-width:0}
+.ol-txt b{display:block;font-size:14px;font-weight:900;letter-spacing:-.2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ol-txt small{display:block;font-size:10.5px;color:var(--text2);margin-top:2px}
+.ol-num{flex:none;text-align:right;font-family:var(--num);font-size:16px;font-weight:900;
+  color:var(--red);font-variant-numeric:tabular-nums;line-height:1.1}
+.ol-num small{display:block;font-size:10px;font-weight:700;color:var(--text3);margin-top:3px;
+  font-variant-numeric:normal}
 
-/* ── POPUP DOS CONVITES (pra onde ir) ────────────────────────────────── */
-.modal-convites{width:min(560px,100%)}
+/* ── CONVITES (pra onde ir) ──────────────────────────────────────────── */
 .conv-lista{display:flex;flex-direction:column;gap:8px}
 .conv{display:flex;align-items:flex-start;gap:11px;width:100%;background:var(--panel2);
   border:1px solid var(--border);border-radius:13px;padding:12px 13px;text-align:left;
@@ -2206,21 +2231,16 @@ function gerarOfertas(){
   // O prazo vem DENTRO da proposta, junto do time e do salário. Antes era
   // uma segunda tela ("por quantos anos?"), o que picava uma decisão só em
   // duas e escondia o que estava sendo comparado: o pacote inteiro.
-  const anosPor = {renovar:[3,4], grana:[4,5], contender:[2,3], banco:[1,2], exterior:[2,3], provar:[1,1]};
+  // Nenhum contrato com menos de DOIS anos: é o que faz a janela de
+  // transferências aparecer no máximo de dois em dois anos, em vez de virar
+  // uma pergunta anual que ninguém quer responder toda temporada.
+  const anosPor = {renovar:[3,4], grana:[4,5], contender:[2,3], banco:[2,3], exterior:[2,3]};
 
   // Renovar onde está: sempre existe, mas o valor depende da confiança.
   const fator = 0.8 + (S.confianca/100) * 0.5;
   ofertas.push({tipo:"renovar", time:S.time, salario:Math.max(1,Math.round(v*fator)),
                 forca:S.forcaBase, papel:"titular",
                 nota:"O time que te conhece. Sem mudança, sem surpresa."});
-
-  // A aposta em si mesmo: um ano, pagando mais, pra voltar ao mercado
-  // valendo o que você provar. É o contrapeso curto das ofertas longas.
-  if (v >= 6){
-    ofertas.push({tipo:"provar", time:S.time, salario:Math.max(2,Math.round(v*1.18)),
-                  forca:S.forcaBase, papel:"titular",
-                  nota:"Um ano só, pagando bem. Você aposta que vale mais no ano que vem."});
-  }
 
   if (v >= 12){
     const t = timeAleatorio();
@@ -2257,6 +2277,15 @@ function gerarOfertas(){
   if (v <= 3 && ofertas.length > 2 && ri(0,100) < 55){
     const fora = ofertas.filter(o => o.tipo === "exterior");
     ofertas.splice(1, ofertas.length, ...fora);
+  }
+
+  // Três no máximo: ficar, e mais duas. Sete cartões para comparar viravam
+  // um catálogo — e a decisão que importa (fico ou vou?) sumia no meio.
+  if (ofertas.length > 3){
+    const ficar = ofertas.filter(o => o.time === S.time);
+    const sair  = ofertas.filter(o => o.time !== S.time);
+    for (let i = sair.length - 1; i > 0; i--){ const j = ri(0, i); [sair[i], sair[j]] = [sair[j], sair[i]]; }
+    ofertas.splice(0, ofertas.length, ...ficar.slice(0, 1), ...sair.slice(0, 3 - Math.min(1, ficar.length)));
   }
 
   // Cada tipo tem um prazo natural, e o salário já sai com o desconto do
@@ -2377,7 +2406,7 @@ function gmDoTime(nome){
 }
 
 /** Logo do time, se houver. Mapa montado uma vez a partir das duas listas. */
-let LOGOS = null;
+let LOGOS = null, LOGOS_MODO = null;
 /**
  * Escudo dos clubes de fora da NBA, do TheSportsDB.
  *
@@ -2445,14 +2474,34 @@ const LOGOS_COLLEGE = {
 };
 
 function logoDoTime(nome){
-  if (!LOGOS){
+  const modo = (S && S.modo) || "nba";
+  // O cache é por MODO: trocar de NBA pra FBA sem recarregar a página
+  // deixaria a tabela montada com a prioridade da liga anterior.
+  if (!LOGOS || LOGOS_MODO !== modo){
+    LOGOS_MODO = modo;
     LOGOS = {};
-    (window.__TIMES_FBA__ || FBA_TIMES).forEach(t => { if (t[1]) LOGOS[t[0]] = t[1]; });
-    (window.__TIMES_NBA__ || NBA).forEach(t => { if (t[1]) LOGOS[t[0]] = t[1]; });
+    // A ordem IMPORTA, e a lista da liga em que se joga entra por último.
+    //
+    // Um time da FBA e um da NBA podem ter o mesmo nome, e quem escreve por
+    // último ganha. Antes o catálogo de clubes internacionais sobrescrevia
+    // as duas listas, então nome repetido levava o escudo errado pra
+    // trajetória e pro cartão do fim. Agora quem manda é a liga da carreira.
+    //
+    // O teste de .length no lugar do || é de propósito: lista vazia é truthy
+    // em JS, e um window.__TIMES_NBA__ = [] (banco fora do ar na hora de
+    // montar a página) fazia o fallback NUNCA entrar — trinta times sem
+    // escudo nenhum, e sem erro em lugar algum pra denunciar.
+    const fba = (window.__TIMES_FBA__ || []).length ? window.__TIMES_FBA__ : FBA_TIMES;
+    const nba = (window.__TIMES_NBA__ || []).length ? window.__TIMES_NBA__ : NBA;
+    const daLiga = modo === "fba" ? fba : nba;
+    const aOutra = modo === "fba" ? nba : fba;
+
     Object.entries(LOGOS_CLUBE).forEach(([n, url]) => { LOGOS[n] = url; });
     Object.entries(LOGOS_COLLEGE).forEach(([n, id]) => {
       LOGOS[n] = `https://a.espncdn.com/i/teamlogos/ncaa/500/${id}.png`;
     });
+    aOutra.forEach(t => { if (t[1]) LOGOS[t[0]] = t[1]; });
+    daLiga.forEach(t => { if (t[1]) LOGOS[t[0]] = t[1]; });
   }
   return LOGOS[nome] || null;
 }
@@ -2523,7 +2572,7 @@ function render(){
   // do contexto do ano sete vezes pra ver um placar mudar de 2-1 pra 3-1.
   if (S.finais) { telaTemporada(); return abrirFinais(); }
 
-  if (S.mercado) { telaTemporada(); return abrirMercado(); }
+  if (S.mercado) return telaTemporada();
   if (S.fase === "draft")  return telaDraft();
   if (S.fase === "semdraft") return telaSemDraft();
   return telaTemporada();
@@ -2723,8 +2772,16 @@ function telaCriar(){
   const p = POSICOES[rascunho.pos];
 
   app().innerHTML = topo() + `
-    <h1>Defina sua identidade</h1>
-    <p class="lead">Isso define seu ponto de partida — não o seu teto.</p>
+    <div class="id-cab">
+      <div class="id-cab-txt">
+        <h1>Defina sua identidade</h1>
+        <p class="lead">Isso define seu ponto de partida — não o seu teto.</p>
+      </div>
+      <div class="id-cab-acoes">
+        <button class="btn btn2" onclick="render()">Voltar</button>
+        <button class="btn" onclick="criar()">Confirmar identidade</button>
+      </div>
+    </div>
 
     <div class="id-grade">
 
@@ -2807,7 +2864,6 @@ function telaCriar(){
     Dá pra trocar voltando à tela anterior.</p>
 
     <div class="id-rodape">
-      <button class="btn btn2" onclick="render()">Voltar</button>
       <button class="btn" onclick="criar()">Confirmar identidade</button>
     </div>`;
 
@@ -2905,29 +2961,16 @@ function telaCaminho(){
     <h1>18 anos.<br>Pra onde agora?</h1>
     <p class="lead">Você é <b style="color:var(--text)">${o} de nível</b> e os olheiros te veem como <b style="color:var(--red)">${faixaPotencial(S.pot).toLowerCase()}</b>. O caminho muda o que você vira.</p>
 
-    <div class="bpcard centro">
-      <div class="bpcard-title">Quem ligou pra você</div>
-      <div class="grande">${S.convites.length}</div>
-      <p style="margin:6px 0 0;font-size:12.5px;color:var(--text2)">
-        ${S.convites.filter(c => c.tipo === "univ").length} universidades e
-        ${S.convites.filter(c => c.tipo !== "univ").length} portas do basquete profissional.
-        Nem todo mundo te viu — estes viram.</p>
-    </div>
-    <button class="btn" onclick="abrirConvites()">Ver os convites</button>
+    <h2>Quem ligou pra você</h2>
+    <p class="nota-txt" style="margin:-2px 0 10px">${S.convites.filter(c => c.tipo === "univ").length} universidades e
+      ${S.convites.filter(c => c.tipo !== "univ").length} portas do basquete profissional.
+      Nem todo mundo te viu — estes viram.</p>
+    <div class="conv-lista">${convitesHTML()}</div>
     <p class="nota-txt">Em qualquer caminho você decide, ano a ano, quando entrar no draft — até o quarto ano, quando a decisão deixa de ser sua.</p>`;
 }
 
-function abrirConvites(){
-  document.querySelector('.modal-fundo')?.remove();
-  const cx = document.createElement('div');
-  cx.className = 'modal-fundo';
-  cx.innerHTML = `<div class="modal-cx modal-convites">
-    <div class="fin-cab">
-      <span class="fin-tit">Pra onde agora?</span>
-      <small>cinco convites na mesa · escolha um</small>
-    </div>
-    <div class="conv-lista">
-      ${S.convites.map((c, k) => `
+function convitesHTML(){
+  return `${S.convites.map((c, k) => `
         <button class="conv ${c.tipo}" onclick="escolherConvite(${k})">
           <span class="conv-ico"><i class="bi bi-${c.tipo === "univ" ? "mortarboard-fill" : c.tipo === "casa" ? "house-heart-fill" : "globe-americas"}"></i></span>
           <span class="conv-txt">
@@ -2935,16 +2978,12 @@ function abrirConvites(){
             <span class="conv-tag">${esc(c.f)}</span>
             <small>${esc(c.d)}</small>
           </span>
-        </button>`).join("")}
-    </div>
-  </div>`;
-  document.body.appendChild(cx);
+        </button>`).join("")}`;
 }
 
 function escolherConvite(k){
   const c = S.convites[k];
   if (!c) return;
-  document.querySelector('.modal-fundo')?.remove();
   if (c.tipo === "univ") escolherCollege(c.i); else escolherFora(c.i);
 }
 
@@ -3042,28 +3081,58 @@ function avancarFormacao(){
   salvar(); telaFormacao();
 }
 
+/**
+ * A formação usa a MESMA tela da temporada — porque é a mesma coisa.
+ *
+ * Antes era uma página à parte, com a decisão num bloco próprio e sem a
+ * trajetória do lado. Mas um ano de universidade é um ano de carreira: tem
+ * placar, tem evolução, e termina com uma escolha. Agora ele mora no mesmo
+ * lugar, com a mesma súmula à direita e a decisão no mesmo formato de cartas
+ * do resto do jogo — sair pro draft ou ficar mais um ano.
+ */
 function telaFormacao(){
   const st = S.ultimo;
   const o = ovr(S.A, S.pos);
-  const projecao = S.hype >= 85 ? "top 5 do draft" : S.hype >= 70 ? "1ª rodada" : S.hype >= 52 ? "fim da 1ª rodada" : S.hype >= 35 ? "2ª rodada" : "fora do draft";
+  const projecao = S.hype >= 85 ? "top 5 do draft" : S.hype >= 70 ? "1ª rodada"
+                 : S.hype >= 52 ? "fim da 1ª rodada" : S.hype >= 35 ? "2ª rodada" : "fora do draft";
   const ultimoAno = S.anoFase >= 4;
+  const faltam = 4 - S.anoFase;
 
-  app().innerHTML = topo() + `
-    ${barra()}
-    ${placar(st, `${S.anoFase}º ano`, S.time, null, [])}
-    <div class="bpcard">
-      <div class="bpcard-title">Projeção de draft · ${S.anoFase}º ano de 4</div>
-      <p class="dec-txt">Os olheiros hoje te colocam como <b style="color:var(--red)">${projecao}</b>.
-      ${ultimoAno
-        ? `Acabou o seu tempo ${S.fase === "college" ? "de universidade" : "de formação"} — é hora.`
-        : `Sair agora é levar o que está na mesa. Ficar são mais ${4 - S.anoFase} ${4 - S.anoFase === 1 ? "ano possível" : "anos possíveis"} pra crescer — e pra dar errado.`}</p>
-      ${ultimoAno ? `
-        <button class="btn" onclick="irAoDraft()">Entrar no draft</button>` : `
-        <button class="op" onclick="irAoDraft()">Sair para o draft agora
-          <small>Pega o que estiver na mesa. ${S.hype >= 70 ? "E está bom." : "E pode não ser muito."}</small></button>
-        <button class="op" onclick="avancarFormacao()">Ficar mais um ano
-          <small>Vai pro ${S.anoFase + 1}º ano. Mais tempo pra crescer — e pra dar errado.</small></button>`}
+  const decisao = ultimoAno ? `
+    <h1 class="dec-tit">Acabou o seu tempo aqui</h1>
+    <p class="lead dec-sub">Quatro anos ${S.fase === "college" ? "de universidade" : "de formação"} e a
+      porta se fecha atrás de você. Os olheiros te colocam como
+      <b style="color:var(--red)">${projecao}</b>.</p>
+    <button class="btn" onclick="irAoDraft()">Entrar no draft</button>` : `
+    <h1 class="dec-tit">Sair ou ficar</h1>
+    <p class="lead dec-sub">Os olheiros hoje te colocam como <b style="color:var(--red)">${projecao}</b>.
+      Sair agora é levar o que está na mesa; ficar são mais
+      ${faltam} ${faltam === 1 ? "ano possível" : "anos possíveis"} pra crescer — e pra dar errado.</p>
+    <div class="dec-grade">
+      <button class="dec-card" onclick="irAoDraft()">
+        <span class="dec-card-tit">Entrar no draft agora</span>
+        <span class="dec-card-res">
+          <span class="dec-res dec-bom"><i>↗</i><em>começa a carreira ${faltam} ano${faltam === 1 ? "" : "s"} antes</em></span>
+          <span class="dec-res dec-${S.hype >= 70 ? "bom" : "ruim"}"><i>${S.hype >= 70 ? "↗" : "↘"}</i>
+            <em>${S.hype >= 70 ? "e a projeção já está boa" : "e pega o que estiver na mesa"}</em></span>
+        </span>
+      </button>
+      <button class="dec-card" onclick="avancarFormacao()">
+        <span class="dec-card-tit">Ficar mais um ano</span>
+        <span class="dec-card-res">
+          <span class="dec-res dec-bom"><i>↗</i><em>vai pro ${S.anoFase + 1}º ano e evolui de novo</em></span>
+          <span class="dec-res dec-ruim"><i>↘</i><em>um ano ruim derruba a projeção</em></span>
+        </span>
+      </button>
     </div>`;
+
+  const principal = barra() +
+    placar(st, `${S.anoFase}º ano de 4`, S.time, null, []) +
+    (S.mensagem ? `<div class="bpcard"><p class="dec-txt" style="margin:0">${S.mensagem}</p></div>` : "") +
+    decisao +
+    `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>`;
+
+  app().innerHTML = topo() + colunas(principal, sumula());
 }
 
 function irAoDraft(){ S.fase = "draft"; S.draftRevelado = false; salvar(); telaDraft(); }
@@ -3971,7 +4040,7 @@ function fecharAno(campeao, vit, o, st){
     S.parDoRitmo = 0;
     S.mercado = gerarOfertas();
     S.aguardando = false; S.decisaoId = null;
-    salvar(); telaTemporada(); return abrirMercado();
+    salvar(); return telaTemporada();
   }
 
   // ── Modo rápido: duas temporadas por clique ────────────────────────
@@ -4080,39 +4149,40 @@ function desenharFinais(){
  *
  * Sem botão de fechar: o contrato acabou, e escolher não é opcional.
  */
-function abrirMercado(){
-  document.querySelector('.modal-fundo')?.remove();
+/**
+ * A janela de transferências, no molde do Copero: uma lista, não um catálogo.
+ *
+ * Era um popup com até sete cartões grandes lado a lado, cada um com escudo,
+ * salário, papel e uma frase — bonito e ilegível, porque a decisão de verdade
+ * ("fico ou vou?") ficava diluída em sete comparações. Agora são três linhas
+ * na própria tela, com o essencial de cada proposta na mesma ordem, e o resto
+ * da tela continua à vista pra decidir com contexto.
+ */
+function mercadoHTML(){
   const v = valorDeMercado();
   const ofertas = S.mercado || [];
-  const cx = document.createElement('div');
-  cx.className = 'modal-fundo';
-  cx.innerHTML = `<div class="modal-cx modal-mercado">
-    <div class="fin-cab">
-      <span class="fin-tit">Seu contrato acabou</span>
-      <small>${ofertas.length === 1
-        ? "Só apareceu uma proposta. O mercado não é gentil com quem não produz."
-        : `${ofertas.length} propostas na mesa · cada uma com o prazo dela`}</small>
-    </div>
-    <div class="ofertas-grade">
+  return `
+    <h1 class="dec-tit">Janela de transferências</h1>
+    <p class="lead dec-sub">${ofertas.length === 1
+      ? "Só apareceu uma proposta. O mercado não é gentil com quem não produz."
+      : "Seu contrato acabou. Você pode aceitar uma delas ou ficar no clube."}</p>
+    <div class="ofertas-lista">
       ${ofertas.map((of,i)=>`
-        <button class="oferta-card" onclick="escolherOferta(${i})">
-          <span class="oferta-topo">${of.tipo === "renovar" || of.tipo === "provar" ? "Ficar no" : "Assinar com"}</span>
-          <span class="oferta-time">${esc(of.time)}</span>
-          <span class="oferta-marca">${marca(of.time, 54)}</span>
-          <span class="oferta-liga">${esc(of.liga || S.liga || "")}</span>
-          <span class="oferta-num">$${of.salario}M<small>por ano · ${of.anos} ${of.anos === 1 ? "ano" : "anos"}</small></span>
-          <span class="oferta-papel">${esc(of.papel)} · elenco ${of.forca >= 70 ? "forte" : of.forca >= 50 ? "mediano" : "fraco"}</span>
-          <span class="oferta-nota">${esc(of.nota)}</span>
+        <button class="oferta-linha" onclick="escolherOferta(${i})">
+          <span class="ol-marca">${marca(of.time, 34)}</span>
+          <span class="ol-txt">
+            <b>${of.time === S.time ? "Ficar no " + esc(of.time) : esc(of.time)}</b>
+            <small>${esc(of.liga || S.liga || "")} · ${esc(of.papel)} · elenco ${
+              of.forca >= 70 ? "forte" : of.forca >= 50 ? "mediano" : "fraco"}</small>
+          </span>
+          <span class="ol-num">$${of.salario}M<small>${of.anos} anos</small></span>
         </button>`).join("")}
     </div>
-    <p class="nota-txt" style="margin:12px 0 0">Seu valor de mercado hoje:
-      <b style="color:var(--text)">${v}</b>. Ele sobe com produção e desce com a idade.</p>
-  </div>`;
-  document.body.appendChild(cx);
+    <p class="nota-txt">Seu valor de mercado hoje: <b style="color:var(--text)">${v}</b>.
+      Ele sobe com produção e desce com a idade.</p>`;
 }
 
 function escolherOferta(i){
-  document.querySelector('.modal-fundo')?.remove();
   const of = S.mercado[i];
   const mudou = assinar(of);
   S.mensagem = mudou
@@ -4246,7 +4316,7 @@ function telaTemporada(){
     // Era isso que o bloco "O que aconteceu" fazia errado — ficava por cima
     // da pergunta seguinte e empurrava ela pra fora da dobra.
     (S.desfecho ? cartaDoDesfecho(S.desfecho) : "") +
-    (S.aguardando && d ? cartasDaDecisao(d) : S.desfecho ? "" : `
+    (S.mercado ? mercadoHTML() : S.aguardando && d ? cartasDaDecisao(d) : S.desfecho ? "" : `
       ${aposentar ? `<button class="btn" onclick="encerrar()">Pendurar as chuteiras</button>`
         : S.idade >= 33 ? `
           <div class="acoes-ano">
@@ -4812,9 +4882,11 @@ function telaFim(){
       </div>
     </div>
 
-    ${legadoInternacional()}
-    ${trajetoria()}
-    ${sumula()}${ranking("Como você ficou entre os GMs")}`;
+    `;
+  // A página do resumo acaba nos números. Seleção, trajetória na liga, súmula
+  // ano a ano e ranking saíram: são quatro blocos longos DEPOIS do que a
+  // pessoa veio ver, e a tela do fim é a que vira print — ela precisa caber
+  // numa olhada, não ser um relatório com anexos.
 }
 
 /**

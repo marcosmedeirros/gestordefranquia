@@ -35,6 +35,11 @@ const PROXY_FONTES = [
                '#^[a-z]+/[a-z]+/[a-zA-Z0-9_-]+\.(png|jpg|jpeg|webp)$#'],
     'espn' => ['https://a.espncdn.com/i/teamlogos/',
                '#^[a-z]+/[0-9]+/[0-9]+\.(png|jpg)$#'],
+    // O escudo dos times da NBA. O caminho é fixo — só o id do time varia —
+    // e é o que o cartão em imagem precisa: desenhar SVG de outro domínio no
+    // canvas contamina a tela e derruba a imagem inteira.
+    'nbat' => ['https://cdn.nba.com/logos/nba/',
+               '#^[0-9]{4,12}/global/L/logo\.svg$#'],
 ];
 
 $url = null;
