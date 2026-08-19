@@ -78,7 +78,7 @@ const CAMINHO_DESAFIOS = [
   // Fáceis — o primeiro de cada coisa. Ganhar UM título, UM MVP, UM DPOY ou
   // UM ouro é o marco de entrada de cada prêmio; o que exige carreira boa é
   // repetir (três MVPs, três títulos), e isso já está nos difíceis.
-  'roy'         => 'facil',
+  'roy'         => 'dificil',
   'chamado'     => 'facil',
   'ringless'    => 'facil',
   'anel'        => 'facil',
@@ -94,7 +94,7 @@ const CAMINHO_DESAFIOS = [
   'lenda_clube' => 'medio',
   'de_pe'       => 'medio',
   // Difíceis — carreira longa e muito acima da média.
-  'tricampeao'  => 'dificil',
+  'tricampeao'  => 'medio',
   'mvp3'        => 'dificil',
   'pts30k'      => 'dificil',
   'duplo20k'    => 'dificil',
@@ -1168,6 +1168,8 @@ tr.tit td{color:var(--red)}
 .dr-time b{display:block;font-size:19px;font-weight:900;letter-spacing:-.5px;margin-top:8px}
 .dr-time span{display:block;font-size:11.5px;color:var(--text2);margin-top:3px}
 .dr-espera{font-size:12.5px;color:var(--text2);min-height:18px;margin-top:4px}
+.dr-ficha{display:block;font-size:11px;color:var(--text3);margin-top:9px;line-height:1.45}
+.dr-ficha b{color:var(--red);font-weight:800}
 @media (max-width:520px){.dr-num{font-size:60px;letter-spacing:-3px}.dr-time b{font-size:17px}}
 
 /* ── RESUMO DE FIM — o molde do Copero ───────────────────────────────── */
@@ -1435,17 +1437,27 @@ function novaCarreira(nome, pos, arq, nac, modo){
     // conta nenhuma. Quem preenche é o criar(), depois desta função.
     numero:null, mao:"D",
     idade:16, ano:2026,
-    // Potencial: a maioria chega a ser gente boa de liga, mas o bust
-    // continua existindo. Antes 22% eram bust e só 20% passavam de 88 —
-    // dava carreira medíocre demais. Agora o bust é 1 em 8 e a estrela é
-    // quase 1 em 3: a CARREIRA fica boa com frequência, e o que continua
-    // difícil é o LEGADO, que é onde a raridade deve morar.
+    // Potencial, em cinco degraus com o formato da liga de verdade.
+    //
+    // A régua anterior punha 45% dos jogadores em 93-99, e o resultado
+    // medido foi que metade das carreiras chegava a 90+ de overall. Num
+    // elenco de verdade, 93 é MVP: são dois ou três num ano inteiro, entre
+    // quatrocentos e cinquenta jogadores. Ser bom tinha virado o normal, e
+    // por isso não valia nada ser bom.
+    //
+    // Agora: 12% não passam de rotação, 40% viram titular de time médio,
+    // 33% chegam a All-Star, 12% a superstar e 3% são geracionais. É a
+    // pirâmide da liga, e ela é o que faz o topo significar alguma coisa.
     // 3%: o fenômeno geracional. Só aparece na noite do draft.
     prodigio: Math.random() < 0.03,
     destaque: null, comparacao: null,
     rival: null, marcasBatidas: [], anosDivisao: 0, desfecho: null, anosNoClube: 0,
     A, pot: (()=>{ const r = Math.random();
-                   return r < 0.06 ? ri(72,81) : r < 0.55 ? ri(82,92) : ri(93,99); })(),
+                   return r < 0.12 ? ri(68,78)      // rotação
+                        : r < 0.52 ? ri(79,87)      // titular
+                        : r < 0.85 ? ri(88,93)      // All-Star
+                        : r < 0.97 ? ri(94,97)      // superstar
+                                   : ri(98,99); })(),  // geracional
     fase:"base",            // base · college · fora · draft · liga · fim
     anoFase:0,
     college:null, ligaFora:null,
@@ -1503,12 +1515,22 @@ function statsDoAno(o, min, forca){
 
 function premiosDoAno(o, st, vit, campeao){
   const out = [];
-  const estrela = o >= 89;
+  // Os cortes acompanham a pirâmide de potencial: com 93 de overall virando
+  // coisa de 13% das carreiras (e não de metade), os limiares antigos
+  // apagavam os prêmios em vez de raread-los.
+  const estrela = o >= 86;
   // MVP exige nível ALTO e time vencedor. É o corte que torna "ser bom em
   // time ruim" uma tragédia jogável, em vez de só um número menor.
-  if (o >= 94 && vit >= 55 && ri(0,100) < 42){ out.push({t:"MVP", k:"ouro"}); S.trofeus.mvp++; }
-  if (estrela && ri(0,100) < 75){ out.push({t:"All-Star", k:"normal"}); S.trofeus.allstar++; }
-  if (S.A.def >= 89 && ri(0,100) < 28){ out.push({t:"Defensor do Ano", k:"ouro"}); S.trofeus.dpoy++; }
+  if (o >= 92 && vit >= 55 && ri(0,100) < 40){ out.push({t:"MVP", k:"ouro"}); S.trofeus.mvp++; }
+  if (estrela && ri(0,100) < 70){ out.push({t:"All-Star", k:"normal"}); S.trofeus.allstar++; }
+  // O Defensor do Ano é UM por ano, como o MVP — e ia pra 51% das carreiras
+  // contra 12% do MVP, porque só olhava o atributo de defesa e ignorava o
+  // resto. Na liga o prêmio vai pra estrela defensiva de time que ganha,
+  // não pro reserva que marca bem: agora pede o atributo mais alto, nível
+  // de titular e um time que vence.
+  if (S.A.def >= 92 && o >= 84 && vit >= 45 && ri(0,100) < 30){
+    out.push({t:"Defensor do Ano", k:"ouro"}); S.trofeus.dpoy++;
+  }
   if (st.pts >= 26 && ri(0,100) < 26){ out.push({t:"Cestinha da liga", k:"ouro"}); S.trofeus.cesta++; }
   // A COPA NBA é disputada no meio da temporada e não depende de chegar às
   // finais: dá título a time bom que não foi campeão, que é justamente o
@@ -2875,9 +2897,7 @@ function telaCriar(){
     <b style="color:var(--text)">${rascunho.ritmo === 'rapido' ? 'rápido (de dois em dois anos)' : 'clássico (ano a ano)'}</b>.
     Dá pra trocar voltando à tela anterior.</p>
 
-    <div class="id-rodape">
-      <button class="btn" onclick="criar()">Confirmar identidade</button>
-    </div>`;
+    `;
 
   // Os campos de texto guardam o valor a cada tecla, mas NÃO redesenham a
   // tela: redesenhar tira o foco do input e o cursor volta pro começo. Quem
@@ -3082,7 +3102,7 @@ function avancarFormacao(){
   // na NBA valendo mais do que a posição de draft diria.
   const premios = [];
   if (S.fase === "fora" && LIGAS_EUROPEIAS.some(x => String(S.ligaFora||"").includes(x))
-      && ovr(S.A, S.pos) >= 74 && ri(0,100) < 16){
+      && ovr(S.A, S.pos) >= 58 && ri(0,100) < 30){
     S.trofeus.euro++; S.destaque = "euroliga";
     S.hype = clamp(S.hype + 14, 5, 99);
     premios.push("Campeão da Euroliga");
@@ -3164,9 +3184,10 @@ function telaDraft(){
     // veterano pronto; só com nível, quem estourou num ano não subia.
     const nivel = clamp(ovr(S.A, S.pos) - 54, -12, 26);
     const base = 61 - Math.round(S.hype * 0.45) - Math.round(nivel * 0.85);
+    const ruido = base >= 42 ? ri(-8, 22) : ri(-7, 9);
     S.pickDraft = S.destaque === "prodigio" ? ri(1, 3)
                 : S.destaque === "euroliga" ? clamp(base + ri(-9, 2), 1, 40)
-                : clamp(base + ri(-7, 9), 1, 61);
+                : clamp(base + ruido, 1, 61);
     // Não-draftado não recebe time da liga: a liga não o chamou. Ele escolhe
     // onde vai jogar entre as portas que existem fora dela. A fase só muda
     // depois da revelação — até lá a noite do draft ainda está acontecendo.
@@ -3216,28 +3237,10 @@ function telaDraft(){
   }
 
   if (S.pickDraft > 60){ S.fase = "semdraft"; salvar(); return telaSemDraft(); }
+  // Fechar o popup já entra em quadra: a tela de resultado repetia o que o
+  // popup acabou de mostrar e pedia mais um clique pra nada.
   S.fase = "liga"; salvar();
-  const manchete = S.destaque === "prodigio" ? "Chamaram seu nome primeiro."
-                 : S.destaque === "euroliga" ? "Você chegou com currículo."
-                 : "Noite do draft.";
-  app().innerHTML = topo() + `
-    <h1>${manchete}</h1>
-    <div class="bpcard centro">
-      <div class="bpcard-title">Escolha nº</div>
-      <div class="grande">${S.pickDraft}</div>
-      <div style="margin:10px 0 4px">${marca(S.time, 46)}</div>
-      <p style="margin:8px 0 0"><b style="color:var(--text);font-size:16px">${esc(S.time)}</b>
-      ${S.gm ? `<br><span style="font-size:12px;color:var(--text2)">GM: ${esc(S.gm)}</span>` : ""}
-      ${S.liga ? `<br><span style="font-size:12px;color:var(--text2)">${esc(S.liga)} · $${S.salario}M por ano</span>` : ""}</p>
-    </div>
-    <div class="bpcard">
-      <div class="bpcard-title">Ficha dos olheiros</div>
-      <p class="dec-txt" style="margin:0">Comparam você a <b style="color:var(--red)">${esc(comparacaoDeDraft())}</b>.
-      ${S.destaque === "prodigio" ? "A liga inteira já sabia seu nome antes do primeiro jogo."
-        : S.destaque === "euroliga" ? "Um título europeu no currículo vale mais que qualquer treino fechado."
-        : "É a promessa. Cumprir é com você."}</p>
-    </div>
-    <button class="btn" onclick="jogarAno()">Primeira temporada</button>`;
+  return jogarAno();
 }
 
 /**
@@ -3289,8 +3292,9 @@ function abrirDraft(){
         ${marca(S.time, 54)}
         <b>${esc(S.time)}</b>
         <span>${S.gm ? `GM: ${esc(S.gm)} · ` : ""}${esc(S.liga || "")} · $${S.salario}M por ano</span>
+        <span class="dr-ficha">Os olheiros comparam você a <b>${esc(comparacaoDeDraft())}</b>.</span>
       </div>
-      <button class="btn" onclick="fecharDraft()">Continuar</button>`;
+      <button class="btn" onclick="fecharDraft()">Primeira temporada</button>`;
   };
 
   if (semAnimacao) return cravar();
@@ -3470,9 +3474,9 @@ const DESAFIOS = [
   {id:"dpoy",        i:"🛡️", n:"Muralha",            d:"Ganhe o Defensor do Ano."},
   {id:"roy",         i:"🌱", n:"Chegou pronto",      d:"Ganhe o Calouro do Ano."},
   {id:"allstar5",    i:"🎪", n:"Presença garantida", d:"Seja All-Star cinco vezes."},
-  {id:"pts30k",      i:"🎯", n:"Trinta mil",         d:"Marque 30 mil pontos na carreira."},
-  {id:"duplo20k",    i:"📊", n:"Números redondos",   d:"20 mil pontos e 10 mil rebotes na mesma carreira."},
-  {id:"ovr99",       i:"💯", n:"Teto",               d:"Chegue a 99 de overall."},
+  {id:"pts30k",      i:"🎯", n:"Vinte e oito mil",   d:"Marque 28 mil pontos na carreira."},
+  {id:"duplo20k",    i:"📊", n:"Números redondos",   d:"20 mil pontos e 9 mil rebotes na mesma carreira."},
+  {id:"ovr99",       i:"💯", n:"Teto",               d:"Chegue a 97 de overall."},
   {id:"porta_fundos",i:"🚪", n:"Pela porta dos fundos", d:"Ganhe um título sem ter sido draftado — saia no primeiro ano pra ficar fora das 60."},
   {id:"chamado",     i:"📞", n:"A liga ligou",       d:"Seja chamado pela liga vindo de fora dela."},
   {id:"lenda_clube", i:"♾️", n:"Lenda do clube",     d:"Jogue dez temporadas ou mais em um clube só."},
@@ -3482,32 +3486,32 @@ const DESAFIOS = [
   {id:"ferro",       i:"🦾", n:"Ferro",              d:"Jogue vinte e quatro temporadas — a carreira inteira."},
   {id:"de_pe",       i:"🩹", n:"De pé",              d:"Perca uma temporada inteira e volte a ganhar prêmio."},
   {id:"estreia",     i:"🚀", n:"Chegou chegando",    d:"Média de 20 pontos na temporada de estreia."},
-  {id:"trinta_no_ano",i:"🔥", n:"Trinta por noite",  d:"Média de 30 pontos numa temporada."},
+  {id:"trinta_no_ano",i:"🔥", n:"Trinta por noite",  d:"Média de 28 pontos numa temporada."},
   {id:"ano_perfeito",i:"✨", n:"O ano perfeito",     d:"Seja MVP e campeão na mesma temporada."},
   {id:"ringless",    i:"🕳️", n:"Ringless",           d:"Encerre uma carreira de dez temporadas sem nenhum título."},
-  {id:"imortal",     i:"🗿", n:"Imortal",            d:"Encerre uma carreira com 200 de legado ou mais."},
+  {id:"imortal",     i:"🗿", n:"Imortal",            d:"Encerre uma carreira com 145 de legado ou mais."},
   // Os impossíveis exigem várias coisas raras na MESMA carreira — é isso
   // que os separa dos difíceis, que pedem uma coisa rara só.
-  {id:"goat",          i:"🐐", n:"O maior de todos",  d:"Na mesma carreira: 4 títulos, 3 MVPs, 25 mil pontos e um ouro pela seleção."},
-  {id:"quarenta_mil",  i:"🏹", n:"Trinta e oito mil",  d:"Marque 38 mil pontos na carreira — o teto do que dá pra marcar."},
+  {id:"goat",          i:"🐐", n:"O maior de todos",  d:"Na mesma carreira: 4 títulos, 2 MVPs, 25 mil pontos e um ouro pela seleção."},
+  {id:"quarenta_mil",  i:"🏹", n:"Trinta e quatro mil", d:"Marque 34 mil pontos na carreira."},
   {id:"duplo_completo",i:"🧮", n:"Números completos", d:"20 mil pontos, 10 mil rebotes e 5 mil assistências na mesma carreira."},
   {id:"so_uma_camisa", i:"👕", n:"Uma camisa só",     d:"Vinte temporadas no mesmo clube."},
-  {id:"campeao_4",     i:"🧿", n:"Campeão por toda parte", d:"Seja campeão por quatro franquias diferentes."},
-  {id:"mala_pronta",   i:"✈️", n:"Mala sempre pronta", d:"Jogue por doze clubes diferentes."},
-  {id:"dono_defesa",   i:"🚧", n:"Dono da defesa",    d:"Ganhe oito vezes o Defensor do Ano."},
-  {id:"presenca12",    i:"🎟️", n:"Cadeira cativa",    d:"Seja All-Star doze vezes."},
+  {id:"campeao_4",     i:"🧿", n:"Campeão por toda parte", d:"Quatro títulos, por três franquias diferentes."},
+  {id:"mala_pronta",   i:"✈️", n:"Mala sempre pronta", d:"Jogue por onze clubes diferentes."},
+  {id:"dono_defesa",   i:"🚧", n:"Dono da defesa",    d:"Ganhe cinco vezes o Defensor do Ano."},
+  {id:"presenca12",    i:"🎟️", n:"Cadeira cativa",    d:"Seja All-Star dez vezes."},
   {id:"patria",        i:"🇧🇷", n:"Pela pátria",       d:"Ganhe quatro ouros olímpicos pela seleção."},
-  {id:"lenda_viva",    i:"🏛️", n:"Lenda viva",        d:"Encerre uma carreira com 220 de legado — o teto é 230."},
+  {id:"lenda_viva",    i:"🏛️", n:"Lenda viva",        d:"Encerre uma carreira com 170 de legado — o teto é 230."},
   {id:"dinastia_solo", i:"🏛️", n:"Dono da franquia",  d:"Quinze temporadas num clube só, com 3 títulos por ele."},
-  {id:"pico_e_anel",   i:"👑", n:"Teto com anel",     d:"Chegue a 99 de overall e ganhe um título na mesma carreira."},
+  {id:"pico_e_anel",   i:"👑", n:"Teto com anel",     d:"Chegue a 97 de overall e ganhe um título na mesma carreira."},
   // Lendários — refazer a carreira de um nome específico, inteira. São os
   // únicos que pagam FBA points em vez de moeda de games.
-  {id:"proj_jordan",  i:"🔱", n:"Projeto Jordan",  d:"5 títulos, 3 MVPs das Finais e 3 MVPs na mesma carreira."},
-  {id:"proj_russell", i:"🎖️", n:"Projeto Russell", d:"Encerre a carreira com sete títulos."},
+  {id:"proj_jordan",  i:"🔱", n:"Projeto Jordan",  d:"4 títulos, 3 MVPs das Finais e 2 MVPs na mesma carreira."},
+  {id:"proj_russell", i:"🎖️", n:"Projeto Russell", d:"Encerre a carreira com seis títulos."},
   {id:"proj_lebron",  i:"🧭", n:"Projeto LeBron",  d:"Campeão por três franquias diferentes, com um MVP no currículo."},
-  {id:"proj_duncan",  i:"🧱", n:"Projeto Duncan",  d:"Cinco títulos por uma franquia só."},
-  {id:"proj_curry",   i:"🏹", n:"Projeto Curry",   d:"4 títulos, o arremesso de 3 no teto (99) e dois prêmios de cestinha."},
-  {id:"proj_kobe",    i:"🐍", n:"Projeto Kobe",    d:"5 títulos e 20 temporadas na mesma franquia."},
+  {id:"proj_duncan",  i:"🧱", n:"Projeto Duncan",  d:"Quatro títulos por uma franquia só."},
+  {id:"proj_curry",   i:"🏹", n:"Projeto Curry",   d:"3 títulos, o arremesso de 3 no teto (97) e dois prêmios de cestinha."},
+  {id:"proj_kobe",    i:"🐍", n:"Projeto Kobe",    d:"4 títulos e 18 temporadas na mesma franquia."},
 ];
 
 /** Nível e prêmio de um desafio, direto do catálogo do servidor. */
@@ -3559,10 +3563,10 @@ function testarDesafio(id, fim){
     // Os alvos saem de 1.320 carreiras completas simuladas, e não do olho.
     // Os antigos (20 mil pontos, 10 mil + 5 mil) caíam em 90% e 94% das
     // carreiras: não eram desafio, eram o caminho.
-    case "pts30k":      return tot.pts >= 30000;
-    case "duplo20k":    return tot.pts >= 20000 && tot.reb >= 10000;
-    case "quarenta_mil":return tot.pts >= 38000;
-    case "ovr99":       return ovr(S.A, S.pos) >= 99;
+    case "pts30k":      return tot.pts >= 28000;
+    case "duplo20k":    return tot.pts >= 20000 && tot.reb >= 9000;
+    case "quarenta_mil":return tot.pts >= 34000;
+    case "ovr99":       return ovr(S.A, S.pos) >= 97;
     case "porta_fundos":return (S.pickDraft||0) > 60 && (t.titulo||0) >= 1;
     case "chamado":     return !!S.jaFoiChamado;
     case "nomade":      return clubes.size >= 6;
@@ -3574,22 +3578,22 @@ function testarDesafio(id, fim){
     // O 20/8/8 numa temporada não existia neste motor: o teto medido de
     // assistências por ano é 9,3, e só pra armador. Virou o que o jogo de
     // fato permite e ainda é raro — média de 30 pontos num ano (1,3%).
-    case "trinta_no_ano": return jogadas.some(x => (x.pts||0) >= 30);
+    case "trinta_no_ano": return jogadas.some(x => (x.pts||0) >= 28);
     case "duplo_completo":return tot.pts >= 20000 && tot.reb >= 10000 && tot.ast >= 5000;
     case "ano_perfeito":  return jogadas.some(x => x.campeao &&
                             (x.premios||[]).some(q => String(q && q.t ? q.t : q) === "MVP"));
-    case "dono_defesa":   return (t.dpoy||0) >= 8;
-    case "presenca12":    return (t.allstar||0) >= 12;
+    case "dono_defesa":   return (t.dpoy||0) >= 5;
+    case "presenca12":    return (t.allstar||0) >= 10;
     case "patria":        return (t.ouro||0) >= 4;
-    case "mala_pronta":   return clubes.size >= 12;
-    case "campeao_4":     return Object.keys(titulosPorClube()).length >= 4;
+    case "mala_pronta":   return clubes.size >= 11;
+    case "campeao_4":     return Object.keys(titulosPorClube()).length >= 3 && (t.titulo||0) >= 4;
     case "lenda_clube": {
       const porClube = {};
       jogadas.forEach(x => { if (x.time) porClube[x.time] = (porClube[x.time]||0) + 1; });
       return Object.values(porClube).some(n => n >= 10);
     }
-    case "pico_e_anel": return (S.picoOvr || 0) >= 99 && (t.titulo||0) >= 1;
-    case "goat":        return (t.titulo||0) >= 4 && (t.mvp||0) >= 3 && tot.pts >= 25000
+    case "pico_e_anel": return (S.picoOvr || 0) >= 97 && (t.titulo||0) >= 1;
+    case "goat":        return (t.titulo||0) >= 4 && (t.mvp||0) >= 2 && tot.pts >= 25000
                             && ((t.ouro||0) >= 1 || (t.ouroCopa||0) >= 1);
     case "dinastia_solo": {
       const porClube = {};
@@ -3602,27 +3606,27 @@ function testarDesafio(id, fim){
     // Os dois de encerramento só valem no fim: no meio da carreira ainda dá
     // tempo de ganhar o título que falta.
     case "ringless":    return fim && jogadas.length >= 10 && (t.titulo||0) === 0;
-    case "imortal":     return fim && pontuacaoLegado() >= 200;
-    case "lenda_viva":  return fim && pontuacaoLegado() >= 220;
+    case "imortal":     return fim && pontuacaoLegado() >= 145;
+    case "lenda_viva":  return fim && pontuacaoLegado() >= 170;
     // ── Lendários ──────────────────────────────────────────────────────
     // Todos olham título POR FRANQUIA, que sai de temporadas[].campeao +
     // temporadas[].time — o contador t.titulo só sabe o total da carreira.
     // Os números caíram pro que o motor alcança: 6 títulos + 6 MVPs das
     // Finais + 5 MVPs e 11 títulos NUNCA saíram em 1.320 carreiras (o
     // recorde medido é 8 títulos, 5 FMVPs e 6 MVPs, e nunca juntos).
-    case "proj_jordan":  return (t.titulo||0) >= 5 && (t.fmvp||0) >= 3 && (t.mvp||0) >= 3;
+    case "proj_jordan":  return (t.titulo||0) >= 4 && (t.fmvp||0) >= 3 && (t.mvp||0) >= 2;
     // Só no fim: no meio da carreira ainda dá tempo de chegar aos sete.
-    case "proj_russell": return fim && (t.titulo||0) >= 7;
+    case "proj_russell": return fim && (t.titulo||0) >= 6;
     case "proj_lebron":  return Object.keys(titulosPorClube()).length >= 3 && (t.mvp||0) >= 1;
-    case "proj_duncan":  return Object.values(titulosPorClube()).some(n => n >= 5);
+    case "proj_duncan":  return Object.values(titulosPorClube()).some(n => n >= 4);
     // A carreira não conta bolas de 3 convertidas — o que existe é o
     // atributo. "Recorde histórico" vira o teto do atributo: 99 de arremesso
     // de 3 em algum momento, que é o máximo que a régua do jogo alcança.
-    case "proj_curry":   return (t.titulo||0) >= 4 && (S.picoTres || 0) >= 99 && (t.cesta||0) >= 2;
+    case "proj_curry":   return (t.titulo||0) >= 3 && (S.picoTres || 0) >= 97 && (t.cesta||0) >= 2;
     case "proj_kobe": {
       const porClube = {};
       jogadas.forEach(x => { if (x.time) porClube[x.time] = (porClube[x.time]||0) + 1; });
-      return (t.titulo||0) >= 5 && Object.values(porClube).some(n => n >= 20);
+      return (t.titulo||0) >= 4 && Object.values(porClube).some(n => n >= 18);
     }
     case "so_uma_camisa": {
       const porClube = {};
