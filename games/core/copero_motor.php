@@ -532,8 +532,8 @@ function coperoConquistas(): array
         'convocado'   => ['👕', 'Vestiu a amarelinha', 'Seja convocado para a seleção.',
                           'facil', fn($c) => $t($c,'copa_mundo') + $t($c,'selecao_cont') > 0
                                              || $c['picoOvr'] >= 75],
-        'idolo'       => ['🏠', 'Ídolo da casa',     'Faça cinco temporadas seguidas no mesmo clube.',
-                          'facil', fn($c) => $c['maiorSequencia'] >= 5],
+        'idolo'       => ['🏠', 'Ídolo da casa',     'Faça sete temporadas seguidas no mesmo clube.',
+                          'facil', fn($c) => $c['maiorSequencia'] >= 7],
 
         // ── Medianas: pedem uma carreira boa ──────────────────────────
         'elite'       => ['⭐', 'Nome da elite',     'Chegue a 90 de overall.',
@@ -569,14 +569,14 @@ function coperoConquistas(): array
                                                && in_array($c['pais'], ['BRA','ARG','URU','CHI','COL'], true)],
         'menino_ouro' => ['✨', 'Menino de ouro',    'Chegue a 88 de overall antes dos 24 anos.',
                           'dificil', fn($c) => $c['picoOvr'] >= 88 && $c['idadePico'] > 0 && $c['idadePico'] <= 23],
-        'matagigante' => ['🗡️', 'Matagigantes',      'Ganhe um torneio continental com um clube de força abaixo de 82.',
-                          'dificil', fn($c) => $c['menorCampeaoCont'] < 82],
+        'matagigante' => ['🗡️', 'Matagigantes',      'Ganhe um torneio continental com um clube de força abaixo de 78.',
+                          'dificil', fn($c) => $c['menorCampeaoCont'] < 78],
         'baldosero'   => ['🧳', 'Baldosero',         'Jogue por sete clubes diferentes numa mesma carreira.',
                           'dificil', fn($c) => $c['clubes'] >= 7],
         'um_clube_so' => ['🔒', 'Um clube só',       'Faça a carreira inteira em no máximo dois clubes.',
                           'dificil', fn($c) => $c['clubes'] <= 2 && $c['temporadas'] >= 12],
         'terror'      => ['👟', 'Terror das redes',  'Ganhe duas Chuteiras de Ouro.',
-                          'dificil', fn($c) => $t($c,'chuteira') >= 2],
+                          'impossivel', fn($c) => $t($c,'chuteira') >= 2],
         'nomade'      => ['🛫', 'Nômade',            'Jogue em clubes de três continentes diferentes.',
                           'dificil', fn($c) => $c['continentes'] >= 3],
         'periferia'   => ['🧭', 'Da periferia',      'Ganhe uma Bola de Ouro sendo de fora da Europa e da América do Sul.',
@@ -590,8 +590,8 @@ function coperoConquistas(): array
                           'dificil', fn($c) => $c['paisesCampeao'] >= 3],
 
         // ── Impossíveis: pra perseguir por muitas carreiras ───────────
-        'mr_champions'=> ['🏛️', 'Mr. Champions',     'Ganhe cinco torneios continentais de clubes.',
-                          'impossivel', fn($c) => $t($c,'cont') >= 5],
+        'mr_champions'=> ['🏛️', 'Mr. Champions',     'Ganhe seis torneios continentais de clubes.',
+                          'impossivel', fn($c) => $t($c,'cont') >= 6],
         'dono_europa' => ['🏰', 'Dono da Europa',    'Seja campeão de três das cinco grandes ligas europeias.',
                           'impossivel', fn($c) => $c['grandesEuropeias'] >= 3],
         'lenda_maxima'=> ['💫', 'Lenda absoluta',    'Passe a carreira inteira num só clube e ganhe liga, copa e continental.',
