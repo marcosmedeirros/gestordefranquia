@@ -4662,6 +4662,33 @@ function compartilharCartao(botao, modo){
   // /api/foto-proxy.php e chegam como mesma origem. Logo que não carregar
   // cai nas iniciais sozinho, então o cartão nunca fica com buraco.
   const md = d.medias;
+
+  // SVG virado imagem: como data URI ele conta como mesma origem e não
+  // contamina o canvas. É por isso que a bandeira e as taças entram assim, e
+  // o logo de time, que vem de CDN, precisa do proxy.
+  const svgImagem = (svg) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  const iso = PAIS_ISO[S.nac];
+  const band = iso && BANDEIRAS[iso]
+    ? svgImagem(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 20"
+                 width="120" height="80">${BANDEIRAS[iso]}</svg>`)
+    : '';
+
+  // A segunda faixa mostra as TAÇAS, e não mais as médias em texto. As médias
+  // foram pra régua de números em cima: elas são para comparar, e comparar se
+  // faz com número. Taça é para reconhecer, e reconhece-se pelo desenho.
+  const t = S.trofeus || {};
+  const ordemT = ["titulo","copaNBA","mvp","fmvp","euro","dpoy","cesta","roy","allstar",
+                  "ouro","ouroCopa","prata","prataCopa","bronze","bronzeCopa"];
+  const titulos = ordemT
+    .map(k => {
+      const n = Math.max(0, Number(t[k]) || 0);
+      if (!n || !TACAS_NBA[k]) return null;
+      return {img: svgImagem(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 56"
+                width="140" height="122" style="color:${TACAS_NBA[k][0]}">${TACAS_NBA[k][1]}</svg>`),
+              contagem: n};
+    })
+    .filter(Boolean).slice(0, 6);
+
   // Duas saídas, como no Copero: baixar o arquivo ou copiar pra colar na
   // conversa. A folha do sistema ficava de fora porque no computador ela nem
   // existe pra arquivo, e o botão se comportava diferente em cada aparelho.
@@ -4669,19 +4696,20 @@ function compartilharCartao(botao, modo){
     c1: d.c1, c2: d.c2,
     numero: d.ovr || "—", rotulo: "OVR",
     pilulas: [
+      band ? {img: band} : {texto: iso || S.nac || "—"},
       {rotulo: "Legado", texto: d.pts},
       {texto: d.pos},
       {rotulo: "Temporadas", texto: d.temporadas},
     ],
-    stats: d.nums,
+    stats: md
+      ? [[md.pts, "Pts/jogo"], [md.reb, "Reb/jogo"], [md.ast, "Ast/jogo"],
+         [md.jogos.toLocaleString("pt-BR"), "Jogos"]]
+      : d.nums,
     faixas: [
       {titulo: `Clubes (${d.clubes.length})`,
        itens: d.clubes.slice(0, 6).map(n => ({img: logoDoTime(n) || "", texto: iniciais(n)}))},
-      {titulo: "Médias por jogo", itens: md ? [
-        {texto: md.pts, legenda: "pontos"}, {texto: md.reb, legenda: "rebotes"},
-        {texto: md.ast, legenda: "assist."},
-        {texto: md.jogos.toLocaleString("pt-BR"), legenda: "jogos"},
-      ] : []},
+      {titulo: "Troféus",
+       itens: titulos.length ? titulos : [{texto: "—", legenda: "sem troféus"}]},
     ],
     nome: d.nome, jogo: "Caminho até a NBA",
   }, botao);
