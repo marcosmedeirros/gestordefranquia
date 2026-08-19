@@ -453,8 +453,8 @@ button{font-family:inherit}
      antigas sobravam 38px pro nome numa tela de 375, e "Sport Recife" — que
      precisa de 72 — saía cortado quase pela metade. Agora cabe; só nome de
      19 letras pra cima trunca, e aí com reticências, como deve ser. */
-  .linha-cab,.ano{grid-template-columns:34px minmax(0,1fr) 36px 34px 34px 34px;gap:5px}
-  .ano{padding:4px 6px;font-size:12px}
+  .linha-cab,.ano{grid-template-columns:32px minmax(0,1fr) 34px 32px 32px 32px;gap:5px}
+  .ano{padding:4px 6px;font-size:11.5px}
   .linha-cab{padding:0 6px 7px}
   .ano-clube{gap:6px}
   .ano-n{font-size:11.5px}
