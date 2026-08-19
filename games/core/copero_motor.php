@@ -168,6 +168,79 @@ function coperoTemporada(string $posicao, int $ovr, int $forcaClube): array
 }
 
 /**
+ * As competições que um clube pode ganhar, e o desenho de cada taça.
+ *
+ * `dificuldade` é o quão forte o clube precisa ser pra ter chance real. A
+ * liga nacional é a mais fácil (você só precisa ser o melhor do seu país); a
+ * continental é a mais dura, porque disputa com o continente inteiro.
+ *
+ * As taças são DESENHADAS aqui, em SVG. Foto de taça de verdade é imagem de
+ * terceiro e o projeto não hospeda isso — e taça em SVG aparece igual em todo
+ * aparelho, sem depender de rede, como já foi feito com as bandeiras.
+ */
+const COPERO_COMPETICOES = [
+    // id            nome                     escopo      dificuldade
+    'liga'    => ['Liga Nacional',          'nacional',      55],
+    'copa'    => ['Copa Nacional',          'nacional',      48],
+    'cont'    => ['Torneio Continental',    'continental',   82],
+    'mundial' => ['Mundial de Clubes',      'mundial',       92],
+];
+
+/** O nome do torneio continental de cada continente. */
+const COPERO_CONTINENTAL = [
+    'SAM' => 'Libertadores',
+    'EUR' => 'Champions League',
+    'NAM' => 'Concacaf Champions Cup',
+    'ASI' => 'AFC Champions League',
+    'AFR' => 'CAF Champions League',
+    'OCE' => 'OFC Champions League',
+];
+
+/**
+ * Os prêmios individuais. Dependem do jogador, não do clube — é o que
+ * separa "meu time ganhou" de "eu fui o melhor".
+ */
+const COPERO_PREMIOS = [
+    'artilheiro' => ['Artilheiro da Liga', 'gols'],
+    'bola_ouro'  => ['Bola de Ouro',       'ovr'],
+];
+
+/**
+ * As taças em SVG: id => [cor, desenho].
+ *
+ * Cada uma tem silhueta própria — a continental é a de alças largas, a de
+ * liga é o escudo, a copa é o cálice alto. A pessoa reconhece pela forma
+ * antes de ler o nome.
+ */
+const COPERO_TACAS = [
+    'liga' => ['#eab308',
+        '<path d="M20 6h24v18c0 8-5 14-12 16-7-2-12-8-12-16z" fill="currentColor"/>'
+      . '<rect x="28" y="42" width="8" height="8" fill="currentColor"/>'
+      . '<rect x="20" y="50" width="24" height="6" rx="2" fill="currentColor"/>'],
+    'copa' => ['#e5e7eb',
+        '<path d="M22 6h20v12c0 9-4 15-10 17-6-2-10-8-10-17z" fill="currentColor"/>'
+      . '<path d="M22 10h-6v6c0 5 3 8 6 9M42 10h6v6c0 5-3 8-6 9" stroke="currentColor" stroke-width="3" fill="none"/>'
+      . '<rect x="29" y="35" width="6" height="11" fill="currentColor"/>'
+      . '<rect x="20" y="46" width="24" height="8" rx="2" fill="currentColor"/>'],
+    'cont' => ['#c0c0c0',
+        '<path d="M18 8h28v14c0 10-6 17-14 19-8-2-14-9-14-19z" fill="currentColor"/>'
+      . '<path d="M18 8c-8 0-12 5-12 11s5 10 11 11M46 8c8 0 12 5 12 11s-5 10-11 11" stroke="currentColor" stroke-width="4" fill="none"/>'
+      . '<rect x="29" y="41" width="6" height="8" fill="currentColor"/>'
+      . '<path d="M18 49h28l3 7H15z" fill="currentColor"/>'],
+    'mundial' => ['#fbbf24',
+        '<circle cx="32" cy="20" r="13" fill="currentColor"/>'
+      . '<path d="M24 31c-2 6-2 12 0 18h16c2-6 2-12 0-18z" fill="currentColor"/>'
+      . '<rect x="18" y="49" width="28" height="7" rx="2" fill="currentColor"/>'],
+    'artilheiro' => ['#f97316',
+        '<path d="M10 40c6-10 16-16 28-16 8 0 14 3 16 8-4 8-14 14-26 14-8 0-15-2-18-6z" fill="currentColor"/>'
+      . '<path d="M12 44h34l-2 8H16z" fill="currentColor"/>'],
+    'bola_ouro' => ['#facc15',
+        '<circle cx="32" cy="22" r="14" fill="currentColor"/>'
+      . '<rect x="29" y="36" width="6" height="10" fill="currentColor"/>'
+      . '<rect x="20" y="46" width="24" height="8" rx="2" fill="currentColor"/>'],
+];
+
+/**
  * O catálogo de eventos.
  *
  * Cada um é: título, uma frase de contexto, e cartas com efeito e

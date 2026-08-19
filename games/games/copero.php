@@ -318,6 +318,51 @@ button{font-family:inherit}
 
 .rodape{margin-top:26px;font-size:10.5px;color:var(--txt3);text-align:center;line-height:1.6}
 
+/* ── Vitrine ────────────────────────────────────────── */
+.vitrine{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 0;
+  border-top:1px solid var(--borda)}
+.vitrine.vazia{color:var(--txt3);font-size:10.5px;font-weight:800;letter-spacing:1px;
+  text-transform:uppercase;opacity:.55}
+.vitrine.vazia .taca{opacity:.4}
+.tacao{position:relative;display:inline-flex;align-items:center}
+.tacao b{position:absolute;right:-4px;bottom:-2px;background:var(--panel3);border-radius:6px;
+  padding:1px 5px;font-size:10px;font-weight:900}
+.taca{filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
+
+/* ── Animações ──────────────────────────────────────── */
+@keyframes ovrPulso{0%{transform:scale(1)}45%{transform:scale(1.13)}100%{transform:scale(1)}}
+@keyframes subiu{0%{opacity:0;transform:translateY(6px)}25%{opacity:1;transform:translateY(-2px)}
+  100%{opacity:0;transform:translateY(-22px)}}
+@keyframes tacaEntra{0%{opacity:0;transform:scale(.3) rotate(-14deg)}
+  60%{opacity:1;transform:scale(1.18) rotate(4deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+@keyframes sorteando{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes revelado{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+
+.ovr-caixa.animando{animation:ovrPulso .5s ease}
+/* O delta sobe e some ao lado do OVR: quem estava olhando a carta vê quanto
+   mudou sem precisar comparar dois números de cabeça. */
+.ovr-delta{position:absolute;left:50%;transform:translateX(-50%);top:-6px;
+  font-size:15px;font-weight:900;pointer-events:none;animation:subiu 1.5s ease forwards}
+.ovr-delta.mais{color:#4ade80}
+.ovr-delta.menos{color:#f87171}
+.ovr-caixa{position:relative}
+
+/* Enquanto sorteia, os efeitos piscam; o que sai para de piscar e cresce. */
+.efeito.sorteando{animation:sorteando .28s ease-in-out infinite}
+.efeito.sorteado{animation:revelado .45s ease}
+
+.taca-nova{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:14px;background:rgba(6,6,9,.86);z-index:60;
+  backdrop-filter:blur(3px)}
+.taca-nova .taca{animation:tacaEntra .7s cubic-bezier(.2,1.5,.4,1) forwards}
+.taca-nova b{font-size:22px;font-weight:900;letter-spacing:-.5px;text-align:center;padding:0 20px}
+.taca-nova small{color:var(--txt2);font-size:12.5px}
+@media (prefers-reduced-motion:reduce){
+  /* Quem pediu menos movimento vê o resultado, não a viagem até ele. */
+  .ovr-caixa.animando,.ovr-delta,.efeito.sorteando,.efeito.sorteado,.taca-nova .taca{animation:none}
+  .ovr-delta{opacity:1}
+}
+
 @media (max-width:980px){
   /* Empilhado: a linha do tempo é referência, a ficha é onde se joga —
      então a ficha vem primeiro e a linha desce. */
@@ -422,6 +467,156 @@ const dadosLiga  = id => LIGAS[id] ? {pais:LIGAS[id][0], cont:LIGAS[id][1], nome
 function moeda(v){
   if (v >= 1000000) return '€' + (v/1000000).toFixed(v >= 10000000 ? 0 : 1).replace('.', ',') + 'M';
   return '€' + Math.round(v/1000) + 'K';
+}
+
+/* ── Animações ──────────────────────────────────────────
+   Elas não decoram: cada uma responde uma pergunta que o jogador faz na
+   hora. "Quanto mudou?" (o delta subindo), "o que saiu?" (o sorteio) e
+   "ganhei alguma coisa?" (a taça entrando). */
+
+const dormir = ms => new Promise(r => setTimeout(r, ms));
+const semAnimacao = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Mostra o OVR contando até o novo valor, com o delta subindo ao lado. */
+async function animarOvr(de, para){
+  const caixa = document.querySelector('.ovr-caixa');
+  if (!caixa || de === para) return;
+  const num = caixa.querySelector('b');
+  const d = para - de;
+
+  const delta = document.createElement('span');
+  delta.className = 'ovr-delta ' + (d > 0 ? 'mais' : 'menos');
+  delta.textContent = (d > 0 ? '+' : '') + d;
+  caixa.appendChild(delta);
+  caixa.classList.add('animando');
+
+  if (semAnimacao()) { num.textContent = para; }
+  else {
+    const passos = Math.min(Math.abs(d), 12);
+    for (let i = 1; i <= passos; i++) {
+      num.textContent = Math.round(de + (d * i / passos));
+      caixa.style.background = corDoOvr(Number(num.textContent));
+      await dormir(45);
+    }
+    num.textContent = para;
+  }
+  caixa.style.background = corDoOvr(para);
+  setTimeout(() => { delta.remove(); caixa.classList.remove('animando'); }, 1500);
+}
+
+/**
+ * O sorteio da carta: os efeitos piscam e um deles "para" no resultado.
+ *
+ * Sem isso o resultado aparecia pronto, e a aposta que a pessoa acabou de
+ * fazer não tinha momento nenhum — o número já estava lá antes de ela olhar.
+ */
+async function animarSorteio(cartaEl, indiceSorteado){
+  const efeitos = [...cartaEl.querySelectorAll('.efeito')];
+  if (efeitos.length < 2 || semAnimacao()) return;
+  efeitos.forEach(e => e.classList.add('sorteando'));
+  // Desacelera até parar: é o gesto que faz parecer sorteio e não conta.
+  for (let i = 0, espera = 70; i < 9; i++, espera += 32) {
+    efeitos.forEach((e, k) => e.classList.toggle('sorteando', k !== (i % efeitos.length)));
+    await dormir(espera);
+  }
+  efeitos.forEach(e => e.classList.remove('sorteando'));
+}
+
+/** A taça ganha ocupa a tela por um instante — é a hora dela. */
+async function mostrarTaca(id, ligaId){
+  const tela = document.createElement('div');
+  tela.className = 'taca-nova';
+  tela.innerHTML = `${taca(id, 120)}<b>${esc(nomeDaTaca(id, ligaId))}</b><small>toque para seguir</small>`;
+  document.body.appendChild(tela);
+  await new Promise(r => {
+    const fim = () => { tela.remove(); r(); };
+    tela.addEventListener('click', fim, {once:true});
+    setTimeout(fim, semAnimacao() ? 700 : 2000);
+  });
+}
+
+/** Todas as taças de uma temporada, uma de cada vez. */
+async function mostrarTacas(t){
+  for (const id of (t.titulos || [])) await mostrarTaca(id, t.liga);
+}
+
+/* ── Títulos ────────────────────────────────────────────
+   Quem ganha o quê depende da força do clube contra a liga em que ele joga,
+   e o jogador entra como tempero: um craque num time bom empurra o título,
+   mas ninguém ganha Champions sozinho jogando na segunda divisão. */
+const TACAS = <?= json_encode(COPERO_TACAS, JSON_UNESCAPED_UNICODE) ?>;
+const COMPETICOES = <?= json_encode(COPERO_COMPETICOES, JSON_UNESCAPED_UNICODE) ?>;
+const CONTINENTAL = <?= json_encode(COPERO_CONTINENTAL, JSON_UNESCAPED_UNICODE) ?>;
+
+/** A taça desenhada, do tamanho pedido. */
+function taca(id, tam){
+  const t = TACAS[id];
+  if (!t) return '';
+  return `<svg class="taca" viewBox="0 0 64 60" width="${tam}" height="${tam}"
+    style="color:${t[0]}" role="img" aria-label="${esc(id)}">${t[1]}</svg>`;
+}
+
+/** O nome que a taça leva na tela, já com o continente certo. */
+function nomeDaTaca(id, ligaId){
+  if (id === 'cont') {
+    const l = dadosLiga(ligaId);
+    return (l && CONTINENTAL[l.cont]) || 'Torneio Continental';
+  }
+  if (COMPETICOES[id]) return COMPETICOES[id][0];
+  if (id === 'artilheiro') return 'Artilheiro da Liga';
+  if (id === 'bola_ouro')  return 'Bola de Ouro';
+  return id;
+}
+
+/**
+ * O que a temporada rendeu de troféu.
+ *
+ * A liga nacional é a mais alcançável — basta ser o melhor do seu país. A
+ * continental exige clube grande de verdade, e o mundial exige ter ganho a
+ * continental. Sem esse encadeamento o jogador colecionaria mundiais jogando
+ * na Série C.
+ */
+function titulosDaTemporada(clube, ovr, stats){
+  const l = dadosLiga(clube.liga);
+  if (!l) return [];
+  const ganhos = [];
+
+  // O clube precisa estar acima da média da própria liga pra brigar. O
+  // jogador soma pouco: futebol é coletivo, e um 90 num time ruim não ganha.
+  const acimaDaLiga = clube.forca - (LIGAS[clube.liga] ? LIGAS[clube.liga][4] : 70);
+  const empurrao = Math.max(0, (ovr - clube.forca) / 3);
+
+  // A calibragem importa: com os números da primeira versão, um clube
+  // grande levava a liga em 70% das temporadas — campeão quase todo ano,
+  // e aí o título deixa de significar alguma coisa. Agora o melhor time
+  // do mundo ganha a própria liga em torno de 40% dos anos.
+  //
+  // O nível da divisão pesa: time da Série C não disputa a copa nacional
+  // de igual pra igual com os de cima.
+  const castigoNivel = (l.nivel - 1) * 14;
+  const chance = (dificuldade, bonus) => {
+    const base = (clube.forca - dificuldade) * 1.35 + acimaDaLiga * 1.1
+               + empurrao - castigoNivel + (bonus || 0);
+    return Math.max(0, Math.min(42, base));
+  };
+
+  // Divisão de baixo não tem torneio continental nem mundial: quem está na
+  // Série C disputa a Série C.
+  const principal = l.nivel === 1;
+
+  if (Math.random() * 100 < chance(COMPETICOES.liga[2])) ganhos.push('liga');
+  if (Math.random() * 100 < chance(COMPETICOES.copa[2])) ganhos.push('copa');
+  if (principal && Math.random() * 100 < chance(COMPETICOES.cont[2])) ganhos.push('cont');
+  // Mundial só pra quem ganhou o continente — é assim que ele funciona.
+  if (ganhos.includes('cont') && Math.random() * 100 < chance(COMPETICOES.mundial[2], 18)) {
+    ganhos.push('mundial');
+  }
+
+  // Prêmios individuais: dependem do jogador, não do clube.
+  if (stats.gols >= 22 && Math.random() < 0.45) ganhos.push('artilheiro');
+  if (ovr >= 88 && ganhos.length >= 2 && Math.random() < 0.35) ganhos.push('bola_ouro');
+
+  return ganhos;
 }
 
 /* ── Tela 1: modo ───────────────────────────────────── */
@@ -675,30 +870,35 @@ function valorAtual(){
 /** Assina com um clube e joga os anos do passo do modo. */
 /** Assina a oferta N da lista atual. Por índice, e não por nome: nome vai
   * pro atributo entre aspas e clube com aspas no nome quebrava o onclick. */
-function assinarOpcao(i){
+async function assinarOpcao(i){
   const c = (S.opcoes || [])[i];
-  if (c) assinar(c);
+  if (c) await assinar(c);
 }
 
-function assinar(clube){
+async function assinar(clube){
   S.clube = clube;
   if (!S.temporadas.length) {
     const l = dadosLiga(clube.liga);
     S.comecouAbaixo = !!(l && l.nivel >= 2);
   }
   S.maiorForcaClube = Math.max(S.maiorForcaClube, clube.forca);
-  jogarAnos();
+  await jogarAnos();
 }
 
-function jogarAnos(){
+async function jogarAnos(){
   const passo = MODOS[S.modo] ? MODOS[S.modo].passo : 1;
   for (let i = 0; i < passo && S.idade <= IDADE_FIM - 1; i++) {
     const t = temporada();
     S.temporadas.push(t);
     S.picoOvr   = Math.max(S.picoOvr, t.ovr);
     S.picoValor = Math.max(S.picoValor, t.valor);
+    const antes = S.ovr;
     S.ovr = evoluir();
     S.idade++;
+    // A taça vem ANTES do OVR: primeiro o que aconteceu no ano, depois o
+    // que isso fez com você.
+    await mostrarTacas(t);
+    await animarOvr(antes, S.ovr);
   }
   proximaFase();
 }
@@ -715,13 +915,15 @@ function temporada(){
   S.jogosBonus = 0;
 
   const q = Math.max(0.2, (S.ovr - 45) / 45);
-  return {
+  const t = {
     idade: S.idade, clube: S.clube.nome, liga: S.clube.liga, ovr: S.ovr,
     jogos,
     gols: Math.max(0, Math.round(jogos * pesoGol * q * (ri(75,130)/100))),
     ast:  Math.max(0, Math.round(jogos * pesoAst * q * (ri(70,135)/100))),
     valor: valorAtual(),
   };
+  t.titulos = titulosDaTemporada(S.clube, S.ovr, t);
+  return t;
 }
 
 function evoluir(){
@@ -759,20 +961,26 @@ function proximaFase(){
 }
 
 /** Aplica a carta escolhida, mostra o que saiu e segue. */
-function escolherCarta(i){
+async function escolherCarta(i){
   const carta = S.evento.cartas[i];
   const r = Math.random() * 100;
   let acc = 0, ef = carta.efeitos[carta.efeitos.length - 1];
   for (const e of carta.efeitos) { acc += e.chance; if (r <= acc) { ef = e; break; } }
 
   S.resultado = {carta: i, efeito: ef};
+  const antes = S.ovr;
   S.ovr = Math.max(35, Math.min(99, S.ovr + (ef.ovr || 0)));
   S.jogosBonus = ef.jogos || 0;
   salvar(); render();
 
-  // Um respiro pra pessoa VER o que saiu antes da tela virar — sem isso o
-  // resultado da aposta pisca e some.
-  setTimeout(() => { S.evento = null; S.resultado = null; jogarAnos(); }, 1400);
+  // Pisca os efeitos e para no que saiu; só então o OVR anda. A ordem é o
+  // que faz a aposta ter desfecho em vez de já vir resolvida.
+  const cartaEl = document.querySelectorAll('.cartas .carta')[i];
+  if (cartaEl) await animarSorteio(cartaEl, i);
+  await animarOvr(antes, S.ovr);
+  await dormir(500);
+  S.evento = null; S.resultado = null;
+  await jogarAnos();
 }
 
 function aposentar(){ S.fase = 'fim'; S.fim = true; salvar(); render(); }
@@ -811,6 +1019,7 @@ function render(){
             </div>
             <div class="ficha-num">IDADE<b>${S.idade}</b>VALOR<b>${moeda(valorAtual())}</b></div>
           </div>
+          ${vitrine()}
           <div class="ficha-stats">
             ${[['Jogos','jogos'],['Gols','gols'],['Ast','ast']].map(([r,k]) =>
               `<div><span>${r}</span><b>${S.temporadas.reduce((a,t)=>a+t[k],0)}</b></div>`).join('')}
@@ -822,6 +1031,32 @@ function render(){
     </div>
     <p class="rodape">Os nomes de clube servem para identificar dentro da simulação.
     Este jogo não é afiliado, patrocinado nem endossado por nenhum deles.</p>`;
+}
+
+/**
+ * A vitrine de troféus.
+ *
+ * Agrupada por competição e com a contagem: quatro Champions viram uma taça
+ * com ×4, não quatro desenhos iguais em fila. Vazia, diz que está vazia —
+ * espaço em branco pareceria coisa que não carregou.
+ */
+function vitrine(){
+  const conta = {};
+  const ligaDe = {};
+  (S.temporadas || []).forEach(t => (t.titulos || []).forEach(id => {
+    conta[id] = (conta[id] || 0) + 1;
+    if (!ligaDe[id]) ligaDe[id] = t.liga;
+  }));
+  const ids = Object.keys(conta);
+  if (!ids.length) {
+    return `<div class="vitrine vazia">${taca('copa', 26)}<span>Vitrine vazia</span></div>`;
+  }
+  const ordem = ['mundial','cont','liga','copa','bola_ouro','artilheiro'];
+  ids.sort((a,b) => ordem.indexOf(a) - ordem.indexOf(b));
+  return `<div class="vitrine">${ids.map(id => `
+    <span class="tacao" title="${esc(nomeDaTaca(id, ligaDe[id]))}">
+      ${taca(id, 34)}${conta[id] > 1 ? `<b>×${conta[id]}</b>` : ''}
+    </span>`).join('')}</div>`;
 }
 
 function blocoDecisao(){
