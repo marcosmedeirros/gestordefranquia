@@ -732,15 +732,22 @@ function adversarios(clube, comp){
   }
 
   let soma = lista.reduce((s, c) => s + pesoClube(c.forca), 0);
+  let n = lista.length;
 
   // Os times que o catálogo não tem, só pra liga e pra copa.
   if (comp === 'liga' || comp === 'copa') {
     const menor = lista.reduce((m, c) => Math.min(m, c.forca), 99);
     const faltam = Math.max(0, (comp === 'liga' ? 18 : 40) - lista.length);
     soma += faltam * pesoClube(menor - 6);
+    n += faltam;
   }
-  _cacheAdv[chave] = soma;
-  return soma;
+  // A CONTAGEM volta junto porque a fatia de zebra é dividida por ela. Com
+  // um número fixo, a Champions dava 0,9% de piso a cada um dos sessenta
+  // clubes europeus — 55% do torneio decidido no sorteio, e o título virava
+  // rifa em vez de competição.
+  const r = {soma, n: Math.max(2, n)};
+  _cacheAdv[chave] = r;
+  return r;
 }
 
 function titulosDaTemporada(clube, ovr, stats){
@@ -764,9 +771,8 @@ function titulosDaTemporada(clube, ovr, stats){
    */
   const chance = (id) => {
     const zebra = COMPETICOES[id][2];
-    const soma = adversarios(clube, id);
+    const {soma, n} = adversarios(clube, id);
     if (soma <= 0) return 0;
-    const n = id === 'liga' ? 18 : id === 'copa' ? 40 : id === 'cont' ? 24 : 6;
     const justo = pesoClube(clube.forca) * empurrao / soma;
     // A zebra é a fatia que ignora força: é ela que deixa o pequeno sonhar,
     // e é maior na copa, que é mata-mata.
