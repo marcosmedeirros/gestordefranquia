@@ -520,23 +520,46 @@ if ($partida && $partida['concluido_em']) {
     [$c1, $c2] = cartaoCoresDoNome((string)($partida['nome_jogador'] ?: 'build'));
     $h = $temporada['historico'] ?? null;
 
-    $notas = [];
+    // No cartão a faixa do meio mostra O BUILD, e não clubes: aqui o que a
+    // pessoa montou É a carreira dela. Os rótulos vão abreviados porque o
+    // nome inteiro não cabe embaixo da letra sem virar reticências.
+    $curto = [
+        'jump_shot' => 'Arremesso', 'finishing' => 'Finalização', 'passing' => 'Passe',
+        'handles'   => 'Handles',   'perimeter_d' => 'Defesa',    'speed'   => 'Velocidade',
+        'bounce'    => 'Impulsão',  'size'      => 'Tamanho',     'iq'      => 'QI de Jogo',
+        'clutch'    => 'Clutch',
+    ];
+    $porGrupo = [];
     foreach ($ATRIBUTOS as $chave => $info) {
         $s = $partida['slots'][$chave] ?? null;
-        $notas[] = [$s['letra'] ?? '-', $info['label']];
+        $porGrupo[$info['grupo']][] = [
+            'texto'   => $s['letra'] ?? '-',
+            'legenda' => $curto[$chave] ?? $info['label'],
+        ];
     }
+    $habilidade = $porGrupo['SKILLS'] ?? [];
+    $resto      = array_merge($porGrupo['PHYSICAL'] ?? [], $porGrupo['MENTAL'] ?? []);
 
-    $direita = [$partida['grupo'], '#' . ($partida['camisa'] ?: '0')];
-    if ($temporada) $direita[] = (string)($temporada['time']['nome'] ?? '');
+    $pilulas = [
+        ['rotulo' => 'Grupo',  'texto' => $partida['grupo']],
+        ['texto' => '#' . ($partida['camisa'] ?: '0')],
+    ];
+    if ($h) {
+        $pilulas[] = ['rotulo' => 'Tier', 'texto' => $h['no_top']
+            ? '#' . (int)$h['posicao'] : $h['tier']];
+    }
+    if ($temporada && !empty($temporada['time']['nome'])) {
+        $pilulas[] = ['texto' => (string)$temporada['time']['nome']];
+    }
 
     $cartaoDoBuild = [
         'c1' => $c1, 'c2' => $c2,
-        'numero' => (int)$partida['ovr'], 'rotulo' => 'overall do build',
-        'direita' => $direita,
-        'titulo' => $h ? ($h['no_top'] ? '#' . (int)$h['posicao'] . ' na história' : $h['tier'])
-                       : 'Build fechado',
-        'sub' => $h && $h['no_top'] ? $h['tier'] : ($h ? 'fora do top 100' : ''),
-        'nums' => $notas,
+        'numero' => (int)$partida['ovr'], 'rotulo' => 'OVR',
+        'pilulas' => $pilulas,
+        'faixas' => [
+            ['titulo' => 'Habilidade',      'itens' => $habilidade],
+            ['titulo' => 'Físico e mental', 'itens' => $resto],
+        ],
         'nome' => (string)($partida['nome_jogador'] ?: 'Sem Nome'),
         'jogo' => 'Build-A-Player',
     ];

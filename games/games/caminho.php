@@ -4379,14 +4379,30 @@ function compartilharCartao(botao){
   const anos = S.temporadas.filter(x => !x.formacao);
   const d = dadosDoCartao(pts, totaisDeCarreira(), anos);
 
+  // Os logos agora VÃO no PNG. Antes iam por nome, porque imagem de outro
+  // domínio suja o canvas e impede de salvar — hoje elas passam por
+  // /api/foto-proxy.php e chegam como mesma origem. Logo que não carregar
+  // cai nas iniciais sozinho, então o cartão nunca fica com buraco.
+  const md = d.medias;
   fbaCompartilhar({
     c1: d.c1, c2: d.c2,
-    numero: d.ovr || "—", rotulo: "pico de overall",
-    direita: [d.pos, d.time, `${d.temporadas} temporadas`],
-    titulo: `${d.pts} pontos de legado`, sub: `${d.temporadas} temporadas · pico ${d.ovr}`,
-    // No PNG os clubes vão por nome: aquele cartão é desenhado no canvas,
-    // e escudo de outro domínio suja o canvas e impede de salvar a imagem.
-    nums: d.nums, listas: d.listas, nome: d.nome, jogo: "Caminho até a NBA",
+    numero: d.ovr || "—", rotulo: "OVR",
+    pilulas: [
+      {rotulo: "Legado", texto: d.pts},
+      {texto: d.pos},
+      {rotulo: "Temporadas", texto: d.temporadas},
+    ],
+    stats: d.nums,
+    faixas: [
+      {titulo: `Clubes (${d.clubes.length})`,
+       itens: d.clubes.slice(0, 6).map(n => ({img: logoDoTime(n) || "", texto: iniciais(n)}))},
+      {titulo: "Médias por jogo", itens: md ? [
+        {texto: md.pts, legenda: "pontos"}, {texto: md.reb, legenda: "rebotes"},
+        {texto: md.ast, legenda: "assist."},
+        {texto: md.jogos.toLocaleString("pt-BR"), legenda: "jogos"},
+      ] : []},
+    ],
+    nome: d.nome, jogo: "Caminho até a NBA",
   }, botao);
 }
 

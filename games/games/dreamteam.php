@@ -3072,22 +3072,23 @@ function dtCartaoDoDuelo(duelo, r, nomeEu, nomeOp, meuPlacar, oponentePlacar) {
   for (const ch of String(nomeEu || '?')) h = (h * 31 + ch.codePointAt(0)) % 4294967296;
   const mat = h % 360, comp = (mat + 150 + (h % 60)) % 360;
 
-  // Só o sobrenome, com a posição na frente: "PG Curry" cabe na coluna e
+  // A posição em cima e só o sobrenome embaixo: "PG / Curry" cabe na faixa e
   // ainda diz onde ele jogou, que é o que faz a escalação ser escalação.
   const quinteto = (roster) => POSICOES.map(pos => {
     const j = roster && roster[pos];
-    return `${pos} ${j ? String(j.nome || '').split(' ').slice(-1)[0] : '—'}`;
+    return {texto: pos, legenda: j ? String(j.nome || '').split(' ').slice(-1)[0] : '—'};
   });
 
   return {
     c1: `hsl(${mat} 55% 26%)`, c2: `hsl(${comp} 45% 12%)`,
     numero: `${meuPlacar}×${oponentePlacar}`,
     rotulo: duelo.eu_venci ? 'vitória' : 'derrota',
-    direita: [nomeOp, `aposta ${duelo.aposta}`,
-              duelo.eu_venci ? `+${duelo.aposta * 2} moedas` : `−${duelo.aposta} moedas`],
-    titulo: duelo.eu_venci ? 'Levei essa' : 'Ficou pra próxima',
-    sub: 'Starting5x5 · dream team em duelo',
-    listas: [
+    pilulas: [
+      {rotulo: 'Contra', texto: nomeOp},
+      {rotulo: 'Aposta', texto: duelo.aposta},
+      {rotulo: 'Moedas', texto: duelo.eu_venci ? `+${duelo.aposta * 2}` : `−${duelo.aposta}`},
+    ],
+    faixas: [
       {titulo: nomeEu, itens: quinteto(duelo.meu_roster)},
       {titulo: nomeOp, itens: quinteto(duelo.oponente_roster)},
     ],

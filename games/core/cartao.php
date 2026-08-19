@@ -223,17 +223,24 @@ function cartaoScript(): string
       const topo = yInicio + altura * fi;
       c.textAlign = 'center';
       c.fillStyle = 'rgba(255,255,255,.42)'; c.font = sans(24, 800);
+      // O letter-spacing também é aplicado DEPOIS da última letra, então o
+      // texto centralizado sai 3px pra direita. Metade do espaçamento de
+      // volta resolve.
       c.letterSpacing = '6px';
-      c.fillText(String(f.titulo || '').toUpperCase(), L / 2, topo + 40);
+      c.fillText(String(f.titulo || '').toUpperCase(), L / 2 - 3, topo + 40);
       c.letterSpacing = '0px';
 
       const itens = (f.itens || []).slice(0, 8);
       if (!itens.length) return;
 
-      const porLinha = itens.length > 4 ? 4 : itens.length;
+      // Até cinco cabem numa linha só — e precisam caber, senão um quinteto
+      // sai 4+1 e deixa de parecer escalação. Acima disso, duas linhas
+      // iguais.
+      const porLinha = itens.length <= 5 ? itens.length : Math.ceil(itens.length / 2);
       const linhas = Math.ceil(itens.length / porLinha);
-      const lado = linhas > 1 ? 108 : 140;
       const gap = 30;
+      const lado = Math.min(linhas > 1 ? 112 : 140,
+                            Math.floor((L - P * 2 - 60 - gap * (porLinha - 1)) / porLinha));
       const alturaItem = lado + 44;
       const yBase = topo + (altura - 40 - alturaItem * linhas) / 2 + 70;
 
