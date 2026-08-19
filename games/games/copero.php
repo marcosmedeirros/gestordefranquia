@@ -181,9 +181,10 @@ button{font-family:inherit}
 
 .camisa{position:relative;width:190px;margin:0 auto 16px;aspect-ratio:1/1.06}
 .camisa svg{width:100%;height:100%;display:block}
-.camisa-nome{position:absolute;top:38%;left:0;right:0;text-align:center;font-size:13px;font-weight:800;
+.camisa-nome{position:absolute;top:41%;line-height:1;left:14%;right:14%;text-align:center;font-size:12.5px;font-weight:800;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   letter-spacing:1px;color:#fff;text-transform:uppercase}
-.camisa-num{position:absolute;top:46%;left:0;right:0;text-align:center;font-size:46px;font-weight:900;
+.camisa-num{position:absolute;top:50%;left:0;right:0;text-align:center;font-size:44px;font-weight:900;
   color:#fff;line-height:1;letter-spacing:-2px}
 
 .campo-rot{font-size:9.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);
@@ -230,19 +231,19 @@ button{font-family:inherit}
 .carreira{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:16px;align-items:start}
 
 .ficha{padding:18px}
-.ficha-topo{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px}
+.ficha-topo{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px;flex-wrap:wrap}
 .ovr-caixa{width:82px;height:82px;border-radius:14px;display:flex;flex-direction:column;align-items:center;
   justify-content:center;flex:none;color:#0a0a0c}
 .ovr-caixa small{font-size:9px;font-weight:800;letter-spacing:1px;opacity:.7}
 .ovr-caixa b{font-size:33px;font-weight:900;line-height:1;letter-spacing:-1.5px}
-.ficha-info{flex:1;min-width:0}
-.ficha-tags{display:flex;align-items:center;gap:7px;margin-bottom:7px;flex-wrap:wrap}
+.ficha-info{flex:1 1 150px;min-width:0}
+.ficha-tags{display:flex;align-items:center;gap:7px;margin-bottom:7px;flex-wrap:wrap;min-height:22px}
 .tag{display:inline-flex;align-items:center;gap:5px;background:var(--panel3);border-radius:6px;
   padding:3px 8px;font-size:11px;font-weight:800}
 .tag.pos{background:#7f1d3a;color:#fff}
-.tag svg{width:17px;height:11px;border-radius:2px}
+.tag svg{width:17px;height:11px;border-radius:2px;flex:none;display:block}
 .ficha-clube{display:flex;align-items:center;gap:9px;font-size:20px;font-weight:900;letter-spacing:-.5px}
-.ficha-num{text-align:right;font-size:11px;color:var(--txt3);font-weight:700;letter-spacing:.5px}
+.ficha-num{text-align:right;flex:none;margin-left:auto;font-size:11px;color:var(--txt3);font-weight:700;letter-spacing:.5px}
 .ficha-num b{display:block;font-size:19px;color:var(--txt);letter-spacing:-.5px}
 
 .ficha-stats{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--borda);
@@ -553,16 +554,83 @@ function comecarCarreira(){
 
 /* ── O laço da carreira ─────────────────────────────── */
 
-/** Ofertas de clube compatíveis com o OVR atual. */
-function ofertas(quantos, exceto){
+/**
+ * Onde um jogador deste país tende a COMEÇAR.
+ *
+ * Brasileiro sai do Brasil, não do Nice. Marroquino sai do Marrocos ou da
+ * França, que é pra onde a imigração leva — e é isso que faz a escolha de
+ * nacionalidade valer alguma coisa além da bandeirinha.
+ *
+ * Primeiro o país da pessoa; depois os destinos naturais dela. Quem não está
+ * na lista cai no próprio país e, se ele não tiver liga, no mundo todo.
+ */
+const DESTINOS = {
+  BRA:['BRA','POR'],            ARG:['ARG','ESP','ITA'],   URU:['URU','ARG','ESP'],
+  CHI:['CHI','ARG'],            COL:['COL','ARG','MEX'],   ENG:['ENG','SCO'],
+  ESP:['ESP','POR'],            ITA:['ITA','ESP'],         GER:['GER','AUT'],
+  FRA:['FRA','BEL'],            POR:['POR','ESP'],         NED:['NED','BEL','GER'],
+  BEL:['BEL','NED','FRA'],      CRO:['CRO','ITA','GER'],   TUR:['TUR','GER'],
+  RUS:['RUS'],                  SCO:['SCO','ENG'],         GRE:['GRE','ITA'],
+  USA:['USA','MEX'],            MEX:['MEX','USA'],         KSA:['KSA'],
+  JPN:['JPN','KOR'],            KOR:['KOR','JPN'],
+  // África: quem sai, sai principalmente pra França, Bélgica e Portugal.
+  EGY:['EGY','KSA'],            MAR:['MAR','FRA','ESP'],   RSA:['RSA','ENG'],
+  NGA:['NGA','ENG','BEL'],      SEN:['SEN','FRA','BEL'],   CIV:['CIV','FRA','BEL'],
+  AUS:['AUS','ENG'],
+};
+
+/** Os países onde um jogador desta nacionalidade pode começar. */
+function paisesDeInicio(pais){
+  const d = DESTINOS[pais] || [pais];
+  // Só os que têm liga no catálogo — Senegal e Costa do Marfim não têm, e a
+  // lista deles precisa cair na França sem virar oferta vazia.
+  const comLiga = new Set(Object.values(LIGAS).map(l => l[0]));
+  const bons = d.filter(p => comLiga.has(p));
+  return bons.length ? bons : null;
+}
+
+/**
+ * Ofertas de clube compatíveis com o OVR atual.
+ *
+ * `soDeCasa` restringe aos países de origem da nacionalidade — é o que usa a
+ * oferta de base, porque ninguém de 16 anos sai do Brasil direto pro Nice.
+ * Depois disso o mundo abre: quem é bom vai pra onde quiser, e é justamente
+ * isso que faz a carreira ter trajetória.
+ */
+function ofertas(quantos, exceto, soDeCasa){
   const teto = S.ovr + 8, piso = Math.max(40, S.ovr - 25);
   const fora = new Set(exceto || []);
-  const elegiveis = CLUBES.filter(c => c.forca <= teto && c.forca >= piso && !fora.has(c.nome));
+  let elegiveis = CLUBES.filter(c => c.forca <= teto && c.forca >= piso && !fora.has(c.nome));
+
+  // Sorteia de uma lista, tirando o que já saiu.
+  const sortear = (lista, n, jaTem) => {
+    const copia = lista.filter(c => !jaTem.has(c.nome));
+    const out = [];
+    while (out.length < n && copia.length) {
+      out.push(copia.splice(Math.floor(Math.random()*copia.length), 1)[0]);
+    }
+    return out;
+  };
+
   const sorteados = [];
-  const copia = elegiveis.slice();
-  while (sorteados.length < quantos && copia.length) {
-    sorteados.push(copia.splice(Math.floor(Math.random()*copia.length), 1)[0]);
+  const jaTem = new Set();
+
+  if (soDeCasa) {
+    const paises = paisesDeInicio(S.pais);
+    if (paises) {
+      const daCasa = elegiveis.filter(c => {
+        const l = dadosLiga(c.liga);
+        return l && paises.includes(l.pais);
+      });
+      // Pega o que houver da origem e COMPLETA com o resto do mundo. Antes
+      // eu descartava a origem inteira quando ela não tinha 3 clubes na
+      // faixa — e aí o marroquino começava na Inglaterra e o senegalês no
+      // Brasil, que é o oposto do que a nacionalidade deveria fazer.
+      sortear(daCasa, quantos, jaTem).forEach(c => { sorteados.push(c); jaTem.add(c.nome); });
+    }
   }
+
+  sortear(elegiveis, quantos - sorteados.length, jaTem).forEach(c => sorteados.push(c));
   return sorteados;
 }
 
@@ -758,7 +826,7 @@ function render(){
 
 function blocoDecisao(){
   if (S.fase === 'oferta_base') {
-    if (!S.opcoes) S.opcoes = ofertas(3, []);
+    if (!S.opcoes) S.opcoes = ofertas(3, [], true);
     return `<div class="evento"><h3>Oferta de base</h3>
       <p>Três clubes querem te incluir no projeto de base. Escolha onde sua carreira começa.</p>
       ${cartasDeClube(S.opcoes)}</div>`;
