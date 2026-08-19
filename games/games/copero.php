@@ -469,6 +469,9 @@ button{font-family:inherit}
      e sobrava quase nada pro nome do clube. */
   .ficha-num{flex-direction:column;gap:2px}
   .ficha-num b{font-size:16px}
+  /* 18px e não 20: com o apelido, é o que faz até "V. Guimarães" caber
+     inteiro nos 122px que sobram pro nome numa tela de 375. */
+  .ficha-clube{font-size:18px}
   .modos{grid-template-columns:1fr}
   .resumo-topo{grid-template-columns:1fr}
   #app{padding:12px 11px 40px}
@@ -1543,8 +1546,8 @@ function render(){
             <div class="ovr-caixa" style="background:${cor}">
               <small>OVR</small><b>${S.ovr}</b></div>
             <div class="ficha-info">
-              <div class="ficha-clube">
-                ${S.clube ? escudo(S.clube, 26) + `<span>${esc(S.clube.nome)}</span>`
+              <div class="ficha-clube" ${S.clube ? `title="${esc(S.clube.nome)}"` : ''}>
+                ${S.clube ? escudo(S.clube, 26) + `<span>${esc(nomeCurto(S.clube.nome))}</span>`
                           : `<span style="color:var(--txt3)">Sem clube</span>`}
               </div>
               ${l ? `<div class="ficha-liga">${esc(l.nome)}</div>` : ''}
