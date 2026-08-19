@@ -57,8 +57,6 @@ function coperoGarantirTabela(PDO $pdo): void
                 $pdo->exec("ALTER TABLE copero_carreiras ADD COLUMN {$col} {$tipo}");
             }
         }
-        $pdo->exec("CREATE INDEX idx_copero_pontuacao ON copero_carreiras (pontuacao)");
-
         // As carreiras gravadas ANTES destas colunas ficariam todas com zero,
         // e zero empatado não é ranking. Elas recebem a pontuação possível
         // com o que se sabe delas — sem os títulos, que ninguém guardou.
@@ -67,6 +65,11 @@ function coperoGarantirTabela(PDO $pdo): void
                                         + (gols + ast) * 1.6 + jogos * 0.4
                                         + pico_valor / 1000000 * 2)
                     WHERE pontuacao = 0");
+
+        // O índice por último e no seu PRÓPRIO try: ele estoura toda vez
+        // depois da primeira, e engolia o UPDATE acima junto.
+        try { $pdo->exec("CREATE INDEX idx_copero_pontuacao ON copero_carreiras (pontuacao)"); }
+        catch (Throwable $e) { /* já existe */ }
     } catch (Throwable $e) {
         // O índice duplicado cai aqui na segunda vez, e tudo bem.
         if (!str_contains($e->getMessage(), 'Duplicate key name')) {
