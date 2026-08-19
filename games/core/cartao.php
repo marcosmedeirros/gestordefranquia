@@ -363,6 +363,58 @@ function cartaoScript(): string
    * Manda a imagem. No celular abre a folha do sistema — um toque até o
    * grupo. No desktop essa folha não existe pra arquivo, então baixa.
    */
+  /** O cartão como PNG, que é o que baixar e copiar precisam. */
+  async function comoBlob(d){
+    const cv = await fbaCartaoImagem(d);
+    return await new Promise((ok, err) =>
+      cv.toBlob(b => b ? ok(b) : err(new Error('não gerou a imagem')), 'image/png'));
+  }
+
+  function avisar(botao, texto, antes){
+    if (!botao) return;
+    botao.textContent = texto;
+    setTimeout(() => { botao.textContent = antes; }, 1800);
+  }
+
+  /** Baixa o cartão como arquivo. */
+  window.fbaBaixar = async function (d, botao){
+    const antes = botao ? botao.textContent : '';
+    if (botao) botao.textContent = 'Gerando…';
+    try {
+      const blob = await comoBlob(d);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = String(d.nome || 'fba').replace(/[^\w-]+/g, '-') + '.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      avisar(botao, 'Baixado ✓', antes);
+    } catch (e) {
+      avisar(botao, 'Não deu certo', antes);
+    }
+  };
+
+  /**
+   * Copia o cartão pra área de transferência, pra colar direto na conversa.
+   *
+   * O ClipboardItem recebe a PROMESSA do blob, e não o blob pronto: o Safari
+   * exige que a escrita comece dentro do clique, e esperar a imagem ficar
+   * pronta antes já perde essa permissão.
+   */
+  window.fbaCopiar = async function (d, botao){
+    const antes = botao ? botao.textContent : '';
+    if (!navigator.clipboard || !window.ClipboardItem){
+      return fbaBaixar(d, botao);   // navegador antigo: baixar é o que dá
+    }
+    if (botao) botao.textContent = 'Gerando…';
+    try {
+      await navigator.clipboard.write([new ClipboardItem({'image/png': comoBlob(d)})]);
+      avisar(botao, 'Copiado ✓', antes);
+    } catch (e) {
+      // Alguns navegadores recusam a imagem mas deixam baixar.
+      try { await fbaBaixar(d, botao); } catch (e2) { avisar(botao, 'Não deu certo', antes); }
+    }
+  };
+
   window.fbaCompartilhar = async function (d, botao){
     const antes = botao ? botao.textContent : '';
     if (botao) botao.textContent = 'Gerando…';

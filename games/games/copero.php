@@ -338,6 +338,20 @@ button{font-family:inherit}
 .ano-ovr{display:inline-flex;align-items:center;justify-content:center;border-radius:6px;padding:2px 0;
   font-size:11.5px;font-weight:800;color:#0a0a0c}
 .ano-n{text-align:right;font-size:12px;color:var(--txt2);font-variant-numeric:tabular-nums}
+/* ── Sala de troféus ────────────────────────────────── */
+.sala{padding:16px 18px;margin-bottom:14px}
+.sala.vazia{text-align:center;color:var(--txt3);font-size:12px;font-weight:800;
+  letter-spacing:1px;text-transform:uppercase;padding:22px}
+.sala-cab{display:flex;align-items:center;gap:10px;font-size:9.5px;font-weight:800;letter-spacing:1px;
+  color:var(--txt3);text-transform:uppercase;margin-bottom:14px}
+.sala-cab b{background:var(--panel3);color:var(--txt);border-radius:6px;padding:2px 8px;font-size:12px}
+.sala-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:14px 10px}
+.sala-item{display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;min-width:0}
+.sala-item span{font-size:10.5px;font-weight:700;color:var(--txt2);line-height:1.25}
+.sala-taca{position:relative;display:inline-flex}
+.sala-taca i{position:absolute;right:-8px;bottom:-2px;background:var(--panel3);border-radius:6px;
+  padding:1px 5px;font-size:10px;font-weight:900;font-style:normal;color:var(--txt)}
+
 /* ── Fim ────────────────────────────────────────────── */
 .fim{text-align:center;padding:34px 20px}
 .fim h2{font-size:26px;font-weight:900;margin-bottom:16px}
@@ -1588,7 +1602,7 @@ function linhaDoTempo(){
  */
 const svgImagem = (svg) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 
-function compartilharCarreira(botao){
+function compartilharCarreira(botao, modo){
   const t = S.temporadas || [];
   const tot = t.reduce((a,x)=>({jogos:a.jogos+x.jogos, gols:a.gols+x.gols, ast:a.ast+x.ast}),
                        {jogos:0,gols:0,ast:0});
@@ -1620,7 +1634,11 @@ function compartilharCarreira(botao){
                  width="120" height="80">${BAND[S.pais]}</svg>`)
     : '';
 
-  fbaCompartilhar({
+  // Duas saídas, e só essas duas: baixar o arquivo ou copiar pra colar na
+  // conversa. A folha de compartilhamento do sistema ficava de fora porque
+  // no computador ela nem existe pra arquivo, e aí virava um botão que se
+  // comportava de um jeito no celular e de outro no desktop.
+  (modo === 'copiar' ? fbaCopiar : fbaBaixar)({
     c1: corDoOvr(S.picoOvr), c2: '#0a0a0c',
     numero: S.picoOvr, rotulo: 'OVR',
     pilulas: [
@@ -1640,6 +1658,43 @@ function compartilharCarreira(botao){
 }
 
 /* ── Fim ────────────────────────────────────────────── */
+/**
+ * A sala de troféus da carreira inteira.
+ *
+ * Agrupa pelo NOME resolvido, não pelo id: quem foi campeão na Alemanha e
+ * na Espanha tem Bundesliga e LaLiga separadas, e não "Campeonato Nacional
+ * ×2" — que era exatamente a informação que se perdia. Títulos de clube
+ * primeiro, prêmios individuais depois; dentro de cada grupo, o mais
+ * repetido na frente.
+ */
+function salaDeTrofeus(){
+  const ordem = ['mundial','cont','liga','copa','bola_ouro','chuteira','rei_america','artilheiro'];
+  const grupos = {};
+  (S.temporadas || []).forEach(t => (t.titulos || []).forEach(id => {
+    const nome = nomeDaTaca(id, t.liga);
+    const chave = id + '|' + nome;
+    if (!grupos[chave]) grupos[chave] = {id, nome, n: 0};
+    grupos[chave].n++;
+  }));
+
+  const lista = Object.values(grupos).sort((a, b) =>
+    (ordem.indexOf(a.id) - ordem.indexOf(b.id)) || (b.n - a.n));
+
+  if (!lista.length) {
+    return `<div class="caixa sala vazia">Nenhum título na carreira</div>`;
+  }
+  const total = lista.reduce((s, g) => s + g.n, 0);
+  return `<div class="caixa sala">
+    <div class="sala-cab">Sala de troféus<b>${total}</b></div>
+    <div class="sala-grade">
+      ${lista.map(g => `<div class="sala-item">
+        <div class="sala-taca">${taca(g.id, 46)}${g.n > 1 ? `<i>×${g.n}</i>` : ''}</div>
+        <span>${esc(g.nome)}</span>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
 async function telaFim(){
   const tot = S.temporadas.reduce((a,t)=>({jogos:a.jogos+t.jogos, gols:a.gols+t.gols, ast:a.ast+t.ast}),
                                   {jogos:0,gols:0,ast:0});
@@ -1655,7 +1710,10 @@ async function telaFim(){
     <div class="caixa fim">
       <h2>Sua carreira chegou ao fim</h2>
       <div class="acoes-fim">
-        <button class="btn" id="btnFoto" onclick="compartilharCarreira(this)">Compartilhar carreira</button>
+        <button class="btn" id="btnFoto" onclick="compartilharCarreira(this,'baixar')">
+          <i class="bi bi-download"></i> Baixar imagem</button>
+        <button class="btn" onclick="compartilharCarreira(this,'copiar')">
+          <i class="bi bi-clipboard"></i> Copiar imagem</button>
         <button class="btn btn2" onclick="apagar();S=null;telaInicio()">Jogar novamente</button>
       </div>
     </div>
@@ -1686,6 +1744,8 @@ async function telaFim(){
         <div style="font-size:12px;color:var(--txt2)">${S.temporadas.length} temporadas · ${Object.keys(porClube).length} clubes</div>
       </div>
     </div>
+
+    ${salaDeTrofeus()}
 
     <div class="clubes-grade">
       ${Object.entries(porClube).map(([nome,n]) => `
