@@ -79,6 +79,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $menorCampeaoCont = 99; // o clube mais fraco com que ganhou o continental
     $lesoes = 0; $idadePico = 0;
     $primeiroClube = null; $primeiroNivel = 0; $subiuComOMesmo = false;
+    $paisesCampeao = [];                 // em quantos países foi campeão nacional
+    $seqClube = null; $seq = 0; $maiorSeq = 0;   // temporadas SEGUIDAS no mesmo clube
 
     foreach ($temporadas as $i => $t) {
         $tot['jogos'] += max(0, (int)($t['jogos'] ?? 0));
@@ -103,13 +105,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // MESMO clube. É o clube que sobe junto com você.
         if ($primeiroClube === null) { $primeiroClube = $nome; $primeiroNivel = (int)$liga['nivel']; }
 
+        // A sequência é SEGUIDA: quem sai e volta recomeça a contagem, que é
+        // o que "ídolo da casa" quer dizer.
+        if ($nome === $seqClube) { $seq++; } else { $seqClube = $nome; $seq = 1; }
+        $maiorSeq = max($maiorSeq, $seq);
+
         $daTemporada = is_array($t['titulos'] ?? null) ? $t['titulos'] : [];
         foreach ($daTemporada as $id) {
             $id = (string)$id;
             $tit[$id] = ($tit[$id] ?? 0) + 1;
             if ($id === 'liga') {
                 $ligasVencidas[$ligaId] = 1;
-                if ($nome === $primeiroClube && $primeiroNivel >= 3 && (int)$liga['nivel'] === 1) {
+                $paisesCampeao[$liga['pais']] = 1;
+                // "Do fundo ao topo": o clube que te contratou lá embaixo é o
+                // mesmo que te deu o título nacional depois de subir.
+                if ($nome === $primeiroClube && $primeiroNivel >= 2 && (int)$liga['nivel'] === 1) {
                     $subiuComOMesmo = true;
                 }
             }
@@ -162,6 +172,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'tripla' => $tripla, 'menorCampeaoCont' => $menorCampeaoCont,
         'subiuComOMesmo' => $subiuComOMesmo,
         'lesoes' => $lesoes, 'idadePico' => $idadePico,
+        'maiorSequencia' => $maiorSeq, 'paisesCampeao' => count($paisesCampeao),
         'posicao' => (string)($c['posicao'] ?? ''),
         'pais' => (string)($c['pais'] ?? ''),
     ];
