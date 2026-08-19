@@ -345,7 +345,9 @@ button{font-family:inherit}
 .sala-cab{display:flex;align-items:center;gap:10px;font-size:9.5px;font-weight:800;letter-spacing:1px;
   color:var(--txt3);text-transform:uppercase;margin-bottom:14px}
 .sala-cab b{background:var(--panel3);color:var(--txt);border-radius:6px;padding:2px 8px;font-size:12px}
-.sala-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:14px 10px}
+/* 92px e não 104: com o padding da caixa, 104 só deixava DUAS taças por
+   linha numa tela de 375, e a sala ficava uma coluna comprida. */
+.sala-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:14px 10px}
 .sala-item{display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;min-width:0}
 .sala-item span{font-size:10.5px;font-weight:700;color:var(--txt2);line-height:1.25}
 .sala-taca{position:relative;display:inline-flex}
