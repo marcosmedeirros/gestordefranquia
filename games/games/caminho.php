@@ -2298,7 +2298,11 @@ function gerarOfertas(){
   // Dispensado: a liga não faz proposta nenhuma. Sobram as portas de fora —
   // e a de pendurar as chuteiras, que a tela do mercado sempre oferece
   // quando é este o caso.
-  if (!ligaAindaQuer()){
+  // A dispensa é pra quem ESTAVA na liga e caiu. Quem já está fora tem o
+  // mercado de fora logo abaixo — sem isso, o garoto de 19 anos na G League
+  // via 'a liga não ligou' e a sugestão de pendurar as chuteiras no primeiro
+  // ano de carreira.
+  if (!S.foraDaLiga && !ligaAindaQuer()){
     S.dispensado = true;
     // Fim de linha de verdade: com essa idade e esse nível não existe mais
     // clube nenhum, nem na G League. A tela do mercado vira a despedida.
@@ -2321,12 +2325,21 @@ function gerarOfertas(){
                nota:"Longe de tudo, pagando bem, e você volta a ser o cara do time."});
     return fora;
   }
-  S.dispensado = false;
+  if (!S.foraDaLiga) S.dispensado = false;
 
   // Quem está fora da liga não recebe proposta dela como se nada tivesse
   // acontecido: o mercado de lá é outro. Ou renova, ou troca de clube no
   // exterior — e só entra na liga se o número justificar.
   if (S.foraDaLiga){
+    // Fora da liga também acaba. O clube de fora paga por quem joga, e o
+    // veterano que caiu da liga e não rende mais fica sem proposta nenhuma —
+    // é o mesmo fim de linha de dentro, e é onde a maioria das carreiras que
+    // desceram um degrau termina.
+    const oFora = ovr(S.A, S.pos);
+    const ptsFora = (S.ultimo && S.ultimo.pts) || 0;
+    const pisoFora = S.idade <= 24 ? 52 : S.idade <= 28 ? 60 : S.idade <= 32 ? 66 : 72;
+    if (oFora < pisoFora || (S.idade >= 29 && ptsFora < 9)) return [];
+
     ofertas.push({tipo:"renovar", time:S.time, liga:S.liga, salario:Math.max(1,Math.round(v*0.9)),
                   forca:S.forcaBase, papel:S.papel || "titular",
                   nota:"Ficar onde você já é titular."});
