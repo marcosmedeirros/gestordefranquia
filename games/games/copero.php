@@ -53,8 +53,10 @@ function coperoGarantirTabela(PDO $pdo): void
 // ── Encerramento: grava a carreira e devolve as conquistas ────────────
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     header('Content-Type: application/json; charset=utf-8');
-    if ($idUsuario <= 0) { echo json_encode(['ok' => false, 'erro' => 'sem sessão']); exit; }
 
+    // Sem sessão a carreira NÃO é gravada, mas as conquistas são calculadas
+    // e devolvidas do mesmo jeito. O jogo abre sem login, e recusar aqui
+    // fazia quem jogasse assim terminar a carreira sem ver conquista nenhuma.
     $c = json_decode((string)($_POST['carreira'] ?? ''), true);
     if (!is_array($c)) { echo json_encode(['ok' => false, 'erro' => 'carreira inválida']); exit; }
 
@@ -130,6 +132,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
     $picoOvr = min(99, $picoOvr);
 
+    if ($idUsuario > 0) {
     coperoGarantirTabela($pdo);
     try {
         $pdo->prepare("INSERT INTO copero_carreiras
@@ -146,6 +149,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         ]);
     } catch (Throwable $e) {
         error_log('[copero] gravar: ' . $e->getMessage());
+    }
     }
 
     // Conquistas: testadas no servidor, com os totais recalculados.
