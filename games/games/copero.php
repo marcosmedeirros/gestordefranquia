@@ -816,7 +816,7 @@ const contDoPais   = pais => (SELECOES[pais] || [0,'EUR'])[1];
  */
 function convocado(ovr, pais){
   const f = forcaSelecao(pais);
-  return f > 0 && ovr >= f - 10;
+  return f > 0 && ovr >= f - 8;
 }
 
 /**
@@ -834,9 +834,11 @@ function titulosDaSelecao(ovr, ano){
   const ganhos = [];
   const peso = x => Math.pow(Math.max(35, x) / 100, 18);
 
-  // O jogador pesa MAIS na seleção do que no clube: são só onze, e um
-  // craque muda uma seleção de um jeito que não muda um elenco inteiro.
-  const meu = peso(f) * (1 + Math.max(0, ovr - f + 8) * 0.05);
+  // O jogador pesa MAIS na seleção do que no clube: são só onze, e um craque
+  // muda uma seleção de um jeito que não muda um elenco inteiro. Mas com
+  // TETO: sem ele um japonês de 90 quase dobrava a força do Japão e levava
+  // 80% das Copas da Ásia sozinho.
+  const meu = peso(f) * Math.min(1.5, 1 + Math.max(0, ovr - f + 8) * 0.03);
   const todas = Object.values(SELECOES);
 
   if (ano % 4 === 2) {                        // Copa do Mundo
