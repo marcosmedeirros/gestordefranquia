@@ -109,6 +109,22 @@ $stmt = $pdo->prepare('
 $stmt->execute([$user['league']]);
 $teams = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+// O time do usuário fica fixado em primeiro — o resto segue a ordem normal
+// (cidade/nome). A borda de destaque (.team-card-mine) já existia; faltava
+// só isto.
+if ($team) {
+    $idxMeuTime = null;
+    foreach ($teams as $idx => $t) {
+        if ((int)$t['id'] === (int)$team['id']) { $idxMeuTime = $idx; break; }
+    }
+    if ($idxMeuTime !== null && $idxMeuTime !== 0) {
+        $meuTime = $teams[$idxMeuTime];
+        unset($teams[$idxMeuTime]);
+        array_unshift($teams, $meuTime);
+        $teams = array_values($teams);
+    }
+}
+
 // O que cada time já recebeu de terceiros (skills, stats), numa consulta só —
 // é o que decide se o ícone de atualizar aparece.
 $atualizacoesFeitas = atualizacaoTiposFeitosDaLiga($pdo, (string)$user['league']);
