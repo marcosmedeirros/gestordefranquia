@@ -777,7 +777,7 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
     // Um SELECT pro elenco da liga inteira. Um por time seriam 32 idas ao
     // banco só pra montar uma mensagem.
     $ovrCol = wcColunaOvr($pdo);
-    $st = $pdo->prepare("SELECT team_id, name, position, secondary_position, role, age, {$ovrCol} AS ovr
+    $st = $pdo->prepare("SELECT id, team_id, name, position, secondary_position, role, age, {$ovrCol} AS ovr
                          FROM players WHERE team_id IN (
                              SELECT id FROM teams WHERE league = ?
                          ) ORDER BY {$ovrCol} DESC");
@@ -1678,7 +1678,25 @@ function wcForcaDoTime(array $elenco): float
     $juventude = $mediaIdade > 0 ? max(0, 30 - $mediaIdade) : 0;
     $castigo   = $mediaIdade > 32 ? ($mediaIdade - 32) * 1.8 : 0;
 
-    $score = ($mediaOvr * 1.6) + ($tetoOvr * 0.6) + ($juventude * 0.8) - $castigo;
+    // O banco entra: com quinteto montado sozinho, dois times podiam ter os
+    // mesmos cinco na frente e elencos completamente diferentes atrás, e a
+    // régua dava empate. Pesa menos que os titulares de propósito — banco
+    // decide série, não decide quem é favorito.
+    //
+    // Só os TRÊS melhores de fora do quinteto: rotação de verdade é isso, e
+    // somar o elenco inteiro faria o 15º jogador diluir quem realmente joga.
+    $idsCinco = array_flip(array_map(fn($p) => (int)$p['id'], $cinco));
+    $banco = [];
+    foreach ($elenco as $p) {
+        if (isset($idsCinco[(int)($p['id'] ?? 0)])) continue;
+        $banco[] = (int)($p['ovr'] ?? 0);
+    }
+    rsort($banco);
+    $banco = array_slice($banco, 0, 3);
+    $mediaBanco = $banco ? array_sum($banco) / count($banco) : 0;
+
+    $score = ($mediaOvr * 1.6) + ($tetoOvr * 0.6) + ($mediaBanco * 0.5)
+           + ($juventude * 0.8) - $castigo;
     if ($tetoOvr >= 89) $score += 2.0;                        // tem franquia
     if (count($cinco) < 5) $score -= (5 - count($cinco)) * 1.2;
 
