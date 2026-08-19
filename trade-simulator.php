@@ -709,7 +709,7 @@ async function boot() {
   // Pre-load my team in A
   if (MY_TEAM_ID) {
     const sel = document.getElementById(`sel_${activeSlots[0]}`);
-    if (sel) { sel.value = MY_TEAM_ID; loadTeam(activeSlots[0], MY_TEAM_ID); }
+    if (sel) { sel.value = MY_TEAM_ID; await loadTeam(activeSlots[0], MY_TEAM_ID); }
   }
 
   // Chegando de "Propor troca" na pagina de um time/jogador, ja abre o outro
@@ -719,7 +719,7 @@ async function boot() {
     const selB = document.getElementById(`sel_${activeSlots[1]}`);
     if (selB && [...selB.options].some(o => Number(o.value) === alvo)) {
       selB.value = String(alvo);
-      loadTeam(activeSlots[1], alvo);
+      await loadTeam(activeSlots[1], alvo);
     }
   }
 
@@ -735,7 +735,144 @@ async function boot() {
       + `ao enviar, a original é cancelada.`;
     const bar = document.getElementById('capBar');
     if (bar && bar.parentNode) bar.parentNode.insertBefore(aviso, bar);
+    await preencherContraproposta(CONTRA_TRADE);
   }
+}
+
+/**
+ * Monta a mesa com o INVERSO da proposta original.
+ *
+ * Contraproposta é uma resposta, não uma proposta nova: quem abre quer ver o
+ * que estava na mesa e mexer a partir dali. Vindo vazia, a pessoa tinha que
+ * remontar tudo de cabeça só pra depois mudar uma peça.
+ *
+ * A inversão é a mesma que o modal faz: o que ELES ofereciam vira o que EU
+ * peço, e o que eles pediam vira o que eu ofereço.
+ *
+ * Item que não estiver mais no elenco é ignorado — jogador negociado depois
+ * da proposta não pode voltar pra mesa só porque estava num papel antigo.
+ */
+async function preencherContraproposta(tradeId) {
+  const [kA, kB] = activeSlots;
+  if (!teams[kA] || !teams[kB]) return;
+
+  let orig = null;
+  try {
+    // A contraproposta responde algo que EU recebi; 'sent' fica de reserva
+    // pra quando a tela mudar de lugar e o mesmo botão for reaproveitado.
+    for (const tipo of ['received', 'sent']) {
+      const r = await fetch(`/api/trades.php?type=${tipo}`);
+      const d = await r.json();
+      orig = (d.trades || []).find(t => Number(t.id) === Number(tradeId));
+      if (orig) break;
+    }
+  } catch (e) { /* sem a original, a mesa fica vazia — e a faixa já avisa */ }
+  if (!orig) return;
+
+  // Acha o item no elenco carregado. Sem isso não dá pra montar a linha:
+  // salário, OVR e idade vivem lá, não no papel da proposta.
+  const acharJogador = (key, id) => (teams[key].players || []).find(p => Number(p.id) === Number(id));
+  const acharPick    = (key, id) => (teams[key].picks   || []).find(p => Number(p.id) === Number(id));
+
+  const porJogador = (destino, origem, id) => {
+    const p = acharJogador(origem, id);
+    if (!p) return;
+    receives[destino].push({ id: p.id, type: 'player', fromKey: origem, name: p.name,
+      pos: p.position, age: p.age, ovr: p.ovr, salary: p.salary });
+    teams[origem].tradedOut.add(p.id);
+  };
+
+  const porPick = (destino, origem, id) => {
+    const pk = acharPick(origem, id);
+    if (!pk) return;
+    receives[destino].push({ id: pk.id, type: 'pick', fromKey: origem, label: pickLabel(pk),
+      orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round,
+      season_year: pk.season_year, swapRole: null,
+      podeProteger: !!pk.pode_proteger, protection: pk.protection || null,
+      protecaoOriginal: pk.protection || null });
+  };
+
+  // O que ELES ofereciam: eu passo a pedir. Sai do elenco deles (kB) pro meu.
+  (orig.offer_players || []).forEach(p => porJogador(kA, kB, p.id ?? p.player_id));
+  (orig.offer_picks   || []).forEach(p => porPick(kA, kB, p.id ?? p.pick_id));
+  // O que eles pediam: eu passo a oferecer.
+  (orig.request_players || []).forEach(p => porJogador(kB, kA, p.id ?? p.player_id));
+  (orig.request_picks   || []).forEach(p => porPick(kB, kA, p.id ?? p.pick_id));
+
+  activeSlots.forEach(k => {
+    renderPanel(k);
+    if (window._allTeams) populateTeamSelect(k, window._allTeams);
+    if (teams[k]) { const sel = document.getElementById(`sel_${k}`); if (sel) sel.value = teams[k].id; }
+  });
+  recalc();
+}
+
+/**
+ * Monta a mesa com o INVERSO da proposta original.
+ *
+ * Contraproposta é resposta, não proposta nova: quem abre quer ver o que
+ * estava na mesa e mexer a partir dali. Vindo vazia, a pessoa tinha que
+ * remontar tudo de cabeça só pra depois trocar uma peça.
+ *
+ * A inversão é a mesma do modal: o que ELES ofereciam vira o que EU peço, e o
+ * que eles pediam vira o que eu ofereço.
+ *
+ * Item que não está mais no elenco é ignorado — jogador negociado depois da
+ * proposta não pode voltar pra mesa só porque estava num papel antigo.
+ */
+async function preencherContraproposta(tradeId) {
+  const [kA, kB] = activeSlots;
+  if (!teams[kA] || !teams[kB]) return;
+
+  let orig = null;
+  try {
+    // A contraproposta responde algo que EU recebi; 'sent' fica de reserva
+    // pra caso o mesmo botão seja reaproveitado noutra tela.
+    for (const tipo of ['received', 'sent']) {
+      const r = await fetch(`/api/trades.php?type=${tipo}`);
+      const d = await r.json();
+      orig = (d.trades || []).find(t => Number(t.id) === Number(tradeId));
+      if (orig) break;
+    }
+  } catch (e) { /* sem a original a mesa fica vazia, e a faixa já avisa */ }
+  if (!orig) return;
+
+  // Os dados da linha (salário, OVR, idade) vivem no elenco carregado, não no
+  // papel da proposta — por isso tudo é procurado por id ali.
+  const acharJogador = (key, id) => (teams[key].players || []).find(p => Number(p.id) === Number(id));
+  const acharPick    = (key, id) => (teams[key].picks   || []).find(p => Number(p.id) === Number(id));
+
+  const porJogador = (destino, origem, id) => {
+    const p = acharJogador(origem, id);
+    if (!p) return;
+    receives[destino].push({ id: p.id, type: 'player', fromKey: origem, name: p.name,
+      pos: p.position, age: p.age, ovr: p.ovr, salary: p.salary });
+    teams[origem].tradedOut.add(p.id);
+  };
+
+  const porPick = (destino, origem, id) => {
+    const pk = acharPick(origem, id);
+    if (!pk) return;
+    receives[destino].push({ id: pk.id, type: 'pick', fromKey: origem, label: pickLabel(pk),
+      orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round,
+      season_year: pk.season_year, swapRole: null,
+      podeProteger: !!pk.pode_proteger, protection: pk.protection || null,
+      protecaoOriginal: pk.protection || null });
+  };
+
+  // O que ELES ofereciam, eu passo a pedir: sai do elenco deles pro meu.
+  (orig.offer_players || []).forEach(p => porJogador(kA, kB, p.id ?? p.player_id));
+  (orig.offer_picks   || []).forEach(p => porPick(kA, kB, p.id ?? p.pick_id));
+  // O que eles pediam, eu passo a oferecer.
+  (orig.request_players || []).forEach(p => porJogador(kB, kA, p.id ?? p.player_id));
+  (orig.request_picks   || []).forEach(p => porPick(kB, kA, p.id ?? p.pick_id));
+
+  activeSlots.forEach(k => {
+    renderPanel(k);
+    if (window._allTeams) populateTeamSelect(k, window._allTeams);
+    if (teams[k]) { const sel = document.getElementById(`sel_${k}`); if (sel) sel.value = teams[k].id; }
+  });
+  recalc();
 }
 
 function populateTeamSelect(key, teamsList) {
