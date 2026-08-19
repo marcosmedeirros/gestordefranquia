@@ -213,46 +213,66 @@ const COPERO_PREMIOS = [
 /**
  * As taças em SVG: id => [cor, desenho].
  *
- * Cada uma tem silhueta própria — a continental é a de alças largas, a de
- * liga é o escudo, a copa é o cálice alto. A pessoa reconhece pela forma
- * antes de ler o nome.
+ * Todas com marca de FUTEBOL. A primeira versão saiu com bola lisa e taça de
+ * boca larga, que é a silhueta de troféu de futebol americano — os gomos de
+ * pentágono na bola e o cálice estreito são o que faz o esporte se reconhecer
+ * de relance.
  */
 const COPERO_TACAS = [
+    // Liga: cálice clássico, base larga.
     'liga' => ['#eab308',
-        '<path d="M20 6h24v18c0 8-5 14-12 16-7-2-12-8-12-16z" fill="currentColor"/>'
-      . '<rect x="28" y="42" width="8" height="8" fill="currentColor"/>'
-      . '<rect x="20" y="50" width="24" height="6" rx="2" fill="currentColor"/>'],
+        '<path d="M21 7h22v15c0 8-4 13-11 15-7-2-11-7-11-15z" fill="currentColor"/>'
+      . '<path d="M21 10h-5v5c0 4 2 7 5 8M43 10h5v5c0 4-2 7-5 8" stroke="currentColor" stroke-width="2.6" fill="none"/>'
+      . '<rect x="29" y="37" width="6" height="9" fill="currentColor"/>'
+      . '<rect x="20" y="46" width="24" height="6" rx="2" fill="currentColor"/>'],
+    // Copa: cálice alto e estreito, com pé longo.
     'copa' => ['#e5e7eb',
-        '<path d="M22 6h20v12c0 9-4 15-10 17-6-2-10-8-10-17z" fill="currentColor"/>'
-      . '<path d="M22 10h-6v6c0 5 3 8 6 9M42 10h6v6c0 5-3 8-6 9" stroke="currentColor" stroke-width="3" fill="none"/>'
-      . '<rect x="29" y="35" width="6" height="11" fill="currentColor"/>'
-      . '<rect x="20" y="46" width="24" height="8" rx="2" fill="currentColor"/>'],
+        '<path d="M24 6h16v16c0 7-3 11-8 13-5-2-8-6-8-13z" fill="currentColor"/>'
+      . '<path d="M24 9h-6v7c0 5 3 8 6 9M40 9h6v7c0 5-3 8-6 9" stroke="currentColor" stroke-width="2.6" fill="none"/>'
+      . '<rect x="30" y="35" width="4" height="12" fill="currentColor"/>'
+      . '<path d="M22 47h20l2 6H20z" fill="currentColor"/>'],
+    // Continental: as alças largas, silhueta de "orelhuda".
     'cont' => ['#c0c0c0',
-        '<path d="M18 8h28v14c0 10-6 17-14 19-8-2-14-9-14-19z" fill="currentColor"/>'
-      . '<path d="M18 8c-8 0-12 5-12 11s5 10 11 11M46 8c8 0 12 5 12 11s-5 10-11 11" stroke="currentColor" stroke-width="4" fill="none"/>'
-      . '<rect x="29" y="41" width="6" height="8" fill="currentColor"/>'
-      . '<path d="M18 49h28l3 7H15z" fill="currentColor"/>'],
+        '<path d="M22 7h20v15c0 8-4 13-10 15-6-2-10-7-10-15z" fill="currentColor"/>'
+      . '<path d="M22 8c-9 0-13 5-13 11s5 11 12 12M42 8c9 0 13 5 13 11s-5 11-12 12" '
+      . 'stroke="currentColor" stroke-width="4.5" fill="none" stroke-linecap="round"/>'
+      . '<rect x="29" y="37" width="6" height="8" fill="currentColor"/>'
+      . '<path d="M20 45h24l3 8H17z" fill="currentColor"/>'],
+    // Mundial: a bola de futebol em cima, com os gomos à mostra.
     'mundial' => ['#fbbf24',
-        '<circle cx="32" cy="20" r="13" fill="currentColor"/>'
-      . '<path d="M24 31c-2 6-2 12 0 18h16c2-6 2-12 0-18z" fill="currentColor"/>'
-      . '<rect x="18" y="49" width="28" height="7" rx="2" fill="currentColor"/>'],
-    // A chuteira é a própria chuteira, dourada; o Rei da América é a coroa.
+        '<circle cx="32" cy="19" r="13" fill="currentColor"/>'
+      . '<path d="M32 11l5.5 4-2 6.5h-7L26.5 15z" fill="#7c2d12"/>'
+      . '<path d="M32 6v5M19.5 16l6.5 -1M44.5 16l-6.5 -1M24 30l2.5-4M40 30l-2.5-4" '
+      . 'stroke="#7c2d12" stroke-width="1.6"/>'
+      . '<rect x="29" y="33" width="6" height="10" fill="currentColor"/>'
+      . '<rect x="19" y="43" width="26" height="7" rx="2" fill="currentColor"/>'],
+    // Chuteira: com travas embaixo, que é o que a distingue de um sapato.
     'chuteira' => ['#fcd34d',
-        '<path d="M8 38c5-9 14-15 26-15 9 0 16 3 18 9-3 9-14 15-26 15-9 0-15-3-18-9z" fill="currentColor"/>'
-      . '<path d="M10 43h36l-2 8H14z" fill="currentColor" opacity=".65"/>'
-      . '<path d="M20 28l3 5M27 25l3 5M34 24l3 5" stroke="#78350f" stroke-width="2"/>'],
-    'rei_america' => ['#34d399',
-        '<path d="M12 40l-4-20 11 8 9-14 9 14 11-8-4 20z" fill="currentColor"/>'
-      . '<rect x="12" y="42" width="40" height="7" rx="2" fill="currentColor"/>'
-      . '<circle cx="20" cy="29" r="2.4" fill="#065f46"/><circle cx="32" cy="26" r="2.4" fill="#065f46"/>'
-      . '<circle cx="44" cy="29" r="2.4" fill="#065f46"/>'],
-    'artilheiro' => ['#f97316',
-        '<path d="M10 40c6-10 16-16 28-16 8 0 14 3 16 8-4 8-14 14-26 14-8 0-15-2-18-6z" fill="currentColor"/>'
-      . '<path d="M12 44h34l-2 8H16z" fill="currentColor"/>'],
+        '<path d="M9 37c5-9 14-14 25-14 9 0 15 3 17 8-3 8-13 13-25 13-8 0-14-3-17-7z" fill="currentColor"/>'
+      . '<path d="M19 27l2.5 4M26 24l2.5 4M33 23l2.5 4" stroke="#78350f" stroke-width="2"/>'
+      . '<path d="M11 44h34l-1.5 5H12.5z" fill="currentColor" opacity=".7"/>'
+      . '<path d="M16 49v4M24 49v4M32 49v4M40 49v4" stroke="currentColor" stroke-width="2.6"/>'],
+    // Bola de Ouro: a bola sobre o pedestal, gomos visíveis.
     'bola_ouro' => ['#facc15',
-        '<circle cx="32" cy="22" r="14" fill="currentColor"/>'
-      . '<rect x="29" y="36" width="6" height="10" fill="currentColor"/>'
-      . '<rect x="20" y="46" width="24" height="8" rx="2" fill="currentColor"/>'],
+        '<circle cx="32" cy="21" r="14" fill="currentColor"/>'
+      . '<path d="M32 12l6 4.5-2.3 7h-7.4L26 16.5z" fill="#78350f"/>'
+      . '<path d="M32 7v5M18.5 18l7-1.5M45.5 18l-7-1.5M24.5 33l2-4.5M39.5 33l-2-4.5" '
+      . 'stroke="#78350f" stroke-width="1.7"/>'
+      . '<rect x="29" y="36" width="6" height="9" fill="currentColor"/>'
+      . '<rect x="20" y="45" width="24" height="7" rx="2" fill="currentColor"/>'],
+    // Rei da América: a coroa.
+    'rei_america' => ['#34d399',
+        '<path d="M12 41l-4-21 11 8 9-15 9 15 11-8-4 21z" fill="currentColor"/>'
+      . '<rect x="12" y="43" width="40" height="7" rx="2" fill="currentColor"/>'
+      . '<circle cx="20" cy="30" r="2.4" fill="#065f46"/><circle cx="32" cy="27" r="2.4" fill="#065f46"/>'
+      . '<circle cx="44" cy="30" r="2.4" fill="#065f46"/>'],
+    // Artilheiro: a bola no fundo da rede.
+    'artilheiro' => ['#f97316',
+        '<circle cx="32" cy="26" r="12" fill="currentColor"/>'
+      . '<path d="M32 18l5 3.7-1.9 6h-6.2L27 21.7z" fill="#7c2d12"/>'
+      . '<path d="M12 14h40v30H12z" stroke="currentColor" stroke-width="2" fill="none" opacity=".55"/>'
+      . '<path d="M20 14v30M28 14v30M36 14v30M44 14v30M12 22h40M12 30h40M12 38h40" '
+      . 'stroke="currentColor" stroke-width=".8" opacity=".35"/>'],
 ];
 
 /**

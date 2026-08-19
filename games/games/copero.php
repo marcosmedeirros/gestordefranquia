@@ -176,13 +176,20 @@ button{font-family:inherit}
 .ident-col{padding:22px 20px}
 .ident-col + .ident-col{border-left:1px solid var(--borda)}
 .ident-tit{text-align:center;font-size:15px;font-weight:800;margin-bottom:16px}
-.ident-cab{padding:20px 22px;border-bottom:1px solid var(--borda);font-size:21px;font-weight:900}
+.ident-cab{padding:16px 20px;border-bottom:1px solid var(--borda);font-size:21px;font-weight:900;
+  display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.ident-cab .btn{font-size:13px;padding:10px 18px}
+@media (max-width:560px){
+  .ident-cab{font-size:18px}
+  .ident-cab .btn{width:100%}
+}
 .ident-pe{padding:16px 22px;border-top:1px solid var(--borda);display:flex;justify-content:space-between;gap:12px}
 
-.camisa{position:relative;width:190px;margin:0 auto 16px;aspect-ratio:1/1.06}
+.camisa{position:relative;width:190px;margin:0 auto 16px;aspect-ratio:1}
 .camisa svg{width:100%;height:100%;display:block}
-.camisa-txt{position:absolute;inset:30% 12% 18%;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:9px;pointer-events:none}
+.camisa-txt{position:absolute;left:26%;right:26%;top:35%;bottom:12%;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:8px;pointer-events:none}
+.camisa-nome.vazio{opacity:.42;font-weight:700}
 .camisa-nome{max-width:100%;font-size:12.5px;font-weight:800;letter-spacing:1px;color:#fff;
   text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
 .camisa-num{font-size:44px;font-weight:900;color:#fff;line-height:1;letter-spacing:-2px}
@@ -306,6 +313,9 @@ button{font-family:inherit}
   border-radius:6px;font-size:11.5px;font-weight:800;color:#0a0a0c}
 .ano-clube{display:flex;align-items:center;gap:8px;min-width:0}
 .ano-clube span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.mov{font-style:normal;font-size:10px;flex:none;line-height:1}
+.mov.sobe{color:#4ade80}
+.mov.cai{color:#f87171}
 .ano-ovr{display:inline-flex;align-items:center;justify-content:center;border-radius:6px;padding:2px 0;
   font-size:11.5px;font-weight:800;color:#0a0a0c}
 .ano-n{text-align:right;font-size:12px;color:var(--txt2);font-variant-numeric:tabular-nums}
@@ -715,21 +725,28 @@ function telaIdentidade(){
       <div class="marca"><i class="bi bi-trophy-fill"></i> Copero</div>
     </div>
     <div class="caixa">
-      <div class="ident-cab">Defina sua identidade</div>
+      <div class="ident-cab">
+        <span>Defina sua identidade</span>
+        <button class="btn" id="btnConfirmar" ${rascunho.nome && rascunho.pais && rascunho.posicao ? '' : 'disabled'}
+          onclick="comecarCarreira()">Confirmar identidade</button>
+      </div>
       <div class="ident">
         <div class="ident-col">
           <div class="ident-tit">Identidade</div>
           <div class="camisa">
-            <svg viewBox="0 0 100 106"><path d="M50 6c-7 0-12 3-18 4L14 18l-8 16 14 8 4-6v62h72V36l4 6 14-8-8-16-18-8c-6-1-11-4-18-4z"
-              fill="#166534" stroke="#22c55e" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+              <path d="M50 8c-6 0-10 2-15 3L15 17 6 34l15 8 5-7v52h48V35l5 7 15-8-9-17-20-6c-5-1-9-3-15-3z"
+                fill="#166534" stroke="#22c55e" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M35 11c4 5 11 5 15 5s11 0 15-5" fill="none" stroke="#22c55e" stroke-width="2"/>
+            </svg>
             <div class="camisa-txt">
-              <div class="camisa-nome">${esc(rascunho.nome || '—')}</div>
+              <div class="camisa-nome${rascunho.nome ? '' : ' vazio'}">${esc(rascunho.nome || 'SEU NOME')}</div>
               <div class="camisa-num">${esc(rascunho.numero || '10')}</div>
             </div>
           </div>
           <div class="campo-linha">
             <div><div class="campo-rot">Sobrenome</div>
-              <input class="inp" id="iNome" maxlength="12" value="${esc(rascunho.nome)}" placeholder="MARC"></div>
+              <input class="inp" id="iNome" maxlength="12" value="${esc(rascunho.nome)}" placeholder="Digite"></div>
             <div style="max-width:92px"><div class="campo-rot">Número</div>
               <input class="inp" id="iNum" type="number" min="1" max="99" value="${esc(rascunho.numero)}"></div>
           </div>
@@ -765,8 +782,6 @@ function telaIdentidade(){
       </div>
       <div class="ident-pe">
         <button class="btn btn2" onclick="telaInicio()">Voltar</button>
-        <button class="btn" id="btnConfirmar" ${rascunho.nome && rascunho.pais && rascunho.posicao ? '' : 'disabled'}
-          onclick="comecarCarreira()">Confirmar identidade</button>
       </div>
     </div>
     <p class="rodape">Os nomes de clube servem para identificar dentro da simulação.
@@ -775,7 +790,9 @@ function telaIdentidade(){
   const iNome = document.getElementById('iNome');
   iNome.addEventListener('input', e => {
     rascunho.nome = e.target.value.toUpperCase();
-    document.querySelector('.camisa-nome').textContent = rascunho.nome || '—';
+    const cn = document.querySelector('.camisa-nome');
+    cn.textContent = rascunho.nome || 'SEU NOME';
+    cn.classList.toggle('vazio', !rascunho.nome);
     document.getElementById('btnConfirmar').disabled = !(rascunho.nome && rascunho.pais && rascunho.posicao);
   });
   document.getElementById('iNum').addEventListener('input', e => {
@@ -841,6 +858,48 @@ function paisesDeInicio(pais){
 }
 
 /**
+ * A divisão vizinha do mesmo país: 'sobe' vai pra de cima, 'cai' pra de baixo.
+ *
+ * Devolve null quando não existe — ninguém sobe da primeira divisão, e quem
+ * está na última do país não tem pra onde cair.
+ */
+function ligaVizinha(ligaId, direcao){
+  const l = LIGAS[ligaId];
+  if (!l) return null;
+  const [pais, , , nivel] = l;
+  const alvo = nivel + (direcao === 'sobe' ? -1 : 1);
+  if (alvo < 1) return null;
+  const achada = Object.entries(LIGAS).find(([, x]) => x[0] === pais && x[3] === alvo);
+  return achada ? achada[0] : null;
+}
+
+/**
+ * O clube subiu ou caiu de divisão no fim da temporada?
+ *
+ * Quem é muito mais fraco que a própria liga cai; quem é muito mais forte
+ * sobe. É o que faz um Santos de 74 na Série B voltar pra A, e um Cuiabá de
+ * 72 na Série A descer — sem isso o clube ficava congelado na divisão pra
+ * sempre, e a carreira do jogador não sentia o que acontece ao redor dele.
+ *
+ * Devolve 'sobe', 'cai' ou null.
+ */
+function movimentoDoClube(clube){
+  const l = LIGAS[clube.liga];
+  if (!l) return null;
+  const media = l[4];
+  const dif = clube.forca - media;
+
+  // As chances são baixas de propósito: rebaixamento todo ano viraria ruído.
+  if (dif >= 6 && ligaVizinha(clube.liga, 'sobe')) {
+    if (Math.random() * 100 < Math.min(35, (dif - 5) * 4)) return 'sobe';
+  }
+  if (dif <= -6 && ligaVizinha(clube.liga, 'cai')) {
+    if (Math.random() * 100 < Math.min(35, (-dif - 5) * 4)) return 'cai';
+  }
+  return null;
+}
+
+/**
  * Quem te procura, e de onde.
  *
  * A carreira sobe por DEGRAU, não por sorteio. As regras:
@@ -885,11 +944,23 @@ function ofertas(quantos, exceto, soDeCasa){
   if (soDeCasa) {
     const paises = paisesDeInicio(S.pais);
     if (paises) {
-      const daCasa = elegiveis.filter(c => {
+      const fracos = (lista) => lista.sort((a, b) => a.forca - b.forca).slice(0, 8);
+      const doPais = (p) => fracos(CLUBES.filter(c => {
         const l = dadosLiga(c.liga);
-        return l && paises.includes(l.pais);
-      });
-      if (daCasa.length) elegiveis = daCasa.concat(elegiveis.filter(c => !daCasa.includes(c)));
+        return l && l.pais === p && !fora.has(c.nome);
+      }));
+      // O país da pessoa esgota primeiro; os destinos de imigração só
+      // completam quando o país dela não tem clube suficiente.
+      const daCasa = [];
+      for (const p of paises) {
+        for (const c of doPais(p)) if (!daCasa.includes(c)) daCasa.push(c);
+        if (daCasa.length >= quantos) break;
+      }
+      if (daCasa.length >= quantos) {
+        elegiveis = daCasa;
+      } else if (daCasa.length) {
+        elegiveis = daCasa.concat(elegiveis.filter(c => !daCasa.includes(c)));
+      }
     }
   }
 
@@ -977,6 +1048,18 @@ async function jogarAnos(){
     const antes = S.ovr;
     S.ovr = evoluir();
     S.idade++;
+
+    // O clube pode subir ou cair de divisão. Muda a liga do clube NO ESTADO,
+    // não no catálogo: a queda é da carreira desta pessoa, e a próxima
+    // carreira começa com o mundo no lugar.
+    const mov = movimentoDoClube(S.clube);
+    if (mov) {
+      const nova = ligaVizinha(S.clube.liga, mov);
+      if (nova) {
+        t.movimento = mov;
+        S.clube = Object.assign({}, S.clube, {liga: nova});
+      }
+    }
     // A taça vem ANTES do OVR: primeiro o que aconteceu no ano, depois o
     // que isso fez com você.
     await mostrarTacas(t);
@@ -1211,6 +1294,18 @@ function cartasDeClube(lista, comFicar, comAposentar){
   return `<div class="cartas clubes">${cartas.join('')}</div>`;
 }
 
+/**
+ * A seta de acesso ou queda do clube naquele ano.
+ *
+ * Fica na linha do ano, ao lado do nome — é ali que a pessoa lê a
+ * trajetória, e uma nota em outro lugar exigiria cruzar as duas coisas.
+ */
+function setaMov(mov){
+  if (mov === 'sobe') return '<i class="mov sobe" title="O clube subiu de divisão">▲</i>';
+  if (mov === 'cai')  return '<i class="mov cai" title="O clube caiu de divisão">▼</i>';
+  return '';
+}
+
 function linhaDoTempo(){
   const porIdade = {};
   S.temporadas.forEach(t => { porIdade[t.idade] = t; });
@@ -1227,7 +1322,7 @@ function linhaDoTempo(){
       const cor = corDoOvr(t.ovr);
       html += `<div class="ano">
         <span class="ano-idade" style="background:${cor}">${i}</span>
-        <span class="ano-clube">${escudo(c, 20)}<span>${esc(t.clube)}</span></span>
+        <span class="ano-clube">${escudo(c, 20)}<span>${esc(t.clube)}</span>${setaMov(t.movimento)}</span>
         <span class="ano-ovr" style="background:${cor}">${t.ovr}</span>
         <span class="ano-n">${t.jogos}</span><span class="ano-n">${t.gols}</span><span class="ano-n">${t.ast}</span>
       </div>`;
