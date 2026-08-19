@@ -239,21 +239,28 @@ button{font-family:inherit}
 .carreira{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:16px;align-items:start}
 
 .ficha{padding:18px}
-.ficha-topo{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+/* O cabeçalho é uma linha só: OVR, clube e os números. Posição, número e
+   país saem numa FILEIRA PRÓPRIA embaixo — espremidos entre o nome do clube
+   e a liga eles encostavam no texto e pareciam sobrepostos. */
+.ficha-topo{display:flex;align-items:center;gap:14px;margin-bottom:12px}
 .ovr-caixa{width:82px;height:82px;border-radius:14px;display:flex;flex-direction:column;align-items:center;
   justify-content:center;flex:none;color:#0a0a0c}
 .ovr-caixa small{font-size:9px;font-weight:800;letter-spacing:1px;opacity:.7}
 .ovr-caixa b{font-size:33px;font-weight:900;line-height:1;letter-spacing:-1.5px}
-.ficha-info{flex:1 1 150px;min-width:0;align-self:stretch;display:flex;
-  flex-direction:column;justify-content:center;gap:4px}
-.ficha-tags{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-height:22px}
+.ficha-info{flex:1 1 90px;min-width:0;display:flex;flex-direction:column;gap:3px}
+.ficha-liga{font-size:11.5px;color:var(--txt3);font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ficha-tags{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:14px}
 .tag{display:inline-flex;align-items:center;gap:5px;background:var(--panel3);border-radius:6px;
-  padding:3px 8px;font-size:11px;font-weight:800}
+  padding:4px 9px;font-size:11px;font-weight:800;white-space:nowrap}
 .tag.pos{background:#7f1d3a;color:#fff}
 .tag svg{width:17px;height:11px;border-radius:2px;flex:none;display:block}
-.ficha-clube{display:flex;align-items:center;gap:9px;font-size:20px;font-weight:900;letter-spacing:-.5px}
-.ficha-num{text-align:right;flex:none;margin-left:auto;font-size:11px;color:var(--txt3);font-weight:700;letter-spacing:.5px}
-.ficha-num b{display:block;font-size:19px;color:var(--txt);letter-spacing:-.5px}
+.ficha-clube{display:flex;align-items:center;gap:9px;font-size:20px;font-weight:900;letter-spacing:-.5px;
+  white-space:nowrap;overflow:hidden}
+.ficha-clube span{overflow:hidden;text-overflow:ellipsis}
+.ficha-num{flex:none;display:flex;gap:16px;text-align:right;font-size:10px;color:var(--txt3);
+  font-weight:700;letter-spacing:.5px}
+.ficha-num b{display:block;font-size:18px;color:var(--txt);letter-spacing:-.5px}
 
 .ficha-stats{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--borda);
   border-bottom:1px solid var(--borda);padding:13px 0;margin-bottom:14px}
@@ -545,7 +552,9 @@ function escudo(clube, tam){
 
 const corDoOvr = o => (FAIXAS.find(([min]) => o >= min) || FAIXAS[FAIXAS.length-1])[2];
 const acharClube = nome => CLUBES.find(c => c.nome === nome);
-const dadosLiga  = id => LIGAS[id] ? {pais:LIGAS[id][0], cont:LIGAS[id][1], nome:LIGAS[id][2], nivel:LIGAS[id][3]} : null;
+const dadosLiga  = id => LIGAS[id]
+  ? {pais:LIGAS[id][0], cont:LIGAS[id][1], nome:LIGAS[id][2], nivel:LIGAS[id][3], media:LIGAS[id][4]}
+  : null;
 
 function moeda(v){
   if (v >= 1000000) return '€' + (v/1000000).toFixed(v >= 10000000 ? 0 : 1).replace('.', ',') + 'M';
@@ -862,6 +871,9 @@ function comecarCarreira(){
     nome: rascunho.nome, numero: rascunho.numero, perna: rascunho.perna,
     pais: rascunho.pais, posicao: rascunho.posicao, modo: MODO,
     idade: IDADE_INI, ovr: 50, clube: null, temporadas: [],
+    // O talento é sorteado aqui e nunca aparece na tela: é o que faz a mesma
+    // escolha dar carreiras diferentes, e o que dá motivo pra jogar de novo.
+    talento: (70 + Math.floor(Math.random() * 55)) / 100,
     picoOvr: 50, picoValor: 0, maiorForcaClube: 0, comecouAbaixo: false,
     fase: 'oferta_base', evento: null, fim: false, resultado: null,
   };
@@ -948,42 +960,73 @@ function movimentoDoClube(clube){
 }
 
 /**
+ * As ligas que pagam bem e valem pouco: destino de fim de carreira.
+ *
+ * Um garoto de 19 anos não vai do Brasil pra Arábia — quem vai é o veterano
+ * atrás do último contrato. Sem isto o sorteio jogava Arábia e MLS no meio da
+ * escalada, e a carreira virava aquele `BR3>AR2>UY1>SA1>ES1` sem pé nem
+ * cabeça. Vale só pra ESTRANGEIRO: americano roda pela MLS a vida toda.
+ */
+const LIGAS_TARDIAS = new Set(['SA1', 'US1', 'JP1', 'KR1', 'AU1']);
+
+/**
  * Quem te procura, e de onde.
  *
- * A carreira sobe por DEGRAU, não por sorteio. As regras:
+ * A carreira é uma ESCADA, e cada degrau tem que ser merecido. O prestígio de
+ * uma liga é a força média dela (Premier 96, Série C 54) — é isso que ordena
+ * o mundo e responde "isso é subida ou passo pro lado?".
  *
- *   · o clube tem que ser do seu tamanho — um OVR 60 não vai pro Real Madrid,
- *     vai pra um clube de força parecida com a dele;
- *   · você sobe no máximo UMA divisão por vez: da Série C se olha a B e, se
- *     estiver muito bem, uma da A; da B se olha a A;
- *   · sair do continente só da PRIMEIRA divisão. Ninguém sai da Série C
- *     brasileira direto pra Ligue 1 — primeiro você aparece no seu país.
+ * As regras, todas medidas na simulação antes de entrar:
  *
- * Sem isso o jogo sorteava clube na faixa de OVR e a carreira não tinha
- * trajetória: dava pra pular de Ypiranga pro Milan num ano.
+ *   · O clube cabe em você. A faixa APERTA conforme você sobe: um OVR 88 só
+ *     interessa a clube de 80 pra cima, e a partir de uns 84 nenhum clube do
+ *     mundo é grande demais — antes o teto era `ovr + 6`, e com isso City,
+ *     Real, Bayern e Barcelona (92 a 99) eram literalmente inalcançáveis.
+ *   · Você não desce de prestígio no auge. Quem está na LaLiga não recebe
+ *     proposta do Chipre aos 24 — recebe aos 33.
+ *   · Sair do país é PROMOÇÃO, nunca passo lateral: precisa da primeira
+ *     divisão de casa (ou de já ser bom demais pra ela) e a liga de destino
+ *     tem que valer mais que a sua.
+ *   · Trocar de continente exige nome feito.
+ *
+ * As opções saem em DEGRAUS — a ambiciosa, a do seu nível, a alternativa —
+ * e não sorteadas do mesmo balaio: três cartas iguais não são escolha.
  */
 function ofertas(quantos, exceto, soDeCasa){
-  const fora = new Set(exceto || []);
+  const fora  = new Set(exceto || []);
   const atual = S.clube ? dadosLiga(S.clube.liga) : null;
-  const nivelAtual = atual ? atual.nivel : 3;   // sem clube = começa de baixo
+  const pres  = atual ? atual.media : 0;
+  const veterano = S.idade >= 30;
+  const declinio = S.ovr < (S.picoOvr || S.ovr) - 3;
 
-  // A faixa de força: o clube tem que caber em você. Acima de +6 é time que
-  // não te chamaria; abaixo de -18 é passo pra trás que ninguém propõe.
-  const teto = S.ovr + 6, piso = Math.max(38, S.ovr - 18);
+  // A faixa de força. O termo extra é o que abre o topo do mundo pra quem
+  // chegou lá: em 84 o teto encosta em 99, e o Real passa a ser possível.
+  const teto = Math.min(99, Math.round(S.ovr + 4 + Math.max(0, S.ovr - 66) * 0.55));
+  const piso = Math.round(Math.max(40, S.ovr - 16 + Math.max(0, S.ovr - 68) * 0.55));
+
+  // A faixa de prestígio. Liga grande demais não te chama; liga pequena
+  // demais só aparece quando a carreira já está de descida.
+  const tetoLiga = S.ovr + 12;
+  const pisoLiga = (veterano || declinio) ? pres - 26 : pres - 8;
+  const podeSair = !atual || atual.nivel === 1 || S.ovr >= 76;
 
   const cabe = (c) => {
     if (fora.has(c.nome) || c.forca > teto || c.forca < piso) return false;
     const l = dadosLiga(c.liga);
     if (!l) return false;
 
-    // Um degrau por vez: da 3ª só a 2ª (e a 1ª se você estiver forte pra ela),
-    // da 2ª a 1ª. Descer é sempre possível — carreira também desanda.
-    if (l.nivel < nivelAtual - 1) return false;
+    if (LIGAS_TARDIAS.has(c.liga) && l.pais !== S.pais && !veterano && !declinio) return false;
+    if (l.media > tetoLiga || l.media < pisoLiga) return false;
+    if (!atual) return true;
 
-    // Sair do continente exige estar na primeira divisão. É a regra que
-    // transforma "ir pra Europa" em conquista em vez de sorteio.
-    if (atual && l.cont !== atual.cont && nivelAtual > 1) return false;
+    // Um degrau de divisão por vez, dentro do país.
+    if (l.nivel < atual.nivel - 1) return false;
 
+    if (l.pais !== atual.pais) {
+      if (!podeSair) return false;
+      if (l.media < pres && !veterano && !declinio) return false;
+      if (l.cont !== atual.cont && S.ovr < 72 && !veterano) return false;
+    }
     return true;
   };
 
@@ -992,42 +1035,48 @@ function ofertas(quantos, exceto, soDeCasa){
   if (soDeCasa) {
     const paises = paisesDeInicio(S.pais);
     if (paises) {
-      const fracos = (lista) => lista.sort((a, b) => a.forca - b.forca).slice(0, 8);
-      const doPais = (p) => fracos(CLUBES.filter(c => {
-        const l = dadosLiga(c.liga);
-        return l && l.pais === p && !fora.has(c.nome);
-      }));
       // O país da pessoa esgota primeiro; os destinos de imigração só
       // completam quando o país dela não tem clube suficiente.
       const daCasa = [];
       for (const p of paises) {
-        for (const c of doPais(p)) if (!daCasa.includes(c)) daCasa.push(c);
+        const doPais = CLUBES
+          .filter(c => { const l = dadosLiga(c.liga); return l && l.pais === p && !fora.has(c.nome); })
+          .sort((a, b) => a.forca - b.forca).slice(0, 10);
+        for (const c of doPais) if (!daCasa.includes(c)) daCasa.push(c);
         if (daCasa.length >= quantos) break;
       }
-      if (daCasa.length >= quantos) {
-        elegiveis = daCasa;
-      } else if (daCasa.length) {
-        elegiveis = daCasa.concat(elegiveis.filter(c => !daCasa.includes(c)));
-      }
+      if (daCasa.length >= quantos)  elegiveis = daCasa;
+      else if (daCasa.length)        elegiveis = daCasa.concat(elegiveis.filter(c => !daCasa.includes(c)));
     }
   }
 
-  // Sem ninguém na faixa (país pequeno, OVR muito alto ou muito baixo), abre
-  // só o degrau — nunca o mundo inteiro, senão a regra não vale nada.
+  // Rede de segurança em dois passos. Nunca abre o mundo inteiro de uma vez:
+  // se a regra cede na primeira dificuldade, ela não vale nada.
   if (!elegiveis.length) {
     elegiveis = CLUBES.filter(c => {
       const l = dadosLiga(c.liga);
-      return !fora.has(c.nome) && l && Math.abs(c.forca - S.ovr) <= 14
-             && (!atual || l.cont === atual.cont || nivelAtual === 1);
+      return !fora.has(c.nome) && l && Math.abs(c.forca - S.ovr) <= 12
+             && (!atual || l.pais === atual.pais || l.media >= pres - 6);
     });
   }
-
-  const sorteados = [];
-  const copia = elegiveis.slice();
-  while (sorteados.length < quantos && copia.length) {
-    sorteados.push(copia.splice(Math.floor(Math.random()*copia.length), 1)[0]);
+  if (!elegiveis.length) {
+    elegiveis = CLUBES.filter(c => !fora.has(c.nome) && Math.abs(c.forca - S.ovr) <= 16);
   }
-  return sorteados;
+
+  // Em degraus: uma de cada patamar da lista, do mais forte pro mais fraco.
+  const ordem = elegiveis.slice().sort((a, b) => b.forca - a.forca);
+  const n = ordem.length, saida = [];
+  for (let i = 0; i < quantos && saida.length < n; i++) {
+    const ini = Math.floor(n * i / quantos);
+    const fim = Math.max(ini + 1, Math.floor(n * (i + 1) / quantos));
+    const bloco = ordem.slice(ini, fim).filter(c => !saida.includes(c));
+    if (bloco.length) saida.push(bloco[Math.floor(Math.random() * bloco.length)]);
+  }
+  while (saida.length < quantos && saida.length < n) {
+    const c = ordem[Math.floor(Math.random() * n)];
+    if (!saida.includes(c)) saida.push(c);
+  }
+  return saida;
 }
 
 /** Um evento que caiba no momento da carreira. */
@@ -1139,15 +1188,37 @@ function temporada(){
   return t;
 }
 
+/**
+ * Quanto você cresceu no ano.
+ *
+ * Três coisas mandam, e as três foram medidas em simulação de 500 carreiras:
+ *
+ *   · O AMBIENTE: treinar num clube acima do seu nível puxa você pra cima.
+ *   · Os MINUTOS: e é aqui que o atalho se paga. Ir cedo demais pro clube
+ *     grande enche o banco (`temporada` já corta os jogos pelo encaixe), e
+ *     sem jogo não tem evolução. Antes o bônus de ambiente vinha inteiro e de
+ *     graça: dava pra assinar com o Bayern aos 19 e virar 95 sem entrar em
+ *     campo. Só o ganho é freado — a queda da idade não se negocia.
+ *   · O TALENTO, sorteado uma vez por carreira e nunca mostrado. É o que faz
+ *     duas carreiras iguais terminarem diferente: sem ele, 100% dos jogadores
+ *     passavam de 75 de overall e chegar a um gigante não valia nada.
+ */
 function evoluir(){
-  const amb = (S.clube.forca - S.ovr) / 10;
+  const t   = S.temporadas[S.temporadas.length - 1];
+  const min = t ? Math.max(0.45, Math.min(1.1, t.jogos / 28)) : 1;
+  const amb = Math.max(-1.5, Math.min(2.2, (S.clube.forca - S.ovr) / 10));
+  const tal = S.talento || 1;
+
   let d;
-  if      (S.idade <= 21) d = ri(2,6) + amb;
-  else if (S.idade <= 25) d = ri(1,4) + amb * 0.8;
+  if      (S.idade <= 21) d = ri(1,6) + amb;
+  else if (S.idade <= 25) d = ri(0,4) + amb * 0.8;
   else if (S.idade <= 29) d = ri(-1,2) + amb * 0.5;
   else if (S.idade <= 33) d = ri(-3,1);
   else                    d = ri(-5,-1);
-  if (S.ovr >= 90) d = Math.min(d, ri(0,1));
+
+  if (d > 0) d *= min * tal;
+  if (S.ovr >= 88) d = Math.min(d, ri(0,2));
+  if (S.ovr >= 93) d = Math.min(d, ri(0,1));
   if (S.ovr >= 96) d = Math.min(d, 0);
   return Math.max(35, Math.min(99, S.ovr + Math.round(d)));
 }
@@ -1232,13 +1303,17 @@ function render(){
                 ${S.clube ? escudo(S.clube, 26) + `<span>${esc(S.clube.nome)}</span>`
                           : `<span style="color:var(--txt3)">Sem clube</span>`}
               </div>
-              ${l ? `<div style="font-size:11px;color:var(--txt3)">${esc(l.nome)}</div>` : ''}
-              <div class="ficha-tags">
-                <span class="tag">${bandeira(S.pais,17)} ${esc(S.pais)}</span>
-                <span class="tag pos">#${esc(S.numero)} ${esc(S.posicao)}</span>
-              </div>
+              ${l ? `<div class="ficha-liga">${esc(l.nome)}</div>` : ''}
             </div>
-            <div class="ficha-num">IDADE<b>${S.idade}</b>VALOR<b>${moeda(valorAtual())}</b></div>
+            <div class="ficha-num">
+              <div>IDADE<b>${S.idade}</b></div>
+              <div>VALOR<b>${moeda(valorAtual())}</b></div>
+            </div>
+          </div>
+          <div class="ficha-tags">
+            <span class="tag">${bandeira(S.pais,17)} ${esc(S.pais)}</span>
+            <span class="tag pos">#${esc(S.numero)} ${esc(S.posicao)}</span>
+            <span class="tag">${esc(POSICOES[S.posicao] ? POSICOES[S.posicao][0] : '')}</span>
           </div>
           ${vitrine()}
           <div class="ficha-stats">
