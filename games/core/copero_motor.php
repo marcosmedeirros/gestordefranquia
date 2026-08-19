@@ -195,6 +195,36 @@ const COPERO_COMPETICOES = [
 ];
 
 /**
+ * A força da SELEÇÃO de cada país.
+ *
+ * Não sai da média das ligas de propósito. A Argentina tem seleção de ponta
+ * e campeonato modesto; a Inglaterra tem o campeonato mais forte do mundo e
+ * uma seleção que não ganha nada há décadas. Derivar um do outro apagaria
+ * justamente o que torna a escolha de nacionalidade interessante.
+ */
+const COPERO_SELECOES = [
+    'ARG' => 95, 'FRA' => 94, 'ESP' => 93, 'ENG' => 91, 'BRA' => 91,
+    'POR' => 89, 'NED' => 88, 'GER' => 87, 'BEL' => 86, 'ITA' => 86,
+    'CRO' => 84, 'URU' => 83, 'COL' => 82, 'MAR' => 82, 'JPN' => 79,
+    'USA' => 78, 'MEX' => 78, 'SEN' => 78, 'NGA' => 76, 'KOR' => 76,
+    'TUR' => 76, 'CIV' => 75, 'EGY' => 75, 'CHI' => 74, 'AUS' => 73,
+    'RUS' => 72, 'GRE' => 72, 'SCO' => 72, 'RSA' => 71, 'KSA' => 70,
+];
+
+/**
+ * O torneio de seleções de cada continente, e a Copa do Mundo.
+ *
+ * A Copa vem de quatro em quatro anos e o continental no meio do caminho —
+ * é isso que faz uma carreira longa passar por três ou quatro delas, e que
+ * transforma "estar no auge no ano certo" em sorte de verdade.
+ */
+const COPERO_SELECAO_CONT = [
+    'SAM' => 'Copa América',        'EUR' => 'Eurocopa',
+    'AFR' => 'Copa Africana',       'ASI' => 'Copa da Ásia',
+    'NAM' => 'Copa Ouro',           'OCE' => 'Copa das Nações da OFC',
+];
+
+/**
  * O nome da copa nacional de cada país.
  *
  * O campeonato já tem nome próprio em COPERO_LIGAS (Bundesliga, LaLiga,
@@ -304,6 +334,22 @@ const COPERO_TACAS = [
       . '<path d="M12 14h40v30H12z" stroke="currentColor" stroke-width="2" fill="none" opacity=".55"/>'
       . '<path d="M20 14v30M28 14v30M36 14v30M44 14v30M12 22h40M12 30h40M12 38h40" '
       . 'stroke="currentColor" stroke-width=".8" opacity=".35"/>'],
+    // Copa do Mundo: o globo erguido por duas figuras, sobre a base redonda.
+    // É o troféu mais distinto do conjunto porque é o maior título do jogo.
+    'copa_mundo' => ['#fbbf24',
+        '<circle cx="32" cy="17" r="9" fill="currentColor"/>'
+      . '<path d="M23 17a9 9 0 0 1 18 0M32 8v18M24.5 12h15M24.5 22h15" '
+      . 'stroke="#78350f" stroke-width="1.1" fill="none" opacity=".65"/>'
+      . '<path d="M24 26c-2 6-1 11 3 15h10c4-4 5-9 3-15z" fill="currentColor"/>'
+      . '<path d="M28 41h8v6h-8z" fill="currentColor"/>'
+      . '<rect x="19" y="47" width="26" height="7" rx="3" fill="currentColor"/>'],
+    // Torneio continental de seleções: taça de alças abertas.
+    'selecao_cont' => ['#38bdf8',
+        '<path d="M22 8h20v14c0 7-4 12-10 14-6-2-10-7-10-14z" fill="currentColor"/>'
+      . '<path d="M22 11h-7v6c0 6 3 10 7 11M42 11h7v6c0 6-3 10-7 11" '
+      . 'stroke="currentColor" stroke-width="2.8" fill="none"/>'
+      . '<rect x="29" y="36" width="6" height="10" fill="currentColor"/>'
+      . '<path d="M21 46h22l3 7H18z" fill="currentColor"/>'],
 ];
 
 /**

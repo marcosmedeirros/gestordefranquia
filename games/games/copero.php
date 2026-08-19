@@ -262,6 +262,8 @@ button{font-family:inherit}
    de posição pousada em cima do nome da liga. Se uma tag de posição voltar,
    ela precisa desfazer o posicionamento, e não só trocar a cor. */
 .tag.pos{background:#7f1d3a;color:#fff;position:static;transform:none;min-height:0}
+.tag.sel{background:#78350f;color:#fde68a}
+.tag.idolo{background:#1e3a5f;color:#bfdbfe}
 .tag svg{width:17px;height:11px;border-radius:2px;flex:none;display:block}
 /* Os `min-width:0` não são enfeite: sem eles o nome comprido não encolhe,
    empurra o bloco de idade/valor pra fora e a página inteira ganha barra de
@@ -332,6 +334,9 @@ button{font-family:inherit}
   border-radius:6px;font-size:11.5px;font-weight:800;color:#0a0a0c}
 .ano-clube{display:flex;align-items:center;gap:8px;min-width:0}
 .ano-clube span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.selo{font-style:normal;font-size:9.5px;flex:none;line-height:1;font-weight:900}
+.selo.sel{color:#fbbf24}
+.selo.les{color:#f87171}
 .mov{font-style:normal;font-size:10px;flex:none;line-height:1}
 .mov.sobe{color:#4ade80}
 .mov.cai{color:#f87171}
@@ -682,6 +687,8 @@ const TACAS = <?= json_encode(COPERO_TACAS, JSON_UNESCAPED_UNICODE) ?>;
 const COMPETICOES = <?= json_encode(COPERO_COMPETICOES, JSON_UNESCAPED_UNICODE) ?>;
 const CONTINENTAL = <?= json_encode(COPERO_CONTINENTAL, JSON_UNESCAPED_UNICODE) ?>;
 const COPAS       = <?= json_encode(COPERO_COPAS, JSON_UNESCAPED_UNICODE) ?>;
+const SELECOES    = <?= json_encode(COPERO_SELECOES, JSON_UNESCAPED_UNICODE) ?>;
+const SEL_CONT    = <?= json_encode(COPERO_SELECAO_CONT, JSON_UNESCAPED_UNICODE) ?>;
 
 /** A taça desenhada, do tamanho pedido. */
 function taca(id, tam){
@@ -701,6 +708,10 @@ function taca(id, tam){
  */
 function nomeDaTaca(id, ligaId){
   const l = dadosLiga(ligaId);
+  // Os de seleção saem do PAÍS da pessoa, e não da liga onde ela joga: um
+  // brasileiro no Bayern ganha a Copa América, não a Eurocopa.
+  if (id === 'copa_mundo')   return 'Copa do Mundo';
+  if (id === 'selecao_cont') return SEL_CONT[contDoPais(S ? S.pais : 'BRA')] || 'Torneio de Seleções';
   if (id === 'cont')  return (l && CONTINENTAL[l.cont]) || 'Torneio Continental';
   if (id === 'liga')  return (l && l.nome) || 'Campeonato Nacional';
   if (id === 'copa')  return (l && COPAS[l.pais]) || 'Copa Nacional';
@@ -784,6 +795,64 @@ function adversarios(clube, comp){
   const r = {soma, n: Math.max(2, n)};
   _cacheAdv[chave] = r;
   return r;
+}
+
+/**
+ * O continente do seu país — a seleção joga pelo país, não pelo clube onde
+ * você está. Um brasileiro no Bayern disputa a Copa América, não a Eurocopa.
+ */
+function contDoPais(pais){
+  const l = Object.values(LIGAS).find(x => x[0] === pais);
+  if (l) return l[1];
+  // Quem não tem liga no catálogo: Senegal e Costa do Marfim são da África.
+  return {SEN:'AFR', CIV:'AFR', NGA:'AFR'}[pais] || 'EUR';
+}
+
+/**
+ * Você foi convocado?
+ *
+ * Não simulo os outros jogadores do país, então a régua é a força da própria
+ * seleção: pra vestir a camisa da Argentina você precisa ser bem melhor do
+ * que pra vestir a da Austrália. É o que faz nascer num país forte ser uma
+ * escolha com dois lados — mais chance de título, mais dificuldade de entrar.
+ */
+function convocado(ovr, pais){
+  const f = SELECOES[pais];
+  if (!f) return false;
+  return ovr >= f - 13;
+}
+
+/**
+ * O que a seleção rendeu no ano.
+ *
+ * A Copa do Mundo vem de quatro em quatro anos e o torneio continental cai
+ * no meio do caminho — é isso que faz "estar no auge no ano certo" virar
+ * sorte de verdade, e não mais um sorteio anual.
+ */
+function titulosDaSelecao(ovr, ano){
+  const pais = S.pais, f = SELECOES[pais];
+  if (!f || !convocado(ovr, pais)) return [];
+
+  const cont = contDoPais(pais);
+  const ganhos = [];
+  const peso = x => Math.pow(Math.max(35, x) / 100, 18);
+
+  // O jogador pesa MAIS na seleção do que no clube: são só onze, e um
+  // craque muda uma seleção de um jeito que não muda um elenco inteiro.
+  const meu = peso(f) * (1 + Math.max(0, ovr - f + 8) * 0.05);
+
+  if (ano % 4 === 2) {                        // Copa do Mundo
+    const soma = Object.values(SELECOES).reduce((s, x) => s + peso(x), 0);
+    const n = Object.keys(SELECOES).length;
+    if (Math.random() < Math.min(0.5, 0.78 * (meu / soma) + 0.22 / n)) ganhos.push('copa_mundo');
+  } else if (ano % 4 === 0) {                 // o continental de seleções
+    const doCont = Object.entries(SELECOES).filter(([p]) => contDoPais(p) === cont);
+    const soma = doCont.reduce((s, [, x]) => s + peso(x), 0);
+    if (soma > 0 && Math.random() < Math.min(0.62, 0.80 * (meu / soma) + 0.20 / doCont.length)) {
+      ganhos.push('selecao_cont');
+    }
+  }
+  return ganhos;
 }
 
 function titulosDaTemporada(clube, ovr, stats){
@@ -1300,6 +1369,13 @@ function temporada(){
   jogos = Math.max(4, Math.min(52, jogos + (S.jogosBonus || 0)));
   S.jogosBonus = 0;
 
+  // A LESÃO GRAVE. Existe pra dar cara ao que já acontecia às escondidas: o
+  // overall caía num ano ruim e ninguém sabia por quê. Fica mais provável com
+  // a idade, e come mais da metade da temporada.
+  const risco = 0.045 + Math.max(0, S.idade - 28) * 0.008;
+  const lesionado = Math.random() < risco;
+  if (lesionado) jogos = Math.max(2, Math.round(jogos * (ri(25,50) / 100)));
+
   const q = Math.max(0.2, (S.ovr - 45) / 45);
   const t = {
     idade: S.idade, clube: S.clube.nome, liga: S.clube.liga, ovr: S.ovr,
@@ -1308,7 +1384,16 @@ function temporada(){
     ast:  Math.max(0, Math.round(jogos * pesoAst * q * (ri(70,135)/100))),
     valor: valorAtual(),
   };
+  if (lesionado) t.lesao = true;
   t.titulos = titulosDaTemporada(S.clube, S.ovr, t);
+
+  // A seleção joga por fora do clube: convocação e torneio dependem do país
+  // e do ano, não de onde você está jogando.
+  S.ano = (S.ano || 2024);
+  t.ano = S.ano;
+  if (convocado(S.ovr, S.pais)) t.selecao = true;
+  t.titulos = t.titulos.concat(titulosDaSelecao(S.ovr, S.ano));
+  S.ano++;
   return t;
 }
 
@@ -1353,10 +1438,9 @@ function evoluir(){
     d = -(ri(0,2) * 0.6 + (S.idade - pico - 2) * 0.3) / dur;
   }
 
-  // O ano ruim: lesão feia, fase ruim, treinador que não quis. Pode pegar
-  // qualquer um em qualquer idade, e é o que faz uma promessa às vezes
-  // simplesmente não virar.
-  if (Math.random() < 0.07) d -= ri(2,5);
+  // A lesão da temporada cobra o preço aqui. Quem se machuca perde ritmo, e
+  // é isso que faz uma promessa às vezes simplesmente não virar.
+  if (t && t.lesao) d -= ri(2,5);
 
   if (S.ovr >= 88) d = Math.min(d, ri(0,2));
   if (S.ovr >= 93) d = Math.min(d, ri(0,1));
@@ -1365,12 +1449,30 @@ function evoluir(){
 }
 
 /** Decide o que vem depois de jogar: evento, mercado ou fim. */
+/** Quantas temporadas seguidas você já fez no clube de agora. */
+function anosNoClube(){
+  const t = S.temporadas || [];
+  let n = 0;
+  for (let i = t.length - 1; i >= 0 && t[i].clube === (S.clube || {}).nome; i--) n++;
+  return n;
+}
+
+/**
+ * Cinco temporadas seguidas no mesmo clube e você virou ídolo da casa.
+ *
+ * Vale alguma coisa: o clube não te dispensa. Sem isso, ficar era sempre a
+ * pior escolha do jogo — todo ano aparecia alguém maior, e não havia motivo
+ * nenhum pra construir história em lugar nenhum.
+ */
+function ehIdolo(){ return anosNoClube() >= 5; }
+
 function proximaFase(){
   if (S.idade >= IDADE_FIM) { S.fase = 'fim'; S.fim = true; salvar(); render(); return; }
 
   // Depois dos 33 o clube pode não renovar — é o que traz a aposentadoria
-  // como decisão, e não como parede de idade.
-  if (S.idade >= 33 && Math.random() < 0.45) {
+  // como decisão, e não como parede de idade. Ídolo da casa não é dispensado:
+  // o clube segura quem virou história ali.
+  if (S.idade >= 33 && !ehIdolo() && Math.random() < 0.45) {
     S.fase = 'fim_ciclo';
     S.opcoes = ofertas(2, [S.clube.nome]);
   } else if (S.idade - (S.ultimoMercado || 0) >= 2 && Math.random() < 0.62) {
@@ -1454,6 +1556,8 @@ function render(){
           <div class="ficha-tags">
             <span class="tag">${bandeira(S.pais,17)} ${esc(S.pais)}</span>
             <span class="tag">${esc(POSICOES[S.posicao] ? POSICOES[S.posicao][0] : S.posicao)}</span>
+            ${convocado(S.ovr, S.pais) ? `<span class="tag sel">★ Seleção</span>` : ''}
+            ${ehIdolo() ? `<span class="tag idolo">Ídolo da casa</span>` : ''}
           </div>
           ${vitrine()}
           <div class="ficha-stats">
@@ -1568,6 +1672,20 @@ function cartasDeClube(lista, comFicar, comAposentar){
  * Fica na linha do ano, ao lado do nome — é ali que a pessoa lê a
  * trajetória, e uma nota em outro lugar exigiria cruzar as duas coisas.
  */
+/**
+ * Os selos do ano na linha do tempo: convocado e lesionado.
+ *
+ * Dois caracteres, porque a coluna é estreita. Sem eles a lesão continuava
+ * invisível — os jogos caíam pela metade e o overall também, e não havia
+ * nada na tela explicando por quê.
+ */
+function selosDoAno(t){
+  let s = '';
+  if (t.selecao) s += `<i class="selo sel" title="Convocado para a seleção">★</i>`;
+  if (t.lesao)   s += `<i class="selo les" title="Lesão na temporada">✚</i>`;
+  return s;
+}
+
 function setaMov(mov){
   if (mov === 'sobe') return '<i class="mov sobe" title="O clube subiu de divisão">▲</i>';
   if (mov === 'cai')  return '<i class="mov cai" title="O clube caiu de divisão">▼</i>';
@@ -1590,7 +1708,7 @@ function linhaDoTempo(){
       const cor = corDoOvr(t.ovr);
       html += `<div class="ano">
         <span class="ano-idade" style="background:${cor}">${i}</span>
-        <span class="ano-clube" title="${esc(t.clube)}">${escudo(c, 20)}<span>${esc(nomeCurto(t.clube))}</span>${setaMov(t.movimento)}</span>
+        <span class="ano-clube" title="${esc(t.clube)}">${escudo(c, 20)}<span>${esc(nomeCurto(t.clube))}</span>${setaMov(t.movimento)}${selosDoAno(t)}</span>
         <span class="ano-ovr" style="background:${cor}">${t.ovr}</span>
         <span class="ano-n">${t.jogos}</span><span class="ano-n">${t.gols}</span><span class="ano-n">${t.ast}</span>
       </div>`;
