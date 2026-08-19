@@ -23,9 +23,6 @@
  */
 require_once __DIR__ . '/../backend/auth.php';
 
-$user = getUserSession();
-if (!$user) { http_response_code(401); exit; }
-
 /**
  * As fontes aceitas: apelido => [base, regra do caminho].
  *
@@ -42,11 +39,18 @@ const PROXY_FONTES = [
 
 $url = null;
 
-// Formato antigo, que a tela do elenco usa: só o id do jogador.
+// Formato antigo, que a tela do elenco usa: só o id do jogador. Este segue
+// pedindo sessão, porque quem usa está logado de qualquer jeito.
 $id = preg_replace('/\D+/', '', (string)($_GET['id'] ?? ''));
 if ($id !== '' && strlen($id) <= 12) {
+    if (!getUserSession()) { http_response_code(401); exit; }
     $url = "https://cdn.nba.com/headshots/nba/latest/260x190/{$id}.png";
 } else {
+    // As fontes por apelido são ABERTAS: os games rodam sem login, e o cartão
+    // de compartilhar precisa dos escudos pra existir. Abrir aqui não abre
+    // nada de rede interna — o chamador não escolhe o destino, só um caminho
+    // dentro de uma base fixa, e o que não casa com a regra é recusado com
+    // 400 antes de virar requisição.
     $fonte   = (string)($_GET['f'] ?? '');
     $caminho = (string)($_GET['p'] ?? '');
     if (isset(PROXY_FONTES[$fonte]) && $caminho !== '' && strlen($caminho) <= 160) {
