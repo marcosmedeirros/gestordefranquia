@@ -112,7 +112,14 @@ function cartaoScript(): string
     const cv = document.createElement('canvas');
     cv.width = L; cv.height = A;
     const c = cv.getContext('2d');
-    const destaque = d.c1 || '#a855f7';
+
+    // A cor de destaque é NORMALIZADA pra hex antes de qualquer coisa. O
+    // canvas faz isso sozinho ao atribuir em fillStyle, e é o que permite
+    // acrescentar transparência como sufixo ('…26'). Sem isto, quem passa
+    // cor em hsl() — o Starting5x5 passa — estourava com "could not be
+    // parsed as a color" e o cartão não saía.
+    c.fillStyle = d.c1 || '#a855f7';
+    const destaque = String(c.fillStyle).startsWith('#') ? c.fillStyle : '#a855f7';
 
     // Fundo: quase preto, com um respiro da cor do destaque no topo. O
     // gradiente inteiro na cor competia com a caixa do OVR.
