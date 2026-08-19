@@ -18,6 +18,7 @@
 session_start();
 require_once __DIR__ . '/../../backend/db.php';
 require_once __DIR__ . '/../core/copero_motor.php';
+require_once __DIR__ . '/../core/cartao.php';   // o cartão em imagem, igual aos outros jogos
 
 $idUsuario = (int)($_SESSION['user_id'] ?? 0);
 $pdo = db();
@@ -320,11 +321,57 @@ button{font-family:inherit}
   font-size:11.5px;font-weight:800;color:#0a0a0c}
 .ano-n{text-align:right;font-size:12px;color:var(--txt2);font-variant-numeric:tabular-nums}
 
+/**
+ * Manda a carreira como imagem, no mesmo cartão dos outros jogos.
+ *
+ * Os clubes e os títulos vão como as duas colunas: são as duas coisas que
+ * contam a história de uma carreira, e nenhuma delas pode sumir do cartão.
+ */
+function compartilharCarreira(botao){
+  const t = S.temporadas || [];
+  const tot = t.reduce((a,x)=>({jogos:a.jogos+x.jogos, gols:a.gols+x.gols, ast:a.ast+x.ast}),
+                       {jogos:0,gols:0,ast:0});
+
+  // Clubes na ordem em que passou, com os jogos de cada um.
+  const porClube = {};
+  t.forEach(x => { porClube[x.clube] = (porClube[x.clube] || 0) + x.jogos; });
+  const clubes = Object.entries(porClube)
+    .sort((a,b) => b[1] - a[1])
+    .map(([nome, jogos]) => `${nome} (${jogos})`);
+
+  const conta = {};
+  t.forEach(x => (x.titulos || []).forEach(id => { conta[id] = (conta[id]||0)+1; }));
+  const ligaAlguma = (t.find(x => x.liga) || {}).liga;
+  const titulos = Object.entries(conta)
+    .sort((a,b) => b[1] - a[1])
+    .map(([id, n]) => `${nomeDaTaca(id, ligaAlguma)} ×${n}`);
+
+  const cor = corDoOvr(S.picoOvr);
+  fbaCompartilhar({
+    c1: cor, c2: '#0a0a0c',
+    numero: S.picoOvr, rotulo: 'pico de overall',
+    direita: [S.posicao, `#${S.numero}`, `${t.length} temporadas`],
+    titulo: S.nome, sub: `${moeda(S.picoValor)} de valor de mercado`,
+    nums: [[tot.jogos, 'Jogos'], [tot.gols, 'Gols'], [tot.ast, 'Assist.'],
+           [Object.keys(porClube).length, 'Clubes']],
+    listas: [
+      {titulo: 'Trajetória', itens: clubes.slice(0, 5)},
+      {titulo: 'Títulos',    itens: titulos.length ? titulos.slice(0, 5) : ['Sem títulos']},
+    ],
+    nome: S.nome, jogo: 'COPERO',
+  }, botao);
+}
+
 /* ── Fim ────────────────────────────────────────────── */
 .fim{text-align:center;padding:34px 20px}
 .fim h2{font-size:26px;font-weight:900;margin-bottom:16px}
+.acoes-fim{display:flex;flex-wrap:wrap;gap:9px;justify-content:center}
+@media (max-width:480px){.acoes-fim .btn{width:100%}}
 .resumo-topo{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:14px}
-.clubes-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
+/* auto-fill deixava buraco na última linha e a grade parecia torta;
+   auto-fit + justify-content centram o que sobra. */
+.clubes-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,150px));
+  gap:11px;justify-content:center}
 .clube-card{background:var(--panel);border:1px solid var(--borda);border-radius:13px;padding:14px;text-align:center}
 .clube-card .escudo,.clube-card .mono{margin:0 auto 9px}
 .clube-card b{display:block;font-size:13.5px;font-weight:800;margin-bottom:8px}
@@ -415,6 +462,7 @@ button{font-family:inherit}
 <body>
 <div id="app"></div>
 
+<?= cartaoScript() ?>
 <script>
 const CLUBES    = <?= json_encode($catalogo, JSON_UNESCAPED_UNICODE) ?>;
 const LIGAS     = <?= json_encode(COPERO_LIGAS, JSON_UNESCAPED_UNICODE) ?>;
@@ -552,7 +600,7 @@ async function animarSorteio(cartaEl, efeitoSorteado){
   // Uma opção acesa por vez, girando entre elas e desacelerando — é o que
   // faz parecer sorteio. Todas piscando juntas não escolhe nada.
   cartaEl.classList.add('sorteando-agora');
-  for (let i = 0, espera = 110; i < 13; i++, espera += 50) {
+  for (let i = 0, espera = 85; i < 11; i++, espera += 42) {
     efeitos.forEach((e, k) => e.classList.toggle('aceso', k === (i % efeitos.length)));
     await dormir(espera);
   }
@@ -561,7 +609,7 @@ async function animarSorteio(cartaEl, efeitoSorteado){
   const alvo = efeitos.find(e => e.textContent.includes(efeitoSorteado.texto));
   efeitos.forEach(e => { e.classList.toggle('aceso', e === alvo); e.classList.toggle('apagado', e !== alvo); });
   if (alvo) alvo.classList.add('sorteado');
-  await dormir(750);
+  await dormir(550);
   cartaEl.classList.remove('sorteando-agora');
 }
 
@@ -1113,6 +1161,10 @@ function proximaFase(){
   if (S.idade >= 33 && Math.random() < 0.45) {
     S.fase = 'fim_ciclo';
     S.opcoes = ofertas(2, [S.clube.nome]);
+  } else if (S.idade - (S.ultimoMercado || 0) >= 2 && Math.random() < 0.62) {
+    S.fase = 'mercado';
+    S.ultimoMercado = S.idade;
+    S.opcoes = ofertas(2, [S.clube.nome]);
   } else if (Math.random() < 0.55) {
     S.fase = 'evento';
     S.evento = eventoDaVez();
@@ -1120,6 +1172,7 @@ function proximaFase(){
     if (!S.evento) { S.fase = 'mercado'; S.opcoes = ofertas(2, [S.clube.nome]); }
   } else {
     S.fase = 'mercado';
+    S.ultimoMercado = S.idade;
     S.opcoes = ofertas(2, [S.clube.nome]);
   }
   salvar(); render();
@@ -1175,15 +1228,15 @@ function render(){
             <div class="ovr-caixa" style="background:${cor}">
               <small>OVR</small><b>${S.ovr}</b></div>
             <div class="ficha-info">
-              <div class="ficha-tags">
-                <span class="tag">${bandeira(S.pais,17)} ${esc(S.pais)}</span>
-                <span class="tag pos">#${esc(S.numero)} ${esc(S.posicao)}</span>
-              </div>
               <div class="ficha-clube">
                 ${S.clube ? escudo(S.clube, 26) + `<span>${esc(S.clube.nome)}</span>`
                           : `<span style="color:var(--txt3)">Sem clube</span>`}
               </div>
-              ${l ? `<div style="font-size:11px;color:var(--txt3);margin-top:3px">${esc(l.nome)}</div>` : ''}
+              ${l ? `<div style="font-size:11px;color:var(--txt3)">${esc(l.nome)}</div>` : ''}
+              <div class="ficha-tags">
+                <span class="tag">${bandeira(S.pais,17)} ${esc(S.pais)}</span>
+                <span class="tag pos">#${esc(S.numero)} ${esc(S.posicao)}</span>
+              </div>
             </div>
             <div class="ficha-num">IDADE<b>${S.idade}</b>VALOR<b>${moeda(valorAtual())}</b></div>
           </div>
@@ -1341,6 +1394,47 @@ function linhaDoTempo(){
   return html;
 }
 
+/**
+ * Manda a carreira como imagem, no mesmo cartão dos outros jogos.
+ *
+ * Os clubes e os títulos vão como as duas colunas: são as duas coisas que
+ * contam a história de uma carreira, e nenhuma delas pode sumir do cartão.
+ */
+function compartilharCarreira(botao){
+  const t = S.temporadas || [];
+  const tot = t.reduce((a,x)=>({jogos:a.jogos+x.jogos, gols:a.gols+x.gols, ast:a.ast+x.ast}),
+                       {jogos:0,gols:0,ast:0});
+
+  // Clubes na ordem em que passou, com os jogos de cada um.
+  const porClube = {};
+  t.forEach(x => { porClube[x.clube] = (porClube[x.clube] || 0) + x.jogos; });
+  const clubes = Object.entries(porClube)
+    .sort((a,b) => b[1] - a[1])
+    .map(([nome, jogos]) => `${nome} (${jogos})`);
+
+  const conta = {};
+  t.forEach(x => (x.titulos || []).forEach(id => { conta[id] = (conta[id]||0)+1; }));
+  const ligaAlguma = (t.find(x => x.liga) || {}).liga;
+  const titulos = Object.entries(conta)
+    .sort((a,b) => b[1] - a[1])
+    .map(([id, n]) => `${nomeDaTaca(id, ligaAlguma)} ×${n}`);
+
+  const cor = corDoOvr(S.picoOvr);
+  fbaCompartilhar({
+    c1: cor, c2: '#0a0a0c',
+    numero: S.picoOvr, rotulo: 'pico de overall',
+    direita: [S.posicao, `#${S.numero}`, `${t.length} temporadas`],
+    titulo: S.nome, sub: `${moeda(S.picoValor)} de valor de mercado`,
+    nums: [[tot.jogos, 'Jogos'], [tot.gols, 'Gols'], [tot.ast, 'Assist.'],
+           [Object.keys(porClube).length, 'Clubes']],
+    listas: [
+      {titulo: 'Trajetória', itens: clubes.slice(0, 5)},
+      {titulo: 'Títulos',    itens: titulos.length ? titulos.slice(0, 5) : ['Sem títulos']},
+    ],
+    nome: S.nome, jogo: 'COPERO',
+  }, botao);
+}
+
 /* ── Fim ────────────────────────────────────────────── */
 async function telaFim(){
   const tot = S.temporadas.reduce((a,t)=>({jogos:a.jogos+t.jogos, gols:a.gols+t.gols, ast:a.ast+t.ast}),
@@ -1356,7 +1450,10 @@ async function telaFim(){
     <div class="topo"><div class="marca"><i class="bi bi-trophy-fill"></i> Copero</div></div>
     <div class="caixa fim">
       <h2>Sua carreira chegou ao fim</h2>
-      <button class="btn" onclick="apagar();S=null;telaInicio()">Jogar novamente</button>
+      <div class="acoes-fim">
+        <button class="btn" id="btnFoto" onclick="compartilharCarreira(this)">Compartilhar carreira</button>
+        <button class="btn btn2" onclick="apagar();S=null;telaInicio()">Jogar novamente</button>
+      </div>
     </div>
 
     <div class="resumo-topo" style="margin-top:14px">
