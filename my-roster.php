@@ -443,7 +443,11 @@ if ($teamId) {
         .act-btn.act-info:hover   { background: rgba(13,202,240,.10);  border-color: rgba(13,202,240,.30);  color: #0dcaf0; }
         .act-btn.act-warn:hover   { background: rgba(245,158,11,.10);  border-color: rgba(245,158,11,.30);  color: #f59e0b; }
         .act-btn.act-danger:hover { background: var(--red-soft);       border-color: var(--border-red);     color: var(--red); }
-        /* Troca: verde e estado (disponivel), nao acao destrutiva */
+        /* Trade block: os DOIS estados têm cor. Fora do bloco era neutro, e
+           neutro num botão de estado se lê como "desligado por enquanto" em
+           vez de "este jogador não está à venda". */
+        .act-btn.btn-toggle-trade { color: var(--red); }
+        .act-btn.btn-toggle-trade:hover { background: var(--red-soft); border-color: var(--border-red); color: var(--red); }
         .act-btn.btn-toggle-trade.is-on { color: #22c55e; }
         .act-btn.btn-toggle-trade.is-on:hover { background: rgba(34,197,94,.10); border-color: rgba(34,197,94,.30); color: #22c55e; }
 

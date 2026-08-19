@@ -345,11 +345,17 @@ function wcAjuda(): string
         . "/confronto _um_ x _outro_ — o duelo entre dois times, com palpite\n"
         . "/time _nome_ — quinteto, banco, folha e campanha\n"
         . "/cap _time_ — folha e espaço no cap\n"
-        . "/picks _time_ — picks que o time tem\n\n"
+        . "/picks _time_ — picks que o time tem
+"
+        . "/tblock _time_ — quem o time pôs no trade block
+
+"
         . "*Seu time* _(pelo seu número, sem digitar o nome)_\n"
         . "/meutime — seu elenco\n"
         . "/meucap — sua folha e o espaço no cap\n"
         . "/minhaspicks — as picks que você tem\n"
+        . "/meutblock — seu trade block
+"
         . "/minhastrades — suas 3 últimas trocas\n\n"
         . "*Liga*\n"
         . "/ranking _liga_ — a tabela da liga\n"
@@ -969,6 +975,55 @@ function wcTimeDeQuemPerguntou(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): 
         return [null, "Você tem time em mais de uma liga ({$lista}). Use o comando com o nome do time."];
     }
     return [$times[0], null];
+}
+
+/**
+ * Quem o time colocou no trade block.
+ *
+ * A lista é a mesma que o GM marcou em "Meu Elenco" (players.available_for_trade)
+ * — não é sugestão do bot nem quem "parece" negociável. Ordem por OVR: quem
+ * pergunta o trade block quer saber o melhor que tem lá, não a ordem alfabética.
+ */
+function wcTradeBlock(PDO $pdo, array $time): string
+{
+    $ovr = wcColunaOvr($pdo);
+    $st = $pdo->prepare("SELECT name, position, secondary_position, {$ovr} AS ovr, age
+                         FROM players
+                         WHERE team_id = ? AND available_for_trade = 1
+                         ORDER BY {$ovr} DESC, name ASC");
+    $st->execute([(int)$time['id']]);
+    $jogadores = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    $nome = wcNomeDoTime($time);
+    if (!$jogadores) {
+        return "*Trade Block — {$nome}*\n\nNinguém no trade block.";
+    }
+
+    $txt = "*Trade Block — {$nome}*\n_" . count($jogadores) . ' jogador'
+         . (count($jogadores) === 1 ? '' : 'es') . "_\n\n";
+    foreach ($jogadores as $p) {
+        // Secundária só quando é OUTRA posição: o banco às vezes repete a
+        // principal ali, e saía "C/C".
+        $sec = trim((string)($p['secondary_position'] ?? ''));
+        $pos = $p['position'] . ($sec !== '' && $sec !== $p['position'] ? '/' . $sec : '');
+        $txt .= "{$pos}: {$p['name']} {$p['ovr']} | {$p['age']}y\n";
+    }
+    return rtrim($txt);
+}
+
+/** O trade block do time de quem perguntou, pelo telefone. */
+function wcMeuTradeBlock(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): string
+{
+    [$t, $erro] = wcTimeDeQuemPerguntou($pdo, $deQuem, $ligaDoGrupo);
+    return $erro ?: wcTradeBlock($pdo, $t);
+}
+
+/** O trade block de um time pelo nome. */
+function wcTradeBlockDeTime(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
+{
+    if ($termo === '') return 'Use assim: /tblock lakers';
+    [$t, $erro] = wcResolverTime($pdo, $termo, $ligaDoGrupo);
+    return $erro ?: wcTradeBlock($pdo, $t);
 }
 
 function wcMeuElenco(PDO $pdo, string $deQuem, ?string $ligaDoGrupo): string
@@ -2111,6 +2166,14 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'meucap':
             case 'minhafolha':
                 return wcMeuCap($pdo, $deQuem, $ligaDoGrupo);
+
+            case 'meutblock':
+            case 'meutradeblock':
+                return wcMeuTradeBlock($pdo, $deQuem, $ligaDoGrupo);
+
+            case 'tblock':
+            case 'tradeblock':
+                return wcTradeBlockDeTime($pdo, $arg, $ligaDoGrupo);
 
             case 'minhaspicks':
             case 'meuspicks':
