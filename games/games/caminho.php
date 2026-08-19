@@ -1058,6 +1058,9 @@ tr.tit td{color:var(--red)}
 .fin-placar b.na-frente{color:var(--text)}
 .fin-placar span{color:var(--text3);font-size:17px}
 .fin-vazio{text-align:center;color:var(--text2);font-size:12.5px;margin:14px 0}
+/* O mercado cabe mais gente que as finais: até três propostas lado a lado. */
+.modal-mercado{width:min(680px,100%)}
+.modal-mercado .ofertas-grade{grid-template-columns:repeat(auto-fit,minmax(178px,1fr))}
 
 /* ── SALA DE TROFÉUS — a mesma do Copero ─────────────────────────────── */
 .sala{padding:15px 16px}
@@ -2387,7 +2390,7 @@ function render(){
   // do contexto do ano sete vezes pra ver um placar mudar de 2-1 pra 3-1.
   if (S.finais) { telaTemporada(); return abrirFinais(); }
 
-  if (S.mercado)           return telaMercado();
+  if (S.mercado) { telaTemporada(); return abrirMercado(); }
   if (S.fase === "draft")  return telaDraft();
   if (S.fase === "semdraft") return telaSemDraft();
   return telaTemporada();
@@ -3643,7 +3646,7 @@ function fecharAno(campeao, vit, o, st){
     S.parDoRitmo = 0;
     S.mercado = gerarOfertas();
     S.aguardando = false; S.decisaoId = null;
-    salvar(); return telaMercado();
+    salvar(); telaTemporada(); return abrirMercado();
   }
 
   // ── Modo rápido: duas temporadas por clique ────────────────────────
@@ -3743,14 +3746,28 @@ function desenharFinais(){
 }
 
 // ── Mercado ────────────────────────────────────────────────────────────
-function telaMercado(){
+/**
+ * O contrato, num popup por cima da temporada.
+ *
+ * Pelo mesmo motivo das finais: a proposta é uma decisão dentro do ano, e
+ * mandar a pessoa pra outra tela fazia perder de vista o que ela tem — o
+ * clube atual, o overall, o dinheiro — bem na hora de decidir com base nisso.
+ *
+ * Sem botão de fechar: o contrato acabou, e escolher não é opcional.
+ */
+function abrirMercado(){
+  document.querySelector('.modal-fundo')?.remove();
   const v = valorDeMercado();
   const ofertas = S.mercado || [];
-  app().innerHTML = topo() + barra() + `
-    <h1>Seu contrato acabou.</h1>
-    <p class="lead">${ofertas.length === 1
-      ? "Só apareceu uma proposta. O mercado não é gentil com quem não produz."
-      : `${ofertas.length} propostas na mesa. Cada uma vem com o prazo dela.`}</p>
+  const cx = document.createElement('div');
+  cx.className = 'modal-fundo';
+  cx.innerHTML = `<div class="modal-cx modal-mercado">
+    <div class="fin-cab">
+      <span class="fin-tit">Seu contrato acabou</span>
+      <small>${ofertas.length === 1
+        ? "Só apareceu uma proposta. O mercado não é gentil com quem não produz."
+        : `${ofertas.length} propostas na mesa · cada uma com o prazo dela`}</small>
+    </div>
     <div class="ofertas-grade">
       ${ofertas.map((of,i)=>`
         <button class="oferta-card" onclick="escolherOferta(${i})">
@@ -3763,10 +3780,14 @@ function telaMercado(){
           <span class="oferta-nota">${esc(of.nota)}</span>
         </button>`).join("")}
     </div>
-    <p class="nota-txt">Seu valor de mercado hoje: <b style="color:var(--text)">${v}</b>. Ele sobe com produção e desce com a idade.</p>`;
+    <p class="nota-txt" style="margin:12px 0 0">Seu valor de mercado hoje:
+      <b style="color:var(--text)">${v}</b>. Ele sobe com produção e desce com a idade.</p>
+  </div>`;
+  document.body.appendChild(cx);
 }
 
 function escolherOferta(i){
+  document.querySelector('.modal-fundo')?.remove();
   const of = S.mercado[i];
   const mudou = assinar(of);
   S.mensagem = mudou
