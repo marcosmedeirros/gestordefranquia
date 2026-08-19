@@ -1329,11 +1329,20 @@ function ligaVizinha(ligaId, direcao){
  *
  * Devolve 'sobe', 'cai' ou null.
  */
-function movimentoDoClube(clube){
+function movimentoDoClube(clube, ganhouALiga){
   const l = LIGAS[clube.liga];
   if (!l) return null;
   const media = l[4];
   const dif = clube.forca - media;
+
+  // CAMPEÃO DE DIVISÃO DE ACESSO SOBE. Isso não é sorteio, é a regra do
+  // futebol — e sem ela dava pra ganhar a Série B a carreira inteira com o
+  // mesmo clube, que era o furo: o time levantava a taça todo ano e
+  // continuava na Série B pra levantar de novo.
+  if (ganhouALiga) {
+    const acima = ligaVizinha(clube.liga, 'sobe');
+    return acima ? 'sobe' : null;   // campeão nunca cai
+  }
 
   // As chances são baixas de propósito: rebaixamento todo ano viraria ruído.
   if (dif >= 6 && ligaVizinha(clube.liga, 'sobe')) {
@@ -1551,7 +1560,7 @@ async function jogarAnos(){
     // O clube pode subir ou cair de divisão. Muda a liga do clube NO ESTADO,
     // não no catálogo: a queda é da carreira desta pessoa, e a próxima
     // carreira começa com o mundo no lugar.
-    const mov = movimentoDoClube(S.clube);
+    const mov = movimentoDoClube(S.clube, (t.titulos || []).includes('liga'));
     if (mov) {
       const nova = ligaVizinha(S.clube.liga, mov);
       if (nova) {
