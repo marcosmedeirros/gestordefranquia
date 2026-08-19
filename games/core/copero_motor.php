@@ -598,8 +598,8 @@ function coperoConquistas(): array
                           'dificil', fn($c) => $c['coletivos'] === 0 && $c['temporadas'] >= 15],
         'poliglota'   => ['🗺️', 'Poliglota',         'Seja campeão nacional em três países diferentes.',
                           'dificil', fn($c) => $c['paisesCampeao'] >= 3],
-        'muralha'     => ['🧤', 'Muralha',           'Como goleiro, termine com 150 jogos sem sofrer gol.',
-                          'dificil', fn($c) => $c['posicao'] === 'GOL' && $c['cleanSheets'] >= 150],
+        'muralha'     => ['🧤', 'Muralha',           'Como goleiro, termine com 200 jogos sem sofrer gol.',
+                          'dificil', fn($c) => $c['posicao'] === 'GOL' && $c['cleanSheets'] >= 200],
 
         // ── Impossíveis: pra perseguir por muitas carreiras ───────────
         'mr_champions'=> ['🏛️', 'Mr. Champions',     'Ganhe seis torneios continentais de clubes.',
