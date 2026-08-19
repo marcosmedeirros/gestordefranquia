@@ -37,6 +37,24 @@
  * 5x5 sem cada jogo precisar do seu próprio desenho.
  */
 
+/**
+ * A cor do cartão sai de um nome — mesmo nome, mesma cor, print após print.
+ *
+ * Vive aqui e não em cada jogo porque `my-roster.php` e o Build-A-Player
+ * dependem dela pra pintar coisas que NÃO são o cartão: o elenco usa pra cor
+ * da foto do time, e o build pra cor do topo.
+ */
+function cartaoCoresDoNome(string $nome): array
+{
+    $h = 0;
+    foreach (preg_split('//u', $nome ?: '?', -1, PREG_SPLIT_NO_EMPTY) as $c) {
+        $h = ($h * 31 + mb_ord($c)) % 4294967296;
+    }
+    $mat  = $h % 360;
+    $comp = ($mat + 150 + ($h % 60)) % 360;
+    return ["hsl($mat 55% 26%)", "hsl($comp 45% 12%)"];
+}
+
 function cartaoScript(): string
 {
     return <<<'HTML'
