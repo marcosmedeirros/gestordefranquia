@@ -428,7 +428,15 @@ button{font-family:inherit}
   .carreira{grid-template-columns:minmax(0,1fr)}
   .ident{grid-template-columns:1fr}
   .ident-col + .ident-col{border-left:none;border-top:1px solid var(--borda)}
-  .linha-cab,.ano{grid-template-columns:38px minmax(0,1fr) 42px 44px 44px 44px;gap:6px}
+  /* As colunas de número encolhem pra dar espaço ao clube. Com as medidas
+     antigas sobravam 38px pro nome numa tela de 375, e "Sport Recife" — que
+     precisa de 72 — saía cortado quase pela metade. Agora cabe; só nome de
+     19 letras pra cima trunca, e aí com reticências, como deve ser. */
+  .linha-cab,.ano{grid-template-columns:34px minmax(0,1fr) 36px 34px 34px 34px;gap:5px}
+  .ano{padding:4px 6px;font-size:12px}
+  .linha-cab{padding:0 6px 7px}
+  .ano-clube{gap:6px}
+  .ano-n{font-size:11.5px}
 }
 @media (max-width:440px){
   /* Em tela estreita idade e valor empilham: lado a lado eles comiam 100px
