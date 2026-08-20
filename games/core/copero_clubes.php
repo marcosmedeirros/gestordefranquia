@@ -187,7 +187,7 @@ const COPERO_CLUBES = [
     ['Manchester United', 'EN1', 92, 'https://r2.thesportsdb.com/images/media/team/badge/xzqdr11517660252.png'],
     ['Chelsea', 'EN1', 92, 'https://r2.thesportsdb.com/images/media/team/badge/pbf4ul1782638263.png'],
     ['Tottenham', 'EN1', 90, 'https://r2.thesportsdb.com/images/media/team/badge/3dhd0j1605371995.png'],
-    ['Newcastle', 'EN1', 89, 'https://r2.thesportsdb.com/images/media/team/badge/5jevk91653487832.png'],
+    ['Newcastle', 'EN1', 89, '/games/img/escudos/newcastle.png'],
     ['Aston Villa', 'EN1', 88, 'https://r2.thesportsdb.com/images/media/team/badge/cgvxt61785930389.png'],
     ['Brighton', 'EN1', 85, 'https://r2.thesportsdb.com/images/media/team/badge/ywypts1448810904.png'],
     ['West Ham', 'EN1', 84, 'https://r2.thesportsdb.com/images/media/team/badge/hfum4l1599931799.png'],

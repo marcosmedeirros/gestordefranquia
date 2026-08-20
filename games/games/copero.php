@@ -846,9 +846,9 @@ button{font-family:inherit}
 .efeito.apagado{opacity:.25;filter:grayscale(1)}
 .efeito.sorteado{animation:revelado .45s ease;outline:1px solid currentColor}
 
-.taca-fila{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:center;
+.taca-fila{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;
   gap:22px 30px;max-width:min(92vw,780px);padding:0 16px}
-.taca-item{display:flex;flex-direction:column;align-items:center;gap:9px;
+.taca-item{display:flex;flex-direction:column;align-items:center;gap:9px;flex:0 0 auto;
   opacity:0;animation:tacaEntra .8s cubic-bezier(.2,1.5,.4,1) forwards}
 .taca-item b{font-size:14px;font-weight:800;text-align:center;max-width:150px;line-height:1.25}
 @media (max-width:520px){
@@ -1519,8 +1519,20 @@ function titulosDaTemporada(clube, ovr, stats){
   // quem já ganha tudo, e o teto de títulos sobe com elas.
   const anoPassado = S.temporadas[S.temporadas.length - 1];
   const ganhouAntes = (anoPassado && anoPassado.titulos) || [];
-  if (ganhouAntes.includes('liga') || ganhouAntes.includes('copa')) {
-    if (SUPERNAC[l.pais] && Math.random() < 0.72) ganhos.push('supernac');
+
+  // A Supercopa nacional é entre o campeão da PRIMEIRA divisão e o da copa
+  // do país. Campeão da Série C não disputa — e era isso que acontecia: a
+  // regra só perguntava "ganhou liga?", então o Paysandu levantava a
+  // Supercopa do Brasil em 72% das temporadas depois de ganhar a Série C.
+  //
+  // O país também vem do ano PASSADO: quem ganhou a liga na Espanha e se
+  // mudou pro Brasil não disputa a Supercopa brasileira.
+  const ligaDoTitulo = anoPassado ? dadosLiga(anoPassado.liga) : null;
+  const paisDoTitulo = ligaDoTitulo ? ligaDoTitulo.pais : l.pais;
+  const campeaoNaPrimeira = ganhouAntes.includes('liga') && ligaDoTitulo && ligaDoTitulo.nivel === 1;
+  if (campeaoNaPrimeira || ganhouAntes.includes('copa')) {
+    // E só se ele ainda joga no mesmo país: a Supercopa é do calendário de lá.
+    if (paisDoTitulo === l.pais && SUPERNAC[l.pais] && Math.random() < 0.72) ganhos.push('supernac');
   }
   if (ganhouAntes.includes('cont') || ganhouAntes.includes('cont2')) {
     if (SUPERCONT[l.cont] && Math.random() < 0.72) ganhos.push('supercont');
@@ -2642,7 +2654,7 @@ function blocoDecisao(){
           return `<button class="carta" onclick="aceitarEmprestimo(${i})">
             <div class="clube-op">${escudo(c, 34)}
               <span class="txt"><b>Emprestado ao ${esc(c.nome)}</b>
-              <small>${l ? esc(l.nome) : ''} · força ${c.forca}</small></span>
+              <small>${l ? esc(l.nome) : ''}</small></span>
             </div></button>`;
         });
         cs.push(`<button class="carta" onclick="recusarEmprestimo()">
@@ -2665,7 +2677,7 @@ function blocoDecisao(){
         cs.push(`<button class="carta" onclick="voltarDoEmprestimo()">
           <div class="clube-op">${escudo(dono, 34)}
             <span class="txt"><b>Voltar ao ${esc(dono.nome)}</b>
-            <small>${esc((dadosLiga(dono.liga)||{}).nome || '')} · força ${dono.forca}</small></span>
+            <small>${esc((dadosLiga(dono.liga)||{}).nome || '')}</small></span>
           </div></button>`);
         if (compra) cs.push(`<button class="carta" onclick="ficarNoEmprestimo()">
           <div class="clube-op">${escudo(aqui, 34)}
@@ -2677,7 +2689,7 @@ function blocoDecisao(){
           cs.push(`<button class="carta" onclick="aceitarEmprestimo(${i})">
             <div class="clube-op">${escudo(c, 34)}
               <span class="txt"><b>Novo empréstimo: ${esc(c.nome)}</b>
-              <small>${l ? esc(l.nome) : ''} · força ${c.forca}</small></span>
+              <small>${l ? esc(l.nome) : ''}</small></span>
             </div></button>`);
         });
         return gradeDeOpcoes(cs.join(''));
