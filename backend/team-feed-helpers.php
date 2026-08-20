@@ -11,6 +11,7 @@
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/team_punishments.php'; // sqlSoPunicoes()
 
 /**
  * A timeline começa aqui. Nada anterior a esta data aparece — o histórico
@@ -179,16 +180,16 @@ function getTeamTimeline(PDO $pdo, ?int $teamId, int $limit = 30, ?string $befor
         }
     }
 
-    // Punições — "AVISO_TRADE" (aviso de trade/SERASA) não é punição de
-    // verdade, é só um alerta interno; já é excluído das contagens de punição
-    // em teams.php/api/punicoes.php, então segue a mesma regra aqui.
+    // Só punição de verdade: aviso formal e aviso de trade (FBA SERASA) são
+    // recado, não pena, e já ficam de fora dos contadores do time — o feed
+    // segue a mesma régua (sqlSoPunicoes, em backend/team_punishments.php).
     if (!$global) {
-        $sql = "SELECT id, team_id, motive, punishment_label, type, created_at, reverted_at FROM team_punishments WHERE team_id = ? AND type <> 'AVISO_TRADE'" . ($before ? " AND created_at < ?" : "") . " ORDER BY created_at DESC LIMIT {$limitSql}";
+        $sql = "SELECT id, team_id, motive, punishment_label, type, created_at, reverted_at FROM team_punishments WHERE team_id = ?" . sqlSoPunicoes('') . ($before ? " AND created_at < ?" : "") . " ORDER BY created_at DESC LIMIT {$limitSql}";
         $params = $before ? [$teamId, $before] : [$teamId];
     } else {
         $sql = "SELECT tp.id, tp.team_id, tp.motive, tp.punishment_label, tp.type, tp.created_at, tp.reverted_at
                 FROM team_punishments tp" . ($league ? " JOIN teams tl ON tl.id = tp.team_id" : "") . "
-                WHERE tp.type <> 'AVISO_TRADE'" . ($league ? " AND tl.league = ?" : "") . ($before ? " AND tp.created_at < ?" : "") . "
+                WHERE 1=1" . sqlSoPunicoes('tp') . ($league ? " AND tl.league = ?" : "") . ($before ? " AND tp.created_at < ?" : "") . "
                 ORDER BY tp.created_at DESC LIMIT {$limitSql}";
         $params = array_values(array_filter([$league, $before], fn($v) => $v !== null));
     }

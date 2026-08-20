@@ -14,6 +14,32 @@
  * já é recriado do zero.
  */
 
+/**
+ * Os tipos que moram em team_punishments mas NÃO são punição.
+ *
+ * A tabela guarda duas coisas diferentes: castigo de verdade (perder pick,
+ * banimento de trade) e recado (aviso formal, aviso de trade do FBA SERASA).
+ * Recado é alerta, não pena — não pode entrar no contador de punições do time
+ * nem no feed, senão um time que só levou dois toques aparece com a mesma
+ * ficha de quem perdeu pick de 1ª rodada.
+ */
+const PUNICAO_TIPOS_DE_AVISO = ['AVISO_TRADE', 'AVISO_FORMAL'];
+
+/**
+ * O pedaço de WHERE que tira os avisos da conta. O alias é o da tabela na
+ * query ('tp.' na maioria; vazio quando o SELECT é direto em team_punishments).
+ *
+ * Uma exceção de propósito: o painel do admin (api/punicoes.php) continua
+ * listando o aviso formal. É lá que ele é aplicado e revertido — some da
+ * lista e vira punição fantasma, ativa e sem como desfazer.
+ */
+function sqlSoPunicoes(string $alias = 'tp'): string
+{
+    $col   = ($alias === '' ? '' : $alias . '.') . 'type';
+    $lista = "'" . implode("','", PUNICAO_TIPOS_DE_AVISO) . "'";
+    return " AND {$col} NOT IN ({$lista})";
+}
+
 function resetPunicoesEAvisosDaLiga(PDO $pdo, string $league, ?int $triggeredBy = null): array
 {
     try {

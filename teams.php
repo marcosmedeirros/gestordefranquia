@@ -5,6 +5,7 @@ require_once __DIR__ . '/backend/helpers.php';
 require_once __DIR__ . '/backend/salary_cap.php';
 require_once __DIR__ . '/backend/atualizacoes.php';   // trava de atualizacao por terceiro
 require_once __DIR__ . '/backend/pick_protection.php'; // selo de protecao nas picks
+require_once __DIR__ . '/backend/team_punishments.php'; // sqlSoPunicoes(): aviso nao e punicao
 requireAuth();
 
 $user = getUserSession();
@@ -96,7 +97,7 @@ $stmt = $pdo->prepare('
     SELECT t.id, t.city, t.name, t.mascot, t.photo_url, t.user_id, t.tapas, t.roster_updated_at, t.team_tag,
              t.trades_used, t.public_enabled, t.public_slug, t.conference, t.atualizado_terceiro_em,
              u.name AS owner_name, u.email AS owner_email, u.phone AS owner_phone, u.photo_url AS owner_photo,
-             (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL AND tp.type <> \'AVISO_TRADE\') as punicoes_count,
+             (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.reverted_at IS NULL' . sqlSoPunicoes() . ') as punicoes_count,
              (SELECT COUNT(*) FROM team_punishments tp WHERE tp.team_id = t.id AND tp.type = \'AVISO_TRADE\' AND tp.reverted_at IS NULL) as avisos_count,
              (SELECT AVG(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = \'titular\') as starters_avg_ovr,
              (SELECT MAX(p.ovr) FROM players p WHERE p.team_id = t.id AND LOWER(p.role) = \'titular\') as starters_max_ovr,

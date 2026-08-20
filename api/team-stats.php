@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/salary_cap.php';
+require_once __DIR__ . '/../backend/team_punishments.php'; // sqlSoPunicoes()
 requireAuth();
 
 header('Content-Type: application/json; charset=utf-8');
@@ -453,14 +454,15 @@ if (strtoupper((string)($team['league'] ?? '')) === 'ELITE') {
 // ── Reputação / punições (FBA SERASA) ────────────────────────────
 $punishments = ['total' => 0, 'active' => 0, 'recent' => []];
 try {
-    $stmtPun = $pdo->prepare("SELECT COUNT(*) AS total, SUM(reverted_at IS NULL) AS active FROM team_punishments WHERE team_id = ?");
+    $stmtPun = $pdo->prepare("SELECT COUNT(*) AS total, SUM(reverted_at IS NULL) AS active
+                              FROM team_punishments WHERE team_id = ?" . sqlSoPunicoes(''));
     $stmtPun->execute([$teamId]);
     $pr = $stmtPun->fetch(PDO::FETCH_ASSOC);
     $punishments['total'] = (int)($pr['total'] ?? 0);
     $punishments['active'] = (int)($pr['active'] ?? 0);
 
     $stmtRecent = $pdo->prepare("SELECT punishment_label, motive, type, created_at, reverted_at
-                                  FROM team_punishments WHERE team_id = ?
+                                  FROM team_punishments WHERE team_id = ?" . sqlSoPunicoes('') . "
                                   ORDER BY created_at DESC LIMIT 5");
     $stmtRecent->execute([$teamId]);
     $punishments['recent'] = $stmtRecent->fetchAll(PDO::FETCH_ASSOC);
