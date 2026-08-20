@@ -23,3 +23,5 @@ bot/evolution/.env
 bot/.nomes-sincronizados
 # Carência do vigia de recepção — estado da máquina, não do projeto.
 bot/.ultima-reconexao
+
+testar-cmd-dev.php
