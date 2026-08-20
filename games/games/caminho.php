@@ -587,19 +587,19 @@ input::placeholder{color:var(--text3);font-weight:500}
 .placar-time small{display:block;font-size:9.5px;font-weight:600;color:var(--text2);letter-spacing:.3px}
 
 .linha-stats{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)}
-.st{padding:10px 8px;text-align:center;border-right:1px solid var(--border)}
+.st{padding:7px 6px;text-align:center;border-right:1px solid var(--border)}
 .st:last-child{border-right:none}
-.st b{display:block;font-family:var(--num);font-size:22px;font-weight:900;letter-spacing:-1px;
+.st b{display:block;font-family:var(--num);font-size:19px;font-weight:900;letter-spacing:-.8px;
   font-variant-numeric:tabular-nums;line-height:1;color:var(--text)}
-.st span{display:block;font-size:8.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
-  color:var(--text);margin-top:5px}
+.st span{display:block;font-size:8px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;
+  color:var(--text2);margin-top:3px}
 .linha-mini{display:flex;border-bottom:1px solid var(--border)}
-.mini{flex:1;padding:7px 6px;text-align:center;border-right:1px solid var(--border)}
+.mini{flex:1;padding:5px 6px;text-align:center;border-right:1px solid var(--border)}
 .mini:last-child{border-right:none}
 .mini b{font-family:var(--num);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
-.mini span{display:block;font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
-  color:var(--text);margin-top:2px}
-.campanha{padding:8px 14px;font-size:12.5px;color:var(--text2)}
+.mini span{display:block;font-size:7.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--text2);margin-top:1px}
+.campanha{padding:7px 2px 0;font-size:12px;color:var(--text2)}
 .campanha b{color:var(--text);font-family:var(--num);font-variant-numeric:tabular-nums}
 
 .premios{display:flex;flex-wrap:wrap;gap:5px;padding:0 14px 10px}
@@ -865,7 +865,7 @@ tr.tit td{color:var(--red)}
 .tag.idolo{background:var(--blue-soft);color:#bfdbfe}
 
 /* A vitrine: a taça desenhada com a contagem no canto. */
-.vitrine{display:flex;flex-wrap:wrap;gap:9px;padding:11px 0;margin-bottom:2px;
+.vitrine{display:flex;flex-wrap:wrap;gap:8px;padding:9px 0;margin-bottom:0;
   border-top:1px solid var(--border)}
 .vitrine.vazia{font-size:11px;color:var(--text3);font-weight:700;padding:10px 0}
 .tacao{position:relative;display:flex;align-items:center}
@@ -873,7 +873,7 @@ tr.tit td{color:var(--red)}
   background:var(--panel3);border:1px solid var(--border);border-radius:99px;padding:0 4px;color:var(--text)}
 
 .ficha-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
-  border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:12px 0;margin-bottom:12px}
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:9px 0;margin-bottom:9px}
 .ficha-stats div{text-align:center;min-width:0}
 .ficha-stats span{display:block;font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--text3);
   text-transform:uppercase;margin-bottom:3px}
@@ -883,9 +883,9 @@ tr.tit td{color:var(--red)}
 /* A caixa da trajetória: sem padding, porque a lista já tem o dela. */
 .caixa.linha{padding:0;overflow:hidden}
 .caixa.linha .trajeto{border:none;border-radius:0;background:transparent}
-.ficha-ano{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:11px 12px}
+.ficha-ano{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
 .ficha-ano-cab{font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
-  color:var(--text3);margin-bottom:9px}
+  color:var(--text3);margin-bottom:6px}
 @media(max-width:420px){
   .ficha{padding:13px}
   /* Em tela estreita idade e valor empilham: lado a lado comiam 90px e
@@ -1169,25 +1169,21 @@ tr.tit td{color:var(--red)}
 .fin-placar span{color:var(--text3);font-size:17px}
 .fin-vazio{text-align:center;color:var(--text2);font-size:12.5px;margin:14px 0}
 /* O mercado cabe mais gente que as finais: até três propostas lado a lado. */
-/* ── CARROSSEL DE DECISÃO ─────────────────────────────────────────────
-   Uma carta em foco e as vizinhas espiando pela borda: a comparação vira
-   "esta ou a próxima", em vez de uma lista inteira pra ler de uma vez. */
-.carr{position:relative;max-width:100%;overflow:hidden;margin-top:6px}
-.carr-pista{display:flex;gap:10px;overflow-x:auto;max-width:100%;scroll-snap-type:x mandatory;
-  padding:2px 0 10px;scrollbar-width:none;-ms-overflow-style:none}
-.carr-pista::-webkit-scrollbar{display:none}
-.carr-pista > *{flex:0 0 76%;scroll-snap-align:center;min-width:0;opacity:.42;transform:scale(.94);
-  transition:opacity .18s,transform .18s,border-color .12s}
-.carr-pista > *.foco{opacity:1;transform:scale(1)}
-.carr-ctrl{display:flex;align-items:center;justify-content:center;gap:8px}
-.carr-ctrl button{width:38px;height:34px;border-radius:10px;background:var(--panel2);
-  border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:15px;
-  display:flex;align-items:center;justify-content:center;transition:.14s;font-family:var(--font)}
+/* ── AS OPÇÕES DE UMA DECISÃO ─────────────────────────────────────────
+   Lado a lado, todas à vista. Já foi carrossel: ficava bonito e cobrava dois
+   cliques pra ver o que cabe na tela sem clique nenhum. Quando não cabem —
+   celular, ou muitas opções —, o próprio grid empilha. */
+.carr{max-width:100%;margin-top:6px}
+.carr-pista{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;
+  align-items:stretch}
+.carr-pista > *{min-width:0}
+.carr-ctrl{display:flex;align-items:center;justify-content:center;margin-top:9px}
+.carr-ctrl button{height:30px;padding:0 13px;border-radius:9px;background:var(--panel2);
+  border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:11.5px;font-weight:700;
+  display:inline-flex;align-items:center;gap:6px;transition:.14s;font-family:var(--font)}
 .carr-ctrl button:hover:not(:disabled){color:var(--text);border-color:var(--border2)}
-.carr-ctrl button:disabled{opacity:.3;cursor:default}
-.carr-conta{font-size:11px;font-weight:700;color:var(--text3);min-width:34px;text-align:center;
-  font-family:var(--num);font-variant-numeric:tabular-nums}
-@media (min-width:760px){ .carr-pista > *{flex:0 0 44%} }
+.carr-ctrl button:disabled{opacity:.35;cursor:default}
+@media (max-width:560px){ .carr-pista{grid-template-columns:1fr} }
 
 /* ── JANELA DE TRANSFERÊNCIAS ────────────────────────────────────────── */
 .ofertas-lista{display:flex;flex-direction:column;gap:8px;margin-top:8px}
@@ -3378,7 +3374,6 @@ function telaFormacao(){
     `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>`;
 
   app().innerHTML = topo() + colunas(principal, sumula());
-  ligarCarrossel();
 }
 
 function irAoDraft(){ S.fase = "draft"; S.draftRevelado = false; salvar(); telaDraft(); }
@@ -4756,58 +4751,12 @@ const TITULOS_DECISAO = {
  */
 function carrossel(cartasHtml, n, comReSorteio){
   return `<div class="carr">
-    <div class="carr-pista" id="carrPista">${cartasHtml}</div>
-    <div class="carr-ctrl">
-      <button onclick="carrMover(-1)" title="Anterior" aria-label="Anterior">‹</button>
-      <span class="carr-conta" id="carrConta">1/${n}</span>
-      ${comReSorteio ? `<button onclick="resortearOpcoes()" id="carrRe"
-        title="Sortear outras propostas" aria-label="Sortear outras propostas"
-        ${S.jaResorteou ? 'disabled' : ''}>⟳</button>` : ''}
-      <button onclick="carrMover(1)" title="Próxima" aria-label="Próxima">›</button>
-    </div>
+    <div class="carr-pista">${cartasHtml}</div>
+    ${comReSorteio ? `<div class="carr-ctrl">
+      <button onclick="resortearOpcoes()" id="carrRe" ${S.jaResorteou ? 'disabled' : ''}
+        title="Sortear outras propostas">⟳ ${S.jaResorteou ? 'já trocou' : 'outras propostas'}</button>
+    </div>` : ''}
   </div>`;
-}
-
-function carrMover(dir){
-  const pista = document.getElementById('carrPista');
-  if (!pista) return;
-  const cartas = [...(pista.children || [])];
-  if (!cartas.length) return;
-  const atual = cartas.findIndex(c => c.classList.contains('foco'));
-  const alvo = Math.max(0, Math.min(cartas.length - 1, (atual < 0 ? 0 : atual) + dir));
-  cartas[alvo].scrollIntoView({behavior: semAnimacao() ? 'auto' : 'smooth', block:'nearest', inline:'center'});
-  marcarFoco(alvo);
-}
-
-/** Quem está no meio da pista ganha o foco. */
-function marcarFoco(forcado){
-  const pista = document.getElementById('carrPista');
-  if (!pista) return;
-  const cartas = [...(pista.children || [])];
-  if (!cartas.length) return;
-  let i = forcado;
-  if (i == null){
-    const meio = pista.scrollLeft + pista.clientWidth / 2;
-    let melhor = Infinity;
-    cartas.forEach((c, k) => {
-      const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - meio);
-      if (d < melhor) { melhor = d; i = k; }
-    });
-  }
-  cartas.forEach((c, k) => c.classList.toggle('foco', k === i));
-  const conta = document.getElementById('carrConta');
-  if (conta) conta.textContent = (i + 1) + '/' + cartas.length;
-}
-
-/** Liga o foco depois que a tela é desenhada. */
-function ligarCarrossel(){
-  const pista = document.getElementById('carrPista');
-  // O typeof protege o motor rodando fora do navegador (o simulador usa um
-  // DOM de mentira, e um enfeite não pode derrubar a carreira).
-  if (!pista || typeof pista.addEventListener !== "function") return;
-  marcarFoco(0);
-  let t = null;
-  pista.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(() => marcarFoco(), 60); });
 }
 
 /**
@@ -4876,7 +4825,6 @@ function telaTemporada(){
   // A súmula vai pro lado: ela cresce a cada temporada e, embaixo do botão
   // de avançar, empurrava a decisão pra fora da tela no desktop.
   app().innerHTML = topo() + colunas(principal, sumula());
-  ligarCarrossel();
 }
 
 function decidir(i){

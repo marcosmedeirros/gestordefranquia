@@ -583,26 +583,28 @@ button{font-family:inherit}
 .ficha-marca img,.ficha-marca .mono{width:132px!important;height:132px!important;border-radius:0}
 .ficha-topo > *:not(.ficha-marca){position:relative;z-index:1}
 
-/* ── CARROSSEL DE DECISÃO ────────────────────────────────
-   Uma carta em foco e as vizinhas espiando pela borda. É o gesto de
-   folhear: a comparação vira "esta ou a próxima", em vez de uma lista
-   inteira pra ler de uma vez. */
-.carr{position:relative;max-width:100%;overflow:hidden}
-.carr-pista{display:flex;gap:10px;overflow-x:auto;max-width:100%;scroll-snap-type:x mandatory;
-  padding:2px 0 10px;scrollbar-width:none;-ms-overflow-style:none}
-.carr-pista::-webkit-scrollbar{display:none}
-.carr-pista > .carta{flex:0 0 76%;scroll-snap-align:center;min-width:0;opacity:.42;transform:scale(.94);
-  transition:opacity .18s,transform .18s,border-color .12s}
-.carr-pista > .carta.foco{opacity:1;transform:scale(1);border-color:var(--borda2)}
-.carr-ctrl{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:2px}
-.carr-ctrl button{width:38px;height:34px;border-radius:10px;background:var(--panel2);
-  border:1px solid var(--borda);color:var(--txt2);cursor:pointer;font-size:15px;
-  display:flex;align-items:center;justify-content:center;transition:.14s}
+/* ── AS OPÇÕES DE UMA DECISÃO ────────────────────────────
+   Lado a lado, todas à vista. Já foi carrossel: ficava bonito e cobrava dois
+   cliques pra ver o que cabe na tela sem clique nenhum. Quando não cabem —
+   celular, ou muitas opções —, o próprio grid empilha, e aí a carta deita
+   pra ocupar menos altura. */
+.carr{max-width:100%}
+.carr-pista{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;
+  align-items:stretch}
+.carr-pista > *{min-width:0}
+.carr-ctrl{display:flex;align-items:center;justify-content:center;margin-top:9px}
+.carr-ctrl button{height:30px;padding:0 13px;border-radius:9px;background:var(--panel2);
+  border:1px solid var(--borda);color:var(--txt3);cursor:pointer;font-size:11.5px;font-weight:700;
+  display:inline-flex;align-items:center;gap:6px;transition:.14s;font-family:inherit}
 .carr-ctrl button:hover:not(:disabled){color:var(--txt);border-color:var(--borda2)}
-.carr-ctrl button:disabled{opacity:.3;cursor:default}
-.carr-conta{font-size:11px;font-weight:700;color:var(--txt3);min-width:34px;text-align:center;
-  font-variant-numeric:tabular-nums}
-@media (min-width:760px){ .carr-pista > .carta{flex:0 0 46%} }
+.carr-ctrl button:disabled{opacity:.35;cursor:default}
+/* Empilhada, a carta deita: escudo à esquerda e o texto ao lado. */
+@media (max-width:560px){
+  .carr-pista{grid-template-columns:1fr}
+  .carr-pista .clube-op{flex-direction:row;align-items:center;text-align:left}
+  .carr-pista .clube-op .txt{flex:1;min-width:0}
+  .carr-pista .carta{text-align:left}
+}
 
 .cartas{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px}
 /* Oferta de clube é lista, não grade: o que se compara é o nome e a liga,
@@ -2530,18 +2532,6 @@ function render(){
     </div>
     <p class="rodape">Os nomes de clube servem para identificar dentro da simulação.
     Este jogo não é afiliado, patrocinado nem endossado por nenhum deles.</p>`;
-
-  // O carrossel precisa de duas coisas depois que o HTML entra: saber quem
-  // está no meio, e continuar sabendo enquanto a pessoa arrasta.
-  const pista = document.getElementById('carrPista');
-  if (pista && typeof pista.addEventListener === "function"){
-    marcarFoco(0);
-    let t2 = null;
-    pista.addEventListener('scroll', () => {
-      clearTimeout(t2);
-      t2 = setTimeout(() => marcarFoco(), 60);
-    });
-  }
 }
 
 /**
@@ -2667,55 +2657,19 @@ function blocoDecisao(){
 /**
  * Envolve um punhado de cartas num carrossel.
  *
- * As decisões do jogo são todas do mesmo tipo — escolher entre três portas —
- * e mostrar as três lado a lado numa coluna de celular deixava cada uma com
- * um terço da largura: sobrava espaço pro nome do clube e mais nada. Em
- * carrossel, a carta em foco tem 76% da tela e as vizinhas espiam pela borda,
- * o que também deixa claro que existe mais coisa pra ver.
+ * As decisões do jogo são todas do mesmo tipo — escolher entre portas — e
+ * mostrá-las lado a lado deixa a comparação inteira à vista. Já foi
+ * carrossel: ficava bonito e cobrava dois cliques pra ver o que cabe na tela
+ * sem clique nenhum. Quando não cabem, o próprio grid empilha.
  */
-function carrossel(cartasHtml, n){
+function carrossel(cartasHtml){
   return `<div class="carr">
-    <div class="carr-pista" id="carrPista">${cartasHtml}</div>
+    <div class="carr-pista">${cartasHtml}</div>
     <div class="carr-ctrl">
-      <button onclick="carrMover(-1)" title="Anterior" aria-label="Anterior">‹</button>
-      <span class="carr-conta" id="carrConta">1/${n}</span>
-      <button onclick="resortearOpcoes()" id="carrRe" title="Sortear outras opções"
-        aria-label="Sortear outras opções" ${S.jaResorteou ? 'disabled' : ''}>⟳</button>
-      <button onclick="carrMover(1)" title="Próxima" aria-label="Próxima">›</button>
+      <button onclick="resortearOpcoes()" id="carrRe" ${S.jaResorteou ? 'disabled' : ''}
+        title="Sortear outras opções">⟳ ${S.jaResorteou ? 'já trocou' : 'outras opções'}</button>
     </div>
   </div>`;
-}
-
-/** Move o carrossel uma carta pra frente ou pra trás. */
-function carrMover(d){
-  const pista = document.getElementById('carrPista');
-  if (!pista) return;
-  const cartas = [...(pista.children || [])];
-  if (!cartas.length) return;
-  const atual = cartas.findIndex(c => c.classList.contains('foco'));
-  const alvo = Math.max(0, Math.min(cartas.length - 1, (atual < 0 ? 0 : atual) + d));
-  cartas[alvo].scrollIntoView({behavior: semAnimacao() ? 'auto' : 'smooth', block:'nearest', inline:'center'});
-  marcarFoco(alvo);
-}
-
-/** Quem está no meio da pista ganha o foco. */
-function marcarFoco(forcado){
-  const pista = document.getElementById('carrPista');
-  if (!pista) return;
-  const cartas = [...(pista.children || [])];
-  if (!cartas.length) return;
-  let i = forcado;
-  if (i == null){
-    const meio = pista.scrollLeft + pista.clientWidth / 2;
-    let melhor = Infinity;
-    cartas.forEach((c, k) => {
-      const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - meio);
-      if (d < melhor) { melhor = d; i = k; }
-    });
-  }
-  cartas.forEach((c, k) => c.classList.toggle('foco', k === i));
-  const conta = document.getElementById('carrConta');
-  if (conta) conta.textContent = (i + 1) + '/' + cartas.length;
 }
 
 /**
