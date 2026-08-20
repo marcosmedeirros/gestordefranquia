@@ -468,15 +468,19 @@ function _calcAutoPoints(payload, allTeams, league) {
     const pts = {};
     allTeams.forEach(t => { pts[String(t.id)] = { seed: 0, playoff: 0, awards: 0, cup: 0 }; });
 
-    const seedPts = (rank) => rank === 1 ? 4 : rank <= 4 ? 3 : rank <= 8 ? 2 : 0;
+    // A régua é a mesma de backend/pontuacao_ranking.php. Mudou lá, muda aqui.
+    const seedPts = (rank) => rank <= 2 ? 5 : rank <= 4 ? 4 : rank <= 6 ? 3 : rank <= 8 ? 2 : rank <= 10 ? 1 : 0;
     (payload.standings_leste || []).forEach((id, i) => { const k = String(id); if (pts[k] !== undefined) pts[k].seed = seedPts(i + 1); });
     (payload.standings_oeste || []).forEach((id, i) => { const k = String(id); if (pts[k] !== undefined) pts[k].seed = seedPts(i + 1); });
 
-    if (payload.champion)  { const k = String(payload.champion);  if (pts[k] !== undefined) pts[k].playoff = 11; }
-    if (payload.runner_up) { const k = String(payload.runner_up); if (pts[k] !== undefined) pts[k].playoff = 8;  }
-    (payload.conference_final_losses || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = 6; });
-    (payload.second_round_losses     || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = 3; });
-    (payload.first_round_losses      || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = 1; });
+    // Totais acumulados por onde o time parou: +1 passar da 1ª rodada,
+    // +2 passar do 2º turno, +1 chegar à final, +4 ganhá-la. Cair na 1ª
+    // rodada não pontua.
+    if (payload.champion)  { const k = String(payload.champion);  if (pts[k] !== undefined) pts[k].playoff = 7; }
+    if (payload.runner_up) { const k = String(payload.runner_up); if (pts[k] !== undefined) pts[k].playoff = 4; }
+    (payload.conference_final_losses || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = 3; });
+    (payload.second_round_losses     || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = 1; });
+    (payload.first_round_losses      || []).forEach(id => { const k = String(id); if (pts[k] !== undefined) pts[k].playoff = 0; });
 
     ['mvp_team_id','dpoy_team_id','mip_team_id','sixth_man_team_id','roy_team_id'].forEach(key => {
         const k = String(payload[key] || '');

@@ -7034,20 +7034,23 @@ function renderDispensasTable() {
 // PONTUAÇÃO POR TEMPORADA
 // ══════════════════════════════════════════════
 
+// A régua é a mesma de backend/pontuacao_ranking.php. Mudou lá, muda aqui.
 const PTS_REGULAR = [
   {v:0, l:'— Nenhum —'},
-  {v:4, l:'1° Lugar (+4 pts)'},
-  {v:3, l:'2°–4° Lugar (+3 pts)'},
-  {v:2, l:'5°–8° Lugar (+2 pts)'}
+  {v:5, l:'1° e 2° Lugar (+5 pts)'},
+  {v:4, l:'3° e 4° Lugar (+4 pts)'},
+  {v:3, l:'5° e 6° Lugar (+3 pts)'},
+  {v:2, l:'7° e 8° Lugar (+2 pts)'},
+  {v:1, l:'9° e 10° Lugar (+1 pt)'}
 ];
-// valores cumulativos: 1ªRod(+1) + Semi(+2=3) + FinConf(+3=6) + Vice(+2=8) + Campeão(+3=11)
+// Acumulados: passar da 1ª rodada (+1), passar do 2º turno (+2), chegar à
+// final (+1) e ganhá-la (+4). Cair na 1ª rodada não pontua.
 const PTS_PLAYOFF = [
-  {v:0,  l:'— Não participou —'},
-  {v:1,  l:'1ª Rodada (+1 pt)'},
-  {v:3,  l:'Semifinalista (+3 pts acum.)'},
-  {v:6,  l:'Final de Conferência (+6 pts acum.)'},
-  {v:8,  l:'Vice-Campeão (+8 pts acum.)'},
-  {v:11, l:'Campeão (+11 pts acum.)'}
+  {v:0, l:'— Não passou da 1ª rodada —'},
+  {v:1, l:'2º turno (+1 pt acum.)'},
+  {v:3, l:'Final de Conferência (+3 pts acum.)'},
+  {v:4, l:'Vice-Campeão (+4 pts acum.)'},
+  {v:7, l:'Campeão (+7 pts acum.)'}
 ];
 const PTS_AWARDS = ['MVP','DPOY','MIP','6° Homem','ROY'];
 
@@ -7802,19 +7805,21 @@ async function showRegistroPontuacao(league) {
         <div>
           <div style="color:#eab308;font-weight:700;margin-bottom:6px">Playoffs</div>
           <div style="color:var(--text-2);line-height:2">
-            Campeão: <strong style="color:var(--text)">+5 pts</strong><br>
-            Vice-Campeão: <strong style="color:var(--text)">+2 pts</strong><br>
-            Finalista Conf.: <strong style="color:var(--text)">+3 pts</strong><br>
-            Semifinalista: <strong style="color:var(--text)">+2 pts</strong><br>
-            1ª Rodada: <strong style="color:var(--text)">+1 pt</strong>
+            Campeão: <strong style="color:var(--text)">7 pts</strong><br>
+            Vice-Campeão: <strong style="color:var(--text)">4 pts</strong><br>
+            Final de Conf.: <strong style="color:var(--text)">3 pts</strong><br>
+            2º turno: <strong style="color:var(--text)">1 pt</strong><br>
+            <span style="font-size:11px">1ª rodada não pontua · valores acumulados</span>
           </div>
         </div>
         <div>
           <div style="color:#06b6d4;font-weight:700;margin-bottom:6px">Temporada Regular</div>
           <div style="color:var(--text-2);line-height:2">
-            1º Lugar: <strong style="color:var(--text)">+4 pts</strong><br>
-            2º ao 4º: <strong style="color:var(--text)">+3 pts</strong><br>
-            5º ao 8º: <strong style="color:var(--text)">+2 pts</strong>
+            1º e 2º: <strong style="color:var(--text)">+5 pts</strong><br>
+            3º e 4º: <strong style="color:var(--text)">+4 pts</strong><br>
+            5º e 6º: <strong style="color:var(--text)">+3 pts</strong><br>
+            7º e 8º: <strong style="color:var(--text)">+2 pts</strong><br>
+            9º e 10º: <strong style="color:var(--text)">+1 pt</strong>
           </div>
         </div>
         <div>

@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/backend/db.php';
 require_once dirname(__DIR__) . '/backend/helpers.php'; // congelarRankingDaSprint()
 require_once dirname(__DIR__) . '/backend/checklist_temporada.php';
 require_once dirname(__DIR__) . '/backend/playoff_series.php';   // salvarPlayoffSeries()
+require_once dirname(__DIR__) . '/backend/pontuacao_ranking.php'; // a régua de pontos do ranking
 
 $action = $_GET['action'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
@@ -725,14 +726,8 @@ try {
                 // Limpar standings anteriores desta temporada
                 $pdo->prepare('DELETE FROM season_standings WHERE season_id = ?')->execute([$seasonId]);
 
-                // Mapa de pontos por posição
-                // 1º: 4, 2º-4º: 3, 5º-8º: 2
-                $pointsByPosition = function (int $pos): int {
-                    if ($pos === 1) return 4;
-                    if ($pos >= 2 && $pos <= 4) return 3;
-                    if ($pos >= 5 && $pos <= 8) return 2;
-                    return 0;
-                };
+                // A régua mora em backend/pontuacao_ranking.php.
+                $pointsByPosition = fn (int $pos): int => pontosPorPosicao($pos);
 
                 $stmtInsertStanding = $pdo->prepare('INSERT INTO season_standings (season_id, team_id, position) VALUES (?, ?, ?)');
 
@@ -1663,42 +1658,38 @@ try {
                 }
             };
 
-            // Processar Campeão (cumulativo conforme regra: 1ª(1) + Semi(+2=3) + F.Conf(+3=6) + Vice(+2=8) + Campeão(+3=11))
+            // Os totais de playoff saem da régua única. Cair na 1ª rodada
+            // não pontua — só entrar nos playoffs não vale ponto.
             $initTeam($champion);
             $teamStats[$champion]['playoff_champion'] = 1;
-            $teamStats[$champion]['playoff_points'] = 11;
+            $teamStats[$champion]['playoff_points'] = pontosDePlayoff('champion');
 
-            // Processar Vice (8 pontos)
             $initTeam($runnerUp);
             $teamStats[$runnerUp]['playoff_runner_up'] = 1;
-            $teamStats[$runnerUp]['playoff_points'] = 8;
+            $teamStats[$runnerUp]['playoff_points'] = pontosDePlayoff('runner_up');
 
-            // Processar Finais de Conferência (6 pontos)
             foreach ($confFinal as $tid) {
                 $initTeam($tid);
                 $teamStats[$tid]['playoff_conference_finals'] = 1;
-                $teamStats[$tid]['playoff_points'] = 6;
+                $teamStats[$tid]['playoff_points'] = pontosDePlayoff('conference_final');
             }
 
-            // Processar 2ª Rodada (3 pontos)
             foreach ($secondRound as $tid) {
                 $initTeam($tid);
                 $teamStats[$tid]['playoff_second_round'] = 1;
-                $teamStats[$tid]['playoff_points'] = 3;
+                $teamStats[$tid]['playoff_points'] = pontosDePlayoff('second_round');
             }
 
-            // Processar 1ª Rodada (1 ponto)
             foreach ($firstRound as $tid) {
                 $initTeam($tid);
                 $teamStats[$tid]['playoff_first_round'] = 1;
-                $teamStats[$tid]['playoff_points'] = 1;
+                $teamStats[$tid]['playoff_points'] = pontosDePlayoff('first_round');
             }
 
-            // Processar Prêmios (1 ponto cada)
             foreach ($awardsMap as $tid => $count) {
                 $initTeam($tid);
                 $teamStats[$tid]['awards_count'] = $count;
-                $teamStats[$tid]['awards_points'] = $count * 1; // 1 ponto por prêmio
+                $teamStats[$tid]['awards_points'] = $count * PONTOS_POR_PREMIO;
             }
 
             // Agora fazemos o INSERT final para cada time
@@ -1951,16 +1942,16 @@ try {
             $initT2 = function($tid) use (&$teamStats2) {
                 if (!isset($teamStats2[$tid])) $teamStats2[$tid] = ['playoff_champion'=>0,'playoff_runner_up'=>0,'playoff_conference_finals'=>0,'playoff_second_round'=>0,'playoff_first_round'=>0,'playoff_points'=>0,'awards_count'=>0,'awards_points'=>0];
             };
-            $initT2($champion); $teamStats2[$champion]['playoff_champion'] = 1; $teamStats2[$champion]['playoff_points'] = 11;
-            $initT2($runnerUp); $teamStats2[$runnerUp]['playoff_runner_up'] = 1; $teamStats2[$runnerUp]['playoff_points'] = 8;
-            foreach ($confFinal   as $tid) { $initT2($tid); $teamStats2[$tid]['playoff_conference_finals'] = 1; $teamStats2[$tid]['playoff_points'] = 6; }
-            foreach ($secondRound as $tid) { $initT2($tid); $teamStats2[$tid]['playoff_second_round'] = 1;      $teamStats2[$tid]['playoff_points'] = 3; }
-            foreach ($firstRound  as $tid) { $initT2($tid); $teamStats2[$tid]['playoff_first_round'] = 1;       $teamStats2[$tid]['playoff_points'] = 1; }
-            foreach ($awardsMap2  as $tid => $cnt) { $initT2($tid); $teamStats2[$tid]['awards_count'] = $cnt; $teamStats2[$tid]['awards_points'] = $cnt; }
+            $initT2($champion); $teamStats2[$champion]['playoff_champion'] = 1; $teamStats2[$champion]['playoff_points'] = pontosDePlayoff('champion');
+            $initT2($runnerUp); $teamStats2[$runnerUp]['playoff_runner_up'] = 1; $teamStats2[$runnerUp]['playoff_points'] = pontosDePlayoff('runner_up');
+            foreach ($confFinal   as $tid) { $initT2($tid); $teamStats2[$tid]['playoff_conference_finals'] = 1; $teamStats2[$tid]['playoff_points'] = pontosDePlayoff('conference_final'); }
+            foreach ($secondRound as $tid) { $initT2($tid); $teamStats2[$tid]['playoff_second_round'] = 1;      $teamStats2[$tid]['playoff_points'] = pontosDePlayoff('second_round'); }
+            foreach ($firstRound  as $tid) { $initT2($tid); $teamStats2[$tid]['playoff_first_round'] = 1;       $teamStats2[$tid]['playoff_points'] = pontosDePlayoff('first_round'); }
+            foreach ($awardsMap2  as $tid => $cnt) { $initT2($tid); $teamStats2[$tid]['awards_count'] = $cnt; $teamStats2[$tid]['awards_points'] = $cnt * PONTOS_POR_PREMIO; }
             if ($nbaCupTeamId2) {
                 $initT2($nbaCupTeamId2);
                 $teamStats2[$nbaCupTeamId2]['awards_count'] += 1;
-                $teamStats2[$nbaCupTeamId2]['awards_points'] += 2;
+                $teamStats2[$nbaCupTeamId2]['awards_points'] += PONTOS_NBA_CUP;
             }
 
             $stmtRk2 = $pdo->prepare("INSERT INTO team_ranking_points (team_id,season_id,league,playoff_champion,playoff_runner_up,playoff_conference_finals,playoff_second_round,playoff_first_round,playoff_points,awards_count,awards_points) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE playoff_champion=VALUES(playoff_champion),playoff_runner_up=VALUES(playoff_runner_up),playoff_conference_finals=VALUES(playoff_conference_finals),playoff_second_round=VALUES(playoff_second_round),playoff_first_round=VALUES(playoff_first_round),playoff_points=VALUES(playoff_points),awards_count=VALUES(awards_count),awards_points=VALUES(awards_points)");

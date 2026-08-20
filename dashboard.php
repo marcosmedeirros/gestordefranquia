@@ -6,6 +6,7 @@ require_once __DIR__ . '/backend/salary_cap.php';
 require_once __DIR__ . '/backend/pendencias.php';
 require_once __DIR__ . '/backend/team-feed-helpers.php'; // FEED_DATA_CORTE + tabelas do feed
 require_once __DIR__ . '/backend/queridometro.php';
+require_once __DIR__ . '/backend/pontuacao_ranking.php'; // a régua do card de pontuação
 requireAuth();
 
 $user = getUserSession();
@@ -1248,6 +1249,21 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         .span-3 { grid-column: span 3; }
         .span-2 { grid-column: span 2; }
 
+        /* ── A régua de pontos ──
+           Colunas que se acomodam sozinhas: são três blocos, quatro na ELITE,
+           e no celular eles viram uma coluna só sem media query nenhuma. */
+        .pt-regua { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px 18px; }
+        .pt-grupo { min-width: 0; }
+        .pt-grupo-tit { font-size: 10px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase;
+            color: var(--red); margin-bottom: 6px; }
+        .pt-linha { display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+            font-size: 12px; color: var(--text-2); padding: 3px 0; }
+        .pt-linha + .pt-linha { border-top: 1px solid var(--border); }
+        .pt-linha span { min-width: 0; }
+        .pt-linha b { flex: none; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+        .pt-nota { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+            font-size: 11px; line-height: 1.5; color: var(--text-3); }
+
         .starters-grid { display: flex; gap: 12px; flex-wrap: wrap; }
         .starter-chip {
             background: var(--panel-2);
@@ -2118,6 +2134,34 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                         <?php else: ?>
                         <div class="empty"><i class="bi bi-arrow-left-right"></i><p>Nenhuma trade realizada ainda</p></div>
                         <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- ── Como pontua ──
+                     Os números saem de backend/pontuacao_ranking.php, que é a
+                     mesma régua que o registro da temporada usa pra somar. Aqui
+                     é só pra quem joga saber o que está valendo. -->
+                <div class="bc span-2" style="animation-delay:.5s">
+                    <div class="bc-head">
+                        <div class="bc-title"><i class="bi bi-calculator"></i> Como pontua no ranking</div>
+                    </div>
+                    <div class="bc-body">
+                        <div class="pt-regua">
+                            <?php foreach (reguaDePontos(($team['league'] ?? '') === 'ELITE') as $grupo => $linhas): ?>
+                            <div class="pt-grupo">
+                                <div class="pt-grupo-tit"><?= htmlspecialchars($grupo) ?></div>
+                                <?php foreach ($linhas as [$rotulo, $pontos]): ?>
+                                <div class="pt-linha">
+                                    <span><?= htmlspecialchars($rotulo) ?></span>
+                                    <b>+<?= (int)$pontos ?></b>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="pt-nota">Os pontos de playoff são acumulados — o campeão leva 7 no total,
+                        não 7 além do resto. Cair na 1ª rodada não pontua. O total da temporada é a soma
+                        dos três blocos<?= (($team['league'] ?? '') === 'ELITE') ? ' mais a NBA Cup' : '' ?>.</div>
                     </div>
                 </div>
 

@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/pontuacao_ranking.php'; // a régua de pontos do ranking
 
 header('Content-Type: application/json');
 
@@ -162,20 +163,11 @@ if ($method === 'POST') {
                     }
 
                     foreach ($standings[$conf] as $team) {
-                        // Calcular pontos de standing: 1º=4, 2-4=3, 5-6=2, 7-8=1, 9+=0
-                        $standingPoints = 0;
+                        // A régua mora em backend/pontuacao_ranking.php. Aqui ela
+                        // dava 1º=4 e o wizard dava 1º=4 mas 5º-8º=2: a mesma
+                        // temporada valia pontos diferentes conforme o caminho.
                         $seed = (int)$team['seed'];
-                        if ($seed === 1) {
-                            $standingPoints = 4;
-                        } elseif ($seed >= 2 && $seed <= 4) {
-                            $standingPoints = 3;
-                        } elseif ($seed >= 5 && $seed <= 6) {
-                            $standingPoints = 2;
-                        } elseif ($seed >= 7 && $seed <= 8) {
-                            $standingPoints = 1;
-                        } else {
-                            $standingPoints = 0;
-                        }
+                        $standingPoints = pontosPorPosicao($seed);
                         
                         $stmtBracket->execute([
                             $seasonId,
@@ -508,11 +500,13 @@ if ($method === 'POST') {
                     $champion = $final['winner_id'];
                     $runnerUp = ($final['winner_id'] == $final['team1_id']) ? $final['team2_id'] : $final['team1_id'];
                     
-                    // Campeão: +5
-                    $teamPoints[$champion] += 5;
-                    // Vice: +2
+                    // Os pontos de playoff são ACUMULADOS por rodada alcançada
+                    // (é o que $addPoints faz abaixo, rodada a rodada). Aqui
+                    // entra só o degrau da final: o vice ganha por ter chegado
+                    // nela, e o campeão ganha por vencê-la — sem o do vice.
+                    $teamPoints[$champion] += PONTOS_PLAYOFF['champion'] - PONTOS_PLAYOFF['conference_final'];
                     if ($runnerUp) {
-                        $teamPoints[$runnerUp] += 2;
+                        $teamPoints[$runnerUp] += PONTOS_PLAYOFF['runner_up'] - PONTOS_PLAYOFF['conference_final'];
                     }
                 }
 
@@ -566,7 +560,8 @@ if ($method === 'POST') {
                     $confFinalTeams[] = $g['team1_id'] ?? null;
                     $confFinalTeams[] = $g['team2_id'] ?? null;
                 }
-                $addPoints($confFinalTeams, 3);
+                // Quem disputou a final de conferência passou do 2º turno.
+                $addPoints($confFinalTeams, PONTOS_PLAYOFF['conference_final'] - PONTOS_PLAYOFF['second_round']);
                 
                 foreach ($confFinals as $g) {
                     $loserId = ($g['winner_id'] == $g['team1_id']) ? $g['team2_id'] : $g['team1_id'];
@@ -588,7 +583,8 @@ if ($method === 'POST') {
                     $semifinalTeams[] = $g['team1_id'] ?? null;
                     $semifinalTeams[] = $g['team2_id'] ?? null;
                 }
-                $addPoints($semifinalTeams, 2);
+                // Quem disputou o 2º turno passou da 1ª rodada.
+                $addPoints($semifinalTeams, PONTOS_PLAYOFF['second_round'] - PONTOS_PLAYOFF['first_round']);
                 
                 foreach ($semis as $g) {
                     $loserId = ($g['winner_id'] == $g['team1_id']) ? $g['team2_id'] : $g['team1_id'];
@@ -610,7 +606,8 @@ if ($method === 'POST') {
                     $firstRoundTeams[] = $g['team1_id'] ?? null;
                     $firstRoundTeams[] = $g['team2_id'] ?? null;
                 }
-                $addPoints($firstRoundTeams, 1);
+                // Entrar nos playoffs, por si só, não vale ponto.
+                $addPoints($firstRoundTeams, PONTOS_PLAYOFF['first_round']);
                 
                 foreach ($firstRound as $g) {
                     $loserId = ($g['winner_id'] == $g['team1_id']) ? $g['team2_id'] : $g['team1_id'];
@@ -641,7 +638,8 @@ if ($method === 'POST') {
                         if ($awards['sixth_man_team_id']) $teamPoints[$awards['sixth_man_team_id']] = ($teamPoints[$awards['sixth_man_team_id']] ?? 0) + 1;
                         if (!empty($awards['roy_team_id'])) $teamPoints[$awards['roy_team_id']] = ($teamPoints[$awards['roy_team_id']] ?? 0) + 1;
                         if ($league === 'ELITE' && !empty($awards['nba_cup_team_id'])) {
-                            $teamPoints[$awards['nba_cup_team_id']] = ($teamPoints[$awards['nba_cup_team_id']] ?? 0) + 1;
+                            $teamPoints[$awards['nba_cup_team_id']] =
+                                ($teamPoints[$awards['nba_cup_team_id']] ?? 0) + PONTOS_NBA_CUP;
                         }
                     }
 
