@@ -2657,6 +2657,23 @@ const LOGOS_CLUBE = {
   "Sydney Kings": "https://r2.thesportsdb.com/images/media/team/badge/gsfe5x1550073324.png",
   "São Paulo": "https://r2.thesportsdb.com/images/media/team/badge/youecm1649793339.png",
   "Zalgiris": "https://r2.thesportsdb.com/images/media/team/badge/dn7ouv1703960565.png",
+  // As LIGAS entram aqui junto com os clubes porque, na fase de formação, é o
+  // nome da liga que aparece como "onde você joga" — o NBB e a Liga ACB são o
+  // time da pessoa naquele ano. O escudo delas vem da mesma fonte dos clubes,
+  // que já passa pelo proxy.
+  "Liga ACB": "https://r2.thesportsdb.com/images/media/league/badge/4n3h6z1572778356.png",
+  "Liga ACB (Espanha)": "https://r2.thesportsdb.com/images/media/league/badge/4n3h6z1572778356.png",
+  "LNB": "https://r2.thesportsdb.com/images/media/league/badge/60detm1757608684.png",
+  "BBL": "https://r2.thesportsdb.com/images/media/league/badge/ssgkzq1550038219.png",
+  "Liga Grega": "https://r2.thesportsdb.com/images/media/league/badge/z39ouv1667032625.png",
+  "LKL": "https://r2.thesportsdb.com/images/media/league/badge/7nrqn21745083569.png",
+  "Liga ABA": "https://r2.thesportsdb.com/images/media/league/badge/stce0n1758213648.png",
+  "CBA (China)": "https://r2.thesportsdb.com/images/media/league/badge/peygv31522257103.png",
+  "CEBL": "https://r2.thesportsdb.com/images/media/league/badge/pisb3r1778780983.png",
+  "Liga Nacional": "https://r2.thesportsdb.com/images/media/league/badge/exea481740429840.png",
+  "NBL": "https://r2.thesportsdb.com/images/media/league/badge/gvz6vb1726086476.png",
+  "NBL (Austrália)": "https://r2.thesportsdb.com/images/media/league/badge/gvz6vb1726086476.png",
+  "Rytas": "https://r2.thesportsdb.com/images/media/team/badge/srfue01713948964.png",
 };
 
 /**
