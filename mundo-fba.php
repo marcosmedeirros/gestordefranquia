@@ -515,7 +515,7 @@ foreach ($leagueOrder as $league) {
     try {
         $s = $pdo->prepare("
             SELECT t.id, t.city, t.name, t.photo_url AS team_photo, t.team_tag,
-                   t.public_enabled, t.public_slug,
+                   t.public_enabled, t.public_slug, COALESCE(t.conference, '') AS conference,
                    COALESCE(t.ranking_points, 0) AS ranking_points,
                    COALESCE(t.ranking_titles, 0) AS ranking_titles,
                    u.name AS owner_name,
@@ -859,6 +859,27 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
         .topbar-title em { color:var(--red); font-style:normal; }
         .menu-btn { width:34px; height:34px; border-radius:9px; background:var(--panel-2); border:1px solid var(--border); color:var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:17px; }
         .sb-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.65); backdrop-filter:blur(4px); z-index:250; }
+
+        /* Filtro de conferência + copiar, acima da lista de times */
+        .conf-bar { display:flex; align-items:center; justify-content:space-between;
+                    gap:10px; flex-wrap:wrap; margin:0 0 12px; }
+        .conf-filtros, .conf-copias { display:flex; gap:6px; flex-wrap:wrap; }
+        .conf-btn { background:transparent; border:1px solid var(--border-md,rgba(255,255,255,.12));
+                    color:var(--text-2); border-radius:999px; padding:5px 14px;
+                    font-size:12.5px; font-weight:600; font-family:var(--font); cursor:pointer;
+                    transition:background .15s, color .15s, border-color .15s; }
+        .conf-btn:hover { color:var(--text); }
+        .conf-btn.ativo { background:var(--red); border-color:var(--red); color:#fff; }
+        .conf-copias .sc-copy-btn { display:inline-flex; align-items:center; gap:5px;
+                    width:auto; height:auto; margin-left:0; white-space:nowrap;
+                    font-size:11.5px; padding:5px 10px; font-family:var(--font); }
+        .team-row.oculto { display:none; }
+        @media (max-width:640px) {
+            /* No celular os dois grupos empilham: 4 pílulas numa linha de 375px
+               ficariam com 60px cada e o rótulo cortaria. */
+            .conf-bar { flex-direction:column; align-items:stretch; }
+            .conf-filtros, .conf-copias { justify-content:flex-start; }
+        }
         .sb-overlay.show { display:block; }
 
         /* ── Main layout ────────────────────────────────────── */
@@ -1369,10 +1390,55 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
             <?php endif; ?>
 
             <?php /* ── Times ── */ ?>
+            <?php
+            // Quais conferências esta liga tem de fato. A ROOKIE ainda não se
+            // dividiu, e mostrar Leste/Oeste vazios lá seria oferecer um filtro
+            // que não filtra nada.
+            $confsDaLiga = [];
+            foreach (($d['teams'] ?? []) as $tt) {
+                $c = strtoupper(trim((string)($tt['conference'] ?? '')));
+                if ($c !== '' && !in_array($c, $confsDaLiga, true)) $confsDaLiga[] = $c;
+            }
+            usort($confsDaLiga, fn($a, $b) => array_search($a, ['LESTE','OESTE']) <=> array_search($b, ['LESTE','OESTE']));
+
+            /** A lista de uma conferência, pronta pra colar no grupo. */
+            $listaPraCopiar = function (string $conf) use ($d, $league): string {
+                $linhas = [];
+                foreach (($d['teams'] ?? []) as $tt) {
+                    $c = strtoupper(trim((string)($tt['conference'] ?? '')));
+                    if ($conf !== '' && $c !== $conf) continue;
+                    $nome = trim(($tt['city'] ?? '') . ' ' . ($tt['name'] ?? ''));
+                    $linhas[] = $nome . ' — ' . ($tt['owner_name'] ?? '');
+                }
+                $titulo = $conf === '' ? "*Times da {$league}*" : "*{$league} · " . ucfirst(mb_strtolower($conf, 'UTF-8')) . '*';
+                return $titulo . "\n" . implode("\n", $linhas);
+            };
+            ?>
             <div class="sec-hd" style="color:<?= $col ?>;margin-top:24px">
                 <i class="bi bi-list-ol" style="color:<?= $col ?>"></i>
                 Times
             </div>
+
+            <?php if ($confsDaLiga): ?>
+            <div class="conf-bar" data-liga="<?= htmlspecialchars($league) ?>">
+                <div class="conf-filtros">
+                    <button type="button" class="conf-btn ativo" data-conf="">Todas</button>
+                    <?php foreach ($confsDaLiga as $cf): ?>
+                    <button type="button" class="conf-btn" data-conf="<?= htmlspecialchars($cf) ?>"><?= htmlspecialchars(ucfirst(mb_strtolower($cf, 'UTF-8'))) ?></button>
+                    <?php endforeach; ?>
+                </div>
+                <div class="conf-copias">
+                    <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($listaPraCopiar('')) ?>" title="Copiar todos os times">
+                        <i class="bi bi-clipboard"></i> todos
+                    </button>
+                    <?php foreach ($confsDaLiga as $cf): ?>
+                    <button type="button" class="sc-copy-btn" data-copy="<?= htmlspecialchars($listaPraCopiar($cf)) ?>" title="Copiar os times do <?= htmlspecialchars(ucfirst(mb_strtolower($cf, 'UTF-8'))) ?>">
+                        <i class="bi bi-clipboard"></i> <?= htmlspecialchars(ucfirst(mb_strtolower($cf, 'UTF-8'))) ?>
+                    </button>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <?php if (empty($d['teams'])): ?>
             <div class="empty-state">
@@ -1386,7 +1452,8 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
                     $rankClass = $rankNum === 1 ? 'gold' : ($rankNum === 2 ? 'silver' : ($rankNum === 3 ? 'bronze' : ''));
                     $rowId = 'team-' . $league . '-' . $t['id'];
                 ?>
-                <div class="team-row<?= $rank === 0 ? ' open' : '' ?>" id="<?= $rowId ?>">
+                <div class="team-row<?= $rank === 0 ? ' open' : '' ?>" id="<?= $rowId ?>"
+                     data-conf="<?= htmlspecialchars(strtoupper(trim((string)($t['conference'] ?? '')))) ?>">
                     <div class="team-head" onclick="toggleTeam('<?= $rowId ?>')">
                         <div class="team-rank <?= $rankClass ?>"><?= $rankNum ?></div>
                         <img class="team-logo"
@@ -1827,6 +1894,25 @@ $defaultTab = in_array($user['league'] ?? '', $leagueOrder) ? $user['league'] : 
 
         poll();
     })();
+
+    // Filtro de conferência: esconde as linhas em vez de recarregar — a lista
+    // inteira já está na página, e cada liga tem a sua barra (o clique só
+    // mexe nos times que estão embaixo daquela barra).
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.conf-btn');
+        if (!btn) return;
+        const barra = btn.closest('.conf-bar');
+        const escolha = btn.dataset.conf || '';
+        barra.querySelectorAll('.conf-btn').forEach(b => b.classList.toggle('ativo', b === btn));
+
+        // A lista de times é o próximo .teams-list depois desta barra.
+        let alvo = barra.nextElementSibling;
+        while (alvo && !alvo.classList.contains('teams-list')) alvo = alvo.nextElementSibling;
+        if (!alvo) return;
+        alvo.querySelectorAll('.team-row').forEach(linha => {
+            linha.classList.toggle('oculto', escolha !== '' && (linha.dataset.conf || '') !== escolha);
+        });
+    });
 
     // Copiar listas do SuperComputador (campeão/subir/cair) para colar no WhatsApp
     document.addEventListener('click', (e) => {
