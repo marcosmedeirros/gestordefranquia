@@ -422,16 +422,16 @@ button{font-family:inherit}
   border:1px solid var(--borda);background:transparent;color:var(--txt2);text-decoration:none;
   flex-shrink:0;transition:.2s}
 .topo .voltar:hover{border-color:var(--verde);color:var(--verde-claro);background:rgba(34,197,94,.08)}
-.ficha{display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;background:var(--panel2);
+.chip-topo{display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;background:var(--panel2);
   border:1px solid var(--borda);font-size:12px;font-weight:700;color:var(--txt);white-space:nowrap}
-.ficha b{font-variant-numeric:tabular-nums;font-weight:800}
-.ficha-btn{cursor:pointer;font-family:inherit;transition:.15s}
-.ficha-btn:hover{border-color:var(--verde);color:var(--verde-claro)}
-.ficha-moeda{color:#eab308}
+.chip-topo b{font-variant-numeric:tabular-nums;font-weight:800}
+.chip-topo-btn{cursor:pointer;font-family:inherit;transition:.15s}
+.chip-topo-btn:hover{border-color:var(--verde);color:var(--verde-claro)}
+.chip-topo-moeda{color:#eab308}
 @media (max-width:520px){
   .topo{gap:7px}
   .topo .marca{font-size:15px}
-  .ficha{padding:4px 9px;font-size:11px}
+  .chip-topo{padding:4px 9px;font-size:11px}
 }
 .btn-topo{background:var(--panel2);border:1px solid var(--borda);color:var(--txt2);border-radius:9px;
   padding:8px 13px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
@@ -1200,10 +1200,10 @@ function barraTopo(extra){
     <div class="marca"><i class="bi bi-trophy-fill"></i> Copero</div>
     <div class="espaco"></div>
     ${extra || ''}
-    <button class="ficha ficha-btn" onclick="abrirDesafios()" title="Desafios">
+    <button class="chip-topo chip-topo-btn" onclick="abrirDesafios()" title="Desafios">
       🏆 <b>${feitas}</b></button>
     ${window.__MOEDAS__ === null || window.__MOEDAS__ === undefined ? ''
-      : `<div class="ficha ficha-moeda" title="Suas moedas">🪙 <b>${window.__MOEDAS__}</b></div>`}
+      : `<div class="chip-topo chip-topo-moeda" title="Suas moedas">🪙 <b>${window.__MOEDAS__}</b></div>`}
   </div>`;
 }
 

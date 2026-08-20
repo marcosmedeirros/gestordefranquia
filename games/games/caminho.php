@@ -727,7 +727,7 @@ tr.tit td{color:var(--red)}
 
 /* Rodapé fixo da tela, como o do jogo do print. */
 .id-cab{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;
-  margin-bottom:4px}
+  margin-bottom:22px;padding-bottom:16px;border-bottom:1px solid var(--border)}
 .id-cab-txt{min-width:0;flex:1 1 260px}
 .id-cab-txt h1{margin-bottom:6px}
 .id-cab-txt .lead{margin:0}
@@ -836,7 +836,7 @@ tr.tit td{color:var(--red)}
 .ficha-marca{position:absolute;right:-30px;top:44px;opacity:.085;pointer-events:none;z-index:0}
 .ficha-marca .marca-logo,.ficha-marca .marca-time{width:140px!important;height:140px!important;
   border-radius:0;box-shadow:none}
-.ficha > *{position:relative;z-index:1}
+.ficha > *:not(.ficha-marca){position:relative;z-index:1}
 
 .ficha-topo{display:flex;align-items:center;gap:13px;margin-bottom:11px}
 .ovr-caixa{width:82px;height:82px;border-radius:14px;display:flex;flex-direction:column;
