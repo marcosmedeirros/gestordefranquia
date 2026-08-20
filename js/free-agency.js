@@ -94,6 +94,159 @@ function getAdminLeague() {
     return defaultAdminLeague || null;
 }
 
+// ── Dispensados da temporada ─────────────────────────────────────────
+// A lista chega inteira do servidor (só a temporada corrente, que é dezenas
+// e não centenas) e os filtros trabalham em memória — busca por nome não
+// deve custar uma ida ao servidor por tecla.
+let dispTemporada = [];
+let dispEscolhido = null;
+
+// Duas réguas, dois jeitos de escrever: na ELITE o cap é dinheiro ("16M"),
+// nas outras é soma de OVR ("9 de OVR"). Colar a unidade no número dava
+// "9OVR", que ninguém lê na primeira passada.
+const fmtCap = (v, u) => (u === 'M' ? `${v}M` : `${v} de OVR`);
+
+// O espaço vira frase, porque negativo não é "espaço" — é dívida.
+const fraseDeEspaco = (espaco, u) => espaco < 0
+    ? `seu elenco está <strong>${fmtCap(Math.abs(espaco), u)}</strong> acima do teto`
+    : `você tem <strong>${fmtCap(espaco, u)}</strong> de espaço`;
+
+const escHtml = (t) => String(t ?? '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function carregarDispensadosDaTemporada() {
+    const painel = document.getElementById('dispPanel');
+    if (!painel) return;
+    try {
+        const d = await fetch('api/free-agency.php?action=dispensados').then(r => r.json());
+        dispTemporada = d?.jogadores || [];
+        const ano = d?.temporada?.year;
+        const sub = document.getElementById('dispSub');
+        if (sub) {
+            sub.textContent = dispTemporada.length
+                ? `${dispTemporada.length} jogador${dispTemporada.length === 1 ? '' : 'es'} sem time${ano ? ' na temporada ' + ano : ''} — dispensado de temporada passada não aparece, pode já ter se aposentado.`
+                : `Ninguém foi dispensado${ano ? ' na temporada ' + ano : ' nesta temporada'} ainda.`;
+        }
+    } catch (e) {
+        dispTemporada = [];
+        const sub = document.getElementById('dispSub');
+        if (sub) sub.textContent = 'Não foi possível carregar a lista.';
+    }
+    renderDispensadosDaTemporada();
+}
+
+function renderDispensadosDaTemporada() {
+    const alvo = document.getElementById('dispLista');
+    if (!alvo) return;
+
+    const busca = (document.getElementById('dispBusca')?.value || '').trim().toLowerCase();
+    const pos = document.getElementById('dispPos')?.value || '';
+    const soCabe = document.getElementById('dispSoCabe')?.checked;
+
+    const lista = dispTemporada.filter(j =>
+        (!busca || j.name.toLowerCase().includes(busca)) &&
+        (!pos || j.position === pos || j.secondary_position === pos) &&
+        (!soCabe || j.cap_cabe !== false));
+
+    if (!lista.length) {
+        alvo.innerHTML = `<p class="empty-state">${dispTemporada.length ? 'Nenhum dispensado com esses filtros.' : 'Nenhum jogador dispensado nesta temporada.'}</p>`;
+        return;
+    }
+
+    alvo.innerHTML = '<div class="disp-grid">' + lista.map(j => {
+        const u = j.cap_unidade || 'M';
+        const naoCabe = j.cap_cabe === false;
+        const posTxt = [j.position, j.secondary_position].filter(Boolean).join('/');
+        // Custo zero é o reserva que não entra no top: dizer "0 de OVR" confunde.
+        const custo = j.cap_custo == null ? ''
+            : j.cap_custo === 0 ? '<span>não mexe no seu cap</span>'
+            : `<span class="${naoCabe ? 'custo-nao-cabe' : ''}">${fmtCap(j.cap_custo, u)} no cap</span>`;
+        const origem = j.original_team_name ? ' · ex-' + escHtml(j.original_team_name) : '';
+        const botao = naoCabe
+            ? '<button class="disp-btn" disabled title="Não cabe no seu cap">Não cabe</button>'
+            : j.minha_proposta != null
+                ? `<button class="disp-btn tem-proposta" data-disp="${j.id}">Sua: ${j.minha_proposta}</button>`
+                : `<button class="disp-btn" data-disp="${j.id}">Propor</button>`;
+        return `<div class="disp-card ${naoCabe ? 'nao-cabe' : ''}">
+            <div class="disp-pos">${escHtml(posTxt || '?')}</div>
+            <div class="disp-meio">
+                <div class="disp-nome" title="${escHtml(j.name)}">${escHtml(j.name)}</div>
+                <div class="disp-sub">${j.age} anos${origem ? '' : ''}${custo ? ' · ' + custo : ''}${origem}</div>
+            </div>
+            <div class="disp-ovr"><b>${j.ovr}</b><span>OVR</span></div>
+            ${botao}
+        </div>`;
+    }).join('') + '</div>';
+
+    alvo.querySelectorAll('[data-disp]').forEach(b => {
+        b.addEventListener('click', () => abrirModalDispensado(Number(b.dataset.disp)));
+    });
+}
+
+function abrirModalDispensado(id) {
+    const j = dispTemporada.find(x => x.id === id);
+    if (!j) return;
+    dispEscolhido = j;
+
+    const u = j.cap_unidade || 'M';
+    const posTxt = [j.position, j.secondary_position].filter(Boolean).join('/');
+    document.getElementById('dispModalFicha').innerHTML =
+        `<strong>${escHtml(j.name)}</strong> · ${escHtml(posTxt)} · ${j.age} anos · <strong>${j.ovr} OVR</strong>` +
+        (j.original_team_name ? `<br><span style="color:var(--text-2);font-size:12.5px">Dispensado por ${escHtml(j.original_team_name)}</span>` : '');
+    // Mesma regra do card: "custa 0" confunde quem não sabe que o reserva
+    // fora do top não entra na conta.
+    const oCusto = j.cap_custo === 0
+        ? 'Ele <strong>não mexe no seu cap</strong>'
+        : `Ele custa <strong>${fmtCap(j.cap_custo, u)}</strong> no seu cap`;
+    document.getElementById('dispModalCap').innerHTML = j.cap_custo == null ? ''
+        : oCusto +
+          (capDoMeuTime ? `, e ${fraseDeEspaco(capDoMeuTime.espaco, u)}` : '') + '.';
+    document.getElementById('dispModalMoedas').value = j.minha_proposta ?? 1;
+    new bootstrap.Modal(document.getElementById('modalDispensado')).show();
+}
+
+async function enviarPropostaDispensado() {
+    if (!dispEscolhido) return;
+    const j = dispEscolhido;
+    const amount = parseInt(document.getElementById('dispModalMoedas')?.value, 10);
+    const priority = parseInt(document.getElementById('dispModalPrioridade')?.value, 10) || 2;
+    if (!Number.isFinite(amount) || amount < 0) {
+        alert('Informe uma quantidade válida de moedas (0 ou mais).');
+        return;
+    }
+    const botao = document.getElementById('dispModalEnviar');
+    if (botao) botao.disabled = true;
+    try {
+        const d = await fetch('api/free-agency.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'request_player',
+                league: getActiveLeague() || defaultAdminLeague,
+                name: j.name,
+                position: j.position,
+                secondary_position: j.secondary_position || null,
+                age: j.age,
+                ovr: j.ovr,
+                amount,
+                priority
+            })
+        }).then(r => r.json());
+        if (!d.success) {
+            alert(d.error || 'Erro ao enviar proposta.');
+            return;
+        }
+        bootstrap.Modal.getInstance(document.getElementById('modalDispensado'))?.hide();
+        alert('Proposta enviada!');
+        carregarMinhasPropostasNovaFA();
+        carregarDispensadosDaTemporada();
+    } catch (e) {
+        alert('Erro ao enviar proposta.');
+    } finally {
+        if (botao) botao.disabled = false;
+    }
+}
+
 // O cap do meu time: espaço disponível e quanto cada OVR custaria nele.
 // Vem inteiro do servidor (40 a 99) pra que digitar no campo de OVR atualize
 // o aviso na hora, sem uma ida ao servidor por tecla.
@@ -133,9 +286,12 @@ function atualizarAvisoDeCap() {
     const cabe = custo <= Math.max(0, espaco);
 
     caixa.hidden = false;
+    const oCusto = custo === 0
+        ? 'não mexe no seu cap'
+        : `custa <strong>${fmtCap(custo, u)}</strong> no seu cap`;
     texto.innerHTML = cabe
-        ? `Um jogador de <strong>${ovr} OVR</strong> custa <strong>${custo}${u}</strong> no seu cap. Você tem <strong>${espaco}${u}</strong> de espaço.`
-        : `<strong>Não cabe no seu cap.</strong> Um jogador de ${ovr} OVR custa ${custo}${u} e você tem ${espaco}${u} de espaço. Libere espaço ou mire num OVR menor.`;
+        ? `Um jogador de <strong>${ovr} OVR</strong> ${oCusto}. E ${fraseDeEspaco(espaco, u)}.`
+        : `<strong>Não cabe no seu cap.</strong> Um jogador de ${ovr} OVR ${oCusto}, e ${fraseDeEspaco(espaco, u)}. Libere espaço ou mire num OVR menor.`;
     texto.style.color = cabe ? '' : 'var(--red)';
     if (botao) {
         botao.disabled = !cabe;
@@ -161,6 +317,13 @@ function initNewFreeAgency() {
 
     document.getElementById('faNewOvr')?.addEventListener('input', atualizarAvisoDeCap);
     carregarCapDoMeuTime();
+
+    ['dispBusca', 'dispPos', 'dispSoCabe'].forEach(id => {
+        const el = document.getElementById(id);
+        el?.addEventListener(el.tagName === 'INPUT' && el.type !== 'checkbox' ? 'input' : 'change', renderDispensadosDaTemporada);
+    });
+    document.getElementById('dispModalEnviar')?.addEventListener('click', enviarPropostaDispensado);
+    carregarDispensadosDaTemporada();
 
     const approvedBtn = document.getElementById('faViewApprovedBtn');
     if (approvedBtn) {
@@ -452,6 +615,7 @@ async function submitNewFaRequest() {
         document.getElementById('faNewRequestForm')?.reset();
         document.getElementById('faNewOffer').value = '1';
         atualizarAvisoDeCap();
+        carregarDispensadosDaTemporada();
         carregarMinhasPropostasNovaFA();
         if (isAdmin) {
             carregarSolicitacoesNovaFA();

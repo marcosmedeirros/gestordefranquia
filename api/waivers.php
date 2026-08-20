@@ -132,9 +132,10 @@ try {
             // era virar over the cap na hora em que o jogador entra no elenco.
             $fit = capCabeNoTime($pdo, $myTeamId, (int)$w['ovr']);
             if (!$fit['cabe']) {
-                $u = $fit['unidade'];
                 echo json_encode(['success' => false,
-                    'error' => "{$w['name']} custa {$fit['custo']}{$u} e você tem {$fit['espaco']}{$u} de espaço no cap. Libere espaço antes de dar o lance."]);
+                    'error' => $w['name'] . ' custa ' . capValorEscrito($fit['custo'], $fit['unidade'])
+                             . ' no cap, e ' . capEspacoEscrito($fit['espaco'], $fit['unidade'])
+                             . '. Libere espaço antes de dar o lance.']);
                 exit;
             }
             // O lance é o espaço no cap do time neste momento.

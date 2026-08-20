@@ -297,6 +297,53 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
         .panel-title { font-family: var(--font); font-size: 16px; font-weight: 600; }
         .panel-sub   { color: var(--text-2); font-size: 12px; margin-top: 2px; }
 
+        /* ── Dispensados da temporada ──────────────────── */
+        /* Grade em vez de tabela: a linha tem seis informações de tamanhos
+           muito diferentes, e no celular precisa empilhar sem virar scroll
+           lateral. */
+        .disp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 10px; }
+        .disp-card {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--panel-2); border: 1px solid var(--border);
+            border-radius: var(--radius-sm, 10px); padding: 10px 12px;
+            min-width: 0;   /* senão o nome longo empurra a coluna pra fora da tela */
+        }
+        .disp-card.nao-cabe { opacity: .62; }
+        .disp-pos {
+            width: 34px; height: 34px; flex: none; border-radius: 9px;
+            background: var(--panel-3); display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700; color: var(--text-2); letter-spacing: .02em;
+        }
+        .disp-meio { min-width: 0; flex: 1; }
+        .disp-nome {
+            font-weight: 600; font-size: 13.5px; color: var(--text);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .disp-sub { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+        .disp-sub .custo-nao-cabe { color: var(--red); }
+        .disp-ovr { flex: none; text-align: center; min-width: 30px; }
+        .disp-ovr b { display: block; font-size: 16px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+        .disp-ovr span { font-size: 9px; color: var(--text-3); letter-spacing: .08em; }
+        .disp-btn {
+            flex: none; border: 1px solid var(--border-md, rgba(255,255,255,.12));
+            background: transparent; color: var(--text); border-radius: 8px;
+            padding: 6px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;
+            font-family: var(--font); transition: background var(--t, .2s);
+        }
+        .disp-btn:hover:not(:disabled) { background: var(--panel-3); }
+        .disp-btn:disabled { cursor: not-allowed; opacity: .5; }
+        .disp-btn.tem-proposta { border-color: var(--green); color: var(--green); }
+        .disp-filtros { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .disp-filtros input, .disp-filtros select {
+            background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+            border-radius: 8px; padding: 7px 10px; font-size: 12.5px; font-family: var(--font);
+        }
+        @media (max-width: 560px) {
+            .disp-grid { grid-template-columns: minmax(0, 1fr); }
+            .disp-filtros { width: 100%; }
+            .disp-filtros input { flex: 1; min-width: 0; }
+        }
+
         /* ── Fields ────────────────────────────────────── */
         .field { display: flex; flex-direction: column; gap: 6px; }
         .field label { font-size: 11px; color: var(--text-2); letter-spacing: .1em; text-transform: uppercase; font-weight: 600; }
@@ -599,6 +646,31 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
             <!-- ─── Tab: Free Agency ───────────────────── -->
             <div class="tab-pane fade show active" id="fa-players" role="tabpanel">
 
+                <!-- Dispensados nesta temporada -->
+                <div class="panel" id="dispPanel">
+                    <div class="panel-header">
+                        <div>
+                            <div class="panel-title">Dispensados nesta temporada</div>
+                            <div class="panel-sub" id="dispSub">Carregando...</div>
+                        </div>
+                        <div class="disp-filtros">
+                            <input type="search" id="dispBusca" placeholder="Buscar por nome" style="min-width:180px">
+                            <select id="dispPos">
+                                <option value="">Todas as posições</option>
+                                <option value="PG">PG</option>
+                                <option value="SG">SG</option>
+                                <option value="SF">SF</option>
+                                <option value="PF">PF</option>
+                                <option value="C">C</option>
+                            </select>
+                            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);cursor:pointer">
+                                <input type="checkbox" id="dispSoCabe" style="width:auto"> Só os que cabem
+                            </label>
+                        </div>
+                    </div>
+                    <div id="dispLista"><p class="empty-state">Carregando...</p></div>
+                </div>
+
                 <!-- Nova proposta -->
                 <div class="panel">
                     <div class="panel-header">
@@ -857,6 +929,41 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
 <!-- ══════════════════════════════════════
      MODALS (legacy hidden)
 ══════════════════════════════════════ -->
+
+<!-- Modal: proposta por um dispensado (o formulário de cima, já preenchido) -->
+<div class="modal fade" id="modalDispensado" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-send me-1"></i> Proposta por dispensado</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="dispModalFicha" style="font-size:14px;margin-bottom:16px;"></div>
+                <div class="field">
+                    <label for="dispModalMoedas">Moedas</label>
+                    <input type="number" id="dispModalMoedas" min="0" value="1">
+                </div>
+                <div class="field" style="margin-top:14px;">
+                    <label for="dispModalPrioridade">Prioridade</label>
+                    <select id="dispModalPrioridade">
+                        <option value="1">🟢 Alta</option>
+                        <option value="2" selected>🟡 Média</option>
+                        <option value="3">⚪ Baixa</option>
+                    </select>
+                </div>
+                <div class="hint-box" style="margin-top:16px;">
+                    <p id="dispModalCap"></p>
+                    <p style="margin-top:6px;color:var(--text-3);font-size:12px;">A proposta entra na mesma fila das outras — o admin decide quem leva. Se você assinar outro jogador antes, as propostas que não couberem mais no cap caem sozinhas.</p>
+                </div>
+            </div>
+            <div class="modal-footer" style="gap:10px;">
+                <button type="button" class="btn-ghost" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn-red" id="dispModalEnviar">Enviar proposta</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Modal: Fazer Lance -->
 <div class="modal fade legacy-fa" id="modalOffer" tabindex="-1">

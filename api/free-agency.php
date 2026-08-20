@@ -516,6 +516,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         case 'cap_espaco':
             capEspacoDoTime($pdo, $team_id);
             break;
+        case 'dispensados':
+            listDispensadosDaTemporada($pdo, getLeagueFromRequest($valid_leagues, $team_league), $team_id);
+            break;
         case 'fa_signings_count':
             if (!$is_admin) {
                 echo json_encode(['success' => false, 'error' => 'Acesso negado']);
@@ -1335,8 +1338,8 @@ function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLe
     // primeira (ver cancelarPropostasSemEspacoNoCap).
     $fit = capCabeNoTime($pdo, (int)$teamId, $ovr);
     if (!$fit['cabe']) {
-        $u = $fit['unidade'];
-        jsonError("Um jogador de {$ovr} OVR custa {$fit['custo']}{$u} no cap e você tem {$fit['espaco']}{$u} de espaço.");
+        jsonError('Um jogador de ' . $ovr . ' OVR custa ' . capValorEscrito($fit['custo'], $fit['unidade'])
+                . ' no cap, e ' . capEspacoEscrito($fit['espaco'], $fit['unidade']) . '.');
     }
 
     if ($teamLeague && !getFaEnabled($pdo, $teamLeague)) {
@@ -1419,8 +1422,9 @@ function assignNewFaRequest(PDO $pdo, array $body, int $adminId): void
     // ter assinado outro no meio do caminho.
     $fit = capCabeNoTime($pdo, (int)$offer['team_id'], (int)$offer['ovr']);
     if (!$fit['cabe']) {
-        $u = $fit['unidade'];
-        jsonError("{$offer['team_city']} {$offer['team_name']} tem {$fit['espaco']}{$u} de espaço e {$offer['player_name']} custa {$fit['custo']}{$u}.");
+        jsonError($offer['player_name'] . ' custa ' . capValorEscrito($fit['custo'], $fit['unidade'])
+                . ' e o cap de ' . $offer['team_city'] . ' ' . $offer['team_name'] . ' não cobre: '
+                . capEspacoEscrito($fit['espaco'], $fit['unidade']) . '.');
     }
 
     $pdo->beginTransaction();
@@ -1575,6 +1579,76 @@ function cancelarPropostasSemEspacoNoCap(PDO $pdo, int $teamId): int
  * entra no top custa zero — por isso a tabela é calculada por time, não
  * fixada em código.
  */
+/**
+ * Quem foi dispensado nesta temporada e ainda está sem time.
+ *
+ * Só a temporada corrente, de propósito: no jogo, dispensado de temporada
+ * passada pode já ter se aposentado, e propor por um fantasma é perder a
+ * vaga e as moedas. A ELITE chega aqui depois do waiver de 12h — quem foi
+ * reivindicado nunca virou free agent; as outras ligas caem direto.
+ *
+ * Vem com o custo no cap de quem está olhando, pra lista já dizer o que
+ * cabe, e com a proposta que o time já tenha feito pelo mesmo nome.
+ */
+function listDispensadosDaTemporada(PDO $pdo, ?string $league, ?int $teamId): void
+{
+    if (!$league) {
+        jsonSuccess(['temporada' => null, 'jogadores' => []]);
+    }
+
+    $temporada = resolveCurrentSeason($pdo, $league);
+    if (!$temporada['id']) {
+        jsonSuccess(['temporada' => null, 'jogadores' => []]);
+    }
+
+    $ovrCol = freeAgentOvrColumn($pdo);
+    $secCol = freeAgentSecondaryColumn($pdo);
+    $sec = $secCol ? "fa.{$secCol}" : 'NULL';
+    // is_retirement e season_id são colunas novas em bases antigas.
+    $aposentou = columnExists($pdo, 'free_agents', 'is_retirement') ? ' AND COALESCE(fa.is_retirement, 0) = 0' : '';
+    if (!columnExists($pdo, 'free_agents', 'season_id')) {
+        jsonSuccess(['temporada' => $temporada, 'jogadores' => []]);
+    }
+
+    $st = $pdo->prepare("
+        SELECT fa.id, fa.name, fa.age, fa.position, {$sec} AS secondary_position,
+               fa.{$ovrCol} AS ovr, fa.original_team_name, fa.waived_at
+        FROM free_agents fa
+        WHERE fa.league = ?
+          AND fa.season_id = ?
+          AND (fa.status = 'available' OR fa.status IS NULL){$aposentou}
+        ORDER BY fa.{$ovrCol} DESC, fa.name ASC");
+    $st->execute([$league, $temporada['id']]);
+    $jogadores = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    // Proposta que o time já fez, casada pelo nome normalizado — é assim que
+    // o fluxo de pedido agrupa, então é assim que ele reconhece o que é seu.
+    $jaPedi = [];
+    if ($teamId) {
+        try {
+            $stP = $pdo->prepare('SELECT r.normalized_name, o.amount
+                                  FROM fa_request_offers o
+                                  JOIN fa_requests r ON r.id = o.request_id
+                                  WHERE o.team_id = ? AND o.status = "pending" AND r.status = "open"');
+            $stP->execute([$teamId]);
+            foreach ($stP->fetchAll(PDO::FETCH_ASSOC) as $r) $jaPedi[$r['normalized_name']] = (int)$r['amount'];
+        } catch (Throwable $e) {}
+    }
+
+    foreach ($jogadores as &$j) {
+        $j['ovr'] = (int)$j['ovr'];
+        $j['age'] = (int)$j['age'];
+        $fit = $teamId ? capCabeNoTime($pdo, $teamId, $j['ovr']) : null;
+        $j['cap_custo']   = $fit['custo'] ?? null;
+        $j['cap_cabe']    = $fit['cabe'] ?? true;
+        $j['cap_unidade'] = $fit['unidade'] ?? 'M';
+        $j['minha_proposta'] = $jaPedi[normalizeFaPlayerName($j['name'])] ?? null;
+    }
+    unset($j);
+
+    jsonSuccess(['temporada' => $temporada, 'league' => $league, 'jogadores' => $jogadores]);
+}
+
 function capEspacoDoTime(PDO $pdo, ?int $teamId): void
 {
     if (!$teamId) {
@@ -1824,8 +1898,8 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
     $ovrDoAlvo = (int)($player[freeAgentOvrColumn($pdo)] ?? 0);
     $fit = capCabeNoTime($pdo, (int)$teamId, $ovrDoAlvo);
     if (!$fit['cabe']) {
-        $u = $fit['unidade'];
-        jsonError("{$player['name']} custa {$fit['custo']}{$u} no cap e você tem {$fit['espaco']}{$u} de espaço.");
+        jsonError($player['name'] . ' custa ' . capValorEscrito($fit['custo'], $fit['unidade'])
+                . ' no cap, e ' . capEspacoEscrito($fit['espaco'], $fit['unidade']) . '.');
     }
 
     $stmt = $pdo->prepare('SELECT id FROM free_agent_offers WHERE free_agent_id = ? AND team_id = ?');

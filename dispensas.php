@@ -184,6 +184,8 @@ a{color:inherit;text-decoration:none}
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// "16M" na ELITE, "9 de OVR" onde o cap e soma — colado ninguem le.
+const fmtCap = (v, u) => (u === 'OVR' ? v + ' de OVR' : v + 'M');
 let DATA = null;
 
 function fmt(sec){
@@ -233,7 +235,7 @@ function render(){
       else if(mine) btn = `<button class="actbtn on" onclick="claim(${w.id},false)"><i class="bi bi-x-circle"></i> Cancelar meu lance (${w.my_bid}M)</button>`;
       // Sem espaço pro salário dele, o lance nem chega a ser oferecido — o
       // botão diz por quê, em vez de deixar o time descobrir no erro.
-      else if(w.cap_cabe === false) btn = `<button class="actbtn dis" disabled><i class="bi bi-slash-circle"></i> Não cabe no seu cap (custa ${w.cap_custo}${w.cap_unidade||'M'})</button>`;
+      else if(w.cap_cabe === false) btn = `<button class="actbtn dis" disabled><i class="bi bi-slash-circle"></i> Não cabe no seu cap (custa ${fmtCap(w.cap_custo, w.cap_unidade)})</button>`;
       else btn = `<button class="actbtn" onclick="claim(${w.id},true)"><i class="bi bi-cash-coin"></i> Dar lance · ${DATA.my_cap_space!=null?DATA.my_cap_space+'M de espaço':'meu espaço'}</button>`;
       const pos = [w.position, w.secondary_position].filter(Boolean).join('/');
       const crit = sec < 3600 ? 'crit' : (sec < 3*3600 ? 'warn' : '');
@@ -248,7 +250,7 @@ function render(){
           <div class="ovr"><div class="v">${w.ovr}</div><div class="l">OVR</div></div>
         </div>
         <div class="row"><i class="bi bi-box-arrow-right"></i> Dispensado por <b style="color:var(--text)">${esc(w.waived_by_name)}</b></div>
-        ${w.cap_custo!=null?`<div class="row"><i class="bi bi-cash-stack"></i> Custa <b style="color:${w.cap_cabe===false?'var(--red)':'var(--text)'}">${w.cap_custo}${w.cap_unidade||'M'}</b> no seu cap</div>`:''}
+        ${w.cap_custo!=null?`<div class="row"><i class="bi bi-cash-stack"></i> Custa <b style="color:${w.cap_cabe===false?'var(--red)':'var(--text)'}">${fmtCap(w.cap_custo, w.cap_unidade)}</b> no seu cap</div>`:''}
         <div class="bid">
           <i class="bi bi-trophy-fill" style="color:var(--amber)"></i> Maior lance: <span class="lead-bid">${topBid}</span>
           ${mine?`<span class="me"><i class="bi bi-check2"></i> seu: ${w.my_bid}M</span>`:''}

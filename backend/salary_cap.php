@@ -597,6 +597,25 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
 }
 
 /**
+ * Escreve um valor de cap do jeito que a liga lê: "16M" na ELITE, "9 de OVR"
+ * onde o cap é soma. Colado ("9OVR") ninguém entende na primeira passada.
+ */
+function capValorEscrito(int $valor, string $unidade): string
+{
+    return $unidade === 'M' ? $valor . 'M' : $valor . ' de OVR';
+}
+
+/**
+ * O espaço em forma de frase — negativo não é espaço, é dívida.
+ */
+function capEspacoEscrito(int $espaco, string $unidade): string
+{
+    return $espaco < 0
+        ? 'seu elenco está ' . capValorEscrito(abs($espaco), $unidade) . ' acima do teto'
+        : 'você tem ' . capValorEscrito($espaco, $unidade) . ' de espaço';
+}
+
+/**
  * Quanto um jogador de tal OVR custaria a este time, e se ele cabe.
  *
  * É a mesma pergunta na Free Agency e no waiver, e a resposta muda por liga:
