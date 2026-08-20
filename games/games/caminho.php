@@ -446,6 +446,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 .main{max-width:620px;margin:0 auto;padding:16px 12px 60px}
 
+/* ── O RODAPÉ DA AÇÃO ──────────────────────────────────────────────────
+   No desktop ele não é nada: `display:contents` dissolve a caixa e os
+   botões continuam no fim da decisão, onde sempre estiveram. Os atalhos
+   ficam escondidos porque lá em cima a barra existe. */
+.rodape-fixo{display:contents}
+.rf-atalhos{display:none}
+.rf-acoes{display:contents}
+.rf-espaco{display:none}
+
 /* DUAS COLUNAS — só a partir de 940px.
    Abaixo disso o grid vira uma coluna e tudo empilha na ordem do HTML, que
    já é a ordem certa de leitura: o que importa primeiro vem primeiro. Por
@@ -478,6 +487,51 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
    ENTRE elas — presas no mesmo filho, nenhum `order` as separa. */
 .bl-ficha + .bl-decisao{margin-top:11px}
 @media (max-width:939px){
+  /* ── A TELA DO JOGO NO CELULAR ────────────────────────────────────
+     A barra de cima sai e vira barra de baixo: os mesmos atalhos, mais a
+     ação do momento, colados no rodapé. Assim o botão do ano fica à mão
+     em qualquer altura da rolagem — e os 64px do alto da tela, que só
+     repetiam o nome do jogo, voltam pra ficha. */
+  .topbar-some{display:none}
+
+  .rodape-fixo{position:fixed;left:0;right:0;bottom:0;z-index:60;
+    display:flex;align-items:center;gap:8px;
+    padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));
+    background:var(--panel);border-top:1px solid var(--border);
+    box-shadow:0 -8px 20px rgba(0,0,0,.4)}
+  .rf-atalhos{display:flex;align-items:center;gap:6px;flex:none}
+  .rf-btn{display:inline-flex;align-items:center;justify-content:center;gap:3px;
+    height:38px;min-width:38px;padding:0 9px;border-radius:11px;
+    border:1px solid var(--border);background:var(--panel2);color:var(--text2);
+    font-family:var(--font);font-size:12px;font-weight:700;text-decoration:none;cursor:pointer}
+  .rf-btn b{font-family:var(--num);font-weight:800;color:var(--text)}
+  .rf-btn:hover{border-color:var(--red);color:var(--red)}
+  .rf-moeda{color:var(--amber);font-family:var(--num);font-weight:800;cursor:default}
+  .rf-moeda:hover{border-color:var(--border);color:var(--amber)}
+  /* Sem ação — quando a escolha é por cartas — a barra fica só com os
+     atalhos, e eles se espalham em vez de ficarem espremidos num canto. */
+  .rf-acoes{display:flex;flex:1;min-width:0;gap:8px;justify-content:flex-end}
+  .rf-acoes:empty{display:none}
+  /* `width:100%` mais o `min-width:auto` que todo item de flex traz de
+     fábrica: os dois botões se recusavam a encolher e o segundo saía da
+     tela — em 375px ele começava no pixel 371. Aqui a largura vem do
+     flex, e o min-width:0 deixa o texto quebrar antes de empurrar. */
+  .rodape-fixo .rf-acoes .btn{margin:0;flex:1 1 0;width:auto;min-width:0;padding:12px 10px;
+    font-size:14px;line-height:1.15}
+  /* No rodapé os dois ficam LADO A LADO mesmo em tela estreita: em coluna
+     a barra dobrava de altura e comia a tela que ela veio devolver. */
+  .rodape-fixo .rf-acoes .acoes-ano{flex:1 1 0;min-width:0;margin:0;flex-direction:row;gap:6px}
+  /* O secundário é `nowrap`: se pudesse encolher viraria "Parar por a…"
+     cortado em 46px. Ele fica do tamanho do próprio texto e quem cede é o
+     principal, que tem folga. */
+  .rodape-fixo .rf-acoes .acoes-ano .btn2{flex:0 0 auto;font-size:12.5px;padding:12px 11px}
+  /* A barra flutua por cima da página: sem esta folga ela tapa o último
+     bloco, que é justamente o "Desistir da carreira". */
+  /* 100 e não 60: com dois botões (a partir dos 33 anos) a barra passa de
+     70px de altura, e o espaço tem que caber no PIOR caso — ele fica no
+     fim da página, depois de tudo, onde sobrar não custa nada. */
+  .rf-espaco{display:block;height:100px}
+
   .colunas-ano .col-principal{display:contents}
   .colunas-ano .bl-ficha{order:1}
   .colunas-ano .col-lado{order:2}
@@ -1452,7 +1506,7 @@ window.__RANKING__   = <?= json_encode(array_map(fn($r) => [
 window.__EU__     = <?= json_encode($_SESSION['user_name'] ?? '', JSON_UNESCAPED_UNICODE) ?>;
 window.__ULTIMO_NOME__ = <?= json_encode($ultimoNome, JSON_UNESCAPED_UNICODE) ?>;
 window.__MOEDAS__ = <?= $pontosUsuario ?>;
-window.__DESAFIOS__ = <?= json_encode($desafiosFeitos, JSON_UNESCAPED_UNICODE) ?: '{}' ?>;
+window.__DESAFIOS__ = <?= json_encode((object)$desafiosFeitos, JSON_UNESCAPED_UNICODE) ?>;
 // Nível e prêmio vêm do servidor: é lá que a moeda é creditada, e a tela
 // não pode prometer um número diferente do que vai ser pago.
 window.__NIVEL_DO_DESAFIO__ = <?= json_encode(CAMINHO_DESAFIOS) ?>;
@@ -2909,14 +2963,22 @@ const app = () => document.getElementById("app");
 // artifact bloqueia o Bootstrap Icons — no site, volta a ser <i class="bi">.
 const SETA = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M8.5 3.5 4 8l4.5 4.5.9-.9L6.3 8.6H12v-1.2H6.3l3.1-3z"/></svg>`;
 
-function topo(){
+/**
+ * A barra do topo.
+ *
+ * `some` marca as telas de JOGO: no celular elas trocam a barra de cima por
+ * uma de baixo, com os mesmos atalhos e a ação do momento junto. Sessenta
+ * pixels no alto da tela pra repetir o nome do jogo é caro demais quando a
+ * ficha, a carreira e a decisão disputam o mesmo espaço.
+ */
+function topo(some){
   const chips = [];
   if (S && !S.encerrada && S.fase === "liga"){
     chips.push(`<div class="chip chip-espelho">OVR <b>${ovr(S.A,S.pos)}</b></div>`);
     chips.push(`<div class="chip chip-espelho">${S.idade} anos</div>`);
     chips.push(`<div class="chip" style="color:var(--amber)">$<b>${S.dinheiro}</b>M</div>`);
   }
-  return `<div class="topbar">
+  return `<div class="topbar${some ? ' topbar-some' : ''}">
     <div class="topbar-left">
       <a href="/games.php" class="back-btn" title="Voltar">${SETA}</a>
       <span class="game-title">O <span>Caminho</span><span class="daily-badge">carreira</span></span>
@@ -2927,6 +2989,32 @@ function topo(){
       <div class="chip" style="color:var(--amber)">${window.__MOEDAS__ ?? 0}</div></div>
   </div><div class="main">`;
 }
+
+/**
+ * O rodapé com a ação do momento.
+ *
+ * No DESKTOP ele não existe: `display:contents` dissolve a caixa e os botões
+ * ficam exatamente onde sempre estiveram, no fim da decisão. No CELULAR ele
+ * cola embaixo da tela — a ação fica à mão em qualquer altura da rolagem, e
+ * os atalhos que estavam na barra de cima (voltar, conquistas, moedas) vêm
+ * junto, já que lá em cima não tem mais barra.
+ */
+function rodapeDeAcoes(acoes){
+  const feitos = window.__DESAFIOS__ || {};
+  return `<div class="rodape-fixo">
+    <div class="rf-atalhos">
+      <a href="/games.php" class="rf-btn" title="Voltar aos jogos" aria-label="Voltar aos jogos">${SETA}</a>
+      <button class="rf-btn" onclick="telaDesafios()" title="Conquistas da carreira">🏆
+        <b>${DESAFIOS.filter(d => feitos[d.id]).length}</b></button>
+      <span class="rf-btn rf-moeda" title="Suas moedas">${window.__MOEDAS__ ?? 0}</span>
+    </div>
+    <div class="rf-acoes">${acoes || ''}</div>
+  </div>`;
+}
+
+/** O espaço que a barra fixa ocupa. Vai por ÚLTIMO na página: é ele que
+ *  garante que o fim do conteúdo não fique embaixo dela. */
+const espacoDaBarra = () => `<div class="rf-espaco" aria-hidden="true"></div>`;
 
 function render(){
   if (!S) return telaInicio();
@@ -3506,12 +3594,14 @@ function telaFormacao(){
   const ultimoAno = S.anoFase >= 4;
   const faltam = 4 - S.anoFase;
 
+  // No último ano a única saída é o draft, e o botão vai pro rodapé fixo.
+  const acoes = ultimoAno ? `<button class="btn" onclick="irAoDraft()">Entrar no draft</button>` : "";
+
   const decisao = ultimoAno ? `
     <h1 class="dec-tit">Acabou o seu tempo aqui</h1>
     <p class="lead dec-sub">Quatro anos ${S.fase === "college" ? "de universidade" : "de formação"} e a
       porta se fecha atrás de você. Os olheiros te colocam como
-      <b style="color:var(--red)">${projecao}</b>.</p>
-    <button class="btn" onclick="irAoDraft()">Entrar no draft</button>` : `
+      <b style="color:var(--red)">${projecao}</b>.</p>` : `
     <h1 class="dec-tit">Sair ou ficar</h1>
     <p class="lead dec-sub">Os olheiros hoje te colocam como <b style="color:var(--red)">${projecao}</b>.
       Sair agora é levar o que está na mesa; ficar são mais
@@ -3539,9 +3629,11 @@ function telaFormacao(){
   const blocoDecisao =
     (S.mensagem ? `<div class="bpcard"><p class="dec-txt" style="margin:0">${S.mensagem}</p></div>` : "") +
     decisao +
-    `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>`;
+    rodapeDeAcoes(acoes) +
+    `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>` +
+    espacoDaBarra();
 
-  app().innerHTML = topo() + `<div class="colunas colunas-ano">
+  app().innerHTML = topo(true) + `<div class="colunas colunas-ano">
     <div class="col-principal">
       <div class="bl-ficha">${blocoFicha}</div>
       <div class="bl-decisao">${blocoDecisao}</div>
@@ -4944,6 +5036,19 @@ function telaTemporada(){
   const blocoFicha = barra() +
     placar(st, String(S.ano), S.time + (S.gm ? ` · ${S.gm}` : ""), S.ultimaCampanha, S.ultimosPremios || []);
 
+  // A ação do ano fica separada do resto da decisão: é ela que vai pro
+  // rodapé fixo no celular. Quando a escolha é por cartas não há ação
+  // nenhuma aqui — o que se faz é clicar numa carta.
+  const acoes = (S.mercado || (S.aguardando && d) || S.desfecho) ? "" : (
+    aposentar ? `<button class="btn" onclick="encerrar()">Pendurar as chuteiras</button>`
+    : S.idade >= 33 ? `<div class="acoes-ano">
+        <button class="btn" onclick="jogarAno()">${
+          S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>
+        <button class="btn btn2" onclick="encerrar()">Parar por aqui</button>
+      </div>`
+    : `<button class="btn" onclick="jogarAno()">${
+        S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>`);
+
   const blocoDecisao =
     (S.mensagem ? `<div class="bpcard"><p class="dec-txt" style="margin:0">${S.mensagem}</p></div>` : "") +
     ((S.desafiosDoAno || []).length ? `<div class="bpcard conquista-aviso">
@@ -4957,21 +5062,14 @@ function telaTemporada(){
     // Era isso que o bloco "O que aconteceu" fazia errado — ficava por cima
     // da pergunta seguinte e empurrava ela pra fora da dobra.
     (S.desfecho ? cartaDoDesfecho(S.desfecho) : "") +
-    (S.mercado ? mercadoHTML() : S.aguardando && d ? cartasDaDecisao(d) : S.desfecho ? "" : `
-      ${aposentar ? `<button class="btn" onclick="encerrar()">Pendurar as chuteiras</button>`
-        : S.idade >= 33 ? `
-          <div class="acoes-ano">
-            <button class="btn" onclick="jogarAno()">${
-              S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>
-            <button class="btn btn2" onclick="encerrar()">Parar por aqui</button>
-          </div>`
-        : `<button class="btn" onclick="jogarAno()">${
-            S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>`}`)
-    + `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>`;
+    (S.mercado ? mercadoHTML() : S.aguardando && d ? cartasDaDecisao(d) : "")
+    + rodapeDeAcoes(acoes)
+    + `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>`
+    + espacoDaBarra();
 
   // A súmula vai pro lado no desktop: ela cresce a cada temporada e,
   // embaixo do botão de avançar, empurrava a decisão pra fora da tela.
-  app().innerHTML = topo() + `<div class="colunas colunas-ano">
+  app().innerHTML = topo(true) + `<div class="colunas colunas-ano">
     <div class="col-principal">
       <div class="bl-ficha">${blocoFicha}</div>
       <div class="bl-decisao">${blocoDecisao}</div>

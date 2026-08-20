@@ -26,6 +26,11 @@ $pdo = db();
 // Moedas da conta, pra barra de cima. O jogo roda sem login — quem não está
 // logado vê a barra sem a ficha de moeda, e não um zero que não é dele.
 $moedasUsuario = null;
+// As conquistas que esta CONTA já tem. Elas viviam só no localStorage, e o
+// localStorage é de um navegador: quem terminasse uma carreira no computador
+// abria o celular com o placar zerado e a lista inteira trancada — e a tela
+// final tratava como inédito o que já era dele. O banco é quem sabe.
+$conquistasFeitas = [];
 if ($idUsuario > 0) {
     try {
         $st = $pdo->prepare("SELECT pontos FROM games_usuarios WHERE id = ?");
@@ -33,6 +38,13 @@ if ($idUsuario > 0) {
         $v = $st->fetchColumn();
         if ($v !== false) $moedasUsuario = (int)$v;
     } catch (Throwable $e) { /* sem moeda na barra é melhor que sem jogo */ }
+
+    try {
+        coperoGarantirConquistas($pdo);
+        $st = $pdo->prepare("SELECT conquista FROM copero_conquistas WHERE id_usuario = ?");
+        $st->execute([$idUsuario]);
+        $conquistasFeitas = $st->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    } catch (Throwable $e) { /* a lista volta pro localStorage sozinha */ }
 }
 
 /** Guarda a carreira encerrada, pro ranking e pro histórico. */
@@ -447,6 +459,13 @@ button{font-family:inherit}
   .topo .marca{font-size:15px}
   .chip-topo{padding:4px 9px;font-size:11px}
 }
+/* ── O RODAPÉ DA CARREIRA ─────────────────────────────────────────────
+   No desktop não é nada: `display:contents` dissolve a caixa e os atalhos
+   ficam escondidos, porque lá em cima a barra continua existindo. */
+.rodape-fixo{display:contents}
+.rf-atalhos{display:none}
+.rf-espaco{display:none}
+
 .btn-topo{background:var(--panel2);border:1px solid var(--borda);color:var(--txt2);border-radius:9px;
   padding:8px 13px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .btn-topo:hover{color:var(--txt);border-color:var(--borda2)}
@@ -785,6 +804,10 @@ button{font-family:inherit}
   border-radius:6px;padding:3px 8px;margin-left:8px;vertical-align:middle}
 /* Desafio não feito continua legível: escondê-lo não cria mistério, cria
    uma lista de cadeados que não diz o que fazer. */
+/* A repetida fica visível, mas sem brilho: ela conta o que a carreira
+   alcançou sem se passar por novidade. */
+.conq.repetida{opacity:.62}
+.conq.repetida em{color:var(--txt3);letter-spacing:.4px;text-transform:none;font-size:9.5px}
 .conq.travada{opacity:.5}
 .conq.travada .ic{filter:grayscale(1)}
 .conq.nova{box-shadow:0 0 0 1px var(--n,#fff) inset}
@@ -887,16 +910,17 @@ button{font-family:inherit}
   gap:22px 30px;max-width:min(92vw,780px);padding:0 16px}
 .taca-item{display:flex;flex-direction:column;align-items:center;gap:9px;flex:0 0 auto;
   opacity:0;animation:tacaEntra .8s cubic-bezier(.2,1.5,.4,1) forwards}
-.taca-item b{font-size:14px;font-weight:800;text-align:center;max-width:150px;line-height:1.25}
+.taca-item b{font-size:14px;font-weight:800;text-align:center;line-height:1.25;
+  width:150px;min-height:2.5em;display:flex;align-items:flex-start;justify-content:center}
 @media (max-width:520px){
   .taca-fila{gap:16px 20px}
-  .taca-item b{font-size:12px;max-width:110px}
+  .taca-item b{font-size:12px;width:104px}
 }
 
 .taca-nova{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:14px;background:rgba(6,6,9,.86);z-index:60;
   backdrop-filter:blur(3px)}
-.taca-nova b{font-size:22px;font-weight:900;letter-spacing:-.5px;text-align:center;padding:0 20px}
+.taca-nova > b{font-size:22px;font-weight:900;letter-spacing:-.5px;text-align:center;padding:0 20px}
 .taca-nova small{color:var(--txt2);font-size:12.5px}
 @media (prefers-reduced-motion:reduce){
   /* Quem pediu menos movimento vê o resultado, não a viagem até ele. */
@@ -963,17 +987,40 @@ button{font-family:inherit}
 }
 @media (max-width:760px){
   /* ── A tela do jogo no celular ────────────────────────────────────
-     O desenho é o do Copero: barra fina com a marca no meio, ficha de
-     duas linhas ao lado do OVR, tabela logo abaixo. Cada bloco que
-     encolhe aqui é uma linha da carreira que aparece sem rolar. */
+     O desenho é o do Copero: ficha de duas linhas ao lado do OVR e a
+     tabela logo abaixo. Cada bloco que encolhe aqui é uma linha da
+     carreira que aparece sem rolar.
+
+     Na tela de carreira a barra de cima SAI e vira barra de baixo: os
+     mesmos atalhos, na altura do polegar, e os 63px do alto voltam pra
+     ficha. Nas outras telas ela fica — sem barra nenhuma não haveria como
+     voltar pros jogos. */
+  .topo.topo-some{display:none}
+
+  .rodape-fixo{position:fixed;left:0;right:0;bottom:0;z-index:60;
+    display:flex;align-items:center;gap:8px;
+    padding:8px 11px calc(8px + env(safe-area-inset-bottom,0px));
+    background:var(--panel);border-top:1px solid var(--borda);
+    box-shadow:0 -8px 20px rgba(0,0,0,.4)}
+  .rf-atalhos{display:flex;align-items:center;gap:7px;flex:1}
+  .rf-btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;
+    height:38px;min-width:38px;padding:0 10px;border-radius:11px;
+    border:1px solid var(--borda);background:var(--panel2);color:var(--txt2);
+    font-family:inherit;font-size:12px;font-weight:700;text-decoration:none;cursor:pointer}
+  .rf-btn b{font-variant-numeric:tabular-nums;font-weight:800;color:var(--txt)}
+  .rf-moeda{color:#eab308;cursor:default}
+  /* O abandonar vai pra ponta oposta da do voltar: são as duas saídas, e
+     encostadas uma na outra viram um erro de dedo. */
+  .rf-sair{margin-left:auto;color:var(--txt3)}
+  /* A barra flutua por cima: sem esta folga ela tapa a última linha. */
+  .rf-espaco{display:block;height:64px}
+
   .topo{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
     gap:8px;flex-wrap:nowrap;margin:-12px -11px 12px;padding:9px 11px;
     border-bottom:1px solid var(--borda)}
   .topo .voltar{justify-self:start}
   .topo .marca{justify-self:center}
   .topo-dir{margin-left:0;justify-self:end;gap:6px}
-  /* O "Abandonar" fica só no ✕: escrito por extenso ele tirava a marca
-     do centro e ainda quebrava a barra em duas linhas. */
   .btn-topo{padding:7px 9px}
   .btn-topo span{display:none}
 
@@ -1047,16 +1094,35 @@ const apagar  = () => { try { localStorage.removeItem(CHAVE); } catch(e){} };
 const CHAVE_CONQ = 'copero:conquistas';
 const CHAVE_NOME = 'copero:nome';
 
+/**
+ * Tudo que esta pessoa já conquistou, em qualquer carreira.
+ *
+ * O BANCO manda (veio em __CONQUISTAS__, é o registro que atravessa
+ * navegador e aparelho) e o localStorage completa — ele é o único que
+ * existe pra quem joga sem estar logado. Conquista é do jogador, não da
+ * carreira: uma vez feita, feita pra sempre, e não volta a valer moeda nem
+ * a aparecer como novidade na carreira seguinte.
+ */
 const conquistasFeitas = () => {
-  try { const v = JSON.parse(localStorage.getItem(CHAVE_CONQ) || '[]'); return Array.isArray(v) ? v : []; }
-  catch(e){ return []; }
+  const doServidor = Array.isArray(window.__CONQUISTAS__) ? window.__CONQUISTAS__ : [];
+  let local = [];
+  try { const v = JSON.parse(localStorage.getItem(CHAVE_CONQ) || '[]'); if (Array.isArray(v)) local = v; }
+  catch(e){ /* localStorage bloqueado: o servidor basta */ }
+  return [...new Set([...doServidor, ...local])];
 };
 const guardarConquistas = (ids) => {
+  const novos = (ids || []).filter(Boolean);
+  if (!novos.length) return;
+  // A lista em memória também: o contador da barra do topo lê dela, e sem
+  // isto ele só mudaria no próximo carregamento da página.
+  const memoria = new Set(Array.isArray(window.__CONQUISTAS__) ? window.__CONQUISTAS__ : []);
+  novos.forEach(id => memoria.add(id));
+  window.__CONQUISTAS__ = [...memoria];
   try {
     const tudo = new Set(conquistasFeitas());
-    (ids || []).forEach(id => tudo.add(id));
+    novos.forEach(id => tudo.add(id));
     localStorage.setItem(CHAVE_CONQ, JSON.stringify([...tudo]));
-  } catch(e){}
+  } catch(e){ /* sem localStorage, a lista do servidor segue valendo */ }
 };
 const ultimoNome = () => { try { return localStorage.getItem(CHAVE_NOME) || ''; } catch(e){ return ''; } };
 const guardarNome = (n) => { try { if (n) localStorage.setItem(CHAVE_NOME, n); } catch(e){} };
@@ -1314,6 +1380,7 @@ async function mostrarTacas(t){
    e o jogador entra como tempero: um craque num time bom empurra o título,
    mas ninguém ganha Champions sozinho jogando na segunda divisão. */
 window.__MOEDAS__ = <?= $moedasUsuario === null ? 'null' : $moedasUsuario ?>;
+window.__CONQUISTAS__ = <?= json_encode(array_values($conquistasFeitas)) ?>;
 const TACAS = <?= json_encode(COPERO_TACAS, JSON_UNESCAPED_UNICODE) ?>;
 const COMPETICOES = <?= json_encode(COPERO_COMPETICOES, JSON_UNESCAPED_UNICODE) ?>;
 const CONTINENTAL = <?= json_encode(COPERO_CONTINENTAL, JSON_UNESCAPED_UNICODE) ?>;
@@ -1347,9 +1414,9 @@ const SEL_CONT    = <?= json_encode(COPERO_SELECAO_CONT, JSON_UNESCAPED_UNICODE)
  * `extra` é o que cada tela quer no canto direito antes das fichas (o
  * "Abandonar" da carreira em andamento, por exemplo).
  */
-function barraTopo(extra){
+function barraTopo(extra, some){
   const feitas = conquistasFeitas().length;
-  return `<div class="topo">
+  return `<div class="topo${some ? ' topo-some' : ''}">
     <a href="/games.php" class="voltar" title="Voltar aos jogos">
       <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M8.5 3.5 4 8l4.5 4.5.9-.9L6.3 8.6H12v-1.2H6.3l3.1-3z"/></svg></a>
     <div class="marca"><i class="bi bi-trophy-fill"></i> Copero</div>
@@ -1361,6 +1428,35 @@ function barraTopo(extra){
         : `<div class="chip-topo chip-topo-moeda" title="Suas moedas">🪙 <b>${window.__MOEDAS__}</b></div>`}
     </div>
   </div>`;
+}
+
+/**
+ * O rodapé da tela de carreira no celular.
+ *
+ * A barra de cima sai e os atalhos descem — voltar, desafios, moedas e o
+ * abandonar. No desktop `display:contents` dissolve a caixa e nada disso
+ * aparece: lá a barra de cima continua sendo a barra.
+ */
+function rodapeDeAtalhos(){
+  const feitas = conquistasFeitas().length;
+  const temMoeda = window.__MOEDAS__ !== null && window.__MOEDAS__ !== undefined;
+  return `<div class="rf-espaco" aria-hidden="true"></div>
+  <div class="rodape-fixo">
+    <div class="rf-atalhos">
+      <a href="/games.php" class="rf-btn" title="Voltar aos jogos" aria-label="Voltar aos jogos">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M8.5 3.5 4 8l4.5 4.5.9-.9L6.3 8.6H12v-1.2H6.3l3.1-3z"/></svg></a>
+      <button class="rf-btn" onclick="abrirDesafios()" title="Desafios">🏆 <b>${feitas}</b></button>
+      ${temMoeda ? `<span class="rf-btn rf-moeda" title="Suas moedas">🪙 <b>${window.__MOEDAS__}</b></span>` : ''}
+      <button class="rf-btn rf-sair" onclick="abandonarCarreira()" title="Abandonar esta carreira"
+        aria-label="Abandonar esta carreira"><i class="bi bi-x-lg"></i></button>
+    </div>
+  </div>`;
+}
+
+/** Larga a carreira em andamento. Pergunta antes: não tem volta. */
+function abandonarCarreira(){
+  if (!confirm('Abandonar esta carreira?')) return;
+  apagar(); S = null; telaInicio();
 }
 
 /** A taça desenhada, do tamanho pedido. */
@@ -2711,7 +2807,7 @@ function render(){
   const decisao = blocoDecisao();
 
   app().innerHTML = `
-    ${barraTopo(`<button class="btn-topo" onclick="if(confirm('Abandonar esta carreira?')){apagar();S=null;telaInicio();}" title="Abandonar esta carreira"><i class="bi bi-x-lg"></i> <span>Abandonar</span></button>`)}
+    ${barraTopo(`<button class="btn-topo" onclick="abandonarCarreira()" title="Abandonar esta carreira"><i class="bi bi-x-lg"></i> <span>Abandonar</span></button>`, true)}
     <div class="carreira">
       <div class="col-esq">
         <div class="caixa ficha">
@@ -2744,7 +2840,8 @@ function render(){
       <div class="caixa linha">${linhaDoTempo()}</div>
     </div>
     <p class="rodape">Os nomes de clube servem para identificar dentro da simulação.
-    Este jogo não é afiliado, patrocinado nem endossado por nenhum deles.</p>`;
+    Este jogo não é afiliado, patrocinado nem endossado por nenhum deles.</p>
+    ${rodapeDeAtalhos()}`;
 }
 
 /**
@@ -3208,20 +3305,33 @@ async function telaFim(){
       const pr = d.premio || {};
       const ganhou = (pr.moedas || 0) + (pr.fba_points || 0) > 0;
       const rotulo = {facil:'Fácil', media:'Média', dificil:'Difícil', impossivel:'Impossível'};
+
+      // Conquista é do jogador, não da carreira: o que já era dele aparece
+      // como repetido e vai pro fim da lista. Misturado com as inéditas, o
+      // fim de carreira parecia dizer que ele tinha ganhado tudo de novo —
+      // e ninguém ganha a mesma conquista duas vezes.
+      const eNova = (c) => novas.some(n => n.id === c.id);
+      const lista = [...d.conquistas].sort((a, b) => (eNova(b) ? 1 : 0) - (eNova(a) ? 1 : 0));
+      const qtdNovas = d.conquistas.filter(eNova).length;
+      const repetidas = d.conquistas.length - qtdNovas;
+
       document.getElementById('conquistas').innerHTML =
         `<h2 style="font-size:17px;margin:26px 0 10px">Conquistas da carreira
-           <span class="conq-conta">${d.conquistas.length} de ${d.totalConquistas || '?'}</span></h2>
+           <span class="conq-conta">${qtdNovas ? `${qtdNovas} nova${qtdNovas > 1 ? 's' : ''}` : 'nenhuma nova'}${
+             repetidas ? ` · ${repetidas} que você já tinha` : ''}</span></h2>
          ${ganhou ? `<div class="premio-fx">
            <b>Você ganhou</b>
            ${pr.moedas ? `<span class="premio-tag moeda">+${pr.moedas} moedas</span>` : ''}
            ${pr.fba_points ? `<span class="premio-tag fba">+${pr.fba_points} FBA Points</span>` : ''}
            <small>pelas conquistas inéditas — cada uma paga uma vez só</small>
          </div>` : ''}
-         <div class="conq-grade">${d.conquistas.map(c => `
-           <div class="conq n-${esc(c.nivel || 'facil')}${novas.some(n => n.id === c.id) ? ' nova' : ''}">
+         <div class="conq-grade">${lista.map(c => `
+           <div class="conq n-${esc(c.nivel || 'facil')}${eNova(c) ? ' nova' : ' repetida'}">
              <span class="ic">${c.icone}</span>
              <div><b>${esc(c.nome)}</b><small>${esc(c.desc)}</small></div>
-             <em>${novas.some(n => n.id === c.id) ? 'NOVA' : esc(rotulo[c.nivel] || '')}</em></div>`).join('')}</div>`;
+             <em>${eNova(c) ? 'NOVA' : 'já era sua'}</em></div>`).join('')}</div>
+         <p class="nota-txt" style="margin-top:10px">Cada conquista sai uma vez só, na carreira em que
+         você a fez pela primeira vez. As que já eram suas continuam suas — não pagam de novo.</p>`;
     }
   } catch (e) { /* sem rede, a carreira ainda aparece inteira */ }
 
