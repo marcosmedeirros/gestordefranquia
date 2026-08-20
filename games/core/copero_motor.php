@@ -703,7 +703,7 @@ function coperoConquistas(): array
         'um_clube_so' => ['🔒', 'Um clube só',       'Faça a carreira inteira em no máximo dois clubes.',
                           'dificil', fn($c) => $c['clubes'] <= 2 && $c['temporadas'] >= 12],
         'terror'      => ['👟', 'Terror das redes',  'Ganhe duas Chuteiras de Ouro.',
-                          'impossivel', fn($c) => $t($c,'chuteira') >= 2],
+                          'dificil', fn($c) => $t($c,'chuteira') >= 2],
         'nomade'      => ['🛫', 'Nômade',            'Jogue em clubes de três continentes diferentes.',
                           'dificil', fn($c) => $c['continentes'] >= 3],
         'periferia'   => ['🧭', 'Da periferia',      'Ganhe uma Bola de Ouro sendo de fora da Europa e da América do Sul.',
@@ -724,27 +724,33 @@ function coperoConquistas(): array
 
         // ── Impossíveis: pra perseguir por muitas carreiras ───────────
         'mr_champions'=> ['🏛️', 'Mr. Champions',     'Ganhe seis torneios continentais de clubes.',
-                          'impossivel', fn($c) => $t($c,'cont') >= 6],
+                          'dificil', fn($c) => $t($c,'cont') >= 6],
         'dono_europa' => ['🏰', 'Dono da Europa',    'Seja campeão de três das cinco grandes ligas europeias.',
                           'impossivel', fn($c) => $c['grandesEuropeias'] >= 3],
-        'lenda_maxima'=> ['💫', 'Lenda absoluta',    'Passe a carreira inteira num só clube e ganhe liga, copa e continental.',
+        'lenda_maxima'=> ['💫', 'Lenda absoluta',    'Passe a carreira inteira num só clube e ganhe liga, copa, '
+                                                   . 'continental e Mundial de Clubes.',
                           'impossivel', fn($c) => $c['clubes'] === 1 && $c['temporadas'] >= 15
-                                                  && $t($c,'liga') >= 1 && $t($c,'copa') >= 1 && $t($c,'cont') >= 1],
+                                                  && $t($c,'liga') >= 1 && $t($c,'copa') >= 1
+                                                  && $t($c,'cont') >= 1 && $t($c,'mundial') >= 1],
         'colecionador'=> ['🗄️', 'O mais vencedor da história', 'Ganhe 35 títulos coletivos.',
-                          'impossivel', fn($c) => $c['coletivos'] >= 35],
+                          'dificil', fn($c) => $c['coletivos'] >= 35],
         'so_o_pele'   => ['👑👑', 'Só o Pelé',         'Faça 1.000 gols e ganhe três Copas do Mundo.',
                           'impossivel', fn($c) => $t($c,'copa_mundo') >= 3 && $c['gols'] >= 1000],
         'mil_gols'    => ['🎯', 'O milésimo',        'Marque 1.000 gols na carreira.',
                           'impossivel', fn($c) => $c['gols'] >= 1000],
-        'messi'       => ['🎖️', 'O mais condecorado', 'Ganhe 47 títulos numa carreira.',
-                          'impossivel', fn($c) => $c['coletivos'] >= 47],
+        // Aqui entra TUDO o que se levanta: taça de clube, de seleção e
+        // prêmio individual. É o contrário do 'colecionador', que conta só
+        // o que o time ganhou — este mede a estante inteira.
+        'messi'       => ['🎖️', 'O mais condecorado', 'Ganhe 47 troféus numa carreira, somando títulos '
+                                                    . 'coletivos e prêmios individuais.',
+                          'impossivel', fn($c) => ($c['trofeus'] ?? $c['coletivos']) >= 47],
         'maestro'     => ['🎼', 'Maestro',           'Dê 400 assistências na carreira.',
                           'dificil', fn($c) => $c['ast'] >= 400],
         'goat'        => ['🐐', 'GOAT',              'Copa do Mundo, dois continentais de seleção, três Bolas de Ouro '
                                                    . 'e três torneios continentais de clubes.',
                           'impossivel', fn($c) => $t($c,'copa_mundo') >= 1 && $t($c,'selecao_cont') >= 2
                                                   && $t($c,'bola_ouro') >= 3 && $t($c,'cont') >= 3],
-        'de_baixo_max'=> ['⛰️', 'Do fundo ao topo',  'Comece fora da primeira divisão e seja campeão nacional '
+        'de_baixo_max'=> ['⛰️', 'Do fundo ao topo',  'Comece na TERCEIRA divisão e seja campeão da primeira '
                                                    . 'com esse mesmo clube.',
                           'impossivel', fn($c) => !empty($c['subiuComOMesmo'])],
         'yashin'      => ['🥅', 'O Yashin',          'Ganhe uma Bola de Ouro sendo goleiro. '

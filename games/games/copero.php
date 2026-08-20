@@ -281,9 +281,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             if ($id === 'liga') {
                 $ligasVencidas[$ligaId] = 1;
                 $paisesCampeao[$liga['pais']] = 1;
-                // "Do fundo ao topo": o clube que te contratou lá embaixo é o
-                // mesmo que te deu o título nacional depois de subir.
-                if ($nome === $primeiroClube && $primeiroNivel >= 2 && (int)$liga['nivel'] === 1) {
+                // "Do fundo ao topo": o clube que te contratou na TERCEIRA
+                // divisão é o mesmo que te deu o título da primeira. Da
+                // segunda pra primeira é subida de uma divisão — acontece
+                // todo ano e não é a história que a conquista conta.
+                if ($nome === $primeiroClube && $primeiroNivel >= 3 && (int)$liga['nivel'] === 1) {
                     $subiuComOMesmo = true;
                 }
             }
@@ -302,6 +304,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                + ($tit['cont2'] ?? 0) + ($tit['cont3'] ?? 0)
                + ($tit['mundial'] ?? 0) + ($tit['copa_mundo'] ?? 0) + ($tit['selecao_cont'] ?? 0);
 
+    // A estante inteira: o que o time ganhou MAIS o que foi só seu. É o que
+    // "O mais condecorado" conta — coletivo sozinho mede o clube, não a
+    // carreira de quem esteve nele.
+    $individuais = ($tit['artilheiro'] ?? 0) + ($tit['chuteira'] ?? 0)
+                 + ($tit['bola_ouro'] ?? 0) + ($tit['rei_america'] ?? 0)
+                 + ($tit['luva_ouro'] ?? 0);
+    // Supercopas entram como troféu, não como título coletivo: são taça de
+    // verdade, mas não é delas que se lembra ao contar o que o time ganhou.
+    $trofeus = $coletivos + $individuais
+             + ($tit['supernac'] ?? 0) + ($tit['supercont'] ?? 0);
+
     $ctx = [
         'jogos' => $tot['jogos'], 'gols' => $tot['gols'], 'ast' => $tot['ast'],
         'picoOvr' => $picoOvr, 'picoValor' => $picoValor,
@@ -313,6 +326,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'maiorForcaClube' => (int)($c['maiorForcaClube'] ?? 0),
         // Novos
         't' => $tit, 'coletivos' => $coletivos,
+        'individuais' => $individuais, 'trofeus' => $trofeus,
         'paises' => count($paises), 'paisesSA' => count(array_intersect(
             ['BRA','ARG','URU','CHI','COL'], array_keys($paises))),
         'grandesEuropeias' => $grandesVencidas,
