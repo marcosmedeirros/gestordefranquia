@@ -1211,6 +1211,7 @@ function openGestaoEdit(userId) {
   if (!u) return;
 
   const allLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
+  const conf = (u.team_conference || '').toUpperCase();
   const teamNameField = u.team_id ? `
     <div class="row g-2 mb-3">
       <div class="col-12 col-sm-7">
@@ -1220,6 +1221,14 @@ function openGestaoEdit(userId) {
       <div class="col-12 col-sm-5">
         <label class="form-label text-light-gray">Cidade</label>
         <input type="text" id="gedit-team-city" class="form-control" value="${escapeHtml(u.team_city || '')}">
+      </div>
+      <div class="col-12">
+        <label class="form-label text-light-gray">Conferência</label>
+        <select id="gedit-team-conference" class="form-select">
+          <option value="" ${!conf ? 'selected' : ''}>Sem conferência</option>
+          <option value="LESTE" ${conf === 'LESTE' ? 'selected' : ''}>Leste</option>
+          <option value="OESTE" ${conf === 'OESTE' ? 'selected' : ''}>Oeste</option>
+        </select>
       </div>
     </div>` : '';
   const leagueOptions = (selected) => allLeagues.map(l => `<option value="${l}" ${selected === l ? 'selected' : ''}>${l}</option>`).join('');
@@ -1342,6 +1351,11 @@ function openGestaoEdit(userId) {
       </div>
     </div>`;
 
+  // O modal anterior só se remove no 'hidden', que leva o tempo da animação.
+  // Abrir dois usuários em seguida deixava os dois no DOM, e getElementById
+  // pega o PRIMEIRO — o formulário lido no salvar era o do usuário antigo.
+  document.getElementById('gestaoEditModal')?.remove();
+
   document.body.insertAdjacentHTML('beforeend', modalHtml);
   const modal = new bootstrap.Modal(document.getElementById('gestaoEditModal'));
   modal.show();
@@ -1386,6 +1400,9 @@ async function saveGestaoUser() {
   const teamName = teamNameEl ? teamNameEl.value.trim() : '';
   const teamCityEl = document.getElementById('gedit-team-city');
   const teamCity = teamCityEl ? teamCityEl.value.trim() : '';
+  // Só vai no corpo se o campo existir (usuário sem time não tem): assim
+  // salvar um usuário avulso não zera conferência de time nenhum.
+  const teamConfEl = document.getElementById('gedit-team-conference');
 
   const userLeagueEl = document.getElementById('gedit-user-league');
   const teamLeagueEl = document.getElementById('gedit-team-league');
@@ -1395,7 +1412,10 @@ async function saveGestaoUser() {
   try {
     await api('admin.php?action=update_user', {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId, team_id: teamId, name, email, phone, team_photo: teamPhoto, team_name: teamName, team_city: teamCity, user_league: userLeague, team_league: teamLeague })
+      body: JSON.stringify(Object.assign(
+        { user_id: userId, team_id: teamId, name, email, phone, team_photo: teamPhoto,
+          team_name: teamName, team_city: teamCity, user_league: userLeague, team_league: teamLeague },
+        teamConfEl ? { team_conference: teamConfEl.value } : {}))
     });
 
     if (window.IS_GLOBAL_ADMIN) {

@@ -406,7 +406,7 @@ if ($method === 'GET') {
             $stmt = $pdo->prepare("
                 SELECT u.id, u.name, u.email, u.user_type, u.photo_url, u.league, u.phone,
                        t.id AS team_id, t.name AS team_name, t.city AS team_city,
-                       t.photo_url AS team_photo, t.league AS team_league
+                       t.photo_url AS team_photo, t.league AS team_league, t.conference AS team_conference
                 FROM users u
                 LEFT JOIN teams t ON t.user_id = u.id
                 $where
@@ -3101,6 +3101,17 @@ if ($method === 'POST') {
             if ($teamCity !== '' && !empty($data['team_id'])) {
                 $pdo->prepare("UPDATE teams SET city = ? WHERE id = ? AND user_id = ?")
                     ->execute([$teamCity, (int)$data['team_id'], $targetId]);
+            }
+
+            // Conferência aceita vazio de propósito: a ROOKIE ainda não se
+            // dividiu, e forçar LESTE/OESTE lá inventaria um chaveamento que
+            // não existe. String vazia vira NULL, que é o "sem conferência".
+            if (array_key_exists('team_conference', $data) && !empty($data['team_id'])) {
+                $conf = strtoupper(trim((string)$data['team_conference']));
+                if (in_array($conf, ['LESTE', 'OESTE', ''], true)) {
+                    $pdo->prepare("UPDATE teams SET conference = ? WHERE id = ? AND user_id = ?")
+                        ->execute([$conf !== '' ? $conf : null, (int)$data['team_id'], $targetId]);
+                }
             }
 
             if (isset($data['team_photo']) && $data['team_photo'] !== '' && !empty($data['team_id'])) {
