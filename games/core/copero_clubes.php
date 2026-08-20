@@ -388,7 +388,6 @@ const COPERO_CLUBES = [
     ['Mamelodi Sundowns', 'ZA1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/u3md311784744590.png'],
     ['Orlando Pirates', 'ZA1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/y6dbv61583616330.png'],
     ['Kaizer Chiefs', 'ZA1', 69, 'https://r2.thesportsdb.com/images/media/team/badge/akwtlr1583614121.png'],
-    ['SuperSport United', 'ZA1', 65, ''],
 
     // Ligue 1 (Argélia)
     ['CR Belouizdad', 'DZ1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/88vcd41695448814.png'],
