@@ -592,12 +592,6 @@ button{font-family:inherit}
 .carr-pista{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;
   align-items:stretch}
 .carr-pista > *{min-width:0}
-.carr-ctrl{display:flex;align-items:center;justify-content:center;margin-top:9px}
-.carr-ctrl button{height:30px;padding:0 13px;border-radius:9px;background:var(--panel2);
-  border:1px solid var(--borda);color:var(--txt3);cursor:pointer;font-size:11.5px;font-weight:700;
-  display:inline-flex;align-items:center;gap:6px;transition:.14s;font-family:inherit}
-.carr-ctrl button:hover:not(:disabled){color:var(--txt);border-color:var(--borda2)}
-.carr-ctrl button:disabled{opacity:.35;cursor:default}
 /* Empilhada, a carta deita: escudo à esquerda e o texto ao lado. */
 @media (max-width:560px){
   .carr-pista{grid-template-columns:1fr}
@@ -2384,7 +2378,6 @@ function ehIdolo(){ return anosNoClube() >= 5; }
 
 function proximaFase(){
   // Cada janela nova traz uma chance nova de pedir outras opções.
-  S.jaResorteou = false;
   if (S.idade >= IDADE_FIM) { S.fase = 'fim'; S.fim = true; salvar(); render(); return; }
 
   // Empréstimo acabou: a decisão de voltar, ficar ou rodar de novo vem antes
@@ -2593,7 +2586,7 @@ function blocoDecisao(){
             <span class="txt"><b>Ficar no ${esc(dono.nome)}</b>
             <small>Brigar por espaço no elenco principal</small></span>
           </div></button>`);
-        return carrossel(cs.join(''), cs.length);
+        return gradeDeOpcoes(cs.join(''));
       })()}</div>`;
   }
   if (S.fase === 'fim_emprestimo') {
@@ -2623,7 +2616,7 @@ function blocoDecisao(){
               <small>${l ? esc(l.nome) : ''} · força ${c.forca}</small></span>
             </div></button>`);
         });
-        return carrossel(cs.join(''), cs.length);
+        return gradeDeOpcoes(cs.join(''));
       })()}</div>`;
   }
   if (S.fase === 'fim_ciclo') {
@@ -2662,34 +2655,8 @@ function blocoDecisao(){
  * carrossel: ficava bonito e cobrava dois cliques pra ver o que cabe na tela
  * sem clique nenhum. Quando não cabem, o próprio grid empilha.
  */
-function carrossel(cartasHtml){
-  return `<div class="carr">
-    <div class="carr-pista">${cartasHtml}</div>
-    <div class="carr-ctrl">
-      <button onclick="resortearOpcoes()" id="carrRe" ${S.jaResorteou ? 'disabled' : ''}
-        title="Sortear outras opções">⟳ ${S.jaResorteou ? 'já trocou' : 'outras opções'}</button>
-    </div>
-  </div>`;
-}
-
-/**
- * Sortear outras opções — UMA vez por janela.
- *
- * Sem o limite, dava pra rodar o botão até o Real Madrid aparecer e a
- * decisão deixava de ser uma decisão. Uma chance é o suficiente pra tirar a
- * sensação de "só veio lixo" sem transformar a janela num caça-níquel.
- */
-function resortearOpcoes(){
-  if (S.jaResorteou) return;
-  const semAtual = S.clube ? [S.clube.nome] : [];
-  if (S.fase === 'oferta_base')          S.opcoes = ofertas(3, [], true);
-  else if (S.fase === 'mercado')         S.opcoes = ofertas(2, semAtual);
-  else if (S.fase === 'fim_ciclo')       S.opcoes = ofertas(2, semAtual);
-  else if (S.fase === 'emprestimo')      S.opcoes = ofertasDeEmprestimo(3);
-  else if (S.fase === 'fim_emprestimo')  S.opcoes = ofertasDeEmprestimo(2);
-  else return;
-  S.jaResorteou = true;
-  salvar(); render();
+function gradeDeOpcoes(cartasHtml){
+  return `<div class="carr"><div class="carr-pista">${cartasHtml}</div></div>`;
 }
 
 function cartasDeClube(lista, comFicar, comAposentar){
@@ -2718,7 +2685,7 @@ function cartasDeClube(lista, comFicar, comAposentar){
         <small>Encerrar sua carreira profissional</small></span>
       </div></button>`);
   }
-  return carrossel(cartas.join(''), cartas.length);
+  return gradeDeOpcoes(cartas.join(''));
 }
 
 /**

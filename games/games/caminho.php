@@ -1177,12 +1177,6 @@ tr.tit td{color:var(--red)}
 .carr-pista{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;
   align-items:stretch}
 .carr-pista > *{min-width:0}
-.carr-ctrl{display:flex;align-items:center;justify-content:center;margin-top:9px}
-.carr-ctrl button{height:30px;padding:0 13px;border-radius:9px;background:var(--panel2);
-  border:1px solid var(--border);color:var(--text3);cursor:pointer;font-size:11.5px;font-weight:700;
-  display:inline-flex;align-items:center;gap:6px;transition:.14s;font-family:var(--font)}
-.carr-ctrl button:hover:not(:disabled){color:var(--text);border-color:var(--border2)}
-.carr-ctrl button:disabled{opacity:.35;cursor:default}
 @media (max-width:560px){ .carr-pista{grid-template-columns:1fr} }
 
 /* ── JANELA DE TRANSFERÊNCIAS ────────────────────────────────────────── */
@@ -4474,7 +4468,6 @@ function fecharAno(campeao, vit, o, st){
   // decisão mais pesada que existe, não faz sentido dividir espaço.
   if (S.contrato <= 0){
     S.parDoRitmo = 0;
-    S.jaResorteou = false;      // cada janela nova traz uma chance nova
     S.mercado = gerarOfertas();
     S.aguardando = false; S.decisaoId = null;
     salvar(); return telaTemporada();
@@ -4602,7 +4595,6 @@ function desenharFinais(){
  * da tela continua à vista pra decidir com contexto.
  */
 function mercadoHTML(){
-  const v = valorDeMercado();
   const ofertas = S.mercado || [];
   // Pendurar as chuteiras é uma OPÇÃO do mercado, e não só um botão que
   // aparece aos 39 anos. É aqui que a pessoa decide se insiste — e insistir
@@ -4622,7 +4614,7 @@ function mercadoHTML(){
       <p class="dec-txt" style="margin:0">Você ligou pros empresários e ninguém retornou. Não existe
       mais clube atrás de você — nem aqui, nem lá fora. É isso.</p>
     </div>` : ""}
-    ${carrossel(ofertas.map((of,i)=>`
+    ${gradeDeOpcoes(ofertas.map((of,i)=>`
         <button class="oferta-linha" onclick="escolherOferta(${i})">
           <span class="ol-marca">${marca(of.time, 34)}</span>
           <span class="ol-txt">
@@ -4631,12 +4623,11 @@ function mercadoHTML(){
               of.forca >= 70 ? "forte" : of.forca >= 50 ? "mediano" : "fraco"}</small>
           </span>
           <span class="ol-num">$${of.salario}M<small>${of.anos} anos</small></span>
-        </button>`).join(""), ofertas.length, true)}
+        </button>`).join(""))}
     ${podeParar ? `<button class="op op-parar" onclick="pendurar()">Pendurar as chuteiras
       <small>Encerra a carreira agora, com ${temporadasJogadas().length} temporadas e o que você já ganhou.</small>
     </button>` : ""}
-    <p class="nota-txt">Seu valor de mercado hoje: <b style="color:var(--text)">${v}</b>.
-      Ele sobe com produção e desce com a idade.</p>`;
+    `;
 }
 
 /** Encerrar de dentro do mercado, com confirmação — não tem volta. */
@@ -4749,28 +4740,8 @@ const TITULOS_DECISAO = {
  * largura. Em carrossel, a carta em foco ocupa 76% da tela e as vizinhas
  * espiam pela borda, o que também deixa claro que existe mais coisa pra ver.
  */
-function carrossel(cartasHtml, n, comReSorteio){
-  return `<div class="carr">
-    <div class="carr-pista">${cartasHtml}</div>
-    ${comReSorteio ? `<div class="carr-ctrl">
-      <button onclick="resortearOpcoes()" id="carrRe" ${S.jaResorteou ? 'disabled' : ''}
-        title="Sortear outras propostas">⟳ ${S.jaResorteou ? 'já trocou' : 'outras propostas'}</button>
-    </div>` : ''}
-  </div>`;
-}
-
-/**
- * Outras propostas — UMA vez por janela.
- *
- * Sem o limite dava pra rodar o botão até aparecer o time dos sonhos, e a
- * decisão deixava de ser uma decisão. Uma chance tira a sensação de "só veio
- * lixo" sem virar caça-níquel.
- */
-function resortearOpcoes(){
-  if (S.jaResorteou || !S.mercado) return;
-  S.mercado = gerarOfertas();
-  S.jaResorteou = true;
-  salvar(); telaTemporada();
+function gradeDeOpcoes(cartasHtml){
+  return `<div class="carr"><div class="carr-pista">${cartasHtml}</div></div>`;
 }
 
 function cartasDaDecisao(d){
@@ -4778,7 +4749,7 @@ function cartasDaDecisao(d){
   const titulo = TITULOS_DECISAO[d.id] || "Sua decisão";
   return `<h1 class="dec-tit">${esc(titulo)}</h1>
     <p class="lead dec-sub">${d.t()}</p>
-    ${carrossel(d.ops.map((o, i) => {
+    ${gradeDeOpcoes(d.ops.map((o, i) => {
         const c = (o.chance ?? 100);
         return `<button class="dec-card" onclick="decidir(${i})">
           <span class="dec-card-tit">${esc(o.l)}</span>
@@ -4787,7 +4758,7 @@ function cartasDaDecisao(d){
             ${c >= 100 ? "" : linhaDeDesfecho(o.ruim, 100 - c, "")}
           </span>
         </button>`;
-      }).join(""), d.ops.length, false)}`;
+      }).join(""))}`;
 }
 
 function telaTemporada(){
