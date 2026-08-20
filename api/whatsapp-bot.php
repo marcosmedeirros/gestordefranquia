@@ -99,6 +99,12 @@ if ($acao === 'pendentes') {
     //
     // Fora da janela só sai o que uma pessoa pediu agora — a lista está em
     // whatsappFiltroForaDaJanela(), junto da regra do outro leitor da fila.
+    // O leilão entrega a próxima proposta no mesmo pulso do worker — é o
+    // relógio que já existe, e evita um cron só pra isso. Roda antes de
+    // reservar a fila pra que o que sair agora já vá nesta leva.
+    require_once __DIR__ . '/../backend/leilao_bot.php';
+    leilaoBotDespachar($pdo);
+
     $naJanela = whatsappDentroDaJanela(null, $pdo);
     $filtroTipo = $naJanela ? '' : whatsappFiltroForaDaJanela();
 

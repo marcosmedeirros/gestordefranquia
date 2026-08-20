@@ -860,6 +860,87 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
  * Time sem conferência definida cai num bloco à parte em vez de sumir — é o
  * caso da ROOKIE, que ainda está se organizando.
  */
+/**
+ * /aceitar CODIGO e /recusar CODIGO — a decisão do dono, pelo WhatsApp.
+ *
+ * O código vem na própria mensagem da proposta. Sem ele o comando seria
+ * ambíguo: o GM pode ter dois leilões abertos, ou responder depois que a
+ * próxima proposta já chegou — e "aceitar" sem dizer o quê acertaria a
+ * errada exatamente quando mais importa.
+ *
+ * Aceitar aqui é a MESMA escolha provisória do app: nada muda de time
+ * agora, e uma proposta melhor ainda pode tomar o lugar.
+ */
+function wcDecidirPropostaDeLeilao(PDO $pdo, string $cmd, string $arg, string $deQuem): string
+{
+    require_once __DIR__ . '/../backend/leilao_bot.php';
+    leilaoBotGarantirTabela($pdo);
+
+    $codigo = mb_strtoupper(trim(preg_replace('/[^A-Za-z0-9]/', '', $arg)));
+    if ($codigo === '') {
+        return "Falta o código. Ele vem na mensagem da proposta — tipo */aceitar B47*.";
+    }
+
+    $digitos = preg_replace('/\\D+/', '', explode('@', $deQuem)[0] ?? '');
+    if (strlen($digitos) < 8 || str_contains($deQuem, '@lid')) {
+        return "Não consigo confirmar seu número por aqui, então não posso decidir por você. Responda no privado do bot, ou decida pelo site.";
+    }
+
+    $st = $pdo->prepare("SELECT f.id, f.proposta_id, f.leilao_id, f.dono_user_id, f.status,
+                                lp.status AS status_proposta, u.phone
+                         FROM leilao_bot_fila f
+                         JOIN leilao_propostas lp ON lp.id = f.proposta_id
+                         JOIN users u ON u.id = f.dono_user_id
+                         WHERE f.codigo = ? AND f.status IN ('aguardando','na_vez')
+                         ORDER BY f.id DESC LIMIT 1");
+    $st->execute([$codigo]);
+    $linha = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$linha) {
+        return "Não achei nenhuma proposta com o código *{$codigo}* esperando resposta. Ou já foi decidida, ou o leilão fechou.";
+    }
+
+    // O código é curto de propósito; a conferência do dono é que impede
+    // alguém acertar um código no chute e decidir o leilão dos outros.
+    $doDono = preg_replace('/\\D+/', '', (string)$linha['phone']);
+    $bate = $doDono === $digitos
+         || (strlen($doDono) >= 8 && substr($doDono, -8) === substr($digitos, -8));
+    if (!$bate) {
+        return "Essa proposta não é sua pra decidir.";
+    }
+
+    if (($linha['status_proposta'] ?? '') !== 'pendente') {
+        leilaoBotDescartarProposta($pdo, (int)$linha['proposta_id']);
+        return "Essa proposta já foi decidida (está como *{$linha['status_proposta']}*).";
+    }
+
+    // A decisão passa pelas mesmas funções do site — regra de negócio numa
+    // porta só: quem decide pelo WhatsApp não escapa de nenhuma validação.
+    // is_admin=true aqui porque o dono já foi conferido pelo telefone acima.
+    require_once __DIR__ . '/../backend/leilao_decisao.php';
+    $corpo = ['proposta_id' => (int)$linha['proposta_id']];
+    $resposta = $cmd === 'aceitar'
+        ? leilaoDecidirAceitar($pdo, $corpo, null, true)
+        : leilaoDecidirRecusar($pdo, $corpo, null, true);
+
+    if (empty($resposta['success'])) {
+        return "Não deu pra " . ($cmd === 'aceitar' ? 'aceitar' : 'recusar') . ": "
+             . ($resposta['error'] ?? 'erro inesperado') . ".";
+    }
+
+    leilaoBotDescartarProposta($pdo, (int)$linha['proposta_id']);
+
+    $restam = (int)$pdo->query("SELECT COUNT(*) FROM leilao_bot_fila
+                                WHERE dono_user_id = " . (int)$linha['dono_user_id'] . "
+                                  AND status = 'aguardando'")->fetchColumn();
+    $cauda = $restam > 0
+        ? "\nMando a próxima em instantes — ainda tem {$restam}."
+        : "\nEra a última da fila por enquanto.";
+
+    return $cmd === 'aceitar'
+        ? "✅ Escolhida. _Por enquanto_ é ela que leva o jogador — se vier proposta melhor até o fim do prazo, você troca aceitando a nova." . $cauda
+        : "❌ Recusada." . $cauda;
+}
+
 function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
 {
     $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
@@ -2239,6 +2320,10 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'powerconf':
             case 'powerconferencia':
                 return wcPowerRankingConferencia($pdo, $arg, $ligaDoGrupo);
+
+            case 'aceitar':
+            case 'recusar':
+                return wcDecidirPropostaDeLeilao($pdo, $cmd, $arg, $deQuem);
 
             case 'confronto':
             case 'duelo':

@@ -9,6 +9,8 @@ require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/push.php';
 require_once __DIR__ . '/../backend/salary_cap.php'; // conta do cap na proposta
+require_once __DIR__ . '/../backend/leilao_bot.php'; // proposta pelo WhatsApp
+require_once __DIR__ . '/../backend/leilao_decisao.php'; // aceitar/recusar — o bot usa as mesmas
 
 header('Content-Type: application/json');
 
@@ -1206,6 +1208,9 @@ function cancelarLeilao($pdo, $body) {
     }
     
     $stmt = $pdo->prepare("UPDATE leilao_jogadores SET status = 'cancelado' WHERE id = ?");
+    // O leilão acabou: o que estava na fila do WhatsApp não tem mais
+    // decisão a pedir.
+    leilaoBotEncerrarLeilao($pdo, (int)$leilao_id);
     $stmt->execute([$leilao_id]);
     
     // Atualizar todas as propostas para recusadas
@@ -1670,6 +1675,11 @@ function enviarProposta($pdo, $body, $team_id, $league_id) {
             error_log('push proposta leilao #' . $leilao_id . ': ' . $e->getMessage());
         }
 
+        // Depois do commit (que já aconteceu acima, antes do push): o
+        // WhatsApp não pode segurar a transação, e uma falha lá não pode
+        // desfazer a proposta que já foi gravada.
+        leilaoBotAoCriarProposta($pdo, (int)$leilao_id, (int)$proposta_id);
+
         echo json_encode(['success' => true, 'proposta_id' => $proposta_id]);
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -1677,70 +1687,6 @@ function enviarProposta($pdo, $body, $team_id, $league_id) {
     }
 }
 
-function aceitarProposta($pdo, $body, $team_id, $is_admin) {
-    $proposta_id = $body['proposta_id'] ?? null;
-    
-    if (!$proposta_id) {
-        echo json_encode(['success' => false, 'error' => 'ID da proposta nao informado']);
-        return;
-    }
-    
-    // Buscar proposta e leilao
-    $stmt = $pdo->prepare("SELECT lp.*, l.player_id, l.team_id as leilao_team_id, l.id as leilao_id, l.data_fim,
-                           l.status as leilao_status,
-                           l.is_temp_player, l.temp_name, l.temp_position, l.temp_age, l.temp_ovr
-                           FROM leilao_propostas lp
-                           JOIN leilao_jogadores l ON lp.leilao_id = l.id
-                           WHERE lp.id = ?");
-    $stmt->execute([$proposta_id]);
-    $proposta = $stmt->fetch();
-
-    if (!$proposta) {
-        echo json_encode(['success' => false, 'error' => 'Proposta nao encontrada']);
-        return;
-    }
-
-    // Depois de finalizado a troca ja foi executada — nao da para trocar de
-    // vencedor sem desfazer o que ja mudou de time.
-    if (($proposta['leilao_status'] ?? '') === 'finalizado') {
-        echo json_encode(['success' => false, 'error' => 'Este leilao ja foi fechado — nao da para escolher outra proposta.']);
-        return;
-    }
-
-    // Verificar se e dono do jogador ou admin
-    if (!$is_admin) {
-        if (!empty($proposta['leilao_team_id']) && $proposta['leilao_team_id'] != $team_id) {
-            echo json_encode(['success' => false, 'error' => 'Acesso negado']);
-            return;
-        }
-        if (empty($proposta['leilao_team_id'])) {
-            echo json_encode(['success' => false, 'error' => 'Somente admin pode aceitar este leilao sem time de origem']);
-            return;
-        }
-    }
-
-    // Aceitar e uma ESCOLHA PROVISORIA: nada muda de time agora. O vendedor pode
-    // trocar de ideia quantas vezes quiser enquanto o leilao estiver aberto — a
-    // escolha anterior volta para 'recusada' e a ultima escolhida e a que vale.
-    // A troca so acontece em fecharLeilao() (no fim dos 20min ou no botao).
-    $pdo->beginTransaction();
-    try {
-        $pdo->prepare("UPDATE leilao_propostas SET status = 'recusada'
-                       WHERE leilao_id = ? AND status = 'aceita' AND id <> ?")
-            ->execute([$proposta['leilao_id'], $proposta_id]);
-        $pdo->prepare("UPDATE leilao_propostas SET status = 'aceita' WHERE id = ?")
-            ->execute([$proposta_id]);
-        $pdo->commit();
-        echo json_encode([
-            'success' => true,
-            'message' => 'Proposta escolhida. A troca é executada quando o leilão fechar.',
-        ]);
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        error_log('aceitarProposta: ' . $e->getMessage());
-        echo json_encode(['success' => false, 'error' => 'Erro ao escolher a proposta']);
-    }
-}
 
 /**
  * Fecha o leilao: executa de fato a troca da proposta escolhida (status
@@ -1911,6 +1857,9 @@ function adminEncerrarLeilaoSemTroca($pdo, $body, bool $is_admin): void {
     $pdo->prepare("UPDATE leilao_propostas SET status = 'recusada' WHERE leilao_id = ?")->execute([$leilao_id]);
     $pdo->prepare("UPDATE leilao_jogadores SET status = 'finalizado', proposta_aceita_id = NULL WHERE id = ?")
         ->execute([$leilao_id]);
+    // O leilão acabou: o que estava na fila do WhatsApp não tem mais
+    // decisão a pedir.
+    leilaoBotEncerrarLeilao($pdo, (int)$leilao_id);
 
     echo json_encode(['success' => true, 'message' => 'Leilao encerrado sem troca.']);
 }
@@ -2011,6 +1960,9 @@ function _executarTrocaLeilao($pdo, $proposta, ?array $overrideItems = null) {
     // Finalizar leilao
     $pdo->prepare("UPDATE leilao_jogadores SET status = 'finalizado', proposta_aceita_id = ? WHERE id = ?")
         ->execute([$proposta_id, $proposta['leilao_id']]);
+    // O leilão acabou: o que estava na fila do WhatsApp não tem mais
+    // decisão a pedir.
+    leilaoBotEncerrarLeilao($pdo, (int)$proposta['leilao_id']);
 
     if ($overrideItems !== null) {
         $jogadores_oferecidos = array_map('intval', $overrideItems['jogadores'] ?? []);
@@ -2300,6 +2252,9 @@ function reverterLeilao($pdo, $body) {
 
         // Reverter status do leilão para cancelado e limpar proposta aceita
         $pdo->prepare("UPDATE leilao_jogadores SET status = 'cancelado', proposta_aceita_id = NULL WHERE id = ?")->execute([$leilao_id]);
+        // O leilão acabou: o que estava na fila do WhatsApp não tem mais
+        // decisão a pedir.
+        leilaoBotEncerrarLeilao($pdo, (int)$leilao_id);
 
         $pdo->commit();
         echo json_encode(['success' => true, 'message' => 'Leilão revertido com sucesso']);
@@ -2309,47 +2264,6 @@ function reverterLeilao($pdo, $body) {
     }
 }
 
-function recusarProposta($pdo, $body, $team_id, $is_admin) {
-    $proposta_id = $body['proposta_id'] ?? null;
-    
-    if (!$proposta_id) {
-        echo json_encode(['success' => false, 'error' => 'ID da proposta nao informado']);
-        return;
-    }
-    
-    // Buscar proposta e leilao
-    $stmt = $pdo->prepare("SELECT lp.*, l.team_id as leilao_team_id
-                           FROM leilao_propostas lp
-                           JOIN leilao_jogadores l ON lp.leilao_id = l.id
-                           WHERE lp.id = ?");
-    $stmt->execute([$proposta_id]);
-    $proposta = $stmt->fetch();
-    
-    if (!$proposta) {
-        echo json_encode(['success' => false, 'error' => 'Proposta nao encontrada']);
-        return;
-    }
-    
-    // Verificar se e dono do jogador ou admin
-    if (!$is_admin && $proposta['leilao_team_id'] != $team_id) {
-        echo json_encode(['success' => false, 'error' => 'Acesso negado']);
-        return;
-    }
-
-    // A escolhida nao se desfaz recusando: sai do posto so quando OUTRA e
-    // aceita no lugar. Sem isso dava pra recusar a propria escolha e o leilao
-    // chegava no fim do prazo sem vencedor nenhum, com propostas boas na mesa.
-    if (($proposta['status'] ?? '') === 'aceita') {
-        echo json_encode(['success' => false,
-            'error' => 'Essa e a proposta escolhida. Pra trocar, aceite outra — ela vira a escolhida e esta volta pra recusada.']);
-        return;
-    }
-
-    $stmt = $pdo->prepare("UPDATE leilao_propostas SET status = 'recusada' WHERE id = ?");
-    $stmt->execute([$proposta_id]);
-
-    echo json_encode(['success' => true]);
-}
 
 function enviarMensagemLeilao(PDO $pdo, $body, ?int $team_id): void {
     if (!$team_id) {
@@ -2384,4 +2298,13 @@ function enviarMensagemLeilao(PDO $pdo, $body, ?int $team_id): void {
     $ins->execute([$leilao_id, $team_id, $texto]);
 
     echo json_encode(['success' => true]);
+}
+
+/** Invólucros do endpoint: a regra mora em backend/leilao_decisao.php. */
+function aceitarProposta($pdo, $body, $team_id, $is_admin) {
+    echo json_encode(leilaoDecidirAceitar($pdo, (array)$body, $team_id, (bool)$is_admin));
+}
+
+function recusarProposta($pdo, $body, $team_id, $is_admin) {
+    echo json_encode(leilaoDecidirRecusar($pdo, (array)$body, $team_id, (bool)$is_admin));
 }
