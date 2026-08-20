@@ -138,6 +138,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   background:var(--panel-2);border:1px solid var(--border)}
 .mt-cab{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
   flex-wrap:wrap;margin-bottom:12px}
+.mt-placar{display:block;margin-top:3px;font-size:10.5px;font-weight:500;
+  color:var(--text-3);letter-spacing:0;text-transform:none;font-family:var(--font)}
 .mt-escolha{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 
 /* A foto sai do card inteiro: o rosto ocupa a faixa de cima, então o
@@ -336,18 +338,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <div class="mt-cab">
           <div>
             <div class="section-title" style="margin:0"><i class="bi bi-person-badge"></i> Modelo técnico</div>
-            <span class="hint" id="mtRestam"><?php
-              // O que já foi usado, e o que sobra. "Usados" inclui o
-              // primeiro modelo: as oito vagas são um mais sete trocas.
-              if ($PLACAR['usados'] === 0) {
-                  echo 'São ' . $PLACAR['limite'] . ' modelos na edição — o primeiro e mais '
-                     . ($PLACAR['limite'] - 1) . ' trocas. Ainda não usou nenhum.';
-              } else {
-                  echo $PLACAR['usados'] . ' de ' . $PLACAR['limite'] . ' usados · '
-                     . ($PLACAR['restam'] > 0
-                        ? 'restam ' . $PLACAR['restam']
-                        : 'acabaram as trocas');
-              }
+            <span class="hint mt-placar" id="mtRestam"><?php
+              // "Usados" inclui o primeiro modelo: as oito vagas são um mais
+              // sete trocas.
+              echo 'São ' . $PLACAR['limite'] . ' modelos na edição — usados: ' . $PLACAR['usados'];
             ?></span>
           </div>
           <button type="button" class="btn ghost" id="btnVerModelos">

@@ -5561,13 +5561,81 @@ async function showTaticaAdmin() {
       api(`tactics.php?action=admin_window&league=${encodeURIComponent(league)}`),
       api(`tactics.php?action=admin_overview&league=${encodeURIComponent(league)}`),
     ]);
-    renderTaticaAdmin(league, winRes.window, overviewRes.teams || []);
+    renderTaticaAdmin(league, winRes.window, overviewRes.teams || [], overviewRes.modelos || null);
   } catch (e) {
     container.innerHTML = `<div class="alert alert-danger">Erro ao carregar tática: ${escapeHtml(e.error || e.message || 'Desconhecido')}</div>`;
   }
 }
 
-function renderTaticaAdmin(league, win, teams) {
+/**
+ * O retrato dos modelos técnicos da liga.
+ *
+ * Só os DADOS: quem definiu, com o quê, e quantas das oito vagas gastou.
+ * O que fazer com quem não definiu é decisão do admin — o sistema não pune
+ * ninguém sozinho.
+ */
+function _taticaPainelModelos(modelos) {
+  if (!modelos || !modelos.times || !modelos.times.length) return '';
+  const semModelo = modelos.times.filter(t => !t.modelo);
+  const comModelo = modelos.times.filter(t => t.modelo);
+
+  const linha = (t) => `
+    <div class="mtd-linha${t.modelo ? '' : ' sem'}">
+      ${t.foto
+        ? `<img class="mtd-foto" src="${t.foto}" alt="">`
+        : '<span class="mtd-foto mtd-vazia"><i class="bi bi-dash"></i></span>'}
+      <span class="mtd-time">${escapeHtml(t.nome)}</span>
+      <span class="mtd-modelo">${t.modelo ? escapeHtml(t.modelo) : 'não definiu'}</span>
+      ${t.sistema ? `<span class="mtd-sis">${escapeHtml(t.sistema)}</span>` : ''}
+      <span class="mtd-uso" title="Vagas usadas das ${modelos.limite}">${t.usados}/${modelos.limite}</span>
+    </div>`;
+
+  return `
+    <div class="panel mb-3">
+      <div class="panel-header">
+        <div class="panel-title"><i class="bi bi-person-badge" style="color:var(--red)"></i> Modelos técnicos</div>
+        <span style="font-size:12px;color:var(--text-3)">
+          ${comModelo.length} de ${modelos.times.length} definiram${semModelo.length ? ` · ${semModelo.length} sem modelo` : ''}
+        </span>
+      </div>
+      <div class="panel-body">
+        ${semModelo.length ? `
+          <div class="mtd-aviso">
+            <i class="bi bi-info-circle"></i>
+            <span><strong>${semModelo.length}</strong> ${semModelo.length === 1 ? 'time ainda não definiu' : 'times ainda não definiram'} o modelo técnico:
+            ${semModelo.map(t => escapeHtml(t.nome)).join(', ')}.</span>
+          </div>` : ''}
+        <div class="mtd-lista">${modelos.times.map(linha).join('')}</div>
+      </div>
+    </div>
+
+    <style>
+      .mtd-lista{display:flex;flex-direction:column;gap:4px}
+      .mtd-linha{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;
+        background:var(--panel-2);border:1px solid var(--border);font-size:13px}
+      .mtd-linha.sem{border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.05)}
+      .mtd-foto{width:30px;height:30px;flex:none;border-radius:7px;object-fit:cover;
+        object-position:center 22%;background:var(--panel-3)}
+      .mtd-vazia{display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:14px}
+      .mtd-time{flex:1;min-width:120px;font-weight:600;color:var(--text);
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .mtd-modelo{color:var(--text-2);font-size:12.5px;white-space:nowrap}
+      .mtd-linha.sem .mtd-modelo{color:#ef4444;font-weight:600}
+      .mtd-sis{font-size:10px;color:var(--text-3);text-transform:uppercase;
+        letter-spacing:.04em;white-space:nowrap}
+      .mtd-uso{font-size:12px;font-weight:700;color:var(--text-2);
+        font-variant-numeric:tabular-nums;flex:none;margin-left:auto}
+      .mtd-aviso{display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;padding:9px 12px;
+        border-radius:8px;font-size:12.5px;line-height:1.5;
+        background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);color:var(--text-2)}
+      @media (max-width:640px){
+        .mtd-sis{display:none}
+        .mtd-linha{flex-wrap:wrap}
+      }
+    </style>`;
+}
+
+function renderTaticaAdmin(league, win, teams, modelos) {
   const container = document.getElementById('mainContainer');
 
   // Acordeão: um time por linha, abre e mostra a tática exata dele. O que o
@@ -5594,9 +5662,7 @@ function renderTaticaAdmin(league, win, teams) {
       ...(at.config || []).filter(x => x.mudou),
     ].length;
 
-    const titulares = (at.titulares || []).length
-      ? at.titulares.map(x => `<span class="tac-jog ${x.mudou ? 'mudou' : ''}">${escapeHtml(x.nome)}</span>`).join('')
-      : '<span class="tac-vazio">—</span>';
+
 
     const config = (at.config || []).filter(c => c.valor !== null).map(c => `
       <div class="tac-campo ${c.mudou ? 'mudou' : ''}">
@@ -5623,11 +5689,6 @@ function renderTaticaAdmin(league, win, teams) {
             <i class="bi bi-info-circle"></i>
             Ainda não houve virada de temporada com esta tática — nada a comparar, então nada aparece em vermelho.
           </div>` : ''}
-          <div class="tac-secao">Titulares</div>
-          <div class="tac-jogadores">${titulares}</div>
-          ${(at.banco || []).length ? `
-            <div class="tac-secao">Banco</div>
-            <div class="tac-jogadores">${at.banco.map(n => `<span class="tac-jog">${escapeHtml(n)}</span>`).join('')}</div>` : ''}
           ${(at.gleague || []).length ? `
             <div class="tac-secao">G-League</div>
             <div class="tac-jogadores">${at.gleague.map(n => `<span class="tac-jog">${escapeHtml(n)}</span>`).join('')}</div>` : ''}
@@ -5644,6 +5705,7 @@ function renderTaticaAdmin(league, win, teams) {
       <button class="btn btn-back" onclick="${_dirBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
     </div>
 
+    ${_taticaPainelModelos(modelos)}
     <div class="panel">
       <div class="panel-header">
         <div class="panel-title"><i class="bi bi-broadcast"></i> Tática de cada time</div>

@@ -53,7 +53,8 @@ function modelosTecnicos(): array
             ['hd' => 25, 'rpf' => 92, 'zu' => 12, 'bu' => 38, 'lpf' => 25], 'Balanced'],
         "Mike D'Antoni" => ["Mike D'Antoni", 'mike-dantoni.jpg',
             ['hd' => 50, 'rpf' => 70, 'zu' => 5,  'bu' => 65, 'lpf' => 83], '7 Seconds or Less'],
-        'Butch Carter' => ['Butch Carter', 'butch-carter.jpg', [], ''],
+        'Butch Carter' => ['Butch Carter', 'butch-carter.jpg',
+            ['hd' => 50, 'rpf' => 80, 'zu' => 20, 'bu' => 35, 'lpf' => 80], 'Pace & Space'],
     ];
 }
 

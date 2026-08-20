@@ -294,6 +294,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             unset($camposConfig['technical_model'], $camposConfig['playbook']);
         }
 
+        // O retrato dos modelos técnicos da liga: quem definiu, quem não, e
+        // quantas das oito vagas cada um já gastou. Só os DADOS — o que fazer
+        // com quem não definiu é decisão do admin, não do sistema.
+        $modelos = null;
+        if (in_array(strtoupper($league), ['ELITE', 'NEXT'], true)) {
+            require_once __DIR__ . '/../backend/modelo_tecnico_trocas.php';
+            require_once __DIR__ . '/../backend/modelos_tecnicos.php';
+            $modelos = ['limite' => MODELO_TECNICO_LIMITE, 'times' => []];
+            foreach ($teams as $t) {
+                $st = $pdo->prepare("SELECT technical_model FROM team_tactics
+                                     WHERE team_id = ? AND is_active = 1 LIMIT 1");
+                $st->execute([(int)$t['id']]);
+                $atual = trim((string)($st->fetchColumn() ?: ''));
+                $placar = modeloTecnicoPlacar($pdo, (int)$t['id']);
+                $ficha = modeloTecnico($atual ?: null);
+                $modelos['times'][] = [
+                    'team_id'   => (int)$t['id'],
+                    'nome'      => trim($t['city'] . ' ' . $t['name']),
+                    'modelo'    => $atual ?: null,
+                    'foto'      => $ficha['foto'] ?? null,
+                    'sistema'   => $ficha['sistema'] ?? null,
+                    'usados'    => $placar['usados'],
+                    'restam'    => $placar['restam'],
+                    'historico' => array_map(fn($h) => $h['modelo'], $placar['historico']),
+                ];
+            }
+        }
+
         $overview = [];
         foreach ($teams as $t) {
             $stmtA = $pdo->prepare("
@@ -393,7 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             ];
         }
 
-        echo json_encode(['success' => true, 'league' => $league, 'teams' => $overview]);
+        echo json_encode(['success' => true, 'league' => $league, 'teams' => $overview, 'modelos' => $modelos]);
         exit;
     }
 
