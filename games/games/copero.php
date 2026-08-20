@@ -431,7 +431,7 @@ button{font-family:inherit}
 .topo{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
 .topo .marca{display:flex;align-items:center;gap:9px;font-weight:900;font-size:18px;letter-spacing:-.6px}
 .topo .marca i{color:var(--verde-claro)}
-.topo .espaco{flex:1}
+.topo-dir{margin-left:auto;display:flex;align-items:center;gap:10px}
 .topo .voltar{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;
   border:1px solid var(--borda);background:transparent;color:var(--txt2);text-decoration:none;
   flex-shrink:0;transition:.2s}
@@ -540,19 +540,36 @@ button{font-family:inherit}
 /* ── Carreira ───────────────────────────────────────── */
 .carreira{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:16px;align-items:start}
 
+/* Ficha e decisão são dois cartões empilhados. No celular eles se separam:
+   a linha do tempo entra no meio (veja o `order` lá embaixo). */
+.col-esq{display:flex;flex-direction:column;gap:16px;min-width:0}
+.evento-caixa{padding:16px 18px}
+
 .ficha{padding:18px}
-/* O cabeçalho é uma linha só: OVR, clube e os números. Posição, número e
-   país saem numa FILEIRA PRÓPRIA embaixo — espremidos entre o nome do clube
-   e a liga eles encostavam no texto e pareciam sobrepostos. */
-.ficha-topo{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.ficha-topo{display:flex;align-items:center;gap:14px}
 .ovr-caixa{width:82px;height:82px;border-radius:14px;display:flex;flex-direction:column;align-items:center;
   justify-content:center;flex:none;color:#0a0a0c}
 .ovr-caixa small{font-size:9px;font-weight:800;letter-spacing:1px;opacity:.7}
 .ovr-caixa b{font-size:33px;font-weight:900;line-height:1;letter-spacing:-1.5px}
-.ficha-info{flex:1 1 90px;min-width:0;display:flex;flex-direction:column;gap:3px}
+/* O corpo da ficha é uma GRADE NOMEADA, e é ela que muda de desenho entre
+   as duas telas sem que o HTML mude uma linha:
+
+     desktop            celular
+     clube  idade valor  tags   idade
+     tags tags tags      clube  valor
+
+   No desktop o nome do clube manda e as tags descem pra fileira de baixo;
+   no celular as tags sobem pro lado da idade e o clube divide a segunda
+   linha com o valor — que é o cartão compacto do Copero. */
+.ficha-corpo{flex:1 1 90px;min-width:0;display:grid;align-items:center;gap:9px 14px;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  grid-template-areas:"info idade valor" "tags tags tags"}
+.ficha-info{grid-area:info;min-width:0;display:flex;flex-direction:column;gap:3px}
+.n-idade{grid-area:idade}
+.n-valor{grid-area:valor}
 .ficha-liga{font-size:11.5px;color:var(--txt3);font-weight:600;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ficha-tags{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+.ficha-tags{grid-area:tags;display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}
 .tag{display:inline-flex;align-items:center;gap:5px;background:var(--panel3);border-radius:6px;
   padding:4px 9px;font-size:11px;font-weight:800;white-space:nowrap}
 /* `.pos` é o botão de posição no campo, e ele é `position:absolute` com
@@ -573,8 +590,8 @@ button{font-family:inherit}
 .ficha-clube{display:flex;align-items:center;gap:9px;font-size:20px;font-weight:900;letter-spacing:-.5px;
   white-space:nowrap;overflow:hidden;min-width:0}
 .ficha-clube span{overflow:hidden;text-overflow:ellipsis;min-width:0}
-.ficha-num{flex:none;display:flex;gap:16px;text-align:right;font-size:10px;color:var(--txt3);
-  font-weight:700;letter-spacing:.5px}
+.ficha-num{text-align:right;font-size:10px;color:var(--txt3);text-transform:uppercase;
+  font-weight:700;letter-spacing:.5px;white-space:nowrap}
 .ficha-num b{display:block;font-size:18px;color:var(--txt);letter-spacing:-.5px}
 
 .ficha-stats{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--borda);
@@ -608,15 +625,16 @@ button{font-family:inherit}
    celular, ou muitas opções —, o próprio grid empilha, e aí a carta deita
    pra ocupar menos altura. */
 .carr{max-width:100%}
-.carr-pista{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;
+.carr-pista{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;
   align-items:stretch}
 .carr-pista > *{min-width:0}
-/* Empilhada, a carta deita: escudo à esquerda e o texto ao lado. */
+/* No celular elas encolhem em vez de empilhar: três opções deitadas comiam
+   a tela inteira e jogavam a linha do tempo pra fora dela. */
 @media (max-width:560px){
-  .carr-pista{grid-template-columns:1fr}
-  .carr-pista .clube-op{flex-direction:row;align-items:center;text-align:left}
-  .carr-pista .clube-op .txt{flex:1;min-width:0}
-  .carr-pista .carta{text-align:left}
+  .carr-pista{grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px}
+  .carr-pista .carta{padding:9px 5px}
+  .carr-pista .clube-op b{font-size:12.5px}
+  .carr-pista .op-pe{font-size:9.5px}
 }
 
 .cartas{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px}
@@ -645,8 +663,18 @@ button{font-family:inherit}
 .efeito .pct{opacity:.75;font-size:10.5px}
 .efeito.sorteado{outline:1px solid currentColor}
 
-.clube-op{display:flex;flex-direction:column;align-items:center;gap:7px}
-.clube-op .escudo{width:52px;height:52px}
+/* Rótulo, nome, escudo, liga — nessa ordem, centralizados. O escudo entre
+   o nome e a liga e não no topo: assim o que se lê primeiro é o que se
+   compara (o clube), e o desenho vira confirmação, não enfeite. */
+.clube-op{display:flex;flex-direction:column;align-items:center;gap:4px}
+.clube-op .escudo,.clube-op .mono{margin:1px 0}
+.clube-op b{font-size:13.5px;font-weight:800;line-height:1.2;margin:0;
+  overflow-wrap:anywhere;hyphens:auto}
+.op-rot{font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;
+  color:var(--txt3);line-height:1.2}
+.op-pe{color:var(--txt3);font-size:10px;font-weight:700;line-height:1.25;
+  overflow-wrap:anywhere}
+.op-emoji{font-size:28px;line-height:1;width:36px;text-align:center}
 .clube-op small{color:var(--txt3);font-size:10.5px;font-weight:700}
 
 /* ── Escudo / monograma ─────────────────────────────── */
@@ -656,8 +684,12 @@ button{font-family:inherit}
 
 /* ── Linha do tempo ─────────────────────────────────── */
 .linha{padding:12px 14px}
-.linha-cab,.ano{display:grid;grid-template-columns:44px minmax(0,1fr) 46px 56px 52px 52px;gap:8px;
+.linha-cab,.ano,.linha-pe{display:grid;grid-template-columns:44px minmax(0,1fr) 46px 56px 52px 52px;gap:8px;
   align-items:center}
+.linha-pe{margin-top:8px;padding:9px 8px 1px;border-top:1px solid var(--borda)}
+.linha-pe .pe-nome{font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
+  color:var(--txt3)}
+.linha-pe .ano-n b{font-size:13.5px}
 .linha-cab{font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--txt3);
   padding:0 8px 7px}
 /* O desenho da coluna: herda a cor do texto do cabeçalho, e some no lugar
@@ -814,7 +846,7 @@ button{font-family:inherit}
 .rodape{margin-top:26px;font-size:10.5px;color:var(--txt3);text-align:center;line-height:1.6}
 
 /* ── Vitrine ────────────────────────────────────────── */
-.vitrine{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 0;
+.vitrine{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 0 0;margin-top:12px;
   border-top:1px solid var(--borda)}
 .vitrine.vazia{color:var(--txt3);font-size:10.5px;font-weight:800;letter-spacing:1px;
   text-transform:uppercase;opacity:.55}
@@ -880,7 +912,17 @@ button{font-family:inherit}
      `auto` é o min-content — a coluna se recusava a encolher e a ficha com
      nome comprido ("Universidad de Chile") esticava a página pra 491px numa
      tela de 375. Era daí que vinha a rolagem lateral no celular. */
-  .carreira{grid-template-columns:minmax(0,1fr)}
+  .carreira{grid-template-columns:minmax(0,1fr);gap:12px}
+
+  /* Ficha, carreira inteira, e só então a decisão — a ordem do Copero.
+     `display:contents` dissolve a coluna da esquerda e entrega ficha e
+     evento direto ao grid: sem isso os dois estão presos no mesmo filho e
+     não há `order` que faça a tabela passar entre eles. */
+  .col-esq{display:contents}
+  .ficha{order:1}
+  .linha{order:2}
+  .evento-caixa{order:3}
+
   .ident{grid-template-columns:1fr}
   .ident-col + .ident-col{border-left:none;border-top:none}
 
@@ -911,13 +953,49 @@ button{font-family:inherit}
      antigas sobravam 38px pro nome numa tela de 375, e "Sport Recife" — que
      precisa de 72 — saía cortado quase pela metade. Agora cabe; só nome de
      19 letras pra cima trunca, e aí com reticências, como deve ser. */
-  .linha-cab,.ano{grid-template-columns:32px minmax(0,1fr) 34px 32px 32px 32px;gap:5px}
+  .linha-cab,.ano,.linha-pe{grid-template-columns:32px minmax(0,1fr) 34px 32px 32px 32px;gap:5px}
   .ano-n{gap:3px;font-size:12px}
   .ano-n .ic{width:9px;height:9px}
   .ano{padding:4px 6px;font-size:11.5px}
   .linha-cab{padding:0 6px 7px}
   .ano-clube{gap:6px}
   .ano-n{font-size:11.5px}
+}
+@media (max-width:760px){
+  /* ── A tela do jogo no celular ────────────────────────────────────
+     O desenho é o do Copero: barra fina com a marca no meio, ficha de
+     duas linhas ao lado do OVR, tabela logo abaixo. Cada bloco que
+     encolhe aqui é uma linha da carreira que aparece sem rolar. */
+  .topo{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+    gap:8px;flex-wrap:nowrap;margin:-12px -11px 12px;padding:9px 11px;
+    border-bottom:1px solid var(--borda)}
+  .topo .voltar{justify-self:start}
+  .topo .marca{justify-self:center}
+  .topo-dir{margin-left:0;justify-self:end;gap:6px}
+  /* O "Abandonar" fica só no ✕: escrito por extenso ele tirava a marca
+     do centro e ainda quebrava a barra em duas linhas. */
+  .btn-topo{padding:7px 9px}
+  .btn-topo span{display:none}
+
+  .ficha{padding:12px}
+  .ficha-topo{gap:10px}
+  .ovr-caixa{width:68px;height:68px;border-radius:12px}
+  .ovr-caixa b{font-size:28px}
+  .ficha-corpo{grid-template-columns:minmax(0,1fr) auto;
+    grid-template-areas:"tags idade" "info valor";
+    gap:7px 10px;background:var(--panel2);border-radius:12px;padding:9px 11px}
+  .ficha-clube{font-size:16.5px;gap:7px}
+  .ficha-liga{font-size:10.5px}
+  .ficha-num b{font-size:15px}
+  .tag{padding:3px 8px;font-size:10.5px}
+  /* "Vitrine vazia" é uma linha inteira pra dizer que não tem nada. */
+  .vitrine.vazia{display:none}
+  .vitrine{margin-top:10px;padding-top:10px}
+
+  .linha{padding:10px}
+  .evento-caixa{padding:13px 12px}
+  .evento h3{font-size:17px}
+  .evento p{font-size:11.5px;line-height:1.45;margin-bottom:10px}
 }
 @media (max-width:440px){
   /* Em tela estreita idade e valor empilham: lado a lado eles comiam 100px
@@ -1122,6 +1200,8 @@ const ICONES = {
   gs: '<svg viewBox="0 0 16 16" class="ic"><path d="M1.6 12.8V4.6h12.8v8.2" class="ic-linha"/><path d="M4.4 4.6v8.2M8 4.6v8.2M11.6 4.6v8.2M1.6 7.3h12.8M1.6 10h12.8" class="ic-rede"/><circle cx="10.6" cy="9.6" r="2.6" class="ic-fundo"/><circle cx="10.6" cy="9.6" r="2.6"/></svg>',
   cs: '<svg viewBox="0 0 16 16" class="ic"><path d="M4 14.2V8.1c0-.7.5-1.2 1.1-1.2.6 0 1.1.5 1.1 1.2V4.9c0-.7.5-1.2 1.1-1.2.6 0 1.1.5 1.1 1.2v2.6c0-.7.5-1.2 1.1-1.2.6 0 1.1.5 1.1 1.2v2.1c.5-.7 1.4-.8 1.9-.2.4.5.3 1.3-.2 1.9l-2 2.9z"/><path d="M3.6 14.2h8.2" class="ic-punho"/></svg>',
 };
+/* Quantos anos vazios a linha do tempo mostra à frente da carreira. */
+const ANOS_A_FRENTE = 7;
 const COLUNAS_GOL   = [['GS','gs'], ['CS','cs']];
 const COLUNAS_LINHA = [['Gols','gols'], ['Ast','ast']];
 const colunasDoBoletim = () => ehGoleiro() ? COLUNAS_GOL : COLUNAS_LINHA;
@@ -1273,12 +1353,13 @@ function barraTopo(extra){
     <a href="/games.php" class="voltar" title="Voltar aos jogos">
       <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M8.5 3.5 4 8l4.5 4.5.9-.9L6.3 8.6H12v-1.2H6.3l3.1-3z"/></svg></a>
     <div class="marca"><i class="bi bi-trophy-fill"></i> Copero</div>
-    <div class="espaco"></div>
-    ${extra || ''}
-    <button class="chip-topo chip-topo-btn" onclick="abrirDesafios()" title="Desafios">
-      🏆 <b>${feitas}</b></button>
-    ${window.__MOEDAS__ === null || window.__MOEDAS__ === undefined ? ''
-      : `<div class="chip-topo chip-topo-moeda" title="Suas moedas">🪙 <b>${window.__MOEDAS__}</b></div>`}
+    <div class="topo-dir">
+      ${extra || ''}
+      <button class="chip-topo chip-topo-btn" onclick="abrirDesafios()" title="Desafios">
+        🏆 <b>${feitas}</b></button>
+      ${window.__MOEDAS__ === null || window.__MOEDAS__ === undefined ? ''
+        : `<div class="chip-topo chip-topo-moeda" title="Suas moedas">🪙 <b>${window.__MOEDAS__}</b></div>`}
+    </div>
   </div>`;
 }
 
@@ -2623,40 +2704,42 @@ function render(){
   const cor = corDoOvr(S.ovr);
   const l = S.clube ? dadosLiga(S.clube.liga) : null;
 
+  // A decisão sai de dentro do card do jogador e vira cartão próprio. É o que
+  // permite, no celular, jogar a linha do tempo pra cima dela: ficha curta,
+  // carreira inteira, e só então a escolha do momento. Quando não há decisão
+  // nenhuma — durante os anos rodando — o cartão simplesmente não existe.
+  const decisao = blocoDecisao();
+
   app().innerHTML = `
-    ${barraTopo(`<button class="btn-topo" onclick="if(confirm('Abandonar esta carreira?')){apagar();S=null;telaInicio();}"><i class="bi bi-x-lg"></i> Abandonar</button>`)}
+    ${barraTopo(`<button class="btn-topo" onclick="if(confirm('Abandonar esta carreira?')){apagar();S=null;telaInicio();}" title="Abandonar esta carreira"><i class="bi bi-x-lg"></i> <span>Abandonar</span></button>`)}
     <div class="carreira">
-      <div>
+      <div class="col-esq">
         <div class="caixa ficha">
           <div class="ficha-topo">
             ${S.clube ? `<div class="ficha-marca" aria-hidden="true">${escudo(S.clube, 132)}</div>` : ''}
             <div class="ovr-caixa" style="background:${cor}">
               <small>OVR</small><b>${S.ovr}</b></div>
-            <div class="ficha-info">
-              <div class="ficha-clube" ${S.clube ? `title="${esc(S.clube.nome)}"` : ''}>
-                ${S.clube ? escudo(S.clube, 26) + `<span>${esc(nomeCurto(S.clube.nome))}</span>`
-                          : `<span style="color:var(--txt3)">Sem clube</span>`}
+            <div class="ficha-corpo">
+              <div class="ficha-tags">
+                <span class="tag">${bandeira(S.pais,17)} ${esc(S.pais)}</span>
+                <span class="tag pos" title="${esc(POSICOES[S.posicao] ? POSICOES[S.posicao][0] : S.posicao)}">#${S.numero} ${esc(S.posicao)}</span>
+                ${convocado(S.ovr, S.pais) ? `<span class="tag sel">★ Seleção</span>` : ''}
+                ${ehIdolo() ? `<span class="tag idolo">Ídolo da casa</span>` : ''}
               </div>
-              ${l ? `<div class="ficha-liga">${esc(l.nome)}</div>` : ''}
+              <div class="ficha-info">
+                <div class="ficha-clube" ${S.clube ? `title="${esc(S.clube.nome)}"` : ''}>
+                  ${S.clube ? escudo(S.clube, 24) + `<span>${esc(nomeCurto(S.clube.nome))}</span>`
+                            : `<span style="color:var(--txt3)">Sem clube</span>`}
+                </div>
+                ${l ? `<div class="ficha-liga">${esc(l.nome)}</div>` : ''}
+              </div>
+              <div class="ficha-num n-idade">Idade<b>${S.idade}</b></div>
+              <div class="ficha-num n-valor">Valor<b>${moeda(valorAtual())}</b></div>
             </div>
-            <div class="ficha-num">
-              <div>IDADE<b>${S.idade}</b></div>
-              <div>VALOR<b>${moeda(valorAtual())}</b></div>
-            </div>
-          </div>
-          <div class="ficha-tags">
-            <span class="tag">${bandeira(S.pais,17)} ${esc(S.pais)}</span>
-            <span class="tag">${esc(POSICOES[S.posicao] ? POSICOES[S.posicao][0] : S.posicao)}</span>
-            ${convocado(S.ovr, S.pais) ? `<span class="tag sel">★ Seleção</span>` : ''}
-            ${ehIdolo() ? `<span class="tag idolo">Ídolo da casa</span>` : ''}
           </div>
           ${vitrine()}
-          <div class="ficha-stats">
-            ${[['Jogos','jogos'], ...colunasDoBoletim()].map(([r,k]) =>
-              `<div><span>${r}</span><b>${S.temporadas.reduce((a,t)=>a+(t[k]||0),0)}</b></div>`).join('')}
-          </div>
-          ${blocoDecisao()}
         </div>
+        ${decisao ? `<div class="caixa evento-caixa">${decisao}</div>` : ''}
       </div>
       <div class="caixa linha">${linhaDoTempo()}</div>
     </div>
@@ -2712,17 +2795,11 @@ function blocoDecisao(){
       ${(() => {
         const cs = (S.opcoes || []).map((c, i) => {
           const l = dadosLiga(c.liga);
-          return `<button class="carta" onclick="aceitarEmprestimo(${i})">
-            <div class="clube-op">${escudo(c, 34)}
-              <span class="txt"><b>Emprestado ao ${esc(c.nome)}</b>
-              <small>${l ? esc(l.nome) : ''}</small></span>
-            </div></button>`;
+          return cartaClube({acao: `aceitarEmprestimo(${i})`, rotulo: 'Emprestado ao',
+            nome: c.nome, escudo: escudo(c, 36), pe: l ? esc(l.nome) : ''});
         });
-        cs.push(`<button class="carta" onclick="recusarEmprestimo()">
-          <div class="clube-op">${escudo(dono, 34)}
-            <span class="txt"><b>Ficar no ${esc(dono.nome)}</b>
-            <small>Brigar por espaço no elenco principal</small></span>
-          </div></button>`);
+        cs.push(cartaClube({acao: 'recusarEmprestimo()', rotulo: 'Ficar no',
+          nome: dono.nome, escudo: escudo(dono, 36), pe: 'Brigar por espaço'}));
         return gradeDeOpcoes(cs.join(''));
       })()}</div>`;
   }
@@ -2735,23 +2812,15 @@ function blocoDecisao(){
         : ` O ${esc(dono.nome)} espera você de volta.`}</p>
       ${(() => {
         const cs = [];
-        cs.push(`<button class="carta" onclick="voltarDoEmprestimo()">
-          <div class="clube-op">${escudo(dono, 34)}
-            <span class="txt"><b>Voltar ao ${esc(dono.nome)}</b>
-            <small>${esc((dadosLiga(dono.liga)||{}).nome || '')}</small></span>
-          </div></button>`);
-        if (compra) cs.push(`<button class="carta" onclick="ficarNoEmprestimo()">
-          <div class="clube-op">${escudo(aqui, 34)}
-            <span class="txt"><b>Ficar no ${esc(aqui.nome)}</b>
-            <small>Contrato de vez, onde você já joga</small></span>
-          </div></button>`);
+        cs.push(cartaClube({acao: 'voltarDoEmprestimo()', rotulo: 'Voltar ao',
+          nome: dono.nome, escudo: escudo(dono, 36),
+          pe: esc((dadosLiga(dono.liga)||{}).nome || '')}));
+        if (compra) cs.push(cartaClube({acao: 'ficarNoEmprestimo()', rotulo: 'Ficar no',
+          nome: aqui.nome, escudo: escudo(aqui, 36), pe: 'Contrato de vez'}));
         (S.opcoes || []).forEach((c, i) => {
           const l = dadosLiga(c.liga);
-          cs.push(`<button class="carta" onclick="aceitarEmprestimo(${i})">
-            <div class="clube-op">${escudo(c, 34)}
-              <span class="txt"><b>Novo empréstimo: ${esc(c.nome)}</b>
-              <small>${l ? esc(l.nome) : ''}</small></span>
-            </div></button>`);
+          cs.push(cartaClube({acao: `aceitarEmprestimo(${i})`, rotulo: 'Novo empréstimo',
+            nome: c.nome, escudo: escudo(c, 36), pe: l ? esc(l.nome) : ''}));
         });
         return gradeDeOpcoes(cs.join(''));
       })()}</div>`;
@@ -2785,6 +2854,25 @@ function blocoDecisao(){
 }
 
 /**
+ * Uma opção de clube, no desenho do cartão.
+ *
+ * O que a escolha É fica em cima, em letra miúda ("Assinar com", "Novo
+ * empréstimo"); o CLUBE fica em destaque embaixo. Separar as duas coisas é o
+ * que faz três opções caberem lado a lado no celular: "Novo empréstimo:
+ * Volta Redonda" numa linha só não cabe em 100px, e empilhada cada carta
+ * comia um terço da tela.
+ */
+function cartaClube(o){
+  return `<button class="carta${o.cls ? ' ' + o.cls : ''}" onclick="${o.acao}">
+    <div class="clube-op">
+      ${o.rotulo ? `<small class="op-rot">${esc(o.rotulo)}</small>` : ''}
+      <b>${esc(o.nome)}</b>
+      ${o.escudo}
+      ${o.pe ? `<small class="op-pe">${o.pe}</small>` : ''}
+    </div></button>`;
+}
+
+/**
  * Envolve um punhado de cartas num carrossel.
  *
  * As decisões do jogo são todas do mesmo tipo — escolher entre portas — e
@@ -2802,25 +2890,23 @@ function cartasDeClube(lista, comFicar, comAposentar){
     // O aviso de clássico é o que transforma a oferta em decisão. Escondê-lo
     // seria pegadinha: quem vai pro rival tem que saber que está indo.
     const rival = S.clube && ehRival(S.clube.nome, c.nome);
-    return `<button class="carta${rival ? ' rival' : ''}" onclick="assinarOpcao(${i})">
-      <div class="clube-op">${escudo(c, 34)}
-        <span class="txt"><b>${esc(c.nome)}</b>
-        <small>${l ? esc(l.nome) : ''}${rival ? ` · <i class="av-rival">rival do ${esc(S.clube.nome)}</i>` : ''}</small></span>
-      </div></button>`;
+    return cartaClube({
+      acao: `assinarOpcao(${i})`, cls: rival ? 'rival' : '',
+      rotulo: 'Assinar com', nome: c.nome, escudo: escudo(c, 36),
+      pe: rival ? `<i class="av-rival">rival do ${esc(S.clube.nome)}</i>` : (l ? esc(l.nome) : ''),
+    });
   });
   if (comFicar && S.clube) {
-    cartas.push(`<button class="carta" onclick="assinar(S.clube)">
-      <div class="clube-op">${escudo(S.clube, 34)}
-        <span class="txt"><b>Ficar no ${esc(S.clube.nome)}</b>
-        <small>${esc((dadosLiga(S.clube.liga)||{}).nome || '')}</small></span>
-      </div></button>`);
+    cartas.push(cartaClube({
+      acao: 'assinar(S.clube)', rotulo: 'Ficar no', nome: S.clube.nome,
+      escudo: escudo(S.clube, 36), pe: esc((dadosLiga(S.clube.liga)||{}).nome || ''),
+    }));
   }
   if (comAposentar) {
-    cartas.push(`<button class="carta" onclick="aposentar()">
-      <div class="clube-op"><span style="font-size:28px;line-height:1;width:34px;text-align:center">🥾</span>
-        <span class="txt"><b>Aposentar-se</b>
-        <small>Encerrar sua carreira profissional</small></span>
-      </div></button>`);
+    cartas.push(cartaClube({
+      acao: 'aposentar()', rotulo: 'Encerrar', nome: 'Aposentar-se',
+      escudo: '<span class="op-emoji">🥾</span>', pe: 'Fim da carreira',
+    }));
   }
   return gradeDeOpcoes(cartas.join(''));
 }
@@ -2864,7 +2950,14 @@ function linhaDoTempo(){
     <span>Jogos</span>
     ${colunasDoBoletim().map(([r]) => `<span>${r}</span>`).join('')}</div>`;
 
-  for (let i = IDADE_INI; i < IDADE_FIM; i++) {
+  // A escada de idades acompanha a carreira em vez de ir direto aos 39.
+  // Aos 18 anos eram vinte e uma linhas vazias avisando que ainda falta
+  // muito — 500px de tela pra dizer o que a idade no cartão já diz, e que
+  // empurravam a decisão do momento pra fora do celular.
+  const ultima = S.temporadas.length ? Math.max(...S.temporadas.map(t => t.idade)) : S.idade;
+  const ate = Math.min(IDADE_FIM, Math.max(S.idade, ultima) + 1 + ANOS_A_FRENTE);
+
+  for (let i = IDADE_INI; i < ate; i++) {
     const t = porIdade[i];
     const atual = !t && i === S.idade;
     if (t) {
@@ -2895,6 +2988,16 @@ function linhaDoTempo(){
         <span></span><span></span><span></span><span></span><span></span></div>`;
     }
   }
+
+  const soma = (k) => S.temporadas.reduce((a, t) => a + (t[k] || 0), 0);
+  html += `<div class="linha-pe">
+    <span></span>
+    <span class="pe-nome">Carreira</span>
+    <span></span>
+    <span class="ano-n">${ICONES.jogos}<b>${soma('jogos')}</b></span>
+    ${colunasDoBoletim().map(([,k]) =>
+      `<span class="ano-n">${ICONES[k] || ''}<b>${soma(k)}</b></span>`).join('')}
+  </div>`;
   return html;
 }
 
