@@ -361,18 +361,18 @@ const COPERO_CLUBES = [
     ['Ulsan HD', 'KR1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/0wooic1706533767.png'],
     ['Jeonbuk', 'KR1', 73, 'https://r2.thesportsdb.com/images/media/team/badge/8jif3b1747853225.png'],
     ['FC Seoul', 'KR1', 71, 'https://r2.thesportsdb.com/images/media/team/badge/31z1zf1579473186.png'],
-    ['Pohang Steelers', 'KR1', 70, ''],
+    ['Pohang Steelers', 'KR1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/63jst01769097748.png'],
 
     // Persian Gulf Pro League
-    ['Persepolis', 'IR1', 74, ''],
-    ['Esteghlal', 'IR1', 72, ''],
-    ['Sepahan', 'IR1', 70, ''],
-    ['Tractor', 'IR1', 68, ''],
+    ['Persepolis', 'IR1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/tzqvmg1725936631.png'],
+    ['Esteghlal', 'IR1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/tu1o951756536150.png'],
+    ['Sepahan', 'IR1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/ehx9kf1580934615.png'],
+    ['Tractor', 'IR1', 68, 'https://r2.thesportsdb.com/images/media/team/badge/url13x1722468959.png'],
 
     // Qatar Stars League
-    ['Al Sadd', 'QA1', 74, ''],
-    ['Al Duhail', 'QA1', 72, ''],
-    ['Al Rayyan', 'QA1', 69, ''],
+    ['Al Sadd', 'QA1', 74, 'https://r2.thesportsdb.com/images/media/team/badge/908a011774579337.png'],
+    ['Al Duhail', 'QA1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/n1vtjm1577985347.png'],
+    ['Al Rayyan', 'QA1', 69, 'https://r2.thesportsdb.com/images/media/team/badge/hvb3r41653090047.png'],
 
     // Premier League
     ['Al Ahly', 'EG1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/x8753q1751421890.png'],
@@ -391,26 +391,26 @@ const COPERO_CLUBES = [
     ['SuperSport United', 'ZA1', 65, ''],
 
     // Ligue 1 (Argélia)
-    ['CR Belouizdad', 'DZ1', 72, ''],
-    ['USM Alger', 'DZ1', 70, ''],
-    ['JS Kabylie', 'DZ1', 68, ''],
-    ['MC Alger', 'DZ1', 67, ''],
+    ['CR Belouizdad', 'DZ1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/88vcd41695448814.png'],
+    ['USM Alger', 'DZ1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/8tf8my1776275531.png'],
+    ['JS Kabylie', 'DZ1', 68, 'https://r2.thesportsdb.com/images/media/team/badge/h3w0w71581543584.png'],
+    ['MC Alger', 'DZ1', 67, 'https://r2.thesportsdb.com/images/media/team/badge/xxr6gc1776382874.png'],
 
     // Ligue 1 (Tunísia)
-    ['Espérance', 'TN1', 73, ''],
-    ['Étoile du Sahel', 'TN1', 69, ''],
-    ['Club Africain', 'TN1', 67, ''],
-    ['CS Sfaxien', 'TN1', 66, ''],
+    ['Espérance', 'TN1', 73, 'https://r2.thesportsdb.com/images/media/team/badge/csvbqw1753934121.png'],
+    ['Étoile du Sahel', 'TN1', 69, 'https://r2.thesportsdb.com/images/media/team/badge/zyy5p81753933927.png'],
+    ['Club Africain', 'TN1', 67, 'https://r2.thesportsdb.com/images/media/team/badge/2gijg71753933998.png'],
+    ['CS Sfaxien', 'TN1', 66, 'https://r2.thesportsdb.com/images/media/team/badge/d89tpa1589898020.png'],
 
     // NPFL
-    ['Enyimba', 'NG1', 66, ''],
-    ['Rivers United', 'NG1', 63, ''],
-    ['Rangers International', 'NG1', 61, ''],
+    ['Enyimba', 'NG1', 66, 'https://r2.thesportsdb.com/images/media/team/badge/uiz3l01786855143.png'],
+    ['Rivers United', 'NG1', 63, 'https://r2.thesportsdb.com/images/media/team/badge/4atnuh1720155248.png'],
+    ['Rangers International', 'NG1', 61, 'https://r2.thesportsdb.com/images/media/team/badge/j6uqt31720154917.png'],
 
     // Linafoot
-    ['TP Mazembe', 'CD1', 72, ''],
-    ['AS Vita Club', 'CD1', 65, ''],
-    ['Maniema Union', 'CD1', 61, ''],
+    ['TP Mazembe', 'CD1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/niib4k1761259428.png'],
+    ['AS Vita Club', 'CD1', 65, 'https://r2.thesportsdb.com/images/media/team/badge/jqsymd1581544723.png'],
+    ['Maniema Union', 'CD1', 61, 'https://r2.thesportsdb.com/images/media/team/badge/dhx9ek1724570684.png'],
 
     // A-League
     ['Melbourne City', 'AU1', 70, 'https://r2.thesportsdb.com/images/media/team/badge/rkeqme1603301840.png'],

@@ -937,14 +937,21 @@ tr.tit td{color:var(--red)}
 /* A idade é um selo, não um número solto: verde quando a temporada
    aconteceu, vermelho no ano do título, apagado no que ainda não veio.
    A cor responde "o que rolou nesse ano?" antes da linha ser lida. */
-/* A linha de total fecha a tabela: fundo mais forte, sem hover, e o número
-   com o mesmo peso do cabeçalho — ela é resumo, não mais um ano. */
-.tj-total{background:var(--panel2);border-top:1px solid var(--border2);border-bottom:none;
-  font-weight:800;position:sticky;bottom:0}
-.tj-total .tj-idade{background:transparent;color:var(--text3);font-size:13px}
-.tj-total .tj-clube b{font-size:11.5px}
-.tj-total .tj-clube em{font-style:normal;font-size:9.5px;color:var(--text3);margin-left:5px}
-.tj-total .tj-n{color:var(--text);font-weight:800}
+/* Os totais da carreira, embaixo da tabela e FORA da grade dela: as colunas
+   são estreitas de propósito (médias de uma casa) e "15.815" ao lado de
+   "5.372" encostavam um no outro. */
+.tot-faixa{margin-top:10px}
+.tot-cab{font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
+  color:var(--text3);margin-bottom:7px;padding:0 2px}
+.tot-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(76px,1fr));gap:7px}
+.tot-card{background:var(--panel2);border:1px solid var(--border);border-radius:11px;
+  padding:9px 8px;text-align:center;min-width:0}
+.tot-card b{display:block;font-family:var(--num);font-size:18px;font-weight:900;letter-spacing:-.7px;
+  font-variant-numeric:tabular-nums;line-height:1;color:var(--text)}
+.tot-card span{display:block;font-size:8.5px;font-weight:800;letter-spacing:1px;
+  text-transform:uppercase;color:var(--text3);margin-top:4px}
+.tot-card.forte b{color:var(--red)}
+
 .tj-idade{flex:none;width:26px;height:20px;display:flex;align-items:center;justify-content:center;
   border-radius:6px;font-family:var(--num);font-size:11.5px;font-weight:800;
   font-variant-numeric:tabular-nums;background:var(--panel3);color:var(--text2)}
@@ -5233,8 +5240,7 @@ function trajetoPorIdade(){
       <span class="tj-n">Reb</span><span class="tj-n">Ast</span>
     </div>
     ${linhas.join("")}
-    ${rodapeDeTotais()}
-  </div>`;
+  </div>${rodapeDeTotais()}`;
 }
 
 /**
@@ -5249,12 +5255,15 @@ function rodapeDeTotais(){
   const tot = totaisDeCarreira();
   if (!tot.jogos) return "";
   const n = (v) => Number(v || 0).toLocaleString("pt-BR");
-  return `<div class="tj tj-total">
-    <span class="tj-idade">Σ</span>
-    <span class="tj-clube"><b>Carreira</b><em>${temporadasJogadas().length} ${temporadasJogadas().length === 1 ? "temporada" : "temporadas"}</em></span>
-    <span class="tj-ovr tj-ovr-vazio">—</span>
-    <span class="tj-n">${n(tot.jogos)}</span><span class="tj-n forte">${n(tot.pts)}</span>
-    <span class="tj-n">${n(tot.reb)}</span><span class="tj-n">${n(tot.ast)}</span>
+  const anos = temporadasJogadas().length;
+  return `<div class="tot-faixa">
+    <div class="tot-cab">Carreira · ${anos} ${anos === 1 ? "temporada" : "temporadas"}</div>
+    <div class="tot-cards">
+      <div class="tot-card"><b>${n(tot.jogos)}</b><span>Jogos</span></div>
+      <div class="tot-card forte"><b>${n(tot.pts)}</b><span>Pontos</span></div>
+      <div class="tot-card"><b>${n(tot.reb)}</b><span>Rebotes</span></div>
+      <div class="tot-card"><b>${n(tot.ast)}</b><span>Assist.</span></div>
+    </div>
   </div>`;
 }
 
