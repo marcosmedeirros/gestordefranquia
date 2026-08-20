@@ -432,7 +432,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             }
             break;
-        case 'excluir_cancelado':
+        case 'excluir_leilao':
+        case 'excluir_cancelado':   // nome antigo, mantido pra não quebrar chamada velha
             if (!$is_admin) {
                 echo json_encode(['success' => false, 'error' => 'Acesso negado']);
                 exit;
@@ -571,6 +572,13 @@ function listarLeiloesAdmin($pdo, ?int $league_id = null) {
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $leiloes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // O desfecho vai junto, pra lista de finalizados já mostrar a troca.
+    foreach ($leiloes as &$l) {
+        $l['troca'] = $l['status'] === 'finalizado'
+            ? resumoDaTrocaDoLeilao($pdo, (int)$l['id'], (string)($l['player_name'] ?? '—'))
+            : null;
+    }
+    unset($l);
     echo json_encode(['success' => true, 'leiloes' => $leiloes]);
 }
 
@@ -1208,11 +1216,13 @@ function cancelarLeilao($pdo, $body) {
 }
 
 /**
- * Apaga de vez um leilão cancelado, com tudo o que pendurou nele.
+ * Apaga de vez um leilão encerrado, com tudo o que pendurou nele.
  *
- * Cancelado não vira histórico nem estatística — é leilão que não
- * aconteceu, e ficava acumulando na lista do admin sem servir a ninguém.
- * Só cancelado: finalizado é história da liga e não se apaga.
+ * Vale pra cancelado (leilão que não aconteceu) e pra finalizado — o admin
+ * pediu os dois, pra lista não virar arquivo morto. O que a troca já moveu
+ * no elenco NÃO volta: apagar aqui some com o registro do leilão, não
+ * desfaz a negociação. Leilão ativo nunca sai por aqui: pra isso existe o
+ * cancelar, que avisa quem tinha proposta.
  *
  * As tabelas filhas saem na mão porque nem toda base tem FK com CASCADE —
  * as mais antigas foram criadas sem.
@@ -1336,6 +1346,70 @@ function leilaoImpactoNoCap(PDO $pdo, int $team_id, array $leilao, array $player
     ];
 }
 
+/**
+ * O desfecho de um leilão finalizado, em uma linha: quem levou e o que deu.
+ *
+ * Vai junto da listagem do admin (poucos itens, 20 no máximo) pra que a
+ * lista já mostre o que aconteceu, em vez de virar um clique por leilão.
+ * Devolve null quando o leilão fechou sem troca.
+ */
+function resumoDaTrocaDoLeilao(PDO $pdo, int $leilao_id, string $jogadorLeiloado): ?array
+{
+    $ovrCol = playerOvrColumn($pdo);
+    $st = $pdo->prepare("SELECT lp.id, lp.obs, CONCAT(COALESCE(t.city,''),' ',COALESCE(t.name,'')) AS time_nome
+                         FROM leilao_propostas lp
+                         JOIN teams t ON t.id = lp.team_id
+                         WHERE lp.leilao_id = ? AND lp.status = 'aceita' LIMIT 1");
+    $st->execute([$leilao_id]);
+    $prop = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$prop) return null;
+
+    $itens = [];
+    $st = $pdo->prepare("SELECT p.name, p.position, p.{$ovrCol} AS ovr
+                         FROM leilao_proposta_jogadores lpj JOIN players p ON p.id = lpj.player_id
+                         WHERE lpj.proposta_id = ?");
+    $st->execute([(int)$prop['id']]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $j) {
+        $itens[] = trim($j['name'] . ' (' . ($j['position'] ?: '?') . ' · ' . ($j['ovr'] ?: '?') . ' OVR)');
+    }
+    $st = $pdo->prepare("SELECT pk.season_year, pk.round, lpp.swap_type
+                         FROM leilao_proposta_picks lpp JOIN picks pk ON pk.id = lpp.pick_id
+                         WHERE lpp.proposta_id = ? ORDER BY pk.season_year, pk.round");
+    $st->execute([(int)$prop['id']]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) {
+        $itens[] = $pk['round'] . 'ª rodada ' . $pk['season_year'] . ($pk['swap_type'] ? ' (' . $pk['swap_type'] . ')' : '');
+    }
+
+    // O que o vencedor pediu de brinde do vendedor entra como "e ainda levou".
+    $extras = [];
+    $st = $pdo->prepare("SELECT pl.name, pl.position, pl.{$ovrCol} AS ovr
+                         FROM leilao_proposta_extra_players ep JOIN players pl ON pl.id = ep.player_id
+                         WHERE ep.proposta_id = ?");
+    $st->execute([(int)$prop['id']]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $j) {
+        $extras[] = trim($j['name'] . ' (' . ($j['position'] ?: '?') . ' · ' . ($j['ovr'] ?: '?') . ' OVR)');
+    }
+    $st = $pdo->prepare("SELECT pk.season_year, pk.round, ep.swap_type
+                         FROM leilao_proposta_extra_picks ep JOIN picks pk ON pk.id = ep.pick_id
+                         WHERE ep.proposta_id = ? ORDER BY pk.season_year, pk.round");
+    $st->execute([(int)$prop['id']]);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pk) {
+        $extras[] = $pk['round'] . 'ª rodada ' . $pk['season_year'] . ($pk['swap_type'] ? ' (' . $pk['swap_type'] . ')' : '');
+    }
+
+    $texto = trim($prop['time_nome']) . ' levou ' . $jogadorLeiloado
+           . ($extras ? ' + ' . implode(' + ', $extras) : '')
+           . ' por ' . ($itens ? implode(' + ', $itens) : 'nada (proposta sem itens)');
+
+    return [
+        'time'    => trim($prop['time_nome']),
+        'deu'     => $itens,
+        'levou'   => array_merge([$jogadorLeiloado], $extras),
+        'obs'     => $prop['obs'] ?: null,
+        'texto'   => $texto,
+    ];
+}
+
 function excluirLeilaoCancelado($pdo, $body) {
     $leilao_id = (int)($body['leilao_id'] ?? 0);
     if (!$leilao_id) {
@@ -1350,8 +1424,8 @@ function excluirLeilaoCancelado($pdo, $body) {
         echo json_encode(['success' => false, 'error' => 'Leilao nao encontrado']);
         return;
     }
-    if ($status !== 'cancelado') {
-        echo json_encode(['success' => false, 'error' => 'So da pra excluir leilao cancelado.']);
+    if (!in_array($status, ['cancelado', 'finalizado'], true)) {
+        echo json_encode(['success' => false, 'error' => 'So da pra excluir leilao encerrado (cancelado ou finalizado).']);
         return;
     }
 
@@ -2261,7 +2335,16 @@ function recusarProposta($pdo, $body, $team_id, $is_admin) {
         echo json_encode(['success' => false, 'error' => 'Acesso negado']);
         return;
     }
-    
+
+    // A escolhida nao se desfaz recusando: sai do posto so quando OUTRA e
+    // aceita no lugar. Sem isso dava pra recusar a propria escolha e o leilao
+    // chegava no fim do prazo sem vencedor nenhum, com propostas boas na mesa.
+    if (($proposta['status'] ?? '') === 'aceita') {
+        echo json_encode(['success' => false,
+            'error' => 'Essa e a proposta escolhida. Pra trocar, aceite outra — ela vira a escolhida e esta volta pra recusada.']);
+        return;
+    }
+
     $stmt = $pdo->prepare("UPDATE leilao_propostas SET status = 'recusada' WHERE id = ?");
     $stmt->execute([$proposta_id]);
 

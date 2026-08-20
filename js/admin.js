@@ -2029,6 +2029,7 @@ async function showLeilaoAdmin(league) {
   try {
     const data = await api(`leilao.php?action=listar_admin&league=${league}`);
     const leiloes = data.leiloes || [];
+    _leilaoAdminCache = leiloes;   // o botão de copiar lê a troca daqui
     const ativos = leiloes.filter(l => l.status !== 'finalizado');
     const precisamResolucao = ativos.filter(l => Number(l.expirado));
     const emAndamento = ativos.filter(l => !Number(l.expirado));
@@ -2081,15 +2082,61 @@ async function showLeilaoAdmin(league) {
       </div>` : ''}
       <div class="panel">
         <div class="panel-header"><div class="panel-title"><i class="bi bi-clock-history" style="color:var(--text-3)"></i> Últimos finalizados</div></div>
-        <div class="panel-body">${finalizados.length ? finalizados.map(l => `
-          <div style="display:flex;justify-content:space-between;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border);font-size:13px">
-            <span style="color:var(--text)">${escapeHtml(l.player_name || '—')}</span>
-            <span style="color:var(--text-3)">${escapeHtml(l.team_name || '—')}</span>
-          </div>`).join('') : '<p style="color:var(--text-3);font-size:13px">Nenhum leilão finalizado ainda.</p>'}</div>
+        <div class="panel-body">${finalizados.length ? finalizados.map(l => _leilaoAdminLinhaFinalizado(l, league)).join('') : '<p style="color:var(--text-3);font-size:13px">Nenhum leilão finalizado ainda.</p>'}</div>
       </div>`;
     _leilaoAdminLigarFormCriar(league);
   } catch (e) {
     container.innerHTML = `<div class="mb-3">${back}</div><div class="alert alert-danger">Erro ao carregar leilões: ${escapeHtml(e.error || e.message || '')}</div>`;
+  }
+}
+
+/**
+ * Uma linha do histórico: quem era, o que a troca moveu, copiar e apagar.
+ *
+ * A troca vem pronta do servidor (campo "troca"), então a lista já conta o
+ * desfecho — antes só dizia o nome do jogador e o time, o que obrigava a
+ * abrir cada leilão pra lembrar o que tinha sido negociado.
+ */
+function _leilaoAdminLinhaFinalizado(l, league) {
+  const nome = escapeHtml(l.player_name || '—');
+  const t = l.troca;
+  const semTroca = '<span style="color:var(--text-3);font-size:12px">encerrado sem troca</span>';
+
+  const corpo = t ? `
+    <div style="font-size:12.5px;color:var(--text-2);line-height:1.5;margin-top:2px">
+      <strong style="color:var(--text)">${escapeHtml(t.time)}</strong> levou
+      ${t.levou.map(x => escapeHtml(x)).join(' + ')}
+      <br>por ${t.deu.length ? t.deu.map(x => escapeHtml(x)).join(' + ') : '<em>nada</em>'}
+      ${t.obs ? `<br><span style="color:var(--text-3)">"${escapeHtml(t.obs)}"</span>` : ''}
+    </div>` : semTroca;
+
+  return `
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${nome}</div>
+        ${corpo}
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        ${t ? `<button class="btn-ghost" style="padding:4px 9px;font-size:12px" title="Copiar a troca"
+          onclick="_leilaoAdminCopiarTroca(${l.id}, this)"><i class="bi bi-clipboard"></i></button>` : ''}
+        <button class="btn-ghost" style="padding:4px 9px;font-size:12px;color:#ef4444;border-color:rgba(239,68,68,.3)" title="Excluir do histórico"
+          onclick="_leilaoAdminExcluir(${l.id}, '${escapeHtml(String(l.player_name || '')).replace(/'/g, "\\'")}', '${league}', true)"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>`;
+}
+
+/** O texto da troca no clipboard, pra colar no grupo. */
+async function _leilaoAdminCopiarTroca(leilaoId, botao) {
+  const l = (_leilaoAdminCache || []).find(x => Number(x.id) === Number(leilaoId));
+  const texto = l?.troca?.texto;
+  if (!texto) return;
+  try {
+    await navigator.clipboard.writeText(texto);
+    const antes = botao.innerHTML;
+    botao.innerHTML = '<i class="bi bi-check2"></i>';
+    setTimeout(() => { botao.innerHTML = antes; }, 1400);
+  } catch (e) {
+    alert(texto);   // sem clipboard (http, permissão negada): mostra pra copiar na mão
   }
 }
 
@@ -2228,10 +2275,15 @@ async function _leilaoAdminAbrir(league) {
   }
 }
 
-async function _leilaoAdminExcluir(leilaoId, nome, league) {
-  if (!confirm(`Apagar o leilão cancelado de ${nome}? As propostas dele vão junto, e não dá pra desfazer.`)) return;
+async function _leilaoAdminExcluir(leilaoId, nome, league, finalizado) {
+  // No finalizado o aviso é outro: a troca já aconteceu no elenco e apagar
+  // aqui não desfaz nada — só some com o registro.
+  const aviso = finalizado
+    ? `Apagar do histórico o leilão de ${nome}? A troca já feita NÃO é desfeita — some só o registro do leilão e as propostas dele.`
+    : `Apagar o leilão cancelado de ${nome}? As propostas dele vão junto, e não dá pra desfazer.`;
+  if (!confirm(aviso)) return;
   try {
-    const d = await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'excluir_cancelado', leilao_id: leilaoId }) });
+    const d = await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'excluir_leilao', leilao_id: leilaoId }) });
     if (d && d.success === false) throw d;
     showLeilaoAdmin(league);
   } catch (e) {
@@ -2239,6 +2291,7 @@ async function _leilaoAdminExcluir(leilaoId, nome, league) {
   }
 }
 
+let _leilaoAdminCache = [];
 let _leilaoAdminLeilaoId = null;
 let _leilaoAdminSellerTeamId = null;
 let _leilaoAdminLeague = null;
