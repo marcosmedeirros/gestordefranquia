@@ -234,21 +234,6 @@ try {
 } catch (Exception) {}
 
 // ── Jogadores que passaram por mais times ─────────────────────────
-$playerTeamsMap = [];
-try {
-    $ptRaw = $pdo->query("
-        SELECT psl.league, psl.player_name AS name, COUNT(DISTINCT psl.team_id) AS count,
-               pt.name AS team
-        FROM player_season_log psl
-        LEFT JOIN players p ON p.name = psl.player_name
-        LEFT JOIN teams pt ON pt.id = p.team_id
-        WHERE psl.season_id IN $TEMPORADAS_DA_SPRINT
-        GROUP BY psl.league, psl.player_name ORDER BY count DESC
-    ")->fetchAll(PDO::FETCH_ASSOC);
-    foreach ($ptRaw as $r) $playerTeamsMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count'],'team'=>$r['team'] ?? ''];
-    sortLeagueData($playerTeamsMap);
-} catch (Exception) {}
-
 // ── Retenção: média de temporadas por jogador no mesmo time ───────
 $retencaoMap = [];
 try {
@@ -477,8 +462,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
   .topbar{display:flex}
 }
 
-/* Sections flow — cards from different stats sit side by side */
-.stats-flow{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px;align-items:start;margin-top:8px}
+/* As seções lado a lado: três por linha na tela cheia, duas no meio-termo,
+   uma no celular. Largura fixa por coluna (1fr) em vez de auto-fill pra que
+   a linha seja sempre a mesma — auto-fill dava duas colunas gordas em 1280. */
+.stats-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;align-items:start;margin-top:8px}
+@media (max-width:1180px){.stats-flow{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){.stats-flow{grid-template-columns:minmax(0,1fr);gap:14px}}
 /* Agrupa por altura de card: só top5 primeiro, top5+bot5 depois — evita linhas com alturas misturadas */
 .section-block[data-size="short"]{order:1}
 .stats-flow-break{order:2;grid-column:1/-1;height:0;margin:0;padding:0}
@@ -539,20 +528,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .pair-row.my-team .pair-a{color:#fff;font-weight:700}
 .pair-row.my-team .rn{color:var(--red)}
 
-/* Faixa de tópico: separa os assuntos da página. */
-.topico{display:flex;align-items:center;gap:14px;margin:44px 0 18px;padding:16px 18px;
-  border-radius:14px;background:var(--panel);border:1px solid var(--border-md)}
-.topico:first-of-type{margin-top:8px}
-.topico-emoji{font-size:26px;line-height:1;flex:none}
-.topico-tit{margin:0;font-size:19px;font-weight:800;letter-spacing:-.3px;color:var(--text)}
-.topico-sub{margin:3px 0 0;font-size:12.5px;color:var(--text-2)}
-@media (max-width:720px){
-  /* No celular a faixa encolhe: ela orienta, não é o conteúdo. */
-  .topico{margin:30px 0 14px;padding:13px 14px;gap:11px}
-  .topico-emoji{font-size:21px}
-  .topico-tit{font-size:16px}
-  .topico-sub{font-size:11.5px}
-}
 .empty-state{padding:16px 14px;color:var(--text-3);text-align:center}
 .empty-state i{font-size:22px;display:block;margin-bottom:6px}
 .empty-state p{font-size:11px;margin:0}
@@ -708,8 +683,8 @@ $dominioMap = [];
 try {
     $duelos = $pdo->query("
         SELECT s.league, pm.team1_id, pm.team2_id, pm.winner_id,
-               TRIM(CONCAT(COALESCE(t1.city,''),' ',COALESCE(t1.name,''))) AS n1,
-               TRIM(CONCAT(COALESCE(t2.city,''),' ',COALESCE(t2.name,''))) AS n2
+               TRIM(CONCAT(COALESCE(t1.city,''),' ',COALESCE(t1.name,''))) AS n1, t1.name AS m1,
+               TRIM(CONCAT(COALESCE(t2.city,''),' ',COALESCE(t2.name,''))) AS n2, t2.name AS m2
         FROM playoff_matches pm
         JOIN seasons s ON s.id = pm.season_id
         JOIN teams t1 ON t1.id = pm.team1_id
@@ -723,12 +698,12 @@ try {
         $b = max((int)$d['team1_id'], (int)$d['team2_id']);
         $k = $d['league'] . '|' . $a . '|' . $b;
         if (!isset($pares[$k])) {
-            $pares[$k] = ['league' => $d['league'], 'nomes' => [], 'vit' => [$a => 0, $b => 0]];
-            $pares[$k]['nomes'][(int)$d['team1_id']] = $d['n1'];
-            $pares[$k]['nomes'][(int)$d['team2_id']] = $d['n2'];
+            $pares[$k] = ['league' => $d['league'], 'nomes' => [], 'curtos' => [], 'vit' => [$a => 0, $b => 0]];
         }
-        $pares[$k]['nomes'][(int)$d['team1_id']] = $d['n1'];
-        $pares[$k]['nomes'][(int)$d['team2_id']] = $d['n2'];
+        $pares[$k]['nomes'][(int)$d['team1_id']]  = $d['n1'];
+        $pares[$k]['nomes'][(int)$d['team2_id']]  = $d['n2'];
+        $pares[$k]['curtos'][(int)$d['team1_id']] = $d['m1'];
+        $pares[$k]['curtos'][(int)$d['team2_id']] = $d['m2'];
         $w = (int)$d['winner_id'];
         if (isset($pares[$k]['vit'][$w])) $pares[$k]['vit'][$w]++;
     }
@@ -743,6 +718,8 @@ try {
         $dominioMap[$p['league']][] = [
             'a_long' => $p['nomes'][$dono]  ?? '?',
             'b_long' => $p['nomes'][$outro] ?? '?',
+            'a'      => $p['curtos'][$dono]  ?? ($p['nomes'][$dono]  ?? '?'),
+            'b'      => $p['curtos'][$outro] ?? ($p['nomes'][$outro] ?? '?'),
             'name'   => ($p['nomes'][$dono] ?? '?') . ' sobre ' . ($p['nomes'][$outro] ?? '?'),
             'count'       => $total,
         ];
@@ -810,20 +787,6 @@ if ($serieOk) {
         ORDER BY ps.league, count ASC, name");
 }
 
-/**
- * Uma faixa separando os assuntos.
- *
- * Sem ela são vinte e tantas seções em fila, e o leitor perde a noção de onde
- * está — rolar da idade média até as trades sem nenhuma marca no caminho.
- */
-function topico(string $emoji, string $titulo, string $sub): void
-{
-    echo '<div class="topico">'
-       . '<span class="topico-emoji">' . $emoji . '</span>'
-       . '<div><h2 class="topico-tit">' . htmlspecialchars($titulo) . '</h2>'
-       . '<p class="topico-sub">' . htmlspecialchars($sub) . '</p></div>'
-       . '</div>';
-}
 function renderSection(string $id, string $icon, string $icon_bg, string $title, string $subtitle,
                        array $data, array $leagues, array $opts = [], string $myTeam = ''): void {
     $label_hi     = $opts['label_hi']     ?? '🔥 Mais';
@@ -1011,8 +974,6 @@ function renderSection(string $id, string $icon, string $icon_bg, string $title,
 echo '<div class="stats-flow" id="statsFlow">';
 echo '<div class="stats-flow-break"></div>';
 
-topico('🏀', 'Playoff', 'Quem chega lá, quem fica de fora, e o que acontece dentro');
-
 renderSection('playoffs', '🎯', 'color-mix(in srgb, var(--red) 12%, transparent)', 'Aparições no Playoff',
     'Times que mais chegaram ao playoff',
     $playoffMap, $leagues, [
@@ -1100,8 +1061,6 @@ renderSection('jogo7', '🎬', 'rgba(251,191,36,.10)', 'Guerreiros do Jogo 7',
     ], $myTeamName);
 
 
-topico('⚔️', 'Confrontos', 'Duplas que se cruzam demais — no playoff e na mesa de troca');
-
 renderSection('rivais', '⚔️', 'rgba(96,165,250,.12)', 'Maiores Rivalidades',
     'Duplas que mais se enfrentaram no playoff',
     $rivaisMap, $leagues, [
@@ -1134,8 +1093,6 @@ renderSection('trade-dir', '➡️', 'rgba(96,165,250,.10)', 'Trades Unidirecion
         'pair_mode' => true, 'pair_sep' => '→',
     ], $myTeamName);
 
-
-topico('👥', 'Elenco e draft', 'Idade, draft e como cada time se monta');
 
 renderSection('jovem', '🌱', 'rgba(168,85,247,.10)', 'Elenco Mais Jovem',
     'Idade média dos jogadores em contrato',
@@ -1201,8 +1158,6 @@ renderSection('top5picks', '⭐', 'rgba(96,165,250,.12)', 'Mais Escolhas no Top 
         'copy_hi' => 'Mais escolhas no top 5 do draft',
     ], $myTeamName);
 
-topico('🔄', 'Trades', 'Quem negocia, com quantos, e no que dá');
-
 renderSection('parceiros', '🌐', 'rgba(168,85,247,.10)', 'Diversidade de Parceiros de Trade',
     'Times que negociaram com mais (ou menos) franquias diferentes (só aceitas)',
     $parceirosMap, $leagues, [
@@ -1241,11 +1196,6 @@ renderSection('trades-recusadas', '❌', 'color-mix(in srgb, var(--red) 10%, tra
         'copy_hi' => 'Mais trades recusadas', 'copy_lo' => 'Menos trades recusadas',
     ], $myTeamName);
 
-echo '</div>'; // .stats-flow
-
-
-topico('📌', 'Outros', 'O que não cabia em nenhuma prateleira');
-
 renderSection('punicoes', '⚠️', 'color-mix(in srgb, var(--red) 12%, transparent)', 'Punições Recebidas',
     'Times que mais receberam punições ativas na liga',
     $punicoesMap, $leagues, [
@@ -1254,14 +1204,7 @@ renderSection('punicoes', '⚠️', 'color-mix(in srgb, var(--red) 12%, transpar
         'copy_hi' => 'Mais punições', 'copy_lo' => 'Menos punições',
     ], $myTeamName);
 
-renderSection('player-teams', '🌍', 'rgba(96,165,250,.10)', 'Jogadores mais Itinerantes',
-    'Jogadores que passaram por mais times diferentes',
-    $playerTeamsMap, $leagues, [
-        'label_hi' => '✈️ Mais times', 'show_lo' => false,
-        'color_hi' => 'blue',
-        'copy_hi' => 'Jogadores mais itinerantes',
-        'suffix' => ' times',
-    ], $myTeamShortName);
+echo '</div>'; // .stats-flow
 
 
 ?>
