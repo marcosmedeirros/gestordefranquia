@@ -19,6 +19,13 @@ if (!$team) { header('Location: my-roster.php'); exit; }
 
 $isElite = strtoupper((string)$team['league']) === 'ELITE';
 
+// Modelo técnico e playbook são de ELITE e NEXT. Na RISE e na ROOKIE não
+// existem — mostrar os campos lá seria pedir uma escolha que não vale nada.
+require_once __DIR__ . '/backend/modelos_tecnicos.php';
+$temModeloTecnico = in_array(strtoupper((string)$team['league']), ['ELITE', 'NEXT'], true);
+$MODELOS = $temModeloTecnico ? modelosTecnicosParaJson() : [];
+$SIGLAS  = modeloTecnicoAtributos();
+
 $SLOT_LABELS = ['regular' => 'Tática 1', 'playoffs' => 'Tática 2', 'outra' => 'Tática 3'];
 
 // Mapa compartilhado com o admin — ver backend/tatica_opcoes.php.
@@ -118,6 +125,58 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 .min-chip .tag{font-size:9px;font-weight:700;padding:2px 6px;border-radius:999px;background:var(--panel-3);color:var(--text-3)}
 .min-chip .tag.tit{background:var(--red-soft);color:var(--red)}
 .min-chip .mn{font-family:'Oswald',sans-serif;font-weight:700;color:var(--text)}
+
+/* ── Modelo técnico ────────────────────────────────── */
+.mt-bloco{margin-top:16px;padding:14px;border-radius:12px;
+  background:var(--panel-2);border:1px solid var(--border)}
+.mt-cab{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:12px}
+.mt-escolha{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+/* A foto sai do card inteiro: o rosto ocupa a faixa de cima, então o
+   object-position puxa pra lá em vez de mostrar a moldura. */
+.mt-foto{width:56px;height:56px;flex:none;border-radius:10px;overflow:hidden;
+  background:var(--panel-3);display:flex;align-items:center;justify-content:center;
+  color:var(--text-3);font-size:20px;border:1px solid var(--border)}
+.mt-foto img{width:100%;height:100%;object-fit:cover;object-position:center 22%}
+
+.mt-attrs{display:flex;gap:10px;flex-wrap:wrap}
+.mt-attr{text-align:center;min-width:38px}
+.mt-attr b{display:block;font-size:15px;font-weight:800;color:var(--text);
+  line-height:1;font-variant-numeric:tabular-nums}
+.mt-attr span{font-size:9px;color:var(--text-3);letter-spacing:.06em;font-weight:700}
+.mt-sistema{font-size:11px;font-weight:700;color:var(--red);
+  text-transform:uppercase;letter-spacing:.04em;align-self:center}
+
+/* O modal com os cards */
+.mt-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.mt-card{border:1px solid var(--border);border-radius:12px;overflow:hidden;
+  background:var(--panel-2);cursor:pointer;text-align:left;padding:0;
+  font-family:var(--font);transition:border-color .15s,transform .15s}
+.mt-card:hover{border-color:var(--red);transform:translateY(-2px)}
+.mt-card.escolhido{border-color:var(--red);box-shadow:0 0 0 1px var(--red) inset}
+.mt-card img{width:100%;display:block;aspect-ratio:9/16;object-fit:cover}
+.mt-card-pe{padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.mt-card-nome{font-size:12.5px;font-weight:700;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-card-sel{font-size:10px;color:var(--red);font-weight:700;flex:none}
+
+@media (max-width:640px){
+  .mt-grade{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:9px}
+  .mt-cab .btn{width:100%}
+  .mt-attrs{width:100%;justify-content:space-between}
+}
+
+.mt-modal{position:fixed;inset:0;z-index:400;display:flex;align-items:center;
+  justify-content:center;padding:18px}
+.mt-modal[hidden]{display:none}
+.mt-modal-fundo{position:absolute;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(3px)}
+.mt-modal-caixa{position:relative;width:min(980px,100%);max-height:88vh;display:flex;
+  flex-direction:column;background:var(--panel);border:1px solid var(--border-md);
+  border-radius:14px;overflow:hidden}
+.mt-modal-cab{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  padding:14px 18px;border-bottom:1px solid var(--border)}
+.mt-modal-corpo{padding:16px 18px;overflow-y:auto}
 
 /* Sistema */
 .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:13px}
@@ -248,12 +307,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
     <div class="panel">
       <div class="section-title"><i class="bi bi-sliders"></i> Sistema de jogo</div>
       <div class="fgrid">
-        <?php foreach ([
-            'technical_model' => 'Modelo técnico', 'game_style' => 'Estilo de jogo',
+        <?php
+        $camposSistema = ['game_style' => 'Estilo de jogo',
             'offense_style' => 'Foco ofensivo', 'pace' => 'Ritmo',
             'offensive_rebound' => 'Rebote ofensivo', 'defensive_rebound' => 'Rebote defensivo',
-            'offensive_aggression' => 'Agressividade defensiva', 'defensive_focus' => 'Foco defensivo',
-        ] as $campo => $rotulo): ?>
+            'offensive_aggression' => 'Agressividade defensiva', 'defensive_focus' => 'Foco defensivo'];
+        foreach ($camposSistema as $campo => $rotulo): ?>
         <div class="field">
           <label for="f_<?= $campo ?>"><?= $rotulo ?></label>
           <select id="f_<?= $campo ?>" data-f="<?= $campo ?>">
@@ -265,11 +324,42 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         </div>
         <?php endforeach; ?>
       </div>
+      <?php if ($temModeloTecnico): ?>
+      <div class="mt-bloco">
+        <div class="mt-cab">
+          <div>
+            <div class="section-title" style="margin:0"><i class="bi bi-person-badge"></i> Modelo técnico</div>
+            <span class="hint" id="mtRestam"></span>
+          </div>
+          <button type="button" class="btn ghost" id="btnVerModelos">
+            <i class="bi bi-grid-3x3-gap"></i> Ver modelos técnicos
+          </button>
+        </div>
+        <div class="mt-escolha">
+          <!-- A foto do escolhido: quem está montando a tática vê o coach,
+               não só o nome dele numa lista. -->
+          <div class="mt-foto" id="mtFoto"><i class="bi bi-person"></i></div>
+          <div class="field" style="flex:1;min-width:0">
+            <label for="f_technical_model">Quem comanda o time</label>
+            <select id="f_technical_model" data-f="technical_model">
+              <option value="">—</option>
+              <?php foreach ($OPCOES['technical_model'] as $v => $lbl): ?>
+                <option value="<?= htmlspecialchars($v) ?>"><?= htmlspecialchars($lbl) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="mt-attrs" id="mtAttrs"></div>
+        </div>
+      </div>
+      <?php endif; ?>
+
       <div class="fgrid" style="margin-top:13px">
+        <?php if ($temModeloTecnico): ?>
         <div class="field" style="grid-column:1/-1">
           <label for="f_playbook">Playbook</label>
           <textarea id="f_playbook" data-f="playbook" placeholder="Jogadas e ajustes que você quer usar…"></textarea>
         </div>
+        <?php endif; ?>
         <div class="field" style="grid-column:1/-1">
           <label for="f_notes">Observações</label>
           <textarea id="f_notes" data-f="notes" placeholder="Anotações para você e para o admin…"></textarea>
@@ -288,6 +378,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
 
  </div>
 </main>
+
+<?php if ($temModeloTecnico): ?>
+<!-- Os cards da edição. Fica fora do <main> porque é sobreposição: dentro
+     do fluxo ele herdaria o padding e a rolagem do painel. -->
+<div class="mt-modal" id="mtModal" hidden>
+  <div class="mt-modal-fundo" data-fechar></div>
+  <div class="mt-modal-caixa" role="dialog" aria-modal="true" aria-labelledby="mtModalTitulo">
+    <div class="mt-modal-cab">
+      <div>
+        <div id="mtModalTitulo" style="font-size:16px;font-weight:700">Modelos técnicos</div>
+        <div class="hint">Os <?= count($MODELOS) ?> coaches da edição. Clique num para escolher.</div>
+      </div>
+      <button type="button" class="btn ghost" data-fechar><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="mt-modal-corpo">
+      <div class="mt-grade" id="mtGrade"></div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -307,6 +418,91 @@ const POSICOES = ['PG','SG','SF','PF','C'];
 const SLOT_LABELS = <?= json_encode($SLOT_LABELS, JSON_UNESCAPED_UNICODE) ?>;
 const TIME_NOME   = <?= json_encode(trim($team['city'] . ' ' . $team['name']), JSON_UNESCAPED_UNICODE) ?>;
 const IS_ELITE = <?= $isElite ? 'true' : 'false' ?>;
+
+/* ── Modelo técnico ─────────────────────────────────── */
+// O catálogo vem do servidor pra não existir uma segunda lista aqui que
+// envelheça sozinha. Vazio na RISE e na ROOKIE, que não usam modelo.
+const MODELOS = <?= json_encode($MODELOS, JSON_UNESCAPED_UNICODE) ?>;
+const SIGLAS  = <?= json_encode($SIGLAS, JSON_UNESCAPED_UNICODE) ?>;
+const TEM_MODELO = <?= $temModeloTecnico ? 'true' : 'false' ?>;
+const MODELO_LIMITE = <?= MODELO_TECNICO_LIMITE ?>;
+
+const acharModelo = (chave) => MODELOS.find(m => m.chave === chave) || null;
+
+/** A foto e os atributos do escolhido, ao lado do select. */
+function pintarModeloEscolhido(){
+  if (!TEM_MODELO) return;
+  const sel = document.getElementById('f_technical_model');
+  const foto = document.getElementById('mtFoto');
+  const attrs = document.getElementById('mtAttrs');
+  if (!sel || !foto || !attrs) return;
+
+  const m = acharModelo(sel.value);
+  if (!m){
+    foto.innerHTML = '<i class="bi bi-person"></i>';
+    attrs.innerHTML = '';
+    return;
+  }
+  foto.innerHTML = `<img src="${m.foto}" alt="${m.nome}">`;
+  const numeros = Object.entries(SIGLAS)
+    .filter(([k]) => m.attrs && m.attrs[k] !== undefined)
+    .map(([k, [sigla, nome]]) =>
+      `<div class="mt-attr" title="${nome}"><b>${m.attrs[k]}</b><span>${sigla}</span></div>`)
+    .join('');
+  attrs.innerHTML = numeros + (m.sistema ? `<div class="mt-sistema">${m.sistema}</div>` : '');
+}
+
+/** Os cards, no modal. */
+function abrirModelos(){
+  const modal = document.getElementById('mtModal');
+  const grade = document.getElementById('mtGrade');
+  const sel = document.getElementById('f_technical_model');
+  if (!modal || !grade) return;
+
+  grade.innerHTML = MODELOS.map(m => `
+    <button type="button" class="mt-card${sel && sel.value === m.chave ? ' escolhido' : ''}"
+            data-modelo="${m.chave.replace(/"/g, '&quot;')}">
+      <img src="${m.foto}" alt="${m.nome}" loading="lazy">
+      <div class="mt-card-pe">
+        <span class="mt-card-nome">${m.nome}</span>
+        ${sel && sel.value === m.chave ? '<span class="mt-card-sel">ATUAL</span>' : ''}
+      </div>
+    </button>`).join('');
+
+  grade.querySelectorAll('[data-modelo]').forEach(b => {
+    b.addEventListener('click', () => {
+      if (sel){
+        sel.value = b.dataset.modelo;
+        sel.dispatchEvent(new Event('change', {bubbles:true}));
+      }
+      pintarModeloEscolhido();
+      fecharModelos();
+    });
+  });
+  modal.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function fecharModelos(){
+  const modal = document.getElementById('mtModal');
+  if (!modal) return;
+  modal.hidden = true;
+  document.body.style.overflow = '';
+}
+
+if (TEM_MODELO){
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('btnVerModelos')?.addEventListener('click', abrirModelos);
+    document.getElementById('f_technical_model')?.addEventListener('change', pintarModeloEscolhido);
+    document.getElementById('mtModal')?.addEventListener('click', (e) => {
+      if (e.target.closest('[data-fechar]')) fecharModelos();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') fecharModelos();
+    });
+    pintarModeloEscolhido();
+  });
+}
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 

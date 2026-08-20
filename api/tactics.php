@@ -287,6 +287,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'notes'                => 'Observações',
         ];
 
+        // Modelo técnico e playbook são de ELITE e NEXT. Na RISE e na ROOKIE
+        // não existem, e mostrar o campo vazio no resumo do admin faria
+        // parecer que o GM deixou de preencher.
+        if (!in_array(strtoupper($league), ['ELITE', 'NEXT'], true)) {
+            unset($camposConfig['technical_model'], $camposConfig['playbook']);
+        }
+
         $overview = [];
         foreach ($teams as $t) {
             $stmtA = $pdo->prepare("

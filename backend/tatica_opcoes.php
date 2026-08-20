@@ -28,7 +28,13 @@ return [
                                'conservative' => 'Conservative Defense', 'neutral' => 'Neutral Defensive Aggression'],
     'defensive_focus' => ['no_preference' => 'Sem preferência', 'neutral' => 'Neutral Defensive Focus',
                           'protect_paint' => 'Protect the Paint', 'limit_perimeter' => 'Limit Perimeter Shots'],
-    'technical_model' => ['HC' => 'HC', 'FBA 14' => 'FBA 14', 'Michael Stauffer' => 'Michael Stauffer',
-                          'Joe Mazzulla' => 'Joe Mazzulla', 'Mark Daigneault' => 'Mark Daigneault',
-                          'Greg Popovich' => 'Greg Popovich', 'Phil Jackson' => 'Phil Jackson'],
+    // Os modelos técnicos vêm do catálogo (backend/modelos_tecnicos.php),
+    // onde cada um tem card, foto e atributos. Duas listas seria garantir
+    // que uma delas envelhece.
+    'technical_model' => (function () {
+        require_once __DIR__ . '/modelos_tecnicos.php';
+        $out = [];
+        foreach (modelosTecnicos() as $chave => $m) $out[$chave] = $m[0];
+        return $out;
+    })(),
 ];
