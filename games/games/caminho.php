@@ -888,10 +888,14 @@ tr.tit td{color:var(--red)}
   color:var(--text3);margin-bottom:9px}
 @media(max-width:420px){
   .ficha{padding:13px}
+  /* Em tela estreita idade e valor empilham: lado a lado comiam 90px e
+     sobrava quase nada pro nome do clube. É a mesma solução do Copero, e
+     ela cabe sem crescer o cabeçalho. */
+  .ficha-num{flex-direction:column;gap:2px}
+  .ficha-num b{font-size:15px}
   .ovr-caixa{width:70px;height:70px}
   .ovr-caixa b{font-size:28px}
   .ficha-clube{font-size:17px}
-  .ficha-num{gap:11px}
   .ficha-stats b{font-size:17px}
 }
 
