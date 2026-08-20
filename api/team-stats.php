@@ -10,6 +10,14 @@ header('Content-Type: application/json; charset=utf-8');
 $pdo  = db();
 $user = getUserSession();
 
+// A ficha do time é da sprint em andamento, não da vida inteira da
+// franquia: no fim de sprint o elenco é desmontado, as picks refeitas e o
+// campeão anterior não tem relação com o time de hoje. Misturar as duas
+// infla título, campanha e média de OVR com dados de outro jogo. É a mesma
+// régua do estatisticas.php. As sprints são por liga, então as ativas
+// bastam — cada temporada já sabe de qual sprint é.
+$TEMPORADAS_DA_SPRINT = "(SELECT id FROM seasons WHERE sprint_id IN (SELECT id FROM sprints WHERE status = 'active'))";
+
 $teamId = isset($_GET['team_id']) ? (int)$_GET['team_id'] : 0;
 if (!$teamId) { echo json_encode(['error' => 'team_id obrigatório']); exit; }
 
@@ -19,17 +27,17 @@ $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
 if (!$team) { echo json_encode(['error' => 'Time não encontrado']); exit; }
 
 // ── 1. Pontos por temporada ───────────────────────────────────────
-$stmtPts = $pdo->prepare("SELECT COUNT(*) AS seasons_played, SUM(points) AS total_points, MAX(points) AS best_season_pts FROM team_season_points WHERE team_id = ?");
+$stmtPts = $pdo->prepare("SELECT COUNT(*) AS seasons_played, SUM(points) AS total_points, MAX(points) AS best_season_pts FROM team_season_points WHERE team_id = ? AND season_id IN $TEMPORADAS_DA_SPRINT");
 $stmtPts->execute([$teamId]);
 $ptsData = $stmtPts->fetch(PDO::FETCH_ASSOC);
 
 // ── 2. Playoffs (≥2 pts) ─────────────────────────────────────────
-$stmtPlayoffs = $pdo->prepare("SELECT COUNT(*) AS playoff_appearances FROM team_season_points WHERE team_id = ? AND points >= 2");
+$stmtPlayoffs = $pdo->prepare("SELECT COUNT(*) AS playoff_appearances FROM team_season_points WHERE team_id = ? AND points >= 2 AND season_id IN $TEMPORADAS_DA_SPRINT");
 $stmtPlayoffs->execute([$teamId]);
 $playoffData = $stmtPlayoffs->fetch(PDO::FETCH_ASSOC);
 
 // ── 3. Temporada regular via team_ranking_points ─────────────────
-$stmtStandings = $pdo->prepare("SELECT regular_season_points, playoff_champion, playoff_runner_up, playoff_conference_finals, playoff_second_round, playoff_first_round FROM team_ranking_points WHERE team_id = ?");
+$stmtStandings = $pdo->prepare("SELECT regular_season_points, playoff_champion, playoff_runner_up, playoff_conference_finals, playoff_second_round, playoff_first_round FROM team_ranking_points WHERE team_id = ? AND season_id IN $TEMPORADAS_DA_SPRINT");
 $stmtStandings->execute([$teamId]);
 $standingsRaw = $stmtStandings->fetchAll(PDO::FETCH_ASSOC);
 $top1Regular = 0; $top4Regular = 0; $top8Regular = 0;
@@ -40,11 +48,11 @@ foreach ($standingsRaw as $r) {
 }
 
 // ── 4. Títulos e playoffs por fase ───────────────────────────────
-$stmtTitles = $pdo->prepare("SELECT SUM(champion_team_id=?) AS titles, SUM(runner_up_team_id=?) AS runner_ups FROM season_history");
+$stmtTitles = $pdo->prepare("SELECT SUM(champion_team_id=?) AS titles, SUM(runner_up_team_id=?) AS runner_ups FROM season_history WHERE season_id IN $TEMPORADAS_DA_SPRINT");
 $stmtTitles->execute([$teamId, $teamId]);
 $titlesData = $stmtTitles->fetch(PDO::FETCH_ASSOC);
 
-$stmtChampSeasons = $pdo->prepare("SELECT season_id, year, season_number FROM season_history WHERE champion_team_id = ? ORDER BY year DESC");
+$stmtChampSeasons = $pdo->prepare("SELECT season_id, year, season_number FROM season_history WHERE champion_team_id = ? AND season_id IN $TEMPORADAS_DA_SPRINT ORDER BY year DESC");
 $stmtChampSeasons->execute([$teamId]);
 $champSeasons = $stmtChampSeasons->fetchAll(PDO::FETCH_ASSOC);
 
@@ -71,27 +79,27 @@ try {
 } catch (Exception $e) {}
 
 // ── 7. Jogadores históricos ──────────────────────────────────────
-$stmtAllPlayers = $pdo->prepare("SELECT COUNT(DISTINCT player_id) AS total FROM player_season_log WHERE team_id = ?");
+$stmtAllPlayers = $pdo->prepare("SELECT COUNT(DISTINCT player_id) AS total FROM player_season_log WHERE team_id = ? AND season_id IN $TEMPORADAS_DA_SPRINT");
 $stmtAllPlayers->execute([$teamId]);
 $totalPlayers = (int)$stmtAllPlayers->fetch(PDO::FETCH_ASSOC)['total'];
 
-$stmtBest = $pdo->prepare("SELECT player_name, ovr, position, year FROM player_season_log WHERE team_id = ? ORDER BY ovr DESC LIMIT 1");
+$stmtBest = $pdo->prepare("SELECT player_name, ovr, position, year FROM player_season_log WHERE team_id = ? AND season_id IN $TEMPORADAS_DA_SPRINT ORDER BY ovr DESC LIMIT 1");
 $stmtBest->execute([$teamId]);
 $bestPlayer = $stmtBest->fetch(PDO::FETCH_ASSOC);
 
-$stmtWorst = $pdo->prepare("SELECT player_name, ovr, position, year FROM player_season_log WHERE team_id = ? AND ovr > 0 ORDER BY ovr ASC LIMIT 1");
+$stmtWorst = $pdo->prepare("SELECT player_name, ovr, position, year FROM player_season_log WHERE team_id = ? AND ovr > 0 AND season_id IN $TEMPORADAS_DA_SPRINT ORDER BY ovr ASC LIMIT 1");
 $stmtWorst->execute([$teamId]);
 $worstPlayer = $stmtWorst->fetch(PDO::FETCH_ASSOC);
 
 $bestByPos = [];
 foreach (['PG','SG','SF','PF','C'] as $pos) {
-    $s = $pdo->prepare("SELECT player_name, ovr, year FROM player_season_log WHERE team_id = ? AND position = ? ORDER BY ovr DESC LIMIT 1");
+    $s = $pdo->prepare("SELECT player_name, ovr, year FROM player_season_log WHERE team_id = ? AND position = ? AND season_id IN $TEMPORADAS_DA_SPRINT ORDER BY ovr DESC LIMIT 1");
     $s->execute([$teamId, $pos]);
     $bestByPos[$pos] = $s->fetch(PDO::FETCH_ASSOC) ?: null;
 }
 
 // Média de OVR e idade usando apenas top 5 (titulares) por temporada
-$stmtSeasons = $pdo->prepare("SELECT DISTINCT season_id, year FROM player_season_log WHERE team_id = ? AND year IS NOT NULL ORDER BY year ASC");
+$stmtSeasons = $pdo->prepare("SELECT DISTINCT season_id, year FROM player_season_log WHERE team_id = ? AND year IS NOT NULL AND season_id IN $TEMPORADAS_DA_SPRINT ORDER BY year ASC");
 $stmtSeasons->execute([$teamId]);
 $seasonsList = $stmtSeasons->fetchAll(PDO::FETCH_ASSOC);
 
@@ -140,7 +148,7 @@ try {
                    {$sizeExpr} AS conference_size
             FROM season_standings ss
             JOIN seasons s ON s.id = ss.season_id
-            WHERE ss.team_id = ?
+            WHERE ss.team_id = ? AND ss.season_id IN $TEMPORADAS_DA_SPRINT
             ORDER BY s.year ASC, s.season_number ASC
         ");
         $sPos->execute([$teamId]);
@@ -274,7 +282,7 @@ try {
         SELECT psl.player_id, psl.player_name, MAX(psl.ovr) AS peak_ovr,
                MIN(psl.year) AS first_year, MAX(psl.year) AS last_year
         FROM player_season_log psl
-        WHERE psl.team_id = ?
+        WHERE psl.team_id = ? AND psl.season_id IN $TEMPORADAS_DA_SPRINT
           AND NOT EXISTS (SELECT 1 FROM players p WHERE p.id = psl.player_id)
         GROUP BY psl.player_id, psl.player_name
         HAVING peak_ovr >= 86
@@ -301,13 +309,13 @@ if ($teamLeague) {
         // não guarda de qual draft o jogador veio. Mesma regra do
         // estatisticas.php, que mostra este número lado a lado.
         'drafted' => "SELECT t.id, COUNT(dp.id) AS val FROM teams t
-                      LEFT JOIN draft_pool dp ON dp.drafted_by_team_id = t.id
+                      LEFT JOIN draft_pool dp ON dp.drafted_by_team_id = t.id AND dp.season_id IN $TEMPORADAS_DA_SPRINT
                       WHERE t.league = ? GROUP BY t.id",
         'turnover' => "SELECT t.id, COUNT(DISTINCT psl.player_id) AS val FROM teams t
-                       LEFT JOIN player_season_log psl ON psl.team_id = t.id
+                       LEFT JOIN player_season_log psl ON psl.team_id = t.id AND psl.season_id IN $TEMPORADAS_DA_SPRINT
                        WHERE t.league = ? GROUP BY t.id",
         'fa' => "SELECT t.id, COUNT(far.id) AS val FROM teams t
-                 LEFT JOIN fa_requests far ON far.winner_team_id = t.id AND far.status = 'assigned'
+                 LEFT JOIN fa_requests far ON far.winner_team_id = t.id AND far.status = 'assigned' AND far.season_id IN $TEMPORADAS_DA_SPRINT
                  WHERE t.league = ? GROUP BY t.id",
         'avg_age' => "SELECT t.id, ROUND(AVG(p.age), 1) AS val FROM teams t
                       LEFT JOIN players p ON p.team_id = t.id
@@ -338,7 +346,7 @@ if ($teamLeague) {
 }
 
 // ── 8. Prêmios individuais ───────────────────────────────────────
-$stmtAwards = $pdo->prepare("SELECT award_type, COUNT(*) AS total FROM season_awards WHERE team_id = ? GROUP BY award_type ORDER BY total DESC");
+$stmtAwards = $pdo->prepare("SELECT award_type, COUNT(*) AS total FROM season_awards WHERE team_id = ? AND season_id IN $TEMPORADAS_DA_SPRINT GROUP BY award_type ORDER BY total DESC");
 $stmtAwards->execute([$teamId]);
 $awards = $stmtAwards->fetchAll(PDO::FETCH_ASSOC);
 
@@ -366,7 +374,7 @@ try {
                s.season_number AS drafted_season_number
         FROM draft_pool dp
         LEFT JOIN seasons s ON s.id = dp.season_id
-        WHERE dp.drafted_by_team_id = ?
+        WHERE dp.drafted_by_team_id = ? AND dp.season_id IN $TEMPORADAS_DA_SPRINT
         ORDER BY drafted_season_number DESC, dp.ovr DESC
     ");
     $sD->execute([$teamId]);
@@ -403,7 +411,7 @@ try {
         FROM playoff_series ps
         JOIN seasons s ON s.id = ps.season_id
         LEFT JOIN playoff_results pr ON pr.season_id = ps.season_id AND pr.team_id = ps.team_id
-        WHERE ps.team_id = ?
+        WHERE ps.team_id = ? AND ps.season_id IN $TEMPORADAS_DA_SPRINT
         ORDER BY s.year DESC, s.season_number DESC, FIELD(ps.round,'r1','r2','cf','fin')");
     $stmtSeries->execute([$teamId]);
     $bySeason = [];
