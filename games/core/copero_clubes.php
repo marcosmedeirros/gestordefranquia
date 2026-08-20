@@ -263,7 +263,7 @@ const COPERO_CLUBES = [
     ['Union Berlin', 'DE1', 79, 'https://r2.thesportsdb.com/images/media/team/badge/q0o5001599679795.png'],
 
     // 2. Bundesliga
-    ['Hamburgo', 'DE2', 68, 'https://r2.thesportsdb.com/images/media/team/badge/1pcg031679387881.png'],
+    ['Hamburgo', 'DE2', 68, '/games/img/escudos/hamburgo.svg'],
     ['Schalke 04', 'DE2', 68, 'https://r2.thesportsdb.com/images/media/team/badge/hnci291621593978.png'],
     ['Hertha Berlim', 'DE2', 67, 'https://r2.thesportsdb.com/images/media/team/badge/aszcmz1782623817.png'],
     ['Kaiserslautern', 'DE2', 62, 'https://r2.thesportsdb.com/images/media/team/badge/jghax31740165513.png'],
