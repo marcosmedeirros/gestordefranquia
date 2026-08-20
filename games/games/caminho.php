@@ -443,7 +443,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .col-principal,.col-lado{min-width:0}
 @media (min-width:940px){
   .main{max-width:1040px;padding:14px 20px 24px}
-  .colunas{grid-template-columns:minmax(0,1fr) 350px;align-items:start;gap:18px}
+  /* Ficha à esquerda, trajetória à direita e larga: é o mesmo desenho do
+     Copero, e é o que faz a linha do tempo caber sem apertar o nome dos
+     clubes numa coluna de 350px. */
+  .colunas{grid-template-columns:minmax(0,430px) minmax(0,1fr);align-items:start;gap:18px}
   /* A lateral acompanha a rolagem: numa temporada longa a súmula fica
      comprida, e sem isto o ranking sumia lá em cima. */
   .col-lado{position:sticky;top:76px}
@@ -697,7 +700,7 @@ tr.tit td{color:var(--red)}
 .band{height:14px;width:21px;border-radius:2px;display:block;flex:none;
       box-shadow:0 0 0 1px rgba(255,255,255,.16)}
 .band-sem{font-size:10px;font-weight:700;letter-spacing:.04em;color:var(--text3)}
-.ficha-pais .band{display:inline-block;vertical-align:-2px;margin-right:3px}
+.tag .band{display:inline-block;vertical-align:-2px;margin-right:3px}
 .nac-nome{font-size:12.5px;font-weight:700;color:var(--text2);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
 .nac-item.on .nac-nome{color:var(--text)}
@@ -822,54 +825,76 @@ tr.tit td{color:var(--red)}
 .ovr-barra{flex:1;height:7px;background:var(--panel3);border-radius:99px;overflow:hidden}
 .ovr-barra i{display:block;height:100%;background:var(--cor);border-radius:99px;transition:width .5s}
 
-/* ═══ FICHA DO JOGADOR ═══════════════════════════════════════════════
-   O OVR sai da linha fina e vira bloco: ele é a primeira coisa que a
-   pessoa procura ao abrir a tela, e procurar num texto de 12px é
-   trabalho. O resto (país, camisa, clube, valor) fica ao lado, na ordem
-   em que se lê uma ficha de verdade. */
-.ficha{display:flex;align-items:stretch;gap:0;background:var(--panel2);
-  border-bottom:1px solid var(--border);position:relative;overflow:hidden}
+/* ═══ A FICHA — mesmo molde do Copero ════════════════════════════════
+   Uma caixa só: OVR grande, clube, números da vida, etiquetas, vitrine,
+   totais e o boletim do ano. Os dois jogos leem igual; o que muda é o
+   esporte dentro. */
+.caixa{background:var(--panel);border:1px solid var(--border);border-radius:16px}
+.ficha{padding:16px;position:relative;overflow:hidden}
 /* O escudo do time como marca d'água: grande, cortado pela borda e quase
    apagado — dá peso ao clube sem disputar com o texto. */
-.ficha-marca{position:absolute;right:-30px;top:50%;transform:translateY(-50%);
-  opacity:.085;pointer-events:none;z-index:0}
+.ficha-marca{position:absolute;right:-30px;top:44px;opacity:.085;pointer-events:none;z-index:0}
 .ficha-marca .marca-logo,.ficha-marca .marca-time{width:140px!important;height:140px!important;
   border-radius:0;box-shadow:none}
-.ficha > *:not(.ficha-marca){position:relative;z-index:1}
-.ficha-ovr{flex:none;width:88px;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:1px;padding:12px 6px;
-  background:linear-gradient(160deg,color-mix(in srgb,var(--cor) 88%,#000),color-mix(in srgb,var(--cor) 55%,#000));
-  color:#fff}
-.ficha-ovr-rot{font-size:8.5px;font-weight:800;letter-spacing:1.4px;opacity:.85}
-.ficha-ovr b{font-family:var(--num);font-size:38px;font-weight:900;letter-spacing:-2px;line-height:.95;
+.ficha > *{position:relative;z-index:1}
+
+.ficha-topo{display:flex;align-items:center;gap:13px;margin-bottom:11px}
+.ovr-caixa{width:82px;height:82px;border-radius:14px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:2px;flex:none;color:#fff;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--cor) 90%,#000),color-mix(in srgb,var(--cor) 52%,#000))}
+.ovr-caixa small{font-size:9px;font-weight:800;letter-spacing:1px;opacity:.8}
+.ovr-caixa b{font-family:var(--num);font-size:33px;font-weight:900;line-height:1;letter-spacing:-1.5px;
   font-variant-numeric:tabular-nums}
-.ficha-ovr-delta{font-family:var(--num);font-size:11px;font-weight:800;
-  background:rgba(0,0,0,.28);border-radius:99px;padding:1px 8px;font-variant-numeric:tabular-nums}
-.ficha-clube{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;
-  gap:7px;padding:11px 14px}
-.ficha-linha1{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:10px;font-weight:800;
-  letter-spacing:.4px}
-.ficha-pais{color:var(--text2)}
-.ficha-num{color:var(--text);background:var(--panel3);border-radius:6px;padding:1px 6px;font-family:var(--num)}
-.ficha-pos{color:var(--red);background:var(--red-soft);border:1px solid var(--red-glow);
-  border-radius:6px;padding:1px 6px}
-.ficha-ano{margin-left:auto;font-family:var(--num);color:var(--text2);letter-spacing:.6px}
-.ficha-linha2{display:flex;align-items:center;gap:9px;min-width:0}
-.ficha-linha2 b{font-size:16px;font-weight:800;letter-spacing:-.2px;color:var(--text);
+.ovr-caixa i{font-family:var(--num);font-style:normal;font-size:10.5px;font-weight:800;
+  background:rgba(0,0,0,.3);border-radius:99px;padding:1px 7px}
+.ficha-info{flex:1 1 90px;min-width:0;display:flex;flex-direction:column;gap:3px}
+.ficha-clube{display:flex;align-items:center;gap:9px;font-size:19px;font-weight:900;letter-spacing:-.5px;
+  white-space:nowrap;overflow:hidden;min-width:0}
+.ficha-clube span{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ficha-liga{font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.3px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ficha-linha3{display:flex;gap:16px;flex-wrap:wrap}
-.ficha-linha3 span{font-size:8.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
-  color:var(--text2);display:flex;flex-direction:column;gap:1px}
-.ficha-linha3 b{font-family:var(--num);font-size:14px;font-weight:800;letter-spacing:-.3px;
-  color:var(--text);font-variant-numeric:tabular-nums}
-.ficha-liga{padding:6px 14px;font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
-  color:var(--text2);background:var(--panel);border-bottom:1px solid var(--border)}
+.ficha-num{flex:none;display:flex;gap:15px;text-align:right;font-size:9.5px;color:var(--text3);
+  font-weight:800;letter-spacing:.5px}
+.ficha-num b{display:block;font-family:var(--num);font-size:18px;color:var(--text);letter-spacing:-.5px;
+  font-variant-numeric:tabular-nums}
+
+.ficha-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tag{display:inline-flex;align-items:center;gap:5px;background:var(--panel3);border-radius:6px;
+  padding:4px 9px;font-size:10.5px;font-weight:800;white-space:nowrap;color:var(--text)}
+.tag svg{width:16px;height:11px;border-radius:2px;flex:none;display:block}
+.tag.idolo{background:var(--blue-soft);color:#bfdbfe}
+
+/* A vitrine: a taça desenhada com a contagem no canto. */
+.vitrine{display:flex;flex-wrap:wrap;gap:9px;padding:11px 0;margin-bottom:2px;
+  border-top:1px solid var(--border)}
+.vitrine.vazia{font-size:11px;color:var(--text3);font-weight:700;padding:10px 0}
+.tacao{position:relative;display:flex;align-items:center}
+.tacao b{position:absolute;right:-4px;bottom:-3px;font-family:var(--num);font-size:9.5px;font-weight:900;
+  background:var(--panel3);border:1px solid var(--border);border-radius:99px;padding:0 4px;color:var(--text)}
+
+.ficha-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:12px 0;margin-bottom:12px}
+.ficha-stats div{text-align:center;min-width:0}
+.ficha-stats span{display:block;font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--text3);
+  text-transform:uppercase;margin-bottom:3px}
+.ficha-stats b{font-family:var(--num);font-size:19px;font-weight:900;letter-spacing:-.6px;
+  font-variant-numeric:tabular-nums}
+
+/* A caixa da trajetória: sem padding, porque a lista já tem o dela. */
+.caixa.linha{padding:0;overflow:hidden}
+.caixa.linha .trajeto{border:none;border-radius:0;background:transparent}
+.ficha-ano{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:11px 12px}
+.ficha-ano-cab{font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
+  color:var(--text3);margin-bottom:9px}
 @media(max-width:420px){
-  .ficha-ovr{width:70px;padding:10px 4px}
-  .ficha-ovr b{font-size:30px}
-  .ficha-clube{padding:10px}
-  .ficha-linha3{gap:11px}
+  .ficha{padding:13px}
+  .ovr-caixa{width:70px;height:70px}
+  .ovr-caixa b{font-size:28px}
+  .ficha-clube{font-size:17px}
+  .ficha-num{gap:11px}
+  .ficha-stats b{font-size:17px}
 }
+
 
 /* ═══ TRAJETÓRIA POR IDADE ═══════════════════════════════════════════
    Lista, não tabela: no celular uma tabela de 6 colunas ou rola de lado
@@ -907,7 +932,7 @@ tr.tit td{color:var(--red)}
 .sel-campeao{color:#fff;box-shadow:inset 0 0 0 2px var(--red)}
 .tj-n.pronta{animation:tjCrava .3s ease-out}
 @keyframes tjCrava{0%{transform:scale(1.45);color:#fff}100%{transform:scale(1)}}
-.ficha-ovr b.cravou{animation:ovrCrava .4s ease-out}
+.ovr-caixa b.cravou{animation:ovrCrava .4s ease-out}
 @keyframes ovrCrava{0%{transform:scale(1.28)}60%{transform:scale(.97)}100%{transform:scale(1)}}
 .sel-formacao{background:var(--panel3);color:var(--text2)}
 .sel-perdida{background:#3f3f46;color:var(--text2)}
@@ -3983,7 +4008,7 @@ const semAnimacao = () => window.matchMedia('(prefers-reduced-motion: reduce)').
  */
 async function animarAno(de, para, idadeLinha){
   if (semAnimacao()) return;
-  const num = document.querySelector('.ficha-ovr b');
+  const num = document.querySelector('.ovr-caixa b');
   if (num && de != null && de !== para){
     const d = para - de;
     const passos = Math.min(Math.abs(d), 12);
@@ -4038,56 +4063,113 @@ async function preencherLinha(idade){
   }
 }
 
+/**
+ * A ficha da carreira, no mesmo molde do Copero.
+ *
+ * Uma caixa só, lida de cima pra baixo: o overall grande à esquerda, o clube
+ * e os números da vida ao lado, as etiquetas de identidade embaixo, a sala de
+ * troféus, os totais de carreira e — por último — o boletim da temporada que
+ * acabou. Era um empilhado de blocos soltos, cada um com uma régua; agora é a
+ * mesma peça dos dois jogos, e o que muda entre eles é o esporte.
+ */
 function placar(st, rotuloAno, time, campanha, premios){
   const {o, d} = deltaOvr();
   const faixa = faixaOvr(o);
   const cor = d > 0 ? "var(--green)" : d < 0 ? "var(--red)" : "var(--text3)";
-  const sinal = d > 0 ? `+${d}` : d < 0 ? `${d}` : "=";
-  const clube = time.split(" · ")[0];
-  return `<div class="placar">
-    <div class="ficha" style="--cor:${faixa[1]}">
-      <div class="ficha-marca" aria-hidden="true">${marca(clube, 140)}</div>
-      <div class="ficha-ovr">
-        <span class="ficha-ovr-rot">OVR</span>
-        <b>${o}</b>
-        <span class="ficha-ovr-delta" style="color:${cor}">${sinal}</span>
+  const sinal = d > 0 ? "+" + d : d < 0 ? String(d) : "=";
+  const clube = String(time || "").split(" · ")[0];
+  const tot = totaisDeCarreira();
+  const anos = temporadasJogadas().length;
+  const nfmt = (v) => Number(v || 0).toLocaleString("pt-BR");
+
+  return `<div class="caixa ficha">
+    <div class="ficha-marca" aria-hidden="true">${marca(clube, 140)}</div>
+    <div class="ficha-topo">
+      <div class="ovr-caixa" style="--cor:${faixa[1]}">
+        <small>OVR</small><b>${o}</b>
+        <i style="color:${cor}">${sinal}</i>
       </div>
-      <div class="ficha-clube">
-        <div class="ficha-linha1">
-          <span class="ficha-pais">${bandeira(S.nac)} ${esc(S.nac)}</span>
-          ${S.numero ? `<span class="ficha-num">#${esc(S.numero)}</span>` : ""}
-          <span class="ficha-pos">${esc(S.pos)}</span>
-          <span class="ficha-ano">${esc(rotuloAno)}</span>
+      <div class="ficha-info">
+        <div class="ficha-clube" title="${esc(clube)}">
+          ${marca(clube, 26)}<span>${esc(clube)}</span>
         </div>
-        <div class="ficha-linha2">
-          ${marca(clube, 28)}
-          <b>${esc(clube)}</b>
-        </div>
-        <div class="ficha-linha3">
-          <span>Idade<b>${S.idade}</b></span>
-          <span>Valor<b>$${valorDeMercado()}M</b></span>
-          <span>Salário<b>$${S.salario}M</b></span>
-        </div>
+        ${S.liga ? `<div class="ficha-liga">${esc(S.liga)}${
+          S.foraDaLiga ? " · fora da liga" : ""}${S.gm ? ` · GM ${esc(S.gm)}` : ""}</div>` : ""}
+      </div>
+      <div class="ficha-num">
+        <div>IDADE<b>${S.idade}</b></div>
+        <div>VALOR<b>$${valorDeMercado()}M</b></div>
       </div>
     </div>
-    ${S.liga ? `<div class="ficha-liga">${esc(S.liga)}${S.foraDaLiga ? " · fora da liga" : ""}${S.gm ? ` · GM ${esc(S.gm)}` : ""}</div>` : ""}
+
+    <div class="ficha-tags">
+      <span class="tag">${bandeira(S.nac)} ${esc(S.nac)}</span>
+      <span class="tag">${esc(S.pos)}</span>
+      ${S.numero ? `<span class="tag">#${esc(S.numero)}</span>` : ""}
+      <span class="tag">${esc(rotuloAno)}</span>
+      <span class="tag">$${S.salario}M/ano</span>
+      ${(S.anosNoClube || 0) >= 6 ? `<span class="tag idolo">Ídolo da casa</span>` : ""}
+    </div>
+
     <div class="ovr-linha" style="--cor:${faixa[1]}">
       <span class="ovr-esq"><span class="ovr-rot">Nível</span><span class="ovr-faixa">${faixa[2]}</span></span>
       <span class="ovr-barra"><i style="width:${clamp(o,0,99)}%"></i></span>
     </div>
-    <div class="linha-stats">
-      <div class="st"><b>${st.pts}</b><span>pontos</span></div>
-      <div class="st"><b>${st.reb}</b><span>rebotes</span></div>
-      <div class="st"><b>${st.ast}</b><span>assist.</span></div>
+
+    ${vitrineTrofeus()}
+
+    <div class="ficha-stats">
+      <div><span>Jogos</span><b>${nfmt(tot.jogos)}</b></div>
+      <div><span>Pontos</span><b>${nfmt(tot.pts)}</b></div>
+      <div><span>Rebotes</span><b>${nfmt(tot.reb)}</b></div>
+      <div><span>Assist.</span><b>${nfmt(tot.ast)}</b></div>
     </div>
-    <div class="linha-mini">
-      <div class="mini"><b>${st.min}</b><span>minutos</span></div>
-      <div class="mini"><b>${st.jogos}</b><span>jogos</span></div>
-      <div class="mini"><b>${S.confianca}</b><span>confiança</span></div>
+
+    <div class="ficha-ano">
+      <div class="ficha-ano-cab">A temporada${anos ? ` · ${anos}ª` : ""}</div>
+      <div class="linha-stats">
+        <div class="st"><b>${st.pts}</b><span>pontos</span></div>
+        <div class="st"><b>${st.reb}</b><span>rebotes</span></div>
+        <div class="st"><b>${st.ast}</b><span>assist.</span></div>
+      </div>
+      <div class="linha-mini">
+        <div class="mini"><b>${st.min}</b><span>minutos</span></div>
+        <div class="mini"><b>${st.jogos}</b><span>jogos</span></div>
+        <div class="mini"><b>${S.confianca}</b><span>confiança</span></div>
+      </div>
+      ${campanha ? `<div class="campanha">${campanha}</div>` : ""}
+      ${premios.length ? `<div class="premios">${premios.map(p=>`<span class="pr ${p.k}">${esc(p.t)}</span>`).join("")}</div>` : ""}
     </div>
-    ${campanha ? `<div class="campanha">${campanha}</div>` : ""}
-    ${premios.length ? `<div class="premios">${premios.map(p=>`<span class="pr ${p.k}">${esc(p.t)}</span>`).join("")}</div>` : ""}
   </div>`;
+}
+
+/**
+ * A vitrine de troféus dentro da ficha, no molde do Copero: a taça desenhada
+ * com a contagem no canto, e não uma lista de "3× MVP". Quatro títulos viram
+ * uma taça com ×4, e quinze linhas de texto viram uma sala de troféus.
+ */
+function vitrineTrofeus(){
+  const t = S.trofeus || {};
+  const ordem = [
+    ["titulo","Título","Títulos"], ["mvp","MVP","MVPs"],
+    ["fmvp","MVP das Finais","MVPs das Finais"], ["copaNBA","Copa NBA","Copas NBA"],
+    ["euro","Euroliga","Euroligas"], ["dpoy","Defensor do Ano","Defensores do Ano"],
+    ["cesta","Cestinha","Cestinhas"], ["roy","Calouro do Ano","Calouro do Ano"],
+    ["ouro","Ouro olímpico","Ouros olímpicos"], ["ouroCopa","Ouro na Copa","Ouros na Copa"],
+    ["prata","Prata olímpica","Pratas olímpicas"], ["prataCopa","Prata na Copa","Pratas na Copa"],
+    ["bronze","Bronze olímpico","Bronzes olímpicos"], ["bronzeCopa","Bronze na Copa","Bronzes na Copa"],
+    ["allstar","All-Star","All-Stars"],
+  ];
+  const itens = ordem.map(([k, um, varios]) => {
+    const n = Math.max(0, Number(t[k]) || 0);
+    if (!n) return "";
+    const svg = tacaNBA(k, 34);
+    if (!svg) return "";
+    return `<span class="tacao" title="${esc(n + "× " + (n === 1 ? um : varios))}">
+      ${svg}${n > 1 ? `<b>×${n}</b>` : ""}</span>`;
+  }).filter(Boolean);
+  if (!itens.length) return `<div class="vitrine vazia">Vitrine vazia</div>`;
+  return `<div class="vitrine">${itens.join("")}</div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -5154,7 +5236,9 @@ function trajetoPorIdade(){
 
 function sumula(){
   if (!S.temporadas.length) return "";
-  return `<h2>Trajetória</h2>` + resumoDeTrofeus() + trajetoPorIdade();
+  // Os troféus subiram pra ficha, ao lado do overall — é lá que o Copero os
+  // põe, e é lá que eles são vistos sem rolar a página.
+  return `<div class="caixa linha">${trajetoPorIdade()}</div>`;
 }
 
 
