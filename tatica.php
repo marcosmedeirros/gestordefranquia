@@ -26,6 +26,13 @@ $temModeloTecnico = in_array(strtoupper((string)$team['league']), ['ELITE', 'NEX
 $MODELOS = $temModeloTecnico ? modelosTecnicosParaJson() : [];
 $SIGLAS  = modeloTecnicoAtributos();
 
+// Quantos dos oito o time já gastou. A conta é do fechamento da janela
+// (ver backend/modelo_tecnico_trocas.php) — aqui só se lê o placar.
+require_once __DIR__ . '/backend/modelo_tecnico_trocas.php';
+$PLACAR = $temModeloTecnico
+    ? modeloTecnicoPlacar($pdo, (int)$team['id'])
+    : ['usados' => 0, 'limite' => 0, 'restam' => 0, 'trocas' => 0, 'historico' => []];
+
 $SLOT_LABELS = ['regular' => 'Tática 1', 'playoffs' => 'Tática 2', 'outra' => 'Tática 3'];
 
 // Mapa compartilhado com o admin — ver backend/tatica_opcoes.php.
@@ -329,7 +336,19 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <div class="mt-cab">
           <div>
             <div class="section-title" style="margin:0"><i class="bi bi-person-badge"></i> Modelo técnico</div>
-            <span class="hint" id="mtRestam"></span>
+            <span class="hint" id="mtRestam"><?php
+              // O que já foi usado, e o que sobra. "Usados" inclui o
+              // primeiro modelo: as oito vagas são um mais sete trocas.
+              if ($PLACAR['usados'] === 0) {
+                  echo 'São ' . $PLACAR['limite'] . ' modelos na edição — o primeiro e mais '
+                     . ($PLACAR['limite'] - 1) . ' trocas. Ainda não usou nenhum.';
+              } else {
+                  echo $PLACAR['usados'] . ' de ' . $PLACAR['limite'] . ' usados · '
+                     . ($PLACAR['restam'] > 0
+                        ? 'restam ' . $PLACAR['restam']
+                        : 'acabaram as trocas');
+              }
+            ?></span>
           </div>
           <button type="button" class="btn ghost" id="btnVerModelos">
             <i class="bi bi-grid-3x3-gap"></i> Ver modelos técnicos
@@ -426,6 +445,7 @@ const MODELOS = <?= json_encode($MODELOS, JSON_UNESCAPED_UNICODE) ?>;
 const SIGLAS  = <?= json_encode($SIGLAS, JSON_UNESCAPED_UNICODE) ?>;
 const TEM_MODELO = <?= $temModeloTecnico ? 'true' : 'false' ?>;
 const MODELO_LIMITE = <?= MODELO_TECNICO_LIMITE ?>;
+const MODELO_PLACAR = <?= json_encode($PLACAR, JSON_UNESCAPED_UNICODE) ?>;
 
 const acharModelo = (chave) => MODELOS.find(m => m.chave === chave) || null;
 

@@ -544,6 +544,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ")->execute([$league]);
         }
 
+        // FECHOU: e a hora de anotar o modelo tecnico de cada time. So no
+        // fechamento — enquanto a janela esta aberta o GM pode trocar e
+        // voltar atras a vontade, e nada disso e decisao. Fechar com o mesmo
+        // de antes nao conta; fechar com outro gasta uma das oito vagas.
+        $modelosRegistrados = null;
+        if ($janela['open'] !== $estadoAntes && !$janela['open']) {
+            require_once __DIR__ . '/../backend/modelo_tecnico_trocas.php';
+            $modelosRegistrados = modeloTecnicoRegistrarLiga($pdo, $league);
+        }
+
         // Só avisa quando a janela realmente virou.
         $virou = $janela['open'] !== $estadoAntes;
         require_once __DIR__ . '/../backend/push.php';
