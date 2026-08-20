@@ -671,7 +671,13 @@ button{font-family:inherit}
 .mov.cai{color:#f87171}
 .ano-ovr{display:inline-flex;align-items:center;justify-content:center;border-radius:6px;padding:2px 0;
   font-size:11.5px;font-weight:800;color:#0a0a0c}
-.ano-n{text-align:right;font-size:12px;color:var(--txt2);font-variant-numeric:tabular-nums}
+/* Ícone + número na mesma célula, encostados à direita. O número em 800
+   porque é o que a linha existe pra mostrar — o resto é moldura. */
+.ano-n{display:flex;align-items:center;justify-content:flex-end;gap:4px;
+  font-size:12.5px;color:var(--txt2);font-variant-numeric:tabular-nums}
+.ano-n b{font-weight:800;color:var(--txt)}
+.ano-n .ic{width:11px;height:11px;flex:none;opacity:.75}
+.ano-n.contando b{color:var(--txt3)}
 /* ── Sala de troféus ────────────────────────────────── */
 .sala{padding:16px 18px;margin-bottom:14px}
 .sala.vazia{text-align:center;color:var(--txt3);font-size:12px;font-weight:800;
@@ -863,6 +869,8 @@ button{font-family:inherit}
      precisa de 72 — saía cortado quase pela metade. Agora cabe; só nome de
      19 letras pra cima trunca, e aí com reticências, como deve ser. */
   .linha-cab,.ano{grid-template-columns:32px minmax(0,1fr) 34px 32px 32px 32px;gap:5px}
+  .ano-n{gap:3px;font-size:12px}
+  .ano-n .ic{width:9px;height:9px}
   .ano{padding:4px 6px;font-size:11.5px}
   .linha-cab{padding:0 6px 7px}
   .ano-clube{gap:6px}
@@ -2298,13 +2306,24 @@ function temporada(){
   // do bom atacante. Com a régua reta de antes, um 94 marcava 30 por ano e o
   // milésimo gol era inalcançável — e o milésimo é o número mítico do
   // futebol, tem que caber numa carreira perfeita.
-  const q = Math.max(0.18, Math.pow(Math.max(0, S.ovr - 42) / 48, 2.3) * 1.95);
+  const q = Math.max(0.18, Math.pow(Math.max(0, S.ovr - 42) / 48, 2.3) * 1.32);
+
+  // CONTRA QUEM ele joga. Faltava isto: a liga não entrava na conta, e um 90
+  // fazia os mesmos 52 gols na Premier e na Série C — o mesmo jogador, contra
+  // zagueiros de 96 e de 54, com o mesmo número no fim do ano.
+  //
+  // Agora conta a distância entre o jogador e a média da liga: quem está 36
+  // acima (um 90 na Série C) encara defesa que não o acompanha e goleia; quem
+  // está abaixo (um 90 na Premier) briga por cada espaço. O teto de 2,05 é o
+  // que faz caber uma temporada de 100 e poucos gols sem virar rotina.
+  const mediaDaLiga = (dadosLiga(S.clube.liga) || {}).media || 72;
+  const folga = Math.max(0.55, Math.min(2.05, 1 + (S.ovr - mediaDaLiga) / 34));
   const t = {
     idade: S.idade, clube: S.clube.nome, liga: S.clube.liga, ovr: S.ovr,
     emprestado: !!S.emprestadoDe,
     jogos,
-    gols: Math.max(0, Math.round(jogos * pesoGol * q * (ri(75,130)/100))),
-    ast:  Math.max(0, Math.round(jogos * pesoAst * q * (ri(70,135)/100))),
+    gols: Math.max(0, Math.round(jogos * pesoGol * q * folga * (ri(75,130)/100))),
+    ast:  Math.max(0, Math.round(jogos * pesoAst * q * folga * (ri(70,135)/100))),
     valor: valorAtual(),
   };
 
@@ -2489,17 +2508,20 @@ async function preencherLinha(idade){
   const linha = document.querySelector(`.ano[data-idade="${idade}"]`);
   if (!linha) return;
   const celulas = [...linha.querySelectorAll('.ano-n[data-alvo]')];
-  if (semAnimacao()) { celulas.forEach(c => c.textContent = c.dataset.alvo); return; }
+  // O número mora no <b> da célula, ao lado do ícone. Escrever na célula
+  // inteira (textContent) apagaria o SVG junto no primeiro passo da contagem.
+  const escrever = (c, v) => { const n = c.querySelector('b') || c; n.textContent = v; };
+  if (semAnimacao()) { celulas.forEach(c => escrever(c, c.dataset.alvo)); return; }
 
   for (const c of celulas){
     const alvo = Number(c.dataset.alvo) || 0;
     c.classList.add('contando');
     const passos = Math.min(alvo, 9);
     for (let i = 1; i <= passos; i++){
-      c.textContent = Math.round(alvo * i / passos);
+      escrever(c, Math.round(alvo * i / passos));
       await dormir(30);
     }
-    c.textContent = alvo;
+    escrever(c, alvo);
     c.classList.remove('contando');
     c.classList.add('pronta');
     await dormir(70);
@@ -2748,9 +2770,12 @@ function linhaDoTempo(){
   const porIdade = {};
   S.temporadas.forEach(t => { porIdade[t.idade] = t; });
 
+  // O ícone desceu do cabeçalho pra cada linha: lá em cima ele se explica uma
+  // vez e some da memória; do lado do número, a linha se lê sozinha em
+  // qualquer altura da tabela, sem subir os olhos pra conferir a coluna.
   let html = `<div class="linha-cab"><span>Idade</span><span>Clube</span><span>OVR</span>
-    <span class="cab-ic" title="Jogos">${ICONES.jogos}</span>
-    ${colunasDoBoletim().map(([r,ch]) => `<span class="cab-ic" title="${r}">${ICONES[ch] || r}</span>`).join('')}</div>`;
+    <span>Jogos</span>
+    ${colunasDoBoletim().map(([r]) => `<span>${r}</span>`).join('')}</div>`;
 
   for (let i = IDADE_INI; i < IDADE_FIM; i++) {
     const t = porIdade[i];
@@ -2768,8 +2793,8 @@ function linhaDoTempo(){
         <span class="ano-idade" style="background:${corDoClube(t.clube)}">${i}</span>
         <span class="ano-clube" title="${esc(t.clube)}">${escudo(c, 20)}<span>${esc(nomeCurto(t.clube))}</span>${setaMov(t.movimento)}${selosDoAno(t)}</span>
         <span class="ano-ovr" style="background:${cor}">${t.ovr}</span>
-        <span class="ano-n" data-alvo="${t.jogos}">${vazio(t.jogos)}</span>${
-          colunasDoBoletim().map(([,k]) => `<span class="ano-n" data-alvo="${t[k] || 0}">${vazio(t[k] || 0)}</span>`).join('')}
+        <span class="ano-n" data-alvo="${t.jogos}">${ICONES.jogos}<b>${vazio(t.jogos)}</b></span>${
+          colunasDoBoletim().map(([,k]) => `<span class="ano-n" data-alvo="${t[k] || 0}">${ICONES[k] || ''}<b>${vazio(t[k] || 0)}</b></span>`).join('')}
       </div>`;
     } else if (atual) {
       html += `<div class="ano atual">
