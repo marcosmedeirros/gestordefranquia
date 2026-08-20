@@ -641,6 +641,18 @@ button{font-family:inherit}
   align-items:center}
 .linha-cab{font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--txt3);
   padding:0 8px 7px}
+/* O desenho da coluna: herda a cor do texto do cabeçalho, e some no lugar
+   onde o rótulo escrito não cabia. */
+.cab-ic{display:flex;justify-content:flex-end;align-items:center}
+.ic{width:13px;height:13px;fill:currentColor;stroke:currentColor;stroke-width:0;opacity:.9}
+.ic .ic-linha{fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
+.ic .ic-rede{fill:none;stroke:currentColor;stroke-width:.6;opacity:.5}
+.ic .ic-corte{fill:none;stroke:currentColor;stroke-width:1}
+/* O gomo da bola e o vão da rede são pintados da cor do FUNDO: é assim que
+   um desenho de 13px mostra um buraco sem precisar de recorte. */
+.ic .ic-neg{fill:var(--panel);stroke:var(--panel);stroke-width:1.3;stroke-linejoin:round}
+.ic .ic-fundo{fill:var(--panel);stroke:var(--panel);stroke-width:2.6}
+.ic .ic-punho{fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round}
 .ano{padding:4px 8px;border-radius:8px;font-size:12.5px}
 .ano + .ano{margin-top:1px}
 .ano.vazio{color:var(--txt3)}
@@ -1043,6 +1055,22 @@ function ehRival(a, b){
 }
 
 const ehGoleiro = () => S && S.posicao === 'GOL';
+
+/**
+ * Os desenhinhos das colunas do boletim.
+ *
+ * A coluna é estreita e o rótulo escrito ("Gols", "Ast") ocupa mais espaço
+ * que o número que ele nomeia. O desenho diz a mesma coisa em 13px e não
+ * depende da fonte de emoji do aparelho — que muda de um telefone pro outro
+ * e às vezes nem existe.
+ */
+const ICONES = {
+  jogos: '<svg viewBox="0 0 16 16" class="ic"><path d="M2.2 13V4.4h11.6V13" class="ic-linha"/><path d="M1.2 13h13.6" class="ic-linha"/><path d="M5.1 4.4V13M8 4.4V13M10.9 4.4V13M2.2 7.3h11.6M2.2 10.2h11.6" class="ic-rede"/></svg>',
+  gols: '<svg viewBox="0 0 16 16" class="ic"><circle cx="8" cy="8" r="6.4"/><path d="M8 4.2 10.7 6.2 9.7 9.4H6.3L5.3 6.2z" class="ic-neg"/><path d="M8 1.6v2.6M2.2 6l3.1 1.1M13.8 6l-3.1 1.1M4.6 13.3l1.7-3.9M11.4 13.3l-1.7-3.9" class="ic-corte"/></svg>',
+  ast: '<svg viewBox="0 0 16 16" class="ic"><path d="M2.2 11.2c2.7.8 5.1 0 7-1.7" class="ic-linha" fill="none"/><path d="M9.3 5.9 13.6 8.9 8.8 11.6z"/><circle cx="3" cy="12.7" r="1.7"/></svg>',
+  gs: '<svg viewBox="0 0 16 16" class="ic"><path d="M1.6 12.8V4.6h12.8v8.2" class="ic-linha"/><path d="M4.4 4.6v8.2M8 4.6v8.2M11.6 4.6v8.2M1.6 7.3h12.8M1.6 10h12.8" class="ic-rede"/><circle cx="10.6" cy="9.6" r="2.6" class="ic-fundo"/><circle cx="10.6" cy="9.6" r="2.6"/></svg>',
+  cs: '<svg viewBox="0 0 16 16" class="ic"><path d="M4 14.2V8.1c0-.7.5-1.2 1.1-1.2.6 0 1.1.5 1.1 1.2V4.9c0-.7.5-1.2 1.1-1.2.6 0 1.1.5 1.1 1.2v2.6c0-.7.5-1.2 1.1-1.2.6 0 1.1.5 1.1 1.2v2.1c.5-.7 1.4-.8 1.9-.2.4.5.3 1.3-.2 1.9l-2 2.9z"/><path d="M3.6 14.2h8.2" class="ic-punho"/></svg>',
+};
 const COLUNAS_GOL   = [['GS','gs'], ['CS','cs']];
 const COLUNAS_LINHA = [['Gols','gols'], ['Ast','ast']];
 const colunasDoBoletim = () => ehGoleiro() ? COLUNAS_GOL : COLUNAS_LINHA;
@@ -1088,7 +1116,7 @@ async function animarOvr(de, para){
     for (let i = 1; i <= passos; i++) {
       num.textContent = Math.round(de + (d * i / passos));
       caixa.style.background = corDoOvr(Number(num.textContent));
-      await dormir(38 + Math.round(150 * Math.pow(i / passos, 3)));
+      await dormir(80 + Math.round(340 * Math.pow(i / passos, 3)));
     }
     num.textContent = para;
   }
@@ -2721,8 +2749,8 @@ function linhaDoTempo(){
   S.temporadas.forEach(t => { porIdade[t.idade] = t; });
 
   let html = `<div class="linha-cab"><span>Idade</span><span>Clube</span><span>OVR</span>
-    <span style="text-align:right">Jogos</span>
-    ${colunasDoBoletim().map(([r]) => `<span style="text-align:right">${r}</span>`).join('')}</div>`;
+    <span class="cab-ic" title="Jogos">${ICONES.jogos}</span>
+    ${colunasDoBoletim().map(([r,ch]) => `<span class="cab-ic" title="${r}">${ICONES[ch] || r}</span>`).join('')}</div>`;
 
   for (let i = IDADE_INI; i < IDADE_FIM; i++) {
     const t = porIdade[i];

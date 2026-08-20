@@ -4041,7 +4041,7 @@ async function animarAno(de, para, idadeLinha){
       num.textContent = Math.round(de + d * i / passos);
       // Rápido no começo, freando nos últimos: o que interessa é onde ele
       // para, não o caminho até lá.
-      await dormir(38 + Math.round(150 * Math.pow(i / passos, 3)));
+      await dormir(80 + Math.round(340 * Math.pow(i / passos, 3)));
     }
     num.textContent = para;
     num.classList.add('cravou');
