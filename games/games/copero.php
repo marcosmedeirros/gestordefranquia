@@ -2090,6 +2090,7 @@ function ofertasDeEmprestimo(quantos){
 async function aceitarEmprestimo(i){
   const c = (S.opcoes || [])[i];
   if (!c) return;
+  S.fase = 'jogando';
   // O dono é sempre o ORIGINAL: rodar por três clubes emprestado não muda
   // de quem você é.
   if (!S.emprestadoDe) S.emprestadoDe = S.clube;
@@ -2101,6 +2102,7 @@ async function aceitarEmprestimo(i){
 /** Recusa: fica no clube grande e briga por espaço. */
 async function recusarEmprestimo(){
   S.recusouEmprestimo = true;
+  S.fase = 'jogando';
   await jogarAnos();
 }
 
@@ -2108,12 +2110,14 @@ async function recusarEmprestimo(){
 async function voltarDoEmprestimo(){
   S.clube = S.emprestadoDe;
   S.emprestadoDe = null;
+  S.fase = 'jogando';
   await jogarAnos();
 }
 
 /** Fica de vez no clube onde jogou emprestado. */
 async function ficarNoEmprestimo(){
   S.emprestadoDe = null;
+  S.fase = 'jogando';
   S.maiorForcaClube = Math.max(S.maiorForcaClube, S.clube.forca);
   await jogarAnos();
 }
@@ -2185,6 +2189,7 @@ async function assinar(clube){
   }
 
   S.clube = clube;
+  S.fase = 'jogando';
   if (!S.temporadas.length) {
     const l = dadosLiga(clube.liga);
     S.comecouAbaixo = !!(l && l.nivel >= 2);
@@ -2444,6 +2449,7 @@ async function escolherCarta(i){
   await animarOvr(antes, S.ovr);
   await dormir(900);
   S.evento = null; S.resultado = null;
+  S.fase = 'jogando';
   await jogarAnos();
 }
 
