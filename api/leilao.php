@@ -8,6 +8,7 @@ require_once __DIR__ . '/../backend/config.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/push.php';
+require_once __DIR__ . '/../backend/salary_cap.php'; // conta do cap na proposta
 
 header('Content-Type: application/json');
 
@@ -298,7 +299,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 echo json_encode(['success' => false, 'error' => 'Acesso negado']);
                 exit;
             }
-            listarLeiloesTemporarios($pdo);
+            $tempLeagueId = isset($_GET['league_id']) ? (int)$_GET['league_id'] : null;
+            listarLeiloesTemporarios($pdo, $tempLeagueId ?: null);
             break;
         case 'minhas_propostas':
             minhasPropostas($pdo, $team_id, $league_id);
@@ -322,6 +324,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 $league_id_param = (int)$_GET['league_id'];
             }
             historicoLeiloes($pdo, $league_id_param);
+            break;
+        case 'cap_leilao':
+            capDoLeilao($pdo, (int)($_GET['leilao_id'] ?? 0), $team_id);
             break;
         case 'minhas_picks':
             minhasPicks($pdo, $team_id, $league_id);
@@ -418,6 +423,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Erro interno do servidor.']);
             }
+            break;
+        case 'excluir_cancelado':
+            if (!$is_admin) {
+                echo json_encode(['success' => false, 'error' => 'Acesso negado']);
+                exit;
+            }
+            excluirLeilaoCancelado($pdo, $body);
             break;
         case 'cancelar':
             if (!$is_admin) {
@@ -554,7 +566,7 @@ function listarLeiloesAdmin($pdo, ?int $league_id = null) {
     echo json_encode(['success' => true, 'leiloes' => $leiloes]);
 }
 
-function listarLeiloesTemporarios($pdo) {
+function listarLeiloesTemporarios($pdo, ?int $league_id = null) {
     $ovrColumn = playerOvrColumn($pdo);
     $sql = "SELECT l.*, 
                    COALESCE(l.temp_name, p.name) as player_name, 
@@ -568,9 +580,26 @@ function listarLeiloesTemporarios($pdo) {
             LEFT JOIN players p ON l.player_id = p.id
             LEFT JOIN teams t ON l.team_id = t.id
         LEFT JOIN leagues lg ON l.league_id = lg.id
-            WHERE (l.is_temp_player = 1 OR l.temp_name IS NOT NULL)
-            ORDER BY l.created_at DESC";
-    $stmt = $pdo->query($sql);
+            WHERE (l.is_temp_player = 1 OR l.temp_name IS NOT NULL)";
+    $params = [];
+    if ($league_id) {
+        $sql .= ' AND l.league_id = ?';
+        $params[] = $league_id;
+        if ($corte = corteDaSprintDoLeilao($pdo, $league_id)) {
+            $sql .= ' AND l.created_at >= ?';
+            $params[] = $corte;
+        }
+    } else {
+        // Sem liga escolhida, o corte é o de cada uma: o admin vê todas as
+        // ligas de uma vez, e cada sprint começou num dia diferente.
+        $sql .= " AND (l.league_id IS NULL OR EXISTS (
+                        SELECT 1 FROM leagues lgx
+                        JOIN sprints spx ON spx.league = lgx.name AND spx.status = 'active'
+                        WHERE lgx.id = l.league_id AND l.created_at >= spx.start_date))";
+    }
+    $sql .= ' ORDER BY l.created_at DESC';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
     $leiloes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode(['success' => true, 'leiloes' => $leiloes]);
 }
@@ -1170,6 +1199,177 @@ function cancelarLeilao($pdo, $body) {
     echo json_encode(['success' => true]);
 }
 
+/**
+ * Apaga de vez um leilão cancelado, com tudo o que pendurou nele.
+ *
+ * Cancelado não vira histórico nem estatística — é leilão que não
+ * aconteceu, e ficava acumulando na lista do admin sem servir a ninguém.
+ * Só cancelado: finalizado é história da liga e não se apaga.
+ *
+ * As tabelas filhas saem na mão porque nem toda base tem FK com CASCADE —
+ * as mais antigas foram criadas sem.
+ */
+/**
+ * Os números que a tela precisa pra fazer a conta do cap enquanto o GM
+ * monta a proposta, sem uma ida ao servidor por clique.
+ *
+ * Manda o salário do jogador leiloado, o espaço de quem está montando e o
+ * preço de cada jogador dos dois elencos. Fora da ELITE devolve aplica=false
+ * e a tela nem mostra a conta — lá o leilão não tem trava de cap.
+ */
+function capDoLeilao(PDO $pdo, int $leilao_id, $team_id): void
+{
+    if (!$leilao_id || !$team_id) {
+        echo json_encode(['success' => true, 'aplica' => false]);
+        return;
+    }
+    $ovrCol = playerOvrColumn($pdo);
+    $st = $pdo->prepare("SELECT l.team_id, l.player_id, l.temp_ovr,
+                                COALESCE(l.temp_name, p.name) AS nome,
+                                COALESCE(l.temp_position, p.position) AS posicao,
+                                COALESCE(l.temp_age, p.age) AS idade,
+                                COALESCE(l.temp_ovr, p.{$ovrCol}) AS ovr
+                         FROM leilao_jogadores l
+                         LEFT JOIN players p ON p.id = l.player_id
+                         WHERE l.id = ?");
+    $st->execute([$leilao_id]);
+    $leilao = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$leilao) {
+        echo json_encode(['success' => true, 'aplica' => false]);
+        return;
+    }
+
+    $base = leilaoImpactoNoCap($pdo, (int)$team_id, $leilao, [], []);
+    $ficha = ['nome' => $leilao['nome'] ?? null, 'posicao' => $leilao['posicao'] ?? null,
+              'idade' => $leilao['idade'] !== null ? (int)$leilao['idade'] : null,
+              'ovr'   => $leilao['ovr'] !== null ? (int)$leilao['ovr'] : null];
+    if (!$base['aplica']) {
+        echo json_encode(['success' => true, 'aplica' => false, 'alvo' => $ficha]);
+        return;
+    }
+
+    $st = $pdo->prepare("SELECT league FROM teams WHERE id = ?");
+    $st->execute([$team_id]);
+    $liga = (string)$st->fetchColumn();
+
+    echo json_encode([
+        'success'          => true,
+        'aplica'           => true,
+        'alvo'             => $ficha,
+        'espaco'           => $base['espaco'],
+        'salario_do_alvo'  => $base['recebe'],
+        'meus_salarios'    => capSalariosDoTime($pdo, (int)$team_id, $liga),
+        'salarios_vendedor'=> !empty($leilao['team_id'])
+                                ? capSalariosDoTime($pdo, (int)$leilao['team_id'], $liga)
+                                : (object)[],
+    ]);
+}
+
+/**
+ * O que uma proposta de leilão faz com o cap de quem propõe.
+ *
+ * Diferente da trade: aqui NÃO vale a regra dos 120%. O leilão é disputa
+ * aberta, não troca casada — o único limite é o teto. Quem recebe 20M e
+ * manda 8M sobe 12M de folha, e isso precisa caber no espaço que ele tem.
+ * Para ficar dentro, ou manda mais salário, ou some do leilão.
+ *
+ * Fora da ELITE não há conta a fazer: lá o cap é soma de OVR e a liga
+ * deixa estourar no leilão de propósito.
+ *
+ * Devolve ['aplica' => bool, 'recebe' => int, 'envia' => int,
+ *          'delta' => int, 'espaco' => int, 'cabe' => bool].
+ */
+function leilaoImpactoNoCap(PDO $pdo, int $team_id, array $leilao, array $player_ids, array $extra_player_ids): array
+{
+    $vazio = ['aplica' => false, 'recebe' => 0, 'envia' => 0, 'delta' => 0, 'espaco' => 0, 'cabe' => true];
+
+    $st = $pdo->prepare("SELECT league FROM teams WHERE id = ?");
+    $st->execute([$team_id]);
+    $liga = (string)($st->fetchColumn() ?: '');
+    if ($liga === '' || !capLigaUsaSalario($pdo, $liga)) return $vazio;
+
+    // O que entra: o jogador leiloado + o que o comprador pediu de extra.
+    $recebe = 0;
+    $sellerTeamId = (int)($leilao['team_id'] ?? 0);
+    $salariosDoVendedor = $sellerTeamId ? capSalariosDoTime($pdo, $sellerTeamId, $liga) : [];
+
+    $playerId = (int)($leilao['player_id'] ?? 0);
+    if ($playerId && isset($salariosDoVendedor[$playerId])) {
+        $recebe += (int)$salariosDoVendedor[$playerId];
+    } else {
+        // Jogador avulso (cadastrado só pro leilão): não está em elenco
+        // nenhum, então o salário é o da tabela por OVR.
+        $recebe += capOvrSalary((int)($leilao['temp_ovr'] ?? 0));
+    }
+    foreach ($extra_player_ids as $pid) {
+        $recebe += (int)($salariosDoVendedor[(int)$pid] ?? 0);
+    }
+
+    // O que sai: os jogadores que o comprador oferece.
+    $envia = 0;
+    if ($player_ids) {
+        $meus = capSalariosDoTime($pdo, $team_id, $liga);
+        foreach ($player_ids as $pid) $envia += (int)($meus[(int)$pid] ?? 0);
+    }
+
+    $espaco = 0;
+    try { $espaco = (int)getTeamCapSummary($pdo, $team_id)['space']; } catch (Throwable $e) {}
+
+    $delta = $recebe - $envia;
+    return [
+        'aplica' => true,
+        'recebe' => $recebe,
+        'envia'  => $envia,
+        'delta'  => $delta,
+        'espaco' => $espaco,
+        // Delta <= 0 sempre cabe: quem manda mais salário do que recebe
+        // está abrindo espaço, não gastando.
+        'cabe'   => $delta <= max(0, $espaco),
+    ];
+}
+
+function excluirLeilaoCancelado($pdo, $body) {
+    $leilao_id = (int)($body['leilao_id'] ?? 0);
+    if (!$leilao_id) {
+        echo json_encode(['success' => false, 'error' => 'ID do leilao nao informado']);
+        return;
+    }
+
+    $stmt = $pdo->prepare("SELECT status FROM leilao_jogadores WHERE id = ?");
+    $stmt->execute([$leilao_id]);
+    $status = $stmt->fetchColumn();
+    if ($status === false) {
+        echo json_encode(['success' => false, 'error' => 'Leilao nao encontrado']);
+        return;
+    }
+    if ($status !== 'cancelado') {
+        echo json_encode(['success' => false, 'error' => 'So da pra excluir leilao cancelado.']);
+        return;
+    }
+
+    try {
+        $pdo->beginTransaction();
+        // Filhas das propostas primeiro, depois as propostas, depois o leilão.
+        foreach (['leilao_proposta_jogadores', 'leilao_proposta_picks',
+                  'leilao_proposta_extra_players', 'leilao_proposta_extra_picks'] as $tab) {
+            try {
+                $pdo->prepare("DELETE f FROM {$tab} f
+                               JOIN leilao_propostas lp ON lp.id = f.proposta_id
+                               WHERE lp.leilao_id = ?")->execute([$leilao_id]);
+            } catch (Throwable $e) { /* tabela ausente em base antiga */ }
+        }
+        try { $pdo->prepare("DELETE FROM leilao_mensagens WHERE leilao_id = ?")->execute([$leilao_id]); } catch (Throwable $e) {}
+        $pdo->prepare("DELETE FROM leilao_propostas WHERE leilao_id = ?")->execute([$leilao_id]);
+        $pdo->prepare("DELETE FROM leilao_jogadores WHERE id = ?")->execute([$leilao_id]);
+        $pdo->commit();
+        echo json_encode(['success' => true]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('excluirLeilaoCancelado #' . $leilao_id . ': ' . $e->getMessage());
+        echo json_encode(['success' => false, 'error' => 'Erro ao excluir o leilao.']);
+    }
+}
+
 function enviarProposta($pdo, $body, $team_id, $league_id) {
     if (!$team_id) {
         echo json_encode(['success' => false, 'error' => 'Voce precisa ter um time para enviar propostas']);
@@ -1312,6 +1512,18 @@ function enviarProposta($pdo, $body, $team_id, $league_id) {
             echo json_encode(['success' => false, 'error' => 'Algumas picks extras não pertencem ao vendedor']);
             return;
         }
+    }
+
+    // Cap: no leilão a única trava é o teto (sem a regra dos 120% da trade).
+    $impacto = leilaoImpactoNoCap($pdo, (int)$team_id, $leilao, $player_ids, $extra_player_ids);
+    if ($impacto['aplica'] && !$impacto['cabe']) {
+        $falta = $impacto['delta'] - max(0, $impacto['espaco']);
+        echo json_encode(['success' => false,
+            'error' => "Essa proposta te deixa {$falta}M acima do teto: você recebe {$impacto['recebe']}M, "
+                     . "manda {$impacto['envia']}M e tem {$impacto['espaco']}M de espaço. "
+                     . 'Inclua mais salário na oferta pra fechar a conta.',
+            'cap' => $impacto]);
+        return;
     }
 
     $pdo->beginTransaction();

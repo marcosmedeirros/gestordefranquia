@@ -156,6 +156,76 @@ $minhaLiga = strtoupper(trim((string)($team['league'] ?? $user['league'] ?? ''))
         .panel-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 16px; }
         .panel-card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
         .panel-card-title { font-size: 14px; font-weight: 600; color: var(--text); }
+
+        /* ── Modal de proposta: dois lados, como na trade ──────────────
+           O que sai à esquerda, o que entra à direita, e no meio da direita
+           o jogador leiloado — fixo, porque ele é o motivo da proposta. */
+        .prop-lados { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+        .prop-lado { min-width: 0; }
+        .prop-lado-head {
+            display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+            padding-bottom: 8px; margin-bottom: 12px; border-bottom: 1px solid var(--border);
+        }
+        .prop-lado-tit { font-size: 13px; font-weight: 700; color: var(--red); }
+        .prop-lado-soma { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+        .prop-bloco { margin-bottom: 16px; }
+        .prop-bloco-tit {
+            font-size: 11px; font-weight: 700; color: var(--text-3);
+            text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px;
+        }
+        .prop-bloco-nota { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--text-3); }
+        .prop-sub-tit { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+        .prop-vazio { color: var(--text-3); font-size: 13px; margin: 0; }
+
+        /* O card fixo do jogador leiloado */
+        .prop-alvo {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+            padding: 12px 14px; border-radius: 10px;
+            background: color-mix(in srgb, var(--red) 8%, transparent);
+            border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+        }
+        .prop-alvo-sel { color: var(--red); font-size: 13px; flex: none; }
+        .prop-alvo-meio { min-width: 0; flex: 1; }
+        .prop-alvo-nome { font-size: 14.5px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .prop-alvo-sub { font-size: 11.5px; color: var(--text-2); margin-top: 2px; }
+        .prop-alvo-ovr { flex: none; text-align: center; }
+        .prop-alvo-ovr b { display: block; font-size: 18px; font-weight: 700; color: var(--red); line-height: 1; font-variant-numeric: tabular-nums; }
+        .prop-alvo-ovr span { font-size: 9px; color: var(--text-3); letter-spacing: .08em; }
+
+        .prop-mais {
+            display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 8px;
+            padding: 9px 12px; border-radius: 8px; cursor: pointer; text-align: left;
+            background: transparent; border: 1px dashed var(--border-md);
+            color: var(--text-2); font-size: 12.5px; font-weight: 600; font-family: var(--font);
+        }
+        .prop-mais:hover { border-color: var(--red); color: var(--text); }
+
+        /* A conta do cap, embaixo dos dois lados */
+        .prop-cap {
+            margin-top: 4px; padding: 12px 14px; border-radius: 10px;
+            background: var(--panel-2); border: 1px solid var(--border);
+        }
+        .prop-cap-linha {
+            display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: baseline;
+            font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em;
+        }
+        .prop-cap-linha b {
+            font-size: 15px; font-weight: 700; color: var(--text);
+            text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums;
+        }
+        .prop-cap-veredito { margin-top: 8px; font-size: 12.5px; line-height: 1.45; }
+        .prop-cap.cabe { border-color: color-mix(in srgb, var(--green) 35%, transparent); }
+        .prop-cap.cabe .prop-cap-veredito { color: var(--green); }
+        .prop-cap.estoura { border-color: color-mix(in srgb, var(--red) 40%, transparent); }
+        .prop-cap.estoura .prop-cap-veredito { color: var(--red); }
+        .prop-cap.estoura #propCapDelta { color: var(--red); }
+
+        @media (max-width: 820px) {
+            /* Empilhado: no celular ninguém compara duas colunas de 160px. */
+            .prop-lados { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+            .prop-cap-linha { gap: 4px 14px; }
+            .prop-cap-linha b { font-size: 14px; }
+        }
         .panel-card-icon { color: var(--red); font-size: 15px; }
         .panel-card-body { padding: 20px; }
         /* Forms */
@@ -389,43 +459,86 @@ $minhaLiga = strtoupper(trim((string)($team['league'] ?? $user['league'] ?? ''))
 
 <!-- Modal: Proposta de Troca -->
 <div class="modal fade" id="modalProposta" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-send" style="color:var(--red)"></i>Enviar Proposta de Troca</h5>
+                <h5 class="modal-title"><i class="bi bi-arrow-left-right me-2" style="color:var(--red)"></i>Proposta pelo jogador</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" style="max-height:80vh;overflow-y:auto">
+            <div class="modal-body">
                 <input type="hidden" id="leilaoIdProposta">
                 <input type="hidden" id="leilaoSellerTeamId">
-                <div class="info-box"><strong style="color:var(--text);">Jogador em leilão:</strong> <span id="jogadorLeilaoNome" style="color:var(--red);font-weight:600;"></span></div>
 
-                <p style="font-size:13px;color:var(--text-2);margin-bottom:8px;">Selecione os jogadores que você oferece em troca:</p>
-                <div id="meusJogadoresParaTroca" class="mb-3"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
+                <div class="prop-lados">
+                    <!-- ── Lado esquerdo: o que eu mando ────────────────── -->
+                    <section class="prop-lado">
+                        <header class="prop-lado-head">
+                            <span class="prop-lado-tit">Você oferece</span>
+                            <span class="prop-lado-soma" id="propSomaEnvio"></span>
+                        </header>
 
-                <p style="font-size:13px;color:var(--text-2);margin-bottom:4px;">Picks para oferecer <span style="font-size:11px;color:var(--text-3)">(selecione o swap se aplicável)</span>:</p>
-                <div id="minhasPicksParaTroca" class="mb-3"><p style="color:var(--text-3);font-size:13px;">Carregando...</p></div>
+                        <div class="prop-bloco">
+                            <div class="prop-bloco-tit">Jogadores</div>
+                            <div id="meusJogadoresParaTroca"><p class="prop-vazio">Carregando...</p></div>
+                        </div>
 
-                <!-- Oferta Personalizada -->
-                <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px">
-                  <button type="button" id="btnToggleCustomOffer" onclick="toggleCustomOffer()"
-                    style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:8px;color:#f59e0b;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);text-align:left;transition:.15s">
-                    <i class="bi bi-stars"></i>
-                    <span>Oferta Personalizada — solicitar itens do vendedor</span>
-                    <i class="bi bi-chevron-down ms-auto" id="customOfferChevron"></i>
-                  </button>
-                  <div id="propostaCustomSection" style="display:none;margin-top:10px;padding:14px;background:rgba(245,158,11,.04);border:1px solid rgba(245,158,11,.15);border-radius:8px">
-                    <p style="font-size:12px;color:var(--text-3);margin-bottom:14px">Selecione jogadores/picks do <strong style="color:var(--text)">time vendedor</strong> que você quer receber junto com o jogador leiloado:</p>
-                    <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Jogadores do vendedor</div>
-                    <div id="sellerPlayersParaTroca" class="mb-3"><p style="color:var(--text-3);font-size:13px">Carregando...</p></div>
-                    <div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Picks do vendedor</div>
-                    <div id="sellerPicksParaTroca"><p style="color:var(--text-3);font-size:13px">Carregando...</p></div>
-                  </div>
+                        <div class="prop-bloco">
+                            <div class="prop-bloco-tit">Picks <span class="prop-bloco-nota">marque o swap quando couber</span></div>
+                            <div id="minhasPicksParaTroca"><p class="prop-vazio">Carregando...</p></div>
+                        </div>
+                    </section>
+
+                    <!-- ── Lado direito: o que eu recebo ────────────────── -->
+                    <section class="prop-lado">
+                        <header class="prop-lado-head">
+                            <span class="prop-lado-tit">Você recebe</span>
+                            <span class="prop-lado-soma" id="propSomaRecebe"></span>
+                        </header>
+
+                        <!-- O jogador leiloado é o motivo da proposta: fica fixo. -->
+                        <div class="prop-alvo" id="propAlvoCard">
+                            <div class="prop-alvo-sel"><i class="bi bi-lock-fill"></i></div>
+                            <div class="prop-alvo-meio">
+                                <div class="prop-alvo-nome" id="jogadorLeilaoNome">—</div>
+                                <div class="prop-alvo-sub" id="propAlvoSub">jogador em leilão</div>
+                            </div>
+                            <div class="prop-alvo-ovr"><b id="propAlvoOvr">—</b><span>OVR</span></div>
+                        </div>
+
+                        <div class="prop-bloco">
+                            <div class="prop-bloco-tit">
+                                Pedir mais do vendedor
+                                <span class="prop-bloco-nota">opcional</span>
+                            </div>
+                            <button type="button" id="btnToggleCustomOffer" class="prop-mais" onclick="toggleCustomOffer()">
+                                <i class="bi bi-plus-lg"></i>
+                                <span>Incluir jogadores ou picks do vendedor</span>
+                                <i class="bi bi-chevron-down ms-auto" id="customOfferChevron"></i>
+                            </button>
+                            <div id="propostaCustomSection" style="display:none">
+                                <div class="prop-sub-tit">Jogadores do vendedor</div>
+                                <div id="sellerPlayersParaTroca"><p class="prop-vazio">Carregando...</p></div>
+                                <div class="prop-sub-tit" style="margin-top:12px">Picks do vendedor</div>
+                                <div id="sellerPicksParaTroca"><p class="prop-vazio">Carregando...</p></div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Observação <span style="color:var(--text-3);font-weight:400;">(opcional)</span></label>
-                    <textarea id="obsProposta" class="form-control" rows="3" placeholder="Ex: estou oferecendo 2 picks + 1 jogador, aberto a negociar..."></textarea>
+                <!-- ── A conta do cap (só na ELITE) ──────────────────────── -->
+                <div class="prop-cap" id="propCapBox" style="display:none">
+                    <div class="prop-cap-linha">
+                        <span>Recebe</span><b id="propCapRecebe">—</b>
+                        <span>Manda</span><b id="propCapEnvia">—</b>
+                        <span>Folha sobe</span><b id="propCapDelta">—</b>
+                        <span>Espaço</span><b id="propCapEspaco">—</b>
+                    </div>
+                    <div class="prop-cap-veredito" id="propCapVeredito"></div>
+                </div>
+
+                <div class="prop-bloco" style="margin-top:14px">
+                    <label class="form-label" for="obsProposta">Recado pro vendedor <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+                    <textarea id="obsProposta" class="form-control" rows="2" placeholder="Ex.: aberto a trocar a pick de 2027 por outra"></textarea>
                     <input type="hidden" id="notasProposta">
                 </div>
             </div>
@@ -460,12 +573,8 @@ $minhaLiga = strtoupper(trim((string)($team['league'] ?? $user['league'] ?? ''))
                         <i class="bi bi-check2-circle me-1"></i>Fechar leilão e executar a troca escolhida
                     </button>
                     <button type="button" class="btn-outline-orange" id="btnNovaPropostaChat" style="display:none;width:100%">
-                        <i class="bi bi-send-plus me-1"></i>Enviar proposta (jogadores/picks)
+                        <i class="bi bi-send-plus me-1"></i>Enviar outra proposta
                     </button>
-                    <div id="chatMessageInputRow" style="display:flex;gap:8px">
-                        <textarea id="chatMessageInput" class="form-control" rows="1" placeholder="Escreva uma mensagem..." style="resize:none"></textarea>
-                        <button type="button" class="btn btn-orange" id="btnEnviarMensagemChat" style="flex-shrink:0"><i class="bi bi-send"></i></button>
-                    </div>
                 </div>
             </div>
             <div class="modal-footer">

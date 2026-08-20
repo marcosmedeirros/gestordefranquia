@@ -199,12 +199,17 @@ function _fmtMsgTime(ts) {
 }
 
 function _renderChatTimeline(messages, leilaoId, leilaoAberto = true) {
-  if (!messages || !messages.length) {
-    return '<p style="text-align:center;color:var(--text-3);font-size:13px;padding:24px 0">Nenhuma mensagem ou proposta ainda.</p>';
+  // Só proposta: o chat saiu porque virava negociação paralela que ninguém
+  // conseguia auditar depois, e quem decide o leilão é a proposta. O recado
+  // do comprador continua vindo dentro dela, no campo de observação.
+  const propostas = (messages || []).filter(m => m.tipo === 'proposal');
+  if (!propostas.length) {
+    return '<p style="text-align:center;color:var(--text-3);font-size:13px;padding:24px 0">Nenhuma proposta ainda.</p>';
   }
-  return messages.map(m => {
+  return propostas.map(m => {
     const isMine = userTeamId && Number(m.team_id) === Number(userTeamId);
-    const align = isMine ? 'flex-end' : 'flex-start';
+    // Lista, não conversa: tudo do mesmo lado.
+    const align = 'stretch';
     const teamLabel = _esc(m.team_name || 'Time');
     const timeLabel = _fmtMsgTime(m.created_at);
 
@@ -251,7 +256,8 @@ async function _loadPropostasContent(leilaoId, isOwner) {
   const novaPropostaBtn = document.getElementById('btnNovaPropostaChat');
   if (novaPropostaBtn) novaPropostaBtn.style.display = (!isOwner && userTeamId) ? '' : 'none';
   const titleEl = document.querySelector('#modalVerPropostas .modal-title');
-  if (titleEl) titleEl.innerHTML = '<i class="bi bi-chat-dots" style="color:var(--red)"></i>Negociação';
+  if (titleEl) titleEl.innerHTML = '<i class="bi bi-inbox" style="color:var(--red)"></i>'
+      + (isOwner ? 'Propostas recebidas' : 'Minhas propostas');
   if (!container) return;
   container.innerHTML = '<div style="display:flex;justify-content:center;padding:32px"><div class="spinner-border" style="color:var(--red);width:1.5rem;height:1.5rem" role="status"></div></div>';
   try {
@@ -292,7 +298,7 @@ function _renderBotaoFechar(data, leilaoId, isOwner, expirado = false) {
 function _renderEstadoExpirado(data, leilaoId, expirado) {
   const aviso = document.getElementById('leilaoEncerradoAviso');
   const btnResolver = document.getElementById('btnResolverLeilao');
-  const msgRow = document.getElementById('chatMessageInputRow');
+  const msgRow = null;   // saiu com o chat
   const bloqueado = expirado && data.status !== 'finalizado';
 
   if (aviso) aviso.style.display = (bloqueado && !isAdmin) ? 'block' : 'none';
@@ -521,37 +527,7 @@ async function verPropostasAdmin(leilaoId) {
   await verMinhasPropostasRecebidas(leilaoId);
 }
 
-async function _sendChatMessage() {
-  const input = document.getElementById('chatMessageInput');
-  const texto = input?.value.trim();
-  if (!texto || !_modalLeilaoId) return;
-  const btn = document.getElementById('btnEnviarMensagemChat');
-  if (btn) btn.disabled = true;
-  try {
-    const data = await _fetchJson('api/leilao.php', {
-      method: 'POST',
-      body: JSON.stringify({ action: 'enviar_mensagem', leilao_id: _modalLeilaoId, texto })
-    });
-    if (data.success) {
-      input.value = '';
-      await _loadPropostasContent(_modalLeilaoId, _modalIsOwner);
-    } else {
-      alert('Erro: ' + (data.error || 'Erro desconhecido'));
-    }
-  } catch (e) {
-    alert('Erro ao enviar mensagem: ' + (e.message || ''));
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
-document.getElementById('btnEnviarMensagemChat')?.addEventListener('click', _sendChatMessage);
-document.getElementById('chatMessageInput')?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    _sendChatMessage();
-  }
-});
+// _sendChatMessage e os listeners de mensagem saíram junto com o chat.
 
 // Botão de refresh manual dentro do modal
 window._refreshPropostas = async function() {
@@ -665,7 +641,7 @@ async function carregarLeiloesAtivos(silent = false) {
             <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)"><i class="bi bi-building"></i>${teamLabel}</div>
             <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)"><i class="bi bi-trophy"></i>${_esc(l.league_name||'')}</div>
             <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)">
-              <i class="bi bi-chat-dots"></i>${propCount} proposta${propCount !== 1 ? 's' : ''}
+              <i class="bi bi-inbox"></i>${propCount} proposta${propCount !== 1 ? 's' : ''}
             </div>
           </div>
           ${encerradoNote}
@@ -837,6 +813,70 @@ async function carregarPropostasRecebidas(silent = false) {
 
 // ── Modal Proposta (enviar) ────────────────────────────────────────────────────
 
+// Os números do cap deste leilão. Vêm de uma vez (salário de cada jogador
+// dos dois elencos) pra que marcar um checkbox refaça a conta na hora, sem
+// ida ao servidor por clique. Fica null fora da ELITE, onde não há trava.
+let _capLeilao = null;
+
+/**
+ * Refaz a conta e pinta o veredito.
+ *
+ * A regra do leilão não é a da trade: aqui NÃO vale o casamento de 120%.
+ * O único limite é o teto — o que a folha sobe precisa caber no espaço.
+ */
+function _recalcularCapDaProposta() {
+  const box = document.getElementById('propCapBox');
+  const somaEnvio = document.getElementById('propSomaEnvio');
+  const somaRecebe = document.getElementById('propSomaRecebe');
+  if (!box) return;
+
+  if (!_capLeilao || !_capLeilao.aplica) {
+    box.style.display = 'none';
+    if (somaEnvio) somaEnvio.textContent = '';
+    if (somaRecebe) somaRecebe.textContent = '';
+    return;
+  }
+
+  const meus = _capLeilao.meus_salarios || {};
+  const doVendedor = _capLeilao.salarios_vendedor || {};
+  const soma = (sel, mapa) => Array.from(document.querySelectorAll(sel + ':checked'))
+      .reduce((t, cb) => t + Number(mapa[cb.value] || 0), 0);
+
+  const envia  = soma('.player-checkbox', meus);
+  const recebe = Number(_capLeilao.salario_do_alvo || 0) + soma('.extra-player-checkbox', doVendedor);
+  const delta  = recebe - envia;
+  const espaco = Number(_capLeilao.espaco || 0);
+  const teto   = Math.max(0, espaco);
+  const cabe   = delta <= teto;
+
+  if (somaEnvio) somaEnvio.textContent = envia ? envia + 'M em salário' : 'nada ainda';
+  if (somaRecebe) somaRecebe.textContent = recebe + 'M em salário';
+
+  box.style.display = '';
+  box.classList.toggle('cabe', cabe);
+  box.classList.toggle('estoura', !cabe);
+  document.getElementById('propCapRecebe').textContent = recebe + 'M';
+  document.getElementById('propCapEnvia').textContent  = envia + 'M';
+  document.getElementById('propCapDelta').textContent  = (delta > 0 ? '+' : '') + delta + 'M';
+  document.getElementById('propCapEspaco').textContent = espaco + 'M';
+  document.getElementById('propCapVeredito').innerHTML = cabe
+    ? '<i class="bi bi-check-circle-fill me-1"></i>Cabe no seu cap. No leilão não vale a regra dos 120% da trade — só o teto.'
+    : `<i class="bi bi-exclamation-triangle-fill me-1"></i>Fica <strong>${delta - teto}M acima do teto</strong>. Inclua mais salário na oferta pra fechar a conta.`;
+
+  const btn = document.getElementById('btnEnviarProposta');
+  if (btn) { btn.disabled = !cabe; btn.style.opacity = cabe ? '' : '.5'; }
+}
+
+/** Um listener só, no corpo do modal: os checkboxes nascem e morrem a cada abertura. */
+function _ligarRecalculoDoCap() {
+  const corpo = document.querySelector('#modalProposta .modal-body');
+  if (!corpo || corpo.dataset.capLigado) return;
+  corpo.addEventListener('change', (e) => {
+    if (e.target.matches('.player-checkbox, .extra-player-checkbox')) _recalcularCapDaProposta();
+  });
+  corpo.dataset.capLigado = '1';
+}
+
 async function abrirModalProposta(leilaoId, playerName, sellerTeamId) {
   if (typeof faStatusEnabled !== 'undefined' && !faStatusEnabled) {
     alert('O período de propostas está fechado nesta liga.');
@@ -848,6 +888,11 @@ async function abrirModalProposta(leilaoId, playerName, sellerTeamId) {
   _currentProposalSellerTeamId = sellerTeamId || null;
   _customOfferOpen = false;
   document.getElementById('jogadorLeilaoNome').textContent = playerName;
+  document.getElementById('propAlvoOvr').textContent = '—';
+  document.getElementById('propAlvoSub').textContent = 'jogador em leilão';
+  _capLeilao = null;
+  _ligarRecalculoDoCap();
+  _recalcularCapDaProposta();
   document.getElementById('notasProposta').value = '';
   const obsInput = document.getElementById('obsProposta');
   if (obsInput) obsInput.value = '';
@@ -870,11 +915,25 @@ async function abrirModalProposta(leilaoId, playerName, sellerTeamId) {
   if (picksContainer) picksContainer.innerHTML = '<p style="color:var(--text-3);font-size:13px">Carregando...</p>';
   _cachedSellerItems = null;
 
-  const [dataPlayers, dataPicks, dataSellerRaw] = await Promise.all([
+  const [dataPlayers, dataPicks, dataSellerRaw, dataCap] = await Promise.all([
     _fetchJson(userTeamId ? `api/team-players.php?team_id=${userTeamId}` : 'api/team-players.php').catch(() => ({ players: [] })),
     _fetchJson('api/leilao.php?action=minhas_picks').catch(() => ({ picks: [] })),
-    sellerTeamId ? _fetchJson(`api/leilao.php?action=seller_items&seller_team_id=${sellerTeamId}`).catch(() => ({ players: [], picks: [] })) : Promise.resolve({ players: [], picks: [] })
+    sellerTeamId ? _fetchJson(`api/leilao.php?action=seller_items&seller_team_id=${sellerTeamId}`).catch(() => ({ players: [], picks: [] })) : Promise.resolve({ players: [], picks: [] }),
+    _fetchJson(`api/leilao.php?action=cap_leilao&leilao_id=${leilaoId}`).catch(() => ({ aplica: false }))
   ]);
+  _capLeilao = dataCap && dataCap.aplica ? dataCap : null;
+  // A ficha do alvo vem do mesmo endpoint: o card fixo mostra quem é, não
+  // só o nome que o botão passou.
+  const _alvo = (dataCap && dataCap.alvo) || {};
+  const _ovrEl = document.getElementById('propAlvoOvr');
+  const _subEl = document.getElementById('propAlvoSub');
+  if (_ovrEl) _ovrEl.textContent = _alvo.ovr || '—';
+  if (_subEl) {
+    const ficha = [_alvo.posicao, _alvo.idade ? _alvo.idade + ' anos' : null].filter(Boolean).join(' · ');
+    const salario = _capLeilao ? ` · ${_capLeilao.salario_do_alvo}M no cap` : '';
+    _subEl.textContent = (ficha || 'jogador em leilão') + salario;
+  }
+  _recalcularCapDaProposta();
   _cachedSellerItems = dataSellerRaw;
   _cachedMyR1Years = null;
 
