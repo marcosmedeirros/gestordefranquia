@@ -467,6 +467,11 @@ button{font-family:inherit}
 .modo small{color:var(--txt2);font-size:12px}
 
 /* ── Identidade ─────────────────────────────────────── */
+/* A barra de etapa e o botão Continuar só existem no celular — no desktop
+   as três colunas cabem lado a lado e ver tudo de uma vez é melhor que
+   navegar. Por isso o HTML é sempre o mesmo e quem decide é o CSS. */
+.etapa-cab{display:none}
+.etapa-so-celular{display:none}
 .ident{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:0}
 .ident-col{padding:22px 20px}
 .ident-col + .ident-col{border-left:1px solid var(--borda)}
@@ -877,7 +882,31 @@ button{font-family:inherit}
      tela de 375. Era daí que vinha a rolagem lateral no celular. */
   .carreira{grid-template-columns:minmax(0,1fr)}
   .ident{grid-template-columns:1fr}
-  .ident-col + .ident-col{border-left:none;border-top:1px solid var(--borda)}
+  .ident-col + .ident-col{border-left:none;border-top:none}
+
+  /* Uma etapa por vez. O :nth-child casa com a ordem das colunas no HTML:
+     1 identidade, 2 nacionalidade, 3 posição. */
+  .ident-caixa .ident-col{display:none}
+  .ident-caixa[data-etapa="1"] .ident-col:nth-child(1),
+  .ident-caixa[data-etapa="2"] .ident-col:nth-child(2),
+  .ident-caixa[data-etapa="3"] .ident-col:nth-child(3){display:block}
+
+  /* O título de cada etapa já está na barra; repetir no topo da coluna
+     seria a mesma palavra duas vezes na mesma tela. */
+  .ident-caixa .ident-tit{display:none}
+
+  .etapa-cab{display:block;padding:14px 20px 0}
+  .etapa-tit{font-size:19px;font-weight:900;margin-bottom:10px}
+  .etapa-barra{height:5px;border-radius:999px;background:var(--panel3);overflow:hidden}
+  .etapa-barra i{display:block;height:100%;background:var(--verde,#22c55e);
+    border-radius:999px;transition:width .25s ease}
+  .etapa-so-celular{display:inline-flex}
+
+  /* O "Confirmar identidade" do topo sai: no celular ele fica no rodapé,
+     do lado da última escolha, e não a cinco rolagens de distância. */
+  .ident-cab{display:none}
+  .ident-pe{display:flex;gap:10px}
+  .ident-pe .btn{flex:1}
   /* As colunas de número encolhem pra dar espaço ao clube. Com as medidas
      antigas sobravam 38px pro nome numa tela de 375, e "Sport Recife" — que
      precisa de 72 — saía cortado quase pela metade. Agora cabe; só nome de
@@ -1701,6 +1730,15 @@ function continuar(){ S = carregar(); if (S) render(); }
 // ser a mesma pessoa, e digitar o próprio nome toda vez é atrito à toa.
 let rascunho = {nome:ultimoNome(), numero:10, perna:'Direita', pais:'', posicao:'', busca:''};
 
+/** Anda entre as três etapas da criação (só o celular usa). */
+function irParaEtapa(n){
+  rascunho.etapa = Math.min(3, Math.max(1, n));
+  telaIdentidade();
+  // Volta pro topo: sem isso a etapa nova abre no meio, na altura em que a
+  // anterior estava rolada.
+  window.scrollTo({top: 0, behavior: semAnimacao() ? 'auto' : 'smooth'});
+}
+
 function telaIdentidade(){
   // Aqui e não só na criação do rascunho: assim o nome da última carreira
   // aparece mesmo quando a pessoa joga de novo sem recarregar a página.
@@ -1716,14 +1754,32 @@ function telaIdentidade(){
     MC:[50,52],  ME:[17,50],  MD:[83,50], MEI:[50,38], PE:[16,28], PD:[84,28], CA:[50,20],
   };
 
+  // No celular a criação vira três etapas — identidade, país, posição —
+  // com uma barra mostrando onde você está. As três colunas empilhadas
+  // davam uma página de rolar cinco vezes, e o botão de confirmar ficava
+  // lá em cima, longe da última escolha.
+  //
+  // No desktop nada disso aparece: lá as três cabem lado a lado e ver tudo
+  // de uma vez é melhor que navegar. Quem decide é o CSS; o HTML é o mesmo.
+  const etapa = Math.min(3, Math.max(1, rascunho.etapa || 1));
+  const prontoParaConfirmar = rascunho.nome && rascunho.pais && rascunho.posicao;
+  const ETAPAS = ['Identidade', 'Nacionalidade', 'Posição'];
+  const podeAvancar = etapa === 1 ? !!rascunho.nome : etapa === 2 ? !!rascunho.pais : prontoParaConfirmar;
+
   app().innerHTML = `
     ${barraTopo()}
-    <div class="caixa">
+    <div class="caixa ident-caixa" data-etapa="${etapa}">
       <div class="ident-cab">
         <span>Defina sua identidade</span>
-        <button class="btn" id="btnConfirmar" ${rascunho.nome && rascunho.pais && rascunho.posicao ? '' : 'disabled'}
+        <button class="btn" id="btnConfirmar" ${prontoParaConfirmar ? '' : 'disabled'}
           onclick="comecarCarreira()">Confirmar identidade</button>
       </div>
+
+      <div class="etapa-cab">
+        <div class="etapa-tit">${ETAPAS[etapa - 1]}</div>
+        <div class="etapa-barra"><i style="width:${(etapa / 3) * 100}%"></i></div>
+      </div>
+
       <div class="ident">
         <div class="ident-col">
           <div class="ident-tit">Identidade</div>
@@ -1775,7 +1831,12 @@ function telaIdentidade(){
         </div>
       </div>
       <div class="ident-pe">
-        <button class="btn btn2" onclick="telaInicio()">Voltar</button>
+        <button class="btn btn2" onclick="${etapa === 1 ? 'telaInicio()' : 'irParaEtapa(' + (etapa - 1) + ')'}">Voltar</button>
+        ${etapa < 3
+          ? `<button class="btn etapa-so-celular" ${podeAvancar ? '' : 'disabled'}
+               onclick="irParaEtapa(${etapa + 1})">Continuar</button>`
+          : `<button class="btn etapa-so-celular" ${prontoParaConfirmar ? '' : 'disabled'}
+               onclick="comecarCarreira()">Confirmar identidade</button>`}
       </div>
     </div>
     <p class="rodape">Os nomes de clube servem para identificar dentro da simulação.
