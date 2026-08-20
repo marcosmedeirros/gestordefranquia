@@ -390,6 +390,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             // O leilão pode ser cadastrado em qualquer liga escolhida no dropdown do painel;
             // um admin de liga (não-global) só pode cadastrar nas ligas que ele administra.
+            // A tela do admin manda o NOME da liga (é a aba em que ele está),
+            // não o id de um dropdown — o dropdown saiu justamente porque era
+            // o passo em que se abria leilão na liga errada.
+            if (empty($body['league_id']) && !empty($body['league'])) {
+                $stmtLgN = $pdo->prepare("SELECT id FROM leagues WHERE name = ? LIMIT 1");
+                $stmtLgN->execute([strtoupper(trim($body['league']))]);
+                $body['league_id'] = (int)($stmtLgN->fetchColumn() ?: 0) ?: null;
+            }
             $cadastrarLeagueName = getLeagueNameById($pdo, isset($body['league_id']) ? (int)$body['league_id'] : null);
             if ($cadastrarLeagueName && !in_array(strtoupper($cadastrarLeagueName), getAdminLeagues($pdo, (int)$user_id), true)) {
                 echo json_encode(['success' => false, 'error' => 'Você não administra essa liga']);

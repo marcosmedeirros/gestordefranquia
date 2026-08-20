@@ -2033,6 +2033,7 @@ async function showLeilaoAdmin(league) {
     const precisamResolucao = ativos.filter(l => Number(l.expirado));
     const emAndamento = ativos.filter(l => !Number(l.expirado));
     const finalizados = leiloes.filter(l => l.status === 'finalizado').slice(0, 20);
+    const cancelados = leiloes.filter(l => l.status === 'cancelado');
 
     const renderCard = (l, destacar) => `
       <div class="panel mb-2" style="${destacar ? 'border-color:rgba(239,68,68,.4)' : ''}">
@@ -2053,6 +2054,7 @@ async function showLeilaoAdmin(league) {
         ${back}
         <span class="text-light-gray" style="font-size:14px;font-weight:600">Leilão — ${escapeHtml(league)}</span>
       </div>
+      ${_leilaoAdminFormCriar(league)}
       <div class="panel mb-3">
         <div class="panel-header"><div class="panel-title"><i class="bi bi-hourglass-split" style="color:#ef4444"></i> Precisam de resolução (${precisamResolucao.length})</div></div>
         <div class="panel-body">${precisamResolucao.length ? precisamResolucao.map(l => renderCard(l, true)).join('') : '<p style="color:var(--text-3);font-size:13px">Nenhum leilão expirado aguardando resolução.</p>'}</div>
@@ -2061,6 +2063,22 @@ async function showLeilaoAdmin(league) {
         <div class="panel-header"><div class="panel-title"><i class="bi bi-broadcast" style="color:#22c55e"></i> Em andamento (${emAndamento.length})</div></div>
         <div class="panel-body">${emAndamento.length ? emAndamento.map(l => renderCard(l, false)).join('') : '<p style="color:var(--text-3);font-size:13px">Nenhum leilão em andamento no momento.</p>'}</div>
       </div>
+      ${cancelados.length ? `
+      <div class="panel mb-3">
+        <div class="panel-header"><div class="panel-title"><i class="bi bi-x-circle" style="color:var(--text-3)"></i> Cancelados (${cancelados.length})</div></div>
+        <div class="panel-body">
+          <p style="color:var(--text-3);font-size:12.5px;margin-bottom:10px">Leilão cancelado não é histórico — é leilão que não aconteceu. Pode apagar.</p>
+          ${cancelados.map(l => `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border);font-size:13px">
+              <span style="color:var(--text)">${escapeHtml(l.player_name || '—')}</span>
+              <span style="color:var(--text-3);font-size:12px;margin-left:auto">${escapeHtml(l.team_name || 'Sem time')}</span>
+              <button class="btn-ghost" style="color:#ef4444;border-color:rgba(239,68,68,.3);padding:4px 10px;font-size:12px"
+                onclick="_leilaoAdminExcluir(${l.id}, '${escapeHtml(String(l.player_name || '')).replace(/'/g, "\\'")}', '${league}')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
       <div class="panel">
         <div class="panel-header"><div class="panel-title"><i class="bi bi-clock-history" style="color:var(--text-3)"></i> Últimos finalizados</div></div>
         <div class="panel-body">${finalizados.length ? finalizados.map(l => `
@@ -2069,8 +2087,155 @@ async function showLeilaoAdmin(league) {
             <span style="color:var(--text-3)">${escapeHtml(l.team_name || '—')}</span>
           </div>`).join('') : '<p style="color:var(--text-3);font-size:13px">Nenhum leilão finalizado ainda.</p>'}</div>
       </div>`;
+    _leilaoAdminLigarFormCriar(league);
   } catch (e) {
     container.innerHTML = `<div class="mb-3">${back}</div><div class="alert alert-danger">Erro ao carregar leilões: ${escapeHtml(e.error || e.message || '')}</div>`;
+  }
+}
+
+/**
+ * O formulário de abrir leilão, dentro do card da liga.
+ *
+ * Não tem seletor de liga: quem chega aqui já entrou pela aba de uma, e
+ * escolher de novo era o passo em que se abria leilão na liga errada.
+ */
+function _leilaoAdminFormCriar(league) {
+  return `
+    <div class="panel mb-3">
+      <div class="panel-header"><div class="panel-title"><i class="bi bi-plus-circle" style="color:#22c55e"></i> Abrir leilão na ${escapeHtml(league)}</div></div>
+      <div class="panel-body">
+        <div class="d-flex gap-3 flex-wrap mb-3" style="font-size:13px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="radio" name="lqModo" id="lqModoBusca" value="busca" checked> Jogador de um elenco
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="radio" name="lqModo" id="lqModoNovo" value="novo"> Jogador avulso
+          </label>
+        </div>
+
+        <div id="lqAreaBusca">
+          <div class="d-flex gap-2 flex-wrap">
+            <input type="text" id="lqBusca" class="form-control" placeholder="Nome do jogador" style="flex:1;min-width:200px">
+            <button type="button" class="btn-ghost" id="lqBtnBuscar"><i class="bi bi-search me-1"></i>Buscar</button>
+          </div>
+          <div id="lqResultados" style="margin-top:8px"></div>
+          <div id="lqEscolhido" style="font-size:13px;color:var(--text-2);margin-top:8px"></div>
+          <input type="hidden" id="lqPlayerId"><input type="hidden" id="lqTeamId">
+        </div>
+
+        <div id="lqAreaNovo" style="display:none">
+          <div class="d-flex gap-2 flex-wrap">
+            <input type="text" id="lqNome" class="form-control" placeholder="Nome" style="flex:2;min-width:160px">
+            <select id="lqPos" class="form-select" style="flex:0 0 90px">
+              <option value="PG">PG</option><option value="SG">SG</option>
+              <option value="SF">SF</option><option value="PF">PF</option><option value="C">C</option>
+            </select>
+            <input type="number" id="lqIdade" class="form-control" value="25" min="18" max="45" style="flex:0 0 80px">
+            <input type="number" id="lqOvr" class="form-control" value="70" min="40" max="99" style="flex:0 0 80px">
+          </div>
+          <p style="font-size:11.5px;color:var(--text-3);margin:6px 0 0">Nome · posição · idade · OVR. Jogador avulso não tem time vendedor, então o leilão dele não aceita picks.</p>
+        </div>
+
+        <button type="button" class="btn-ghost mt-3" id="lqBtnAbrir" style="color:#22c55e;border-color:rgba(34,197,94,.3)" disabled>
+          <i class="bi bi-hammer me-1"></i> Abrir leilão
+        </button>
+      </div>
+    </div>`;
+}
+
+function _leilaoAdminLigarFormCriar(league) {
+  const el = (id) => document.getElementById(id);
+  const modoNovo = el('lqModoNovo');
+  const btnAbrir = el('lqBtnAbrir');
+  if (!btnAbrir) return;
+
+  const pronto = () => {
+    if (modoNovo?.checked) {
+      btnAbrir.disabled = !(el('lqNome')?.value.trim() && el('lqIdade')?.value && el('lqOvr')?.value);
+    } else {
+      btnAbrir.disabled = !el('lqPlayerId')?.value;
+    }
+  };
+  const trocarModo = () => {
+    const novo = modoNovo?.checked;
+    el('lqAreaBusca').style.display = novo ? 'none' : '';
+    el('lqAreaNovo').style.display = novo ? '' : 'none';
+    pronto();
+  };
+  el('lqModoBusca')?.addEventListener('change', trocarModo);
+  modoNovo?.addEventListener('change', trocarModo);
+  ['lqNome', 'lqIdade', 'lqOvr'].forEach(id => el(id)?.addEventListener('input', pronto));
+
+  el('lqBtnBuscar')?.addEventListener('click', async () => {
+    const termo = el('lqBusca')?.value.trim();
+    const alvo = el('lqResultados');
+    if (!termo || !alvo) return;
+    alvo.innerHTML = '<p style="color:var(--text-3);font-size:13px">Buscando...</p>';
+    try {
+      const d = await api(`team.php?action=search_player&query=${encodeURIComponent(termo)}&league=${encodeURIComponent(league)}`);
+      const lista = d.players || [];
+      alvo.innerHTML = lista.length ? lista.slice(0, 12).map(pl => `
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px"
+          onclick="_leilaoAdminEscolher(${pl.id}, ${pl.team_id || 'null'}, '${escapeHtml(String(pl.name)).replace(/'/g, "\\'")}', '${escapeHtml(String(pl.team_name || ''))}')">
+          <span style="flex:1;color:var(--text)">${escapeHtml(pl.name)}</span>
+          <span style="color:var(--text-3);font-size:12px">${escapeHtml(pl.team_name || 'sem time')} · ${pl.ovr || '?'} OVR</span>
+        </div>`).join('') : '<p style="color:var(--text-3);font-size:13px">Ninguém com esse nome nesta liga.</p>';
+    } catch (e) {
+      alvo.innerHTML = '<p style="color:#ef4444;font-size:13px">Erro na busca.</p>';
+    }
+  });
+  el('lqBusca')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); el('lqBtnBuscar').click(); } });
+
+  btnAbrir.addEventListener('click', () => _leilaoAdminAbrir(league));
+}
+
+function _leilaoAdminEscolher(playerId, teamId, nome, timeNome) {
+  const el = (id) => document.getElementById(id);
+  el('lqPlayerId').value = playerId;
+  el('lqTeamId').value = teamId || '';
+  el('lqEscolhido').innerHTML = `<i class="bi bi-check-circle-fill me-1" style="color:#22c55e"></i>${escapeHtml(nome)}${timeNome ? ' · ' + escapeHtml(timeNome) : ''}`;
+  el('lqResultados').innerHTML = '';
+  el('lqBtnAbrir').disabled = false;
+}
+
+async function _leilaoAdminAbrir(league) {
+  const el = (id) => document.getElementById(id);
+  const btn = el('lqBtnAbrir');
+  const novo = el('lqModoNovo')?.checked;
+  btn.disabled = true;
+  try {
+    // A liga vem da aba, não de um select: é a que o admin já escolheu.
+    const corpo = { action: 'cadastrar', league: league, status: 'ativo' };
+    if (novo) {
+      corpo.player_id = null;
+      corpo.team_id = null;
+      corpo.new_player = {
+        name: el('lqNome').value.trim(),
+        position: el('lqPos').value,
+        age: el('lqIdade').value,
+        ovr: el('lqOvr').value
+      };
+    } else {
+      corpo.player_id = el('lqPlayerId').value;
+      corpo.team_id = el('lqTeamId').value || null;
+    }
+    const d = await api('leilao.php', { method: 'POST', body: JSON.stringify(corpo) });
+    if (d && d.success === false) throw d;
+    showLeilaoAdmin(league);
+  } catch (e) {
+    alert(e.error || e.message || 'Erro ao abrir o leilão.');
+    btn.disabled = false;
+  }
+}
+
+async function _leilaoAdminExcluir(leilaoId, nome, league) {
+  if (!confirm(`Apagar o leilão cancelado de ${nome}? As propostas dele vão junto, e não dá pra desfazer.`)) return;
+  try {
+    const d = await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'excluir_cancelado', leilao_id: leilaoId }) });
+    if (d && d.success === false) throw d;
+    showLeilaoAdmin(league);
+  } catch (e) {
+    alert(e.error || e.message || 'Erro ao excluir.');
   }
 }
 
