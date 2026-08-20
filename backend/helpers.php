@@ -317,6 +317,16 @@ Equipe FBA Manager
 const CAP_TOP_N = 10;
 
 /**
+ * O tamanho permitido do elenco.
+ *
+ * Estava escrito à mão no dashboard e nas pendências, e o máximo ainda
+ * aparece solto na free agency — mudar o mínimo de 13 pra 14 significava
+ * caçar cada um. Daqui pra frente é um número só.
+ */
+const ELENCO_MIN = 14;
+const ELENCO_MAX = 15;
+
+/**
  * Soma de OVR dos CAP_TOP_N melhores do elenco — o CAP fora da ELITE.
  *
  * O nome não é topEightCap desde que o número deixou de ser oito: função que

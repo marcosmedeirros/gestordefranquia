@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/waivers.php';
+require_once __DIR__ . '/../backend/salary_cap.php'; // capCabeNoTime()
 header('Content-Type: application/json');
 
 requireAuth();
@@ -53,10 +54,17 @@ try {
         if ($myLeague === 'ELITE' && $myTeamId > 0) {
             try { $myCapSpace = (int)getTeamCapSummary($pdo, $myTeamId)['space']; } catch (Throwable $e) {}
         }
+        // Quanto cada dispensado custaria e se cabe — a tela desabilita o
+        // botão de quem não cabe em vez de deixar o time descobrir na hora
+        // do erro, ou pior, ganhar o lance e estourar o cap.
         $mxStmt = $pdo->prepare("SELECT MAX(bid_space) FROM waiver_claims WHERE retention_id = ?");
         $mbStmt = $pdo->prepare("SELECT bid_space FROM waiver_claims WHERE retention_id = ? AND team_id = ?");
         foreach ($open as &$w) {
             $rid = (int)$w['id'];
+            $fit = $myTeamId > 0 ? capCabeNoTime($pdo, $myTeamId, (int)$w['ovr']) : null;
+            $w['cap_custo'] = $fit['custo']   ?? null;
+            $w['cap_cabe']  = $fit['cabe']    ?? true;
+            $w['cap_unidade'] = $fit['unidade'] ?? 'M';
             try {
                 $mxStmt->execute([$rid]);
                 $tv = $mxStmt->fetchColumn();
@@ -120,6 +128,15 @@ try {
             if ($myTeamId <= 0 || $myLeague !== 'ELITE') { echo json_encode(['success' => false, 'error' => 'Só times da ELITE podem dar lance.']); exit; }
             if ((int)$w['team_id'] === $myTeamId) { echo json_encode(['success' => false, 'error' => 'Você não pode dar lance num jogador que o seu time dispensou.']); exit; }
             if (strtotime($w['expires_at']) <= time()) { echo json_encode(['success' => false, 'error' => 'A janela de 12h já encerrou.']); exit; }
+            // Sem espaço pro salário dele, o lance não pode existir: ganhar
+            // era virar over the cap na hora em que o jogador entra no elenco.
+            $fit = capCabeNoTime($pdo, $myTeamId, (int)$w['ovr']);
+            if (!$fit['cabe']) {
+                $u = $fit['unidade'];
+                echo json_encode(['success' => false,
+                    'error' => "{$w['name']} custa {$fit['custo']}{$u} e você tem {$fit['espaco']}{$u} de espaço no cap. Libere espaço antes de dar o lance."]);
+                exit;
+            }
             // O lance é o espaço no cap do time neste momento.
             $bidSpace = null;
             try { $bidSpace = (int)getTeamCapSummary($pdo, $myTeamId)['space']; } catch (Throwable $e) {}

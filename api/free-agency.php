@@ -8,6 +8,7 @@ require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/push.php';
+require_once __DIR__ . '/../backend/salary_cap.php'; // capCabeNoTime()
 
 header('Content-Type: application/json');
 
@@ -70,6 +71,7 @@ function ensureNewFaTables(PDO $pdo): void
 $pdo = db();
 ensureTeamFreeAgencyColumns($pdo);
 ensureNewFaTables($pdo);
+ensureOfferCanceledStatus($pdo);
 
 $user_id = $_SESSION['user_id'];
 // Admin global (user_type='admin') OU admin da liga via league_admins — mesmo critério
@@ -326,6 +328,37 @@ function ensureOfferPriorityColumn(PDO $pdo): void
     $checked = true;
 }
 
+/**
+ * Garante que "canceled" existe no ENUM de status das duas tabelas de oferta.
+ *
+ * O código já mandava status="canceled" quando o time ficava sem moedas ou
+ * com o elenco cheio, mas o ENUM só conhecia pending/accepted/rejected — em
+ * banco estrito o UPDATE explodia e derrubava a aprovação inteira. O valor
+ * importa: "rejected" é o admin dizendo não, "canceled" é o sistema dizendo
+ * que a conta não fecha mais.
+ *
+ * Roda no boot do arquivo, nunca dentro de transação: ALTER TABLE dá commit
+ * implícito e partiria a transação da aprovação no meio.
+ */
+function ensureOfferCanceledStatus(PDO $pdo): void
+{
+    static $checked = false;
+    if ($checked) return;
+    foreach (['free_agent_offers', 'fa_request_offers'] as $tabela) {
+        try {
+            if (!tableExists($pdo, $tabela)) continue;
+            $st = $pdo->query("SHOW COLUMNS FROM {$tabela} LIKE 'status'");
+            $col = $st ? $st->fetch(PDO::FETCH_ASSOC) : null;
+            if (!$col || str_contains((string)$col['Type'], "'canceled'")) continue;
+            $pdo->exec("ALTER TABLE {$tabela} MODIFY status
+                        ENUM('pending','accepted','rejected','canceled') DEFAULT 'pending'");
+        } catch (Exception $e) {
+            error_log('[free-agency] status canceled em ' . $tabela . ': ' . $e->getMessage());
+        }
+    }
+    $checked = true;
+}
+
 function ensureTeamPunishmentColumns(PDO $pdo): void
 {
     try {
@@ -479,6 +512,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             break;
         case 'limits':
             freeAgencyLimits($team);
+            break;
+        case 'cap_espaco':
+            capEspacoDoTime($pdo, $team_id);
             break;
         case 'fa_signings_count':
             if (!$is_admin) {
@@ -1293,6 +1329,16 @@ function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLe
         jsonError('Moedas insuficientes');
     }
 
+    // O OVR é o que define o custo no cap, então dá pra saber na hora se o
+    // contrato cabe. Cada proposta é medida sozinha — o time pode sondar
+    // dois de 40M com 60M de espaço; quem cai é a segunda, se ele ganhar a
+    // primeira (ver cancelarPropostasSemEspacoNoCap).
+    $fit = capCabeNoTime($pdo, (int)$teamId, $ovr);
+    if (!$fit['cabe']) {
+        $u = $fit['unidade'];
+        jsonError("Um jogador de {$ovr} OVR custa {$fit['custo']}{$u} no cap e você tem {$fit['espaco']}{$u} de espaço.");
+    }
+
     if ($teamLeague && !getFaEnabled($pdo, $teamLeague)) {
         jsonError('O periodo de propostas esta fechado para esta liga');
     }
@@ -1369,6 +1415,14 @@ function assignNewFaRequest(PDO $pdo, array $body, int $adminId): void
         jsonError('Este time ja atingiu o limite de 3 contratacoes na Free Agency');
     }
 
+    // O espaço pode ter sumido entre a proposta e a aprovação — o time pode
+    // ter assinado outro no meio do caminho.
+    $fit = capCabeNoTime($pdo, (int)$offer['team_id'], (int)$offer['ovr']);
+    if (!$fit['cabe']) {
+        $u = $fit['unidade'];
+        jsonError("{$offer['team_city']} {$offer['team_name']} tem {$fit['espaco']}{$u} de espaço e {$offer['player_name']} custa {$fit['custo']}{$u}.");
+    }
+
     $pdo->beginTransaction();
     try {
         $columns = ['team_id', 'name', 'age', 'position', 'ovr'];
@@ -1428,6 +1482,9 @@ function assignNewFaRequest(PDO $pdo, array $body, int $adminId): void
         ');
         $stmtOffers->execute([(int)$offer['id'], (int)$offer['request_id']]);
 
+        // O espaço acabou de encolher: o que o time não paga mais sai da mesa.
+        cancelarPropostasSemEspacoNoCap($pdo, (int)$offer['team_id']);
+
         $pdo->commit();
         jsonSuccess([
             'message' => sprintf('%s agora faz parte de %s %s', $offer['player_name'], $offer['team_city'], $offer['team_name'])
@@ -1457,6 +1514,83 @@ function rejectNewFaRequest(PDO $pdo, array $body): void
         $pdo->rollBack();
         jsonError('Erro ao recusar solicitacao.', 500);
     }
+}
+
+/**
+ * Derruba as propostas pendentes que o time não tem mais espaço pra pagar.
+ *
+ * Cada proposta é isolada na hora de enviar: com 60M dá pra pedir dois de
+ * 40M, e é de propósito — o time sonda mais de um alvo. Mas assinar um deles
+ * gasta o espaço, e a outra proposta vira promessa que o cap não cobre. Roda
+ * depois de toda assinatura, nos dois fluxos de proposta.
+ *
+ * Cancela, não rejeita: rejeitada é decisão do admin; cancelada é o sistema
+ * dizendo que a conta não fecha mais. Devolve quantas caíram.
+ */
+function cancelarPropostasSemEspacoNoCap(PDO $pdo, int $teamId): int
+{
+    if ($teamId <= 0) return 0;
+    $caidas = 0;
+
+    // Fluxo novo: fa_request_offers -> fa_requests.ovr
+    try {
+        $st = $pdo->prepare('SELECT o.id, r.ovr
+                             FROM fa_request_offers o
+                             JOIN fa_requests r ON r.id = o.request_id
+                             WHERE o.team_id = ? AND o.status = "pending" AND r.status = "open"');
+        $st->execute([$teamId]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $o) {
+            if (capCabeNoTime($pdo, $teamId, (int)$o['ovr'])['cabe']) continue;
+            $pdo->prepare('UPDATE fa_request_offers SET status = "canceled" WHERE id = ?')->execute([(int)$o['id']]);
+            $caidas++;
+        }
+    } catch (Throwable $e) { error_log('cancelarPropostasSemEspacoNoCap (novo): ' . $e->getMessage()); }
+
+    // Fluxo antigo: free_agent_offers -> free_agents.<coluna de ovr>
+    try {
+        $col = freeAgentOvrColumn($pdo);
+        $st = $pdo->prepare("SELECT o.id, fa.{$col} AS ovr
+                             FROM free_agent_offers o
+                             JOIN free_agents fa ON fa.id = o.free_agent_id
+                             WHERE o.team_id = ? AND o.status = 'pending'");
+        $st->execute([$teamId]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $o) {
+            if (capCabeNoTime($pdo, $teamId, (int)$o['ovr'])['cabe']) continue;
+            $pdo->prepare('UPDATE free_agent_offers SET status = "canceled" WHERE id = ?')->execute([(int)$o['id']]);
+            $caidas++;
+        }
+    } catch (Throwable $e) { error_log('cancelarPropostasSemEspacoNoCap (antigo): ' . $e->getMessage()); }
+
+    return $caidas;
+}
+
+/**
+ * O espaço no cap do time e quanto cada OVR custaria nele.
+ *
+ * Manda a tabela inteira (40 a 99) de uma vez em vez de responder a cada
+ * tecla digitada no campo de OVR: são sessenta números, e assim o formulário
+ * atualiza o "custa 16M" na hora, sem ida ao servidor.
+ *
+ * No modo soma de OVR o custo depende do elenco atual — o reserva que não
+ * entra no top custa zero — por isso a tabela é calculada por time, não
+ * fixada em código.
+ */
+function capEspacoDoTime(PDO $pdo, ?int $teamId): void
+{
+    if (!$teamId) {
+        jsonSuccess(['espaco' => null, 'unidade' => 'M', 'custo_por_ovr' => []]);
+    }
+    $base = capCabeNoTime($pdo, $teamId, 80);
+    $tabela = [];
+    for ($ovr = 40; $ovr <= 99; $ovr++) {
+        $tabela[$ovr] = capCabeNoTime($pdo, $teamId, $ovr)['custo'];
+    }
+    jsonSuccess([
+        'espaco'        => $base['espaco'],
+        'unidade'       => $base['unidade'],
+        'modo'          => $base['modo'],
+        'custo_por_ovr' => $tabela,
+    ]);
 }
 
 function getTeamFaWins(PDO $pdo, int $teamId): int
@@ -1686,6 +1820,14 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
         jsonError('Moedas insuficientes');
     }
 
+    // Mesma régua do fluxo novo: o salário do jogador tem que caber no cap.
+    $ovrDoAlvo = (int)($player[freeAgentOvrColumn($pdo)] ?? 0);
+    $fit = capCabeNoTime($pdo, (int)$teamId, $ovrDoAlvo);
+    if (!$fit['cabe']) {
+        $u = $fit['unidade'];
+        jsonError("{$player['name']} custa {$fit['custo']}{$u} no cap e você tem {$fit['espaco']}{$u} de espaço.");
+    }
+
     $stmt = $pdo->prepare('SELECT id FROM free_agent_offers WHERE free_agent_id = ? AND team_id = ?');
     $stmt->execute([$player_id, $teamId]);
     $existing = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -1698,8 +1840,8 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
         $stmtRoster->execute([$teamId]);
         $rosterCount = (int)$stmtRoster->fetchColumn();
 
-        if ($rosterCount >= 15) {
-            jsonError('Elenco cheio (15 jogadores). Dispense um jogador antes de enviar propostas.');
+        if ($rosterCount >= ELENCO_MAX) {
+            jsonError('Elenco cheio (' . ELENCO_MAX . ' jogadores). Dispense um jogador antes de enviar propostas.');
         }
     }
 
@@ -1855,8 +1997,8 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
         $newRosterCount = (int)$stmtNewRoster->fetchColumn();
 
         // Cancelar outras propostas deste time que ele não consegue mais ganhar:
-        // — elenco cheio (acaba de atingir 15) OU moedas insuficientes
-        if ($newRosterCount >= 15) {
+        // — elenco cheio (bateu o teto) OU moedas insuficientes
+        if ($newRosterCount >= ELENCO_MAX) {
             // Elenco cheio: cancela todas as demais propostas pendentes do time
             $pdo->prepare('UPDATE free_agent_offers SET status = "canceled" WHERE team_id = ? AND status = "pending"')
                 ->execute([(int)$offer['team_id']]);
@@ -1868,6 +2010,10 @@ function approveOffer(PDO $pdo, array $body, int $adminId): void
             $pdo->prepare('UPDATE free_agent_offers SET status = "canceled" WHERE team_id = ? AND status = "pending" AND amount > ?')
                 ->execute([(int)$offer['team_id'], $newCoins]);
         }
+
+        // E as que o cap não cobre mais — o jogador que acabou de entrar
+        // comeu o espaço que sustentava as outras propostas.
+        cancelarPropostasSemEspacoNoCap($pdo, (int)$offer['team_id']);
 
         $pdo->commit();
 

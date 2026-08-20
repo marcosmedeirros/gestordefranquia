@@ -597,6 +597,67 @@ function getTeamCapSummary(PDO $pdo, int $teamId): array
 }
 
 /**
+ * Quanto um jogador de tal OVR custaria a este time, e se ele cabe.
+ *
+ * É a mesma pergunta na Free Agency e no waiver, e a resposta muda por liga:
+ * na ELITE o cap é folha salarial, e o custo é o salário da tabela por OVR;
+ * nas outras o cap é a soma de OVR dos CAP_TOP_N melhores, e o custo é o quanto
+ * essa soma sobe ao encaixar o jogador — zero, se ele não entra no top.
+ *
+ * Devolve sempre as duas pontas (custo e espaço) na mesma unidade, pra tela
+ * poder dizer "custa 16M, você tem 22M" sem saber de qual liga se trata.
+ *
+ * ovr 0 (ou time inexistente) devolve cabe=true: sem OVR não há o que julgar,
+ * e travar o jogador por falta de informação seria pior que deixar passar —
+ * quem confere de verdade é o admin na hora de aprovar.
+ */
+function capCabeNoTime(PDO $pdo, int $teamId, int $ovr): array
+{
+    $vazio = ['custo' => 0, 'espaco' => 0, 'cabe' => true, 'unidade' => 'M', 'modo' => 'salary'];
+    if ($teamId <= 0 || $ovr <= 0) return $vazio;
+
+    $st = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+    $st->execute([$teamId]);
+    $league = (string)($st->fetchColumn() ?: '');
+    if ($league === '') return $vazio;
+
+    if (capLigaUsaSalario($pdo, $league)) {
+        try {
+            $resumo = getTeamCapSummary($pdo, $teamId);
+        } catch (Throwable $e) {
+            return $vazio;
+        }
+        // Sem lenda e sem rookie scale: quem chega de fora entra pela tabela.
+        $custo  = capOvrSalary($ovr);
+        $espaco = (int)$resumo['space'];
+        // max(0, ...): time estourado tem espaço negativo, e comparar contra
+        // negativo diria que nem um jogador de custo zero cabe.
+        return ['custo' => $custo, 'espaco' => $espaco, 'cabe' => $custo <= max(0, $espaco),
+                'unidade' => 'M', 'modo' => 'salary'];
+    }
+
+    // Modo soma de OVR: o custo é o que a soma do top sobe com ele dentro.
+    require_once __DIR__ . '/helpers.php';
+    $st = $pdo->prepare('SELECT ovr FROM players WHERE team_id = ? ORDER BY ovr DESC');
+    $st->execute([$teamId]);
+    $ovrs = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+
+    $somaAtual = array_sum(array_slice($ovrs, 0, CAP_TOP_N));
+    $comEle = $ovrs;
+    $comEle[] = $ovr;
+    rsort($comEle);
+    $somaNova = array_sum(array_slice($comEle, 0, CAP_TOP_N));
+
+    $capMax = capBaseEFloorDaLiga($pdo, $league)['base'];
+    $custo  = $somaNova - $somaAtual;
+    $espaco = $capMax - $somaAtual;
+    // Custo zero é o reserva que não entra no top: não mexe no cap, então
+    // entra mesmo com o time acima do teto.
+    return ['custo' => $custo, 'espaco' => $espaco, 'cabe' => $custo <= max(0, $espaco),
+            'unidade' => 'OVR', 'modo' => 'ovr_sum'];
+}
+
+/**
  * Sugestões práticas de como o time pode se ajustar ao cap, conforme o status.
  * Retorna lista de ['type' => ok|danger|warn|info|tip, 'text' => '...'].
  */

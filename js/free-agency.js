@@ -94,6 +94,55 @@ function getAdminLeague() {
     return defaultAdminLeague || null;
 }
 
+// O cap do meu time: espaço disponível e quanto cada OVR custaria nele.
+// Vem inteiro do servidor (40 a 99) pra que digitar no campo de OVR atualize
+// o aviso na hora, sem uma ida ao servidor por tecla.
+let capDoMeuTime = null;
+
+async function carregarCapDoMeuTime() {
+    try {
+        const r = await fetch('api/free-agency.php?action=cap_espaco');
+        const d = await r.json();
+        capDoMeuTime = d?.success && d.espaco !== null ? d : null;
+    } catch (e) {
+        capDoMeuTime = null;   // sem o cap, o formulário só não avisa nada
+    }
+    atualizarAvisoDeCap();
+}
+
+/**
+ * Diz quanto o jogador digitado custaria e trava o envio se não couber.
+ * Sem dado de cap, some da tela — melhor nada do que um número inventado.
+ */
+function atualizarAvisoDeCap() {
+    const caixa = document.getElementById('faCapAviso');
+    const texto = document.getElementById('faCapTexto');
+    const botao = document.getElementById('faNewSubmitBtn');
+    if (!caixa || !texto) return;
+
+    const ovr = parseInt(document.getElementById('faNewOvr')?.value, 10);
+    if (!capDoMeuTime || !Number.isFinite(ovr)) {
+        caixa.hidden = true;
+        if (botao) { botao.disabled = false; botao.style.opacity = ''; }
+        return;
+    }
+
+    const u = capDoMeuTime.unidade || 'M';
+    const custo = capDoMeuTime.custo_por_ovr?.[ovr] ?? 0;
+    const espaco = capDoMeuTime.espaco;
+    const cabe = custo <= Math.max(0, espaco);
+
+    caixa.hidden = false;
+    texto.innerHTML = cabe
+        ? `Um jogador de <strong>${ovr} OVR</strong> custa <strong>${custo}${u}</strong> no seu cap. Você tem <strong>${espaco}${u}</strong> de espaço.`
+        : `<strong>Não cabe no seu cap.</strong> Um jogador de ${ovr} OVR custa ${custo}${u} e você tem ${espaco}${u} de espaço. Libere espaço ou mire num OVR menor.`;
+    texto.style.color = cabe ? '' : 'var(--red)';
+    if (botao) {
+        botao.disabled = !cabe;
+        botao.style.opacity = cabe ? '' : '.5';
+    }
+}
+
 function initNewFreeAgency() {
     const form = document.getElementById('faNewRequestForm');
     if (form) {
@@ -109,6 +158,9 @@ function initNewFreeAgency() {
             submitNewFaRequest();
         });
     }
+
+    document.getElementById('faNewOvr')?.addEventListener('input', atualizarAvisoDeCap);
+    carregarCapDoMeuTime();
 
     const approvedBtn = document.getElementById('faViewApprovedBtn');
     if (approvedBtn) {
@@ -399,6 +451,7 @@ async function submitNewFaRequest() {
         alert('Proposta enviada!');
         document.getElementById('faNewRequestForm')?.reset();
         document.getElementById('faNewOffer').value = '1';
+        atualizarAvisoDeCap();
         carregarMinhasPropostasNovaFA();
         if (isAdmin) {
             carregarSolicitacoesNovaFA();

@@ -648,6 +648,11 @@ $default_admin_league = $team_league ?? ($leagues[0] ?? 'ELITE');
                                     <option value="3">⚪ Baixa</option>
                                 </select>
                             </div>
+                            <div style="grid-column: span 6;" id="faCapAviso" hidden>
+                                <div class="hint-box" id="faCapBox">
+                                    <p id="faCapTexto"></p>
+                                </div>
+                            </div>
                             <div style="grid-column: span 6;">
                                 <div class="hint-box">
                                     <p><strong>Atenção:</strong> Informe o nome exatamente como aparece no vídeo (ex: LeBron James, não L. James). Se o jogador já existir na FA, sua proposta será agrupada com as demais.</p>

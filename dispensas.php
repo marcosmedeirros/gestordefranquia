@@ -164,7 +164,7 @@ a{color:inherit;text-decoration:none}
     <div>
       <div class="page-hero-eyebrow">FBA Elite · <span id="waiverHoursKicker">12h</span> de janela</div>
       <h1 class="page-hero-title"><i class="bi bi-hourglass-split" style="color:var(--red);margin-right:8px"></i>Dispensas</h1>
-      <p class="page-hero-sub">Todo jogador dispensado na ELITE fica <b><span id="waiverHoursLead">12h</span> em waiver</b> antes de virar free agent. Nesse período, os times dão <b>lance com o espaço disponível no seu salary cap</b> — ao fim, o jogador vai pro <b>maior lance</b> (desempate: quem deu o lance primeiro) e o salário dele entra no cap do vencedor. Sem lances, cai no free agency.</p>
+      <p class="page-hero-sub">Todo jogador dispensado na ELITE fica <b><span id="waiverHoursLead">12h</span> em waiver</b> antes de virar free agent. Nesse período, os times dão <b>lance com o espaço disponível no seu salary cap</b> — ao fim, o jogador vai pro <b>maior lance</b> (desempate: quem deu o lance primeiro) e o salário dele entra no cap do vencedor. Só dá pra dar lance em quem <b>cabe no seu cap</b>. Sem lances, cai no free agency.</p>
     </div>
     <div class="page-hero-actions" style="flex-direction:column;align-items:flex-end">
       <div class="mine-bid" id="mineBid" style="display:none"><i class="bi bi-wallet2" style="color:var(--red)"></i> Seu lance possível agora: <b id="myBidVal">—</b> de espaço no cap</div>
@@ -231,6 +231,9 @@ function render(){
       if(own) btn = `<button class="actbtn dis" disabled>Você dispensou este jogador</button>`;
       else if(!canClaim) btn = `<button class="actbtn dis" disabled>Somente times da ELITE</button>`;
       else if(mine) btn = `<button class="actbtn on" onclick="claim(${w.id},false)"><i class="bi bi-x-circle"></i> Cancelar meu lance (${w.my_bid}M)</button>`;
+      // Sem espaço pro salário dele, o lance nem chega a ser oferecido — o
+      // botão diz por quê, em vez de deixar o time descobrir no erro.
+      else if(w.cap_cabe === false) btn = `<button class="actbtn dis" disabled><i class="bi bi-slash-circle"></i> Não cabe no seu cap (custa ${w.cap_custo}${w.cap_unidade||'M'})</button>`;
       else btn = `<button class="actbtn" onclick="claim(${w.id},true)"><i class="bi bi-cash-coin"></i> Dar lance · ${DATA.my_cap_space!=null?DATA.my_cap_space+'M de espaço':'meu espaço'}</button>`;
       const pos = [w.position, w.secondary_position].filter(Boolean).join('/');
       const crit = sec < 3600 ? 'crit' : (sec < 3*3600 ? 'warn' : '');
@@ -245,6 +248,7 @@ function render(){
           <div class="ovr"><div class="v">${w.ovr}</div><div class="l">OVR</div></div>
         </div>
         <div class="row"><i class="bi bi-box-arrow-right"></i> Dispensado por <b style="color:var(--text)">${esc(w.waived_by_name)}</b></div>
+        ${w.cap_custo!=null?`<div class="row"><i class="bi bi-cash-stack"></i> Custa <b style="color:${w.cap_cabe===false?'var(--red)':'var(--text)'}">${w.cap_custo}${w.cap_unidade||'M'}</b> no seu cap</div>`:''}
         <div class="bid">
           <i class="bi bi-trophy-fill" style="color:var(--amber)"></i> Maior lance: <span class="lead-bid">${topBid}</span>
           ${mine?`<span class="me"><i class="bi bi-check2"></i> seu: ${w.my_bid}M</span>`:''}

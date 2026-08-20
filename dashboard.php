@@ -155,8 +155,8 @@ $stats = $stmtPlayers->fetch();
 
 $totalPlayers = $stats['total'] ?? 0;
 $avgOvr = $totalPlayers > 0 ? round($stats['total_ovr'] / $totalPlayers, 1) : 0;
-$minPlayers = 13;
-$maxPlayers = 15;
+$minPlayers = ELENCO_MIN;
+$maxPlayers = ELENCO_MAX;
 $playersOutOfRange = $totalPlayers < $minPlayers || $totalPlayers > $maxPlayers;
 
 $stmtTitulares = $pdo->prepare("SELECT * FROM players WHERE team_id = ? AND role = 'Titular' ORDER BY ovr DESC");

@@ -281,13 +281,13 @@ function pendenciasDoGm(PDO $pdo, array $user, ?array $team): array
         $st = $pdo->prepare("SELECT COUNT(*) FROM players WHERE team_id = ?");
         $st->execute([$teamId]);
         $n = (int)$st->fetchColumn();
-        if ($n > 0 && ($n < 13 || $n > 15)) {
+        if ($n > 0 && ($n < ELENCO_MIN || $n > ELENCO_MAX)) {
             $itens[] = [
                 'urgencia' => 'media',
                 'icone'    => 'bi-people',
-                'titulo'   => $n < 13
-                    ? 'Elenco abaixo do mínimo (' . $n . ' de 13)'
-                    : 'Elenco acima do máximo (' . $n . ' de 15)',
+                'titulo'   => $n < ELENCO_MIN
+                    ? 'Elenco abaixo do mínimo (' . $n . ' de ' . ELENCO_MIN . ')'
+                    : 'Elenco acima do máximo (' . $n . ' de ' . ELENCO_MAX . ')',
                 'detalhe'  => $n < 13 ? 'Contrate pra completar.' : 'Dispense até voltar ao limite.',
                 'url'      => '/my-roster.php',
             ];
