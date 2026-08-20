@@ -1181,19 +1181,22 @@ tr.tit td{color:var(--red)}
 
 /* ── JANELA DE TRANSFERÊNCIAS ────────────────────────────────────────── */
 .ofertas-lista{display:flex;flex-direction:column;gap:8px;margin-top:8px}
-.oferta-linha{display:flex;align-items:center;gap:11px;width:100%;background:var(--panel2);
-  border:1px solid var(--border);border-radius:13px;padding:11px 13px;text-align:left;
-  cursor:pointer;color:var(--text);font-family:var(--font);transition:.16s}
+/* A carta da oferta: escudo em cima, nome e liga embaixo — a mesma do
+   Copero. Empilhada (celular), ela deita pra ocupar menos altura. */
+.oferta-linha{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;
+  background:var(--panel2);border:1px solid var(--border);border-radius:13px;padding:13px 10px;
+  text-align:center;cursor:pointer;color:var(--text);font-family:var(--font);transition:.16s}
 .oferta-linha:hover{border-color:var(--red);background:var(--panel3)}
 .ol-marca{flex:none;display:flex}
-.ol-txt{flex:1;min-width:0}
-.ol-txt b{display:block;font-size:14px;font-weight:900;letter-spacing:-.2px;
+.ol-txt{min-width:0;width:100%}
+.ol-txt b{display:block;font-size:13.5px;font-weight:900;letter-spacing:-.2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ol-txt small{display:block;font-size:10.5px;color:var(--text2);margin-top:2px}
-.ol-num{flex:none;text-align:right;font-family:var(--num);font-size:16px;font-weight:900;
-  color:var(--red);font-variant-numeric:tabular-nums;line-height:1.1}
-.ol-num small{display:block;font-size:10px;font-weight:700;color:var(--text3);margin-top:3px;
-  font-variant-numeric:normal}
+.ol-txt small{display:block;font-size:10px;color:var(--text3);margin-top:3px;font-weight:700;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:560px){
+  .oferta-linha{flex-direction:row;align-items:center;text-align:left;gap:11px;padding:10px 12px}
+  .ol-txt{flex:1}
+}
 .op-parar{margin-top:10px;border-style:dashed;color:var(--text2)}
 .op-parar:hover{border-color:var(--red);color:var(--text)}
 
@@ -4120,7 +4123,7 @@ function placar(st, rotuloAno, time, campanha, premios){
       </div>
       <div class="ficha-num">
         <div>IDADE<b>${S.idade}</b></div>
-        <div>VALOR<b>$${valorDeMercado()}M</b></div>
+        <div>SALÁRIO<b>$${S.salario}M</b></div>
       </div>
     </div>
 
@@ -4129,7 +4132,6 @@ function placar(st, rotuloAno, time, campanha, premios){
       <span class="tag">${esc(S.pos)}</span>
       ${S.numero ? `<span class="tag">#${esc(S.numero)}</span>` : ""}
       <span class="tag">${esc(rotuloAno)}</span>
-      <span class="tag">$${S.salario}M/ano</span>
       ${(S.anosNoClube || 0) >= 6 ? `<span class="tag idolo">Ídolo da casa</span>` : ""}
     </div>
 
@@ -4619,10 +4621,8 @@ function mercadoHTML(){
           <span class="ol-marca">${marca(of.time, 34)}</span>
           <span class="ol-txt">
             <b>${of.time === S.time ? "Ficar no " + esc(of.time) : esc(of.time)}</b>
-            <small>${esc(of.liga || S.liga || "")} · ${esc(of.papel)} · elenco ${
-              of.forca >= 70 ? "forte" : of.forca >= 50 ? "mediano" : "fraco"}</small>
+            <small>${esc(of.liga || S.liga || "")}</small>
           </span>
-          <span class="ol-num">$${of.salario}M<small>${of.anos} anos</small></span>
         </button>`).join(""))}
     ${podeParar ? `<button class="op op-parar" onclick="pendurar()">Pendurar as chuteiras
       <small>Encerra a carreira agora, com ${temporadasJogadas().length} temporadas e o que você já ganhou.</small>
