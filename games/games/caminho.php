@@ -599,10 +599,22 @@ input::placeholder{color:var(--text3);font-weight:500}
 .mini b{font-family:var(--num);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text)}
 .mini span{display:block;font-size:7.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
   color:var(--text2);margin-top:1px}
-.campanha{padding:7px 2px 0;font-size:12px;color:var(--text2)}
-.campanha b{color:var(--text);font-family:var(--num);font-variant-numeric:tabular-nums}
-
-.premios{display:flex;flex-wrap:wrap;gap:5px;padding:0 14px 10px}
+/* O fecho do ano: o recorde como número, o desfecho como etiqueta e as
+   medalhas na mesma faixa. Era texto corrido com o placar em negrito e as
+   medalhas soltas embaixo, sem relação com ele. */
+.ano-fecho{border-top:1px solid var(--border);margin-top:9px;padding-top:9px;
+  display:flex;flex-direction:column;gap:7px}
+.campanha{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--text2)}
+.campanha b{font-family:var(--num);font-size:15px;font-weight:900;letter-spacing:-.5px;
+  color:var(--text);font-variant-numeric:tabular-nums}
+.campanha em{font-style:normal;font-size:11px;color:var(--text3)}
+.camp-selo{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:.8px;
+  text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid}
+.camp-titulo{color:var(--red);border-color:var(--red-glow);background:var(--red-soft)}
+.camp-vice{color:var(--amber);border-color:rgba(245,158,11,.35);background:var(--amber-soft)}
+.camp-playoff{color:var(--green);border-color:rgba(34,197,94,.35);background:var(--green-soft)}
+.camp-fora{color:var(--text3);border-color:var(--border2);background:var(--panel3)}
+.premios{display:flex;flex-wrap:wrap;gap:5px}
 .pr{font-size:10px;font-weight:800;letter-spacing:.4px;padding:4px 9px;border-radius:999px;
   border:1px solid;white-space:nowrap}
 .pr.ouro{color:var(--amber);border-color:rgba(245,158,11,.35);background:var(--amber-soft)}
@@ -925,6 +937,14 @@ tr.tit td{color:var(--red)}
 /* A idade é um selo, não um número solto: verde quando a temporada
    aconteceu, vermelho no ano do título, apagado no que ainda não veio.
    A cor responde "o que rolou nesse ano?" antes da linha ser lida. */
+/* A linha de total fecha a tabela: fundo mais forte, sem hover, e o número
+   com o mesmo peso do cabeçalho — ela é resumo, não mais um ano. */
+.tj-total{background:var(--panel2);border-top:1px solid var(--border2);border-bottom:none;
+  font-weight:800;position:sticky;bottom:0}
+.tj-total .tj-idade{background:transparent;color:var(--text3);font-size:13px}
+.tj-total .tj-clube b{font-size:11.5px}
+.tj-total .tj-clube em{font-style:normal;font-size:9.5px;color:var(--text3);margin-left:5px}
+.tj-total .tj-n{color:var(--text);font-weight:800}
 .tj-idade{flex:none;width:26px;height:20px;display:flex;align-items:center;justify-content:center;
   border-radius:6px;font-family:var(--num);font-size:11.5px;font-weight:800;
   font-variant-numeric:tabular-nums;background:var(--panel3);color:var(--text2)}
@@ -4107,9 +4127,7 @@ function placar(st, rotuloAno, time, campanha, premios){
   const cor = d > 0 ? "var(--green)" : d < 0 ? "var(--red)" : "var(--text3)";
   const sinal = d > 0 ? "+" + d : d < 0 ? String(d) : "=";
   const clube = String(time || "").split(" · ")[0];
-  const tot = totaisDeCarreira();
   const anos = temporadasJogadas().length;
-  const nfmt = (v) => Number(v || 0).toLocaleString("pt-BR");
 
   return `<div class="caixa ficha">
     <div class="ficha-marca" aria-hidden="true">${marca(clube, 140)}</div>
@@ -4146,13 +4164,6 @@ function placar(st, rotuloAno, time, campanha, premios){
 
     ${vitrineTrofeus()}
 
-    <div class="ficha-stats">
-      <div><span>Jogos</span><b>${nfmt(tot.jogos)}</b></div>
-      <div><span>Pontos</span><b>${nfmt(tot.pts)}</b></div>
-      <div><span>Rebotes</span><b>${nfmt(tot.reb)}</b></div>
-      <div><span>Assist.</span><b>${nfmt(tot.ast)}</b></div>
-    </div>
-
     <div class="ficha-ano">
       <div class="ficha-ano-cab">A temporada${anos ? ` · ${anos}ª` : ""}</div>
       <div class="linha-stats">
@@ -4165,8 +4176,10 @@ function placar(st, rotuloAno, time, campanha, premios){
         <div class="mini"><b>${st.jogos}</b><span>jogos</span></div>
         <div class="mini"><b>${S.confianca}</b><span>confiança</span></div>
       </div>
-      ${campanha ? `<div class="campanha">${campanha}</div>` : ""}
-      ${premios.length ? `<div class="premios">${premios.map(p=>`<span class="pr ${p.k}">${esc(p.t)}</span>`).join("")}</div>` : ""}
+      ${campanha || premios.length ? `<div class="ano-fecho">
+        ${campanha ? `<div class="campanha">${campanha}</div>` : ""}
+        ${premios.length ? `<div class="premios">${premios.map(p=>`<span class="pr ${p.k}">${esc(p.t)}</span>`).join("")}</div>` : ""}
+      </div>` : ""}
     </div>
   </div>`;
 }
@@ -4246,7 +4259,7 @@ function perderAno(){
   S.picoOvr = Math.max(S.picoOvr || 0, S.ultimoOvr);
   S.picoTres = Math.max(S.picoTres || 0, (S.A && S.A.tres) || 0);
   S.ultimosPremios = [];
-  S.ultimaCampanha = `<b>${lesao ? "Temporada perdida" : "Suspenso"}</b> · ${esc(af.motivo)}`;
+  S.ultimaCampanha = `<i class="camp-selo camp-fora">${lesao ? "Temporada perdida" : "Suspenso"}</i><em>${esc(af.motivo)}</em>`;
 
   af.anos--;
   const liberado = af.anos <= 0;
@@ -4297,7 +4310,9 @@ function jogarAno(){
     salvar(); telaTemporada(); return abrirFinais();
   }
 
-  S.ultimaCampanha = `<b>${vit}-${82-vit}</b> · ${playoff ? "caiu nos playoffs" : "fora dos playoffs"}`;
+  S.ultimaCampanha = `<b>${vit}-${82-vit}</b><i class="camp-selo ${
+    playoff ? "camp-playoff" : "camp-fora"}">${playoff ? "Playoffs" : "Fora"}</i>${
+    playoff ? '<em>caiu antes das finais</em>' : ''}`;
   fecharAno(false, vit, o, st);
 }
 
@@ -4531,9 +4546,9 @@ function simularJogoFinal(){
 
 function encerrarFinais(){
   const f = S.finais, campeao = f.v === 4;
-  S.ultimaCampanha = `<b>${S.ultimaVit}-${82-S.ultimaVit}</b> · ${campeao
-    ? `CAMPEÃO — ${f.v}-${f.d} nas finais`
-    : `vice — perdeu as finais por ${f.d}-${f.v}`}`;
+  S.ultimaCampanha = campeao
+    ? `<b>${S.ultimaVit}-${82-S.ultimaVit}</b><i class="camp-selo camp-titulo">Campeão</i><em>${f.v}-${f.d} nas finais</em>`
+    : `<b>${S.ultimaVit}-${82-S.ultimaVit}</b><i class="camp-selo camp-vice">Vice</i><em>perdeu por ${f.d}-${f.v}</em>`;
   const st = S.ultimo, o = S.ultimoOvr;
   S.finais = null;
   fecharAno(campeao, S.ultimaVit, o, st);
@@ -4650,7 +4665,9 @@ function escolherOferta(i){
   S.mercado = null; S.ofertaEscolhida = null;
   S.decisaoId = decisaoDoAno();
   S.aguardando = S.decisaoId !== null;
-  salvar(); telaTemporada();
+  salvar();
+  if (S.aguardando) return telaTemporada();
+  jogarAno();
 }
 
 // A tela de prazo separada saiu: o prazo agora vem dentro da proposta.
@@ -4837,8 +4854,28 @@ function decidir(i){
   // movimento no sistema não quer nada piscando: nesses casos o desfecho
   // aparece direto.
   const doisLados = (op.chance ?? 100) < 100 && op.ruim;
-  if (!doisLados || matchMedia("(prefers-reduced-motion: reduce)").matches) return telaTemporada();
+  if (!doisLados || matchMedia("(prefers-reduced-motion: reduce)").matches){
+    telaTemporada();
+    return esperarELevar();
+  }
   sortearNaCarta(i, deuCerto);
+}
+
+/**
+ * O tempo de ler o desfecho antes do jogo seguir sozinho.
+ *
+ * Dois segundos e meio: o bastante pra ler duas linhas, pouco o bastante pra
+ * não parecer que o jogo travou. Um clique em qualquer lugar pula a espera.
+ */
+function esperarELevar(){
+  let feito = false;
+  const ir = () => {
+    if (feito) return; feito = true;
+    document.removeEventListener("click", ir);
+    if (S && S.desfecho) seguir();
+  };
+  document.addEventListener("click", ir);
+  setTimeout(ir, 2500);
 }
 
 /**
@@ -4875,7 +4912,7 @@ function sortearNaCarta(i, deuCerto){
         l.classList.remove("piscando");
         l.classList.add(k === alvo ? "caiu" : "apagado");
       });
-      return setTimeout(() => { if (carta.isConnected) telaTemporada(); }, 420);
+      return setTimeout(() => { if (carta.isConnected) { telaTemporada(); esperarELevar(); } }, 420);
     }
 
     aceso = 1 - aceso;
@@ -4884,10 +4921,20 @@ function sortearNaCarta(i, deuCerto){
   passo();
 }
 
-/** Fecha o desfecho e devolve a pessoa pra temporada. */
+/**
+ * Fecha o desfecho e toca o ano seguinte.
+ *
+ * Chamada sozinha depois que o desfecho aparece: a decisão já foi tomada e
+ * ficar esperando um clique de "seguir" só atrasa o que vai acontecer de
+ * qualquer jeito. Quem está em fim de carreira é a exceção — aí a tela para,
+ * porque continuar ou parar É a decisão seguinte.
+ */
 function seguir(){
   S.desfecho = null; S.efeitoDecisao = 0;
-  salvar(); telaTemporada();
+  salvar();
+  const podeParar = S.idade >= 39 || (S.idade >= 33 && ovr(S.A, S.pos) < 68) || S.idade >= 33;
+  if (podeParar) return telaTemporada();
+  jogarAno();
 }
 
 /**
@@ -4911,8 +4958,7 @@ function cartaDoDesfecho(df){
         </span>
       </div>
     </div>
-    <p class="dec-desfecho-txt">${esc(df.txt || "")}</p>
-    <button class="btn" onclick="seguir()">Seguir em frente</button>`;
+    <p class="dec-desfecho-txt">${esc(df.txt || "")}</p>`;
 }
 
 
@@ -5187,6 +5233,28 @@ function trajetoPorIdade(){
       <span class="tj-n">Reb</span><span class="tj-n">Ast</span>
     </div>
     ${linhas.join("")}
+    ${rodapeDeTotais()}
+  </div>`;
+}
+
+/**
+ * Os totais da carreira como última linha da tabela.
+ *
+ * Eles moravam na ficha, entre a vitrine e o boletim do ano, e empurravam a
+ * decisão pra baixo da dobra. Aqui embaixo eles ficam na MESMA grade das
+ * colunas que somam — jogos, pontos, rebotes, assistências ficam alinhados
+ * com a coluna de cada um, e a soma se lê no eixo, como em qualquer planilha.
+ */
+function rodapeDeTotais(){
+  const tot = totaisDeCarreira();
+  if (!tot.jogos) return "";
+  const n = (v) => Number(v || 0).toLocaleString("pt-BR");
+  return `<div class="tj tj-total">
+    <span class="tj-idade">Σ</span>
+    <span class="tj-clube"><b>Carreira</b><em>${temporadasJogadas().length} ${temporadasJogadas().length === 1 ? "temporada" : "temporadas"}</em></span>
+    <span class="tj-ovr tj-ovr-vazio">—</span>
+    <span class="tj-n">${n(tot.jogos)}</span><span class="tj-n forte">${n(tot.pts)}</span>
+    <span class="tj-n">${n(tot.reb)}</span><span class="tj-n">${n(tot.ast)}</span>
   </div>`;
 }
 
