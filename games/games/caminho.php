@@ -2674,6 +2674,18 @@ const LOGOS_CLUBE = {
   "NBL": "https://r2.thesportsdb.com/images/media/league/badge/gvz6vb1726086476.png",
   "NBL (Austrália)": "https://r2.thesportsdb.com/images/media/league/badge/gvz6vb1726086476.png",
   "Rytas": "https://r2.thesportsdb.com/images/media/team/badge/srfue01713948964.png",
+  // Estes oito o catálogo do TheSportsDB não tem, então moram aqui mesmo,
+  // recortados e normalizados em 256x256 com fundo transparente. Sendo do
+  // nosso domínio, eles não precisam do proxy nem contaminam o canvas do
+  // cartão de compartilhar.
+  "NBB": "/games/img/escudos/nbb.png",
+  "NBB (Brasil)": "/games/img/escudos/nbb.png",
+  "EuroLeague": "/games/img/escudos/euroliga.png",
+  "BAL": "/games/img/escudos/bal.png",
+  "Fenerbahçe": "/games/img/escudos/fenerbahce.png",
+  "Instituto": "/games/img/escudos/instituto.png",
+  "Minas": "/games/img/escudos/minas.png",
+  "Rivers Hoopers": "/games/img/escudos/rivershoopers.png",
 };
 
 /**
