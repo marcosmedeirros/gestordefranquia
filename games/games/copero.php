@@ -2528,7 +2528,7 @@ function render(){
   // O carrossel precisa de duas coisas depois que o HTML entra: saber quem
   // está no meio, e continuar sabendo enquanto a pessoa arrasta.
   const pista = document.getElementById('carrPista');
-  if (pista){
+  if (pista && typeof pista.addEventListener === "function"){
     marcarFoco(0);
     let t2 = null;
     pista.addEventListener('scroll', () => {
@@ -2684,7 +2684,7 @@ function carrossel(cartasHtml, n){
 function carrMover(d){
   const pista = document.getElementById('carrPista');
   if (!pista) return;
-  const cartas = [...pista.children];
+  const cartas = [...(pista.children || [])];
   if (!cartas.length) return;
   const atual = cartas.findIndex(c => c.classList.contains('foco'));
   const alvo = Math.max(0, Math.min(cartas.length - 1, (atual < 0 ? 0 : atual) + d));
@@ -2696,7 +2696,7 @@ function carrMover(d){
 function marcarFoco(forcado){
   const pista = document.getElementById('carrPista');
   if (!pista) return;
-  const cartas = [...pista.children];
+  const cartas = [...(pista.children || [])];
   if (!cartas.length) return;
   let i = forcado;
   if (i == null){

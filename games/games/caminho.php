@@ -824,7 +824,14 @@ tr.tit td{color:var(--red)}
    trabalho. O resto (país, camisa, clube, valor) fica ao lado, na ordem
    em que se lê uma ficha de verdade. */
 .ficha{display:flex;align-items:stretch;gap:0;background:var(--panel2);
-  border-bottom:1px solid var(--border)}
+  border-bottom:1px solid var(--border);position:relative;overflow:hidden}
+/* O escudo do time como marca d'água: grande, cortado pela borda e quase
+   apagado — dá peso ao clube sem disputar com o texto. */
+.ficha-marca{position:absolute;right:-30px;top:50%;transform:translateY(-50%);
+  opacity:.085;pointer-events:none;z-index:0}
+.ficha-marca .marca-logo,.ficha-marca .marca-time{width:140px!important;height:140px!important;
+  border-radius:0;box-shadow:none}
+.ficha > *:not(.ficha-marca){position:relative;z-index:1}
 .ficha-ovr{flex:none;width:88px;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:1px;padding:12px 6px;
   background:linear-gradient(160deg,color-mix(in srgb,var(--cor) 88%,#000),color-mix(in srgb,var(--cor) 55%,#000));
@@ -890,6 +897,14 @@ tr.tit td{color:var(--red)}
   font-variant-numeric:tabular-nums;background:var(--panel3);color:var(--text2)}
 .sel-jogada{background:#16a34a;color:#fff}
 .sel-titulo{background:var(--red);color:#fff}
+/* A cor sai do CLUBE (inline); o anel vermelho é o que marca o ano de
+   título, pra informação não se perder junto com a cor. */
+.sel-clube{color:#fff}
+.sel-campeao{color:#fff;box-shadow:inset 0 0 0 2px var(--red)}
+.tj-n.pronta{animation:tjCrava .3s ease-out}
+@keyframes tjCrava{0%{transform:scale(1.45);color:#fff}100%{transform:scale(1)}}
+.ficha-ovr b.cravou{animation:ovrCrava .4s ease-out}
+@keyframes ovrCrava{0%{transform:scale(1.28)}60%{transform:scale(.97)}100%{transform:scale(1)}}
 .sel-formacao{background:var(--panel3);color:var(--text2)}
 .sel-perdida{background:#3f3f46;color:var(--text2)}
 /* text2 e não text3: a linha vazia já leva opacity, e as duas coisas
@@ -1121,6 +1136,26 @@ tr.tit td{color:var(--red)}
 .fin-placar span{color:var(--text3);font-size:17px}
 .fin-vazio{text-align:center;color:var(--text2);font-size:12.5px;margin:14px 0}
 /* O mercado cabe mais gente que as finais: até três propostas lado a lado. */
+/* ── CARROSSEL DE DECISÃO ─────────────────────────────────────────────
+   Uma carta em foco e as vizinhas espiando pela borda: a comparação vira
+   "esta ou a próxima", em vez de uma lista inteira pra ler de uma vez. */
+.carr{position:relative;margin-top:6px}
+.carr-pista{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;
+  padding:2px 0 10px;scrollbar-width:none;-ms-overflow-style:none}
+.carr-pista::-webkit-scrollbar{display:none}
+.carr-pista > *{flex:0 0 76%;scroll-snap-align:center;opacity:.42;transform:scale(.94);
+  transition:opacity .18s,transform .18s,border-color .12s}
+.carr-pista > *.foco{opacity:1;transform:scale(1)}
+.carr-ctrl{display:flex;align-items:center;justify-content:center;gap:8px}
+.carr-ctrl button{width:38px;height:34px;border-radius:10px;background:var(--panel2);
+  border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:15px;
+  display:flex;align-items:center;justify-content:center;transition:.14s;font-family:var(--font)}
+.carr-ctrl button:hover:not(:disabled){color:var(--text);border-color:var(--border2)}
+.carr-ctrl button:disabled{opacity:.3;cursor:default}
+.carr-conta{font-size:11px;font-weight:700;color:var(--text3);min-width:34px;text-align:center;
+  font-family:var(--num);font-variant-numeric:tabular-nums}
+@media (min-width:760px){ .carr-pista > *{flex:0 0 44%} }
+
 /* ── JANELA DE TRANSFERÊNCIAS ────────────────────────────────────────── */
 .ofertas-lista{display:flex;flex-direction:column;gap:8px;margin-top:8px}
 .oferta-linha{display:flex;align-items:center;gap:11px;width:100%;background:var(--panel2);
@@ -2647,6 +2682,18 @@ function logoDoTime(nome){
  * externa, e sem o fallback ficaria um ícone quebrado em toda tela. Assim
  * a mesma linha serve pros dois, e time sem logo cadastrado também.
  */
+/**
+ * A cor de um time, do mesmo hash que pinta o monograma.
+ *
+ * Serve pra faixa de idade da trajetória: a coluna da esquerda vira a
+ * carreira lida de relance — seis anos de uma cor, três de outra — e dá pra
+ * ver quando se mudou de casa sem ler nome nenhum.
+ */
+function corDoTime(nome){
+  const h = hashNome(nome || "?");
+  return `hsl(${h % 360} 52% 30%)`;
+}
+
 function marca(nome, tam){
   const t = tam || 34;
   const h = hashNome(nome||"?");
@@ -3269,6 +3316,7 @@ function telaFormacao(){
     `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>`;
 
   app().innerHTML = topo() + colunas(principal, sumula());
+  ligarCarrossel();
 }
 
 function irAoDraft(){ S.fase = "draft"; S.draftRevelado = false; salvar(); telaDraft(); }
@@ -3914,6 +3962,78 @@ function deltaOvr(){
   return {o, d: o - S.ovrAnterior};
 }
 
+const dormir = (ms) => new Promise(r => setTimeout(r, ms));
+const semAnimacao = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * O ano ACONTECE, em vez de aparecer pronto.
+ *
+ * Três coisas em sequência, na ordem em que se lê um boletim: o overall
+ * corre até o número novo e FREIA nele; os números da temporada entram um a
+ * um; e a linha da trajetória se preenche por último. Sem isso a temporada
+ * inteira surgia de uma vez e não havia momento nenhum entre jogar o ano e
+ * saber como ele foi.
+ *
+ * Roda solta (sem await de quem chama): é enfeite, e travar o jogo por causa
+ * de enfeite seria pior que não ter enfeite nenhum.
+ */
+async function animarAno(de, para, idadeLinha){
+  if (semAnimacao()) return;
+  const num = document.querySelector('.ficha-ovr b');
+  if (num && de != null && de !== para){
+    const d = para - de;
+    const passos = Math.min(Math.abs(d), 12);
+    for (let i = 1; i <= passos; i++){
+      num.textContent = Math.round(de + d * i / passos);
+      // Rápido no começo, freando nos últimos: o que interessa é onde ele
+      // para, não o caminho até lá.
+      await dormir(38 + Math.round(150 * Math.pow(i / passos, 3)));
+    }
+    num.textContent = para;
+    num.classList.add('cravou');
+  }
+  await preencherNumeros('.linha-stats .st b, .linha-mini .mini b', 26);
+  await preencherLinha(idadeLinha);
+}
+
+/** Conta cada número de zero até o valor, um depois do outro. */
+async function preencherNumeros(seletor, espera){
+  const alvos = [...document.querySelectorAll(seletor)]
+    .filter(e => /^[d.,]+$/.test((e.textContent||'').trim()));
+  for (const e of alvos){
+    const bruto = (e.textContent||'').trim();
+    const alvo = Number(bruto.replace(',', '.'));
+    if (!isFinite(alvo) || alvo <= 0) continue;
+    const dec = bruto.includes(',') ? 1 : 0;
+    const passos = 7;
+    for (let i = 1; i <= passos; i++){
+      const v = alvo * i / passos;
+      e.textContent = dec ? v.toFixed(1).replace('.', ',') : String(Math.round(v));
+      await dormir(espera);
+    }
+    e.textContent = bruto;
+  }
+}
+
+/** A linha da trajetória do ano novo, coluna por coluna. */
+async function preencherLinha(idade){
+  const linha = document.querySelector(`.tj[data-idade="${idade}"]`);
+  if (!linha) return;
+  for (const c of [...linha.querySelectorAll('.tj-n[data-alvo]')]){
+    const alvo = Number(c.dataset.alvo) || 0;
+    const dec = String(c.dataset.alvo).includes('.');
+    const passos = Math.min(Math.max(1, Math.round(alvo)), 8);
+    for (let i = 1; i <= passos; i++){
+      const v = alvo * i / passos;
+      c.textContent = dec ? v.toFixed(1) : String(Math.round(v));
+      await dormir(30);
+    }
+    c.textContent = c.dataset.alvo;
+    c.classList.add('pronta');
+    await dormir(60);
+  }
+}
+
 function placar(st, rotuloAno, time, campanha, premios){
   const {o, d} = deltaOvr();
   const faixa = faixaOvr(o);
@@ -3922,6 +4042,7 @@ function placar(st, rotuloAno, time, campanha, premios){
   const clube = time.split(" · ")[0];
   return `<div class="placar">
     <div class="ficha" style="--cor:${faixa[1]}">
+      <div class="ficha-marca" aria-hidden="true">${marca(clube, 140)}</div>
       <div class="ficha-ovr">
         <span class="ficha-ovr-rot">OVR</span>
         <b>${o}</b>
@@ -4239,6 +4360,7 @@ function fecharAno(campeao, vit, o, st){
   // decisão mais pesada que existe, não faz sentido dividir espaço.
   if (S.contrato <= 0){
     S.parDoRitmo = 0;
+    S.jaResorteou = false;      // cada janela nova traz uma chance nova
     S.mercado = gerarOfertas();
     S.aguardando = false; S.decisaoId = null;
     salvar(); return telaTemporada();
@@ -4265,7 +4387,13 @@ function fecharAno(campeao, vit, o, st){
 
   S.decisaoId = decisaoDoAno();
   S.aguardando = S.decisaoId !== null;
+  // A linha do ano que acabou entra vazia; animarAno() a preenche, junto
+  // com o overall e os números do placar.
+  S.linhaNova = (S.temporadas[S.temporadas.length - 1] || {}).idade;
+  const ovrAntes = S.ovrAnterior;
   salvar(); telaTemporada();
+  S.linhaNova = null;
+  animarAno(ovrAntes, ovr(S.A, S.pos), (S.temporadas[S.temporadas.length - 1] || {}).idade);
 }
 
 // ── Finais, jogo a jogo ────────────────────────────────────────────────
@@ -4380,8 +4508,7 @@ function mercadoHTML(){
       <p class="dec-txt" style="margin:0">Você ligou pros empresários e ninguém retornou. Não existe
       mais clube atrás de você — nem aqui, nem lá fora. É isso.</p>
     </div>` : ""}
-    <div class="ofertas-lista">
-      ${ofertas.map((of,i)=>`
+    ${carrossel(ofertas.map((of,i)=>`
         <button class="oferta-linha" onclick="escolherOferta(${i})">
           <span class="ol-marca">${marca(of.time, 34)}</span>
           <span class="ol-txt">
@@ -4390,8 +4517,7 @@ function mercadoHTML(){
               of.forca >= 70 ? "forte" : of.forca >= 50 ? "mediano" : "fraco"}</small>
           </span>
           <span class="ol-num">$${of.salario}M<small>${of.anos} anos</small></span>
-        </button>`).join("")}
-    </div>
+        </button>`).join(""), ofertas.length, true)}
     ${podeParar ? `<button class="op op-parar" onclick="pendurar()">Pendurar as chuteiras
       <small>Encerra a carreira agora, com ${temporadasJogadas().length} temporadas e o que você já ganhou.</small>
     </button>` : ""}
@@ -4501,13 +4627,90 @@ const TITULOS_DECISAO = {
   amistoso:"Amistoso de pré-temporada", rival:"O rival de sempre", jovemastro:"O garoto do momento",
 };
 
+/**
+ * Envolve as cartas de uma decisão num carrossel.
+ *
+ * As decisões do jogo são todas do mesmo tipo — escolher entre portas — e
+ * mostrá-las lado a lado numa coluna de celular dava a cada uma um terço da
+ * largura. Em carrossel, a carta em foco ocupa 76% da tela e as vizinhas
+ * espiam pela borda, o que também deixa claro que existe mais coisa pra ver.
+ */
+function carrossel(cartasHtml, n, comReSorteio){
+  return `<div class="carr">
+    <div class="carr-pista" id="carrPista">${cartasHtml}</div>
+    <div class="carr-ctrl">
+      <button onclick="carrMover(-1)" title="Anterior" aria-label="Anterior">‹</button>
+      <span class="carr-conta" id="carrConta">1/${n}</span>
+      ${comReSorteio ? `<button onclick="resortearOpcoes()" id="carrRe"
+        title="Sortear outras propostas" aria-label="Sortear outras propostas"
+        ${S.jaResorteou ? 'disabled' : ''}>⟳</button>` : ''}
+      <button onclick="carrMover(1)" title="Próxima" aria-label="Próxima">›</button>
+    </div>
+  </div>`;
+}
+
+function carrMover(dir){
+  const pista = document.getElementById('carrPista');
+  if (!pista) return;
+  const cartas = [...(pista.children || [])];
+  if (!cartas.length) return;
+  const atual = cartas.findIndex(c => c.classList.contains('foco'));
+  const alvo = Math.max(0, Math.min(cartas.length - 1, (atual < 0 ? 0 : atual) + dir));
+  cartas[alvo].scrollIntoView({behavior: semAnimacao() ? 'auto' : 'smooth', block:'nearest', inline:'center'});
+  marcarFoco(alvo);
+}
+
+/** Quem está no meio da pista ganha o foco. */
+function marcarFoco(forcado){
+  const pista = document.getElementById('carrPista');
+  if (!pista) return;
+  const cartas = [...(pista.children || [])];
+  if (!cartas.length) return;
+  let i = forcado;
+  if (i == null){
+    const meio = pista.scrollLeft + pista.clientWidth / 2;
+    let melhor = Infinity;
+    cartas.forEach((c, k) => {
+      const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - meio);
+      if (d < melhor) { melhor = d; i = k; }
+    });
+  }
+  cartas.forEach((c, k) => c.classList.toggle('foco', k === i));
+  const conta = document.getElementById('carrConta');
+  if (conta) conta.textContent = (i + 1) + '/' + cartas.length;
+}
+
+/** Liga o foco depois que a tela é desenhada. */
+function ligarCarrossel(){
+  const pista = document.getElementById('carrPista');
+  // O typeof protege o motor rodando fora do navegador (o simulador usa um
+  // DOM de mentira, e um enfeite não pode derrubar a carreira).
+  if (!pista || typeof pista.addEventListener !== "function") return;
+  marcarFoco(0);
+  let t = null;
+  pista.addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(() => marcarFoco(), 60); });
+}
+
+/**
+ * Outras propostas — UMA vez por janela.
+ *
+ * Sem o limite dava pra rodar o botão até aparecer o time dos sonhos, e a
+ * decisão deixava de ser uma decisão. Uma chance tira a sensação de "só veio
+ * lixo" sem virar caça-níquel.
+ */
+function resortearOpcoes(){
+  if (S.jaResorteou || !S.mercado) return;
+  S.mercado = gerarOfertas();
+  S.jaResorteou = true;
+  salvar(); telaTemporada();
+}
+
 function cartasDaDecisao(d){
   const h = (r) => hashNome(r) % 360;
   const titulo = TITULOS_DECISAO[d.id] || "Sua decisão";
   return `<h1 class="dec-tit">${esc(titulo)}</h1>
     <p class="lead dec-sub">${d.t()}</p>
-    <div class="dec-grade">
-      ${d.ops.map((o, i) => {
+    ${carrossel(d.ops.map((o, i) => {
         const c = (o.chance ?? 100);
         return `<button class="dec-card" onclick="decidir(${i})">
           <span class="dec-card-tit">${esc(o.l)}</span>
@@ -4516,8 +4719,7 @@ function cartasDaDecisao(d){
             ${c >= 100 ? "" : linhaDeDesfecho(o.ruim, 100 - c, "")}
           </span>
         </button>`;
-      }).join("")}
-    </div>`;
+      }).join(""), d.ops.length, false)}`;
 }
 
 function telaTemporada(){
@@ -4555,6 +4757,7 @@ function telaTemporada(){
   // A súmula vai pro lado: ela cresce a cada temporada e, embaixo do botão
   // de avançar, empurrava a decisão pra fora da tela no desktop.
   app().innerHTML = topo() + colunas(principal, sumula());
+  ligarCarrossel();
 }
 
 function decidir(i){
@@ -4872,13 +5075,24 @@ function trajetoPorIdade(){
   const porIdade = {};
   jogadas.forEach(t => { porIdade[t.idade] = t; });
 
-  const selo = (i, estado) => `<span class="tj-idade ${estado}">${i}</span>`;
+  // A cor vem do CLUBE; o anel vermelho é que marca o ano de título. Antes a
+  // cor sozinha dizia "jogada/campeã" e a trajetória inteira era verde com
+  // um vermelho no meio — agora ela conta em que clube cada ano foi passado,
+  // que é a informação que não está em mais lugar nenhum da coluna.
+  const selo = (i, estado, time) => `<span class="tj-idade ${estado}"${
+    time ? ` style="background:${corDoTime(time)};color:#fff"` : ""}>${i}</span>`;
   const ovrSelo = (o) => {
     if (!o) return `<span class="tj-ovr tj-ovr-vazio">—</span>`;
     return `<span class="tj-ovr" style="--cor:${faixaOvr(o)[1]}">${o}</span>`;
   };
   const nums = (t) => `<span class="tj-n">${t.jogos}</span>
     <span class="tj-n forte">${t.pts}</span><span class="tj-n">${t.reb}</span><span class="tj-n">${t.ast}</span>`;
+  // A linha do ano que acabou de acontecer nasce sem números: quem os põe,
+  // um a um, é preencherLinha().
+  const numsVazios = (t) => `<span class="tj-n" data-alvo="${t.jogos}"></span>
+    <span class="tj-n forte" data-alvo="${t.pts}"></span>
+    <span class="tj-n" data-alvo="${t.reb}"></span>
+    <span class="tj-n" data-alvo="${t.ast}"></span>`;
   const vazios = `<span class="tj-n"></span><span class="tj-n"></span><span class="tj-n"></span><span class="tj-n"></span>`;
 
   // De cima pra baixo, do mais novo pro mais velho: o ano que acabou de
@@ -4915,11 +5129,11 @@ function trajetoPorIdade(){
       continue;
     }
 
-    linhas.push(`<div class="tj ${t.campeao ? "tj-titulo" : ""}">
-      ${selo(i, t.campeao ? "sel-titulo" : "sel-jogada")}
+    linhas.push(`<div class="tj ${t.campeao ? "tj-titulo" : ""}" data-idade="${i}">
+      ${selo(i, t.campeao ? "sel-campeao" : "sel-clube", t.time)}
       <span class="tj-clube">${marca(String(t.time||"?"), 18)}
         <b>${esc(String(t.time||""))}</b>${trofeusDaTemporada(t)}</span>
-      ${ovrSelo(t.ovr)}${nums(t)}</div>`);
+      ${ovrSelo(t.ovr)}${S.linhaNova === i ? numsVazios(t) : nums(t)}</div>`);
   }
 
   return `<div class="trajeto">
