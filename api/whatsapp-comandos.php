@@ -360,6 +360,7 @@ function wcAjuda(): string
         . "*Liga*\n"
         . "/ranking _liga_ — a tabela da liga\n"
         . "/power — o power ranking da liga inteira\n"
+        . "/powerc — o power ranking por conferência\n"
         . "/trocas — as últimas trocas aprovadas\n"
         . "/lendas — os marcados como LENDA\n"
         . "/hall — o Hall da Fama\n"
@@ -759,20 +760,21 @@ function wcClassificacao(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): 
 }
 
 /**
- * /powerranking — os mais fortes da liga do grupo.
+ * As fichas de força de uma liga, prontas pra ordenar.
  *
- * A força é a mesma do /confronto (wcForcaDoTime), pra o bot não dar duas
- * opiniões diferentes sobre o mesmo time em dois comandos.
+ * Serve aos dois power rankings — o da liga inteira e o por conferência — pra
+ * que os dois deem a MESMA resposta sobre o mesmo time. A força é a do
+ * /confronto (wcForcaDoTime), pelo mesmo motivo.
+ *
+ * Devolve null quando a liga não existe ou não tem quinteto montado; a
+ * mensagem de erro fica com quem chamou, que sabe o nome do próprio comando.
  */
-function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
+function wcFichasDeForca(PDO $pdo, string $liga): ?array
 {
-    $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
-    if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
-
-    $st = $pdo->prepare("SELECT id, city, name, mascot FROM teams WHERE league = ?");
+    $st = $pdo->prepare("SELECT id, city, name, mascot, conference FROM teams WHERE league = ?");
     $st->execute([$liga]);
     $times = $st->fetchAll(PDO::FETCH_ASSOC);
-    if (!$times) return "A {$liga} não tem times cadastrados.";
+    if (!$times) return null;
 
     // Um SELECT pro elenco da liga inteira. Um por time seriam 32 idas ao
     // banco só pra montar uma mensagem.
@@ -785,13 +787,14 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
     $porTime = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) $porTime[(int)$p['team_id']][] = $p;
 
-    // Campanha, quando a temporada já tem jogo registrado.
-    $campanha = [];
+    // Campanha e posto na tabela, quando a temporada já existe.
+    $campanha = $posto = [];
     if ($temp = wcTemporadaAtiva($pdo, $liga)) {
-        $st = $pdo->prepare("SELECT team_id, wins, losses FROM season_standings WHERE season_id = ?");
+        $st = $pdo->prepare("SELECT team_id, wins, losses, position FROM season_standings WHERE season_id = ?");
         $st->execute([(int)$temp['id']]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l) {
             $campanha[(int)$l['team_id']] = (int)$l['wins'] . '-' . (int)$l['losses'];
+            if ($l['position'] !== null) $posto[(int)$l['team_id']] = (int)$l['position'];
         }
     }
 
@@ -800,22 +803,90 @@ function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): s
         $forca = wcForcaDoTime($porTime[(int)$t['id']] ?? []);
         if ($forca <= 0) continue;                       // sem quinteto montado
         $fichas[] = [
-            'nome'     => wcNomeDoTime($t),
-            'forca'    => $forca,
-            'campanha' => $campanha[(int)$t['id']] ?? null,
+            'nome'       => wcNomeDoTime($t),
+            'forca'      => $forca,
+            'campanha'   => $campanha[(int)$t['id']] ?? null,
+            'posto'      => $posto[(int)$t['id']] ?? null,
+            'conferencia'=> $t['conference'] ?: null,
         ];
     }
-    if (!$fichas) return "Os times da {$liga} ainda não têm quinteto montado.";
+    if (!$fichas) return null;
 
     usort($fichas, fn($a, $b) => $b['forca'] <=> $a['forca']);
+    return $fichas;
+}
+
+/** A linha de um time no power ranking: medalha, nome, campanha e posto. */
+function wcLinhaDePower(array $f, int $posicao): string
+{
+    $medalha = [1 => '🥇', 2 => '🥈', 3 => '🥉'][$posicao] ?? ($posicao . '.');
+    $cauda = [];
+    if ($f['campanha']) $cauda[] = $f['campanha'];
+    // O posto da tabela ao lado da força é o ponto do comando: dá pra ver de
+    // um relance quem está rendendo acima e quem está devendo.
+    if ($f['posto']) $cauda[] = $f['posto'] . 'º na tabela';
+    return "{$medalha} *{$f['nome']}*" . ($cauda ? ' (' . implode(' · ', $cauda) . ')' : '') . "\n";
+}
+
+/**
+ * /powerranking — os mais fortes da liga do grupo.
+ *
+ * A força é a mesma do /confronto (wcForcaDoTime), pra o bot não dar duas
+ * opiniões diferentes sobre o mesmo time em dois comandos.
+ */
+function wcPowerRanking(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
+{
+    $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
+    if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
+
+    $fichas = wcFichasDeForca($pdo, $liga);
+    if (!$fichas) return "Os times da {$liga} ainda não têm quinteto montado.";
+
     // A liga inteira, não um top 10: quem está em 24º também quer se achar
     // na lista, e é justamente quem mais procura.
     $txt = "*Power Ranking {$liga}*\n_o que a régua diz, não o que o grupo acha_\n\n";
-    foreach ($fichas as $i => $f) {
-        $posto = $i + 1;
-        $medalha = [1 => '🥇', 2 => '🥈', 3 => '🥉'][$posto] ?? ($posto . '.');
-        $txt .= "{$medalha} *{$f['nome']}*"
-             . ($f['campanha'] ? " ({$f['campanha']})" : '') . "\n";
+    foreach ($fichas as $i => $f) $txt .= wcLinhaDePower($f, $i + 1);
+    return rtrim($txt);
+}
+
+/**
+ * /powerc — o mesmo power ranking, separado por conferência.
+ *
+ * Existe porque a disputa que importa é dentro da conferência: numa liga de
+ * 32 times, o quinto mais forte da liga pode ser o segundo do Leste, e é esse
+ * número que decide o chaveamento. O posto na tabela vem ao lado justamente
+ * pra mostrar a diferença entre o que o elenco vale e onde ele chegou.
+ *
+ * Time sem conferência definida cai num bloco à parte em vez de sumir — é o
+ * caso da ROOKIE, que ainda está se organizando.
+ */
+function wcPowerRankingConferencia(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
+{
+    $liga = wcNormalizarLiga($termo !== '' ? $termo : ($ligaDoGrupo ?: 'ELITE'));
+    if (!$liga) return "Liga não reconhecida. Use ELITE, NEXT, RISE ou ROOKIE.";
+
+    $fichas = wcFichasDeForca($pdo, $liga);
+    if (!$fichas) return "Os times da {$liga} ainda não têm quinteto montado.";
+
+    $porConf = [];
+    foreach ($fichas as $f) $porConf[$f['conferencia'] ?? 'SEM'][] = $f;
+
+    // Leste e Oeste na ordem de sempre; o resto (se houver) depois.
+    $ordem = array_values(array_unique(array_merge(
+        array_intersect(['LESTE', 'OESTE'], array_keys($porConf)),
+        array_keys($porConf)
+    )));
+
+    $temTabela = false;
+    foreach ($fichas as $f) if ($f['posto']) { $temTabela = true; break; }
+    $sub = $temTabela ? 'a força do elenco, e onde ele está na tabela'
+                     : 'a força do elenco — a temporada ainda não começou';
+    $txt = "*Power Ranking {$liga} · por conferência*\n_{$sub}_\n";
+    foreach ($ordem as $conf) {
+        $lista = $porConf[$conf];
+        $titulo = $conf === 'SEM' ? 'Sem conferência' : ucfirst(mb_strtolower($conf, 'UTF-8'));
+        $txt .= "\n*{$titulo}*\n";
+        foreach ($lista as $i => $f) $txt .= wcLinhaDePower($f, $i + 1);
     }
     return rtrim($txt);
 }
@@ -2163,6 +2234,11 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'power':
             case 'powerranking':
                 return wcPowerRanking($pdo, $arg, $ligaDoGrupo);
+
+            case 'powerc':
+            case 'powerconf':
+            case 'powerconferencia':
+                return wcPowerRankingConferencia($pdo, $arg, $ligaDoGrupo);
 
             case 'confronto':
             case 'duelo':
