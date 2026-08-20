@@ -427,7 +427,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   .daily-badge{display:none}
   .game-title{font-size:13.5px}
   .chip{padding:3px 8px;font-size:10.5px;gap:3px}
-  .topbar-right{gap:4px}
+  .topbar-right{gap:4px;flex-wrap:nowrap}
+  /* OVR e idade saem: os dois estão logo abaixo, no cartão, em letra bem
+     maior. Repetidos aqui em cima eles quebravam a barra em duas linhas e
+     partiam o nome do jogo no meio. */
+  .chip-espelho{display:none}
+
+  /* Nome do jogo no centro: `display:contents` dissolve o grupo da esquerda
+     e entrega a seta e o título direto à grade, que é o que permite dar
+     colunas laterais IGUAIS aos dois lados — sem isso o título fica
+     centrado no que sobra, e sobra sempre mais de um lado. */
+  .topbar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center}
+  .topbar-left{display:contents}
+  .back-btn{justify-self:start}
+  .game-title{justify-self:center;text-align:center;white-space:nowrap}
+  .topbar-right{justify-self:end}
 }
 
 .main{max-width:620px;margin:0 auto;padding:16px 12px 60px}
@@ -455,6 +469,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 }
 /* Numa coluna só, o respiro entre os dois blocos já vem do gap. */
 .col-lado h2:first-child{margin-top:0}
+
+/* A TELA DO ANO EM TRÊS BLOCOS — ficha, súmula, decisão.
+   No desktop a súmula está na coluna da direita e os dois blocos da
+   esquerda são só um em cima do outro. No celular tudo empilha, e aí a
+   ordem importa: `display:contents` dissolve a coluna principal e entrega
+   ficha e decisão direto ao grid, que é a única forma de a súmula passar
+   ENTRE elas — presas no mesmo filho, nenhum `order` as separa. */
+.bl-ficha + .bl-decisao{margin-top:11px}
+@media (max-width:939px){
+  .colunas-ano .col-principal{display:contents}
+  .colunas-ano .bl-ficha{order:1}
+  .colunas-ano .col-lado{order:2}
+  .colunas-ano .bl-decisao{order:3;margin-top:0}
+}
 
 /* CARD — .bpcard do padrão (nunca .card, que o Bootstrap sequestra) */
 .bpcard{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
@@ -667,7 +695,34 @@ tr.tit td{color:var(--red)}
    e a primeira tela do jogo é a que decide se a pessoa continua. */
 .id-grade{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.1fr) minmax(0,1fr);
   gap:22px;margin-bottom:18px}
-@media(max-width:860px){.id-grade{grid-template-columns:1fr;gap:26px}}
+/* A barra de etapa e o rodapé só existem no celular. */
+.etapa-cab{display:none}
+.etapa-pe{display:none}
+@media(max-width:860px){
+  .id-grade{grid-template-columns:1fr;gap:26px}
+
+  /* Uma etapa por vez. O :nth-child casa com a ordem das colunas no HTML:
+     1 identidade, 2 nacionalidade, 3 posição. */
+  .id-grade .id-col{display:none}
+  .id-grade[data-etapa="1"] .id-col:nth-child(1),
+  .id-grade[data-etapa="2"] .id-col:nth-child(2),
+  .id-grade[data-etapa="3"] .id-col:nth-child(3){display:block}
+  /* O título da coluna já está na barra de etapa. */
+  .id-grade .id-col-tit{display:none}
+
+  .etapa-cab{display:block;margin-bottom:16px}
+  .etapa-tit{font-size:18px;font-weight:900;letter-spacing:-.3px;margin-bottom:9px}
+  .etapa-barra{height:5px;border-radius:999px;background:var(--panel2);overflow:hidden}
+  .etapa-barra i{display:block;height:100%;background:var(--red);border-radius:999px;
+    transition:width .25s ease}
+  .etapa-pe{display:flex;gap:10px;margin-top:18px;padding-top:16px;
+    border-top:1px solid var(--border)}
+  .etapa-pe .btn{flex:1;width:auto;margin:0}
+
+  /* O "Confirmar identidade" do topo sai: no celular ele fica no rodapé,
+     do lado da última escolha, e não a cinco rolagens de distância. */
+  .id-cab-acoes{display:none}
+}
 .id-col-tit{font-size:12px;font-weight:800;letter-spacing:.4px;text-align:center;
   color:var(--text);margin-bottom:14px}
 
@@ -747,6 +802,9 @@ tr.tit td{color:var(--red)}
 .id-cab-acoes .btn{width:auto;margin:0;padding:12px 22px;font-size:14px}
 @media (max-width:640px){
   .id-cab{flex-direction:column;align-items:stretch;gap:12px}
+  /* Em coluna a base do flex vira altura — e 260px de base viravam 260px
+     de vão embaixo do título. */
+  .id-cab-txt{flex:0 0 auto}
   .id-cab-acoes{flex-direction:row-reverse}
   .id-cab-acoes .btn{flex:1;padding:12px 14px}
   .id-cab-acoes .btn2{flex:0 0 92px}
@@ -851,6 +909,20 @@ tr.tit td{color:var(--red)}
 .ficha > *:not(.ficha-marca){position:relative;z-index:1}
 
 .ficha-topo{display:flex;align-items:center;gap:13px;margin-bottom:11px}
+/* O corpo da ficha é uma GRADE NOMEADA, e é ela que troca de desenho entre
+   desktop e celular sem que o HTML mude uma linha:
+
+     desktop            celular
+     clube idade salario  tags   idade
+     tags tags tags       clube  salario
+
+   No celular as etiquetas sobem pro lado da idade e o clube divide a
+   segunda linha com o salário — o cartão compacto do Copero. */
+.ficha-corpo{flex:1 1 90px;min-width:0;display:grid;align-items:center;gap:8px 13px;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  grid-template-areas:"info idade salario" "tags tags tags"}
+.n-idade{grid-area:idade}
+.n-salario{grid-area:salario}
 .ovr-caixa{width:82px;height:82px;border-radius:14px;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:2px;flex:none;color:#fff;
   background:linear-gradient(160deg,color-mix(in srgb,var(--cor) 90%,#000),color-mix(in srgb,var(--cor) 52%,#000))}
@@ -859,18 +931,18 @@ tr.tit td{color:var(--red)}
   font-variant-numeric:tabular-nums}
 .ovr-caixa i{font-family:var(--num);font-style:normal;font-size:10.5px;font-weight:800;
   background:rgba(0,0,0,.3);border-radius:99px;padding:1px 7px}
-.ficha-info{flex:1 1 90px;min-width:0;display:flex;flex-direction:column;gap:3px}
+.ficha-info{grid-area:info;min-width:0;display:flex;flex-direction:column;gap:3px}
 .ficha-clube{display:flex;align-items:center;gap:9px;font-size:19px;font-weight:900;letter-spacing:-.5px;
   white-space:nowrap;overflow:hidden;min-width:0}
 .ficha-clube span{overflow:hidden;text-overflow:ellipsis;min-width:0}
 .ficha-liga{font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.3px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ficha-num{flex:none;display:flex;gap:15px;text-align:right;font-size:9.5px;color:var(--text3);
+.ficha-num{text-align:right;font-size:9.5px;color:var(--text3);text-transform:uppercase;white-space:nowrap;
   font-weight:800;letter-spacing:.5px}
 .ficha-num b{display:block;font-family:var(--num);font-size:18px;color:var(--text);letter-spacing:-.5px;
   font-variant-numeric:tabular-nums}
 
-.ficha-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.ficha-tags{grid-area:tags;display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
 .tag{display:inline-flex;align-items:center;gap:5px;background:var(--panel3);border-radius:6px;
   padding:4px 9px;font-size:10.5px;font-weight:800;white-space:nowrap;color:var(--text)}
 .tag svg{width:16px;height:11px;border-radius:2px;flex:none;display:block}
@@ -894,20 +966,51 @@ tr.tit td{color:var(--red)}
 
 /* A caixa da trajetória: sem padding, porque a lista já tem o dela. */
 .caixa.linha{padding:0;overflow:hidden}
+.sumula-mais{display:none}
+@media (max-width:939px){
+  /* O gradiente é o aviso de que a lista continua: cortada em linha reta
+     ela parece uma carreira que acabou ali. */
+  .sumula-curta .trajeto{max-height:250px;overflow:hidden;
+    -webkit-mask-image:linear-gradient(#000 74%,transparent);
+    mask-image:linear-gradient(#000 74%,transparent)}
+  .sumula-mais{display:block;width:100%;background:none;border:none;border-top:1px solid var(--border);
+    padding:11px;font-family:var(--font);font-size:11px;font-weight:800;letter-spacing:.9px;
+    text-transform:uppercase;color:var(--text3);cursor:pointer}
+  .sumula-mais:hover{color:var(--red);background:var(--red-soft)}
+}
 .caixa.linha .trajeto{border:none;border-radius:0;background:transparent}
 .ficha-ano{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
 .ficha-ano-cab{font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
   color:var(--text3);margin-bottom:6px}
-@media(max-width:420px){
-  .ficha{padding:13px}
-  /* Em tela estreita idade e valor empilham: lado a lado comiam 90px e
-     sobrava quase nada pro nome do clube. É a mesma solução do Copero, e
-     ela cabe sem crescer o cabeçalho. */
-  .ficha-num{flex-direction:column;gap:2px}
-  .ficha-num b{font-size:15px}
-  .ovr-caixa{width:70px;height:70px}
+/* ── A TELA DO JOGO NO CELULAR ────────────────────────────────────────
+   Cada bloco que encolhe aqui é uma linha da carreira que aparece sem
+   rolar. O desenho é o do Copero: ficha de duas linhas ao lado do OVR,
+   súmula logo abaixo, decisão por último. */
+@media(max-width:760px){
+  .ficha{padding:12px}
+  .ficha-topo{gap:10px;margin-bottom:9px}
+  .ovr-caixa{width:70px;height:70px;border-radius:12px}
   .ovr-caixa b{font-size:28px}
-  .ficha-clube{font-size:17px}
+  .ficha-corpo{grid-template-columns:minmax(0,1fr) auto;
+    grid-template-areas:"tags idade" "info salario";
+    gap:7px 10px;background:var(--panel2);border-radius:12px;padding:9px 11px}
+  .ficha-clube{font-size:16.5px;gap:7px}
+  .ficha-liga{font-size:10.5px}
+  .ficha-num b{font-size:15px}
+
+  /* A faixa de nível vira uma linha fina: o rótulo e a barra dizem a mesma
+     coisa em metade da altura. */
+  .ovr-linha{padding:8px 11px;gap:9px}
+  /* "Vitrine vazia" é uma linha inteira pra dizer que não tem nada. */
+  .vitrine.vazia{display:none}
+
+  .st{padding:6px 5px}
+  .st b{font-size:17px}
+  .mini{padding:4px 5px}
+}
+@media(max-width:420px){
+  .ficha{padding:11px}
+  .ficha-clube{font-size:15.5px}
   .ficha-stats b{font-size:17px}
 }
 
@@ -1092,9 +1195,7 @@ tr.tit td{color:var(--red)}
   .acoes-ano{flex-direction:column;gap:6px}
   .acoes-ano .btn,.acoes-ano .btn2{flex:none}
 }
-@media(max-width:380px){
-  .dec-grade{grid-template-columns:1fr}
-}
+
 
 /* ═══ CONQUISTAS ═════════════════════════════════════════════════════ */
 .chip-btn{border:none;cursor:pointer;font-family:var(--font);transition:.15s}
@@ -1204,7 +1305,12 @@ tr.tit td{color:var(--red)}
 .carr-pista{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;
   align-items:stretch}
 .carr-pista > *{min-width:0}
-@media (max-width:560px){ .carr-pista{grid-template-columns:1fr} }
+@media (max-width:560px){
+  /* Ofertas de clube são LINHAS (escudo e nome ao lado) e continuam uma por
+     linha; as portas de uma decisão são cartas e cabem duas a duas. */
+  .carr-pista{grid-template-columns:1fr}
+  .carr-pista.duas{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px}
+}
 
 /* ── JANELA DE TRANSFERÊNCIAS ────────────────────────────────────────── */
 .ofertas-lista{display:flex;flex-direction:column;gap:8px;margin-top:8px}
@@ -2806,8 +2912,8 @@ const SETA = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor
 function topo(){
   const chips = [];
   if (S && !S.encerrada && S.fase === "liga"){
-    chips.push(`<div class="chip">OVR <b>${ovr(S.A,S.pos)}</b></div>`);
-    chips.push(`<div class="chip">${S.idade} anos</div>`);
+    chips.push(`<div class="chip chip-espelho">OVR <b>${ovr(S.A,S.pos)}</b></div>`);
+    chips.push(`<div class="chip chip-espelho">${S.idade} anos</div>`);
     chips.push(`<div class="chip" style="color:var(--amber)">$<b>${S.dinheiro}</b>M</div>`);
   }
   return `<div class="topbar">
@@ -2918,7 +3024,10 @@ function telaInicio(){
 // computador é a mesma pessoa, e digitar o nome de novo a cada carreira é
 // atrito sem motivo.
 let rascunho = {nome: window.__ULTIMO_NOME__ || "", numero: "", mao: "D",
-                pos:"SG", arq:"atirador", nac:"BRA", modo:"nba", ritmo:"normal", busca:""};
+                pos:"SG", arq:"atirador", nac:"BRA", modo:"nba", ritmo:"normal", busca:"",
+                // Em que etapa da criação o celular está. O desktop ignora:
+                // lá as três colunas cabem lado a lado.
+                etapa:1};
 
 /** Código de 3 letras → bandeira. O emoji sai das duas letras do país. */
 const PAIS_ISO = {BRA:"BR", USA:"US", CAN:"CA", ESP:"ES", FRA:"FR", SRB:"RS",
@@ -3026,12 +3135,30 @@ function continuar(){ S = carregar(); render(); }
  * O sobrenome na camisa é a última palavra do nome, como no uniforme de
  * verdade: quem digita "Marcos Silva" vê SILVA nas costas.
  */
+/** Anda entre as três etapas da criação (só o celular usa). */
+function irParaEtapa(n){
+  rascunho.etapa = Math.min(3, Math.max(1, n));
+  telaCriar();
+  // Sem isto a etapa nova abre na altura em que a anterior estava rolada.
+  window.scrollTo({top: 0, behavior: 'auto'});
+}
+
 function telaCriar(){
   const nome = (rascunho.nome || "").trim();
   const sobrenome = nome ? nome.split(/\s+/).slice(-1)[0].toUpperCase() : "SEU NOME";
   const busca = (rascunho.busca || "").trim().toLowerCase();
   const paises = NACOES.filter(n => !busca || n[1].toLowerCase().includes(busca));
   const p = POSICOES[rascunho.pos];
+
+  // No celular a criação vira três etapas — identidade, país, posição — com
+  // uma barra dizendo onde você está. Empilhadas, as três colunas davam uma
+  // página de rolar cinco vezes com o botão de confirmar lá no topo, longe
+  // da última escolha.
+  //
+  // No desktop nada disso aparece: lá elas cabem lado a lado e ver tudo de
+  // uma vez é melhor que navegar. Quem decide é o CSS; o HTML é o mesmo.
+  const etapa = Math.min(3, Math.max(1, rascunho.etapa || 1));
+  const ETAPAS = ["Identidade", "Nacionalidade", "Posição"];
 
   app().innerHTML = topo() + `
     <div class="id-cab">
@@ -3045,9 +3172,14 @@ function telaCriar(){
       </div>
     </div>
 
-    <div class="id-grade">
+    <div class="etapa-cab">
+      <div class="etapa-tit">${ETAPAS[etapa - 1]}</div>
+      <div class="etapa-barra"><i style="width:${(etapa / 3) * 100}%"></i></div>
+    </div>
 
-      <div>
+    <div class="id-grade" data-etapa="${etapa}">
+
+      <div class="id-col">
         <div class="id-col-tit">Identidade</div>
         <div class="camisa">
           <svg viewBox="0 0 100 106" aria-hidden="true">
@@ -3083,7 +3215,7 @@ function telaCriar(){
         </div>
       </div>
 
-      <div>
+      <div class="id-col">
         <div class="id-col-tit">Nacionalidade</div>
         <div class="nac-busca">
           <i class="bi bi-search"></i>
@@ -3099,7 +3231,7 @@ function telaCriar(){
         </div>
       </div>
 
-      <div>
+      <div class="id-col">
         <div class="id-col-tit">Posição</div>
         <div class="quadra">
           <i class="linha q-arco"></i>
@@ -3118,6 +3250,13 @@ function telaCriar(){
         </div>
       </div>
 
+    </div>
+
+    <div class="etapa-pe">
+      <button class="btn btn2" onclick="${etapa === 1 ? 'render()' : 'irParaEtapa(' + (etapa - 1) + ')'}">Voltar</button>
+      ${etapa < 3
+        ? `<button class="btn" onclick="irParaEtapa(${etapa + 1})">Continuar</button>`
+        : `<button class="btn" onclick="criar()">Confirmar identidade</button>`}
     </div>
 
     <p class="nota-txt" style="margin-top:12px">Você vai jogar
@@ -3395,13 +3534,20 @@ function telaFormacao(){
       </button>
     </div>`;
 
-  const principal = barra() +
-    placar(st, `${S.anoFase}º ano de 4`, S.time, null, []) +
+  const blocoFicha = barra() + placar(st, `${S.anoFase}º ano de 4`, S.time, null, []);
+
+  const blocoDecisao =
     (S.mensagem ? `<div class="bpcard"><p class="dec-txt" style="margin:0">${S.mensagem}</p></div>` : "") +
     decisao +
     `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>`;
 
-  app().innerHTML = topo() + colunas(principal, sumula());
+  app().innerHTML = topo() + `<div class="colunas colunas-ano">
+    <div class="col-principal">
+      <div class="bl-ficha">${blocoFicha}</div>
+      <div class="bl-decisao">${blocoDecisao}</div>
+    </div>
+    <div class="col-lado">${sumula()}</div>
+  </div>`;
 }
 
 function irAoDraft(){ S.fase = "draft"; S.draftRevelado = false; salvar(); telaDraft(); }
@@ -4143,25 +4289,22 @@ function placar(st, rotuloAno, time, campanha, premios){
         <small>OVR</small><b>${o}</b>
         <i style="color:${cor}">${sinal}</i>
       </div>
-      <div class="ficha-info">
-        <div class="ficha-clube" title="${esc(clube)}">
-          ${marca(clube, 26)}<span>${esc(clube)}</span>
+      <div class="ficha-corpo">
+        <div class="ficha-tags">
+          <span class="tag">${bandeira(S.nac)} ${esc(S.nac)}</span>
+          <span class="tag pos">${S.numero ? `#${esc(S.numero)} ` : ""}${esc(S.pos)}</span>
+          ${(S.anosNoClube || 0) >= 6 ? `<span class="tag idolo">Ídolo da casa</span>` : ""}
         </div>
-        ${S.liga ? `<div class="ficha-liga">${esc(S.liga)}${
-          S.foraDaLiga ? " · fora da liga" : ""}${S.gm ? ` · GM ${esc(S.gm)}` : ""}</div>` : ""}
+        <div class="ficha-info">
+          <div class="ficha-clube" title="${esc(clube)}">
+            ${marca(clube, 24)}<span>${esc(clube)}</span>
+          </div>
+          ${S.liga ? `<div class="ficha-liga">${esc(S.liga)}${
+            S.foraDaLiga ? " · fora da liga" : ""}${S.gm ? ` · GM ${esc(S.gm)}` : ""}</div>` : ""}
+        </div>
+        <div class="ficha-num n-idade">Idade<b>${S.idade}</b></div>
+        <div class="ficha-num n-salario">Salário<b>$${S.salario}M</b></div>
       </div>
-      <div class="ficha-num">
-        <div>IDADE<b>${S.idade}</b></div>
-        <div>SALÁRIO<b>$${S.salario}M</b></div>
-      </div>
-    </div>
-
-    <div class="ficha-tags">
-      <span class="tag">${bandeira(S.nac)} ${esc(S.nac)}</span>
-      <span class="tag">${esc(S.pos)}</span>
-      ${S.numero ? `<span class="tag">#${esc(S.numero)}</span>` : ""}
-      <span class="tag">${esc(rotuloAno)}</span>
-      ${(S.anosNoClube || 0) >= 6 ? `<span class="tag idolo">Ídolo da casa</span>` : ""}
     </div>
 
     <div class="ovr-linha" style="--cor:${faixa[1]}">
@@ -4172,7 +4315,7 @@ function placar(st, rotuloAno, time, campanha, premios){
     ${vitrineTrofeus()}
 
     <div class="ficha-ano">
-      <div class="ficha-ano-cab">A temporada${anos ? ` · ${anos}ª` : ""}</div>
+      <div class="ficha-ano-cab">${esc(rotuloAno)}${anos ? ` · ${anos}ª temporada` : ""}</div>
       <div class="linha-stats">
         <div class="st"><b>${st.pts}</b><span>pontos</span></div>
         <div class="st"><b>${st.reb}</b><span>rebotes</span></div>
@@ -4761,15 +4904,15 @@ const TITULOS_DECISAO = {
 };
 
 /**
- * Envolve as cartas de uma decisão num carrossel.
+ * Envolve as opções de uma escolha numa pista.
  *
- * As decisões do jogo são todas do mesmo tipo — escolher entre portas — e
- * mostrá-las lado a lado numa coluna de celular dava a cada uma um terço da
- * largura. Em carrossel, a carta em foco ocupa 76% da tela e as vizinhas
- * espiam pela borda, o que também deixa claro que existe mais coisa pra ver.
+ * `cls` é o feitio da pista no celular. Sem ela, uma opção por linha — é o
+ * certo pras ofertas de clube, que são linhas de escudo e nome. Com "duas",
+ * as opções ficam lado a lado: uma decisão se toma COMPARANDO as portas, e
+ * empilhadas elas custavam meia tela pra mostrar duas.
  */
-function gradeDeOpcoes(cartasHtml){
-  return `<div class="carr"><div class="carr-pista">${cartasHtml}</div></div>`;
+function gradeDeOpcoes(cartasHtml, cls){
+  return `<div class="carr"><div class="carr-pista${cls ? " " + cls : ""}">${cartasHtml}</div></div>`;
 }
 
 function cartasDaDecisao(d){
@@ -4786,7 +4929,7 @@ function cartasDaDecisao(d){
             ${c >= 100 ? "" : linhaDeDesfecho(o.ruim, 100 - c, "")}
           </span>
         </button>`;
-      }).join(""))}`;
+      }).join(""), "duas")}`;
 }
 
 function telaTemporada(){
@@ -4795,8 +4938,13 @@ function telaTemporada(){
   const d = S.aguardando ? decisaoAtual() : null;
   const aposentar = S.idade >= 39 || (S.idade >= 33 && ovr(S.A,S.pos) < 68);
 
-  const principal = barra() +
-    placar(st, String(S.ano), S.time + (S.gm ? ` · ${S.gm}` : ""), S.ultimaCampanha, S.ultimosPremios || []) +
+  // Ficha e decisão em dois blocos: no celular a súmula entra ENTRE eles
+  // (o `order` está no CSS), que é a ordem do Copero — quem você é, a
+  // carreira até aqui, e só então a escolha do ano.
+  const blocoFicha = barra() +
+    placar(st, String(S.ano), S.time + (S.gm ? ` · ${S.gm}` : ""), S.ultimaCampanha, S.ultimosPremios || []);
+
+  const blocoDecisao =
     (S.mensagem ? `<div class="bpcard"><p class="dec-txt" style="margin:0">${S.mensagem}</p></div>` : "") +
     ((S.desafiosDoAno || []).length ? `<div class="bpcard conquista-aviso">
       <div class="bpcard-title">Conquista${S.desafiosDoAno.length > 1 ? "s" : ""} desbloqueada${S.desafiosDoAno.length > 1 ? "s" : ""}</div>
@@ -4821,9 +4969,15 @@ function telaTemporada(){
             S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>`}`)
     + `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>`;
 
-  // A súmula vai pro lado: ela cresce a cada temporada e, embaixo do botão
-  // de avançar, empurrava a decisão pra fora da tela no desktop.
-  app().innerHTML = topo() + colunas(principal, sumula());
+  // A súmula vai pro lado no desktop: ela cresce a cada temporada e,
+  // embaixo do botão de avançar, empurrava a decisão pra fora da tela.
+  app().innerHTML = topo() + `<div class="colunas colunas-ano">
+    <div class="col-principal">
+      <div class="bl-ficha">${blocoFicha}</div>
+      <div class="bl-decisao">${blocoDecisao}</div>
+    </div>
+    <div class="col-lado">${sumula()}</div>
+  </div>`;
 }
 
 function decidir(i){
@@ -5166,7 +5320,11 @@ function trajetoPorIdade(){
   const jogadas = S.temporadas || [];
   if (!jogadas.length) return "";
   const inicio = Math.min(...jogadas.map(t => t.idade || S.idade));
-  const fim = Math.max(S.idade + 1, ...jogadas.map(t => t.idade || 0), 34);
+  // A lista desce do ano de agora pro primeiro — então ano NENHUM à frente
+  // faz sentido aqui: eram doze linhas vazias EM CIMA da linha que
+  // interessa, empurrando a carreira inteira pra fora da tela pra dizer
+  // que ainda faltam doze anos.
+  const fim = Math.max(S.idade, ...jogadas.map(t => t.idade || 0));
   const porIdade = {};
   jogadas.forEach(t => { porIdade[t.idade] = t; });
 
@@ -5271,7 +5429,23 @@ function sumula(){
   if (!S.temporadas.length) return "";
   // Os troféus subiram pra ficha, ao lado do overall — é lá que o Copero os
   // põe, e é lá que eles são vistos sem rolar a página.
-  return `<div class="caixa linha">${trajetoPorIdade()}</div>`;
+  //
+  // Depois de oito temporadas a lista passa de 600px e, no celular, empurra
+  // a decisão do ano pra bem abaixo da dobra: a pessoa rolava a carreira
+  // inteira toda vez pra chegar no botão. Ela nasce cortada nas temporadas
+  // MAIS RECENTES — que estão no topo, porque a lista desce no tempo — e
+  // abre inteira num toque. O corte é só no celular; no desktop ela mora na
+  // coluna do lado e não está no caminho de ninguém.
+  const longa = S.temporadas.length > 7;
+  return `<div class="caixa linha${longa ? ' sumula-curta' : ''}">${trajetoPorIdade()}
+    ${longa ? `<button class="sumula-mais" onclick="abrirSumula(this)">Ver a carreira inteira</button>` : ""}
+  </div>`;
+}
+
+/** Tira o corte da súmula. O botão sai junto: não há o que fechar. */
+function abrirSumula(botao){
+  botao.closest(".linha").classList.remove("sumula-curta");
+  botao.remove();
 }
 
 
