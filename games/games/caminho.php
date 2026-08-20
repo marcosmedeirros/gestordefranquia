@@ -437,6 +437,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
    já é a ordem certa de leitura: o que importa primeiro vem primeiro. Por
    isso o lado principal vem antes no markup, e não porque está à esquerda. */
 .colunas{display:grid;gap:14px}
+/* min-width:0 nas duas colunas: item de grid nasce com min-width:auto, e
+   qualquer conteúdo que não encolhe (o carrossel, uma tabela) empurra a
+   coluna pra fora da tela levando a página inteira junto. */
+.col-principal,.col-lado{min-width:0}
 @media (min-width:940px){
   .main{max-width:1040px;padding:14px 20px 24px}
   .colunas{grid-template-columns:minmax(0,1fr) 350px;align-items:start;gap:18px}
@@ -1139,11 +1143,11 @@ tr.tit td{color:var(--red)}
 /* ── CARROSSEL DE DECISÃO ─────────────────────────────────────────────
    Uma carta em foco e as vizinhas espiando pela borda: a comparação vira
    "esta ou a próxima", em vez de uma lista inteira pra ler de uma vez. */
-.carr{position:relative;margin-top:6px}
-.carr-pista{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;
+.carr{position:relative;max-width:100%;overflow:hidden;margin-top:6px}
+.carr-pista{display:flex;gap:10px;overflow-x:auto;max-width:100%;scroll-snap-type:x mandatory;
   padding:2px 0 10px;scrollbar-width:none;-ms-overflow-style:none}
 .carr-pista::-webkit-scrollbar{display:none}
-.carr-pista > *{flex:0 0 76%;scroll-snap-align:center;opacity:.42;transform:scale(.94);
+.carr-pista > *{flex:0 0 76%;scroll-snap-align:center;min-width:0;opacity:.42;transform:scale(.94);
   transition:opacity .18s,transform .18s,border-color .12s}
 .carr-pista > *.foco{opacity:1;transform:scale(1)}
 .carr-ctrl{display:flex;align-items:center;justify-content:center;gap:8px}

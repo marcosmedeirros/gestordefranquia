@@ -587,11 +587,11 @@ button{font-family:inherit}
    Uma carta em foco e as vizinhas espiando pela borda. É o gesto de
    folhear: a comparação vira "esta ou a próxima", em vez de uma lista
    inteira pra ler de uma vez. */
-.carr{position:relative}
-.carr-pista{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;
+.carr{position:relative;max-width:100%;overflow:hidden}
+.carr-pista{display:flex;gap:10px;overflow-x:auto;max-width:100%;scroll-snap-type:x mandatory;
   padding:2px 0 10px;scrollbar-width:none;-ms-overflow-style:none}
 .carr-pista::-webkit-scrollbar{display:none}
-.carr-pista > .carta{flex:0 0 76%;scroll-snap-align:center;opacity:.42;transform:scale(.94);
+.carr-pista > .carta{flex:0 0 76%;scroll-snap-align:center;min-width:0;opacity:.42;transform:scale(.94);
   transition:opacity .18s,transform .18s,border-color .12s}
 .carr-pista > .carta.foco{opacity:1;transform:scale(1);border-color:var(--borda2)}
 .carr-ctrl{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:2px}
