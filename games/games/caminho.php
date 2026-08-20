@@ -3316,7 +3316,11 @@ function avancarFormacao(){
   }
 
   S.temporadas.push({ano:S.ano, idade:S.idade, time:S.time, ...st, premios, campanha:null, formacao:true});
+  const ovrAntes = S.ovrAnterior;
+  S.linhaNova = S.idade;
   salvar(); telaFormacao();
+  S.linhaNova = null;
+  animarAno(ovrAntes, ovr(S.A, S.pos), S.idade);
 }
 
 /**
@@ -5150,11 +5154,11 @@ function trajetoPorIdade(){
     }
 
     if (t.formacao){
-      linhas.push(`<div class="tj">
+      linhas.push(`<div class="tj" data-idade="${i}">
         ${selo(i, "sel-formacao")}
         <span class="tj-clube">${marca(String(t.time||"Formação"), 18)}
           <b>${esc(String(t.time||"Formação"))}</b><em>formação</em></span>
-        ${ovrSelo(t.ovr)}${vazios}</div>`);
+        ${ovrSelo(t.ovr)}${S.linhaNova === i ? numsVazios(t) : nums(t)}</div>`);
       continue;
     }
 
