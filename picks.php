@@ -17,25 +17,9 @@ if (!$team) {
     exit;
 }
 
-$currentSeasonYear = null;
-try {
-    $stmtSeason = $pdo->prepare('
-        SELECT s.season_number, s.year, sp.start_year
-        FROM seasons s
-        INNER JOIN sprints sp ON s.sprint_id = sp.id
-        WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN (\'completed\'))
-        ORDER BY s.created_at DESC LIMIT 1
-    ');
-    $stmtSeason->execute([$team['league']]);
-    $season = $stmtSeason->fetch(PDO::FETCH_ASSOC);
-    if ($season) {
-        if (isset($season['start_year'], $season['season_number']))
-            $currentSeasonYear = (int)$season['start_year'] + (int)$season['season_number'] - 1;
-        elseif (isset($season['year']))
-            $currentSeasonYear = (int)$season['year'];
-    }
-} catch (Exception $e) { $currentSeasonYear = null; }
-$currentSeasonYear = $currentSeasonYear ?: (int)date('Y');
+// O corte vem do ponto único (backend/helpers.php), o mesmo que a Trade
+// Machine usa — as duas telas mostravam conjuntos diferentes de picks.
+$currentSeasonYear = anoDeCorteDasPicks($pdo, $team['league'] ?? null);
 
 // ── Peso da pick no cap (troca) ──────────────────────────────────────────────
 // Só faz sentido em liga com salary cap (hoje, ELITE). Nas outras o cap é soma

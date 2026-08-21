@@ -153,31 +153,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $stmtTeam->execute([$teamId]);
     $league = $stmtTeam->fetchColumn() ?: null;
 
-    $currentYear = (int)date('Y');
-    $foundCurrentYear = false;
-    try {
-        if ($league) {
-            $stmtDraft = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM draft_sessions ds JOIN seasons s ON ds.season_id = s.id LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE ds.league = ? AND ds.status IN ("setup", "in_progress") ORDER BY ds.created_at DESC LIMIT 1');
-            $stmtDraft->execute([$league]);
-            $draftYear = computeSeasonDisplayYear($stmtDraft->fetch(PDO::FETCH_ASSOC) ?: null);
-            if ($draftYear) {
-                $currentYear = $draftYear;
-                $foundCurrentYear = true;
-            }
-        }
-        if (!$foundCurrentYear && $league) {
-            $stmtLeague = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed")) ORDER BY s.created_at DESC LIMIT 1');
-            $stmtLeague->execute([$league]);
-            $seasonYearRow = computeSeasonDisplayYear($stmtLeague->fetch(PDO::FETCH_ASSOC) ?: null);
-            if ($seasonYearRow) {
-                $currentYear = $seasonYearRow;
-                $foundCurrentYear = true;
-            }
-        }
-    } catch (Exception $e) {}
-    if ($currentYear <= 0) {
-        $currentYear = (int)date('Y');
-    }
+    // O corte vem do ponto único (backend/helpers.php): as três telas de pick
+    // faziam esta conta cada uma de um jeito e discordavam entre si.
+    $currentYear = anoDeCorteDasPicks($pdo, $league);
     // ─────────────────────────────────────────────────────────────────────
 
     $stmt = $pdo->prepare('

@@ -1807,3 +1807,68 @@ function ensureGamesSchema(PDO $pdo): void
         error_log('[ensureGamesSchema] ' . $e->getMessage());
     }
 }
+
+/**
+ * O ano a partir do qual uma pick ainda vale como ativo de troca.
+ *
+ * Três telas faziam esta conta, cada uma de um jeito, e por isso mostravam
+ * conjuntos diferentes de picks:
+ *
+ *   picks.php          só a temporada corrente
+ *   api/picks.php      o DRAFT aberto, e a temporada como reserva
+ *   trade-simulator    igual à api, com outra função pra calcular o ano
+ *
+ * Quando a liga tinha um draft aberto de um ano MAIOR que o da temporada, a
+ * Trade Machine cortava por ele e a lista de picks vinha vazia — enquanto a
+ * página de Picks, ali do lado, mostrava as mesmas picks normalmente. Foi o
+ * que aconteceu na RISE, na NEXT e na ROOKIE.
+ *
+ * A regra agora é uma só: vale o MENOR dos dois. O draft aberto existe pra
+ * ABAIXAR o corte (o draft de um ano que já passou ainda está rolando, e as
+ * picks dele continuam em jogo), nunca pra subir — uma pick não pode sumir da
+ * troca por causa de um draft que ainda nem começou.
+ */
+function anoDeCorteDasPicks(PDO $pdo, ?string $liga): int
+{
+    $liga = trim((string)$liga);
+    if ($liga === '') return (int)date('Y');
+
+    // fetch() devolve FALSE quando não há linha, não null: o hint `?array`
+    // recusava o valor, a exceção subia e a função inteira caía no ano do
+    // relógio — que não tem nada a ver com o ano da liga no jogo.
+    $ano = function ($r): int {
+        if (!is_array($r)) return 0;
+        if (isset($r['start_year'], $r['season_number'])) {
+            return (int)$r['start_year'] + (int)$r['season_number'] - 1;
+        }
+        return (int)($r['year'] ?? 0);
+    };
+
+    $anos = [];
+    try {
+        // O draft aberto mais ANTIGO: se dois estão abertos, quem manda é o
+        // que ainda não terminou, não o que foi criado por último.
+        $st = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year
+            FROM draft_sessions ds
+            JOIN seasons s ON ds.season_id = s.id
+            LEFT JOIN sprints sp ON s.sprint_id = sp.id
+            WHERE ds.league = ? AND ds.status IN ("setup","in_progress")');
+        $st->execute([$liga]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $y = $ano($r);
+            if ($y > 0) $anos[] = $y;
+        }
+
+        $st2 = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year
+            FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id
+            WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed"))
+            ORDER BY s.created_at DESC LIMIT 1');
+        $st2->execute([$liga]);
+        $y = $ano($st2->fetch(PDO::FETCH_ASSOC));
+        if ($y > 0) $anos[] = $y;
+    } catch (Throwable $e) {
+        error_log('[anoDeCorteDasPicks] ' . $e->getMessage());
+    }
+
+    return $anos ? min($anos) : (int)date('Y');
+}

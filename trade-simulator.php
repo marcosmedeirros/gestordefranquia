@@ -44,7 +44,7 @@ if ($action === 'roster') {
     $tid = (int)($_GET['team_id'] ?? 0);
     if (!$tid) { echo json_encode(['ok' => false]); exit; }
 
-    $stmt = $pdo->prepare('SELECT id, city, name, photo_url FROM teams WHERE id = ? AND league = ?');
+    $stmt = $pdo->prepare('SELECT id, city, name, photo_url, league FROM teams WHERE id = ? AND league = ?');
     $stmt->execute([$tid, $user['league'] ?? '']);
     $team = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$team) { echo json_encode(['ok' => false]); exit; }
@@ -54,34 +54,12 @@ if ($action === 'roster') {
     $players = $stmtP->fetchAll(PDO::FETCH_ASSOC);
 
     $picks = [];
+    // A liga vem do TIME (a query acima já o restringe à liga do usuário) e
+    // o corte vem do ponto único — antes esta tela calculava o ano por conta
+    // própria e escondia picks que a página de Picks mostrava.
+    $league = $team['league'] ?? ($user['league'] ?? '');
+    $currentYear = anoDeCorteDasPicks($pdo, $league);
     try {
-        $league = $team['league'] ?? ($user['league'] ?? '');
-        $currentYear = (int)date('Y');
-        $anoDoAno = function ($row) {
-            if (!$row) return 0;
-            return isset($row['start_year'], $row['season_number'])
-                ? (int)$row['start_year'] + (int)$row['season_number'] - 1
-                : (int)($row['year'] ?? 0);
-        };
-        if ($league) {
-            // Prioriza o ano do draft em andamento (setup/in_progress): a escolha
-            // desse draft e de um ano que pode ser anterior a temporada ativa, e
-            // sem isto ficaria de fora do picker por ser "passada". Espelha o
-            // mesmo criterio de api/picks.php.
-            $dY = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year
-                FROM draft_sessions ds JOIN seasons s ON ds.season_id = s.id
-                LEFT JOIN sprints sp ON s.sprint_id = sp.id
-                WHERE ds.league = ? AND ds.status IN ("setup","in_progress")
-                ORDER BY ds.created_at DESC LIMIT 1');
-            $dY->execute([$league]);
-            $y = $anoDoAno($dY->fetch(PDO::FETCH_ASSOC));
-            if ($y <= 0) {
-                $sY = $pdo->prepare('SELECT s.season_number, s.year, sp.start_year FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ("completed")) ORDER BY s.created_at DESC LIMIT 1');
-                $sY->execute([$league]);
-                $y = $anoDoAno($sY->fetch(PDO::FETCH_ASSOC));
-            }
-            if ($y > 0) $currentYear = $y;
-        }
         // team_id/original_team_id/protection entram porque a proteção de pick
         // precisa deles: só a pick PRÓPRIA de 1ª rodada pode ser protegida.
         // A coluna pode não existir ainda neste banco — garante antes de
@@ -1096,7 +1074,10 @@ function renderPickerList() {
           </div>`; }).join('')
       : '<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">Sem jogadores disponíveis</div>';
   } else {
-    const currentYear = new Date().getFullYear();
+    // O corte é o do SERVIDOR (ano da liga no jogo), não o do relógio de quem
+    // está olhando: uma liga em 2032 não tem nada a ver com o ano de hoje, e
+    // esta segunda régua só podia discordar da primeira.
+    const currentYear = window.__CURRENT_SEASON_YEAR__ || 0;
     // Picks já usados em qualquer slot vindo deste time
     const usedPickIds = new Set();
     activeSlots.forEach(k => {
@@ -1121,8 +1102,22 @@ function renderPickerList() {
             <i class="bi bi-check2-circle picker-check"></i>
           </div>`;
         }).join('')
-      : '<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">Sem picks disponíveis</div>';
+      : `<div style="text-align:center;padding:24px;color:var(--text-3);font-size:12px">${motivoSemPicks(src, currentYear)}</div>`;
   }
+}
+
+/** Por que a lista de picks está vazia — em texto de tela. */
+function motivoSemPicks(src, anoCorte) {
+  const nome = escH(src.name || 'este time');
+  if (!src.picks || !src.picks.length) {
+    return `O ${nome} não tem picks cadastradas.`;
+  }
+  const futuras = src.picks.filter(p => (Number(p.season_year) || 0) >= anoCorte);
+  if (!futuras.length) {
+    const ultima = Math.max(...src.picks.map(p => Number(p.season_year) || 0));
+    return `As picks do ${nome} são todas até ${ultima}, e a liga já está em ${anoCorte}.`;
+  }
+  return `Todas as picks do ${nome} já estão nesta troca.`;
 }
 
 function togglePick(el) {
