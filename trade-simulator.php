@@ -638,24 +638,6 @@ function salarioDe(p) {
   return Number.isFinite(v) && v > 0 ? `${v}M` : '';
 }
 
-/**
- * Quanto uma pick vale como ativo de troca.
- *
- * Sai do mesmo js/trade-value.js que a página de trades usa — 1ª rodada vale
- * bem mais que 2ª, e o valor cai conforme a pick se distancia no tempo. Não é
- * folha salarial: pick não pesa um centavo no cap. São duas perguntas
- * diferentes sobre o mesmo item, e por isso aparecem separadas.
- *
- * O veredito da troca inteira (justa/roubo) continua escondido, como pedido —
- * isto aqui é o preço de etiqueta de um item, não julgamento do negócio.
- */
-function valorDaPick(pk) {
-  if (!window.TradeValue) return 0;
-  return Math.round(window.TradeValue.itemValue({
-    round: pk.round, season_year: pk.season_year,
-  }));
-}
-
 const SLOT_KEYS = ['A','B','C','D','E','F','G'];
 // A troca que esta contraproposta responde, quando vier da tela de trocas.
 let CONTRA_TRADE = null;
@@ -1059,9 +1041,7 @@ function itemHtml(item, toKey) {
         <div class="sim-item-meta">${escH(item.orig)}</div>
         <div class="sim-item-from">← ${escH(fromName)}</div>
       </div>
-      <div class="sim-item-valor" title="${SALARY_MODE ? 'Peso desta pick no casamento salarial da troca — não é folha, pick não pesa no cap.' : 'Valor de troca desta pick.'}">
-        ${SALARY_MODE ? `${pickSalary(item.round)}M` : valorDaPick(item)}
-      </div>
+      ${SALARY_MODE ? `<div class="sim-item-valor" title="Peso desta pick no casamento salarial da troca — não é folha, pick não pesa no cap.">${pickSalary(item.round)}M</div>` : ''}
       ${swapSel}
       <button class="sim-item-del" onclick="removeItem('${toKey}',${item.id},'pick','${item.fromKey}')" title="Remover"><i class="bi bi-x-lg"></i></button>
     </div>`;
@@ -1160,7 +1140,7 @@ function renderPickerList() {
               <div class="picker-name">${escH(label)}</div>
               <div class="picker-meta">${(p.orig_city ?? '') + ' ' + (p.orig_name ?? '')}</div>
             </div>
-            <div class="picker-valor" title="${SALARY_MODE ? 'Peso desta pick no casamento salarial da troca' : 'Valor de troca desta pick'}">${SALARY_MODE ? `${pickSalary(p.round)}M` : valorDaPick(p)}</div>
+            ${SALARY_MODE ? `<div class="picker-valor" title="Peso desta pick no casamento salarial da troca">${pickSalary(p.round)}M</div>` : ''}
             <i class="bi bi-check2-circle picker-check"></i>
           </div>`;
         }).join('')
