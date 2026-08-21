@@ -50,6 +50,20 @@ function pickCapTitle(int $round): string
     return 'Peso desta pick no casamento salarial de uma troca (' . (CAP_PICK_TRADE_VALUE[$round] ?? 0) . 'M) — não é folha, pick não pesa no cap do elenco.';
 }
 
+/**
+ * Link do botão "Propor troca com esta pick".
+ *
+ * ELITE não usa mais o modal de trades — só a Trade Machine, que é onde a
+ * folha salarial e a regra dos 120% aparecem antes de enviar. $salaryCapMode
+ * é a mesma condição (só liga em modo 'salary', hoje só a ELITE).
+ */
+function pickTradeLink(int $pickId, bool $salaryCapMode): string
+{
+    return $salaryCapMode
+        ? '/trade-simulator.php?offer_pick_id=' . $pickId
+        : '/trades.php?offer_pick=' . $pickId;
+}
+
 $stmtPicks = $pdo->prepare('
     SELECT p.*, orig.city AS original_city, orig.name AS original_name,
            last_owner.city AS last_owner_city, last_owner.name AS last_owner_name,
@@ -535,7 +549,7 @@ $tradedAway   = count($picksAway);
                                 <span class="tag blue"><i class="bi bi-arrow-down-circle" style="font-size:9px"></i> Recebida</span>
                             <?php endif; ?>
                         </div>
-                        <a class="btn-pick-trade" href="/trades.php?offer_pick=<?= (int)$pick['id'] ?>" title="Propor troca com esta pick"><i class="bi bi-arrow-left-right"></i></a>
+                        <a class="btn-pick-trade" href="<?= htmlspecialchars(pickTradeLink((int)$pick['id'], $salaryCapMode)) ?>" title="Propor troca com esta pick"><i class="bi bi-arrow-left-right"></i></a>
                     </div>
                     <?php endforeach; ?>
                     </div>
@@ -592,7 +606,7 @@ $tradedAway   = count($picksAway);
                                 <span class="tag blue"><i class="bi bi-arrow-down-circle" style="font-size:9px"></i> Recebida</span>
                             <?php endif; ?>
                         </div>
-                        <a class="btn-pick-trade" href="/trades.php?offer_pick=<?= (int)$pick['id'] ?>" title="Propor troca com esta pick"><i class="bi bi-arrow-left-right"></i></a>
+                        <a class="btn-pick-trade" href="<?= htmlspecialchars(pickTradeLink((int)$pick['id'], $salaryCapMode)) ?>" title="Propor troca com esta pick"><i class="bi bi-arrow-left-right"></i></a>
                     </div>
                     <?php endforeach; ?>
                     </div>

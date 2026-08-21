@@ -379,6 +379,9 @@ try {
 <script>
 (function () {
     const MY_TEAM_ID = <?= $myTeam ? (int)$myTeam['id'] : 'null' ?>;
+    // ELITE não usa mais o modal de trades — só a Trade Machine, que é onde a
+    // folha salarial e a regra dos 120% aparecem antes de enviar.
+    const LIGA_USA_TRADE_MACHINE = <?= strtoupper((string)($user['league'] ?? '')) === 'ELITE' ? 'true' : 'false' ?>;
 
     /* ── Cor do avatar de fallback (acompanha --red, inclusive se ficar customizável) ── */
     function _avatarColorHex() {
@@ -422,7 +425,9 @@ try {
     }
 
     function tradeUrl(p) {
-        return `/trades.php?player=${p.id}&team=${p.team_id}`;
+        return LIGA_USA_TRADE_MACHINE
+            ? `/trade-simulator.php?team_id=${p.team_id}&player_id=${p.id}`
+            : `/trades.php?player=${p.id}&team=${p.team_id}`;
     }
 
     function renderCard(p) {

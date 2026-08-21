@@ -662,6 +662,17 @@ let CONTRA_TRADE = null;
 // A troca que esta proposta MODIFICA, quando vier do botão Modificar.
 let MODIFICAR = null;
 
+// Pré-seleção vinda de fora (o modal de trades não existe mais na ELITE):
+// "Propor trade por este jogador" (players.php/mercado.php) manda team_id+
+// player_id, "Propor troca com esta pick" (picks.php) manda só offer_pick_id
+// — ali não tem time alvo, então fica pendente até o usuário escolher o
+// time B. Aplicado uma vez só (os *_APLICADO) pra sobreviver a um re-render
+// de loadTeam sem duplicar o item.
+let PRESELECT_PLAYER_ID = null;
+let PRESELECT_PLAYER_APLICADO = false;
+let PRESELECT_OFFER_PICK_ID = null;
+let PRESELECT_OFFER_PICK_APLICADO = false;
+
 // State
 const teams   = {}; // key → { id, name, photo_url, players, picks, cap, tradedOut }
 const receives = {}; // key → Array of items this team receives
@@ -686,6 +697,13 @@ async function boot() {
   // Populate selectors
   activeSlots.forEach(k => populateTeamSelect(k, d.teams));
 
+  // "Propor trade por este jogador" / "Propor troca com esta pick": o modal
+  // de trades não existe mais na ELITE, então quem clicava nesses botões e
+  // caía aqui sem nada pré-preenchido teria que remontar tudo do zero.
+  const paramsPre = new URLSearchParams(window.location.search);
+  PRESELECT_PLAYER_ID = parseInt(paramsPre.get('player_id') || '0', 10) || null;
+  PRESELECT_OFFER_PICK_ID = parseInt(paramsPre.get('offer_pick_id') || '0', 10) || null;
+
   // Pre-load my team in A
   if (MY_TEAM_ID) {
     const sel = document.getElementById(`sel_${activeSlots[0]}`);
@@ -701,6 +719,11 @@ async function boot() {
       selB.value = String(alvo);
       await loadTeam(activeSlots[1], alvo);
     }
+  }
+
+  if (PRESELECT_PLAYER_ID && !PRESELECT_PLAYER_APLICADO) {
+    const notas = document.getElementById('tradeNotes');
+    if (notas && !notas.value) notas.value = 'Olá! Tenho interesse neste jogador. Vamos negociar?';
   }
 
   // Contraproposta vinda da tela de trocas: a original precisa ser cancelada
@@ -857,6 +880,7 @@ async function loadTeam(key, teamId) {
     tradedOut: new Set(),
   };
   receives[key] = [];
+  aplicarPreselecoes(key);
   renderPanel(key);
   // Atualiza todos os seletores para excluir times já escolhidos
   if (window._allTeams) {
@@ -866,6 +890,44 @@ async function loadTeam(key, teamId) {
     });
   }
   recalc();
+}
+
+/**
+ * Aplica a pré-seleção vinda de fora (player_id/offer_pick_id na URL) assim
+ * que o time certo termina de carregar — uma vez só cada.
+ *
+ * player_id: só faz sentido quando quem carregou é o SLOT B (o time do
+ * jogador), e vai pra receives[A] — eu recebo dele. offer_pick_id é o
+ * inverso: a pick é MINHA (slot A já carregada no boot), e só entra em
+ * receives[B] quando o usuário finalmente escolhe pra quem oferecer.
+ */
+function aplicarPreselecoes(key) {
+  const kA = activeSlots[0], kB = activeSlots[1];
+
+  if (PRESELECT_PLAYER_ID && !PRESELECT_PLAYER_APLICADO && key === kB && teams[kB] && teams[kA]) {
+    const p = (teams[kB].players || []).find(pl => Number(pl.id) === PRESELECT_PLAYER_ID);
+    if (p) {
+      receives[kA].push({ id: p.id, type: 'player', fromKey: kB, name: p.name, pos: p.position, age: p.age, ovr: p.ovr, salary: p.salary });
+      teams[kB].tradedOut.add(p.id);
+      PRESELECT_PLAYER_APLICADO = true;
+      // O painel de A não é o "key" que está carregando agora (é o de B) —
+      // sem isto o jogador entrava no estado mas o painel de A continuava
+      // mostrando a mesa vazia até algum outro re-render acontecer.
+      renderPanel(kA);
+    }
+  }
+
+  if (PRESELECT_OFFER_PICK_ID && !PRESELECT_OFFER_PICK_APLICADO && key === kB && teams[kB] && teams[kA]) {
+    const pk = (teams[kA].picks || []).find(pick => Number(pick.id) === PRESELECT_OFFER_PICK_ID);
+    if (pk) {
+      receives[kB].push({ id: pk.id, type: 'pick', fromKey: kA, label: pickLabel(pk),
+        orig: `${pk.orig_city ?? ''} ${pk.orig_name ?? ''}`.trim(), round: pk.round,
+        season_year: pk.season_year, swapRole: null,
+        podeProteger: !!pk.pode_proteger, protection: pk.protection || null,
+        protecaoOriginal: pk.protection || null });
+      PRESELECT_OFFER_PICK_APLICADO = true;
+    }
+  }
 }
 
 // ── Panel rendering ───────────────────────────────────────────────────────────

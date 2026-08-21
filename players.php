@@ -957,6 +957,17 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 	// Salary cap só existe na ELITE; nas outras ligas a API nem manda o campo.
 	const LIGA_TEM_CAP = <?= strtoupper((string)($user['league'] ?? '')) === 'ELITE' ? 'true' : 'false' ?>;
 
+	// ELITE não usa mais o modal de trades — só a Trade Machine, que é onde a
+	// folha salarial e a regra dos 120% aparecem antes de enviar. Reaproveita
+	// LIGA_TEM_CAP porque hoje as duas coisas são exatamente a mesma condição
+	// (só ELITE), mas com nome próprio pra não depender disso continuar assim.
+	const LIGA_USA_TRADE_MACHINE = LIGA_TEM_CAP;
+	function linkProporTrade(p) {
+		return LIGA_USA_TRADE_MACHINE
+			? `/trade-simulator.php?team_id=${p.team_id}&player_id=${p.id}`
+			: `/trades.php?player=${p.id}&team=${p.team_id}`;
+	}
+
 	/** Salário que o jogador ocupa no teto, em milhões. Calouro leva marca própria. */
 	function capSalarioHtml(p) {
 		if (p.cap_salario === undefined || p.cap_salario === null) return '<span class="text-light-gray">-</span>';
@@ -1151,7 +1162,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 						${compareBtnHtml(p.id)}
 						<button class="mpl-btn" type="button" onclick="openPlayerDetails(${p.id})"><i class="bi bi-info-circle"></i></button>
 						<button class="mpl-btn" type="button" onclick="copyPlayerSummary(this)" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
-						<a class="mpl-btn trade" href="/trades.php?player=${p.id}&team=${p.team_id}"><i class="bi bi-arrow-left-right"></i></a>
+						<a class="mpl-btn trade" href="${linkProporTrade(p)}"><i class="bi bi-arrow-left-right"></i></a>
 					</div>
 				</div>
 			</div>
@@ -1255,7 +1266,7 @@ $whatsappDefaultMessage = rawurlencode('Olá! Podemos conversar sobre nossas fra
 									${compareBtnHtml(p.id)}
 									<button class="btn-outline info" type="button" onclick="openPlayerDetails(${p.id})" title="Detalhes"><i class="bi bi-info-circle"></i></button>
 									<button class="btn-outline info" type="button" onclick="copyPlayerSummary(this)" data-copy-name="${p.name}" data-copy-ovr="${p.ovr}" data-copy-age="${p.age}" title="Copiar"><i class="bi bi-clipboard"></i></button>
-									<a class="btn-trade-action" href="/trades.php?player=${p.id}&team=${p.team_id}" title="Propor trade por este jogador"><i class="bi bi-arrow-left-right"></i></a>
+									<a class="btn-trade-action" href="${linkProporTrade(p)}" title="Propor trade por este jogador"><i class="bi bi-arrow-left-right"></i></a>
 								</td>
 							</tr>
 						`;
