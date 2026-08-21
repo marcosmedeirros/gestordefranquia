@@ -2655,6 +2655,64 @@ function ensureCopyPicksModal() {
   });
 }
 
+function ensureCopyTradesModal() {
+  if (document.getElementById('copyTradesModal')) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'copyTradesModal';
+  modal.tabIndex = -1;
+  modal.innerHTML = `
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content bg-dark border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white"><i class="bi bi-arrow-left-right me-2 text-orange"></i>Trocas da temporada</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <textarea id="copyTradesTextarea" class="form-control bg-dark text-white border-secondary" rows="14" readonly></textarea>
+          <small class="text-light-gray d-block mt-2">Toque e segure para copiar no celular.</small>
+        </div>
+        <div class="modal-footer border-orange">
+          <button type="button" class="btn btn-outline-light" id="copyTradesClipboardBtn">
+            <i class="bi bi-clipboard me-1"></i>Copiar
+          </button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  modal.querySelector('#copyTradesClipboardBtn').addEventListener('click', async () => {
+    const textarea = document.getElementById('copyTradesTextarea');
+    if (!textarea) return;
+    try {
+      await navigator.clipboard.writeText(textarea.value);
+      alert('Trocas copiadas para a área de transferência!');
+    } catch (e) {
+      textarea.focus();
+      textarea.select();
+    }
+  });
+}
+
+/** As trocas ACEITAS da temporada corrente, em texto pra colar no grupo. */
+async function copyLeagueTrades() {
+  const league = appState.currentLeague || 'ELITE';
+  ensureCopyTradesModal();
+  const textarea = document.getElementById('copyTradesTextarea');
+  if (textarea) textarea.value = 'Carregando...';
+  const modalEl = document.getElementById('copyTradesModal');
+  if (modalEl) new bootstrap.Modal(modalEl).show();
+
+  try {
+    const data = await api(`admin.php?action=copy_trades&league=${league}`);
+    if (textarea) textarea.value = data.text || 'Nenhuma troca encontrada.';
+  } catch (e) {
+    if (textarea) textarea.value = e.error || 'Erro ao copiar as trocas.';
+  }
+}
+
 async function copyLeaguePicks() {
   const league = appState.currentLeague || document.getElementById('copyRosterLeague')?.value || 'ELITE';
   ensureCopyPicksModal();
@@ -2954,6 +3012,9 @@ async function showLeague(league) {
           <button class="btn-ghost" id="copyPicksBtn">
             <i class="bi bi-calendar2-check"></i> Picks
           </button>
+          <button class="btn-ghost" id="copyTradesBtn" title="As trocas aceitas nesta temporada">
+            <i class="bi bi-arrow-left-right"></i> Trocas
+          </button>
           ${currentSeason
             ? (totalSeasons !== '—' && Number(seasonNumber) >= Number(totalSeasons)
                 ? `<button class="btn-ghost" style="color:#ef4444;border-color:rgba(239,68,68,.3)" onclick="showFinalizarSprint('${league}')">
@@ -3039,6 +3100,7 @@ async function showLeague(league) {
     setupLeagueQuickSearch(league);
     document.getElementById('copyRosterBtn')?.addEventListener('click', copyLeagueRosters);
     document.getElementById('copyPicksBtn')?.addEventListener('click', copyLeaguePicks);
+    document.getElementById('copyTradesBtn')?.addEventListener('click', copyLeagueTrades);
 
     if (activeDraft?.status === 'in_progress' && activeDraft?.pick_deadline_ts) {
       _startAdminDraftTimer(Number(activeDraft.pick_deadline_ts), 'admin-draft-pick-timer');

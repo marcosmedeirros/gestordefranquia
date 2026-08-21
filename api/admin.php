@@ -672,6 +672,186 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'text' => trim(implode("\n", $lines))]);
             break;
 
+        /**
+         * AS TROCAS DA TEMPORADA, em texto pra colar no grupo.
+         *
+         * Irma de copy_rosters e copy_picks. So as ACEITAS e so as da
+         * temporada corrente: o historico inteiro vira um texto que ninguem
+         * le, e o que se manda pro grupo e o que aconteceu agora.
+         *
+         * As trades 1x1 sabem em que temporada foram (`season_year`); as
+         * multi-times nao guardam o ano, so o ciclo — pra elas o corte e a
+         * data de inicio da temporada.
+         */
+        case 'copy_trades':
+            $league = strtoupper(trim((string)($_GET['league'] ?? '')));
+            if (!in_array($league, $validLeagues, true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Liga inválida']);
+                break;
+            }
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $league);
+
+            // O rotulo (pra cabeca do texto) e a data de inicio saem da temporada.
+            $rotuloTemp = '';
+            $inicioTemp = null;
+            try {
+                $stTmp = $pdo->prepare("
+                    SELECT s.season_number, s.created_at,
+                           COALESCE(sp.start_year + s.season_number - 1, s.year) AS yr
+                    FROM seasons s LEFT JOIN sprints sp ON s.sprint_id = sp.id
+                    WHERE s.league = ? AND (s.status IS NULL OR s.status NOT IN ('completed'))
+                    ORDER BY s.created_at DESC LIMIT 1");
+                $stTmp->execute([$league]);
+                if ($t = $stTmp->fetch(PDO::FETCH_ASSOC)) {
+                    $rotuloTemp = 'Temporada ' . (int)$t['season_number']
+                                . ((int)$t['yr'] > 0 ? ' · ' . (int)$t['yr'] : '');
+                    $inicioTemp = $t['created_at'] ?: null;
+                }
+            } catch (Throwable $e) { /* o texto vale sem o rotulo */ }
+
+            // O CICLO e quem marca a temporada de uma troca. `trades.season_year`
+            // existe na tabela e nunca foi preenchida — esta 0 em todas as linhas,
+            // e filtrar por ela devolveria uma lista sempre vazia.
+            $ciclo = 0;
+            try {
+                $stC = $pdo->prepare('SELECT MAX(current_cycle) FROM teams WHERE league = ?');
+                $stC->execute([$league]);
+                $ciclo = (int)$stC->fetchColumn();
+            } catch (Throwable $e) { /* sem ciclo, cai no aviso la embaixo */ }
+
+            $nomeTime = fn(?string $c, ?string $n) => trim(($c ?? '') . ' ' . ($n ?? ''));
+
+            // ── Trocas 1x1 ────────────────────────────────────────────────
+            $stTr = $pdo->prepare("
+                SELECT t.id, t.updated_at,
+                       ft.city AS fc, ft.name AS fn, tt.city AS tc, tt.name AS tn
+                FROM trades t
+                JOIN teams ft ON ft.id = t.from_team_id
+                JOIN teams tt ON tt.id = t.to_team_id
+                WHERE ft.league = ? AND t.status = 'accepted' AND t.cycle = ?
+                ORDER BY t.updated_at ASC");
+            $stTr->execute([$league, $ciclo]);
+            $trocas = $stTr->fetchAll(PDO::FETCH_ASSOC);
+
+            $ovrCol = playerOvrColumn($pdo);
+            $stJog = $pdo->prepare("
+                SELECT COALESCE(p.name, ti.player_name, CONCAT('Jogador #', ti.player_id)) AS nome,
+                       COALESCE(p.{$ovrCol}, ti.player_ovr) AS ovr
+                FROM trade_items ti LEFT JOIN players p ON p.id = ti.player_id
+                WHERE ti.trade_id = ? AND ti.from_team = ? AND ti.pick_id IS NULL");
+            $stPk = $pdo->prepare("
+                SELECT pk.season_year, pk.round, ot.city AS oc, ot.name AS onm
+                FROM trade_items ti
+                JOIN picks pk ON pk.id = ti.pick_id
+                LEFT JOIN teams ot ON ot.id = pk.original_team_id
+                WHERE ti.trade_id = ? AND ti.from_team = ?");
+
+            /** Os itens de um lado da troca, em uma linha por item. */
+            $itensDoLado = function (int $tradeId, bool $doOfertante) use ($stJog, $stPk, $nomeTime): array {
+                $out = [];
+                $stJog->execute([$tradeId, $doOfertante ? 1 : 0]);
+                foreach ($stJog->fetchAll(PDO::FETCH_ASSOC) as $j) {
+                    $out[] = $j['nome'] . ($j['ovr'] ? ' (' . (int)$j['ovr'] . ')' : '');
+                }
+                $stPk->execute([$tradeId, $doOfertante ? 1 : 0]);
+                foreach ($stPk->fetchAll(PDO::FETCH_ASSOC) as $pk) {
+                    $de = $nomeTime($pk['oc'] ?? null, $pk['onm'] ?? null);
+                    $out[] = 'Pick ' . (int)$pk['season_year'] . ' · ' . (int)$pk['round'] . 'ª'
+                           . ($de !== '' ? ' (' . $de . ')' : '');
+                }
+                return $out;
+            };
+
+            $linhas = [];
+            // Sem temporada aberta nao ha "esta temporada": o texto diz isso em
+            // vez de deixar o admin achar que a lista e do momento.
+            $linhas[] = '*TROCAS ' . $league . '*'
+                      . ($rotuloTemp ? ' — ' . $rotuloTemp : ' — sem temporada aberta');
+            $linhas[] = '';
+
+            $n = 0;
+            foreach ($trocas as $tr) {
+                $n++;
+                $a = $nomeTime($tr['fc'], $tr['fn']);
+                $b = $nomeTime($tr['tc'], $tr['tn']);
+                // Quem RECEBE o quê: o lado do ofertante e o que o outro recebe.
+                $vaiPraB = $itensDoLado((int)$tr['id'], true);
+                $vaiPraA = $itensDoLado((int)$tr['id'], false);
+
+                $linhas[] = $n . '. *' . $a . '* ⇄ *' . $b . '*';
+                $linhas[] = $b . ' recebe:';
+                foreach ($vaiPraB ?: ['—'] as $i) $linhas[] = '  • ' . $i;
+                $linhas[] = $a . ' recebe:';
+                foreach ($vaiPraA ?: ['—'] as $i) $linhas[] = '  • ' . $i;
+                $linhas[] = '';
+            }
+
+            // ── Trocas de vários times ────────────────────────────────────
+            if (tableExists($pdo, 'multi_trades') && tableExists($pdo, 'multi_trade_items')) {
+                try {
+                    // As multi vao pela DATA, e nao pelo ciclo: `multi_trades.cycle`
+                    // e outra coluna que existe e nunca foi preenchida — esta NULL
+                    // nas 107 linhas aceitas. O corte e o inicio da temporada, que
+                    // e onde o ciclo virou de qualquer forma.
+                    $sqlMt = "SELECT id, updated_at FROM multi_trades
+                              WHERE league = ? AND status = 'accepted'"
+                           . ($inicioTemp ? " AND updated_at >= ?" : "")
+                           . " ORDER BY updated_at ASC";
+                    $stMt = $pdo->prepare($sqlMt);
+                    $stMt->execute($inicioTemp ? [$league, $inicioTemp] : [$league]);
+                    $multis = $stMt->fetchAll(PDO::FETCH_ASSOC);
+
+                    $stMi = $pdo->prepare("
+                        SELECT mi.to_team_id,
+                               COALESCE(p.name, mi.player_name) AS nome,
+                               COALESCE(p.{$ovrCol}, mi.player_ovr) AS ovr,
+                               pk.season_year, pk.round,
+                               ot.city AS oc, ot.name AS onm,
+                               dt.city AS dc, dt.name AS dn
+                        FROM multi_trade_items mi
+                        LEFT JOIN players p ON p.id = mi.player_id
+                        LEFT JOIN picks pk ON pk.id = mi.pick_id
+                        LEFT JOIN teams ot ON ot.id = pk.original_team_id
+                        LEFT JOIN teams dt ON dt.id = mi.to_team_id
+                        WHERE mi.trade_id = ?");
+
+                    foreach ($multis as $mt) {
+                        $n++;
+                        $stMi->execute([(int)$mt['id']]);
+                        $porTime = [];
+                        foreach ($stMi->fetchAll(PDO::FETCH_ASSOC) as $it) {
+                            $destino = $nomeTime($it['dc'] ?? null, $it['dn'] ?? null) ?: 'Time';
+                            if (!empty($it['nome'])) {
+                                $porTime[$destino][] = $it['nome'] . ($it['ovr'] ? ' (' . (int)$it['ovr'] . ')' : '');
+                            } elseif (!empty($it['season_year'])) {
+                                $de = $nomeTime($it['oc'] ?? null, $it['onm'] ?? null);
+                                $porTime[$destino][] = 'Pick ' . (int)$it['season_year'] . ' · ' . (int)$it['round'] . 'ª'
+                                                     . ($de !== '' ? ' (' . $de . ')' : '');
+                            }
+                        }
+                        $linhas[] = $n . '. *Troca de ' . count($porTime) . ' times*';
+                        foreach ($porTime as $time => $itens) {
+                            $linhas[] = $time . ' recebe:';
+                            foreach ($itens as $i) $linhas[] = '  • ' . $i;
+                        }
+                        $linhas[] = '';
+                    }
+                } catch (Throwable $e) {
+                    error_log('[copy_trades] multi: ' . $e->getMessage());
+                }
+            }
+
+            if ($n === 0) {
+                echo json_encode(['success' => true,
+                    'text' => 'Nenhuma troca aceita nesta temporada' . ($rotuloTemp ? ' (' . $rotuloTemp . ')' : '') . '.']);
+                break;
+            }
+
+            $linhas[] = $n . ($n === 1 ? ' troca nesta temporada.' : ' trocas nesta temporada.');
+            echo json_encode(['success' => true, 'text' => trim(implode("\n", $linhas))]);
+            break;
+
         case 'games_users':
             // Perfis de jogo (aba Games do Admin): saldo de moedas/FBA Points
             // e quem é admin do Games.
