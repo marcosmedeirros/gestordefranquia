@@ -375,7 +375,7 @@ const COPERO_CLUBES = [
     ['Al Rayyan', 'QA1', 69, 'https://r2.thesportsdb.com/images/media/team/badge/hvb3r41653090047.png'],
 
     // Premier League
-    ['Al Ahly', 'EG1', 78, 'https://r2.thesportsdb.com/images/media/team/badge/x8753q1751421890.png'],
+    ['Al Ahly', 'EG1', 78, '/games/img/escudos/alahly.png'],
     ['Zamalek', 'EG1', 75, 'https://r2.thesportsdb.com/images/media/team/badge/tgekj81580930027.png'],
     ['Pyramids', 'EG1', 72, 'https://r2.thesportsdb.com/images/media/team/badge/8liy611607352549.png'],
 

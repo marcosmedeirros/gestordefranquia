@@ -1024,7 +1024,11 @@ tr.tit td{color:var(--red)}
 @media (max-width:939px){
   /* O gradiente é o aviso de que a lista continua: cortada em linha reta
      ela parece uma carreira que acabou ali. */
-  .sumula-curta .trajeto{max-height:250px;overflow:hidden;
+  /* Cinco anos e o cabecalho. Com a linha em 27px, 250 mostravam nove — e
+     nove anos de historico em cima da decisao do ano e historico demais
+     pra uma tela de celular. Quem quiser a carreira inteira tem o botao
+     logo abaixo. */
+  .sumula-curta .trajeto{max-height:165px;overflow:hidden;
     -webkit-mask-image:linear-gradient(#000 74%,transparent);
     mask-image:linear-gradient(#000 74%,transparent)}
   .sumula-mais{display:block;width:100%;background:none;border:none;border-top:1px solid var(--border);
@@ -1061,6 +1065,27 @@ tr.tit td{color:var(--red)}
   .st{padding:6px 5px}
   .st b{font-size:17px}
   .mini{padding:4px 5px}
+
+  /* O paragrafo de contexto SAI no celular. Ele explica o que o titulo ja
+     diz e o que as proprias cartas dizem melhor — e custava quatro linhas
+     de tela em cima da decisao. No desktop fica: la o espaco nao esta em
+     disputa. */
+  .dec-sub{display:none}
+  .bpcard .dec-txt{font-size:12px;line-height:1.45;margin-bottom:0}
+
+  /* A trajetoria encolhe: sao ate vinte linhas, e cada pixel de altura
+     aqui e multiplicado por vinte.
+
+     `.trajeto .tj` e nao `.tj`: existe outra regra `.tj` mais ABAIXO no
+     arquivo, e media query nao aumenta especificidade — a de baixo ganhava
+     e este bloco inteiro nao valia nada. */
+  .trajeto .tj{padding:3px 8px;font-size:11px;gap:5px}
+  .trajeto .tj-cab{font-size:8px}
+  .trajeto .tj-idade{width:23px;height:17px;font-size:10.5px}
+  .trajeto .tj-ovr{font-size:10.5px;padding:1px 4px}
+  .trajeto .tj-n{font-size:10.5px}
+  .trajeto .tj-clube b{font-size:11.5px}
+  .trajeto .tj-clube em{font-size:9.5px}
 }
 @media(max-width:420px){
   .ficha{padding:11px}

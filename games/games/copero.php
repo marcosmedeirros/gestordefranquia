@@ -1039,10 +1039,23 @@ button{font-family:inherit}
   .vitrine.vazia{display:none}
   .vitrine{margin-top:10px;padding-top:10px}
 
-  .linha{padding:10px}
+  /* A linha do tempo encolhe: são até dez linhas de números, e cada pixel
+     de altura aqui é multiplicado por dez. */
+  .linha{padding:8px}
+  .ano{padding:2px 6px;font-size:11px}
+  .ano-idade{height:19px;font-size:11px}
+  .ano-ovr{font-size:11px;padding:1px 0}
+  .ano-n{font-size:11px}
+  .linha-cab{font-size:9px;padding:0 6px 5px}
+  .linha-pe{margin-top:6px;padding:7px 6px 0}
+
   .evento-caixa{padding:13px 12px}
   .evento h3{font-size:17px}
-  .evento p{font-size:11.5px;line-height:1.45;margin-bottom:10px}
+  /* O parágrafo de contexto SAI no celular. Ele explica o que o título já
+     diz ("Sem espaço no elenco") e o que as próprias cartas dizem melhor —
+     e custava quatro linhas de tela em cima da decisão. No desktop ele
+     fica: lá o espaço não está em disputa. */
+  .evento p{display:none}
 }
 @media (max-width:440px){
   /* Em tela estreita idade e valor empilham: lado a lado eles comiam 100px
@@ -1266,8 +1279,10 @@ const ICONES = {
   gs: '<svg viewBox="0 0 16 16" class="ic"><path d="M1.6 12.8V4.6h12.8v8.2" class="ic-linha"/><path d="M4.4 4.6v8.2M8 4.6v8.2M11.6 4.6v8.2M1.6 7.3h12.8M1.6 10h12.8" class="ic-rede"/><circle cx="10.6" cy="9.6" r="2.6" class="ic-fundo"/><circle cx="10.6" cy="9.6" r="2.6"/></svg>',
   cs: '<svg viewBox="0 0 16 16" class="ic"><path d="M4 14.2V8.1c0-.7.5-1.2 1.1-1.2.6 0 1.1.5 1.1 1.2V4.9c0-.7.5-1.2 1.1-1.2.6 0 1.1.5 1.1 1.2v2.6c0-.7.5-1.2 1.1-1.2.6 0 1.1.5 1.1 1.2v2.1c.5-.7 1.4-.8 1.9-.2.4.5.3 1.3-.2 1.9l-2 2.9z"/><path d="M3.6 14.2h8.2" class="ic-punho"/></svg>',
 };
-/* Quantos anos vazios a linha do tempo mostra à frente da carreira. */
-const ANOS_A_FRENTE = 7;
+/* Quantos anos vazios a linha do tempo mostra à frente da carreira.
+   Cinco: o bastante pra dar a sensação de estrada pela frente, sem gastar
+   meia tela de celular com linhas que não têm nada. */
+const ANOS_A_FRENTE = 5;
 const COLUNAS_GOL   = [['GS','gs'], ['CS','cs']];
 const COLUNAS_LINHA = [['Gols','gols'], ['Ast','ast']];
 const colunasDoBoletim = () => ehGoleiro() ? COLUNAS_GOL : COLUNAS_LINHA;
@@ -3306,32 +3321,30 @@ async function telaFim(){
       const ganhou = (pr.moedas || 0) + (pr.fba_points || 0) > 0;
       const rotulo = {facil:'Fácil', media:'Média', dificil:'Difícil', impossivel:'Impossível'};
 
-      // Conquista é do jogador, não da carreira: o que já era dele aparece
-      // como repetido e vai pro fim da lista. Misturado com as inéditas, o
-      // fim de carreira parecia dizer que ele tinha ganhado tudo de novo —
-      // e ninguém ganha a mesma conquista duas vezes.
+      // Só o que ESTA carreira conquistou de novo. As que ele já tinha
+      // continuam dele — e continuam na lista de desafios, onde moram —, mas
+      // no fim de carreira elas só faziam a lista dobrar de tamanho: eram
+      // vinte e um cartões pra contar cinco novidades.
       const eNova = (c) => novas.some(n => n.id === c.id);
-      const lista = [...d.conquistas].sort((a, b) => (eNova(b) ? 1 : 0) - (eNova(a) ? 1 : 0));
-      const qtdNovas = d.conquistas.filter(eNova).length;
-      const repetidas = d.conquistas.length - qtdNovas;
+      const lista = d.conquistas.filter(eNova);
 
-      document.getElementById('conquistas').innerHTML =
-        `<h2 style="font-size:17px;margin:26px 0 10px">Conquistas da carreira
-           <span class="conq-conta">${qtdNovas ? `${qtdNovas} nova${qtdNovas > 1 ? 's' : ''}` : 'nenhuma nova'}${
-             repetidas ? ` · ${repetidas} que você já tinha` : ''}</span></h2>
+      document.getElementById('conquistas').innerHTML = !lista.length
+        ? `<h2 style="font-size:17px;margin:26px 0 10px">Conquistas da carreira</h2>
+           <p class="nota-txt">Nenhuma conquista inédita nesta carreira. Veja o que ainda falta
+           em <b>Desafios</b>, na tela inicial.</p>`
+        : `<h2 style="font-size:17px;margin:26px 0 10px">Conquistas da carreira
+           <span class="conq-conta">${lista.length} nova${lista.length > 1 ? 's' : ''}</span></h2>
          ${ganhou ? `<div class="premio-fx">
            <b>Você ganhou</b>
            ${pr.moedas ? `<span class="premio-tag moeda">+${pr.moedas} moedas</span>` : ''}
            ${pr.fba_points ? `<span class="premio-tag fba">+${pr.fba_points} FBA Points</span>` : ''}
-           <small>pelas conquistas inéditas — cada uma paga uma vez só</small>
+           <small>cada conquista paga uma vez só</small>
          </div>` : ''}
          <div class="conq-grade">${lista.map(c => `
-           <div class="conq n-${esc(c.nivel || 'facil')}${eNova(c) ? ' nova' : ' repetida'}">
+           <div class="conq n-${esc(c.nivel || 'facil')} nova">
              <span class="ic">${c.icone}</span>
              <div><b>${esc(c.nome)}</b><small>${esc(c.desc)}</small></div>
-             <em>${eNova(c) ? 'NOVA' : 'já era sua'}</em></div>`).join('')}</div>
-         <p class="nota-txt" style="margin-top:10px">Cada conquista sai uma vez só, na carreira em que
-         você a fez pela primeira vez. As que já eram suas continuam suas — não pagam de novo.</p>`;
+             <em>NOVA</em></div>`).join('')}</div>`;
     }
   } catch (e) { /* sem rede, a carreira ainda aparece inteira */ }
 
