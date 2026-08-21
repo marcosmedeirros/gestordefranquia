@@ -806,6 +806,14 @@ function whatsappParaGrupoPrincipal(PDO $pdo, string $texto, ?string $tipo = nul
     whatsappEsvaziarUmaVez($pdo);
 }
 
+/** Emoji fixo por liga — ponto único pra tag do começo e o rodapé de bolinhas. */
+function whatsappEmojiDaLiga(?string $league): ?string
+{
+    $l = strtoupper(trim((string)$league));
+    $emojis = ['ELITE' => '🔴', 'NEXT' => '🟢', 'RISE' => '🔵', 'ROOKIE' => '🟠'];
+    return $emojis[$l] ?? null;
+}
+
 /**
  * Tag da liga pro começo da mensagem: 🔴 [FBA ELITE], 🟢 [FBA NEXT]...
  *
@@ -816,10 +824,21 @@ function whatsappParaGrupoPrincipal(PDO $pdo, string $texto, ?string $tipo = nul
  */
 function whatsappTagDaLiga(?string $league): string
 {
-    $l = strtoupper(trim((string)$league));
-    $emojis = ['ELITE' => '🔴', 'NEXT' => '🟢', 'RISE' => '🔵', 'ROOKIE' => '🟠'];
-    if (!isset($emojis[$l])) return '[FBA]';
-    return $emojis[$l] . ' [FBA ' . $l . ']';
+    $emoji = whatsappEmojiDaLiga($league);
+    if ($emoji === null) return '[FBA]';
+    return $emoji . ' [FBA ' . strtoupper(trim((string)$league)) . ']';
+}
+
+/**
+ * Rodapé de três bolinhas com a cor da liga, pra reforçar no fim da mensagem
+ * — quem só bate o olho no final do grupo também sabe a liga na hora.
+ * Vazio quando a liga não é uma das quatro (mensagem sem tag também não leva
+ * rodapé, senão ficaria bolinha solta sem dizer nada).
+ */
+function whatsappRodapeCorDaLiga(?string $league): string
+{
+    $emoji = whatsappEmojiDaLiga($league);
+    return $emoji === null ? '' : str_repeat($emoji, 3);
 }
 
 /** Manda no grupo da liga (nada acontece se a liga não tiver grupo configurado). */

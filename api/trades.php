@@ -373,13 +373,18 @@ function montarTextoTradeWhats(array $payload, array $fromPlayers, array $toPlay
     // Com DOIS times, "envia" basta: só existe um remetente possível por
     // bloco, e escrever o nome dele em cada linha seria repetir o que o
     // cabeçalho acabou de dizer. O prefixo é coisa de multi-trade.
+    //
+    // O rodapé de bolinhas repete a cor da tag do começo — quem só bate o
+    // olho no fim do grupo também sabe a liga na hora.
+    $rodape = whatsappRodapeCorDaLiga($league);
     return implode("\n", array_merge(
         [whatsappTagDaLiga($league) . ' 🔄 *TRADE FECHADA*', ''],
         ['*' . $nomeFrom . '* envia:'],
         listaItensTradeWhats($fromPlayers, $fromPicks, '', $idFrom),
         [''],
         ['*' . $nomeTo . '* envia:'],
-        listaItensTradeWhats($toPlayers, $toPicks, '', $idTo)
+        listaItensTradeWhats($toPlayers, $toPicks, '', $idTo),
+        $rodape !== '' ? ['', $rodape] : []
     ));
 }
 
@@ -418,7 +423,9 @@ function montarTextoMultiTradeWhats(array $teams, array $items, ?string $league 
         $linhas[] = '*' . ($nomePorId[$timeId] ?? ('Time ' . $timeId)) . '* recebe:';
         $linhas = array_merge($linhas, $itens, ['']);
     }
-    return rtrim(implode("\n", $linhas));
+    $texto = rtrim(implode("\n", $linhas));
+    $rodape = whatsappRodapeCorDaLiga($league);
+    return $rodape !== '' ? $texto . "\n\n" . $rodape : $texto;
 }
 
 function sendMultiTradePush(PDO $pdo, int $tradeId): void
