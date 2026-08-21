@@ -1174,6 +1174,43 @@ const BAND = {
   NGA:`<rect width="30" height="20" fill="#fff"/><rect width="10" height="20" fill="#008751"/><rect x="20" width="10" height="20" fill="#008751"/>`,
   SEN:`<rect width="30" height="20" fill="#fdef42"/><rect width="10" height="20" fill="#00853f"/><rect x="20" width="10" height="20" fill="#e31b23"/><path d="M15 7l1 3h3.2l-2.6 2 1 3-2.6-1.9-2.6 1.9 1-3-2.6-2H14z" fill="#00853f"/>`,
   CIV:`<rect width="30" height="20" fill="#fff"/><rect width="10" height="20" fill="#f77f00"/><rect x="20" width="10" height="20" fill="#009e60"/>`,
+  /* As que faltavam. Cinco delas (ALG, TUN, COD, IRN, QAT) são
+     nacionalidade que dá pra escolher na criação: sem o desenho, quem
+     escolhia via a sigla cinza no lugar da bandeira a carreira inteira.
+     As outras são seleções do motor — ainda não desenham bandeira em
+     tela nenhuma, mas entram junto pra lista parar de ter buraco. */
+  DEN:`<rect width="30" height="20" fill="#c8102e"/><rect x="9" width="4" height="20" fill="#fff"/><rect y="8" width="30" height="4" fill="#fff"/>`,
+  SUI:`<rect width="30" height="20" fill="#d52b1e"/><rect x="13.2" y="4" width="3.6" height="12" fill="#fff"/><rect x="9" y="8.2" width="12" height="3.6" fill="#fff"/>`,
+  AUT:`<rect width="30" height="20" fill="#ed2939"/><rect y="6.67" width="30" height="6.67" fill="#fff"/>`,
+  UKR:`<rect width="30" height="20" fill="#005bbb"/><rect y="10" width="30" height="10" fill="#ffd500"/>`,
+  SRB:`<rect width="30" height="20" fill="#c6363c"/><rect y="6.67" width="30" height="6.67" fill="#0c4076"/><rect y="13.33" width="30" height="6.67" fill="#fff"/>`,
+  POL:`<rect width="30" height="20" fill="#fff"/><rect y="10" width="30" height="10" fill="#dc143c"/>`,
+  SWE:`<rect width="30" height="20" fill="#006aa7"/><rect x="9" width="4" height="20" fill="#fecc00"/><rect y="8" width="30" height="4" fill="#fecc00"/>`,
+  NOR:`<rect width="30" height="20" fill="#ba0c2f"/><rect x="8" width="6" height="20" fill="#fff"/><rect y="7" width="30" height="6" fill="#fff"/><rect x="9.5" width="3" height="20" fill="#00205b"/><rect y="8.5" width="30" height="3" fill="#00205b"/>`,
+  CZE:`<rect width="30" height="20" fill="#fff"/><rect y="10" width="30" height="10" fill="#d7141a"/><path d="M0 0l12 10L0 20z" fill="#11457e"/>`,
+  WAL:`<rect width="30" height="20" fill="#fff"/><rect y="10" width="30" height="10" fill="#00ab39"/><path d="M11 6.4c1.9-.8 3.7.2 4.5 1.7 1.5-.6 3-.1 3.6 1.1-1 .3-1.5 1-1.4 1.9.1.7.6 1.2 1.3 1.4-1.4.8-3.3.7-4.6-.3-1.3.7-2.8.5-3.5-.5.9-.4 1.3-1.1 1.1-1.9-.2-1-1.1-1.6-1-3.4z" fill="#c8102e"/>`,
+  IRL:`<rect width="30" height="20" fill="#fff"/><rect width="10" height="20" fill="#169b62"/><rect x="20" width="10" height="20" fill="#ff883e"/>`,
+  ECU:`<rect width="30" height="20" fill="#ffdd00"/><rect y="10" width="30" height="5" fill="#034ea2"/><rect y="15" width="30" height="5" fill="#ed1c24"/>`,
+  PER:`<rect width="30" height="20" fill="#d91023"/><rect x="10" width="10" height="20" fill="#fff"/>`,
+  PAR:`<rect width="30" height="20" fill="#d52b1e"/><rect y="6.67" width="30" height="6.67" fill="#fff"/><rect y="13.33" width="30" height="6.67" fill="#0038a8"/>`,
+  VEN:`<rect width="30" height="20" fill="#ffcc00"/><rect y="6.67" width="30" height="6.67" fill="#00247d"/><rect y="13.33" width="30" height="6.67" fill="#cf142b"/>`,
+  BOL:`<rect width="30" height="20" fill="#d52b1e"/><rect y="6.67" width="30" height="6.67" fill="#f9e300"/><rect y="13.33" width="30" height="6.67" fill="#007934"/>`,
+  ALG:`<rect width="30" height="20" fill="#fff"/><rect width="15" height="20" fill="#006233"/><path d="M18 6.9A4.6 4.6 0 1 0 18 13.1 3.4 3.4 0 1 1 18 6.9z" fill="#d21034"/><path d="M19.6 7.9l.62 1.9h2l-1.62 1.18.62 1.9-1.62-1.18-1.62 1.18.62-1.9L16.98 9.8h2z" fill="#d21034"/>`,
+  CMR:`<rect width="30" height="20" fill="#007a5e"/><rect x="10" width="10" height="20" fill="#ce1126"/><rect x="20" width="10" height="20" fill="#fcd116"/><path d="M15 7.4l.85 2.6h2.7l-2.2 1.6.85 2.6L15 12.6l-2.2 1.6.85-2.6-2.2-1.6h2.7z" fill="#fcd116"/>`,
+  TUN:`<rect width="30" height="20" fill="#e70013"/><circle cx="15" cy="10" r="6" fill="#fff"/><path d="M17.39 7.34A4 4 0 1 0 17.39 12.66 3 3 0 1 1 17.39 7.34z" fill="#e70013"/><path d="M17.9 8.2l.52 1.6h1.68l-1.36 1 .52 1.6-1.36-1-1.36 1 .52-1.6-1.36-1h1.68z" fill="#e70013"/>`,
+  GHA:`<rect width="30" height="20" fill="#ce1126"/><rect y="6.67" width="30" height="6.67" fill="#fcd116"/><rect y="13.33" width="30" height="6.67" fill="#006b3f"/><path d="M15 7.4l.85 2.6h2.7l-2.2 1.6.85 2.6L15 12.6l-2.2 1.6.85-2.6-2.2-1.6h2.7z" fill="#000"/>`,
+  MLI:`<rect width="30" height="20" fill="#fcd116"/><rect width="10" height="20" fill="#14b53a"/><rect x="20" width="10" height="20" fill="#ce1126"/>`,
+  COD:`<rect width="30" height="20" fill="#007fff"/><path d="M-2 21L32 -1" stroke="#f7d618" stroke-width="6"/><path d="M-2 21L32 -1" stroke="#ce1021" stroke-width="3.6"/><path d="M4.6 3.4l.75 2.3h2.4l-1.95 1.4.75 2.3-1.95-1.4-1.95 1.4.75-2.3L1.45 5.7h2.4z" fill="#f7d618"/>`,
+  IRN:`<rect width="30" height="20" fill="#fff"/><rect width="30" height="6.67" fill="#239f40"/><rect y="13.33" width="30" height="6.67" fill="#da0000"/><path d="M14.1 8.6h1.05v1.1c.35-.5 1.15-.45 1.35.1.2.5-.1 1-.6 1.15v.75h-2.9v-.75c-.5-.15-.8-.65-.6-1.15.2-.55 1-.6 1.35-.1z" fill="#da0000"/>`,
+  QAT:`<rect width="30" height="20" fill="#8a1538"/><path d="M0 0h8l3 1.25L8 2.5l3 1.25L8 5l3 1.25L8 7.5l3 1.25L8 10l3 1.25L8 12.5l3 1.25L8 15l3 1.25L8 17.5l3 1.25L8 20H0z" fill="#fff"/>`,
+  IRQ:`<rect width="30" height="20" fill="#fff"/><rect width="30" height="6.67" fill="#ce1126"/><rect y="13.33" width="30" height="6.67" fill="#000"/><path d="M10.8 9.1h1.3v1.8h-1.3zM13.4 9.1h1.3v1.8h-1.3zM16 9.1h1.3v1.8H16zM18.6 9.1h1.3v1.8h-1.3z" fill="#007a3d"/>`,
+  UZB:`<rect width="30" height="20" fill="#0099b5"/><rect y="6.4" width="30" height="7.2" fill="#fff"/><rect y="13.6" width="30" height="6.4" fill="#1eb53a"/><rect y="6" width="30" height=".8" fill="#ce1126"/><rect y="13.2" width="30" height=".8" fill="#ce1126"/><circle cx="5" cy="3.2" r="1.5" fill="#fff"/><circle cx="5.9" cy="3" r="1.3" fill="#0099b5"/>`,
+  CHN:`<rect width="30" height="20" fill="#de2910"/><path d="M5.2 2.2l1.05 3.2h3.4l-2.75 2 1.05 3.2-2.75-2-2.75 2 1.05-3.2-2.75-2h3.4z" fill="#ffde00"/><circle cx="10.4" cy="2.4" r=".85" fill="#ffde00"/><circle cx="12.3" cy="4.6" r=".85" fill="#ffde00"/><circle cx="12.3" cy="7.4" r=".85" fill="#ffde00"/><circle cx="10.4" cy="9.4" r=".85" fill="#ffde00"/>`,
+  CAN:`<rect width="30" height="20" fill="#fff"/><rect width="7.5" height="20" fill="#d80621"/><rect x="22.5" width="7.5" height="20" fill="#d80621"/><path d="M15 4.6l.85 2.2 1.8-.85-.65 2.1 2 .2-1.6 1.35 1.8 1.25-2.2.3.4 1.6-1.8-1.05-.6 2.2-.6-2.2-1.8 1.05.4-1.6-2.2-.3 1.8-1.25-1.6-1.35 2-.2-.65-2.1 1.8.85z" fill="#d80621"/>`,
+  CRC:`<rect width="30" height="20" fill="#002b7f"/><rect y="3.3" width="30" height="13.4" fill="#fff"/><rect y="6.7" width="30" height="6.6" fill="#ce1126"/>`,
+  PAN:`<rect width="30" height="20" fill="#fff"/><rect x="15" width="15" height="10" fill="#d21034"/><rect y="10" width="15" height="10" fill="#005293"/><path d="M7.5 2.4l.8 2.4h2.5l-2 1.5.8 2.4-2.1-1.5-2.1 1.5.8-2.4-2-1.5h2.5z" fill="#005293"/><path d="M22.5 12.4l.8 2.4h2.5l-2 1.5.8 2.4-2.1-1.5-2.1 1.5.8-2.4-2-1.5h2.5z" fill="#d21034"/>`,
+  JAM:`<rect width="30" height="20" fill="#fed100"/><path d="M1.8 0h26.4L15 8.8z" fill="#009b3a"/><path d="M1.8 20h26.4L15 11.2z" fill="#009b3a"/><path d="M0 1.2v17.6L13.2 10z" fill="#000"/><path d="M30 1.2v17.6L16.8 10z" fill="#000"/>`,
+  HON:`<rect width="30" height="20" fill="#0073cf"/><rect y="6.67" width="30" height="6.67" fill="#fff"/><circle cx="15" cy="10" r=".9" fill="#0073cf"/><circle cx="12" cy="8.4" r=".8" fill="#0073cf"/><circle cx="18" cy="8.4" r=".8" fill="#0073cf"/><circle cx="12" cy="11.6" r=".8" fill="#0073cf"/><circle cx="18" cy="11.6" r=".8" fill="#0073cf"/>`,
 };
 const bandeira = (iso, w) => BAND[iso]
   ? `<svg viewBox="0 0 30 20" width="${w||21}" role="img" aria-label="${esc(iso)}">${BAND[iso]}</svg>`
