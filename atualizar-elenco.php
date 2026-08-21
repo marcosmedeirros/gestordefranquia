@@ -15,8 +15,12 @@ requireAuth();
 $user = getUserSession();
 $pdo  = db();
 
-$stmtTeam = $pdo->prepare('SELECT id, city, name, league, photo_url FROM teams WHERE user_id = ? LIMIT 1');
-$stmtTeam->execute([$user['id']]);
+require_once __DIR__ . '/backend/observador.php';
+// No modo observador o "meu time" é o da liga que está na tela — sem isto
+// esta página mostraria o time do admin, de outra liga, embaixo da barra
+// roxa dizendo o contrário. Fora do modo, nada muda.
+$stmtTeam = $pdo->prepare('SELECT id, city, name, league, photo_url FROM teams WHERE id = ? LIMIT 1');
+$stmtTeam->execute([idDoTimeDaTela($pdo, (int)$user['id'])]);
 $team = $stmtTeam->fetch(PDO::FETCH_ASSOC);
 if (!$team) { header('Location: my-roster.php'); exit; }
 

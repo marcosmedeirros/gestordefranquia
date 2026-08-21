@@ -66,6 +66,14 @@ function requireAuth() {
             }
         }
     }
+
+    // Modo observador (?obs=NEXT, ?obs=off, ?obs_time=12). Fica aqui pra valer
+    // em qualquer página sem que cada uma precise saber que o modo existe.
+    if (isset($_GET['obs']) || isset($_GET['obs_time'])) {
+        if (!function_exists('db')) require_once __DIR__ . '/db.php';
+        require_once __DIR__ . '/observador.php';
+        observadorProcessarUrl(db(), getUserSession());
+    }
 }
 
 function getUserSession() {

@@ -7,6 +7,7 @@ require_once __DIR__ . '/backend/pendencias.php';
 require_once __DIR__ . '/backend/team-feed-helpers.php'; // FEED_DATA_CORTE + tabelas do feed
 require_once __DIR__ . '/backend/queridometro.php';
 require_once __DIR__ . '/backend/pontuacao_ranking.php'; // a régua do card de pontuação
+require_once __DIR__ . '/backend/observador.php';        // ver o site por outra liga
 requireAuth();
 
 $user = getUserSession();
@@ -19,15 +20,18 @@ ensureTeamDirectiveProfileColumns($pdo);
 
 $dashboardShortcuts = getUserShortcuts($user['dashboard_shortcuts'] ?? null);
 
+// No modo observador o "meu time" é o da liga que está na tela — sem isto
+// esta página mostraria o time do admin, de outra liga, embaixo da barra
+// roxa dizendo o contrário. Fora do modo, nada muda.
+$__tid = idDoTimeDaTela($pdo, (int)$user['id']);
 $stmtTeam = $pdo->prepare('
   SELECT t.*, COUNT(p.id) as player_count
   FROM teams t
   LEFT JOIN players p ON p.team_id = t.id
-  WHERE t.user_id = ?
+  WHERE t.id = ?
   GROUP BY t.id
-  ORDER BY player_count DESC, t.id DESC
 ');
-$stmtTeam->execute([$user['id']]);
+$stmtTeam->execute([$__tid]);
 $team = $stmtTeam->fetch();
 
 // Cobranca da atualizacao de elenco: depois que o draft da temporada fecha, o

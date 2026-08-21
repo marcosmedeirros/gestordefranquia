@@ -10,12 +10,22 @@ if (!isset($pdo)) {
 }
 $__sbCurrent = basename($_SERVER['SCRIPT_NAME'] ?? '');
 $__sbIsAdmin = !empty($user['id']) && hasAdminAccess($pdo, (int)$user['id']);
-$__sbIsElite = (($team['league'] ?? $user['league'] ?? '') === 'ELITE');
+
+// A barra do modo observador sai aqui porque o sidebar é o que toda página
+// inclui — assim ela aparece em todas sem tocar em nenhuma. Fora do modo,
+// a função devolve string vazia e nada acontece.
+require_once __DIR__ . '/../backend/observador.php';
+echo observadorBarra($pdo, $user ?? null);
+
+// No modo observador a liga da TELA é a observada, e não a do time do
+// admin — senão o menu continuaria montado pra liga dele.
+$__sbLigaObs = observadorLiga();
+$__sbIsElite = (($__sbLigaObs ?? $team['league'] ?? $user['league'] ?? '') === 'ELITE');
 
 // Draft Inicial (initdraft) ativo: item no menu.
 // - Da liga do usuário: aparece abaixo de "Draft".
 // - De outras ligas (só admin): aparece abaixo do menu "Admin".
-$__sbLeague = $team['league'] ?? $user['league'] ?? '';
+$__sbLeague = $__sbLigaObs ?? $team['league'] ?? $user['league'] ?? '';
 // Loteria: qualquer jogador de ELITE/NEXT/RISE/ROOKIE pode ver a ordem já sorteada;
 // quem administra alguma dessas ligas também vê (mesmo com time em outra liga).
 $__sbLotteryVisible = in_array(strtoupper((string)$__sbLeague), ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true) || $__sbIsAdmin;
@@ -113,6 +123,12 @@ if (!function_exists('sbActive')) {
         <?php foreach ($__sbOtherInitDrafts as $__lg => $__sess): ?>
         <a href="/initdraftselecao.php?token=<?= urlencode($__sess['access_token']) ?>"><i class="bi bi-stars"></i> Draft Inicial — <?= htmlspecialchars($__lg) ?></a>
         <?php endforeach; ?>
+        <?php /* Observar liga: abre a página atual pelos olhos de outra liga.
+                Fica aqui, e não numa tela própria, porque o valor está em
+                trocar SEM sair de onde se está — é o mesmo endereço com
+                ?obs=, e a barra roxa aparece por cima. */ ?>
+        <a href="/observador.php"<?= sbActive('observador.php', $__sbCurrent) ?>><i class="bi bi-eye-fill"></i> Observar liga<?php
+            if ($__sbLigaObs): ?> <span class="sb-obs-tag"><?= htmlspecialchars($__sbLigaObs) ?></span><?php endif; ?></a>
         <?php /* Punições: oculto temporariamente, vai passar por alteração */ ?>
         <?php endif; ?>
 

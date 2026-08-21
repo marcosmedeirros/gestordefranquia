@@ -1620,6 +1620,15 @@ function ligaAtualDoUsuario(PDO $pdo, ?array $user = null): string
     $userId     = (int)($user['id'] ?? $_SESSION['user_id'] ?? 0);
     if (!$userId) return $ligaSessao;
 
+    // No modo observador quem manda é a liga escolhida na barra. Sem isto esta
+    // função devolveria a liga do TIME do admin e desfaria a troca no primeiro
+    // dashboard que ele abrisse.
+    require_once __DIR__ . '/observador.php';
+    if (($obs = observadorLiga()) !== null) {
+        $_SESSION['user_league'] = $obs;
+        return $obs;
+    }
+
     try {
         $st = $pdo->prepare('SELECT league FROM teams WHERE user_id = ? LIMIT 1');
         $st->execute([$userId]);
