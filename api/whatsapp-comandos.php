@@ -1283,7 +1283,7 @@ function wcItensDaTroca(PDO $pdo, int $tradeId, ?string $league = null): array
     // avaliar a troca. O ano e a rodada estão lá; era só ir buscar.
     static $st = null;
     if ($st === null) {
-        $st = $pdo->prepare("SELECT ti.from_team, ti.player_name, ti.player_ovr, ti.pick_id,
+        $st = $pdo->prepare("SELECT ti.from_team, ti.player_name, ti.player_ovr, ti.player_age, ti.pick_id,
                                     pk.round, pk.season_year
                              FROM trade_items ti
                              LEFT JOIN picks pk ON pk.id = ti.pick_id
@@ -1300,7 +1300,11 @@ function wcItensDaTroca(PDO $pdo, int $tradeId, ?string $league = null): array
     $doDe = []; $doPara = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $i) {
         if ($i['player_name']) {
-            $rot = $i['player_name'] . ($i['player_ovr'] ? ' (' . $i['player_ovr'] . ')' : '');
+            // Mesmo formato de rotuloJogadorTradeWhats() (o aviso do grupo):
+            // "(OVR/IDADEy)". OVR sem idade não diz muita coisa numa troca —
+            // 70 aos 21 e 70 aos 33 são negócios opostos.
+            $ficha = $i['player_ovr'] ? $i['player_ovr'] . ($i['player_age'] ? '/' . $i['player_age'] . 'y' : '') : '';
+            $rot = $i['player_name'] . ($ficha !== '' ? " ({$ficha})" : '');
         } elseif ($i['pick_id']) {
             $rot = $i['round']
                 ? trim(($i['season_year'] ? $i['season_year'] . ' ' : '') . $i['round'] . 'ª')
