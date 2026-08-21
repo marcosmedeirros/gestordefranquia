@@ -292,21 +292,6 @@ body{overflow-x:hidden}
 .btn-add-team{display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:1px dashed var(--border-md);border-radius:10px;color:var(--text-3);cursor:pointer;padding:16px 12px;font-family:var(--font);font-size:11px;font-weight:600;transition:all .15s;width:60px}
 .btn-add-team:hover{border-color:var(--green);color:var(--green)}
 
-/* Value bar */
-.value-bar{display:flex;gap:0;background:var(--border);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-top:12px}
-.value-panel{background:var(--panel-2);padding:12px 16px;flex:1;min-width:110px}
-.value-label{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-3);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.value-num{font-size:22px;font-weight:800;color:var(--text);line-height:1}
-.value-sub{font-size:10px;color:var(--text-2);margin-top:2px}
-.verdict-panel{background:var(--panel-2);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 18px;gap:6px;border-left:1px solid var(--border);min-width:200px}
-.verdict-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
-.verdict-badge.valid{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--green)}
-.verdict-badge.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--amber)}
-.verdict-badge.invalid{background:color-mix(in srgb, var(--red) 12%, transparent);border:1px solid color-mix(in srgb, var(--red) 30%, transparent);color:var(--red)}
-.verdict-badge.robbery{background:color-mix(in srgb, var(--red) 20%, transparent);border:2px solid color-mix(in srgb, var(--red) 55%, transparent);color:var(--red);animation:pulse-red 1.2s ease-in-out infinite}
-.verdict-badge.neutral{background:var(--panel-3);border:1px solid var(--border);color:var(--text-3)}
-.verdict-hint{font-size:10px;color:var(--text-3);text-align:center}
-@keyframes pulse-red{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--red) 40%, transparent)}50%{box-shadow:0 0 0 6px color-mix(in srgb, var(--red) 0%, transparent)}}
 
 /* CAP bar */
 .cap-bar{display:flex;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-top:12px;overflow-x:auto}
@@ -541,15 +526,6 @@ body{overflow-x:hidden}
     <!-- Panels -->
     <div class="sim-panels-wrap" id="panelsWrap"></div>
 
-    <!-- Value bar -->
-    <div class="value-bar" id="valueBar" style="display:none">
-      <div id="valuePanels" style="display:flex;flex:1;gap:1px;background:var(--border)"></div>
-      <div class="verdict-panel" id="verdictPanel">
-        <div class="verdict-badge neutral"><i class="bi bi-hourglass-split"></i>AGUARDANDO</div>
-        <div class="verdict-hint">valor da trade</div>
-      </div>
-    </div>
-
     <!-- CAP impact -->
     <div class="cap-bar" id="capBar" style="display:none"></div>
 
@@ -614,7 +590,6 @@ body{overflow-x:hidden}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="<?= assetUrl('/js/trade-value.js') ?>"></script>
 <script>
 const IS_PROPOSE = <?= $propose ? 'true' : 'false' ?>;
 const CAP_MIN    = <?= $capMin ?>;
@@ -842,10 +817,9 @@ async function loadTeam(key, teamId) {
   const d = await r.json();
   if (!d.ok) return;
 
-  // js/trade-value.js desconta o valor da pick conforme ela se distancia, e lê
-  // o ano deste global. A trades.php define; aqui nunca definia, então uma
-  // pick de 2031 valia o mesmo que uma de 2026 — o desconto existia no modelo
-  // e nunca chegava a rodar nesta tela.
+  // O ano da liga vem do servidor e o picker de picks filtra por ele
+  // (linha do currentYear la embaixo): sem isto uma pick de 2031 aparece
+  // junto com as ja usadas, porque o corte cai pra zero.
   if (d.anoAtual) window.__CURRENT_SEASON_YEAR__ = +d.anoAtual;
 
   teams[key] = {
@@ -1435,13 +1409,12 @@ function recalc() {
     capBar.appendChild(panel);
   });
 
-  if (!hasItems) { updateValidity('neutral','AGUARDANDO'); updateValueBar(); mostrarAviso120([]); return; }
+  if (!hasItems) { updateValidity('neutral','AGUARDANDO'); mostrarAviso120([]); return; }
 
   const viol = violacoes120();
   if (viol.length) updateValidity('invalid', `ESTOURA ${TRADE_MATCH_PCT}%`);
   else updateValidity(anyInvalid ? 'warn' : 'valid', anyInvalid ? 'CAP ALTERADO' : 'OK');
   mostrarAviso120(viol);
-  updateValueBar();
 
   if (IS_PROPOSE) {
     const btn = document.getElementById('submitBtn');
@@ -1738,55 +1711,6 @@ function setSimSwapRole(toKey, itemId, role) {
     if (window._allTeams) populateTeamSelect(pair.toKey, window._allTeams);
     if (teams[pair.toKey]) { const s = document.getElementById(`sel_${pair.toKey}`); if (s) s.value = teams[pair.toKey].id; }
   }
-}
-
-// ── Trade Value Metric ────────────────────────────────────────────────────────
-// Modelo compartilhado com a página de trades — ver js/trade-value.js.
-function calcItemValue(item) {
-  return window.TradeValue ? window.TradeValue.itemValue(item) : 0;
-}
-
-function calcTeamOffersValue(fromKey) {
-  let total = 0;
-  activeSlots.forEach(toKey => {
-    if (toKey === fromKey) return;
-    (receives[toKey] || []).filter(i => i.fromKey === fromKey).forEach(item => { total += calcItemValue(item); });
-  });
-  return total;
-}
-
-function tradeVerdict(values) {
-  const nonZero = values.filter(v => v > 0);
-  if (nonZero.length < 2 || !window.TradeValue) {
-    return { label: 'AGUARDANDO', cls: 'neutral', icon: 'hourglass-split', hint: 'adicione itens para avaliar' };
-  }
-  const v = window.TradeValue.verdict(Math.max(...values), Math.min(...values));
-  return { label: v.label, cls: v.key, icon: v.icon, hint: v.title };
-}
-
-function updateValueBar() {
-  const hasAnyItems = activeSlots.some(k => (receives[k] || []).length > 0);
-  // Calculo do valor/veredito da trade mantido internamente (window.__lastTradeValue),
-  // mas a barra visual fica sempre oculta a pedido — nao exibir mais para os usuarios.
-  const vb = document.getElementById('valueBar');
-  if (vb) vb.style.display = 'none';
-
-  const loadedSlots = activeSlots.filter(k => teams[k]);
-  if (!hasAnyItems || loadedSlots.length < 2) {
-    window.__lastTradeValue = null;
-    return;
-  }
-
-  const values = [];
-  const perTeam = {};
-  loadedSlots.forEach(key => {
-    const val = calcTeamOffersValue(key);
-    values.push(val);
-    perTeam[key] = val;
-  });
-
-  const v = tradeVerdict(values);
-  window.__lastTradeValue = { perTeam, verdict: v };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
