@@ -1752,8 +1752,30 @@ function novaCarreira(nome, pos, arq, nac, modo){
     afastado:null,          // {tipo,anos,motivo} enquanto estiver fora
     // Perder temporada é o preço mais caro do jogo, então nem toda carreira
     // chega perto dele: o sorteio aqui decide se ESTA vai encarar uma
-    // encruzilhada dessas, e riscoUsado garante que seja no máximo uma.
-    riscoDaCarreira: Math.random() < 0.16, riscoUsado:false,
+    // encruzilhada dessas, e riscoUsado é o contador que segura o resto.
+    //
+    // Medido no catálogo antigo: 16% das carreiras podiam ver UMA decisão de
+    // risco, e mesmo essas ainda precisavam sorteá-la no meio de 29 — na
+    // prática perder uma temporada acontecia em algo como 5% das carreiras,
+    // num jogo em que perder a temporada era pra ser o preço mais caro da
+    // mesa. Agora 45% das carreiras podem encarar uma encruzilhada dessas, e
+    // 12% dessas 45% (ou seja, 5,4% do total) podem encarar duas.
+    //
+    // Carreira SALVA antes desta mudança mantém o sorteio antigo de 16%: o
+    // campo já está no localStorage e nada o reescreve. O portão novo só
+    // vale pra carreira nova.
+    riscoDaCarreira: Math.random() < 0.45, riscoUsado:0,
+    riscoMax: Math.random() < 0.12 ? 2 : 1,
+    // Saída forçada pendente: o evento rasgou o contrato e o mercado abre
+    // assim que o desfecho sair da tela. Só o seguir() apaga.
+    dispensaPendente:false,
+    // Foi CORTADO (não é contrato vencido): o clube que rasgou o contrato
+    // não pode aparecer oferecendo renovação na tela seguinte. Só assinar()
+    // apaga.
+    cortado:false,
+    // O desfecho prometeu que o telefone tocou: o mercado tem que ter pelo
+    // menos uma proposta da liga, custe o que custar. Só o seguir() apaga.
+    resgatePendente:false,
     encerrada:false,
   };
 }
@@ -1866,11 +1888,23 @@ function evoluir(){
 //
 // Antes cada opção mexia em confiança, moral e hype: números que a pessoa
 // não vê e não entende, então a escolha não parecia ter consequência
-// nenhuma. Agora só existem três moedas de troca, todas visíveis:
+// nenhuma. Hoje toda moeda é visível na etiqueta do botão, e toda etiqueta
+// é gerada da mesma chave que o código aplica:
 //
-//   ovr:  +N / -N no nível do jogador
-//   time: "melhor" ou "pior" — muda de time
-//   fora: temporada(s) perdida(s) por lesão ou suspensão
+//   ovr:      +N / -N no nível do jogador
+//   pot:      -N no TETO da carreira (só desce; nada devolve)
+//   time:     "melhor", "pior" ou "qualquer" — muda de time dentro da liga
+//   queda:    true — cai um degrau da escada, ou sai da liga
+//   dispensa: true — o clube rasga o contrato e o mercado abre agora
+//   resgate:  true — acompanha a dispensa: garante proposta da liga na mesa
+//   fora:     temporada(s) perdida(s) por lesão ou suspensão
+//   conf:     +N / -N de crédito com o treinador (vira minutos)
+//   hype:     +N / -N de mercado (vira salário e número de propostas)
+//   elenco:   +N / -N na força do time em volta (vira vitórias e playoff)
+//   salario:  ±N% do salário de hoje
+//   grana:    ±N milhões já ganhos
+//   granaPct: ±N% do dinheiro já ganho
+//   contrato: +N anos de contrato
 //
 // E a aposta é escrita no dado, não no texto:
 //
@@ -1919,29 +1953,176 @@ function mexerOvr(d){
   return ovr(S.A, S.pos) - antes;
 }
 
-/** Aplica um efeito de decisão e devolve quanto o OVR andou. */
+/**
+ * Quanto de `d` o mexerOvr consegue MESMO entregar, com o estado de agora.
+ *
+ * Existe por causa de uma mentira antiga: quando o jogador encosta no teto
+ * (S.pot + 2), mexerOvr devolve 0 e a etiqueta continua escrita "+3 OVR".
+ * A carta prometia e nada acontecia. Agora a etiqueta pergunta aqui antes
+ * de escrever, e o que ela diz é o que vai acontecer.
+ *
+ * Pra baixo não há piso: decidir mal sempre entrega.
+ */
+function ovrRealizavel(d){
+  if (!d || d < 0) return d || 0;
+  const antes = ovr(S.A, S.pos);
+  const teto = Math.min(99, Math.max(antes, (S.pot == null ? 99 : S.pot) + 2));
+  return Math.max(0, Math.min(d, teto - antes));
+}
+
+/**
+ * O piso do teto da carreira.
+ *
+ * Uma lesão feia derruba S.pot, e derrubar S.pot abaixo do OVR de hoje
+ * travaria TODA carta de OVR positivo do resto da carreira em zero — que é
+ * a mesma mentira de novo, agora espalhada por meio catálogo. O teto para
+ * dois pontos acima de quem você é hoje: o crescimento futuro morre (o
+ * evoluir() olha `pot - ovr`), mas as decisões continuam entregando o que
+ * a etiqueta promete.
+ */
+function pisoDoPot(){ return Math.max(60, ovr(S.A, S.pos) + 2); }
+
+/** Quanto o teto REALMENTE anda com `d`. Efeito negativo nunca sobe o teto. */
+function potRealizavel(d){
+  if (!d) return 0;
+  const atual = S.pot == null ? 99 : S.pot;
+  const piso = Math.min(atual, pisoDoPot());
+  return clamp(atual + d, piso, 99) - atual;
+}
+
+/**
+ * Aplica um efeito de decisão e devolve quanto o OVR andou.
+ *
+ * A ORDEM aqui não é decorativa. O jogo pagava tudo em overall, e por isso
+ * a carreira inteira virava uma soma de +2 e −2; agora existem várias
+ * moedas, e três delas MUDAM DE LUGAR (troca de time, queda de degrau,
+ * dispensa). As três reescrevem confiança, elenco e salário do zero, então
+ * rodam ANTES dos deltas escalares — senão um "+18 confiança" prometido na
+ * etiqueta é apagado meio milissegundo depois pelo reset do clube novo.
+ */
 function aplicarEfeito(ef){
   const d = ef.ovr ? mexerOvr(ef.ovr) : 0;
+
+  // Teto da carreira. Só desce, e só a lesão feia mexe aqui. Vem DEPOIS do
+  // mexerOvr acima porque mexerOvr usa S.pot como limite: invertido, a
+  // mesma carta derrubaria o teto e depois cobraria por ele.
+  if (ef.pot) S.pot = (S.pot == null ? 99 : S.pot) + potRealizavel(ef.pot);
+
+  // ── Os que mudam de lugar ──────────────────────────────────────────
   if (ef.time) trocarDeTime(ef.time === "melhor");
+  if (ef.queda) cairDeDivisao();
+  // Saída forçada: o contrato é rasgado AGORA. O mercado não abre aqui
+  // porque o desfecho ainda está na tela; quem abre é o seguir().
+  // `cortado` é o que impede o clube que acabou de te cortar de aparecer
+  // na tela seguinte oferecendo renovação.
+  if (ef.dispensa){ S.contrato = 0; S.dispensaPendente = true; S.cortado = true; }
+  // Resgate: o texto do desfecho diz que o telefone tocou, então o mercado
+  // é obrigado a ter uma proposta da liga. Sem isto o lado BOM da carta
+  // podia cair na tela de "Acabou".
+  if (ef.resgate) S.resgatePendente = true;
   if (ef.fora) afastar(ef.fora[0], ef.fora[1], ef.fora[2]);
+
+  // ── E agora os deltas, em cima do estado novo ──────────────────────
   // Confiança: alguns desfechos mexem no crédito com o treinador sem mexer
   // no OVR. É o que faz "ficar" e "pedir troca" terem consequência mesmo
   // quando nenhum atributo muda.
   if (ef.conf) S.confianca = clamp((S.confianca || 50) + ef.conf, 5, 99);
+  // Hype: o quanto o mercado te enxerga. Entra em valorDeMercado(), então
+  // sai no salário e no número de propostas da próxima janela.
+  if (ef.hype) S.hype = clamp((S.hype || 50) + ef.hype, 5, 99);
+  // Elenco em volta: muda vitórias, playoffs e título sem tocar em você.
+  if (ef.elenco) S.forcaBase = clamp((S.forcaBase == null ? 55 : S.forcaBase) + ef.elenco, 20, 95);
+  // Salário, em porcentagem do de hoje. Piso de 1: $0M/ano quebraria a
+  // conta do dinheiro e a régua do mercado.
+  if (ef.salario) S.salario = Math.max(1, Math.round(S.salario * (1 + ef.salario/100)));
+  // Dinheiro já ganho, em milhões. Nunca fica negativo.
+  if (ef.grana) S.dinheiro = Math.max(0, Math.round(S.dinheiro + ef.grana));
+  // Dinheiro já ganho, em PORCENTAGEM. É a chave do rombo do contador: o
+  // texto fala em 35% do acumulado, e é 35% do acumulado que sai daqui.
+  if (ef.granaPct) S.dinheiro = Math.max(0, Math.round(S.dinheiro * (1 + ef.granaPct/100)));
+  // Anos de contrato. Adiar o mercado é um prêmio de verdade pra quem está
+  // em queda — é a tela mais perigosa do jogo.
+  if (ef.contrato) S.contrato = Math.max(0, S.contrato + ef.contrato);
+
   return d;
 }
 
-/** Descreve um efeito em duas ou três palavras, pra etiqueta do botão. */
+/**
+ * Um degrau abaixo, sem passar pelo mercado.
+ *
+ * A ESCADA_FBA só subia (tentarSubirDivisao), e sair da liga só acontecia
+ * assinando com clube de fora na janela — ou seja, o mundo tinha uma
+ * descida e nenhum evento a alcançava. Na FBA o caminho é literal:
+ * ELITE → NEXT → RISE. Na NBA não existe divisão de baixo dentro da liga,
+ * então cair é SAIR: G League pra quem ainda é jovem, exterior pra quem
+ * não é. Nos dois casos o salário despenca — é isso que faz a queda doer
+ * sem tirar um ponto de overall.
+ */
+function cairDeDivisao(){
+  if (S.modo === "fba"){
+    const i = ESCADA_FBA.indexOf(String(S.liga || "").toUpperCase());
+    if (i > 0){
+      S.liga = ESCADA_FBA[i - 1];
+      S.anosDivisao = 0;
+      S.time = pick(timesDaLiga(S.liga));
+      S.anosNoClube = 0;
+      S.gm = gmDoTime(S.time);
+      S.forcaBase = ri(38, 70);
+      S.confianca = 46;
+      S.salario = Math.max(1, Math.round(S.salario * 0.55));
+      return;
+    }
+  }
+  // Já está no degrau de baixo, ou é NBA: a saída é pela porta de fora.
+  const g = S.idade <= 27 ? pick(G_LEAGUE) : pick(CLUBES_GLOBAIS);
+  S.foraDaLiga = true;
+  S.perto = S.idade <= 27;
+  S.liga = g[1];
+  S.time = g[0];
+  S.anosNoClube = 0;
+  S.gm = null;
+  S.anosDivisao = 0;
+  S.forcaBase = ri(38, 68);
+  S.confianca = 45;
+  S.salario = Math.max(1, Math.round(S.salario * 0.4));
+}
+
+/**
+ * Descreve um efeito em duas ou três palavras, pra etiqueta do botão.
+ *
+ * A ORDEM da lista é a ordem de importância, porque o catálogo nunca põe
+ * mais de duas chaves na mesma carta: com três, o "e" no meio estoura os
+ * 160px e a etiqueta vira reticências. O que pesa mais aparece primeiro.
+ *
+ * OVR e teto passam por ovrRealizavel/potRealizavel: se o jogador está
+ * encostado no teto, a etiqueta diz "nível no teto" em vez de prometer um
+ * "+3 OVR" que o motor devolveria como zero. `ovrReal`/`potReal` chegam
+ * prontos quando o desfecho é redesenhado do save — aí valem os números do
+ * momento em que a carta foi jogada, não os de agora.
+ */
 function dizEfeito(ef){
   const p = [];
-  if (ef.ovr) p.push((ef.ovr > 0 ? "+" : "−") + Math.abs(ef.ovr) + " OVR");
+  const dOvr = ef.ovrReal == null ? ovrRealizavel(ef.ovr || 0) : ef.ovrReal;
+  const dPot = ef.potReal == null ? potRealizavel(ef.pot || 0) : ef.potReal;
+  if (ef.fora) p.push(ef.fora[1] + (ef.fora[1] > 1 ? " temporadas fora" : " temporada fora"));
+  if (ef.dispensa) p.push("fora do clube");
+  if (ef.resgate) p.push("com proposta na mesa");
+  if (ef.queda) p.push("cai de divisão");
+  if (dOvr) p.push((dOvr > 0 ? "+" : "−") + Math.abs(dOvr) + " OVR");
+  else if ((ef.ovr || 0) > 0) p.push("nível no teto");
+  if (dPot) p.push((dPot > 0 ? "+" : "−") + Math.abs(dPot) + " de teto");
   // Curto de propósito: isto cabe numa carta de 160px de largura, e
   // "troca por time melhor" virava reticências antes de dizer o que era.
   if (ef.time) p.push(ef.time === "melhor" ? "time melhor"
                     : ef.time === "pior"   ? "time pior"
                     : "muda de time");
+  if (ef.salario) p.push((ef.salario > 0 ? "+" : "−") + Math.abs(ef.salario) + "% de salário");
+  if (ef.grana) p.push((ef.grana > 0 ? "+" : "−") + "$" + Math.abs(ef.grana) + "M");
+  if (ef.granaPct) p.push((ef.granaPct > 0 ? "+" : "−") + Math.abs(ef.granaPct) + "% da grana");
+  if (ef.contrato) p.push("+" + ef.contrato + (ef.contrato > 1 ? " anos" : " ano") + " de contrato");
+  if (ef.elenco) p.push(ef.elenco > 0 ? "elenco reforçado" : "elenco desfalcado");
+  if (ef.hype) p.push((ef.hype > 0 ? "+" : "−") + Math.abs(ef.hype) + " de mercado");
   if (ef.conf) p.push((ef.conf > 0 ? "+" : "−") + Math.abs(ef.conf) + " confiança");
-  if (ef.fora) p.push(ef.fora[1] + (ef.fora[1] > 1 ? " temporadas fora" : " temporada fora"));
   return p.join(" e ") || "nada muda";
 }
 
@@ -1953,175 +2134,248 @@ function etiquetaAposta(op){
 }
 
 const DECISOES = [
-  // ── O clube: ficar ou pedir pra sair ─────────────────────────────────
+  // ═════ 1. ONDE VOCÊ JOGA ═══════════════════════════════════════════
   //
-  // A decisão mais frequente da carreira, e a que separa este jogo de uma
-  // lista de eventos: todo o resto acontece COM você, esta você provoca.
-  // Aparece em anos alternados (ver decisaoDoAno), pra não virar rotina.
+  // Quatro decisões que mexem no ENDEREÇO da carreira, não no jogador.
+  // Antes só duas faziam isso e as duas eram "pedir troca": a saída era
+  // sempre um pedido seu. Agora existe a que você não pediu (crise) e o
+  // degrau pra baixo (degrau), que nenhum evento alcançava.
   //
-  // Pedir troca não é gratuito nem é castigo garantido: o time novo pode
-  // ser melhor ou pior, e a confiança sempre cai um pouco — pedir pra sair
-  // custa o crédito que se tinha no vestiário.
-  {id:"clube", quando:s => s.fase === "liga" && (s.contrato || 0) >= 1 && (s.anosNoClube || 0) >= 1,
+  // TODA carta que resolve em `time:` ou `queda:` checa `!s.foraDaLiga` no
+  // `quando`. Sem isso, trocarDeTime() teletransportaria pra um time da
+  // liga alguém que está na G League ou no exterior, e o estado ficava
+  // "Lakers · fora da liga" — time de uma liga em que o jogador não está.
+
+  {id:"clube", quando:s => s.fase === "liga" && !s.foraDaLiga && (s.contrato || 0) >= 1 && (s.anosNoClube || 0) >= 1,
    t:()=>`Você está no ${S.time} há ${S.anosNoClube || 1} ${(S.anosNoClube || 1) === 1 ? "temporada" : "temporadas"}. ${
         (S.forcaBase || 50) >= 70 ? "O elenco é forte e o projeto é claro."
       : (S.forcaBase || 50) >= 50 ? "O time é mediano e o projeto, mais ou menos."
       : "O elenco é fraco e não há sinal de reforço."} Seu empresário pergunta o que você quer.`,
    ops:[
      {l:"Ficar e brigar por aqui", chance:74,
-      bom:{txt:"Você bateu o pé e ficou. O clube leu como lealdade — e a torcida, como identidade.", conf:+10},
-      ruim:{txt:"Você ficou e o ano foi igual ao anterior. Ninguém reclamou; ninguém evoluiu.", conf:-6}},
+      bom:{conf:+10, txt:"Você bateu o pé e ficou. O clube leu como lealdade — e a torcida, como identidade."},
+      ruim:{conf:-6, txt:"Você ficou e o ano foi igual ao anterior. Ninguém reclamou; ninguém evoluiu."}},
      {l:"Pedir troca", chance:58,
-      bom:{time:"melhor", txt:"O pedido vazou, o mercado se mexeu e você caiu num time melhor do que o que deixou.", conf:-8},
-      ruim:{time:"qualquer", txt:"Você forçou a saída e foi parar onde deu. O vestiário novo te recebeu de braços cruzados.", conf:-14}},
+      bom:{time:"melhor", conf:-8, txt:"O pedido vazou, o mercado se mexeu e você caiu num time melhor do que o que deixou."},
+      ruim:{time:"qualquer", conf:-14, txt:"Você forçou a saída e foi parar onde deu. O vestiário novo te recebeu de braços cruzados."}},
    ]},
 
-  // ── Corpo e saúde ────────────────────────────────────────────────────
+  // A crise financeira que te tira do clube. Ficar CUSTA — em salário — e
+  // sair é certeza dos dois lados; o que o dado decide é o mercado que te
+  // espera do lado de fora. O ramo bom leva `resgate`, e é ele que obriga
+  // o mercado a ter proposta da liga: sem isso o desfecho dizia que três
+  // GMs ligaram e a tela seguinte podia ser a de "Acabou".
+  {id:"crise", quando:s => s.fase === "liga" && !s.foraDaLiga && (s.contrato || 0) >= 1 && s.salario >= 5,
+   t:()=>`O dono do ${S.time} vendeu a franquia no meio da temporada e a folha não fecha. O grupo novo te dá 48 horas: ou você abre mão de parte do salário, ou eles cortam você pra caber no teto.`,
+   ops:[
+     {l:"Abrir mão de parte do salário", chance:62,
+      bom:{salario:-25, conf:+14, txt:"Você assinou o corte de um quarto e ficou. O vestiário viu, a cidade viu, e a diretoria passou a te dever uma."},
+      ruim:{salario:-35, elenco:-14, txt:"Você abriu mão de um terço e mesmo assim eles venderam os dois titulares em volta de você."}},
+     {l:"Não abrir mão de nada", chance:45,
+      bom:{dispensa:true, resgate:true, txt:"Rasgaram seu contrato no mesmo dia. Três GMs ligaram antes de o avião pousar."},
+      ruim:{dispensa:true, hype:-14, txt:"Rasgaram seu contrato e a liga leu como jogador difícil de lidar. O telefone demorou a tocar."}},
+   ]},
+
+  {id:"troca", quando:s => s.fase === "liga" && !s.foraDaLiga && s.anoFase >= 2 && (s.forcaBase || 50) < 52,
+   t:()=>`O ${S.time} perdeu cinquenta jogos e trocou os dois titulares mais velhos por escolhas de segunda rodada. Seu empresário diz que dá pra forçar uma saída antes do prazo de trocas.`,
+   ops:[
+     {l:"Forçar a saída antes do prazo", chance:66,
+      bom:{time:"melhor", txt:"Saiu na semana do prazo. Você desembarcou num vestiário que joga por alguma coisa."},
+      ruim:{time:"pior", hype:-10, txt:"Foi pro primeiro time que aceitou o salário. Pior que o anterior, e a liga leu como fuga."}},
+     // Ficar deixou de ser aposta de OVR e virou aposta no ELENCO: o que
+     // muda quando você banca a reconstrução não é o seu nível, é quem o
+     // GM põe em volta de você — e isso aparece nas vitórias e no playoff.
+     {l:"Ficar e puxar a reconstrução", chance:52,
+      bom:{elenco:+16, conf:+12, txt:"Você virou a referência do projeto, e o GM gastou tudo que tinha pra te cercar de gente."},
+      ruim:{elenco:-10, conf:-8, txt:"Você ficou e eles seguiram desmontando. Mais um ano seu foi embora sem nada em volta."}},
+   ]},
+
+  {id:"degrau", quando:s => s.fase === "liga" && !s.foraDaLiga && s.anoFase >= 3
+     && ((s.confianca || 50) < 48 || (s.ultimo && s.ultimo.min < 18)),
+   t:()=>`Você virou o décimo homem da rotação do ${S.time}. O GM foi direto: tem uma vaga de titular te esperando um degrau abaixo, ou você fica aqui esperando alguém se machucar.`,
+   ops:[
+     {l:"Descer e jogar 30 minutos", chance:100,
+      bom:{queda:true, conf:+18, txt:"Você desceu. Ginásio menor, cheque menor, e a bola na sua mão em toda posse — a primeira vez em anos."}},
+     {l:"Ficar no fim do banco", chance:40,
+      bom:{conf:+16, ovr:+2, txt:"Você esperou, e a chance veio em janeiro com uma torção alheia. Nunca mais saiu do quinteto."},
+      ruim:{conf:-14, hype:-14, txt:"Você ficou. Nove minutos por noite o ano inteiro, e o mercado te esqueceu."}},
+   ]},
+
+  // ═════ 2. O CORPO — a temporada que não acontece ═══════════════════
+  //
+  // Quatro são `risco:true` e dividem a mesma cota da carreira (riscoMax):
+  // no máximo uma, ou duas em 12% das carreiras sorteadas. As outras duas —
+  // lesao e carga — NÃO são de risco, e é por elas que perder um ano deixa
+  // de ser privilégio de carreira sorteada e vira coisa que acontece.
+  //
+  // Nenhuma das quatro de risco fecha as duas portas na mesma temporada
+  // perdida: em todas existe um lado que te devolve à quadra no mesmo ano,
+  // custe o que custar em nível ou confiança. Perder o ano é escolha
+  // declarada, não cutscene com dois botões.
+
   {id:"lesao", quando:s => s.fase === "liga" && s.ultimo && s.ultimo.jogos < 66,
-   t:()=>`Você desfalcou o ${S.time} em ${82 - S.ultimo.jogos} jogos. O departamento médico quer cautela; o treinador quer você em quadra.`,
+   t:()=>`Você desfalcou o ${S.time} em ${82 - S.ultimo.jogos} jogos. O departamento médico quer cautela; o treinador quer você em quadra na quarta.`,
    ops:[
      {l:"Voltar antes da hora", chance:78,
-      bom:{ovr:-1, txt:"Você voltou mancando e jogou assim mesmo. O vestiário te respeita — e o corpo cobrou um pedaço."},
+      bom:{ovr:-1, conf:+12, txt:"Você voltou mancando e jogou assim mesmo. O vestiário te respeita — e o corpo cobrou um pedaço."},
       ruim:{fora:["lesao",1,"recaída por voltar cedo"], txt:"Você voltou antes do prazo e durou onze minutos. A recaída levou a temporada inteira."}},
      {l:"Seguir o protocolo", chance:60,
       bom:{ovr:+2, txt:"Você ficou fora até estar 100%. O treinador reclamou nos bastidores, mas você voltou inteiro — e melhor."},
-      ruim:{ovr:-1, txt:"Você respeitou cada prazo e mesmo assim voltou diferente. Nem tudo o protocolo resolve."}},
+      ruim:{ovr:-1, conf:-10, txt:"Você respeitou cada prazo e mesmo assim voltou diferente. Nem tudo o protocolo resolve."}},
    ]},
 
-  {id:"carga", quando:s => s.fase === "liga" && s.idade >= 29,
-   t:()=>`Trinta e poucos anos e um calendário de 82 jogos. A comissão propõe poupar você em back-to-backs.`,
+  // Gestão de carga era só +2/−2. Agora o lado ruim de jogar os 82 é a
+  // fratura por estresse — e como ela não é risco:true, é a porta pela qual
+  // qualquer veterano de 30+ pode perder um ano.
+  {id:"carga", quando:s => s.fase === "liga" && s.idade >= 30,
+   t:()=>`Quatro back-to-backs em duas semanas e ${S.idade} anos nas pernas. A comissão quer te poupar; o treinador quer você nos 82.`,
    ops:[
-     {l:"Poupar nos back-to-backs", chance:65,
-      bom:{ovr:+2, txt:"Você chegou aos playoffs inteiro pela primeira vez em anos."},
-      ruim:{ovr:-2, txt:"Você poupou, perdeu ritmo, e chegou aos playoffs descansado e frio."}},
-     {l:"Jogar tudo", chance:45,
-      bom:{ovr:+3, txt:"Oitenta e dois jogos, todos eles. O corpo aguentou e o rendimento explodiu."},
-      ruim:{ovr:-3, txt:"O corpo cobrou em março. Você terminou a temporada arrastando a perna."}},
+     {l:"Poupar nos back-to-backs", chance:66,
+      bom:{ovr:+2, conf:-8, txt:"Você chegou aos playoffs inteiro pela primeira vez em anos. O treinador nunca engoliu."},
+      ruim:{ovr:-2, conf:-12, txt:"Você poupou, perdeu ritmo, e chegou aos playoffs descansado e frio."}},
+     {l:"Jogar os 82", chance:58,
+      bom:{ovr:+3, conf:+12, txt:"Oitenta e dois jogos, todos eles. O corpo aguentou e o ginásio inteiro viu."},
+      ruim:{fora:["lesao",1,"fratura por estresse no pé"], txt:"O pé cedeu numa bandeja banal em março. Fratura por estresse: a temporada acabou ali."}},
    ]},
 
   {id:"joelho", risco:true, quando:s => s.fase === "liga" && s.idade >= 24 && s.ultimo && s.ultimo.jogos < 76,
-   t:()=>`O joelho travou de novo, e desta vez a ressonância veio feia. O cirurgião quer operar agora; o departamento médico ainda acha que dá pra tratar.`,
+   t:()=>`O joelho travou de novo numa mudança de direção, e desta vez a ressonância veio feia. O cirurgião quer operar agora; o departamento médico ainda acha que dá pra tratar.`,
    ops:[
      {l:"Operar agora", chance:100,
-      bom:{fora:["lesao",1,"cirurgia no joelho"], txt:"Você entrou na sala de cirurgia em outubro. A temporada acabou ali — mas o joelho volta inteiro."}},
+      bom:{fora:["lesao",1,"cirurgia no joelho"], pot:-3, txt:"Você entrou na sala de cirurgia em outubro. A temporada acabou ali — e o joelho nunca mais foi o mesmo dos vinte e dois anos."}},
      {l:"Tratar sem cirurgia", chance:58,
       bom:{ovr:-2, txt:"Segurou. Você jogou o ano inteiro com dor e quase ninguém percebeu."},
-      ruim:{fora:["lesao",2,"ruptura no joelho"], txt:"Cedeu em dezembro, na frente de todo mundo. Ruptura completa: dois anos fora."}},
+      ruim:{fora:["lesao",2,"ruptura de ligamento"], pot:-4, txt:"Cedeu em dezembro, na frente de dezoito mil pessoas. Ruptura completa: dois anos, e um teto mais baixo pra sempre."}},
    ]},
 
+  // O tendão tinha as duas portas terminando na mesma parede: reabilitação
+  // completa era 100% de dois anos fora, e o programa acelerado perdia o
+  // ano nos dois ramos. Agora o atalho pode dar certo dentro da temporada —
+  // e é isso que transforma a carta numa aposta em vez de um aviso.
   {id:"tendao", risco:true, quando:s => s.fase === "liga" && s.idade >= 27,
-   t:()=>`Estalou no aquecimento. O tendão de aquiles não é dúvida, é diagnóstico. A pergunta é o que fazer com o tempo que vem.`,
+   t:()=>`Estalou no aquecimento, sem contato. O tendão de aquiles não é dúvida, é diagnóstico. A pergunta é o que fazer com o tempo que vem.`,
    ops:[
      {l:"Reabilitação completa", chance:100,
-      bom:{fora:["lesao",2,"ruptura do tendão de aquiles"], txt:"Você aceitou o calendário longo dos médicos: dois anos de trabalho invisível, longe de tudo."}},
-     {l:"Programa acelerado", chance:55,
-      bom:{fora:["lesao",1,"aquiles · recuperação acelerada"], txt:"Deu certo: você voltou em doze meses. Mais lento que antes — mas voltou."},
-      ruim:{fora:["lesao",2,"aquiles · recuperação rompida"], txt:"O tendão não aguentou o atalho. De volta à estaca zero: dois anos."}},
+      bom:{fora:["lesao",2,"ruptura do tendão de aquiles"], pot:-4, txt:"Você aceitou o calendário longo dos médicos: dois anos de trabalho invisível, longe de tudo."}},
+     {l:"Programa acelerado", chance:45,
+      bom:{ovr:-3, conf:-10, txt:"O tendão respondeu ao atalho. Você voltou na virada do ano, mais lento e inteiro."},
+      ruim:{fora:["lesao",2,"aquiles · recuperação rompida"], pot:-4, txt:"O tendão não aguentou o atalho. De volta à estaca zero, e com um teto que ninguém devolve."}},
    ]},
 
-  // ── Disciplina ───────────────────────────────────────────────────────
-  {id:"antidoping", risco:true, quando:s => s.fase === "liga" && s.idade >= 25,
-   t:()=>`Um suplemento que você toma há anos apareceu com substância proibida no exame. A liga quer uma resposta em 72 horas.`,
+  {id:"aterrissagem", risco:true, quando:s => s.fase === "liga" && s.anoFase >= 1 && ovr(s.A, s.pos) >= 70,
+   t:()=>`Você subiu pra enterrar, o pivô adversário cortou embaixo e você caiu com o pé torto no garrafão. O ginásio ficou em silêncio. Fratura exposta no tornozelo.`,
    ops:[
-     {l:"Assumir e colaborar", chance:100,
-      bom:{fora:["suspensao",1,"exame antidoping"], txt:"Você admitiu o erro, entregou o fornecedor e aceitou a pena mínima: um ano."}},
-     {l:"Brigar na justiça", chance:45,
-      bom:{txt:"Seus advogados provaram contaminação no lote. Você foi absolvido e a liga engoliu em seco."},
-      ruim:{fora:["suspensao",2,"antidoping · pena agravada"], txt:"Você perdeu, e o tribunal tratou a defesa como má-fé. Dois anos."}},
-   ]},
-
-  {id:"tunel", risco:true, quando:s => s.fase === "liga" && s.confianca < 55,
-   t:()=>`A discussão no túnel virou empurrão, e o empurrão virou vídeo. A liga abriu processo disciplinar.`,
-   ops:[
-     {l:"Pedir desculpas em público", chance:100,
-      bom:{ovr:-1, txt:"Você leu um pedido de desculpas escrito pela assessoria. Foi humilhante, e jogou o ano inteiro com aquilo nas costas."}},
-     {l:"Não recuar", chance:50,
-      bom:{ovr:+2, txt:"Você bancou. Levou multa alta, e o vestiário inteiro passou a te seguir."},
-      ruim:{fora:["suspensao",1,"conduta antidesportiva"], txt:"A liga fez de você o exemplo: suspenso por uma temporada."}},
+     {l:"Placa e parafuso, e um ano fora", chance:100,
+      bom:{fora:["lesao",1,"fratura no tornozelo"], pot:-2, txt:"Cirurgia na mesma noite. Um ano inteiro de sala de fisioterapia — e o clube segurou sua vaga."}},
+     {l:"Tratamento conservador, sem placa", chance:38,
+      bom:{ovr:-2, conf:+8, txt:"Consolidou sozinho e você voltou em março, mancando, com o tornozelo que era seu."},
+      ruim:{fora:["lesao",2,"tornozelo · consolidação viciosa"], pot:-4, txt:"Consolidou torto. Refizeram tudo do zero em maio: dois anos, e um pé que nunca mais girou igual."}},
    ]},
 
   {id:"apostas", risco:true, quando:s => s.fase === "liga" && s.idade >= 26,
-   t:()=>`Uma reportagem liga seu nome a apostas em jogos da liga. Você sabe que não apostou — mas seu primo usou seu cadastro.`,
+   t:()=>`Uma reportagem liga seu nome a apostas em jogos da liga — inclusive em quantos rebotes você pegaria. Você sabe que não apostou. Seu primo usou seu cadastro.`,
    ops:[
      {l:"Entregar tudo à investigação", chance:100,
-      bom:{fora:["suspensao",1,"investigação de apostas"], txt:"Você abriu tudo. A liga reconheceu a colaboração e aplicou um ano, o mínimo previsto."}},
+      bom:{fora:["suspensao",1,"investigação de apostas"], grana:-6, txt:"Você abriu tudo. A liga reconheceu a colaboração e aplicou um ano, o mínimo previsto."}},
      {l:"Negar e proteger a família", chance:42,
-      bom:{txt:"A investigação não chegou a você. Seu primo sumiu do mapa e o assunto morreu."},
-      ruim:{fora:["suspensao",2,"apostas · omissão"], txt:"Encontraram os registros. Omitir custou o dobro: duas temporadas."}},
+      bom:{grana:-12, hype:-8, txt:"A investigação não chegou a você. Custou caro em advogado e o assunto morreu."},
+      ruim:{fora:["suspensao",2,"apostas · omissão"], hype:-18, txt:"Encontraram os registros. Omitir custou o dobro: duas temporadas, e um nome que a liga passou a evitar."}},
    ]},
 
-  // ── Time ─────────────────────────────────────────────────────────────
-  {id:"troca", quando:s => s.fase === "liga" && s.anoFase >= 2 && s.forcaBase < 52,
-   t:()=>`O ${S.time} vai mal e não tem plano. Seu empresário diz que dá pra forçar uma troca pra um candidato ao título.`,
-   ops:[
-     {l:"Pedir troca", chance:70,
-      bom:{time:"melhor", txt:"Saiu na semana do prazo. Você desembarcou num vestiário que joga por alguma coisa."},
-      ruim:{time:"pior", ovr:-1, txt:"Forçaram sua saída pro primeiro time que aceitou pagar. Foi pior que o anterior."}},
-     {l:"Ficar e puxar o time", chance:55,
-      bom:{ovr:+3, txt:"Você virou a referência de uma reconstrução. Cresceu carregando gente nas costas."},
-      ruim:{ovr:-3, txt:"Você ficou, o time seguiu ruim, e mais um ano seu foi embora sem nada."}},
-   ]},
+  // ═════ 3. DENTRO DO VESTIÁRIO ══════════════════════════════════════
 
-  {id:"superstime", quando:s => s.fase === "liga" && s.anoFase >= 3 && ovr(s.A, s.pos) >= 82,
-   t:()=>`Um candidato ao título quer você — mas como terceira opção, não como o cara. Menos bola, mais chance de anel.`,
+  {id:"superstime", quando:s => s.fase === "liga" && !s.foraDaLiga && s.anoFase >= 3 && ovr(s.A, s.pos) >= 82,
+   t:()=>`Um candidato ao título quer você — mas como terceira opção de ataque, não como o cara. Menos bola, mais chance de anel.`,
    ops:[
      {l:"Ir pro superteam", chance:100,
-      bom:{time:"melhor", ovr:-2, txt:"Você trocou volume por chance de anel. Seus números caíram na hora."}},
+      bom:{time:"melhor", ovr:-2, txt:"Você trocou volume por chance de anel. Seus números caíram na primeira semana."}},
      {l:"Ficar sendo o cara", chance:55,
-      bom:{ovr:+3, txt:"Você ficou, assumiu tudo e provou que o time era seu."},
-      ruim:{ovr:-3, txt:"Você ficou e afundou junto. A janela passou e ninguém voltou a ligar."}},
+      bom:{ovr:+3, conf:+10, txt:"Você ficou, assumiu tudo e provou que o time era seu."},
+      ruim:{ovr:-3, elenco:-8, txt:"Você ficou e afundou junto. A janela passou e ninguém voltou a ligar."}},
    ]},
 
-  {id:"tecnico", quando:s => s.fase === "liga" && s.anoFase >= 2,
-   t:()=>`Treinador novo, sistema novo. Ele quer você fazendo o que não é o seu forte.`,
+  {id:"tecnico", quando:s => s.fase === "liga" && !s.foraDaLiga && s.anoFase >= 2,
+   t:()=>`Treinador novo, sistema novo. Ele quer você fora do garrafão e arremessando de canto — que é justamente o que você não faz.`,
    ops:[
      {l:"Aprender o sistema dele", chance:58,
-      bom:{ovr:+3, txt:"Você virou outro jogador dentro do sistema. Ninguém mais te chama de unidimensional."},
-      ruim:{ovr:-3, txt:"Você nunca se achou naquilo. Um ano jogando errado é um ano perdido."}},
+      bom:{ovr:+3, conf:+12, txt:"Você virou outro jogador dentro do sistema. Ninguém mais te chama de unidimensional."},
+      ruim:{ovr:-3, conf:-10, txt:"Você nunca se achou naquilo. Um ano jogando errado é um ano perdido."}},
      {l:"Jogar do seu jeito", chance:50,
-      bom:{ovr:+2, txt:"Você bateu o pé, produziu, e o treinador reescreveu o sistema em volta de você."},
-      ruim:{time:"pior", txt:"O treinador ganhou o braço de ferro e pediu sua cabeça na diretoria. Você foi negociado."}},
+      bom:{ovr:+2, conf:+14, txt:"Você bateu o pé, produziu, e o treinador reescreveu o sistema em volta de você."},
+      ruim:{time:"pior", txt:"O treinador ganhou o braço de ferro e pediu sua cabeça na diretoria. Você foi negociado em fevereiro."}},
    ]},
 
-  {id:"banco", quando:s => s.fase === "liga" && s.confianca < 35,
-   t:()=>`O treinador te tirou do quinteto. A imprensa quer saber se você pediu pra sair.`,
+  {id:"banco", quando:s => s.fase === "liga" && !s.foraDaLiga && (s.confianca || 50) < 38,
+   t:()=>`O treinador te tirou do quinteto e você descobriu pelo telão do aquecimento. A imprensa quer saber se você pediu pra sair.`,
    ops:[
-     {l:"Aceitar e trabalhar calado", chance:60,
-      bom:{ovr:+2, txt:"Você engoliu e treinou. Em três meses o treinador te devolveu a vaga — e você voltou melhor."},
-      ruim:{ovr:-2, txt:"Você engoliu, treinou, e o ano inteiro passou no banco — enferrujando."}},
-     {l:"Cobrar publicamente", chance:45,
-      bom:{ovr:+2, txt:"Deu certo: a torcida comprou sua briga e o treinador cedeu."},
-      ruim:{time:"pior", txt:"Saiu pela culatra. Você virou 'problema de vestiário' e foi despachado pro primeiro time que aceitou."}},
+     {l:"Aceitar e trabalhar calado", chance:58,
+      bom:{conf:+24, txt:"Você engoliu e treinou. Em três meses ele te devolveu a vaga, e desta vez sem discussão."},
+      ruim:{conf:-10, hype:-12, txt:"Você engoliu, treinou, e o ano inteiro passou no banco. O mercado só olha quem joga."}},
+     {l:"Cobrar no microfone", chance:42,
+      bom:{conf:+18, hype:+8, txt:"A torcida comprou sua briga e o treinador cedeu na semana seguinte."},
+      ruim:{time:"pior", hype:-10, txt:"Você virou problema de vestiário e foi despachado pro primeiro time que aceitou o salário."}},
    ]},
 
-  {id:"lider", quando:s => s.fase === "liga" && s.anoFase >= 3 && ovr(s.A, s.pos) >= 76,
-   t:()=>`O capitão saiu. O vestiário está olhando pra você.`,
+  // ═════ 4. FORA DE QUADRA — o que se paga em dinheiro ═══════════════
+  //
+  // O $ da barra do topo estava lá desde o começo e nunca era cobrado por
+  // nada. Estas duas são as únicas que mexem nele — e por isso são as
+  // únicas em que o preço da escolha aparece num lugar diferente do OVR.
+
+  {id:"patrocinio", quando:s => s.fase === "liga" && s.anoFase >= 2 && ovr(s.A, s.pos) >= 74,
+   t:()=>`Uma marca quer seu nome numa linha de tênis. São quinze dias de agenda na pré-temporada e um cheque maior que o seu contrato.`,
    ops:[
-     {l:"Assumir a braçadeira", chance:70,
-      bom:{ovr:+2, txt:"Você virou a voz do vestiário e cresceu no papel."},
-      ruim:{ovr:-2, txt:"O peso pesou. Liderar drenou o que você tinha de melhor em quadra."}},
-     {l:"Liderar sem o título", chance:60,
-      bom:{ovr:+2, txt:"Você preferiu o exemplo ao discurso. Funcionou, à sua maneira."},
-      ruim:{ovr:-1, txt:"Sem a braçadeira, sua palavra não pesou. O vestiário seguiu outro."}},
+     {l:"Assinar a linha de tênis", chance:55,
+      bom:{grana:+14, hype:+10, txt:"O tênis vendeu. Você virou rosto de campanha sem perder um treino sequer."},
+      ruim:{grana:+9, ovr:-2, txt:"A agenda comeu sua pré-temporada. Você começou o ano atrás de todo mundo — com o cheque no bolso."}},
+     {l:"Recusar e fazer a pré-temporada", chance:64,
+      bom:{ovr:+2, conf:+8, txt:"Você recusou o dinheiro e apareceu no primeiro dia de treino. O treinador não esqueceu."},
+      ruim:{ovr:-1, txt:"Você recusou, treinou sozinho e não evoluiu nada. Só perdeu o cheque."}},
    ]},
 
-  // ── Desenvolvimento ──────────────────────────────────────────────────
-  {id:"treino", quando:s => true,
-   t:()=>`Entressafra. Você tem um verão inteiro pra escolher o que fazer com ele.`,
+  // O número do rombo sai do PRÓPRIO dinheiro, nunca de ri(): t() é
+  // reavaliada a cada redesenho da tela, e um sorteio aqui faria a mesma
+  // decisão mudar de valor entre um render e o seguinte.
+  //
+  // E o rombo é cobrado de verdade: `granaPct:-35` tira do acumulado a
+  // mesma porcentagem que o texto anuncia. Antes o buraco era enunciado na
+  // pergunta e nenhuma chave o descontava — a carta contava uma história
+  // que o código não executava.
+  {id:"contador", quando:s => s.fase === "liga" && s.idade >= 26 && (s.dinheiro || 0) >= 30,
+   t:()=>`Seu contador de dez anos sumiu com $${Math.max(1, Math.round((S.dinheiro || 0) * 0.35))}M numa sociedade que nunca existiu. A Receita quer explicação e os advogados querem adiantamento.`,
+   ops:[
+     {l:"Processar e ir até o fim", chance:48,
+      bom:{granaPct:-8, txt:"Três anos de processo e você recuperou quase tudo. Ficou pra trás o que os advogados cobraram."},
+      ruim:{granaPct:-35, ovr:-2, txt:"Você perdeu o processo e o dinheiro foi junto. Passou a temporada em audiência por vídeo, de hotel em hotel."}},
+     {l:"Pedir adiantamento ao clube", chance:100,
+      bom:{contrato:+2, salario:-18, txt:"O clube cobriu o rombo e você assinou dois anos a mais por menos por ano. Estabilidade comprada a prazo."}},
+   ]},
+
+  // ═════ 5. A COTA DE OVR — cinco de vinte, e nada mais ══════════════
+  //
+  // Estas cinco são as que ainda pagam principalmente em nível. Eram
+  // dezessete de vinte e nove, e era exatamente esse o problema: a carreira
+  // inteira virava uma soma de +2 e −2. Sobreviveram as que não têm como
+  // ser pagas em outra moeda sem virar outra coisa — e mesmo nelas três
+  // ramos passaram a cobrar em confiança ou em mercado, pra que a conta por
+  // desfecho fique abaixo de um terço em vez de raspar a linha.
+
+  {id:"treino", quando:s => s.fase === "liga",
+   t:()=>`Entressafra. Você tem um verão inteiro e ninguém pra mandar em você.`,
    ops:[
      {l:"Treinar pesado o verão inteiro", chance:62,
       bom:{ovr:+3, txt:"Três meses de academia às seis da manhã. Você voltou outro jogador."},
       ruim:{ovr:-3, txt:"Você exagerou na carga e chegou à pré-temporada gasto."}},
      {l:"Trabalho técnico com especialista", chance:70,
-      bom:{ovr:+2, txt:"Você contratou um treinador só seu e refinou o que já sabia fazer."},
-      ruim:{ovr:-2, txt:"O especialista mexeu no que não estava quebrado. Você passou o ano desaprendendo."}},
+      bom:{ovr:+2, txt:"Você contratou um treinador de arremesso só seu e refinou o que já sabia fazer."},
+      ruim:{ovr:-2, txt:"O especialista mexeu na sua mecânica e ela não voltou. Você passou o ano desaprendendo."}},
      {l:"Descansar de verdade", chance:40,
       bom:{ovr:+2, txt:"Você sumiu do mapa por três meses e voltou leve, inteiro e faminto."},
       ruim:{ovr:-1, txt:"Você voltou descansado e enferrujado. Levou meia temporada pra achar o ritmo."}},
    ]},
 
   {id:"posicao", quando:s => s.fase === "liga" && s.anoFase >= 2 && s.anoFase <= 8,
-   t:()=>`A comissão acha que seu corpo pede outra posição. Mudar agora é reaprender o jogo.`,
+   t:()=>`A comissão acha que seu corpo pede outra posição — mais garrafão, menos perímetro. Mudar agora é reaprender o jogo aos ${S.idade}.`,
    ops:[
      {l:"Mudar de posição", chance:55,
       bom:{ovr:+4, txt:"Deu certo demais. Você achou o lugar onde sempre devia ter jogado."},
@@ -2131,159 +2385,44 @@ const DECISOES = [
       ruim:{ovr:-1, txt:"Você recusou, e a liga seguiu andando pro lado que você não quis ir."}},
    ]},
 
+  {id:"ultimaposse", quando:s => s.fase === "liga" && s.anoFase >= 1,
+   t:()=>`Jogo decisivo, dois pontos atrás, quatro segundos, e o treinador desenhando na prancheta. A última posse é sua ou dele.`,
+   ops:[
+     // Errar o arremesso decisivo não custa só nível: custa o crédito que o
+     // treinador te dá na posse seguinte, e é isso que a confiança guarda.
+     {l:"A bola é minha", chance:50,
+      bom:{ovr:+3, txt:"Você pegou a bola, subiu em cima de dois e afundou. O ginásio veio abaixo."},
+      ruim:{ovr:-2, conf:-10, txt:"Você forçou por cima do trio de marcação, errou feio, e o clipe rodou o mundo até junho."}},
+     {l:"Passar pro melhor posicionado", chance:70,
+      bom:{ovr:+1, txt:"Você achou o companheiro livre no canto e ele converteu. Jogada certa, crédito dividido."},
+      ruim:{ovr:-1, txt:"Você passou, ele errou o arremesso, e a imprensa perguntou por que você não arriscou."}},
+   ]},
+
   {id:"veterano", quando:s => s.fase === "liga" && s.anoFase <= 4,
-   t:()=>`Um veterano de 36 anos, dois anéis, se ofereceu pra te ensinar. Custa suas manhãs de folga.`,
+   t:()=>`Um veterano de 36 anos e dois anéis se ofereceu pra te ensinar a ler a defesa. Custa suas manhãs de folga.`,
    ops:[
      {l:"Aceitar a mentoria", chance:60,
-      bom:{ovr:+3, txt:"Ele te ensinou o que nenhum treinador ensina. Você pulou dois anos de aprendizado."},
+      bom:{ovr:+3, conf:+8, txt:"Ele te ensinou o que nenhum treinador ensina, e o banco inteiro viu você aprender."},
       ruim:{ovr:-3, txt:"Ele quis te transformar nele. Você passou um ano jogando um basquete que não era o seu."}},
      {l:"Seguir sozinho", chance:45,
       bom:{ovr:+2, txt:"Você aprendeu apanhando, do seu jeito — e o que ficou, ficou pra sempre."},
       ruim:{ovr:-1, txt:"Você repetiu os mesmos erros o ano inteiro sem ninguém pra apontar."}},
    ]},
 
-  {id:"jovem", quando:s => s.fase === "liga" && s.idade >= 30,
-   t:()=>`O time draftou um garoto na sua posição. Ele te procura pra aprender.`,
+  // Único evento que fala com um sistema que já existe: S.rival nasce em
+  // criarRival() e vive em anoDoRival(). O `s.rival` no quando protege a
+  // carreira que caiu na porta dos fundos sem rival sorteado.
+  {id:"rival", quando:s => s.fase === "liga" && s.anoFase >= 2 && s.rival,
+   t:()=>`${S.rival ? S.rival.nome : "Um cara da sua posição"}, draftado no mesmo ano que você, virou o assunto da liga. Toda entrevista compara vocês dois.`,
    ops:[
-     {l:"Ensinar tudo que sabe", chance:55,
-      bom:{ovr:+2, txt:"Você ensinou. Ele virou titular em dois anos, e disse seu nome em toda entrevista."},
-      ruim:{ovr:-1, txt:"Você ensinou bem demais. Ele tomou sua vaga em uma temporada."}},
-     {l:"Segurar a vaga", chance:55,
-      bom:{ovr:+2, txt:"Você não deu um palmo. Jogou o melhor basquete em anos só pra provar um ponto."},
-      ruim:{ovr:-2, txt:"A briga pela vaga consumiu você. O garoto passou por cima mesmo assim."}},
-   ]},
-
-  {id:"investir", quando:s => s.fase === "liga" && s.anoFase >= 4,
-   t:()=>`Seu preparador quer redesenhar seu jogo do zero na entressafra. Um ano de desconforto por algo novo.`,
-   ops:[
-     {l:"Reconstruir o jogo", chance:45,
-      bom:{ovr:+5, txt:"Você apagou o que era e desenhou de novo. Deu MUITO certo."},
-      ruim:{ovr:-3, txt:"Você virou um híbrido que não fazia bem nem o novo nem o velho."}},
-     {l:"Afinar o que já funciona", chance:70,
-      bom:{ovr:+2, txt:"Nada de revolução: você lixou as arestas do que já era bom."},
-      ruim:{ovr:-2, txt:"Um verão inteiro de retoque e você saiu pior do que entrou."}},
-   ]},
-
-  // ── Fora de quadra ───────────────────────────────────────────────────
-  {id:"patrocinio", quando:s => s.fase === "liga" && s.anoFase >= 2,
-   t:()=>`Uma marca grande quer você. O contrato pede quinze dias de agenda na pré-temporada.`,
-   ops:[
-     {l:"Assinar", chance:40,
-      bom:{ovr:+1, txt:"Deu pra conciliar. Você virou rosto de campanha sem perder um treino."},
-      ruim:{ovr:-2, txt:"A agenda comeu sua pré-temporada. Você começou o ano atrás de todo mundo."}},
-     {l:"Recusar e focar", chance:60,
-      bom:{ovr:+2, txt:"Você recusou o dinheiro e passou a pré-temporada inteira em quadra."},
-      ruim:{ovr:-1, txt:"Você recusou, treinou sozinho e não evoluiu nada. Só perdeu o cheque."}},
-   ]},
-
-  {id:"imprensa", quando:s => s.fase === "liga" && s.anoFase >= 2,
-   t:()=>`Um jornalista publicou que você é superestimado. O microfone está na sua frente.`,
-   ops:[
-     {l:"Responder na quadra", chance:65,
-      bom:{ovr:+2, txt:"Você não disse uma palavra e jogou o melhor basquete da vida por dois meses."},
-      ruim:{ovr:-2, txt:"Você calou e engoliu. A pauta continuou lá, e você jogou com ela na cabeça."}},
-     {l:"Responder no microfone", chance:35,
-      bom:{ovr:+2, txt:"A resposta viralizou e virou combustível. Você jogou com raiva o ano inteiro."},
-      ruim:{ovr:-2, txt:"Virou novela. Cada erro seu passou a ser manchete e você jogou travado."}},
-   ]},
-
-  {id:"familia", quando:s => s.fase === "liga" && s.idade >= 26,
-   t:()=>`Nasceu seu primeiro filho na semana da viagem mais longa da temporada.`,
-   ops:[
-     {l:"Ficar em casa alguns jogos", chance:60,
-      bom:{ovr:+2, txt:"Você perdeu quatro jogos e ganhou algo que não cabe em estatística. Voltou leve."},
-      ruim:{ovr:-1, txt:"Você ficou, e voltou fora de ritmo. Levou o resto do ano pra recuperar a forma."}},
-     {l:"Viajar com o time", chance:45,
-      bom:{ovr:+2, txt:"Você jogou por dois. Foi a melhor sequência da sua carreira."},
-      ruim:{ovr:-2, txt:"Você estava em quadra e a cabeça em casa. Passou o mês inteiro assim."}},
-   ]},
-
-  {id:"camisa", quando:s => s.fase === "liga" && s.anoFase >= 5 && ovr(s.A, s.pos) >= 80,
-   t:()=>`O clube quer estender seu contrato e transformar você em símbolo da franquia — mesmo sem chance de título.`,
-   ops:[
-     {l:"Virar símbolo da casa", chance:55,
-      bom:{ovr:+2, txt:"Você abriu mão de perseguir anel pra ser o cara de um lugar só. A cidade te adotou."},
-      ruim:{ovr:-1, txt:"Você ficou por amor e o time não retribuiu. Sua carreira parou junto com o projeto."}},
-     {l:"Buscar título em outro lugar", chance:100,
-      bom:{time:"melhor", ovr:-1, txt:"Você saiu atrás do anel. A torcida queimou sua camisa — e você foi disputar alguma coisa."}},
-   ]},
-
-  {id:"polemica", quando:s => s.fase === "liga" && s.anoFase >= 3,
-   t:()=>`Uma declaração sua de três anos atrás voltou a circular, fora de contexto.`,
-   ops:[
-     {l:"Explicar publicamente", chance:65,
-      bom:{txt:"Você explicou com calma e o assunto morreu em dois dias."},
-      ruim:{ovr:-2, txt:"Explicar deu combustível. Rendeu duas semanas e te tirou do sério."}},
-     {l:"Ignorar", chance:55,
-      bom:{ovr:+1, txt:"Você não deu bola e ninguém mais deu. Seguiu jogando."},
-      ruim:{ovr:-2, txt:"O silêncio virou culpa aos olhos de todo mundo. Você jogou sob vaia o ano inteiro."}},
-   ]},
-
-  // ── Momentos grandes ─────────────────────────────────────────────────
-  {id:"selecao", quando:s => s.fase === "liga" && s.anoFase >= 2 && ovr(s.A, s.pos) >= 78,
-   t:()=>`A seleção te convocou pro verão. É orgulho e é desgaste — e é o verão inteiro.`,
-   ops:[
-     {l:"Vestir a camisa", chance:55,
-      bom:{ovr:+3, txt:"Jogar contra os melhores do mundo por um verão te fez subir de patamar."},
-      ruim:{ovr:-2, txt:"Você voltou da seleção sem pernas e começou a temporada atrás."}},
-     {l:"Passar esse verão", chance:65,
-      bom:{ovr:+2, txt:"Você recusou a convocação e passou o verão trabalhando o seu jogo."},
-      ruim:{ovr:-2, txt:"O verão livre virou verão perdido. Você voltou igual, ou pior."}},
-   ]},
-
-  {id:"ultimaposse", quando:s => s.fase === "liga" && s.anoFase >= 1,
-   t:()=>`Jogo decisivo, dois pontos atrás, quatro segundos. A jogada é sua ou dele.`,
-   ops:[
-     {l:"A bola é minha", chance:50,
-      bom:{ovr:+3, txt:"Você pegou a bola, subiu em cima de dois e afundou o arremesso. A arena veio abaixo."},
-      ruim:{ovr:-2, txt:"Você forçou, errou feio, e o clipe rodou o mundo até junho."}},
-     {l:"Passar pro melhor posicionado", chance:70,
-      bom:{ovr:+1, txt:"Você achou o companheiro livre e ele converteu. Jogada certa, crédito dividido."},
-      ruim:{ovr:-1, txt:"Você passou, ele errou, e a imprensa perguntou por que você não arriscou."}},
-   ]},
-
-  {id:"allstarfds", quando:s => s.fase === "liga" && ovr(s.A, s.pos) >= 80,
-   t:()=>`Fim de semana de All-Star. Te chamaram pro torneio de três pontos e pro jogo das estrelas.`,
-   ops:[
-     {l:"Entrar em tudo", chance:55,
-      bom:{ovr:+2, txt:"Você brilhou no fim de semana inteiro e voltou embalado."},
-      ruim:{ovr:-2, txt:"Você torceu o tornozelo numa exibição. Numa EXIBIÇÃO."}},
-     {l:"Só o jogo das estrelas", chance:85,
-      bom:{ovr:+1, txt:"Você fez o mínimo, apareceu, e descansou os quatro dias."},
-      ruim:{txt:"Fim de semana morno. Passou sem deixar marca."}},
-   ]},
-
-  {id:"amistoso", quando:s => s.fase === "liga" && s.anoFase >= 1,
-   t:()=>`Pré-temporada na Ásia: dez dias de avião e três amistosos. O clube deixa você escolher.`,
-   ops:[
-     {l:"Viajar com o time", chance:60,
-      bom:{ovr:+2, txt:"Dez dias grudado no elenco valeram por dois meses de entrosamento."},
-      ruim:{ovr:-1, txt:"Você voltou com o fuso destruído e levou três semanas pra normalizar."}},
-     {l:"Ficar treinando", chance:60,
-      bom:{ovr:+2, txt:"Você ficou, treinou sozinho no ginásio vazio e chegou pronto."},
-      ruim:{ovr:-1, txt:"Você ficou e o time voltou entrosado sem você. Levou meses pra encaixar."}},
-   ]},
-
-  {id:"rival", quando:s => s.fase === "liga" && s.anoFase >= 2,
-   t:()=>`Um jogador da sua posição, draftado no mesmo ano, virou o assunto. Toda entrevista compara vocês dois.`,
-   ops:[
+     // Obcecar rende manchete: o jogo cai, o nome cresce. É o único lugar
+     // do catálogo em que perder nível vem com mercado subindo junto.
      {l:"Comprar a rivalidade", chance:55,
-      bom:{ovr:+3, txt:"A rivalidade virou o motor da sua carreira. Você jogava diferente contra ele — e melhor contra todo mundo."},
-      ruim:{ovr:-3, txt:"Você se obcecou por ele. Jogou pensando na comparação e esqueceu do seu jogo."}},
+      bom:{ovr:+3, txt:"A rivalidade virou o motor da carreira. Você jogava diferente contra ele — e melhor contra todo mundo."},
+      ruim:{ovr:-3, hype:+6, txt:"Você se obcecou. Jogou o ano pensando na comparação, virou assunto de programa esportivo e esqueceu do seu jogo."}},
      {l:"Ignorar a comparação", chance:55,
       bom:{ovr:+2, txt:"Você não entrou na dança e seguiu no seu ritmo."},
       ruim:{ovr:-1, txt:"Você ignorou, e ele passou por cima de você em silêncio."}},
-   ]},
-
-  {id:"jovemastro", quando:s => s.fase === "liga" && s.anoFase <= 2 && ovr(s.A, s.pos) >= 78,
-   t:()=>`Dois anos de liga e já te chamam de futuro da posição. A pressão veio junto.`,
-   ops:[
-     {l:"Abraçar o rótulo", chance:55,
-      bom:{ovr:+3, txt:"Você virou o rosto da liga e correspondeu a cada palavra."},
-      ruim:{ovr:-3, txt:"O rótulo virou peso. Cada jogo ruim virou 'decepção' e você encolheu."}},
-     {l:"Baixar a bola", chance:65,
-      bom:{ovr:+2, txt:"Você pediu calma e foi trabalhar longe do barulho. Evoluiu em silêncio."},
-      ruim:{ovr:-2, txt:"Você sumiu do radar e ninguém foi te procurar. O ano passou por cima."}},
    ]},
 ];
 
@@ -2319,9 +2458,14 @@ function decisaoDoAno(){
   const cabe = d => {
     if (d.id === "clube") return false;   // já teve a vez dela acima
     // Decisão de risco só concorre na carreira sorteada pra isso, e some
-    // depois que uma sai. Sem esse corte, três das quatro apareciam em
+    // depois que a cota acaba. Sem esse corte, três das quatro apareciam em
     // quase toda carreira e 80% delas perdiam temporada.
-    if (d.risco && (!S.riscoDaCarreira || S.riscoUsado)) return false;
+    //
+    // riscoUsado virou CONTADOR: carreira salva no formato antigo traz
+    // `false`, e (false || 0) === 0, então ela continua com direito a uma —
+    // que era exatamente o comportamento antigo. Sem riscoMax no save, o
+    // (S.riscoMax || 1) devolve 1.
+    if (d.risco && (!S.riscoDaCarreira || (S.riscoUsado || 0) >= (S.riscoMax || 1))) return false;
     try { return d.quando(S); } catch(e){ return false; }
   };
 
@@ -2339,7 +2483,7 @@ function decisaoDoAno(){
   if (!candidatas.length) return null;
   const escolhida = ineditas.length ? pick(ineditas) : candidatas[0];
 
-  if (escolhida.risco) S.riscoUsado = true;
+  if (escolhida.risco) S.riscoUsado = (S.riscoUsado || 0) + 1;
   S.decisoesUsadas = [escolhida.id, ...recentes].slice(0, 8);
   return escolhida.id;
 }
@@ -2352,6 +2496,12 @@ function decisaoAtual(){
 }
 
 function trocarDeTime(melhor){
+  // Cinto de segurança: timesDaLiga() devolve times da NBA/FBA, e quem está
+  // na G League ou no exterior não pode ser mandado pra um deles sem sair
+  // do estado de fora da liga — o resultado era "Lakers · fora da liga".
+  // Todo evento com efeito `time:` já checa !s.foraDaLiga no `quando`, então
+  // isto nunca dispara hoje; existe pro evento que alguém escrever amanhã.
+  if (S.foraDaLiga) return;
   const lista = timesDaLiga();
   let novo = S.time;
   while (novo === S.time) novo = pick(lista);
@@ -2642,11 +2792,17 @@ function gerarOfertas(){
   // uma pergunta anual que ninguém quer responder toda temporada.
   const anosPor = {renovar:[3,4], grana:[4,5], contender:[2,3], banco:[2,3], exterior:[2,3]};
 
-  // Renovar onde está: sempre existe, mas o valor depende da confiança.
-  const fator = 0.8 + (S.confianca/100) * 0.5;
-  ofertas.push({tipo:"renovar", time:S.time, salario:Math.max(1,Math.round(v*fator)),
-                forca:S.forcaBase, papel:"titular",
-                nota:"O time que te conhece. Sem mudança, sem surpresa."});
+  // Renovar onde está: existe quase sempre, mas NÃO quando o clube acabou
+  // de rasgar o contrato dentro de um evento. Ler "Rasgaram seu contrato no
+  // mesmo dia" e, na tela seguinte, receber uma proposta de renovação do
+  // mesmo clube era a contradição mais visível do fluxo. O valor depende da
+  // confiança.
+  if (!S.cortado){
+    const fator = 0.8 + (S.confianca/100) * 0.5;
+    ofertas.push({tipo:"renovar", time:S.time, salario:Math.max(1,Math.round(v*fator)),
+                  forca:S.forcaBase, papel:"titular",
+                  nota:"O time que te conhece. Sem mudança, sem surpresa."});
+  }
 
   if (v >= 12){
     const t = timeAleatorio();
@@ -2726,6 +2882,10 @@ function assinar(oferta){
   S.salario = Math.max(1, oferta.salario);
   S.contrato = oferta.anos;
   S.papel = oferta.papel;
+  // Assinou: a marca de "fui cortado" morre aqui. É o único lugar que a
+  // apaga — sem isso, a próxima janela de transferências continuaria sem a
+  // proposta de renovação do clube em que a pessoa acabou de assinar.
+  S.cortado = false;
   return antigo !== S.time;
 }
 
@@ -4234,10 +4394,29 @@ function telaDesafios(){
 function corDoEfeito(ef){
   if (!ef) return "neutro";
   if (ef.fora) return "ruim";
+  // Perder o degrau é a notícia mais pesada que uma carta pode dar. Vem
+  // antes de tudo, inclusive de um OVR positivo na mesma carta: "+2 OVR e
+  // cai de divisão" não é um desfecho verde.
+  if (ef.queda) return "ruim";
+  // Ser cortado com proposta na mesa não é a mesma notícia que ser cortado
+  // sem nenhuma. Pintar as duas de vermelho apagava a aposta 45/55 da
+  // crise: os dois chips saíam iguais e a escolha parecia não ter lado.
+  if (ef.dispensa) return ef.resgate ? "neutro" : "ruim";
+  // O teto só desce, e um teto que desce é sempre notícia ruim.
+  const dPot = ef.potReal == null ? potRealizavel(ef.pot || 0) : ef.potReal;
+  if (dPot < 0) return "ruim";
   if (ef.time === "melhor") return "bom";
   if (ef.time === "pior") return "ruim";
-  if ((ef.ovr || 0) > 0) return "bom";
-  if ((ef.ovr || 0) < 0) return "ruim";
+  // O OVR pesa pelo que vai MESMO acontecer: encostado no teto, um "+3"
+  // não move nada e não pode sair verde.
+  const dOvr = ef.ovrReal == null ? ovrRealizavel(ef.ovr || 0) : ef.ovrReal;
+  if (dOvr > 0) return "bom";
+  if (dOvr < 0) return "ruim";
+  if ((ef.granaPct || 0) < 0 || (ef.grana || 0) < 0 || (ef.salario || 0) < 0) return "ruim";
+  if ((ef.granaPct || 0) > 0 || (ef.grana || 0) > 0 || (ef.salario || 0) > 0) return "bom";
+  if ((ef.elenco || 0) !== 0) return ef.elenco > 0 ? "bom" : "ruim";
+  if ((ef.contrato || 0) > 0) return "bom";
+  if ((ef.hype || 0) !== 0) return ef.hype > 0 ? "bom" : "ruim";
   // Confiança é o último critério: ela sozinha não muda o jogador, mas muda
   // os minutos — e um desfecho que só mexe nela precisa de cor, senão a
   // decisão de ficar ou pedir troca sai cinza dos dois lados.
@@ -4511,7 +4690,14 @@ function perderAno(){
   S.dinheiro += lesao ? S.salario : 0;   // suspensão não recebe
 
   for (const k in S.A) S.A[k] = clamp(S.A[k] - ri(lesao?2:1, lesao?6:4), 25, 99);
-  S.confianca = clamp(S.confianca - (lesao ? 14 : 24), 5, 99);
+  // A lesão custava −14 de confiança por temporada perdida. Com duas
+  // temporadas seguidas isso levava a confiança pra faixa dos 20, e a reta
+  // de minutosDoAno devolvia 17 minutos: os pontos caíam abaixo do corte de
+  // ligaAindaQuer e a carreira acabava na renovação seguinte. Ou seja: a
+  // carta prometia "1 temporada fora" e entregava o fim. −10 mantém a dor
+  // sem transformar a volta num corte automático. Suspensão continua
+  // custando mais: o problema dela é reputação, e é isso que ela cobra.
+  S.confianca = clamp(S.confianca - (lesao ? 10 : 24), 5, 99);
   S.hype      = clamp(S.hype      - (lesao ? 10 : 20), 5, 99);
 
   S.temporadas.push({ano:S.ano, idade:S.idade, time:S.time, pts:0, reb:0, ast:0, min:0, jogos:0,
@@ -4887,11 +5073,15 @@ function mercadoHTML(){
   // Pendurar as chuteiras é uma OPÇÃO do mercado, e não só um botão que
   // aparece aos 39 anos. É aqui que a pessoa decide se insiste — e insistir
   // custa: a G League paga mal e o exterior tira você do radar.
-  const podeParar = S.dispensado || S.foraDaLiga || S.idade >= 30 || !ofertas.length;
+  const podeParar = S.dispensado || S.cortado || S.foraDaLiga || S.idade >= 30 || !ofertas.length;
   return `
-    <h1 class="dec-tit">${!ofertas.length ? "Acabou" : S.dispensado ? "A liga não ligou" : "Janela de transferências"}</h1>
+    <h1 class="dec-tit">${!ofertas.length ? "Acabou"
+      : S.cortado ? "Você foi cortado"
+      : S.dispensado ? "A liga não ligou" : "Janela de transferências"}</h1>
     <p class="lead dec-sub">${!ofertas.length
       ? "Nenhuma proposta, de lugar nenhum."
+      : S.cortado
+      ? "O clube rasgou seu contrato no meio da temporada. O que existe agora é o que está aqui."
       : S.dispensado
       ? `Seu contrato acabou e nenhum time da ${esc(S.modo === "fba" ? "FBA" : "NBA")} fez proposta.
          O que existe é o que está aqui — ou parar por aqui.`
@@ -5008,16 +5198,21 @@ function linhaDeDesfecho(ef, pct, marca){
  * coisa. Quem não estiver aqui cai no genérico, que continua honesto.
  */
 const TITULOS_DECISAO = {
-  clube:"Ficar ou pedir troca", lesao:"Volta da lesão", carga:"Gestão de carga",
-  joelho:"O joelho", tendao:"O tendão", antidoping:"Exame antidoping",
-  tunel:"Confusão no túnel", apostas:"Convite suspeito", troca:"Pedido de troca",
+  // Onde você joga
+  clube:"Ficar ou pedir troca", crise:"A franquia quebrou",
+  troca:"Prazo de trocas", degrau:"Um degrau abaixo",
+  // O corpo
+  lesao:"Volta da lesão", carga:"Gestão de carga", joelho:"O joelho",
+  tendao:"O tendão", aterrissagem:"A queda no garrafão",
+  apostas:"Investigação de apostas",
+  // O vestiário
   superstime:"Superequipe", tecnico:"Atrito com o técnico", banco:"Vaga no quinteto",
-  lider:"Liderança do vestiário", treino:"Concentração extra", posicao:"Mudança de posição",
-  veterano:"O veterano do elenco", jovem:"O calouro da vaga", investir:"O que fazer com a grana",
-  patrocinio:"Proposta de patrocínio", imprensa:"A imprensa quer resposta",
-  familia:"Assunto de família", camisa:"O número da camisa", polemica:"Polêmica nas redes",
-  selecao:"Convocação", ultimaposse:"A última posse", allstarfds:"Fim de semana do All-Star",
-  amistoso:"Amistoso de pré-temporada", rival:"O rival de sempre", jovemastro:"O garoto do momento",
+  // Fora de quadra
+  patrocinio:"A linha de tênis", contador:"O contador sumiu",
+  // A cota de OVR
+  treino:"Concentração extra", posicao:"Mudança de posição",
+  ultimaposse:"A última posse", veterano:"O veterano do elenco",
+  rival:"O rival de sempre",
 };
 
 /**
@@ -5111,7 +5306,6 @@ function decidir(i){
   // texto e código escritos separados divergem na primeira alteração.
   const deuCerto = ri(1, 100) <= (op.chance ?? 100);
   const ef = deuCerto ? op.bom : (op.ruim || {txt:"No fim não deu em nada."});
-  S.efeitoDecisao = aplicarEfeito(ef);
 
   // Só DADO, nunca o objeto da opção: ele tem função dentro e o
   // JSON.stringify do save as descarta calado, o que traria a carreira de
@@ -5119,11 +5313,26 @@ function decidir(i){
   // `conf` entra aqui junto com o resto: sem ela, o desfecho redesenhado
   // perdia a cor e o rótulo das decisões que só mexem em confiança — a de
   // ficar ou pedir troca saía cinza e escrita "nada muda".
-  const soDado = (e) => e ? {ovr: e.ovr || 0, time: e.time || null,
-                             fora: e.fora || null, conf: e.conf || 0} : null;
+  //
+  // Congelado ANTES de aplicarEfeito, e com `ovrReal`/`potReal` calculados
+  // aqui: a etiqueta que a pessoa leu antes de clicar foi feita com o
+  // estado deste instante, e é essa que o desfecho tem que repetir. Lido
+  // depois, um "+3 OVR" que entregou +3 podia voltar escrito "nível no
+  // teto" só porque o próprio +3 encostou o jogador no limite.
+  const soDado = (e) => e ? {ovr: e.ovr || 0, ovrReal: ovrRealizavel(e.ovr || 0),
+                             pot: e.pot || 0, potReal: potRealizavel(e.pot || 0),
+                             time: e.time || null, fora: e.fora || null, conf: e.conf || 0,
+                             dispensa: !!e.dispensa, resgate: !!e.resgate, queda: !!e.queda,
+                             hype: e.hype || 0, elenco: e.elenco || 0, salario: e.salario || 0,
+                             grana: e.grana || 0, granaPct: e.granaPct || 0,
+                             contrato: e.contrato || 0} : null;
+  const dadoBom = soDado(op.bom), dadoRuim = soDado(op.ruim);
+
+  S.efeitoDecisao = aplicarEfeito(ef);
+
   S.desfecho = {
     l: op.l, chance: op.chance ?? 100,
-    bom: soDado(op.bom), ruim: soDado(op.ruim),
+    bom: dadoBom, ruim: dadoRuim,
     caiu: deuCerto ? "bom" : "ruim",
     txt: ef.txt, ovr: S.efeitoDecisao,
   };
@@ -5215,6 +5424,42 @@ function sortearNaCarta(i, deuCerto){
  */
 function seguir(){
   S.desfecho = null; S.efeitoDecisao = 0;
+
+  // Saída forçada: o evento rasgou o contrato e o mercado abre AGORA, antes
+  // de tocar o ano seguinte. É a única coisa que separa "fui dispensado" de
+  // "joguei mais um ano pelo time que me dispensou". O par do modo rápido
+  // cai junto: ser cortado é a notícia da temporada e merece a tela inteira.
+  if (S.dispensaPendente){
+    S.dispensaPendente = false;
+    S.parDoRitmo = 0;
+    S.mercado = gerarOfertas() || [];
+
+    // O desfecho prometeu que os GMs ligaram. gerarOfertas() não sabe disso:
+    // ela pergunta a ligaAindaQuer(), que só olha nível e idade, e podia
+    // devolver só G League/exterior — ou nada, e a tela vira "Acabou". Aqui
+    // o texto da carta vira contrato: se não sobrou nenhuma proposta da
+    // liga, entra uma, pior que a anterior, mas da liga.
+    if (S.resgatePendente){
+      S.resgatePendente = false;
+      const daLiga = S.mercado.some(o => o.tipo !== "exterior" && o.tipo !== "gleague");
+      if (!daLiga){
+        const outros = timesDaLiga().filter(t => t !== S.time);
+        if (outros.length){
+          S.mercado.unshift({tipo:"contender", time: pick(outros),
+            liga: S.modo === "fba" ? (S.liga || "RISE") : "NBA",
+            salario: Math.max(1, Math.round(valorDeMercado() * 0.7)), anos: 2,
+            forca: ri(50, 80), papel: "rotação",
+            nota: "Ligaram no mesmo dia. Menos dinheiro, mas é a liga."});
+          S.dispensado = false;
+        }
+      }
+    }
+
+    S.aguardando = false; S.decisaoId = null;
+    salvar(); return telaTemporada();
+  }
+  S.resgatePendente = false;
+
   salvar();
   const podeParar = S.idade >= 39 || (S.idade >= 33 && ovr(S.A, S.pos) < 68) || S.idade >= 33;
   if (podeParar) return telaTemporada();
