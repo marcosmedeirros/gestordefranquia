@@ -1318,6 +1318,49 @@ function wcItensDaTroca(PDO $pdo, int $tradeId, ?string $league = null): array
     return [$doDe, $doPara];
 }
 
+/**
+ * Os itens de uma troca de VÁRIOS times, agrupados por quem recebe.
+ *
+ * Irmã de wcItensDaTroca() — aquela é 1x1 e usa `trade_items`/`from_team`
+ * (booleano); esta é N-vias e usa `multi_trade_items`/`to_team_id` (cada
+ * item já sabe pra que time vai, não tem lado "de"). A coluna que liga o
+ * item à troca é `trade_id` — não existe `multi_trade_id` na tabela.
+ */
+function wcItensMultiPorTime(PDO $pdo, int $multiTradeId): array
+{
+    $ovr = wcColunaOvr($pdo);
+    static $st = null;
+    if ($st === null) {
+        $st = $pdo->prepare("
+            SELECT mi.to_team_id,
+                   COALESCE(p.name, mi.player_name) AS nome,
+                   COALESCE(p.{$ovr}, mi.player_ovr) AS ovr,
+                   mi.player_age,
+                   pk.season_year, pk.round,
+                   dt.city AS dc, dt.name AS dn
+            FROM multi_trade_items mi
+            LEFT JOIN players p ON p.id = mi.player_id
+            LEFT JOIN picks pk ON pk.id = mi.pick_id
+            LEFT JOIN teams dt ON dt.id = mi.to_team_id
+            WHERE mi.trade_id = ?
+            ORDER BY mi.id
+        ");
+    }
+    $st->execute([$multiTradeId]);
+
+    $porTime = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $i) {
+        $destino = wcNomeDoTime(['city' => $i['dc'] ?? null, 'name' => $i['dn'] ?? null]) ?: 'Time';
+        if (!empty($i['nome'])) {
+            $ficha = $i['ovr'] ? $i['ovr'] . ($i['player_age'] ? '/' . $i['player_age'] . 'y' : '') : '';
+            $porTime[$destino][] = $i['nome'] . ($ficha !== '' ? " ({$ficha})" : '');
+        } elseif (!empty($i['pick_id']) || !empty($i['season_year'])) {
+            $porTime[$destino][] = trim(($i['season_year'] ? $i['season_year'] . ' ' : '') . ($i['round'] ? $i['round'] . 'ª' : 'pick'));
+        }
+    }
+    return $porTime;
+}
+
 function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 {
     $liga = $termo !== '' ? wcNormalizarLiga($termo) : $ligaDoGrupo;
@@ -1325,7 +1368,7 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
     $params = $liga ? [$liga] : [];
 
     $st = $pdo->prepare("
-        SELECT t.id, t.league, t.updated_at,
+        SELECT t.id, t.league, t.updated_at, '1x1' AS tipo,
                de.city AS de_city, de.name AS de_name,
                pra.city AS pra_city, pra.name AS pra_name
         FROM trades t
@@ -1338,16 +1381,47 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
     $st->execute($params);
     $trocas = $st->fetchAll(PDO::FETCH_ASSOC);
 
-    if (!$trocas) return 'Nenhuma troca aprovada' . ($liga ? " na {$liga}" : '') . ' ainda.';
+    // As trocas de vários times vivem numa tabela separada (mesma origem
+    // do botão "copiar trades" do admin) — sem isso o /trocas do bot nunca
+    // mostrava as multi, só as 1x1.
+    $multis = [];
+    try {
+        $filtroM = $liga ? ' AND mt.league = ?' : '';
+        $stM = $pdo->prepare("
+            SELECT mt.id, mt.league, mt.updated_at, 'multi' AS tipo
+            FROM multi_trades mt
+            WHERE mt.status = 'accepted' {$filtroM}
+            ORDER BY mt.updated_at DESC, mt.id DESC
+            LIMIT 5
+        ");
+        $stM->execute($params);
+        $multis = $stM->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) { /* liga sem multi_trades ainda: a lista vale só com as 1x1 */ }
+
+    $todas = array_merge($trocas, $multis);
+    usort($todas, fn($a, $b) => strtotime((string)$b['updated_at']) <=> strtotime((string)$a['updated_at']));
+    $todas = array_slice($todas, 0, 5);
+
+    if (!$todas) return 'Nenhuma troca aprovada' . ($liga ? " na {$liga}" : '') . ' ainda.';
 
     $txt = '*Últimas trocas' . ($liga ? " — {$liga}" : '') . "*\n";
-    foreach ($trocas as $t) {
+    foreach ($todas as $t) {
+        $sufixoLiga = $liga ? '' : ' _' . $t['league'] . '_';
+
+        if ($t['tipo'] === 'multi') {
+            $porTime = wcItensMultiPorTime($pdo, (int)$t['id']);
+            $txt .= "\n*Troca de " . count($porTime) . " times*{$sufixoLiga}\n";
+            foreach ($porTime as $time => $itens) {
+                $txt .= "{$time} recebe: " . ($itens ? implode(', ', $itens) : 'nada') . "\n";
+            }
+            continue;
+        }
+
         [$vai, $vem] = wcItensDaTroca($pdo, (int)$t['id'], (string)($t['league'] ?? $liga ?? ''));
         $deNome  = wcNomeDoTime(['city' => $t['de_city'],  'name' => $t['de_name']]);
         $praNome = wcNomeDoTime(['city' => $t['pra_city'], 'name' => $t['pra_name']]);
 
-        $txt .= "\n*{$deNome}* ⇄ *{$praNome}*"
-              . ($liga ? '' : ' _' . $t['league'] . '_') . "\n"
+        $txt .= "\n*{$deNome}* ⇄ *{$praNome}*{$sufixoLiga}\n"
               . '→ ' . ($vai ? implode(', ', $vai) : 'nada') . "\n"
               . '← ' . ($vem ? implode(', ', $vem) : 'nada') . "\n";
     }
