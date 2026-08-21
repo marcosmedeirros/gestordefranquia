@@ -391,14 +391,6 @@ try {
       font-weight: 600; font-size: 12px; color: var(--text);
     }
 
-    /* Trade value verdict badges */
-    .tv-verdict-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
-    .tv-neutral{background:var(--panel-3);border:1px solid var(--border);color:var(--text-3)}
-    .tv-valid{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#22c55e}
-    .tv-warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--amber)}
-    .tv-invalid{background:color-mix(in srgb, var(--red) 12%, transparent);border:1px solid color-mix(in srgb, var(--red) 30%, transparent);color:var(--red)}
-    .tv-robbery{background:color-mix(in srgb, var(--red) 20%, transparent);border:2px solid color-mix(in srgb, var(--red) 55%, transparent);color:var(--red);animation:tv-pulse 1.2s ease-in-out infinite}
-    @keyframes tv-pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--red) 40%, transparent)}50%{box-shadow:0 0 0 6px color-mix(in srgb, var(--red) 0%, transparent)}}
 
     /* CAP impact card */
     .cap-card {
@@ -692,7 +684,7 @@ try {
                   <div style="font-size:12px;color:var(--text-2)">Após trade: <span style="color:var(--red);font-weight:600" id="capTargetProjected">-</span></div>
                   <div style="font-size:12px;color:var(--text-2);margin-top:4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
                     <span>Jogadores: <span style="color:var(--text)" id="capTargetPlayers">-</span> → <span style="color:var(--red);font-weight:600" id="capTargetPlayersProjected">-</span></span>
-                    <span style="color:var(--text-3)">Valor: <span style="color:var(--text);font-weight:600" id="tvTargetValue">—</span> <span id="tvVerdict" class="tv-verdict-badge tv-neutral" style="font-size:9px;padding:3px 8px"><i class="bi bi-hourglass-split"></i></span></span>
+                    <span style="color:var(--text-3)">Valor: <span style="color:var(--text);font-weight:600" id="tvTargetValue">—</span></span>
                   </div>
                 </div>
               </div>

@@ -16,35 +16,14 @@ function updateTradeValueDisplay() {
 
   const myEl     = document.getElementById('tvMyValue');
   const targetEl = document.getElementById('tvTargetValue');
-  const verdictEl = document.getElementById('tvVerdict');
 
+  // Só os dois números. O selo que chamava a troca de justa, desigual ou
+  // roubo saiu: era o sistema opinando sobre a proposta de alguém, e quem
+  // decide isso é a liga. A conta de valor continua — ela informa sem
+  // julgar. O modelo segue em js/trade-value.js, usado pelo simulador.
   // Valores arredondados só na exibição — a conta continua com casas decimais.
   if (myEl)     myEl.textContent     = myValue     ? Math.round(myValue)     : '—';
   if (targetEl) targetEl.textContent = targetValue ? Math.round(targetValue) : '—';
-  if (!verdictEl) return;
-
-  const v = window.TradeValue
-    ? window.TradeValue.verdict(myValue, targetValue)
-    : { key: 'neutral', label: '', title: '', icon: 'hourglass-split' };
-
-  verdictEl.innerHTML = `<i class="bi bi-${v.icon}"></i>${v.label}`;
-  verdictEl.className = `tv-verdict-badge tv-${v.key}`;
-
-  // Explica o porquê: quem está levando vantagem e o peso de cada peça.
-  if (v.key === 'neutral') {
-    verdictEl.title = 'Aguardando itens';
-  } else {
-    const detalhe = (items) => items
-      .map(i => `${i.name || 'Pick'} (${Math.round(window.TradeValue.itemValue(i))}) — ${window.TradeValue.explain(i)}`)
-      .join('\n');
-    const ladoForte = myValue > targetValue ? 'Você está oferecendo mais valor'
-                    : targetValue > myValue ? 'Você está recebendo mais valor'
-                    : 'Lados equivalentes';
-    verdictEl.title =
-      `${v.title}\n${ladoForte}\n\n` +
-      `VOCÊ OFERECE (${Math.round(myValue)}):\n${detalhe([...offerPlayers, ...offerPicks]) || '—'}\n\n` +
-      `VOCÊ RECEBE (${Math.round(targetValue)}):\n${detalhe([...requestPlayers, ...requestPicks]) || '—'}`;
-  }
 }
 
 const api = async (path, options = {}) => {
