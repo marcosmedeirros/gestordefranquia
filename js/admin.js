@@ -2988,6 +2988,14 @@ async function showLeague(league) {
         <div id="leagueConfigInlineBody"></div>
       </div>
 
+      <div class="panel mb-3" id="irregularesPanel">
+        <div class="panel-header">
+          <div class="panel-title"><i class="bi bi-exclamation-triangle-fill" style="color:#f59e0b"></i> Times irregulares</div>
+          <span id="irrResumo" style="font-size:12px;color:var(--text-3)">carregando…</span>
+        </div>
+        <div id="irregularesBody"><div style="font-size:12px;color:var(--text-3)">Conferindo elenco e cap de cada time…</div></div>
+      </div>
+
       <div class="panel mb-3" id="leagueQuickSearchPanel">
         <div class="panel-header">
           <div class="panel-title"><i class="bi bi-search" style="color:#94a3b8"></i> Busca Rápida</div>
@@ -3046,6 +3054,9 @@ async function showLeague(league) {
     ensureOuvidoriaModal();
     _loadLeagueConfigInline(league);
     _loadSeasonChecklist(league);
+    // Depois da aba montar: a conta passa por getTeamCapSummary de time a
+    // time, e nao vale a pena segurar a tela inteira por ela.
+    carregarIrregulares(league);
   } catch (e) {
     container.innerHTML = '<div class="alert alert-danger">Erro ao carregar liga</div>';
   }
@@ -7424,6 +7435,99 @@ async function deletePtsMgmt(seasonId, league) {
 // PAINEL DE CONTROLE CENTRALIZADO
 // ══════════════════════════════════════════════
 let _panelLeague = 'ELITE';
+
+/**
+ * OS TIMES FORA DA REGRA, na aba da liga.
+ *
+ * Duas coisas que o admin conferia abrindo time por time: elenco fora do
+ * tamanho permitido e cap estourado. A regua vem do servidor (a MESMA do
+ * getTeamCapSummary), pra esta tela nunca discordar da tela do time.
+ *
+ * O "abaixo do piso" tem tratamento proprio: quando ele pega meia liga —
+ * no comeco de temporada pega TODA — listar trinta nomes seria ruido, e o
+ * que informa e o numero. Poucos times, a lista volta.
+ */
+async function carregarIrregulares(league) {
+  const body = document.getElementById('irregularesBody');
+  const resumo = document.getElementById('irrResumo');
+  if (!body) return;
+
+  let d;
+  try {
+    d = await api(`admin.php?action=irregulares&league=${encodeURIComponent(league)}`);
+  } catch (e) {
+    body.innerHTML = `<div style="font-size:12px;color:var(--text-3)">Não deu pra conferir: ${escapeHtml(e.error || 'erro')}</div>`;
+    if (resumo) resumo.textContent = '';
+    return;
+  }
+
+  const lista = d.irregulares || [];
+  const temMotivo = (t, tipo) => (t.motivos || []).some(m => m.tipo === tipo);
+
+  // Os grupos sao EXCLUSIVOS, do mais grave pro menos: um time com elenco
+  // curto E acima do cap aparecia duas vezes, com a mesma frase repetida.
+  // Ele entra no grupo mais grave e a linha lista os dois motivos.
+  const acima  = lista.filter(t => temMotivo(t, 'cap'));
+  const elenco = lista.filter(t => temMotivo(t, 'elenco') && !temMotivo(t, 'cap'));
+  const piso   = lista.filter(t => temMotivo(t, 'piso') && !temMotivo(t, 'elenco') && !temMotivo(t, 'cap'));
+
+  // Meia liga abaixo do piso é estado da liga, não problema de time. A conta
+  // olha TODOS os que têm o motivo, não só os que têm apenas ele: senão uma
+  // liga inteira fora do piso passava batido só porque a maioria também
+  // estava com o elenco curto, e o piso voltava a poluir cada linha.
+  const pisoTotal = lista.filter(t => temMotivo(t, 'piso')).length;
+  const pisoEmLista = pisoTotal > 0 && pisoTotal <= Math.max(3, Math.ceil((d.total_times || 0) / 3));
+
+  if (!lista.length) {
+    body.innerHTML = '<div style="font-size:12px;color:#25c677"><i class="bi bi-check-circle-fill me-1"></i>' +
+      'Nenhum time fora da regra: todos com elenco entre ' + d.elenco_min + ' e ' + d.elenco_max + ' e dentro do cap.</div>';
+    if (resumo) resumo.textContent = `0 de ${d.total_times}`;
+    return;
+  }
+
+  const linha = (t) => {
+    // Quando o piso pega a liga inteira, ele vira uma nota so no fim: repetir
+    // "X abaixo do piso" em cada linha esconde o que e especifico do time.
+    const motivos = (t.motivos || []).filter(m => m.tipo !== 'piso' || pisoEmLista).map(m => {
+      const cor = m.tipo === 'elenco' ? '#f59e0b' : (m.tipo === 'cap' ? '#ef4444' : '#94a3b8');
+      return `<span style="color:${cor};font-weight:700">${escapeHtml(m.texto)}</span>` +
+             (m.detalhe ? `<span style="color:var(--text-3);font-size:11px"> (${escapeHtml(m.detalhe)})</span>` : '');
+    }).join('<span style="color:var(--text-3)"> · </span>');
+    return `<div class="irr-linha">
+      <span class="irr-nome">${escapeHtml(t.nome)}</span>
+      <span class="irr-motivos">${motivos}</span>
+    </div>`;
+  };
+
+  const bloco = (titulo, itens) => itens.length
+    ? `<div class="irr-grupo"><div class="irr-grupo-tit">${titulo}</div>${itens.map(linha).join('')}</div>` : '';
+
+  const contados = elenco.length + acima.length + (pisoEmLista ? piso.length : 0);
+  // Se o piso virou nota, ele nao entra na conta do cabecalho — o numero ali
+  // e "quantos times voce precisa cobrar", e cobrar a liga toda nao e cobrar.
+  body.innerHTML =
+    bloco('Acima do cap', acima) +
+    bloco(`Elenco fora de ${d.elenco_min}–${d.elenco_max}`, elenco) +
+    (pisoEmLista ? bloco('Abaixo do piso', piso) : '') +
+    (!pisoEmLista && pisoTotal
+      ? `<div class="irr-nota"><b>${pisoTotal}</b> time${pisoTotal > 1 ? 's' : ''} abaixo do piso do cap — a liga inteira está montando elenco, não é caso a caso.</div>`
+      : '') +
+    `<style>
+      .irr-grupo + .irr-grupo{margin-top:12px}
+      .irr-grupo-tit{font-size:10px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;
+        color:var(--text-3);margin-bottom:6px}
+      .irr-linha{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:5px 0;font-size:13px}
+      .irr-linha + .irr-linha{border-top:1px solid var(--border)}
+      .irr-nome{font-weight:600;color:var(--text);min-width:150px}
+      .irr-motivos{font-size:12px}
+      .irr-nota{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);
+        font-size:12px;color:var(--text-3);line-height:1.5}
+    </style>`;
+
+  if (resumo) {
+    resumo.innerHTML = `<b style="color:${contados ? '#f59e0b' : 'var(--text-3)'}">${contados}</b> de ${d.total_times} times`;
+  }
+}
 
 async function showControlPanel(league) {
   league = league || appState.currentLeague || 'ELITE';

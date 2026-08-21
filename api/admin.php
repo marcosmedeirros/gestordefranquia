@@ -109,6 +109,82 @@ if ($method === 'GET') {
         // Quem conta como "jovem do draft inicial". Os três números vivem aqui
         // porque aparecem em três lugares — a consulta, a conferência em PHP e
         // o texto da tela — e três cópias divergem no primeiro ajuste.
+        /**
+         * OS TIMES FORA DA REGRA — o que o admin precisa cobrar.
+         *
+         * Duas perguntas que ele fazia abrindo time por time: quem está com o
+         * elenco fora do tamanho permitido, e quem estourou (ou não alcançou) o
+         * cap. As duas reguas saem de onde ja moram — ELENCO_MIN/MAX e o
+         * status do proprio getTeamCapSummary — pra que esta tela nunca
+         * discorde da tela do time.
+         *
+         * So os IRREGULARES voltam: numa liga de 32 times, mandar os 32 pra
+         * tela pra ela filtrar tres seria pagar caro por nada.
+         */
+        case 'irregulares':
+            $ligaIrr = strtoupper(trim($_GET['league'] ?? 'ELITE'));
+            requireLeagueScope($isGlobalAdminApi, $apiAdminLeagues, $ligaIrr);
+
+            $stI = $pdo->prepare("SELECT id, TRIM(CONCAT(COALESCE(city,''),' ',COALESCE(name,''))) AS nome
+                                  FROM teams WHERE league = ? ORDER BY city, name");
+            $stI->execute([$ligaIrr]);
+
+            $irregulares = [];
+            $totalTimes  = 0;
+            $unidadeIrr  = 'OVR';
+            foreach ($stI->fetchAll(PDO::FETCH_ASSOC) as $t) {
+                $totalTimes++;
+                try {
+                    $sum = getTeamCapSummary($pdo, (int)$t['id']);
+                } catch (Throwable $e) {
+                    error_log('[irregulares] time ' . $t['id'] . ': ' . $e->getMessage());
+                    continue;
+                }
+                $unidadeIrr = ($sum['league'] ?? '') === 'ELITE' ? 'M' : 'OVR';
+
+                $qtd     = count($sum['roster'] ?? []);
+                $status  = $sum['status'] ?? 'dentro_do_cap';
+                $espaco  = (int)($sum['space'] ?? 0);
+                $motivos = [];
+
+                if ($qtd < ELENCO_MIN) {
+                    $motivos[] = ['tipo' => 'elenco', 'texto' => $qtd . ' jogadores',
+                                  'detalhe' => 'faltam ' . (ELENCO_MIN - $qtd)];
+                } elseif ($qtd > ELENCO_MAX) {
+                    $motivos[] = ['tipo' => 'elenco', 'texto' => $qtd . ' jogadores',
+                                  'detalhe' => (ELENCO_MAX - $qtd) * -1 . ' a mais'];
+                }
+                if ($status === 'over_the_cap') {
+                    $motivos[] = ['tipo' => 'cap',
+                                  'texto' => capValorEscrito(abs($espaco), $unidadeIrr) . ' acima do cap',
+                                  'detalhe' => 'teto ' . capValorEscrito((int)($sum['cap_max'] ?? 0), $unidadeIrr)];
+                } elseif ($status === 'abaixo_do_piso') {
+                    $falta = (int)($sum['cap_floor'] ?? 0) - (int)($sum['payroll'] ?? 0);
+                    $motivos[] = ['tipo' => 'piso',
+                                  'texto' => capValorEscrito(max(0, $falta), $unidadeIrr) . ' abaixo do piso',
+                                  'detalhe' => 'piso ' . capValorEscrito((int)($sum['cap_floor'] ?? 0), $unidadeIrr)];
+                }
+
+                if ($motivos) {
+                    $irregulares[] = [
+                        'id'        => (int)$t['id'],
+                        'nome'      => $t['nome'],
+                        'jogadores' => $qtd,
+                        'motivos'   => $motivos,
+                    ];
+                }
+            }
+
+            echo json_encode([
+                'success'     => true,
+                'league'      => $ligaIrr,
+                'total_times' => $totalTimes,
+                'elenco_min'  => ELENCO_MIN,
+                'elenco_max'  => ELENCO_MAX,
+                'irregulares' => $irregulares,
+            ]);
+            break;
+
         case 'cap_tabela':
             define('JOVENS_IDADE_MIN', 19);
             define('JOVENS_IDADE_MAX', 23);
