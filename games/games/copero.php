@@ -509,9 +509,14 @@ button{font-family:inherit}
 .camisa-txt{position:absolute;left:26%;right:26%;top:35%;bottom:12%;display:flex;
   flex-direction:column;align-items:center;justify-content:center;gap:8px;pointer-events:none}
 .camisa-nome.vazio{opacity:.42;font-weight:700}
-.camisa-nome{max-width:100%;font-size:12.5px;font-weight:800;letter-spacing:1px;color:#fff;
+.camisa-nome{max-width:100%;font-size:12.5px;font-weight:800;letter-spacing:1px;
+  color:var(--cam-txt,#fff);text-shadow:var(--cam-sombra,0 1px 3px rgba(0,0,0,.5));
   text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
-.camisa-num{font-size:44px;font-weight:900;color:#fff;line-height:1;letter-spacing:-2px}
+.camisa-num{font-size:44px;font-weight:900;color:var(--cam-txt,#fff);line-height:1;letter-spacing:-2px;
+  text-shadow:var(--cam-sombra,0 1px 3px rgba(0,0,0,.5))}
+/* Só no celular: na etapa do país a camisa grande já ficou pra trás. */
+.camisa-mini{display:none}
+.camisa-mini svg{width:100%;height:100%;display:block}
 
 .campo-rot{font-size:9.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);
   margin-bottom:5px;text-align:center}
@@ -956,6 +961,7 @@ button{font-family:inherit}
   .ident-caixa[data-etapa="1"] .ident-col:nth-child(1),
   .ident-caixa[data-etapa="2"] .ident-col:nth-child(2),
   .ident-caixa[data-etapa="3"] .ident-col:nth-child(3){display:block}
+  .camisa-mini{display:block;width:104px;margin:2px auto 14px}
 
   /* O título de cada etapa já está na barra; repetir no topo da coluna
      seria a mesma palavra duas vezes na mesma tela. */
@@ -1215,6 +1221,69 @@ const BAND = {
 const bandeira = (iso, w) => BAND[iso]
   ? `<svg viewBox="0 0 30 20" width="${w||21}" role="img" aria-label="${esc(iso)}">${BAND[iso]}</svg>`
   : `<span style="font-size:10px;font-weight:800;color:var(--txt3)">${esc(iso)}</span>`;
+
+/* ── A camisa ───────────────────────────────────────────
+   O tecido veste a cor da seleção escolhida. Antes era verde chumbado no
+   markup: a pessoa escolhia a Argentina e continuava com uma camisa verde,
+   o que fazia a escolha de país não valer nada na tela. */
+
+const CAMISAS = <?= json_encode(COPERO_CAMISAS, JSON_UNESCAPED_UNICODE) ?>;
+const CAMISA_PADRAO = <?= json_encode(COPERO_CAMISA_PADRAO, JSON_UNESCAPED_UNICODE) ?>;
+
+/** O contorno do tecido. Usado três vezes no mesmo SVG, então é constante. */
+const CAMISA_CORPO = 'M50 8c-6 0-10 2-15 3L15 17 6 34l15 8 5-7v52h48V35l5 7 15-8-9-17-20-6c-5-1-9-3-15-3z';
+
+/**
+ * Nome e número são brancos por padrão, e sumiriam nas onze camisas claras
+ * (Inglaterra, Alemanha, Senegal, Argélia...). A decisão sai da luminância
+ * do tecido, na fórmula de contraste do sRGB — não de "parece claro".
+ */
+function corDeTexto(hex){
+  const n = parseInt(String(hex).replace('#',''), 16);
+  if (!Number.isFinite(n)) return '#ffffff';
+  const canal = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  const lum = 0.2126 * canal((n >> 16) & 255) + 0.7152 * canal((n >> 8) & 255) + 0.0722 * canal(n & 255);
+  return lum > 0.45 ? '#12121a' : '#ffffff';
+}
+
+/**
+ * O SVG da camisa de um país.
+ *
+ * O `sufixo` existe porque o clipPath precisa de id único: no celular a
+ * camisa grande e a miniatura da etapa de país aparecem na mesma árvore, e
+ * dois ids iguais fazem o segundo clipe apontar pro primeiro.
+ */
+function camisaSvg(pais, sufixo){
+  const [padrao, prim, sec, det] = CAMISAS[pais] || CAMISA_PADRAO;
+  const id = 'cam-' + (pais || 'x') + (sufixo || '');
+  let padraoSvg = '';
+  if (padrao === 'listras') {
+    padraoSvg = [26, 50, 74].map(x =>
+      `<rect x="${x - 6}" y="0" width="12" height="100" fill="${sec}"/>`).join('');
+  } else if (padrao === 'xadrez') {
+    const q = [];
+    for (let i = 0; i < 8; i++)
+      for (let j = 0; j < 8; j++)
+        if ((i + j) % 2 === 0) q.push(`<rect x="${i * 12.5}" y="${j * 12.5}" width="12.5" height="12.5" fill="${sec}"/>`);
+    padraoSvg = q.join('');
+  }
+  return `<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+    <defs><clipPath id="${id}"><path d="${CAMISA_CORPO}"/></clipPath></defs>
+    <path d="${CAMISA_CORPO}" fill="${prim}"/>
+    ${padraoSvg ? `<g clip-path="url(#${id})">${padraoSvg}</g>` : ''}
+    <g clip-path="url(#${id})">
+      <path d="M7.7 30.9L22.7 38.9M92.3 30.9L77.3 38.9" stroke="${sec}" stroke-width="7" fill="none"/>
+    </g>
+    <path d="${CAMISA_CORPO}" fill="none" stroke="${det}" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M35 11c4 5 11 5 15 5s11 0 15-5" fill="none" stroke="${sec}" stroke-width="3"/>
+  </svg>`;
+}
+
+/** A cor que nome e número devem ter em cima do tecido daquele país. */
+function camisaCorDoTexto(pais){
+  const c = CAMISAS[pais] || CAMISA_PADRAO;
+  return corDeTexto(c[1]);
+}
 
 /* ── Escudos ────────────────────────────────────────────
    Clube sem URL vira monograma. É o caso de todos hoje: o catálogo nasceu
@@ -2013,12 +2082,8 @@ function telaIdentidade(){
         <div class="ident-col">
           <div class="ident-tit">Identidade</div>
           <div class="camisa">
-            <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
-              <path d="M50 8c-6 0-10 2-15 3L15 17 6 34l15 8 5-7v52h48V35l5 7 15-8-9-17-20-6c-5-1-9-3-15-3z"
-                fill="#166534" stroke="#22c55e" stroke-width="2" stroke-linejoin="round"/>
-              <path d="M35 11c4 5 11 5 15 5s11 0 15-5" fill="none" stroke="#22c55e" stroke-width="2"/>
-            </svg>
-            <div class="camisa-txt">
+            ${camisaSvg(rascunho.pais, '-g')}
+            <div class="camisa-txt" style="--cam-txt:${camisaCorDoTexto(rascunho.pais)};--cam-sombra:${camisaCorDoTexto(rascunho.pais) === '#ffffff' ? '0 1px 3px rgba(0,0,0,.5)' : '0 1px 3px rgba(255,255,255,.55)'}">
               <div class="camisa-nome${rascunho.nome ? '' : ' vazio'}">${esc(rascunho.nome || 'SEU NOME')}</div>
               <div class="camisa-num">${esc(rascunho.numero || '10')}</div>
             </div>
@@ -2037,6 +2102,7 @@ function telaIdentidade(){
 
         <div class="ident-col">
           <div class="ident-tit">Nacionalidade</div>
+          <div class="camisa-mini">${camisaSvg(rascunho.pais, '-p')}</div>
           <div class="busca"><i class="bi bi-search"></i>
             <input id="iBusca" placeholder="Buscar país" value="${esc(rascunho.busca)}"></div>
           <div class="paises">

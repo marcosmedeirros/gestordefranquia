@@ -62,6 +62,70 @@ const COPERO_PAISES = [
 ];
 
 /**
+ * As cores da camisa de cada seleção.
+ *
+ * A régua é a CAMISA DE CASA, e não a bandeira. A Itália é azul e a bandeira
+ * é verde-branco-vermelha; a Holanda é laranja e a bandeira não tem laranja;
+ * o Japão é azul-marinho e a bandeira é branca e vermelha. Tirar a cor da
+ * bandeira daria camisa errada em um terço da lista — por isso é tabela
+ * escrita à mão, e não algo derivado do BAND.
+ *
+ * `[padrão, primária, secundária, detalhe]`
+ *
+ * A primária é o tecido. A secundária pinta a gola e os punhos, e nas
+ * listradas é a cor das barras. O detalhe é o contorno.
+ *
+ * Padrões: 'solida', 'listras' (verticais) e 'xadrez' (só a Croácia, e é
+ * a assinatura dela — sem o xadrez a camisa croata é uma camisa branca
+ * qualquer).
+ */
+const COPERO_CAMISAS = [
+    // ── América do Sul ────────────────────────────────────────────────
+    'BRA' => ['solida',  '#ffdf00', '#009b3a', '#00713a'],  // canarinho
+    'ARG' => ['listras', '#75aadb', '#ffffff', '#0f2f66'],
+    'URU' => ['solida',  '#5ba3dc', '#ffffff', '#0f2f66'],
+    'CHI' => ['solida',  '#e11b22', '#ffffff', '#0039a6'],
+    'COL' => ['solida',  '#fcd116', '#003893', '#ce1126'],
+    // ── Europa ────────────────────────────────────────────────────────
+    'ENG' => ['solida',  '#ffffff', '#ce1124', '#1a1a2e'],
+    'ESP' => ['solida',  '#c60b1e', '#ffc400', '#7a0812'],
+    'ITA' => ['solida',  '#1e4b9e', '#ffffff', '#0b2350'],  // azzurra, não a bandeira
+    'GER' => ['solida',  '#ffffff', '#1a1a1a', '#dd0000'],
+    'FRA' => ['solida',  '#21316f', '#ffffff', '#ed2939'],
+    'POR' => ['solida',  '#7a1927', '#0d6b3e', '#ffe900'],
+    'NED' => ['solida',  '#f36c21', '#ffffff', '#21468b'],  // laranja, não a bandeira
+    'BEL' => ['solida',  '#e30613', '#fdda24', '#1a1a1a'],
+    'CRO' => ['xadrez',  '#ffffff', '#d52b1e', '#0f2f66'],  // o xadrez é a assinatura
+    'TUR' => ['solida',  '#e30a17', '#ffffff', '#7a0a10'],
+    'RUS' => ['solida',  '#d52b1e', '#ffffff', '#0039a6'],
+    'SCO' => ['solida',  '#16276b', '#ffffff', '#0d1a45'],
+    'GRE' => ['solida',  '#0d5eaf', '#ffffff', '#083f77'],
+    // ── América do Norte ──────────────────────────────────────────────
+    'USA' => ['solida',  '#ffffff', '#002868', '#bf0a30'],
+    'MEX' => ['solida',  '#006847', '#ffffff', '#ce1126'],
+    // ── Ásia ──────────────────────────────────────────────────────────
+    'KSA' => ['solida',  '#ffffff', '#006c35', '#044d27'],
+    'JPN' => ['solida',  '#0b2f6b', '#ffffff', '#bc002d'],
+    'KOR' => ['solida',  '#c8102e', '#ffffff', '#0b2f6b'],
+    'IRN' => ['solida',  '#ffffff', '#239f40', '#da0000'],
+    'QAT' => ['solida',  '#8a1538', '#ffffff', '#5c0e25'],
+    // ── África ────────────────────────────────────────────────────────
+    'EGY' => ['solida',  '#c8102e', '#ffffff', '#1a1a1a'],
+    'MAR' => ['solida',  '#c1272d', '#006233', '#7a1418'],
+    'RSA' => ['solida',  '#ffb612', '#007a4d', '#1a1a1a'],
+    'AUS' => ['solida',  '#ffcd00', '#00843d', '#1a3a1a'],
+    'NGA' => ['solida',  '#008751', '#ffffff', '#0b4a2e'],
+    'SEN' => ['solida',  '#ffffff', '#00853f', '#fdef42'],
+    'CIV' => ['solida',  '#f77f00', '#ffffff', '#009e60'],
+    'ALG' => ['solida',  '#ffffff', '#007a3d', '#d21034'],
+    'TUN' => ['solida',  '#ffffff', '#e70013', '#8a0a12'],
+    'COD' => ['solida',  '#007fff', '#f7d618', '#0a5aa8'],
+];
+
+/** A camisa de quem ainda não escolheu país: o verde do próprio jogo. */
+const COPERO_CAMISA_PADRAO = ['solida', '#166534', '#22c55e', '#22c55e'];
+
+/**
  * As faixas de cor do OVR: [mínimo, rótulo, cor].
  *
  * 96+ é roxo, como pedido. As outras seguem a leitura natural — quem está
