@@ -5,7 +5,12 @@
 // v17: a subida de versão apaga o cache antigo no activate — e isso importa
 // nesta versão, porque é o que limpa de uma vez as fotos 1040x760 que ficaram
 // acumuladas no aparelho de quem já usava o app.
-const CACHE_NAME = 'fba-manager-v17';
+// v18: o "network first" de .js não passava de intenção — fetch() sem
+// {cache:'no-store'} respeitava o cache HTTP normal do navegador, e o
+// .htaccess manda guardar application/javascript por 1 mês. Subir a versão
+// aqui é o que faz o navegador de quem já tinha o SW instalado buscar este
+// arquivo de novo e passar a valer o fetch corrigido.
+const CACHE_NAME = 'fba-manager-v18';
 
 // Cache separado pro que é baixado durante o uso (fotos, ícones, JS versionado).
 // Antes ia tudo junto com a casca do app, num cache sem teto que só era limpo
@@ -128,7 +133,14 @@ self.addEventListener('fetch', event => {
       // Para arquivos JS: sempre buscar da rede primeiro
       if (url.pathname.endsWith('.js')) {
         try {
-          const networkResponse = await fetch(event.request);
+          // cache: 'no-store' é o que faz "network first" valer de verdade.
+          // Sem isto, fetch() olhava o cache HTTP do navegador antes de ir na
+          // rede — e o .htaccess manda cachear application/javascript por 1
+          // mês. Resultado: o SW achava que tinha ido buscar na rede, mas
+          // devolvia o .js de 1 mês atrás sem nenhum request sair do aparelho.
+          // Foi assim que um bug corrigido em JS continuou aparecendo pra
+          // quem já tinha acessado antes da correção.
+          const networkResponse = await fetch(event.request, { cache: 'no-store' });
           if (networkResponse.ok) {
             const cache = await caches.open(RUNTIME_CACHE);
             await cache.put(event.request, networkResponse.clone());
