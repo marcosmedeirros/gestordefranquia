@@ -806,11 +806,20 @@ function whatsappParaGrupoPrincipal(PDO $pdo, string $texto, ?string $tipo = nul
     whatsappEsvaziarUmaVez($pdo);
 }
 
-/** Tag da liga pro começo da mensagem: [FBA NEXT], [FBA ELITE]... */
+/**
+ * Tag da liga pro começo da mensagem: 🔴 [FBA ELITE], 🟢 [FBA NEXT]...
+ *
+ * O grupo principal (The Pathetic) recebe trade e dispensa das quatro ligas
+ * misturadas — o emoji é pra dar de bater o olho e saber a liga sem ler o
+ * texto todo. Cor fixa por liga, sem relação com nenhuma outra escala de cor
+ * do site.
+ */
 function whatsappTagDaLiga(?string $league): string
 {
     $l = strtoupper(trim((string)$league));
-    return in_array($l, ['ELITE', 'NEXT', 'RISE', 'ROOKIE'], true) ? '[FBA ' . $l . ']' : '[FBA]';
+    $emojis = ['ELITE' => '🔴', 'NEXT' => '🟢', 'RISE' => '🔵', 'ROOKIE' => '🟠'];
+    if (!isset($emojis[$l])) return '[FBA]';
+    return $emojis[$l] . ' [FBA ' . $l . ']';
 }
 
 /** Manda no grupo da liga (nada acontece se a liga não tiver grupo configurado). */
