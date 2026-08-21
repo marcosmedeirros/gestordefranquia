@@ -21,6 +21,7 @@
  */
 require_once __DIR__ . '/../backend/auth.php';
 require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/helpers.php';  // GLEAGUE_VAGAS
 requireAuth();
 
 header('Content-Type: application/json; charset=utf-8');
@@ -441,7 +442,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $jogadores = $stmtP->fetchAll(PDO::FETCH_ASSOC);
 
     $playerCount = count($jogadores);
-    $gleagueSlots = ($team['league'] === 'ELITE') ? ($playerCount >= 15 ? 2 : ($playerCount >= 14 ? 1 : 0)) : 0;
+    // Duas vagas, sempre. Antes o número saía do tamanho do elenco (15+ dava
+    // duas, 14 dava uma, menos que isso nenhuma) — a regra caiu e agora é
+    // padrão da liga: quem tem elenco pode mandar dois.
+    $gleagueSlots = ($team['league'] === 'ELITE') ? GLEAGUE_VAGAS : 0;
 
     $stmtT = $pdo->prepare('SELECT * FROM team_tactics WHERE team_id = ?');
     $stmtT->execute([$teamId]);

@@ -375,7 +375,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <?php endif; ?>
         <div class="field" style="grid-column:1/-1">
           <label for="f_notes">Observações</label>
-          <textarea id="f_notes" data-f="notes" placeholder="Anotações para você e para o admin…"></textarea>
+          <textarea id="f_notes" data-f="notes"
+            placeholder="Aqui você coloca as posições que quer os jogadores — se ele vai ser só SF, ou SF/PF."></textarea>
         </div>
       </div>
     </div>
@@ -602,11 +603,13 @@ function montarGleague() {
   if (!box) return;
   const hint = $('gleagueHint');
   if (!GLEAGUE_SLOTS) {
-    if (hint) hint.textContent = 'Elenco pequeno demais para enviar jogadores à G-League.';
+    if (hint) hint.textContent = 'Esta liga não usa G-League.';
     box.innerHTML = '';
     return;
   }
-  if (hint) hint.textContent = `Elenco com ${ELENCO.length} jogadores — até ${GLEAGUE_SLOTS} vaga(s).`;
+  // O texto não fala mais de tamanho de elenco: as vagas deixaram de
+  // depender dele e a dica antiga mandava contar jogadores à toa.
+  if (hint) hint.textContent = `${GLEAGUE_SLOTS} vagas — deixe em branco se não for mandar ninguém.`;
   const opts = p => `<option value="${p.id}">${esc(p.name)}</option>`;
   let html = `<div class="field"><label for="f_gleague_1_id">G-League 1</label>
     <select id="f_gleague_1_id" data-f="gleague_1_id"><option value="">—</option>${ELENCO.map(opts).join('')}</select></div>`;

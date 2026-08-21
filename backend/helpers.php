@@ -326,6 +326,9 @@ const CAP_TOP_N = 10;
 const ELENCO_MIN = 14;
 const ELENCO_MAX = 15;
 
+/** Quantos jogadores cada time manda pra G-League. Não depende do elenco. */
+const GLEAGUE_VAGAS = 2;
+
 /**
  * Soma de OVR dos CAP_TOP_N melhores do elenco — o CAP fora da ELITE.
  *
