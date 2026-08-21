@@ -603,6 +603,10 @@ button{font-family:inherit}
    ela precisa desfazer o posicionamento, e não só trocar a cor. */
 .tag.pos{background:#7f1d3a;color:#fff;position:static;transform:none;min-height:0}
 .tag.sel{background:#78350f;color:#fde68a}
+/* Fora da seleção tem dois motivos bem diferentes — não ser bom o
+   suficiente ainda, ou estar cumprindo punição — e os dois precisam de
+   cor neutra: não é conquista (dourado) nem é exatamente um aviso ruim. */
+.tag.sel-fora{background:var(--panel3);color:var(--txt2)}
 .tag.idolo{background:#1e3a5f;color:#bfdbfe}
 /* A carta do rival tem que gritar: é a única escolha do mercado que custa. */
 .carta.rival{border-color:#7f1d3a}
@@ -894,6 +898,11 @@ button{font-family:inherit}
 .ano-tacas i{display:inline-flex;line-height:0;font-style:normal}
 .ano-tacas .tk-mais{display:none;font-size:9px;font-weight:800;color:var(--txt3);
   background:var(--panel3);border-radius:5px;padding:1px 4px}
+
+/* ── Resumo da seleção ──────────────────────────────── */
+.sel-taca{position:relative;display:inline-flex;align-items:center}
+.sel-taca b{position:absolute;right:-4px;bottom:-2px;background:var(--panel3);border-radius:6px;
+  padding:1px 5px;font-size:10px;font-weight:900}
 
 /* ── Animações ──────────────────────────────────────── */
 @keyframes ovrPulso{0%{transform:scale(1)}45%{transform:scale(1.13)}100%{transform:scale(1)}}
@@ -1757,6 +1766,29 @@ const contDoPais   = pais => (SELECOES[pais] || [0,'EUR'])[1];
 function convocado(ovr, pais){
   const f = forcaSelecao(pais);
   return f > 0 && ovr >= f - 8;
+}
+
+/**
+ * A etiqueta de seleção na ficha, sempre com alguma coisa a dizer.
+ *
+ * Antes ela só aparecia quando convocado — nos outros anos não havia
+ * nada, e não dava pra saber se estava perto, longe, ou cumprindo punição
+ * de alguma carta. Agora sempre tem uma cor e uma frase: dourado quando
+ * está dentro, neutro quando não está (e o motivo, banimento ou OVR que
+ * falta, vai junto).
+ */
+function tagSelecao(){
+  const f = forcaSelecao(S.pais);
+  if (!f) return '';
+  const banido = S.semSelecao || 0;
+  if (banido > 0) {
+    return `<span class="tag sel-fora" title="Volta a poder ser convocado em ${banido} ${banido > 1 ? 'anos' : 'ano'}">
+      Seleção: fora (${banido}a)</span>`;
+  }
+  if (convocado(S.ovr, S.pais)) return `<span class="tag sel">★ Seleção</span>`;
+  const falta = Math.max(1, (f - 8) - S.ovr);
+  return `<span class="tag sel-fora" title="Precisa de ${falta} de OVR a mais pra ser convocado para a seleção">
+    Seleção: faltam ${falta} OVR</span>`;
 }
 
 /**
@@ -3113,7 +3145,7 @@ function render(){
               <div class="ficha-tags">
                 <span class="tag">${bandeira(S.pais,17)} ${esc(S.pais)}</span>
                 <span class="tag pos" title="${esc(POSICOES[S.posicao] ? POSICOES[S.posicao][0] : S.posicao)}">#${S.numero} ${esc(S.posicao)}</span>
-                ${convocado(S.ovr, S.pais) && !(S.semSelecao > 0) ? `<span class="tag sel">★ Seleção</span>` : ''}
+                ${tagSelecao()}
                 ${ehIdolo() ? `<span class="tag idolo">Ídolo da casa</span>` : ''}
               </div>
               <div class="ficha-info">
@@ -3322,7 +3354,7 @@ function cartasDeClube(lista, comFicar, comAposentar){
  */
 function selosDoAno(t){
   let s = '';
-  if (t.selecao) s += `<i class="selo sel" title="Convocado para a seleção">★</i>`;
+  if (t.selecao) s += `<i class="selo sel" title="Convocado pela seleção ${esc(PAISES[S.pais] || S.pais)} neste ano">★</i>`;
   if (t.lesao)   s += `<i class="selo les" title="Lesão na temporada">✚</i>`;
   if (t.rival)   s += `<i class="selo riv" title="Primeira temporada depois de trocar pelo rival">⚡</i>`;
   if (t.emprestado) s += `<i class="selo emp" title="Temporada por empréstimo">⇄</i>`;
@@ -3503,6 +3535,58 @@ function compartilharCarreira(botao, modo){
 
 /* ── Fim ────────────────────────────────────────────── */
 /**
+ * O resumo da carreira na seleção, no fim de jogo.
+ *
+ * Durante a carreira o único sinal era uma estrelinha na linha do ano — e
+ * ela não conta a história inteira: quantas vezes foi convocado, até
+ * quando, e o que rendeu. A sala de troféus já mistura seleção com clube;
+ * isto aqui é só a seleção, separada.
+ */
+function resumoSelecao(){
+  const f = forcaSelecao(S.pais);
+  if (!f) return '';
+
+  const anos = S.temporadas.filter(t => t.selecao);
+  const nomePais = esc(PAISES[S.pais] || S.pais);
+
+  if (!anos.length) {
+    return `<div class="caixa" style="padding:18px;margin-top:14px">
+      <div style="font-size:9.5px;font-weight:800;letter-spacing:1px;color:var(--txt3);text-transform:uppercase">Seleção</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px;color:var(--txt2);font-size:13px">
+        ${bandeira(S.pais,19)} Nunca foi convocado pela seleção ${nomePais}.
+      </div>
+    </div>`;
+  }
+
+  const titulosSel = {};
+  S.temporadas.forEach(t => (t.titulos || []).forEach(id => {
+    if (id === 'copa_mundo' || id === 'selecao_cont') titulosSel[id] = (titulosSel[id] || 0) + 1;
+  }));
+  const idsTitulos = Object.keys(titulosSel);
+  const totalTitulos = idsTitulos.reduce((s, id) => s + titulosSel[id], 0);
+  const ultima = Math.max(...anos.map(t => t.idade));
+
+  return `<div class="caixa" style="padding:18px;margin-top:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div style="font-size:9.5px;font-weight:800;letter-spacing:1px;color:var(--txt3);text-transform:uppercase">Seleção</div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:800">
+        ${bandeira(S.pais,19)} ${nomePais}
+      </div>
+    </div>
+    <div class="ficha-stats" style="border-top:none;padding-top:0">
+      <div><span>Convocações</span><b>${anos.length}</b></div>
+      <div><span>Títulos</span><b>${totalTitulos}</b></div>
+      <div><span>Última aos</span><b>${ultima}</b></div>
+    </div>
+    ${idsTitulos.length ? `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--borda)">
+      ${idsTitulos.map(id => `<span class="sel-taca" title="${esc(nomeDaTaca(id, null))}">
+        ${taca(id, 30)}${titulosSel[id] > 1 ? `<b>×${titulosSel[id]}</b>` : ''}
+      </span>`).join('')}
+    </div>` : ''}
+  </div>`;
+}
+
+/**
  * A sala de troféus da carreira inteira.
  *
  * Agrupa pelo NOME resolvido, não pelo id: quem foi campeão na Alemanha e
@@ -3594,6 +3678,8 @@ async function telaFim(){
         <div style="font-size:12px;color:var(--txt2)">${S.temporadas.length} temporadas · ${Object.keys(porClube).length} clubes</div>
       </div>
     </div>
+
+    ${resumoSelecao()}
 
     ${salaDeTrofeus()}
 
