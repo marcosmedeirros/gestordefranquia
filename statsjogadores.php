@@ -116,6 +116,10 @@ $dados = array_map(function ($r) use ($SKILLS) {
     ];
 }, $linhas);
 
+// A importação em massa é do admin: o GM já preenche o próprio elenco em
+// atualizar-elenco.php, e ninguém deve poder lançar número no time alheio.
+$ehAdmin = hasAdminAccess($pdo, (int)$user['id']);
+
 $comStats  = count(array_filter($dados, fn($d) => $d['jogos'] !== null));
 $comSkills = count(array_filter($dados, fn($d) => count(array_filter($d['sk'], fn($v) => $v !== null)) > 0));
 ?>
@@ -186,6 +190,49 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);margin:0}
 .f-chip.on{background:var(--red);border-color:var(--red);color:#fff}
 .f-contador{margin-left:auto;font-size:12px;color:var(--text-3);white-space:nowrap;
   font-variant-numeric:tabular-nums}
+
+/* ── barra do admin ─────────────────────────────── */
+.admin-barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:-4px 0 14px}
+.admin-tag{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
+  color:var(--red);display:inline-flex;align-items:center;gap:5px}
+.admin-barra .f-chip{display:inline-flex;align-items:center;gap:6px}
+
+/* ── importação em massa ────────────────────────── */
+.imp-fundo{position:fixed;inset:0;z-index:90;background:rgba(6,6,9,.72);backdrop-filter:blur(3px);
+  display:none;align-items:center;justify-content:center;padding:18px}
+.imp-fundo.on{display:flex}
+.imp-cx{background:var(--panel);border:1px solid var(--border-md);border-radius:16px;
+  width:min(760px,100%);max-height:min(86vh,760px);display:flex;flex-direction:column;overflow:hidden}
+.imp-cab{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.imp-cab b{font-size:15px;font-weight:800;flex:1;min-width:0}
+.imp-x{background:none;border:0;color:var(--text-3);cursor:pointer;font-size:15px;padding:4px 6px}
+.imp-x:hover{color:var(--text)}
+.imp-corpo{padding:16px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.imp-info{font-size:12.5px;line-height:1.55;color:var(--text-2)}
+.imp-info code{background:var(--panel-2);border-radius:5px;padding:1px 5px;font-size:11.5px}
+/* A lista rola sozinha: são até centenas de nomes, e o que importa embaixo
+   dela é a área de colar o CSV. */
+.imp-lista{border:1px solid var(--border);border-radius:11px;max-height:210px;overflow:auto}
+.imp-linha{display:flex;align-items:center;gap:10px;padding:6px 11px;font-size:12.5px;
+  border-bottom:1px solid var(--border)}
+.imp-linha:last-child{border-bottom:none}
+.imp-linha .id{font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums;
+  min-width:44px;flex:none}
+.imp-linha .nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.imp-linha .time{font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:38%}
+.imp-acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.imp-txt{width:100%;min-height:130px;background:var(--panel-2);border:1px solid var(--border-md);
+  border-radius:11px;padding:10px 12px;color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:12px;line-height:1.5;outline:none;resize:vertical}
+.imp-txt:focus{border-color:var(--red)}
+.imp-btn{background:var(--red);border:0;border-radius:10px;padding:10px 18px;color:#fff;
+  font-family:var(--font);font-size:13px;font-weight:800;cursor:pointer}
+.imp-btn[disabled]{opacity:.5;cursor:not-allowed}
+.imp-msg{font-size:12.5px;line-height:1.55;border-radius:10px;padding:10px 12px}
+.imp-msg.ok{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#4ade80}
+.imp-msg.erro{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#f87171}
+.imp-vazio{padding:18px;text-align:center;color:var(--text-3);font-size:12.5px}
 
 /* ── tabela densa ───────────────────────────────── */
 .tabela-caixa{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
@@ -285,6 +332,29 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
       <?php endif; ?>
       <span class="f-contador" id="contador"></span>
     </div>
+
+    <?php if ($ehAdmin): ?>
+    <div class="admin-barra">
+      <span class="admin-tag"><i class="bi bi-shield-lock-fill"></i> Admin</span>
+      <button type="button" class="f-chip" onclick="abrirImport('stats')">
+        <i class="bi bi-clipboard-data"></i> Importar estatísticas</button>
+      <button type="button" class="f-chip" onclick="abrirImport('skills')">
+        <i class="bi bi-sliders"></i> Importar atributos</button>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($ehAdmin): ?>
+    <div class="imp-fundo" id="impFundo" onclick="if(event.target===this)fecharImport()">
+      <div class="imp-cx" role="dialog" aria-modal="true" aria-labelledby="impTitulo">
+        <div class="imp-cab">
+          <b id="impTitulo">Importar</b>
+          <button type="button" class="imp-x" onclick="fecharImport()" aria-label="Fechar">
+            <i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="imp-corpo" id="impCorpo"></div>
+      </div>
+    </div>
+    <?php endif; ?>
 
     <div class="tabela-caixa">
       <table class="stats">
@@ -512,6 +582,149 @@ if (chip) {
 }
 
 render();
+
+<?php if ($ehAdmin): ?>
+/* ══ IMPORTAÇÃO EM MASSA (admin) ══════════════════════════════════════
+   A tela já mostra quem está sem lançamento; aqui o admin vê a lista dos
+   pendentes, baixa um CSV com eles já preenchidos nas duas primeiras colunas
+   (id e nome, pra não errar de jogador) e devolve o arquivo preenchido. */
+
+const IMP_COLS = {
+  stats:  ['jogos', 'min', 'pts', 'reb', 'ast', 'rou', 'toc'],
+  skills: ['in', 'mid', '3pt', 'post_d', 'per_d', 'play', 'reb', 'athl', 'iq', 'pot'],
+};
+const IMP_TITULO = { stats: 'Importar estatísticas', skills: 'Importar atributos' };
+let impTipo = 'stats';
+let impPendentes = [];
+
+function fecharImport() {
+  document.getElementById('impFundo').classList.remove('on');
+}
+
+async function abrirImport(tipo) {
+  impTipo = tipo;
+  document.getElementById('impTitulo').textContent = IMP_TITULO[tipo];
+  document.getElementById('impFundo').classList.add('on');
+  document.getElementById('impCorpo').innerHTML =
+    '<div class="imp-vazio"><i class="bi bi-hourglass-split"></i> Carregando quem falta…</div>';
+
+  try {
+    const r = await fetch('/api/stats-import.php?tipo=' + tipo, { credentials: 'same-origin' });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Erro ao carregar');
+    impPendentes = d.jogadores || [];
+    desenharImport(d);
+  } catch (e) {
+    document.getElementById('impCorpo').innerHTML =
+      '<div class="imp-msg erro">' + (e.message || 'Não deu pra carregar a lista.') + '</div>';
+  }
+}
+
+function desenharImport(d) {
+  const cols = IMP_COLS[impTipo];
+  const oQue = impTipo === 'stats'
+    ? 'sem estatística lançada na temporada' + (d.season_number ? ' ' + d.season_number : '')
+    : 'sem nenhum atributo preenchido';
+
+  const lista = impPendentes.length
+    ? impPendentes.map(j =>
+        '<div class="imp-linha"><span class="id">#' + j.id + '</span>' +
+        '<span class="nome">' + esc(j.name) + '</span>' +
+        '<span class="time">' + esc(j.time || '') + '</span></div>').join('')
+    : '<div class="imp-vazio">Ninguém pendente — está tudo lançado.</div>';
+
+  document.getElementById('impCorpo').innerHTML =
+    '<div class="imp-info"><b>' + impPendentes.length + '</b> jogador' +
+      (impPendentes.length === 1 ? '' : 'es') + ' ' + oQue + ' na ' + esc(d.league) + '.</div>' +
+    '<div class="imp-lista">' + lista + '</div>' +
+    '<div class="imp-info">O CSV tem uma linha por jogador, nesta ordem:<br>' +
+      '<code>id,nome,' + cols.join(',') + '</code>' +
+      (impTipo === 'skills'
+        ? '<br>As notas vão de <code>A+</code> a <code>F</code>; <code>-</code> deixa em branco.'
+        : '<br>Aceita vírgula ou ponto no decimal.') +
+      '<br>Baixe o modelo, preencha e cole aqui — quem já tem lançamento também pode ser corrigido.</div>' +
+    '<div class="imp-acoes">' +
+      '<button type="button" class="f-chip" onclick="baixarModelo()">' +
+        '<i class="bi bi-download"></i> Baixar modelo com os ' + impPendentes.length + ' pendentes</button>' +
+      '<label class="f-chip" style="cursor:pointer">' +
+        '<i class="bi bi-file-earmark-arrow-up"></i> Escolher arquivo' +
+        '<input type="file" accept=".csv,text/csv,text/plain" style="display:none" onchange="lerArquivo(this)"></label>' +
+    '</div>' +
+    '<textarea class="imp-txt" id="impCsv" placeholder="Cole aqui o CSV preenchido…"></textarea>' +
+    '<div id="impMsg"></div>' +
+    '<div class="imp-acoes"><button type="button" class="imp-btn" onclick="enviarImport(this)">' +
+      'Importar' + '</button></div>';
+}
+
+/** O modelo já vem com id e nome preenchidos: é o que impede trocar de jogador. */
+function baixarModelo() {
+  const cols = IMP_COLS[impTipo];
+  const linhas = ['id,nome,' + cols.join(',')];
+  impPendentes.forEach(j => {
+    // O nome vai entre aspas porque quase todo nome tem espaço e alguns têm vírgula.
+    linhas.push(j.id + ',"' + String(j.name).replace(/"/g, '""') + '"' + ','.repeat(cols.length));
+  });
+  // O BOM faz o Excel abrir os acentos certos — sem ele "Doncic" vira "DonÄiÄ".
+  const blob = new Blob(['﻿' + linhas.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'fba-' + impTipo + '-pendentes.csv';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+function lerArquivo(input) {
+  const f = input.files && input.files[0];
+  if (!f) return;
+  const leitor = new FileReader();
+  leitor.onload = () => {
+    document.getElementById('impCsv').value = String(leitor.result || '').replace(/^﻿/, '');
+  };
+  leitor.readAsText(f, 'UTF-8');
+  input.value = '';
+}
+
+async function enviarImport(botao) {
+  const csv = (document.getElementById('impCsv').value || '').trim();
+  const msg = document.getElementById('impMsg');
+  if (!csv) {
+    msg.innerHTML = '<div class="imp-msg erro">Cole o CSV ou escolha um arquivo antes.</div>';
+    return;
+  }
+  botao.disabled = true;
+  botao.textContent = 'Importando…';
+  try {
+    const r = await fetch('/api/stats-import.php', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'importar', tipo: impTipo, csv }),
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Erro na importação');
+
+    const recusadas = d.recusados || [];
+    msg.innerHTML =
+      '<div class="imp-msg ok"><b>' + d.gravados + '</b> jogador' +
+      (d.gravados === 1 ? '' : 'es') + ' atualizado' + (d.gravados === 1 ? '' : 's') + '.' +
+      (recusadas.length
+        ? '</div><div class="imp-msg erro" style="margin-top:8px">' + recusadas.length +
+          ' linha' + (recusadas.length === 1 ? '' : 's') + ' de fora:<br>' +
+          recusadas.slice(0, 12).map(x => 'linha ' + x.linha + ' — ' + esc(x.motivo)).join('<br>') +
+          (recusadas.length > 12 ? '<br>…e mais ' + (recusadas.length - 12) + '.' : '') + '</div>'
+        : '</div>') +
+      (d.gravados ? '<div class="imp-info" style="margin-top:8px">Recarregue a página pra ver na tabela.</div>' : '');
+  } catch (e) {
+    msg.innerHTML = '<div class="imp-msg erro">' + esc(e.message || 'Falhou.') + '</div>';
+  }
+  botao.disabled = false;
+  botao.textContent = 'Importar';
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') fecharImport();
+});
+<?php endif; ?>
 
 // Menu lateral no celular — mesmo comportamento das outras telas.
 const sidebar = document.getElementById('sidebar');
