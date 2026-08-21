@@ -5737,11 +5737,16 @@ function renderTaticaAdmin(league, win, teams, modelos) {
 
 
 
-    const config = (at.config || []).filter(c => c.valor !== null).map(c => `
+    const camposConfig = (at.config || []).filter(c => c.valor !== null);
+    const observacao = camposConfig.find(c => c.campo === 'notes') || null;
+    const config = camposConfig.filter(c => c.campo !== 'notes').map(c => `
       <div class="tac-campo ${c.mudou ? 'mudou' : ''}">
         <span class="tac-campo-rotulo">${escapeHtml(c.rotulo)}</span>
         <span class="tac-campo-valor">${escapeHtml(String(c.valor))}</span>
       </div>`).join('') || '<div class="tac-vazio">Nenhuma configuração preenchida.</div>';
+    const observacaoHtml = observacao ? `
+      <div class="tac-secao">Observações</div>
+      <div class="tac-obs ${observacao.mudou ? 'mudou' : ''}">${escapeHtml(String(observacao.valor))}</div>` : '';
 
     return `
       <div class="tac-item">
@@ -5767,6 +5772,7 @@ function renderTaticaAdmin(league, win, teams, modelos) {
             <div class="tac-jogadores">${at.gleague.map(n => `<span class="tac-jog">${escapeHtml(n)}</span>`).join('')}</div>` : ''}
           <div class="tac-secao">Configurações</div>
           <div class="tac-campos">${config}</div>
+          ${observacaoHtml}
         </div>
       </div>`;
   }).join('');
@@ -5778,7 +5784,6 @@ function renderTaticaAdmin(league, win, teams, modelos) {
       <button class="btn btn-back" onclick="${_dirBack}"><i class="bi bi-arrow-left"></i> Voltar</button>
     </div>
 
-    ${_taticaPainelModelos(modelos)}
     <div class="panel">
       <div class="panel-header">
         <div class="panel-title"><i class="bi bi-broadcast"></i> Tática de cada time</div>
@@ -5789,6 +5794,8 @@ function renderTaticaAdmin(league, win, teams, modelos) {
       </div>
       <div class="tac-lista">${rows || '<div class="tac-vazio">Nenhum time nesta liga.</div>'}</div>
     </div>
+
+    ${_taticaPainelModelos(modelos)}
 
     <style>
       .tac-lista { display:flex; flex-direction:column; gap:7px; }
@@ -5819,6 +5826,10 @@ function renderTaticaAdmin(league, win, teams, modelos) {
       .tac-campo.mudou .tac-campo-rotulo { color:#ef4444; }
       .tac-campo-valor { font-size:12px; font-weight:700; text-align:right; }
       .tac-campo.mudou .tac-campo-valor { color:#ef4444; }
+      .tac-obs { font-size:12.5px; line-height:1.55; color:var(--text); white-space:pre-wrap;
+        word-break:break-word; background:var(--panel-3); border:1px solid var(--border);
+        border-radius:8px; padding:10px 12px; min-height:52px; }
+      .tac-obs.mudou { border-color:rgba(239,68,68,.45); background:rgba(239,68,68,.08); color:#ef4444; }
       .tac-vazio { font-size:12px; color:var(--text-3); }
       .tac-aviso { font-size:11.5px; color:var(--text-3); background:var(--panel-3);
         border:1px solid var(--border); border-radius:8px; padding:8px 12px; margin-top:12px; }
