@@ -17,7 +17,9 @@ requireAuth();
 $user = getUserSession();
 $pdo  = db();
 
-if (!hasAdminAccess($pdo, (int)$user['id'])) {
+// Só admin geral — admin de liga já vê a própria liga inteira, "ver outra
+// liga" não é dele.
+if (!hasGlobalAdminAccess($pdo, (int)$user['id'])) {
     header('Location: /dashboard.php');
     exit;
 }

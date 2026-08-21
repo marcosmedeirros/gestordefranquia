@@ -10,6 +10,9 @@ if (!isset($pdo)) {
 }
 $__sbCurrent = basename($_SERVER['SCRIPT_NAME'] ?? '');
 $__sbIsAdmin = !empty($user['id']) && hasAdminAccess($pdo, (int)$user['id']);
+// Observar liga é só do admin geral — admin de liga já vê a própria liga
+// inteira, "ver outra liga" não é dele.
+$__sbIsGlobalAdmin = !empty($user['id']) && hasGlobalAdminAccess($pdo, (int)$user['id']);
 
 // A barra do modo observador sai aqui porque o sidebar é o que toda página
 // inclui — assim ela aparece em todas sem tocar em nenhuma. Fora do modo,
@@ -126,9 +129,12 @@ if (!function_exists('sbActive')) {
         <?php /* Observar liga: abre a página atual pelos olhos de outra liga.
                 Fica aqui, e não numa tela própria, porque o valor está em
                 trocar SEM sair de onde se está — é o mesmo endereço com
-                ?obs=, e a barra roxa aparece por cima. */ ?>
+                ?obs=, e a barra roxa aparece por cima. Só admin geral: admin
+                de liga já vê a própria liga inteira. */ ?>
+        <?php if ($__sbIsGlobalAdmin): ?>
         <a href="/observador.php"<?= sbActive('observador.php', $__sbCurrent) ?>><i class="bi bi-eye-fill"></i> Observar liga<?php
             if ($__sbLigaObs): ?> <span class="sb-obs-tag"><?= htmlspecialchars($__sbLigaObs) ?></span><?php endif; ?></a>
+        <?php endif; ?>
         <?php /* Punições: oculto temporariamente, vai passar por alteração */ ?>
         <?php endif; ?>
 

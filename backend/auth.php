@@ -231,6 +231,17 @@ function hasAdminAccess(PDO $pdo, int $userId): bool {
     return (bool)$stmt2->fetch();
 }
 
+/**
+ * Só o admin GERAL (user_type='admin') — admin de liga não entra aqui.
+ * Existe pra recurso que atravessa liga (hoje, o Modo Observador): admin de
+ * liga já vê a própria liga inteira, então "ver outra liga" não é dele.
+ */
+function hasGlobalAdminAccess(PDO $pdo, int $userId): bool {
+    $stmt = $pdo->prepare("SELECT user_type FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([$userId]);
+    return $stmt->fetchColumn() === 'admin';
+}
+
 // Admin do Games: quem pode ver a aba Games do Admin e mexer em apostas,
 // pontos e controle de jogos. Admin geral entra direto; os demais precisam do
 // sinalizador games_usuarios.is_admin, que a Gestão liga e desliga.

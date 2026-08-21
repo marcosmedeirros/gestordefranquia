@@ -92,7 +92,8 @@ function observadorProcessarUrl(PDO $pdo, ?array $user): void
 {
     $pedido = $_GET['obs'] ?? ($_GET['obs_time'] ?? null);
     if ($pedido === null) return;
-    if (!$user || empty($user['id']) || !hasAdminAccess($pdo, (int)$user['id'])) return;
+    // Só admin geral — admin de liga não entra aqui nem via URL direta.
+    if (!$user || empty($user['id']) || !hasGlobalAdminAccess($pdo, (int)$user['id'])) return;
 
     if (isset($_GET['obs'])) {
         $v = strtoupper(trim((string)$_GET['obs']));
@@ -152,7 +153,7 @@ function timeDaTela(PDO $pdo, int $userId): ?array
  */
 function observadorBarra(PDO $pdo, ?array $user): string
 {
-    if (!$user || empty($user['id']) || !hasAdminAccess($pdo, (int)$user['id'])) return '';
+    if (!$user || empty($user['id']) || !hasGlobalAdminAccess($pdo, (int)$user['id'])) return '';
 
     $liga = observadorLiga();
     $ligaReal = strtoupper((string)($_SESSION['obs_liga_real'] ?? $_SESSION['user_league'] ?? ''));
