@@ -254,6 +254,24 @@ table.stats thead th.col-nome{z-index:4;background:var(--panel-2)}
 table.stats td.num,table.stats th.num{text-align:right;font-variant-numeric:tabular-nums}
 table.stats td.col-time{color:var(--text-2);max-width:190px;overflow:hidden;text-overflow:ellipsis}
 
+/* ── MODO COMPACTO ──
+   O sticky da coluna do nome ja existia, mas nao bastava: com 180px de nome
+   mais 151 de time, sobravam 16px dos 347 visiveis num celular de 375 — as
+   dez colunas de atributo ficavam INTEIRAS fora da tela. Aqui a coluna do
+   nome cede a metade da largura e o resto do espaco vai pros numeros, que
+   e o que se veio comparar. */
+.tabela-caixa.compacto table.stats{min-width:0}
+.tabela-caixa.compacto table.stats th.col-nome,
+.tabela-caixa.compacto table.stats td.col-nome{min-width:0;width:104px;max-width:104px;
+  overflow:hidden;text-overflow:ellipsis}
+.tabela-caixa.compacto table.stats th,
+.tabela-caixa.compacto table.stats td{padding:0 6px}
+/* Uma sombra na borda direita: sem ela o numero rolando por baixo do nome
+   parece parte da coluna dele. */
+.tabela-caixa.compacto table.stats th.col-nome,
+.tabela-caixa.compacto table.stats td.col-nome{box-shadow:2px 0 6px rgba(0,0,0,.28)}
+.tabela-caixa.compacto tbody tr.meu td.col-nome{box-shadow:inset 3px 0 0 var(--red),2px 0 6px rgba(0,0,0,.28)}
+
 /* destaque da coluna ordenada, como na tela do 2K */
 table.stats td.ord{background:color-mix(in srgb,var(--red) 7%,transparent);color:var(--text);font-weight:700}
 
@@ -330,6 +348,10 @@ tbody tr.sem-stat td:not(.col-nome):not(.col-time){color:var(--text-3)}
           <i class="bi bi-star-fill" style="font-size:10px"></i> Meu time
         </button>
       <?php endif; ?>
+      <button type="button" class="f-chip" id="fCompacto"
+        title="Encurta o nome e esconde o time, pra sobrar tela pros números">
+        <i class="bi bi-arrows-collapse-vertical" style="font-size:11px"></i> Compactar
+      </button>
       <span class="f-contador" id="contador"></span>
     </div>
 
@@ -402,6 +424,33 @@ const COLS = {
 let aba = 'stats';
 let ordCol = 'ovr', ordAsc = false;
 
+/* MODO COMPACTO — pra comparar atributo no celular.
+
+   Medido em 375px: o nome (180px) e o time (151px) ocupavam 331 dos 347
+   visíveis, e as DEZ colunas de atributo ficavam todas fora da tela. Pra
+   comparar dois jogadores era rolar pra direita perdendo o nome de vista.
+
+   Compacto: o nome vira "A. Edwards", o time sai (o filtro de time já
+   existe logo acima) e a coluna do jogador fica ANCORADA à esquerda —
+   assim o nome não some enquanto se rola pelos números, que é o que
+   torna a comparação possível. Fica gravado por aba do navegador. */
+// No CELULAR ele ja vem ligado: o padrao largo la nao e uma preferencia,
+// e uma tela onde as dez colunas de atributo ficam fora do campo de visao.
+// No desktop segue desligado, que la a tabela quase cabe. A escolha da
+// pessoa, quando existe, vence os dois.
+let compacto = window.innerWidth < 760;
+try {
+  const salvo = localStorage.getItem('stats:compacto');
+  if (salvo !== null) compacto = salvo === '1';
+} catch (e) {}
+
+/** "Anthony Edwards" → "A. Edwards". Nome de uma palavra só fica inteiro. */
+function nomeCurto(nome) {
+  const partes = String(nome || '').trim().split(/\s+/);
+  if (partes.length < 2) return nome;
+  return partes[0].charAt(0).toUpperCase() + '. ' + partes.slice(1).join(' ');
+}
+
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
@@ -438,7 +487,27 @@ function vazioNaAba(p) {
 
 const fmt = (v, dec) => (v === null || v === undefined) ? '—' : (dec ? Number(v).toFixed(1) : String(v));
 
-function colunas() { return FIXAS.concat(COLS[aba]); }
+/* No compacto o que sai:
+
+     Time    sempre — sao 151px em 375 de tela, e o filtro de time esta ali
+             em cima pra quem precisar.
+     Idade   so na aba de ATRIBUTOS. La sao dez colunas disputando a tela, e
+             a idade nao entra na comparacao de skill; na aba de numeros ela
+             fica, que sao sete colunas e sobra espaco.
+
+   Pos e OVR ficam nas duas: sao as ancoras da comparacao — um pivo de 90
+   nao se compara a um armador de 70. */
+function colunas() {
+  let fixas = FIXAS;
+  if (compacto) {
+    fixas = fixas.filter(function (c) {
+      if (c.c === 'time') return false;
+      if (c.c === 'idade' && aba === 'skills') return false;
+      return true;
+    });
+  }
+  return fixas.concat(COLS[aba]);
+}
 
 function filtrar() {
   const termo = (document.getElementById('fBusca').value || '').trim().toLowerCase();
@@ -477,11 +546,17 @@ function ordenar(linhas) {
   });
 }
 
+/* No compacto o rotulo encolhe junto: "POST D" custava 69px de largura pra
+   uma coluna cujo conteudo e "B+". O title guarda o nome inteiro. */
+const ROTULO_CURTO = { 'POST D':'POST', 'PER D':'PER', 'ATHL':'ATL', 'Idade':'Id' };
 function renderCabecalho() {
   document.getElementById('cabecalho').innerHTML = colunas().map(function (col) {
     const on = col.c === ordCol;
-    return '<th class="' + col.cls + (on ? ' ord' : '') + '" data-c="' + col.c + '">'
-      + '<span class="seta">' + (on ? (ordAsc ? '▲' : '▼') : '▼') + '</span>' + esc(col.rot) + '</th>';
+    const curto = compacto && ROTULO_CURTO[col.rot];
+    return '<th class="' + col.cls + (on ? ' ord' : '') + '" data-c="' + col.c + '"'
+      + (curto ? ' title="' + esc(col.rot) + '"' : '') + '>'
+      + '<span class="seta">' + (on ? (ordAsc ? '▲' : '▼') : '▼') + '</span>'
+      + esc(curto || col.rot) + '</th>';
   }).join('');
 }
 
@@ -516,7 +591,10 @@ function render() {
     const tds = cols.map(function (col) {
       const on = col.c === ordCol ? ' ord' : '';
       if (col.c === 'nome') {
-        return '<td class="col-nome' + on + '"><a class="pl-link" href="/player.php?id=' + p.id + '">' + esc(p.nome) + '</a></td>';
+        // O title guarda o nome inteiro: encurtar não pode custar saber quem é.
+        return '<td class="col-nome' + on + '"><a class="pl-link" href="/player.php?id=' + p.id + '"'
+          + (compacto ? ' title="' + esc(p.nome) + '"' : '') + '>'
+          + esc(compacto ? nomeCurto(p.nome) : p.nome) + '</a></td>';
       }
       if (col.c === 'time') return '<td class="col-time' + on + '">' + esc(p.time) + '</td>';
       if (col.c === 'pos')  return '<td class="' + on.trim() + '"><span class="pos-tag">' + (esc(p.pos) || '—') + '</span></td>';
@@ -566,6 +644,21 @@ document.getElementById('abas').addEventListener('click', function (e) {
     render();
   });
 });
+
+const chipCompacto = document.getElementById('fCompacto');
+function sincronizarCompacto() {
+  if (chipCompacto) chipCompacto.classList.toggle('on', compacto);
+  document.querySelector('.tabela-caixa').classList.toggle('compacto', compacto);
+}
+if (chipCompacto) {
+  chipCompacto.addEventListener('click', function () {
+    compacto = !compacto;
+    try { localStorage.setItem('stats:compacto', compacto ? '1' : '0'); } catch (e) {}
+    sincronizarCompacto();
+    render();
+  });
+}
+sincronizarCompacto();
 
 const chip = document.getElementById('fMeu');
 function sincronizarChip() {
