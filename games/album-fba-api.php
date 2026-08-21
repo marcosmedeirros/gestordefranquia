@@ -406,7 +406,12 @@ $meStmt = $pdo->prepare("SELECT nome, pontos, is_admin FROM games_usuarios WHERE
 $meStmt->execute([':id' => $user_id]);
 $me = $meStmt->fetch(PDO::FETCH_ASSOC);
 if (!$me) out(['ok' => false, 'message' => 'UsuÃ¡rio invÃ¡lido'], 400);
-$is_admin = ((int)($me['is_admin'] ?? 0) === 1);
+// Mesma régua do resto do site: o flag do perfil de jogo OU o admin
+// geral. Antes só olhava games_usuarios.is_admin, e um admin do site
+// que nunca foi marcado no games via a aba e levava 403 ao salvar.
+$is_admin = function_exists('hasGamesAdminAccess')
+    ? hasGamesAdminAccess($pdo, $user_id)
+    : ((int)($me['is_admin'] ?? 0) === 1);
 
 $action = $_GET['action'] ?? '';
 
@@ -435,6 +440,68 @@ if ($action === 'admin_pack_collections') {
     $stmt = $pdo->prepare('UPDATE fba_pack_collections SET in_pack = :in_pack WHERE collection_name = :name');
     $stmt->execute([':in_pack' => $enabled ? 1 : 0, ':name' => $collection]);
     out(['ok' => true, 'collection' => $collection, 'enabled' => $enabled ? 1 : 0]);
+}
+
+/**
+ * O QUE O PAINEL DE FIGURINHAS PRECISA, numa chamada só.
+ *
+ * O cadastro saiu de dentro da página do álbum e virou um card na aba
+ * Games do admin. Lá não existe o `bootstrap` (que traz coleção, quinteto
+ * e ranking do próprio GM, nada disso serve pra quem administra), então
+ * este endpoint devolve só os três blocos da tela: as cartas, os times do
+ * select e as coleções que valem nos pacotinhos.
+ */
+if ($action === 'admin_cards') {
+    if (!$is_admin) out(['ok' => false, 'message' => 'Sem permissão'], 403);
+
+    // Quantos GMs têm cada carta e quantas cópias existem. É o "controle":
+    // sem isso não dá pra saber se a figurinha já circulou antes de mexer
+    // nela — apagar uma carta tira ela da coleção de quem tinha.
+    $stmt = $pdo->query("SELECT c.id, COALESCE(c.collection_name, 'Geral') colecao, t.nome team,
+               c.nome, c.posicao, c.raridade, c.ovr, c.img_url, c.created_at,
+               COALESCE(uc.donos, 0) donos, COALESCE(uc.copias, 0) copias
+        FROM fba_cards c
+        INNER JOIN fba_card_teams t ON t.id = c.team_id
+        LEFT JOIN (SELECT card_id, COUNT(*) donos, SUM(quantidade) copias
+                   FROM fba_user_collection GROUP BY card_id) uc ON uc.card_id = c.id
+        WHERE c.ativo = 1
+        ORDER BY colecao, t.nome, c.ovr DESC, c.nome");
+    $cards = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $cards[] = [
+            'id'       => (int)$r['id'],
+            'collection' => (string)$r['colecao'],
+            'team'     => (string)$r['team'],
+            'name'     => (string)$r['nome'],
+            'position' => strtoupper((string)$r['posicao']),
+            'rarity'   => (string)$r['raridade'],
+            'ovr'      => (int)$r['ovr'],
+            'img'      => (string)$r['img_url'],
+            'donos'    => (int)$r['donos'],
+            'copias'   => (int)$r['copias'],
+        ];
+    }
+
+    // Os times do select saem da tabela de times do site. Na página antiga
+    // eram 32 nomes escritos à mão dentro do HTML, que envelheciam sozinhos
+    // a cada franquia que mudava de nome.
+    $times = [];
+    try {
+        $st = $pdo->query("SELECT league, CONCAT(city, ' ', name) nome FROM teams
+                           ORDER BY FIELD(league,'ELITE','NEXT','RISE','ROOKIE'), city, name");
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $times[] = ['liga' => (string)$r['league'], 'nome' => (string)$r['nome']];
+        }
+    } catch (Throwable $e) { /* o select ainda vale com os nomes já usados */ }
+
+    // Nome que já tem carta e não existe mais em `teams` continua na lista:
+    // senão editar uma carta antiga trocaria o time dela sem querer.
+    $conhecidos = array_column($times, 'nome');
+    foreach ($pdo->query("SELECT nome FROM fba_card_teams ORDER BY nome")->fetchAll(PDO::FETCH_COLUMN) ?: [] as $n) {
+        if (!in_array((string)$n, $conhecidos, true)) $times[] = ['liga' => 'Outros', 'nome' => (string)$n];
+    }
+
+    out(['ok' => true, 'cards' => $cards, 'teams' => $times, 'collections' => fetchPackCollections($pdo)]);
 }
 
 if ($action === 'market_state') {

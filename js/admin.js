@@ -92,6 +92,153 @@ async function showGamesAdmin() {
     </div>
     <div class="row g-3 mb-4">${cards}</div>
 
+    <style>
+      .fig-form{display:flex;flex-direction:column;gap:4px;background:var(--panel-2);border:1px solid var(--border);
+        border-radius:12px;padding:14px 15px 15px}
+      .fig-form-titulo{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+        color:var(--text-3);display:flex;align-items:center;gap:7px;margin-bottom:8px}
+      .fig-form-titulo i{color:#a855f7}
+      .fig-label{font-size:11px;font-weight:600;color:var(--text-2);margin:9px 0 3px}
+      .fig-lista{display:flex;flex-direction:column;gap:6px;max-height:460px;overflow-y:auto;padding-right:4px}
+      .fig-item{display:flex;align-items:center;gap:10px;background:var(--panel-2);border:1px solid var(--border);
+        border-radius:10px;padding:8px 10px}
+      .fig-item.editando{border-color:#a855f7;box-shadow:0 0 0 1px #a855f7 inset}
+      .fig-thumb{width:38px;height:52px;flex:0 0 38px;object-fit:cover;border-radius:6px;
+        background:var(--panel-3);border:1px solid var(--border)}
+      .fig-info{flex:1 1 auto;min-width:0}
+      .fig-nome{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .fig-meta{font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .fig-meta b{color:var(--text);font-variant-numeric:tabular-nums}
+      .fig-rar{font-size:9.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;
+        border-radius:999px;padding:2px 7px}
+      .fig-rar.comum{background:rgba(154,154,164,.14);color:#9a9aa4}
+      .fig-rar.rara{background:rgba(59,130,246,.14);color:#60a5fa}
+      .fig-rar.epico{background:rgba(168,85,247,.14);color:#c084fc}
+      .fig-rar.lendario{background:rgba(245,158,11,.14);color:#fbbf24}
+      .fig-acoes{display:flex;flex-direction:column;gap:4px;flex:0 0 auto}
+      .fig-acoes .btn{--bs-btn-padding-y:2px;--bs-btn-padding-x:8px;font-size:11px}
+      .fig-chip{display:inline-flex;align-items:center;gap:7px;background:var(--panel-2);
+        border:1px solid var(--border);border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer}
+      .fig-chip input{accent-color:var(--red);cursor:pointer}
+      .fig-chip.fora{opacity:.5}
+      @media (max-width: 575.98px){
+        .fig-lista{max-height:65vh}
+        .fig-item{flex-wrap:wrap;row-gap:7px}
+        .fig-info{flex:1 1 60%}
+        .fig-acoes{flex:1 1 100%;flex-direction:row}
+        .fig-acoes .btn{flex:1 1 0}
+        .fig-thumb{width:34px;height:47px;flex-basis:34px}
+      }
+    </style>
+
+    <div class="panel">
+      <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <span><i class="bi bi-collection-fill" style="color:#a855f7"></i> Figurinhas do Álbum</span>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <a href="/games/album-fba.php" target="_blank" rel="noopener" class="btn btn-sm btn-outline-orange">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Ver o álbum
+          </a>
+          <button class="btn btn-sm btn-outline-orange" onclick="_carregarFigurinhas()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+          </button>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <div class="small text-secondary mb-2">
+          <i class="bi bi-box2 me-1"></i>Coleções que saem nos pacotinhos — desmarque pra tirar de circulação sem apagar nada.
+        </div>
+        <div id="figColecoesPacote" class="d-flex flex-wrap gap-2">
+          <span class="small text-secondary">Carregando…</span>
+        </div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-12 col-lg-5">
+          <form id="figForm" class="fig-form" onsubmit="_figSalvar(event);return false">
+            <input type="hidden" id="figId" value="">
+            <div class="fig-form-titulo">
+              <i class="bi bi-plus-circle-fill"></i><span id="figFormTitulo">Nova figurinha</span>
+            </div>
+
+            <label class="fig-label" for="figColecao">Coleção</label>
+            <input class="form-control form-control-sm" id="figColecao" list="figColecoesLista"
+                   placeholder="Ex: Temporada 2026" required>
+            <datalist id="figColecoesLista"></datalist>
+
+            <label class="fig-label" for="figTime">Time</label>
+            <select class="form-select form-select-sm" id="figTime" onchange="_figTimeOutro()" required>
+              <option value="">Selecione o time</option>
+            </select>
+            <input class="form-control form-control-sm mt-2 d-none" id="figTimeOutro" placeholder="Nome do time">
+
+            <label class="fig-label" for="figNome">Nome da carta</label>
+            <input class="form-control form-control-sm" id="figNome" placeholder="Ex: LeBron James" required>
+
+            <div class="row g-2">
+              <div class="col-4">
+                <label class="fig-label" for="figPosicao">Posição</label>
+                <select class="form-select form-select-sm" id="figPosicao">
+                  <option>PG</option><option>SG</option><option>SF</option><option>PF</option><option>C</option>
+                </select>
+              </div>
+              <div class="col-5">
+                <label class="fig-label" for="figRaridade">Raridade</label>
+                <select class="form-select form-select-sm" id="figRaridade">
+                  <option value="comum">Comum</option><option value="rara">Rara</option>
+                  <option value="epico">Épica</option><option value="lendario">Lendária</option>
+                </select>
+              </div>
+              <div class="col-3">
+                <label class="fig-label" for="figOvr">OVR</label>
+                <input class="form-control form-control-sm" id="figOvr" type="number" min="50" max="99"
+                       placeholder="75" required>
+              </div>
+            </div>
+
+            <label class="fig-label" for="figImagem">Imagem</label>
+            <input class="form-control form-control-sm" id="figImagem" type="file"
+                   accept="image/jpeg,image/png,image/webp">
+            <div class="small text-secondary mt-1" id="figImagemDica">JPG, PNG ou WEBP.</div>
+
+            <div class="d-flex gap-2 pt-3">
+              <button class="btn btn-sm btn-orange flex-grow-1" type="submit" id="figSalvar">Cadastrar figurinha</button>
+              <button class="btn btn-sm btn-ghost d-none" type="button" id="figCancelar" onclick="_figNova()">Cancelar</button>
+              <button class="btn btn-sm btn-outline-danger d-none" type="button" id="figExcluir"
+                      onclick="_figExcluirAtual()" title="Excluir figurinha"><i class="bi bi-trash"></i></button>
+            </div>
+            <div class="small mt-2" id="figFeedback"></div>
+          </form>
+        </div>
+
+        <div class="col-12 col-lg-7">
+          <div class="row g-2 mb-2">
+            <div class="col-12 col-sm-5">
+              <select class="form-select form-select-sm" id="figFiltroColecao" onchange="_renderFigurinhas()">
+                <option value="">Todas as coleções</option>
+              </select>
+            </div>
+            <div class="col-6 col-sm-3">
+              <select class="form-select form-select-sm" id="figFiltroRaridade" onchange="_renderFigurinhas()">
+                <option value="">Todas</option>
+                <option value="comum">Comum</option><option value="rara">Rara</option>
+                <option value="epico">Épica</option><option value="lendario">Lendária</option>
+              </select>
+            </div>
+            <div class="col-6 col-sm-4">
+              <input class="form-control form-control-sm" id="figBusca" placeholder="Buscar nome ou time…"
+                     oninput="_renderFigurinhas()">
+            </div>
+          </div>
+          <div class="small text-secondary mb-2" id="figResumo"></div>
+          <div id="figLista" class="fig-lista text-center py-4">
+            <div class="spinner-border text-orange"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
     <div class="panel">
       <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
         <span><i class="bi bi-coin" style="color:#f59e0b"></i> Pontos e Moedas</span>
@@ -128,6 +275,7 @@ async function showGamesAdmin() {
       </div>
     </div>`;
 
+  _carregarFigurinhas();
   _carregarGamesUsers();
   _carregarAtualizacoes();
 }
@@ -332,6 +480,327 @@ async function _toggleGamesAdmin(userId, enabled, el) {
     showAlert('danger', e.message);
   } finally {
     el.disabled = false;
+  }
+}
+
+/* ── Figurinhas do Álbum ────────────────────────────────────────────────
+   O cadastro morava dentro da própria página do jogo, numa aba que só
+   aparecia pra quem era admin — quem administra o site não tinha por que
+   entrar no álbum pra mexer nele. Aqui é a mesma coisa, no lugar certo.
+
+   O back continua sendo o do jogo (games/album-fba-api.php): mexer nas
+   cartas por dois caminhos diferentes é como as duas telas passam a
+   discordar. */
+
+const FIG_RARIDADES = { comum: 'Comum', rara: 'Rara', epico: 'Épica', lendario: 'Lendária' };
+let _figCache = { cards: [], teams: [], collections: [] };
+
+async function _figApi(action, opcoes = {}) {
+  const res = await fetch(`/games/album-fba-api.php?action=${action}`, {
+    credentials: 'same-origin',
+    ...opcoes,
+  });
+  const texto = await res.text();
+  let corpo = {};
+  try { corpo = JSON.parse(texto); } catch { corpo = { message: texto.slice(0, 180) }; }
+  if (!res.ok || corpo.ok === false) throw new Error(corpo.message || 'Não deu pra falar com o álbum.');
+  return corpo;
+}
+
+function _figMsg(tipo, texto) {
+  const el = document.getElementById('figFeedback');
+  if (!el) return;
+  el.className = `small mt-2 ${tipo ? 'text-' + tipo : 'text-secondary'}`;
+  el.textContent = texto || '';
+}
+
+/* A imagem é gravada relativa a /games/ (é de lá que o álbum a serve). */
+function _figImgUrl(img) {
+  const s = String(img || '');
+  if (!s) return '';
+  if (/^(https?:)?\/\//.test(s) || s.startsWith('/')) return s;
+  return '/games/' + s;
+}
+
+async function _carregarFigurinhas() {
+  const lista = document.getElementById('figLista');
+  if (!lista) return;
+  lista.className = 'fig-lista text-center py-4';
+  lista.innerHTML = '<div class="spinner-border text-orange"></div>';
+  try {
+    const d = await _figApi('admin_cards');
+    _figCache = {
+      cards: Array.isArray(d.cards) ? d.cards : [],
+      teams: Array.isArray(d.teams) ? d.teams : [],
+      collections: Array.isArray(d.collections) ? d.collections : [],
+    };
+    _figMontarSelects();
+    _figRenderColecoes();
+    _renderFigurinhas();
+  } catch (e) {
+    lista.className = 'fig-lista py-3';
+    lista.innerHTML = `<div class="text-danger small">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+/* Os selects que dependem do banco: times do site e coleções já usadas. */
+function _figMontarSelects() {
+  const sel = document.getElementById('figTime');
+  if (sel) {
+    const escolhido = sel.value;
+    const porLiga = {};
+    _figCache.teams.forEach(t => {
+      if (!porLiga[t.liga]) porLiga[t.liga] = [];
+      porLiga[t.liga].push(t.nome);
+    });
+    sel.innerHTML = '<option value="">Selecione o time</option>'
+      + Object.entries(porLiga).map(([liga, nomes]) =>
+          `<optgroup label="${escapeHtml(liga)}">`
+          + nomes.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')
+          + '</optgroup>'
+        ).join('')
+      + '<option value="__outro__">Outro (digitar)</option>';
+    if (escolhido) sel.value = escolhido;
+  }
+
+  const colecoes = [...new Set(_figCache.cards.map(c => c.collection || 'Geral'))]
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+  const dl = document.getElementById('figColecoesLista');
+  if (dl) dl.innerHTML = colecoes.map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
+
+  const filtro = document.getElementById('figFiltroColecao');
+  if (filtro) {
+    const antes = filtro.value;
+    filtro.innerHTML = '<option value="">Todas as coleções</option>'
+      + colecoes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    filtro.value = colecoes.includes(antes) ? antes : '';
+  }
+}
+
+function _renderFigurinhas() {
+  const lista = document.getElementById('figLista');
+  if (!lista) return;
+
+  const colecao  = document.getElementById('figFiltroColecao')?.value || '';
+  const raridade = document.getElementById('figFiltroRaridade')?.value || '';
+  const busca    = (document.getElementById('figBusca')?.value || '').trim().toLowerCase();
+  const editando = Number(document.getElementById('figId')?.value || 0);
+
+  const filtradas = _figCache.cards.filter(c => {
+    if (colecao && (c.collection || 'Geral') !== colecao) return false;
+    if (raridade && c.rarity !== raridade) return false;
+    if (busca && !`${c.name} ${c.team}`.toLowerCase().includes(busca)) return false;
+    return true;
+  });
+
+  // Teto de DOM: com o álbum cheio a lista passa de mil linhas e a aba
+  // inteira engasga. O resumo diz quantas ficaram de fora — corte calado
+  // vira "cadastrei e não apareceu".
+  const TETO = 300;
+  const mostradas = filtradas.slice(0, TETO);
+
+  const resumo = document.getElementById('figResumo');
+  if (resumo) {
+    resumo.textContent = filtradas.length
+      ? (filtradas.length > TETO
+          ? `Mostrando ${TETO} de ${filtradas.length} figurinhas — use os filtros pra chegar nas outras.`
+          : `${filtradas.length} figurinha${filtradas.length > 1 ? 's' : ''} · ${_figCache.cards.length} no total.`)
+      : '';
+  }
+
+  lista.className = 'fig-lista';
+  if (!mostradas.length) {
+    lista.classList.add('text-center', 'py-4');
+    lista.innerHTML = _figCache.cards.length
+      ? '<div class="text-secondary small">Nenhuma figurinha com esses filtros.</div>'
+      : '<div class="text-secondary small">Nenhuma figurinha cadastrada ainda.</div>';
+    return;
+  }
+
+  lista.innerHTML = mostradas.map(c => {
+    const url = _figImgUrl(c.img);
+    const thumb = url
+      ? `<img class="fig-thumb" src="${escapeHtml(url)}" alt="" loading="lazy">`
+      : '<div class="fig-thumb d-flex align-items-center justify-content-center text-secondary"><i class="bi bi-image"></i></div>';
+    const donos = Number(c.donos || 0);
+    const posse = donos
+      ? `<b>${donos}</b> GM${donos > 1 ? 's' : ''} · <b>${Number(c.copias || 0)}</b> cópia${Number(c.copias) > 1 ? 's' : ''}`
+      : '<span class="text-secondary">ninguém tem ainda</span>';
+    return `
+      <div class="fig-item${Number(c.id) === editando ? ' editando' : ''}">
+        ${thumb}
+        <div class="fig-info">
+          <div class="fig-nome">${escapeHtml(c.name)} <span class="text-secondary">· ${Number(c.ovr)} OVR</span></div>
+          <div class="fig-meta">${escapeHtml(c.collection || 'Geral')} · ${escapeHtml(c.team)} · ${escapeHtml(c.position)}</div>
+          <div class="fig-meta mt-1">
+            <span class="fig-rar ${escapeHtml(c.rarity)}">${escapeHtml(FIG_RARIDADES[c.rarity] || c.rarity)}</span>
+            <span class="ms-1">${posse}</span>
+          </div>
+        </div>
+        <div class="fig-acoes">
+          <button class="btn btn-sm btn-ghost" onclick="_figEditar(${Number(c.id)})">Editar</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="_figExcluir(${Number(c.id)})">Excluir</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/* Coleções que entram nos pacotinhos. Desligar não apaga carta nenhuma:
+   só para de sorteá-la, que é o que se quer entre uma coleção e outra. */
+function _figRenderColecoes() {
+  const box = document.getElementById('figColecoesPacote');
+  if (!box) return;
+  if (!_figCache.collections.length) {
+    box.innerHTML = '<span class="small text-secondary">Nenhuma coleção ainda — cadastre a primeira figurinha.</span>';
+    return;
+  }
+  box.innerHTML = _figCache.collections.map(c => {
+    const ligada = Number(c.in_pack || 0) === 1;
+    const nome = String(c.collection_name);
+    return `<label class="fig-chip${ligada ? '' : ' fora'}">
+      <input type="checkbox" ${ligada ? 'checked' : ''}
+             data-colecao="${escapeHtml(nome)}" onchange="_figPacote(this)">
+      ${escapeHtml(nome)}
+    </label>`;
+  }).join('');
+}
+
+async function _figPacote(el) {
+  const nome = el.dataset.colecao || '';
+  const ligada = el.checked;
+  el.disabled = true;
+  try {
+    await _figApi('admin_pack_collections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ collection: nome, enabled: ligada ? 1 : 0 }),
+    });
+    el.closest('.fig-chip')?.classList.toggle('fora', !ligada);
+    const cache = _figCache.collections.find(c => String(c.collection_name) === nome);
+    if (cache) cache.in_pack = ligada ? 1 : 0;
+    showAlert('success', ligada ? `"${nome}" volta pros pacotinhos.` : `"${nome}" sai dos pacotinhos.`);
+  } catch (e) {
+    el.checked = !ligada;
+    showAlert('danger', e.message);
+  } finally {
+    el.disabled = false;
+  }
+}
+
+function _figTimeOutro() {
+  const sel = document.getElementById('figTime');
+  const outro = document.getElementById('figTimeOutro');
+  if (!sel || !outro) return;
+  const digitar = sel.value === '__outro__';
+  outro.classList.toggle('d-none', !digitar);
+  if (digitar) outro.focus(); else outro.value = '';
+}
+
+function _figNova() {
+  const form = document.getElementById('figForm');
+  if (!form) return;
+  form.reset();
+  document.getElementById('figId').value = '';
+  document.getElementById('figTimeOutro').classList.add('d-none');
+  document.getElementById('figFormTitulo').textContent = 'Nova figurinha';
+  document.getElementById('figSalvar').textContent = 'Cadastrar figurinha';
+  document.getElementById('figCancelar').classList.add('d-none');
+  document.getElementById('figExcluir').classList.add('d-none');
+  document.getElementById('figImagemDica').textContent = 'JPG, PNG ou WEBP.';
+  _figMsg('', '');
+  _renderFigurinhas();
+}
+
+function _figEditar(id) {
+  const c = _figCache.cards.find(x => Number(x.id) === Number(id));
+  if (!c) return;
+
+  document.getElementById('figId').value = String(c.id);
+  document.getElementById('figColecao').value = c.collection || 'Geral';
+
+  const sel = document.getElementById('figTime');
+  const outro = document.getElementById('figTimeOutro');
+  const temNaLista = [...sel.options].some(o => o.value === c.team);
+  sel.value = temNaLista ? c.team : '__outro__';
+  outro.classList.toggle('d-none', temNaLista);
+  outro.value = temNaLista ? '' : (c.team || '');
+
+  document.getElementById('figNome').value = c.name || '';
+  document.getElementById('figPosicao').value = c.position || 'PG';
+  document.getElementById('figRaridade').value = c.rarity || 'comum';
+  document.getElementById('figOvr').value = c.ovr || 70;
+  document.getElementById('figImagem').value = '';
+  document.getElementById('figImagemDica').textContent = 'Envie só se quiser trocar a imagem.';
+  document.getElementById('figFormTitulo').textContent = `Editando "${c.name}"`;
+  document.getElementById('figSalvar').textContent = 'Salvar alterações';
+  document.getElementById('figCancelar').classList.remove('d-none');
+  document.getElementById('figExcluir').classList.remove('d-none');
+  _figMsg('', '');
+  _renderFigurinhas();
+  document.getElementById('figForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function _figSalvar(ev) {
+  ev.preventDefault();
+  const id = Number(document.getElementById('figId').value || 0);
+  const sel = document.getElementById('figTime');
+  const time = sel.value === '__outro__'
+    ? document.getElementById('figTimeOutro').value.trim()
+    : sel.value;
+  const arquivo = document.getElementById('figImagem').files[0] || null;
+
+  if (!time) { _figMsg('danger', 'Escolha (ou digite) o time da figurinha.'); return; }
+  if (!id && !arquivo) { _figMsg('danger', 'A imagem é obrigatória no cadastro.'); return; }
+
+  const form = new FormData();
+  if (id) form.append('card_id', String(id));
+  form.append('collection_name', document.getElementById('figColecao').value.trim());
+  form.append('team_name', time);
+  form.append('card_name', document.getElementById('figNome').value.trim());
+  form.append('position', document.getElementById('figPosicao').value);
+  form.append('rarity', document.getElementById('figRaridade').value);
+  form.append('ovr', String(Number(document.getElementById('figOvr').value)));
+  if (arquivo) form.append('card_image', arquivo);
+
+  const botao = document.getElementById('figSalvar');
+  botao.disabled = true;
+  _figMsg('', 'Salvando…');
+  try {
+    await _figApi(id ? 'admin_update_card' : 'admin_create_card', { method: 'POST', body: form });
+    showAlert('success', id ? 'Figurinha atualizada.' : 'Figurinha cadastrada.');
+    _figNova();
+    await _carregarFigurinhas();
+  } catch (e) {
+    _figMsg('danger', e.message);
+  } finally {
+    botao.disabled = false;
+  }
+}
+
+function _figExcluirAtual() {
+  const id = Number(document.getElementById('figId')?.value || 0);
+  if (id) _figExcluir(id);
+}
+
+async function _figExcluir(id) {
+  const c = _figCache.cards.find(x => Number(x.id) === Number(id));
+  const donos = Number(c?.donos || 0);
+  const aviso = donos
+    ? `\n\n${donos} GM${donos > 1 ? 's já têm' : ' já tem'} essa figurinha — ela sai da coleção e do quinteto deles.`
+    : '';
+  if (!confirm(`Excluir "${c?.name || '#' + id}"?${aviso}`)) return;
+  try {
+    await _figApi('admin_delete_card', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ card_id: Number(id) }),
+    });
+    showAlert('success', 'Figurinha excluída.');
+    if (Number(document.getElementById('figId')?.value || 0) === Number(id)) _figNova();
+    await _carregarFigurinhas();
+  } catch (e) {
+    showAlert('danger', e.message);
   }
 }
 
