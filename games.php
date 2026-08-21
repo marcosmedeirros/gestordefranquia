@@ -272,8 +272,6 @@ $jogosDiarios = [
     ['key' => 'quizdodia', 'nome' => 'Quiz do Dia', 'sub' => 'Vote com a maioria', 'icone' => 'bi-chat-square-quote','cor' => '#eab308'],
 ];
 $jogosLivres = [
-    ['key' => 'album',      'nome' => 'Figurinhas',  'sub' => 'Álbum, trocas e mercado','icone' => 'bi-collection-fill','cor' => '#a855f7',
-     'url' => '/games/album-fba.php'],
     ['key' => 'buildplayer','nome' => 'Build-A-Player','sub' => 'Monte a lenda perfeita','icone' => 'bi-tools',      'cor' => '#f97316'],
     ['key' => 'dreamteam', 'nome' => 'Starting5x5', 'sub' => 'Monte o time e dispute','icone' => 'bi-people-fill',  'cor' => '#6366f1'],
     ['key' => 'flappy',    'nome' => 'Flappy Bird', 'sub' => 'Desvie dos canos',  'icone' => 'bi-airplane',       'cor' => '#f43f5e'],
@@ -597,7 +595,7 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
             <div class="sec-label"><i class="bi bi-joystick"></i> Minigames</div>
             <div class="grid">
                 <?php foreach ($jogosLivres as $j): ?>
-                <a class="card-jogo" href="<?= $j['url'] ?? '/games/games/index.php?game=' . urlencode($j['key']) ?>">
+                <a class="card-jogo" href="/games/games/index.php?game=<?= urlencode($j['key']) ?>">
                     <div class="ico" style="background:<?= $j['cor'] ?>1f;color:<?= $j['cor'] ?>"><i class="bi <?= $j['icone'] ?>"></i></div>
                     <div class="nome"><?= htmlspecialchars($j['nome']) ?></div>
                     <div class="sub"><?= htmlspecialchars($j['sub']) ?></div>

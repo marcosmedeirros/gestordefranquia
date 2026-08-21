@@ -2,16 +2,9 @@
 if (session_status() === PHP_SESSION_NONE) session_start();
 if (!isset($_SESSION['user_id'])) { header('Location: /login.php'); exit; }
 
-$teams = [
-    'Anchorage Envood','Athens Olympics','Boston Panthers','Buffalo Blackouts',
-    'Calgary Mooses','Chicago Dope','Colorado Frostborn','Dallas Blues',
-    'El Paso Guerreros','Hawaii Heatwave','Houston Parfums','Kansas City Swifties',
-    'Kentucky Cavalinhos','Los Angeles Celestials','Los Angeles Souks','Louisville Shuffle',
-    'México City Catrinas','Miami Sunsets','Milwaukee Beezz','New Jersey Reapers',
-    'New York Mafia','Oakland Blue Foxes','Oklahoma Gunslingers','Oregon Puddles',
-    'Orlando Black Lions','Philadelphia Devils','Pittsburgh Phantoms','San Antonio Vultures',
-    'San Francisco JoyBoys','San Jose Carpinteros','St. Louis Archers','Washington Peacemakers'
-];
+// A lista de times do select vem do banco (montarSelectDeTimes, no JS).
+// Antes eram 32 nomes escritos aqui dentro, que envelheciam sozinhos a
+// cada franquia que mudava de nome — e só cobriam a ELITE.
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -475,9 +468,6 @@ $teams = [
             <div class="fld-label">Time</div>
             <select id="admin-team" class="fba-input" required>
               <option value="">Selecione o time</option>
-              <?php foreach ($teams as $team): ?>
-                <option value="<?= htmlspecialchars($team, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($team, ENT_QUOTES, 'UTF-8') ?></option>
-              <?php endforeach; ?>
               <option value="__other__">Outro (digitar)</option>
             </select>
             <input id="admin-team-other" placeholder="Nome do time" class="fba-input hidden" style="margin-top:6px">
@@ -530,6 +520,8 @@ $teams = [
         <div style="font-size:11px;font-weight:700;color:var(--text-3);letter-spacing:.6px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:7px">
           <i class="bi bi-card-list" style="color:var(--red)"></i> Cartas cadastradas
         </div>
+        <input id="admin-filter-name" class="fba-input" placeholder="Buscar nome ou time…"
+               style="font-size:12px;margin-bottom:6px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
           <select id="admin-filter-collection" class="fba-input" style="font-size:12px">
             <option value="">Todas as coleções</option>
@@ -693,6 +685,9 @@ function autoFillTrade(type, count) {
   document.getElementById('trade-feedback').textContent = '';
 }
 </script>
-<script src="album-fba.js"></script>
+<?php $jsV = @filemtime(__DIR__ . '/album-fba.js') ?: 0; ?>
+<!-- O ?v= e a data do arquivo: sem ele o navegador de quem ja entrou serve
+     o album-fba.js velho, e a tela some de mudanca sem ninguem entender. -->
+<script src="album-fba.js?v=<?= $jsV ?>"></script>
 </body>
 </html>

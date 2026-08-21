@@ -24,6 +24,54 @@ let marketLoaded = false;
 let openAccordion = null;
 const slotPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
 
+/* ── Extras do admin ────────────────────────────────────────────────────
+   Quem já tem cada carta e a lista de times do site. Não entram no
+   bootstrap porque nenhum GM comum usa: vêm de admin_cards, numa chamada
+   só, quando a aba Admin aparece. */
+let adminExtras = { posse: {}, teams: [], carregado: false };
+
+const escAlbum = (v) => String(v ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+async function loadAdminExtras() {
+    if (!state.user?.is_admin) return;
+    try {
+        const res = await get('admin_cards');
+        if (!res.ok) return;
+        adminExtras.posse = {};
+        (res.cards || []).forEach((c) => {
+            adminExtras.posse[c.id] = { donos: Number(c.donos || 0), copias: Number(c.copias || 0) };
+        });
+        adminExtras.teams = Array.isArray(res.teams) ? res.teams : [];
+        adminExtras.carregado = true;
+        montarSelectDeTimes();
+    } catch (err) { /* a aba continua valendo sem os extras */ }
+}
+
+/* O select de times sai da tabela de times do site, agrupado por liga.
+   Antes eram 32 nomes escritos à mão no HTML desta página: envelheciam a
+   cada franquia que mudava de nome e só cobriam a ELITE. Nome que já tem
+   carta e não existe mais em `teams` vem junto, no grupo "Outros" — senão
+   editar uma carta antiga trocaria o time dela sem querer. */
+function montarSelectDeTimes() {
+    const sel = document.getElementById('admin-team');
+    if (!sel || !adminExtras.teams.length) return;
+    const escolhido = sel.value;
+    const porLiga = {};
+    adminExtras.teams.forEach((t) => {
+        if (!porLiga[t.liga]) porLiga[t.liga] = [];
+        porLiga[t.liga].push(t.nome);
+    });
+    sel.innerHTML = '<option value="">Selecione o time</option>'
+        + Object.entries(porLiga).map(([liga, nomes]) =>
+            `<optgroup label="${escAlbum(liga)}">`
+            + nomes.map((n) => `<option value="${escAlbum(n)}">${escAlbum(n)}</option>`).join('')
+            + '</optgroup>').join('')
+        + '<option value="__other__">Outro (digitar)</option>';
+    if (escolhido) sel.value = escolhido;
+}
+
 const rarityClass = (r) => ({ comum: 'rarity-comum', rara: 'rarity-rara', epico: 'rarity-epico', lendario: 'rarity-lendario' }[r] || 'rarity-comum');
 const hasCard = (id) => Number(state.collection[id] || 0) > 0;
 const rarityLabel = (r) => ({ comum: 'Comum', rara: 'Rara', epico: 'Epica', lendario: 'Lendaria' }[r] || r);
@@ -103,6 +151,7 @@ async function bootstrap() {
     if (state.user.is_admin) {
         renderAdminCards();
         await loadAdminPackCollections();
+        await loadAdminExtras();
     }
     switchTab('album');
 }
@@ -139,7 +188,7 @@ function switchTab(tab) {
     if (tab === 'trades') renderTrades();
     if (tab === 'store') loadDailyPackStatus();
     if (tab === 'colecoes') renderCollectionRewards();
-    if (tab === 'admin') renderAdminCards();
+    if (tab === 'admin') { renderAdminCards(); loadAdminExtras().then(renderAdminCards); }
 }
 window.switchTab = switchTab;
 
@@ -1039,6 +1088,7 @@ function renderAdminCards() {
 
     const collectionFilter = document.getElementById('admin-filter-collection');
     const rarityFilter = document.getElementById('admin-filter-rarity');
+    const nameFilter = document.getElementById('admin-filter-name');
 
     const collections = [...new Set(state.master.map((c) => c.collection || 'Geral').filter(Boolean))].sort((a, b) => a.localeCompare(b));
     if (collectionFilter) {
@@ -1055,29 +1105,53 @@ function renderAdminCards() {
 
     const selectedCollection = collectionFilter?.value || '';
     const selectedRarity = rarityFilter?.value || '';
+    const busca = String(nameFilter?.value || '').trim().toLowerCase();
     const filtered = state.master.filter((card) => {
         if (selectedCollection && (card.collection || 'Geral') !== selectedCollection) return false;
         if (selectedRarity && card.rarity !== selectedRarity) return false;
+        if (busca && !`${card.name} ${card.team}`.toLowerCase().includes(busca)) return false;
         return true;
     });
 
-    const latest = [...filtered].slice(-100).reverse();
+    // Teto de linhas: com o álbum cheio a lista engasga. O aviso diz quantas
+    // ficaram de fora — corte calado vira "cadastrei e não apareceu".
+    const TETO = 100;
+    const ordenadas = [...filtered].reverse();
+    const latest = ordenadas.slice(0, TETO);
+    const aviso = ordenadas.length > TETO
+        ? `<p class="text-xs text-zinc-500 mb-1">Mostrando ${TETO} de ${ordenadas.length} — use a busca ou os filtros pra chegar nas outras.</p>`
+        : '';
+
     list.innerHTML = latest.length
-        ? latest.map((c) => `
-            <div class="bg-zinc-900 rounded-lg p-3 border border-zinc-700 flex justify-between gap-2">
-                <div>
-                    <div class="font-bold">${c.name}</div>
-                    <div class="text-xs text-zinc-400">${c.collection || 'Geral'} • ${c.team} • ${c.position} • ${c.rarity.toUpperCase()}</div>
+        ? aviso + latest.map((c) => {
+            // Quantos GMs já têm a carta. É o que decide se dá pra mexer nela
+            // sem susto: excluir tira a figurinha da coleção e do quinteto deles.
+            const p = adminExtras.posse[c.id];
+            const posse = !adminExtras.carregado
+                ? ''
+                : (p && p.donos)
+                    ? `<span class="text-zinc-400">${p.donos} GM${p.donos > 1 ? 's' : ''} · ${p.copias} cópia${p.copias > 1 ? 's' : ''}</span>`
+                    : '<span class="text-zinc-600">ninguém tem ainda</span>';
+            const thumb = c.img
+                ? `<img src="${escAlbum(c.img)}" alt="" loading="lazy" class="flex-none rounded object-cover bg-black" style="width:38px;height:52px">`
+                : '';
+            return `
+            <div class="bg-zinc-900 rounded-lg p-3 border border-zinc-700 flex flex-wrap items-center gap-3">
+                ${thumb}
+                <div class="min-w-0 flex-1">
+                    <div class="font-bold truncate">${escAlbum(c.name)}</div>
+                    <div class="text-xs text-zinc-400 sm:truncate">${escAlbum(c.collection || 'Geral')} • ${escAlbum(c.team)} • ${escAlbum(c.position)} • ${escAlbum(String(c.rarity || '').toUpperCase())}</div>
+                    <div class="text-xs mt-1">${posse}</div>
                 </div>
-                <div class="text-end">
-                    <div class="text-white font-black">${c.ovr}</div>
-                    <div class="flex gap-1 mt-2">
-                        <button class="px-2 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded" onclick="startEditCard(${c.id})">Editar</button>
-                        <button class="px-2 py-1 text-xs bg-red-800 hover:bg-red-700 rounded" onclick="deleteCardById(${c.id})">Excluir</button>
+                <div class="flex-none w-full sm:w-auto flex sm:block items-center justify-between gap-2 sm:text-end">
+                    <div class="text-white font-black">${Number(c.ovr)} <span class="text-xs font-normal text-zinc-500 sm:hidden">OVR</span></div>
+                    <div class="flex gap-1 sm:mt-2">
+                        <button class="px-2 py-1 text-xs bg-zinc-700 hover:bg-zinc-600 rounded" onclick="startEditCard(${Number(c.id)})">Editar</button>
+                        <button class="px-2 py-1 text-xs bg-red-800 hover:bg-red-700 rounded" onclick="deleteCardById(${Number(c.id)})">Excluir</button>
                     </div>
                 </div>
-            </div>
-        `).join('')
+            </div>`;
+        }).join('')
         : '<p class="text-zinc-400">Nenhuma carta encontrada com os filtros.</p>';
 }
 
@@ -1206,7 +1280,14 @@ function getAdminTeamName() {
 }
 
 window.deleteCardById = async function(cardId) {
-    if (!confirm('Tem certeza que deseja excluir esta carta?')) return;
+    // O aviso diz quantos GMs perdem a figurinha: excluir tira ela da
+    // coleção e do quinteto de quem tinha, e isso não volta atrás.
+    const alvo = state.master.find((c) => Number(c.id) === Number(cardId));
+    const donos = Number(adminExtras.posse[cardId]?.donos || 0);
+    const aviso = donos
+        ? `\n\n${donos} GM${donos > 1 ? 's já têm' : ' já tem'} essa figurinha — ela sai da coleção e do quinteto deles.`
+        : '';
+    if (!confirm(`Excluir "${alvo?.name || ('#' + cardId)}"?${aviso}`)) return;
     const fb = document.getElementById('admin-feedback');
     if (fb) {
         fb.textContent = 'Excluindo carta...';
@@ -1224,6 +1305,7 @@ window.deleteCardById = async function(cardId) {
         state.master = state.master.filter((c) => Number(c.id) !== Number(cardId));
         resetAdminForm();
         renderAdminCards();
+        loadAdminExtras().then(renderAdminCards);
         renderAlbum();
         if (fb) {
             fb.textContent = 'Carta excluída com sucesso.';
@@ -1403,11 +1485,14 @@ document.getElementById('market-mine-list')?.addEventListener('click', async (ev
 
 document.getElementById('admin-filter-collection')?.addEventListener('change', renderAdminCards);
 document.getElementById('admin-filter-rarity')?.addEventListener('change', renderAdminCards);
+document.getElementById('admin-filter-name')?.addEventListener('input', renderAdminCards);
 document.getElementById('admin-filter-clear')?.addEventListener('click', () => {
     const collection = document.getElementById('admin-filter-collection');
     const rarity = document.getElementById('admin-filter-rarity');
+    const nome = document.getElementById('admin-filter-name');
     if (collection) collection.value = '';
     if (rarity) rarity.value = '';
+    if (nome) nome.value = '';
     renderAdminCards();
 });
 
@@ -1466,6 +1551,7 @@ document.getElementById('admin-card-form')?.addEventListener('submit', async (e)
         fb.className = 'mt-3 text-sm text-emerald-300';
         renderAdminCards();
         renderAlbum();
+        loadAdminExtras().then(renderAdminCards);
         if (cardId) {
             if (fileInput) fileInput.value = '';
             window.startEditCard(res.card?.id || cardId);
