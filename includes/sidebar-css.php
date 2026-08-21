@@ -132,3 +132,16 @@
 		.sb-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); backdrop-filter: blur(4px); z-index: 199; }
 		.sb-overlay { z-index: 250; }
 		.sb-overlay.show { display: block; }
+
+		/* ── Responsivo ───────────────────────────────────
+		   Faltava isto aqui: quem só incluía este arquivo tinha o menu-btn e o
+		   overlay prontos, mas a sidebar continuava fixa e aberta no celular —
+		   foi o caso de observador.php. --sidebar-w vira 0 em vez de mexer em
+		   .main direto, porque cada página monta o próprio .main (padding,
+		   grid) e todas já usam margin-left/width: var(--sidebar-w). */
+		@media (max-width: 992px) {
+			:root { --sidebar-w: 0px; }
+			.sidebar { transform: translateX(-260px); }
+			.sidebar.open { transform: translateX(0); }
+			.topbar { display: flex; }
+		}

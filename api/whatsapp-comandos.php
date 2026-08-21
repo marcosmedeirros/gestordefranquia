@@ -623,8 +623,24 @@ function wcCap(PDO $pdo, string $termo, ?array $jaResolvido = null, ?string $lig
         if ($erro) return $erro;
     }
 
+    // NEXT/RISE/ROOKIE não têm folha em dinheiro — o CAP delas é a soma dos
+    // CAP_TOP_N maiores OVR do elenco contra a faixa min/max da liga (mesma
+    // conta de wcCapPorOvr/topOvrCap, a que o dashboard e o /time usam).
     if (!wcLigaEmSalario($pdo, (string)$t['league'])) {
-        return wcNomeDoTime($t) . " está na {$t['league']}, que não usa folha em dinheiro — o limite lá é por soma de OVR.";
+        $c = wcCapPorOvr($pdo, $t);
+
+        $stJog = $pdo->prepare('SELECT name, position, ovr FROM players WHERE team_id = ? ORDER BY ovr DESC LIMIT ' . CAP_TOP_N);
+        $stJog->execute([(int)$t['id']]);
+        $jogadores = $stJog->fetchAll(PDO::FETCH_ASSOC);
+
+        $txt = '*Cap — ' . wcNomeDoTime($t) . "*\n" . wcLinhaCapOvr($c);
+        if ($jogadores) {
+            $txt .= "\n*Quem conta (top " . CAP_TOP_N . " OVR):*\n";
+            foreach ($jogadores as $j) {
+                $txt .= "• {$j['name']} ({$j['position']}) — {$j['ovr']}\n";
+            }
+        }
+        return rtrim($txt);
     }
 
     $cap = getTeamCapSummary($pdo, (int)$t['id']);
