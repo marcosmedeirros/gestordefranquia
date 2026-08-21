@@ -448,112 +448,51 @@ const COPERO_PREMIOS = [
  * de relance.
  */
 const COPERO_TACAS = [
-    // Liga: cálice clássico, base larga.
-    'liga' => ['#eab308',
-        '<path d="M21 7h22v15c0 8-4 13-11 15-7-2-11-7-11-15z" fill="currentColor"/>'
-      . '<path d="M21 10h-5v5c0 4 2 7 5 8M43 10h5v5c0 4-2 7-5 8" stroke="currentColor" stroke-width="2.6" fill="none"/>'
-      . '<rect x="29" y="37" width="6" height="9" fill="currentColor"/>'
-      . '<rect x="20" y="46" width="24" height="6" rx="2" fill="currentColor"/>'],
-    // Copa: cálice alto e estreito, com pé longo.
+    // Escudo, e nao calice: o titulo nacional e o scudetto, e escudo e a unica…
+    'liga' => ['#e11d48',
+        '<defs><linearGradient id="tc-liga-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".45" stop-color="#fff" stop-opacity=".04"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></linearGradient></defs><path d="M16 5h32v21c0 14-9 23-16 28-7-5-16-14-16-28z" fill="currentColor"/><path d="M16 5h32v21c0 14-9 23-16 28-7-5-16-14-16-28z" fill="url(#tc-liga-g)"/><path d="M32 15l3.2 6.6 7.2.9-5.2 5.1 1.2 7.2L32 31.4l-6.4 3.4 1.2-7.2-5.2-5.1 7.2-.9z" fill="#7c2d12" opacity=".55"/>'],
+    // Mata-mata: cone em V bem fechado, alças finas coladas ao corpo, HASTE…
     'copa' => ['#e5e7eb',
-        '<path d="M24 6h16v16c0 7-3 11-8 13-5-2-8-6-8-13z" fill="currentColor"/>'
-      . '<path d="M24 9h-6v7c0 5 3 8 6 9M40 9h6v7c0 5-3 8-6 9" stroke="currentColor" stroke-width="2.6" fill="none"/>'
-      . '<rect x="30" y="35" width="4" height="12" fill="currentColor"/>'
-      . '<path d="M22 47h20l2 6H20z" fill="currentColor"/>'],
-    // Continental: as alças largas, silhueta de "orelhuda".
+        '<defs><linearGradient id="tc-copa-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".64" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient></defs><path d="M24.5 11c-4.6.4-6.8 3.4-6.8 7s2.3 6.2 5.2 7M39.5 11c4.6.4 6.8 3.4 6.8 7s-2.3 6.2-5.2 7" stroke="currentColor" stroke-width="2.8" fill="none" stroke-linecap="round"/><path d="M24 8h16l-3.5 17c-.4 1.8-1.7 2.6-4.5 2.6s-4.1-.8-4.5-2.6z" fill="currentColor"/><path d="M24 8h16l-3.5 17c-.4 1.8-1.7 2.6-4.5 2.6s-4.1-.8-4.5-2.6z" fill="url(#tc-copa-g)"/><rect x="30" y="27" width="4" height="16" fill="currentColor"/><rect x="26.5" y="32" width="11" height="3" rx="1.5" fill="currentColor"/><path d="M23 43h18l3 8H20z" fill="currentColor"/><path d="M23 43h18l3 8H20z" fill="url(#tc-copa-g)"/>'],
+    // A orelhuda, e agora orelhuda de verdade: as alças são arcos de traço 5…
     'cont' => ['#c0c0c0',
-        '<path d="M22 7h20v15c0 8-4 13-10 15-6-2-10-7-10-15z" fill="currentColor"/>'
-      . '<path d="M22 8c-9 0-13 5-13 11s5 11 12 12M42 8c9 0 13 5 13 11s-5 11-12 12" '
-      . 'stroke="currentColor" stroke-width="4.5" fill="none" stroke-linecap="round"/>'
-      . '<rect x="29" y="37" width="6" height="8" fill="currentColor"/>'
-      . '<path d="M20 45h24l3 8H17z" fill="currentColor"/>'],
-    // Mundial: a bola de futebol em cima, com os gomos à mostra.
+        '<defs><linearGradient id="tc-cont-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".64" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient></defs><path d="M22 11c-9.5 0-13.5 5-13.5 11s4.8 10.6 12.5 11.6M42 11c9.5 0 13.5 5 13.5 11s-4.8 10.6-12.5 11.6" stroke="currentColor" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M21 8h22v13c0 7.5-4.4 12.4-11 14.4-6.6-2-11-6.9-11-14.4z" fill="currentColor"/><path d="M21 8h22v13c0 7.5-4.4 12.4-11 14.4-6.6-2-11-6.9-11-14.4z" fill="url(#tc-cont-g)"/><rect x="28.5" y="35" width="7" height="6" fill="currentColor"/><path d="M21 41h22l3 5H18z" fill="currentColor"/><rect x="16" y="46" width="32" height="6" rx="2" fill="currentColor"/><rect x="16" y="46" width="32" height="6" rx="2" fill="url(#tc-cont-g)"/>'],
+    // Bola PEQUENA num pe alto sobre base de dois degraus: silhueta de torre…
     'mundial' => ['#fbbf24',
-        '<circle cx="32" cy="19" r="13" fill="currentColor"/>'
-      . '<path d="M32 11l5.5 4-2 6.5h-7L26.5 15z" fill="#7c2d12"/>'
-      . '<path d="M32 6v5M19.5 16l6.5 -1M44.5 16l-6.5 -1M24 30l2.5-4M40 30l-2.5-4" '
-      . 'stroke="#7c2d12" stroke-width="1.6"/>'
-      . '<rect x="29" y="33" width="6" height="10" fill="currentColor"/>'
-      . '<rect x="19" y="43" width="26" height="7" rx="2" fill="currentColor"/>'],
-    // Chuteira: com travas embaixo, que é o que a distingue de um sapato.
+        '<defs><linearGradient id="tc-mundial-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".4"/><stop offset=".45" stop-color="#fff" stop-opacity=".04"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></linearGradient></defs><circle cx="32" cy="13" r="8.5" fill="currentColor"/><circle cx="32" cy="13" r="8.5" fill="url(#tc-mundial-g)"/><path d="M32 7.5l4 2.9-1.5 4.7h-5L28 10.4z" fill="#7c2d12" opacity=".7"/><path d="M28.5 21.5h7l-1.5 22h-4z" fill="currentColor"/><path d="M28.5 21.5h7l-1.5 22h-4z" fill="url(#tc-mundial-g)"/><rect x="15" y="43" width="34" height="6" rx="2" fill="currentColor"/><rect x="12" y="49" width="40" height="6" rx="2" fill="currentColor"/><rect x="12" y="49" width="40" height="6" rx="2" fill="url(#tc-mundial-g)"/>'],
+    // O único objeto DEITADO da coleção, e essa é a metade do trabalho: numa…
     'chuteira' => ['#fcd34d',
-        '<path d="M9 37c5-9 14-14 25-14 9 0 15 3 17 8-3 8-13 13-25 13-8 0-14-3-17-7z" fill="currentColor"/>'
-      . '<path d="M19 27l2.5 4M26 24l2.5 4M33 23l2.5 4" stroke="#78350f" stroke-width="2"/>'
-      . '<path d="M11 44h34l-1.5 5H12.5z" fill="currentColor" opacity=".7"/>'
-      . '<path d="M16 49v4M24 49v4M32 49v4M40 49v4" stroke="currentColor" stroke-width="2.6"/>'],
-    // Bola de Ouro: a bola sobre o pedestal, gomos visíveis.
+        '<defs><linearGradient id="tc-chuteira-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".64" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient></defs><path d="M11 42V27c0-3 1.8-5 4.5-5s4.5 2 4.5 5v1c4.5-1.5 9.5-1.6 15 0 7 2.2 12 5.6 15 10 1.4 2 .8 4-1.5 4z" fill="currentColor"/><path d="M11 42V27c0-3 1.8-5 4.5-5s4.5 2 4.5 5v1c4.5-1.5 9.5-1.6 15 0 7 2.2 12 5.6 15 10 1.4 2 .8 4-1.5 4z" fill="url(#tc-chuteira-g)"/><path d="M23 29.5l1.6 3.4M28.2 28.6l1.6 3.6M33.6 29.3l1.6 3.7" stroke="#78350f" stroke-width="1.9" stroke-linecap="round"/><path d="M11 42h37.5l-.8 4H11z" fill="currentColor"/><path d="M11 42h37.5l-.8 4H11z" fill="#000" opacity=".2"/><path d="M14 46h4.6l-.7 5h-3.2zM23 46h4.6l-.7 5h-3.2zM32 46h4.6l-.7 5h-3.2zM40.4 46h4.4l-.7 5h-3z" fill="currentColor"/>'],
+    // Prêmio de um homem só, então a bola é o troféu inteiro: raio 14 num…
     'bola_ouro' => ['#facc15',
-        '<circle cx="32" cy="21" r="14" fill="currentColor"/>'
-      . '<path d="M32 12l6 4.5-2.3 7h-7.4L26 16.5z" fill="#78350f"/>'
-      . '<path d="M32 7v5M18.5 18l7-1.5M45.5 18l-7-1.5M24.5 33l2-4.5M39.5 33l-2-4.5" '
-      . 'stroke="#78350f" stroke-width="1.7"/>'
-      . '<rect x="29" y="36" width="6" height="9" fill="currentColor"/>'
-      . '<rect x="20" y="45" width="24" height="7" rx="2" fill="currentColor"/>'],
-    // Rei da América: a coroa.
+        '<defs><linearGradient id="tc-bola_ouro-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".64" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient><radialGradient id="tc-bola_ouro-r" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".34"/></radialGradient></defs><circle cx="32" cy="20" r="14" fill="currentColor"/><path d="M32 11l6 4.4-2.3 7.1h-7.4L26 15.4z" fill="#78350f"/><path d="M32 6v5M18.5 17l7-1.6M45.5 17l-7-1.6M24.5 32l2.2-4.5M39.5 32l-2.2-4.5" stroke="#78350f" stroke-width="1.7"/><circle cx="32" cy="20" r="14" fill="url(#tc-bola_ouro-r)"/><path d="M28.5 34h7l1.5 10h-10z" fill="currentColor"/><rect x="21" y="44" width="22" height="4" rx="1" fill="currentColor"/><rect x="18" y="48" width="28" height="5.5" rx="2" fill="currentColor"/><rect x="18" y="48" width="28" height="5.5" rx="2" fill="url(#tc-bola_ouro-g)"/>'],
+    // Rei tem coroa, e coroa é a silhueta mais barata de reconhecer que existe…
     'rei_america' => ['#34d399',
-        '<path d="M12 41l-4-21 11 8 9-15 9 15 11-8-4 21z" fill="currentColor"/>'
-      . '<rect x="12" y="43" width="40" height="7" rx="2" fill="currentColor"/>'
-      . '<circle cx="20" cy="30" r="2.4" fill="#065f46"/><circle cx="32" cy="27" r="2.4" fill="#065f46"/>'
-      . '<circle cx="44" cy="30" r="2.4" fill="#065f46"/>'],
-    // Artilheiro: a bola no fundo da rede.
+        '<defs><linearGradient id="tc-rei_america-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".64" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient></defs><circle cx="7" cy="15" r="2.8" fill="currentColor"/><circle cx="32" cy="10" r="3" fill="currentColor"/><circle cx="57" cy="15" r="2.8" fill="currentColor"/><path d="M11 41 7 17l11 9 14-14 14 14 11-9-4 24z" fill="currentColor"/><path d="M11 41 7 17l11 9 14-14 14 14 11-9-4 24z" fill="url(#tc-rei_america-g)"/><circle cx="20" cy="31" r="2.4" fill="#065f46"/><circle cx="32" cy="28" r="2.6" fill="#065f46"/><circle cx="44" cy="31" r="2.4" fill="#065f46"/><rect x="10" y="41" width="44" height="8" rx="2.5" fill="currentColor"/><rect x="10" y="41" width="44" height="8" rx="2.5" fill="url(#tc-rei_america-g)"/>'],
+    // O problema da versão antiga era hierarquia invertida: a rede era um…
     'artilheiro' => ['#f97316',
-        '<circle cx="32" cy="26" r="12" fill="currentColor"/>'
-      . '<path d="M32 18l5 3.7-1.9 6h-6.2L27 21.7z" fill="#7c2d12"/>'
-      . '<path d="M12 14h40v30H12z" stroke="currentColor" stroke-width="2" fill="none" opacity=".55"/>'
-      . '<path d="M20 14v30M28 14v30M36 14v30M44 14v30M12 22h40M12 30h40M12 38h40" '
-      . 'stroke="currentColor" stroke-width=".8" opacity=".35"/>'],
-    // Copa do Mundo: o globo erguido por duas figuras, sobre a base redonda.
-    // É o troféu mais distinto do conjunto porque é o maior título do jogo.
-    'copa_mundo' => ['#fbbf24',
-        '<circle cx="32" cy="17" r="9" fill="currentColor"/>'
-      . '<path d="M23 17a9 9 0 0 1 18 0M32 8v18M24.5 12h15M24.5 22h15" '
-      . 'stroke="#78350f" stroke-width="1.1" fill="none" opacity=".65"/>'
-      . '<path d="M24 26c-2 6-1 11 3 15h10c4-4 5-9 3-15z" fill="currentColor"/>'
-      . '<path d="M28 41h8v6h-8z" fill="currentColor"/>'
-      . '<rect x="19" y="47" width="26" height="7" rx="3" fill="currentColor"/>'],
-    // Segunda continental: a mesma silhueta da orelhuda, menor e em bronze —
-    // a taça diz sozinha que vale menos, sem precisar de legenda.
+        '<defs><linearGradient id="tc-artilheiro-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".64" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient><radialGradient id="tc-artilheiro-r" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".34"/></radialGradient></defs><path d="M18 16v30M27 16v30M36 16v30M45 16v30M13 23h38M13 31h38M13 39h38" stroke="currentColor" stroke-width=".9" opacity=".32"/><rect x="8" y="11" width="48" height="4.5" rx="1.5" fill="currentColor"/><rect x="8" y="11" width="4.5" height="35" rx="1.5" fill="currentColor"/><rect x="51.5" y="11" width="4.5" height="35" rx="1.5" fill="currentColor"/><circle cx="32" cy="33" r="10.5" fill="currentColor"/><path d="M32 26l4.6 3.4-1.8 5.5h-5.6L27.4 29.4z" fill="#7c2d12"/><path d="M32 22.5v3.5M22.6 30.2l4.8-.8M41.4 30.2l-4.8-.8M27.5 41.6l1.7-3.3M36.5 41.6l-1.7-3.3" stroke="#7c2d12" stroke-width="1.4"/><circle cx="32" cy="33" r="10.5" fill="url(#tc-artilheiro-r)"/><rect x="6" y="46" width="52" height="5" rx="2" fill="currentColor"/><rect x="6" y="46" width="52" height="5" rx="2" fill="url(#tc-artilheiro-g)"/>'],
+    // O maior título do jogo, e o mais distinto: globo pequeno com meridiano e…
+    'copa_mundo' => ['#f59e0b',
+        '<defs><linearGradient id="tc-copa_mundo-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".64" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient><radialGradient id="tc-copa_mundo-r" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".34"/></radialGradient></defs><circle cx="32" cy="14" r="8" fill="currentColor"/><ellipse cx="32" cy="14" rx="3.7" ry="8" fill="none" stroke="#78350f" stroke-width="1.2" opacity=".5"/><path d="M24.2 12.4h15.6M25 17.6h14" stroke="#78350f" stroke-width="1.2" opacity=".5"/><circle cx="32" cy="14" r="8" fill="url(#tc-copa_mundo-r)"/><path d="M29.5 18c-5.5 4-9.5 11.5-11 23h7c1.4-10 4-16.5 7.5-19.5zM34.5 18c5.5 4 9.5 11.5 11 23h-7c-1.4-10-4-16.5-7.5-19.5z" fill="currentColor"/><path d="M29.5 18c-5.5 4-9.5 11.5-11 23h7c1.4-10 4-16.5 7.5-19.5zM34.5 18c5.5 4 9.5 11.5 11 23h-7c-1.4-10-4-16.5-7.5-19.5z" fill="url(#tc-copa_mundo-g)"/><rect x="17" y="41" width="30" height="5" rx="2" fill="currentColor"/><rect x="14" y="46" width="36" height="7" rx="3" fill="currentColor"/><rect x="14" y="46" width="36" height="7" rx="3" fill="url(#tc-copa_mundo-g)"/>'],
+    // Segunda divisão continental: ÂNFORA. Corpo bojudo que fecha num gargalo…
     'cont2' => ['#cd7f32',
-        '<path d="M24 12h16v12c0 6-3 10-8 12-5-2-8-6-8-12z" fill="currentColor"/>'
-      . '<path d="M24 15h-6v5c0 5 3 8 6 9M40 15h6v5c0 5-3 8-6 9" '
-      . 'stroke="currentColor" stroke-width="2.4" fill="none"/>'
-      . '<rect x="30" y="36" width="4" height="9" fill="currentColor"/>'
-      . '<rect x="22" y="45" width="20" height="6" rx="2" fill="currentColor"/>'],
-    // Terceira: menor ainda, e esverdeada como a Conference de verdade.
+        '<defs><linearGradient id="tc-cont2-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".64" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient></defs><path d="M26 13c-5 2-6.8 6.4-5 11.4M38 13c5 2 6.8 6.4 5 11.4" stroke="currentColor" stroke-width="3.2" fill="none" stroke-linecap="round"/><rect x="24.5" y="9" width="15" height="4.2" rx="1.6" fill="currentColor"/><path d="M27 13h10c5 4 8 10 8 16 0 8-6 13.5-13 13.5S19 37 19 29c0-6 3-12 8-16z" fill="currentColor"/><path d="M27 13h10c5 4 8 10 8 16 0 8-6 13.5-13 13.5S19 37 19 29c0-6 3-12 8-16z" fill="url(#tc-cont2-g)"/><rect x="29.5" y="42" width="5" height="4" fill="currentColor"/><rect x="23" y="46" width="18" height="6" rx="2" fill="currentColor"/><rect x="23" y="46" width="18" height="6" rx="2" fill="url(#tc-cont2-g)"/>'],
+    // Terceira divisão continental: peça moderna de CINTURA — boca larga com…
     'cont3' => ['#4ade80',
-        '<path d="M26 15h12v10c0 5-2.5 8-6 9.5-3.5-1.5-6-4.5-6-9.5z" fill="currentColor"/>'
-      . '<path d="M26 18h-5v4c0 4 2.5 6.5 5 7.5M38 18h5v4c0 4-2.5 6.5-5 7.5" '
-      . 'stroke="currentColor" stroke-width="2.2" fill="none"/>'
-      . '<rect x="30.5" y="35" width="3" height="9" fill="currentColor"/>'
-      . '<rect x="24" y="44" width="16" height="5.5" rx="2" fill="currentColor"/>'],
-    // Supercopa nacional: o prato raso de jogo único, sem alças.
+        '<defs><linearGradient id="tc-cont3-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".64" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient></defs><rect x="19" y="12" width="26" height="4.2" rx="1.6" fill="currentColor"/><path d="M21 16h22c-1 7.4-5 12-8 15 2.5 2.2 4.7 4.8 5.6 8H23.4c.9-3.2 3.1-5.8 5.6-8-3-3-7-7.6-8-15z" fill="currentColor"/><path d="M21 16h22c-1 7.4-5 12-8 15 2.5 2.2 4.7 4.8 5.6 8H23.4c.9-3.2 3.1-5.8 5.6-8-3-3-7-7.6-8-15z" fill="url(#tc-cont3-g)"/><rect x="24" y="41" width="16" height="4" fill="currentColor"/><rect x="20.5" y="45" width="23" height="6" rx="2" fill="currentColor"/><rect x="20.5" y="45" width="23" height="6" rx="2" fill="url(#tc-cont3-g)"/>'],
+    // Conceito: jogo unico, entao prato raso e nada mais — boca de 52 unidades…
     'supernac' => ['#94a3b8',
-        '<path d="M18 16h28v6c0 8-6 13-14 15-8-2-14-7-14-15z" fill="currentColor"/>'
-      . '<rect x="30" y="37" width="4" height="8" fill="currentColor"/>'
-      . '<rect x="21" y="45" width="22" height="6" rx="2" fill="currentColor"/>'],
-    // Supercopa continental: o mesmo prato, dourado e com a faixa.
+        '<defs><linearGradient id="tc-supernac-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".64" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient></defs><path d="M6 14h52c0 3.4-3.4 5.8-7 6.6C49.4 28 41.4 33 32 33S14.6 28 13 20.6C9.4 19.8 6 17.4 6 14z" fill="currentColor"/><path d="M6 14h52c0 3.4-3.4 5.8-7 6.6C49.4 28 41.4 33 32 33S14.6 28 13 20.6C9.4 19.8 6 17.4 6 14z" fill="url(#tc-supernac-g)"/><path d="M11 18h42" stroke="#000" stroke-width="1.4" opacity=".15"/><rect x="28" y="33" width="8" height="5" fill="currentColor"/><rect x="19" y="38" width="26" height="7" rx="2.5" fill="currentColor"/><rect x="19" y="38" width="26" height="7" rx="2.5" fill="url(#tc-supernac-g)"/>'],
+    // Mesma familia do supernac de proposito — as duas supercopas sao decisao…
     'supercont' => ['#d4af37',
-        '<path d="M17 15h30v7c0 8-6.5 13.5-15 15.5-8.5-2-15-7.5-15-15.5z" fill="currentColor"/>'
-      . '<path d="M17 22h30" stroke="#78350f" stroke-width="1.6" opacity=".5"/>'
-      . '<rect x="30" y="38" width="4" height="7" fill="currentColor"/>'
-      . '<rect x="20" y="45" width="24" height="6.5" rx="2" fill="currentColor"/>'],
-    // Luva de Ouro: o prêmio de quem defende, para o goleiro não ficar sem
-    // nenhum — os outros três individuais todos dependem de gol.
+        '<defs><linearGradient id="tc-supercont-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".64" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient></defs><path d="M13 20c-5 .3-7.5 2.4-7.5 4.6s2.2 4.4 6.5 4.8M51 20c5 .3 7.5 2.4 7.5 4.6s-2.2 4.4-6.5 4.8" stroke="currentColor" stroke-width="3.6" fill="none" stroke-linecap="round"/><path d="M13 16h38c0 3-2.6 5.2-6 6C43.6 28.6 38.4 33 32 33s-11.6-4.4-13-11c-3.4-.8-6-3-6-6z" fill="currentColor"/><path d="M13 16h38c0 3-2.6 5.2-6 6C43.6 28.6 38.4 33 32 33s-11.6-4.4-13-11c-3.4-.8-6-3-6-6z" fill="url(#tc-supercont-g)"/><path d="M17 23.5h30" stroke="#78350f" stroke-width="1.7" opacity=".4"/><rect x="28" y="33" width="8" height="5" fill="currentColor"/><rect x="20" y="38" width="24" height="7" rx="2.5" fill="currentColor"/><rect x="20" y="38" width="24" height="7" rx="2.5" fill="url(#tc-supercont-g)"/>'],
+    // A versao antiga era desenhada em CONTORNO (traco 2.6, miolo vazado) e…
     'luva_ouro' => ['#e0e7ff',
-        '<path d="M20 20c0-3 2-5 4-5s4 2 4 5v6M28 22c0-4 2-6 4.5-6s4.5 2 4.5 6v4" '
-      . 'stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round"/>'
-      . '<path d="M37 24c0-3.5 2-5.5 4-5.5s3.5 2 3.5 5.5v6" '
-      . 'stroke="currentColor" stroke-width="2.6" fill="none" stroke-linecap="round"/>'
-      . '<path d="M18 27c-2.5 0-4 2-3 4.5l4 9c2 4.5 6 7.5 11 7.5h5c7 0 11-4.5 11-11V25" '
-      . 'stroke="currentColor" stroke-width="2.6" fill="none" stroke-linejoin="round"/>'
-      . '<rect x="19" y="48" width="26" height="6" rx="2" fill="currentColor"/>'],
-    // Torneio continental de seleções: taça de alças abertas.
+        '<defs><linearGradient id="tc-luva_ouro-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".64" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient></defs><rect x="17.5" y="17" width="5.4" height="18" rx="2.7" fill="currentColor"/><rect x="25" y="12.5" width="5.4" height="22.5" rx="2.7" fill="currentColor"/><rect x="32.5" y="14" width="5.4" height="21" rx="2.7" fill="currentColor"/><rect x="40" y="18.5" width="5.2" height="16.5" rx="2.6" fill="currentColor"/><path d="M20 30l-8.6 4.8c-3 1.7-3.9 5-2 7.8 1.9 2.8 5.4 3.2 8.4 1.5l6.4-3.6z" fill="currentColor"/><path d="M15.5 30h32v8.5c0 5.2-4.2 8.5-9.5 8.5H25c-5.3 0-9.5-3.3-9.5-8.5z" fill="currentColor"/><path d="M15.5 30h32v8.5c0 5.2-4.2 8.5-9.5 8.5H25c-5.3 0-9.5-3.3-9.5-8.5z" fill="url(#tc-luva_ouro-g)"/><rect x="22" y="33" width="19" height="9" rx="4.5" fill="#fff" opacity=".2"/><rect x="15" y="45" width="34" height="8" rx="3" fill="currentColor"/><rect x="15" y="45" width="34" height="8" rx="3" fill="url(#tc-luva_ouro-g)"/>'],
+    // Torneio de selecoes: as alcas nao ficam do LADO da boca como em toda…
     'selecao_cont' => ['#38bdf8',
-        '<path d="M22 8h20v14c0 7-4 12-10 14-6-2-10-7-10-14z" fill="currentColor"/>'
-      . '<path d="M22 11h-7v6c0 6 3 10 7 11M42 11h7v6c0 6-3 10-7 11" '
-      . 'stroke="currentColor" stroke-width="2.8" fill="none"/>'
-      . '<rect x="29" y="36" width="6" height="10" fill="currentColor"/>'
-      . '<path d="M21 46h22l3 7H18z" fill="currentColor"/>'],
+        '<defs><linearGradient id="tc-selecao_cont-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity=".06"/><stop offset=".64" stop-color="#000" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient></defs><path d="M23 17C17 16 12.5 12 11.5 6M41 17c6-1 10.5-5 11.5-11" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/><circle cx="11" cy="5.5" r="2.8" fill="currentColor"/><circle cx="53" cy="5.5" r="2.8" fill="currentColor"/><path d="M22 14h20v10c0 7.2-4 12-10 14-6-2-10-6.8-10-14z" fill="currentColor"/><path d="M22 14h20v10c0 7.2-4 12-10 14-6-2-10-6.8-10-14z" fill="url(#tc-selecao_cont-g)"/><rect x="29" y="38" width="6" height="5" fill="currentColor"/><path d="M21 43h22l3 5H18z" fill="currentColor"/><rect x="17.5" y="48" width="29" height="5.5" rx="2" fill="currentColor"/><rect x="17.5" y="48" width="29" height="5.5" rx="2" fill="url(#tc-selecao_cont-g)"/>'],
 ];
 
 /**
@@ -563,17 +502,61 @@ const COPERO_TACAS = [
  * probabilidade VISÍVEIS. A probabilidade na tela é o coração do jogo — sem
  * ela a escolha vira chute, e com ela vira aposta.
  *
- * `quando` decide se o evento pode cair agora. `tipo` separa os que mexem em
- * OVR dos que mexem em clube.
+ * O QUE UMA CARTA PODE FAZER COM VOCÊ. Nenhuma destas chaves inventa sistema
+ * novo: cada uma cai numa alavanca que o motor já tinha e que nenhum evento
+ * acionava. Quem as consome é o `aplicarEfeito()` do copero.php — chave que
+ * não estiver lá é promessa que a tela faz e o jogo não cumpre.
+ *
+ *   ovr      ± overall na hora
+ *   jogos    ± jogos da próxima temporada, uma vez só
+ *   lesao    N temporadas PERDIDAS de verdade: liga a mesma flag `t.lesao`
+ *            do sorteio anual, come quase todos os jogos do ano, cobra o
+ *            overall em `evoluir` e conta pra conquista do osso duro
+ *   saida    você perde o clube: cai numa tela sem a carta de ficar, e
+ *            `motivo` (crise, ruptura, pedido, dispensa) escolhe o texto
+ *   mercado  abre uma janela de transferências extra, esta com opção de ficar
+ *   queima   o clube de agora não te contrata mais (mesmo slot da traição)
+ *   pico     ± anos de auge — dois anos a mais valem de 4 a 8 de overall
+ *   dur      ± durabilidade: decide se o fim é ladeira ou tobogã
+ *   semSel   N anos fora da seleção: sem convocação e sem título de seleção
+ *
+ * NÃO EXISTE `quando` AQUI, e é de propósito. Closure não serializa, o
+ * `json_encode` do copero.php jogava a chave fora, e o que sobrava era uma
+ * segunda lista de condições que ninguém executava — e que já tinha começado
+ * a divergir da que vale. A condição de cada evento mora num lugar só: o
+ * mapa `cabe` de eventoDaVez(), em games/games/copero.php. Evento novo aqui
+ * pede uma linha lá, senão ele passa a cair em qualquer idade.
+ *
+ * `peso` é o freio do catálogo: o sorteio de eventoDaVez é ponderado, e sem
+ * ele a crise financeira cairia tanto quanto o plano alimentar. Quanto mais
+ * dói, menos aparece. A exceção são os de janela rara (cirurgia, estreia,
+ * braçadeira), que levam peso alto porque a condição deles quase nunca abre.
+ * Evento sem `peso` vale 10.
  */
 function coperoEventos(): array
 {
     return [
+        // ── O COMEÇO ────────────────────────────────────────────────
         [
-            'id' => 'concentracao', 'tipo' => 'ovr',
+            'id' => 'estreia', 'peso' => 16,
+            'titulo' => 'A estreia no profissional',
+            'texto'  => 'O treinador vai te escalar entre os titulares pela primeira vez, contra um adversário direto.',
+            'cartas' => [
+                ['rotulo' => 'Jogar solto', 'efeitos' => [
+                    ['chance' => 55, 'ovr' => +4, 'jogos' => +6, 'texto' => 'Estreia dos sonhos'],
+                    ['chance' => 45, 'ovr' => -2, 'jogos' => -8, 'texto' => 'Trava em campo'],
+                ]],
+                ['rotulo' => 'Entrar no segundo tempo', 'efeitos' => [
+                    ['chance' => 100, 'ovr' => +1, 'texto' => 'Estreia discreta'],
+                ]],
+            ],
+        ],
+
+        // ── O CORPO: o que você faz com ele cobra ───────────────────
+        [
+            'id' => 'concentracao', 'peso' => 7,
             'titulo' => 'Concentração extra',
             'texto'  => 'Uma preparação especial pode melhorar seu jogo, mas o esforço extra pode cobrar seu preço.',
-            'quando' => fn($s) => $s['idade'] >= 18,
             'cartas' => [
                 ['rotulo' => 'Fazer', 'efeitos' => [
                     ['chance' => 65, 'ovr' => +4, 'texto' => '+4 OVR'],
@@ -585,77 +568,266 @@ function coperoEventos(): array
             ],
         ],
         [
-            'id' => 'treino_dobro', 'tipo' => 'ovr',
+            // A CARTA QUE MENTIA. O efeito se chamava 'Lesão' e só mexia em
+            // overall — a flag de lesão de verdade passava ao lado. Agora a
+            // palavra custa o que ela diz que custa: a temporada.
+            'id' => 'treino_dobro', 'peso' => 8,
             'titulo' => 'Treino em dobro',
-            'texto'  => 'Dois treinos por dia para melhorar seu desempenho.',
-            'quando' => fn($s) => $s['idade'] >= 17 && $s['idade'] <= 30,
+            'texto'  => 'Dois treinos por dia para melhorar seu desempenho. O corpo tem um limite e ele não avisa antes.',
             'cartas' => [
-                ['rotulo' => 'Treinar forte', 'efeitos' => [
-                    ['chance' => 65, 'ovr' => +3, 'texto' => 'Titular'],
-                    ['chance' => 35, 'ovr' => -4, 'texto' => 'Lesão'],
+                ['rotulo' => 'Treinar dobrado', 'efeitos' => [
+                    ['chance' => 62, 'ovr' => +3, 'texto' => 'Evolução física'],
+                    ['chance' => 26, 'ovr' => -1, 'texto' => 'Desgaste sem ganho'],
+                    ['chance' => 12, 'lesao' => 1, 'ovr' => -2, 'texto' => 'Rompe e perde a temporada'],
                 ]],
                 ['rotulo' => 'Reduzir a carga', 'efeitos' => [
-                    ['chance' => 100, 'ovr' => 0, 'jogos' => -8, 'texto' => 'Menos minutos'],
+                    ['chance' => 100, 'jogos' => -8, 'texto' => 'Menos minutos'],
                 ]],
             ],
         ],
         [
-            'id' => 'dieta', 'tipo' => 'ovr',
+            'id' => 'noite_da_cidade', 'peso' => 9,
+            'titulo' => 'A noite antes do jogo',
+            'texto'  => 'Os companheiros chamam para sair na véspera. Ninguém do clube precisa ficar sabendo.',
+            'cartas' => [
+                ['rotulo' => 'Ir com o grupo', 'efeitos' => [
+                    ['chance' => 40, 'ovr' => +2, 'texto' => 'O grupo se solta em campo'],
+                    ['chance' => 35, 'jogos' => -8, 'texto' => 'A foto vaza'],
+                    ['chance' => 25, 'ovr' => -3, 'dur' => -0.15, 'texto' => 'Vira rotina'],
+                ]],
+                ['rotulo' => 'Dormir cedo', 'efeitos' => [
+                    ['chance' => 100, 'ovr' => 0, 'texto' => 'Nada acontece'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'dieta', 'peso' => 7,
             'titulo' => 'Plano alimentar',
-            'texto'  => 'Um nutricionista propõe ajustar sua dieta. Pode melhorar seu desempenho ou dar errado.',
-            'quando' => fn($s) => $s['idade'] >= 19,
+            'texto'  => 'Um nutricionista propõe reconstruir sua dieta do zero. Muda o corpo, e nem sempre pra melhor.',
             'cartas' => [
                 ['rotulo' => 'Seguir o plano', 'efeitos' => [
-                    ['chance' => 60, 'ovr' => +3, 'texto' => '+3 OVR'],
-                    ['chance' => 40, 'ovr' => -2, 'texto' => '-2 OVR'],
+                    ['chance' => 58, 'ovr' => +2, 'dur' => +0.15, 'texto' => 'Corpo responde melhor'],
+                    ['chance' => 42, 'ovr' => -2, 'texto' => 'Perde força no ano'],
                 ]],
-                ['rotulo' => 'Manter sua dieta', 'efeitos' => [
+                ['rotulo' => 'Manter a sua', 'efeitos' => [
                     ['chance' => 100, 'ovr' => 0, 'texto' => 'Sem mudanças'],
                 ]],
             ],
         ],
         [
-            'id' => 'polemica', 'tipo' => 'ovr',
+            'id' => 'preparador', 'peso' => 8,
+            'titulo' => 'Preparador físico particular',
+            'texto'  => 'Um preparador que trabalhou com veteranos de elite oferece um programa por fora do clube.',
+            'cartas' => [
+                ['rotulo' => 'Contratar', 'efeitos' => [
+                    ['chance' => 62, 'pico' => +2, 'dur' => +0.2, 'texto' => 'Auge esticado'],
+                    ['chance' => 38, 'ovr' => -2, 'jogos' => -5, 'texto' => 'Sobrecarga sem retorno'],
+                ]],
+                ['rotulo' => 'Só o trabalho do clube', 'efeitos' => [
+                    ['chance' => 100, 'ovr' => 0, 'texto' => 'Rotina normal'],
+                ]],
+            ],
+        ],
+
+        // ── A LESÃO: o ano que some ─────────────────────────────────
+        [
+            'id' => 'sacrificio', 'peso' => 8,
+            'titulo' => 'Jogar no sacrifício',
+            'texto'  => 'Você sente a coxa na semana da decisão. O departamento médico pede duas semanas. O treinador pede que você entre.',
+            'cartas' => [
+                ['rotulo' => 'Entrar em campo', 'efeitos' => [
+                    ['chance' => 46, 'ovr' => +4, 'texto' => 'Decide o jogo'],
+                    ['chance' => 24, 'ovr' => +1, 'jogos' => -6, 'texto' => 'Sai no primeiro tempo'],
+                    ['chance' => 30, 'lesao' => 1, 'ovr' => -2, 'texto' => 'Rompe e perde a temporada'],
+                ]],
+                ['rotulo' => 'Poupar', 'efeitos' => [
+                    ['chance' => 100, 'jogos' => -4, 'texto' => 'Assiste de fora'],
+                ]],
+            ],
+        ],
+        [
+            // A ÚNICA porta de saída sem risco aqui é 'Adiar a decisão' — e
+            // ela existe porque as outras duas cartas custam a temporada nos
+            // dois lados, o que faria da cirurgia a única carta do jogo sem
+            // escolha segura. O joelho só é decidido UMA VEZ por carreira:
+            // `S.jaOperou` fecha a janela, senão operar gera a lesão que
+            // reabre a própria cirurgia no ano seguinte, em círculo.
+            'id' => 'cirurgia', 'peso' => 22,
+            'titulo' => 'A cirurgia',
+            'texto'  => 'O joelho não respondeu ao tratamento. O cirurgião propõe uma operação que resolve de vez, com um ano fora.',
+            'cartas' => [
+                ['rotulo' => 'Operar', 'efeitos' => [
+                    ['chance' => 70, 'lesao' => 1, 'dur' => +0.2, 'texto' => 'Um ano fora, joelho refeito'],
+                    ['chance' => 30, 'lesao' => 1, 'ovr' => -5, 'dur' => -0.1, 'texto' => 'A cirurgia não pega'],
+                ]],
+                ['rotulo' => 'Tratamento conservador', 'efeitos' => [
+                    ['chance' => 55, 'ovr' => -1, 'texto' => 'Joga o ano com dor'],
+                    ['chance' => 45, 'lesao' => 1, 'ovr' => -4, 'dur' => -0.15, 'texto' => 'O joelho trava de novo'],
+                ]],
+                ['rotulo' => 'Adiar a decisão', 'efeitos' => [
+                    ['chance' => 100, 'ovr' => -2, 'texto' => 'Empurra o problema pra frente'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'dor_cronica', 'peso' => 10,
+            'titulo' => 'A dor que não passa',
+            'texto'  => 'O tornozelo dói em todo treino. O médico diz que dá para administrar, mas não para curar.',
+            'cartas' => [
+                ['rotulo' => 'Infiltrar e jogar', 'efeitos' => [
+                    ['chance' => 58, 'ovr' => +1, 'jogos' => +6, 'texto' => 'Aguenta o ano inteiro'],
+                    ['chance' => 42, 'lesao' => 1, 'ovr' => -3, 'dur' => -0.2, 'texto' => 'O tornozelo cede'],
+                ]],
+                ['rotulo' => 'Reduzir o calendário', 'efeitos' => [
+                    ['chance' => 100, 'jogos' => -14, 'dur' => +0.15, 'texto' => 'Menos jogos, corpo inteiro'],
+                ]],
+            ],
+        ],
+
+        // ── O CLUBE: a porta que se fecha ───────────────────────────
+        [
+            // Os textos daqui foram reescritos pra não prometer o que o
+            // encanamento não faz: a saída é cobrada DEPOIS da temporada
+            // jogada, então nada aqui pode dizer 'imediata' nem 'agora'.
+            'id' => 'crise_clube', 'peso' => 7,
+            'titulo' => 'Crise financeira no clube',
+            'texto'  => 'O clube está há meses sem pagar salários e o elenco discute ir à Justiça.',
+            'cartas' => [
+                ['rotulo' => 'Rescindir agora', 'efeitos' => [
+                    ['chance' => 100, 'saida' => 1, 'motivo' => 'crise', 'texto' => 'Você vai ter que achar clube'],
+                ]],
+                ['rotulo' => 'Esperar o clube resolver', 'efeitos' => [
+                    ['chance' => 45, 'jogos' => +6, 'texto' => 'Salários em dia'],
+                    ['chance' => 35, 'ovr' => -3, 'jogos' => -12, 'texto' => 'O elenco desmonta'],
+                    ['chance' => 20, 'saida' => 1, 'ovr' => -2, 'motivo' => 'crise', 'texto' => 'O clube te libera'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'novo_tecnico', 'peso' => 9,
+            'titulo' => 'Troca de treinador',
+            'texto'  => 'Chega um treinador novo, com ideias próprias e um elenco inteiro para reavaliar.',
+            'cartas' => [
+                ['rotulo' => 'Se adaptar ao esquema', 'efeitos' => [
+                    ['chance' => 55, 'ovr' => +2, 'jogos' => +5, 'texto' => 'Vira peça do time'],
+                    ['chance' => 45, 'jogos' => -10, 'texto' => 'Não entra nos planos'],
+                ]],
+                ['rotulo' => 'Pedir para sair', 'efeitos' => [
+                    ['chance' => 100, 'saida' => 1, 'motivo' => 'pedido', 'texto' => 'Rescisão amigável'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'polemica', 'peso' => 8,
             'titulo' => 'Declaração polêmica',
-            'texto'  => 'Você critica publicamente o treinador após uma derrota dura, e o vestiário fica tenso.',
-            'quando' => fn($s) => $s['idade'] >= 22 && $s['ovr'] >= 70,
+            'texto'  => 'Você critica publicamente o treinador depois de uma derrota dura, e o vestiário fica tenso.',
             'cartas' => [
                 ['rotulo' => 'Pedir desculpas', 'efeitos' => [
-                    ['chance' => 100, 'ovr' => 0, 'jogos' => -10, 'texto' => 'Seus minutos diminuem'],
+                    ['chance' => 100, 'jogos' => -10, 'texto' => 'Perde espaço no time'],
                 ]],
                 ['rotulo' => 'Manter o que disse', 'efeitos' => [
-                    ['chance' => 45, 'ovr' => +2, 'texto' => 'O grupo te respeita'],
-                    ['chance' => 55, 'ovr' => -3, 'texto' => 'Você fica de fora'],
+                    ['chance' => 40, 'ovr' => +2, 'texto' => 'O grupo te respeita'],
+                    ['chance' => 35, 'jogos' => -14, 'queima' => 1, 'texto' => 'Isolado no elenco'],
+                    ['chance' => 25, 'saida' => 1, 'motivo' => 'ruptura', 'texto' => 'O clube te dispensa'],
                 ]],
             ],
         ],
         [
-            'id' => 'fiscal', 'tipo' => 'ovr',
-            'titulo' => 'Problemas fiscais',
-            'texto'  => 'Uma investigação fiscal coloca em dúvida sua permanência no país.',
-            'quando' => fn($s) => $s['idade'] >= 25 && $s['valor'] >= 8000000,
-            'cartas' => [
-                ['rotulo' => 'Encarar o processo', 'efeitos' => [
-                    ['chance' => 100, 'ovr' => -3, 'texto' => '-3 OVR pela distração'],
-                ]],
-                ['rotulo' => 'Se antecipar e negociar', 'efeitos' => [
-                    ['chance' => 55, 'ovr' => 0, 'texto' => 'Resolvido em silêncio'],
-                    ['chance' => 45, 'ovr' => -5, 'texto' => 'O caso vaza'],
-                ]],
-            ],
-        ],
-        [
-            'id' => 'capitao', 'tipo' => 'ovr',
+            'id' => 'capitao', 'peso' => 14,
             'titulo' => 'A braçadeira',
             'texto'  => 'O treinador te oferece a capitania. Vem com responsabilidade e com holofote.',
-            'quando' => fn($s) => $s['idade'] >= 24 && $s['ovr'] >= 75,
             'cartas' => [
                 ['rotulo' => 'Aceitar', 'efeitos' => [
-                    ['chance' => 70, 'ovr' => +3, 'texto' => 'Você cresce com ela'],
-                    ['chance' => 30, 'ovr' => -2, 'texto' => 'O peso atrapalha'],
+                    ['chance' => 68, 'ovr' => +3, 'texto' => 'Você cresce com ela'],
+                    ['chance' => 32, 'ovr' => -2, 'texto' => 'O peso atrapalha'],
                 ]],
                 ['rotulo' => 'Recusar', 'efeitos' => [
                     ['chance' => 100, 'ovr' => 0, 'texto' => 'Sem mudanças'],
+                ]],
+            ],
+        ],
+
+        // ── O MERCADO: a porta que se abre ──────────────────────────
+        [
+            // `queima` aqui é silenciosa enquanto você ficar: ofertas() já
+            // exclui o clube atual da lista, então a marca só aparece no dia
+            // em que você sair. Por isso o texto fala dos minutos, que é o
+            // que a pessoa sente no mesmo ano.
+            'id' => 'empresario', 'peso' => 8,
+            'titulo' => 'Troca de empresário',
+            'texto'  => 'Um agente grande te procura. Ele promete abrir portas que o seu atual não abre.',
+            'cartas' => [
+                ['rotulo' => 'Trocar de agente', 'efeitos' => [
+                    ['chance' => 55, 'mercado' => 1, 'texto' => 'Propostas na mesa'],
+                    ['chance' => 45, 'queima' => 1, 'jogos' => -6, 'texto' => 'O clube corta seus minutos'],
+                ]],
+                ['rotulo' => 'Ficar com quem está', 'efeitos' => [
+                    ['chance' => 100, 'ovr' => 0, 'texto' => 'Nada muda'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'assedio_gigante', 'peso' => 10,
+            'titulo' => 'Sondagem de um gigante',
+            'texto'  => 'Um clube muito acima do seu procura seu empresário. A diretoria avisa que não negocia.',
+            'cartas' => [
+                ['rotulo' => 'Forçar a saída', 'efeitos' => [
+                    ['chance' => 50, 'mercado' => 1, 'texto' => 'A porta abre'],
+                    // Sair brigado é SAÍDA: com `mercado` a tela ainda
+                    // oferecia a carta de ficar, e o texto virava mentira.
+                    ['chance' => 30, 'saida' => 1, 'motivo' => 'ruptura', 'jogos' => -12, 'queima' => 1, 'texto' => 'Você sai brigado'],
+                    ['chance' => 20, 'jogos' => -16, 'ovr' => -3, 'texto' => 'Fica e paga o preço'],
+                ]],
+                ['rotulo' => 'Recusar e ficar', 'efeitos' => [
+                    ['chance' => 100, 'ovr' => +1, 'texto' => 'O clube reconhece'],
+                ]],
+            ],
+        ],
+
+        // ── A SELEÇÃO e o nome sujo ─────────────────────────────────
+        [
+            'id' => 'selecao_briga', 'peso' => 12,
+            'titulo' => 'Corte da seleção',
+            'texto'  => 'O técnico da seleção te deixou de fora da lista. A imprensa te espera na saída do treino.',
+            'cartas' => [
+                ['rotulo' => 'Responder na imprensa', 'efeitos' => [
+                    ['chance' => 42, 'ovr' => +1, 'texto' => 'A pressão funciona'],
+                    ['chance' => 58, 'semSel' => 3, 'texto' => 'Três anos fora da seleção'],
+                ]],
+                ['rotulo' => 'Engolir', 'efeitos' => [
+                    ['chance' => 100, 'semSel' => 1, 'texto' => 'Um ano fora da seleção'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'investigacao', 'peso' => 6,
+            'titulo' => 'Convite suspeito',
+            'texto'  => 'Um intermediário oferece dinheiro para você segurar o resultado de um jogo.',
+            'cartas' => [
+                ['rotulo' => 'Aceitar', 'efeitos' => [
+                    ['chance' => 55, 'jogos' => +4, 'texto' => 'Ninguém desconfia'],
+                    // 'afastado' prometia perder jogos e não perdia nenhum:
+                    // o processo só se materializa na saída do ano seguinte.
+                    ['chance' => 45, 'saida' => 1, 'semSel' => 5, 'ovr' => -4, 'motivo' => 'ruptura', 'texto' => 'Investigado e denunciado'],
+                ]],
+                ['rotulo' => 'Denunciar', 'efeitos' => [
+                    ['chance' => 70, 'ovr' => +2, 'texto' => 'O vestiário te apoia'],
+                    ['chance' => 30, 'jogos' => -8, 'ovr' => -1, 'texto' => 'Você vira o problema'],
+                ]],
+            ],
+        ],
+        [
+            'id' => 'fiscal', 'peso' => 10,
+            'titulo' => 'Problemas fiscais',
+            'texto'  => 'Uma investigação fiscal coloca em dúvida sua permanência no país.',
+            'cartas' => [
+                ['rotulo' => 'Encarar o processo', 'efeitos' => [
+                    ['chance' => 55, 'ovr' => -3, 'texto' => 'A distração pesa'],
+                    ['chance' => 45, 'ovr' => -3, 'saida' => 1, 'motivo' => 'ruptura', 'texto' => 'O clube rescinde'],
+                ]],
+                ['rotulo' => 'Se antecipar e negociar', 'efeitos' => [
+                    ['chance' => 60, 'ovr' => 0, 'texto' => 'Resolvido em silêncio'],
+                    ['chance' => 40, 'ovr' => -5, 'texto' => 'O caso vaza'],
                 ]],
             ],
         ],

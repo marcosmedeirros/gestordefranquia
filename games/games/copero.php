@@ -684,6 +684,9 @@ button{font-family:inherit}
 .efeito.bom{background:rgba(34,197,94,.12);color:#4ade80}
 .efeito.ruim{background:rgba(239,68,68,.12);color:#f87171}
 .efeito.neutro{background:var(--panel3);color:var(--txt2)}
+/* Dá com uma mão e tira com a outra: um ano fora que devolve o joelho novo
+   não é verde nem vermelho, e pintar de um dos dois esconde metade. */
+.efeito.misto{background:rgba(245,158,11,.13);color:#fbbf24}
 .efeito .pct{opacity:.75;font-size:10.5px}
 .efeito.sorteado{outline:1px solid currentColor}
 
@@ -711,8 +714,9 @@ button{font-family:inherit}
 .linha-cab,.ano,.linha-pe{display:grid;grid-template-columns:44px minmax(0,1fr) 46px 56px 52px 52px;gap:8px;
   align-items:center}
 .linha-pe{margin-top:8px;padding:9px 8px 1px;border-top:1px solid var(--borda)}
-.linha-pe .pe-nome{font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
-  color:var(--txt3)}
+.linha-pe .pe-nome{display:flex;align-items:center;gap:6px;font-size:9.5px;font-weight:800;
+  letter-spacing:.8px;text-transform:uppercase;color:var(--txt3)}
+.linha-pe .pe-nome svg{flex:none}
 .linha-pe .ano-n b{font-size:13.5px}
 .linha-cab{font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--txt3);
   padding:0 8px 7px}
@@ -730,8 +734,14 @@ button{font-family:inherit}
 .ic .ic-punho{fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round}
 .ano{padding:4px 8px;border-radius:8px;font-size:12.5px}
 .ano + .ano{margin-top:1px}
-.ano.vazio{color:var(--txt3)}
-.ano.atual{background:var(--panel3)}
+/* O ano vazio é intencionalmente baixinho — é o que impede a escada dos
+   anos futuros de dominar a tela, como na referência. */
+.ano.vazio{color:var(--txt3);padding:1.5px 8px;font-size:11px}
+/* Destaque de verdade: contra o --panel3 a diferença de luminância era de
+   uns 14 pontos, quase invisível sob luz do dia. Azul com borda à esquerda
+   lê de relance em qualquer tela. */
+.ano.atual{background:rgba(59,130,246,.14);border-left:2px solid #3b82f6;
+  padding-left:6px}
 .ano-idade{display:inline-flex;align-items:center;justify-content:center;width:28px;height:22px;
   border-radius:6px;font-size:11.5px;font-weight:800;color:#0a0a0c}
 .ano-clube{display:flex;align-items:center;gap:8px;min-width:0}
@@ -873,16 +883,17 @@ button{font-family:inherit}
 
 .rodape{margin-top:26px;font-size:10.5px;color:var(--txt3);text-align:center;line-height:1.6}
 
-/* ── Vitrine ────────────────────────────────────────── */
-.vitrine{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 0 0;margin-top:12px;
-  border-top:1px solid var(--borda)}
-.vitrine.vazia{color:var(--txt3);font-size:10.5px;font-weight:800;letter-spacing:1px;
-  text-transform:uppercase;opacity:.55}
-.vitrine.vazia .taca{opacity:.4}
-.tacao{position:relative;display:inline-flex;align-items:center}
-.tacao b{position:absolute;right:-4px;bottom:-2px;background:var(--panel3);border-radius:6px;
-  padding:1px 5px;font-size:10px;font-weight:900}
+/* ── Taças na linha do ano ─────────────────────────────
+   A vitrine saiu: era mais uma caixa dentro da ficha, embaixo do OVR, e
+   repetia o que a linha do ano já sabia (t.titulos, t.liga). Agora a taça
+   mora dentro da própria célula do clube, empurrada pra direita. O
+   container é <i>, não <span> — ".ano-clube span" (linha 741) clipa
+   qualquer span descendente, e um <span> aqui viraria reticências. */
 .taca{filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
+.ano-tacas{display:inline-flex;align-items:center;gap:3px;margin-left:auto;flex:none;font-style:normal}
+.ano-tacas i{display:inline-flex;line-height:0;font-style:normal}
+.ano-tacas .tk-mais{display:none;font-size:9px;font-weight:800;color:var(--txt3);
+  background:var(--panel3);border-radius:5px;padding:1px 4px}
 
 /* ── Animações ──────────────────────────────────────── */
 @keyframes ovrPulso{0%{transform:scale(1)}45%{transform:scale(1.13)}100%{transform:scale(1)}}
@@ -984,12 +995,13 @@ button{font-family:inherit}
      precisa de 72 — saía cortado quase pela metade. Agora cabe; só nome de
      19 letras pra cima trunca, e aí com reticências, como deve ser. */
   .linha-cab,.ano,.linha-pe{grid-template-columns:32px minmax(0,1fr) 34px 32px 32px 32px;gap:5px}
-  .ano-n{gap:3px;font-size:12px}
+  .ano-n{gap:3px;font-size:11.5px}
   .ano-n .ic{width:9px;height:9px}
   .ano{padding:4px 6px;font-size:11.5px}
   .linha-cab{padding:0 6px 7px}
   .ano-clube{gap:6px}
-  .ano-n{font-size:11.5px}
+  .ano-tacas{gap:2px}
+  .ano-tacas .taca{width:12px;height:12px}
 }
 @media (max-width:760px){
   /* ── A tela do jogo no celular ────────────────────────────────────
@@ -1021,6 +1033,12 @@ button{font-family:inherit}
   /* A barra flutua por cima: sem esta folga ela tapa a última linha. */
   .rf-espaco{display:block;height:64px}
 
+  /* O padding do #app entra aqui, e não só no @440: a margem negativa do
+     .topo logo abaixo só encosta na borda quando os dois combinam, e entre
+     441 e 760px o #app ainda ficava com o padding base (18px 16px) — a
+     barra sobrava 5px pra dentro de cada lado em vez de sangrar de verdade. */
+  #app{padding:12px 11px 40px}
+
   .topo{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
     gap:8px;flex-wrap:nowrap;margin:-12px -11px 12px;padding:9px 11px;
     border-bottom:1px solid var(--borda)}
@@ -1037,13 +1055,19 @@ button{font-family:inherit}
   .ficha-corpo{grid-template-columns:minmax(0,1fr) auto;
     grid-template-areas:"tags idade" "info valor";
     gap:7px 10px;background:var(--panel2);border-radius:12px;padding:9px 11px}
-  .ficha-clube{font-size:16.5px;gap:7px}
+  /* O nome do clube sobe perto do peso do OVR — na referência os dois são
+     os pesos dominantes da ficha. Idade e Valor descem: são dado de apoio,
+     não achado de tela, e empatavam com o nome do clube em importância
+     visual sem merecer. */
+  .ficha-clube{font-size:18px;gap:7px}
   .ficha-liga{font-size:10.5px}
-  .ficha-num b{font-size:15px}
+  .ficha-num b{font-size:13px}
   .tag{padding:3px 8px;font-size:10.5px}
-  /* "Vitrine vazia" é uma linha inteira pra dizer que não tem nada. */
-  .vitrine.vazia{display:none}
-  .vitrine{margin-top:10px;padding-top:10px}
+  /* A marca d'água do escudo (132px) cabia atrás de uma ficha inteira; no
+     celular o .ficha-topo tem uns 68px de altura útil, e os 132px eram
+     cortados em cima e embaixo — virava mancha vertical bem em cima de
+     Idade e Valor. Encolhe pra caber dentro do bloco que a contém. */
+  .ficha-marca,.ficha-marca img,.ficha-marca .mono{width:86px!important;height:86px!important}
 
   /* A linha do tempo encolhe: são até dez linhas de números, e cada pixel
      de altura aqui é multiplicado por dez. */
@@ -1057,25 +1081,37 @@ button{font-family:inherit}
 
   .evento-caixa{padding:13px 12px}
   .evento h3{font-size:17px}
-  /* O parágrafo de contexto SAI no celular. Ele explica o que o título já
-     diz ("Sem espaço no elenco") e o que as próprias cartas dizem melhor —
-     e custava quatro linhas de tela em cima da decisão. No desktop ele
-     fica: lá o espaço não está em disputa. */
-  .evento p{display:none}
+  /* O texto de contexto volta — a referência mostra ele, e é o único que
+     explica o que está em jogo antes de escolher. Fica curto e apertado
+     (2 linhas, com reticências) em vez de sumir: quatro linhas inteiras é
+     que custava caro, não o texto em si. */
+  .evento p{font-size:11.5px;line-height:1.4;margin:0 0 10px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+  /* As opções de EVENTO não tinham override nenhum aqui — só as de CLUBE
+     (.carr-pista) tinham. A mesma tela alternava entre dois desenhos de
+     carta conforme o evento sorteado; agora os dois encolhem igual. */
+  .cartas{grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:6px}
+  .cartas .carta{padding:9px 8px}
+
+  /* O aviso legal não precisa do respiro de desktop: no celular ele soma
+     ~60px acima da barra fixa por causa só da margem. */
+  .rodape{margin-top:14px;font-size:9.5px}
 }
 @media (max-width:440px){
-  /* Em tela estreita idade e valor empilham: lado a lado eles comiam 100px
-     e sobrava quase nada pro nome do clube. */
-  .ficha-num{flex-direction:column;gap:2px}
-  .ficha-num b{font-size:16px}
-  /* 17px e não 20, mais o respiro apertado: junto com o apelido, é o que faz
-     190 dos 202 clubes do catálogo caberem inteiros numa tela de 375. */
-  .ficha-clube{font-size:17px;gap:7px}
-  .ficha-topo{gap:10px}
-  .ficha{padding:16px 14px}
+  /* 19px e não 20, mais o respiro apertado: junto com o apelido, é o que
+     faz 190 dos 202 clubes do catálogo caberem inteiros numa tela de 375. */
+  .ficha-clube{font-size:19px;gap:7px}
   .modos{grid-template-columns:1fr}
   .resumo-topo{grid-template-columns:1fr}
-  #app{padding:12px 11px 40px}
+
+  /* O corte das taças: só entra aqui, porque é só aqui que a célula do
+     clube aperta de verdade (136px, ~110 pro nome). Até 4 taças mostra
+     todas; da 5ª o JS já manda só 3 + "+N" (tk-mais) — o :not() abaixo
+     existe porque tk-mais também é <i> e sem ele o próprio "+N" seria
+     escondido pela contagem do nth-child. */
+  .ano-tacas.corta > i:nth-child(n+4):not(.tk-mais){display:none}
+  .ano-tacas.corta .tk-mais{display:inline-flex}
 }
 </style>
 </head>
@@ -2173,6 +2209,15 @@ function comecarCarreira(){
     pico: 24 + Math.floor(Math.random() * 8),
     durabilidade: (75 + Math.floor(Math.random() * 60)) / 100,
     picoOvr: 50, picoValor: 0, maiorForcaClube: 0, comecouAbaixo: false,
+    // O que as cartas deixam pendurado pro ano seguinte. Nasce zerado aqui,
+    // mas TODO consumo lê com `|| 0`: carreira salva antes destes campos
+    // existirem continua carregando sem quebrar.
+    //   lesaoPor    temporadas ainda a perder por lesão   (temporada)
+    //   semSelecao  anos ainda a cumprir fora da seleção  (temporada)
+    //   janela      'saida' | 'oferta' | null             (proximaFase)
+    //   motivoSaida o texto da tela de saída forçada      (blocoDecisao)
+    //   jaOperou    o joelho já foi decidido              (eventoDaVez)
+    lesaoPor: 0, semSelecao: 0, janela: null, motivoSaida: null, jaOperou: false,
     fase: 'oferta_base', evento: null, fim: false, resultado: null,
   };
   salvar(); render();
@@ -2553,18 +2598,56 @@ const EVENTOS = <?= json_encode(array_map(function ($e) {
 }, coperoEventos()), JSON_UNESCAPED_UNICODE) ?>;
 
 function eventoDaVez(){
-  // As condições de cada evento vivem aqui porque o servidor não consegue
-  // serializar closure — a lista lá é a fonte do CONTEÚDO, esta é do momento.
+  // AQUI MORA A CONDIÇÃO, e num lugar só. O catálogo do copero_motor.php não
+  // tem mais `quando`: closure não serializa, a chave era jogada fora no
+  // json_encode, e o que sobrava era uma segunda lista que ninguém executava
+  // e que já tinha começado a divergir desta. Evento novo lá pede uma linha
+  // aqui — quem não está no mapa cai em qualquer idade (`|| (()=>true)`).
+  //
+  // `ultima` é a temporada que ACABOU de ser jogada: jogarAnos empilha e só
+  // então chama proximaFase, que chama esta função.
+  const ultima = (S.temporadas || []).slice(-1)[0] || {};
   const cabe = {
-    concentracao: () => S.idade >= 18,
-    treino_dobro: () => S.idade >= 17 && S.idade <= 30,
-    dieta:        () => S.idade >= 19,
-    polemica:     () => S.idade >= 22 && S.ovr >= 70,
-    fiscal:       () => S.idade >= 25 && valorAtual() >= 8000000,
-    capitao:      () => S.idade >= 24 && S.ovr >= 75,
+    estreia:         () => S.idade <= 20 && (S.temporadas || []).length <= 2,
+    concentracao:    () => S.idade >= 18,
+    treino_dobro:    () => S.idade >= 17 && S.idade <= 30,
+    noite_da_cidade: () => S.idade >= 18 && S.idade <= 26,
+    dieta:           () => S.idade >= 19,
+    preparador:      () => S.idade >= 23,
+    sacrificio:      () => S.idade >= 20 && S.ovr >= 62,
+    // A cirurgia só existe pra quem acabou de se machucar, e só UMA VEZ por
+    // carreira: sem o `jaOperou`, operar gera a lesão que reabre a própria
+    // cirurgia no ano seguinte, e o joelho vira um laço.
+    cirurgia:        () => !!ultima.lesao && !S.jaOperou,
+    dor_cronica:     () => S.idade >= 30 && (S.temporadas || []).filter(t => t.lesao).length >= 1,
+    // Crise e treinador novo pedem raiz no clube: ser expulso de um lugar
+    // onde você chegou mês passado não dói.
+    crise_clube:     () => S.idade >= 19 && anosNoClube() >= 2,
+    novo_tecnico:    () => S.idade >= 19 && anosNoClube() >= 2,
+    polemica:        () => S.idade >= 22 && S.ovr >= 70,
+    capitao:         () => S.idade >= 24 && S.ovr >= 75 && anosNoClube() >= 2,
+    empresario:      () => S.idade >= 20 && S.ovr >= 68,
+    // Nenhum evento cai durante empréstimo — proximaFase retorna em
+    // 'fim_emprestimo' antes de chegar no ramo de evento. Não precisa de
+    // guarda de `S.emprestadoDe` aqui nem em nenhum dos outros.
+    assedio_gigante: () => S.idade >= 21 && S.ovr >= 76 && (S.clube || {}).forca < 88,
+    // Não cai de novo em quem já está cumprindo banimento: convocado() só
+    // olha overall, não sabe do castigo, e o corte empilharia 3+3 anos com
+    // um texto contando uma novidade que não é novidade nenhuma.
+    selecao_briga:   () => S.idade >= 22 && !(S.semSelecao > 0) && convocado(S.ovr, S.pais),
+    investigacao:    () => S.idade >= 21 && (S.clube || {}).forca <= 78,
+    fiscal:          () => S.idade >= 25 && valorAtual() >= 8000000,
   };
   const possiveis = EVENTOS.filter(e => (cabe[e.id] || (()=>true))());
-  return possiveis.length ? possiveis[Math.floor(Math.random()*possiveis.length)] : null;
+  if (!possiveis.length) return null;
+
+  // SORTEIO PONDERADO. Uniforme, com dezoito eventos, a crise financeira
+  // cairia tanto quanto o plano alimentar — e o que dói tem que ser raro pra
+  // continuar doendo. Evento sem `peso` vale 10.
+  const total = possiveis.reduce((s, e) => s + (e.peso || 10), 0);
+  let r = Math.random() * total;
+  for (const e of possiveis) { r -= (e.peso || 10); if (r <= 0) return e; }
+  return possiveis[possiveis.length - 1];
 }
 
 function valorAtual(){
@@ -2604,6 +2687,7 @@ async function assinar(clube){
 
   S.clube = clube;
   S.fase = 'jogando';
+  S.motivoSaida = null;          // o texto da saída forçada morre aqui
   if (!S.temporadas.length) {
     const l = dadosLiga(clube.liga);
     S.comecouAbaixo = !!(l && l.nivel >= 2);
@@ -2676,8 +2760,21 @@ function temporada(){
   // overall caía num ano ruim e ninguém sabia por quê. Fica mais provável com
   // a idade, e come mais da metade da temporada.
   const risco = 0.045 + Math.max(0, S.idade - 28) * 0.008;
-  const lesionado = Math.random() < risco;
-  if (lesionado) jogos = Math.max(2, Math.round(jogos * (ri(25,50) / 100)));
+
+  // A LESÃO ESCOLHIDA. Uma carta pode ter marcado esta temporada como perdida
+  // antes do dado rolar. O contador é decrescido AQUI, e só aqui — é o que
+  // faz 'perde a temporada' custar exatamente uma temporada. Carreira salva
+  // antes deste campo existir cai no `|| 0` e nunca entra no if.
+  const lesaoDeCarta = (S.lesaoPor || 0) > 0;
+  if (lesaoDeCarta) S.lesaoPor--;
+  const lesionado = lesaoDeCarta || Math.random() < risco;
+
+  // A de carta é mais dura que a de sorteio: come quase o ano inteiro. Mas
+  // sobram uns jogos de propósito — linha do ano em branco pareceria bug, e
+  // o boletim tem que mostrar o pouco que ele conseguiu jogar.
+  if (lesionado) {
+    jogos = Math.max(2, Math.round(jogos * ((lesaoDeCarta ? ri(8,22) : ri(25,50)) / 100)));
+  }
 
   // A conta da traição: a temporada seguinte à troca pelo rival é sob
   // pressão, e ela custa um quarto dos jogos.
@@ -2730,8 +2827,13 @@ function temporada(){
   // e do ano, não de onde você está jogando.
   S.ano = (S.ano || 2024);
   t.ano = S.ano;
-  if (convocado(S.ovr, S.pais)) t.selecao = true;
-  t.titulos = t.titulos.concat(titulosDaSelecao(S.ovr, S.ano));
+  // PORTA FECHADA NA SELEÇÃO. Sem convocação não tem torneio, e sem torneio
+  // não tem título — as duas linhas andam juntas de propósito: convocar sem
+  // poder ganhar, ou ganhar sem ser convocado, é boletim mentindo.
+  const foraDaSelecao = (S.semSelecao || 0) > 0;
+  if (foraDaSelecao) S.semSelecao--;
+  if (!foraDaSelecao && convocado(S.ovr, S.pais)) t.selecao = true;
+  if (!foraDaSelecao) t.titulos = t.titulos.concat(titulosDaSelecao(S.ovr, S.ano));
   S.ano++;
   return t;
 }
@@ -2818,6 +2920,34 @@ function proximaFase(){
     salvar(); render(); return;
   }
 
+  // A JANELA QUE UMA CARTA ABRIU. Ou você foi empurrado pra fora do clube
+  // ('saida'), ou apareceu proposta fora do ciclo de dois anos ('oferta').
+  //
+  // VEM AQUI, e não mais embaixo: logo depois do guard de empréstimo e ANTES
+  // do cabeEmprestimo(). Se ficasse depois, um garoto que rescindiu aos 18
+  // entrava num empréstimo aos 19 e a partir dali proximaFase retornava em
+  // 'fim_emprestimo' todo ano — a saída ficava pendurada e só caía dois ou
+  // três anos depois, contra um clube que já não era o mesmo e com um texto
+  // falando de uma crise que tinha acabado.
+  //
+  // Consequência escolhida também não concorre com dado: por isso vem antes
+  // do sorteio de fase lá embaixo.
+  if (S.janela) {
+    const forcada = S.janela === 'saida';
+    S.janela = null;
+    if (!forcada) S.motivoSaida = null;
+    S.opcoes = ofertas(3, S.clube ? [S.clube.nome] : []);
+    // A janela de mercado de dois anos só é queimada se alguém apareceu:
+    // castigar duas vezes por um evento que passou em silêncio é castigo
+    // que a carta não prometeu.
+    if (S.opcoes.length) S.ultimoMercado = S.idade;
+    // Lista vazia NÃO cai fora em silêncio. As duas telas abaixo sempre
+    // desenham pelo menos uma carta (aposentar-se numa, ficar no clube na
+    // outra), então a carreira nunca congela numa tela sem decisão.
+    S.fase = forcada ? 'saida_forcada' : 'mercado';
+    salvar(); render(); return;
+  }
+
   // E o empréstimo em si é um evento como os outros: só aparece quando cabe
   // (jovem, em clube grande demais pro seu nível) e nem sempre.
   if (cabeEmprestimo() && !S.recusouEmprestimo && Math.random() < 0.62) {
@@ -2850,6 +2980,53 @@ function proximaFase(){
   salvar(); render();
 }
 
+/**
+ * O QUE UMA CARTA FAZ COM VOCÊ.
+ *
+ * Um lugar só conhece as chaves de efeito, e cada uma delas cai numa alavanca
+ * que o motor JÁ TINHA e que nenhum evento acionava: a lesão liga a mesma
+ * flag do sorteio anual, a saída cai na mesma janela do mercado, a ponte
+ * queimada usa o mesmo slot da traição ao rival, e pico e durabilidade são os
+ * dados escondidos que `evoluir` já lê. Nada aqui é sistema novo.
+ *
+ * O que precisa sobreviver ao avanço do ano vira campo em S e é consumido em
+ * UM lugar só: `lesao` e `semSel` em temporada(), `saida`/`mercado` em
+ * proximaFase(). Carreira salva no localStorage antes destes campos existirem
+ * não os tem, então todo consumo lê com `|| 0`.
+ */
+function aplicarEfeito(ef, ev){
+  S.ovr = Math.max(35, Math.min(99, S.ovr + (ef.ovr || 0)));
+  S.jogosBonus = ef.jogos || 0;
+
+  // Temporadas perdidas e anos de castigo SOMAM, não sobrescrevem: duas
+  // cartas ruins seguidas custam dois anos, e é justo que custem.
+  if (ef.lesao)  S.lesaoPor   = (S.lesaoPor   || 0) + ef.lesao;
+  if (ef.semSel) S.semSelecao = (S.semSelecao || 0) + ef.semSel;
+
+  // O JOELHO SE DECIDE UMA VEZ. A cirurgia só cai depois de uma temporada
+  // lesionada — e ela mesma produz a lesão que reabriria a própria janela no
+  // ano seguinte. Esta marca corta o laço, e nunca é zerada: é permanente de
+  // propósito, como o contador de traição ao rival.
+  if (ef.lesao && ev && ev.id === 'cirurgia') S.jaOperou = true;
+
+  // A janela do ano que vem. 'saida' não deixa ficar; 'oferta' deixa — e
+  // saída ganha da oferta se as duas caírem na mesma carta.
+  if (ef.saida)   { S.janela = 'saida'; S.motivoSaida = ef.motivo || null; }
+  if (ef.mercado) { S.janela = S.janela || 'oferta'; }
+
+  // A ponte queimada: o clube de agora não te procura mais. Mesmo slot que a
+  // troca pelo rival já usa — é um só, e é de propósito. Enquanto você ficar
+  // aqui ela é invisível (ofertas() já exclui o clube atual); ela aparece no
+  // dia em que você sair.
+  if (ef.queima && S.clube) S.marcadoPor = S.clube.nome;
+
+  // Os dados escondidos. Já nascem em comecarCarreira e `evoluir` já os lê
+  // com valor padrão, então carreira antiga aguenta. O teto do pico é 32 e
+  // não 34: crescer até os 34 achata a curva de envelhecimento inteira.
+  if (ef.pico) S.pico = Math.max(21, Math.min(32, (S.pico || 27) + ef.pico));
+  if (ef.dur)  S.durabilidade = Math.max(0.55, Math.min(1.9, (S.durabilidade || 1) + ef.dur));
+}
+
 /** Aplica a carta escolhida, mostra o que saiu e segue. */
 async function escolherCarta(i){
   const carta = S.evento.cartas[i];
@@ -2866,8 +3043,7 @@ async function escolherCarta(i){
 
   S.resultado = {carta: i, efeito: ef};
   const antes = S.ovr;
-  S.ovr = Math.max(35, Math.min(99, S.ovr + (ef.ovr || 0)));
-  S.jogosBonus = ef.jogos || 0;
+  aplicarEfeito(ef, S.evento);
   salvar(); render();
 
   await animarOvr(antes, S.ovr);
@@ -2937,7 +3113,7 @@ function render(){
               <div class="ficha-tags">
                 <span class="tag">${bandeira(S.pais,17)} ${esc(S.pais)}</span>
                 <span class="tag pos" title="${esc(POSICOES[S.posicao] ? POSICOES[S.posicao][0] : S.posicao)}">#${S.numero} ${esc(S.posicao)}</span>
-                ${convocado(S.ovr, S.pais) ? `<span class="tag sel">★ Seleção</span>` : ''}
+                ${convocado(S.ovr, S.pais) && !(S.semSelecao > 0) ? `<span class="tag sel">★ Seleção</span>` : ''}
                 ${ehIdolo() ? `<span class="tag idolo">Ídolo da casa</span>` : ''}
               </div>
               <div class="ficha-info">
@@ -2951,7 +3127,6 @@ function render(){
               <div class="ficha-num n-valor">Valor<b>${moeda(valorAtual())}</b></div>
             </div>
           </div>
-          ${vitrine()}
         </div>
         ${decisao ? `<div class="caixa evento-caixa">${decisao}</div>` : ''}
       </div>
@@ -2962,33 +3137,6 @@ function render(){
     ${rodapeDeAtalhos()}`;
 }
 
-/**
- * A vitrine de troféus.
- *
- * Agrupada por competição e com a contagem: quatro Champions viram uma taça
- * com ×4, não quatro desenhos iguais em fila. Vazia, diz que está vazia —
- * espaço em branco pareceria coisa que não carregou.
- */
-function vitrine(){
-  const conta = {};
-  const ligaDe = {};
-  (S.temporadas || []).forEach(t => (t.titulos || []).forEach(id => {
-    conta[id] = (conta[id] || 0) + 1;
-    if (!ligaDe[id]) ligaDe[id] = t.liga;
-  }));
-  const ids = Object.keys(conta);
-  if (!ids.length) {
-    return `<div class="vitrine vazia">${taca('copa', 26)}<span>Vitrine vazia</span></div>`;
-  }
-  const ordem = ['mundial','cont','liga','copa',
-                 'bola_ouro','rei_america','chuteira','luva_ouro','artilheiro'];
-  ids.sort((a,b) => ordem.indexOf(a) - ordem.indexOf(b));
-  return `<div class="vitrine">${ids.map(id => `
-    <span class="tacao" title="${esc(nomeDaTaca(id, ligaDe[id]))}">
-      ${taca(id, 34)}${conta[id] > 1 ? `<b>×${conta[id]}</b>` : ''}
-    </span>`).join('')}</div>`;
-}
-
 function blocoDecisao(){
   if (S.fase === 'oferta_base') {
     if (!S.opcoes) S.opcoes = ofertas(3, [], true);
@@ -2997,8 +3145,14 @@ function blocoDecisao(){
       ${cartasDeClube(S.opcoes)}</div>`;
   }
   if (S.fase === 'mercado') {
+    // Janela sem oferta nenhuma existe (uma carta pode abrir a janela num
+    // momento em que ninguém te quer). A frase muda junto: dizer 'chegaram
+    // ofertas' com a grade só mostrando 'ficar no clube' é mentira na tela.
+    const veio = (S.opcoes || []).length;
     return `<div class="evento"><h3>Janela de transferências</h3>
-      <p>Chegaram ofertas depois do seu último trecho de carreira. Você pode aceitar uma ou ficar no clube.</p>
+      <p>${veio
+        ? 'Chegaram ofertas depois do seu último trecho de carreira. Você pode aceitar uma ou ficar no clube.'
+        : 'A janela abriu e ninguém apareceu. Você segue no clube.'}</p>
       ${cartasDeClube(S.opcoes, true)}</div>`;
   }
   if (S.fase === 'emprestimo') {
@@ -3040,6 +3194,22 @@ function blocoDecisao(){
         return gradeDeOpcoes(cs.join(''));
       })()}</div>`;
   }
+  // VOCÊ ESTÁ FORA, e não foi você que decidiu. É a mesma grade do fim de
+  // ciclo sem a carta de ficar: o clube não é mais uma opção. O motivo só
+  // escolhe o texto, é lido apenas aqui, e some assim que você assina.
+  if (S.fase === 'saida_forcada') {
+    const MOTIVOS = {
+      crise:    'O clube não tem caixa pro seu salário e rescindiu o contrato. Você precisa de time.',
+      ruptura:  'Depois do que aconteceu, sua permanência virou insustentável. Você está de saída.',
+      pedido:   'Você pediu para sair e o clube liberou. Agora precisa de time pra próxima temporada.',
+      dispensa: 'A diretoria decidiu tirar você do elenco. Não há proposta de renovação.',
+    };
+    const vazio = !(S.opcoes || []).length;
+    return `<div class="evento"><h3>Você está fora do clube</h3>
+      <p>${MOTIVOS[S.motivoSaida] || MOTIVOS.dispensa}${vazio
+        ? ' Nenhum clube apareceu nesta janela.' : ''}</p>
+      ${cartasDeClube(S.opcoes, false, true)}</div>`;
+  }
   if (S.fase === 'fim_ciclo') {
     return `<div class="evento"><h3>Fim de ciclo</h3>
       <p>Seu clube decidiu não renovar. Escolha o próximo passo da sua carreira.</p>
@@ -3055,7 +3225,18 @@ function blocoDecisao(){
           return `<button class="carta${cls}" ${res?'disabled':''} onclick="escolherCarta(${i})">
             <b>${esc(c.rotulo)}</b>
             ${c.efeitos.map(e => {
-              const tom = (e.ovr||0) > 0 ? 'bom' : ((e.ovr||0) < 0 || e.jogos ? 'ruim' : 'neutro');
+              // O TOM DA TARJA. A regra antiga só conhecia `ovr` e `jogos`, e
+              // `|| e.jogos` pintava de vermelho até um `jogos: +6`. Com as
+              // chaves novas ela pintava doze dos quarenta efeitos errado —
+              // 'Você vai ter que achar clube' saía em cinza, como se nada
+              // acontecesse. Agora cada chave declara de que lado ela está, e
+              // quem tem os dois lados sai como misto em vez de mentir pra um.
+              const bom  = (e.ovr||0) > 0 || (e.jogos||0) > 0 || (e.pico||0) > 0
+                        || (e.dur||0) > 0 || !!e.mercado;
+              const ruim = (e.ovr||0) < 0 || (e.jogos||0) < 0 || (e.pico||0) < 0
+                        || (e.dur||0) < 0 || !!e.lesao || !!e.saida || !!e.queima
+                        || !!e.semSel;
+              const tom = ruim ? (bom ? 'misto' : 'ruim') : (bom ? 'bom' : 'neutro');
               const sorteado = escolhida && res.efeito.texto === e.texto ? ' sorteado' : '';
               return `<span class="efeito ${tom}${sorteado}">
                 <span>${esc(e.texto)}</span>
@@ -3154,6 +3335,38 @@ function setaMov(mov){
   return '';
 }
 
+// A ordem de prestígio pra desempatar quando um ano tem título demais pra
+// caber. Cobre as 15 taças — a vitrine antiga só cobria 9, e as 6 de fora
+// (copa_mundo entre elas) caíam no início da lista por acidente, não por
+// mérito. Aqui não sobra nenhuma de fora.
+const ORDEM_TACAS = ['copa_mundo','mundial','cont','liga','copa','cont2','cont3',
+  'bola_ouro','artilheiro','chuteira','luva_ouro','supernac','supercont',
+  'selecao_cont','rei_america'];
+
+/**
+ * As taças do ano, dentro da célula do clube.
+ *
+ * A vitrine ficava embaixo do OVR e repetia o que a linha do ano já lê de
+ * t.titulos/t.liga — agora mora aqui, empurrada pra direita da célula.
+ * Até 4 aparecem inteiras; da 5ª em diante ficam as 3 de mais prestígio e
+ * o resto vira "+N" (o corte em si é decisão do CSS, ver @media 440px:
+ * sem isso o nome do clube — "Sport Recife" e companhia — voltaria a
+ * truncar num ano de conquista boa, exatamente o problema que os 136px
+ * medidos ali já resolveram pro caso comum).
+ */
+function tacasDoAno(t){
+  const ids = [...new Set(t.titulos || [])]
+    .sort((a, b) => ORDEM_TACAS.indexOf(a) - ORDEM_TACAS.indexOf(b));
+  if (!ids.length) return '';
+  const corta = ids.length > 4;
+  const visiveis = ids.map(id =>
+    `<i class="tk" title="${esc(nomeDaTaca(id, t.liga))}">${taca(id, 14)}</i>`).join('');
+  const extra = corta
+    ? `<i class="tk-mais" title="${esc(ids.slice(3).map(id => nomeDaTaca(id, t.liga)).join(' · '))}">+${ids.length - 3}</i>`
+    : '';
+  return `<i class="ano-tacas${corta ? ' corta' : ''}">${visiveis}${extra}</i>`;
+}
+
 function linhaDoTempo(){
   const porIdade = {};
   S.temporadas.forEach(t => { porIdade[t.idade] = t; });
@@ -3186,7 +3399,7 @@ function linhaDoTempo(){
       const vazio = (v) => nova ? '' : v;
       html += `<div class="ano${nova ? ' entrando' : ''}" data-idade="${i}">
         <span class="ano-idade" style="background:${corDoClube(t.clube)}">${i}</span>
-        <span class="ano-clube" title="${esc(t.clube)}">${escudo(c, 20)}<span>${esc(nomeCurto(t.clube))}</span>${setaMov(t.movimento)}${selosDoAno(t)}</span>
+        <span class="ano-clube" title="${esc(t.clube)}">${escudo(c, 20)}<span>${esc(nomeCurto(t.clube))}</span>${setaMov(t.movimento)}${selosDoAno(t)}${vazio(tacasDoAno(t))}</span>
         <span class="ano-ovr" style="background:${cor}">${t.ovr}</span>
         <span class="ano-n" data-alvo="${t.jogos}">${ICONES.jogos}<b>${vazio(t.jogos)}</b></span>${
           colunasDoBoletim().map(([,k]) => `<span class="ano-n" data-alvo="${t[k] || 0}">${ICONES[k] || ''}<b>${vazio(t[k] || 0)}</b></span>`).join('')}
@@ -3195,7 +3408,7 @@ function linhaDoTempo(){
       html += `<div class="ano atual">
         <span class="ano-idade" style="background:${corDoOvr(S.ovr)}">${i}</span>
         <span class="ano-clube" style="color:var(--txt3)"><i class="bi bi-question-circle"></i>
-          <span>${S.fase==='fim_ciclo'?'Decidindo…':'Escolhendo…'}</span></span>
+          <span>${(S.fase==='fim_ciclo'||S.fase==='saida_forcada')?'Decidindo…':'Escolhendo…'}</span></span>
         <span class="ano-ovr" style="background:${corDoOvr(S.ovr)}">${S.ovr}</span>
         <span></span><span></span><span></span></div>`;
     } else {
@@ -3207,7 +3420,7 @@ function linhaDoTempo(){
   const soma = (k) => S.temporadas.reduce((a, t) => a + (t[k] || 0), 0);
   html += `<div class="linha-pe">
     <span></span>
-    <span class="pe-nome">Carreira</span>
+    <span class="pe-nome">${bandeira(S.pais, 15)}<span>Carreira</span></span>
     <span></span>
     <span class="ano-n">${ICONES.jogos}<b>${soma('jogos')}</b></span>
     ${colunasDoBoletim().map(([,k]) =>
