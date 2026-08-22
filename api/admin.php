@@ -2613,6 +2613,56 @@ if ($method === 'POST') {
             }
             exit;
 
+        /**
+         * APAGA AS CONQUISTAS de um dos jogos de carreira, de todo mundo.
+         *
+         * Serve pro lançamento: quem jogou antes de o jogo estar pronto
+         * levou conquista com regra velha, e a lista tem que comecar do
+         * zero pra valer pra todos.
+         *
+         * O QUE ISTO NAO FAZ: nao devolve as moedas que ja foram pagas por
+         * essas conquistas. E de proposito — tirar moeda de quem ja gastou
+         * deixa saldo negativo. A consequencia, que precisa estar clara na
+         * tela: quem ja tinha vai poder ganhar de novo, e ser pago de novo.
+         * Se a ideia for zerar TUDO, o botao de zerar moedas fica do lado.
+         */
+        case 'games_zerar_conquistas':
+            ensureGamesSchema($pdo);
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            // Nome da tabela nunca vem do cliente: vem deste mapa. O jogo
+            // chega como apelido e e trocado aqui.
+            $tabelas = ['copero' => 'copero_conquistas', 'caminho' => 'caminho_desafios'];
+            $jogo = (string)($data['jogo'] ?? '');
+            if (!isset($tabelas[$jogo])) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Jogo inválido']);
+                exit;
+            }
+            try {
+                $tab = $tabelas[$jogo];
+                if (!tableExists($pdo, $tab)) {
+                    echo json_encode(['success' => true, 'afetados' => 0, 'pessoas' => 0,
+                        'aviso' => 'A tabela ainda não existe — ninguém conquistou nada.']);
+                    exit;
+                }
+                $antes = $pdo->query("SELECT COUNT(*) c, COUNT(DISTINCT id_usuario) p FROM {$tab}")
+                             ->fetch(PDO::FETCH_ASSOC) ?: ['c' => 0, 'p' => 0];
+                $pdo->exec("DELETE FROM {$tab}");
+                error_log(sprintf('[games_zerar_conquistas] %s zerado por user_id=%d (%d linhas, %d pessoas)',
+                    $jogo, (int)$user['id'], (int)$antes['c'], (int)$antes['p']));
+                echo json_encode(['success' => true,
+                    'afetados' => (int)$antes['c'], 'pessoas' => (int)$antes['p']]);
+            } catch (Throwable $e) {
+                error_log('[games_zerar_conquistas] ' . $e->getMessage());
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Erro ao zerar as conquistas.']);
+            }
+            exit;
+
         case 'games_admin_toggle':
             // Liga/desliga o "Admin Games" de um usuário — só admin geral mexe.
             ensureGamesSchema($pdo);

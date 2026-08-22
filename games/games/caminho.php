@@ -446,13 +446,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 .main{max-width:620px;margin:0 auto;padding:16px 12px 60px}
 
-/* ── O RODAPÉ DA AÇÃO ──────────────────────────────────────────────────
-   No desktop ele não é nada: `display:contents` dissolve a caixa e os
-   botões continuam no fim da decisão, onde sempre estiveram. Os atalhos
-   ficam escondidos porque lá em cima a barra existe. */
-.rodape-fixo{display:contents}
-.rf-acoes{display:contents}
-.rf-espaco{display:none}
+/* ── A CAIXA DA DECISÃO ────────────────────────────────────────────────
+   No desktop ela nao e nada: fica no fluxo, no fim da coluna, onde sempre
+   esteve. No celular ela GRUDA no rodape (media query mais abaixo) — a
+   escolha do ano fica a mao em qualquer altura da rolagem, do mesmo jeito
+   que no Copero. Vazia ela some: ha telas sem decisao e sem acao, e um
+   retangulo com borda e sombra no pe da tela nao diz nada. */
+.dec-caixa:empty{display:none}
+.rf-acoes{display:flex;gap:8px}
+.rf-acoes:empty{display:none}
+.rf-acoes > *{flex:1 1 0;min-width:0}
+.dec-espaco{display:none}
 
 /* DUAS COLUNAS — só a partir de 940px.
    Abaixo disso o grid vira uma coluna e tudo empilha na ordem do HTML, que
@@ -497,34 +501,54 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
      acao do momento. */
   .topbar{position:sticky;top:0;z-index:50}
 
-  .rodape-fixo{position:fixed;left:0;right:0;bottom:0;z-index:60;
-    display:flex;align-items:center;gap:8px;
-    padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));
+  /* A DECISAO INTEIRA GRUDA NO RODAPE — titulo, texto e cartas, nao so os
+     botoes. Antes so a acao descia, e a pergunta ficava no meio da rolagem:
+     dava pra clicar sem ler. Ela sai do fluxo, entao o .dec-espaco segura o
+     buraco, e a altura vem do JS (--dec-h) porque muda com o texto e com o
+     numero de cartas. */
+  .dec-caixa{position:fixed;left:0;right:0;bottom:0;z-index:60;
+    padding:11px 12px calc(11px + env(safe-area-inset-bottom,0px));
     background:var(--panel);border-top:1px solid var(--border);
-    box-shadow:0 -8px 20px rgba(0,0,0,.4)}
-  /* Sem ação — quando a escolha é por cartas — a barra fica só com os
-     atalhos, e eles se espalham em vez de ficarem espremidos num canto. */
-  .rf-acoes{display:flex;flex:1;min-width:0;gap:8px;justify-content:flex-end}
-  .rf-acoes:empty{display:none}
+    border-radius:16px 16px 0 0;max-height:58vh;overflow-y:auto;
+    box-shadow:0 -10px 26px rgba(0,0,0,.5)}
+  .dec-espaco{display:block;height:var(--dec-h,190px)}
+  .dec-caixa .dec-tit{font-size:17px;margin:0 0 3px}
+  /* O texto de contexto fica, curto: e o unico que explica o que esta em
+     jogo antes de escolher. Duas linhas com reticencias em vez de quatro. */
+  .dec-caixa .dec-sub{font-size:11.5px;line-height:1.4;margin-bottom:9px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .dec-caixa .carr{margin-top:0}
+  .dec-caixa .rf-acoes{margin-top:9px}
   /* `width:100%` mais o `min-width:auto` que todo item de flex traz de
-     fábrica: os dois botões se recusavam a encolher e o segundo saía da
-     tela — em 375px ele começava no pixel 371. Aqui a largura vem do
-     flex, e o min-width:0 deixa o texto quebrar antes de empurrar. */
-  .rodape-fixo .rf-acoes .btn{margin:0;flex:1 1 0;width:auto;min-width:0;padding:12px 10px;
+     fabrica: os dois botoes se recusavam a encolher e o segundo saia da
+     tela — em 375px ele comecava no pixel 371. Aqui a largura vem do flex,
+     e o min-width:0 deixa o texto quebrar antes de empurrar. */
+  .dec-caixa .rf-acoes .btn{margin:0;flex:1 1 0;width:auto;min-width:0;padding:12px 10px;
     font-size:14px;line-height:1.15}
-  /* No rodapé os dois ficam LADO A LADO mesmo em tela estreita: em coluna
+  /* No rodape os dois ficam LADO A LADO mesmo em tela estreita: em coluna
      a barra dobrava de altura e comia a tela que ela veio devolver. */
-  .rodape-fixo .rf-acoes .acoes-ano{flex:1 1 0;min-width:0;margin:0;flex-direction:row;gap:6px}
-  /* O secundário é `nowrap`: se pudesse encolher viraria "Parar por a…"
-     cortado em 46px. Ele fica do tamanho do próprio texto e quem cede é o
+  .dec-caixa .rf-acoes .acoes-ano{flex:1 1 0;min-width:0;margin:0;flex-direction:row;gap:6px}
+  /* O secundario e `nowrap`: se pudesse encolher viraria "Parar por a…"
+     cortado em 46px. Ele fica do tamanho do proprio texto e quem cede e o
      principal, que tem folga. */
-  .rodape-fixo .rf-acoes .acoes-ano .btn2{flex:0 0 auto;font-size:12.5px;padding:12px 11px}
-  /* A barra flutua por cima da página: sem esta folga ela tapa o último
-     bloco, que é justamente o "Desistir da carreira". */
-  /* 100 e não 60: com dois botões (a partir dos 33 anos) a barra passa de
-     70px de altura, e o espaço tem que caber no PIOR caso — ele fica no
-     fim da página, depois de tudo, onde sobrar não custa nada. */
-  .rf-espaco{display:block;height:100px}
+  .dec-caixa .rf-acoes .acoes-ano .btn2{flex:0 0 auto;font-size:12.5px;padding:12px 11px}
+  .dec-caixa .op-parar{margin-top:8px;padding:8px 10px;font-size:12px}
+  /* Tres cartas em 375px dao 113px de largura cada: no tamanho de desktop a
+     caixa passava de 285px, um terco da tela so pra escolher. Apertada ela
+     fica em ~215 e sobra tela pra ficha e pra trajetoria — que e o que se
+     olha ANTES de decidir. */
+  .dec-caixa .dec-card{padding:10px 7px 9px;gap:7px;border-radius:12px}
+  .dec-caixa .dec-card-tit{font-size:12px;letter-spacing:-.1px;line-height:1.2;min-height:2.4em}
+  .dec-caixa .dec-card-res{gap:4px}
+  .dec-caixa .dec-res{padding:5px 6px;gap:4px;border-radius:7px}
+  .dec-caixa .dec-res i{font-size:10px}
+  .dec-caixa .dec-res em{font-size:9.5px;line-height:1.2}
+  .dec-caixa .dec-res b{font-size:10.5px}
+  /* A carta da proposta segue a mesma dieta: escudo menor e nome de 11.5px
+     e o que faz "Rio Grande Valley Vipers" caber em 113px sem virar
+     "Rio Gran…" ja na primeira palavra. */
+  .dec-caixa .oferta-linha{padding:9px 5px;gap:5px}
+  .dec-caixa .ol-txt b{font-size:11.5px}
 
   .colunas-ano .col-principal{display:contents}
   .colunas-ano .bl-ficha{order:1}
@@ -1082,10 +1106,10 @@ tr.tit td{color:var(--red)}
    viewport não enxerga isso e deixava "Los Angeles Lakers" em 80px. */
 .trajeto{border:1px solid var(--border);border-radius:12px;background:var(--panel);overflow:hidden;
   container-type:inline-size}
-/* A JANELA DE DOZE ANOS. A lista desce do ano de agora pro primeiro, então
-   o ano que interessa já nasce no topo e o scroll é só pra quem quiser
-   descer a carreira. O cabeçalho e a linha da seleção ficam FORA dela,
-   ancorados. Substitui o corte com máscara + botão "ver a carreira
+/* A JANELA DE DOZE ANOS. A lista sobe do primeiro ano pro de agora, e a
+   janela rola sozinha pra deixar a idade atual NO MEIO (focarIdadeAtual):
+   o ano que interessa esta sempre a vista, com o passado em cima dele.
+   O cabeçalho e a linha da seleção ficam FORA dela, ancorados. Substitui o corte com máscara + botão "ver a carreira
    inteira": a informação era a mesma, mas exigia um toque pra chegar nela. */
 .tj-anos{--tj-h:28px;max-height:calc(var(--tj-h) * 12);overflow-y:auto;position:relative;
   overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--border2,#33333c) transparent}
@@ -1224,7 +1248,7 @@ tr.tit td{color:var(--red)}
    visível entre duas escolhas era a frase. */
 .dec-tit{margin:2px 0 4px}
 .dec-sub{margin-bottom:12px}
-.dec-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:11px}
+.dec-grade{display:grid;grid-template-columns:repeat(var(--cols,2),minmax(0,1fr));gap:11px}
 .dec-card{display:flex;flex-direction:column;gap:9px;background:var(--panel2);
   border:1px solid var(--border2);border-radius:15px;padding:14px 13px 13px;cursor:pointer;
   font-family:var(--font);color:var(--text);text-align:center;transition:.15s}
@@ -1383,14 +1407,14 @@ tr.tit td{color:var(--red)}
    cliques pra ver o que cabe na tela sem clique nenhum. Quando não cabem —
    celular, ou muitas opções —, o próprio grid empilha. */
 .carr{max-width:100%;margin-top:6px}
-.carr-pista{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;
+.carr-pista{display:grid;grid-template-columns:repeat(var(--cols,2),minmax(0,1fr));gap:8px;
   align-items:stretch}
 .carr-pista > *{min-width:0}
 @media (max-width:560px){
-  /* Ofertas de clube são LINHAS (escudo e nome ao lado) e continuam uma por
-     linha; as portas de uma decisão são cartas e cabem duas a duas. */
-  .carr-pista{grid-template-columns:1fr}
-  .carr-pista.duas{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px}
+  /* Continua em LINHA, so mais apertada. Empilhar era o que fazia a terceira
+     porta cair pra fora da dobra — e comparar duas coisas empilhadas custa
+     uma rolagem que a decisao nao deveria cobrar. */
+  .carr-pista{gap:6px}
 }
 
 /* ── JANELA DE TRANSFERÊNCIAS ────────────────────────────────────────── */
@@ -1408,8 +1432,11 @@ tr.tit td{color:var(--red)}
 .ol-txt small{display:block;font-size:10px;color:var(--text3);margin-top:3px;font-weight:700;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media (max-width:560px){
-  .oferta-linha{flex-direction:row;align-items:center;text-align:left;gap:11px;padding:10px 12px}
-  .ol-txt{flex:1}
+  /* Em pe, nao deitada: deitada (escudo ao lado do nome) so cabia uma
+     proposta por linha, e agora sao ate tres lado a lado. */
+  .oferta-linha{gap:6px;padding:10px 6px;border-radius:12px}
+  .ol-txt b{font-size:12px}
+  .ol-txt small{font-size:9px;margin-top:2px}
 }
 .op-parar{margin-top:10px;border-style:dashed;color:var(--text2)}
 .op-parar:hover{border-color:var(--red);color:var(--text)}
@@ -2437,13 +2464,14 @@ const DECISOES = [
 // Toda temporada trazer uma escolha transformava a decisão em formulário;
 // um ano que passa só com os números faz o ano seguinte pesar mais.
 function decisaoDoAno(){
-  // Nem todo ano tem. Era 85% no começo e 62% depois — quase toda temporada
-  // virava uma pergunta, e a carreira parecia um formulário. Com metade dos
-  // anos livres, a temporada volta a ser sobre jogar e a decisão que aparece
-  // pesa mais.
-  const chanceDeTer = S.anoFase <= 2 ? 0.6 : 0.45;
-  if (Math.random() > chanceDeTer) return null;
-
+  // TODO ANO TEM DECISÃO, como no Copero. Antes eram 60% no começo e 45%
+  // depois, e nos anos sorteados de fora sobrava um botão "Próxima
+  // temporada" — que não é escolha nenhuma, é um clique pra passar o tempo.
+  // O jogo é sobre decidir; um ano sem decisão é um ano sem jogo.
+  //
+  // Se nenhuma decisão couber nas condições (todas já usadas, jogador fora
+  // da liga, cota de risco esgotada), a função ainda devolve null e o botão
+  // volta como saída de emergência — melhor um botão do que uma tela morta.
   const recentes = S.decisoesUsadas || [];
 
   // A do clube ("fica ou pede troca") entra por fora do sorteio comum e
@@ -2483,7 +2511,16 @@ function decisaoDoAno(){
   const candidatas = ineditas.length ? ineditas
     : aplicaveis.slice().sort((a,b) => recentes.indexOf(a.id) - recentes.indexOf(b.id));
 
-  if (!candidatas.length) return null;
+  // Ultima linha antes de o ano ficar sem pergunta: se nada mais couber, a
+  // do clube volta mesmo tendo saido ha pouco. Ela e a unica que cabe em
+  // qualquer situacao de quem esta na liga, e um "Proxima temporada"
+  // sozinho na tela nao e escolha nenhuma.
+  if (!candidatas.length){
+    const cabeAgora = clube && (() => { try { return clube.quando(S); } catch(e){ return false; } })();
+    if (!cabeAgora) return null;
+    S.decisoesUsadas = ["clube", ...recentes].slice(0, 8);
+    return "clube";
+  }
   const escolhida = ineditas.length ? pick(ineditas) : candidatas[0];
 
   if (escolhida.risco) S.riscoUsado = (S.riscoUsado || 0) + 1;
@@ -3198,18 +3235,16 @@ function topo(){
  */
 function rodapeDeAcoes(acoes){
   if (!acoes) return '';
-  return `<div class="rodape-fixo"><div class="rf-acoes">${acoes}</div></div>`;
+  return `<div class="rf-acoes">${acoes}</div>`;
 }
 
 /** O espaço que a barra fixa ocupa. Vai por ÚLTIMO na página: é ele que
  *  garante que o fim do conteúdo não fique embaixo dela. */
-const espacoDaBarra = () => `<div class="rf-espaco" aria-hidden="true"></div>`;
+const espacoDaBarra = () => `<div class="dec-espaco" aria-hidden="true"></div>`;
 
 function render(){
   const r = renderTela();
-  // Depois de a árvore existir: travar a janela da trajetória em doze
-  // linhas medidas. Vale pra toda tela que desenha a súmula.
-  medirJanelaDaTrajetoria();
+  ajustarTela();
   return r;
 }
 
@@ -3825,8 +3860,7 @@ function telaFormacao(){
 
   const blocoDecisao =
     (S.mensagem ? `<div class="bpcard"><p class="dec-txt" style="margin:0">${S.mensagem}</p></div>` : "") +
-    decisao +
-    rodapeDeAcoes(acoes) +
+    `<div class="dec-caixa">${decisao}${rodapeDeAcoes(acoes)}</div>` +
     `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>` +
     espacoDaBarra();
 
@@ -3837,6 +3871,7 @@ function telaFormacao(){
     </div>
     <div class="col-lado">${sumula()}</div>
   </div>`;
+  ajustarTela();
 }
 
 function irAoDraft(){ S.fase = "draft"; S.draftRevelado = false; salvar(); telaDraft(); }
@@ -5106,7 +5141,7 @@ function mercadoHTML(){
             <b>${of.time === S.time ? "Ficar no " + esc(of.time) : esc(of.time)}</b>
             <small>${esc(of.liga || S.liga || "")}</small>
           </span>
-        </button>`).join(""))}
+        </button>`).join(""), "", ofertas.length)}
     ${podeParar ? `<button class="op op-parar" onclick="pendurar()">Pendurar as chuteiras
       <small>Encerra a carreira agora, com ${temporadasJogadas().length} temporadas e o que você já ganhou.</small>
     </button>` : ""}
@@ -5230,8 +5265,14 @@ const TITULOS_DECISAO = {
  * as opções ficam lado a lado: uma decisão se toma COMPARANDO as portas, e
  * empilhadas elas custavam meia tela pra mostrar duas.
  */
-function gradeDeOpcoes(cartasHtml, cls){
-  return `<div class="carr"><div class="carr-pista${cls ? " " + cls : ""}">${cartasHtml}</div></div>`;
+function gradeDeOpcoes(cartasHtml, cls, n){
+  // SEMPRE em linha, nunca uma embaixo da outra. O auto-fit com minmax
+  // dobrava pra baixo em tela estreita, e era exatamente o empilhamento que
+  // a linha veio tirar: duas ou tres portas lado a lado e o que deixa
+  // comparar num olhar so. As colunas vem do numero de opcoes — no maximo
+  // tres, que ja e o teto tanto das decisoes quanto das propostas.
+  const cols = Math.min(3, Math.max(1, n || 0));
+  return `<div class="carr"><div class="carr-pista${cls ? " " + cls : ""}" style="--cols:${cols}">${cartasHtml}</div></div>`;
 }
 
 function cartasDaDecisao(d){
@@ -5248,12 +5289,31 @@ function cartasDaDecisao(d){
             ${c >= 100 ? "" : linhaDeDesfecho(o.ruim, 100 - c, "")}
           </span>
         </button>`;
-      }).join(""), "duas")}`;
+      }).join(""), "duas", d.ops.length)}`;
 }
 
 function telaTemporada(){
   const st = S.ultimo;
   if (!st) return telaDraft();
+
+  // REDE DE SEGURANCA: nenhum ano chega a tela sem pergunta.
+  //
+  // jogarAno() sorteia a decisao, mas ele nao e a unica porta pra ca —
+  // renovacao de contrato, volta de lesao e o par do modo rapido tambem
+  // desembocam em telaTemporada, e por esses caminhos o ano nascia com um
+  // "Proxima temporada" solitario, que nao e escolha nenhuma. Aqui a
+  // decisao e sorteada na hora. So dispara uma vez: assim que aguardando
+  // fica true, o proximo desenho passa reto.
+  //
+  // Ano perdido (afastado) fica de fora de proposito — quem esta fora nao
+  // tem o que decidir, e a tela dele e justamente sobre isso.
+  if (!S.aguardando && !S.mercado && !S.desfecho && !S.afastado
+      && !S.encerrada && S.fase === "liga"){
+    S.decisaoId = decisaoDoAno();
+    S.aguardando = S.decisaoId !== null;
+    if (S.aguardando) salvar();
+  }
+
   const d = S.aguardando ? decisaoAtual() : null;
   const aposentar = S.idade >= 39 || (S.idade >= 33 && ovr(S.A,S.pos) < 68);
 
@@ -5266,8 +5326,14 @@ function telaTemporada(){
   // A ação do ano fica separada do resto da decisão: é ela que vai pro
   // rodapé fixo no celular. Quando a escolha é por cartas não há ação
   // nenhuma aqui — o que se faz é clicar numa carta.
-  const acoes = (S.mercado || (S.aguardando && d) || S.desfecho) ? "" : (
-    aposentar ? `<button class="btn" onclick="encerrar()">Pendurar as chuteiras</button>`
+  // Pendurar as chuteiras e a UNICA acao que convive com a decisao do ano.
+  // Agora que todo ano tem uma, "com decisao = sem botao" trancava a saida:
+  // aos 39 a carreira so acabaria pelo mercado. Ela fica embaixo das cartas,
+  // discreta, e o "Proxima temporada" volta a ser o que sempre devia ter
+  // sido — a saida de emergencia dos anos em que nada coube.
+  const acoes = (S.mercado || S.desfecho) ? "" : (
+    aposentar ? `<button class="btn${S.aguardando && d ? " btn2" : ""}" onclick="encerrar()">Pendurar as chuteiras</button>`
+    : (S.aguardando && d) ? ""
     : S.idade >= 33 ? `<div class="acoes-ano">
         <button class="btn" onclick="jogarAno()">${
           S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>
@@ -5288,9 +5354,11 @@ function telaTemporada(){
     // está na tela, a decisão do ano já foi tomada e não há o que escolher.
     // Era isso que o bloco "O que aconteceu" fazia errado — ficava por cima
     // da pergunta seguinte e empurrava ela pra fora da dobra.
-    (S.desfecho ? cartaDoDesfecho(S.desfecho) : "") +
-    (S.mercado ? mercadoHTML() : S.aguardando && d ? cartasDaDecisao(d) : "")
+    `<div class="dec-caixa">`
+    + (S.desfecho ? cartaDoDesfecho(S.desfecho) : "")
+    + (S.mercado ? mercadoHTML() : S.aguardando && d ? cartasDaDecisao(d) : "")
     + rodapeDeAcoes(acoes)
+    + `</div>`
     + `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>`
     + espacoDaBarra();
 
@@ -5303,6 +5371,7 @@ function telaTemporada(){
     </div>
     <div class="col-lado">${sumula()}</div>
   </div>`;
+  ajustarTela();
 }
 
 function decidir(i){
@@ -5750,11 +5819,13 @@ function trajetoPorIdade(){
     <span class="tj-n" data-alvo="${t.ast}"></span>`;
   const vazios = `<span class="tj-n"></span><span class="tj-n"></span><span class="tj-n"></span><span class="tj-n"></span>`;
 
-  // De cima pra baixo, do mais novo pro mais velho: o ano que acabou de
-  // acontecer é o que interessa, e ele ficava no fim de uma lista de vinte
-  // linhas. O cabeçalho continua no topo.
+  // De cima pra baixo, do PRIMEIRO ano pro de agora — a carreira lida na
+  // ordem em que aconteceu. Ja foi ao contrario, e por um motivo bom: o ano
+  // recem-jogado ficava no fim de uma lista de vinte linhas. O que resolve
+  // isso e a janela rolar sozinha ate ele (focarIdadeAtual), nao inverter a
+  // leitura da carreira — e assim os dois jogos contam a historia igual.
   const linhas = [];
-  for (let i = Math.min(fim, 41); i >= inicio; i--){
+  for (let i = inicio; i <= Math.min(fim, 41); i++){
     const t = porIdade[i];
     const agora = i === S.idade && !S.encerrada;
 
@@ -5873,6 +5944,82 @@ function rodapeDeTotais(){
  * 13,4 linhas em vez de 12. Aqui o passo sai da distância entre as duas
  * primeiras linhas de verdade.
  */
+/**
+ * Deixa a idade de agora no MEIO da janela de doze anos.
+ *
+ * A janela mostra doze linhas de uma carreira que chega a vinte e cinco.
+ * Sem isto ela nasce no primeiro ano e, aos trinta, a linha que acabou de
+ * ser preenchida esta quatorze linhas abaixo — fora da tela, e so quem
+ * rolasse atras dela veria os numeros da temporada aparecerem.
+ *
+ * No meio, e nao no fim: encostada embaixo, a idade atual perde o contexto
+ * dos anos seguintes que ainda vao acontecer, e a janela parece travada.
+ */
+function focarIdadeAtual(){
+  const cx = document.querySelector('.tj-anos');
+  if (!cx) return;
+  // .tj-agora e a linha do ano em curso ainda sem clube; a com data-idade e
+  // a do ano ja jogado. Uma das duas existe, nunca as duas.
+  const alvo = cx.querySelector('.tj-agora')
+            || (S ? cx.querySelector(`.tj[data-idade="${S.idade}"]`) : null)
+            || cx.lastElementChild;
+  if (!alvo) return;
+  const destino = alvo.offsetTop + alvo.offsetHeight / 2 - cx.clientHeight / 2;
+  cx.scrollTop = Math.max(0, Math.min(cx.scrollHeight - cx.clientHeight, destino));
+
+  // E a PAGINA desce o quanto precisar pra ela nao ficar atras da caixa de
+  // decisao. Centralizar dentro da janela nao bastava: numa carreira curta a
+  // lista inteira cabe nas doze linhas, o scroll interno fica em zero e a
+  // linha do ano — que e a ultima — nascia justamente embaixo da caixa que
+  // flutua no rodape. "Na janela" e "visivel" nao sao a mesma coisa.
+  //
+  // So no celular: no desktop a caixa esta no fluxo e a trajetoria fica numa
+  // coluna grudada, entao nao ha nada tapando e mexer na rolagem da pagina
+  // so tiraria a pessoa de onde ela estava.
+  const caixa = document.querySelector('.dec-caixa');
+  if (!caixa || getComputedStyle(caixa).position !== 'fixed') return;
+  const barra = document.querySelector('.topbar');
+  const teto = barra ? barra.getBoundingClientRect().bottom : 0;
+  const piso = caixa.getBoundingClientRect().top;
+  const r = alvo.getBoundingClientRect();
+  if (r.bottom > piso - 4) scrollBy(0, r.bottom - piso + 10);
+  else if (r.top < teto + 4) scrollBy(0, r.top - teto - 10);
+}
+
+/**
+ * Mede a altura da caixa de decisao e devolve pro CSS.
+ *
+ * No celular ela e `position:fixed`, entao sai do fluxo e nao empurra nada
+ * — o .dec-espaco e quem segura o buraco, e so o JS sabe a altura, porque
+ * ela muda com o texto e com o numero de cartas.
+ */
+function medirDecisao(){
+  const caixa = document.querySelector('.dec-caixa');
+  const raiz = document.documentElement;
+  if (!caixa) { raiz.style.removeProperty('--dec-h'); return; }
+  // No desktop a caixa esta no fluxo normal e o espacador e display:none;
+  // medir ali so encheria a variavel de um valor que ninguem le.
+  if (getComputedStyle(caixa).position !== 'fixed'){
+    raiz.style.removeProperty('--dec-h');
+    return;
+  }
+  raiz.style.setProperty('--dec-h', Math.ceil(caixa.getBoundingClientRect().height) + 'px');
+}
+
+/**
+ * Os tres ajustes que so dao pra fazer com a arvore ja desenhada.
+ *
+ * A ordem importa: focar depende do --tj-h que a medicao acaba de gravar, e
+ * medirDecisao precisa da caixa ja montada com as cartas dentro. Chamada
+ * tambem de dentro de telaTemporada/telaFormacao porque metade das telas do
+ * ano chega ali direto, sem passar por render().
+ */
+function ajustarTela(){
+  medirJanelaDaTrajetoria();
+  medirDecisao();
+  focarIdadeAtual();
+}
+
 function medirJanelaDaTrajetoria(){
   const cx = document.querySelector('.tj-anos');
   if (!cx || cx.children.length < 2) return;

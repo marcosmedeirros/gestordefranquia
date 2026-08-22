@@ -556,12 +556,36 @@ button{font-family:inherit}
 .btn2:hover:not(:disabled){color:var(--txt)}
 
 /* ── Carreira ───────────────────────────────────────── */
-/* COLUNA ÚNICA, como o Copero. Eram duas — ficha+decisão à esquerda e a
-   tabela à direita — e isso punha a decisão AO LADO da tabela em vez de
-   depois dela. Coluna única resolve nos dois tamanhos e mata o
-   `display:contents` + `order` que existia só pra contornar as duas. */
+/* DUAS COLUNAS NO DESKTOP: ficha e decisao a esquerda, a carreira inteira a
+   direita — o mesmo desenho do Caminho. Em coluna unica de 760px a tabela
+   ficava espremida no meio de uma tela de 1400 e a decisao nascia depois de
+   tudo, longe do olho.
+
+   No celular NADA muda: `display:contents` dissolve as duas colunas e o
+   `order` devolve a ordem de leitura — ficha, carreira, e a decisao grudada
+   no rodape. E por isso que as colunas sao wrappers vazios de estilo: elas
+   so existem a partir de 981px. */
 .carreira{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;
   max-width:760px;margin:0 auto;align-items:start}
+.col-esq,.col-dir{display:contents}
+/* A ordem de leitura no celular. Sem ela a decisao viria colada na ficha,
+   antes da tabela, so porque e assim que ela esta no HTML — e o HTML esta
+   assim porque no desktop ela mora na coluna da esquerda. */
+.carreira .ficha{order:1}
+.carreira .linha{order:2}
+.carreira .ver-conq{order:3}
+.carreira .rodape{order:4}
+.carreira .dec-espaco{order:5}
+.carreira .evento-caixa{order:6}
+@media (min-width:981px){
+  .carreira{grid-template-columns:minmax(0,430px) minmax(0,1fr);max-width:1120px;gap:18px}
+  .col-esq,.col-dir{display:block;min-width:0}
+  /* A tabela acompanha a rolagem: numa carreira longa a coluna da esquerda
+     fica mais alta que a tela, e sem isto a carreira sumia la em cima. */
+  .col-dir{position:sticky;top:16px}
+  .col-esq > * + *{margin-top:14px}
+  .col-dir > * + *{margin-top:14px}
+}
 
 /* A DECISÃO MORA NO RODAPÉ, grudada. É a única coisa da tela em que se
    toca, e rolar até ela toda vez era o que fazia a página parecer longa.
@@ -3188,10 +3212,30 @@ function focarAnoAtual(){
   const linha = cx.closest('.linha');
   if (linha) linha.style.setProperty('--barra-anos', (cx.offsetWidth - cx.clientWidth) + 'px');
 
+  // O ano atual fica no MEIO da janela. Antes eu deixava ele a três linhas
+  // do rodapé, imitando as gravações — mas no meio ele nunca some de vista
+  // e ainda mostra de onde você veio E o que falta, metade pra cada lado.
   const alvo = cx.querySelector('.ano.entrando') || cx.querySelector('.ano.atual');
   if (!alvo) return;
-  const destino = alvo.offsetTop + alvo.offsetHeight * 3 - cx.clientHeight;
-  cx.scrollTop = Math.max(0, destino);
+  const destino = alvo.offsetTop + alvo.offsetHeight / 2 - cx.clientHeight / 2;
+  cx.scrollTop = Math.max(0, Math.min(cx.scrollHeight - cx.clientHeight, destino));
+
+  // E a PAGINA desce o quanto precisar pra a linha nao ficar atras do card
+  // de decisao. Centralizar dentro da janela nao basta: numa carreira curta
+  // a lista inteira cabe nas doze linhas, o scroll interno fica em zero e a
+  // linha do ano nasce justamente embaixo do card que flutua no rodape.
+  // "Na janela" e "visivel" nao sao a mesma coisa.
+  //
+  // So no celular: no desktop o card esta no fluxo, na coluna da esquerda,
+  // e nao tapa nada.
+  const card = document.querySelector('.evento-caixa');
+  if (!card || getComputedStyle(card).position !== 'fixed') return;
+  const topo = document.querySelector('.topo');
+  const teto = topo ? topo.getBoundingClientRect().bottom : 0;
+  const piso = card.getBoundingClientRect().top;
+  const r = alvo.getBoundingClientRect();
+  if (r.bottom > piso - 4) scrollBy(0, r.bottom - piso + 10);
+  else if (r.top < teto + 4) scrollBy(0, r.top - teto - 10);
 }
 
 /**
@@ -3253,6 +3297,7 @@ function render(){
   app().innerHTML = `
     ${barraTopo(`<button class="btn-topo" onclick="abandonarCarreira()" title="Abandonar esta carreira"><i class="bi bi-x-lg"></i> <span>Abandonar</span></button>`)}
     <div class="carreira">
+      <div class="col-esq">
         <div class="caixa ficha">
           <div class="ficha-topo">
             ${S.clube ? `<div class="ficha-marca" aria-hidden="true">${escudo(S.clube, 132)}</div>` : ''}
@@ -3277,13 +3322,16 @@ function render(){
             </div>
           </div>
         </div>
-      <div class="caixa linha">${linhaDoTempo()}</div>
-      <button class="btn btn2 ver-conq" onclick="abrirDesafios()">🏅 Ver conquistas</button>
-      <p class="rodape">Os nomes de clube servem para identificar dentro da simulação.
-      Este jogo não é afiliado, patrocinado nem endossado por nenhum deles.</p>
-    </div>
-    ${decisao ? `<div class="dec-espaco" aria-hidden="true"></div>
-    <div class="caixa evento-caixa">${decisao}</div>` : ''}`;
+        ${decisao ? `<div class="dec-espaco" aria-hidden="true"></div>
+        <div class="caixa evento-caixa">${decisao}</div>` : ''}
+      </div>
+      <div class="col-dir">
+        <div class="caixa linha">${linhaDoTempo()}</div>
+        <button class="btn btn2 ver-conq" onclick="abrirDesafios()">🏅 Ver conquistas</button>
+        <p class="rodape">Os nomes de clube servem para identificar dentro da simulação.
+        Este jogo não é afiliado, patrocinado nem endossado por nenhum deles.</p>
+      </div>
+    </div>`;
 
   // Depois de escrever a árvore: medir o card do rodapé e levar o olho pro
   // ano atual. Nesta ordem — o foco usa a altura da janela, e ela depende
@@ -3435,8 +3483,18 @@ function gradeDeOpcoes(cartasHtml){
   return `<div class="carr"><div class="carr-pista">${cartasHtml}</div></div>`;
 }
 
+/** No máximo três cartas na tela. Quatro numa tela de 375px deixam cada
+ *  uma com 80px — o nome do clube não cabe, e a decisão vira adivinhação. */
+const MAX_CARTAS = 3;
+
 function cartasDeClube(lista, comFicar, comAposentar){
-  const cartas = (lista || []).map((c,i) => {
+  // O corte é aqui e não em quem chama: "ficar no clube" e "aposentar-se"
+  // são cartas EXTRAS empurradas depois, e vários pontos do jogo pedem três
+  // ofertas sem saber que uma delas vai virar quatro na tela.
+  const extras = (comFicar && S.clube ? 1 : 0) + (comAposentar ? 1 : 0);
+  lista = (lista || []).slice(0, Math.max(1, MAX_CARTAS - extras));
+
+  const cartas = lista.map((c,i) => {
     const l = dadosLiga(c.liga);
     // O aviso de clássico é o que transforma a oferta em decisão. Escondê-lo
     // seria pegadinha: quem vai pro rival tem que saber que está indo.

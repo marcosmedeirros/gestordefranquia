@@ -102,6 +102,14 @@ async function showGamesAdmin() {
           <button class="btn btn-sm btn-outline-danger" onclick="_zerarGames('fba_points')">
             <i class="bi bi-arrow-counterclockwise me-1"></i>Zerar FBA Points
           </button>
+          <button class="btn btn-sm btn-outline-danger" onclick="_zerarConquistas('copero')"
+                  title="Apaga as conquistas do Copero de todo mundo">
+            <i class="bi bi-trophy me-1"></i>Zerar conquistas · Copero
+          </button>
+          <button class="btn btn-sm btn-outline-danger" onclick="_zerarConquistas('caminho')"
+                  title="Apaga os desafios do Caminho de todo mundo">
+            <i class="bi bi-trophy me-1"></i>Zerar desafios · Caminho
+          </button>
           <input type="text" id="gamesUserSearch" placeholder="Buscar por nome ou e-mail..."
                  oninput="_filtrarGamesUsers(this.value)"
                  style="background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;min-width:220px">
@@ -226,6 +234,46 @@ async function _zerarGames(campo) {
     _carregarGamesUsers();
   } catch (e) {
     showAlert('danger', e.error || e.message || `Erro ao zerar ${rotulo}.`);
+  }
+}
+
+/**
+ * Apaga as conquistas de um dos jogos de carreira, de todo mundo.
+ *
+ * Existe pro lançamento: quem jogou antes de o jogo estar pronto levou
+ * conquista com regra velha, e a lista precisa começar do zero pra valer
+ * igual pra todos.
+ *
+ * O aviso é explícito sobre o que NÃO acontece: as moedas já pagas ficam.
+ * Tirar moeda de quem já gastou deixaria saldo negativo — mas a
+ * consequência disso é que quem já tinha vai poder ganhar de novo, e ser
+ * pago de novo. Se a ideia for zerar tudo, os botões de moeda estão ali.
+ */
+async function _zerarConquistas(jogo) {
+  const nome = jogo === 'copero' ? 'Copero' : 'Caminho';
+  const oQue = jogo === 'copero' ? 'conquistas' : 'desafios';
+  const confirma = prompt(
+    `Isso apaga as ${oQue} do ${nome} de TODOS os usuários e não pode ser desfeito.\n\n` +
+    `As moedas já pagas por elas NÃO voltam — e como a lista zera, quem já ` +
+    `tinha vai poder conquistar de novo e ser pago de novo.\n\n` +
+    `Para confirmar, digite: ${nome}`
+  );
+  if (confirma === null) return;
+  if (confirma.trim().toLowerCase() !== nome.toLowerCase()) {
+    showAlert('warning', 'Confirmação não bateu — nada foi apagado.');
+    return;
+  }
+  try {
+    const d = await api('admin.php?action=games_zerar_conquistas', {
+      method: 'POST',
+      body: JSON.stringify({ jogo }),
+    });
+    const um = jogo === 'copero' ? 'conquista apagada' : 'desafio apagado';
+    const varios = jogo === 'copero' ? 'conquistas apagadas' : 'desafios apagados';
+    showAlert('success', d.aviso
+      || `${nome}: ${d.afetados} ${d.afetados === 1 ? um : varios}, de ${d.pessoas} pessoa${d.pessoas === 1 ? '' : 's'}.`);
+  } catch (e) {
+    showAlert('danger', e.error || e.message || `Erro ao zerar as ${oQue}.`);
   }
 }
 
