@@ -271,6 +271,18 @@ $jogosDiarios = [
     ['key' => 'quemsoueu', 'nome' => 'Quem Sou Eu?','sub' => 'Descubra pelas dicas','icone' => 'bi-question-circle',  'cor' => '#3b82f6'],
     ['key' => 'quizdodia', 'nome' => 'Quiz do Dia', 'sub' => 'Vote com a maioria', 'icone' => 'bi-chat-square-quote','cor' => '#eab308'],
 ];
+// Os jogos de CARREIRA são de outra natureza: não têm rodada do dia nem
+// placar de sessão — você volta a eles por meses e a carreira continua de
+// onde parou. Por isso ganham seção própria em vez de entrar no meio dos
+// minigames, e por isso trazem `href` em vez de `key`: são páginas
+// inteiras em /games/games/, não passam pelo carregador index.php?game=.
+$jogosCarreira = [
+    ['href' => '/games/games/copero.php',  'nome' => 'Copero',
+     'sub'  => 'Uma carreira no futebol',  'icone' => 'bi-trophy-fill', 'cor' => '#22c55e'],
+    ['href' => '/games/games/caminho.php', 'nome' => 'O Caminho',
+     'sub'  => 'Uma carreira na NBA',      'icone' => 'bi-signpost-split-fill', 'cor' => '#ef4444'],
+];
+
 $jogosLivres = [
     ['key' => 'buildplayer','nome' => 'Build-A-Player','sub' => 'Monte a lenda perfeita','icone' => 'bi-tools',      'cor' => '#f97316'],
     ['key' => 'dreamteam', 'nome' => 'Starting5x5', 'sub' => 'Monte o time e dispute','icone' => 'bi-people-fill',  'cor' => '#6366f1'],
@@ -588,6 +600,17 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
                             <span class="streak" title="Sequência de dias"><i class="bi bi-fire"></i><?= $streak ?></span>
                         <?php endif; ?>
                     </div>
+                </a>
+                <?php endforeach; ?>
+            </div>
+
+            <div class="sec-label"><i class="bi bi-person-badge-fill"></i> Carreira</div>
+            <div class="grid">
+                <?php foreach ($jogosCarreira as $j): ?>
+                <a class="card-jogo" href="<?= htmlspecialchars($j['href']) ?>">
+                    <div class="ico" style="background:<?= $j['cor'] ?>1f;color:<?= $j['cor'] ?>"><i class="bi <?= $j['icone'] ?>"></i></div>
+                    <div class="nome"><?= htmlspecialchars($j['nome']) ?></div>
+                    <div class="sub"><?= htmlspecialchars($j['sub']) ?></div>
                 </a>
                 <?php endforeach; ?>
             </div>

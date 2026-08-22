@@ -169,7 +169,7 @@ function coperoPagarConquistas(PDO $pdo, int $idUsuario, array $ganhas): array
 
         if ($premio['moedas'] > 0 || $premio['fba_points'] > 0) {
             $pdo->prepare("UPDATE games_usuarios
-                           SET pontos = pontos + ?, fba_points = COALESCE(fba_points,0) + ?
+                           SET pontos = COALESCE(pontos,0) + ?, fba_points = COALESCE(fba_points,0) + ?
                            WHERE id = ?")
                 ->execute([$premio['moedas'], $premio['fba_points'], $idUsuario]);
         }
@@ -497,6 +497,14 @@ button{font-family:inherit}
   .ident-cab .btn{width:100%}
 }
 .ident-pe{padding:16px 22px;border-top:1px solid var(--borda);display:flex;justify-content:space-between;gap:12px}
+/* A caixa vira coluna flex por UM motivo: dar ao `order` onde morar. No
+   desktop a linha de acao volta pro pe (order:3), que e de onde o HTML a
+   tirou; no celular ela fica onde esta no HTML, logo abaixo da barra de
+   etapa. Sem o flex, `order` nao vale nada e o botao ficaria no topo nos
+   dois tamanhos. */
+.ident-caixa{display:flex;flex-direction:column}
+.ident-caixa .ident{order:2}
+.ident-caixa .ident-pe{order:3}
 
 .camisa{position:relative;width:190px;margin:0 auto 16px;aspect-ratio:1}
 .camisa svg{width:100%;height:100%;display:block}
@@ -1059,6 +1067,11 @@ button{font-family:inherit}
   /* O "Confirmar identidade" do topo sai: no celular ele fica no rodapé,
      do lado da última escolha, e não a cinco rolagens de distância. */
   .ident-cab{display:none}
+  /* order:0 = onde o HTML pos: logo abaixo da barra de etapa. E a borda
+     muda de lado — ela agora separa a acao do conteudo que vem embaixo, e
+     nao o conteudo do rodape. */
+  .ident-caixa .ident-pe{order:0;border-top:none;border-bottom:1px solid var(--borda);
+    padding:12px 20px 14px}
   .ident-pe{display:flex;gap:10px}
   .ident-pe .btn{flex:1}
   /* As colunas de número encolhem pra dar espaço ao clube. Com as medidas
@@ -1825,9 +1838,11 @@ function tagSelecao(){
       Seleção: fora (${banido}a)</span>`;
   }
   if (convocado(S.ovr, S.pais)) return `<span class="tag sel">★ Seleção</span>`;
-  const falta = Math.max(1, (f - 8) - S.ovr);
-  return `<span class="tag sel-fora" title="Precisa de ${falta} de OVR a mais pra ser convocado para a seleção">
-    Seleção: faltam ${falta} OVR</span>`;
+  // Nao ser convocado nao vira etiqueta. "Seleção: faltam 13 OVR" ficava na
+  // ficha temporada apos temporada dizendo a mesma coisa — que voce ainda
+  // nao e bom o bastante —, e a ficha e o lugar de mostrar o que voce E. A
+  // convocacao, quando vem, aparece; a falta dela e so silencio.
+  return '';
 }
 
 /**
@@ -2018,7 +2033,7 @@ function telaInicio(){
             <b>${esc(m.nome)}</b><small>${esc(m.sub)}</small>
           </button>`).join('')}
       </div>
-      <button class="btn" style="width:100%" onclick="telaIdentidade()">Começar carreira</button>
+      <button class="btn" style="width:100%" onclick="telaIdentidade(true)">Começar carreira</button>
       ${carregar() ? `<button class="btn btn2" style="width:100%;margin-top:9px" onclick="continuar()">Continuar a carreira salva</button>` : ''}
       <button class="btn btn2" style="width:100%;margin-top:9px" onclick="abrirDesafios()">
         <i class="bi bi-trophy"></i> Desafios
@@ -2144,7 +2159,12 @@ function irParaEtapa(n){
   window.scrollTo({top: 0, behavior: semAnimacao() ? 'auto' : 'smooth'});
 }
 
-function telaIdentidade(){
+function telaIdentidade(reinicio){
+  // A etapa nasce em 1 a cada carreira NOVA. rascunho vive na pagina, nao na
+  // carreira: quem comecava a segunda sem recarregar caia direto na etapa 3
+  // (a ultima em que tinha estado), com a barra cheia.
+  if (reinicio) rascunho.etapa = 1;
+
   // Aqui e não só na criação do rascunho: assim o nome da última carreira
   // aparece mesmo quando a pessoa joga de novo sem recarregar a página.
   if (!rascunho.nome) rascunho.nome = ultimoNome();
@@ -2185,6 +2205,12 @@ function telaIdentidade(){
         <div class="etapa-barra"><i style="width:${(etapa / 3) * 100}%"></i></div>
       </div>
 
+      <!-- Voltar e Continuar ficam AQUI, logo abaixo da barra de etapa, e nao
+           no pe da tela: no celular a coluna da vez tem lista de pais e campo
+           de posicao, e o botao no fim obrigava a rolar ate embaixo pra
+           avancar. No desktop o order do CSS devolve esta linha pro pe,
+           que e onde ela sempre esteve — la nao ha etapa nenhuma pra avancar,
+           so o "Voltar". -->
       <div class="ident">
         <div class="ident-col">
           <div class="ident-tit">Identidade</div>

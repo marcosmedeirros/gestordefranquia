@@ -222,7 +222,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // inteiro, e nao sobra conquista paga pela metade.
         if ($moedas > 0 || $fba > 0) {
             try {
-                $pdo->prepare("UPDATE games_usuarios SET pontos = pontos + ?, fba_points = fba_points + ? WHERE id = ?")
+                // A conta do FBA Games nasce quando a pessoa abre o /games.php.
+                // Quem entrou direto na URL do jogo nao tem linha, e o UPDATE
+                // acertaria zero: o desafio ficava gravado e a moeda nao caia,
+                // sem erro nenhum no log. O Copero ja fazia isso; aqui faltava.
+                $pdo->prepare("INSERT IGNORE INTO games_usuarios (id, nome, email, league)
+                               SELECT id, name, email, COALESCE(league,'ROOKIE') FROM users WHERE id = ?")
+                    ->execute([$idUsuario]);
+                // COALESCE no pontos: a coluna aceita NULL, e NULL + 100 e
+                // NULL — o saldo inteiro sumiria em vez de crescer.
+                $pdo->prepare("UPDATE games_usuarios
+                               SET pontos = COALESCE(pontos,0) + ?, fba_points = COALESCE(fba_points,0) + ?
+                               WHERE id = ?")
                     ->execute([$moedas, $fba, $idUsuario]);
             } catch (Throwable $e) {
                 error_log('[caminho] pagar desafios: ' . $e->getMessage());
@@ -767,7 +778,8 @@ tr.tit td{color:var(--red)}
    e a primeira tela do jogo é a que decide se a pessoa continua. */
 .id-grade{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.1fr) minmax(0,1fr);
   gap:22px;margin-bottom:18px}
-/* A barra de etapa e o rodapé só existem no celular. */
+/* A barra de etapa e a linha de acao só existem no celular — no desktop as
+   tres colunas estao todas na tela e nao ha etapa pra avancar. */
 .etapa-cab{display:none}
 .etapa-pe{display:none}
 @media(max-width:860px){
@@ -787,13 +799,10 @@ tr.tit td{color:var(--red)}
   .etapa-barra{height:5px;border-radius:999px;background:var(--panel2);overflow:hidden}
   .etapa-barra i{display:block;height:100%;background:var(--red);border-radius:999px;
     transition:width .25s ease}
-  .etapa-pe{display:flex;gap:10px;margin-top:18px;padding-top:16px;
-    border-top:1px solid var(--border)}
+  .etapa-pe{display:flex;gap:10px;margin:0 0 18px;padding-bottom:16px;
+    border-bottom:1px solid var(--border)}
   .etapa-pe .btn{flex:1;width:auto;margin:0}
 
-  /* O "Confirmar identidade" do topo sai: no celular ele fica no rodapé,
-     do lado da última escolha, e não a cinco rolagens de distância. */
-  .id-cab-acoes{display:none}
 }
 .id-col-tit{font-size:12px;font-weight:800;letter-spacing:.4px;text-align:center;
   color:var(--text);margin-bottom:14px}
@@ -864,7 +873,8 @@ tr.tit td{color:var(--red)}
 .pos-desc b{color:var(--text2)}
 .pos-tende{display:block;margin-top:5px;font-size:10.5px;color:var(--text3);opacity:.85}
 
-/* Rodapé fixo da tela, como o do jogo do print. */
+/* O cabecalho da criacao: titulo a esquerda, acoes a direita. No celular
+   as acoes somem daqui — quem manda la e a linha de etapa. */
 .id-cab{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;
   margin-bottom:22px;padding-bottom:16px;border-bottom:1px solid var(--border)}
 .id-cab-txt{min-width:0;flex:1 1 260px}
@@ -872,19 +882,23 @@ tr.tit td{color:var(--red)}
 .id-cab-txt .lead{margin:0}
 .id-cab-acoes{display:flex;align-items:center;gap:9px;flex:0 0 auto}
 .id-cab-acoes .btn{width:auto;margin:0;padding:12px 22px;font-size:14px}
+/* No celular as ações do cabeçalho SOMEM: quem manda lá é a linha de etapa,
+   logo abaixo da barra de progresso.
+   Esta regra tem que morar AQUI, depois do `display:flex` de cima. Ela
+   existia desde sempre — só que lá no bloco de celular, ANTES desta linha —,
+   e media query não adiciona especificidade nenhuma: com o mesmo peso, quem
+   vale é a de baixo. Resultado: no celular a pessoa via "Voltar / Confirmar
+   identidade" no topo E "Voltar / Continuar" no pé, a mesma ação duas vezes.
+   Foi exatamente esse o botão duplicado que apareceu jogando. */
+@media (max-width:860px){
+  .id-cab-acoes{display:none}
+}
 @media (max-width:640px){
   .id-cab{flex-direction:column;align-items:stretch;gap:12px}
   /* Em coluna a base do flex vira altura — e 260px de base viravam 260px
      de vão embaixo do título. */
   .id-cab-txt{flex:0 0 auto}
-  .id-cab-acoes{flex-direction:row-reverse}
-  .id-cab-acoes .btn{flex:1;padding:12px 14px}
-  .id-cab-acoes .btn2{flex:0 0 92px}
 }
-.id-rodape{display:flex;align-items:center;justify-content:flex-end;gap:12px;
-  border-top:1px solid var(--border);padding-top:16px;margin-top:4px}
-.id-rodape .btn{width:auto;margin:0;padding:13px 26px}
-
 /* ── FIM DE CARREIRA ───────────────────────────────────────────────────
    O cartão, a escada e as grades existem pra uma coisa só: a tela final é
    a que o pessoal manda no grupo. Ela precisa caber num print e dizer a
@@ -3463,7 +3477,14 @@ function irParaEtapa(n){
   window.scrollTo({top: 0, behavior: 'auto'});
 }
 
-function telaCriar(){
+function telaCriar(reinicio){
+  // A etapa nasce em 1 a cada carreira NOVA. rascunho vive na pagina, nao na
+  // carreira: quem criava a segunda sem recarregar caia direto na etapa 3
+  // (a ultima em que tinha estado), com a barra cheia e o botao ja escrito
+  // "Confirmar identidade". iniciar() sempre passou `true` aqui; o argumento
+  // e que nunca tinha sido lido.
+  if (reinicio) rascunho.etapa = 1;
+
   const nome = (rascunho.nome || "").trim();
   const sobrenome = nome ? nome.split(/\s+/).slice(-1)[0].toUpperCase() : "SEU NOME";
   const busca = (rascunho.busca || "").trim().toLowerCase();
@@ -3495,6 +3516,17 @@ function telaCriar(){
     <div class="etapa-cab">
       <div class="etapa-tit">${ETAPAS[etapa - 1]}</div>
       <div class="etapa-barra"><i style="width:${(etapa / 3) * 100}%"></i></div>
+    </div>
+
+    <!-- Voltar e Continuar logo abaixo da barra de etapa, e nao no pe: a
+         coluna da vez tem lista de pais e quadra de posicao, e o botao no fim
+         obrigava a rolar ate embaixo pra avancar. Esta linha e display:none
+         no desktop, entao subir ela nao mexe em nada la. -->
+    <div class="etapa-pe">
+      <button class="btn btn2" onclick="${etapa === 1 ? 'render()' : 'irParaEtapa(' + (etapa - 1) + ')'}">Voltar</button>
+      ${etapa < 3
+        ? `<button class="btn" onclick="irParaEtapa(${etapa + 1})">Continuar</button>`
+        : `<button class="btn" onclick="criar()">Confirmar identidade</button>`}
     </div>
 
     <div class="id-grade" data-etapa="${etapa}">
@@ -3570,13 +3602,6 @@ function telaCriar(){
         </div>
       </div>
 
-    </div>
-
-    <div class="etapa-pe">
-      <button class="btn btn2" onclick="${etapa === 1 ? 'render()' : 'irParaEtapa(' + (etapa - 1) + ')'}">Voltar</button>
-      ${etapa < 3
-        ? `<button class="btn" onclick="irParaEtapa(${etapa + 1})">Continuar</button>`
-        : `<button class="btn" onclick="criar()">Confirmar identidade</button>`}
     </div>
 
     <p class="nota-txt" style="margin-top:12px">Você vai jogar
