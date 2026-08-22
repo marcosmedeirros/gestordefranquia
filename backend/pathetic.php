@@ -350,10 +350,15 @@ function patheticQuando(?string $data): string
  * O que ele ganha em troca: *negrito* e _itálico_, marcados como no WhatsApp,
  * que é onde essa gente escreve o dia inteiro.
  */
-function patheticTextoHtml(?string $texto): string
+function patheticTextoHtml(?string $texto, array $fotos = []): string
 {
     $texto = trim((string)$texto);
     if ($texto === '') return '';
+
+    // As fotos chegam numeradas pela POSIÇÃO na galeria, que é o número que o
+    // editor vê e escreve no texto.
+    $porNumero = [];
+    foreach ($fotos as $f) if (!empty($f['n'])) $porNumero[(int)$f['n']] = $f;
 
     $seguro = htmlspecialchars($texto, ENT_QUOTES, 'UTF-8');
 
@@ -372,6 +377,37 @@ function patheticTextoHtml(?string $texto): string
     foreach ($paragrafos as $p) {
         $p = trim($p);
         if ($p === '') continue;
+
+        // A FOTO NO MEIO DO TEXTO: [foto:2] sozinha num parágrafo. Sozinha de
+        // propósito — foto no meio de uma frase não é diagramação, é acidente.
+        if (preg_match('/^\[foto:(\d{1,2})\]$/', $p, $m)) {
+            $f = $porNumero[(int)$m[1]] ?? null;
+            if (!$f) continue;   // marca apontando pra foto que já saiu: some
+            $src = patheticSrcFoto($f['caminho'] ?? '');
+            if ($src === '') continue;
+            $leg = trim((string)($f['legenda'] ?? ''));
+            $saida[] = '<figure class="txt-foto"><img src="' . htmlspecialchars($src, ENT_QUOTES, 'UTF-8')
+                     . '" alt="' . htmlspecialchars($leg, ENT_QUOTES, 'UTF-8') . '" loading="lazy">'
+                     . ($leg !== '' ? '<figcaption>' . htmlspecialchars($leg, ENT_QUOTES, 'UTF-8') . '</figcaption>' : '')
+                     . '</figure>';
+            continue;
+        }
+
+        // INTERTÍTULO: "## " no começo da linha. Quebra a matéria longa em
+        // trechos, que é o que o olho procura pra decidir se continua lendo.
+        if (preg_match('/^##\s+(.+)$/su', $p, $m)) {
+            $t = preg_replace('/(?<![\w*])\*(?=\S)([^*\r\n]+?)(?<=\S)\*(?![\w*])/u', '<strong>$1</strong>', trim($m[1]));
+            $saida[] = '<h2 class="txt-tit">' . $t . '</h2>';
+            continue;
+        }
+
+        // CITAÇÃO: "> " no começo. É a fala que a matéria quer destacar.
+        if (preg_match('/^&gt;\s*(.+)$/su', $p, $m)) {
+            $q = preg_replace('/(?<![\w*])\*(?=\S)([^*\r\n]+?)(?<=\S)\*(?![\w*])/u', '<strong>$1</strong>', trim($m[1]));
+            $saida[] = '<blockquote class="txt-citacao">' . nl2br($q, false) . '</blockquote>';
+            continue;
+        }
+
         $p = preg_replace('/(?<![\w*])\*(?=\S)([^*\r\n]+?)(?<=\S)\*(?![\w*])/u', '<strong>$1</strong>', $p);
         $p = preg_replace('/(?<![\w_])_(?=\S)([^_\r\n]+?)(?<=\S)_(?![\w_])/u',    '<em>$1</em>',        $p);
         $saida[] = '<p>' . nl2br($p, false) . '</p>';
@@ -389,7 +425,13 @@ function patheticResumo(array $n, int $max = 180): string
 {
     $r = trim((string)($n['resumo'] ?? ''));
     if ($r === '') {
-        $r = trim(preg_replace('/\s+/u', ' ', strip_tags((string)($n['texto'] ?? ''))));
+        // Tira as marcas antes de resumir: um card que começa com "[foto:1]"
+        // ou "## O que ninguém viu" não resume nada.
+        $cru = (string)($n['texto'] ?? '');
+        $cru = preg_replace('/^\[foto:\d{1,2}\]$/mu', '', $cru);
+        $cru = preg_replace('/^#{1,3}\s+/mu', '', $cru);
+        $cru = preg_replace('/^&gt;\s*|^>\s*/mu', '', $cru);
+        $r = trim(preg_replace('/\s+/u', ' ', strip_tags($cru)));
     }
     if ($r === '') return '';
     if (mb_strlen($r) <= $max) return $r;
@@ -404,6 +446,102 @@ function patheticMinutos(?string $texto): int
 {
     $palavras = str_word_count(strip_tags((string)$texto), 0, 'áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇ');
     return max(1, (int)round($palavras / 200));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// A GALERIA DA MATÉRIA
+//
+// A notícia tinha UMA foto, a de capa. Uma matéria de verdade tem a foto da
+// capa e mais as que entram no meio do texto — a do lance, a da coletiva, o
+// print da tabela.
+//
+// As do meio do texto entram por uma MARCA: [foto:2] numa linha sozinha. É a
+// mesma decisão do negrito: o campo continua sendo texto puro. Aceitar HTML
+// aqui pra poder posicionar imagem reabriria o buraco de XSS que a página
+// levou meses pra fechar, e o ganho seria poder escolher a largura da foto.
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Quantas fotos cabem numa matéria. Acima disso não é matéria, é álbum. */
+const PATHETIC_MAX_FOTOS = 12;
+
+function patheticGarantirFotos(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    $feito = true;
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS pathetic_fotos (
+            id         INT AUTO_INCREMENT PRIMARY KEY,
+            noticia_id INT NOT NULL,
+            caminho    VARCHAR(500) NOT NULL,
+            legenda    VARCHAR(160) NULL,
+            criado_em  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_foto_noticia (noticia_id, id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) {
+        error_log('[pathetic] tabela de fotos: ' . $e->getMessage());
+    }
+}
+
+/**
+ * As fotos de uma matéria, numeradas a partir de 1.
+ *
+ * O número é a POSIÇÃO na lista, não o id do banco: quem escreve [foto:2]
+ * está contando o que vê na galeria, e um id de banco com quatro dígitos não
+ * serviria de marca legível dentro do texto.
+ */
+function patheticFotos(PDO $pdo, int $noticiaId): array
+{
+    patheticGarantirFotos($pdo);
+    try {
+        $st = $pdo->prepare("SELECT * FROM pathetic_fotos WHERE noticia_id = ? ORDER BY id ASC");
+        $st->execute([$noticiaId]);
+        $lista = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($lista as $i => &$f) $f['n'] = $i + 1;
+        return $lista;
+    } catch (Throwable $e) {
+        error_log('[pathetic] fotos: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/** Guarda uma foto na galeria. Devolve o erro, ou null se entrou. */
+function patheticAdicionarFoto(PDO $pdo, int $noticiaId, array $arquivo, string $legenda = ''): ?string
+{
+    patheticGarantirFotos($pdo);
+    if (count(patheticFotos($pdo, $noticiaId)) >= PATHETIC_MAX_FOTOS)
+        return 'A matéria já tem ' . PATHETIC_MAX_FOTOS . ' fotos.';
+
+    [$caminho, $erro] = patheticSalvarFoto($arquivo, $noticiaId);
+    if ($erro) return $erro;
+    if (!$caminho) return null;   // nenhum arquivo enviado
+
+    try {
+        $pdo->prepare("INSERT INTO pathetic_fotos (noticia_id, caminho, legenda) VALUES (?,?,?)")
+            ->execute([$noticiaId, $caminho, mb_substr(trim($legenda), 0, 160) ?: null]);
+        return null;
+    } catch (Throwable $e) {
+        error_log('[pathetic] adicionar foto: ' . $e->getMessage());
+        patheticApagarFoto($caminho);   // não deixa arquivo órfão no disco
+        return 'Não foi possível guardar a foto.';
+    }
+}
+
+/** Tira uma foto da galeria e do disco. */
+function patheticRemoverFoto(PDO $pdo, int $fotoId, int $noticiaId): void
+{
+    patheticGarantirFotos($pdo);
+    try {
+        $st = $pdo->prepare("SELECT caminho FROM pathetic_fotos WHERE id = ? AND noticia_id = ?");
+        $st->execute([$fotoId, $noticiaId]);
+        $caminho = (string)($st->fetchColumn() ?: '');
+        if ($caminho === '') return;
+        $pdo->prepare("DELETE FROM pathetic_fotos WHERE id = ? AND noticia_id = ?")
+            ->execute([$fotoId, $noticiaId]);
+        patheticApagarFoto($caminho);
+    } catch (Throwable $e) {
+        error_log('[pathetic] remover foto: ' . $e->getMessage());
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════

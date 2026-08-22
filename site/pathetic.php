@@ -28,6 +28,7 @@ $capa     = patheticCapa($noticias);
 $social = patheticContagens($pdo,
     array_merge(array_column($noticias, 'id'), $materia ? [$materia['id']] : []));
 $comentarios = $materia ? patheticComentarios($pdo, (int)$materia['id']) : [];
+$fotosDaMateria = $materia ? patheticFotos($pdo, (int)$materia['id']) : [];
 
 $seloSocial = function (array $s): string {
     $p = [];
@@ -232,6 +233,20 @@ a { color: var(--red); text-decoration: none; }
 
 .np-arquivo { margin-top: 60px; padding-top: 30px; border-top: 1px solid var(--line-2); }
 
+/* Intertítulo, citação e foto no meio do texto — o que a barra do editor
+   escreve, no dialeto do /site/. */
+.np-corpo .txt-tit { font-family: var(--font-display); font-weight: 400;
+  text-transform: uppercase; line-height: 1.05; font-size: clamp(21px,3vw,29px);
+  color: var(--ink); margin: 1.5em 0 .5em; }
+.np-corpo .txt-citacao { margin: 1.3em 0; padding: 2px 0 2px 20px;
+  border-left: 4px solid var(--red); font-size: 1.12em; line-height: 1.5;
+  color: var(--ink); font-style: italic; }
+.np-corpo .txt-foto { margin: 1.6em 0; border: 1px solid var(--line); }
+.np-corpo .txt-foto img { width: 100%; height: auto; display: block; }
+.np-corpo .txt-foto figcaption { font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim);
+  padding: 8px 10px; background: var(--bg-2); }
+
 /* ── Curtidas e comentários, só de leitura ─────────────────────────── */
 .np-social { color: var(--ink-mute); }
 .np-conversa { margin-top: 40px; padding-top: 26px; border-top: 1px solid var(--line); }
@@ -337,7 +352,7 @@ a { color: var(--red); text-decoration: none; }
       <figcaption><?= $e(trim((string)$materia['foto_credito'])) ?></figcaption>
     <?php endif; ?>
 
-    <div class="np-corpo"><?= patheticTextoHtml($materia['texto']) ?></div>
+    <div class="np-corpo"><?= patheticTextoHtml($materia['texto'], $fotosDaMateria) ?></div>
 
     <?php $s = $social[(int)$materia['id']] ?? ['curtidas'=>0,'comentarios'=>0]; ?>
     <section class="np-conversa">

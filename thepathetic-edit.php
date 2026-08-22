@@ -186,6 +186,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $flash = 'Notícia tirada do ar. Ela continua salva como rascunho.';
             break;
 
+        // A galeria da matéria: subir e tirar foto do meio do texto.
+        case 'add_foto': {
+            $id = (int)($_POST['id'] ?? 0);
+            if (!patheticUma($pdo, $id, true)) throw new RuntimeException('Essa notícia não existe.');
+            $erro = patheticAdicionarFoto($pdo, $id, $_FILES['foto_galeria'] ?? [], (string)($_POST['legenda'] ?? ''));
+            if ($erro) throw new RuntimeException($erro);
+            $flash = 'Foto adicionada à galeria.';
+            $_SESSION['pathetic_volta'] = '/thepathetic-edit.php?editar=' . $id;
+            break;
+        }
+
+        case 'tirar_foto': {
+            $id = (int)($_POST['id'] ?? 0);
+            patheticRemoverFoto($pdo, (int)($_POST['foto'] ?? 0), $id);
+            $flash = 'Foto removida. Se ela estava no texto, a marca some sozinha.';
+            $_SESSION['pathetic_volta'] = '/thepathetic-edit.php?editar=' . $id;
+            break;
+        }
+
         // Moderar: apagar um comentário de qualquer notícia. Quem edita o
         // jornal responde pelo que aparece embaixo dele.
         case 'apagar_comentario':
@@ -231,7 +250,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // de verde, dizendo sucesso.
         $_SESSION['pathetic_flash'] = $flash;
         $_SESSION['pathetic_flash_tipo'] = $flashType;
-        header('Location: /thepathetic-edit.php');
+        // Mexer na galeria devolve pra MATÉRIA, e não pra lista: quem acabou
+        // de subir uma foto vai inseri-la no texto agora, não daqui a pouco.
+        $volta = $_SESSION['pathetic_volta'] ?? '/thepathetic-edit.php';
+        unset($_SESSION['pathetic_volta']);
+        header('Location: ' . $volta);
         exit;
     }
 }
@@ -405,6 +428,43 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
            diferente do que eu vi". */
         .txt-materia{font-family:Georgia,'Times New Roman',serif !important;font-size:15px !important}
 
+        /* ── A BARRA DE FORMATAR ───────────────────────────────────────
+           Age sobre a SELEÇÃO: marca o que está selecionado, e clicar de novo
+           desmarca. É por isso que "Texto normal" existe como botão próprio —
+           tirar três marcas de um trecho, uma a uma, é trabalho de editor de
+           código, não de quem está escrevendo matéria. */
+        .barra-txt{display:flex;align-items:center;gap:4px;flex-wrap:wrap;
+          background:var(--panel-2);border:1px solid var(--border-md);border-bottom:none;
+          border-radius:var(--radius-sm) var(--radius-sm) 0 0;padding:7px 8px}
+        .barra-txt button{background:transparent;border:1px solid transparent;color:var(--text-2);
+          font-family:var(--font);font-size:12.5px;font-weight:600;padding:5px 10px;
+          border-radius:7px;cursor:pointer;transition:all var(--t) var(--ease);
+          display:inline-flex;align-items:center;gap:5px;line-height:1}
+        .barra-txt button:hover{background:var(--panel-3);color:var(--text)}
+        .barra-txt button.ativo{background:var(--red-soft);border-color:var(--border-red);color:var(--red)}
+        .barra-txt button b{font-size:14px}
+        .barra-txt button i{font-style:italic;font-size:14px;font-family:Georgia,serif}
+        .barra-txt button .bi{font-style:normal;font-family:inherit}
+        .barra-fio{width:1px;height:18px;background:var(--border);margin:0 3px}
+        /* O campo encosta na barra: os dois viram uma peça só. */
+        .cp .txt-materia{border-top-left-radius:0;border-top-right-radius:0}
+
+        /* ── A GALERIA DA MATÉRIA ──────────────────────────────────── */
+        .galeria{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:9px}
+        .gal-item{position:relative;border:1px solid var(--border);border-radius:9px;overflow:hidden;
+          background:var(--panel-2)}
+        .gal-item img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+        .gal-n{position:absolute;top:5px;left:5px;background:var(--red);color:#fff;
+          font-size:11px;font-weight:800;border-radius:5px;padding:1px 6px;font-family:var(--font)}
+        .gal-acoes{display:flex;gap:4px;padding:5px}
+        .gal-acoes button{flex:1;font-size:10.5px;font-weight:700;padding:4px 2px;border-radius:6px;
+          border:1px solid var(--border);background:var(--panel-3);color:var(--text-2);cursor:pointer;
+          transition:all var(--t) var(--ease)}
+        .gal-acoes button:hover{border-color:var(--border-md);color:var(--text)}
+        .gal-acoes .gal-tirar:hover{border-color:var(--red);color:var(--red)}
+        .gal-vazia{grid-column:1/-1;padding:20px;text-align:center;color:var(--text-3);
+          font-size:12.5px;border:1px dashed var(--border-md);border-radius:9px}
+
         .graus{display:flex;flex-direction:column;gap:8px}
         .grau{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border-radius:var(--radius-sm);
           border:1px solid var(--border);background:var(--panel-2);cursor:pointer;
@@ -555,7 +615,19 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
                             <label class="cp">
                                 <span>Texto</span>
-                                <textarea name="texto" rows="16" class="txt-materia"
+                                <div class="barra-txt" id="barraTxt" role="toolbar" aria-label="Formatar">
+                                    <button type="button" data-marca="*" title="Negrito (Ctrl+B)"><b>B</b></button>
+                                    <button type="button" data-marca="_" title="Itálico (Ctrl+I)"><i>I</i></button>
+                                    <button type="button" data-limpar="1" title="Voltar a texto normal">Texto normal</button>
+                                    <span class="barra-fio"></span>
+                                    <button type="button" data-linha="## " title="Intertítulo">Título</button>
+                                    <button type="button" data-linha="> " title="Citação">&ldquo; &rdquo;</button>
+                                    <span class="barra-fio"></span>
+                                    <button type="button" id="btnInserirFoto" title="Inserir foto da galeria no cursor">
+                                        <i class="bi bi-image"></i> Inserir foto
+                                    </button>
+                                </div>
+                                <textarea name="texto" rows="16" class="txt-materia" id="campoTexto"
                                           placeholder="Escreva normal. Linha em branco separa parágrafo.&#10;&#10;*negrito* e _itálico_ funcionam, como no WhatsApp."><?= $esc($v['texto']) ?></textarea>
                                 <small>Texto puro, não HTML. Linha em branco = parágrafo novo. <b>*negrito*</b> e <i>_itálico_</i> funcionam.</small>
                             </label>
@@ -618,6 +690,54 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                         </div>
                     </div>
 
+                    <?php if ((int)$v['id'] > 0): $galeria = patheticFotos($pdo, (int)$v['id']); ?>
+                    <div class="bc">
+                        <div class="bc-head">
+                            <div class="bc-title"><i class="bi bi-images"></i> Fotos no meio do texto</div>
+                            <span style="font-size:11px;color:var(--text-3)">Até <?= PATHETIC_MAX_FOTOS ?></span>
+                        </div>
+                        <div class="bc-body">
+                            <div class="galeria">
+                                <?php if (!$galeria): ?>
+                                    <div class="gal-vazia">Nenhuma foto ainda. Envie uma aqui embaixo e depois use
+                                        <b>Inserir foto</b> na barra do texto.</div>
+                                <?php endif; ?>
+                                <?php foreach ($galeria as $g): ?>
+                                    <div class="gal-item" data-n="<?= (int)$g['n'] ?>">
+                                        <span class="gal-n"><?= (int)$g['n'] ?></span>
+                                        <img src="<?= $esc(patheticSrcFoto($g['caminho'])) ?>" alt="">
+                                        <div class="gal-acoes">
+                                            <button type="button" onclick="inserirFotoNoTexto(<?= (int)$g['n'] ?>)">Inserir</button>
+                                            <button type="button" class="gal-tirar"
+                                                    onclick="tirarFoto(<?= (int)$g['id'] ?>)">Tirar</button>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <p style="font-size:11.5px;color:var(--text-3);margin:11px 0 0;line-height:1.45">
+                                A foto entra no texto como <code>[foto:2]</code>, num parágrafo só dela.
+                                Tirar a foto daqui some com ela da matéria — a marca no texto é ignorada.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="bc">
+                        <div class="bc-head"><div class="bc-title"><i class="bi bi-plus-square"></i> Enviar foto pra galeria</div></div>
+                        <div class="bc-body">
+                            <label class="cp">
+                                <span>Arquivo</span>
+                                <input type="file" name="foto_galeria" accept="image/jpeg,image/png,image/webp,image/gif" form="formGaleria">
+                            </label>
+                            <label class="cp">
+                                <span>Legenda <em>opcional</em></span>
+                                <input type="text" name="legenda" maxlength="160" form="formGaleria"
+                                       placeholder="Ex: O técnico na coletiva de terça">
+                            </label>
+                            <button type="submit" class="btn-save" style="width:100%" form="formGaleria">Enviar foto</button>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
                     <div class="bc">
                         <div class="bc-body" style="display:flex;flex-direction:column;gap:11px">
                             <label class="checa forte">
@@ -637,6 +757,32 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                   </div>
                 </div>
             </form>
+
+            <?php if ($novaMateria && (int)$v['id'] > 0): ?>
+            <!-- Os formulários da galeria vivem FORA do formulário da matéria:
+                 HTML não aninha formulário, e os campos lá em cima chegam aqui pelo
+                 atributo form="formGaleria". Assim enviar uma foto não arrasta
+                 junto o texto da matéria — e não salva por acidente o que ainda
+                 estava sendo escrito. -->
+            <form id="formGaleria" method="post" enctype="multipart/form-data" hidden>
+                <input type="hidden" name="token" value="<?= $esc($token) ?>">
+                <input type="hidden" name="acao" value="add_foto">
+                <input type="hidden" name="id" value="<?= (int)$v['id'] ?>">
+            </form>
+            <form id="formTirarFoto" method="post" hidden>
+                <input type="hidden" name="token" value="<?= $esc($token) ?>">
+                <input type="hidden" name="acao" value="tirar_foto">
+                <input type="hidden" name="id" value="<?= (int)$v['id'] ?>">
+                <input type="hidden" name="foto" id="fotoParaTirar" value="">
+            </form>
+            <script>
+              function tirarFoto(id){
+                if (!confirm("Tirar esta foto da matéria? O arquivo é apagado.")) return;
+                document.getElementById("fotoParaTirar").value = id;
+                document.getElementById("formTirarFoto").submit();
+              }
+            </script>
+            <?php endif; ?>
 
 <?php else: /* ═══════════ A LISTA ═══════════ */ ?>
 
@@ -797,6 +943,191 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     }
     applyTheme(localStorage.getItem('fba-theme')||'dark');
     themeToggle.addEventListener('click', () => applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
+
+/* ═══════════════════════════════════════════════════════════════════
+       A BARRA DE FORMATAR
+       ═══════════════════════════════════════════════════════════════════
+
+       Ela age sobre a SELEÇÃO, e é um interruptor: selecionar "seis
+       jogadores" e clicar em B escreve *seis jogadores*; clicar de novo com o
+       mesmo trecho selecionado tira as estrelas.
+
+       O campo continua sendo texto puro, com as marcas à vista. Foi escolha,
+       não limitação: um editor que guarda HTML reabriria o buraco de XSS que
+       esta página levou tempo pra fechar — o bloco do "arquivo" é justamente
+       o que sobrou dessa era e por isso hoje só admin mexe nele.
+
+       Quem prefere digitar *assim* continua digitando: a barra escreve o
+       mesmo que o dedo escreveria. */
+    (function () {
+      const campo = document.getElementById('campoTexto');
+      const barra = document.getElementById('barraTxt');
+      if (!campo || !barra) return;
+
+      /* Um passo só no desfazer. O jeito antigo (mexer no .value direto)
+         apagava a pilha inteira de Ctrl+Z: a pessoa clicava em negrito por
+         engano e não tinha volta. execCommand("insertText") é obsoleto pra
+         quase tudo, mas é a única forma que ainda entra no histórico nativo
+         do textarea — e se o navegador recusar, o fallback escreve direto. */
+      function escrever(texto, ini, fim) {
+        campo.focus();
+        campo.setSelectionRange(ini, fim);
+        let ok = false;
+        try { ok = document.execCommand('insertText', false, texto); } catch (e) { ok = false; }
+        if (!ok) {
+          campo.value = campo.value.slice(0, ini) + texto + campo.value.slice(fim);
+        }
+      }
+
+      /* Aplica ou tira a marca do trecho selecionado. */
+      function marcar(marca) {
+        const v = campo.value;
+        let ini = campo.selectionStart, fim = campo.selectionEnd;
+
+        // Sem seleção, marca a palavra debaixo do cursor: é o que a pessoa
+        // quer em 90% dos casos, e evita o "cliquei e não aconteceu nada".
+        if (ini === fim) {
+          const antes = v.slice(0, ini).search(/[^\s]*$/);
+          const depois = ini + (v.slice(ini).match(/^[^\s]*/) || [''])[0].length;
+          if (depois > antes) { ini = antes; fim = depois; }
+        }
+        if (ini === fim) return;
+
+        const dentro = v.slice(ini, fim);
+        const m = marca;
+
+        // Já marcado? Então o clique é pra TIRAR — nos dois formatos: com a
+        // marca dentro da seleção (*isto*) e com ela em volta (*|isto|*).
+        if (dentro.length > 2 * m.length && dentro.startsWith(m) && dentro.endsWith(m)) {
+          const limpo = dentro.slice(m.length, -m.length);
+          escrever(limpo, ini, fim);
+          campo.setSelectionRange(ini, ini + limpo.length);
+          return atualizar();
+        }
+        if (v.slice(ini - m.length, ini) === m && v.slice(fim, fim + m.length) === m) {
+          escrever(dentro, ini - m.length, fim + m.length);
+          campo.setSelectionRange(ini - m.length, ini - m.length + dentro.length);
+          return atualizar();
+        }
+
+        escrever(m + dentro + m, ini, fim);
+        campo.setSelectionRange(ini + m.length, ini + m.length + dentro.length);
+        atualizar();
+      }
+
+      /* Tira TODAS as marcas do trecho — o "voltar a texto normal". */
+      function limpar() {
+        let ini = campo.selectionStart, fim = campo.selectionEnd;
+        if (ini === fim) {
+          // Sem seleção, limpa a linha inteira: é o gesto de "essa linha aqui
+          // volta a ser texto".
+          const v = campo.value;
+          ini = v.lastIndexOf('\n', Math.max(0, ini - 1)) + 1;
+          const p = v.indexOf('\n', fim);
+          fim = p === -1 ? v.length : p;
+        }
+        if (ini === fim) return;
+        const limpo = campo.value.slice(ini, fim)
+          .replace(/^(#{1,3}\s+|>\s*)/gm, '')
+          .replace(/(?<![\w*])\*(?=\S)([^*\r\n]+?)(?<=\S)\*(?![\w*])/g, '$1')
+          .replace(/(?<![\w_])_(?=\S)([^_\r\n]+?)(?<=\S)_(?![\w_])/g, '$1');
+        escrever(limpo, ini, fim);
+        campo.setSelectionRange(ini, ini + limpo.length);
+        atualizar();
+      }
+
+      /* Prefixo de linha: intertítulo e citação. Interruptor também. */
+      function prefixar(prefixo) {
+        const v = campo.value;
+        const ini = v.lastIndexOf('\n', Math.max(0, campo.selectionStart - 1)) + 1;
+        let fim = v.indexOf('\n', campo.selectionEnd);
+        if (fim === -1) fim = v.length;
+
+        const linhas = v.slice(ini, fim).split('\n');
+        const jaTem = linhas.every(l => l.startsWith(prefixo));
+        const novas = linhas.map(l => jaTem
+          ? l.slice(prefixo.length)
+          : prefixo + l.replace(/^(#{1,3}\s+|>\s*)/, ''));
+        const texto = novas.join('\n');
+        escrever(texto, ini, fim);
+        campo.setSelectionRange(ini, ini + texto.length);
+        atualizar();
+      }
+
+      /* Acende o botão do formato que a seleção já tem. Sem isto a barra não
+         diz em que estado o texto está, e "clicar de novo pra tirar" vira
+         adivinhação. */
+      function atualizar() {
+        const v = campo.value, ini = campo.selectionStart, fim = campo.selectionEnd;
+        const sel = v.slice(ini, fim);
+        const linhaIni = v.lastIndexOf('\n', Math.max(0, ini - 1)) + 1;
+        const linha = v.slice(linhaIni, v.indexOf('\n', ini) === -1 ? v.length : v.indexOf('\n', ini));
+
+        barra.querySelectorAll('button[data-marca]').forEach(b => {
+          const m = b.dataset.marca;
+          const cercado = sel.length > 2 * m.length && sel.startsWith(m) && sel.endsWith(m);
+          const porFora  = v.slice(ini - m.length, ini) === m && v.slice(fim, fim + m.length) === m;
+          b.classList.toggle('ativo', ini !== fim && (cercado || porFora));
+        });
+        barra.querySelectorAll('button[data-linha]').forEach(b => {
+          b.classList.toggle('ativo', linha.startsWith(b.dataset.linha.trim()));
+        });
+      }
+
+      barra.addEventListener('click', (ev) => {
+        const b = ev.target.closest('button');
+        if (!b) return;
+        ev.preventDefault();
+        if (b.dataset.marca)  return marcar(b.dataset.marca);
+        if (b.dataset.limpar) return limpar();
+        if (b.dataset.linha)  return prefixar(b.dataset.linha);
+      });
+
+      // Ctrl+B e Ctrl+I, porque é o que a mão faz sozinha.
+      campo.addEventListener('keydown', (ev) => {
+        if (!(ev.ctrlKey || ev.metaKey)) return;
+        const k = ev.key.toLowerCase();
+        if (k === 'b') { ev.preventDefault(); marcar('*'); }
+        if (k === 'i') { ev.preventDefault(); marcar('_'); }
+      });
+
+      ['keyup', 'mouseup', 'select', 'focus', 'input'].forEach(e =>
+        campo.addEventListener(e, atualizar));
+      atualizar();
+
+      /* INSERIR FOTO: escreve a marca no cursor, em parágrafo próprio.
+         O botão da galeria manda o número; este aqui é o atalho pra primeira
+         foto que ainda não foi usada no texto. */
+      window.inserirFotoNoTexto = function (n) {
+        const v = campo.value;
+        let pos = campo.selectionStart;
+        // Sobe pro fim da linha anterior se o cursor estiver no meio de uma:
+        // a marca precisa de um parágrafo só pra ela.
+        const marca = '[foto:' + n + ']';
+        const antes = v.slice(0, pos);
+        const depois = v.slice(pos);
+        const pre  = antes && !antes.endsWith('\n\n') ? (antes.endsWith('\n') ? '\n' : '\n\n') : '';
+        const pos2 = depois && !depois.startsWith('\n\n') ? (depois.startsWith('\n') ? '\n' : '\n\n') : '';
+        const texto = pre + marca + pos2;
+        escrever(texto, pos, pos);
+        const p = pos + texto.length;
+        campo.setSelectionRange(p, p);
+        campo.focus();
+      };
+
+      const btnFoto = document.getElementById('btnInserirFoto');
+      btnFoto?.addEventListener('click', () => {
+        const usadas = (campo.value.match(/\[foto:(\d+)\]/g) || [])
+          .map(x => parseInt(x.replace(/\D/g, ''), 10));
+        const todas = [...document.querySelectorAll('.gal-item')].map(e => parseInt(e.dataset.n, 10));
+        if (!todas.length) {
+          alert('Nenhuma foto na galeria ainda. Envie uma foto primeiro, aqui embaixo.');
+          return;
+        }
+        const livre = todas.find(n => !usadas.includes(n)) ?? todas[0];
+        window.inserirFotoNoTexto(livre);
+      });
+    })();
 
     // A prévia da foto antes de enviar: sem ela a pessoa só descobre que
     // escolheu o arquivo errado depois de salvar a notícia.

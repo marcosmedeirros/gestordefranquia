@@ -33,3 +33,8 @@ entrar-teste.php
 /_medir_*.html
 /_zz_*.html
 /_auditor_teste.php
+
+# As fotos das notícias são conteúdo, não código: elas nascem no servidor de
+# produção quando alguém publica. O .htaccess da pasta continua versionado.
+/uploads/pathetic/*
+!/uploads/pathetic/.htaccess

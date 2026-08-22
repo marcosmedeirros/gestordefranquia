@@ -89,6 +89,7 @@ $capa     = patheticCapa($noticias);
 $social = patheticContagens($pdo,
     array_merge(array_column($noticias, 'id'), $materia ? [$materia['id']] : []), $leitorId);
 $comentarios = $materia ? patheticComentarios($pdo, (int)$materia['id']) : [];
+$fotosDaMateria = $materia ? patheticFotos($pdo, (int)$materia['id']) : [];
 
 // O conteúdo antigo (a caixa de HTML) continua no banco e não é jogado fora:
 // ele vira o rodapé do arquivo, abaixo das notícias. Quando o jornal tiver
@@ -430,7 +431,26 @@ a{color:inherit;text-decoration:none}
 /* A capitular: a letra grande no primeiro parágrafo. É o gesto mais antigo
    do ramo e o que diz "a matéria começa aqui" sem escrever nada. */
 .materia-txt > p:first-child::first-letter{font-family:var(--display);font-size:3.1em;
-  line-height:.82;float:left;margin:.06em .1em 0 0;color:var(--vermelho)}
+  line-height:.82;float:left;margin:.06em .1em 0 0;color:var(--acido)}
+
+/* ── O QUE A BARRA DO EDITOR PRODUZ ───────────────────────────────────
+   Intertítulo, citação e a foto no meio do texto. Os três existem pra quebrar
+   a coluna: matéria longa sem nada que interrompa é parede, e o olho desiste
+   antes do terceiro parágrafo. */
+.materia-txt .txt-tit{font-family:var(--display);font-size:clamp(20px,3vw,28px);
+  line-height:1.05;letter-spacing:-.2px;text-transform:uppercase;color:var(--tinta);
+  margin:1.5em 0 .5em;text-wrap:balance}
+.materia-txt .txt-tit:first-child{margin-top:0}
+/* A citação com o fio ácido na lateral: é a fala que a matéria quer que fique
+   na cabeça, e o fio é o mesmo elemento da marca. */
+.materia-txt .txt-citacao{margin:1.3em 0;padding:2px 0 2px 20px;
+  border-left:4px solid var(--acido);font-size:1.14em;line-height:1.5;
+  color:var(--tinta);font-style:italic}
+.materia-txt .txt-foto{margin:1.6em 0;border:1px solid var(--fio)}
+.materia-txt .txt-foto img{width:100%;height:auto;display:block}
+.materia-txt .txt-foto figcaption{font-family:var(--etiqueta);font-size:12px;
+  letter-spacing:.6px;text-transform:uppercase;color:var(--tinta-3);
+  padding:8px 10px;background:var(--fundo-2)}
 
 /* ── CURTIR E COMENTAR ────────────────────────────────────────────────
    Ficam DEPOIS do texto, nunca antes: o que a pessoa veio fazer é ler. O
@@ -627,7 +647,7 @@ a{color:inherit;text-decoration:none}
       <?php endif; ?>
     <?php endif; ?>
 
-    <div class="materia-txt"><?= patheticTextoHtml($materia['texto']) ?></div>
+    <div class="materia-txt"><?= patheticTextoHtml($materia['texto'], $fotosDaMateria) ?></div>
 
     <?php $s = $social[(int)$materia['id']] ?? ['curtidas'=>0,'comentarios'=>0,'euCurti'=>false]; ?>
     <div class="reacoes">
