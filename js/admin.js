@@ -421,7 +421,10 @@ async function showGestao(league) {
     { icon: 'bi-clipboard-plus',        label: 'Inscrição<br>ROOKIE',       fn: 'showConviteRookie()',   color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
     { icon: 'bi-shuffle',               label: 'Drafts<br>Aleatórios',      url: '/drafts-aleatorios.php',    color: '#a855f7', bg: 'rgba(168,85,247,.08)' },
     { icon: 'bi-dice-3-fill',           label: 'Loterias',                  url: '/loterias-aleatorias.php',  color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
-    { icon: 'bi-newspaper',             label: 'The<br>Pathetic',           url: '/thepathetic-edit.php',     color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 12%, transparent)' },
+    // A redação do jornal: escrever, publicar, editar, apagar e moderar os
+    // comentários. Era rotulada "The Pathetic" quando a tela era uma caixa de
+    // HTML; agora o nome diz o que se faz lá.
+    { icon: 'bi-newspaper',             label: 'Redação<br>The Pathetic',   url: '/thepathetic-edit.php',     color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 12%, transparent)' },
     { icon: 'bi-person-bounding-box',   label: 'Sincronizar<br>Fotos NBA',  fn: 'syncFotosNBA()',        color: '#06b6d4', bg: 'rgba(6,182,212,.12)', id: 'btnSyncFotos' },
     { icon: 'bi-person-lines-fill',     label: 'Interessados',              fn: 'showWaitlistModal()',   color: '#22c55e', bg: 'rgba(34,197,94,.12)', badgeId: 'waitlist-badge' },
     { icon: 'bi-book-half',             label: 'Ver guia<br>do usuário',    url: '/guia.php', novaAba: true, color: '#38bdf8', bg: 'rgba(56,189,248,.12)' },

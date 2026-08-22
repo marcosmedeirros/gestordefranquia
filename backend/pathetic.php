@@ -371,6 +371,232 @@ function patheticMinutos(?string $texto): int
     return max(1, (int)round($palavras / 200));
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// CURTIDA E COMENTÁRIO
+//
+// Só quem está logado curte ou comenta. As duas páginas do jornal são
+// abertas — /thepathetic.php e /site/pathetic.php —, e comentário anônimo
+// numa liga de quarenta pessoas não é participação, é porta pra spam. Quem
+// não está logado vê tudo e vê o convite pra entrar.
+//
+// A curtida é uma linha por pessoa por notícia, com a chave primária fazendo
+// o trabalho: clicar de novo apaga, e não existe "curtir duas vezes".
+// ═══════════════════════════════════════════════════════════════════════
+
+/** O comentário mais longo que cabe. Acima disso é texto, não comentário. */
+const PATHETIC_MAX_COMENTARIO = 1200;
+
+/** Quantos comentários uma pessoa pode deixar por hora, no jornal inteiro. */
+const PATHETIC_COMENTARIOS_POR_HORA = 15;
+
+function patheticGarantirSocial(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    $feito = true;
+
+    try {
+        // A chave primária composta É a regra de negócio: uma curtida por
+        // pessoa por notícia, sem precisar de checagem antes de inserir.
+        $pdo->exec("CREATE TABLE IF NOT EXISTS pathetic_curtidas (
+            noticia_id INT NOT NULL,
+            id_usuario INT NOT NULL,
+            criado_em  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (noticia_id, id_usuario),
+            KEY idx_curtida_noticia (noticia_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS pathetic_comentarios (
+            id         INT AUTO_INCREMENT PRIMARY KEY,
+            noticia_id INT NOT NULL,
+            id_usuario INT NOT NULL,
+            autor_nome VARCHAR(80) NOT NULL,
+            texto      VARCHAR(1200) NOT NULL,
+            criado_em  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_coment_noticia (noticia_id, criado_em),
+            KEY idx_coment_autor (id_usuario, criado_em)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Throwable $e) {
+        error_log('[pathetic] tabelas sociais: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Curtidas e comentários de uma lista de notícias, de uma vez.
+ *
+ * Uma consulta pra todas em vez de duas por card: a capa mostra até vinte
+ * notícias, e a versão ingênua fazia quarenta idas ao banco pra desenhar uma
+ * página que já estava pronta.
+ */
+function patheticContagens(PDO $pdo, array $ids, int $idUsuario = 0): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+    if (!$ids) return [];
+    patheticGarantirSocial($pdo);
+
+    $vagas = implode(',', array_fill(0, count($ids), '?'));
+    $out = [];
+    foreach ($ids as $id) $out[$id] = ['curtidas' => 0, 'comentarios' => 0, 'euCurti' => false];
+
+    try {
+        $st = $pdo->prepare("SELECT noticia_id, COUNT(*) n FROM pathetic_curtidas
+                             WHERE noticia_id IN ({$vagas}) GROUP BY noticia_id");
+        $st->execute($ids);
+        foreach ($st as $r) $out[(int)$r['noticia_id']]['curtidas'] = (int)$r['n'];
+
+        $st = $pdo->prepare("SELECT noticia_id, COUNT(*) n FROM pathetic_comentarios
+                             WHERE noticia_id IN ({$vagas}) GROUP BY noticia_id");
+        $st->execute($ids);
+        foreach ($st as $r) $out[(int)$r['noticia_id']]['comentarios'] = (int)$r['n'];
+
+        if ($idUsuario > 0) {
+            $st = $pdo->prepare("SELECT noticia_id FROM pathetic_curtidas
+                                 WHERE id_usuario = ? AND noticia_id IN ({$vagas})");
+            $st->execute(array_merge([$idUsuario], $ids));
+            foreach ($st as $r) $out[(int)$r['noticia_id']]['euCurti'] = true;
+        }
+    } catch (Throwable $e) {
+        error_log('[pathetic] contagens: ' . $e->getMessage());
+    }
+    return $out;
+}
+
+/**
+ * Curte ou descurte. O mesmo clique faz as duas coisas.
+ *
+ * Devolve o estado depois: ['curtiu' => bool, 'total' => int].
+ */
+function patheticAlternarCurtida(PDO $pdo, int $noticiaId, int $idUsuario): array
+{
+    patheticGarantirSocial($pdo);
+    $curtiu = false;
+    try {
+        // DELETE primeiro: se apagou, era pra descurtir e acabou. Se não
+        // apagou nada, não havia curtida e o INSERT é o que a pessoa queria.
+        // Duas consultas, nenhuma corrida — a chave primária arbitra.
+        $del = $pdo->prepare("DELETE FROM pathetic_curtidas WHERE noticia_id = ? AND id_usuario = ?");
+        $del->execute([$noticiaId, $idUsuario]);
+        if ($del->rowCount() === 0) {
+            $pdo->prepare("INSERT IGNORE INTO pathetic_curtidas (noticia_id, id_usuario) VALUES (?,?)")
+                ->execute([$noticiaId, $idUsuario]);
+            $curtiu = true;
+        }
+        $st = $pdo->prepare("SELECT COUNT(*) FROM pathetic_curtidas WHERE noticia_id = ?");
+        $st->execute([$noticiaId]);
+        return ['curtiu' => $curtiu, 'total' => (int)$st->fetchColumn()];
+    } catch (Throwable $e) {
+        error_log('[pathetic] curtir: ' . $e->getMessage());
+        return ['curtiu' => false, 'total' => 0, 'erro' => true];
+    }
+}
+
+/** Os comentários de uma notícia, do mais antigo pro mais novo. */
+function patheticComentarios(PDO $pdo, int $noticiaId): array
+{
+    patheticGarantirSocial($pdo);
+    try {
+        // Do mais ANTIGO pro mais novo: comentário é conversa, e conversa se
+        // lê na ordem em que aconteceu.
+        $st = $pdo->prepare("SELECT * FROM pathetic_comentarios WHERE noticia_id = ?
+                             ORDER BY criado_em ASC, id ASC LIMIT 300");
+        $st->execute([$noticiaId]);
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        error_log('[pathetic] comentarios: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Grava um comentário. Devolve o erro pra tela, ou null se deu certo.
+ *
+ * O texto é guardado CRU e escapado na hora de mostrar — guardar escapado
+ * quebra a contagem de caracteres e vira & a m p ; na segunda edição.
+ */
+function patheticComentar(PDO $pdo, int $noticiaId, int $idUsuario, string $nome, string $texto): ?string
+{
+    patheticGarantirSocial($pdo);
+
+    $texto = trim(preg_replace('/\R{3,}/u', "\n\n", $texto));
+    if ($texto === '') return 'Escreva alguma coisa antes de enviar.';
+    if (mb_strlen($texto) > PATHETIC_MAX_COMENTARIO)
+        return 'O comentário passa de ' . PATHETIC_MAX_COMENTARIO . ' caracteres.';
+
+    // A notícia tem que existir E estar publicada: comentar num rascunho
+    // seria comentar no que ninguém pode ler.
+    if (!patheticUma($pdo, $noticiaId)) return 'Essa notícia não está no ar.';
+
+    try {
+        // Freio de ritmo, o mesmo espírito do auditor das carreiras: quinze
+        // comentários por hora é muito mais do que uma pessoa escreve e
+        // pouco o bastante pra um script não encher o jornal.
+        $st = $pdo->prepare("SELECT COUNT(*) FROM pathetic_comentarios
+                             WHERE id_usuario = ? AND criado_em > (NOW() - INTERVAL 1 HOUR)");
+        $st->execute([$idUsuario]);
+        if ((int)$st->fetchColumn() >= PATHETIC_COMENTARIOS_POR_HORA)
+            return 'Você comentou bastante na última hora. Volte daqui a pouco.';
+
+        // Mesmo texto, mesma notícia, mesma pessoa, nos últimos dois minutos:
+        // é duplo clique ou F5 na tela de sucesso, não um segundo comentário.
+        $st = $pdo->prepare("SELECT COUNT(*) FROM pathetic_comentarios
+                             WHERE noticia_id = ? AND id_usuario = ? AND texto = ?
+                               AND criado_em > (NOW() - INTERVAL 2 MINUTE)");
+        $st->execute([$noticiaId, $idUsuario, $texto]);
+        if ((int)$st->fetchColumn() > 0) return null;
+
+        $pdo->prepare("INSERT INTO pathetic_comentarios (noticia_id, id_usuario, autor_nome, texto)
+                       VALUES (?,?,?,?)")
+            ->execute([$noticiaId, $idUsuario, mb_substr(trim($nome) ?: 'Anônimo', 0, 80), $texto]);
+        return null;
+    } catch (Throwable $e) {
+        error_log('[pathetic] comentar: ' . $e->getMessage());
+        return 'Não foi possível enviar o comentário.';
+    }
+}
+
+/**
+ * Apaga um comentário.
+ *
+ * Quem apaga: o dono do comentário, ou quem edita o jornal. O dono porque
+ * escreveu e se arrependeu; o editor porque é dele a responsabilidade sobre o
+ * que aparece na página.
+ */
+function patheticApagarComentario(PDO $pdo, int $comentarioId, int $idUsuario, bool $ehEditor): bool
+{
+    patheticGarantirSocial($pdo);
+    try {
+        if ($ehEditor) {
+            $st = $pdo->prepare("DELETE FROM pathetic_comentarios WHERE id = ?");
+            $st->execute([$comentarioId]);
+        } else {
+            $st = $pdo->prepare("DELETE FROM pathetic_comentarios WHERE id = ? AND id_usuario = ?");
+            $st->execute([$comentarioId, $idUsuario]);
+        }
+        return $st->rowCount() > 0;
+    } catch (Throwable $e) {
+        error_log('[pathetic] apagar comentario: ' . $e->getMessage());
+        return false;
+    }
+}
+
+/** Os comentários mais recentes do jornal inteiro — a fila da moderação. */
+function patheticComentariosRecentes(PDO $pdo, int $limite = 60): array
+{
+    patheticGarantirSocial($pdo);
+    try {
+        $st = $pdo->prepare("SELECT c.*, n.titulo, n.publicada
+                             FROM pathetic_comentarios c
+                             LEFT JOIN pathetic_noticias n ON n.id = c.noticia_id
+                             ORDER BY c.criado_em DESC, c.id DESC
+                             LIMIT " . max(1, min(200, $limite)));
+        $st->execute();
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        error_log('[pathetic] comentarios recentes: ' . $e->getMessage());
+        return [];
+    }
+}
+
 /**
  * O que dizer pro editor sobre o aviso no grupo.
  *

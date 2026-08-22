@@ -22,6 +22,20 @@ if ($sumiu) http_response_code(404);
 $noticias = patheticPublicadas($pdo, 40);
 $capa     = patheticCapa($noticias);
 
+// Os números aparecem; os botões não. Curtir e comentar exigem conta, e conta
+// se tem no app — aqui é a vitrine, aberta a quem nem sabe o que é a FBA. O
+// convite pra participar é o link de entrar, no fim da matéria.
+$social = patheticContagens($pdo,
+    array_merge(array_column($noticias, 'id'), $materia ? [$materia['id']] : []));
+$comentarios = $materia ? patheticComentarios($pdo, (int)$materia['id']) : [];
+
+$seloSocial = function (array $s): string {
+    $p = [];
+    if (!empty($s['curtidas']))    $p[] = '&#9829; ' . (int)$s['curtidas'];
+    if (!empty($s['comentarios'])) $p[] = '&#128172; ' . (int)$s['comentarios'];
+    return $p ? '<span class="np-social">' . implode(' ', $p) . '</span>' : '';
+};
+
 // O HTML antigo continua no banco e vira o pé da página, como no app.
 $pageContent = '';
 try {
@@ -218,6 +232,26 @@ a { color: var(--red); text-decoration: none; }
 
 .np-arquivo { margin-top: 60px; padding-top: 30px; border-top: 1px solid var(--line-2); }
 
+/* ── Curtidas e comentários, só de leitura ─────────────────────────── */
+.np-social { color: var(--ink-mute); }
+.np-conversa { margin-top: 40px; padding-top: 26px; border-top: 1px solid var(--line); }
+.np-conversa h2 { font-family: var(--font-mono); font-size: 11px; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--ink-dim); margin: 0 0 20px; }
+.np-coment { display: flex; gap: 13px; padding: 15px 0; border-top: 1px solid var(--line); }
+.np-coment:first-of-type { border-top: none; }
+.np-coment-ini { width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid;
+  place-items: center; background: var(--bg-3); color: var(--ink-mute);
+  font-family: var(--font-display); font-size: 15px; }
+.np-coment-corpo { flex: 1; min-width: 0; }
+.np-coment-corpo b { display: block; font-size: 13.5px; color: var(--ink); margin-bottom: 2px; }
+.np-coment-corpo small { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-dim); }
+.np-coment-corpo p { margin: 6px 0 0; font-size: 15px; line-height: 1.6; color: var(--ink-mute);
+  overflow-wrap: break-word; word-break: break-word; }
+.np-convite { margin-top: 24px; padding: 18px; border: 1px dashed var(--line-2);
+  text-align: center; color: var(--ink-dim); font-size: 14.5px; }
+.np-convite a { color: var(--red); }
+
 @media (max-width: 600px) {
   .np-item { gap: 13px; padding: 16px 0; }
   .np-item .np-foto { width: 104px; }
@@ -305,6 +339,27 @@ a { color: var(--red); text-decoration: none; }
 
     <div class="np-corpo"><?= patheticTextoHtml($materia['texto']) ?></div>
 
+    <?php $s = $social[(int)$materia['id']] ?? ['curtidas'=>0,'comentarios'=>0]; ?>
+    <section class="np-conversa">
+      <h2><?= (int)$s['curtidas'] ?> <?= (int)$s['curtidas'] === 1 ? 'curtida' : 'curtidas' ?>
+        · <?= (int)$s['comentarios'] ?> <?= (int)$s['comentarios'] === 1 ? 'comentário' : 'comentários' ?></h2>
+
+      <?php foreach ($comentarios as $c): ?>
+        <div class="np-coment">
+          <div class="np-coment-ini"><?= $e(mb_strtoupper(mb_substr(trim((string)$c['autor_nome']) ?: '?', 0, 1))) ?></div>
+          <div class="np-coment-corpo">
+            <b><?= $e($c['autor_nome']) ?></b>
+            <small><?= $e(patheticQuando($c['criado_em'])) ?></small>
+            <p><?= nl2br($e($c['texto']), false) ?></p>
+          </div>
+        </div>
+      <?php endforeach; ?>
+
+      <div class="np-convite">
+        <a href="/login.php">Entre na FBA</a> pra curtir e comentar.
+      </div>
+    </section>
+
     <a class="np-voltar" href="/site/pathetic.php">← Todas as notícias</a>
   </article>
 
@@ -328,7 +383,7 @@ a { color: var(--red); text-decoration: none; }
       </div>
       <h2><?= $e($m['titulo']) ?></h2>
       <?php $r = patheticResumo($m, 220); if ($r !== ''): ?><p><?= $e($r) ?></p><?php endif; ?>
-      <div class="np-meta"><b><?= $e($m['autor_nome']) ?></b><span>·</span><span><?= $e(patheticQuando($m['publicada_em'] ?: $m['criada_em'])) ?></span></div>
+      <div class="np-meta"><b><?= $e($m['autor_nome']) ?></b><span>·</span><span><?= $e(patheticQuando($m['publicada_em'] ?: $m['criada_em'])) ?></span><?= $seloSocial($social[(int)$m['id']] ?? []) ?></div>
     </a>
   <?php endif; ?>
 
@@ -345,7 +400,7 @@ a { color: var(--red); text-decoration: none; }
           </div>
           <h3><?= $e($d['titulo']) ?></h3>
           <?php $r = patheticResumo($d, 140); if ($r !== ''): ?><p><?= $e($r) ?></p><?php endif; ?>
-          <div class="np-meta"><b><?= $e($d['autor_nome']) ?></b><span>·</span><span><?= $e(patheticQuando($d['publicada_em'] ?: $d['criada_em'])) ?></span></div>
+          <div class="np-meta"><b><?= $e($d['autor_nome']) ?></b><span>·</span><span><?= $e(patheticQuando($d['publicada_em'] ?: $d['criada_em'])) ?></span><?= $seloSocial($social[(int)$d['id']] ?? []) ?></div>
         </a>
       <?php endforeach; ?>
     </div>
@@ -366,7 +421,7 @@ a { color: var(--red); text-decoration: none; }
             </div>
             <h4><?= $e($n['titulo']) ?></h4>
             <?php $r = patheticResumo($n, 130); if ($r !== ''): ?><p><?= $e($r) ?></p><?php endif; ?>
-            <div class="np-meta"><b><?= $e($n['autor_nome']) ?></b><span>·</span><span><?= $e(patheticQuando($n['publicada_em'] ?: $n['criada_em'])) ?></span></div>
+            <div class="np-meta"><b><?= $e($n['autor_nome']) ?></b><span>·</span><span><?= $e(patheticQuando($n['publicada_em'] ?: $n['criada_em'])) ?></span><?= $seloSocial($social[(int)$n['id']] ?? []) ?></div>
           </div>
         </a>
       <?php endforeach; ?>

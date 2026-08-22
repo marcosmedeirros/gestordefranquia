@@ -14,7 +14,54 @@
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/pathetic.php';
 
+// A página continua ABERTA — quem não está logado lê tudo. A sessão entra só
+// pra saber quem é quem curte e quem comenta; sem ela, os dois botões viram
+// um convite pra entrar.
+if (session_status() === PHP_SESSION_NONE) session_start();
+$leitorId   = (int)($_SESSION['user_id'] ?? 0);
+$leitorNome = trim((string)($_SESSION['user_name'] ?? ''));
+
 $pdo = db();
+
+// Quem edita o jornal também modera o que aparece embaixo dele.
+$editoresExtra = ['gustavodossantosgonzaga58@gmail.com'];
+$souEditor = $leitorId > 0 && (
+    ($_SESSION['user_type'] ?? '') === 'admin'
+    || in_array(strtolower((string)($_SESSION['user_email'] ?? '')), $editoresExtra, true));
+
+// O token vive na sessão e acompanha os formulários de curtir e comentar. Sem
+// ele, um link numa mensagem qualquer curtiria em nome de quem clicasse.
+if ($leitorId > 0 && empty($_SESSION['pathetic_token'])) {
+    $_SESSION['pathetic_token'] = bin2hex(random_bytes(16));
+}
+$tokenLeitor = (string)($_SESSION['pathetic_token'] ?? '');
+
+$erroSocial = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $leitorId > 0) {
+    $ok = $tokenLeitor !== '' && hash_equals($tokenLeitor, (string)($_POST['token'] ?? ''));
+    $alvo = (int)($_POST['n'] ?? 0);
+    if (!$ok) {
+        $erroSocial = 'A página ficou aberta tempo demais. Recarregue e tente de novo.';
+    } else {
+        switch ((string)($_POST['acao'] ?? '')) {
+            case 'curtir':
+                patheticAlternarCurtida($pdo, $alvo, $leitorId);
+                break;
+            case 'comentar':
+                $erroSocial = patheticComentar($pdo, $alvo, $leitorId, $leitorNome, (string)($_POST['texto'] ?? ''));
+                break;
+            case 'apagar_comentario':
+                patheticApagarComentario($pdo, (int)($_POST['comentario'] ?? 0), $leitorId, $souEditor);
+                break;
+        }
+        // Redireciona depois de escrever: sem isto, F5 na tela recurte a
+        // notícia (o clique é um interruptor) ou reenvia o comentário.
+        if (!$erroSocial) {
+            header('Location: /thepathetic.php?n=' . $alvo . '#conversa');
+            exit;
+        }
+    }
+}
 
 $idPedido = isset($_GET['n']) ? (int)$_GET['n'] : 0;
 $materia  = $idPedido > 0 ? patheticUma($pdo, $idPedido) : null;
@@ -29,6 +76,11 @@ if ($sumiu) http_response_code(404);
 $noticias = patheticPublicadas($pdo, 60);
 $capa     = patheticCapa($noticias);
 
+// Curtidas e comentários de tudo que está na tela, numa consulta só.
+$social = patheticContagens($pdo,
+    array_merge(array_column($noticias, 'id'), $materia ? [$materia['id']] : []), $leitorId);
+$comentarios = $materia ? patheticComentarios($pdo, (int)$materia['id']) : [];
+
 // O conteúdo antigo (a caixa de HTML) continua no banco e não é jogado fora:
 // ele vira o rodapé do arquivo, abaixo das notícias. Quando o jornal tiver
 // edições próprias, apagar aquela linha some com esta seção sozinha.
@@ -40,6 +92,21 @@ try {
 } catch (Throwable $e) {}
 
 $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+
+/**
+ * Curtidas e comentários de um card, quando existirem.
+ *
+ * Zero não aparece: na capa o espaço é disputado, e "0 comentários" embaixo
+ * de dez cards é ruído. Na matéria aberta o zero aparece — lá ele é convite.
+ */
+function patheticSeloSocial(array $s): string
+{
+    $partes = [];
+    if (!empty($s['curtidas']))    $partes[] = '<i class="bi bi-heart-fill"></i> ' . (int)$s['curtidas'];
+    if (!empty($s['comentarios'])) $partes[] = '<i class="bi bi-chat-fill"></i> ' . (int)$s['comentarios'];
+    if (!$partes) return '';
+    return '<span class="card-social">' . implode(' ', $partes) . '</span>';
+}
 
 /** A tarja do grau, do lado do chapéu. */
 function patheticSelo(string $grau): string
@@ -254,6 +321,68 @@ a{color:inherit;text-decoration:none}
 .materia-txt > p:first-child::first-letter{font-family:var(--display);font-size:3.1em;
   line-height:.82;float:left;margin:.06em .1em 0 0;color:var(--vermelho)}
 
+/* ── CURTIR E COMENTAR ────────────────────────────────────────────────
+   Ficam DEPOIS do texto, nunca antes: o que a pessoa veio fazer é ler. O
+   número aparece mesmo com zero — esconder o contador faz parecer que a
+   função não existe, e aí ninguém é o primeiro. */
+.reacoes{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  margin-top:28px;padding-top:18px;border-top:1px solid var(--fio)}
+.btn-curtir{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;
+  border:1px solid var(--fio-forte);border-radius:999px;background:transparent;
+  color:var(--tinta-2);font-family:var(--etiqueta);font-size:13px;font-weight:600;
+  letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:.16s}
+.btn-curtir:hover{border-color:var(--vermelho);color:var(--vermelho)}
+.btn-curtir.curtida{background:var(--vermelho);border-color:var(--vermelho);color:#fff}
+.btn-curtir b{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.reacoes .conta{font-family:var(--etiqueta);font-size:12.5px;letter-spacing:.8px;
+  text-transform:uppercase;color:var(--tinta-3)}
+
+.conversa{margin-top:34px}
+.conversa h2{font-family:var(--etiqueta);font-size:13px;font-weight:700;letter-spacing:2.4px;
+  text-transform:uppercase;color:var(--tinta-3);display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.conversa h2::after{content:"";flex:1;height:1px;background:var(--fio)}
+.coment{display:flex;gap:12px;padding:14px 0;border-top:1px solid var(--fio)}
+.coment:first-of-type{border-top:none}
+.coment-ini{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:var(--fundo-3);color:var(--tinta-2);font-family:var(--etiqueta);
+  font-size:14px;font-weight:700}
+.coment-corpo{flex:1;min-width:0}
+.coment-cab{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:5px}
+.coment-cab b{font-size:13.5px;font-weight:700;color:var(--tinta)}
+.coment-cab span{font-family:var(--etiqueta);font-size:11.5px;letter-spacing:.8px;
+  text-transform:uppercase;color:var(--tinta-3)}
+.coment-corpo p{font-size:15.5px;line-height:1.6;color:var(--tinta-2);
+  overflow-wrap:break-word;word-break:break-word}
+.coment-apagar{background:none;border:none;color:var(--tinta-3);cursor:pointer;
+  font-size:12px;padding:2px 4px;margin-left:auto;flex:none;transition:.15s}
+.coment-apagar:hover{color:var(--vermelho)}
+
+.form-coment{margin-top:20px}
+.form-coment textarea{width:100%;min-height:92px;resize:vertical;background:var(--fundo-2);
+  border:1px solid var(--fio-forte);border-radius:10px;padding:12px 14px;color:var(--tinta);
+  font-family:var(--serifa);font-size:15.5px;line-height:1.55;outline:none;transition:border-color .16s}
+.form-coment textarea:focus{border-color:var(--vermelho)}
+.form-coment .pe{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin-top:10px;flex-wrap:wrap}
+.form-coment .quem{font-family:var(--etiqueta);font-size:12px;letter-spacing:.8px;
+  text-transform:uppercase;color:var(--tinta-3)}
+.form-coment button{padding:10px 22px;border:none;border-radius:999px;background:var(--vermelho);
+  color:#fff;font-family:var(--etiqueta);font-size:13px;font-weight:700;letter-spacing:1.2px;
+  text-transform:uppercase;cursor:pointer;transition:filter .15s}
+.form-coment button:hover{filter:brightness(1.12)}
+.entrar-pra-falar{margin-top:20px;padding:16px;border:1px dashed var(--fio-forte);
+  border-radius:10px;text-align:center;color:var(--tinta-3);font-size:14.5px}
+.entrar-pra-falar a{color:var(--vermelho);text-decoration:underline}
+.erro-social{margin-top:14px;padding:11px 14px;border-radius:9px;font-size:14px;
+  background:color-mix(in srgb,var(--vermelho) 12%,transparent);
+  border:1px solid color-mix(in srgb,var(--vermelho) 35%,transparent);color:var(--vermelho)}
+.sem-coment{color:var(--tinta-3);font-size:14.5px;padding:6px 0 2px}
+
+/* O selo de curtida/comentário nos cards da capa. */
+.card-social{display:inline-flex;align-items:center;gap:11px;font-family:var(--etiqueta);
+  font-size:11.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--tinta-3)}
+.card-social i{font-style:normal}
+
 .voltar-capa{display:inline-flex;align-items:center;gap:8px;margin-top:34px;
   font-family:var(--etiqueta);font-size:13px;font-weight:600;letter-spacing:1.6px;
   text-transform:uppercase;color:var(--tinta-3);border-top:1px solid var(--fio);
@@ -385,6 +514,80 @@ a{color:inherit;text-decoration:none}
 
     <div class="materia-txt"><?= patheticTextoHtml($materia['texto']) ?></div>
 
+    <?php $s = $social[(int)$materia['id']] ?? ['curtidas'=>0,'comentarios'=>0,'euCurti'=>false]; ?>
+    <div class="reacoes">
+      <?php if ($leitorId > 0): ?>
+        <form method="post" style="display:contents">
+          <input type="hidden" name="token" value="<?= $e($tokenLeitor) ?>">
+          <input type="hidden" name="acao" value="curtir">
+          <input type="hidden" name="n" value="<?= (int)$materia['id'] ?>">
+          <button class="btn-curtir <?= $s['euCurti'] ? 'curtida' : '' ?>"
+                  title="<?= $s['euCurti'] ? 'Você curtiu' : 'Curtir' ?>">
+            <i class="bi bi-heart<?= $s['euCurti'] ? '-fill' : '' ?>"></i>
+            <b><?= (int)$s['curtidas'] ?></b>
+          </button>
+        </form>
+      <?php else: ?>
+        <span class="btn-curtir" style="cursor:default">
+          <i class="bi bi-heart"></i> <b><?= (int)$s['curtidas'] ?></b>
+        </span>
+      <?php endif; ?>
+      <span class="conta"><?= (int)$s['comentarios'] ?> <?= (int)$s['comentarios'] === 1 ? 'comentário' : 'comentários' ?></span>
+    </div>
+
+    <section class="conversa" id="conversa">
+      <h2>Comentários</h2>
+
+      <?php if (!$comentarios): ?>
+        <p class="sem-coment">Ninguém comentou ainda.</p>
+      <?php endif; ?>
+
+      <?php foreach ($comentarios as $c): ?>
+        <div class="coment">
+          <div class="coment-ini"><?= $e(mb_strtoupper(mb_substr(trim((string)$c['autor_nome']) ?: '?', 0, 1))) ?></div>
+          <div class="coment-corpo">
+            <div class="coment-cab">
+              <b><?= $e($c['autor_nome']) ?></b>
+              <span><?= $e(patheticQuando($c['criado_em'])) ?></span>
+              <?php if ($souEditor || (int)$c['id_usuario'] === $leitorId): ?>
+                <form method="post" style="margin-left:auto"
+                      onsubmit="return confirm('Apagar este comentário?')">
+                  <input type="hidden" name="token" value="<?= $e($tokenLeitor) ?>">
+                  <input type="hidden" name="acao" value="apagar_comentario">
+                  <input type="hidden" name="n" value="<?= (int)$materia['id'] ?>">
+                  <input type="hidden" name="comentario" value="<?= (int)$c['id'] ?>">
+                  <button class="coment-apagar" title="Apagar"><i class="bi bi-trash"></i></button>
+                </form>
+              <?php endif; ?>
+            </div>
+            <p><?= nl2br($e($c['texto']), false) ?></p>
+          </div>
+        </div>
+      <?php endforeach; ?>
+
+      <?php if ($erroSocial): ?>
+        <div class="erro-social"><?= $e($erroSocial) ?></div>
+      <?php endif; ?>
+
+      <?php if ($leitorId > 0): ?>
+        <form class="form-coment" method="post">
+          <input type="hidden" name="token" value="<?= $e($tokenLeitor) ?>">
+          <input type="hidden" name="acao" value="comentar">
+          <input type="hidden" name="n" value="<?= (int)$materia['id'] ?>">
+          <textarea name="texto" maxlength="<?= PATHETIC_MAX_COMENTARIO ?>" required
+                    placeholder="O que você achou?"><?= $e((string)($_POST['texto'] ?? '')) ?></textarea>
+          <div class="pe">
+            <span class="quem">Assinando como <?= $e($leitorNome ?: 'você') ?></span>
+            <button type="submit">Comentar</button>
+          </div>
+        </form>
+      <?php else: ?>
+        <div class="entrar-pra-falar">
+          <a href="/login.php">Entre na sua conta</a> pra curtir e comentar.
+        </div>
+      <?php endif; ?>
+    </section>
+
     <a class="voltar-capa" href="/thepathetic.php">
       <i class="bi bi-arrow-left"></i> Voltar à capa
     </a>
@@ -430,6 +633,9 @@ a{color:inherit;text-decoration:none}
           <span class="quem">Por <?= $e($m['autor_nome']) ?></span>
           <i class="ponto"></i>
           <span><?= $e(patheticQuando($m['publicada_em'] ?: $m['criada_em'])) ?></span>
+          <?php $ss = patheticSeloSocial($social[(int)$m['id']] ?? []); if ($ss): ?>
+            <i class="ponto"></i><?= $ss ?>
+          <?php endif; ?>
         </div>
       </div>
     </a>
@@ -454,6 +660,9 @@ a{color:inherit;text-decoration:none}
             <span class="quem"><?= $e($d['autor_nome']) ?></span>
             <i class="ponto"></i>
             <span><?= $e(patheticQuando($d['publicada_em'] ?: $d['criada_em'])) ?></span>
+            <?php $ss = patheticSeloSocial($social[(int)$d['id']] ?? []); if ($ss): ?>
+              <i class="ponto"></i><?= $ss ?>
+            <?php endif; ?>
           </div>
         </a>
       <?php endforeach; ?>
@@ -487,6 +696,9 @@ a{color:inherit;text-decoration:none}
               <span class="quem"><?= $e($n['autor_nome']) ?></span>
               <i class="ponto"></i>
               <span><?= $e(patheticQuando($n['publicada_em'] ?: $n['criada_em'])) ?></span>
+              <?php $ss = patheticSeloSocial($social[(int)$n['id']] ?? []); if ($ss): ?>
+                <i class="ponto"></i><?= $ss ?>
+              <?php endif; ?>
             </div>
           </div>
         </a>

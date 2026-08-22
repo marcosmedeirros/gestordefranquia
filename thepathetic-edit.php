@@ -186,6 +186,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $flash = 'Notícia tirada do ar. Ela continua salva como rascunho.';
             break;
 
+        // Moderar: apagar um comentário de qualquer notícia. Quem edita o
+        // jornal responde pelo que aparece embaixo dele.
+        case 'apagar_comentario':
+            patheticApagarComentario($pdo, (int)($_POST['comentario'] ?? 0), (int)$user['id'], true);
+            $flash = 'Comentário apagado.';
+            break;
+
         case 'apagar':
             $id = (int)($_POST['id'] ?? 0);
             $n = patheticUma($pdo, $id, true);
@@ -249,6 +256,9 @@ try {
 
 $rascunhos  = array_values(array_filter($todas, fn($n) => empty($n['publicada'])));
 $noAr       = array_values(array_filter($todas, fn($n) => !empty($n['publicada'])));
+
+// A fila da moderação: os comentários mais recentes do jornal inteiro.
+$comentariosRecentes = patheticComentariosRecentes($pdo, 60);
 
 $currentContent = '';
 try {
@@ -703,6 +713,45 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                 </div>
             </div>
             <?php endforeach; ?>
+
+            <?php if ($comentariosRecentes): ?>
+            <div class="bc" style="margin-top:22px">
+                <div class="bc-head">
+                    <div class="bc-title"><i class="bi bi-chat-left-text"></i> Comentários <span class="cont"><?= count($comentariosRecentes) ?></span></div>
+                    <span style="font-size:11px;color:var(--text-3)">Do mais recente. Apagar não avisa quem escreveu.</span>
+                </div>
+                <div class="bc-body" style="padding:0">
+                    <?php foreach ($comentariosRecentes as $c): ?>
+                    <div class="linha">
+                        <div class="linha-txt">
+                            <div class="linha-cima">
+                                <span class="tag-chapeu"><?= $esc($c['autor_nome']) ?></span>
+                                <small style="color:var(--text-3)"><?= $esc(patheticQuando($c['criado_em'])) ?></small>
+                                <?php if ($c['titulo'] !== null): ?>
+                                    <small style="color:var(--text-3)">em
+                                        <a href="/thepathetic.php?n=<?= (int)$c['noticia_id'] ?>#conversa"
+                                           target="_blank" rel="noopener"
+                                           style="color:var(--text-2)"><?= $esc(mb_substr($c['titulo'], 0, 46)) ?><?= mb_strlen($c['titulo']) > 46 ? '…' : '' ?></a>
+                                    </small>
+                                <?php else: ?>
+                                    <small style="color:var(--red)">(notícia apagada)</small>
+                                <?php endif; ?>
+                            </div>
+                            <div style="font-size:13.5px;line-height:1.5;color:var(--text);white-space:pre-wrap;overflow-wrap:break-word"><?= $esc($c['texto']) ?></div>
+                        </div>
+                        <div class="linha-acoes">
+                            <form method="post" onsubmit="return confirm('Apagar este comentário?')">
+                                <input type="hidden" name="token" value="<?= $esc($token) ?>">
+                                <input type="hidden" name="acao" value="apagar_comentario">
+                                <input type="hidden" name="comentario" value="<?= (int)$c['id'] ?>">
+                                <button class="ac ac-perigo" title="Apagar comentário"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <?php if ($podeMexerNoArquivo): ?>
             <details class="bc" style="margin-top:22px">
