@@ -1,0 +1,62 @@
+# Fotos do The Pathetic.
+#
+# O .htaccess de uploads/ tem uma lista de extensões PERMITIDAS (pdf, doc,
+# mp4...) e imagem não está nela. Este arquivo existe pra que a foto de uma
+# notícia seja servida sem depender de como o Apache trata o que não casa com
+# nenhuma das duas regras de lá.
+#
+# Escrito pras duas gerações do Apache: o 2.4 lê o bloco <IfModule
+# authz_core>, o 2.2 (e o 2.4 com mod_access_compat) lê o outro. Sem os dois,
+# um servidor entende e o outro ignora calado.
+
+# 1. NADA executa aqui. Um .php que consiga chegar nesta pasta é servido como
+#    texto, não rodado — é a única linha que separa "upload de foto" de
+#    "upload de shell".
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+RemoveHandler .php .php3 .php4 .php5 .php7 .php8 .phtml .pht .phar
+RemoveType    .php .php3 .php4 .php5 .php7 .php8 .phtml .pht .phar
+AddType text/plain .php .php3 .php4 .php5 .php7 .php8 .phtml .pht .phar .cgi .pl .py .sh .jsp .asp
+
+# 2. Qualquer coisa que não seja imagem fica bloqueada.
+<FilesMatch "(?i)\.(php[0-9]?|phtml|pht|phar|cgi|pl|py|sh|jsp|asp|aspx|htaccess|html?|shtml|svg)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Deny,Allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# 3. E a imagem passa. SVG fica de fora de propósito: SVG é XML, aceita
+#    <script> dentro, e um SVG servido do nosso domínio roda como se fosse
+#    nosso. As quatro que entram são as mesmas que o upload aceita.
+<FilesMatch "(?i)\.(jpe?g|png|webp|gif)$">
+    <IfModule mod_authz_core.c>
+        Require all granted
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order Allow,Deny
+        Allow from all
+    </IfModule>
+</FilesMatch>
+
+# 4. A foto tem nome com sufixo aleatório e nunca muda de conteúdo: trocar a
+#    foto gera outro nome. Então pode ficar em cache o quanto quiser.
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png  "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/gif  "access plus 1 year"
+</IfModule>
+
+Options -Indexes -ExecCGI

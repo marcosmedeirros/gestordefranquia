@@ -1,7 +1,19 @@
 <?php
+/**
+ * A REDAÇÃO DO THE PATHETIC
+ *
+ * Era uma caixa de HTML: o editor colava a página inteira e a matéria
+ * seguinte apagava a anterior. Agora cada notícia é uma linha — título,
+ * grau, foto, quem assina e o texto — e o grau decide o tamanho dela na capa.
+ *
+ * A caixa de HTML antiga não foi jogada fora: ela virou "Do arquivo", no pé
+ * do jornal, e continua editável aqui embaixo.
+ */
+
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
+require_once __DIR__ . '/backend/pathetic.php';
 requireAuth();
 
 $user = getUserSession();
@@ -12,7 +24,8 @@ if (!$isThePatheticEditor) {
     header('Location: /dashboard.php');
     exit;
 }
-$pdo  = db();
+$pdo = db();
+patheticGarantirTabela($pdo);
 
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS site_pages (
@@ -24,46 +37,175 @@ try {
 
 $flash = null; $flashType = 'success';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $content = (string)($_POST['content'] ?? '');
-    $chamada = trim((string)($_POST['chamada_whats'] ?? ''));
-    $avisar  = !empty($_POST['avisar_whats']);
-    try {
-        $pdo->prepare("INSERT INTO site_pages (page_key, content) VALUES ('thepathetic', ?)
-                       ON DUPLICATE KEY UPDATE content = ?, updated_at = CURRENT_TIMESTAMP")
-            ->execute([$content, $content]);
-        $flash = 'Conteúdo salvo com sucesso.';
+/**
+ * Guarda de escrita: todo POST tem que trazer o token que ESTA sessão emitiu.
+ *
+ * Sem isso, um link numa mensagem qualquer poderia despublicar a manchete de
+ * quem estivesse logado — o navegador manda o cookie de sessão sozinho, e o
+ * servidor não tem como saber que o clique não foi na nossa tela.
+ */
+if (empty($_SESSION['pathetic_token'])) {
+    $_SESSION['pathetic_token'] = bin2hex(random_bytes(16));
+}
+$token = $_SESSION['pathetic_token'];
 
-        // Aviso no grupo — só quando o editor pede. Salvar é coisa que se faz
-        // várias vezes até a edição ficar boa; avisar a cada save encheria o
-        // grupo de "nova versão" da mesma matéria.
-        if ($avisar) {
-            try {
-                require_once __DIR__ . '/backend/whatsapp.php';
-                $linhas = ['[NOVA VERSÃO] 📰 *The Pathetic*'];
-                if ($chamada !== '') $linhas[] = '';
-                if ($chamada !== '') $linhas[] = $chamada;
-                $linhas[] = '';
-                $linhas[] = 'https://fbabrasil.com.br/thepathetic.php';
-                whatsappParaGrupoPrincipal($pdo, implode("\n", $linhas), 'pathetic');
-                $flash .= ' Aviso enviado no grupo.';
-            } catch (Throwable $e) {
-                error_log('[whatsapp-pathetic] ' . $e->getMessage());
-                $flash .= ' (o aviso no grupo falhou — veja o log)';
-            }
-        }
-    } catch (PDOException $e) {
-        $flash = 'Erro ao salvar: ' . $e->getMessage();
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $acao = (string)($_POST['acao'] ?? '');
+    $ok   = hash_equals($token, (string)($_POST['token'] ?? ''));
+
+    if (!$ok) {
+        $flash = 'Sessão expirada. Abra a página de novo e tente outra vez.';
         $flashType = 'danger';
+    } else try {
+        switch ($acao) {
+
+        // ── Escrever / editar ────────────────────────────────────────
+        case 'salvar':
+            $id       = (int)($_POST['id'] ?? 0);
+            $titulo   = trim((string)($_POST['titulo'] ?? ''));
+            $chapeu   = trim((string)($_POST['chapeu'] ?? ''));
+            $grau     = patheticGrauValido($_POST['grau'] ?? '');
+            $resumo   = trim((string)($_POST['resumo'] ?? ''));
+            $texto    = trim((string)($_POST['texto'] ?? ''));
+            $fotoUrl  = trim((string)($_POST['foto_url'] ?? ''));
+            $credito  = trim((string)($_POST['foto_credito'] ?? ''));
+            $publicar = !empty($_POST['publicar']);
+
+            if ($titulo === '') throw new RuntimeException('A notícia precisa de um título.');
+
+            $antiga = $id > 0 ? patheticUma($pdo, $id, true) : null;
+            if ($id > 0 && !$antiga) throw new RuntimeException('Essa notícia não existe mais.');
+
+            // A URL colada só é aceita se for http(s): um `javascript:` no src
+            // de uma <img> não roda, mas o mesmo campo pode virar link amanhã.
+            if ($fotoUrl !== '' && !preg_match('#^https?://#i', $fotoUrl)) {
+                throw new RuntimeException('A URL da foto precisa começar com http:// ou https://.');
+            }
+
+            if ($id > 0) {
+                $pdo->prepare("UPDATE pathetic_noticias
+                               SET titulo=?, chapeu=?, grau=?, resumo=?, texto=?, foto_credito=?
+                               WHERE id=?")
+                    ->execute([$titulo, $chapeu ?: null, $grau, $resumo ?: null, $texto ?: null, $credito ?: null, $id]);
+            } else {
+                $pdo->prepare("INSERT INTO pathetic_noticias
+                               (titulo, chapeu, grau, resumo, texto, foto_credito, autor_id, autor_nome)
+                               VALUES (?,?,?,?,?,?,?,?)")
+                    ->execute([$titulo, $chapeu ?: null, $grau, $resumo ?: null, $texto ?: null, $credito ?: null,
+                               (int)$user['id'], trim((string)($user['name'] ?? 'Redação')) ?: 'Redação']);
+                $id = (int)$pdo->lastInsertId();
+            }
+
+            // A foto vem depois do INSERT porque o nome do arquivo usa o id —
+            // é o que garante que duas notícias nunca briguem pelo mesmo nome.
+            $fotoAtual = (string)($antiga['foto'] ?? '');
+            if (!empty($_FILES['foto']['name'])) {
+                [$caminho, $erroFoto] = patheticSalvarFoto($_FILES['foto'], $id);
+                if ($erroFoto) throw new RuntimeException($erroFoto);
+                if ($caminho) {
+                    patheticApagarFoto($fotoAtual);
+                    $pdo->prepare("UPDATE pathetic_noticias SET foto=? WHERE id=?")->execute([$caminho, $id]);
+                    $fotoAtual = $caminho;
+                }
+            } elseif ($fotoUrl !== '' && $fotoUrl !== $fotoAtual) {
+                patheticApagarFoto($fotoAtual);
+                $pdo->prepare("UPDATE pathetic_noticias SET foto=? WHERE id=?")->execute([$fotoUrl, $id]);
+                $fotoAtual = $fotoUrl;
+            } elseif (!empty($_POST['tirar_foto'])) {
+                patheticApagarFoto($fotoAtual);
+                $pdo->prepare("UPDATE pathetic_noticias SET foto=NULL WHERE id=?")->execute([$id]);
+            }
+
+            $flash = $antiga ? 'Notícia atualizada.' : 'Notícia criada.';
+
+            if ($publicar) {
+                $pdo->prepare("UPDATE pathetic_noticias
+                               SET publicada=1, publicada_em=COALESCE(publicada_em, NOW())
+                               WHERE id=?")->execute([$id]);
+                $flash .= ' Publicada.';
+                $r = patheticAvisarGrupo($pdo, patheticUma($pdo, $id, true) ?: []);
+                if ($r === 'ok')      $flash .= ' O grupo foi avisado.';
+                if ($r === 'falhou')  $flash .= ' (o aviso no grupo falhou — veja o log)';
+            }
+            break;
+
+        // ── Publicar / tirar do ar ───────────────────────────────────
+        case 'publicar':
+            $id = (int)($_POST['id'] ?? 0);
+            $pdo->prepare("UPDATE pathetic_noticias
+                           SET publicada=1, publicada_em=COALESCE(publicada_em, NOW())
+                           WHERE id=?")->execute([$id]);
+            $flash = 'Notícia publicada.';
+            $r = patheticAvisarGrupo($pdo, patheticUma($pdo, $id, true) ?: []);
+            if ($r === 'ok')     $flash .= ' O grupo foi avisado.';
+            if ($r === 'falhou') $flash .= ' (o aviso no grupo falhou — veja o log)';
+            break;
+
+        case 'despublicar':
+            $pdo->prepare("UPDATE pathetic_noticias SET publicada=0 WHERE id=?")
+                ->execute([(int)($_POST['id'] ?? 0)]);
+            $flash = 'Notícia tirada do ar. Ela continua salva como rascunho.';
+            break;
+
+        case 'apagar':
+            $id = (int)($_POST['id'] ?? 0);
+            $n = patheticUma($pdo, $id, true);
+            if ($n) {
+                patheticApagarFoto($n['foto'] ?? '');
+                $pdo->prepare("DELETE FROM pathetic_noticias WHERE id=?")->execute([$id]);
+                $flash = 'Notícia apagada.';
+            }
+            break;
+
+        // ── O arquivo (a caixa de HTML antiga) ───────────────────────
+        case 'arquivo':
+            $conteudo = (string)($_POST['content'] ?? '');
+            $pdo->prepare("INSERT INTO site_pages (page_key, content) VALUES ('thepathetic', ?)
+                           ON DUPLICATE KEY UPDATE content = ?, updated_at = CURRENT_TIMESTAMP")
+                ->execute([$conteudo, $conteudo]);
+            $flash = 'Arquivo salvo.';
+            break;
+        }
+    } catch (Throwable $e) {
+        $flash = $e instanceof RuntimeException ? $e->getMessage() : 'Erro ao salvar. Veja o log.';
+        $flashType = 'danger';
+        if (!($e instanceof RuntimeException)) error_log('[pathetic-edit] ' . $e->getMessage());
+    }
+
+    // Redireciona depois de escrever (PRG): sem isto, dar F5 na tela de
+    // sucesso reenvia o POST e publica a mesma notícia de novo.
+    if ($flashType !== 'danger') {
+        $_SESSION['pathetic_flash'] = $flash;
+        header('Location: /thepathetic-edit.php');
+        exit;
     }
 }
 
+if (!empty($_SESSION['pathetic_flash'])) {
+    $flash = $_SESSION['pathetic_flash'];
+    unset($_SESSION['pathetic_flash']);
+}
+
+// ── O que a tela mostra ──────────────────────────────────────────────
+$editandoId = isset($_GET['editar']) ? (int)$_GET['editar'] : 0;
+$editando   = $editandoId > 0 ? patheticUma($pdo, $editandoId, true) : null;
+$novaMateria = isset($_GET['nova']) || $editando;
+
+$todas = [];
+try {
+    $todas = $pdo->query("SELECT * FROM pathetic_noticias
+                          ORDER BY publicada ASC, COALESCE(publicada_em, criada_em) DESC, id DESC")
+                 ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Throwable $e) { error_log('[pathetic-edit] listar: ' . $e->getMessage()); }
+
+$rascunhos  = array_values(array_filter($todas, fn($n) => empty($n['publicada'])));
+$noAr       = array_values(array_filter($todas, fn($n) => !empty($n['publicada'])));
+
 $currentContent = '';
 try {
-    $stmt = $pdo->prepare("SELECT content FROM site_pages WHERE page_key = 'thepathetic' LIMIT 1");
-    $stmt->execute();
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    $currentContent = $row ? (string)($row['content'] ?? '') : '';
+    $st = $pdo->prepare("SELECT content FROM site_pages WHERE page_key = 'thepathetic' LIMIT 1");
+    $st->execute();
+    $currentContent = (string)($st->fetchColumn() ?: '');
 } catch (Exception $e) {}
 
 $team = null;
@@ -72,6 +214,8 @@ try {
     $stmtT->execute([$user['id']]);
     $team = $stmtT->fetch() ?: null;
 } catch (Exception $e) {}
+
+$esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -173,6 +317,96 @@ try {
             .page-hero{padding-top:18px;}
         }
         a{color:inherit;}
+        /* ── A REDAÇÃO ────────────────────────────────────────────────
+           Duas colunas no desktop: o texto à esquerda, onde o olho fica, e
+           as decisões (grau, foto, publicar) à direita, onde a mão vai só
+           quando a matéria está pronta. No celular vira uma coluna e a
+           ordem do HTML já é a ordem certa — escreve, escolhe, publica. */
+        .red-grade{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:16px;align-items:start}
+        .red-col{display:flex;flex-direction:column;gap:16px;min-width:0}
+        @media(max-width:1100px){.red-grade{grid-template-columns:1fr}}
+
+        .cp{display:block;margin-bottom:16px}
+        .cp:last-child{margin-bottom:0}
+        .cp > span{display:block;font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)}
+        .cp > span em{font-style:normal;font-weight:500;color:var(--text-3);font-size:11px;margin-left:5px}
+        .cp input[type=text],.cp input[type=url],.cp textarea,.cp input[type=file]{
+          width:100%;background:var(--panel-2);border:1px solid var(--border-md);
+          border-radius:var(--radius-sm);padding:10px 12px;color:var(--text);
+          font-family:var(--font);font-size:13.5px;outline:none;transition:border-color var(--t)}
+        .cp textarea{resize:vertical;line-height:1.6}
+        .cp input:focus,.cp textarea:focus{border-color:var(--red)}
+        .cp small{display:block;font-size:11.5px;color:var(--text-3);margin-top:6px;line-height:1.45}
+        /* O texto da matéria em serifa: é como ela vai sair no jornal, e
+           escrever no mesmo tipo em que se lê evita a surpresa do "ficou
+           diferente do que eu vi". */
+        .txt-materia{font-family:Georgia,'Times New Roman',serif !important;font-size:15px !important}
+
+        .graus{display:flex;flex-direction:column;gap:8px}
+        .grau{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border-radius:var(--radius-sm);
+          border:1px solid var(--border);background:var(--panel-2);cursor:pointer;
+          transition:border-color var(--t),background var(--t);position:relative}
+        .grau:hover{border-color:var(--border-md)}
+        .grau.on{border-color:var(--red);background:var(--red-soft)}
+        .grau input{position:absolute;opacity:0;pointer-events:none}
+        .grau > i{width:10px;height:10px;border-radius:3px;flex:none;margin-top:4px}
+        .grau span{flex:1;min-width:0}
+        .grau b{display:block;font-size:13.5px;font-weight:700;margin-bottom:3px}
+        .grau small{display:block;font-size:11.5px;color:var(--text-3);line-height:1.45}
+        .avisa{position:absolute;top:9px;right:10px;font-style:normal;font-size:10px;font-weight:700;
+          letter-spacing:.4px;color:var(--green);display:inline-flex;align-items:center;gap:4px}
+
+        .previa{border:1px solid var(--border-md);border-radius:var(--radius-sm);overflow:hidden;
+          background:var(--panel-2);margin-bottom:12px;aspect-ratio:16/9}
+        .previa img{width:100%;height:100%;object-fit:cover;display:block}
+        .previa-nova{margin-top:-4px}
+
+        .checa{display:flex;align-items:flex-start;gap:9px;cursor:pointer;font-size:13px;color:var(--text-2)}
+        .checa input{margin-top:2px;accent-color:var(--red);width:16px;height:16px;flex:none}
+        .checa.forte{font-size:14px;font-weight:600;color:var(--text)}
+        .checa.forte small{display:block;font-size:11.5px;font-weight:400;color:var(--text-3);margin-top:3px}
+
+        .cont{font-size:11px;font-weight:700;background:var(--panel-3);color:var(--text-2);
+          border-radius:20px;padding:1px 8px;margin-left:2px}
+
+        /* ── A LISTA DE NOTÍCIAS ───────────────────────────────────── */
+        .linha{display:flex;align-items:center;gap:13px;padding:12px 18px;border-top:1px solid var(--border)}
+        .linha:first-child{border-top:none}
+        .linha-foto{width:64px;height:44px;border-radius:8px;overflow:hidden;flex:none;
+          background:var(--panel-3);display:flex;align-items:center;justify-content:center;color:var(--text-3)}
+        .linha-foto img{width:100%;height:100%;object-fit:cover}
+        .linha-txt{flex:1;min-width:0}
+        .linha-cima{display:flex;align-items:center;gap:7px;margin-bottom:4px;flex-wrap:wrap}
+        .linha-txt b{display:block;font-size:14px;font-weight:700;line-height:1.3;
+          overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+        .linha-txt small{font-size:11.5px;color:var(--text-3)}
+        .tag{font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;
+          border-radius:3px;padding:2px 7px}
+        .tag-manchete{background:var(--red);color:#fff}
+        .tag-destaque{background:rgba(245,158,11,.15);color:#f59e0b;box-shadow:inset 0 0 0 1px rgba(245,158,11,.35)}
+        .tag-noticia{background:var(--panel-3);color:var(--text-3)}
+        .tag-chapeu{font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--red)}
+        .tag-whats{font-size:11px;color:var(--green)}
+
+        .linha-acoes{display:flex;align-items:center;gap:5px;flex:none}
+        .linha-acoes form{display:contents}
+        .ac{width:32px;height:32px;border-radius:8px;background:var(--panel-2);border:1px solid var(--border);
+          color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:13px;
+          cursor:pointer;transition:all var(--t) var(--ease);text-decoration:none;flex:none}
+        .ac:hover{border-color:var(--border-md);color:var(--text)}
+        .ac-ok:hover{border-color:var(--green);color:var(--green)}
+        .ac-perigo:hover{border-color:var(--red);color:var(--red)}
+
+        details.bc > summary::-webkit-details-marker{display:none}
+        details.bc[open] > summary{border-bottom:1px solid var(--border)}
+
+        @media(max-width:560px){
+            .linha{flex-wrap:wrap;padding:12px 14px}
+            .linha-foto{width:52px;height:38px}
+            .linha-acoes{width:100%;justify-content:flex-end;padding-top:2px}
+            .avisa{position:static;margin-top:6px;display:flex}
+            .grau{flex-wrap:wrap}
+        }
     <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
@@ -191,71 +425,241 @@ try {
         <div class="page-hero">
             <div>
                 <div class="page-eyebrow">Admin · The Pathetic</div>
-                <h1 class="page-title">Editor — The Pathetic</h1>
-                <p class="page-sub">Cole o HTML que será exibido na página pública do The Pathetic.</p>
+                <h1 class="page-title"><?= $novaMateria ? ($editando ? 'Editar notícia' : 'Nova notícia') : 'Redação — The Pathetic' ?></h1>
+                <p class="page-sub"><?= $novaMateria
+                    ? 'O grau decide o tamanho dela na capa. Manchete e destaque avisam o grupo ao publicar.'
+                    : 'Cada notícia tem foto, título, grau, quem assina e o texto.' ?></p>
             </div>
-            <div style="padding-top:4px">
-                <a class="btn-outline" href="/thepathetic.php" target="_blank" rel="noopener">
-                    <i class="bi bi-box-arrow-up-right"></i> Ver página
-                </a>
+            <div style="padding-top:4px;display:flex;gap:8px;flex-wrap:wrap">
+                <?php if ($novaMateria): ?>
+                    <a class="btn-outline" href="/thepathetic-edit.php"><i class="bi bi-arrow-left"></i> Voltar</a>
+                <?php else: ?>
+                    <a class="btn-outline" href="/thepathetic.php" target="_blank" rel="noopener">
+                        <i class="bi bi-box-arrow-up-right"></i> Ver o jornal
+                    </a>
+                    <a class="btn-save" style="text-decoration:none;display:inline-flex;align-items:center;gap:7px"
+                       href="/thepathetic-edit.php?nova=1"><i class="bi bi-plus-lg"></i> Escrever notícia</a>
+                <?php endif; ?>
             </div>
         </div>
 
         <div class="content">
             <?php if ($flash): ?>
-            <div class="flash <?= $flashType==='danger'?'danger':'success' ?> mb-4">
+            <div class="flash <?= $flashType==='danger'?'danger':'success' ?>" style="margin-bottom:18px">
                 <i class="bi bi-<?= $flashType==='danger'?'exclamation-circle-fill':'check-circle-fill' ?>"></i>
-                <?= htmlspecialchars($flash) ?>
+                <?= $esc($flash) ?>
             </div>
             <?php endif; ?>
 
-            <form method="post">
-                <div class="d-flex flex-column gap-3">
-                    <div class="bc">
-                        <div class="bc-head">
-                            <div class="bc-title"><i class="bi bi-code-slash"></i> HTML da Página</div>
-                            <span style="font-size:11px;color:var(--text-3)">O HTML inserido aqui será exibido diretamente na página pública</span>
-                        </div>
-                        <div class="bc-body">
-                            <textarea name="content" class="html-area"
-                                      placeholder="Cole seu HTML aqui ou escreva o que quiser..."><?= htmlspecialchars($currentContent) ?></textarea>
-                        </div>
-                    </div>
+<?php if ($novaMateria): /* ═══════════ ESCREVER ═══════════ */
+    $v = $editando ?: ['id'=>0,'titulo'=>'','chapeu'=>'','grau'=>'noticia','resumo'=>'','texto'=>'',
+                       'foto'=>'','foto_credito'=>'','publicada'=>0];
+    $fotoSrc = patheticSrcFoto($v['foto'] ?? '');
+?>
+            <form method="post" enctype="multipart/form-data" class="redacao">
+                <input type="hidden" name="token" value="<?= $esc($token) ?>">
+                <input type="hidden" name="acao" value="salvar">
+                <input type="hidden" name="id" value="<?= (int)$v['id'] ?>">
+
+                <div class="red-grade">
+                  <div class="red-col">
 
                     <div class="bc">
-                        <div class="bc-head">
-                            <div class="bc-title"><i class="bi bi-whatsapp"></i> Avisar no grupo</div>
-                            <span style="font-size:11px;color:var(--text-3)">Só marque quando a edição estiver pronta pra publicar</span>
-                        </div>
+                        <div class="bc-head"><div class="bc-title"><i class="bi bi-type"></i> A notícia</div></div>
                         <div class="bc-body">
-                            <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:14px">
-                                <input type="checkbox" name="avisar_whats" value="1" id="avisarWhats">
-                                Mandar <b>[NOVA VERSÃO]</b> no grupo The Pathetic ao salvar
+                            <label class="cp">
+                                <span>Chapéu <em>opcional</em></span>
+                                <input type="text" name="chapeu" maxlength="60" value="<?= $esc($v['chapeu']) ?>"
+                                       placeholder="Ex: Mercado · Draft · Bastidores">
+                                <small>A palavra em vermelho acima do título. Diz do que a notícia é.</small>
                             </label>
-                            <input type="text" name="chamada_whats" maxlength="180" id="chamadaWhats"
-                                   placeholder="Chamada (opcional) — ex: Trade da semana e o que ninguém viu no draft"
-                                   style="width:100%;margin-top:11px;background:var(--panel-2,#16161a);border:1px solid var(--border);
-                                          border-radius:9px;padding:10px 12px;color:var(--text,#f0f0f3);font-size:13px" disabled>
-                            <p style="font-size:11.5px;color:var(--text-3);margin:9px 0 0">
-                                O link da página vai junto automaticamente. Salvar sem marcar não avisa ninguém.
-                            </p>
+
+                            <label class="cp">
+                                <span>Título <em>obrigatório</em></span>
+                                <input type="text" name="titulo" maxlength="180" required value="<?= $esc($v['titulo']) ?>"
+                                       placeholder="O que aconteceu, em uma frase">
+                                <small>Sai em caixa-alta na capa. Frase curta bate mais forte que frase completa.</small>
+                            </label>
+
+                            <label class="cp">
+                                <span>Linha fina <em>opcional</em></span>
+                                <textarea name="resumo" maxlength="400" rows="2"
+                                          placeholder="A segunda frase — o que o título não coube."><?= $esc($v['resumo']) ?></textarea>
+                                <small>Aparece embaixo do título na capa e no card. Sem ela, o começo do texto entra no lugar.</small>
+                            </label>
+
+                            <label class="cp">
+                                <span>Texto</span>
+                                <textarea name="texto" rows="16" class="txt-materia"
+                                          placeholder="Escreva normal. Linha em branco separa parágrafo.&#10;&#10;*negrito* e _itálico_ funcionam, como no WhatsApp."><?= $esc($v['texto']) ?></textarea>
+                                <small>Texto puro, não HTML. Linha em branco = parágrafo novo. <b>*negrito*</b> e <i>_itálico_</i> funcionam.</small>
+                            </label>
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-end gap-2">
-                        <a class="btn-outline" href="/thepathetic.php" target="_blank" rel="noopener">
-                            <i class="bi bi-eye"></i> Visualizar
-                        </a>
-                        <button type="submit" class="btn-save">Salvar</button>
+                  </div>
+                  <div class="red-col red-lado">
+
+                    <div class="bc">
+                        <div class="bc-head"><div class="bc-title"><i class="bi bi-bar-chart-steps"></i> Grau</div></div>
+                        <div class="bc-body">
+                            <div class="graus">
+                                <?php foreach (PATHETIC_GRAUS as $g): $info = PATHETIC_GRAU_INFO[$g]; ?>
+                                <label class="grau <?= $v['grau'] === $g ? 'on' : '' ?>">
+                                    <input type="radio" name="grau" value="<?= $g ?>" <?= $v['grau'] === $g ? 'checked' : '' ?>>
+                                    <i style="background:<?= $info['cor'] ?>"></i>
+                                    <span>
+                                        <b><?= $esc($info['rotulo']) ?></b>
+                                        <small><?= $esc($info['nota']) ?></small>
+                                    </span>
+                                    <?php if (in_array($g, PATHETIC_GRAUS_QUE_AVISAM, true)): ?>
+                                        <em class="avisa"><i class="bi bi-whatsapp"></i> avisa o grupo</em>
+                                    <?php endif; ?>
+                                </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
                     </div>
+
+                    <div class="bc">
+                        <div class="bc-head"><div class="bc-title"><i class="bi bi-image"></i> Foto</div></div>
+                        <div class="bc-body">
+                            <?php if ($fotoSrc !== ''): ?>
+                                <div class="previa"><img src="<?= $esc($fotoSrc) ?>" alt=""></div>
+                                <label class="checa" style="margin-bottom:12px">
+                                    <input type="checkbox" name="tirar_foto" value="1"> Tirar a foto desta notícia
+                                </label>
+                            <?php endif; ?>
+
+                            <label class="cp">
+                                <span>Enviar do aparelho</span>
+                                <input type="file" name="foto" accept="image/jpeg,image/png,image/webp,image/gif" id="fotoArquivo">
+                                <small>JPG, PNG, WEBP ou GIF, até <?= (int)(PATHETIC_MAX_FOTO/1024/1024) ?> MB.</small>
+                            </label>
+                            <div class="previa previa-nova" id="previaNova" hidden><img alt=""></div>
+
+                            <label class="cp">
+                                <span>Ou colar uma URL</span>
+                                <input type="url" name="foto_url" placeholder="https://..."
+                                       value="<?= $esc(preg_match('#^https?://#i', (string)$v['foto']) ? $v['foto'] : '') ?>">
+                                <small>Se você enviar um arquivo, ele ganha da URL.</small>
+                            </label>
+
+                            <label class="cp">
+                                <span>Legenda / crédito <em>opcional</em></span>
+                                <input type="text" name="foto_credito" maxlength="120" value="<?= $esc($v['foto_credito']) ?>"
+                                       placeholder="Ex: Divulgação / FBA">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="bc">
+                        <div class="bc-body" style="display:flex;flex-direction:column;gap:11px">
+                            <label class="checa forte">
+                                <input type="checkbox" name="publicar" value="1" <?= !empty($v['publicada']) ? 'checked' : '' ?>>
+                                <span>
+                                    Publicar agora
+                                    <small>Sem marcar, ela fica de rascunho e ninguém vê.</small>
+                                </span>
+                            </label>
+                            <button type="submit" class="btn-save" style="width:100%">
+                                <?= $editando ? 'Salvar alterações' : 'Criar notícia' ?>
+                            </button>
+                            <a class="btn-outline" style="justify-content:center" href="/thepathetic-edit.php">Cancelar</a>
+                        </div>
+                    </div>
+
+                  </div>
                 </div>
             </form>
-            <script>
-              // A chamada só faz sentido se o aviso for sair.
-              document.getElementById('avisarWhats')?.addEventListener('change', function () {
-                document.getElementById('chamadaWhats').disabled = !this.checked;
-              });
-            </script>
+
+<?php else: /* ═══════════ A LISTA ═══════════ */ ?>
+
+            <?php if (!$todas): ?>
+                <div class="bc"><div class="bc-body" style="text-align:center;padding:52px 20px">
+                    <i class="bi bi-newspaper" style="font-size:36px;color:var(--text-3);display:block;margin-bottom:14px"></i>
+                    <div style="font-size:16px;font-weight:700;margin-bottom:6px">Nenhuma notícia ainda</div>
+                    <p style="font-size:13px;color:var(--text-3);margin-bottom:18px">
+                        A primeira que você escrever já abre o jornal.
+                    </p>
+                    <a class="btn-save" style="text-decoration:none" href="/thepathetic-edit.php?nova=1">Escrever a primeira</a>
+                </div></div>
+            <?php endif; ?>
+
+            <?php
+              $blocos = [];
+              if ($rascunhos) $blocos[] = ['Rascunhos', 'bi-pencil', $rascunhos, 'Ninguém vê até você publicar.'];
+              if ($noAr)      $blocos[] = ['No ar', 'bi-broadcast', $noAr, 'Ordenadas como aparecem na capa.'];
+              foreach ($blocos as [$titulo, $icone, $lista, $nota]):
+            ?>
+            <div class="bc" style="margin-bottom:16px">
+                <div class="bc-head">
+                    <div class="bc-title"><i class="bi <?= $icone ?>"></i> <?= $esc($titulo) ?> <span class="cont"><?= count($lista) ?></span></div>
+                    <span style="font-size:11px;color:var(--text-3)"><?= $esc($nota) ?></span>
+                </div>
+                <div class="bc-body" style="padding:0">
+                    <?php foreach ($lista as $n): $f = patheticSrcFoto($n['foto']); ?>
+                    <div class="linha">
+                        <div class="linha-foto"><?php if ($f !== ''): ?><img src="<?= $esc($f) ?>" alt="" loading="lazy"><?php else: ?><i class="bi bi-image"></i><?php endif; ?></div>
+                        <div class="linha-txt">
+                            <div class="linha-cima">
+                                <span class="tag tag-<?= $esc($n['grau']) ?>"><?= $esc(PATHETIC_GRAU_INFO[$n['grau']]['rotulo'] ?? $n['grau']) ?></span>
+                                <?php if (trim((string)$n['chapeu']) !== ''): ?><span class="tag-chapeu"><?= $esc($n['chapeu']) ?></span><?php endif; ?>
+                                <?php if (!empty($n['avisou_whats'])): ?><span class="tag-whats" title="O grupo já foi avisado desta notícia"><i class="bi bi-whatsapp"></i></span><?php endif; ?>
+                            </div>
+                            <b><?= $esc($n['titulo']) ?></b>
+                            <small><?= $esc($n['autor_nome']) ?> · <?= $esc(patheticQuando($n['publicada_em'] ?: $n['criada_em'])) ?></small>
+                        </div>
+                        <div class="linha-acoes">
+                            <a class="ac" href="/thepathetic-edit.php?editar=<?= (int)$n['id'] ?>" title="Editar"><i class="bi bi-pencil"></i></a>
+                            <?php if (!empty($n['publicada'])): ?>
+                                <a class="ac" href="/thepathetic.php?n=<?= (int)$n['id'] ?>" target="_blank" rel="noopener" title="Ver no jornal"><i class="bi bi-box-arrow-up-right"></i></a>
+                                <form method="post" onsubmit="return confirm('Tirar esta notícia do ar? Ela continua salva como rascunho.')">
+                                    <input type="hidden" name="token" value="<?= $esc($token) ?>">
+                                    <input type="hidden" name="acao" value="despublicar">
+                                    <input type="hidden" name="id" value="<?= (int)$n['id'] ?>">
+                                    <button class="ac" title="Tirar do ar"><i class="bi bi-eye-slash"></i></button>
+                                </form>
+                            <?php else: ?>
+                                <form method="post">
+                                    <input type="hidden" name="token" value="<?= $esc($token) ?>">
+                                    <input type="hidden" name="acao" value="publicar">
+                                    <input type="hidden" name="id" value="<?= (int)$n['id'] ?>">
+                                    <button class="ac ac-ok" title="Publicar"><i class="bi bi-send"></i></button>
+                                </form>
+                            <?php endif; ?>
+                            <form method="post" onsubmit="return confirm('Apagar &quot;<?= $esc(addslashes($n['titulo'])) ?>&quot;? Não tem volta.')">
+                                <input type="hidden" name="token" value="<?= $esc($token) ?>">
+                                <input type="hidden" name="acao" value="apagar">
+                                <input type="hidden" name="id" value="<?= (int)$n['id'] ?>">
+                                <button class="ac ac-perigo" title="Apagar"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+
+            <details class="bc" style="margin-top:22px">
+                <summary class="bc-head" style="cursor:pointer;list-style:none">
+                    <div class="bc-title"><i class="bi bi-archive"></i> Do arquivo — o HTML antigo</div>
+                    <span style="font-size:11px;color:var(--text-3)">Sai no pé do jornal. Deixe vazio pra sumir.</span>
+                </summary>
+                <div class="bc-body">
+                    <form method="post">
+                        <input type="hidden" name="token" value="<?= $esc($token) ?>">
+                        <input type="hidden" name="acao" value="arquivo">
+                        <textarea name="content" class="html-area" style="min-height:220px"
+                                  placeholder="HTML livre — o que estava aqui antes das notícias."><?= $esc($currentContent) ?></textarea>
+                        <div style="display:flex;justify-content:flex-end;margin-top:12px">
+                            <button type="submit" class="btn-save">Salvar arquivo</button>
+                        </div>
+                    </form>
+                </div>
+            </details>
+
+<?php endif; ?>
         </div>
     </main>
 </div>
@@ -279,6 +683,21 @@ try {
     }
     applyTheme(localStorage.getItem('fba-theme')||'dark');
     themeToggle.addEventListener('click', () => applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
+
+    // A prévia da foto antes de enviar: sem ela a pessoa só descobre que
+    // escolheu o arquivo errado depois de salvar a notícia.
+    const fotoInput = document.getElementById('fotoArquivo');
+    const previaNova = document.getElementById('previaNova');
+    fotoInput?.addEventListener("change", () => {
+      const f = fotoInput.files && fotoInput.files[0];
+      if (!f) { previaNova.hidden = true; return; }
+      const img = previaNova.querySelector("img");
+      // revokeObjectURL no anterior: cada escolha cria uma URL nova, e sem
+      // soltar a antiga o navegador segura o arquivo inteiro na memória.
+      if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+      const url = URL.createObjectURL(f);
+      img.dataset.url = url; img.src = url; previaNova.hidden = false;
+    });
 </script>
 </body>
 </html>
