@@ -73,7 +73,16 @@ $materia  = $idPedido > 0 ? patheticUma($pdo, $idPedido) : null;
 $sumiu = $idPedido > 0 && !$materia;
 if ($sumiu) http_response_code(404);
 
-$noticias = patheticPublicadas($pdo, 60);
+// A BUSCA VAI AO BANCO, e não a um filtro no navegador. Filtrar no cliente
+// exigiria mandar o texto inteiro de sessenta matérias dentro da página só
+// pra o caso de alguém digitar — e ainda assim só acharia o que coubesse no
+// que foi mandado. No banco a busca alcança a matéria inteira.
+$busca = trim((string)($_GET['q'] ?? ''));
+if (mb_strlen($busca) > 80) $busca = mb_substr($busca, 0, 80);
+
+$noticias = $busca !== ''
+    ? patheticBuscar($pdo, $busca, 60)
+    : patheticPublicadas($pdo, 60);
 $capa     = patheticCapa($noticias);
 
 // Curtidas e comentários de tudo que está na tela, numa consulta só.
@@ -150,20 +159,28 @@ $fotoPagina = $materia ? patheticSrcFoto($materia['foto'] ?? '') : '';
    como jornal e não como blog — a serifa é a assinatura de quem imprime.
    ═══════════════════════════════════════════════════════════════════════ */
 :root{
-  --tinta:#f4f2ee;         /* branco de papel, levemente quente */
-  --tinta-2:#a8a49c;
-  /* #726e67 dava 4,0:1 contra o fundo — abaixo do mínimo pros textos de
-     11-12px que usam esta cor (crédito, data, legenda). #8a8680 dá 5,6:1 e
-     continua lendo como secundário. */
-  --tinta-3:#8a8680;
-  --fundo:#0b0b0d;
-  --fundo-2:#131316;
-  --fundo-3:#1a1a1e;
-  --fio:#26262b;
-  --fio-forte:#3a3a41;
-  --vermelho:#fc0025;
-  --ambar:#f59e0b;
-  --papel:#e8e4dc;
+  /* AS CORES SÃO DA LOGO, amostradas do arquivo: 77% da imagem é #101010,
+     8% é #f0f0f0 e o verde-ácido é #e0ff00. Não há vermelho na marca do
+     jornal — o vermelho da FBA fica no resto do sistema, e o Pathetic tem
+     identidade própria. É isso que faz a página parecer publicação e não
+     mais uma tela do app.
+
+     Os cinzas puxam pro verde por um fio (o matiz 70, do ácido, com
+     saturação de 4-6%): cinza neutro ao lado de um ácido tão saturado lê
+     como cinza que sobrou, não como cinza escolhido. */
+  --tinta:#f0f0f0;
+  --tinta-2:#a3a49b;
+  --tinta-3:#87887e;
+  --fundo:#101010;
+  --fundo-2:#171812;
+  --fundo-3:#1f2019;
+  --fio:#2a2b23;
+  --fio-forte:#3e4034;
+  --acido:#e0ff00;
+  --acido-fosco:#b8d400;
+  --vermelho:#e0ff00;      /* apelidos antigos, agora apontando pro ácido */
+  --ambar:#e0ff00;
+  --papel:#f0f0f0;
 
   --display:'Anton', 'Arial Narrow', sans-serif;
   --etiqueta:'Barlow Condensed', 'Arial Narrow', sans-serif;
@@ -189,20 +206,35 @@ a{color:inherit;text-decoration:none}
 /* ── O CABEÇALHO ─────────────────────────────────────────────────────
    A tarja animada era a única coisa que o jornal antigo tinha de próprio.
    Ela fica — mas agora como o fio de cima de uma capa inteira. */
-.tarja{height:5px;background:linear-gradient(90deg,var(--vermelho),#ff6b35,var(--vermelho));
-  background-size:200%;animation:corre 3s linear infinite}
-@keyframes corre{to{background-position:200%}}
-@media (prefers-reduced-motion:reduce){.tarja{animation:none}}
+/* A tarja animada saiu. Ela era um gradiente de vermelho pra laranja, de
+   outra marca — e um gradiente correndo em cima de uma identidade tão dura
+   quanto esta briga com ela. No lugar entra o fio ácido, parado, da mesma
+   espessura das duas linhas que cercam o "THE" na logo. */
+.tarja{height:4px;background:var(--acido)}
 
 .cabeca{border-bottom:3px solid var(--tinta);background:var(--fundo)}
-.cabeca-in{max-width:var(--larg);margin:0 auto;padding:16px 22px 12px;
-  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px}
+.cabeca-in{max-width:var(--larg);margin:0 auto;padding:14px 22px 14px;
+  display:grid;grid-template-columns:1fr minmax(0,auto) 1fr;align-items:center;gap:14px}
 .cabeca-esq,.cabeca-dir{display:flex;align-items:center;gap:10px;min-width:0}
 .cabeca-dir{justify-content:flex-end}
-.masthead{font-family:var(--display);font-size:clamp(30px,7vw,58px);line-height:.9;
-  letter-spacing:-.5px;text-transform:uppercase;white-space:nowrap;
-  display:flex;align-items:baseline;gap:.14em}
-.masthead .the{font-size:.42em;letter-spacing:.14em;color:var(--vermelho)}
+/* O MASTHEAD É A LOGO, redesenhada em texto e não em imagem: assim ele
+   escala com a tela, sobrevive ao zoom e continua sendo texto pra quem lê
+   com leitor de tela. A composição é a da marca — "THE" pequeno entre dois
+   fios ácidos, "PATHETIC" gigante embaixo. */
+.masthead{display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1}
+.masthead .the{display:flex;align-items:center;gap:9px;width:100%;
+  font-family:var(--etiqueta);font-size:clamp(11px,1.6vw,14px);font-weight:700;
+  letter-spacing:.42em;text-indent:.42em;text-transform:uppercase;color:var(--tinta)}
+.masthead .the::before,.masthead .the::after{content:"";flex:1;height:3px;background:var(--acido)}
+.masthead .nome{font-family:var(--display);font-size:clamp(34px,8.2vw,72px);
+  line-height:.86;letter-spacing:-.02em;text-transform:uppercase;color:var(--tinta);
+  white-space:nowrap}
+/* O lema, na tarja ácida com texto preto — o elemento que mais identifica a
+   marca, e o único lugar da página em que o fundo é claro. */
+.lema{display:block;background:var(--acido);color:#101010;
+  font-family:var(--etiqueta);font-size:clamp(10.5px,1.7vw,15px);font-weight:700;
+  letter-spacing:.28em;text-indent:.28em;text-transform:uppercase;text-align:center;
+  padding:4px 10px 3px;margin-top:3px;width:100%}
 .voltar,.selo-fba{font-family:var(--etiqueta);font-size:12px;font-weight:600;
   letter-spacing:1.4px;text-transform:uppercase;color:var(--tinta-3);
   display:inline-flex;align-items:center;gap:6px;transition:color .18s;white-space:nowrap}
@@ -224,14 +256,18 @@ a{color:inherit;text-decoration:none}
    escrita, e a cor é reforço. */
 .selo{font-family:var(--etiqueta);font-size:11px;font-weight:700;letter-spacing:1.6px;
   text-transform:uppercase;padding:3px 8px;border-radius:2px;white-space:nowrap;flex:none}
-.selo-manchete{background:var(--vermelho);color:#fff}
-.selo-destaque{background:color-mix(in srgb,var(--ambar) 18%,transparent);color:var(--ambar);
-  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ambar) 40%,transparent)}
+/* Manchete: a tarja ácida com texto preto, igual ao lema da marca.
+   Destaque: o mesmo ácido, mas só no contorno e na letra — a hierarquia sai
+   do PESO da cor, não de trocar de cor, que é o que faria a página parecer
+   um semáforo. */
+.selo-manchete{background:var(--acido);color:#101010}
+.selo-destaque{background:transparent;color:var(--acido);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acido) 55%,transparent)}
 .selo-noticia{background:var(--fundo-3);color:var(--tinta-3);
   box-shadow:inset 0 0 0 1px var(--fio-forte)}
 
 .chapeu{font-family:var(--etiqueta);font-size:12px;font-weight:700;letter-spacing:1.8px;
-  text-transform:uppercase;color:var(--vermelho)}
+  text-transform:uppercase;color:var(--acido)}
 .credito{font-family:var(--etiqueta);font-size:11.5px;font-weight:500;letter-spacing:.8px;
   text-transform:uppercase;color:var(--tinta-3);display:flex;align-items:center;
   gap:7px;flex-wrap:wrap}
@@ -284,6 +320,81 @@ a{color:inherit;text-decoration:none}
   text-transform:uppercase;color:var(--tinta-3);display:flex;align-items:center;
   gap:12px;margin:0 0 18px}
 .secao::after{content:"";flex:1;height:1px;background:var(--fio)}
+
+/* ── A BUSCA ──────────────────────────────────────────────────────────
+   Uma linha só, ácida no foco. Fica acima da lista e não do mosaico: o
+   mosaico é a capa do dia, a lista é o arquivo — e é no arquivo que se
+   procura. */
+.busca{display:flex;gap:9px;align-items:center;margin:0 0 20px}
+.busca input{flex:1;min-width:0;background:var(--fundo-2);border:1px solid var(--fio-forte);
+  border-radius:0;padding:11px 14px;color:var(--tinta);font-family:var(--etiqueta);
+  font-size:15px;font-weight:600;letter-spacing:.5px;outline:none;transition:border-color .15s}
+.busca input::placeholder{color:var(--tinta-3);font-weight:500;letter-spacing:.8px;text-transform:uppercase;font-size:13px}
+.busca input:focus{border-color:var(--acido)}
+.busca button{flex:none;padding:11px 20px;border:none;background:var(--acido);color:#101010;
+  font-family:var(--etiqueta);font-size:13px;font-weight:700;letter-spacing:1.6px;
+  text-transform:uppercase;cursor:pointer;transition:filter .15s}
+.busca button:hover{filter:brightness(1.08)}
+.busca .limpar{background:transparent;color:var(--tinta-3);
+  box-shadow:inset 0 0 0 1px var(--fio-forte)}
+.busca .limpar:hover{color:var(--acido);box-shadow:inset 0 0 0 1px var(--acido)}
+.achou{font-family:var(--etiqueta);font-size:13px;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--tinta-3);margin:-8px 0 20px}
+.achou b{color:var(--acido)}
+
+/* ── O MOSAICO ────────────────────────────────────────────────────────
+   Nem grade regular nem lista: um mosaico de verdade, em que os retângulos
+   têm tamanhos diferentes e se encaixam. A primeira peça ocupa duas colunas
+   e duas linhas — é a manchete —, e as outras preenchem em volta. É o
+   desenho de capa de revista, e é o que faz bater o olho e já saber o que é
+   grande sem ler tarja nenhuma.
+
+   auto-fill com 200px de mínimo: em 360px dá uma coluna (tudo empilha, e a
+   peça grande simplesmente ocupa a largura), em 700px dá três, em 1140 dá
+   cinco. Nenhum breakpoint escrito à mão. */
+.mosaico{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  grid-auto-rows:170px;gap:12px;margin-bottom:34px}
+.peca{position:relative;display:block;overflow:hidden;background:var(--fundo-2);
+  border:1px solid var(--fio)}
+.peca img{width:100%;height:100%;object-fit:cover;
+  transition:transform .5s cubic-bezier(.2,.8,.2,1);filter:grayscale(.35) contrast(1.05)}
+.peca:hover img{transform:scale(1.05);filter:grayscale(0) contrast(1)}
+/* A tinta por cima da foto: sem ela o título branco desaparece em qualquer
+   foto clara, e um jornal não pode depender da sorte da imagem. */
+.peca::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(180deg,rgba(16,16,16,.05) 0%,rgba(16,16,16,.55) 52%,rgba(16,16,16,.94) 100%)}
+.peca-txt{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:13px 14px;
+  display:flex;flex-direction:column;gap:6px}
+.peca-tit{font-family:var(--display);font-size:17px;line-height:1.02;letter-spacing:-.2px;
+  text-transform:uppercase;color:var(--tinta);text-wrap:balance;
+  overflow-wrap:break-word;word-break:break-word}
+.peca:hover .peca-tit{color:var(--acido)}
+.peca .cima{position:absolute;top:10px;left:10px;right:10px;z-index:2;
+  display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start}
+/* A peça grande: duas colunas, duas linhas, e o título no corpo de manchete. */
+.peca-g{grid-column:span 2;grid-row:span 2}
+.peca-g .peca-tit{font-size:clamp(22px,3.4vw,38px);line-height:.98}
+.peca-g .peca-txt{padding:18px 20px;gap:9px}
+.peca-g .linha-fina{font-size:14.5px;line-height:1.45;color:var(--tinta-2);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* A peça média: duas colunas, uma linha. Quebra a monotonia do quadrado. */
+.peca-m{grid-column:span 2}
+/* Sem foto o mosaico não vira buraco: o fundo escurece e o título ocupa. */
+.peca-vazia{background:var(--fundo-2);display:flex;align-items:flex-end}
+.peca-vazia::after{background:none}
+@media (max-width:560px){
+  /* Duas colunas IGUAIS. O auto-fill com minmax(200px,1fr) numa tela de
+     390 encaixava uma coluna de 200 e jogava o resto (149) na segunda — o
+     mosaico ficava torto, com um lado sempre maior. Aqui o numero de
+     colunas e dito, e as duas dividem igual. */
+  .mosaico{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:140px;gap:9px}
+  .peca-g{grid-column:span 2;grid-row:span 2}
+  /* Em duas colunas a peca media (span 2) empurrava a anterior pra ficar
+     sozinha em meia largura, com um buraco do lado. Voltando a span 1, as
+     pecas comuns se pareiam de duas em duas e o mosaico fecha certinho. */
+  .peca-m{grid-column:span 1}
+  .peca-tit{font-size:15px}
+}
 
 .grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:24px}
 .noticia{display:flex;flex-direction:column;background:var(--fundo-2);
@@ -444,7 +555,11 @@ a{color:inherit;text-decoration:none}
     <div class="cabeca-esq">
       <a class="voltar" href="/dashboard.php"><i class="bi bi-arrow-left"></i> Voltar</a>
     </div>
-    <a class="masthead" href="/thepathetic.php"><span class="the">The</span>Pathetic</a>
+    <a class="masthead" href="/thepathetic.php" aria-label="The Pathetic — investigue o lado bruto">
+      <span class="the">The</span>
+      <span class="nome">Pathetic</span>
+      <span class="lema">Investigue o lado bruto</span>
+    </a>
     <div class="cabeca-dir">
       <span class="selo-fba">FBA</span>
     </div>
@@ -603,80 +718,88 @@ a{color:inherit;text-decoration:none}
 
 <?php else: /* ─────────── A CAPA ─────────── */ ?>
 
-  <?php if ($capa['manchete']): $m = $capa['manchete']; $foto = patheticSrcFoto($m['foto']); ?>
-    <a class="manchete" href="/thepathetic.php?n=<?= (int)$m['id'] ?>">
-      <?php if ($foto !== ''): ?>
-        <div class="manchete-foto">
-          <img src="<?= $e($foto) ?>" alt="<?= $e($m['titulo']) ?>" fetchpriority="high">
-          <div class="manchete-tarjas">
-            <?= patheticSelo('manchete') ?>
-            <?php if (trim((string)$m['chapeu']) !== ''): ?>
-              <span class="selo selo-noticia"><?= $e($m['chapeu']) ?></span>
-            <?php endif; ?>
-          </div>
-        </div>
-      <?php endif; ?>
-      <div class="manchete-txt">
-        <?php if ($foto === ''): ?>
-          <div class="cima">
-            <?= patheticSelo('manchete') ?>
-            <?php if (trim((string)$m['chapeu']) !== ''): ?>
-              <span class="chapeu"><?= $e($m['chapeu']) ?></span>
-            <?php endif; ?>
-          </div>
-        <?php endif; ?>
-        <h1 class="manchete-tit"><?= $e($m['titulo']) ?></h1>
-        <?php $r = patheticResumo($m, 240); if ($r !== ''): ?>
-          <p class="linha-fina"><?= $e($r) ?></p>
-        <?php endif; ?>
-        <div class="credito">
-          <span class="quem">Por <?= $e($m['autor_nome']) ?></span>
-          <i class="ponto"></i>
-          <span><?= $e(patheticQuando($m['publicada_em'] ?: $m['criada_em'])) ?></span>
-          <?php $ss = patheticSeloSocial($social[(int)$m['id']] ?? []); if ($ss): ?>
-            <i class="ponto"></i><?= $ss ?>
-          <?php endif; ?>
-        </div>
-      </div>
-    </a>
-  <?php endif; ?>
+  <?php
+    // O MOSAICO só existe na capa limpa. Buscando, o que a pessoa quer é a
+    // lista de resultados — um mosaico de resultados esconderia metade deles
+    // atrás de peças grandes e mandaria a ordem de relevância pro lixo.
+    // A ORDEM DO MOSAICO É O GRAU, e não a data. Ordenado por data, a peça
+    // grande virava a última notícia publicada — e a manchete do dia ia parar
+    // num quadradinho de canto, que é o oposto de ter grau. Dentro do mesmo
+    // grau, aí sim vale a data.
+    $pesoDoGrau = ['manchete' => 0, 'destaque' => 1, 'noticia' => 2];
+    $comFoto = array_values(array_filter($noticias, fn($n) => patheticSrcFoto($n['foto']) !== ''));
+    usort($comFoto, function ($a, $b) use ($pesoDoGrau) {
+        $pa = $pesoDoGrau[$a['grau']] ?? 9;
+        $pb = $pesoDoGrau[$b['grau']] ?? 9;
+        if ($pa !== $pb) return $pa <=> $pb;
+        return strcmp((string)($b['publicada_em'] ?: $b['criada_em']),
+                      (string)($a['publicada_em'] ?: $a['criada_em']));
+    });
+    $noMosaico = $busca === '' ? array_slice($comFoto, 0, 7) : [];
+  ?>
 
-  <?php if ($capa['destaques']): ?>
-    <div class="faixa">
-      <?php foreach (array_slice($capa['destaques'], 0, 4) as $d): $foto = patheticSrcFoto($d['foto']); ?>
-        <a class="destaque" href="/thepathetic.php?n=<?= (int)$d['id'] ?>">
-          <?php if ($foto !== ''): ?>
-            <div class="destaque-foto"><img src="<?= $e($foto) ?>" alt="<?= $e($d['titulo']) ?>" loading="lazy"></div>
-          <?php endif; ?>
+  <?php if ($noMosaico): ?>
+    <div class="mosaico">
+      <?php foreach (array_values($noMosaico) as $k => $n):
+        // A primeira peça é grande, a terceira e a sexta são médias. É o que
+        // dá o encaixe irregular do mosaico — todas iguais viraria grade.
+        $cls = $k === 0 ? 'peca-g' : (($k === 2 || $k === 5) ? 'peca-m' : '');
+        $foto = patheticSrcFoto($n['foto']);
+      ?>
+        <a class="peca <?= $cls ?>" href="/thepathetic.php?n=<?= (int)$n['id'] ?>">
+          <img src="<?= $e($foto) ?>" alt="<?= $e($n['titulo']) ?>" <?= $k === 0 ? 'fetchpriority="high"' : 'loading="lazy"' ?>>
           <div class="cima">
-            <?= patheticSelo($d['grau']) ?>
-            <?php if (trim((string)$d['chapeu']) !== ''): ?>
-              <span class="chapeu"><?= $e($d['chapeu']) ?></span>
+            <?= patheticSelo($n['grau']) ?>
+            <?php if ($k === 0 && trim((string)$n['chapeu']) !== ''): ?>
+              <span class="selo selo-noticia"><?= $e($n['chapeu']) ?></span>
             <?php endif; ?>
           </div>
-          <h2 class="destaque-tit"><?= $e($d['titulo']) ?></h2>
-          <?php $r = patheticResumo($d, 150); if ($r !== ''): ?><p><?= $e($r) ?></p><?php endif; ?>
-          <div class="credito">
-            <span class="quem"><?= $e($d['autor_nome']) ?></span>
-            <i class="ponto"></i>
-            <span><?= $e(patheticQuando($d['publicada_em'] ?: $d['criada_em'])) ?></span>
-            <?php $ss = patheticSeloSocial($social[(int)$d['id']] ?? []); if ($ss): ?>
-              <i class="ponto"></i><?= $ss ?>
-            <?php endif; ?>
+          <div class="peca-txt">
+            <h2 class="peca-tit"><?= $e($n['titulo']) ?></h2>
+            <?php if ($k === 0): $r = patheticResumo($n, 170); if ($r !== ''): ?>
+              <p class="linha-fina"><?= $e($r) ?></p>
+            <?php endif; endif; ?>
           </div>
         </a>
       <?php endforeach; ?>
     </div>
   <?php endif; ?>
 
+  <form class="busca" method="get" action="/thepathetic.php" role="search">
+    <input type="search" name="q" value="<?= $e($busca) ?>"
+           placeholder="Procurar por título ou palavra na notícia"
+           aria-label="Procurar no jornal">
+    <button type="submit">Procurar</button>
+    <?php if ($busca !== ''): ?>
+      <a class="busca-limpar" href="/thepathetic.php"><button type="button" class="limpar">Limpar</button></a>
+    <?php endif; ?>
+  </form>
+
+  <?php if ($busca !== ''): ?>
+    <p class="achou">
+      <?php if ($noticias): ?>
+        <b><?= count($noticias) ?></b> <?= count($noticias) === 1 ? 'notícia encontrada' : 'notícias encontradas' ?> para "<?= $e($busca) ?>"
+      <?php else: ?>
+        Nenhuma notícia com "<?= $e($busca) ?>".
+      <?php endif; ?>
+    </p>
+  <?php endif; ?>
+
+  <?php /* A manchete solta e a faixa de destaques saíram: o mosaico já conta
+       a hierarquia, com TAMANHO em vez de tarja, e repetir as mesmas cinco
+       notícias logo abaixo dele fazia a capa andar em círculo. O que vem
+       depois da busca é o ARQUIVO — tudo que o jornal publicou. */ ?>
+
   <?php
-    // Destaque que passou de quatro desce pra grade em vez de sumir: ele foi
-    // publicado, e uma notícia publicada que não aparece em lugar nenhum é
-    // pior do que uma notícia num card menor.
-    $naGrade = array_merge(array_slice($capa['destaques'], 4), $capa['noticias']);
+    // O ARQUIVO: tudo, inclusive o que está no mosaico. Antes eram as sobras,
+    // e numa capa de cinco notícias sobrava zero — a página terminava logo
+    // depois do mosaico, com um campo de busca solto embaixo e nada pra
+    // procurar. Aqui embaixo é a lista completa, do mais novo pro mais velho,
+    // e é sobre ela que a busca trabalha.
+    $naGrade = $noticias;
   ?>
   <?php if ($naGrade): ?>
-    <h2 class="secao">Mais notícias</h2>
+    <h2 class="secao"><?= $busca !== '' ? 'Resultados' : 'Todas as notícias' ?></h2>
     <div class="grade">
       <?php foreach ($naGrade as $n): $foto = patheticSrcFoto($n['foto']); ?>
         <a class="noticia" href="/thepathetic.php?n=<?= (int)$n['id'] ?>">

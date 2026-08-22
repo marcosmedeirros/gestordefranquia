@@ -146,6 +146,41 @@ function patheticPublicadas(PDO $pdo, int $limite = 60): array
     }
 }
 
+/**
+ * Procura no jornal: título, chapéu, linha fina e o TEXTO da matéria.
+ *
+ * O texto entra na busca de propósito — quem procura "cláusula" quer a
+ * matéria em que a palavra apareceu, e ela quase nunca está no título. Ordena
+ * dando peso a onde a palavra caiu: título vale mais que corpo, porque uma
+ * matéria SOBRE a coisa é melhor resposta que uma que a menciona de passagem.
+ */
+function patheticBuscar(PDO $pdo, string $termo, int $limite = 60): array
+{
+    patheticGarantirTabela($pdo);
+    $termo = trim($termo);
+    if ($termo === '') return patheticPublicadas($pdo, $limite);
+
+    // LIKE com os curingas escapados: um "%" digitado na caixa procura o
+    // caractere "%", e não "qualquer coisa".
+    $alvo = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $termo) . '%';
+
+    try {
+        $st = $pdo->prepare("SELECT * FROM pathetic_noticias
+                             WHERE publicada = 1
+                               AND (titulo LIKE :a OR chapeu LIKE :a OR resumo LIKE :a OR texto LIKE :a)
+                             ORDER BY
+                               (titulo LIKE :a) DESC,
+                               (chapeu LIKE :a OR resumo LIKE :a) DESC,
+                               COALESCE(publicada_em, criada_em) DESC, id DESC
+                             LIMIT " . max(1, min(200, $limite)));
+        $st->execute([':a' => $alvo]);
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        error_log('[pathetic] buscar: ' . $e->getMessage());
+        return [];
+    }
+}
+
 /** Uma notícia pelo id. Só devolve não-publicada pra quem edita. */
 function patheticUma(PDO $pdo, int $id, bool $incluirRascunho = false): ?array
 {
