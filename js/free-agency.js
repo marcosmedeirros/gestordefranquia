@@ -141,7 +141,13 @@ function renderDispensadosDaTemporada() {
 
     const busca = (document.getElementById('dispBusca')?.value || '').trim().toLowerCase();
     const pos = document.getElementById('dispPos')?.value || '';
-    const soCabe = document.getElementById('dispSoCabe')?.checked;
+    // O filtro "só os que cabem" só existe onde existe cap. Fora da ELITE o
+    // servidor manda cap_cabe true em todo mundo, e a caixinha viraria um
+    // controle que não muda nada — pior que não ter.
+    const temCap = dispTemporada.some(j => j.cap_custo != null);
+    const caixaCabe = document.getElementById('dispSoCabe')?.closest('label');
+    if (caixaCabe) caixaCabe.hidden = !temCap;
+    const soCabe = temCap && document.getElementById('dispSoCabe')?.checked;
 
     const lista = dispTemporada.filter(j =>
         (!busca || j.name.toLowerCase().includes(busca)) &&

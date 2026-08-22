@@ -10,6 +10,61 @@ require_once __DIR__ . '/../backend/helpers.php';
 require_once __DIR__ . '/../backend/push.php';
 require_once __DIR__ . '/../backend/salary_cap.php'; // capCabeNoTime()
 
+/**
+ * O CAP SÓ VALE NA ELITE — na Free Agency.
+ *
+ * O salary cap nasceu pra ELITE e é dela: lá o contrato tem valor em dinheiro
+ * e o teto é a regra central da liga. As outras três (RISE, ROOKIE e NEXT)
+ * têm o modo "soma de OVR", que existe pra segurar TROCA — não pra dizer quem
+ * pode receber proposta na janela. Aplicado aqui, ele virava um segundo
+ * limite em cima do que a Free Agency já cobra: moeda e prioridade.
+ *
+ * O resultado prático era um time de RISE olhando um dispensado de 78 OVR com
+ * o botão travado escrito "não cabe no seu cap", numa liga que não usa cap
+ * nenhum. A régua das três voltou a ser a de antes: você tem moeda? tem
+ * prioridade? então proponha.
+ *
+ * Só a Free Agency muda. Troca, leilão e o resto continuam com a soma de OVR
+ * onde ela sempre valeu.
+ */
+function faCapAplica(PDO $pdo, ?int $teamId): bool
+{
+    static $cache = [];
+    $teamId = (int)$teamId;
+    if ($teamId <= 0) return false;
+    if (array_key_exists($teamId, $cache)) return $cache[$teamId];
+
+    try {
+        $st = $pdo->prepare('SELECT league FROM teams WHERE id = ?');
+        $st->execute([$teamId]);
+        $liga = strtoupper(trim((string)($st->fetchColumn() ?: '')));
+    } catch (Throwable $e) {
+        // Falha de banco não pode LIBERAR uma regra da ELITE por acidente —
+        // mas também não pode travar as outras três. Sem saber a liga, o
+        // caminho seguro é o de antes: sem cap.
+        error_log('[fa] faCapAplica: ' . $e->getMessage());
+        return $cache[$teamId] = false;
+    }
+
+    return $cache[$teamId] = ($liga === 'ELITE');
+}
+
+/**
+ * capCabeNoTime() com o portão da liga na frente.
+ *
+ * Fora da ELITE devolve a forma que o resto do código já sabe ler como "não
+ * há cap aqui": custo e espaço nulos, cabe sempre. O front-end já trata
+ * espaço nulo escondendo o aviso inteiro — foi escrito assim desde o começo.
+ */
+function faCap(PDO $pdo, ?int $teamId, int $ovr): array
+{
+    if (!faCapAplica($pdo, $teamId)) {
+        return ['custo' => null, 'espaco' => null, 'cabe' => true,
+                'unidade' => 'M', 'modo' => 'livre'];
+    }
+    return capCabeNoTime($pdo, (int)$teamId, $ovr);
+}
+
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id'])) {
@@ -1336,7 +1391,7 @@ function requestNewFaPlayer(PDO $pdo, array $body, ?int $teamId, ?string $teamLe
     // contrato cabe. Cada proposta é medida sozinha — o time pode sondar
     // dois de 40M com 60M de espaço; quem cai é a segunda, se ele ganhar a
     // primeira (ver cancelarPropostasSemEspacoNoCap).
-    $fit = capCabeNoTime($pdo, (int)$teamId, $ovr);
+    $fit = faCap($pdo, (int)$teamId, $ovr);
     if (!$fit['cabe']) {
         jsonError('Um jogador de ' . $ovr . ' OVR custa ' . capValorEscrito($fit['custo'], $fit['unidade'])
                 . ' no cap, e ' . capEspacoEscrito($fit['espaco'], $fit['unidade']) . '.');
@@ -1420,7 +1475,7 @@ function assignNewFaRequest(PDO $pdo, array $body, int $adminId): void
 
     // O espaço pode ter sumido entre a proposta e a aprovação — o time pode
     // ter assinado outro no meio do caminho.
-    $fit = capCabeNoTime($pdo, (int)$offer['team_id'], (int)$offer['ovr']);
+    $fit = faCap($pdo, (int)$offer['team_id'], (int)$offer['ovr']);
     if (!$fit['cabe']) {
         jsonError($offer['player_name'] . ' custa ' . capValorEscrito($fit['custo'], $fit['unidade'])
                 . ' e o cap de ' . $offer['team_city'] . ' ' . $offer['team_name'] . ' não cobre: '
@@ -1534,6 +1589,9 @@ function rejectNewFaRequest(PDO $pdo, array $body): void
 function cancelarPropostasSemEspacoNoCap(PDO $pdo, int $teamId): int
 {
     if ($teamId <= 0) return 0;
+    // Fora da ELITE não existe espaço pra faltar: a proposta se sustenta em
+    // moeda e prioridade, e nenhuma das duas some porque o time assinou outro.
+    if (!faCapAplica($pdo, $teamId)) return 0;
     $caidas = 0;
 
     // Fluxo novo: fa_request_offers -> fa_requests.ovr
@@ -1544,7 +1602,7 @@ function cancelarPropostasSemEspacoNoCap(PDO $pdo, int $teamId): int
                              WHERE o.team_id = ? AND o.status = "pending" AND r.status = "open"');
         $st->execute([$teamId]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $o) {
-            if (capCabeNoTime($pdo, $teamId, (int)$o['ovr'])['cabe']) continue;
+            if (faCap($pdo, $teamId, (int)$o['ovr'])['cabe']) continue;
             $pdo->prepare('UPDATE fa_request_offers SET status = "canceled" WHERE id = ?')->execute([(int)$o['id']]);
             $caidas++;
         }
@@ -1559,7 +1617,7 @@ function cancelarPropostasSemEspacoNoCap(PDO $pdo, int $teamId): int
                              WHERE o.team_id = ? AND o.status = 'pending'");
         $st->execute([$teamId]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $o) {
-            if (capCabeNoTime($pdo, $teamId, (int)$o['ovr'])['cabe']) continue;
+            if (faCap($pdo, $teamId, (int)$o['ovr'])['cabe']) continue;
             $pdo->prepare('UPDATE free_agent_offers SET status = "canceled" WHERE id = ?')->execute([(int)$o['id']]);
             $caidas++;
         }
@@ -1638,7 +1696,7 @@ function listDispensadosDaTemporada(PDO $pdo, ?string $league, ?int $teamId): vo
     foreach ($jogadores as &$j) {
         $j['ovr'] = (int)$j['ovr'];
         $j['age'] = (int)$j['age'];
-        $fit = $teamId ? capCabeNoTime($pdo, $teamId, $j['ovr']) : null;
+        $fit = $teamId ? faCap($pdo, $teamId, $j['ovr']) : null;
         $j['cap_custo']   = $fit['custo'] ?? null;
         $j['cap_cabe']    = $fit['cabe'] ?? true;
         $j['cap_unidade'] = $fit['unidade'] ?? 'M';
@@ -1653,6 +1711,12 @@ function capEspacoDoTime(PDO $pdo, ?int $teamId): void
 {
     if (!$teamId) {
         jsonSuccess(['espaco' => null, 'unidade' => 'M', 'custo_por_ovr' => []]);
+    }
+    // Fora da ELITE a resposta é "não há cap": espaço nulo. O front lê isso
+    // e esconde o aviso inteiro em vez de mostrar zero, que pareceria um time
+    // estourado.
+    if (!faCapAplica($pdo, $teamId)) {
+        jsonSuccess(['espaco' => null, 'unidade' => 'M', 'modo' => 'livre', 'custo_por_ovr' => []]);
     }
     $base = capCabeNoTime($pdo, $teamId, 80);
     $tabela = [];
@@ -1894,9 +1958,10 @@ function placeOffer(PDO $pdo, array $body, ?int $teamId, ?string $teamLeague, in
         jsonError('Moedas insuficientes');
     }
 
-    // Mesma régua do fluxo novo: o salário do jogador tem que caber no cap.
+    // Mesma régua do fluxo novo: na ELITE o salário tem que caber no cap; nas
+    // outras três não há cap na Free Agency.
     $ovrDoAlvo = (int)($player[freeAgentOvrColumn($pdo)] ?? 0);
-    $fit = capCabeNoTime($pdo, (int)$teamId, $ovrDoAlvo);
+    $fit = faCap($pdo, (int)$teamId, $ovrDoAlvo);
     if (!$fit['cabe']) {
         jsonError($player['name'] . ' custa ' . capValorEscrito($fit['custo'], $fit['unidade'])
                 . ' no cap, e ' . capEspacoEscrito($fit['espaco'], $fit['unidade']) . '.');
