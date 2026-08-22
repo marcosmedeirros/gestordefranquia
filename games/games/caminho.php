@@ -511,7 +511,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
    quando saber em que nível você está é o que muda a decisão. Esta faixa é
    o resumo dele, grudada embaixo da barra de cima, e só acende depois que o
    cartão de verdade sai de vista (vigiarFicha). */
-.ficha-fixa{position:sticky;top:0;z-index:45;display:flex;align-items:center;gap:9px;
+.ficha-fixa{position:sticky;top:var(--topo-h,0px);z-index:45;display:flex;align-items:center;gap:9px;
   padding:7px 12px;background:color-mix(in srgb, var(--panel) 92%, transparent);
   backdrop-filter:blur(9px);border-bottom:1px solid var(--border);
   margin:0 -12px 11px;animation:ffEntra .18s ease}
@@ -4187,9 +4187,18 @@ function vigiarFicha(){
 
   // rootMargin negativo no topo: a faixa entra quando o cartão passa da
   // altura da barra de cima, não quando ele some da tela inteira.
+  // A barra de cima também é grudada no celular, e as duas em top:0 se
+  // sobrepõem — a faixa nascia ATRÁS dela, invisível. A altura vem medida
+  // porque muda com a fonte do sistema, e no desktop a barra não gruda:
+  // lá o valor é zero e a faixa encosta no alto da coluna.
+  const barraDeCima = document.querySelector(".topbar");
+  const alturaDoTopo = barraDeCima && getComputedStyle(barraDeCima).position === "sticky"
+    ? Math.round(barraDeCima.getBoundingClientRect().height) : 0;
+  document.documentElement.style.setProperty("--topo-h", alturaDoTopo + "px");
+
   _olhoDaFicha = new IntersectionObserver(
     ([e]) => { fixa.hidden = e.isIntersecting; },
-    {threshold: 0, rootMargin: "-56px 0px 0px 0px"}
+    {threshold: 0, rootMargin: `-${alturaDoTopo + 4}px 0px 0px 0px`}
   );
   _olhoDaFicha.observe(real);
 }
@@ -5430,6 +5439,28 @@ function cartasDaDecisao(d){
       }).join(""), "duas", d.ops.length)}`;
 }
 
+/**
+ * A nota do que aconteceu na decisão do ano.
+ *
+ * Fica no alto da tela seguinte, acompanhando a temporada que a escolha
+ * gerou — e não numa tela própria antes dela. É uma linha e um número: o que
+ * mudou, e quanto. Some sozinha quando a decisão seguinte é tomada.
+ */
+function notaDoQueDeu(){
+  const q = S.oQueDeu;
+  if (!q || !String(q.txt || "").trim()) return "";
+  const d = q.ovr || 0;
+  const cor = d > 0 ? "var(--green)" : d < 0 ? "var(--red)" : "var(--text3)";
+  return `<div class="bpcard nota-deu">
+    <span class="nota-deu-marca" style="background:${q.bom ? "var(--green)" : "var(--red)"}"></span>
+    <div class="nota-deu-txt">
+      <b>${esc(q.l || "")}</b>
+      <p>${esc(q.txt)}</p>
+    </div>
+    ${d ? `<em class="nota-deu-ovr" style="color:${cor}">${d > 0 ? "+" : ""}${d} OVR</em>` : ""}
+  </div>`;
+}
+
 function telaTemporada(){
   const st = S.ultimo;
   if (!st) return telaDraft();
@@ -5504,7 +5535,6 @@ function telaTemporada(){
     // Era isso que o bloco "O que aconteceu" fazia errado — ficava por cima
     // da pergunta seguinte e empurrava ela pra fora da dobra.
     `<div class="dec-caixa">`
-    + (S.desfecho ? cartaDoDesfecho(S.desfecho) : "")
     + (S.mercado ? mercadoHTML() : S.aguardando && d ? cartasDaDecisao(d) : "")
     + rodapeDeAcoes(acoes)
     + `</div>`
@@ -5581,22 +5611,6 @@ function decidir(i){
   sortearNaCarta(i, deuCerto);
 }
 
-/**
- * O tempo de ler o desfecho antes do jogo seguir sozinho.
- *
- * Dois segundos e meio: o bastante pra ler duas linhas, pouco o bastante pra
- * não parecer que o jogo travou. Um clique em qualquer lugar pula a espera.
- */
-function esperarELevar(){
-  let feito = false;
-  const ir = () => {
-    if (feito) return; feito = true;
-    document.removeEventListener("click", ir);
-    if (S && S.desfecho) seguir();
-  };
-  document.addEventListener("click", ir);
-  setTimeout(ir, 2500);
-}
 
 /**
  * O sorteio acontece na carta clicada, sem trocar de tela.
@@ -5703,44 +5717,6 @@ function seguir(){
  * apagado — a pessoa vê onde a luz parou sem precisar traduzir nada. O
  * texto embaixo conta o que aconteceu.
  */
-/**
- * A nota do que aconteceu na decisão do ano.
- *
- * Fica no alto da tela seguinte, acompanhando a temporada que a escolha
- * gerou — e não numa tela própria antes dela. É uma linha e um número: o que
- * mudou, e quanto. Some sozinha quando a decisão seguinte é tomada.
- */
-function notaDoQueDeu(){
-  const q = S.oQueDeu;
-  if (!q || !String(q.txt || "").trim()) return "";
-  const d = q.ovr || 0;
-  const cor = d > 0 ? "var(--green)" : d < 0 ? "var(--red)" : "var(--text3)";
-  return `<div class="bpcard nota-deu">
-    <span class="nota-deu-marca" style="background:${q.bom ? "var(--green)" : "var(--red)"}"></span>
-    <div class="nota-deu-txt">
-      <b>${esc(q.l || "")}</b>
-      <p>${esc(q.txt)}</p>
-    </div>
-    ${d ? `<em class="nota-deu-ovr" style="color:${cor}">${d > 0 ? "+" : ""}${d} OVR</em>` : ""}
-  </div>`;
-}
-
-function cartaDoDesfecho(df){
-  const caiuBom = df.caiu === "bom";
-  const ef = caiuBom ? df.bom : df.ruim;
-  return `<h1 class="dec-tit">${caiuBom ? "Deu certo." : "Não foi dessa vez."}</h1>
-    <div class="dec-grade dec-grade-um">
-      <div class="dec-card dec-sorteando">
-        <span class="dec-card-tit">${esc(df.l)}${df.ovr ? `<b class="dec-delta" style="color:${
-          df.ovr > 0 ? "var(--green)" : "var(--red)"}">${df.ovr > 0 ? "+" : ""}${df.ovr} OVR</b>` : ""}</span>
-        <span class="dec-card-res">
-          ${linhaDeDesfecho(df.bom, df.chance, caiuBom ? "caiu" : "apagado")}
-          ${df.chance >= 100 ? "" : linhaDeDesfecho(df.ruim, 100 - df.chance, caiuBom ? "apagado" : "caiu")}
-        </span>
-      </div>
-    </div>
-    <p class="dec-desfecho-txt">${esc(df.txt || "")}</p>`;
-}
 
 
 /**
