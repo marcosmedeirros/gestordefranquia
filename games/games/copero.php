@@ -459,12 +459,6 @@ button{font-family:inherit}
   .topo .marca{font-size:15px}
   .chip-topo{padding:4px 9px;font-size:11px}
 }
-/* ── O RODAPÉ DA CARREIRA ─────────────────────────────────────────────
-   No desktop não é nada: `display:contents` dissolve a caixa e os atalhos
-   ficam escondidos, porque lá em cima a barra continua existindo. */
-.rodape-fixo{display:contents}
-.rf-atalhos{display:none}
-.rf-espaco{display:none}
 
 .btn-topo{background:var(--panel2);border:1px solid var(--borda);color:var(--txt2);border-radius:9px;
   padding:8px 13px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
@@ -562,12 +556,20 @@ button{font-family:inherit}
 .btn2:hover:not(:disabled){color:var(--txt)}
 
 /* ── Carreira ───────────────────────────────────────── */
-.carreira{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:16px;align-items:start}
+/* COLUNA ÚNICA, como o Copero. Eram duas — ficha+decisão à esquerda e a
+   tabela à direita — e isso punha a decisão AO LADO da tabela em vez de
+   depois dela. Coluna única resolve nos dois tamanhos e mata o
+   `display:contents` + `order` que existia só pra contornar as duas. */
+.carreira{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;
+  max-width:760px;margin:0 auto;align-items:start}
 
-/* Ficha e decisão são dois cartões empilhados. No celular eles se separam:
-   a linha do tempo entra no meio (veja o `order` lá embaixo). */
-.col-esq{display:flex;flex-direction:column;gap:16px;min-width:0}
+/* A DECISÃO MORA NO RODAPÉ, grudada. É a única coisa da tela em que se
+   toca, e rolar até ela toda vez era o que fazia a página parecer longa.
+   O espaçador reserva a altura dela (medida em JS, porque o card muda de
+   tamanho conforme o texto e o número de cartas). */
 .evento-caixa{padding:16px 18px}
+.dec-espaco{display:none}
+.ver-conq{width:100%;border-radius:999px}
 
 .ficha{padding:18px}
 .ficha-topo{display:flex;align-items:center;gap:14px}
@@ -715,6 +717,19 @@ button{font-family:inherit}
 
 /* ── Linha do tempo ─────────────────────────────────── */
 .linha{padding:12px 14px}
+/* A JANELA DE DOZE ANOS. A lista agora vai dos 16 aos 39 inteira, e é esta
+   caixa que decide quanto disso aparece — doze linhas, como na referência,
+   com o ano atual rolado pra perto do fim (focarAnoAtual()). `--ano-h` é a
+   altura de uma linha somada ao respiro entre elas, e muda no celular. */
+.anos{--ano-h:26px;max-height:calc(var(--ano-h) * 12);overflow-y:auto;
+  overscroll-behavior:contain;scrollbar-width:thin;
+  scrollbar-color:var(--borda2) transparent;
+  /* `position:relative` NÃO é enfeite: sem ele o offsetParent das linhas é
+     um ancestral qualquer, e o offsetTop que o focarAnoAtual() usa passa a
+     ser medido de outra origem — o scroll ia parar no lugar errado. */
+  position:relative}
+.anos::-webkit-scrollbar{width:5px}
+.anos::-webkit-scrollbar-thumb{background:var(--borda2);border-radius:99px}
 .linha-cab,.ano,.linha-pe,.linha-sel{display:grid;grid-template-columns:44px minmax(0,1fr) 46px 56px 52px 52px;gap:8px;
   align-items:center}
 /* A linha da seleção fecha a tabela, com a bandeira ocupando a coluna que
@@ -973,16 +988,7 @@ button{font-family:inherit}
      `auto` é o min-content — a coluna se recusava a encolher e a ficha com
      nome comprido ("Universidad de Chile") esticava a página pra 491px numa
      tela de 375. Era daí que vinha a rolagem lateral no celular. */
-  .carreira{grid-template-columns:minmax(0,1fr);gap:12px}
-
-  /* Ficha, carreira inteira, e só então a decisão — a ordem do Copero.
-     `display:contents` dissolve a coluna da esquerda e entrega ficha e
-     evento direto ao grid: sem isso os dois estão presos no mesmo filho e
-     não há `order` que faça a tabela passar entre eles. */
-  .col-esq{display:contents}
-  .ficha{order:1}
-  .linha{order:2}
-  .evento-caixa{order:3}
+  .carreira{gap:12px}
 
   .ident{grid-template-columns:1fr}
   .ident-col + .ident-col{border-left:none;border-top:none}
@@ -1030,29 +1036,11 @@ button{font-family:inherit}
      tabela logo abaixo. Cada bloco que encolhe aqui é uma linha da
      carreira que aparece sem rolar.
 
-     Na tela de carreira a barra de cima SAI e vira barra de baixo: os
-     mesmos atalhos, na altura do polegar, e os 63px do alto voltam pra
-     ficha. Nas outras telas ela fica — sem barra nenhuma não haveria como
-     voltar pros jogos. */
-  .topo.topo-some{display:none}
-
-  .rodape-fixo{position:fixed;left:0;right:0;bottom:0;z-index:60;
-    display:flex;align-items:center;gap:8px;
-    padding:8px 11px calc(8px + env(safe-area-inset-bottom,0px));
-    background:var(--panel);border-top:1px solid var(--borda);
-    box-shadow:0 -8px 20px rgba(0,0,0,.4)}
-  .rf-atalhos{display:flex;align-items:center;gap:7px;flex:1}
-  .rf-btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;
-    height:38px;min-width:38px;padding:0 10px;border-radius:11px;
-    border:1px solid var(--borda);background:var(--panel2);color:var(--txt2);
-    font-family:inherit;font-size:12px;font-weight:700;text-decoration:none;cursor:pointer}
-  .rf-btn b{font-variant-numeric:tabular-nums;font-weight:800;color:var(--txt)}
-  .rf-moeda{color:#eab308;cursor:default}
-  /* O abandonar vai pra ponta oposta da do voltar: são as duas saídas, e
-     encostadas uma na outra viram um erro de dedo. */
-  .rf-sair{margin-left:auto;color:var(--txt3)}
-  /* A barra flutua por cima: sem esta folga ela tapa a última linha. */
-  .rf-espaco{display:block;height:64px}
+     A barra de cima FICA, inclusive na carreira. Ela saía pra dar lugar a
+     uma barra de baixo com os mesmos atalhos; agora quem mora no rodapé é
+     o CARD DE DECISÃO, e voltar/desafios/moedas/abandonar sobem de volta
+     pra barra do topo, que passa a ser grudada. */
+  .topo{position:sticky;top:0;z-index:50;background:var(--bg)}
 
   /* O padding do #app entra aqui, e não só no @440: a margem negativa do
      .topo logo abaixo só encosta na borda quando os dois combinam, e entre
@@ -1093,6 +1081,9 @@ button{font-family:inherit}
   /* A linha do tempo encolhe: são até dez linhas de números, e cada pixel
      de altura aqui é multiplicado por dez. */
   .linha{padding:8px}
+  /* Linha mais baixa no celular (.ano vira padding:2px/font 11px logo
+     abaixo), então a janela de doze precisa encolher junto. */
+  .anos{--ano-h:23px}
   .ano{padding:2px 6px;font-size:11px}
   .ano-idade{height:19px;font-size:11px}
   .ano-ovr{font-size:11px;padding:1px 0}
@@ -1104,7 +1095,15 @@ button{font-family:inherit}
   .linha-sel{margin-top:5px;padding:4px 6px}
   .linha-sel .sel-band svg{width:22px;height:14px}
 
-  .evento-caixa{padding:13px 12px}
+  /* A DECISÃO GRUDA NO RODAPÉ. Ela sai do fluxo, então o .dec-espaco
+     ocupa o buraco que ela deixou — a altura vem do JS (--dec-h), porque
+     ela muda com o texto e com o número de cartas. Sem o espaçador a
+     última linha da tabela fica embaixo do card. */
+  .evento-caixa{position:fixed;left:0;right:0;bottom:0;z-index:60;
+    padding:11px 12px calc(11px + env(safe-area-inset-bottom,0px));
+    border-radius:16px 16px 0 0;max-height:52vh;overflow-y:auto;
+    box-shadow:0 -10px 26px rgba(0,0,0,.55)}
+  .dec-espaco{display:block;height:var(--dec-h,190px)}
   .evento h3{font-size:17px}
   /* O texto de contexto volta — a referência mostra ele, e é o único que
      explica o que está em jogo antes de escolher. Fica curto e apertado
@@ -1596,9 +1595,9 @@ const SEL_CONT    = <?= json_encode(COPERO_SELECAO_CONT, JSON_UNESCAPED_UNICODE)
  * `extra` é o que cada tela quer no canto direito antes das fichas (o
  * "Abandonar" da carreira em andamento, por exemplo).
  */
-function barraTopo(extra, some){
+function barraTopo(extra){
   const feitas = conquistasFeitas().length;
-  return `<div class="topo${some ? ' topo-some' : ''}">
+  return `<div class="topo">
     <a href="/games.php" class="voltar" title="Voltar aos jogos">
       <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M8.5 3.5 4 8l4.5 4.5.9-.9L6.3 8.6H12v-1.2H6.3l3.1-3z"/></svg></a>
     <div class="marca"><i class="bi bi-trophy-fill"></i> Copero</div>
@@ -1608,29 +1607,6 @@ function barraTopo(extra, some){
         🏆 <b>${feitas}</b></button>
       ${window.__MOEDAS__ === null || window.__MOEDAS__ === undefined ? ''
         : `<div class="chip-topo chip-topo-moeda" title="Suas moedas">🪙 <b>${window.__MOEDAS__}</b></div>`}
-    </div>
-  </div>`;
-}
-
-/**
- * O rodapé da tela de carreira no celular.
- *
- * A barra de cima sai e os atalhos descem — voltar, desafios, moedas e o
- * abandonar. No desktop `display:contents` dissolve a caixa e nada disso
- * aparece: lá a barra de cima continua sendo a barra.
- */
-function rodapeDeAtalhos(){
-  const feitas = conquistasFeitas().length;
-  const temMoeda = window.__MOEDAS__ !== null && window.__MOEDAS__ !== undefined;
-  return `<div class="rf-espaco" aria-hidden="true"></div>
-  <div class="rodape-fixo">
-    <div class="rf-atalhos">
-      <a href="/games.php" class="rf-btn" title="Voltar aos jogos" aria-label="Voltar aos jogos">
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M8.5 3.5 4 8l4.5 4.5.9-.9L6.3 8.6H12v-1.2H6.3l3.1-3z"/></svg></a>
-      <button class="rf-btn" onclick="abrirDesafios()" title="Desafios">🏆 <b>${feitas}</b></button>
-      ${temMoeda ? `<span class="rf-btn rf-moeda" title="Suas moedas">🪙 <b>${window.__MOEDAS__}</b></span>` : ''}
-      <button class="rf-btn rf-sair" onclick="abandonarCarreira()" title="Abandonar esta carreira"
-        aria-label="Abandonar esta carreira"><i class="bi bi-x-lg"></i></button>
     </div>
   </div>`;
 }
@@ -2720,7 +2696,25 @@ function valorAtual(){
   * pro atributo entre aspas e clube com aspas no nome quebrava o onclick. */
 async function assinarOpcao(i){
   const c = (S.opcoes || [])[i];
-  if (c) await assinar(c);
+  if (!c) return;
+  // A ESCOLHA APARECE ANTES DE VALER. Sem isso a carta sumia no mesmo
+  // quadro do clique e a tela seguinte já era outra — não dava pra ver o
+  // que você escolheu. As classes são as mesmas das cartas de evento.
+  await marcarEscolha('.carr-pista .carta', i);
+  await assinar(c);
+}
+
+/**
+ * Acende a carta escolhida e apaga as irmãs, e dá um tempo pra ver.
+ *
+ * Volta na hora quando a pessoa pediu menos animação — a confirmação é
+ * visual, e quem desligou animação não quer esperar por ela.
+ */
+async function marcarEscolha(seletor, i){
+  const els = [...document.querySelectorAll(seletor)];
+  if (!els.length) return;
+  els.forEach((el, k) => el.classList.add(k === i ? 'escolhida' : 'apagada'));
+  if (!semAnimacao()) await dormir(420);
 }
 
 async function assinar(clube){
@@ -3146,6 +3140,41 @@ function aposentar(){ S.fase = 'fim'; S.fim = true; salvar(); render(); }
  * a anterior parou — é a leitura natural do boletim: quantos jogos, e só
  * então quantos gols naqueles jogos.
  */
+/**
+ * Rola a janela de anos pra deixar o ano atual à vista.
+ *
+ * Deixa DUAS linhas aparecendo abaixo dele: é o que dá a sensação de
+ * "ainda tem carreira pela frente" sem esconder o que acabou de acontecer.
+ * As gravações do Copero mostram o ano atual pela 9ª ou 10ª de doze, o que
+ * dá exatamente essas duas de folga.
+ */
+function focarAnoAtual(){
+  const cx = document.querySelector('.anos');
+  if (!cx) return;
+  const alvo = cx.querySelector('.ano.entrando') || cx.querySelector('.ano.atual');
+  if (!alvo) return;
+  const destino = alvo.offsetTop + alvo.offsetHeight * 3 - cx.clientHeight;
+  cx.scrollTop = Math.max(0, destino);
+}
+
+/**
+ * Mede a altura do card de decisão e devolve pro CSS.
+ *
+ * O card é `position:fixed` no celular, então sai do fluxo e não empurra
+ * nada — o .dec-espaco é quem segura o buraco, e só o JS sabe a altura,
+ * porque ela muda com o texto e com o número de cartas.
+ */
+function medirDecisao(){
+  const card = document.querySelector('.evento-caixa');
+  const alvo = document.documentElement;
+  if (!card) { alvo.style.removeProperty('--dec-h'); return; }
+  // No desktop o card está no fluxo normal e o espaçador é display:none;
+  // medir ali só encheria a variável de um valor que ninguém lê.
+  const fixo = getComputedStyle(card).position === 'fixed';
+  if (!fixo) { alvo.style.removeProperty('--dec-h'); return; }
+  alvo.style.setProperty('--dec-h', Math.ceil(card.getBoundingClientRect().height) + 'px');
+}
+
 async function preencherLinha(idade){
   const linha = document.querySelector(`.ano[data-idade="${idade}"]`);
   if (!linha) return;
@@ -3185,9 +3214,8 @@ function render(){
   const decisao = blocoDecisao();
 
   app().innerHTML = `
-    ${barraTopo(`<button class="btn-topo" onclick="abandonarCarreira()" title="Abandonar esta carreira"><i class="bi bi-x-lg"></i> <span>Abandonar</span></button>`, true)}
+    ${barraTopo(`<button class="btn-topo" onclick="abandonarCarreira()" title="Abandonar esta carreira"><i class="bi bi-x-lg"></i> <span>Abandonar</span></button>`)}
     <div class="carreira">
-      <div class="col-esq">
         <div class="caixa ficha">
           <div class="ficha-topo">
             ${S.clube ? `<div class="ficha-marca" aria-hidden="true">${escudo(S.clube, 132)}</div>` : ''}
@@ -3212,13 +3240,19 @@ function render(){
             </div>
           </div>
         </div>
-        ${decisao ? `<div class="caixa evento-caixa">${decisao}</div>` : ''}
-      </div>
       <div class="caixa linha">${linhaDoTempo()}</div>
+      <button class="btn btn2 ver-conq" onclick="abrirDesafios()">🏅 Ver conquistas</button>
+      <p class="rodape">Os nomes de clube servem para identificar dentro da simulação.
+      Este jogo não é afiliado, patrocinado nem endossado por nenhum deles.</p>
     </div>
-    <p class="rodape">Os nomes de clube servem para identificar dentro da simulação.
-    Este jogo não é afiliado, patrocinado nem endossado por nenhum deles.</p>
-    ${rodapeDeAtalhos()}`;
+    ${decisao ? `<div class="dec-espaco" aria-hidden="true"></div>
+    <div class="caixa evento-caixa">${decisao}</div>` : ''}`;
+
+  // Depois de escrever a árvore: medir o card do rodapé e levar o olho pro
+  // ano atual. Nesta ordem — o foco usa a altura da janela, e ela depende
+  // do espaçador que a medida acabou de definir.
+  medirDecisao();
+  focarAnoAtual();
 }
 
 function blocoDecisao(){
@@ -3462,14 +3496,14 @@ function linhaDoTempo(){
     <span>Jogos</span>
     ${colunasDoBoletim().map(([r]) => `<span>${r}</span>`).join('')}</div>`;
 
-  // A escada de idades acompanha a carreira em vez de ir direto aos 39.
-  // Aos 18 anos eram vinte e uma linhas vazias avisando que ainda falta
-  // muito — 500px de tela pra dizer o que a idade no cartão já diz, e que
-  // empurravam a decisão do momento pra fora do celular.
-  const ultima = S.temporadas.length ? Math.max(...S.temporadas.map(t => t.idade)) : S.idade;
-  const ate = Math.min(IDADE_FIM, Math.max(S.idade, ultima) + 1 + ANOS_A_FRENTE);
+  // A CARREIRA INTEIRA, dos 16 aos 39. Antes a lista era cortada em
+  // `idade + 1 + 5` porque vinte linhas vazias empurravam a decisão pra
+  // fora da tela — agora quem resolve isso é o scroll interno da .anos,
+  // com a janela travada em doze linhas e o foco no ano atual. Cortar a
+  // lista escondia o tamanho do que ainda falta, que é meia graça do jogo.
+  html += `<div class="anos">`;
 
-  for (let i = IDADE_INI; i < ate; i++) {
+  for (let i = IDADE_INI; i < IDADE_FIM; i++) {
     const t = porIdade[i];
     const atual = !t && i === S.idade;
     if (t) {
@@ -3500,6 +3534,11 @@ function linhaDoTempo(){
         <span></span><span></span><span></span><span></span><span></span></div>`;
     }
   }
+
+  // Fecha a área que rola. Cabeçalho e as duas linhas de total ficam FORA
+  // dela, ancorados — é assim na referência, e é o que impede o rodapé da
+  // tabela de sumir junto com os anos.
+  html += `</div>`;
 
   const soma = (k) => S.temporadas.reduce((a, t) => a + (t[k] || 0), 0);
 
