@@ -5705,8 +5705,14 @@ function seguir(){
   S.resgatePendente = false;
 
   salvar();
-  const podeParar = S.idade >= 39 || (S.idade >= 33 && ovr(S.A, S.pos) < 68) || S.idade >= 33;
-  if (podeParar) return telaTemporada();
+
+  // O ANO TOCA SEMPRE. Aqui havia uma parada a partir dos 33: a tela voltava
+  // sem jogar, porque continuar ou parar era a decisão seguinte e ela merecia
+  // a tela inteira. Duas mudanças tiraram o chão dessa regra — todo ano passou
+  // a ter uma decisão, e "Pendurar as chuteiras" passou a ficar ao lado das
+  // cartas em vez de no lugar delas. Somadas, elas viravam um laço: aos 33 a
+  // pessoa decidia, o ano não passava, e a tela devolvia outra decisão para a
+  // mesma idade, para sempre. Quem quer parar tem o botão em toda temporada.
   jogarAno();
 }
 
