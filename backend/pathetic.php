@@ -386,6 +386,16 @@ function patheticAvisarGrupo(PDO $pdo, array $noticia): ?string
         require_once __DIR__ . '/whatsapp.php';
         if (!function_exists('whatsappParaGrupoPrincipal')) return null;
 
+        // As MESMAS duas condições que whatsappParaGrupoPrincipal checa antes
+        // de enfileirar. Ela não devolve nada, então daqui não havia como
+        // saber que a mensagem não saiu — e o resultado era o pior dos dois
+        // mundos: WhatsApp desligado na hora de publicar, a notícia marcada
+        // como avisada, e o grupo nunca sabendo dela nem depois que voltasse.
+        // Sem marcar, o próximo save tenta de novo.
+        if (!whatsappAtivo($pdo)) return 'desligado';
+        $grupo = trim((string)($pdo->query("SELECT grupo_principal FROM whatsapp_config WHERE id = 1")->fetchColumn() ?: ''));
+        if ($grupo === '') return 'sem-grupo';
+
         $rotulo = strtoupper(PATHETIC_GRAU_INFO[$noticia['grau']]['rotulo'] ?? 'NOTÍCIA');
         $linhas = ['[THE PATHETIC] 📰 *' . $rotulo . '*', ''];
 

@@ -1,0 +1,821 @@
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Copero — Simulador de Carreira</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a0c; --panel:#131316; --panel2:#1a1a1f; --panel3:#212127;
+  --borda:#26262d; --borda2:#33333c;
+  --txt:#f4f4f5; --txt2:#a1a1aa; --txt3:#71717a;
+  --verde:#16a34a; --verde-claro:#22c55e; --vermelho:#ef4444;
+  --num:'Inter',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:'Inter',system-ui,-apple-system,sans-serif;
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+#app{max-width:1360px;margin:0 auto;padding:18px 16px 60px}
+h1,h2,h3{margin:0;letter-spacing:-.4px}
+button{font-family:inherit}
+
+/* ── Topo ───────────────────────────────────────────── */
+.topo{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.topo .marca{display:flex;align-items:center;gap:9px;font-weight:900;font-size:18px;letter-spacing:-.6px}
+.topo .marca i{color:var(--verde-claro)}
+.topo-dir{margin-left:auto;display:flex;align-items:center;gap:10px}
+.topo .voltar{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:9px;
+  border:1px solid var(--borda);background:transparent;color:var(--txt2);text-decoration:none;
+  flex-shrink:0;transition:.2s}
+.topo .voltar:hover{border-color:var(--verde);color:var(--verde-claro);background:rgba(34,197,94,.08)}
+.chip-topo{display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;background:var(--panel2);
+  border:1px solid var(--borda);font-size:12px;font-weight:700;color:var(--txt);white-space:nowrap}
+.chip-topo b{font-variant-numeric:tabular-nums;font-weight:800}
+.chip-topo-btn{cursor:pointer;font-family:inherit;transition:.15s}
+.chip-topo-btn:hover{border-color:var(--verde);color:var(--verde-claro)}
+.chip-topo-moeda{color:#eab308}
+@media (max-width:520px){
+  .topo{gap:7px}
+  .topo .marca{font-size:15px}
+  .chip-topo{padding:4px 9px;font-size:11px}
+  /* A ficha do trofeu e BOTAO (abre os desafios) e nasce com 21px de altura:
+     alvo de toque desse tamanho erra mais do que acerta. Cresce so o que e
+     clicavel — a ficha da moeda continua fina. */
+  .chip-topo-btn{min-height:30px;padding-left:12px;padding-right:12px}
+}
+
+.btn-topo{background:var(--panel2);border:1px solid var(--borda);color:var(--txt2);border-radius:9px;
+  padding:8px 13px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn-topo:hover{color:var(--txt);border-color:var(--borda2)}
+
+/* ── Cartão genérico ────────────────────────────────── */
+.caixa{background:var(--panel);border:1px solid var(--borda);border-radius:16px}
+
+/* ── Início ─────────────────────────────────────────── */
+.inicio{max-width:640px;margin:6vh auto;text-align:center}
+.inicio h1{font-size:38px;font-weight:900;margin-bottom:8px}
+.inicio p.lead{color:var(--txt2);font-size:15px;margin:0 0 26px}
+.modos{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.modo{background:var(--panel);border:1px solid var(--borda);border-radius:14px;padding:18px;cursor:pointer;
+  text-align:left;color:var(--txt)}
+.modo:hover{border-color:var(--verde)}
+.modo.on{border-color:var(--verde-claro);background:rgba(34,197,94,.07)}
+.modo b{display:block;font-size:16px;font-weight:800;margin-bottom:3px}
+.modo small{color:var(--txt2);font-size:12px}
+
+/* ── Identidade ─────────────────────────────────────── */
+/* A barra de etapa e o botão Continuar só existem no celular — no desktop
+   as três colunas cabem lado a lado e ver tudo de uma vez é melhor que
+   navegar. Por isso o HTML é sempre o mesmo e quem decide é o CSS. */
+.etapa-cab{display:none}
+.etapa-so-celular{display:none}
+.ident{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:0}
+.ident-col{padding:22px 20px}
+.ident-col + .ident-col{border-left:1px solid var(--borda)}
+.ident-tit{text-align:center;font-size:15px;font-weight:800;margin-bottom:16px}
+.ident-cab{padding:16px 20px;border-bottom:1px solid var(--borda);font-size:21px;font-weight:900;
+  display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.ident-cab .btn{font-size:13px;padding:10px 18px}
+@media (max-width:560px){
+  .ident-cab{font-size:18px}
+  .ident-cab .btn{width:100%}
+}
+.ident-pe{padding:16px 22px;border-top:1px solid var(--borda);display:flex;justify-content:space-between;gap:12px}
+/* A caixa vira coluna flex por UM motivo: dar ao `order` onde morar. No
+   desktop a linha de acao volta pro pe (order:3), que e de onde o HTML a
+   tirou; no celular ela fica onde esta no HTML, logo abaixo da barra de
+   etapa. Sem o flex, `order` nao vale nada e o botao ficaria no topo nos
+   dois tamanhos. */
+.ident-caixa{display:flex;flex-direction:column}
+.ident-caixa .ident{order:2}
+.ident-caixa .ident-pe{order:3}
+
+.camisa{position:relative;width:190px;margin:0 auto 16px;aspect-ratio:1}
+.camisa svg{width:100%;height:100%;display:block}
+.camisa-txt{position:absolute;left:26%;right:26%;top:35%;bottom:12%;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:8px;pointer-events:none}
+.camisa-nome.vazio{opacity:.42;font-weight:700}
+.camisa-nome{max-width:100%;font-size:12.5px;font-weight:800;letter-spacing:1px;
+  color:var(--cam-txt,#fff);text-shadow:var(--cam-sombra,0 1px 3px rgba(0,0,0,.5));
+  text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
+.camisa-num{font-size:44px;font-weight:900;color:var(--cam-txt,#fff);line-height:1;letter-spacing:-2px;
+  text-shadow:var(--cam-sombra,0 1px 3px rgba(0,0,0,.5))}
+/* Só no celular: na etapa do país a camisa grande já ficou pra trás. */
+.camisa-mini{display:none}
+.camisa-mini svg{width:100%;height:100%;display:block}
+
+.campo-rot{font-size:9.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);
+  margin-bottom:5px;text-align:center}
+.campo-linha{display:flex;gap:10px;margin-bottom:11px}
+.campo-linha > div{flex:1}
+.inp{width:100%;background:var(--panel2);border:1px solid var(--borda);border-radius:10px;padding:11px 13px;
+  color:var(--txt);font-size:14px;font-weight:700;text-align:center;font-family:inherit}
+.inp:focus{outline:none;border-color:var(--verde)}
+.perna{display:flex;background:var(--panel2);border:1px solid var(--borda);border-radius:10px;padding:3px}
+.perna button{flex:1;background:none;border:none;color:var(--txt3);padding:8px;border-radius:8px;
+  font-size:13px;font-weight:700;cursor:pointer}
+.perna button.on{background:#fff;color:#111}
+
+.busca{position:relative;margin-bottom:12px}
+.busca i{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--txt3);font-size:14px}
+.busca input{width:100%;background:var(--panel2);border:1px solid var(--borda);border-radius:11px;
+  padding:11px 13px 11px 36px;color:var(--txt);font-size:13.5px;font-family:inherit}
+.busca input:focus{outline:none;border-color:var(--verde)}
+.paises{background:var(--panel2);border:1px solid var(--borda);border-radius:12px;padding:8px;
+  max-height:330px;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:2px}
+.pais{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;cursor:pointer;
+  background:none;border:1px solid transparent;color:var(--txt);font-size:13px;font-weight:600;text-align:left}
+.pais:hover{background:var(--panel3)}
+.pais.on{border-color:var(--verde-claro);background:rgba(34,197,94,.08)}
+.pais svg{width:21px;height:14px;border-radius:2px;flex:none;box-shadow:0 0 0 1px rgba(255,255,255,.14)}
+
+.campo{position:relative;background:linear-gradient(180deg,#14532d,#166534 55%,#14532d);
+  border:1px solid var(--borda2);border-radius:12px;aspect-ratio:3/4;overflow:hidden}
+.campo .risco{position:absolute;background:rgba(255,255,255,.16)}
+/* min-height de 32px: com o padding sozinho o botão saía com 25px de altura,
+   que no celular é alvo pequeno demais pro dedo. */
+.pos{position:absolute;transform:translate(-50%,-50%);background:rgba(0,0,0,.55);color:#fff;
+  border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:5px 11px;font-size:11.5px;
+  font-weight:800;cursor:pointer;white-space:nowrap;min-height:32px;
+  display:inline-flex;align-items:center;justify-content:center}
+.pos:hover{background:rgba(0,0,0,.75)}
+.pos.on{background:#fff;color:#111;border-color:#fff}
+
+.btn{background:#fff;color:#111;border:none;border-radius:11px;padding:12px 22px;font-size:14px;
+  font-weight:800;cursor:pointer}
+.btn:disabled{opacity:.35;cursor:default}
+.btn2{background:transparent;color:var(--txt2);border:1px solid var(--borda2)}
+.btn2:hover:not(:disabled){color:var(--txt)}
+
+/* ── Carreira ───────────────────────────────────────── */
+/* DUAS COLUNAS NO DESKTOP: ficha e decisao a esquerda, a carreira inteira a
+   direita — o mesmo desenho do Caminho. Em coluna unica de 760px a tabela
+   ficava espremida no meio de uma tela de 1400 e a decisao nascia depois de
+   tudo, longe do olho.
+
+   No celular NADA muda: `display:contents` dissolve as duas colunas e o
+   `order` devolve a ordem de leitura — ficha, carreira, e a decisao grudada
+   no rodape. E por isso que as colunas sao wrappers vazios de estilo: elas
+   so existem a partir de 981px. */
+.carreira{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;
+  max-width:760px;margin:0 auto;align-items:start}
+.col-esq,.col-dir{display:contents}
+/* A ordem de leitura no celular. Sem ela a decisao viria colada na ficha,
+   antes da tabela, so porque e assim que ela esta no HTML — e o HTML esta
+   assim porque no desktop ela mora na coluna da esquerda. */
+.carreira .ficha{order:1}
+.carreira .linha{order:2}
+.carreira .ver-conq{order:3}
+.carreira .rodape{order:4}
+.carreira .dec-espaco{order:5}
+.carreira .evento-caixa{order:6}
+@media (min-width:981px){
+  .carreira{grid-template-columns:minmax(0,430px) minmax(0,1fr);max-width:1120px;gap:18px}
+  .col-esq,.col-dir{display:block;min-width:0}
+  /* A tabela acompanha a rolagem: numa carreira longa a coluna da esquerda
+     fica mais alta que a tela, e sem isto a carreira sumia la em cima. */
+  .col-dir{position:sticky;top:16px}
+  .col-esq > * + *{margin-top:14px}
+  .col-dir > * + *{margin-top:14px}
+}
+
+/* A DECISÃO MORA NO RODAPÉ, grudada. É a única coisa da tela em que se
+   toca, e rolar até ela toda vez era o que fazia a página parecer longa.
+   O espaçador reserva a altura dela (medida em JS, porque o card muda de
+   tamanho conforme o texto e o número de cartas). */
+.evento-caixa{padding:16px 18px}
+.dec-espaco{display:none}
+.ver-conq{width:100%;border-radius:999px}
+
+.ficha{padding:18px}
+.ficha-topo{display:flex;align-items:center;gap:14px}
+.ovr-caixa{width:82px;height:82px;border-radius:14px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;flex:none;color:#0a0a0c}
+.ovr-caixa small{font-size:9px;font-weight:800;letter-spacing:1px;opacity:.7}
+.ovr-caixa b{font-size:33px;font-weight:900;line-height:1;letter-spacing:-1.5px}
+/* O corpo da ficha é uma GRADE NOMEADA, e é ela que muda de desenho entre
+   as duas telas sem que o HTML mude uma linha:
+
+     desktop            celular
+     clube  idade valor  tags   idade
+     tags tags tags      clube  valor
+
+   No desktop o nome do clube manda e as tags descem pra fileira de baixo;
+   no celular as tags sobem pro lado da idade e o clube divide a segunda
+   linha com o valor — que é o cartão compacto do Copero. */
+.ficha-corpo{flex:1 1 90px;min-width:0;display:grid;align-items:center;gap:9px 14px;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  grid-template-areas:"info idade valor" "tags tags tags"}
+.ficha-info{grid-area:info;min-width:0;display:flex;flex-direction:column;gap:3px}
+.n-idade{grid-area:idade}
+.n-valor{grid-area:valor}
+.ficha-liga{font-size:11.5px;color:var(--txt3);font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ficha-tags{grid-area:tags;display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}
+.tag{display:inline-flex;align-items:center;gap:5px;background:var(--panel3);border-radius:6px;
+  padding:4px 9px;font-size:11px;font-weight:800;white-space:nowrap}
+/* `.pos` é o botão de posição no campo, e ele é `position:absolute` com
+   `translate(-50%,-50%)`. Qualquer elemento que use as duas classes juntas
+   herda isso e sai FLUTUANDO por cima do resto — era daí que vinha a pílula
+   de posição pousada em cima do nome da liga. Se uma tag de posição voltar,
+   ela precisa desfazer o posicionamento, e não só trocar a cor. */
+.tag.pos{background:#7f1d3a;color:#fff;position:static;transform:none;min-height:0}
+.tag.sel{background:#78350f;color:#fde68a}
+/* Fora da seleção tem dois motivos bem diferentes — não ser bom o
+   suficiente ainda, ou estar cumprindo punição — e os dois precisam de
+   cor neutra: não é conquista (dourado) nem é exatamente um aviso ruim. */
+.tag.sel-fora{background:var(--panel3);color:var(--txt2)}
+.tag.idolo{background:#1e3a5f;color:#bfdbfe}
+/* A carta do rival tem que gritar: é a única escolha do mercado que custa. */
+.carta.rival{border-color:#7f1d3a}
+.av-rival{font-style:normal;color:#f472b6;font-weight:800}
+.tag svg{width:17px;height:11px;border-radius:2px;flex:none;display:block}
+/* Os `min-width:0` não são enfeite: sem eles o nome comprido não encolhe,
+   empurra o bloco de idade/valor pra fora e a página inteira ganha barra de
+   rolagem lateral no celular. */
+.ficha-clube{display:flex;align-items:center;gap:9px;font-size:20px;font-weight:900;letter-spacing:-.5px;
+  white-space:nowrap;overflow:hidden;min-width:0}
+.ficha-clube span{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ficha-num{text-align:right;font-size:10px;color:var(--txt3);text-transform:uppercase;
+  font-weight:700;letter-spacing:.5px;white-space:nowrap}
+.ficha-num b{display:block;font-size:18px;color:var(--txt);letter-spacing:-.5px}
+
+.ficha-stats{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--borda);
+  border-bottom:1px solid var(--borda);padding:13px 0;margin-bottom:14px}
+.ficha-stats div{text-align:center}
+.ficha-stats span{display:block;font-size:9.5px;font-weight:800;letter-spacing:.8px;color:var(--txt3);
+  text-transform:uppercase;margin-bottom:3px}
+.ficha-stats b{font-size:20px;font-weight:900;letter-spacing:-.5px}
+
+/* ── Evento ─────────────────────────────────────────── */
+.evento h3{font-size:19px;font-weight:900;margin-bottom:4px}
+.evento p{color:var(--txt2);font-size:12.5px;margin:0 0 14px;line-height:1.5}
+/* A linha do ano que acabou de acontecer, e os números entrando nela. */
+.ano.entrando{animation:anoEntra .45s ease-out}
+@keyframes anoEntra{from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:none}}
+.ano-n.contando{color:var(--txt3)}
+.ano-n.pronta{animation:numCrava .3s ease-out}
+@keyframes numCrava{0%{transform:scale(1.5);color:#fff}100%{transform:scale(1)}}
+
+/* O escudo do clube como marca d'água atrás da ficha. Fica grande, cortado
+   pela borda e quase apagado: dá peso ao clube sem disputar com o texto. */
+.ficha-topo{position:relative;overflow:hidden}
+.ficha-marca{position:absolute;right:-26px;top:50%;transform:translateY(-50%);
+  width:132px;height:132px;opacity:.09;pointer-events:none;filter:grayscale(.2)}
+.ficha-marca img,.ficha-marca .mono{width:132px!important;height:132px!important;border-radius:0}
+.ficha-topo > *:not(.ficha-marca){position:relative;z-index:1}
+
+/* ── AS OPÇÕES DE UMA DECISÃO ────────────────────────────
+   Lado a lado, todas à vista. Já foi carrossel: ficava bonito e cobrava dois
+   cliques pra ver o que cabe na tela sem clique nenhum. Quando não cabem —
+   celular, ou muitas opções —, o próprio grid empilha, e aí a carta deita
+   pra ocupar menos altura. */
+.carr{max-width:100%}
+.carr-pista{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;
+  align-items:stretch}
+.carr-pista > *{min-width:0}
+/* No celular elas encolhem em vez de empilhar: três opções deitadas comiam
+   a tela inteira e jogavam a linha do tempo pra fora dela. */
+@media (max-width:560px){
+  .carr-pista{grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px}
+  .carr-pista .carta{padding:9px 5px}
+  .carr-pista .clube-op b{font-size:12.5px}
+  .carr-pista .op-pe{font-size:9.5px}
+}
+
+.cartas{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px}
+/* Oferta de clube é lista, não grade: o que se compara é o nome e a liga,
+   e três cartões grandes em coluna estreita empurravam a linha do tempo
+   pra fora da tela. */
+.cartas.clubes{grid-template-columns:1fr;gap:7px}
+.cartas.clubes .carta{display:flex;align-items:center;gap:11px;text-align:left;padding:9px 11px}
+.cartas.clubes .clube-op{flex-direction:row;align-items:center;gap:11px;width:100%}
+.cartas.clubes .clube-op .escudo,.cartas.clubes .clube-op .mono{width:34px;height:34px;flex:none}
+.cartas.clubes .clube-op .txt{flex:1;min-width:0}
+.cartas.clubes .clube-op b{margin:0;font-size:14px;display:block;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.cartas.clubes .clube-op small{display:block;font-size:10.5px}
+.carta{background:var(--panel2);border:1px solid var(--borda);border-radius:13px;padding:13px;cursor:pointer;
+  text-align:center;color:var(--txt);transition:border-color .12s,opacity .12s}
+.carta:hover{border-color:var(--borda2)}
+.carta b{display:block;font-size:14.5px;font-weight:800;margin-bottom:9px}
+.carta.escolhida{border-color:#fff}
+.carta.apagada{opacity:.32}
+.efeito{display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:8px;
+  padding:6px 9px;font-size:11.5px;font-weight:700;margin-top:5px}
+.efeito.bom{background:rgba(34,197,94,.12);color:#4ade80}
+.efeito.ruim{background:rgba(239,68,68,.12);color:#f87171}
+.efeito.neutro{background:var(--panel3);color:var(--txt2)}
+/* Dá com uma mão e tira com a outra: um ano fora que devolve o joelho novo
+   não é verde nem vermelho, e pintar de um dos dois esconde metade. */
+.efeito.misto{background:rgba(245,158,11,.13);color:#fbbf24}
+.efeito .pct{opacity:.75;font-size:10.5px}
+.efeito.sorteado{outline:1px solid currentColor}
+
+/* Rótulo, nome, escudo, liga — nessa ordem, centralizados. O escudo entre
+   o nome e a liga e não no topo: assim o que se lê primeiro é o que se
+   compara (o clube), e o desenho vira confirmação, não enfeite. */
+.clube-op{display:flex;flex-direction:column;align-items:center;gap:4px}
+.clube-op .escudo,.clube-op .mono{margin:1px 0}
+.clube-op b{font-size:13.5px;font-weight:800;line-height:1.2;margin:0;
+  overflow-wrap:anywhere;hyphens:auto}
+.op-rot{font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;
+  color:var(--txt3);line-height:1.2}
+.op-pe{color:var(--txt3);font-size:10px;font-weight:700;line-height:1.25;
+  overflow-wrap:anywhere}
+.op-emoji{font-size:28px;line-height:1;width:36px;text-align:center}
+.clube-op small{color:var(--txt3);font-size:10.5px;font-weight:700}
+
+/* ── Escudo / monograma ─────────────────────────────── */
+.escudo{border-radius:8px;object-fit:contain;flex:none;background:var(--panel3)}
+.mono{display:inline-flex;align-items:center;justify-content:center;border-radius:8px;flex:none;
+  font-weight:900;color:#fff;letter-spacing:-.5px}
+
+/* ── Linha do tempo ─────────────────────────────────── */
+.linha{padding:12px 14px}
+/* A JANELA DE DOZE ANOS. A lista agora vai dos 16 aos 39 inteira, e é esta
+   caixa que decide quanto disso aparece — doze linhas, como na referência,
+   com o ano atual rolado pra perto do fim (focarAnoAtual()). `--ano-h` é a
+   altura de uma linha somada ao respiro entre elas, e muda no celular. */
+.anos{--ano-h:26px;max-height:calc(var(--ano-h) * 12);overflow-y:auto;
+  overscroll-behavior:contain;scrollbar-width:thin;
+  scrollbar-color:var(--borda2) transparent;
+  /* `position:relative` NÃO é enfeite: sem ele o offsetParent das linhas é
+     um ancestral qualquer, e o offsetTop que o focarAnoAtual() usa passa a
+     ser medido de outra origem — o scroll ia parar no lugar errado. */
+  position:relative}
+.anos::-webkit-scrollbar{width:5px}
+.anos::-webkit-scrollbar-thumb{background:var(--borda2);border-radius:99px}
+/* Cabecalho e as duas linhas de total vivem FORA da janela que rola, entao
+   ganham a largura que a barra de rolagem come dela — senao as colunas de
+   numero saem 10px deslocadas entre eles e as linhas de ano. O valor e
+   medido em focarAnoAtual(), porque no celular a barra sobrepoe e come 0.
+   A especificidade tem que ser maior que a de .ano/.linha-cab: as regras
+   de padding delas vem DEPOIS no arquivo. */
+.linha .linha-cab,.linha .linha-sel,.linha .linha-pe{margin-right:var(--barra-anos,0px)}
+.linha-cab,.ano,.linha-pe,.linha-sel{display:grid;grid-template-columns:44px minmax(0,1fr) 46px 56px 52px 52px;gap:8px;
+  align-items:center}
+/* A linha da seleção fecha a tabela, com a bandeira ocupando a coluna que
+   nas outras linhas é a pílula da idade — pela seleção você joga a carreira
+   inteira, não um ano. */
+.linha-sel{margin-top:6px;padding:5px 8px;border-radius:8px;font-size:12.5px;
+  background:color-mix(in srgb, var(--verde) 12%, transparent)}
+.linha-sel .sel-band{display:inline-flex;align-items:center;justify-content:center}
+.linha-sel .sel-band svg{width:26px;height:17px;border-radius:3px;
+  box-shadow:0 0 0 1px rgba(255,255,255,.16)}
+.linha-sel .ano-clube span{font-weight:800}
+.linha-pe{margin-top:8px;padding:9px 8px 1px;border-top:1px solid var(--borda)}
+.linha-pe .pe-nome{display:flex;align-items:center;gap:6px;font-size:9.5px;font-weight:800;
+  letter-spacing:.8px;text-transform:uppercase;color:var(--txt3)}
+.linha-pe .pe-nome svg{flex:none}
+.linha-pe .ano-n b{font-size:13.5px}
+.linha-cab{font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--txt3);
+  padding:0 8px 7px}
+/* O desenho da coluna: herda a cor do texto do cabeçalho, e some no lugar
+   onde o rótulo escrito não cabia. */
+.cab-ic{display:flex;justify-content:flex-end;align-items:center}
+.ic{width:13px;height:13px;fill:currentColor;stroke:currentColor;stroke-width:0;opacity:.9}
+.ic .ic-linha{fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
+.ic .ic-rede{fill:none;stroke:currentColor;stroke-width:.6;opacity:.5}
+.ic .ic-corte{fill:none;stroke:currentColor;stroke-width:1}
+/* O gomo da bola e o vão da rede são pintados da cor do FUNDO: é assim que
+   um desenho de 13px mostra um buraco sem precisar de recorte. */
+.ic .ic-neg{fill:var(--panel);stroke:var(--panel);stroke-width:1.3;stroke-linejoin:round}
+.ic .ic-fundo{fill:var(--panel);stroke:var(--panel);stroke-width:2.6}
+.ic .ic-punho{fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round}
+.ano{padding:4px 8px;border-radius:8px;font-size:12.5px}
+.ano + .ano{margin-top:1px}
+/* O ano vazio é intencionalmente baixinho — é o que impede a escada dos
+   anos futuros de dominar a tela, como na referência. */
+/* Mesma altura das preenchidas. Antes ela era espremida, pra escada dos
+   anos futuros não dominar a tela — quem resolve isso agora é a janela de
+   doze linhas com scroll, e altura constante é o que faz a janela ser
+   sempre doze de verdade. O `min-height` é o que iguala: a linha cheia
+   ganha altura da pílula da idade, e a vazia só tem texto. */
+.ano.vazio{color:var(--txt3);font-size:11px}
+/* Toda linha tem a MESMA altura, venha ela do escudo (linha cheia), do
+   texto (ano futuro) ou do ícone de interrogação (ano atual). Sem isto as
+   três saem com 1 a 3px de diferença e a janela deixa de ser doze linhas
+   exatas — que é o número que a referência mantém sempre. */
+.ano.vazio > span:first-child,
+.ano-clube{min-height:var(--ano-pill,22px)}
+/* Destaque de verdade: contra o --panel3 a diferença de luminância era de
+   uns 14 pontos, quase invisível sob luz do dia. Azul com borda à esquerda
+   lê de relance em qualquer tela. */
+.ano.atual{background:rgba(59,130,246,.14);border-left:2px solid #3b82f6;
+  padding-left:6px}
+.ano-idade{display:inline-flex;align-items:center;justify-content:center;width:28px;height:22px;
+  border-radius:6px;font-size:11.5px;font-weight:800;color:#0a0a0c}
+.ano-clube{display:flex;align-items:center;gap:8px;min-width:0}
+.ano-clube span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.selo{font-style:normal;font-size:9.5px;flex:none;line-height:1;font-weight:900}
+.selo.sel{color:#fbbf24}
+.selo.les{color:#f87171}
+.selo.riv{color:#c084fc}
+.selo.emp{color:#60a5fa}
+.mov{font-style:normal;font-size:10px;flex:none;line-height:1}
+.mov.sobe{color:#4ade80}
+.mov.cai{color:#f87171}
+.ano-ovr{display:inline-flex;align-items:center;justify-content:center;border-radius:6px;padding:2px 0;
+  font-size:11.5px;font-weight:800;color:#0a0a0c}
+/* Ícone + número na mesma célula, encostados à direita. O número em 800
+   porque é o que a linha existe pra mostrar — o resto é moldura. */
+.ano-n{display:flex;align-items:center;justify-content:flex-end;gap:4px;
+  font-size:12.5px;color:var(--txt2);font-variant-numeric:tabular-nums}
+.ano-n b{font-weight:800;color:var(--txt)}
+.ano-n .ic{width:11px;height:11px;flex:none;opacity:.75}
+/* Só o de jogos ganha cor: é o número que ancora a leitura da linha (os
+   outros dois só fazem sentido em relação a ele), e um ponto de cor viva
+   numa área toda cinza guia o olho sem precisar de mais nada. A classe é
+   própria em vez de :first-of-type — a ordem das colunas muda pra goleiro. */
+.ano-n.col-jogos .ic{color:var(--verde-claro);opacity:1}
+.ano-n.contando b{color:var(--txt3)}
+/* ── Sala de troféus ────────────────────────────────── */
+.sala{padding:16px 18px;margin-bottom:14px}
+.sala.vazia{text-align:center;color:var(--txt3);font-size:12px;font-weight:800;
+  letter-spacing:1px;text-transform:uppercase;padding:22px}
+.sala-cab{display:flex;align-items:center;gap:10px;font-size:9.5px;font-weight:800;letter-spacing:1px;
+  color:var(--txt3);text-transform:uppercase;margin-bottom:14px}
+.sala-cab b{background:var(--panel3);color:var(--txt);border-radius:6px;padding:2px 8px;font-size:12px}
+/* 92px e não 104: com o padding da caixa, 104 só deixava DUAS taças por
+   linha numa tela de 375, e a sala ficava uma coluna comprida. */
+.sala-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:14px 10px}
+.sala-item{display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;min-width:0}
+.sala-item span{font-size:10.5px;font-weight:700;color:var(--txt2);line-height:1.25}
+.sala-taca{position:relative;display:inline-flex}
+.sala-taca i{position:absolute;right:-8px;bottom:-2px;background:var(--panel3);border-radius:6px;
+  padding:1px 5px;font-size:10px;font-weight:900;font-style:normal;color:var(--txt)}
+
+/* ── Fim ────────────────────────────────────────────── */
+.fim{text-align:center;padding:34px 20px}
+.fim h2{font-size:26px;font-weight:900;margin-bottom:16px}
+.acoes-fim{display:flex;flex-wrap:wrap;gap:9px;justify-content:center}
+@media (max-width:480px){.acoes-fim .btn{width:100%}}
+.resumo-topo{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:14px}
+/* auto-fill deixava buraco na última linha e a grade parecia torta;
+   auto-fit + justify-content centram o que sobra. */
+.clubes-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,150px));
+  gap:11px;justify-content:center}
+.clube-card{background:var(--panel);border:1px solid var(--borda);border-radius:13px;padding:14px;text-align:center}
+.clube-card .escudo,.clube-card .mono{margin:0 auto 9px}
+.clube-card b{display:block;font-size:13.5px;font-weight:800;margin-bottom:8px}
+.clube-card .cc-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;font-size:11px}
+.clube-card .cc-nums span{display:block;font-size:8.5px;color:var(--txt3);font-weight:800;letter-spacing:.5px}
+
+.conq-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:11px;margin-top:14px}
+.conq{display:flex;gap:11px;align-items:flex-start;background:var(--panel);border:1px solid var(--borda);
+  border-radius:13px;padding:13px}
+.conq .ic{font-size:24px;line-height:1;flex:none}
+.conq b{display:block;font-size:13.5px;font-weight:800;margin-bottom:2px}
+.conq small{color:var(--txt2);font-size:11.5px;line-height:1.45}
+/* A cor do nível diz de longe o que foi difícil de conseguir — sem ela, uma
+   conquista impossível some no meio de seis fáceis. */
+.conq{position:relative;padding-left:14px}
+.conq::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+  border-radius:4px 0 0 4px;background:var(--n,#3f3f46)}
+.conq em{font-style:normal;position:absolute;right:10px;top:9px;font-size:9px;font-weight:800;
+  letter-spacing:.8px;text-transform:uppercase;color:var(--n,#71717a);opacity:.9}
+/* O nome cede a largura do rótulo. Sem isto o "IMPOSSÍVEL" caía POR CIMA
+   dele — o rótulo é absoluto e o nome ocupava a linha inteira. */
+.conq b{padding-right:74px}
+.conq.n-facil{--n:#4ade80}
+.conq.n-media{--n:#60a5fa}
+.conq.n-dificil{--n:#c084fc}
+.conq.n-impossivel{--n:#fbbf24}
+.conq-conta{font-size:11px;font-weight:800;color:var(--txt3);background:var(--panel3);
+  border-radius:6px;padding:3px 8px;margin-left:8px;vertical-align:middle}
+/* Desafio não feito continua legível: escondê-lo não cria mistério, cria
+   uma lista de cadeados que não diz o que fazer. */
+/* A repetida fica visível, mas sem brilho: ela conta o que a carreira
+   alcançou sem se passar por novidade. */
+.conq.repetida{opacity:.62}
+.conq.repetida em{color:var(--txt3);letter-spacing:.4px;text-transform:none;font-size:9.5px}
+.conq.travada{opacity:.5}
+.conq.travada .ic{filter:grayscale(1)}
+.conq.nova{box-shadow:0 0 0 1px var(--n,#fff) inset}
+.conq.nova em{color:var(--n);opacity:1}
+
+/* ── Hall da fama ───────────────────────────────────── */
+.hall{margin-top:18px;border:1px solid var(--borda);border-radius:14px;overflow:hidden;text-align:left}
+.hall-cab{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--txt3);padding:11px 14px 0}
+.hall-topo{display:flex;align-items:center;gap:11px;padding:8px 14px 12px}
+.hall-medalha{width:22px;height:22px;border-radius:50%;background:#eab308;color:#0a0a0c;flex:none;
+  display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:900}
+.hall-nome{flex:1;min-width:0}
+.hall-nome b{display:block;font-size:16px;font-weight:900;letter-spacing:-.3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hall-nome small{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txt3);font-weight:700}
+.hall-nums{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--borda);
+  background:var(--panel3)}
+.hall-nums div{padding:8px 4px;text-align:center}
+.hall-nums span{display:block;font-size:8.5px;font-weight:800;letter-spacing:.5px;
+  text-transform:uppercase;color:var(--txt3)}
+.hall-nums b{font-size:15px;font-weight:900}
+.hall-lista{border-top:1px solid var(--borda)}
+.hall-linha{display:flex;align-items:center;gap:9px;padding:7px 14px;font-size:12px}
+.hall-linha + .hall-linha{border-top:1px solid var(--borda)}
+.hall-pos{width:16px;color:var(--txt3);font-weight:800;font-size:11px;flex:none}
+.hall-quem{font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hall-det{display:flex;align-items:center;gap:5px;color:var(--txt3);font-size:11px;flex:none}
+
+/* ── Modal dos desafios ─────────────────────────────── */
+.modal-fundo{position:fixed;inset:0;background:rgba(6,6,9,.78);backdrop-filter:blur(3px);
+  z-index:70;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal-cx{background:var(--panel);border:1px solid var(--borda);border-radius:16px;
+  width:min(880px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-cab{display:flex;align-items:center;gap:10px;padding:15px 18px;
+  border-bottom:1px solid var(--borda);flex:none}
+.modal-cab b{font-size:17px;font-weight:900}
+.modal-x{margin-left:auto;background:none;border:none;color:var(--txt3);cursor:pointer;
+  font-size:15px;padding:6px 8px;border-radius:8px}
+.modal-x:hover{color:var(--txt);background:var(--panel3)}
+.modal-corpo{overflow-y:auto;padding:16px 18px 20px}
+.d-nivel{display:flex;align-items:center;gap:9px;margin:18px 0 9px}
+.d-nivel:first-child{margin-top:2px}
+.d-tit{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;
+  color:var(--n);border:1px solid var(--n);border-radius:6px;padding:3px 9px}
+.d-nivel small{color:var(--txt3);font-size:11px;font-weight:700}
+.d-vale{margin-left:auto;color:var(--n);opacity:.85}
+
+/* O prêmio da carreira, no alto das conquistas. */
+.premio-fx{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:var(--panel);
+  border:1px solid var(--borda);border-left:3px solid #eab308;border-radius:12px;
+  padding:13px 16px;margin-bottom:14px}
+.premio-fx b{font-size:13.5px;font-weight:800}
+.premio-fx small{width:100%;color:var(--txt3);font-size:11px;font-weight:600}
+.premio-tag{font-size:12.5px;font-weight:900;border-radius:7px;padding:4px 10px}
+.premio-tag.moeda{background:#78350f;color:#fde68a}
+.premio-tag.fba{background:#3b0764;color:#e9d5ff}
+
+.rodape{margin-top:26px;font-size:10.5px;color:var(--txt3);text-align:center;line-height:1.6}
+
+/* ── Taças na linha do ano ─────────────────────────────
+   A vitrine saiu: era mais uma caixa dentro da ficha, embaixo do OVR, e
+   repetia o que a linha do ano já sabia (t.titulos, t.liga). Agora a taça
+   mora dentro da própria célula do clube, empurrada pra direita. O
+   container é <i>, não <span> — ".ano-clube span" (linha 741) clipa
+   qualquer span descendente, e um <span> aqui viraria reticências. */
+.taca{filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
+.ano-tacas{display:inline-flex;align-items:center;gap:3px;margin-left:auto;flex:none;font-style:normal}
+.ano-tacas i{display:inline-flex;line-height:0;font-style:normal}
+.ano-tacas .tk-mais{display:none;font-size:9px;font-weight:800;color:var(--txt3);
+  background:var(--panel3);border-radius:5px;padding:1px 4px}
+
+/* ── Resumo da seleção ──────────────────────────────── */
+.sel-taca{position:relative;display:inline-flex;align-items:center}
+.sel-taca b{position:absolute;right:-4px;bottom:-2px;background:var(--panel3);border-radius:6px;
+  padding:1px 5px;font-size:10px;font-weight:900}
+
+/* ── Animações ──────────────────────────────────────── */
+@keyframes ovrPulso{0%{transform:scale(1)}45%{transform:scale(1.13)}100%{transform:scale(1)}}
+@keyframes subiu{0%{opacity:0;transform:translateY(6px)}18%{opacity:1;transform:translateY(-2px)}
+  70%{opacity:1;transform:translateY(-14px)}100%{opacity:0;transform:translateY(-26px)}}
+@keyframes tacaEntra{0%{opacity:0;transform:scale(.3) rotate(-14deg)}
+  60%{opacity:1;transform:scale(1.18) rotate(4deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+@keyframes sorteando{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes revelado{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+
+.ovr-caixa.animando{animation:ovrPulso .8s ease}
+/* O delta sobe e some ao lado do OVR: quem estava olhando a carta vê quanto
+   mudou sem precisar comparar dois números de cabeça. */
+.ovr-delta{position:absolute;left:50%;transform:translateX(-50%);top:-6px;
+  font-size:16px;font-weight:900;pointer-events:none;animation:subiu 2.2s ease forwards}
+.ovr-delta.mais{color:#4ade80}
+.ovr-delta.menos{color:#f87171}
+.ovr-caixa{position:relative}
+
+/* Enquanto sorteia, UMA opção fica acesa por vez e as outras recuam — é o
+   giro que faz a coisa parecer sorteio. No fim a sorteada fica acesa e a
+   outra apaga de vez. */
+.carta.sorteando-agora{border-color:#fff}
+.carta.sorteando-agora .efeito{opacity:.28;transition:opacity .12s}
+.carta.sorteando-agora .efeito.aceso{opacity:1;transform:scale(1.04)}
+.efeito.apagado{opacity:.25;filter:grayscale(1)}
+.efeito.sorteado{animation:revelado .45s ease;outline:1px solid currentColor}
+
+.taca-fila{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;
+  gap:22px 30px;max-width:min(92vw,780px);padding:0 16px}
+.taca-item{display:flex;flex-direction:column;align-items:center;gap:9px;flex:0 0 auto;
+  opacity:0;animation:tacaEntra .8s cubic-bezier(.2,1.5,.4,1) forwards}
+.taca-item b{font-size:14px;font-weight:800;text-align:center;line-height:1.25;
+  width:150px;min-height:2.5em;display:flex;align-items:flex-start;justify-content:center}
+@media (max-width:520px){
+  .taca-fila{gap:16px 20px}
+  .taca-item b{font-size:12px;width:104px}
+}
+
+.taca-nova{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:14px;background:rgba(6,6,9,.86);z-index:60;
+  backdrop-filter:blur(3px)}
+.taca-nova > b{font-size:22px;font-weight:900;letter-spacing:-.5px;text-align:center;padding:0 20px}
+.taca-nova small{color:var(--txt2);font-size:12.5px}
+@media (prefers-reduced-motion:reduce){
+  /* Quem pediu menos movimento vê o resultado, não a viagem até ele. */
+  .ovr-caixa.animando,.ovr-delta,.efeito.sorteado,.taca-item{animation:none;opacity:1}
+  .ovr-delta{opacity:1}
+}
+
+@media (max-width:980px){
+  /* Empilhado: a linha do tempo é referência, a ficha é onde se joga —
+     então a ficha vem primeiro e a linha desce.
+
+     `minmax(0,1fr)` e não `1fr`: em grid, `1fr` é `minmax(auto,1fr)`, e esse
+     `auto` é o min-content — a coluna se recusava a encolher e a ficha com
+     nome comprido ("Universidad de Chile") esticava a página pra 491px numa
+     tela de 375. Era daí que vinha a rolagem lateral no celular. */
+  .carreira{gap:12px}
+
+  .ident{grid-template-columns:1fr}
+  .ident-col + .ident-col{border-left:none;border-top:none}
+
+  /* Uma etapa por vez. O :nth-child casa com a ordem das colunas no HTML:
+     1 identidade, 2 nacionalidade, 3 posição. */
+  .ident-caixa .ident-col{display:none}
+  .ident-caixa[data-etapa="1"] .ident-col:nth-child(1),
+  .ident-caixa[data-etapa="2"] .ident-col:nth-child(2),
+  .ident-caixa[data-etapa="3"] .ident-col:nth-child(3){display:block}
+  .camisa-mini{display:block;width:104px;margin:2px auto 14px}
+
+  /* O título de cada etapa já está na barra; repetir no topo da coluna
+     seria a mesma palavra duas vezes na mesma tela. */
+  .ident-caixa .ident-tit{display:none}
+
+  .etapa-cab{display:block;padding:14px 20px 0}
+  .etapa-tit{font-size:19px;font-weight:900;margin-bottom:10px}
+  .etapa-barra{height:5px;border-radius:999px;background:var(--panel3);overflow:hidden}
+  .etapa-barra i{display:block;height:100%;background:var(--verde,#22c55e);
+    border-radius:999px;transition:width .25s ease}
+  .etapa-so-celular{display:inline-flex}
+
+  /* O "Confirmar identidade" do topo sai: no celular ele fica no rodapé,
+     do lado da última escolha, e não a cinco rolagens de distância. */
+  .ident-cab{display:none}
+  /* order:0 = onde o HTML pos: logo abaixo da barra de etapa. E a borda
+     muda de lado — ela agora separa a acao do conteudo que vem embaixo, e
+     nao o conteudo do rodape. */
+  .ident-caixa .ident-pe{order:0;border-top:none;border-bottom:1px solid var(--borda);
+    padding:12px 20px 14px}
+  .ident-pe{display:flex;gap:10px}
+  .ident-pe .btn{flex:1}
+  /* As colunas de número encolhem pra dar espaço ao clube. Com as medidas
+     antigas sobravam 38px pro nome numa tela de 375, e "Sport Recife" — que
+     precisa de 72 — saía cortado quase pela metade. Agora cabe; só nome de
+     19 letras pra cima trunca, e aí com reticências, como deve ser. */
+  .linha-cab,.ano,.linha-pe,.linha-sel{grid-template-columns:32px minmax(0,1fr) 34px 32px 32px 32px;gap:5px}
+  .ano-n{gap:3px;font-size:11.5px}
+  .ano-n .ic{width:9px;height:9px}
+  .ano{padding:4px 6px;font-size:11.5px}
+  .linha-cab{padding:0 6px 7px}
+  .ano-clube{gap:6px}
+  .ano-tacas{gap:2px}
+  .ano-tacas .taca{width:12px;height:12px}
+}
+@media (max-width:760px){
+  /* ── A tela do jogo no celular ────────────────────────────────────
+     O desenho é o do Copero: ficha de duas linhas ao lado do OVR e a
+     tabela logo abaixo. Cada bloco que encolhe aqui é uma linha da
+     carreira que aparece sem rolar.
+
+     A barra de cima FICA, inclusive na carreira. Ela saía pra dar lugar a
+     uma barra de baixo com os mesmos atalhos; agora quem mora no rodapé é
+     o CARD DE DECISÃO, e voltar/desafios/moedas/abandonar sobem de volta
+     pra barra do topo, que passa a ser grudada. */
+  .topo{position:sticky;top:0;z-index:50;background:var(--bg)}
+
+  /* O padding do #app entra aqui, e não só no @440: a margem negativa do
+     .topo logo abaixo só encosta na borda quando os dois combinam, e entre
+     441 e 760px o #app ainda ficava com o padding base (18px 16px) — a
+     barra sobrava 5px pra dentro de cada lado em vez de sangrar de verdade. */
+  #app{padding:12px 11px 40px}
+
+  .topo{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+    gap:8px;flex-wrap:nowrap;margin:-12px -11px 12px;padding:9px 11px;
+    border-bottom:1px solid var(--borda)}
+  .topo .voltar{justify-self:start}
+  .topo .marca{justify-self:center}
+  .topo-dir{margin-left:0;justify-self:end;gap:6px}
+  .btn-topo{padding:7px 9px}
+  .btn-topo span{display:none}
+
+  .ficha{padding:12px}
+  .ficha-topo{gap:10px}
+  .ovr-caixa{width:68px;height:68px;border-radius:12px}
+  .ovr-caixa b{font-size:28px}
+  .ficha-corpo{grid-template-columns:minmax(0,1fr) auto;
+    grid-template-areas:"tags idade" "info valor";
+    gap:7px 10px;background:var(--panel2);border-radius:12px;padding:9px 11px}
+  /* O nome do clube sobe perto do peso do OVR — na referência os dois são
+     os pesos dominantes da ficha. Idade e Valor descem: são dado de apoio,
+     não achado de tela, e empatavam com o nome do clube em importância
+     visual sem merecer. */
+  .ficha-clube{font-size:18px;gap:7px}
+  .ficha-liga{font-size:10.5px}
+  .ficha-num b{font-size:13px}
+  .tag{padding:3px 8px;font-size:10.5px}
+  /* A marca d'água do escudo (132px) cabia atrás de uma ficha inteira; no
+     celular o .ficha-topo tem uns 68px de altura útil, e os 132px eram
+     cortados em cima e embaixo — virava mancha vertical bem em cima de
+     Idade e Valor. Encolhe pra caber dentro do bloco que a contém. */
+  .ficha-marca,.ficha-marca img,.ficha-marca .mono{width:86px!important;height:86px!important}
+
+  /* A linha do tempo encolhe: são até dez linhas de números, e cada pixel
+     de altura aqui é multiplicado por dez. */
+  .linha{padding:8px}
+  /* Linha mais baixa no celular (.ano vira padding:2px/font 11px logo
+     abaixo), então a janela de doze precisa encolher junto. */
+  .anos{--ano-h:23px}
+  .ano{padding:2px 6px;font-size:11px}
+  .ano-idade{height:19px;font-size:11px}
+  /* 20 e nao 19: no celular quem dita a altura da linha cheia e o
+     ESCUDO (20px), nao a pilula da idade (19px). */
+  .ano{--ano-pill:20px}
+  .ano-ovr{font-size:11px;padding:1px 0}
+  .ano-n{font-size:11px}
+  .linha-cab{font-size:9px;padding:0 6px 5px}
+  .linha-pe{margin-top:6px;padding:7px 6px 0}
+  /* Mesmo recuo lateral de .ano e .linha-pe: 2px de diferenca aqui
+     desalinha a coluna de numeros da tabela inteira. */
+  .linha-sel{margin-top:5px;padding:4px 6px}
+  .linha-sel .sel-band svg{width:22px;height:14px}
+
+  /* A DECISÃO GRUDA NO RODAPÉ. Ela sai do fluxo, então o .dec-espaco
+     ocupa o buraco que ela deixou — a altura vem do JS (--dec-h), porque
+     ela muda com o texto e com o número de cartas. Sem o espaçador a
+     última linha da tabela fica embaixo do card. */
+  .evento-caixa{position:fixed;left:0;right:0;bottom:0;z-index:60;
+    padding:11px 12px calc(11px + env(safe-area-inset-bottom,0px));
+    border-radius:16px 16px 0 0;max-height:52vh;overflow-y:auto;
+    box-shadow:0 -10px 26px rgba(0,0,0,.55)}
+  .dec-espaco{display:block;height:var(--dec-h,190px)}
+  .evento h3{font-size:17px}
+  /* O texto de contexto volta — a referência mostra ele, e é o único que
+     explica o que está em jogo antes de escolher. Fica curto e apertado
+     (2 linhas, com reticências) em vez de sumir: quatro linhas inteiras é
+     que custava caro, não o texto em si. */
+  .evento p{font-size:11.5px;line-height:1.4;margin:0 0 10px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+  /* As opções de EVENTO não tinham override nenhum aqui — só as de CLUBE
+     (.carr-pista) tinham. A mesma tela alternava entre dois desenhos de
+     carta conforme o evento sorteado; agora os dois encolhem igual. */
+  .cartas{grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:6px}
+  .cartas .carta{padding:9px 8px}
+
+  /* O aviso legal não precisa do respiro de desktop: no celular ele soma
+     ~60px acima da barra fixa por causa só da margem. */
+  .rodape{margin-top:14px;font-size:9.5px}
+}
+@media (max-width:440px){
+  /* 19px e não 20, mais o respiro apertado: junto com o apelido, é o que
+     faz 190 dos 202 clubes do catálogo caberem inteiros numa tela de 375. */
+  .ficha-clube{font-size:19px;gap:7px}
+  .modos{grid-template-columns:1fr}
+  .resumo-topo{grid-template-columns:1fr}
+
+  /* O corte das taças: só entra aqui, porque é só aqui que a célula do
+     clube aperta de verdade (136px, ~110 pro nome). Até 4 taças mostra
+     todas; da 5ª o JS já manda só 3 + "+N" (tk-mais) — o :not() abaixo
+     existe porque tk-mais também é <i> e sem ele o próprio "+N" seria
+     escondido pela contagem do nth-child. */
+  .ano-tacas.corta > i:nth-child(n+4):not(.tk-mais){display:none}
+  .ano-tacas.corta .tk-mais{display:inline-flex}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+function barraTopo(extra, feitas, moedas){
+  return `<div class="topo">
+    <a href="/games.php" class="voltar" title="Voltar aos jogos">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M8.5 3.5 4 8l4.5 4.5.9-.9L6.3 8.6H12v-1.2H6.3l3.1-3z"/></svg></a>
+    <div class="marca"><i class="bi bi-trophy-fill"></i> Copero</div>
+    <div class="topo-dir">
+      ${extra || ''}
+      <button class="chip-topo chip-topo-btn" onclick="void 0" title="Desafios">
+        &#127942; <b>${feitas}</b></button>
+      ${moedas === null || moedas === undefined ? ''
+        : `<div class="chip-topo chip-topo-moeda" title="Suas moedas">&#129689; <b>${moedas}</b></div>`}
+    </div>
+  </div>`;
+}
+const ABANDONAR = `<button class="btn-topo" onclick="void 0" title="Abandonar esta carreira"><i class="bi bi-x-lg"></i> <span>Abandonar</span></button>`;
+function pinta(extra, feitas, moedas){
+  document.getElementById('app').innerHTML = barraTopo(extra, feitas, moedas);
+}
+function medir(){
+  const m = document.querySelector('.marca').getBoundingClientRect();
+  const d = document.querySelector('.topo-dir').getBoundingClientRect();
+  const t = document.querySelector('.topo').getBoundingClientRect();
+  return {vw: innerWidth, marca:[+m.left.toFixed(1), +m.right.toFixed(1)],
+          dir:[+d.left.toFixed(1), +d.right.toFixed(1)], dirW:+d.width.toFixed(1),
+          topo:[+t.left.toFixed(1), +t.right.toFixed(1)],
+          sobreposicao:+(m.right - d.left).toFixed(1),
+          fonteIcone: getComputedStyle(document.querySelector('.marca i')).fontFamily};
+}
+pinta(ABANDONAR, 0, 128450);
+</script>
+</body>
+</html>
