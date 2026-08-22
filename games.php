@@ -271,16 +271,17 @@ $jogosDiarios = [
     ['key' => 'quemsoueu', 'nome' => 'Quem Sou Eu?','sub' => 'Descubra pelas dicas','icone' => 'bi-question-circle',  'cor' => '#3b82f6'],
     ['key' => 'quizdodia', 'nome' => 'Quiz do Dia', 'sub' => 'Vote com a maioria', 'icone' => 'bi-chat-square-quote','cor' => '#eab308'],
 ];
-// Os jogos de CARREIRA são de outra natureza: não têm rodada do dia nem
-// placar de sessão — você volta a eles por meses e a carreira continua de
-// onde parou. Por isso ganham seção própria em vez de entrar no meio dos
-// minigames, e por isso trazem `href` em vez de `key`: são páginas
-// inteiras em /games/games/, não passam pelo carregador index.php?game=.
+// O jogo de CARREIRA é de outra natureza: não tem rodada do dia nem placar
+// de sessão — você volta a ele por meses e a carreira continua de onde parou.
+// Por isso ganha seção própria em vez de entrar no meio dos minigames, e por
+// isso traz `href` em vez de `key`: é uma página inteira em /games/games/,
+// não passa pelo carregador index.php?game=.
+//
+// O Caminho saiu daqui: ele ainda está sendo ajustado e não entra no lançamento.
+// A página continua de pé em /games/games/caminho.php pra quem tem o link.
 $jogosCarreira = [
     ['href' => '/games/games/copero.php',  'nome' => 'Copero',
      'sub'  => 'Uma carreira no futebol',  'icone' => 'bi-trophy-fill', 'cor' => '#22c55e'],
-    ['href' => '/games/games/caminho.php', 'nome' => 'O Caminho',
-     'sub'  => 'Uma carreira na NBA',      'icone' => 'bi-signpost-split-fill', 'cor' => '#ef4444'],
 ];
 
 $jogosLivres = [

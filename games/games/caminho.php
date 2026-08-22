@@ -505,6 +505,42 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
    ficha e decisão direto ao grid, que é a única forma de a súmula passar
    ENTRE elas — presas no mesmo filho, nenhum `order` as separa. */
 .bl-ficha + .bl-decisao{margin-top:11px}
+
+/* ── A FICHA QUE NÃO SOME ─────────────────────────────────────────────
+   O cartão de OVR abre a tela e sumia na primeira rolada — justamente
+   quando saber em que nível você está é o que muda a decisão. Esta faixa é
+   o resumo dele, grudada embaixo da barra de cima, e só acende depois que o
+   cartão de verdade sai de vista (vigiarFicha). */
+.ficha-fixa{position:sticky;top:0;z-index:45;display:flex;align-items:center;gap:9px;
+  padding:7px 12px;background:color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter:blur(9px);border-bottom:1px solid var(--border);
+  margin:0 -12px 11px;animation:ffEntra .18s ease}
+.ficha-fixa[hidden]{display:none}
+@keyframes ffEntra{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.ficha-fixa{animation:none}}
+.ff-ovr{font-family:var(--num);font-size:16px;font-weight:900;line-height:1;
+  padding:5px 9px;border-radius:8px;background:var(--cor);color:#0b0b0d;
+  font-variant-numeric:tabular-nums;flex:none}
+.ff-delta{font-style:normal;font-family:var(--num);font-size:12px;font-weight:900;flex:none}
+.ff-clube{display:flex;align-items:center;gap:6px;min-width:0;flex:1}
+.ff-clube b{font-size:13px;font-weight:800;letter-spacing:-.2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ff-idade{font-size:11.5px;font-weight:700;color:var(--text2);flex:none}
+/* No desktop a barra de cima não é grudada, então a faixa gruda no zero e
+   ganha o respiro que a coluna tem. */
+@media (min-width:980px){.ficha-fixa{margin:0 0 14px;border-radius:0 0 10px 10px}}
+
+/* ── O QUE A DECISÃO DEU ──────────────────────────────────────────────
+   Substitui a tela de "Deu certo." / "Não foi dessa vez.". Uma linha
+   colorida na lateral já diz de que lado caiu; o texto conta o quê. */
+.nota-deu{display:flex;align-items:flex-start;gap:11px;padding:12px 13px}
+.nota-deu-marca{width:3px;align-self:stretch;border-radius:99px;flex:none;min-height:34px}
+.nota-deu-txt{flex:1;min-width:0}
+.nota-deu-txt b{display:block;font-size:12px;font-weight:800;letter-spacing:-.1px;
+  color:var(--text2);margin-bottom:3px}
+.nota-deu-txt p{margin:0;font-size:13.5px;line-height:1.5;color:var(--text)}
+.nota-deu-ovr{font-style:normal;font-family:var(--num);font-size:13px;font-weight:900;
+  flex:none;font-variant-numeric:tabular-nums;padding-top:1px}
 @media (max-width:979px){
   /* ── A TELA DO JOGO NO CELULAR ────────────────────────────────────
      A barra de cima sai e vira barra de baixo: os mesmos atalhos, mais a
@@ -2846,17 +2882,34 @@ function gerarOfertas(){
   // O prazo vem DENTRO da proposta, junto do time e do salário. Antes era
   // uma segunda tela ("por quantos anos?"), o que picava uma decisão só em
   // duas e escondia o que estava sendo comparado: o pacote inteiro.
-  // Nenhum contrato com menos de DOIS anos: é o que faz a janela de
-  // transferências aparecer no máximo de dois em dois anos, em vez de virar
-  // uma pergunta anual que ninguém quer responder toda temporada.
-  const anosPor = {renovar:[3,4], grana:[4,5], contender:[2,3], banco:[2,3], exterior:[2,3]};
+  // Contrato CURTO é o que faz a carreira andar entre clubes. Era 3-4 pra
+  // renovar e 4-5 pra grana: uma carreira de vinte anos cabia em quatro ou
+  // cinco janelas, e quem renovava duas vezes morria no mesmo time. Agora a
+  // janela chega de dois em dois anos na maioria dos casos — perto do que
+  // acontece de verdade, e o bastante pra você trocar de camisa algumas
+  // vezes numa carreira.
+  //
+  // O piso continua sendo DOIS: contrato de um ano transformaria a janela
+  // numa pergunta anual, que é o outro extremo e cansa igual.
+  const anosPor = {renovar:[2,3], grana:[3,4], contender:[2,3], banco:[2,2], exterior:[2,3]};
 
   // Renovar onde está: existe quase sempre, mas NÃO quando o clube acabou
   // de rasgar o contrato dentro de um evento. Ler "Rasgaram seu contrato no
   // mesmo dia" e, na tela seguinte, receber uma proposta de renovação do
   // mesmo clube era a contradição mais visível do fluxo. O valor depende da
   // confiança.
-  if (!S.cortado){
+  // O CLUBE NEM SEMPRE QUER VOCÊ DE VOLTA. Antes a renovação estava lá em
+  // toda janela, e ficar era sempre uma opção — então a carreira inteira
+  // podia ser passada num time só, por inércia. Agora o clube decide: com
+  // confiança baixa, ou depois de muitos anos de casa com você já velho, ele
+  // deixa você ir. Quando isso acontece, sair não é escolha — é o que tem.
+  const querRenovar = !S.cortado && (() => {
+    if ((S.confianca || 50) < 30) return ri(0, 100) < 35;
+    if (S.idade >= 34 && (S.anosNoClube || 0) >= 5) return ri(0, 100) < 55;
+    if ((S.confianca || 50) < 45) return ri(0, 100) < 75;
+    return true;
+  })();
+  if (querRenovar){
     const fator = 0.8 + (S.confianca/100) * 0.5;
     ofertas.push({tipo:"renovar", time:S.time, salario:Math.max(1,Math.round(v*fator)),
                   forca:S.forcaBase, papel:"titular",
@@ -3947,7 +4000,9 @@ function telaDraft(){
       S.forcaBase = ri(30, 85);
       S.confianca = Math.round(clamp(70 - S.pickDraft*0.6, 25, 85));
       S.salario = Math.max(1, Math.round(Math.pow((62 - S.pickDraft)/61, 2) * 26) + 1);
-      S.contrato = 4;
+      // Contrato de calouro: três anos. Eram quatro, e com a janela mais
+      // curta do resto da carreira o começo virava o trecho mais parado.
+      S.contrato = 3;
       criarRival();
 
       // Quem chega assim chega PRONTO — é o ponto de ter uma entrada rara.
@@ -4090,6 +4145,53 @@ function telaSemDraft(){
 function barra(){
   const p = clamp(((S.idade - 16) / 22) * 100, 0, 100);
   return `<div class="barra-topo"><i style="width:${p}%"></i></div>`;
+}
+
+/**
+ * A ficha em miniatura, grudada no alto da tela.
+ *
+ * O cartão de OVR fica no começo da página e sumia assim que a pessoa
+ * descia pra ler a trajetória ou pra decidir — justamente quando saber em
+ * que nível você está é o que muda a escolha. Esta faixa é o resumo dele:
+ * OVR, o que mudou no ano, o clube e a idade.
+ *
+ * Ela só aparece DEPOIS que o cartão de verdade sai de vista (ver
+ * vigiarFicha). Mostrar as duas coisas ao mesmo tempo seria dizer o mesmo
+ * número duas vezes na mesma tela.
+ */
+function fichaFixa(){
+  const {o, d} = deltaOvr();
+  const faixa = faixaOvr(o);
+  const cor = d > 0 ? "var(--green)" : d < 0 ? "var(--red)" : "var(--text3)";
+  const clube = String(S.time || "").split(" · ")[0];
+  return `<div class="ficha-fixa" id="fichaFixa" hidden>
+    <span class="ff-ovr" style="--cor:${faixa[1]}">${o}</span>
+    ${d ? `<i class="ff-delta" style="color:${cor}">${d > 0 ? "+" : ""}${d}</i>` : ""}
+    <span class="ff-clube">${marca(clube, 18)}<b>${esc(clube)}</b></span>
+    <span class="ff-idade">${S.idade} anos</span>
+  </div>`;
+}
+
+/**
+ * Acende a faixa quando o cartão de verdade sai da tela.
+ *
+ * IntersectionObserver e não scroll: o navegador avisa quando o elemento
+ * cruza a borda, sem um listener rodando a cada pixel rolado.
+ */
+let _olhoDaFicha = null;
+function vigiarFicha(){
+  if (_olhoDaFicha) { _olhoDaFicha.disconnect(); _olhoDaFicha = null; }
+  const fixa = document.getElementById("fichaFixa");
+  const real = document.querySelector(".bl-ficha .ficha");
+  if (!fixa || !real || typeof IntersectionObserver === "undefined") return;
+
+  // rootMargin negativo no topo: a faixa entra quando o cartão passa da
+  // altura da barra de cima, não quando ele some da tela inteira.
+  _olhoDaFicha = new IntersectionObserver(
+    ([e]) => { fixa.hidden = e.isIntersecting; },
+    {threshold: 0, rootMargin: "-56px 0px 0px 0px"}
+  );
+  _olhoDaFicha.observe(real);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -5332,6 +5434,16 @@ function telaTemporada(){
   const st = S.ultimo;
   if (!st) return telaDraft();
 
+  // Carreira salva no formato antigo pode chegar aqui parada num desfecho —
+  // uma tela que não existe mais e não tinha botão de sair. Vira nota e o
+  // jogo segue, em vez de a pessoa abrir o save e encontrar o fim do mundo.
+  if (S.desfecho){
+    S.oQueDeu = {txt: S.desfecho.txt || "", ovr: S.desfecho.ovr || 0,
+                 l: S.desfecho.l || "", bom: S.desfecho.caiu === "bom"};
+    S.desfecho = null;
+    salvar();
+  }
+
   // REDE DE SEGURANCA: nenhum ano chega a tela sem pergunta.
   //
   // jogarAno() sorteia a decisao, mas ele nao e a unica porta pra ca —
@@ -5379,6 +5491,7 @@ function telaTemporada(){
         S.ritmo === "rapido" ? "Próximas duas temporadas" : "Próxima temporada"}</button>`);
 
   const blocoDecisao =
+    notaDoQueDeu() +
     (S.mensagem ? `<div class="bpcard"><p class="dec-txt" style="margin:0">${S.mensagem}</p></div>` : "") +
     ((S.desafiosDoAno || []).length ? `<div class="bpcard conquista-aviso">
       <div class="bpcard-title">Conquista${S.desafiosDoAno.length > 1 ? "s" : ""} desbloqueada${S.desafiosDoAno.length > 1 ? "s" : ""}</div>
@@ -5400,7 +5513,7 @@ function telaTemporada(){
 
   // A súmula vai pro lado no desktop: ela cresce a cada temporada e,
   // embaixo do botão de avançar, empurrava a decisão pra fora da tela.
-  app().innerHTML = topo() + `<div class="colunas colunas-ano">
+  app().innerHTML = topo() + fichaFixa() + `<div class="colunas colunas-ano">
     <div class="col-principal">
       <div class="bl-ficha">${blocoFicha}</div>
       <div class="bl-decisao">${blocoDecisao}</div>
@@ -5413,6 +5526,9 @@ function telaTemporada(){
 function decidir(i){
   const d = decisaoAtual();
   const op = d.ops[i];
+  // A nota da decisão ANTERIOR sai de cena agora: ela contava o que a
+  // escolha passada rendeu, e a passada acabou de virar história.
+  S.oQueDeu = null;
   // O sorteio usa a MESMA chance que a etiqueta mostrou embaixo do botão.
   // É por isso que a etiqueta é gerada do dado em vez de escrita à mão:
   // texto e código escritos separados divergem na primeira alteração.
@@ -5442,27 +5558,26 @@ function decidir(i){
 
   S.efeitoDecisao = aplicarEfeito(ef);
 
-  S.desfecho = {
-    l: op.l, chance: op.chance ?? 100,
-    bom: dadoBom, ruim: dadoRuim,
-    caiu: deuCerto ? "bom" : "ruim",
-    txt: ef.txt, ovr: S.efeitoDecisao,
-  };
+  // O QUE ACONTECEU, e só. Antes isto virava uma tela inteira com "Deu
+  // certo." ou "Não foi dessa vez." em cima — um veredito sobre a sorte, que
+  // a própria carta já conta acendendo o desfecho que saiu. O que a tela
+  // dizia de novo era o texto; então é o texto que fica, numa nota que
+  // acompanha a temporada seguinte. O resto do tempo o jogo faz o que a
+  // pessoa clicou pra ver: joga o ano.
+  S.oQueDeu = {txt: ef.txt || "", ovr: S.efeitoDecisao, l: op.l, bom: deuCerto};
+  S.desfecho = null;
   S.aguardando = false; S.decisaoId = null; S.mensagem = null;
 
   // Salva ANTES da animação, não depois. O resultado já está decidido; se a
-  // pessoa recarregar no meio do sorteio, ela cai no desfecho que realmente
-  // saiu — em vez de voltar pra decisão e sortear de novo.
+  // pessoa recarregar no meio do sorteio, ela cai com a escolha feita — em
+  // vez de voltar pra decisão e sortear de novo.
   salvar();
 
   // Aposta de 100% não tem dois lados pra alternar, e quem pediu menos
-  // movimento no sistema não quer nada piscando: nesses casos o desfecho
-  // aparece direto.
+  // movimento no sistema não quer nada piscando: nesses casos o ano toca
+  // direto.
   const doisLados = (op.chance ?? 100) < 100 && op.ruim;
-  if (!doisLados || matchMedia("(prefers-reduced-motion: reduce)").matches){
-    telaTemporada();
-    return esperarELevar();
-  }
+  if (!doisLados || matchMedia("(prefers-reduced-motion: reduce)").matches) return seguir();
   sortearNaCarta(i, deuCerto);
 }
 
@@ -5517,7 +5632,10 @@ function sortearNaCarta(i, deuCerto){
         l.classList.remove("piscando");
         l.classList.add(k === alvo ? "caiu" : "apagado");
       });
-      return setTimeout(() => { if (carta.isConnected) { telaTemporada(); esperarELevar(); } }, 420);
+      // 700ms com o desfecho aceso na carta: o bastante pra ver de que lado
+      // a luz parou, curto o bastante pra não virar uma tela de espera. Aí o
+      // ano toca — que é o que a pessoa clicou pra ver acontecer.
+      return setTimeout(() => { if (carta.isConnected) seguir(); }, 700);
     }
 
     aceso = 1 - aceso;
@@ -5585,6 +5703,28 @@ function seguir(){
  * apagado — a pessoa vê onde a luz parou sem precisar traduzir nada. O
  * texto embaixo conta o que aconteceu.
  */
+/**
+ * A nota do que aconteceu na decisão do ano.
+ *
+ * Fica no alto da tela seguinte, acompanhando a temporada que a escolha
+ * gerou — e não numa tela própria antes dela. É uma linha e um número: o que
+ * mudou, e quanto. Some sozinha quando a decisão seguinte é tomada.
+ */
+function notaDoQueDeu(){
+  const q = S.oQueDeu;
+  if (!q || !String(q.txt || "").trim()) return "";
+  const d = q.ovr || 0;
+  const cor = d > 0 ? "var(--green)" : d < 0 ? "var(--red)" : "var(--text3)";
+  return `<div class="bpcard nota-deu">
+    <span class="nota-deu-marca" style="background:${q.bom ? "var(--green)" : "var(--red)"}"></span>
+    <div class="nota-deu-txt">
+      <b>${esc(q.l || "")}</b>
+      <p>${esc(q.txt)}</p>
+    </div>
+    ${d ? `<em class="nota-deu-ovr" style="color:${cor}">${d > 0 ? "+" : ""}${d} OVR</em>` : ""}
+  </div>`;
+}
+
 function cartaDoDesfecho(df){
   const caiuBom = df.caiu === "bom";
   const ef = caiuBom ? df.bom : df.ruim;
@@ -6054,6 +6194,7 @@ function ajustarTela(){
   medirJanelaDaTrajetoria();
   medirDecisao();
   focarIdadeAtual();
+  vigiarFicha();
 }
 
 function medirJanelaDaTrajetoria(){
