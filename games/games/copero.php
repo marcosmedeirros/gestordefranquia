@@ -715,8 +715,17 @@ button{font-family:inherit}
 
 /* ── Linha do tempo ─────────────────────────────────── */
 .linha{padding:12px 14px}
-.linha-cab,.ano,.linha-pe{display:grid;grid-template-columns:44px minmax(0,1fr) 46px 56px 52px 52px;gap:8px;
+.linha-cab,.ano,.linha-pe,.linha-sel{display:grid;grid-template-columns:44px minmax(0,1fr) 46px 56px 52px 52px;gap:8px;
   align-items:center}
+/* A linha da seleção fecha a tabela, com a bandeira ocupando a coluna que
+   nas outras linhas é a pílula da idade — pela seleção você joga a carreira
+   inteira, não um ano. */
+.linha-sel{margin-top:6px;padding:5px 8px;border-radius:8px;font-size:12.5px;
+  background:color-mix(in srgb, var(--verde) 12%, transparent)}
+.linha-sel .sel-band{display:inline-flex;align-items:center;justify-content:center}
+.linha-sel .sel-band svg{width:26px;height:17px;border-radius:3px;
+  box-shadow:0 0 0 1px rgba(255,255,255,.16)}
+.linha-sel .ano-clube span{font-weight:800}
 .linha-pe{margin-top:8px;padding:9px 8px 1px;border-top:1px solid var(--borda)}
 .linha-pe .pe-nome{display:flex;align-items:center;gap:6px;font-size:9.5px;font-weight:800;
   letter-spacing:.8px;text-transform:uppercase;color:var(--txt3)}
@@ -740,7 +749,10 @@ button{font-family:inherit}
 .ano + .ano{margin-top:1px}
 /* O ano vazio é intencionalmente baixinho — é o que impede a escada dos
    anos futuros de dominar a tela, como na referência. */
-.ano.vazio{color:var(--txt3);padding:1.5px 8px;font-size:11px}
+/* So o recuo VERTICAL: usar o atalho `padding` aqui fixaria tambem o
+   lateral, e como .ano.vazio tem duas classes ele ganharia do .ano do
+   celular (6px) — desalinhando a coluna de numeros em 2px. */
+.ano.vazio{color:var(--txt3);padding-top:1.5px;padding-bottom:1.5px;font-size:11px}
 /* Destaque de verdade: contra o --panel3 a diferença de luminância era de
    uns 14 pontos, quase invisível sob luz do dia. Azul com borda à esquerda
    lê de relance em qualquer tela. */
@@ -1003,7 +1015,7 @@ button{font-family:inherit}
      antigas sobravam 38px pro nome numa tela de 375, e "Sport Recife" — que
      precisa de 72 — saía cortado quase pela metade. Agora cabe; só nome de
      19 letras pra cima trunca, e aí com reticências, como deve ser. */
-  .linha-cab,.ano,.linha-pe{grid-template-columns:32px minmax(0,1fr) 34px 32px 32px 32px;gap:5px}
+  .linha-cab,.ano,.linha-pe,.linha-sel{grid-template-columns:32px minmax(0,1fr) 34px 32px 32px 32px;gap:5px}
   .ano-n{gap:3px;font-size:11.5px}
   .ano-n .ic{width:9px;height:9px}
   .ano{padding:4px 6px;font-size:11.5px}
@@ -1087,6 +1099,10 @@ button{font-family:inherit}
   .ano-n{font-size:11px}
   .linha-cab{font-size:9px;padding:0 6px 5px}
   .linha-pe{margin-top:6px;padding:7px 6px 0}
+  /* Mesmo recuo lateral de .ano e .linha-pe: 2px de diferenca aqui
+     desalinha a coluna de numeros da tabela inteira. */
+  .linha-sel{margin-top:5px;padding:4px 6px}
+  .linha-sel .sel-band svg{width:22px;height:14px}
 
   .evento-caixa{padding:13px 12px}
   .evento h3{font-size:17px}
@@ -2864,10 +2880,46 @@ function temporada(){
   // poder ganhar, ou ganhar sem ser convocado, é boletim mentindo.
   const foraDaSelecao = (S.semSelecao || 0) > 0;
   if (foraDaSelecao) S.semSelecao--;
-  if (!foraDaSelecao && convocado(S.ovr, S.pais)) t.selecao = true;
+  if (!foraDaSelecao && convocado(S.ovr, S.pais)) {
+    t.selecao = true;
+    Object.assign(t, numerosDaSelecao(t));
+  }
   if (!foraDaSelecao) t.titulos = t.titulos.concat(titulosDaSelecao(S.ovr, S.ano));
   S.ano++;
   return t;
+}
+
+/**
+ * O boletim do ano PELA SELEÇÃO.
+ *
+ * São poucos jogos — eliminatória, amistoso e, no ano do torneio, o torneio
+ * — então a temporada de seleção não se conta em dezenas como a de clube.
+ * O ano de Copa ou de continental rende mais porque tem competição de
+ * verdade no meio.
+ *
+ * Rende MAIS por jogo que no clube: quem é convocado costuma ser o melhor
+ * do time em campo, e joga contra seleções que não são todas fortes.
+ */
+function numerosDaSelecao(t){
+  const p = POSICOES[S.posicao] || POSICOES.MC;
+  const temTorneio = S.ano % 4 === 2 || S.ano % 4 === 0;
+  const jogos = ri(temTorneio ? 8 : 4, temTorneio ? 14 : 9);
+  if (S.posicao === 'GOL') {
+    return {selJogos: jogos, selGols: 0, selAst: 0};
+  }
+  // Mesmo fator de qualidade que o clube usa (linha do `q` em temporada()),
+  // porque quem faz gol lá faz aqui. O que muda é o FREIO de 0.55 no lugar
+  // da folga: no clube a folga premia quem joga acima do nível da liga, e
+  // na seleção não existe liga fraca pra explorar — o adversário é sempre
+  // outra seleção. Sem esse freio um CA de 92 fazia 0,9 gol por jogo pela
+  // seleção, quase o dobro do que a régua do gênero entrega.
+  const q = Math.max(0.18, Math.pow(Math.max(0, S.ovr - 42) / 48, 2.3) * 1.32);
+  const freio = 0.55;
+  return {
+    selJogos: jogos,
+    selGols: Math.max(0, Math.round(jogos * p[2] * q * freio * (ri(70,140)/100))),
+    selAst:  Math.max(0, Math.round(jogos * p[3] * q * freio * (ri(65,135)/100))),
+  };
 }
 
 /**
@@ -3450,9 +3502,33 @@ function linhaDoTempo(){
   }
 
   const soma = (k) => S.temporadas.reduce((a, t) => a + (t[k] || 0), 0);
+
+  // A LINHA DA SELEÇÃO, no pé da tabela. É a carreira internacional inteira
+  // numa linha só: quantos jogos, quantos gols, quantas assistências pelo
+  // país. Fica separada da linha do clube de propósito — são duas carreiras
+  // paralelas, e somar as duas esconderia as duas.
+  //
+  // Só aparece pra quem tem seleção no jogo. Zerada enquanto ninguém
+  // convocou: ver "0 jogos" é a informação de que ainda não rolou, e some
+  // é a informação de que não existe.
+  if (forcaSelecao(S.pais)) {
+    const selJ = soma('selJogos'), selG = soma('selGols'), selA = soma('selAst');
+    const colSel = S.posicao === 'GOL'
+      ? `<span class="ano-n"></span><span class="ano-n"></span>`
+      : `<span class="ano-n">${ICONES.gols}<b>${selG}</b></span>
+         <span class="ano-n">${ICONES.ast}<b>${selA}</b></span>`;
+    html += `<div class="linha-sel" title="Sua carreira pela seleção ${esc(PAISES[S.pais] || S.pais)}">
+      <span class="sel-band">${bandeira(S.pais, 26)}</span>
+      <span class="ano-clube"><span>${esc(PAISES[S.pais] || S.pais)}</span></span>
+      <span></span>
+      <span class="ano-n">${ICONES.jogos}<b>${selJ}</b></span>
+      ${colSel}
+    </div>`;
+  }
+
   html += `<div class="linha-pe">
     <span></span>
-    <span class="pe-nome">${bandeira(S.pais, 15)}<span>Carreira</span></span>
+    <span class="pe-nome"><span>Carreira em clubes</span></span>
     <span></span>
     <span class="ano-n">${ICONES.jogos}<b>${soma('jogos')}</b></span>
     ${colunasDoBoletim().map(([,k]) =>
