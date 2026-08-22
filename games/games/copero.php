@@ -632,6 +632,10 @@ button{font-family:inherit}
    O espaçador reserva a altura dela (medida em JS, porque o card muda de
    tamanho conforme o texto e o número de cartas). */
 .evento-caixa{padding:16px 18px}
+/* A tela ocupada nao aceita outro clique. Isto e o AVISO; quem realmente
+   segura e a variavel `travado` no JS — CSS o inspetor desliga. */
+body.ocupado .carta,body.ocupado .op,body.ocupado .btn,body.ocupado .oferta-linha{
+  pointer-events:none}
 .dec-espaco{display:none}
 .ver-conq{width:100%;border-radius:999px}
 
@@ -2039,8 +2043,22 @@ function titulosDaTemporada(clube, ovr, stats){
     if (ovr >= 92 && ganhos.includes('luva_ouro') && ganhos.length >= 3 && Math.random() < 0.07) {
       ganhos.push('bola_ouro');
     }
-  } else if (ovr >= 88 && ganhos.length >= 2 && Math.random() < 0.35) {
-    ganhos.push('bola_ouro');
+  } else if (ovr >= 88 && ganhos.length >= 2) {
+    // A BOLA DE OURO É, NA PRÁTICA, UM PRÊMIO DE QUEM JOGA NA EUROPA.
+    //
+    // A chance era a mesma em qualquer continente, e o resultado apareceu numa
+    // carreira inteira no Brasileirão com duas Bolas de Ouro na estante — sem
+    // nunca ter saído do país. Não é assim que o prêmio funciona: quem vota
+    // olha pra Europa, e é lá que o jogador precisa estar pra ser visto.
+    //
+    // Fora de lá continua POSSÍVEL, e de propósito: Sívori e Di Stéfano
+    // ganharam, e fechar a porta tiraria do jogo uma das carreiras mais
+    // bonitas que ele sabe contar — a do cara que ficou. Mas agora custa: só
+    // a partir de 94 de overall, e a três por cento. Numa carreira de vinte
+    // temporadas nesse nível, sai uma a cada oito carreiras.
+    const naEuropa = (l.cont === 'EUR');
+    const chance = naEuropa ? 0.35 : (ovr >= 94 ? 0.03 : 0);
+    if (Math.random() < chance) ganhos.push('bola_ouro');
   }
 
   // Rei da América é do continente: só conta jogando na América do Sul, e
@@ -3210,6 +3228,47 @@ function aplicarEfeito(ef, ev){
   if (ef.dur)  S.durabilidade = Math.max(0.55, Math.min(1.9, (S.durabilidade || 1) + ef.dur));
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   UM CLIQUE DE CADA VEZ
+   ═══════════════════════════════════════════════════════════════════════
+
+   Todo handler de escolha aqui e async e mexe no estado DEPOIS de um await —
+   a animacao da carta, a marcacao da escolha, o ano rodando. Durante esse
+   await as cartas continuam na tela e continuam clicaveis, e cada clique novo
+   comeca outra execucao do mesmo handler, com o mesmo estado ainda intacto.
+
+   O resultado, medido: cinco cliques numa carta de "+5 OVR" davam +25 de
+   overall. Dava pra chegar a 99 clicando rapido, e foi assim que apareceu uma
+   carreira de 2080 gols. Em assinarOpcao era pior: dois cliques botavam dois
+   jogarAnos() correndo em paralelo, escrevendo na mesma carreira.
+
+   A trava e uma variavel, e nao CSS: pointer-events some se alguem mexer no
+   inspetor, e a regra aqui e do jogo, nao da aparencia. O CSS entra junto so
+   pra dizer ao olho que a tela esta ocupada.
+
+   Ela e liberada no finally: se qualquer coisa la dentro estourar, o jogo
+   volta a aceitar clique em vez de travar de vez. */
+let travado = false;
+
+/**
+ * Envolve um handler pra que so um rode por vez.
+ *
+ * Devolve undefined no clique repetido em vez de lancar erro: o segundo
+ * clique nao e um bug do jogador, e o dedo mais rapido que a animacao.
+ */
+function umDeCadaVez(fn){
+  return async function (...args) {
+    if (travado) return;
+    travado = true;
+    document.body.classList.add("ocupado");
+    try {
+      return await fn.apply(this, args);
+    } finally {
+      travado = false;
+      document.body.classList.remove("ocupado");
+    }
+  };
+}
 /** Aplica a carta escolhida, mostra o que saiu e segue. */
 async function escolherCarta(i){
   const carta = S.evento.cartas[i];
@@ -3237,6 +3296,16 @@ async function escolherCarta(i){
 }
 
 function aposentar(){ S.fase = 'fim'; S.fim = true; salvar(); render(); }
+
+/* Os handlers de escolha passam a ser um-de-cada-vez. A troca e feita aqui,
+   depois de todos declarados, porque function sobe pro topo do escopo e
+   envolver na declaracao exigiria mexer em sete assinaturas. */
+escolherCarta      = umDeCadaVez(escolherCarta);
+assinarOpcao       = umDeCadaVez(assinarOpcao);
+aceitarEmprestimo  = umDeCadaVez(aceitarEmprestimo);
+recusarEmprestimo  = umDeCadaVez(recusarEmprestimo);
+voltarDoEmprestimo = umDeCadaVez(voltarDoEmprestimo);
+ficarNoEmprestimo  = umDeCadaVez(ficarNoEmprestimo);
 
 /**
  * Preenche a linha do ano, uma coluna por vez.

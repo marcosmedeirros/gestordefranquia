@@ -34,18 +34,34 @@ function auditarNao(string $motivo): array { return ['ok' => false, 'motivo' => 
 // ── COPERO ─────────────────────────────────────────────────────────────
 // jogos: o motor faz Math.max(4, Math.min(52, ...)) e a lesão pode derrubar
 //        pra 2. Então 0..52 é o intervalo do próprio código.
-// gols/ast por jogo: medido 0,69 e 0,24 no pico. O teto aqui é o dobro
-//        largo — o que ele barra é "50 gols em 4 jogos", não um artilheiro.
+// gols/ast por jogo: DERIVADO DA FÓRMULA, não da amostra. O motor faz
+//        jogos * peso * q * folga * aleatório, e o teto de cada fator é
+//        conhecido: peso 0,68 (centroavante), q 1,96 (overall 99), folga
+//        2,05, aleatório 1,30 — dá 3,55 gol por jogo. Assistência, pelo
+//        mesmo caminho, 2,28.
+//
+//        A primeira versão usava 1,5 e 1,0, tirados do máximo que EU tinha
+//        medido em oito carreiras (0,69 e 0,24). Parecia folga de duas
+//        vezes; era menos da metade do que o jogo alcança. Um artilheiro de
+//        99 numa liga fraca teria a carreira recusada — exatamente o
+//        jogador que mais teria conquista a perder.
 // ovr: a régua do jogo vai de 40 a 99.
 // idade: 16 até COPERO_IDADE_FINAL (41 no catálogo de hoje).
 const AUDITOR_COPERO = [
     'idade_min'      => 15,
     'idade_max'      => 45,
-    'temporadas_max' => 32,
+    // 32 era APERTADO DEMAIS e teria recusado carreira honesta. Chegou uma de
+    // 34 temporadas — o motor grava mais de uma por ano (empréstimo, modo
+    // rápido), e das oito carreiras que eu tinha medido nenhuma passou de 27,
+    // então 32 parecia folgado e não era. O teto duro sobe pra 52, e quem faz
+    // o trabalho de verdade é a regra de baixo, que amarra o número de
+    // temporadas ao INTERVALO DE IDADE que elas cobrem.
+    'temporadas_max' => 52,
+    'temporadas_por_ano' => 3,
     'jogos_max'      => 52,
     'sel_jogos_max'  => 30,
-    'gols_por_jogo'  => 1.5,
-    'ast_por_jogo'   => 1.0,
+    'gols_por_jogo'  => 4.0,
+    'ast_por_jogo'   => 2.8,
     'ovr_min'        => 30,
     'ovr_max'        => 99,
     'ovr_salto_max'  => 22,
@@ -61,7 +77,12 @@ const AUDITOR_COPERO = [
 const AUDITOR_CAMINHO = [
     'idade_min'      => 15,
     'idade_max'      => 45,
-    'temporadas_max' => 30,
+    // 30 era justo: o Caminho grava uma temporada por ano, mas ano de formação
+    // e ano perdido também entram na lista, e uma carreira de 17 a 41 com dois
+    // anos de faculdade e três lesões passa de 28. Mesmo desenho do Copero: o
+    // teto duro sobe e quem manda é a razão contra o intervalo de idade.
+    'temporadas_max' => 45,
+    'temporadas_por_ano' => 2,
     'jogos_max'      => 82,
     'pts_max'        => 45,
     'reb_max'        => 25,
@@ -85,6 +106,8 @@ function auditarCopero(array $temporadas): array
 
     $idadeAnterior = null;
     $ovrAnterior   = null;
+    $idadeMin = null;
+    $idadeMax = null;
 
     foreach ($temporadas as $i => $t) {
         if (!is_array($t)) return auditarNao("temporada {$i} não é um objeto");
@@ -143,7 +166,28 @@ function auditarCopero(array $temporadas): array
 
         if ((int)($t['valor'] ?? 0) < 0 || (int)($t['valor'] ?? 0) > $L['valor_max'])
             return auditarNao("valor de mercado fora da régua na temporada {$i}");
+
+        $idadeMin = $idadeMin === null ? $idade : min($idadeMin, $idade);
+        $idadeMax = $idadeMax === null ? $idade : max($idadeMax, $idade);
     }
+
+    // TEMPORADAS CONTRA O INTERVALO DE IDADE. É o teto honesto: o motor pode
+    // gravar mais de uma temporada por ano, mas não pode gravar vinte no
+    // mesmo ano. Uma carreira de 16 a 41 cobre 26 anos e cabe em 78 linhas
+    // com folga — a de 34 que apareceu passa de longe. O que isto barra é o
+    // estado forjado que empilha temporada sem envelhecer, que é o jeito
+    // barato de multiplicar troféu.
+    $anos = ($idadeMax - $idadeMin) + 1;
+    $tetoPeloTempo = $anos * $L['temporadas_por_ano'] + 3;
+    if ($n > $tetoPeloTempo)
+        return auditarNao("{$n} temporadas em {$anos} anos de carreira");
+
+    // O overall NÃO começa alto. Todo mundo entra cru — a régua do jogo nasce
+    // na casa dos 50 — e é isso que impede a carreira inteira de 99 que um
+    // estado montado à mão descreve sem esforço.
+    $ovrDeEstreia = (int)($temporadas[0]['ovr'] ?? 0);
+    if ($ovrDeEstreia > 78)
+        return auditarNao("estreia com {$ovrDeEstreia} de overall");
 
     return auditarOk();
 }
@@ -201,6 +245,22 @@ function auditarCaminho(array $estado): array
     }
 
     if ($jogadas === 0) return auditarNao('nenhuma temporada jogada');
+
+    // Mesma regra do Copero: temporada contra o tempo que ela cobre.
+    $primeira = null; $ultima = null;
+    foreach ($lista as $t) {
+        if (!is_array($t)) continue;
+        $idade = (int)($t['idade'] ?? 0);
+        if (!$idade) continue;
+        $primeira = $primeira === null ? $idade : min($primeira, $idade);
+        $ultima   = $ultima   === null ? $idade : max($ultima, $idade);
+    }
+    if ($primeira !== null) {
+        $anos = ($ultima - $primeira) + 1;
+        $teto = $anos * $L['temporadas_por_ano'] + 3;
+        if (count($lista) > $teto)
+            return auditarNao(count($lista) . " temporadas em {$anos} anos de carreira");
+    }
 
     // Nenhum troféu pode passar do número de temporadas jogadas. É o mesmo
     // teto que caminhoLegado() já aplicava pro legado — aqui ele vale pra

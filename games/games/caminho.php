@@ -666,6 +666,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
    que no Copero. Vazia ela some: ha telas sem decisao e sem acao, e um
    retangulo com borda e sombra no pe da tela nao diz nada. */
 .dec-caixa:empty{display:none}
+/* Escolha feita: a caixa para de aceitar clique enquanto o ano roda. Quem
+   realmente segura e a guarda de estado no decidir(); isto e o aviso. */
+.dec-caixa.ocupada{pointer-events:none}
+.dec-caixa.ocupada .dec-card:not(.dec-sorteando){opacity:.45}
 .rf-acoes{display:flex;gap:8px}
 .rf-acoes:empty{display:none}
 .rf-acoes > *{flex:1 1 0;min-width:0}
@@ -5500,6 +5504,10 @@ function pendurar(){
 }
 
 function escolherOferta(i){
+  // Mesma trava da decisao: sem ela, dois cliques assinam dois contratos e
+  // o segundo sobrescreve o primeiro com a carreira ja mexida.
+  if (!S.mercado || !S.mercado[i]) return;
+  document.querySelector(".dec-caixa")?.classList.add("ocupada");
   const of = S.mercado[i];
   const mudou = assinar(of);
   S.mensagem = mudou
@@ -5750,8 +5758,25 @@ function telaTemporada(){
   ajustarTela();
 }
 
+/* UM CLIQUE DE CADA VEZ.
+
+   A carta fica 700ms na tela depois do clique, acesa, mostrando de que lado
+   a luz parou — e nesse intervalo ela continua clicavel. No Copero o mesmo
+   buraco multiplicava o efeito: cinco cliques numa carta de +5 davam +25 de
+   overall, e foi assim que saiu uma carreira de 99 com 2080 gols.
+
+   Aqui o segundo clique nao chegava a aplicar nada — mas so porque
+   decisaoAtual() ja devolvia null e a linha seguinte estourava num
+   TypeError. Protecao por acidente nao e protecao: bastava alguem mudar a
+   ordem dessas duas linhas pra o buraco abrir igual ao do outro jogo.
+
+   A guarda e o proprio estado, que decidir() zera de forma sincrona logo
+   abaixo. O CSS do .dec-caixa.ocupada e so o aviso pro olho. */
 function decidir(i){
+  if (!S.aguardando || !S.decisaoId) return;
   const d = decisaoAtual();
+  if (!d || !d.ops || !d.ops[i]) return;
+  document.querySelector(".dec-caixa")?.classList.add("ocupada");
   const op = d.ops[i];
   // A nota da decisão ANTERIOR sai de cena agora: ela contava o que a
   // escolha passada rendeu, e a passada acabou de virar história.
