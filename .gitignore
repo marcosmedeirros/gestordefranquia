@@ -26,3 +26,10 @@ bot/.ultima-reconexao
 
 testar-cmd-dev.php
 entrar-teste.php
+
+# Arquivos de reprodução que os agentes de revisão escrevem na raiz pra
+# testar CSS isolado. São temporários e não pertencem ao repositório.
+/_repro_*.html
+/_medir_*.html
+/_zz_*.html
+/_auditor_teste.php

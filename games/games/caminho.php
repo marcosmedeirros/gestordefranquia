@@ -21,6 +21,7 @@
 require '../core/conexao.php';
 require_once __DIR__ . '/../../backend/nba_teams.php';   // nome curto + logo do cdn.nba.com
 require_once __DIR__ . '/../core/cartao.php';              // o cartao em imagem, compartilhado com o build e o 5x5
+require_once __DIR__ . '/../../backend/carreira_auditor.php';
 
 $idUsuario = (int)($_SESSION['user_id'] ?? 0);
 if ($idUsuario <= 0) { header('Location: /login.php'); exit; }
@@ -182,6 +183,168 @@ function caminhoCarreiraAtiva(PDO $pdo, int $uid): ?array
 }
 
 // ── Ações ──────────────────────────────────────────────────────────────
+/**
+ * OS DESAFIOS, DECIDIDOS AQUI.
+ *
+ * Antes o cliente mandava a lista de ids e o servidor só conferia se o id
+ * existia no catálogo. Quem abrisse o console podia postar os 44 e receber
+ * por todos — o teto de 12 por requisição só cobrava quatro requisições.
+ *
+ * Agora a lista que chega não vale nada. O servidor lê o ESTADO salvo da
+ * carreira, roda os mesmos testes que o cliente roda, e paga o que ele mesmo
+ * viu cair. Continua sendo um estado que o cliente escreveu — mas agora
+ * forjar uma conquista exige forjar a carreira inteira que a sustenta, e essa
+ * passa pelo auditarCaminho() antes.
+ *
+ * As condições abaixo são a tradução linha a linha do testarDesafio() do JS.
+ * Quando um dos dois mudar, o outro tem que mudar junto: o cliente decide o
+ * que APARECE na tela, o servidor decide o que é PAGO.
+ */
+function caminhoTestarDesafio(string $id, array $e, bool $fim): bool
+{
+    $t = is_array($e['trofeus'] ?? null) ? $e['trofeus'] : [];
+    $lista = is_array($e['temporadas'] ?? null) ? $e['temporadas'] : [];
+
+    // Só temporada jogada conta: ano de formação e ano perdido não têm
+    // números, e contá-los daria títulos "por temporada" que não existiram.
+    $jogadas = [];
+    foreach ($lista as $x) {
+        if (is_array($x) && empty($x['formacao']) && empty($x['perdida'])) $jogadas[] = $x;
+    }
+    $n = count($jogadas);
+
+    // O MESMO teto do caminhoLegado(): nenhum troféu passa do número de
+    // temporadas jogadas. É o que impede "3 temporadas, 20 MVPs".
+    $tr = fn(string $k) => max(0, min($n, (int)($t[$k] ?? 0)));
+
+    $tot = ['pts' => 0, 'reb' => 0, 'ast' => 0, 'jogos' => 0];
+    $clubes = [];
+    $porClube = [];
+    $titulosPorClube = [];
+    foreach ($jogadas as $x) {
+        $j = max(0, min(AUDITOR_CAMINHO['jogos_max'], (int)($x['jogos'] ?? 0)));
+        $tot['pts']   += (int)round(((float)($x['pts'] ?? 0)) * $j);
+        $tot['reb']   += (int)round(((float)($x['reb'] ?? 0)) * $j);
+        $tot['ast']   += (int)round(((float)($x['ast'] ?? 0)) * $j);
+        $tot['jogos'] += $j;
+        $time = (string)($x['time'] ?? '');
+        if ($time !== '') {
+            $clubes[$time] = true;
+            $porClube[$time] = ($porClube[$time] ?? 0) + 1;
+            if (!empty($x['campeao'])) $titulosPorClube[$time] = ($titulosPorClube[$time] ?? 0) + 1;
+        }
+    }
+    $nClubes = count($clubes);
+    $maiorSeqClube = $porClube ? max($porClube) : 0;
+
+    $pick = (int)($e['pickDraft'] ?? 99);
+    $legado = caminhoLegado($e);
+
+    // O pico de overall AMARRADO ao que as temporadas mostram.
+    //
+    // O cliente pergunta pelo overall de agora, calculado dos atributos com
+    // os pesos da posição; aqui não há atributos, só o pico gravado. Usar o
+    // pico solto abria uma porta grande: ele é um número único no estado, e
+    // bastava escrever 99 nele pra destravar "ovr99" e "pico_e_anel" sem que
+    // nenhuma temporada sustentasse isso. Preso ao maior overall que as
+    // temporadas registram, ele passa a depender de uma carreira inteira que
+    // o auditor já conferiu.
+    //
+    // Foi assim que a divergência apareceu: comparando os 44 desafios entre
+    // o JS e este PHP em 22 estados, "ovr99" foi o único que discordou — o
+    // servidor concedia, o cliente não.
+    $maiorOvrDeTemporada = 0;
+    foreach ($jogadas as $x) $maiorOvrDeTemporada = max($maiorOvrDeTemporada, (int)($x['ovr'] ?? 0));
+    $picoOvr = max(0, min(99, (int)($e['picoOvr'] ?? 0), $maiorOvrDeTemporada ?: 99));
+
+    // O pico de arremesso de 3 não tem coluna nas temporadas, então não há
+    // em que ancorar. Ele sozinho não paga nada: "proj_curry" ainda exige
+    // três títulos e dois títulos de cestinha junto.
+    $picoTres = max(0, min(99, (int)($e['picoTres'] ?? 0)));
+
+    switch ($id) {
+        case 'anel':        return $tr('titulo') >= 1;
+        case 'tricampeao':  return $tr('titulo') >= 3;
+        case 'mvp':         return $tr('mvp') >= 1;
+        case 'mvp3':        return $tr('mvp') >= 3;
+        case 'fmvp':        return $tr('fmvp') >= 1;
+        case 'dpoy':        return $tr('dpoy') >= 1;
+        case 'roy':         return $tr('roy') >= 1;
+        case 'top5':        return $pick <= 5 && $pick >= 1;
+        case 'pick1':       return $pick === 1;
+        case 'allstar5':    return $tr('allstar') >= 5;
+        case 'pts30k':      return $tot['pts'] >= 22000;
+        case 'duplo20k':    return $tot['pts'] >= 15000 && $tot['reb'] >= 7000;
+        case 'quarenta_mil':return $tot['pts'] >= 30000;
+        case 'ovr99':       return $picoOvr >= 97;
+        case 'porta_fundos':return $pick > 60 && $tr('titulo') >= 1;
+        case 'chamado':     return !empty($e['jaFoiChamado']);
+        case 'nomade':      return $nClubes >= 6;
+        case 'selecao':     return $tr('ouro') >= 1 || $tr('ouroCopa') >= 1;
+        case 'euroliga':    return $tr('euro') >= 1;
+        case 'ferro':       return $n >= 20;
+        case 'de_pe':       return !empty($e['voltouComPremio']);
+        case 'estreia':     return $n >= 1 && ((float)($jogadas[0]['pts'] ?? 0)) >= 20;
+        case 'trinta_no_ano':
+            foreach ($jogadas as $x) if (((float)($x['pts'] ?? 0)) >= 27) return true;
+            return false;
+        case 'duplo_completo':
+            return $tot['pts'] >= 18000 && $tot['reb'] >= 8000 && $tot['ast'] >= 4000;
+        case 'ano_perfeito':
+            foreach ($jogadas as $x) {
+                if (empty($x['campeao'])) continue;
+                foreach ((is_array($x['premios'] ?? null) ? $x['premios'] : []) as $q) {
+                    $nome = is_array($q) ? (string)($q['t'] ?? '') : (string)$q;
+                    if ($nome === 'MVP') return true;
+                }
+            }
+            return false;
+        case 'dono_defesa':  return $tr('dpoy') >= 4;
+        case 'presenca12':   return $tr('allstar') >= 10;
+        case 'patria':       return $tr('ouro') >= 3;
+        case 'mala_pronta':  return $nClubes >= 10;
+        case 'campeao_4':    return count($titulosPorClube) >= 3 && $tr('titulo') >= 4;
+        case 'lenda_clube':  return $maiorSeqClube >= 10;
+        case 'pico_e_anel':  return $picoOvr >= 97 && $tr('titulo') >= 1;
+        case 'goat':
+            return $tr('titulo') >= 4 && $tr('mvp') >= 2 && $tot['pts'] >= 20000
+                && ($tr('ouro') >= 1 || $tr('ouroCopa') >= 1);
+        case 'dinastia_solo':
+            return $maiorSeqClube >= 12 && $tr('titulo') >= 3 && count($porClube) <= 2;
+
+        // Os de encerramento só valem no fim: no meio da carreira ainda dá
+        // tempo de ganhar o título que falta.
+        case 'ringless':     return $fim && $n >= 10 && $tr('titulo') === 0;
+        case 'imortal':      return $fim && $legado >= 120;
+        case 'lenda_viva':   return $fim && $legado >= 160;
+
+        case 'proj_jordan':  return $tr('titulo') >= 4 && $tr('fmvp') >= 3 && $tr('mvp') >= 2;
+        case 'proj_russell': return $fim && $tr('titulo') >= 6;
+        case 'proj_lebron':  return count($titulosPorClube) >= 3 && $tr('mvp') >= 1;
+        case 'proj_duncan':
+            foreach ($titulosPorClube as $q) if ($q >= 4) return true;
+            return false;
+        case 'proj_curry':   return $tr('titulo') >= 3 && $picoTres >= 97 && $tr('cesta') >= 2;
+        case 'proj_kobe':    return $tr('titulo') >= 3 && $maiorSeqClube >= 13;
+        case 'so_uma_camisa':return $maiorSeqClube >= 14;
+    }
+    return false;
+}
+
+/** Tudo que o estado sustenta agora. O `fim` liga os de encerramento. */
+function caminhoDesafiosDoEstado(array $estado, bool $fim): array
+{
+    $out = [];
+    foreach (CAMINHO_DESAFIOS as $id => $nivel) {
+        try {
+            if (caminhoTestarDesafio((string)$id, $estado, $fim)) $out[] = (string)$id;
+        } catch (Throwable $e) {
+            error_log('[caminho] testar ' . $id . ': ' . $e->getMessage());
+        }
+    }
+    return $out;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json; charset=utf-8');
     $acao = $_POST['acao'] ?? '';
@@ -195,14 +358,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Desafios conquistados. INSERT IGNORE: reconquistar não reescreve a data
     // — a primeira vez é a que conta, e é ela que aparece no cartão.
     if ($acao === 'desafios') {
-        $ids = json_decode((string)($_POST['ids'] ?? ''), true);
-        if (!is_array($ids)) { echo json_encode(['ok' => false, 'erro' => 'lista inválida']); exit; }
-        // Só id que existe no catálogo entra. Nome inventado no cliente não
-        // vira linha no banco nem moeda na conta.
-        $ids = array_slice(array_values(array_unique(array_filter(
-            array_map(fn($x) => preg_replace('/[^a-z0-9_]/', '', mb_substr((string)$x, 0, 40)), $ids),
-            fn($id) => isset(CAMINHO_DESAFIOS[$id])
-        ))), 0, CAMINHO_MAX_DESAFIOS_POR_VEZ);
+        // A LISTA QUE CHEGA NÃO VALE NADA. Ela dizia quais desafios pagar, e
+        // o servidor só conferia se o id existia no catálogo — quem abrisse o
+        // console postava os 44 e recebia por todos. Agora ela serve pra uma
+        // coisa só: dizer se o pedido veio do fim da carreira, porque três
+        // desafios ("ringless", "imortal", "lenda_viva") só valem lá.
+        $pedidos = json_decode((string)($_POST['ids'] ?? ''), true);
+        $ehFim = !empty($_POST['fim']) || (is_array($pedidos) && array_intersect(
+            ['ringless', 'imortal', 'lenda_viva', 'proj_russell'],
+            array_map('strval', $pedidos)));
+
+        // Quem decide é o ESTADO SALVO, e ele passa pelo auditor antes.
+        $carreira = caminhoCarreiraAtiva($pdo, $idUsuario);
+        if (!$carreira) {
+            $st = $pdo->prepare("SELECT estado FROM caminho_carreiras WHERE id_usuario = ?
+                                 ORDER BY id DESC LIMIT 1");
+            $st->execute([$idUsuario]);
+            $bruto = (string)($st->fetchColumn() ?: '');
+            $carreira = $bruto !== '' ? ['estado' => json_decode($bruto, true)] : null;
+        }
+        // O estado vem do banco como TEXTO — a coluna e um LONGTEXT com o
+        // JSON dentro. Sem o decode aqui, o auditor receberia uma string e
+        // recusaria toda carreira honesta.
+        $cru = $carreira['estado'] ?? null;
+        $estado = is_array($cru) ? $cru : (is_string($cru) ? json_decode($cru, true) : null);
+        if (!is_array($estado)) $estado = null;
+        if (!$estado) { echo json_encode(['ok' => true, 'gravados' => 0, 'moedas' => 0, 'fba' => 0]); exit; }
+
+        $veredito = auditarCaminho($estado);
+        if (!$veredito['ok']) {
+            auditarRegistrarRecusa('caminho', $idUsuario, $veredito['motivo']);
+            echo json_encode(['ok' => false, 'erro' => 'carreira inconsistente']);
+            exit;
+        }
+
+        // O freio de ritmo: uma carreira leva minutos, um script leva
+        // segundos. Ele não impede a fraude, atrasa — e atrasar o suficiente
+        // é o que faz não valer o trabalho.
+        $cabe = auditarQuantoCabe($pdo, $idUsuario, 'caminho');
+        if ($cabe <= 0) { echo json_encode(['ok' => true, 'gravados' => 0, 'moedas' => 0, 'fba' => 0, 'ritmo' => true]); exit; }
+
+        $ids = array_slice(caminhoDesafiosDoEstado($estado, (bool)$ehFim), 0, min($cabe, CAMINHO_MAX_DESAFIOS_POR_VEZ));
         if (!$ids) { echo json_encode(['ok' => true, 'gravados' => 0, 'moedas' => 0, 'fba' => 0]); exit; }
 
         // O prêmio sai do rowCount, não da lista: só paga a linha que ENTROU
@@ -240,6 +436,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $moedas = 0; $fba = 0;
             }
         }
+        if ($gravados > 0) auditarAnotar($pdo, $idUsuario, 'caminho', $gravados);
         echo json_encode(['ok' => true, 'gravados' => $gravados, 'moedas' => $moedas, 'fba' => $fba]);
         exit;
     }

@@ -232,6 +232,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // Os totais são RECALCULADOS a partir das temporadas: o resumo que o
     // cliente manda é o que ele desenhou, não o que aconteceu.
     $temporadas = is_array($c['temporadas'] ?? null) ? $c['temporadas'] : [];
+
+    // A CARREIRA PASSA PELO AUDITOR ANTES DE VALER CONQUISTA. As contas
+    // abaixo já ignoram o resumo que o cliente manda e recalculam tudo das
+    // temporadas — mas as temporadas também vêm dele. O auditor não torna
+    // isso à prova de fraude (só o servidor simular tornaria); ele fecha a
+    // porta pra carreira IMPOSSÍVEL, que é como a fraude no olho se parece:
+    // trinta anos de 99 overall com todos os títulos, ou 300 gols em 4 jogos.
+    require_once __DIR__ . '/../../backend/carreira_auditor.php';
+    $veredito = auditarCopero($temporadas);
+    if (!$veredito['ok']) {
+        auditarRegistrarRecusa('copero', $idUsuario, $veredito['motivo']);
+        echo json_encode(['ok' => false, 'erro' => 'carreira inconsistente']);
+        exit;
+    }
     $tot = ['jogos' => 0, 'gols' => 0, 'ast' => 0];
     $clubes = [];
     $picoOvr = 0; $picoValor = 0;
@@ -394,9 +408,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $peso = ['impossivel' => 0, 'dificil' => 1, 'media' => 2, 'facil' => 3];
     usort($ganhas, fn($a, $b) => ($peso[$a['nivel']] ?? 9) <=> ($peso[$b['nivel']] ?? 9));
 
+    // O freio de ritmo, o mesmo do Caminho. A UNIQUE já limita o total de uma
+    // conta às 45 conquistas do catálogo, então aqui ele não protege o teto —
+    // protege a VELOCIDADE. Um script com uma carreira plausível levaria as 45
+    // num piscar; assim leva horas, e horas é tempo pra alguém ver a linha de
+    // recusa no log.
+    //
+    // O corte é só no que PAGA. $ganhas continua inteiro porque é ele que a
+    // tela mostra: quem bateu no freio jogando de verdade tem que ver a
+    // conquista que fez — ela volta a ser paga na próxima leva, porque só
+    // entra em copero_conquistas o que foi efetivamente pago.
+    $cabe = auditarQuantoCabe($pdo, $idUsuario, 'copero');
+    $aPagar = $cabe >= count($ganhas) ? $ganhas : array_slice($ganhas, 0, max(0, $cabe));
+
     // Paga o que ainda não foi pago. Quem não está logado vê as conquistas do
     // mesmo jeito — só não leva prêmio, porque não há a quem creditar.
-    $premio = coperoPagarConquistas($pdo, $idUsuario, $ganhas);
+    $premio = coperoPagarConquistas($pdo, $idUsuario, $aPagar);
+    if (!empty($premio['novas'])) auditarAnotar($pdo, $idUsuario, 'copero', count($premio['novas']));
     $novas = array_flip($premio['novas']);
     foreach ($ganhas as &$g) { $g['nova'] = isset($novas[$g['id']]); }
     unset($g);
