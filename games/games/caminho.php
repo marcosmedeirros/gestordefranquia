@@ -451,7 +451,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
    botões continuam no fim da decisão, onde sempre estiveram. Os atalhos
    ficam escondidos porque lá em cima a barra existe. */
 .rodape-fixo{display:contents}
-.rf-atalhos{display:none}
 .rf-acoes{display:contents}
 .rf-espaco{display:none}
 
@@ -492,22 +491,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
      ação do momento, colados no rodapé. Assim o botão do ano fica à mão
      em qualquer altura da rolagem — e os 64px do alto da tela, que só
      repetiam o nome do jogo, voltam pra ficha. */
-  .topbar-some{display:none}
+  /* A barra de cima FICA, e vira grudada. Ela sumia pra dar lugar a uma
+     barra de baixo com os MESMOS atalhos — trocar uma pela outra nao
+     devolvia espaco, so mudava os botoes de lugar. Agora o rodape e so da
+     acao do momento. */
+  .topbar{position:sticky;top:0;z-index:50}
 
   .rodape-fixo{position:fixed;left:0;right:0;bottom:0;z-index:60;
     display:flex;align-items:center;gap:8px;
     padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));
     background:var(--panel);border-top:1px solid var(--border);
     box-shadow:0 -8px 20px rgba(0,0,0,.4)}
-  .rf-atalhos{display:flex;align-items:center;gap:6px;flex:none}
-  .rf-btn{display:inline-flex;align-items:center;justify-content:center;gap:3px;
-    height:38px;min-width:38px;padding:0 9px;border-radius:11px;
-    border:1px solid var(--border);background:var(--panel2);color:var(--text2);
-    font-family:var(--font);font-size:12px;font-weight:700;text-decoration:none;cursor:pointer}
-  .rf-btn b{font-family:var(--num);font-weight:800;color:var(--text)}
-  .rf-btn:hover{border-color:var(--red);color:var(--red)}
-  .rf-moeda{color:var(--amber);font-family:var(--num);font-weight:800;cursor:default}
-  .rf-moeda:hover{border-color:var(--border);color:var(--amber)}
   /* Sem ação — quando a escolha é por cartas — a barra fica só com os
      atalhos, e eles se espalham em vez de ficarem espremidos num canto. */
   .rf-acoes{display:flex;flex:1;min-width:0;gap:8px;justify-content:flex-end}
@@ -1002,14 +996,6 @@ tr.tit td{color:var(--red)}
 .tag svg{width:16px;height:11px;border-radius:2px;flex:none;display:block}
 .tag.idolo{background:var(--blue-soft);color:#bfdbfe}
 
-/* A vitrine: a taça desenhada com a contagem no canto. */
-.vitrine{display:flex;flex-wrap:wrap;gap:8px;padding:9px 0;margin-bottom:0;
-  border-top:1px solid var(--border)}
-.vitrine.vazia{font-size:11px;color:var(--text3);font-weight:700;padding:10px 0}
-.tacao{position:relative;display:flex;align-items:center}
-.tacao b{position:absolute;right:-4px;bottom:-3px;font-family:var(--num);font-size:9.5px;font-weight:900;
-  background:var(--panel3);border:1px solid var(--border);border-radius:99px;padding:0 4px;color:var(--text)}
-
 .ficha-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
   border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:9px 0;margin-bottom:9px}
 .ficha-stats div{text-align:center;min-width:0}
@@ -1020,21 +1006,11 @@ tr.tit td{color:var(--red)}
 
 /* A caixa da trajetória: sem padding, porque a lista já tem o dela. */
 .caixa.linha{padding:0;overflow:hidden}
-.sumula-mais{display:none}
 @media (max-width:939px){
   /* O gradiente é o aviso de que a lista continua: cortada em linha reta
      ela parece uma carreira que acabou ali. */
-  /* Cinco anos e o cabecalho. Com a linha em 27px, 250 mostravam nove — e
-     nove anos de historico em cima da decisao do ano e historico demais
-     pra uma tela de celular. Quem quiser a carreira inteira tem o botao
-     logo abaixo. */
-  .sumula-curta .trajeto{max-height:165px;overflow:hidden;
-    -webkit-mask-image:linear-gradient(#000 74%,transparent);
-    mask-image:linear-gradient(#000 74%,transparent)}
-  .sumula-mais{display:block;width:100%;background:none;border:none;border-top:1px solid var(--border);
-    padding:11px;font-family:var(--font);font-size:11px;font-weight:800;letter-spacing:.9px;
-    text-transform:uppercase;color:var(--text3);cursor:pointer}
-  .sumula-mais:hover{color:var(--red);background:var(--red-soft)}
+  /* No celular a janela encolhe junto com a linha. */
+  .tj-anos{--tj-h:25px}
 }
 .caixa.linha .trajeto{border:none;border-radius:0;background:transparent}
 .ficha-ano{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:8px 10px}
@@ -1059,8 +1035,6 @@ tr.tit td{color:var(--red)}
   /* A faixa de nível vira uma linha fina: o rótulo e a barra dizem a mesma
      coisa em metade da altura. */
   .ovr-linha{padding:8px 11px;gap:9px}
-  /* "Vitrine vazia" é uma linha inteira pra dizer que não tem nada. */
-  .vitrine.vazia{display:none}
 
   .st{padding:6px 5px}
   .st b{font-size:17px}
@@ -1091,6 +1065,11 @@ tr.tit td{color:var(--red)}
   .ficha{padding:11px}
   .ficha-clube{font-size:15.5px}
   .ficha-stats b{font-size:17px}
+  /* O corte das taças entra só aqui, que é onde a célula do clube aperta
+     de verdade — até quatro cabem, da quinta em diante o nome do time
+     começaria a truncar. O :not() existe porque o "+N" também é <i>. */
+  .tj-trofeus.corta > i:nth-child(n+4):not(.tj-mais){display:none}
+  .tj-trofeus.corta .tj-mais{display:inline-flex}
 }
 
 
@@ -1103,6 +1082,19 @@ tr.tit td{color:var(--red)}
    viewport não enxerga isso e deixava "Los Angeles Lakers" em 80px. */
 .trajeto{border:1px solid var(--border);border-radius:12px;background:var(--panel);overflow:hidden;
   container-type:inline-size}
+/* A JANELA DE DOZE ANOS. A lista desce do ano de agora pro primeiro, então
+   o ano que interessa já nasce no topo e o scroll é só pra quem quiser
+   descer a carreira. O cabeçalho e a linha da seleção ficam FORA dela,
+   ancorados. Substitui o corte com máscara + botão "ver a carreira
+   inteira": a informação era a mesma, mas exigia um toque pra chegar nela. */
+.tj-anos{--tj-h:28px;max-height:calc(var(--tj-h) * 12);overflow-y:auto;position:relative;
+  overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--border2,#33333c) transparent}
+.tj-anos::-webkit-scrollbar{width:5px}
+.tj-anos::-webkit-scrollbar-thumb{background:var(--border2,#33333c);border-radius:99px}
+/* Cabecalho e linha da selecao vivem FORA da janela que rola, entao
+   ganham a mesma largura de barra que ela come — senao as colunas de
+   numero ficam deslocadas entre eles e as linhas de ano. */
+.trajeto .tj-cab,.trajeto .tj-selecao{margin-right:var(--tj-barra,0px)}
 .tj{display:flex;align-items:center;gap:7px;padding:5px 10px;border-bottom:1px solid var(--border);
   font-size:12px}
 .tj:last-child{border-bottom:none}
@@ -1160,8 +1152,11 @@ tr.tit td{color:var(--red)}
 .tj-clube .marca-time,.tj-clube .marca-logo{flex:none}
 .tj-escudo{flex:none;width:18px;height:18px;border-radius:5px;background:var(--panel3);
   display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text3);font-weight:800}
-.tj-trofeus{flex:none;display:flex;gap:2px;font-size:11px;line-height:1}
-.tj-trofeus i{font-style:normal;cursor:help}
+.tj-trofeus{flex:none;display:flex;align-items:center;gap:2px;margin-left:auto;line-height:1}
+.tj-trofeus i{font-style:normal;cursor:help;display:inline-flex;line-height:0}
+.tj-trofeus .tj-mais{display:none;font-family:var(--num);font-size:9px;font-weight:800;
+  color:var(--text3);background:var(--panel3);border-radius:5px;padding:1px 4px}
+.taca-nba{filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
 
 /* O OVR do ano, na cor da faixa dele — a curva do jogador aparece na
    coluna inteira sem precisar de gráfico nenhum. */
@@ -1174,6 +1169,12 @@ tr.tit td{color:var(--red)}
   font-variant-numeric:tabular-nums;color:var(--text2)}
 .tj-n.forte{font-size:12.5px;font-weight:800;color:var(--text)}
 .tj-vazia{opacity:.62}
+/* A linha da seleção fecha a trajetória: a bandeira ocupa a coluna que
+   nas outras é a idade, porque pela seleção você joga a carreira inteira
+   e não um ano. */
+.tj-selecao{background:color-mix(in srgb, var(--verde,#22c55e) 12%, transparent)}
+.tj-selecao .sel-selecao{background:none;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.tj-selecao .sel-selecao .band{width:24px;height:16px;border-radius:3px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}
 .tj-perdida .tj-clube b{color:var(--text2)}
 .tj-titulo{background:var(--red-soft)}
 .tj-agora{background:var(--panel2)}
@@ -3156,14 +3157,14 @@ const SETA = `<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor
  * pixels no alto da tela pra repetir o nome do jogo é caro demais quando a
  * ficha, a carreira e a decisão disputam o mesmo espaço.
  */
-function topo(some){
+function topo(){
   const chips = [];
   if (S && !S.encerrada && S.fase === "liga"){
     chips.push(`<div class="chip chip-espelho">OVR <b>${ovr(S.A,S.pos)}</b></div>`);
     chips.push(`<div class="chip chip-espelho">${S.idade} anos</div>`);
     chips.push(`<div class="chip" style="color:var(--amber)">$<b>${S.dinheiro}</b>M</div>`);
   }
-  return `<div class="topbar${some ? ' topbar-some' : ''}">
+  return `<div class="topbar">
     <div class="topbar-left">
       <a href="/games.php" class="back-btn" title="Voltar">${SETA}</a>
       <span class="game-title">O <span>Caminho</span><span class="daily-badge">carreira</span></span>
@@ -3184,17 +3185,18 @@ function topo(some){
  * os atalhos que estavam na barra de cima (voltar, conquistas, moedas) vêm
  * junto, já que lá em cima não tem mais barra.
  */
+/**
+ * O rodapé fixo, agora SÓ com a ação do momento.
+ *
+ * Ele levava também voltar, conquistas e moedas — os mesmos atalhos que a
+ * barra de cima tem — e por isso a barra de cima era escondida na tela de
+ * jogo. Trocar uma barra por outra não devolvia espaço nenhum: devolvia os
+ * mesmos botões noutro lugar. Agora a de cima fica (grudada) com os
+ * atalhos, e aqui embaixo mora só o que se decide.
+ */
 function rodapeDeAcoes(acoes){
-  const feitos = window.__DESAFIOS__ || {};
-  return `<div class="rodape-fixo">
-    <div class="rf-atalhos">
-      <a href="/games.php" class="rf-btn" title="Voltar aos jogos" aria-label="Voltar aos jogos">${SETA}</a>
-      <button class="rf-btn" onclick="telaDesafios()" title="Conquistas da carreira">🏆
-        <b>${DESAFIOS.filter(d => feitos[d.id]).length}</b></button>
-      <span class="rf-btn rf-moeda" title="Suas moedas">${window.__MOEDAS__ ?? 0}</span>
-    </div>
-    <div class="rf-acoes">${acoes || ''}</div>
-  </div>`;
+  if (!acoes) return '';
+  return `<div class="rodape-fixo"><div class="rf-acoes">${acoes}</div></div>`;
 }
 
 /** O espaço que a barra fixa ocupa. Vai por ÚLTIMO na página: é ele que
@@ -3202,6 +3204,14 @@ function rodapeDeAcoes(acoes){
 const espacoDaBarra = () => `<div class="rf-espaco" aria-hidden="true"></div>`;
 
 function render(){
+  const r = renderTela();
+  // Depois de a árvore existir: travar a janela da trajetória em doze
+  // linhas medidas. Vale pra toda tela que desenha a súmula.
+  medirJanelaDaTrajetoria();
+  return r;
+}
+
+function renderTela(){
   if (!S) return telaInicio();
   if (S.encerrada) return telaFim();
   if (S.fase === "base")   return telaCriar();
@@ -3818,7 +3828,7 @@ function telaFormacao(){
     `<button class="btn-desistir" onclick="desistir()">Desistir da carreira</button>` +
     espacoDaBarra();
 
-  app().innerHTML = topo(true) + `<div class="colunas colunas-ano">
+  app().innerHTML = topo() + `<div class="colunas colunas-ano">
     <div class="col-principal">
       <div class="bl-ficha">${blocoFicha}</div>
       <div class="bl-decisao">${blocoDecisao}</div>
@@ -4608,7 +4618,6 @@ function placar(st, rotuloAno, time, campanha, premios){
       <span class="ovr-barra"><i style="width:${clamp(o,0,99)}%"></i></span>
     </div>
 
-    ${vitrineTrofeus()}
 
     <div class="ficha-ano">
       <div class="ficha-ano-cab">${esc(rotuloAno)}${anos ? ` · ${anos}ª temporada` : ""}</div>
@@ -4630,34 +4639,6 @@ function placar(st, rotuloAno, time, campanha, premios){
   </div>`;
 }
 
-/**
- * A vitrine de troféus dentro da ficha, no molde do Copero: a taça desenhada
- * com a contagem no canto, e não uma lista de "3× MVP". Quatro títulos viram
- * uma taça com ×4, e quinze linhas de texto viram uma sala de troféus.
- */
-function vitrineTrofeus(){
-  const t = S.trofeus || {};
-  const ordem = [
-    ["titulo","Título","Títulos"], ["mvp","MVP","MVPs"],
-    ["fmvp","MVP das Finais","MVPs das Finais"], ["copaNBA","Copa NBA","Copas NBA"],
-    ["euro","Euroliga","Euroligas"], ["dpoy","Defensor do Ano","Defensores do Ano"],
-    ["cesta","Cestinha","Cestinhas"], ["roy","Calouro do Ano","Calouro do Ano"],
-    ["ouro","Ouro olímpico","Ouros olímpicos"], ["ouroCopa","Ouro na Copa","Ouros na Copa"],
-    ["prata","Prata olímpica","Pratas olímpicas"], ["prataCopa","Prata na Copa","Pratas na Copa"],
-    ["bronze","Bronze olímpico","Bronzes olímpicos"], ["bronzeCopa","Bronze na Copa","Bronzes na Copa"],
-    ["allstar","All-Star","All-Stars"],
-  ];
-  const itens = ordem.map(([k, um, varios]) => {
-    const n = Math.max(0, Number(t[k]) || 0);
-    if (!n) return "";
-    const svg = tacaNBA(k, 34);
-    if (!svg) return "";
-    return `<span class="tacao" title="${esc(n + "× " + (n === 1 ? um : varios))}">
-      ${svg}${n > 1 ? `<b>×${n}</b>` : ""}</span>`;
-  }).filter(Boolean);
-  if (!itens.length) return `<div class="vitrine vazia">Vitrine vazia</div>`;
-  return `<div class="vitrine">${itens.join("")}</div>`;
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 // AFASTAMENTO — lesão grave e suspensão
@@ -4862,12 +4843,34 @@ function jogarTorneio(o, t){
   return null;
 }
 
+/**
+ * O boletim do torneio pela seleção.
+ *
+ * São poucos jogos — a Olimpíada tem 6 e a Copa 8 — e é por isso que a
+ * linha da seleção cresce devagar mesmo pra quem é convocado sempre. O
+ * rendimento sai do mesmo `rendimento()` do clube, porque quem pontua lá
+ * pontua aqui, com um freio: contra seleção não existe adversário fraco
+ * pra explorar, e minutos de torneio são divididos entre mais gente.
+ */
+function numerosDoTorneio(o, t){
+  const jogos = t.k === "oly" ? ri(5, 6) : ri(7, 8);
+  // O freio de 0.82 nos minutos é o que segura a linha da seleção: num
+  // torneio o elenco é o melhor do país inteiro, e ninguém joga 36 minutos
+  // como joga no clube. statsDoAno já converte minutos em produção.
+  const min = clamp(Math.round(minutosDoAno(o) * 0.82), 8, 32);
+  const st = statsDoAno(o, min, SELECOES[S.nac] ?? 65);
+  return {selJogos: jogos, selPts: st.pts, selReb: st.reb, selAst: st.ast};
+}
+
 /** Guarda a medalha em trofeus e devolve o prêmio pra linha do ano. */
 function anoDeSelecao(o){
   const t = torneioDoAno(S.ano);
   if (!t || !convocado(o)) return null;
 
   S.convocacoes = (S.convocacoes || 0) + 1;
+  // Os números do torneio ficam na temporada, e é a soma deles que vira a
+  // linha da seleção no pé da trajetória.
+  S.numerosSelecao = numerosDoTorneio(o, t);
   const r = jogarTorneio(o, t);
   if (!r){
     // Convocação sem medalha ainda é linha na súmula: some do resumo, mas
@@ -4899,7 +4902,9 @@ function fecharAno(campeao, vit, o, st){
   // O OVR do ano vai junto: a trajetória mostra a curva do jogador, e sem
   // guardar aqui só sobraria o OVR de hoje, igual em todas as linhas.
   S.temporadas.push({ano:S.ano, idade:S.idade, time:S.time, ...st, vit, ovr:o,
-                     premios:premios.map(p=>p.t), campeao});
+                     premios:premios.map(p=>p.t), campeao,
+                     ...(S.numerosSelecao || {})});
+  S.numerosSelecao = null;   // valem pro ano que acabou, e só pra ele
 
   S.efeitoDecisao = 0;
   S.desfecho = null;       // o desfecho pertence ao ano que passou
@@ -5289,7 +5294,7 @@ function telaTemporada(){
 
   // A súmula vai pro lado no desktop: ela cresce a cada temporada e,
   // embaixo do botão de avançar, empurrava a decisão pra fora da tela.
-  app().innerHTML = topo(true) + `<div class="colunas colunas-ano">
+  app().innerHTML = topo() + `<div class="colunas colunas-ano">
     <div class="col-principal">
       <div class="bl-ficha">${blocoFicha}</div>
       <div class="bl-decisao">${blocoDecisao}</div>
@@ -5658,22 +5663,49 @@ function resumoDeTrofeus(){
  * nome e o `title` continua dizendo o que é — a informação não some, só
  * para de ocupar espaço que a lista de idades precisa.
  */
-const ICONE_TROFEU = [
-  [/final/i,      "💍"], [/mvp/i,       "⭐"], [/defensor|dpoy/i, "🛡️"],
-  [/calouro|roy/i,"🌱"], [/cestinha/i,  "🎯"], [/all[- ]?star/i,  "🎪"],
-  [/euroliga/i,   "🌍"], [/ouro/i,      "🥇"], [/prata/i,         "🥈"],
-  [/bronze/i,     "🥉"], [/evolu|mip/i, "📈"],
+/**
+ * De que TAÇA é cada prêmio do ano.
+ *
+ * A ordem importa e é armadilha: /final/ tem que vir DEPOIS de /mvp/,
+ * senão "MVP das Finais" cai no anel de campeão em vez do troféu de MVP
+ * das finais — que é justamente o prêmio mais raro da lista. E /ouro/
+ * separado de /copa/ porque ouro olímpico e ouro de Copa são medalhas
+ * diferentes no motor (S.trofeus guarda em campos separados).
+ */
+const TACA_DO_PREMIO = [
+  [/mvp.*final|final.*mvp/i, "fmvp"], [/mvp/i,           "mvp"],
+  [/defensor|dpoy/i,         "dpoy"], [/calouro|roy/i,   "roy"],
+  [/cestinha/i,              "cesta"], [/all[- ]?star/i, "allstar"],
+  [/euroliga/i,              "euro"],  [/copa.*ouro|ouro.*copa/i, "ouro"],
+  [/ouro/i,                  "ouro"],  [/prata/i,        "prata"],
+  [/bronze/i,                "bronze"],
 ];
+
+/**
+ * As taças do ano, dentro da célula do clube.
+ *
+ * Eram emoji — 🏆⭐🛡️ — e emoji de sistema muda de desenho a cada
+ * aparelho, some em fonte que não tem, e não combina com nada do resto do
+ * jogo. Agora usa as mesmas taças SVG da sala de troféus, no tamanho da
+ * linha. Prêmio que não casa com taça nenhuma cai no troféu de título,
+ * que é o genérico da casa.
+ */
 function trofeusDaTemporada(t){
-  const itens = [];
-  if (t.campeao) itens.push(["🏆", "Campeão"]);
+  const ids = [];
+  if (t.campeao) ids.push(["titulo", "Campeão"]);
   (t.premios || []).forEach(p => {
-    const achado = ICONE_TROFEU.find(([re]) => re.test(p));
-    itens.push([achado ? achado[1] : "🎖️", p]);
+    const achado = TACA_DO_PREMIO.find(([re]) => re.test(p));
+    ids.push([achado ? achado[1] : "titulo", p]);
   });
-  if (!itens.length) return "";
-  return `<span class="tj-trofeus">${itens.map(([ic, nome]) =>
-    `<i title="${esc(nome)}">${ic}</i>`).join("")}</span>`;
+  if (!ids.length) return "";
+  // Até quatro aparecem; da quinta em diante viram "+N", porque a célula
+  // do clube tem o nome do time pra caber junto.
+  const corta = ids.length > 4;
+  const vistos = ids.map(([id, nome]) => `<i title="${esc(nome)}">${tacaNBA(id, 13)}</i>`).join("");
+  const extra = corta
+    ? `<i class="tj-mais" title="${esc(ids.slice(3).map(([,n]) => n).join(" · "))}">+${ids.length - 3}</i>`
+    : "";
+  return `<span class="tj-trofeus${corta ? " corta" : ""}">${vistos}${extra}</span>`;
 }
 
 /**
@@ -5765,8 +5797,43 @@ function trajetoPorIdade(){
       <span class="tj-n">Jg</span><span class="tj-n forte">Pts</span>
       <span class="tj-n">Reb</span><span class="tj-n">Ast</span>
     </div>
-    ${linhas.join("")}
+    <div class="tj-anos">${linhas.join("")}</div>
+    ${linhaDaSelecao()}
   </div>${rodapeDeTotais()}`;
+}
+
+/**
+ * A carreira pela SELEÇÃO, numa linha só no pé da trajetória.
+ *
+ * O jogo já contava convocações e medalhas, mas nunca mostrou quanto você
+ * JOGOU pelo país — e as medalhas ficavam soltas na sala de troféus, sem
+ * nada dizendo que vieram de outra camisa. A linha é irmã da do clube de
+ * propósito: são duas carreiras paralelas, e somar as duas esconderia as
+ * duas. Pontos, rebotes e assistências saem como MÉDIA, igual às linhas de
+ * ano acima — total de pontos numa linha de médias faria a coluna mentir.
+ */
+function linhaDaSelecao(){
+  const anos = (S.temporadas || []).filter(t => t.selJogos);
+  if (!anos.length && !S.convocacoes) return "";
+
+  const jogos = anos.reduce((a, t) => a + (t.selJogos || 0), 0);
+  const med = (k) => {
+    if (!jogos) return "0.0";
+    const soma = anos.reduce((a, t) => a + (t[k] || 0) * (t.selJogos || 0), 0);
+    return (Math.round(soma / jogos * 10) / 10).toFixed(1);
+  };
+  // NACOES é lista de pares [codigo, nome], não mapa — procurar, não indexar.
+  const par = NACOES.find(([c]) => c === S.nac);
+  const pais = par ? par[1] : S.nac;
+  return `<div class="tj tj-selecao" title="Sua carreira pela seleção ${esc(pais)}">
+    <span class="tj-idade sel-selecao">${bandeira(S.nac)}</span>
+    <span class="tj-clube"><b>${esc(pais)}</b><em>seleção</em></span>
+    <span class="tj-ovr tj-ovr-vazio">—</span>
+    <span class="tj-n">${jogos}</span>
+    <span class="tj-n forte">${med("selPts")}</span>
+    <span class="tj-n">${med("selReb")}</span>
+    <span class="tj-n">${med("selAst")}</span>
+  </div>`;
 }
 
 /**
@@ -5793,27 +5860,37 @@ function rodapeDeTotais(){
   </div>`;
 }
 
-function sumula(){
-  if (!S.temporadas.length) return "";
-  // Os troféus subiram pra ficha, ao lado do overall — é lá que o Copero os
-  // põe, e é lá que eles são vistos sem rolar a página.
-  //
-  // Depois de oito temporadas a lista passa de 600px e, no celular, empurra
-  // a decisão do ano pra bem abaixo da dobra: a pessoa rolava a carreira
-  // inteira toda vez pra chegar no botão. Ela nasce cortada nas temporadas
-  // MAIS RECENTES — que estão no topo, porque a lista desce no tempo — e
-  // abre inteira num toque. O corte é só no celular; no desktop ela mora na
-  // coluna do lado e não está no caminho de ninguém.
-  const longa = S.temporadas.length > 7;
-  return `<div class="caixa linha${longa ? ' sumula-curta' : ''}">${trajetoPorIdade()}
-    ${longa ? `<button class="sumula-mais" onclick="abrirSumula(this)">Ver a carreira inteira</button>` : ""}
-  </div>`;
+/**
+ * Trava a janela da trajetória em doze linhas, MEDINDO a linha.
+ *
+ * A altura de uma linha muda com o breakpoint, com a fonte do sistema e
+ * com a borda entre linhas — escrever o número no CSS deixava a janela com
+ * 13,4 linhas em vez de 12. Aqui o passo sai da distância entre as duas
+ * primeiras linhas de verdade.
+ */
+function medirJanelaDaTrajetoria(){
+  const cx = document.querySelector('.tj-anos');
+  if (!cx || cx.children.length < 2) return;
+  const passo = cx.children[1].offsetTop - cx.children[0].offsetTop;
+  if (passo > 0) cx.style.setProperty('--tj-h', passo + 'px');
+
+  // A BARRA DE ROLAGEM COME LARGURA das linhas de ano, e o cabeçalho e a
+  // linha da seleção estão FORA da janela — sem compensar, as colunas de
+  // número saem 10px deslocadas entre eles. O valor é medido porque muda
+  // com o sistema: no celular a barra sobrepõe e não come nada.
+  const barra = cx.offsetWidth - cx.clientWidth;
+  const traj = cx.closest('.trajeto');
+  if (traj) traj.style.setProperty('--tj-barra', barra + 'px');
 }
 
-/** Tira o corte da súmula. O botão sai junto: não há o que fechar. */
-function abrirSumula(botao){
-  botao.closest(".linha").classList.remove("sumula-curta");
-  botao.remove();
+function sumula(){
+  if (!S.temporadas.length) return "";
+  // A lista tem altura fixa de doze anos e rola por dentro (.tj-anos). Antes
+  // ela nascia CORTADA com máscara e um botão "ver a carreira inteira": a
+  // informação era a mesma, mas custava um toque pra chegar nela, e depois
+  // de aberta voltava a empurrar a decisão pra fora da tela. A janela
+  // resolve os dois — nunca cresce, e a carreira inteira está a um scroll.
+  return `<div class="caixa linha">${trajetoPorIdade()}</div>`;
 }
 
 

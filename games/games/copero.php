@@ -730,6 +730,13 @@ button{font-family:inherit}
   position:relative}
 .anos::-webkit-scrollbar{width:5px}
 .anos::-webkit-scrollbar-thumb{background:var(--borda2);border-radius:99px}
+/* Cabecalho e as duas linhas de total vivem FORA da janela que rola, entao
+   ganham a largura que a barra de rolagem come dela — senao as colunas de
+   numero saem 10px deslocadas entre eles e as linhas de ano. O valor e
+   medido em focarAnoAtual(), porque no celular a barra sobrepoe e come 0.
+   A especificidade tem que ser maior que a de .ano/.linha-cab: as regras
+   de padding delas vem DEPOIS no arquivo. */
+.linha .linha-cab,.linha .linha-sel,.linha .linha-pe{margin-right:var(--barra-anos,0px)}
 .linha-cab,.ano,.linha-pe,.linha-sel{display:grid;grid-template-columns:44px minmax(0,1fr) 46px 56px 52px 52px;gap:8px;
   align-items:center}
 /* A linha da seleção fecha a tabela, com a bandeira ocupando a coluna que
@@ -3177,6 +3184,9 @@ function focarAnoAtual(){
     const passo = linhas[1].offsetTop - linhas[0].offsetTop;
     if (passo > 0) cx.style.setProperty('--ano-h', passo + 'px');
   }
+
+  const linha = cx.closest('.linha');
+  if (linha) linha.style.setProperty('--barra-anos', (cx.offsetWidth - cx.clientWidth) + 'px');
 
   const alvo = cx.querySelector('.ano.entrando') || cx.querySelector('.ano.atual');
   if (!alvo) return;
