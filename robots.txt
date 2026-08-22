@@ -4,6 +4,10 @@ Allow: /site/site.php
 Allow: /site/gamesfba.php
 Allow: /site/pathetic.php
 Allow: /img/
+# As fotos das notícias do The Pathetic. Sem esta linha o robots
+# proíbe a og:image das matérias, e o link colado no WhatsApp ou no
+# Twitter aparece sem imagem — que é justamente o que faz alguém clicar.
+Allow: /uploads/pathetic/
 Disallow: /
 
 Sitemap: https://fbabrasil.com.br/sitemap.xml

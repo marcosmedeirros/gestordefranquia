@@ -322,16 +322,23 @@ function patheticTextoHtml(?string $texto): string
 
     $seguro = htmlspecialchars($texto, ENT_QUOTES, 'UTF-8');
 
-    // Marcação depois do escape: os asteriscos e underscores do editor
-    // sobrevivem ao htmlspecialchars, e o que eles viram é tag nossa.
-    $seguro = preg_replace('/(?<![\w*])\*(?=\S)(.+?)(?<=\S)\*(?![\w*])/su', '<strong>$1</strong>', $seguro);
-    $seguro = preg_replace('/(?<![\w_])_(?=\S)(.+?)(?<=\S)_(?![\w_])/su',   '<em>$1</em>',        $seguro);
-
+    // CORTA EM PARÁGRAFOS PRIMEIRO, marca depois.
+    //
+    // Era o contrário, e o /s fazia o ponto casar com quebra de linha: um
+    // asterisco solto num parágrafo se emparelhava com outro três parágrafos
+    // abaixo, e o <strong> nascia atravessando os </p><p> do meio — HTML com
+    // tags cruzadas, que cada navegador conserta do seu jeito.
+    //
+    // Marcando DENTRO de cada parágrafo, o /s some junto: negrito não
+    // atravessa linha em branco porque linha em branco é onde o parágrafo
+    // acaba.
     $paragrafos = preg_split('/\R{2,}/u', $seguro);
     $saida = [];
     foreach ($paragrafos as $p) {
         $p = trim($p);
         if ($p === '') continue;
+        $p = preg_replace('/(?<![\w*])\*(?=\S)([^*\r\n]+?)(?<=\S)\*(?![\w*])/u', '<strong>$1</strong>', $p);
+        $p = preg_replace('/(?<![\w_])_(?=\S)([^_\r\n]+?)(?<=\S)_(?![\w_])/u',    '<em>$1</em>',        $p);
         $saida[] = '<p>' . nl2br($p, false) . '</p>';
     }
     return implode("\n", $saida);
@@ -362,6 +369,28 @@ function patheticMinutos(?string $texto): int
 {
     $palavras = str_word_count(strip_tags((string)$texto), 0, 'áàâãéêíóôõúüçÁÀÂÃÉÊÍÓÔÕÚÜÇ');
     return max(1, (int)round($palavras / 200));
+}
+
+/**
+ * O que dizer pro editor sobre o aviso no grupo.
+ *
+ * patheticAvisarGrupo devolve quatro coisas e a tela tratava duas. Publicar
+ * com o WhatsApp desligado mostrava só "Notícia publicada." — o editor
+ * concluía que o grupo tinha sido avisado, e não tinha. Pior: não há cron de
+ * retry, então o aviso simplesmente não acontecia nunca.
+ *
+ * Recebe $tipo por referência pra pintar o aviso de amarelo quando o envio
+ * não saiu: verde dizendo "publicada" ao lado de um envio que falhou é a
+ * mesma mentira de antes, só que colorida.
+ */
+function patheticTextoDoAviso(?string $r, string &$tipo): string
+{
+    if ($r === 'ok')     return ' O grupo foi avisado.';
+    if ($r === null)     return '';   // grau que não avisa: nada a dizer
+    $tipo = 'warning';
+    if ($r === 'desligado') return ' O grupo NÃO foi avisado: o WhatsApp está desligado. Ligue e use "avisar o grupo" na lista.';
+    if ($r === 'sem-grupo') return ' O grupo NÃO foi avisado: não há grupo principal configurado.';
+    return ' O aviso no grupo falhou — veja o log.';
 }
 
 /**

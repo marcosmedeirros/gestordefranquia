@@ -18,8 +18,22 @@ requireAuth();
 
 $user = getUserSession();
 $thePatheticExtraEditors = ['gustavodossantosgonzaga58@gmail.com'];
-$isThePatheticEditor = ($user['user_type'] ?? 'jogador') === 'admin'
+$ehAdminGeral = ($user['user_type'] ?? 'jogador') === 'admin';
+$isThePatheticEditor = $ehAdminGeral
     || in_array(strtolower($user['email'] ?? ''), $thePatheticExtraEditors, true);
+
+// ESCREVER NO "ARQUIVO" É PODER DE ADMIN, e não de editor.
+//
+// O bloco do arquivo sai CRU nas duas páginas do jornal — é o que ele sempre
+// foi, a caixa de HTML que o editor colava. Só que /thepathetic.php não pede
+// login e mora na mesma origem do app: um <img onerror> gravado ali roda no
+// navegador de quem abrir, inclusive de um admin logado, com o cookie de
+// sessão dele. Quem escreve nesse campo pode, na prática, agir como admin.
+//
+// A notícia não tem esse problema (o texto dela é escapado em
+// patheticTextoHtml), então o editor não-admin continua escrevendo matéria
+// normalmente. O que ele perde é só a caixa de HTML livre.
+$podeMexerNoArquivo = $ehAdminGeral;
 if (!$isThePatheticEditor) {
     header('Location: /dashboard.php');
     exit;
@@ -99,9 +113,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // A foto vem depois do INSERT porque o nome do arquivo usa o id —
             // é o que garante que duas notícias nunca briguem pelo mesmo nome.
             $fotoAtual = (string)($antiga['foto'] ?? '');
+            // O ERRO DE FOTO NÃO DERRUBA A NOTÍCIA. Ele derrubava: o INSERT
+            // já tinha sido commitado quando a exceção subia, o formulário era
+            // redesenhado em branco (porque veio de ?nova=1 e não há $editando)
+            // e o editor redigitava tudo — nascendo um segundo rascunho com o
+            // mesmo texto. A cada foto recusada, mais um fantasma na lista.
+            //
+            // A notícia é o trabalho; a foto é um anexo. Salva o texto, avisa
+            // que a foto não entrou, e a pessoa troca a foto editando.
+            $avisoDaFoto = null;
             if (!empty($_FILES['foto']['name'])) {
                 [$caminho, $erroFoto] = patheticSalvarFoto($_FILES['foto'], $id);
-                if ($erroFoto) throw new RuntimeException($erroFoto);
+                if ($erroFoto) $avisoDaFoto = $erroFoto;
                 if ($caminho) {
                     patheticApagarFoto($fotoAtual);
                     $pdo->prepare("UPDATE pathetic_noticias SET foto=? WHERE id=?")->execute([$caminho, $id]);
@@ -118,15 +141,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $flash = $antiga ? 'Notícia atualizada.' : 'Notícia criada.';
 
+            // O CHECKBOX É UM INTERRUPTOR, e agora liga E desliga. Ele nascia
+            // marcado quando a notícia estava no ar e o texto de ajuda dizia
+            // "sem marcar, ela fica de rascunho" — mas só o ramo positivo
+            // existia: desmarcar e salvar deixava a notícia no ar do mesmo
+            // jeito, sem dizer nada.
             if ($publicar) {
                 $pdo->prepare("UPDATE pathetic_noticias
                                SET publicada=1, publicada_em=COALESCE(publicada_em, NOW())
                                WHERE id=?")->execute([$id]);
                 $flash .= ' Publicada.';
-                $r = patheticAvisarGrupo($pdo, patheticUma($pdo, $id, true) ?: []);
-                if ($r === 'ok')      $flash .= ' O grupo foi avisado.';
-                if ($r === 'falhou')  $flash .= ' (o aviso no grupo falhou — veja o log)';
+                $flash .= patheticTextoDoAviso(patheticAvisarGrupo($pdo, patheticUma($pdo, $id, true) ?: []), $flashType);
+            } elseif ($antiga && !empty($antiga['publicada'])) {
+                $pdo->prepare("UPDATE pathetic_noticias SET publicada=0 WHERE id=?")->execute([$id]);
+                $flash .= ' Tirada do ar — voltou a ser rascunho.';
             }
+
+            if ($avisoDaFoto) { $flash .= ' A foto não entrou: ' . $avisoDaFoto; $flashType = 'warning'; }
             break;
 
         // ── Publicar / tirar do ar ───────────────────────────────────
@@ -136,9 +167,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            SET publicada=1, publicada_em=COALESCE(publicada_em, NOW())
                            WHERE id=?")->execute([$id]);
             $flash = 'Notícia publicada.';
-            $r = patheticAvisarGrupo($pdo, patheticUma($pdo, $id, true) ?: []);
-            if ($r === 'ok')     $flash .= ' O grupo foi avisado.';
-            if ($r === 'falhou') $flash .= ' (o aviso no grupo falhou — veja o log)';
+            $flash .= patheticTextoDoAviso(patheticAvisarGrupo($pdo, patheticUma($pdo, $id, true) ?: []), $flashType);
+            break;
+
+        // Reenviar o aviso de uma notícia que já está no ar. Existe porque o
+        // WhatsApp pode estar desligado na hora de publicar, e sem isto a
+        // única saída era abrir a matéria e salvar de novo — coisa que
+        // ninguém faz, porque nada avisava que o envio tinha falhado.
+        case 'avisar':
+            $r = patheticAvisarGrupo($pdo, patheticUma($pdo, (int)($_POST['id'] ?? 0), true) ?: []);
+            $flash = $r === 'ok' ? 'Aviso enviado no grupo.' : 'Nada foi enviado.';
+            $flash .= patheticTextoDoAviso($r, $flashType);
             break;
 
         case 'despublicar':
@@ -159,6 +198,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // ── O arquivo (a caixa de HTML antiga) ───────────────────────
         case 'arquivo':
+            // O conteúdo daqui sai sem escape em duas páginas públicas — ver
+            // o comentário do $podeMexerNoArquivo lá em cima.
+            if (!$podeMexerNoArquivo) {
+                throw new RuntimeException('Só o admin geral edita o bloco do arquivo.');
+            }
             $conteudo = (string)($_POST['content'] ?? '');
             $pdo->prepare("INSERT INTO site_pages (page_key, content) VALUES ('thepathetic', ?)
                            ON DUPLICATE KEY UPDATE content = ?, updated_at = CURRENT_TIMESTAMP")
@@ -175,7 +219,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Redireciona depois de escrever (PRG): sem isto, dar F5 na tela de
     // sucesso reenvia o POST e publica a mesma notícia de novo.
     if ($flashType !== 'danger') {
+        // O TIPO viaja junto com o texto. Sem isto, um aviso amarelo ("o
+        // grupo não foi avisado") chegava do outro lado do redirect pintado
+        // de verde, dizendo sucesso.
         $_SESSION['pathetic_flash'] = $flash;
+        $_SESSION['pathetic_flash_tipo'] = $flashType;
         header('Location: /thepathetic-edit.php');
         exit;
     }
@@ -183,7 +231,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if (!empty($_SESSION['pathetic_flash'])) {
     $flash = $_SESSION['pathetic_flash'];
-    unset($_SESSION['pathetic_flash']);
+    $flashType = $_SESSION['pathetic_flash_tipo'] ?? 'success';
+    unset($_SESSION['pathetic_flash'], $_SESSION['pathetic_flash_tipo']);
 }
 
 // ── O que a tela mostra ──────────────────────────────────────────────
@@ -298,6 +347,10 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
         .flash{border-radius:var(--radius-sm);padding:12px 16px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:10px;}
         .flash.success{background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.25);color:var(--green);}
         .flash.danger{background:var(--red-soft);border:1px solid var(--border-red);color:var(--red);}
+        /* O amarelo do "publicou, mas o aviso não saiu": não é erro (a notícia
+           está no ar) nem sucesso limpo (o grupo não soube). */
+        .flash.warning{background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.30);color:#b45309;}
+        :root:not([data-theme="light"]) .flash.warning{color:#f59e0b;}
 
         .btn-save{background:var(--red);border:none;color:#fff;font-family:var(--font);font-size:13px;font-weight:700;padding:10px 28px;border-radius:var(--radius-sm);cursor:pointer;transition:filter var(--t) var(--ease);}
         .btn-save:hover{filter:brightness(1.1);}
@@ -396,6 +449,8 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
         .ac:hover{border-color:var(--border-md);color:var(--text)}
         .ac-ok:hover{border-color:var(--green);color:var(--green)}
         .ac-perigo:hover{border-color:var(--red);color:var(--red)}
+        .ac-whats{color:var(--green)}
+        .ac-whats:hover{border-color:var(--green);color:var(--green)}
 
         details.bc > summary::-webkit-details-marker{display:none}
         details.bc[open] > summary{border-bottom:1px solid var(--border)}
@@ -445,8 +500,8 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
         <div class="content">
             <?php if ($flash): ?>
-            <div class="flash <?= $flashType==='danger'?'danger':'success' ?>" style="margin-bottom:18px">
-                <i class="bi bi-<?= $flashType==='danger'?'exclamation-circle-fill':'check-circle-fill' ?>"></i>
+            <div class="flash <?= $flashType==='danger'?'danger':($flashType==='warning'?'warning':'success') ?>" style="margin-bottom:18px">
+                <i class="bi bi-<?= $flashType==='danger'?'exclamation-circle-fill':($flashType==='warning'?'exclamation-triangle-fill':'check-circle-fill') ?>"></i>
                 <?= $esc($flash) ?>
             </div>
             <?php endif; ?>
@@ -513,7 +568,7 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                                         <small><?= $esc($info['nota']) ?></small>
                                     </span>
                                     <?php if (in_array($g, PATHETIC_GRAUS_QUE_AVISAM, true)): ?>
-                                        <em class="avisa"><i class="bi bi-whatsapp"></i> avisa o grupo</em>
+                                        <em class="avisa" title="Se o WhatsApp estiver ligado e com grupo configurado"><i class="bi bi-whatsapp"></i> avisa o grupo</em>
                                     <?php endif; ?>
                                 </label>
                                 <?php endforeach; ?>
@@ -589,7 +644,7 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
             <?php
               $blocos = [];
               if ($rascunhos) $blocos[] = ['Rascunhos', 'bi-pencil', $rascunhos, 'Ninguém vê até você publicar.'];
-              if ($noAr)      $blocos[] = ['No ar', 'bi-broadcast', $noAr, 'Ordenadas como aparecem na capa.'];
+              if ($noAr)      $blocos[] = ['No ar', 'bi-broadcast', $noAr, 'Da mais recente para a mais antiga.'];
               foreach ($blocos as [$titulo, $icone, $lista, $nota]):
             ?>
             <div class="bc" style="margin-bottom:16px">
@@ -614,6 +669,14 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                             <a class="ac" href="/thepathetic-edit.php?editar=<?= (int)$n['id'] ?>" title="Editar"><i class="bi bi-pencil"></i></a>
                             <?php if (!empty($n['publicada'])): ?>
                                 <a class="ac" href="/thepathetic.php?n=<?= (int)$n['id'] ?>" target="_blank" rel="noopener" title="Ver no jornal"><i class="bi bi-box-arrow-up-right"></i></a>
+                                <?php if (empty($n['avisou_whats']) && in_array($n['grau'], PATHETIC_GRAUS_QUE_AVISAM, true)): ?>
+                                <form method="post" title="O grupo ainda não foi avisado desta notícia">
+                                    <input type="hidden" name="token" value="<?= $esc($token) ?>">
+                                    <input type="hidden" name="acao" value="avisar">
+                                    <input type="hidden" name="id" value="<?= (int)$n['id'] ?>">
+                                    <button class="ac ac-whats" title="Avisar o grupo agora"><i class="bi bi-whatsapp"></i></button>
+                                </form>
+                                <?php endif; ?>
                                 <form method="post" onsubmit="return confirm('Tirar esta notícia do ar? Ela continua salva como rascunho.')">
                                     <input type="hidden" name="token" value="<?= $esc($token) ?>">
                                     <input type="hidden" name="acao" value="despublicar">
@@ -641,6 +704,7 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
             </div>
             <?php endforeach; ?>
 
+            <?php if ($podeMexerNoArquivo): ?>
             <details class="bc" style="margin-top:22px">
                 <summary class="bc-head" style="cursor:pointer;list-style:none">
                     <div class="bc-title"><i class="bi bi-archive"></i> Do arquivo — o HTML antigo</div>
@@ -658,6 +722,7 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                     </form>
                 </div>
             </details>
+            <?php endif; ?>
 
 <?php endif; ?>
         </div>

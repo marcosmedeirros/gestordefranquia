@@ -19,6 +19,13 @@ $pdo = db();
 $idPedido = isset($_GET['n']) ? (int)$_GET['n'] : 0;
 $materia  = $idPedido > 0 ? patheticUma($pdo, $idPedido) : null;
 
+// PEDIU UMA MATÉRIA QUE NÃO EXISTE MAIS. Isso acontece de verdade: o link foi
+// pro grupo do WhatsApp e depois a notícia saiu do ar ou foi apagada. Cair na
+// capa com HTTP 200 fazia o leitor achar que errou o clique, e dizia pro
+// Google que aquele endereço é a capa — duas coisas erradas de uma vez.
+$sumiu = $idPedido > 0 && !$materia;
+if ($sumiu) http_response_code(404);
+
 $noticias = patheticPublicadas($pdo, 60);
 $capa     = patheticCapa($noticias);
 
@@ -43,7 +50,7 @@ function patheticSelo(string $grau): string
 
 $tituloPagina = $materia
     ? $materia['titulo'] . ' — The Pathetic'
-    : 'The Pathetic — o jornal da FBA';
+    : ($sumiu ? 'Notícia não encontrada — The Pathetic' : 'The Pathetic — o jornal da FBA');
 $descPagina = $materia ? patheticResumo($materia, 160) : 'As notícias da liga, em primeira mão.';
 $fotoPagina = $materia ? patheticSrcFoto($materia['foto'] ?? '') : '';
 ?>
@@ -78,7 +85,10 @@ $fotoPagina = $materia ? patheticSrcFoto($materia['foto'] ?? '') : '';
 :root{
   --tinta:#f4f2ee;         /* branco de papel, levemente quente */
   --tinta-2:#a8a49c;
-  --tinta-3:#726e67;
+  /* #726e67 dava 4,0:1 contra o fundo — abaixo do mínimo pros textos de
+     11-12px que usam esta cor (crédito, data, legenda). #8a8680 dá 5,6:1 e
+     continua lendo como secundário. */
+  --tinta-3:#8a8680;
   --fundo:#0b0b0d;
   --fundo-2:#131316;
   --fundo-3:#1a1a1e;
@@ -99,6 +109,13 @@ $fotoPagina = $materia ? patheticSrcFoto($materia['foto'] ?? '') : '';
 html{-webkit-text-size-adjust:100%}
 body{background:var(--fundo);color:var(--tinta);font-family:var(--serifa);
   -webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden}
+/* PALAVRA LONGA QUEBRA. Uma URL colada no texto de uma matéria não tem espaço
+   pra quebrar, e empurrava a linha 115px pra fora numa tela de 360 — o
+   overflow-x:hidden do body escondia a rolagem e CORTAVA o resto da palavra,
+   que é pior que rolar: a informação some sem sinal nenhum.
+   Vale pro texto e pros títulos, que também são escritos por gente. */
+.materia-txt,.materia-tit,.manchete-tit,.destaque-tit,.noticia-tit,
+.materia-linha-fina,.linha-fina,.arquivo-html{overflow-wrap:break-word;word-break:break-word}
 img{max-width:100%;display:block}
 a{color:inherit;text-decoration:none}
 
@@ -163,7 +180,13 @@ a{color:inherit;text-decoration:none}
 .manchete-foto img{width:100%;height:100%;object-fit:cover;
   transition:transform .5s cubic-bezier(.2,.8,.2,1)}
 .manchete:hover .manchete-foto img{transform:scale(1.02)}
-.manchete-tarjas{position:absolute;top:12px;left:12px;display:flex;gap:7px;align-items:center;z-index:2}
+/* As tarjas cabem na foto. Eram absolutas em left:12 sem limite de largura,
+   e com `white-space:nowrap` num chapéu comprido a segunda saía pela direita
+   da foto — medido: 346px de tarja numa foto de 328. Agora elas param na
+   borda e a que não couber quebra pra linha de baixo. */
+.manchete-tarjas{position:absolute;top:12px;left:12px;right:12px;display:flex;gap:7px;
+  align-items:flex-start;flex-wrap:wrap;z-index:2}
+.manchete-tarjas .selo{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .manchete-txt{display:grid;gap:12px}
 .manchete-tit{font-family:var(--display);font-size:clamp(30px,6.4vw,66px);line-height:.96;
   letter-spacing:-.8px;text-transform:uppercase;text-wrap:balance}
@@ -252,9 +275,12 @@ a{color:inherit;text-decoration:none}
 .arquivo-html p{margin-bottom:.9em}
 .arquivo-html a{color:var(--vermelho);text-decoration:underline}
 
+/* O rodapé usava --fio-forte (#3a3a41), que é COR DE LINHA, não de texto:
+   1,74:1 contra o fundo, abaixo do 4,5:1 mínimo e praticamente invisível.
+   --tinta-3 dá 4,7:1 e continua discreto. */
 .rodape{max-width:var(--larg);margin:0 auto;padding:22px;border-top:1px solid var(--fio);
   font-family:var(--etiqueta);font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;
-  color:var(--fio-forte);text-align:center}
+  color:var(--tinta-3);text-align:center}
 
 /* ── CELULAR ─────────────────────────────────────────────────────────
    O que muda: o cabeçalho vira uma coluna (o masthead não cabe entre dois
@@ -309,7 +335,18 @@ a{color:inherit;text-decoration:none}
 
 <main class="folha">
 
-<?php if ($materia): /* ─────────── UMA MATÉRIA ─────────── */ ?>
+<?php if ($sumiu): ?>
+
+  <div class="vazio">
+    <i class="bi bi-file-earmark-x"></i>
+    <b>Esta notícia saiu do ar</b>
+    <p>Ela pode ter sido despublicada ou apagada. O resto do jornal continua aqui.</p>
+    <a class="voltar-capa" href="/thepathetic.php" style="justify-content:center;border-top:none;margin-top:22px">
+      <i class="bi bi-arrow-left"></i> Ir para a capa
+    </a>
+  </div>
+
+<?php elseif ($materia): /* ─────────── UMA MATÉRIA ─────────── */ ?>
 
   <article class="materia">
     <div class="materia-cima">

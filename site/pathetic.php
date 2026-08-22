@@ -14,6 +14,11 @@ $pdo = db();
 $idPedido = isset($_GET['n']) ? (int)$_GET['n'] : 0;
 $materia  = $idPedido > 0 ? patheticUma($pdo, $idPedido) : null;
 
+// Mesma coisa do /thepathetic.php: link antigo de notícia que saiu do ar não
+// pode devolver a capa com 200.
+$sumiu = $idPedido > 0 && !$materia;
+if ($sumiu) http_response_code(404);
+
 $noticias = patheticPublicadas($pdo, 40);
 $capa     = patheticCapa($noticias);
 
@@ -57,7 +62,10 @@ $selo = function (string $g) {
   --bg-3: #1a1a1a;
   --ink: #f5f5f5;
   --ink-mute: #a0a0a0;
-  --ink-dim: #6a6a6a;
+  /* #6a6a6a dava 3,66:1 contra o fundo — abaixo dos 4,5:1 que os textos de
+     10 a 15px desta paleta precisam (autor, data, legenda, rótulo de seção).
+     #8c8c8c dá 5,3:1 e continua sendo o tom apagado da escala. */
+  --ink-dim: #8c8c8c;
   --line: #262626;
   --line-2: #333;
 
@@ -80,6 +88,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 img { max-width: 100%; display: block; }
+/* Palavra longa quebra — uma URL colada no texto empurrava a página 142px
+   pra fora em 360px de largura, e aqui não há overflow-x escondendo. */
+.np-corpo, .np-materia h1, .np-manchete-card h2, .np-destaque-card h3,
+.np-item h4, .np-linha-fina, .tp-content { overflow-wrap: break-word; word-break: break-word; }
 a { color: var(--red); text-decoration: none; }
 .wrap { max-width: var(--max); margin: 0 auto; padding-inline: var(--pad); }
 
@@ -254,7 +266,14 @@ a { color: var(--red); text-decoration: none; }
 
 <div class="wrap tp-content">
 
-<?php if ($materia): /* ── UMA MATÉRIA ── */ ?>
+<?php if ($sumiu): ?>
+
+  <div class="tp-empty">
+    <i class="bi bi-file-earmark-x"></i>
+    <p>Esta notícia saiu do ar.<br><a href="/site/pathetic.php" style="color:var(--red)">Ver todas as notícias</a></p>
+  </div>
+
+<?php elseif ($materia): /* ── UMA MATÉRIA ── */ ?>
 
   <article class="np-materia">
     <div class="np-topo">
