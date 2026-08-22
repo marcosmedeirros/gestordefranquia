@@ -463,7 +463,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
    qualquer conteúdo que não encolhe (o carrossel, uma tabela) empurra a
    coluna pra fora da tela levando a página inteira junto. */
 .col-principal,.col-lado{min-width:0}
-@media (min-width:940px){
+@media (min-width:980px){
   .main{max-width:1040px;padding:14px 20px 24px}
   /* Ficha à esquerda, trajetória à direita e larga: é o mesmo desenho do
      Copero, e é o que faz a linha do tempo caber sem apertar o nome dos
@@ -485,7 +485,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
    ficha e decisão direto ao grid, que é a única forma de a súmula passar
    ENTRE elas — presas no mesmo filho, nenhum `order` as separa. */
 .bl-ficha + .bl-decisao{margin-top:11px}
-@media (max-width:939px){
+@media (max-width:979px){
   /* ── A TELA DO JOGO NO CELULAR ────────────────────────────────────
      A barra de cima sai e vira barra de baixo: os mesmos atalhos, mais a
      ação do momento, colados no rodapé. Assim o botão do ano fica à mão
@@ -1006,7 +1006,7 @@ tr.tit td{color:var(--red)}
 
 /* A caixa da trajetória: sem padding, porque a lista já tem o dela. */
 .caixa.linha{padding:0;overflow:hidden}
-@media (max-width:939px){
+@media (max-width:979px){
   /* O gradiente é o aviso de que a lista continua: cortada em linha reta
      ela parece uma carreira que acabou ali. */
   /* No celular a janela encolhe junto com a linha. */
@@ -1061,7 +1061,7 @@ tr.tit td{color:var(--red)}
   .trajeto .tj-clube b{font-size:11.5px}
   .trajeto .tj-clube em{font-size:9.5px}
 }
-@media(max-width:420px){
+@media(max-width:440px){
   .ficha{padding:11px}
   .ficha-clube{font-size:15.5px}
   .ficha-stats b{font-size:17px}
@@ -1162,7 +1162,8 @@ tr.tit td{color:var(--red)}
    coluna inteira sem precisar de gráfico nenhum. */
 .tj-ovr{flex:none;width:30px;height:19px;display:flex;align-items:center;justify-content:center;
   border-radius:5px;font-family:var(--num);font-size:11.5px;font-weight:800;
-  font-variant-numeric:tabular-nums;background:var(--cor);color:#fff}
+  font-variant-numeric:tabular-nums;color:#fff;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--cor) 92%,#000),color-mix(in srgb,var(--cor) 62%,#000))}
 .tj-ovr-vazio{background:transparent;color:var(--text3);font-weight:700}
 
 .tj-n{flex:none;width:26px;text-align:right;font-family:var(--num);font-size:11px;font-weight:600;
@@ -1271,7 +1272,7 @@ tr.tit td{color:var(--red)}
 .acoes-ano{display:flex;gap:8px;align-items:stretch}
 .acoes-ano .btn{flex:2;margin-top:4px}
 .acoes-ano .btn2{flex:1;margin-top:4px;white-space:nowrap}
-@media(max-width:420px){
+@media(max-width:440px){
   .acoes-ano{flex-direction:column;gap:6px}
   .acoes-ano .btn,.acoes-ano .btn2{flex:none}
 }
@@ -1463,7 +1464,8 @@ tr.tit td{color:var(--red)}
 .tagx{display:inline-flex;align-items:center;gap:4px;background:var(--panel3);border-radius:6px;
   padding:3px 8px;font-size:10.5px;font-weight:800;color:var(--text2)}
 .tagx.pos{background:var(--red-soft);color:var(--red)}
-.fim-ovr{width:66px;height:66px;border-radius:14px;background:var(--cor);color:#0a0a0c;flex:none;
+.fim-ovr{width:66px;height:66px;border-radius:14px;color:#0a0a0c;flex:none;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--cor) 74%,#fff),var(--cor));
   display:flex;flex-direction:column;align-items:center;justify-content:center}
 .fim-ovr small{font-size:8px;font-weight:800;letter-spacing:1px;opacity:.7}
 .fim-ovr b{font-size:27px;font-weight:900;line-height:1;letter-spacing:-1.5px;font-family:var(--num)}
@@ -5782,7 +5784,10 @@ function trajetoPorIdade(){
       continue;
     }
 
-    linhas.push(`<div class="tj ${t.campeao ? "tj-titulo" : ""}" data-idade="${i}">
+    // A lavagem da cor do time no fundo cria bandas por trecho da
+    // carreira: bate o olho e se ve onde voce ficou e onde rodou.
+    linhas.push(`<div class="tj ${t.campeao ? "tj-titulo" : ""}" data-idade="${i}"
+      style="background:color-mix(in srgb, ${corDoTime(t.time)} 8%, transparent)">
       ${selo(i, t.campeao ? "sel-campeao" : "sel-clube", t.time)}
       <span class="tj-clube">${marca(String(t.time||"?"), 18)}
         <b>${esc(String(t.time||""))}</b>${trofeusDaTemporada(t)}</span>
