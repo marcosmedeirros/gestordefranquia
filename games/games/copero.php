@@ -458,6 +458,10 @@ button{font-family:inherit}
   .topo{gap:7px}
   .topo .marca{font-size:15px}
   .chip-topo{padding:4px 9px;font-size:11px}
+  /* A ficha do trofeu e BOTAO (abre os desafios) e nasce com 21px de altura:
+     alvo de toque desse tamanho erra mais do que acerta. Cresce so o que e
+     clicavel — a ficha da moeda continua fina. */
+  .chip-topo-btn{min-height:30px;padding-left:12px;padding-right:12px}
 }
 
 .btn-topo{background:var(--panel2);border:1px solid var(--borda);color:var(--txt2);border-radius:9px;
@@ -3308,6 +3312,11 @@ async function preencherLinha(idade){
 
 /* ── Render ─────────────────────────────────────────── */
 function render(){
+  // O overlay dos desafios e filho do <body>, nao do app: trocar a tela nao
+  // leva ele junto. Sobrando aqui, ele fica por cima de tudo, escuro, e o
+  // jogo parece travado. Quem quer ver os desafios abre de novo — o botao
+  // esta na barra do topo de todas as telas.
+  document.querySelector('.modal-fundo')?.remove();
   if (!S) return telaInicio();
   if (S.fase === 'fim') return telaFim();
 

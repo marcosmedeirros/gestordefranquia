@@ -437,7 +437,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   .topbar{gap:8px;padding:9px 10px}
   .daily-badge{display:none}
   .game-title{font-size:13.5px}
+  /* A ficha do trofeu e BOTAO (abre os desafios) e nasce com 20px de altura:
+     alvo de toque de 20px erra mais do que acerta, e no celular ela e a
+     unica porta pros desafios. O min-height so cresce o que e clicavel; as
+     outras fichas continuam finas. */
   .chip{padding:3px 8px;font-size:10.5px;gap:3px}
+  .chip-btn{min-height:30px;padding-left:11px;padding-right:11px}
   .topbar-right{gap:4px;flex-wrap:nowrap}
   /* OVR e idade saem: os dois estão logo abaixo, no cartão, em letra bem
      maior. Repetidos aqui em cima eles quebravam a barra em duas linhas e
@@ -3257,6 +3262,12 @@ function rodapeDeAcoes(acoes){
 const espacoDaBarra = () => `<div class="dec-espaco" aria-hidden="true"></div>`;
 
 function render(){
+  // O overlay e filho do <body>, nao do app: trocar a tela nao leva ele
+  // junto. Um popup do draft ou das finais que sobrasse aqui ficaria por
+  // cima de tudo, escuro, sem botao pra fechar — o jogo parecia travado e
+  // so recarregar resolvia. Quem precisa dele recria ao desenhar: telaDraft
+  // chama abrirDraft, e a tela das finais chama abrirFinais.
+  document.querySelector('.modal-fundo')?.remove();
   const r = renderTela();
   ajustarTela();
   return r;
