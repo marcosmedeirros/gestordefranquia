@@ -764,10 +764,18 @@ button{font-family:inherit}
 .ano + .ano{margin-top:1px}
 /* O ano vazio é intencionalmente baixinho — é o que impede a escada dos
    anos futuros de dominar a tela, como na referência. */
-/* So o recuo VERTICAL: usar o atalho `padding` aqui fixaria tambem o
-   lateral, e como .ano.vazio tem duas classes ele ganharia do .ano do
-   celular (6px) — desalinhando a coluna de numeros em 2px. */
-.ano.vazio{color:var(--txt3);padding-top:1.5px;padding-bottom:1.5px;font-size:11px}
+/* Mesma altura das preenchidas. Antes ela era espremida, pra escada dos
+   anos futuros não dominar a tela — quem resolve isso agora é a janela de
+   doze linhas com scroll, e altura constante é o que faz a janela ser
+   sempre doze de verdade. O `min-height` é o que iguala: a linha cheia
+   ganha altura da pílula da idade, e a vazia só tem texto. */
+.ano.vazio{color:var(--txt3);font-size:11px}
+/* Toda linha tem a MESMA altura, venha ela do escudo (linha cheia), do
+   texto (ano futuro) ou do ícone de interrogação (ano atual). Sem isto as
+   três saem com 1 a 3px de diferença e a janela deixa de ser doze linhas
+   exatas — que é o número que a referência mantém sempre. */
+.ano.vazio > span:first-child,
+.ano-clube{min-height:var(--ano-pill,22px)}
 /* Destaque de verdade: contra o --panel3 a diferença de luminância era de
    uns 14 pontos, quase invisível sob luz do dia. Azul com borda à esquerda
    lê de relance em qualquer tela. */
@@ -793,6 +801,11 @@ button{font-family:inherit}
   font-size:12.5px;color:var(--txt2);font-variant-numeric:tabular-nums}
 .ano-n b{font-weight:800;color:var(--txt)}
 .ano-n .ic{width:11px;height:11px;flex:none;opacity:.75}
+/* Só o de jogos ganha cor: é o número que ancora a leitura da linha (os
+   outros dois só fazem sentido em relação a ele), e um ponto de cor viva
+   numa área toda cinza guia o olho sem precisar de mais nada. A classe é
+   própria em vez de :first-of-type — a ordem das colunas muda pra goleiro. */
+.ano-n.col-jogos .ic{color:var(--verde-claro);opacity:1}
 .ano-n.contando b{color:var(--txt3)}
 /* ── Sala de troféus ────────────────────────────────── */
 .sala{padding:16px 18px;margin-bottom:14px}
@@ -1086,6 +1099,9 @@ button{font-family:inherit}
   .anos{--ano-h:23px}
   .ano{padding:2px 6px;font-size:11px}
   .ano-idade{height:19px;font-size:11px}
+  /* 20 e nao 19: no celular quem dita a altura da linha cheia e o
+     ESCUDO (20px), nao a pilula da idade (19px). */
+  .ano{--ano-pill:20px}
   .ano-ovr{font-size:11px;padding:1px 0}
   .ano-n{font-size:11px}
   .linha-cab{font-size:9px;padding:0 6px 5px}
@@ -3151,6 +3167,17 @@ function aposentar(){ S.fase = 'fim'; S.fim = true; salvar(); render(); }
 function focarAnoAtual(){
   const cx = document.querySelector('.anos');
   if (!cx) return;
+
+  // A JANELA SAI DA MEDIDA, e não de um número escrito no CSS. A altura de
+  // uma linha muda com o breakpoint, com o tamanho da fonte do sistema e
+  // com a margem entre linhas — chutar isso deixava a janela com 11,5
+  // linhas em vez de 12, e o "sempre doze" da referência virava quase.
+  const linhas = cx.children;
+  if (linhas.length > 1) {
+    const passo = linhas[1].offsetTop - linhas[0].offsetTop;
+    if (passo > 0) cx.style.setProperty('--ano-h', passo + 'px');
+  }
+
   const alvo = cx.querySelector('.ano.entrando') || cx.querySelector('.ano.atual');
   if (!alvo) return;
   const destino = alvo.offsetTop + alvo.offsetHeight * 3 - cx.clientHeight;
@@ -3204,7 +3231,7 @@ function render(){
   if (!S) return telaInicio();
   if (S.fase === 'fim') return telaFim();
 
-  const cor = corDoOvr(S.ovr);
+  const cor = degradeOvr(S.ovr);
   const l = S.clube ? dadosLiga(S.clube.liga) : null;
 
   // A decisão sai de dentro do card do jogador e vira cartão próprio. É o que
@@ -3443,8 +3470,23 @@ function selosDoAno(t){
   if (t.selecao) s += `<i class="selo sel" title="Convocado pela seleção ${esc(PAISES[S.pais] || S.pais)} neste ano">★</i>`;
   if (t.lesao)   s += `<i class="selo les" title="Lesão na temporada">✚</i>`;
   if (t.rival)   s += `<i class="selo riv" title="Primeira temporada depois de trocar pelo rival">⚡</i>`;
-  if (t.emprestado) s += `<i class="selo emp" title="Temporada por empréstimo">⇄</i>`;
+  // O empréstimo NÃO sai aqui: ele vira um '↳' ANTES do escudo, como na
+  // referência, porque é sobre COMO você chegou naquele clube e não sobre
+  // o que aconteceu no ano. Ver linhaDoTempo().
   return s;
+}
+
+/**
+ * O fundo das caixas de OVR, com volume.
+ *
+ * A faixa de cor continua vindo de corDoOvr() — o que muda é só o degradê
+ * por cima, que é o que faz a pílula parecer material e não etiqueta.
+ * Clareia o topo em vez de escurecer a base: o número é escuro (#0a0a0c),
+ * e escurecer o fundo comeria o contraste dele nas faixas já escuras.
+ */
+function degradeOvr(ovr){
+  const c = corDoOvr(ovr);
+  return `linear-gradient(160deg, color-mix(in srgb, ${c} 74%, #fff), ${c})`;
 }
 
 function setaMov(mov){
@@ -3508,26 +3550,29 @@ function linhaDoTempo(){
     const atual = !t && i === S.idade;
     if (t) {
       const c = acharClube(t.clube);
-      const cor = corDoOvr(t.ovr);
       // A linha do ano que ACABOU de acontecer nasce sem números: quem os
       // coloca, um a um, é preencherLinha(). Sem isso a temporada inteira
       // aparecia pronta de uma vez, e não havia momento nenhum entre jogar
       // o ano e saber como ele foi.
       const nova = S.linhaNova === i;
       const vazio = (v) => nova ? '' : v;
-      html += `<div class="ano${nova ? ' entrando' : ''}" data-idade="${i}">
-        <span class="ano-idade" style="background:${corDoClube(t.clube)}">${i}</span>
-        <span class="ano-clube" title="${esc(t.clube)}">${escudo(c, 20)}<span>${esc(nomeCurto(t.clube))}</span>${setaMov(t.movimento)}${selosDoAno(t)}${vazio(tacasDoAno(t))}</span>
-        <span class="ano-ovr" style="background:${cor}">${t.ovr}</span>
-        <span class="ano-n" data-alvo="${t.jogos}">${ICONES.jogos}<b>${vazio(t.jogos)}</b></span>${
+      // A lavagem da cor do clube no fundo cria bandas por trecho da
+      // carreira: bate o olho e se vê onde você ficou e onde rodou.
+      const corC = corDoClube(t.clube);
+      html += `<div class="ano${nova ? ' entrando' : ''}" data-idade="${i}"
+        style="background:color-mix(in srgb, ${corC} 8%, transparent)">
+        <span class="ano-idade" style="background:${corC}">${i}</span>
+        <span class="ano-clube" title="${esc(t.clube)}">${t.emprestado ? '<i class="selo emp" title="Temporada por empréstimo">↳</i>' : ''}${escudo(c, 20)}<span>${esc(nomeCurto(t.clube))}</span>${setaMov(t.movimento)}${selosDoAno(t)}${vazio(tacasDoAno(t))}</span>
+        <span class="ano-ovr" style="background:${degradeOvr(t.ovr)}">${t.ovr}</span>
+        <span class="ano-n col-jogos" data-alvo="${t.jogos}">${ICONES.jogos}<b>${vazio(t.jogos)}</b></span>${
           colunasDoBoletim().map(([,k]) => `<span class="ano-n" data-alvo="${t[k] || 0}">${ICONES[k] || ''}<b>${vazio(t[k] || 0)}</b></span>`).join('')}
       </div>`;
     } else if (atual) {
       html += `<div class="ano atual">
-        <span class="ano-idade" style="background:${corDoOvr(S.ovr)}">${i}</span>
+        <span class="ano-idade" style="background:var(--panel3);color:var(--txt2)">${i}</span>
         <span class="ano-clube" style="color:var(--txt3)"><i class="bi bi-question-circle"></i>
           <span>${(S.fase==='fim_ciclo'||S.fase==='saida_forcada')?'Decidindo…':'Escolhendo…'}</span></span>
-        <span class="ano-ovr" style="background:${corDoOvr(S.ovr)}">${S.ovr}</span>
+        <span class="ano-ovr" style="background:${degradeOvr(S.ovr)}">${S.ovr}</span>
         <span></span><span></span><span></span></div>`;
     } else {
       html += `<div class="ano vazio"><span style="text-align:center">${i}</span>
@@ -3560,7 +3605,7 @@ function linhaDoTempo(){
       <span class="sel-band">${bandeira(S.pais, 26)}</span>
       <span class="ano-clube"><span>${esc(PAISES[S.pais] || S.pais)}</span></span>
       <span></span>
-      <span class="ano-n">${ICONES.jogos}<b>${selJ}</b></span>
+      <span class="ano-n col-jogos">${ICONES.jogos}<b>${selJ}</b></span>
       ${colSel}
     </div>`;
   }
@@ -3569,7 +3614,7 @@ function linhaDoTempo(){
     <span></span>
     <span class="pe-nome"><span>Carreira em clubes</span></span>
     <span></span>
-    <span class="ano-n">${ICONES.jogos}<b>${soma('jogos')}</b></span>
+    <span class="ano-n col-jogos">${ICONES.jogos}<b>${soma('jogos')}</b></span>
     ${colunasDoBoletim().map(([,k]) =>
       `<span class="ano-n">${ICONES[k] || ''}<b>${soma(k)}</b></span>`).join('')}
   </div>`;
@@ -3754,7 +3799,7 @@ async function telaFim(){
     porClube[t.clube].gs += (t.gs || 0);  porClube[t.clube].cs += (t.cs || 0);
   });
 
-  const cor = corDoOvr(S.picoOvr);
+  const cor = degradeOvr(S.picoOvr);
   app().innerHTML = `
     ${barraTopo()}
     <div class="caixa fim">
