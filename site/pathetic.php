@@ -30,8 +30,17 @@ $social = patheticContagens($pdo,
 $comentarios = $materia ? patheticComentarios($pdo, (int)$materia['id']) : [];
 $fotosDaMateria = $materia ? patheticFotos($pdo, (int)$materia['id']) : [];
 
-$seloSocial = function (array $s): string {
+// A landing é pública e não tem sessão iniciada: sem sessão a janela de seis
+// horas não existe, e cada F5 viraria leitura. Por isso ela conta também —
+// mas só depois de abrir a sessão.
+if ($materia) {
+    if (session_status() === PHP_SESSION_NONE) session_start();
+    patheticContarView($pdo, (int)$materia['id']);
+}
+
+$seloSocial = function (array $s, int $views = 0): string {
     $p = [];
+    if ($views > 0)                $p[] = '&#128065; ' . $views;
     if (!empty($s['curtidas']))    $p[] = '&#9829; ' . (int)$s['curtidas'];
     if (!empty($s['comentarios'])) $p[] = '&#128172; ' . (int)$s['comentarios'];
     return $p ? '<span class="np-social">' . implode(' ', $p) . '</span>' : '';
@@ -356,7 +365,9 @@ a { color: var(--red); text-decoration: none; }
 
     <?php $s = $social[(int)$materia['id']] ?? ['curtidas'=>0,'comentarios'=>0]; ?>
     <section class="np-conversa">
-      <h2><?= (int)$s['curtidas'] ?> <?= (int)$s['curtidas'] === 1 ? 'curtida' : 'curtidas' ?>
+      <?php $vw = (int)($materia['views'] ?? 0) + 1; ?>
+      <h2><?= $vw ?> <?= $vw === 1 ? 'leitura' : 'leituras' ?>
+        · <?= (int)$s['curtidas'] ?> <?= (int)$s['curtidas'] === 1 ? 'curtida' : 'curtidas' ?>
         · <?= (int)$s['comentarios'] ?> <?= (int)$s['comentarios'] === 1 ? 'comentário' : 'comentários' ?></h2>
 
       <?php foreach ($comentarios as $c): ?>
@@ -398,7 +409,7 @@ a { color: var(--red); text-decoration: none; }
       </div>
       <h2><?= $e($m['titulo']) ?></h2>
       <?php $r = patheticResumo($m, 220); if ($r !== ''): ?><p><?= $e($r) ?></p><?php endif; ?>
-      <div class="np-meta"><b><?= $e($m['autor_nome']) ?></b><span>·</span><span><?= $e(patheticQuando($m['publicada_em'] ?: $m['criada_em'])) ?></span><?= $seloSocial($social[(int)$m['id']] ?? []) ?></div>
+      <div class="np-meta"><b><?= $e($m['autor_nome']) ?></b><span>·</span><span><?= $e(patheticQuando($m['publicada_em'] ?: $m['criada_em'])) ?></span><?= $seloSocial($social[(int)$m['id']] ?? [], (int)($m['views'] ?? 0)) ?></div>
     </a>
   <?php endif; ?>
 
@@ -415,7 +426,7 @@ a { color: var(--red); text-decoration: none; }
           </div>
           <h3><?= $e($d['titulo']) ?></h3>
           <?php $r = patheticResumo($d, 140); if ($r !== ''): ?><p><?= $e($r) ?></p><?php endif; ?>
-          <div class="np-meta"><b><?= $e($d['autor_nome']) ?></b><span>·</span><span><?= $e(patheticQuando($d['publicada_em'] ?: $d['criada_em'])) ?></span><?= $seloSocial($social[(int)$d['id']] ?? []) ?></div>
+          <div class="np-meta"><b><?= $e($d['autor_nome']) ?></b><span>·</span><span><?= $e(patheticQuando($d['publicada_em'] ?: $d['criada_em'])) ?></span><?= $seloSocial($social[(int)$d['id']] ?? [], (int)($d['views'] ?? 0)) ?></div>
         </a>
       <?php endforeach; ?>
     </div>
@@ -436,7 +447,7 @@ a { color: var(--red); text-decoration: none; }
             </div>
             <h4><?= $e($n['titulo']) ?></h4>
             <?php $r = patheticResumo($n, 130); if ($r !== ''): ?><p><?= $e($r) ?></p><?php endif; ?>
-            <div class="np-meta"><b><?= $e($n['autor_nome']) ?></b><span>·</span><span><?= $e(patheticQuando($n['publicada_em'] ?: $n['criada_em'])) ?></span><?= $seloSocial($social[(int)$n['id']] ?? []) ?></div>
+            <div class="np-meta"><b><?= $e($n['autor_nome']) ?></b><span>·</span><span><?= $e(patheticQuando($n['publicada_em'] ?: $n['criada_em'])) ?></span><?= $seloSocial($social[(int)$n['id']] ?? [], (int)($n['views'] ?? 0)) ?></div>
           </div>
         </a>
       <?php endforeach; ?>

@@ -91,6 +91,11 @@ $social = patheticContagens($pdo,
 $comentarios = $materia ? patheticComentarios($pdo, (int)$materia['id']) : [];
 $fotosDaMateria = $materia ? patheticFotos($pdo, (int)$materia['id']) : [];
 
+// Conta a leitura DEPOIS de saber que a matéria existe e está publicada: um
+// 404 não é leitura, e a capa também não — passar por um card do mosaico não
+// é ter lido.
+if ($materia) patheticContarView($pdo, (int)$materia['id']);
+
 // O conteúdo antigo (a caixa de HTML) continua no banco e não é jogado fora:
 // ele vira o rodapé do arquivo, abaixo das notícias. Quando o jornal tiver
 // edições próprias, apagar aquela linha some com esta seção sozinha.
@@ -109,9 +114,10 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
  * Zero não aparece: na capa o espaço é disputado, e "0 comentários" embaixo
  * de dez cards é ruído. Na matéria aberta o zero aparece — lá ele é convite.
  */
-function patheticSeloSocial(array $s): string
+function patheticSeloSocial(array $s, int $views = 0): string
 {
     $partes = [];
+    if ($views > 0)                $partes[] = '<i class="bi bi-eye-fill"></i> ' . $views;
     if (!empty($s['curtidas']))    $partes[] = '<i class="bi bi-heart-fill"></i> ' . (int)$s['curtidas'];
     if (!empty($s['comentarios'])) $partes[] = '<i class="bi bi-chat-fill"></i> ' . (int)$s['comentarios'];
     if (!$partes) return '';
@@ -378,6 +384,7 @@ a{color:inherit;text-decoration:none}
 .peca-g .peca-txt{padding:18px 20px;gap:9px}
 .peca-g .linha-fina{font-size:14.5px;line-height:1.45;color:var(--tinta-2);
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.peca-social{margin-top:2px}
 /* A peça média: duas colunas, uma linha. Quebra a monotonia do quadrado. */
 .peca-m{grid-column:span 2}
 /* Sem foto o mosaico não vira buraco: o fundo escurece e o título ocupa. */
@@ -668,6 +675,10 @@ a{color:inherit;text-decoration:none}
         </span>
       <?php endif; ?>
       <span class="conta"><?= (int)$s['comentarios'] ?> <?= (int)$s['comentarios'] === 1 ? 'comentário' : 'comentários' ?></span>
+      <?php // +1 porque a leitura de agora acabou de ser contada, e o número
+            // veio do banco antes disso.
+            $vw = (int)($materia['views'] ?? 0) + 1; ?>
+      <span class="conta"><?= $vw ?> <?= $vw === 1 ? 'leitura' : 'leituras' ?></span>
     </div>
 
     <section class="conversa" id="conversa">
@@ -776,6 +787,8 @@ a{color:inherit;text-decoration:none}
           </div>
           <div class="peca-txt">
             <h2 class="peca-tit"><?= $e($n['titulo']) ?></h2>
+            <?php $ss = patheticSeloSocial($social[(int)$n['id']] ?? [], (int)($n['views'] ?? 0));
+                  if ($ss && $k === 0): ?><div class="peca-social"><?= $ss ?></div><?php endif; ?>
             <?php if ($k === 0): $r = patheticResumo($n, 170); if ($r !== ''): ?>
               <p class="linha-fina"><?= $e($r) ?></p>
             <?php endif; endif; ?>
@@ -839,7 +852,7 @@ a{color:inherit;text-decoration:none}
               <span class="quem"><?= $e($n['autor_nome']) ?></span>
               <i class="ponto"></i>
               <span><?= $e(patheticQuando($n['publicada_em'] ?: $n['criada_em'])) ?></span>
-              <?php $ss = patheticSeloSocial($social[(int)$n['id']] ?? []); if ($ss): ?>
+              <?php $ss = patheticSeloSocial($social[(int)$n['id']] ?? [], (int)($n['views'] ?? 0)); if ($ss): ?>
                 <i class="ponto"></i><?= $ss ?>
               <?php endif; ?>
             </div>

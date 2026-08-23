@@ -90,6 +90,7 @@ function patheticGarantirTabela(PDO $pdo): void
             publicada    TINYINT(1)   NOT NULL DEFAULT 0,
             publicada_em DATETIME     NULL,
             avisou_whats TINYINT(1)   NOT NULL DEFAULT 0,
+            views        INT          NOT NULL DEFAULT 0,
             criada_em    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
             editada_em   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             KEY idx_pathetic_capa (publicada, publicada_em),
@@ -105,6 +106,7 @@ function patheticGarantirTabela(PDO $pdo): void
         'chapeu'       => "ALTER TABLE pathetic_noticias ADD COLUMN chapeu VARCHAR(60) NULL AFTER titulo",
         'foto_credito' => "ALTER TABLE pathetic_noticias ADD COLUMN foto_credito VARCHAR(120) NULL AFTER foto",
         'avisou_whats' => "ALTER TABLE pathetic_noticias ADD COLUMN avisou_whats TINYINT(1) NOT NULL DEFAULT 0",
+        'views'        => "ALTER TABLE pathetic_noticias ADD COLUMN views INT NOT NULL DEFAULT 0",
     ];
     foreach ($colunas as $col => $sql) {
         try {
@@ -460,6 +462,68 @@ function patheticMinutos(?string $texto): int
 // aqui pra poder posicionar imagem reabriria o buraco de XSS que a página
 // levou meses pra fechar, e o ganho seria poder escolher a largura da foto.
 // ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * QUANTA GENTE LEU.
+ *
+ * Conta LEITURA de matéria aberta, não passagem pela capa: aparecer num card
+ * do mosaico não é ter sido lida, e misturar as duas coisas daria um número
+ * grande que não quer dizer nada.
+ *
+ * Uma leitura por pessoa a cada seis horas. Sem essa janela, F5 vira audiência
+ * e o autor que abre a própria matéria dez vezes pra revisar termina o dia
+ * como o mais lido do jornal. Quem não está logado conta pela sessão — é o
+ * que dá pra fazer sem gravar IP, que é dado de gente e não de leitura.
+ */
+const PATHETIC_JANELA_VIEW = 6 * 3600;
+
+function patheticGarantirViews(PDO $pdo): void
+{
+    static $feito = false;
+    if ($feito) return;
+    $feito = true;
+    try {
+        $pdo->exec("ALTER TABLE pathetic_noticias ADD COLUMN views INT NOT NULL DEFAULT 0");
+    } catch (Throwable $e) {
+        // Já existe: é o caminho normal em toda requisição depois da primeira.
+    }
+}
+
+/**
+ * Registra a leitura e devolve o total.
+ *
+ * A janela vive na SESSÃO e não no banco: guardar (quem, o quê, quando) por
+ * leitura criaria uma tabela que só cresce, pra responder uma pergunta que
+ * cabe num contador. O preço é que a janela reinicia quando a sessão morre —
+ * e isso é barato perto de manter um log de leitura de todo mundo.
+ */
+function patheticContarView(PDO $pdo, int $noticiaId): void
+{
+    if ($noticiaId <= 0) return;
+    if (session_status() === PHP_SESSION_NONE) return;   // página sem sessão: não conta
+
+    $vistas = $_SESSION['pathetic_vistas'] ?? [];
+    $agora = time();
+
+    // Limpa o que passou da janela antes de decidir: sem isto a lista cresce
+    // pra sempre dentro do cookie de sessão.
+    foreach ($vistas as $id => $quando) {
+        if ($agora - (int)$quando > PATHETIC_JANELA_VIEW) unset($vistas[$id]);
+    }
+
+    if (isset($vistas[$noticiaId])) { $_SESSION['pathetic_vistas'] = $vistas; return; }
+
+    $vistas[$noticiaId] = $agora;
+    $_SESSION['pathetic_vistas'] = $vistas;
+
+    patheticGarantirViews($pdo);
+    try {
+        $pdo->prepare("UPDATE pathetic_noticias SET views = views + 1 WHERE id = ?")
+            ->execute([$noticiaId]);
+    } catch (Throwable $e) {
+        error_log('[pathetic] contar view: ' . $e->getMessage());
+    }
+}
 
 /** Quantas fotos cabem numa matéria. Acima disso não é matéria, é álbum. */
 const PATHETIC_MAX_FOTOS = 12;

@@ -17,27 +17,25 @@ require_once __DIR__ . '/backend/pathetic.php';
 requireAuth();
 
 $user = getUserSession();
-$thePatheticExtraEditors = ['gustavodossantosgonzaga58@gmail.com'];
 $ehAdminGeral = ($user['user_type'] ?? 'jogador') === 'admin';
-$isThePatheticEditor = $ehAdminGeral
-    || in_array(strtolower($user['email'] ?? ''), $thePatheticExtraEditors, true);
 
-// ESCREVER NO "ARQUIVO" É PODER DE ADMIN, e não de editor.
+// A REDAÇÃO É DE TODO MUNDO. Qualquer conta logada entra, escreve, publica em
+// qualquer grau e mexe na matéria de qualquer um. É uma liga de gente que se
+// conhece, e prender quem pode escrever a uma lista de e-mails deixava o
+// jornal na mão de duas pessoas. O requireAuth() lá em cima é o portão.
 //
-// O bloco do arquivo sai CRU nas duas páginas do jornal — é o que ele sempre
-// foi, a caixa de HTML que o editor colava. Só que /thepathetic.php não pede
-// login e mora na mesma origem do app: um <img onerror> gravado ali roda no
-// navegador de quem abrir, inclusive de um admin logado, com o cookie de
-// sessão dele. Quem escreve nesse campo pode, na prática, agir como admin.
+// ESCREVER NO "ARQUIVO" CONTINUA SENDO DE ADMIN, e é a única exceção. Não é
+// hierarquia editorial: é segurança. Aquele bloco sai CRU nas duas páginas do
+// jornal (é o que ele sempre foi, a caixa de HTML que se colava), e
+// /thepathetic.php não pede login e mora na mesma origem do app. Um
+// <img onerror> gravado ali roda no navegador de quem abrir — inclusive de um
+// admin logado, com o cookie de sessão dele. Quem escreve nesse campo pode,
+// na prática, agir como admin.
 //
-// A notícia não tem esse problema (o texto dela é escapado em
-// patheticTextoHtml), então o editor não-admin continua escrevendo matéria
-// normalmente. O que ele perde é só a caixa de HTML livre.
+// A matéria não tem esse problema: o texto dela é escapado em
+// patheticTextoHtml(). Por isso o colunista escreve à vontade; o que ele não
+// tem é a caixa de HTML livre.
 $podeMexerNoArquivo = $ehAdminGeral;
-if (!$isThePatheticEditor) {
-    header('Location: /dashboard.php');
-    exit;
-}
 $pdo = db();
 patheticGarantirTabela($pdo);
 
@@ -277,11 +275,49 @@ try {
                  ->fetchAll(PDO::FETCH_ASSOC) ?: [];
 } catch (Throwable $e) { error_log('[pathetic-edit] listar: ' . $e->getMessage()); }
 
-$rascunhos  = array_values(array_filter($todas, fn($n) => empty($n['publicada'])));
-$noAr       = array_values(array_filter($todas, fn($n) => !empty($n['publicada'])));
+// ── OS FILTROS DA LISTA ────────────────────────────────────────────
+// Com a redação aberta a todo mundo, a lista deixa de ser "as minhas cinco
+// matérias" e vira o arquivo do jornal inteiro, com vários autores. Sem filtro,
+// achar a própria matéria de ontem custa uma rolagem.
+//
+// Filtram em PHP e não no navegador porque $todas já está na mão: filtrar aqui
+// é uma linha, e no cliente seria markup escondido que ainda pesa na página.
+$fGrau  = (string)($_GET['grau']  ?? '');
+$fAutor = (string)($_GET['autor'] ?? '');
+$fBusca = trim((string)($_GET['b'] ?? ''));
+if (!isset(PATHETIC_GRAU_INFO[$fGrau])) $fGrau = '';
+
+// A lista de autores sai das matérias que existem, e não de uma tabela de
+// usuários: quem nunca escreveu não precisa aparecer no filtro.
+$autores = [];
+foreach ($todas as $n) {
+    $a = trim((string)$n['autor_nome']);
+    if ($a !== '') $autores[$a] = true;
+}
+$autores = array_keys($autores);
+sort($autores, SORT_NATURAL | SORT_FLAG_CASE);
+
+$filtradas = array_values(array_filter($todas, function ($n) use ($fGrau, $fAutor, $fBusca) {
+    if ($fGrau !== ''  && $n['grau'] !== $fGrau) return false;
+    if ($fAutor !== '' && trim((string)$n['autor_nome']) !== $fAutor) return false;
+    if ($fBusca !== '') {
+        $palheiro = mb_strtolower(($n['titulo'] ?? '') . ' ' . ($n['chapeu'] ?? '')
+                  . ' ' . ($n['resumo'] ?? '') . ' ' . ($n['texto'] ?? ''));
+        if (mb_strpos($palheiro, mb_strtolower($fBusca)) === false) return false;
+    }
+    return true;
+}));
+$temFiltro = ($fGrau !== '' || $fAutor !== '' || $fBusca !== '');
+
+$rascunhos  = array_values(array_filter($filtradas, fn($n) => empty($n['publicada'])));
+$noAr       = array_values(array_filter($filtradas, fn($n) => !empty($n['publicada'])));
 
 // A fila da moderação: os comentários mais recentes do jornal inteiro.
 $comentariosRecentes = patheticComentariosRecentes($pdo, 60);
+
+// Curtidas e comentários de tudo que a lista mostra, numa consulta só. As
+// views já vêm na própria linha da notícia.
+$socialDaLista = patheticContagens($pdo, array_column($filtradas, 'id'));
 
 $currentContent = '';
 try {
@@ -446,6 +482,64 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
         .barra-txt button i{font-style:italic;font-size:14px;font-family:Georgia,serif}
         .barra-txt button .bi{font-style:normal;font-family:inherit}
         .barra-fio{width:1px;height:18px;background:var(--border);margin:0 3px}
+
+        /* O aviso de rascunho recuperado e o contador de tamanho. */
+        .aviso-rascunho{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+          background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.30);
+          border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:14px;font-size:13px}
+        .aviso-rascunho span{flex:1;min-width:180px;color:var(--text)}
+        .aviso-rascunho button{font-size:12px;font-weight:700;padding:6px 13px;border-radius:7px;
+          border:1px solid var(--border-md);background:var(--panel-2);color:var(--text);cursor:pointer}
+        .aviso-rascunho .ar-usar{background:var(--red);border-color:var(--red);color:#fff}
+        .contador-txt{font-size:11.5px;color:var(--text-3);margin-top:6px;text-align:right}
+
+        /* ── FILTROS DA LISTA ──────────────────────────────────────── */
+        .filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+        .filtros input[type=search]{flex:1;min-width:200px}
+        .filtros input,.filtros select{background:var(--panel-2);border:1px solid var(--border-md);
+          border-radius:var(--radius-sm);padding:9px 12px;color:var(--text);
+          font-family:var(--font);font-size:13px;outline:none;transition:border-color var(--t)}
+        .filtros input:focus,.filtros select:focus{border-color:var(--red)}
+        .filtros .btn-save{padding:9px 20px}
+        .filtros .btn-outline{padding:9px 16px}
+        .resultado-filtro{font-size:12.5px;color:var(--text-3);margin:-6px 0 16px}
+        .resultado-filtro b{color:var(--text)}
+        /* Leituras, curtidas e comentários de cada matéria, na mesma linha de
+           quem escreveu. Os ícones separam os três sem precisar de rótulo. */
+        .desempenho{display:inline-flex;align-items:center;gap:4px;margin-left:8px;
+          padding-left:9px;border-left:1px solid var(--border);color:var(--text-3);
+          font-variant-numeric:tabular-nums}
+        .desempenho .bi{font-size:10px;margin-left:5px}
+        .desempenho .bi:first-child{margin-left:0}
+
+        /* ── COMENTÁRIO EM UMA LINHA ───────────────────────────────────
+           O painel serve pra varrer o que foi dito e apagar o que não devia
+           ter sido. Cada comentário ocupava três linhas com o texto inteiro:
+           vinte deles empurravam a redação pra fora da tela. Agora é uma
+           linha, e o texto completo está no title e a um clique na matéria. */
+        .coment-linha{display:flex;align-items:center;gap:10px;padding:8px 18px;
+          border-top:1px solid var(--border);font-size:12.5px;min-width:0}
+        .coment-linha:first-child{border-top:none}
+        .coment-linha > b{flex:0 0 auto;max-width:120px;font-weight:700;color:var(--text);
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .coment-linha .cl-txt{flex:1;min-width:0;color:var(--text-2);
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .coment-linha .cl-onde{flex:0 0 auto;max-width:170px;color:var(--text-3);
+          text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          border-bottom:1px dotted var(--border-md)}
+        .coment-linha .cl-onde:hover{color:var(--red);border-color:var(--red)}
+        .coment-linha time{flex:0 0 auto;color:var(--text-3);font-size:11px;white-space:nowrap}
+        .coment-linha form{flex:0 0 auto;display:flex}
+        .coment-linha .cl-x{width:24px;height:24px;border-radius:6px;border:1px solid transparent;
+          background:transparent;color:var(--text-3);cursor:pointer;font-size:10px;
+          display:flex;align-items:center;justify-content:center;transition:all var(--t) var(--ease)}
+        .coment-linha .cl-x:hover{border-color:var(--red);color:var(--red)}
+        @media(max-width:760px){
+          /* Em tela estreita não cabe tudo numa linha: a matéria e a hora saem,
+             porque quem modera precisa de QUEM disse e O QUE disse. */
+          .coment-linha .cl-onde,.coment-linha time{display:none}
+          .coment-linha{padding:9px 14px}
+        }
         /* O campo encosta na barra: os dois viram uma peça só. */
         .cp .txt-materia{border-top-left-radius:0;border-top-right-radius:0}
 
@@ -549,11 +643,11 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     <main class="main">
         <div class="page-hero">
             <div>
-                <div class="page-eyebrow">Admin · The Pathetic</div>
+                <div class="page-eyebrow">The Pathetic · Redação</div>
                 <h1 class="page-title"><?= $novaMateria ? ($editando ? 'Editar notícia' : 'Nova notícia') : 'Redação — The Pathetic' ?></h1>
                 <p class="page-sub"><?= $novaMateria
                     ? 'O grau decide o tamanho dela na capa. Manchete e destaque avisam o grupo ao publicar.'
-                    : 'Cada notícia tem foto, título, grau, quem assina e o texto.' ?></p>
+                    : 'Escreva, publique e edite. A redação é de todo mundo — o que sai, sai assinado.' ?></p>
             </div>
             <div style="padding-top:4px;display:flex;gap:8px;flex-wrap:wrap">
                 <?php if ($novaMateria): ?>
@@ -786,6 +880,45 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
 <?php else: /* ═══════════ A LISTA ═══════════ */ ?>
 
+            <?php if ($todas): ?>
+            <form class="filtros" method="get" action="/thepathetic-edit.php">
+                <input type="search" name="b" value="<?= $esc($fBusca) ?>"
+                       placeholder="Buscar por título ou palavra no texto" aria-label="Buscar matéria">
+                <select name="grau" aria-label="Filtrar por tipo">
+                    <option value="">Todos os tipos</option>
+                    <?php foreach (PATHETIC_GRAUS as $g): ?>
+                        <option value="<?= $g ?>" <?= $fGrau === $g ? 'selected' : '' ?>>
+                            <?= $esc(PATHETIC_GRAU_INFO[$g]['rotulo']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <select name="autor" aria-label="Filtrar por quem escreveu">
+                    <option value="">Todos os autores</option>
+                    <?php foreach ($autores as $a): ?>
+                        <option value="<?= $esc($a) ?>" <?= $fAutor === $a ? 'selected' : '' ?>><?= $esc($a) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" class="btn-save">Filtrar</button>
+                <?php if ($temFiltro): ?>
+                    <a class="btn-outline" href="/thepathetic-edit.php">Limpar</a>
+                <?php endif; ?>
+            </form>
+            <?php if ($temFiltro): ?>
+                <p class="resultado-filtro">
+                    <b><?= count($filtradas) ?></b> de <?= count($todas) ?>
+                    <?= count($todas) === 1 ? 'matéria' : 'matérias' ?>
+                    <?php if ($fAutor !== ''): ?> · por <b><?= $esc($fAutor) ?></b><?php endif; ?>
+                    <?php if ($fGrau !== ''): ?> · <b><?= $esc(PATHETIC_GRAU_INFO[$fGrau]['rotulo']) ?></b><?php endif; ?>
+                    <?php if ($fBusca !== ''): ?> · contendo "<b><?= $esc($fBusca) ?></b>"<?php endif; ?>
+                </p>
+            <?php endif; ?>
+            <?php endif; ?>
+
+            <?php if ($temFiltro && !$filtradas): ?>
+                <div class="bc"><div class="bc-body" style="text-align:center;padding:34px 20px;color:var(--text-3)">
+                    Nenhuma matéria com esses filtros.
+                </div></div>
+            <?php endif; ?>
+
             <?php if (!$todas): ?>
                 <div class="bc"><div class="bc-body" style="text-align:center;padding:52px 20px">
                     <i class="bi bi-newspaper" style="font-size:36px;color:var(--text-3);display:block;margin-bottom:14px"></i>
@@ -819,7 +952,21 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                                 <?php if (!empty($n['avisou_whats'])): ?><span class="tag-whats" title="O grupo já foi avisado desta notícia"><i class="bi bi-whatsapp"></i></span><?php endif; ?>
                             </div>
                             <b><?= $esc($n['titulo']) ?></b>
-                            <small><?= $esc($n['autor_nome']) ?> · <?= $esc(patheticQuando($n['publicada_em'] ?: $n['criada_em'])) ?></small>
+                            <small>
+                                <?= $esc($n['autor_nome']) ?> · <?= $esc(patheticQuando($n['publicada_em'] ?: $n['criada_em'])) ?>
+                                <?php // O desempenho fica ao lado de quem escreveu: é o par que
+                                      // interessa a quem abre esta lista. Rascunho não mostra
+                                      // número nenhum — ninguém leu o que não foi publicado.
+                                      $sc = $socialDaLista[(int)$n['id']] ?? [];
+                                      $vw = (int)($n['views'] ?? 0);
+                                      if (!empty($n['publicada'])): ?>
+                                    <span class="desempenho">
+                                        <i class="bi bi-eye-fill"></i> <?= $vw ?>
+                                        <i class="bi bi-heart-fill"></i> <?= (int)($sc['curtidas'] ?? 0) ?>
+                                        <i class="bi bi-chat-fill"></i> <?= (int)($sc['comentarios'] ?? 0) ?>
+                                    </span>
+                                <?php endif; ?>
+                            </small>
                         </div>
                         <div class="linha-acoes">
                             <a class="ac" href="/thepathetic-edit.php?editar=<?= (int)$n['id'] ?>" title="Editar"><i class="bi bi-pencil"></i></a>
@@ -868,31 +1015,32 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                 </div>
                 <div class="bc-body" style="padding:0">
                     <?php foreach ($comentariosRecentes as $c): ?>
-                    <div class="linha">
-                        <div class="linha-txt">
-                            <div class="linha-cima">
-                                <span class="tag-chapeu"><?= $esc($c['autor_nome']) ?></span>
-                                <small style="color:var(--text-3)"><?= $esc(patheticQuando($c['criado_em'])) ?></small>
-                                <?php if ($c['titulo'] !== null): ?>
-                                    <small style="color:var(--text-3)">em
-                                        <a href="/thepathetic.php?n=<?= (int)$c['noticia_id'] ?>#conversa"
-                                           target="_blank" rel="noopener"
-                                           style="color:var(--text-2)"><?= $esc(mb_substr($c['titulo'], 0, 46)) ?><?= mb_strlen($c['titulo']) > 46 ? '…' : '' ?></a>
-                                    </small>
-                                <?php else: ?>
-                                    <small style="color:var(--red)">(notícia apagada)</small>
-                                <?php endif; ?>
-                            </div>
-                            <div style="font-size:13.5px;line-height:1.5;color:var(--text);white-space:pre-wrap;overflow-wrap:break-word"><?= $esc($c['texto']) ?></div>
-                        </div>
-                        <div class="linha-acoes">
-                            <form method="post" onsubmit="return confirm('Apagar este comentário?')">
-                                <input type="hidden" name="token" value="<?= $esc($token) ?>">
-                                <input type="hidden" name="acao" value="apagar_comentario">
-                                <input type="hidden" name="comentario" value="<?= (int)$c['id'] ?>">
-                                <button class="ac ac-perigo" title="Apagar comentário"><i class="bi bi-trash"></i></button>
-                            </form>
-                        </div>
+                    <?php
+                      // O comentário inteiro numa linha só. Antes cada um ocupava
+                      // três linhas com o texto completo, e vinte comentários
+                      // empurravam o resto da redação pra fora da tela — num
+                      // painel que serve pra VARRER, não pra ler. O texto inteiro
+                      // está a um clique, na matéria.
+                      $txt = trim(preg_replace('/\s+/u', ' ', (string)$c['texto']));
+                      $curto = mb_strlen($txt) > 110 ? mb_substr($txt, 0, 109) . '…' : $txt;
+                    ?>
+                    <div class="coment-linha">
+                        <b><?= $esc($c['autor_nome']) ?></b>
+                        <span class="cl-txt" title="<?= $esc($txt) ?>"><?= $esc($curto) ?></span>
+                        <?php if ($c['titulo'] !== null): ?>
+                            <a class="cl-onde" href="/thepathetic.php?n=<?= (int)$c['noticia_id'] ?>#conversa"
+                               target="_blank" rel="noopener"
+                               title="<?= $esc($c['titulo']) ?>"><?= $esc(mb_substr($c['titulo'], 0, 26)) ?><?= mb_strlen($c['titulo']) > 26 ? '…' : '' ?></a>
+                        <?php else: ?>
+                            <span class="cl-onde" style="color:var(--red)">apagada</span>
+                        <?php endif; ?>
+                        <time><?= $esc(patheticQuando($c['criado_em'])) ?></time>
+                        <form method="post" onsubmit="return confirm('Apagar este comentário?')">
+                            <input type="hidden" name="token" value="<?= $esc($token) ?>">
+                            <input type="hidden" name="acao" value="apagar_comentario">
+                            <input type="hidden" name="comentario" value="<?= (int)$c['id'] ?>">
+                            <button class="cl-x" title="Apagar comentário"><i class="bi bi-x-lg"></i></button>
+                        </form>
                     </div>
                     <?php endforeach; ?>
                 </div>
@@ -943,6 +1091,121 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     }
     applyTheme(localStorage.getItem('fba-theme')||'dark');
     themeToggle.addEventListener('click', () => applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
+
+/* ═══════════════════════════════════════════════════════════════════
+       O QUE PROTEGE QUEM ESTÁ ESCREVENDO
+       ═══════════════════════════════════════════════════════════════════
+
+       Três coisas, e todas existem por causa do mesmo medo: perder o texto.
+       Uma matéria de vinte minutos que some porque a aba fechou é o tipo de
+       coisa que faz alguém não voltar a escrever. */
+    (function () {
+      const form  = document.querySelector('form.redacao');
+      const campo = document.getElementById('campoTexto');
+      if (!form || !campo) return;
+
+      const id = (form.querySelector('[name=id]') || {}).value || '0';
+      const chave = 'pathetic_rascunho_' + id;
+      const campos = ['titulo', 'chapeu', 'resumo', 'texto'];
+      const pega = (n) => form.querySelector('[name=' + n + ']');
+
+      /* ── 1. RASCUNHO SALVO SOZINHO ──────────────────────────────────
+         No navegador, não no servidor: salvar no servidor a cada tecla criaria
+         versão a cada vírgula, e o texto ainda não é uma matéria — é rascunho
+         de quem está pensando. Some sozinho quando a matéria é salva de
+         verdade. */
+      const aviso = document.createElement('div');
+      aviso.className = 'aviso-rascunho';
+      aviso.hidden = true;
+      form.prepend(aviso);
+
+      let ultimo = '';
+      function guardar() {
+        const dados = {};
+        campos.forEach(n => { const c = pega(n); if (c) dados[n] = c.value; });
+        const json = JSON.stringify(dados);
+        if (json === ultimo) return;
+        ultimo = json;
+        try {
+          localStorage.setItem(chave, JSON.stringify({ dados, em: Date.now() }));
+          marcarSujo(true);
+        } catch (e) { /* aba anônima, cota cheia: o texto continua na tela */ }
+      }
+
+      // Tem rascunho de uma sessão anterior? Oferece, não impõe: sobrescrever
+      // o que a pessoa abriu pra editar seria pior que perder o rascunho.
+      try {
+        const cru = localStorage.getItem(chave);
+        if (cru) {
+          const { dados, em } = JSON.parse(cru);
+          const mudou = campos.some(n => { const c = pega(n); return c && dados[n] && dados[n] !== c.value; });
+          if (mudou) {
+            const quando = new Date(em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            aviso.hidden = false;
+            aviso.innerHTML = '<span>Você tem um rascunho não salvo de <b>' + quando + '</b>.</span>' +
+              '<button type="button" class="ar-usar">Recuperar</button>' +
+              '<button type="button" class="ar-descartar">Descartar</button>';
+            aviso.querySelector('.ar-usar').onclick = () => {
+              campos.forEach(n => { const c = pega(n); if (c && dados[n] !== undefined) c.value = dados[n]; });
+              aviso.hidden = true; contar();
+            };
+            aviso.querySelector('.ar-descartar').onclick = () => {
+              localStorage.removeItem(chave); aviso.hidden = true;
+            };
+          }
+        }
+      } catch (e) {}
+
+      setInterval(guardar, 4000);
+      campos.forEach(n => pega(n)?.addEventListener('input', () => { sujo = true; }));
+
+      /* ── 2. AVISO AO SAIR COM COISA NÃO SALVA ───────────────────────
+         O navegador só deixa avisar se a pessoa interagiu com a página, e o
+         texto do alerta é dele, não nosso — é assim em todos os navegadores
+         desde 2019, e tentar customizar não funciona. */
+      let sujo = false;
+      function marcarSujo(v) { sujo = v; }
+      form.addEventListener('submit', () => {
+        sujo = false;
+        try { localStorage.removeItem(chave); } catch (e) {}
+      });
+      window.addEventListener('beforeunload', (ev) => {
+        if (!sujo) return;
+        ev.preventDefault();
+        ev.returnValue = '';
+      });
+
+      /* ── 3. O TAMANHO DA MATÉRIA ────────────────────────────────────
+         Palavras e minutos de leitura, do mesmo jeito que a página do jornal
+         calcula (200 palavras por minuto). Quem escreve não tem noção de
+         tamanho olhando pra uma caixa de texto — e uma matéria de 90 palavras
+         num card de manchete fica com um buraco embaixo do título. */
+      const contador = document.createElement('div');
+      contador.className = 'contador-txt';
+      campo.insertAdjacentElement('afterend', contador);
+      function contar() {
+        const t = campo.value.trim();
+        const palavras = t ? (t.match(/\S+/g) || []).length : 0;
+        const min = Math.max(1, Math.round(palavras / 200));
+        const fotos = (campo.value.match(/\[foto:\d+\]/g) || []).length;
+        contador.textContent = palavras + (palavras === 1 ? ' palavra' : ' palavras')
+          + ' · ' + min + ' min de leitura'
+          + (fotos ? ' · ' + fotos + (fotos === 1 ? ' foto' : ' fotos') + ' no texto' : '')
+          + (palavras && palavras < 60 ? ' · curta pra uma matéria' : '');
+      }
+      campo.addEventListener('input', contar);
+      contar();
+
+      /* Ctrl+S salva. É o reflexo de quem escreve, e sem isto o navegador
+         abre a caixa de "salvar página" — que é o oposto do que a pessoa
+         quis. */
+      document.addEventListener('keydown', (ev) => {
+        if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') {
+          ev.preventDefault();
+          form.requestSubmit ? form.requestSubmit() : form.submit();
+        }
+      });
+    })();
 
 /* ═══════════════════════════════════════════════════════════════════
        A BARRA DE FORMATAR

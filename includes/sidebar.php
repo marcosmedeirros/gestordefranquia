@@ -119,6 +119,10 @@ if (!function_exists('sbActive')) {
         <a href="/estatisticas.php"<?= sbActive('estatisticas.php', $__sbCurrent) ?>><i class="bi bi-bar-chart-line-fill"></i> Estatísticas</a>
         <a href="/ouvidoria.php"<?= sbActive('ouvidoria.php', $__sbCurrent) ?>><i class="bi bi-chat-dots"></i> Ouvidoria</a>
         <a href="/thepathetic.php"<?= sbActive('thepathetic.php', $__sbCurrent) ?>><i class="bi bi-newspaper"></i> The Pathetic</a>
+        <?php /* A redação é de qualquer GM: sem este link, "todo mundo pode
+                 escrever" seria uma porta sem maçaneta — o único caminho era
+                 o card da aba Gestão, que só admin enxerga. */ ?>
+        <a href="/thepathetic-edit.php"<?= sbActive('thepathetic-edit.php', $__sbCurrent) ?>><i class="bi bi-pencil-square"></i> Escrever no Pathetic</a>
 
         <?php if ($__sbIsAdmin): ?>
         <div class="sb-section">Admin</div>
