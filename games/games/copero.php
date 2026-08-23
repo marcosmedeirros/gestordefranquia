@@ -837,6 +837,11 @@ body.ocupado .carta,body.ocupado .op,body.ocupado .btn,body.ocupado .oferta-linh
 .linha-sel .sel-band svg{width:26px;height:17px;border-radius:3px;
   box-shadow:0 0 0 1px rgba(255,255,255,.16)}
 .linha-sel .ano-clube span{font-weight:800}
+/* As taças da seleção colam no nome do país em vez de irem pro fim da
+   célula: aqui elas SÃO parte do nome — "Brasil, com duas Copas" —, e não
+   um resumo do ano como na linha do clube. */
+.linha-sel .sel-tacas{margin-left:6px}
+.tk-n{font-size:9px;font-weight:900;color:var(--txt3);margin-left:1px}
 .linha-pe{margin-top:8px;padding:9px 8px 1px;border-top:1px solid var(--borda)}
 .linha-pe .pe-nome{display:flex;align-items:center;gap:6px;font-size:9.5px;font-weight:800;
   letter-spacing:.8px;text-transform:uppercase;color:var(--txt3)}
@@ -4068,13 +4073,35 @@ function linhaDoTempo(){
   // é a informação de que não existe.
   if (forcaSelecao(S.pais)) {
     const selJ = soma('selJogos'), selG = soma('selGols'), selA = soma('selAst');
+
+    // AS TAÇAS DA SELEÇÃO, ao lado do nome do país — como as do clube ficam
+    // ao lado do nome do clube. Elas só viviam na sala de troféus e no
+    // boletim do ano em que foram ganhas, e esta linha, que é o resumo da
+    // carreira inteira pela seleção, mostrava jogos e gols e escondia
+    // justamente o que dá sentido a eles.
+    //
+    // Agrupa por id+nome e não só por id, pela mesma razão da sala: quem
+    // trocou de nacionalidade não existe no jogo, mas a Copa e o continental
+    // são taças diferentes e cada uma tem a foto dela.
+    const grupos = {};
+    (S.temporadas || []).forEach(t => (t.titulos || []).forEach(id => {
+      if (id !== 'copa_mundo' && id !== 'selecao_cont') return;
+      const chave = id + '|' + nomeDaTaca(id, t.liga);
+      if (!grupos[chave]) grupos[chave] = {id, liga: t.liga, n: 0};
+      grupos[chave].n++;
+    }));
+    const tacasSel = Object.values(grupos)
+      .sort((a, b) => ORDEM_TACAS.indexOf(a.id) - ORDEM_TACAS.indexOf(b.id))
+      .map(g => `<i class="tk" title="${esc(nomeDaTaca(g.id, g.liga))}${g.n > 1 ? ' ×' + g.n : ''}">${
+        taca(g.id, 14, g.liga)}${g.n > 1 ? `<b class="tk-n">${g.n}</b>` : ''}</i>`).join('');
     const colSel = S.posicao === 'GOL'
       ? `<span class="ano-n"></span><span class="ano-n"></span>`
       : `<span class="ano-n">${ICONES.gols}<b>${selG}</b></span>
          <span class="ano-n">${ICONES.ast}<b>${selA}</b></span>`;
     html += `<div class="linha-sel" title="Sua carreira pela seleção ${esc(PAISES[S.pais] || S.pais)}">
       <span class="sel-band">${bandeira(S.pais, 26)}</span>
-      <span class="ano-clube"><span>${esc(PAISES[S.pais] || S.pais)}</span></span>
+      <span class="ano-clube"><span>${esc(PAISES[S.pais] || S.pais)}</span>${
+        tacasSel ? `<i class="ano-tacas sel-tacas">${tacasSel}</i>` : ''}</span>
       <span></span>
       <span class="ano-n col-jogos">${ICONES.jogos}<b>${selJ}</b></span>
       ${colSel}

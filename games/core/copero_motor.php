@@ -576,6 +576,25 @@ const COPERO_PREMIOS = [
  * "UEFA Euro" cabe dentro de "UEFA Europa League".
  */
 const COPERO_TACA_FOTO = [
+    // ── Os premios individuais ────────────────────────────────────────
+    //
+    // Estes tres nao vem do TheSportsDB: a base cataloga COMPETICAO, e
+    // premio individual nao e competicao. Vem da Wikimedia, e vieram por
+    // uma peneira so: recorte limpo em fundo transparente. Foram comparados
+    // com o desenho de hoje nos tres tamanhos que o jogo usa — 116px na tela
+    // de taca nova, 46px na sala de trofeus, 14px na linha do tempo — e so
+    // entraram os que ganharam nos tres.
+    //
+    // A BOLA DE OURO NAO ENTROU, e nao foi por falta de procurar. Todas as
+    // fotos que existem dela sao o trofeu dentro da vitrine: a do Figo, a do
+    // museu do CR7, a de 2023 numa mesa com janela ao fundo. A 46px viram uma
+    // caixa escura com um ponto dourado dentro, e a 14px so a caixa escura.
+    // O desenho e uma bola de ouro num pe, que e literalmente o trofeu, e le
+    // nos tres tamanhos.
+    'chuteira'    => 'https://upload.wikimedia.org/wikipedia/commons/a/a1/Bota_de_oro.svg',
+    'luva_ouro'   => 'https://upload.wikimedia.org/wikipedia/commons/9/9c/Guante_Oro.png',
+    'rei_america' => 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Trofeo_del_Rey_de_Am%C3%A9rica.png',
+
     'cont2:ASI'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/onsqtf1747117674.png',  // AFC Champions League Two
     'cont2:EUR'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/czo8tz1747884321.png',  // UEFA Europa League
     'cont2:SAM'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/rt0th41696615897.png',  // Copa Sudamericana
