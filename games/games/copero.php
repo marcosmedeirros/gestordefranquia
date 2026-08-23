@@ -688,6 +688,12 @@ body.ocupado .carta,body.ocupado .op,body.ocupado .btn,body.ocupado .oferta-linh
 /* A carta do rival tem que gritar: é a única escolha do mercado que custa. */
 .carta.rival{border-color:#7f1d3a}
 .av-rival{font-style:normal;color:#f472b6;font-weight:800}
+/* A volta pra casa é verde de camisa velha; o gigante é dourado, porque é o
+   convite que a carreira inteira persegue. */
+.carta.casa{border-color:#2f6b46}
+.av-casa{font-style:normal;color:#4ade80;font-weight:800}
+.carta.gigante{border-color:#8a6d1f}
+.av-gigante{font-style:normal;color:#fbbf24;font-weight:800}
 .tag svg{width:17px;height:11px;border-radius:2px;flex:none;display:block}
 /* Os `min-width:0` não são enfeite: sem eles o nome comprido não encolhe,
    empurra o bloco de idade/valor pra fora e a página inteira ganha barra de
@@ -2384,6 +2390,7 @@ function comecarCarreira(){
     pico: 24 + Math.floor(Math.random() * 8),
     durabilidade: (75 + Math.floor(Math.random() * 60)) / 100,
     picoOvr: 50, picoValor: 0, maiorForcaClube: 0, comecouAbaixo: false,
+    formador: null,        // o clube que te revelou, pra volta pra casa
     // O que as cartas deixam pendurado pro ano seguinte. Nasce zerado aqui,
     // mas TODO consumo lê com `|| 0`: carreira salva antes destes campos
     // existirem continua carregando sem quebrar.
@@ -2556,13 +2563,39 @@ function ofertas(quantos, exceto, soDeCasa){
 
     if (LIGAS_TARDIAS.has(c.liga) && l.pais !== S.pais && !veterano && !declinio) return false;
     if (l.media > tetoLiga || l.media < pisoLiga) return false;
+
+    // GIGANTE NÃO REFORMA ELENCO COM VETERANO.
+    //
+    // Aos 32 o clube de ponta só vem se você AINDA está no nível dele: é o
+    // Lewandowski aos 33, que muda de casa porque continua sendo o melhor 9
+    // do mundo — e não o meia de 84 que já foi 91 e que, na vida real,
+    // ninguém grande procura. Aos 35 não vem de jeito nenhum. O que sobra
+    // depois disso são os três finais que o futebol tem de verdade: a liga
+    // tardia, a volta pra casa e a aposentadoria.
+    if (c.forca >= 86) {
+      if (S.idade >= 35) return false;
+      if (S.idade >= 32 && S.ovr < c.forca - 2) return false;
+    }
     if (!atual) return true;
 
     // Um degrau de divisão por vez, dentro do país.
     if (l.nivel < atual.nivel - 1) return false;
 
     if (l.pais !== atual.pais) {
-      if (!podeSair) return false;
+      // A PORTA DO VIZINHO.
+      //
+      // Sair pro MUNDO pede primeira divisão em casa ou nome feito. Sair pro
+      // país AO LADO, não — e é por essa porta que passa metade do futebol
+      // sul-americano: o cara da Série B vai jogar a primeira do Uruguai, do
+      // Chile ou da Colômbia, e volta melhor do que saiu. Sem ela a segunda
+      // divisão era um beco sem saída: ou você subia, ou ficava lá.
+      //
+      // Continua sendo escada, e não passeio: só primeira divisão do vizinho,
+      // só se valer pelo menos o que a sua vale, e nunca mais de dezesseis
+      // pontos de prestígio acima — Série C não pula direto pra Argentina.
+      const degrauDoLado = l.cont === atual.cont && l.nivel === 1
+                           && l.media >= pres && l.media <= pres + 16;
+      if (!podeSair && !degrauDoLado) return false;
       if (l.media < pres && !veterano && !declinio) return false;
 
       // Mudar de CONTINENTE, na idade boa, é só pra ir ao topo do mundo.
@@ -2647,6 +2680,69 @@ function ofertas(quantos, exceto, soDeCasa){
     if (!saida.includes(c)) saida.push(c);
   }
 
+  // O OLHEIRO DO GIGANTE.
+  //
+  // Quem é bom demais pra idade não sobe degrau por degrau: o clube grande
+  // atravessa a escada inteira e leva o garoto direto. É assim que metade
+  // dos craques chega lá, e a régua é a IDADE, não o overall solto — 66 aos
+  // 18 é promessa, 66 aos 24 é jogador de meio de tabela.
+  //
+  // E é decisão de verdade, não presente: lá dentro não vai ter espaço no
+  // começo (o encaixe derruba os jogos), e o empréstimo vem logo atrás. O
+  // caminho lento pode entregar mais jogo e mais evolução — o jogo não diz
+  // qual é o certo porque o futebol também não diz.
+  //
+  // Os cortes são MEDIDOS, em 500 carreiras: é a faixa dos ~12% melhores de
+  // cada idade. Tinha chutado uma fórmula linear antes e ela pedia 70 aos
+  // 18, quando o melhor garoto de 500 carreiras chegou a 73 e o percentil
+  // 95 ficou em 64 — o olheiro simplesmente nunca aparecia.
+  const OVR_DE_PROMESSA = {17: 56, 18: 62, 19: 67, 20: 72, 21: 77};
+  const corteDaIdade = OVR_DE_PROMESSA[S.idade];
+  if (atual && saida.length && corteDaIdade && S.ovr >= corteDaIdade
+      && Math.random() < 0.30 * (S.talento || 1)) {
+    const gigantes = CLUBES.filter(c => {
+      const l = dadosLiga(c.liga);
+      return l && l.nivel === 1 && c.forca >= 86 && !fora.has(c.nome);
+    });
+    if (gigantes.length) {
+      saida[0] = Object.assign({}, gigantes[Math.floor(Math.random() * gigantes.length)],
+                               {_marca: 'gigante'});
+    }
+  }
+
+  // A VOLTA PRA CASA.
+  //
+  // Todo mundo volta. Uns pro clube que os revelou, outros só pro país — e
+  // não é caridade: é o clube médio pagando pra ter aquele nome de volta na
+  // camisa, que é o final de carreira mais comum que o futebol tem. Vale a
+  // partir dos 31 OU quando a curva já virou pra baixo, porque quem cai cedo
+  // volta cedo.
+  //
+  // O berço vem pelo NOME e é procurado no catálogo agora: ele pode ter
+  // subido ou caído de divisão desde que você saiu, e voltar pra um clube
+  // que mudou de vida é justamente a graça da coisa.
+  let voltou = false;
+  if (atual && saida.length && (S.idade >= 31 || declinio) && Math.random() < 0.30) {
+    const berco = S.formador && S.formador !== S.clube.nome && !fora.has(S.formador)
+      ? CLUBES.find(c => c.nome === S.formador) : null;
+    let volta = berco;
+    if (!volta) {
+      // Sem berço disponível, o país de origem: qualquer primeira divisão de
+      // casa que ainda caiba em você.
+      const daTerra = CLUBES.filter(c => {
+        const l = dadosLiga(c.liga);
+        return l && l.pais === S.pais && l.nivel === 1
+               && c.nome !== S.clube.nome && !fora.has(c.nome)
+               && c.forca >= S.ovr - 24 && c.forca <= S.ovr + 6;
+      });
+      if (daTerra.length) volta = daTerra[Math.floor(Math.random() * daTerra.length)];
+    }
+    if (volta) {
+      saida[saida.length - 1] = Object.assign({}, volta, {_marca: berco ? 'berco' : 'casa'});
+      voltou = true;
+    }
+  }
+
   // O CONVITE DE FORA, e ele entra na saída FINAL — não na lista de
   // elegíveis. Jogado no balaio junto com os outros duzentos, ele quase nunca
   // era sorteado: aparecia em 1% das janelas, o que na prática é nunca.
@@ -2656,7 +2752,7 @@ function ofertas(quantos, exceto, soDeCasa){
   // aparece de vez em quando. Aceitar custa caro — quase sempre é trocar a
   // Europa por uma liga menor — e é isso que faz dos cinco continentes a
   // coisa mais rara do jogo.
-  if (atual && S.ovr >= 78 && Math.random() < 0.16) {
+  if (atual && !voltou && S.ovr >= 78 && Math.random() < 0.16) {
     const visitados = new Set((S.temporadas || []).map(x => {
       const d = dadosLiga(x.liga); return d && d.cont;
     }));
@@ -2878,12 +2974,20 @@ async function assinar(clube){
     S.pressaoRival = true;            // pesa na temporada que vem
   }
 
+  // O selo é enfeite de CARTA e não pertence ao estado: sem tirar aqui ele
+  // ia parar no localStorage e a ficha do clube carregaria pra sempre um
+  // "vieram te buscar" de uma decisão de dez temporadas atrás.
+  if (clube && clube._marca) { clube = Object.assign({}, clube); delete clube._marca; }
   S.clube = clube;
   S.fase = 'jogando';
   S.motivoSaida = null;          // o texto da saída forçada morre aqui
   if (!S.temporadas.length) {
     const l = dadosLiga(clube.liga);
     S.comecouAbaixo = !!(l && l.nivel >= 2);
+    // O BERÇO. Guardado pelo nome porque a força do clube muda com o tempo
+    // (ele sobe e cai de divisão), e o que importa aqui é a camisa, não a
+    // planilha. É o que faz a volta pra casa ser a SUA volta pra casa.
+    S.formador = clube.nome;
   }
   S.maiorForcaClube = Math.max(S.maiorForcaClube, clube.forca);
   await jogarAnos();
@@ -3659,10 +3763,20 @@ function cartasDeClube(lista, comFicar, comAposentar){
     // O aviso de clássico é o que transforma a oferta em decisão. Escondê-lo
     // seria pegadinha: quem vai pro rival tem que saber que está indo.
     const rival = S.clube && ehRival(S.clube.nome, c.nome);
+    // O SELO DIZ POR QUE ESTA CARTA ESTÁ AQUI. Uma oferta do clube que te
+    // revelou e uma oferta qualquer de mesmo tamanho são a mesma linha na
+    // planilha e coisas completamente diferentes na carreira — sem o selo a
+    // pessoa passaria batido pela única que tem história.
+    const selo = c._marca === 'berco'   ? '<i class="av-casa">onde tudo começou</i>'
+               : c._marca === 'casa'    ? '<i class="av-casa">de volta pra casa</i>'
+               : c._marca === 'gigante' ? '<i class="av-gigante">vieram te buscar</i>' : '';
     return cartaClube({
-      acao: `assinarOpcao(${i})`, cls: rival ? 'rival' : '',
-      rotulo: 'Assinar com', nome: c.nome, escudo: escudo(c, 36),
-      pe: rival ? `<i class="av-rival">rival do ${esc(S.clube.nome)}</i>` : (l ? esc(l.nome) : ''),
+      acao: `assinarOpcao(${i})`,
+      cls: rival ? 'rival' : (c._marca === 'gigante' ? 'gigante' : (c._marca ? 'casa' : '')),
+      rotulo: c._marca === 'berco' ? 'Voltar pro' : 'Assinar com',
+      nome: c.nome, escudo: escudo(c, 36),
+      pe: rival ? `<i class="av-rival">rival do ${esc(S.clube.nome)}</i>`
+                : (l ? esc(l.nome) : '') + (selo ? '<br>' + selo : ''),
     });
   });
   if (comFicar && S.clube) {
