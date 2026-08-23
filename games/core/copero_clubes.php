@@ -99,6 +99,62 @@ const COPERO_LIGAS = [
     // A Austrália joga na Ásia, como na vida real desde 2007: com só quatro
     // clubes, a Oceania virava uma Champions que se ganha em nove de cada dez anos.
     'AU1'  => ['AUS', 'ASI', 'A-League',            1, 68],
+
+    /* ══ AS TRINTA LIGAS NOVAS ═════════════════════════════════════════
+     *
+     * O mundo tinha 41 ligas em 32 países, e as seleções eram 62 — metade
+     * do jogo era gente que disputava a Copa e não tinha onde jogar. Isso
+     * deixava buracos de verdade: a Croácia, o Senegal e a Costa do Marfim
+     * eram nacionalidades ESCOLHÍVEIS sem uma liga em casa, então o garoto
+     * nascia sem clube do próprio país e caía direto na Europa aos 16.
+     *
+     * As forças médias não são chute: são a régua do próprio catálogo, onde
+     * a Premier é 96 e a Série C brasileira é 54. Uma liga que vale 56 não
+     * é enfeite — é o degrau que faltava embaixo, e é ele que faz a carreira
+     * de quem não vira craque ter para onde ir.
+     */
+
+    // ── América do Sul: a CONMEBOL inteira ────────────────────────────
+    'EC1'  => ['ECU', 'SAM', 'LigaPro',             1, 66],
+    'PY1'  => ['PAR', 'SAM', 'Primera División',    1, 64],
+    'PE1'  => ['PER', 'SAM', 'Liga 1',              1, 64],
+    'VE1'  => ['VEN', 'SAM', 'Liga FUTVE',          1, 58],
+    'BO1'  => ['BOL', 'SAM', 'División Profesional',1, 56],
+
+    // ── Europa ────────────────────────────────────────────────────────
+    'HR1'  => ['CRO', 'EUR', 'HNL',                 1, 72],
+    'CH1'  => ['SUI', 'EUR', 'Super League',        1, 72],
+    'AT1'  => ['AUT', 'EUR', 'Bundesliga Austríaca',1, 72],
+    'UA1'  => ['UKR', 'EUR', 'Premier Liha',        1, 70],
+    'DK1'  => ['DEN', 'EUR', 'Superliga',           1, 70],
+    'RS1'  => ['SRB', 'EUR', 'Superliga Sérvia',    1, 68],
+    'PL1'  => ['POL', 'EUR', 'Ekstraklasa',         1, 68],
+    'CZ1'  => ['CZE', 'EUR', 'Chance Liga',         1, 68],
+    'NO1'  => ['NOR', 'EUR', 'Eliteserien',         1, 66],
+    'SE1'  => ['SWE', 'EUR', 'Allsvenskan',         1, 66],
+    // Segundas divisões onde a primeira já existia: é degrau, e degrau é o
+    // que faz a queda ser queda e a subida ser subida.
+    'PT2'  => ['POR', 'EUR', 'Liga Portugal 2',     2, 62],
+    'NL2'  => ['NED', 'EUR', 'Eerste Divisie',      2, 62],
+
+    // ── Ásia ──────────────────────────────────────────────────────────
+    'CN1'  => ['CHN', 'ASI', 'Chinese Super League',1, 66],
+    'UZ1'  => ['UZB', 'ASI', 'Superliga Uzbeque',   1, 58],
+    'IQ1'  => ['IRQ', 'ASI', 'Stars League',        1, 58],
+
+    // ── África ────────────────────────────────────────────────────────
+    'GH1'  => ['GHA', 'AFR', 'Premier League Ganesa',1, 58],
+    'SN1'  => ['SEN', 'AFR', 'Ligue 1 Senegalesa',  1, 56],
+    'CI1'  => ['CIV', 'AFR', 'Ligue 1 Marfinense',  1, 56],
+    'CM1'  => ['CMR', 'AFR', 'Elite One',           1, 54],
+    'ML1'  => ['MLI', 'AFR', 'Première Division',   1, 54],
+
+    // ── América do Norte e Central ────────────────────────────────────
+    'CR1'  => ['CRC', 'NAM', 'Liga Promerica',      1, 62],
+    'CA1'  => ['CAN', 'NAM', 'Canadian Premier',    1, 58],
+    'HN1'  => ['HON', 'NAM', 'Liga Nacional',       1, 56],
+    'PA1'  => ['PAN', 'NAM', 'LPF Panamá',          1, 54],
+    'JM1'  => ['JAM', 'NAM', 'Jamaica Premier',     1, 52],
 ];
 
 /**
@@ -416,6 +472,399 @@ const COPERO_CLUBES = [
     ['Sydney FC', 'AU1', 69, 'https://r2.thesportsdb.com/images/media/team/badge/utgq8z1546110747.png'],
     ['Melbourne Victory', 'AU1', 68, 'https://r2.thesportsdb.com/images/media/team/badge/wwvsqx1473454564.png'],
     ['Auckland FC', 'AU1', 64, 'https://r2.thesportsdb.com/images/media/team/badge/f36lst1730017502.png'],
+
+    /* ══ OS CLUBES DAS LIGAS NOVAS, E OS QUE FALTAVAM NAS ANTIGAS ══════
+     *
+     * Sem escudo, de propósito: o catálogo antigo tem a URL do badge de cada
+     * clube e essas eu não tenho como inventar — link chutado dá imagem
+     * quebrada, que é pior que não ter. O jogo já resolve isso sozinho, com
+     * o monograma colorido, e preencher depois é manutenção e não conserto.
+     *
+     * A força SEMPRE varia dentro da liga, porque é dela que sai o degrau:
+     * uma liga onde todo clube vale a mesma coisa não é liga, é uma linha.
+     */
+
+    // ── LigaPro (Equador) ─────────────────────────────────────────────
+    ['Independiente del Valle', 'EC1', 72, ''],
+    ['Barcelona SC', 'EC1', 69, ''],
+    ['LDU Quito', 'EC1', 68, ''],
+    ['Emelec', 'EC1', 65, ''],
+    ['Aucas', 'EC1', 62, ''],
+    ['Delfín', 'EC1', 60, ''],
+
+    // ── Primera División (Paraguai) ───────────────────────────────────
+    ['Olimpia', 'PY1', 69, ''],
+    ['Cerro Porteño', 'PY1', 68, ''],
+    ['Libertad', 'PY1', 67, ''],
+    ['Guaraní', 'PY1', 62, ''],
+    ['Club Nacional', 'PY1', 60, ''],
+
+    // ── Liga 1 (Peru) ─────────────────────────────────────────────────
+    ['Universitario', 'PE1', 68, ''],
+    ['Alianza Lima', 'PE1', 67, ''],
+    ['Sporting Cristal', 'PE1', 66, ''],
+    ['Melgar', 'PE1', 62, ''],
+    ['Cienciano', 'PE1', 59, ''],
+
+    // ── Liga FUTVE (Venezuela) ────────────────────────────────────────
+    ['Caracas', 'VE1', 62, ''],
+    ['Deportivo Táchira', 'VE1', 60, ''],
+    ['Carabobo', 'VE1', 57, ''],
+    ['Monagas', 'VE1', 55, ''],
+    ['Estudiantes de Mérida', 'VE1', 53, ''],
+
+    // ── División Profesional (Bolívia) ────────────────────────────────
+    ['Bolívar', 'BO1', 62, ''],
+    ['The Strongest', 'BO1', 60, ''],
+    ['Always Ready', 'BO1', 56, ''],
+    ['Blooming', 'BO1', 52, ''],
+    ['Oriente Petrolero', 'BO1', 51, ''],
+
+    // ── HNL (Croácia) ─────────────────────────────────────────────────
+    ['Dinamo Zagreb', 'HR1', 78, ''],
+    ['Hajduk Split', 'HR1', 73, ''],
+    ['Rijeka', 'HR1', 72, ''],
+    ['Osijek', 'HR1', 68, ''],
+    ['Lokomotiva', 'HR1', 65, ''],
+
+    // ── Super League (Suíça) ──────────────────────────────────────────
+    ['Young Boys', 'CH1', 77, ''],
+    ['Basel', 'CH1', 75, ''],
+    ['Servette', 'CH1', 71, ''],
+    ['Zürich', 'CH1', 70, ''],
+    ['Lugano', 'CH1', 68, ''],
+    ['St. Gallen', 'CH1', 67, ''],
+
+    // ── Bundesliga Austríaca ──────────────────────────────────────────
+    ['Red Bull Salzburg', 'AT1', 79, ''],
+    ['Sturm Graz', 'AT1', 74, ''],
+    ['Rapid Viena', 'AT1', 71, ''],
+    ['LASK', 'AT1', 69, ''],
+    ['Austria Viena', 'AT1', 68, ''],
+
+    // ── Premier Liha (Ucrânia) ────────────────────────────────────────
+    ['Shakhtar Donetsk', 'UA1', 78, ''],
+    ['Dínamo de Kiev', 'UA1', 76, ''],
+    ['Zorya', 'UA1', 68, ''],
+    ['Dnipro-1', 'UA1', 66, ''],
+    ['Kryvbas', 'UA1', 63, ''],
+
+    // ── Superliga (Dinamarca) ─────────────────────────────────────────
+    ['Copenhague', 'DK1', 76, ''],
+    ['Midtjylland', 'DK1', 74, ''],
+    ['Brøndby', 'DK1', 70, ''],
+    ['AGF', 'DK1', 67, ''],
+    ['Nordsjælland', 'DK1', 66, ''],
+
+    // ── Superliga Sérvia ──────────────────────────────────────────────
+    ['Estrela Vermelha', 'RS1', 76, ''],
+    ['Partizan', 'RS1', 72, ''],
+    ['Vojvodina', 'RS1', 66, ''],
+    ['Čukarički', 'RS1', 64, ''],
+    ['TSC', 'RS1', 62, ''],
+
+    // ── Ekstraklasa (Polônia) ─────────────────────────────────────────
+    ['Legia', 'PL1', 73, ''],
+    ['Raków', 'PL1', 71, ''],
+    ['Lech Poznań', 'PL1', 70, ''],
+    ['Jagiellonia', 'PL1', 67, ''],
+    ['Pogoń', 'PL1', 65, ''],
+    ['Górnik Zabrze', 'PL1', 62, ''],
+
+    // ── Chance Liga (Chéquia) ─────────────────────────────────────────
+    ['Slavia Praga', 'CZ1', 75, ''],
+    ['Sparta Praga', 'CZ1', 74, ''],
+    ['Viktoria Plzeň', 'CZ1', 71, ''],
+    ['Baník Ostrava', 'CZ1', 65, ''],
+    ['Slovan Liberec', 'CZ1', 63, ''],
+
+    // ── Eliteserien (Noruega) ─────────────────────────────────────────
+    ['Bodø/Glimt', 'NO1', 73, ''],
+    ['Molde', 'NO1', 70, ''],
+    ['Rosenborg', 'NO1', 67, ''],
+    ['Brann', 'NO1', 64, ''],
+    ['Viking', 'NO1', 63, ''],
+
+    // ── Allsvenskan (Suécia) ──────────────────────────────────────────
+    ['Malmö FF', 'SE1', 72, ''],
+    ['AIK', 'SE1', 68, ''],
+    ['Djurgården', 'SE1', 68, ''],
+    ['Hammarby', 'SE1', 66, ''],
+    ['IFK Göteborg', 'SE1', 63, ''],
+    ['Elfsborg', 'SE1', 63, ''],
+
+    // ── Liga Portugal 2 ───────────────────────────────────────────────
+    ['Tondela', 'PT2', 64, ''],
+    ['Académico de Viseu', 'PT2', 63, ''],
+    ['Leixões', 'PT2', 62, ''],
+    ['Feirense', 'PT2', 61, ''],
+    ['Penafiel', 'PT2', 59, ''],
+    ['Mafra', 'PT2', 58, ''],
+
+    // ── Eerste Divisie (Holanda) ──────────────────────────────────────
+    ['Roda JC', 'NL2', 64, ''],
+    ['De Graafschap', 'NL2', 63, ''],
+    ['Willem II', 'NL2', 63, ''],
+    ['Cambuur', 'NL2', 62, ''],
+    ['VVV-Venlo', 'NL2', 60, ''],
+    ['Den Bosch', 'NL2', 58, ''],
+
+    // ── Chinese Super League ──────────────────────────────────────────
+    ['Shanghai Port', 'CN1', 72, ''],
+    ['Shanghai Shenhua', 'CN1', 70, ''],
+    ['Beijing Guoan', 'CN1', 67, ''],
+    ['Shandong Taishan', 'CN1', 67, ''],
+    ['Chengdu Rongcheng', 'CN1', 64, ''],
+    ['Zhejiang', 'CN1', 62, ''],
+
+    // ── Superliga Uzbeque ─────────────────────────────────────────────
+    ['Pakhtakor', 'UZ1', 64, ''],
+    ['Nasaf', 'UZ1', 60, ''],
+    ['Bunyodkor', 'UZ1', 57, ''],
+    ['Navbahor', 'UZ1', 55, ''],
+    ['AGMK', 'UZ1', 53, ''],
+
+    // ── Stars League (Iraque) ─────────────────────────────────────────
+    ['Al-Quwa Al-Jawiya', 'IQ1', 63, ''],
+    ['Al-Shorta', 'IQ1', 62, ''],
+    ['Al-Zawraa', 'IQ1', 60, ''],
+    ['Erbil', 'IQ1', 55, ''],
+    ['Al-Talaba', 'IQ1', 53, ''],
+
+    // ── Premier League Ganesa ─────────────────────────────────────────
+    ['Asante Kotoko', 'GH1', 63, ''],
+    ['Hearts of Oak', 'GH1', 62, ''],
+    ['Medeama', 'GH1', 58, ''],
+    ['Aduana', 'GH1', 56, ''],
+    ['Bechem United', 'GH1', 53, ''],
+
+    // ── Ligue 1 Senegalesa ────────────────────────────────────────────
+    ['Jaraaf', 'SN1', 61, ''],
+    ['Casa Sports', 'SN1', 59, ''],
+    ['Génération Foot', 'SN1', 57, ''],
+    ['Teungueth', 'SN1', 55, ''],
+    ['Diambars', 'SN1', 52, ''],
+
+    // ── Ligue 1 Marfinense ────────────────────────────────────────────
+    ['ASEC Mimosas', 'CI1', 62, ''],
+    ['Africa Sports', 'CI1', 58, ''],
+    ["Stade d'Abidjan", 'CI1', 55, ''],
+    ['San Pédro', 'CI1', 54, ''],
+    ['Racing Abidjan', 'CI1', 51, ''],
+
+    // ── Elite One (Camarões) ──────────────────────────────────────────
+    ['Coton Sport', 'CM1', 60, ''],
+    ['Canon Yaoundé', 'CM1', 55, ''],
+    ['Union Douala', 'CM1', 53, ''],
+    ['Victoria United', 'CM1', 51, ''],
+    ['Bamboutos', 'CM1', 49, ''],
+
+    // ── Première Division (Mali) ──────────────────────────────────────
+    ['Stade Malien', 'ML1', 60, ''],
+    ['Djoliba', 'ML1', 58, ''],
+    ['Real Bamako', 'ML1', 53, ''],
+    ['AS Bakaridjan', 'ML1', 50, ''],
+    ['Onze Créateurs', 'ML1', 48, ''],
+
+    // ── Liga Promerica (Costa Rica) ───────────────────────────────────
+    ['Saprissa', 'CR1', 68, ''],
+    ['Alajuelense', 'CR1', 67, ''],
+    ['Herediano', 'CR1', 64, ''],
+    ['Cartaginés', 'CR1', 60, ''],
+    ['Puntarenas', 'CR1', 56, ''],
+
+    // ── Canadian Premier ──────────────────────────────────────────────
+    ['Forge FC', 'CA1', 62, ''],
+    ['Cavalry FC', 'CA1', 60, ''],
+    ['Pacific FC', 'CA1', 58, ''],
+    ['Atlético Ottawa', 'CA1', 56, ''],
+    ['Vancouver FC', 'CA1', 53, ''],
+
+    // ── Liga Nacional (Honduras) ──────────────────────────────────────
+    ['CD Olimpia', 'HN1', 62, ''],
+    ['Motagua', 'HN1', 59, ''],
+    ['Marathón', 'HN1', 56, ''],
+    ['Real España', 'HN1', 54, ''],
+    ['CD Victoria', 'HN1', 50, ''],
+
+    // ── LPF Panamá ────────────────────────────────────────────────────
+    ['Tauro', 'PA1', 59, ''],
+    ['Árabe Unido', 'PA1', 56, ''],
+    ['Plaza Amador', 'PA1', 54, ''],
+    ['Sporting San Miguelito', 'PA1', 52, ''],
+    ['Alianza FC', 'PA1', 49, ''],
+
+    // ── Jamaica Premier ───────────────────────────────────────────────
+    ['Cavalier', 'JM1', 57, ''],
+    ['Mount Pleasant', 'JM1', 55, ''],
+    ['Arnett Gardens', 'JM1', 52, ''],
+    ['Portmore United', 'JM1', 51, ''],
+    ['Harbour View', 'JM1', 48, ''],
+
+    /* ── E o que faltava nas ligas que já existiam ─────────────────────
+     * Um país com três clubes não é um país: a lista de ofertas se esgota,
+     * a rede de segurança abre e o jogador é jogado pra fora do próprio
+     * campeonato. Uruguai, Chile e Colômbia tinham três cada. */
+
+    // Brasileirão Série A
+    ['Juventude', 'BR1', 74, ''],
+    ['Mirassol', 'BR1', 75, ''],
+    // Brasileirão Série B
+    ['América-MG', 'BR2', 66, ''],
+    ['Criciúma', 'BR2', 65, ''],
+    ['Novorizontino', 'BR2', 64, ''],
+    ['Vila Nova', 'BR2', 62, ''],
+    ['Chapecoense', 'BR2', 63, ''],
+    // Brasileirão Série C
+    ['Londrina', 'BR3', 54, ''],
+    ['Figueirense', 'BR3', 53, ''],
+    ['ABC', 'BR3', 51, ''],
+    ['Botafogo-PB', 'BR3', 50, ''],
+    // Primera Nacional (Argentina)
+    ['All Boys', 'AR2', 60, ''],
+    ['San Martín de Tucumán', 'AR2', 61, ''],
+    ['Chacarita', 'AR2', 56, ''],
+    // Primera División (Uruguai)
+    ['Danubio', 'UY1', 63, ''],
+    ['Liverpool Montevideo', 'UY1', 64, ''],
+    ['Montevideo City', 'UY1', 61, ''],
+    ['Cerro Largo', 'UY1', 59, ''],
+    // Primera División (Chile)
+    ['Universidad Católica', 'CL1', 68, ''],
+    ['Huachipato', 'CL1', 63, ''],
+    ['Palestino', 'CL1', 61, ''],
+    ['Unión Española', 'CL1', 59, ''],
+    // Categoría Primera A (Colômbia)
+    ['América de Cali', 'CO1', 68, ''],
+    ['Independiente Medellín', 'CO1', 67, ''],
+    ['Deportivo Cali', 'CO1', 65, ''],
+    ['Santa Fe', 'CO1', 66, ''],
+    // Premier League
+    ['Nottingham Forest', 'EN1', 83, ''],
+    ['Bournemouth', 'EN1', 81, ''],
+    ['Brentford', 'EN1', 80, ''],
+    // Championship
+    ['West Bromwich', 'EN2', 70, ''],
+    ['Middlesbrough', 'EN2', 70, ''],
+    ['Coventry City', 'EN2', 69, ''],
+    // League One
+    ['Blackpool', 'EN3', 54, ''],
+    ['Peterborough', 'EN3', 53, ''],
+    ['Stockport', 'EN3', 52, ''],
+    // LaLiga
+    ['Rayo Vallecano', 'ES1', 78, ''],
+    ['Mallorca', 'ES1', 78, ''],
+    ['Girona', 'ES1', 80, ''],
+    // LaLiga 2
+    ['Deportivo La Coruña', 'ES2', 66, ''],
+    ['Levante', 'ES2', 65, ''],
+    ['Málaga', 'ES2', 63, ''],
+    // Serie A
+    ['Genoa', 'IT1', 77, ''],
+    ['Cagliari', 'IT1', 76, ''],
+    ['Como', 'IT1', 78, ''],
+    // Serie B
+    ['Cremonese', 'IT2', 63, ''],
+    ['Spezia', 'IT2', 63, ''],
+    ['Catanzaro', 'IT2', 60, ''],
+    // Bundesliga
+    ['Freiburg', 'DE1', 80, ''],
+    ['Hoffenheim', 'DE1', 78, ''],
+    ['Mainz 05', 'DE1', 78, ''],
+    ['Augsburg', 'DE1', 76, ''],
+    // 2. Bundesliga
+    ['Colônia', 'DE2', 68, ''],
+    ['Fortuna Düsseldorf', 'DE2', 64, ''],
+    ['Nürnberg', 'DE2', 62, ''],
+    // Ligue 1
+    ['Toulouse', 'FR1', 76, ''],
+    ['Montpellier', 'FR1', 75, ''],
+    ['Reims', 'FR1', 75, ''],
+    ['Brest', 'FR1', 77, ''],
+    // Ligue 2
+    ['Auxerre', 'FR2', 64, ''],
+    ['Guingamp', 'FR2', 60, ''],
+    ['Troyes', 'FR2', 59, ''],
+    // Primeira Liga
+    ['Vitória de Setúbal', 'PT1', 70, ''],
+    ['Rio Ave', 'PT1', 71, ''],
+    ['Boavista', 'PT1', 70, ''],
+    ['Famalicão', 'PT1', 72, ''],
+    // Eredivisie
+    ['Utrecht', 'NL1', 74, ''],
+    ['Vitesse', 'NL1', 72, ''],
+    ['Heerenveen', 'NL1', 71, ''],
+    ['Sparta Rotterdam', 'NL1', 70, ''],
+    // Pro League (Bélgica)
+    ['Antuérpia', 'BE1', 74, ''],
+    ['Gent', 'BE1', 73, ''],
+    ['Union Saint-Gilloise', 'BE1', 75, ''],
+    // Süper Lig
+    ['Başakşehir', 'TR1', 75, ''],
+    ['Samsunspor', 'TR1', 72, ''],
+    ['Konyaspor', 'TR1', 70, ''],
+    // Premier Liga (Rússia)
+    ['Lokomotiv Moscou', 'RU1', 74, ''],
+    ['Dínamo Moscou', 'RU1', 74, ''],
+    ['Krasnodar', 'RU1', 76, ''],
+    // Premiership (Escócia)
+    ['Aberdeen', 'SC1', 65, ''],
+    ['Hibernian', 'SC1', 64, ''],
+    ['Dundee United', 'SC1', 61, ''],
+    // Super League (Grécia)
+    ['Aris', 'GR1', 70, ''],
+    ['Panserraikos', 'GR1', 65, ''],
+    ['Volos', 'GR1', 64, ''],
+    // MLS
+    ['Columbus Crew', 'US1', 76, ''],
+    ['Philadelphia Union', 'US1', 74, ''],
+    ['New York City FC', 'US1', 73, ''],
+    ['Sporting KC', 'US1', 71, ''],
+    // Liga MX
+    ['Toluca', 'MX1', 78, ''],
+    ['Pumas', 'MX1', 74, ''],
+    ['León', 'MX1', 74, ''],
+    // Saudi Pro League
+    ['Al Qadsiah', 'SA1', 76, ''],
+    ['Al Ettifaq', 'SA1', 74, ''],
+    ['Al Taawoun', 'SA1', 73, ''],
+    // J1 League
+    ['Sanfrecce Hiroshima', 'JP1', 73, ''],
+    ['Kashima Antlers', 'JP1', 72, ''],
+    ['Gamba Osaka', 'JP1', 70, ''],
+    // K League 1
+    ['Gangwon FC', 'KR1', 69, ''],
+    ['Suwon FC', 'KR1', 67, ''],
+    ['Gwangju FC', 'KR1', 68, ''],
+    // Persian Gulf Pro League
+    ['Foolad', 'IR1', 66, ''],
+    ['Gol Gohar', 'IR1', 64, ''],
+    // Qatar Stars League
+    ['Al Gharafa', 'QA1', 68, ''],
+    ['Al Arabi', 'QA1', 65, ''],
+    ['Umm Salal', 'QA1', 62, ''],
+    // Premier League (Egito)
+    ['Ismaily', 'EG1', 66, ''],
+    ['Al Masry', 'EG1', 65, ''],
+    // Botola Pro
+    ['FAR Rabat', 'MA1', 68, ''],
+    ['Maghreb de Fès', 'MA1', 64, ''],
+    // Premiership (África do Sul)
+    ['SuperSport United', 'ZA1', 64, ''],
+    ['Stellenbosch', 'ZA1', 63, ''],
+    // Ligue 1 (Argélia)
+    ['ES Sétif', 'DZ1', 66, ''],
+    // Ligue 1 (Tunísia)
+    ['US Monastir', 'TN1', 62, ''],
+    // NPFL
+    ['Remo Stars', 'NG1', 59, ''],
+    ['Plateau United', 'NG1', 58, ''],
+    // Linafoot
+    ['DC Motema Pembe', 'CD1', 59, ''],
+    ['Lupopo', 'CD1', 58, ''],
+    // A-League
+    ['Adelaide United', 'AU1', 66, ''],
+    ['Western Sydney', 'AU1', 65, ''],
 ];
 
 /** Os clubes de uma liga. */

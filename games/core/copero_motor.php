@@ -59,6 +59,25 @@ const COPERO_PAISES = [
     'NGA' => 'Nigéria',    'SEN' => 'Senegal',    'CIV' => 'Costa do Marfim',
     'ALG' => 'Argélia',    'TUN' => 'Tunísia',    'COD' => 'Congo',
     'IRN' => 'Irã',        'QAT' => 'Catar',
+
+    // ── As 27 que faltavam ────────────────────────────────────────────
+    //
+    // O jogo já simulava 62 seleções: elas existiam pra DISPUTAR a Copa e o
+    // continental, e sem elas o Marrocos levava 82% das Copas Africanas. Mas
+    // só 35 dava pra vestir, e a lista das duas nunca bateu — quem quisesse
+    // ser dinamarquês, peruano ou ganês não podia, mesmo com a seleção, a
+    // bandeira e a força já no catálogo. Agora as duas listas são a mesma:
+    // toda seleção que joga no jogo é uma seleção que você pode defender.
+    'DEN' => 'Dinamarca',  'SUI' => 'Suíça',      'AUT' => 'Áustria',
+    'UKR' => 'Ucrânia',    'SRB' => 'Sérvia',     'POL' => 'Polônia',
+    'SWE' => 'Suécia',     'NOR' => 'Noruega',    'CZE' => 'Chéquia',
+    'WAL' => 'País de Gales', 'IRL' => 'Irlanda',
+    'ECU' => 'Equador',    'PER' => 'Peru',       'PAR' => 'Paraguai',
+    'VEN' => 'Venezuela',  'BOL' => 'Bolívia',
+    'CMR' => 'Camarões',   'GHA' => 'Gana',       'MLI' => 'Mali',
+    'IRQ' => 'Iraque',     'UZB' => 'Uzbequistão','CHN' => 'China',
+    'CAN' => 'Canadá',     'CRC' => 'Costa Rica', 'PAN' => 'Panamá',
+    'JAM' => 'Jamaica',    'HON' => 'Honduras',
 ];
 
 /**
@@ -120,6 +139,41 @@ const COPERO_CAMISAS = [
     'ALG' => ['solida',  '#ffffff', '#007a3d', '#d21034'],
     'TUN' => ['solida',  '#ffffff', '#e70013', '#8a0a12'],
     'COD' => ['solida',  '#007fff', '#f7d618', '#0a5aa8'],
+
+    // ── As 27 novas, pela CAMISA DE CASA ──────────────────────────────
+    //
+    // Mesma régra das outras: a camisa, não a bandeira. A Itália já era azul
+    // com bandeira verde-branco-vermelha, e aqui a Venezuela é vinotinto com
+    // bandeira amarelo-azul-vermelha, o Peru é branco com a faixa vermelha,
+    // e o Paraguai é listrado — sem isso o paraguaio escolhia o país e
+    // vestia uma camisa que ninguém reconhece.
+    'DEN' => ['solida',  '#c60c30', '#ffffff', '#8a0820'],
+    'SUI' => ['solida',  '#d52b1e', '#ffffff', '#8f1c13'],
+    'AUT' => ['solida',  '#ed2939', '#ffffff', '#1a1a2e'],
+    'UKR' => ['solida',  '#ffd500', '#005bbb', '#00408a'],
+    'SRB' => ['solida',  '#c6363c', '#ffffff', '#0c4076'],
+    'POL' => ['solida',  '#ffffff', '#dc143c', '#8f0d27'],
+    'SWE' => ['solida',  '#fecc00', '#006aa7', '#00497a'],
+    'NOR' => ['solida',  '#ba0c2f', '#ffffff', '#00205b'],
+    'CZE' => ['solida',  '#d7141a', '#ffffff', '#11457e'],
+    'WAL' => ['solida',  '#c8102e', '#00ab39', '#8a0a20'],
+    'IRL' => ['solida',  '#169b62', '#ffffff', '#ff883e'],
+    'ECU' => ['solida',  '#ffdd00', '#034ea2', '#ed1c24'],
+    'PER' => ['solida',  '#ffffff', '#d91023', '#8f0b18'],   // a faixa vermelha
+    'PAR' => ['listras', '#d52b1e', '#ffffff', '#0038a8'],
+    'VEN' => ['solida',  '#7a1728', '#ffffff', '#4d0e19'],   // vinotinto
+    'BOL' => ['solida',  '#007934', '#ffffff', '#004f22'],
+    'CMR' => ['solida',  '#007a5e', '#fcd116', '#ce1126'],
+    'GHA' => ['solida',  '#ffffff', '#fcd116', '#006b3f'],
+    'MLI' => ['solida',  '#14b53a', '#fcd116', '#0b7a26'],
+    'IRQ' => ['solida',  '#239f40', '#ffffff', '#14682a'],
+    'UZB' => ['solida',  '#ffffff', '#0099b5', '#1eb53a'],
+    'CHN' => ['solida',  '#de2910', '#ffde00', '#9a1c0b'],
+    'CAN' => ['solida',  '#d80621', '#ffffff', '#8f0416'],
+    'CRC' => ['solida',  '#ce1126', '#ffffff', '#002b7f'],
+    'PAN' => ['solida',  '#d21034', '#ffffff', '#005293'],
+    'JAM' => ['solida',  '#fed100', '#009b3a', '#1a1a1a'],
+    'HON' => ['solida',  '#ffffff', '#0073cf', '#00509e'],
 ];
 
 /** A camisa de quem ainda não escolheu país: o verde do próprio jogo. */
@@ -392,6 +446,24 @@ const COPERO_RIVAIS = [
     ['CSKA Moscou', 'Spartak Moscou'], ['Al Hilal', 'Al Nassr'],
     ['Al Ahly', 'Zamalek'],         ['Club América', 'Chivas'],
     ['Wydad', 'Raja Casablanca'],   ['Boca Juniors', 'Racing'],
+    // ── Os clássicos das ligas novas ──────────────────────────────────
+    // Sem eles a troca pelo rival — que é uma das decisões mais caras do
+    // jogo — só existia em quinze países, e a metade nova do mundo era uma
+    // tabela de força sem história.
+    ['Olimpia', 'Cerro Porteño'],       ['Alianza Lima', 'Universitario'],
+    ['Barcelona SC', 'Emelec'],         ['Bolívar', 'The Strongest'],
+    ['Caracas', 'Deportivo Táchira'],   ['Dinamo Zagreb', 'Hajduk Split'],
+    ['Basel', 'Zürich'],                ['Young Boys', 'Basel'],
+    ['Rapid Viena', 'Austria Viena'],   ['Dínamo de Kiev', 'Shakhtar Donetsk'],
+    ['Estrela Vermelha', 'Partizan'],   ['Copenhague', 'Brøndby'],
+    ['Rosenborg', 'Molde'],             ['AIK', 'Djurgården'],
+    ['Legia', 'Lech Poznań'],           ['Sparta Praga', 'Slavia Praga'],
+    ['Shanghai Port', 'Shanghai Shenhua'], ['Pakhtakor', 'Bunyodkor'],
+    ['Al-Zawraa', 'Al-Quwa Al-Jawiya'], ['Hearts of Oak', 'Asante Kotoko'],
+    ['Jaraaf', 'Casa Sports'],          ['ASEC Mimosas', 'Africa Sports'],
+    ['Coton Sport', 'Canon Yaoundé'],   ['Stade Malien', 'Djoliba'],
+    ['Saprissa', 'Alajuelense'],        ['CD Olimpia', 'Motagua'],
+    ['Árabe Unido', 'Tauro'],           ['LA Galaxy', 'LAFC'],
 ];
 
 const COPERO_COPAS = [
@@ -408,6 +480,30 @@ const COPERO_COPAS = [
     'JPN' => 'Copa do Imperador',     'KOR' => 'Copa da Coreia',
     'EGY' => 'Copa do Egito',         'MAR' => 'Taça do Trono',
     'RSA' => 'Nedbank Cup',           'AUS' => 'Australia Cup',
+
+    // ── As que faltavam, e as dos países novos ────────────────────────
+    //
+    // Seis ligas de primeira divisão já estavam sem copa (Irã, Catar,
+    // Argélia, Tunísia, Nigéria e Congo): quem jogava lá disputava um
+    // torneio sem nome. Sem entrada aqui o boletim mostrava a taça em
+    // branco, o que é pior do que não ter torneio nenhum.
+    'IRN' => 'Copa Hazfi',            'QAT' => 'Emir Cup',
+    'ALG' => 'Copa da Argélia',       'TUN' => 'Copa da Tunísia',
+    'NGA' => 'Copa da Nigéria',       'COD' => 'Copa do Congo',
+    'PAR' => 'Copa Paraguay',         'PER' => 'Copa Perú',
+    'ECU' => 'Copa Ecuador',          'VEN' => 'Copa Venezuela',
+    'BOL' => 'Copa Bolivia',          'CRO' => 'Copa da Croácia',
+    'SUI' => 'Copa da Suíça',         'AUT' => 'Copa da Áustria',
+    'UKR' => 'Copa da Ucrânia',       'SRB' => 'Copa da Sérvia',
+    'DEN' => 'Copa da Dinamarca',     'NOR' => 'Copa da Noruega',
+    'SWE' => 'Svenska Cupen',         'POL' => 'Copa da Polônia',
+    'CZE' => 'Copa da Chéquia',       'CHN' => 'Copa da China',
+    'UZB' => 'Copa do Uzbequistão',   'IRQ' => 'Copa do Iraque',
+    'GHA' => 'Copa de Gana',          'SEN' => 'Copa do Senegal',
+    'CIV' => 'Copa da Costa do Marfim','CMR' => 'Copa de Camarões',
+    'MLI' => 'Copa do Mali',          'CRC' => 'Copa da Costa Rica',
+    'JAM' => 'Jamaica FA Cup',        'HON' => 'Copa de Honduras',
+    'PAN' => 'Copa do Panamá',        'CAN' => 'Canadian Championship',
 ];
 
 /** O nome do torneio continental de cada continente. */

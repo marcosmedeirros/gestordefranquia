@@ -694,6 +694,10 @@ body.ocupado .carta,body.ocupado .op,body.ocupado .btn,body.ocupado .oferta-linh
 .av-casa{font-style:normal;color:#4ade80;font-weight:800}
 .carta.gigante{border-color:#8a6d1f}
 .av-gigante{font-style:normal;color:#fbbf24;font-weight:800}
+/* O convite de outro continente é azul: não é casa nem é o topo do mundo,
+   é a estrada. */
+.carta.mundo{border-color:#1e5a7a}
+.av-mundo{font-style:normal;color:#38bdf8;font-weight:800}
 .tag svg{width:17px;height:11px;border-radius:2px;flex:none;display:block}
 /* Os `min-width:0` não são enfeite: sem eles o nome comprido não encolhe,
    empurra o bloco de idade/valor pra fora e a página inteira ganha barra de
@@ -1462,7 +1466,15 @@ function monograma(nome, tam){
   let h = 0;
   for (const c of String(nome)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   const cor = CORES_MONO[h % CORES_MONO.length];
-  const ini = String(nome).split(/\s+/).slice(0,2).map(p=>p[0]||'').join('').toUpperCase();
+  // UMA PALAVRA SÓ RENDE DUAS LETRAS, e não uma. A regra antiga tirava a
+  // inicial de cada palavra, então "Basel" virava um B solitário e "TSC" um
+  // T. Com as ligas novas o catálogo passou a ter clube sem escudo — elas
+  // não têm badge e caem no monograma —, e um círculo com uma letra só não
+  // distingue clube nenhum de outro.
+  const partes = String(nome).trim().split(/\s+/).filter(x => x && /[\p{L}\d]/u.test(x[0]));
+  const ini = (partes.length > 1
+    ? partes.slice(0, 2).map(x => x[0]).join('')
+    : (partes[0] || String(nome)).slice(0, 2)).toUpperCase();
   return `<span class="mono" style="width:${tam}px;height:${tam}px;background:${cor};font-size:${Math.round(tam*.4)}px">${esc(ini)}</span>`;
 }
 function escudo(clube, tam){
@@ -2430,6 +2442,26 @@ const DESTINOS = {
   EGY:['EGY','KSA'],            MAR:['MAR','FRA','ESP'],   RSA:['RSA','ENG'],
   NGA:['NGA','ENG','BEL'],      SEN:['SEN','FRA','BEL'],   CIV:['CIV','FRA','BEL'],
   AUS:['AUS','ENG'],
+  // ── Os países novos ───────────────────────────────────────────────
+  // A rota é a de VERDADE: o croata sai pra Itália e pra Alemanha, o
+  // escandinavo pra Holanda e pra Inglaterra, o centro-americano pros
+  // Estados Unidos e pro México. Gales e Irlanda não têm liga no catálogo
+  // e por isso nascem na Inglaterra e na Escócia — como na vida.
+  CRO:['CRO','ITA','GER'],      SUI:['SUI','GER','ITA'],
+  AUT:['AUT','GER'],            UKR:['UKR','POL'],
+  SRB:['SRB','CRO','GER'],      DEN:['DEN','NED','GER'],
+  NOR:['NOR','DEN','NED'],      SWE:['SWE','DEN','NED'],
+  POL:['POL','GER'],            CZE:['CZE','GER','AUT'],
+  WAL:['ENG','SCO'],            IRL:['IRL','ENG','SCO'],
+  ECU:['ECU','ARG','MEX'],      PER:['PER','ARG','CHI'],
+  PAR:['PAR','ARG','BRA'],      VEN:['VEN','COL','POR'],
+  BOL:['BOL','ARG','CHI'],
+  CMR:['CMR','FRA','BEL'],      GHA:['GHA','ENG','BEL'],
+  MLI:['MLI','FRA','BEL'],      IRQ:['IRQ','QAT','KSA'],
+  UZB:['UZB','RUS'],            CHN:['CHN','POR'],
+  CAN:['CAN','USA'],            CRC:['CRC','USA','MEX'],
+  PAN:['PAN','USA','MEX'],      JAM:['JAM','USA','ENG'],
+  HON:['HON','USA','MEX'],
 };
 
 /** Os países onde um jogador desta nacionalidade pode começar. */
@@ -2539,7 +2571,20 @@ function ofertas(quantos, exceto, soDeCasa){
   const atual = S.clube ? dadosLiga(S.clube.liga) : null;
   const pres  = atual ? atual.media : 0;
   const veterano = S.idade >= 30;
-  const declinio = S.ovr < (S.picoOvr || S.ovr) - 3;
+  // DECLÍNIO É DEPOIS DO AUGE, e não é um ano ruim.
+  //
+  // A regra era só "está abaixo do seu pico de overall", e ela pegava a
+  // pessoa errada: um garoto de 17 que perdeu quatro pontos no banco de um
+  // clube grande — que é EXATAMENTE o que acontece com quem vai cedo demais
+  // pro clube grande, e é uma mecânica do jogo, não um acidente — entrava
+  // como carreira em queda. E carreira em queda abre todas as portas de
+  // baixo de uma vez: liga mais fraca, outro continente, liga tardia. Um
+  // croata de dezessete anos no Dinamo Zagreb recebia proposta do Mali, da
+  // Jamaica e de Honduras na mesma janela.
+  //
+  // O corte é o mesmo que evoluir() usa pra saber quando a curva vira: dois
+  // anos depois do auge. Antes disso, estar abaixo do pico é um tropeço.
+  const declinio = S.idade > (S.pico || 27) + 2 && S.ovr < (S.picoOvr || S.ovr) - 3;
 
   // A faixa de força. O termo extra é o que abre o topo do mundo pra quem
   // chegou lá: em 84 o teto encosta em 99, e o Real passa a ser possível.
@@ -2647,9 +2692,20 @@ function ofertas(quantos, exceto, soDeCasa){
     }
   }
 
-  // Rede de segurança em dois passos, e ela RESPEITA a regra de sair do país.
-  // Uma rede frouxa não salva o jogo, esconde o defeito: era ela que estava
-  // mandando o garoto pra França, e o furo só apareceu jogando.
+  // REDE DE SEGURANÇA, EM CÍRCULOS QUE ABREM DE DENTRO PRA FORA.
+  //
+  // A lista vazia acontece de verdade, e não é bug: um garoto de 46 num
+  // clube de 78 não cabe em NENHUM clube do próprio país, porque a Croácia
+  // inteira vale 65 pra cima. O que a rede não pode fazer é resolver isso
+  // com a Jamaica — e era exatamente o que ela fazia: o último passo só
+  // exigia "poder sair do país", sem olhar continente nem prestígio, e com
+  // o catálogo grande isso virou uma lista de clubes de 50 espalhados por
+  // cinco continentes. Um croata de 17 anos recebia proposta de Honduras.
+  //
+  // Uma rede frouxa não salva o jogo, esconde o defeito. Agora ela abre em
+  // círculos: o próprio país, depois o continente, depois a casa a qualquer
+  // preço — e o mundo inteiro é o último recurso de todos, o que na prática
+  // só acontece se o catálogo estiver quebrado.
   if (!elegiveis.length) {
     elegiveis = CLUBES.filter(c => {
       const l = dadosLiga(c.liga);
@@ -2662,9 +2718,20 @@ function ofertas(quantos, exceto, soDeCasa){
     elegiveis = CLUBES.filter(c => {
       const l = dadosLiga(c.liga);
       if (!l || fora.has(c.nome) || Math.abs(c.forca - S.ovr) > 18) return false;
-      return !atual || podeSair || l.pais === atual.pais;
+      if (!atual) return true;
+      return l.pais === atual.pais || l.pais === S.pais || l.cont === atual.cont;
     });
   }
+  // A casa custe o que custar: um jogador sem clube nenhum é pior que um
+  // jogador num clube grande ou pequeno demais pra ele.
+  if (!elegiveis.length) {
+    elegiveis = CLUBES.filter(c => {
+      const l = dadosLiga(c.liga);
+      return l && !fora.has(c.nome)
+             && (l.pais === S.pais || l.pais === (atual ? atual.pais : S.pais));
+    });
+  }
+  if (!elegiveis.length) elegiveis = CLUBES.filter(c => !fora.has(c.nome));
 
   // Em degraus: uma de cada patamar da lista, do mais forte pro mais fraco.
   const ordem = elegiveis.slice().sort((a, b) => b.forca - a.forca);
@@ -2761,7 +2828,14 @@ function ofertas(quantos, exceto, soDeCasa){
       return l && l.nivel === 1 && !visitados.has(l.cont)
              && !fora.has(c.nome) && c.forca >= S.ovr - 18 && c.forca <= S.ovr + 8;
     });
-    if (novos.length) saida[saida.length - 1] = novos[Math.floor(Math.random() * novos.length)];
+    // COM SELO, como as outras cartas que existem por um motivo. Sem ele o
+    // convite parecia erro: uma oferta do Catar no meio de uma carreira na
+    // LaLiga não se explica sozinha, e o jogador rejeitava sem entender que
+    // aquela era a única porta pros cinco continentes.
+    if (novos.length) {
+      saida[saida.length - 1] = Object.assign({},
+        novos[Math.floor(Math.random() * novos.length)], {_marca: 'mundo'});
+    }
   }
   return saida;
 }
@@ -3769,10 +3843,14 @@ function cartasDeClube(lista, comFicar, comAposentar){
     // pessoa passaria batido pela única que tem história.
     const selo = c._marca === 'berco'   ? '<i class="av-casa">onde tudo começou</i>'
                : c._marca === 'casa'    ? '<i class="av-casa">de volta pra casa</i>'
-               : c._marca === 'gigante' ? '<i class="av-gigante">vieram te buscar</i>' : '';
+               : c._marca === 'gigante' ? '<i class="av-gigante">vieram te buscar</i>'
+               : c._marca === 'mundo'   ? '<i class="av-mundo">um continente novo</i>' : '';
     return cartaClube({
       acao: `assinarOpcao(${i})`,
-      cls: rival ? 'rival' : (c._marca === 'gigante' ? 'gigante' : (c._marca ? 'casa' : '')),
+      cls: rival ? 'rival'
+         : c._marca === 'gigante' ? 'gigante'
+         : c._marca === 'mundo'   ? 'mundo'
+         : c._marca ? 'casa' : '',
       rotulo: c._marca === 'berco' ? 'Voltar pro' : 'Assinar com',
       nome: c.nome, escudo: escudo(c, 36),
       pe: rival ? `<i class="av-rival">rival do ${esc(S.clube.nome)}</i>`
