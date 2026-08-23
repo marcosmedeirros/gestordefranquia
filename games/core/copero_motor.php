@@ -463,7 +463,7 @@ const COPERO_RIVAIS = [
     ['Jaraaf', 'Casa Sports'],          ['ASEC Mimosas', 'Africa Sports'],
     ['Coton Sport', 'Canon Yaoundé'],   ['Stade Malien', 'Djoliba'],
     ['Saprissa', 'Alajuelense'],        ['CD Olimpia', 'Motagua'],
-    ['Árabe Unido', 'Tauro'],           ['LA Galaxy', 'LAFC'],
+    ['LA Galaxy', 'LAFC'],
 ];
 
 const COPERO_COPAS = [
