@@ -262,6 +262,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $paises = [];           // países onde jogou
     $tripla = false;        // liga + copa + continental na MESMA temporada
     $menorCampeaoCont = 99; // o clube mais fraco com que ganhou o continental
+    $contSAM = false;       // ganhou o continental por um clube sul-americano
     $lesoes = 0; $idadePico = 0;
     $primeiroClube = null; $primeiroNivel = 0; $subiuComOMesmo = false;
     $paisesCampeao = [];                 // em quantos países foi campeão nacional
@@ -315,7 +316,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                     $subiuComOMesmo = true;
                 }
             }
-            if ($id === 'cont') $menorCampeaoCont = min($menorCampeaoCont, $forcaDoClube[$nome] ?? 99);
+            if ($id === 'cont') {
+                $menorCampeaoCont = min($menorCampeaoCont, $forcaDoClube[$nome] ?? 99);
+                // Libertadores e não Champions: quem levanta o continental
+                // jogando na América do Sul levanta a Libertadores.
+                if ($liga['continente'] === 'SAM') $contSAM = true;
+            }
         }
         if (in_array('liga', $daTemporada, true) && in_array('copa', $daTemporada, true)
             && in_array('cont', $daTemporada, true)) $tripla = true;
@@ -357,6 +363,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             ['BRA','ARG','URU','CHI','COL'], array_keys($paises))),
         'grandesEuropeias' => $grandesVencidas,
         'tripla' => $tripla, 'menorCampeaoCont' => $menorCampeaoCont,
+        'contSAM' => $contSAM,
         'subiuComOMesmo' => $subiuComOMesmo,
         'lesoes' => $lesoes, 'idadePico' => $idadePico,
         'maiorSequencia' => $maiorSeq, 'paisesCampeao' => count($paisesCampeao),
@@ -1672,6 +1679,10 @@ const PREMIO = <?= json_encode(array_map(
     fn($p) => isset($p['fba_points']) ? $p['fba_points'] . ' FBA Points' : $p['moedas'] . ' moedas',
     COPERO_PREMIO), JSON_UNESCAPED_UNICODE) ?>;
 const COPAS       = <?= json_encode(COPERO_COPAS, JSON_UNESCAPED_UNICODE) ?>;
+/* A folga da convocação vem do motor, onde a conquista "Vestiu a amarelinha"
+   também a lê. Duas cópias do mesmo número em arquivos diferentes é como a
+   conquista passou meses dizendo "seja convocado" e testando outra coisa. */
+const COPA_FOLGA  = <?= COPERO_SELECAO_FOLGA ?>;
 const SELECOES    = <?= json_encode(COPERO_SELECOES, JSON_UNESCAPED_UNICODE) ?>;
 /* A lista INTEIRA das conquistas, e não só as ganhas: é o que deixa a tela
    inicial mostrar o que ainda falta. O teste continua rodando só no servidor —
@@ -1853,7 +1864,7 @@ const contDoPais   = pais => (SELECOES[pais] || [0,'EUR'])[1];
  */
 function convocado(ovr, pais){
   const f = forcaSelecao(pais);
-  return f > 0 && ovr >= f - 8;
+  return f > 0 && ovr >= f - COPA_FOLGA;
 }
 
 /**
@@ -1896,22 +1907,39 @@ function titulosDaSelecao(ovr, ano){
   const ganhos = [];
   const peso = x => Math.pow(Math.max(35, x) / 100, 18);
 
-  // O jogador pesa MAIS na seleção do que no clube: são só onze, e um craque
-  // muda uma seleção de um jeito que não muda um elenco inteiro. Mas com
-  // TETO: sem ele um japonês de 90 quase dobrava a força do Japão e levava
-  // 80% das Copas da Ásia sozinho.
-  const meu = peso(f) * Math.min(1.5, 1 + Math.max(0, ovr - f + 8) * 0.03);
+  // QUANTO VOCÊ PESA NA SELEÇÃO — e era aqui que o jogo mentia.
+  //
+  // A conta antiga era peso(f) × no máximo 1,5. Como peso() eleva a 18, ela
+  // enxergava quase só a FORÇA DO PAÍS: um brasileiro de 99 saía 1,24 vezes
+  // mais forte que um de 83, e contra a soma das 62 seleções isso não move
+  // ponteiro nenhum. Medido em 250 carreiras por país: quem CHEGAVA a ser
+  // convocado ainda terminava sem taça em 39% dos casos no Brasil, 51% na
+  // Inglaterra e 62% em Portugal. Uma Copa América a cada 3,5 convocações
+  // não é seleção, é sorteio.
+  //
+  // Agora o passo é 0,10 e o teto 3,5: o mesmo brasileiro sai 2,6 quando
+  // está em 99 contra 1,8 quando está em 83. É o craque decidindo o torneio,
+  // que é a fantasia inteira de jogar de seleção. O teto continua existindo
+  // porque sem ele um japonês de 90 sozinho valia mais que a Ásia toda.
+  const meu = peso(f) * Math.min(3.5, 1 + Math.max(0, ovr - f + COPA_FOLGA) * 0.10);
   const todas = Object.values(SELECOES);
 
   if (ano % 4 === 2) {                        // Copa do Mundo
+    // A Copa é a coroa e continua a mais difícil: mesmo com 99 no Brasil dá
+    // uns 36% por edição, e você joga duas ou três na vida. Ganhar duas tem
+    // que ser história de carreira, não de temporada.
     const soma = todas.reduce((s, [x]) => s + peso(x), 0);
-    if (Math.random() < Math.min(0.5, 0.80 * (meu / soma) + 0.20 / todas.length)) {
+    if (Math.random() < Math.min(0.55, 1.60 * (meu / soma) + 0.80 / todas.length)) {
       ganhos.push('copa_mundo');
     }
   } else if (ano % 4 === 0) {                 // o continental de seleções
     const doCont = todas.filter(([, c]) => c === cont);
     const soma = doCont.reduce((s, [x]) => s + peso(x), 0);
-    if (soma > 0 && Math.random() < Math.min(0.6, 0.82 * (meu / soma) + 0.18 / doCont.length)) {
+    // O piso é 0,90 e não 0,18 porque ele é dividido pelo TAMANHO do
+    // continente: valia 0,0075 na Europa (24 seleções) contra 0,020 na Ásia
+    // (9), e o europeu levava a pior duas vezes — continente mais forte E
+    // sorteio menor.
+    if (soma > 0 && Math.random() < Math.min(0.65, 1.60 * (meu / soma) + 0.90 / doCont.length)) {
       ganhos.push('selecao_cont');
     }
   }

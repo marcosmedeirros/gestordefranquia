@@ -337,6 +337,19 @@ const COPERO_SELECOES = [
  * é isso que faz uma carreira longa passar por três ou quatro delas, e que
  * transforma "estar no auge no ano certo" em sorte de verdade.
  */
+/**
+ * Quanto de overall a seleção tolera ABAIXO da própria força pra te convocar.
+ *
+ * Oito, e é pra ser apertado: dá 83 no Brasil e 87 na Argentina. Vestir a
+ * camisa é privilégio de quem chegou ao topo — nascer num país forte é uma
+ * escolha com dois lados, mais chance de título e mais dificuldade de entrar.
+ *
+ * Fica aqui e não no JS porque a conquista "Vestiu a amarelinha" é conferida
+ * no SERVIDOR: se as duas réguas morassem em arquivos diferentes, uma mudava
+ * e a outra ficava, e a conquista passaria a mentir.
+ */
+const COPERO_SELECAO_FOLGA = 8;
+
 const COPERO_SELECAO_CONT = [
     'SAM' => 'Copa América',        'EUR' => 'Eurocopa',
     'AFR' => 'Copa Africana',       'ASI' => 'Copa da Ásia',
@@ -892,9 +905,15 @@ function coperoConquistas(): array
                           'facil', fn($c) => $c['ast'] >= 100],
         'primeiro_tit'=> ['🏆', 'O primeiro de muitos', 'Ganhe seu primeiro título.',
                           'facil', fn($c) => $c['coletivos'] >= 1],
+        // A REGRA ERA 'picoOvr >= 75' E ISSO NÃO É SER CONVOCADO. O corte real
+        // é a força da seleção menos a folga: 83 no Brasil, 87 na Argentina.
+        // Um brasileiro que parava em 78 levava "Vestiu a amarelinha" sem ter
+        // vestido nada, e um argentino de 85 ficava sem — mesmo tendo passado
+        // do 75. Agora usa a MESMA conta de convocado() no jogo.
         'convocado'   => ['👕', 'Vestiu a amarelinha', 'Seja convocado para a seleção.',
-                          'facil', fn($c) => $t($c,'copa_mundo') + $t($c,'selecao_cont') > 0
-                                             || $c['picoOvr'] >= 75],
+                          'facil', fn($c) => $c['picoOvr'] >=
+                                             ((COPERO_SELECOES[$c['pais']] ?? [999])[0])
+                                             - COPERO_SELECAO_FOLGA],
         'idolo'       => ['🏠', 'Ídolo da casa',     'Faça sete temporadas seguidas no mesmo clube.',
                           'facil', fn($c) => $c['maiorSequencia'] >= 7],
 
@@ -927,8 +946,12 @@ function coperoConquistas(): array
                           'dificil', fn($c) => $t($c,'copa_mundo') >= 1 && $t($c,'mundial') >= 1],
         'triplice'    => ['👑', 'A tríplice coroa',  'Ganhe liga, copa e torneio continental na mesma temporada.',
                           'dificil', fn($c) => !empty($c['tripla'])],
+        // 'cont' é QUALQUER continental de clubes, então um argentino que
+        // ganhasse a Champions com o Real levava um "Rei da América" que fala
+        // em Libertadores. Agora conta só o continental levantado por um
+        // clube da América do Sul, que é o que o texto sempre prometeu.
         'rei_america' => ['🌎', 'Rei da América',    'Ganhe a Copa América e a Libertadores na mesma carreira.',
-                          'dificil', fn($c) => $t($c,'selecao_cont') >= 1 && $t($c,'cont') >= 1
+                          'dificil', fn($c) => $t($c,'selecao_cont') >= 1 && !empty($c['contSAM'])
                                                && in_array($c['pais'], ['BRA','ARG','URU','CHI','COL'], true)],
         'menino_ouro' => ['✨', 'Menino de ouro',    'Chegue a 88 de overall antes dos 24 anos.',
                           'dificil', fn($c) => $c['picoOvr'] >= 88 && $c['idadePico'] > 0 && $c['idadePico'] <= 23],
@@ -961,8 +984,13 @@ function coperoConquistas(): array
         // ── Impossíveis: pra perseguir por muitas carreiras ───────────
         'mr_champions'=> ['🏛️', 'Mr. Champions',     'Ganhe seis torneios continentais de clubes.',
                           'dificil', fn($c) => $t($c,'cont') >= 6],
-        'dono_europa' => ['🏰', 'Dono da Europa',    'Seja campeão de três das cinco grandes ligas europeias.',
-                          'impossivel', fn($c) => $c['grandesEuropeias'] >= 3],
+        // AS CINCO, e não três. Com três o nome mentia: dono da Europa é quem
+        // levantou Premier, LaLiga, Serie A, Bundesliga E Ligue 1 — cinco
+        // mudanças de país numa carreira só, que é exatamente o tipo de coisa
+        // que justifica a faixa dos impossíveis.
+        'dono_europa' => ['🏰', 'Dono da Europa',    'Seja campeão das cinco grandes ligas europeias: '
+                                                   . 'Premier, LaLiga, Serie A, Bundesliga e Ligue 1.',
+                          'impossivel', fn($c) => $c['grandesEuropeias'] >= 5],
         'lenda_maxima'=> ['💫', 'Lenda absoluta',    'Passe a carreira inteira num só clube e ganhe liga, copa, '
                                                    . 'continental e Mundial de Clubes.',
                           'impossivel', fn($c) => $c['clubes'] === 1 && $c['temporadas'] >= 15
@@ -973,7 +1001,7 @@ function coperoConquistas(): array
         'so_o_pele'   => ['👑👑', 'Só o Pelé',         'Faça 1.000 gols e ganhe três Copas do Mundo.',
                           'impossivel', fn($c) => $t($c,'copa_mundo') >= 3 && $c['gols'] >= 1000],
         'mil_gols'    => ['🎯', 'O milésimo',        'Marque 1.000 gols na carreira.',
-                          'impossivel', fn($c) => $c['gols'] >= 1000],
+                          'media', fn($c) => $c['gols'] >= 1000],
         // Aqui entra TUDO o que se levanta: taça de clube, de seleção e
         // prêmio individual. É o contrário do 'colecionador', que conta só
         // o que o time ganhou — este mede a estante inteira.
