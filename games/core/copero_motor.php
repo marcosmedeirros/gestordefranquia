@@ -556,6 +556,110 @@ const COPERO_PREMIOS = [
  * pentágono na bola e o cálice estreito são o que faz o esporte se reconhecer
  * de relance.
  */
+/**
+ * A FOTO DA TACA DE CADA COMPETICAO.
+ *
+ * A chave nao e o id da taca, e o id RESOLVIDO: sete das quinze tacas do
+ * jogo nao sao uma taca so. `cont` e a Libertadores pro brasileiro e a
+ * Champions pro europeu, `liga` e setenta e uma competicoes diferentes,
+ * `copa` e uma por pais. Uma foto por id deixaria o campeao brasileiro
+ * segurando a orelhuda — e foto errada e pior que desenho generico, porque
+ * desenho generico ninguem confunde com outra coisa.
+ *
+ * O que nao esta aqui continua com o desenho SVG, e isso e a maioria: a
+ * base cobre as competicoes grandes, nao a primeira divisao do Mali. Os
+ * premios individuais tambem ficam com o desenho de proposito — as fotos
+ * que existem deles sao de museu e de estadio, e a 46px viram um borrao.
+ *
+ * O casamento foi EXATO, nunca por aproximacao. A primeira tentativa
+ * aceitava substring e a Eurocopa levou a taca da Europa League, porque
+ * "UEFA Euro" cabe dentro de "UEFA Europa League".
+ */
+const COPERO_TACA_FOTO = [
+    'cont2:ASI'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/onsqtf1747117674.png',  // AFC Champions League Two
+    'cont2:EUR'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/czo8tz1747884321.png',  // UEFA Europa League
+    'cont2:SAM'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/rt0th41696615897.png',  // Copa Sudamericana
+    'cont3:EUR'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/qukw571747885494.png',  // UEFA Conference League
+    'cont:AFR'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/oimgad1782708694.png',  // CAF Champions League
+    'cont:ASI'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/5dzvma1747117869.png',  // AFC Champions League Elite
+    'cont:EUR'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/31y13d1747884950.png',  // UEFA Champions League
+    'cont:NAM'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/upac7t1780186383.png',  // CONCACAF Champions Cup
+    'cont:SAM'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/oev42h1696615691.png',  // Copa Libertadores
+    'copa:ARG'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/qaas1x1735693766.png',  // Copa Argentina
+    'copa:AUS'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/du068i1782340613.png',  // Australia Cup
+    'copa:BRA'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/jv27c41776553182.png',  // Copa do Brasil
+    'copa:ENG'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/a7r8r71777395539.png',  // FA Cup
+    'copa:ESP'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/skezda1544978155.png',  // Copa del Rey
+    'copa:FRA'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/ge50231779493990.png',  // Coupe de France
+    'copa:GER'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/ndkh4l1689575720.png',  // DFB-Pokal
+    'copa:ITA'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/6pewpq1701383911.png',  // Coppa Italia
+    'copa:NED'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/mfvzr81611677287.png',  // Dutch KNVB Cup
+    'copa:POR'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/vzfp6k1549461835.png',  // Taca de Portugal
+    'copa:SCO'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/swnyde1776706387.png',  // Scottish FA Cup
+    'copa:TUR'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/djxbyv1776826375.png',  // Turkish Cup
+    'copa_mundo'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/mmyv4f1724782185.png',  // FIFA World Cup
+    'liga:AR1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/9sj4611777273081.png',  // Argentinian Primera Division
+    'liga:AR2'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/2zkgh41740066332.png',  // Argentinian Primera B Nacional
+    'liga:AT1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/hnur7q1706871878.png',  // Austrian Bundesliga
+    'liga:AU1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/uxssyx1422266419.png',  // Australian A-League
+    'liga:BE1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/tvuvwy1422267731.png',  // Belgian Pro League
+    'liga:BO1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/vt5nd01607476112.png',  // Bolivian Primera División
+    'liga:BR1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/02ftjh1684945323.png',  // Brazilian Serie A
+    'liga:BR2'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/s6a14o1778446984.png',  // Brazilian Serie B
+    'liga:BR3'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/lurkfe1766786520.png',  // Brazilian Serie C
+    'liga:CA1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/xhb8ae1784004623.png',  // Canadian Premier League
+    'liga:CH1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/4sy0tr1781804644.png',  // Swiss Super League
+    'liga:CL1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/pc5q211747119036.png',  // Chile Primera Division
+    'liga:CN1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/p8cqdw1697888301.png',  // Chinese Super League
+    'liga:CO1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/6axlxc1696412612.png',  // Colombian Liga DIMAYOR
+    'liga:DE1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/0o56hs1684416407.png',  // German Bundesliga
+    'liga:DE2'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/7rvmlk1703070285.png',  // German 2. Bundesliga
+    'liga:DK1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/uqywpu1422281651.png',  // Danish Superliga
+    'liga:DZ1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/b6tad41714900242.png',  // Algerian Ligue 1
+    'liga:EC1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/trq1b41716301832.png',  // Ecuadorian Serie A
+    'liga:EN1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/9a6kw51689108793.png',  // English Premier League
+    'liga:EN2'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/dl1l3m1688629871.png',  // English League Championship
+    'liga:EN3'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/rsrurr1447436418.png',  // English League 1
+    'liga:ES1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/vc2z6q1684416521.png',  // Spanish La Liga
+    'liga:ES2'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/nh2xon1709099775.png',  // Spanish La Liga 2
+    'liga:FR1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/ygfgeq1684416349.png',  // French Ligue 1
+    'liga:FR2'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/d75jcc1715850603.png',  // French Ligue 2
+    'liga:GH1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/5p82xy1758093176.png',  // Ghanaian Premier League
+    'liga:GR1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/y96u431716371640.png',  // Greek Super League 1
+    'liga:HR1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/zhp18a1715259853.png',  // Croatian First Football League
+    'liga:IT1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/83l94y1684416466.png',  // Italian Serie A
+    'liga:IT2'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/2xmgql1778366833.png',  // Italian Serie B
+    'liga:JP1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/mbbzjn1750168223.png',  // Japanese J1 League
+    'liga:KR1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/y5ah3s1711189638.png',  // South Korean K League 1
+    'liga:MA1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/5fjhsc1551439097.png',  // Moroccan Championship
+    'liga:MX1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/rpqwss1422012934.png',  // Mexican Liga MX
+    'liga:NL1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/wx9n831722781060.png',  // Dutch Eredivisie
+    'liga:NL2'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/pbbkh61730653717.png',  // Dutch Eerste Divisie
+    'liga:NO1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/uz9kw61778714637.png',  // Norwegian Eliteserien
+    'liga:PE1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/tbe4ol1638922521.png',  // Peruvian Primera Division
+    'liga:PL1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/68af3k1781237346.png',  // Polish Ekstraklasa
+    'liga:PT1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/3v5npc1726462062.png',  // Portuguese Primeira Liga
+    'liga:PY1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/kio0ex1610751915.png',  // Paraguayan Primera Division
+    'liga:QA1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/urfz411707589422.png',  // Qatar Stars League
+    'liga:RS1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/qbwz1e1786336891.png',  // Serbian Super Liga
+    'liga:RU1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/zg8zxb1750688658.png',  // Russian Football Premier League
+    'liga:SA1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/tkaj2z1747536256.png',  // Saudi-Arabian Pro League
+    'liga:SC1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/qsqruv1422282072.png',  // Scottish Premier League
+    'liga:SE1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/0zpqqm1610917265.png',  // Swedish Allsvenskan
+    'liga:TR1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/2oirc41681158648.png',  // Turkish Super Lig
+    'liga:UA1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/xvsvsr1421876447.png',  // Ukrainian Premier League
+    'liga:US1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/k50lm81684415987.png',  // American Major League Soccer
+    'liga:UY1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/6b3fgj1702965059.png',  // Uruguayan Primera Division
+    'liga:VE1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/gv26jk1702962694.png',  // Venezuela Primera Division
+    'liga:ZA1'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/niq9su1716216413.png',  // South African Premier Soccer League
+    'mundial'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/j4j1kb1750014290.png',  // FIFA Club World Cup
+    'selecao_cont:AFR'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/a02gac1701102618.png',  // African Cup of Nations
+    'selecao_cont:ASI'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/9zysg71701099946.png',  // AFC Asian Cup
+    'selecao_cont:EUR'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/zaomgo1549535961.png',  // UEFA European Championships
+    'selecao_cont:SAM'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/9xlcbn1701101277.png',  // Copa America
+    'supercont:EUR'                          => 'https://r2.thesportsdb.com/images/media/league/trophy/8u0rla1551123989.png',  // UEFA Super Cup
+];
+
 const COPERO_TACAS = [
     // Escudo, e nao calice: o titulo nacional e o scudetto, e escudo e a unica…
     'liga' => ['#e11d48',

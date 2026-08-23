@@ -699,6 +699,10 @@ body.ocupado .carta,body.ocupado .op,body.ocupado .btn,body.ocupado .oferta-linh
 .carta.mundo{border-color:#1e5a7a}
 .av-mundo{font-style:normal;color:#38bdf8;font-weight:800}
 .tag svg{width:17px;height:11px;border-radius:2px;flex:none;display:block}
+/* A foto da taça entra no espaço do desenho: contain porque as fotos da base
+   vêm em proporções diferentes umas das outras, e recortar taça é decapitar
+   taça. O filtro tira o cinza do fundo transparente encostar no card. */
+.taca-foto{object-fit:contain;display:block;flex:none}
 /* Os `min-width:0` não são enfeite: sem eles o nome comprido não encolhe,
    empurra o bloco de idade/valor pra fora e a página inteira ganha barra de
    rolagem lateral no celular. */
@@ -1664,7 +1668,7 @@ async function mostrarTacas(t){
   tela.className = 'taca-nova';
   tela.innerHTML = `<div class="taca-fila">${ids.map((id, k) => `
       <span class="taca-item" style="animation-delay:${k * 220}ms">
-        ${taca(id, ids.length > 2 ? 84 : 116)}
+        ${taca(id, ids.length > 2 ? 84 : 116, t.liga)}
         <b>${esc(nomeDaTaca(id, t.liga))}</b>
       </span>`).join('')}</div>`;
   document.body.appendChild(tela);
@@ -1709,6 +1713,7 @@ const CONQUISTAS  = <?= json_encode(array_map(
     fn($x) => ['icone' => $x[0], 'nome' => $x[1], 'desc' => $x[2], 'nivel' => $x[3]],
     coperoConquistas()), JSON_UNESCAPED_UNICODE) ?>;
 const SEL_CONT    = <?= json_encode(COPERO_SELECAO_CONT, JSON_UNESCAPED_UNICODE) ?>;
+const TACA_FOTO   = <?= json_encode(COPERO_TACA_FOTO, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) ?>;
 
 /**
  * A barra de cima, igual em todas as telas.
@@ -1743,11 +1748,57 @@ function abandonarCarreira(){
 }
 
 /** A taça desenhada, do tamanho pedido. */
-function taca(id, tam){
+/**
+ * A foto da taça DESTA competição.
+ *
+ * A chave é montada igual ao nome: sete das quinze taças do jogo não são uma
+ * taça só. `cont` é a Libertadores pro brasileiro e a Champions pro europeu,
+ * `liga` é setenta e um campeonatos diferentes, `copa` é uma por país. Usar
+ * uma foto por ID deixaria o campeão brasileiro segurando a orelhuda, que é
+ * pior que o desenho genérico — desenho genérico ninguém confunde com outra
+ * coisa, foto errada sim.
+ *
+ * Devolve vazio quando não há foto, e aí o desenho entra. É a maioria dos
+ * casos: o catálogo tem setenta e uma ligas e a base de fotos cobre as
+ * grandes, não o Mali.
+ */
+function fotoDaTaca(id, ligaId){
+  const l = dadosLiga(ligaId);
+  const k = (x) => TACA_FOTO[x] || '';
+  // Os de seleção saem do PAÍS da pessoa, e não da liga do clube — mesma
+  // régua de nomeDaTaca, e as duas TÊM que concordar: foto de uma taça com
+  // o nome de outra embaixo é o pior dos dois mundos.
+  if (id === 'copa_mundo')   return k('copa_mundo');
+  if (id === 'selecao_cont') return k('selecao_cont:' + contDoPais(S ? S.pais : 'BRA'));
+  if (id === 'mundial')      return k('mundial');
+  if (!l) return k(id);
+  if (id === 'cont' || id === 'cont2' || id === 'cont3' || id === 'supercont')
+    return k(id + ':' + l.cont);
+  if (id === 'copa' || id === 'supernac') return k(id + ':' + l.pais);
+  if (id === 'liga') return k('liga:' + ligaId);
+  return k(id);
+}
+
+/**
+ * A taça: foto quando existe, desenho quando não.
+ *
+ * O desenho fica como reserva de verdade, no onerror — se a foto sumir do
+ * servidor de imagens um dia, a taça continua aparecendo em vez de virar um
+ * quadrado vazio no meio da sala de troféus.
+ */
+function taca(id, tam, ligaId){
   const t = TACAS[id];
-  if (!t) return '';
-  return `<svg class="taca" viewBox="0 0 64 60" width="${tam}" height="${tam}"
-    style="color:${t[0]}" role="img" aria-label="${esc(id)}">${t[1]}</svg>`;
+  const svg = t ? `<svg class="taca" viewBox="0 0 64 60" width="${tam}" height="${tam}"
+    style="color:${t[0]}" role="img" aria-label="${esc(id)}">${t[1]}</svg>` : '';
+  const foto = fotoDaTaca(id, ligaId);
+  if (!foto) return svg;
+  // O tamanho vai por ATRIBUTO e nao por style, como no SVG. O celular tem
+  // uma regra que encolhe a taca da linha do tempo pra 12px, e style inline
+  // ganha de regra CSS — a foto ficava 14 ao lado do desenho de 12, na
+  // mesma fileira.
+  return `<img class="taca taca-foto" src="${esc(foto)}" alt="${esc(id)}"
+    width="${tam}" height="${tam}"
+    onerror="this.outerHTML=this.dataset.reserva" data-reserva="${esc(svg)}">`;
 }
 
 /** O nome que a taça leva na tela, já com o continente certo. */
@@ -3940,7 +3991,7 @@ function tacasDoAno(t){
   if (!ids.length) return '';
   const corta = ids.length > 4;
   const visiveis = ids.map(id =>
-    `<i class="tk" title="${esc(nomeDaTaca(id, t.liga))}">${taca(id, 14)}</i>`).join('');
+    `<i class="tk" title="${esc(nomeDaTaca(id, t.liga))}">${taca(id, 14, t.liga)}</i>`).join('');
   const extra = corta
     ? `<i class="tk-mais" title="${esc(ids.slice(3).map(id => nomeDaTaca(id, t.liga)).join(' · '))}">+${ids.length - 3}</i>`
     : '';
@@ -4185,8 +4236,12 @@ function salaDeTrofeus(){
   const grupos = {};
   (S.temporadas || []).forEach(t => (t.titulos || []).forEach(id => {
     const nome = nomeDaTaca(id, t.liga);
+    // A chave já era id+nome, e é por isso que quem ganhou a Libertadores E a
+    // Champions tem duas linhas na sala em vez de uma somando as duas. Agora
+    // ela carrega a LIGA junto, que é o que a foto precisa pra ser a certa em
+    // cada uma dessas linhas.
     const chave = id + '|' + nome;
-    if (!grupos[chave]) grupos[chave] = {id, nome, n: 0};
+    if (!grupos[chave]) grupos[chave] = {id, nome, n: 0, liga: t.liga};
     grupos[chave].n++;
   }));
 
@@ -4201,7 +4256,7 @@ function salaDeTrofeus(){
     <div class="sala-cab">Sala de troféus<b>${total}</b></div>
     <div class="sala-grade">
       ${lista.map(g => `<div class="sala-item">
-        <div class="sala-taca">${taca(g.id, 46)}${g.n > 1 ? `<i>×${g.n}</i>` : ''}</div>
+        <div class="sala-taca">${taca(g.id, 46, g.liga)}${g.n > 1 ? `<i>×${g.n}</i>` : ''}</div>
         <span>${esc(g.nome)}</span>
       </div>`).join('')}
     </div>
