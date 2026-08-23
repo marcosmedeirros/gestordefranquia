@@ -528,6 +528,27 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
         .aviso-rascunho .ar-usar{background:var(--red);border-color:var(--red);color:#fff}
         .contador-txt{font-size:11.5px;color:var(--text-3);margin-top:6px;text-align:right}
 
+        /* O segundo botão é uma AÇÃO, não uma alternativa apagada: quem salva
+           rascunho está fazendo uma escolha, não desistindo de publicar. Por
+           isso ele tem contorno e peso, e não o cinza de "cancelar" — que é o
+           terceiro, e esse sim é discreto. */
+        .btn-rascunho{width:100%;background:var(--panel-2);border:1px solid var(--border-md);
+          color:var(--text);font-family:var(--font);font-size:13px;font-weight:700;
+          padding:10px 20px;border-radius:var(--radius-sm);cursor:pointer;
+          display:inline-flex;align-items:center;justify-content:center;gap:7px;
+          transition:all var(--t) var(--ease)}
+        .btn-rascunho:hover{border-color:var(--border-red);color:var(--red)}
+        .btn-save{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+        .nota-publicar{font-size:11.5px;color:var(--text-3);margin:2px 0 0;line-height:1.4;text-align:center}
+
+        /* Cancelar sai do contorno e vira texto. Com os dois botoes de salvar,
+           um terceiro contorno igual ao de rascunho poria tres coisas do mesmo
+           peso empilhadas — e cancelar nao e uma forma de salvar. */
+        .btn-cancelar{display:block;width:100%;text-align:center;background:none;border:0;
+          padding:8px 4px;font-size:12.5px;font-weight:600;color:var(--text-3);
+          text-decoration:none;transition:color var(--t) var(--ease)}
+        .btn-cancelar:hover{color:var(--text)}
+
         /* ── FILTROS DA LISTA ──────────────────────────────────────── */
         .filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
         .filtros input[type=search]{flex:1;min-width:200px}
@@ -872,17 +893,36 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
                     <div class="bc">
                         <div class="bc-body" style="display:flex;flex-direction:column;gap:11px">
-                            <label class="checa forte">
-                                <input type="checkbox" name="publicar" value="1" <?= !empty($v['publicada']) ? 'checked' : '' ?>>
-                                <span>
-                                    Publicar agora
-                                    <small>Sem marcar, ela fica de rascunho e ninguém vê.</small>
-                                </span>
-                            </label>
-                            <button type="submit" class="btn-save" style="width:100%">
-                                <?= $editando ? 'Salvar alterações' : 'Criar notícia' ?>
-                            </button>
-                            <a class="btn-outline" style="justify-content:center" href="/thepathetic-edit.php">Cancelar</a>
+                            <?php
+                              // DOIS BOTÕES, e não um botão mais uma caixinha.
+                              //
+                              // "Publicar agora" marcado + "Criar notícia" eram duas
+                              // ideias no mesmo controle: pra saber o que ia acontecer,
+                              // a pessoa tinha que olhar a caixinha ANTES de ler o
+                              // botão. Agora cada botão diz o resultado dele, e o par
+                              // muda conforme o estado — numa matéria que já está no
+                              // ar, "salvar rascunho" seria mentira: o que aquele
+                              // clique faz é tirá-la do ar.
+                              $noAr = !empty($v['publicada']);
+                            ?>
+                            <?php if ($noAr): ?>
+                                <button type="submit" name="publicar" value="1" class="btn-save" id="btnPrincipal" style="width:100%">
+                                    <i class="bi bi-check2"></i> Salvar e manter no ar
+                                </button>
+                                <button type="submit" name="publicar" value="0" class="btn-rascunho"
+                                        onclick="return confirm('Tirar esta matéria do ar? Ela volta a ser rascunho e some do jornal.')">
+                                    <i class="bi bi-eye-slash"></i> Tirar do ar
+                                </button>
+                            <?php else: ?>
+                                <button type="submit" name="publicar" value="1" class="btn-save" id="btnPrincipal" style="width:100%">
+                                    <i class="bi bi-send"></i> Publicar
+                                </button>
+                                <button type="submit" name="publicar" value="0" class="btn-rascunho">
+                                    <i class="bi bi-file-earmark-text"></i> Salvar rascunho
+                                </button>
+                                <p class="nota-publicar">Rascunho fica guardado e ninguém vê até você publicar.</p>
+                            <?php endif; ?>
+                            <a class="btn-cancelar" href="/thepathetic-edit.php">Cancelar</a>
                         </div>
                     </div>
 
@@ -1248,7 +1288,15 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
       document.addEventListener('keydown', (ev) => {
         if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') {
           ev.preventDefault();
-          form.requestSubmit ? form.requestSubmit() : form.submit();
+          // PELO BOTÃO PRINCIPAL, e não pelo formulário solto. Os botões de
+          // publicar e de rascunho carregam name=publicar com valores
+          // diferentes: um submit sem botão não manda campo nenhum, e o
+          // servidor leria isso como "não publicar" — Ctrl+S numa matéria no
+          // ar a tiraria do ar sem avisar.
+          const principal = document.getElementById('btnPrincipal');
+          if (principal && form.requestSubmit) form.requestSubmit(principal);
+          else if (principal) principal.click();
+          else form.submit();
         }
       });
     })();
