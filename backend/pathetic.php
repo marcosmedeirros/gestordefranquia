@@ -352,6 +352,35 @@ function patheticQuando(?string $data): string
  * O que ele ganha em troca: *negrito* e _itálico_, marcados como no WhatsApp,
  * que é onde essa gente escreve o dia inteiro.
  */
+/**
+ * Negrito, itálico e link dentro de UMA linha.
+ *
+ * Separado do laço porque agora três lugares precisam do mesmo tratamento:
+ * o parágrafo, o item de lista e a citação.
+ *
+ * O link só aceita http e https. Não é excesso de zelo: "javascript:" num
+ * href é execução de código com um clique, e este texto é escrito por
+ * qualquer pessoa da liga.
+ */
+function patheticMarcarLinha(string $t): string
+{
+    $t = preg_replace_callback(
+        '/\[([^\]\r\n]{1,120})\]\(((?:https?:\/\/|\/)[^\s()]{1,400})\)/u',
+        function ($m) {
+            $url = $m[2];
+            // O texto já veio escapado do htmlspecialchars lá em cima, então
+            // o &amp; de uma query string volta a ser & aqui — senão o link
+            // sai quebrado.
+            $href = htmlspecialchars(html_entity_decode($url, ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8');
+            $fora = strpos($href, '/') === 0 ? '' : ' target="_blank" rel="noopener noreferrer"';
+            return '<a class="txt-link" href="' . $href . '"' . $fora . '>' . $m[1] . '</a>';
+        }, $t);
+
+    $t = preg_replace('/(?<![\w*])\*(?=\S)([^*\r\n]+?)(?<=\S)\*(?![\w*])/u', '<strong>$1</strong>', $t);
+    $t = preg_replace('/(?<![\w_])_(?=\S)([^_\r\n]+?)(?<=\S)_(?![\w_])/u',    '<em>$1</em>',        $t);
+    return $t;
+}
+
 function patheticTextoHtml(?string $texto, array $fotos = []): string
 {
     $texto = trim((string)$texto);
@@ -398,21 +427,33 @@ function patheticTextoHtml(?string $texto, array $fotos = []): string
         // INTERTÍTULO: "## " no começo da linha. Quebra a matéria longa em
         // trechos, que é o que o olho procura pra decidir se continua lendo.
         if (preg_match('/^##\s+(.+)$/su', $p, $m)) {
-            $t = preg_replace('/(?<![\w*])\*(?=\S)([^*\r\n]+?)(?<=\S)\*(?![\w*])/u', '<strong>$1</strong>', trim($m[1]));
-            $saida[] = '<h2 class="txt-tit">' . $t . '</h2>';
+            $saida[] = '<h2 class="txt-tit">' . patheticMarcarLinha(trim($m[1])) . '</h2>';
+            continue;
+        }
+
+        // LISTA: linhas começando com "- ". Serve pra o que é lista mesmo —
+        // os cinco jogadores da troca, os times sem espaço no teto.
+        if (preg_match('/^-\s+\S/u', $p)) {
+            $itens = [];
+            foreach (preg_split('/\R/u', $p) as $l) {
+                $l = trim($l);
+                if ($l === '') continue;
+                if (!preg_match('/^-\s+(.+)$/u', $l, $mm)) { $itens[] = $l; continue; }
+                $itens[] = $mm[1];
+            }
+            $saida[] = '<ul class="txt-lista"><li>' . implode('</li><li>',
+                array_map('patheticMarcarLinha', $itens)) . '</li></ul>';
             continue;
         }
 
         // CITAÇÃO: "> " no começo. É a fala que a matéria quer destacar.
         if (preg_match('/^&gt;\s*(.+)$/su', $p, $m)) {
-            $q = preg_replace('/(?<![\w*])\*(?=\S)([^*\r\n]+?)(?<=\S)\*(?![\w*])/u', '<strong>$1</strong>', trim($m[1]));
-            $saida[] = '<blockquote class="txt-citacao">' . nl2br($q, false) . '</blockquote>';
+            $saida[] = '<blockquote class="txt-citacao">'
+                     . nl2br(patheticMarcarLinha(trim($m[1])), false) . '</blockquote>';
             continue;
         }
 
-        $p = preg_replace('/(?<![\w*])\*(?=\S)([^*\r\n]+?)(?<=\S)\*(?![\w*])/u', '<strong>$1</strong>', $p);
-        $p = preg_replace('/(?<![\w_])_(?=\S)([^_\r\n]+?)(?<=\S)_(?![\w_])/u',    '<em>$1</em>',        $p);
-        $saida[] = '<p>' . nl2br($p, false) . '</p>';
+        $saida[] = '<p>' . nl2br(patheticMarcarLinha($p), false) . '</p>';
     }
     return implode("\n", $saida);
 }

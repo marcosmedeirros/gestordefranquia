@@ -79,7 +79,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $grau     = patheticGrauValido($_POST['grau'] ?? '');
             $resumo   = trim((string)($_POST['resumo'] ?? ''));
             $texto    = trim((string)($_POST['texto'] ?? ''));
-            $fotoUrl  = trim((string)($_POST['foto_url'] ?? ''));
+            // A capa vem só de arquivo agora. O campo de URL saiu da tela: uma
+            // matéria que depende de imagem hospedada fora quebra no dia em que
+            // o outro site sair do ar, e ninguém percebe até alguém abrir.
+            // O ramo continua aqui pra não invalidar as matérias antigas que já
+            // guardaram URL — o que ele não faz mais é receber URL nova.
+            $fotoUrl  = '';
             $credito  = trim((string)($_POST['foto_credito'] ?? ''));
             $publicar = !empty($_POST['publicar']);
 
@@ -187,6 +192,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // A galeria da matéria: subir e tirar foto do meio do texto.
         case 'add_foto': {
             $id = (int)($_POST['id'] ?? 0);
+
+            // MATÉRIA AINDA NÃO EXISTE: cria como rascunho agora. É o que faz
+            // "adicionar imagem a qualquer momento" ser verdade — antes a
+            // galeria só aparecia depois de salvar, e quem queria uma foto no
+            // segundo parágrafo tinha que salvar, voltar e procurar o lugar.
+            // O que já estava escrito na tela vai junto, senão o rascunho
+            // nasceria vazio e a pessoa perderia o texto ao ser redirecionada.
+            if ($id <= 0) {
+                $tit = trim((string)($_POST['rascunho_titulo'] ?? ''));
+                $pdo->prepare("INSERT INTO pathetic_noticias
+                               (titulo, chapeu, grau, resumo, texto, autor_id, autor_nome, publicada)
+                               VALUES (?,?,?,?,?,?,?,0)")
+                    ->execute([
+                        $tit !== '' ? mb_substr($tit, 0, 180) : 'Rascunho sem título',
+                        mb_substr(trim((string)($_POST['rascunho_chapeu'] ?? '')), 0, 60) ?: null,
+                        'noticia',
+                        mb_substr(trim((string)($_POST['rascunho_resumo'] ?? '')), 0, 400) ?: null,
+                        (string)($_POST['rascunho_texto'] ?? '') ?: null,
+                        (int)$user['id'],
+                        trim((string)($user['name'] ?? 'Redação')) ?: 'Redação',
+                    ]);
+                $id = (int)$pdo->lastInsertId();
+            }
+
             if (!patheticUma($pdo, $id, true)) throw new RuntimeException('Essa notícia não existe.');
             $erro = patheticAdicionarFoto($pdo, $id, $_FILES['foto_galeria'] ?? [], (string)($_POST['legenda'] ?? ''));
             if ($erro) throw new RuntimeException($erro);
@@ -444,7 +473,13 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
            as decisões (grau, foto, publicar) à direita, onde a mão vai só
            quando a matéria está pronta. No celular vira uma coluna e a
            ordem do HTML já é a ordem certa — escreve, escolhe, publica. */
-        .red-grade{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:16px;align-items:start}
+        /* O EDITOR CENTRALIZADO. Numa tela de 1600 os dois blocos esticavam
+           de ponta a ponta e a linha de texto passava de 140 caracteres — o
+           olho perde o começo da linha seguinte muito antes disso. Com o teto
+           e a margem automática, a coluna de escrita fica na medida e o
+           conjunto no meio da tela. */
+        .red-grade{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:16px;
+          align-items:start;max-width:1180px;margin:0 auto}
         .red-col{display:flex;flex-direction:column;gap:16px;min-width:0}
         @media(max-width:1100px){.red-grade{grid-template-columns:1fr}}
 
@@ -716,7 +751,9 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                                     <span class="barra-fio"></span>
                                     <button type="button" data-linha="## " title="Intertítulo">Título</button>
                                     <button type="button" data-linha="> " title="Citação">&ldquo; &rdquo;</button>
+                                    <button type="button" data-linha="- " title="Lista"><i class="bi bi-list-ul"></i></button>
                                     <span class="barra-fio"></span>
+                                    <button type="button" id="btnLink" title="Link (Ctrl+K)"><i class="bi bi-link-45deg"></i> Link</button>
                                     <button type="button" id="btnInserirFoto" title="Inserir foto da galeria no cursor">
                                         <i class="bi bi-image"></i> Inserir foto
                                     </button>
@@ -753,7 +790,10 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                     </div>
 
                     <div class="bc">
-                        <div class="bc-head"><div class="bc-title"><i class="bi bi-image"></i> Foto</div></div>
+                        <div class="bc-head">
+                            <div class="bc-title"><i class="bi bi-image"></i> Foto de capa</div>
+                            <span style="font-size:11px;color:var(--text-3)">A que abre a matéria</span>
+                        </div>
                         <div class="bc-body">
                             <?php if ($fotoSrc !== ''): ?>
                                 <div class="previa"><img src="<?= $esc($fotoSrc) ?>" alt=""></div>
@@ -770,13 +810,6 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                             <div class="previa previa-nova" id="previaNova" hidden><img alt=""></div>
 
                             <label class="cp">
-                                <span>Ou colar uma URL</span>
-                                <input type="url" name="foto_url" placeholder="https://..."
-                                       value="<?= $esc(preg_match('#^https?://#i', (string)$v['foto']) ? $v['foto'] : '') ?>">
-                                <small>Se você enviar um arquivo, ele ganha da URL.</small>
-                            </label>
-
-                            <label class="cp">
                                 <span>Legenda / crédito <em>opcional</em></span>
                                 <input type="text" name="foto_credito" maxlength="120" value="<?= $esc($v['foto_credito']) ?>"
                                        placeholder="Ex: Divulgação / FBA">
@@ -784,7 +817,7 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                         </div>
                     </div>
 
-                    <?php if ((int)$v['id'] > 0): $galeria = patheticFotos($pdo, (int)$v['id']); ?>
+                    <?php $galeria = (int)$v['id'] > 0 ? patheticFotos($pdo, (int)$v['id']) : []; ?>
                     <div class="bc">
                         <div class="bc-head">
                             <div class="bc-title"><i class="bi bi-images"></i> Fotos no meio do texto</div>
@@ -828,9 +861,14 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                                        placeholder="Ex: O técnico na coletiva de terça">
                             </label>
                             <button type="submit" class="btn-save" style="width:100%" form="formGaleria">Enviar foto</button>
+                            <?php if ((int)$v['id'] <= 0): ?>
+                                <p style="font-size:11.5px;color:var(--text-3);margin:10px 0 0;line-height:1.45">
+                                    A matéria vira rascunho sozinha ao enviar a primeira foto — a foto
+                                    precisa de uma matéria pra ficar guardada. O que você já escreveu vai junto.
+                                </p>
+                            <?php endif; ?>
                         </div>
                     </div>
-                    <?php endif; ?>
 
                     <div class="bc">
                         <div class="bc-body" style="display:flex;flex-direction:column;gap:11px">
@@ -852,7 +890,7 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                 </div>
             </form>
 
-            <?php if ($novaMateria && (int)$v['id'] > 0): ?>
+            <?php if ($novaMateria): ?>
             <!-- Os formulários da galeria vivem FORA do formulário da matéria:
                  HTML não aninha formulário, e os campos lá em cima chegam aqui pelo
                  atributo form="formGaleria". Assim enviar uma foto não arrasta
@@ -862,6 +900,14 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                 <input type="hidden" name="token" value="<?= $esc($token) ?>">
                 <input type="hidden" name="acao" value="add_foto">
                 <input type="hidden" name="id" value="<?= (int)$v['id'] ?>">
+                <!-- Numa matéria que ainda não existe, estes campos viajam junto
+                     pra o rascunho automático nascer com o que já foi escrito.
+                     Preenchidos por JS na hora do envio, e não pelo PHP: o valor
+                     que importa é o da TELA, não o do banco. -->
+                <input type="hidden" name="rascunho_titulo" value="">
+                <input type="hidden" name="rascunho_chapeu" value="">
+                <input type="hidden" name="rascunho_resumo" value="">
+                <input type="hidden" name="rascunho_texto"  value="">
             </form>
             <form id="formTirarFoto" method="post" hidden>
                 <input type="hidden" name="token" value="<?= $esc($token) ?>">
@@ -1378,6 +1424,55 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
         campo.focus();
       };
 
+      /* LINK. Pede o endereço e escreve [texto](url). Se havia seleção, ela
+         vira o texto do link; se não, o próprio endereço aparece. Só http e
+         https entram — o renderizador recusa o resto, e avisar aqui é melhor
+         que deixar a pessoa descobrir que o link sumiu depois de publicar. */
+      function linkar() {
+        const ini = campo.selectionStart, fim = campo.selectionEnd;
+        const sel = campo.value.slice(ini, fim).trim();
+        let url = prompt("Endereço do link:", "https://");
+        if (url === null) return;
+        url = url.trim();
+        if (!url || url === "https://") return;
+        if (!/^(https?:\/\/|\/)/i.test(url)) {
+          if (/^[\w.-]+\.[a-z]{2,}/i.test(url)) url = "https://" + url;
+          else { alert("O link precisa começar com http:// ou https://."); return; }
+        }
+        const texto = sel || url;
+        const marca = "[" + texto + "](" + url + ")";
+        escrever(marca, ini, fim);
+        // Cursor no fim do link, pronto pra continuar a frase.
+        const p2 = ini + marca.length;
+        campo.setSelectionRange(p2, p2);
+        campo.focus();
+      }
+      document.getElementById("btnLink")?.addEventListener("click", linkar);
+
+      /* Ctrl+K, que é o atalho de link em todo lugar. */
+      campo.addEventListener("keydown", (ev) => {
+        if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "k") {
+          ev.preventDefault(); linkar();
+        }
+      });
+
+      /* O RASCUNHO AUTOMÁTICO leva o que está na TELA.
+
+         Numa matéria que ainda não existe, enviar foto cria o rascunho no
+         servidor — e sem estes campos ele nasceria vazio, jogando fora o que
+         a pessoa já tinha escrito. Copiados no submit, e não pelo PHP, porque
+         o valor que vale é o de agora. */
+      const formGal = document.getElementById("formGaleria");
+      formGal?.addEventListener("submit", () => {
+        [["titulo","rascunho_titulo"],["chapeu","rascunho_chapeu"],
+         ["resumo","rascunho_resumo"],["texto","rascunho_texto"]].forEach(([de, para]) => {
+          const origem = document.querySelector("form.redacao [name=" + de + "]");
+          const destino = formGal.querySelector("[name=" + para + "]");
+          if (origem && destino) destino.value = origem.value;
+        });
+        // O rascunho local some: a matéria vai existir no servidor agora.
+        try { localStorage.removeItem(chave); } catch (e) {}
+      });
       const btnFoto = document.getElementById('btnInserirFoto');
       btnFoto?.addEventListener('click', () => {
         const usadas = (campo.value.match(/\[foto:(\d+)\]/g) || [])
