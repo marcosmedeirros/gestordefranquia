@@ -5262,9 +5262,16 @@ function anoDeSelecao(o){
   S.numerosSelecao = numerosDoTorneio(o, t);
   const r = jogarTorneio(o, t);
   if (!r){
-    // Convocação sem medalha ainda é linha na súmula: some do resumo, mas
-    // conta a história de quem foi seis vezes e nunca subiu no pódio.
-    return {t:`${t.nome} — sem medalha`, k:"normal"};
+    // Convocação SEM medalha não vira etiqueta. A ideia era contar a
+    // história de quem foi seis vezes e nunca subiu no pódio — só que na
+    // tela ela vira um selo do mesmo tamanho e peso visual de um título,
+    // dizendo que você não ganhou nada. Ninguém quer uma medalha de
+    // participação pendurada ao lado dos troféus.
+    //
+    // A convocação continua contada em S.convocacoes logo acima, e os
+    // números do torneio continuam na linha da seleção no pé da
+    // trajetória — o que sai é só o selo.
+    return null;
   }
 
   // Olimpíada e Copa contam separado: ouro olímpico não pode valer o mesmo
@@ -5513,10 +5520,12 @@ function escolherOferta(i){
   if (!S.mercado || !S.mercado[i]) return;
   document.querySelector(".dec-caixa")?.classList.add("ocupada");
   const of = S.mercado[i];
-  const mudou = assinar(of);
-  S.mensagem = mudou
-    ? `Você assinou com o ${of.time} por ${of.anos} ${of.anos === 1 ? "ano" : "anos"}, $${of.salario}M por ano. Malas prontas.`
-    : `Você renovou com o ${of.time}: ${of.anos} ${of.anos === 1 ? "ano" : "anos"}, $${of.salario}M por ano.`;
+  assinar(of);
+  // A caixa "Você assinou com o X por N anos, $YM por ano" SAIU: o cartão
+  // logo acima já mostra o time, o salário e a idade, e o card colorido do
+  // desfecho já contou por que você saiu. Eram três avisos da mesma coisa
+  // empilhados, empurrando a decisão seguinte pra fora da tela.
+  S.mensagem = null;
   S.mercado = null; S.ofertaEscolhida = null;
   S.decisaoId = decisaoDoAno();
   S.aguardando = S.decisaoId !== null;
@@ -6806,9 +6815,23 @@ function compartilharCartao(botao, modo){
   const titulos = ordemT
     .map(k => {
       const n = Math.max(0, Number(t[k]) || 0);
-      if (!n || !TACAS_NBA[k]) return null;
-      return {img: svgImagem(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 56"
-                width="140" height="122" style="color:${TACAS_NBA[k][0]}">${TACAS_NBA[k][1]}</svg>`),
+      if (!n) return null;
+
+      // A FOTO primeiro, o desenho de reserva — igual à sala de troféus. O
+      // cartão saía com o desenho mesmo tendo foto, então o mesmo título
+      // aparecia de dois jeitos na mesma tela.
+      //
+      // E o teste era `!TACAS_NBA[k]`, o que DERRUBAVA quem tem só foto:
+      // ouro, prata e as três medalhas de Copa não têm desenho, e por isso
+      // uma medalha olímpica simplesmente não entrava no cartão.
+      const foto = TACAS_NBA_FOTO[k];
+      const d = TACAS_NBA[k];
+      if (!foto && !d) return null;
+
+      // A foto passa pelo proxy dentro do cartao.php (viaProxy): imagem de
+      // outro domínio contamina o canvas e derruba a geração inteira.
+      return {img: foto || svgImagem(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 56"
+                width="140" height="122" style="color:${d[0]}">${d[1]}</svg>`),
               contagem: n};
     })
     .filter(Boolean).slice(0, 6);
