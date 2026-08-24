@@ -731,6 +731,105 @@ $userPhoto = getUserPhoto($user['photo_url'] ?? null);
         .nav-tabs .nav-link:hover { border-color: transparent !important; color: var(--text) !important; }
         .tab-content { padding-top: 16px; }
 
+        /* ── CONFIGURAÇÕES DA LIGA ──────────────────────────────────────
+           Era um flex-wrap só, com tudo dentro: os quatro números do CAP, os
+           três campos de vídeo, o selo do CAP Range e os três botões de
+           janela. Como wrap não respeita assunto, o selo do CAP caía no meio
+           dos vídeos e os botões de Trades, Free Agency e Tática paravam cada
+           um numa linha — três controles idênticos em três lugares
+           diferentes, que é o que fazia a tela parecer bagunçada mesmo
+           estando completa.
+
+           Agora são três blocos com assunto: REGRAS (o que é número),
+           JANELAS (o que abre e fecha) e VÍDEOS (o que é link). E dentro de
+           Janelas, cada linha carrega o botão E o horário agendado da MESMA
+           coisa — antes o botão de fechar trades e o agendamento de fechar
+           trades ficavam a meia tela um do outro. */
+        .lgcfg { display: flex; flex-direction: column; gap: 20px; }
+        .lgcfg-bloco { display: flex; flex-direction: column; gap: 10px; }
+        .lgcfg-titulo {
+            display: flex; align-items: center; gap: 7px;
+            font-size: 10px; font-weight: 800; letter-spacing: .9px;
+            text-transform: uppercase; color: var(--text-3);
+        }
+        .lgcfg-titulo::after {
+            content: ''; flex: 1; height: 1px; background: var(--border);
+        }
+
+        /* Regras: os números em grade, todos do mesmo tamanho. Antes cada um
+           tinha a sua largura e o olho não achava a coluna. */
+        .lgcfg-nums {
+            display: grid; gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+        }
+        .lgcfg-campo { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+        .lgcfg-campo > label {
+            font-size: 11px; font-weight: 600; color: var(--text-2);
+            display: flex; align-items: center; gap: 5px;
+        }
+        .lgcfg-campo input.form-control { width: 100%; }
+        .lgcfg-faixa {
+            display: flex; flex-direction: column; justify-content: center;
+            background: var(--red-soft); border: 1px solid var(--border-red);
+            border-radius: var(--radius-sm); padding: 8px 14px; text-align: center;
+        }
+        .lgcfg-faixa b { font-size: 15px; font-weight: 800; color: var(--red); line-height: 1.1; }
+        .lgcfg-faixa span { font-size: 10px; color: var(--text-3); }
+
+        /* Janelas: uma linha por coisa que abre e fecha. */
+        .lgcfg-janelas {
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            overflow: hidden; background: var(--panel-2);
+        }
+        .lgcfg-janela {
+            display: grid; align-items: center; gap: 10px 14px;
+            /* A coluna dos botoes e FIXA. Com auto, cada linha media a
+               largura do proprio par de botoes — "Ativas/Bloqueadas" e mais
+               largo que "Aberta/Fechada" — e o "fecha sozinho em" comecava
+               em tres lugares diferentes, uma escadinha em tres linhas que
+               deviam ser identicas. */
+            grid-template-columns: minmax(120px, 170px) 200px 1fr;
+            padding: 12px 14px;
+        }
+        .lgcfg-janela + .lgcfg-janela { border-top: 1px solid var(--border); }
+        .lgcfg-jn { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .lgcfg-jn i { font-size: 14px; flex: none; }
+        .lgcfg-jn b { font-size: 12.5px; font-weight: 700; color: var(--text); white-space: nowrap; }
+        .lgcfg-acoes { display: flex; align-items: center; gap: 6px; }
+        .lgcfg-acoes .btn { flex: 1; white-space: nowrap; }
+        .lgcfg-acoes .btn { font-size: 11px; padding: 4px 11px; }
+
+        /* O selo de estado. Vira classe e não style inline porque os toggles
+           reescreviam o cssText inteiro do elemento — qualquer regra daqui
+           era apagada no primeiro clique. */
+        .lgcfg-selo {
+            font-size: 10px; font-weight: 700; padding: 2px 8px;
+            border-radius: 999px; white-space: nowrap; flex: none;
+        }
+        .lgcfg-selo.on  { background: color-mix(in srgb, var(--green) 15%, transparent);
+                          color: var(--green); border: 1px solid color-mix(in srgb, var(--green) 28%, transparent); }
+        .lgcfg-selo.off { background: var(--red-soft); color: var(--red); border: 1px solid var(--border-red); }
+
+        /* O agendamento, encostado na janela a que pertence. */
+        .lgcfg-agenda { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+        .lgcfg-agenda-linha { display: flex; align-items: center; gap: 6px; }
+        .lgcfg-agenda-linha > span {
+            font-size: 11px; color: var(--text-3); white-space: nowrap; flex: none;
+        }
+        .lgcfg-agenda input { max-width: 200px; min-width: 0; }
+        .lgcfg-agenda .btn { padding: 4px 8px; font-size: 11px; flex: none; }
+        .lgcfg-falta { font-size: 10.5px; color: var(--text-3); min-height: 14px; }
+        .lgcfg-falta.passou { color: var(--red); font-weight: 600; }
+
+        .lgcfg-videos { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+
+        @media (max-width: 760px) {
+            /* No celular a linha da janela vira três andares: nome, botões,
+               agendamento. Em grade de uma coluna só, sem nada apertado. */
+            .lgcfg-janela { grid-template-columns: 1fr; gap: 9px; }
+            .lgcfg-agenda input { max-width: none; flex: 1; }
+        }
+
         /* Bootstrap cards from admin.js */
         .card {
             background: var(--panel) !important;

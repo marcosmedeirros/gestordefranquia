@@ -3180,44 +3180,40 @@ async function showLeague(league) {
 // Janela de tática e progresso dos elencos, ao lado das outras chaves da liga.
 // Vem do admin-control.php porque são estados calculados, não configuração.
 async function _carregarControlesExtras(league) {
-  const box = document.getElementById(`ctrlExtra_${league}`);
-  if (!box) return;
+  // A TÁTICA VEM DE OUTRA API. O estado dela mora na tactic_edit_windows e
+  // quem sabe responder é a admin-control, então os botões dela chegam
+  // depois dos outros dois. A linha já existe no HTML de cima — aqui só
+  // entram o selo e os botões, no buraco reservado, pra tela não pular.
+  const alvo = document.getElementById(`tatCtrl_${league}`);
+  const extra = document.getElementById(`ctrlExtra_${league}`);
+  if (!alvo) return;
   try {
     const d = await api(`admin-control.php?league=${encodeURIComponent(league)}`);
-    const tw = d.tactic_window || {};
-    const aberta = !!tw.open;
-    const pct = d.teams_total ? Math.round((d.teams_updated / d.teams_total) * 100) : 100;
-    const tudoPronto = pct === 100;
+    const aberta = !!(d.tactic_window || {}).open;
 
-    const caixa = 'display:flex;align-items:center;gap:7px;background:var(--panel-3);'
-                + 'border:1px solid var(--border);border-radius:10px;padding:8px 12px';
-    const selo = (ok) => ok
-      ? 'font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
-      : 'font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)';
+    alvo.innerHTML = `
+      <span id="tatBadge_${league}" hidden></span>
+      <button class="btn btn-sm ${aberta ? 'btn-success' : 'btn-outline-success'}"
+              onclick="toggleTatica('${league}', 1)" id="tatOnBtn_${league}">Aberta</button>
+      <button class="btn btn-sm ${!aberta ? 'btn-danger' : 'btn-outline-danger'}"
+              onclick="toggleTatica('${league}', 0)" id="tatOffBtn_${league}">Fechada</button>`;
 
-    box.innerHTML = `
-      <div style="${caixa}">
-        <i class="bi bi-clipboard2-pulse" style="color:#14b8a6;font-size:13px;flex-shrink:0"></i>
-        <span style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">Tática</span>
-        <span id="tatBadge_${league}" style="${selo(aberta)}">${aberta ? 'Aberta' : 'Fechada'}</span>
-
-        <div style="display:flex;gap:4px;margin-left:4px">
-          <button class="btn btn-sm ${aberta ? 'btn-success' : 'btn-outline-success'}"
-            style="font-size:11px;padding:4px 10px"
-            onclick="toggleTatica('${league}', 1)" id="tatOnBtn_${league}">Aberta</button>
-          <button class="btn btn-sm ${!aberta ? 'btn-danger' : 'btn-outline-danger'}"
-            style="font-size:11px;padding:4px 10px"
-            onclick="toggleTatica('${league}', 0)" id="tatOffBtn_${league}">Fechada</button>
-        </div>
-      </div>
-      ${d.draft_concluido ? `
-      <div style="${caixa}">
-        <i class="bi bi-people-fill" style="color:#f59e0b;font-size:13px;flex-shrink:0"></i>
-        <span style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">Elencos</span>
-        <span style="${selo(tudoPronto)}">${d.teams_updated}/${d.teams_total}</span>
-      </div>` : ''}`;
+    // Elencos atualizados não é uma janela: não abre nem fecha, é um
+    // placar. Fica embaixo do bloco, e só depois do draft, que é quando a
+    // conta passa a querer dizer alguma coisa.
+    if (extra) {
+      const pct = d.teams_total ? Math.round((d.teams_updated / d.teams_total) * 100) : 100;
+      extra.innerHTML = d.draft_concluido ? `
+        <div style="display:flex;align-items:center;gap:8px;background:var(--panel-2);
+                    border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 12px">
+          <i class="bi bi-people-fill" style="color:var(--amber);font-size:13px"></i>
+          <span style="font-size:12px;font-weight:600;color:var(--text)">Elencos atualizados</span>
+          <span class="lgcfg-selo ${pct === 100 ? 'on' : 'off'}">${d.teams_updated}/${d.teams_total}</span>
+        </div>` : '';
+    }
   } catch (e) {
-    box.innerHTML = '';
+    alvo.innerHTML = '<span class="lgcfg-selo off">indisponível</span>';
+    if (extra) extra.innerHTML = '';
   }
 }
 
@@ -4376,7 +4372,7 @@ function videoFieldHtml(league, slot, label, value, small) {
     <div data-video-field style="display:flex;flex-direction:column;gap:4px;${small ? 'flex:1;min-width:150px' : ''}">
       <div style="font-size:11px;font-weight:600;color:var(--text-2)">${label}</div>
       <div style="display:flex;gap:6px;align-items:center">
-        <input type="text" class="${inputCls}" placeholder="Link do YouTube, Vimeo, Drive ou .mp4" value="${(value || '').replace(/"/g, '&quot;')}" data-league="${league}" data-field="${slot === 'progression' ? 'progression_video_url' : slot === 'sistemas' ? 'sistemas_video_url' : 'freeagency_video_url'}" id="${uid}_input" style="flex:1">
+        <input type="text" class="${inputCls}" placeholder="cole o link do vídeo" value="${(value || '').replace(/"/g, '&quot;')}" data-league="${league}" data-field="${slot === 'progression' ? 'progression_video_url' : slot === 'sistemas' ? 'sistemas_video_url' : 'freeagency_video_url'}" id="${uid}_input" style="flex:1">
         <label class="btn-ghost" style="cursor:pointer;padding:6px 9px;margin:0" title="Enviar arquivo de vídeo (upload)">
           <i class="bi bi-upload"></i>
           <input type="file" accept="video/mp4,video/webm,video/quicktime,video/ogg" style="display:none" onchange="handleLeagueVideoUpload(this,'${league}','${slot}')">
@@ -4973,67 +4969,81 @@ async function _loadLeagueConfigInline(league) {
       ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
       : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)';
     body.innerHTML = `
-      <div style="display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px">
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <div style="font-size:11px;font-weight:600;color:var(--text-2)">CAP Mínimo</div>
-          <input type="number" class="form-control form-control-sm" style="width:90px" value="${lg.cap_min}" data-league="${lg.league}" data-field="cap_min">
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <div style="font-size:11px;font-weight:600;color:var(--text-2)">CAP Máximo</div>
-          <input type="number" class="form-control form-control-sm" style="width:90px" value="${lg.cap_max}" data-league="${lg.league}" data-field="cap_max">
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <div style="font-size:11px;font-weight:600;color:var(--text-2)">Máx. Trocas/Temp.</div>
-          <input type="number" class="form-control form-control-sm" style="width:90px" value="${lg.max_trades || 3}" data-league="${lg.league}" data-field="max_trades">
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <div style="font-size:11px;font-weight:600;color:var(--text-2)">Temporadas/Sprint</div>
-          <input type="number" class="form-control form-control-sm" style="width:90px" min="1" value="${lg.max_seasons || ''}" data-league="${lg.league}" data-field="max_seasons">
-        </div>
-        ${videoFieldHtml(lg.league, 'progression', '<i class="bi bi-camera-reels me-1"></i>Vídeo Progression', lg.progression_video_url, true)}
-        ${videoFieldHtml(lg.league, 'sistemas', '<i class="bi bi-gear me-1"></i>Vídeo Sistemas', lg.sistemas_video_url, true)}
-        ${videoFieldHtml(lg.league, 'freeagency', '<i class="bi bi-coin me-1"></i>Vídeo Free Agency', lg.freeagency_video_url, true)}
-        <div style="background:var(--red-soft);border:1px solid var(--border-red);border-radius:10px;padding:7px 12px;text-align:center;min-width:80px">
-          <div style="font-size:13px;font-weight:700;color:var(--red)">${lg.cap_min}–${lg.cap_max}</div>
-          <div style="font-size:10px;color:var(--text-3)">CAP Range</div>
-        </div>
+      <div class="lgcfg">
 
-        <div style="width:1px;height:36px;background:var(--border);flex-shrink:0"></div>
-
-        <div style="display:flex;align-items:center;gap:7px;background:var(--panel-3);border:1px solid var(--border);border-radius:10px;padding:8px 12px">
-          <i class="bi bi-arrow-left-right" style="color:#3b82f6;font-size:13px;flex-shrink:0"></i>
-          <span style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">Trades</span>
-          <span id="tradesBadge_${lg.league}" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;${badgeStyle(tradesOn)}">${tradesOn ? 'Ativas' : 'Bloqueadas'}</span>
-          <div style="display:flex;gap:4px;margin-left:4px">
-            <button class="btn btn-sm ${tradesOn ? 'btn-success' : 'btn-outline-success'}"
-              style="font-size:11px;padding:4px 10px"
-              onclick="toggleTrades('${lg.league}', 1)" id="tradesOnBtn_${lg.league}">Ativas</button>
-            <button class="btn btn-sm ${!tradesOn ? 'btn-danger' : 'btn-outline-danger'}"
-              style="font-size:11px;padding:4px 10px"
-              onclick="toggleTrades('${lg.league}', 0)" id="tradesOffBtn_${lg.league}">Bloqueadas</button>
+        <div class="lgcfg-bloco">
+          <div class="lgcfg-titulo"><i class="bi bi-sliders2"></i>Regras</div>
+          <div class="lgcfg-nums">
+            <div class="lgcfg-campo">
+              <label>CAP mínimo</label>
+              <input type="number" class="form-control form-control-sm" value="${lg.cap_min}"
+                     data-league="${lg.league}" data-field="cap_min">
+            </div>
+            <div class="lgcfg-campo">
+              <label>CAP máximo</label>
+              <input type="number" class="form-control form-control-sm" value="${lg.cap_max}"
+                     data-league="${lg.league}" data-field="cap_max">
+            </div>
+            <div class="lgcfg-campo">
+              <label>Máx. trocas / temp.</label>
+              <input type="number" class="form-control form-control-sm" value="${lg.max_trades || 3}"
+                     data-league="${lg.league}" data-field="max_trades">
+            </div>
+            <div class="lgcfg-campo">
+              <label>Temporadas / sprint</label>
+              <input type="number" class="form-control form-control-sm" min="1" value="${lg.max_seasons || ''}"
+                     data-league="${lg.league}" data-field="max_seasons">
+            </div>
+            <div class="lgcfg-faixa">
+              <b>${lg.cap_min}–${lg.cap_max}</b>
+              <span>faixa do CAP</span>
+            </div>
           </div>
         </div>
 
-        <div style="display:flex;align-items:center;gap:7px;background:var(--panel-3);border:1px solid var(--border);border-radius:10px;padding:8px 12px">
-          <i class="bi bi-coin" style="color:#22c55e;font-size:13px;flex-shrink:0"></i>
-          <span style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">Free Agency</span>
-          <span id="faBadge_${lg.league}" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;${badgeStyle(faOn)}">${faOn ? 'Ativa' : 'Bloqueada'}</span>
-          <div style="display:flex;gap:4px;margin-left:4px">
-            <button class="btn btn-sm ${faOn ? 'btn-success' : 'btn-outline-success'}"
-              style="font-size:11px;padding:4px 10px"
-              onclick="toggleFA('${lg.league}', 1)" id="faOnBtn_${lg.league}">Ativa</button>
-            <button class="btn btn-sm ${!faOn ? 'btn-danger' : 'btn-outline-danger'}"
-              style="font-size:11px;padding:4px 10px"
-              onclick="toggleFA('${lg.league}', 0)" id="faOffBtn_${lg.league}">Bloqueada</button>
+        <div class="lgcfg-bloco">
+          <div class="lgcfg-titulo"><i class="bi bi-door-open"></i>Janelas</div>
+          <div class="lgcfg-janelas">
+            ${janelaLinha({
+              liga: lg.league, icone: 'bi-arrow-left-right', cor: 'var(--blue)', nome: 'Trades',
+              aberta: tradesOn, rotuloOn: 'Ativas', rotuloOff: 'Bloqueadas',
+              idSelo: `tradesBadge_${lg.league}`, idOn: `tradesOnBtn_${lg.league}`,
+              idOff: `tradesOffBtn_${lg.league}`, acao: 'toggleTrades',
+              campo: 'fechar_trades_em', valor: lg.fechar_trades_em, alvo: 'trades',
+            })}
+            ${janelaLinha({
+              liga: lg.league, icone: 'bi-coin', cor: 'var(--green)', nome: 'Free Agency',
+              aberta: faOn, rotuloOn: 'Ativa', rotuloOff: 'Bloqueada',
+              idSelo: `faBadge_${lg.league}`, idOn: `faOnBtn_${lg.league}`,
+              idOff: `faOffBtn_${lg.league}`, acao: 'toggleFA',
+              campo: 'fechar_fa_em', valor: lg.fechar_fa_em, alvo: 'a free agency',
+            })}
+            <!-- A tática vem de outra API (admin-control), então os botões dela
+                 chegam depois. A linha e o campo de horário já nascem aqui pra
+                 tela não pular quando a resposta cair. -->
+            <div class="lgcfg-janela">
+              <div class="lgcfg-jn">
+                <i class="bi bi-clipboard2-pulse" style="color:#14b8a6"></i><b>Táticas</b>
+              </div>
+              <div class="lgcfg-acoes" id="tatCtrl_${lg.league}">
+                <span class="lgcfg-selo off" style="opacity:.5">carregando</span>
+              </div>
+              ${agendaCampo(lg.league, 'fechar_taticas_em', lg.fechar_taticas_em, 'as táticas')}
+            </div>
+          </div>
+          <div id="ctrlExtra_${lg.league}" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+        </div>
+
+        <div class="lgcfg-bloco">
+          <div class="lgcfg-titulo"><i class="bi bi-play-btn"></i>Vídeos</div>
+          <div class="lgcfg-videos">
+            ${videoFieldHtml(lg.league, 'progression', 'Progression', lg.progression_video_url, true)}
+            ${videoFieldHtml(lg.league, 'sistemas', 'Sistemas', lg.sistemas_video_url, true)}
+            ${videoFieldHtml(lg.league, 'freeagency', 'Free Agency', lg.freeagency_video_url, true)}
           </div>
         </div>
 
-        <!-- Janela de tática e elencos atualizados: era o que só existia no
-             antigo Painel de Controle, que duplicava tudo o resto daqui
-             (inclusive os mesmos ids dos botões de Trades e FA). -->
-        <div id="ctrlExtra_${lg.league}" style="display:contents"></div>
-      </div>
-      ${fechamentoAgendadoHtml(lg)}`;
+      </div>`;
     _carregarControlesExtras(league);
     // O "falta quanto" vivo: recalcula ao digitar e de minuto em minuto.
     atualizarFaltaAgenda(body);
@@ -5060,57 +5070,61 @@ async function _loadLeagueConfigInline(league) {
 }
 
 /**
- * FECHAMENTO AGENDADO: a data e a hora em que cada coisa fecha sozinha.
+ * UMA LINHA DE JANELA: o botão e o horário da mesma coisa, lado a lado.
  *
- * Três campos, um por coisa que fecha, e cada um encostado no botão que
- * faz a mesma coisa na mão logo acima — é a mesma decisão ("isto fica
- * aberto?"), só que uma é agora e a outra é depois.
- *
- * Campo vazio é o normal e quer dizer "não vai fechar sozinho". Depois que
- * a hora passa, o servidor fecha e LIMPA o campo, então ele volta a nascer
- * vazio pra próxima janela — sem isso a tela mostraria pra sempre uma data
- * de mês passado e ninguém saberia se ela ainda vale.
+ * Antes o botão "bloquear trades" e o campo "fechar trades às 18h" ficavam a
+ * meia tela um do outro, em blocos diferentes, e eram a MESMA decisão — uma
+ * agora e outra depois. Junto, dá pra ler a linha inteira de uma vez: o que
+ * é, como está, e quando muda sozinho.
  */
-function fechamentoAgendadoHtml(lg) {
-  const linha = (campo, icone, cor, titulo, oQueFecha) => {
-    const v = lg[campo] || '';
-    return `
-      <div style="display:flex;flex-direction:column;gap:5px;min-width:210px;flex:1">
-        <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--text-2)">
-          <i class="bi ${icone}" style="color:${cor};font-size:12px"></i>${titulo}
-        </div>
-        <div style="display:flex;gap:6px;align-items:center">
-          <input type="datetime-local" class="form-control form-control-sm"
-                 style="flex:1;min-width:0" value="${v}"
-                 data-league="${lg.league}" data-field="${campo}"
-                 data-agenda-alvo="${oQueFecha}">
-          <button class="btn btn-sm btn-outline-secondary" style="font-size:11px;padding:4px 8px"
-                  title="Limpar — sem horário, não fecha sozinho"
-                  onclick="limparAgenda(this)"><i class="bi bi-x-lg"></i></button>
-        </div>
-        <div class="agenda-falta" style="font-size:10.5px;color:var(--text-3);min-height:14px"></div>
-      </div>`;
-  };
+function janelaLinha(o) {
   return `
-    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-      <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px">
-        <i class="bi bi-clock-history" style="color:var(--red);font-size:13px"></i>
-        <span style="font-size:12px;font-weight:700;color:var(--text)">Fechar sozinho</span>
-        <span style="font-size:11px;color:var(--text-3)">
-          marque a data e a hora; passou, fecha e o campo se limpa
-        </span>
+    <div class="lgcfg-janela">
+      <div class="lgcfg-jn">
+        <i class="bi ${o.icone}" style="color:${o.cor}"></i><b>${o.nome}</b>
       </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap">
-        ${linha('fechar_taticas_em', 'bi-clipboard-check', '#a855f7', 'Fechar táticas', 'táticas')}
-        ${linha('fechar_trades_em', 'bi-arrow-left-right', '#3b82f6', 'Fechar trades', 'trades')}
-        ${linha('fechar_fa_em', 'bi-coin', '#22c55e', 'Fechar free agency', 'free agency')}
+      <div class="lgcfg-acoes">
+        <!-- Sem selo de estado: o botao ACESO ja e o estado. Com o selo, a
+             linha dizia "Trades / Ativas / [Ativas] / [Bloqueadas]" — tres
+             chips seguidos pra uma informacao so. O id fica num span
+             escondido porque os toggles procuram por ele. -->
+        <span id="${o.idSelo}" hidden></span>
+        <button class="btn btn-sm ${o.aberta ? 'btn-success' : 'btn-outline-success'}"
+                onclick="${o.acao}('${o.liga}', 1)" id="${o.idOn}">${o.rotuloOn}</button>
+        <button class="btn btn-sm ${!o.aberta ? 'btn-danger' : 'btn-outline-danger'}"
+                onclick="${o.acao}('${o.liga}', 0)" id="${o.idOff}">${o.rotuloOff}</button>
       </div>
+      ${agendaCampo(o.liga, o.campo, o.valor, o.alvo)}
+    </div>`;
+}
+
+/**
+ * O horário em que aquela janela fecha sozinha.
+ *
+ * Campo vazio é o normal e quer dizer "não fecha sozinho". Depois que a hora
+ * passa, o servidor fecha e LIMPA o campo, então ele volta a nascer vazio
+ * pra próxima janela — sem isso a tela mostraria pra sempre uma data de mês
+ * passado e ninguém saberia se ela ainda vale.
+ */
+function agendaCampo(liga, campo, valor, alvo) {
+  return `
+    <div class="lgcfg-agenda">
+      <div class="lgcfg-agenda-linha">
+        <span>fecha sozinho em</span>
+        <input type="datetime-local" class="form-control form-control-sm" value="${valor || ''}"
+               data-league="${liga}" data-field="${campo}" data-agenda-alvo="${alvo}">
+        <button class="btn btn-sm btn-outline-secondary" onclick="limparAgenda(this)"
+                title="Limpar — sem horário, não fecha sozinho"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="lgcfg-falta"></div>
     </div>`;
 }
 
 /** Limpa o campo de horário ao lado do botão. */
 function limparAgenda(btn) {
-  const inp = btn.parentElement?.querySelector('input[data-agenda-alvo]');
+  // closest, pelo mesmo motivo do atualizarFaltaAgenda: caminho fixo pelo
+  // parentElement quebra calado quando o HTML muda.
+  const inp = btn.closest('.lgcfg-agenda')?.querySelector('input[data-agenda-alvo]');
   if (!inp) return;
   inp.value = '';
   inp.dispatchEvent(new Event('input', { bubbles: true }));
@@ -5126,21 +5140,26 @@ function limparAgenda(btn) {
  */
 function atualizarFaltaAgenda(raiz) {
   (raiz || document).querySelectorAll('input[data-agenda-alvo]').forEach(inp => {
-    const alvo = inp.parentElement?.parentElement?.querySelector('.agenda-falta');
+    // closest e não parentElement.parentElement: a estrutura da linha mudou
+    // no redesenho e o caminho fixo passou a apontar pro nada — o "quanto
+    // falta" sumiu da tela sem erro nenhum no console, que é o pior jeito de
+    // quebrar. Com closest, mexer no HTML de novo não quebra isto.
+    const caixa = inp.closest('.lgcfg-agenda');
+    const alvo = caixa && caixa.querySelector('.lgcfg-falta');
     if (!alvo) return;
-    if (!inp.value) { alvo.textContent = 'sem horário — não fecha sozinho'; alvo.style.color = 'var(--text-3)'; return; }
+    alvo.classList.remove('passou');
+    if (!inp.value) { alvo.textContent = 'sem horário — não fecha sozinho'; return; }
     const ms = new Date(inp.value).getTime() - Date.now();
     if (isNaN(ms)) { alvo.textContent = ''; return; }
     if (ms <= 0) {
       alvo.textContent = 'esse horário já passou';
-      alvo.style.color = 'var(--red)';
+      alvo.classList.add('passou');
       return;
     }
     const min = Math.round(ms / 60000);
     const d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = min % 60;
     const falta = d ? `${d}d ${h}h` : (h ? `${h}h ${m}min` : `${m}min`);
     alvo.textContent = `fecha ${inp.dataset.agendaAlvo} em ${falta}`;
-    alvo.style.color = 'var(--text-3)';
   });
 }
 
@@ -7024,9 +7043,10 @@ async function toggleTrades(league, enabled) {
     if (offBtn) offBtn.className = `btn btn-sm ${!on ? 'btn-danger' : 'btn-outline-danger'}`;
     if (badge) {
       badge.textContent = on ? 'Ativas' : 'Bloqueadas';
-      badge.style.cssText = `font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;${on
-        ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
-        : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)'}`;
+      // Classe, e não cssText: reescrever o style inteiro apagava as regras
+      // da folha de estilo e o selo voltava à cara antiga no primeiro clique.
+      badge.className = 'lgcfg-selo ' + (on ? 'on' : 'off');
+      badge.removeAttribute('style');
     }
     showAlert('success', `Trocas ${on ? 'ativadas' : 'desativadas'} para a liga ${league}!`);
   } catch (e) {
@@ -7077,9 +7097,9 @@ async function toggleFA(league, enabled) {
     if (offBtn) offBtn.className = `btn btn-sm ${!on ? 'btn-danger' : 'btn-outline-danger'}`;
     if (badge) {
       badge.textContent = on ? 'Ativa' : 'Bloqueada';
-      badge.style.cssText = `font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap;${on
-        ? 'background:rgba(37,198,119,.15);color:#25c677;border:1px solid rgba(37,198,119,.25)'
-        : 'background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--red);border:1px solid var(--border-red)'}`;
+      // Mesma razao do selo das trades: classe em vez de cssText.
+      badge.className = 'lgcfg-selo ' + (on ? 'on' : 'off');
+      badge.removeAttribute('style');
     }
     showAlert('success', `Free Agency ${on ? 'ativada' : 'desativada'} para a liga ${league}!`);
   } catch (e) {
