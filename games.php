@@ -484,8 +484,35 @@ try {
 
 $rankingLigas = ['GERAL' => 'Geral', 'ELITE' => 'ELITE', 'NEXT' => 'NEXT', 'RISE' => 'RISE', 'ROOKIE' => 'ROOKIE'];
 
-/** Ordena por um critério e devolve o top N. Quem não tem % fica no fim. */
-function rankingPor(array $base, string $liga, string $criterio, int $limite = 10): array {
+/**
+ * Ordena por um critério e devolve o top N MAIS a linha de quem está vendo.
+ *
+ * O top sozinho é um ranking de outras pessoas. Quem está em 23º abria a aba
+ * e não se via em lugar nenhum — nem a posição, nem o quanto falta pro
+ * próximo. Agora a lista continua sendo o top, e a sua linha vem junto,
+ * separada, quando você não está nele.
+ *
+ * @return array{lista:array, eu:?array, total:int}
+ */
+function rankingComigo(array $base, string $liga, string $criterio, int $limite = 15): array {
+    $ordenada = rankingOrdenar($base, $liga, $criterio);
+    $lista = array_slice($ordenada, 0, $limite);
+
+    // A posição é achada na lista JÁ ORDENADA, e não contada à parte: se as
+    // duas contas divergissem um dia, a pessoa apareceria em "12º" logo
+    // abaixo de quem está em 15º.
+    $eu = null;
+    foreach ($ordenada as $i => $r) {
+        if (empty($r['sou_eu'])) continue;
+        if ($i >= $limite) $eu = $r + ['pos' => $i + 1];
+        break;
+    }
+    return ['lista' => $lista, 'eu' => $eu, 'total' => count($ordenada)];
+}
+
+/** A ordenação, sozinha. Fica separada porque o rankingComigo precisa da
+    lista INTEIRA pra achar a posição de quem está fora do top. */
+function rankingOrdenar(array $base, string $liga, string $criterio): array {
     $lista = $liga === 'GERAL' ? $base : array_values(array_filter($base, fn($r) => $r['league'] === $liga));
     usort($lista, function ($a, $b) use ($criterio) {
         if ($criterio === 'pct') {
@@ -501,7 +528,7 @@ function rankingPor(array $base, string $liga, string $criterio, int $limite = 1
     if ($criterio === 'pct') {
         $lista = array_values(array_filter($lista, fn($r) => $r['pct'] !== null));
     }
-    return array_slice($lista, 0, $limite);
+    return $lista;
 }
 
 $rankingCriterios = [
@@ -741,6 +768,14 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
     .pill.acertou { background:rgba(34,197,94,.12); color:var(--green); }
     .pill.errou { background:rgba(239,68,68,.12); color:#ef4444; }
     .tbl-wrap { overflow-x:auto; }
+
+    /* O separador da sua linha: um traço com a palavra no meio, pra não
+       restar dúvida de que aquilo não é a colocação seguinte. */
+    .rk-eu-sep { display:flex; align-items:center; gap:8px; margin:9px 4px 5px;
+                 font-size:9.5px; font-weight:800; letter-spacing:1px;
+                 text-transform:uppercase; color:var(--text-3); }
+    .rk-eu-sep::before, .rk-eu-sep::after {
+        content:''; flex:1; border-top:1px dashed var(--border-md); }
 
     /* ── A LOJINHA ──────────────────────────────────────────────────── */
     .g-tab-selo { background:var(--red); color:#fff; font-size:10px; font-weight:800;
@@ -1312,7 +1347,8 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
             <div class="rk-bloco <?= $chave === 'GERAL' ? 'active' : '' ?>" id="rk-<?= $chave ?>">
                 <div class="rk-grid">
                     <?php foreach ($rankingCriterios as $crit => $meta):
-                        $lista = rankingPor($rankingBase, $chave, $crit);
+                        $rk = rankingComigo($rankingBase, $chave, $crit);
+                        $lista = $rk['lista'];
                     ?>
                     <div class="card">
                         <div class="card-head">
@@ -1337,6 +1373,25 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                                     </div>
                                 </div>
                                 <?php endforeach; ?>
+
+                                <?php if ($rk['eu']): $r = $rk['eu']; ?>
+                                <!-- A SUA LINHA, quando você não está no top.
+                                     Separada por uma linha tracejada e não
+                                     colada no fim da lista: sem isso ela
+                                     pareceria a 16ª colocação, e o número do
+                                     lado diria outra coisa. -->
+                                <div class="rk-eu-sep"><span>você</span></div>
+                                <div class="rk-linha eu">
+                                    <div class="rk-pos"><?= (int)$r['pos'] ?></div>
+                                    <img class="rk-foto" src="<?= htmlspecialchars($r['foto']) ?>" alt="">
+                                    <div class="rk-nome"><?= htmlspecialchars($r['gm']) ?></div>
+                                    <div class="rk-val" style="color:<?= $meta['cor'] ?>">
+                                        <?= $crit === 'pct'
+                                            ? number_format($r['pct'], 1, ',', '.')
+                                            : number_format($r[$crit], 0, ',', '.') ?><?= $meta['sufixo'] ?>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </div>
