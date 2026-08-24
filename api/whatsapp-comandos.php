@@ -1451,6 +1451,15 @@ function wcItensMultiPorTime(PDO $pdo, int $multiTradeId): array
     return $porTime;
 }
 
+/**
+ * Quantas trocas o /trocas mostra.
+ *
+ * Três, e não cinco: no WhatsApp cada troca ocupa três ou quatro linhas —
+ * com cinco, a mensagem passava de vinte linhas e o grupo tinha que rolar
+ * pra ver o resto do que estava conversando.
+ */
+const WC_TROCAS_QUANTAS = 3;
+
 function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 {
     // O argumento aceita LIGA ou TIME. A liga é testada primeiro porque
@@ -1476,6 +1485,28 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
         $params  = $liga ? [$liga] : [];
     }
 
+    // SÓ A SPRINT ABERTA. Troca de sprint passada não é notícia — é
+    // história, e história tem a sala de troféus e a página de trades. Aqui
+    // é "o que andou acontecendo", e o que aconteceu há duas sprints não
+    // andou acontecendo.
+    //
+    // O recorte é por DATA porque trade não tem season_id, igual às
+    // estatísticas. Sem liga definida não há sprint pra olhar, e aí o
+    // filtro não entra — mostrar tudo é melhor que mostrar nada.
+    $inicioSprint = null;
+    if ($liga) {
+        try {
+            $stS = $pdo->prepare("SELECT MAX(start_date) FROM sprints
+                                   WHERE league = ? AND status = 'active'");
+            $stS->execute([$liga]);
+            $inicioSprint = $stS->fetchColumn() ?: null;
+        } catch (Throwable $e) { /* sem tabela de sprint: mostra tudo */ }
+    }
+    if ($inicioSprint) {
+        $filtro  .= ' AND t.created_at >= ?';
+        $params[] = $inicioSprint;
+    }
+
     $st = $pdo->prepare("
         SELECT t.id, t.league, t.updated_at, '1x1' AS tipo,
                de.city AS de_city, de.name AS de_name,
@@ -1485,7 +1516,7 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
         JOIN teams pra ON pra.id = t.to_team_id
         WHERE t.status = 'accepted' {$filtro}
         ORDER BY t.updated_at DESC, t.id DESC
-        LIMIT 5
+        LIMIT " . WC_TROCAS_QUANTAS . "
     ");
     $st->execute($params);
     $trocas = $st->fetchAll(PDO::FETCH_ASSOC);
@@ -1507,25 +1538,35 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
             $filtroM = $liga ? ' AND mt.league = ?' : '';
             $paramsM = $liga ? [$liga] : [];
         }
+        if ($inicioSprint) {
+            $filtroM  .= ' AND mt.created_at >= ?';
+            $paramsM[] = $inicioSprint;
+        }
         $stM = $pdo->prepare("
             SELECT mt.id, mt.league, mt.updated_at, 'multi' AS tipo
             FROM multi_trades mt
             WHERE mt.status = 'accepted' {$filtroM}
             ORDER BY mt.updated_at DESC, mt.id DESC
-            LIMIT 5
+            LIMIT " . WC_TROCAS_QUANTAS . "
         ");
         $stM->execute($paramsM);
         $multis = $stM->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) { /* liga sem multi_trades ainda: a lista vale só com as 1x1 */ }
 
+    // As duas listas vêm com o teto cada uma, e o corte final é sobre a
+    // JUNÇÃO — senão uma trade 1x1 recente ficaria de fora por causa de
+    // três multi mais antigas que já encheram a cota.
     $todas = array_merge($trocas, $multis);
     usort($todas, fn($a, $b) => strtotime((string)$b['updated_at']) <=> strtotime((string)$a['updated_at']));
-    $todas = array_slice($todas, 0, 5);
+    $todas = array_slice($todas, 0, WC_TROCAS_QUANTAS);
 
     $deQuem = $time ? wcNomeDoTime($time) : ($liga ?: '');
 
     if (!$todas) {
-        return 'Nenhuma troca aprovada' . ($deQuem ? " do {$deQuem}" : '') . ' ainda.';
+        // "nesta sprint" e não "ainda": o time pode ter dez trocas na sprint
+        // passada, e dizer "ainda" mandaria a pessoa procurar defeito.
+        return 'Nenhuma troca aprovada' . ($deQuem ? " do {$deQuem}" : '')
+             . ($inicioSprint ? ' nesta sprint.' : ' ainda.');
     }
 
     $txt = '*Últimas trocas' . ($deQuem ? " — {$deQuem}" : '') . "*\n";
