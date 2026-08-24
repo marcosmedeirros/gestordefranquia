@@ -362,7 +362,10 @@ function wcAjuda(): string
         . "/power — o power ranking da liga inteira\n"
         . "/powerc — o power ranking por conferência\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas\n"
-        . "/aceitar _código_ · /recusar _código_ — decide uma proposta de leilão (o código vem na mensagem)\n"
+        // /aceitar e /recusar SAÍRAM desta lista, mas continuam funcionando:
+        // o código vem escrito na própria mensagem da proposta, e é lá que a
+        // pessoa lê a instrução. Aqui eles só ocupavam a linha mais comprida
+        // do /ajuda pra quem não tem proposta nenhuma esperando.
         . "/lendas — os marcados como LENDA\n"
         . "/hall — o Hall da Fama\n"
         . "/premios — os prêmios da temporada\n"
