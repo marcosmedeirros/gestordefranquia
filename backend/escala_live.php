@@ -54,6 +54,62 @@ function escalaSemanaDe(?string $data = null): string
     return $d->modify('-' . (int)$d->format('w') . ' days')->format('Y-m-d');
 }
 
+/**
+ * A SEMANA VIGENTE DE UMA LIGA — que não é a mesma pra todas.
+ *
+ * A semana do calendário vira no domingo, e isso deixava a primeira live a
+ * um dia de distância: a NEXT joga na segunda, então a chamada abria no
+ * domingo pra uma live no dia seguinte. Um corte fixo mais cedo resolveria
+ * pra NEXT e atrasaria a ROOKIE, que só joga no sábado.
+ *
+ * Então o corte é de cada liga: assim que a ÚLTIMA live da liga na semana
+ * termina, aquela semana acabou pra ela e a chamada já é da seguinte. A
+ * ELITE joga quarta e quinta — na quinta à noite ela vira, e sobram cinco
+ * dias pra montar a próxima. A NEXT vira na terça, a ROOKIE no sábado. Cada
+ * uma no seu ritmo, sem uma atrapalhar a outra.
+ *
+ * O fim da live: o do evento, quando existe. Sem ele, o início mais quatro
+ * horas — resetar às 19h, com a live no ar, faria quem abrisse a página
+ * durante a transmissão ver a semana seguinte.
+ *
+ * Liga sem live na semana não vira: não há o que ter terminado, e avançar
+ * sozinha faria a chamada pular uma semana em que ninguém jogou.
+ */
+function escalaSemanaAtualDaLiga(PDO $pdo, string $liga, ?string $agora = null): string
+{
+    $liga = strtoupper(trim($liga));
+    $tz   = new DateTimeZone('America/Sao_Paulo');
+    $ag   = $agora ? new DateTimeImmutable($agora, $tz) : new DateTimeImmutable('now', $tz);
+
+    // Uma consulta por liga por request: isto é chamado de vários pontos
+    // (a tela, cada comando do bot) e o resultado não muda no meio.
+    static $cache = [];
+    $chave = $liga . '|' . $ag->format('Y-m-d H');
+    if (isset($cache[$chave])) return $cache[$chave];
+
+    $semana = escalaSemanaDe($ag->format('Y-m-d'));
+
+    // Dois saltos bastam — a semana seguinte nunca terminou ainda. O limite
+    // existe pra uma grade estranha não virar laço infinito.
+    for ($i = 0; $i < 2; $i++) {
+        $lives = escalaLivesDaSemana($pdo, [$liga], $semana);
+        if (!$lives) break;
+
+        $ultimoFim = null;
+        foreach ($lives as $lv) {
+            $fim = !empty($lv['fim'])
+                ? new DateTimeImmutable((string)$lv['fim'], $tz)
+                : (new DateTimeImmutable((string)$lv['inicio'], $tz))->modify('+4 hours');
+            if ($ultimoFim === null || $fim > $ultimoFim) $ultimoFim = $fim;
+        }
+        if ($ultimoFim === null || $ag <= $ultimoFim) break;
+
+        $semana = (new DateTimeImmutable($semana, $tz))->modify('+7 days')->format('Y-m-d');
+    }
+
+    return $cache[$chave] = $semana;
+}
+
 function escalaGarantirTabelas(PDO $pdo): void
 {
     static $feito = false;
@@ -207,7 +263,7 @@ function escalaResponder(PDO $pdo, int $userId, string $liga, array $funcoes, st
         array_map(fn($f) => strtolower(trim((string)$f)), $funcoes),
         'escalaFuncaoValida'
     )));
-    $semana = $semana ?: escalaSemanaDe();
+    $semana = $semana ?: escalaSemanaAtualDaLiga($pdo, $liga);
 
     try {
         $pdo->beginTransaction();
@@ -249,7 +305,7 @@ function escalaAdicionar(PDO $pdo, int $userId, string $liga, string $funcao, ?s
     if (!escalaFuncaoValida($funcao))            return ['ok' => false, 'novo' => false, 'erro' => 'Função inválida.', 'todas' => []];
     if (!in_array($fase, ESCALA_FASES, true)) $fase = 'todas';
 
-    $semana = $semana ?: escalaSemanaDe();
+    $semana = $semana ?: escalaSemanaAtualDaLiga($pdo, $liga);
     try {
         // ON DUPLICATE e não INSERT IGNORE: quem já estava e manda de novo
         // com outra fase está CORRIGINDO. Com IGNORE, "/narrador next offs"
@@ -293,7 +349,7 @@ function escalaSair(PDO $pdo, int $userId, string $liga, ?string $semana = null)
 {
     escalaGarantirTabelas($pdo);
     $liga = strtoupper(trim($liga));
-    $semana = $semana ?: escalaSemanaDe();
+    $semana = $semana ?: escalaSemanaAtualDaLiga($pdo, $liga);
     $fim = (new DateTimeImmutable($semana))->modify('+6 days')->format('Y-m-d');
     $out = ['ok' => true, 'tirou' => 0, 'vagas' => 0, 'substituidos' => [], 'orfas' => []];
 
@@ -373,7 +429,7 @@ function escalaSair(PDO $pdo, int $userId, string $liga, ?string $semana = null)
 function escalaDisponiveis(PDO $pdo, string $liga, ?string $semana = null): array
 {
     escalaGarantirTabelas($pdo);
-    $semana = $semana ?: escalaSemanaDe();
+    $semana = $semana ?: escalaSemanaAtualDaLiga($pdo, $liga);
     $out = array_fill_keys(array_keys(escalaFuncoes()), []);
 
     try {
@@ -430,7 +486,7 @@ function escalaTirarDisponibilidade(PDO $pdo, int $userId, string $liga, string 
     $funcao = strtolower(trim($funcao));
     if (!escalaFuncaoValida($funcao)) return [false, 'Função inválida.', 0];
 
-    $semana = $semana ?: escalaSemanaDe();
+    $semana = $semana ?: escalaSemanaAtualDaLiga($pdo, $liga);
     try {
         $st = $pdo->prepare("DELETE FROM escala_disponibilidade
                               WHERE semana=? AND league=? AND id_usuario=? AND funcao=?");
@@ -624,7 +680,7 @@ function escalaAvisar(PDO $pdo, int $eventoId, string $data, string $liga, strin
 function escalaTextoChamada(PDO $pdo, string $liga, ?string $semana = null): string
 {
     $liga = strtoupper($liga);
-    $semana = $semana ?: escalaSemanaDe();
+    $semana = $semana ?: escalaSemanaAtualDaLiga($pdo, $liga);
     $fim = (new DateTimeImmutable($semana))->modify('+6 days');
     $DIAS = ['dom','seg','ter','qua','qui','sex','sáb'];
 
@@ -718,6 +774,11 @@ function escalaTextoAjuda(): string
     $l[] = '';
     $l[] = '_Quem for escalado recebe aviso, e a live entra no calendário do '
          . 'site._';
+    $l[] = '';
+    // Sem esta linha, quem manda o comando na sexta e não se vê no
+    // /verescala da semana que está acabando acha que o comando falhou.
+    $l[] = '_A chamada reabre assim que a última live da sua liga termina — '
+         . 'aí o que você mandar já vale pra semana seguinte._';
     return implode("\n", $l);
 }
 
@@ -725,7 +786,7 @@ function escalaTextoAjuda(): string
 function escalaTextoVer(PDO $pdo, string $liga, ?string $semana = null): string
 {
     $liga = strtoupper($liga);
-    $semana = $semana ?: escalaSemanaDe();
+    $semana = $semana ?: escalaSemanaAtualDaLiga($pdo, $liga);
     $fim = (new DateTimeImmutable($semana))->modify('+6 days');
     $DIAS = ['dom','seg','ter','qua','qui','sex','sáb'];
 

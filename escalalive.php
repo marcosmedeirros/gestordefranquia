@@ -29,15 +29,21 @@ $ligasAdmin = array_values(array_intersect(
 // então quem administra a NEXT não escala gente na live da ELITE.
 if ($souAdminGeral) $ligasAdmin = CALENDARIO_LIGAS;
 
-$semana = escalaSemanaDe($_GET['semana'] ?? null);
-$fim    = (new DateTimeImmutable($semana))->modify('+6 days')->format('Y-m-d');
-
 $liga = strtoupper(trim((string)($_GET['liga'] ?? '')));
 if (!in_array($liga, CALENDARIO_LIGAS, true)) {
     $liga = strtoupper((string)($user['league'] ?? '')) ?: CALENDARIO_LIGAS[0];
     if (!in_array($liga, CALENDARIO_LIGAS, true)) $liga = CALENDARIO_LIGAS[0];
 }
 $podeEscalar = in_array($liga, $ligasAdmin, true);
+
+// A liga vem ANTES da semana porque a semana depende dela: cada liga vira
+// quando a própria última live termina. Sem ?semana na URL, a tela abre na
+// semana vigente DAQUELA liga — que na quinta à noite já é a seguinte pra
+// ELITE e ainda é a corrente pra ROOKIE.
+$semana = isset($_GET['semana']) && $_GET['semana'] !== ''
+    ? escalaSemanaDe((string)$_GET['semana'])
+    : escalaSemanaAtualDaLiga($pdo, $liga);
+$fim    = (new DateTimeImmutable($semana))->modify('+6 days')->format('Y-m-d');
 
 $msg = $erro = null;
 
@@ -331,8 +337,12 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 
   <div class="barra">
     <?php foreach (CALENDARIO_LIGAS as $lg): ?>
+    <?php /* SEM a semana na URL de propósito. Cada liga vira no próprio
+             ritmo, então carregar a semana da ELITE pro link da ROOKIE
+             mandaria a ROOKIE pra uma semana que ainda não é a dela. Sem o
+             parâmetro, cada uma abre na sua. */ ?>
     <a class="pill <?= $lg === $liga ? 'on' : '' ?>"
-       href="/escalalive.php?liga=<?= $lg ?>&semana=<?= $esc($semana) ?>">
+       href="/escalalive.php?liga=<?= $lg ?>">
       <!-- O escudo e reconhecido antes da palavra: quem vem escalar a NEXT
            acha o botao pela cor do escudo, e nao lendo quatro siglas. -->
       <img src="/img/logo-<?= strtolower($lg) ?>.png" alt="" onerror="this.style.display='none'">
