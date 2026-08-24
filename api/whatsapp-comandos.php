@@ -368,11 +368,98 @@ function wcAjuda(): string
         . "/premios — os prêmios da temporada\n"
         . "/estatisticas — recordes e curiosidades da liga
 "
+        . "/apostas — os eventos abertos pra palpitar, e o prazo de cada um\n"
         . "/guia — o guia do GM\n\n"
         // /quizaqui existe e continua funcionando, mas fica FORA desta lista:
         // é comando de organização, usado uma vez pra apontar onde o quiz sai.
         // Numa ajuda que a liga inteira lê, ele só gera "o que é isso?".
         . "Ex.: /comparar lebron x tatum  •  /meucap  •  /minhastrades";
+}
+
+/**
+ * /apostas — o que está aberto pra palpitar, e até quando.
+ *
+ * Não é por liga: as apostas da FBA são do site inteiro e o mesmo evento
+ * vale pra ELITE, NEXT, RISE e ROOKIE. Por isso a função ignora o grupo de
+ * onde veio, ao contrário de quase todo comando aqui.
+ *
+ * O QUE ELE MOSTRA, E O QUE NÃO. Mostra o evento, o prazo e a opção que
+ * está na frente — o suficiente pra alguém decidir se vale abrir o site.
+ * Não mostra a lista inteira de opções com porcentagem: num grupo com
+ * quatro eventos abertos isso viraria uma parede de trinta linhas que
+ * ninguém lê, e a graça de palpitar é escolher, não ler o placar.
+ *
+ * E não dá pra palpitar por aqui de propósito: o palpite é por usuário, e o
+ * bot fala com o GRUPO. Registrar pelo número exigiria casar telefone com
+ * conta, que é justamente o tipo de amarração que quebra quando alguém
+ * troca de chip.
+ */
+function wcApostas(PDO $pdo): string
+{
+    $agora = new DateTime('now', new DateTimeZone('America/Sao_Paulo'));
+
+    try {
+        $st = $pdo->prepare("
+            SELECT e.id, e.nome, e.data_limite
+              FROM eventos e
+             WHERE e.status = 'aberta' AND e.data_limite > ?
+             ORDER BY e.data_limite ASC
+             LIMIT 8
+        ");
+        $st->execute([$agora->format('Y-m-d H:i:s')]);
+        $eventos = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return 'Não consegui ler as apostas agora.';
+    }
+
+    if (!$eventos) {
+        return "*Apostas da FBA*\n\nNenhum evento aberto agora. Quando a organização abrir um, ele aparece aqui e em fbabrasil.com.br/games.php?aba=apostas";
+    }
+
+    $linhas = ["*Apostas abertas*\n"];
+    foreach ($eventos as $ev) {
+        // O prazo em linguagem de gente, igual ao do site — "faltam 3h" diz
+        // o que uma data não diz: se dá pra deixar pra depois.
+        $limite = new DateTime($ev['data_limite'], new DateTimeZone('America/Sao_Paulo'));
+        $f = $agora->diff($limite);
+        // "faltam 1 dia" nao existe: o verbo concorda com o numero.
+        if ($f->days > 0)      $prazo = ($f->days === 1 ? 'falta 1 dia' : "faltam {$f->days} dias");
+        elseif ($f->h > 0)     $prazo = "faltam {$f->h}h";
+        elseif ($f->i > 0)     $prazo = "faltam {$f->i} min";
+        else                   $prazo = 'encerrando';
+
+        $linha = "🏳️ *{$ev['nome']}* — _{$prazo}_";
+
+        // Quem está na frente, e com quanto. É a informação que faz alguém
+        // querer entrar: ninguém abre o site pra saber que existe uma
+        // pergunta, abre pra discordar da maioria.
+        try {
+            $stF = $pdo->prepare("
+                SELECT o.descricao, COUNT(p.id) AS n
+                  FROM opcoes o LEFT JOIN palpites p ON p.opcao_id = o.id
+                 WHERE o.evento_id = ?
+                 GROUP BY o.id
+                 ORDER BY n DESC, o.id ASC
+            ");
+            $stF->execute([(int)$ev['id']]);
+            $ops = $stF->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $total = 0;
+            foreach ($ops as $o) $total += (int)$o['n'];
+            if ($total > 0 && !empty($ops)) {
+                $pct = (int)round((int)$ops[0]['n'] * 100 / $total);
+                $linha .= "\n   {$ops[0]['descricao']} lidera com {$pct}% ({$total} "
+                        . ($total === 1 ? 'palpite' : 'palpites') . ')';
+            } else {
+                $linha .= "\n   _ninguém palpitou ainda_";
+            }
+        } catch (Throwable $e) {
+            // Sem o líder a linha continua útil: evento e prazo já bastam.
+        }
+        $linhas[] = $linha;
+    }
+
+    $linhas[] = "\nPalpite em fbabrasil.com.br/games.php?aba=apostas";
+    return implode("\n", $linhas);
 }
 
 function wcJogador(PDO $pdo, string $termo, ?string $ligaDoGrupo = null): string
@@ -2384,6 +2471,11 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'stats':
                 require_once __DIR__ . '/../backend/estatisticas_bot.php';
                 return ebListar($ligaDoGrupo);
+
+            case 'apostas':
+            case 'aposta':
+            case 'palpites':
+                return wcApostas($pdo);
 
             case 'jogador':
             case 'player':

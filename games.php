@@ -227,7 +227,10 @@ try {
         $faltam = $nowBrt->diff($limite);
         $horas  = ($faltam->days * 24) + $faltam->h;
         $ev['urgente'] = $horas < 24;
-        if ($faltam->days > 0)      $ev['prazo_txt'] = "faltam {$faltam->days} " . ($faltam->days === 1 ? 'dia' : 'dias');
+        // "faltam 1 dia" nao existe: o verbo concorda com o numero. Estava assim
+        // desde sempre, e a mesma frase acabou de ser copiada pro /apostas
+        // do bot — dava pra levar o erro junto.
+        if ($faltam->days > 0)      $ev['prazo_txt'] = ($faltam->days === 1 ? 'falta 1 dia' : "faltam {$faltam->days} dias");
         elseif ($faltam->h > 0)     $ev['prazo_txt'] = "faltam {$faltam->h}h";
         elseif ($faltam->i > 0)     $ev['prazo_txt'] = "faltam {$faltam->i} min";
         else                        $ev['prazo_txt'] = 'encerrando';
