@@ -86,9 +86,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['opcao_id'])) {
             $apostaMsg = 'Palpite registrado.';
         }
         $pdo->commit();
+
+        // AS PORCENTAGENS DEPOIS DO CLIQUE, pra tela se atualizar sem
+        // recarregar. Recontar aqui é o que permite o botão responder na
+        // hora — e recontar DEPOIS do commit é o que faz o número já incluir
+        // o palpite que acabou de entrar.
+        $apostaEvento = (int)$ev['evento_id'];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         $apostaErro = $e->getMessage();
+    }
+
+    // RESPOSTA CURTA PRO JS, e a página inteira pra quem não tem JS.
+    //
+    // O formulário continua um <form> de verdade: sem JS, o clique recarrega
+    // a página e funciona como sempre funcionou. Com JS, o mesmo endpoint
+    // devolve só os números e a tela se conserta sozinha — era o recarregar
+    // que fazia a aba parecer travada, porque cada palpite remontava a
+    // página inteira, com ranking, minigames e tudo.
+    if (!empty($_POST['ajax'])) {
+        header('Content-Type: application/json; charset=utf-8');
+        if ($apostaErro) {
+            echo json_encode(['ok' => false, 'erro' => $apostaErro]);
+            exit;
+        }
+        $opcoes = [];
+        try {
+            $stR = $pdo->prepare("
+                SELECT o.id, COUNT(p.id) AS n
+                  FROM opcoes o LEFT JOIN palpites p ON p.opcao_id = o.id
+                 WHERE o.evento_id = ?
+                 GROUP BY o.id ORDER BY o.id ASC
+            ");
+            $stR->execute([$apostaEvento]);
+            $linhas = $stR->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            $total = 0;
+            foreach ($linhas as $l) $total += (int)$l['n'];
+
+            // Mesmo maior-resto do desenho inicial: se as duas contas não
+            // fossem iguais, a soma daria 100 ao carregar e 101 depois de
+            // clicar, que é o tipo de coisa que parece bug do clique.
+            $restos = []; $soma = 0;
+            foreach ($linhas as $i => $l) {
+                if ($total <= 0) { $opcoes[$i] = ['id' => (int)$l['id'], 'pct' => 0, 'n' => 0]; continue; }
+                $exato = (int)$l['n'] * 100 / $total;
+                $opcoes[$i] = ['id' => (int)$l['id'], 'pct' => (int)floor($exato), 'n' => (int)$l['n']];
+                $soma += $opcoes[$i]['pct'];
+                $restos[$i] = $exato - $opcoes[$i]['pct'];
+            }
+            if ($total > 0) {
+                arsort($restos);
+                foreach (array_keys($restos) as $i) {
+                    if ($soma >= 100) break;
+                    $opcoes[$i]['pct']++; $soma++;
+                }
+            }
+        } catch (Throwable $e) {
+            echo json_encode(['ok' => false, 'erro' => 'Não deu pra recontar os palpites.']);
+            exit;
+        }
+        echo json_encode(['ok' => true, 'msg' => $apostaMsg, 'evento' => $apostaEvento,
+                          'escolhida' => $opcaoId, 'total' => $total,
+                          'opcoes' => array_values($opcoes)]);
+        exit;
     }
 }
 
@@ -99,7 +159,7 @@ try {
     $stE->execute([$nowBrtStr]);
     $eventos = $stE->fetchAll(PDO::FETCH_ASSOC) ?: [];
     foreach ($eventos as &$ev) {
-        $stO = $pdo->prepare("SELECT id, descricao FROM opcoes WHERE evento_id = ? ORDER BY id ASC");
+        $stO = $pdo->prepare("SELECT id, descricao, img_url FROM opcoes WHERE evento_id = ? ORDER BY id ASC");
         $stO->execute([$ev['id']]);
         $ev['opcoes'] = $stO->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -177,9 +237,70 @@ try {
     $eventos = [];
 }
 
+// ── A cara de cada opção ────────────────────────────────────────────────────
+//
+// As opções de aposta são gente e time da própria liga — "Kobe Bryant",
+// "Lakers" —, então a foto já existe no banco e só não estava sendo usada.
+// Sem ela, seis retângulos de texto se parecem todos; com ela, a pessoa
+// reconhece quem é antes de ler.
+//
+// A ORDEM DE PREFERÊNCIA importa: a img_url gravada na opção ganha de tudo,
+// porque é escolha explícita de quem criou o evento e pode ser justamente uma
+// exceção ("Algum Legend" com uma arte). Só quando ela não existe é que o
+// nome é procurado no elenco.
+//
+// Duas consultas no total, e não uma por opção: são até 50 eventos com seis
+// opções cada, e trezentas consultas pra desenhar uma página é o tipo de
+// coisa que a gente só descobre quando a liga cresce.
+$caraDaOpcao = [];   // nome em minúsculas => ['url' => ..., 'tipo' => 'jogador'|'time']
+try {
+    $nomes = [];
+    foreach ($eventos as $ev) {
+        foreach ($ev['opcoes'] as $op) {
+            $n = trim((string)$op['descricao']);
+            if ($n !== '') $nomes[mb_strtolower($n)] = $n;
+        }
+    }
+    if ($nomes) {
+        $lista  = array_values($nomes);
+        $marcas = implode(',', array_fill(0, count($lista), '?'));
+
+        // Time primeiro, jogador depois: se um nome existir nos dois, o
+        // jogador ganha — é o caso comum numa pergunta de aposta.
+        $stT = $pdo->prepare("SELECT name, photo_url FROM teams WHERE name IN ($marcas)");
+        $stT->execute($lista);
+        foreach ($stT->fetchAll(PDO::FETCH_ASSOC) ?: [] as $t) {
+            if (!empty($t['photo_url'])) {
+                $caraDaOpcao[mb_strtolower($t['name'])] = ['url' => $t['photo_url'], 'tipo' => 'time'];
+            }
+        }
+
+        $stP = $pdo->prepare("SELECT name, nba_player_id, foto_adicional FROM players WHERE name IN ($marcas)");
+        $stP->execute($lista);
+        foreach ($stP->fetchAll(PDO::FETCH_ASSOC) ?: [] as $p) {
+            $url = null;
+            $fa = trim((string)($p['foto_adicional'] ?? ''));
+            if ($fa !== '') {
+                $url = preg_match('#^(https?://|data:image/)#', $fa) ? $fa : '/' . ltrim($fa, '/');
+            } elseif (!empty($p['nba_player_id'])) {
+                $url = "https://cdn.nba.com/headshots/nba/latest/260x190/{$p['nba_player_id']}.png";
+            }
+            if ($url) $caraDaOpcao[mb_strtolower($p['name'])] = ['url' => $url, 'tipo' => 'jogador'];
+        }
+    }
+} catch (Throwable $e) {
+    // Sem cara nenhuma a tela continua inteira — a foto é enfeite, não dado.
+    $caraDaOpcao = [];
+}
+
 // ── Meus palpites ───────────────────────────────────────────────────────────
 $historico = [];
 try {
+    // Sem LIMIT 40. A busca e o filtro trabalham em cima da lista inteira —
+    // filtrar quarenta linhas e chamar isso de busca seria mentir, porque o
+    // que a pessoa procura costuma ser justamente o palpite velho. O teto de
+    // 500 existe só como freio: quem passar disso tem uma tela lenta, não
+    // uma tela errada, e ninguém na liga chegou perto.
     $stH = $pdo->prepare("
         SELECT p.data_palpite, o.descricao AS escolha, e.nome AS evento,
                e.status AS evento_status, e.vencedor_opcao_id, p.opcao_id
@@ -187,13 +308,56 @@ try {
         JOIN opcoes o ON p.opcao_id = o.id
         JOIN eventos e ON o.evento_id = e.id
         WHERE p.id_usuario = ?
-        ORDER BY p.data_palpite DESC LIMIT 40
+        ORDER BY p.data_palpite DESC LIMIT 500
     ");
     $stH->execute([$userId]);
     $historico = $stH->fetchAll(PDO::FETCH_ASSOC) ?: [];
 } catch (Throwable $e) {
     $historico = [];
 }
+
+// ── O placar dos palpites ───────────────────────────────────────────────────
+//
+// Sai do histórico já carregado, e não de mais um punhado de consultas: a
+// lista inteira já está aqui, e contar em PHP o que cabe na memória é mais
+// barato que voltar ao banco cinco vezes pra perguntar coisas sobre ela.
+//
+// O resultado de cada palpite é decidido num lugar só, aqui, porque a tabela
+// abaixo precisava da mesma regra e ter as duas cópias era garantir que uma
+// ia divergir da outra no dia em que "encerrada" virasse outra coisa.
+$placar = ['total' => 0, 'acertos' => 0, 'erros' => 0, 'abertos' => 0,
+           'aproveitamento' => 0, 'sequencia' => 0, 'melhor_sequencia' => 0];
+foreach ($historico as &$h) {
+    $decidido = ($h['evento_status'] === 'encerrada' && $h['vencedor_opcao_id'] !== null);
+    $h['resultado'] = !$decidido ? 'aberto'
+        : (((int)$h['vencedor_opcao_id'] === (int)$h['opcao_id']) ? 'acertou' : 'errou');
+    $placar['total']++;
+    if ($h['resultado'] === 'acertou')      $placar['acertos']++;
+    elseif ($h['resultado'] === 'errou')    $placar['erros']++;
+    else                                    $placar['abertos']++;
+}
+unset($h);
+
+$decididos = $placar['acertos'] + $placar['erros'];
+$placar['aproveitamento'] = $decididos > 0
+    ? (int)round($placar['acertos'] * 100 / $decididos) : 0;
+
+// A SEQUÊNCIA vai do mais antigo pro mais novo, e por isso o array é lido de
+// trás pra frente: $historico vem em ordem decrescente de data, e contar
+// "quantos acertos seguidos" na ordem errada dá a sequência mais ANTIGA em
+// vez da atual. Palpite ainda em aberto não corta nem soma — não se sabe
+// ainda o que ele é.
+$corrente = 0;
+foreach (array_reverse($historico) as $h) {
+    if ($h['resultado'] === 'aberto') continue;
+    if ($h['resultado'] === 'acertou') {
+        $corrente++;
+        $placar['melhor_sequencia'] = max($placar['melhor_sequencia'], $corrente);
+    } else {
+        $corrente = 0;
+    }
+}
+$placar['sequencia'] = $corrente;
 
 // ── Estado dos jogos diários ────────────────────────────────────────────────
 // O que mais falta na página é saber, de relance, o que já foi jogado hoje —
@@ -511,6 +675,13 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
                 background:color-mix(in srgb, var(--text) 7%, transparent);
                 transition:width 420ms var(--ease); pointer-events:none; }
     .op-btn.escolhida .op-barra { background:rgba(34,197,94,.16); }
+    /* O rosto é redondo e o escudo não: rosto cortado em círculo é retrato,
+       escudo cortado em círculo é escudo estragado. Por isso o time usa
+       contain e fundo nenhum. */
+    .op-cara { position:relative; z-index:1; flex:none; width:30px; height:30px;
+               border-radius:50%; object-fit:cover; object-position:top center;
+               background:var(--panel-3); }
+    .op-cara.time { border-radius:6px; object-fit:contain; background:transparent; }
     .op-txt { position:relative; z-index:1; flex:1; min-width:0; }
     .op-pct { position:relative; z-index:1; flex:none; font-size:12px; font-weight:800;
               color:var(--text-3); font-variant-numeric:tabular-nums; }
@@ -534,6 +705,49 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
     .pill.acertou { background:rgba(34,197,94,.12); color:var(--green); }
     .pill.errou { background:rgba(239,68,68,.12); color:#ef4444; }
     .tbl-wrap { overflow-x:auto; }
+
+    /* A dica de trocar a escolha, agora com classe porque o JS precisa
+       saber se ela já existe pra não colocar duas. */
+    .op-dica { font-size:11.5px; color:var(--text-3); margin-top:11px; }
+
+    /* Enquanto o palpite vai e volta, o card recusa cliques novos — sem
+       isso dois cliques rápidos viram duas gravações e a segunda resposta
+       pode chegar antes da primeira, deixando a tela com o palpite errado. */
+    .card.enviando .opcoes { pointer-events:none; opacity:.75; }
+
+    /* ── O PLACAR DOS PALPITES ──────────────────────────────────────────
+       Números grandes e rótulo pequeno: a leitura é o número, o rótulo só
+       diz do que ele é. Em grade que se ajusta sozinha, porque são seis
+       cards e nenhuma largura de tela cabe seis do mesmo jeito. */
+    .pl-cards { display:grid; gap:10px; margin-bottom:14px;
+                grid-template-columns:repeat(auto-fit, minmax(112px, 1fr)); }
+    .pl-card { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-sm);
+               padding:13px 14px; display:flex; flex-direction:column; gap:2px; }
+    .pl-card b { font-size:22px; font-weight:800; line-height:1.05; font-variant-numeric:tabular-nums; }
+    .pl-card span { font-size:11px; color:var(--text-3); font-weight:600; }
+    .pl-card span i { display:block; font-style:normal; font-size:10px; opacity:.75; margin-top:1px; }
+    .pl-card.verde b { color:var(--green); }
+    .pl-card.vermelho b { color:#ef4444; }
+    .pl-card.azul b { color:var(--blue); }
+    .pl-card.ambar { border-color:rgba(245,158,11,.30); background:rgba(245,158,11,.07); }
+    .pl-card.ambar b { color:var(--amber); }
+
+    /* Busca e filtro na mesma faixa, acima da tabela. */
+    .pl-barra { display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+                padding:13px 18px; border-bottom:1px solid var(--border); }
+    .pl-busca { position:relative; flex:1; min-width:190px; display:flex; align-items:center; }
+    .pl-busca i { position:absolute; left:11px; color:var(--text-3); font-size:13px; pointer-events:none; }
+    .pl-busca input { width:100%; background:var(--panel-2); border:1px solid var(--border-md);
+                      border-radius:var(--radius-sm); color:var(--text); font-family:var(--font);
+                      font-size:13px; padding:8px 12px 8px 32px; }
+    .pl-busca input:focus { outline:none; border-color:var(--border-red); }
+    .pl-busca input::placeholder { color:var(--text-3); }
+    .pl-filtros { display:flex; gap:6px; flex-wrap:wrap; }
+    .pl-f { background:var(--panel-2); border:1px solid var(--border-md); color:var(--text-2);
+            font-family:var(--font); font-size:12px; font-weight:700; border-radius:20px;
+            padding:6px 13px; cursor:pointer; transition:all var(--t) var(--ease); }
+    .pl-f:hover { color:var(--text); }
+    .pl-f.active { background:var(--red-soft); border-color:var(--border-red); color:var(--red); }
 
     /* ranking */
     .rk-ligas { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
@@ -566,6 +780,31 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .rk-val { font-size:13.5px; font-weight:800; flex-shrink:0;
         font-variant-numeric:tabular-nums; }
+
+    /* ── O HISTÓRICO VIRA CARD NO CELULAR ───────────────────────────────
+       Quatro colunas em 375px é uma tabela que rola de lado com o resultado
+       cortado do lado de fora — e resultado é a coluna que a pessoa veio
+       ver. Empilhado, cada palpite vira um bloco: o nome do evento em cima,
+       e embaixo os três campos com o rótulo do lado.
+
+       O rótulo sai do data-rot da célula e não de um segundo HTML só pra
+       celular: duas marcações pro mesmo dado é a receita de uma delas ficar
+       pra trás. */
+    @media (max-width:640px) {
+        table.hist, table.hist tbody, table.hist tr, table.hist td { display:block; width:100%; }
+        table.hist thead { display:none; }
+        table.hist tr { background:var(--panel-2); border:1px solid var(--border);
+                        border-radius:var(--radius-sm); padding:11px 13px; margin-bottom:9px; }
+        table.hist td { border-top:0; padding:3px 0; display:flex; align-items:center;
+                        justify-content:space-between; gap:12px; }
+        table.hist td[data-rot="Evento"] { font-weight:700; font-size:13.5px;
+                                           display:block; padding-bottom:7px; }
+        table.hist td[data-rot]:not([data-rot="Evento"])::before {
+            content:attr(data-rot); font-size:11px; font-weight:600; color:var(--text-3);
+            flex:none;
+        }
+        .tbl-wrap { overflow-x:visible; }
+    }
 
     @media (max-width:992px) {
         :root { --sidebar-w: 0px; }
@@ -717,7 +956,7 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
                 </div></div>
             <?php else: ?>
                 <?php foreach ($eventos as $ev): ?>
-                <div class="card">
+                <div class="card" data-evento="<?= (int)$ev['id'] ?>">
                     <div class="card-head">
                         <div class="card-head-left"><i class="bi bi-flag-fill"></i> <?= htmlspecialchars($ev['nome']) ?></div>
                         <div class="card-head-dir">
@@ -725,9 +964,9 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
                             <!-- O total dá tamanho à porcentagem: 60% de cinco
                                  pessoas e 60% de duzentas são a mesma barra e
                                  coisas bem diferentes. -->
-                            <div class="prazo" title="Total de palpites neste evento">
+                            <div class="prazo ev-total" title="Total de palpites neste evento">
                                 <i class="bi bi-people-fill"></i>
-                                <?= (int)$ev['total_palpites'] ?>
+                                <span><?= (int)$ev['total_palpites'] ?></span>
                             </div>
                             <?php endif; ?>
                             <div class="prazo <?= !empty($ev['urgente']) ? 'urgente' : '' ?>"
@@ -742,9 +981,26 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
                             <?php foreach ($ev['opcoes'] as $op): ?>
                             <form method="POST" style="flex:1;min-width:150px;display:flex">
                                 <input type="hidden" name="opcao_id" value="<?= (int)$op['id'] ?>">
+                                <input type="hidden" name="ajax" value="1" disabled data-ajax-flag>
                                 <button type="submit" class="op-btn <?= (int)$ev['meu_palpite'] === (int)$op['id'] ? 'escolhida' : '' ?>"
                                         title="<?= (int)$op['palpites'] ?> <?= (int)$op['palpites'] === 1 ? 'palpite' : 'palpites' ?>">
                                     <span class="op-barra" style="width:<?= (int)$op['pct'] ?>%"></span>
+                                    <?php
+                                        $cara = null;
+                                        if (!empty($op['img_url'])) {
+                                            $cara = ['url' => $op['img_url'], 'tipo' => 'jogador'];
+                                        } else {
+                                            $cara = $caraDaOpcao[mb_strtolower(trim((string)$op['descricao']))] ?? null;
+                                        }
+                                    ?>
+                                    <?php if ($cara): ?>
+                                    <!-- onerror escondendo o próprio elemento: foto que
+                                         não carrega tem que sumir, não virar um quadrado
+                                         de imagem quebrada dentro do botão. -->
+                                    <img class="op-cara <?= $cara['tipo'] === 'time' ? 'time' : '' ?>"
+                                         src="<?= htmlspecialchars($cara['url']) ?>" alt="" loading="lazy"
+                                         onerror="this.style.display='none'">
+                                    <?php endif; ?>
                                     <span class="op-txt"><?= htmlspecialchars($op['descricao']) ?></span>
                                     <span class="op-pct"><?= (int)$op['pct'] ?>%</span>
                                 </button>
@@ -752,7 +1008,7 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
                             <?php endforeach; ?>
                         </div>
                         <?php if ($ev['meu_palpite']): ?>
-                        <div style="font-size:11.5px;color:var(--text-3);margin-top:11px">
+                        <div class="op-dica">
                             <i class="bi bi-info-circle"></i> Dá pra trocar sua escolha até o prazo acabar.
                         </div>
                         <?php endif; ?>
@@ -762,23 +1018,79 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
             <?php endif; ?>
 
             <div class="sec-label" style="margin-top:30px"><i class="bi bi-clock-history"></i> Meus palpites</div>
+
+            <?php if (empty($historico)): ?>
+                <div class="card"><div class="vazio">
+                    <i class="bi bi-inbox"></i><p>Você ainda não deu nenhum palpite.</p>
+                </div></div>
+            <?php else: ?>
+
+            <!-- O PLACAR. Vem antes da lista porque é o que a pessoa quer
+                 saber ao abrir: quanto acertei. A lista é pra procurar um
+                 palpite específico, e isso vem depois. -->
+            <div class="pl-cards">
+                <?php
+                  // "1 acertos" é o tipo de coisa que ninguém escreveria e todo
+                  // template deixa passar. Uma função, e o número decide.
+                  $plural = fn(int $n, string $um, string $muitos) => $n === 1 ? $um : $muitos;
+                ?>
+                <div class="pl-card">
+                    <b><?= (int)$placar['total'] ?></b>
+                    <span><?= $plural((int)$placar['total'], 'palpite', 'palpites') ?></span>
+                </div>
+                <div class="pl-card verde">
+                    <b><?= (int)$placar['acertos'] ?></b>
+                    <span><?= $plural((int)$placar['acertos'], 'acerto', 'acertos') ?></span>
+                </div>
+                <div class="pl-card vermelho">
+                    <b><?= (int)$placar['erros'] ?></b>
+                    <span><?= $plural((int)$placar['erros'], 'erro', 'erros') ?></span>
+                </div>
+                <div class="pl-card azul">
+                    <b><?= (int)$placar['abertos'] ?></b>
+                    <span>em aberto</span>
+                </div>
+                <div class="pl-card">
+                    <b><?= (int)$placar['aproveitamento'] ?>%</b>
+                    <!-- "dos decididos" e não "do total": contar os que ainda
+                         não saíram como erro derrubaria o número de quem
+                         acabou de palpitar. -->
+                    <span>aproveitamento<i>dos já decididos</i></span>
+                </div>
+                <div class="pl-card <?= $placar['sequencia'] >= 3 ? 'ambar' : '' ?>">
+                    <b><?= (int)$placar['sequencia'] ?></b>
+                    <span>sequência<i>melhor: <?= (int)$placar['melhor_sequencia'] ?></i></span>
+                </div>
+            </div>
+
             <div class="card">
-                <?php if (empty($historico)): ?>
-                    <div class="vazio"><i class="bi bi-inbox"></i><p>Você ainda não deu nenhum palpite.</p></div>
-                <?php else: ?>
+                <div class="pl-barra">
+                    <div class="pl-busca">
+                        <i class="bi bi-search"></i>
+                        <input type="search" id="plBusca" placeholder="Buscar evento ou escolha…"
+                               autocomplete="off" spellcheck="false">
+                    </div>
+                    <div class="pl-filtros" id="plFiltros">
+                        <button type="button" class="pl-f active" data-f="todos">Todos</button>
+                        <button type="button" class="pl-f" data-f="acertou">Acertei</button>
+                        <button type="button" class="pl-f" data-f="errou">Errei</button>
+                        <button type="button" class="pl-f" data-f="aberto">Em aberto</button>
+                    </div>
+                </div>
                 <div class="card-body tbl-wrap">
-                    <table class="hist">
+                    <table class="hist" id="plTabela">
                         <thead><tr><th>Evento</th><th>Sua escolha</th><th>Quando</th><th>Resultado</th></tr></thead>
                         <tbody>
                         <?php foreach ($historico as $h): ?>
-                            <tr>
-                                <td><?= htmlspecialchars($h['evento']) ?></td>
-                                <td style="color:var(--text-2)"><?= htmlspecialchars($h['escolha']) ?></td>
-                                <td style="color:var(--text-3);font-size:12px"><?= date('d/m/Y', strtotime($h['data_palpite'])) ?></td>
-                                <td>
-                                    <?php if ($h['evento_status'] !== 'encerrada' || $h['vencedor_opcao_id'] === null): ?>
+                            <tr data-res="<?= htmlspecialchars($h['resultado']) ?>"
+                                data-txt="<?= htmlspecialchars(mb_strtolower($h['evento'] . ' ' . $h['escolha'])) ?>">
+                                <td data-rot="Evento"><?= htmlspecialchars($h['evento']) ?></td>
+                                <td data-rot="Sua escolha" style="color:var(--text-2)"><?= htmlspecialchars($h['escolha']) ?></td>
+                                <td data-rot="Quando" style="color:var(--text-3);font-size:12px"><?= date('d/m/Y', strtotime($h['data_palpite'])) ?></td>
+                                <td data-rot="Resultado">
+                                    <?php if ($h['resultado'] === 'aberto'): ?>
                                         <span class="pill aberta">Em aberto</span>
-                                    <?php elseif ((int)$h['vencedor_opcao_id'] === (int)$h['opcao_id']): ?>
+                                    <?php elseif ($h['resultado'] === 'acertou'): ?>
                                         <span class="pill acertou">Acertou</span>
                                     <?php else: ?>
                                         <span class="pill errou">Errou</span>
@@ -788,9 +1100,12 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
                         <?php endforeach; ?>
                         </tbody>
                     </table>
+                    <div class="vazio" id="plVazio" style="display:none">
+                        <i class="bi bi-search"></i><p>Nenhum palpite com esse filtro.</p>
+                    </div>
                 </div>
-                <?php endif; ?>
             </div>
+            <?php endif; ?>
         </div>
 
         <!-- ── Aba Ranking ───────────────────────────────────────────── -->
@@ -892,6 +1207,156 @@ function trocarLigaRanking(liga) {
     document.querySelectorAll('.rk-liga').forEach(b => b.classList.toggle('active', b.dataset.liga === liga));
     document.querySelectorAll('.rk-bloco').forEach(b => b.classList.toggle('active', b.id === 'rk-' + liga));
 }
+
+
+/* ── PALPITAR SEM RECARREGAR ────────────────────────────────────────────
+ *
+ * Era isso que fazia a aba parecer travada: cada clique era um POST comum,
+ * e a resposta remontava a página INTEIRA — perfil, minigames, ranking, os
+ * cinquenta eventos — pra mudar uma borda de botão. Agora o mesmo endpoint
+ * responde só os números e a tela se conserta no lugar.
+ *
+ * O <form> continua um form de verdade: quem estiver sem JS clica e a
+ * página recarrega, como sempre funcionou. O campo que liga o modo JSON
+ * nasce DESABILITADO no HTML e só é ligado aqui — assim ele não é enviado
+ * por engano num envio sem JS.
+ */
+(function () {
+    const pane = document.getElementById('pane-apostas');
+    if (!pane || !window.fetch) return;
+
+    pane.querySelectorAll('[data-ajax-flag]').forEach(i => { i.disabled = false; });
+
+    const aviso = (texto, erro) => {
+        let cx = document.getElementById('apostaAviso');
+        if (!cx) {
+            cx = document.createElement('div');
+            cx.id = 'apostaAviso';
+            pane.insertBefore(cx, pane.firstChild);
+        }
+        cx.className = 'alerta ' + (erro ? 'err' : 'ok');
+        cx.innerHTML = '<i class="bi bi-' + (erro ? 'exclamation-triangle-fill' : 'check-circle-fill') + '"></i> ' + texto;
+        clearTimeout(cx._t);
+        cx._t = setTimeout(() => cx.remove(), 3200);
+    };
+
+    pane.addEventListener('submit', async (ev) => {
+        const form = ev.target.closest('form');
+        if (!form || !form.querySelector('[name="opcao_id"]')) return;
+        ev.preventDefault();
+
+        const card = form.closest('.card');
+        if (!card || card.dataset.enviando === '1') return;
+        card.dataset.enviando = '1';
+        card.classList.add('enviando');
+
+        // A ESCOLHA APARECE ANTES DA RESPOSTA. A ida ao servidor leva uns
+        // duzentos milésimos e é ela que a pessoa sentia como travamento;
+        // marcar na hora e corrigir depois, se der erro, é o que faz o
+        // botão parecer instantâneo. As porcentagens NÃO são adivinhadas
+        // aqui — chutar número pra corrigir meio segundo depois é pior que
+        // esperar, porque a barra pularia duas vezes.
+        const escolhido = form.querySelector('.op-btn');
+        const antes = card.querySelector('.op-btn.escolhida');
+        card.querySelectorAll('.op-btn').forEach(b => b.classList.remove('escolhida'));
+        escolhido?.classList.add('escolhida');
+
+        try {
+            const r = await fetch(location.pathname, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'fetch' },
+                body: new FormData(form),
+            });
+            const d = await r.json();
+            if (!d.ok) throw new Error(d.erro || 'Não deu pra registrar.');
+
+            const porId = {};
+            (d.opcoes || []).forEach(o => { porId[o.id] = o; });
+            card.querySelectorAll('form').forEach(f => {
+                const id = Number(f.querySelector('[name="opcao_id"]')?.value);
+                const dados = porId[id];
+                if (!dados) return;
+                const btn = f.querySelector('.op-btn');
+                const barra = btn?.querySelector('.op-barra');
+                const pct = btn?.querySelector('.op-pct');
+                if (barra) barra.style.width = dados.pct + '%';
+                if (pct) pct.textContent = dados.pct + '%';
+                if (btn) btn.title = dados.n + (dados.n === 1 ? ' palpite' : ' palpites');
+            });
+
+            // O total no cabeçalho: ele pode não existir ainda, quando este
+            // era o primeiro palpite do evento.
+            let cxTotal = card.querySelector('.ev-total');
+            if (!cxTotal && d.total > 0) {
+                cxTotal = document.createElement('div');
+                cxTotal.className = 'prazo ev-total';
+                cxTotal.title = 'Total de palpites neste evento';
+                cxTotal.innerHTML = '<i class="bi bi-people-fill"></i> <span></span>';
+                card.querySelector('.card-head-dir')?.prepend(cxTotal);
+            }
+            if (cxTotal) cxTotal.querySelector('span').textContent = d.total;
+
+            // A dica de "dá pra trocar" só aparece depois do primeiro palpite.
+            if (!card.querySelector('.op-dica')) {
+                const dica = document.createElement('div');
+                dica.className = 'op-dica';
+                dica.innerHTML = '<i class="bi bi-info-circle"></i> Dá pra trocar sua escolha até o prazo acabar.';
+                card.querySelector('.card-body')?.appendChild(dica);
+            }
+            aviso(d.msg || 'Palpite registrado.', false);
+        } catch (e) {
+            // Desfaz a marca otimista: o servidor não aceitou, então a tela
+            // não pode ficar dizendo que aceitou.
+            card.querySelectorAll('.op-btn').forEach(b => b.classList.remove('escolhida'));
+            antes?.classList.add('escolhida');
+            aviso(e.message || 'Não deu pra registrar seu palpite.', true);
+        } finally {
+            card.dataset.enviando = '0';
+            card.classList.remove('enviando');
+        }
+    });
+})();
+
+/* ── BUSCA E FILTRO DOS MEUS PALPITES ───────────────────────────────────
+ *
+ * Tudo em cima do que já está na tela: a lista inteira veio do servidor de
+ * uma vez, então procurar é esconder linha, não ir ao banco. Cada linha
+ * carrega o texto já em minúsculas num data-attribute — normalizar a cada
+ * tecla digitada seria refazer o mesmo trabalho quinhentas vezes por letra.
+ */
+(function () {
+    const busca = document.getElementById('plBusca');
+    const filtros = document.getElementById('plFiltros');
+    const tabela = document.getElementById('plTabela');
+    const vazio = document.getElementById('plVazio');
+    if (!tabela) return;
+
+    const linhas = [...tabela.querySelectorAll('tbody tr')];
+    let filtro = 'todos';
+
+    function aplicar() {
+        const termo = (busca?.value || '').trim().toLowerCase();
+        let vistas = 0;
+        linhas.forEach(tr => {
+            const passaFiltro = filtro === 'todos' || tr.dataset.res === filtro;
+            const passaBusca = !termo || (tr.dataset.txt || '').includes(termo);
+            const mostra = passaFiltro && passaBusca;
+            tr.style.display = mostra ? '' : 'none';
+            if (mostra) vistas++;
+        });
+        tabela.style.display = vistas ? '' : 'none';
+        if (vazio) vazio.style.display = vistas ? 'none' : '';
+    }
+
+    busca?.addEventListener('input', aplicar);
+    filtros?.addEventListener('click', (e) => {
+        const b = e.target.closest('.pl-f');
+        if (!b) return;
+        filtro = b.dataset.f;
+        filtros.querySelectorAll('.pl-f').forEach(x => x.classList.toggle('active', x === b));
+        aplicar();
+    });
+})();
 
 (function () {
     // Só restaura a aba salva quando a URL não pediu uma explicitamente.
