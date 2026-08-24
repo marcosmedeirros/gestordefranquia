@@ -213,6 +213,7 @@ $ligasAdmin = array_values(array_intersect(
     .cal-b.primario{background:var(--red);border-color:var(--red);color:#fff}
     .cal-b.perigo{background:transparent;border-color:rgba(239,68,68,.4);color:#ef4444;margin-right:auto}
     .cal-erro{color:#ef4444;font-size:12px;margin-top:8px;display:none}
+    <?php include __DIR__ . '/includes/accent-color.php'; ?>
     </style>
 </head>
 <body>

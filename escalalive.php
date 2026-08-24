@@ -115,18 +115,40 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-  :root { --red:#fc0025; --bg:#07070a; --panel:#101013; --panel-2:#16161a; --panel-3:#1c1c21;
+  <?php /* Os mesmos tokens do calendário e das outras telas — inclusive os
+           derivados de --red, que é o que faz a cor escolhida pelo usuário
+           valer aqui, e o --sidebar-w, de que o shell precisa pra empurrar
+           o conteúdo pro lado da barra. */ ?>
+  :root { --red:#fc0025;
+          --red-2:color-mix(in srgb, var(--red) 85%, white);
+          --red-soft:color-mix(in srgb, var(--red) 10%, transparent);
+          --red-glow:color-mix(in srgb, var(--red) 18%, transparent);
+          --border-red:color-mix(in srgb, var(--red) 22%, transparent);
+          --bg:#07070a; --panel:#101013; --panel-2:#16161a; --panel-3:#1c1c21;
           --border:rgba(255,255,255,.06); --border-md:rgba(255,255,255,.10);
-          --text:#f0f0f3; --text-2:#868690; --text-3:#7d7d85; --green:#22c55e;
-          --font:'Montserrat',sans-serif; --radius:14px; --radius-sm:10px; }
+          --text:#f0f0f3; --text-2:#868690; --text-3:#7d7d85;
+          --green:#22c55e; --amber:#f59e0b; --blue:#3b82f6;
+          --sidebar-w:260px;
+          --font:'Montserrat',sans-serif;
+          --radius:14px; --radius-sm:10px; --radius-xs:6px;
+          --ease:cubic-bezier(.2,.8,.2,1); --t:200ms; }
   :root[data-theme="light"] { --bg:#f6f7fb; --panel:#fff; --panel-2:#f2f4f8; --panel-3:#e9edf4;
           --border:#e3e6ee; --border-md:#d7dbe6; --text:#12141a; --text-2:#5a6070; --text-3:#7a8092; }
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px}
-  .wrap{max-width:1040px;margin:0 auto;padding:22px 16px 60px}
-  .topo{display:flex;align-items:center;gap:12px;margin-bottom:4px}
-  .topo h1{font-size:20px;font-weight:800;margin:0}
-  .topo a.volta{color:var(--text-3);text-decoration:none;font-size:16px}
-  .sub{color:var(--text-3);font-size:13px;margin-bottom:18px;max-width:70ch;line-height:1.55}
+</style>
+
+<?php /* Barra lateral, topbar, main e hero — o mesmo shell das outras telas. */ ?>
+<?php include __DIR__ . '/includes/shell-css.php'; ?>
+
+<style>
+  *{box-sizing:border-box}
+  .dash-sub{max-width:70ch;line-height:1.55}
+  /* O voltar vai pro canto do hero, que já é space-between. */
+  /* margin-left:auto e não só o space-between do hero: quando o texto ocupa
+     a linha inteira no celular, o voltar quebra pra baixo — e sem isto ele
+     cairia colado na esquerda, longe de onde o polegar espera. */
+  .volta{margin-left:auto;color:var(--text-3);text-decoration:none;font-size:16px;line-height:1;
+         border:1px solid var(--border-md);border-radius:9px;padding:8px 10px;flex:none}
+  .volta:hover{color:var(--text);border-color:var(--red)}
   .aviso{border-radius:var(--radius-sm);padding:11px 15px;font-size:13px;margin-bottom:14px}
   .aviso.ok{background:color-mix(in srgb,var(--green) 10%,transparent);border:1px solid color-mix(in srgb,var(--green) 30%,transparent);color:var(--green)}
   .aviso.bad{background:color-mix(in srgb,var(--red) 10%,transparent);border:1px solid color-mix(in srgb,var(--red) 30%,transparent);color:var(--red)}
@@ -186,22 +208,38 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
              display:inline-flex;align-items:center;gap:8px}
   .btn-grade:hover{filter:brightness(1.1)}
   @media (max-width:620px){ .vaga-rot{width:100%} select{max-width:100%;flex:1} }
+<?php include __DIR__ . '/includes/accent-color.php'; ?>
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="topo">
-    <!-- Volta pro ADMIN e não pro painel: quem chega aqui vem do card em
-         Gestão, e mandar a pessoa pro dashboard obrigaria a refazer o
-         caminho inteiro pra escalar a próxima liga. -->
-    <a class="volta" href="/admin.php" title="Voltar ao admin"><i class="bi bi-arrow-left"></i></a>
-    <h1>Escala das Lives</h1>
-  </div>
-  <div class="sub">
-    Todo domingo o bot abre a chamada no grupo. Quem topa participar responde
-    dizendo as funções — dá pra dizer mais de uma. Depois a escala é montada
-    em cima das lives que já estão no calendário, e quem entra recebe aviso.
-  </div>
+
+<?php include __DIR__ . '/includes/sidebar.php'; ?>
+<div class="sb-overlay" id="sbOverlay"></div>
+
+<header class="topbar">
+    <button class="menu-btn" id="menuBtn"><i class="bi bi-list"></i></button>
+    <div class="topbar-title">FBA <em>Escala</em></div>
+</header>
+
+<main class="main">
+    <div class="dash-hero">
+        <div>
+            <div class="dash-eyebrow">Organização</div>
+            <h1 class="dash-title">Escala das Lives</h1>
+            <p class="dash-sub">
+              Quem topa participar responde no grupo dizendo as funções — dá pra
+              dizer mais de uma. A escala é montada em cima das lives que já
+              estão no calendário, e quem entra recebe aviso.
+            </p>
+        </div>
+        <!-- Volta pro ADMIN e não pro painel: quem chega aqui vem do card em
+             Gestão, e mandar a pessoa pro dashboard obrigaria a refazer o
+             caminho inteiro pra escalar a próxima liga. -->
+        <a class="volta" href="/admin.php" title="Voltar ao admin"><i class="bi bi-arrow-left"></i></a>
+    </div>
+
+    <?php /* .content é o que dá o respiro lateral nas outras telas (32px). */ ?>
+    <div class="content">
 
   <?php if ($msg): ?><div class="aviso ok"><i class="bi bi-check-circle-fill"></i> <?= $esc($msg) ?></div><?php endif; ?>
   <?php if ($erro): ?><div class="aviso bad"><i class="bi bi-exclamation-triangle-fill"></i> <?= $esc($erro) ?></div><?php endif; ?>
@@ -355,7 +393,12 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
       </div>
     <?php endforeach; endif; ?>
   </div>
-</div>
-<script src="/js/popups.js"></script>
+
+    </div><!-- /.content -->
+</main>
+
+<?php /* O hambúrguer do mobile. Sem isto a barra lateral existe mas não abre
+         no celular — que é justamente onde ela fica escondida. */ ?>
+<script src="/js/sidebar.js"></script>
 </body>
 </html>
