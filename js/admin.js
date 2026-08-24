@@ -436,6 +436,10 @@ async function showGestao(league) {
     // e noticia do The Pathetic viram post sozinhas; a tela e onde se liga,
     // se desliga e se descobre por que um post nao saiu.
     { icon: 'bi-twitter-x',             label: 'X<br>da Liga',              url: '/x-conectar.php',      color: '#e7e7ea', bg: 'rgba(231,231,234,.10)' },
+    // A escala das lives. Fica em Gestao e nao no menu lateral porque quem
+    // monta e a organizacao — pro resto da liga, o que interessa e o aviso
+    // de que foi escalado e a live no proprio calendario.
+    { icon: 'bi-broadcast',             label: 'Escala<br>das Lives',       url: '/escalalive.php',      color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
     { icon: 'bi-book-half',             label: 'Ver guia<br>do usuário',    url: '/guia.php', novaAba: true, color: '#38bdf8', bg: 'rgba(56,189,248,.12)' },
     // Guia do Admin: entrada única, só aqui. A página em si também barra quem
     // não tem acesso admin, então o card não é a trava — é só o caminho.
