@@ -54,6 +54,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             [$ok, $txt] = escalaTirar($pdo, (int)$_POST['tirar'], $ligasAdmin);
             $_SESSION['escala_flash'] = [$ok ? 'ok' : 'erro', $txt];
 
+        } elseif (isset($_POST['criar_grade']) && $souAdminGeral) {
+            // O botão existe pra isto não depender de SSH: evento é DADO, e
+            // o deploy leva só código — sem alguém criar as lives, o
+            // calendário de produção fica vazio e a escala não tem em que se
+            // pendurar. Chama a MESMA função do script, então os dois
+            // caminhos não divergem.
+            require_once __DIR__ . '/backend/semear_lives.php';
+            $r = semearLives($pdo, true);
+            $_SESSION['escala_flash'] = ['ok', $r['criados']
+                ? count($r['criados']) . ' live(s) criada(s): ' . implode(' · ', $r['criados'])
+                : 'A grade já estava toda criada — nada a fazer.'];
+
         } elseif (isset($_POST['eu_topo'])) {
             // Qualquer pessoa pode se oferecer pela tela — o grupo é o caminho
             // normal, mas quem não está nele não fica de fora por isso.
@@ -169,6 +181,10 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
        border-radius:20px;padding:7px 14px;cursor:pointer;font-size:12.5px;font-weight:700;user-select:none}
   .chk input{width:15px;height:15px;accent-color:var(--red);cursor:pointer}
   .vazio{text-align:center;padding:30px 16px;color:var(--text-3);font-size:13px}
+  .btn-grade{background:var(--red);border:0;color:#fff;border-radius:10px;padding:10px 18px;
+             font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer;
+             display:inline-flex;align-items:center;gap:8px}
+  .btn-grade:hover{filter:brightness(1.1)}
   @media (max-width:620px){ .vaga-rot{width:100%} select{max-width:100%;flex:1} }
 </style>
 </head>
@@ -263,6 +279,16 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
         Nenhuma live da <?= $liga ?> no calendário desta semana.<br>
         <a href="/calendario.php" style="color:var(--red);text-decoration:none">Marcar no calendário</a>
         — a escala é montada em cima do que está lá.
+        <?php if ($souAdminGeral): ?>
+          <!-- O botão aparece aqui e não num painel escondido: é exatamente
+               no momento em que a escala está vazia que ele resolve algo. -->
+          <form method="post" style="margin-top:14px">
+            <button class="btn-grade" name="criar_grade" value="1"
+                    data-confirmar="Criar a grade fixa de lives (NEXT, ELITE, RISE e ROOKIE) no calendário? Já existentes não são duplicadas.">
+              <i class="bi bi-calendar-plus"></i> Criar a grade fixa de lives
+            </button>
+          </form>
+        <?php endif; ?>
       </div>
     <?php else: foreach ($lives as $lv):
       $dia = (int)date('w', strtotime($lv['data'])); ?>
@@ -330,5 +356,6 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
     <?php endforeach; endif; ?>
   </div>
 </div>
+<script src="/js/popups.js"></script>
 </body>
 </html>

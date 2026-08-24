@@ -10,11 +10,20 @@
  * É idempotente: reconhece a live pelo trio (liga, dia da semana, hora) e
  * não cria de novo o que já existe. Rodar duas vezes não duplica nada.
  *
+ * ── Por que existe um arquivo pra isso ───────────────────────────────────
+ *
+ * Evento é DADO, não código. O deploy leva o código pra hospedagem, mas as
+ * sete lives são linhas no banco — e o banco de lá não vem junto. Sem isto,
+ * a produção ficaria com o calendário vazio de lives e a escala não teria
+ * em que se pendurar.
+ *
+ * A lógica está separada da linha de comando de propósito: o botão do admin
+ * (escalalive.php) chama a MESMA função, então os dois caminhos não podem
+ * divergir com o tempo.
+ *
  * Uso: php backend/semear_lives.php           (só relata)
  *      php backend/semear_lives.php --gravar  (cria)
  */
-
-if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/calendario.php';
@@ -47,10 +56,6 @@ function livesDaGrade(): array
  * de setembro. Sem isso todas nasceriam na mesma semana, e o calendário
  * mostraria live de NEXT numa semana em que a NEXT não joga — o que faria a
  * escala pedir gente pra uma live que não existe.
- *
- * A data é o INÍCIO da série. A repetição semanal segue dali pra frente, e
- * o dia da semana de cada uma manda: a primeira ocorrência é o primeiro dia
- * certo IGUAL OU DEPOIS desta data.
  */
 function inicioDaLiga(string $liga): string
 {
@@ -60,49 +65,61 @@ function inicioDaLiga(string $liga): string
     };
 }
 
-$gravar = in_array('--gravar', $argv ?? [], true);
-$pdo = db();
-ensureCalendarioTables($pdo);
-
-$tz = new DateTimeZone('America/Sao_Paulo');
-
 /**
- * A primeira ocorrência: o primeiro $dia da semana IGUAL OU DEPOIS do
- * início da liga.
+ * Cria o que falta. Devolve o relatório, e não imprime nada — quem imprime
+ * é quem chamou, que pode ser a linha de comando ou uma tela.
  *
- * Não é "o próximo a partir de hoje": a ELITE começa no dia 24 e a quarta
- * dessa semana é dia 26 — usar hoje empurraria pra semana seguinte e a
- * primeira live sumiria do calendário.
+ * @return array{criados:string[], existiam:string[]}
  */
-$primeira = function (string $liga, int $dia) use ($tz): string {
-    $d = new DateTimeImmutable(inicioDaLiga($liga), $tz);
-    $passos = ($dia - (int)$d->format('w') + 7) % 7;
-    return $d->modify("+{$passos} days")->format('Y-m-d');
-};
+function semearLives(PDO $pdo, bool $gravar): array
+{
+    ensureCalendarioTables($pdo);
+    $tz = new DateTimeZone('America/Sao_Paulo');
 
-$existe = $pdo->prepare("SELECT id, titulo, inicio FROM calendario_eventos
-                          WHERE league = ? AND tipo = 'live' AND repete = 'semanal'
-                            AND DAYOFWEEK(inicio) = ? AND TIME(inicio) = ?");
-$criar = $pdo->prepare("INSERT INTO calendario_eventos
-                        (league, tipo, titulo, inicio, descricao, repete, criado_por)
-                        VALUES (?, 'live', ?, ?, ?, 'semanal', NULL)");
+    // A primeira ocorrência é o primeiro dia certo IGUAL OU DEPOIS do início
+    // da liga. Não é "o próximo a partir de hoje": a ELITE começa no dia 24 e
+    // a quarta dessa semana é 26 — usar hoje empurraria pra semana seguinte e
+    // a primeira live sumiria do calendário.
+    $primeira = function (string $liga, int $dia) use ($tz): string {
+        $d = new DateTimeImmutable(inicioDaLiga($liga), $tz);
+        $passos = ($dia - (int)$d->format('w') + 7) % 7;
+        return $d->modify("+{$passos} days")->format('Y-m-d');
+    };
 
-$novos = 0; $tinha = 0;
+    $existe = $pdo->prepare("SELECT id FROM calendario_eventos
+                              WHERE league = ? AND tipo = 'live' AND repete = 'semanal'
+                                AND DAYOFWEEK(inicio) = ? AND TIME(inicio) = ?");
+    $criar = $pdo->prepare("INSERT INTO calendario_eventos
+                            (league, tipo, titulo, inicio, descricao, repete, criado_por)
+                            VALUES (?, 'live', ?, ?, ?, 'semanal', NULL)");
 
-foreach (livesDaGrade() as [$liga, $dia, $hora, $titulo, $obs]) {
-    // DAYOFWEEK do MySQL é 1=domingo; o nosso $dia é 0=domingo.
-    $existe->execute([$liga, $dia + 1, $hora . ':00']);
-    $ja = $existe->fetch(PDO::FETCH_ASSOC);
+    $out = ['criados' => [], 'existiam' => []];
+    $DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
-    $quando = $primeira($liga, $dia) . ' ' . $hora . ':00';
-    $rot = str_pad($liga, 7) . ' ' . ['dom','seg','ter','qua','qui','sex','sáb'][$dia] . ' ' . $hora
-         . '  ' . str_pad($titulo, 15) . ' a partir de ' . date('d/m', strtotime($quando));
+    foreach (livesDaGrade() as [$liga, $dia, $hora, $titulo, $obs]) {
+        // DAYOFWEEK do MySQL é 1=domingo; o nosso $dia é 0=domingo.
+        $existe->execute([$liga, $dia + 1, $hora . ':00']);
+        $quando = $primeira($liga, $dia) . ' ' . $hora . ':00';
+        $rot = $liga . ' · ' . $DIAS[$dia] . ' ' . $hora . ' · ' . $titulo
+             . ' (a partir de ' . date('d/m', strtotime($quando)) . ')';
 
-    if ($ja) { $tinha++; echo "  ja existe  $rot  (#{$ja['id']})\n"; continue; }
-    $novos++;
-    echo "  CRIAR      $rot\n";
-    if ($gravar) $criar->execute([$liga, $titulo, $quando, $obs]);
+        if ($existe->fetch()) { $out['existiam'][] = $rot; continue; }
+        $out['criados'][] = $rot;
+        if ($gravar) $criar->execute([$liga, $titulo, $quando, $obs]);
+    }
+    return $out;
 }
 
-echo "\nja existiam: $tinha   " . ($gravar ? "criados: $novos" : "criaria: $novos") . "\n";
+// ── Daqui pra baixo, só a linha de comando ──────────────────────────────
+// O `return` e não `exit` porque a tela dá require neste arquivo pra usar
+// as funções acima: um exit aqui mataria a página inteira.
+if (PHP_SAPI !== 'cli') return;
+
+$gravar = in_array('--gravar', $argv ?? [], true);
+$r = semearLives(db(), $gravar);
+
+foreach ($r['existiam'] as $x) echo "  ja existe  {$x}\n";
+foreach ($r['criados']  as $x) echo '  ' . ($gravar ? 'CRIADO   ' : 'CRIARIA  ') . " {$x}\n";
+echo "\nja existiam: " . count($r['existiam']) . '   '
+   . ($gravar ? 'criados: ' : 'criaria: ') . count($r['criados']) . "\n";
 echo $gravar ? ">>> GRAVADO\n" : "(simulação — use --gravar)\n";
