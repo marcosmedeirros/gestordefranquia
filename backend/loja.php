@@ -77,8 +77,18 @@ function lojaCatalogo(): array
 }
 
 if (!function_exists('lojaGarantirTabela')) {
+    /**
+     * Cria a tabela se ela não existir — uma vez por requisição.
+     *
+     * O static existe porque agora TODA leitura chama isto, e mandar um
+     * CREATE TABLE IF NOT EXISTS por chamada é ida ao banco de graça numa
+     * página que já faz dezenas.
+     */
     function lojaGarantirTabela(PDO $pdo): void
     {
+        static $feito = false;
+        if ($feito) return;
+        $feito = true;
         $pdo->exec("CREATE TABLE IF NOT EXISTS loja_inventario (
             id           INT AUTO_INCREMENT PRIMARY KEY,
             id_usuario   INT NOT NULL,
@@ -96,28 +106,53 @@ if (!function_exists('lojaGarantirTabela')) {
 }
 
 if (!function_exists('lojaInventario')) {
-    /** O que o GM tem na mão — só o que ainda não foi usado. */
+    /**
+     * O que o GM tem na mão — só o que ainda não foi usado.
+     *
+     * GARANTE A TABELA E ENGOLE O ERRO, as duas coisas, e isso não é excesso:
+     * só as funções de ESCRITA criavam a tabela, e a /games chama esta aqui
+     * antes de qualquer um comprar. Em produção, onde ninguém tinha comprado
+     * nada ainda, a tabela não existia e a página inteira morria — os
+     * minigames, as apostas e o ranking caíam junto por causa de um
+     * inventário vazio.
+     *
+     * O catch é a segunda trava: se o CREATE falhar por permissão, a loja
+     * aparece vazia e o resto da página continua de pé. Nenhuma parte desta
+     * página vale derrubar as outras três.
+     */
     function lojaInventario(PDO $pdo, int $userId): array
     {
-        $st = $pdo->prepare("SELECT id, item_key, preco_pago, comprado_em
-                               FROM loja_inventario
-                              WHERE id_usuario = ? AND usado_em IS NULL
-                              ORDER BY comprado_em ASC");
-        $st->execute([$userId]);
-        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        try {
+            lojaGarantirTabela($pdo);
+            $st = $pdo->prepare("SELECT id, item_key, preco_pago, comprado_em
+                                   FROM loja_inventario
+                                  WHERE id_usuario = ? AND usado_em IS NULL
+                                  ORDER BY comprado_em ASC");
+            $st->execute([$userId]);
+            return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            error_log('[loja] inventario: ' . $e->getMessage());
+            return [];
+        }
     }
 }
 
 if (!function_exists('lojaPedidos')) {
-    /** O que o GM já resgatou, esperando ou não o admin. */
+    /** O que o GM já resgatou, esperando ou não o admin. Mesma proteção. */
     function lojaPedidos(PDO $pdo, int $userId, int $limite = 30): array
     {
-        $st = $pdo->prepare("SELECT id, item_key, usado_em, atendido_em
-                               FROM loja_inventario
-                              WHERE id_usuario = ? AND usado_em IS NOT NULL
-                              ORDER BY usado_em DESC LIMIT {$limite}");
-        $st->execute([$userId]);
-        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        try {
+            lojaGarantirTabela($pdo);
+            $st = $pdo->prepare("SELECT id, item_key, usado_em, atendido_em
+                                   FROM loja_inventario
+                                  WHERE id_usuario = ? AND usado_em IS NOT NULL
+                                  ORDER BY usado_em DESC LIMIT {$limite}");
+            $st->execute([$userId]);
+            return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e) {
+            error_log('[loja] pedidos: ' . $e->getMessage());
+            return [];
+        }
     }
 }
 
