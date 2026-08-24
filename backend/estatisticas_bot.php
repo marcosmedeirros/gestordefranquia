@@ -186,32 +186,66 @@ function ebCatalogo(): array
         ],
 
         // ── Trades ───────────────────────────────────────────────────
+        // As três abaixo somam `trades` (dois times) com `multi_trades` (três
+        // ou mais). Trade de N vias mora noutra tabela, e as contas só olhavam
+        // a primeira — um time cujas trocas foram todas multi aparecia com
+        // ZERO, e quem tinha as duas coisas aparecia com metade.
         'parceiros' => [
             'titulo' => 'Diversidade de Parceiros', 'sub' => 'franquias diferentes com quem já trocou',
             'alto' => '🌐 Mais parceiros', 'baixo' => '🏝️ Menos interativos', 'ordem' => 'desc',
-            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome,
-                             COUNT(DISTINCT IF(tr.from_team_id=t.id, tr.to_team_id, tr.from_team_id)) AS valor
+            // Cada troca vira duas arestas (ida e volta) pra o time aparecer
+            // dos dois lados sem precisar de IF no meio da contagem.
+            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome, COUNT(DISTINCT e.parceiro) AS valor
                       FROM teams t
-                      LEFT JOIN trades tr ON (tr.from_team_id=t.id OR tr.to_team_id=t.id) AND tr.status='accepted'
+                      LEFT JOIN (
+                          SELECT tr.from_team_id AS eu, tr.to_team_id AS parceiro
+                            FROM trades tr WHERE tr.status='accepted'
+                          UNION ALL
+                          SELECT tr.to_team_id, tr.from_team_id
+                            FROM trades tr WHERE tr.status='accepted'
+                          UNION ALL
+                          SELECT mi.from_team_id, mi.to_team_id
+                            FROM multi_trade_items mi
+                            JOIN multi_trades mt ON mt.id = mi.trade_id
+                           WHERE mt.status='accepted'
+                          UNION ALL
+                          SELECT mi.to_team_id, mi.from_team_id
+                            FROM multi_trade_items mi
+                            JOIN multi_trades mt ON mt.id = mi.trade_id
+                           WHERE mt.status='accepted'
+                      ) e ON e.eu = t.id AND e.parceiro <> t.id
                       WHERE t.league = :liga
                       GROUP BY t.id, t.city, t.name",
         ],
         'ofertasenviadas' => [
             'titulo' => 'Ofertas de Trade Enviadas', 'sub' => 'propostas que o time mandou',
             'alto' => '📤 Mais ofertas', 'baixo' => '🤐 Menos ofertas', 'ordem' => 'desc',
-            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome, COUNT(tr.id) AS valor
-                      FROM teams t LEFT JOIN trades tr ON tr.from_team_id = t.id
-                      WHERE t.league = :liga
-                      GROUP BY t.id, t.city, t.name",
+            // Na multi quem propõe é o created_by_team_id — os outros
+            // participantes entraram na proposta de alguém, não fizeram uma.
+            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome,
+                             (SELECT COUNT(*) FROM trades tr WHERE tr.from_team_id = t.id)
+                           + (SELECT COUNT(*) FROM multi_trades mt WHERE mt.created_by_team_id = t.id) AS valor
+                      FROM teams t
+                      WHERE t.league = :liga",
         ],
         'tradesaceitas' => [
             'titulo' => 'Trades Aceitas', 'sub' => 'trades concluídas com o time envolvido',
             'alto' => '🤝 Mais aceitas', 'baixo' => '🧊 Menos aceitas', 'ordem' => 'desc',
-            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome, COUNT(tr.id) AS valor
+            // Conta pra TODO time envolvido, quem propôs e quem topou: os dois
+            // aceitaram a mesma troca. Na multi, vale pros N participantes.
+            // O DISTINCT no mt.id é o que evita contar a mesma multi uma vez
+            // por item — uma troca de cinco jogadores viraria cinco trades.
+            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome,
+                             (SELECT COUNT(*) FROM trades tr
+                               WHERE tr.status='accepted'
+                                 AND (tr.from_team_id = t.id OR tr.to_team_id = t.id))
+                           + (SELECT COUNT(DISTINCT mt.id)
+                                FROM multi_trades mt
+                                JOIN multi_trade_items mi ON mi.trade_id = mt.id
+                               WHERE mt.status='accepted'
+                                 AND (mi.from_team_id = t.id OR mi.to_team_id = t.id)) AS valor
                       FROM teams t
-                      LEFT JOIN trades tr ON (tr.from_team_id=t.id OR tr.to_team_id=t.id) AND tr.status='accepted'
-                      WHERE t.league = :liga
-                      GROUP BY t.id, t.city, t.name",
+                      WHERE t.league = :liga",
         ],
         'tradesrecusadas' => [
             'titulo' => 'Trades Recusadas', 'sub' => 'propostas rejeitadas com o time envolvido',

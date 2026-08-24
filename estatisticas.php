@@ -334,11 +334,23 @@ try {
 // ── Times com mais parceiros distintos de trade ───────────────────
 $parceirosMap = [];
 try {
+    // Soma `trades` (dois times) com `multi_trades` (três ou mais). Cada
+    // troca vira duas arestas — ida e volta — pra o time aparecer dos dois
+    // lados sem IF no meio da contagem.
     $pcRaw = $pdo->query("
-        SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
-               COUNT(DISTINCT CASE WHEN tr.from_team_id=t.id THEN tr.to_team_id ELSE tr.from_team_id END) AS count
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(DISTINCT e.parceiro) AS count
         FROM teams t
-        LEFT JOIN trades tr ON (tr.from_team_id=t.id OR tr.to_team_id=t.id) AND tr.status='accepted'
+        LEFT JOIN (
+            SELECT tr.from_team_id AS eu, tr.to_team_id AS parceiro FROM trades tr WHERE tr.status='accepted'
+            UNION ALL
+            SELECT tr.to_team_id, tr.from_team_id FROM trades tr WHERE tr.status='accepted'
+            UNION ALL
+            SELECT mi.from_team_id, mi.to_team_id FROM multi_trade_items mi
+              JOIN multi_trades mt ON mt.id = mi.trade_id WHERE mt.status='accepted'
+            UNION ALL
+            SELECT mi.to_team_id, mi.from_team_id FROM multi_trade_items mi
+              JOIN multi_trades mt ON mt.id = mi.trade_id WHERE mt.status='accepted'
+        ) e ON e.eu = t.id AND e.parceiro <> t.id
         GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($pcRaw as $r) $parceirosMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
@@ -348,11 +360,14 @@ try {
 // ── Maior número de ofertas de trade enviadas ────────────────────
 $ofertasMap = [];
 try {
+    // Na multi quem propõe é o created_by_team_id: os outros participantes
+    // entraram na proposta de alguém, não fizeram uma.
     $ofRaw = $pdo->query("
-        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(tr.id) AS count
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
+               (SELECT COUNT(*) FROM trades tr WHERE tr.from_team_id = t.id)
+             + (SELECT COUNT(*) FROM multi_trades mt WHERE mt.created_by_team_id = t.id) AS count
         FROM teams t
-        LEFT JOIN trades tr ON tr.from_team_id = t.id
-        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+        ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($ofRaw as $r) $ofertasMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
     sortLeagueData($ofertasMap);
@@ -361,11 +376,19 @@ try {
 // ── Trades aceitas ─────────────────────────────────────────────────
 $tradesAceitasMap = [];
 try {
+    // Conta pra TODO time envolvido, quem propôs e quem topou: os dois
+    // aceitaram a mesma troca. Na multi, vale pros N participantes — e o
+    // DISTINCT no mt.id evita contar a mesma multi uma vez por item, senão
+    // uma troca de cinco jogadores viraria cinco trades.
     $taRaw = $pdo->query("
-        SELECT t.league, CONCAT(t.city,' ',t.name) AS name, COUNT(tr.id) AS count
+        SELECT t.league, CONCAT(t.city,' ',t.name) AS name,
+               (SELECT COUNT(*) FROM trades tr
+                 WHERE tr.status='accepted' AND (tr.from_team_id=t.id OR tr.to_team_id=t.id))
+             + (SELECT COUNT(DISTINCT mt.id) FROM multi_trades mt
+                  JOIN multi_trade_items mi ON mi.trade_id = mt.id
+                 WHERE mt.status='accepted' AND (mi.from_team_id=t.id OR mi.to_team_id=t.id)) AS count
         FROM teams t
-        LEFT JOIN trades tr ON (tr.from_team_id=t.id OR tr.to_team_id=t.id) AND tr.status='accepted'
-        GROUP BY t.league, t.id, t.city, t.name ORDER BY count DESC
+        ORDER BY count DESC
     ")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($taRaw as $r) $tradesAceitasMap[$r['league']][] = ['name'=>$r['name'],'count'=>(int)$r['count']];
     sortLeagueData($tradesAceitasMap);
