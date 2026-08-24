@@ -103,6 +103,57 @@ try {
         $stO->execute([$ev['id']]);
         $ev['opcoes'] = $stO->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+        // QUANTOS PALPITARAM EM CADA OPÇÃO.
+        //
+        // A conta sai daqui e não de um COUNT por opção dentro do laço de
+        // desenho: são até 50 eventos na tela, e com seis opções cada isso
+        // seriam trezentas consultas pra montar uma página.
+        $stQ = $pdo->prepare("
+            SELECT p.opcao_id, COUNT(*) AS n
+              FROM palpites p JOIN opcoes o ON p.opcao_id = o.id
+             WHERE o.evento_id = ?
+             GROUP BY p.opcao_id
+        ");
+        $stQ->execute([$ev['id']]);
+        $porOpcao = [];
+        foreach ($stQ->fetchAll(PDO::FETCH_ASSOC) ?: [] as $l) {
+            $porOpcao[(int)$l['opcao_id']] = (int)$l['n'];
+        }
+        $ev['total_palpites'] = array_sum($porOpcao);
+
+        // A SOMA TEM QUE FECHAR EM 100.
+        //
+        // Arredondar cada opção por conta própria não fecha: com 26 palpites
+        // divididos em 14/6/3/2/1/0 dá 54+23+12+8+4 = 101%, e ninguém lê isso
+        // como "arredondamento", lê como conta errada. O jeito certo é o do
+        // maior resto: dá a todo mundo a parte inteira e distribui o que
+        // sobrou pros que ficaram com a maior fração pendurada.
+        //
+        // Sem ninguém tendo palpitado, TUDO é zero — e não um por cento cada,
+        // que é o que a divisão por zero viraria se alguém "protegesse" o
+        // denominador com um max(1, ...).
+        $total = $ev['total_palpites'];
+        $restos = [];
+        $somaInteira = 0;
+        foreach ($ev['opcoes'] as $i => &$op) {
+            $n = $porOpcao[(int)$op['id']] ?? 0;
+            $op['palpites'] = $n;
+            if ($total <= 0) { $op['pct'] = 0; continue; }
+            $exato = $n * 100 / $total;
+            $op['pct'] = (int)floor($exato);
+            $somaInteira += $op['pct'];
+            $restos[$i] = $exato - $op['pct'];
+        }
+        unset($op);
+        if ($total > 0) {
+            arsort($restos);                       // maior fração pendurada primeiro
+            foreach (array_keys($restos) as $i) {
+                if ($somaInteira >= 100) break;
+                $ev['opcoes'][$i]['pct']++;
+                $somaInteira++;
+            }
+        }
+
         $stM = $pdo->prepare("
             SELECT p.opcao_id FROM palpites p JOIN opcoes o ON p.opcao_id = o.id
             WHERE p.id_usuario = ? AND o.evento_id = ? LIMIT 1
@@ -439,12 +490,32 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
     .prazo.urgente { color:var(--amber); border-color:rgba(245,158,11,.3); background:rgba(245,158,11,.10); }
     .card-body { padding:16px 18px; }
     .opcoes { display:flex; gap:10px; flex-wrap:wrap; }
+    .card-head-dir { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
     .op-btn { flex:1; min-width:150px; background:var(--panel-2); border:1px solid var(--border-md); color:var(--text);
               border-radius:var(--radius-sm); padding:12px 16px; font-family:var(--font); font-size:13px;
-              font-weight:600; cursor:pointer; transition:all var(--t) var(--ease); text-align:left; }
+              font-weight:600; cursor:pointer; transition:all var(--t) var(--ease); text-align:left;
+              position:relative; overflow:hidden; display:flex; align-items:center; gap:10px; }
     .op-btn:hover { border-color:var(--border-red); color:var(--red); }
     .op-btn.escolhida { border-color:var(--green); color:var(--green); background:rgba(34,197,94,.08); }
-    .op-btn.escolhida::before { content:'\F26E'; font-family:'bootstrap-icons'; margin-right:7px; }
+    .op-btn.escolhida .op-txt::before { content:'\F26E'; font-family:'bootstrap-icons'; margin-right:7px; }
+
+    /* A BARRA ATRÁS DO TEXTO, e não um número solto no canto: a proporção
+       entre as opções se lê sem passar por leitura de dígito nenhum — quem
+       está na frente é a barra mais comprida. O número fica junto pra quem
+       quer a precisão.
+
+       Ela é irmã do texto e não um ::before porque o botão já usa ::before
+       pro visto do "escolhida", e porque largura em porcentagem precisa de
+       um elemento de verdade pra animar. */
+    .op-barra { position:absolute; left:0; top:0; bottom:0; z-index:0;
+                background:color-mix(in srgb, var(--text) 7%, transparent);
+                transition:width 420ms var(--ease); pointer-events:none; }
+    .op-btn.escolhida .op-barra { background:rgba(34,197,94,.16); }
+    .op-txt { position:relative; z-index:1; flex:1; min-width:0; }
+    .op-pct { position:relative; z-index:1; flex:none; font-size:12px; font-weight:800;
+              color:var(--text-3); font-variant-numeric:tabular-nums; }
+    .op-btn.escolhida .op-pct { color:var(--green); }
+    @media (prefers-reduced-motion: reduce) { .op-barra { transition:none; } }
 
     .alerta { border-radius:var(--radius-sm); padding:11px 15px; font-size:13px; margin-bottom:16px; }
     .alerta.ok { background:rgba(34,197,94,.10); border:1px solid rgba(34,197,94,.30); color:var(--green); }
@@ -649,10 +720,21 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
                 <div class="card">
                     <div class="card-head">
                         <div class="card-head-left"><i class="bi bi-flag-fill"></i> <?= htmlspecialchars($ev['nome']) ?></div>
-                        <div class="prazo <?= !empty($ev['urgente']) ? 'urgente' : '' ?>"
-                             title="Fecha em <?= date('d/m/Y \à\s H:i', strtotime($ev['data_limite'])) ?>">
-                            <i class="bi bi-clock"></i>
-                            <?= htmlspecialchars($ev['prazo_txt']) ?>
+                        <div class="card-head-dir">
+                            <?php if (!empty($ev['total_palpites'])): ?>
+                            <!-- O total dá tamanho à porcentagem: 60% de cinco
+                                 pessoas e 60% de duzentas são a mesma barra e
+                                 coisas bem diferentes. -->
+                            <div class="prazo" title="Total de palpites neste evento">
+                                <i class="bi bi-people-fill"></i>
+                                <?= (int)$ev['total_palpites'] ?>
+                            </div>
+                            <?php endif; ?>
+                            <div class="prazo <?= !empty($ev['urgente']) ? 'urgente' : '' ?>"
+                                 title="Fecha em <?= date('d/m/Y \à\s H:i', strtotime($ev['data_limite'])) ?>">
+                                <i class="bi bi-clock"></i>
+                                <?= htmlspecialchars($ev['prazo_txt']) ?>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body">
@@ -660,8 +742,11 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
                             <?php foreach ($ev['opcoes'] as $op): ?>
                             <form method="POST" style="flex:1;min-width:150px;display:flex">
                                 <input type="hidden" name="opcao_id" value="<?= (int)$op['id'] ?>">
-                                <button type="submit" class="op-btn <?= (int)$ev['meu_palpite'] === (int)$op['id'] ? 'escolhida' : '' ?>">
-                                    <?= htmlspecialchars($op['descricao']) ?>
+                                <button type="submit" class="op-btn <?= (int)$ev['meu_palpite'] === (int)$op['id'] ? 'escolhida' : '' ?>"
+                                        title="<?= (int)$op['palpites'] ?> <?= (int)$op['palpites'] === 1 ? 'palpite' : 'palpites' ?>">
+                                    <span class="op-barra" style="width:<?= (int)$op['pct'] ?>%"></span>
+                                    <span class="op-txt"><?= htmlspecialchars($op['descricao']) ?></span>
+                                    <span class="op-pct"><?= (int)$op['pct'] ?>%</span>
                                 </button>
                             </form>
                             <?php endforeach; ?>
