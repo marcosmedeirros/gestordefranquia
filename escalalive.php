@@ -67,17 +67,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // pendurar. Chama a MESMA função do script, então os dois
             // caminhos não divergem.
             require_once __DIR__ . '/backend/semear_lives.php';
-            $r = semearLives($pdo, true);
+            $r = semearGrade($pdo, true);
             $partes = [];
-            if ($r['criados'])   $partes[] = count($r['criados']) . ' criada(s): ' . implode(' · ', $r['criados']);
+            if ($r['criados'])   $partes[] = count($r['criados']) . ' criado(s): ' . implode(' · ', $r['criados']);
             // "ajustada" e não "adiantada": o mesmo balde carrega quem mudou
             // de data e quem mudou de nome, e chamar de adiantada uma live
             // que só foi renomeada faz o admin procurar uma data que não
             // mudou.
-            if ($r['ajustados']) $partes[] = count($r['ajustados']) . ' ajustada(s): ' . implode(' · ', $r['ajustados']);
+            if ($r['ajustados']) $partes[] = count($r['ajustados']) . ' ajustado(s): ' . implode(' · ', $r['ajustados']);
             $_SESSION['escala_flash'] = ['ok', $partes
                 ? implode(' | ', $partes)
-                : 'A grade já estava toda criada — nada a fazer.'];
+                : 'A agenda já estava toda no calendário — nada a fazer.'];
 
         } elseif (isset($_POST['add_disp']) && $podeEscalar) {
             // O admin põe gente na lista na mão. A enquete do grupo continua
@@ -607,11 +607,11 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
     <div class="rodape-grade">
       <form method="post">
         <button class="btn-grade" name="criar_grade" value="1"
-                data-confirmar="Conferir a grade oficial das lives (NEXT, ELITE, RISE e ROOKIE)? Cria o que falta, adianta o que começou tarde e corrige nome que mudou de fase. Nada é duplicado.">
-          <i class="bi bi-arrow-repeat"></i> Conferir a grade de lives
+                data-confirmar="Conferir a agenda oficial das quatro ligas (lives, draft, período de trocas, free agency e bloqueio do painel)? Cria o que falta, adianta o que começou tarde e corrige nome que mudou. Nada é duplicado.">
+              <i class="bi bi-arrow-repeat"></i> Conferir a agenda das ligas
         </button>
       </form>
-      <span>Põe o calendário de acordo com a grade oficial da FBA.</span>
+      <span>Põe o calendário de acordo com as artes oficiais da agenda &mdash; das quatro ligas de uma vez.</span>
     </div>
     <?php endif; ?>
   </div>

@@ -116,6 +116,11 @@ $ligasAdmin = array_values(array_intersect(
       min-height:96px;background:var(--panel-2);border:1px solid var(--border);
       border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:3px;
       cursor:default;transition:border-color var(--t);
+      /* Sem isto a coluna não encolhe abaixo do próprio min-content, e um
+         título comprido ("Bloqueio do painel de diretrizes") empurra a grade
+         de sete colunas pra fora da tela. O ellipsis do .cal-ev span só
+         funciona depois que o item de grid aceita ser estreito. */
+      min-width:0;
     }
     .cal-dia.fora{opacity:.35}
     .cal-dia.hoje{border-color:var(--red);box-shadow:0 0 0 1px color-mix(in srgb,var(--red) 35%,transparent) inset}
@@ -131,7 +136,7 @@ $ligasAdmin = array_values(array_intersect(
       background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c);
       width:100%;font-family:var(--font);overflow:hidden;
     }
-    .cal-ev span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .cal-ev span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
     .cal-ev i{flex-shrink:0;font-size:10px}
     /* As carinhas de quem está na live. margin-left:auto joga pra direita e
        flex:none impede que elas cedam espaço — é o título que encurta, não
