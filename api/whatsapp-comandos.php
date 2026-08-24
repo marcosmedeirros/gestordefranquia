@@ -2526,8 +2526,14 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'vs':
                 return wcComparar($pdo, $arg, $ligaDoGrupo);
 
+            // /trades e /trocas sao a MESMA porta: o feed das ultimas
+            // trocas. Quem quer o ranking digita o sufixo — /tradesaceitas.
+            // Sem o 'trades' aqui, a mesma palavra em ingles caia no
+            // catalogo de estatisticas e trazia coisa diferente do /trocas.
             case 'trocas':
             case 'troca':
+            case 'trades':
+            case 'trade':
                 return wcTrocas($pdo, $arg, $ligaDoGrupo);
 
             // Os "meus": respondem sobre o time de quem digitou, sem precisar

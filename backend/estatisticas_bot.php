@@ -217,6 +217,25 @@ function ebCatalogo(): array
                       WHERE t.league = :liga
                       GROUP BY t.id, t.city, t.name",
         ],
+        'toppicks' => [
+            'titulo' => 'Picks de 1ª Rodada', 'sub' => 'quantas primeiras rodadas o time tem em mãos',
+            'alto' => '💎 Mais picks de 1ª', 'baixo' => '🕳️ Menos picks de 1ª', 'ordem' => 'desc',
+            // SÓ a primeira rodada: é ela que muda o rumo de uma franquia, e
+            // somar a segunda junto empataria todo mundo — segunda rodada
+            // quase ninguém guarda nem cobra.
+            //
+            // O corte por ano usa a MESMA régua da página de Picks
+            // (anoDeCorteDasPicks, injetada como :anopick por ebLinhas):
+            // sem ele o time apareceria com pick de draft que já aconteceu, e
+            // o bot diria um número que a tela ao lado desmente.
+            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome, COUNT(p.id) AS valor
+                      FROM teams t
+                      LEFT JOIN picks p ON p.team_id = t.id
+                                       AND p.round = '1'
+                                       AND p.season_year >= :anopick
+                      WHERE t.league = :liga
+                      GROUP BY t.id, t.city, t.name",
+        ],
         'tradesenviadas' => [
             'titulo' => 'Trades Enviadas', 'sub' => 'propostas que o time mandou',
             'alto' => '📤 Mais enviadas', 'baixo' => '🤐 Menos enviadas', 'ordem' => 'desc',
@@ -355,8 +374,15 @@ function ebLinhas(PDO $pdo, array $def, string $liga): array
                 ? ebSequencias($pdo, $liga, $def['calc_arg'])
                 : ebDominio($pdo, $liga);
         } else {
+            // :anopick só é passado pra quem pede — PDO recusa parâmetro que
+            // a consulta não usa, então mandar sempre quebraria as outras.
+            $params = [':liga' => $liga];
+            if (str_contains($def['sql'], ':anopick')) {
+                require_once __DIR__ . '/helpers.php';
+                $params[':anopick'] = anoDeCorteDasPicks($pdo, $liga);
+            }
             $st = $pdo->prepare($def['sql']);
-            $st->execute([':liga' => $liga]);
+            $st->execute($params);
             $linhas = $st->fetchAll(PDO::FETCH_ASSOC);
         }
     } catch (Throwable $e) {
@@ -411,11 +437,13 @@ function ebBloco(string $rotulo, array $linhas): string
 function ebApelidos(): array
 {
     return [
-        // /trades e /trocas são o atalho: quem digita o nome curto quer saber
-        // quem trocou, e trocar é a que foi aceita. As outras três precisam
-        // do sufixo justamente porque são o recorte, não o assunto.
-        'trades'           => 'tradesaceitas',
-        'trocas'           => 'tradesaceitas',
+        // /trades e /trocas NÃO entram aqui: os dois são o feed das últimas
+        // trocas (wcTrocas), e o switch do whatsapp-comandos pega antes de o
+        // catálogo ser consultado. Apelido aqui seria linha morta — e pior,
+        // uma que parece funcionar quando se lê este arquivo.
+        //
+        // A regra do par: nome curto = o que aconteceu; nome com sufixo = o
+        // ranking daquele recorte.
         'trocasenviadas'   => 'tradesenviadas',
         'trocasaceitas'    => 'tradesaceitas',
         'trocasrecusadas'  => 'tradesrecusadas',
@@ -457,14 +485,13 @@ function ebListar(?string $ligaDoGrupo): string
     $liga = wcLigaPreferida($ligaDoGrupo);
 
     $grupos = [
-        'Elenco e draft' => ['elencojovem', 'elencovelho', 'freeagency', 'top5'],
+        'Elenco e draft' => ['elencojovem', 'elencovelho', 'freeagency', 'top5', 'toppicks'],
         'Playoff'        => ['playoffs', 'sequencia', 'jejum', 'vice', '4a0', '0a4', 'jogo7'],
         'Confrontos'     => ['rivalidades', 'dominio', 'duplas', 'unidirecionais'],
-        // O /trades abre por ser o atalho, e vem escrito que é atalho: sem
-        // isso a lista mostraria "Trades Aceitas" duas vezes e pareceria
-        // defeito. O /parceiros fecha porque responde outra pergunta — com
-        // QUANTOS, e não quantas.
-        'Trades'         => ['trades', 'tradesaceitas', 'tradesenviadas', 'tradesrecusadas', 'parceiros'],
+        // Só os rankings entram aqui. O /trades e o /trocas são o feed das
+        // últimas trocas e vivem no /ajuda, não nesta lista — misturar 'o que
+        // aconteceu' com 'quem lidera' foi o que me fez errar antes.
+        'Trades'         => ['tradesaceitas', 'tradesenviadas', 'tradesrecusadas', 'parceiros'],
     ];
 
     $cat = ebCatalogo();
