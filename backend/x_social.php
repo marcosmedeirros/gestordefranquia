@@ -422,11 +422,46 @@ function xEnfileirar(PDO $pdo, string $texto, string $tipo, string $ref): bool
     try {
         $st = $pdo->prepare("INSERT IGNORE INTO x_fila (texto, tipo, ref) VALUES (?,?,?)");
         $st->execute([xCortar($texto), $tipo, $ref]);
-        return $st->rowCount() > 0;
+        $entrou = $st->rowCount() > 0;
+        if ($entrou) xSoltarDepois($pdo);
+        return $entrou;
     } catch (Throwable $e) {
         error_log('[x] enfileirar: ' . $e->getMessage());
         return false;
     }
+}
+
+/**
+ * Solta a fila DEPOIS que a resposta já foi pro navegador.
+ *
+ * Sem isso, a integração inteira dependeria de alguém lembrar de agendar o
+ * cron no painel da Hostinger — e o cron do WhatsApp, que existe desde
+ * sempre, nunca foi agendado. Uma trade bombástica que só aparece na
+ * timeline "quando o cron rodar" é uma trade que nunca aparece.
+ *
+ * O register_shutdown_function é o que faz isso não custar nada pro GM: o
+ * HTTP com o X (meio a dois segundos) acontece depois que a tela dele já
+ * respondeu. O cron continua valendo, e passa a ser o que sempre deveria
+ * ser — a segunda chance de quem falhou na primeira, e o que esvazia a fila
+ * quando o site está parado.
+ *
+ * Uma vez por request: dois posts na mesma trade sairiam colados, e é
+ * exatamente a rajada que X_ESPACO_MIN existe pra evitar.
+ */
+function xSoltarDepois(PDO $pdo): void
+{
+    static $agendado = false;
+    if ($agendado) return;
+    $agendado = true;
+
+    register_shutdown_function(function () use ($pdo) {
+        try {
+            if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+            xProcessarFila($pdo, 1);
+        } catch (Throwable $e) {
+            error_log('[x] soltar depois: ' . $e->getMessage());
+        }
+    });
 }
 
 /**
