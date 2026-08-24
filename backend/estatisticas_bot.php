@@ -217,9 +217,25 @@ function ebCatalogo(): array
                       WHERE t.league = :liga
                       GROUP BY t.id, t.city, t.name",
         ],
-        'ofertasenviadas' => [
-            'titulo' => 'Ofertas de Trade Enviadas', 'sub' => 'propostas que o time mandou',
-            'alto' => '📤 Mais ofertas', 'baixo' => '🤐 Menos ofertas', 'ordem' => 'desc',
+        'trades' => [
+            'titulo' => 'Trades no Total', 'sub' => 'toda proposta em que o time entrou, aceita ou não',
+            'alto' => '🔁 Mais movimento', 'baixo' => '💤 Menos movimento', 'ordem' => 'desc',
+            // Qualquer status de propósito: esta é a única das quatro que
+            // mede MOVIMENTO e não desfecho. Filtrar por aceita aqui faria
+            // ela repetir a /tradesaceitas com outro nome.
+            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome,
+                             (SELECT COUNT(*) FROM trades tr
+                               WHERE tr.from_team_id = t.id OR tr.to_team_id = t.id)
+                           + (SELECT COUNT(DISTINCT mt.id)
+                                FROM multi_trades mt
+                                JOIN multi_trade_items mi ON mi.trade_id = mt.id
+                               WHERE mi.from_team_id = t.id OR mi.to_team_id = t.id) AS valor
+                      FROM teams t
+                      WHERE t.league = :liga",
+        ],
+        'tradesenviadas' => [
+            'titulo' => 'Trades Enviadas', 'sub' => 'propostas que o time mandou',
+            'alto' => '📤 Mais enviadas', 'baixo' => '🤐 Menos enviadas', 'ordem' => 'desc',
             // Na multi quem propõe é o created_by_team_id — os outros
             // participantes entraram na proposta de alguém, não fizeram uma.
             'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome,
@@ -395,9 +411,35 @@ function ebBloco(string $rotulo, array $linhas): string
  * "todas as ligas" aqui de propósito — no grupo da NEXT ninguém perguntou pela
  * ELITE, e quatro tabelas numa mensagem é parede de texto.
  */
+/**
+ * Outros nomes que levam ao mesmo lugar.
+ *
+ * "troca" é como metade da liga fala, e o comando que existe é "trade" —
+ * quem digita /trocasaceitas não recebe nada e conclui que o bot não tem.
+ * Aqui os dois funcionam.
+ *
+ * O 'ofertasenviadas' fica de apelido porque ERA o nome oficial: quem
+ * aprendeu ele continua sendo atendido, em vez de descobrir sozinho que o
+ * comando mudou.
+ *
+ * @return array<string,string> apelido => chave do catálogo
+ */
+function ebApelidos(): array
+{
+    return [
+        'trocas'           => 'trades',
+        'trocasenviadas'   => 'tradesenviadas',
+        'trocasaceitas'    => 'tradesaceitas',
+        'trocasrecusadas'  => 'tradesrecusadas',
+        'ofertasenviadas'  => 'tradesenviadas',
+        'ofertas'          => 'tradesenviadas',
+    ];
+}
+
 function ebResponder(PDO $pdo, string $comando, ?string $ligaDoGrupo): ?string
 {
     $cat = ebCatalogo();
+    $comando = ebApelidos()[$comando] ?? $comando;
     if (!isset($cat[$comando])) return null;
     $def = $cat[$comando];
 
@@ -430,7 +472,10 @@ function ebListar(?string $ligaDoGrupo): string
         'Elenco e draft' => ['elencojovem', 'elencovelho', 'freeagency', 'top5'],
         'Playoff'        => ['playoffs', 'sequencia', 'jejum', 'vice', '4a0', '0a4', 'jogo7'],
         'Confrontos'     => ['rivalidades', 'dominio', 'duplas', 'unidirecionais'],
-        'Trades'         => ['parceiros', 'ofertasenviadas', 'tradesaceitas', 'tradesrecusadas'],
+        // A ordem e os nomes seguem um padrão só: /trades abre, e depois os
+        // três desfechos. O /parceiros fecha porque responde outra pergunta —
+        // com QUANTOS, e não quantas.
+        'Trades'         => ['trades', 'tradesenviadas', 'tradesaceitas', 'tradesrecusadas', 'parceiros'],
     ];
 
     $cat = ebCatalogo();
