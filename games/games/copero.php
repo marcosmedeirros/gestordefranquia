@@ -4150,14 +4150,29 @@ function compartilharCarreira(botao, modo){
       return c && c.escudo ? {img: c.escudo} : {texto: (nome.split(/\s+/)[0] || '?').slice(0, 4)};
     });
 
-  const conta = {};
-  t.forEach(x => (x.titulos || []).forEach(id => { conta[id] = (conta[id]||0)+1; }));
+  // Os títulos com a FOTO da taça, igual à sala de troféus — o desenho em
+  // SVG fica só de reserva pra quem não tem foto.
+  //
+  // A liga de onde a taça veio importa: 'liga' e 'copa' são a mesma chave
+  // pra dezenas de competições diferentes, e sem ela a foto sairia genérica
+  // ou vazia. Por isso guardo, junto da contagem, a liga da PRIMEIRA
+  // temporada em que aquele título apareceu.
+  const conta = {}, ondeGanhou = {};
+  t.forEach(x => (x.titulos || []).forEach(id => {
+    conta[id] = (conta[id] || 0) + 1;
+    if (ondeGanhou[id] === undefined) ondeGanhou[id] = x.liga;
+  }));
+
   const titulos = Object.entries(conta).sort((a,b) => b[1] - a[1]).slice(0, 6)
     .map(([id, n]) => {
+      const foto = fotoDaTaca(id, ondeGanhou[id]);
       const d = TACAS[id];
       return {
-        img: d ? svgImagem(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 60"
-                width="140" height="132" style="color:${d[0]}">${d[1]}</svg>`) : '',
+        // A foto passa pelo proxy dentro do cartao.php (viaProxy): imagem de
+        // outro domínio CONTAMINA o canvas e derruba a geração inteira — um
+        // troféu levaria o cartão junto.
+        img: foto || (d ? svgImagem(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 60"
+                width="140" height="132" style="color:${d[0]}">${d[1]}</svg>`) : ''),
         contagem: n,
       };
     });

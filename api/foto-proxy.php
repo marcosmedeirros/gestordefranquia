@@ -40,6 +40,12 @@ const PROXY_FONTES = [
     // canvas contamina a tela e derruba a imagem inteira.
     'nbat' => ['https://cdn.nba.com/logos/nba/',
                '#^[0-9]{4,12}/global/L/logo\.svg$#'],
+    // Três troféus do Copero (chuteira e luva de ouro, rei da América) que o
+    // thesportsdb não tem. O caminho do commons é sempre
+    // <letra>/<letra><letra>/<arquivo>, e o nome do arquivo pode ter %XX
+    // porque vem com acento ("Trofeo_del_Rey_de_Am%C3%A9rica.png").
+    'wiki' => ['https://upload.wikimedia.org/wikipedia/commons/',
+               '#^[0-9a-f]/[0-9a-f]{2}/[A-Za-z0-9_%.\-]+\.(png|jpg|jpeg|svg|webp)$#'],
 ];
 
 $url = null;

@@ -101,6 +101,9 @@ function cartaoScript(): string
     if (m) return '/api/foto-proxy.php?f=espn&p=' + encodeURIComponent(m[1]);
     m = u.match(/^https?:\/\/cdn\.nba\.com\/headshots\/nba\/latest\/\d+x\d+\/(\d+)\.png$/);
     if (m) return '/api/foto-proxy.php?id=' + m[1];
+    // Os três troféus do Copero que o thesportsdb não tem.
+    m = u.match(/^https?:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/(.+)$/);
+    if (m) return '/api/foto-proxy.php?f=wiki&p=' + encodeURIComponent(m[1]);
     return u;
   }
 
