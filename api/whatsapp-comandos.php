@@ -362,9 +362,10 @@ function wcAjuda(): string
         . "/power — o power ranking da liga inteira\n"
         . "/powerc — o power ranking por conferência\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
-        . "/escala — abre a chamada das lives da semana\n"
-        . "/comentarista · /narrador · /operacional · /transmissao — entra na chamada (pode mais de um)\n"
-        . "/verescala — como está a escala  ·  /sair — tira você da chamada\n"
+        // Três linhas viraram uma. O /ajuda é lido por quem quer o básico da
+        // liga inteira, e a escala tem manual próprio agora — quem se
+        // interessa entra nele, quem não, não perde três linhas com isso.
+        . "/live — como entrar nas lives (funções, escala, tudo)\n"
         // /aceitar e /recusar SAÍRAM desta lista, mas continuam funcionando:
         // o código vem escrito na própria mensagem da proposta, e é lá que a
         // pessoa lê a instrução. Aqui eles só ocupavam a linha mais comprida
@@ -2765,6 +2766,14 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
 
             case 'escala':
                 return wcEscalaChamar($pdo, $arg, $deQuem, $ligaDoGrupo);
+
+            // O manual, pra fixar no grupo. Separado do /escala de propósito:
+            // a chamada é do momento e some na rolagem; este responde sempre
+            // igual, e é o que quem chega depois precisa achar.
+            case 'live':
+            case 'lives':
+                require_once __DIR__ . '/../backend/escala_live.php';
+                return escalaTextoAjuda();
 
             // Os "meus": respondem sobre o time de quem digitou, sem precisar
             // dizer o nome. Dependem do telefone estar certo no cadastro — foi

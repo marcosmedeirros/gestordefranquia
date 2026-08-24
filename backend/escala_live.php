@@ -659,6 +659,66 @@ function escalaTextoChamada(PDO $pdo, string $liga, ?string $semana = null): str
     return implode("\n", $l);
 }
 
+/**
+ * /live — o manual da escala, no grupo.
+ *
+ * Existe porque a chamada (/escala) é uma mensagem do momento: ela some
+ * na rolagem e quem chega depois não acha. Este é o texto que se fixa no
+ * grupo e responde "como eu entro nisso?" sem ninguém precisar explicar de
+ * novo.
+ *
+ * Fala das funções pelo que a pessoa FAZ, e não pelo nome do cargo:
+ * "operacional" não diz nada pra quem nunca participou de uma live.
+ *
+ * Não recebe PDO: é texto fixo. Se um dia depender das lives da semana,
+ * vira outro comando — este tem que responder igual em qualquer dia.
+ */
+function escalaTextoAjuda(): string
+{
+    $l = [];
+    $l[] = '🎙️ *COMO ENTRAR NAS LIVES*';
+    $l[] = '';
+    $l[] = 'Manda o comando da função que você topa. Só isso — o bot anota e '
+         . 'a organização monta a escala em cima de quem se ofereceu.';
+    $l[] = '';
+    $l[] = '*As quatro funções*';
+    $l[] = '/comentarista — comenta o jogo ao vivo';
+    $l[] = '/narrador — narra a partida';
+    $l[] = '/operacional — cuida do jogo rodando e dos replays';
+    $l[] = '/transmissao — sobe a live e cuida do stream';
+    $l[] = '';
+    $l[] = '*Pode mandar mais de um.* Se você topa narrar e comentar, manda '
+         . 'os dois. E *não tem limite de vagas*: cabe mais de um comentarista '
+         . 'na mesma live.';
+    $l[] = '';
+    $l[] = '*Só quer uma parte da semana?*';
+    $l[] = 'Põe *offs* ou *regular* no fim do comando:';
+    $l[] = '  _/narrador next_ — a NEXT toda';
+    $l[] = '  _/narrador next offs_ — só os playoffs';
+    $l[] = '  _/narrador next regular_ — só a temporada regular';
+    $l[] = 'Sem dizer nada, vale pras duas.';
+    $l[] = '';
+    $l[] = '*Outra liga?* Põe o nome: _/comentarista rise_. Sem o nome, vale '
+         . 'a liga do seu time.';
+    $l[] = '';
+    $l[] = '*Os outros comandos*';
+    $l[] = '/verescala — quem se ofereceu e quem já está escalado';
+    $l[] = '/sair — tira você da escala da semana (e o bot chama o próximo da fila)';
+    $l[] = '/escala — abre a chamada da semana no grupo';
+    $l[] = '/live — este texto aqui';
+    $l[] = '';
+    // O silêncio no sucesso é a única parte que confunde: a pessoa manda o
+    // comando, não acontece nada visível, e ela reenvia achando que falhou.
+    // Dizer isso aqui evita a dúvida antes dela existir.
+    $l[] = '_O bot não responde quando dá certo — é pra não encher o grupo. '
+         . 'Se você escrever algo errado, aí sim ele avisa. Pra conferir se '
+         . 'entrou, manda /verescala._';
+    $l[] = '';
+    $l[] = '_Quem for escalado recebe aviso, e a live entra no calendário do '
+         . 'site._';
+    return implode("\n", $l);
+}
+
 /** Quem se ofereceu e quem já está escalado, pro grupo. */
 function escalaTextoVer(PDO $pdo, string $liga, ?string $semana = null): string
 {
