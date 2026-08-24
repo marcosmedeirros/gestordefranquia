@@ -79,7 +79,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                   (string)($_POST['fase'] ?? 'todas'))
                 : ['ok' => false, 'novo' => false, 'erro' => 'Escolha uma pessoa da lista.'];
             $_SESSION['escala_flash'] = $r['ok']
-                ? ['ok', $r['novo'] ? 'Adicionado à lista.' : 'Essa pessoa já estava nessa função.']
+                ? ['ok', $r['novo']  ? 'Adicionado à lista.'
+                       : ($r['mudou'] ? 'Mudei quando essa pessoa entra.'
+                                      : 'Essa pessoa já estava assim.')]
                 : ['erro', (string)$r['erro']];
 
         } elseif (isset($_POST['tirar_disp']) && $podeEscalar) {
@@ -217,6 +219,18 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   .grupo-fase::after{content:"";flex:1;height:1px;background:var(--border)}
   .grupo-fase span{font-weight:700;letter-spacing:0}
   .grupo-fase:first-child{padding-top:2px}
+  /* O seletor de fase de quem já está na lista. Sem borda e transparente
+     até o hover: são até quatro por coluna, e quatro caixinhas desenhadas
+     competiriam com os nomes, que é o que se lê ali. */
+  .f-fase{display:inline-flex;flex:none}
+  .f-fase select{background:transparent;border:1px solid transparent;color:var(--text-3);
+                 font-size:10.5px;font-weight:700;padding:2px 3px;max-width:none;cursor:pointer}
+  .p:hover .f-fase select,.f-fase select:focus{border-color:var(--border-md);background:var(--panel-3)}
+  .f-fase select:focus{outline:none;border-color:var(--red);color:var(--text)}
+  /* Enquanto o envio está no ar. Só cursor e opacidade: a troca é rápida e
+     um spinner piscando a cada clique cansa mais do que informa. */
+  body.esperando{cursor:progress}
+  body.esperando #bloco-pool,body.esperando #bloco-escala{opacity:.6;pointer-events:none}
   .add-disp{display:flex;gap:6px;margin-top:8px}
   .sel-fase{flex:none;max-width:82px;font-size:11px;padding:5px 4px}
   .busca{flex:1;min-width:0;font-family:var(--font);font-size:12px;border-radius:8px;padding:6px 9px;
@@ -297,8 +311,10 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
     <?php /* .content é o que dá o respiro lateral nas outras telas (32px). */ ?>
     <div class="content">
 
-  <?php if ($msg): ?><div class="aviso ok"><i class="bi bi-check-circle-fill"></i> <?= $esc($msg) ?></div><?php endif; ?>
-  <?php if ($erro): ?><div class="aviso bad"><i class="bi bi-exclamation-triangle-fill"></i> <?= $esc($erro) ?></div><?php endif; ?>
+  <div id="bloco-aviso">
+    <?php if ($msg): ?><div class="aviso ok"><i class="bi bi-check-circle-fill"></i> <?= $esc($msg) ?></div><?php endif; ?>
+    <?php if ($erro): ?><div class="aviso bad"><i class="bi bi-exclamation-triangle-fill"></i> <?= $esc($erro) ?></div><?php endif; ?>
+  </div>
 
   <div class="barra">
     <?php foreach (CALENDARIO_LIGAS as $lg): ?>
@@ -323,7 +339,7 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
            quem vem montar a escala dos outros. */ ?>
 
   <!-- ── Quem se ofereceu ────────────────────────────────────────────── -->
-  <div class="cx">
+  <div class="cx" id="bloco-pool">
     <h2>Quem se ofereceu — <?= $liga ?></h2>
     <div class="funcs">
       <?php foreach ($FUNCOES as $k => $f): ?>
@@ -347,7 +363,7 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
           // Sem ninguém restrito, não há o que separar — a lista sai simples,
           // como antes. Cabeçalho de grupo único não informa nada.
           $separar = $porFase['regular'] || $porFase['playoffs'];
-          $CABECA  = ['todas' => 'vale pra tudo', 'regular' => 'só regular', 'playoffs' => 'só offs'];
+          $CABECA  = ['todas' => 'ambos', 'regular' => 'só regular', 'playoffs' => 'só offs'];
         ?>
         <div class="gente">
           <?php if (!$disponiveis[$k]): ?>
@@ -362,6 +378,23 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
               <img src="<?= $esc($g['foto'] ?: '/img/default-avatar.png') ?>" alt=""
                    onerror="this.src='/img/default-avatar.png'">
               <span><?= $esc($g['nome']) ?></span>
+              <?php if ($podeEscalar && $temDuasFases): ?>
+              <?php /* Trocar a fase de quem já está na lista, sem tirar e pôr
+                       de novo. Reaproveita o add_disp: o INSERT ... ON
+                       DUPLICATE já trata "essa pessoa nessa função" como uma
+                       linha só, então mandar de novo com outra fase É a
+                       edição. */ ?>
+              <form method="POST" class="f-fase">
+                <input type="hidden" name="usuario" value="<?= (int)$g['id'] ?>">
+                <input type="hidden" name="funcao" value="<?= $k ?>">
+                <input type="hidden" name="add_disp" value="1">
+                <select name="fase" title="Quando essa pessoa entra">
+                  <?php foreach (['todas' => 'ambos', 'regular' => 'só regular', 'playoffs' => 'só offs'] as $v => $rot): ?>
+                  <option value="<?= $v ?>" <?= ($g['fase'] ?? 'todas') === $v ? 'selected' : '' ?>><?= $rot ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </form>
+              <?php endif; ?>
               <?php if ($podeEscalar): ?>
               <form method="POST" style="display:inline"
                     data-confirmar="Tirar <?= $esc($g['nome']) ?> de <?= $esc($f['rotulo']) ?>?">
@@ -427,7 +460,7 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   </div>
 
   <!-- ── A escala ────────────────────────────────────────────────────── -->
-  <div class="cx">
+  <div class="cx" id="bloco-escala">
     <h2>A escala da semana</h2>
     <?php if (!$lives): ?>
       <div class="vazio">
@@ -558,47 +591,9 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 <script src="/js/tema.js"></script>
 
 <?php if ($podeEscalar): ?>
-<script>
-/**
- * O datalist devolve o NOME digitado, e o servidor precisa do id. Isto faz a
- * tradução na hora do envio.
- *
- * Casa por nome exato de propósito. Digitar meio nome e mandar não escala a
- * primeira pessoa que começa igual — o hidden fica vazio e o servidor
- * responde "Escolha uma pessoa da lista". Escalar a pessoa errada por causa
- * de um prefixo seria pior que um aviso.
- */
-(function () {
-  var porNome = {};
-  document.querySelectorAll('#gente-liga option').forEach(function (o) {
-    // O primeiro vence: se dois GMs tiverem o mesmo nome, o servidor ainda
-    // valida o id, e o admin vê quem entrou no aviso.
-    if (!(o.value in porNome)) porNome[o.value] = o.dataset.id;
-  });
-
-  document.querySelectorAll('.add-disp').forEach(function (form) {
-    var busca = form.querySelector('.busca');
-    var alvo  = document.getElementById(busca.dataset.alvo);
-
-    var casar = function () { alvo.value = porNome[busca.value.trim()] || ''; };
-    busca.addEventListener('input', casar);
-    busca.addEventListener('change', casar);
-
-    form.addEventListener('submit', function (ev) {
-      casar();
-      if (alvo.value) return;
-      ev.preventDefault();
-      window.avisarSite(
-        busca.value.trim()
-          ? 'Não achei "' + busca.value.trim() + '" na liga. Escolha um nome da lista.'
-          : 'Digite o nome de quem entra nessa função.',
-        'aviso'
-      );
-      busca.focus();
-    });
-  });
-})();
-</script>
+<?php /* A escala sem recarregar a pagina. Ver o arquivo — a estrategia
+         inteira esta comentada la. */ ?>
+<script src="/js/escala-live.js"></script>
 <?php endif; ?>
 </body>
 </html>

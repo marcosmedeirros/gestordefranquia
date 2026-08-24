@@ -48,7 +48,7 @@ function livesDaGrade(): array
         ['NEXT',   1, '19:30', 'Regular NEXT',    null, '2026-08-31'],
         ['NEXT',   2, '19:30', 'Playoffs NEXT',   null, null],
         ['ELITE',  3, '19:00', 'Regular ELITE',   null, null],
-        ['ELITE',  4, '19:00', 'Regular ELITE',   null, null],
+        ['ELITE',  4, '19:00', 'Playoffs ELITE',  null, null],
         ['RISE',   5, '14:00', 'Regular RISE',    null, null],
         ['RISE',   5, '19:00', 'Playoffs RISE',   null, null],
         ['ROOKIE', 6, '11:00', 'ROOKIE',          'Pode ser às 11h ou às 14h — confirmar na semana.', null],
@@ -92,9 +92,15 @@ function semearLives(PDO $pdo, bool $gravar): array
         return $d->modify("+{$passos} days")->format('Y-m-d');
     };
 
-    $existe = $pdo->prepare("SELECT id, inicio FROM calendario_eventos
+    $existe = $pdo->prepare("SELECT id, inicio, titulo FROM calendario_eventos
                               WHERE league = ? AND tipo = 'live' AND repete = 'semanal'
                                 AND DAYOFWEEK(inicio) = ? AND TIME(inicio) = ?");
+    // Corrigir o título de uma live que já existe. A live é reconhecida pelo
+    // trio (liga, dia, hora) e não pelo nome, então trocar "Regular ELITE"
+    // por "Playoffs ELITE" na grade não chegava sozinho ao banco. E o título
+    // não é decoração: é dele que sai a FASE, então um nome errado põe gente
+    // que só topa offs numa live de regular.
+    $renomear = $pdo->prepare("UPDATE calendario_eventos SET titulo = ? WHERE id = ?");
     // Adiantar o começo de uma live que já existe. Só pra trás: a Regular
     // NEXT foi criada começando em 07/09 e o certo era 31/08, e sem isto o
     // semeador diria "já existe" pra sempre sem corrigir nada. Empurrar pra
@@ -116,13 +122,17 @@ function semearLives(PDO $pdo, bool $gravar): array
              . ' (a partir de ' . date('d/m', strtotime($quando)) . ')';
 
         if ($ja = $existe->fetch(PDO::FETCH_ASSOC)) {
+            $mudou = [];
             if (strtotime($quando) < strtotime((string)$ja['inicio'])) {
-                $out['ajustados'][] = $rot . ' — começava em '
-                    . date('d/m', strtotime((string)$ja['inicio']));
+                $mudou[] = 'começava em ' . date('d/m', strtotime((string)$ja['inicio']));
                 if ($gravar) $adiantar->execute([$quando, $ja['id']]);
-            } else {
-                $out['existiam'][] = $rot;
             }
+            if (trim((string)$ja['titulo']) !== $titulo) {
+                $mudou[] = 'chamava "' . $ja['titulo'] . '"';
+                if ($gravar) $renomear->execute([$titulo, $ja['id']]);
+            }
+            if ($mudou) $out['ajustados'][] = $rot . ' — ' . implode(', ', $mudou);
+            else        $out['existiam'][]  = $rot;
             continue;
         }
         $out['criados'][] = $rot;

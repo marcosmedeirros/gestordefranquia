@@ -259,17 +259,19 @@ function escalaAdicionar(PDO $pdo, int $userId, string $liga, string $funcao, ?s
                              (semana, league, id_usuario, funcao, fase, origem) VALUES (?,?,?,?,?,'bot')
                              ON DUPLICATE KEY UPDATE fase = VALUES(fase)");
         $st->execute([$semana, $liga, $userId, $funcao, $fase]);
-        // rowCount: 1 = inseriu, 2 = atualizou, 0 = mandou igual ao que já
-        // estava. Só o 1 é "novo".
-        $novo = $st->rowCount() === 1;
+        // rowCount do MySQL neste INSERT: 1 = inseriu, 2 = atualizou a fase,
+        // 0 = mandou igual ao que já estava. Os três casos merecem resposta
+        // diferente — "já estava" depois de trocar a fase seria mentira.
+        $n = $st->rowCount();
 
         $q = $pdo->prepare("SELECT funcao FROM escala_disponibilidade
                              WHERE semana=? AND league=? AND id_usuario=? ORDER BY funcao");
         $q->execute([$semana, $liga, $userId]);
-        return ['ok' => true, 'novo' => $novo, 'erro' => null, 'todas' => $q->fetchAll(PDO::FETCH_COLUMN)];
+        return ['ok' => true, 'novo' => $n === 1, 'mudou' => $n === 2,
+                'erro' => null, 'todas' => $q->fetchAll(PDO::FETCH_COLUMN)];
     } catch (Throwable $e) {
         error_log('[escala] adicionar: ' . $e->getMessage());
-        return ['ok' => false, 'novo' => false, 'erro' => 'Não deu pra registrar agora.', 'todas' => []];
+        return ['ok' => false, 'novo' => false, 'mudou' => false, 'erro' => 'Não deu pra registrar agora.', 'todas' => []];
     }
 }
 
@@ -793,7 +795,8 @@ function escalaDosEventos(PDO $pdo, array $ligas, string $de, string $ate): arra
     $out = [];
     try {
         $ph = implode(',', array_fill(0, count($ligas), '?'));
-        $st = $pdo->prepare("SELECT e.evento_id, e.data, e.funcao, u.id, u.name AS nome
+        $st = $pdo->prepare("SELECT e.evento_id, e.data, e.funcao, u.id, u.name AS nome,
+                                    u.photo_url AS foto
                                FROM escala_lives e
                                JOIN users u ON u.id = e.id_usuario
                               WHERE e.data BETWEEN ? AND ? AND e.league IN ($ph)
@@ -805,6 +808,10 @@ function escalaDosEventos(PDO $pdo, array $ligas, string $de, string $ate): arra
                 'rotulo' => $F[$r['funcao']]['rotulo'] ?? $r['funcao'],
                 'nome'   => $r['nome'],
                 'id'     => (int)$r['id'],
+                // A foto vem resolvida daqui e não montada no JS: getUserPhoto
+                // é quem sabe o que fazer com foto vazia, e ter essa regra em
+                // dois lugares é como elas passam a divergir.
+                'foto'   => function_exists('getUserPhoto') ? getUserPhoto($r['foto']) : ($r['foto'] ?: ''),
             ];
         }
     } catch (Throwable $e) {

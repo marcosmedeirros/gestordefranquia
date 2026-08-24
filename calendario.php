@@ -133,6 +133,16 @@ $ligasAdmin = array_values(array_intersect(
     }
     .cal-ev span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .cal-ev i{flex-shrink:0;font-size:10px}
+    /* As carinhas de quem está na live. margin-left:auto joga pra direita e
+       flex:none impede que elas cedam espaço — é o título que encurta, não
+       as caras, porque "Regular ELI…" ainda se entende e meia cara não. */
+    .cal-ev-gente{margin-left:auto;flex:none;display:flex;align-items:center}
+    .cal-ev-gente img{width:14px;height:14px;border-radius:50%;object-fit:cover;
+                      border:1px solid var(--panel);margin-left:-4px}
+    /* O empilhamento só funciona se o primeiro não recuar. */
+    .cal-ev-gente img:first-child{margin-left:0}
+    .cal-ev-gente img.eu{border-color:var(--c)}
+    .cal-ev-gente b{font-size:8.5px;margin-left:3px;opacity:.75}
     .cal-mais{font-size:10px;color:var(--text-3);font-weight:700;padding-left:4px}
 
     /* ── Lista (mobile e "próximos") ──────────────────────────────── */
@@ -154,11 +164,17 @@ $ligasAdmin = array_values(array_intersect(
     .cal-escala{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:5px;
                 font-size:11px;color:var(--text-2)}
     .cal-escala > i{font-size:11px;color:var(--text-3)}
-    .cal-esc{background:var(--panel-2);border:1px solid var(--border);border-radius:20px;padding:2px 9px}
-    .cal-esc b{color:var(--text-3);font-weight:800;margin-right:4px}
+    .cal-esc{background:var(--panel-2);border:1px solid var(--border);border-radius:20px;
+             padding:2px 9px 2px 7px;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .cal-esc b{color:var(--text-3);font-weight:800}
+    /* Nome com a fotinha. O avatar é reconhecido antes do nome ser lido. */
+    .cal-esc-p{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+    .cal-esc-p img{width:17px;height:17px;border-radius:50%;object-fit:cover;flex:none;
+                   border:1px solid var(--border-md)}
     /* O SEU nome destacado: numa lista de nomes, achar o próprio é a
        primeira coisa que a pessoa faz. */
-    .cal-esc-eu{font-style:normal;font-weight:800;color:var(--red)}
+    .cal-esc-p.eu{font-weight:800;color:var(--red)}
+    .cal-esc-p.eu img{border-color:var(--red)}
     .cal-tag{
       display:inline-flex;align-items:center;gap:4px;padding:1px 7px 1px 3px;border-radius:999px;
       font-size:9.5px;font-weight:800;background:color-mix(in srgb,var(--c) 16%,transparent);
@@ -392,7 +408,7 @@ function pintarGrade() {
       <div class="cal-num">${d.getDate()}</div>
       ${evs.slice(0, 3).map(e => `
         <button class="cal-ev" style="--c:${e.cor}" data-id="${e.id}">
-          <i class="bi ${e.tipo_icone}"></i><span>${esc(e.titulo)}</span>
+          <i class="bi ${e.tipo_icone}"></i><span>${esc(e.titulo)}</span>${avataresHtml(e)}
         </button>`).join('')}
       ${evs.length > 3 ? `<div class="cal-mais">+${evs.length - 3}</div>` : ''}
     </div>`;
@@ -458,6 +474,27 @@ function logoLiga(liga) {
     onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'bi bi-calendar3'}))">`;
 }
 
+/**
+ * As carinhas de quem está na live, pra pastilha da grade.
+ *
+ * Só as caras, sem nome: a pastilha tem 45px de coluna e mal cabe o título.
+ * O nome de cada um está a um clique, no detalhe do evento — aqui o que
+ * importa é bater o olho na semana e ver que a quinta tem gente e a quarta
+ * não.
+ *
+ * Para em três e mostra "+n". Uma live com seis escalados viraria uma
+ * fileira de bolinhas mais larga que o dia.
+ */
+function avataresHtml(e) {
+  const es = e.escala || [];
+  if (!es.length) return '';
+  const caras = es.slice(0, 3).map(n =>
+    `<img src="${esc(n.foto || '/img/default-avatar.png')}" alt="" title="${esc(n.rotulo)}: ${esc(n.nome)}"
+      class="${n.id === EU_ID ? 'eu' : ''}" onerror="this.src='/img/default-avatar.png'">`).join('');
+  return `<span class="cal-ev-gente">${caras}${
+    es.length > 3 ? `<b>+${es.length - 3}</b>` : ''}</span>`;
+}
+
 function escalaHtml(e) {
   const es = e.escala || [];
   if (!es.length) return '';
@@ -469,12 +506,15 @@ function escalaHtml(e) {
     porFuncao.get(x.funcao).nomes.push(x);
   });
 
+  // A fotinha antes do nome. Numa liga de trinta GMs a cara é reconhecida
+  // antes do nome ser lido — e é o que faz olhar a live no calendário e já
+  // saber quem está nela.
+  const pessoa = n => `<span class="cal-esc-p${n.id === EU_ID ? ' eu' : ''}">` +
+    `<img src="${esc(n.foto || '/img/default-avatar.png')}" alt="" loading="lazy"` +
+    ` onerror="this.src='/img/default-avatar.png'">${esc(n.nome)}</span>`;
+
   const partes = [...porFuncao.values()].map(f =>
-    `<span class="cal-esc"><b>${esc(f.rotulo)}</b> ${
-      f.nomes.map(n => n.id === EU_ID
-        ? `<em class="cal-esc-eu">${esc(n.nome)}</em>`
-        : esc(n.nome)).join(', ')
-    }</span>`);
+    `<span class="cal-esc"><b>${esc(f.rotulo)}</b>${f.nomes.map(pessoa).join('')}</span>`);
 
   return `<div class="cal-escala"><i class="bi bi-people-fill"></i>${partes.join('')}</div>`;
 }
@@ -519,6 +559,7 @@ function abrirEvento(id) {
           ${e.fim ? ' — até ' + soData(e.fim).split('-').reverse().join('/') : ''}
         </div>
         ${e.descricao ? `<div style="margin-top:8px;font-size:12.5px;color:var(--text-2)">${esc(e.descricao)}</div>` : ''}
+        ${escalaHtml(e)}
         ${e.link ? `<div style="margin-top:10px"><a class="cal-link" href="${esc(e.link)}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> ${esc(e.link)}</a></div>` : ''}
       </div>
     </div>`;
@@ -573,7 +614,20 @@ function abrirForm(e) {
     <div class="cal-campo"><label>Link <span style="text-transform:none;font-weight:600">(opcional)</span></label>
       <input id="fLink" placeholder="youtube.com/..." value="${esc(e.link || '')}"></div>
     <div class="cal-campo"><label>Descrição <span style="text-transform:none;font-weight:600">(opcional)</span></label>
-      <textarea id="fDesc" rows="2">${esc(e.descricao || '')}</textarea></div>`;
+      <textarea id="fDesc" rows="2">${esc(e.descricao || '')}</textarea></div>
+    ${(e.escala || []).length ? `
+    <?php /* Quem administra é justamente quem quer saber quem está na live —
+             e o clique dele abre este formulário, não a tela de detalhe.
+             Sem isto, a única pessoa que NÃO via a escala era ela. Só
+             leitura: quem monta escala é a tela da escala. */ ?>
+    <div class="cal-campo" style="margin-top:2px">
+      <label>Quem está nesta live</label>
+      ${escalaHtml(e)}
+      <a class="cal-link" href="/escalalive.php?liga=${esc(e.league)}"
+         style="margin-top:7px;display:inline-flex">
+        <i class="bi bi-broadcast"></i> Mexer na escala
+      </a>
+    </div>` : ''}`;
 
   document.getElementById('calModalRodape').innerHTML = `
     ${novo ? '' : '<button class="cal-b perigo" id="bApagar"><i class="bi bi-trash"></i> Apagar</button>'}
