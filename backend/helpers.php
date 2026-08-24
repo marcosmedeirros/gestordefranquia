@@ -1960,12 +1960,27 @@ function idadePor(?string $nascimento): ?int
     }
 }
 
-/** "São Paulo, SP" — ou só o que existir. Vazio quando não há nada. */
-function localDoGM(?string $cidade, ?string $uf): string
+/** A sigla que marca quem mora fora do Brasil. */
+const UF_EXTERIOR = 'EX';
+
+/**
+ * "São Paulo, SP", "Lisboa, Portugal" — ou só o que existir.
+ *
+ * Fora do Brasil o rótulo é o PAÍS e não "EX": a sigla é como o banco
+ * guarda, e mostrar ela na tela seria vazar o jeito de guardar pra cima de
+ * quem só quer ler de onde a pessoa é.
+ */
+function localDoGM(?string $cidade, ?string $uf, ?string $pais = null): string
 {
     $cidade = trim((string)$cidade);
-    $uf = normalizarUF($uf);
-    if ($cidade !== '' && $uf) return $uf === 'EX' ? $cidade : $cidade . ', ' . $uf;
+    $pais   = trim((string)$pais);
+    $uf     = normalizarUF($uf);
+
+    if ($uf === UF_EXTERIOR) {
+        if ($cidade !== '' && $pais !== '') return $cidade . ', ' . $pais;
+        return $pais !== '' ? $pais : ($cidade !== '' ? $cidade : 'Fora do Brasil');
+    }
+    if ($cidade !== '' && $uf) return $cidade . ', ' . $uf;
     if ($cidade !== '') return $cidade;
     return $uf ? (estadosBrasileiros()[$uf]) : '';
 }
@@ -1981,11 +1996,11 @@ function localDoGM(?string $cidade, ?string $uf): string
  * estados pintados parece dizer que a liga tem três GMs, quando na verdade
  * diz que o campo é novo. O número de fora é o que impede essa leitura.
  *
- * @return array{por_uf:array<string,int>, total:int, sem:int, maior:int}
+ * @return array{por_uf:array<string,int>, total:int, sem:int, fora:int, maior:int}
  */
 function gmsPorEstado(PDO $pdo): array
 {
-    $out = ['por_uf' => [], 'total' => 0, 'sem' => 0, 'maior' => 0];
+    $out = ['por_uf' => [], 'total' => 0, 'sem' => 0, 'fora' => 0, 'maior' => 0];
     try {
         $linhas = $pdo->query("SELECT state, COUNT(*) AS n FROM users GROUP BY state")
                       ->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -1994,6 +2009,11 @@ function gmsPorEstado(PDO $pdo): array
             $out['total'] += $n;
             $uf = normalizarUF($r['state'] ?? null);
             if (!$uf) { $out['sem'] += $n; continue; }
+            // Quem mora fora fica FORA do por_uf, e não é detalhe: 'EX' não
+            // tem contorno no mapa, mas entrava na conta do maior. Cinco GMs
+            // no exterior desbotavam o Brasil inteiro — a escala passava a
+            // ser medida por um estado que não é desenhado em lugar nenhum.
+            if ($uf === UF_EXTERIOR) { $out['fora'] += $n; continue; }
             $out['por_uf'][$uf] = ($out['por_uf'][$uf] ?? 0) + $n;
             $out['maior'] = max($out['maior'], $out['por_uf'][$uf]);
         }
@@ -2005,75 +2025,64 @@ function gmsPorEstado(PDO $pdo): array
 }
 
 /**
- * Os GMs agrupados por cidade, do lugar mais cheio pro mais vazio.
+ * Quem está no mapa, uma linha por GM.
  *
- * O mapa sozinho responde "que estado", e estado é grosso demais: São Paulo
- * pintado de vermelho não diz se são doze GMs da capital ou doze espalhados
- * pelo interior. A lista ao lado é quem responde isso.
+ * Por PESSOA e não agrupado por cidade, e a diferença importa: agrupado, a
+ * busca por nome não teria em que bater, e clicar num estado mostraria
+ * "São Paulo · 6" em vez de quem são os seis. Contar por estado o mapa já
+ * faz — o que a lista tem de dizer é quem.
  *
- * Cidade sem nome preenchido entra como uma linha só do estado — o GM
- * disse de que estado é, e jogar isso fora seria esconder gente que
- * respondeu metade da pergunta.
+ * Traz cidade, UF e país já prontos pra busca (em minúsculas, sem acento):
+ * normalizar a cada tecla digitada seria refazer o mesmo trabalho quinhentas
+ * vezes por letra, e quem digita "sao paulo" espera achar São Paulo.
  *
- * @return array<int, array{uf:string, cidade:?string, n:int}>
+ * @return array<int, array{nome:string,foto:?string,uf:string,cidade:?string,pais:?string,local:string,busca:string}>
  */
-function gmsPorCidade(PDO $pdo, int $limite = 60): array
+function gmsNoMapa(PDO $pdo, int $limite = 400): array
 {
     try {
-        // Agrupa por cidade JÁ NORMALIZADA (sem espaço em volta, caixa
-        // unificada na comparação): "recife" e "Recife " são a mesma cidade,
-        // e sem isso a lista mostraria a mesma cidade duas vezes com metade
-        // da contagem em cada.
-        $st = $pdo->prepare("SELECT state AS uf, NULLIF(TRIM(city), '') AS cidade, COUNT(*) AS n
+        $st = $pdo->prepare("SELECT name, photo_url, state, NULLIF(TRIM(city), '') AS city,
+                                    NULLIF(TRIM(country), '') AS country
                                FROM users
                               WHERE state IS NOT NULL AND state <> ''
-                              GROUP BY state, NULLIF(TRIM(city), '')
-                              ORDER BY n DESC, cidade ASC
+                              ORDER BY state ASC, city ASC, name ASC
                               LIMIT " . max(1, $limite));
         $st->execute();
+
         $out = [];
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
-            $uf = normalizarUF($r['uf']);
+            $uf = normalizarUF($r['state']);
             if (!$uf) continue;
-            $out[] = ['uf' => $uf, 'cidade' => $r['cidade'] ?: null, 'n' => (int)$r['n']];
+            $local = localDoGM($r['city'], $uf, $r['country']);
+            $out[] = [
+                'nome'   => (string)$r['name'],
+                'foto'   => $r['photo_url'] ?: null,
+                'uf'     => $uf,
+                'cidade' => $r['city'] ?: null,
+                'pais'   => $r['country'] ?: null,
+                'local'  => $local,
+                'busca'  => textoParaBusca($r['name'] . ' ' . $local . ' ' . $uf),
+            ];
         }
         return $out;
     } catch (Throwable $e) {
-        error_log('[gmsPorCidade] ' . $e->getMessage());
+        error_log('[gmsNoMapa] ' . $e->getMessage());
         return [];
     }
 }
 
 /**
- * O Brasil como grade de quadradinhos — linha, coluna e sigla.
+ * Texto pronto pra comparar: minúsculo e sem acento.
  *
- * Cartograma e não mapa de verdade, de propósito. O contorno real precisa de
- * quilobytes de path por estado, e no celular Sergipe e Alagoas viram dois
- * riscos onde não dá pra clicar nem ler o número. Aqui cada estado ocupa o
- * mesmo quadrado: a comparação fica honesta (área não distorce a contagem) e
- * o mesmo desenho serve num telefone.
- *
- * A posição é a geografia aproximada — AC a oeste, RR e AP no topo, RS
- * embaixo. Não é exata e nem tenta ser; serve pra achar o seu estado.
- *
- * @return array<int, array{uf:string, l:int, c:int}>
+ * Sem tirar o acento, quem digita "sao paulo" ou "brasilia" — que é o que
+ * se digita de fato, sem parar pra achar o til — não acha nada.
  */
-function gradeDoBrasil(): array
+function textoParaBusca(string $t): string
 {
-    $linhas = [
-        1 => [3 => 'RR', 4 => 'AP'],
-        2 => [2 => 'AM', 3 => 'PA', 4 => 'MA', 5 => 'CE', 6 => 'RN'],
-        3 => [1 => 'AC', 2 => 'RO', 3 => 'TO', 4 => 'PI', 5 => 'PE', 6 => 'PB'],
-        4 => [2 => 'MT', 3 => 'GO', 4 => 'BA', 5 => 'AL', 6 => 'SE'],
-        5 => [2 => 'MS', 3 => 'DF', 4 => 'MG', 5 => 'ES'],
-        6 => [3 => 'PR', 4 => 'SP', 5 => 'RJ'],
-        7 => [3 => 'RS', 4 => 'SC'],
-    ];
-    $out = [];
-    foreach ($linhas as $l => $cols) {
-        foreach ($cols as $c => $uf) $out[] = ['uf' => $uf, 'l' => $l, 'c' => $c];
-    }
-    return $out;
+    $t = mb_strtolower(trim($t), 'UTF-8');
+    $de = ['á','à','ã','â','ä','é','ê','ë','í','ï','ó','ô','õ','ö','ú','ü','ç','ñ'];
+    $pra = ['a','a','a','a','a','e','e','e','i','i','o','o','o','o','u','u','c','n'];
+    return str_replace($de, $pra, $t);
 }
 
 /**

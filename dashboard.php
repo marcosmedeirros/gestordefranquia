@@ -208,10 +208,10 @@ $mapaGMs = gmsPorEstado($pdo);
 // dele antes de mexer.
 require_once __DIR__ . '/includes/mapa-brasil.php';
 
-// A lista ao lado do mapa. Estado e grosso demais sozinho: Sao Paulo
-// vermelho nao diz se sao doze GMs da capital ou doze espalhados pelo
-// interior — quem responde isso e a cidade.
-$mapaCidades = gmsPorCidade($pdo);
+// A lista ao lado do mapa, uma linha por GM. Por pessoa e nao agrupado por
+// cidade porque a busca por NOME precisa de algo em que bater, e clicar num
+// estado tem que mostrar quem sao — contar o mapa ja faz.
+$mapaGente = gmsNoMapa($pdo);
 
 // O SEU estado sai do banco e não da sessão. A coluna é nova: quem está
 // logado desde antes da migração tem um $user sem ela, e o mapa dizia
@@ -783,22 +783,32 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         .mapa-svg { width:100%; max-width:440px; display:block; margin:0 auto; }
 
         .mapa-lista { flex:1 1 260px; min-width:0; display:flex; flex-direction:column; }
+        .mapa-lista-topo { margin-bottom:10px; }
         .mapa-lista-tit { font-size:10.5px; font-weight:800; letter-spacing:.9px;
                           text-transform:uppercase; color:var(--text-3); margin-bottom:8px; }
+        .mapa-busca { position:relative; }
+        .mapa-busca i { position:absolute; left:10px; top:50%; transform:translateY(-50%);
+                        font-size:12px; color:var(--text-3); pointer-events:none; }
+        .mapa-busca input { width:100%; background:var(--panel-2); border:1px solid var(--border-md);
+                            color:var(--text); font-family:var(--font); font-size:12.5px;
+                            border-radius:9px; padding:8px 10px 8px 30px; }
+        .mapa-busca input:focus { outline:none; border-color:var(--border-red); }
+
+        .mapa-gm { display:flex; align-items:center; gap:9px; padding:5px 7px; border-radius:8px; }
+        .mapa-gm:hover { background:var(--panel-2); }
+        .mapa-gm.oculta { display:none; }
+        .mapa-gm-foto { width:28px; height:28px; border-radius:50%; object-fit:cover;
+                        flex:none; border:1px solid var(--border-md); }
+        .mapa-gm-txt { flex:1; min-width:0; }
+        .mapa-gm-nome { font-size:12.5px; font-weight:700; white-space:nowrap;
+                        overflow:hidden; text-overflow:ellipsis; }
+        .mapa-gm-local { font-size:11px; color:var(--text-3); white-space:nowrap;
+                         overflow:hidden; text-overflow:ellipsis; }
+        .mapa-gm-fora { font-size:12px; color:var(--text-3); flex:none; }
         /* Rolagem propria: a lista cresce com a liga e, sem teto, um dia ela
            estica o card e o mapa fica com metros de branco do lado. */
         .mapa-lista-rolo { overflow-y:auto; max-height:300px; display:flex;
                            flex-direction:column; gap:2px; padding-right:4px; }
-        .mapa-cid { display:flex; align-items:center; gap:9px; padding:6px 8px;
-                    border-radius:8px; font-size:12.5px; }
-        .mapa-cid:hover { background:var(--panel-2); }
-        .mapa-cid.oculta { display:none; }
-        .mapa-cid-uf { font-size:9.5px; font-weight:800; color:var(--text-3);
-                       background:var(--panel-2); border-radius:5px; padding:2px 5px;
-                       flex:none; letter-spacing:.4px; }
-        .mapa-cid-nome { flex:1; min-width:0; white-space:nowrap; overflow:hidden;
-                         text-overflow:ellipsis; font-weight:600; }
-        .mapa-cid-n { font-weight:800; color:var(--red); font-variant-numeric:tabular-nums; flex:none; }
         .mapa-lista-vazio { font-size:12px; color:var(--text-3); padding:14px 8px; }
         @media (max-width: 720px) {
             .mapa-dupla { flex-direction:column; }
@@ -2240,24 +2250,41 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                             </div>
 
                             <aside class="mapa-lista" id="mapaLista">
-                                <div class="mapa-lista-tit" id="mapaListaTit">
-                                    <?= $mapaCidades ? 'De onde são' : 'Ninguém no mapa ainda' ?>
+                                <div class="mapa-lista-topo">
+                                    <div class="mapa-lista-tit" id="mapaListaTit">
+                                        <?= $mapaGente ? 'De onde são' : 'Ninguém no mapa ainda' ?>
+                                    </div>
+                                    <?php if ($mapaGente): ?>
+                                    <div class="mapa-busca">
+                                        <i class="bi bi-search"></i>
+                                        <input type="search" id="mapaBusca" autocomplete="off"
+                                               placeholder="Buscar por nome ou cidade">
+                                    </div>
+                                    <?php endif; ?>
                                 </div>
-                                <?php if ($mapaCidades): ?>
-                                <div class="mapa-lista-rolo">
-                                    <?php foreach ($mapaCidades as $c):
-                                        // data-uf e o que liga a linha ao estado clicado no mapa.
-                                        $rot = $c['cidade'] ?: 'Sem cidade informada';
-                                    ?>
-                                    <div class="mapa-cid" data-uf="<?= $c['uf'] ?>">
-                                        <span class="mapa-cid-uf"><?= $c['uf'] ?></span>
-                                        <span class="mapa-cid-nome"><?= htmlspecialchars($rot) ?></span>
-                                        <span class="mapa-cid-n"><?= $c['n'] ?></span>
+
+                                <?php if ($mapaGente): ?>
+                                <div class="mapa-lista-rolo" id="mapaListaRolo">
+                                    <?php foreach ($mapaGente as $g): ?>
+                                    <div class="mapa-gm" data-uf="<?= $g['uf'] ?>" data-busca="<?= htmlspecialchars($g['busca']) ?>">
+                                        <img class="mapa-gm-foto" loading="lazy"
+                                             src="<?= htmlspecialchars($g['foto'] ?: '/img/default-avatar.png') ?>"
+                                             alt="" onerror="this.src='/img/default-avatar.png'">
+                                        <div class="mapa-gm-txt">
+                                            <div class="mapa-gm-nome"><?= htmlspecialchars($g['nome']) ?></div>
+                                            <div class="mapa-gm-local"><?= htmlspecialchars($g['local']) ?></div>
+                                        </div>
+                                        <?php if ($g['uf'] === UF_EXTERIOR): ?>
+                                        <!-- Quem mora fora não tem onde ser pintado no mapa, então
+                                             ganha uma marca aqui: sem ela, clicar por todo o Brasil
+                                             e nunca achar a pessoa pareceria a lista estar errada. -->
+                                        <i class="bi bi-globe-americas mapa-gm-fora" title="Fora do Brasil"></i>
+                                        <?php endif; ?>
                                     </div>
                                     <?php endforeach; ?>
                                 </div>
                                 <div class="mapa-lista-vazio" id="mapaListaVazio" hidden>
-                                    Nenhum GM cadastrado neste estado.
+                                    Ninguém aqui.
                                 </div>
                                 <?php endif; ?>
                             </aside>
@@ -2283,6 +2310,11 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                             <?php else: ?>
                                 Todo mundo já disse de onde é.
                             <?php endif; ?>
+                            <?php if ($mapaGMs['fora'] > 0): ?>
+                                <!-- Fora do Brasil não tem estado pra pintar, e o mapa mudo
+                                     sobre isso faria a soma da lista não bater com a do mapa. -->
+                                · <?= (int)$mapaGMs['fora'] ?> fora do Brasil.
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -2307,9 +2339,16 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 
                 const titulo = document.getElementById('mapaListaTit');
                 const vazio  = document.getElementById('mapaListaVazio');
-                const linhas = [...lista.querySelectorAll('.mapa-cid')];
+                const busca  = document.getElementById('mapaBusca');
+                const linhas = [...lista.querySelectorAll('.mapa-gm')];
                 const rotuloPadrao = titulo ? titulo.textContent.trim() : 'De onde são';
                 let selecionado = null;
+
+                /* Mesma normalização do servidor: minúsculo e sem acento.
+                   Quem digita "sao paulo" ou "brasilia" — que é o que se
+                   digita de fato — tem que achar. */
+                const semAcento = (t) => t.toLowerCase()
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
                 function aplicar(uf) {
                     selecionado = uf;
@@ -2323,20 +2362,29 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                         if (p) svg.appendChild(p);
                     }
 
+                    // O estado e o texto filtram JUNTOS. Um zerando o outro
+                    // faria clicar no mapa parecer que apagou a busca.
+                    const termo = busca ? semAcento(busca.value.trim()) : '';
                     let visiveis = 0;
                     linhas.forEach(l => {
-                        const mostra = !uf || l.dataset.uf === uf;
+                        const mostra = (!uf || l.dataset.uf === uf)
+                                    && (!termo || l.dataset.busca.includes(termo));
                         l.classList.toggle('oculta', !mostra);
                         if (mostra) visiveis++;
                     });
 
                     if (titulo) {
-                        titulo.textContent = uf
+                        const nomeUf = uf
                             ? (svg.querySelector('path[data-uf="' + uf + '"]')?.dataset.nome || uf)
-                            : rotuloPadrao;
+                            : null;
+                        titulo.textContent = termo
+                            ? visiveis + (visiveis === 1 ? ' resultado' : ' resultados')
+                            : (nomeUf || rotuloPadrao);
                     }
                     if (vazio) vazio.hidden = visiveis > 0;
                 }
+
+                busca?.addEventListener('input', () => aplicar(selecionado));
 
                 svg.addEventListener('click', (e) => {
                     const p = e.target.closest('path');
@@ -2345,8 +2393,13 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                 });
 
                 // Clicar fora do mapa, dentro do card, também limpa.
+                // Clicar em qualquer canto do card, fora do mapa, limpa o
+                // estado — MENOS na lista e na busca: clicar no campo pra
+                // digitar não pode desfazer o estado que a pessoa escolheu.
                 svg.closest('.bc-body')?.addEventListener('click', (e) => {
-                    if (selecionado && !e.target.closest('.mapa-svg')) aplicar(null);
+                    if (!selecionado) return;
+                    if (e.target.closest('.mapa-svg') || e.target.closest('.mapa-lista')) return;
+                    aplicar(null);
                 });
             })();
             </script>

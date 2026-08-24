@@ -63,6 +63,11 @@ document.getElementById('btn-save-profile')?.addEventListener('click', async () 
     birth_date: fd.get('birth_date') || '',
     city: (fd.get('city') || '').trim(),
     state: fd.get('state') || '',
+    // O país só vai quando o check está marcado. Mandar sempre guardaria
+    // "Portugal" na conta de quem desmarcou e voltou pra São Paulo — o campo
+    // fica escondido, mas o valor continua lá dentro dele.
+    international: !!fd.get('international'),
+    country: fd.get('international') ? (fd.get('country') || '').trim() : '',
   };
   try {
     await api('user.php', { method: 'POST', body: JSON.stringify(payload) });
@@ -72,6 +77,36 @@ document.getElementById('btn-save-profile')?.addEventListener('click', async () 
     alert(err.error || 'Erro ao atualizar perfil');
   }
 });
+
+/* ── Moro fora do Brasil ────────────────────────────────────────────────
+ * Estado e País dividem a mesma casinha: só um aparece por vez. Os dois
+ * lado a lado deixariam a tela perguntando "qual estado?" pra quem acabou
+ * de dizer que mora em Portugal.
+ *
+ * O disabled no campo escondido não é enfeite: campo escondido continua
+ * sendo enviado no FormData, e sem isso a UF antiga viajaria junto com o
+ * país e o servidor teria que escolher entre dois valores contraditórios.
+ */
+(function () {
+  const chk = document.getElementById('chkInternacional');
+  const fgEstado = document.getElementById('fgEstado');
+  const fgPais = document.getElementById('fgPais');
+  if (!chk || !fgEstado || !fgPais) return;
+
+  const aplicar = () => {
+    const fora = chk.checked;
+    fgEstado.hidden = fora;
+    fgPais.hidden = !fora;
+    const sel = document.getElementById('selEstado');
+    const inp = document.getElementById('inpPais');
+    if (sel) sel.disabled = fora;
+    if (inp) inp.disabled = !fora;
+    if (fora && inp && !inp.value) inp.focus();
+  };
+
+  chk.addEventListener('change', aplicar);
+  aplicar();
+})();
 
 // Aparência: cor de destaque + atalhos do dashboard
 document.getElementById('btn-reset-accent-color')?.addEventListener('click', () => {

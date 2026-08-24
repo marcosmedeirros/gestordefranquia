@@ -1716,6 +1716,13 @@ function runMigrations() {
         if (!$hasState) {
             $pdo->exec("ALTER TABLE users ADD COLUMN state CHAR(2) NULL AFTER city");
         }
+        // Quem mora fora guarda state='EX' e o pais aqui. Coluna separada e
+        // nao o pais enfiado no campo de cidade: assim da pra agrupar por
+        // pais depois sem ter que adivinhar onde a cidade acaba.
+        $hasCountry = $pdo->query("SHOW COLUMNS FROM users LIKE 'country'")->fetch();
+        if (!$hasCountry) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN country VARCHAR(60) NULL AFTER state");
+        }
     } catch (PDOException $e) {
         $errors[] = "ajuste_users_perfil_pessoal: " . $e->getMessage();
     }

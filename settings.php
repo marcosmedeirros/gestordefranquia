@@ -24,8 +24,9 @@ $temTelefoneValido = false;
 $nascimentoSalvo = '';
 $cidadeSalva     = '';
 $estadoSalvo     = '';
+$paisSalvo       = '';
 try {
-    $stNotif = $pdo->prepare('SELECT notif_off, phone, birth_date, city, state FROM users WHERE id = ? LIMIT 1');
+    $stNotif = $pdo->prepare('SELECT notif_off, phone, birth_date, city, state, country FROM users WHERE id = ? LIMIT 1');
     $stNotif->execute([$user['id']]);
     $rowNotif = $stNotif->fetch(PDO::FETCH_ASSOC) ?: [];
     $notifOffSalvo = $rowNotif['notif_off'] ?? null;
@@ -36,6 +37,7 @@ try {
         ? (string)$rowNotif['birth_date'] : '';
     $cidadeSalva = (string)($rowNotif['city'] ?? '');
     $estadoSalvo = (string)($rowNotif['state'] ?? '');
+    $paisSalvo   = (string)($rowNotif['country'] ?? '');
 } catch (Throwable $e) {
     // Banco ainda sem a coluna — cai no padrão (tudo ligado, campos vazios).
 }
@@ -290,6 +292,11 @@ try {
         .fi:disabled { opacity: .45; cursor: not-allowed; }
         .fi option { background: var(--panel-2); }
         .fh { font-size: 11px; color: var(--text-3); margin-top: 6px; line-height: 1.45; }
+        /* Caixa de marcar do formulário. A label inteira é clicável — alvo de
+           14px no celular é o tipo de coisa que a pessoa erra três vezes. */
+        .fcheck { display: flex; align-items: center; gap: 9px; cursor: pointer;
+                  font-size: 13px; font-weight: 600; user-select: none; }
+        .fcheck input { width: 17px; height: 17px; accent-color: var(--red); cursor: pointer; flex: none; }
         .fgrid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
         /* ── Tag hint box ────────────────────────────── */
@@ -533,23 +540,45 @@ try {
                                            min="1915-01-01" max="<?= date('Y-m-d', strtotime('-8 years')) ?>">
                                     <div class="fh">Opcional. Fica só pra liga saber de quem é o aniversário.</div>
                                 </div>
+                                <?php $ehInternacional = $estadoSalvo === UF_EXTERIOR; ?>
                                 <div class="fgrid-2">
                                     <div class="fg">
                                         <label class="fl">Cidade</label>
                                         <input type="text" name="city" class="fi" maxlength="80"
                                                value="<?= htmlspecialchars($cidadeSalva) ?>" placeholder="Ex.: Recife">
                                     </div>
-                                    <div class="fg">
+                                    <!-- Estado e País ocupam a MESMA casinha, e só um aparece por
+                                         vez. Os dois lado a lado deixariam a tela perguntar
+                                         "estado?" pra quem acabou de dizer que mora em Portugal. -->
+                                    <div class="fg" id="fgEstado" <?= $ehInternacional ? 'hidden' : '' ?>>
                                         <label class="fl">Estado</label>
-                                        <select name="state" class="fi">
+                                        <select name="state" class="fi" id="selEstado">
                                             <option value="">—</option>
-                                            <?php foreach (estadosBrasileiros() as $uf => $nomeUf): ?>
+                                            <?php foreach (estadosBrasileiros() as $uf => $nomeUf):
+                                                // O EX fica de fora da lista: quem mora fora marca
+                                                // o check abaixo. Ter as duas portas pro mesmo
+                                                // lugar é como se escolhe "Fora do Brasil" e
+                                                // depois nunca se diz qual país.
+                                                if ($uf === UF_EXTERIOR) continue; ?>
                                             <option value="<?= $uf ?>" <?= $estadoSalvo === $uf ? 'selected' : '' ?>>
-                                                <?= $uf === 'EX' ? htmlspecialchars($nomeUf) : $uf . ' — ' . htmlspecialchars($nomeUf) ?>
+                                                <?= $uf . ' — ' . htmlspecialchars($nomeUf) ?>
                                             </option>
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
+                                    <div class="fg" id="fgPais" <?= $ehInternacional ? '' : 'hidden' ?>>
+                                        <label class="fl">País</label>
+                                        <input type="text" name="country" class="fi" id="inpPais" maxlength="60"
+                                               value="<?= htmlspecialchars($paisSalvo) ?>" placeholder="Ex.: Portugal">
+                                    </div>
+                                </div>
+                                <div class="fg">
+                                    <label class="fcheck">
+                                        <input type="checkbox" name="international" id="chkInternacional"
+                                               value="1" <?= $ehInternacional ? 'checked' : '' ?>>
+                                        <span>Moro fora do Brasil</span>
+                                    </label>
+                                    <div class="fh">Quem mora fora não aparece no mapa do painel — aparece na lista ao lado dele, com o país.</div>
                                 </div>
                                 <div class="btn-row">
                                     <button type="button" class="btn-red" id="btn-save-profile">

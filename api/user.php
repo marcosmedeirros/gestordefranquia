@@ -47,7 +47,8 @@ if ($method === 'POST') {
     // isso salvar a cor apagaria o endereço.
     $temPessoal = array_key_exists('birth_date', $body)
                || array_key_exists('city', $body)
-               || array_key_exists('state', $body);
+               || array_key_exists('state', $body)
+               || array_key_exists('international', $body);
 
     $nascimento = $user['birth_date'] ?? null;
     if (array_key_exists('birth_date', $body)) {
@@ -70,12 +71,29 @@ if ($method === 'POST') {
     }
 
     $estado = $user['state'] ?? null;
-    if (array_key_exists('state', $body)) {
-        $ufBruta = trim((string)$body['state']);
+    $pais   = $user['country'] ?? null;
+
+    // "Moro fora do Brasil" manda no par estado/país, e é ele que decide qual
+    // dos dois vale. Sem esse ramo, o cliente teria que mandar state='EX' na
+    // mão e nada impediria uma conta com UF do Brasil E país preenchido —
+    // duas respostas diferentes pra mesma pergunta, guardadas juntas.
+    if (!empty($body['international'])) {
+        $paisBruto = trim((string)($body['country'] ?? ''));
+        if ($paisBruto === '') {
+            jsonResponse(422, ['error' => 'Diga em que país você mora.']);
+        }
+        $estado = UF_EXTERIOR;
+        $pais   = mb_substr($paisBruto, 0, 60);
+
+    } elseif (array_key_exists('state', $body) || array_key_exists('international', $body)) {
+        $ufBruta = trim((string)($body['state'] ?? ''));
         $estado = $ufBruta === '' ? null : normalizarUF($ufBruta);
         if ($ufBruta !== '' && $estado === null) {
             jsonResponse(422, ['error' => 'Estado inválido.']);
         }
+        // Desmarcar o check apaga o país. Guardado, ele voltaria a aparecer
+        // sozinho no dia que alguém marcasse o check de novo.
+        if ($estado !== UF_EXTERIOR) $pais = null;
     }
 
     // Salvar foto se vier como data URL
@@ -163,10 +181,11 @@ if ($method === 'POST') {
         $params[] = !empty($body['whatsapp_optin']) ? 1 : 0;
     }
     if ($temPessoal) {
-        $sql     .= ', birth_date = ?, city = ?, state = ?';
+        $sql     .= ', birth_date = ?, city = ?, state = ?, country = ?';
         $params[] = $nascimento;
         $params[] = $cidade;
         $params[] = $estado;
+        $params[] = $pais;
     }
     $sql     .= ' WHERE id = ?';
     $params[] = $user['id'];
@@ -186,6 +205,7 @@ if ($method === 'POST') {
         $updated['birth_date'] = $nascimento;
         $updated['city']       = $cidade;
         $updated['state']      = $estado;
+        $updated['country']    = $pais;
     }
     setUserSession($updated);
 
