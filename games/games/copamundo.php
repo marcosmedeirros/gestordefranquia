@@ -142,7 +142,21 @@ if ($copa && $userId) {
   :root[data-theme="light"]{
     --bg:#f6f7fb; --panel:#fff; --panel-2:#f1f3f8; --panel-3:#e6eaf2;
     --border:#e3e6ee; --border-md:#d3d8e4; --text:#12141a; --text-2:#5a6070; --text-3:#7a8092;
+    /* O ouro do tema escuro dava 1.5:1 sobre fundo claro — o nome do
+       vencedor sumia na tela. Aqui ele desce até o âmbar queimado, que
+       mantém a mesma leitura de "ouro" e passa dos 4.5:1. O fundo dos
+       botões continua o ouro vivo, com texto escuro por cima. */
+    --ouro:#a35c00; --ouro-2:#8a4d00;
+    --verde:#15803d; --vermelho:#b91c1c;
   }
+  /* O botão dourado é o único lugar em que o ouro é FUNDO, e aí ele precisa
+     seguir vivo nos dois temas — o escurecido some contra o texto preto. */
+  :root[data-theme="light"] .bt.ouro{background:#f59e0b;border-color:#f59e0b;color:#241500}
+  :root[data-theme="light"] .campeao{
+    background:linear-gradient(135deg,rgba(245,158,11,.2),rgba(245,158,11,.06));
+    border-color:rgba(163,92,0,.35);
+  }
+  :root[data-theme="light"] .lado .barra{background:rgba(245,158,11,.24)}
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;
        min-height:100vh;padding-bottom:50px}
