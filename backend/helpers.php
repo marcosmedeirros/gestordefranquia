@@ -1884,3 +1884,88 @@ function anoDeCorteDasPicks(PDO $pdo, ?string $liga): int
 
     return $anos ? min($anos) : (int)date('Y');
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+ * PERFIL PESSOAL: nascimento e cidade/estado
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * As 27 unidades da federação, mais "Fora do Brasil".
+ *
+ * O EX não é enfeite: o campo de telefone da mesma tela já aceita +351 e
+ * manda incluir o código do país. Um GM em Portugal, sem essa opção, teria
+ * que escolher um estado onde não mora ou deixar o campo vazio — e nos dois
+ * casos o dado que sobra na tabela é mentira.
+ */
+function estadosBrasileiros(): array
+{
+    return [
+        'AC' => 'Acre',            'AL' => 'Alagoas',        'AP' => 'Amapá',
+        'AM' => 'Amazonas',        'BA' => 'Bahia',          'CE' => 'Ceará',
+        'DF' => 'Distrito Federal','ES' => 'Espírito Santo', 'GO' => 'Goiás',
+        'MA' => 'Maranhão',        'MT' => 'Mato Grosso',    'MS' => 'Mato Grosso do Sul',
+        'MG' => 'Minas Gerais',    'PA' => 'Pará',           'PB' => 'Paraíba',
+        'PR' => 'Paraná',          'PE' => 'Pernambuco',     'PI' => 'Piauí',
+        'RJ' => 'Rio de Janeiro',  'RN' => 'Rio Grande do Norte', 'RS' => 'Rio Grande do Sul',
+        'RO' => 'Rondônia',        'RR' => 'Roraima',        'SC' => 'Santa Catarina',
+        'SP' => 'São Paulo',       'SE' => 'Sergipe',        'TO' => 'Tocantins',
+        'EX' => 'Fora do Brasil',
+    ];
+}
+
+/** A sigla, se ela existir na lista. Qualquer outra coisa vira null. */
+function normalizarUF(?string $uf): ?string
+{
+    $uf = strtoupper(trim((string)$uf));
+    return isset(estadosBrasileiros()[$uf]) ? $uf : null;
+}
+
+/**
+ * A data de nascimento em Y-m-d, ou null se não der pra confiar nela.
+ *
+ * O checkdate é o que separa "data que o PHP aceita" de "data que existe":
+ * strtotime('2007-02-31') não reclama, ele empurra pro dia 3 de março. E o
+ * intervalo de idade barra o outro erro comum, que é o ano digitado errado —
+ * 1025 e 2205 passariam por qualquer validação de formato.
+ */
+function normalizarNascimento(?string $data): ?string
+{
+    $data = trim((string)$data);
+    if ($data === '') return null;
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $data, $m)) return null;
+    [, $a, $me, $d] = array_map('intval', $m);
+    if (!checkdate($me, $d, $a)) return null;
+
+    $idade = idadePor($data);
+    if ($idade === null || $idade < 8 || $idade > 110) return null;
+    return $data;
+}
+
+/** A idade hoje, em anos. Null quando a data não presta. */
+function idadePor(?string $nascimento): ?int
+{
+    $nascimento = trim((string)$nascimento);
+    if ($nascimento === '' || $nascimento === '0000-00-00') return null;
+    try {
+        // O fuso é fixado porque o servidor está em UTC e a liga é brasileira:
+        // sem isso, das 21h à meia-noite o "hoje" do servidor já é amanhã, e
+        // quem faz aniversário amanhã ganha um ano cedo demais.
+        $tz  = new DateTimeZone('America/Sao_Paulo');
+        $nasc = new DateTimeImmutable($nascimento, $tz);
+        $hoje = new DateTimeImmutable('now', $tz);
+        if ($nasc > $hoje) return null;
+        return (int)$nasc->diff($hoje)->y;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/** "São Paulo, SP" — ou só o que existir. Vazio quando não há nada. */
+function localDoGM(?string $cidade, ?string $uf): string
+{
+    $cidade = trim((string)$cidade);
+    $uf = normalizarUF($uf);
+    if ($cidade !== '' && $uf) return $uf === 'EX' ? $cidade : $cidade . ', ' . $uf;
+    if ($cidade !== '') return $cidade;
+    return $uf ? (estadosBrasileiros()[$uf]) : '';
+}

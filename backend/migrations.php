@@ -1692,6 +1692,35 @@ function runMigrations() {
     }
 
     try {
+        // Data de nascimento e cidade/estado do GM, em Minha Conta.
+        //
+        // As tres nascem NULL e continuam podendo ficar NULL: sao centenas de
+        // contas ja abertas, e campo novo obrigatorio travaria o "Salvar
+        // Perfil" de todo mundo que so quisesse trocar a foto.
+        //
+        // DATE e nao DATETIME de proposito: aniversario nao tem hora, e
+        // guardar hora num campo assim e onde aparece o bug de fuso que faz o
+        // aniversario andar um dia pra tras.
+        $hasBirth = $pdo->query("SHOW COLUMNS FROM users LIKE 'birth_date'")->fetch();
+        if (!$hasBirth) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN birth_date DATE NULL AFTER phone");
+        }
+        $hasCity = $pdo->query("SHOW COLUMNS FROM users LIKE 'city'")->fetch();
+        if (!$hasCity) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN city VARCHAR(80) NULL AFTER birth_date");
+        }
+        // CHAR(2) porque guarda a sigla (SP, RJ...) e nao o nome por extenso:
+        // "Sao Paulo" e "São Paulo" viram dois estados diferentes na hora de
+        // contar quantos GMs tem em cada um.
+        $hasState = $pdo->query("SHOW COLUMNS FROM users LIKE 'state'")->fetch();
+        if (!$hasState) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN state CHAR(2) NULL AFTER city");
+        }
+    } catch (PDOException $e) {
+        $errors[] = "ajuste_users_perfil_pessoal: " . $e->getMessage();
+    }
+
+    try {
         $hasMultiTradeCycle = $pdo->query("SHOW COLUMNS FROM multi_trades LIKE 'cycle'")->fetch();
         if (!$hasMultiTradeCycle) {
             $pdo->exec("ALTER TABLE multi_trades ADD COLUMN cycle INT NULL AFTER league");

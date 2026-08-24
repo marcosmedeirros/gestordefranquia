@@ -17,14 +17,27 @@ $notifOffSalvo = null;
 $whatsappOptin = false;
 $telefoneExibido = '';
 $temTelefoneValido = false;
+// Nascimento e cidade/estado vêm do banco pelo mesmo motivo do notif_off: as
+// colunas são novas, e quem está com a sessão aberta desde antes da migração
+// tem um $user sem esses campos. Ler do banco é o que faz a tela mostrar o
+// que está salvo em vez de campo vazio.
+$nascimentoSalvo = '';
+$cidadeSalva     = '';
+$estadoSalvo     = '';
 try {
-    $stNotif = $pdo->prepare('SELECT notif_off, phone FROM users WHERE id = ? LIMIT 1');
+    $stNotif = $pdo->prepare('SELECT notif_off, phone, birth_date, city, state FROM users WHERE id = ? LIMIT 1');
     $stNotif->execute([$user['id']]);
     $rowNotif = $stNotif->fetch(PDO::FETCH_ASSOC) ?: [];
     $notifOffSalvo = $rowNotif['notif_off'] ?? null;
     $telefoneExibido = formatBrazilianPhone($rowNotif['phone'] ?? '');
+    // O 0000-00-00 do MySQL antigo não é data nenhuma, e no input type=date
+    // ele aparece como campo bugado em vez de vazio.
+    $nascimentoSalvo = ($rowNotif['birth_date'] ?? '') && $rowNotif['birth_date'] !== '0000-00-00'
+        ? (string)$rowNotif['birth_date'] : '';
+    $cidadeSalva = (string)($rowNotif['city'] ?? '');
+    $estadoSalvo = (string)($rowNotif['state'] ?? '');
 } catch (Throwable $e) {
-    // Banco ainda sem a coluna — cai no padrão (tudo ligado).
+    // Banco ainda sem a coluna — cai no padrão (tudo ligado, campos vazios).
 }
 
 // O bloco do WhatsApp só aparece quando a integração está configurada e ativa.
@@ -481,6 +494,34 @@ try {
                                            placeholder="Ex.: 55999999999 ou +351916047829"
                                            required maxlength="16">
                                     <div class="fh">Inclua o código do país se não for +55.</div>
+                                </div>
+                                <div class="fg">
+                                    <label class="fl">Data de nascimento</label>
+                                    <!-- max no ano passado e min em 1915: o teclado de data do
+                                         celular abre em 2026 por padrão, e rolar 30 anos pra
+                                         trás é o caminho mais rápido pra desistir do campo. -->
+                                    <input type="date" name="birth_date" class="fi"
+                                           value="<?= htmlspecialchars($nascimentoSalvo) ?>"
+                                           min="1915-01-01" max="<?= date('Y-m-d', strtotime('-8 years')) ?>">
+                                    <div class="fh">Opcional. Fica só pra liga saber de quem é o aniversário.</div>
+                                </div>
+                                <div class="fgrid-2">
+                                    <div class="fg">
+                                        <label class="fl">Cidade</label>
+                                        <input type="text" name="city" class="fi" maxlength="80"
+                                               value="<?= htmlspecialchars($cidadeSalva) ?>" placeholder="Ex.: Recife">
+                                    </div>
+                                    <div class="fg">
+                                        <label class="fl">Estado</label>
+                                        <select name="state" class="fi">
+                                            <option value="">—</option>
+                                            <?php foreach (estadosBrasileiros() as $uf => $nomeUf): ?>
+                                            <option value="<?= $uf ?>" <?= $estadoSalvo === $uf ? 'selected' : '' ?>>
+                                                <?= $uf === 'EX' ? htmlspecialchars($nomeUf) : $uf . ' — ' . htmlspecialchars($nomeUf) ?>
+                                            </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
                                 </div>
                                 <div class="btn-row">
                                     <button type="button" class="btn-red" id="btn-save-profile">

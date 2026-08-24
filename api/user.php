@@ -41,6 +41,43 @@ if ($method === 'POST') {
         $phone = $user['phone'] ?? null;
     }
 
+    // Nascimento e cidade/estado. Os três são OPCIONAIS e seguem o mesmo
+    // desenho do telefone acima: só mudam quando a chave vem no corpo, senão
+    // ficam como estão. A tela de aparência não manda esses campos, e sem
+    // isso salvar a cor apagaria o endereço.
+    $temPessoal = array_key_exists('birth_date', $body)
+               || array_key_exists('city', $body)
+               || array_key_exists('state', $body);
+
+    $nascimento = $user['birth_date'] ?? null;
+    if (array_key_exists('birth_date', $body)) {
+        $bruto = trim((string)$body['birth_date']);
+        if ($bruto === '') {
+            $nascimento = null;  // limpar é uma escolha válida
+        } else {
+            $nascimento = normalizarNascimento($bruto);
+            if ($nascimento === null) {
+                jsonResponse(422, ['error' => 'Data de nascimento inválida. Confira o dia, o mês e o ano.']);
+            }
+        }
+    }
+
+    $cidade = $user['city'] ?? null;
+    if (array_key_exists('city', $body)) {
+        // O limite bate com o VARCHAR(80) da coluna: sem o corte, um nome
+        // colado grande demais viraria erro de banco em vez de aviso na tela.
+        $cidade = mb_substr(trim((string)$body['city']), 0, 80) ?: null;
+    }
+
+    $estado = $user['state'] ?? null;
+    if (array_key_exists('state', $body)) {
+        $ufBruta = trim((string)$body['state']);
+        $estado = $ufBruta === '' ? null : normalizarUF($ufBruta);
+        if ($ufBruta !== '' && $estado === null) {
+            jsonResponse(422, ['error' => 'Estado inválido.']);
+        }
+    }
+
     // Salvar foto se vier como data URL
     if ($photoUrl && str_starts_with($photoUrl, 'data:image/')) {
         try {
@@ -125,6 +162,12 @@ if ($method === 'POST') {
         $sql     .= ', whatsapp_optin = ?';
         $params[] = !empty($body['whatsapp_optin']) ? 1 : 0;
     }
+    if ($temPessoal) {
+        $sql     .= ', birth_date = ?, city = ?, state = ?';
+        $params[] = $nascimento;
+        $params[] = $cidade;
+        $params[] = $estado;
+    }
     $sql     .= ' WHERE id = ?';
     $params[] = $user['id'];
 
@@ -139,6 +182,11 @@ if ($method === 'POST') {
     $updated['accent_color'] = $accentColor;
     $updated['dashboard_shortcuts'] = $shortcuts;
     if ($temNotif) $updated['notif_off'] = $notifOff;
+    if ($temPessoal) {
+        $updated['birth_date'] = $nascimento;
+        $updated['city']       = $cidade;
+        $updated['state']      = $estado;
+    }
     setUserSession($updated);
 
     jsonResponse(200, ['message' => 'Perfil atualizado.']);

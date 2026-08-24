@@ -57,6 +57,12 @@ document.getElementById('btn-save-profile')?.addEventListener('click', async () 
     name: fd.get('name'),
     photo_url: profilePhotoFile ? await convertToBase64(profilePhotoFile) : null,
     phone: (fd.get('phone') || '').replace(/\D/g, ''),
+    // Os três vão sempre, inclusive vazios: string vazia é como se limpa o
+    // campo. Mandar só quando tem valor deixaria o GM sem jeito de apagar
+    // uma cidade digitada errada.
+    birth_date: fd.get('birth_date') || '',
+    city: (fd.get('city') || '').trim(),
+    state: fd.get('state') || '',
   };
   try {
     await api('user.php', { method: 'POST', body: JSON.stringify(payload) });
