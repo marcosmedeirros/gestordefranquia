@@ -25,6 +25,16 @@ function db(): PDO
     ensureSchema($pdo, $config['db']['name']);
     checkMaintenanceGate($pdo);
 
+    // FECHAMENTO AGENDADO: taticas, trades e free agency fecham sozinhos na
+    // hora que o admin marcou. Fica aqui, e nao num cron, porque cron nesta
+    // hospedagem ja falhou em silencio antes — e fechamento que depende de
+    // cron que ninguem agendou e fechamento que nao acontece. O custo e um
+    // SELECT numa tabela de quatro linhas, uma vez por requisicao.
+    require_once __DIR__ . '/agendamento_fechamento.php';
+    try { agendaAplicarPendentes($pdo); } catch (Throwable $e) {
+        error_log('[agenda] falhou: ' . $e->getMessage());
+    }
+
     return $pdo;
 }
 

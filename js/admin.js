@@ -5032,12 +5032,22 @@ async function _loadLeagueConfigInline(league) {
              antigo Painel de Controle, que duplicava tudo o resto daqui
              (inclusive os mesmos ids dos botões de Trades e FA). -->
         <div id="ctrlExtra_${lg.league}" style="display:contents"></div>
-      </div>`;
+      </div>
+      ${fechamentoAgendadoHtml(lg)}`;
     _carregarControlesExtras(league);
+    // O "falta quanto" vivo: recalcula ao digitar e de minuto em minuto.
+    atualizarFaltaAgenda(body);
+    body.querySelectorAll('input[data-agenda-alvo]').forEach(inp =>
+      inp.addEventListener('input', () => atualizarFaltaAgenda(body)));
+    clearInterval(window.__agendaTimer);
+    window.__agendaTimer = setInterval(() => atualizarFaltaAgenda(document), 60000);
     document.getElementById('saveConfigInlineBtn')?.addEventListener('click', async () => {
       const inputs = body.querySelectorAll('input[data-league]');
       const payload = { league };
       inputs.forEach(inp => { payload[inp.dataset.field] = inp.type === 'number' ? parseInt(inp.value) : inp.value; });
+      // Campo de horário vazio vai como string vazia, e é assim que o
+      // servidor entende "apaga o agendamento". Não dá pra omitir: omitir
+      // quer dizer "não mexi", e aí limpar o campo na tela não limparia nada.
       const btn = document.getElementById('saveConfigInlineBtn');
       if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
       try {
@@ -5047,6 +5057,91 @@ async function _loadLeagueConfigInline(league) {
       finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-save2 me-1"></i>Salvar'; } }
     });
   } catch (e) {}
+}
+
+/**
+ * FECHAMENTO AGENDADO: a data e a hora em que cada coisa fecha sozinha.
+ *
+ * Três campos, um por coisa que fecha, e cada um encostado no botão que
+ * faz a mesma coisa na mão logo acima — é a mesma decisão ("isto fica
+ * aberto?"), só que uma é agora e a outra é depois.
+ *
+ * Campo vazio é o normal e quer dizer "não vai fechar sozinho". Depois que
+ * a hora passa, o servidor fecha e LIMPA o campo, então ele volta a nascer
+ * vazio pra próxima janela — sem isso a tela mostraria pra sempre uma data
+ * de mês passado e ninguém saberia se ela ainda vale.
+ */
+function fechamentoAgendadoHtml(lg) {
+  const linha = (campo, icone, cor, titulo, oQueFecha) => {
+    const v = lg[campo] || '';
+    return `
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:210px;flex:1">
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--text-2)">
+          <i class="bi ${icone}" style="color:${cor};font-size:12px"></i>${titulo}
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="datetime-local" class="form-control form-control-sm"
+                 style="flex:1;min-width:0" value="${v}"
+                 data-league="${lg.league}" data-field="${campo}"
+                 data-agenda-alvo="${oQueFecha}">
+          <button class="btn btn-sm btn-outline-secondary" style="font-size:11px;padding:4px 8px"
+                  title="Limpar — sem horário, não fecha sozinho"
+                  onclick="limparAgenda(this)"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="agenda-falta" style="font-size:10.5px;color:var(--text-3);min-height:14px"></div>
+      </div>`;
+  };
+  return `
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px">
+        <i class="bi bi-clock-history" style="color:var(--red);font-size:13px"></i>
+        <span style="font-size:12px;font-weight:700;color:var(--text)">Fechar sozinho</span>
+        <span style="font-size:11px;color:var(--text-3)">
+          marque a data e a hora; passou, fecha e o campo se limpa
+        </span>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        ${linha('fechar_taticas_em', 'bi-clipboard-check', '#a855f7', 'Fechar táticas', 'táticas')}
+        ${linha('fechar_trades_em', 'bi-arrow-left-right', '#3b82f6', 'Fechar trades', 'trades')}
+        ${linha('fechar_fa_em', 'bi-coin', '#22c55e', 'Fechar free agency', 'free agency')}
+      </div>
+    </div>`;
+}
+
+/** Limpa o campo de horário ao lado do botão. */
+function limparAgenda(btn) {
+  const inp = btn.parentElement?.querySelector('input[data-agenda-alvo]');
+  if (!inp) return;
+  inp.value = '';
+  inp.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/**
+ * "Fecha daqui a 3h20" embaixo do campo.
+ *
+ * Existe porque data e hora escritas não dizem quanto falta, e quanto falta
+ * é a única coisa que o admin quer saber ao olhar. Também é onde o erro de
+ * dedo aparece: marcar ontem sem querer vira um aviso vermelho antes de
+ * salvar, e não um "por que a liga fechou?" no dia seguinte.
+ */
+function atualizarFaltaAgenda(raiz) {
+  (raiz || document).querySelectorAll('input[data-agenda-alvo]').forEach(inp => {
+    const alvo = inp.parentElement?.parentElement?.querySelector('.agenda-falta');
+    if (!alvo) return;
+    if (!inp.value) { alvo.textContent = 'sem horário — não fecha sozinho'; alvo.style.color = 'var(--text-3)'; return; }
+    const ms = new Date(inp.value).getTime() - Date.now();
+    if (isNaN(ms)) { alvo.textContent = ''; return; }
+    if (ms <= 0) {
+      alvo.textContent = 'esse horário já passou';
+      alvo.style.color = 'var(--red)';
+      return;
+    }
+    const min = Math.round(ms / 60000);
+    const d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = min % 60;
+    const falta = d ? `${d}d ${h}h` : (h ? `${h}h ${m}min` : `${m}min`);
+    alvo.textContent = `fecha ${inp.dataset.agendaAlvo} em ${falta}`;
+    alvo.style.color = 'var(--text-3)';
+  });
 }
 
 function editTeam(teamId) {

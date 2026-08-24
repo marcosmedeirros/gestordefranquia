@@ -1890,6 +1890,17 @@ function runMigrations() {
         $errors[] = "criar_views_ranking: " . $e->getMessage();
     }
 
+    // Fechamento agendado: as tres colunas de horario da league_settings.
+    // O aplicador tambem sabe cria-las sozinho, mas aqui elas nascem no
+    // deploy em vez de na primeira requisicao que precisar delas.
+    try {
+        require_once __DIR__ . '/agendamento_fechamento.php';
+        agendaGarantirColunas($pdo);
+        $executed[] = 'agenda_fechamento_colunas';
+    } catch (Throwable $e) {
+        $errors[] = 'agenda_fechamento_colunas: ' . $e->getMessage();
+    }
+
     return [
         'success' => count($errors) === 0,
         'executed' => $executed,

@@ -58,6 +58,8 @@ ensureLeagueCapAutoTables($pdo);
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 $validLeagues = ['ELITE','NEXT','RISE','ROOKIE'];
+// Fechamento agendado: leitura (agendaDaLiga) e escrita (agendaNormalizar).
+require_once __DIR__ . '/../backend/agendamento_fechamento.php';
 ensurePlayerRestrictionColumns($pdo);
 
 // Helpers para colunas e OVR
@@ -984,8 +986,12 @@ if ($method === 'GET') {
                     'cap_auto_margin_pct' => (int)($cfg['cap_auto_margin_pct'] ?? LEAGUE_CAP_DEFAULT_SALARY_MARGIN),
                     'cap_flex_a_partir_da_temporada' => isset($cfg['cap_flex_a_partir_da_temporada']) && $cfg['cap_flex_a_partir_da_temporada'] !== null
                         ? (int)$cfg['cap_flex_a_partir_da_temporada'] : null,
-                    'team_count' => (int)$teamCount
-                ];
+                    'team_count' => (int)$teamCount,
+                    // Os horários de fechamento agendado, já no formato que o
+                    // <input type="datetime-local"> entende — a conversão mora
+                    // no backend pra não existir duas vezes, uma aqui e outra
+                    // em JS.
+                ] + agendaDaLiga($pdo, $league);
             }
 
             echo json_encode(['success' => true, 'leagues' => $result]);
@@ -1628,6 +1634,21 @@ if ($method === 'PUT') {
             $trades_enabled = isset($data['trades_enabled']) ? (int)$data['trades_enabled'] : null;
             $fa_enabled = isset($data['fa_enabled']) ? (int)$data['fa_enabled'] : null;
 
+            // FECHAMENTO AGENDADO. Só entram os campos que vieram no corpo:
+            // a tela de config salva tudo de uma vez, e um campo ausente tem
+            // que continuar sendo "não mexi nisso" e não "apaga".
+            $agenda = [];
+            foreach (['fechar_taticas_em', 'fechar_trades_em', 'fechar_fa_em'] as $campoAgenda) {
+                if (!array_key_exists($campoAgenda, $data)) continue;
+                $r = agendaNormalizar($data[$campoAgenda]);
+                if (!$r['ok']) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => $r['erro']]);
+                    exit;
+                }
+                $agenda[$campoAgenda] = $r['valor'];
+            }
+
             // Estado ANTES de gravar: sem isto não dá pra saber se o toggle
             // realmente virou, e o admin salvando outra coisa qualquer da
             // tela dispararia notificação sem nada ter mudado.
@@ -1736,6 +1757,15 @@ if ($method === 'PUT') {
                 $updates[] = 'cap_auto_margin_pct = ?';
                 $params[] = max(0, $cap_auto_margin_pct);
             }
+            // Os horários agendados. Aqui NULL é apagar de propósito — é
+            // assim que o admin desmarca um fechamento —, então o que decide
+            // se o campo entra é ter vindo no corpo, e não o valor. Todos os
+            // campos acima usam a regra contrária.
+            foreach ($agenda as $campoAgenda => $valorAgenda) {
+                $updates[] = $campoAgenda . ' = ?';
+                $params[] = $valorAgenda;
+            }
+
             if ($cap_flex_desde !== null) {
                 if (!columnExists($pdo, 'league_settings', 'cap_flex_a_partir_da_temporada')) {
                     $pdo->exec("ALTER TABLE league_settings ADD COLUMN cap_flex_a_partir_da_temporada INT NULL");
