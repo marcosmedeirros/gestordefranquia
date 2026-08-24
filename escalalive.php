@@ -64,7 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $r = semearLives($pdo, true);
             $partes = [];
             if ($r['criados'])   $partes[] = count($r['criados']) . ' criada(s): ' . implode(' · ', $r['criados']);
-            if ($r['ajustados']) $partes[] = count($r['ajustados']) . ' adiantada(s): ' . implode(' · ', $r['ajustados']);
+            // "ajustada" e não "adiantada": o mesmo balde carrega quem mudou
+            // de data e quem mudou de nome, e chamar de adiantada uma live
+            // que só foi renomeada faz o admin procurar uma data que não
+            // mudou.
+            if ($r['ajustados']) $partes[] = count($r['ajustados']) . ' ajustada(s): ' . implode(' · ', $r['ajustados']);
             $_SESSION['escala_flash'] = ['ok', $partes
                 ? implode(' | ', $partes)
                 : 'A grade já estava toda criada — nada a fazer.'];
@@ -276,6 +280,15 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
              font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer;
              display:inline-flex;align-items:center;gap:8px}
   .btn-grade:hover{filter:brightness(1.1)}
+  /* Fica no rodapé do bloco, separado por uma linha: é manutenção da grade,
+     e não uma das ações de montar a escala. Perto dos seletores, viraria
+     mais um botão pra clicar sem querer. */
+  .rodape-grade{margin-top:16px;padding-top:13px;border-top:1px solid var(--border);
+                display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+  .rodape-grade span{font-size:11.5px;color:var(--text-3)}
+  .rodape-grade .btn-grade{background:var(--panel-3);color:var(--text-2);
+                           border:1px solid var(--border-md);font-weight:700}
+  .rodape-grade .btn-grade:hover{color:var(--red);border-color:var(--border-red);filter:none}
   @media (max-width:620px){ .vaga-rot{width:100%} select{max-width:100%;flex:1} }
 <?php include __DIR__ . '/includes/accent-color.php'; ?>
 </style>
@@ -467,16 +480,6 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
         Nenhuma live da <?= $liga ?> no calendário desta semana.<br>
         <a href="/calendario.php" style="color:var(--red);text-decoration:none">Marcar no calendário</a>
         — a escala é montada em cima do que está lá.
-        <?php if ($souAdminGeral): ?>
-          <!-- O botão aparece aqui e não num painel escondido: é exatamente
-               no momento em que a escala está vazia que ele resolve algo. -->
-          <form method="post" style="margin-top:14px">
-            <button class="btn-grade" name="criar_grade" value="1"
-                    data-confirmar="Criar a grade fixa de lives (NEXT, ELITE, RISE e ROOKIE) no calendário? Já existentes não são duplicadas.">
-              <i class="bi bi-calendar-plus"></i> Criar a grade fixa de lives
-            </button>
-          </form>
-        <?php endif; ?>
       </div>
     <?php else: foreach ($lives as $lv):
       $dia = (int)date('w', strtotime($lv['data'])); ?>
@@ -580,6 +583,27 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
         <?php endforeach; ?>
       </div>
     <?php endforeach; endif; ?>
+
+    <?php if ($souAdminGeral): ?>
+    <?php /* SEMPRE visível, e não só quando a semana está sem live. Ele
+             estava escondido atrás do "nenhuma live nesta semana" — ou seja,
+             sumia exatamente quando a grade precisava de conserto. Foi assim
+             que a quinta da ELITE ficou com o nome errado sem ter como
+             corrigir pela tela.
+
+             O rótulo fala em CONFERIR porque criar é só metade do que ele
+             faz: também adianta o começo de uma live que nasceu tarde e
+             corrige o nome de uma que mudou de fase. */ ?>
+    <div class="rodape-grade">
+      <form method="post">
+        <button class="btn-grade" name="criar_grade" value="1"
+                data-confirmar="Conferir a grade oficial das lives (NEXT, ELITE, RISE e ROOKIE)? Cria o que falta, adianta o que começou tarde e corrige nome que mudou de fase. Nada é duplicado.">
+          <i class="bi bi-arrow-repeat"></i> Conferir a grade de lives
+        </button>
+      </form>
+      <span>Põe o calendário de acordo com a grade oficial da FBA.</span>
+    </div>
+    <?php endif; ?>
   </div>
 
     </div><!-- /.content -->

@@ -150,9 +150,9 @@ $gravar = in_array('--gravar', $argv ?? [], true);
 $r = semearLives(db(), $gravar);
 
 foreach ($r['existiam']  as $x) echo "  ja existe  {$x}\n";
-foreach ($r['ajustados'] as $x) echo '  ' . ($gravar ? 'ADIANTADO' : 'ADIANTARIA') . " {$x}\n";
+foreach ($r['ajustados'] as $x) echo '  ' . ($gravar ? 'AJUSTADO ' : 'AJUSTARIA') . " {$x}\n";
 foreach ($r['criados']   as $x) echo '  ' . ($gravar ? 'CRIADO   ' : 'CRIARIA  ') . " {$x}\n";
 echo "\nja existiam: " . count($r['existiam'])
-   . '   ' . ($gravar ? 'adiantados: ' : 'adiantaria: ') . count($r['ajustados'])
+   . '   ' . ($gravar ? 'ajustados: ' : 'ajustaria: ') . count($r['ajustados'])
    . '   ' . ($gravar ? 'criados: ' : 'criaria: ') . count($r['criados']) . "\n";
 echo $gravar ? ">>> GRAVADO\n" : "(simulação — use --gravar)\n";
