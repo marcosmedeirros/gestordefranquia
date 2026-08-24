@@ -168,7 +168,10 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 <body>
 <div class="wrap">
   <div class="topo">
-    <a class="volta" href="/dashboard.php" title="Voltar"><i class="bi bi-arrow-left"></i></a>
+    <!-- Volta pro ADMIN e não pro painel: quem chega aqui vem do card em
+         Gestão, e mandar a pessoa pro dashboard obrigaria a refazer o
+         caminho inteiro pra escalar a próxima liga. -->
+    <a class="volta" href="/admin.php" title="Voltar ao admin"><i class="bi bi-arrow-left"></i></a>
     <h1>Escala das Lives</h1>
   </div>
   <div class="sub">

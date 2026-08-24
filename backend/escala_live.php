@@ -147,6 +147,75 @@ function escalaResponder(PDO $pdo, int $userId, string $liga, array $funcoes, st
 }
 
 /**
+ * SOMA uma função. É o que os comandos do grupo usam.
+ *
+ * Somar, e não substituir: no grupo cada função é um comando próprio
+ * (/comentarista, /narrador…), e a pessoa manda um de cada vez. Se o
+ * segundo apagasse o primeiro, quem quer as duas coisas nunca conseguiria
+ * — e não teria como perceber que perdeu a primeira.
+ *
+ * A tela é o contrário e está certo assim: lá as caixas vão todas juntas
+ * num envio só, então lá o certo é substituir.
+ *
+ * @return array{ok:bool, novo:bool, erro:?string, todas:string[]}
+ */
+function escalaAdicionar(PDO $pdo, int $userId, string $liga, string $funcao, ?string $semana = null): array
+{
+    escalaGarantirTabelas($pdo);
+    $liga = strtoupper(trim($liga));
+    $funcao = strtolower(trim($funcao));
+    if (!in_array($liga, CALENDARIO_LIGAS, true)) return ['ok' => false, 'novo' => false, 'erro' => 'Liga inválida.', 'todas' => []];
+    if (!escalaFuncaoValida($funcao))            return ['ok' => false, 'novo' => false, 'erro' => 'Função inválida.', 'todas' => []];
+
+    $semana = $semana ?: escalaSemanaDe();
+    try {
+        $st = $pdo->prepare("INSERT IGNORE INTO escala_disponibilidade
+                             (semana, league, id_usuario, funcao, origem) VALUES (?,?,?,?,'bot')");
+        $st->execute([$semana, $liga, $userId, $funcao]);
+        $novo = $st->rowCount() > 0;
+
+        $q = $pdo->prepare("SELECT funcao FROM escala_disponibilidade
+                             WHERE semana=? AND league=? AND id_usuario=? ORDER BY funcao");
+        $q->execute([$semana, $liga, $userId]);
+        return ['ok' => true, 'novo' => $novo, 'erro' => null, 'todas' => $q->fetchAll(PDO::FETCH_COLUMN)];
+    } catch (Throwable $e) {
+        error_log('[escala] adicionar: ' . $e->getMessage());
+        return ['ok' => false, 'novo' => false, 'erro' => 'Não deu pra registrar agora.', 'todas' => []];
+    }
+}
+
+/**
+ * Tira a pessoa da chamada da semana.
+ *
+ * Tira da DISPONIBILIDADE, e não da escala já montada. Se ela já foi
+ * escalada, quem desfaz é o admin na tela — sair sozinho de um compromisso
+ * já anunciado deixaria a live sem narrador sem ninguém saber.
+ *
+ * @return array{ok:bool, tirou:int, escalado:bool}
+ */
+function escalaSair(PDO $pdo, int $userId, string $liga, ?string $semana = null): array
+{
+    escalaGarantirTabelas($pdo);
+    $liga = strtoupper(trim($liga));
+    $semana = $semana ?: escalaSemanaDe();
+    $fim = (new DateTimeImmutable($semana))->modify('+6 days')->format('Y-m-d');
+
+    try {
+        $st = $pdo->prepare("DELETE FROM escala_disponibilidade
+                              WHERE semana=? AND league=? AND id_usuario=?");
+        $st->execute([$semana, $liga, $userId]);
+
+        $q = $pdo->prepare("SELECT COUNT(*) FROM escala_lives
+                             WHERE id_usuario=? AND league=? AND data BETWEEN ? AND ?");
+        $q->execute([$userId, $liga, $semana, $fim]);
+        return ['ok' => true, 'tirou' => $st->rowCount(), 'escalado' => (int)$q->fetchColumn() > 0];
+    } catch (Throwable $e) {
+        error_log('[escala] sair: ' . $e->getMessage());
+        return ['ok' => false, 'tirou' => 0, 'escalado' => false];
+    }
+}
+
+/**
  * Quem se ofereceu na semana, agrupado por função.
  *
  * @return array<string, array<int, array{id:int,nome:string,foto:?string}>>
@@ -313,6 +382,95 @@ function escalaAvisar(PDO $pdo, int $eventoId, string $data, string $liga, strin
     } catch (Throwable $e) {
         error_log('[escala] avisar: ' . $e->getMessage());
     }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * OS TEXTOS DO GRUPO
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * A chamada da semana, de UMA liga.
+ *
+ * Uma mensagem por liga e não uma só com tudo: quem joga na RISE não tem o
+ * que fazer com a lista da ELITE, e uma mensagem com as quatro ligas vira
+ * um paredão que ninguém lê até o fim.
+ *
+ * A lista das lives entra junto porque é ela que faz a pessoa decidir: dá
+ * pra topar sabendo que é quarta às 19h, e não topar às cegas.
+ */
+function escalaTextoChamada(PDO $pdo, string $liga, ?string $semana = null): string
+{
+    $liga = strtoupper($liga);
+    $semana = $semana ?: escalaSemanaDe();
+    $fim = (new DateTimeImmutable($semana))->modify('+6 days');
+    $DIAS = ['dom','seg','ter','qua','qui','sex','sáb'];
+
+    $l = ['🎙️ *ESCALA DAS LIVES — ' . $liga . '*',
+          '_semana de ' . date('d/m', strtotime($semana)) . ' a ' . $fim->format('d/m') . '_', ''];
+
+    $lives = escalaLivesDaSemana($pdo, [$liga], $semana);
+    if ($lives) {
+        foreach ($lives as $lv) {
+            $d = (int)date('w', strtotime($lv['data']));
+            $hora = empty($lv['dia_inteiro']) ? ' ' . substr((string)$lv['inicio'], 11, 5) : '';
+            $l[] = '• ' . $DIAS[$d] . ' ' . date('d/m', strtotime($lv['data'])) . $hora . ' — ' . $lv['titulo'];
+        }
+        $l[] = '';
+    }
+
+    $l[] = 'Quem topa participar, manda o comando da função:';
+    foreach (escalaFuncoes() as $k => $f) $l[] = '/' . $k . '  — ' . $f['rotulo'];
+    $l[] = '';
+    $l[] = 'Pode mandar mais de um. */sair* tira você da semana, */verescala* mostra como está.';
+    return implode("\n", $l);
+}
+
+/** Quem se ofereceu e quem já está escalado, pro grupo. */
+function escalaTextoVer(PDO $pdo, string $liga, ?string $semana = null): string
+{
+    $liga = strtoupper($liga);
+    $semana = $semana ?: escalaSemanaDe();
+    $fim = (new DateTimeImmutable($semana))->modify('+6 days');
+    $DIAS = ['dom','seg','ter','qua','qui','sex','sáb'];
+
+    $l = ['🎙️ *ESCALA — ' . $liga . '*',
+          '_semana de ' . date('d/m', strtotime($semana)) . ' a ' . $fim->format('d/m') . '_', ''];
+
+    $disp = escalaDisponiveis($pdo, $liga, $semana);
+    $temAlguem = false;
+    $l[] = '*Se ofereceram*';
+    foreach (escalaFuncoes() as $k => $f) {
+        $nomes = array_column($disp[$k] ?? [], 'nome');
+        if ($nomes) $temAlguem = true;
+        $l[] = $f['rotulo'] . ': ' . ($nomes ? implode(', ', $nomes) : '_ninguém_');
+    }
+    if (!$temAlguem) {
+        $l[] = '';
+        $l[] = 'Ninguém ainda. Manda /comentarista, /narrador, /operacional ou /transmissao.';
+    }
+
+    // A escala só entra quando já existe: mostrar quatro vagas vazias por
+    // live antes de o admin montar não informa nada e triplica a mensagem.
+    $lives = escalaLivesDaSemana($pdo, [$liga], $semana);
+    $esc = escalaDaSemana($pdo, [$liga], $semana);
+    if ($esc) {
+        $l[] = '';
+        $l[] = '*Escalados*';
+        foreach ($lives as $lv) {
+            $linhas = [];
+            foreach (escalaFuncoes() as $k => $f) {
+                $n = array_column($esc[$lv['id'] . '|' . $lv['data'] . '|' . $k] ?? [], 'nome');
+                if ($n) $linhas[] = $f['rotulo'] . ': ' . implode(', ', $n);
+            }
+            if (!$linhas) continue;
+            $d = (int)date('w', strtotime($lv['data']));
+            $hora = empty($lv['dia_inteiro']) ? ' ' . substr((string)$lv['inicio'], 11, 5) : '';
+            $l[] = '';
+            $l[] = '*' . $DIAS[$d] . ' ' . date('d/m', strtotime($lv['data'])) . $hora . '* — ' . $lv['titulo'];
+            foreach ($linhas as $x) $l[] = '  ' . $x;
+        }
+    }
+    return implode("\n", $l);
 }
 
 /**

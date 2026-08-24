@@ -362,6 +362,9 @@ function wcAjuda(): string
         . "/power — o power ranking da liga inteira\n"
         . "/powerc — o power ranking por conferência\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
+        . "/escala — abre a chamada das lives da semana\n"
+        . "/comentarista · /narrador · /operacional · /transmissao — entra na chamada (pode mais de um)\n"
+        . "/verescala — como está a escala  ·  /sair — tira você da chamada\n"
         // /aceitar e /recusar SAÍRAM desta lista, mas continuam funcionando:
         // o código vem escrito na própria mensagem da proposta, e é lá que a
         // pessoa lê a instrução. Aqui eles só ocupavam a linha mais comprida
@@ -1459,6 +1462,103 @@ function wcItensMultiPorTime(PDO $pdo, int $multiTradeId): array
  * pra ver o resto do que estava conversando.
  */
 const WC_TROCAS_QUANTAS = 3;
+
+/**
+ * A liga de quem mandou o comando da escala.
+ *
+ * O grupo das lives é UM só e a chamada é por liga, então o comando
+ * precisa dizer de qual. Sem argumento vale a liga do próprio GM — que é
+ * o caso de quase todo mundo. Com argumento (/comentarista RISE) dá pra
+ * ajudar noutra liga, que é o motivo de o campo existir.
+ */
+function wcEscalaLiga(PDO $pdo, string $arg, string $deQuem, ?string $ligaDoGrupo): array
+{
+    // Reaproveita o resolvedor dos comandos "meus", que já trata o que eu ia
+    // tratar pior: número gravado em formato diferente do cadastro,
+    // casamento pelos últimos dígitos, e o @lid — o id interno que o
+    // WhatsApp manda no lugar do telefone em alguns grupos, e que faria a
+    // busca dizer "não achei" para quem tem o cadastro certo.
+    [$time, $erro] = wcTimeDeQuemPerguntou($pdo, $deQuem, $ligaDoGrupo);
+    if ($erro) return [null, null, $erro];
+
+    $arg = trim($arg);
+    $liga = $arg !== '' ? wcNormalizarLiga($arg) : null;
+    if ($arg !== '' && !$liga) {
+        return [null, null, "Liga \"{$arg}\" não existe. Use ELITE, NEXT, RISE ou ROOKIE."];
+    }
+    // Sem argumento vale a liga do TIME de quem mandou, que é o caso de
+    // quase todo mundo. Com argumento dá pra ajudar noutra liga.
+    if (!$liga) $liga = strtoupper((string)($time['league'] ?? ''));
+    if (!in_array($liga, CALENDARIO_LIGAS, true)) $liga = 'ELITE';
+
+    return [(int)$time['user_id'], $liga, null];
+}
+
+/** /comentarista, /narrador, /operacional, /transmissao — soma a função. */
+function wcEscalaTopar(PDO $pdo, string $funcao, string $arg, string $deQuem, ?string $ligaDoGrupo): string
+{
+    require_once __DIR__ . '/../backend/escala_live.php';
+    [$uid, $liga, $erro] = wcEscalaLiga($pdo, $arg, $deQuem, $ligaDoGrupo);
+    if ($erro) return $erro;
+
+    $r = escalaAdicionar($pdo, $uid, $liga, $funcao);
+    if (!$r['ok']) return (string)$r['erro'];
+
+    $rot = escalaFuncoes()[$funcao]['rotulo'];
+    $todas = array_map(fn($f) => escalaFuncoes()[$f]['rotulo'] ?? $f, $r['todas']);
+    $lista = count($todas) > 1 ? "\n_Você está em: " . implode(', ', $todas) . "_" : '';
+
+    return ($r['novo'] ? "✅ Anotado como *{$rot}*" : "Você já estava como *{$rot}*")
+         . " na *{$liga}* esta semana." . $lista;
+}
+
+/** /sair — tira da chamada da semana. */
+function wcEscalaSair(PDO $pdo, string $arg, string $deQuem, ?string $ligaDoGrupo): string
+{
+    require_once __DIR__ . '/../backend/escala_live.php';
+    [$uid, $liga, $erro] = wcEscalaLiga($pdo, $arg, $deQuem, $ligaDoGrupo);
+    if ($erro) return $erro;
+
+    $r = escalaSair($pdo, $uid, $liga);
+    if (!$r['ok']) return 'Não deu pra tirar agora. Tenta de novo.';
+    if (!$r['tirou'] && !$r['escalado']) return "Você não estava na chamada da *{$liga}* esta semana.";
+
+    $txt = "Pronto, tirei você da chamada da *{$liga}* desta semana.";
+    // Sair da chamada NÃO desfaz escalação já feita — quem desfaz é o admin.
+    // Avisar aqui é o que evita a pessoa achar que está livre de um
+    // compromisso que a liga já anunciou.
+    if ($r['escalado']) {
+        $txt .= "\n\n⚠️ Mas você *já está escalado* em alguma live desta semana. "
+              . "Isso o /sair não desfaz — fala com quem monta a escala.";
+    }
+    return $txt;
+}
+
+/** /verescala — como está a semana. */
+function wcEscalaVer(PDO $pdo, string $arg, string $deQuem, ?string $ligaDoGrupo): string
+{
+    require_once __DIR__ . '/../backend/escala_live.php';
+    $l = trim($arg) !== '' ? wcNormalizarLiga(trim($arg)) : null;
+    if (!$l) {
+        [, $l, $erro] = wcEscalaLiga($pdo, '', $deQuem, $ligaDoGrupo);
+        // Sem cadastro dá pra ver assim mesmo: ver não muda nada, e exigir
+        // telefone certo pra LER seria barrar por nada.
+        if ($erro) $l = strtoupper((string)($ligaDoGrupo ?? '')) ?: 'ELITE';
+    }
+    return escalaTextoVer($pdo, $l);
+}
+
+/** /escala — abre a chamada no grupo, na mão. */
+function wcEscalaChamar(PDO $pdo, string $arg, string $deQuem, ?string $ligaDoGrupo): string
+{
+    require_once __DIR__ . '/../backend/escala_live.php';
+    $l = trim($arg) !== '' ? wcNormalizarLiga(trim($arg)) : null;
+    if (!$l) {
+        [, $l, $erro] = wcEscalaLiga($pdo, '', $deQuem, $ligaDoGrupo);
+        if ($erro) $l = strtoupper((string)($ligaDoGrupo ?? '')) ?: 'ELITE';
+    }
+    return escalaTextoChamada($pdo, $l);
+}
 
 function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 {
@@ -2615,6 +2715,28 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'trades':
             case 'trade':
                 return wcTrocas($pdo, $arg, $ligaDoGrupo);
+
+            // ── A escala das lives ─────────────────────────────────────
+            // Uma função, um comando. Poderia ser um só com argumento
+            // (/escala comentarista), mas no grupo o que a pessoa lê é a
+            // lista de comandos — e comando que se copia e manda erra
+            // menos que comando que se digita com complemento.
+            case 'comentarista':
+            case 'narrador':
+            case 'operacional':
+            case 'transmissao':
+            case 'transmissão':
+                return wcEscalaTopar($pdo, $cmd === 'transmissão' ? 'transmissao' : $cmd,
+                                     $arg, $deQuem, $ligaDoGrupo);
+
+            case 'sair':
+                return wcEscalaSair($pdo, $arg, $deQuem, $ligaDoGrupo);
+
+            case 'verescala':
+                return wcEscalaVer($pdo, $arg, $deQuem, $ligaDoGrupo);
+
+            case 'escala':
+                return wcEscalaChamar($pdo, $arg, $deQuem, $ligaDoGrupo);
 
             // Os "meus": respondem sobre o time de quem digitou, sem precisar
             // dizer o nome. Dependem do telefone estar certo no cadastro — foi

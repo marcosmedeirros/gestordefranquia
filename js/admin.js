@@ -417,7 +417,10 @@ async function showGestao(league) {
     // O controle do calendário é a própria página: marcar evento é clicar no
     // dia. Uma tela de administração separada seria uma segunda versão do
     // calendário pra manter, mostrando a mesma coisa.
-    { icon: 'bi-calendar3',             label: 'Calendário<br>das ligas',   url: '/calendario.php',      color: '#38bdf8', bg: 'rgba(56,189,248,.12)' },
+    // Ja existia, e continua sendo a porta de quem MARCA evento — o rotulo
+    // e que nao dizia isso. No menu lateral o mesmo calendario e consulta;
+    // aqui e onde se cria, inclusive as lives que a escala usa.
+    { icon: 'bi-calendar-plus-fill',    label: 'Calendário<br>criar eventos', url: '/calendario.php',    color: '#38bdf8', bg: 'rgba(56,189,248,.12)' },
     { icon: 'bi-clipboard-plus',        label: 'Inscrição<br>ROOKIE',       fn: 'showConviteRookie()',   color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
     { icon: 'bi-shuffle',               label: 'Drafts<br>Aleatórios',      url: '/drafts-aleatorios.php',    color: '#a855f7', bg: 'rgba(168,85,247,.08)' },
     { icon: 'bi-dice-3-fill',           label: 'Loterias',                  url: '/loterias-aleatorias.php',  color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
@@ -432,10 +435,6 @@ async function showGestao(league) {
     // regras mora num sistema diferente — limite adivinhado errado vira
     // reclamacao semanas depois. O GM resgata, cai aqui, e quem aplica e gente.
     { icon: 'bi-bag-check-fill',        label: 'Pedidos<br>da Loja',        url: '/loja-pedidos.php',    color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
-    // Conectar a conta do X e ver o que ja foi pra timeline. Trade bombastica
-    // e noticia do The Pathetic viram post sozinhas; a tela e onde se liga,
-    // se desliga e se descobre por que um post nao saiu.
-    { icon: 'bi-twitter-x',             label: 'X<br>da Liga',              url: '/x-conectar.php',      color: '#e7e7ea', bg: 'rgba(231,231,234,.10)' },
     // A escala das lives. Fica em Gestao e nao no menu lateral porque quem
     // monta e a organizacao — pro resto da liga, o que interessa e o aviso
     // de que foi escalado e a live no proprio calendario.
