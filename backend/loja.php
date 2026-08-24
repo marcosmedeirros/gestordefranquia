@@ -39,15 +39,13 @@ function lojaCatalogo(): array
             'icone' => 'bi-hammer',
             'cor'   => '#3b82f6',
             'desc'  => 'Um slot a mais pra colocar jogador no leilão.',
-            'unico' => false,
         ],
         'slot_waiver' => [
             'nome'  => 'Slot extra de waiver',
-            'preco' => 500,
+            'preco' => 1500,
             'icone' => 'bi-arrow-repeat',
             'cor'   => '#22c55e',
             'desc'  => 'Uma reivindicação a mais no waiver. Vale por uma temporada.',
-            'unico' => false,
         ],
         'badge' => [
             'nome'  => 'Badge',
@@ -55,15 +53,15 @@ function lojaCatalogo(): array
             'icone' => 'bi-patch-check-fill',
             'cor'   => '#f59e0b',
             'desc'  => 'Uma badge para um jogador do seu elenco.',
-            'unico' => false,
+            'limite' => ['qtd' => 2, 'por' => 'mes'],
         ],
         'slot_gleague' => [
             'nome'  => 'Slot extra de G-League',
-            'preco' => 5000,
+            'preco' => 7500,
             'icone' => 'bi-people-fill',
             'cor'   => '#a855f7',
             'desc'  => 'Uma vaga a mais na sua G-League.',
-            'unico' => false,
+            'limite' => ['qtd' => 1, 'por' => 'sempre'],
         ],
         'city_edition' => [
             'nome'  => 'City Edition',
@@ -71,9 +69,103 @@ function lojaCatalogo(): array
             'icone' => 'bi-palette-fill',
             'cor'   => '#fc0025',
             'desc'  => 'Um uniforme City Edition para a sua franquia.',
-            'unico' => true,
+            'limite' => ['qtd' => 1, 'por' => 'sempre'],
         ],
     ];
+}
+
+if (!function_exists('lojaLimiteTexto')) {
+    /**
+     * Como o limite aparece escrito: "compra única", "2 por mês".
+     *
+     * A regra tem que estar na vitrine e não só no erro depois do clique —
+     * descobrir que a badge era 2 por mês DEPOIS de juntar 7.000 pontos pra
+     * comprar três é o tipo de surpresa que vira reclamação.
+     */
+    function lojaLimiteTexto(array $item): string
+    {
+        $lim = $item['limite'] ?? null;
+        if (!$lim) return '';
+        if ($lim['por'] === 'sempre') {
+            return $lim['qtd'] === 1 ? 'compra única' : $lim['qtd'] . ' por conta';
+        }
+        return $lim['qtd'] === 1 ? '1 por mês' : $lim['qtd'] . ' por mês';
+    }
+}
+
+if (!function_exists('lojaJaComprou')) {
+    /**
+     * Quantos deste item o GM já comprou dentro da janela do limite.
+     *
+     * Conta o inventário INTEIRO, usado ou não. O 'unico' antigo só olhava o
+     * que estava guardado, então bastava resgatar o uniforme pra poder
+     * comprar outro — o que é o contrário de compra única.
+     *
+     * A janela do mês é o mês do CALENDÁRIO e não "últimos 30 dias": é o que
+     * a pessoa entende por "2 por mês", e é o que dá pra conferir olhando um
+     * calendário em vez de contar dias pra trás.
+     */
+    function lojaJaComprou(PDO $pdo, int $userId, string $itemKey, array $lim): int
+    {
+        $sql = "SELECT COUNT(*) FROM loja_inventario WHERE id_usuario = ? AND item_key = ?";
+        if (($lim['por'] ?? '') === 'mes') {
+            $sql .= " AND YEAR(comprado_em) = YEAR(NOW()) AND MONTH(comprado_em) = MONTH(NOW())";
+        }
+        $st = $pdo->prepare($sql);
+        $st->execute([$userId, $itemKey]);
+        return (int)$st->fetchColumn();
+    }
+}
+
+if (!function_exists('lojaLimites')) {
+    /**
+     * Quanto ainda cabe de cada item, pra tela desenhar antes do clique.
+     *
+     * Uma consulta só pro catálogo inteiro: uma por item seria uma ida ao
+     * banco por card, e a aba da loja abre junto com o resto da /games.
+     *
+     * @return array<string, array{restam:int, texto:string, esgotou:bool}>
+     */
+    function lojaLimites(PDO $pdo, int $userId): array
+    {
+        $out = [];
+        try {
+            lojaGarantirTabela($pdo);
+            $st = $pdo->prepare("SELECT item_key,
+                                        COUNT(*) AS total,
+                                        SUM(YEAR(comprado_em) = YEAR(NOW())
+                                        AND MONTH(comprado_em) = MONTH(NOW())) AS no_mes
+                                   FROM loja_inventario
+                                  WHERE id_usuario = ?
+                                  GROUP BY item_key");
+            $st->execute([$userId]);
+            $contagem = [];
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+                $contagem[$r['item_key']] = ['total' => (int)$r['total'], 'mes' => (int)$r['no_mes']];
+            }
+
+            foreach (lojaCatalogo() as $chave => $item) {
+                $lim = $item['limite'] ?? null;
+                if (!$lim) continue;
+                $ja = $lim['por'] === 'mes'
+                    ? ($contagem[$chave]['mes'] ?? 0)
+                    : ($contagem[$chave]['total'] ?? 0);
+                $restam = max(0, (int)$lim['qtd'] - $ja);
+                $out[$chave] = [
+                    'restam'  => $restam,
+                    'texto'   => lojaLimiteTexto($item),
+                    'esgotou' => $restam === 0,
+                    // A tela precisa saber a janela pra decidir se conta faz
+                    // sentido: "resta 1" ao lado de "compra única" é a mesma
+                    // informação dita duas vezes.
+                    'por'     => $lim['por'],
+                ];
+            }
+        } catch (Throwable $e) {
+            error_log('[loja] limites: ' . $e->getMessage());
+        }
+        return $out;
+    }
 }
 
 if (!function_exists('lojaGarantirTabela')) {
@@ -180,17 +272,36 @@ if (!function_exists('lojaComprar')) {
 
         lojaGarantirTabela($pdo);
 
-        if (!empty($item['unico'])) {
-            $st = $pdo->prepare("SELECT 1 FROM loja_inventario
-                                  WHERE id_usuario = ? AND item_key = ? AND usado_em IS NULL LIMIT 1");
-            $st->execute([$userId, $itemKey]);
-            if ($st->fetchColumn()) {
-                return ['ok' => false, 'erro' => 'Você já tem um ' . $item['nome'] . ' guardado. Use ele antes de comprar outro.', 'saldo' => null];
-            }
-        }
-
         try {
             $pdo->beginTransaction();
+
+            // Trava a linha do GM antes de qualquer conta. O limite conferido
+            // FORA da transação tem a mesma falha que o saldo tinha: duas abas
+            // clicando junto passam pelas duas contagens antes de qualquer
+            // INSERT existir, e as duas veem "ainda cabe" — o GM leva três
+            // badges num mês de limite dois. Com o FOR UPDATE, a segunda
+            // espera a primeira terminar e enxerga o INSERT dela.
+            $lock = $pdo->prepare("SELECT fba_points FROM games_usuarios WHERE id = ? FOR UPDATE");
+            $lock->execute([$userId]);
+            if ($lock->fetchColumn() === false) {
+                $pdo->rollBack();
+                return ['ok' => false, 'erro' => 'Perfil de games não encontrado.', 'saldo' => null];
+            }
+
+            $lim = $item['limite'] ?? null;
+            if ($lim) {
+                $ja = lojaJaComprou($pdo, $userId, $itemKey, $lim);
+                if ($ja >= (int)$lim['qtd']) {
+                    $pdo->rollBack();
+                    $erro = $lim['por'] === 'sempre'
+                        ? ($lim['qtd'] === 1
+                            ? $item['nome'] . ' é compra única — você já comprou o seu.'
+                            : 'Você já comprou os ' . $lim['qtd'] . ' ' . $item['nome'] . ' que cabem por conta.')
+                        : 'Você já comprou ' . $ja . ' ' . $item['nome'] . ' este mês. O limite é '
+                          . $lim['qtd'] . ' por mês — dá pra comprar de novo no dia 1º.';
+                    return ['ok' => false, 'erro' => $erro, 'saldo' => null];
+                }
+            }
 
             $up = $pdo->prepare("UPDATE games_usuarios SET fba_points = fba_points - ?
                                   WHERE id = ? AND fba_points >= ?");

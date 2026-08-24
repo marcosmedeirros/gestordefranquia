@@ -181,6 +181,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['loja_acao'])) {
 $lojaItens   = lojaInventario($pdo, $userId);
 $lojaFila    = lojaPedidos($pdo, $userId);
 $lojaCat     = lojaCatalogo();
+// Quanto ainda cabe de cada item limitado. Vem do servidor junto com o resto
+// da aba: sem isso o card diria "Comprar" pra quem já estourou o limite, e o
+// erro só apareceria depois do clique.
+$lojaLimites = lojaLimites($pdo, $userId);
 
 // ── Eventos abertos ─────────────────────────────────────────────────────────
 $eventos = [];
@@ -807,6 +811,12 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
               justify-content:center; font-size:18px; }
     .lj-nome { font-size:13.5px; font-weight:700; }
     .lj-desc { font-size:11.5px; color:var(--text-3); line-height:1.4; flex:1; }
+    /* A regra do item, na vitrine. Discreta quando ainda cabe, vermelha
+       quando acabou — a diferenca entre informacao e impedimento. */
+    .lj-limite { font-size:10.5px; font-weight:700; color:var(--text-3);
+                 display:flex; align-items:center; gap:5px; }
+    .lj-limite.fim { color:var(--red); }
+    .lj-limite i { font-size:10px; }
     .lj-preco { font-size:14px; font-weight:800; color:var(--amber); display:flex;
                 align-items:center; gap:5px; font-variant-numeric:tabular-nums; }
     .lj-preco i { font-size:11px; }
@@ -1270,19 +1280,44 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
             <div class="sec-label" style="margin-top:26px"><i class="bi bi-bag-fill"></i> Loja</div>
             <div class="lj-grade">
                 <?php foreach ($lojaCat as $chave => $it):
-                    $podeComprar = (int)$perfil['fba_points'] >= (int)$it['preco']; ?>
+                    $lim = $lojaLimites[$chave] ?? null;
+                    $esgotou = $lim && $lim['esgotou'];
+                    // O limite vem ANTES do saldo: dizer "Faltam 3.500" pra
+                    // quem já usou as duas badges do mês manda juntar pontos
+                    // pra uma compra que não vai acontecer.
+                    $temSaldo = (int)$perfil['fba_points'] >= (int)$it['preco'];
+                    $podeComprar = $temSaldo && !$esgotou; ?>
                 <div class="lj-item <?= $podeComprar ? '' : 'sem-saldo' ?>">
                     <div class="lj-ico" style="color:<?= $it['cor'] ?>;background:color-mix(in srgb, <?= $it['cor'] ?> 12%, transparent)">
                         <i class="bi <?= $it['icone'] ?>"></i>
                     </div>
                     <div class="lj-nome"><?= htmlspecialchars($it['nome']) ?></div>
                     <div class="lj-desc"><?= htmlspecialchars($it['desc']) ?></div>
+                    <?php if ($lim): ?>
+                    <div class="lj-limite <?= $esgotou ? 'fim' : '' ?>">
+                        <i class="bi <?= $esgotou ? 'bi-lock-fill' : 'bi-info-circle' ?>"></i>
+                        <?php
+                        // A conta só aparece no limite mensal. Em "compra
+                        // única · resta 1" as duas metades dizem a mesma
+                        // coisa, e a segunda ainda sugere que exista uma
+                        // segunda compra em algum lugar.
+                        $mostraConta = !$esgotou && $lim['por'] === 'mes';
+                        ?>
+                        <?= htmlspecialchars($lim['texto']) ?><?= $mostraConta ? ' · resta' . ($lim['restam'] > 1 ? 'm ' : ' ') . $lim['restam'] : '' ?>
+                    </div>
+                    <?php endif; ?>
                     <div class="lj-preco"><i class="bi bi-star-fill"></i> <?= number_format((int)$it['preco'], 0, ',', '.') ?></div>
                     <form method="POST">
                         <input type="hidden" name="loja_acao" value="comprar">
                         <input type="hidden" name="item" value="<?= htmlspecialchars($chave) ?>">
                         <button type="submit" class="lj-btn" <?= $podeComprar ? '' : 'disabled' ?>>
-                            <?= $podeComprar ? 'Comprar' : 'Faltam ' . number_format((int)$it['preco'] - (int)$perfil['fba_points'], 0, ',', '.') ?>
+                            <?php if ($esgotou): ?>
+                                <?= $lim['texto'] === 'compra única' ? 'Já é seu' : 'Limite do mês' ?>
+                            <?php elseif (!$temSaldo): ?>
+                                Faltam <?= number_format((int)$it['preco'] - (int)$perfil['fba_points'], 0, ',', '.') ?>
+                            <?php else: ?>
+                                Comprar
+                            <?php endif; ?>
                         </button>
                     </form>
                 </div>
