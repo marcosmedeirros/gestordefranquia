@@ -211,6 +211,13 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   .live-tit{font-size:12.5px;color:var(--text-2);flex:1;min-width:0}
   .vaga{display:flex;align-items:center;gap:9px;padding:6px 0;border-top:1px solid var(--border);flex-wrap:wrap}
   .vaga-rot{width:118px;flex:none;font-size:11.5px;font-weight:800;display:flex;align-items:center;gap:6px}
+  /* O fundo é a cor da função, escrita no style inline. Tentei currentColor
+     aqui e o número sumiu: currentColor resolve com o color do PRÓPRIO
+     elemento, e o color dele é justamente o que eu troco na linha seguinte —
+     fundo e texto acabavam na mesma cor. */
+  .vaga-n{border-radius:999px;min-width:16px;height:16px;display:inline-flex;
+          align-items:center;justify-content:center;font-size:10px;font-weight:800;
+          padding:0 4px;color:var(--panel-2)}
   .chips{display:flex;gap:6px;flex-wrap:wrap;flex:1;min-width:140px}
   .chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel-3);border:1px solid var(--border-md);
         border-radius:20px;padding:3px 6px 3px 10px;font-size:12px;font-weight:700}
@@ -416,6 +423,13 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
         <div class="vaga">
           <div class="vaga-rot" style="color:<?= $f['cor'] ?>">
             <i class="bi <?= $f['icone'] ?>"></i> <?= $esc($f['rotulo']) ?>
+            <?php /* A contagem só aparece do segundo em diante. Ela existe pra
+                     dizer que a função aceita mais de uma pessoa — "Comentarista"
+                     sozinho, com um nome do lado, se lê como vaga única, e foi
+                     assim que a tela passou a impressão de ter limite. */ ?>
+            <?php if (count($nessa) > 1): ?>
+            <span class="vaga-n" style="background:<?= $f['cor'] ?>"><?= count($nessa) ?></span>
+            <?php endif; ?>
           </div>
           <div class="chips">
             <?php foreach ($nessa as $p): ?>
@@ -440,7 +454,11 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
               <input type="hidden" name="data" value="<?= $esc($lv['data']) ?>">
               <input type="hidden" name="funcao" value="<?= $k ?>">
               <select name="usuario" required>
-                <option value="">Escalar…</option>
+                <?php /* "Escalar mais…" quando já tem gente: é a frase que
+                         responde, sem precisar tentar, a pergunta "posso pôr
+                         dois comentaristas?". Não há limite nenhum de pessoas
+                         por função. */ ?>
+                <option value=""><?= $nessa ? 'Escalar mais…' : 'Escalar…' ?></option>
                 <?php if ($ofereceu): ?>
                 <optgroup label="Se ofereceu">
                   <?php foreach ($ofereceu as $g): ?>
