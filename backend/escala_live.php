@@ -225,12 +225,27 @@ function escalaFaseServe(?string $faseDaPessoa, ?string $faseDaLive): bool
     return $p === $faseDaLive;
 }
 
-/** Como a fase aparece na tela e no grupo. Vazio pra "todas". */
+/** Como a fase aparece como SELO, ao lado de um nome. Vazio pra "todas". */
 function escalaFaseRotulo(?string $fase): string
 {
     return match ($fase) {
         'playoffs' => 'só offs',
         'regular'  => 'só regular',
+        default    => '',
+    };
+}
+
+/**
+ * A fase dentro de uma frase — "não entra mais NOS OFFS".
+ *
+ * Separado do selo porque "só offs" só funciona colado num nome; solto numa
+ * frase vira "você não entra mais só offs", que não é português.
+ */
+function escalaFaseNaFrase(?string $fase): string
+{
+    return match ($fase) {
+        'playoffs' => 'nos offs',
+        'regular'  => 'na regular',
         default    => '',
     };
 }
@@ -345,30 +360,71 @@ function escalaAdicionar(PDO $pdo, int $userId, string $liga, string $funcao, ?s
  *
  * @return array{ok:bool, tirou:int, vagas:int, substituidos:array, orfas:array}
  */
-function escalaSair(PDO $pdo, int $userId, string $liga, ?string $semana = null): array
+function escalaSair(PDO $pdo, int $userId, string $liga, ?string $semana = null, string $fase = 'todas'): array
 {
     escalaGarantirTabelas($pdo);
     $liga = strtoupper(trim($liga));
+    if (!in_array($fase, ESCALA_FASES, true)) $fase = 'todas';
     $semana = $semana ?: escalaSemanaAtualDaLiga($pdo, $liga);
     $fim = (new DateTimeImmutable($semana))->modify('+6 days')->format('Y-m-d');
-    $out = ['ok' => true, 'tirou' => 0, 'vagas' => 0, 'substituidos' => [], 'orfas' => []];
+    $out = ['ok' => true, 'tirou' => 0, 'vagas' => 0, 'substituidos' => [], 'orfas' => [],
+            'fase' => $fase, 'restou' => []];
 
     try {
-        $st = $pdo->prepare("DELETE FROM escala_disponibilidade
-                              WHERE semana=? AND league=? AND id_usuario=?");
-        $st->execute([$semana, $liga, $userId]);
-        $out['tirou'] = $st->rowCount();
+        if ($fase === 'todas') {
+            $st = $pdo->prepare("DELETE FROM escala_disponibilidade
+                                  WHERE semana=? AND league=? AND id_usuario=?");
+            $st->execute([$semana, $liga, $userId]);
+            $out['tirou'] = $st->rowCount();
+        } else {
+            // SAIR DE UMA FASE SÓ é o oposto de entrar nela: quem topava as
+            // duas passa a topar só a outra. Apagar a linha tiraria a pessoa
+            // do dia em que ela continua disponível — que é justamente a
+            // queixa que trouxe isto.
+            $oposta = $fase === 'offs' || $fase === 'playoffs' ? 'regular' : 'playoffs';
 
-        // As escalações que ela larga.
-        $q = $pdo->prepare("SELECT id, evento_id, data, funcao FROM escala_lives
-                             WHERE id_usuario=? AND league=? AND data BETWEEN ? AND ?");
+            $q = $pdo->prepare("SELECT funcao, fase FROM escala_disponibilidade
+                                 WHERE semana=? AND league=? AND id_usuario=?");
+            $q->execute([$semana, $liga, $userId]);
+
+            $apaga = $pdo->prepare("DELETE FROM escala_disponibilidade
+                                     WHERE semana=? AND league=? AND id_usuario=? AND funcao=?");
+            $vira  = $pdo->prepare("UPDATE escala_disponibilidade SET fase=?
+                                     WHERE semana=? AND league=? AND id_usuario=? AND funcao=?");
+
+            foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $atual = $r['fase'] ?: 'todas';
+                if ($atual === 'todas') {
+                    $vira->execute([$oposta, $semana, $liga, $userId, $r['funcao']]);
+                    $out['tirou']++;
+                    $out['restou'][] = $r['funcao'];
+                } elseif ($atual === $fase) {
+                    $apaga->execute([$semana, $liga, $userId, $r['funcao']]);
+                    $out['tirou']++;
+                }
+                // Se ela já só topava a fase oposta, não há o que tirar.
+            }
+        }
+
+        // As escalações que ela larga. Com fase, só as lives DAQUELA fase —
+        // sair do offs não pode derrubar quem já estava escalado na regular.
+        $q = $pdo->prepare("SELECT e.id, e.evento_id, e.data, e.funcao, ev.titulo
+                              FROM escala_lives e
+                              LEFT JOIN calendario_eventos ev ON ev.id = e.evento_id
+                             WHERE e.id_usuario=? AND e.league=? AND e.data BETWEEN ? AND ?");
         $q->execute([$userId, $liga, $semana, $fim]);
-        $largou = $q->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $todas = $q->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $largou = $fase === 'todas' ? $todas : array_values(array_filter(
+            $todas,
+            fn($v) => escalaFaseDaLive($v['titulo'] ?? '') === ($fase === 'regular' ? 'regular' : 'playoffs')
+        ));
+
         $out['vagas'] = count($largou);
         if (!$largou) return $out;
 
-        $pdo->prepare("DELETE FROM escala_lives WHERE id_usuario=? AND league=? AND data BETWEEN ? AND ?")
-            ->execute([$userId, $liga, $semana, $fim]);
+        $apagaEsc = $pdo->prepare("DELETE FROM escala_lives WHERE id=?");
+        foreach ($largou as $v) $apagaEsc->execute([$v['id']]);
 
         $disp = escalaDisponiveis($pdo, $liga, $semana);
 
@@ -386,9 +442,16 @@ function escalaSair(PDO $pdo, int $userId, string $liga, ?string $semana = null)
             $naLive->execute([$v['evento_id'], $v['data']]);
             $ocupados = array_merge($ocupados, array_map('intval', $naLive->fetchAll(PDO::FETCH_COLUMN)));
 
+            // O substituto tem que servir pra FASE desta live. Chamar quem
+            // disse "só regular" pra cobrir um jogo de offs seria pôr na
+            // escala alguém que avisou que não vai.
+            $faseDestaLive = escalaFaseDaLive($v['titulo'] ?? '');
+
             $fila = array_values(array_filter(
                 $disp[$v['funcao']] ?? [],
-                fn($g) => (int)$g['id'] !== $userId && !in_array((int)$g['id'], $ocupados, true)
+                fn($g) => (int)$g['id'] !== $userId
+                       && !in_array((int)$g['id'], $ocupados, true)
+                       && escalaFaseServe($g['fase'] ?? 'todas', $faseDestaLive)
             ));
 
             if (!$fila) {
@@ -761,7 +824,11 @@ function escalaTextoAjuda(): string
     $l[] = '';
     $l[] = '*Os outros comandos*';
     $l[] = '/verescala — quem se ofereceu e quem já está escalado';
-    $l[] = '/sair — tira você da escala da semana (e o bot chama o próximo da fila)';
+    $l[] = '/sair — tira você da semana (e o bot chama o próximo da fila)';
+    // A mesma gramática de entrar, e por isso vem logo embaixo do /sair: a
+    // pessoa que topou os dois dias e só quer largar um precisa achar isto
+    // no mesmo lugar em que leu o comando.
+    $l[] = '  _/sair elite offs_ — sai só dos offs e continua valendo na regular';
     $l[] = '/escala — abre a chamada da semana no grupo';
     $l[] = '/live — este texto aqui';
     $l[] = '';

@@ -1542,21 +1542,37 @@ function wcEscalaTopar(PDO $pdo, string $funcao, string $arg, string $deQuem, ?s
 function wcEscalaSair(PDO $pdo, string $arg, string $deQuem, ?string $ligaDoGrupo): string
 {
     require_once __DIR__ . '/../backend/escala_live.php';
-    // A fase é ignorada aqui de propósito: /sair tira de tudo. Quem quer
-    // ficar só na regular manda o comando da função de novo com "regular" —
-    // um /sair que tirasse só metade deixaria a pessoa achando que saiu.
-    [$uid, $liga, , $erro] = wcEscalaLiga($pdo, $arg, $deQuem, $ligaDoGrupo);
+    // O /sair aceita os MESMOS argumentos de entrar: liga e fase. Quem topa
+    // a regular e o offs e só quer largar um dos dois não tinha como dizer
+    // isso — o /sair tirava dos dois.
+    [$uid, $liga, $fase, $erro] = wcEscalaLiga($pdo, $arg, $deQuem, $ligaDoGrupo);
     if ($erro) return $erro;
 
-    $r = escalaSair($pdo, $uid, $liga);
+    $r = escalaSair($pdo, $uid, $liga, null, $fase);
     if (!$r['ok']) return 'Não deu pra tirar agora. Tenta de novo.';
-    if (!$r['tirou'] && !$r['vagas']) return "Você não estava na chamada da *{$liga}* esta semana.";
+    if (!$r['tirou'] && !$r['vagas']) {
+        $qual = $fase !== 'todas' ? ' ' . escalaFaseNaFrase($fase) : '';
+        return "Você já não estava na chamada da *{$liga}*{$qual} esta semana.";
+    }
 
     $DIAS = ['dom','seg','ter','qua','qui','sex','sáb'];
     $quando = fn($d) => $DIAS[(int)date('w', strtotime($d))] . ' ' . date('d/m', strtotime($d));
     $rot = fn($f) => escalaFuncoes()[$f]['rotulo'] ?? $f;
 
-    $txt = "Pronto, tirei você da chamada da *{$liga}* desta semana.";
+    // A mensagem diz o que SOBROU, e não só o que saiu. Quem manda
+    // "/sair elite offs" precisa ver na resposta que continua valendo pra
+    // regular — senão fica na dúvida se tirou demais e manda o comando de
+    // entrar de novo, por garantia.
+    if ($fase === 'todas') {
+        $txt = "Pronto, tirei você da chamada da *{$liga}* desta semana.";
+    } else {
+        $txt = "Pronto — na *{$liga}* você não entra mais " . escalaFaseNaFrase($fase) . '.';
+        if ($r['restou']) {
+            $sobrou = escalaFaseNaFrase($fase === 'regular' ? 'playoffs' : 'regular');
+            $txt .= "\n_Continua valendo {$sobrou}: "
+                  . implode(', ', array_map($rot, $r['restou'])) . '._';
+        }
+    }
 
     // Quem entrou no lugar aparece NOMEADO: sem isso a pessoa que saiu não
     // sabe se deixou buraco, e quem ficou não sabe que a vaga foi coberta.
