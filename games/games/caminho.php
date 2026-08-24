@@ -6025,6 +6025,21 @@ const TACAS_NBA_FOTO = {
   ouroCopa:   'https://upload.wikimedia.org/wikipedia/commons/1/15/Gold_medal.svg',
   prataCopa:  'https://upload.wikimedia.org/wikipedia/commons/0/03/Silver_medal.svg',
   bronzeCopa: 'https://upload.wikimedia.org/wikipedia/commons/5/52/Bronze_medal.svg',
+
+  // Os sete premios individuais da NBA. Sao NOSSAS: as fotos oficiais nao
+  // estao no thesportsdb nem no commons com licenca livre, entao o Marcos
+  // mandou as imagens e o fundo saiu aqui mesmo, por inundacao a partir das
+  // bordas no canvas.
+  //
+  // Sendo nossas, elas NAO passam pelo proxy nem contaminam o canvas do
+  // cartao — sao mesma origem por natureza.
+  mvp:     '/img/premios/MVP.png',
+  fmvp:    '/img/premios/FMVP.png',
+  dpoy:    '/img/premios/DPOY.png',
+  roy:     '/img/premios/ROY.png',
+  cesta:   '/img/premios/CESTINHA.png',
+  allstar: '/img/premios/ALLSTAR.png',
+  copaNBA: '/img/premios/NBACUP.png',
 };
 
 const TACAS_NBA = {
