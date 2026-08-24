@@ -29,3 +29,16 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/img/icons/icon-180.png?v=6">
   
   <!-- Apple Splash Screens removidos para usar plano de fundo do app -->
+
+  <!--
+    Os popups do site no lugar dos do navegador.
+
+    Entra AQUI, no head compartilhado, e não em cada página: são mais de 400
+    chamadas de alert() espalhadas por dezenas de arquivos, e o substituto só
+    vale se estiver carregado ANTES da primeira delas rodar.
+
+    Sem defer de propósito. Com defer ele só executaria depois do HTML todo,
+    e um alert disparado por script inline no meio da página pegaria ainda o
+    do navegador.
+  -->
+  <script src="/js/popups.js?v=<?= @filemtime(dirname(__DIR__) . '/js/popups.js') ?: 1 ?>"></script>

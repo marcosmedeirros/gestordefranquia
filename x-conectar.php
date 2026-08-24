@@ -187,6 +187,7 @@ $esc   = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
   ol.passos code{background:var(--panel-3);border-radius:5px;padding:2px 6px;font-size:12px;word-break:break-all}
   @media (max-width:620px){ .wrap{padding:18px 13px 50px} .num div{flex:1;min-width:0} }
 </style>
+<script src="/js/popups.js"></script>
 </head>
 <body>
 <div class="wrap">

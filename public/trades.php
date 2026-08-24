@@ -213,6 +213,7 @@ if (!$userTeam) {
             color: var(--fba-text);
         }
     </style>
+<script src="/js/popups.js"></script>
 </head>
 <body class="fba-dark">
     <div class="container-fluid">

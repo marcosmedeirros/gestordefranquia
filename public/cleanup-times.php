@@ -78,6 +78,7 @@ $duplicates_current = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .badge-success { background: #28a745; }
         .badge-danger { background: #dc3545; }
     </style>
+<script src="/js/popups.js"></script>
 </head>
 <body>
 <div class="container mt-5">

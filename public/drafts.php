@@ -129,6 +129,7 @@ if (!$userTeam) {
             font-size: 0.85rem;
         }
     </style>
+<script src="/js/popups.js"></script>
 </head>
 <body class="fba-dark">
     <div class="container-fluid">

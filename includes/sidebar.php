@@ -9,6 +9,13 @@ if (!isset($pdo)) {
     $pdo = db();
 }
 $__sbCurrent = basename($_SERVER['SCRIPT_NAME'] ?? '');
+
+// Os popups do site, aqui TAMBEM. O head-pwa.php ja carrega, mas nem toda
+// pagina inclui ele — o dashboard e um exemplo. O sidebar e o que quase
+// tudo inclui, e o proprio arquivo tem trava contra rodar duas vezes.
+?>
+<script src="/js/popups.js?v=<?= @filemtime(dirname(__DIR__) . '/js/popups.js') ?: 1 ?>"></script>
+<?php
 $__sbIsAdmin = !empty($user['id']) && hasAdminAccess($pdo, (int)$user['id']);
 // Observar liga é só do admin geral — admin de liga já vê a própria liga
 // inteira, "ver outra liga" não é dele.

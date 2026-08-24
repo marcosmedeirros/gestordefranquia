@@ -145,6 +145,7 @@ tr:last-child td{border-bottom:none}
 .aviso.ok i{color:var(--green)}
 @media(max-width:640px){ body{padding:16px 12px 50px} h1{font-size:20px} .passos{grid-template-columns:1fr} }
 </style>
+<script src="/js/popups.js"></script>
 </head>
 <body>
 <div class="wrap">
