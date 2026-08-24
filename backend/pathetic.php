@@ -946,6 +946,18 @@ function patheticAvisarGrupo(PDO $pdo, array $noticia): ?string
 
         whatsappParaGrupoPrincipal($pdo, implode("\n", $linhas), 'pathetic');
 
+        // E a timeline do X. Vem DEPOIS e num try próprio porque os dois
+        // canais são independentes: X fora do ar não pode fazer o grupo
+        // deixar de ser avisado, nem o contrário. A trava do post repetido
+        // é a chave (tipo, ref) da fila do X, e não o avisou_whats daqui —
+        // são duas perguntas diferentes e um dia vão divergir.
+        try {
+            require_once __DIR__ . '/x_social.php';
+            xNoticiaParaTimeline($pdo, $noticia);
+        } catch (Throwable $e) {
+            error_log('[x] pathetic: ' . $e->getMessage());
+        }
+
         $pdo->prepare("UPDATE pathetic_noticias SET avisou_whats = 1 WHERE id = ?")
             ->execute([(int)$noticia['id']]);
 

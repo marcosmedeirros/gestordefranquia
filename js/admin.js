@@ -432,6 +432,10 @@ async function showGestao(league) {
     // regras mora num sistema diferente — limite adivinhado errado vira
     // reclamacao semanas depois. O GM resgata, cai aqui, e quem aplica e gente.
     { icon: 'bi-bag-check-fill',        label: 'Pedidos<br>da Loja',        url: '/loja-pedidos.php',    color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
+    // Conectar a conta do X e ver o que ja foi pra timeline. Trade bombastica
+    // e noticia do The Pathetic viram post sozinhas; a tela e onde se liga,
+    // se desliga e se descobre por que um post nao saiu.
+    { icon: 'bi-twitter-x',             label: 'X<br>da Liga',              url: '/x-conectar.php',      color: '#e7e7ea', bg: 'rgba(231,231,234,.10)' },
     { icon: 'bi-book-half',             label: 'Ver guia<br>do usuário',    url: '/guia.php', novaAba: true, color: '#38bdf8', bg: 'rgba(56,189,248,.12)' },
     // Guia do Admin: entrada única, só aqui. A página em si também barra quem
     // não tem acesso admin, então o card não é a trava — é só o caminho.

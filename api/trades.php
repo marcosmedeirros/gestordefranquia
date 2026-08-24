@@ -288,6 +288,29 @@ function sendTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_created
             } catch (\Throwable $e) {
                 error_log('[whatsapp-trade] ' . $e->getMessage());
             }
+
+            // A timeline do X. Régua mais alta que a do grupo (X_OVR_MIN_TRADE
+            // contra WHATSAPP_OVR_MIN_ANUNCIO): o grupo é da liga e aguenta
+            // troca de reserva, a timeline é pública. Só enfileira — quem
+            // posta é o cron, pra ninguém esperar o HTTP do X pra ver a trade
+            // fechada na tela.
+            try {
+                require_once dirname(__DIR__) . '/backend/x_social.php';
+                xTradeParaTimeline(
+                    $pdo,
+                    [
+                        // Cruzado de propósito: o payload guarda o que cada um
+                        // ENVIA, e o post fala de quem RECEBE.
+                        ['time' => $payload['to_team']['name']   ?? 'Time B', 'recebe' => xItens($fromPlayers, $fromPicks)],
+                        ['time' => $payload['from_team']['name'] ?? 'Time A', 'recebe' => xItens($toPlayers, $toPicks)],
+                    ],
+                    (string)$trade['league'],
+                    (int)$trade['id'],
+                    xMaiorOvr($fromPlayers, $toPlayers)
+                );
+            } catch (\Throwable $e) {
+                error_log('[x-trade] ' . $e->getMessage());
+            }
         }
     }
 }
@@ -695,6 +718,36 @@ function sendMultiTradeWebhook(PDO $pdo, int $tradeId, string $event = 'trade_cr
                 );
             } catch (\Throwable $e) {
                 error_log('[whatsapp-multi-trade] ' . $e->getMessage());
+            }
+
+            // A timeline do X, agrupada por quem RECEBE. Trade de três times
+            // agrupada por quem envia obriga a cruzar os blocos pra saber o
+            // que sobrou pra cada um — em 280 caracteres, ninguém cruza nada.
+            try {
+                require_once dirname(__DIR__) . '/backend/x_social.php';
+                $nomePorId = [];
+                foreach ($payloadTeams as $t) $nomePorId[(int)($t['id'] ?? 0)] = $t['name'] ?? 'Time';
+
+                $porTime = $todosJogadores = [];
+                foreach ($payloadItems as $it) {
+                    $para = (int)($it['to_team_id'] ?? 0);
+                    if (!isset($porTime[$para])) $porTime[$para] = ['jogadores' => [], 'picks' => []];
+                    if (!empty($it['player'])) {
+                        $porTime[$para]['jogadores'][] = $it['player'];
+                        $todosJogadores[] = $it['player'];
+                    } elseif (!empty($it['pick'])) {
+                        $porTime[$para]['picks'][] = $it['pick'];
+                    }
+                }
+
+                $blocos = [];
+                foreach ($porTime as $id => $lado) {
+                    $blocos[] = ['time' => $nomePorId[$id] ?? 'Time', 'recebe' => xItens($lado['jogadores'], $lado['picks'])];
+                }
+
+                xTradeParaTimeline($pdo, $blocos, (string)$trade['league'], (int)$trade['id'], xMaiorOvr($todosJogadores));
+            } catch (\Throwable $e) {
+                error_log('[x-multi-trade] ' . $e->getMessage());
             }
         }
     }
