@@ -1236,15 +1236,24 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                     <div class="lj-taxa"><?= LOJA_MOEDAS_POR_PONTO ?> moedas = 1 FBA Point</div>
                     <form method="POST" class="lj-conv">
                         <input type="hidden" name="loja_acao" value="converter">
-                        <!-- SEM step: com step=10 o navegador RECUSAVA 2505 sem
-                             dizer por que, e quem tem 2505 moedas teria que
-                             descobrir sozinho o multiplo. O troco ja e tratado
-                             no servidor (gasta 2500, credita 250, devolve 5), e
-                             a conta ao lado mostra isso antes do clique. -->
+                        <?php
+                        // O teto e o maior MULTIPLO que cabe no saldo, e nao o
+                        // saldo cru: quem tem 2505 moedas so consegue converter
+                        // 2500, e deixar o max em 2505 poe no campo um numero
+                        // que o proprio campo vai arredondar na frente da
+                        // pessoa. A seta pra cima agora para no lugar certo.
+                        $ljTeto = intdiv((int)$perfil['pontos'], LOJA_MOEDAS_POR_PONTO) * LOJA_MOEDAS_POR_PONTO;
+                        ?>
+                        <!-- step=10 pras setas andarem de 10 em 10. O step
+                             sozinho ja custou caro uma vez: o navegador
+                             RECUSAVA 2505 em silencio, sem dizer por que. Por
+                             isso ele nao vem sozinho — o JS abaixo ARREDONDA
+                             pra baixo em vez de recusar, entao digitar 12
+                             vira 10 na tela e nao um formulario travado. -->
                         <input type="number" name="moedas" id="ljMoedas" min="<?= LOJA_MOEDAS_POR_PONTO ?>"
-                               step="1" max="<?= (int)$perfil['pontos'] ?>"
+                               step="<?= LOJA_MOEDAS_POR_PONTO ?>" max="<?= $ljTeto ?>"
                                data-taxa="<?= LOJA_MOEDAS_POR_PONTO ?>"
-                               placeholder="quantas moedas?" autocomplete="off">
+                               placeholder="múltiplos de <?= LOJA_MOEDAS_POR_PONTO ?>" autocomplete="off">
                         <span class="lj-vira" id="ljVira">= 0 FBA Points</span>
                         <button type="submit" class="lj-btn" <?= (int)$perfil['pontos'] < LOJA_MOEDAS_POR_PONTO ? 'disabled' : '' ?>>
                             <i class="bi bi-arrow-left-right"></i> Trocar
@@ -1573,13 +1582,44 @@ function trocarLigaRanking(liga) {
     const saida = document.getElementById('ljVira');
     if (!campo || !saida) return;
     const taxa = Number(campo.dataset.taxa) || 10;
+    const teto = Number(campo.max) || 0;
+
+    // Enquanto digita: so mostra a conta. Arredondar a cada tecla impediria
+    // de escrever 100 — o 1 viraria 0 antes do segundo digito chegar.
     campo.addEventListener('input', () => {
         const n = Math.max(0, Math.floor(Number(campo.value) || 0));
         const pts = Math.floor(n / taxa);
-        const sobra = n - pts * taxa;
-        saida.textContent = '= ' + pts.toLocaleString('pt-BR') + ' FBA Points'
-            + (sobra > 0 ? ' (sobram ' + sobra + ')' : '');
+        saida.textContent = '= ' + pts.toLocaleString('pt-BR') + ' FBA Points';
     });
+
+    // Ao sair do campo: ARREDONDA PRA BAIXO no multiplo. 12 vira 10, 2505 vira
+    // 2500. Arredondar em vez de recusar e o ponto todo: com o step sozinho, o
+    // navegador so travava o envio e nao dizia o motivo — a pessoa clicava em
+    // Trocar e nada acontecia.
+    const ajustar = () => {
+        const bruto = Math.floor(Number(campo.value) || 0);
+        // Saldo menor que a taxa: o botão já nasce desabilitado, e o piso lá
+        // embaixo poria um 10 no campo de quem não tem 10 moedas.
+        if (bruto <= 0 || teto <= 0) { campo.value = ''; saida.textContent = '= 0 FBA Points'; return; }
+        let n = Math.floor(bruto / taxa) * taxa;
+        if (teto > 0 && n > teto) n = teto;   // nunca oferece mais do que cabe no saldo
+        if (n < taxa) n = taxa;               // 4 moedas viram o minimo, nao zero
+        campo.value = n;
+        campo.dispatchEvent(new Event('input'));
+    };
+    campo.addEventListener('change', ajustar);
+    campo.addEventListener('blur', ajustar);
+
+    // O ajuste tem que acontecer ANTES da validação do navegador, e não no
+    // submit: com step=10 e o campo em 12, o navegador barra o envio, mostra
+    // "os dois valores válidos mais próximos são 10 e 20" e o evento submit
+    // NUNCA chega — que é exatamente o balão sem explicação que fez o step
+    // ser removido daqui da primeira vez.
+    //
+    // O clique no botão e o Enter no campo rodam antes dessa validação, então
+    // é neles que o 12 vira 10 — e aí o formulário sai válido.
+    campo.form?.querySelector('button[type="submit"]')?.addEventListener('click', ajustar);
+    campo.addEventListener('keydown', (e) => { if (e.key === 'Enter') ajustar(); });
 })();
 
 /* ── BUSCA E FILTRO DOS MEUS PALPITES ───────────────────────────────────
