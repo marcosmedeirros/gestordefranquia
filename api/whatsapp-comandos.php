@@ -1521,15 +1521,28 @@ function wcEscalaSair(PDO $pdo, string $arg, string $deQuem, ?string $ligaDoGrup
 
     $r = escalaSair($pdo, $uid, $liga);
     if (!$r['ok']) return 'Não deu pra tirar agora. Tenta de novo.';
-    if (!$r['tirou'] && !$r['escalado']) return "Você não estava na chamada da *{$liga}* esta semana.";
+    if (!$r['tirou'] && !$r['vagas']) return "Você não estava na chamada da *{$liga}* esta semana.";
+
+    $DIAS = ['dom','seg','ter','qua','qui','sex','sáb'];
+    $quando = fn($d) => $DIAS[(int)date('w', strtotime($d))] . ' ' . date('d/m', strtotime($d));
+    $rot = fn($f) => escalaFuncoes()[$f]['rotulo'] ?? $f;
 
     $txt = "Pronto, tirei você da chamada da *{$liga}* desta semana.";
-    // Sair da chamada NÃO desfaz escalação já feita — quem desfaz é o admin.
-    // Avisar aqui é o que evita a pessoa achar que está livre de um
-    // compromisso que a liga já anunciou.
-    if ($r['escalado']) {
-        $txt .= "\n\n⚠️ Mas você *já está escalado* em alguma live desta semana. "
-              . "Isso o /sair não desfaz — fala com quem monta a escala.";
+
+    // Quem entrou no lugar aparece NOMEADO: sem isso a pessoa que saiu não
+    // sabe se deixou buraco, e quem ficou não sabe que a vaga foi coberta.
+    if ($r['substituidos']) {
+        $txt .= "\n\n🔁 *Chamei da fila:*";
+        foreach ($r['substituidos'] as $s) {
+            $txt .= "\n• " . $quando($s['data']) . ' — ' . $rot($s['funcao']) . ': *' . $s['nome'] . '*';
+        }
+    }
+    if ($r['orfas']) {
+        $txt .= "\n\n⚠️ *Sem ninguém na fila pra:*";
+        foreach ($r['orfas'] as $o) {
+            $txt .= "\n• " . $quando($o['data']) . ' — ' . $rot($o['funcao']);
+        }
+        $txt .= "\nQuem puder cobrir, manda o comando da função.";
     }
     return $txt;
 }

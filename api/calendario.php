@@ -56,9 +56,16 @@ if ($acao === 'eventos') {
     $eventos = calendarioEventos($pdo, $ligasPedidas(),
         date('Y-m-d 00:00:00', strtotime($de)), date('Y-m-d 23:59:59', strtotime($ate)));
 
+    // A escala das lives vem JUNTO, numa consulta só pra janela inteira.
+    // Pedir por evento seria uma ida ao banco por live na tela — e num mês
+    // cheio isso é trinta idas pra desenhar trinta nomes.
+    require_once __DIR__ . '/../backend/escala_live.php';
+    $escalaJanela = escalaDosEventos($pdo, $ligasPedidas(),
+        date('Y-m-d', strtotime($de)), date('Y-m-d', strtotime($ate)));
+
     echo json_encode([
         'ok' => true,
-        'eventos' => array_map(function ($e) use ($podeNaLiga) {
+        'eventos' => array_map(function ($e) use ($podeNaLiga, $escalaJanela) {
             $e['id'] = (int)$e['id'];
             $e['dia_inteiro'] = (bool)$e['dia_inteiro'];
             $e['cor'] = calendarioCor($e['league']);
@@ -67,6 +74,9 @@ if ($acao === 'eventos') {
             // Vai por evento pra tela não precisar repetir a regra: ela só
             // desenha o lápis onde este campo for verdadeiro.
             $e['posso_editar'] = $podeNaLiga($e['league']);
+            // A chave é evento+DATA porque evento que repete não tem uma
+            // linha por semana: a escala de uma quarta não é a da outra.
+            $e['escala'] = $escalaJanela[$e['id'] . '|' . substr((string)$e['inicio'], 0, 10)] ?? [];
             return $e;
         }, $eventos),
     ]);

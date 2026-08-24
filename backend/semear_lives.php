@@ -40,16 +40,45 @@ function livesDaGrade(): array
     ];
 }
 
+/**
+ * Quando cada liga começa a ter live.
+ *
+ * A ELITE já joga na semana do dia 24; as outras três só a partir do dia 1º
+ * de setembro. Sem isso todas nasceriam na mesma semana, e o calendário
+ * mostraria live de NEXT numa semana em que a NEXT não joga — o que faria a
+ * escala pedir gente pra uma live que não existe.
+ *
+ * A data é o INÍCIO da série. A repetição semanal segue dali pra frente, e
+ * o dia da semana de cada uma manda: a primeira ocorrência é o primeiro dia
+ * certo IGUAL OU DEPOIS desta data.
+ */
+function inicioDaLiga(string $liga): string
+{
+    return match (strtoupper($liga)) {
+        'ELITE' => '2026-08-24',
+        default => '2026-09-01',
+    };
+}
+
 $gravar = in_array('--gravar', $argv ?? [], true);
 $pdo = db();
 ensureCalendarioTables($pdo);
 
-// A primeira ocorrência cai no próximo dia daquela semana a partir de hoje.
-// Data de início no passado faria o evento aparecer em semanas que já
-// passaram, e a escala herdaria lives que nunca existiram.
 $tz = new DateTimeZone('America/Sao_Paulo');
-$hoje = new DateTimeImmutable('now', $tz);
-$domingo = $hoje->modify('-' . (int)$hoje->format('w') . ' days');
+
+/**
+ * A primeira ocorrência: o primeiro $dia da semana IGUAL OU DEPOIS do
+ * início da liga.
+ *
+ * Não é "o próximo a partir de hoje": a ELITE começa no dia 24 e a quarta
+ * dessa semana é dia 26 — usar hoje empurraria pra semana seguinte e a
+ * primeira live sumiria do calendário.
+ */
+$primeira = function (string $liga, int $dia) use ($tz): string {
+    $d = new DateTimeImmutable(inicioDaLiga($liga), $tz);
+    $passos = ($dia - (int)$d->format('w') + 7) % 7;
+    return $d->modify("+{$passos} days")->format('Y-m-d');
+};
 
 $existe = $pdo->prepare("SELECT id, titulo, inicio FROM calendario_eventos
                           WHERE league = ? AND tipo = 'live' AND repete = 'semanal'
@@ -65,8 +94,9 @@ foreach (livesDaGrade() as [$liga, $dia, $hora, $titulo, $obs]) {
     $existe->execute([$liga, $dia + 1, $hora . ':00']);
     $ja = $existe->fetch(PDO::FETCH_ASSOC);
 
-    $quando = $domingo->modify("+{$dia} days")->format('Y-m-d') . ' ' . $hora . ':00';
-    $rot = str_pad($liga, 7) . ' ' . ['dom','seg','ter','qua','qui','sex','sáb'][$dia] . ' ' . $hora . '  ' . $titulo;
+    $quando = $primeira($liga, $dia) . ' ' . $hora . ':00';
+    $rot = str_pad($liga, 7) . ' ' . ['dom','seg','ter','qua','qui','sex','sáb'][$dia] . ' ' . $hora
+         . '  ' . str_pad($titulo, 15) . ' a partir de ' . date('d/m', strtotime($quando));
 
     if ($ja) { $tinha++; echo "  ja existe  $rot  (#{$ja['id']})\n"; continue; }
     $novos++;

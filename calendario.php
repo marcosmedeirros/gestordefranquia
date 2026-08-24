@@ -148,6 +148,17 @@ $ligasAdmin = array_values(array_intersect(
     .cal-item-mes{font-size:9.5px;font-weight:700;color:var(--text-3);text-transform:uppercase}
     .cal-item-tit{font-size:13.5px;font-weight:700;color:var(--text);margin-bottom:2px}
     .cal-item-meta{font-size:11.5px;color:var(--text-2);display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+    /* Quem está escalado na live. Vem depois da descrição, com o ícone de
+       gente na frente — pra ler como "quem", e não como mais uma linha de
+       detalhe do evento. */
+    .cal-escala{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:5px;
+                font-size:11px;color:var(--text-2)}
+    .cal-escala > i{font-size:11px;color:var(--text-3)}
+    .cal-esc{background:var(--panel-2);border:1px solid var(--border);border-radius:20px;padding:2px 9px}
+    .cal-esc b{color:var(--text-3);font-weight:800;margin-right:4px}
+    /* O SEU nome destacado: numa lista de nomes, achar o próprio é a
+       primeira coisa que a pessoa faz. */
+    .cal-esc-eu{font-style:normal;font-weight:800;color:var(--red)}
     .cal-tag{
       display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:999px;
       font-size:9.5px;font-weight:800;background:color-mix(in srgb,var(--c) 16%,transparent);
@@ -263,6 +274,8 @@ $ligasAdmin = array_values(array_intersect(
 
 <script>
 const MINHA_LIGA  = <?= json_encode($minhaLiga) ?>;
+// Pro nome da pessoa vir destacado na escala da live.
+const EU_ID       = <?= (int)$user['id'] ?>;
 const LIGAS       = <?= json_encode(CALENDARIO_LIGAS) ?>;
 const CORES       = <?= json_encode(CALENDARIO_CORES, JSON_UNESCAPED_UNICODE) ?>;
 const TIPOS       = <?= json_encode(CALENDARIO_TIPOS, JSON_UNESCAPED_UNICODE) ?>;
@@ -411,11 +424,43 @@ function itemHtml(e) {
           ${e.link ? `<a class="cal-link" href="${esc(e.link)}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> abrir</a>` : ''}
         </div>
         ${e.descricao ? `<div class="cal-item-meta" style="margin-top:3px">${esc(e.descricao)}</div>` : ''}
+        ${escalaHtml(e)}
       </div>
       ${e.posso_editar ? `<div class="cal-acoes">
         <button class="cal-acao" data-editar="${e.id}" title="Editar"><i class="bi bi-pencil"></i></button>
       </div>` : ''}
     </div>`;
+}
+
+/**
+ * Quem está escalado nesta live, por função.
+ *
+ * Só aparece quando existe alguém: linha "Comentarista: —" em toda live
+ * ainda não escalada só enche a lista de traço.
+ *
+ * O SEU nome vem destacado. Numa lista de nomes, achar o próprio é a
+ * primeira coisa que a pessoa faz — e é o motivo de o calendário voltar a
+ * importar pra ela.
+ */
+function escalaHtml(e) {
+  const es = e.escala || [];
+  if (!es.length) return '';
+
+  // Agrupa por função mantendo a ordem em que a API já mandou.
+  const porFuncao = new Map();
+  es.forEach(x => {
+    if (!porFuncao.has(x.funcao)) porFuncao.set(x.funcao, {rotulo: x.rotulo, nomes: []});
+    porFuncao.get(x.funcao).nomes.push(x);
+  });
+
+  const partes = [...porFuncao.values()].map(f =>
+    `<span class="cal-esc"><b>${esc(f.rotulo)}</b> ${
+      f.nomes.map(n => n.id === EU_ID
+        ? `<em class="cal-esc-eu">${esc(n.nome)}</em>`
+        : esc(n.nome)).join(', ')
+    }</span>`);
+
+  return `<div class="cal-escala"><i class="bi bi-people-fill"></i>${partes.join('')}</div>`;
 }
 
 function pintarListaMes() {

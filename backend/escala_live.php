@@ -185,13 +185,18 @@ function escalaAdicionar(PDO $pdo, int $userId, string $liga, string $funcao, ?s
 }
 
 /**
- * Tira a pessoa da chamada da semana.
+ * Tira a pessoa da chamada — e chama o próximo da fila pro que ela deixou.
  *
- * Tira da DISPONIBILIDADE, e não da escala já montada. Se ela já foi
- * escalada, quem desfaz é o admin na tela — sair sozinho de um compromisso
- * já anunciado deixaria a live sem narrador sem ninguém saber.
+ * Quem sai depois de escalado deixa um buraco, e buraco em escala só é
+ * descoberto na hora da live. Então aqui: sai da disponibilidade, sai das
+ * escalações da semana, e cada vaga aberta é oferecida a quem se ofereceu
+ * PRA AQUELA função e ainda não está nela.
  *
- * @return array{ok:bool, tirou:int, escalado:bool}
+ * Quem entra é avisado como qualquer escalado. Quando não há ninguém, a
+ * vaga fica vazia e a resposta diz isso — vaga vazia anunciada é melhor
+ * que vaga vazia descoberta.
+ *
+ * @return array{ok:bool, tirou:int, vagas:int, substituidos:array, orfas:array}
  */
 function escalaSair(PDO $pdo, int $userId, string $liga, ?string $semana = null): array
 {
@@ -199,19 +204,73 @@ function escalaSair(PDO $pdo, int $userId, string $liga, ?string $semana = null)
     $liga = strtoupper(trim($liga));
     $semana = $semana ?: escalaSemanaDe();
     $fim = (new DateTimeImmutable($semana))->modify('+6 days')->format('Y-m-d');
+    $out = ['ok' => true, 'tirou' => 0, 'vagas' => 0, 'substituidos' => [], 'orfas' => []];
 
     try {
         $st = $pdo->prepare("DELETE FROM escala_disponibilidade
                               WHERE semana=? AND league=? AND id_usuario=?");
         $st->execute([$semana, $liga, $userId]);
+        $out['tirou'] = $st->rowCount();
 
-        $q = $pdo->prepare("SELECT COUNT(*) FROM escala_lives
+        // As escalações que ela larga.
+        $q = $pdo->prepare("SELECT id, evento_id, data, funcao FROM escala_lives
                              WHERE id_usuario=? AND league=? AND data BETWEEN ? AND ?");
         $q->execute([$userId, $liga, $semana, $fim]);
-        return ['ok' => true, 'tirou' => $st->rowCount(), 'escalado' => (int)$q->fetchColumn() > 0];
+        $largou = $q->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $out['vagas'] = count($largou);
+        if (!$largou) return $out;
+
+        $pdo->prepare("DELETE FROM escala_lives WHERE id_usuario=? AND league=? AND data BETWEEN ? AND ?")
+            ->execute([$userId, $liga, $semana, $fim]);
+
+        $disp = escalaDisponiveis($pdo, $liga, $semana);
+
+        foreach ($largou as $v) {
+            // Quem já está nessa mesma vaga não serve de substituto.
+            $jaNessa = $pdo->prepare("SELECT id_usuario FROM escala_lives
+                                       WHERE evento_id=? AND data=? AND funcao=?");
+            $jaNessa->execute([$v['evento_id'], $v['data'], $v['funcao']]);
+            $ocupados = array_map('intval', $jaNessa->fetchAll(PDO::FETCH_COLUMN));
+
+            // Nem quem já está em OUTRA função da MESMA live: uma pessoa não
+            // narra e opera ao mesmo tempo, e escalar assim criaria um
+            // problema no lugar de resolver um.
+            $naLive = $pdo->prepare("SELECT id_usuario FROM escala_lives WHERE evento_id=? AND data=?");
+            $naLive->execute([$v['evento_id'], $v['data']]);
+            $ocupados = array_merge($ocupados, array_map('intval', $naLive->fetchAll(PDO::FETCH_COLUMN)));
+
+            $fila = array_values(array_filter(
+                $disp[$v['funcao']] ?? [],
+                fn($g) => (int)$g['id'] !== $userId && !in_array((int)$g['id'], $ocupados, true)
+            ));
+
+            if (!$fila) {
+                $out['orfas'][] = ['data' => $v['data'], 'funcao' => $v['funcao'], 'evento_id' => (int)$v['evento_id']];
+                continue;
+            }
+
+            // O primeiro da fila é o primeiro por NOME (é a ordem que
+            // escalaDisponiveis devolve). Sortear pareceria mais justo, mas
+            // ninguém consegue conferir um sorteio — e ordem que dá pra
+            // conferir é o que evita a conversa de "por que ele e não eu".
+            $novo = $fila[0];
+            [$ok] = [true];
+            $ins = $pdo->prepare("INSERT IGNORE INTO escala_lives
+                                  (evento_id, data, league, funcao, id_usuario, criado_por)
+                                  VALUES (?,?,?,?,?,NULL)");
+            $ins->execute([$v['evento_id'], $v['data'], $liga, $v['funcao'], (int)$novo['id']]);
+            if ($ins->rowCount() === 0) {
+                $out['orfas'][] = ['data' => $v['data'], 'funcao' => $v['funcao'], 'evento_id' => (int)$v['evento_id']];
+                continue;
+            }
+
+            escalaAvisar($pdo, (int)$v['evento_id'], $v['data'], $liga, $v['funcao'], (int)$novo['id']);
+            $out['substituidos'][] = ['nome' => $novo['nome'], 'data' => $v['data'], 'funcao' => $v['funcao']];
+        }
+        return $out;
     } catch (Throwable $e) {
         error_log('[escala] sair: ' . $e->getMessage());
-        return ['ok' => false, 'tirou' => 0, 'escalado' => false];
+        return ['ok' => false, 'tirou' => 0, 'vagas' => 0, 'substituidos' => [], 'orfas' => []];
     }
 }
 
@@ -471,6 +530,46 @@ function escalaTextoVer(PDO $pdo, string $liga, ?string $semana = null): string
         }
     }
     return implode("\n", $l);
+}
+
+/**
+ * A escala de TODOS os eventos de uma janela, pro calendário.
+ *
+ * Uma consulta pra janela inteira, e não uma por live: num mês cheio,
+ * perguntar por evento seria trinta idas ao banco pra desenhar trinta
+ * nomes.
+ *
+ * @return array<string, array<int, array{funcao:string,rotulo:string,nome:string,id:int}>>
+ *         indexado por "eventoId|data"
+ */
+function escalaDosEventos(PDO $pdo, array $ligas, string $de, string $ate): array
+{
+    escalaGarantirTabelas($pdo);
+    $ligas = array_values(array_intersect(array_map('strtoupper', $ligas), CALENDARIO_LIGAS));
+    if (!$ligas) return [];
+
+    $F = escalaFuncoes();
+    $out = [];
+    try {
+        $ph = implode(',', array_fill(0, count($ligas), '?'));
+        $st = $pdo->prepare("SELECT e.evento_id, e.data, e.funcao, u.id, u.name AS nome
+                               FROM escala_lives e
+                               JOIN users u ON u.id = e.id_usuario
+                              WHERE e.data BETWEEN ? AND ? AND e.league IN ($ph)
+                              ORDER BY e.funcao ASC, u.name ASC");
+        $st->execute(array_merge([substr($de, 0, 10), substr($ate, 0, 10)], $ligas));
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $out[$r['evento_id'] . '|' . $r['data']][] = [
+                'funcao' => $r['funcao'],
+                'rotulo' => $F[$r['funcao']]['rotulo'] ?? $r['funcao'],
+                'nome'   => $r['nome'],
+                'id'     => (int)$r['id'],
+            ];
+        }
+    } catch (Throwable $e) {
+        error_log('[escala] dos eventos: ' . $e->getMessage());
+    }
+    return $out;
 }
 
 /**
