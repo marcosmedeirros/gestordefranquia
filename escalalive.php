@@ -209,9 +209,14 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   .p form button:hover{color:var(--red)}
   @media (hover:none){ .p form button{opacity:.65} }
 
-  .selo-fase{flex:none;font-size:9.5px;font-weight:800;letter-spacing:.2px;padding:2px 6px;
-             border-radius:999px;background:var(--panel-3);color:var(--text-3);
-             border:1px solid var(--border-md);white-space:nowrap}
+  /* O cabeçalho de cada pool. Fica discreto de propósito: é uma divisória
+     dentro da coluna da função, e não um segundo título competindo com o
+     nome da função logo acima. */
+  .grupo-fase{font-size:9.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;
+              color:var(--text-3);padding:8px 6px 3px;display:flex;gap:5px;align-items:center}
+  .grupo-fase::after{content:"";flex:1;height:1px;background:var(--border)}
+  .grupo-fase span{font-weight:700;letter-spacing:0}
+  .grupo-fase:first-child{padding-top:2px}
   .add-disp{display:flex;gap:6px;margin-top:8px}
   .sel-fase{flex:none;max-width:82px;font-size:11px;padding:5px 4px}
   .busca{flex:1;min-width:0;font-family:var(--font);font-size:12px;border-radius:8px;padding:6px 9px;
@@ -327,20 +332,36 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
           <i class="bi <?= $f['icone'] ?>"></i> <?= $esc($f['rotulo']) ?>
           <span style="color:var(--text-3);font-weight:700">(<?= count($disponiveis[$k]) ?>)</span>
         </div>
+        <?php
+          // Duas pools de verdade, sem repetir ninguém: quem topa as duas
+          // fases fica num grupo só, em cima. Repetir o mesmo nome em
+          // "regular" e em "offs" deixaria o × ambíguo — tirar de qual?
+          //
+          // Regular antes de offs porque é a ordem em que as lives caem na
+          // semana.
+          $porFase = ['todas' => [], 'regular' => [], 'playoffs' => []];
+          foreach ($disponiveis[$k] as $g) {
+              $fs = $g['fase'] ?? 'todas';
+              $porFase[isset($porFase[$fs]) ? $fs : 'todas'][] = $g;
+          }
+          // Sem ninguém restrito, não há o que separar — a lista sai simples,
+          // como antes. Cabeçalho de grupo único não informa nada.
+          $separar = $porFase['regular'] || $porFase['playoffs'];
+          $CABECA  = ['todas' => 'vale pra tudo', 'regular' => 'só regular', 'playoffs' => 'só offs'];
+        ?>
         <div class="gente">
           <?php if (!$disponiveis[$k]): ?>
             <div class="ninguem">Ninguém ainda.</div>
-          <?php else: foreach ($disponiveis[$k] as $g): ?>
+          <?php else: foreach ($porFase as $fs => $grupo): ?>
+            <?php if (!$grupo) continue; ?>
+            <?php if ($separar): ?>
+            <div class="grupo-fase"><?= $CABECA[$fs] ?> <span>(<?= count($grupo) ?>)</span></div>
+            <?php endif; ?>
+            <?php foreach ($grupo as $g): ?>
             <div class="p">
               <img src="<?= $esc($g['foto'] ?: '/img/default-avatar.png') ?>" alt=""
                    onerror="this.src='/img/default-avatar.png'">
               <span><?= $esc($g['nome']) ?></span>
-              <?php /* O selo só aparece quando a pessoa restringiu. "todas" é
-                       o caso da maioria e marcar todo mundo com um selo que
-                       diz o óbvio esconderia justamente os que importam. */ ?>
-              <?php if ($rotFase = escalaFaseRotulo($g['fase'] ?? 'todas')): ?>
-              <span class="selo-fase"><?= $esc($rotFase) ?></span>
-              <?php endif; ?>
               <?php if ($podeEscalar): ?>
               <form method="POST" style="display:inline"
                     data-confirmar="Tirar <?= $esc($g['nome']) ?> de <?= $esc($f['rotulo']) ?>?">
@@ -350,6 +371,7 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
               </form>
               <?php endif; ?>
             </div>
+            <?php endforeach; ?>
           <?php endforeach; endif; ?>
         </div>
 
