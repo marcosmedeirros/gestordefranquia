@@ -121,7 +121,14 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 
   .barra{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
   .pill{background:var(--panel-2);border:1px solid var(--border-md);color:var(--text-2);
-        border-radius:20px;padding:6px 14px;font-size:12.5px;font-weight:700;text-decoration:none}
+        border-radius:20px;padding:5px 14px 5px 6px;font-size:12.5px;font-weight:700;
+        text-decoration:none;display:inline-flex;align-items:center;gap:7px}
+  .pill img{width:22px;height:22px;object-fit:contain;flex:none}
+  /* A pill apagada fica com o escudo dessaturado: a liga escolhida é a
+     única a cores, e isso se lê antes do texto. */
+  .pill:not(.on) img{filter:grayscale(1) opacity(.55)}
+  .pill:hover img{filter:none}
+  .live-logo{width:26px;height:26px;object-fit:contain;flex:none}
   .pill.on{background:color-mix(in srgb,var(--red) 10%,transparent);border-color:color-mix(in srgb,var(--red) 22%,transparent);color:var(--red)}
   .semana{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-2)}
   .semana a{color:var(--text-3);text-decoration:none;font-size:15px}
@@ -139,7 +146,7 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   .ninguem{font-size:12px;color:var(--text-3);padding:4px 6px}
 
   .live{border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px 15px;margin-bottom:10px;background:var(--panel-2)}
-  .live-head{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:10px}
+  .live-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:10px}
   .live-dia{font-size:13.5px;font-weight:800}
   .live-hora{font-size:12px;color:var(--red);font-weight:800}
   .live-tit{font-size:12.5px;color:var(--text-2);flex:1;min-width:0}
@@ -186,7 +193,12 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   <div class="barra">
     <?php foreach (CALENDARIO_LIGAS as $lg): ?>
     <a class="pill <?= $lg === $liga ? 'on' : '' ?>"
-       href="/escalalive.php?liga=<?= $lg ?>&semana=<?= $esc($semana) ?>"><?= $lg ?></a>
+       href="/escalalive.php?liga=<?= $lg ?>&semana=<?= $esc($semana) ?>">
+      <!-- O escudo e reconhecido antes da palavra: quem vem escalar a NEXT
+           acha o botao pela cor do escudo, e nao lendo quatro siglas. -->
+      <img src="/img/logo-<?= strtolower($lg) ?>.png" alt="" onerror="this.style.display='none'">
+      <?= $lg ?>
+    </a>
     <?php endforeach; ?>
     <div class="semana">
       <a href="/escalalive.php?liga=<?= $liga ?>&semana=<?= $semanaAnterior ?>" title="Semana anterior"><i class="bi bi-chevron-left"></i></a>
@@ -256,6 +268,8 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
       $dia = (int)date('w', strtotime($lv['data'])); ?>
       <div class="live">
         <div class="live-head">
+          <img class="live-logo" src="/img/logo-<?= strtolower($liga) ?>.png" alt=""
+               onerror="this.style.display='none'">
           <span class="live-dia"><?= $DIAS[$dia] ?>, <?= date('d/m', strtotime($lv['data'])) ?></span>
           <?php if (empty($lv['dia_inteiro'])): ?>
           <span class="live-hora"><?= substr((string)$lv['inicio'], 11, 5) ?></span>

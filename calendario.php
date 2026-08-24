@@ -160,10 +160,13 @@ $ligasAdmin = array_values(array_intersect(
        primeira coisa que a pessoa faz. */
     .cal-esc-eu{font-style:normal;font-weight:800;color:var(--red)}
     .cal-tag{
-      display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:999px;
+      display:inline-flex;align-items:center;gap:4px;padding:1px 7px 1px 3px;border-radius:999px;
       font-size:9.5px;font-weight:800;background:color-mix(in srgb,var(--c) 16%,transparent);
       color:var(--c);border:1px solid color-mix(in srgb,var(--c) 35%,transparent);
     }
+    /* A logo no lugar do ícone genérico. O escudo da liga é reconhecido de
+       relance; um ícone de calendário igual pra todas, não. */
+    .cal-tag img{width:15px;height:15px;object-fit:contain;flex:none}
     .cal-link{color:#60a5fa;text-decoration:none;font-weight:700;font-size:11.5px}
     .cal-link:hover{text-decoration:underline}
     .cal-acoes{margin-left:auto;display:flex;gap:5px;flex-shrink:0}
@@ -419,7 +422,7 @@ function itemHtml(e) {
       <div style="min-width:0;flex:1">
         <div class="cal-item-tit">${esc(e.titulo)}</div>
         <div class="cal-item-meta">
-          <span class="cal-tag" style="--c:${e.cor}"><i class="bi ${e.tipo_icone}"></i>${esc(e.league)}</span>
+          <span class="cal-tag" style="--c:${e.cor}">${logoLiga(e.league)}${esc(e.league)}</span>
           <span>${esc(e.tipo_rotulo)}${h ? ' · ' + h : ''}${fim}</span>
           ${e.link ? `<a class="cal-link" href="${esc(e.link)}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> abrir</a>` : ''}
         </div>
@@ -442,6 +445,18 @@ function itemHtml(e) {
  * primeira coisa que a pessoa faz — e é o motivo de o calendário voltar a
  * importar pra ela.
  */
+/**
+ * O escudo da liga, com o ícone do tipo como reserva.
+ *
+ * O onerror é o que segura a tag inteira se um dia faltar o arquivo: sem
+ * ele, a liga apareceria como um quadrado quebrado do lado do nome.
+ */
+function logoLiga(liga) {
+  const l = String(liga || '').toLowerCase();
+  return `<img src="/img/logo-${esc(l)}.png" alt="" loading="lazy"
+    onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'bi bi-calendar3'}))">`;
+}
+
 function escalaHtml(e) {
   const es = e.escala || [];
   if (!es.length) return '';
@@ -495,7 +510,7 @@ function abrirEvento(id) {
     <div class="cal-item" style="--c:${e.cor};border-left-width:3px">
       <div style="min-width:0">
         <div class="cal-item-meta">
-          <span class="cal-tag" style="--c:${e.cor}"><i class="bi ${e.tipo_icone}"></i>${esc(e.league)}</span>
+          <span class="cal-tag" style="--c:${e.cor}">${logoLiga(e.league)}${esc(e.league)}</span>
           <span>${esc(e.tipo_rotulo)}</span>
         </div>
         <div style="margin-top:8px;font-size:13px;color:var(--text)">
