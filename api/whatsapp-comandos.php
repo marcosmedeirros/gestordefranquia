@@ -361,7 +361,7 @@ function wcAjuda(): string
         . "/ranking _liga_ — a tabela da liga\n"
         . "/power — o power ranking da liga inteira\n"
         . "/powerc — o power ranking por conferência\n"
-        . "/trocas _ou /trades_ — as últimas trocas aprovadas\n"
+        . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
         // /aceitar e /recusar SAÍRAM desta lista, mas continuam funcionando:
         // o código vem escrito na própria mensagem da proposta, e é lá que a
         // pessoa lê a instrução. Aqui eles só ocupavam a linha mais comprida
@@ -1453,9 +1453,28 @@ function wcItensMultiPorTime(PDO $pdo, int $multiTradeId): array
 
 function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
 {
+    // O argumento aceita LIGA ou TIME. A liga é testada primeiro porque
+    // "RISE" e "NEXT" são palavras curtas que podem casar com apelido de
+    // franquia — e quem digita /trocas RISE quer a liga.
     $liga = $termo !== '' ? wcNormalizarLiga($termo) : $ligaDoGrupo;
-    $filtro = $liga ? ' AND t.league = ?' : '';
-    $params = $liga ? [$liga] : [];
+    $time = null;
+
+    if ($termo !== '' && !$liga) {
+        [$t, $erro] = wcResolverTime($pdo, $termo, $ligaDoGrupo);
+        if ($erro) return $erro;   // "Não achei time com ..." já é a resposta
+        $time = $t;
+        $liga = $t['league'] ?? null;
+    }
+
+    // Com time, o filtro é o time (dos dois lados — quem propôs e quem
+    // topou). Sem time, é a liga.
+    if ($time) {
+        $filtro  = ' AND (t.from_team_id = ? OR t.to_team_id = ?)';
+        $params  = [(int)$time['id'], (int)$time['id']];
+    } else {
+        $filtro  = $liga ? ' AND t.league = ?' : '';
+        $params  = $liga ? [$liga] : [];
+    }
 
     $st = $pdo->prepare("
         SELECT t.id, t.league, t.updated_at, '1x1' AS tipo,
@@ -1476,7 +1495,18 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
     // mostrava as multi, só as 1x1.
     $multis = [];
     try {
-        $filtroM = $liga ? ' AND mt.league = ?' : '';
+        // Na multi o time não está na linha da troca, está nos ITENS — daí o
+        // EXISTS. Sem ele, /trocas <time> traria as multi de todo mundo
+        // misturadas com as trocas do time pedido.
+        if ($time) {
+            $filtroM = ' AND EXISTS (SELECT 1 FROM multi_trade_items mi
+                                      WHERE mi.trade_id = mt.id
+                                        AND (mi.from_team_id = ? OR mi.to_team_id = ?))';
+            $paramsM = [(int)$time['id'], (int)$time['id']];
+        } else {
+            $filtroM = $liga ? ' AND mt.league = ?' : '';
+            $paramsM = $liga ? [$liga] : [];
+        }
         $stM = $pdo->prepare("
             SELECT mt.id, mt.league, mt.updated_at, 'multi' AS tipo
             FROM multi_trades mt
@@ -1484,7 +1514,7 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
             ORDER BY mt.updated_at DESC, mt.id DESC
             LIMIT 5
         ");
-        $stM->execute($params);
+        $stM->execute($paramsM);
         $multis = $stM->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) { /* liga sem multi_trades ainda: a lista vale só com as 1x1 */ }
 
@@ -1492,11 +1522,17 @@ function wcTrocas(PDO $pdo, string $termo, ?string $ligaDoGrupo): string
     usort($todas, fn($a, $b) => strtotime((string)$b['updated_at']) <=> strtotime((string)$a['updated_at']));
     $todas = array_slice($todas, 0, 5);
 
-    if (!$todas) return 'Nenhuma troca aprovada' . ($liga ? " na {$liga}" : '') . ' ainda.';
+    $deQuem = $time ? wcNomeDoTime($time) : ($liga ?: '');
 
-    $txt = '*Últimas trocas' . ($liga ? " — {$liga}" : '') . "*\n";
+    if (!$todas) {
+        return 'Nenhuma troca aprovada' . ($deQuem ? " do {$deQuem}" : '') . ' ainda.';
+    }
+
+    $txt = '*Últimas trocas' . ($deQuem ? " — {$deQuem}" : '') . "*\n";
     foreach ($todas as $t) {
-        $sufixoLiga = $liga ? '' : ' _' . $t['league'] . '_';
+        // A liga só aparece por troca quando o pedido não fixou nenhuma —
+        // com time ou liga escolhida, ela já está no cabeçalho.
+        $sufixoLiga = ($liga || $time) ? '' : ' _' . $t['league'] . '_';
 
         if ($t['tipo'] === 'multi') {
             $porTime = wcItensMultiPorTime($pdo, (int)$t['id']);
