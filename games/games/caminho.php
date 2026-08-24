@@ -1785,6 +1785,10 @@ tr.tit td{color:var(--red)}
   padding:1px 5px;font-size:9.5px;font-weight:900;font-style:normal;color:var(--text);
   font-family:var(--num)}
 .taca-nba{filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
+/* A foto entra no espaco do desenho. contain porque as fotos vem em
+   proporcoes diferentes umas das outras — o Larry O Brien e alto, a
+   medalha e quadrada — e recortar taca e decapitar taca. */
+.taca-nba-foto{object-fit:contain;display:block;flex:none}
 
 /* Os dois fecham a carreira juntos: copiar pro grupo e recomeçar são
    irmãos, não um acima do outro. No celular voltam a empilhar. */
@@ -5978,6 +5982,42 @@ function desistir(){
  * O'Brien é a bola sobre a haste, a Copa NBA é a taça de alças, o MVP é a
  * figura, as medalhas são o disco na fita. `id => [cor, desenho]`.
  */
+/**
+ * A FOTO DA TAÇA DE VERDADE, onde ela existe.
+ *
+ * Oito das quinze têm foto e sete não, e a divisão não é preguiça — é o que
+ * dá pra conseguir. O Larry O'Brien e a taça da EuroLeague vêm do
+ * TheSportsDB, mesma fonte dos escudos dos clubes: recorte limpo em fundo
+ * transparente, feito pra esse tamanho. As três medalhas olímpicas vêm da
+ * Wikimedia em SVG quadrado, que é o melhor caso possível — não perde nada
+ * em tamanho nenhum.
+ *
+ * OS PRÊMIOS DA NBA NÃO TÊM FOTO EM LUGAR NENHUM, e isso é diferente de
+ * "não achei". Procurei o Maurice Podoloff (MVP), o Bill Russell (Finals
+ * MVP), o de Defensor do Ano, o All-Star e a Copa NBA: a Commons devolve
+ * FOTOS DE JOGADORES em todas — Michael Jordan, Rudy Gobert, LeBron no
+ * All-Star. Troféu da NBA é marca registrada e não entra em acervo livre.
+ * O desenho deles continua sendo a única opção, e ele foi feito pra ser
+ * reconhecido de relance: o MVP é a figura, o defensor é o escudo.
+ *
+ * Aqui não existe o problema do Copero, onde cont virava Libertadores ou
+ * Champions conforme o país: titulo é sempre a NBA e euro é sempre a
+ * EuroLeague. Uma foto por id basta.
+ */
+const TACAS_NBA_FOTO = {
+  titulo: 'https://r2.thesportsdb.com/images/media/league/trophy/797rbc1696441106.png',  // Larry O'Brien (NBA)
+  euro:   'https://r2.thesportsdb.com/images/media/league/trophy/cwucf21554759067.png',  // EuroLeague
+  ouro:   'https://upload.wikimedia.org/wikipedia/commons/4/4f/Gold_medal_olympic.svg',
+  prata:  'https://upload.wikimedia.org/wikipedia/commons/6/67/Silver_medal_olympic.svg',
+  bronze: 'https://upload.wikimedia.org/wikipedia/commons/f/f9/Bronze_medal_olympic.svg',
+  // As da Copa do Mundo sao a medalha LISA, sem os aneis olimpicos — a
+  // mesma distincao que o desenho ja fazia com a bolinha. Usar a ringed
+  // aqui poria os aneis num podio que nao e olimpico.
+  ouroCopa:   'https://upload.wikimedia.org/wikipedia/commons/1/15/Gold_medal.svg',
+  prataCopa:  'https://upload.wikimedia.org/wikipedia/commons/0/03/Silver_medal.svg',
+  bronzeCopa: 'https://upload.wikimedia.org/wikipedia/commons/5/52/Bronze_medal.svg',
+};
+
 const TACAS_NBA = {
   // Larry O'Brien: a bola em cima da rede, sobre a base cilíndrica.
   titulo: ['#e5b45c',
@@ -6059,9 +6099,20 @@ function MEDALHA_SVG(comBola){
 /** A taça desenhada, do tamanho pedido. Id desconhecido não desenha nada. */
 function tacaNBA(id, tam){
   const t = TACAS_NBA[id];
-  if (!t) return '';
-  return `<svg class="taca-nba" viewBox="0 0 64 56" width="${tam}" height="${tam}"
-    style="color:${t[0]}" role="img" aria-label="${esc(id)}">${t[1]}</svg>`;
+  const svg = t ? `<svg class="taca-nba" viewBox="0 0 64 56" width="${tam}" height="${tam}"
+    style="color:${t[0]}" role="img" aria-label="${esc(id)}">${t[1]}</svg>` : '';
+  const foto = TACAS_NBA_FOTO[id];
+  if (!foto) return svg;
+  // O tamanho vai por ATRIBUTO e não por style: o celular tem regra que
+  // encolhe a taça, e style inline ganha de regra CSS — a foto ficaria
+  // maior que o desenho na mesma fileira.
+  //
+  // E o desenho fica de reserva no onerror: se a foto sumir do servidor de
+  // imagens um dia, a taça continua aparecendo em vez de virar um quadrado
+  // vazio no meio da sala de troféus.
+  return `<img class="taca-nba taca-nba-foto" src="${esc(foto)}" alt="${esc(id)}"
+    width="${tam}" height="${tam}"
+    onerror="this.outerHTML=this.dataset.reserva" data-reserva="${esc(svg)}">`;
 }
 
 function resumoDeTrofeus(){
