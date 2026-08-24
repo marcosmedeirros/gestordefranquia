@@ -200,13 +200,25 @@ try {
     }
 } catch (Exception $e) { $salaryCapMode = false; }
 
-$editalData = null; $hasEdital = false;
+// De onde sao os GMs, pro mapa de densidade. Vem de users.state, que e
+// preenchido em Minha Conta — enquanto ninguem preencher, o card se explica
+// sozinho em vez de mostrar um Brasil apagado sem motivo aparente.
+$mapaGMs = gmsPorEstado($pdo);
+
+// O SEU estado sai do banco e não da sessão. A coluna é nova: quem está
+// logado desde antes da migração tem um $user sem ela, e o mapa dizia
+// "você é um dos que não preencheram" pra quem tinha acabado de preencher.
+$meuUf = null;
 try {
-    $stmtEdital = $pdo->prepare('SELECT edital, edital_file FROM league_settings WHERE league = ?');
-    $stmtEdital->execute([$team['league']]);
-    $editalData = $stmtEdital->fetch();
-    $hasEdital = $editalData && !empty($editalData['edital_file']);
-} catch (Exception $e) { error_log('dashboard edital: ' . $e->getMessage()); }
+    $stUf = $pdo->prepare('SELECT state FROM users WHERE id = ? LIMIT 1');
+    $stUf->execute([(int)$user['id']]);
+    $meuUf = normalizarUF($stUf->fetchColumn() ?: null);
+} catch (Throwable $e) {
+    // Banco ainda sem a coluna: o mapa aparece sem o contorno do seu estado.
+}
+
+// O edital saiu daqui: virou link em Minha Conta, embaixo do Guia do GM. A
+// consulta foi junto — ela existia só pra decidir se mostrava aquele link.
 
 // Vídeos administrativos da liga: Progression, Sistemas e Free Agency.
 // Os 3 espaços aparecem sempre — o que não tiver link ainda mostra "Em breve".
@@ -475,18 +487,8 @@ try {
     $watchlist = $s->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) { error_log('dashboard watchlist: ' . $e->getMessage()); }
 
-$latestRumor = null;
-try {
-    $s = $pdo->prepare('
-        SELECT mp.content, mp.created_at, t.city, t.name, t.photo_url, u.name as gm_name
-        FROM mercado_feed mp
-        JOIN users u ON u.id = mp.user_id
-        LEFT JOIN teams t ON t.id = mp.team_id
-        WHERE mp.league = ?
-        ORDER BY mp.created_at DESC LIMIT 1
-    ');
-    $s->execute([$team['league']]); $latestRumor = $s->fetch(PDO::FETCH_ASSOC);
-} catch (Exception $e) { error_log('dashboard latest_rumor: ' . $e->getMessage()); }
+// O card do Último Rumor saiu do painel, e a consulta dele foi junto. O feed
+// continua inteiro em /mercado.php — o que saiu foi a vitrine de um rumor só.
 
 // Vencedores da última temporada FECHADA — e só da sprint atual. Antes a busca
 // pegava a temporada mais recente da liga inteira, então no começo de uma sprint
@@ -756,6 +758,40 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             display: flex; align-items: flex-start; justify-content: space-between;
             gap: 16px; flex-wrap: wrap;
         }
+        .dash-ident { display:flex; align-items:center; gap:16px; min-width:0; }
+        .dash-liga-logo { width:54px; height:54px; object-fit:contain; flex:none; }
+        @media (max-width: 560px) { .dash-liga-logo { width:42px; height:42px; } .dash-ident { gap:12px; } }
+
+        /* ── MAPA DE DENSIDADE ──────────────────────────────────────────
+           Cartograma: cada estado e um quadrado do mesmo tamanho. O contorno
+           real precisa de quilobytes de path por estado, e no celular Sergipe
+           e Alagoas virariam dois riscos ilegiveis. Aqui a comparacao fica
+           honesta — area nao distorce a contagem — e o mesmo desenho serve
+           no telefone. */
+        .mapa-grade { display:grid; grid-template-columns:repeat(6, 1fr); gap:4px;
+                      max-width:340px; margin:0 auto; }
+        .mapa-uf { aspect-ratio:1; border-radius:6px; display:flex; flex-direction:column;
+                   align-items:center; justify-content:center; gap:1px;
+                   border:1px solid var(--border); background:var(--panel-2);
+                   font-size:9.5px; font-weight:800; color:var(--text-3);
+                   letter-spacing:.3px; text-decoration:none; transition:transform .12s ease; }
+        .mapa-uf b { font-size:12px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; }
+        /* A escala e do vazio ao cheio na cor de destaque. O zero tem faixa
+           propria porque "nenhum GM" nao e "poucos GMs" — e a diferenca entre
+           o mapa estar vazio ali e quase vazio, e ela tem que aparecer de longe. */
+        .mapa-uf.d1 { background:color-mix(in srgb, var(--red) 14%, var(--panel-2)); color:var(--text-2); border-color:color-mix(in srgb, var(--red) 18%, transparent); }
+        .mapa-uf.d2 { background:color-mix(in srgb, var(--red) 32%, var(--panel-2)); color:var(--text); border-color:color-mix(in srgb, var(--red) 34%, transparent); }
+        .mapa-uf.d3 { background:color-mix(in srgb, var(--red) 58%, var(--panel-2)); color:#fff; border-color:color-mix(in srgb, var(--red) 60%, transparent); }
+        .mapa-uf.d4 { background:var(--red); color:#fff; border-color:var(--red); }
+        .mapa-uf.eu { outline:2px solid var(--text); outline-offset:1px; }
+        .mapa-uf:hover { transform:scale(1.09); }
+        .mapa-legenda { display:flex; align-items:center; justify-content:center; gap:6px;
+                        margin-top:14px; font-size:10.5px; font-weight:700; color:var(--text-3); }
+        .mapa-legenda span { width:15px; height:9px; border-radius:2px; border:1px solid var(--border); }
+        .mapa-rodape { text-align:center; font-size:11.5px; color:var(--text-3);
+                       margin-top:12px; line-height:1.5; }
+        .mapa-rodape a { color:var(--red); text-decoration:none; font-weight:700; }
+
         .dash-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
         .dash-title { font-size: 26px; font-weight: 800; line-height: 1.1; }
         .dash-sub { font-size: 13px; color: var(--text-2); margin-top: 4px; }
@@ -1467,10 +1503,19 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 
         <!-- Hero header -->
         <div class="dash-hero">
-            <div>
-                <div class="dash-eyebrow">Dashboard · <?= htmlspecialchars($user['league']) ?></div>
-                <h1 class="dash-title">Bem-vindo, <?= htmlspecialchars(explode(' ', $user['name'])[0]) ?> 👋</h1>
-                <p class="dash-sub"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></p>
+            <!-- A logo da liga mora aqui desde que o card "Liga" saiu. Ao lado
+                 do nome e nao acima dele: o cabecalho ja diz a liga por escrito
+                 no olho-de-boi, e a logo confirma sem repetir. -->
+            <div class="dash-ident">
+                <img src="/img/logo-<?= strtolower($user['league']) ?>.png"
+                     alt="<?= htmlspecialchars($user['league']) ?>"
+                     class="dash-liga-logo"
+                     onerror="this.style.display='none'">
+                <div>
+                    <div class="dash-eyebrow">Dashboard · <?= htmlspecialchars($user['league']) ?></div>
+                    <h1 class="dash-title">Bem-vindo, <?= htmlspecialchars(explode(' ', $user['name'])[0]) ?> 👋</h1>
+                    <p class="dash-sub"><?= htmlspecialchars($team['city'] . ' ' . $team['name']) ?></p>
+                </div>
             </div>
             <div class="hero-badges">
                 <span class="hbadge green">
@@ -2000,84 +2045,9 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                 </div>
 
 
-                <!-- ── Info da Liga ── -->
-                <div class="bc" style="animation-delay:.38s">
-                    <div class="bc-head">
-                        <div class="bc-title"><i class="bi bi-info-circle-fill"></i> Liga</div>
-                        <?php if ($hasEdital): ?>
-                        <a href="/api/edital.php?action=download_edital&league=<?= urlencode($team['league']) ?>"
-                           class="bc-link" download><i class="bi bi-download me-1"></i>Edital</a>
-                        <?php endif; ?>
-                    </div>
-                    <div class="bc-body">
-                        <img src="/img/logo-<?= strtolower($user['league']) ?>.png"
-                             alt="<?= htmlspecialchars($user['league']) ?>"
-                             class="league-logo-img"
-                             onerror="this.style.display='none'">
-                        <div style="text-align:center;font-size:16px;font-weight:800;color:var(--red);margin-bottom:4px"><?= htmlspecialchars($user['league']) ?></div>
-                        <div class="league-stat-grid">
-                            <div class="league-stat">
-                                <div class="league-stat-label">Ranking</div>
-                                <div class="league-stat-val"><?= (int)($team['ranking_points'] ?? 0) ?></div>
-                            </div>
-                            <?php if ($currentSeason): ?>
-                            <div class="league-stat">
-                                <div class="league-stat-label">Temporada</div>
-                                <div class="league-stat-val"><?= $seasonDisplayYear ?></div>
-                            </div>
-                            <div class="league-stat">
-                                <div class="league-stat-label">Sprint</div>
-                                <div class="league-stat-val"><?= (int)($currentSeason['sprint_number'] ?? 1) ?></div>
-                            </div>
-                            <?php endif; ?>
-                            <div class="league-stat">
-                                <?php if ($salaryCapMode && $salCap): ?>
-                                <!-- Painel da LIGA: aqui vai a base que vale pra todo
-                                     mundo (o CAP Máximo da Central da Liga), não o teto
-                                     do seu time. O seu já aparece no card Salary Cap lá
-                                     em cima, e ele inclui Cap Flex e Lealdade — dois
-                                     números diferentes com o mesmo rótulo davam a
-                                     impressão de que um dos dois estava errado. -->
-                                <div class="league-stat-label">Teto da Liga</div>
-                                <div class="league-stat-val" style="font-size:12px"><?= (int)$salCap['cap_base'] ?>M</div>
-                                <?php else: ?>
-                                <div class="league-stat-label">CAP Faixa</div>
-                                <div class="league-stat-val" style="font-size:12px"><?= $capMin ?>–<?= $capMax ?></div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ── Último Rumor ── -->
-                <div class="bc" style="animation-delay:.42s">
-                    <div class="bc-head">
-                        <div class="bc-title"><i class="bi bi-chat-left-text"></i> Último Rumor</div>
-                        <a href="/mercado.php" class="bc-link">Ver feed <i class="bi bi-arrow-right"></i></a>
-                    </div>
-                    <div class="bc-body">
-                        <?php if ($latestRumor): ?>
-                        <div class="rumor-meta">
-                            <img class="rumor-avatar"
-                                 src="<?= htmlspecialchars($latestRumor['photo_url'] ?? '/img/default-team.png') ?>"
-                                 alt="" onerror="this.src='/img/default-team.png'">
-                            <div>
-                                <div class="rumor-team"><?= htmlspecialchars(($latestRumor['city'] ?? '') . ' ' . ($latestRumor['name'] ?? '')) ?></div>
-                                <div class="rumor-gm"><?= !empty($latestRumor['gm_name']) ? 'GM: ' . htmlspecialchars($latestRumor['gm_name']) : 'GM não informado' ?></div>
-                            </div>
-                        </div>
-                        <div class="rumor-bubble"><?= nl2br(htmlspecialchars($latestRumor['content'])) ?></div>
-                        <?php if (!empty($latestRumor['created_at'])): ?>
-                        <div class="rumor-date"><i class="bi bi-clock"></i> <?= date('d/m/Y H:i', strtotime($latestRumor['created_at'])) ?></div>
-                        <?php endif; ?>
-                        <?php else: ?>
-                        <div class="empty"><i class="bi bi-chat-left"></i><p>Nenhum rumor ainda</p></div>
-                        <?php endif; ?>
-                    </div>
-                </div>
 
                 <!-- ── Última Trade ── -->
-                <div class="bc span-2" style="animation-delay:.46s">
+                <div class="bc span-2" style="animation-delay:.42s">
                     <div class="bc-head">
                         <div class="bc-title"><i class="bi bi-arrow-left-right"></i> Última Trade</div>
                         <a href="/trades.php" class="bc-link">Ver todas <i class="bi bi-arrow-right"></i></a>
@@ -2138,6 +2108,59 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                         <?php else: ?>
                         <div class="empty"><i class="bi bi-arrow-left-right"></i><p>Nenhuma trade realizada ainda</p></div>
                         <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- ── GMs pelo Brasil ── -->
+                <div class="bc" style="animation-delay:.46s">
+                    <div class="bc-head">
+                        <div class="bc-title"><i class="bi bi-geo-alt-fill"></i> GMs pelo Brasil</div>
+                        <?php if ($mapaGMs['total'] > 0 && $mapaGMs['sem'] < $mapaGMs['total']): ?>
+                        <span style="font-size:11px;color:var(--text-2)">
+                            <?= $mapaGMs['total'] - $mapaGMs['sem'] ?> no mapa
+                        </span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="bc-body">
+                        <?php $ufNomes = estadosBrasileiros(); ?>
+                        <div class="mapa-grade">
+                            <?php foreach (gradeDoBrasil() as $q):
+                                $n = $mapaGMs['por_uf'][$q['uf']] ?? 0;
+                                $d = densidadeDoEstado($n, $mapaGMs['maior']);
+                                // grid-column carrega a geografia: sem ela os
+                                // quadrados escorregariam pra esquerda e o
+                                // Brasil viraria um bloco retangular.
+                            ?>
+                            <div class="mapa-uf d<?= $d ?> <?= $meuUf === $q['uf'] ? 'eu' : '' ?>"
+                                 style="grid-column:<?= $q['c'] ?>;grid-row:<?= $q['l'] ?>"
+                                 title="<?= htmlspecialchars($ufNomes[$q['uf']]) ?>: <?= $n ?> GM<?= $n === 1 ? '' : 's' ?>">
+                                <b><?= $n ?: '' ?></b>
+                                <?= $q['uf'] ?>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <div class="mapa-legenda">
+                            nenhum
+                            <span style="background:var(--panel-2)"></span>
+                            <span style="background:color-mix(in srgb, var(--red) 14%, var(--panel-2))"></span>
+                            <span style="background:color-mix(in srgb, var(--red) 32%, var(--panel-2))"></span>
+                            <span style="background:color-mix(in srgb, var(--red) 58%, var(--panel-2))"></span>
+                            <span style="background:var(--red)"></span>
+                            mais GMs
+                        </div>
+
+                        <div class="mapa-rodape">
+                            <?php if ($mapaGMs['sem'] >= $mapaGMs['total']): ?>
+                                Ninguém preencheu o estado ainda.
+                                <a href="/settings.php">Seja o primeiro</a>.
+                            <?php elseif ($mapaGMs['sem'] > 0): ?>
+                                <?= (int)$mapaGMs['sem'] ?> ainda não disseram de onde são<?= $meuUf ? '' : ', e você é um deles' ?>.
+                                <a href="/settings.php">Preencher</a>.
+                            <?php else: ?>
+                                Todo mundo já disse de onde é.
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
 

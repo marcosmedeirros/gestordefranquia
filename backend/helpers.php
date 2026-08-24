@@ -1969,3 +1969,90 @@ function localDoGM(?string $cidade, ?string $uf): string
     if ($cidade !== '') return $cidade;
     return $uf ? (estadosBrasileiros()[$uf]) : '';
 }
+
+/**
+ * Quantos GMs em cada estado, pro mapa de densidade.
+ *
+ * Conta TODAS as ligas e não só a de quem está olhando: o mapa responde
+ * "de onde é a FBA", e recortar por liga transformaria a resposta em quatro
+ * mapas quase vazios em vez de um cheio.
+ *
+ * Devolve também quem não preencheu, e isso não é rodapé: um mapa com três
+ * estados pintados parece dizer que a liga tem três GMs, quando na verdade
+ * diz que o campo é novo. O número de fora é o que impede essa leitura.
+ *
+ * @return array{por_uf:array<string,int>, total:int, sem:int, maior:int}
+ */
+function gmsPorEstado(PDO $pdo): array
+{
+    $out = ['por_uf' => [], 'total' => 0, 'sem' => 0, 'maior' => 0];
+    try {
+        $linhas = $pdo->query("SELECT state, COUNT(*) AS n FROM users GROUP BY state")
+                      ->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($linhas as $r) {
+            $n = (int)$r['n'];
+            $out['total'] += $n;
+            $uf = normalizarUF($r['state'] ?? null);
+            if (!$uf) { $out['sem'] += $n; continue; }
+            $out['por_uf'][$uf] = ($out['por_uf'][$uf] ?? 0) + $n;
+            $out['maior'] = max($out['maior'], $out['por_uf'][$uf]);
+        }
+    } catch (Throwable $e) {
+        // Coluna ainda não existe neste banco: mapa vazio, página de pé.
+        error_log('[gmsPorEstado] ' . $e->getMessage());
+    }
+    return $out;
+}
+
+/**
+ * O Brasil como grade de quadradinhos — linha, coluna e sigla.
+ *
+ * Cartograma e não mapa de verdade, de propósito. O contorno real precisa de
+ * quilobytes de path por estado, e no celular Sergipe e Alagoas viram dois
+ * riscos onde não dá pra clicar nem ler o número. Aqui cada estado ocupa o
+ * mesmo quadrado: a comparação fica honesta (área não distorce a contagem) e
+ * o mesmo desenho serve num telefone.
+ *
+ * A posição é a geografia aproximada — AC a oeste, RR e AP no topo, RS
+ * embaixo. Não é exata e nem tenta ser; serve pra achar o seu estado.
+ *
+ * @return array<int, array{uf:string, l:int, c:int}>
+ */
+function gradeDoBrasil(): array
+{
+    $linhas = [
+        1 => [3 => 'RR', 4 => 'AP'],
+        2 => [2 => 'AM', 3 => 'PA', 4 => 'MA', 5 => 'CE', 6 => 'RN'],
+        3 => [1 => 'AC', 2 => 'RO', 3 => 'TO', 4 => 'PI', 5 => 'PE', 6 => 'PB'],
+        4 => [2 => 'MT', 3 => 'GO', 4 => 'BA', 5 => 'AL', 6 => 'SE'],
+        5 => [2 => 'MS', 3 => 'DF', 4 => 'MG', 5 => 'ES'],
+        6 => [3 => 'PR', 4 => 'SP', 5 => 'RJ'],
+        7 => [3 => 'RS', 4 => 'SC'],
+    ];
+    $out = [];
+    foreach ($linhas as $l => $cols) {
+        foreach ($cols as $c => $uf) $out[] = ['uf' => $uf, 'l' => $l, 'c' => $c];
+    }
+    return $out;
+}
+
+/**
+ * A intensidade de um estado, de 0 a 4.
+ *
+ * Escala pelo MAIOR e não por um número fixo: numa liga de 40 GMs, três em
+ * Pernambuco é bastante; numa de 400, é pouco. Faixa fixa pintaria tudo do
+ * mesmo tom nos dois casos.
+ *
+ * O zero tem faixa própria porque "nenhum GM" não é a mesma coisa que
+ * "poucos GMs" — é a diferença entre o mapa estar vazio ali e estar quase
+ * vazio, e ela precisa aparecer de longe.
+ */
+function densidadeDoEstado(int $n, int $maior): int
+{
+    if ($n <= 0 || $maior <= 0) return 0;
+    $p = $n / $maior;
+    if ($p >= 0.75) return 4;
+    if ($p >= 0.50) return 3;
+    if ($p >= 0.25) return 2;
+    return 1;
+}

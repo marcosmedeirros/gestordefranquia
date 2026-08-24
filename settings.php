@@ -40,6 +40,21 @@ try {
     // Banco ainda sem a coluna — cai no padrão (tudo ligado, campos vazios).
 }
 
+// O edital da liga — o link só aparece quando existe arquivo pra baixar.
+// A liga vem do TIME e não da sessão: é a liga em que o GM joga, e é dela
+// que o edital fala. Quem ainda não tem time cai na liga da conta.
+$ligaDoEdital = (string)($team['league'] ?? $user['league'] ?? '');
+$temEdital = false;
+if ($ligaDoEdital !== '') {
+    try {
+        $stEd = $pdo->prepare('SELECT edital_file FROM league_settings WHERE league = ?');
+        $stEd->execute([$ligaDoEdital]);
+        $temEdital = !empty($stEd->fetchColumn());
+    } catch (Throwable $e) {
+        // Sem tabela ou sem coluna: o link some, a página continua de pé.
+    }
+}
+
 // O bloco do WhatsApp só aparece quando a integração está configurada e ativa.
 $whatsappLigado = false;
 try {
@@ -440,6 +455,19 @@ try {
                         <span class="snav-txt"><span class="snav-label">Guia do GM</span><span class="snav-desc">Como a FBA funciona</span></span>
                         <i class="bi bi-box-arrow-up-right snav-ext"></i>
                     </a>
+                    <?php if ($temEdital): ?>
+                    <!-- O Edital saiu do dashboard e veio pra cá: ele é
+                         documento da liga, lido de vez em quando, e não número
+                         que se olha todo dia. Fica embaixo do Guia porque as
+                         duas coisas respondem a mesma pergunta — "como é que
+                         funciona aqui". Só aparece quando existe arquivo. -->
+                    <a class="snav-item snav-link"
+                       href="/api/edital.php?action=download_edital&amp;league=<?= urlencode($ligaDoEdital) ?>" download>
+                        <span class="snav-ico"><i class="bi bi-file-earmark-text-fill"></i></span>
+                        <span class="snav-txt"><span class="snav-label">Edital</span><span class="snav-desc">As regras da <?= htmlspecialchars($ligaDoEdital) ?></span></span>
+                        <i class="bi bi-download snav-ext"></i>
+                    </a>
+                    <?php endif; ?>
                 </nav>
 
                 <div class="settings-panel">
