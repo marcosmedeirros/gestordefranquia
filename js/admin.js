@@ -1657,18 +1657,152 @@ async function submitCreateGm() {
   }
 }
 
-async function confirmResetPassword(userId, userName) {
-  if (!confirm(`Redefinir a senha de "${userName}"? Uma nova senha aleatória será gerada.`)) return;
-  try {
-    const data = await api('admin.php?action=reset_user_password', {
-      method: 'POST',
-      body: JSON.stringify({ user_id: userId })
-    });
-    alert(`Nova senha de ${userName}: ${data.new_password}\n\nAnote agora — ela não será mostrada de novo. Repasse ao usuário por um canal seguro.`);
-    showAlert('success', `Senha de ${userName} redefinida!`);
-  } catch (e) {
-    showAlert('danger', 'Erro: ' + (e.error || 'Desconhecido'));
-  }
+/* ── REDEFINIR SENHA ─────────────────────────────────────────────────────
+ *
+ * O confirm() e o alert() do navegador saíram daqui, e não foi só estética:
+ *
+ * 1. A senha aparecia dentro de um alert(), de onde não dá pra copiar em
+ *    celular nenhum. Quem redefinia tinha que LER e DIGITAR uma sequência de
+ *    dez caracteres hexadecimais no WhatsApp, sem errar.
+ * 2. O alert() é do navegador, não do site: no Chrome ele ganha a caixinha
+ *    "não deixar este site criar mais diálogos" e, uma vez marcada, o
+ *    PRÓXIMO alert simplesmente não aparece — a senha era gerada, a senha
+ *    antiga já tinha morrido, e ninguém via a nova.
+ *
+ * Agora é um modal do site, com a senha num campo selecionável e um botão
+ * que copia. O texto "não será mostrada de novo" continua valendo: o banco
+ * guarda só o hash, então não há de onde ler ela depois.
+ */
+function ensureResetPassModal() {
+  if (document.getElementById('resetPassModal')) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal fade';
+  modal.id = 'resetPassModal';
+  modal.tabIndex = -1;
+  modal.innerHTML = `
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark border-orange">
+        <div class="modal-header border-orange">
+          <h5 class="modal-title text-white">
+            <i class="bi bi-key-fill me-2" style="color:#f59e0b"></i>
+            <span id="rp-titulo">Redefinir senha</span>
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="rp-corpo"></div>
+        <div class="modal-footer border-orange" id="rp-rodape"></div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function confirmResetPassword(userId, userName) {
+  ensureResetPassModal();
+  const el = document.getElementById('resetPassModal');
+  const modal = bootstrap.Modal.getOrCreateInstance(el);
+  const corpo = document.getElementById('rp-corpo');
+  const rodape = document.getElementById('rp-rodape');
+  const nome = escapeHtml(userName);
+
+  document.getElementById('rp-titulo').textContent = 'Redefinir senha';
+  corpo.innerHTML = `
+    <p class="text-light-gray mb-2">
+      Gerar uma senha nova para <b class="text-white">${nome}</b>?
+    </p>
+    <p class="text-light-gray mb-0" style="font-size:13px">
+      A senha atual para de funcionar na hora. A nova aparece aqui uma vez só —
+      o banco guarda apenas o hash, então não tem de onde ler ela depois.
+    </p>`;
+  rodape.innerHTML = `
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-warning" id="rp-confirmar">
+      <i class="bi bi-key-fill me-1"></i>Gerar senha nova
+    </button>`;
+
+  document.getElementById('rp-confirmar').onclick = async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Gerando...';
+    try {
+      const data = await api('admin.php?action=reset_user_password', {
+        method: 'POST',
+        body: JSON.stringify({ user_id: userId })
+      });
+      mostrarSenhaNova(nome, data.new_password);
+      showAlert('success', `Senha de ${userName} redefinida!`);
+    } catch (e) {
+      // O erro fica DENTRO do modal e não num toast atrás dele: quem clicou
+      // está olhando pra cá, e um aviso que aparece atrás do modal aberto é
+      // um aviso que ninguém lê.
+      corpo.insertAdjacentHTML('beforeend',
+        `<div class="alert alert-danger mt-3 mb-0 py-2" style="font-size:13px">
+           ${escapeHtml(e.error || 'Não deu pra redefinir. Tente de novo.')}
+         </div>`);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-key-fill me-1"></i>Gerar senha nova';
+    }
+  };
+
+  modal.show();
+}
+
+/** A tela da senha gerada: campo selecionável + botão que copia. */
+function mostrarSenhaNova(nome, senha) {
+  document.getElementById('rp-titulo').textContent = 'Senha redefinida';
+  document.getElementById('rp-corpo').innerHTML = `
+    <p class="text-light-gray mb-2">Senha nova de <b class="text-white">${nome}</b>:</p>
+    <div class="input-group mb-2">
+      <!-- readonly e não disabled: campo desabilitado não deixa selecionar
+           o texto, que é justamente o plano B se a cópia falhar. -->
+      <input type="text" class="form-control text-white" id="rp-senha"
+             value="${escapeHtml(senha)}" readonly
+             style="font-family:monospace;font-size:17px;letter-spacing:2px;background:#1c1c21">
+      <button class="btn btn-warning" type="button" id="rp-copiar" style="min-width:104px">
+        <i class="bi bi-clipboard me-1"></i>Copiar
+      </button>
+    </div>
+    <p class="text-light-gray mb-0" style="font-size:12.5px">
+      Anote agora — ela não será mostrada de novo. Repasse por um canal seguro.
+    </p>`;
+  document.getElementById('rp-rodape').innerHTML =
+    '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>';
+
+  const campo = document.getElementById('rp-senha');
+  const btn = document.getElementById('rp-copiar');
+
+  // Já vem selecionada: se a cópia falhar, um Ctrl+C resolve sem mais nada.
+  campo.focus();
+  campo.select();
+
+  btn.onclick = async () => {
+    let copiou = false;
+    try {
+      // navigator.clipboard só existe em HTTPS (ou localhost). Em HTTP ele
+      // nem está definido, e chamar direto explodiria — daí o fallback.
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(campo.value);
+        copiou = true;
+      } else {
+        campo.select();
+        copiou = document.execCommand('copy');
+      }
+    } catch (e) {
+      copiou = false;
+    }
+
+    btn.innerHTML = copiou
+      ? '<i class="bi bi-check-lg me-1"></i>Copiado'
+      : '<i class="bi bi-exclamation-triangle me-1"></i>Copie na mão';
+    btn.classList.toggle('btn-success', copiou);
+    btn.classList.toggle('btn-warning', !copiou);
+    if (!copiou) { campo.focus(); campo.select(); }
+
+    setTimeout(() => {
+      btn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copiar';
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-warning');
+    }, 2200);
+  };
 }
 
 // Onde você estava, guardado na URL. Assim recarregar (ou F5 sem querer) não
