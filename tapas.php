@@ -450,7 +450,7 @@ async function submitSolicitar() {
 }
 
 async function cancelTapa(requestId) {
-    if (!confirm('Cancelar esta solicitação? O tapa voltará para o seu saldo.')) return;
+    if (!await confirmarSite('Cancelar esta solicitação? O tapa voltará para o seu saldo.')) return;
     try {
         await apiFetch('/api/tapas.php?action=cancel_tapa', {
             method: 'POST',

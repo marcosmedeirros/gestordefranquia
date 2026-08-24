@@ -72,7 +72,7 @@ function lbRenderTudo(data) {
  * Com $comBadges, cada linha ganha as badges configuradas pelo GM embaixo —
  * é o que serve pra conferir quem ainda não montou o jogador.
  */
-function lbCopiar(ev, comBadges) {
+async function lbCopiar(ev, comBadges) {
   const feitas = _lbPicks.filter(p => p.player_name);
   if (!feitas.length) { alert('Ainda não tem nenhuma escolha pra copiar.'); return; }
 
@@ -91,7 +91,7 @@ function lbCopiar(ev, comBadges) {
   navigator.clipboard.writeText(texto).then(() => {
     btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copiado!';
     setTimeout(() => { btn.innerHTML = original; }, 1600);
-  }).catch(() => prompt('Copie o texto abaixo:', texto));
+  }).catch(() => perguntarSite('Copie o texto abaixo:', texto));
 }
 
 function lbRenderLista(picks) {

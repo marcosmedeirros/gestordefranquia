@@ -975,7 +975,7 @@ function revealNext(){
 
 async function confirmOrder(){
   if (!result) return;
-  if (!confirm('Confirmar essa ordem e aplicar ao draft? Isso substitui qualquer ordem já definida para as duas rodadas dessa sessão.')) return;
+  if (!await confirmarSite('Confirmar essa ordem e aplicar ao draft? Isso substitui qualquer ordem já definida para as duas rodadas dessa sessão.')) return;
   const btn = $('btnConfirm');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Aplicando...';

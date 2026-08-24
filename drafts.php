@@ -1360,7 +1360,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     const select = document.getElementById('tradePickTeamSelect');
     const toTeamId = Number(select?.value || 0);
     if (!toTeamId) { alert('Selecione o time que vai receber a pick.'); return; }
-    if (!confirm(`Confirmar troca da pick #${currentPickForTrade.pickPosition} (rodada ${currentPickForTrade.round})?`)) return;
+    if (!await confirmarSite(`Confirmar troca da pick #${currentPickForTrade.pickPosition} (rodada ${currentPickForTrade.round})?`)) return;
     try {
       const result = await api('draft.php', {
         method: 'POST',
@@ -1571,7 +1571,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   }
 
   async function cancelRound2Mock(draftOrderId) {
-    if (!confirm('Remover o mock dessa pick?')) return;
+    if (!await confirmarSite('Remover o mock dessa pick?')) return;
     try {
       await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'cancel_round2_mock', draft_order_id: draftOrderId }) });
       await loadRound2Board();
@@ -1580,7 +1580,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
   async function finalizeDraft() {
     if (!currentDraftSession) return;
-    if (!confirm('Finalizar o draft agora?')) return;
+    if (!await confirmarSite('Finalizar o draft agora?')) return;
     try {
       const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'finalize_draft', draft_session_id: currentDraftSession.id }) });
       alert(result.message || 'Draft finalizado!');
@@ -1590,7 +1590,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
   async function revertPick(pickId, playerName) {
     if (!currentDraftSession) return;
-    if (!confirm(`Reverter a escolha de ${playerName}? O jogador voltará ao pool e a pick ficará disponível novamente.`)) return;
+    if (!await confirmarSite(`Reverter a escolha de ${playerName}? O jogador voltará ao pool e a pick ficará disponível novamente.`)) return;
     try {
       const result = await api('draft.php', {
         method: 'POST',
@@ -1602,7 +1602,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
   async function setCurrentPick(round, pickPosition) {
     if (!currentDraftSession) return;
-    if (!confirm(`Voltar o draft para a escolha #${pickPosition} da rodada ${round}?\n\nO relógio da escolha reinicia e o time dessa posição passa a ser a vez.`)) return;
+    if (!await confirmarSite(`Voltar o draft para a escolha #${pickPosition} da rodada ${round}?\n\nO relógio da escolha reinicia e o time dessa posição passa a ser a vez.`)) return;
     try {
       const result = await api('draft.php', {
         method: 'POST',
@@ -1649,7 +1649,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   }
 
   async function makePick(playerId, playerName) {
-    if (!confirm(`Confirma a escolha de ${playerName}?`)) return;
+    if (!await confirmarSite(`Confirma a escolha de ${playerName}?`)) return;
     const payload = { action: 'make_pick', draft_session_id: currentDraftSession.id, player_id: playerId };
     if (adminPickTargetId !== null) {
       payload.pick_id = adminPickTargetId;
@@ -1862,7 +1862,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
   }
 
   async function fillPastPick(playerId, playerName) {
-    if (!confirm(`Confirma preencher esta pick com ${playerName}?`)) return;
+    if (!await confirmarSite(`Confirma preencher esta pick com ${playerName}?`)) return;
     try {
       const result = await api('draft.php', {
         method: 'POST',

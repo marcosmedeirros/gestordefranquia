@@ -105,7 +105,7 @@ async function dcCriarDeRoleta(roletaId) {
 window.dcCriarDeRoleta = dcCriarDeRoleta;
 
 async function dcRenomear(id, atual) {
-  const titulo = prompt('Novo nome do draft:', atual);
+  const titulo = await perguntarSite('Novo nome do draft:', atual);
   if (titulo === null) return;
   if (!titulo.trim()) { alert('O nome não pode ficar vazio.'); return; }
   try {
@@ -129,7 +129,7 @@ function dcCopiarLink(id, btn) {
 window.dcCopiarLink = dcCopiarLink;
 
 async function dcExcluir(id, titulo) {
-  if (!confirm(`Excluir o draft "${titulo}"? As escolhas registradas nele são apagadas. A roleta de origem continua intacta e dá pra gerar o draft de novo.`)) return;
+  if (!await confirmarSite(`Excluir o draft "${titulo}"? As escolhas registradas nele são apagadas. A roleta de origem continua intacta e dá pra gerar o draft de novo.`)) return;
   try {
     await _dcFetch('/api/drafts-aleatorios.php', {
       method: 'POST',

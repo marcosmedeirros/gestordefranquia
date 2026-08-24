@@ -1406,7 +1406,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btn.classList.contains('btn-retire-player')) {
       const playerId = btn.dataset.id;
       const playerName = btn.dataset.name;
-      if (confirm(`Aposentar ${playerName}?`)) {
+      if (await confirmarSite(`Aposentar ${playerName}?`)) {
         try {
           const res = await api('players.php', { method: 'DELETE', body: JSON.stringify({ id: playerId, retirement: true }) });
           alert(res.message || 'Jogador aposentado!');
@@ -1490,7 +1490,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btn.classList.contains('btn-retire-player')) {
       const playerId = btn.dataset.id;
       const playerName = btn.dataset.name;
-      if (confirm(`Aposentar ${playerName}?`)) {
+      if (await confirmarSite(`Aposentar ${playerName}?`)) {
         try {
           const res = await api('players.php', { method: 'DELETE', body: JSON.stringify({ id: playerId, retirement: true }) });
           alert(res.message || 'Jogador aposentado!');

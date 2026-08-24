@@ -182,7 +182,7 @@ async function _carregarAtualizacoes() {
 }
 
 async function _reverterAtualizacao(id) {
-  if (!confirm('Reverter esta atualização?\n\nOs valores antigos voltam, as moedas saem de quem enviou e o time fica livre pra receber outra.')) return;
+  if (!await confirmarSite('Reverter esta atualização?\n\nOs valores antigos voltam, as moedas saem de quem enviou e o time fica livre pra receber outra.')) return;
   try {
     const body = new URLSearchParams({acao: 'reverter', id: String(id)});
     const r = await fetch('/api/atualizar-time.php', {method: 'POST', body});
@@ -216,7 +216,7 @@ async function _carregarGamesUsers() {
  */
 async function _zerarGames(campo) {
   const rotulo = campo === 'pontos' ? 'moedas' : 'FBA Points';
-  const confirma = prompt(
+  const confirma = await perguntarSite(
     `Isso zera ${rotulo} de TODOS os usuários e não pode ser desfeito.\n\n` +
     `Para confirmar, digite: ${rotulo}`
   );
@@ -252,7 +252,7 @@ async function _zerarGames(campo) {
 async function _zerarConquistas(jogo) {
   const nome = jogo === 'copero' ? 'Copero' : 'Caminho';
   const oQue = jogo === 'copero' ? 'conquistas' : 'desafios';
-  const confirma = prompt(
+  const confirma = await perguntarSite(
     `Isso apaga as ${oQue} do ${nome} de TODOS os usuários e não pode ser desfeito.\n\n` +
     `As moedas já pagas por elas NÃO voltam — e como a lista zera, quem já ` +
     `tinha vai poder conquistar de novo e ser pago de novo.\n\n` +
@@ -507,7 +507,7 @@ async function showGestao(league) {
 // Manda o abraço do dia agora, sem esperar as 15h. Confirma antes porque isto
 // posta no grupo — e o grupo tem gente de verdade.
 async function dispararAbraco() {
-  if (!confirm('Sortear um GM e mandar o abraço no grupo agora?\n\nIsso posta no The Pathetic, mesmo que o abraço de hoje já tenha saído.')) return;
+  if (!await confirmarSite('Sortear um GM e mandar o abraço no grupo agora?\n\nIsso posta no The Pathetic, mesmo que o abraço de hoje já tenha saído.')) return;
   const btn = document.getElementById('btnAbraco');
   const original = btn ? btn.innerHTML : null;
   if (btn) {
@@ -733,7 +733,7 @@ async function _quizGrupoDoQuiz(sel) {
   // vale mais perguntar como chamar do que gravar isso como nome pra sempre.
   let nome = '';
   if (jid && sel.selectedOptions[0]?.parentElement?.tagName === 'OPTGROUP') {
-    nome = prompt('Como esse grupo se chama? (ex: Chat Off - Geral)', 'Chat Off - Geral') || '';
+    nome = await perguntarSite('Como esse grupo se chama? (ex: Chat Off - Geral)', 'Chat Off - Geral') || '';
     if (!nome.trim()) { showQuizAdmin(); return; }
   }
   try {
@@ -862,7 +862,7 @@ async function _quizGrupoSalvar() {
 }
 
 async function _quizGrupoRemover(jid) {
-  if (!confirm('Tirar esse grupo? O bot para de atender comando nele.')) return;
+  if (!await confirmarSite('Tirar esse grupo? O bot para de atender comando nele.')) return;
   try {
     const r = await api('quiz-admin.php?action=grupos_remover', { method: 'POST', body: JSON.stringify({ jid }) });
     document.getElementById('_quizGruposModal')?.remove();
@@ -872,7 +872,7 @@ async function _quizGrupoRemover(jid) {
 }
 
 async function _quizAcao(acao, confirmar, corpo) {
-  if (confirmar && !confirm(confirmar)) return;
+  if (confirmar && !await confirmarSite(confirmar)) return;
   try {
     const r = await api('quiz-admin.php?action=' + acao, {
       method: 'POST', body: JSON.stringify(corpo || {})
@@ -994,7 +994,7 @@ async function _quizSalvar(enviarAgora) {
   // custa um clique e evita mandar a pergunta ainda pela metade.
   if (enviarAgora) {
     const onde = document.getElementById('_qGrupo').selectedOptions[0]?.textContent.trim() || 'grupo principal';
-    if (!confirm(`Postar esta pergunta agora em "${onde}"?\n\nEla fecha ${window._quizMinutos || 10} minutos depois e não volta a sair no sorteio.`)) return;
+    if (!await confirmarSite(`Postar esta pergunta agora em "${onde}"?\n\nEla fecha ${window._quizMinutos || 10} minutos depois e não volta a sair no sorteio.`)) return;
   }
 
   const acao = enviarAgora ? 'salvar_e_enviar' : 'salvar';
@@ -1071,10 +1071,10 @@ async function toggleMaintenanceMode(enable) {
   let message = '';
   if (enable) {
     const confirmMsg = 'Isso vai bloquear o app inteiro para todo mundo, exceto admins gerais. Tem certeza?';
-    if (!confirm(confirmMsg)) return;
-    message = prompt('Mensagem opcional para exibir na página de manutenção (deixe em branco pra usar o texto padrão):', '') || '';
+    if (!await confirmarSite(confirmMsg)) return;
+    message = await perguntarSite('Mensagem opcional para exibir na página de manutenção (deixe em branco pra usar o texto padrão):', '') || '';
   } else {
-    if (!confirm('Desativar o modo manutenção e liberar o site para todo mundo?')) return;
+    if (!await confirmarSite('Desativar o modo manutenção e liberar o site para todo mundo?')) return;
   }
   try {
     const data = await api('admin.php?action=toggle_maintenance', {
@@ -1495,7 +1495,7 @@ async function saveGestaoUser() {
 }
 
 async function deleteGestaoUser(userId, userName) {
-  if (!confirm(`Apagar o usuário "${userName}"? Essa ação não pode ser desfeita.`)) return;
+  if (!await confirmarSite(`Apagar o usuário "${userName}"? Essa ação não pode ser desfeita.`)) return;
   try {
     await api(`admin.php?action=user&id=${userId}`, { method: 'DELETE' });
     showAlert('success', 'Usuário apagado!');
@@ -1506,7 +1506,7 @@ async function deleteGestaoUser(userId, userName) {
 }
 
 async function deleteGestaoTeam(teamId, teamName, gmName) {
-  if (!confirm(`Apagar o time "${teamName}" e o GM "${gmName}"?\n\nIsso apaga o elenco, picks, trocas e a conta de login do GM. Essa ação não pode ser desfeita.`)) return;
+  if (!await confirmarSite(`Apagar o time "${teamName}" e o GM "${gmName}"?\n\nIsso apaga o elenco, picks, trocas e a conta de login do GM. Essa ação não pode ser desfeita.`)) return;
   try {
     await api(`admin.php?action=team_and_owner&team_id=${teamId}`, { method: 'DELETE' });
     showAlert('success', 'Time e GM apagados!');
@@ -2057,7 +2057,7 @@ function showOuvidoriaModal() {
 
 async function deleteOuvidoriaMessage(messageId) {
   if (!messageId) return;
-  const confirmed = confirm('Apagar esta mensagem da ouvidoria?');
+  const confirmed = await confirmarSite('Apagar esta mensagem da ouvidoria?');
   if (!confirmed) return;
 
   try {
@@ -2158,12 +2158,12 @@ async function _copiarConviteRookie(link) {
     await navigator.clipboard.writeText(link);
     showAlert('success', 'Link copiado! Agora é só mandar no grupo.');
   } catch (e) {
-    prompt('Copie o link abaixo:', link);
+    await perguntarSite('Copie o link abaixo:', link);
   }
 }
 
 async function _gerarConviteRookie(substituindo) {
-  if (substituindo && !confirm('Gerar um link novo invalida o atual — quem já recebeu não vai mais conseguir usar. Continuar?')) return;
+  if (substituindo && !await confirmarSite('Gerar um link novo invalida o atual — quem já recebeu não vai mais conseguir usar. Continuar?')) return;
   try {
     const d = await api('admin.php?action=league_invite', {
       method: 'POST',
@@ -2177,7 +2177,7 @@ async function _gerarConviteRookie(substituindo) {
 }
 
 async function _revogarConviteRookie() {
-  if (!confirm('Desativar o link de inscrição da ROOKIE? Ninguém mais consegue se cadastrar por ele.')) return;
+  if (!await confirmarSite('Desativar o link de inscrição da ROOKIE? Ninguém mais consegue se cadastrar por ele.')) return;
   try {
     await api('admin.php?action=league_invite', {
       method: 'POST',
@@ -2495,7 +2495,7 @@ async function _leilaoAdminExcluir(leilaoId, nome, league, finalizado) {
   const aviso = finalizado
     ? `Apagar do histórico o leilão de ${nome}? A troca já feita NÃO é desfeita — some só o registro do leilão e as propostas dele.`
     : `Apagar o leilão cancelado de ${nome}? As propostas dele vão junto, e não dá pra desfazer.`;
-  if (!confirm(aviso)) return;
+  if (!await confirmarSite(aviso)) return;
   try {
     const d = await api('leilao.php', { method: 'POST', body: JSON.stringify({ action: 'excluir_leilao', leilao_id: leilaoId }) });
     if (d && d.success === false) throw d;
@@ -2638,7 +2638,7 @@ async function _leilaoAdminConfirmarResolucao() {
   const extra_player_ids = [...document.querySelectorAll('.leilaoAdminExtraPlayer:checked')].map(el => Number(el.value));
   const extra_pick_ids = [...document.querySelectorAll('.leilaoAdminExtraPick:checked')].map(el => Number(el.value));
 
-  if (!confirm('Confirmar esta resolução?\n\nA troca será executada e o leilão não poderá mais mudar de vencedor.')) return;
+  if (!await confirmarSite('Confirmar esta resolução?\n\nA troca será executada e o leilão não poderá mais mudar de vencedor.')) return;
   try {
     await api('leilao.php', {
       method: 'POST',
@@ -2658,7 +2658,7 @@ async function _leilaoAdminConfirmarResolucao() {
 
 async function _leilaoAdminEncerrarSemTroca() {
   if (!_leilaoAdminLeilaoId) return;
-  if (!confirm('Encerrar este leilão sem executar nenhuma troca?')) return;
+  if (!await confirmarSite('Encerrar este leilão sem executar nenhuma troca?')) return;
   try {
     await api('leilao.php', {
       method: 'POST',
@@ -2730,7 +2730,7 @@ async function waitlistCopyLink(link, id) {
     await navigator.clipboard.writeText(link);
     showAlert('success', 'Link copiado! Agora é só mandar pro interessado.');
   } catch (e) {
-    prompt('Copie o link abaixo:', link);
+    await perguntarSite('Copie o link abaixo:', link);
   }
   try {
     await api('waitlist.php', { method: 'PUT', body: JSON.stringify({ id, action: 'mark_sent' }) });
@@ -2748,7 +2748,7 @@ async function waitlistAccept(id) {
 }
 
 async function waitlistDismiss(id) {
-  if (!confirm('Dispensar este pedido de participação?')) return;
+  if (!await confirmarSite('Dispensar este pedido de participação?')) return;
   try {
     await api('waitlist.php', { method: 'PUT', body: JSON.stringify({ id, action: 'dismiss' }) });
     loadWaitlistRequests();
@@ -2934,7 +2934,7 @@ async function copyLeaguePicks() {
  * vai direto.
  */
 async function _initDraftRodadas(total, token, atual, league) {
-  if (total < atual && !confirm(
+  if (total < atual && !await confirmarSite(
       `Passar de ${atual} para ${total} rodada(s)?\n\n`
     + `A última rodada sai da ordem. Se já houver escolha nela, o servidor recusa e nada muda.`)) return;
 
@@ -3692,7 +3692,7 @@ async function _applySrchEditPlayer(playerId) {
 }
 
 async function srchDeletePlayer(playerId) {
-  if (!confirm('Deletar jogador?')) return;
+  if (!await confirmarSite('Deletar jogador?')) return;
   try {
     await api(`admin.php?action=player&id=${playerId}`, { method: 'DELETE' });
     showAlert('success', 'Jogador deletado!');
@@ -3942,7 +3942,7 @@ async function editTeamCounter(teamId, field, currentValue) {
   const labels = { trades_used: 'Trocas feitas', waivers_used: 'Dispensas feitas' };
   const displayIds = { trades_used: 'tradesUsedDisplay', waivers_used: 'waiversUsedDisplay' };
   const label = labels[field] || field;
-  const newVal = prompt(`Novo valor para "${label}" (atual: ${currentValue}):`, currentValue);
+  const newVal = await perguntarSite(`Novo valor para "${label}" (atual: ${currentValue}):`, currentValue);
   if (newVal === null) return;
   const parsed = parseInt(newVal, 10);
   if (isNaN(parsed) || parsed < 0) return alert('Valor inválido. Informe um número inteiro >= 0.');
@@ -4475,7 +4475,7 @@ async function saveHallOfFameTitles(id) {
 }
 
 async function deleteHallOfFameEntry(id) {
-  if (!confirm('Remover este registro do Hall da Fama?')) return;
+  if (!await confirmarSite('Remover este registro do Hall da Fama?')) return;
   try {
     await api('admin.php?action=hall_of_fame', {
       method: 'DELETE',
@@ -5467,7 +5467,7 @@ async function savePlayerEdit(playerId) {
 }
 
 async function deletePlayer(playerId) {
-  if (!confirm('Deletar jogador?')) return;
+  if (!await confirmarSite('Deletar jogador?')) return;
   try {
     await api(`admin.php?action=player&id=${playerId}`, { method: 'DELETE' });
     await showTeam(appState.currentTeam.id);
@@ -5476,7 +5476,7 @@ async function deletePlayer(playerId) {
 }
 
 async function cancelTrade(tradeId) {
-  if (!confirm('Cancelar trade?')) return;
+  if (!await confirmarSite('Cancelar trade?')) return;
   try {
     await api('admin.php?action=cancel_trade', { method: 'PUT', body: JSON.stringify({ trade_id: tradeId }) });
     await showTrades();
@@ -5485,7 +5485,7 @@ async function cancelTrade(tradeId) {
 }
 
 async function revertTrade(tradeId) {
-  if (!confirm('REVERTER trade? Jogadores voltarão aos times originais.')) return;
+  if (!await confirmarSite('REVERTER trade? Jogadores voltarão aos times originais.')) return;
   try {
     await api('admin.php?action=revert_trade', { method: 'PUT', body: JSON.stringify({ trade_id: tradeId }) });
     await showTrades();
@@ -5494,7 +5494,7 @@ async function revertTrade(tradeId) {
 }
 
 async function revertMultiTrade(tradeId) {
-  if (!confirm('REVERTER trade múltipla? Itens voltarão aos times originais.')) return;
+  if (!await confirmarSite('REVERTER trade múltipla? Itens voltarão aos times originais.')) return;
   try {
     await api('admin.php?action=revert_multi_trade', { method: 'PUT', body: JSON.stringify({ trade_id: tradeId }) });
     await showTrades();
@@ -5734,7 +5734,7 @@ async function savePickEdit(pickId) {
 }
 
 async function deletePick(pickId) {
-  if (!confirm('Deletar este pick?')) return;
+  if (!await confirmarSite('Deletar este pick?')) return;
   try {
     await api(`admin.php?action=pick&id=${pickId}`, { method: 'DELETE' });
     await showTeam(appState.currentTeam.id);
@@ -5893,7 +5893,7 @@ async function uploadEdital(league) {
 
 // Função para deletar edital
 async function deleteEdital(league) {
-  if (!confirm('Tem certeza que deseja remover o edital desta liga?')) return;
+  if (!await confirmarSite('Tem certeza que deseja remover o edital desta liga?')) return;
   
   try {
     const response = await fetch('api/edital.php?action=delete_edital', {
@@ -6426,7 +6426,7 @@ async function loadAdminFaHistory() {
 
 async function adminFaRevertPlayer(requestId, playerName) {
   if (!requestId) { showAlert('danger', 'ID inválido.'); return; }
-  if (!confirm(`Reverter contratação de "${playerName}"?\nO jogador será removido do time e as moedas devolvidas.`)) return;
+  if (!await confirmarSite(`Reverter contratação de "${playerName}"?\nO jogador será removido do time e as moedas devolvidas.`)) return;
   try {
     const r = await fetch('/api/free-agency.php', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -6625,7 +6625,7 @@ async function previewDistStandings() {
 }
 
 async function applyDistStandings() {
-  if (!confirm('Aplicar a distribuição de moedas por classificação? As moedas serão somadas ao saldo atual de cada time.')) return;
+  if (!await confirmarSite('Aplicar a distribuição de moedas por classificação? As moedas serão somadas ao saldo atual de cada time.')) return;
   const btn = document.getElementById('distApplyBtn');
   btn.disabled = true;
   try {
@@ -6894,7 +6894,7 @@ async function submitTapasApprove() {
 }
 
 async function rejectTapasRequest(reqId) {
-  if (!confirm('Rejeitar esta solicitação?')) return;
+  if (!await confirmarSite('Rejeitar esta solicitação?')) return;
   try {
     await fetch('/api/tapas.php?action=admin_reject', {
       method: 'POST',
@@ -7251,7 +7251,7 @@ async function toggleFA(league, enabled) {
 }
 
 async function approveUser(userId, username) {
-  if (!confirm(`Deseja aprovar o usuário "${username}"?`)) return;
+  if (!await confirmarSite(`Deseja aprovar o usuário "${username}"?`)) return;
   
   try {
     const result = await api('user-approval.php', {
@@ -7273,7 +7273,7 @@ async function approveUser(userId, username) {
 }
 
 async function rejectUser(userId, username) {
-  if (!confirm(`Deseja REJEITAR e EXCLUIR o usuário "${username}"?\n\nEsta ação não pode ser desfeita!`)) return;
+  if (!await confirmarSite(`Deseja REJEITAR e EXCLUIR o usuário "${username}"?\n\nEsta ação não pode ser desfeita!`)) return;
   
   try {
     const result = await api('user-approval.php', {
@@ -7752,7 +7752,7 @@ async function savePtsMgmt(seasonId, league) {
       return `${name}: ${tp.points} pts`;
     }).join('\n') || '(todos com 0 pontos)';
 
-  if (!confirm(`Confirmar registro de pontuação para ${league}?\n\n${summary}\n\nEsta ação não poderá ser desfeita.`)) return;
+  if (!await confirmarSite(`Confirmar registro de pontuação para ${league}?\n\n${summary}\n\nEsta ação não poderá ser desfeita.`)) return;
 
   try {
     await api('history-points.php', {
@@ -7797,7 +7797,7 @@ async function saveEditPtsMgmt(seasonId, league) {
 }
 
 async function deletePtsMgmt(seasonId, league) {
-  if (!confirm(`Tem certeza? Isso irá ZERAR todos os pontos desta temporada para a liga ${league} e liberar os locks. O lock do playoff também será removido, permitindo novo cadastro.`)) return;
+  if (!await confirmarSite(`Tem certeza? Isso irá ZERAR todos os pontos desta temporada para a liga ${league} e liberar os locks. O lock do playoff também será removido, permitindo novo cadastro.`)) return;
 
   try {
     await api('history-points.php', {
@@ -8119,7 +8119,7 @@ async function createSchedEvent() {
 }
 
 async function cancelSchedEvent(id) {
-  if (!confirm('Cancelar este evento agendado?')) return;
+  if (!await confirmarSite('Cancelar este evento agendado?')) return;
   try { await api('scheduler.php', { method: 'POST', body: JSON.stringify({ action: 'cancel', id }) }); loadSchedEvents(); }
   catch (e) { showAlert('danger', e.error || 'Erro'); }
 }
@@ -8369,7 +8369,7 @@ async function _regPtsSave(seasonId, league) {
       return `${name}: ${tp.points} pts`;
     }).join('\n') || '(todos com 0 pontos)';
 
-  if (!confirm(`Confirmar registro de pontuação para ${league}?\n\n${summary}\n\nEsta ação não poderá ser desfeita.`)) return;
+  if (!await confirmarSite(`Confirmar registro de pontuação para ${league}?\n\n${summary}\n\nEsta ação não poderá ser desfeita.`)) return;
 
   try {
     await api('history-points.php', {
@@ -9009,7 +9009,7 @@ async function _adminDraftCreateSession(league, seasonId) {
 }
 
 async function _adminDraftStart(draftSessionId, league) {
-  if (!confirm('Iniciar o draft? Verifique se a ordem dos times está definida antes de continuar.')) return;
+  if (!await confirmarSite('Iniciar o draft? Verifique se a ordem dos times está definida antes de continuar.')) return;
   try {
     await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'start_draft', draft_session_id: draftSessionId }) });
     showAlert('success', 'Draft iniciado!');
@@ -9032,7 +9032,7 @@ async function _adminSetRound1Clock(draftSessionId, league) {
 }
 
 async function _adminClearRound1Clock(draftSessionId, league) {
-  if (!confirm('Remover o relógio da 1ª rodada? As picks voltam a ter o prazo de sempre (30min + fila).')) return;
+  if (!await confirmarSite('Remover o relógio da 1ª rodada? As picks voltam a ter o prazo de sempre (30min + fila).')) return;
   try {
     const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'set_round1_clock', draft_session_id: draftSessionId, round1_clock_start_at: '' }) });
     showAlert('success', result.message || 'Relógio removido');
@@ -9056,7 +9056,7 @@ async function _adminSetRound2Mock(draftOrderId, league) {
 }
 
 async function _adminResolveRound2Now(draftSessionId, league) {
-  if (!confirm('Resolver a 2ª rodada agora? Cada pick com mock leva o jogador (se ainda disponível); quem não tem mock fica em aberto. O draft é marcado concluído.')) return;
+  if (!await confirmarSite('Resolver a 2ª rodada agora? Cada pick com mock leva o jogador (se ainda disponível); quem não tem mock fica em aberto. O draft é marcado concluído.')) return;
   try {
     const result = await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'resolve_round2_now', draft_session_id: draftSessionId }) });
     showAlert('success', result.message || 'Rodada 2 resolvida!');
@@ -9067,7 +9067,7 @@ async function _adminResolveRound2Now(draftSessionId, league) {
 }
 
 async function _adminDraftFinalize(draftSessionId, league) {
-  if (!confirm('Finalizar o draft? Isso marca o draft como concluído.')) return;
+  if (!await confirmarSite('Finalizar o draft? Isso marca o draft como concluído.')) return;
   try {
     await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'finalize_draft', draft_session_id: draftSessionId }) });
     showAlert('success', 'Draft finalizado!');
@@ -9078,7 +9078,7 @@ async function _adminDraftFinalize(draftSessionId, league) {
 }
 
 async function _adminDraftDelete(draftSessionId, league) {
-  if (!confirm('Excluir esta sessão de draft? Todos os picks e a ordem serão removidos. Esta ação não pode ser desfeita.')) return;
+  if (!await confirmarSite('Excluir esta sessão de draft? Todos os picks e a ordem serão removidos. Esta ação não pode ser desfeita.')) return;
   try {
     await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'delete_session', draft_session_id: draftSessionId }) });
     showAlert('success', 'Sessão de draft excluída.');
@@ -9110,7 +9110,7 @@ async function _adminDraftRemoveFromOrder(pickId, draftSessionId, league) {
 }
 
 async function _adminDraftClearOrder(draftSessionId, league) {
-  if (!confirm('Limpar toda a ordem do draft?')) return;
+  if (!await confirmarSite('Limpar toda a ordem do draft?')) return;
   try {
     await api('draft.php', { method: 'POST', body: JSON.stringify({ action: 'clear_order', draft_session_id: draftSessionId }) });
     showAdminDraft(league);
@@ -9129,7 +9129,7 @@ async function _adminDraftDeletePlayer(playerId, league) {
 }
 
 async function _adminDraftClearPool(seasonId, league) {
-  if (!confirm('Apagar todos os jogadores disponíveis do pool? Esta ação não pode ser desfeita.')) return;
+  if (!await confirmarSite('Apagar todos os jogadores disponíveis do pool? Esta ação não pode ser desfeita.')) return;
   try {
     await api('seasons.php?action=clear_draft_pool', { method: 'POST', body: JSON.stringify({ season_id: seasonId }) });
     showAlert('success', 'Pool de jogadores limpo.');
@@ -9515,7 +9515,7 @@ async function _adminDraftUseClassBank(draftSid, seasonId, league) {
     const players = (data.players || []).map(p => ({ name: p.name, position: p.position, ovr: p.ovr, age: p.age, pick_hint: p.pick_hint ?? null }));
     if (!players.length) { showAlert('warning', 'Classe sem jogadores'); return; }
 
-    if (!confirm(`Importar ${players.length} jogadores da classe para o pool? Os jogadores já existentes no pool serão mantidos.`)) return;
+    if (!await confirmarSite(`Importar ${players.length} jogadores da classe para o pool? Os jogadores já existentes no pool serão mantidos.`)) return;
 
     const res = await api('draft.php', {
       method: 'POST',
@@ -9804,7 +9804,7 @@ async function _dcAddPlayer() {
 }
 
 async function _dcDeletePlayer(playerId) {
-  if (!confirm('Remover este jogador da classe?')) return;
+  if (!await confirmarSite('Remover este jogador da classe?')) return;
   try {
     await api('admin.php?action=draft_class_bank', { method: 'POST', body: JSON.stringify({ sub: 'delete_player', player_id: playerId }) });
     _dcEditPlayers = _dcEditPlayers.filter(p => p.id !== playerId);
@@ -9838,7 +9838,7 @@ async function _dcSaveNewClass() {
 }
 
 async function _draftClassDelete(templateId, name) {
-  if (!confirm(`Excluir a classe "${name}"? Esta ação não pode ser desfeita.`)) return;
+  if (!await confirmarSite(`Excluir a classe "${name}"? Esta ação não pode ser desfeita.`)) return;
   try {
     await api('admin.php?action=draft_class_bank', { method: 'POST', body: JSON.stringify({ sub: 'delete', template_id: templateId }) });
     showAlert('success', 'Classe excluída.');
@@ -10315,10 +10315,10 @@ async function ftSubmit() {
    O reset de temporada já faz isso sozinho — este botão é para congelar
    num momento escolhido pelo admin. */
 async function congelarRanking(league) {
-  if (!confirm(`Congelar a classificação atual da ${league}?\n\n`
+  if (!await confirmarSite(`Congelar a classificação atual da ${league}?\n\n`
     + 'A ordem de hoje fica salva no histórico e passa a ser a referência das setas de variação no ranking.')) return;
   try {
-    const rotulo = prompt('Nome deste congelamento (opcional):', 'Fim da sprint') || '';
+    const rotulo = await perguntarSite('Nome deste congelamento (opcional):', 'Fim da sprint') || '';
     const d = await api(`history-points.php?action=save_ranking_snapshot&league=${encodeURIComponent(league)}&label=${encodeURIComponent(rotulo)}`);
     if (d.success) {
       showAlert('success', `Classificação congelada: ${d.saved} times salvos.`);

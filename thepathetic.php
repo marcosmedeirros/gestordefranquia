@@ -698,7 +698,7 @@ a{color:inherit;text-decoration:none}
               <span><?= $e(patheticQuando($c['criado_em'])) ?></span>
               <?php if ($souEditor || (int)$c['id_usuario'] === $leitorId): ?>
                 <form method="post" style="margin-left:auto"
-                      onsubmit="return confirm('Apagar este comentário?')">
+                      data-confirmar="Apagar este comentário?">
                   <input type="hidden" name="token" value="<?= $e($tokenLeitor) ?>">
                   <input type="hidden" name="acao" value="apagar_comentario">
                   <input type="hidden" name="n" value="<?= (int)$materia['id'] ?>">

@@ -314,7 +314,7 @@ function _renderEstadoExpirado(data, leilaoId, expirado) {
 }
 
 async function fecharLeilao(leilaoId) {
-  if (!confirm('Fechar o leilão agora?\n\nA troca da proposta escolhida será executada e o leilão não poderá mais mudar de vencedor.')) return;
+  if (!await confirmarSite('Fechar o leilão agora?\n\nA troca da proposta escolhida será executada e o leilão não poderá mais mudar de vencedor.')) return;
   const btn = document.getElementById('btnFecharLeilao');
   if (btn) btn.disabled = true;
   try {
@@ -445,7 +445,7 @@ async function confirmarResolucaoLeilao() {
   const extra_player_ids = [...document.querySelectorAll('.resolverExtraPlayer:checked')].map(el => Number(el.value));
   const extra_pick_ids = [...document.querySelectorAll('.resolverExtraPick:checked')].map(el => Number(el.value));
 
-  if (!confirm('Confirmar esta resolução?\n\nA troca será executada e o leilão não poderá mais mudar de vencedor.')) return;
+  if (!await confirmarSite('Confirmar esta resolução?\n\nA troca será executada e o leilão não poderá mais mudar de vencedor.')) return;
   const btn = document.getElementById('btnConfirmarResolucao');
   if (btn) btn.disabled = true;
   try {
@@ -474,7 +474,7 @@ async function confirmarResolucaoLeilao() {
 async function encerrarSemTroca(leilaoId) {
   const id = leilaoId || _resolverLeilaoId;
   if (!id) return;
-  if (!confirm('Encerrar este leilão sem executar nenhuma troca?')) return;
+  if (!await confirmarSite('Encerrar este leilão sem executar nenhuma troca?')) return;
   try {
     const data = await _fetchJson('api/leilao.php', {
       method: 'POST',
@@ -1129,7 +1129,7 @@ document.getElementById('btnEnviarProposta')?.addEventListener('click', async fu
 // ── Aceitar / Recusar ─────────────────────────────────────────────────────────
 
 async function aceitarProposta(propostaId) {
-  if (!confirm('Escolher esta proposta?\n\nNada muda de time agora: você pode trocar a escolha enquanto o leilão estiver aberto. A troca é executada ao fechar o leilão (no fim dos 20min ou no botão "Fechar leilão").')) return;
+  if (!await confirmarSite('Escolher esta proposta?\n\nNada muda de time agora: você pode trocar a escolha enquanto o leilão estiver aberto. A troca é executada ao fechar o leilão (no fim dos 20min ou no botão "Fechar leilão").')) return;
   try {
     const data = await _fetchJson('api/leilao.php', {
       method: 'POST',
@@ -1150,7 +1150,7 @@ async function aceitarProposta(propostaId) {
 }
 
 async function recusarProposta(propostaId, leilaoId) {
-  if (!confirm('Recusar esta proposta?')) return;
+  if (!await confirmarSite('Recusar esta proposta?')) return;
   try {
     const data = await _fetchJson('api/leilao.php', {
       method: 'POST',
@@ -1272,7 +1272,7 @@ async function carregarPendentesCriados() {
 }
 
 async function cancelarLeilao(leilaoId) {
-  if (!confirm('Cancelar este leilão?')) return;
+  if (!await confirmarSite('Cancelar este leilão?')) return;
   try {
     const data = await _fetchJson('api/leilao.php', {
       method: 'POST',
@@ -1288,7 +1288,7 @@ async function cancelarLeilao(leilaoId) {
 }
 
 async function reverterLeilao(leilaoId, playerName) {
-  if (!confirm(`Reverter leilão de "${playerName}"?\n\nO jogador retorna ao time de origem e os itens voltam para quem os enviou.`)) return;
+  if (!await confirmarSite(`Reverter leilão de "${playerName}"?\n\nO jogador retorna ao time de origem e os itens voltam para quem os enviou.`)) return;
   try {
     const data = await _fetchJson('api/leilao.php', {
       method: 'POST',
@@ -1319,7 +1319,7 @@ async function iniciarLeilaoPendente(leilaoId) {
 }
 
 async function removerLeilaoPendente(leilaoId) {
-  if (!confirm('Remover este jogador pendente?')) return;
+  if (!await confirmarSite('Remover este jogador pendente?')) return;
   try {
     const data = await _fetchJson('api/leilao.php', {
       method: 'POST',

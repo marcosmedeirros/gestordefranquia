@@ -910,7 +910,7 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                                     <i class="bi bi-check2"></i> Salvar e manter no ar
                                 </button>
                                 <button type="submit" name="publicar" value="0" class="btn-rascunho"
-                                        onclick="return confirm('Tirar esta matéria do ar? Ela volta a ser rascunho e some do jornal.')">
+                                        data-confirmar="Tirar esta matéria do ar? Ela volta a ser rascunho e some do jornal.">
                                     <i class="bi bi-eye-slash"></i> Tirar do ar
                                 </button>
                             <?php else: ?>
@@ -956,8 +956,8 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                 <input type="hidden" name="foto" id="fotoParaTirar" value="">
             </form>
             <script>
-              function tirarFoto(id){
-                if (!confirm("Tirar esta foto da matéria? O arquivo é apagado.")) return;
+              async function tirarFoto(id){
+                if (!await confirmarSite("Tirar esta foto da matéria? O arquivo é apagado.")) return;
                 document.getElementById("fotoParaTirar").value = id;
                 document.getElementById("formTirarFoto").submit();
               }
@@ -1066,7 +1066,7 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                                     <button class="ac ac-whats" title="Avisar o grupo agora"><i class="bi bi-whatsapp"></i></button>
                                 </form>
                                 <?php endif; ?>
-                                <form method="post" onsubmit="return confirm('Tirar esta notícia do ar? Ela continua salva como rascunho.')">
+                                <form method="post" data-confirmar="Tirar esta notícia do ar? Ela continua salva como rascunho.">
                                     <input type="hidden" name="token" value="<?= $esc($token) ?>">
                                     <input type="hidden" name="acao" value="despublicar">
                                     <input type="hidden" name="id" value="<?= (int)$n['id'] ?>">
@@ -1080,7 +1080,7 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                                     <button class="ac ac-ok" title="Publicar"><i class="bi bi-send"></i></button>
                                 </form>
                             <?php endif; ?>
-                            <form method="post" onsubmit="return confirm('Apagar &quot;<?= $esc(addslashes($n['titulo'])) ?>&quot;? Não tem volta.')">
+                            <form method="post" data-confirmar="Apagar &quot;<?= $esc($n['titulo']) ?>&quot;? Não tem volta.">
                                 <input type="hidden" name="token" value="<?= $esc($token) ?>">
                                 <input type="hidden" name="acao" value="apagar">
                                 <input type="hidden" name="id" value="<?= (int)$n['id'] ?>">
@@ -1121,7 +1121,7 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                             <span class="cl-onde" style="color:var(--red)">apagada</span>
                         <?php endif; ?>
                         <time><?= $esc(patheticQuando($c['criado_em'])) ?></time>
-                        <form method="post" onsubmit="return confirm('Apagar este comentário?')">
+                        <form method="post" data-confirmar="Apagar este comentário?">
                             <input type="hidden" name="token" value="<?= $esc($token) ?>">
                             <input type="hidden" name="acao" value="apagar_comentario">
                             <input type="hidden" name="comentario" value="<?= (int)$c['id'] ?>">
@@ -1476,10 +1476,10 @@ $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
          vira o texto do link; se não, o próprio endereço aparece. Só http e
          https entram — o renderizador recusa o resto, e avisar aqui é melhor
          que deixar a pessoa descobrir que o link sumiu depois de publicar. */
-      function linkar() {
+      async function linkar() {
         const ini = campo.selectionStart, fim = campo.selectionEnd;
         const sel = campo.value.slice(ini, fim).trim();
-        let url = prompt("Endereço do link:", "https://");
+        let url = await perguntarSite("Endereço do link:", "https://");
         if (url === null) return;
         url = url.trim();
         if (!url || url === "https://") return;

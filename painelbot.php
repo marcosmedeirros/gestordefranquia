@@ -444,9 +444,9 @@ async function cmdCarregar(){
 /** Ativa um grupo que o bot já ouviu: pede o nome e a liga na hora. */
 async function cmdAtivar(botao){
   const jid = botao.dataset.jid;
-  const nome = prompt('Nome do grupo:', botao.dataset.nome || '');
+  const nome = await perguntarSite('Nome do grupo:', botao.dataset.nome || '');
   if (nome === null || !nome.trim()) return;
-  const liga = (prompt('Liga do grupo (ELITE, NEXT, RISE, ROOKIE) — vazio pra nenhuma:', '') || '')
+  const liga = (await perguntarSite('Liga do grupo (ELITE, NEXT, RISE, ROOKIE) — vazio pra nenhuma:', '') || '')
                  .trim().toUpperCase();
   if (liga && !LIGAS_CMD.includes(liga)) { cmdMsg('Liga inválida.', 'erro'); return; }
   await cmdGravar(jid, nome.trim(), liga);
@@ -476,7 +476,7 @@ async function cmdGravar(jid, nome, liga, ok){
 }
 
 async function cmdRemover(jid, nome){
-  if (!confirm(`Tirar ${nome || jid} da lista?\n\nO bot para de responder comando lá.`)) return;
+  if (!await confirmarSite(`Tirar ${nome || jid} da lista?\n\nO bot para de responder comando lá.`)) return;
   try {
     await api('grupo_remover', {jid});
     await cmdCarregar();
@@ -592,7 +592,7 @@ async function enviar(){
 
 async function apagarArquivo(){
   if (!jidAberto) return;
-  if (!confirm('Apagar as mensagens RECEBIDAS guardadas desta conversa? O que o bot enviou continua no registro de envios.')) return;
+  if (!await confirmarSite('Apagar as mensagens RECEBIDAS guardadas desta conversa? O que o bot enviou continua no registro de envios.')) return;
   try {
     const d = await api('apagar', {jid: jidAberto});
     alert(`${d.apagadas} mensagem(ns) apagada(s).`);
@@ -607,7 +607,7 @@ async function plantao(modo){
     : (modo === 'off' || modo === 0)
       ? 'Voltar ao horário normal? Fora de 08:45–18:00 só sairá comando e mensagem manual.'
       : `Liberar a janela de envio por ${modo} horas?\n\nTudo que estiver na fila (aviso de trade, quiz) passa a sair agora, inclusive fora do horário.`;
-  if (!confirm(msg)) return;
+  if (!await confirmarSite(msg)) return;
   try {
     const d = await api('plantao', {modo: String(modo)});
     alert(d.sempre ? 'Bot sempre ativo.'
@@ -626,7 +626,7 @@ document.querySelectorAll('.gsel').forEach(b => b.addEventListener('click', () =
 
 async function salvarCaptura(modo){
   const jids = [...document.querySelectorAll('.gsel.on')].map(b => b.dataset.jid).join(',');
-  if (modo === 'tudo' && !confirm('Arquivar TODAS as mensagens de todos os grupos em que o bot está?\n\nAs pessoas dos grupos não sabem que existe esse registro.')) return;
+  if (modo === 'tudo' && !await confirmarSite('Arquivar TODAS as mensagens de todos os grupos em que o bot está?\n\nAs pessoas dos grupos não sabem que existe esse registro.')) return;
   try {
     await api('captura', {modo, jids});
     document.querySelectorAll('.cap-op').forEach(b => b.classList.toggle('on', b.dataset.modo === modo));

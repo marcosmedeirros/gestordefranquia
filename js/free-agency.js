@@ -494,7 +494,7 @@ async function confirmarNovaFA(requestId) {
         alert('Selecione uma proposta antes de confirmar.');
         return;
     }
-    if (!confirm('Confirmar esta proposta?')) return;
+    if (!await confirmarSite('Confirmar esta proposta?')) return;
 
     try {
         const response = await fetch('api/free-agency.php', {
@@ -889,7 +889,7 @@ window.aprovarSolicitacaoNovaFA = async function(requestId) {
 };
 
 window.recusarSolicitacaoNovaFA = async function(requestId) {
-    if (!confirm('Recusar todas as propostas para este jogador?')) return;
+    if (!await confirmarSite('Recusar todas as propostas para este jogador?')) return;
     try {
         const response = await fetch('api/free-agency.php', {
             method: 'POST',

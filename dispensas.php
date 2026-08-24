@@ -291,7 +291,7 @@ async function claim(id, want){
 
 $('refresh').onclick = load;
 $('adminResolve').onclick = async () => {
-  if(!confirm('Resolver agora todas as dispensas vencidas?')) return;
+  if(!await confirmarSite('Resolver agora todas as dispensas vencidas?')) return;
   const r = await fetch('/api/waivers.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'resolve'})});
   const d = await r.json();
   if(d.success) alert(`Resolvidos: ${d.resolved} (levados no lance ${d.claimed}, free agency ${d.cleared}).`);

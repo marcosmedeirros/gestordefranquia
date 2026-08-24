@@ -133,7 +133,7 @@
 
   if (elAddAdminCommentBtn) {
     elAddAdminCommentBtn.addEventListener('click', async () => {
-      const content = prompt('Comentário do Admin (máx 500 chars):');
+      const content = await perguntarSite('Comentário do Admin (máx 500 chars):');
       if (!content) return;
       const res = await api('rumors.php', { action: 'add_admin_comment', league, content });
       if (res.success) loadRumors();

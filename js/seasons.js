@@ -14,9 +14,9 @@ function resolveStartYear(season) {
     return null;
 }
 
-function promptStartYear(defaultYear) {
+async function promptStartYear(defaultYear) {
     const fallback = defaultYear ?? new Date().getFullYear();
-    const input = prompt('Informe o ano inicial do sprint (ex: 2016):', fallback);
+    const input = await perguntarSite('Informe o ano inicial do sprint (ex: 2016):', fallback);
     if (input === null) return null;
     const parsed = parseInt(input, 10);
     if (!parsed || parsed < 1900) {
@@ -142,13 +142,13 @@ async function loadCurrentSeason(league) {
 // ========== CRIAR NOVA TEMPORADA ==========
 async function createNewSeason(league) {
     const currentSeason = await loadCurrentSeason(league);
-    const startYear = resolveStartYear(currentSeason) ?? promptStartYear(new Date().getFullYear());
+    const startYear = resolveStartYear(currentSeason) ?? await promptStartYear(new Date().getFullYear());
     if (!startYear) return;
 
     const nextSeasonNumber = Number(currentSeason?.season_number || 0) + 1;
     const seasonYear = startYear + nextSeasonNumber - 1;
 
-    if (!confirm(`Criar temporada ${String(nextSeasonNumber).padStart(2, '0')} para a liga ${league} (ano ${seasonYear})?`)) {
+    if (!await confirmarSite(`Criar temporada ${String(nextSeasonNumber).padStart(2, '0')} para a liga ${league} (ano ${seasonYear})?`)) {
         return;
     }
     
@@ -577,7 +577,7 @@ async function _saveReviewedPoints(seasonId, league) {
     const inputs = document.querySelectorAll('.review-pts-input');
     if (!inputs.length) return;
 
-    if (_regPtsIsCorrection && !confirm('Esta temporada já tinha sido registrada antes. Salvar agora vai sobrescrever o campeão, a classificação e os prêmios registrados anteriormente. Confirmar?')) {
+    if (_regPtsIsCorrection && !await confirmarSite('Esta temporada já tinha sido registrada antes. Salvar agora vai sobrescrever o campeão, a classificação e os prêmios registrados anteriormente. Confirmar?')) {
         return;
     }
 
@@ -772,13 +772,13 @@ async function _confirmAdvanceSeason(seasonId, league) {
     const season = seasonsState._advancingSeason;
     if (!season) { showAlert('danger', 'Dados da temporada não encontrados. Recarregue a página.'); return; }
 
-    const startYear = resolveStartYear(season) ?? promptStartYear(new Date().getFullYear());
+    const startYear = resolveStartYear(season) ?? await promptStartYear(new Date().getFullYear());
     if (!startYear) return;
 
     const nextNum = Number(season.season_number) + 1;
     const nextYear = startYear + nextNum - 1;
 
-    if (!confirm(`Criar Temporada ${String(nextNum).padStart(2,'0')} para a liga ${league} (ano ${nextYear})?`)) return;
+    if (!await confirmarSite(`Criar Temporada ${String(nextNum).padStart(2,'0')} para a liga ${league} (ano ${nextYear})?`)) return;
 
     try {
         await api('seasons.php?action=advance_season', {
@@ -902,7 +902,7 @@ async function _confirmFinalizeSprint(league) {
         alert(`Digite "${league}" no campo pra confirmar.`);
         return;
     }
-    if (!confirm(`Finalizar o sprint da liga ${league} agora?\n\nO novo sprint vai começar em ${startYear}. O elenco de todos os times será apagado. Essa ação não pode ser desfeita.`)) return;
+    if (!await confirmarSite(`Finalizar o sprint da liga ${league} agora?\n\nO novo sprint vai começar em ${startYear}. O elenco de todos os times será apagado. Essa ação não pode ser desfeita.`)) return;
 
     const btn = document.getElementById('btnFinalizeSprintConfirm');
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Finalizando...'; }
@@ -1305,13 +1305,13 @@ async function _submitCriarSprint(event, league) {
 
 async function _doCreateNewSeason(league) {
     const currentSeason = await loadCurrentSeason(league);
-    const startYear = resolveStartYear(currentSeason) ?? promptStartYear(new Date().getFullYear());
+    const startYear = resolveStartYear(currentSeason) ?? await promptStartYear(new Date().getFullYear());
     if (!startYear) return;
 
     const nextSeasonNumber = Number(currentSeason?.season_number || 0) + 1;
     const seasonYear = startYear + nextSeasonNumber - 1;
 
-    if (!confirm(`Criar temporada ${String(nextSeasonNumber).padStart(2, '0')} para a liga ${league} (ano ${seasonYear})?`)) {
+    if (!await confirmarSite(`Criar temporada ${String(nextSeasonNumber).padStart(2, '0')} para a liga ${league} (ano ${seasonYear})?`)) {
         return;
     }
 
@@ -1884,7 +1884,7 @@ async function submitDraftPlayer() {
 }
 
 async function deleteDraftPlayer(id) {
-    if (!confirm('Remover este jogador do draft?')) return;
+    if (!await confirmarSite('Remover este jogador do draft?')) return;
     
     try {
         await api(`seasons.php?action=delete_draft_player&id=${id}`, { method: 'DELETE' });

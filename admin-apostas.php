@@ -706,7 +706,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
         <div class="evt-footer">
           <?php if ($evt['status']==='aberta'): ?>
           <form method="POST" class="result-row"
-                onsubmit="return confirm('Encerrar aposta e pagar usuários? (+75 FBA Points por acerto)')">
+                data-confirmar="Encerrar aposta e pagar usuários? (+75 FBA Points por acerto)">
             <input type="hidden" name="acao" value="encerrar_evento">
             <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
             <select name="vencedor_opcao_id" class="f-select" required>
@@ -721,7 +721,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font
           </form>
           <?php else: ?>
           <form method="POST" class="result-row"
-                onsubmit="return confirm('Corrigir vencedor vai ajustar os pontos pagos. Continuar?')">
+                data-confirmar="Corrigir vencedor vai ajustar os pontos pagos. Continuar?">
             <input type="hidden" name="acao" value="alterar_vencedor">
             <input type="hidden" name="id_evento" value="<?= $evt['id'] ?>">
             <select name="vencedor_opcao_id" class="f-select" required>

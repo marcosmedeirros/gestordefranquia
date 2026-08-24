@@ -679,7 +679,7 @@ try {
     }
 
     window.deleteFeedPost = async function(postId) {
-        if (!confirm('Apagar esta mensagem?')) return;
+        if (!await confirmarSite('Apagar esta mensagem?')) return;
         try {
             const res  = await fetch('/api/market.php?action=feed_delete', {
                 method: 'POST',

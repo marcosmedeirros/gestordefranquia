@@ -242,6 +242,78 @@
     });
   };
 
+  /* ── data-confirmar ──────────────────────────────────────────────────
+   *
+   * Para o HTML, onde não cabe await:
+   *
+   *   <form ... data-confirmar="Apagar isso?">
+   *   <button ... data-confirmar="Tem certeza?">
+   *
+   * Substitui o onsubmit="return confirm('...')". O padrão de sempre é
+   * segurar o envio, perguntar, e só então mandar de novo — a segunda vez
+   * já marcada como respondida, senão ele perguntaria pra sempre.
+   *
+   * O envio de volta usa requestSubmit(botão) e não form.submit(): o
+   * form.submit() PULA a validação do HTML e, pior, não leva o name/value
+   * do botão clicado. Formulário com dois botões submit (publicar/rascunho)
+   * perderia justamente a informação de qual dos dois foi apertado.
+   */
+  function textoDoConfirmar(el) {
+    return el.getAttribute('data-confirmar') || 'Confirmar esta ação?';
+  }
+
+  document.addEventListener('submit', function (ev) {
+    var form = ev.target;
+    if (!form || !form.hasAttribute || !form.hasAttribute('data-confirmar')) return;
+    if (form.__jaConfirmado) { form.__jaConfirmado = false; return; }
+
+    ev.preventDefault();
+    // E PARA A PROPAGAÇÃO. O preventDefault sozinho só impede a navegação:
+    // outro listener de submit na mesma página — um que faça a chamada por
+    // AJAX, por exemplo — rodaria assim mesmo, antes de alguém responder a
+    // pergunta. A ação aconteceria sem confirmação nenhuma.
+    //
+    // Quando a resposta for sim, o requestSubmit lá embaixo dispara o submit
+    // de novo, agora com a marca — e aí os outros listeners rodam normal.
+    ev.stopImmediatePropagation();
+
+    // submitter não existe em navegador antigo; o activeElement cobre o caso
+    // comum de quem clicou no botão.
+    var botao = ev.submitter ||
+      (document.activeElement && form.contains(document.activeElement) &&
+       /^(button|input)$/i.test(document.activeElement.tagName) ? document.activeElement : null);
+
+    window.confirmarSite(textoDoConfirmar(form), {
+      perigo: form.hasAttribute('data-confirmar-perigo'),
+      confirmar: form.getAttribute('data-confirmar-ok') || 'Confirmar'
+    }).then(function (sim) {
+      if (!sim) return;
+      form.__jaConfirmado = true;
+      if (form.requestSubmit) form.requestSubmit(botao || undefined);
+      else form.submit();
+    });
+  }, true);
+
+  document.addEventListener('click', function (ev) {
+    var el = ev.target.closest && ev.target.closest('[data-confirmar]');
+    // Formulário já é tratado no submit; aqui é botão ou link solto.
+    if (!el || el.tagName === 'FORM' || el.closest('form[data-confirmar]')) return;
+    if (el.__jaConfirmado) { el.__jaConfirmado = false; return; }
+
+    ev.preventDefault();
+    // Mesmo motivo do submit: outro onclick no mesmo elemento rodaria antes
+    // da resposta, e a ação sairia sem passar pela pergunta.
+    ev.stopImmediatePropagation();
+    window.confirmarSite(textoDoConfirmar(el), {
+      perigo: el.hasAttribute('data-confirmar-perigo'),
+      confirmar: el.getAttribute('data-confirmar-ok') || 'Confirmar'
+    }).then(function (sim) {
+      if (!sim) return;
+      el.__jaConfirmado = true;
+      el.click();
+    });
+  }, true);
+
   /** Aviso com tom escolhido na mão, quando adivinhar não serve. */
   window.avisarSite = function (texto, tipo, titulo) {
     if (!document.body) { nativoAlert(texto); return; }

@@ -1010,7 +1010,7 @@ load();
     overlay.addEventListener('click', (e) => { if (e.target === overlay) fechar(); });
     const btnDel = overlay.querySelector('#feed-story-del');
     if (btnDel) btnDel.addEventListener('click', async () => {
-      if (!confirm('Apagar essa story?')) return;
+      if (!await confirmarSite('Apagar essa story?')) return;
       try {
         await feedApi('excluir_story', { story_id: s.id });
         feedStories = feedStories.filter(x => x.id !== s.id);
@@ -1131,7 +1131,7 @@ load();
     }
     const delBtn = e.target.closest('.feed-del-btn');
     if (delBtn) {
-      if (!confirm('Apagar este post?')) return;
+      if (!await confirmarSite('Apagar este post?')) return;
       const postId = Number(delBtn.dataset.postId);
       try {
         await feedApi('excluir_post', { post_id: postId });

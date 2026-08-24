@@ -569,7 +569,7 @@ async function salvar(id) {
 }
 
 async function apagar(id) {
-  if (!confirm('Apagar este evento do calendário?')) return;
+  if (!await confirmarSite('Apagar este evento do calendário?')) return;
   try {
     const r = await fetch('/api/calendario.php', {
       method: 'POST', headers: {'Content-Type': 'application/json'},

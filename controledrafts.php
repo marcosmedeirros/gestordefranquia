@@ -212,7 +212,7 @@ async function carregar() {
 /** Roda uma ação e recarrega o estado. Erro vira aviso, não alert seco. */
 async function acao(nome, corpo, confirmar) {
   if (ocupado) return;
-  if (confirmar && !confirm(confirmar)) return;
+  if (confirmar && !await confirmarSite(confirmar)) return;
   ocupado = true;
   document.querySelectorAll('.btn').forEach(b => b.disabled = true);
   try {
@@ -497,7 +497,7 @@ async function aoEscolherCSV(input) {
     mostrarAviso('alerta', 'Não achei nenhuma linha com nome nesse arquivo.');
     return;
   }
-  if (!confirm(`Importar ${jogadores.length} jogador(es) para “${input.dataset.nome}”?\n\n`
+  if (!await confirmarSite(`Importar ${jogadores.length} jogador(es) para “${input.dataset.nome}”?\n\n`
              + `Isso substitui a lista atual da classe.\n\n`
              + `Primeiro: ${jogadores[0].name} · ${jogadores[0].position} · OVR ${jogadores[0].ovr}`)) return;
   await acao('importar_jogadores', { template_id: _importTpl, players: jogadores });

@@ -474,7 +474,7 @@ function tlWirePerfil() {
 
   document.querySelectorAll('#tlPerfilBox .like-btn').forEach(btn => btn.addEventListener('click', () => tlToggleLike(btn, tlPerfilData.posts)));
   document.querySelectorAll('#tlPerfilBox .del-btn').forEach(btn => btn.addEventListener('click', async () => {
-    if (!confirm('Apagar este post?')) return;
+    if (!await confirmarSite('Apagar este post?')) return;
     try {
       await tfPost('excluir_post', { post_id: Number(btn.dataset.postId) });
       tlPerfilData.posts = tlPerfilData.posts.filter(p => p.id !== Number(btn.dataset.postId));
@@ -546,7 +546,7 @@ function tlAbrirStory(idx) {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) fechar(); });
   const btnDel = overlay.querySelector('#tlStoryDel');
   if (btnDel) btnDel.addEventListener('click', async () => {
-    if (!confirm('Apagar essa story?')) return;
+    if (!await confirmarSite('Apagar essa story?')) return;
     try {
       await tfPost('excluir_story', { story_id: s.id });
       tlPerfilData.stories = tlPerfilData.stories.filter(x => x.id !== s.id);

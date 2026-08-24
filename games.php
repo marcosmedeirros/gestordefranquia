@@ -1334,7 +1334,7 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                     </div>
                     <div class="lj-nome"><?= htmlspecialchars($it['nome']) ?></div>
                     <div class="lj-desc">comprado em <?= date('d/m/Y', strtotime($inv['comprado_em'])) ?></div>
-                    <form method="POST" onsubmit="return confirm('Usar seu <?= htmlspecialchars($it['nome']) ?>? Ele sai do inventário e a organização é avisada pra aplicar.')">
+                    <form method="POST" data-confirmar="Usar seu <?= htmlspecialchars($it['nome']) ?>? Ele sai do inventário e a organização é avisada pra aplicar.">
                         <input type="hidden" name="loja_acao" value="usar">
                         <input type="hidden" name="inventario_id" value="<?= (int)$inv['id'] ?>">
                         <button type="submit" class="lj-btn usar"><i class="bi bi-box-arrow-up"></i> Usar</button>

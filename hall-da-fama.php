@@ -697,7 +697,7 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
 
   async function apagarLinha(div, l) {
     const quem = l.gm_name || 'esse registro';
-    if (!confirm(`Apagar ${quem} — ${l.titles} título(s)${l.league ? ' da ' + l.league : ''}?`)) return;
+    if (!await confirmarSite(`Apagar ${quem} — ${l.titles} título(s)${l.league ? ' da ' + l.league : ''}?`)) return;
 
     travarLinha(div, true);
     try {

@@ -406,12 +406,12 @@ if (!$userTeam) {
         }
 
         async function acceptTrade(tradeId) {
-            if (!confirm('Tem certeza que deseja aceitar esta negociação?')) return;
+            if (!await confirmarSite('Tem certeza que deseja aceitar esta negociação?')) return;
             // Implementar depois
         }
 
         async function rejectTrade(tradeId) {
-            if (!confirm('Tem certeza que deseja rejeitar esta negociação?')) return;
+            if (!await confirmarSite('Tem certeza que deseja rejeitar esta negociação?')) return;
             // Implementar depois
         }
 

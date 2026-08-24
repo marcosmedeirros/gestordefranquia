@@ -330,7 +330,7 @@ if (!$userTeam) {
         }
 
         async function deleteDraft(draftId) {
-            if (!confirm('Tem certeza que deseja remover este draft?')) return;
+            if (!await confirmarSite('Tem certeza que deseja remover este draft?')) return;
 
             try {
                 const response = await fetch(`/api/drafts.php?id=${draftId}`, {

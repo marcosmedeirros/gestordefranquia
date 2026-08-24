@@ -127,7 +127,7 @@ $duplicates_current = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <li>A operação não pode ser desfeita</li>
                         </ol>
                     </div>
-                    <button type="submit" name="action" value="cleanup" class="btn btn-danger btn-lg w-100" onclick="return confirm('Tem certeza? Esta ação vai remover os times duplicados!')">
+                    <button type="submit" name="action" value="cleanup" class="btn btn-danger btn-lg w-100" data-confirmar="Tem certeza? Esta ação vai remover os times duplicados!">
                         <i class="bi bi-trash"></i> Executar Limpeza
                     </button>
                 </form>

@@ -280,7 +280,7 @@ $esc   = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
       <?php else: ?>
         <form method="POST"><button class="btn sec" name="teste" value="1">Postar um teste</button></form>
         <form method="POST"><button class="btn sec" name="soltar" value="1">Soltar 1 da fila</button></form>
-        <form method="POST" onsubmit="return confirm('Desconectar a conta? Os posts param até você conectar de novo.')">
+        <form method="POST" data-confirmar="Desconectar a conta? Os posts param até você conectar de novo.">
           <button class="btn sec" name="desconectar" value="1">Desconectar</button></form>
       <?php endif; ?>
     </div>

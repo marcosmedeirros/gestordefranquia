@@ -161,7 +161,7 @@ window.loadPunishments = async function({ teamId = '', league = '' } = {}) {
 };
 
 window.revertPunishment = async function(id) {
-  if (!confirm('Reverter esta punição?')) return;
+  if (!await confirmarSite('Reverter esta punição?')) return;
   try {
     await _pApi('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'revert', punishment_id: id }) });
     await window.loadPunishments({
@@ -174,7 +174,7 @@ window.revertPunishment = async function(id) {
 
 async function zerarPunicoesEAvisos(league) {
   if (!league) { alert('Selecione uma liga primeiro.'); return; }
-  if (!confirm(`Zerar todas as punições e avisos (FBA SERASA) da ${league}? Isso APAGA o histórico inteiro (inclusive punições antigas já revertidas) e limpa qualquer banimento vigente — não dá pra desfazer.`)) return;
+  if (!await confirmarSite(`Zerar todas as punições e avisos (FBA SERASA) da ${league}? Isso APAGA o histórico inteiro (inclusive punições antigas já revertidas) e limpa qualquer banimento vigente — não dá pra desfazer.`)) return;
   try {
     const data = await _pApi('punicoes.php', { method: 'POST', body: JSON.stringify({ action: 'reset_league', league }) });
     _notify('success', `Zerado! ${data.apagados || 0} punição(ões)/aviso(s) apagados do histórico.`);

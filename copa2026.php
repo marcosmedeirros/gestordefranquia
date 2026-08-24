@@ -545,8 +545,8 @@ function clearDown(gid, old) {
   if (picks[info.g] === old) { clearDown(info.g, old); delete picks[info.g]; }
 }
 
-function resetPicks() {
-  if (!confirm('Limpar todos os palpites?')) return;
+async function resetPicks() {
+  if (!await confirmarSite('Limpar todos os palpites?')) return;
   picks = {};
   render();
 }

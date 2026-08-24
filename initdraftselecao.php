@@ -1780,7 +1780,7 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
 
         // ── Picks & reactions (live) ────────────────────
         async function makePick(playerId, btn) {
-            if (!confirm('Confirmar a escolha deste jogador?')) return;
+            if (!await confirmarSite('Confirmar a escolha deste jogador?')) return;
             if (btn && btn.disabled) return;
             const originalHtml = btn ? btn.innerHTML : null;
             if (btn) {
@@ -2027,7 +2027,7 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
             if (!currentPick) return;
             const p = (state.pool || []).find((x) => Number(x.id) === playerId);
             const teamPlain = `${currentPick.team_city || ''} ${currentPick.team_name || ''}`.trim();
-            if (!confirm(`Confirmar ${p ? p.name : 'este jogador'} pro ${teamPlain}?`)) return;
+            if (!await confirmarSite(`Confirmar ${p ? p.name : 'este jogador'} pro ${teamPlain}?`)) return;
             try {
                 const res = await fetch(API_URL, {
                     method: 'POST',
@@ -2256,7 +2256,7 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
             // rodada que sumiria já tiver escolha. Avisar antes evita o susto
             // de ver uma mensagem vermelha sem ter pedido nada arriscado.
             const antes = parseInt(state.session?.total_rounds, 10) || 0;
-            if (antes && value < antes && !confirm(
+            if (antes && value < antes && !await confirmarSite(
                 `Passar de ${antes} para ${value} rodada(s)?\n\n`
               + `As rodadas de cima saem da ordem. Se já houver escolha em alguma delas, `
               + `o servidor recusa e nada muda.`)) {
@@ -2287,7 +2287,7 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
         }
 
         async function startDraft() {
-            if (!confirm('Deseja iniciar o draft?')) return;
+            if (!await confirmarSite('Deseja iniciar o draft?')) return;
             try {
                 const res = await fetch(API_URL, {
                     method: 'POST',
@@ -2304,7 +2304,7 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
         }
 
         async function finalizeDraft() {
-            if (!confirm('Deseja finalizar o draft? Certifique-se de que todas as picks foram feitas.')) return;
+            if (!await confirmarSite('Deseja finalizar o draft? Certifique-se de que todas as picks foram feitas.')) return;
             try {
                 const res = await fetch(API_URL, {
                     method: 'POST',
@@ -2321,7 +2321,7 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
         }
 
         async function adminOpenNextRoundNow() {
-            if (!confirm('Abrir rodada imediatamente?')) return;
+            if (!await confirmarSite('Abrir rodada imediatamente?')) return;
             try {
                 const sessionId = state.session?.id;
                 if (!sessionId) throw new Error('Sessão não carregada');
@@ -2414,7 +2414,7 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
             const pergunta = configurado > real
                 ? `Criar as rodadas que faltam? O draft vai da ${real}ª até a ${alvo}ª.`
                 : `Adicionar mais uma rodada? O draft passa de ${real} para ${alvo} rodadas.`;
-            if (!confirm(pergunta)) return;
+            if (!await confirmarSite(pergunta)) return;
             try {
                 const sessionId = state.session?.id;
                 if (!sessionId) throw new Error('Sessão não carregada');
@@ -2435,7 +2435,7 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
         }
 
         async function adminUndoLastPick() {
-            if (!confirm('Desfazer a última pick? O jogador volta pro pool e o time volta a escolher.')) return;
+            if (!await confirmarSite('Desfazer a última pick? O jogador volta pro pool e o time volta a escolher.')) return;
             try {
                 const sessionId = state.session?.id;
                 if (!sessionId) throw new Error('Sessão não carregada');
@@ -2587,7 +2587,7 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
         }
 
         async function deleteInitDraftPlayer(playerId, playerName) {
-            if (!confirm(`Remover ${playerName} do draft inicial?`)) return;
+            if (!await confirmarSite(`Remover ${playerName} do draft inicial?`)) return;
             try {
                 const res = await fetch(API_URL, {
                     method: 'POST',
@@ -2657,7 +2657,7 @@ document.getElementById('btnCopiarTempos').addEventListener('click', async funct
             const total = (state.pool || []).length;
             if (!total) { showMessage('O pool já está vazio.', 'warning'); return; }
 
-            const resposta = prompt(
+            const resposta = await perguntarSite(
                 `Isso apaga os ${total} jogadores do pool do draft inicial. Não dá pra desfazer.\n\n` +
                 `Pra confirmar, digite o número ${total}:`
             );

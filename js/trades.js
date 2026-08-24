@@ -2201,7 +2201,7 @@ async function respondTrade(tradeId, action) {
     'cancelled': 'cancelar'
   };
   
-  if (!confirm(`Confirma ${actionTexts[action]} esta trade?`)) {
+  if (!await confirmarSite(`Confirma ${actionTexts[action]} esta trade?`)) {
     return;
   }
   
@@ -2247,7 +2247,7 @@ async function respondMultiTrade(tradeId, action) {
     'cancelled': 'cancelar'
   };
 
-  if (!confirm(`Confirma ${actionTexts[action]} esta trade múltipla?`)) {
+  if (!await confirmarSite(`Confirma ${actionTexts[action]} esta trade múltipla?`)) {
     return;
   }
 

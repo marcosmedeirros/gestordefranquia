@@ -728,7 +728,7 @@ function updateBlockLabel(bid, label) {
 // ── Module events ──────────────────────────────────────────
 modulesList.addEventListener('change', e => { if(e.target?.classList.contains('module-check')) serializeModules(); });
 
-modulesList.addEventListener('click', e => {
+modulesList.addEventListener('click', async e => {
     // Move up/down (fixed modules)
     const btnUp   = e.target.closest('.move-up');
     const btnDown = e.target.closest('.move-down');
@@ -763,7 +763,7 @@ modulesList.addEventListener('click', e => {
     // Delete block
     const delBtn = e.target.closest('.delete-block');
     if (delBtn) {
-        if (!confirm('Excluir este bloco?')) return;
+        if (!await confirmarSite('Excluir este bloco?')) return;
         const bid = delBtn.dataset.bid;
         blocks = blocks.filter(b => b.id !== bid);
         const item = modulesList.querySelector(`[data-key="block_${bid}"]`);

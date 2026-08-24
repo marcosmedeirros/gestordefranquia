@@ -168,7 +168,7 @@ function ldRegrasHtml() {
  * Só as escolhas já feitas, no formato de mandar no grupo:
  * "1 - Fulano - LeBron James". Puladas ainda sem jogador ficam de fora.
  */
-function ldCopiarEscolhas(ev) {
+async function ldCopiarEscolhas(ev) {
   const feitas = (ldEstado?.picks || []).filter(p => p.player_name);
   if (!feitas.length) { alert('Ainda não tem nenhuma escolha pra copiar.'); return; }
   const titulo = ldEstado?.finalizado
@@ -181,7 +181,7 @@ function ldCopiarEscolhas(ev) {
   navigator.clipboard.writeText(texto).then(() => {
     btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copiado!';
     setTimeout(() => { btn.innerHTML = original; }, 1600);
-  }).catch(() => prompt('Copie o texto abaixo:', texto));
+  }).catch(() => perguntarSite('Copie o texto abaixo:', texto));
 }
 
 function ldLinhaBoard(p, d) {
@@ -258,7 +258,7 @@ async function ldConfirmarPular() {
 }
 
 async function ldDesfazer(pickNumber, gmName) {
-  if (!confirm(`Desfazer a escolha de ${gmName} (pick ${pickNumber})? Ela volta a ficar pulada — dá pra escolher de novo depois.`)) return;
+  if (!await confirmarSite(`Desfazer a escolha de ${gmName} (pick ${pickNumber})? Ela volta a ficar pulada — dá pra escolher de novo depois.`)) return;
   try {
     const data = await _ldFetch('/api/legends-draft.php', {
       method: 'POST',
@@ -273,7 +273,7 @@ async function ldDesfazer(pickNumber, gmName) {
 }
 
 async function ldDespular(pickNumber, gmName) {
-  if (!confirm(`Tirar a pick ${pickNumber} (${gmName}) do "pulada"? Ela volta a aguardar a vez normalmente.`)) return;
+  if (!await confirmarSite(`Tirar a pick ${pickNumber} (${gmName}) do "pulada"? Ela volta a aguardar a vez normalmente.`)) return;
   try {
     const data = await _ldFetch('/api/legends-draft.php', {
       method: 'POST',
@@ -337,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function ldFinalizar() {
-  if (!confirm('Finalizar o Draft de Lendas?\n\nO quadro some pra todo mundo e cada GM passa a ver só a customização de badges do próprio jogador.')) return;
+  if (!await confirmarSite('Finalizar o Draft de Lendas?\n\nO quadro some pra todo mundo e cada GM passa a ver só a customização de badges do próprio jogador.')) return;
   const btn = document.getElementById('btnLdFinalizar');
   btn.disabled = true;
   try {

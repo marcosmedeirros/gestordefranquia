@@ -180,8 +180,12 @@ async function ltCriarLoteria() {
   if (!titulo) { alert('Digite um título pra loteria.'); return; }
   if (!liga) { alert('Escolha a liga da loteria.'); return; }
   if (ltSelecionados.length < 2) { alert('Adicione pelo menos 2 participantes.'); return; }
+  // A seta do every() NÃO pode ser async: função async devolve Promise, e
+  // Promise é sempre verdadeira — o every() daria true até quando todo mundo
+  // tem chance definida, e o aviso apareceria sempre. Quem é async aqui é a
+  // ltCriarLoteria, lá em cima, que é onde o await do confirmarSite mora.
   if (ltSelecionados.every(p => !Number(p.chance))) {
-    if (!confirm('Ninguém tem chance definida — o sorteio vai tratar todo mundo por igual. Criar assim mesmo?')) return;
+    if (!await confirmarSite('Ninguém tem chance definida — o sorteio vai tratar todo mundo por igual. Criar assim mesmo?')) return;
   }
 
   const btn = document.getElementById('btnCriarLoteria');

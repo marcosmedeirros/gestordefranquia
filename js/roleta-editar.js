@@ -347,7 +347,7 @@ function reAnunciar(data) {
 
 /** Cria outra roleta com os mesmos participantes — o sorteio não vem junto. */
 async function reDuplicar() {
-  const nome = prompt('Nome da cópia:', `${reEstadoAtual?.titulo || 'Roleta'} (cópia)`);
+  const nome = await perguntarSite('Nome da cópia:', `${reEstadoAtual?.titulo || 'Roleta'} (cópia)`);
   if (nome === null) return;
   if (!nome.trim()) { alert('O nome não pode ficar vazio.'); return; }
   try {
@@ -363,7 +363,7 @@ async function reDuplicar() {
 
 async function reReiniciar() {
   if (reGirando) return;
-  if (!confirm('Reiniciar o sorteio?\n\nTodas as escolhas definidas serão apagadas e todo mundo volta pra urna.')) return;
+  if (!await confirmarSite('Reiniciar o sorteio?\n\nTodas as escolhas definidas serão apagadas e todo mundo volta pra urna.')) return;
   try {
     const data = await _reFetch('/api/roleta.php', {
       method: 'POST',
@@ -392,7 +392,7 @@ async function reRemoverParticipante(id) {
 }
 
 async function reExcluirRoleta() {
-  if (!confirm('Excluir esta roleta permanentemente? Essa ação não pode ser desfeita.')) return;
+  if (!await confirmarSite('Excluir esta roleta permanentemente? Essa ação não pode ser desfeita.')) return;
   try {
     await _reFetch('/api/roleta.php', {
       method: 'POST',

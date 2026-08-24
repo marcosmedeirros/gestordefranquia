@@ -269,7 +269,7 @@ function rtAnunciar(data) {
 
 async function rtReiniciar() {
   if (rtGirando) return;
-  if (!confirm('Reiniciar o sorteio?\n\nTodas as 32 escolhas definidas serão apagadas e todos os times voltam para a urna.')) return;
+  if (!await confirmarSite('Reiniciar o sorteio?\n\nTodas as 32 escolhas definidas serão apagadas e todos os times voltam para a urna.')) return;
   try {
     const data = await _rtFetch('api/roleta-times.php', {
       method: 'POST',

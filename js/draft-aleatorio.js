@@ -335,7 +335,7 @@ async function daConfirmarPreencher() {
 }
 
 async function daDesfazer(pick, gm) {
-  if (!confirm(`Desfazer a escolha ${pick} (${gm})? Ela volta pra "pulada" e pode ser preenchida de novo.`)) return;
+  if (!await confirmarSite(`Desfazer a escolha ${pick} (${gm})? Ela volta pra "pulada" e pode ser preenchida de novo.`)) return;
   try {
     daEstado = await _daFetch('/api/drafts-aleatorios.php', {
       method: 'POST',
@@ -346,7 +346,7 @@ async function daDesfazer(pick, gm) {
 }
 
 async function daDespular(pick, gm) {
-  if (!confirm(`Tirar a escolha ${pick} (${gm}) do "pulado"? Ela volta pra fila normal do draft.`)) return;
+  if (!await confirmarSite(`Tirar a escolha ${pick} (${gm}) do "pulado"? Ela volta pra fila normal do draft.`)) return;
   try {
     daEstado = await _daFetch('/api/drafts-aleatorios.php', {
       method: 'POST',
@@ -357,7 +357,7 @@ async function daDespular(pick, gm) {
 }
 
 async function daFinalizar() {
-  if (!confirm('Finalizar o draft? Depois disso ninguém mais consegue alterar as escolhas.')) return;
+  if (!await confirmarSite('Finalizar o draft? Depois disso ninguém mais consegue alterar as escolhas.')) return;
   try {
     daEstado = await _daFetch('/api/drafts-aleatorios.php', {
       method: 'POST',
@@ -368,7 +368,7 @@ async function daFinalizar() {
 }
 
 async function daReabrir() {
-  if (!confirm('Reabrir o draft para novas alterações?')) return;
+  if (!await confirmarSite('Reabrir o draft para novas alterações?')) return;
   try {
     daEstado = await _daFetch('/api/drafts-aleatorios.php', {
       method: 'POST',
@@ -380,7 +380,7 @@ async function daReabrir() {
 
 /** Cria outro draft com a mesma ordem de GMs — as escolhas não vêm junto. */
 async function daDuplicar() {
-  const nome = prompt('Nome da cópia:', `${daEstado?.titulo || 'Draft'} (cópia)`);
+  const nome = await perguntarSite('Nome da cópia:', `${daEstado?.titulo || 'Draft'} (cópia)`);
   if (nome === null) return;
   if (!nome.trim()) { alert('O nome não pode ficar vazio.'); return; }
   try {
@@ -410,7 +410,7 @@ async function daSalvarLiga(ev) {
 }
 
 async function daRenomearGM(pick, atual) {
-  const nome = prompt('Nome do GM para esta escolha:', atual);
+  const nome = await perguntarSite('Nome do GM para esta escolha:', atual);
   if (nome === null) return;
   if (!nome.trim()) { alert('O nome não pode ficar vazio.'); return; }
   try {
@@ -432,12 +432,12 @@ function daCopiarLink(ev) {
 }
 
 /** Copia texto e dá o retorno visual no próprio botão. */
-function daCopiar(texto, btn) {
+async function daCopiar(texto, btn) {
   const original = btn.innerHTML;
   navigator.clipboard.writeText(texto).then(() => {
     btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copiado!';
     setTimeout(() => { btn.innerHTML = original; }, 1600);
-  }).catch(() => prompt('Copie o texto abaixo:', texto));
+  }).catch(() => perguntarSite('Copie o texto abaixo:', texto));
 }
 
 /** Ordem completa do draft, escolhidos ou não. */
