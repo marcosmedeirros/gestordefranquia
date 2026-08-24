@@ -204,6 +204,14 @@ try {
 // preenchido em Minha Conta — enquanto ninguem preencher, o card se explica
 // sozinho em vez de mostrar um Brasil apagado sem motivo aparente.
 $mapaGMs = gmsPorEstado($pdo);
+// Os contornos de verdade dos 27 estados. Arquivo gerado — ver o cabeçalho
+// dele antes de mexer.
+require_once __DIR__ . '/includes/mapa-brasil.php';
+
+// A lista ao lado do mapa. Estado e grosso demais sozinho: Sao Paulo
+// vermelho nao diz se sao doze GMs da capital ou doze espalhados pelo
+// interior — quem responde isso e a cidade.
+$mapaCidades = gmsPorCidade($pdo);
 
 // O SEU estado sai do banco e não da sessão. A coluna é nova: quem está
 // logado desde antes da migração tem um $user sem ela, e o mapa dizia
@@ -763,34 +771,72 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         @media (max-width: 560px) { .dash-liga-logo { width:42px; height:42px; } .dash-ident { gap:12px; } }
 
         /* ── MAPA DE DENSIDADE ──────────────────────────────────────────
-           Cartograma: cada estado e um quadrado do mesmo tamanho. O contorno
-           real precisa de quilobytes de path por estado, e no celular Sergipe
-           e Alagoas virariam dois riscos ilegiveis. Aqui a comparacao fica
-           honesta — area nao distorce a contagem — e o mesmo desenho serve
-           no telefone. */
-        .mapa-grade { display:grid; grid-template-columns:repeat(6, 1fr); gap:4px;
-                      max-width:340px; margin:0 auto; }
-        .mapa-uf { aspect-ratio:1; border-radius:6px; display:flex; flex-direction:column;
-                   align-items:center; justify-content:center; gap:1px;
-                   border:1px solid var(--border); background:var(--panel-2);
-                   font-size:9.5px; font-weight:800; color:var(--text-3);
-                   letter-spacing:.3px; text-decoration:none; transition:transform .12s ease; }
-        .mapa-uf b { font-size:12px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; }
-        /* A escala e do vazio ao cheio na cor de destaque. O zero tem faixa
+           O contorno de verdade dos 27 estados, de includes/mapa-brasil.php.
+           O traco separador e a COR DO CARD e nao uma linha clara: assim os
+           estados vizinhos escuros nao ganham contorno visivel, e o Brasil
+           inteiro le como uma forma so. */
+        /* Mapa a esquerda, lista a direita. O mapa nao encolhe abaixo de
+           280px: menor que isso o Distrito Federal some e os estados do
+           Nordeste viram uma faixa continua. */
+        .mapa-dupla { display:flex; gap:20px; align-items:flex-start; }
+        .mapa-quadro { flex:1 1 300px; min-width:0; }
+        .mapa-svg { width:100%; max-width:440px; display:block; margin:0 auto; }
+
+        .mapa-lista { flex:1 1 260px; min-width:0; display:flex; flex-direction:column; }
+        .mapa-lista-tit { font-size:10.5px; font-weight:800; letter-spacing:.9px;
+                          text-transform:uppercase; color:var(--text-3); margin-bottom:8px; }
+        /* Rolagem propria: a lista cresce com a liga e, sem teto, um dia ela
+           estica o card e o mapa fica com metros de branco do lado. */
+        .mapa-lista-rolo { overflow-y:auto; max-height:300px; display:flex;
+                           flex-direction:column; gap:2px; padding-right:4px; }
+        .mapa-cid { display:flex; align-items:center; gap:9px; padding:6px 8px;
+                    border-radius:8px; font-size:12.5px; }
+        .mapa-cid:hover { background:var(--panel-2); }
+        .mapa-cid.oculta { display:none; }
+        .mapa-cid-uf { font-size:9.5px; font-weight:800; color:var(--text-3);
+                       background:var(--panel-2); border-radius:5px; padding:2px 5px;
+                       flex:none; letter-spacing:.4px; }
+        .mapa-cid-nome { flex:1; min-width:0; white-space:nowrap; overflow:hidden;
+                         text-overflow:ellipsis; font-weight:600; }
+        .mapa-cid-n { font-weight:800; color:var(--red); font-variant-numeric:tabular-nums; flex:none; }
+        .mapa-lista-vazio { font-size:12px; color:var(--text-3); padding:14px 8px; }
+        @media (max-width: 720px) {
+            .mapa-dupla { flex-direction:column; }
+            .mapa-quadro, .mapa-lista { flex:1 1 auto; width:100%; }
+            .mapa-lista-rolo { max-height:220px; }
+        }
+        .mapa-svg path { fill:var(--panel-2); stroke:var(--panel); stroke-width:3;
+                         stroke-linejoin:round; transition:fill .15s ease; cursor:default; }
+        /* A escala vai do vazio ao cheio na cor de destaque. O zero tem faixa
            propria porque "nenhum GM" nao e "poucos GMs" — e a diferenca entre
            o mapa estar vazio ali e quase vazio, e ela tem que aparecer de longe. */
-        .mapa-uf.d1 { background:color-mix(in srgb, var(--red) 14%, var(--panel-2)); color:var(--text-2); border-color:color-mix(in srgb, var(--red) 18%, transparent); }
-        .mapa-uf.d2 { background:color-mix(in srgb, var(--red) 32%, var(--panel-2)); color:var(--text); border-color:color-mix(in srgb, var(--red) 34%, transparent); }
-        .mapa-uf.d3 { background:color-mix(in srgb, var(--red) 58%, var(--panel-2)); color:#fff; border-color:color-mix(in srgb, var(--red) 60%, transparent); }
-        .mapa-uf.d4 { background:var(--red); color:#fff; border-color:var(--red); }
-        .mapa-uf.eu { outline:2px solid var(--text); outline-offset:1px; }
-        .mapa-uf:hover { transform:scale(1.09); }
+        .mapa-svg path.d1 { fill:color-mix(in srgb, var(--red) 22%, var(--panel-2)); }
+        .mapa-svg path.d2 { fill:color-mix(in srgb, var(--red) 45%, var(--panel-2)); }
+        .mapa-svg path.d3 { fill:color-mix(in srgb, var(--red) 70%, var(--panel-2)); }
+        .mapa-svg path.d4 { fill:var(--red); }
+        /* O SEU estado. Duas coisas fazem isso funcionar:
+           1. Desenhado por ULTIMO no HTML — em SVG quem vem depois cobre quem
+              veio antes, e o vizinho comeria a borda.
+           2. paint-order:stroke — o traco vai ANTES do preenchimento, entao o
+              preenchimento cobre a metade de dentro e sobra so o anel de fora.
+              Sem isso, o traco centrado na borda comia metade de Pernambuco,
+              que tem 45 unidades de altura: o destaque virava um rabisco
+              branco no lugar do estado. */
+        .mapa-svg path.eu, .mapa-svg path.sel {
+            stroke:var(--text); stroke-width:5; paint-order:stroke fill; }
+        .mapa-svg path:hover { fill:color-mix(in srgb, var(--red) 88%, var(--text)); }
+
+        .mapa-topo { display:flex; flex-wrap:wrap; justify-content:center; gap:5px; margin-top:12px; }
+        .mapa-topo span { background:var(--panel-2); border:1px solid var(--border);
+                          border-radius:20px; padding:3px 10px; font-size:11px; font-weight:700; }
+        .mapa-topo span b { color:var(--red); font-variant-numeric:tabular-nums; }
         .mapa-legenda { display:flex; align-items:center; justify-content:center; gap:6px;
-                        margin-top:14px; font-size:10.5px; font-weight:700; color:var(--text-3); }
+                        margin-top:12px; font-size:10.5px; font-weight:700; color:var(--text-3); }
         .mapa-legenda span { width:15px; height:9px; border-radius:2px; border:1px solid var(--border); }
         .mapa-rodape { text-align:center; font-size:11.5px; color:var(--text-3);
-                       margin-top:12px; line-height:1.5; }
+                       margin-top:10px; line-height:1.5; }
         .mapa-rodape a { color:var(--red); text-decoration:none; font-weight:700; }
+        .mapa-svg path { cursor:pointer; }
 
         .dash-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
         .dash-title { font-size: 26px; font-weight: 800; line-height: 1.1; }
@@ -1927,7 +1973,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                 </div>
 
                 <!-- ── De olho em... (watchlist) ── -->
-                <div class="bc span-<?= $watchlist ? '2' : '1' ?>" style="animation-delay:.28s">
+                <div class="bc" style="animation-delay:.28s">
                     <div class="bc-head">
                         <div class="bc-title"><i class="bi bi-star-fill"></i> De olho em...</div>
                         <a href="/players.php" class="bc-link">Jogadores <i class="bi bi-arrow-right"></i></a>
@@ -2047,7 +2093,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 
 
                 <!-- ── Última Trade ── -->
-                <div class="bc span-2" style="animation-delay:.42s">
+                <div class="bc" style="animation-delay:.42s">
                     <div class="bc-head">
                         <div class="bc-title"><i class="bi bi-arrow-left-right"></i> Última Trade</div>
                         <a href="/trades.php" class="bc-link">Ver todas <i class="bi bi-arrow-right"></i></a>
@@ -2111,59 +2157,6 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     </div>
                 </div>
 
-                <!-- ── GMs pelo Brasil ── -->
-                <div class="bc" style="animation-delay:.46s">
-                    <div class="bc-head">
-                        <div class="bc-title"><i class="bi bi-geo-alt-fill"></i> GMs pelo Brasil</div>
-                        <?php if ($mapaGMs['total'] > 0 && $mapaGMs['sem'] < $mapaGMs['total']): ?>
-                        <span style="font-size:11px;color:var(--text-2)">
-                            <?= $mapaGMs['total'] - $mapaGMs['sem'] ?> no mapa
-                        </span>
-                        <?php endif; ?>
-                    </div>
-                    <div class="bc-body">
-                        <?php $ufNomes = estadosBrasileiros(); ?>
-                        <div class="mapa-grade">
-                            <?php foreach (gradeDoBrasil() as $q):
-                                $n = $mapaGMs['por_uf'][$q['uf']] ?? 0;
-                                $d = densidadeDoEstado($n, $mapaGMs['maior']);
-                                // grid-column carrega a geografia: sem ela os
-                                // quadrados escorregariam pra esquerda e o
-                                // Brasil viraria um bloco retangular.
-                            ?>
-                            <div class="mapa-uf d<?= $d ?> <?= $meuUf === $q['uf'] ? 'eu' : '' ?>"
-                                 style="grid-column:<?= $q['c'] ?>;grid-row:<?= $q['l'] ?>"
-                                 title="<?= htmlspecialchars($ufNomes[$q['uf']]) ?>: <?= $n ?> GM<?= $n === 1 ? '' : 's' ?>">
-                                <b><?= $n ?: '' ?></b>
-                                <?= $q['uf'] ?>
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-
-                        <div class="mapa-legenda">
-                            nenhum
-                            <span style="background:var(--panel-2)"></span>
-                            <span style="background:color-mix(in srgb, var(--red) 14%, var(--panel-2))"></span>
-                            <span style="background:color-mix(in srgb, var(--red) 32%, var(--panel-2))"></span>
-                            <span style="background:color-mix(in srgb, var(--red) 58%, var(--panel-2))"></span>
-                            <span style="background:var(--red)"></span>
-                            mais GMs
-                        </div>
-
-                        <div class="mapa-rodape">
-                            <?php if ($mapaGMs['sem'] >= $mapaGMs['total']): ?>
-                                Ninguém preencheu o estado ainda.
-                                <a href="/settings.php">Seja o primeiro</a>.
-                            <?php elseif ($mapaGMs['sem'] > 0): ?>
-                                <?= (int)$mapaGMs['sem'] ?> ainda não disseram de onde são<?= $meuUf ? '' : ', e você é um deles' ?>.
-                                <a href="/settings.php">Preencher</a>.
-                            <?php else: ?>
-                                Todo mundo já disse de onde é.
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- ── Como pontua ──
                      Os números saem de backend/pontuacao_ranking.php, que é a
                      mesma régua que o registro da temporada usa pra somar. Aqui
@@ -2193,7 +2186,171 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                 </div>
 
 
+                <!-- ── GMs pelo Brasil ── -->
+                <!-- Linha inteira: espremido numa coluna de 270px o Distrito
+                     Federal virava meio pixel e a lista de cidades nao cabia
+                     em lugar nenhum. Aqui o mapa respira e a lista fica do
+                     lado, que e onde ela responde "quem sao essas pessoas". -->
+                <div class="bc span-3" style="animation-delay:.54s">
+                    <div class="bc-head">
+                        <div class="bc-title"><i class="bi bi-geo-alt-fill"></i> GMs pelo Brasil</div>
+                        <?php if ($mapaGMs['total'] > 0 && $mapaGMs['sem'] < $mapaGMs['total']): ?>
+                        <span style="font-size:11px;color:var(--text-2)">
+                            <?= $mapaGMs['total'] - $mapaGMs['sem'] ?> no mapa
+                        </span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="bc-body">
+                        <?php
+                        $ufNomes = estadosBrasileiros();
+                        $paths = mapaBrasilPaths();
+
+                        // O SEU estado vai por último: em SVG quem vem depois
+                        // cobre quem veio antes, e a borda dele ficaria comida
+                        // pelo vizinho desenhado em seguida.
+                        if ($meuUf && isset($paths[$meuUf])) {
+                            $meu = $paths[$meuUf];
+                            unset($paths[$meuUf]);
+                            $paths[$meuUf] = $meu;
+                        }
+
+                        // Os três maiores, escritos. Num mapa de verdade o
+                        // Distrito Federal tem meio pixel — sem essa linha,
+                        // um estado pequeno e cheio de GMs some da leitura.
+                        $topo = $mapaGMs['por_uf'];
+                        arsort($topo);
+                        $topo = array_slice($topo, 0, 3, true);
+                        ?>
+                        <div class="mapa-dupla">
+                            <div class="mapa-quadro">
+                        <svg class="mapa-svg" viewBox="<?= MAPA_BR_VIEWBOX ?>" role="img"
+                             aria-label="Mapa do Brasil com a quantidade de GMs por estado">
+                            <?php foreach ($paths as $uf => $d):
+                                $n = $mapaGMs['por_uf'][$uf] ?? 0;
+                            ?>
+                            <path d="<?= $d ?>"
+                                  data-uf="<?= $uf ?>"
+                                  data-nome="<?= htmlspecialchars($ufNomes[$uf] ?? $uf) ?>"
+                                  class="d<?= densidadeDoEstado($n, $mapaGMs['maior']) ?> <?= $meuUf === $uf ? 'eu' : '' ?>"
+                            ><title><?= htmlspecialchars($ufNomes[$uf] ?? $uf) ?>: <?= $n ?> GM<?= $n === 1 ? '' : 's' ?></title></path>
+                            <?php endforeach; ?>
+                        </svg>
+
+
+                            </div>
+
+                            <aside class="mapa-lista" id="mapaLista">
+                                <div class="mapa-lista-tit" id="mapaListaTit">
+                                    <?= $mapaCidades ? 'De onde são' : 'Ninguém no mapa ainda' ?>
+                                </div>
+                                <?php if ($mapaCidades): ?>
+                                <div class="mapa-lista-rolo">
+                                    <?php foreach ($mapaCidades as $c):
+                                        // data-uf e o que liga a linha ao estado clicado no mapa.
+                                        $rot = $c['cidade'] ?: 'Sem cidade informada';
+                                    ?>
+                                    <div class="mapa-cid" data-uf="<?= $c['uf'] ?>">
+                                        <span class="mapa-cid-uf"><?= $c['uf'] ?></span>
+                                        <span class="mapa-cid-nome"><?= htmlspecialchars($rot) ?></span>
+                                        <span class="mapa-cid-n"><?= $c['n'] ?></span>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <div class="mapa-lista-vazio" id="mapaListaVazio" hidden>
+                                    Nenhum GM cadastrado neste estado.
+                                </div>
+                                <?php endif; ?>
+                            </aside>
+                        </div>
+
+                        <div class="mapa-legenda">
+                            nenhum
+                            <span style="background:var(--panel-2)"></span>
+                            <span style="background:color-mix(in srgb, var(--red) 22%, var(--panel-2))"></span>
+                            <span style="background:color-mix(in srgb, var(--red) 45%, var(--panel-2))"></span>
+                            <span style="background:color-mix(in srgb, var(--red) 70%, var(--panel-2))"></span>
+                            <span style="background:var(--red)"></span>
+                            mais GMs
+                        </div>
+
+                        <div class="mapa-rodape">
+                            <?php if ($mapaGMs['sem'] >= $mapaGMs['total']): ?>
+                                Ninguém preencheu o estado ainda.
+                                <a href="/settings.php">Seja o primeiro</a>.
+                            <?php elseif ($mapaGMs['sem'] > 0): ?>
+                                <?= (int)$mapaGMs['sem'] ?> ainda não disseram de onde são<?= $meuUf ? '' : ', e você é um deles' ?>.
+                                <a href="/settings.php">Preencher</a>.
+                            <?php else: ?>
+                                Todo mundo já disse de onde é.
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
             </div><!-- /bento -->
+
+            <script>
+            /* ── O MAPA: clicar num estado filtra a lista do lado ───────────
+             *
+             * Tudo em cima do que já está na tela. As duas listas — os
+             * caminhos do SVG e as linhas de cidade — vieram do servidor
+             * juntas, então filtrar é esconder linha e não ir ao banco.
+             *
+             * Clicar de novo no mesmo estado limpa: sem isso, quem clica
+             * sem querer num estado vazio fica olhando uma lista vazia sem
+             * saber como voltar.
+             */
+            (function () {
+                const svg   = document.querySelector('.mapa-svg');
+                const lista = document.getElementById('mapaLista');
+                if (!svg || !lista) return;
+
+                const titulo = document.getElementById('mapaListaTit');
+                const vazio  = document.getElementById('mapaListaVazio');
+                const linhas = [...lista.querySelectorAll('.mapa-cid')];
+                const rotuloPadrao = titulo ? titulo.textContent.trim() : 'De onde são';
+                let selecionado = null;
+
+                function aplicar(uf) {
+                    selecionado = uf;
+                    svg.querySelectorAll('path').forEach(p => p.classList.toggle('sel', !!uf && p.dataset.uf === uf));
+
+                    // Manda o selecionado pro FIM do SVG. Em SVG quem vem
+                    // depois cobre quem veio antes, entao sem isso o vizinho
+                    // desenhado em seguida apagaria metade do contorno.
+                    if (uf) {
+                        const p = svg.querySelector('path[data-uf=\"' + uf + '\"]');
+                        if (p) svg.appendChild(p);
+                    }
+
+                    let visiveis = 0;
+                    linhas.forEach(l => {
+                        const mostra = !uf || l.dataset.uf === uf;
+                        l.classList.toggle('oculta', !mostra);
+                        if (mostra) visiveis++;
+                    });
+
+                    if (titulo) {
+                        titulo.textContent = uf
+                            ? (svg.querySelector('path[data-uf="' + uf + '"]')?.dataset.nome || uf)
+                            : rotuloPadrao;
+                    }
+                    if (vazio) vazio.hidden = visiveis > 0;
+                }
+
+                svg.addEventListener('click', (e) => {
+                    const p = e.target.closest('path');
+                    if (!p || !p.dataset.uf) return;
+                    aplicar(selecionado === p.dataset.uf ? null : p.dataset.uf);
+                });
+
+                // Clicar fora do mapa, dentro do card, também limpa.
+                svg.closest('.bc-body')?.addEventListener('click', (e) => {
+                    if (selecionado && !e.target.closest('.mapa-svg')) aplicar(null);
+                });
+            })();
+            </script>
+
         </div><!-- /content -->
 
 

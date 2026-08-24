@@ -2005,6 +2005,46 @@ function gmsPorEstado(PDO $pdo): array
 }
 
 /**
+ * Os GMs agrupados por cidade, do lugar mais cheio pro mais vazio.
+ *
+ * O mapa sozinho responde "que estado", e estado é grosso demais: São Paulo
+ * pintado de vermelho não diz se são doze GMs da capital ou doze espalhados
+ * pelo interior. A lista ao lado é quem responde isso.
+ *
+ * Cidade sem nome preenchido entra como uma linha só do estado — o GM
+ * disse de que estado é, e jogar isso fora seria esconder gente que
+ * respondeu metade da pergunta.
+ *
+ * @return array<int, array{uf:string, cidade:?string, n:int}>
+ */
+function gmsPorCidade(PDO $pdo, int $limite = 60): array
+{
+    try {
+        // Agrupa por cidade JÁ NORMALIZADA (sem espaço em volta, caixa
+        // unificada na comparação): "recife" e "Recife " são a mesma cidade,
+        // e sem isso a lista mostraria a mesma cidade duas vezes com metade
+        // da contagem em cada.
+        $st = $pdo->prepare("SELECT state AS uf, NULLIF(TRIM(city), '') AS cidade, COUNT(*) AS n
+                               FROM users
+                              WHERE state IS NOT NULL AND state <> ''
+                              GROUP BY state, NULLIF(TRIM(city), '')
+                              ORDER BY n DESC, cidade ASC
+                              LIMIT " . max(1, $limite));
+        $st->execute();
+        $out = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $uf = normalizarUF($r['uf']);
+            if (!$uf) continue;
+            $out[] = ['uf' => $uf, 'cidade' => $r['cidade'] ?: null, 'n' => (int)$r['n']];
+        }
+        return $out;
+    } catch (Throwable $e) {
+        error_log('[gmsPorCidade] ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
  * O Brasil como grade de quadradinhos — linha, coluna e sigla.
  *
  * Cartograma e não mapa de verdade, de propósito. O contorno real precisa de
