@@ -550,20 +550,21 @@ $jogosDiarios = [
     ['key' => 'quemsoueu', 'nome' => 'Quem Sou Eu?','sub' => 'Descubra pelas dicas','icone' => 'bi-question-circle',  'cor' => '#3b82f6'],
     ['key' => 'quizdodia', 'nome' => 'Quiz do Dia', 'sub' => 'Vote com a maioria', 'icone' => 'bi-chat-square-quote','cor' => '#eab308'],
 ];
-// O jogo de CARREIRA é de outra natureza: não tem rodada do dia nem placar
-// de sessão — você volta a ele por meses e a carreira continua de onde parou.
-// Por isso ganha seção própria em vez de entrar no meio dos minigames, e por
-// isso traz `href` em vez de `key`: é uma página inteira em /games/games/,
-// não passa pelo carregador index.php?game=.
+// O Copero é o primeiro da lista porque é o mais fundo dos daqui — uma
+// carreira que continua de onde parou, meses depois — e porque a seção
+// "Carreira" só pra ele era um título com um card debaixo, o que fazia a
+// aba parecer mais cheia de divisórias do que de jogos.
 //
-// O Caminho saiu daqui: ele ainda está sendo ajustado e não entra no lançamento.
-// A página continua de pé em /games/games/caminho.php pra quem tem o link.
-$jogosCarreira = [
-    ['href' => '/games/games/copero.php',  'nome' => 'Copero',
-     'sub'  => 'Uma carreira no futebol',  'icone' => 'bi-trophy-fill', 'cor' => '#22c55e'],
-];
-
+// Ele traz `href` em vez de `key`: é uma página inteira em /games/games/ e
+// não passa pelo carregador index.php?game=. O laço lá embaixo aceita os
+// dois, e é isso que permite os dois tipos morarem na mesma grade.
+//
+// O Caminho não está aqui: ele ainda está sendo ajustado e não entra no
+// lançamento. A página continua de pé em /games/games/caminho.php pra quem
+// tem o link.
 $jogosLivres = [
+    ['href' => '/games/games/copero.php', 'nome' => 'Copero',
+     'sub'  => 'Uma carreira no futebol', 'icone' => 'bi-trophy-fill', 'cor' => '#22c55e'],
     ['key' => 'buildplayer','nome' => 'Build-A-Player','sub' => 'Monte a lenda perfeita','icone' => 'bi-tools',      'cor' => '#f97316'],
     ['key' => 'dreamteam', 'nome' => 'Starting5x5', 'sub' => 'Monte o time e dispute','icone' => 'bi-people-fill',  'cor' => '#6366f1'],
     ['key' => 'flappy',    'nome' => 'Flappy Bird', 'sub' => 'Desvie dos canos',  'icone' => 'bi-airplane',       'cor' => '#f43f5e'],
@@ -1036,21 +1037,15 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                 <?php endforeach; ?>
             </div>
 
-            <div class="sec-label"><i class="bi bi-person-badge-fill"></i> Carreira</div>
-            <div class="grid">
-                <?php foreach ($jogosCarreira as $j): ?>
-                <a class="card-jogo" href="<?= htmlspecialchars($j['href']) ?>">
-                    <div class="ico" style="background:<?= $j['cor'] ?>1f;color:<?= $j['cor'] ?>"><i class="bi <?= $j['icone'] ?>"></i></div>
-                    <div class="nome"><?= htmlspecialchars($j['nome']) ?></div>
-                    <div class="sub"><?= htmlspecialchars($j['sub']) ?></div>
-                </a>
-                <?php endforeach; ?>
-            </div>
-
             <div class="sec-label"><i class="bi bi-joystick"></i> Minigames</div>
             <div class="grid">
-                <?php foreach ($jogosLivres as $j): ?>
-                <a class="card-jogo" href="/games/games/index.php?game=<?= urlencode($j['key']) ?>">
+                <?php foreach ($jogosLivres as $j):
+                    // Quem tem `href` é página própria; o resto passa pelo
+                    // carregador. Sem esse ou-ou, o Copero viraria um link pra
+                    // index.php?game= vazio e a grade toda pareceria certa.
+                    $destino = $j['href'] ?? ('/games/games/index.php?game=' . urlencode($j['key']));
+                ?>
+                <a class="card-jogo" href="<?= htmlspecialchars($destino) ?>">
                     <div class="ico" style="background:<?= $j['cor'] ?>1f;color:<?= $j['cor'] ?>"><i class="bi <?= $j['icone'] ?>"></i></div>
                     <div class="nome"><?= htmlspecialchars($j['nome']) ?></div>
                     <div class="sub"><?= htmlspecialchars($j['sub']) ?></div>
