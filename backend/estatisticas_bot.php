@@ -217,22 +217,6 @@ function ebCatalogo(): array
                       WHERE t.league = :liga
                       GROUP BY t.id, t.city, t.name",
         ],
-        'trades' => [
-            'titulo' => 'Trades no Total', 'sub' => 'toda proposta em que o time entrou, aceita ou não',
-            'alto' => '🔁 Mais movimento', 'baixo' => '💤 Menos movimento', 'ordem' => 'desc',
-            // Qualquer status de propósito: esta é a única das quatro que
-            // mede MOVIMENTO e não desfecho. Filtrar por aceita aqui faria
-            // ela repetir a /tradesaceitas com outro nome.
-            'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome,
-                             (SELECT COUNT(*) FROM trades tr
-                               WHERE tr.from_team_id = t.id OR tr.to_team_id = t.id)
-                           + (SELECT COUNT(DISTINCT mt.id)
-                                FROM multi_trades mt
-                                JOIN multi_trade_items mi ON mi.trade_id = mt.id
-                               WHERE mi.from_team_id = t.id OR mi.to_team_id = t.id) AS valor
-                      FROM teams t
-                      WHERE t.league = :liga",
-        ],
         'tradesenviadas' => [
             'titulo' => 'Trades Enviadas', 'sub' => 'propostas que o time mandou',
             'alto' => '📤 Mais enviadas', 'baixo' => '🤐 Menos enviadas', 'ordem' => 'desc',
@@ -427,7 +411,11 @@ function ebBloco(string $rotulo, array $linhas): string
 function ebApelidos(): array
 {
     return [
-        'trocas'           => 'trades',
+        // /trades e /trocas são o atalho: quem digita o nome curto quer saber
+        // quem trocou, e trocar é a que foi aceita. As outras três precisam
+        // do sufixo justamente porque são o recorte, não o assunto.
+        'trades'           => 'tradesaceitas',
+        'trocas'           => 'tradesaceitas',
         'trocasenviadas'   => 'tradesenviadas',
         'trocasaceitas'    => 'tradesaceitas',
         'trocasrecusadas'  => 'tradesrecusadas',
@@ -472,10 +460,11 @@ function ebListar(?string $ligaDoGrupo): string
         'Elenco e draft' => ['elencojovem', 'elencovelho', 'freeagency', 'top5'],
         'Playoff'        => ['playoffs', 'sequencia', 'jejum', 'vice', '4a0', '0a4', 'jogo7'],
         'Confrontos'     => ['rivalidades', 'dominio', 'duplas', 'unidirecionais'],
-        // A ordem e os nomes seguem um padrão só: /trades abre, e depois os
-        // três desfechos. O /parceiros fecha porque responde outra pergunta —
-        // com QUANTOS, e não quantas.
-        'Trades'         => ['trades', 'tradesenviadas', 'tradesaceitas', 'tradesrecusadas', 'parceiros'],
+        // O /trades abre por ser o atalho, e vem escrito que é atalho: sem
+        // isso a lista mostraria "Trades Aceitas" duas vezes e pareceria
+        // defeito. O /parceiros fecha porque responde outra pergunta — com
+        // QUANTOS, e não quantas.
+        'Trades'         => ['trades', 'tradesaceitas', 'tradesenviadas', 'tradesrecusadas', 'parceiros'],
     ];
 
     $cat = ebCatalogo();
@@ -483,7 +472,12 @@ function ebListar(?string $ligaDoGrupo): string
     foreach ($grupos as $titulo => $cmds) {
         $txt .= "\n*{$titulo}*\n";
         foreach ($cmds as $c) {
-            if (isset($cat[$c])) $txt .= "/{$c} — " . $cat[$c]['titulo'] . "\n";
+            // Apelido também aparece na lista, com o rótulo do oficial mais a
+            // marca de atalho — senão /trades existiria e ninguém saberia.
+            $chave = ebApelidos()[$c] ?? $c;
+            if (!isset($cat[$chave])) continue;
+            $marca = $chave === $c ? '' : ' _(atalho)_';
+            $txt .= "/{$c} — " . $cat[$chave]['titulo'] . $marca . "\n";
         }
     }
     return rtrim($txt);
