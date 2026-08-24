@@ -361,7 +361,7 @@ function wcAjuda(): string
         . "/ranking _liga_ — a tabela da liga\n"
         . "/power — o power ranking da liga inteira\n"
         . "/powerc — o power ranking por conferência\n"
-        . "/trocas — as últimas trocas aprovadas\n"
+        . "/trocas _ou /trades_ — as últimas trocas aprovadas\n"
         . "/aceitar _código_ · /recusar _código_ — decide uma proposta de leilão (o código vem na mensagem)\n"
         . "/lendas — os marcados como LENDA\n"
         . "/hall — o Hall da Fama\n"
