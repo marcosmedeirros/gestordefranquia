@@ -39,6 +39,15 @@ a { color: inherit; text-decoration: none; }
 .sb-nav a:hover { background: var(--panel-2); color: var(--text); }
 .sb-nav a.active { background: var(--red-soft); color: var(--red); font-weight: 600; }
 .sb-nav a.active i { color: var(--red); }
+
+/* O botão de tema e a tag do modo observador vivem no sidebar.php, que toda
+   tela inclui — mas o estilo dos dois só existia em painel-css/sidebar-css.
+   Quem monta a página com este shell (calendário, escala) recebia o botão
+   cru, com cara de <button> do navegador no meio do menu. */
+.sb-theme-toggle { margin: 0 14px 12px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-family: var(--font); display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all var(--t) var(--ease); }
+.sb-theme-toggle:hover { border-color: var(--border-red); color: var(--red); }
+.sb-obs-tag { margin-left: auto; font-size: 9.5px; font-weight: 800; letter-spacing: .4px; padding: 2px 6px; border-radius: 999px; background: var(--red-soft); color: var(--red); }
+
 .sb-footer { padding: 12px 14px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .sb-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border-md); flex-shrink: 0; }
 .sb-username { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

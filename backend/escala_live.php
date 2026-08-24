@@ -302,6 +302,74 @@ function escalaDisponiveis(PDO $pdo, string $liga, ?string $semana = null): arra
     return $out;
 }
 
+/**
+ * Todo mundo da liga, tenha se oferecido ou não.
+ *
+ * A escala nasceu presa à enquete: só entrava no seletor quem tinha
+ * respondido /comentarista e afins naquela semana. Na prática o admin monta
+ * a escala quando dá — às vezes antes de alguém responder, às vezes
+ * combinando por fora — e ficava travado num "ninguém se ofereceu" que não
+ * tinha como destravar pela tela.
+ *
+ * A enquete continua valendo: quem respondeu aparece em primeiro no
+ * seletor, separado dos demais. O que muda é que ela deixou de ser a única
+ * porta.
+ */
+/**
+ * Tira alguém de UMA função da lista de disponíveis.
+ *
+ * Diferente do escalaSair(), que é o /sair do bot e limpa a pessoa de todas
+ * as funções de uma vez. Aqui o admin está corrigindo uma linha — quem se
+ * ofereceu pra narrar e operar e só vai operar continua na outra.
+ *
+ * As escalações já feitas NÃO são mexidas: a escala tem o próprio botão de
+ * tirar, e apagar live escalada como efeito colateral de uma correção na
+ * lista é o tipo de coisa que se descobre tarde. O retorno diz quantas
+ * ficaram, pro aviso poder avisar.
+ */
+function escalaTirarDisponibilidade(PDO $pdo, int $userId, string $liga, string $funcao, ?string $semana = null): array
+{
+    escalaGarantirTabelas($pdo);
+    $liga   = strtoupper(trim($liga));
+    $funcao = strtolower(trim($funcao));
+    if (!escalaFuncaoValida($funcao)) return [false, 'Função inválida.', 0];
+
+    $semana = $semana ?: escalaSemanaDe();
+    try {
+        $st = $pdo->prepare("DELETE FROM escala_disponibilidade
+                              WHERE semana=? AND league=? AND id_usuario=? AND funcao=?");
+        $st->execute([$semana, $liga, $userId, $funcao]);
+        if ($st->rowCount() === 0) return [false, 'Essa pessoa não estava nessa função.', 0];
+
+        $fim = (new DateTimeImmutable($semana))->modify('+6 days')->format('Y-m-d');
+        $q = $pdo->prepare("SELECT COUNT(*) FROM escala_lives
+                             WHERE id_usuario=? AND league=? AND funcao=? AND data BETWEEN ? AND ?");
+        $q->execute([$userId, $liga, $funcao, $semana, $fim]);
+        return [true, 'Tirado da lista.', (int)$q->fetchColumn()];
+    } catch (Throwable $e) {
+        error_log('[escala] tirar disponibilidade: ' . $e->getMessage());
+        return [false, 'Não deu pra tirar agora.', 0];
+    }
+}
+
+function escalaGenteDaLiga(PDO $pdo, string $liga): array
+{
+    try {
+        $st = $pdo->prepare("SELECT id, name AS nome, photo_url AS foto
+                               FROM users
+                              WHERE league = ? AND approved = 1
+                              ORDER BY name ASC");
+        $st->execute([strtoupper($liga)]);
+        return array_map(
+            fn($r) => ['id' => (int)$r['id'], 'nome' => $r['nome'], 'foto' => $r['foto']],
+            $st->fetchAll(PDO::FETCH_ASSOC)
+        );
+    } catch (Throwable $e) {
+        error_log('[escala] gente da liga: ' . $e->getMessage());
+        return [];
+    }
+}
+
 /* ────────────────────────────────────────────────────────────────────────
  * A ESCALA
  * ──────────────────────────────────────────────────────────────────────── */

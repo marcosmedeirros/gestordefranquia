@@ -66,14 +66,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ? count($r['criados']) . ' live(s) criada(s): ' . implode(' · ', $r['criados'])
                 : 'A grade já estava toda criada — nada a fazer.'];
 
-        } elseif (isset($_POST['eu_topo'])) {
-            // Qualquer pessoa pode se oferecer pela tela — o grupo é o caminho
-            // normal, mas quem não está nele não fica de fora por isso.
-            $r = escalaResponder($pdo, (int)$user['id'], $liga,
-                                 (array)($_POST['funcao'] ?? []), 'site', $semana);
+        } elseif (isset($_POST['add_disp']) && $podeEscalar) {
+            // O admin põe gente na lista na mão. A enquete do grupo continua
+            // sendo o caminho normal, mas quem combinou por fora — ou não
+            // está no grupo — entrava por lugar nenhum.
+            $quem = (int)($_POST['usuario'] ?? 0);
+            $r = $quem
+                ? escalaAdicionar($pdo, $quem, $liga, (string)($_POST['funcao'] ?? ''), $semana)
+                : ['ok' => false, 'novo' => false, 'erro' => 'Escolha uma pessoa da lista.'];
             $_SESSION['escala_flash'] = $r['ok']
-                ? ['ok', $r['funcoes'] ? 'Anotado. Você entrou na lista.' : 'Você saiu da lista desta semana.']
+                ? ['ok', $r['novo'] ? 'Adicionado à lista.' : 'Essa pessoa já estava nessa função.']
                 : ['erro', (string)$r['erro']];
+
+        } elseif (isset($_POST['tirar_disp']) && $podeEscalar) {
+            [$ok, $txt, $aindaEscalado] = escalaTirarDisponibilidade(
+                $pdo, (int)$_POST['usuario'], $liga, (string)$_POST['funcao'], $semana
+            );
+            // Sair da lista não desfaz escalação: quem já foi avisado que vai
+            // narrar continua narrando até alguém tirar de propósito.
+            if ($ok && $aindaEscalado) {
+                $txt .= " Atenção: ela segue escalada em {$aindaEscalado} live(s) desta semana.";
+            }
+            $_SESSION['escala_flash'] = [$ok ? 'ok' : 'erro', $txt];
         }
     } catch (Throwable $e) {
         $_SESSION['escala_flash'] = ['erro', 'Deu erro: ' . $e->getMessage()];
@@ -91,13 +105,10 @@ if (!empty($_SESSION['escala_flash'])) {
 $FUNCOES     = escalaFuncoes();
 $disponiveis = escalaDisponiveis($pdo, $liga, $semana);
 $lives       = escalaLivesDaSemana($pdo, [$liga], $semana);
+// Todo mundo da liga fica à mão pro seletor: o admin monta a escala quando
+// quiser, e não só depois que a enquete encheu.
+$genteDaLiga = $podeEscalar ? escalaGenteDaLiga($pdo, $liga) : [];
 $escalados   = escalaDaSemana($pdo, [$liga], $semana);
-
-// O que EU topei nesta semana — pra tela abrir com as caixas já marcadas.
-$euTopo = [];
-foreach ($disponiveis as $f => $gente) {
-    foreach ($gente as $g) if ((int)$g['id'] === (int)$user['id']) $euTopo[] = $f;
-}
 
 $semanaAnterior = (new DateTimeImmutable($semana))->modify('-7 days')->format('Y-m-d');
 $semanaSeguinte = (new DateTimeImmutable($semana))->modify('+7 days')->format('Y-m-d');
@@ -178,6 +189,20 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   .p img{width:24px;height:24px;border-radius:50%;object-fit:cover;flex:none;border:1px solid var(--border-md)}
   .p span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ninguem{font-size:12px;color:var(--text-3);padding:4px 6px}
+  /* O × só aparece no hover da linha: quatro colunas de nomes com um × fixo
+     em cada vira uma parede de botões de apagar. No toque não há hover, e aí
+     ele fica sempre visível — senão no celular não teria como tirar ninguém. */
+  .p form button{background:none;border:0;color:var(--text-3);cursor:pointer;font-size:14px;
+                 line-height:1;padding:0 3px;opacity:0;transition:opacity var(--t) var(--ease)}
+  .p:hover form button,.p form button:focus{opacity:1}
+  .p form button:hover{color:var(--red)}
+  @media (hover:none){ .p form button{opacity:.65} }
+
+  .add-disp{display:flex;gap:6px;margin-top:8px}
+  .busca{flex:1;min-width:0;font-family:var(--font);font-size:12px;border-radius:8px;padding:6px 9px;
+         background:var(--panel-2);border:1px solid var(--border-md);color:var(--text)}
+  .busca:focus{outline:none;border-color:var(--red)}
+  .bt-add{flex:none;padding:6px 10px}
 
   .live{border:1px solid var(--border);border-radius:var(--radius-sm);padding:13px 15px;margin-bottom:10px;background:var(--panel-2)}
   .live-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:10px}
@@ -227,9 +252,10 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
             <div class="dash-eyebrow">Organização</div>
             <h1 class="dash-title">Escala das Lives</h1>
             <p class="dash-sub">
-              Quem topa participar responde no grupo dizendo as funções — dá pra
-              dizer mais de uma. A escala é montada em cima das lives que já
-              estão no calendário, e quem entra recebe aviso.
+              A lista de cada função se enche sozinha pelo grupo (/comentarista,
+              /narrador, /operacional, /transmissao) — e você também põe e tira
+              gente na mão, a qualquer hora. A escala é montada em cima das
+              lives que já estão no calendário, e quem entra recebe aviso.
             </p>
         </div>
         <!-- Volta pro ADMIN e não pro painel: quem chega aqui vem do card em
@@ -261,27 +287,10 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
     </div>
   </div>
 
-  <!-- ── Eu topo ─────────────────────────────────────────────────────── -->
-  <div class="cx">
-    <h2>Eu topo, nesta semana</h2>
-    <form method="POST">
-      <div class="topo-check">
-        <?php foreach ($FUNCOES as $k => $f): ?>
-        <label class="chk">
-          <input type="checkbox" name="funcao[]" value="<?= $k ?>" <?= in_array($k, $euTopo, true) ? 'checked' : '' ?>>
-          <i class="bi <?= $f['icone'] ?>" style="color:<?= $f['cor'] ?>"></i>
-          <?= $esc($f['rotulo']) ?>
-        </label>
-        <?php endforeach; ?>
-      </div>
-      <!-- Salvar com tudo desmarcado é como se sai da semana — por isso o
-           botão não fica desabilitado quando não há nada marcado. -->
-      <button class="bt" name="eu_topo" value="1">Salvar minha disponibilidade</button>
-      <span style="font-size:11.5px;color:var(--text-3);margin-left:8px">
-        Desmarcar tudo e salvar tira você da lista.
-      </span>
-    </form>
-  </div>
+  <?php /* O "Eu topo" saiu daqui: esta é uma tela de administração, e quem
+           se oferece faz isso pelo grupo, com /comentarista e companhia. Um
+           painel de admin com um formulário pra si mesmo no topo confundia
+           quem vem montar a escala dos outros. */ ?>
 
   <!-- ── Quem se ofereceu ────────────────────────────────────────────── -->
   <div class="cx">
@@ -301,12 +310,57 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
               <img src="<?= $esc($g['foto'] ?: '/img/default-avatar.png') ?>" alt=""
                    onerror="this.src='/img/default-avatar.png'">
               <span><?= $esc($g['nome']) ?></span>
+              <?php if ($podeEscalar): ?>
+              <form method="POST" style="display:inline"
+                    data-confirmar="Tirar <?= $esc($g['nome']) ?> de <?= $esc($f['rotulo']) ?>?">
+                <input type="hidden" name="usuario" value="<?= (int)$g['id'] ?>">
+                <input type="hidden" name="funcao" value="<?= $k ?>">
+                <button type="submit" name="tirar_disp" value="1" title="Tirar da lista">&times;</button>
+              </form>
+              <?php endif; ?>
             </div>
           <?php endforeach; endif; ?>
         </div>
+
+        <?php if ($podeEscalar): ?>
+        <?php
+          // Só quem ainda não está NESTA função aparece pra adicionar.
+          $jaNaFuncao = array_column($disponiveis[$k], 'id');
+          $podeAddAqui = array_values(array_filter(
+              $genteDaLiga, fn($g) => !in_array($g['id'], $jaNaFuncao, true)
+          ));
+        ?>
+        <?php if ($podeAddAqui): ?>
+        <?php /* Um <input list> e não um <select>: com trinta e poucos GMs a
+                 lista rolável é pior que digitar três letras do nome. O
+                 datalist filtra por nome enquanto se digita, é nativo, e
+                 funciona no teclado do celular sem JS nenhum. */ ?>
+        <form method="POST" class="add-disp">
+          <input type="hidden" name="funcao" value="<?= $k ?>">
+          <input class="busca" list="gente-liga" name="busca_<?= $k ?>"
+                 placeholder="Buscar pelo nome…" autocomplete="off"
+                 data-alvo="add-<?= $k ?>">
+          <input type="hidden" name="usuario" id="add-<?= $k ?>">
+          <button class="bt bt-add" name="add_disp" value="1" title="Adicionar à lista">
+            <i class="bi bi-plus-lg"></i>
+          </button>
+        </form>
+        <?php endif; ?>
+        <?php endif; ?>
       </div>
       <?php endforeach; ?>
     </div>
+
+    <?php if ($podeEscalar): ?>
+    <?php /* Uma lista só, compartilhada pelas quatro funções: o navegador
+             guarda um datalist por id, e repetir os 30 nomes quatro vezes
+             só engordaria o HTML. */ ?>
+    <datalist id="gente-liga">
+      <?php foreach ($genteDaLiga as $g): ?>
+      <option data-id="<?= (int)$g['id'] ?>" value="<?= $esc($g['nome']) ?>"></option>
+      <?php endforeach; ?>
+    </datalist>
+    <?php endif; ?>
   </div>
 
   <!-- ── A escala ────────────────────────────────────────────────────── -->
@@ -345,9 +399,19 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
           $chave = $lv['id'] . '|' . $lv['data'] . '|' . $k;
           $nessa = $escalados[$chave] ?? [];
           $jaTem = array_column($nessa, 'id');
-          // Só quem se ofereceu PRA ESSA função entra no seletor, e quem já
-          // está nela sai da lista — senão o admin escolhe alguém que já está.
-          $opcoes = array_values(array_filter($disponiveis[$k], fn($g) => !in_array($g['id'], $jaTem, true)));
+          // Quem já está na função sai das duas listas — senão o admin
+          // escolheria alguém que já está lá.
+          $livre  = fn($g) => !in_array($g['id'], $jaTem, true);
+          // Quem se ofereceu PRA ESSA função vem primeiro: é a informação
+          // que a enquete produziu, e enterrá-la no meio da liga inteira
+          // faria a enquete não servir pra nada.
+          $ofereceu = array_values(array_filter($disponiveis[$k], $livre));
+          $idsOfer  = array_column($ofereceu, 'id');
+          $outros   = array_values(array_filter(
+              $genteDaLiga,
+              fn($g) => $livre($g) && !in_array($g['id'], $idsOfer, true)
+          ));
+          $opcoes = array_merge($ofereceu, $outros);
         ?>
         <div class="vaga">
           <div class="vaga-rot" style="color:<?= $f['cor'] ?>">
@@ -358,7 +422,8 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
             <span class="chip">
               <?= $esc($p['nome']) ?>
               <?php if ($podeEscalar): ?>
-              <form method="POST" style="display:inline" onsubmit="return confirm('Tirar <?= $esc($p['nome']) ?> da escala?')">
+              <form method="POST" style="display:inline"
+                    data-confirmar="Tirar <?= $esc($p['nome']) ?> da escala?">
                 <input type="hidden" name="tirar" value="<?= (int)$p['escala_id'] ?>">
                 <button type="submit" title="Tirar">&times;</button>
               </form>
@@ -376,16 +441,25 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
               <input type="hidden" name="funcao" value="<?= $k ?>">
               <select name="usuario" required>
                 <option value="">Escalar…</option>
-                <?php foreach ($opcoes as $g): ?>
-                <option value="<?= (int)$g['id'] ?>"><?= $esc($g['nome']) ?></option>
-                <?php endforeach; ?>
+                <?php if ($ofereceu): ?>
+                <optgroup label="Se ofereceu">
+                  <?php foreach ($ofereceu as $g): ?>
+                  <option value="<?= (int)$g['id'] ?>"><?= $esc($g['nome']) ?></option>
+                  <?php endforeach; ?>
+                </optgroup>
+                <?php endif; ?>
+                <?php if ($outros): ?>
+                <optgroup label="<?= $ofereceu ? 'Outros da liga' : 'Ninguém se ofereceu — toda a liga' ?>">
+                  <?php foreach ($outros as $g): ?>
+                  <option value="<?= (int)$g['id'] ?>"><?= $esc($g['nome']) ?></option>
+                  <?php endforeach; ?>
+                </optgroup>
+                <?php endif; ?>
               </select>
               <button class="bt" name="escalar" value="1">Escalar</button>
             </form>
             <?php else: ?>
-            <span class="vazio-vaga">
-              <?= $disponiveis[$k] ? 'todos já escalados' : 'ninguém se ofereceu' ?>
-            </span>
+            <span class="vazio-vaga">todos já escalados</span>
             <?php endif; ?>
           <?php endif; ?>
         </div>
@@ -400,5 +474,50 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 <?php /* O hambúrguer do mobile. Sem isto a barra lateral existe mas não abre
          no celular — que é justamente onde ela fica escondida. */ ?>
 <script src="/js/sidebar.js"></script>
+<script src="/js/tema.js"></script>
+
+<?php if ($podeEscalar): ?>
+<script>
+/**
+ * O datalist devolve o NOME digitado, e o servidor precisa do id. Isto faz a
+ * tradução na hora do envio.
+ *
+ * Casa por nome exato de propósito. Digitar meio nome e mandar não escala a
+ * primeira pessoa que começa igual — o hidden fica vazio e o servidor
+ * responde "Escolha uma pessoa da lista". Escalar a pessoa errada por causa
+ * de um prefixo seria pior que um aviso.
+ */
+(function () {
+  var porNome = {};
+  document.querySelectorAll('#gente-liga option').forEach(function (o) {
+    // O primeiro vence: se dois GMs tiverem o mesmo nome, o servidor ainda
+    // valida o id, e o admin vê quem entrou no aviso.
+    if (!(o.value in porNome)) porNome[o.value] = o.dataset.id;
+  });
+
+  document.querySelectorAll('.add-disp').forEach(function (form) {
+    var busca = form.querySelector('.busca');
+    var alvo  = document.getElementById(busca.dataset.alvo);
+
+    var casar = function () { alvo.value = porNome[busca.value.trim()] || ''; };
+    busca.addEventListener('input', casar);
+    busca.addEventListener('change', casar);
+
+    form.addEventListener('submit', function (ev) {
+      casar();
+      if (alvo.value) return;
+      ev.preventDefault();
+      window.avisarSite(
+        busca.value.trim()
+          ? 'Não achei "' + busca.value.trim() + '" na liga. Escolha um nome da lista.'
+          : 'Digite o nome de quem entra nessa função.',
+        'aviso'
+      );
+      busca.focus();
+    });
+  });
+})();
+</script>
+<?php endif; ?>
 </body>
 </html>

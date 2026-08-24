@@ -651,5 +651,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharModal(
 pintarFiltros();
 carregar();
 </script>
+
+<?php /* O hambúrguer do celular e o botão de tema do menu — nenhum dos dois
+         tinha handler nesta tela. */ ?>
+<script src="/js/sidebar.js"></script>
+<script src="/js/tema.js"></script>
 </body>
 </html>

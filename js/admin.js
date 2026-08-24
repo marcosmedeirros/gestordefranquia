@@ -421,7 +421,9 @@ async function showGestao(league) {
     // e que nao dizia isso. No menu lateral o mesmo calendario e consulta;
     // aqui e onde se cria, inclusive as lives que a escala usa.
     { icon: 'bi-calendar-plus-fill',    label: 'Calendário<br>criar eventos', url: '/calendario.php',    color: '#38bdf8', bg: 'rgba(56,189,248,.12)' },
-    { icon: 'bi-clipboard-plus',        label: 'Inscrição<br>ROOKIE',       fn: 'showConviteRookie()',   color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
+    // A Inscrição ROOKIE saiu daqui: ela já existe nas ações da liga ROOKIE,
+    // que é o lugar de quem administra a ROOKIE. Em Gestão era a mesma porta
+    // duas vezes.
     { icon: 'bi-shuffle',               label: 'Drafts<br>Aleatórios',      url: '/drafts-aleatorios.php',    color: '#a855f7', bg: 'rgba(168,85,247,.08)' },
     { icon: 'bi-dice-3-fill',           label: 'Loterias',                  url: '/loterias-aleatorias.php',  color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
     // A redação do jornal: escrever, publicar, editar, apagar e moderar os
@@ -444,7 +446,8 @@ async function showGestao(league) {
     // não tem acesso admin, então o card não é a trava — é só o caminho.
     { icon: 'bi-journal-code',          label: 'Guia do<br>Admin',          url: '/guia-admin.php', novaAba: true, color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 12%, transparent)' },
     ...(window.IS_GLOBAL_ADMIN ? [
-      { icon: 'bi-globe2',              label: 'Site<br>Admin',             url: '/siteadmin.php',       color: '#3b82f6', bg: 'rgba(59,130,246,.12)' },
+      // O card do Site Admin saiu de Gestão a pedido. A página segue de pé em
+      // /siteadmin.php — o que sumiu foi o atalho, não o acesso.
       // O abraço já sai sozinho às 15h; isto é pra mandar na hora.
       { icon: 'bi-emoji-smile-fill',    label: 'Disparar<br>abraço',        fn: 'dispararAbraco()',      color: '#22c55e', bg: 'rgba(34,197,94,.12)', id: 'btnAbraco' },
       { icon: 'bi-patch-question-fill', label: 'Quiz do<br>grupo',          fn: 'showQuizAdmin()',       color: '#a855f7', bg: 'rgba(168,85,247,.12)' },
