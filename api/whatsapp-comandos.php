@@ -362,10 +362,11 @@ function wcAjuda(): string
         . "/power — o power ranking da liga inteira\n"
         . "/powerc — o power ranking por conferência\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
-        // Três linhas viraram uma. O /ajuda é lido por quem quer o básico da
-        // liga inteira, e a escala tem manual próprio agora — quem se
-        // interessa entra nele, quem não, não perde três linhas com isso.
-        . "/live — como entrar nas lives (funções, escala, tudo)\n"
+        // A escala NÃO entra aqui, nem numa linha só. Ela é assunto do grupo
+        // de lives, e o /ajuda é lido pela liga inteira — pra quem não
+        // participa das lives, a linha só gera "o que é isso?". Quem precisa
+        // recebe o /live fixado no grupo certo.
+
         // /aceitar e /recusar SAÍRAM desta lista, mas continuam funcionando:
         // o código vem escrito na própria mensagem da proposta, e é lá que a
         // pessoa lê a instrução. Aqui eles só ocupavam a linha mais comprida
