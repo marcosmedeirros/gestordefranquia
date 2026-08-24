@@ -563,7 +563,8 @@ if ($copa && $userId) {
     var byes = slots - n;
     var rodadas = Math.round(Math.log2(slots));
     var txt = n + ' competidores · chaveamento de ' + slots + ' · ' + rodadas + ' rodadas até o campeão';
-    if (byes > 0) txt += ' · ' + byes + ' passam sem confronto na primeira (sorteados)';
+    if (byes > 0) txt += byes === 1 ? ' · 1 passa sem confronto na primeira (sorteado)'
+                                    : ' · ' + byes + ' passam sem confronto na primeira (sorteados)';
     prev.textContent = txt;
   }
 
