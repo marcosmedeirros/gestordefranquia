@@ -152,6 +152,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['opcao_id'])) {
     }
 }
 
+// ── Loja: comprar, usar e converter ─────────────────────────────────────────
+require_once __DIR__ . '/backend/loja.php';
+$lojaMsg = null;
+$lojaErro = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['loja_acao'])) {
+    $acao = (string)$_POST['loja_acao'];
+    if ($acao === 'comprar') {
+        $r = lojaComprar($pdo, $userId, (string)($_POST['item'] ?? ''));
+        if ($r['ok']) { $lojaMsg = 'Comprado! O item está em Meus itens.'; }
+        else          { $lojaErro = $r['erro']; }
+    } elseif ($acao === 'usar') {
+        $r = lojaUsar($pdo, $userId, (int)($_POST['inventario_id'] ?? 0));
+        if ($r['ok']) { $lojaMsg = 'Resgatado. A organização foi avisada e vai aplicar.'; }
+        else          { $lojaErro = $r['erro']; }
+    } elseif ($acao === 'converter') {
+        $r = lojaConverter($pdo, $userId, (int)($_POST['moedas'] ?? 0));
+        if ($r['ok']) { $lojaMsg = "Trocou {$r['convertidas']} moedas por {$r['ganhos']} FBA Points."; }
+        else          { $lojaErro = $r['erro']; }
+    }
+    // O saldo do topo tem que refletir a compra que acabou de acontecer.
+    try {
+        $st = $pdo->prepare("SELECT pontos, fba_points, acertos_eventos FROM games_usuarios WHERE id = ?");
+        $st->execute([$userId]);
+        if ($linha = $st->fetch(PDO::FETCH_ASSOC)) $perfil = $linha;
+    } catch (Throwable $e) {}
+}
+$lojaItens   = lojaInventario($pdo, $userId);
+$lojaFila    = lojaPedidos($pdo, $userId);
+$lojaCat     = lojaCatalogo();
+
 // ── Eventos abertos ─────────────────────────────────────────────────────────
 $eventos = [];
 try {
@@ -511,10 +541,13 @@ $jogosLivres = [
     ['key' => 'roleta',    'nome' => 'Roleta',      'sub' => 'Cassino europeu',   'icone' => 'bi-record-circle',  'cor' => '#22c55e'],
 ];
 
-$abasValidas = ['games', 'apostas', 'ranking'];
+$abasValidas = ['games', 'apostas', 'loja', 'ranking'];
 $abaInicial = 'games';
 if (isset($_GET['aba']) && in_array($_GET['aba'], $abasValidas, true)) $abaInicial = $_GET['aba'];
 if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
+// Depois de comprar ou usar, a pagina volta na LOJA e nao na aba de
+// origem — senao a compra some da vista e parece que nao aconteceu.
+if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -709,6 +742,42 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
     .pill.errou { background:rgba(239,68,68,.12); color:#ef4444; }
     .tbl-wrap { overflow-x:auto; }
 
+    /* ── A LOJINHA ──────────────────────────────────────────────────── */
+    .g-tab-selo { background:var(--red); color:#fff; font-size:10px; font-weight:800;
+                  border-radius:999px; padding:1px 6px; margin-left:5px; }
+    .lj-taxa { font-size:12px; font-weight:700; color:var(--text-2); margin-bottom:11px; }
+    .lj-conv { display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
+    .lj-conv input { width:150px; background:var(--panel-2); border:1px solid var(--border-md);
+        border-radius:var(--radius-sm); color:var(--text); font-family:var(--font);
+        font-size:13px; padding:9px 12px; }
+    .lj-conv input:focus { outline:none; border-color:var(--border-red); }
+    .lj-vira { font-size:13px; font-weight:800; color:var(--red); font-variant-numeric:tabular-nums; }
+    .lj-nota { font-size:11.5px; color:var(--text-3); margin-top:11px; }
+    .lj-nota b { color:var(--text-2); }
+    .lj-btn { background:var(--red); border:0; color:#fff; font-family:var(--font); font-size:12.5px;
+        font-weight:700; border-radius:var(--radius-sm); padding:9px 16px; cursor:pointer;
+        transition:filter var(--t) var(--ease); }
+    .lj-btn:hover:not(:disabled) { filter:brightness(1.12); }
+    .lj-btn:disabled { background:var(--panel-3); color:var(--text-3); cursor:not-allowed; }
+    .lj-btn.usar { background:var(--green); }
+    .lj-grade { display:grid; gap:11px; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); }
+    .lj-item { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-sm);
+        padding:15px; display:flex; flex-direction:column; gap:7px; }
+    /* Sem saldo o card nao some nem fica ilegivel: ele continua sendo o
+       objetivo, e a meta e o proprio botao dizendo quanto falta. */
+    .lj-item.sem-saldo { opacity:.62; }
+    .lj-item.tenho { border-color:color-mix(in srgb, var(--green) 30%, transparent);
+                     background:color-mix(in srgb, var(--green) 5%, var(--panel)); }
+    .lj-ico { width:38px; height:38px; border-radius:10px; display:flex; align-items:center;
+              justify-content:center; font-size:18px; }
+    .lj-nome { font-size:13.5px; font-weight:700; }
+    .lj-desc { font-size:11.5px; color:var(--text-3); line-height:1.4; flex:1; }
+    .lj-preco { font-size:14px; font-weight:800; color:var(--amber); display:flex;
+                align-items:center; gap:5px; font-variant-numeric:tabular-nums; }
+    .lj-preco i { font-size:11px; }
+    .lj-item form { display:flex; }
+    .lj-item .lj-btn { width:100%; }
+
     /* A dica de trocar a escolha, agora com classe porque o JS precisa
        saber se ela já existe pra não colocar duas. */
     .op-dica { font-size:11.5px; color:var(--text-3); margin-top:11px; }
@@ -873,6 +942,10 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
             </button>
             <button class="g-tab <?= $abaInicial === 'apostas' ? 'active' : '' ?>" data-aba="apostas" onclick="trocarAba('apostas')">
                 <i class="bi bi-graph-up-arrow"></i> Apostas
+            </button>
+            <button class="g-tab <?= $abaInicial === 'loja' ? 'active' : '' ?>" data-aba="loja" onclick="trocarAba('loja')">
+                <i class="bi bi-bag-fill"></i> Loja
+                <?php if ($lojaItens): ?><span class="g-tab-selo"><?= count($lojaItens) ?></span><?php endif; ?>
             </button>
             <button class="g-tab <?= $abaInicial === 'ranking' ? 'active' : '' ?>" data-aba="ranking" onclick="trocarAba('ranking')">
                 <i class="bi bi-bar-chart-fill"></i> Ranking
@@ -1111,6 +1184,119 @@ if ($apostaMsg || $apostaErro) $abaInicial = 'apostas';
             <?php endif; ?>
         </div>
 
+        <!-- ── Aba Loja ──────────────────────────────────────────────── -->
+        <div class="g-pane <?= $abaInicial === 'loja' ? 'active' : '' ?>" id="pane-loja">
+            <?php if ($lojaMsg): ?>
+                <div class="alerta ok"><i class="bi bi-check-circle-fill"></i> <?= htmlspecialchars($lojaMsg) ?></div>
+            <?php endif; ?>
+            <?php if ($lojaErro): ?>
+                <div class="alerta err"><i class="bi bi-exclamation-triangle-fill"></i> <?= htmlspecialchars($lojaErro) ?></div>
+            <?php endif; ?>
+
+            <div class="sec-label"><i class="bi bi-arrow-left-right"></i> Trocar moedas por FBA Points</div>
+            <div class="card">
+                <div class="card-body">
+                    <!-- A taxa fica escrita na tela e não só no código: quem
+                         converte quer conferir a conta antes, não depois. -->
+                    <div class="lj-taxa"><?= LOJA_MOEDAS_POR_PONTO ?> moedas = 1 FBA Point</div>
+                    <form method="POST" class="lj-conv">
+                        <input type="hidden" name="loja_acao" value="converter">
+                        <!-- SEM step: com step=10 o navegador RECUSAVA 2505 sem
+                             dizer por que, e quem tem 2505 moedas teria que
+                             descobrir sozinho o multiplo. O troco ja e tratado
+                             no servidor (gasta 2500, credita 250, devolve 5), e
+                             a conta ao lado mostra isso antes do clique. -->
+                        <input type="number" name="moedas" id="ljMoedas" min="<?= LOJA_MOEDAS_POR_PONTO ?>"
+                               step="1" max="<?= (int)$perfil['pontos'] ?>"
+                               data-taxa="<?= LOJA_MOEDAS_POR_PONTO ?>"
+                               placeholder="quantas moedas?" autocomplete="off">
+                        <span class="lj-vira" id="ljVira">= 0 FBA Points</span>
+                        <button type="submit" class="lj-btn" <?= (int)$perfil['pontos'] < LOJA_MOEDAS_POR_PONTO ? 'disabled' : '' ?>>
+                            <i class="bi bi-arrow-left-right"></i> Trocar
+                        </button>
+                    </form>
+                    <div class="lj-nota">
+                        Você tem <b><?= number_format((int)$perfil['pontos'], 0, ',', '.') ?></b> moedas
+                        e <b><?= number_format((int)$perfil['fba_points'], 0, ',', '.') ?></b> FBA Points.
+                        A troca é só de ida.
+                    </div>
+                </div>
+            </div>
+
+            <div class="sec-label" style="margin-top:26px"><i class="bi bi-bag-fill"></i> Loja</div>
+            <div class="lj-grade">
+                <?php foreach ($lojaCat as $chave => $it):
+                    $podeComprar = (int)$perfil['fba_points'] >= (int)$it['preco']; ?>
+                <div class="lj-item <?= $podeComprar ? '' : 'sem-saldo' ?>">
+                    <div class="lj-ico" style="color:<?= $it['cor'] ?>;background:color-mix(in srgb, <?= $it['cor'] ?> 12%, transparent)">
+                        <i class="bi <?= $it['icone'] ?>"></i>
+                    </div>
+                    <div class="lj-nome"><?= htmlspecialchars($it['nome']) ?></div>
+                    <div class="lj-desc"><?= htmlspecialchars($it['desc']) ?></div>
+                    <div class="lj-preco"><i class="bi bi-star-fill"></i> <?= number_format((int)$it['preco'], 0, ',', '.') ?></div>
+                    <form method="POST">
+                        <input type="hidden" name="loja_acao" value="comprar">
+                        <input type="hidden" name="item" value="<?= htmlspecialchars($chave) ?>">
+                        <button type="submit" class="lj-btn" <?= $podeComprar ? '' : 'disabled' ?>>
+                            <?= $podeComprar ? 'Comprar' : 'Faltam ' . number_format((int)$it['preco'] - (int)$perfil['fba_points'], 0, ',', '.') ?>
+                        </button>
+                    </form>
+                </div>
+                <?php endforeach; ?>
+            </div>
+
+            <div class="sec-label" style="margin-top:26px"><i class="bi bi-box-seam"></i> Meus itens</div>
+            <?php if (empty($lojaItens)): ?>
+                <div class="card"><div class="vazio">
+                    <i class="bi bi-box"></i>
+                    <p>Nada guardado ainda. O que você comprar aparece aqui até usar.</p>
+                </div></div>
+            <?php else: ?>
+            <div class="lj-grade">
+                <?php foreach ($lojaItens as $inv): $it = $lojaCat[$inv['item_key']] ?? null; if (!$it) continue; ?>
+                <div class="lj-item tenho">
+                    <div class="lj-ico" style="color:<?= $it['cor'] ?>;background:color-mix(in srgb, <?= $it['cor'] ?> 12%, transparent)">
+                        <i class="bi <?= $it['icone'] ?>"></i>
+                    </div>
+                    <div class="lj-nome"><?= htmlspecialchars($it['nome']) ?></div>
+                    <div class="lj-desc">comprado em <?= date('d/m/Y', strtotime($inv['comprado_em'])) ?></div>
+                    <form method="POST" onsubmit="return confirm('Usar seu <?= htmlspecialchars($it['nome']) ?>? Ele sai do inventário e a organização é avisada pra aplicar.')">
+                        <input type="hidden" name="loja_acao" value="usar">
+                        <input type="hidden" name="inventario_id" value="<?= (int)$inv['id'] ?>">
+                        <button type="submit" class="lj-btn usar"><i class="bi bi-box-arrow-up"></i> Usar</button>
+                    </form>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+
+            <?php if (!empty($lojaFila)): ?>
+            <div class="sec-label" style="margin-top:26px"><i class="bi bi-hourglass-split"></i> Já resgatados</div>
+            <div class="card">
+                <div class="card-body tbl-wrap">
+                    <table class="hist">
+                        <thead><tr><th>Item</th><th>Quando</th><th>Situação</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($lojaFila as $p): $it = $lojaCat[$p['item_key']] ?? null; ?>
+                            <tr>
+                                <td data-rot="Item"><?= htmlspecialchars($it['nome'] ?? $p['item_key']) ?></td>
+                                <td data-rot="Quando" style="color:var(--text-3);font-size:12px"><?= date('d/m/Y', strtotime($p['usado_em'])) ?></td>
+                                <td data-rot="Situação">
+                                    <?php if ($p['atendido_em']): ?>
+                                        <span class="pill acertou">Aplicado</span>
+                                    <?php else: ?>
+                                        <span class="pill aberta">Na fila</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
+
         <!-- ── Aba Ranking ───────────────────────────────────────────── -->
         <div class="g-pane <?= $abaInicial === 'ranking' ? 'active' : '' ?>" id="pane-ranking">
             <div class="rk-ligas">
@@ -1317,6 +1503,27 @@ function trocarLigaRanking(liga) {
             card.dataset.enviando = '0';
             card.classList.remove('enviando');
         }
+    });
+})();
+
+/* ── A CONTA DA TROCA, ENQUANTO DIGITA ──────────────────────────────────
+ *
+ * Dez por um e conta fácil, mas ninguém quer fazer conta pra saber se vale.
+ * E o arredondamento aparece aqui: digitar 1005 mostra 100 pontos, e não
+ * 100,5 — assim a pessoa vê que as cinco sobrando não entram ANTES de
+ * clicar, e não depois de perder elas.
+ */
+(function () {
+    const campo = document.getElementById('ljMoedas');
+    const saida = document.getElementById('ljVira');
+    if (!campo || !saida) return;
+    const taxa = Number(campo.dataset.taxa) || 10;
+    campo.addEventListener('input', () => {
+        const n = Math.max(0, Math.floor(Number(campo.value) || 0));
+        const pts = Math.floor(n / taxa);
+        const sobra = n - pts * taxa;
+        saida.textContent = '= ' + pts.toLocaleString('pt-BR') + ' FBA Points'
+            + (sobra > 0 ? ' (sobram ' + sobra + ')' : '');
     });
 })();
 

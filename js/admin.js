@@ -427,6 +427,11 @@ async function showGestao(league) {
     { icon: 'bi-newspaper',             label: 'Redação<br>The Pathetic',   url: '/thepathetic-edit.php',     color: 'var(--red)', bg: 'color-mix(in srgb, var(--red) 12%, transparent)' },
     { icon: 'bi-person-bounding-box',   label: 'Sincronizar<br>Fotos NBA',  fn: 'syncFotosNBA()',        color: '#06b6d4', bg: 'rgba(6,182,212,.12)', id: 'btnSyncFotos' },
     { icon: 'bi-person-lines-fill',     label: 'Interessados',              fn: 'showWaitlistModal()',   color: '#22c55e', bg: 'rgba(34,197,94,.12)', badgeId: 'waitlist-badge' },
+    // O que os GMs compraram na loja e resgataram. A loja NAO aplica sozinha:
+    // dar slot de waiver ou badge mexe em regra de liga, e cada uma dessas
+    // regras mora num sistema diferente — limite adivinhado errado vira
+    // reclamacao semanas depois. O GM resgata, cai aqui, e quem aplica e gente.
+    { icon: 'bi-bag-check-fill',        label: 'Pedidos<br>da Loja',        url: '/loja-pedidos.php',    color: '#f59e0b', bg: 'rgba(245,158,11,.12)' },
     { icon: 'bi-book-half',             label: 'Ver guia<br>do usuário',    url: '/guia.php', novaAba: true, color: '#38bdf8', bg: 'rgba(56,189,248,.12)' },
     // Guia do Admin: entrada única, só aqui. A página em si também barra quem
     // não tem acesso admin, então o card não é a trava — é só o caminho.
