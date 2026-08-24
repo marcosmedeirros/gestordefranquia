@@ -565,6 +565,10 @@ $jogosDiarios = [
 $jogosLivres = [
     ['href' => '/games/games/copero.php', 'nome' => 'Copero',
      'sub'  => 'Uma carreira no futebol', 'icone' => 'bi-trophy-fill', 'cor' => '#22c55e'],
+    // A Copa é do momento: enquanto tem uma rolando, ela é o que a galera vem
+    // fazer. Fica logo no começo por isso, e não por ser nova.
+    ['href' => '/games/games/copamundo.php', 'nome' => 'Copa do Mundo',
+     'sub'  => 'Vote e decida o campeão', 'icone' => 'bi-diagram-3-fill', 'cor' => '#f59e0b'],
     ['key' => 'buildplayer','nome' => 'Build-A-Player','sub' => 'Monte a lenda perfeita','icone' => 'bi-tools',      'cor' => '#f97316'],
     ['key' => 'dreamteam', 'nome' => 'Starting5x5', 'sub' => 'Monte o time e dispute','icone' => 'bi-people-fill',  'cor' => '#6366f1'],
     ['key' => 'flappy',    'nome' => 'Flappy Bird', 'sub' => 'Desvie dos canos',  'icone' => 'bi-airplane',       'cor' => '#f43f5e'],

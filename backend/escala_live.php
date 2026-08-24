@@ -765,12 +765,8 @@ function escalaTextoAjuda(): string
     $l[] = '/escala — abre a chamada da semana no grupo';
     $l[] = '/live — este texto aqui';
     $l[] = '';
-    // O silêncio no sucesso é a única parte que confunde: a pessoa manda o
-    // comando, não acontece nada visível, e ela reenvia achando que falhou.
-    // Dizer isso aqui evita a dúvida antes dela existir.
-    $l[] = '_O bot não responde quando dá certo — é pra não encher o grupo. '
-         . 'Se você escrever algo errado, aí sim ele avisa. Pra conferir se '
-         . 'entrou, manda /verescala._';
+    $l[] = '_O bot confirma cada comando numa linha. Pra ver a lista inteira '
+         . 'de quem se ofereceu, manda /verescala._';
     $l[] = '';
     $l[] = '_Quem for escalado recebe aviso, e a live entra no calendário do '
          . 'site._';

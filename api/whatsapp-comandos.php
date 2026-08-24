@@ -1519,11 +1519,23 @@ function wcEscalaTopar(PDO $pdo, string $funcao, string $arg, string $deQuem, ?s
     $r = escalaAdicionar($pdo, $uid, $liga, $funcao, null, $fase);
     if (!$r['ok']) return (string)$r['erro'];
 
-    // Silêncio no sucesso, de propósito. Numa semana com vinte pessoas se
-    // oferecendo, vinte confirmações do bot enterram a conversa do grupo —
-    // e a pessoa acabou de ver a própria mensagem sair, então ela já sabe
-    // que mandou. Erro continua respondendo: aí ela PRECISA saber.
-    return '';
+    // UMA LINHA, e não a confirmação de três que existia antes.
+    //
+    // Chegou a ficar em silêncio: vinte pessoas se oferecendo viravam vinte
+    // mensagens do bot enterrando a conversa. Mas sem resposta nenhuma
+    // ninguém sabe se entrou, e a pessoa reenvia o comando — o que enche o
+    // grupo do mesmo jeito, só que com mensagem da pessoa.
+    //
+    // Então confirma, curto. A fase entra porque é o que a pessoa mais tem
+    // motivo pra duvidar que pegou; as outras funções dela, não — pra isso
+    // existe o /verescala, e repetir a lista inteira a cada comando é
+    // justamente o que fazia a mensagem crescer.
+    $rot  = escalaFuncoes()[$funcao]['rotulo'];
+    $ff   = escalaFaseRotulo($fase);
+    $comp = $ff ? ' _(' . $ff . ')_' : '';
+
+    return ($r['novo'] || $r['mudou'] ? '✅' : '👍')
+         . " *{$rot}* · {$liga}{$comp}";
 }
 
 /** /sair — tira da chamada da semana. */
