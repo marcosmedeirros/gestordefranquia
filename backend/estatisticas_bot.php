@@ -190,8 +190,16 @@ function ebCatalogo(): array
         // ou mais). Trade de N vias mora noutra tabela, e as contas só olhavam
         // a primeira — um time cujas trocas foram todas multi aparecia com
         // ZERO, e quem tinha as duas coisas aparecia com metade.
+        // ── SÓ A SPRINT ATUAL ────────────────────────────────────────
+        // As quatro contas abaixo recortam pela sprint aberta da liga, igual
+        // às outras oito do catálogo. Elas eram as únicas somando desde o
+        // começo de tudo, e por isso diziam número que ninguém reconhecia.
+        //
+        // O recorte é por DATA e não por season_id: trade não tem season_id,
+        // tem created_at. A data de início vem de sprints.start_date da
+        // sprint com status 'active' daquela liga.
         'parceiros' => [
-            'titulo' => 'Diversidade de Parceiros', 'sub' => 'franquias diferentes com quem já trocou',
+            'titulo' => 'Diversidade de Parceiros', 'sub' => 'franquias diferentes com quem trocou na sprint',
             'alto' => '🌐 Mais parceiros', 'baixo' => '🏝️ Menos interativos', 'ordem' => 'desc',
             // Cada troca vira duas arestas (ida e volta) pra o time aparecer
             // dos dois lados sem precisar de IF no meio da contagem.
@@ -199,20 +207,20 @@ function ebCatalogo(): array
                       FROM teams t
                       LEFT JOIN (
                           SELECT tr.from_team_id AS eu, tr.to_team_id AS parceiro
-                            FROM trades tr WHERE tr.status='accepted'
+                            FROM trades tr WHERE tr.status='accepted' AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND tr.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
                           UNION ALL
                           SELECT tr.to_team_id, tr.from_team_id
-                            FROM trades tr WHERE tr.status='accepted'
+                            FROM trades tr WHERE tr.status='accepted' AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND tr.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
                           UNION ALL
                           SELECT mi.from_team_id, mi.to_team_id
                             FROM multi_trade_items mi
                             JOIN multi_trades mt ON mt.id = mi.trade_id
-                           WHERE mt.status='accepted'
+                           WHERE mt.status='accepted' AND mt.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND mt.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
                           UNION ALL
                           SELECT mi.to_team_id, mi.from_team_id
                             FROM multi_trade_items mi
                             JOIN multi_trades mt ON mt.id = mi.trade_id
-                           WHERE mt.status='accepted'
+                           WHERE mt.status='accepted' AND mt.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND mt.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
                       ) e ON e.eu = t.id AND e.parceiro <> t.id
                       WHERE t.league = :liga
                       GROUP BY t.id, t.city, t.name",
@@ -237,18 +245,20 @@ function ebCatalogo(): array
                       GROUP BY t.id, t.city, t.name",
         ],
         'tradesenviadas' => [
-            'titulo' => 'Trades Enviadas', 'sub' => 'propostas que o time mandou',
+            'titulo' => 'Trades Enviadas', 'sub' => 'propostas que o time mandou na sprint',
             'alto' => '📤 Mais enviadas', 'baixo' => '🤐 Menos enviadas', 'ordem' => 'desc',
             // Na multi quem propõe é o created_by_team_id — os outros
             // participantes entraram na proposta de alguém, não fizeram uma.
             'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome,
-                             (SELECT COUNT(*) FROM trades tr WHERE tr.from_team_id = t.id)
-                           + (SELECT COUNT(*) FROM multi_trades mt WHERE mt.created_by_team_id = t.id) AS valor
+                             (SELECT COUNT(*) FROM trades tr
+                               WHERE tr.from_team_id = t.id AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND tr.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga))
+                           + (SELECT COUNT(*) FROM multi_trades mt
+                               WHERE mt.created_by_team_id = t.id AND mt.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND mt.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)) AS valor
                       FROM teams t
                       WHERE t.league = :liga",
         ],
         'tradesaceitas' => [
-            'titulo' => 'Trades Aceitas', 'sub' => 'trades concluídas com o time envolvido',
+            'titulo' => 'Trades Aceitas', 'sub' => 'trocas fechadas na sprint, de dois times ou mais',
             'alto' => '🤝 Mais aceitas', 'baixo' => '🧊 Menos aceitas', 'ordem' => 'desc',
             // Conta pra TODO time envolvido, quem propôs e quem topou: os dois
             // aceitaram a mesma troca. Na multi, vale pros N participantes.
@@ -256,22 +266,26 @@ function ebCatalogo(): array
             // por item — uma troca de cinco jogadores viraria cinco trades.
             'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome,
                              (SELECT COUNT(*) FROM trades tr
-                               WHERE tr.status='accepted'
+                               WHERE tr.status='accepted' AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND tr.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
                                  AND (tr.from_team_id = t.id OR tr.to_team_id = t.id))
                            + (SELECT COUNT(DISTINCT mt.id)
                                 FROM multi_trades mt
                                 JOIN multi_trade_items mi ON mi.trade_id = mt.id
-                               WHERE mt.status='accepted'
+                               WHERE mt.status='accepted' AND mt.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND mt.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
                                  AND (mi.from_team_id = t.id OR mi.to_team_id = t.id)) AS valor
                       FROM teams t
                       WHERE t.league = :liga",
         ],
         'tradesrecusadas' => [
-            'titulo' => 'Trades Recusadas', 'sub' => 'propostas rejeitadas com o time envolvido',
+            'titulo' => 'Trades Recusadas', 'sub' => 'propostas rejeitadas na sprint',
             'alto' => '❌ Mais recusadas', 'baixo' => '✅ Menos recusadas', 'ordem' => 'desc',
+            // multi_trades não tem status 'rejected' (só pending/accepted/
+            // cancelled), então aqui só entram as de dois times mesmo.
             'sql' => "SELECT CONCAT(t.city,' ',t.name) AS nome, COUNT(tr.id) AS valor
                       FROM teams t
-                      LEFT JOIN trades tr ON (tr.from_team_id=t.id OR tr.to_team_id=t.id) AND tr.status='rejected'
+                      LEFT JOIN trades tr ON (tr.from_team_id=t.id OR tr.to_team_id=t.id)
+                                         AND tr.status='rejected'
+                                         AND tr.created_at >= (SELECT COALESCE(MAX(s.start_date), '1900-01-01') FROM sprints s WHERE s.league = :liga AND s.status = 'active') AND tr.cycle = (SELECT MAX(current_cycle) FROM teams WHERE league = :liga)
                       WHERE t.league = :liga
                       GROUP BY t.id, t.city, t.name",
         ],
