@@ -239,6 +239,9 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   .chip button{background:none;border:0;color:var(--text-3);cursor:pointer;font-size:13px;line-height:1;padding:0 2px}
   .chip button:hover{color:var(--red)}
   .vazio-vaga{font-size:11.5px;color:var(--text-3)}
+  /* Leva pra lista da mesma função lá em cima, que é onde se resolve o
+     "ninguém na lista" — sem isso o admin lê o aviso e não sabe o que fazer. */
+  .lk-pool{color:var(--red);text-decoration:underline;text-underline-offset:2px}
   select,.bt{font-family:var(--font);font-size:12px;border-radius:8px;padding:5px 9px}
   select{background:var(--panel-3);border:1px solid var(--border-md);color:var(--text);max-width:170px}
   .bt{background:var(--red);border:0;color:#fff;font-weight:700;cursor:pointer;padding:6px 13px}
@@ -320,7 +323,7 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
     <div class="funcs">
       <?php foreach ($FUNCOES as $k => $f): ?>
       <div>
-        <div class="func-tit" style="color:<?= $f['cor'] ?>">
+        <div class="func-tit" id="lista-<?= $k ?>" style="color:<?= $f['cor'] ?>">
           <i class="bi <?= $f['icone'] ?>"></i> <?= $esc($f['rotulo']) ?>
           <span style="color:var(--text-3);font-weight:700">(<?= count($disponiveis[$k]) ?>)</span>
         </div>
@@ -439,25 +442,20 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
           $jaTem = array_column($nessa, 'id');
           // Quem já está na função sai das duas listas — senão o admin
           // escolheria alguém que já está lá.
-          $livre  = fn($g) => !in_array($g['id'], $jaTem, true);
-          // Quem se ofereceu PRA ESSA função vem primeiro: é a informação
-          // que a enquete produziu, e enterrá-la no meio da liga inteira
-          // faria a enquete não servir pra nada.
+          // SÓ a pool — quem está na lista daquela função. A liga inteira
+          // não entra aqui: pra pôr alguém que não se candidatou, o caminho
+          // é a busca lá em cima, que coloca a pessoa na pool primeiro.
+          // Escalar direto da liga inteira pularia esse passo e a lista de
+          // candidatos deixaria de refletir quem topou.
           //
-          // E só quem serve pra ESTA fase. Quem disse "só offs" não aparece
-          // como voluntário numa live de regular — continua na lista de
-          // baixo, porque o admin ainda pode escalar quem quiser.
+          // Quem já está na função sai, e quem não serve pra ESTA fase
+          // também: quem disse "só offs" não aparece numa live de regular.
           $faseDaLive = escalaFaseDaLive($lv['titulo'] ?? '');
-          $ofereceu = array_values(array_filter(
+          $opcoes = array_values(array_filter(
               $disponiveis[$k],
-              fn($g) => $livre($g) && escalaFaseServe($g['fase'] ?? 'todas', $faseDaLive)
+              fn($g) => !in_array($g['id'], $jaTem, true)
+                     && escalaFaseServe($g['fase'] ?? 'todas', $faseDaLive)
           ));
-          $idsOfer  = array_column($ofereceu, 'id');
-          $outros   = array_values(array_filter(
-              $genteDaLiga,
-              fn($g) => $livre($g) && !in_array($g['id'], $idsOfer, true)
-          ));
-          $opcoes = array_merge($ofereceu, $outros);
         ?>
         <div class="vaga">
           <div class="vaga-rot" style="color:<?= $f['cor'] ?>">
@@ -498,25 +496,29 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
                          dois comentaristas?". Não há limite nenhum de pessoas
                          por função. */ ?>
                 <option value=""><?= $nessa ? 'Escalar mais…' : 'Escalar…' ?></option>
-                <?php if ($ofereceu): ?>
-                <optgroup label="Se ofereceu">
-                  <?php foreach ($ofereceu as $g): ?>
-                  <option value="<?= (int)$g['id'] ?>"><?= $esc($g['nome']) ?></option>
-                  <?php endforeach; ?>
-                </optgroup>
-                <?php endif; ?>
-                <?php if ($outros): ?>
-                <optgroup label="<?= $ofereceu ? 'Outros da liga' : 'Ninguém se ofereceu — toda a liga' ?>">
-                  <?php foreach ($outros as $g): ?>
-                  <option value="<?= (int)$g['id'] ?>"><?= $esc($g['nome']) ?></option>
-                  <?php endforeach; ?>
-                </optgroup>
-                <?php endif; ?>
+                <?php foreach ($opcoes as $g): ?>
+                <?php /* A fase vai no rótulo pra quem topou "tudo" não parecer
+                         igual a quem topou só esta metade. */ ?>
+                <option value="<?= (int)$g['id'] ?>"><?= $esc($g['nome']) ?><?php
+                  if ($rf = escalaFaseRotulo($g['fase'] ?? 'todas')) echo ' (' . $esc($rf) . ')';
+                ?></option>
+                <?php endforeach; ?>
               </select>
               <button class="bt" name="escalar" value="1">Escalar</button>
             </form>
             <?php else: ?>
-            <span class="vazio-vaga">todos já escalados</span>
+            <?php /* Distingue os dois "não dá pra escalar": a pool está
+                     vazia, ou a pool acabou porque todos já entraram. São
+                     problemas diferentes e a saída de cada um é outra. */ ?>
+            <span class="vazio-vaga">
+              <?php if (!$disponiveis[$k]): ?>
+                ninguém na lista — <a href="#lista-<?= $k ?>" class="lk-pool">adicionar</a>
+              <?php elseif ($nessa): ?>
+                todos já escalados
+              <?php else: ?>
+                ninguém da lista serve pra esta fase
+              <?php endif; ?>
+            </span>
             <?php endif; ?>
           <?php endif; ?>
         </div>
