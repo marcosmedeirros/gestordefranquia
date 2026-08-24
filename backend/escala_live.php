@@ -70,11 +70,23 @@ function escalaGarantirTabelas(PDO $pdo): void
             league      VARCHAR(10) NOT NULL,
             id_usuario  INT         NOT NULL,
             funcao      VARCHAR(20) NOT NULL,
+            fase        VARCHAR(10) NOT NULL DEFAULT 'todas',
             origem      VARCHAR(10) NOT NULL DEFAULT 'bot',
             criado_em   TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY uk_disp (semana, league, id_usuario, funcao),
             KEY idx_semana (semana, league)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        // A fase entrou depois. Quem já tinha a tabela precisa da coluna, e
+        // o DEFAULT 'todas' faz as linhas antigas continuarem valendo pra
+        // tudo — que é exatamente o que elas queriam dizer quando não havia
+        // como escolher.
+        try {
+            $pdo->exec("ALTER TABLE escala_disponibilidade
+                        ADD COLUMN fase VARCHAR(10) NOT NULL DEFAULT 'todas' AFTER funcao");
+        } catch (Throwable $e) {
+            // Já existe. É o caminho normal em toda execução menos a primeira.
+        }
 
         // A escala. (evento, data, função, pessoa) é único: a mesma pessoa não
         // é escalada duas vezes pra mesma função da mesma live, e mais de uma
@@ -96,6 +108,75 @@ function escalaGarantirTabelas(PDO $pdo): void
     } catch (Throwable $e) {
         error_log('[escala] tabelas: ' . $e->getMessage());
     }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+ * FASE — regular ou playoffs
+ *
+ * A NEXT tem live de regular na segunda e de playoffs na terça; a RISE tem
+ * as duas na sexta. Tem gente que topa uma e não a outra, e até aqui a
+ * disponibilidade era só por liga — quem só queria o playoffs da NEXT
+ * entrava pras duas ou pra nenhuma.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+const ESCALA_FASES = ['todas', 'regular', 'playoffs'];
+
+/**
+ * A fase de uma live, lida do título.
+ *
+ * Sai do TÍTULO e não de uma coluna nova em calendario_eventos porque a
+ * live é um evento comum do calendário — a fase é uma leitura da escala
+ * sobre o evento, não um dado que o calendário deva carregar pra todo tipo
+ * de evento que existe.
+ *
+ * Devolve null pra live sem fase declarada (a da ROOKIE se chama só
+ * "ROOKIE"). Null quer dizer "serve pra todo mundo": restringir uma live
+ * que não é nem uma coisa nem outra esconderia gente sem motivo.
+ */
+function escalaFaseDaLive(?string $titulo): ?string
+{
+    $t = mb_strtolower(trim((string)$titulo));
+    if (str_contains($t, 'playoff')) return 'playoffs';
+    if (str_contains($t, 'regular')) return 'regular';
+    return null;
+}
+
+/** Normaliza o que a pessoa escreveu. Devolve null se não for uma fase. */
+function escalaFaseNormalizar(string $txt): ?string
+{
+    $t = mb_strtolower(trim($txt));
+    if ($t === '') return null;
+    // "offs" é como se fala na liga, e é a forma que vai nos exemplos. As
+    // outras ficam aceitas porque não custa nada — quem digitar "playoffs"
+    // não pode ser recusado por escrever por extenso.
+    if (in_array($t, ['offs', 'off', 'playoff', 'playoffs', 'playoffis', 'mata-mata', 'matamata'], true)) return 'playoffs';
+    if (in_array($t, ['regular', 'regulares', 'temporada', 'tempregular'], true))          return 'regular';
+    if (in_array($t, ['todas', 'todos', 'tudo', 'ambas'], true))                           return 'todas';
+    return null;
+}
+
+/**
+ * Essa disponibilidade serve pra essa live?
+ *
+ * "todas" serve pra tudo, e live sem fase aceita todo mundo — as duas
+ * pontas ficam permissivas de propósito. O filtro só exclui o caso claro:
+ * quem disse "só playoffs" numa live de regular, e vice-versa.
+ */
+function escalaFaseServe(?string $faseDaPessoa, ?string $faseDaLive): bool
+{
+    $p = $faseDaPessoa ?: 'todas';
+    if ($p === 'todas' || $faseDaLive === null) return true;
+    return $p === $faseDaLive;
+}
+
+/** Como a fase aparece na tela e no grupo. Vazio pra "todas". */
+function escalaFaseRotulo(?string $fase): string
+{
+    return match ($fase) {
+        'playoffs' => 'só offs',
+        'regular'  => 'só regular',
+        default    => '',
+    };
 }
 
 /* ────────────────────────────────────────────────────────────────────────
@@ -159,20 +240,28 @@ function escalaResponder(PDO $pdo, int $userId, string $liga, array $funcoes, st
  *
  * @return array{ok:bool, novo:bool, erro:?string, todas:string[]}
  */
-function escalaAdicionar(PDO $pdo, int $userId, string $liga, string $funcao, ?string $semana = null): array
+function escalaAdicionar(PDO $pdo, int $userId, string $liga, string $funcao, ?string $semana = null, string $fase = 'todas'): array
 {
     escalaGarantirTabelas($pdo);
     $liga = strtoupper(trim($liga));
     $funcao = strtolower(trim($funcao));
     if (!in_array($liga, CALENDARIO_LIGAS, true)) return ['ok' => false, 'novo' => false, 'erro' => 'Liga inválida.', 'todas' => []];
     if (!escalaFuncaoValida($funcao))            return ['ok' => false, 'novo' => false, 'erro' => 'Função inválida.', 'todas' => []];
+    if (!in_array($fase, ESCALA_FASES, true)) $fase = 'todas';
 
     $semana = $semana ?: escalaSemanaDe();
     try {
-        $st = $pdo->prepare("INSERT IGNORE INTO escala_disponibilidade
-                             (semana, league, id_usuario, funcao, origem) VALUES (?,?,?,?,'bot')");
-        $st->execute([$semana, $liga, $userId, $funcao]);
-        $novo = $st->rowCount() > 0;
+        // ON DUPLICATE e não INSERT IGNORE: quem já estava e manda de novo
+        // com outra fase está CORRIGINDO. Com IGNORE, "/narrador next offs"
+        // depois de "/narrador next" não mudaria nada, e a pessoa ficaria
+        // achando que restringiu quando não restringiu.
+        $st = $pdo->prepare("INSERT INTO escala_disponibilidade
+                             (semana, league, id_usuario, funcao, fase, origem) VALUES (?,?,?,?,?,'bot')
+                             ON DUPLICATE KEY UPDATE fase = VALUES(fase)");
+        $st->execute([$semana, $liga, $userId, $funcao, $fase]);
+        // rowCount: 1 = inseriu, 2 = atualizou, 0 = mandou igual ao que já
+        // estava. Só o 1 é "novo".
+        $novo = $st->rowCount() === 1;
 
         $q = $pdo->prepare("SELECT funcao FROM escala_disponibilidade
                              WHERE semana=? AND league=? AND id_usuario=? ORDER BY funcao");
@@ -286,7 +375,7 @@ function escalaDisponiveis(PDO $pdo, string $liga, ?string $semana = null): arra
     $out = array_fill_keys(array_keys(escalaFuncoes()), []);
 
     try {
-        $st = $pdo->prepare("SELECT d.funcao, u.id, u.name AS nome, u.photo_url AS foto
+        $st = $pdo->prepare("SELECT d.funcao, d.fase, u.id, u.name AS nome, u.photo_url AS foto
                                FROM escala_disponibilidade d
                                JOIN users u ON u.id = d.id_usuario
                               WHERE d.semana = ? AND d.league = ?
@@ -294,7 +383,12 @@ function escalaDisponiveis(PDO $pdo, string $liga, ?string $semana = null): arra
         $st->execute([$semana, strtoupper($liga)]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
             if (!isset($out[$r['funcao']])) continue;
-            $out[$r['funcao']][] = ['id' => (int)$r['id'], 'nome' => $r['nome'], 'foto' => $r['foto']];
+            $out[$r['funcao']][] = [
+                'id'   => (int)$r['id'],
+                'nome' => $r['nome'],
+                'foto' => $r['foto'],
+                'fase' => $r['fase'] ?: 'todas',
+            ];
         }
     } catch (Throwable $e) {
         error_log('[escala] disponiveis: ' . $e->getMessage());
@@ -548,7 +642,20 @@ function escalaTextoChamada(PDO $pdo, string $liga, ?string $semana = null): str
     $l[] = 'Quem topa participar, manda o comando da função:';
     foreach (escalaFuncoes() as $k => $f) $l[] = '/' . $k . '  — ' . $f['rotulo'];
     $l[] = '';
-    $l[] = 'Pode mandar mais de um. */sair* tira você da semana, */verescala* mostra como está.';
+    $l[] = 'Pode mandar mais de um, e não tem limite de vagas por função.';
+
+    // A dica da fase só aparece quando a liga TEM as duas na semana. Numa
+    // semana só de regular, ensinar a dizer "offs" convida a pessoa a se
+    // inscrever pra uma live que não existe.
+    $fases = array_unique(array_filter(array_map(
+        fn($lv) => escalaFaseDaLive($lv['titulo'] ?? ''), $lives
+    )));
+    if (count($fases) > 1) {
+        $l[] = 'Só quer uma parte? Põe *offs* ou *regular* no fim: '
+             . '_/narrador ' . strtolower($liga) . ' offs_';
+    }
+    $l[] = '';
+    $l[] = '*/sair* tira você da semana, */verescala* mostra como está.';
     return implode("\n", $l);
 }
 
@@ -567,7 +674,13 @@ function escalaTextoVer(PDO $pdo, string $liga, ?string $semana = null): string
     $temAlguem = false;
     $l[] = '*Se ofereceram*';
     foreach (escalaFuncoes() as $k => $f) {
-        $nomes = array_column($disp[$k] ?? [], 'nome');
+        // Quem restringiu a fase vem com a marca no nome. Sem isso a lista
+        // diria que a pessoa topa a semana toda quando ela topou metade, e
+        // o admin escalaria pra live errada.
+        $nomes = array_map(function ($g) {
+            $rot = escalaFaseRotulo($g['fase'] ?? 'todas');
+            return $g['nome'] . ($rot ? " _({$rot})_" : '');
+        }, $disp[$k] ?? []);
         if ($nomes) $temAlguem = true;
         $l[] = $f['rotulo'] . ': ' . ($nomes ? implode(', ', $nomes) : '_ninguém_');
     }

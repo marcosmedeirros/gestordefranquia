@@ -29,23 +29,29 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/calendario.php';
 
 /**
- * A grade: [liga, dia da semana (0=dom), hora, título, observação].
+ * A grade: [liga, dia da semana (0=dom), hora, título, observação, início].
  *
  * O sábado da ROOKIE tem dois horários possíveis no calendário oficial
  * ("11h OU 14h"). Fica marcado às 11h com a observação, porque marcar os
  * dois criaria duas lives por sábado — e escalar gente pras duas quando só
  * uma acontece é pior que o horário aparecer e ser ajustado na semana.
+ *
+ * O último campo é a data em que AQUELA live começa; null usa a da liga.
+ * A Regular NEXT precisou dele: a NEXT começa em 01/09, uma terça, e a
+ * primeira segunda depois disso é 07/09 — a live do dia 31/08 ficava de
+ * fora. Um início por liga não dava conta de uma liga que estreia no meio
+ * da semana.
  */
 function livesDaGrade(): array
 {
     return [
-        ['NEXT',   1, '19:30', 'Regular NEXT',    null],
-        ['NEXT',   2, '19:30', 'Playoffs NEXT',   null],
-        ['ELITE',  3, '19:00', 'Regular ELITE',   null],
-        ['ELITE',  4, '19:00', 'Regular ELITE',   null],
-        ['RISE',   5, '14:00', 'Regular RISE',    null],
-        ['RISE',   5, '19:00', 'Playoffs RISE',   null],
-        ['ROOKIE', 6, '11:00', 'ROOKIE',          'Pode ser às 11h ou às 14h — confirmar na semana.'],
+        ['NEXT',   1, '19:30', 'Regular NEXT',    null, '2026-08-31'],
+        ['NEXT',   2, '19:30', 'Playoffs NEXT',   null, null],
+        ['ELITE',  3, '19:00', 'Regular ELITE',   null, null],
+        ['ELITE',  4, '19:00', 'Regular ELITE',   null, null],
+        ['RISE',   5, '14:00', 'Regular RISE',    null, null],
+        ['RISE',   5, '19:00', 'Playoffs RISE',   null, null],
+        ['ROOKIE', 6, '11:00', 'ROOKIE',          'Pode ser às 11h ou às 14h — confirmar na semana.', null],
     ];
 }
 
@@ -80,30 +86,45 @@ function semearLives(PDO $pdo, bool $gravar): array
     // da liga. Não é "o próximo a partir de hoje": a ELITE começa no dia 24 e
     // a quarta dessa semana é 26 — usar hoje empurraria pra semana seguinte e
     // a primeira live sumiria do calendário.
-    $primeira = function (string $liga, int $dia) use ($tz): string {
-        $d = new DateTimeImmutable(inicioDaLiga($liga), $tz);
+    $primeira = function (string $liga, int $dia, ?string $inicio) use ($tz): string {
+        $d = new DateTimeImmutable($inicio ?: inicioDaLiga($liga), $tz);
         $passos = ($dia - (int)$d->format('w') + 7) % 7;
         return $d->modify("+{$passos} days")->format('Y-m-d');
     };
 
-    $existe = $pdo->prepare("SELECT id FROM calendario_eventos
+    $existe = $pdo->prepare("SELECT id, inicio FROM calendario_eventos
                               WHERE league = ? AND tipo = 'live' AND repete = 'semanal'
                                 AND DAYOFWEEK(inicio) = ? AND TIME(inicio) = ?");
+    // Adiantar o começo de uma live que já existe. Só pra trás: a Regular
+    // NEXT foi criada começando em 07/09 e o certo era 31/08, e sem isto o
+    // semeador diria "já existe" pra sempre sem corrigir nada. Empurrar pra
+    // FRENTE seria outra coisa — apagaria ocorrências que já aconteceram, e
+    // possivelmente gente já escalada nelas.
+    $adiantar = $pdo->prepare("UPDATE calendario_eventos SET inicio = ? WHERE id = ?");
     $criar = $pdo->prepare("INSERT INTO calendario_eventos
                             (league, tipo, titulo, inicio, descricao, repete, criado_por)
                             VALUES (?, 'live', ?, ?, ?, 'semanal', NULL)");
 
-    $out = ['criados' => [], 'existiam' => []];
+    $out = ['criados' => [], 'existiam' => [], 'ajustados' => []];
     $DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
-    foreach (livesDaGrade() as [$liga, $dia, $hora, $titulo, $obs]) {
+    foreach (livesDaGrade() as [$liga, $dia, $hora, $titulo, $obs, $inicio]) {
         // DAYOFWEEK do MySQL é 1=domingo; o nosso $dia é 0=domingo.
         $existe->execute([$liga, $dia + 1, $hora . ':00']);
-        $quando = $primeira($liga, $dia) . ' ' . $hora . ':00';
+        $quando = $primeira($liga, $dia, $inicio) . ' ' . $hora . ':00';
         $rot = $liga . ' · ' . $DIAS[$dia] . ' ' . $hora . ' · ' . $titulo
              . ' (a partir de ' . date('d/m', strtotime($quando)) . ')';
 
-        if ($existe->fetch()) { $out['existiam'][] = $rot; continue; }
+        if ($ja = $existe->fetch(PDO::FETCH_ASSOC)) {
+            if (strtotime($quando) < strtotime((string)$ja['inicio'])) {
+                $out['ajustados'][] = $rot . ' — começava em '
+                    . date('d/m', strtotime((string)$ja['inicio']));
+                if ($gravar) $adiantar->execute([$quando, $ja['id']]);
+            } else {
+                $out['existiam'][] = $rot;
+            }
+            continue;
+        }
         $out['criados'][] = $rot;
         if ($gravar) $criar->execute([$liga, $titulo, $quando, $obs]);
     }
@@ -118,8 +139,10 @@ if (PHP_SAPI !== 'cli') return;
 $gravar = in_array('--gravar', $argv ?? [], true);
 $r = semearLives(db(), $gravar);
 
-foreach ($r['existiam'] as $x) echo "  ja existe  {$x}\n";
-foreach ($r['criados']  as $x) echo '  ' . ($gravar ? 'CRIADO   ' : 'CRIARIA  ') . " {$x}\n";
-echo "\nja existiam: " . count($r['existiam']) . '   '
-   . ($gravar ? 'criados: ' : 'criaria: ') . count($r['criados']) . "\n";
+foreach ($r['existiam']  as $x) echo "  ja existe  {$x}\n";
+foreach ($r['ajustados'] as $x) echo '  ' . ($gravar ? 'ADIANTADO' : 'ADIANTARIA') . " {$x}\n";
+foreach ($r['criados']   as $x) echo '  ' . ($gravar ? 'CRIADO   ' : 'CRIARIA  ') . " {$x}\n";
+echo "\nja existiam: " . count($r['existiam'])
+   . '   ' . ($gravar ? 'adiantados: ' : 'adiantaria: ') . count($r['ajustados'])
+   . '   ' . ($gravar ? 'criados: ' : 'criaria: ') . count($r['criados']) . "\n";
 echo $gravar ? ">>> GRAVADO\n" : "(simulação — use --gravar)\n";

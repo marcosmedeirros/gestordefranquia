@@ -1479,44 +1479,59 @@ function wcEscalaLiga(PDO $pdo, string $arg, string $deQuem, ?string $ligaDoGrup
     // WhatsApp manda no lugar do telefone em alguns grupos, e que faria a
     // busca dizer "não achei" para quem tem o cadastro certo.
     [$time, $erro] = wcTimeDeQuemPerguntou($pdo, $deQuem, $ligaDoGrupo);
-    if ($erro) return [null, null, $erro];
+    if ($erro) return [null, null, null, $erro];
 
-    $arg = trim($arg);
-    $liga = $arg !== '' ? wcNormalizarLiga($arg) : null;
-    if ($arg !== '' && !$liga) {
-        return [null, null, "Liga \"{$arg}\" não existe. Use ELITE, NEXT, RISE ou ROOKIE."];
+    require_once __DIR__ . '/../backend/escala_live.php';
+
+    // O argumento virou "liga [fase]": /narrador next offs. A ordem não
+    // importa — quem escreve "/narrador offs next" quis a mesma coisa, e
+    // recusar por causa da ordem seria implicância.
+    $partes = preg_split('/\s+/', trim($arg), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    $liga = $fase = null;
+    $sobrou = [];
+    foreach ($partes as $p) {
+        if (!$fase && ($f = escalaFaseNormalizar($p))) { $fase = $f; continue; }
+        if (!$liga && ($l = wcNormalizarLiga($p)))     { $liga = $l; continue; }
+        $sobrou[] = $p;
     }
-    // Sem argumento vale a liga do TIME de quem mandou, que é o caso de
-    // quase todo mundo. Com argumento dá pra ajudar noutra liga.
+    if ($sobrou) {
+        return [null, null, null, 'Não entendi "' . implode(' ', $sobrou)
+            . '". Use assim: */narrador next* ou */narrador next offs*.'];
+    }
+
+    // Sem liga vale a do TIME de quem mandou, que é o caso de quase todo
+    // mundo. Com o nome dá pra ajudar noutra liga.
     if (!$liga) $liga = strtoupper((string)($time['league'] ?? ''));
     if (!in_array($liga, CALENDARIO_LIGAS, true)) $liga = 'ELITE';
 
-    return [(int)$time['user_id'], $liga, null];
+    return [(int)$time['user_id'], $liga, $fase ?: 'todas', null];
 }
 
 /** /comentarista, /narrador, /operacional, /transmissao — soma a função. */
 function wcEscalaTopar(PDO $pdo, string $funcao, string $arg, string $deQuem, ?string $ligaDoGrupo): string
 {
     require_once __DIR__ . '/../backend/escala_live.php';
-    [$uid, $liga, $erro] = wcEscalaLiga($pdo, $arg, $deQuem, $ligaDoGrupo);
+    [$uid, $liga, $fase, $erro] = wcEscalaLiga($pdo, $arg, $deQuem, $ligaDoGrupo);
     if ($erro) return $erro;
 
-    $r = escalaAdicionar($pdo, $uid, $liga, $funcao);
+    $r = escalaAdicionar($pdo, $uid, $liga, $funcao, null, $fase);
     if (!$r['ok']) return (string)$r['erro'];
 
-    $rot = escalaFuncoes()[$funcao]['rotulo'];
-    $todas = array_map(fn($f) => escalaFuncoes()[$f]['rotulo'] ?? $f, $r['todas']);
-    $lista = count($todas) > 1 ? "\n_Você está em: " . implode(', ', $todas) . "_" : '';
-
-    return ($r['novo'] ? "✅ Anotado como *{$rot}*" : "Você já estava como *{$rot}*")
-         . " na *{$liga}* esta semana." . $lista;
+    // Silêncio no sucesso, de propósito. Numa semana com vinte pessoas se
+    // oferecendo, vinte confirmações do bot enterram a conversa do grupo —
+    // e a pessoa acabou de ver a própria mensagem sair, então ela já sabe
+    // que mandou. Erro continua respondendo: aí ela PRECISA saber.
+    return '';
 }
 
 /** /sair — tira da chamada da semana. */
 function wcEscalaSair(PDO $pdo, string $arg, string $deQuem, ?string $ligaDoGrupo): string
 {
     require_once __DIR__ . '/../backend/escala_live.php';
-    [$uid, $liga, $erro] = wcEscalaLiga($pdo, $arg, $deQuem, $ligaDoGrupo);
+    // A fase é ignorada aqui de propósito: /sair tira de tudo. Quem quer
+    // ficar só na regular manda o comando da função de novo com "regular" —
+    // um /sair que tirasse só metade deixaria a pessoa achando que saiu.
+    [$uid, $liga, , $erro] = wcEscalaLiga($pdo, $arg, $deQuem, $ligaDoGrupo);
     if ($erro) return $erro;
 
     $r = escalaSair($pdo, $uid, $liga);
@@ -1553,7 +1568,7 @@ function wcEscalaVer(PDO $pdo, string $arg, string $deQuem, ?string $ligaDoGrupo
     require_once __DIR__ . '/../backend/escala_live.php';
     $l = trim($arg) !== '' ? wcNormalizarLiga(trim($arg)) : null;
     if (!$l) {
-        [, $l, $erro] = wcEscalaLiga($pdo, '', $deQuem, $ligaDoGrupo);
+        [, $l, , $erro] = wcEscalaLiga($pdo, '', $deQuem, $ligaDoGrupo);
         // Sem cadastro dá pra ver assim mesmo: ver não muda nada, e exigir
         // telefone certo pra LER seria barrar por nada.
         if ($erro) $l = strtoupper((string)($ligaDoGrupo ?? '')) ?: 'ELITE';
@@ -1567,7 +1582,7 @@ function wcEscalaChamar(PDO $pdo, string $arg, string $deQuem, ?string $ligaDoGr
     require_once __DIR__ . '/../backend/escala_live.php';
     $l = trim($arg) !== '' ? wcNormalizarLiga(trim($arg)) : null;
     if (!$l) {
-        [, $l, $erro] = wcEscalaLiga($pdo, '', $deQuem, $ligaDoGrupo);
+        [, $l, , $erro] = wcEscalaLiga($pdo, '', $deQuem, $ligaDoGrupo);
         if ($erro) $l = strtoupper((string)($ligaDoGrupo ?? '')) ?: 'ELITE';
     }
     return escalaTextoChamada($pdo, $l);

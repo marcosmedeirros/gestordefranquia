@@ -62,8 +62,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // caminhos não divergem.
             require_once __DIR__ . '/backend/semear_lives.php';
             $r = semearLives($pdo, true);
-            $_SESSION['escala_flash'] = ['ok', $r['criados']
-                ? count($r['criados']) . ' live(s) criada(s): ' . implode(' · ', $r['criados'])
+            $partes = [];
+            if ($r['criados'])   $partes[] = count($r['criados']) . ' criada(s): ' . implode(' · ', $r['criados']);
+            if ($r['ajustados']) $partes[] = count($r['ajustados']) . ' adiantada(s): ' . implode(' · ', $r['ajustados']);
+            $_SESSION['escala_flash'] = ['ok', $partes
+                ? implode(' | ', $partes)
                 : 'A grade já estava toda criada — nada a fazer.'];
 
         } elseif (isset($_POST['add_disp']) && $podeEscalar) {
@@ -72,7 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // está no grupo — entrava por lugar nenhum.
             $quem = (int)($_POST['usuario'] ?? 0);
             $r = $quem
-                ? escalaAdicionar($pdo, $quem, $liga, (string)($_POST['funcao'] ?? ''), $semana)
+                ? escalaAdicionar($pdo, $quem, $liga, (string)($_POST['funcao'] ?? ''), $semana,
+                                  (string)($_POST['fase'] ?? 'todas'))
                 : ['ok' => false, 'novo' => false, 'erro' => 'Escolha uma pessoa da lista.'];
             $_SESSION['escala_flash'] = $r['ok']
                 ? ['ok', $r['novo'] ? 'Adicionado à lista.' : 'Essa pessoa já estava nessa função.']
@@ -108,6 +112,13 @@ $lives       = escalaLivesDaSemana($pdo, [$liga], $semana);
 // Todo mundo da liga fica à mão pro seletor: o admin monta a escala quando
 // quiser, e não só depois que a enquete encheu.
 $genteDaLiga = $podeEscalar ? escalaGenteDaLiga($pdo, $liga) : [];
+
+// A liga tem regular E playoffs nesta semana? É o que decide se faz sentido
+// perguntar a fase — numa semana de um tipo só, escolher não muda nada.
+$fasesDaSemana = array_unique(array_filter(array_map(
+    fn($lv) => escalaFaseDaLive($lv['titulo'] ?? ''), $lives
+)));
+$temDuasFases = count($fasesDaSemana) > 1;
 $escalados   = escalaDaSemana($pdo, [$liga], $semana);
 
 $semanaAnterior = (new DateTimeImmutable($semana))->modify('-7 days')->format('Y-m-d');
@@ -198,7 +209,11 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   .p form button:hover{color:var(--red)}
   @media (hover:none){ .p form button{opacity:.65} }
 
+  .selo-fase{flex:none;font-size:9.5px;font-weight:800;letter-spacing:.2px;padding:2px 6px;
+             border-radius:999px;background:var(--panel-3);color:var(--text-3);
+             border:1px solid var(--border-md);white-space:nowrap}
   .add-disp{display:flex;gap:6px;margin-top:8px}
+  .sel-fase{flex:none;max-width:82px;font-size:11px;padding:5px 4px}
   .busca{flex:1;min-width:0;font-family:var(--font);font-size:12px;border-radius:8px;padding:6px 9px;
          background:var(--panel-2);border:1px solid var(--border-md);color:var(--text)}
   .busca:focus{outline:none;border-color:var(--red)}
@@ -317,6 +332,12 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
               <img src="<?= $esc($g['foto'] ?: '/img/default-avatar.png') ?>" alt=""
                    onerror="this.src='/img/default-avatar.png'">
               <span><?= $esc($g['nome']) ?></span>
+              <?php /* O selo só aparece quando a pessoa restringiu. "todas" é
+                       o caso da maioria e marcar todo mundo com um selo que
+                       diz o óbvio esconderia justamente os que importam. */ ?>
+              <?php if ($rotFase = escalaFaseRotulo($g['fase'] ?? 'todas')): ?>
+              <span class="selo-fase"><?= $esc($rotFase) ?></span>
+              <?php endif; ?>
               <?php if ($podeEscalar): ?>
               <form method="POST" style="display:inline"
                     data-confirmar="Tirar <?= $esc($g['nome']) ?> de <?= $esc($f['rotulo']) ?>?">
@@ -348,6 +369,16 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
                  placeholder="Buscar pelo nome…" autocomplete="off"
                  data-alvo="add-<?= $k ?>">
           <input type="hidden" name="usuario" id="add-<?= $k ?>">
+          <?php /* O seletor de fase só existe onde a liga tem as duas na
+                   semana. Na ELITE, que só tem regular, ele seria uma
+                   escolha sem consequência. */ ?>
+          <?php if ($temDuasFases): ?>
+          <select class="sel-fase" name="fase" title="Vale pra quais lives?">
+            <option value="todas">tudo</option>
+            <option value="regular">regular</option>
+            <option value="playoffs">offs</option>
+          </select>
+          <?php endif; ?>
           <button class="bt bt-add" name="add_disp" value="1" title="Adicionar à lista">
             <i class="bi bi-plus-lg"></i>
           </button>
@@ -412,7 +443,15 @@ $DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
           // Quem se ofereceu PRA ESSA função vem primeiro: é a informação
           // que a enquete produziu, e enterrá-la no meio da liga inteira
           // faria a enquete não servir pra nada.
-          $ofereceu = array_values(array_filter($disponiveis[$k], $livre));
+          //
+          // E só quem serve pra ESTA fase. Quem disse "só offs" não aparece
+          // como voluntário numa live de regular — continua na lista de
+          // baixo, porque o admin ainda pode escalar quem quiser.
+          $faseDaLive = escalaFaseDaLive($lv['titulo'] ?? '');
+          $ofereceu = array_values(array_filter(
+              $disponiveis[$k],
+              fn($g) => $livre($g) && escalaFaseServe($g['fase'] ?? 'todas', $faseDaLive)
+          ));
           $idsOfer  = array_column($ofereceu, 'id');
           $outros   = array_values(array_filter(
               $genteDaLiga,
