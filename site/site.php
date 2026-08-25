@@ -1017,10 +1017,13 @@ $seoJogadores = (int)($totalActivePlayers ?? 0);
 
     <h2>Fantasy de basquete e 2K fantasy no Brasil</h2>
     <p>
-      Quem procura <strong>fantasy basquete</strong>, <strong>2K fantasy</strong>
-      ou uma liga de <strong>NBA 2K</strong> em português encontra na FBA um
-      campeonato de verdade: elenco próprio, salary cap, draft, free agency,
-      trocas entre times e playoffs eliminatórios a cada temporada.
+      Quem procura <strong>fantasy basquete</strong>,
+      <strong>2K fantasy brasileiro</strong> ou uma liga de
+      <strong>NBA 2K</strong> em português encontra na FBA um campeonato de
+      verdade: elenco próprio, salary cap, draft, free agency, trocas entre
+      times e playoffs eliminatórios a cada temporada. A liga fica em
+      <strong>fbabrasil.com.br</strong> — é lá que você monta o time e
+      acompanha a temporada.
     </p>
 
     <h2>Quatro divisões: Elite, Next, Rise e Rookie</h2>
