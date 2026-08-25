@@ -1742,6 +1742,7 @@ const CONQUISTAS  = <?= json_encode(array_map(
     coperoConquistas()), JSON_UNESCAPED_UNICODE) ?>;
 const SEL_CONT    = <?= json_encode(COPERO_SELECAO_CONT, JSON_UNESCAPED_UNICODE) ?>;
 const TACA_FOTO   = <?= json_encode(COPERO_TACA_FOTO, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) ?>;
+const TACA_GENERICA = <?= json_encode(COPERO_TACA_GENERICA, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) ?>;
 
 /**
  * A barra de cima, igual em todas as telas.
@@ -1782,13 +1783,28 @@ function abandonarCarreira(){
  * pior que o desenho genérico — desenho genérico ninguém confunde com outra
  * coisa, foto errada sim.
  *
- * Devolve vazio quando não há foto, e aí o desenho entra. É a maioria dos
- * casos: o catálogo tem setenta e uma ligas e a base de fotos cobre as
- * grandes, não o Mali.
+ * Quando não há foto da competição exata, entra a genérica do TIPO — liga,
+ * copa ou supercopa. Antes entrava o desenho em SVG, e isso deixava a sala de
+ * troféus com duas linguagens ao mesmo tempo: foto do lado de desenho. Quem
+ * olha não lê "esta competição não tem foto", lê "este aqui vale menos".
+ *
+ * A taça continua sendo a genérica só onde a específica não existe: o catálogo
+ * tem setenta e uma ligas e a base cobre as grandes, não o Mali.
  */
 function fotoDaTaca(id, ligaId){
   const l = dadosLiga(ligaId);
-  const k = (x) => TACA_FOTO[x] || '';
+  // O tipo é o do ID, não o da competição resolvida: 'liga' é sempre um
+  // campeonato de pontos corridos, 'copa' sempre mata-mata, e as supercopas
+  // (nacional e continental) são sempre decisão de jogo único.
+  const generica = () => {
+    if (id === 'liga') return TACA_GENERICA.liga;
+    if (id === 'copa' || id === 'copa_mundo') return TACA_GENERICA.copa;
+    if (id === 'supernac' || id === 'supercont') return TACA_GENERICA.supercopa;
+    // Continentais e torneios de seleção não caem no genérico: são poucos e
+    // todos têm foto. Se um dia faltar, a copa é a forma mais próxima.
+    return TACA_GENERICA.copa;
+  };
+  const k = (x) => TACA_FOTO[x] || generica();
   // Os de seleção saem do PAÍS da pessoa, e não da liga do clube — mesma
   // régua de nomeDaTaca, e as duas TÊM que concordar: foto de uma taça com
   // o nome de outra embaixo é o pior dos dois mundos.

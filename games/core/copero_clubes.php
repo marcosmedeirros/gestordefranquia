@@ -250,7 +250,7 @@ const COPERO_CLUBES = [
     ['Everton', 'EN1', 82, 'https://r2.thesportsdb.com/images/media/team/badge/eqayrf1523184794.png'],
     ['Fulham', 'EN1', 82, 'https://r2.thesportsdb.com/images/media/team/badge/xwwvyt1448811086.png'],
     ['Crystal Palace', 'EN1', 81, 'https://r2.thesportsdb.com/images/media/team/badge/ia6i3m1656014992.png'],
-    ['Wolves', 'EN1', 80, 'https://r2.thesportsdb.com/images/media/team/badge/16posu1727839976.png'],
+    ['Wolves', 'EN1', 80, '/games/img/escudos/wolves.png'],
 
     // Championship
     ['Leeds United', 'EN2', 76, 'https://r2.thesportsdb.com/images/media/team/badge/jcgrml1756649030.png'],

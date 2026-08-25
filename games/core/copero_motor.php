@@ -663,23 +663,44 @@ const COPERO_PREMIOS = [
  * aceitava substring e a Eurocopa levou a taca da Europa League, porque
  * "UEFA Euro" cabe dentro de "UEFA Europa League".
  */
+/**
+ * As tacas genericas, por TIPO de competicao.
+ *
+ * O catalogo tem 71 ligas e a base de fotos cobre as grandes, nao o Mali —
+ * mais de vinte competicoes ficavam com o desenho em SVG enquanto as vizinhas
+ * na mesma prateleira tinham foto. Duas linguagens na mesma estante fazem o
+ * desenho parecer "sem premio", e nao "premio sem foto".
+ *
+ * Sao tres arquivos e nao um: o tipo da competicao vira a forma do trofeu, e
+ * assim duas conquistas diferentes na mesma sala continuam distinguiveis de
+ * relance. A escolha e por tipo — nunca sorteada — pra mesma competicao ter
+ * sempre o mesmo trofeu, na sala, na linha do tempo e no cartao.
+ */
+const COPERO_TACA_GENERICA = [
+    'liga'      => '/games/img/trofeus/trofeugenerico.png',
+    'copa'      => '/games/img/trofeus/trofeugenerico03.png',
+    'supercopa' => '/games/img/trofeus/trofeugenerico02.png',
+];
+
 const COPERO_TACA_FOTO = [
     // ── Os premios individuais ────────────────────────────────────────
     //
-    // Estes tres nao vem do TheSportsDB: a base cataloga COMPETICAO, e
-    // premio individual nao e competicao. Vem da Wikimedia, e vieram por
-    // uma peneira so: recorte limpo em fundo transparente. Foram comparados
-    // com o desenho de hoje nos TRES tamanhos que o jogo usa — 116px na tela
-    // de taca nova, 46px na sala de trofeus, 14px na linha do tempo — e so
-    // entraram os que ganharam nos tres.
+    // Estes nao vem do TheSportsDB: a base cataloga COMPETICAO, e premio
+    // individual nao e competicao.
     //
-    // A BOLA DE OURO NAO ENTROU, e nao foi por falta de procurar. Toda foto
-    // que existe dela e o trofeu dentro da vitrine: a do Figo, a do museu do
-    // CR7, a do museu da FIFA, a de 2023 numa mesa com janela ao fundo. A
-    // 46px viram uma caixa escura com um ponto dourado dentro; a 14px, so a
-    // caixa escura. O desenho e uma bola de ouro num pe, que e literalmente
-    // o trofeu, e le nos tres tamanhos. O artilheiro fica pelo mesmo motivo.
-    'chuteira'    => 'https://upload.wikimedia.org/wikipedia/commons/a/a1/Bota_de_oro.svg',
+    // A bola de ouro, a chuteira e o artilheiro agora sao ARQUIVO NOSSO, em
+    // /games/img/trofeus. Antes a bola de ouro e o artilheiro ficavam no
+    // desenho porque toda foto que se achava deles era o trofeu dentro da
+    // vitrine — a 46px virava uma caixa escura com um ponto dourado. Com
+    // recorte proprio em fundo branco isso deixa de ser problema, e some a
+    // ultima mistura de desenho com foto na mesma prateleira.
+    //
+    // Sao locais tambem por outro motivo: nao dependem de um dominio de
+    // terceiros continuar servindo a imagem, e no cartao em imagem entram
+    // sem passar pelo proxy.
+    'artilheiro'  => '/games/img/trofeus/artilheiroliga.png',
+    'bola_ouro'   => '/games/img/trofeus/boladeouro.png',
+    'chuteira'    => '/games/img/trofeus/chuteiradeouro.png',
     'luva_ouro'   => 'https://upload.wikimedia.org/wikipedia/commons/9/9c/Guante_Oro.png',
     'rei_america' => 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Trofeo_del_Rey_de_Am%C3%A9rica.png',
 
