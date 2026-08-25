@@ -221,6 +221,64 @@ function leilaoSemanaOfertar(PDO $pdo, int $userId, int $teamId, string $liga, i
     }
 }
 
+/**
+ * O jogo da semana, pro grupo — é o /jogosemana.
+ *
+ * Usa o nome CURTO do time ("Coyotes", e não "Utah Coyotes"): no grupo todo
+ * mundo chama assim, e o nome completo faria a linha do confronto quebrar
+ * em duas no celular.
+ */
+function leilaoSemanaTexto(PDO $pdo, string $liga): string
+{
+    $liga = strtoupper(trim($liga));
+    $temporada = leilaoSemanaTemporada($pdo, $liga);
+
+    if ($temporada <= 0) return "A *{$liga}* não tem temporada em andamento.";
+
+    $lances = leilaoSemanaLances($pdo, $liga, $temporada);
+    $l = ['🏀 *JOGO DA SEMANA — ' . $liga . '*', ''];
+
+    if (!$lances) {
+        $l[] = 'Ninguém deu lance ainda.';
+        $l[] = '';
+        $l[] = 'O primeiro lance define o jogo. Mínimo: *'
+             . LEILAO_SEMANA_MINIMO . '* FBA Points, na loja do /games.';
+        return implode("\n", $l);
+    }
+
+    // O nome curto vem do teams.name, sem a cidade.
+    $curto = function ($teamId) use ($pdo) {
+        $st = $pdo->prepare("SELECT name FROM teams WHERE id = ?");
+        $st->execute([$teamId]);
+        return (string)($st->fetchColumn() ?: '?');
+    };
+
+    $a = $lances[0];
+    $b = $lances[1] ?? null;
+
+    $l[] = 'Jogo atualmente: *' . $curto((int)$a['team_id'])
+         . ' × ' . ($b ? $curto((int)$b['team_id']) : '(vaga aberta)') . '*';
+    $l[] = '';
+    $l[] = 'Lance atual: *' . number_format((int)$a['valor'], 0, ',', '.') . '*'
+         . ($b ? ' e *' . number_format((int)$b['valor'], 0, ',', '.') . '*' : '');
+
+    // O que ENTRAR custa, e não só o que já foi dado: é a informação que faz
+    // alguém abrir a loja. Sem ela, o time que quer entrar tem que adivinhar.
+    $l[] = 'Pra tomar a vaga: *' . number_format(leilaoSemanaMinimo($lances), 0, ',', '.')
+         . '* FBA Points';
+
+    if (count($lances) > LEILAO_SEMANA_VAGAS) {
+        $fila = array_slice($lances, LEILAO_SEMANA_VAGAS);
+        $l[] = '';
+        $l[] = '_Na fila: ' . implode(', ', array_map(
+            fn($f) => $curto((int)$f['team_id']) . ' (' . number_format((int)$f['valor'], 0, ',', '.') . ')',
+            array_slice($fila, 0, 4)
+        )) . (count($fila) > 4 ? ' e mais ' . (count($fila) - 4) : '') . '_';
+    }
+
+    return implode("\n", $l);
+}
+
 /** Quanto já está retido de um time, pra cobrar só a diferença. */
 function leilaoSemanaRetidoDoTime(array $lances, int $teamId): int
 {

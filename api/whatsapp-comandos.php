@@ -362,6 +362,10 @@ function wcAjuda(): string
         . "/power — o power ranking da liga inteira\n"
         . "/powerc — o power ranking por conferência\n"
         . "/trocas _ou /trades_ — as últimas trocas aprovadas (aceita _time_ ou _liga_)\n"
+        // Este entra no /ajuda (a escala não entrou): o jogo da semana é da
+        // liga inteira e qualquer time pode disputar, então é assunto de
+        // quem lê esta lista.
+        . "/jogosemana — o jogo da semana e o lance pra tomar a vaga\n"
         // A escala NÃO entra aqui, nem numa linha só. Ela é assunto do grupo
         // de lives, e o /ajuda é lido pela liga inteira — pra quem não
         // participa das lives, a linha só gera "o que é isso?". Quem precisa
@@ -2795,6 +2799,16 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
 
             case 'escala':
                 return wcEscalaChamar($pdo, $arg, $deQuem, $ligaDoGrupo);
+
+            // O leilão do jogo da semana. Cada grupo tem a sua liga, então
+            // sem argumento responde a liga DAQUELE grupo — quem pergunta no
+            // Chat Off da NEXT quer o jogo da NEXT, não o da ELITE.
+            case 'jogosemana':
+            case 'jogodasemana':
+                require_once __DIR__ . '/../backend/leilao_semana.php';
+                $lg = trim($arg) !== '' ? wcNormalizarLiga(trim($arg)) : null;
+                if (!$lg) $lg = strtoupper((string)($ligaDoGrupo ?? '')) ?: 'ELITE';
+                return leilaoSemanaTexto($pdo, $lg);
 
             // A Copa do Mundo do Games. Sem argumento mostra a copa em
             // andamento; com um número, aquela copa — pra conferir uma
