@@ -170,6 +170,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['loja_acao'])) {
         $r = lojaConverter($pdo, $userId, (int)($_POST['moedas'] ?? 0));
         if ($r['ok']) { $lojaMsg = "Trocou {$r['convertidas']} moedas por {$r['ganhos']} FBA Points."; }
         else          { $lojaErro = $r['erro']; }
+    } elseif ($acao === 'leilao_semana') {
+        require_once __DIR__ . '/backend/leilao_semana.php';
+        $r = leilaoSemanaOfertar(
+            $pdo, $userId,
+            (int)($_POST['team_id'] ?? 0),
+            (string)($_POST['liga'] ?? ''),
+            (int)($_POST['valor'] ?? 0)
+        );
+        if ($r['ok']) { $lojaMsg = 'Lance registrado! Enquanto você estiver entre os dois maiores, os FBA Points ficam com a liga.'; }
+        else          { $lojaErro = $r['erro']; }
     }
     // O saldo do topo tem que refletir a compra que acabou de acontecer.
     try {
@@ -903,6 +913,63 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
     .rk-val { font-size:13.5px; font-weight:800; flex-shrink:0;
         font-variant-numeric:tabular-nums; }
 
+    /* ── Leilão do jogo da semana ───────────────────────────────────────
+       A minha liga primeiro e destacada: é a única em que dá pra dar lance.
+       As outras ficam iguais entre si, pra acompanhar. */
+    .lj-intro { font-size:12.5px; color:var(--text-2); line-height:1.6; margin:-4px 0 14px;
+        max-width:75ch; }
+    .lj-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+        gap:14px; margin-bottom:24px; }
+    .lj-card .card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .lj-minha { border-color:var(--border-red); }
+    .lj-liga-logo { width:20px; height:20px; object-fit:contain; margin-right:6px; vertical-align:middle; }
+    .lj-sua { font-size:9px; font-weight:800; letter-spacing:.6px; text-transform:uppercase;
+        color:var(--red); background:var(--red-soft); border:1px solid var(--border-red);
+        border-radius:999px; padding:2px 7px; margin-left:7px; }
+    .lj-temp { font-size:10px; font-weight:700; color:var(--text-3); }
+
+    /* O confronto. As duas logos com o × no meio são o que se lê primeiro —
+       o valor vem depois, menor, porque a pergunta é "qual jogo", não
+       "quanto custou". */
+    .lj-jogo { display:flex; align-items:flex-start; justify-content:center; gap:10px; }
+    .lj-lado { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center;
+        gap:5px; text-align:center; }
+    .lj-lado img, .lj-vaga { width:52px; height:52px; border-radius:12px; object-fit:contain;
+        background:var(--panel-2); border:1px solid var(--border); }
+    .lj-vaga { display:flex; align-items:center; justify-content:center; font-size:20px;
+        font-weight:900; color:var(--text-3); border-style:dashed; }
+    .lj-nome { font-size:11.5px; font-weight:700; line-height:1.25; }
+    .lj-aberta { color:var(--text-3); font-weight:600; }
+    .lj-valor { font-size:13px; font-weight:900; color:var(--red);
+        font-variant-numeric:tabular-nums; }
+    .lj-x { font-size:15px; font-weight:900; color:var(--text-3); padding-top:18px; flex:none; }
+
+    .lj-fila { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:12px;
+        padding-top:10px; border-top:1px solid var(--border); font-size:11px; color:var(--text-3); }
+    .lj-fila-item { background:var(--panel-2); border:1px solid var(--border);
+        border-radius:999px; padding:2px 8px; }
+    .lj-fila-item b { color:var(--text-2); }
+
+    .lj-meu { margin-top:12px; font-size:11.5px; line-height:1.5; border-radius:9px;
+        padding:8px 10px; }
+    .lj-meu.ok   { background:rgba(37,198,119,.09); border:1px solid rgba(37,198,119,.28); color:#4ade80; }
+    .lj-meu.fora { background:var(--panel-2); border:1px solid var(--border-md); color:var(--text-2); }
+
+    .lj-form { display:flex; gap:7px; margin-top:12px; }
+    .lj-form input { flex:1; min-width:0; background:var(--panel-2); color:var(--text);
+        border:1px solid var(--border-md); border-radius:9px; padding:9px 11px;
+        font-family:inherit; font-size:13px; font-variant-numeric:tabular-nums; }
+    .lj-form input:focus { outline:none; border-color:var(--red); }
+    .lj-bt { flex:none; background:var(--red); border:0; color:#fff; border-radius:9px;
+        padding:9px 14px; font-family:inherit; font-size:12.5px; font-weight:800; cursor:pointer;
+        display:inline-flex; align-items:center; gap:6px; }
+    .lj-bt:hover { filter:brightness(1.08); }
+    .lj-min { font-size:11px; color:var(--text-3); margin-top:7px; line-height:1.5; }
+    .lj-so-olhar { margin-top:12px; font-size:11.5px; color:var(--text-3);
+        display:flex; align-items:center; gap:6px; }
+    .lj-vazio { font-size:12.5px; color:var(--text-3); text-align:center; padding:18px 8px;
+        line-height:1.6; }
+
     /* ── Maiores sequências ─────────────────────────────────────────────
        Um título de seção, e não mais um card no meio da grade: o que vem
        abaixo mede outra coisa (constância, não volume), e sem a divisória
@@ -1260,6 +1327,133 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
             <?php if ($lojaErro): ?>
                 <div class="alerta err"><i class="bi bi-exclamation-triangle-fill"></i> <?= htmlspecialchars($lojaErro) ?></div>
             <?php endif; ?>
+
+            <?php
+              // ── Leilão do jogo da semana ────────────────────────────
+              require_once __DIR__ . '/backend/leilao_semana.php';
+              $minhaLigaLeilao = strtoupper((string)($team['league'] ?? ''));
+              $leiloes = [];
+              foreach (['ELITE','NEXT','RISE','ROOKIE'] as $lg) {
+                  $leiloes[$lg] = leilaoSemanaDaLiga($pdo, $lg, $userId);
+              }
+              // A minha liga primeiro: é a única em que dá pra dar lance, e é
+              // o card que a pessoa veio ver. As outras ficam abaixo, pra
+              // acompanhar sem poder mexer.
+              uksort($leiloes, fn($a, $b) => ($b === $minhaLigaLeilao) <=> ($a === $minhaLigaLeilao));
+            ?>
+            <div class="sec-label"><i class="bi bi-broadcast"></i> Leilão do jogo da semana</div>
+            <p class="lj-intro">
+              Os dois times que mais oferecem têm o jogo deles escolhido como o
+              <b>jogo da semana</b>. Os FBA Points ficam retidos só enquanto
+              você estiver entre os dois maiores — saiu do pódio, o valor volta
+              na hora. Cada liga tem o seu, e o leilão zera a cada temporada.
+            </p>
+
+            <div class="lj-grid">
+              <?php foreach ($leiloes as $lg => $d):
+                $ehMinha = $lg === $minhaLigaLeilao;
+                $a = $d['podio'][0] ?? null;
+                $b = $d['podio'][1] ?? null;
+              ?>
+              <div class="card lj-card <?= $ehMinha ? 'lj-minha' : '' ?>">
+                <div class="card-head">
+                  <div class="card-head-left">
+                    <img class="lj-liga-logo" src="/img/logo-<?= strtolower($lg) ?>.png" alt=""
+                         onerror="this.style.display='none'">
+                    <?= $lg ?>
+                    <?php if ($ehMinha): ?><span class="lj-sua">sua liga</span><?php endif; ?>
+                  </div>
+                  <?php if ($d['temporada'] > 0): ?>
+                  <span class="lj-temp">Temporada <?= (int)$d['temporada'] ?></span>
+                  <?php endif; ?>
+                </div>
+
+                <div class="card-body" style="padding:14px">
+                  <?php if ($d['temporada'] <= 0): ?>
+                    <div class="lj-vazio">Sem temporada em andamento.</div>
+
+                  <?php elseif (!$a): ?>
+                    <div class="lj-vazio">
+                      Ninguém deu lance ainda.<br>
+                      <?= $ehMinha ? 'O primeiro lance define o jogo da semana.' : '' ?>
+                    </div>
+
+                  <?php else: ?>
+                    <?php /* O confronto: logo x logo. É o que a pessoa vem
+                             ver — qual jogo está ganhando a semana. */ ?>
+                    <div class="lj-jogo">
+                      <div class="lj-lado">
+                        <img src="<?= htmlspecialchars(getTeamPhoto($a['logo'] ?? null)) ?>" alt=""
+                             onerror="this.src='/img/default-team.png'">
+                        <span class="lj-nome"><?= htmlspecialchars($a['time_nome']) ?></span>
+                        <span class="lj-valor"><?= number_format((int)$a['valor'], 0, ',', '.') ?></span>
+                      </div>
+                      <span class="lj-x">×</span>
+                      <div class="lj-lado">
+                        <?php if ($b): ?>
+                          <img src="<?= htmlspecialchars(getTeamPhoto($b['logo'] ?? null)) ?>" alt=""
+                               onerror="this.src='/img/default-team.png'">
+                          <span class="lj-nome"><?= htmlspecialchars($b['time_nome']) ?></span>
+                          <span class="lj-valor"><?= number_format((int)$b['valor'], 0, ',', '.') ?></span>
+                        <?php else: ?>
+                          <div class="lj-vaga">?</div>
+                          <span class="lj-nome lj-aberta">vaga aberta</span>
+                          <span class="lj-valor">—</span>
+                        <?php endif; ?>
+                      </div>
+                    </div>
+                  <?php endif; ?>
+
+                  <?php if ($d['temporada'] > 0 && $d['fila']): ?>
+                  <div class="lj-fila">
+                    <span>Na fila:</span>
+                    <?php foreach (array_slice($d['fila'], 0, 4) as $f): ?>
+                    <span class="lj-fila-item">
+                      <?= htmlspecialchars($f['time_nome']) ?>
+                      <b><?= number_format((int)$f['valor'], 0, ',', '.') ?></b>
+                    </span>
+                    <?php endforeach; ?>
+                    <?php if (count($d['fila']) > 4): ?>
+                    <span class="lj-fila-item">+<?= count($d['fila']) - 4 ?></span>
+                    <?php endif; ?>
+                  </div>
+                  <?php endif; ?>
+
+                  <?php if ($ehMinha && $d['temporada'] > 0 && $team): ?>
+                    <?php if ($d['meu']): ?>
+                    <div class="lj-meu <?= $d['meu']['no_podio'] ? 'ok' : 'fora' ?>">
+                      <?php if ($d['meu']['no_podio']): ?>
+                        Você está no jogo da semana com
+                        <b><?= number_format((int)$d['meu']['valor'], 0, ',', '.') ?></b> FBA Points retidos.
+                      <?php else: ?>
+                        Seu lance de <b><?= number_format((int)$d['meu']['valor'], 0, ',', '.') ?></b>
+                        está em <?= (int)$d['meu']['posicao'] ?>º — fora do pódio, e o valor já voltou pra você.
+                      <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
+
+                    <form method="post" class="lj-form">
+                      <input type="hidden" name="loja_acao" value="leilao_semana">
+                      <input type="hidden" name="liga" value="<?= $lg ?>">
+                      <input type="hidden" name="team_id" value="<?= (int)$team['id'] ?>">
+                      <input type="number" name="valor" min="<?= (int)$d['minimo'] ?>" step="1"
+                             placeholder="mín. <?= number_format((int)$d['minimo'], 0, ',', '.') ?>"
+                             value="<?= (int)$d['minimo'] ?>" required>
+                      <button class="lj-bt"><i class="bi bi-hammer"></i> Dar lance</button>
+                    </form>
+                    <div class="lj-min">
+                      Mínimo agora: <b><?= number_format((int)$d['minimo'], 0, ',', '.') ?></b> FBA Points
+                      <?php if ($d['meu'] && $d['meu']['no_podio']): ?>
+                        · você já tem <?= number_format((int)$d['meu']['valor'], 0, ',', '.') ?> e paga só a diferença
+                      <?php endif; ?>
+                    </div>
+                  <?php elseif (!$ehMinha): ?>
+                    <div class="lj-so-olhar"><i class="bi bi-eye"></i> Você só dá lance na sua liga.</div>
+                  <?php endif; ?>
+                </div>
+              </div>
+              <?php endforeach; ?>
+            </div>
 
             <div class="sec-label"><i class="bi bi-arrow-left-right"></i> Trocar moedas por FBA Points</div>
             <div class="card">
