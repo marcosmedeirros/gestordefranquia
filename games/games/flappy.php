@@ -15,36 +15,46 @@ const FLAPPY_PONTOS_POR_SEGUNDO = 5;
 /**
  * Folga, em pontos, entre o último progresso reportado e o score final aceito.
  *
- * Mesmo buraco do Pinguim (ver PINGUIM_FOLGA_PROGRESSO): o teto de moedas
- * impede o farm, mas não o RANKING — dava pra abrir a run, esperar sem jogar e
- * mandar o score direto no salvar_score. A checagem por tempo só diz que o
- * score cabe no tempo, nunca que houve jogo.
+ * Mesmo buraco do Pinguim (ver PINGUIM_FOLGA_PROGRESSO): dava pra abrir a run,
+ * esperar sem jogar e mandar o score direto no salvar_score, entrando no RANKING
+ * sem ter jogado. A checagem por tempo só diz que o score cabe no tempo, nunca
+ * que houve jogo — quem diz isso são os pings, e o ritmo deles (FLAPPY_FOLGA_PING).
  *
  * Aqui era pior que no Pinguim: o Flappy não reportava NADA durante a partida,
  * só o score final na morte — não havia nem sinal de progresso pra conferir.
  * Por isso a ação 'progresso' abaixo, que o cliente chama a cada 10 pontos.
  *
- * A escala do Flappy é ~10x menor que a do Pinguim (300 aqui ≈ 3.000 lá), então
- * a folga também é 10x menor.
+ * A folga precisa cobrir só o trecho entre o último ping e a morte: os pings vêm
+ * de 10 em 10, então quem morre em 19 tem progresso 10. 15 cobre isso com sobra.
+ *
+ * Era 50, o que sozinho já valia 25 moedas sem mandar ping nenhum — com o teto de
+ * prêmio fora, essa folga virou o valor máximo que alguém tira sem jogar, e 50
+ * ficou grande demais pro papel.
  */
-const FLAPPY_FOLGA_PROGRESSO = 50;
+const FLAPPY_FOLGA_PROGRESSO = 15;
 
 /**
- * Teto de moedas por PARTIDA.
+ * De quanto em quanto o cliente reporta progresso, e a folga aceita em cima disso.
  *
- * A checagem por tempo sozinha só limita o teto do score; ela não exige que a
- * pessoa tenha jogado. Dava pra abrir uma run, ficar 30 minutos parado e mandar
- * um score de 9.000 — o que, com a curva de prêmio, valia mais de 80 mil moedas.
+ * Isto substitui o teto de moedas por partida, que existia porque a checagem de
+ * tempo olhava só o TOTAL: dava pra abrir a partida, ficar meia hora parado e
+ * mandar um score de 9.000 de uma vez — cabia nos 30 minutos, e pagava por uma
+ * partida que ninguém jogou. O teto tapava isso limitando o prêmio, mas tapava
+ * junto quem jogava bem de verdade.
  *
- * O teto por partida fecha essa porta sem depender de adivinhar qual é o score
- * "possível": não importa quanto tempo alguém espere, uma partida paga no máximo
- * isto. Com a curva atual o teto chega aos 300 pontos — passar de 300 canos é
- * uma partida excepcional, então quem joga bem sente o limite raramente, e quem
- * tentava farmar tempo continua sem passar daqui.
+ * São DUAS travas, e sozinha nenhuma das duas resolve:
  *
- * O RANKING continua com o score real, sem teto: o limite é de moeda, não de mérito.
+ * - pelo PASSO: um ping não pode avançar muito mais que os 10 canos de que o
+ *   cliente reporta. Sem isso, esperar 20s e mandar um único ping de 100 passa —
+ *   testei, e pagava as 50 moedas direitinho.
+ * - pelo TEMPO desde o ping ANTERIOR: sem isso, bastaria esperar e depois
+ *   despejar os 40 pings de 10 em 10 de uma vez.
+ *
+ * Juntas, chegar a 400 canos exige 40 pings espaçados no ritmo do jogo — ou seja,
+ * jogar os 400 canos. Que é exatamente o que deveria dar 200 moedas.
  */
-const FLAPPY_TETO_MOEDAS_PARTIDA = 150;
+const FLAPPY_PASSO_PING = 10;
+const FLAPPY_FOLGA_PING = 5;
 
 /**
  * Quanto vale um score, em moedas. É A ÚNICA conta de prêmio do Flappy.
@@ -60,8 +70,8 @@ const FLAPPY_TETO_MOEDAS_PARTIDA = 150;
  * cano, porque é o passo que dá pra sentir: "mais dez canos, mais cinco moedas".
  *
  * Uma versão anterior pagava 1 por cano + 1 a cada 5 (100 canos = 120 moedas) e
- * ficou generosa demais perto do resto — 100 canos agora valem 50. O teto por
- * partida continua o mesmo e passa a ser alcançado aos 300 canos.
+ * ficou generosa demais perto do resto — 100 canos agora valem 50. Não há teto
+ * por partida: 400 canos pagam pelos 400.
  *
  * O outro lado disso é que os nove primeiros canos não pagam nada: o prêmio só
  * fecha no décimo. Por isso a tela avisa quando a partida termina em zero, em
@@ -131,6 +141,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         $_SESSION['flappy_score_saved'] = false;
         $_SESSION['flappy_coins_pagos'] = 0;
         $_SESSION['flappy_progresso']   = 0;
+        $_SESSION['flappy_ping_t']      = microtime(true);
+        $_SESSION['flappy_ping_s']      = 0;
         echo json_encode(['sucesso' => true]);
         exit;
     }
@@ -142,6 +154,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         $score = isset($_POST['score']) ? (int)$_POST['score'] : 0;
         try {
             $validate_run_score($score);
+
+            // Cada ping tem que caber no tempo desde o ping ANTERIOR, e não só
+            // no tempo total da partida — ver FLAPPY_FOLGA_PING. É o que impede
+            // meia hora parado virar um score de 9.000 num único envio.
+            $ping_t = (float)($_SESSION['flappy_ping_t'] ?? $run_start);
+            $ping_s = (int)($_SESSION['flappy_ping_s'] ?? 0);
+            $janela   = max(0, microtime(true) - $ping_t);
+            $porTempo = (int)($janela * FLAPPY_PONTOS_POR_SEGUNDO) + FLAPPY_FOLGA_PING;
+            $porPasso = FLAPPY_PASSO_PING + FLAPPY_FOLGA_PING;
+            $maxAgora = $ping_s + min($porTempo, $porPasso);
+            if ($score > $maxAgora) {
+                error_log("[flappy] ping $score recusado (maximo $maxAgora, anterior $ping_s em {$janela}s, user=$user_id)");
+                throw new Exception('Progresso acima do ritmo do jogo.');
+            }
+
+            $_SESSION['flappy_ping_t'] = microtime(true);
+            $_SESSION['flappy_ping_s'] = max($ping_s, $score);
             $_SESSION['flappy_progresso'] = max((int)($_SESSION['flappy_progresso'] ?? 0), $score);
             echo json_encode(['sucesso' => true]);
         } catch (Exception $e) {
@@ -226,8 +255,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
             // descontar o que já foi pago, a mesma partida pagava o trecho inicial duas vezes
             // (dava pra farmar: pontuar, reviver por 10, morrer de propósito e receber tudo de novo).
             $total_devido = (int)($total_devido * $pointsMultiplier);
-            // Teto por partida: ver FLAPPY_TETO_MOEDAS_PARTIDA.
-            $total_devido = min($total_devido, FLAPPY_TETO_MOEDAS_PARTIDA * $pointsMultiplier);
+            // Sem teto por partida: quem passou 400 canos recebe pelos 400. O que
+            // segura o abuso é o ritmo dos pings (FLAPPY_FOLGA_PING), que exige
+            // que os canos tenham sido passados em tempo real — limitar o prêmio
+            // de quem jogou pra conter quem não jogou punia o lado errado.
             $ja_pago      = (int)($_SESSION['flappy_coins_pagos'] ?? 0);
             $coins_earned = max(0, $total_devido - $ja_pago);
             $pdo->beginTransaction();
