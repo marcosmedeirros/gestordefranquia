@@ -19,8 +19,36 @@ $pdo  = db();
 
 $ehAdminGlobal = ($user['user_type'] ?? 'jogador') === 'admin';
 $minhasLigas   = $ehAdminGlobal ? ['ELITE','NEXT','RISE','ROOKIE'] : getAdminLeagues($pdo, (int)$user['id']);
+// Admin de liga entra normalmente — vê as ligas dele, e só elas. Quem cai aqui
+// sem liga nenhuma marcada leva uma explicação em vez de um chute pro
+// dashboard: um redirect mudo é indistinguível de "essa tela é só do admin
+// geral", e era exatamente essa a leitura de quem tentava.
 if (!$ehAdminGlobal && empty($minhasLigas)) {
-    header('Location: /dashboard.php');
+    http_response_code(403);
+    ?><!DOCTYPE html>
+    <html lang="pt-BR"><head><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Controle de Drafts · FBA Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+      body{font-family:'Montserrat',system-ui,sans-serif;background:#07070a;color:#f0f0f3;
+        display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px}
+      .box{max-width:460px;background:#101013;border:1px solid rgba(255,255,255,.07);
+        border-radius:14px;padding:26px 28px;text-align:center}
+      h1{font-size:19px;margin:0 0 10px}
+      p{font-size:13.5px;line-height:1.6;color:#8b8b95;margin:0 0 18px}
+      a{display:inline-block;padding:10px 18px;border-radius:10px;border:1px solid rgba(255,255,255,.12);
+        color:#8b8b95;text-decoration:none;font-size:12.5px;font-weight:600}
+      a:hover{border-color:#fc0025;color:#fc0025}
+    </style></head><body>
+      <div class="box">
+        <h1>Você ainda não administra nenhuma liga</h1>
+        <p>O controle de drafts é aberto pra admin de liga também — mas sua conta não está
+           marcada como admin de nenhuma. Peça a um admin geral pra te marcar na liga,
+           em <b>Admin → Gestão</b>, e esta tela abre com a liga já na aba.</p>
+        <a href="/dashboard.php">Voltar ao painel</a>
+      </div>
+    </body></html><?php
     exit;
 }
 // ?league=ELITE abre direto na aba da liga — é assim que o card do admin
