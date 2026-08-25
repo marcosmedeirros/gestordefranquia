@@ -66,20 +66,46 @@ const FLAPPY_FOLGA_PING = 5;
  * 1 moeda no fim. Era essa promessa quebrada, e não a falta de pagamento, que
  * gerava o "o Flappy está dando pouca moeda".
  *
- * A curva: 5 moedas a cada 10 canos. O prêmio anda de dez em dez, e não a cada
- * cano, porque é o passo que dá pra sentir: "mais dez canos, mais cinco moedas".
+ * O prêmio anda de dez em dez canos — é o passo que dá pra sentir, "mais dez
+ * canos, mais um punhado de moedas" — e cada marco vale MAIS que o anterior
+ * conforme a partida avança:
  *
- * Uma versão anterior pagava 1 por cano + 1 a cada 5 (100 canos = 120 moedas) e
- * ficou generosa demais perto do resto — 100 canos agora valem 50. Não há teto
- * por partida: 400 canos pagam pelos 400.
+ *     canos 1–20   → 5 moedas por marco de 10
+ *     canos 21–50  → 7
+ *     canos 51–80  → 9
+ *     canos 81+    → 11
  *
- * O outro lado disso é que os nove primeiros canos não pagam nada: o prêmio só
- * fecha no décimo. Por isso a tela avisa quando a partida termina em zero, em
- * vez de deixar parecer defeito.
+ * É progressivo por trecho, como faixa de imposto: chegar ao cano 51 não
+ * recalcula os 50 anteriores por 9. Assim não existe salto — o total nunca
+ * pula de uma vez quando se cruza uma fronteira, ele só passa a crescer mais
+ * rápido. Uma taxa única para o score inteiro daria pulos de dezenas de moedas
+ * num cano só, e quem morresse no 50 receberia menos que quem morresse no 49.
+ *
+ * As fronteiras são múltiplas de 10 de propósito: assim todo marco cai inteiro
+ * dentro de uma faixa e não existe marco partido ao meio.
+ *
+ * Em números: 20 canos pagam 10, 50 pagam 31, 80 pagam 58, 100 pagam 80.
+ *
+ * Não há teto por partida: 400 canos pagam pelos 400. O outro lado é que os
+ * nove primeiros canos não pagam nada — o prêmio só fecha no décimo, e por isso
+ * a tela avisa quando a partida termina em zero, em vez de parecer defeito.
  */
+function flappyMoedasPorMarco(int $canoFinal): int
+{
+    if ($canoFinal <= 20) return 5;
+    if ($canoFinal <= 50) return 7;
+    if ($canoFinal <= 80) return 9;
+    return 11;
+}
+
 function flappyMoedasPorScore(int $score): int
 {
-    return intdiv(max(0, $score), 10) * 5;
+    $marcos = intdiv(max(0, $score), 10);
+    $total = 0;
+    for ($m = 1; $m <= $marcos; $m++) {
+        $total += flappyMoedasPorMarco($m * 10);
+    }
+    return $total;
 }
 
 try {
@@ -759,7 +785,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     const rewardMultiplier = <?= (int)$pointsMultiplier ?>;
 
     /** A mesma conta de flappyMoedasPorScore() no PHP — se mudar lá, muda aqui. */
-    const moedasPorScore = s => Math.floor(Math.max(0, s) / 10) * 5;
+    const moedasPorMarco = cano => cano <= 20 ? 5 : cano <= 50 ? 7 : cano <= 80 ? 9 : 11;
+    const moedasPorScore = s => {
+        let total = 0;
+        for (let m = 1; m <= Math.floor(Math.max(0, s) / 10); m++) total += moedasPorMarco(m * 10);
+        return total;
+    };
     let frames = 0, score = 0, highScore = <?= $recorde ?>, currentState = 'START', coinsEarned = 0;
     let hasUsedRevive = false;
 

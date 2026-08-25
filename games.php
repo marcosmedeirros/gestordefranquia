@@ -583,6 +583,7 @@ $jogosLivres = [
     ['key' => 'dreamteam', 'nome' => 'Starting5x5', 'sub' => 'Monte o time e dispute','icone' => 'bi-people-fill',  'cor' => '#6366f1'],
     ['key' => 'flappy',    'nome' => 'Flappy Bird', 'sub' => 'Desvie dos canos',  'icone' => 'bi-airplane',       'cor' => '#f43f5e'],
     ['key' => 'pinguim',   'nome' => 'Pinguim Run', 'sub' => 'Corra e ganhe',     'icone' => 'bi-snow',           'cor' => '#38bdf8'],
+    ['key' => 'acerteacesta', 'nome' => 'Lance Livre', 'sub' => 'Solte no verde',  'icone' => 'bi-basket2-fill',  'cor' => '#f5c542'],
     ['key' => 'blackjack', 'nome' => 'Blackjack',   'sub' => 'Chegue a 21',       'icone' => 'bi-suit-heart-fill','cor' => '#ef4444'],
     ['key' => 'roleta',    'nome' => 'Roleta',      'sub' => 'Cassino europeu',   'icone' => 'bi-record-circle',  'cor' => '#22c55e'],
 ];

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -10,6 +10,214 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $userId = (int)$_SESSION['user_id'];
+$pointsMultiplier = getGamePointsMultiplier($pdo, 'acerteacesta');
+
+/**
+ * QUANTAS CESTAS CABEM NUM SEGUNDO, no melhor dos casos.
+ *
+ * O marcador atravessa a barra e volta; só dá pra pontuar quando ele passa pela
+ * zona. No começo isso leva mais de um segundo, e vai encurtando conforme a
+ * barra acelera. 3 é folgado de propósito: aqui não é pra medir a habilidade
+ * de ninguém, é pra recusar um score que a barra não teria como entregar.
+ */
+const CESTA_POR_SEGUNDO = 3;
+
+/** De quanto em quanto o cliente reporta progresso, e a folga aceita. */
+const CESTA_PASSO_PING  = 5;
+const CESTA_FOLGA_PING  = 3;
+
+/**
+ * Folga entre o último ping e o score final.
+ *
+ * Os pings vêm de 5 em 5, então quem erra a segunda vida em 9 tem progresso 5.
+ * Isto cobre esse pedaço — e é também o máximo que alguém tira sem mandar ping
+ * nenhum, então não pode ser generoso.
+ */
+const CESTA_FOLGA_PROGRESSO = 8;
+
+/**
+ * Quanto vale um score, em moedas. É A ÚNICA conta de prêmio.
+ *
+ * Uma função só, usada pelo servidor e pela tela — no Flappy essas duas contas
+ * moravam em lugares diferentes e passaram meses divergindo: a tela prometia 5
+ * e o servidor pagava 1.
+ *
+ * Mesma ideia do Flappy — o marco vale mais conforme a partida avança — só que
+ * na escala daqui, que é a de lá pela METADE:
+ *
+ *     cestas 1–10   → 5 moedas por marco de 5
+ *     cestas 11–25  → 7
+ *     cestas 26–40  → 9
+ *     cestas 41+    → 11
+ *
+ * A metade não é enfeite: no Flappy o cano é reflexo puro e uma partida boa
+ * passa de 100; aqui a zona verde encolhe até 5% da barra e a velocidade sobe a
+ * cada 5 acertos, então a mesma habilidade rende bem menos pontos. Marco de 5 e
+ * fronteiras pela metade põem os dois jogos na mesma faixa de moedas por minuto
+ * jogado — senão o mais difícil seria o que paga menos.
+ *
+ * Progressivo por trecho, como lá: chegar à 26ª cesta não recalcula as 25
+ * anteriores por 9, então o total nunca dá pulo — só passa a crescer mais
+ * rápido. As fronteiras são múltiplas de 5 pra nenhum marco ficar partido.
+ *
+ * Em números: 10 cestas pagam 10, 25 pagam 31, 40 pagam 58, 50 pagam 80.
+ *
+ * Sem teto por partida: quem acerta 60 recebe pelos 60. O que impede o farm é
+ * o ritmo dos pings, não um limite no prêmio de quem jogou.
+ */
+function cestaMoedasPorMarco(int $cestaFinal): int
+{
+    if ($cestaFinal <= 10) return 5;
+    if ($cestaFinal <= 25) return 7;
+    if ($cestaFinal <= 40) return 9;
+    return 11;
+}
+
+function cestaMoedasPorScore(int $score): int
+{
+    $marcos = intdiv(max(0, $score), 5);
+    $total = 0;
+    for ($m = 1; $m <= $marcos; $m++) {
+        $total += cestaMoedasPorMarco($m * 5);
+    }
+    return $total;
+}
+
+function cestaTabela(PDO $pdo): void
+{
+    $pdo->exec("CREATE TABLE IF NOT EXISTS acerteacesta_historico (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        id_usuario INT NOT NULL,
+        pontuacao INT NOT NULL,
+        data_jogo DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_ac_user (id_usuario),
+        INDEX idx_ac_score (pontuacao)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+// ── Ações do jogo ────────────────────────────────────────────────────────────
+// Mesmo desenho do Flappy: o servidor abre a partida, acompanha o progresso e
+// só ele paga. O cliente nunca diz quanto ganhou.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    cestaTabela($pdo);
+
+    $ativa  = ($_SESSION['cesta_run_ativa'] ?? false) === true;
+    $inicio = (float)($_SESSION['cesta_run_inicio'] ?? 0);
+
+    $validar = function (int $score) use ($ativa, $inicio) {
+        if (!$ativa || $inicio <= 0) throw new Exception('Partida não está aberta.');
+        $decorrido = max(0, microtime(true) - $inicio);
+        $teto = (int)($decorrido * CESTA_POR_SEGUNDO) + 1;
+        if ($score < 0)     throw new Exception('Pontuação inválida.');
+        if ($score > $teto) throw new Exception('Pontuação acima do que a barra entrega.');
+    };
+
+    try {
+        if ($_POST['acao'] === 'iniciar') {
+            // Sem esta pausa, dois cliques no Reset abrem duas partidas no mesmo
+            // instante e a segunda herda o relógio da primeira.
+            if ($inicio > 0 && (microtime(true) - $inicio) < 1.0) {
+                echo json_encode(['erro' => 'Espere um instante antes de recomeçar.']);
+                exit;
+            }
+            $_SESSION['cesta_run_ativa']   = true;
+            $_SESSION['cesta_run_inicio']  = microtime(true);
+            $_SESSION['cesta_progresso']   = 0;
+            $_SESSION['cesta_pagas']       = 0;
+            $_SESSION['cesta_ping_t']      = microtime(true);
+            $_SESSION['cesta_ping_s']      = 0;
+            echo json_encode(['sucesso' => true]);
+            exit;
+        }
+
+        if ($_POST['acao'] === 'progresso') {
+            $score = (int)($_POST['score'] ?? 0);
+            $validar($score);
+
+            // Duas travas, porque sozinha nenhuma segura: pelo PASSO, um ping não
+            // avança muito mais que as 5 cestas que o cliente reporta; pelo TEMPO
+            // desde o ping anterior, pra não dar pra esperar e despejar todos de
+            // uma vez. Foi assim que fechei o mesmo buraco no Flappy.
+            $ping_t = (float)($_SESSION['cesta_ping_t'] ?? $inicio);
+            $ping_s = (int)($_SESSION['cesta_ping_s'] ?? 0);
+            $janela = max(0, microtime(true) - $ping_t);
+            $maximo = $ping_s + min(
+                (int)($janela * CESTA_POR_SEGUNDO) + CESTA_FOLGA_PING,
+                CESTA_PASSO_PING + CESTA_FOLGA_PING
+            );
+            if ($score > $maximo) {
+                error_log("[cesta] ping $score recusado (max $maximo, anterior $ping_s em {$janela}s, user=$userId)");
+                throw new Exception('Progresso acima do ritmo do jogo.');
+            }
+
+            $_SESSION['cesta_ping_t']    = microtime(true);
+            $_SESSION['cesta_ping_s']    = max($ping_s, $score);
+            $_SESSION['cesta_progresso'] = max((int)($_SESSION['cesta_progresso'] ?? 0), $score);
+
+            // O ping devolve quanto a partida já vale, e é assim que a tela
+            // mostra o prêmio subindo sem precisar da fórmula do lado dela. No
+            // Flappy as duas contas viviam separadas e divergiram; aqui só
+            // existe uma, e o que aparece na tela é literalmente o que o
+            // servidor pagaria se a partida acabasse agora.
+            echo json_encode([
+                'sucesso' => true,
+                'moedas'  => cestaMoedasPorScore((int)$_SESSION['cesta_progresso']) * $pointsMultiplier,
+                'proximo' => cestaMoedasPorMarco((int)$_SESSION['cesta_progresso'] + 5) * $pointsMultiplier,
+            ]);
+            exit;
+        }
+
+        if ($_POST['acao'] === 'salvar') {
+            $score = (int)($_POST['score'] ?? 0);
+            $validar($score);
+
+            // Amarra o score ao que foi acompanhado durante a partida.
+            $progresso = (int)($_SESSION['cesta_progresso'] ?? 0);
+            $limite = $progresso + CESTA_FOLGA_PROGRESSO;
+            if ($score > $limite) {
+                error_log("[cesta] score $score limitado a $limite (progresso=$progresso, user=$userId)");
+                $score = $limite;
+            }
+
+            $devido = cestaMoedasPorScore($score) * $pointsMultiplier;
+            // O que já foi pago nesta partida não é pago de novo — o Flappy
+            // pagava o trecho inicial duas vezes quando dava pra reviver.
+            $pagas  = (int)($_SESSION['cesta_pagas'] ?? 0);
+            $ganhou = max(0, $devido - $pagas);
+
+            $pdo->beginTransaction();
+            $pdo->prepare("INSERT INTO acerteacesta_historico (id_usuario, pontuacao) VALUES (?,?)")
+                ->execute([$userId, $score]);
+            if ($ganhou > 0) {
+                $pdo->prepare("UPDATE games_usuarios SET pontos = COALESCE(pontos,0) + ? WHERE id = ?")
+                    ->execute([$ganhou, $userId]);
+            }
+            $st = $pdo->prepare("SELECT COALESCE(pontos,0) FROM games_usuarios WHERE id = ?");
+            $st->execute([$userId]);
+            $saldo = (int)$st->fetchColumn();
+            $pdo->commit();
+
+            $_SESSION['cesta_run_ativa'] = false;
+            $_SESSION['cesta_pagas']     = $pagas + $ganhou;
+
+            $st = $pdo->prepare("SELECT MAX(pontuacao) FROM acerteacesta_historico WHERE id_usuario = ?");
+            $st->execute([$userId]);
+
+            echo json_encode(['sucesso' => true, 'score' => $score, 'moedas' => $ganhou,
+                              'saldo' => $saldo, 'recorde' => (int)$st->fetchColumn()]);
+            exit;
+        }
+
+        echo json_encode(['erro' => 'Ação desconhecida.']);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        echo json_encode(['erro' => $e->getMessage()]);
+    }
+    exit;
+}
+
+cestaTabela($pdo);
 $usuario = ['nome' => 'Coach', 'pontos' => 0];
 try {
     $stmt = $pdo->prepare('SELECT nome, pontos FROM games_usuarios WHERE id = :id');
@@ -21,6 +229,26 @@ try {
     }
 } catch (PDOException $e) {
     // Silencia falha de leitura, segue com defaults
+}
+
+// O recorde vinha de uma variável do navegador: recarregou a página, zerou.
+$recorde = 0;
+$ranking = [];
+try {
+    $st = $pdo->prepare('SELECT MAX(pontuacao) FROM acerteacesta_historico WHERE id_usuario = ?');
+    $st->execute([$userId]);
+    $recorde = (int)$st->fetchColumn();
+
+    $st = $pdo->prepare("SELECT u.nome, MAX(h.pontuacao) AS recorde
+                           FROM acerteacesta_historico h
+                           JOIN games_usuarios u ON u.id = h.id_usuario
+                          WHERE LOWER(u.email) <> ?
+                       GROUP BY h.id_usuario, u.nome
+                       ORDER BY recorde DESC, u.nome LIMIT 5");
+    $st->execute(['medeirros99@gmail.com']);
+    $ranking = $st->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // Ranking é enfeite: se falhar, o jogo continua de pé.
 }
 ?>
 <!DOCTYPE html>
@@ -158,19 +386,35 @@ try {
             box-shadow: 0 10px 22px rgba(0,0,0,0.35);
             z-index: 2;
         }
-    .ball.shoot-success { animation: shotSuccess 0.95s ease-in-out forwards; }
-        .ball.shoot-miss { animation: shotMiss 0.45s ease-in-out forwards; }
+        /* O arremesso mira no aro DE VERDADE.
+           Antes o destino era fixo — translate(170px, -240px) — mas o aro está
+           ancorado na direita da quadra, que muda de largura com a tela. Num
+           monitor largo a bola parava no meio do ar, bem antes da cesta; no
+           celular passava do outro lado. Era esse o "a animação não funciona".
+           Agora o JS mede onde o aro está e escreve em --dx/--dy antes de cada
+           arremesso, então o alvo é o mesmo em qualquer tamanho. */
+        .ball.shoot-success { animation: shotSuccess 0.9s cubic-bezier(.3,.7,.4,1) forwards; }
+        .ball.shoot-miss    { animation: shotMiss 0.75s ease-in forwards; }
+
+        /* Sem `-50%` nos keyframes: a bola já é centralizada pelo margin-left, e
+           somar os dois deslocava o alvo em 18px — a bola passava raspando ao
+           lado do aro em vez de entrar. --dx/--dy são medidos a partir da
+           posição parada, então o destino tem que ser exatamente eles. */
         @keyframes shotSuccess {
-            0% { transform: translate(-50%, 0) scale(1); opacity: 1; }
-            55% { transform: translate(170px, -240px) scale(0.94); }
-            75% { transform: translate(170px, -205px) scale(0.9); }
-            100% { transform: translate(170px, -130px) scale(0.82); opacity: 0.15; }
+            0%   { transform: translate(0, 0) scale(1); opacity: 1; }
+            /* Ápice acima do aro: sem passar por cima, o arremesso vira um
+               passe reto e não parece uma bola de basquete. */
+            45%  { transform: translate(calc(var(--dx) * 0.58), calc(var(--dy) - 62px)) scale(0.93); opacity: 1; }
+            72%  { transform: translate(var(--dx), var(--dy)) scale(0.86); opacity: 1; }
+            100% { transform: translate(var(--dx), calc(var(--dy) + 52px)) scale(0.8); opacity: 0; }
         }
         @keyframes shotMiss {
-            0% { transform: translate(-50%, 0) scale(1); }
-            40% { transform: translate(34px, -110px) scale(0.92); }
-            65% { transform: translate(-22px, -38px) rotate(-8deg); }
-            100% { transform: translate(-50%, 0) scale(1); }
+            0%   { transform: translate(0, 0) scale(1); opacity: 1; }
+            40%  { transform: translate(calc(var(--dx) * 0.72), calc(var(--dy) - 34px)) scale(0.9); opacity: 1; }
+            /* Bate na frente do aro e volta: o erro precisa ser visível, senão
+               a única diferença entre acertar e errar é o texto mudando. */
+            58%  { transform: translate(calc(var(--dx) * 0.82), calc(var(--dy) - 6px)) scale(0.88) rotate(-12deg); opacity: 1; }
+            100% { transform: translate(calc(var(--dx) * 0.45), 24px) scale(0.84) rotate(-26deg); opacity: 0; }
         }
 
         .meter {
@@ -272,7 +516,7 @@ try {
                     <div class="col-6">
                         <div class="stat-card text-center">
                             <div class="stat-label">Recorde</div>
-                            <div class="stat-value" id="best">0</div>
+                            <div class="stat-value" id="best"><?= (int)$recorde ?></div>
                         </div>
                     </div>
                     <div class="col-6">
@@ -283,8 +527,8 @@ try {
                     </div>
                     <div class="col-6">
                         <div class="stat-card text-center">
-                            <div class="stat-label">Velocidade</div>
-                            <div class="stat-value" id="speed">1.00x</div>
+                            <div class="stat-label">Nível</div>
+                            <div class="stat-value" id="speed" title="a barra acelera e o verde encolhe a cada 5 cestas">1</div>
                         </div>
                     </div>
                 </div>
@@ -294,11 +538,26 @@ try {
                 </div>
                 <div class="mt-3 text-secondary small">
                     <ul class="mb-0 ps-3">
-                        <li>Zona verde encolhe aos poucos.</li>
-                        <li>Cada acerto acelera a barra.</li>
+                        <li><b>A cada 5 cestas</b> sobe um nível: a barra acelera e o verde encolhe.</li>
+                        <li>Cada 5 cestas também valem <b>5 moedas</b>, sem teto por partida.</li>
                         <li>Duas vidas: errou duas vezes, fim de jogo.</li>
                     </ul>
                 </div>
+
+                <?php if ($ranking): ?>
+                <div class="mt-3 pt-3" style="border-top:1px solid var(--border)">
+                    <div class="stat-label mb-2"><i class="bi bi-trophy-fill" style="color:#f5c542"></i> Melhores marcas</div>
+                    <?php foreach ($ranking as $i => $r): ?>
+                    <div class="d-flex justify-content-between align-items-center small py-1">
+                        <span class="text-secondary text-truncate" style="max-width:70%">
+                            <b style="color:<?= $i === 0 ? '#f5c542' : 'var(--text-2, #8b8b95)' ?>"><?= $i + 1 ?>º</b>
+                            <?= htmlspecialchars($r['nome']) ?>
+                        </span>
+                        <b><?= (int)$r['recorde'] ?></b>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -319,6 +578,8 @@ try {
     const bestEl = document.getElementById('best');
     const livesEl = document.getElementById('lives');
     const speedEl = document.getElementById('speed');
+    const saldoEl = document.getElementById('saldoDisplay');
+    const moedaIcone = '<img src="../moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle">';
     const shootBtn = document.getElementById('shootBtn');
     const resetBtn = document.getElementById('resetBtn');
 
@@ -326,16 +587,38 @@ try {
     let direction = 1;
     let lastTime = null;
     let score = 0;
-    let best = 0;
+    let best = <?= (int)$recorde ?>;   // vem do banco: antes era do navegador e sumia no F5
     let lives = 2;
     let isRunning = false;
     let isGameOver = false;
 
-    const baseSpeed = 0.45;
-    const speedStep = 0.09;
-    const minZone = 0.06;
-    const decay = 0.012;
-    const maxZone = 0.2;
+    /* ── PROGRESSÃO ────────────────────────────────────────────────────────
+       A dificuldade anda em DEGRAUS de 5 cestas, não a cada acerto.
+
+       Antes subia ponto a ponto (velocidade +0.09, zona -0.012): a zona batia
+       no mínimo lá pelo 12º arremesso e a velocidade seguia crescendo sem teto,
+       então em pouco tempo o jogo virava sorteio — acertar deixava de depender
+       de reflexo e passava a depender de soltar em qualquer lugar e torcer.
+
+       Agora cada degrau é um degrau de verdade, e é o MESMO 5 do prêmio e do
+       ping: "mais cinco cestas" significa subir de nível, ganhar 5 moedas e
+       mandar progresso. Um número só pra pessoa guardar.
+
+       A velocidade tem teto (2.2x, no nível 21) e a zona tem piso (5% da barra,
+       no nível 9). Depois disso o jogo para de endurecer: quem chegou lá está
+       jogando no limite da mão, e apertar mais só transformaria a partida em
+       moeda ao ar. */
+    const CESTAS_POR_NIVEL = 5;
+    const baseSpeed = 0.5;   // voltas por segundo no nível 0
+    const speedStep = 0.08;  // por nível
+    const maxSpeed  = 2.2;
+    const maxZone   = 0.22;  // fração da barra no nível 0
+    const zoneStep  = 0.02;  // por nível
+    const minZone   = 0.05;
+
+    const nivelDe = (s) => Math.floor(s / CESTAS_POR_NIVEL);
+    const velocidadeDe = (s) => Math.min(maxSpeed, baseSpeed + nivelDe(s) * speedStep);
+    const zonaDe = (s) => Math.max(minZone, maxZone - nivelDe(s) * zoneStep);
 
     const updateLives = () => {
         livesEl.innerHTML = '';
@@ -350,12 +633,13 @@ try {
     };
 
     const updateSpeed = () => {
-        const speed = baseSpeed + score * speedStep;
-        speedEl.textContent = `${speed.toFixed(2)}x`;
+        const nivel = nivelDe(score);
+        speedEl.textContent = nivel + 1;
+        speedEl.title = velocidadeDe(score).toFixed(2) + "x · zona " + Math.round(zonaDe(score) * 100) + "%";
     };
 
     const updateSweet = (randomize = false) => {
-        const width = Math.max(minZone, maxZone - score * decay);
+        const width = zonaDe(score);
         let start = 0.5 - width / 2;
         if (randomize) {
             const margin = 0.04;
@@ -370,6 +654,46 @@ try {
     const resetBallAnim = () => {
         ball.classList.remove('shoot-success', 'shoot-miss');
         void ball.offsetWidth;
+    };
+
+    /**
+     * Mede onde está o aro e diz isso pra animação.
+     *
+     * É o que faz a bola chegar na cesta em qualquer largura de tela: as duas
+     * posições são lidas na hora do arremesso, então redimensionar a janela ou
+     * virar o celular não desalinha nada.
+     */
+    const mirarNoAro = () => {
+        const aro = document.querySelector('.rim');
+        if (!aro) return;
+        const b = ball.getBoundingClientRect();
+        const a = aro.getBoundingClientRect();
+        ball.style.setProperty('--dx', ((a.left + a.width / 2) - (b.left + b.width / 2)) + 'px');
+        ball.style.setProperty('--dy', ((a.top + a.height / 2) - (b.top + b.height / 2)) + 'px');
+    };
+
+    // ── Conversa com o servidor ────────────────────────────────────────────
+    // Quem conta os pontos é a tela, mas quem PAGA é o servidor: ele abre a
+    // partida, acompanha o ritmo e decide o prêmio. Mandar o total no fim sem
+    // nada no meio seria acreditar em qualquer número que chegasse.
+    const enviar = (acao, extra = {}) => {
+        const fd = new FormData();
+        fd.append('acao', acao);
+        Object.entries(extra).forEach(([k, v]) => fd.append(k, v));
+        return fetch(location.href, { method: 'POST', body: fd })
+            .then(r => r.json())
+            .catch(() => ({ erro: 'sem resposta' }));
+    };
+
+    let ultimoPing = 0;
+    const reportarProgresso = () => {
+        if (score - ultimoPing < 5) return;
+        ultimoPing = score;
+        enviar('progresso', { score }).then(d => {
+            if (!d || !d.sucesso) return;
+            // O prêmio aparece na tela vindo do servidor, nunca calculado aqui.
+            setFeedback(`${score} cestas · ${d.moedas} moedas garantidas · próximas 5 valem ${d.proximo}`, true);
+        });
     };
 
     const setFeedback = (text, positive = true) => {
@@ -389,8 +713,7 @@ try {
         const delta = (timestamp - lastTime) / 1000;
         lastTime = timestamp;
 
-        const speed = baseSpeed + score * speedStep;
-        progress += direction * speed * delta;
+        progress += direction * velocidadeDe(score) * delta;
 
         if (progress >= 1) {
             progress = 1;
@@ -412,14 +735,21 @@ try {
         const end = start + width;
 
         resetBallAnim();
+        mirarNoAro();
 
         if (progress >= start && progress <= end) {
+            const nivelAntes = nivelDe(score);
             score += 1;
             best = Math.max(best, score);
             scoreEl.textContent = score;
             bestEl.textContent = best;
-            setFeedback('Cesta! +1 ponto', true);
+            // Subir de nível é o único momento em que o jogo muda de verdade;
+            // sem avisar, a barra simplesmente acelera e parece bug.
+            setFeedback(nivelDe(score) > nivelAntes
+                ? `Cesta! Nível ${nivelDe(score) + 1} — barra mais rápida, verde menor`
+                : 'Cesta! +1 ponto', true);
             ball.classList.add('shoot-success');
+            reportarProgresso();
             updateSweet(true);
         } else {
             lives -= 1;
@@ -431,9 +761,28 @@ try {
                 isGameOver = true;
                 isRunning = false;
                 overlay.classList.add('active');
-                overlayTitle.textContent = 'Game over';
-                overlayText.textContent = 'Clique em Reset para tentar de novo.';
-                overlayBtn.textContent = 'Resetar';
+                overlayTitle.textContent = 'Fim de jogo';
+                overlayText.textContent = 'Apurando as moedas…';
+                overlayBtn.textContent = 'Jogar de novo';
+
+                enviar('salvar', { score }).then(d => {
+                    if (!d || !d.sucesso) {
+                        // Falhar calado faria a pessoa achar que o jogo comeu as
+                        // moedas dela — o placar aparece, o prêmio não, e não há
+                        // como saber se foi assim mesmo.
+                        overlayText.textContent = 'Não deu pra registrar esta partida. O placar valeu, as moedas não.';
+                        return;
+                    }
+                    saldoEl.innerHTML = moedaIcone + ' ' + d.saldo.toLocaleString('pt-BR') + ' pts';
+                    if (d.recorde > best) { best = d.recorde; }
+                    bestEl.textContent = best;
+                    // Duas causas bem diferentes pra zero moedas, e dizer a errada
+                    // parece defeito: quem não fechou as 5 primeiras precisa saber
+                    // quanto falta.
+                    overlayText.textContent = d.moedas > 0
+                        ? `${d.score} cestas · +${d.moedas} moedas`
+                        : `${d.score} cestas · chegue a 5 pra ganhar as primeiras 5 moedas`;
+                });
                 return;
             }
         }
@@ -452,6 +801,10 @@ try {
         isRunning = true;
         isGameOver = false;
         lastTime = null;
+        ultimoPing = 0;
+        // Abre a partida no servidor. Sem isto ele recusa o placar no fim —
+        // e é o que impede mandar um score sem ter jogado.
+        enviar('iniciar');
         scoreEl.textContent = '0';
         setFeedback('Clique ou Espaço no verde', true);
         updateLives();
@@ -462,16 +815,11 @@ try {
         requestAnimationFrame(animate);
     };
 
-    overlayBtn.addEventListener('click', () => {
-        if (isGameOver) {
-            resetGame();
-            return;
-        }
-        overlay.classList.remove('active');
-        isRunning = true;
-        lastTime = null;
-        requestAnimationFrame(animate);
-    });
+    // Um caminho só pra começar a jogar. Antes o primeiro clique tinha um
+    // atalho próprio que só escondia o overlay — e esse atalho não abria a
+    // partida no servidor, então a primeira partida de cada visita terminava
+    // com o placar na tela e o prêmio recusado.
+    overlayBtn.addEventListener('click', resetGame);
 
     shootBtn.addEventListener('click', shoot);
     resetBtn.addEventListener('click', resetGame);

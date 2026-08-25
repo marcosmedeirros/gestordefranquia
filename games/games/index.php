@@ -26,6 +26,10 @@ $games_disponiveis = [
         'titulo' => '🐧 Pinguim - Dino Runner',
         'arquivo' => 'pinguim.php'
     ],
+    'acerteacesta' => [
+        'titulo' => '🏀 O Lance Livre Infinito',
+        'arquivo' => 'acerteacesta.php'
+    ],
     'xadrez' => [
         'titulo' => '♛ Xadrez',
         'arquivo' => 'xadrez.php'
