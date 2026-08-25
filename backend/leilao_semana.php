@@ -26,10 +26,22 @@
 
 require_once __DIR__ . '/db.php';
 
-/** O lance mínimo quando ninguém deu lance ainda. */
-const LEILAO_SEMANA_MINIMO = 5;
+/**
+ * O lance mínimo quando ninguém deu lance ainda.
+ *
+ * 150 e não um valor simbólico: o jogo da semana é a vitrine da liga, e um
+ * leilão que abre em 5 seria decidido por quem clicou primeiro, não por
+ * quem quer estar lá.
+ */
+const LEILAO_SEMANA_MINIMO = 150;
 
-/** Quanto é preciso passar do segundo colocado pra entrar no pódio. */
+/**
+ * Quanto é preciso passar do segundo colocado pra tomar a vaga.
+ *
+ * Continua 5, e de propósito: o piso alto já filtra quem entra, e um passo
+ * grande transformaria a disputa em saltos de centenas — dois times
+ * interessados gastariam muito mais do que a vaga vale só pra revezar.
+ */
 const LEILAO_SEMANA_PASSO = 5;
 
 /** Quantos ficam no pódio — é um jogo, então são dois times. */

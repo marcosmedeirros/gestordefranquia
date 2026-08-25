@@ -800,6 +800,12 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
     .g-tab-selo { background:var(--red); color:#fff; font-size:10px; font-weight:800;
                   border-radius:999px; padding:1px 6px; margin-left:5px; }
     .lj-taxa { font-size:12px; font-weight:700; color:var(--text-2); margin-bottom:11px; }
+    /* O conversor virou um card na grade, então o formulário empilha em vez
+       de esticar na linha: dentro de um item da loja não há a largura que
+       ele tinha como seção. */
+    .lj-item-conv .lj-conv { flex-direction:column; align-items:stretch; gap:7px; margin-top:auto; }
+    .lj-item-conv .lj-conv input { width:100%; }
+    .lj-item-conv .lj-vira { text-align:center; }
     .lj-conv { display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
     .lj-conv input { width:150px; background:var(--panel-2); border:1px solid var(--border-md);
         border-radius:var(--radius-sm); color:var(--text); font-family:var(--font);
@@ -1328,6 +1334,100 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                 <div class="alerta err"><i class="bi bi-exclamation-triangle-fill"></i> <?= htmlspecialchars($lojaErro) ?></div>
             <?php endif; ?>
 
+            <div class="sec-label"><i class="bi bi-bag-fill"></i> Loja</div>
+            <div class="lj-grade">
+                <?php /* O CONVERSOR É UM ITEM DA LOJA, e não uma seção acima
+                         dela. Trocar moeda por FBA Point é a mesma coisa que
+                         as outras: você gasta o que tem pra levar algo. Como
+                         seção separada, ele empurrava a loja inteira pra
+                         baixo e parecia um passo obrigatório antes de
+                         comprar. Aqui é o primeiro card porque costuma ser o
+                         primeiro passo — mas agora é uma escolha, não um
+                         pedágio. */ ?>
+                <?php
+                  // O teto é o maior MÚLTIPLO que cabe no saldo, e não o
+                  // saldo cru: quem tem 2505 moedas só converte 2500, e
+                  // deixar o max em 2505 põe no campo um número que o
+                  // próprio campo vai arredondar na frente da pessoa.
+                  $ljTeto = intdiv((int)$perfil['pontos'], LOJA_MOEDAS_POR_PONTO) * LOJA_MOEDAS_POR_PONTO;
+                  $podeConverter = (int)$perfil['pontos'] >= LOJA_MOEDAS_POR_PONTO;
+                ?>
+                <div class="lj-item lj-item-conv <?= $podeConverter ? '' : 'sem-saldo' ?>">
+                    <div class="lj-ico" style="color:#22c55e;background:color-mix(in srgb,#22c55e 12%,transparent)">
+                        <i class="bi bi-arrow-left-right"></i>
+                    </div>
+                    <div class="lj-nome">Trocar moedas</div>
+                    <div class="lj-desc">
+                        <?= LOJA_MOEDAS_POR_PONTO ?> moedas viram 1 FBA Point. A troca é só de ida.
+                    </div>
+                    <div class="lj-limite">
+                        <i class="bi bi-coin"></i>
+                        você tem <?= number_format((int)$perfil['pontos'], 0, ',', '.') ?> moedas
+                    </div>
+                    <form method="POST" class="lj-conv">
+                        <input type="hidden" name="loja_acao" value="converter">
+                        <!-- step=10 pras setas andarem de 10 em 10. O step
+                             sozinho já custou caro uma vez: o navegador
+                             RECUSAVA 2505 em silêncio, sem dizer por quê. Por
+                             isso ele não vem sozinho — o JS abaixo ARREDONDA
+                             pra baixo em vez de recusar, então digitar 12
+                             vira 10 na tela e não um formulário travado. -->
+                        <input type="number" name="moedas" id="ljMoedas" min="<?= LOJA_MOEDAS_POR_PONTO ?>"
+                               step="<?= LOJA_MOEDAS_POR_PONTO ?>" max="<?= $ljTeto ?>"
+                               data-taxa="<?= LOJA_MOEDAS_POR_PONTO ?>"
+                               placeholder="múltiplos de <?= LOJA_MOEDAS_POR_PONTO ?>" autocomplete="off">
+                        <span class="lj-vira" id="ljVira">= 0 FBA Points</span>
+                        <button type="submit" class="lj-btn" <?= $podeConverter ? '' : 'disabled' ?>>
+                            <?= $podeConverter ? 'Trocar' : 'Sem moedas' ?>
+                        </button>
+                    </form>
+                </div>
+
+                <?php foreach ($lojaCat as $chave => $it):
+                    $lim = $lojaLimites[$chave] ?? null;
+                    $esgotou = $lim && $lim['esgotou'];
+                    // O limite vem ANTES do saldo: dizer "Faltam 3.500" pra
+                    // quem já usou as duas badges do mês manda juntar pontos
+                    // pra uma compra que não vai acontecer.
+                    $temSaldo = (int)$perfil['fba_points'] >= (int)$it['preco'];
+                    $podeComprar = $temSaldo && !$esgotou; ?>
+                <div class="lj-item <?= $podeComprar ? '' : 'sem-saldo' ?>">
+                    <div class="lj-ico" style="color:<?= $it['cor'] ?>;background:color-mix(in srgb, <?= $it['cor'] ?> 12%, transparent)">
+                        <i class="bi <?= $it['icone'] ?>"></i>
+                    </div>
+                    <div class="lj-nome"><?= htmlspecialchars($it['nome']) ?></div>
+                    <div class="lj-desc"><?= htmlspecialchars($it['desc']) ?></div>
+                    <?php if ($lim): ?>
+                    <div class="lj-limite <?= $esgotou ? 'fim' : '' ?>">
+                        <i class="bi <?= $esgotou ? 'bi-lock-fill' : 'bi-info-circle' ?>"></i>
+                        <?php
+                        // A conta só aparece no limite mensal. Em "compra
+                        // única · resta 1" as duas metades dizem a mesma
+                        // coisa, e a segunda ainda sugere que exista uma
+                        // segunda compra em algum lugar.
+                        $mostraConta = !$esgotou && $lim['por'] === 'mes';
+                        ?>
+                        <?= htmlspecialchars($lim['texto']) ?><?= $mostraConta ? ' · resta' . ($lim['restam'] > 1 ? 'm ' : ' ') . $lim['restam'] : '' ?>
+                    </div>
+                    <?php endif; ?>
+                    <div class="lj-preco"><i class="bi bi-star-fill"></i> <?= number_format((int)$it['preco'], 0, ',', '.') ?></div>
+                    <form method="POST">
+                        <input type="hidden" name="loja_acao" value="comprar">
+                        <input type="hidden" name="item" value="<?= htmlspecialchars($chave) ?>">
+                        <button type="submit" class="lj-btn" <?= $podeComprar ? '' : 'disabled' ?>>
+                            <?php if ($esgotou): ?>
+                                <?= $lim['texto'] === 'compra única' ? 'Já é seu' : 'Limite do mês' ?>
+                            <?php elseif (!$temSaldo): ?>
+                                Faltam <?= number_format((int)$it['preco'] - (int)$perfil['fba_points'], 0, ',', '.') ?>
+                            <?php else: ?>
+                                Comprar
+                            <?php endif; ?>
+                        </button>
+                    </form>
+                </div>
+                <?php endforeach; ?>
+            </div>
+
             <?php
               // ── Leilão do jogo da semana ────────────────────────────
               require_once __DIR__ . '/backend/leilao_semana.php';
@@ -1453,92 +1553,6 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                 </div>
               </div>
               <?php endforeach; ?>
-            </div>
-
-            <div class="sec-label"><i class="bi bi-arrow-left-right"></i> Trocar moedas por FBA Points</div>
-            <div class="card">
-                <div class="card-body">
-                    <!-- A taxa fica escrita na tela e não só no código: quem
-                         converte quer conferir a conta antes, não depois. -->
-                    <div class="lj-taxa"><?= LOJA_MOEDAS_POR_PONTO ?> moedas = 1 FBA Point</div>
-                    <form method="POST" class="lj-conv">
-                        <input type="hidden" name="loja_acao" value="converter">
-                        <?php
-                        // O teto e o maior MULTIPLO que cabe no saldo, e nao o
-                        // saldo cru: quem tem 2505 moedas so consegue converter
-                        // 2500, e deixar o max em 2505 poe no campo um numero
-                        // que o proprio campo vai arredondar na frente da
-                        // pessoa. A seta pra cima agora para no lugar certo.
-                        $ljTeto = intdiv((int)$perfil['pontos'], LOJA_MOEDAS_POR_PONTO) * LOJA_MOEDAS_POR_PONTO;
-                        ?>
-                        <!-- step=10 pras setas andarem de 10 em 10. O step
-                             sozinho ja custou caro uma vez: o navegador
-                             RECUSAVA 2505 em silencio, sem dizer por que. Por
-                             isso ele nao vem sozinho — o JS abaixo ARREDONDA
-                             pra baixo em vez de recusar, entao digitar 12
-                             vira 10 na tela e nao um formulario travado. -->
-                        <input type="number" name="moedas" id="ljMoedas" min="<?= LOJA_MOEDAS_POR_PONTO ?>"
-                               step="<?= LOJA_MOEDAS_POR_PONTO ?>" max="<?= $ljTeto ?>"
-                               data-taxa="<?= LOJA_MOEDAS_POR_PONTO ?>"
-                               placeholder="múltiplos de <?= LOJA_MOEDAS_POR_PONTO ?>" autocomplete="off">
-                        <span class="lj-vira" id="ljVira">= 0 FBA Points</span>
-                        <button type="submit" class="lj-btn" <?= (int)$perfil['pontos'] < LOJA_MOEDAS_POR_PONTO ? 'disabled' : '' ?>>
-                            <i class="bi bi-arrow-left-right"></i> Trocar
-                        </button>
-                    </form>
-                    <div class="lj-nota">
-                        Você tem <b><?= number_format((int)$perfil['pontos'], 0, ',', '.') ?></b> moedas
-                        e <b><?= number_format((int)$perfil['fba_points'], 0, ',', '.') ?></b> FBA Points.
-                        A troca é só de ida.
-                    </div>
-                </div>
-            </div>
-
-            <div class="sec-label" style="margin-top:26px"><i class="bi bi-bag-fill"></i> Loja</div>
-            <div class="lj-grade">
-                <?php foreach ($lojaCat as $chave => $it):
-                    $lim = $lojaLimites[$chave] ?? null;
-                    $esgotou = $lim && $lim['esgotou'];
-                    // O limite vem ANTES do saldo: dizer "Faltam 3.500" pra
-                    // quem já usou as duas badges do mês manda juntar pontos
-                    // pra uma compra que não vai acontecer.
-                    $temSaldo = (int)$perfil['fba_points'] >= (int)$it['preco'];
-                    $podeComprar = $temSaldo && !$esgotou; ?>
-                <div class="lj-item <?= $podeComprar ? '' : 'sem-saldo' ?>">
-                    <div class="lj-ico" style="color:<?= $it['cor'] ?>;background:color-mix(in srgb, <?= $it['cor'] ?> 12%, transparent)">
-                        <i class="bi <?= $it['icone'] ?>"></i>
-                    </div>
-                    <div class="lj-nome"><?= htmlspecialchars($it['nome']) ?></div>
-                    <div class="lj-desc"><?= htmlspecialchars($it['desc']) ?></div>
-                    <?php if ($lim): ?>
-                    <div class="lj-limite <?= $esgotou ? 'fim' : '' ?>">
-                        <i class="bi <?= $esgotou ? 'bi-lock-fill' : 'bi-info-circle' ?>"></i>
-                        <?php
-                        // A conta só aparece no limite mensal. Em "compra
-                        // única · resta 1" as duas metades dizem a mesma
-                        // coisa, e a segunda ainda sugere que exista uma
-                        // segunda compra em algum lugar.
-                        $mostraConta = !$esgotou && $lim['por'] === 'mes';
-                        ?>
-                        <?= htmlspecialchars($lim['texto']) ?><?= $mostraConta ? ' · resta' . ($lim['restam'] > 1 ? 'm ' : ' ') . $lim['restam'] : '' ?>
-                    </div>
-                    <?php endif; ?>
-                    <div class="lj-preco"><i class="bi bi-star-fill"></i> <?= number_format((int)$it['preco'], 0, ',', '.') ?></div>
-                    <form method="POST">
-                        <input type="hidden" name="loja_acao" value="comprar">
-                        <input type="hidden" name="item" value="<?= htmlspecialchars($chave) ?>">
-                        <button type="submit" class="lj-btn" <?= $podeComprar ? '' : 'disabled' ?>>
-                            <?php if ($esgotou): ?>
-                                <?= $lim['texto'] === 'compra única' ? 'Já é seu' : 'Limite do mês' ?>
-                            <?php elseif (!$temSaldo): ?>
-                                Faltam <?= number_format((int)$it['preco'] - (int)$perfil['fba_points'], 0, ',', '.') ?>
-                            <?php else: ?>
-                                Comprar
-                            <?php endif; ?>
-                        </button>
-                    </form>
-                </div>
-                <?php endforeach; ?>
             </div>
 
             <div class="sec-label" style="margin-top:26px"><i class="bi bi-box-seam"></i> Meus itens</div>
