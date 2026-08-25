@@ -932,6 +932,24 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
        senão uma parece mais colada que a outra sem motivo. */
     .lj-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
         gap:14px; margin-bottom:30px; }
+    .lj-grid.atualizando { opacity:.55; transition:opacity .12s; }
+
+    /* O botão fica no fim da linha do título: o leilão muda enquanto a
+       pessoa olha, e ela precisa de um jeito de conferir sem perder a aba. */
+    .lj-refresh { margin-left:auto; flex:none; display:inline-flex; align-items:center;
+        justify-content:center; width:26px; height:26px; padding:0; cursor:pointer;
+        background:var(--panel-2); border:1px solid var(--border); border-radius:8px;
+        color:var(--text-2); }
+    .lj-refresh:hover { color:var(--red); border-color:var(--border-red); }
+    .lj-refresh i { font-size:13px; color:inherit; }
+    .lj-refresh[disabled] { cursor:default; opacity:.6; }
+    .lj-refresh.girando i { animation:lj-girar .7s linear infinite; }
+    @keyframes lj-girar { to { transform:rotate(360deg); } }
+    /* No dedo, 26px é alvo pequeno demais pra um botão que a pessoa vai
+       apertar várias vezes seguidas enquanto a disputa está quente. */
+    @media (max-width:768px) { .lj-refresh { width:34px; height:34px; }
+                               .lj-refresh i { font-size:15px; } }
+    @media (prefers-reduced-motion:reduce) { .lj-refresh.girando i { animation:none; } }
     .lj-card .card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
     .lj-minha { border-color:var(--border-red); }
     .lj-liga-logo { width:20px; height:20px; object-fit:contain; margin-right:6px; vertical-align:middle; }
@@ -1441,7 +1459,13 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
               // acompanhar sem poder mexer.
               uksort($leiloes, fn($a, $b) => ($b === $minhaLigaLeilao) <=> ($a === $minhaLigaLeilao));
             ?>
-            <div class="sec-label"><i class="bi bi-broadcast"></i> Leilão do jogo da semana</div>
+            <div class="sec-label">
+              <i class="bi bi-broadcast"></i> Leilão do jogo da semana
+              <button type="button" class="lj-refresh" id="lj-refresh"
+                      title="Ver se cobriram o seu lance" aria-label="Atualizar o leilão">
+                <i class="bi bi-arrow-clockwise"></i>
+              </button>
+            </div>
             <p class="lj-intro">
               Os dois times que mais oferecem têm o jogo deles escolhido como o
               <b>jogo da semana</b>. Os FBA Points ficam retidos só enquanto
@@ -1449,7 +1473,16 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
               na hora. Cada liga tem o seu, e o leilão zera a cada temporada.
             </p>
 
-            <div class="lj-grid">
+            <?php
+              // Em que pé eu estou no leilão da MINHA liga. É isso que o botão
+              // de atualizar compara antes e depois, pra saber se avisa "te
+              // cobriram" em vez de só trocar os números em silêncio.
+              $meuLeilao = $leiloes[$minhaLigaLeilao] ?? null;
+              $meuEstado = !$meuLeilao || !$meuLeilao['meu']
+                  ? 'sem'
+                  : ($meuLeilao['meu']['no_podio'] ? 'podio' : 'fora');
+            ?>
+            <div class="lj-grid" id="lj-grid" data-meu="<?= $meuEstado ?>">
               <?php foreach ($leiloes as $lg => $d):
                 $ehMinha = $lg === $minhaLigaLeilao;
                 $a = $d['podio'][0] ?? null;
@@ -1757,6 +1790,85 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
 </div>
 
 <script>
+/**
+ * Atualizar o leilão sem recarregar a página.
+ *
+ * O leilão anda enquanto a pessoa está com a aba aberta, e o que ela quer
+ * saber é uma coisa só: cobriram o meu lance? Recarregar a página inteira
+ * resolveria, mas jogaria ela de volta pra aba de games e perderia o scroll.
+ * Então busco a mesma página e troco só a grade do leilão.
+ */
+(function () {
+    var bt = document.getElementById('lj-refresh');
+    var grade = document.getElementById('lj-grid');
+    if (!bt || !grade) return;
+
+    var ocupado = false;
+
+    bt.addEventListener('click', async function () {
+        if (ocupado) return;
+        ocupado = true;
+        bt.disabled = true;
+        bt.classList.add('girando');
+        grade.classList.add('atualizando');
+
+        var antes = grade.dataset.meu;
+
+        // O aviso é sobre ESTE clique. Deixar o anterior na tela faria a
+        // pessoa ler "cobriram seu lance" de novo num clique em que nada
+        // mudou, e ela iria conferir um susto que já tinha acontecido.
+        var velho = document.getElementById('lj-aviso');
+        if (velho) velho.remove();
+
+        try {
+            var r = await fetch('games.php?aba=loja', {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!r.ok) throw new Error(r.status);
+
+            var doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+            var nova = doc.getElementById('lj-grid');
+            // Sem a grade no HTML que voltou (sessão caiu, por exemplo) não
+            // troco nada: deixar o bloco vazio seria pior que ficar velho.
+            if (!nova) throw new Error('sem grade');
+
+            grade.replaceWith(nova);
+            grade = nova;
+            bt.classList.remove('girando');
+
+            // Só falo quando a MINHA situação mudou. Um aviso a cada clique
+            // viraria ruído e a pessoa pararia de ler justamente o aviso que
+            // importa.
+            var agora = nova.dataset.meu;
+            if (antes === 'podio' && agora === 'fora') {
+                ljAviso('Cobriram o seu lance — você saiu do jogo da semana.', 'ruim');
+            } else if (antes === 'fora' && agora === 'podio') {
+                ljAviso('Você voltou pro jogo da semana.', 'bom');
+            }
+        } catch (e) {
+            bt.classList.remove('girando');
+            ljAviso('Não deu pra atualizar agora. Tente de novo.', 'ruim');
+        } finally {
+            grade.classList.remove('atualizando');
+            bt.classList.remove('girando');
+            bt.disabled = false;
+            ocupado = false;
+        }
+    });
+
+    function ljAviso(texto, tom) {
+        var velho = document.getElementById('lj-aviso');
+        if (velho) velho.remove();
+        var d = document.createElement('div');
+        d.id = 'lj-aviso';
+        d.className = 'lj-meu ' + (tom === 'bom' ? 'ok' : 'fora');
+        d.style.margin = '0 0 12px';
+        d.textContent = texto;
+        grade.parentNode.insertBefore(d, grade);
+    }
+})();
+
 function trocarAba(aba) {
     document.querySelectorAll('.g-tab').forEach(t => t.classList.toggle('active', t.dataset.aba === aba));
     document.querySelectorAll('.g-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + aba));
