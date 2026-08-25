@@ -598,6 +598,7 @@ try {
                         <li><b>A cada 5 cestas</b> sobe um nível: a barra acelera e o verde encolhe.</li>
                         <li>Cada <b>2 cestas</b> valem <b>1 moeda</b>, do primeiro arremesso ao último.</li>
                         <li>Duas vidas: errou duas vezes, fim de jogo.</li>
+                        <li>A cada <b>100 cestas</b> você ganha <b>uma vida</b>.</li>
                     </ul>
                 </div>
 
@@ -645,7 +646,17 @@ try {
     let lastTime = null;
     let score = 0;
     let best = <?= (int)$recorde ?>;   // vem do banco: antes era do navegador e sumia no F5
-    let lives = 2;
+    /**
+     * As vidas, e a que se ganha de volta.
+     *
+     * A cada 100 cestas entra uma vida nova — sem teto, e é de propósito: quem
+     * chegou a 100 sem errar merece a terceira tanto quanto quem chegou lá com
+     * uma só. Limitar ao par inicial faria a partida perfeita ser a única que
+     * não ganha nada por ser perfeita.
+     */
+    const VIDAS_INICIAIS  = 2;
+    const CESTAS_POR_VIDA = 100;
+    let lives = VIDAS_INICIAIS;
     let isRunning = false;
     let isGameOver = false;
 
@@ -692,15 +703,25 @@ try {
     const velocidadeDe = (s) => Math.min(maxSpeed, baseSpeed + nivelDe(s) * speedStep);
     const zonaDe = (s) => Math.max(minZone, maxZone - nivelDe(s) * zoneStep);
 
+    /**
+     * Desenha as vidas que existem AGORA.
+     *
+     * O loop era fixo em dois corações, o que estava certo enquanto duas era o
+     * teto. Com a vida extra a cada 100 cestas, quem passa desse marco fica com
+     * três — e o desenho tem que caber nisso, senão a vida ganha não aparece em
+     * lugar nenhum e o prêmio some.
+     *
+     * Os vazios só são desenhados até o par inicial: passar de dois enche a
+     * linha de corações apagados que não significam nada.
+     */
     const updateLives = () => {
         livesEl.innerHTML = '';
-        for (let i = 0; i < 2; i += 1) {
+        const casas = Math.max(VIDAS_INICIAIS, lives);
+        for (let i = 0; i < casas; i += 1) {
             const icon = document.createElement('i');
             icon.className = i < lives ? 'bi bi-heart-fill text-danger' : 'bi bi-heart text-secondary';
             livesEl.appendChild(icon);
-            if (i === 0) {
-                livesEl.appendChild(document.createTextNode(' '));
-            }
+            if (i < casas - 1) livesEl.appendChild(document.createTextNode(' '));
         }
     };
 
@@ -817,7 +838,17 @@ try {
             bestEl.textContent = best;
             // Subir de nível é o único momento em que o jogo muda de verdade;
             // sem avisar, a barra simplesmente acelera e parece bug.
-            setFeedback(nivelDe(score) > nivelAntes
+            // A vida extra vem ANTES do aviso de nível: as duas coisas podem
+            // cair na mesma cesta (100 é múltiplo de 5), e ganhar uma vida é a
+            // notícia maior das duas.
+            const ganhouVida = score % CESTAS_POR_VIDA === 0;
+            if (ganhouVida) {
+                lives += 1;
+                updateLives();
+            }
+            setFeedback(
+                ganhouVida ? `${score} cestas! Você ganhou uma vida — agora são ${lives}`
+              : nivelDe(score) > nivelAntes
                 ? `Cesta! Nível ${nivelDe(score) + 1} — barra mais rápida, verde menor`
                 : 'Cesta! +1 ponto', true);
             ball.classList.add('shoot-success');
@@ -867,7 +898,7 @@ try {
 
     const resetGame = () => {
         score = 0;
-        lives = 2;
+        lives = VIDAS_INICIAIS;
         progress = 0.5;
         direction = 1;
         isRunning = true;
