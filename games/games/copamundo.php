@@ -18,7 +18,12 @@ require_once __DIR__ . '/../core/conexao.php';
 require_once __DIR__ . '/../core/copa_motor.php';
 
 $userId = (int)($_SESSION['user_id'] ?? 0);
-$isAdmin = (($_SESSION['user_type'] ?? '') === 'admin');
+
+// Admin geral OU admin do Games. A copa é coisa do Games, e quem cuida do
+// Games é quem está por perto pra abrir a votação e apurar a rodada na
+// hora — deixar isso só no admin geral faria a copa parar sempre que ele
+// não estivesse disponível.
+$isAdmin = $userId > 0 && hasGamesAdminAccess($pdo, $userId);
 
 copaTabelas($pdo);
 
@@ -300,6 +305,17 @@ if ($copa && $userId) {
       <small>Copa do Mundo</small>
       <?= $copa ? $esc($copa['titulo']) : 'Nenhuma copa ainda' ?>
     </div>
+    <?php /* Copiar link vale pra TODO MUNDO, e não só pro admin: quem está
+             gostando da copa é quem chama os outros pra votar, e o voto de
+             mais gente é o que faz o resultado valer alguma coisa. */ ?>
+    <?php if ($copa && !$novo): ?>
+    <button class="bt" id="btCopiar"
+            data-link="<?= $esc((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+                        . '://' . ($_SERVER['HTTP_HOST'] ?? 'fbabrasil.com.br')
+                        . '/games/games/copamundo.php?copa=' . (int)$copa['id']) ?>">
+      <i class="bi bi-link-45deg"></i> <span>Copiar link</span>
+    </button>
+    <?php endif; ?>
     <?php if ($isAdmin && !$novo): ?>
     <a class="bt ouro" href="?nova=1"><i class="bi bi-plus-lg"></i> Nova copa</a>
     <?php endif; ?>
@@ -394,7 +410,7 @@ if ($copa && $userId) {
         </button>
       </form>
 
-      <form method="post" style="display:inline" onsubmit="return confirm('Apurar os votos, pagar quem acertou e montar a próxima rodada? Não dá pra desfazer.')">
+      <form method="post" style="display:inline" data-confirmar="Apurar os votos, pagar quem acertou e montar a próxima rodada? Não dá pra desfazer.">
         <input type="hidden" name="acao" value="fechar">
         <input type="hidden" name="torneio_id" value="<?= (int)$copa['id'] ?>">
         <button class="bt ouro"><i class="bi bi-flag-fill"></i>
@@ -407,7 +423,7 @@ if ($copa && $userId) {
       </span>
 
       <form method="post" style="margin-left:auto"
-            onsubmit="return confirm('APAGAR a copa inteira, com votos e pontuação? Não dá pra desfazer.')">
+            data-confirmar="APAGAR a copa inteira, com votos e pontuação? Não dá pra desfazer.">
         <input type="hidden" name="acao" value="apagar">
         <input type="hidden" name="torneio_id" value="<?= (int)$copa['id'] ?>">
         <button class="bt perigo"><i class="bi bi-trash"></i> Apagar</button>
@@ -596,6 +612,76 @@ if ($copa && $userId) {
 })();
 </script>
 <?php endif; ?>
+
+<?php /* Os popups do site. Sem isto o caminho de reserva do "copiar link"
+         cairia no prompt() do navegador, que é justamente o que foi tirado
+         do resto do app. */ ?>
+<script src="/js/popups.js"></script>
+<script>
+/**
+ * COPIAR O LINK DA COPA.
+ *
+ * O clipboard moderno só existe em HTTPS (e em localhost). Em produção é
+ * HTTPS, mas quem abrir por http puro cairia num erro silencioso — daí o
+ * caminho antigo com textarea + execCommand como reserva.
+ *
+ * E se os dois falharem, o link é SELECIONADO na tela: a pessoa copia na
+ * mão. Um botão de copiar que não copia e não diz nada é pior que não ter
+ * botão.
+ */
+(function () {
+  var bt = document.getElementById('btCopiar');
+  if (!bt) return;
+  var rotulo = bt.querySelector('span');
+  var original = rotulo.textContent;
+  var timer = null;
+
+  function avisar(texto, ok) {
+    rotulo.textContent = texto;
+    bt.style.color = ok ? 'var(--verde)' : '';
+    bt.style.borderColor = ok ? 'var(--verde)' : '';
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      rotulo.textContent = original;
+      bt.style.color = '';
+      bt.style.borderColor = '';
+    }, 2200);
+  }
+
+  function copiaAntiga(txt) {
+    var ta = document.createElement('textarea');
+    ta.value = txt;
+    // Fora da tela, mas não display:none — o execCommand precisa que o
+    // campo esteja de fato no documento e selecionável.
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+    document.body.appendChild(ta);
+    ta.select();
+    var deu = false;
+    try { deu = document.execCommand('copy'); } catch (e) { deu = false; }
+    document.body.removeChild(ta);
+    return deu;
+  }
+
+  bt.addEventListener('click', async function () {
+    var link = bt.dataset.link;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(link);
+        avisar('Link copiado!', true);
+        return;
+      }
+      throw new Error('sem clipboard');
+    } catch (e) {
+      if (copiaAntiga(link)) { avisar('Link copiado!', true); return; }
+      // Última saída: mostra o link pronto pra copiar na mão.
+      window.avisarSite
+        ? window.avisarSite('Copie o link:\n\n' + link, 'aviso')
+        : prompt('Copie o link:', link);
+      avisar('Copie na mão', false);
+    }
+  });
+})();
+</script>
 
 <?php if ($destaqueSorteio): ?>
 <script>

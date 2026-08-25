@@ -26,8 +26,14 @@
 
 require_once __DIR__ . '/../../backend/db.php';
 
-/** Os tamanhos que o admin escolhe na criação. */
-const COPA_TAMANHOS = [16, 32, 48, 64];
+/**
+ * Os atalhos de tamanho na criação.
+ *
+ * São só atalhos pra contar: qualquer número de 2 a 64 monta chaveamento,
+ * e o que não for potência de 2 vira bye. O 8 entrou porque copa curta é o
+ * que cabe numa semana — três rodadas e acabou.
+ */
+const COPA_TAMANHOS = [8, 16, 32, 48, 64];
 
 /** Teto de competidores. Acima disso o chaveamento não cabe em tela nenhuma. */
 const COPA_MAX = 64;
