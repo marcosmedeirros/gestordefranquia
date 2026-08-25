@@ -141,7 +141,7 @@ $lista = copaLista($pdo);
 $esc = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 $nomeDe = fn($id) => $id && isset($comps[$id]) ? $comps[$id]['nome'] : '—';
 
-// A minha situação na copa, pro cabeçalho dizer em que degrau eu estou.
+// A minha situação na copa, pro cabeçalho dizer em que sequência eu estou.
 $minhaSeq = null;
 if ($copa && $userId) {
     $st = $pdo->prepare("SELECT * FROM copa_sequencias WHERE torneio_id=? AND user_id=?");
@@ -555,7 +555,7 @@ if ($copa && $userId) {
     <?php if ($minhaSeq && (int)$minhaSeq['pontos'] > 0): ?>
       <span class="selo neutro">
         Você: <?= (int)$minhaSeq['pontos'] ?> pts
-        <?php if ((int)$minhaSeq['sequencia'] > 0): ?>· 🔥 degrau <?= (int)$minhaSeq['sequencia'] + 1 ?><?php endif; ?>
+        <?php if ((int)$minhaSeq['sequencia'] > 0): ?>· 🔥 sequência <?= (int)$minhaSeq['sequencia'] + 1 ?><?php endif; ?>
       </span>
     <?php endif; ?>
   </div>
@@ -751,16 +751,26 @@ if ($copa && $userId) {
       </div>
     </div>
 
+    <?php $pagaAgora = copaRodadaPaga($rodAtual, $rodadas); ?>
     <?php if (!$encerrada && !$votando): ?>
     <div class="dica" style="margin-top:12px">
       A votação está fechada. Quando o admin abrir, é só clicar no competidor
       pra votar — dá pra trocar o voto enquanto a rodada estiver aberta.
     </div>
-    <?php elseif ($votando): ?>
+    <?php elseif ($votando && $pagaAgora): ?>
     <div class="dica" style="margin-top:12px">
       Clique no nome pra votar. Cada palpite certo vale FBA Points, e quem
-      acerta a maioria da rodada sobe um degrau — o próximo acerto passa a
+      acerta a maioria da rodada aumenta a sequência — o próximo acerto passa a
       valer mais.
+    </div>
+    <?php elseif ($votando): ?>
+    <?php /* A rodada conta pro chaveamento mas não paga. Dizer isso na hora
+             de votar evita a decepção depois — e é justo: a pessoa decide se
+             quer votar sabendo o que ganha. */ ?>
+    <div class="dica" style="margin-top:12px">
+      Clique no nome pra votar. <b>Esta fase ainda não paga FBA Points</b> —
+      eles começam nas oitavas de final, e a sequência começa a contar lá.
+      O voto de agora decide quem chega lá.
     </div>
     <?php endif; ?>
   </div>
@@ -769,7 +779,7 @@ if ($copa && $userId) {
   <div class="cx">
     <h2>Quem está indo bem</h2>
     <table>
-      <thead><tr><th class="pos">#</th><th class="rk-nome-col">GM</th><th class="num">Acertos</th><th class="num">Degrau</th><th class="num">FBA Points</th></tr></thead>
+      <thead><tr><th class="pos">#</th><th class="rk-nome-col">GM</th><th class="num">Acertos</th><th class="num">Sequência</th><th class="num">FBA Points</th></tr></thead>
       <tbody>
         <?php foreach ($ranking as $i => $r): ?>
         <tr class="<?= (int)$r['user_id'] === $userId ? 'eu' : '' ?>">

@@ -139,6 +139,25 @@ function copaRodadas(int $slots): int
     return (int)round(log($slots, 2));
 }
 
+/**
+ * Esta rodada paga FBA Points?
+ *
+ * Só das OITAVAS em diante. Numa copa de 64, os 32 avos e os 16 avos ficam
+ * de fora; numa de 16, a primeira rodada JÁ é as oitavas e tudo paga.
+ *
+ * O motivo é a conta: 32 confrontos numa rodada só pagariam mais que a copa
+ * inteira das fases decisivas somadas, e o palpite ali é barato — quase todo
+ * favorito de primeira rodada passa. A escada existe pra premiar quem
+ * sustenta a leitura quando ela fica difícil, e é das oitavas em diante que
+ * ela fica.
+ *
+ * "Faltam 3" é as oitavas: 3 rodadas depois dela vêm quartas, semi e final.
+ */
+function copaRodadaPaga(int $rodada, int $rodadas): bool
+{
+    return ($rodadas - $rodada) <= 3;
+}
+
 /** O nome da rodada, contando de trás pra frente. */
 function copaNomeRodada(int $rodada, int $rodadas): string
 {
@@ -507,7 +526,14 @@ function copaFecharRodada(PDO $pdo, int $torneioId): array
         }
 
         // ── Quem acertou, e quanto vale ────────────────────────────────
-        $pagos = copaPagarRodada($pdo, $torneioId, $rodada);
+        //
+        // Rodada anterior às oitavas não paga NEM mexe no sequência. Se ela
+        // contasse pro sequência sem pagar, quem votou nos 32 avos chegaria às
+        // oitavas já no sequência 3 — e a escada, que existe pra medir leitura
+        // nas fases difíceis, viraria prêmio por ter votado cedo.
+        $pagos = copaRodadaPaga($rodada, $rodadas)
+            ? copaPagarRodada($pdo, $torneioId, $rodada)
+            : 0;
 
         // ── A rodada seguinte, ou o campeão ────────────────────────────
         $campeao = null;
@@ -544,10 +570,10 @@ function copaFecharRodada(PDO $pdo, int $torneioId): array
 /**
  * Paga a rodada e atualiza as sequências.
  *
- * CADA VOTO CERTO vale o degrau em que a pessoa está. Acertar 28 de 32 no
- * degrau 1 paga 28; os mesmos 28 no degrau 3 pagariam 84.
+ * CADA VOTO CERTO vale o sequência em que a pessoa está. Acertar 28 de 32 no
+ * sequência 1 paga 28; os mesmos 28 no sequência 3 pagariam 84.
  *
- * O degrau sobe por RODADA, e não por confronto. Por confronto, os 32 jogos
+ * O sequência sobe por RODADA, e não por confronto. Por confronto, os 32 jogos
  * da primeira rodada já pagariam 1+2+3+…+32 = 528 pontos a quem acertasse
  * tudo — mais que a loja inteira, numa rodada só. Por rodada, a escada mede
  * o que ela deveria medir: sustentar a leitura ao longo da copa.
@@ -593,14 +619,14 @@ function copaPagarRodada(PDO $pdo, int $torneioId, int $rodada): int
         $s = $lerSeq->fetch(PDO::FETCH_ASSOC)
              ?: ['sequencia' => 0, 'melhor' => 0, 'acertos' => 0, 'erros' => 0, 'pontos' => 0];
 
-        // O degrau desta rodada é o que a pessoa já tinha mais um, quando ela
-        // acerta a maioria. Quem errou a maioria cai pro degrau 1 — e não
+        // O sequência desta rodada é o que a pessoa já tinha mais um, quando ela
+        // acerta a maioria. Quem errou a maioria cai pro sequência 1 — e não
         // pro zero: ela ainda acertou alguns palpites, e não pagar nada por
         // eles faria a rodada ruim valer o mesmo que não votar.
         $acertouMaioria = $d['certos'] * 2 > $d['total'];
         $seq   = $acertouMaioria ? (int)$s['sequencia'] + 1 : 0;
-        $degrau = max(1, $seq);
-        $ganho  = $d['certos'] * $degrau;
+        $multiplicador = max(1, $seq);
+        $ganho  = $d['certos'] * $multiplicador;
 
         if ($ganho > 0) {
             $pagar->execute([$ganho, $uid]);
@@ -672,6 +698,12 @@ function copaTextoResultado(PDO $pdo, int $torneioId, int $rodada): string
     foreach ($chave[$rodada] as $c) $l[] = copaLinhaConfronto($c, $comps);
 
     $l[] = '';
+    // Sem esta linha, quem acertou tudo numa rodada que não paga vai
+    // procurar os pontos que não vieram e achar que quebrou.
+    if (!copaRodadaPaga($rodada, (int)$t['rodadas'])) {
+        $l[] = '_(Esta fase não paga FBA Points — eles começam nas oitavas.)_';
+        $l[] = '';
+    }
     if ($t['status'] !== 'ativo' && $t['campeao_id']) {
         $l[] = '🥇 *CAMPEÃO: ' . ($comps[(int)$t['campeao_id']]['nome'] ?? '?') . '*';
     } else {
