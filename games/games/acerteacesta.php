@@ -29,11 +29,19 @@ const CESTA_FOLGA_PING  = 3;
 /**
  * Folga entre o último ping e o score final.
  *
- * Os pings vêm de 5 em 5, então quem erra a segunda vida em 9 tem progresso 5.
- * Isto cobre esse pedaço — e é também o máximo que alguém tira sem mandar ping
- * nenhum, então não pode ser generoso.
+ * Os pings vêm de 5 em 5, então quem erra a segunda vida em 9 tem progresso 5 —
+ * isto cobre esse pedaço.
+ *
+ * PRECISA ser menor que o marco de 5, e esse é o ponto todo: a folga também é o
+ * máximo que alguém consegue sem mandar ping nenhum. Com 8, dava pra abrir a
+ * partida, esperar três segundos, mandar score 8 e fechar um marco inteiro —
+ * medi, e rendia 40 moedas em 32 segundos sem jogar nada, em loop. Com 4, o
+ * score sem ping não fecha marco nenhum e o prêmio é zero.
+ *
+ * Quem joga de verdade não perde nada: o ping sai no mesmo arremesso que fecha
+ * o marco, então o marco pago e o ping enviado são o mesmo evento.
  */
-const CESTA_FOLGA_PROGRESSO = 8;
+const CESTA_FOLGA_PROGRESSO = 4;
 
 /**
  * Quanto vale um score, em moedas. É A ÚNICA conta de prêmio.

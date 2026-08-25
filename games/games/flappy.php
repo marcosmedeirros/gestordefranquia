@@ -25,13 +25,18 @@ const FLAPPY_PONTOS_POR_SEGUNDO = 5;
  * Por isso a ação 'progresso' abaixo, que o cliente chama a cada 10 pontos.
  *
  * A folga precisa cobrir só o trecho entre o último ping e a morte: os pings vêm
- * de 10 em 10, então quem morre em 19 tem progresso 10. 15 cobre isso com sobra.
+ * de 10 em 10, então quem morre em 19 tem progresso 10.
  *
- * Era 50, o que sozinho já valia 25 moedas sem mandar ping nenhum — com o teto de
- * prêmio fora, essa folga virou o valor máximo que alguém tira sem jogar, e 50
- * ficou grande demais pro papel.
+ * E precisa ser MENOR que o marco de 10, porque ela é também o máximo que alguém
+ * consegue sem mandar ping nenhum. Com 15 dava pra abrir a run, esperar três
+ * segundos, mandar score 15 e fechar um marco inteiro — 5 moedas por ciclo, em
+ * loop, sem jogar. Medi isso no jogo irmão e o número foi 40 moedas em 32
+ * segundos. Com 9, o score sem ping não fecha marco nenhum e o prêmio é zero.
+ *
+ * Quem joga de verdade não perde nada: o ping é disparado no mesmo cano que
+ * fecha o marco, então o marco pago e o ping enviado são o mesmo evento.
  */
-const FLAPPY_FOLGA_PROGRESSO = 15;
+const FLAPPY_FOLGA_PROGRESSO = 9;
 
 /**
  * De quanto em quanto o cliente reporta progresso, e a folga aceita em cima disso.
