@@ -337,6 +337,11 @@ if ($copa && $userId) {
                    background:var(--verde);z-index:2}
   button.lado{cursor:pointer}
   button.lado:hover{background:var(--panel-3)}
+  /* O confronto em que já votei: fica marcado e não convida mais ao clique.
+     Como o voto não muda, o duelo perde a borda de "ativo" — senão ele
+     continuaria pedindo uma ação que já foi feita. */
+  .duelo.votado{border-color:rgba(34,197,94,.32)}
+  .duelo.votado .lado{cursor:default}
   .bye{padding:9px 11px;font-size:11px;font-weight:800;color:var(--text-3);
        text-transform:uppercase;letter-spacing:.6px;border-top:1px solid var(--border)}
   .duelo-pe{padding:5px 11px;font-size:9.5px;font-weight:800;color:var(--text-3);
@@ -622,7 +627,11 @@ if ($copa && $userId) {
           $bId  = (int)$c['b_id'];
           $venc = (int)$c['vencedor_id'];
           $bye  = !$bId;
-          $podeVotar = $votando && $r === $rodAtual && !$venc && $bId && $userId;
+          // Já votei aqui? Então nem botão aparece. Deixar clicável pra
+          // depois recusar no servidor seria oferecer uma ação que não
+          // existe — e a pessoa tentaria de novo achando que não pegou.
+          $jaVotei   = !empty($c['meu_voto']);
+          $podeVotar = $votando && $r === $rodAtual && !$venc && $bId && $userId && !$jaVotei;
           $total = (int)$c['votos_a'] + (int)$c['votos_b'];
           // A barra mostra a fatia de cada um. Sem voto nenhum ela fica em
           // zero — 50/50 numa disputa vazia parece empate técnico, e não é.
@@ -668,7 +677,7 @@ if ($copa && $userId) {
               <?php
           };
           ?>
-          <div class="duelo <?= $podeVotar ? 'ativo' : '' ?>">
+          <div class="duelo <?= $podeVotar ? 'ativo' : ($jaVotei ? 'votado' : '') ?>">
             <?php $lado($aId, $c['votos_a'], $fa); ?>
             <?php if ($bye): ?>
               <div class="bye"><i class="bi bi-fast-forward-fill"></i> passou sem confronto</div>
@@ -759,18 +768,19 @@ if ($copa && $userId) {
     </div>
     <?php elseif ($votando && $pagaAgora): ?>
     <div class="dica" style="margin-top:12px">
-      Clique no nome pra votar. Cada palpite certo vale FBA Points, e quem
-      acerta a maioria da rodada aumenta a sequência — o próximo acerto passa a
-      valer mais.
+      Clique no nome pra votar — <b>o voto não muda depois</b>. Cada palpite
+      certo vale FBA Points, e quem acerta a maioria da rodada aumenta a
+      sequência: o próximo acerto passa a valer mais.
     </div>
     <?php elseif ($votando): ?>
     <?php /* A rodada conta pro chaveamento mas não paga. Dizer isso na hora
              de votar evita a decepção depois — e é justo: a pessoa decide se
              quer votar sabendo o que ganha. */ ?>
     <div class="dica" style="margin-top:12px">
-      Clique no nome pra votar. <b>Esta fase ainda não paga FBA Points</b> —
-      eles começam nas oitavas de final, e a sequência começa a contar lá.
-      O voto de agora decide quem chega lá.
+      Clique no nome pra votar — <b>o voto não muda depois</b>.
+      <b>Esta fase ainda não paga FBA Points</b>: eles começam nas oitavas de
+      final, e a sequência começa a contar lá. O voto de agora decide quem
+      chega lá.
     </div>
     <?php endif; ?>
   </div>

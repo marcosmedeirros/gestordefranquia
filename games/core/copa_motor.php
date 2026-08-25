@@ -415,8 +415,12 @@ function copaChave(PDO $pdo, int $torneioId, int $userId = 0): array
 }
 
 /**
- * Registra o voto. Trocar o voto é permitido enquanto a rodada está aberta —
- * mudar de ideia vendo o placar virar faz parte.
+ * Registra o voto. UMA VEZ, e sem volta.
+ *
+ * Trocar o voto era permitido, e isso quebrava o jogo: o placar aparece ao
+ * vivo, então bastava votar cedo, olhar quem estava ganhando e trocar pro
+ * líder antes de fechar. Quem fizesse isso acertava tudo sempre, e a
+ * sequência — que existe pra medir leitura — passaria a medir paciência.
  *
  * @return array{ok:bool, erro:?string}
  */
@@ -439,9 +443,15 @@ function copaVotar(PDO $pdo, int $torneioId, int $confrontoId, int $escolhaId, i
     }
 
     try {
-        $pdo->prepare("INSERT INTO copa_votos (confronto_id, user_id, escolha_id) VALUES (?,?,?)
-                       ON DUPLICATE KEY UPDATE escolha_id = VALUES(escolha_id)")
-            ->execute([$confrontoId, $userId, $escolhaId]);
+        // INSERT IGNORE e conferência do rowCount: a chave única (confronto,
+        // pessoa) é quem garante o voto único, e não uma leitura antes do
+        // insert — entre ler e gravar cabe um segundo clique.
+        $st = $pdo->prepare("INSERT IGNORE INTO copa_votos (confronto_id, user_id, escolha_id)
+                             VALUES (?,?,?)");
+        $st->execute([$confrontoId, $userId, $escolhaId]);
+        if ($st->rowCount() === 0) {
+            return ['ok' => false, 'erro' => 'Você já votou neste confronto — o voto não muda.'];
+        }
         return ['ok' => true, 'erro' => null];
     } catch (Throwable $e) {
         error_log('[copa] votar: ' . $e->getMessage());
