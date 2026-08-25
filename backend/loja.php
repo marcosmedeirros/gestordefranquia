@@ -57,7 +57,7 @@ function lojaCatalogo(): array
         ],
         'slot_gleague' => [
             'nome'  => 'Slot extra de G-League',
-            'preco' => 7500,
+            'preco' => 15000,
             'icone' => 'bi-people-fill',
             'cor'   => '#a855f7',
             'desc'  => 'Uma vaga a mais na sua G-League.',
