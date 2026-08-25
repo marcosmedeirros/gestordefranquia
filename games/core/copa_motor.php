@@ -195,6 +195,15 @@ function copaFotoValida(?string $u): ?string
 {
     $u = trim((string)$u);
     if ($u === '' || mb_strlen($u) > 400) return null;
+
+    // Caminho do próprio site ("/uploads/copa/x.png") — é o que o upload
+    // devolve, e foi o que faltou na primeira versão: a copa era criada e
+    // TODAS as fotos enviadas eram descartadas em silêncio.
+    //
+    // "//outro.site/x.jpg" fica de fora: duas barras é URL de outro host
+    // disfarçada de caminho local.
+    if ($u[0] === '/' && ($u[1] ?? '') !== '/') return $u;
+
     return preg_match('~^(https?://|data:image/)~i', $u) ? $u : null;
 }
 

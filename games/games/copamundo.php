@@ -258,6 +258,13 @@ if ($copa && $userId) {
         border:1px solid var(--border-md);background:var(--panel-2);color:var(--text-3);
         font-family:inherit;cursor:pointer}
   .modo.on{border-color:var(--ouro);color:var(--ouro-2);background:rgba(245,158,11,.1)}
+  .envio{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-bottom:9px}
+  .bt-envio{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;
+            padding:9px 14px;border-radius:10px;cursor:pointer;flex:none;
+            border:1px dashed var(--border-md);background:var(--panel-2);color:var(--text-2)}
+  .bt-envio:hover{border-color:var(--ouro);color:var(--ouro-2)}
+  .envio.ocupado .bt-envio{opacity:.55;pointer-events:none}
+  .envio-dica{font-size:11.5px;color:var(--text-3);line-height:1.5;flex:1;min-width:180px}
   .lado.vence{color:var(--ouro-2)}
   .lado.vence .n{color:var(--ouro-2)}
   .lado.perde{opacity:.42}
@@ -372,6 +379,21 @@ if ($copa && $userId) {
         <div class="modos">
           <button type="button" class="modo on" data-modo="nomes">Só nomes</button>
           <button type="button" class="modo" data-modo="fotos">Nome e foto</button>
+        </div>
+
+        <?php /* O envio fica junto do modo com foto e não num passo separado:
+                 escolher os arquivos JÁ é montar a lista — cada foto vira uma
+                 linha "Nome | url" com o nome tirado do arquivo, pronta pra
+                 corrigir antes de sortear. */ ?>
+        <div class="envio" id="envio" style="display:none">
+          <label class="bt-envio">
+            <i class="bi bi-upload"></i> Enviar fotos do computador
+            <input type="file" id="arquivos" accept="image/*" multiple hidden>
+          </label>
+          <span class="envio-dica" id="envioDica">
+            Dá pra escolher várias de uma vez — o nome do arquivo vira o nome
+            do competidor.
+          </span>
         </div>
         <textarea name="nomes" id="nomes" required
                   placeholder="Coxinha&#10;Pastel&#10;Empada&#10;Kibe"><?= $esc($form['nomes']) ?></textarea>
@@ -679,6 +701,7 @@ if ($copa && $userId) {
       var comFoto = b.dataset.modo === 'fotos';
       campoModo.value = b.dataset.modo;
       dicaFoto.style.display = comFoto ? '' : 'none';
+      document.getElementById('envio').style.display = comFoto ? '' : 'none';
       // A previsão do chaveamento fica nos DOIS modos: saber quantas rodadas
       // e quantos byes vão sair importa igual, com foto ou sem.
       ta.placeholder = comFoto
@@ -686,6 +709,59 @@ if ($copa && $userId) {
         : 'Coxinha\nPastel\nEmpada\nKibe';
       atualizar();
     });
+  });
+
+  /* ── Envio de fotos ───────────────────────────────────────────────
+   *
+   * Cada foto que sobe vira uma linha "Nome | url" no fim do textarea. O
+   * texto que já estava fica: quem envia em duas levas não perde a
+   * primeira, e quem já digitou nomes à mão vê as fotos chegarem embaixo.
+   *
+   * Envia TUDO numa requisição só. Uma por arquivo seriam 32 idas ao
+   * servidor pra montar uma copa, e a primeira que falhasse deixaria a
+   * lista pela metade sem ninguém saber quais entraram.
+   */
+  var envio = document.getElementById('envio');
+  var inputArq = document.getElementById('arquivos');
+  var envioDica = document.getElementById('envioDica');
+  var dicaBase = envioDica ? envioDica.textContent : '';
+
+  if (inputArq) inputArq.addEventListener('change', async function () {
+    var arqs = [...inputArq.files];
+    if (!arqs.length) return;
+
+    var fd = new FormData();
+    arqs.forEach(function (f) { fd.append('fotos[]', f); });
+
+    envio.classList.add('ocupado');
+    envioDica.textContent = 'Enviando ' + arqs.length + ' foto(s)…';
+
+    try {
+      var r = await fetch('/games/api/copa-foto.php', {
+        method: 'POST', body: fd, credentials: 'same-origin'
+      });
+      var d = await r.json();
+      if (!d.ok) throw new Error(d.erro || 'não deu');
+
+      var linhas = d.fotos.map(function (f) { return f.nome + ' | ' + f.url; });
+      if (linhas.length) {
+        var atual = ta.value.replace(/\s*$/, '');
+        ta.value = (atual ? atual + '\n' : '') + linhas.join('\n');
+        ta.dispatchEvent(new Event('input'));
+      }
+
+      // Os que falharam aparecem NOMEADOS. "3 de 16 falharam" faria a pessoa
+      // conferir as dezesseis pra descobrir quais.
+      envioDica.textContent = linhas.length + ' foto(s) na lista.'
+        + (d.erros && d.erros.length ? ' Fora: ' + d.erros.join('; ') : '');
+    } catch (e) {
+      envioDica.textContent = 'Não deu pra enviar: ' + (e.message || 'erro');
+    } finally {
+      envio.classList.remove('ocupado');
+      // Zera o input pra escolher o MESMO arquivo de novo disparar o change.
+      inputArq.value = '';
+      setTimeout(function () { envioDica.textContent = dicaBase; }, 6000);
+    }
   });
 
   document.querySelectorAll('.preset').forEach(function (b) {

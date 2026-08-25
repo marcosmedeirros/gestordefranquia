@@ -6,8 +6,12 @@
     Deny from all
 </FilesMatch>
 
-# Permitir apenas arquivos PDF, documentos e vídeos
-<FilesMatch "\.(pdf|doc|docx|mp4|webm|mov|ogg|ogv)$">
+# Permitir arquivos PDF, documentos, vídeos e imagens
+# As imagens entraram com as fotos dos competidores da Copa do Mundo
+# (/uploads/copa). A regra de cima continua valendo pra elas: o bloqueio de
+# .php é por extensão e vem primeiro, então um "foto.php.jpg" cai como jpg e
+# um "foto.jpg.php" cai no Deny.
+<FilesMatch "\.(pdf|doc|docx|mp4|webm|mov|ogg|ogv|jpg|jpeg|png|gif|webp|avif|svg)$">
     Order Allow,Deny
     Allow from all
 </FilesMatch>
