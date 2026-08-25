@@ -38,12 +38,36 @@ const FLAPPY_FOLGA_PROGRESSO = 50;
  *
  * O teto por partida fecha essa porta sem depender de adivinhar qual é o score
  * "possível": não importa quanto tempo alguém espere, uma partida paga no máximo
- * isto. Uma partida boa de verdade (score 300) paga 111, então quem joga bem não
- * sente o limite — só quem tentava farmar tempo.
+ * isto. Com a curva atual o teto chega aos 125 pontos — passar de 125 canos é
+ * uma partida excepcional, então quem joga bem sente o limite raramente, e quem
+ * tentava farmar tempo continua sem passar daqui.
  *
  * O RANKING continua com o score real, sem teto: o limite é de moeda, não de mérito.
  */
 const FLAPPY_TETO_MOEDAS_PARTIDA = 150;
+
+/**
+ * Quanto vale um score, em moedas. É A ÚNICA conta de prêmio do Flappy.
+ *
+ * Existe como função porque a tela também precisa dela: o texto "+N 🪙" que
+ * sobe durante a partida usava uma fórmula PRÓPRIA, sobrada da versão antiga
+ * (1 + score/5 por marco). O servidor pagava outra, e a diferença era enorme —
+ * medida jogando: partida de 10 pontos mostrava "+2" e "+3" na tela e pagava
+ * 1 moeda no fim. Era essa promessa quebrada, e não a falta de pagamento, que
+ * gerava o "o Flappy está dando pouca moeda".
+ *
+ * A curva: 1 moeda por cano, mais 1 de bônus a cada 5 canos — o mesmo marco de
+ * 5 que o jogo já comemora na tela. A anterior só pagava a partir de 10 pontos
+ * e dava 1 moeda ali, num jogo em que passar de 10 canos já é bom; ao lado do
+ * Termo e do Quiz, que pagam 100 por partida, o Flappy pagava quase nada por
+ * uma partida melhor. O teto por partida continua o mesmo, então o farm segue
+ * fechado: o limite é atingido em 125 pontos.
+ */
+function flappyMoedasPorScore(int $score): int
+{
+    $score = max(0, $score);
+    return $score + intdiv($score, 5);
+}
 
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS flappy_historico (id INT AUTO_INCREMENT PRIMARY KEY, id_usuario INT NOT NULL, pontuacao INT NOT NULL, data_jogo DATETIME DEFAULT CURRENT_TIMESTAMP)");
@@ -192,19 +216,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                 error_log("[flappy] score $score limitado a $tetoProgresso (progresso=$progresso, user=$user_id)");
                 $score = $tetoProgresso;
             }
-            // Mesma curva do Pinguim (ver pinguim.php): 1 moeda por marco, +1 a cada
-            // faixa. As constantes são as de lá divididas por 10 porque a escala de
-            // score aqui é ~10x menor — 300 no Flappy equivale a 3.000 no Pinguim, e
-            // os dois passam a pagar as mesmas 111 moedas por uma boa partida.
-            //
-            // Antes era quadrática (m*(m+3)/2, marco a cada 5 pontos): score 300 pagava
-            // 1.890 moedas e 500 pagava 5.150, num jogo ilimitado. Um minuto rendia mais
-            // que uma semana de jogos diários.
-            $milestones = intdiv(max(0, $score), 10);
-            $total_devido = 0;
-            for ($m = 1; $m <= $milestones; $m++) {
-                $total_devido += 1 + intdiv($m * 10, 50);
-            }
+            // A conta do prêmio mora em flappyMoedasPorScore() porque a tela usa a
+            // mesma — ver o comentário de lá.
+            $total_devido = flappyMoedasPorScore($score);
             // O prêmio é recalculado do zero a cada morte, mas o score NÃO zera no revive: sem
             // descontar o que já foi pago, a mesma partida pagava o trecho inicial duas vezes
             // (dava pra farmar: pontuar, reviver por 10, morrer de propósito e receber tudo de novo).
@@ -709,6 +723,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     ];
 
     const rewardMultiplier = <?= (int)$pointsMultiplier ?>;
+
+    /** A mesma conta de flappyMoedasPorScore() no PHP — se mudar lá, muda aqui. */
+    const moedasPorScore = s => Math.max(0, s) + Math.floor(Math.max(0, s) / 5);
     let frames = 0, score = 0, highScore = <?= $recorde ?>, currentState = 'START', coinsEarned = 0;
     let hasUsedRevive = false;
 
@@ -872,11 +889,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                         const scen = scenarios[Math.floor(score / 15) % scenarios.length];
                         showFloatingText(scen.name, canvas.width / 2, 120);
                     }
-                    // Moedas
+                    // Moedas — o valor vem da MESMA conta do servidor (moedasPorScore).
+                    // Mostrar aqui uma fórmula própria foi o que fez o jogo prometer
+                    // 5 moedas numa partida que pagava 1.
                     if (score % 5 === 0) {
-                        const reward = (1 + (score / 5)) * rewardMultiplier;
-                        coinsEarned += reward;
-                        showFloatingText(`+${reward} 🪙`, bird.x, bird.y - 30);
+                        const total  = moedasPorScore(score) * rewardMultiplier;
+                        const reward = total - coinsEarned;
+                        coinsEarned = total;
+                        if (reward > 0) showFloatingText(`+${reward} 🪙`, bird.x, bird.y - 30);
                     }
                 }
                 if (p.x + this.w < 0) this.items.splice(i, 1);
@@ -1022,13 +1042,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     document.getElementById('coinsText').textContent = `+${d.coins} moedas ganhas!`;
                     banner.style.display = 'flex';
                 } else {
-                    // Partida abaixo do primeiro marco paga zero — e até aqui a
-                    // tela não dizia NADA nesse caso: a pessoa jogava, morria e
-                    // simplesmente não via moeda nenhuma, sem saber se era
-                    // assim mesmo ou se o jogo estava quebrado. Era essa a
-                    // origem do "o Flappy não está dando moedas".
-                    document.getElementById('coinsText').textContent =
-                        'Chegue a 10 pontos pra começar a ganhar moedas!';
+                    // Zero moedas tem duas causas bem diferentes, e dizer a errada
+                    // parece defeito: quem não passou de nenhum cano precisa saber
+                    // que é preciso pontuar; quem reviveu e morreu sem avançar já
+                    // recebeu por esse trecho, e a segunda morte não paga de novo.
+                    document.getElementById('coinsText').textContent = score > 0
+                        ? 'Você já recebeu as moedas até aqui — avance mais pra ganhar de novo.'
+                        : 'Passe por pelo menos um cano pra ganhar moedas!';
                     banner.style.display = 'flex';
                 }
             }
