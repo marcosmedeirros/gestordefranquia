@@ -65,12 +65,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 : 'Votação fechada. Ninguém vota até você abrir de novo.'];
 
         } elseif ($acao === 'fechar' && $isAdmin) {
+            // A rodada que ACABA de ser apurada — depois de fechar, o torneio
+            // já aponta pra seguinte, e é o resultado desta que vai pro grupo.
+            $rodApurada = (int)(copaTorneio($pdo, $tid)['rodada_atual'] ?? 1);
             $r = copaFecharRodada($pdo, $tid);
             if ($r['ok']) {
                 $t = 'Rodada apurada: ' . $r['decididos'] . ' no voto';
                 if ($r['sorteados']) $t .= ', ' . $r['sorteados'] . ' no sorteio (empate)';
                 $t .= '. ' . $r['pagos'] . ' pessoa(s) receberam FBA Points.';
                 if ($r['campeao']) $t = '🏆 CAMPEÃO: ' . $r['campeao'] . '! ' . $t;
+
+                // Avisa o grupo. Fora da transação e num try próprio: bot
+                // desligado, grupo não configurado ou fila cheia não podem
+                // desfazer uma apuração que já pagou FBA Points.
+                try {
+                    require_once __DIR__ . '/../../backend/whatsapp.php';
+                    $grupo = trim((string)($pdo->query(
+                        "SELECT grupo_principal FROM whatsapp_config WHERE id=1")->fetchColumn() ?: ''));
+                    $texto = copaTextoResultado($pdo, $tid, $rodApurada);
+                    if ($grupo !== '' && $texto !== '' && function_exists('whatsappEnfileirar')) {
+                        if (whatsappEnfileirar($pdo, $grupo, $texto, true, 'copa')) {
+                            $t .= ' Resultado enviado pro grupo.';
+                        }
+                    }
+                } catch (Throwable $e) {
+                    error_log('[copa] aviso no grupo: ' . $e->getMessage());
+                }
+
                 $_SESSION['copa_flash'] = ['ok', $t];
             } else {
                 $_SESSION['copa_flash'] = ['erro', (string)$r['erro']];

@@ -618,6 +618,135 @@ function copaPagarRodada(PDO $pdo, int $torneioId, int $rodada): int
     return $pagos;
 }
 
+/* ────────────────────────────────────────────────────────────────────────
+ * OS TEXTOS DO GRUPO
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Uma linha de confronto: quem ganhou, o placar e quem caiu.
+ *
+ * O perdedor aparece SEMPRE, e com o número de votos dele. "Coxinha
+ * avançou" não conta a história; "Coxinha 12 x 3 Pastel" conta — dá pra ver
+ * atropelo, jogo apertado e zebra sem precisar abrir o site.
+ */
+function copaLinhaConfronto(array $c, array $comps): string
+{
+    $nome = fn($id) => $comps[$id]['nome'] ?? '—';
+    $a = (int)$c['a_id'];
+    $b = (int)$c['b_id'];
+    $v = (int)$c['vencedor_id'];
+
+    if (!$b) return '⏩ *' . $nome($a) . '* passou sem confronto';
+
+    $va = (int)($c['votos_a'] ?? 0);
+    $vb = (int)($c['votos_b'] ?? 0);
+
+    // O vencedor sempre à esquerda: o olho lê a coluna da esquerda pra
+    // saber quem passou, e alternar a posição obrigaria a ler tudo.
+    if ($v === $b) { [$a, $b] = [$b, $a]; [$va, $vb] = [$vb, $va]; }
+
+    $marca = !empty($c['no_sorteio']) ? '🎲' : '✅';
+    $obs   = !empty($c['no_sorteio']) ? ' _(empate, no sorteio)_' : '';
+
+    return $marca . ' *' . $nome($a) . "* {$va} x {$vb} " . $nome($b) . $obs;
+}
+
+/**
+ * O resultado de uma rodada, pro grupo. É o que sai quando o admin apura.
+ *
+ * @return string vazio se a rodada não existe
+ */
+function copaTextoResultado(PDO $pdo, int $torneioId, int $rodada): string
+{
+    copaTabelas($pdo);
+    $t = copaTorneio($pdo, $torneioId);
+    if (!$t) return '';
+
+    $chave = copaChave($pdo, $torneioId);
+    if (empty($chave[$rodada])) return '';
+    $comps = copaCompetidores($pdo, $torneioId);
+
+    $l = ['🏆 *' . mb_strtoupper($t['titulo']) . '*',
+          '_' . copaNomeRodada($rodada, (int)$t['rodadas']) . ' — resultado_', ''];
+
+    foreach ($chave[$rodada] as $c) $l[] = copaLinhaConfronto($c, $comps);
+
+    $l[] = '';
+    if ($t['status'] !== 'ativo' && $t['campeao_id']) {
+        $l[] = '🥇 *CAMPEÃO: ' . ($comps[(int)$t['campeao_id']]['nome'] ?? '?') . '*';
+    } else {
+        $l[] = 'Agora: *' . copaNomeRodada((int)$t['rodada_atual'], (int)$t['rodadas']) . '*';
+        // A votação nasce fechada na rodada nova — dizer "vote agora" aqui
+        // mandaria a galera pra uma tela que ainda não aceita voto.
+        $l[] = empty($t['votacao'])
+            ? '_Aguardando a votação abrir._'
+            : '_Votação aberta!_';
+    }
+    return implode("\n", $l);
+}
+
+/**
+ * Como a copa está agora — é o /vercopa.
+ *
+ * Mostra a rodada em andamento com o parcial, e não a rodada passada: quem
+ * pergunta "como tá?" quer saber em que pé está o que ainda dá pra mudar.
+ */
+function copaTextoAgora(PDO $pdo, ?int $torneioId = null): string
+{
+    copaTabelas($pdo);
+    $t = $torneioId ? copaTorneio($pdo, $torneioId) : copaAtual($pdo);
+    if (!$t) {
+        // Distingue "não existe copa nenhuma" de "esse número não existe".
+        // A mesma frase pros dois faria quem digitou o número errado achar
+        // que a copa inteira sumiu.
+        return $torneioId
+            ? "Não achei a copa #{$torneioId}. Manda */vercopa* pra ver a atual."
+            : 'Nenhuma copa criada ainda.';
+    }
+
+    $tid   = (int)$t['id'];
+    $comps = copaCompetidores($pdo, $tid);
+    $chave = copaChave($pdo, $tid);
+    $rod   = (int)$t['rodada_atual'];
+
+    $l = ['🏆 *' . mb_strtoupper($t['titulo']) . '*'];
+
+    if ($t['status'] !== 'ativo' && $t['campeao_id']) {
+        $l[] = '';
+        $l[] = '🥇 *CAMPEÃO: ' . ($comps[(int)$t['campeao_id']]['nome'] ?? '?') . '*';
+        $l[] = '';
+        $l[] = '_' . copaNomeRodada((int)$t['rodadas'], (int)$t['rodadas']) . '_';
+        foreach ($chave[(int)$t['rodadas']] ?? [] as $c) $l[] = copaLinhaConfronto($c, $comps);
+        return implode("\n", $l);
+    }
+
+    $l[] = '_' . copaNomeRodada($rod, (int)$t['rodadas'])
+         . (empty($t['votacao']) ? ' — votação fechada_' : ' — votação ABERTA_');
+    $l[] = '';
+
+    $abertos = 0;
+    foreach ($chave[$rod] ?? [] as $c) {
+        if ($c['vencedor_id']) { $l[] = copaLinhaConfronto($c, $comps); continue; }
+        $abertos++;
+        $va = (int)$c['votos_a'];
+        $vb = (int)$c['votos_b'];
+        $na = $comps[(int)$c['a_id']]['nome'] ?? '—';
+        $nb = $comps[(int)$c['b_id']]['nome'] ?? '—';
+        // Quem está na frente vai em negrito. Empate não destaca ninguém —
+        // marcar um dos dois inventaria uma vantagem que não existe.
+        if ($va > $vb)      $l[] = "▪️ *{$na}* {$va} x {$vb} {$nb}";
+        elseif ($vb > $va)  $l[] = "▪️ {$na} {$va} x {$vb} *{$nb}*";
+        else                $l[] = "▪️ {$na} {$va} x {$vb} {$nb} _(empatado)_";
+    }
+
+    $l[] = '';
+    $l[] = $abertos && !empty($t['votacao'])
+        ? "_{$abertos} confronto(s) em aberto. Vote no site!_"
+        : '_Aguardando o próximo passo da organização._';
+
+    return implode("\n", $l);
+}
+
 /** O ranking da copa, pro placar de quem está indo bem. */
 function copaRanking(PDO $pdo, int $torneioId, int $limite = 20): array
 {

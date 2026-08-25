@@ -2796,6 +2796,14 @@ function wcResponderComando(PDO $pdo, string $texto, ?string $ligaDoGrupo = null
             case 'escala':
                 return wcEscalaChamar($pdo, $arg, $deQuem, $ligaDoGrupo);
 
+            // A Copa do Mundo do Games. Sem argumento mostra a copa em
+            // andamento; com um número, aquela copa — pra conferir uma
+            // antiga sem ter que abrir o site.
+            case 'vercopa':
+            case 'copa':
+                require_once __DIR__ . '/../games/core/copa_motor.php';
+                return copaTextoAgora($pdo, ctype_digit(trim($arg)) ? (int)trim($arg) : null);
+
             // O manual, pra fixar no grupo. Separado do /escala de propósito:
             // a chamada é do momento e some na rolagem; este responde sempre
             // igual, e é o que quem chega depois precisa achar.
