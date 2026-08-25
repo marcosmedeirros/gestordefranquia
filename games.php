@@ -903,6 +903,30 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
     .rk-val { font-size:13.5px; font-weight:800; flex-shrink:0;
         font-variant-numeric:tabular-nums; }
 
+    /* ── Maiores sequências ─────────────────────────────────────────────
+       Um título de seção, e não mais um card no meio da grade: o que vem
+       abaixo mede outra coisa (constância, não volume), e sem a divisória
+       os cinco cards pareceriam mais critérios do mesmo ranking. */
+    .rk-seq-tit { display:flex; align-items:center; gap:9px; margin:26px 0 14px;
+        font-size:13px; font-weight:800; color:var(--text); flex-wrap:wrap; }
+    .rk-seq-tit i { color:#f97316; font-size:15px; }
+    .rk-seq-tit span { font-size:11px; font-weight:600; color:var(--text-3);
+        text-transform:uppercase; letter-spacing:.6px; }
+    .rk-seq-tit::after { content:""; flex:1; height:1px; background:var(--border);
+        min-width:24px; }
+    /* Em tela estreita o título e o "dias seguidos acertando" disputavam a
+       mesma linha e os dois quebravam no meio. Aqui o subtítulo desce
+       inteiro pra linha de baixo, e a régua some — ela não tem o que
+       separar quando já há uma quebra de linha fazendo isso. */
+    @media (max-width:520px) {
+        .rk-seq-tit { gap:4px 8px; }
+        .rk-seq-tit span { flex-basis:100%; }
+        .rk-seq-tit::after { display:none; }
+    }
+    /* A chama fica colada no nome e não encolhe junto com ele: o nome tem
+       ellipsis, e um emoji cortado pela metade não se lê como nada. */
+    .rk-viva { flex-shrink:0; font-size:11px; margin-left:3px; }
+
     /* ── O HISTÓRICO VIRA CARD NO CELULAR ───────────────────────────────
        Quatro colunas em 375px é uma tabela que rola de lado com o resultado
        cortado do lado de fora — e resultado é a coluna que a pessoa veio
@@ -1442,6 +1466,59 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                 </div>
             </div>
             <?php endforeach; ?>
+
+            <?php
+                // ── Sequências dos jogos diários ────────────────────────
+                //
+                // Fora do bloco por liga de propósito: sequência é recorde de
+                // constância, e recorde é da casa toda. Filtrar por liga
+                // partiria o quadro em quatro listas curtas, e a graça é
+                // saber quem está com a maior sequência da FBA inteira.
+                require_once __DIR__ . '/games/core/sequencias.php';
+                $seqs = seqTodos($pdo, 5);
+                $temSeq = false;
+                foreach ($seqs as $s) if ($s['top']) { $temSeq = true; break; }
+            ?>
+            <?php if ($temSeq): ?>
+            <div class="rk-seq-tit">
+                <i class="bi bi-fire"></i> Maiores sequências
+                <span>dias seguidos acertando</span>
+            </div>
+            <div class="rk-grid">
+                <?php foreach ($seqs as $chave => $s):
+                    if (!$s['top']) continue;
+                    $meta = $s['meta'];
+                ?>
+                <div class="card">
+                    <div class="card-head">
+                        <div class="card-head-left">
+                            <i class="bi <?= $meta['icone'] ?>" style="color:<?= $meta['cor'] ?>"></i>
+                            <?= htmlspecialchars($meta['nome']) ?>
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding:8px 10px 12px">
+                        <?php foreach ($s['top'] as $i => $r): ?>
+                        <div class="rk-linha <?= (int)$r['user_id'] === (int)$user['id'] ? 'eu' : '' ?>">
+                            <div class="rk-pos"><?= $i + 1 ?></div>
+                            <img class="rk-foto" src="<?= htmlspecialchars($r['foto']) ?>" alt=""
+                                 onerror="this.src='/img/default-avatar.png'">
+                            <div class="rk-nome"><?= htmlspecialchars($r['nome']) ?></div>
+                            <?php /* A chama fica FORA do .rk-nome, que trunca com
+                                     ellipsis — dentro, ela seria a primeira coisa
+                                     cortada num nome comprido. E só aparece na
+                                     sequência VIVA: sem isso o recorde de quem
+                                     parou há meses pareceria estar correndo. */ ?>
+                            <?php if ($r['atual'] > 0): ?>
+                            <span class="rk-viva" title="<?= (int)$r['atual'] ?> dia(s) seguidos, ainda valendo">🔥</span>
+                            <?php endif; ?>
+                            <div class="rk-val" style="color:<?= $meta['cor'] ?>"><?= (int)$r['melhor'] ?></div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
 
             <?php
                 // Quem mais ajudou a manter os elencos em dia. Fica no fim do
