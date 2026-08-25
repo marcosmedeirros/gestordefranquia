@@ -91,7 +91,7 @@ try {
   "@context": "https://schema.org",
   "@type": "SportsOrganization",
   "name": "FBA - Fantasy Basquete Brasil",
-  "alternateName": "FBA",
+  "alternateName": ["FBA", "FBA Fantasy Brasil", "fbabrasil"],
   "url": "https://fbabrasil.com.br/",
   "logo": "https://fbabrasil.com.br/img/fba-logo-default-cropped.png",
   "description": "A maior liga de fantasy basquete e NBA 2K Pro-Am do Brasil, com sistema de acesso e descenso entre divisões.",
@@ -112,7 +112,7 @@ try {
   "@context": "https://schema.org",
   "@type": "WebSite",
   "name": "FBA - Fantasy Basquete Brasil",
-  "alternateName": ["FBA", "fbabrasil", "FBA 2K League Brasil"],
+  "alternateName": ["FBA", "fbabrasil", "FBA Fantasy Brasil", "FBA 2K League Brasil"],
   "url": "https://fbabrasil.com.br/",
   "inLanguage": "pt-BR"
 }
@@ -1007,7 +1007,8 @@ $seoJogadores = (int)($totalActivePlayers ?? 0);
   <main>
     <h1>FBA — Fantasy Basquete Brasil, a liga de NBA 2K do Brasil</h1>
     <p>
-      A FBA é a primeira liga 100% brasileira de <strong>NBA 2K Pro-Am</strong>
+      <strong>FBA Fantasy Brasil</strong> é a primeira liga 100% brasileira de
+      <strong>NBA 2K Pro-Am</strong>
       com sistema de acesso e descenso entre divisões. Fundada em 2021, hoje
       reúne <?= $seoJogadores ?: 'centenas de' ?> jogadores em
       <?= $seoTimes ?: 'dezenas de' ?> times ativos em todo o país. Aqui você é
