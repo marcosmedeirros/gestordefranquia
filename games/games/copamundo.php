@@ -362,10 +362,26 @@ if ($copa && $userId) {
              gostando da copa é quem chama os outros pra votar, e o voto de
              mais gente é o que faz o resultado valer alguma coisa. */ ?>
     <?php if ($copa && !$novo): ?>
+    <?php
+      $urlCopa = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+               . '://' . ($_SERVER['HTTP_HOST'] ?? 'fbabrasil.com.br')
+               . '/games/games/copamundo.php?copa=' . (int)$copa['id'];
+
+      // O nome da copa vai JUNTO do link. Link solto no grupo não diz do que
+      // é nem o que se espera de quem clicar — e quem compartilha acabava
+      // digitando isso na frente, toda vez, na mão.
+      //
+      // A chamada muda com o estado: copa encerrada não tem voto pra pedir, e
+      // convidar pra votar no que já acabou faz a pessoa clicar à toa.
+      $chamada = $copa['status'] !== 'ativo'
+          ? 'Veja como terminou:'
+          : (!empty($copa['votacao']) ? 'A votação está aberta — vote aqui:' : 'Acompanhe aqui:');
+
+      $textoCopa = '🏆 ' . $copa['titulo'] . "\n" . $chamada . "\n" . $urlCopa;
+    ?>
     <button class="bt" id="btCopiar"
-            data-link="<?= $esc((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
-                        . '://' . ($_SERVER['HTTP_HOST'] ?? 'fbabrasil.com.br')
-                        . '/games/games/copamundo.php?copa=' . (int)$copa['id']) ?>">
+            data-link="<?= $esc($urlCopa) ?>"
+            data-texto="<?= $esc($textoCopa) ?>">
       <i class="bi bi-link-45deg"></i> <span>Copiar link</span>
     </button>
     <?php endif; ?>
@@ -938,16 +954,20 @@ if ($copa && $userId) {
   }
 
   bt.addEventListener('click', async function () {
+    // Copia o texto com o NOME da copa e a chamada; o link puro fica de
+    // reserva pro último caso, em que a pessoa precisa selecionar na tela e
+    // aí um bloco de três linhas atrapalha mais que ajuda.
+    var texto = bt.dataset.texto || bt.dataset.link;
     var link = bt.dataset.link;
     try {
       if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(link);
+        await navigator.clipboard.writeText(texto);
         avisar('Link copiado!', true);
         return;
       }
       throw new Error('sem clipboard');
     } catch (e) {
-      if (copiaAntiga(link)) { avisar('Link copiado!', true); return; }
+      if (copiaAntiga(texto)) { avisar('Link copiado!', true); return; }
       // Última saída: mostra o link pronto pra copiar na mão.
       window.avisarSite
         ? window.avisarSite('Copie o link:\n\n' + link, 'aviso')
