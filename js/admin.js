@@ -7831,9 +7831,13 @@ let _panelLeague = 'ELITE';
  * tamanho permitido e cap estourado. A regua vem do servidor (a MESMA do
  * getTeamCapSummary), pra esta tela nunca discordar da tela do time.
  *
- * O "abaixo do piso" tem tratamento proprio: quando ele pega meia liga —
- * no comeco de temporada pega TODA — listar trinta nomes seria ruido, e o
- * que informa e o numero. Poucos times, a lista volta.
+ * TODO time fora da regra aparece pelo nome, com quanto falta ou sobra do
+ * lado. Chegou a existir um resumo pro "abaixo do piso" quando ele pegava
+ * meia liga — a ideia era evitar trinta nomes de ruido no comeco de
+ * temporada. Na pratica virou o contrario: o card dizia "30 times abaixo do
+ * piso" e nao dizia QUAIS, que e a unica coisa que o admin precisa dali pra
+ * cobrar alguem. Trinta linhas com nome e valor sao mais uteis que uma
+ * frase com um numero.
  */
 async function carregarIrregulares(league) {
   const body = document.getElementById('irregularesBody');
@@ -7859,13 +7863,6 @@ async function carregarIrregulares(league) {
   const elenco = lista.filter(t => temMotivo(t, 'elenco') && !temMotivo(t, 'cap'));
   const piso   = lista.filter(t => temMotivo(t, 'piso') && !temMotivo(t, 'elenco') && !temMotivo(t, 'cap'));
 
-  // Meia liga abaixo do piso é estado da liga, não problema de time. A conta
-  // olha TODOS os que têm o motivo, não só os que têm apenas ele: senão uma
-  // liga inteira fora do piso passava batido só porque a maioria também
-  // estava com o elenco curto, e o piso voltava a poluir cada linha.
-  const pisoTotal = lista.filter(t => temMotivo(t, 'piso')).length;
-  const pisoEmLista = pisoTotal > 0 && pisoTotal <= Math.max(3, Math.ceil((d.total_times || 0) / 3));
-
   if (!lista.length) {
     body.innerHTML = '<div style="font-size:12px;color:#25c677"><i class="bi bi-check-circle-fill me-1"></i>' +
       'Nenhum time fora da regra: todos com elenco entre ' + d.elenco_min + ' e ' + d.elenco_max + ' e dentro do cap.</div>';
@@ -7874,9 +7871,11 @@ async function carregarIrregulares(league) {
   }
 
   const linha = (t) => {
-    // Quando o piso pega a liga inteira, ele vira uma nota so no fim: repetir
-    // "X abaixo do piso" em cada linha esconde o que e especifico do time.
-    const motivos = (t.motivos || []).filter(m => m.tipo !== 'piso' || pisoEmLista).map(m => {
+    // TODOS os motivos, sempre com o nome do time e o valor do lado. Antes o
+    // piso era escondido quando pegava muita gente e virava um "30 times
+    // abaixo do piso" — que diz que existe problema e nao diz em quem, que e
+    // exatamente o que o admin precisa saber pra cobrar.
+    const motivos = (t.motivos || []).map(m => {
       const cor = m.tipo === 'elenco' ? '#f59e0b' : (m.tipo === 'cap' ? '#ef4444' : '#94a3b8');
       return `<span style="color:${cor};font-weight:700">${escapeHtml(m.texto)}</span>` +
              (m.detalhe ? `<span style="color:var(--text-3);font-size:11px"> (${escapeHtml(m.detalhe)})</span>` : '');
@@ -7890,16 +7889,11 @@ async function carregarIrregulares(league) {
   const bloco = (titulo, itens) => itens.length
     ? `<div class="irr-grupo"><div class="irr-grupo-tit">${titulo}</div>${itens.map(linha).join('')}</div>` : '';
 
-  const contados = elenco.length + acima.length + (pisoEmLista ? piso.length : 0);
-  // Se o piso virou nota, ele nao entra na conta do cabecalho — o numero ali
-  // e "quantos times voce precisa cobrar", e cobrar a liga toda nao e cobrar.
+  const contados = lista.length;
   body.innerHTML =
     bloco('Acima do cap', acima) +
     bloco(`Elenco fora de ${d.elenco_min}–${d.elenco_max}`, elenco) +
-    (pisoEmLista ? bloco('Abaixo do piso', piso) : '') +
-    (!pisoEmLista && pisoTotal
-      ? `<div class="irr-nota"><b>${pisoTotal}</b> time${pisoTotal > 1 ? 's' : ''} abaixo do piso do cap — a liga inteira está montando elenco, não é caso a caso.</div>`
-      : '') +
+    bloco('Abaixo do piso', piso) +
     `<style>
       .irr-grupo + .irr-grupo{margin-top:12px}
       .irr-grupo-tit{font-size:10px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;
@@ -7908,8 +7902,6 @@ async function carregarIrregulares(league) {
       .irr-linha + .irr-linha{border-top:1px solid var(--border)}
       .irr-nome{font-weight:600;color:var(--text);min-width:150px}
       .irr-motivos{font-size:12px}
-      .irr-nota{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);
-        font-size:12px;color:var(--text-3);line-height:1.5}
     </style>`;
 
   if (resumo) {
