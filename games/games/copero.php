@@ -219,6 +219,34 @@ if (($_GET['acao'] ?? '') === 'hall') {
     exit;
 }
 
+// ── Quem mais colecionou desafios ─────────────────────────────────────
+//
+// O hall da fama premia UMA carreira — a melhor de todas. Isto premia o
+// oposto: quem voltou muitas vezes e foi atrás dos desafios difíceis, que
+// nenhuma carreira sozinha entrega. São dois jeitos diferentes de ser bom no
+// jogo, e antes só um deles aparecia pra alguém.
+if (($_GET['acao'] ?? '') === 'conquistadores') {
+    header('Content-Type: application/json; charset=utf-8');
+    $lista = [];
+    try {
+        coperoGarantirConquistas($pdo);
+        // O JOIN é o que dá nome a quem está no topo: as conquistas guardam só
+        // o id da conta. Quem jogou sem login não tem id e não entra aqui —
+        // não há nome pra mostrar, e um "anônimo" no pódio não diz nada.
+        $st = $pdo->query("SELECT u.nome, COUNT(*) AS total, MAX(c.ganha_em) AS ultima
+                             FROM copero_conquistas c
+                             JOIN games_usuarios u ON u.id = c.id_usuario
+                         GROUP BY c.id_usuario, u.nome
+                         ORDER BY total DESC, ultima ASC
+                            LIMIT 5");
+        $lista = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        error_log('[copero] conquistadores: ' . $e->getMessage());
+    }
+    echo json_encode(['ok' => true, 'top' => $lista, 'total' => count(coperoConquistas())], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // ── Encerramento: grava a carreira e devolve as conquistas ────────────
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     header('Content-Type: application/json; charset=utf-8');
@@ -2183,8 +2211,44 @@ function telaInicio(){
         <span class="conq-conta">${conquistasFeitas().length} de ${Object.keys(CONQUISTAS).length}</span>
       </button>
       <div id="hall"></div>
+      <div id="conquistadores"></div>
     </div>`;
   carregarHall();
+  carregarConquistadores();
+}
+
+/**
+ * Quem mais completou desafios — o outro jeito de ser bom no jogo.
+ *
+ * Fica logo abaixo do hall da fama de propósito: um mostra a melhor carreira
+ * já feita, o outro mostra quem voltou muitas vezes e foi atrás do que uma
+ * carreira sozinha não entrega. Lado a lado, os dois dizem que existem dois
+ * caminhos — e antes só um deles era visível.
+ *
+ * Como o hall: carrega depois da tela e some sozinho se não houver ninguém.
+ */
+async function carregarConquistadores(){
+  const alvo = document.getElementById('conquistadores');
+  if (!alvo) return;
+  try {
+    const r = await fetch(location.pathname + '?acao=conquistadores');
+    const d = await r.json();
+    const top = (d && d.top) || [];
+    if (!top.length) return;
+    const total = d.total || Object.keys(CONQUISTAS).length;
+    alvo.innerHTML = `
+      <div class="hall" style="margin-top:12px">
+        <div class="hall-cab">Mais desafios completos</div>
+        <div class="hall-lista" style="border-top:0">
+          ${top.map((x, i) => `
+            <div class="hall-linha">
+              <span class="hall-pos">${i + 1}</span>
+              <span class="hall-quem">${esc(x.nome)}</span>
+              <span class="hall-det">${x.total} de ${total}</span>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  } catch (e) { /* sem rede, a tela inicial fica como estava */ }
 }
 
 /**
