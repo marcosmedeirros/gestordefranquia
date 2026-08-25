@@ -17,21 +17,21 @@ $pointsMultiplier = getGamePointsMultiplier($pdo, 'acerteacesta');
  *
  * Só dá pra pontuar quando o marcador atravessa a zona, e ele atravessa a barra
  * `velocidade` vezes por segundo. Então cada cesta custa, no mínimo, 1/velocidade
- * segundos — e a velocidade é a da progressão, que começa em 0,5 e sobe de nível
- * em nível até 2,2.
+ * segundos — e a velocidade é a da progressão, que começa em 0,42 e sobe de nível
+ * em nível até 1,8.
  *
  * Um número fixo não serve aqui. Eu tinha posto 3, folgado "por segurança", mas
  * folga em cima do limite é justamente onde mora o farm: no começo da partida a
- * barra entrega 0,5 cesta por segundo, e um bot que respeitasse os 3 ganharia
- * seis vezes mais rápido que o melhor jogador humano — sem tocar no jogo.
+ * barra entrega menos de meia cesta por segundo, e um bot que respeitasse os 3
+ * ganharia seis vezes mais rápido que o melhor jogador humano — sem tocar no jogo.
  *
  * Estas constantes espelham as da progressão lá embaixo (nivelDe/velocidadeDe no
  * JS). Se mudarem lá, mudam aqui.
  */
 const CESTA_CESTAS_POR_NIVEL = 5;
-const CESTA_VEL_BASE  = 0.5;
-const CESTA_VEL_PASSO = 0.08;
-const CESTA_VEL_MAX   = 2.2;
+const CESTA_VEL_BASE  = 0.42;
+const CESTA_VEL_PASSO = 0.06;
+const CESTA_VEL_MAX   = 1.8;
 
 /**
  * Margem sobre o tempo mínimo teórico.
@@ -541,7 +541,24 @@ try {
                     <div class="sweet" id="sweet"></div>
                     <div class="marker" id="marker"></div>
                 </div>
-                <div class="d-flex align-items-center justify-content-between mt-2 flex-wrap gap-2">
+
+                <!--
+                  O botão fica AQUI, colado na barra, e não mais no painel de
+                  status ao lado. No celular as colunas empilham, e lá embaixo
+                  ele vinha depois do texto de aviso — que muda de tamanho ao
+                  subir de nível, quebra em duas linhas e empurra o botão pra
+                  baixo. Quem estava jogando perdia o alvo do dedo justamente
+                  no momento em que o jogo acelera.
+
+                  E o aviso vem DEPOIS do botão pelo mesmo motivo: o que muda
+                  de altura tem que ficar abaixo do que precisa ficar parado.
+                -->
+                <div class="d-flex gap-2 mt-2">
+                    <button class="btn btn-accent w-100" id="shootBtn"><i class="bi bi-basket2-fill me-1"></i>Arremessar</button>
+                    <button class="btn btn-ghost" id="resetBtn" style="flex:none"><i class="bi bi-arrow-repeat"></i></button>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mt-2 flex-wrap gap-2 linha-aviso">
                     <div class="text-secondary" id="feedback">Clique ou use Espaço quando o marcador entrar na faixa verde.</div>
                     <small class="text-secondary">Controles: clique / Espaço</small>
                 </div>
@@ -575,10 +592,6 @@ try {
                             <div class="stat-value" id="speed" title="a barra acelera e o verde encolhe a cada 5 cestas">1</div>
                         </div>
                     </div>
-                </div>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-accent w-100" id="shootBtn"><i class="bi bi-basket2-fill me-1"></i>Arremessar</button>
-                    <button class="btn btn-ghost w-50" id="resetBtn"><i class="bi bi-arrow-repeat me-1"></i>Reset</button>
                 </div>
                 <div class="mt-3 text-secondary small">
                     <ul class="mb-0 ps-3">
@@ -652,13 +665,28 @@ try {
        no nível 9). Depois disso o jogo para de endurecer: quem chegou lá está
        jogando no limite da mão, e apertar mais só transformaria a partida em
        moeda ao ar. */
+    // Os números abaixo saíram de um ajuste depois dos primeiros relatos: o
+    // jogo estava difícil demais. Mexi nos três eixos ao mesmo tempo porque
+    // eles se somam — barra rápida COM alvo pequeno é o que torna o arremesso
+    // uma loteria, e afrouxar só um deixaria o outro carregando a culpa.
+    //
+    //   verde inicial   22% → 28% da barra
+    //   encolhe por nível  2% → 1,5%
+    //   verde mínimo     5% → 9%   (era um alvo que sumia)
+    //   velocidade base 0,50 → 0,42
+    //   acréscimo/nível 0,08 → 0,06
+    //   velocidade máx.  2,2 → 1,8
+    //
+    // O piso do verde é o que mais pesa: a 5% da barra o alvo tinha a largura
+    // do próprio marcador, e acertar virava sorte de frame. A 9% ainda é
+    // apertado no nível alto, mas é uma janela que a mão alcança.
     const CESTAS_POR_NIVEL = 5;
-    const baseSpeed = 0.5;   // voltas por segundo no nível 0
-    const speedStep = 0.08;  // por nível
-    const maxSpeed  = 2.2;
-    const maxZone   = 0.22;  // fração da barra no nível 0
-    const zoneStep  = 0.02;  // por nível
-    const minZone   = 0.05;
+    const baseSpeed = 0.42;  // voltas por segundo no nível 0
+    const speedStep = 0.06;  // por nível
+    const maxSpeed  = 1.8;
+    const maxZone   = 0.28;  // fração da barra no nível 0
+    const zoneStep  = 0.015; // por nível
+    const minZone   = 0.09;
 
     const nivelDe = (s) => Math.floor(s / CESTAS_POR_NIVEL);
     const velocidadeDe = (s) => Math.min(maxSpeed, baseSpeed + nivelDe(s) * speedStep);
