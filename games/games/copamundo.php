@@ -248,6 +248,31 @@ if ($copa && $userId) {
     .so-pc{display:block}
     .so-celular{display:none}
   }
+
+  /* ── Caber sem rolar ────────────────────────────────────────────────
+     No espelhado as colunas DIVIDEM a largura disponível em vez de terem
+     tamanho fixo: rolar um chaveamento é perder a única coisa que ele faz
+     bem, que é mostrar o caminho inteiro de uma vez.
+     A largura vira um mínimo, não um valor — a coluna encolhe até ali e só
+     então o quadro passa a rolar. Numa copa de 64 (11 colunas) rolar é
+     inevitável; de 16 pra baixo cabe. */
+  .espelhado{width:100%}
+  .espelhado .coluna{flex:1 1 0;min-width:0}
+  /* O aperto é por número de rodadas, e não por largura de tela: são as
+     rodadas que dizem quantas colunas existem. */
+  .espelhado[data-rodadas="4"]{gap:9px}
+  .espelhado[data-rodadas="4"] .coluna{min-width:132px}
+  .espelhado[data-rodadas="5"]{gap:7px}
+  .espelhado[data-rodadas="5"] .coluna{min-width:118px}
+  .espelhado[data-rodadas="5"] .lado{padding:8px 8px;font-size:11.5px}
+  .espelhado[data-rodadas="6"]{gap:4px}
+  .espelhado[data-rodadas="6"] .coluna{min-width:98px}
+  .espelhado[data-rodadas="6"] .lado{padding:7px;font-size:11px;gap:5px}
+  .espelhado[data-rodadas="6"] .col-tit{font-size:9px;letter-spacing:.4px}
+  /* Com a coluna estreita, foto grande não sobra espaço pro nome. O teto
+     vale só no espelhado — no celular a coluna tem largura própria. */
+  .espelhado[data-rodadas="5"] .cara{max-width:26px;max-height:26px}
+  .espelhado[data-rodadas="6"] .cara{max-width:22px;max-height:22px}
   /* A final é o destino do desenho inteiro, então ela não fica espremida
      entre duas colunas iguais às outras. */
   .espelhado .coluna-final{justify-content:center}
@@ -346,7 +371,28 @@ if ($copa && $userId) {
   th{text-align:left;font-size:9.5px;font-weight:900;letter-spacing:.8px;text-transform:uppercase;
      color:var(--text-3);padding:0 8px 8px}
   td{padding:8px;border-top:1px solid var(--border)}
-  td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:800}
+  /* O CABEÇALHO SEGUE O VALOR. As colunas de número são alinhadas à direita
+     e os títulos estavam à esquerda: "ACERTOS" ficava no começo da coluna e
+     o 8 no fim dela, a meia tela de distância um do outro. */
+  th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
+  td.num{font-weight:800}
+  /* O nome fica com a sobra e os números com o que precisam. Sem isto a
+     tabela dividia as cinco colunas por igual e o vão entre o nome e o
+     primeiro número ficava maior que o nome. */
+  th.pos{width:38px}
+  th.num{width:96px}
+  .rk-nome-col{width:auto}
+  td.gm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0}
+  /* No celular as três colunas de número comiam a tela e sobravam 33px pro
+     nome — o suficiente pra "Cai…". Elas encolhem pro tamanho do número,
+     que é o que precisam, e a sobra volta pro nome. */
+  @media (max-width:560px){
+    table{font-size:12px}
+    th{font-size:8.5px;letter-spacing:.2px;padding:0 4px 8px}
+    td{padding:8px 4px}
+    th.pos{width:26px}
+    th.num{width:52px}
+  }
   tr.eu td{color:var(--ouro-2)}
 
   .copas{display:flex;gap:8px;flex-wrap:wrap}
@@ -611,7 +657,11 @@ if ($copa && $userId) {
                 <?php if ($f = ($comps[$id]['foto'] ?? null)): ?>
                 <img class="cara" src="<?= $esc($f) ?>" alt="" loading="lazy" onerror="this.remove()">
                 <?php endif; ?>
-                <span class="nome"><?= $esc($nomeDe($id)) ?></span>
+                <?php /* O title repete o nome porque a coluna estreita corta
+                         com reticência — numa copa de 64 quase todo nome
+                         longo aparece cortado, e passar o mouse é o jeito de
+                         ler o inteiro sem rolar a chave. */ ?>
+                <span class="nome" title="<?= $esc($nomeDe($id)) ?>"><?= $esc($nomeDe($id)) ?></span>
                 <?php if ($mostraVotos): ?><span class="n"><?= (int)$votos ?></span><?php endif; ?>
               </<?= $tag ?>>
               <?php if ($podeVotar): ?></form><?php endif; ?>
@@ -677,7 +727,7 @@ if ($copa && $userId) {
              mata-mata, e ele precisa de largura: com 6 rodadas são 11
              colunas, o que não cabe em tela de celular. */ ?>
     <div class="bracket-wrap<?= $destaqueSorteio ? ' sorteando' : '' ?> so-pc">
-      <div class="bracket espelhado">
+      <div class="bracket espelhado" data-rodadas="<?= (int)$rodadas ?>">
         <?php for ($r = 1; $r < $rodadas; $r++) $desenhaColuna($r, $metade($r, 'e')); ?>
 
         <div class="coluna coluna-final">
@@ -719,12 +769,12 @@ if ($copa && $userId) {
   <div class="cx">
     <h2>Quem está indo bem</h2>
     <table>
-      <thead><tr><th>#</th><th>GM</th><th class="num">Acertos</th><th class="num">Degrau</th><th class="num">FBA Points</th></tr></thead>
+      <thead><tr><th class="pos">#</th><th class="rk-nome-col">GM</th><th class="num">Acertos</th><th class="num">Degrau</th><th class="num">FBA Points</th></tr></thead>
       <tbody>
         <?php foreach ($ranking as $i => $r): ?>
         <tr class="<?= (int)$r['user_id'] === $userId ? 'eu' : '' ?>">
           <td><?= $i + 1 ?></td>
-          <td><?= $esc($r['nome']) ?></td>
+          <td class="gm"><?= $esc($r['nome']) ?></td>
           <td class="num"><?= (int)$r['acertos'] ?></td>
           <td class="num"><?= (int)$r['sequencia'] > 0 ? '🔥 ' . ((int)$r['sequencia'] + 1) : '—' ?></td>
           <td class="num"><?= (int)$r['pontos'] ?></td>
