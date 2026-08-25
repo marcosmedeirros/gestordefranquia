@@ -13,35 +13,85 @@ $userId = (int)$_SESSION['user_id'];
 $pointsMultiplier = getGamePointsMultiplier($pdo, 'acerteacesta');
 
 /**
- * QUANTAS CESTAS CABEM NUM SEGUNDO, no melhor dos casos.
+ * QUANTAS CESTAS CABEM NUM SEGUNDO — a conta sai da própria barra.
  *
- * O marcador atravessa a barra e volta; só dá pra pontuar quando ele passa pela
- * zona. No começo isso leva mais de um segundo, e vai encurtando conforme a
- * barra acelera. 3 é folgado de propósito: aqui não é pra medir a habilidade
- * de ninguém, é pra recusar um score que a barra não teria como entregar.
+ * Só dá pra pontuar quando o marcador atravessa a zona, e ele atravessa a barra
+ * `velocidade` vezes por segundo. Então cada cesta custa, no mínimo, 1/velocidade
+ * segundos — e a velocidade é a da progressão, que começa em 0,5 e sobe de nível
+ * em nível até 2,2.
+ *
+ * Um número fixo não serve aqui. Eu tinha posto 3, folgado "por segurança", mas
+ * folga em cima do limite é justamente onde mora o farm: no começo da partida a
+ * barra entrega 0,5 cesta por segundo, e um bot que respeitasse os 3 ganharia
+ * seis vezes mais rápido que o melhor jogador humano — sem tocar no jogo.
+ *
+ * Estas constantes espelham as da progressão lá embaixo (nivelDe/velocidadeDe no
+ * JS). Se mudarem lá, mudam aqui.
  */
-const CESTA_POR_SEGUNDO = 3;
+const CESTA_CESTAS_POR_NIVEL = 5;
+const CESTA_VEL_BASE  = 0.5;
+const CESTA_VEL_PASSO = 0.08;
+const CESTA_VEL_MAX   = 2.2;
 
-/** De quanto em quanto o cliente reporta progresso, e a folga aceita. */
-const CESTA_PASSO_PING  = 5;
-const CESTA_FOLGA_PING  = 3;
+/**
+ * Margem sobre o tempo mínimo teórico.
+ *
+ * O tempo mínimo é o do jogo PERFEITO — acertar em toda travessia, sem perder
+ * uma. Ninguém joga assim, então a checagem só precisa recusar quem foi mais
+ * rápido que o possível; 0,75 deixa um quarto de folga pra lag, timer do
+ * navegador e a diferença entre o relógio da tela e o do servidor.
+ */
+const CESTA_MARGEM_TEMPO = 0.75;
+
+/**
+ * Quanto tempo a barra leva, no mínimo, pra entregar N cestas.
+ *
+ * Cada acerto sorteia uma zona nova em posição aleatória, então a distância até
+ * ela varia de quase nada a uma barra inteira. Usar a barra inteira (1/vel)
+ * pareceu o limite "físico" e recusou jogador honesto na hora — a sorte de a
+ * zona nascer logo à frente é parte do jogo, não trapaça.
+ *
+ * Meia barra por cesta é a distância média de um sorteio uniforme, e com a
+ * margem em cima disso sobra espaço pra quem tem sorte seguidas vezes. O que
+ * continua barrado é o ritmo que NENHUM sorteio explica.
+ */
+function cestaTempoMinimo(int $score): float
+{
+    $t = 0.0;
+    for ($i = 0; $i < $score; $i++) {
+        $nivel = intdiv($i, CESTA_CESTAS_POR_NIVEL);
+        $vel = min(CESTA_VEL_MAX, CESTA_VEL_BASE + $nivel * CESTA_VEL_PASSO);
+        $t += 0.5 / $vel;
+    }
+    return $t;
+}
+
+/**
+ * De quanto em quanto o cliente reporta progresso, e a folga aceita.
+ *
+ * O passo acompanha o MARCO DO PRÊMIO, que é 2 — não é coincidência nem sobra:
+ * o que não passou por ping não pode fechar marco, senão dá pra ganhar sem
+ * jogar. Quando o prêmio passou a sair de 2 em 2, o ping teve que vir junto.
+ */
+const CESTA_PASSO_PING  = 2;
+const CESTA_FOLGA_PING  = 2;
 
 /**
  * Folga entre o último ping e o score final.
  *
- * Os pings vêm de 5 em 5, então quem erra a segunda vida em 9 tem progresso 5 —
- * isto cobre esse pedaço.
+ * Cobre o trecho entre o último ping e a morte: com pings de 2 em 2, quem erra
+ * a segunda vida na 3ª cesta tem progresso 2.
  *
- * PRECISA ser menor que o marco de 5, e esse é o ponto todo: a folga também é o
- * máximo que alguém consegue sem mandar ping nenhum. Com 8, dava pra abrir a
- * partida, esperar três segundos, mandar score 8 e fechar um marco inteiro —
- * medi, e rendia 40 moedas em 32 segundos sem jogar nada, em loop. Com 4, o
- * score sem ping não fecha marco nenhum e o prêmio é zero.
+ * PRECISA ser menor que o marco de 2, e é esse o ponto: a folga é também o
+ * máximo que alguém consegue sem mandar ping nenhum. Quando ela era maior que o
+ * marco, dava pra abrir a partida, esperar uns segundos, mandar o score da
+ * folga e repetir — medi em loop e rendia 40 moedas em 32 segundos sem jogar
+ * nada. Com 1, o score sem ping não fecha marco e o prêmio é zero.
  *
  * Quem joga de verdade não perde nada: o ping sai no mesmo arremesso que fecha
  * o marco, então o marco pago e o ping enviado são o mesmo evento.
  */
-const CESTA_FOLGA_PROGRESSO = 4;
+const CESTA_FOLGA_PROGRESSO = 1;
 
 /**
  * Quanto vale um score, em moedas. É A ÚNICA conta de prêmio.
@@ -50,45 +100,23 @@ const CESTA_FOLGA_PROGRESSO = 4;
  * moravam em lugares diferentes e passaram meses divergindo: a tela prometia 5
  * e o servidor pagava 1.
  *
- * Mesma ideia do Flappy — o marco vale mais conforme a partida avança — só que
- * na escala daqui, que é a de lá pela METADE:
+ * Uma moeda a cada dois acertos, do primeiro ao último. Sem faixa, sem
+ * progressão: o segundo arremesso vale o mesmo que o ducentésimo.
  *
- *     cestas 1–10   → 5 moedas por marco de 5
- *     cestas 11–25  → 7
- *     cestas 26–40  → 9
- *     cestas 41+    → 11
- *
- * A metade não é enfeite: no Flappy o cano é reflexo puro e uma partida boa
- * passa de 100; aqui a zona verde encolhe até 5% da barra e a velocidade sobe a
- * cada 5 acertos, então a mesma habilidade rende bem menos pontos. Marco de 5 e
- * fronteiras pela metade põem os dois jogos na mesma faixa de moedas por minuto
- * jogado — senão o mais difícil seria o que paga menos.
- *
- * Progressivo por trecho, como lá: chegar à 26ª cesta não recalcula as 25
- * anteriores por 9, então o total nunca dá pulo — só passa a crescer mais
- * rápido. As fronteiras são múltiplas de 5 pra nenhum marco ficar partido.
- *
- * Em números: 10 cestas pagam 10, 25 pagam 31, 40 pagam 58, 50 pagam 80.
+ * É bem mais duro que o Flappy de propósito — 27 cestas pagam 13 aqui, contra
+ * as 31 que os 54 canos equivalentes pagam lá. Foi uma escolha, não um
+ * descuido: dois arremessos certos é uma regra que se explica numa frase e que
+ * a pessoa consegue conferir de cabeça enquanto joga, e isso vale mais aqui do
+ * que espelhar a curva do outro jogo.
  *
  * Sem teto por partida: quem acerta 60 recebe pelos 60. O que impede o farm é
  * o ritmo dos pings, não um limite no prêmio de quem jogou.
  */
-function cestaMoedasPorMarco(int $cestaFinal): int
-{
-    if ($cestaFinal <= 10) return 5;
-    if ($cestaFinal <= 25) return 7;
-    if ($cestaFinal <= 40) return 9;
-    return 11;
-}
+const CESTA_MARCO = 2;
 
 function cestaMoedasPorScore(int $score): int
 {
-    $marcos = intdiv(max(0, $score), 5);
-    $total = 0;
-    for ($m = 1; $m <= $marcos; $m++) {
-        $total += cestaMoedasPorMarco($m * 5);
-    }
-    return $total;
+    return intdiv(max(0, $score), CESTA_MARCO);
 }
 
 function cestaTabela(PDO $pdo): void
@@ -115,10 +143,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
 
     $validar = function (int $score) use ($ativa, $inicio) {
         if (!$ativa || $inicio <= 0) throw new Exception('Partida não está aberta.');
+        if ($score < 0) throw new Exception('Pontuação inválida.');
         $decorrido = max(0, microtime(true) - $inicio);
-        $teto = (int)($decorrido * CESTA_POR_SEGUNDO) + 1;
-        if ($score < 0)     throw new Exception('Pontuação inválida.');
-        if ($score > $teto) throw new Exception('Pontuação acima do que a barra entrega.');
+        // O tempo mínimo cresce com o score porque as primeiras cestas são as
+        // MAIS lentas: a barra começa devagar. Uma taxa média achataria isso e
+        // deixaria passar exatamente o trecho onde o farm rende.
+        if ($decorrido < cestaTempoMinimo($score) * CESTA_MARGEM_TEMPO) {
+            throw new Exception('Pontuação acima do que a barra entrega.');
+        }
     };
 
     try {
@@ -144,14 +176,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             $validar($score);
 
             // Duas travas, porque sozinha nenhuma segura: pelo PASSO, um ping não
-            // avança muito mais que as 5 cestas que o cliente reporta; pelo TEMPO
+            // avança muito mais que as 2 cestas que o cliente reporta; pelo TEMPO
             // desde o ping anterior, pra não dar pra esperar e despejar todos de
             // uma vez. Foi assim que fechei o mesmo buraco no Flappy.
             $ping_t = (float)($_SESSION['cesta_ping_t'] ?? $inicio);
             $ping_s = (int)($_SESSION['cesta_ping_s'] ?? 0);
             $janela = max(0, microtime(true) - $ping_t);
+            // A taxa do trecho é a da velocidade ATUAL da barra, não uma média:
+            // nos primeiros níveis ela é lenta, e é lá que uma taxa folgada
+            // deixaria passar mais cesta do que a barra ofereceu.
+            $velAqui = min(CESTA_VEL_MAX,
+                           CESTA_VEL_BASE + intdiv($ping_s, CESTA_CESTAS_POR_NIVEL) * CESTA_VEL_PASSO);
             $maximo = $ping_s + min(
-                (int)($janela * CESTA_POR_SEGUNDO) + CESTA_FOLGA_PING,
+                (int)($janela * $velAqui) + CESTA_FOLGA_PING,
                 CESTA_PASSO_PING + CESTA_FOLGA_PING
             );
             if ($score > $maximo) {
@@ -171,7 +208,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             echo json_encode([
                 'sucesso' => true,
                 'moedas'  => cestaMoedasPorScore((int)$_SESSION['cesta_progresso']) * $pointsMultiplier,
-                'proximo' => cestaMoedasPorMarco((int)$_SESSION['cesta_progresso'] + 5) * $pointsMultiplier,
             ]);
             exit;
         }
@@ -547,7 +583,7 @@ try {
                 <div class="mt-3 text-secondary small">
                     <ul class="mb-0 ps-3">
                         <li><b>A cada 5 cestas</b> sobe um nível: a barra acelera e o verde encolhe.</li>
-                        <li>Cada 5 cestas também valem <b>5 moedas</b>, sem teto por partida.</li>
+                        <li>Cada <b>2 cestas</b> valem <b>1 moeda</b>, do primeiro arremesso ao último.</li>
                         <li>Duas vidas: errou duas vezes, fim de jogo.</li>
                     </ul>
                 </div>
@@ -695,12 +731,12 @@ try {
 
     let ultimoPing = 0;
     const reportarProgresso = () => {
-        if (score - ultimoPing < 5) return;
+        if (score - ultimoPing < 2) return;
         ultimoPing = score;
         enviar('progresso', { score }).then(d => {
             if (!d || !d.sucesso) return;
             // O prêmio aparece na tela vindo do servidor, nunca calculado aqui.
-            setFeedback(`${score} cestas · ${d.moedas} moedas garantidas · próximas 5 valem ${d.proximo}`, true);
+            setFeedback(`${score} cestas · ${d.moedas} moeda${d.moedas === 1 ? '' : 's'} garantida${d.moedas === 1 ? '' : 's'}`, true);
         });
     };
 
@@ -789,7 +825,7 @@ try {
                     // quanto falta.
                     overlayText.textContent = d.moedas > 0
                         ? `${d.score} cestas · +${d.moedas} moedas`
-                        : `${d.score} cestas · chegue a 5 pra ganhar as primeiras 5 moedas`;
+                        : `${d.score} cestas · acerte 2 pra ganhar a primeira moeda`;
                 });
                 return;
             }
