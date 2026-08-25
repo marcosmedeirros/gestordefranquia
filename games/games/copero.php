@@ -499,10 +499,6 @@ button{font-family:inherit}
   .chip-topo-btn{min-height:30px;padding-left:12px;padding-right:12px}
 }
 
-.btn-topo{background:var(--panel2);border:1px solid var(--borda);color:var(--txt2);border-radius:9px;
-  padding:8px 13px;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-.btn-topo:hover{color:var(--txt);border-color:var(--borda2)}
-
 /* ── Cartão genérico ────────────────────────────────── */
 .caixa{background:var(--panel);border:1px solid var(--borda);border-radius:16px}
 
@@ -621,6 +617,7 @@ button{font-family:inherit}
 .carreira .ficha{order:1}
 .carreira .linha{order:2}
 .carreira .ver-conq{order:3}
+.carreira .abandonar-btn{order:3}
 .carreira .rodape{order:4}
 .carreira .dec-espaco{order:5}
 .carreira .evento-caixa{order:6}
@@ -644,7 +641,7 @@ button{font-family:inherit}
 body.ocupado .carta,body.ocupado .op,body.ocupado .btn,body.ocupado .oferta-linha{
   pointer-events:none}
 .dec-espaco{display:none}
-.ver-conq{width:100%;border-radius:999px}
+.ver-conq,.abandonar-btn{width:100%;border-radius:999px}
 
 .ficha{padding:18px}
 .ficha-topo{display:flex;align-items:center;gap:14px}
@@ -1173,8 +1170,6 @@ body.ocupado .carta,body.ocupado .op,body.ocupado .btn,body.ocupado .oferta-linh
   .topo .voltar{justify-self:start}
   .topo .marca{justify-self:center}
   .topo-dir{margin-left:0;justify-self:end;gap:6px}
-  .btn-topo{padding:7px 9px}
-  .btn-topo span{display:none}
 
   .ficha{padding:12px}
   .ficha-topo{gap:10px}
@@ -1726,18 +1721,14 @@ const TACA_FOTO   = <?= json_encode(COPERO_TACA_FOTO, JSON_UNESCAPED_UNICODE|JSO
  * Existe por dois motivos práticos: sair do jogo sem o botão do navegador, e
  * ver as moedas da conta sem sair. Quem não está logado não vê a ficha de
  * moeda — mostrar zero pra quem não tem conta seria mentira.
- *
- * `extra` é o que cada tela quer no canto direito antes das fichas (o
- * "Abandonar" da carreira em andamento, por exemplo).
  */
-function barraTopo(extra){
+function barraTopo(){
   const feitas = conquistasFeitas().length;
   return `<div class="topo">
     <a href="/games.php" class="voltar" title="Voltar aos jogos">
       <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M8.5 3.5 4 8l4.5 4.5.9-.9L6.3 8.6H12v-1.2H6.3l3.1-3z"/></svg></a>
     <div class="marca"><i class="bi bi-trophy-fill"></i> Copero</div>
     <div class="topo-dir">
-      ${extra || ''}
       <button class="chip-topo chip-topo-btn" onclick="abrirDesafios()" title="Desafios">
         🏆 <b>${feitas}</b></button>
       ${window.__MOEDAS__ === null || window.__MOEDAS__ === undefined ? ''
@@ -3689,7 +3680,7 @@ function render(){
   const decisao = blocoDecisao();
 
   app().innerHTML = `
-    ${barraTopo(`<button class="btn-topo" onclick="abandonarCarreira()" title="Abandonar esta carreira"><i class="bi bi-x-lg"></i> <span>Abandonar</span></button>`)}
+    ${barraTopo()}
     <div class="carreira">
       <div class="col-esq">
         <div class="caixa ficha">
@@ -3722,6 +3713,7 @@ function render(){
       <div class="col-dir">
         <div class="caixa linha">${linhaDoTempo()}</div>
         <button class="btn btn2 ver-conq" onclick="abrirDesafios()">🏅 Ver conquistas</button>
+        <button class="btn btn2 abandonar-btn" onclick="abandonarCarreira()" title="Abandonar esta carreira"><i class="bi bi-x-lg"></i> Abandonar</button>
         <p class="rodape">Os nomes de clube servem para identificar dentro da simulação.
         Este jogo não é afiliado, patrocinado nem endossado por nenhum deles.</p>
       </div>
