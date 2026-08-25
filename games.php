@@ -820,7 +820,11 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
     .lj-btn:hover:not(:disabled) { filter:brightness(1.12); }
     .lj-btn:disabled { background:var(--panel-3); color:var(--text-3); cursor:not-allowed; }
     .lj-btn.usar { background:var(--green); }
-    .lj-grade { display:grid; gap:11px; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); }
+    /* O margin-bottom fecha a seção. Sem ele, o título da seção seguinte
+       encostava no último card — as outras seções disfarçavam com um
+       margin-top inline, mas o buraco era aqui: uma grade que não termina. */
+    .lj-grade { display:grid; gap:11px; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));
+        margin-bottom:30px; }
     .lj-item { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-sm);
         padding:15px; display:flex; flex-direction:column; gap:7px; }
     /* Sem saldo o card nao some nem fica ilegivel: ele continua sendo o
@@ -924,8 +928,10 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
        As outras ficam iguais entre si, pra acompanhar. */
     .lj-intro { font-size:12.5px; color:var(--text-2); line-height:1.6; margin:-4px 0 14px;
         max-width:75ch; }
+    /* O mesmo 30 da grade da loja: as seções da aba têm que respirar igual,
+       senão uma parece mais colada que a outra sem motivo. */
     .lj-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
-        gap:14px; margin-bottom:24px; }
+        gap:14px; margin-bottom:30px; }
     .lj-card .card-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
     .lj-minha { border-color:var(--border-red); }
     .lj-liga-logo { width:20px; height:20px; object-fit:contain; margin-right:6px; vertical-align:middle; }
