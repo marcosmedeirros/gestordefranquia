@@ -117,9 +117,27 @@ function leilaoSemanaLances(PDO $pdo, string $liga, int $temporada): array
  */
 function leilaoSemanaMinimo(array $lances): int
 {
-    if (count($lances) < LEILAO_SEMANA_VAGAS) return LEILAO_SEMANA_MINIMO;
-    $ultimoDoPodio = $lances[LEILAO_SEMANA_VAGAS - 1]['valor'] ?? 0;
-    return (int)$ultimoDoPodio + LEILAO_SEMANA_PASSO;
+    // Ninguém deu lance: vale o piso.
+    if (!$lances) return LEILAO_SEMANA_MINIMO;
+
+    // Com UM lance só, o pódio ainda tem vaga — mas o mínimo continua sendo
+    // aquele lance mais o passo. Antes eu devolvia o piso aqui, e o segundo
+    // time podia repetir os mesmos 150: dois lances iguais, e o desempate
+    // caindo em quem clicou primeiro, que é exatamente o que o leilão
+    // deveria evitar.
+    $ultimoDoPodio = $lances[min(count($lances), LEILAO_SEMANA_VAGAS) - 1]['valor'] ?? 0;
+
+    return max(LEILAO_SEMANA_MINIMO, (int)$ultimoDoPodio + LEILAO_SEMANA_PASSO);
+}
+
+/** Esse valor já é o lance de alguém? */
+function leilaoSemanaValorOcupado(array $lances, int $valor, int $ignorarTeam = 0): ?string
+{
+    foreach ($lances as $l) {
+        if ((int)$l['team_id'] === $ignorarTeam) continue;
+        if ((int)$l['valor'] === $valor) return (string)$l['time_nome'];
+    }
+    return null;
 }
 
 /**
@@ -195,6 +213,15 @@ function leilaoSemanaOfertar(PDO $pdo, int $userId, int $teamId, string $liga, i
     }
     if ($valor <= $meuAtual) {
         return $falha("Você já ofereceu {$meuAtual}. O novo lance precisa ser maior.", $minimo);
+    }
+
+    // Dois times com o mesmo valor deixariam a vaga sendo decidida por quem
+    // clicou primeiro. O leilão é de lance, não de reflexo: cada valor é de
+    // um time só, e quem chega depois sobe.
+    $dono = leilaoSemanaValorOcupado($lances, $valor, $teamId);
+    if ($dono !== null) {
+        $acima = $valor + LEILAO_SEMANA_PASSO;
+        return $falha("{$dono} já ofereceu {$valor}. Dois lances não podem empatar — tente {$acima}.", max($minimo, $acima));
     }
 
     // Só o que FALTA sai do bolso: quem já tem 100 retidos e vai pra 150

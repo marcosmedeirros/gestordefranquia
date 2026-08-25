@@ -956,12 +956,6 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
         font-variant-numeric:tabular-nums; }
     .lj-x { font-size:15px; font-weight:900; color:var(--text-3); padding-top:18px; flex:none; }
 
-    .lj-fila { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:12px;
-        padding-top:10px; border-top:1px solid var(--border); font-size:11px; color:var(--text-3); }
-    .lj-fila-item { background:var(--panel-2); border:1px solid var(--border);
-        border-radius:999px; padding:2px 8px; }
-    .lj-fila-item b { color:var(--text-2); }
-
     .lj-meu { margin-top:12px; font-size:11.5px; line-height:1.5; border-radius:9px;
         padding:8px 10px; }
     .lj-meu.ok   { background:rgba(37,198,119,.09); border:1px solid rgba(37,198,119,.28); color:#4ade80; }
@@ -1510,20 +1504,9 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                     </div>
                   <?php endif; ?>
 
-                  <?php if ($d['temporada'] > 0 && $d['fila']): ?>
-                  <div class="lj-fila">
-                    <span>Na fila:</span>
-                    <?php foreach (array_slice($d['fila'], 0, 4) as $f): ?>
-                    <span class="lj-fila-item">
-                      <?= htmlspecialchars($f['time_nome']) ?>
-                      <b><?= number_format((int)$f['valor'], 0, ',', '.') ?></b>
-                    </span>
-                    <?php endforeach; ?>
-                    <?php if (count($d['fila']) > 4): ?>
-                    <span class="lj-fila-item">+<?= count($d['fila']) - 4 ?></span>
-                    <?php endif; ?>
-                  </div>
-                  <?php endif; ?>
+                  <?php /* A fila de quem ficou de fora sai daqui de propósito:
+                           o card é sobre QUAL é o jogo da semana. Quem quiser
+                           a lista inteira pede /jogosemana no grupo. */ ?>
 
                   <?php if ($ehMinha && $d['temporada'] > 0 && $team): ?>
                     <?php if ($d['meu']): ?>
