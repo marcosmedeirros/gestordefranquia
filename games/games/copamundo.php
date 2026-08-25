@@ -214,6 +214,25 @@ if ($copa && $userId) {
   /* Rola na horizontal no próprio contêiner: uma copa de 64 tem 6 colunas e
      não cabe em celular nenhum. O corpo da página nunca rola pro lado. */
   .bracket-wrap{overflow-x:auto;padding-bottom:10px;-webkit-overflow-scrolling:touch}
+  /* ── Os dois desenhos do mesmo chaveamento ─────────────────────────
+     No computador, o espelhado: final no meio e as chaves convergindo dos
+     dois lados, que é o formato que todo mundo reconhece. No celular ele
+     não cabe — com 6 rodadas são 11 colunas —, então lá fica a fila de
+     sempre. A troca é no CSS porque depende da largura da tela, não do
+     aparelho: quem virar o celular ou abrir numa janela estreita no PC vê
+     o que couber. */
+  .so-pc{display:none}
+  .so-celular{display:block}
+  @media (min-width:900px){
+    .so-pc{display:block}
+    .so-celular{display:none}
+  }
+  /* A final é o destino do desenho inteiro, então ela não fica espremida
+     entre duas colunas iguais às outras. */
+  .espelhado .coluna-final{justify-content:center}
+  .espelhado .coluna-final .col-tit{color:var(--ouro)}
+  .espelhado .coluna-final .duelo{border-color:rgba(245,158,11,.4);
+    box-shadow:0 0 0 1px rgba(245,158,11,.10)}
   .bracket{display:flex;gap:14px;min-width:min-content;align-items:stretch}
   .coluna{display:flex;flex-direction:column;justify-content:space-around;gap:8px;
           min-width:var(--col);flex:none}
@@ -506,67 +525,64 @@ if ($copa && $userId) {
       <button type="button" class="tam" data-tam="g">G</button>
     </div>
     <?php endif; ?>
-    <div class="bracket-wrap<?= $destaqueSorteio ? ' sorteando' : '' ?>">
-      <div class="bracket">
-        <?php for ($r = 1; $r <= $rodadas; $r++): ?>
-        <div class="coluna">
-          <div class="col-tit <?= (!$encerrada && $r === $rodAtual) ? 'agora' : '' ?>">
-            <?= $esc(copaNomeRodada($r, $rodadas)) ?>
-          </div>
+    <?php
+      /**
+       * O DESENHO DE UM CONFRONTO.
+       *
+       * Virou função porque o chaveamento é desenhado DUAS vezes: espelhado
+       * no computador (final no meio, chaves convergindo dos dois lados) e
+       * em fila no celular, onde espelhar não cabe. Um confronto desenhado
+       * em dois lugares divergiria na primeira mudança.
+       */
+      $desenhaDuelo = function ($c, $r) use ($copa, $comps, $esc, $nomeDe, $votando, $rodAtual, $encerrada, $userId) {
+          $aId  = (int)$c['a_id'];
+          $bId  = (int)$c['b_id'];
+          $venc = (int)$c['vencedor_id'];
+          $bye  = !$bId;
+          $podeVotar = $votando && $r === $rodAtual && !$venc && $bId && $userId;
+          $total = (int)$c['votos_a'] + (int)$c['votos_b'];
+          // A barra mostra a fatia de cada um. Sem voto nenhum ela fica em
+          // zero — 50/50 numa disputa vazia parece empate técnico, e não é.
+          $fa = $total ? (int)$c['votos_a'] / $total : 0;
+          $fb = $total ? (int)$c['votos_b'] / $total : 0;
+          $mostraVotos = $total > 0 || ($r === $rodAtual && !$encerrada);
 
-          <?php if (empty($chave[$r])): ?>
-            <div class="duelo"><div class="vazio-duelo">aguardando</div></div>
-          <?php else: foreach ($chave[$r] as $i => $c):
-            $aId = (int)$c['a_id'];
-            $bId = (int)$c['b_id'];
-            $venc = (int)$c['vencedor_id'];
-            $bye  = !$bId;
-            $podeVotar = $votando && $r === $rodAtual && !$venc && $bId && $userId;
-            $total = (int)$c['votos_a'] + (int)$c['votos_b'];
-            // A barra mostra a fatia de cada um. Sem voto nenhum ela fica em
-            // zero — 50/50 numa disputa vazia parece empate técnico, e não é.
-            $fa = $total ? (int)$c['votos_a'] / $total : 0;
-            $fb = $total ? (int)$c['votos_b'] / $total : 0;
-            $mostraVotos = $total > 0 || ($r === $rodAtual && !$encerrada);
+          // Os dois lados saem do mesmo molde: botão quando dá pra votar,
+          // div quando não. Duplicar o markup faria o placar divergir de um
+          // lado pro outro na primeira mudança.
+          $lado = function ($id, $votos, $fatia) use ($c, $venc, $podeVotar, $copa, $esc, $nomeDe, $mostraVotos, $comps) {
+              if (!$id) return;
+              $cls = 'lado';
+              if ($venc) $cls .= $venc === $id ? ' vence' : ' perde';
+              if ((int)$c['meu_voto'] === $id) $cls .= ' meu';
+              $tag = $podeVotar ? 'button' : 'div';
+              ?>
+              <?php if ($podeVotar): ?>
+              <form method="post" style="display:contents">
+                <input type="hidden" name="acao" value="votar">
+                <input type="hidden" name="torneio_id" value="<?= (int)$copa['id'] ?>">
+                <input type="hidden" name="confronto_id" value="<?= (int)$c['id'] ?>">
+                <input type="hidden" name="escolha_id" value="<?= $id ?>">
+              <?php endif; ?>
+              <<?= $tag ?> class="<?= $cls ?>"<?= $podeVotar ? ' type="submit"' : '' ?>>
+                <span class="barra" style="transform:scaleX(<?= round($fatia, 3) ?>)"></span>
+                <?php if ($venc === $id): ?><i class="bi bi-caret-right-fill"></i><?php endif; ?>
+                <?php /* A foto só entra pra quem tem. O onerror remove a
+                         imagem em vez de trocar por um placeholder: numa
+                         copa sem fotos, um avatar cinza em toda linha
+                         ocuparia espaço sem dizer nada. */ ?>
+                <?php if ($f = ($comps[$id]['foto'] ?? null)): ?>
+                <img class="cara" src="<?= $esc($f) ?>" alt="" loading="lazy" onerror="this.remove()">
+                <?php endif; ?>
+                <span class="nome"><?= $esc($nomeDe($id)) ?></span>
+                <?php if ($mostraVotos): ?><span class="n"><?= (int)$votos ?></span><?php endif; ?>
+              </<?= $tag ?>>
+              <?php if ($podeVotar): ?></form><?php endif; ?>
+              <?php
+          };
           ?>
           <div class="duelo <?= $podeVotar ? 'ativo' : '' ?>">
-            <?php
-              // Os dois lados saem do mesmo molde: botão quando dá pra votar,
-              // div quando não. Duplicar o markup faria o placar divergir de
-              // um lado pro outro na primeira mudança.
-              $lado = function ($id, $votos, $fatia) use ($c, $venc, $podeVotar, $copa, $esc, $nomeDe, $mostraVotos, $comps) {
-                  if (!$id) return;
-                  $cls = 'lado';
-                  if ($venc) $cls .= $venc === $id ? ' vence' : ' perde';
-                  if ((int)$c['meu_voto'] === $id) $cls .= ' meu';
-                  $tag = $podeVotar ? 'button' : 'div';
-                  ?>
-                  <?php if ($podeVotar): ?>
-                  <form method="post" style="display:contents">
-                    <input type="hidden" name="acao" value="votar">
-                    <input type="hidden" name="torneio_id" value="<?= (int)$copa['id'] ?>">
-                    <input type="hidden" name="confronto_id" value="<?= (int)$c['id'] ?>">
-                    <input type="hidden" name="escolha_id" value="<?= $id ?>">
-                  <?php endif; ?>
-                  <<?= $tag ?> class="<?= $cls ?>"<?= $podeVotar ? ' type="submit"' : '' ?>>
-                    <span class="barra" style="transform:scaleX(<?= round($fatia, 3) ?>)"></span>
-                    <?php if ($venc === $id): ?><i class="bi bi-caret-right-fill"></i><?php endif; ?>
-                    <?php /* A foto só entra pra quem tem. O onerror remove a
-                             imagem em vez de trocar por um placeholder: numa
-                             copa sem fotos, um avatar cinza em toda linha
-                             ocuparia espaço sem dizer nada. */ ?>
-                    <?php if ($f = ($comps[$id]['foto'] ?? null)): ?>
-                    <img class="cara" src="<?= $esc($f) ?>" alt="" loading="lazy"
-                         onerror="this.remove()">
-                    <?php endif; ?>
-                    <span class="nome"><?= $esc($nomeDe($id)) ?></span>
-                    <?php if ($mostraVotos): ?><span class="n"><?= (int)$votos ?></span><?php endif; ?>
-                  </<?= $tag ?>>
-                  <?php if ($podeVotar): ?></form><?php endif; ?>
-                  <?php
-              };
-              $lado($aId, $c['votos_a'], $fa);
-            ?>
+            <?php $lado($aId, $c['votos_a'], $fa); ?>
             <?php if ($bye): ?>
               <div class="bye"><i class="bi bi-fast-forward-fill"></i> passou sem confronto</div>
             <?php else: $lado($bId, $c['votos_b'], $fb); endif; ?>
@@ -582,11 +598,72 @@ if ($copa && $userId) {
             </div>
             <?php endif; ?>
           </div>
-          <?php endforeach; endif; ?>
+          <?php
+      };
+
+      /** Uma coluna: o nome da rodada e os confrontos que forem passados. */
+      $desenhaColuna = function ($r, $lista) use ($desenhaDuelo, $esc, $rodadas, $rodAtual, $encerrada) {
+          ?>
+          <div class="coluna">
+            <div class="col-tit <?= (!$encerrada && $r === $rodAtual) ? 'agora' : '' ?>">
+              <?= $esc(copaNomeRodada($r, $rodadas)) ?>
+            </div>
+            <?php if (!$lista): ?>
+              <div class="duelo"><div class="vazio-duelo">aguardando</div></div>
+            <?php else: foreach ($lista as $c) $desenhaDuelo($c, $r); endif; ?>
+          </div>
+          <?php
+      };
+
+      /**
+       * A metade da chave que vai pra cada lado.
+       *
+       * O chaveamento espelhado parte a rodada ao meio: os primeiros
+       * confrontos sobem pela esquerda, os últimos pela direita, e os dois
+       * caminhos só se encontram na final. Como cada rodada tem metade dos
+       * confrontos da anterior, a divisão pelo meio segue valendo em todas
+       * — o vencedor do primeiro confronto da esquerda continua na esquerda
+       * até chegar lá.
+       *
+       * A final não divide: ela É o centro.
+       */
+      $metade = function ($r, $lado) use ($chave, $rodadas) {
+          $l = $chave[$r] ?? [];
+          if ($r >= $rodadas) return $l;
+          $n = intdiv(count($l), 2);
+          return $lado === 'e' ? array_slice($l, 0, $n) : array_slice($l, $n);
+      };
+    ?>
+
+    <?php /* ESPELHADO — só no computador. Final no meio, chaves subindo dos
+             dois lados. É o formato que todo mundo reconhece de tabela de
+             mata-mata, e ele precisa de largura: com 6 rodadas são 11
+             colunas, o que não cabe em tela de celular. */ ?>
+    <div class="bracket-wrap<?= $destaqueSorteio ? ' sorteando' : '' ?> so-pc">
+      <div class="bracket espelhado">
+        <?php for ($r = 1; $r < $rodadas; $r++) $desenhaColuna($r, $metade($r, 'e')); ?>
+
+        <div class="coluna coluna-final">
+          <div class="col-tit <?= (!$encerrada && $rodadas === $rodAtual) ? 'agora' : '' ?>">
+            <?= $esc(copaNomeRodada($rodadas, $rodadas)) ?>
+          </div>
+          <?php if (empty($chave[$rodadas])): ?>
+            <div class="duelo"><div class="vazio-duelo">aguardando</div></div>
+          <?php else: foreach ($chave[$rodadas] as $c) $desenhaDuelo($c, $rodadas); endif; ?>
         </div>
-        <?php endfor; ?>
+
+        <?php for ($r = $rodadas - 1; $r >= 1; $r--) $desenhaColuna($r, $metade($r, 'd')); ?>
       </div>
     </div>
+
+    <?php /* EM FILA — só no celular, e igual ao que sempre foi: uma coluna
+             por rodada, rolando pro lado dentro do próprio quadro. */ ?>
+    <div class="bracket-wrap<?= $destaqueSorteio ? ' sorteando' : '' ?> so-celular">
+      <div class="bracket linear">
+        <?php for ($r = 1; $r <= $rodadas; $r++) $desenhaColuna($r, $chave[$r] ?? []); ?>
+      </div>
+    </div>
+
     <?php if (!$encerrada && !$votando): ?>
     <div class="dica" style="margin-top:12px">
       A votação está fechada. Quando o admin abrir, é só clicar no competidor
@@ -791,12 +868,15 @@ if ($copa && $userId) {
  * rodada que abre.
  */
 (function () {
-  var br = document.querySelector('.bracket');
+  // Os DOIS chaveamentos — o espelhado e o em fila. Só um está visível por
+  // vez, mas quem gira o celular ou redimensiona a janela troca de um pro
+  // outro sem recarregar, e o tamanho tem que valer nos dois.
+  var brs = document.querySelectorAll('.bracket');
   var bts = document.querySelectorAll('.tam');
-  if (!br || !bts.length) return;
+  if (!brs.length || !bts.length) return;
 
   function aplicar(t, guardar) {
-    br.dataset.tam = t;
+    brs.forEach(function (br) { br.dataset.tam = t; });
     bts.forEach(function (b) { b.classList.toggle('on', b.dataset.tam === t); });
     if (guardar) { try { localStorage.setItem('copa-tam-foto', t); } catch (e) {} }
   }
