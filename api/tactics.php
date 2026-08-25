@@ -272,13 +272,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         // mais usados. A ordem aqui é a ordem que aparece na tela.
         $OPCOES_TATICA = require __DIR__ . '/../backend/tatica_opcoes.php';
 
+        // A ORDEM É A DO 2K, na tela de Sim Points of Emphasis:
+        //
+        //   Offensive Focus · Offensive Tempo · Offensive Rebounding ·
+        //   Defensive Focus · Defensive Aggression · Defensive Rebounding
+        //
+        // Quem usa esta tela está com o jogo aberto do lado, copiando campo a
+        // campo. Ordem diferente obriga a procurar cada linha na outra tela —
+        // e é aí que se copia o valor errado.
+        //
+        // "Agressividade Ofensiva" era erro de rótulo: o valor que esse campo
+        // carrega é "Play Physical Defense", e no jogo ele se chama Defensive
+        // Aggression. O nome da coluna no banco (offensive_aggression) segue
+        // errado, mas renomear coluna é outra conversa — o que a pessoa lê já
+        // está certo.
         $camposConfig = [
             'game_style'           => 'Estilo de Jogo',
             'offense_style'        => 'Estilo Ofensivo',
             'pace'                 => 'Ritmo',
-            'offensive_aggression' => 'Agressividade Ofensiva',
             'offensive_rebound'    => 'Rebote Ofensivo',
             'defensive_focus'      => 'Foco Defensivo',
+            'offensive_aggression' => 'Agressividade Defensiva',
             'defensive_rebound'    => 'Rebote Defensivo',
             'rotation_style'       => 'Estilo de Rotação',
             'rotation_players'     => 'Jogadores na Rotação',
@@ -421,6 +435,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'active_tactic' => $tatica,
             ];
         }
+
+        // ── A ORDEM DA LISTA ────────────────────────────────────────────
+        //
+        // Alfabética pelo nome COMPLETO — que é o que aparece na tela. A
+        // consulta ordena por (city, name), e isso não é a mesma coisa:
+        // basta um time com a cidade em branco pra ele saltar pro topo, o
+        // que fazia a lista parecer fora de ordem sem motivo aparente.
+        //
+        // E quem já está marcado como "feito no jogo" vai pro FIM. Esta tela
+        // é uma fila de trabalho: o admin desce copiando tática por tática, e
+        // o que ele já fez só atrapalha a busca do próximo. Empurrar pro fim
+        // deixa no topo exatamente o que falta.
+        // Acento comparado byte a byte cai DEPOIS de todo o ASCII, então
+        // "México City" iria parar no fim da lista, atrás de Washington.
+        // Tirar o acento antes de comparar põe o M de México junto dos
+        // outros M, que é onde quem procura o time vai olhar.
+        $ordenavel = fn(string $s) => strtolower(strtr($s, [
+            'á'=>'a','à'=>'a','ã'=>'a','â'=>'a','ä'=>'a',
+            'é'=>'e','ê'=>'e','è'=>'e','ë'=>'e',
+            'í'=>'i','î'=>'i','ì'=>'i','ï'=>'i',
+            'ó'=>'o','ô'=>'o','õ'=>'o','ò'=>'o','ö'=>'o',
+            'ú'=>'u','û'=>'u','ù'=>'u','ü'=>'u',
+            'ç'=>'c','ñ'=>'n',
+            'Á'=>'a','À'=>'a','Ã'=>'a','Â'=>'a','Ä'=>'a',
+            'É'=>'e','Ê'=>'e','È'=>'e','Ë'=>'e',
+            'Í'=>'i','Î'=>'i','Ì'=>'i','Ï'=>'i',
+            'Ó'=>'o','Ô'=>'o','Õ'=>'o','Ò'=>'o','Ö'=>'o',
+            'Ú'=>'u','Û'=>'u','Ù'=>'u','Ü'=>'u',
+            'Ç'=>'c','Ñ'=>'n',
+        ]));
+
+        usort($overview, function ($a, $b) use ($ordenavel) {
+            $fa = !empty($a['active_tactic']['feito_no_jogo']);
+            $fb = !empty($b['active_tactic']['feito_no_jogo']);
+            if ($fa !== $fb) return $fa ? 1 : -1;
+            // strnatcmp e não strcmp: sem ele, um time com número no nome
+            // ordenaria "10" antes de "2".
+            return strnatcmp($ordenavel($a['team']['name']), $ordenavel($b['team']['name']));
+        });
 
         echo json_encode(['success' => true, 'league' => $league, 'teams' => $overview, 'modelos' => $modelos]);
         exit;
