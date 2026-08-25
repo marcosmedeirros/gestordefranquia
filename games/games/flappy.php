@@ -952,20 +952,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     }
 
     // ── START ──
+    /**
+     * iniciar_run recusa (cooldown de 1,5s contra restart em rajada) sem que
+     * ninguém aqui conferisse a resposta — o jogo começava do mesmo jeito, só
+     * que a run nunca ficava "active" no servidor, e no final salvar_score
+     * caía no "Sessão de jogo inválida" calado: a partida era jogada,
+     * mostrava o score, e não pagava nem 1 moeda, sem erro nenhum na tela.
+     * Como "Tentar de Novo" chama startGame de novo, é fácil cair nisso
+     * morrendo rápido e batendo o botão na hora.
+     */
     function startGame() {
         const fd = new FormData();
         fd.append('acao', 'iniciar_run');
-        fetch('index.php?game=flappy', { method: 'POST', body: fd }).then(() => {
-            hideAll();
-            document.getElementById('hud').style.display = 'flex';
-            document.getElementById('skin-indicator').style.display = 'block';
-            document.getElementById('scoreDisplay').textContent = '0';
-            bird.y = 200; bird.velocity = 0;
-            pipes.reset(); score = 0; frames = 0; coinsEarned = 0;
-            hasUsedRevive = false;
-            currentState = 'GAME';
-            loop();
-        });
+        fetch('index.php?game=flappy', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(d => {
+                if (!d?.sucesso) {
+                    // Servidor recusou (cooldown): tenta de novo sozinho em vez de
+                    // deixar o jogador jogar uma run que nunca vai pagar.
+                    setTimeout(startGame, 1600);
+                    return;
+                }
+                hideAll();
+                document.getElementById('hud').style.display = 'flex';
+                document.getElementById('skin-indicator').style.display = 'block';
+                document.getElementById('scoreDisplay').textContent = '0';
+                bird.y = 200; bird.velocity = 0;
+                pipes.reset(); score = 0; frames = 0; coinsEarned = 0;
+                hasUsedRevive = false;
+                currentState = 'GAME';
+                loop();
+            })
+            .catch(() => setTimeout(startGame, 1600));
     }
 
     /** Ping de progresso a cada 10 pontos — o servidor usa isto pra saber que a
