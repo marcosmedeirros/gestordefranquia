@@ -1307,7 +1307,7 @@ try {
             
                 $stmtInsert = $pdo->prepare("
                     INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade)
-                    VALUES (?, ?, ?, ?, ?, 'Reserva', 0)
+                    VALUES (?, ?, ?, ?, ?, 'Banco', 0)
                 ");
                 $stmtInsert->execute([
                     $data['team_id'],
@@ -1351,7 +1351,7 @@ try {
             
             $stmtInsert = $pdo->prepare("
                 INSERT INTO players (team_id, name, position, age, ovr, role, available_for_trade)
-                VALUES (?, ?, ?, ?, ?, 'Reserva', 0)
+                VALUES (?, ?, ?, ?, ?, 'Banco', 0)
             ");
             $stmtInsert->execute([
                 $data['team_id'],

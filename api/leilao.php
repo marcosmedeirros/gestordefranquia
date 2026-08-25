@@ -1978,12 +1978,17 @@ function _executarTrocaLeilao($pdo, $proposta, ?array $overrideItems = null) {
     }
 
     $winnerTeamId = $proposta['team_id'];
-    $transferStmt = $pdo->prepare("UPDATE players SET team_id = ? WHERE id = ?");
+    // Quem MUDA de time chega no banco. Sem isso o jogador carregava o papel
+    // do time anterior e um titular arrematado virava o sexto do quinteto do
+    // vencedor. Mesma regra da trade, do draft, da FA e do waiver.
+    $transferStmt = $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ?");
 
     // Se for jogador criado especificamente para o leilao, criar no time vencedor agora
     if (empty($proposta['player_id']) && !empty($proposta['is_temp_player'])) {
         $ovrColumn = playerOvrColumn($pdo);
-        $stmtCreate = $pdo->prepare("INSERT INTO players (team_id, name, age, position, {$ovrColumn}) VALUES (?, ?, ?, ?, ?)");
+        // role explícito: a coluna tem DEFAULT 'Titular', então omitir aqui
+        // fazia o jogador do leilão nascer titular.
+        $stmtCreate = $pdo->prepare("INSERT INTO players (team_id, name, age, position, {$ovrColumn}, role) VALUES (?, ?, ?, ?, ?, 'Banco')");
         $stmtCreate->execute([
             $winnerTeamId,
             $proposta['temp_name'],
@@ -2196,9 +2201,14 @@ function reverterLeilao($pdo, $body) {
 
     $pdo->beginTransaction();
     try {
-        // Retornar jogador do leilão ao time de origem
+        // Retornar jogador do leilão ao time de origem.
+        //
+        // Também volta pro banco, e não pro papel que tinha antes: ninguém
+        // guardou qual era. Voltar como titular seria um chute que estoura o
+        // quinteto quando o time já preencheu a vaga que ele deixou — e é
+        // justamente isso que um time faz quando perde um titular.
         if ($player_id && $origin_team_id) {
-            $pdo->prepare("UPDATE players SET team_id = ? WHERE id = ?")->execute([$origin_team_id, $player_id]);
+            $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ?")->execute([$origin_team_id, $player_id]);
         }
 
         if ($proposta_id) {
@@ -2207,7 +2217,7 @@ function reverterLeilao($pdo, $body) {
             $stmt2->execute([$proposta_id]);
             $jogadores_oferecidos = $stmt2->fetchAll(PDO::FETCH_COLUMN);
             if ($winner_team_id && !empty($jogadores_oferecidos)) {
-                $upd = $pdo->prepare("UPDATE players SET team_id = ? WHERE id = ?");
+                $upd = $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ?");
                 foreach ($jogadores_oferecidos as $pid) {
                     $upd->execute([$winner_team_id, $pid]);
                 }
@@ -2231,7 +2241,7 @@ function reverterLeilao($pdo, $body) {
                 if (!empty($persRow['is_personalized'])) {
                     $stmtEP = $pdo->prepare("SELECT player_id FROM leilao_proposta_extra_players WHERE proposta_id = ?");
                     $stmtEP->execute([$proposta_id]);
-                    $updP = $pdo->prepare("UPDATE players SET team_id = ? WHERE id = ?");
+                    $updP = $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ?");
                     foreach ($stmtEP->fetchAll(PDO::FETCH_COLUMN) as $pid) {
                         $updP->execute([$origin_team_id, $pid]);
                     }

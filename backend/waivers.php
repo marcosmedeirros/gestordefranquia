@@ -196,16 +196,23 @@ function waiverToFreeAgency(PDO $pdo, array $w): void
     $pdo->prepare("INSERT INTO free_agents (" . implode(', ', $cols) . ") VALUES ($ph)")->execute($vals);
 }
 
-/** Recria o jogador reivindicado no elenco do time vencedor. */
+/**
+ * Recria o jogador reivindicado no elenco do time vencedor.
+ *
+ * Entra no BANCO, e não com o papel que ele tinha no time anterior. Vinha
+ * `$w['role'] ?: 'Titular'`: quem era titular onde foi dispensado nascia
+ * titular aqui, e o time que reivindicou acordava com seis no quinteto —
+ * sem ter pedido, e sem aviso nenhum. É a mesma regra da trade, do draft e
+ * da free agency, que já entregam no banco.
+ */
 function waiverRecreatePlayer(PDO $pdo, array $w, int $teamId): void
 {
     $pdo->prepare("INSERT INTO players
         (team_id, name, age, position, secondary_position, ovr, seasons_in_league,
          drafted_by_team_id, draft_round, draft_pick_position, role)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)")->execute([
+        VALUES (?,?,?,?,?,?,?,?,?,?,'Banco')")->execute([
         $teamId, $w['name'], $w['age'], $w['position'], $w['secondary_position'], (int)$w['ovr'],
         (int)$w['seasons_in_league'], $w['drafted_by_team_id'], $w['draft_round'], $w['draft_pick_position'],
-        $w['role'] ?: 'Titular',
     ]);
 }
 

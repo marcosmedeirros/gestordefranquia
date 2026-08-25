@@ -2242,7 +2242,12 @@ if ($method === 'PUT') {
                         if (!$player) {
                             $errors[] = "Jogador ID {$item['player_id']} não encontrado (pode ter sido dispensado)";
                         } elseif ((int)$player['team_id'] === (int)$expectedCurrentTeamId) {
-                            $stmtRevert = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ?');
+                            // Volta pro banco. Trades feitas antes da regra
+                            // "quem chega vai pro banco" deixaram titulares
+                            // espalhados: desfazer uma delas devolveria um
+                            // titular a um time que já recompôs o quinteto, e
+                            // ele acordaria com seis.
+                            $stmtRevert = $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ?");
                             $stmtRevert->execute([$originalTeamId, $item['player_id']]);
                             $playersReverted[] = $player['name'];
                         } elseif ((int)$player['team_id'] === (int)$originalTeamId) {
@@ -2363,7 +2368,8 @@ if ($method === 'PUT') {
                 $errors = [];
 
                 $stmtCheckPlayer = $pdo->prepare('SELECT team_id, name FROM players WHERE id = ?');
-                $stmtMovePlayer = $pdo->prepare('UPDATE players SET team_id = ? WHERE id = ?');
+                // Mesma coisa da reversão simples: volta pro banco.
+                $stmtMovePlayer = $pdo->prepare("UPDATE players SET team_id = ?, role = 'Banco' WHERE id = ?");
                 $stmtCheckPick = $pdo->prepare('SELECT team_id, season_year, round FROM picks WHERE id = ?');
                 $stmtMovePick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
                 $stmtClearPickSwap = $pdo->prepare('UPDATE picks SET swap_type = NULL, swap_locked = 0, swap_pair_pick_id = NULL WHERE id = ?');
