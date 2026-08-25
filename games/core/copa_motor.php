@@ -65,9 +65,18 @@ function copaTabelas(PDO $pdo): void
         id         INT AUTO_INCREMENT PRIMARY KEY,
         torneio_id INT NOT NULL,
         nome       VARCHAR(80) NOT NULL,
+        foto       VARCHAR(400) NULL,
         posicao    INT NOT NULL,
         KEY idx_torneio (torneio_id, posicao)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // A foto entrou depois. Copa antiga fica com NULL e desenha só o nome,
+    // que é exatamente como ela era.
+    try {
+        $pdo->exec("ALTER TABLE copa_competidores ADD COLUMN foto VARCHAR(400) NULL AFTER nome");
+    } catch (Throwable $e) {
+        // Já existe. Caminho normal em toda execução menos a primeira.
+    }
 
     // b_id NULL é o bye: passou sem jogar. Vira uma linha de confronto assim
     // mesmo pra rodada 1 ter sempre P/2 linhas — o desenho do chaveamento
@@ -174,6 +183,22 @@ function copaConfrontosComBye(int $slots, int $byes): array
 }
 
 /**
+ * A URL da foto, se ela for utilizável. Devolve null pra qualquer outra
+ * coisa — inclusive pra string vazia e pra texto que não é URL.
+ *
+ * Só http, https e data: entram. `javascript:` num src não executa em
+ * navegador nenhum hoje, mas essa URL vai parar num atributo HTML montado
+ * por mim, e filtrar na entrada é mais barato que confiar no escape de cada
+ * lugar que a use depois.
+ */
+function copaFotoValida(?string $u): ?string
+{
+    $u = trim((string)$u);
+    if ($u === '' || mb_strlen($u) > 400) return null;
+    return preg_match('~^(https?://|data:image/)~i', $u) ? $u : null;
+}
+
+/**
  * Cria a copa: sorteia as posições e monta a rodada 1.
  *
  * O sorteio é feito e GRAVADO aqui, de uma vez. Sortear na hora de exibir
@@ -193,13 +218,30 @@ function copaCriar(PDO $pdo, string $titulo, array $nomes, int $criadoPor): arra
 
     // Limpa, tira vazios e repetidos. Nome repetido no chaveamento deixa o
     // voto ambíguo — não dá pra saber em qual dos dois a pessoa votou.
+    //
+    // Cada linha pode ser "Nome" ou "Nome | url-da-foto". O separador é a
+    // barra vertical e não a vírgula porque vírgula já separa competidores
+    // quando alguém cola uma lista pronta.
     $limpos = [];
-    foreach ($nomes as $n) {
-        $n = trim(preg_replace('/\s+/u', ' ', (string)$n));
+    $vistos = [];
+    foreach ($nomes as $bruta) {
+        $bruta = (string)$bruta;
+        $foto  = null;
+
+        if (strpos($bruta, '|') !== false) {
+            [$bruta, $u] = array_map('trim', explode('|', $bruta, 2));
+            $foto = copaFotoValida($u);
+        }
+
+        $n = trim(preg_replace('/\s+/u', ' ', $bruta));
         if ($n === '') continue;
         if (mb_strlen($n) > 80) $n = mb_substr($n, 0, 80);
-        if (in_array(mb_strtolower($n), array_map('mb_strtolower', $limpos), true)) continue;
-        $limpos[] = $n;
+
+        $chave = mb_strtolower($n);
+        if (isset($vistos[$chave])) continue;
+        $vistos[$chave] = true;
+
+        $limpos[] = ['nome' => $n, 'foto' => $foto];
     }
 
     $n = count($limpos);
@@ -223,7 +265,7 @@ function copaCriar(PDO $pdo, string $titulo, array $nomes, int $criadoPor): arra
         $comBye = copaConfrontosComBye($slots, $byes);
         $comBye = array_flip($comBye);
 
-        $insComp = $pdo->prepare("INSERT INTO copa_competidores (torneio_id, nome, posicao) VALUES (?,?,?)");
+        $insComp = $pdo->prepare("INSERT INTO copa_competidores (torneio_id, nome, foto, posicao) VALUES (?,?,?,?)");
         $insConf = $pdo->prepare("INSERT INTO copa_confrontos (torneio_id, rodada, ordem, a_id, b_id, vencedor_id)
                                   VALUES (?,1,?,?,?,?)");
 
@@ -231,12 +273,14 @@ function copaCriar(PDO $pdo, string $titulo, array $nomes, int $criadoPor): arra
         $pos = 1; // posição no chaveamento
         for ($c = 0; $c < intdiv($slots, 2); $c++) {
             // O A existe sempre; o B só quando o confronto não é bye.
-            $insComp->execute([$id, $limpos[$i++], $pos++]);
+            $a = $limpos[$i++];
+            $insComp->execute([$id, $a['nome'], $a['foto'], $pos++]);
             $aId = (int)$pdo->lastInsertId();
 
             $bId = null;
             if (!isset($comBye[$c])) {
-                $insComp->execute([$id, $limpos[$i++], $pos++]);
+                $b = $limpos[$i++];
+                $insComp->execute([$id, $b['nome'], $b['foto'], $pos++]);
                 $bId = (int)$pdo->lastInsertId();
             } else {
                 $pos++;   // a vaga vazia consome a posição, pro desenho bater
@@ -285,7 +329,7 @@ function copaLista(PDO $pdo, int $limite = 30): array
 /** id => nome dos competidores. */
 function copaCompetidores(PDO $pdo, int $torneioId): array
 {
-    $st = $pdo->prepare("SELECT id, nome, posicao FROM copa_competidores WHERE torneio_id=? ORDER BY posicao");
+    $st = $pdo->prepare("SELECT id, nome, foto, posicao FROM copa_competidores WHERE torneio_id=? ORDER BY posicao");
     $st->execute([$torneioId]);
     $out = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $out[(int)$r['id']] = $r;

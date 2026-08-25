@@ -41,10 +41,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$r['ok']) $_SESSION['copa_flash'] = ['erro', $r['erro']];
 
         } elseif ($acao === 'criar' && $isAdmin) {
-            // Um nome por linha. Aceita também vírgula, porque colar de uma
-            // lista pronta é o caminho mais provável e separar na mão seria
-            // trabalho à toa.
-            $bruto = str_replace(["\r", ','], ["\n", "\n"], (string)($_POST['nomes'] ?? ''));
+            // Um nome por linha. No modo SÓ NOMES a vírgula também separa,
+            // porque colar uma lista pronta é o caminho mais provável. No
+            // modo com foto ela não separa: URL vem cheia de vírgula (um
+            // data: URI é quase só isso) e cortar ali partiria o link.
+            $comFoto = ($_POST['modo'] ?? 'nomes') === 'fotos';
+            $bruto = str_replace("\r", "\n", (string)($_POST['nomes'] ?? ''));
+            if (!$comFoto) $bruto = str_replace(',', "\n", $bruto);
             $r = copaCriar($pdo, (string)($_POST['titulo'] ?? ''), explode("\n", $bruto), $userId);
             if ($r['ok']) {
                 $_SESSION['copa_flash'] = ['ok', 'Copa criada e chaveamento sorteado!'];
@@ -213,7 +216,7 @@ if ($copa && $userId) {
   .bracket-wrap{overflow-x:auto;padding-bottom:10px;-webkit-overflow-scrolling:touch}
   .bracket{display:flex;gap:14px;min-width:min-content;align-items:stretch}
   .coluna{display:flex;flex-direction:column;justify-content:space-around;gap:8px;
-          min-width:206px;flex:none}
+          min-width:var(--col);flex:none}
   .col-tit{font-size:10px;font-weight:900;letter-spacing:1px;text-transform:uppercase;
            color:var(--text-3);text-align:center;padding-bottom:6px;position:sticky;top:0}
   .col-tit.agora{color:var(--ouro)}
@@ -232,6 +235,29 @@ if ($copa && $userId) {
   .lado .barra{position:absolute;inset:0;background:rgba(245,158,11,.13);
                transform-origin:left;transition:transform .3s ease;z-index:0}
   .lado .nome,.lado .n,.lado i{position:relative;z-index:1}
+  /* A CARA DO COMPETIDOR.
+     O tamanho vem de uma variável no .bracket, então os três botões trocam
+     uma linha só e todas as fotos acompanham — inclusive as das rodadas que
+     ainda vão aparecer. A coluna cresce junto, senão a foto grande espremeria
+     o nome até sobrar reticência. */
+  .bracket{--cara:30px;--col:206px}
+  .bracket[data-tam="p"]{--cara:20px;--col:196px}
+  .bracket[data-tam="g"]{--cara:52px;--col:250px}
+  .lado .cara{width:var(--cara);height:var(--cara);border-radius:50%;object-fit:cover;
+              flex:none;border:1px solid var(--border-md);background:var(--panel-3)}
+  .lado.perde .cara{filter:grayscale(1)}
+  .tamanhos{display:flex;align-items:center;gap:5px;margin:-4px 0 12px}
+  .tamanhos span{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
+                 color:var(--text-3);margin-right:3px}
+  .tam{width:26px;height:24px;border-radius:7px;border:1px solid var(--border-md);
+       background:var(--panel-2);color:var(--text-3);font-family:inherit;
+       font-size:11px;font-weight:800;cursor:pointer}
+  .tam.on{border-color:var(--ouro);color:var(--ouro-2);background:rgba(245,158,11,.1)}
+  .modos{display:flex;gap:6px;margin-bottom:8px}
+  .modo{font-size:11.5px;font-weight:800;padding:6px 12px;border-radius:8px;
+        border:1px solid var(--border-md);background:var(--panel-2);color:var(--text-3);
+        font-family:inherit;cursor:pointer}
+  .modo.on{border-color:var(--ouro);color:var(--ouro-2);background:rgba(245,158,11,.1)}
   .lado.vence{color:var(--ouro-2)}
   .lado.vence .n{color:var(--ouro-2)}
   .lado.perde{opacity:.42}
@@ -286,7 +312,8 @@ if ($copa && $userId) {
   @media (max-width:620px){
     .wrap{padding:14px 12px}
     .tit{font-size:18px}
-    .coluna{min-width:184px}
+    .bracket{--col:184px}
+    .bracket[data-tam="g"]{--col:214px}
   }
   <?php /* O sorteio recém-feito entra caindo, um confronto por vez. É o
            momento que a galera assiste — sem isso o chaveamento simplesmente
@@ -329,6 +356,7 @@ if ($copa && $userId) {
     <h2>Criar uma copa</h2>
     <form method="post">
       <input type="hidden" name="acao" value="criar">
+      <input type="hidden" name="modo" id="campoModo" value="nomes">
       <div class="campo">
         <label>Do que é a copa?</label>
         <input type="text" name="titulo" maxlength="120" required
@@ -336,12 +364,24 @@ if ($copa && $userId) {
                value="<?= $esc($form['titulo']) ?>">
       </div>
       <div class="campo">
-        <label>Competidores — um por linha <span class="contador" id="conta"></span></label>
+        <label>Competidores <span class="contador" id="conta"></span></label>
+        <?php /* Dois modos porque são dois trabalhos diferentes: colar uma
+                 lista que já existe, ou montar uma copa em que a cara de cada
+                 competidor é metade da graça. Um campo só, com a foto sempre
+                 opcional, faria o modo simples parecer incompleto. */ ?>
+        <div class="modos">
+          <button type="button" class="modo on" data-modo="nomes">Só nomes</button>
+          <button type="button" class="modo" data-modo="fotos">Nome e foto</button>
+        </div>
         <textarea name="nomes" id="nomes" required
                   placeholder="Coxinha&#10;Pastel&#10;Empada&#10;Kibe"><?= $esc($form['nomes']) ?></textarea>
         <div class="dica" id="previsao">
           Pode colar uma lista pronta — vírgula também separa. Nomes repetidos
           e linhas vazias são descartados.
+        </div>
+        <div class="dica" id="dicaFoto" style="display:none">
+          Uma linha por competidor: <b>Nome | link da foto</b>. Quem ficar sem
+          link aparece só com o nome — dá pra misturar.
         </div>
         <?php /* Os presets não travam nada: são só um atalho pra saber quantos
                  faltam. Qualquer número de 2 a 64 monta chaveamento. */ ?>
@@ -434,6 +474,16 @@ if ($copa && $userId) {
 
   <div class="cx">
     <h2>O chaveamento</h2>
+    <?php /* O controle só aparece na copa que TEM foto. Numa copa só de
+             nomes ele seria um botão que não muda nada visível. */ ?>
+    <?php if (array_filter(array_column($comps, 'foto'))): ?>
+    <div class="tamanhos">
+      <span>Foto</span>
+      <button type="button" class="tam" data-tam="p">P</button>
+      <button type="button" class="tam on" data-tam="m">M</button>
+      <button type="button" class="tam" data-tam="g">G</button>
+    </div>
+    <?php endif; ?>
     <div class="bracket-wrap<?= $destaqueSorteio ? ' sorteando' : '' ?>">
       <div class="bracket">
         <?php for ($r = 1; $r <= $rodadas; $r++): ?>
@@ -462,7 +512,7 @@ if ($copa && $userId) {
               // Os dois lados saem do mesmo molde: botão quando dá pra votar,
               // div quando não. Duplicar o markup faria o placar divergir de
               // um lado pro outro na primeira mudança.
-              $lado = function ($id, $votos, $fatia) use ($c, $venc, $podeVotar, $copa, $esc, $nomeDe, $mostraVotos) {
+              $lado = function ($id, $votos, $fatia) use ($c, $venc, $podeVotar, $copa, $esc, $nomeDe, $mostraVotos, $comps) {
                   if (!$id) return;
                   $cls = 'lado';
                   if ($venc) $cls .= $venc === $id ? ' vence' : ' perde';
@@ -479,6 +529,14 @@ if ($copa && $userId) {
                   <<?= $tag ?> class="<?= $cls ?>"<?= $podeVotar ? ' type="submit"' : '' ?>>
                     <span class="barra" style="transform:scaleX(<?= round($fatia, 3) ?>)"></span>
                     <?php if ($venc === $id): ?><i class="bi bi-caret-right-fill"></i><?php endif; ?>
+                    <?php /* A foto só entra pra quem tem. O onerror remove a
+                             imagem em vez de trocar por um placeholder: numa
+                             copa sem fotos, um avatar cinza em toda linha
+                             ocuparia espaço sem dizer nada. */ ?>
+                    <?php if ($f = ($comps[$id]['foto'] ?? null)): ?>
+                    <img class="cara" src="<?= $esc($f) ?>" alt="" loading="lazy"
+                         onerror="this.remove()">
+                    <?php endif; ?>
                     <span class="nome"><?= $esc($nomeDe($id)) ?></span>
                     <?php if ($mostraVotos): ?><span class="n"><?= (int)$votos ?></span><?php endif; ?>
                   </<?= $tag ?>>
@@ -570,10 +628,20 @@ if ($copa && $userId) {
   var prev = document.getElementById('previsao');
   var base = prev.textContent;
 
+  function modoAtual() {
+    var b = document.querySelector('.modo.on');
+    return b ? b.dataset.modo : 'nomes';
+  }
+
   function limpos() {
     var vistos = {}, out = [];
-    ta.value.split(/[\n,]/).forEach(function (n) {
-      n = n.trim().replace(/\s+/g, ' ');
+    // No modo com foto a vírgula NÃO separa: ela aparece dentro de URL
+    // (data: URIs vivem cheias delas) e cortar ali partiria o link no meio.
+    var pedacos = modoAtual() === 'fotos' ? ta.value.split('\n') : ta.value.split(/[\n,]/);
+    pedacos.forEach(function (linha) {
+      // Só o que vem ANTES da barra é o nome — é ele que conta e que não
+      // pode repetir.
+      var n = String(linha).split('|')[0].trim().replace(/\s+/g, ' ');
       if (!n) return;
       var k = n.toLowerCase();
       if (vistos[k]) return;
@@ -601,6 +669,25 @@ if ($copa && $userId) {
   ta.addEventListener('input', atualizar);
   atualizar();
 
+  /* ── Os dois modos de entrada ─────────────────────────────────────── */
+  var campoModo = document.getElementById('campoModo');
+  var dicaFoto  = document.getElementById('dicaFoto');
+  document.querySelectorAll('.modo').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.modo').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on');
+      var comFoto = b.dataset.modo === 'fotos';
+      campoModo.value = b.dataset.modo;
+      dicaFoto.style.display = comFoto ? '' : 'none';
+      // A previsão do chaveamento fica nos DOIS modos: saber quantas rodadas
+      // e quantos byes vão sair importa igual, com foto ou sem.
+      ta.placeholder = comFoto
+        ? 'Coxinha | https://exemplo.com/coxinha.jpg\nPastel | https://exemplo.com/pastel.jpg\nEmpada'
+        : 'Coxinha\nPastel\nEmpada\nKibe';
+      atualizar();
+    });
+  });
+
   document.querySelectorAll('.preset').forEach(function (b) {
     b.addEventListener('click', function () {
       var faltam = Number(b.dataset.alvo) - limpos().length;
@@ -616,6 +703,38 @@ if ($copa && $userId) {
 <?php /* Os popups do site. Sem isto o caminho de reserva do "copiar link"
          cairia no prompt() do navegador, que é justamente o que foi tirado
          do resto do app. */ ?>
+<script>
+/* ── Tamanho da foto no chaveamento ──────────────────────────────────
+ *
+ * Troca uma variável CSS no .bracket, e não o width de cada imagem: as
+ * fotos das rodadas futuras ainda nem existem no DOM quando a escolha é
+ * feita, e nascem já no tamanho certo por herdarem a variável.
+ *
+ * A escolha fica no localStorage porque é preferência de quem olha, não
+ * da copa: cada um enxerga de um jeito, e ninguém quer reescolher a cada
+ * rodada que abre.
+ */
+(function () {
+  var br = document.querySelector('.bracket');
+  var bts = document.querySelectorAll('.tam');
+  if (!br || !bts.length) return;
+
+  function aplicar(t, guardar) {
+    br.dataset.tam = t;
+    bts.forEach(function (b) { b.classList.toggle('on', b.dataset.tam === t); });
+    if (guardar) { try { localStorage.setItem('copa-tam-foto', t); } catch (e) {} }
+  }
+
+  var salvo = null;
+  try { salvo = localStorage.getItem('copa-tam-foto'); } catch (e) {}
+  aplicar(salvo === 'p' || salvo === 'g' ? salvo : 'm', false);
+
+  bts.forEach(function (b) {
+    b.addEventListener('click', function () { aplicar(b.dataset.tam, true); });
+  });
+})();
+</script>
+
 <script src="/js/popups.js"></script>
 <script>
 /**
