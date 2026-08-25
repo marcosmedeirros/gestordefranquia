@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * INDEX.PHP - DASHBOARD PRINCIPAL
  */

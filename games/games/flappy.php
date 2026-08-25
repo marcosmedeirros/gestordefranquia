@@ -1017,9 +1017,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
         fetch('index.php?game=flappy', { method: 'POST', body: fd }).then(r => r.json()).then(d => {
             if (d?.sucesso) {
                 updateSaldo(d.novo_saldo);
+                const banner = document.getElementById('coinsBanner');
                 if (d.coins > 0) {
-                    const banner = document.getElementById('coinsBanner');
                     document.getElementById('coinsText').textContent = `+${d.coins} moedas ganhas!`;
+                    banner.style.display = 'flex';
+                } else {
+                    // Partida abaixo do primeiro marco paga zero — e até aqui a
+                    // tela não dizia NADA nesse caso: a pessoa jogava, morria e
+                    // simplesmente não via moeda nenhuma, sem saber se era
+                    // assim mesmo ou se o jogo estava quebrado. Era essa a
+                    // origem do "o Flappy não está dando moedas".
+                    document.getElementById('coinsText').textContent =
+                        'Chegue a 10 pontos pra começar a ganhar moedas!';
                     banner.style.display = 'flex';
                 }
             }
