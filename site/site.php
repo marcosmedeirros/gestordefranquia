@@ -65,7 +65,11 @@ try {
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>FBA · Fantasy Basquete Brasil - Liga de NBA 2K</title>
 <meta name="description" content="A FBA é a maior liga de fantasy basquete e NBA 2K Pro-Am do Brasil. Monte seu time, dispute o draft, feche trocas e seja o GM. Entre na lista de espera e jogue basquete de verdade." />
-<meta name="keywords" content="fantasy basquete, FBA, NBA fantasy, liga de basquete, NBA 2K, fantasy NBA Brasil, liga de NBA 2K, Pro-Am" />
+<?php /* O Google ignora <keywords> desde 2009 — fica só porque outros
+         buscadores menores ainda leem, e não custa nada. O que realmente
+         posiciona é o TEXTO da página, e é por isso que o conteúdo passou
+         a ser servido em HTML no #root lá embaixo. */ ?>
+<meta name="keywords" content="fantasy basquete, 2K fantasy, fbabrasil, FBA, NBA 2K, NBA basquete, NBA fantasy, liga de basquete, fantasy NBA Brasil, liga de NBA 2K, Pro-Am, basquete online" />
 <meta name="robots" content="index, follow" />
 <link rel="canonical" href="https://fbabrasil.com.br/" />
 
@@ -92,7 +96,73 @@ try {
   "logo": "https://fbabrasil.com.br/img/fba-logo-default-cropped.png",
   "description": "A maior liga de fantasy basquete e NBA 2K Pro-Am do Brasil, com sistema de acesso e descenso entre divisões.",
   "sport": "Basketball",
-  "areaServed": "BR"
+  "areaServed": "BR",
+  "foundingDate": "2021",
+  "sameAs": [
+    "https://www.youtube.com/@fba2kleaguebrasil"
+  ]
+}
+</script>
+
+<?php /* O nome do site, pro Google mostrar "FBA" em vez do domínio cru no
+         resultado. Separado do SportsOrganization de propósito: são coisas
+         diferentes — uma é a liga, outra é este site. */ ?>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "FBA - Fantasy Basquete Brasil",
+  "alternateName": ["FBA", "fbabrasil", "FBA 2K League Brasil"],
+  "url": "https://fbabrasil.com.br/",
+  "inLanguage": "pt-BR"
+}
+</script>
+
+<?php /* FAQ com as perguntas que as pessoas realmente digitam sobre uma
+         liga assim. Quando o Google aceita, elas aparecem abertas embaixo
+         do resultado — ocupa mais espaço na página de busca e responde a
+         dúvida antes do clique.
+
+         As respostas são as MESMAS do conteúdo da página. FAQ que promete
+         o que a página não cumpre é o tipo de coisa que o Google pune. */ ?>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "O que é a FBA?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A FBA (Fantasy Basquete Brasil) é a primeira liga 100% brasileira de NBA 2K Pro-Am com sistema de acesso e descenso entre divisões. Fundada em 2021, reúne centenas de jogadores em times ativos por todo o país, com draft, trocas, free agency e playoffs a cada temporada."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Como participar de uma liga de fantasy basquete no Brasil?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Basta entrar na lista de espera no site da FBA. Assim que houver vaga, você recebe um time e assume como general manager: monta o elenco, disputa o draft, negocia trocas e joga as partidas de NBA 2K."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Quais são as divisões da FBA?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "São quatro: Elite, Next, Rise e Rookie. A cada temporada, 4 times sobem e 4 descem entre as divisões. Na Elite, o campeão fatura premiação em dinheiro."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Preciso de quê para jogar na FBA?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Do NBA 2K e de uma vaga na liga. Entre na lista de espera pelo site: quando abrir vaga, você recebe um time e passa a disputar as temporadas."
+      }
+    }
+  ]
 }
 </script>
 
@@ -913,10 +983,80 @@ button { font: inherit; cursor: pointer; border: 0; background: 0; color: inheri
 </style>
 </head>
 <body>
-<div id="root"></div>
+<?php
+/* ── O QUE O GOOGLE LÊ ───────────────────────────────────────────────────
+ *
+ * A página inteira é montada por React NO NAVEGADOR, então o HTML servido
+ * tinha só o <title> — nem uma palavra de conteúdo. Um buscador que não
+ * executa JavaScript via uma página em branco, e o Google, que executa,
+ * vê depois e com menos confiança: ele precisa buscar React, Babel,
+ * compilar o JSX e só então enxergar um H1.
+ *
+ * Este bloco põe o conteúdo essencial DENTRO do #root, em HTML de verdade.
+ * Quando o React monta, ele substitui tudo isto pela versão interativa —
+ * o visitante nunca vê os dois. Não é conteúdo escondido nem diferente do
+ * que a pessoa lê: é o mesmo texto, servido antes.
+ *
+ * Os números vêm do mesmo $siteData que o React usa, pra não existir uma
+ * versão do HTML dizendo uma coisa e a da tela outra.
+ */
+$seoTimes     = (int)($totalTeams ?? 0);
+$seoJogadores = (int)($totalActivePlayers ?? 0);
+?>
+<div id="root">
+  <main>
+    <h1>FBA — Fantasy Basquete Brasil, a liga de NBA 2K do Brasil</h1>
+    <p>
+      A FBA é a primeira liga 100% brasileira de <strong>NBA 2K Pro-Am</strong>
+      com sistema de acesso e descenso entre divisões. Fundada em 2021, hoje
+      reúne <?= $seoJogadores ?: 'centenas de' ?> jogadores em
+      <?= $seoTimes ?: 'dezenas de' ?> times ativos em todo o país. Aqui você é
+      o GM: monta o elenco, disputa o draft, fecha trocas e joga basquete de
+      verdade.
+    </p>
 
-<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+    <h2>Fantasy de basquete e 2K fantasy no Brasil</h2>
+    <p>
+      Quem procura <strong>fantasy basquete</strong>, <strong>2K fantasy</strong>
+      ou uma liga de <strong>NBA 2K</strong> em português encontra na FBA um
+      campeonato de verdade: elenco próprio, salary cap, draft, free agency,
+      trocas entre times e playoffs eliminatórios a cada temporada.
+    </p>
+
+    <h2>Quatro divisões: Elite, Next, Rise e Rookie</h2>
+    <p>
+      Sistema de acesso e descenso: a cada temporada, 4 times sobem e 4 descem
+      entre as divisões. Na Elite, o campeão fatura premiação em dinheiro.
+      Comece na Rookie e prove o seu valor na quadra até chegar à Elite.
+    </p>
+
+    <h2>Como funciona</h2>
+    <p>
+      Você entra na lista de espera, recebe um time e assume como general
+      manager. Cada temporada tem draft, janela de trocas, free agency e
+      playoffs, com tudo acompanhado de perto pela comunidade — do sorteio da
+      loteria até a grande final, transmitida ao vivo no
+      <a href="https://www.youtube.com/@fba2kleaguebrasil" rel="noopener">YouTube da FBA</a>.
+    </p>
+
+    <h2>Mais que uma liga de basquete</h2>
+    <p>
+      Além da competição, a FBA tem o <a href="/site/pathetic.php">The Pathetic</a>,
+      o jornal da liga, e os <a href="/site/gamesfba.php">games da FBA</a> —
+      minigames diários de basquete e NBA pra comunidade jogar todo dia.
+    </p>
+
+    <p><a href="/login.php">Entrar na FBA</a> · Lista de espera aberta.</p>
+  </main>
+</div>
+
+<?php /* PRODUÇÃO, e não development: o build de debug do React é 3x maior e
+         mais lento, e velocidade de carregamento conta pro ranking. Os
+         hashes de integridade foram recalculados a partir dos arquivos
+         reais — trocar o arquivo sem trocar o hash faria o navegador
+         RECUSAR o script e a landing não abriria pra ninguém. */ ?>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
 <script>

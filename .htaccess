@@ -27,6 +27,12 @@ AddDefaultCharset UTF-8
     RewriteRule ^img/icon-192\.png$ /img/icons/icon-192.png [L]
     RewriteRule ^img/icon-96\.png$ /img/icons/icon-96.png [L]
     RewriteRule ^img/icon-48\.png$ /img/icons/icon-48.png [L]
+
+    # O sitemap virou dinâmico (lista as matérias do The Pathetic, que são o
+    # conteúdo novo do site). O endereço /sitemap.xml continua valendo —
+    # é o que está no robots.txt e o que o Google já conhece; trocar o
+    # endereço custaria uma nova descoberta sem ganho nenhum.
+    RewriteRule ^sitemap\.xml$ /sitemap.php [L]
 </IfModule>
 
 # Compressão
