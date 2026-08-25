@@ -115,7 +115,7 @@ function leilaoSemanaLances(PDO $pdo, string $liga, int $temporada): array
  * pódio de dois basta passar o segundo; exigir passar o primeiro tornaria
  * a segunda vaga inalcançável enquanto o líder estivesse muito na frente.
  */
-function leilaoSemanaMinimo(array $lances): int
+function leilaoSemanaMinimo(array $lances, int $ignorarTeam = 0): int
 {
     // Ninguém deu lance: vale o piso.
     if (!$lances) return LEILAO_SEMANA_MINIMO;
@@ -126,8 +126,17 @@ function leilaoSemanaMinimo(array $lances): int
     // caindo em quem clicou primeiro, que é exatamente o que o leilão
     // deveria evitar.
     $ultimoDoPodio = $lances[min(count($lances), LEILAO_SEMANA_VAGAS) - 1]['valor'] ?? 0;
+    $minimo = max(LEILAO_SEMANA_MINIMO, (int)$ultimoDoPodio + LEILAO_SEMANA_PASSO);
 
-    return max(LEILAO_SEMANA_MINIMO, (int)$ultimoDoPodio + LEILAO_SEMANA_PASSO);
+    // O passo pode cair em cima de um lance que já existe — com 160, 155 e
+    // 150 na mesa, o segundo do pódio mais cinco dá justamente os 160 do
+    // líder. Anunciar esse valor seria mandar a pessoa num lance que a
+    // própria trava de empate recusaria, então sobe até um degrau livre.
+    while (leilaoSemanaValorOcupado($lances, $minimo, $ignorarTeam) !== null) {
+        $minimo += LEILAO_SEMANA_PASSO;
+    }
+
+    return $minimo;
 }
 
 /** Esse valor já é o lance de alguém? */
@@ -200,7 +209,7 @@ function leilaoSemanaOfertar(PDO $pdo, int $userId, int $teamId, string $liga, i
     if (strtoupper((string)$time['league']) !== $liga) return $falha('Você só dá lance na sua liga.');
 
     $lances = leilaoSemanaLances($pdo, $liga, $temporada);
-    $minimo = leilaoSemanaMinimo($lances);
+    $minimo = leilaoSemanaMinimo($lances, $teamId);
 
     // O meu lance atual não conta contra mim: se eu JÁ estou no pódio, o
     // mínimo pra me manter é o que os outros pedem, não o meu próprio valor
@@ -349,7 +358,13 @@ function leilaoSemanaDaLiga(PDO $pdo, string $liga, int $userId = 0): array
         'temporada' => $temporada,
         'podio'     => array_slice($lances, 0, LEILAO_SEMANA_VAGAS),
         'fila'      => array_slice($lances, LEILAO_SEMANA_VAGAS),
-        'minimo'    => leilaoSemanaMinimo($lances),
+        // Pra quem já tem lance, o mínimo mostrado tem que ser um valor que o
+        // próprio time consiga dar: ignorar o meu valor no cálculo evita que
+        // eu tenha que passar de mim mesmo, mas o campo ainda não pode sugerir
+        // o número que eu já ofereci.
+        'minimo'    => $meu
+            ? max(leilaoSemanaMinimo($lances, (int)$meu['team_id']), (int)$meu['valor'] + LEILAO_SEMANA_PASSO)
+            : leilaoSemanaMinimo($lances),
         'meu'       => $meu,
     ];
 }
