@@ -126,6 +126,32 @@ input[type=text]:focus{
   box-shadow:0 0 0 3px color-mix(in srgb,var(--red) 18%,transparent);
 }
 
+/* Definir a classe na mão, sem passar pela roleta. Fica embaixo e mais discreto
+   que o botão de girar: é a saída pra quando a classe já está combinada, não o
+   caminho padrão. */
+.escolher{margin-top:16px;padding-top:15px;border-top:1px solid var(--border)}
+.escolher-tit{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+  color:var(--text-3);margin-bottom:10px}
+.escolher-linha{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.escolher .sub{margin-top:0;font-size:11.5px}
+
+/* Mesmo tratamento do input: sem isto o select vem no padrão do navegador,
+   caixa branca numa página preta. A seta própria some junto com o appearance,
+   então vem de volta como imagem de fundo. */
+select{
+  flex:1;min-width:220px;background:var(--panel-2);border:1.5px solid var(--border-md);
+  color:var(--text);border-radius:11px;padding:11px 38px 11px 14px;
+  font-family:var(--font);font-size:13.5px;font-weight:600;outline:none;cursor:pointer;
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%238b8b95'%3E%3Cpath d='M4.5 6l3.5 4 3.5-4z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 13px center;background-size:15px;
+  transition:border-color .15s,background-color .15s;
+}
+select:hover{border-color:color-mix(in srgb,var(--red) 40%,var(--border-md))}
+select:focus{border-color:var(--red);box-shadow:0 0 0 3px color-mix(in srgb,var(--red) 18%,transparent)}
+/* As opções abrem no menu do sistema, que não herda nada da página. */
+select option{background:var(--panel-2);color:var(--text)}
+
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;padding:8px 10px;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);border-bottom:1px solid var(--border)}
 td{padding:10px;border-bottom:1px solid var(--border);vertical-align:middle}
@@ -304,17 +330,31 @@ function renderRoleta(passos) {
       <div class="roleta ${jaSorteou ? 'caiu' : ''}" id="roleta">
         <div class="roleta-nome" id="roletaNome">${jaSorteou ? esc(e.sorteio.classe_nome) : (noBolo.length ? '?' : '—')}</div>
         <div class="roleta-sub" id="roletaSub">${
-          jaSorteou ? `${e.sorteio.jogadores} jogadores · sorteada em ${String(e.sorteio.sorteado_em).slice(0,10).split('-').reverse().join('/')}`
+          jaSorteou ? `${e.sorteio.jogadores} jogadores · ${Number(e.sorteio.escolhida) ? 'definida' : 'sorteada'} em ${String(e.sorteio.sorteado_em).slice(0,10).split('-').reverse().join('/')}`
                     : `${e.classes_sorteaveis} classe(s) concorrendo`}</div>
         ${jaSorteou ? '' : chips}
       </div>
       ${avisoDeFora}${avisoOrfas}
       <div class="acoes">
         <button class="btn" onclick="girar()" ${podeSortear ? '' : 'disabled'}>
-          <i class="bi bi-dice-5-fill"></i>${jaSorteou ? 'Já sorteada' : 'Girar a roleta'}
+          <i class="bi bi-dice-5-fill"></i>${jaSorteou ? 'Já definida' : 'Girar a roleta'}
         </button>
-        ${jaSorteou ? '<span class="sub">Classe sorteada não volta pro bolo.</span>' : ''}
+        ${jaSorteou ? '<span class="sub">Classe usada não volta pro bolo.</span>' : ''}
       </div>
+
+      ${podeSortear && noBolo.length ? `
+      <div class="escolher">
+        <div class="escolher-tit">ou defina qual vai ser, sem sortear</div>
+        <div class="escolher-linha">
+          <select id="classeEscolhida">
+            ${noBolo.map(c => `<option value="${c.id}">${esc(c.name)} · ${c.jogadores} jogadores</option>`).join('')}
+          </select>
+          <button class="btn ghost" onclick="definirClasse()">
+            <i class="bi bi-hand-index-thumb-fill"></i>Definir esta
+          </button>
+        </div>
+        <div class="sub">Vale o mesmo que a roleta: entra na temporada e não volta pro bolo.</div>
+      </div>` : ''}
     </div>`;
 }
 
@@ -561,6 +601,33 @@ async function girar() {
     setTimeout(async () => { ocupado = false; await carregar(); mostrarAviso('ok', d.message); }, 1100);
   };
   setTimeout(passar, espera);
+}
+
+/**
+ * Define a classe da temporada sem sorteio.
+ *
+ * Sem animação de propósito: aqui não há suspense nenhum, a pessoa já sabe qual
+ * escolheu. Girar a roleta pra parar onde ela mandou seria teatro.
+ */
+async function definirClasse() {
+  if (ocupado) return;
+  const sel = document.getElementById('classeEscolhida');
+  if (!sel || !sel.value) return;
+
+  const nome = sel.options[sel.selectedIndex].textContent.split(' · ')[0];
+  if (!confirm(`Definir "${nome}" como a classe desta temporada?\n\nEla não volta pro bolo depois.`)) return;
+
+  ocupado = true;
+  document.querySelectorAll('.btn').forEach(b => b.disabled = true);
+  try {
+    const d = await api('escolher_classe', { template_id: Number(sel.value) });
+    await carregar();
+    mostrarAviso('ok', d.message);
+  } catch (e) {
+    await carregar();
+    mostrarAviso('alerta', e.message);
+  }
+  ocupado = false;
 }
 
 renderAbas();

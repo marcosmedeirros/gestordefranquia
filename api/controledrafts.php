@@ -114,12 +114,18 @@ function cdGarantirSchema(PDO $pdo): void {
         season_year INT NULL,
         sorteado_por INT NULL,
         sorteado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        escolhida TINYINT(1) NOT NULL DEFAULT 0,
         pool_aplicado_em DATETIME NULL,
         UNIQUE KEY uk_dcs_template (template_id),
         INDEX idx_dcs_liga (league),
         CONSTRAINT fk_dcs_tpl_cd FOREIGN KEY (template_id)
             REFERENCES draft_class_templates(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // A tabela já existe em produção, e o CREATE acima não mexe em tabela feita:
+    // sem este ALTER a coluna nova só apareceria num banco criado do zero.
+    if (!$pdo->query("SHOW COLUMNS FROM draft_class_sorteios LIKE 'escolhida'")->fetch()) {
+        $pdo->exec("ALTER TABLE draft_class_sorteios ADD COLUMN escolhida TINYINT(1) NOT NULL DEFAULT 0");
+    }
 }
 
 /** A temporada corrente da liga e o ano dela. */
@@ -444,9 +450,21 @@ try {
     /**
      * Gira a roleta. O resultado sai daqui, não do navegador.
      */
-    if ($acao === 'sortear') {
+    /**
+     * Define a classe da temporada: 'sortear' tira na roleta, 'escolher_classe'
+     * usa a que o admin apontou.
+     *
+     * O caminho é o mesmo de propósito. A parte que importa — só uma classe por
+     * temporada, classe usada não volta pro bolo, tudo dentro de uma transação —
+     * vale igual nos dois casos, e duplicar isso em dois blocos era garantir que
+     * um dia só um dos dois receberia a próxima correção.
+     */
+    if ($acao === 'sortear' || $acao === 'escolher_classe') {
         cdGarantirSchema($pdo);
         $liga = cdLiga($minhasLigas);
+        $escolhendo = $acao === 'escolher_classe';
+        $alvo = (int)($_POST['template_id'] ?? cdCorpo()['template_id'] ?? 0);
+        if ($escolhendo && $alvo <= 0) cdErro(422, 'Escolha uma classe.');
 
         $temp = cdTemporada($pdo, $liga);
         if (!$temp) cdErro(409, 'A ' . $liga . ' não tem temporada em aberto.');
@@ -459,7 +477,7 @@ try {
             $st->execute([$liga, (int)$temp['id']]);
             if ((int)$st->fetchColumn() > 0) {
                 $pdo->rollBack();
-                cdErro(409, 'Esta temporada já teve classe sorteada.');
+                cdErro(409, 'Esta temporada já tem classe definida.');
             }
 
             // Candidatas: da liga, com jogadores, e nunca sorteadas.
@@ -477,21 +495,35 @@ try {
                 cdErro(409, 'Não há classe disponível com jogadores cadastrados na ' . $liga . '.');
             }
 
-            $escolhida = $candidatas[random_int(0, count($candidatas) - 1)];
+            if ($escolhendo) {
+                // Tem que ser uma das CANDIDATAS, e não um id qualquer: as regras
+                // de quem pode entrar (é da liga, tem jogador, nunca foi usada)
+                // são as mesmas — escolher não é atalho pra furar nenhuma delas.
+                $escolhida = null;
+                foreach ($candidatas as $c) if ((int)$c['id'] === $alvo) { $escolhida = $c; break; }
+                if (!$escolhida) {
+                    $pdo->rollBack();
+                    cdErro(422, 'Essa classe não está disponível pra ' . $liga . ' — pode já ter sido usada ou estar sem jogadores.');
+                }
+            } else {
+                $escolhida = $candidatas[random_int(0, count($candidatas) - 1)];
+            }
 
             $ins = $pdo->prepare("INSERT INTO draft_class_sorteios
-                (league, template_id, season_id, season_year, sorteado_por)
-                VALUES (?,?,?,?,?)");
-            $ins->execute([$liga, (int)$escolhida['id'], (int)$temp['id'], (int)$temp['ano'], (int)$user['id']]);
+                (league, template_id, season_id, season_year, sorteado_por, escolhida)
+                VALUES (?,?,?,?,?,?)");
+            $ins->execute([$liga, (int)$escolhida['id'], (int)$temp['id'], (int)$temp['ano'],
+                           (int)$user['id'], $escolhendo ? 1 : 0]);
             $pdo->commit();
 
             echo json_encode(['success' => true,
+                'escolhida_a_dedo' => $escolhendo,
                 'sorteada' => ['id' => (int)$escolhida['id'], 'name' => $escolhida['name'],
                                'jogadores' => (int)$escolhida['jogadores']],
                 // A tela usa a lista pra girar a animação passando por todas
                 // antes de parar na sorteada — o resultado já veio decidido.
                 'candidatas' => array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name']], $candidatas),
-                'message' => 'Classe sorteada: ' . $escolhida['name']]);
+                'message' => ($escolhendo ? 'Classe definida: ' : 'Classe sorteada: ') . $escolhida['name']]);
             exit;
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
