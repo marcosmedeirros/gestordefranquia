@@ -1933,7 +1933,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'force_
             $stmtFTItem = $pdo->prepare('INSERT INTO multi_trade_items (trade_id, from_team_id, to_team_id, player_id, pick_id) VALUES (?, ?, ?, ?, ?)');
         }
 
-        $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ?, was_traded = 1 WHERE id = ?');
+        $stmtTransferPlayer = $pdo->prepare(// Quem MUDA de time chega no BANCO, nunca titular. O role vinha junto do
+        // time antigo: quem era titular lá desembarcava titular aqui, e o time
+        // ficava com 6 no quinteto sem ninguém ter pedido. Banco é o único
+        // destino seguro — quem quiser promove depois, e a promoção já valida
+        // o limite de 5.
+        "UPDATE players SET team_id = ?, was_traded = 1, role = 'Banco' WHERE id = ?");
         $stmtTransferPick   = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ?');
         $stmtTransferDraft  = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ?');
 
@@ -3442,7 +3447,12 @@ if ($method === 'PUT' && ($_GET['action'] ?? '') === 'multi_trades') {
                 }
                 unset($item);
 
-                $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ?, was_traded = 1 WHERE id = ?');
+                $stmtTransferPlayer = $pdo->prepare(// Quem MUDA de time chega no BANCO, nunca titular. O role vinha junto do
+        // time antigo: quem era titular lá desembarcava titular aqui, e o time
+        // ficava com 6 no quinteto sem ninguém ter pedido. Banco é o único
+        // destino seguro — quem quiser promove depois, e a promoção já valida
+        // o limite de 5.
+        "UPDATE players SET team_id = ?, was_traded = 1, role = 'Banco' WHERE id = ?");
                 $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ?');
                 $stmtTransferCurrentDraftPick = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ?');
                 $stmtPlayerOwner = $pdo->prepare('SELECT team_id FROM players WHERE id = ?');
@@ -3765,7 +3775,8 @@ if ($method === 'PUT') {
             }
             unset($item);
             
-            $stmtTransferPlayer = $pdo->prepare('UPDATE players SET team_id = ?, was_traded = 1 WHERE id = ? AND team_id = ?');
+            $stmtTransferPlayer = $pdo->prepare(// Mesma regra da troca simples: chega no banco. Ver o comentário lá.
+            "UPDATE players SET team_id = ?, was_traded = 1, role = 'Banco' WHERE id = ? AND team_id = ?");
             $stmtTransferPick = $pdo->prepare('UPDATE picks SET team_id = ?, last_owner_team_id = ?, auto_generated = 0 WHERE id = ? AND team_id = ?');
             $stmtTransferCurrentDraftPick = $pdo->prepare('UPDATE picks SET team_id = ? WHERE id = ? AND team_id = ?');
 

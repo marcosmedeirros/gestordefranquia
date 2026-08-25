@@ -13,6 +13,34 @@ $MAX_WAIVERS = 3;
 ensureTeamFreeAgencyColumns($pdo);
 ensurePlayerRestrictionColumns($pdo);
 
+/**
+ * Já existe titular nessa posição no time?
+ *
+ * O quinteto é uma posição de cada — dois armadores titulares ao mesmo
+ * tempo não é uma escalação, é um erro de digitação que só aparece na hora
+ * de reproduzir a tática dentro do jogo.
+ *
+ * Compara pela posição PRINCIPAL. A secundária existe pra dizer onde o
+ * jogador também joga, e barrar por ela impediria escalar um SG/SF de
+ * verdade ao lado de um SF — que é uma escalação legítima e comum.
+ *
+ * @param int $ignorarId jogador que está sendo editado (ele não conta
+ *                       contra si mesmo ao ser salvo de novo)
+ * @return string nome do titular que já ocupa a posição, ou '' se está livre
+ */
+function titularNaPosicao(PDO $pdo, int $teamId, string $posicao, int $ignorarId = 0): string
+{
+    $posicao = strtoupper(trim($posicao));
+    if ($posicao === '') return '';
+
+    $st = $pdo->prepare("SELECT name FROM players
+                          WHERE team_id = ? AND role = 'Titular'
+                            AND UPPER(TRIM(position)) = ? AND id <> ?
+                          LIMIT 1");
+    $st->execute([$teamId, $posicao, $ignorarId]);
+    return (string)($st->fetchColumn() ?: '');
+}
+
 if (!function_exists('playersTableExists')) {
     function playersTableExists(PDO $pdo, string $table): bool
     {
@@ -485,6 +513,10 @@ if ($method === 'POST') {
     if ($role === 'Titular' && $titularCount >= 5) {
         jsonResponse(409, ['error' => 'Limite de Titulares atingido (máximo 5).']);
     }
+    if ($role === 'Titular' && ($ocupante = titularNaPosicao($pdo, $teamId, $position))) {
+        jsonResponse(409, ['error' => "Já tem um {$position} titular: {$ocupante}. "
+            . 'O quinteto é uma posição de cada — mande ele pro banco antes.']);
+    }
     if ($role === 'G-League' && $gleagueCount >= 2) {
         jsonResponse(409, ['error' => 'Limite de G-League atingido (máximo 2).']);
     }
@@ -644,6 +676,17 @@ if ($method === 'PUT') {
         // Validar elegibilidade para G-League
         if ($role === 'G-League' && $age >= 25) {
             jsonResponse(409, ['error' => 'Jogador não elegível para G-League: deve ter menos de 25 anos.']);
+        }
+    }
+
+    // FORA do if acima de propósito. Aquele só roda quando o role muda, e
+    // não é só promover que cria posição repetida: trocar a POSIÇÃO de quem
+    // já é titular faz o mesmo estrago sem o role mudar em nada.
+    if ($role === 'Titular') {
+        $ocupante = titularNaPosicao($pdo, (int)$player['team_id'], $position, $playerId);
+        if ($ocupante !== '') {
+            jsonResponse(409, ['error' => "Já tem um {$position} titular: {$ocupante}. "
+                . 'O quinteto é uma posição de cada — mande ele pro banco antes.']);
         }
     }
 
