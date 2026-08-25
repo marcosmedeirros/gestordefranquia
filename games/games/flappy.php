@@ -38,7 +38,7 @@ const FLAPPY_FOLGA_PROGRESSO = 50;
  *
  * O teto por partida fecha essa porta sem depender de adivinhar qual é o score
  * "possível": não importa quanto tempo alguém espere, uma partida paga no máximo
- * isto. Com a curva atual o teto chega aos 125 pontos — passar de 125 canos é
+ * isto. Com a curva atual o teto chega aos 300 pontos — passar de 300 canos é
  * uma partida excepcional, então quem joga bem sente o limite raramente, e quem
  * tentava farmar tempo continua sem passar daqui.
  *
@@ -56,17 +56,20 @@ const FLAPPY_TETO_MOEDAS_PARTIDA = 150;
  * 1 moeda no fim. Era essa promessa quebrada, e não a falta de pagamento, que
  * gerava o "o Flappy está dando pouca moeda".
  *
- * A curva: 1 moeda por cano, mais 1 de bônus a cada 5 canos — o mesmo marco de
- * 5 que o jogo já comemora na tela. A anterior só pagava a partir de 10 pontos
- * e dava 1 moeda ali, num jogo em que passar de 10 canos já é bom; ao lado do
- * Termo e do Quiz, que pagam 100 por partida, o Flappy pagava quase nada por
- * uma partida melhor. O teto por partida continua o mesmo, então o farm segue
- * fechado: o limite é atingido em 125 pontos.
+ * A curva: 5 moedas a cada 10 canos. O prêmio anda de dez em dez, e não a cada
+ * cano, porque é o passo que dá pra sentir: "mais dez canos, mais cinco moedas".
+ *
+ * Uma versão anterior pagava 1 por cano + 1 a cada 5 (100 canos = 120 moedas) e
+ * ficou generosa demais perto do resto — 100 canos agora valem 50. O teto por
+ * partida continua o mesmo e passa a ser alcançado aos 300 canos.
+ *
+ * O outro lado disso é que os nove primeiros canos não pagam nada: o prêmio só
+ * fecha no décimo. Por isso a tela avisa quando a partida termina em zero, em
+ * vez de deixar parecer defeito.
  */
 function flappyMoedasPorScore(int $score): int
 {
-    $score = max(0, $score);
-    return $score + intdiv($score, 5);
+    return intdiv(max(0, $score), 10) * 5;
 }
 
 try {
@@ -725,7 +728,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
     const rewardMultiplier = <?= (int)$pointsMultiplier ?>;
 
     /** A mesma conta de flappyMoedasPorScore() no PHP — se mudar lá, muda aqui. */
-    const moedasPorScore = s => Math.max(0, s) + Math.floor(Math.max(0, s) / 5);
+    const moedasPorScore = s => Math.floor(Math.max(0, s) / 10) * 5;
     let frames = 0, score = 0, highScore = <?= $recorde ?>, currentState = 'START', coinsEarned = 0;
     let hasUsedRevive = false;
 
@@ -892,7 +895,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     // Moedas — o valor vem da MESMA conta do servidor (moedasPorScore).
                     // Mostrar aqui uma fórmula própria foi o que fez o jogo prometer
                     // 5 moedas numa partida que pagava 1.
-                    if (score % 5 === 0) {
+                    if (score % 10 === 0) {
                         const total  = moedasPorScore(score) * rewardMultiplier;
                         const reward = total - coinsEarned;
                         coinsEarned = total;
@@ -1043,12 +1046,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['acao'])) {
                     banner.style.display = 'flex';
                 } else {
                     // Zero moedas tem duas causas bem diferentes, e dizer a errada
-                    // parece defeito: quem não passou de nenhum cano precisa saber
-                    // que é preciso pontuar; quem reviveu e morreu sem avançar já
-                    // recebeu por esse trecho, e a segunda morte não paga de novo.
-                    document.getElementById('coinsText').textContent = score > 0
+                    // parece defeito: quem não fechou os 10 primeiros canos precisa
+                    // saber quanto falta; quem reviveu e morreu sem avançar de marco
+                    // já recebeu por esse trecho, e a segunda morte não paga de novo.
+                    // O corte é o marco, não o score: com 7 canos ninguém "já
+                    // recebeu" coisa nenhuma.
+                    document.getElementById('coinsText').textContent = moedasPorScore(score) > 0
                         ? 'Você já recebeu as moedas até aqui — avance mais pra ganhar de novo.'
-                        : 'Passe por pelo menos um cano pra ganhar moedas!';
+                        : 'Chegue a 10 canos pra ganhar 5 moedas!';
                     banner.style.display = 'flex';
                 }
             }
