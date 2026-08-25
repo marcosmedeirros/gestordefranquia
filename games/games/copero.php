@@ -4136,7 +4136,10 @@ function compartilharCarreira(botao, modo){
   // por onde a carreira aconteceu de verdade, não por onde passou de raspão.
   const porClube = {};
   t.forEach(x => { porClube[x.clube] = (porClube[x.clube] || 0) + x.jogos; });
-  const clubes = Object.entries(porClube).sort((a,b) => b[1] - a[1]).slice(0, 6)
+  // 8, não 6: é o teto de verdade de cada faixa do cartão (ver cartao.php,
+  // fbaCartaoImagem — ele mesmo corta em 8). Truncar em 6 aqui só jogava
+  // fora clube ou taça que o cartão tinha espaço de sobra pra mostrar.
+  const clubes = Object.entries(porClube).sort((a,b) => b[1] - a[1]).slice(0, 8)
     .map(([nome]) => {
       const c = acharClube(nome);
       return c && c.escudo ? {img: c.escudo} : {texto: (nome.split(/\s+/)[0] || '?').slice(0, 4)};
@@ -4155,7 +4158,7 @@ function compartilharCarreira(botao, modo){
     if (ondeGanhou[id] === undefined) ondeGanhou[id] = x.liga;
   }));
 
-  const titulos = Object.entries(conta).sort((a,b) => b[1] - a[1]).slice(0, 6)
+  const titulos = Object.entries(conta).sort((a,b) => b[1] - a[1]).slice(0, 8)
     .map(([id, n]) => {
       const foto = fotoDaTaca(id, ondeGanhou[id]);
       const d = TACAS[id];

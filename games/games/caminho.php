@@ -6849,7 +6849,10 @@ function compartilharCartao(botao, modo){
                 width="140" height="122" style="color:${d[0]}">${d[1]}</svg>`),
               contagem: n};
     })
-    .filter(Boolean).slice(0, 6);
+    // 8, não 6: é o teto de verdade de cada faixa do cartão (ver cartao.php,
+    // fbaCartaoImagem — ele mesmo corta em 8). Truncar em 6 aqui só jogava
+    // fora troféu que o cartão tinha espaço de sobra pra mostrar.
+    .filter(Boolean).slice(0, 8);
 
   // Duas saídas, como no Copero: baixar o arquivo ou copiar pra colar na
   // conversa. A folha do sistema ficava de fora porque no computador ela nem
@@ -6869,7 +6872,7 @@ function compartilharCartao(botao, modo){
       : d.nums,
     faixas: [
       {titulo: `Clubes (${d.clubes.length})`,
-       itens: d.clubes.slice(0, 6).map(n => ({img: logoDoTime(n) || "", texto: iniciais(n)}))},
+       itens: d.clubes.slice(0, 8).map(n => ({img: logoDoTime(n) || "", texto: iniciais(n)}))},
       {titulo: "Troféus",
        itens: titulos.length ? titulos : [{texto: "—", legenda: "sem troféus"}]},
     ],
