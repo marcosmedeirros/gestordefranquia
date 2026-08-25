@@ -30,6 +30,12 @@ $games_disponiveis = [
         'titulo' => '♛ Xadrez',
         'arquivo' => 'xadrez.php'
     ],
+    // Só por link: de propósito fora do grid de jogos (games.php). Quem tem o
+    // link da sala entra; quem não tem não descobre o jogo passeando pela lista.
+    'stop' => [
+        'titulo' => '🛑 Stop',
+        'arquivo' => 'stop.php'
+    ],
     'memoria' => [
         'titulo' => '🧠 Jogo da Memória',
         'arquivo' => 'memoria.php'
