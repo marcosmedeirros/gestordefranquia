@@ -3294,11 +3294,25 @@ function temporada(){
   const sobPressao = !!S.pressaoRival;
   if (sobPressao) { jogos = Math.max(4, Math.round(jogos * 0.75)); S.pressaoRival = false; }
 
-  // A qualidade cresce mais que linear: é o que separa o artilheiro de elite
-  // do bom atacante. Com a régua reta de antes, um 94 marcava 30 por ano e o
-  // milésimo gol era inalcançável — e o milésimo é o número mítico do
-  // futebol, tem que caber numa carreira perfeita.
-  const q = Math.max(0.18, Math.pow(Math.max(0, S.ovr - 42) / 48, 2.3) * 1.32);
+  /* A qualidade cresce mais que linear: é o que separa o artilheiro de elite
+     do bom atacante.
+
+     ESTA CURVA FOI RECALIBRADA COM MEDIÇÃO. Rodei 216 carreiras completas —
+     150 com posição sorteada, 36 só de centroavante, 30 só de meia — e o
+     melhor centroavante de todas fez 609 gols; o melhor meia, 326
+     assistências. Ou seja: "marque 1.000 gols" e "dê 400 assistências" eram
+     conquistas que o motor não tinha como entregar.
+
+     A régua não desceu até onde a carreira chegava; foi a carreira que passou
+     a render mais, que é onde estava o problema. Coeficiente de 1,32 pra 2,3 e
+     expoente de 2,3 pra 2,6.
+
+     O EXPOENTE É O QUE IMPORTA AQUI, não só o coeficiente: subir os dois faz
+     o ganho ser maior no topo (1,79× num overall 95) do que no meio (1,48× num
+     70). O craque dispara e o jogador comum melhora pouco — que é o contrário
+     de multiplicar todo mundo pelo mesmo número, onde o meio-campista de 70
+     também vira goleador. */
+  const q = Math.max(0.18, Math.pow(Math.max(0, S.ovr - 42) / 48, 2.6) * 2.3);
 
   // CONTRA QUEM ele joga. Faltava isto: a liga não entrava na conta, e um 90
   // fazia os mesmos 52 gols na Premier e na Série C — o mesmo jogador, contra

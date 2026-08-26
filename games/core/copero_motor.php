@@ -1386,32 +1386,28 @@ function coperoConquistas(): array
                                                   && $t($c,'cont') >= 1 && $t($c,'mundial') >= 1],
         'colecionador'=> ['🗄️', 'O mais vencedor da história', 'Ganhe 35 títulos coletivos.',
                           'dificil', fn($c) => $c['coletivos'] >= 35],
-        // OS NÚMEROS SAÍRAM DE MEDIÇÃO, não de palpite. Rodei 150 carreiras
-        // completas com posição sorteada e depois 36 só de centroavante e 30
-        // só de meia — o jeito de jogar de quem está caçando a conquista.
+        // OS MIL GOLS FICAM. Medi 216 carreiras e o melhor centroavante fez
+        // 609 — a conquista era inalcançável. Mas a resposta não foi baixar o
+        // número: foi fazer o JOGO render mais gol e mais assistência, que é
+        // onde o problema estava. Quem marca o alvo é a carreira excepcional,
+        // não a régua rebaixada até onde a carreira chegava.
         //
-        //   gols: melhor centroavante de 36 carreiras fez 609 (média 275)
-        //   assistências: melhor meia de 30 carreiras deu 326 (média 140)
-        //
-        // Com 1.000 e 400 nenhuma das 216 carreiras chegou perto, e não era
-        // "difícil": era parede sem porta. Os números novos ficam ACIMA do
-        // melhor caso medido, então continuam pedindo uma carreira excepcional
-        // — e agora a posição escolhida no começo é o que decide, que é como
-        // o jogo quer ser jogado.
-        'so_o_pele'   => ['👑👑', 'Só o Pelé',         'Faça 700 gols e ganhe três Copas do Mundo.',
-                          'impossivel', fn($c) => $t($c,'copa_mundo') >= 3 && $c['gols'] >= 700],
+        // A calibragem está em `q`, na temporada (games/games/copero.php) —
+        // ver o comentário de lá.
+        'so_o_pele'   => ['👑👑', 'Só o Pelé',         'Faça 1.000 gols e ganhe três Copas do Mundo.',
+                          'impossivel', fn($c) => $t($c,'copa_mundo') >= 3 && $c['gols'] >= 1000],
         // Sai de 'media' porque era a mais difícil do jogo pagando como a
         // segunda mais fácil — 100 moedas, o mesmo que "marque 100 gols".
-        'mil_gols'    => ['🎯', 'Setecentos',        'Marque 700 gols na carreira.',
-                          'dificil', fn($c) => $c['gols'] >= 700],
+        'mil_gols'    => ['🎯', 'O milésimo',        'Marque 1.000 gols na carreira.',
+                          'dificil', fn($c) => $c['gols'] >= 1000],
         // Aqui entra TUDO o que se levanta: taça de clube, de seleção e
         // prêmio individual. É o contrário do 'colecionador', que conta só
         // o que o time ganhou — este mede a estante inteira.
         'messi'       => ['🎖️', 'O mais condecorado', 'Ganhe 47 troféus numa carreira, somando títulos '
                                                     . 'coletivos e prêmios individuais.',
                           'impossivel', fn($c) => ($c['trofeus'] ?? $c['coletivos']) >= 47],
-        'maestro'     => ['🎼', 'Maestro',           'Dê 350 assistências na carreira.',
-                          'dificil', fn($c) => $c['ast'] >= 350],
+        'maestro'     => ['🎼', 'Maestro',           'Dê 400 assistências na carreira.',
+                          'dificil', fn($c) => $c['ast'] >= 400],
         'goat'        => ['🐐', 'GOAT',              'Copa do Mundo, dois continentais de seleção, três Bolas de Ouro '
                                                    . 'e três torneios continentais de clubes.',
                           'impossivel', fn($c) => $t($c,'copa_mundo') >= 1 && $t($c,'selecao_cont') >= 2
