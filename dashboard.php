@@ -294,6 +294,10 @@ if (($ligaDoTimeLive = strtoupper((string)($team['league'] ?? ''))) !== '') {
                 'total'     => $est['total'],
                 'venda'     => $est['motivo'],
                 'abre'      => slotsTelaHora($est['abre_em']),
+                // Os segundos até a venda abrir, contados AQUI: o relógio de
+                // quem está olhando não serve de referência — adiantado, o
+                // card abriria antes da hora e o servidor recusaria a compra.
+                'faltam'    => max(0, strtotime($est['abre_em']) - time()),
                 // O jogo da semana pode estar decidido (leilão fechado) ou
                 // ainda em disputa — as duas coisas interessam em dia de
                 // live, e a tela diz qual das duas é.
@@ -1138,6 +1142,15 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             color: var(--amber); background: rgba(245,158,11,.12);
             border: 1px solid rgba(245,158,11,.28);
         }
+        .live-copiar {
+            margin-left: auto; display: inline-flex; align-items: center; gap: 4px;
+            font-size: 10px; font-weight: 800; letter-spacing: .04em;
+            text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
+            border: 1px solid var(--border); background: var(--panel-3);
+            color: var(--text-3); cursor: pointer;
+        }
+        .live-copiar:hover { border-color: var(--amber); color: var(--amber); }
+        .live-copiar.ok { border-color: var(--green); color: var(--green); }
         .live-jogo {
             font-size: 14px; font-weight: 700; line-height: 1.4;
             display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
@@ -1935,6 +1948,13 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                                 <div class="live-rot">
                                     Na tela
                                     <span class="live-conta"><?= count($liveHoje['slots']) ?>/<?= (int)$liveHoje['total'] ?></span>
+                                    <?php if ($liveHoje['slots']): ?>
+                                    <button type="button" class="live-copiar"
+                                            data-copiar="<?= htmlspecialchars(slotsTelaTextoCopiar($liveHoje['slots'])) ?>"
+                                            title="Copiar a lista dos times">
+                                        <i class="bi bi-clipboard"></i> copiar
+                                    </button>
+                                    <?php endif; ?>
                                 </div>
                                 <?php if ($liveHoje['slots']): ?>
                                     <div class="live-times">
@@ -1949,7 +1969,9 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                                 <?php else: ?>
                                     <div class="live-nota">
                                         <?php if ($liveHoje['venda'] === 'cedo'): ?>
-                                            os slots abrem às <?= htmlspecialchars($liveHoje['abre']) ?>
+                                            <span id="liveEspera" data-faltam="<?= (int)$liveHoje['faltam'] ?>">
+                                                os slots abrem às <?= htmlspecialchars($liveHoje['abre']) ?>
+                                            </span>
                                         <?php else: ?>
                                             nenhum slot comprado
                                         <?php endif; ?>
@@ -3551,6 +3573,110 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
     // Popup automático ao entrar — uma vez por temporada, até o time votar.
     window.queridoAbrirModal();
   }
+})();
+</script>
+<?php endif; ?>
+
+<?php if ($liveHoje): ?>
+<script>
+/* ── Card do dia de live ────────────────────────────────────────────────
+   Copiar a lista dos times da tela, e abrir o card sozinho quando a venda
+   dos slots começar. */
+(function () {
+  document.querySelectorAll('[data-copiar]').forEach(function (bt) {
+    bt.addEventListener('click', async function () {
+      var txt = bt.dataset.copiar || '', ok = false;
+      try {
+        await navigator.clipboard.writeText(txt);
+        ok = true;
+      } catch (e) {
+        // clipboard só existe em contexto seguro, e o site é aberto por http
+        // de vez em quando. O caminho velho ainda funciona lá.
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = txt;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          ok = document.execCommand('copy');
+          ta.remove();
+        } catch (e2) { ok = false; }
+      }
+      var antes = bt.innerHTML;
+      bt.innerHTML = ok ? '<i class="bi bi-check2"></i> copiado' : '<i class="bi bi-x"></i> não deu';
+      bt.classList.toggle('ok', ok);
+      setTimeout(function () { bt.innerHTML = antes; bt.classList.remove('ok'); }, 1800);
+    });
+  });
+
+  /* A contagem vem em SEGUNDOS do servidor (data-faltam), não de uma conta
+     com o relógio local: quem estiver adiantado recarregaria antes da hora e
+     veria um card que o servidor ainda não abriu. */
+  /* Enquanto a venda está aberta, o card relê o estado a cada dez segundos:
+     são oito vagas por ordem de chegada, e um card parado mostra vaga que já
+     foi. Quando esgota, o atalho de comprar sai da tela. */
+  var card = document.querySelector('.live-card');
+  var cta  = card && card.querySelector('.live-cta');
+  if (cta) {
+    var parado = false;
+    (function olhar() {
+      setTimeout(async function () {
+        if (parado) return;
+        try {
+          var r = await fetch('/api/slots-tela.php', { cache: 'no-store' });
+          var d = await r.json();
+          if (d && d.ok && d.live) {
+            var conta = card.querySelector('.live-conta');
+            if (conta) conta.textContent = d.vendidos + '/' + d.total;
+
+            var times = card.querySelector('.live-times');
+            if (times && d.lista.length) {
+              times.innerHTML = d.lista.map(function (t) {
+                return '<span class="live-time" title="' + t.cheio + '">' +
+                       '<img src="' + t.logo + '" alt="" onerror="this.src=\'/img/default-team.png\'">' +
+                       t.nome + '</span>';
+              }).join('');
+            }
+
+            var bt = card.querySelector('.live-copiar');
+            if (bt && d.copiar) bt.dataset.copiar = d.copiar;
+
+            if (d.restam <= 0 || d.motivo === 'comecou') {
+              cta.remove();
+              parado = true;
+              return;
+            }
+            cta.innerHTML = '<i class="bi bi-tv"></i> Pegar um slot — ' + d.restam +
+                            ' livre' + (d.restam > 1 ? 's' : '');
+          }
+        } catch (e) { /* rede caiu: o card fica como está */ }
+        olhar();
+      }, 10000);
+    })();
+  }
+
+  var espera = document.getElementById('liveEspera');
+  if (!espera) return;
+  var faltam = parseInt(espera.dataset.faltam || '0', 10);
+  if (faltam <= 0) return;
+  var original = espera.innerHTML;
+
+  (function tick() {
+    setTimeout(function () {
+      faltam--;
+      if (faltam <= 0) { location.reload(); return; }
+      // Cronômetro só na reta final: faltando duas horas ele seria ruído no
+      // meio do dashboard.
+      if (faltam <= 600) {
+        var m = Math.floor(faltam / 60), s = faltam % 60;
+        espera.innerHTML = 'os slots abrem em <b>' + m + ':' + String(s).padStart(2, '0') + '</b>';
+      } else {
+        espera.innerHTML = original;
+      }
+      tick();
+    }, 1000);
+  })();
 })();
 </script>
 <?php endif; ?>

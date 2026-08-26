@@ -991,6 +991,14 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
     .st-quando b { color:var(--amber) }
     .st-sub { font-size:11.5px; color:var(--text-3); margin-top:2px }
     .st-vagas { display:flex; gap:5px; flex-wrap:wrap }
+    .st-copiar {
+        display:inline-flex; align-items:center; gap:6px;
+        font-size:11px; font-weight:700; padding:5px 10px; border-radius:8px;
+        border:1px solid var(--border); background:var(--panel-3);
+        color:var(--text-2); cursor:pointer; white-space:nowrap;
+    }
+    .st-copiar:hover { border-color:var(--amber); color:var(--amber) }
+    .st-copiar.ok { border-color:#22c55e; color:#22c55e }
     .st-vaga { width:30px; height:30px; border-radius:8px; flex:none;
         border:1px dashed var(--border); display:flex; align-items:center;
         justify-content:center; background:rgba(255,255,255,.02) }
@@ -1496,6 +1504,12 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                       <?= (int)$slots['restam'] ?> de <?= (int)$slots['total'] ?> slots livres
                     </div>
                   </div>
+                  <?php if ($slots['lista']): ?>
+                  <button type="button" class="st-copiar"
+                          data-copiar="<?= htmlspecialchars(slotsTelaTextoCopiar($slots['lista'])) ?>">
+                    <i class="bi bi-clipboard"></i> Copiar os times
+                  </button>
+                  <?php endif; ?>
                   <div class="st-vagas">
                     <?php for ($i = 0; $i < (int)$slots['total']; $i++):
                       $ocupado = $slots['lista'][$i] ?? null; ?>
@@ -1540,8 +1554,20 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                     <?php elseif ($slots['motivo'] === 'comecou'): ?>
                       <i class="bi bi-broadcast"></i> A live já começou — a venda fechou.
                     <?php else: ?>
-                      <i class="bi bi-clock"></i> A venda abre
-                      <?= $hoje ? 'hoje' : 'dia ' . $diaLive ?> às <b><?= htmlspecialchars($horaAbre) ?></b>.
+                      <?php
+                        /* QUANTO FALTA PRA ABRIR, EM SEGUNDOS, CONTADO NO
+                           SERVIDOR. O relógio do computador de quem está
+                           olhando não serve de referência: quem está com a
+                           hora adiantada veria a venda "abrir" antes, tentaria
+                           comprar e levaria recusa. Aqui vai a diferença, e o
+                           navegador só faz a contagem regressiva dela. */
+                        $faltam = max(0, strtotime($slots['abre_em']) - time());
+                      ?>
+                      <i class="bi bi-clock"></i>
+                      <span id="stEspera" data-faltam="<?= $faltam ?>">
+                        A venda abre <?= $hoje ? 'hoje' : 'dia ' . $diaLive ?>
+                        às <b><?= htmlspecialchars($horaAbre) ?></b>.
+                      </span>
                     <?php endif; ?>
                   </div>
                 <?php endif; ?>
@@ -2235,6 +2261,142 @@ function trocarLigaRanking(liga) {
     const overlay = document.getElementById('sbOverlay');
     menuBtn?.addEventListener('click', () => { sidebar?.classList.add('open'); overlay?.classList.add('open'); });
     overlay?.addEventListener('click', () => { sidebar?.classList.remove('open'); overlay?.classList.remove('open'); });
+
+    /* ── Slot de tela: copiar a lista, e abrir sozinho na hora ────────── */
+
+    document.querySelectorAll('[data-copiar]').forEach(bt => {
+        bt.addEventListener('click', async () => {
+            const txt = bt.dataset.copiar || '';
+            let ok = false;
+            try {
+                await navigator.clipboard.writeText(txt);
+                ok = true;
+            } catch (e) {
+                // clipboard exige contexto seguro, e a liga abre o site por
+                // http de vez em quando. O caminho velho ainda funciona lá.
+                try {
+                    const ta = document.createElement('textarea');
+                    ta.value = txt;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    ok = document.execCommand('copy');
+                    ta.remove();
+                } catch (e2) { ok = false; }
+            }
+            const antes = bt.innerHTML;
+            bt.innerHTML = ok
+                ? '<i class="bi bi-check2"></i> Copiado'
+                : '<i class="bi bi-x"></i> Não deu';
+            bt.classList.toggle('ok', ok);
+            setTimeout(() => { bt.innerHTML = antes; bt.classList.remove('ok'); }, 1800);
+        });
+    });
+
+    /* A VENDA ABRE SOZINHA. Quem deixa a aba aberta esperando a hora não
+       precisa mais adivinhar quando atualizar: o aviso vira contagem
+       regressiva e, no zero, a página recarrega e o botão aparece.
+
+       Os segundos vêm do SERVIDOR (data-faltam) e não de uma comparação com
+       o relógio local — quem estiver com a hora adiantada recarregaria cedo,
+       veria o botão e levaria recusa na compra. */
+    /* ENQUANTO A VENDA ESTÁ ABERTA, O CARD SE ATUALIZA SOZINHO.
+       São oito vagas e quem chega primeiro leva: a página parada mente. Quem
+       abriu a loja com seis livres e voltou dez minutos depois via seis,
+       clicava, e só então descobria que tinha acabado — a recusa do servidor
+       estava certa, mas a pessoa gastou a decisão olhando um número velho.
+
+       A cada dez segundos o card relê o estado. O servidor continua sendo
+       quem decide a compra; isto aqui é só o retrato ficar honesto. Quando
+       esgota, o formulário sai da tela na hora. */
+    const card = document.querySelector('.st-card');
+    if (card && card.querySelector('form.st-form')) {
+        const vagas = card.querySelector('.st-vagas');
+        const sub   = card.querySelector('.st-sub');
+        let parado  = false;
+
+        const desenhar = (d) => {
+            if (sub) sub.textContent = d.restam + ' de ' + d.total + ' slots livres';
+
+            if (vagas) {
+                vagas.innerHTML = '';
+                for (let i = 0; i < d.total; i++) {
+                    const it = d.lista[i];
+                    const s = document.createElement('span');
+                    s.className = 'st-vaga' + (it ? ' cheia' : '');
+                    s.title = it ? it.cheio : 'livre';
+                    if (it) {
+                        const img = document.createElement('img');
+                        img.src = it.logo;
+                        img.alt = '';
+                        img.onerror = function () { this.src = '/img/default-team.png'; };
+                        s.appendChild(img);
+                    }
+                    vagas.appendChild(s);
+                }
+            }
+
+            const bt = card.querySelector('.st-copiar');
+            if (bt && d.copiar) bt.dataset.copiar = d.copiar;
+
+            // Acabou a vaga (ou o meu time entrou por outra aba): o botão de
+            // comprar não pode continuar de pé oferecendo o que não existe.
+            if (!d.aberta) {
+                const form = card.querySelector('form.st-form');
+                if (form) {
+                    const aviso = document.createElement('div');
+                    aviso.className = 'st-aviso';
+                    aviso.innerHTML = d.motivo === 'esgotado'
+                        ? '<i class="bi bi-lock-fill"></i> Os oito slots já foram.'
+                        : d.motivo === 'ja_tenho'
+                            ? '<i class="bi bi-check-circle-fill" style="color:#22c55e"></i> Seu time já está na tela desta live.'
+                            : '<i class="bi bi-broadcast"></i> A live já começou — a venda fechou.';
+                    form.replaceWith(aviso);
+                }
+                parado = true;
+            }
+        };
+
+        const olhar = async () => {
+            if (parado) return;
+            try {
+                const r = await fetch('/api/slots-tela.php', { cache: 'no-store' });
+                const d = await r.json();
+                if (d && d.ok && d.live) desenhar(d);
+            } catch (e) { /* rede caiu: o card fica como está, e tenta de novo */ }
+            if (!parado) setTimeout(olhar, 10000);
+        };
+        setTimeout(olhar, 10000);
+    }
+
+    const espera = document.getElementById('stEspera');
+    if (espera) {
+        let faltam = parseInt(espera.dataset.faltam || '0', 10);
+        const original = espera.innerHTML;
+        if (faltam > 0) {
+            const tick = () => {
+                faltam--;
+                if (faltam <= 0) {
+                    espera.textContent = 'Abrindo a venda…';
+                    location.reload();
+                    return;
+                }
+                // Só vira cronômetro na reta final. Faltando três horas, um
+                // relógio correndo é ruído; faltando dois minutos, é a
+                // informação que importa.
+                if (faltam <= 600) {
+                    const m = Math.floor(faltam / 60), s = faltam % 60;
+                    espera.innerHTML = 'A venda abre em <b>' + m + ':' +
+                        String(s).padStart(2, '0') + '</b>.';
+                } else {
+                    espera.innerHTML = original;
+                }
+                setTimeout(tick, 1000);
+            };
+            setTimeout(tick, 1000);
+        }
+    }
 })();
 </script>
 </body>

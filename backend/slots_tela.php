@@ -231,6 +231,27 @@ function slotsTelaComprar(PDO $pdo, int $userId, int $teamId, string $liga): arr
     }
 }
 
+/**
+ * A lista dos times da tela em texto puro, um por linha.
+ *
+ * É o que vai pro botão de copiar — quem opera a live cola isso no roteiro
+ * ou na cena do OBS. Nome completo, com cidade, porque é assim que o time
+ * aparece na transmissão; e na ORDEM DA COMPRA, que é a ordem em que eles
+ * ganharam a vaga.
+ *
+ * Numa função só porque a loja e o dashboard copiam a mesma coisa: com o
+ * texto montado em cada tela, um dia uma copiaria com cidade e a outra sem.
+ */
+function slotsTelaTextoCopiar(array $lista): string
+{
+    $linhas = [];
+    foreach ($lista as $s) {
+        $nome = trim(($s['time_cidade'] ?? '') . ' ' . ($s['time_nome'] ?? ''));
+        if ($nome !== '') $linhas[] = $nome;
+    }
+    return implode("\n", $linhas);
+}
+
 /** "18:00", pra escrever o horário sem repetir formatação por aí. */
 function slotsTelaHora(string $dataHora): string
 {
