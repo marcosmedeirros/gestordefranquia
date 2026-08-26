@@ -1155,16 +1155,36 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
         .live-copiar:hover { border-color: var(--amber); color: var(--amber); }
         .live-copiar.ok { border-color: var(--green); color: var(--green); }
-        .live-jogo {
-            font-size: 14px; font-weight: 700; line-height: 1.4;
-            display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+        /* O JOGO É O CARTAZ DO DIA, e ocupa o bloco dele como tal: centrado,
+           maior que o resto e com espaço em volta. Ao lado dele fica uma
+           lista de oito etiquetas — se os dois tivessem o mesmo tamanho, o
+           olho não saberia qual é a manchete. */
+        .live-bloco-jogo {
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; text-align: center; gap: 4px;
+            padding: 16px 14px;
         }
-        .live-lado { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
-        /* O escudo do duelo é maior que o dos slots de propósito: é UM jogo,
-           e não uma lista de oito — aqui ele é a informação, lá é etiqueta. */
-        .live-lado img { width: 26px; height: 26px; object-fit: contain; flex: none; }
-        .live-lado.vazio { color: var(--text-3); font-weight: 600; font-size: 12.5px; }
-        .live-x { color: var(--text-3); margin: 0 6px; font-weight: 400; }
+        /* EMPILHADO SEMPRE, e não só no celular. O bloco é metade do card, e
+           "Jacksonville Tritons × Utah Coyotes" não cabe numa linha nem em
+           tela grande — deixando quebrar sozinho, o × ficava pendurado no fim
+           da primeira linha, colado num time e longe do outro. Empilhado ele
+           fica no meio, que é onde um × faz sentido, e o bloco vira cartaz. */
+        .live-jogo {
+            font-size: 18px; font-weight: 800; line-height: 1.35;
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 2px; margin-top: 2px;
+        }
+        .live-lado { display: inline-flex; align-items: center; gap: 9px; min-width: 0; }
+        /* O escudo do duelo é bem maior que o dos slots de propósito: é UM
+           jogo, e não uma lista de oito — aqui ele é a informação, lá é
+           etiqueta. */
+        .live-lado img { width: 34px; height: 34px; object-fit: contain; flex: none; }
+        .live-lado.vazio { color: var(--text-3); font-weight: 600; font-size: 14px; }
+        .live-x { color: var(--text-3); margin: 2px 0; font-weight: 400; font-size: 15px; }
+        @media (max-width: 560px) {
+            .live-jogo { font-size: 16px; }
+            .live-lado img { width: 30px; height: 30px; }
+        }
         .live-nota { font-size: 11.5px; color: var(--text-3); }
         .live-times { display: flex; flex-wrap: wrap; gap: 6px; }
         .live-time {
@@ -1923,7 +1943,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                     </div>
                     <div class="bc-body">
                         <div class="live-grade">
-                            <div class="live-bloco">
+                            <div class="live-bloco live-bloco-jogo">
                                 <div class="live-rot">Jogo da semana</div>
                                 <?php if ($liveHoje['duelo']): ?>
                                     <div class="live-jogo">
