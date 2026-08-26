@@ -142,7 +142,7 @@ const CESTA_MARCO_TOTAL     = 5000;
 const CESTA_MARCO_MAX       = 50000;
 const CESTA_PREMIO_PRIMEIRO = 200;
 const CESTA_PREMIO_DEMAIS   = 50;
-const CESTA_FBA_FINAL       = 50;
+const CESTA_FBA_FINAL       = 250;
 
 function cestaTabela(PDO $pdo): void
 {
