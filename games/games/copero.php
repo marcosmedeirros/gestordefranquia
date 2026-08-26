@@ -233,13 +233,36 @@ if (($_GET['acao'] ?? '') === 'conquistadores') {
         // O JOIN é o que dá nome a quem está no topo: as conquistas guardam só
         // o id da conta. Quem jogou sem login não tem id e não entra aqui —
         // não há nome pra mostrar, e um "anônimo" no pódio não diz nada.
-        $st = $pdo->query("SELECT u.nome, COUNT(*) AS total, MAX(c.ganha_em) AS ultima
+        $st = $pdo->query("SELECT c.id_usuario, u.nome, COUNT(*) AS total, MAX(c.ganha_em) AS ultima
                              FROM copero_conquistas c
                              JOIN games_usuarios u ON u.id = c.id_usuario
                          GROUP BY c.id_usuario, u.nome
                          ORDER BY total DESC, ultima ASC
                             LIMIT 5");
         $lista = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        // QUAIS conquistas cada um já tem — é o que permite mostrar o que
+        // FALTA quando alguém abre a linha. Vem numa consulta só, pros cinco
+        // de uma vez: cinco consultas separadas dentro do laço seria o mesmo
+        // resultado com cinco idas ao banco.
+        $ids = array_map(fn($x) => (int)$x['id_usuario'], $lista);
+        $tem = [];
+        if ($ids) {
+            $marc = implode(',', array_fill(0, count($ids), '?'));
+            $sc = $pdo->prepare("SELECT id_usuario, conquista FROM copero_conquistas
+                                  WHERE id_usuario IN ($marc)");
+            $sc->execute($ids);
+            foreach ($sc->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $tem[(int)$r['id_usuario']][] = (string)$r['conquista'];
+            }
+        }
+        foreach ($lista as &$x) {
+            $x['chaves'] = $tem[(int)$x['id_usuario']] ?? [];
+            // O id sai da resposta: serve pra montar a lista aqui e não é
+            // informação de ninguém que a tela precise ter.
+            unset($x['id_usuario']);
+        }
+        unset($x);
     } catch (Throwable $e) {
         error_log('[copero] conquistadores: ' . $e->getMessage());
     }
@@ -1037,6 +1060,37 @@ body.ocupado .carta,body.ocupado .op,body.ocupado .btn,body.ocupado .oferta-linh
 .hall-quem{font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hall-det{display:flex;align-items:center;gap:5px;color:var(--txt3);font-size:11px;flex:none}
 
+/* ── O que falta pra quem está no ranking de desafios ──
+   A caixa aberta entra ENTRE duas linhas, então a borda que separava uma
+   linha da outra (.hall-linha + .hall-linha) deixa de encostar. Por isso a
+   regra abaixo: quem vem depois da caixa também ganha a borda de cima. */
+.conq-faltam + .hall-linha{border-top:1px solid var(--borda)}
+.conq-linha{cursor:pointer;user-select:none}
+.conq-linha:hover,.conq-linha:focus-visible{background:rgba(255,255,255,.04);outline:none}
+.conq-seta{font-style:normal;font-size:10px;opacity:.7}
+/* Rola por dentro: quem tem seis desafios feitos tem QUARENTA faltando, e a
+   lista inteira aberta empurrava o resto da tela quase dois mil pixels pra
+   baixo — quem clicou pra espiar perdia de vista o próprio ranking. */
+.conq-faltam{padding:2px 14px 10px;background:rgba(255,255,255,.02);
+  max-height:300px;overflow-y:auto;overscroll-behavior:contain}
+.conq-item{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:12px}
+.conq-item + .conq-item{border-top:1px solid rgba(255,255,255,.05)}
+.conq-emoji{flex:none;font-size:15px;line-height:1}
+.conq-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.conq-txt small{color:var(--txt3);font-size:10.5px;line-height:1.35}
+.conq-nivel{flex:none;font-size:9.5px;font-weight:800;letter-spacing:.03em;
+  padding:2px 7px;border-radius:999px;white-space:nowrap;
+  color:var(--n);background:color-mix(in srgb, var(--n) 14%, transparent);
+  border:1px solid color-mix(in srgb, var(--n) 32%, transparent)}
+.conq-nivel.n-facil{--n:#4ade80}
+.conq-nivel.n-media{--n:#60a5fa}
+.conq-nivel.n-dificil{--n:#c084fc}
+.conq-nivel.n-impossivel{--n:#fbbf24}
+.conq-zero{color:var(--txt3);justify-content:center}
+@media(max-width:520px){
+  .conq-txt small{display:none}   /* no celular a descrição não cabe */
+}
+
 /* ── Modal dos desafios ─────────────────────────────── */
 .modal-fundo{position:fixed;inset:0;background:rgba(6,6,9,.78);backdrop-filter:blur(3px);
   z-index:70;display:flex;align-items:center;justify-content:center;padding:16px}
@@ -1365,6 +1419,19 @@ const guardarConquistas = (ids) => {
 };
 const ultimoNome = () => { try { return localStorage.getItem(CHAVE_NOME) || ''; } catch(e){ return ''; } };
 const guardarNome = (n) => { try { if (n) localStorage.setItem(CHAVE_NOME, n); } catch(e){} };
+
+/* O MODO DA ÚLTIMA CARREIRA, pela mesma razão do nome acima: quem terminou
+   uma carreira no Clássico e clica em "jogar novamente" quer o Clássico de
+   novo — a tela voltava sempre marcada no Clássico, e quem jogava no Rápido
+   tinha que reescolher toda vez (ou começava no modo errado sem perceber). */
+const CHAVE_MODO = 'copero:modo';
+const ultimoModo = () => {
+  try {
+    const m = localStorage.getItem(CHAVE_MODO);
+    return (m === 'rapido' || m === 'classico') ? m : 'classico';
+  } catch(e){ return 'classico'; }
+};
+const guardarModo = (m) => { try { if (m) localStorage.setItem(CHAVE_MODO, m); } catch(e){} };
 
 /* ── Bandeiras ──────────────────────────────────────────
    Desenhadas aqui, e não em emoji: emoji de bandeira só aparece onde a
@@ -2273,7 +2340,7 @@ function telaInicio(){
       <p class="lead">Você tem 16 anos e nenhum clube. O que vem depois é com você.</p>
       <div class="modos">
         ${Object.entries(MODOS).map(([id,m]) => `
-          <button class="modo${id==='classico'?' on':''}" data-modo="${id}" onclick="escolherModo('${id}')">
+          <button class="modo${id===MODO?' on':''}" data-modo="${id}" onclick="escolherModo('${id}')">
             <b>${esc(m.nome)}</b><small>${esc(m.sub)}</small>
           </button>`).join('')}
       </div>
@@ -2309,19 +2376,70 @@ async function carregarConquistadores(){
     const top = (d && d.top) || [];
     if (!top.length) return;
     const total = d.total || Object.keys(CONQUISTAS).length;
+    _conqTop = top;
     alvo.innerHTML = `
       <div class="hall" style="margin-top:12px">
         <div class="hall-cab">Mais desafios completos</div>
         <div class="hall-lista" style="border-top:0">
           ${top.map((x, i) => `
-            <div class="hall-linha">
+            <div class="hall-linha conq-linha" role="button" tabindex="0"
+                 onclick="abrirFaltantes(${i})"
+                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirFaltantes(${i});}">
               <span class="hall-pos">${i + 1}</span>
               <span class="hall-quem">${esc(x.nome)}</span>
-              <span class="hall-det">${x.total} de ${total}</span>
-            </div>`).join('')}
+              <span class="hall-det">${x.total} de ${total}
+                <i class="conq-seta" id="conq-seta-${i}">▾</i></span>
+            </div>
+            <div class="conq-faltam" id="conq-faltam-${i}" hidden></div>`).join('')}
         </div>
       </div>`;
   } catch (e) { /* sem rede, a tela inicial fica como estava */ }
+}
+
+/** O top 5 de desafios, guardado pra abrir o que falta sem pedir de novo. */
+let _conqTop = [];
+
+/**
+ * O QUE FALTA pra quem está no ranking de desafios.
+ *
+ * O ranking dizia "31 de 44" e parava aí — o número sozinho não conta qual é
+ * a parte difícil, nem dá ideia do que perseguir na próxima carreira. Abrir
+ * a linha mostra os que faltam, em ordem de dificuldade: os fáceis primeiro,
+ * que são os que ainda dá pra buscar, e os impossíveis no fim.
+ *
+ * Vale pra própria linha e pra dos outros de propósito: ver o que falta pro
+ * primeiro colocado é o que diz onde ele ainda pode ser alcançado.
+ */
+function abrirFaltantes(i){
+  const caixa = document.getElementById('conq-faltam-' + i);
+  const seta  = document.getElementById('conq-seta-' + i);
+  if (!caixa) return;
+
+  if (!caixa.hidden) {                      // já estava aberta: fecha
+    caixa.hidden = true;
+    if (seta) seta.textContent = '▾';
+    return;
+  }
+
+  const tem = new Set((_conqTop[i] || {}).chaves || []);
+  const ordem = { facil: 0, media: 1, dificil: 2, impossivel: 3 };
+  const rotulo = { facil: 'Fácil', media: 'Média', dificil: 'Difícil', impossivel: 'Quase impossível' };
+
+  const faltam = Object.entries(CONQUISTAS)
+    .filter(([k]) => !tem.has(k))
+    .sort((a, b) => (ordem[a[1].nivel] ?? 9) - (ordem[b[1].nivel] ?? 9));
+
+  caixa.innerHTML = faltam.length
+    ? faltam.map(([, c]) => `
+        <div class="conq-item">
+          <span class="conq-emoji">${c.icone || '•'}</span>
+          <span class="conq-txt"><b>${esc(c.nome)}</b><small>${esc(c.desc)}</small></span>
+          <span class="conq-nivel n-${esc(c.nivel)}">${rotulo[c.nivel] || esc(c.nivel)}</span>
+        </div>`).join('')
+    : `<div class="conq-item conq-zero">Não falta nenhum. Está tudo completo.</div>`;
+
+  caixa.hidden = false;
+  if (seta) seta.textContent = '▴';
 }
 
 /**
@@ -2418,9 +2536,10 @@ function abrirDesafios(){
     </div>`;
   document.body.appendChild(cx);
 }
-let MODO = 'classico';
+let MODO = ultimoModo();
 function escolherModo(id){
   MODO = id;
+  guardarModo(id);
   document.querySelectorAll('.modo').forEach(m => m.classList.toggle('on', m.dataset.modo === id));
 }
 function continuar(){ S = carregar(); if (S) render(); }
