@@ -218,6 +218,18 @@ function leilaoSemanaOfertar(PDO $pdo, int $userId, int $teamId, string $liga, i
 
     if ($temporada <= 0) return $falha('A ' . $liga . ' não tem temporada em andamento.');
 
+    // Leilão fechado pelo admin: acabou. A tela já esconde o campo, mas a
+    // recusa tem que estar AQUI — esconder o formulário não impede um POST,
+    // e como fechar apaga os lances, um lance atrasado nasceria em primeiro
+    // lugar e passaria por cima do jogo que a liga já pagou.
+    $fechado = leilaoSemanaUltimoFechado($pdo, $liga, $temporada);
+    if ($fechado) {
+        $jogo = trim((string)($fechado['time1_nome'] ?? ''));
+        if (!empty($fechado['time2_nome'])) $jogo .= ' × ' . $fechado['time2_nome'];
+        return $falha('O leilão desta temporada já foi encerrado'
+                      . ($jogo !== '' ? ' — o jogo da semana é ' . $jogo . '.' : '.'));
+    }
+
     // O time tem que ser MESMO de quem está pedindo, e da liga do leilão.
     $st = $pdo->prepare("SELECT id, league, user_id FROM teams WHERE id = ?");
     $st->execute([$teamId]);
@@ -439,6 +451,8 @@ function leilaoSemanaUltimoFechado(PDO $pdo, string $liga, int $temporada): ?arr
         // aí vale o nome que ficou gravado na hora do fechamento.
         $st = $pdo->prepare("SELECT COALESCE(t1.name, h.time1_nome) AS time1_nome, h.valor1,
                                     COALESCE(t2.name, h.time2_nome) AS time2_nome, h.valor2,
+                                    h.time1_id, h.time2_id,
+                                    t1.photo_url AS time1_logo, t2.photo_url AS time2_logo,
                                     h.fechado_em
                                FROM leilao_semana_historico h
                           LEFT JOIN teams t1 ON t1.id = h.time1_id
@@ -470,6 +484,12 @@ function leilaoSemanaDaLiga(PDO $pdo, string $liga, int $userId = 0): array
     $temporada = leilaoSemanaTemporada($pdo, $liga);
     $lances = leilaoSemanaLances($pdo, $liga, $temporada);
 
+    // Fechado pelo admin: o jogo da semana já está definido. Vem junto porque
+    // fechar APAGA os lances — sem isto o card voltaria a dizer "ninguém deu
+    // lance ainda" logo depois de dois times terem pagado pelo jogo, e ainda
+    // ofereceria o campo de lance pra um leilão que acabou.
+    $fechado = leilaoSemanaUltimoFechado($pdo, $liga, $temporada);
+
     $meu = null;
     foreach ($lances as $i => $l) {
         if ($userId > 0 && (int)$l['user_id'] === $userId) {
@@ -481,6 +501,7 @@ function leilaoSemanaDaLiga(PDO $pdo, string $liga, int $userId = 0): array
     return [
         'liga'      => $liga,
         'temporada' => $temporada,
+        'fechado'   => $fechado,
         'podio'     => array_slice($lances, 0, LEILAO_SEMANA_VAGAS),
         'fila'      => array_slice($lances, LEILAO_SEMANA_VAGAS),
         // Pra quem já tem lance, o mínimo mostrado tem que ser um valor que o

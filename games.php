@@ -994,6 +994,15 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
         display:flex; align-items:center; gap:6px; }
     .lj-vazio { font-size:12.5px; color:var(--text-3); text-align:center; padding:18px 8px;
         line-height:1.6; }
+    /* Leilão encerrado: o card fica sendo o placar do jogo definido, e o
+       aviso ocupa o lugar onde antes ficava o campo de lance. */
+    .lj-fechado { margin-top:12px; font-size:11.5px; color:var(--text-3);
+        display:flex; align-items:center; justify-content:center; gap:6px;
+        flex-wrap:wrap; text-align:center;
+        padding:8px 10px; border-radius:8px;
+        background:color-mix(in srgb, var(--text-3) 8%, transparent); }
+    .lj-fechado i { color:var(--amber); }
+    .lj-fechado span { opacity:.75; }
 
     /* ── Maiores sequências ─────────────────────────────────────────────
        Um título de seção, e não mais um card no meio da grade: o que vem
@@ -1503,8 +1512,44 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                 </div>
 
                 <div class="card-body" style="padding:14px">
+                  <?php
+                    // Fechado: o jogo está DEFINIDO. Os lances já foram
+                    // apagados no fechamento, então sem este ramo o card cairia
+                    // no "ninguém deu lance ainda" logo depois de dois times
+                    // terem pagado — e ainda ofereceria o campo de lance.
+                    $f = $d['fechado'] ?? null;
+                  ?>
                   <?php if ($d['temporada'] <= 0): ?>
                     <div class="lj-vazio">Sem temporada em andamento.</div>
+
+                  <?php elseif ($f): ?>
+                    <div class="lj-jogo">
+                      <div class="lj-lado">
+                        <img src="<?= htmlspecialchars(getTeamPhoto($f['time1_logo'] ?? null)) ?>" alt=""
+                             onerror="this.src='/img/default-team.png'">
+                        <span class="lj-nome"><?= htmlspecialchars((string)$f['time1_nome']) ?></span>
+                        <span class="lj-valor"><?= number_format((int)$f['valor1'], 0, ',', '.') ?></span>
+                      </div>
+                      <span class="lj-x">×</span>
+                      <div class="lj-lado">
+                        <?php if (!empty($f['time2_nome'])): ?>
+                          <img src="<?= htmlspecialchars(getTeamPhoto($f['time2_logo'] ?? null)) ?>" alt=""
+                               onerror="this.src='/img/default-team.png'">
+                          <span class="lj-nome"><?= htmlspecialchars((string)$f['time2_nome']) ?></span>
+                          <span class="lj-valor"><?= number_format((int)$f['valor2'], 0, ',', '.') ?></span>
+                        <?php else: ?>
+                          <div class="lj-vaga">?</div>
+                          <span class="lj-nome lj-aberta">vaga não preenchida</span>
+                          <span class="lj-valor">—</span>
+                        <?php endif; ?>
+                      </div>
+                    </div>
+                    <div class="lj-fechado">
+                      <i class="bi bi-lock-fill"></i> Jogo definido — leilão encerrado.
+                      <?php if ($ehMinha): ?>
+                        <span>O próximo abre na temporada que vem.</span>
+                      <?php endif; ?>
+                    </div>
 
                   <?php elseif (!$a): ?>
                     <div class="lj-vazio">
@@ -1542,7 +1587,7 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                            o card é sobre QUAL é o jogo da semana. Quem quiser
                            a lista inteira pede /jogosemana no grupo. */ ?>
 
-                  <?php if ($ehMinha && $d['temporada'] > 0 && $team): ?>
+                  <?php if ($ehMinha && $d['temporada'] > 0 && $team && !$f): ?>
                     <?php if ($d['meu']): ?>
                     <div class="lj-meu <?= $d['meu']['no_podio'] ? 'ok' : 'fora' ?>">
                       <?php if ($d['meu']['no_podio']): ?>
