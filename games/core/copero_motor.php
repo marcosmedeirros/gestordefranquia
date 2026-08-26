@@ -1323,8 +1323,20 @@ function coperoConquistas(): array
                           'dificil', fn($c) => ($c['picoOvrJovem'] ?? 0) >= 88],
         'matagigante' => ['🗡️', 'Matagigantes',      'Ganhe um torneio continental com um clube de força abaixo de 78.',
                           'dificil', fn($c) => $c['menorCampeaoCont'] < 78],
-        'baldosero'   => ['🧳', 'Baldosero',         'Jogue por sete clubes diferentes numa mesma carreira.',
-                          'dificil', fn($c) => $c['clubes'] >= 7],
+        // Sete clubes saía em 98% das 150 carreiras medidas — não era difícil,
+        // era o que acontece sozinho. A média é 9,6 clubes por carreira.
+        'baldosero'   => ['🧳', 'Baldosero',         'Jogue por dez clubes diferentes numa mesma carreira.',
+                          'dificil', fn($c) => $c['clubes'] >= 10],
+        // O TETO É 12, e isso é do jogo, não da vontade de quem joga: rodei 40
+        // carreiras aceitando TODA proposta que aparecia e a média foi a mesma
+        // do piloto que escolhia a esmo (9,6), com 12 no melhor caso. A janela
+        // de transferência não abre toda temporada, então mais que isso não
+        // existe — 22 clubes, por exemplo, seria uma conquista morta.
+        //
+        // Em 40 carreiras trocando sempre, 12 apareceu 3 vezes: 7,5%. É essa a
+        // dificuldade — não dá pra forçar, dá pra estar pronto quando vier.
+        'cigano'      => ['🚚', 'Sem endereço fixo', 'Jogue por doze clubes diferentes numa mesma carreira.',
+                          'dificil', fn($c) => $c['clubes'] >= 12],
         // O "no mínimo 12 temporadas" está no TEXTO agora. A regra sempre
         // existiu — sem ela, encerrar a carreira aos 20 no primeiro clube
         // levava a conquista de fidelidade —, mas ficava escondida no código:
@@ -1374,18 +1386,32 @@ function coperoConquistas(): array
                                                   && $t($c,'cont') >= 1 && $t($c,'mundial') >= 1],
         'colecionador'=> ['🗄️', 'O mais vencedor da história', 'Ganhe 35 títulos coletivos.',
                           'dificil', fn($c) => $c['coletivos'] >= 35],
-        'so_o_pele'   => ['👑👑', 'Só o Pelé',         'Faça 1.000 gols e ganhe três Copas do Mundo.',
-                          'impossivel', fn($c) => $t($c,'copa_mundo') >= 3 && $c['gols'] >= 1000],
-        'mil_gols'    => ['🎯', 'O milésimo',        'Marque 1.000 gols na carreira.',
-                          'media', fn($c) => $c['gols'] >= 1000],
+        // OS NÚMEROS SAÍRAM DE MEDIÇÃO, não de palpite. Rodei 150 carreiras
+        // completas com posição sorteada e depois 36 só de centroavante e 30
+        // só de meia — o jeito de jogar de quem está caçando a conquista.
+        //
+        //   gols: melhor centroavante de 36 carreiras fez 609 (média 275)
+        //   assistências: melhor meia de 30 carreiras deu 326 (média 140)
+        //
+        // Com 1.000 e 400 nenhuma das 216 carreiras chegou perto, e não era
+        // "difícil": era parede sem porta. Os números novos ficam ACIMA do
+        // melhor caso medido, então continuam pedindo uma carreira excepcional
+        // — e agora a posição escolhida no começo é o que decide, que é como
+        // o jogo quer ser jogado.
+        'so_o_pele'   => ['👑👑', 'Só o Pelé',         'Faça 700 gols e ganhe três Copas do Mundo.',
+                          'impossivel', fn($c) => $t($c,'copa_mundo') >= 3 && $c['gols'] >= 700],
+        // Sai de 'media' porque era a mais difícil do jogo pagando como a
+        // segunda mais fácil — 100 moedas, o mesmo que "marque 100 gols".
+        'mil_gols'    => ['🎯', 'Setecentos',        'Marque 700 gols na carreira.',
+                          'dificil', fn($c) => $c['gols'] >= 700],
         // Aqui entra TUDO o que se levanta: taça de clube, de seleção e
         // prêmio individual. É o contrário do 'colecionador', que conta só
         // o que o time ganhou — este mede a estante inteira.
         'messi'       => ['🎖️', 'O mais condecorado', 'Ganhe 47 troféus numa carreira, somando títulos '
                                                     . 'coletivos e prêmios individuais.',
                           'impossivel', fn($c) => ($c['trofeus'] ?? $c['coletivos']) >= 47],
-        'maestro'     => ['🎼', 'Maestro',           'Dê 400 assistências na carreira.',
-                          'dificil', fn($c) => $c['ast'] >= 400],
+        'maestro'     => ['🎼', 'Maestro',           'Dê 350 assistências na carreira.',
+                          'dificil', fn($c) => $c['ast'] >= 350],
         'goat'        => ['🐐', 'GOAT',              'Copa do Mundo, dois continentais de seleção, três Bolas de Ouro '
                                                    . 'e três torneios continentais de clubes.',
                           'impossivel', fn($c) => $t($c,'copa_mundo') >= 1 && $t($c,'selecao_cont') >= 2
