@@ -150,6 +150,19 @@ if ($method === 'GET') {
                         'time2'     => $bLeilao['time_nome'] ?? null,
                         'valor2'    => (int)($bLeilao['valor'] ?? 0),
                         'na_fila'   => count($dLeilao['fila']),
+                        // Os jogos já fechados esperando alguém dizer quem
+                        // ganhou. Vem junto do estado porque é a mesma tela e
+                        // o mesmo assunto: quem fecha o leilão hoje é quem
+                        // informa o resultado depois da live.
+                        'sem_resultado' => array_map(fn($j) => [
+                            'id'    => (int)$j['id'],
+                            'temp'  => (int)$j['temporada'],
+                            'quando'=> $j['fechado_em'],
+                            'a_id'  => (int)$j['time1_id'],
+                            'a'     => (string)$j['time1_nome'],
+                            'b_id'  => (int)$j['time2_id'],
+                            'b'     => (string)$j['time2_nome'],
+                        ], leilaoSemanaSemResultado($pdo, $lgLeilao)),
                     ];
                 } catch (Throwable $e) {
                     $estadoLeilao[] = ['liga' => $lgLeilao, 'temporada' => 0, 'time1' => null,
@@ -2720,6 +2733,28 @@ if ($method === 'POST') {
                 $ligaFechar, (int)$user['id'], (int)$r['pago']));
             echo json_encode(['success' => true, 'jogo' => array_values(array_filter($r['jogo'])),
                               'pago' => (int)$r['pago']]);
+            exit;
+
+        case 'leilao_semana_vencedor':
+            // Quem ganhou o jogo da semana. O leilão decide quem JOGA; o
+            // resultado vem depois, da live, e é informado à mão.
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            require_once dirname(__DIR__) . '/backend/leilao_semana.php';
+            $rv = leilaoSemanaDefinirVencedor(
+                $pdo,
+                (int)($data['jogo_id'] ?? 0),
+                (int)($data['team_id'] ?? 0)      // 0 apaga, pra corrigir engano
+            );
+            if (!$rv['ok']) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => $rv['erro']]);
+                exit;
+            }
+            echo json_encode(['success' => true]);
             exit;
 
         case 'games_zerar':

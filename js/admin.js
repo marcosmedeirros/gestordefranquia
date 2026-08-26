@@ -279,13 +279,60 @@ async function _carregarLeilaoSemana() {
                   ${temJogo ? '' : 'disabled'} onclick="_fecharLeilaoSemana('${l.liga}')">
             <i class="bi bi-check2-circle me-1"></i>Fechar ${l.liga}
           </button>
-        </div>`;
+        </div>
+        ${_linhasSemResultado(l)}`;
     }).join('');
     alvo.className = '';
     alvo.innerHTML = linhas || '<div class="small text-secondary py-2">Nenhuma liga.</div>';
   } catch (e) {
     alvo.className = '';
     alvo.innerHTML = `<div class="small text-danger py-2">Não deu pra carregar o leilão: ${escapeHtml(e.error || e.message || 'erro')}</div>`;
+  }
+}
+
+/**
+ * OS JOGOS ESPERANDO RESULTADO, embaixo da liga a que pertencem.
+ *
+ * O leilão decide quem JOGA; quem venceu vem da live, depois. Fica aqui e
+ * não numa tela própria porque é a mesma pessoa e o mesmo momento: quem
+ * fechou o leilão na segunda é quem sabe o resultado na quarta — e uma tela
+ * separada seria uma tela que ninguém lembra de abrir.
+ *
+ * Sem os dois nomes não há o que perguntar: jogo em que só um time comprou
+ * já sai filtrado no servidor.
+ */
+function _linhasSemResultado(l) {
+  const pend = l.sem_resultado || [];
+  if (!pend.length) return '';
+  return pend.map(j => `
+    <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap py-2 ps-3"
+         style="border-top:1px dashed var(--border)">
+      <div class="small" style="min-width:0">
+        <i class="bi bi-question-circle me-1" style="color:#f59e0b"></i>
+        Quem venceu? <b>${escapeHtml(j.a)}</b> × <b>${escapeHtml(j.b)}</b>
+        <span class="text-secondary">· T${j.temp}</span>
+      </div>
+      <div class="d-flex gap-1 flex-wrap">
+        <button class="btn btn-sm btn-outline-light" onclick="_vencedorJogoSemana(${j.id}, ${j.a_id})">
+          ${escapeHtml(j.a)}
+        </button>
+        <button class="btn btn-sm btn-outline-light" onclick="_vencedorJogoSemana(${j.id}, ${j.b_id})">
+          ${escapeHtml(j.b)}
+        </button>
+      </div>
+    </div>`).join('');
+}
+
+async function _vencedorJogoSemana(jogoId, teamId) {
+  try {
+    await api('admin.php?action=leilao_semana_vencedor', {
+      method: 'POST',
+      body: JSON.stringify({ jogo_id: jogoId, team_id: teamId }),
+    });
+    showAlert('success', 'Resultado gravado — já aparece no histórico dos dois times.');
+    _carregarLeilaoSemana();
+  } catch (e) {
+    showAlert('danger', e.error || e.message || 'Não deu pra gravar o resultado.');
   }
 }
 
