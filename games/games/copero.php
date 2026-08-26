@@ -4271,12 +4271,20 @@ function compartilharCarreira(botao, modo){
     .map(([id, n]) => {
       const foto = fotoDaTaca(id, ondeGanhou[id]);
       const d = TACAS[id];
+      // O mesmo desenho que a sala de troféus usa no onerror. Aqui ele vai
+      // como RESERVA, e não só como substituto de foto inexistente: a foto
+      // vem de um CDN de fora, e quando ela demorava o item saía um buraco
+      // com o selo "×3" flutuando sobre nada.
+      const desenho = d
+        ? svgImagem(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 60"
+                width="140" height="132" style="color:${d[0]}">${d[1]}</svg>`)
+        : '';
       return {
         // A foto passa pelo proxy dentro do cartao.php (viaProxy): imagem de
         // outro domínio CONTAMINA o canvas e derruba a geração inteira — um
         // troféu levaria o cartão junto.
-        img: foto || (d ? svgImagem(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 60"
-                width="140" height="132" style="color:${d[0]}">${d[1]}</svg>`) : ''),
+        img: foto || desenho,
+        reserva: desenho,
         contagem: n,
       };
     });

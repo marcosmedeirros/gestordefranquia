@@ -108,7 +108,7 @@ function cartaoScript(): string
   }
 
   /** Carrega uma imagem, ou null se ela não vier. Nunca rejeita. */
-  function carregar(url){
+  function carregarUma(url){
     return new Promise(ok => {
       const src = viaProxy(url);
       if (!src) return ok(null);
@@ -120,6 +120,25 @@ function cartaoScript(): string
       // Imagem que trava não pode segurar o cartão pra sempre.
       setTimeout(() => ok(img.complete && img.naturalWidth ? img : null), 6000);
     });
+  }
+
+  /**
+   * A imagem, com desenho de reserva quando a foto não vem.
+   *
+   * A foto da taça mora num CDN de fora e passa pelo proxy; quando ela
+   * demora ou some, o item ficava um BURACO — o cartão saía com o selo
+   * "×3" flutuando sobre nada, porque sem imagem e sem texto não se
+   * desenhava coisa alguma naquele quadrado.
+   *
+   * A tela do jogo já resolvia isso: lá a taça é <img> com onerror que
+   * troca pelo desenho em SVG. O cartão não tinha o equivalente, então a
+   * mesma taça aparecia na sala de troféus e sumia na imagem de
+   * compartilhar. Agora quem chama manda a reserva junto, em data URI —
+   * que é mesma origem e não contamina o canvas.
+   */
+  function carregar(url, reserva){
+    return carregarUma(url).then(img =>
+      img || (reserva && reserva !== url ? carregarUma(reserva) : null));
   }
 
   /** Desenha a imagem contida numa caixa, sem distorcer. */
@@ -274,7 +293,8 @@ function cartaoScript(): string
     // Carrega tudo antes de desenhar: meio cartão desenhado enquanto imagem
     // chega daria ordem diferente a cada geração.
     const imgsFaixa = await Promise.all(
-      faixas.map(f => Promise.all((f.itens || []).slice(0, 8).map(it => it.img ? carregar(it.img) : null)))
+      faixas.map(f => Promise.all((f.itens || []).slice(0, 8)
+        .map(it => it.img ? carregar(it.img, it.reserva) : null)))
     );
 
     faixas.forEach((f, fi) => {

@@ -6845,9 +6845,15 @@ function compartilharCartao(botao, modo){
 
       // A foto passa pelo proxy dentro do cartao.php (viaProxy): imagem de
       // outro domínio contamina o canvas e derruba a geração inteira.
-      return {img: foto || svgImagem(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 56"
-                width="140" height="122" style="color:${d[0]}">${d[1]}</svg>`),
-              contagem: n};
+      //
+      // O desenho vai como RESERVA e não só como substituto de foto que não
+      // existe: a foto vem de fora, e quando ela demorava o troféu saía um
+      // buraco com o selo de contagem flutuando sobre nada.
+      const desenho = d
+        ? svgImagem(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 56"
+                width="140" height="122" style="color:${d[0]}">${d[1]}</svg>`)
+        : '';
+      return {img: foto || desenho, reserva: desenho, contagem: n};
     })
     // 8, não 6: é o teto de verdade de cada faixa do cartão (ver cartao.php,
     // fbaCartaoImagem — ele mesmo corta em 8). Truncar em 6 aqui só jogava

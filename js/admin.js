@@ -93,36 +93,14 @@ async function showGamesAdmin() {
     <div class="row g-3 mb-4">${cards}</div>
 
     <div class="panel">
-      <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <span><i class="bi bi-coin" style="color:#f59e0b"></i> Pontos e Moedas</span>
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-          <button class="btn btn-sm btn-outline-danger" onclick="_zerarGames('pontos')">
-            <i class="bi bi-arrow-counterclockwise me-1"></i>Zerar moedas
-          </button>
-          <button class="btn btn-sm btn-outline-danger" onclick="_zerarGames('fba_points')">
-            <i class="bi bi-arrow-counterclockwise me-1"></i>Zerar FBA Points
-          </button>
-          <button class="btn btn-sm btn-outline-danger" onclick="_zerarConquistas('copero')"
-                  title="Apaga as conquistas do Copero de todo mundo">
-            <i class="bi bi-trophy me-1"></i>Zerar conquistas · Copero
-          </button>
-          <button class="btn btn-sm btn-outline-danger" onclick="_zerarConquistas('caminho')"
-                  title="Apaga os desafios do Caminho de todo mundo">
-            <i class="bi bi-trophy me-1"></i>Zerar desafios · Caminho
-          </button>
-          <input type="text" id="gamesUserSearch" placeholder="Buscar por nome ou e-mail..."
-                 oninput="_filtrarGamesUsers(this.value)"
-                 style="background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;min-width:220px">
-        </div>
+      <div class="panel-title">
+        <i class="bi bi-sliders" style="color:#38bdf8"></i> Configuração dos games
       </div>
-      <div id="gamesUsersWrap" class="text-center py-4">
-        <div class="spinner-border text-orange"></div>
-      </div>
-    </div>
 
-    <div class="panel">
-      <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <span><i class="bi bi-toggles" style="color:#38bdf8"></i> Dobro de moedas por jogo</span>
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+        <span class="fw-semibold" style="font-size:14px">
+          <i class="bi bi-toggles me-1" style="color:#38bdf8"></i>Dobro de moedas por jogo
+        </span>
         <button class="btn btn-sm btn-outline-orange" onclick="_carregarGamesDobro()">
           <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
         </button>
@@ -133,11 +111,13 @@ async function showGamesAdmin() {
       <div id="gamesDobroWrap" class="text-center py-3">
         <div class="spinner-border text-orange"></div>
       </div>
-    </div>
 
-    <div class="panel">
-      <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <span><i class="bi bi-hammer" style="color:#f59e0b"></i> Leilão do jogo da semana</span>
+      <hr style="border-color:var(--border);opacity:.6;margin:18px 0">
+
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+        <span class="fw-semibold" style="font-size:14px">
+          <i class="bi bi-hammer me-1" style="color:#f59e0b"></i>Leilão do jogo da semana
+        </span>
         <button class="btn btn-sm btn-outline-orange" onclick="_carregarLeilaoSemana()">
           <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
         </button>
@@ -147,6 +127,44 @@ async function showGamesAdmin() {
         gasto. Os lances são apagados e a liga recomeça do zero pra semana seguinte.
       </div>
       <div id="leilaoSemanaWrap" class="text-center py-3">
+        <div class="spinner-border text-orange"></div>
+      </div>
+
+      <hr style="border-color:var(--border);opacity:.6;margin:18px 0">
+
+      <div class="fw-semibold mb-1" style="font-size:14px">
+        <i class="bi bi-exclamation-triangle me-1" style="color:#ef4444"></i>Zerar
+      </div>
+      <div class="small text-secondary mb-2">
+        Vale para <b>todos os usuários</b> de uma vez e não dá pra desfazer — cada botão pede
+        confirmação digitada antes de mandar.
+      </div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <button class="btn btn-sm btn-outline-danger" onclick="_zerarGames('pontos')">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Zerar moedas
+        </button>
+        <button class="btn btn-sm btn-outline-danger" onclick="_zerarGames('fba_points')">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Zerar FBA Points
+        </button>
+        <button class="btn btn-sm btn-outline-danger" onclick="_zerarConquistas('copero')"
+                title="Apaga as conquistas do Copero de todo mundo">
+          <i class="bi bi-trophy me-1"></i>Zerar conquistas · Copero
+        </button>
+        <button class="btn btn-sm btn-outline-danger" onclick="_zerarConquistas('caminho')"
+                title="Apaga os desafios do Caminho de todo mundo">
+          <i class="bi bi-trophy me-1"></i>Zerar desafios · Caminho
+        </button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <span><i class="bi bi-coin" style="color:#f59e0b"></i> Pontos e Moedas</span>
+        <input type="text" id="gamesUserSearch" placeholder="Buscar por nome ou e-mail..."
+               oninput="_filtrarGamesUsers(this.value)"
+               style="background:var(--panel-3);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;min-width:220px">
+      </div>
+      <div id="gamesUsersWrap" class="text-center py-4">
         <div class="spinner-border text-orange"></div>
       </div>
     </div>
