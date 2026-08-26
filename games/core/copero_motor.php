@@ -1327,16 +1327,21 @@ function coperoConquistas(): array
         // era o que acontece sozinho. A média é 9,6 clubes por carreira.
         'baldosero'   => ['🧳', 'Baldosero',         'Jogue por dez clubes diferentes numa mesma carreira.',
                           'dificil', fn($c) => $c['clubes'] >= 10],
-        // O TETO É 12, e isso é do jogo, não da vontade de quem joga: rodei 40
-        // carreiras aceitando TODA proposta que aparecia e a média foi a mesma
-        // do piloto que escolhia a esmo (9,6), com 12 no melhor caso. A janela
-        // de transferência não abre toda temporada, então mais que isso não
-        // existe — 22 clubes, por exemplo, seria uma conquista morta.
+        // VINTE CLUBES, e o número tem história: eu tinha cravado doze depois
+        // de medir 40 carreiras — todas no modo RÁPIDO, onde duas temporadas
+        // passam por clique e metade das cartas (as que abrem janela fora do
+        // ciclo) nunca cai. No modo Clássico o teto é outro: 30 carreiras
+        // aceitando toda proposta deram média de 16,7 e 19 no melhor caso.
         //
-        // Em 40 carreiras trocando sempre, 12 apareceu 3 vezes: 7,5%. É essa a
-        // dificuldade — não dá pra forçar, dá pra estar pronto quando vier.
-        'cigano'      => ['🚚', 'Sem endereço fixo', 'Jogue por doze clubes diferentes numa mesma carreira.',
-                          'dificil', fn($c) => $c['clubes'] >= 12],
+        // A fonte principal não é o mercado, é o EMPRÉSTIMO: nas primeiras
+        // temporadas o garoto roda um clube por ano, e é daí que sai o grosso
+        // da conta. Depois disso sobra o mercado, que abre a cada dois anos.
+        //
+        // Vinte é um passo acima do melhor que eu vi — de propósito. É a
+        // conquista de quem aceita TODA troca que aparecer numa carreira
+        // inteira e ainda assim precisa que o mercado colabore.
+        'cigano'      => ['🚚', 'Sem endereço fixo', 'Jogue por vinte clubes diferentes numa mesma carreira.',
+                          'dificil', fn($c) => $c['clubes'] >= 20],
         // O "no mínimo 12 temporadas" está no TEXTO agora. A regra sempre
         // existiu — sem ela, encerrar a carreira aos 20 no primeiro clube
         // levava a conquista de fidelidade —, mas ficava escondida no código:
