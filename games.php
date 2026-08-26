@@ -1003,12 +1003,13 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
         color:var(--text-2); cursor:pointer; white-space:nowrap;
     }
     .st-copiar:hover { border-color:var(--amber); color:var(--amber) }
-    .st-copiar.ok { border-color:#22c55e; color:#22c55e }
+    .st-copiar.ok { border-color:var(--green); color:var(--green) }
     .st-vaga { width:30px; height:30px; border-radius:8px; flex:none;
         border:1px dashed var(--border); display:flex; align-items:center;
-        justify-content:center; background:rgba(255,255,255,.02) }
-    .st-vaga.cheia { border-style:solid; border-color:rgba(245,158,11,.35);
-        background:rgba(245,158,11,.08) }
+        justify-content:center; background:color-mix(in srgb, var(--text-3) 6%, transparent) }
+    .st-vaga.cheia { border-style:solid;
+        border-color:color-mix(in srgb, var(--amber) 35%, transparent);
+        background:color-mix(in srgb, var(--amber) 8%, transparent) }
     .st-vaga img { width:22px; height:22px; object-fit:contain }
     .st-txt { font-size:11.5px; color:var(--text-3); line-height:1.6; margin:0 0 10px }
     .st-form .lj-btn { width:100% }
@@ -1552,7 +1553,7 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                 <?php else: ?>
                   <div class="st-aviso">
                     <?php if ($slots['motivo'] === 'ja_tenho'): ?>
-                      <i class="bi bi-check-circle-fill" style="color:#22c55e"></i>
+                      <i class="bi bi-check-circle-fill" style="color:var(--green)"></i>
                       Seu time já está na tela desta live.
                     <?php elseif ($slots['motivo'] === 'esgotado'): ?>
                       <i class="bi bi-lock-fill"></i> Os oito slots já foram.
@@ -2355,7 +2356,7 @@ function trocarLigaRanking(liga) {
                     aviso.innerHTML = d.motivo === 'esgotado'
                         ? '<i class="bi bi-lock-fill"></i> Os oito slots já foram.'
                         : d.motivo === 'ja_tenho'
-                            ? '<i class="bi bi-check-circle-fill" style="color:#22c55e"></i> Seu time já está na tela desta live.'
+                            ? '<i class="bi bi-check-circle-fill" style="color:var(--green)"></i> Seu time já está na tela desta live.'
                             : '<i class="bi bi-broadcast"></i> A live já começou — a venda fechou.';
                     form.replaceWith(aviso);
                 }

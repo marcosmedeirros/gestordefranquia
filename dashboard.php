@@ -1120,9 +1120,12 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
            Duas colunas: o que vai passar e quem vai aparecer. No celular
            viram duas linhas — a lista de times não cabe ao lado do jogo
            numa tela estreita sem quebrar os dois. */
-        .live-card { border-color: rgba(239,68,68,.28); }
+        /* Tudo em token: o dashboard tem tema claro, e cor cravada não
+           acompanha. O vermelho aqui é o --red da marca, não um #ef4444 solto
+           — no tema claro o mesmo hex ficava lavado sobre fundo branco. */
+        .live-card { border-color: var(--border-red); }
         .live-hora {
-            font-size: 15px; font-weight: 800; color: #ef4444;
+            font-size: 15px; font-weight: 800; color: var(--red);
             font-variant-numeric: tabular-nums;
         }
         .live-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -1139,8 +1142,9 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         .live-conta {
             font-size: 10px; font-weight: 800; letter-spacing: 0;
             padding: 1px 6px; border-radius: 999px;
-            color: var(--amber); background: rgba(245,158,11,.12);
-            border: 1px solid rgba(245,158,11,.28);
+            color: var(--amber);
+            background: color-mix(in srgb, var(--amber) 12%, transparent);
+            border: 1px solid color-mix(in srgb, var(--amber) 28%, transparent);
         }
         .live-copiar {
             margin-left: auto; display: inline-flex; align-items: center; gap: 4px;
@@ -1912,7 +1916,7 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                 <div class="bc span-3 live-card" style="animation-delay:.20s">
                     <div class="bc-head">
                         <div class="bc-title">
-                            <i class="bi bi-broadcast" style="color:#ef4444"></i>
+                            <i class="bi bi-broadcast" style="color:var(--red)"></i>
                             Hoje tem live da <?= htmlspecialchars($liveHoje['liga']) ?>
                         </div>
                         <span class="live-hora"><?= htmlspecialchars($liveHoje['hora']) ?></span>
