@@ -65,7 +65,18 @@ const AUDITOR_COPERO = [
     'ovr_min'        => 30,
     'ovr_max'        => 99,
     'ovr_salto_max'  => 22,
-    'titulos_ano'    => 6,
+    // 6 RECUSAVA A CARREIRA INTEIRA de quem ganhava muito num ano só — e a
+    // recusa não tira só o troféu daquela temporada: derruba a carreira toda,
+    // então a pessoa termina sem conquista nenhuma e sem entrar no hall. Era
+    // exatamente quem cumpria os desafios difíceis que ficava sem eles.
+    //
+    // A lista de "títulos" de uma temporada inclui prêmio individual. Contando
+    // o que o motor pode entregar no mesmo ano: liga, copa, continental,
+    // Mundial de Clubes, supercopa nacional, supercontinental, artilheiro,
+    // chuteira, luva de ouro, bola de ouro, Rei da América e o torneio de
+    // seleção — doze. O teto agora é esse: o máximo que o próprio jogo produz,
+    // e não um número escolhido de fora.
+    'titulos_ano'    => 12,
     'valor_max'      => 900000000,
 ];
 

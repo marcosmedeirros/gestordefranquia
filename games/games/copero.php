@@ -283,7 +283,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // O que as conquistas precisam saber, tudo tirado das temporadas: quais
     // troféus, onde, com que clube e em que ano. O resumo que o cliente
     // manda continua não valendo como prova de nada.
-    $forcaDoClube = [];
+    $forcaDoClube = []; $maiorForcaClube = 0;
     foreach (COPERO_CLUBES as [$n, , $f, ]) $forcaDoClube[$n] = $f;
 
     $tit = [];              // id do troféu => quantas vezes
@@ -322,6 +322,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($nome === '') continue;
 
         $clubes[$nome] = 1;
+        $maiorForcaClube = max($maiorForcaClube, $forcaDoClube[$nome] ?? 0);
         $porClube[$nome] = ($porClube[$nome] ?? 0) + max(0, (int)($t['jogos'] ?? 0));
         $liga = coperoLigaDoClube($ligaId);
         $continentes[$liga['continente']] = 1;
@@ -390,8 +391,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'maiorNoClube' => $porClube ? max($porClube) : 0,
         'continentes' => count($continentes),
         'idadeFinal' => (int)($c['idadeFinal'] ?? 0),
-        'comecouAbaixo' => !empty($c['comecouAbaixo']),
-        'maiorForcaClube' => (int)($c['maiorForcaClube'] ?? 0),
+        // Estes dois vinham do resumo que o CLIENTE manda, enquanto todo o
+        // resto é recalculado das temporadas. Era a única entrada por onde
+        // "De baixo" e "Do fundo ao topo" dependiam de um número que o jogo
+        // não conferia — e, no outro sentido, quem jogou de verdade ficava
+        // refém de o campo ter sido gravado. As temporadas já dizem tudo: a
+        // liga da primeira e a força de cada clube por onde passou.
+        'comecouAbaixo' => $primeiroNivel >= 2,
+        'maiorForcaClube' => $maiorForcaClube,
         // Novos
         't' => $tit, 'coletivos' => $coletivos,
         'individuais' => $individuais, 'trofeus' => $trofeus,

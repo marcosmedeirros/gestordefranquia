@@ -1303,9 +1303,17 @@ function coperoConquistas(): array
         // ganhasse a Champions com o Real levava um "Rei da América" que fala
         // em Libertadores. Agora conta só o continental levantado por um
         // clube da América do Sul, que é o que o texto sempre prometeu.
+        // O país precisa ser sul-americano porque `selecao_cont` é o
+        // continental da seleção DELE: pra um mexicano é a Copa Ouro, e o
+        // texto fala em Copa América.
+        //
+        // A lista era escrita à mão — BRA, ARG, URU, CHI, COL — e deixava de
+        // fora Equador, Peru, Paraguai, Venezuela e Bolívia, que jogam a Copa
+        // América no jogo como qualquer outro. Um peruano ganhava as duas e a
+        // conquista não contava. O continente já está em COPERO_SELECOES.
         'rei_america' => ['🌎', 'Rei da América',    'Ganhe a Copa América e a Libertadores na mesma carreira.',
                           'dificil', fn($c) => $t($c,'selecao_cont') >= 1 && !empty($c['contSAM'])
-                                               && in_array($c['pais'], ['BRA','ARG','URU','CHI','COL'], true)],
+                                               && (COPERO_SELECOES[$c['pais']] ?? [0,'?'])[1] === 'SAM'],
         // O teste era `picoOvr >= 88 && idadePico <= 23`, e idadePico é a idade
         // do MAIOR overall da carreira inteira. Quem chegava a 91 aos 22 e a 95
         // aos 26 tinha pico aos 26 e não levava a conquista — continuar
