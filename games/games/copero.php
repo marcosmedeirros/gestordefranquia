@@ -277,6 +277,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $tot = ['jogos' => 0, 'gols' => 0, 'ast' => 0];
     $clubes = [];
     $picoOvr = 0; $picoValor = 0;
+    $picoOvrJovem = 0;   // o melhor OVR ate os 23 — ver "Menino de ouro"
     $porClube = []; $continentes = [];
 
     // O que as conquistas precisam saber, tudo tirado das temporadas: quais
@@ -304,6 +305,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $tot['ast']   += max(0, (int)($t['ast']   ?? 0));
         $ovr = (int)($t['ovr'] ?? 0);
         if ($ovr > $picoOvr) { $picoOvr = $ovr; $idadePico = (int)($t['idade'] ?? 0); }
+        // O melhor OVR ATÉ os 23 anos — que é outra coisa que o pico da
+        // carreira. Quem chegou a 91 aos 22 e a 95 aos 26 tem pico aos 26, e
+        // "Menino de ouro" testava a idade do pico: cumpria a conquista e não
+        // contava, porque continuar melhorando depois anulava o feito.
+        $idadeT = (int)($t['idade'] ?? 0);
+        if ($idadeT > 0 && $idadeT <= 23) $picoOvrJovem = max($picoOvrJovem, $ovr);
         $picoValor = max($picoValor, (int)($t['valor'] ?? 0));
         if (!empty($t['lesao'])) $lesoes++;
         if (!empty($t['rival'])) $trocasRival++;
@@ -378,6 +385,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $ctx = [
         'jogos' => $tot['jogos'], 'gols' => $tot['gols'], 'ast' => $tot['ast'],
         'picoOvr' => $picoOvr, 'picoValor' => $picoValor,
+        'picoOvrJovem' => $picoOvrJovem,
         'clubes' => count($clubes), 'temporadas' => count($temporadas),
         'maiorNoClube' => $porClube ? max($porClube) : 0,
         'continentes' => count($continentes),

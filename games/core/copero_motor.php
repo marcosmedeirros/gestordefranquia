@@ -1306,23 +1306,38 @@ function coperoConquistas(): array
         'rei_america' => ['🌎', 'Rei da América',    'Ganhe a Copa América e a Libertadores na mesma carreira.',
                           'dificil', fn($c) => $t($c,'selecao_cont') >= 1 && !empty($c['contSAM'])
                                                && in_array($c['pais'], ['BRA','ARG','URU','CHI','COL'], true)],
+        // O teste era `picoOvr >= 88 && idadePico <= 23`, e idadePico é a idade
+        // do MAIOR overall da carreira inteira. Quem chegava a 91 aos 22 e a 95
+        // aos 26 tinha pico aos 26 e não levava a conquista — continuar
+        // melhorando depois apagava o feito de ter chegado cedo. Agora o teste
+        // é o que o texto diz: o melhor overall ATÉ os 23.
         'menino_ouro' => ['✨', 'Menino de ouro',    'Chegue a 88 de overall antes dos 24 anos.',
-                          'dificil', fn($c) => $c['picoOvr'] >= 88 && $c['idadePico'] > 0 && $c['idadePico'] <= 23],
+                          'dificil', fn($c) => ($c['picoOvrJovem'] ?? 0) >= 88],
         'matagigante' => ['🗡️', 'Matagigantes',      'Ganhe um torneio continental com um clube de força abaixo de 78.',
                           'dificil', fn($c) => $c['menorCampeaoCont'] < 78],
         'baldosero'   => ['🧳', 'Baldosero',         'Jogue por sete clubes diferentes numa mesma carreira.',
                           'dificil', fn($c) => $c['clubes'] >= 7],
-        'um_clube_so' => ['🔒', 'Um clube só',       'Faça a carreira inteira em no máximo dois clubes.',
+        // O "no mínimo 12 temporadas" está no TEXTO agora. A regra sempre
+        // existiu — sem ela, encerrar a carreira aos 20 no primeiro clube
+        // levava a conquista de fidelidade —, mas ficava escondida no código:
+        // quem passava a carreira em dois clubes e parava antes cumpria o que
+        // estava escrito e não levava nada, sem entender por quê.
+        'um_clube_so' => ['🔒', 'Um clube só',       'Faça no mínimo 12 temporadas e no máximo dois clubes na carreira.',
                           'dificil', fn($c) => $c['clubes'] <= 2 && $c['temporadas'] >= 12],
         'terror'      => ['👟', 'Terror das redes',  'Ganhe duas Chuteiras de Ouro.',
                           'dificil', fn($c) => $t($c,'chuteira') >= 2],
         'nomade'      => ['🛫', 'Nômade',            'Jogue em clubes de três continentes diferentes.',
                           'dificil', fn($c) => $c['continentes'] >= 3],
+        // A lista de países era escrita à mão e estava incompleta: faltavam
+        // Suíça, Dinamarca, Suécia, Áustria, Polônia, Ucrânia, Sérvia... Um
+        // suíço com Bola de Ouro levava "Da periferia" sendo da Europa, que é
+        // o oposto do que a conquista conta. O continente já está em
+        // COPERO_SELECOES, país por país — usar a lista de novo era manter uma
+        // segunda verdade que ninguém lembraria de atualizar.
         'periferia'   => ['🧭', 'Da periferia',      'Ganhe uma Bola de Ouro sendo de fora da Europa e da América do Sul.',
                           'dificil', fn($c) => $t($c,'bola_ouro') >= 1
-                                               && !in_array($c['pais'],
-                                                  ['ENG','ESP','ITA','GER','FRA','POR','NED','BEL','CRO','TUR',
-                                                   'RUS','SCO','GRE','BRA','ARG','URU','CHI','COL'], true)],
+                                               && !in_array((COPERO_SELECOES[$c['pais']] ?? [0,'?'])[1],
+                                                            ['EUR','SAM'], true)],
         'ringless'    => ['🕳️', 'Ringless',          'Termine uma carreira de 15 temporadas sem nenhum título.',
                           'dificil', fn($c) => $c['coletivos'] === 0 && $c['temporadas'] >= 15],
         'poliglota'   => ['🗺️', 'Poliglota',         'Seja campeão nacional em três países diferentes.',
@@ -1344,7 +1359,7 @@ function coperoConquistas(): array
         'dono_europa' => ['🏰', 'Dono da Europa',    'Seja campeão das cinco grandes ligas europeias: '
                                                    . 'Premier, LaLiga, Serie A, Bundesliga e Ligue 1.',
                           'impossivel', fn($c) => $c['grandesEuropeias'] >= 5],
-        'lenda_maxima'=> ['💫', 'Lenda absoluta',    'Passe a carreira inteira num só clube e ganhe liga, copa, '
+        'lenda_maxima'=> ['💫', 'Lenda absoluta',    'Passe 15 temporadas ou mais num só clube e ganhe liga, copa, '
                                                    . 'continental e Mundial de Clubes.',
                           'impossivel', fn($c) => $c['clubes'] === 1 && $c['temporadas'] >= 15
                                                   && $t($c,'liga') >= 1 && $t($c,'copa') >= 1
