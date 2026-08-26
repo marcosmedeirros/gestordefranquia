@@ -34,13 +34,36 @@ function slotsTelaGarantirTabela(PDO $pdo): void
         inicio_live DATETIME NOT NULL,
         team_id     INT NOT NULL,
         id_usuario  INT NOT NULL,
+        slot_num    TINYINT NOT NULL DEFAULT 0,
         preco       SMALLINT NOT NULL DEFAULT 0,
         comprado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        -- Um time por live: o UNIQUE é o que garante isso mesmo com dois
-        -- cliques ao mesmo tempo, que a contagem sozinha não pega.
+        -- Um time por live: impede a mesma pessoa levando duas vagas.
         UNIQUE KEY uk_slot_time (league, data_live, team_id),
+        -- E A VAGA EM SI TEM DONO ÚNICO. Sem esta chave, dois compradores
+        -- diferentes disputando a última vaga passavam os dois: cada um
+        -- contava 7 ocupadas antes de o outro inserir, e a live terminava
+        -- com NOVE times na tela. Aconteceu num teste de corrida com seis
+        -- processos simultâneos — a contagem, sozinha, não decide nada.
+        UNIQUE KEY uk_slot_num (league, data_live, slot_num),
         KEY idx_slot_live (league, data_live)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // A tabela nasceu sem slot_num, e CREATE IF NOT EXISTS não mexe em
+    // tabela pronta. Sem estes ALTERs, um banco que já tinha a tabela
+    // continuaria com a corrida aberta.
+    if (!$pdo->query("SHOW COLUMNS FROM slots_tela LIKE 'slot_num'")->fetch()) {
+        $pdo->exec("ALTER TABLE slots_tela ADD COLUMN slot_num TINYINT NOT NULL DEFAULT 0");
+        // Numera o que já existe pela ordem de compra, pra chave nova entrar
+        // sem colidir com os slots vendidos antes dela.
+        $pdo->exec("SET @l := '', @d := '', @i := 0");
+        $pdo->exec("UPDATE slots_tela SET slot_num = (
+                        @i := IF(@l = league AND @d = data_live, @i + 1, 1)
+                    ), league = (@l := league), data_live = (@d := data_live)
+                    ORDER BY league, data_live, comprado_em, id");
+    }
+    if (!$pdo->query("SHOW INDEX FROM slots_tela WHERE Key_name = 'uk_slot_num'")->fetch()) {
+        $pdo->exec("ALTER TABLE slots_tela ADD UNIQUE KEY uk_slot_num (league, data_live, slot_num)");
+    }
     $ok = true;
 }
 
@@ -184,51 +207,69 @@ function slotsTelaComprar(PDO $pdo, int $userId, int $teamId, string $liga): arr
         case 'ja_tenho': return $falha('Seu time já está na tela desta live.');
     }
 
-    try {
-        $pdo->beginTransaction();
+    $data   = $estado['live']['data'];
+    $inicio = $estado['live']['inicio'];
 
-        $lock = $pdo->prepare("SELECT fba_points FROM games_usuarios WHERE id = ? FOR UPDATE");
-        $lock->execute([$userId]);
-        if ($lock->fetchColumn() === false) {
-            $pdo->rollBack();
-            return $falha('Perfil de games não encontrado.');
+    /* A VAGA É NUMERADA, E É O BANCO QUE ARBITRA A CORRIDA.
+       Contar as ocupadas e decidir a partir da contagem NÃO funciona com
+       duas pessoas comprando no mesmo instante: cada uma conta 7, cada uma
+       acha que a oitava é dela, e a live termina com nove times na tela —
+       foi o que um teste com seis processos simultâneos produziu.
+
+       Agora cada compra pede uma VAGA COM NÚMERO. O UNIQUE (liga, data,
+       número) deixa só uma passar; a que perder tenta o número seguinte, e
+       quando o próximo passa de oito, aí sim acabou. Quem perde a corrida
+       não é cobrado: o débito e o INSERT estão na mesma transação, e ela
+       inteira volta atrás. */
+    for ($tentativa = 0; $tentativa < SLOTS_TELA_TOTAL + 2; $tentativa++) {
+        try {
+            $pdo->beginTransaction();
+
+            $sc = $pdo->prepare("SELECT COALESCE(MAX(slot_num), 0) FROM slots_tela
+                                  WHERE league = ? AND data_live = ?");
+            $sc->execute([$liga, $data]);
+            $proximo = (int)$sc->fetchColumn() + 1;
+
+            if ($proximo > SLOTS_TELA_TOTAL) {
+                $pdo->rollBack();
+                return $falha('Os ' . SLOTS_TELA_TOTAL . ' slots desta live já foram.');
+            }
+
+            $up = $pdo->prepare("UPDATE games_usuarios SET fba_points = fba_points - ?
+                                  WHERE id = ? AND fba_points >= ?");
+            $up->execute([SLOTS_TELA_PRECO, $userId, SLOTS_TELA_PRECO]);
+            if ($up->rowCount() === 0) {
+                $pdo->rollBack();
+                return $falha('FBA Points insuficientes. O slot custa ' . SLOTS_TELA_PRECO . '.');
+            }
+
+            $pdo->prepare("INSERT INTO slots_tela
+                           (league, data_live, inicio_live, team_id, id_usuario, slot_num, preco)
+                           VALUES (?,?,?,?,?,?,?)")
+                ->execute([$liga, $data, $inicio, $teamId, $userId, $proximo, SLOTS_TELA_PRECO]);
+
+            $pdo->commit();
+            return ['ok' => true, 'restam' => max(0, SLOTS_TELA_TOTAL - $proximo)];
+
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $msg = $e->getMessage();
+
+            // Alguém levou este número primeiro: tenta o seguinte.
+            if (str_contains($msg, 'uk_slot_num')) continue;
+
+            // O mesmo time de novo — duplo clique, ou duas abas.
+            if (str_contains($msg, 'uk_slot_time') || str_contains($msg, 'Duplicate')) {
+                return $falha('Seu time já está na tela desta live.');
+            }
+
+            error_log('[slots-tela] comprar: ' . $msg);
+            return $falha('Não deu pra comprar o slot agora.');
         }
-
-        // Conta DENTRO da transação: entre a tela carregar e o clique, os
-        // últimos slots podem ter ido.
-        $sc = $pdo->prepare("SELECT COUNT(*) FROM slots_tela WHERE league = ? AND data_live = ?");
-        $sc->execute([$liga, $estado['live']['data']]);
-        if ((int)$sc->fetchColumn() >= SLOTS_TELA_TOTAL) {
-            $pdo->rollBack();
-            return $falha('Os ' . SLOTS_TELA_TOTAL . ' slots desta live já foram.');
-        }
-
-        $up = $pdo->prepare("UPDATE games_usuarios SET fba_points = fba_points - ?
-                              WHERE id = ? AND fba_points >= ?");
-        $up->execute([SLOTS_TELA_PRECO, $userId, SLOTS_TELA_PRECO]);
-        if ($up->rowCount() === 0) {
-            $pdo->rollBack();
-            return $falha('FBA Points insuficientes. O slot custa ' . SLOTS_TELA_PRECO . '.');
-        }
-
-        $pdo->prepare("INSERT INTO slots_tela (league, data_live, inicio_live, team_id, id_usuario, preco)
-                       VALUES (?,?,?,?,?,?)")
-            ->execute([$liga, $estado['live']['data'], $estado['live']['inicio'],
-                       $teamId, $userId, SLOTS_TELA_PRECO]);
-
-        $pdo->commit();
-        return ['ok' => true, 'restam' => max(0, SLOTS_TELA_TOTAL - $estado['vendidos'] - 1)];
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        // O UNIQUE é a última linha de defesa contra o duplo clique: o
-        // segundo INSERT do mesmo time bate aqui, e "já está na tela" é a
-        // resposta certa — não um erro de sistema.
-        if (str_contains($e->getMessage(), 'uk_slot_time') || str_contains($e->getMessage(), 'Duplicate')) {
-            return $falha('Seu time já está na tela desta live.');
-        }
-        error_log('[slots-tela] comprar: ' . $e->getMessage());
-        return $falha('Não deu pra comprar o slot agora.');
     }
+
+    // Perdeu todas as tentativas: a essa altura a live encheu.
+    return $falha('Os ' . SLOTS_TELA_TOTAL . ' slots desta live já foram.');
 }
 
 /**
