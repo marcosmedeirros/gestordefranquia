@@ -264,6 +264,27 @@ if (($ligaDoTimeLive = strtoupper((string)($team['league'] ?? ''))) !== '') {
         // card viraria mais um aviso permanente que ninguém lê.
         if ($est['live'] && $est['live']['data'] === date('Y-m-d')) {
             $leilao = leilaoSemanaDaLiga($pdo, $ligaDoTimeLive, (int)($user['id'] ?? 0));
+
+            /* O DUELO DA SEMANA NUM FORMATO SÓ.
+               Ele vem de dois lugares com chaves diferentes: do histórico,
+               quando o leilão já fechou (time1_nome/time1_logo), e do pódio
+               dos lances, quando ainda está aberto (time_nome/logo). Os dois
+               desenham exatamente a mesma coisa na tela, então viram um par
+               [nome, escudo] aqui — com o markup duplicado, o escudo entraria
+               num dos casos e no outro não. */
+            $duelo = [];
+            if (!empty($leilao['fechado'])) {
+                $f = $leilao['fechado'];
+                $duelo[] = ['nome' => (string)$f['time1_nome'], 'logo' => $f['time1_logo'] ?? null];
+                if (!empty($f['time2_nome'])) {
+                    $duelo[] = ['nome' => (string)$f['time2_nome'], 'logo' => $f['time2_logo'] ?? null];
+                }
+            } else {
+                foreach (array_slice($leilao['podio'] ?? [], 0, 2) as $p) {
+                    $duelo[] = ['nome' => (string)$p['time_nome'], 'logo' => $p['logo'] ?? null];
+                }
+            }
+
             $liveHoje = [
                 'liga'      => $ligaDoTimeLive,
                 'hora'      => slotsTelaHora($est['live']['inicio']),
@@ -276,8 +297,8 @@ if (($ligaDoTimeLive = strtoupper((string)($team['league'] ?? ''))) !== '') {
                 // O jogo da semana pode estar decidido (leilão fechado) ou
                 // ainda em disputa — as duas coisas interessam em dia de
                 // live, e a tela diz qual das duas é.
-                'jogo'      => $leilao['fechado'] ?? null,
-                'podio'     => $leilao['podio'] ?? [],
+                'duelo'     => $duelo,
+                'fechado'   => !empty($leilao['fechado']),
             ];
         }
     } catch (Throwable $e) { error_log('dashboard live do dia: ' . $e->getMessage()); }
@@ -1117,18 +1138,26 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
             color: var(--amber); background: rgba(245,158,11,.12);
             border: 1px solid rgba(245,158,11,.28);
         }
-        .live-jogo { font-size: 14px; font-weight: 700; line-height: 1.4; }
-        .live-x { color: var(--text-3); margin: 0 4px; font-weight: 400; }
+        .live-jogo {
+            font-size: 14px; font-weight: 700; line-height: 1.4;
+            display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+        }
+        .live-lado { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+        /* O escudo do duelo é maior que o dos slots de propósito: é UM jogo,
+           e não uma lista de oito — aqui ele é a informação, lá é etiqueta. */
+        .live-lado img { width: 26px; height: 26px; object-fit: contain; flex: none; }
+        .live-lado.vazio { color: var(--text-3); font-weight: 600; font-size: 12.5px; }
+        .live-x { color: var(--text-3); margin: 0 6px; font-weight: 400; }
         .live-nota { font-size: 11.5px; color: var(--text-3); }
         .live-times { display: flex; flex-wrap: wrap; gap: 6px; }
         .live-time {
-            display: inline-flex; align-items: center; gap: 5px;
-            font-size: 11.5px; font-weight: 600; padding: 3px 8px 3px 4px;
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 11.5px; font-weight: 600; padding: 3px 9px 3px 4px;
             border-radius: 999px; background: var(--panel-3);
             border: 1px solid var(--border); max-width: 100%;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
-        .live-time img { width: 17px; height: 17px; object-fit: contain; flex: none; }
+        .live-time img { width: 20px; height: 20px; object-fit: contain; flex: none; }
         .live-cta {
             display: inline-flex; align-items: center; gap: 6px; margin-top: 9px;
             font-size: 11.5px; font-weight: 700; text-decoration: none;
@@ -1879,23 +1908,24 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
                         <div class="live-grade">
                             <div class="live-bloco">
                                 <div class="live-rot">Jogo da semana</div>
-                                <?php if ($liveHoje['jogo']): ?>
+                                <?php if ($liveHoje['duelo']): ?>
                                     <div class="live-jogo">
-                                        <?= htmlspecialchars((string)$liveHoje['jogo']['time1_nome']) ?>
-                                        <?php if (!empty($liveHoje['jogo']['time2_nome'])): ?>
+                                        <?php foreach ($liveHoje['duelo'] as $i => $d): ?>
+                                            <?php if ($i > 0): ?><span class="live-x">×</span><?php endif; ?>
+                                            <span class="live-lado">
+                                                <img src="<?= htmlspecialchars(getTeamPhoto($d['logo'])) ?>" alt=""
+                                                     onerror="this.src='/img/default-team.png'">
+                                                <?= htmlspecialchars($d['nome']) ?>
+                                            </span>
+                                        <?php endforeach; ?>
+                                        <?php if (count($liveHoje['duelo']) === 1): ?>
                                             <span class="live-x">×</span>
-                                            <?= htmlspecialchars((string)$liveHoje['jogo']['time2_nome']) ?>
+                                            <span class="live-lado vazio">vaga aberta</span>
                                         <?php endif; ?>
                                     </div>
-                                <?php elseif ($liveHoje['podio']): ?>
-                                    <div class="live-jogo">
-                                        <?= htmlspecialchars((string)$liveHoje['podio'][0]['time_nome']) ?>
-                                        <?php if (isset($liveHoje['podio'][1])): ?>
-                                            <span class="live-x">×</span>
-                                            <?= htmlspecialchars((string)$liveHoje['podio'][1]['time_nome']) ?>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div class="live-nota">leilão ainda aberto — pode mudar</div>
+                                    <?php if (!$liveHoje['fechado']): ?>
+                                        <div class="live-nota">leilão ainda aberto — pode mudar</div>
+                                    <?php endif; ?>
                                 <?php else: ?>
                                     <div class="live-nota">ninguém deu lance nesta semana</div>
                                 <?php endif; ?>
