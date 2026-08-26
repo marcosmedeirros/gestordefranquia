@@ -29,11 +29,15 @@ require_once __DIR__ . '/../../backend/db.php';
 /**
  * Os atalhos de tamanho na criação.
  *
- * São só atalhos pra contar: qualquer número de 2 a 64 monta chaveamento,
- * e o que não for potência de 2 vira bye. O 8 entrou porque copa curta é o
- * que cabe numa semana — três rodadas e acabou.
+ * São SÓ ATALHOS PRA CONTAR: qualquer número de 2 a 64 monta chaveamento, e
+ * o que não for potência de 2 vira bye. Nenhum deles trava coisa alguma.
+ *
+ * A lista era 8, 16, 32, 48 e 64 — cinco botões grandes, cada um escrito
+ * "N competidores", e isso passava a ideia de que os cinco eram as opções
+ * possíveis. Agora vai de 4 a 64 passando pelos quebrados, justamente pra a
+ * tela mostrar que 10, 24 ou 40 são tão válidos quanto 32.
  */
-const COPA_TAMANHOS = [8, 16, 32, 48, 64];
+const COPA_TAMANHOS = [4, 6, 8, 10, 12, 16, 20, 24, 32, 40, 48, 64];
 
 /** Teto de competidores. Acima disso o chaveamento não cabe em tela nenhuma. */
 const COPA_MAX = 64;

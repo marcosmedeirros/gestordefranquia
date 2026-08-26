@@ -513,10 +513,21 @@ if ($copa && $userId) {
           link aparece só com o nome — dá pra misturar.
         </div>
         <?php /* Os presets não travam nada: são só um atalho pra saber quantos
-                 faltam. Qualquer número de 2 a 64 monta chaveamento. */ ?>
+                 faltam. Qualquer número de 2 a 64 monta chaveamento.
+
+                 O rótulo perdeu o "competidores" e virou só o número: com a
+                 palavra em cada botão, cinco botões grandes pareciam cinco
+                 OPÇÕES de tamanho, e não uma régua. A frase acima diz o que
+                 eles são, uma vez só. */ ?>
+        <div class="dica" style="margin-top:10px">
+          Vale <b>qualquer número de 2 a <?= COPA_MAX ?></b> — não precisa ser
+          8, 16 ou 32. Quando não fecha em potência de 2, quem sobra
+          <b>passa direto na primeira rodada</b>, e quem passa é sorteado
+          junto com o resto.
+        </div>
         <div class="presets">
           <?php foreach (COPA_TAMANHOS as $tam): ?>
-          <button type="button" class="preset" data-alvo="<?= $tam ?>"><?= $tam ?> competidores</button>
+          <button type="button" class="preset" data-alvo="<?= $tam ?>"><?= $tam ?></button>
           <?php endforeach; ?>
         </div>
       </div>
@@ -962,10 +973,20 @@ if ($copa && $userId) {
 
   document.querySelectorAll('.preset').forEach(function (b) {
     b.addEventListener('click', function () {
-      var faltam = Number(b.dataset.alvo) - limpos().length;
-      prev.textContent = faltam > 0 ? 'Faltam ' + faltam + ' pra chegar em ' + b.dataset.alvo + '.'
-                       : faltam < 0 ? 'Passou ' + (-faltam) + ' de ' + b.dataset.alvo + '.'
-                       : 'São exatamente ' + b.dataset.alvo + '. Pode sortear.';
+      // Diz o que aquele número PRODUZ, e não só quantos faltam: o alvo de
+      // 40 vira um chaveamento de 64 com 24 passando direto, e é isso que
+      // ajuda a escolher — a diferença entre 40 e 48 é quantos passam sem
+      // jogar, não o número em si.
+      var alvo = Number(b.dataset.alvo);
+      var faltam = alvo - limpos().length;
+      var slots = 2; while (slots < alvo) slots *= 2;
+      var byes = slots - alvo;
+      var forma = alvo + ' → chaveamento de ' + slots
+                + (byes ? ', ' + byes + ' passam direto' : ', sem bye');
+
+      prev.textContent = (faltam > 0 ? 'Faltam ' + faltam + '. '
+                        : faltam < 0 ? 'Passou ' + (-faltam) + '. '
+                        : 'É exatamente isso. ') + forma + '.';
     });
   });
 })();
