@@ -26,15 +26,11 @@ $stmtTeam->execute([$userId]);
 $team = $stmtTeam->fetch(PDO::FETCH_ASSOC) ?: null;
 if ($team) { $team['photo_url'] = getTeamPhoto($team['photo_url'] ?? null); }
 
-// Só os jogos que ficaram no catálogo depois da fusão.
-$jogos = [
-    'termo'     => ['label' => 'Termo',       'desc' => 'Diário · acerto vale moedas',  'icon' => 'bi-fonts'],
-    'memoria'   => ['label' => 'Memória',     'desc' => 'Diário · acerto vale moedas',  'icon' => 'bi-grid-3x3-gap-fill'],
-    'bomba'     => ['label' => 'Bomba',       'desc' => 'Diário · diamantes achados',   'icon' => 'bi-gem'],
-    'quemsoueu' => ['label' => 'Quem Sou Eu?','desc' => 'Diário · acerto vale moedas',  'icon' => 'bi-question-circle'],
-    'flappy'    => ['label' => 'Flappy Bird', 'desc' => 'Livre · pontuação da partida', 'icon' => 'bi-airplane'],
-    'pinguim'   => ['label' => 'Pinguim Run', 'desc' => 'Livre · pontuação da partida', 'icon' => 'bi-snow'],
-];
+// A lista vem de backend/games_config.php — a mesma que a aba Games do
+// admin usa. Esta tela tinha a sua própria, com seis jogos, enquanto o
+// catálogo que lê o multiplicador tem onze: cinco ficavam sem controle.
+require_once __DIR__ . '/backend/games_config.php';
+$jogos = gamesComDobro();
 
 $mensagem = '';
 $msgType  = 'success';

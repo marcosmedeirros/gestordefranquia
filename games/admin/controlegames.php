@@ -19,7 +19,11 @@ if (!$user || $user['is_admin'] != 1) {
 
 $mensagem = '';
 $msgType = 'success';
-$gameKeys = ['memoria', 'termo', 'flappy', 'pinguim', 'ai'];
+// A lista sai de backend/games_config.php, a mesma da aba Games do admin.
+// Aqui ela era escrita a mão e tinha 'ai', que nao e jogo — ligar aquele
+// botao nao fazia nada — e nao tinha metade do catalogo que le o dobro.
+require_once __DIR__ . '/../../backend/games_config.php';
+$gameKeys = gamesComDobroChaves();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Ações destrutivas
@@ -88,12 +92,7 @@ try {
 } catch (Exception $e) {
 }
 
-$labelMap = [
-    'memoria' => ['label' => 'Memória', 'desc' => 'Vitória = 200 moedas', 'icon' => 'bi-grid-3x3-gap-fill'],
-    'termo'   => ['label' => 'Termo',   'desc' => 'Vitória = 200 moedas', 'icon' => 'bi-alphabet'],
-    'flappy'  => ['label' => 'Flappy',  'desc' => 'Dobrar moedas',        'icon' => 'bi-wind'],
-    'pinguim' => ['label' => 'Pinguim', 'desc' => 'Dobrar moedas',        'icon' => 'bi-snow2'],
-];
+$labelMap = gamesComDobro();
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">

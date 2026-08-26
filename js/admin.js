@@ -122,6 +122,21 @@ async function showGamesAdmin() {
 
     <div class="panel">
       <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <span><i class="bi bi-toggles" style="color:#38bdf8"></i> Dobro de moedas por jogo</span>
+        <button class="btn btn-sm btn-outline-orange" onclick="_carregarGamesDobro()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+        </button>
+      </div>
+      <div class="small text-secondary mb-2">
+        Cada chave vale na hora, sem salvar. Enquanto estiver ligada, o jogo paga o dobro.
+      </div>
+      <div id="gamesDobroWrap" class="text-center py-3">
+        <div class="spinner-border text-orange"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title d-flex align-items-center justify-content-between flex-wrap gap-2">
         <span><i class="bi bi-hammer" style="color:#f59e0b"></i> Leilão do jogo da semana</span>
         <button class="btn btn-sm btn-outline-orange" onclick="_carregarLeilaoSemana()">
           <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
@@ -154,7 +169,62 @@ async function showGamesAdmin() {
 
   _carregarGamesUsers();
   _carregarAtualizacoes();
+  _carregarGamesDobro();
   _carregarLeilaoSemana();
+}
+
+/* ── Dobro de moedas por jogo ───────────────────────────────────────────
+   A lista vem do servidor (backend/games_config.php), e não daqui: existiam
+   duas telas com listas escritas à mão, cada uma conhecendo um pedaço do
+   catálogo — cinco jogos que leem o multiplicador não apareciam em nenhuma
+   delas. Jogo novo entra na fonte e aparece aqui sozinho. */
+async function _carregarGamesDobro() {
+  const alvo = document.getElementById('gamesDobroWrap');
+  if (!alvo) return;
+  try {
+    const d = await api('admin.php?action=games_dobro_estado');
+    const linhas = (d.jogos || []).map(j => `
+      <div class="d-flex align-items-center justify-content-between gap-3 py-2"
+           style="border-top:1px solid var(--border)">
+        <div class="d-flex align-items-center gap-2" style="min-width:0">
+          <i class="bi ${j.icon}" style="color:var(--text-2)"></i>
+          <div style="min-width:0">
+            <div class="fw-bold">${escapeHtml(j.label)}</div>
+            <div class="small text-secondary">${escapeHtml(j.desc)}</div>
+          </div>
+        </div>
+        <button class="btn btn-sm ${j.on ? 'btn-warning' : 'btn-outline-secondary'}"
+                id="dobro-${j.key}" onclick="_alternarGamesDobro('${j.key}')" style="min-width:92px">
+          ${j.on ? '2× ligado' : 'desligado'}
+        </button>
+      </div>`).join('');
+    alvo.className = '';
+    alvo.innerHTML = linhas || '<div class="small text-secondary py-2">Nenhum jogo configurável.</div>';
+  } catch (e) {
+    alvo.className = '';
+    alvo.innerHTML = `<div class="small text-danger py-2">Não deu pra carregar: ${escapeHtml(e.error || e.message || 'erro')}</div>`;
+  }
+}
+
+async function _alternarGamesDobro(jogo) {
+  const bt = document.getElementById('dobro-' + jogo);
+  if (!bt) return;
+  const ligando = !bt.classList.contains('btn-warning');
+  bt.disabled = true;
+  try {
+    await api('admin.php?action=games_dobro_salvar', {
+      method: 'POST',
+      body: JSON.stringify({ jogo, ligado: ligando }),
+    });
+    // Um jogo por vez: mexer num não pode desligar os outros, que era o que
+    // acontecia quando a tela mandava a lista inteira.
+    bt.classList.toggle('btn-warning', ligando);
+    bt.classList.toggle('btn-outline-secondary', !ligando);
+    bt.textContent = ligando ? '2× ligado' : 'desligado';
+  } catch (e) {
+    showAlert('danger', e.error || e.message || 'Erro ao salvar.');
+  }
+  bt.disabled = false;
 }
 
 /* ── Leilão do jogo da semana ───────────────────────────────────────────

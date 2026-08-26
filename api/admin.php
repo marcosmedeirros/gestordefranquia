@@ -101,6 +101,30 @@ ensureTradeInGameColumn($pdo);
 if ($method === 'GET') {
     switch ($action) {
 
+        case 'games_dobro_estado':
+            // A lista de jogos que aceitam dobro e o que está ligado agora.
+            // Vem de backend/games_config.php, que é a única fonte — as duas
+            // telas antigas tinham listas próprias e divergentes.
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            require_once dirname(__DIR__) . '/backend/games_config.php';
+            $ligados = gamesDobroAtual($pdo);
+            $listaJogos = [];
+            foreach (gamesComDobro() as $chave => $info) {
+                $listaJogos[] = [
+                    'key'   => $chave,
+                    'label' => $info['label'],
+                    'desc'  => $info['desc'],
+                    'icon'  => $info['icon'],
+                    'on'    => (int)($ligados[$chave] ?? 0),
+                ];
+            }
+            echo json_encode(['success' => true, 'jogos' => $listaJogos]);
+            exit;
+
         case 'leilao_semana_estado':
             // O que está em disputa em cada liga, pro painel da aba Games
             // mostrar o confronto ANTES do botão: fechar cobra FBA Points de
@@ -2649,6 +2673,28 @@ if ($method === 'POST') {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Erro ao salvar o convite.']);
             }
+            exit;
+
+        case 'games_dobro_salvar':
+            // UM JOGO POR VEZ. As telas antigas mandavam a lista inteira, e
+            // como cada uma conhecia só um pedaço do catálogo, salvar numa
+            // delas desligava o dobro dos jogos que ela não listava.
+            if (!hasGamesAdminAccess($pdo, (int)$user['id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'error' => 'Sem acesso ao admin do Games']);
+                exit;
+            }
+            require_once dirname(__DIR__) . '/backend/games_config.php';
+            $jogoDobro = (string)($data['jogo'] ?? '');
+            $ligadoDobro = !empty($data['ligado']);
+            if (!gamesDobroSalvar($pdo, $jogoDobro, $ligadoDobro)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Jogo inválido']);
+                exit;
+            }
+            error_log(sprintf('[games_dobro] %s = %d por user_id=%d',
+                $jogoDobro, $ligadoDobro ? 1 : 0, (int)$user['id']));
+            echo json_encode(['success' => true, 'jogo' => $jogoDobro, 'ligado' => $ligadoDobro]);
             exit;
 
         case 'leilao_semana_fechar':
