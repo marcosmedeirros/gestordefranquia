@@ -246,6 +246,43 @@ try {
 foreach ($leagueVideoCards as &$vcDef) { $vcDef['embed'] = resolveVideoEmbed($vcDef['url']); }
 unset($vcDef);
 
+/* ── O DIA DA LIVE ───────────────────────────────────────────────────────
+   Um card que só existe HOJE, e só se hoje tem live da regular da liga do
+   GM. Junta as três coisas que a pessoa procura em dia de live: a hora, o
+   jogo que foi comprado na semana e quem levou os slots de tela.
+
+   É por isso que ele fica acima do "Rolando na": sorteio aberto dura dias,
+   live é hoje — e o que é de hoje tem que vir primeiro. */
+$liveHoje = null;
+if (($ligaDoTimeLive = strtoupper((string)($team['league'] ?? ''))) !== '') {
+    try {
+        require_once __DIR__ . '/backend/slots_tela.php';
+        require_once __DIR__ . '/backend/leilao_semana.php';
+
+        $est = slotsTelaEstado($pdo, $ligaDoTimeLive, (int)($team['id'] ?? 0));
+        // SÓ HOJE. Uma live marcada pra quinta não é notícia na segunda, e o
+        // card viraria mais um aviso permanente que ninguém lê.
+        if ($est['live'] && $est['live']['data'] === date('Y-m-d')) {
+            $leilao = leilaoSemanaDaLiga($pdo, $ligaDoTimeLive, (int)($user['id'] ?? 0));
+            $liveHoje = [
+                'liga'      => $ligaDoTimeLive,
+                'hora'      => slotsTelaHora($est['live']['inicio']),
+                'titulo'    => $est['live']['titulo'],
+                'slots'     => $est['lista'],
+                'restam'    => $est['restam'],
+                'total'     => $est['total'],
+                'venda'     => $est['motivo'],
+                'abre'      => slotsTelaHora($est['abre_em']),
+                // O jogo da semana pode estar decidido (leilão fechado) ou
+                // ainda em disputa — as duas coisas interessam em dia de
+                // live, e a tela diz qual das duas é.
+                'jogo'      => $leilao['fechado'] ?? null,
+                'podio'     => $leilao['podio'] ?? [],
+            ];
+        }
+    } catch (Throwable $e) { error_log('dashboard live do dia: ' . $e->getMessage()); }
+}
+
 // Roletas e drafts aleatórios abertos na liga do GM. Só aparece card quando
 // existe algo em andamento — não é um atalho fixo, é um aviso de "tem sorteio
 // rolando agora". Tudo em best-effort: a tabela pode nem existir no banco.
@@ -1054,6 +1091,51 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
         }
         .bc-link:hover { color: var(--red); }
 
+        /* ── Dia de live ────────────────────────────────────────────────
+           Duas colunas: o que vai passar e quem vai aparecer. No celular
+           viram duas linhas — a lista de times não cabe ao lado do jogo
+           numa tela estreita sem quebrar os dois. */
+        .live-card { border-color: rgba(239,68,68,.28); }
+        .live-hora {
+            font-size: 15px; font-weight: 800; color: #ef4444;
+            font-variant-numeric: tabular-nums;
+        }
+        .live-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        @media (max-width: 640px) { .live-grade { grid-template-columns: 1fr; } }
+        .live-bloco {
+            background: var(--panel-2); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 12px 14px; min-width: 0;
+        }
+        .live-rot {
+            font-size: 10.5px; font-weight: 800; letter-spacing: .06em;
+            text-transform: uppercase; color: var(--text-3); margin-bottom: 7px;
+            display: flex; align-items: center; gap: 7px;
+        }
+        .live-conta {
+            font-size: 10px; font-weight: 800; letter-spacing: 0;
+            padding: 1px 6px; border-radius: 999px;
+            color: var(--amber); background: rgba(245,158,11,.12);
+            border: 1px solid rgba(245,158,11,.28);
+        }
+        .live-jogo { font-size: 14px; font-weight: 700; line-height: 1.4; }
+        .live-x { color: var(--text-3); margin: 0 4px; font-weight: 400; }
+        .live-nota { font-size: 11.5px; color: var(--text-3); }
+        .live-times { display: flex; flex-wrap: wrap; gap: 6px; }
+        .live-time {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-size: 11.5px; font-weight: 600; padding: 3px 8px 3px 4px;
+            border-radius: 999px; background: var(--panel-3);
+            border: 1px solid var(--border); max-width: 100%;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .live-time img { width: 17px; height: 17px; object-fit: contain; flex: none; }
+        .live-cta {
+            display: inline-flex; align-items: center; gap: 6px; margin-top: 9px;
+            font-size: 11.5px; font-weight: 700; text-decoration: none;
+            color: var(--amber);
+        }
+        .live-cta:hover { text-decoration: underline; }
+
         /* ── Sorteios abertos na liga (roletas / drafts aleatórios) ── */
         .sorteio-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
         .sorteio-item {
@@ -1782,6 +1864,80 @@ $playersPct = $maxPlayers > 0 ? min(100, round(($totalPlayers / $maxPlayers) * 1
 
             <!-- Bento grid -->
             <div class="bento">
+
+                <?php if ($liveHoje): ?>
+                <!-- ── Dia de live ── -->
+                <div class="bc span-3 live-card" style="animation-delay:.20s">
+                    <div class="bc-head">
+                        <div class="bc-title">
+                            <i class="bi bi-broadcast" style="color:#ef4444"></i>
+                            Hoje tem live da <?= htmlspecialchars($liveHoje['liga']) ?>
+                        </div>
+                        <span class="live-hora"><?= htmlspecialchars($liveHoje['hora']) ?></span>
+                    </div>
+                    <div class="bc-body">
+                        <div class="live-grade">
+                            <div class="live-bloco">
+                                <div class="live-rot">Jogo da semana</div>
+                                <?php if ($liveHoje['jogo']): ?>
+                                    <div class="live-jogo">
+                                        <?= htmlspecialchars((string)$liveHoje['jogo']['time1_nome']) ?>
+                                        <?php if (!empty($liveHoje['jogo']['time2_nome'])): ?>
+                                            <span class="live-x">×</span>
+                                            <?= htmlspecialchars((string)$liveHoje['jogo']['time2_nome']) ?>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php elseif ($liveHoje['podio']): ?>
+                                    <div class="live-jogo">
+                                        <?= htmlspecialchars((string)$liveHoje['podio'][0]['time_nome']) ?>
+                                        <?php if (isset($liveHoje['podio'][1])): ?>
+                                            <span class="live-x">×</span>
+                                            <?= htmlspecialchars((string)$liveHoje['podio'][1]['time_nome']) ?>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="live-nota">leilão ainda aberto — pode mudar</div>
+                                <?php else: ?>
+                                    <div class="live-nota">ninguém deu lance nesta semana</div>
+                                <?php endif; ?>
+                            </div>
+
+                            <div class="live-bloco">
+                                <div class="live-rot">
+                                    Na tela
+                                    <span class="live-conta"><?= count($liveHoje['slots']) ?>/<?= (int)$liveHoje['total'] ?></span>
+                                </div>
+                                <?php if ($liveHoje['slots']): ?>
+                                    <div class="live-times">
+                                        <?php foreach ($liveHoje['slots'] as $s): ?>
+                                        <span class="live-time" title="<?= htmlspecialchars(trim(($s['time_cidade'] ?? '') . ' ' . ($s['time_nome'] ?? ''))) ?>">
+                                            <img src="<?= htmlspecialchars(getTeamPhoto($s['logo'] ?? null)) ?>" alt=""
+                                                 onerror="this.src='/img/default-team.png'">
+                                            <?= htmlspecialchars((string)($s['time_nome'] ?? '')) ?>
+                                        </span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="live-nota">
+                                        <?php if ($liveHoje['venda'] === 'cedo'): ?>
+                                            os slots abrem às <?= htmlspecialchars($liveHoje['abre']) ?>
+                                        <?php else: ?>
+                                            nenhum slot comprado
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if ($liveHoje['restam'] > 0 && $liveHoje['venda'] !== 'comecou'): ?>
+                                    <a class="live-cta" href="/games.php?aba=loja">
+                                        <i class="bi bi-tv"></i>
+                                        <?= $liveHoje['venda'] === 'cedo'
+                                              ? 'Ver o slot de tela'
+                                              : 'Pegar um slot — ' . (int)$liveHoje['restam'] . ' livre' . ($liveHoje['restam'] > 1 ? 's' : '') ?>
+                                    </a>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
 
                 <?php if ($eventosSorteio): ?>
                 <!-- ── Sorteios abertos na liga ── -->

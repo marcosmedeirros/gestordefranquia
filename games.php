@@ -163,6 +163,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['loja_acao'])) {
         $r = lojaConverter($pdo, $userId, (int)($_POST['moedas'] ?? 0));
         if ($r['ok']) { $lojaMsg = "Trocou {$r['convertidas']} moedas por {$r['ganhos']} FBA Points."; }
         else          { $lojaErro = $r['erro']; }
+    } elseif ($acao === 'slot_tela') {
+        require_once __DIR__ . '/backend/slots_tela.php';
+        $r = slotsTelaComprar(
+            $pdo, $userId,
+            (int)($_POST['team_id'] ?? 0),
+            (string)($_POST['liga'] ?? '')
+        );
+        if ($r['ok']) {
+            $lojaMsg = 'Slot comprado! Seu time aparece na tela da live'
+                     . ($r['restam'] > 0 ? ' — sobraram ' . $r['restam'] . '.' : ' — era o último.');
+        } else { $lojaErro = $r['erro']; }
     } elseif ($acao === 'leilao_semana') {
         require_once __DIR__ . '/backend/leilao_semana.php';
         $r = leilaoSemanaOfertar(
@@ -968,6 +979,29 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
         display:flex; align-items:center; gap:6px; }
     .lj-vazio { font-size:12.5px; color:var(--text-3); text-align:center; padding:18px 8px;
         line-height:1.6; }
+
+    /* ── Slot de tela da live ──────────────────────────────────────────
+       As oito vagas viram oito quadradinhos: cheio mostra o escudo, vazio
+       fica pontilhado. É a informação que a pessoa vem ver — quantos
+       sobraram — sem precisar contar nomes numa lista. */
+    .st-card { margin-bottom:6px }
+    .st-topo { display:flex; align-items:center; justify-content:space-between;
+        gap:12px; flex-wrap:wrap; margin-bottom:10px }
+    .st-quando { font-size:15px; font-weight:700 }
+    .st-quando b { color:var(--amber) }
+    .st-sub { font-size:11.5px; color:var(--text-3); margin-top:2px }
+    .st-vagas { display:flex; gap:5px; flex-wrap:wrap }
+    .st-vaga { width:30px; height:30px; border-radius:8px; flex:none;
+        border:1px dashed var(--border); display:flex; align-items:center;
+        justify-content:center; background:rgba(255,255,255,.02) }
+    .st-vaga.cheia { border-style:solid; border-color:rgba(245,158,11,.35);
+        background:rgba(245,158,11,.08) }
+    .st-vaga img { width:22px; height:22px; object-fit:contain }
+    .st-txt { font-size:11.5px; color:var(--text-3); line-height:1.6; margin:0 0 10px }
+    .st-form .lj-btn { width:100% }
+    .st-aviso { display:flex; align-items:center; justify-content:center; gap:7px;
+        font-size:12px; color:var(--text-3); padding:9px 10px; border-radius:8px;
+        background:color-mix(in srgb, var(--text-3) 8%, transparent); text-align:center }
     /* Leilão encerrado: o card fica sendo o placar do jogo definido, e o
        aviso ocupa o lugar onde antes ficava o campo de lance. */
     .lj-fechado { margin-top:12px; font-size:11.5px; color:var(--text-3);
@@ -1429,6 +1463,91 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
                 </div>
                 <?php endforeach; ?>
             </div>
+
+            <?php
+              /* ── Slot de tela da live ────────────────────────────────
+                 Fica FORA da grade de itens de propósito: os outros ficam
+                 lá parados esperando alguém juntar pontos, e este só existe
+                 numa janela de uma hora por semana. Misturado com eles, o
+                 card estaria cinza quase o tempo todo e ninguém entenderia
+                 por quê. */
+              require_once __DIR__ . '/backend/slots_tela.php';
+              $minhaLiga = strtoupper((string)($team['league'] ?? ''));
+              $slots = $minhaLiga !== ''
+                  ? slotsTelaEstado($pdo, $minhaLiga, (int)($team['id'] ?? 0))
+                  : null;
+            ?>
+            <?php if ($slots && $slots['live']): ?>
+            <div class="sec-label"><i class="bi bi-tv"></i> Slot de tela · live da <?= htmlspecialchars($minhaLiga) ?></div>
+            <?php
+              $horaLive = slotsTelaHora($slots['live']['inicio']);
+              $horaAbre = slotsTelaHora($slots['abre_em']);
+              $diaLive  = date('d/m', strtotime($slots['live']['inicio']));
+              $hoje     = date('Y-m-d') === $slots['live']['data'];
+            ?>
+            <div class="card st-card">
+              <div class="card-body" style="padding:14px">
+                <div class="st-topo">
+                  <div>
+                    <div class="st-quando">
+                      <?= $hoje ? 'Hoje' : $diaLive ?> às <b><?= htmlspecialchars($horaLive) ?></b>
+                    </div>
+                    <div class="st-sub">
+                      <?= (int)$slots['restam'] ?> de <?= (int)$slots['total'] ?> slots livres
+                    </div>
+                  </div>
+                  <div class="st-vagas">
+                    <?php for ($i = 0; $i < (int)$slots['total']; $i++):
+                      $ocupado = $slots['lista'][$i] ?? null; ?>
+                      <span class="st-vaga <?= $ocupado ? 'cheia' : '' ?>"
+                            title="<?= $ocupado ? htmlspecialchars(trim(($ocupado['time_cidade'] ?? '') . ' ' . ($ocupado['time_nome'] ?? ''))) : 'livre' ?>">
+                        <?php if ($ocupado): ?>
+                          <img src="<?= htmlspecialchars(getTeamPhoto($ocupado['logo'] ?? null)) ?>" alt=""
+                               onerror="this.src='/img/default-team.png'">
+                        <?php endif; ?>
+                      </span>
+                    <?php endfor; ?>
+                  </div>
+                </div>
+
+                <p class="st-txt">
+                  Oito times aparecem na tela durante a live. Quem compra primeiro leva —
+                  a venda abre <b>uma hora antes</b> e fecha quando a live começa ou quando
+                  os oito acabam.
+                </p>
+
+                <?php if ($slots['aberta']): ?>
+                  <form method="post" class="st-form">
+                    <input type="hidden" name="loja_acao" value="slot_tela">
+                    <input type="hidden" name="liga" value="<?= htmlspecialchars($minhaLiga) ?>">
+                    <input type="hidden" name="team_id" value="<?= (int)($team['id'] ?? 0) ?>">
+                    <button class="lj-btn" <?= (int)$perfil['fba_points'] >= (int)$slots['preco'] ? '' : 'disabled' ?>>
+                      <i class="bi bi-tv me-1"></i>
+                      <?php if ((int)$perfil['fba_points'] >= (int)$slots['preco']): ?>
+                        Comprar slot · <?= (int)$slots['preco'] ?> FBA Points
+                      <?php else: ?>
+                        Faltam <?= (int)$slots['preco'] - (int)$perfil['fba_points'] ?> FBA Points
+                      <?php endif; ?>
+                    </button>
+                  </form>
+                <?php else: ?>
+                  <div class="st-aviso">
+                    <?php if ($slots['motivo'] === 'ja_tenho'): ?>
+                      <i class="bi bi-check-circle-fill" style="color:#22c55e"></i>
+                      Seu time já está na tela desta live.
+                    <?php elseif ($slots['motivo'] === 'esgotado'): ?>
+                      <i class="bi bi-lock-fill"></i> Os oito slots já foram.
+                    <?php elseif ($slots['motivo'] === 'comecou'): ?>
+                      <i class="bi bi-broadcast"></i> A live já começou — a venda fechou.
+                    <?php else: ?>
+                      <i class="bi bi-clock"></i> A venda abre
+                      <?= $hoje ? 'hoje' : 'dia ' . $diaLive ?> às <b><?= htmlspecialchars($horaAbre) ?></b>.
+                    <?php endif; ?>
+                  </div>
+                <?php endif; ?>
+              </div>
+            </div>
+            <?php endif; ?>
 
             <?php
               // ── Leilão do jogo da semana ────────────────────────────
