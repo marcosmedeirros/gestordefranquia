@@ -984,7 +984,12 @@ if ($lojaMsg || $lojaErro) $abaInicial = 'loja';
        As oito vagas viram oito quadradinhos: cheio mostra o escudo, vazio
        fica pontilhado. É a informação que a pessoa vem ver — quantos
        sobraram — sem precisar contar nomes numa lista. */
-    .st-card { margin-bottom:6px }
+    /* O respiro fica AQUI, e não num margin-top no título do leilão: o
+       título já aparece em outras situações (sem o card de slot, o que vem
+       acima é a grade de itens, que tem o espaçamento dela). Assim o ajuste
+       vale só quando este card existe. 26px é o mesmo intervalo que a loja
+       usa entre "Meus itens" e o que vem antes. */
+    .st-card { margin-bottom:26px }
     .st-topo { display:flex; align-items:center; justify-content:space-between;
         gap:12px; flex-wrap:wrap; margin-bottom:10px }
     .st-quando { font-size:15px; font-weight:700 }
