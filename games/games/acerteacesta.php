@@ -36,12 +36,18 @@ const CESTA_VEL_MAX   = 1.8;
 /**
  * Margem sobre o tempo mínimo teórico.
  *
- * O tempo mínimo é o do jogo PERFEITO — acertar em toda travessia, sem perder
- * uma. Ninguém joga assim, então a checagem só precisa recusar quem foi mais
- * rápido que o possível; 0,75 deixa um quarto de folga pra lag, timer do
- * navegador e a diferença entre o relógio da tela e o do servidor.
+ * O tempo "mínimo" é uma MÉDIA — meia barra por cesta —, e média não é piso:
+ * quem tem sorte na posição da zona várias vezes seguidas passa por baixo dela
+ * sem trapacear nada. Com 0,75 eu vi um piloto que acerta todas levar cinco
+ * pings recusados numa partida honesta, sempre no mesmo trecho: as dez
+ * primeiras cestas, quando a barra ainda está lenta e cada sorte pesa mais.
+ *
+ * 0,5 é o dobro de folga e continua recusando o que importa: o ritmo constante
+ * e alto que nenhuma sequência de sorte explica. Errar pro lado de aceitar é
+ * barato aqui — o farm ainda esbarra no passo do ping e na folga menor que o
+ * marco. Errar pro lado de recusar tira moeda de quem jogou.
  */
-const CESTA_MARGEM_TEMPO = 0.75;
+const CESTA_MARGEM_TEMPO = 0.5;
 
 /**
  * Quanto tempo a barra leva, no mínimo, pra entregar N cestas.
@@ -119,6 +125,25 @@ function cestaMoedasPorScore(int $score): int
     return intdiv(max(0, $score), CESTA_MARCO);
 }
 
+/**
+ * A CORRIDA DOS MARCOS — o prêmio que vem do total de todas as partidas.
+ *
+ * A cada 5.000 cestas somadas na vida, quem cruza a linha leva moedas. O
+ * PRIMEIRO a chegar em cada marco leva 200; quem chegar depois leva 50. E o
+ * primeiro a bater 50.000 leva também FBA Points, que é a moeda que não se
+ * ganha jogando em lugar nenhum.
+ *
+ * Os 200 do primeiro existem pra dar corrida: se todo mundo ganhasse igual, o
+ * marco seria só um relógio, e chegar antes não valeria nada. Os 50 dos demais
+ * existem pelo motivo oposto — sem eles, quem perdeu a corrida por um dia não
+ * teria por que continuar, e o ranking congelaria nos primeiros colocados.
+ */
+const CESTA_MARCO_TOTAL     = 5000;
+const CESTA_MARCO_MAX       = 50000;
+const CESTA_PREMIO_PRIMEIRO = 200;
+const CESTA_PREMIO_DEMAIS   = 50;
+const CESTA_FBA_FINAL       = 50;
+
 function cestaTabela(PDO $pdo): void
 {
     $pdo->exec("CREATE TABLE IF NOT EXISTS acerteacesta_historico (
@@ -129,6 +154,80 @@ function cestaTabela(PDO $pdo): void
         INDEX idx_ac_user (id_usuario),
         INDEX idx_ac_score (pontuacao)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // A UNIQUE é o coração disto: é ela que garante que um marco pague uma vez
+    // só por pessoa, mesmo se duas partidas terminarem no mesmo instante ou se
+    // alguém reenviar o salvamento.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS acerteacesta_marcos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        id_usuario INT NOT NULL,
+        marco INT NOT NULL,
+        primeiro TINYINT(1) NOT NULL DEFAULT 0,
+        moedas INT NOT NULL DEFAULT 0,
+        fba_points INT NOT NULL DEFAULT 0,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_ac_marco (id_usuario, marco),
+        INDEX idx_ac_marco (marco)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+
+/**
+ * O próximo marco e quanto falta pra ele — ou null, pra quem já fechou os
+ * 50.000 e não tem mais linha pela frente.
+ */
+function cestaProximoMarco(int $total): ?array
+{
+    if ($total >= CESTA_MARCO_MAX) return null;
+    $proximo = (intdiv($total, CESTA_MARCO_TOTAL) + 1) * CESTA_MARCO_TOTAL;
+    return ['marco' => $proximo, 'faltam' => $proximo - $total];
+}
+
+/**
+ * Paga os marcos que a pessoa cruzou nesta partida.
+ *
+ * Roda DENTRO da transação do salvamento, junto com o registro da partida: se
+ * o prêmio falhar, a partida também não é gravada, e não sobra um total que
+ * atravessou o marco sem ter pago.
+ *
+ * Uma partida pode cruzar mais de um marco — quem estava em 4.990 e fez 60
+ * cestas passa por 5.000 de uma vez só. Por isso o laço, e não um `if`.
+ *
+ * @return array<int,array{marco:int,primeiro:bool,moedas:int,fba:int}>
+ */
+function cestaPagarMarcos(PDO $pdo, int $userId, int $totalAntes, int $totalDepois): array
+{
+    $ganhos = [];
+    $de  = intdiv(min($totalAntes,  CESTA_MARCO_MAX), CESTA_MARCO_TOTAL);
+    $ate = intdiv(min($totalDepois, CESTA_MARCO_MAX), CESTA_MARCO_TOTAL);
+    if ($ate <= $de) return $ganhos;
+
+    $checarPrimeiro = $pdo->prepare("SELECT COUNT(*) FROM acerteacesta_marcos WHERE marco = ?");
+    $registrar = $pdo->prepare("INSERT IGNORE INTO acerteacesta_marcos
+                                (id_usuario, marco, primeiro, moedas, fba_points) VALUES (?,?,?,?,?)");
+    $pagarMoedas = $pdo->prepare("UPDATE games_usuarios SET pontos = COALESCE(pontos,0) + ? WHERE id = ?");
+    $pagarFba    = $pdo->prepare("UPDATE games_usuarios SET fba_points = COALESCE(fba_points,0) + ? WHERE id = ?");
+
+    for ($n = $de + 1; $n <= $ate; $n++) {
+        $marco = $n * CESTA_MARCO_TOTAL;
+
+        $checarPrimeiro->execute([$marco]);
+        $primeiro = (int)$checarPrimeiro->fetchColumn() === 0;
+
+        $moedas = $primeiro ? CESTA_PREMIO_PRIMEIRO : CESTA_PREMIO_DEMAIS;
+        // O FBA Point é só do primeiro a cruzar a última linha. É o prêmio de
+        // chegar ao fim da corrida inteira, não de bater mais um marco.
+        $fba = ($primeiro && $marco >= CESTA_MARCO_MAX) ? CESTA_FBA_FINAL : 0;
+
+        $registrar->execute([$userId, $marco, $primeiro ? 1 : 0, $moedas, $fba]);
+        // Sem linha nova, alguém já tinha esse marco: não paga de novo.
+        if ($registrar->rowCount() === 0) continue;
+
+        $pagarMoedas->execute([$moedas, $userId]);
+        if ($fba > 0) $pagarFba->execute([$fba, $userId]);
+
+        $ganhos[] = ['marco' => $marco, 'primeiro' => $primeiro, 'moedas' => $moedas, 'fba' => $fba];
+    }
+    return $ganhos;
 }
 
 // ── Ações do jogo ────────────────────────────────────────────────────────────
@@ -206,8 +305,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             // existe uma, e o que aparece na tela é literalmente o que o
             // servidor pagaria se a partida acabasse agora.
             echo json_encode([
-                'sucesso' => true,
-                'moedas'  => cestaMoedasPorScore((int)$_SESSION['cesta_progresso']) * $pointsMultiplier,
+                'sucesso'   => true,
+                'progresso' => (int)$_SESSION['cesta_progresso'],
+                'moedas'    => cestaMoedasPorScore((int)$_SESSION['cesta_progresso']) * $pointsMultiplier,
             ]);
             exit;
         }
@@ -231,15 +331,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             $ganhou = max(0, $devido - $pagas);
 
             $pdo->beginTransaction();
+
+            // O total ANTES desta partida — é ele que diz quais marcos a
+            // partida atravessou. Lido dentro da transação, junto do resto.
+            $st = $pdo->prepare("SELECT COALESCE(SUM(pontuacao),0) FROM acerteacesta_historico WHERE id_usuario = ?");
+            $st->execute([$userId]);
+            $totalAntes = (int)$st->fetchColumn();
+
             $pdo->prepare("INSERT INTO acerteacesta_historico (id_usuario, pontuacao) VALUES (?,?)")
                 ->execute([$userId, $score]);
             if ($ganhou > 0) {
                 $pdo->prepare("UPDATE games_usuarios SET pontos = COALESCE(pontos,0) + ? WHERE id = ?")
                     ->execute([$ganhou, $userId]);
             }
-            $st = $pdo->prepare("SELECT COALESCE(pontos,0) FROM games_usuarios WHERE id = ?");
+
+            $totalDepois = $totalAntes + $score;
+            $marcos = cestaPagarMarcos($pdo, $userId, $totalAntes, $totalDepois);
+
+            $st = $pdo->prepare("SELECT COALESCE(pontos,0), COALESCE(fba_points,0) FROM games_usuarios WHERE id = ?");
             $st->execute([$userId]);
-            $saldo = (int)$st->fetchColumn();
+            [$saldo, $fbaSaldo] = array_map('intval', $st->fetch(PDO::FETCH_NUM) ?: [0, 0]);
             $pdo->commit();
 
             $_SESSION['cesta_run_ativa'] = false;
@@ -249,7 +360,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             $st->execute([$userId]);
 
             echo json_encode(['sucesso' => true, 'score' => $score, 'moedas' => $ganhou,
-                              'saldo' => $saldo, 'recorde' => (int)$st->fetchColumn()]);
+                              'saldo' => $saldo, 'fba' => $fbaSaldo,
+                              'recorde' => (int)$st->fetchColumn(),
+                              'total' => $totalDepois,
+                              'faltaPro' => cestaProximoMarco($totalDepois),
+                              'marcos' => $marcos]);
             exit;
         }
 
@@ -278,6 +393,10 @@ try {
 // O recorde vinha de uma variável do navegador: recarregou a página, zerou.
 $recorde = 0;
 $ranking = [];
+$rankingTotal = [];
+$meuTotal = 0;
+$meuProximo = null;
+$donosDoMarco = [];
 try {
     $st = $pdo->prepare('SELECT MAX(pontuacao) FROM acerteacesta_historico WHERE id_usuario = ?');
     $st->execute([$userId]);
@@ -291,6 +410,33 @@ try {
                        ORDER BY recorde DESC, u.nome LIMIT 5");
     $st->execute(['medeirros99@gmail.com']);
     $ranking = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    // O segundo ranking é por SOMA, não por recorde: é ele que decide a corrida
+    // dos marcos, e uma corrida em que ninguém vê a posição de ninguém não é
+    // corrida. São dois jeitos de ser bom — a melhor partida e o total da vida.
+    $st = $pdo->prepare("SELECT u.nome, SUM(h.pontuacao) AS total
+                           FROM acerteacesta_historico h
+                           JOIN games_usuarios u ON u.id = h.id_usuario
+                          WHERE LOWER(u.email) <> ?
+                       GROUP BY h.id_usuario, u.nome
+                       ORDER BY total DESC, u.nome LIMIT 5");
+    $st->execute(['medeirros99@gmail.com']);
+    $rankingTotal = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    $st = $pdo->prepare('SELECT COALESCE(SUM(pontuacao),0) FROM acerteacesta_historico WHERE id_usuario = ?');
+    $st->execute([$userId]);
+    $meuTotal = (int)$st->fetchColumn();
+    $meuProximo = cestaProximoMarco($meuTotal);
+
+    // Quem já levou cada marco, pra tela mostrar as linhas que ainda estão em
+    // aberto — a corrida só vale se dá pra ver o que ainda não foi tomado.
+    $st = $pdo->query("SELECT m.marco, u.nome
+                         FROM acerteacesta_marcos m
+                         JOIN games_usuarios u ON u.id = m.id_usuario
+                        WHERE m.primeiro = 1
+                     ORDER BY m.marco");
+    $donosDoMarco = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $donosDoMarco[(int)$r['marco']] = $r['nome'];
 } catch (PDOException $e) {
     // Ranking é enfeite: se falhar, o jogo continua de pé.
 }
@@ -616,6 +762,61 @@ try {
                     <?php endforeach; ?>
                 </div>
                 <?php endif; ?>
+
+                <?php /* A corrida dos 5 mil. Fica abaixo do ranking de melhor
+                         partida porque é o objetivo LONGO: a melhor marca sai
+                         numa tarde de sorte, o total é de quem volta. */ ?>
+                <div class="mt-3 pt-3" style="border-top:1px solid var(--border)">
+                    <div class="stat-label mb-2"><i class="bi bi-flag-fill" style="color:#f43f5e"></i> Corrida dos 5 mil</div>
+
+                    <div class="small text-secondary mb-2" style="line-height:1.5">
+                        A cada <b>5.000 cestas somadas</b>, quem chega <b>primeiro</b> leva
+                        <b><?= CESTA_PREMIO_PRIMEIRO ?> moedas</b> e os demais <b><?= CESTA_PREMIO_DEMAIS ?></b>.
+                        O primeiro a bater <b>50.000</b> leva ainda <b><?= CESTA_FBA_FINAL ?> FBA Points</b>.
+                    </div>
+
+                    <div class="small py-1" style="border-top:1px solid var(--border);padding-top:8px">
+                        <div class="d-flex justify-content-between">
+                            <span class="text-secondary">Seu total</span>
+                            <b><?= number_format($meuTotal, 0, ',', '.') ?></b>
+                        </div>
+                        <?php if ($meuProximo): ?>
+                        <div class="d-flex justify-content-between mt-1">
+                            <span class="text-secondary">Faltam pro marco de <?= number_format($meuProximo['marco'], 0, ',', '.') ?></span>
+                            <b style="color:#f5c542"><?= number_format($meuProximo['faltam'], 0, ',', '.') ?></b>
+                        </div>
+                        <?php else: ?>
+                        <div class="mt-1" style="color:#22c55e">Você fechou a corrida inteira.</div>
+                        <?php endif; ?>
+                    </div>
+
+                    <?php if ($rankingTotal): ?>
+                    <div class="mt-2 pt-2" style="border-top:1px solid var(--border)">
+                        <div class="stat-label mb-1">Total de cestas</div>
+                        <?php foreach ($rankingTotal as $i => $r): ?>
+                        <div class="d-flex justify-content-between align-items-center small py-1">
+                            <span class="text-secondary text-truncate" style="max-width:70%">
+                                <b style="color:<?= $i === 0 ? '#f5c542' : 'var(--text-2, #8b8b95)' ?>"><?= $i + 1 ?>º</b>
+                                <?= htmlspecialchars($r['nome']) ?>
+                            </span>
+                            <b><?= number_format((int)$r['total'], 0, ',', '.') ?></b>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+
+                    <?php if ($donosDoMarco): ?>
+                    <div class="mt-2 pt-2" style="border-top:1px solid var(--border)">
+                        <div class="stat-label mb-1">Marcos já tomados</div>
+                        <?php foreach ($donosDoMarco as $marco => $quem): ?>
+                        <div class="d-flex justify-content-between align-items-center small py-1">
+                            <span class="text-secondary"><?= number_format($marco, 0, ',', '.') ?></span>
+                            <span class="text-truncate" style="max-width:60%"><?= htmlspecialchars($quem) ?></span>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </div>
@@ -778,14 +979,36 @@ try {
             .catch(() => ({ erro: 'sem resposta' }));
     };
 
-    let ultimoPing = 0;
+    /**
+     * Reporta progresso — sempre a partir do que o servidor JÁ CONFIRMOU.
+     *
+     * O contador antes era o score local, e ele avançava mandando o ping,
+     * confirmado ou não. Bastava um ping se perder pra o seguinte virar um
+     * salto de quatro cestas em vez de duas — e a trava de ritmo, que existe
+     * pra recusar salto, recusava. Aí o confirmado ficava ainda mais pra trás
+     * e o salto seguinte era maior: uma vez que começava, não parava mais.
+     * Vi isso no log numa partida honesta, com os pings 10, 12, 14 e 16
+     * recusados em sequência.
+     *
+     * Mandando `confirmado + 2`, um ping perdido custa só um atraso: o próximo
+     * refaz o degrau que faltou, o servidor aceita, e o progresso alcança o
+     * placar sozinho.
+     */
+    const CESTA_PASSO = <?= CESTA_PASSO_PING ?>;
+    let confirmado = 0;
     const reportarProgresso = () => {
-        if (score - ultimoPing < 2) return;
-        ultimoPing = score;
-        enviar('progresso', { score }).then(d => {
+        if (score - confirmado < CESTA_PASSO) return;
+        const alvo = Math.min(score, confirmado + CESTA_PASSO);
+        enviar('progresso', { score: alvo }).then(d => {
             if (!d || !d.sucesso) return;
+            confirmado = d.progresso !== undefined ? d.progresso : alvo;
             // O prêmio aparece na tela vindo do servidor, nunca calculado aqui.
             setFeedback(`${score} cestas · ${d.moedas} moeda${d.moedas === 1 ? '' : 's'} garantida${d.moedas === 1 ? '' : 's'}`, true);
+            // Ainda há cestas por confirmar (ping perdido, ou a pessoa pontuou
+            // enquanto este voltava): manda o próximo degrau agora, sem esperar
+            // o acerto seguinte — se a partida acabar antes, o que não foi
+            // confirmado não paga.
+            if (score - confirmado >= CESTA_PASSO) reportarProgresso();
         });
     };
 
@@ -882,9 +1105,30 @@ try {
                     // Duas causas bem diferentes pra zero moedas, e dizer a errada
                     // parece defeito: quem não fechou as 5 primeiras precisa saber
                     // quanto falta.
-                    overlayText.textContent = d.moedas > 0
+                    let texto = d.moedas > 0
                         ? `${d.score} cestas · +${d.moedas} moedas`
                         : `${d.score} cestas · acerte 2 pra ganhar a primeira moeda`;
+
+                    // Cruzar um marco é a notícia da partida, e vem depois do
+                    // placar porque é consequência dele. Uma partida longa pode
+                    // cruzar mais de um, então são todos.
+                    (d.marcos || []).forEach(m => {
+                        texto += `\n🚩 ${m.marco.toLocaleString('pt-BR')} cestas no total — `
+                               + (m.primeiro ? `você chegou PRIMEIRO: +${m.moedas} moedas` : `+${m.moedas} moedas`)
+                               + (m.fba ? ` e +${m.fba} FBA Points` : '');
+                    });
+                    if (d.marcos && d.marcos.length) {
+                        // O texto vira duas linhas ou mais, e o padrão do HTML
+                        // é comer o \n. Sem isto o aviso do marco entra colado
+                        // no placar, como se fosse a mesma frase.
+                        overlayText.style.whiteSpace = 'pre-line';
+                    }
+                    overlayText.textContent = texto;
+
+                    // O saldo do topo tem que refletir o marco na hora: a
+                    // pessoa acabou de ganhar 200 moedas e o número velho
+                    // continuaria na tela até ela recarregar.
+                    saldoEl.innerHTML = moedaIcone + ' ' + d.saldo.toLocaleString('pt-BR') + ' pts';
                 });
                 return;
             }
@@ -904,7 +1148,7 @@ try {
         isRunning = true;
         isGameOver = false;
         lastTime = null;
-        ultimoPing = 0;
+        confirmado = 0;
         // Abre a partida no servidor. Sem isto ele recusa o placar no fim —
         // e é o que impede mandar um score sem ter jogado.
         enviar('iniciar');
