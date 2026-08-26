@@ -220,6 +220,117 @@ if ($method === 'GET') {
             echo json_encode(['success' => true, 'draft' => $draft]);
             break;
 
+        /**
+         * O MOCK DA TEMPORADA, enquanto o draft ainda está sendo configurado.
+         *
+         * Entre definir a classe e rodar a loteria existe uma espera em que a
+         * página de drafts não tinha nada pra mostrar — e é justamente a
+         * semana em que a liga mais quer olhar pro draft. Aqui saem as duas
+         * metades do que ela quer ver:
+         *
+         *  - os CALOUROS na ordem da classe (ordem, nome e posição). Sem OVR e
+         *    sem idade de propósito: todo mundo entra no pool com 60/18, então
+         *    mostrar esses números seria mostrar uma informação falsa — o que
+         *    o jogador é de verdade só se sabe no 2K.
+         *
+         *  - a ORDEM PROJETADA, no modelo do 2K: o pior time do power ranking
+         *    pega a primeira. É projeção, não sorteio: a loteria de verdade
+         *    sai da campanha e ainda não rodou.
+         *
+         * E ao lado de cada pick, quem é o DONO dela hoje — pick trocada
+         * aparece com o time de origem e com quem ficou, que é a informação
+         * que some quando se olha só o power ranking.
+         */
+        case 'draft_preview':
+            $league = $_GET['league'] ?? ($team['league'] ?? null);
+            if (!$league) {
+                echo json_encode(['success' => false, 'error' => 'Liga não especificada']);
+                exit;
+            }
+
+            $stmt = $pdo->prepare(
+                "SELECT ds.id, ds.season_id, ds.status, s.season_number, s.year
+                 FROM draft_sessions ds
+                 INNER JOIN seasons s ON ds.season_id = s.id
+                 WHERE ds.league = ? AND ds.status IN ('setup', 'in_progress')
+                 ORDER BY ds.created_at DESC LIMIT 1"
+            );
+            $stmt->execute([$league]);
+            $sessao = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$sessao) {
+                echo json_encode(['success' => true, 'pool' => [], 'projecao' => [], 'session' => null]);
+                exit;
+            }
+
+            // Os calouros na ordem da classe. pick_hint é a ordem que veio do
+            // cadastro; quem não tem vai pro fim, por nome, pra lista nunca
+            // sair embaralhada de um carregamento pro outro.
+            $stmt = $pdo->prepare(
+                "SELECT id, name, position, pick_hint
+                 FROM draft_pool WHERE season_id = ?
+                 ORDER BY COALESCE(pick_hint, 999999) ASC, name ASC"
+            );
+            $stmt->execute([(int)$sessao['season_id']]);
+            $pool = [];
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $i => $p) {
+                $pool[] = [
+                    'ordem'    => $i + 1,
+                    'name'     => $p['name'],
+                    'position' => $p['position'],
+                ];
+            }
+
+            // A ordem projetada: power ranking de trás pra frente.
+            require_once __DIR__ . '/../backend/power_ranking.php';
+            $forca = fbaPowerRanking($pdo, $league);
+            $projecao = [];
+            if ($forca) {
+                $doDraft = array_reverse($forca);
+
+                // Dono atual de cada pick de 1ª rodada desta temporada. A
+                // chave é o time de ORIGEM: é a pick "do" time, mesmo estando
+                // com outro.
+                $dono = [];
+                try {
+                    $sp = $pdo->prepare(
+                        "SELECT p.original_team_id, p.team_id,
+                                CONCAT(COALESCE(t.city,''), ' ', COALESCE(t.name,'')) AS dono_nome
+                         FROM picks p
+                         LEFT JOIN teams t ON t.id = p.team_id
+                         WHERE p.season_id = ? AND p.round = '1'"
+                    );
+                    $sp->execute([(int)$sessao['season_id']]);
+                    foreach ($sp->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                        $dono[(int)$r['original_team_id']] = [
+                            'team_id' => (int)$r['team_id'],
+                            'nome'    => trim((string)$r['dono_nome']),
+                        ];
+                    }
+                } catch (Throwable $e) {
+                    // Temporada sem picks cadastradas: a projeção sai só com o
+                    // time de origem, que ainda é a metade útil.
+                }
+
+                foreach ($doDraft as $i => $t) {
+                    $d = $dono[$t['team_id']] ?? null;
+                    $projecao[] = [
+                        'pick'          => $i + 1,
+                        'team_id'       => $t['team_id'],
+                        'team_name'     => $t['team_name'],
+                        'team_photo'    => $t['team_photo'],
+                        'owner_name'    => $t['owner_name'],
+                        'power_posicao' => $t['posicao'],
+                        'dono_team_id'  => $d['team_id'] ?? $t['team_id'],
+                        'dono_nome'     => $d['nome'] ?: $t['team_name'],
+                        'trocada'       => $d && $d['team_id'] !== $t['team_id'],
+                    ];
+                }
+            }
+
+            echo json_encode(['success' => true, 'session' => $sessao,
+                              'pool' => $pool, 'projecao' => $projecao]);
+            break;
+
         // Buscar ordem de draft e status das picks
         case 'draft_order':
             $draftSessionId = $_GET['draft_session_id'] ?? null;

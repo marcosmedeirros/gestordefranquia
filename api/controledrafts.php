@@ -106,6 +106,14 @@ function cdGarantirSchema(PDO $pdo): void {
         CONSTRAINT fk_dctp_tpl_cd FOREIGN KEY (template_id)
             REFERENCES draft_class_templates(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // Mesmo caso do `escolhida` abaixo: a tabela já existia antes de pick_hint
+    // entrar no CREATE, e CREATE IF NOT EXISTS não mexe em tabela pronta. Sem
+    // este ALTER a coluna só nasce em banco novo — e como as consultas de
+    // aplicar a classe e de importar CSV leem pick_hint, num banco antigo elas
+    // quebravam com "Unknown column".
+    if (!$pdo->query("SHOW COLUMNS FROM draft_class_template_players LIKE 'pick_hint'")->fetch()) {
+        $pdo->exec("ALTER TABLE draft_class_template_players ADD COLUMN pick_hint INT NULL");
+    }
     $pdo->exec("CREATE TABLE IF NOT EXISTS draft_class_sorteios (
         id INT AUTO_INCREMENT PRIMARY KEY,
         league ENUM('ELITE','NEXT','RISE','ROOKIE') NOT NULL,
@@ -144,6 +152,54 @@ function cdTemporada(PDO $pdo, string $liga): ?array {
 }
 
 /** A sessão de draft da temporada, se já existir. */
+/**
+ * Joga os jogadores de uma classe no pool da temporada.
+ *
+ * Vive numa função porque agora tem DOIS chamadores: o sorteio (que já
+ * deixa tudo pronto de uma vez) e o botão "aplicar classe", que segue
+ * existindo pras temporadas sorteadas antes desta mudança.
+ *
+ * Não abre transação — quem chama já está dentro de uma.
+ *
+ * @return int quantos entraram
+ */
+function cdAplicarPool(PDO $pdo, int $templateId, int $seasonId): int {
+    $st = $pdo->prepare("SELECT name, position, pick_hint
+                         FROM draft_class_template_players WHERE template_id = ?
+                         ORDER BY COALESCE(pick_hint, 999999) ASC, ovr DESC");
+    $st->execute([$templateId]);
+    $jogadores = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!$jogadores) return 0;
+
+    $ins = $pdo->prepare("INSERT INTO draft_pool (season_id, name, position, age, ovr, pick_hint, draft_status)
+                          VALUES (?,?,?,?,?,?,'available')");
+    foreach ($jogadores as $j) {
+        // Todo calouro entra igual: 60 de OVR e 18 anos. O que ele é de
+        // verdade fica por conta do 2K, e a tela do draft nem mostra esses
+        // números — o que importa aqui é nome, posição e ordem.
+        $ins->execute([$seasonId, $j['name'], strtoupper((string)$j['position']),
+                       CD_IDADE_CALOURO, CD_OVR_CALOURO,
+                       $j['pick_hint'] !== null ? (int)$j['pick_hint'] : null]);
+    }
+    return count($jogadores);
+}
+
+/**
+ * Garante a sessão de draft da temporada, criando-a em 'setup' se faltar.
+ *
+ * @return int o id da sessão
+ */
+function cdGarantirSessao(PDO $pdo, string $liga, int $seasonId): int {
+    $st = $pdo->prepare("SELECT id FROM draft_sessions WHERE season_id = ? LIMIT 1");
+    $st->execute([$seasonId]);
+    $id = (int)($st->fetchColumn() ?: 0);
+    if ($id > 0) return $id;
+
+    $pdo->prepare("INSERT INTO draft_sessions (season_id, league, status, total_rounds)
+                   VALUES (?,?, 'setup', 2)")->execute([$seasonId, $liga]);
+    return (int)$pdo->lastInsertId();
+}
+
 function cdSessao(PDO $pdo, string $liga, int $seasonId): ?array {
     $st = $pdo->prepare("SELECT * FROM draft_sessions WHERE league = ? AND season_id = ?
                          ORDER BY id DESC LIMIT 1");
@@ -514,16 +570,38 @@ try {
                 VALUES (?,?,?,?,?,?)");
             $ins->execute([$liga, (int)$escolhida['id'], (int)$temp['id'], (int)$temp['ano'],
                            (int)$user['id'], $escolhendo ? 1 : 0]);
+
+            // Definida a classe, o draft já nasce montado: os jogadores entram
+            // no pool e a sessão é criada em 'setup'. Antes isso eram dois
+            // cliques separados depois do sorteio, e enquanto eles não vinham
+            // a página de drafts não tinha o que mostrar — nem o mock, que é
+            // justamente o que a liga quer ver antes da loteria. Só a ORDEM
+            // continua pra depois: ela sai da campanha, não da classe.
+            $noPool = 0;
+            $st = $pdo->prepare("SELECT COUNT(*) FROM draft_pool WHERE season_id = ?");
+            $st->execute([(int)$temp['id']]);
+            if ((int)$st->fetchColumn() === 0) {
+                $noPool = cdAplicarPool($pdo, (int)$escolhida['id'], (int)$temp['id']);
+                if ($noPool > 0) {
+                    $pdo->prepare("UPDATE draft_class_sorteios SET pool_aplicado_em = NOW()
+                                   WHERE league = ? AND season_id = ?")
+                        ->execute([$liga, (int)$temp['id']]);
+                }
+            }
+            $sessaoId = cdGarantirSessao($pdo, $liga, (int)$temp['id']);
             $pdo->commit();
 
             echo json_encode(['success' => true,
                 'escolhida_a_dedo' => $escolhendo,
+                'no_pool' => $noPool,
+                'sessao_id' => $sessaoId,
                 'sorteada' => ['id' => (int)$escolhida['id'], 'name' => $escolhida['name'],
                                'jogadores' => (int)$escolhida['jogadores']],
                 // A tela usa a lista pra girar a animação passando por todas
                 // antes de parar na sorteada — o resultado já veio decidido.
                 'candidatas' => array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name']], $candidatas),
-                'message' => ($escolhendo ? 'Classe definida: ' : 'Classe sorteada: ') . $escolhida['name']]);
+                'message' => ($escolhendo ? 'Classe definida: ' : 'Classe sorteada: ') . $escolhida['name']
+                             . ($noPool > 0 ? ' — ' . $noPool . ' jogador(es) já no draft.' : '')]);
             exit;
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -553,35 +631,26 @@ try {
             cdErro(409, 'O draft desta temporada já tem jogadores. Limpe o pool antes de aplicar de novo.');
         }
 
-        $st = $pdo->prepare("SELECT name, position, ovr, age, pick_hint
-                             FROM draft_class_template_players WHERE template_id = ?
-                             ORDER BY COALESCE(pick_hint, 999999) ASC, ovr DESC");
-        $st->execute([(int)$sorteio['template_id']]);
-        $jogadores = $st->fetchAll(PDO::FETCH_ASSOC);
-        if (!$jogadores) cdErro(409, 'A classe sorteada não tem jogadores cadastrados.');
-
         $pdo->beginTransaction();
         try {
-            $ins = $pdo->prepare("INSERT INTO draft_pool (season_id, name, position, age, ovr, pick_hint, draft_status)
-                                  VALUES (?,?,?,?,?,?,'available')");
-            foreach ($jogadores as $j) {
-                // Todo calouro entra igual: 60 de OVR e 18 anos. O que ele é de
-                // verdade fica por conta do 2K, e a tela do draft nem mostra
-                // esses números — o que importa aqui é nome, posição e ordem.
-                $ins->execute([(int)$temp['id'], $j['name'], strtoupper((string)$j['position']),
-                               CD_IDADE_CALOURO, CD_OVR_CALOURO,
-                               $j['pick_hint'] !== null ? (int)$j['pick_hint'] : null]);
+            $inseridos = cdAplicarPool($pdo, (int)$sorteio['template_id'], (int)$temp['id']);
+            if ($inseridos === 0) {
+                $pdo->rollBack();
+                cdErro(409, 'A classe sorteada não tem jogadores cadastrados.');
             }
             $pdo->prepare("UPDATE draft_class_sorteios SET pool_aplicado_em = NOW() WHERE id = ?")
                 ->execute([(int)$sorteio['id']]);
+            // A sessão nasce junto: sem ela a loteria fica bloqueada e a página
+            // de drafts não tem o que abrir.
+            cdGarantirSessao($pdo, $liga, (int)$temp['id']);
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             throw $e;
         }
 
-        echo json_encode(['success' => true, 'inseridos' => count($jogadores),
-            'message' => count($jogadores) . ' jogador(es) entraram no draft.']);
+        echo json_encode(['success' => true, 'inseridos' => $inseridos,
+            'message' => $inseridos . ' jogador(es) entraram no draft.']);
         exit;
     }
 

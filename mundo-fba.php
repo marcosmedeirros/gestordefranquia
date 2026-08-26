@@ -2,6 +2,7 @@
 require_once __DIR__ . '/backend/auth.php';
 require_once __DIR__ . '/backend/db.php';
 require_once __DIR__ . '/backend/helpers.php';
+require_once __DIR__ . '/backend/power_ranking.php';
 requireAuth();
 
 $user = getUserSession();
@@ -719,14 +720,12 @@ foreach ($leagueOrder as $league) {
         $maxOvr = $stats['max_ovr'];
         $count = $stats['count'];
 
-        $hasFranchise = $maxOvr >= 89;
-        $youthFactor = $avgAge > 0 ? max(0, 30 - $avgAge) : 0;
-        $agePenalty = $avgAge > 32 ? ($avgAge - 32) * 1.8 : 0;
-        $score = ($avgOvr * 1.6) + ($maxOvr * 0.6) + ($youthFactor * 0.8) - $agePenalty;
-        if ($hasFranchise) $score += 2.0;
-        if ($count < 5) $score -= (5 - $count) * 1.2;
-        if ($championTeamId && (int)$t['id'] === $championTeamId) $score += 5.0;
-        if ($runnerUpTeamId && (int)$t['id'] === $runnerUpTeamId) $score += 3.0;
+        // A conta mora em backend/power_ranking.php: a projeção da ordem do
+        // draft usa a MESMA régua, e com a fórmula escrita aqui dentro as
+        // duas telas podiam discordar sobre quem é o time mais fraco da liga.
+        $score = fbaPowerScore((float)$avgOvr, (int)$maxOvr, (float)$avgAge, (int)$count,
+                               $championTeamId && (int)$t['id'] === $championTeamId,
+                               $runnerUpTeamId && (int)$t['id'] === $runnerUpTeamId);
 
         $aiTag = $t['team_tag'] ?? null;
         if (!$aiTag) {

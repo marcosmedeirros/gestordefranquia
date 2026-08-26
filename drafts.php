@@ -505,6 +505,38 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       margin-bottom: 16px;
     }
     .info-note strong { color: var(--text); }
+
+    /* Mock do draft (status "configurando"): a classe na ordem, com o time
+       que pegaria cada pick. */
+    .mock-list { display: flex; flex-direction: column; gap: 6px; }
+    .mock-row {
+      display: grid;
+      grid-template-columns: 46px 1fr 1fr;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 12px;
+      background: var(--panel-2, rgba(255,255,255,.02));
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .mock-pick {
+      font-weight: 800; font-size: 13px; color: var(--amber);
+      font-variant-numeric: tabular-nums;
+    }
+    .mock-player-name { font-size: 13px; font-weight: 700; color: var(--text); }
+    .mock-player-pos  { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+    .mock-team        { text-align: right; min-width: 0; }
+    .mock-team-name   { font-size: 13px; font-weight: 600; color: var(--text-2); }
+    .mock-team-via    {
+      font-size: 11px; color: var(--text-3); margin-top: 1px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    /* No celular a linha vira duas: jogador em cima, time embaixo — com três
+       colunas de 1fr o nome do time quebrava no meio. */
+    @media (max-width: 560px) {
+      .mock-row { grid-template-columns: 38px 1fr; row-gap: 4px; }
+      .mock-team { grid-column: 2; text-align: left; }
+    }
     .info-note.blue {
       background: rgba(59,130,246,.08);
       border-color: rgba(59,130,246,.2);
@@ -1140,6 +1172,36 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
       `;
     }
 
+    // Draft ainda sendo configurado: no lugar das rodadas, o mock.
+    //
+    // Os cards de 1ª e 2ª rodada saem da tela porque nesse momento eles são
+    // duas caixas vazias — a ordem só existe depois da loteria, e até lá não
+    // há uma única pick pra mostrar. O que existe é a classe, e é ela que a
+    // liga quer ver.
+    if (session.status === 'setup') {
+      html += `
+        <div class="panel" id="setupPreviewPanel">
+          <div class="round-head">
+            <div class="round-badge"><i class="bi bi-list-stars"></i></div>
+            <span class="round-title">Mock do Draft</span>
+            <span class="round-count" id="setupPreviewCount"></span>
+          </div>
+          <div class="panel-body">
+            <div id="setupPreviewBody" class="state-empty">
+              <i class="bi bi-hourglass-split"></i><p>Carregando a classe…</p>
+            </div>
+          </div>
+        </div>
+      `;
+      document.getElementById('draftContainer').innerHTML = html;
+      loadMockCard(session);
+      initTooltips();
+      const fc = document.getElementById('finalizeDraftContainer');
+      if (fc) fc.style.display = 'none';
+      loadSetupPreview();
+      return;
+    }
+
     // Round 1
     let round1ClockHtml = '';
     if (round1ClockInfo) {
@@ -1233,6 +1295,72 @@ if ($currentSeason && isset($currentSeason['start_year'], $currentSeason['season
     if (round1ClockInfo && round1ClockInfo.armed && round1ClockInfo.deadlineMs) {
       startRound1Countdown(round1ClockInfo.deadlineMs);
     }
+  }
+
+  /**
+   * O mock de antes da loteria: a classe na ordem, e quem pegaria cada pick.
+   *
+   * A ordem dos times é PROJEÇÃO — sai do power ranking de trás pra frente,
+   * como o 2K faz antes do sorteio. Está escrito na tela justamente pra
+   * ninguém confundir com a ordem de verdade, que só nasce da campanha.
+   *
+   * Do calouro só saem ordem, nome e posição. OVR e idade ficam de fora
+   * porque todo mundo entra no pool com o mesmo 60/18 — mostrar esses
+   * números seria inventar uma informação que ainda não existe.
+   */
+  async function loadSetupPreview() {
+    const body  = document.getElementById('setupPreviewBody');
+    const count = document.getElementById('setupPreviewCount');
+    if (!body) return;
+
+    let d;
+    try {
+      const r = await fetch(`api/draft.php?action=draft_preview&league=${encodeURIComponent(userLeague)}`);
+      d = await r.json();
+      if (!d.success) throw new Error(d.error || 'não deu');
+    } catch (e) {
+      body.className = 'state-empty';
+      body.innerHTML = `<i class="bi bi-exclamation-triangle"></i><p>Não foi possível carregar o mock.</p>`;
+      return;
+    }
+
+    const pool = d.pool || [], proj = d.projecao || [];
+    if (!pool.length) {
+      body.className = 'state-empty';
+      body.innerHTML = `<i class="bi bi-inbox"></i><p>A classe deste draft ainda não tem jogadores.</p>`;
+      return;
+    }
+
+    if (count) count.textContent = `${pool.length} calouros`;
+
+    const linha = (j, p) => `
+      <div class="mock-row">
+        <div class="mock-pick">${p ? '#' + p.pick : '—'}</div>
+        <div class="mock-player">
+          <div class="mock-player-name">${esc(j.name)}</div>
+          <div class="mock-player-pos">${esc(j.position || '')}</div>
+        </div>
+        <div class="mock-team">
+          ${p ? `
+            <div class="mock-team-name">${esc(p.dono_nome)}</div>
+            ${p.trocada
+              ? `<div class="mock-team-via"><i class="bi bi-arrow-left-right"></i> pick do ${esc(p.team_name)}</div>`
+              : `<div class="mock-team-via">${esc(p.owner_name || '')}</div>`}
+          ` : `<div class="mock-team-via">sem pick projetada</div>`}
+        </div>
+      </div>`;
+
+    body.className = '';
+    body.innerHTML = `
+      <div class="info-note" style="margin-bottom:14px">
+        <strong>Projeção.</strong> A ordem dos times vem do power ranking — o mais fraco na
+        frente. A ordem de verdade só sai depois da loteria${proj.some(p => p.trocada)
+          ? ', e as picks já trocadas aparecem com o time de origem' : ''}.
+      </div>
+      <div class="mock-list">
+        ${pool.map((j, i) => linha(j, proj[i] || null)).join('')}
+      </div>
+    `;
   }
 
   // Calcula, a partir da sessão, se o relógio da 1ª rodada já está armado e (se sim) o
