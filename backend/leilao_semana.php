@@ -69,6 +69,24 @@ function leilaoSemanaTabela(PDO $pdo): void
         UNIQUE KEY uk_lance (league, temporada, team_id),
         KEY idx_leilao (league, temporada, valor)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+    // O que JÁ FOI jogo da semana. Guardado no fechamento, antes de os lances
+    // serem apagados — senão a semana passa e não fica registro de qual jogo
+    // foi escolhido nem do que ele custou.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS leilao_semana_historico (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        league     VARCHAR(10) NOT NULL,
+        temporada  INT NOT NULL,
+        time1_id   INT NULL,
+        time1_nome VARCHAR(120) NULL,
+        valor1     INT NOT NULL DEFAULT 0,
+        time2_id   INT NULL,
+        time2_nome VARCHAR(120) NULL,
+        valor2     INT NOT NULL DEFAULT 0,
+        fechado_por INT NULL,
+        fechado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_hist (league, temporada)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
 /**
@@ -325,6 +343,69 @@ function leilaoSemanaTexto(PDO $pdo, string $liga): string
     }
 
     return implode("\n", $l);
+}
+
+/**
+ * FECHA o leilão da semana: o jogo do pódio vira o jogo da semana.
+ *
+ * É aqui que os FBA Points saem de vez. Até este momento eles estavam
+ * RETIDOS — debitados do saldo, mas devolvidos assim que o time caísse do
+ * pódio. Fechar é o instante em que a compra se confirma: quem estava nas duas
+ * vagas pagou pelo jogo, e não recebe de volta.
+ *
+ * Sem este passo o leilão não terminava nunca. Os dois primeiros ficavam com o
+ * valor preso pra sempre, o jogo da semana seguinte começava com o pódio da
+ * semana passada ainda de pé, e ninguém sabia quando a disputa tinha acabado.
+ *
+ * O histórico guarda o confronto ANTES de limpar: é o registro de que aquela
+ * semana teve aquele jogo, e o que ele custou.
+ */
+function leilaoSemanaFechar(PDO $pdo, string $liga, int $fechadoPor = 0): array
+{
+    leilaoSemanaTabela($pdo);
+    $liga = strtoupper(trim($liga));
+    $temporada = leilaoSemanaTemporada($pdo, $liga);
+    if ($temporada <= 0) return ['ok' => false, 'erro' => 'A ' . $liga . ' não tem temporada em andamento.'];
+
+    $pdo->beginTransaction();
+    try {
+        // Reler DENTRO da transação: entre a tela carregar e o clique, um lance
+        // novo pode ter mudado quem está no pódio — e fechar o confronto errado
+        // é pior que não fechar.
+        $lances = leilaoSemanaLances($pdo, $liga, $temporada);
+        if (!$lances) {
+            $pdo->rollBack();
+            return ['ok' => false, 'erro' => 'Não há lance nenhum na ' . $liga . '.'];
+        }
+
+        $podio = array_slice($lances, 0, LEILAO_SEMANA_VAGAS);
+        $a = $podio[0] ?? null;
+        $b = $podio[1] ?? null;
+
+        $pdo->prepare("INSERT INTO leilao_semana_historico
+                       (league, temporada, time1_id, time1_nome, valor1, time2_id, time2_nome, valor2, fechado_por)
+                       VALUES (?,?,?,?,?,?,?,?,?)")
+            ->execute([$liga, $temporada,
+                       $a ? (int)$a['team_id'] : null, $a ? $a['time_nome'] : null, $a ? (int)$a['valor'] : 0,
+                       $b ? (int)$b['team_id'] : null, $b ? $b['time_nome'] : null, $b ? (int)$b['valor'] : 0,
+                       $fechadoPor ?: null]);
+
+        // Os lances somem: quem estava no pódio já pagou (o retido vira gasto),
+        // e quem estava na fila já tinha recebido de volta a cada vez que caiu.
+        // Apagar sem devolver é o que confirma a compra.
+        $st = $pdo->prepare("DELETE FROM leilao_semana_lances WHERE league = ? AND temporada = ?");
+        $st->execute([$liga, $temporada]);
+
+        $pdo->commit();
+        return ['ok' => true,
+                'jogo' => [$a ? $a['time_nome'] : null, $b ? $b['time_nome'] : null],
+                'pago' => ((int)($a['valor'] ?? 0)) + ((int)($b['valor'] ?? 0)),
+                'lances_apagados' => $st->rowCount()];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[leilao-semana] fechar: ' . $e->getMessage());
+        return ['ok' => false, 'erro' => 'Não deu pra fechar o leilão agora.'];
+    }
 }
 
 /** Quanto já está retido de um time, pra cobrar só a diferença. */

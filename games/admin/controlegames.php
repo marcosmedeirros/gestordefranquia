@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // controlegames.php - CONTROLE DE JOGOS (DOBRO DE MOEDAS)
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -32,6 +32,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif ($_POST['action'] === 'resetar_tapas') {
                 $mensagem = 'Tapas disponíveis resetadas para 2/2 para todos os usuários.';
                 $msgType  = 'success';
+            } elseif ($_POST['action'] === 'fechar_leilao') {
+                require_once __DIR__ . '/../../backend/leilao_semana.php';
+                $ligaFechar = strtoupper(trim((string)($_POST['liga'] ?? '')));
+                if (!in_array($ligaFechar, ['ELITE','NEXT','RISE','ROOKIE'], true)) {
+                    $mensagem = 'Liga inválida.';
+                    $msgType  = 'danger';
+                } else {
+                    $r = leilaoSemanaFechar($pdo, $ligaFechar, (int)$_SESSION['user_id']);
+                    if ($r['ok']) {
+                        $jogo = array_filter($r['jogo']);
+                        $mensagem = 'Leilão da ' . $ligaFechar . ' fechado. Jogo da semana: '
+                                  . htmlspecialchars(implode(' × ', $jogo) ?: '(sem confronto)')
+                                  . ' — ' . $r['pago'] . ' FBA Points cobrados.';
+                        $msgType  = 'success';
+                    } else {
+                        $mensagem = $r['erro'];
+                        $msgType  = 'danger';
+                    }
+                }
             }
         } catch (Exception $e) {
             $mensagem = 'Erro: ' . htmlspecialchars($e->getMessage());
@@ -461,6 +480,63 @@ $labelMap = [
           <i class="bi bi-eraser-fill"></i> Zerar tudo
         </button>
       </form>
+    </div>
+  </div>
+
+  <?php
+    // O leilão do jogo da semana, uma linha por liga. Mostra o confronto ANTES
+    // do botão de propósito: fechar cobra FBA Points de dois times de verdade,
+    // e ninguém deve apertar sem ver o que está confirmando.
+    require_once __DIR__ . '/../../backend/leilao_semana.php';
+    $ligasLeilao = [];
+    foreach (['ELITE','NEXT','RISE','ROOKIE'] as $lg) {
+        try { $ligasLeilao[$lg] = leilaoSemanaDaLiga($pdo, $lg, 0); }
+        catch (Throwable $e) { $ligasLeilao[$lg] = null; }
+    }
+  ?>
+  <div class="panel-card">
+    <div class="panel-head">
+      <i class="bi bi-hammer" style="color:var(--amber)"></i>
+      Leilão do jogo da semana
+    </div>
+    <div class="panel-body">
+      <div style="font-size:11px;color:var(--text-3);margin-bottom:12px;line-height:1.5">
+        Fechar confirma a compra: os FBA Points dos <b>dois primeiros</b> deixam de estar retidos e
+        viram gasto. Os lances são apagados e a liga recomeça do zero pra próxima semana.
+      </div>
+      <?php foreach ($ligasLeilao as $lg => $d):
+        $a = $d['podio'][0] ?? null;
+        $b = $d['podio'][1] ?? null;
+        $temJogo = (bool)$a;
+        $confronto = $temJogo
+          ? trim(($a['time_nome'] ?? '') . ' × ' . ($b['time_nome'] ?? 'vaga aberta'))
+          : 'ninguém deu lance';
+        $total = (int)($a['valor'] ?? 0) + (int)($b['valor'] ?? 0);
+      ?>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+                  padding:10px 0;border-top:1px solid var(--border)">
+        <div style="min-width:0">
+          <div style="font-size:13px;font-weight:700;color:var(--text)"><?= $lg ?></div>
+          <div style="font-size:11.5px;color:<?= $temJogo ? 'var(--text-2)' : 'var(--text-3)' ?>;margin-top:2px">
+            <?= htmlspecialchars($confronto) ?>
+            <?php if ($temJogo): ?>
+              · <b style="color:var(--amber)"><?= number_format($total, 0, ',', '.') ?></b> FBA Points a cobrar
+            <?php endif; ?>
+          </div>
+        </div>
+        <form method="POST" onsubmit="return confirmar('Fechar o leilão da <?= $lg ?>?\n\n<?= htmlspecialchars(addslashes($confronto)) ?>\n\nIsso cobra <?= $total ?> FBA Points e apaga os lances.')">
+          <input type="hidden" name="action" value="fechar_leilao">
+          <input type="hidden" name="liga" value="<?= $lg ?>">
+          <?php /* Um atributo style só: escrever um segundo aqui dentro fazia o
+                   navegador ignorar o do desabilitado, e o botão morto ficava
+                   com a mesma cara do que funciona. */ ?>
+          <button type="submit" class="btn-save" <?= $temJogo ? '' : 'disabled' ?>
+                  style="white-space:nowrap;background:<?= $temJogo ? '#b45309' : '#3f3f46' ?><?= $temJogo ? '' : ';opacity:.45;cursor:not-allowed' ?>">
+            <i class="bi bi-check2-circle"></i> Fechar <?= $lg ?>
+          </button>
+        </form>
+      </div>
+      <?php endforeach; ?>
     </div>
   </div>
 
