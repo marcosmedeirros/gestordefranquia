@@ -305,6 +305,19 @@ function leilaoSemanaTexto(PDO $pdo, string $liga): string
     $l = ['🏀 *JOGO DA SEMANA — ' . $liga . '*', ''];
 
     if (!$lances) {
+        // SEM LANCE PODE SER DUAS COISAS BEM DIFERENTES: a semana ainda não
+        // começou, ou o leilão já foi fechado e o jogo está definido. Dizer
+        // "ninguém deu lance" logo depois de alguém pagar por aquele jogo
+        // apagaria justamente o que a pessoa comprou.
+        $fechado = leilaoSemanaUltimoFechado($pdo, $liga, $temporada);
+        if ($fechado) {
+            $l[] = 'Jogo definido: *' . $fechado['time1_nome']
+                 . ($fechado['time2_nome'] ? ' × ' . $fechado['time2_nome'] : '') . '*';
+            $l[] = '';
+            $l[] = '_Leilão encerrado. O próximo abre quando a organização soltar._';
+            return implode("\n", $l);
+        }
+
         $l[] = 'Ninguém deu lance ainda.';
         $l[] = '';
         $l[] = 'O primeiro lance define o jogo. Mínimo: *'
@@ -405,6 +418,37 @@ function leilaoSemanaFechar(PDO $pdo, string $liga, int $fechadoPor = 0): array
         if ($pdo->inTransaction()) $pdo->rollBack();
         error_log('[leilao-semana] fechar: ' . $e->getMessage());
         return ['ok' => false, 'erro' => 'Não deu pra fechar o leilão agora.'];
+    }
+}
+
+/**
+ * O último jogo da semana FECHADO desta liga na temporada.
+ *
+ * É o que responde "e agora, qual é o jogo?" depois que o leilão encerra: os
+ * lances já foram apagados, e sem isto a única resposta possível seria "ninguém
+ * deu lance" — logo depois de dois times terem pagado pelo jogo.
+ */
+function leilaoSemanaUltimoFechado(PDO $pdo, string $liga, int $temporada): ?array
+{
+    leilaoSemanaTabela($pdo);
+    if ($temporada <= 0) return null;
+    try {
+        // O nome CURTO vem do teams; o do histórico é o completo, com cidade.
+        // No grupo o time é "Coyotes", não "Utah Coyotes" — e o resto da
+        // mensagem já fala assim. COALESCE cobre o time que saiu da liga:
+        // aí vale o nome que ficou gravado na hora do fechamento.
+        $st = $pdo->prepare("SELECT COALESCE(t1.name, h.time1_nome) AS time1_nome, h.valor1,
+                                    COALESCE(t2.name, h.time2_nome) AS time2_nome, h.valor2,
+                                    h.fechado_em
+                               FROM leilao_semana_historico h
+                          LEFT JOIN teams t1 ON t1.id = h.time1_id
+                          LEFT JOIN teams t2 ON t2.id = h.time2_id
+                              WHERE h.league = ? AND h.temporada = ?
+                           ORDER BY h.id DESC LIMIT 1");
+        $st->execute([strtoupper(trim($liga)), $temporada]);
+        return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Throwable $e) {
+        return null;
     }
 }
 
