@@ -1407,6 +1407,14 @@ function coperoConquistas(): array
                           'impossivel', fn($c) => $t($c,'copa_mundo') >= 3 && $c['gols'] >= 1000],
         // Sai de 'media' porque era a mais difícil do jogo pagando como a
         // segunda mais fácil — 100 moedas, o mesmo que "marque 100 gols".
+        //
+        // MIL É DE PROPÓSITO, e não um número que sobrou de antes. Depois do
+        // teto de potencial (só 15% das carreiras passam de 90 de overall) e
+        // do corte na artilharia, a medição deu 0,5% dos centroavantes
+        // chegando lá — contra 13% de antes. A alternativa de baixar pra 800
+        // (3,8%) foi posta e recusada: mil é a marca que se conhece, e uma
+        // conquista que quase ninguém tem é o que ela deveria ser. Quem for
+        // mexer nos gols de novo, mexa sabendo que é este o alvo.
         'mil_gols'    => ['🎯', 'O milésimo',        'Marque 1.000 gols na carreira.',
                           'dificil', fn($c) => $c['gols'] >= 1000],
         // Aqui entra TUDO o que se levanta: taça de clube, de seleção e
