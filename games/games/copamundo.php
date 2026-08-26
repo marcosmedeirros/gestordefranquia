@@ -637,7 +637,12 @@ if ($copa && $userId) {
           // zero — 50/50 numa disputa vazia parece empate técnico, e não é.
           $fa = $total ? (int)$c['votos_a'] / $total : 0;
           $fb = $total ? (int)$c['votos_b'] / $total : 0;
-          $mostraVotos = $total > 0 || ($r === $rodAtual && !$encerrada);
+          // CONFRONTO EM ABERTO NÃO MOSTRA PLACAR. Quem chega depois via pra
+          // onde a manada estava indo e ia junto — a copa media quem votava
+          // por último, não quem lê melhor. Os números vêm zerados do motor
+          // (copaChave); aqui é só a tela deixar de reservar lugar pra eles.
+          $oculto      = !empty($c['placar_oculto']);
+          $mostraVotos = !$oculto;
 
           // Os dois lados saem do mesmo molde: botão quando dá pra votar,
           // div quando não. Duplicar o markup faria o placar divergir de um
@@ -763,21 +768,28 @@ if ($copa && $userId) {
     <?php $pagaAgora = copaRodadaPaga($rodAtual, $rodadas); ?>
     <?php if (!$encerrada && !$votando): ?>
     <div class="dica" style="margin-top:12px">
+      <?php /* Dizia que "dá pra trocar o voto enquanto a rodada estiver
+               aberta", e não dá: copaVotar recusa o segundo voto desde que a
+               troca foi fechada. A tela prometia o contrário das outras duas
+               dicas logo abaixo. */ ?>
       A votação está fechada. Quando o admin abrir, é só clicar no competidor
-      pra votar — dá pra trocar o voto enquanto a rodada estiver aberta.
+      pra votar — <b>o voto não muda depois</b>, e o placar só aparece quando
+      a rodada for apurada.
     </div>
     <?php elseif ($votando && $pagaAgora): ?>
     <div class="dica" style="margin-top:12px">
-      Clique no nome pra votar — <b>o voto não muda depois</b>. Cada palpite
-      certo vale FBA Points, e quem acerta a maioria da rodada aumenta a
-      sequência: o próximo acerto passa a valer mais.
+      Clique no nome pra votar — <b>o voto não muda depois</b>, e <b>ninguém vê o
+      placar até a rodada ser apurada</b>. Cada palpite certo vale FBA Points,
+      e quem acerta a maioria da rodada aumenta a sequência: o próximo acerto
+      passa a valer mais.
     </div>
     <?php elseif ($votando): ?>
     <?php /* A rodada conta pro chaveamento mas não paga. Dizer isso na hora
              de votar evita a decepção depois — e é justo: a pessoa decide se
              quer votar sabendo o que ganha. */ ?>
     <div class="dica" style="margin-top:12px">
-      Clique no nome pra votar — <b>o voto não muda depois</b>.
+      Clique no nome pra votar — <b>o voto não muda depois</b>, e <b>ninguém vê o
+      placar até a rodada ser apurada</b>.
       <b>Esta fase ainda não paga FBA Points</b>: eles começam nas oitavas de
       final, e a sequência começa a contar lá. O voto de agora decide quem
       chega lá.

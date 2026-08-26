@@ -406,9 +406,30 @@ function copaChave(PDO $pdo, int $torneioId, int $userId = 0): array
     $out = [];
     foreach ($confrontos as $c) {
         $id = (int)$c['id'];
-        $c['votos_a']  = $votos[$id][(int)$c['a_id']] ?? 0;
-        $c['votos_b']  = $c['b_id'] ? ($votos[$id][(int)$c['b_id']] ?? 0) : 0;
         $c['meu_voto'] = $meu[$id] ?? null;
+
+        /* O PLACAR SÓ EXISTE DEPOIS QUE O CONFRONTO ACABA.
+           Enquanto não há vencedor, os votos saem daqui ZERADOS e com
+           'placar_oculto' ligado — e é aqui, na fonte, porque a chave
+           alimenta a página e o bot: escondido só numa das duas, bastava
+           pedir /vercopa pra ver o que a página não mostrava.
+
+           Ver o parcial estragava a votação de duas maneiras. A primeira o
+           código já admitia no comentário do copaVotar: com o placar ao
+           vivo, dava pra votar cedo e trocar pro líder — e a solução foi
+           proibir a troca, que trata o sintoma. A segunda continuava de pé:
+           quem vota depois vê a manada e acompanha, então a copa deixa de
+           medir quem lê melhor e passa a medir quem chega por último.
+
+           Quem já votou continua vendo o PRÓPRIO voto (meu_voto acima): isso
+           não conta nada sobre os outros, e sem ele a pessoa não lembra se
+           chegou a votar naquele confronto. */
+        $c['placar_oculto'] = empty($c['vencedor_id']);
+        $c['votos_a'] = $c['placar_oculto'] ? 0 : ($votos[$id][(int)$c['a_id']] ?? 0);
+        $c['votos_b'] = ($c['placar_oculto'] || !$c['b_id'])
+            ? 0
+            : ($votos[$id][(int)$c['b_id']] ?? 0);
+
         $out[(int)$c['rodada']][] = $c;
     }
     return $out;
@@ -770,21 +791,25 @@ function copaTextoAgora(PDO $pdo, ?int $torneioId = null): string
     foreach ($chave[$rod] ?? [] as $c) {
         if ($c['vencedor_id']) { $l[] = copaLinhaConfronto($c, $comps); continue; }
         $abertos++;
-        $va = (int)$c['votos_a'];
-        $vb = (int)$c['votos_b'];
         $na = $comps[(int)$c['a_id']]['nome'] ?? '—';
         $nb = $comps[(int)$c['b_id']]['nome'] ?? '—';
-        // Quem está na frente vai em negrito. Empate não destaca ninguém —
-        // marcar um dos dois inventaria uma vantagem que não existe.
-        if ($va > $vb)      $l[] = "▪️ *{$na}* {$va} x {$vb} {$nb}";
-        elseif ($vb > $va)  $l[] = "▪️ {$na} {$va} x {$vb} *{$nb}*";
-        else                $l[] = "▪️ {$na} {$va} x {$vb} {$nb} _(empatado)_";
+        // SEM PLACAR enquanto o confronto está de pé. Antes saía o parcial
+        // com o líder em negrito, e era o mesmo problema da página: quem
+        // pedia /vercopa antes de votar já sabia pra onde a manada estava
+        // indo. Agora os dois nomes saem iguais, e quem passou aparece só na
+        // apuração.
+        $l[] = "▪️ {$na} x {$nb}";
     }
 
     $l[] = '';
-    $l[] = $abertos && !empty($t['votacao'])
-        ? "_{$abertos} confronto(s) em aberto. Vote no site!_"
-        : '_Aguardando o próximo passo da organização._';
+    if ($abertos) {
+        $l[] = !empty($t['votacao'])
+            ? "_{$abertos} confronto(s) em aberto. Vote no site!_"
+            : '_Aguardando o próximo passo da organização._';
+        $l[] = '_Os votos aparecem quando a rodada for apurada._';
+    } else {
+        $l[] = '_Aguardando o próximo passo da organização._';
+    }
 
     return implode("\n", $l);
 }
