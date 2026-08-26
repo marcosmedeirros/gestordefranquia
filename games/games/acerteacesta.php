@@ -230,6 +230,138 @@ function cestaPagarMarcos(PDO $pdo, int $userId, int $totalAntes, int $totalDepo
     return $ganhos;
 }
 
+/**
+ * Os dados do painel de ranking — melhores marcas, corrida dos 5 mil e quem já
+ * tomou cada marco. Ponto único porque a carga inicial da página e o refresh
+ * automático (ação 'ranking', mais abaixo) precisam exatamente da mesma coisa.
+ */
+function acRankingDados(PDO $pdo, int $userId): array
+{
+    $recorde = 0; $ranking = []; $rankingTotal = []; $meuTotal = 0; $meuProximo = null; $donosDoMarco = [];
+    try {
+        $st = $pdo->prepare('SELECT MAX(pontuacao) FROM acerteacesta_historico WHERE id_usuario = ?');
+        $st->execute([$userId]);
+        $recorde = (int)$st->fetchColumn();
+
+        $st = $pdo->prepare("SELECT u.nome, MAX(h.pontuacao) AS recorde
+                               FROM acerteacesta_historico h
+                               JOIN games_usuarios u ON u.id = h.id_usuario
+                              WHERE LOWER(u.email) <> ?
+                           GROUP BY h.id_usuario, u.nome
+                           ORDER BY recorde DESC, u.nome LIMIT 5");
+        $st->execute(['medeirros99@gmail.com']);
+        $ranking = $st->fetchAll(PDO::FETCH_ASSOC);
+
+        // O segundo ranking é por SOMA, não por recorde: é ele que decide a corrida
+        // dos marcos, e uma corrida em que ninguém vê a posição de ninguém não é
+        // corrida. São dois jeitos de ser bom — a melhor partida e o total da vida.
+        $st = $pdo->prepare("SELECT u.nome, SUM(h.pontuacao) AS total
+                               FROM acerteacesta_historico h
+                               JOIN games_usuarios u ON u.id = h.id_usuario
+                              WHERE LOWER(u.email) <> ?
+                           GROUP BY h.id_usuario, u.nome
+                           ORDER BY total DESC, u.nome LIMIT 5");
+        $st->execute(['medeirros99@gmail.com']);
+        $rankingTotal = $st->fetchAll(PDO::FETCH_ASSOC);
+
+        $st = $pdo->prepare('SELECT COALESCE(SUM(pontuacao),0) FROM acerteacesta_historico WHERE id_usuario = ?');
+        $st->execute([$userId]);
+        $meuTotal = (int)$st->fetchColumn();
+        $meuProximo = cestaProximoMarco($meuTotal);
+
+        // Quem já levou cada marco, pra tela mostrar as linhas que ainda estão em
+        // aberto — a corrida só vale se dá pra ver o que ainda não foi tomado.
+        $st = $pdo->query("SELECT m.marco, u.nome
+                             FROM acerteacesta_marcos m
+                             JOIN games_usuarios u ON u.id = m.id_usuario
+                            WHERE m.primeiro = 1
+                         ORDER BY m.marco");
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $donosDoMarco[(int)$r['marco']] = $r['nome'];
+    } catch (PDOException $e) {
+        // Ranking é enfeite: se falhar, o jogo continua de pé.
+    }
+    return compact('recorde', 'ranking', 'rankingTotal', 'meuTotal', 'meuProximo', 'donosDoMarco');
+}
+
+/** O HTML do painel de ranking, a partir do que acRankingDados() devolveu. */
+function acRankingHtml(array $d): string
+{
+    extract($d);
+    ob_start();
+    ?>
+    <?php if ($ranking): ?>
+    <div class="mt-3 pt-3" style="border-top:1px solid var(--border)">
+        <div class="stat-label mb-2"><i class="bi bi-trophy-fill" style="color:#f5c542"></i> Melhores marcas</div>
+        <?php foreach ($ranking as $i => $r): ?>
+        <div class="d-flex justify-content-between align-items-center small py-1">
+            <span class="text-secondary text-truncate" style="max-width:70%">
+                <b style="color:<?= $i === 0 ? '#f5c542' : 'var(--text-2, #8b8b95)' ?>"><?= $i + 1 ?>º</b>
+                <?= htmlspecialchars($r['nome']) ?>
+            </span>
+            <b><?= (int)$r['recorde'] ?></b>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
+    <?php /* A corrida dos 5 mil. Fica abaixo do ranking de melhor
+             partida porque é o objetivo LONGO: a melhor marca sai
+             numa tarde de sorte, o total é de quem volta. */ ?>
+    <div class="mt-3 pt-3" style="border-top:1px solid var(--border)">
+        <div class="stat-label mb-2"><i class="bi bi-flag-fill" style="color:#f43f5e"></i> Corrida dos 5 mil</div>
+
+        <div class="small text-secondary mb-2" style="line-height:1.5">
+            A cada <b>5.000 cestas somadas</b>, quem chega <b>primeiro</b> leva
+            <b><?= CESTA_PREMIO_PRIMEIRO ?> moedas</b> e os demais <b><?= CESTA_PREMIO_DEMAIS ?></b>.
+            O primeiro a bater <b>50.000</b> leva ainda <b><?= CESTA_FBA_FINAL ?> FBA Points</b>.
+        </div>
+
+        <div class="small py-1" style="border-top:1px solid var(--border);padding-top:8px">
+            <div class="d-flex justify-content-between">
+                <span class="text-secondary">Seu total</span>
+                <b><?= number_format($meuTotal, 0, ',', '.') ?></b>
+            </div>
+            <?php if ($meuProximo): ?>
+            <div class="d-flex justify-content-between mt-1">
+                <span class="text-secondary">Faltam pro marco de <?= number_format($meuProximo['marco'], 0, ',', '.') ?></span>
+                <b style="color:#f5c542"><?= number_format($meuProximo['faltam'], 0, ',', '.') ?></b>
+            </div>
+            <?php else: ?>
+            <div class="mt-1" style="color:#22c55e">Você fechou a corrida inteira.</div>
+            <?php endif; ?>
+        </div>
+
+        <?php if ($rankingTotal): ?>
+        <div class="mt-2 pt-2" style="border-top:1px solid var(--border)">
+            <div class="stat-label mb-1">Total de cestas</div>
+            <?php foreach ($rankingTotal as $i => $r): ?>
+            <div class="d-flex justify-content-between align-items-center small py-1">
+                <span class="text-secondary text-truncate" style="max-width:70%">
+                    <b style="color:<?= $i === 0 ? '#f5c542' : 'var(--text-2, #8b8b95)' ?>"><?= $i + 1 ?>º</b>
+                    <?= htmlspecialchars($r['nome']) ?>
+                </span>
+                <b><?= number_format((int)$r['total'], 0, ',', '.') ?></b>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($donosDoMarco): ?>
+        <div class="mt-2 pt-2" style="border-top:1px solid var(--border)">
+            <div class="stat-label mb-1">Marcos já tomados</div>
+            <?php foreach ($donosDoMarco as $marco => $quem): ?>
+            <div class="d-flex justify-content-between align-items-center small py-1">
+                <span class="text-secondary"><?= number_format($marco, 0, ',', '.') ?></span>
+                <span class="text-truncate" style="max-width:60%"><?= htmlspecialchars($quem) ?></span>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+
 // ── Ações do jogo ────────────────────────────────────────────────────────────
 // Mesmo desenho do Flappy: o servidor abre a partida, acompanha o progresso e
 // só ele paga. O cliente nunca diz quanto ganhou.
@@ -368,6 +500,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao'])) {
             exit;
         }
 
+        // Painel de ranking, pra tela atualizar sozinha sem recarregar. Ação
+        // sem efeito nenhum no jogo — só leitura, então nem passa por $validar.
+        if ($_POST['acao'] === 'ranking') {
+            echo json_encode(['sucesso' => true, 'html' => acRankingHtml(acRankingDados($pdo, $userId))]);
+            exit;
+        }
+
         echo json_encode(['erro' => 'Ação desconhecida.']);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -391,55 +530,9 @@ try {
 }
 
 // O recorde vinha de uma variável do navegador: recarregou a página, zerou.
-$recorde = 0;
-$ranking = [];
-$rankingTotal = [];
-$meuTotal = 0;
-$meuProximo = null;
-$donosDoMarco = [];
-try {
-    $st = $pdo->prepare('SELECT MAX(pontuacao) FROM acerteacesta_historico WHERE id_usuario = ?');
-    $st->execute([$userId]);
-    $recorde = (int)$st->fetchColumn();
-
-    $st = $pdo->prepare("SELECT u.nome, MAX(h.pontuacao) AS recorde
-                           FROM acerteacesta_historico h
-                           JOIN games_usuarios u ON u.id = h.id_usuario
-                          WHERE LOWER(u.email) <> ?
-                       GROUP BY h.id_usuario, u.nome
-                       ORDER BY recorde DESC, u.nome LIMIT 5");
-    $st->execute(['medeirros99@gmail.com']);
-    $ranking = $st->fetchAll(PDO::FETCH_ASSOC);
-
-    // O segundo ranking é por SOMA, não por recorde: é ele que decide a corrida
-    // dos marcos, e uma corrida em que ninguém vê a posição de ninguém não é
-    // corrida. São dois jeitos de ser bom — a melhor partida e o total da vida.
-    $st = $pdo->prepare("SELECT u.nome, SUM(h.pontuacao) AS total
-                           FROM acerteacesta_historico h
-                           JOIN games_usuarios u ON u.id = h.id_usuario
-                          WHERE LOWER(u.email) <> ?
-                       GROUP BY h.id_usuario, u.nome
-                       ORDER BY total DESC, u.nome LIMIT 5");
-    $st->execute(['medeirros99@gmail.com']);
-    $rankingTotal = $st->fetchAll(PDO::FETCH_ASSOC);
-
-    $st = $pdo->prepare('SELECT COALESCE(SUM(pontuacao),0) FROM acerteacesta_historico WHERE id_usuario = ?');
-    $st->execute([$userId]);
-    $meuTotal = (int)$st->fetchColumn();
-    $meuProximo = cestaProximoMarco($meuTotal);
-
-    // Quem já levou cada marco, pra tela mostrar as linhas que ainda estão em
-    // aberto — a corrida só vale se dá pra ver o que ainda não foi tomado.
-    $st = $pdo->query("SELECT m.marco, u.nome
-                         FROM acerteacesta_marcos m
-                         JOIN games_usuarios u ON u.id = m.id_usuario
-                        WHERE m.primeiro = 1
-                     ORDER BY m.marco");
-    $donosDoMarco = [];
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $donosDoMarco[(int)$r['marco']] = $r['nome'];
-} catch (PDOException $e) {
-    // Ranking é enfeite: se falhar, o jogo continua de pé.
-}
+// acRankingDados()/acRankingHtml() são o mesmo ponto único que a ação
+// 'ranking' usa pro refresh automático — ver mais acima no arquivo.
+extract(acRankingDados($pdo, $userId));
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -634,6 +727,25 @@ try {
         .overlay-card { background: #13141b; padding: 26px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 12px 30px rgba(0,0,0,0.45); min-width: 280px; }
 
         .tag { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--border); font-weight: 700; color: #fff; }
+
+        .hero-img { max-height: 160px; flex-shrink: 0; filter: drop-shadow(0 16px 28px rgba(0,0,0,0.4)); }
+
+        /* Sem isto o cabeçalho vinha em duas ou três linhas no celular — a
+           marca, o subtítulo do jogo e o "Voltar" competindo pela mesma
+           largura e quebrando cada um a seu tempo, o que deixava a barra alta
+           demais. Aqui ela fica compacta numa linha só: o subtítulo some (a
+           marca "FBA games" já basta), a ficha de moedas encolhe, e o
+           "Voltar" vira só a seta. A foto do LeBron na hero também encolhe —
+           "de lado" só funciona pequena o bastante pra caber ao lado do
+           texto sem quebrar linha. */
+        @media (max-width: 576px) {
+            .navbar-custom { padding: 10px 12px; }
+            .navbar-subtitle { display: none; }
+            .saldo-badge { padding: 6px 10px; font-size: 0.85rem; }
+            .navbar-voltar span { display: none; }
+            .hero { padding: 14px; }
+            .hero-img { max-height: 64px; }
+        }
     </style>
 </head>
 <body>
@@ -641,12 +753,12 @@ try {
 <div class="navbar-custom d-flex justify-content-between align-items-center sticky-top">
     <div class="d-flex align-items-center gap-3">
         <a class="brand-name" href="/games.php">🎮 FBA games</a>
-        <span class="text-secondary small">🏀 O Lance Livre Infinito</span>
+        <span class="text-secondary small navbar-subtitle">🏀 O Lance Livre Infinito</span>
     </div>
     <div class="d-flex align-items-center gap-2">
         <span class="text-secondary d-none d-md-inline">Olá, <strong class="text-white"><?= htmlspecialchars($usuario['nome']) ?></strong></span>
         <span class="saldo-badge" id="saldoDisplay"><img src="../moeda.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle"> <?= number_format($usuario['pontos'], 0, ',', '.') ?> pts</span>
-        <a href="/games.php" class="btn btn-outline-secondary btn-sm border-0"><i class="bi bi-arrow-left"></i> Voltar</a>
+        <a href="/games.php" class="btn btn-outline-secondary btn-sm border-0 navbar-voltar"><i class="bi bi-arrow-left"></i> <span>Voltar</span></a>
     </div>
 </div>
 
@@ -658,7 +770,7 @@ try {
                 <h2 class="mb-1">O Lance Livre Infinito</h2>
                 <p class="mb-0 text-secondary">Acerte o marcador no verde. Cada cesta aumenta a velocidade. Duas vidas apenas.</p>
             </div>
-            <img src="/games/lebron.png" alt="Jogador" class="img-fluid" style="max-height: 160px; filter: drop-shadow(0 16px 28px rgba(0,0,0,0.4));">
+            <img src="/games/lebron.png" alt="Jogador" class="img-fluid hero-img">
         </div>
     </div>
 
@@ -748,75 +860,11 @@ try {
                     </ul>
                 </div>
 
-                <?php if ($ranking): ?>
-                <div class="mt-3 pt-3" style="border-top:1px solid var(--border)">
-                    <div class="stat-label mb-2"><i class="bi bi-trophy-fill" style="color:#f5c542"></i> Melhores marcas</div>
-                    <?php foreach ($ranking as $i => $r): ?>
-                    <div class="d-flex justify-content-between align-items-center small py-1">
-                        <span class="text-secondary text-truncate" style="max-width:70%">
-                            <b style="color:<?= $i === 0 ? '#f5c542' : 'var(--text-2, #8b8b95)' ?>"><?= $i + 1 ?>º</b>
-                            <?= htmlspecialchars($r['nome']) ?>
-                        </span>
-                        <b><?= (int)$r['recorde'] ?></b>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-                <?php endif; ?>
-
-                <?php /* A corrida dos 5 mil. Fica abaixo do ranking de melhor
-                         partida porque é o objetivo LONGO: a melhor marca sai
-                         numa tarde de sorte, o total é de quem volta. */ ?>
-                <div class="mt-3 pt-3" style="border-top:1px solid var(--border)">
-                    <div class="stat-label mb-2"><i class="bi bi-flag-fill" style="color:#f43f5e"></i> Corrida dos 5 mil</div>
-
-                    <div class="small text-secondary mb-2" style="line-height:1.5">
-                        A cada <b>5.000 cestas somadas</b>, quem chega <b>primeiro</b> leva
-                        <b><?= CESTA_PREMIO_PRIMEIRO ?> moedas</b> e os demais <b><?= CESTA_PREMIO_DEMAIS ?></b>.
-                        O primeiro a bater <b>50.000</b> leva ainda <b><?= CESTA_FBA_FINAL ?> FBA Points</b>.
-                    </div>
-
-                    <div class="small py-1" style="border-top:1px solid var(--border);padding-top:8px">
-                        <div class="d-flex justify-content-between">
-                            <span class="text-secondary">Seu total</span>
-                            <b><?= number_format($meuTotal, 0, ',', '.') ?></b>
-                        </div>
-                        <?php if ($meuProximo): ?>
-                        <div class="d-flex justify-content-between mt-1">
-                            <span class="text-secondary">Faltam pro marco de <?= number_format($meuProximo['marco'], 0, ',', '.') ?></span>
-                            <b style="color:#f5c542"><?= number_format($meuProximo['faltam'], 0, ',', '.') ?></b>
-                        </div>
-                        <?php else: ?>
-                        <div class="mt-1" style="color:#22c55e">Você fechou a corrida inteira.</div>
-                        <?php endif; ?>
-                    </div>
-
-                    <?php if ($rankingTotal): ?>
-                    <div class="mt-2 pt-2" style="border-top:1px solid var(--border)">
-                        <div class="stat-label mb-1">Total de cestas</div>
-                        <?php foreach ($rankingTotal as $i => $r): ?>
-                        <div class="d-flex justify-content-between align-items-center small py-1">
-                            <span class="text-secondary text-truncate" style="max-width:70%">
-                                <b style="color:<?= $i === 0 ? '#f5c542' : 'var(--text-2, #8b8b95)' ?>"><?= $i + 1 ?>º</b>
-                                <?= htmlspecialchars($r['nome']) ?>
-                            </span>
-                            <b><?= number_format((int)$r['total'], 0, ',', '.') ?></b>
-                        </div>
-                        <?php endforeach; ?>
-                    </div>
-                    <?php endif; ?>
-
-                    <?php if ($donosDoMarco): ?>
-                    <div class="mt-2 pt-2" style="border-top:1px solid var(--border)">
-                        <div class="stat-label mb-1">Marcos já tomados</div>
-                        <?php foreach ($donosDoMarco as $marco => $quem): ?>
-                        <div class="d-flex justify-content-between align-items-center small py-1">
-                            <span class="text-secondary"><?= number_format($marco, 0, ',', '.') ?></span>
-                            <span class="text-truncate" style="max-width:60%"><?= htmlspecialchars($quem) ?></span>
-                        </div>
-                        <?php endforeach; ?>
-                    </div>
-                    <?php endif; ?>
-                </div>
+                <?php /* Painel de ranking: melhores marcas + corrida dos 5 mil.
+                         acRankingHtml() é o mesmo ponto único que a ação
+                         'ranking' usa — ver setInterval mais abaixo, no script,
+                         que troca o innerHTML daqui pra atualizar sozinho. */ ?>
+                <div id="rankingPainel"><?= acRankingHtml(compact('ranking', 'rankingTotal', 'meuTotal', 'meuProximo', 'donosDoMarco')) ?></div>
             </div>
         </div>
     </div>
@@ -1186,6 +1234,21 @@ try {
     updateSpeed();
     updateSweet();
     overlay.classList.add('active');
+
+    // Ranking atualiza sozinho — antes só mudava dando F5 na página. Troca só
+    // o innerHTML do painel; o jogo em si não é afetado.
+    const rankingPainel = document.getElementById('rankingPainel');
+    async function atualizarRanking() {
+        if (!rankingPainel) return;
+        try {
+            const fd = new FormData();
+            fd.append('acao', 'ranking');
+            const r = await fetch(location.pathname, { method: 'POST', body: fd });
+            const d = await r.json();
+            if (d && d.sucesso && typeof d.html === 'string') rankingPainel.innerHTML = d.html;
+        } catch (e) { /* falha aqui não pode atrapalhar o jogo */ }
+    }
+    setInterval(atualizarRanking, 20000);
 })();
 </script>
 </body>
